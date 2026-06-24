@@ -17,6 +17,7 @@
 import contextlib
 import copy
 from etils import epath
+import os
 import pickle
 import sys
 
@@ -510,6 +511,54 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     self.data.qpos[0] = float('NaN')
     mujoco.mj_checkPos(self.model, self.data)
     self.assertEqual(warnings[mujoco.mjtWarning.mjWARN_BADQPOS].number, 1)
+
+  def test_mju_user_warning_callback_receives_warnings(self):
+    """Regression test: C warnings must reach Python mju_user_warning callbacks.
+
+    The unified logging API routes all messages through a TLS log handler.
+    This test verifies that non-error messages are forwarded to the global
+    handler chain, where legacy mju_user_warning callbacks are invoked.
+    """
+    warning_messages = []
+    def warning_cb(msg):
+      warning_messages.append(msg)
+    old_cb = mujoco.get_mju_user_warning()
+    try:
+      mujoco.set_mju_user_warning(warning_cb)
+      # Trigger a C-level warning by setting qpos to NaN and calling mj_step.
+      model = mujoco.MjModel.from_xml_string(TEST_XML)
+      data = mujoco.MjData(model)
+      data.qpos[0] = float('NaN')
+      mujoco.mj_checkPos(model, data)
+      self.assertNotEmpty(warning_messages)
+      # The warning message should mention the bad QPOS value.
+      self.assertTrue(
+          any('QPOS' in msg for msg in warning_messages), warning_messages
+      )
+    finally:
+      mujoco.set_mju_user_warning(old_cb)
+
+  def test_mjtopic_time_cmp_logs_compile_time(self):
+    """Verifies MjLogConfig.get/set and info topic logging."""
+    old_cfg = mujoco.MjLogConfig.get()
+    log_path = os.path.join(
+        absltest.get_default_test_tmpdir(), 'test_compile.log'
+    )
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    try:
+      cfg = mujoco.MjLogConfig.get()
+      cfg.logto_file = True
+      cfg.logfile = log_path
+      cfg.topics |= (1 << (mujoco.mjtLogTopic.mjTOPIC_TIME_CMP - 1))
+      cfg.set()
+
+      mujoco.MjModel.from_xml_string(TEST_XML)
+
+      with open(log_path, 'r') as f:
+        output = f.read()
+      self.assertIn('compile time', output)
+    finally:
+      old_cfg.set()
 
   def test_mjcontact_can_copy(self):
     mujoco.mj_forward(self.model, self.data)

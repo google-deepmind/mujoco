@@ -22,6 +22,7 @@
 
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmacro.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,52 +37,6 @@ extern "C" {
 #endif  // mjPRINTFLIKE
 
 
-//------------------------------ user handlers -----------------------------------------------------
-
-MJAPI extern void (*mju_user_error)(const char*);
-MJAPI extern void (*mju_user_warning)(const char*);
-MJAPI extern void* (*mju_user_malloc)(size_t);
-MJAPI extern void (*mju_user_free)(void*);
-
-// clear user handlers; restore default processing
-MJAPI void mju_clearHandlers(void);
-
-// gets/sets thread-local error/warning handlers for internal use
-MJAPI void (*_mjPRIVATE__get_tls_error_fn(void))(const char*);
-MJAPI void _mjPRIVATE__set_tls_error_fn(void (*h)(const char*));
-MJAPI void (*_mjPRIVATE__get_tls_warning_fn(void))(const char*);
-MJAPI void _mjPRIVATE__set_tls_warning_fn(void (*h)(const char*));
-
-//------------------------------ errors and warnings -----------------------------------------------
-
-// errors
-MJAPI void mju_error_raw(const char* msg);
-MJAPI void mju_error(const char* msg, ...) mjPRINTFLIKE(1, 2);
-MJAPI void mju_error_v(const char* msg, va_list args);
-MJAPI void mju_error_i(const char* msg, int i);
-MJAPI void mju_error_s(const char* msg, const char* text);
-
-// warnings
-MJAPI void mju_warning(const char* msg, ...) mjPRINTFLIKE(1, 2);
-MJAPI void mju_warning_i(const char* msg, int i);
-MJAPI void mju_warning_s(const char* msg, const char* text);
-
-// write [datetime, type: message] to MUJOCO_LOG.TXT
-MJAPI void mju_writeLog(const char* type, const char* msg);
-
-//------------------------------ internal error macros --------------------------------------------
-
-// internal macro to prepend the calling function name to the error message
-#pragma warning(disable : 4996)  // needed to use strncpy with Visual Studio
-#define mjERROR(...)                                                          \
-{                                                                             \
-  char _errbuf[1024];                                                         \
-  size_t _funclen = strlen(__func__);                                         \
-  strncpy(_errbuf, __func__, sizeof(_errbuf));                                \
-  snprintf(_errbuf + _funclen, sizeof(_errbuf) - _funclen, ": " __VA_ARGS__); \
-  mju_error_raw(_errbuf);                                                     \
-}
-
 //------------------------------ malloc and free ---------------------------------------------------
 
 // allocate memory; byte-align on 8; pad size to multiple of 8
@@ -89,6 +44,94 @@ MJAPI void* mju_malloc(size_t size);
 
 // free memory with free() by default
 MJAPI void mju_free(void* ptr);
+
+// user memory handlers
+MJAPI extern void* (*mju_user_malloc)(size_t);
+MJAPI extern void (*mju_user_free)(void*);
+
+
+//------------------------------ logging configuration and handlers --------------------------------
+
+// set the active log handler, return the previous handler
+// if handler is NULL, restore the default handler
+MJAPI mjfLogHandler mju_setLogHandler(mjfLogHandler handler);
+
+// set/get default handler configuration
+MJAPI mjLogConfig mju_getLogConfig(void);
+MJAPI void mju_setLogConfig(mjLogConfig config);
+
+// clear user handlers; restore default processing
+MJAPI void mju_clearHandlers(void);
+
+// legacy error/warning handlers (deprecated: prefer mju_setLogHandler)
+MJAPI extern void (*mju_user_error)(const char*);
+MJAPI extern void (*mju_user_warning)(const char*);
+
+
+//------------------------------ public message logging --------------------------------------------
+
+// log a fatal error message, write to logfile and console, pause and exit
+MJAPI void mju_error(const char* msg, ...) mjPRINTFLIKE(1, 2);
+MJAPI void mju_error_v(const char* msg, va_list args);
+
+// log a warning message, write to logfile and console
+MJAPI void mju_warning(const char* msg, ...) mjPRINTFLIKE(1, 2);
+
+// log an info message with optional topic filtering
+MJAPI void mju_info(int topic, const char* msg, ...) mjPRINTFLIKE(2, 3);
+
+// dispatch a structured log message to the active handler
+MJAPI void mju_message(const mjLogMessage* msg);
+
+// (deprecated) write [datetime, type: message] to MUJOCO_LOG.TXT
+MJAPI void mju_writeLog(const char* type, const char* msg);
+
+
+//------------------------------ internal helpers and macros ---------------------------------------
+
+// set thread-local log handler; return previous thread-local handler
+MJAPI mjfLogHandler _mjPRIVATE_setTlsLogHandler(mjfLogHandler handler);
+
+// get the currently active global log handler (read-only, no modification)
+MJAPI mjfLogHandler _mjPRIVATE_getGlobalLogHandler(void);
+
+// check whether an info topic is enabled
+MJAPI mjtBool mju_isTopicEnabled(int topic);
+
+// strip directory from __FILE__ (cross-platform)
+static inline const char* BaseName(const char* path) {
+  const char* slash = strrchr(path, '/');
+  const char* bslash = strrchr(path, '\\');
+  if (slash && bslash) return (slash > bslash ? slash : bslash) + 1;
+  if (slash) return slash + 1;
+  if (bslash) return bslash + 1;
+  return path;
+}
+
+// internal macro to emit a structured error with source location
+#define mjERROR(...)                                           \
+  {                                                            \
+    mjLogMessage _msg = {.level = mjLOG_ERROR,                 \
+                         .func = __func__,                     \
+                         .file = __FILE__,                     \
+                         .line = __LINE__};                    \
+    snprintf(_msg.subject, sizeof(_msg.subject), __VA_ARGS__); \
+    mju_message(&_msg);                                        \
+  }
+
+// internal macro to emit a structured debug trace with fast producer-side topic filtering
+#ifndef MJ_DISABLE_DEBUG_TRACING
+#define mjDEBUG(_topic, ...)                                   \
+  if (mju_isTopicEnabled(_topic)) {                            \
+    mjLogMessage _msg = {.level = mjLOG_DEBUG,                 \
+                         .topic = _topic,                      \
+                         .func = __func__};                    \
+    snprintf(_msg.subject, sizeof(_msg.subject), __VA_ARGS__); \
+    mju_message(&_msg);                                        \
+  }
+#else
+#define mjDEBUG(_topic, ...) ((void)0)
+#endif
 
 #ifdef __cplusplus
 }

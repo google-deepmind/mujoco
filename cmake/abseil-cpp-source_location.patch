@@ -1,0 +1,23 @@
+diff --git a/absl/base/options.h b/absl/base/options.h
+--- a/absl/base/options.h
++++ b/absl/base/options.h
+@@ -99,6 +99,6 @@
+ // the source location type is an alias of std::source_location type, use the
+ // feature macro ABSL_USES_STD_SOURCE_LOCATION.
+ //
+-#define ABSL_OPTION_USE_STD_SOURCE_LOCATION 2
++#define ABSL_OPTION_USE_STD_SOURCE_LOCATION 0
+ 
+ // ABSL_OPTION_USE_STD_ORDERING
+diff --git a/absl/base/config.h b/absl/base/config.h
+--- a/absl/base/config.h
++++ b/absl/base/config.h
+@@ -543,5 +543,7 @@
+ #ifdef __has_include
+ #if __has_include(<source_location>)
+-#define ABSL_HAVE_STD_SOURCE_LOCATION 1
++#if !defined(__clang__) || ABSL_HAVE_BUILTIN(__builtin_source_location)
++#define ABSL_HAVE_STD_SOURCE_LOCATION 1
++#endif
+ #endif
+ #else

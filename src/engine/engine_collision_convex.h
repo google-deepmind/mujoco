@@ -114,11 +114,11 @@ int mjc_ConvexHField(const mjModel* m, mjData* d, mjPreContact* con, int g1, int
 MJAPI int mjc_Convex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin);
 
 // geom-elem or elem-elem or vert-elem collision function using ccd
-int mjc_ConvexElem(const mjModel* m, mjData* d, mjContact* con, int g1, int f1, int e1, int v1,
+int mjc_ConvexElem(const mjModel* m, mjData* d, mjPreContact* con, int g1, int f1, int e1, int v1,
                    int f2, int e2, mjtNum margin);
 
 // heightfield-elem collision function using ccd
-int mjc_HFieldElem(const mjModel* m, mjData* d, mjContact* con, int g, int f, int e,
+int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f, int e,
                    mjtNum margin);
 
 // fix contact frame normal

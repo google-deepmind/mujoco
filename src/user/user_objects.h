@@ -83,7 +83,6 @@ class [[nodiscard]] mjCError {
            int pos2 = 0);
 
   char message[500];              // error message
-  bool warning;                   // is this a warning instead of error
 };
 
 // alternative specifications of frame orientation
@@ -172,7 +171,7 @@ struct mjCBoundingVolumeHierarchy_ {
 class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
  public:
   // make bounding volume hierarchy
-  void CreateBVH();
+  void CreateBVH(mjCModel* model, const mjCBase* owner);
   void Set(double ipos_element[3], double iquat_element[4]);
   void AllocateBoundingVolumes(int nleaf);
   void RemoveInactiveVolumes(int nmax);
@@ -210,7 +209,8 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
   };
   void Make(std::vector<BVElement>& elements);
   int MakeBVH(std::vector<BVElement>::iterator elements_begin,
-              std::vector<BVElement>::iterator elements_end, int lev = 0);
+              std::vector<BVElement>::iterator elements_end, int lev,
+              mjCModel* model, const mjCBase* owner);
 };
 
 

@@ -70,9 +70,10 @@ static void InitImGui(SDL_Window* window, float content_scale,
     ImFontConfig main_cfg;
     main_cfg.FontDataOwnedByAtlas = false;
     font =
-        mju_openResource("", "font:OpenSans-Regular.ttf", nullptr, nullptr, 0);
+        mju_openResource("", "font:AtkinsonHyperlegibleNext[wght].ttf",
+                         nullptr, nullptr, 0);
     size = mju_readResource(font, const_cast<const void**>(&data));
-    io.Fonts->AddFontFromMemoryTTF(data, size, 20.f, &main_cfg);
+    io.Fonts->AddFontFromMemoryTTF(data, size, 16.f, &main_cfg);
 
     ImFontConfig icon_cfg;
     icon_cfg.FontDataOwnedByAtlas = false;
@@ -81,7 +82,7 @@ static void InitImGui(SDL_Window* window, float content_scale,
                             nullptr, 0);
     size = mju_readResource(font, const_cast<const void**>(&data));
     constexpr ImWchar icon_ranges[] = {0xf000, 0xf3ff, 0x000};
-    io.Fonts->AddFontFromMemoryTTF(data, size, 14.f, &icon_cfg, icon_ranges);
+    io.Fonts->AddFontFromMemoryTTF(data, size, 13.f, &icon_cfg, icon_ranges);
 
     // Note: we purposefully do not "close" the font resources as ImGui may
     // need them again to resize fonts.

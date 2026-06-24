@@ -19,11 +19,12 @@
 #include <cstring>
 #include <memory>
 
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/compat/model_objects.h"
-#include "experimental/filament/render_context_filament.h"
-#include "experimental/filament/render_context_filament_cpp.h"
+#include "experimental/filament/compat/scene_objects.h"
+#include "render/filament/mjrfilament_cpp.h"
+#include "render/filament/support/model_objects.h"
 
 namespace mujoco {
 
@@ -40,8 +41,9 @@ static float GetPlaneTileSize(const mjModel* model, int matid,
   }
 }
 
-static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
-                              ModelObjects* model_objs) {
+static void PrepareGeomMeshes(mjrfRenderable* renderable, const mjvGeom& geom,
+                              ModelObjects* model_objs,
+                              SceneObjects* scene_objs) {
   const mjModel* model = model_objs->GetModel();
   const int nstack = model->vis.quality.numstacks;
   const int nslice = model->vis.quality.numslices;
@@ -113,7 +115,7 @@ static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
       mjrf_setRenderableSize(renderable, geom.size);
       break;
     case mjGEOM_FLEX:
-      mjrf_setRenderableMesh(renderable, model_objs->GetFlexMesh(geom.objid), 0, 0);
+      mjrf_setRenderableMesh(renderable, scene_objs->GetFlexMesh(geom.objid), 0, 0);
       // Flexes are defined in global space.
       std::memset(position, 0, sizeof(position));
       std::memset(rotation, 0, sizeof(rotation));
@@ -122,7 +124,7 @@ static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
       rotation[8] = 1.f;
       break;
     case mjGEOM_SKIN:
-      mjrf_setRenderableMesh(renderable, model_objs->GetSkinMesh(geom.objid), 0, 0);
+      mjrf_setRenderableMesh(renderable, scene_objs->GetSkinMesh(geom.objid), 0, 0);
       // Skins are defined in global space.
       std::memset(position, 0, sizeof(position));
       std::memset(rotation, 0, sizeof(rotation));
@@ -142,13 +144,12 @@ static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
   mjrf_setRenderableTransform(renderable, position, rotation);
 }
 
-static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,
-                               ModelObjects* model_objs,
-                               const mjtByte render_flags[mjNRNDFLAG]) {
+static void UpdateGeomMaterial(mjrfRenderable* renderable, const mjvGeom& geom,
+                               ModelObjects* model_objs) {
   const mjModel* model = model_objs->GetModel();
 
-  mjrMaterial material;
-  mjr_defaultMaterial(&material);
+  mjrfMaterial material;
+  mjrf_defaultMaterial(&material);
 
   if (geom.category == mjCAT_DECOR) {
     material.decor_ux = true;
@@ -159,10 +160,8 @@ static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,
   material.color[2] = geom.rgba[2];
   material.color[3] = geom.rgba[3];
 
-  mjrf_setRenderableLayerMask(renderable, geom.category);
-
   if (geom.matid >= 0 && geom.matid < model->nmat) {
-    auto get_texture = [&](int role) -> const mjrTexture* {
+    auto get_texture = [&](int role) -> const mjrfTexture* {
       const int tex_id = model->mat_texid[geom.matid * mjNTEXROLE + role];
       return tex_id >= 0 ? model_objs->GetTexture(tex_id) : nullptr;
     };
@@ -185,19 +184,12 @@ static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,
     material.roughness = model->mat_roughness[geom.matid];
   }
 
-  if (geom.segid >= 0) {
-    uint32_t segmentation_color = geom.segid + 1;
-    const bool use_segid_color = render_flags[mjRND_IDCOLOR];
-    if (!use_segid_color) {
-      constexpr double phi1 = 1.61803398874989484820;  // Cached Phi(1).
-      constexpr double coef1 = 1.0 / phi1;
-      const double index = static_cast<double>(geom.segid);
-      const double sample = std::fmod(0.5 + coef1 * index, 1.0);
-      segmentation_color = 0x01000000 * sample;
-    }
-    material.segmentation_color[0] = (segmentation_color >> 0);
-    material.segmentation_color[1] = (segmentation_color >> 8);
-    material.segmentation_color[2] = (segmentation_color >> 16);
+  material.segmentation_id = geom.segid;
+
+  // Assume an emissive object is a selected object.
+  if (geom.emission > 0 && geom.emission == model->vis.global.glow) {
+    material.selected = true;
+    material.emissive = 0.0f;
   }
 
   // UvScale only applies to objects that don't have explicit UV coordinates
@@ -278,14 +270,15 @@ static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,
   mjrf_setRenderableMaterial(renderable, &material);
 }
 
-UniquePtr<mjrRenderable> CreateGeomRenderable(
-    const mjvGeom& geom, mjrfContext* ctx, ModelObjects* model_objs,
-    const mjtByte render_flags[mjNRNDFLAG]) {
-  mjrRenderableParams params;
-  mjr_defaultRenderableParams(&params);
+UniquePtr<mjrfRenderable> CreateGeomRenderable(const mjvGeom& geom,
+                                               mjrfContext* ctx,
+                                               ModelObjects* model_objs,
+                                               SceneObjects* scene_objs) {
+  mjrfRenderableParams params;
+  mjrf_defaultRenderableParams(&params);
   auto renderable = CreateRenderable(ctx, params);
-  PrepareGeomMeshes(renderable.get(), geom, model_objs);
-  UpdateGeomMaterial(renderable.get(), geom, model_objs, render_flags);
+  PrepareGeomMeshes(renderable.get(), geom, model_objs, scene_objs);
+  UpdateGeomMaterial(renderable.get(), geom, model_objs);
   return renderable;
 }
 }  // namespace mujoco

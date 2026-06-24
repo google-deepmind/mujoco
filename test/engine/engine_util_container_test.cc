@@ -16,9 +16,9 @@
 #include <array>
 #include <cstddef>
 
-#include <mujoco/mjdata.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <mujoco/mjdata.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
 
@@ -32,10 +32,9 @@ constexpr int GetExpectedStackUsageBytes() {
   if constexpr (N <= 0) {
     return prev_size;
   } else {
-    constexpr auto RoundUpToAlignment =
-        [](int x, int alignment) {
-          return alignment * (x / alignment + ((x % alignment) ? 1 : 0));
-        };
+    constexpr auto RoundUpToAlignment = [](int x, int alignment) {
+      return alignment * (x / alignment + ((x % alignment) ? 1 : 0));
+    };
     constexpr int size_with_arraylist = RoundUpToAlignment(
         prev_size + sizeof(mjArrayList), alignof(mjArrayList));
     constexpr int size_with_buffer = RoundUpToAlignment(
@@ -45,17 +44,19 @@ constexpr int GetExpectedStackUsageBytes() {
   }
 }
 
-TEST(TestMjArrayList, TestMjArrayListSingleThreaded) {
+class TestMjArrayList : public MujocoTest {};
+
+TEST_F(TestMjArrayList, TestMjArrayListSingleThreaded) {
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString("<mujoco/>", error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error.data();
-  mjData* d = mj_makeData(m);
-  mj_markStack(d);
+  MjModelPtr m = LoadModelFromString("<mujoco/>", error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << "Failed to load model: " << error.data();
+  MjDataPtr d = MakeData(m);
+  mj_markStack(d.get());
 
   using DataType = int;
   constexpr int kInitialCapacity = 10;
   mjArrayList* array_list =
-      mju_arrayListCreate(d, sizeof(DataType), kInitialCapacity);
+      mju_arrayListCreate(d.get(), sizeof(DataType), kInitialCapacity);
 
   constexpr int kNumElements = 35;
   for (int i = 0; i < kNumElements; ++i) {
@@ -76,19 +77,17 @@ TEST(TestMjArrayList, TestMjArrayListSingleThreaded) {
   EXPECT_EQ(mju_arrayListAt(array_list, kNumElements), nullptr);
   EXPECT_EQ(mju_arrayListAt(array_list, 100), nullptr);
 
-  mj_freeStack(d);
-  mj_deleteData(d);
-  mj_deleteModel(m);
+  mj_freeStack(d.get());
 }
 
-TEST(TestMjArrayList, ZeroInitialCapacity) {
+TEST_F(TestMjArrayList, ZeroInitialCapacity) {
   char error[1024];
-  mjModel* m = LoadModelFromString("<mujoco/>", error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
-  mjData* d = mj_makeData(m);
-  mj_markStack(d);
+  MjModelPtr m = LoadModelFromString("<mujoco/>", error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << "Failed to load model: " << error;
+  MjDataPtr d = MakeData(m);
+  mj_markStack(d.get());
   mjArrayList* array_list =
-      mju_arrayListCreate(d, sizeof(double), /*initial_capacity=*/0);
+      mju_arrayListCreate(d.get(), sizeof(double), /*initial_capacity=*/0);
   EXPECT_EQ(mju_arrayListSize(array_list), 0);
 
   for (int i = 0; i < 35; ++i) {
@@ -102,9 +101,7 @@ TEST(TestMjArrayList, ZeroInitialCapacity) {
   }
   EXPECT_EQ(mju_arrayListAt(array_list, 35), nullptr);
 
-  mj_freeStack(d);
-  mj_deleteData(d);
-  mj_deleteModel(m);
+  mj_freeStack(d.get());
 }
 
 }  // namespace

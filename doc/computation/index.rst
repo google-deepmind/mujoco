@@ -1384,9 +1384,9 @@ Each solver algorithm can be used with both pyramidal and elliptic friction cone
 representations of the constraint Jacobian and related matrices.
 
 **CG** : conjugate gradient method
-   This algorithm uses the non-linear conjugate gradient method with the Polak-Ribiere-Plus formula (non-negative
-   :math:`\beta`). Line-search is exact, using Newton's method in one dimension with analytical second derivatives on
-   the piecewise-quadratic cost. CG has no setup cost.
+   This algorithm uses the non-linear conjugate gradient method with the Hager-Zhang formula. Line-search is
+   exact, using Newton's method in one dimension with analytical second derivatives on the piecewise-quadratic
+   cost. CG has no setup cost.
 
 **Newton** : Newton's method
    This algorithm implements the exact Newton method, with analytical second-order derivatives and Cholesky

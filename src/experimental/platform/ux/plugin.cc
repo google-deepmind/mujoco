@@ -20,11 +20,6 @@
 #include <mujoco/mujoco.h>
 #include "engine/engine_global_table.h"
 
-using GuiPlugin = mujoco::platform::GuiPlugin;
-using ModelPlugin = mujoco::platform::ModelPlugin;
-using KeyHandlerPlugin = mujoco::platform::KeyHandlerPlugin;
-using SpecEditorPlugin = mujoco::platform::SpecEditorPlugin;
-
 namespace mujoco::platform {
 
 template <typename T>
@@ -71,7 +66,8 @@ void ForEachPlugin(const std::function<void(T*)>& fn) {
   template void ForEachPlugin<PLUGIN>(const std::function<void(PLUGIN*)>& fn); \
   }
 
-MUJOCO_SPECIALIZE_PLUGIN(GuiPlugin, "gui plugin");
-MUJOCO_SPECIALIZE_PLUGIN(ModelPlugin, "model plugin");
-MUJOCO_SPECIALIZE_PLUGIN(KeyHandlerPlugin, "key handler plugin");
-MUJOCO_SPECIALIZE_PLUGIN(SpecEditorPlugin, "spec editor plugin");
+MUJOCO_SPECIALIZE_PLUGIN(mujoco::platform::GuiPlugin, "gui plugin");
+MUJOCO_SPECIALIZE_PLUGIN(mujoco::platform::ModelPlugin, "model plugin");
+MUJOCO_SPECIALIZE_PLUGIN(mujoco::platform::ScenePlugin, "scene plugin");
+MUJOCO_SPECIALIZE_PLUGIN(mujoco::platform::KeyHandlerPlugin, "key handler plugin");
+MUJOCO_SPECIALIZE_PLUGIN(mujoco::platform::SpecEditorPlugin, "spec editor plugin");

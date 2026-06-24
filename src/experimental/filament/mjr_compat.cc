@@ -16,10 +16,10 @@
 #include <cstring>
 #include <memory>
 
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/scene_bridge.h"
-#include "experimental/filament/render_context_filament.h"
-#include "experimental/filament/render_context_filament_cpp.h"
+#include "render/filament/mjrfilament_cpp.h"
 
 // This library implements the entirety of mujoco's mjr API. You can link this
 // library with your application (instead of the "classic" mujoco renderer) to
@@ -35,7 +35,7 @@ namespace {
 
 class CompatContext {
  public:
-  CompatContext(const mjrFilamentConfig* config, const mjModel* model);
+  CompatContext(const mjrfContextConfig* config, const mjModel* model);
 
   void Render(const mjrRect& viewport, const mjvScene* scene);
 
@@ -58,35 +58,44 @@ class CompatContext {
   }
 
  private:
-  mjrDrawMode draw_mode_ = mjDRAW_MODE_COLOR;
-  UniquePtr<mjrfContext> context_;
+  mjrDrawMode draw_mode_ = mjDRAW_MODE_DEFAULT;
+  UniquePtr<mjrfContext> context_{nullptr, nullptr};
+  UniquePtr<mjrfScene> scene_{nullptr, nullptr};
   std::unique_ptr<SceneBridge> scene_bridge_;
   mjtFramebuffer framebuffer_ = mjFB_WINDOW;
+  UniquePtr<mjrfRenderTarget> color_target_{nullptr, nullptr};
+  UniquePtr<mjrfRenderTarget> depth_target_{nullptr, nullptr};
 };
 
-CompatContext::CompatContext(const mjrFilamentConfig* config,
-                             const mjModel* model)
-    : context_(CreateContext(*config)) {
-  scene_bridge_ = std::make_unique<SceneBridge>(context_.get(), model);
+CompatContext::CompatContext(const mjrfContextConfig* config,
+                             const mjModel* model) {
+  context_ = CreateContext(*config);
+  scene_ = CreateScene(context_.get(), {});
+  scene_bridge_ =
+      std::make_unique<SceneBridge>(context_.get(), scene_.get(), model);
 }
 
 void CompatContext::Render(const mjrRect& viewport, const mjvScene* scene) {
   scene_bridge_->Update(viewport, scene);
 
   if (scene->flags[mjRND_SEGMENT]) {
-    draw_mode_ = mjDRAW_MODE_SEGMENTATION;
+    if (scene->flags[mjRND_IDCOLOR]) {
+      draw_mode_ = mjDRAW_MODE_SEGMENTATION_BY_ID;
+    } else {
+      draw_mode_ = mjDRAW_MODE_SEGMENTATION_BY_COLOR;
+    }
   } else if (scene->flags[mjRND_DEPTH]) {
     draw_mode_ = mjDRAW_MODE_DEPTH;
   } else if (scene->flags[mjRND_WIREFRAME]) {
     draw_mode_ = mjDRAW_MODE_WIREFRAME;
   } else {
-    draw_mode_ = mjDRAW_MODE_COLOR;
+    draw_mode_ = mjDRAW_MODE_DEFAULT;
   }
 
   if (framebuffer_ == mjFB_WINDOW) {
-    mjrRenderRequest req;
-    mjr_defaultRenderRequest(&req);
-    req.scene = scene_bridge_->GetScene();
+    mjrfRenderRequest req;
+    mjrf_defaultRenderRequest(&req);
+    req.scene = scene_.get();
     req.draw_mode = draw_mode_;
     req.camera = scene_bridge_->GetCamera();
     req.viewport = viewport;
@@ -100,56 +109,62 @@ void CompatContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
     mju_error("ReadPixels is only supported for offscreen rendering.");
   }
 
-  if (rgb) {
-    mjrRenderTargetConfig config;
-    mjr_defaultRenderTargetConfig(&config);
-    config.width = viewport.width;
-    config.height = viewport.height;
-    config.color_format = mjPIXEL_FORMAT_RGB8;
-    config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
-    auto target = CreateRenderTarget(context_.get(), config);
+  const int width = viewport.width;
+  const int height = viewport.height;
 
-    mjrRenderRequest req;
-    mjr_defaultRenderRequest(&req);
-    req.scene = scene_bridge_->GetScene();
+  if (rgb) {
+    if (!color_target_) {
+      mjrfRenderTargetConfig config;
+      mjrf_defaultRenderTargetConfig(&config);
+      config.color_format = mjPIXEL_FORMAT_RGB8;
+      config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+      color_target_ = CreateRenderTarget(context_.get(), config);
+    }
+    mjrf_resizeRenderTarget(color_target_.get(), width, height);
+
+    mjrfRenderRequest req;
+    mjrf_defaultRenderRequest(&req);
+    req.scene = scene_.get();
     req.draw_mode = draw_mode_;
     req.camera = scene_bridge_->GetCamera();
     req.viewport = viewport;
-    req.target = target.get();
+    req.target = color_target_.get();
 
-    mjrReadPixelsRequest read_req;
-    mjr_defaultReadPixelsRequest(&read_req);
-    read_req.target = target.get();
+    mjrfReadPixelsRequest read_req;
+    mjrf_defaultReadPixelsRequest(&read_req);
+    read_req.target = color_target_.get();
     read_req.output = rgb;
     read_req.num_bytes = viewport.width * viewport.height * 3;
 
-    const mjrFrameHandle frame = mjrf_render(context_.get(), &req, 1, &read_req, 1);
+    const mjrfFrameHandle frame = mjrf_render(context_.get(), &req, 1, &read_req, 1);
     mjrf_waitForFrame(context_.get(), frame);
   }
 
   if (depth) {
-    mjrRenderTargetConfig config;
-    mjr_defaultRenderTargetConfig(&config);
-    config.width = viewport.width;
-    config.height = viewport.height;
-    config.color_format = mjPIXEL_FORMAT_R32F;
-    config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
-    auto target = CreateRenderTarget(context_.get(), config);
+    if (!depth_target_) {
+      mjrfRenderTargetConfig config;
+      mjrf_defaultRenderTargetConfig(&config);
+      config.color_format = mjPIXEL_FORMAT_R32F;
+      config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+      depth_target_ = CreateRenderTarget(context_.get(), config);
+    }
+    mjrf_resizeRenderTarget(depth_target_.get(), width, height);
 
-    mjrRenderRequest req;
-    mjr_defaultRenderRequest(&req);
-    req.scene = scene_bridge_->GetScene();
+    mjrfRenderRequest req;
+    mjrf_defaultRenderRequest(&req);
+    req.scene = scene_.get();
     req.draw_mode = mjDRAW_MODE_DEPTH;
     req.camera = scene_bridge_->GetCamera();
     req.viewport = viewport;
-    req.target = target.get();
+    req.target = depth_target_.get();
 
-    mjrReadPixelsRequest read_req;
-    mjr_defaultReadPixelsRequest(&read_req);
+    mjrfReadPixelsRequest read_req;
+    mjrf_defaultReadPixelsRequest(&read_req);
+    read_req.target = depth_target_.get();
     read_req.output = reinterpret_cast<uint8_t*>(depth);
     read_req.num_bytes = viewport.width * viewport.height * sizeof(float);
 
-    const mjrFrameHandle frame = mjrf_render(context_.get(), &req, 1, &read_req, 1);
+    const mjrfFrameHandle frame = mjrf_render(context_.get(), &req, 1, &read_req, 1);
     mjrf_waitForFrame(context_.get(), frame);
   }
 }
@@ -174,7 +189,7 @@ void mjr_defaultContext(mjrContext* con) {
   memset(con, 0, sizeof(mjrContext));
 }
 
-void mjr_makeFilamentContext(const mjModel* m, const mjrFilamentConfig* cfg,
+void mjr_makeFilamentContext(const mjModel* m, const mjrfContextConfig* cfg,
                              mjrContext* con) {
   if (g_context != nullptr) {
     mju_error("Context already exists!");
@@ -185,10 +200,8 @@ void mjr_makeFilamentContext(const mjModel* m, const mjrFilamentConfig* cfg,
 void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale) {
   mjr_freeContext(con);
 
-  mjrFilamentConfig cfg;
-  memset(&cfg, 0, sizeof(mjrFilamentConfig));
-  cfg.width = m->vis.global.offwidth;
-  cfg.height = m->vis.global.offheight;
+  mjrfContextConfig cfg;
+  mjrf_defaultContextConfig(&cfg);
   mjr_makeFilamentContext(m, &cfg, con);
 }
 

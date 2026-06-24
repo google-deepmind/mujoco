@@ -23,14 +23,20 @@ PRIMITIVE_TYPES: Set[str] = {
     "double",
     "float",
     "int",
-    "mjtByte",
+    "int16_t",
+    "int32_t",
+    "int8_t",
     "mjtBool",
+    "mjtByte",
     "mjtMeshBuiltin",
     "mjtNum",
     "mjtObj",  # Adding this to the primitives because it is used as int,
     "mjtSize",
     "size_t",
+    "uint16_t",
+    "uint32_t",
     "uint64_t",
+    "uint8_t",
     "uintptr_t",
     "unsigned char",
     "unsigned int",
@@ -147,14 +153,11 @@ _SKIPPED_MEMORY_FUNCTIONS: tuple[str, ...] = (
     "mju_boxQPmalloc",
     "mju_clearHandlers",
     "mju_error",
-    "mju_error_i",
-    "mju_error_s",
     "mju_free",
     "mju_malloc",
+    "mju_setLogHandler",
     "mju_strncpy",
     "mju_warning",
-    "mju_warning_i",
-    "mju_warning_s",
     # go/keep-sorted end
 )
 
@@ -215,6 +218,7 @@ SKIPPED_STRUCTS: tuple[str, ...] = (
     "mjVFS",
     "mjrContext",
     "mjrRect",
+    "mjrVertexAttribute",
     "mjuiDef",
     "mjuiItem",
     "mjuiSection",
@@ -233,6 +237,7 @@ MANUAL_WRAPPER_FUNCTIONS: tuple[str, ...] = (
     "mj_saveModel",
     "mj_setLengthRange",
     "mju_error",
+    "mju_info",
     # go/keep-sorted end
 )
 
@@ -279,6 +284,8 @@ STRUCTS_TO_BIND: list[str] = list(
 NO_DEFAULT_CONSTRUCTORS: tuple[str, ...] = (
     # go/keep-sorted start
     "mjContact",
+    "mjLogConfig",
+    "mjLogMessage",
     "mjPreContact",
     "mjSolverStat",
     "mjStatistic",
@@ -320,7 +327,7 @@ MJDATA_SIZES: tuple[str, ...] = (
     "efc_R",
     "efc_aref",
     "efc_b",
-    "efc_diagApprox",
+    "efc_diagA",
     "efc_force",
     "efc_frictionloss",
     "efc_id",
@@ -569,7 +576,6 @@ FUNCTION_BOUNDS_CHECKS: Dict[str, str] = {
   CHECK_SIZE(qpos2, m.nq());
     """.strip(),
     "mj_fullM": """
-  CHECK_SIZE(M, m.nM());
   CHECK_SIZE(dst, m.nv() * m.nv());
     """.strip(),
     "mj_geomDistance": """

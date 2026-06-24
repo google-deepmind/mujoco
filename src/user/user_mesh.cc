@@ -1546,7 +1546,7 @@ void mjCMesh::Process() {
     for (int i = 0; i < nface(); i++) {
       SetBoundingVolume(i, dvert.data());
     }
-    tree_.CreateBVH();
+    tree_.CreateBVH(model, this);
   }
   mesh_timer_[mjCTIMER_MESH_BVH] += Seconds(Clock::now() - t0).count();
 
@@ -1730,8 +1730,9 @@ void mjCMesh::MakeGraph(const double* dvert) {
 
   std::string qhopt = "qhull Qt";
   if (maxhullvert_ > -1) {
+    // qhull "Q9" picks the furthest of all furthest points across facets.
     // qhull "TA" actually means "number of vertices added after the initial simplex"
-    qhopt += " TA" + std::to_string(maxhullvert_ - 4);
+    qhopt += " Q9 TA" + std::to_string(maxhullvert_ - 4);
   }
 
   // graph not needed for small meshes
@@ -4698,11 +4699,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     if (spec.cellcount[0] == 0 || spec.cellcount[1] == 0 || spec.cellcount[2] == 0) {
       throw mjCError(this, "cellcount cannot be 0 in any dimension when interpolation order > 0");
     }
-    if (elastic2d && !(spec.cellcount[0] == 1 || spec.cellcount[1] == 1 || spec.cellcount[2] == 1)) {
-      throw mjCError(this,
-                     "shell trilinear flex requires at least one dimension "
-                     "with cell count equal to one (no interior nodes)");
-    }
+
     int expected_nodes = (spec.cellcount[0] * spec.order + 1) *
                          (spec.cellcount[1] * spec.order + 1) *
                          (spec.cellcount[2] * spec.order + 1);
@@ -4944,9 +4941,9 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // create shell fragments and element-vertex collision pairs
   CreateShellPair();
 
-  // recompute cell_empty from vertex/element geometry
+  // recompute cell_empty from vertex/element geometry (volume mode only)
   // (survives XML round-trips where flexcomp data is lost)
-  if (interpolated && cell_empty.empty()) {
+  if (interpolated && !elastic2d && cell_empty.empty()) {
     int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
     if (cx * cy * cz > 1) {
       ComputeCellEmpty(vertxpos.data(), elem_.data(), nvert, nelem, dim);
@@ -5454,7 +5451,7 @@ void mjCFlex::CreateBVH() {
 
   // create hierarchy
   tree.RemoveInactiveVolumes(nbvh);
-  tree.CreateBVH();
+  tree.CreateBVH(model, this);
 }
 
 

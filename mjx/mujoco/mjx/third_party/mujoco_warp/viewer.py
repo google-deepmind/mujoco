@@ -169,7 +169,7 @@ def _main(argv: Sequence[str]) -> None:
     solver, cone = mjw.SolverType(m.opt.solver).name, mjw.ConeType(m.opt.cone).name
     integrator = mjw.IntegratorType(m.opt.integrator).name
     iterations, ls_iterations = m.opt.iterations, m.opt.ls_iterations
-    ls_str = f"{'parallel' if m.opt.ls_parallel else 'iterative'} linesearch iterations: {ls_iterations}"
+    ls_str = f"linesearch iterations: {ls_iterations}"
     print(
       f"  nbody: {m.nbody} nv: {m.nv} ngeom: {m.ngeom} nu: {m.nu} is_sparse: {m.is_sparse}\n"
       f"  broadphase: {broadphase} broadphase_filter: {filter}\n"

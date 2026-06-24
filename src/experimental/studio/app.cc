@@ -28,6 +28,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -94,8 +95,19 @@ App::App(Config config)
   mjv_defaultPerturb(&perturb_);
   mjv_defaultCamera(&camera_);
   mjv_defaultOption(&vis_options_);
+  std::memset(&plugin_scene_, 0, sizeof(mjvScene));
+  mjv_makeScene(nullptr, &plugin_scene_, 2000);
 
   profiler_.Clear();
+
+  step_control_.SetPreStepCallback(
+      [this](const mjModel* m, mjData* d) { PreStep(m, d); });
+  step_control_.SetPostStepCallback(
+      [this](const mjModel* m, mjData* d) { PostStep(m, d); });
+}
+
+App::~App() {
+  mjv_freeScene(&plugin_scene_);
 }
 
 void App::SwitchGraphicsMode(int width, int height,
@@ -227,6 +239,7 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
       plugin->post_model_loaded(plugin, model_path_.c_str());
     }
   });
+  tmp_.update_threadpool = true;
 }
 
 void App::UpdateFilePaths(const std::string& resolved_path) {
@@ -266,6 +279,11 @@ void App::ResetPhysics() {
 void App::UpdatePhysics() {
   if (!has_model()) {
     return;
+  }
+
+  if (tmp_.update_threadpool) {
+    mju_threadpool(data(), ui_.nthread);
+    tmp_.update_threadpool = false;
   }
 
   bool stepped = false;
@@ -322,6 +340,22 @@ void App::UpdatePhysics() {
   }
 }
 
+void App::PreStep(const mjModel* m, mjData* d) {
+  platform::ForEachPlugin<platform::ModelPlugin>([&](auto* plugin) {
+    if (plugin->pre_step) {
+      plugin->pre_step(plugin, m, d);
+    }
+  });
+}
+
+void App::PostStep(const mjModel* m, mjData* d) {
+  platform::ForEachPlugin<platform::ModelPlugin>([&](auto* plugin) {
+    if (plugin->post_step) {
+      plugin->post_step(plugin, m, d);
+    }
+  });
+}
+
 void App::LoadHistory(int offset) {
   std::span<mjtNum> state = sim_history_.SetIndex(offset);
   if (!state.empty()) {
@@ -361,8 +395,17 @@ void App::Render() {
   } else {
     pixels_.clear();
   }
+
+  plugin_scene_.ngeom = 0;
+  platform::ForEachPlugin<platform::ScenePlugin>([&](auto* plugin) {
+    if (plugin->enhance_scene) {
+      plugin->enhance_scene(plugin, model(), data(), &plugin_scene_);
+    }
+  });
+
   renderer_->Render(model(), data(), &perturb_, &camera_, &vis_options_,
-                    width * scale, height * scale, pixels_);
+                    width * scale, height * scale, pixels_,
+                    {plugin_scene_.geoms, (size_t)plugin_scene_.ngeom});
 
   window_->EndFrame();
   window_->Present(pixels_);
@@ -414,7 +457,9 @@ void App::ProcessPendingLoads() {
       const char* buf = plugin->get_model_to_load(
           plugin, &size, content_type, sizeof(content_type), model_name,
           sizeof(model_name));
-      if (buf && size) {
+      if (buf && buf == model_name) {
+        LoadModelFromFile(model_name);
+      } else if (buf && size) {
         const std::byte* bytes = reinterpret_cast<const std::byte*>(buf);
         LoadModelFromBuffer({bytes, bytes + size}, content_type, model_name);
       }
@@ -642,7 +687,7 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F1)) {
     ToggleWindow(tmp_.help);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F2)) {
-    ToggleWindow(tmp_.stats);
+    ToggleWindow(tmp_.info);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F3)) {
     ToggleWindow(tmp_.profiler);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F6)) {
@@ -855,12 +900,8 @@ void App::BuildGui() {
   MainMenuGui();
 
   {
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     if (ImGui::Begin("ToolBar")) {
-      ImGui::PopStyleVar();
       ToolBarGui();
-    } else {
-      ImGui::PopStyleVar();
     }
     ImGui::End();
   }
@@ -931,12 +972,25 @@ void App::BuildGui() {
     ImGui::End();
   }
 
-  if (tmp_.stats) {
+  if (tmp_.info) {
     platform::ScopedStyle style;
-    style.Var(ImGuiStyleVar_Alpha, 0.6f);
-    if (ImGui::Begin("Stats", &tmp_.stats)) {
+    style.Var(ImGuiStyleVar_Alpha, 0.8f);
+    const float scale = ImGui::GetWindowDpiScale();
+    ImGui::SetNextWindowPos(
+        ImVec2(workspace_rect.x,
+               workspace_rect.y + workspace_rect.w),
+        ImGuiCond_Always, ImVec2(0.0f, 1.0f));
+    ImGui::SetNextWindowSizeConstraints(ImVec2(240.0f * scale, -1.0f),
+                                        ImVec2(FLT_MAX, -1.0f));
+    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar |
+                                   ImGuiWindowFlags_NoResize |
+                                   ImGuiWindowFlags_NoMove |
+                                   ImGuiWindowFlags_NoCollapse |
+                                   ImGuiWindowFlags_AlwaysAutoResize |
+                                   ImGuiWindowFlags_NoSavedSettings;
+    if (ImGui::Begin("Info", nullptr, flags)) {
       const float fps = renderer_->GetFps();
-      platform::StatsGui(
+      platform::InfoGui(
           model(), data(),
           step_control_.GetPauseState() == PauseState::kNormalPaused, fps);
     }
@@ -1022,14 +1076,14 @@ void App::ModelOptionsGui() {
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
   ImGui::BeginChild("PhysicsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Physics", node_flags)) {
+  if (platform::SectionHeader("Physics", node_flags, 0.65f)) {
     platform::PhysicsGui(model(), min_width);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("RenderingGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Rendering", node_flags)) {
+  if (platform::SectionHeader("Rendering", node_flags, 0.65f)) {
     platform::RenderingGui(model(), &vis_options_, renderer_->GetRenderFlags(),
                            min_width);
     ImGui::TreePop();
@@ -1037,14 +1091,14 @@ void App::ModelOptionsGui() {
   ImGui::EndChild();
 
   ImGui::BeginChild("GroupsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Visibility Groups", node_flags)) {
+  if (platform::SectionHeader("Visibility Groups", node_flags, 0.65f)) {
     platform::GroupsGui(model(), &vis_options_, min_width);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("VisualizationGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Visualization", node_flags)) {
+  if (platform::SectionHeader("Visualization", node_flags, 0.65f)) {
     platform::VisualizationGui(model(), &vis_options_, &camera_, min_width);
     ImGui::TreePop();
   }
@@ -1064,14 +1118,14 @@ void App::DataInspectorGui() {
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
   ImGui::BeginChild("JointsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Joints", node_flags)) {
+  if (platform::SectionHeader("Joints", node_flags, 0.65f)) {
     platform::JointsGui(model(), data(), &vis_options_);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("ControlsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Controls", node_flags)) {
+  if (platform::SectionHeader("Controls", node_flags, 0.65f)) {
 
     float noise_scale = 0;
     float noise_rate = 0;
@@ -1086,14 +1140,14 @@ void App::DataInspectorGui() {
   ImGui::EndChild();
 
   ImGui::BeginChild("SensorGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Sensor", node_flags)) {
+  if (platform::SectionHeader("Sensor", node_flags, 0.65f)) {
     platform::SensorGui(model(), data());
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("WatchGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Watch", node_flags)) {
+  if (platform::SectionHeader("Watch", node_flags, 0.65f)) {
     platform::WatchGui(model(), data(), ui_.watch_field,
                        sizeof(ui_.watch_field), ui_.watch_index);
     ImGui::TreePop();
@@ -1101,7 +1155,7 @@ void App::DataInspectorGui() {
   ImGui::EndChild();
 
   ImGui::BeginChild("StateGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("State", node_flags)) {
+  if (platform::SectionHeader("State", node_flags, 0.65f)) {
     platform::StateGui(model(), data(), tmp_.state, tmp_.state_sig, min_width);
     ImGui::TreePop();
   }
@@ -1205,7 +1259,9 @@ void App::SpecEditorGui() {
       ImGui::EndDisabled();
 
       ImGui::TableNextColumn();
-      ImGui::PushStyleColor(ImGuiCol_Button, ImColor(40, 180, 40, 255).Value);
+      bool is_dark = ImGui::GetStyle().Colors[ImGuiCol_WindowBg].x < 0.5f;
+      ImColor compile_green = is_dark ? ImColor(40, 125, 60, 255) : ImColor(40, 180, 40, 255);
+      ImGui::PushStyleColor(ImGuiCol_Button, compile_green.Value);
       if (ImGui::Button("Compile and Reload", ImVec2(-1, 0))) {
         pending_op_ = [this]() {
           auto tmp_holder = spec_editor_.Compile();
@@ -1303,7 +1359,7 @@ void App::HelpGui() {
   ImGui::SetColumnWidth(3, col3);
 
   ImGui::Text("Help");
-  ImGui::Text("Stats");
+  ImGui::Text("Info");
   ImGui::Text("Profiler");
   ImGui::Text("Cycle Frames");
   ImGui::Text("Cycle Labels");
@@ -1419,13 +1475,10 @@ void App::ToolBarGui() {
 
     const float label_width = platform::GetExpectedLabelWidth();
     const float copy_btn_width = ImGui::GetFrameHeight();
-    const float theme_width =
-        ImGui::CalcTextSize(platform::ICON_FA_CIRCLE_O).x +
-        ImGui::GetStyle().FramePadding.x * 2;
     const float sp = ImGui::GetStyle().ItemSpacing.x;
     const float right_width = copy_btn_width + label_width + sp +
                               label_width + sp + label_width + sp +
-                              theme_width;
+                              copy_btn_width;
     const float separator_width = ImGui::GetFrameHeight() * .6f;
 
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
@@ -1456,6 +1509,15 @@ void App::ToolBarGui() {
     // Combined (Normal Pause, Viscous Pause, Play) widget and Speed selection.
     ImGui::SameLine(0, separator_width);
     platform::StepControlGui(model(), &step_control_, tmp_.speed_index);
+
+    ImGui::SameLine(0, separator_width);
+    ImGui::SetNextItemWidth(120);
+    ImGui::BeginDisabled(std::thread::hardware_concurrency() <= 1);
+    if (ImGui::SliderInt("##NumThreads", &ui_.nthread, 0, 8, "%d threads")) {
+      tmp_.update_threadpool = true;
+    }
+    ImGui::EndDisabled();
+    ImGui::SetItemTooltip("%s", "Number of threads in threadpool");
 
     ImGui::TableNextColumn();
 
@@ -1552,6 +1614,7 @@ void App::StatusBarGui() {
 }
 
 void App::MainMenuGui() {
+  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(12.0f * ImGui::GetStyle().FontScaleDpi, ImGui::GetStyle().ItemSpacing.y));
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("File")) {
 #ifndef __EMSCRIPTEN__
@@ -1649,10 +1712,17 @@ void App::MainMenuGui() {
       }
       ImGui::Separator();
 
+      if (ImGui::MenuItem("Info", "F2", tmp_.info)) {
+        ToggleWindow(tmp_.info);
+      }
+      if (ImGui::MenuItem("Profiler", "F3", tmp_.profiler)) {
+        ToggleWindow(tmp_.profiler);
+      }
+      ImGui::Separator();
+
       if (ImGui::MenuItem("Picture-in-Picture")) {
         tmp_.picture_in_picture = !tmp_.picture_in_picture;
       }
-      ImGui::Separator();
 
 #ifdef __linux__
       if (ImGui::BeginMenu("Graphics Mode (Experimental)")) {
@@ -1711,12 +1781,6 @@ void App::MainMenuGui() {
       ImGui::EndMenu();
     }
 
-    if (ImGui::BeginMenu("Charts")) {
-      if (ImGui::MenuItem("Profiler", "F3")) {
-        ToggleWindow(tmp_.profiler);
-      }
-      ImGui::EndMenu();
-    }
     if (ImGui::BeginMenu("Plugins")) {
       // Placeholder menu item that will be populated by plugins later on. We
       // do this now in so that the menu is present at the right place.
@@ -1725,9 +1789,6 @@ void App::MainMenuGui() {
     if (ImGui::BeginMenu("Help")) {
       if (ImGui::MenuItem("Help", "F1", tmp_.help)) {
         ToggleWindow(tmp_.help);
-      }
-      if (ImGui::MenuItem("Stats", "F2", tmp_.stats)) {
-        ToggleWindow(tmp_.stats);
       }
       ImGui::Separator();
       if (ImGui::MenuItem("Style Editor", "", tmp_.style_editor)) {
@@ -1747,6 +1808,7 @@ void App::MainMenuGui() {
     }
     ImGui::EndMainMenuBar();
   }
+  ImGui::PopStyleVar();
 }
 
 void App::FileDialogGui() {
@@ -1823,6 +1885,7 @@ App::UiState::Dict App::UiState::ToDict() const {
       {"font_scale", std::to_string(font_scale)},
       {"window_width", std::to_string(window_width)},
       {"window_height", std::to_string(window_height)},
+      {"nthread", std::to_string(nthread)},
   };
 }
 
@@ -1834,5 +1897,6 @@ void App::UiState::FromDict(const Dict& dict) {
   window_width = ReadIniValue(dict, "window_width", window_width);
   window_height = ReadIniValue(dict, "window_height", window_height);
   font_scale = ReadIniValue(dict, "font_scale", font_scale);
+  nthread = ReadIniValue(dict, "nthread", nthread);
 }
 }  // namespace mujoco::studio

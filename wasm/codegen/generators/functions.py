@@ -154,6 +154,14 @@ def get_param_string(p: ast_nodes.FunctionParameterDecl) -> str:
       return f"const NumberArray& {p.name}"
     else:
       return f"const val& {p.name}"
+  elif common.is_struct_value_type(p.type):
+    # Struct by value parameters
+    value_type = cast(ast_nodes.ValueType, p.type)
+    const_qualifier = "const " if value_type.is_const else "const "
+    return (
+        f"{const_qualifier}{common.capitalize(value_type.name)}&"
+        f" {p.name}"
+    )
   else:
     # This case should ideally not be reached if AST is well-formed
     # and types are categorized by the helper booleans correctly.
@@ -183,6 +191,8 @@ def get_params_string_maybe_with_conversion(
         native_params.append(f"{p.name}.get()")
     elif param_is_primitive_value(p):
       native_params.append(p.name)
+    elif common.is_struct_value_type(p.type):
+      native_params.append(f"*{p.name}.get()")
     else:
       raise TypeError(
           f"Unhandled parameter type for conversion: {p.type} for param"
@@ -201,6 +211,14 @@ def get_compatible_return_code(func: ast_nodes.FunctionDecl) -> str:
       return f"{c_call};"
     if func.return_type.name in constants.PRIMITIVE_TYPES:
       return f"return {c_call};"
+    if common.is_struct_value_type(func.return_type):
+      struct_name = func.return_type.name
+      w = common.wrapped_struct_name(struct_name)
+      builder = code_builder.CodeBuilder()
+      builder.line(f"{w} result;")
+      builder.line(f"*result.get() = {c_call};")
+      builder.line("return result;")
+      return builder.to_string()
 
   if inner_type := common.get_pointer_return_inner_value_type(func):
     if inner_type.name == "char":
@@ -230,6 +248,9 @@ def get_compatible_return_type(func: ast_nodes.FunctionDecl) -> str:
       and func.return_type.name in constants.PRIMITIVE_TYPES
   ):
     return f"{func.return_type.name}"
+  if common.is_struct_value_type(func.return_type):
+    return_type = cast(ast_nodes.ValueType, func.return_type)
+    return common.wrapped_struct_name(return_type.name)
   return "val"
 
 

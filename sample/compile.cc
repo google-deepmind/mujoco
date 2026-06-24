@@ -137,22 +137,13 @@ int main(int argc, char** argv) {
     }
   }
 
-  // print compiler timing diagnostics
-  auto print_timers = [](const mjSpec* s, const char* label) {
-    const double* timer = mjs_getTimer(const_cast<mjSpec*>(s));
-    std::printf("\n%s:\n", label);
-    std::printf("  total:   %8.1f ms\n", 1e3 * timer[mjCTIMER_TOTAL]);
-    std::printf("  assets:  %8.1f ms (wall clock)\n", 1e3 * timer[mjCTIMER_ASSETS]);
-    std::printf("    load:  %8.1f ms\n", 1e3 * timer[mjCTIMER_MESH_LOAD]);
-    std::printf("    hull:  %8.1f ms\n", 1e3 * timer[mjCTIMER_MESH_HULL]);
-    std::printf("    poly:  %8.1f ms\n", 1e3 * timer[mjCTIMER_MESH_POLYGON]);
-    std::printf("    inert: %8.1f ms\n", 1e3 * timer[mjCTIMER_MESH_INERTIA]);
-    std::printf("    bvh:   %8.1f ms\n", 1e3 * timer[mjCTIMER_MESH_BVH]);
-    std::printf("    octr:  %8.1f ms\n", 1e3 * timer[mjCTIMER_MESH_OCTREE]);
-    std::printf("    tex:   %8.1f ms\n", 1e3 * timer[mjCTIMER_TEXTURE]);
-    std::printf("  other:   %8.1f ms\n",
-                1e3 * (timer[mjCTIMER_TOTAL] - timer[mjCTIMER_ASSETS]));
-  };
+  // enable compile timing diagnostics
+  if (type2 == typeNONE) {
+    mjLogConfig config = mju_getLogConfig();
+    config.logfile[0] = '\0';
+    config.topics |= (1 << (mjTOPIC_TIME_CMP - 1));
+    mju_setLogConfig(config);
+  }
 
   // load model
   mjSpec* s = nullptr;
@@ -162,20 +153,19 @@ int main(int argc, char** argv) {
       return finish(error, EXIT_FAILURE);
     }
 
+    if (type2 == typeNONE) {
+      std::cout << "Compile 1 (cold cache)\n";
+    }
     m = mj_compile(s, 0);
     if (!m) {
       mj_deleteSpec(s);
       return finish("Could not compile model", EXIT_FAILURE);
     }
 
-    print_timers(s, "Compile 1 (cold cache)");
-
     if (type2 == typeNONE) {
       mj_deleteModel(m);
+      std::cout << "Compile 2 (warm cache)\n";
       m = mj_compile(s, 0);
-      if (m) {
-        print_timers(s, "Compile 2 (warm cache)");
-      }
     }
   } else {
     m = mj_loadModel(argv[1], 0);
@@ -201,5 +191,5 @@ int main(int argc, char** argv) {
 
   // finalize
   if (s) mj_deleteSpec(s);
-  return finish("\nDone.", EXIT_SUCCESS, m);
+  return finish("Done.", EXIT_SUCCESS, m);
 }

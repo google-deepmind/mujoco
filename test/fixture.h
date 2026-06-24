@@ -16,7 +16,7 @@
 #define MUJOCO_TEST_FIXTURE_H_
 
 #include <csetjmp>
-#include <cstdio>  // IWYU pragma: keep
+#include <cstdio>   // IWYU pragma: keep
 #include <cstdlib>  // IWYU pragma: keep
 #include <cstring>
 #include <iomanip>
@@ -25,6 +25,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <memory>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -34,52 +35,77 @@
 #include <mujoco/mujoco.h>
 
 extern "C" {
-MJAPI void _mjPRIVATE__set_tls_error_fn(decltype(mju_user_error));
-MJAPI decltype(mju_user_error)  _mjPRIVATE__get_tls_error_fn();
+MJAPI mjfLogHandler _mjPRIVATE_setTlsLogHandler(mjfLogHandler handler);
 }
 
 namespace mujoco {
 
+struct MjModelDeleter {
+  void operator()(mjModel* m) const {
+    mj_deleteModel(m);
+  }
+};
+using MjModelPtr = std::unique_ptr<mjModel, MjModelDeleter>;
+
+struct MjDataDeleter {
+  void operator()(mjData* d) const {
+    mj_deleteData(d);
+  }
+};
+using MjDataPtr = std::unique_ptr<mjData, MjDataDeleter>;
+
+// Runtime scale factor for test tolerances, controlled by MJTOL_SCALE env var.
+// Set MJTOL_SCALE=0 to run tests with zero tolerance and see actual residuals.
+inline mjtNum MjTolScale() {
+  static const mjtNum scale = []() {
+    const char* env = std::getenv("MJTOL_SCALE");
+    return env ? std::strtod(env, nullptr) : 1.0;
+  }();
+  return scale;
+}
+
 // Precision-aware GMock matcher. Use instead of DoubleNear/FloatNear.
 // Under double builds, uses double_tol. Under float builds, uses float_tol.
+// Scaled by MJTOL_SCALE env var (default 1.0).
 template <typename T1, typename T2>
 inline auto MjNear(T1 double_tol, T2 float_tol) {
 #ifdef mjUSESINGLE
-  return ::testing::FloatNear(static_cast<float>(float_tol));
+  return ::testing::FloatNear(static_cast<float>(float_tol) * MjTolScale());
 #else
-  return ::testing::DoubleNear(static_cast<double>(double_tol));
+  return ::testing::DoubleNear(static_cast<double>(double_tol) * MjTolScale());
 #endif
 }
 
 // Precision-aware GMock matcher (3-arg version).
 // Under double builds, matches near target with double_tol.
 // Under float builds, matches near target with float_tol.
+// Scaled by MJTOL_SCALE env var (default 1.0).
 template <typename T1, typename T2, typename T3>
 inline auto MjNear(T1 target, T2 double_tol, T3 float_tol) {
 #ifdef mjUSESINGLE
   return ::testing::FloatNear(static_cast<float>(target),
-                              static_cast<float>(float_tol));
+                              static_cast<float>(float_tol) * MjTolScale());
 #else
   return ::testing::DoubleNear(static_cast<double>(target),
-                               static_cast<double>(double_tol));
+                               static_cast<double>(double_tol) * MjTolScale());
 #endif
 }
-
 // Precision-aware tolerance for EXPECT_NEAR.
+// Scaled by MJTOL_SCALE env var (default 1.0).
 template <typename T1, typename T2>
-constexpr mjtNum MjTol(T1 double_tol, T2 float_tol) {
+inline mjtNum MjTol(T1 double_tol, T2 float_tol) {
 #ifdef mjUSESINGLE
-  return static_cast<mjtNum>(float_tol);
+  return static_cast<mjtNum>(float_tol) * MjTolScale();
 #else
-  return static_cast<mjtNum>(double_tol);
+  return static_cast<mjtNum>(double_tol) * MjTolScale();
 #endif
 }
 
 // Precision-aware equality assertion: 4 ULPs in either precision.
 #ifdef mjUSESINGLE
-  #define EXPECT_MJTNUM_EQ(a, b) EXPECT_FLOAT_EQ(a, b)
+#define EXPECT_MJTNUM_EQ(a, b) EXPECT_FLOAT_EQ(a, b)
 #else
-  #define EXPECT_MJTNUM_EQ(a, b) EXPECT_DOUBLE_EQ(a, b)
+#define EXPECT_MJTNUM_EQ(a, b) EXPECT_DOUBLE_EQ(a, b)
 #endif
 
 // Installs and uninstalls error callbacks on MuJoCo that fail the currently
@@ -93,6 +119,29 @@ class MujocoErrorTestGuard {
 
   // Clears up the callbacks from the constructor.
   ~MujocoErrorTestGuard();
+};
+
+// Mock handler for capturing and verifying mju_warning logs.
+class MockWarningHandler {
+ public:
+  // Constructor that registers this handler as the active one.
+  MockWarningHandler();
+  // Destructor that restores the previously active handler.
+  ~MockWarningHandler();
+
+  // Mock method called when a warning is intercepted.
+  MOCK_METHOD(void, Warn, (const std::string& msg));
+
+  // Allow any number of warnings (if empty) or expect at least one warning
+  // containing the specified substring (if non-empty).
+  void ExpectWarnings(std::string_view substring = "");
+
+  // Returns the thread-local active mock warning handler.
+  static MockWarningHandler* GetActive();
+
+ private:
+  static thread_local MockWarningHandler* active_handler;
+  MockWarningHandler* prev_ = nullptr;
 };
 
 // A test fixture which simplifies writing tests for the MuJoCo C API.
@@ -117,6 +166,9 @@ class MujocoTest : public ::testing::Test {
   }
   ~MujocoTest() { mj_freeLastXML(); }
 
+ protected:
+  MockWarningHandler mock_warning_handler;
+
  private:
   MujocoErrorTestGuard error_guard;
 };
@@ -124,23 +176,22 @@ class MujocoTest : public ::testing::Test {
 template <typename Return, typename... Args>
 auto MjuErrorMessageFrom(Return (*func)(Args...)) {
   thread_local std::jmp_buf current_jmp_buf;
-  thread_local char err_msg[1000];
+  thread_local char err_msg[2048];
 
-  auto* old_error_handler = _mjPRIVATE__get_tls_error_fn();
-  auto* new_error_handler = +[](const char* msg) -> void {
-    std::strncpy(err_msg, msg, sizeof(err_msg));
+  auto new_error_handler = +[](const mjLogMessage* msg) -> void {
+    if (msg->level != mjLOG_ERROR) return;
+    std::snprintf(err_msg, sizeof(err_msg), "%s", msg->subject);
     std::longjmp(current_jmp_buf, 1);
   };
 
-  return [func, old_error_handler,
-          new_error_handler](Args... args) -> std::string {
+  return [func, new_error_handler](Args... args) -> std::string {
+    auto old_handler = _mjPRIVATE_setTlsLogHandler(new_error_handler);
     if (setjmp(current_jmp_buf) == 0) {
       err_msg[0] = '\0';
-      _mjPRIVATE__set_tls_error_fn(new_error_handler);
       func(args...);
     }
 
-    _mjPRIVATE__set_tls_error_fn(old_error_handler);
+    _mjPRIVATE_setTlsLogHandler(old_handler);
     return err_msg;
   };
 }
@@ -153,8 +204,11 @@ const std::string GetModelPath(std::string_view path);
 
 // Returns a newly-allocated mjModel, loaded from the contents of xml.
 // On failure returns nullptr and populates the error array if present.
-mjModel* LoadModelFromString(std::string_view xml, char* error = nullptr,
+MjModelPtr LoadModelFromString(std::string_view xml, char* error = nullptr,
                              int error_size = 0, mjVFS* vfs = nullptr);
+
+// Returns a newly-allocated mjData, initialized using model.
+MjDataPtr MakeData(const MjModelPtr& model);
 
 // Returns a newly-allocated mjModel, loaded from the contents in model_path.
 // On failure it asserts that model is null.
@@ -170,9 +224,6 @@ std::string SaveAndReadXml(const mjSpec* spec);
 std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
                                  mjtNum ctrlnoise = 0.01);
 
-// Compares all fields of two mjModels.
-// Returns the name of the different field and the max difference.
-mjtNum CompareModel(const mjModel* m1, const mjModel* m2, std::string& field);
 
 // Returns a vector containing the elements of the array.
 template <typename T>
@@ -187,7 +238,7 @@ inline void PrintMatrix(const mjtNum* mat, int nrow, int ncol, int p = 5,
   std::cerr << name << "\n";
   for (int r = 0; r < nrow; r++) {
     for (int c = 0; c < ncol; c++) {
-      mjtNum val = mat[c + r*ncol];
+      mjtNum val = mat[c + r * ncol];
       if (val) {
         std::cerr << std::fixed << std::setw(5 + p) << val << " ";
       } else {
@@ -232,7 +283,6 @@ class MockFilesystem {
                       const unsigned char** buffer) const;
   std::string FullPath(const std::string& path) const;
 
-
  private:
   std::string StripPrefix(const char* path) const;
   static std::string PathReduce(const std::string& current_dir,
@@ -243,7 +293,6 @@ class MockFilesystem {
   std::string prefix_;
   std::string dir_;  // current directory
 };
-
 
 }  // namespace mujoco
 #endif  // MUJOCO_TEST_FIXTURE_H_

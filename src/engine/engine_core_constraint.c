@@ -277,9 +277,17 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
     mju_addToScl3(coord, m->flex_vert0 + 3*v[i], mju_abs(vweight[i]));
   }
 
-  int order = m->flex_interp[f];
-  order = order < 0 ? -order : order;
+  int interp = m->flex_interp[f];
+  int order = interp < 0 ? -interp : interp;
   int npc = (order+1)*(order+1)*(order+1);  // number of nodes per cell
+
+  // grid dimensions for shell mode
+  int nx = 0, ny = 0, nz = 0;
+  if (interp < 0) {
+    nx = m->flex_cellnum[3*f+0] * order + 1;
+    ny = m->flex_cellnum[3*f+1] * order + 1;
+    nz = m->flex_cellnum[3*f+2] * order + 1;
+  }
 
   // cell lookup: get local coords and node indices
   mjtNum local[3];
@@ -290,14 +298,46 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
   int nstart = m->flex_nodeadr[f];
   int nb = 0;
 
+  if (!m->flex_nodebodyid) {
+    return 0;
+  }
+
   if (npc > 27) {
     for (int j = 0; j < npc; j++) {
       mjtNum w = mju_evalBasis(local, j, order);
       if (w < 1e-5) {
         continue;
       }
-      if (bweight) bweight[nb] = sign * w;
-      body[nb++] = m->flex_nodebodyid[nstart + nodeindices[j]];
+
+      int idx = nodeindices[j];
+
+      // shell mode: map interior nodes to boundary
+      if (interp < 0) {
+        int k_idx = idx % nz;
+        int rest = idx / nz;
+        int j_idx = rest % ny;
+        int i_idx = rest / ny;
+
+        if (i_idx > 0 && i_idx < nx-1 && j_idx > 0 && j_idx < ny-1 && k_idx > 0 && k_idx < nz-1) {
+          mju_shellTFIWeights(nx, ny, nz, i_idx, j_idx, k_idx, sign * w, &nb, body, bweight, m->flex_nodebodyid, nstart);
+          continue;
+        }
+      }
+
+      // add node, check for duplicates (especially needed when combining with TFI)
+      int b = m->flex_nodebodyid[nstart + idx];
+      int found = 0;
+      for (int k = 0; k < nb; k++) {
+        if (body[k] == b) {
+          if (bweight) bweight[k] += sign * w;
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        if (bweight) bweight[nb] = sign * w;
+        body[nb++] = b;
+      }
     }
   } else {
     mjtNum basis[27];
@@ -308,10 +348,39 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
       if (w < 1e-5) {
         continue;
       }
-      if (bweight) bweight[nb] = sign * w;
-      body[nb++] = m->flex_nodebodyid[nstart + nodeindices[j]];
+
+      int idx = nodeindices[j];
+
+      // shell mode: map interior nodes to boundary
+      if (interp < 0) {
+        int k_idx = idx % nz;
+        int rest = idx / nz;
+        int j_idx = rest % ny;
+        int i_idx = rest / ny;
+
+        if (i_idx > 0 && i_idx < nx-1 && j_idx > 0 && j_idx < ny-1 && k_idx > 0 && k_idx < nz-1) {
+          mju_shellTFIWeights(nx, ny, nz, i_idx, j_idx, k_idx, sign * w, &nb, body, bweight, m->flex_nodebodyid, nstart);
+          continue;
+        }
+      }
+
+      // add node, check for duplicates (especially needed when combining with TFI)
+      int b = m->flex_nodebodyid[nstart + idx];
+      int found = 0;
+      for (int k = 0; k < nb; k++) {
+        if (body[k] == b) {
+          if (bweight) bweight[k] += sign * w;
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        if (bweight) bweight[nb] = sign * w;
+        body[nb++] = b;
+      }
     }
   }
+
 
   return nb;
 }
@@ -1651,7 +1720,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
 void mj_diagApprox(const mjModel* m, mjData* d) {
   int id, dim, b1, b2, f, weldcnt = 0;
   int nefc = d->nefc;
-  mjtNum tran, rot, fri, *dA = d->efc_diagApprox;
+  mjtNum tran, rot, fri, *dA = d->efc_diagA;
   mjContact* con = NULL;
 
   // loop over all constraints, compute approximate inverse inertia
@@ -2079,7 +2148,7 @@ static void getimpedance(const mjtNum* solimp, mjtNum pos, mjtNum margin,
 }
 
 
-// compute efc_R, efc_D, efc_KBIP, adjust efc_diagApprox
+// compute efc_R, efc_D, efc_KBIP, adjust efc_diagA
 void mj_makeImpedance(const mjModel* m, mjData* d) {
   int dim, nefc = d->nefc;
   mjtNum *R = d->efc_R, *KBIP = d->efc_KBIP;
@@ -2099,7 +2168,7 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
     // set R and KBIP for all constraint dimensions
     for (int j=0; j < dim; j++) {
       // R = (1-imp)/imp * diagApprox
-      R[i+j] = mju_max(mjMINVAL, (1-imp)*d->efc_diagApprox[i+j]/imp);
+      R[i+j] = mju_max(mjMINVAL, (1-imp)*d->efc_diagA[i+j]/imp);
 
       // constraint type
       int tp = d->efc_type[i+j];
@@ -2190,9 +2259,9 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
     d->efc_D[i] = 1 / R[i];
   }
 
-  // adjust diagApprox so that R = (1-imp)/imp * diagApprox
+  // adjust diagA so that R = (1-imp)/imp * diagA
   for (int i=0; i < nefc; i++) {
-    d->efc_diagApprox[i] = R[i] * KBIP[4*i+2] / (1-KBIP[4*i+2]);
+    d->efc_diagA[i] = R[i] * KBIP[4*i+2] / (1-KBIP[4*i+2]);
   }
 }
 
@@ -2830,12 +2899,12 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
   // compute diagApprox
   mj_diagApprox(m, d);
 
-  // compute KBIP, D, R, adjust diagApprox
+  // compute KBIP, D, R, adjust diagA
   mj_makeImpedance(m, d);
 }
 
 
-// compute Y = J*M^{-1/2}; if flg_diagexact, overwrite efc_diagApprox with ||Y_i||^2
+// compute Y = J*M^{-1/2}; if flg_diagexact, overwrite efc_diagA with ||Y_i||^2
 static void mj_makeY(const mjModel* m, mjData* d, int flg_diagexact) {
   int nefc = d->nefc, nv = m->nv;
 
@@ -2888,12 +2957,12 @@ static void mj_makeY(const mjModel* m, mjData* d, int flg_diagexact) {
                      d->efc_Y_colind, nefc,
                      d->qLD, m->M_rownnz, m->M_rowadr, m->M_colind, sqrtInvD);
 
-    // overwrite diagApprox with exact diagonal: diagApprox[i] = ||Y_i||^2
+    // overwrite diagA with exact diagonal: diagA[i] = ||Y_i||^2
     if (flg_diagexact) {
       for (int i=0; i < nefc; i++) {
         int adr = d->efc_Y_rowadr[i];
         int nnz = d->efc_Y_rownnz[i];
-        d->efc_diagApprox[i] = mju_dot(d->efc_Y+adr, d->efc_Y+adr, nnz);
+        d->efc_diagA[i] = mju_dot(d->efc_Y+adr, d->efc_Y+adr, nnz);
       }
     }
   }
@@ -2914,10 +2983,10 @@ static void mj_makeY(const mjModel* m, mjData* d, int flg_diagexact) {
     // Y = backsubM2(J')'
     mj_solveM2(m, d, d->efc_Y, d->efc_J, sqrtInvD, nefc);
 
-    // overwrite diagApprox with exact diagonal: diagApprox[i] = ||Y_i||^2
+    // overwrite diagA with exact diagonal: diagA[i] = ||Y_i||^2
     if (flg_diagexact) {
       for (int i=0; i < nefc; i++) {
-        d->efc_diagApprox[i] = mju_dot(d->efc_Y+i*nv, d->efc_Y+i*nv, nv);
+        d->efc_diagA[i] = mju_dot(d->efc_Y+i*nv, d->efc_Y+i*nv, nv);
       }
     }
   }
@@ -3023,7 +3092,7 @@ static void mj_makeAR(const mjModel* m, mjData* d) {
 }
 
 
-// compute efc_Y, optionally efc_diagApprox, optionally efc_AR
+// compute efc_Y, optionally efc_diagA, optionally efc_AR
 void mj_projectConstraint(const mjModel* m, mjData* d) {
   int nefc = d->nefc;
 

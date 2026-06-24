@@ -99,7 +99,7 @@ void mjXURDF::Parse(
     }
 
     if ((section = FindSubElem(mjc, "option"))) {
-      mjXReader::Option(section, &spec->option);
+      mjXReader::Option(section, spec, &spec->option);
     }
 
     if ((section = FindSubElem(mjc, "size"))) {

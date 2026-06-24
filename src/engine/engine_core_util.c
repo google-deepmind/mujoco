@@ -520,12 +520,10 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
               const mjtNum point[3], mjtNum* jac, int flg_rot) {
   int nv = m->nv, NV;
   mjtNum* jacp = jac;
-  mjtNum* jacr = flg_rot ? jac + 3*nv : NULL;
 
   mj_markStack(d);
   mjtNum* jtmp = mjSTACKALLOC(d, flg_rot ? 6*nv : 3*nv, mjtNum);
   mjtNum* jp = jtmp;
-  mjtNum* jr = flg_rot ? jtmp + 3*nv : NULL;
 
   // sparse
   if (mj_isSparse(m)) {
@@ -537,6 +535,7 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
     NV = mj_bodyChain(m, body[0], chain);
     if (NV) {
       // get Jacobian
+      mjtNum* jacr = flg_rot ? jac + 3*NV : NULL;
       if (m->body_simple[body[0]]) {
         mj_jacSparseSimple(m, d, jacp, jacr, point, body[0], 1, NV, 0);
       } else {
@@ -554,6 +553,7 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
       if (!bodyNV) {
         continue;
       }
+      mjtNum* jr = flg_rot ? jtmp + 3*bodyNV : NULL;
       if (m->body_simple[body[i]]) {
         mj_jacSparseSimple(m, d, jp, jr, point, body[i], 1, bodyNV, 0);
       } else {
@@ -568,6 +568,9 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
 
   // dense
   else {
+    mjtNum* jacr = flg_rot ? jac + 3*nv : NULL;
+    mjtNum* jr = flg_rot ? jtmp + 3*nv : NULL;
+
     // set first
     mj_jac(m, d, jacp, jacr, point, body[0]);
     mju_scl(jac, jac, weight[0], flg_rot ? 6*nv : 3*nv);
@@ -1018,6 +1021,23 @@ void mju_flexGatherState(const mjModel* m, const mjData* d, int f, mjtNum* xpos,
       mju_sub3(r, xpos + 3*i, d->xipos + 3*bid);
       mju_cross(cross, body_vel, r);
       mju_addTo3(vel + 3*i, cross);
+    }
+  }
+
+  // shell mode: reconstruct interior node positions and velocities via TFI
+  int interp = m->flex_interp[f];
+  if (interp < 0) {
+    int order = -interp;
+    int cx = m->flex_cellnum[3*f+0];
+    int cy = m->flex_cellnum[3*f+1];
+    int cz = m->flex_cellnum[3*f+2];
+    int nx_g = cx * order + 1;
+    int ny_g = cy * order + 1;
+    int nz_g = cz * order + 1;
+
+    mju_shellTrackInterior(xpos, nx_g, ny_g, nz_g);
+    if (vel) {
+      mju_shellTrackInterior(vel, nx_g, ny_g, nz_g);
     }
   }
 }

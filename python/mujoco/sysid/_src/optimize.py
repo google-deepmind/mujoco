@@ -26,6 +26,48 @@ import scipy.optimize as scipy_optimize
 import scipy.special
 
 
+def _warn_if_ill_conditioned(
+    initial_params: parameter.ParameterDict,
+    residual_fn: Callable[..., Any],
+    threshold: float = 1e12,
+    eps: float | None = None,
+) -> None:
+  """Warn if cond(J^T J) at the starting point exceeds ``threshold``.
+
+  Costs one extra finite-difference Jacobian. ``threshold=1e12`` corresponds
+  to cond(J) ~ 1e6, well below the float64 limit (~1e16). ``eps`` defaults to
+  the finite-difference step used by the backends.
+  """
+  x0 = initial_params.as_vector()
+  bounds = initial_params.get_bounds()
+
+  def f(x):
+    residuals, _, _ = residual_fn(x, initial_params)
+    return np.concatenate(residuals)
+
+  if eps is None:
+    eps = np.finfo(np.float64).eps ** 0.5
+  r0 = f(x0).reshape(-1, 1)
+  jac = np.asarray(
+      mujoco_minimize.jacobian_fd(
+          residual=f,
+          x=x0.reshape(-1, 1),
+          r=r0,
+          eps=eps,
+          n_res=0,
+          bounds=[bounds[0].reshape(-1, 1), bounds[1].reshape(-1, 1)],
+      )[0],
+      dtype=np.float64,
+  )
+  cond_jtj = float(np.linalg.cond(jac)) ** 2
+  if cond_jtj > threshold:
+    logging.warning(
+        "cond(J^T J) ~ %.1e at the starting point; the problem may be "
+        "ill-conditioned. Consider x_scale='jac' or regularizing.",
+        cond_jtj,
+    )
+
+
 def _scipy_least_squares(
     x0: np.ndarray,
     residual_fn: Callable[..., Any],
@@ -39,7 +81,6 @@ def _scipy_least_squares(
     verbose = 2
   else:
     verbose = 0
-  x_scale = kwargs.pop("x_scale", "jac")
   loss = kwargs.pop("loss", "linear")
 
   jac_arg: str | Callable[..., Any]
@@ -72,7 +113,6 @@ def _scipy_least_squares(
       bounds=bounds,
       max_nfev=max_nfev,
       verbose=verbose,
-      x_scale=x_scale,
       loss=loss,
       jac=jac_arg,  # pyright: ignore[reportArgumentType]
       **kwargs,
@@ -85,12 +125,17 @@ def _mujoco_least_squares(
     bounds: tuple[np.ndarray, np.ndarray],
     **kwargs,
 ) -> scipy_optimize.OptimizeResult:
-  """Run MuJoCo's native least_squares optimizer."""
+  """Run MuJoCo's native least_squares optimizer.
+
+  ``**kwargs`` are forwarded to :func:`mujoco.minimize.least_squares`; see
+  its docstring (notably ``x_scale``).
+  """
   if kwargs.pop("verbose", True):
     verbose = mujoco_minimize.Verbosity.FULLITER
   else:
     verbose = mujoco_minimize.Verbosity.SILENT
   max_iter = kwargs.pop("max_iters", 200)
+
   x, log = mujoco_minimize.least_squares(
       x0=x0,
       bounds=bounds,
@@ -100,7 +145,6 @@ def _mujoco_least_squares(
       **kwargs,
   )
 
-  # If verbose, return the full optimization log.
   extras = {}
   if verbose == mujoco_minimize.Verbosity.FULLITER:
     extras["objective"] = [entry.objective for entry in log]
@@ -144,6 +188,7 @@ def optimize(
     residual_fn: Callable[..., Any],
     optimizer: Literal["scipy", "mujoco", "scipy_parallel_fd"] = "mujoco",
     verbose: bool = True,
+    check_conditioning: bool = False,
     **optimizer_kwargs,
 ) -> tuple[parameter.ParameterDict, scipy_optimize.OptimizeResult]:
   """Run nonlinear least-squares optimization on the residual.
@@ -155,8 +200,18 @@ def optimize(
     optimizer: Backend — ``"mujoco"`` (default), ``"scipy"``, or
       ``"scipy_parallel_fd"`` (scipy with MuJoCo finite-difference Jacobian).
     verbose: If True, log parameter comparison table after optimization.
-    **optimizer_kwargs: Forwarded to the backend (e.g. ``max_iters``,
-      ``verbose``, ``loss``).
+    check_conditioning: If True, estimate ``cond(J^T J)`` at the starting
+      point and emit a warning if it suggests numerical ill-conditioning.
+      Costs one extra finite-difference Jacobian.
+    **optimizer_kwargs: Forwarded to the backend. Common ones:
+
+      * ``max_iters``: maximum number of optimizer iterations.
+      * ``verbose``: per-backend verbosity flag (separate from this
+        function's ``verbose``).
+      * ``loss``: scipy loss function name (scipy backends only).
+      * ``x_scale``: per-parameter scaling, forwarded to the backend; see
+        :func:`scipy.optimize.least_squares` and
+        :func:`mujoco.minimize.least_squares`.
 
   Returns:
     ``(opt_params, opt_result)`` — the optimized ParameterDict and a
@@ -177,6 +232,30 @@ def optimize(
         jac=np.zeros((0, x0.shape[0])),
         grad=np.zeros_like(x0),
         extras={},
+    )
+
+  if check_conditioning:
+    _warn_if_ill_conditioned(
+        initial_params, residual_fn, eps=optimizer_kwargs.get("diff_step"),
+    )
+
+  # Warn if any non-frozen parameter component starts at (or essentially at)
+  # a box bound. Only meaningful when x0 is feasible; otherwise the user is
+  # already outside the constraint set and the optimizer will clip first.
+  lo, hi = bounds
+  rng = hi - lo
+  safe_rng = np.where(rng > 0, rng, 1.0)
+  in_bounds = (x0 >= lo) & (x0 <= hi)
+  near_bound = ((x0 - lo) <= 1e-3 * safe_rng) | ((hi - x0) <= 1e-3 * safe_rng)
+  at_bound = in_bounds & near_bound & (rng > 0)
+  if at_bound.any():
+    logging.warning(
+        "%d of %d non-frozen parameter components start at (or essentially "
+        "at) a box bound. Optimization can stall in that corner on "
+        "ill-conditioned problems; consider calling "
+        "initial_params.move_off_bounds() before optimize().",
+        int(at_bound.sum()),
+        x0.size,
     )
 
   def optimized_residual_fn(x):

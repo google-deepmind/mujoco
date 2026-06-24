@@ -707,10 +707,14 @@ def ray_mesh_with_bvh(
   pnt: wp.vec3,
   vec: wp.vec3,
   max_t: float,
+  cull_backfaces: bool,
 ) -> Tuple[float, wp.vec3, float, float, int, int]:
   """Returns intersection information for ray mesh intersections.
 
   Requires wp.Mesh be constructed and their ids to be passed.
+
+  When ``cull_backfaces`` is True, the function rejects exit-face hits in the
+  local-space frame. This matches MuJoCo OpenGL rendering's backface culling rule.
   """
   t = float(-1.0)
   u = float(0.0)
@@ -722,7 +726,12 @@ def ray_mesh_with_bvh(
   lpnt, lvec = _ray_map(pos, mat, pnt, vec)
   hit = wp.mesh_query_ray(mesh_bvh_id[mesh_geom_id], lpnt, lvec, max_t, t, u, v, sign, n, f)
 
-  if hit and wp.dot(lvec, n) < 0.0:  # Backface culling in local space
+  if not hit:
+    return -1.0, wp.vec3(0.0, 0.0, 0.0), 0.0, 0.0, -1, -1
+
+  # Front-face hit, or back-face hit when cull is disabled: rotate the
+  # local-space normal into world space and return the hit.
+  if (not cull_backfaces) or wp.dot(lvec, n) < 0.0:
     normal = mat @ n
     normal = wp.normalize(normal)
     return t, normal, u, v, f, mesh_geom_id
@@ -1055,6 +1064,8 @@ def _ray_geom_mesh_bvh(
 
     if gtype == GeomType.MESH or gtype == GeomType.HFIELD:
       bvh_ids = mesh_bvh_id if gtype == GeomType.MESH else hfield_bvh_id
+      # Public ray API (mjw.ray / mjw.rays) preserves MuJoCo's mj_ray cull rule:
+      # rangefinder sensors and user-facing ray casts always cull back-faces.
       t, n, u, v, f, geom_mesh_id = ray_mesh_with_bvh(
         bvh_ids,
         geom_dataid[worldid % geom_dataid.shape[0], geomid],
@@ -1063,6 +1074,7 @@ def _ray_geom_mesh_bvh(
         pnt,
         vec,
         min_dist,
+        True,
       )
       if t >= 0.0 and t < min_dist:
         return t, n

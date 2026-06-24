@@ -66,27 +66,27 @@
 //-------------------------------- mjVisual --------------------------------------------------------
 
 // fields of mjVisual
-#define MJVISUAL_GLOBAL_FIELDS    \
-    X( int,   cameraid         )  \
-    X( int,   orthographic     )  \
-    X( float, fovy             )  \
-    X( float, ipd              )  \
-    X( float, azimuth          )  \
-    X( float, elevation        )  \
-    X( float, linewidth        )  \
-    X( float, glow             )  \
-    X( float, realtime         )  \
-    X( int,   offwidth         )  \
-    X( int,   offheight        )  \
-    X( int,   ellipsoidinertia )  \
-    X( int,   bvactive         )
+#define MJVISUAL_GLOBAL_FIELDS          \
+    X   ( int,   cameraid,         1 )  \
+    X   ( int,   orthographic,     1 )  \
+    X   ( float, fovy,             1 )  \
+    X   ( float, ipd,              1 )  \
+    X   ( float, azimuth,          1 )  \
+    X   ( float, elevation,        1 )  \
+    X   ( float, linewidth,        1 )  \
+    X   ( float, glow,             1 )  \
+    X   ( float, realtime,         1 )  \
+    X   ( int,   offwidth,         1 )  \
+    X   ( int,   offheight,        1 )  \
+    X   ( int,   ellipsoidinertia, 1 )  \
+    X   ( int,   bvactive,         1 )
 
 #define MJVISUAL_QUALITY_FIELDS  \
-    X( shadowsize )              \
-    X( offsamples )              \
-    X( numslices  )              \
-    X( numstacks  )              \
-    X( numquads   )
+    X   ( int, shadowsize, 1 )   \
+    X   ( int, offsamples, 1 )   \
+    X   ( int, numslices,  1 )   \
+    X   ( int, numstacks,  1 )   \
+    X   ( int, numquads,   1 )
 
 #define MJVISUAL_HEADLIGHT_FIELDS       \
     XVEC( float, ambient,          3 )  \
@@ -94,66 +94,66 @@
     XVEC( float, specular,         3 )  \
     X   ( int,   active,           1 )
 
-#define MJVISUAL_MAP_FIELDS  \
-    X( stiffness      )      \
-    X( stiffnessrot   )      \
-    X( force          )      \
-    X( torque         )      \
-    X( alpha          )      \
-    X( fogstart       )      \
-    X( fogend         )      \
-    X( znear          )      \
-    X( zfar           )      \
-    X( haze           )      \
-    X( shadowclip     )      \
-    X( shadowscale    )      \
-    X( actuatortendon )
+#define MJVISUAL_MAP_FIELDS           \
+    X   ( float, stiffness,      1 )  \
+    X   ( float, stiffnessrot,   1 )  \
+    X   ( float, force,          1 )  \
+    X   ( float, torque,         1 )  \
+    X   ( float, alpha,          1 )  \
+    X   ( float, fogstart,       1 )  \
+    X   ( float, fogend,         1 )  \
+    X   ( float, znear,          1 )  \
+    X   ( float, zfar,           1 )  \
+    X   ( float, haze,           1 )  \
+    X   ( float, shadowclip,     1 )  \
+    X   ( float, shadowscale,    1 )  \
+    X   ( float, actuatortendon, 1 )
 
-#define MJVISUAL_SCALE_FIELDS     \
-    X( forcewidth     )           \
-    X( contactwidth   )           \
-    X( contactheight  )           \
-    X( connect        )           \
-    X( com            )           \
-    X( camera         )           \
-    X( light          )           \
-    X( selectpoint    )           \
-    X( jointlength    )           \
-    X( jointwidth     )           \
-    X( actuatorlength )           \
-    X( actuatorwidth  )           \
-    X( framelength    )           \
-    X( framewidth     )           \
-    X( constraint     )           \
-    X( slidercrank    )           \
-    X( frustum        )
+#define MJVISUAL_SCALE_FIELDS         \
+    X   ( float, forcewidth,     1 )  \
+    X   ( float, contactwidth,   1 )  \
+    X   ( float, contactheight,  1 )  \
+    X   ( float, connect,        1 )  \
+    X   ( float, com,            1 )  \
+    X   ( float, camera,         1 )  \
+    X   ( float, light,          1 )  \
+    X   ( float, selectpoint,    1 )  \
+    X   ( float, jointlength,    1 )  \
+    X   ( float, jointwidth,     1 )  \
+    X   ( float, actuatorlength, 1 )  \
+    X   ( float, actuatorwidth,  1 )  \
+    X   ( float, framelength,    1 )  \
+    X   ( float, framewidth,     1 )  \
+    X   ( float, constraint,     1 )  \
+    X   ( float, slidercrank,    1 )  \
+    X   ( float, frustum,        1 )
 
-#define MJVISUAL_RGBA_FIELDS  \
-    X( fog              )     \
-    X( haze             )     \
-    X( force            )     \
-    X( inertia          )     \
-    X( joint            )     \
-    X( actuator         )     \
-    X( actuatornegative )     \
-    X( actuatorpositive )     \
-    X( com              )     \
-    X( camera           )     \
-    X( light            )     \
-    X( selectpoint      )     \
-    X( connect          )     \
-    X( contactpoint     )     \
-    X( contactforce     )     \
-    X( contactfriction  )     \
-    X( contacttorque    )     \
-    X( contactgap       )     \
-    X( rangefinder      )     \
-    X( constraint       )     \
-    X( slidercrank      )     \
-    X( crankbroken      )     \
-    X( frustum          )     \
-    X( bv               )     \
-    X( bvactive         )
+#define MJVISUAL_RGBA_FIELDS            \
+    XVEC( float, fog,              4 )  \
+    XVEC( float, haze,             4 )  \
+    XVEC( float, force,            4 )  \
+    XVEC( float, inertia,          4 )  \
+    XVEC( float, joint,            4 )  \
+    XVEC( float, actuator,         4 )  \
+    XVEC( float, actuatornegative, 4 )  \
+    XVEC( float, actuatorpositive, 4 )  \
+    XVEC( float, com,              4 )  \
+    XVEC( float, camera,           4 )  \
+    XVEC( float, light,            4 )  \
+    XVEC( float, selectpoint,      4 )  \
+    XVEC( float, connect,          4 )  \
+    XVEC( float, contactpoint,     4 )  \
+    XVEC( float, contactforce,     4 )  \
+    XVEC( float, contactfriction,  4 )  \
+    XVEC( float, contacttorque,    4 )  \
+    XVEC( float, contactgap,       4 )  \
+    XVEC( float, rangefinder,      4 )  \
+    XVEC( float, constraint,       4 )  \
+    XVEC( float, slidercrank,      4 )  \
+    XVEC( float, crankbroken,      4 )  \
+    XVEC( float, frustum,          4 )  \
+    XVEC( float, bv,               4 )  \
+    XVEC( float, bvactive,         4 )
 
 
 //-------------------------------- mjModel ---------------------------------------------------------
@@ -933,7 +933,7 @@
     X  ( mjtNum,   efc_pos,           MJ_D(nefc),    1 ) \
     X  ( mjtNum,   efc_margin,        MJ_D(nefc),    1 ) \
     X  ( mjtNum,   efc_frictionloss,  MJ_D(nefc),    1 ) \
-    X  ( mjtNum,   efc_diagApprox,    MJ_D(nefc),    1 ) \
+    X  ( mjtNum,   efc_diagA,         MJ_D(nefc),    1 ) \
     X  ( mjtNum,   efc_KBIP,          MJ_D(nefc),    4 ) \
     X  ( mjtNum,   efc_D,             MJ_D(nefc),    1 ) \
     X  ( mjtNum,   efc_R,             MJ_D(nefc),    1 ) \
@@ -969,12 +969,6 @@
     X  ( int,     map_idof2dof,      MJ_M(nv),       1 ) \
     X  ( mjtNum,  ifrc_smooth,       MJ_D(nidof),    1 ) \
     X  ( mjtNum,  iacc_smooth,       MJ_D(nidof),    1 ) \
-    XNV( int,     iM_rownnz,         MJ_D(nidof),    1 ) \
-    XNV( int,     iM_rowadr,         MJ_D(nidof),    1 ) \
-    XNV( int,     iM_colind,         MJ_M(nC),       1 ) \
-    XNV( mjtNum,  iM,                MJ_M(nC),       1 ) \
-    XNV( mjtNum,  iLD,               MJ_M(nC),       1 ) \
-    X  ( mjtNum,  iLDiagInv,         MJ_D(nidof),    1 ) \
     X  ( mjtNum,  iacc,              MJ_D(nidof),    1 ) \
     X  ( int,     efc_island,        MJ_D(nefc),     1 ) \
     X  ( int,     island_ne,         MJ_D(nisland),  1 ) \
@@ -985,11 +979,6 @@
     X  ( int,     map_iefc2efc,      MJ_D(nefc),     1 ) \
     X  ( int,     iefc_type,         MJ_D(nefc),     1 ) \
     X  ( int,     iefc_id,           MJ_D(nefc),     1 ) \
-    XNV( int,     iefc_J_rownnz,     MJ_D(nefc),     1 ) \
-    XNV( int,     iefc_J_rowadr,     MJ_D(nefc),     1 ) \
-    XNV( int,     iefc_J_rowsuper,   MJ_D(nefc),     1 ) \
-    XNV( int,     iefc_J_colind,     MJ_D(nJ),       1 ) \
-    XNV( mjtNum,  iefc_J,            MJ_D(nJ),       1 ) \
     X  ( mjtNum,  iefc_frictionloss, MJ_D(nefc),     1 ) \
     X  ( mjtNum,  iefc_D,            MJ_D(nefc),     1 ) \
     X  ( mjtNum,  iefc_R,            MJ_D(nefc),     1 ) \

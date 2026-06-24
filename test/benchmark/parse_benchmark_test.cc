@@ -120,8 +120,7 @@ void BM_CompileManyTextures(benchmark::State& state) {
 
   for (auto s : state) {
     char error[1024];
-    mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-    mj_deleteModel(model);
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
   }
 
   // Reset cache capacity to default value.

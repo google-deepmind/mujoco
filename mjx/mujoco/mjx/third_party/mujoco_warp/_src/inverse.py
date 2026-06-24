@@ -95,9 +95,9 @@ def discrete_acc(m: Model, d: Data, qacc: wp.array2d[float]):
 
     # TODO(team): qacc = d.qacc if (m.dof_damping == 0.0).all()
 
-    # set qfrc = (d.qM + m.opt.timestep * diag(m.dof_damping)) * d.qacc
+    # set qfrc = (d.M + m.opt.timestep * diag(m.dof_damping)) * d.qacc
 
-    # d.qM @ d.qacc
+    # d.M @ d.qacc
     support.mul_m(m, d, qfrc, d.qacc)
 
     # qfrc += m.opt.timestep * damp_deriv * d.qacc
@@ -109,16 +109,16 @@ def discrete_acc(m: Model, d: Data, qacc: wp.array2d[float]):
     )
   elif m.opt.integrator == IntegratorType.IMPLICITFAST:
     if m.is_sparse:
-      qDeriv = wp.empty((d.nworld, 1, m.nM), dtype=float)
+      qDeriv = wp.empty((d.nworld, 1, m.nC), dtype=float)
     else:
       qDeriv = wp.empty((d.nworld, m.nv, m.nv), dtype=float)
     derivative.deriv_smooth_vel(m, d, qDeriv)
     mul_m(m, d, qfrc, d.qacc, M=qDeriv)
-    smooth.factor_solve_i(m, d, d.qM, d.qLD, d.qLDiagInv, qacc, qfrc)
+    smooth.factor_solve_i(m, d, d.M, d.qLD, d.qLDiagInv, qacc, qfrc)
   else:
     raise NotImplementedError(f"integrator {m.opt.integrator} not implemented.")
 
-  # solve for qacc: qfrc = d.qM @ d.qacc
+  # solve for qacc: qfrc = d.M @ d.qacc
   smooth.solve_m(m, d, qacc, qfrc)
 
 

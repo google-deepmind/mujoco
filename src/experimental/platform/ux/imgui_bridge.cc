@@ -24,19 +24,19 @@
 #include <imgui.h>
 #include <math/mat3.h>
 #include <math/vec3.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/render_context_filament.h"
-#include "experimental/filament/render_context_filament_cpp.h"
+#include "render/filament/mjrfilament_cpp.h"
 
 namespace mujoco {
 
 using filament::math::float3;
 using filament::math::mat3f;
 
-ImguiBridge::ImguiBridge(mjrfContext* ctx) : ctx_(ctx) {
-  mjrSceneParams params;
-  mjr_defaultSceneParams(&params);
-  scene_ = CreateScene(ctx_, params);
+ImguiBridge::ImguiBridge(mjrfContext* ctx, mjrfScene* scene)
+    : ctx_(ctx), scene_(scene) {
+  mjrfSceneParams params;
+  mjrf_defaultSceneParams(&params);
 }
 
 ImguiBridge::~ImguiBridge() {
@@ -71,20 +71,20 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
     tex_id = next_tex_id_++;
   }
 
-  mjrTexture* texture = GetTexture(tex_id);
+  mjrfTexture* texture = GetTexture(tex_id);
 
   // If the texture does not exist or the dimensions have changed, we create a
   // new texture.
   if (texture == nullptr || mjrf_getTextureWidth(texture) != width ||
       mjrf_getTextureHeight(texture) != height) {
-    mjrTextureConfig config;
-    mjr_defaultTextureConfig(&config);
+    mjrfTextureConfig config;
+    mjrf_defaultTextureConfig(&config);
     config.width = width;
     config.height = height;
     config.sampler_type = mjTEXTURE_2D;
     config.format = bpp == 4 ? mjPIXEL_FORMAT_RGBA8 : mjPIXEL_FORMAT_RGB8;
     config.color_space = mjCOLORSPACE_LINEAR;
-    UniquePtr<mjrTexture> new_texture = ::mujoco::CreateTexture(ctx_, config);
+    UniquePtr<mjrfTexture> new_texture = ::mujoco::CreateTexture(ctx_, config);
     texture = new_texture.get();
     textures_.insert_or_assign(tex_id, std::move(new_texture));
   }
@@ -96,12 +96,12 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
   const auto callback =
       +[](void* user) { delete[] reinterpret_cast<std::byte*>(user); };
 
-  mjrTextureData texture_data;
-  mjr_defaultTextureData(&texture_data);
+  mjrfTextureData texture_data;
+  mjrf_defaultTextureData(&texture_data);
   texture_data.bytes = bytes;
-  texture_data.nbytes = num_bytes;
+  texture_data.num_bytes = num_bytes;
   texture_data.user_data = bytes;
-  texture_data.release_callback = callback;
+  texture_data.release = callback;
 
   std::memcpy(bytes, pixels, num_bytes);
   mjrf_setTextureData(texture, &texture_data);
@@ -113,8 +113,8 @@ void ImguiBridge::CreateTexture(ImTextureData* data) {
     mju_error("Unsupported texture format.");
   }
 
-  mjrTextureConfig config;
-  mjr_defaultTextureConfig(&config);
+  mjrfTextureConfig config;
+  mjrf_defaultTextureConfig(&config);
   config.width = data->Width;
   config.height = data->Height;
   config.sampler_type = mjTEXTURE_2D;
@@ -133,12 +133,12 @@ void ImguiBridge::UpdateTexture(ImTextureData* data) {
     mju_error("Texture not found: %llu", data->TexID);
   }
 
-  mjrTextureData texture_data;
-  mjr_defaultTextureData(&texture_data);
+  mjrfTextureData texture_data;
+  mjrf_defaultTextureData(&texture_data);
   texture_data.bytes = data->GetPixels();
-  texture_data.nbytes = data->Width * data->Height * 4;
+  texture_data.num_bytes = data->Width * data->Height * 4;
   texture_data.user_data = nullptr;
-  texture_data.release_callback = nullptr;
+  texture_data.release = nullptr;
   mjrf_setTextureData(iter->second.get(), &texture_data);
   data->SetStatus(ImTextureStatus_OK);
 }
@@ -152,7 +152,7 @@ void ImguiBridge::DestroyTexture(ImTextureData* data) {
   }
 }
 
-mjrTexture* ImguiBridge::GetTexture(uintptr_t tex_id) const {
+mjrfTexture* ImguiBridge::GetTexture(uintptr_t tex_id) const {
   auto iter = textures_.find(tex_id);
   if (iter == textures_.end()) {
     return nullptr;
@@ -203,7 +203,7 @@ void ImguiBridge::Update() {
       } else if (tex->Status == ImTextureStatus_WantUpdates) {
         UpdateTexture(tex);
       } else if (tex->Status == ImTextureStatus_WantDestroy &&
-                 tex->UnusedFrames > 0) {
+                 tex->UnusedFrames >= 3) {
         DestroyTexture(tex);
       }
     }
@@ -219,9 +219,9 @@ void ImguiBridge::Update() {
   for (int n = 0; n < commands->CmdListsCount; ++n) {
     const ImDrawList* cmds = commands->CmdLists[n];
 
-    mjrMeshData data;
-    mjr_defaultMeshData(&data);
-    data.nattributes = 3;
+    mjrfMeshData data;
+    mjrf_defaultMeshData(&data);
+    data.num_attributes = 3;
     data.attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
     data.attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
     data.attributes[0].bytes = cmds->VtxBuffer.Data;
@@ -232,26 +232,26 @@ void ImguiBridge::Update() {
     data.attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_UBYTE4;
     data.attributes[2].bytes = cmds->VtxBuffer.Data + sizeof(float) * 4;
     data.interleaved = true;
-    data.nvertices = cmds->VtxBuffer.Size;
-    data.nindices = cmds->IdxBuffer.Size;
+    data.num_vertices = cmds->VtxBuffer.Size;
+    data.num_indices = cmds->IdxBuffer.Size;
     data.indices = cmds->IdxBuffer.Data;
     data.index_type = mjINDEX_TYPE_U16;
     data.primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
     meshes_.push_back(CreateMesh(ctx_, data));
 
-    const mjrMesh* mesh = meshes_.back().get();
+    const mjrfMesh* mesh = meshes_.back().get();
 
     int index_offset = 0;
     for (const ImDrawCmd& command : cmds->CmdBuffer) {
       const int width = size.x * scale.x;
       const int height = size.y * scale.y;
 
-      UniquePtr<mjrRenderable>& renderable = renderables_[renderable_index];
+      UniquePtr<mjrfRenderable>& renderable = renderables_[renderable_index];
       mjrf_setRenderableMesh(renderable.get(), mesh, index_offset,
                              command.ElemCount);
 
-      mjrMaterial material;
-      mjr_defaultMaterial(&material);
+      mjrfMaterial material;
+      mjrf_defaultMaterial(&material);
       material.color_texture = GetTexture(command.GetTexID());
 
       material.decor_ux = true;
@@ -281,21 +281,19 @@ void ImguiBridge::Update() {
 
 void ImguiBridge::PrepareRenderables(int count) {
   while (renderables_.size() < count) {
-    mjrRenderableParams params;
-    mjr_defaultRenderableParams(&params);
+    mjrfRenderableParams params;
+    mjrf_defaultRenderableParams(&params);
     params.cast_shadows = false;
     params.receive_shadows = false;
     params.blend_order = static_cast<std::uint16_t>(renderables_.size() + 1);
     auto& renderable = renderables_.emplace_back(CreateRenderable(ctx_, params));
-    mjrf_addRenderableToScene(scene_.get(), renderable.get());
+    mjrf_addRenderableToScene(scene_, renderable.get());
   }
   while (renderables_.size() > count) {
-    mjrf_removeRenderableFromScene(scene_.get(), renderables_.back().get());
+    mjrf_removeRenderableFromScene(scene_, renderables_.back().get());
     renderables_.pop_back();
   }
 }
-
-mjrScene* ImguiBridge::GetScene() const { return scene_.get(); }
 
 mjrCamera ImguiBridge::GetCamera(int width, int height) const {
   mjrCamera camera;

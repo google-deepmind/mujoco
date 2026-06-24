@@ -21,12 +21,12 @@
 #include <ratio>
 #include <span>
 
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/scene_bridge.h"
-#include "experimental/filament/render_context_filament.h"
-#include "experimental/filament/render_context_filament_cpp.h"
 #include "experimental/platform/hal/graphics_mode.h"
 #include "experimental/platform/ux/imgui_bridge.h"
+#include "render/filament/mjrfilament_cpp.h"
 
 namespace mujoco::platform {
 
@@ -73,7 +73,8 @@ class Renderer {
   // otherwise renders to the `native_window` provided at construction.
   void Render(const mjModel* model, mjData* data, const mjvPerturb* perturb,
               mjvCamera* camera, const mjvOption* vis_option, int width,
-              int height, std::span<std::byte> pixels = {});
+              int height, std::span<std::byte> pixels = {},
+              std::span<mjvGeom> extra_geoms = {});
 
   // Populates the given output buffer with RGB888 pixel data. The size of the
   // output buffer must be at least width * height * 3.
@@ -112,6 +113,8 @@ class Renderer {
 
   // State used by the filament renderer.
   UniquePtr<mjrfContext> filament_context_{nullptr, nullptr};
+  UniquePtr<mjrfScene> main_scene_{nullptr, nullptr};
+  UniquePtr<mjrfScene> ux_scene_{nullptr, nullptr};
   std::unique_ptr<SceneBridge> scene_bridge_;
   std::unique_ptr<ImguiBridge> imgui_bridge_;
 

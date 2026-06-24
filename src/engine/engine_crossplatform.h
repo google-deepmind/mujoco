@@ -33,6 +33,12 @@
   #include <strings.h>
 #endif
 
+// Environment variable handling.
+#ifdef _WIN32
+  #define setenv(name, value, overwrite) _putenv_s(name, value)
+  #define unsetenv(name) _putenv_s(name, "")
+#endif
+
 // Switch-case fallthrough annotation.
 #if defined(__cplusplus)
   #define mjFALLTHROUGH [[fallthrough]]

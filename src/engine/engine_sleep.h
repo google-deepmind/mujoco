@@ -18,6 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,11 +33,9 @@ MJAPI void mj_updateSleep(const mjModel* m, mjData* d);
 // return the first tree in the sleep cycle that starts at i, -1 if error
 int mj_sleepCycle(const int* tree_asleep, int ntree, int i);
 
-// return the first tree in the sleep cycle that starts at i, -1 if error
-int mj_sleepCycle(const int* tree_asleep, int ntree, int i);
-
 // wake tree i and its related island cycle, return number of woke trees
-MJAPI int mj_wakeTree(int* tree_asleep, int ntree, int i, int wakeval);
+MJAPI int mj_wakeIsland(int* tree_asleep, int ntree, int i, int wakeval,
+                        const char* reason, mjtNum time);
 
 // wake trees with nonzero velocity or external forces, return number of woke trees
 int mj_wake(const mjModel* m, mjData* d);

@@ -20,19 +20,24 @@
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjrender.h>
 #include <mujoco/mjspec.h>
+#include <mujoco/mjspecmacro.h>
 #include <mujoco/mjtype.h>
 #include <mujoco/mjui.h>
 #include <mujoco/mjvisualize.h>
+#include <mujoco/mjxmacro.h>
 
 #if defined(__cplusplus)
   #define MJ_ASSERT_SIZE(type, size) \
     static_assert(sizeof(type) == (size), #type " must be " #size " bytes for MuJoCo ABI stability")
+  #define MJ_STATIC_ASSERT(expr) static_assert(expr)
 #elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
   #define MJ_ASSERT_SIZE(type, size) \
     _Static_assert(sizeof(type) == (size), #type " must be " #size " bytes for MuJoCo ABI stability")
+  #define MJ_STATIC_ASSERT(expr) _Static_assert(expr, #expr)
 #else
   #define MJ_ASSERT_SIZE(type, size) \
     typedef char mj_assert_##type[sizeof(type) == (size) ? 1 : -1]
+  #define MJ_STATIC_ASSERT(expr)
 #endif
 
 // primitive types
@@ -125,6 +130,27 @@ MJ_ASSERT_SIZE(mjtSection, 4);
 // mjplugin.h
 MJ_ASSERT_SIZE(mjtPluginCapabilityBit, 4);
 
+// authored bitmask field count assertions
+// each authored bitmask is uint64_t, so each FIELDS macro must have <= 64 entries
+#define X(type, name, dim) +1
+#define XVEC(type, name, dim) +1
+
+// mjsCompiler
+MJ_STATIC_ASSERT((0 MJSCOMPILER_FIELDS) <= 64);
+
+// mjOption and mjVisual
+MJ_STATIC_ASSERT((0 MJOPTION_FIELDS)           <= 64);
+MJ_STATIC_ASSERT((0 MJVISUAL_GLOBAL_FIELDS)    <= 64);
+MJ_STATIC_ASSERT((0 MJVISUAL_QUALITY_FIELDS)   <= 64);
+MJ_STATIC_ASSERT((0 MJVISUAL_HEADLIGHT_FIELDS) <= 64);
+MJ_STATIC_ASSERT((0 MJVISUAL_MAP_FIELDS)       <= 64);
+MJ_STATIC_ASSERT((0 MJVISUAL_SCALE_FIELDS)     <= 64);
+MJ_STATIC_ASSERT((0 MJVISUAL_RGBA_FIELDS)      <= 64);
+
+#undef X
+#undef XVEC
+
 #undef MJ_ASSERT_SIZE
+#undef MJ_STATIC_ASSERT
 
 #endif  // MUJOCO_MJASSERT_H_

@@ -35,7 +35,7 @@ set(MUJOCO_DEP_VERSION_ccd
     CACHE STRING "Version of `ccd` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_qhull
-    62ccc56af071eaa478bef6ed41fd7a55d3bb2d80
+    d1c2fc0caa5f644f3a0f220290d4a868c68ed4f6
     CACHE STRING "Version of `qhull` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_miniz
@@ -48,7 +48,7 @@ set(MUJOCO_DEP_VERSION_Eigen3
 )
 
 set(MUJOCO_DEP_VERSION_abseil
-    255c84dadd029fd8ad25c5efb5933e47beaa00c7 # LTS 20250814.1
+    5650e9cf76d3be4318d5fa3af38ee483ddfd5e4a # LTS 20260526.0
     CACHE STRING "Version of `abseil` to be fetched."
 )
 
@@ -278,6 +278,9 @@ if(MUJOCO_BUILD_TESTS OR MUJOCO_BUILD_STUDIO OR MUJOCO_USE_FILAMENT)
       CACHE INTERNAL "Build tests."
   )
 
+  set(ABSL_PATCH_COMMAND
+    git apply --reject --whitespace=fix ${mujoco_SOURCE_DIR}/cmake/abseil-cpp-source_location.patch
+  )
   set(ABSL_BUILD_TESTING OFF)
   findorfetch(
     USE_SYSTEM_PACKAGE
@@ -293,6 +296,8 @@ if(MUJOCO_BUILD_TESTS OR MUJOCO_BUILD_STUDIO OR MUJOCO_USE_FILAMENT)
     TARGETS
     absl::core_headers
     EXCLUDE_FROM_ALL
+    PATCH_COMMAND
+    ${ABSL_PATCH_COMMAND}
   )
 
   set(BUILD_TESTING

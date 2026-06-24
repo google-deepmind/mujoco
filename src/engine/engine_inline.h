@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_INLINE_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_INLINE_H_
 
+#include <assert.h>
+
 #include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 
@@ -144,6 +146,7 @@ mjtNum mji__normalize3(mjtNum vec[3]) {
 // multiply vector by 3D rotation matrix
 static inline
 void mji_mulMatVec3(mjtNum* restrict res, const mjtNum mat[9], const mjtNum vec[3]) {
+  assert(res != vec);
   res[0] = mat[0]*vec[0] + mat[1]*vec[1] + mat[2]*vec[2];
   res[1] = mat[3]*vec[0] + mat[4]*vec[1] + mat[5]*vec[2];
   res[2] = mat[6]*vec[0] + mat[7]*vec[1] + mat[8]*vec[2];
@@ -153,6 +156,7 @@ void mji_mulMatVec3(mjtNum* restrict res, const mjtNum mat[9], const mjtNum vec[
 // multiply vector by transposed 3D rotation matrix
 static inline
 void mji_mulMatTVec3(mjtNum* restrict res, const mjtNum mat[9], const mjtNum vec[3]) {
+  assert(res != vec);
   res[0] = mat[0]*vec[0] + mat[3]*vec[1] + mat[6]*vec[2];
   res[1] = mat[1]*vec[0] + mat[4]*vec[1] + mat[7]*vec[2];
   res[2] = mat[2]*vec[0] + mat[5]*vec[1] + mat[8]*vec[2];
@@ -162,6 +166,7 @@ void mji_mulMatTVec3(mjtNum* restrict res, const mjtNum mat[9], const mjtNum vec
 // multiply 3x3 matrices,
 static inline
 void mji_mulMatMat3(mjtNum* restrict res, const mjtNum mat1[9], const mjtNum mat2[9]) {
+  assert(res != mat1 && res != mat2);
   res[0] = mat1[0]*mat2[0] + mat1[1]*mat2[3] + mat1[2]*mat2[6];
   res[1] = mat1[0]*mat2[1] + mat1[1]*mat2[4] + mat1[2]*mat2[7];
   res[2] = mat1[0]*mat2[2] + mat1[1]*mat2[5] + mat1[2]*mat2[8];
@@ -177,6 +182,7 @@ void mji_mulMatMat3(mjtNum* restrict res, const mjtNum mat1[9], const mjtNum mat
 // multiply 3x3 matrices, first argument transposed
 static inline
 void mji_mulMatTMat3(mjtNum* restrict res, const mjtNum mat1[9], const mjtNum mat2[9]) {
+  assert(res != mat1 && res != mat2);
   res[0] = mat1[0]*mat2[0] + mat1[3]*mat2[3] + mat1[6]*mat2[6];
   res[1] = mat1[0]*mat2[1] + mat1[3]*mat2[4] + mat1[6]*mat2[7];
   res[2] = mat1[0]*mat2[2] + mat1[3]*mat2[5] + mat1[6]*mat2[8];
@@ -192,6 +198,7 @@ void mji_mulMatTMat3(mjtNum* restrict res, const mjtNum mat1[9], const mjtNum ma
 // transpose 3x3 matrix
 static inline
 void mji_transpose3(mjtNum* restrict res, const mjtNum mat[9]) {
+  assert(res != mat);
   res[0] = mat[0];
   res[1] = mat[3];
   res[2] = mat[6];
@@ -244,6 +251,7 @@ mjtNum mji__normalize4(mjtNum vec[4]) {
 // rotate vector by quaternion
 static inline
 void mji_rotVecQuat(mjtNum* restrict res, const mjtNum vec[3], const mjtNum quat[4]) {
+  assert(res != quat);
   // null quat: copy vec
   if (quat[0] == 1 && quat[1] == 0 && quat[2] == 0 && quat[3] == 0) {
     mji_copy3(res, vec);
@@ -277,6 +285,7 @@ void mji_negQuat(mjtNum* restrict res, const mjtNum quat[4]) {
 // multiply quaternions
 static inline
 void mji_mulQuat(mjtNum* restrict res, const mjtNum qa[4], const mjtNum qb[4]) {
+  assert(res != qa && res != qb);
   res[0] = qa[0]*qb[0] - qa[1]*qb[1] - qa[2]*qb[2] - qa[3]*qb[3];
   res[1] = qa[0]*qb[1] + qa[1]*qb[0] + qa[2]*qb[3] - qa[3]*qb[2];
   res[2] = qa[0]*qb[2] - qa[1]*qb[3] + qa[2]*qb[0] + qa[3]*qb[1];
@@ -287,6 +296,7 @@ void mji_mulQuat(mjtNum* restrict res, const mjtNum qa[4], const mjtNum qb[4]) {
 // multiply quaternion and axis
 static inline
 void mji_mulQuatAxis(mjtNum* restrict res, const mjtNum quat[4], const mjtNum axis[3]) {
+  assert(res != quat && res != axis);
   res[0] = -quat[1]*axis[0] - quat[2]*axis[1] - quat[3]*axis[2];
   res[1] =  quat[0]*axis[0] + quat[2]*axis[2] - quat[3]*axis[1];
   res[2] =  quat[0]*axis[1] + quat[3]*axis[0] - quat[1]*axis[2];
@@ -349,6 +359,7 @@ void mji_subQuat(mjtNum* restrict res, const mjtNum qa[4], const mjtNum qb[4]) {
 // convert 3D rotation matrix to quaternion
 static inline
 void mji_mat2Quat(mjtNum* restrict quat, const mjtNum mat[9]) {
+  assert(quat != mat);
   // q0 largest
   if (mat[0]+mat[4]+mat[8]>0) {
     quat[0] = 0.5 * mju_sqrt(1 + mat[0] + mat[4] + mat[8]);
@@ -388,6 +399,7 @@ void mji_mat2Quat(mjtNum* restrict quat, const mjtNum mat[9]) {
 // integrate quaternion given 3D angular velocity
 static inline
 void mji_quatIntegrate(mjtNum* restrict quat, const mjtNum vel[3], mjtNum scale) {
+  assert(quat != vel);
   mjtNum angle, tmp[4], qrot[4];
 
   // form local rotation quaternion, apply
@@ -405,6 +417,7 @@ void mji_quatIntegrate(mjtNum* restrict quat, const mjtNum vel[3], mjtNum scale)
 // vector cross-product, 3D
 static inline
 void mji_cross(mjtNum* restrict res, const mjtNum a[3], const mjtNum b[3]) {
+  assert(res != a && res != b);
   res[0] = a[1]*b[2] - a[2]*b[1];
   res[1] = a[2]*b[0] - a[0]*b[2];
   res[2] = a[0]*b[1] - a[1]*b[0];
@@ -414,6 +427,7 @@ void mji_cross(mjtNum* restrict res, const mjtNum a[3], const mjtNum b[3]) {
 // cross-product for motion vector
 static inline
 void mji_crossMotion(mjtNum* restrict res, const mjtNum vel[6], const mjtNum v[6]) {
+  assert(res != vel && res != v);
   res[0] = -vel[2]*v[1] + vel[1]*v[2];
   res[1] =  vel[2]*v[0] - vel[0]*v[2];
   res[2] = -vel[1]*v[0] + vel[0]*v[1];
@@ -430,6 +444,7 @@ void mji_crossMotion(mjtNum* restrict res, const mjtNum vel[6], const mjtNum v[6
 // cross-product for force vectors
 static inline
 void mji_crossForce(mjtNum* restrict res, const mjtNum vel[6], const mjtNum f[6]) {
+  assert(res != vel && res != f);
   res[0] = -vel[2]*f[1] + vel[1]*f[2];
   res[1] =  vel[2]*f[0] - vel[0]*f[2];
   res[2] = -vel[1]*f[0] + vel[0]*f[1];

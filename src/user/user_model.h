@@ -249,6 +249,25 @@ class mjCModel : public mjCModel_, private mjSpec {
   bool IsCompiled() const;                                          // is model already compiled
   const mjCError& GetError() const;                                 // get reference of error object
   void SetError(const mjCError& error) { errInfo = error; }         // set value of error object
+  void AddWarning(std::string msg,  // add warning to vector
+                  const mjCBase* obj = nullptr);
+  void AddGroupedWarning(const std::string& subject,  // add grouped warning
+                         const std::string& body);
+  const std::vector<std::string>& GetWarnings()
+      const {  // get accumulated warnings
+    return warnings_;
+  }
+  void ClearWarnings() {
+    warnings_.clear();
+    num_attach_warnings_ = 0;
+  }  // clear all warnings
+  void ClearCompileWarnings() {
+    warnings_.resize(num_attach_warnings_);
+  }                                  // clear compile warnings
+  void SetAttachWarningBoundary() {  // snapshot attach warning count
+    num_attach_warnings_ = warnings_.size();
+  }
+
   mjCBody* GetWorld();                                              // pointer to world body
   mjCDef* FindDefault(const std::string& name) const;               // find defaults class name
   mjCDef* AddDefault(std::string name, mjCDef* parent = nullptr);   // add defaults class to array
@@ -488,10 +507,15 @@ class mjCModel : public mjCModel_, private mjSpec {
   // expand all keyframes in the model
   void ExpandAllKeyframes();
 
-  mjListKeyMap ids;   // map from object names to ids
-  mjCError errInfo;   // last error info
+  mjListKeyMap ids;  // map from object names to ids
+  mjCError errInfo;  // last error info
+  std::vector<std::string>
+      warnings_;  // chronological list of non-fatal warnings
+  int num_attach_warnings_ =
+      0;  // boundary: [0, n) are attach, [n, size) are compile
+  bool compiling_ = false;              // true during Compile()
   std::vector<mjKeyInfo> key_pending_;  // attached keyframes
-  bool deepcopy_;     // copy objects when attaching
+  bool deepcopy_;                       // copy objects when attaching
   bool attached_ = false;  // true if model is attached to a parent model
   std::unordered_map<const mjsCompiler*, mjSpec*> compiler2spec_;  // map from compiler to spec
   std::vector<mjCBase*> detached_;  // list of detached objects

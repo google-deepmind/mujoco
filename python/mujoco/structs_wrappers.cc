@@ -1019,6 +1019,28 @@ MjWarningStatList::MjStructList(MjWarningStatList& other, py::slice slice)
     : StructListBase(other, slice), X(int, lastinfo), X(int, number) {}
 #undef X
 
+// ==================== MJLOGCONFIG ============================================
+MjLogConfigWrapper::MjWrapper() : WrapperBase(new raw::MjLogConfig{}) {}
+
+MjLogConfigWrapper::MjWrapper(raw::MjLogConfig* ptr, py::handle owner)
+    : WrapperBase(ptr, owner) {}
+
+MjLogConfigWrapper::MjWrapper(const MjLogConfigWrapper& other)
+    : MjLogConfigWrapper() {
+  *this->ptr_ = *other.ptr_;
+}
+
+// ==================== MJLOGMESSAGE ===========================================
+MjLogMessageWrapper::MjWrapper() : WrapperBase(new raw::MjLogMessage{}) {}
+
+MjLogMessageWrapper::MjWrapper(raw::MjLogMessage* ptr, py::handle owner)
+    : WrapperBase(ptr, owner) {}
+
+MjLogMessageWrapper::MjWrapper(const MjLogMessageWrapper& other)
+    : MjLogMessageWrapper() {
+  *this->ptr_ = *other.ptr_;
+}
+
 // ==================== MJTIMERSTAT ============================================
 MjTimerStatWrapper::MjWrapper() : WrapperBase(new raw::MjTimerStat{}) {}
 

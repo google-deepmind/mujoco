@@ -58,8 +58,16 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
   }
 
   // handle compile warning
-  if (mjs_isWarning(spec.get())) {
-    mjCopyError(error, mjs_getError(spec.get()), error_sz);
+  int num_warnings = mjs_numWarnings(spec.get());
+  if (num_warnings > 0) {
+    std::string all_warnings;
+    for (int i = 0; i < num_warnings; ++i) {
+      if (!all_warnings.empty()) {
+        all_warnings += '\n';
+      }
+      all_warnings += mjs_getWarning(spec.get(), i);
+    }
+    mjCopyError(error, all_warnings.c_str(), error_sz);
   } else if (error) {
     error[0] = '\0';
   }

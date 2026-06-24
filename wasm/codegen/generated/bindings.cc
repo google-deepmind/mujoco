@@ -115,15 +115,20 @@ EMSCRIPTEN_DECLARE_VAL_TYPE(StringOrNull);
     mju_error("Invalid argument: %s is undefined", #val); \
   }
 
-void ThrowMujocoErrorToJS(const char* msg) {
-  // Get a handle to the JS global Error constructor function, create a new
-  // object instance and then throw the object as an exception using the
-  // val::throw_() helper function.
-  val(val::global("Error").new_(val("MuJoCo Error: " + std::string(msg))))
-      .throw_();
+void ThrowMujocoErrorToJS(const mjLogMessage* msg) {
+  if (msg->level == mjLOG_ERROR) {
+    std::string message = msg->subject;
+    if (msg->func) {
+      message = std::string(msg->func) + ": " + msg->subject;
+    }
+    // Get a handle to the JS global Error constructor function, create a new
+    // object instance and then throw the object as an exception using the
+    // val::throw_() helper function.
+    val(val::global("Error").new_(val("MuJoCo Error: " + message))).throw_();
+  }
 }
 __attribute__((constructor)) void InitMuJoCoErrorHandler() {
-  mju_user_error = ThrowMujocoErrorToJS;
+  mju_setLogHandler(ThrowMujocoErrorToJS);
 }
 
 // Generates a descriptive error message for when a key lookup fails.
@@ -594,6 +599,90 @@ struct MjLROpt {
 
  private:
   mjLROpt* ptr_;
+  bool owned_ = false;
+};
+
+struct MjLogConfig {
+  ~MjLogConfig();
+  MjLogConfig();
+  explicit MjLogConfig(mjLogConfig *ptr);
+  MjLogConfig(const MjLogConfig &);
+  MjLogConfig &operator=(const MjLogConfig &);
+  std::unique_ptr<MjLogConfig> copy();
+  mjLogConfig* get() const;
+  void set(mjLogConfig* ptr);
+  mjtBool logto_console() const {
+    return ptr_->logto_console;
+  }
+  void set_logto_console(mjtBool value) {
+    ptr_->logto_console = value;
+  }
+  mjtBool logto_file() const {
+    return ptr_->logto_file;
+  }
+  void set_logto_file(mjtBool value) {
+    ptr_->logto_file = value;
+  }
+  emscripten::val logfile() const {
+    return emscripten::val(emscripten::typed_memory_view(1024, ptr_->logfile));
+  }
+  int topics() const {
+    return ptr_->topics;
+  }
+  void set_topics(int value) {
+    ptr_->topics = value;
+  }
+
+ private:
+  mjLogConfig* ptr_;
+  bool owned_ = false;
+};
+
+struct MjLogMessage {
+  ~MjLogMessage();
+  MjLogMessage();
+  explicit MjLogMessage(mjLogMessage *ptr);
+  mjLogMessage* get() const;
+  void set(mjLogMessage* ptr);
+  int level() const {
+    return ptr_->level;
+  }
+  void set_level(int value) {
+    ptr_->level = value;
+  }
+  int topic() const {
+    return ptr_->topic;
+  }
+  void set_topic(int value) {
+    ptr_->topic = value;
+  }
+  emscripten::val subject() const {
+    return emscripten::val(emscripten::typed_memory_view(1024, ptr_->subject));
+  }
+  std::string body() const {
+    return ptr_->body ? std::string(ptr_->body) : "";
+  }
+  std::string func() const {
+    return ptr_->func ? std::string(ptr_->func) : "";
+  }
+  std::string file() const {
+    return ptr_->file ? std::string(ptr_->file) : "";
+  }
+  int line() const {
+    return ptr_->line;
+  }
+  void set_line(int value) {
+    ptr_->line = value;
+  }
+  mjtBool timestamp() const {
+    return ptr_->timestamp;
+  }
+  void set_timestamp(mjtBool value) {
+    ptr_->timestamp = value;
+  }
+
+ private:
+  mjLogMessage* ptr_;
   bool owned_ = false;
 };
 
@@ -1419,6 +1508,75 @@ struct MjWarningStat {
   bool owned_ = false;
 };
 
+struct MjsAuthored {
+  explicit MjsAuthored(mjsAuthored *ptr);
+  mjsAuthored* get() const;
+  void set(mjsAuthored* ptr);
+  uint64_t option() const {
+    return ptr_->option;
+  }
+  void set_option(uint64_t value) {
+    ptr_->option = value;
+  }
+  int disableflags() const {
+    return ptr_->disableflags;
+  }
+  void set_disableflags(int value) {
+    ptr_->disableflags = value;
+  }
+  int enableflags() const {
+    return ptr_->enableflags;
+  }
+  void set_enableflags(int value) {
+    ptr_->enableflags = value;
+  }
+  int disableactuator() const {
+    return ptr_->disableactuator;
+  }
+  void set_disableactuator(int value) {
+    ptr_->disableactuator = value;
+  }
+  uint64_t visual_global() const {
+    return ptr_->visual_global;
+  }
+  void set_visual_global(uint64_t value) {
+    ptr_->visual_global = value;
+  }
+  uint64_t visual_quality() const {
+    return ptr_->visual_quality;
+  }
+  void set_visual_quality(uint64_t value) {
+    ptr_->visual_quality = value;
+  }
+  uint64_t visual_headlight() const {
+    return ptr_->visual_headlight;
+  }
+  void set_visual_headlight(uint64_t value) {
+    ptr_->visual_headlight = value;
+  }
+  uint64_t visual_map() const {
+    return ptr_->visual_map;
+  }
+  void set_visual_map(uint64_t value) {
+    ptr_->visual_map = value;
+  }
+  uint64_t visual_scale() const {
+    return ptr_->visual_scale;
+  }
+  void set_visual_scale(uint64_t value) {
+    ptr_->visual_scale = value;
+  }
+  uint64_t visual_rgba() const {
+    return ptr_->visual_rgba;
+  }
+  void set_visual_rgba(uint64_t value) {
+    ptr_->visual_rgba = value;
+  }
+
+ private:
+  mjsAuthored* ptr_;
+};
+
 struct MjsElement {
   explicit MjsElement(mjsElement *ptr);
   mjsElement* get() const;
@@ -2173,6 +2331,12 @@ struct MjsCompiler {
   void set_alignfree(int value) {
     ptr_->alignfree = value;
   }
+  int conflict() const {
+    return ptr_->conflict;
+  }
+  void set_conflict(int value) {
+    ptr_->conflict = value;
+  }
   mjString meshdir() const {
     return (ptr_ && ptr_->meshdir) ? *(ptr_->meshdir) : "";
   }
@@ -2188,6 +2352,12 @@ struct MjsCompiler {
     if (ptr_ && ptr_->texturedir) {
       *(ptr_->texturedir) = value;
     }
+  }
+  uint64_t authored() const {
+    return ptr_->authored;
+  }
+  void set_authored(uint64_t value) {
+    ptr_->authored = value;
   }
 
  private:
@@ -5782,6 +5952,7 @@ struct MjSpec {
   MjOption option;
   MjVisual visual;
   MjStatistic stat;
+  MjsAuthored authored;
 };
 
 struct MjsActuator {
@@ -6930,8 +7101,8 @@ struct MjData {
   emscripten::val efc_frictionloss() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_frictionloss));
   }
-  emscripten::val efc_diagApprox() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_diagApprox));
+  emscripten::val efc_diagA() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_diagA));
   }
   emscripten::val efc_KBIP() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefc * 4, ptr_->efc_KBIP));
@@ -6981,24 +7152,6 @@ struct MjData {
   emscripten::val iacc_smooth() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nidof, ptr_->iacc_smooth));
   }
-  emscripten::val iM_rownnz() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nidof, ptr_->iM_rownnz));
-  }
-  emscripten::val iM_rowadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nidof, ptr_->iM_rowadr));
-  }
-  emscripten::val iM_colind() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nC, ptr_->iM_colind));
-  }
-  emscripten::val iM() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nC, ptr_->iM));
-  }
-  emscripten::val iLD() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nC, ptr_->iLD));
-  }
-  emscripten::val iLDiagInv() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nidof, ptr_->iLDiagInv));
-  }
   emscripten::val iacc() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nidof, ptr_->iacc));
   }
@@ -7028,21 +7181,6 @@ struct MjData {
   }
   emscripten::val iefc_id() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_id));
-  }
-  emscripten::val iefc_J_rownnz() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_J_rownnz));
-  }
-  emscripten::val iefc_J_rowadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_J_rowadr));
-  }
-  emscripten::val iefc_J_rowsuper() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_J_rowsuper));
-  }
-  emscripten::val iefc_J_colind() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nJ, ptr_->iefc_J_colind));
-  }
-  emscripten::val iefc_J() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nJ, ptr_->iefc_J));
   }
   emscripten::val iefc_frictionloss() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_frictionloss));
@@ -7224,6 +7362,51 @@ mjLROpt* MjLROpt::get() const {
   return ptr_;
 }
 void MjLROpt::set(mjLROpt* ptr) {
+  ptr_ = ptr;
+}
+
+MjLogConfig::MjLogConfig(mjLogConfig *ptr) : ptr_(ptr) {}
+MjLogConfig::~MjLogConfig() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
+MjLogConfig::MjLogConfig() : ptr_(new mjLogConfig()) {
+  owned_ = true;
+}
+MjLogConfig::MjLogConfig(const MjLogConfig &other) : MjLogConfig() {
+  *ptr_ = *other.get();
+}
+MjLogConfig& MjLogConfig::operator=(const MjLogConfig &other) {
+  if (this == &other) {
+    return *this;
+  }
+  *ptr_ = *other.get();
+  return *this;
+}
+std::unique_ptr<MjLogConfig> MjLogConfig::copy() {
+  return std::make_unique<MjLogConfig>(*this);
+}
+mjLogConfig* MjLogConfig::get() const {
+  return ptr_;
+}
+void MjLogConfig::set(mjLogConfig* ptr) {
+  ptr_ = ptr;
+}
+
+MjLogMessage::MjLogMessage(mjLogMessage *ptr) : ptr_(ptr) {}
+MjLogMessage::~MjLogMessage() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
+MjLogMessage::MjLogMessage() : ptr_(new mjLogMessage()) {
+  owned_ = true;
+}
+mjLogMessage* MjLogMessage::get() const {
+  return ptr_;
+}
+void MjLogMessage::set(mjLogMessage* ptr) {
   ptr_ = ptr;
 }
 
@@ -7573,6 +7756,14 @@ mjWarningStat* MjWarningStat::get() const {
   return ptr_;
 }
 void MjWarningStat::set(mjWarningStat* ptr) {
+  ptr_ = ptr;
+}
+
+MjsAuthored::MjsAuthored(mjsAuthored *ptr) : ptr_(ptr) {}
+mjsAuthored* MjsAuthored::get() const {
+  return ptr_;
+}
+void MjsAuthored::set(mjsAuthored* ptr) {
   ptr_ = ptr;
 }
 
@@ -8418,7 +8609,8 @@ MjSpec::MjSpec()
       compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat) {
+      stat(&ptr_->stat),
+      authored(&ptr_->authored) {
   owned_ = true;
   mjs_defaultSpec(ptr_);
 };
@@ -8429,7 +8621,8 @@ MjSpec::MjSpec(mjSpec *ptr)
       compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat) {}
+      stat(&ptr_->stat),
+      authored(&ptr_->authored) {}
 
 MjSpec::MjSpec(const MjSpec &other)
     : ptr_(mj_copySpec(other.get())),
@@ -8437,7 +8630,8 @@ MjSpec::MjSpec(const MjSpec &other)
       compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat) {
+      stat(&ptr_->stat),
+      authored(&ptr_->authored) {
   owned_ = true;
 }
 
@@ -8547,9 +8741,21 @@ std::unique_ptr<MjSpec> parseXMLString_wrapper(const std::string &xml) {
 
 std::unique_ptr<MjModel> mj_compile_wrapper_1(const MjSpec& spec) {
   mjSpec* spec_ptr = spec.get();
+
+  // suppress stderr playback: warnings are raised via console.warn() below
+  mjfLogHandler prev = _mjPRIVATE_setTlsLogHandler([](const mjLogMessage*) {});
   mjModel* model = mj_compile(spec_ptr, nullptr);
-  if (!model || mjs_isWarning(spec_ptr)) {
+  _mjPRIVATE_setTlsLogHandler(prev);
+  if (!model) {
     mju_error("%s", mjs_getError(spec_ptr));
+  }
+  int num_warnings = mjs_numWarnings(spec_ptr);
+  if (num_warnings > 0) {
+    for (int i = 0; i < num_warnings; ++i) {
+      val::global("console").call<void>(
+          "warn",
+          val("MuJoCo Warning: " + std::string(mjs_getWarning(spec_ptr, i))));
+    }
   }
   return std::unique_ptr<MjModel>(new MjModel(model));
 }
@@ -8557,9 +8763,21 @@ std::unique_ptr<MjModel> mj_compile_wrapper_1(const MjSpec& spec) {
 std::unique_ptr<MjModel> mj_compile_wrapper_2(const MjSpec& spec, const MjVFS& vfs) {
   mjSpec* spec_ptr = spec.get();
   mjVFS* vfs_ptr = vfs.get();
+
+  // suppress stderr playback: warnings are raised via console.warn() below
+  mjfLogHandler prev = _mjPRIVATE_setTlsLogHandler([](const mjLogMessage*) {});
   mjModel* model = mj_compile(spec_ptr, vfs_ptr);
-  if (!model || mjs_isWarning(spec_ptr)) {
+  _mjPRIVATE_setTlsLogHandler(prev);
+  if (!model) {
     mju_error("%s", mjs_getError(spec_ptr));
+  }
+  int num_warnings = mjs_numWarnings(spec_ptr);
+  if (num_warnings > 0) {
+    for (int i = 0; i < num_warnings; ++i) {
+      val::global("console").call<void>(
+          "warn",
+          val("MuJoCo Warning: " + std::string(mjs_getWarning(spec_ptr, i))));
+    }
   }
   return std::unique_ptr<MjModel>(new MjModel(model));
 }
@@ -8583,6 +8801,11 @@ int mj_setLengthRange_wrapper(const MjModel& m, const MjData& d, int index, cons
     mju_error("%s", error.data());
   }
   return result;
+}
+
+void mju_info_wrapper(int topic, const String& msg) {
+  CHECK_VAL(msg);
+  mju_info(topic, "%s", msg.as<const std::string>().data());
 }
 
 void mj_Euler_wrapper(const MjModel& m, MjData& d) {
@@ -8742,12 +8965,10 @@ void mj_forwardSkip_wrapper(const MjModel& m, MjData& d, int skipstage, int skip
   mj_forwardSkip(m.get(), d.get(), skipstage, skipsensor);
 }
 
-void mj_fullM_wrapper(const MjModel& m, const val& dst, const NumberArray& M) {
+void mj_fullM_wrapper(const MjModel& m, const MjData& d, const val& dst) {
   UNPACK_VALUE(mjtNum, dst);
-  UNPACK_ARRAY(mjtNum, M);
-  CHECK_SIZE(M, m.nM());
   CHECK_SIZE(dst, m.nv() * m.nv());
-  mj_fullM(m.get(), dst_.data(), M_.data());
+  mj_fullM(m.get(), d.get(), dst_.data());
 }
 
 void mj_fwdAcceleration_wrapper(const MjModel& m, MjData& d) {
@@ -9915,6 +10136,10 @@ std::optional<MjsDefault> mjs_getSpecDefault_wrapper(const MjSpec& s) {
   return MjsDefault(result);
 }
 
+std::string mjs_getWarning_wrapper(const MjSpec& spec, int index) {
+  return std::string(mjs_getWarning(spec.get(), index));
+}
+
 std::optional<MjsWrap> mjs_getWrap_wrapper(const MjsTendon& tendonspec, int i) {
   mjsWrap* result = mjs_getWrap(tendonspec.get(), i);
   if (result == nullptr) {
@@ -9990,6 +10215,10 @@ std::optional<MjsElement> mjs_nextElement_wrapper(const MjSpec& s, const MjsElem
     return std::nullopt;
   }
   return MjsElement(result);
+}
+
+int mjs_numWarnings_wrapper(const MjSpec& spec) {
+  return mjs_numWarnings(spec.get());
 }
 
 std::string mjs_resolveOrientation_wrapper(const val& quat, mjtByte degree, const String& sequence, const MjsOrientation& orientation) {
@@ -10399,6 +10628,12 @@ void mju_fill_wrapper(const val& res, mjtNum val) {
   mju_fill(res_.data(), val, n);
 }
 
+MjLogConfig mju_getLogConfig_wrapper() {
+  MjLogConfig result;
+  *result.get() = mju_getLogConfig();
+  return result;
+}
+
 void mju_insertionSort_wrapper(const val& list) {
   UNPACK_VALUE(mjtNum, list);
   int n = list_.size();
@@ -10426,6 +10661,10 @@ int mju_mat2Rot_wrapper(const val& quat, const NumberArray& mat) {
   UNPACK_VALUE(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, mat);
   return mju_mat2Rot(quat_.data(), mat_.data());
+}
+
+void mju_message_wrapper(const MjLogMessage& msg) {
+  mju_message(msg.get());
 }
 
 void mju_mulMatMat_wrapper(const val& res, const NumberArray& mat1, const NumberArray& mat2, int r1, int c1, int c2) {
@@ -10675,6 +10914,10 @@ void mju_scl3_wrapper(const val& res, const NumberArray& vec, mjtNum scl) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec);
   mju_scl3(res_.data(), vec_.data(), scl);
+}
+
+void mju_setLogConfig_wrapper(const MjLogConfig& config) {
+  mju_setLogConfig(*config.get());
 }
 
 void mju_sparse2dense_wrapper(const val& res, const NumberArray& mat, int nr, int nc, const NumberArray& rownnz, const NumberArray& rowadr, const NumberArray& colind) {
@@ -10980,6 +11223,31 @@ void mjv_updateSkin_wrapper(const MjModel& m, const MjData& d, MjvScene& scn) {
 }
 
 EMSCRIPTEN_BINDINGS(mujoco_bindings) {
+  enum_<mjrIndexType>("mjrIndexType")
+    .value("mjINDEX_TYPE_U16", mjINDEX_TYPE_U16)
+    .value("mjINDEX_TYPE_U32", mjINDEX_TYPE_U32);
+  enum_<mjrMeshPrimitiveType>("mjrMeshPrimitiveType")
+    .value("mjMESH_PRIMITIVE_TYPE_TRIANGLES", mjMESH_PRIMITIVE_TYPE_TRIANGLES)
+    .value("mjMESH_PRIMITIVE_TYPE_LINES", mjMESH_PRIMITIVE_TYPE_LINES);
+  enum_<mjrPixelFormat>("mjrPixelFormat")
+    .value("mjPIXEL_FORMAT_UNKNOWN", mjPIXEL_FORMAT_UNKNOWN)
+    .value("mjPIXEL_FORMAT_R8", mjPIXEL_FORMAT_R8)
+    .value("mjPIXEL_FORMAT_RGB8", mjPIXEL_FORMAT_RGB8)
+    .value("mjPIXEL_FORMAT_RGBA8", mjPIXEL_FORMAT_RGBA8)
+    .value("mjPIXEL_FORMAT_R32F", mjPIXEL_FORMAT_R32F)
+    .value("mjPIXEL_FORMAT_DEPTH32F", mjPIXEL_FORMAT_DEPTH32F)
+    .value("mjPIXEL_FORMAT_KTX", mjPIXEL_FORMAT_KTX);
+  enum_<mjrVertexAttributeType>("mjrVertexAttributeType")
+    .value("mjVERTEX_ATTRIBUTE_TYPE_FLOAT2", mjVERTEX_ATTRIBUTE_TYPE_FLOAT2)
+    .value("mjVERTEX_ATTRIBUTE_TYPE_FLOAT3", mjVERTEX_ATTRIBUTE_TYPE_FLOAT3)
+    .value("mjVERTEX_ATTRIBUTE_TYPE_FLOAT4", mjVERTEX_ATTRIBUTE_TYPE_FLOAT4)
+    .value("mjVERTEX_ATTRIBUTE_TYPE_UBYTE4", mjVERTEX_ATTRIBUTE_TYPE_UBYTE4);
+  enum_<mjrVertexAttributeUsage>("mjrVertexAttributeUsage")
+    .value("mjVERTEX_ATTRIBUTE_USAGE_POSITION", mjVERTEX_ATTRIBUTE_USAGE_POSITION)
+    .value("mjVERTEX_ATTRIBUTE_USAGE_NORMAL", mjVERTEX_ATTRIBUTE_USAGE_NORMAL)
+    .value("mjVERTEX_ATTRIBUTE_USAGE_TANGENTS", mjVERTEX_ATTRIBUTE_USAGE_TANGENTS)
+    .value("mjVERTEX_ATTRIBUTE_USAGE_UV", mjVERTEX_ATTRIBUTE_USAGE_UV)
+    .value("mjVERTEX_ATTRIBUTE_USAGE_COLOR", mjVERTEX_ATTRIBUTE_USAGE_COLOR);
   enum_<mjtAlignFree>("mjtAlignFree")
     .value("mjALIGNFREE_FALSE", mjALIGNFREE_FALSE)
     .value("mjALIGNFREE_TRUE", mjALIGNFREE_TRUE)
@@ -11050,6 +11318,10 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   enum_<mjtCone>("mjtCone")
     .value("mjCONE_PYRAMIDAL", mjCONE_PYRAMIDAL)
     .value("mjCONE_ELLIPTIC", mjCONE_ELLIPTIC);
+  enum_<mjtConflict>("mjtConflict")
+    .value("mjCONFLICT_WARNING", mjCONFLICT_WARNING)
+    .value("mjCONFLICT_MERGE", mjCONFLICT_MERGE)
+    .value("mjCONFLICT_ERROR", mjCONFLICT_ERROR);
   enum_<mjtConstraint>("mjtConstraint")
     .value("mjCNSTR_EQUALITY", mjCNSTR_EQUALITY)
     .value("mjCNSTR_FRICTION_DOF", mjCNSTR_FRICTION_DOF)
@@ -11268,6 +11540,17 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjLIMITED_FALSE", mjLIMITED_FALSE)
     .value("mjLIMITED_TRUE", mjLIMITED_TRUE)
     .value("mjLIMITED_AUTO", mjLIMITED_AUTO);
+  enum_<mjtLogLevel>("mjtLogLevel")
+    .value("mjLOG_DEBUG", mjLOG_DEBUG)
+    .value("mjLOG_INFO", mjLOG_INFO)
+    .value("mjLOG_WARNING", mjLOG_WARNING)
+    .value("mjLOG_ERROR", mjLOG_ERROR);
+  enum_<mjtLogTopic>("mjtLogTopic")
+    .value("mjTOPIC_NONE", mjTOPIC_NONE)
+    .value("mjTOPIC_TIME_STP", mjTOPIC_TIME_STP)
+    .value("mjTOPIC_TIME_CMP", mjTOPIC_TIME_CMP)
+    .value("mjTOPIC_SLEEP", mjTOPIC_SLEEP)
+    .value("mjNTOPIC", mjNTOPIC);
   enum_<mjtMark>("mjtMark")
     .value("mjMARK_NONE", mjMARK_NONE)
     .value("mjMARK_EDGE", mjMARK_EDGE)
@@ -11668,7 +11951,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("efc_Y_rownnz", &MjData::efc_Y_rownnz)
     .property("efc_aref", &MjData::efc_aref)
     .property("efc_b", &MjData::efc_b)
-    .property("efc_diagApprox", &MjData::efc_diagApprox)
+    .property("efc_diagA", &MjData::efc_diagA)
     .property("efc_force", &MjData::efc_force)
     .property("efc_frictionloss", &MjData::efc_frictionloss)
     .property("efc_id", &MjData::efc_id)
@@ -11694,20 +11977,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("geom_xmat", &MjData::geom_xmat)
     .property("geom_xpos", &MjData::geom_xpos)
     .property("history", &MjData::history)
-    .property("iLD", &MjData::iLD)
-    .property("iLDiagInv", &MjData::iLDiagInv)
-    .property("iM", &MjData::iM)
-    .property("iM_colind", &MjData::iM_colind)
-    .property("iM_rowadr", &MjData::iM_rowadr)
-    .property("iM_rownnz", &MjData::iM_rownnz)
     .property("iacc", &MjData::iacc)
     .property("iacc_smooth", &MjData::iacc_smooth)
     .property("iefc_D", &MjData::iefc_D)
-    .property("iefc_J", &MjData::iefc_J)
-    .property("iefc_J_colind", &MjData::iefc_J_colind)
-    .property("iefc_J_rowadr", &MjData::iefc_J_rowadr)
-    .property("iefc_J_rownnz", &MjData::iefc_J_rownnz)
-    .property("iefc_J_rowsuper", &MjData::iefc_J_rowsuper)
     .property("iefc_R", &MjData::iefc_R)
     .property("iefc_aref", &MjData::iefc_aref)
     .property("iefc_force", &MjData::iefc_force)
@@ -11838,6 +12110,23 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("tolrange", &MjLROpt::tolrange, &MjLROpt::set_tolrange, reference())
     .property("useexisting", &MjLROpt::useexisting, &MjLROpt::set_useexisting, reference())
     .property("uselimit", &MjLROpt::uselimit, &MjLROpt::set_uselimit, reference());
+  emscripten::class_<MjLogConfig>("MjLogConfig")
+    .constructor<>()
+    .function("copy", &MjLogConfig::copy, take_ownership())
+    .property("logfile", &MjLogConfig::logfile)
+    .property("logto_console", &MjLogConfig::logto_console, &MjLogConfig::set_logto_console, reference())
+    .property("logto_file", &MjLogConfig::logto_file, &MjLogConfig::set_logto_file, reference())
+    .property("topics", &MjLogConfig::topics, &MjLogConfig::set_topics, reference());
+  emscripten::class_<MjLogMessage>("MjLogMessage")
+    .constructor<>()
+    .property("body", &MjLogMessage::body, reference())
+    .property("file", &MjLogMessage::file, reference())
+    .property("func", &MjLogMessage::func, reference())
+    .property("level", &MjLogMessage::level, &MjLogMessage::set_level, reference())
+    .property("line", &MjLogMessage::line, &MjLogMessage::set_line, reference())
+    .property("subject", &MjLogMessage::subject)
+    .property("timestamp", &MjLogMessage::timestamp, &MjLogMessage::set_timestamp, reference())
+    .property("topic", &MjLogMessage::topic, &MjLogMessage::set_topic, reference());
   emscripten::class_<MjModel>("MjModel")
     // mj_loadXML is deprecated and will be removed in a future release
     .class_function("mj_loadXML", emscripten::select_overload<std::unique_ptr<MjModel>(std::string)>(&mj_loadXML_wrapper_1))
@@ -12475,6 +12764,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::class_<MjSpec>("MjSpec")
     .constructor<const MjSpec &>()
     .property("timer", &MjSpec::timer)
+    .property("authored", &MjSpec::authored, reference())
     .property("comment", &MjSpec::comment, &MjSpec::set_comment, reference())
     .property("compiler", &MjSpec::compiler, reference())
     .property("element", &MjSpec::element, reference())
@@ -12655,6 +12945,17 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("target", &MjsActuator::target, &MjsActuator::set_target, reference())
     .property("trntype", &MjsActuator::trntype, &MjsActuator::set_trntype, reference())
     .property("userdata", &MjsActuator::userdata, reference());
+  emscripten::class_<MjsAuthored>("MjsAuthored")
+    .property("disableactuator", &MjsAuthored::disableactuator, &MjsAuthored::set_disableactuator, reference())
+    .property("disableflags", &MjsAuthored::disableflags, &MjsAuthored::set_disableflags, reference())
+    .property("enableflags", &MjsAuthored::enableflags, &MjsAuthored::set_enableflags, reference())
+    .property("option", &MjsAuthored::option, &MjsAuthored::set_option, reference())
+    .property("visual_global", &MjsAuthored::visual_global, &MjsAuthored::set_visual_global, reference())
+    .property("visual_headlight", &MjsAuthored::visual_headlight, &MjsAuthored::set_visual_headlight, reference())
+    .property("visual_map", &MjsAuthored::visual_map, &MjsAuthored::set_visual_map, reference())
+    .property("visual_quality", &MjsAuthored::visual_quality, &MjsAuthored::set_visual_quality, reference())
+    .property("visual_rgba", &MjsAuthored::visual_rgba, &MjsAuthored::set_visual_rgba, reference())
+    .property("visual_scale", &MjsAuthored::visual_scale, &MjsAuthored::set_visual_scale, reference());
   emscripten::class_<MjsBody>("MjsBody")
     .property("alt", &MjsBody::alt, reference())
     .property("childclass", &MjsBody::childclass, &MjsBody::set_childclass, reference())
@@ -12697,10 +12998,12 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::class_<MjsCompiler>("MjsCompiler")
     .property("LRopt", &MjsCompiler::LRopt, reference())
     .property("alignfree", &MjsCompiler::alignfree, &MjsCompiler::set_alignfree, reference())
+    .property("authored", &MjsCompiler::authored, &MjsCompiler::set_authored, reference())
     .property("autolimits", &MjsCompiler::autolimits, &MjsCompiler::set_autolimits, reference())
     .property("balanceinertia", &MjsCompiler::balanceinertia, &MjsCompiler::set_balanceinertia, reference())
     .property("boundinertia", &MjsCompiler::boundinertia, &MjsCompiler::set_boundinertia, reference())
     .property("boundmass", &MjsCompiler::boundmass, &MjsCompiler::set_boundmass, reference())
+    .property("conflict", &MjsCompiler::conflict, &MjsCompiler::set_conflict, reference())
     .property("degree", &MjsCompiler::degree, &MjsCompiler::set_degree, reference())
     .property("discardvisual", &MjsCompiler::discardvisual, &MjsCompiler::set_discardvisual, reference())
     .property("eulerseq", &MjsCompiler::eulerseq)
@@ -13235,6 +13538,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("translate", &MjvScene::translate);
   emscripten::register_optional<MjSpec>();
   emscripten::register_optional<MjsActuator>();
+  emscripten::register_optional<MjsAuthored>();
   emscripten::register_optional<MjsBody>();
   emscripten::register_optional<MjsCamera>();
   emscripten::register_optional<MjsCompiler>();
@@ -13486,6 +13790,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_getParent", &mjs_getParent_wrapper);
   function("mjs_getSpec", &mjs_getSpec_wrapper);
   function("mjs_getSpecDefault", &mjs_getSpecDefault_wrapper);
+  function("mjs_getWarning", &mjs_getWarning_wrapper);
   function("mjs_getWrap", &mjs_getWrap_wrapper);
   function("mjs_getWrapCoef", &mjs_getWrapCoef_wrapper);
   function("mjs_getWrapDivisor", &mjs_getWrapDivisor_wrapper);
@@ -13497,6 +13802,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_makeMesh", &mjs_makeMesh_wrapper);
   function("mjs_nextChild", &mjs_nextChild_wrapper);
   function("mjs_nextElement", &mjs_nextElement_wrapper);
+  function("mjs_numWarnings", &mjs_numWarnings_wrapper);
   function("mjs_resolveOrientation", &mjs_resolveOrientation_wrapper);
   function("mjs_sensorDim", &mjs_sensorDim_wrapper);
   function("mjs_setDeepCopy", &mjs_setDeepCopy_wrapper);
@@ -13555,6 +13861,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mju_eye", &mju_eye_wrapper);
   function("mju_f2n", &mju_f2n_wrapper);
   function("mju_fill", &mju_fill_wrapper);
+  function("mju_getLogConfig", &mju_getLogConfig_wrapper);
   function("mju_insertionSort", &mju_insertionSort_wrapper);
   function("mju_insertionSortInt", &mju_insertionSortInt_wrapper);
   function("mju_isBad", &mju_isBad);
@@ -13562,6 +13869,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mju_mat2Quat", &mju_mat2Quat_wrapper);
   function("mju_mat2Rot", &mju_mat2Rot_wrapper);
   function("mju_max", &mju_max);
+  function("mju_message", &mju_message_wrapper);
   function("mju_min", &mju_min);
   function("mju_mulMatMat", &mju_mulMatMat_wrapper);
   function("mju_mulMatMatT", &mju_mulMatMatT_wrapper);
@@ -13598,6 +13906,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mju_round", &mju_round);
   function("mju_scl", &mju_scl_wrapper);
   function("mju_scl3", &mju_scl3_wrapper);
+  function("mju_setLogConfig", &mju_setLogConfig_wrapper);
   function("mju_sigmoid", &mju_sigmoid);
   function("mju_sign", &mju_sign);
   function("mju_sparse2dense", &mju_sparse2dense_wrapper);
@@ -13657,6 +13966,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_saveModel", &mj_saveModel_wrapper);
   function("mj_saveLastXML", &mj_saveLastXML_wrapper);
   function("mj_setLengthRange", &mj_setLengthRange_wrapper);
+  function("mju_info", &mju_info_wrapper);
   // mj_compile is bound using two overloads to handle the optional MjVFS argument,
   // as using std::optional<MjVFS> caused memory errors due to missing copy/move constructors.
   function("mj_compile", emscripten::select_overload<std::unique_ptr<MjModel>(const MjSpec&)>(&mj_compile_wrapper_1));

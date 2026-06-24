@@ -24,6 +24,7 @@
 #include <mujoco/mujoco.h>
 #include "errors.h"
 #include "indexers.h"  // IWYU pragma: keep
+#include "private.h"
 #include "raw.h"
 #include "structs.h"  // IWYU pragma: keep
 #include <pybind11/cast.h>
@@ -118,7 +119,14 @@ raw::MjModel* MjSpec::Compile(mjVFS* vfs) {
   raw::MjModel* m;
   {
     py::gil_scoped_release no_gil;
+
+    // Install a no-op handler to suppress stderr output from warnings.
+    // Compile() installs its own (setjmp/longjmp) handler and then chains to
+    // prev. We want to raise a `warnings.warn`, so pass in a no-op handler.
+    mjfLogHandler prev =
+        _mjPRIVATE_setTlsLogHandler([](const mjLogMessage*) {});
     m = mj_compile(ptr, vfs);
+    _mjPRIVATE_setTlsLogHandler(prev);
   }
 
   if (local_vfs.has_value()) {
@@ -127,9 +135,18 @@ raw::MjModel* MjSpec::Compile(mjVFS* vfs) {
     local_vfs = std::nullopt;
   }
 
-  if (!m || mjs_isWarning(ptr)) {
+  if (!m) {
     throw py::value_error(mjs_getError(ptr));
   }
+
+  int num_warnings = mjs_numWarnings(ptr);
+  if (num_warnings > 0) {
+    py::object warnings = py::module_::import("warnings");
+    for (int i = 0; i < num_warnings; ++i) {
+      warnings.attr("warn")(mjs_getWarning(ptr, i));
+    }
+  }
+
   return m;
 }
 

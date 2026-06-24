@@ -20,6 +20,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
+import json
 import pathlib
 from typing import Literal, TypeAlias
 
@@ -38,6 +39,27 @@ class SignalType(Enum):
 
 
 SignalMappingType: TypeAlias = dict[str, tuple[SignalType, np.ndarray]]
+
+
+def encode_signal_mapping(signal_mapping: SignalMappingType) -> str:
+  """Serialize a signal mapping to a JSON string.
+
+  This avoids storing object arrays (which require ``allow_pickle=True`` to
+  load) on disk. The mapping is plain data: enum values and integer indices.
+  """
+  return json.dumps({
+      name: [sig_type.value, np.asarray(indices).astype(int).tolist()]
+      for name, (sig_type, indices) in signal_mapping.items()
+  })
+
+
+def decode_signal_mapping(encoded: str) -> SignalMappingType:
+  """Inverse of :func:`encode_signal_mapping`."""
+  raw = json.loads(encoded)
+  return {
+      name: (SignalType(sig_type), np.asarray(indices, dtype=int))
+      for name, (sig_type, indices) in raw.items()
+  }
 
 InterpolationMethod = Literal[
     "linear", "cubic", "quadratic", "quintic", "zero_order_hold", "zoh"
@@ -569,12 +591,12 @@ class TimeSeries:
     Args:
       path: Path where the data will be saved.
     """
-    np.savez(
-        path,
-        times=self.times,
-        data=self.data,
-        signal_mapping=np.array(self.signal_mapping, dtype=object),
-    )
+    save_dict = {"times": self.times, "data": self.data}
+    if self.signal_mapping:
+      save_dict["signal_mapping"] = np.asarray(
+          encode_signal_mapping(self.signal_mapping)
+      )
+    np.savez(path, **save_dict)
 
   def save_to_csv(self, path: str | pathlib.Path) -> None:
     """Save the time series data to a CSV file.
@@ -598,11 +620,11 @@ class TimeSeries:
     Returns:
       A new TimeSeries object.
     """
-    with np.load(path, allow_pickle=True) as npz:
+    with np.load(path, allow_pickle=False) as npz:
       times = npz["times"]
       data = npz["data"]
       if "signal_mapping" in npz:
-        signal_mapping = npz["signal_mapping"].item()
+        signal_mapping = decode_signal_mapping(str(npz["signal_mapping"]))
       else:
         signal_mapping = None
 

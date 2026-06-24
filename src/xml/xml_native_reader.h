@@ -44,7 +44,7 @@ class mjXReader : public mjXBase {
 
   // XML sections embedded in all formats
   static void Compiler(tinyxml2::XMLElement* section, mjSpec* s);    // compiler section
-  static void Option(tinyxml2::XMLElement* section, mjOption* opt);  // option section
+  static void Option(tinyxml2::XMLElement* section, mjSpec* s, mjOption* opt);  // option section
   static void Size(tinyxml2::XMLElement* section, mjSpec* s);        // size section
 
  private:

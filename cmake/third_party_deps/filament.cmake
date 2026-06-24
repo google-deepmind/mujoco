@@ -13,7 +13,7 @@
 # limitations under the License.
 
 set(MUJOCO_DEP_VERSION_filament
-    06793c4a80dd467025b2db1b3b7ea63bf1a865bb
+    da22932b543b59810caf490d7f9e8859ec3fe204
     CACHE STRING "Tag/version of `filament` to be fetched."
 )
 mark_as_advanced(MUJOCO_DEP_VERSION_filament)
@@ -32,6 +32,11 @@ else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -include cstring -include optional")
 endif()
 
+# Filament generates deprecated warnings on MacOS.
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=deprecated-declarations")
+endif()
+
 set(FILAMENT_ENABLE_EXPERIMENTAL_GCC_SUPPORT ON)
 set(FILAMENT_SKIP_SDL2 ON)
 set(FILAMENT_USE_EXTERNAL_ABSL ON)
@@ -39,12 +44,18 @@ set(FILAMENT_USE_EXTERNAL_BENCHMARK ON)
 set(FILAMENT_USE_EXTERNAL_GTEST ON)
 if(WIN32)
     set(USE_STATIC_CRT OFF)
+    add_compile_definitions(WIN32)
 endif()
+
+set(FILAMENT_PATCH_COMMAND
+  git apply --reject --whitespace=fix ${mujoco_SOURCE_DIR}/cmake/filament-allow-clang-windows.patch
+)
 
 fetchpackage(
     PACKAGE_NAME  filament
     GIT_REPO      https://github.com/google/filament.git
     GIT_TAG       ${MUJOCO_DEP_VERSION_filament}
+    PATCH_COMMAND ${FILAMENT_PATCH_COMMAND}
 )
 
 set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_OLD})

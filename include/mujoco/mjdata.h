@@ -26,15 +26,15 @@
 
 //------------------------------------- Contact ----------------------------------------------------
 
-struct mjPreContact_ {             // contact parameters set by narrowphase collision functions
+typedef struct mjPreContact_ {     // contact parameters set by narrowphase collision functions
   mjtNum dist;
   mjtNum pos[3];
   mjtNum normal[3];                // contact normal of the collision
   mjtNum tangent[3];               // first tangent direction
-};
-typedef struct mjPreContact_ mjPreContact;
+} mjPreContact;
 
-struct mjContact_ {                // result of collision detection functions
+
+typedef struct mjContact_ {        // result of collision detection functions
   // contact parameters set by narrowphase collision function
   mjtNum  dist;                    // distance between nearest points; neg: penetration
   mjtNum  pos[3];                  // position of contact point: midpoint between geoms
@@ -65,41 +65,37 @@ struct mjContact_ {                // result of collision detection functions
 
   // address computed by mj_instantiateContact
   int     efc_address;             // address in efc; -1: not included
-};
-typedef struct mjContact_ mjContact;
+} mjContact;
 
 
 //---------------------------------- diagnostics ---------------------------------------------------
 
-struct mjWarningStat_ {      // warning statistics
-  int     lastinfo;          // info from last warning
-  int     number;            // how many times was warning raised
-};
-typedef struct mjWarningStat_ mjWarningStat;
+typedef struct mjWarningStat_ {  // warning statistics
+  int     lastinfo;              // info from last warning
+  int     number;                // how many times was warning raised
+} mjWarningStat;
 
 
-struct mjTimerStat_ {        // timer statistics
-  mjtNum  duration;          // cumulative duration
-  int     number;            // how many times was timer called
-};
-typedef struct mjTimerStat_ mjTimerStat;
+typedef struct mjTimerStat_ {  // timer statistics
+  mjtNum  duration;            // cumulative duration
+  int     number;              // how many times was timer called
+} mjTimerStat;
 
 
-struct mjSolverStat_ {       // per-iteration solver statistics
-  mjtNum  improvement;       // cost reduction, scaled by 1/trace(M(qpos0))
-  mjtNum  gradient;          // gradient norm (primal only, scaled)
-  mjtNum  lineslope;         // slope in linesearch
-  int     nactive;           // number of active constraints
-  int     nchange;           // number of constraint state changes
-  int     neval;             // number of cost evaluations in line search
-  int     nupdate;           // number of Cholesky updates in line search
-};
-typedef struct mjSolverStat_ mjSolverStat;
+typedef struct mjSolverStat_ {  // per-iteration solver statistics
+  mjtNum  improvement;          // cost reduction, scaled by 1/trace(M(qpos0))
+  mjtNum  gradient;             // gradient norm (primal only, scaled)
+  mjtNum  lineslope;            // slope in linesearch
+  int     nactive;              // number of active constraints
+  int     nchange;              // number of constraint state changes
+  int     neval;                // number of cost evaluations in line search
+  int     nupdate;              // number of Cholesky updates in line search
+} mjSolverStat;
 
 
 //---------------------------------- mjData --------------------------------------------------------
 
-struct mjData_ {
+typedef struct mjData_ {
   // constant sizes
   mjtSize narena;            // size of the arena in bytes (inclusive of the stack)
   mjtSize nbuffer;           // size of main buffer in bytes
@@ -341,7 +337,7 @@ struct mjData_ {
   mjtNum* efc_pos;           // constraint position (equality, contact)          (nefc x 1)
   mjtNum* efc_margin;        // inclusion margin (contact)                       (nefc x 1)
   mjtNum* efc_frictionloss;  // frictionloss (friction)                          (nefc x 1)
-  mjtNum* efc_diagApprox;    // approximation to diagonal of A                   (nefc x 1)
+  mjtNum* efc_diagA;         // diagonal of A matrix, approximate or exact       (nefc x 1)
   mjtNum* efc_KBIP;          // stiffness, damping, impedance, imp'              (nefc x 4)
   mjtNum* efc_D;             // constraint mass                                  (nefc x 1)
   mjtNum* efc_R;             // inverse constraint mass                          (nefc x 1)
@@ -364,12 +360,6 @@ struct mjData_ {
   // computed by mj_island (dofs sorted by island)
   mjtNum* ifrc_smooth;       // net unconstrained force                          (nidof x 1)
   mjtNum* iacc_smooth;       // unconstrained acceleration                       (nidof x 1)
-  int*    iM_rownnz;         // inertia: non-zeros in each row                   (nidof x 1)
-  int*    iM_rowadr;         // inertia: address of each row in iM_colind        (nidof x 1)
-  int*    iM_colind;         // inertia: column indices of non-zeros             (nC x 1)
-  mjtNum* iM;                // total inertia (sparse)                           (nC x 1)
-  mjtNum* iLD;               // L'*D*L factorization of M (sparse)               (nC x 1)
-  mjtNum* iLDiagInv;         // 1/diag(D)                                        (nidof x 1)
   mjtNum* iacc;              // acceleration                                     (nidof x 1)
 
   // computed by mj_island (island constraint structure)
@@ -384,11 +374,6 @@ struct mjData_ {
   // computed by mj_island (constraints sorted by island)
   int*    iefc_type;         // constraint type (mjtConstraint)                  (nefc x 1)
   int*    iefc_id;           // id of object of specified type                   (nefc x 1)
-  int*    iefc_J_rownnz;     // number of non-zeros in constraint Jacobian row   (nefc x 1)
-  int*    iefc_J_rowadr;     // row start address in colind array                (nefc x 1)
-  int*    iefc_J_rowsuper;   // number of subsequent rows in supernode           (nefc x 1)
-  int*    iefc_J_colind;     // column indices in constraint Jacobian            (nJ x 1)
-  mjtNum* iefc_J;            // constraint Jacobian                              (nJ x 1)
   mjtNum* iefc_frictionloss; // frictionloss (friction)                          (nefc x 1)
   mjtNum* iefc_D;            // constraint mass                                  (nefc x 1)
   mjtNum* iefc_R;            // inverse constraint mass                          (nefc x 1)
@@ -422,8 +407,7 @@ struct mjData_ {
 
   // compilation signature
   uint64_t  signature;       // also held by the mjSpec that compiled the model
-};
-typedef struct mjData_ mjData;
+} mjData;
 
 
 //---------------------------------- callback function types ---------------------------------------

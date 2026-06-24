@@ -24,10 +24,6 @@
 #include <mujoco/mjmodel.h>
 #include "engine/engine_memory.h"
 
-#if defined(__cpp_lib_atomic_wait)
-
-// ----------------------------- multithreaded implementation --------------------------------------
-
 // context for thread pool stored on mjData
 class ThreadPoolContext {
  public:
@@ -191,23 +187,3 @@ int mju_numThread(const mjData* d) {
   ThreadPoolContext* ctx = reinterpret_cast<ThreadPoolContext*>(d->threadpool);
   return ctx ? ctx->ThreadCount() + 1 : 1;
 }
-
-#else
-
-// -------------------------------------- fallback  ------------------------------------------------
-
-void mju_threadpool(mjData* d, int nthread) {
-  // No-op
-}
-
-void mju_dispatch(const mjModel* m, mjData* d, mjTaskFunc func, void* arg, int ntask) {
-  for (int i = 0; i < ntask; i++) {
-    func(m, d, arg, 0, i);
-  }
-}
-
-int mju_numThread(const mjData* d) {
-  return 1;
-}
-
-#endif  // __cpp_lib_atomic_wait

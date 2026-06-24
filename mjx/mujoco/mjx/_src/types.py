@@ -696,6 +696,9 @@ class Model(PyTreeNode):
   dof_treeid: np.ndarray
   dof_Madr: np.ndarray  # pylint:disable=invalid-name
   dof_simplenum: np.ndarray
+  M_rowadr: np.ndarray  # pylint:disable=invalid-name
+  M_rownnz: np.ndarray  # pylint:disable=invalid-name
+  M_colind: np.ndarray  # pylint:disable=invalid-name
   dof_solref: jax.Array
   dof_solimp: jax.Array
   dof_frictionloss: jax.Array
@@ -747,6 +750,7 @@ class Model(PyTreeNode):
   cam_intrinsic: jax.Array
   light_mode: np.ndarray
   light_type: jax.Array
+  light_active: jax.Array
   light_castshadow: jax.Array
   light_pos: jax.Array
   light_dir: jax.Array
@@ -754,6 +758,11 @@ class Model(PyTreeNode):
   light_pos0: jax.Array
   light_dir0: jax.Array
   light_cutoff: jax.Array
+  light_ambient: jax.Array
+  light_attenuation: jax.Array
+  light_diffuse: jax.Array
+  light_exponent: jax.Array
+  light_specular: jax.Array
   mesh_vertadr: np.ndarray
   mesh_vertnum: np.ndarray
   mesh_faceadr: np.ndarray
@@ -794,6 +803,9 @@ class Model(PyTreeNode):
   tex_data: np.ndarray
   mat_rgba: jax.Array
   mat_texid: jax.Array
+  mat_emission: jax.Array
+  mat_specular: jax.Array
+  mat_shininess: jax.Array
   pair_dim: np.ndarray
   pair_geom1: np.ndarray
   pair_geom2: np.ndarray
@@ -987,7 +999,6 @@ class DataJAX(PyTreeNode):
   wrap_xpos: jax.Array
   actuator_moment: jax.Array
   crb: jax.Array
-  qM: jax.Array  # pylint:disable=invalid-name
   M: jax.Array  # pylint:disable=invalid-name
   qLD: jax.Array  # pylint:disable=invalid-name
   qLDiagInv: jax.Array  # pylint:disable=invalid-name

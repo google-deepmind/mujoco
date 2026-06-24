@@ -14,7 +14,7 @@ jobs:
   build-and-upload-artifacts:
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Prepare Linux
       run: bash ./.github/workflows/build_steps.sh prepare_linux

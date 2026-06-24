@@ -318,29 +318,6 @@ Similar to the maximum numbers of contacts and constraints, a good value for thi
 specific. :func:`mjwarp-testspeed <mujoco_warp.testspeed>` and :func:`mjwarp-viewer <mujoco_warp.viewer>` may be useful
 for tuning the value of this parameter.
 
-Parallel linesearch
--------------------
-
-In addition to the constraint solver's iterative linesearch, MJWarp provides a parallel linesearch routine that
-evaluates a set of step sizes in parallel and selects the best one. The step sizes are spaced logarithmically from
-:attr:`Model.opt.ls_parallel_min_step <mujoco_warp.Option.ls_parallel_min_step>` to 1 and the number of step sizes to
-evaluate is set via :attr:`Model.opt.ls_iterations <mujoco_warp.Option.ls_iterations>`.
-
-In some cases the parallel routine may provide improved performance compared to the constraint solver's default
-iterative linesearch.
-
-To enable this routine set ``Model.opt.ls_parallel=True`` or add a custom numeric field to the XML
-
-.. code-block:: xml
-
-   <custom>
-     <numeric name="ls_parallel" data="1"/>
-   </custom>
-
-.. admonition:: Experimental feature
-  :class: note
-
-  The parallel linesearch is currently an experimental feature.
 
 Memory
 ------
@@ -1056,8 +1033,6 @@ exceptions:
 
 Additional MJWarp-only options are available:
 
-- ``ls_parallel``: use parallel linesearch with the constraint solver
-- ``ls_parallel_min_step``: minimum step size for the parallel linesearch
 - ``broadphase``: type of broadphase algorithm (:class:`mjw.BroadphaseType <mujoco_warp.BroadphaseType>`)
 - ``broadphase_filter``: type of filtering utilized by broadphase
   (:class:`mjw.BroadphaseFilter <mujoco_warp.BroadphaseFilter>`)

@@ -40,6 +40,9 @@ enum class GuiTheme {
   kClassic,
 };
 
+// Render a section header with custom, visually-balanced smaller expand/collapse arrow.
+bool SectionHeader(const char* label, ImGuiTreeNodeFlags flags = 0, float arrow_scale = 0.55f);
+
 // Updates the ImGui internal style state to match the requested theme.
 void SetupTheme(GuiTheme theme);
 
@@ -58,8 +61,6 @@ void RescaleDock(float ratio);
 //       or manipulating mjData elements (e.g. ControlsGui).
 //   "Explorer": secondary tab connected to the Inspector; designed for
 //       displaying the tree of mjSpec elements.
-//   "Stats": resizable section below the options; designed for displaying
-//       basic simulation statistics (e.g. StatsGui); hidden by default.
 //   "Properties": resizable section below the explorer; designed for displaying
 //       properties of mjSpec elements (e.g. BodyPropertiesGui); hidden by
 //       default.
@@ -158,7 +159,7 @@ void ProfilerGui(const mjModel* model, mjData* data, SimProfiler* profiler);
 
 // UX for displaying basic simulation information. Note that the pause state and
 // FPS needs to be tracked by the caller and passed here to be displayed.
-void StatsGui(const mjModel* model, const mjData* data, bool paused, float fps);
+void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps);
 
 }  // namespace mujoco::platform
 

@@ -31,6 +31,7 @@
 #include <mujoco/mjspec.h>
 #include <mujoco/mujoco.h>
 #include "src/xml/xml_numeric_format.h"
+#include "test/compare_model.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -98,6 +99,8 @@ std::vector<std::string> GetWriteReadTestModels() {
             // exclude files that fail since we do not save pinned flex nodes
             absl::StrContains(xml, "gripper_trilinear") ||
             absl::StrContains(xml, "strain") ||
+            // exclude conflict test assets (designed to fail compile)
+            absl::StrContains(xml, "xml/testdata/parent_") ||
             // exclude mjz testdata with VFS files
             absl::StrContains(xml, "mixed_test")) {
           continue;

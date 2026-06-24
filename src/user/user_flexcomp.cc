@@ -644,8 +644,26 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
     int nz = flex->spec.cellcount[2] * flex->spec.order + 1;
     int nnode = nx * ny * nz;
 
-    // mark empty cells and pin nodes exclusively in empty cells
-    MarkEmptyCells(flex, point.data(), npnt, minmax, nx, ny, nz);
+    // mark empty cells and pin nodes exclusively in empty cells (volume mode only)
+    if (!dflex->elastic2d) {
+      MarkEmptyCells(flex, point.data(), npnt, minmax, nx, ny, nz);
+    }
+
+    // shell mode: pin all interior (non-boundary) nodes
+    if (dflex->elastic2d) {
+      for (int gi = 0; gi < nx; gi++) {
+        for (int gj = 0; gj < ny; gj++) {
+          for (int gk = 0; gk < nz; gk++) {
+            bool is_boundary = (gi == 0 || gi == nx-1 ||
+                                gj == 0 || gj == ny-1 ||
+                                gk == 0 || gk == nz-1);
+            if (!is_boundary) {
+              pinned[gi*ny*nz + gj*nz + gk] = true;
+            }
+          }
+        }
+      }
+    }
 
     // if MarkEmptyCells pinned any nodes, force centered=false
     // so that pf->node (local positions) is saved to the model
@@ -1316,8 +1334,8 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, mjsCompiler* compiler, char* error, 
   }
 
   // check dim
-  if (def.spec.flex->dim < 2) {
-    return comperr(error, "Flex dim must be at least 2 for mesh", error_sz);
+  if (def.spec.flex->dim < 1) {
+    return comperr(error, "Flex dim must be at least 1 for mesh", error_sz);
   }
 
   // load resource
@@ -1363,6 +1381,15 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, mjsCompiler* compiler, char* error, 
   // copy faces or create 3D mesh
   if (def.spec.flex->dim == 2) {
     element = mesh.Face();
+  } else if (def.spec.flex->dim == 1) {
+    // extract edge pairs from degenerate triangles (i1, i2, i2)
+    const std::vector<int>& face = mesh.Face();
+    element.clear();
+    element.reserve(face.size() * 2 / 3);
+    for (size_t i = 0; i < face.size(); i += 3) {
+      element.push_back(face[i]);
+      element.push_back(face[i+1]);
+    }
   } else {
     point.insert(point.begin() + 0, origin[0]);
     point.insert(point.begin() + 1, origin[1]);

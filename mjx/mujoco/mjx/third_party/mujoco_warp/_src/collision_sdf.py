@@ -23,6 +23,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.collision_core import geom_collisio
 from mujoco.mjx.third_party.mujoco_warp._src.collision_core import write_contact
 from mujoco.mjx.third_party.mujoco_warp._src.math import make_frame
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_mesh
+from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
@@ -184,6 +185,24 @@ def ellipsoid(p: wp.vec3, size: wp.vec3) -> float:
 
 
 @wp.func
+def capsule(p: wp.vec3, size: wp.vec3) -> float:
+  r = size[0]
+  h = size[1]
+  pz_clamped = wp.clamp(p[2], -h, h)
+  diff = wp.vec3(p[0], p[1], p[2] - pz_clamped)
+  return wp.length(diff) - r
+
+
+@wp.func
+def cylinder(p: wp.vec3, size: wp.vec3) -> float:
+  r = size[0]
+  h = size[1]
+  dx = wp.length(wp.vec2(p[0], p[1])) - r
+  dy = wp.abs(p[2]) - h
+  return wp.min(wp.max(dx, dy), 0.0) + wp.length(wp.vec2(wp.max(dx, 0.0), wp.max(dy, 0.0)))
+
+
+@wp.func
 def grad_sphere(p: wp.vec3) -> wp.vec3:
   c = wp.length(p)
   if c > 1e-9:
@@ -228,6 +247,52 @@ def grad_ellipsoid(p: wp.vec3, size: wp.vec3) -> wp.vec3:
   df_dk1 = k0 * (k0 - 1.0) * invK1 * invK1
   raw_grad = gk0 * df_dk0 - gk1 * df_dk1
   return raw_grad / wp.length(raw_grad)
+
+
+@wp.func
+def grad_capsule(p: wp.vec3, size: wp.vec3) -> wp.vec3:
+  h = size[1]
+  pz_clamped = wp.clamp(p[2], -h, h)
+  diff = wp.vec3(p[0], p[1], p[2] - pz_clamped)
+  c = wp.length(diff)
+  if c > MJ_MINVAL:
+    return diff / c
+  else:
+    return wp.vec3(0.0)
+
+
+@wp.func
+def grad_cylinder(p: wp.vec3, size: wp.vec3) -> wp.vec3:
+  r = size[0]
+  h = size[1]
+
+  radial_dist = wp.length(wp.vec2(p[0], p[1]))
+  if radial_dist > MJ_MINVAL:
+    u = wp.vec3(p[0] / radial_dist, p[1] / radial_dist, 0.0)
+  else:
+    u = wp.vec3(0.0)
+
+  w = wp.vec3(0.0, 0.0, wp.sign(p[2]))
+
+  dx = radial_dist - r
+  dy = wp.abs(p[2]) - h
+
+  if dx > 0.0 and dy > 0.0:
+    v = wp.vec2(dx, dy)
+    len_v = wp.length(v)
+    if len_v > MJ_MINVAL:
+      return u * (dx / len_v) + w * (dy / len_v)
+    else:
+      return wp.vec3(0.0)
+  elif dx > 0.0:
+    return u
+  elif dy > 0.0:
+    return w
+  else:
+    if dx > dy:
+      return u
+    else:
+      return w
 
 
 @wp.func
@@ -287,16 +352,17 @@ def find_oct(
     # check if the node is a leaf
     # child indices are relative to root (mesh_octadr offset)
     child0 = oct_child[node][0]
+    # Evaluate this hot leaf predicate eagerly to avoid branch-heavy codegen.
     if (
-      child0 == -1
-      and oct_child[node][1] == -1
-      and oct_child[node][2] == -1
-      and oct_child[node][3] == -1
-      and oct_child[node][4] == -1
-      and oct_child[node][5] == -1
-      and oct_child[node][6] == -1
-      and oct_child[node][7] == -1
-    ):
+      int(child0 == -1)
+      & int(oct_child[node][1] == -1)
+      & int(oct_child[node][2] == -1)
+      & int(oct_child[node][3] == -1)
+      & int(oct_child[node][4] == -1)
+      & int(oct_child[node][5] == -1)
+      & int(oct_child[node][6] == -1)
+      & int(oct_child[node][7] == -1)
+    ) != 0:
       for j in range(8):
         if not grad:
           rx[j] = (
@@ -394,6 +460,10 @@ def sdf(type: int, p: wp.vec3, attr: vec_pluginattr, sdf_type: int, volume_data:
     return p[2]
   elif type == GeomType.SPHERE:
     return sphere(p, attr_vec3)
+  elif type == GeomType.CAPSULE:
+    return capsule(p, attr_vec3)
+  elif type == GeomType.CYLINDER:
+    return cylinder(p, attr_vec3)
   elif type == GeomType.BOX:
     return box(p, attr_vec3)
   elif type == GeomType.ELLIPSOID:
@@ -452,6 +522,10 @@ def sdf_grad(
     return grad
   elif type == GeomType.SPHERE:
     return grad_sphere(p)
+  elif type == GeomType.CAPSULE:
+    return grad_capsule(p, attr_vec3)
+  elif type == GeomType.CYLINDER:
+    return grad_cylinder(p, attr_vec3)
   elif type == GeomType.BOX:
     return grad_box(p, attr_vec3)
   elif type == GeomType.ELLIPSOID:

@@ -64,6 +64,7 @@ class App {
   };
 
   explicit App(Config config);
+  ~App();
 
   // Loads an empty mjModel.
   void InitEmptyModel();
@@ -110,10 +111,11 @@ class App {
     int watch_index = 0;
     int camera_idx = platform::kTumbleCameraIdx;
     int key_idx = 0;
-    platform::GuiTheme theme = platform::GuiTheme::kLight;
+    platform::GuiTheme theme = platform::GuiTheme::kDark;
     float font_scale = 1.0f;
     int window_width = 0;
     int window_height = 0;
+    int nthread = 0;
 
     using Dict = std::unordered_map<std::string, std::string>;
     Dict ToDict() const;
@@ -124,10 +126,11 @@ class App {
   struct UiTempState {
     bool should_exit = false;
     bool first_frame = true;
+    bool update_threadpool = false;
 
     // Windows.
     bool help = false;
-    bool stats = false;
+    bool info = false;
     bool profiler = false;
     bool picture_in_picture = false;
     bool options_panel = true;
@@ -196,6 +199,8 @@ class App {
 
   void ResetPhysics();
   void UpdatePhysics();
+  void PreStep(const mjModel* m, mjData* d);
+  void PostStep(const mjModel* m, mjData* d);
 
   void LoadSettings();
   void SaveSettings();
@@ -259,6 +264,7 @@ class App {
   mjvCamera camera_;
   mjvPerturb perturb_;
   mjvOption vis_options_;
+  mjvScene plugin_scene_;
 
   UiState ui_;
   UiTempState tmp_;

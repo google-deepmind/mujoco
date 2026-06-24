@@ -152,6 +152,8 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // TIMESTEP
   // --------------------------------------------------------------------- //
+  /// DEPRECATED: Use newton:timeStepsPerSecond instead.
+  ///
   /// Controls the timestep in seconds used by MuJoCo.
   ///
   /// | ||
@@ -498,6 +500,8 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // ITERATIONS
   // --------------------------------------------------------------------- //
+  /// DEPRECATED: Use newton:maxSolverIterations instead.
+  ///
   /// Maximum number of iterations of the constraint solver.
   ///
   /// | ||
@@ -942,6 +946,8 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // GRAVITYFLAG
   // --------------------------------------------------------------------- //
+  /// DEPRECATED: Use newton:gravityEnabled instead.
+  ///
   /// Enables the application of gravitational acceleration as defined in
   /// mjOption.
   ///

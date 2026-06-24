@@ -1069,6 +1069,9 @@ void mj_makeRawData(mjData** dest, const mjModel* m) {
     mjERROR("could not allocate mjData");
   }
 
+  // prevent spurious timing print from mj_resetData before _resetData zeroes the struct
+  d->timer[mjTIMER_STEP].number = 0;
+
   // compute buffer size
   d->nbuffer = 0;
   d->buffer = d->arena = NULL;
@@ -1563,10 +1566,83 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 }
 
 
+// emit step timing diagnostics
+static void mj_logTimingDiagnostics(const mjData* d) {
+  int nstep = d->timer[mjTIMER_STEP].number;
+  if (nstep <= 0) {
+    return;
+  }
+
+  mjtNum tstep = d->timer[mjTIMER_STEP].duration / nstep;
+  if (tstep <= 0) {
+    return;
+  }
+
+  char buf[2048];
+  int pos = 0;
+  mjtNum components = 0;
+
+  for (int i = mjTIMER_POSITION; i <= mjTIMER_ADVANCE; i++) {
+    if (d->timer[i].number > 0) {
+      mjtNum istep = d->timer[i].duration / d->timer[i].number;
+      components += istep;
+      pos += snprintf(buf + pos, sizeof(buf) - pos,
+                      "%s  %-15s %8.1f  (%5.1f%%)",
+                      pos > 0 ? "\n" : "",
+                      mjTIMERSTRING[i], istep * 1000, 100 * istep / tstep);
+
+      // position sub-breakdown
+      if (i == mjTIMER_POSITION) {
+        for (int p = mjTIMER_POS_KINEMATICS; p <= mjTIMER_POS_PROJECT; p++) {
+          if (d->timer[p].number > 0) {
+            mjtNum pstep = d->timer[p].duration / d->timer[p].number;
+            pos += snprintf(buf + pos, sizeof(buf) - pos,
+                            "\n    %-13s %8.1f  (%5.1f%%)",
+                            mjTIMERSTRING[p] + 4, pstep * 1000, 100 * pstep / tstep);
+
+            // collision sub-breakdown
+            if (p == mjTIMER_POS_COLLISION) {
+              for (int c = mjTIMER_COL_BROAD; c <= mjTIMER_COL_NARROW; c++) {
+                if (d->timer[c].number > 0) {
+                  mjtNum cstep = d->timer[c].duration / d->timer[c].number;
+                  pos += snprintf(buf + pos, sizeof(buf) - pos,
+                                  "\n      %-11s %8.1f  (%5.1f%%)",
+                                  mjTIMERSTRING[c] + 4, cstep * 1000, 100 * cstep / tstep);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  mjtNum other = tstep - components;
+  pos += snprintf(buf + pos, sizeof(buf) - pos,
+                  "%s  %-15s %8.1f  (%5.1f%%)",
+                  pos > 0 ? "\n" : "",
+                  "other", other * 1000, 100 * other / tstep);
+
+  pos += snprintf(buf + pos, sizeof(buf) - pos,
+                  "%s  %-15s %8.1f",
+                  pos > 0 ? "\n" : "",
+                  "total", tstep * 1000);
+
+  mjLogMessage msg = {.level = mjLOG_INFO, .topic = mjTOPIC_TIME_STP, .body = buf};
+  snprintf(msg.subject, sizeof(msg.subject),
+           "average time per step (%d steps, units: \u00B5s)", nstep);
+  mju_message(&msg);
+}
+
+
 // clear data, set data->qpos = model->qpos0
 void mj_resetData(const mjModel* m, mjData* d) {
+  // emit step timing diagnostics before timers are cleared
+  mj_logTimingDiagnostics(d);
+
   _resetData(m, d, 0);
 }
+
 
 
 // clear data, set data->qpos = model->qpos0, fill with debug_value

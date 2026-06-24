@@ -20,6 +20,7 @@
 #include <imgui.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
+#include "experimental/platform/ux/gui.h"
 #include "experimental/platform/ux/imgui_widgets.h"
 #include "experimental/platform/ux/spec_editor.h"
 
@@ -143,7 +144,7 @@ static void BodyChildrenGui(const char* heading, mjtObj type,
 
   constexpr ImGuiTreeNodeFlags tree_flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DrawLinesFull;
-  if (ImGui::TreeNodeEx(heading, tree_flags)) {
+  if (SectionHeader(heading, tree_flags, 0.55f)) {
     while (iter) {
       mjsElement* next = mjs_nextChild(body, iter, 0);
       SelectableElement(iter, element, editor);
@@ -163,7 +164,7 @@ static void ElementListGui(const char* heading, mjtObj type,
 
   constexpr ImGuiTreeNodeFlags tree_flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
-  if (ImGui::TreeNodeEx(heading, tree_flags)) {
+  if (SectionHeader(heading, tree_flags, 0.55f)) {
     while (iter) {
       mjsElement* next = mjs_nextElement(spec, iter);
       SelectableElement(iter, element, editor);
@@ -187,7 +188,7 @@ static void BodyTreeGuiRecursive(mjsElement** element, mjsBody* body,
     flags |= ImGuiTreeNodeFlags_Selected;
   }
 
-  const bool tree_open = ImGui::TreeNodeEx(label.c_str(), flags);
+  const bool tree_open = SectionHeader(label.c_str(), flags, 0.55f);
   if (ImGui::IsItemClicked()) {
     *element = body->element;
   }
@@ -223,7 +224,7 @@ void SpecTreeGui(mjsElement** element, mjSpec* spec, SpecEditor* editor) {
   style.Var(ImGuiStyleVar_FramePadding, ImVec2(4, 0));
   style.Color(ImGuiCol_Border, ImGuiCol_WindowBg);
 
-  if (ImGui::TreeNodeEx("Body Tree", flags)) {
+  if (SectionHeader("Body Tree", flags, 0.65f)) {
     mjsElement* root = mjs_firstElement(spec, mjOBJ_BODY);
     if (root) {
       mjsBody* body = mjs_asBody(root);
@@ -241,7 +242,7 @@ void SpecTreeGui(mjsElement** element, mjSpec* spec, SpecEditor* editor) {
   ImGui::PushID("$spec$");
 
   // Non-tree elements.
-  if (ImGui::TreeNodeEx("Elements", flags)) {
+  if (SectionHeader("Elements", flags, 0.65f)) {
     list("Actuators", mjOBJ_ACTUATOR);
     list("Sensors", mjOBJ_SENSOR);
     list("Flexes", mjOBJ_FLEX);
@@ -258,7 +259,7 @@ void SpecTreeGui(mjsElement** element, mjSpec* spec, SpecEditor* editor) {
   }
 
   // Assets.
-  if (ImGui::TreeNodeEx("Assets", flags)) {
+  if (SectionHeader("Assets", flags, 0.65f)) {
     list("Meshes", mjOBJ_MESH);
     list("Height Fields", mjOBJ_HFIELD);
     list("Skins", mjOBJ_SKIN);

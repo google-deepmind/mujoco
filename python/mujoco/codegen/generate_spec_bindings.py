@@ -82,8 +82,10 @@ def _value_binding_code(
         field.name == 'mjsPlugin'
         or field.name == 'mjsOrientation'
         or field.name == 'mjsCompiler'
+        or field.name == 'mjsAuthored'
     ):
-      fulltype = fulltype + '&'  # plugin, orientation, compiler aren't pointers
+      # plugin, orientation, compiler, authored aren't pointers
+      fulltype = fulltype + '&'
     else:
       fulltype = fulltype + '*'
   # non-mjs structs

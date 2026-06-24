@@ -50,6 +50,14 @@ function resolveScheme(url) {
 }
 
 async function prefetchModelAssets(rootUrl, onProgress) {
+  // Only prefetch when the root URL is one we know how to fetch from
+  // Javascript. Other resource-provider-backed schemes (e.g., uploaded files
+  // via the drag-and-drop path) skip the prefetcher entirely and let
+  // Module.loadUrl handle take the existing slow path.
+  if (!/^(https?:|github:)/.test(rootUrl)) {
+    return { files: 0, bytes: 0, errors: 0 };
+  }
+
   const primed = new Set();   // URLs we've already pushed into FetchCache
   const stats = { files: 0, bytes: 0, errors: 0 };
 
@@ -134,7 +142,7 @@ var Module = {
     const assetsToPrefetch = [
       "assets/fontawesome-webfont.ttf",
       "assets/ibl.ktx",
-      "assets/OpenSans-Regular.ttf",
+      "assets/AtkinsonHyperlegibleNext[wght].ttf",
       "assets/pbr.filamat",
       "assets/pbr_transparent.filamat",
       "assets/pbr_packed.filamat",
@@ -151,7 +159,10 @@ var Module = {
       "assets/phong_cube_fade.filamat",
       "assets/phong_cube.filamat",
       "assets/phong_cube_reflect.filamat",
-      "assets/unlit_decor.filamat",
+      "assets/outline_composite.filamat",
+      "assets/outline_flatten.filamat",
+      "assets/outline_jumpflood.filamat",
+      "assets/decor.filamat",
       "assets/unlit_depth.filamat",
       "assets/unlit_segmentation.filamat",
       "assets/unlit_ui.filamat"
@@ -177,8 +188,7 @@ var Module = {
     Promise.all(assetPromises)
       .then(() => {
         try {
-          const prefersDark = !(window.matchMedia &&
-              window.matchMedia('(prefers-color-scheme: light)').matches);
+          const prefersDark = true;
           Module.init("MuJoCo Live", prefersDark);
 
           // Check for a ?model= URL parameter and load from URL.

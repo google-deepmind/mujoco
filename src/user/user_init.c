@@ -272,7 +272,7 @@ void mjs_defaultTexture(mjsTexture* texture) {
   texture->gridsize[0] = texture->gridsize[1] = 1;
   texture->nchannel = 3;
   char defaultlayout[sizeof(texture->gridlayout)] = "............";
-  strncpy(texture->gridlayout, defaultlayout, sizeof(texture->gridlayout));
+  memcpy(texture->gridlayout, defaultlayout, sizeof(texture->gridlayout));
 }
 
 

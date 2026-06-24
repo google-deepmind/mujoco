@@ -147,6 +147,14 @@ static inline mjtNum mju_flexDphi(mjtNum s, int i, int order) {
     default: return 0;
   }
 }
+// reconstruct interior node positions from boundary nodes via Transfinite Interpolation
+MJAPI void mju_shellTrackInterior(mjtNum* nodexpos, int nx, int ny, int nz);
+
+// compute TFI weights for an interior node (i,j,k) and distribute to boundary nodes
+MJAPI void mju_shellTFIWeights(int nx, int ny, int nz, int i, int j, int k,
+                               mjtNum w, int* nb, int* body, mjtNum* bweight,
+                               const int* nodebodyid, int nstart);
+
 
 // ----------------------------- Base64 ------------------------------------------------------------
 
@@ -273,13 +281,13 @@ MJAPI void mju_d2n(mjtNum* res, const double* vec, int n);
 // convert from mjtNum to double
 MJAPI void mju_n2d(double* res, const mjtNum* vec, int n);
 
-// gather mjtNums
+// gather mjtNums: res[i] = vec[ind[i]], or copy if ind is NULL
 MJAPI void mju_gather(mjtNum* res, const mjtNum* vec, const int* ind, int n);
 
 // gather mjtNums, set to 0 at negative indices
 MJAPI void mju_gatherMasked(mjtNum* res, const mjtNum* vec, const int* ind, int n);
 
-// scatter mjtNums
+// scatter mjtNums: res[ind[i]] = vec[i], or copy if ind is NULL
 MJAPI void mju_scatter(mjtNum* res, const mjtNum* vec, const int* ind, int n);
 
 // gather integers

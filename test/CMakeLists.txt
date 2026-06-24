@@ -104,6 +104,12 @@ target_link_libraries(
 )
 target_include_directories(fixture PRIVATE ${mujoco_SOURCE_DIR}/include gmock)
 
+add_library(compare_model STATIC compare_model.h compare_model.cc)
+target_include_directories(compare_model PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_compile_definitions(compare_model PUBLIC MJSTATIC)
+target_link_libraries(compare_model PUBLIC mujoco::mujoco)
+target_include_directories(compare_model PRIVATE ${mujoco_SOURCE_DIR}/include)
+
 mujoco_test(fixture_test)
 
 mujoco_test(header_test)

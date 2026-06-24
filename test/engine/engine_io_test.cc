@@ -15,7 +15,6 @@
 // Tests for engine/{engine_io.c and engine_memory.c}.
 
 #include "src/engine/engine_io.h"
-#include "src/engine/engine_memory.h"
 
 #include <array>
 #include <cstdint>
@@ -26,12 +25,12 @@
 #include <vector>
 
 #include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include <gtest/gtest-spi.h>  // IWYU pragma: keep
+#include <gtest/gtest.h>
 #include <absl/strings/str_format.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
-#include "src/engine/engine_util_errmem.h"
+#include "src/engine/engine_memory.h"
 #include "src/engine/engine_thread.h"
 #include "test/fixture.h"
 
@@ -58,19 +57,19 @@ TEST_F(EngineIoTest, VerifySizeModel) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
-  std::filesystem::path temp_file = (
-    std::filesystem::temp_directory_path() / "model.mjb");
+  std::filesystem::path temp_file =
+      (std::filesystem::temp_directory_path() / "model.mjb");
 
-  mj_saveModel(model, temp_file.string().c_str(), NULL, 0);
+  mj_saveModel(model.get(), temp_file.string().c_str(), NULL, 0);
 
   std::uintmax_t file_size = std::filesystem::file_size(temp_file);
-  int model_size = mj_sizeModel(model);
+  int model_size = mj_sizeModel(model.get());
 
   std::filesystem::remove(temp_file);
-  mj_deleteModel(model);
 
   EXPECT_EQ(file_size, model_size);
 }
@@ -88,15 +87,13 @@ TEST_F(EngineIoTest, MakeDataLoadsQpos0) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
   model->qpos0[0] = 1;
-  mjData* data = mj_makeData(model);
+  MjDataPtr data = MakeData(model);
   ASSERT_THAT(data, NotNull());
   EXPECT_EQ(data->qpos[0], 1);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(EngineIoTest, MakeDataLoadsMocapBodies) {
@@ -111,47 +108,40 @@ TEST_F(EngineIoTest, MakeDataLoadsMocapBodies) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  MjDataPtr data = MakeData(model);
   ASSERT_THAT(data, NotNull());
   EXPECT_EQ(data->mocap_pos[0], 42);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(EngineIoTest, MakeDataReturnsNullOnFailure) {
   constexpr char xml[] = "<mujoco/>";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
   // fail mj_makeData intentionally with a bad size
   model->nbody = -1;
-  static bool warning;
-  warning = false;
-  mju_user_warning = [](const char* error) {
-    warning = true;
-  };
-  mjData* data = mj_makeData(model);
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings();
+  MjDataPtr data = MakeData(model);
   EXPECT_THAT(data, IsNull());
-  EXPECT_TRUE(warning) << "Expecting warning to be triggered.";
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(EngineIoTest, ResetVariableSizes) {
   constexpr char xml[] = "<mujoco/>";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
-  mjData* data = mj_makeData(model);
-  ASSERT_THAT(model, NotNull()) << "Failed to create mjData";
+  MjDataPtr data = MakeData(model);
+  ASSERT_THAT(model.get(), NotNull()) << "Failed to create mjData";
 
   // don't call mj_forward, vars should be reset
   EXPECT_EQ(data->ne, 0);
@@ -160,25 +150,23 @@ TEST_F(EngineIoTest, ResetVariableSizes) {
   EXPECT_EQ(data->nJ, 0);
   EXPECT_EQ(data->nA, 0);
   EXPECT_EQ(data->ncon, 0);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(EngineIoTest, MakeDataResetsAllArenaPointerSizes) {
   constexpr char xml[] = "<mujoco />";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  MjDataPtr data = MakeData(model);
   ASSERT_THAT(data, NotNull());
 
   // without calling mj_forward, all array sizes should be zero.
   EXPECT_EQ(data->parena, 0) << "expecting empty arena";
 
 #define X(type, name, nr, nc) \
-  EXPECT_EQ(nr*nc, 0) << "expecting (" #nr " x " #nc ") to be zero";
+  EXPECT_EQ(nr* nc, 0) << "expecting (" #nr " x " #nc ") to be zero";
 
 #undef MJ_D
 #undef MJ_M
@@ -190,9 +178,6 @@ TEST_F(EngineIoTest, MakeDataResetsAllArenaPointerSizes) {
 #define MJ_D(n) n
 #define MJ_M(n) n
 #undef X
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(EngineIoTest, MjvCopyModel) {
@@ -207,28 +192,27 @@ TEST_F(EngineIoTest, MjvCopyModel) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model1 = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model1, NotNull()) << error;
+  MjModelPtr model1 = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model1.get(), NotNull()) << error;
 
-  mjModel* model2 = mj_copyModel(nullptr, model1);
+  mjModel* model2 = mj_copyModel(nullptr, model1.get());
   ASSERT_THAT(model2, NotNull()) << error;
 
   model1->mesh_vert[0] = 0.1;
   model1->geom_rgba[0] = 0.2;
-  mj_copyModel(model2, model1);
+  mj_copyModel(model2, model1.get());
 
   EXPECT_FLOAT_EQ(model2->mesh_vert[0], 0.1);
   EXPECT_FLOAT_EQ(model2->geom_rgba[0], 0.2);
 
   model1->mesh_vert[0] = 0.3;
   model1->geom_rgba[0] = 0.4;
-  mjv_copyModel(model2, model1);
+  mjv_copyModel(model2, model1.get());
 
   EXPECT_FLOAT_EQ(model2->mesh_vert[0], 0.1);  // unchanged
   EXPECT_FLOAT_EQ(model2->geom_rgba[0], 0.4);
 
   mj_deleteModel(model2);
-  mj_deleteModel(model1);
 }
 
 TEST_F(EngineIoTest, MjvCopyData) {
@@ -244,23 +228,21 @@ TEST_F(EngineIoTest, MjvCopyData) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
-  mjData* data1 = mj_makeData(model);
-  mj_forward(model, data1);
+  MjDataPtr data1 = MakeData(model);
+  mj_forward(model.get(), data1.get());
   EXPECT_THAT(data1->efc_J, NotNull());
 
-  mjData* data2 = mj_copyData(nullptr, model, data1);
+  mjData* data2 = mj_copyData(nullptr, model.get(), data1.get());
   EXPECT_THAT(data2->efc_J, NotNull());
 
   mj_deleteData(data2);
-  data2 = mjv_copyData(nullptr, model, data1);
+  data2 = mjv_copyData(nullptr, model.get(), data1.get());
   EXPECT_THAT(data2->efc_J, IsNull());
 
   mj_deleteData(data2);
-  mj_deleteData(data1);
-  mj_deleteModel(model);
 }
 
 using ValidateReferencesTest = MujocoTest;
@@ -278,15 +260,14 @@ TEST_F(ValidateReferencesTest, BodyReferences) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
-  EXPECT_THAT(mj_validateReferences(model), IsNull());
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
 
   model->jnt_bodyid[0] = 2;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("jnt_bodyid"));
-
-  mj_deleteModel(model);
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("jnt_bodyid"));
 }
 
 TEST_F(ValidateReferencesTest, AddressRange) {
@@ -303,20 +284,19 @@ TEST_F(ValidateReferencesTest, AddressRange) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
-  EXPECT_THAT(mj_validateReferences(model), IsNull());
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
 
   model->body_jntnum[1] = 3;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("body_jntadr"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("body_jntadr"));
   model->body_jntnum[1] = 2;
   // Could be more strict and test for -1, but at the moment the code is a bit
   // lenient.
   model->body_jntadr[1] = -2;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("body_jntadr"));
-
-  mj_deleteModel(model);
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("body_jntadr"));
 }
 
 TEST_F(ValidateReferencesTest, AddressRangeNegativeNum) {
@@ -333,16 +313,16 @@ TEST_F(ValidateReferencesTest, AddressRangeNegativeNum) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
-  EXPECT_THAT(mj_validateReferences(model), IsNull());
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
 
   // jntadr + jntnum is within safe range, but jntnum is negative.
   model->body_jntadr[1] += 5;
   model->body_jntnum[1] -= 5;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("body_jntnum"));
-  mj_deleteModel(model);
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("body_jntnum"));
 }
 
 TEST_F(ValidateReferencesTest, GeomCondim) {
@@ -358,16 +338,15 @@ TEST_F(ValidateReferencesTest, GeomCondim) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
-  EXPECT_THAT(mj_validateReferences(model), IsNull());
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
   model->geom_condim[0] = 7;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("geom_condim"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("geom_condim"));
   model->geom_condim[0] = -1;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("geom_condim"));
-
-  mj_deleteModel(model);
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("geom_condim"));
 }
 
 TEST_F(ValidateReferencesTest, HField) {
@@ -380,18 +359,17 @@ TEST_F(ValidateReferencesTest, HField) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
-  EXPECT_THAT(mj_validateReferences(model), IsNull());
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
 
   model->hfield_adr[0] = -2;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("hfield_adr"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("hfield_adr"));
   model->hfield_adr[0] = 0;
   model->hfield_ncol[0] = 4;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("hfield_adr"));
-
-  mj_deleteModel(model);
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("hfield_adr"));
 }
 
 TEST_F(ValidateReferencesTest, Texture) {
@@ -404,18 +382,17 @@ TEST_F(ValidateReferencesTest, Texture) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
-  EXPECT_THAT(mj_validateReferences(model), IsNull());
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
 
   model->tex_adr[0] = -2;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("tex_adr"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("tex_adr"));
   model->tex_adr[0] = 0;
   model->tex_height[0] = 4;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("tex_adr"));
-
-  mj_deleteModel(model);
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("tex_adr"));
 }
 
 TEST_F(ValidateReferencesTest, GeomPairs) {
@@ -438,19 +415,18 @@ TEST_F(ValidateReferencesTest, GeomPairs) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
-  EXPECT_THAT(mj_validateReferences(model), IsNull());
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
 
   // Invalid geomid=4
   model->pair_signature[0] = (1 << 16) | 5;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("pair_body1"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("pair_body1"));
 
   model->pair_signature[0] = (5 << 16) | 1;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("pair_body2"));
-
-  mj_deleteModel(model);
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("pair_body2"));
 }
 
 TEST_F(ValidateReferencesTest, SensorsAddress) {
@@ -487,12 +463,12 @@ TEST_F(ValidateReferencesTest, SensorsAddress) {
   for (const std::string& sensor_string : sensor_strings) {
     std::string xml = absl::StrFormat(xml_template, sensor_string);
     std::array<char, 1024> error;
-    mjModel* model =
+    MjModelPtr model =
         LoadModelFromString(xml.c_str(), error.data(), error.size());
-    ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+    ASSERT_THAT(model.get(), NotNull())
+        << "Failed to load model: " << error.data();
 
-    EXPECT_THAT(mj_validateReferences(model), IsNull());
-    mj_deleteModel(model);
+    EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
   }
 }
 
@@ -508,11 +484,11 @@ TEST_F(ValidateReferencesTest, SensorsAddressUser) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
-  EXPECT_THAT(mj_validateReferences(model), IsNull());
-  mj_deleteModel(model);
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
 }
 
 TEST_F(ValidateReferencesTest, SensorsObj) {
@@ -532,25 +508,24 @@ TEST_F(ValidateReferencesTest, SensorsObj) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
   model->sensor_objtype[0] = -1;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("sensor_objtype"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_objtype"));
   model->sensor_objtype[0] = mjOBJ_SITE;
 
   model->sensor_objid[0] = model->nsite;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("sensor_objid"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_objid"));
   model->sensor_objid[0] = 0;
 
   model->sensor_reftype[0] = -1;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("sensor_reftype"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_reftype"));
   model->sensor_reftype[0] = mjOBJ_BODY;
 
   model->sensor_refid[0] = model->nbody;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("sensor_refid"));
-
-  mj_deleteModel(model);
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_refid"));
 }
 
 TEST_F(ValidateReferencesTest, MoreBodiesThanGeoms) {
@@ -570,10 +545,10 @@ TEST_F(ValidateReferencesTest, MoreBodiesThanGeoms) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
-  EXPECT_THAT(mj_validateReferences(model), IsNull());
-  mj_deleteModel(model);
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
 }
 
 TEST_F(ValidateReferencesTest, BodyExcludes) {
@@ -590,18 +565,17 @@ TEST_F(ValidateReferencesTest, BodyExcludes) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
-  EXPECT_THAT(mj_validateReferences(model), IsNull());
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
 
   // Invalid bodyid=3
   model->exclude_signature[0] = (1 << 16) | 4;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("exclude_body1"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("exclude_body1"));
   model->exclude_signature[0] = (4 << 16) | 2;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("exclude_body2"));
-
-  mj_deleteModel(model);
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("exclude_body2"));
 }
 
 TEST_F(ValidateReferencesTest, EqualityConstraints) {
@@ -639,38 +613,37 @@ TEST_F(ValidateReferencesTest, EqualityConstraints) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
-  EXPECT_THAT(mj_validateReferences(model), IsNull());
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
 
   // connect constraint
   model->eq_obj1id[0] = -1;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj1id"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("eq_obj1id"));
   model->eq_obj1id[0] = model->nbody;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj1id"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("eq_obj1id"));
   model->eq_obj1id[0] = 1;
 
   model->eq_obj2id[0] = -2;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj2id"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("eq_obj2id"));
   model->eq_obj2id[0] = model->nbody;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj2id"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("eq_obj2id"));
   model->eq_obj2id[0] = 0;
 
   // weld constraint
   model->eq_obj1id[1] = -1;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj1id"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("eq_obj1id"));
   model->eq_obj1id[1] = model->nbody;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj1id"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("eq_obj1id"));
   model->eq_obj1id[1] = 1;
 
   model->eq_obj2id[1] = -2;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj2id"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("eq_obj2id"));
   model->eq_obj2id[1] = model->nbody;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj2id"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("eq_obj2id"));
   model->eq_obj2id[1] = model->nbody - 1;
-
-  mj_deleteModel(model);
 }
 
 TEST_F(ValidateReferencesTest, Tuples) {
@@ -697,19 +670,19 @@ TEST_F(ValidateReferencesTest, Tuples) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
-  EXPECT_THAT(mj_validateReferences(model), IsNull());
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
 
   model->tuple_objtype[0] = -1;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("tuple_objtype"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("tuple_objtype"));
   model->tuple_objtype[0] = mjOBJ_BODY;
 
   model->tuple_objid[0] = model->nbody;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("tuple_objid"));
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("tuple_objid"));
   model->tuple_objid[0] = 1;
-  mj_deleteModel(model);
 }
 
 TEST_F(EngineIoTest, CanMarkAndFreeStack) {
@@ -721,20 +694,18 @@ TEST_F(EngineIoTest, CanMarkAndFreeStack) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
-  mjData* data = mj_makeData(model);
+  MjDataPtr data = MakeData(model);
   ASSERT_THAT(data, NotNull());
 
   auto pstack_before = data->pstack;
-  mj_markStack(data);
+  mj_markStack(data.get());
   EXPECT_GT(data->pstack, pstack_before);
-  mj_freeStack(data);
+  mj_freeStack(data.get());
   EXPECT_EQ(data->pstack, pstack_before);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(EngineIoTest, LargeMemory) {
@@ -745,27 +716,25 @@ TEST_F(EngineIoTest, LargeMemory) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  MjDataPtr data = MakeData(model);
   ASSERT_THAT(data, NotNull());
 
   // allocate 2.3G of mjtNums
-  mj_markStack(data);
+  mj_markStack(data.get());
   size_t num = 2300000000 / sizeof(mjtNum);
-  mjtNum* testNum = mj_stackAllocNum(data, num);
-  testNum[num-1] = 1;
-  mj_freeStack(data);
+  mjtNum* testNum = mj_stackAllocNum(data.get(), num);
+  testNum[num - 1] = 1;
+  mj_freeStack(data.get());
 
   // allocate 2.3G of bytes
-  mj_markStack(data);
+  mj_markStack(data.get());
   num = 2300000000;
-  char* testByte = (char*) mj_stackAllocByte(data, num, alignof(char));
-  testByte[num-1] = 1;
-  mj_freeStack(data);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  char* testByte = (char*)mj_stackAllocByte(data.get(), num, alignof(char));
+  testByte[num - 1] = 1;
+  mj_freeStack(data.get());
 }
 
 TEST_F(EngineIoTest, VeryLargeMemory) {
@@ -776,31 +745,29 @@ TEST_F(EngineIoTest, VeryLargeMemory) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  if (!model) {
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  if (!model.get()) {
     // in some test environments, 8GB is too large
     EXPECT_THAT(error.data(), HasSubstr("Could not allocate memory"));
   } else {
-    ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
-    mjData* data = mj_makeData(model);
+    ASSERT_THAT(model.get(), NotNull())
+        << "Failed to load model: " << error.data();
+    MjDataPtr data = MakeData(model);
     ASSERT_THAT(data, NotNull());
 
     // allocate 7G of mjtNums
-    mj_markStack(data);
+    mj_markStack(data.get());
     size_t num = 7516192768ull / sizeof(mjtNum);
-    mjtNum* testNum = mj_stackAllocNum(data, num);
-    testNum[num-1] = 1;
-    mj_freeStack(data);
+    mjtNum* testNum = mj_stackAllocNum(data.get(), num);
+    testNum[num - 1] = 1;
+    mj_freeStack(data.get());
 
     // allocate 7G of bytes
-    mj_markStack(data);
+    mj_markStack(data.get());
     num = 7516192768ull;
-    char* testByte = (char*) mj_stackAllocByte(data, num, alignof(char));
-    testByte[num-1] = 1;
-    mj_freeStack(data);
-
-    mj_deleteData(data);
-    mj_deleteModel(model);
+    char* testByte = (char*)mj_stackAllocByte(data.get(), num, alignof(char));
+    testByte[num - 1] = 1;
+    mj_freeStack(data.get());
   }
 }
 
@@ -827,23 +794,22 @@ TEST_F(EngineIoTest, TestStackShardingForThreads) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
-  mjData* data = mj_makeData(model);
+  MjDataPtr data = MakeData(model);
   ASSERT_THAT(data, NotNull());
-  mju_threadpool(data, 10);
+  mju_threadpool(data.get(), 10);
 
   constexpr int kTasks = 1000;
   TestFunctionArgs test_function_args;
-  mju_dispatch(model, data, TestFunction, &test_function_args, kTasks);
+  mju_dispatch(model.get(), data.get(), TestFunction, &test_function_args,
+               kTasks);
 
   for (int i = 0; i < kTasks; ++i) {
     EXPECT_EQ(i, test_function_args.stack_output[i]);
   }
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 #ifdef ADDRESS_SANITIZER
@@ -863,37 +829,36 @@ TEST_F(EngineIoTest, CanDetectStackFrameLeakage) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
-  mjData* data = mj_makeData(model);
+  MjDataPtr data = MakeData(model);
   ASSERT_THAT(data, NotNull());
 
   // MarkFreeStack correctly calls mj_freeStack, should not error.
-  MarkFreeStack(data, /* free= */ true);
+  MarkFreeStack(data.get(), /* free= */ true);
 
   // MarkFreeStack calls mj_markStack without mj_freeStack, the next call to
   // mj_freeStack should detect the stack frame leakage.
-  mj_markStack(data);
-  MarkFreeStack(data, /* free= */ false);
+  mj_markStack(data.get());
+  MarkFreeStack(data.get(), /* free= */ false);
   EXPECT_THAT(
-      MjuErrorMessageFrom(mj_freeStack)(data),
+      MjuErrorMessageFrom(mj_freeStack)(data.get()),
       ContainsRegex(
           "mj_markStack in MarkFreeStack at .*engine_io_test\\.cc.* has no "
           "corresponding mj_freeStack"));
 
   // Dangling stack frames should be detected in mj_deleteData.
-  mj_resetData(model, data);
-  mj_markStack(data);
+  mj_resetData(model.get(), data.get());
+  mj_markStack(data.get());
   EXPECT_THAT(
-      MjuErrorMessageFrom(mj_deleteData)(data),
+      MjuErrorMessageFrom(mj_deleteData)(data.get()),
       ContainsRegex(
           "mj_markStack in .+EngineIoTest_CanDetectStackFrameLeakage.+ has no "
           "corresponding mj_freeStack"));
 
-  mj_resetData(model, data);
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  mj_resetData(model.get(), data.get());
 }
 
 TEST_F(EngineIoTest, RedZoneAlignmentTest) {
@@ -905,19 +870,17 @@ TEST_F(EngineIoTest, RedZoneAlignmentTest) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
-  mjData* data = mj_makeData(model);
+  MjDataPtr data = MakeData(model);
   ASSERT_THAT(data, NotNull());
 
-  mj_markStack(data);
-  mj_stackAllocByte(data, 1, 1);
-  mj_stackAllocByte(data, 1, 1);
-  mj_freeStack(data);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  mj_markStack(data.get());
+  mj_stackAllocByte(data.get(), 1, 1);
+  mj_stackAllocByte(data.get(), 1, 1);
+  mj_freeStack(data.get());
 }
 #endif
 
@@ -935,15 +898,15 @@ TEST_F(EngineIoTest, LoadModelBufferRejectsOverflowingSizes) {
 
   constexpr char xml[] = "<mujoco />";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
 
   // save model to a buffer
-  int bufsize = mj_sizeModel(model);
+  int bufsize = mj_sizeModel(model.get());
   ASSERT_GT(bufsize, 0);
   std::vector<char> buffer(bufsize);
-  mj_saveModel(model, nullptr, buffer.data(), bufsize);
-  mj_deleteModel(model);
+  mj_saveModel(model.get(), nullptr, buffer.data(), bufsize);
 
   // locate the size fields in the buffer (after 5-int header)
   const int header_bytes = 5 * sizeof(int);
@@ -964,18 +927,14 @@ TEST_F(EngineIoTest, LoadModelBufferRejectsOverflowingSizes) {
   // nbuffer mismatch check — but the overflow should be caught earlier
   // in safeAddToBufferSize/mj_makeModel before we reach that check.
 
-  // intercept mju_warning because the test framework translates it to ADD_FAILURE
-  static bool warning_triggered = false;
-  warning_triggered = false;
-  mju_user_warning = [](const char* msg) {
-    warning_triggered = true;
-  };
+  // Intercept warnings to prevent them from failing the test.
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings();
 
   // attempt to load — should return NULL, not crash
   mjModel* bad_model = mj_loadModelBuffer(buffer.data(), bufsize);
   EXPECT_THAT(bad_model, IsNull())
       << "Expected mj_loadModelBuffer to reject overflow-inducing sizes";
-  EXPECT_TRUE(warning_triggered) << "Expected a warning about invalid sizes";
 
   // clean up if somehow it succeeded
   if (bad_model) {

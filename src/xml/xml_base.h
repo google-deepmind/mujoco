@@ -48,6 +48,7 @@ extern const int stage_sz;
 extern const int datatype_sz;
 extern const int camout_sz;
 extern const int reduce_sz;
+extern const int conflict_sz;
 extern const mjMap angle_map[];
 extern const mjMap enable_map[];
 extern const mjMap bool_map[];
@@ -86,7 +87,7 @@ extern const mjMap meshtype_map[];
 extern const mjMap meshinertia_map[];
 extern const mjMap flexself_map[];
 extern const mjMap elastic2d_map[];
-
+extern const mjMap conflict_map[];
 
 //---------------------------------- Base XML class ------------------------------------------------
 

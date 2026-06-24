@@ -16,6 +16,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>  // NOLINT(build/c++17)
 #include <fstream>
 #include <ios>
 #include <iosfwd>
@@ -27,6 +28,7 @@
 #include <absl/flags/parse.h>
 #include <mujoco/mujoco.h>
 #include "experimental/platform/hal/graphics_mode.h"
+#include "experimental/platform/sys_utils.h"
 #include "experimental/studio/app.h"
 
 ABSL_FLAG(int, window_width, 1400, "Window width");
@@ -36,7 +38,15 @@ ABSL_FLAG(std::string, gfx, "", "Graphics API");
 
 std::string Resolve(std::string_view path) {
   std::string_view subpath = path.substr(path.find(':') + 1);
-  return std::string("assets/") + std::string(subpath);
+  std::filesystem::path exe_dir = mujoco::platform::GetModuleDir((void*)&Resolve);
+  if (exe_dir.empty()) {
+    return std::string("assets/") + std::string(subpath);
+  }
+  std::filesystem::path resources_dir = exe_dir.parent_path() / "Resources";
+  if (std::filesystem::exists(resources_dir / "assets")) {
+    return (resources_dir / "assets" / subpath).string();
+  }
+  return (exe_dir / "assets" / subpath).string();
 }
 
 class FileResource {
@@ -84,6 +94,10 @@ int main(int argc, char** argv, char** envp) {
   resource_provider.open = [](mjResource* resource) {
     const std::string resolved_path = Resolve(resource->name);
     FileResource* f = new FileResource(resolved_path);
+    if (f->Size() == 0) {
+      delete f;
+      return 0;
+    }
     resource->data = f;
     return f->Size();
   };

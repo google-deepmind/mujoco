@@ -270,12 +270,12 @@ class MjWrapper<raw::MjVisualRgba> : public WrapperBase<raw::MjVisualRgba> {
   MjWrapper(raw::MjVisualRgba* ptr, pybind11::handle owner);
   ~MjWrapper() = default;
 
-  #define X(var)                                                     \
-    py_array_or_tuple_t<                                             \
-        std::remove_all_extents_t<decltype(raw::MjVisualRgba::var)>> \
-        var;
+#define XVEC(type, var, dim)                                       \
+  py_array_or_tuple_t<                                             \
+      std::remove_all_extents_t<decltype(raw::MjVisualRgba::var)>> \
+      var;
   MJVISUAL_RGBA_FIELDS
-  #undef X
+#undef XVEC
 };
 
 using MjVisualRgbaWrapper = MjWrapper<raw::MjVisualRgba>;
@@ -376,6 +376,38 @@ template <>
 struct is_mj_struct_list<raw::MjWarningStat> {
   static constexpr bool value = true;
 };
+
+// ==================== MJLOGCONFIG ============================================
+template <>
+class MjWrapper<raw::MjLogConfig> : public WrapperBase<raw::MjLogConfig> {
+ public:
+  MjWrapper();
+  MjWrapper(const MjWrapper&);
+  MjWrapper(MjWrapper&&) = default;
+  MjWrapper(raw::MjLogConfig* ptr, pybind11::handle owner);
+  ~MjWrapper() = default;
+};
+
+using MjLogConfigWrapper = MjWrapper<raw::MjLogConfig>;
+
+template <>
+struct enable_if_mj_struct<raw::MjLogConfig> { using type = void; };
+
+// ==================== MJLOGMESSAGE ===========================================
+template <>
+class MjWrapper<raw::MjLogMessage> : public WrapperBase<raw::MjLogMessage> {
+ public:
+  MjWrapper();
+  MjWrapper(const MjWrapper&);
+  MjWrapper(MjWrapper&&) = default;
+  MjWrapper(raw::MjLogMessage* ptr, pybind11::handle owner);
+  ~MjWrapper() = default;
+};
+
+using MjLogMessageWrapper = MjWrapper<raw::MjLogMessage>;
+
+template <>
+struct enable_if_mj_struct<raw::MjLogMessage> { using type = void; };
 
 // ==================== MJTIMERSTAT ============================================
 template <>
@@ -977,6 +1009,8 @@ using _impl::MjVisualRgbaWrapper;
 using _impl::MjVisualWrapper;
 using _impl::MjStatisticWrapper;
 using _impl::MjWarningStatWrapper;
+using _impl::MjLogConfigWrapper;
+using _impl::MjLogMessageWrapper;
 using _impl::MjTimerStatWrapper;
 using _impl::MjSolverStatWrapper;
 using _impl::MjModelWrapper;

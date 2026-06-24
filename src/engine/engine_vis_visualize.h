@@ -65,11 +65,15 @@ MJAPI void mjv_cameraFrame(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3], m
 MJAPI void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2],  const mjModel* m,
                              const mjvCamera* cam);
 
+// determines if tendon should be rendered as a catenary curve and, if so, computes its length
+MJAPI int mjv_isCatenary(const mjModel* m, const mjData* d, int i, mjtNum* length);
+
+// computes points along a catenary curve
 int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3], mjtNum length,
                  mjtNum* catenary, int ncatenary);
 
 // convert HSV to RGB
-void hsv2rgb(float *RGB, float H, float S, float V);
+MJAPI void hsv2rgb(float *RGB, float H, float S, float V);
 
 #ifdef __cplusplus
 }

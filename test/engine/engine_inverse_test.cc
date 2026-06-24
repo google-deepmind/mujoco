@@ -72,7 +72,7 @@ TEST_F(InverseTest, ForwardInverseMatch) {
       mjtNum epsilon;
       switch (solver) {
       case mjSOL_PGS:    epsilon = MjTol(1e-6, 1e-2);   break;
-      case mjSOL_CG:     epsilon = MjTol(1e-3, 1e0);   break;
+      case mjSOL_CG:     epsilon = MjTol(1e-9, 1e-1);   break;
       case mjSOL_NEWTON: epsilon = MjTol(1e-10, 1e-2);  break;
       }
       EXPECT_LT(data->solver_fwdinv[0], epsilon)

@@ -53,7 +53,7 @@ TEST_F(SetConstTest, AwakeActuatedJoint) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* m;
+  MjModelPtr m;
 
   string sleep[] = {"auto", "never", "allowed", "init"};
   int tsp0[] = {mjSLEEP_AUTO_NEVER, mjSLEEP_NEVER, mjSLEEP_ALLOWED,
@@ -69,10 +69,9 @@ TEST_F(SetConstTest, AwakeActuatedJoint) {
       size_t pos2 = xml_copy.find("POLICY2");
       xml_copy.replace(pos2, 7, sleep[j]);
       m = LoadModelFromString(xml_copy.c_str(), error, sizeof(error));
-      ASSERT_THAT(m, NotNull()) << error;
+      ASSERT_THAT(m.get(), NotNull()) << error;
       EXPECT_EQ(m->tree_sleep_policy[0], tsp0[i]);
       EXPECT_EQ(m->tree_sleep_policy[1], tsp1[j]);
-      mj_deleteModel(m);
     }
   }
 }
@@ -97,13 +96,11 @@ TEST_F(SetConstTest, AwakeActuatedSite) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
   EXPECT_EQ(model->tree_sleep_policy[0], mjSLEEP_AUTO_NEVER);
   EXPECT_EQ(model->tree_sleep_policy[1], mjSLEEP_AUTO_ALLOWED);
-
-  mj_deleteModel(model);
 }
 
 TEST_F(SetConstTest, AwakeActuatedBody) {
@@ -125,13 +122,11 @@ TEST_F(SetConstTest, AwakeActuatedBody) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
   EXPECT_EQ(model->tree_sleep_policy[0], mjSLEEP_AUTO_NEVER);
   EXPECT_EQ(model->tree_sleep_policy[1], mjSLEEP_AUTO_ALLOWED);
-
-  mj_deleteModel(model);
 }
 
 TEST_F(SetConstTest, AwakeActuatedTendon) {
@@ -161,13 +156,11 @@ TEST_F(SetConstTest, AwakeActuatedTendon) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
   EXPECT_EQ(model->tree_sleep_policy[0], mjSLEEP_AUTO_NEVER);
   EXPECT_EQ(model->tree_sleep_policy[1], mjSLEEP_AUTO_ALLOWED);
-
-  mj_deleteModel(model);
 }
 
 TEST_F(SetConstTest, AwakeStiffTendonMultiTree) {
@@ -194,13 +187,11 @@ TEST_F(SetConstTest, AwakeStiffTendonMultiTree) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
   EXPECT_EQ(model->tree_sleep_policy[0], mjSLEEP_AUTO_NEVER);
   EXPECT_EQ(model->tree_sleep_policy[1], mjSLEEP_AUTO_NEVER);
-
-  mj_deleteModel(model);
 }
 
 TEST_F(SetConstTest, SleepyTendonSingleTree) {
@@ -227,12 +218,10 @@ TEST_F(SetConstTest, SleepyTendonSingleTree) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
   EXPECT_EQ(model->tree_sleep_policy[0], mjSLEEP_AUTO_ALLOWED);
-
-  mj_deleteModel(model);
 }
 
 TEST_F(SetConstTest, SleepyTendonZeroStiffness) {
@@ -259,13 +248,11 @@ TEST_F(SetConstTest, SleepyTendonZeroStiffness) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
   EXPECT_EQ(model->tree_sleep_policy[0], mjSLEEP_AUTO_ALLOWED);
   EXPECT_EQ(model->tree_sleep_policy[1], mjSLEEP_AUTO_ALLOWED);
-
-  mj_deleteModel(model);
 }
 
 TEST_F(SetConstTest, TendonTreeId) {
@@ -336,16 +323,16 @@ TEST_F(SetConstTest, TendonTreeId) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
-  int t_static_id = mj_name2id(model, mjOBJ_TENDON, "T_static");
-  int t_tree1_id = mj_name2id(model, mjOBJ_TENDON, "T_tree1");
-  int t_intertree12_id = mj_name2id(model, mjOBJ_TENDON, "T_intertree12");
-  int t_intertree123_id = mj_name2id(model, mjOBJ_TENDON, "T_intertree123");
+  int t_static_id = mj_name2id(model.get(), mjOBJ_TENDON, "T_static");
+  int t_tree1_id = mj_name2id(model.get(), mjOBJ_TENDON, "T_tree1");
+  int t_intertree12_id = mj_name2id(model.get(), mjOBJ_TENDON, "T_intertree12");
+  int t_intertree123_id = mj_name2id(model.get(), mjOBJ_TENDON, "T_intertree123");
 
-  int b1_1_treeid = model->body_treeid[mj_name2id(model, mjOBJ_BODY, "B1_1")];
-  int b2_1_treeid = model->body_treeid[mj_name2id(model, mjOBJ_BODY, "B2_1")];
+  int b1_1_treeid = model->body_treeid[mj_name2id(model.get(), mjOBJ_BODY, "B1_1")];
+  int b2_1_treeid = model->body_treeid[mj_name2id(model.get(), mjOBJ_BODY, "B2_1")];
 
   // Tendon 1: Not associated with any tree
   EXPECT_EQ(model->tendon_treenum[t_static_id], 0);
@@ -368,8 +355,6 @@ TEST_F(SetConstTest, TendonTreeId) {
   EXPECT_EQ(model->tendon_treeid[2*t_intertree123_id], b1_1_treeid);
   EXPECT_EQ(model->tendon_treeid[2*t_intertree123_id+1], b2_1_treeid);
   // The third tree ID is not stored in tendon_treeid
-
-  mj_deleteModel(model);
 }
 
 TEST_F(SetConstTest, SleepingNotAllowed) {
@@ -415,8 +400,8 @@ TEST_F(SetConstTest, SleepingNotAllowed) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  EXPECT_THAT(model, IsNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), IsNull()) << error;
   EXPECT_THAT(string(error), HasSubstr(
               "tree 1 connected to tendon 0 which spans more than 2 trees, "
               "sleeping not allowed"));
@@ -447,8 +432,8 @@ TEST_F(SetConstTest, DofLength) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
   mjtNum tol = 1e-5;
 
@@ -470,8 +455,6 @@ TEST_F(SetConstTest, DofLength) {
   EXPECT_NEAR(model->dof_length[8], 5, tol);
   EXPECT_NEAR(model->dof_length[9], 5, tol);
   EXPECT_NEAR(model->dof_length[10], 5, tol);
-
-  mj_deleteModel(model);
 }
 
 }  // namespace

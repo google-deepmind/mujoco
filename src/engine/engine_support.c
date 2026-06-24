@@ -43,8 +43,8 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 3010000
-#define mjVERSIONSTRING "3.10.0"
+ #define mjVERSION 3010001
+#define mjVERSIONSTRING "3.10.1"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -99,6 +99,14 @@ const char* mjTIMERSTRING[mjNTIMER]= {
   "pos_project",
   "col_broadphase",
   "col_narrowphase"
+};
+
+
+// names of log topics (index i corresponds to topic i+1)
+const char* mjTOPICSTRING[mjNTOPIC] = {
+  "Step timing",
+  "Compile timing",
+  "Sleep/wake"
 };
 
 
@@ -367,19 +375,8 @@ void mj_setKeyframe(mjModel* m, const mjData* d, int k) {
 //-------------------------- inertia functions -----------------------------------------------------
 
 // convert sparse inertia matrix M into full matrix
-void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M) {
-  int adr = 0, nv = m->nv;
-  mju_zero(dst, nv*nv);
-
-  for (int i=0; i < nv; i++) {
-    int j = i;
-    while (j >= 0) {
-      dst[i*nv+j] = M[adr];
-      dst[j*nv+i] = M[adr];
-      j = m->dof_parentid[j];
-      adr++;
-    }
-  }
+void mj_fullM(const mjModel* m, const mjData* d, mjtNum* dst) {
+  mju_sym2dense(dst, d->M, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind);
 }
 
 

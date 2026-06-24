@@ -591,15 +591,12 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_id2name>(pymodule);
   Def<traits::mj_fullM>(
       pymodule,
-      [](const raw::MjModel* m, Eigen::Ref<EigenArrayXX> dst,
-         Eigen::Ref<const EigenVectorX> M) {
-        if (M.size() != m->nM) {
-          throw py::type_error("M should be of size nM");
-        }
+      [](const raw::MjModel* m, const raw::MjData* d,
+         Eigen::Ref<EigenArrayXX> dst) {
         if (dst.cols() != m->nv || dst.rows() != m->nv) {
           throw py::type_error("dst should be of shape (nv, nv)");
         }
-        return ::mj_fullM(m, dst.data(), M.data());
+        return ::mj_fullM(m, d, dst.data());
       });
   Def<traits::mj_mulM>(
       pymodule,

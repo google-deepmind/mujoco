@@ -352,10 +352,11 @@ def euler(m: Model, d: Data) -> Data:
   qacc = d.qacc
   if not m.opt.disableflags & DisableBit.EULERDAMP:
     if support.is_sparse(m):
-      qM = d._impl.qM.at[m.dof_Madr].add(m.opt.timestep * m.dof_damping)
+      diag_adr = m.M_rowadr + m.M_rownnz - 1
+      M = d._impl.M.at[diag_adr].add(m.opt.timestep * m.dof_damping)
     else:
-      qM = d._impl.qM + jp.diag(m.opt.timestep * m.dof_damping)
-    dh = d.tree_replace({'_impl.qM': qM})
+      M = d._impl.M + jp.diag(m.opt.timestep * m.dof_damping)
+    dh = d.tree_replace({'_impl.M': M})
     dh = smooth.factor_m(m, dh)
     qfrc = d.qfrc_smooth + d.qfrc_constraint
     qacc = smooth.solve_m(m, dh, qfrc)
@@ -418,7 +419,7 @@ def implicit(m: Model, d: Data) -> Data:
   qacc = d.qacc
   if qderiv is not None:
     # TODO(robotics-simulation): use smooth.factor_m / solve_m here:
-    qm = support.full_m(m, d) if support.is_sparse(m) else d._impl.qM
+    qm = support.full_m(m, d) if support.is_sparse(m) else d._impl.M
     qm -= m.opt.timestep * qderiv
     qh, _ = jax.scipy.linalg.cho_factor(qm)
     qfrc = d.qfrc_smooth + d.qfrc_constraint

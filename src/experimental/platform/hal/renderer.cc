@@ -14,6 +14,7 @@
 
 #include "experimental/platform/hal/renderer.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <functional>
@@ -27,13 +28,13 @@
 #if !defined(__EMSCRIPTEN__) && !defined(__APPLE__)
 #include "experimental/platform/hal/egl_utils.h"
 #endif
+#include <mujoco/mjrfilament.h>
 #include "experimental/filament/compat/scene_bridge.h"
-#include "experimental/filament/render_context_filament.h"
-#include "experimental/filament/render_context_filament_cpp.h"
 #include "experimental/platform/hal/graphics_mode.h"
 #include "experimental/platform/ux/imgui_bridge.h"
 #include "experimental/platform/ux/imgui_widgets.h"
 #include "experimental/platform/ux/plugin.h"
+#include "render/filament/mjrfilament_cpp.h"
 
 namespace mujoco::platform {
 
@@ -69,8 +70,8 @@ Renderer::Renderer(void* native_window, GraphicsMode gfx)
   }
 
   g_update_gui_callback = [this]() {
-    if (scene_bridge_) {
-      mjrf_DEBUG_drawImguiEditor(scene_bridge_->GetScene());
+    if (main_scene_) {
+      mjrf_DEBUG_drawImguiEditor(main_scene_.get());
     }
   };
 }
@@ -94,19 +95,20 @@ void Renderer::Init(const mjModel* model) {
       mjr_makeContext(model, &render_context_, mjFONTSCALE_150);
 
     } else {
-      mjrFilamentConfig cfg;
-      mjrf_defaultFilamentConfig(&cfg);
+      mjrfContextConfig cfg;
+      mjrf_defaultContextConfig(&cfg);
       cfg.native_window = native_window_;
-      cfg.width = model->vis.global.offwidth;
-      cfg.height = model->vis.global.offheight;
       cfg.force_software_rendering = IsSoftware(gfx_);
       cfg.graphics_api = IsOpenGl(gfx_) || IsWebGl(gfx_)
                              ? mjGRAPHICS_API_OPENGL
                              : mjGRAPHICS_API_VULKAN;
       filament_context_ = CreateContext(cfg);
-      scene_bridge_ =
-          std::make_unique<SceneBridge>(filament_context_.get(), model);
-      imgui_bridge_ = std::make_unique<ImguiBridge>(filament_context_.get());
+      main_scene_ = CreateScene(filament_context_.get(), {});
+      ux_scene_ = CreateScene(filament_context_.get(), {});
+      scene_bridge_ = std::make_unique<SceneBridge>(filament_context_.get(),
+                                                    main_scene_.get(), model);
+      imgui_bridge_ = std::make_unique<ImguiBridge>(filament_context_.get(),
+                                                    ux_scene_.get());
       scene_bridge_->SetDrawTextFunction(DrawTextAt);
     }
 
@@ -124,6 +126,8 @@ void Renderer::Deinit() {
     } else {
       scene_bridge_.reset();
       imgui_bridge_.reset();
+      ux_scene_.reset();
+      main_scene_.reset();
       filament_context_.reset();
     }
     initialized_ = false;
@@ -133,7 +137,8 @@ void Renderer::Deinit() {
 void Renderer::Render(const mjModel* model, mjData* data,
                       const mjvPerturb* perturb, mjvCamera* camera,
                       const mjvOption* vis_option, int width, int height,
-                      std::span<std::byte> pixels) {
+                      std::span<std::byte> pixels,
+                      std::span<mjvGeom> extra_geoms) {
   if (!initialized_) {
     return;
   }
@@ -154,6 +159,11 @@ void Renderer::Render(const mjModel* model, mjData* data,
   }
 
   mjv_updateScene(model, data, vis_option, perturb, camera, mjCAT_ALL, &scene_);
+  const int nextra_geoms =
+      std::min<int>(extra_geoms.size(), scene_.maxgeom - scene_.ngeom);
+  for (int i = 0; i < nextra_geoms; ++i) {
+    scene_.geoms[scene_.ngeom++] = extra_geoms[i];
+  }
 
   const bool render_to_texture = !pixels.empty();
   if (render_to_texture) {
@@ -228,28 +238,32 @@ void Renderer::DoRender(int width, int height) {
       imgui_bridge_->Update();
     }
     if (framebuffer_mode_ == 0) {
-      mjrDrawMode draw_mode = mjDRAW_MODE_COLOR;
+      mjrDrawMode draw_mode = mjDRAW_MODE_DEFAULT;
       if (scene_.flags[mjRND_SEGMENT]) {
-        draw_mode = mjDRAW_MODE_SEGMENTATION;
+        if (scene_.flags[mjRND_IDCOLOR]) {
+          draw_mode = mjDRAW_MODE_SEGMENTATION_BY_ID;
+        } else {
+          draw_mode = mjDRAW_MODE_SEGMENTATION_BY_COLOR;
+        }
       } else if (scene_.flags[mjRND_DEPTH]) {
         draw_mode = mjDRAW_MODE_DEPTH;
       } else if (scene_.flags[mjRND_WIREFRAME]) {
         draw_mode = mjDRAW_MODE_WIREFRAME;
       }
 
-      mjrRenderRequest reqs[2];
+      mjrfRenderRequest reqs[2];
 
-      mjr_defaultRenderRequest(&reqs[0]);
-      reqs[0].scene = scene_bridge_->GetScene();
+      mjrf_defaultRenderRequest(&reqs[0]);
+      reqs[0].scene = main_scene_.get();
       reqs[0].draw_mode = draw_mode;
       reqs[0].camera = scene_bridge_->GetCamera();
       reqs[0].viewport = viewport;
       reqs[0].enable_shadows = scene_.flags[mjRND_SHADOW];
       reqs[0].enable_reflections = scene_.flags[mjRND_REFLECTION];
 
-      mjr_defaultRenderRequest(&reqs[1]);
-      reqs[1].scene = imgui_bridge_->GetScene();
-      reqs[1].draw_mode = mjDRAW_MODE_COLOR;
+      mjrf_defaultRenderRequest(&reqs[1]);
+      reqs[1].scene = ux_scene_.get();
+      reqs[1].draw_mode = mjDRAW_MODE_DEFAULT;
       reqs[1].camera = imgui_bridge_->GetCamera(viewport.width, viewport.height);
       reqs[1].viewport = viewport;
       reqs[1].enable_shadows = false;
@@ -283,26 +297,30 @@ void Renderer::DoReadPixels(int width, int height, unsigned char* rgb) {
     mjr_setBuffer(mjFB_WINDOW, &render_context_);
     FlipImage(rgb, viewport.width, viewport.height, 3);
   } else {
-    mjrDrawMode draw_mode = mjDRAW_MODE_COLOR;
+    mjrDrawMode draw_mode = mjDRAW_MODE_DEFAULT;
     if (scene_.flags[mjRND_SEGMENT]) {
-      draw_mode = mjDRAW_MODE_SEGMENTATION;
+      if (scene_.flags[mjRND_IDCOLOR]) {
+        draw_mode = mjDRAW_MODE_SEGMENTATION_BY_ID;
+      } else {
+        draw_mode = mjDRAW_MODE_SEGMENTATION_BY_COLOR;
+      }
     } else if (scene_.flags[mjRND_DEPTH]) {
       draw_mode = mjDRAW_MODE_DEPTH;
     } else if (scene_.flags[mjRND_WIREFRAME]) {
       draw_mode = mjDRAW_MODE_WIREFRAME;
     }
 
-    mjrRenderTargetConfig config;
-    mjr_defaultRenderTargetConfig(&config);
+    mjrfRenderTargetConfig config;
+    mjrf_defaultRenderTargetConfig(&config);
     config.width = viewport.width;
     config.height = viewport.height;
     config.color_format = mjPIXEL_FORMAT_RGB8;
     config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
     auto target = CreateRenderTarget(filament_context_.get(), config);
 
-    mjrRenderRequest reqs[2];
-    mjr_defaultRenderRequest(&reqs[0]);
-    reqs[0].scene = scene_bridge_->GetScene();
+    mjrfRenderRequest reqs[2];
+    mjrf_defaultRenderRequest(&reqs[0]);
+    reqs[0].scene = main_scene_.get();
     reqs[0].draw_mode = draw_mode;
     reqs[0].camera = scene_bridge_->GetCamera();
     reqs[0].target = target.get();
@@ -310,9 +328,9 @@ void Renderer::DoReadPixels(int width, int height, unsigned char* rgb) {
     reqs[0].enable_shadows = scene_.flags[mjRND_SHADOW];
     reqs[0].enable_reflections = scene_.flags[mjRND_REFLECTION];
 
-    mjr_defaultRenderRequest(&reqs[1]);
-    reqs[1].scene = imgui_bridge_->GetScene();
-    reqs[1].draw_mode = mjDRAW_MODE_COLOR;
+    mjrf_defaultRenderRequest(&reqs[1]);
+    reqs[1].scene = ux_scene_.get();
+    reqs[1].draw_mode = mjDRAW_MODE_DEFAULT;
     reqs[1].camera = imgui_bridge_->GetCamera(viewport.width, viewport.height);
     reqs[1].target = target.get();
     reqs[1].viewport = viewport;
@@ -320,14 +338,14 @@ void Renderer::DoReadPixels(int width, int height, unsigned char* rgb) {
     reqs[1].enable_reflections = false;
     reqs[1].enable_post_processing = false;
 
-    mjrReadPixelsRequest read_request;
-    mjr_defaultReadPixelsRequest(&read_request);
+    mjrfReadPixelsRequest read_request;
+    mjrf_defaultReadPixelsRequest(&read_request);
     read_request.target = target.get();
     read_request.output = rgb;
     read_request.num_bytes = viewport.width * viewport.height * 3;
 
     const int num_requests = (framebuffer_mode_ == 2) ? 2 : 1;
-    const mjrFrameHandle frame = mjrf_render(
+    const mjrfFrameHandle frame = mjrf_render(
         filament_context_.get(), &reqs[0], num_requests, &read_request, 1);
     mjrf_waitForFrame(filament_context_.get(), frame);
   }
@@ -348,8 +366,8 @@ void Renderer::UpdateFps() {
       frames_ = 0;
     }
   } else {
-    mjrFrameStats stats;
-    mjr_defaultFrameStats(&stats);
+    mjrfFrameStats stats;
+    mjrf_defaultFrameStats(&stats);
     mjrf_getFrameStats(filament_context_.get(), 0, &stats);
     fps_ = stats.frame_rate;
   }

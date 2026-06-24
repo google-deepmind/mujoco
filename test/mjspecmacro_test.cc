@@ -30,7 +30,10 @@ namespace expected {
 
 struct mjsElement { MJSELEMENT_FIELDS };
 struct mjsCompiler { MJSCOMPILER_FIELDS };
-struct mjSpec { MJSPEC_FIELDS };
+struct mjSpec {
+  MJSPEC_FIELDS
+  mjsAuthored authored;
+};
 struct mjsOrientation { MJSORIENTATION_FIELDS };
 struct mjsPlugin { MJSPLUGIN_FIELDS };
 struct mjsBody { MJSBODY_FIELDS };

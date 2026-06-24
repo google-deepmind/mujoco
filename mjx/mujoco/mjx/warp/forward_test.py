@@ -176,8 +176,8 @@ class ForwardTest(parameterized.TestCase):
 
       qm = np.zeros((m.nv, m.nv))
       mujoco.mju_sym2dense(qm, d.M, m.M_rownnz, m.M_rowadr, m.M_colind)
-      # mjwarp adds padding to qM
-      tu.assert_eq(qm, dx._impl.qM[: m.nv, : m.nv], 'qM')
+      # mjwarp adds padding to M
+      tu.assert_eq(qm, dx._impl.M[: m.nv, : m.nv], 'M')
       # qLD is fused in a cholesky factorize and solve, and not written to.
 
       tu.assert_contact_eq(d, dx, worldid=i)

@@ -172,6 +172,7 @@ class Simulate {
     bool ui_update_joint;
     bool ui_update_ctrl;
     bool ui_update_equality;
+    bool ui_update_logging;
     bool ui_remake_ctrl;
   } pending_ = {};
 
@@ -256,6 +257,12 @@ class Simulate {
   int disable[mjNDISABLE] = {0};
   int enable[mjNENABLE] = {0};
   int enableactuator[mjNGROUP] = {0};
+
+  // logging: need sync
+  mjtByte log_console = 0;
+  mjtByte log_file = 0;
+  mjtByte log_topics[mjNTOPIC] = {0};
+  mjTimerStat timer_prev_[mjNTIMER] = {};
 
   // rendering: need sync
   int camera = 0;

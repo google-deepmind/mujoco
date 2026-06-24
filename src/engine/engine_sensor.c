@@ -284,29 +284,7 @@ static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
                         const float cam_intrinsic[4], const float cam_sensorsize[2]) {
   mjtNum fx, fy;
 
-  // translation matrix (4x4)
-  mjtNum translation[4][4] = {0};
-  translation[0][0] = 1;
-  translation[1][1] = 1;
-  translation[2][2] = 1;
-  translation[3][3] = 1;
-  translation[0][3] = -cam_xpos[0];
-  translation[1][3] = -cam_xpos[1];
-  translation[2][3] = -cam_xpos[2];
-
-  // rotation matrix (4x4)
-  mjtNum rotation[4][4] = {0};
-  rotation[0][0] = 1;
-  rotation[1][1] = 1;
-  rotation[2][2] = 1;
-  rotation[3][3] = 1;
-  for (int i=0; i < 3; i++) {
-    for (int j=0; j < 3; j++) {
-      rotation[i][j] = cam_xmat[j*3+i];
-    }
-  }
-
-  // focal transformation matrix (3x4)
+  // focal transformation
   if (cam_sensorsize[0] && cam_sensorsize[1]) {
     fx = cam_intrinsic[0] / cam_sensorsize[0] * cam_res[0];
     fy = cam_intrinsic[1] / cam_sensorsize[1] * cam_res[1];
@@ -314,48 +292,16 @@ static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
     fx = fy = .5 / mju_tan(cam_fovy * mjPI / 360.) * cam_res[1];
   }
 
-  mjtNum focal[3][4] = {0};
-  focal[0][0] = -fx;
-  focal[1][1] =  fy;
-  focal[2][2] = 1.0;
+  // relative position in world frame
+  mjtNum relative_pos[3];
+  mju_sub3(relative_pos, target_xpos, cam_xpos);
 
-  // image matrix (3x3)
-  mjtNum image[3][3] = {0};
-  image[0][0] = 1;
-  image[1][1] = 1;
-  image[2][2] = 1;
-  image[0][2] = (mjtNum)cam_res[0] / 2.0;
-  image[1][2] = (mjtNum)cam_res[1] / 2.0;
-
-  // projection matrix (3x4): product of all 4 matrices
-  mjtNum proj[3][4] = {0};
-  for (int i=0; i < 3; i++) {
-    for (int j=0; j < 3; j++) {
-      for (int k=0; k < 4; k++) {
-        for (int l=0; l < 4; l++) {
-          for (int n=0; n < 4; n++) {
-            proj[i][n] += image[i][j] * focal[j][k] * rotation[k][l] * translation[l][n];
-          }
-        }
-      }
-    }
-  }
-
-  // projection matrix multiplies homogenous [x, y, z, 1] vectors
-  mjtNum pos_hom[4] = {0, 0, 0, 1};
-  mju_copy3(pos_hom, target_xpos);
-
-  // project world coordinates into pixel space, see:
-  // https://en.wikipedia.org/wiki/3D_projection#Mathematical_formula
-  mjtNum pixel_coord_hom[3] = {0};
-  for (int i=0; i < 3; i++) {
-    for (int j=0; j < 4; j++) {
-      pixel_coord_hom[i] += proj[i][j] * pos_hom[j];
-    }
-  }
+  // project to camera frame: cam_pos = cam_xmat^T * relative_pos
+  mjtNum cam_pos[3];
+  mju_mulMatTVec(cam_pos, cam_xmat, relative_pos, 3, 3);
 
   // avoid dividing by tiny numbers
-  mjtNum denom = pixel_coord_hom[2];
+  mjtNum denom = cam_pos[2];
   if (mju_abs(denom) < mjMINVAL) {
     if (denom < 0) {
       denom = mju_min(denom, -mjMINVAL);
@@ -365,8 +311,8 @@ static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
   }
 
   // compute projection
-  sensordata[0] = pixel_coord_hom[0] / denom;
-  sensordata[1] = pixel_coord_hom[1] / denom;
+  sensordata[0] = -fx * (cam_pos[0] / denom) + 0.5 * (mjtNum)cam_res[0];
+  sensordata[1] =  fy * (cam_pos[1] / denom) + 0.5 * (mjtNum)cam_res[1];
 }
 
 
@@ -408,8 +354,12 @@ static int matchContact(const mjModel* m, const mjData* d, int conid,
   // get geom, body ids
   int geom1 = d->contact[conid].geom[0];
   int geom2 = d->contact[conid].geom[1];
-  int body1 = geom1 >= 0 ? m->geom_bodyid[geom1] : -1;
-  int body2 = geom2 >= 0 ? m->geom_bodyid[geom2] : -1;
+  int body1 = geom1 >= 0
+      ? m->geom_bodyid[geom1]
+      : mj_flexBody(m, &d->contact[conid], 0);
+  int body2 = geom2 >= 0
+      ? m->geom_bodyid[geom2]
+      : mj_flexBody(m, &d->contact[conid], 1);
 
   // check match of sensor objects with contact objects
   int match11 = checkMatch(m, body1, geom1, type1, id1);
@@ -1040,7 +990,9 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
       con = d->contact + j;
       int conbody[2];
       for (int k=0; k < 2; k++) {
-        conbody[k] = (con->geom[k] >= 0) ? m->geom_bodyid[con->geom[k]] : -1;
+        conbody[k] = (con->geom[k] >= 0)
+            ? m->geom_bodyid[con->geom[k]]
+            : mj_flexBody(m, con, k);
       }
 
       // select contacts involving sensorized body
@@ -1216,8 +1168,12 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
       int* contact_geom_ids = mj_stackAllocInt(d, d->ncon);
       int ncontact = 0;
       for (int k = 0; k < d->ncon; k++) {
-        int body1 = m->body_weldid[m->geom_bodyid[d->contact[k].geom1]];
-        int body2 = m->body_weldid[m->geom_bodyid[d->contact[k].geom2]];
+        int body1 = (d->contact[k].geom1 >= 0)
+            ? m->body_weldid[m->geom_bodyid[d->contact[k].geom1]]
+            : m->body_weldid[mj_flexBody(m, &d->contact[k], 0)];
+        int body2 = (d->contact[k].geom2 >= 0)
+            ? m->body_weldid[m->geom_bodyid[d->contact[k].geom2]]
+            : m->body_weldid[mj_flexBody(m, &d->contact[k], 1)];
         if (body1 == parent_weld) {
           int add = 1;
           for (int j = 0; j < ncontact; j++) {

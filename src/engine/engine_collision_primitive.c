@@ -563,7 +563,7 @@ static mjtNum pointSegment(mjtNum res[2], const mjtNum p[2],
 
 
 // sphere : triangle with radius
-int mjraw_SphereTriangle(mjContact* con, mjtNum margin,
+int mjraw_SphereTriangle(mjPreContact* con, mjtNum margin,
                          const mjtNum* s, mjtNum rs,
                          const mjtNum* t1, const mjtNum* t2, const mjtNum* t3, mjtNum rt) {
   mjtNum rbound = margin + rs + rt;
@@ -642,15 +642,15 @@ int mjraw_SphereTriangle(mjContact* con, mjtNum margin,
   // construct contact
   con[0].dist = dst - rs - rt;
   mji_addScl3(con[0].pos, s, nrm, rs + con[0].dist / 2);
-  mji_copy3(con[0].frame, nrm);
-  mju_zero3(con[0].frame+3);
+  mji_copy3(con[0].normal, nrm);
+  mju_zero3(con[0].tangent);
 
   return 1;
 }
 
 
 // box : triangle with radius
-int mjraw_BoxTriangle(mjContact* con, mjtNum margin, const mjtNum* pos,
+int mjraw_BoxTriangle(mjPreContact* con, mjtNum margin, const mjtNum* pos,
                       const mjtNum* mat, const mjtNum* size, const mjtNum* t1,
                       const mjtNum* t2, const mjtNum* t3, mjtNum rt) {
   int cnt = 0;
@@ -698,17 +698,17 @@ int mjraw_BoxTriangle(mjContact* con, mjtNum margin, const mjtNum* pos,
       nrm_local[maxaxis] = (local[maxaxis] > 0 ? 1 : -1);
 
       // normal in global frame (from Box to Triangle)
-      mju_mulMatVec3(con[cnt].frame, mat, nrm_local);
+      mju_mulMatVec3(con[cnt].normal, mat, nrm_local);
 
       // distance
       con[cnt].dist = maxval - rt;
 
       // position: v - nrm * (rt + dist/2)
       mjtNum offset = rt + con[cnt].dist * 0.5;
-      mji_addScl3(con[cnt].pos, vert[i], con[cnt].frame, -offset);
+      mji_addScl3(con[cnt].pos, vert[i], con[cnt].normal, -offset);
 
       // frame details
-      mju_zero3(con[cnt].frame + 3);
+      mju_zero3(con[cnt].tangent);
 
       cnt++;
     }
@@ -743,7 +743,7 @@ int mjraw_BoxTriangle(mjContact* con, mjtNum margin, const mjtNum* pos,
 
 
 // capsule : triangle with radius
-int mjraw_CapsuleTriangle(mjContact* con, mjtNum margin, const mjtNum* pos,
+int mjraw_CapsuleTriangle(mjPreContact* con, mjtNum margin, const mjtNum* pos,
                           const mjtNum* mat, const mjtNum* size,
                           const mjtNum* t1, const mjtNum* t2, const mjtNum* t3,
                           mjtNum rt) {
@@ -793,8 +793,8 @@ int mjraw_CapsuleTriangle(mjContact* con, mjtNum margin, const mjtNum* pos,
     con[cnt].dist = dist - radius - rt;
 
     // Frame: normal from Capsule to Triangle. 'vec' points Closest->Vert.
-    mji_copy3(con[cnt].frame, vec);
-    mju_zero3(con[cnt].frame + 3);
+    mji_copy3(con[cnt].normal, vec);
+    mju_zero3(con[cnt].tangent);
 
     // Position: midway between surfaces
     mji_add3(con[cnt].pos, closest, vert[i]);

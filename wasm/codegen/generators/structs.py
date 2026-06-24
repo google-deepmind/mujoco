@@ -229,6 +229,36 @@ def _generate_field_data(
           binding=_get_property_binding(f, w, setter=False, reference=True),
       )
 
+    # Case 2.5: const char* without array_extent (C strings like body, func).
+    elif (
+        inner_type_name == "char"
+        and not is_dynamically_sized
+    ):
+      builder = code_builder.CodeBuilder()
+      if f.type.inner_type.is_const:
+        with builder.function(f"std::string {f.name}() const"):
+          builder.line(
+              f'return ptr_->{f.name} ? std::string(ptr_->{f.name}) : "";'
+          )
+      else:
+        with builder.function(f"std::string {f.name}() const"):
+          builder.line(
+              f'return ptr_->{f.name} ? std::string(ptr_->{f.name}) : "";'
+          )
+        with builder.function(f"void set_{f.name}(const std::string& value)"):
+          with builder.block(f"if (ptr_->{f.name})"):
+            builder.line(
+                f"std::strncpy(ptr_->{f.name}, value.c_str(),"
+                f" sizeof(ptr_->{f.name}));"
+            )
+      return WrappedFieldData(
+          declaration=builder.to_string(),
+          typename=_get_field_struct_type(f, s),
+          binding=_get_property_binding(
+              f, w, setter=not f.type.inner_type.is_const, reference=True
+          ),
+      )
+
     # Case 3: Non-dynamically sized pointer fields to other structs.
     elif (
         not is_dynamically_sized

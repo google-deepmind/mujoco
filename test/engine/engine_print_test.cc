@@ -24,7 +24,7 @@
 #include "test/fixture.h"
 
 #ifdef MEMORY_SANITIZER
-  #include <sanitizer/msan_interface.h>
+#include <sanitizer/msan_interface.h>
 #endif
 
 namespace mujoco {
@@ -37,7 +37,6 @@ using ::testing::Not;
 using ::testing::NotNull;
 
 using EnginePrintTest = MujocoTest;
-
 
 constexpr const char* NullFile() {
 #ifdef _WIN32
@@ -60,27 +59,26 @@ TEST_F(EnginePrintTest, PrintDataWorksWithMsan) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  MjDataPtr data = MakeData(model);
   ASSERT_THAT(data, NotNull());
 
   // Mark qacc_smooth[0] as initialized.
   data->qacc_smooth[0] = 0;
 
   // This will read "uninitialized" values from mjData, but shouldn't fail.
-  mj_printData(model, data, NullFile());
+  mj_printData(model.get(), data.get(), NullFile());
 
   // After mj_printData, poisoned status should be restored correctly, so
   // qacc_smooth[0] should be marked initialzed.
   EXPECT_EQ(data->qacc_smooth[0], 0);
 
 #ifdef MEMORY_SANITIZER
-  EXPECT_THAT(__msan_test_shadow(data->buffer, data->nbuffer), Not(Eq(-1))) <<
-      "Expecting some of data->buffer to be marked uninitialized";
+  EXPECT_THAT(__msan_test_shadow(data->buffer, data->nbuffer), Not(Eq(-1)))
+      << "Expecting some of data->buffer to be marked uninitialized";
 #endif
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 }  // namespace

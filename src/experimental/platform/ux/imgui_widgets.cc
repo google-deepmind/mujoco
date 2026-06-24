@@ -65,7 +65,7 @@ KeyValues ReadIniSection(const std::string& contents,
 
 ImGui_DataPtrTable::ImGui_DataPtrTable(float w1, float w2) {
   ImGui::BeginTable("##PropertiesTable", 2, ImGuiTableFlags_RowBg);
-  const float width = ImGui::GetContentRegionAvail().x;
+  const float width = GetStableAvailWidth();
   ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, width * w1);
   ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, width * w2);
   ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(3.0f, 0.0f));
