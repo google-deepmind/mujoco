@@ -201,7 +201,7 @@ static void UpdateGeomMaterial(mjrfRenderable* renderable, const mjvGeom& geom,
 
   if (material.color_texture) {
     const bool tex_uniform = model->mat_texuniform[geom.matid];
-    if (mjrf_getSamplerType(material.color_texture) == mjTEXTURE_2D) {
+    if (mjrf_getTextureSamplerType(material.color_texture) == mjTEXTURE_2D) {
       // For 2D textures, `tex_repeat` specifies how many times the texture
       // image is repeated. The `tex_uniform` flag determines if the repetition
       // is applied at in object space (false) or in world space (true).

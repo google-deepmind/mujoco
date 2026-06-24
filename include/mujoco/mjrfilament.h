@@ -219,7 +219,7 @@ int mjrf_getTextureWidth(const mjrfTexture* texture);
 int mjrf_getTextureHeight(const mjrfTexture* texture);
 
 // Returns the sampler type (mjrSamplerType) used by the texture.
-int mjrf_getSamplerType(const mjrfTexture* texture);
+int mjrf_getTextureSamplerType(const mjrfTexture* texture);
 
 // ## Meshes (mjrfMesh)
 //

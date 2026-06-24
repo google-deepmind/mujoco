@@ -193,7 +193,7 @@ int mjrf_getTextureHeight(const mjrfTexture* texture) {
   return mujoco::Texture::downcast(texture)->GetHeight();
 }
 
-int mjrf_getSamplerType(const mjrfTexture* texture) {
+int mjrf_getTextureSamplerType(const mjrfTexture* texture) {
   return mujoco::Texture::downcast(texture)->GetSamplerType();
 }
 
