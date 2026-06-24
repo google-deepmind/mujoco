@@ -69,7 +69,9 @@ static constexpr const char ICON_FA_CIRCLE_O[] = "\xEF\x84\x8C";
 static constexpr const char ICON_FA_CIRCLE[] = "\xEF\x84\x91";
 static constexpr const char ICON_FA_COMMENT[] = "\xEF\x83\xA5";
 static constexpr const char ICON_FA_COPY[] = "\xEF\x83\x85";
+static constexpr const char ICON_FA_CROSSHAIRS[] = "\xEF\x81\x9B";
 static constexpr const char ICON_FA_DIAMOND[] = "\xEF\x88\x99";
+static constexpr const char ICON_FA_DOWNLOAD[] = "\xEF\x80\x99";
 static constexpr const char ICON_FA_EJECT[] = "\xEF\x81\x92";
 static constexpr const char ICON_FA_FAST_FORWARD[] = "\xEF\x81\x90";
 static constexpr const char ICON_FA_MAGIC[] = "\xEF\x83\x90";
@@ -84,6 +86,7 @@ static constexpr const char ICON_FA_SUN[] = "\xEF\x86\x85";
 static constexpr const char ICON_FA_TACHOMETER[] = "\xEF\x83\xA4";
 static constexpr const char ICON_FA_TRASH_CAN[] = "\xEF\x87\xB8";
 static constexpr const char ICON_FA_UNDO[] = "\xEF\x83\xA2";
+static constexpr const char ICON_FA_UPLOAD[] = "\xEF\x82\x93";
 
 using KeyValues = std::unordered_map<std::string, std::string>;
 

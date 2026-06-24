@@ -134,6 +134,8 @@ class App {
     bool profiler = false;
     bool picture_in_picture = false;
     bool options_panel = true;
+    bool toolbar = false;
+    bool status_bar = false;
     bool inspector_panel = true;
     bool full_screen = false;
     bool style_editor = false;

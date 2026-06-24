@@ -24,6 +24,7 @@
 // mjvOption, etc. But, some functions take additional arguments as needed.
 
 #include <array>
+#include <string>
 #include <vector>
 
 #include <imgui.h>
@@ -67,7 +68,7 @@ void RescaleDock(float ratio);
 //
 // Returns the size and position of the remaining workspace area which can then
 // be used to place additional elements (e.g. floating charts).
-ImVec4 ConfigureDockingLayout();
+ImVec4 ConfigureDockingLayout(bool show_toolbar = true, bool show_status_bar = false);
 
 // logarithmically spaced real-time slow-down coefficients (percent)
 // clang-format off
@@ -97,6 +98,10 @@ bool LabelSelectionGui(mjvOption* opts);
 
 // UX for selecting the visualization frame option.
 bool FrameSelectionGui(mjvOption* opts);
+
+// Get the display name for a camera given its index.
+std::string GetCameraName(const mjModel* model, const mjvCamera& camera,
+                          int index);
 
 // UX for selecting the camera.
 bool CameraSelectionGui(const mjModel* model, mjData* data, mjvCamera& camera,
