@@ -33,12 +33,16 @@ if typing.TYPE_CHECKING:
 
 else:
   try:
-    from warp._src.jax_experimental.ffi import GraphMode
+    from warp._src.jax.ffi import GraphMode
+  except ImportError:
+    try:
+      from warp._src.jax_experimental.ffi import GraphMode
+    except ImportError:
+      GraphMode = int
+  try:
     from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
-
     Callback = mjwp_types.Callback
   except ImportError:
-    GraphMode = int
     Callback = None
 PyTreeNode = mjx_dataclasses.PyTreeNode
 
