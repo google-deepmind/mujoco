@@ -44,10 +44,16 @@ PYBIND11_MODULE(sim, m) {
       .def(
           "advance",
           [](StepControl& self, py::object model_obj, py::object data_obj) {
-            auto& model = py::cast<mujoco::python::MjModelWrapper&>(model_obj);
-            auto& data = py::cast<mujoco::python::MjDataWrapper&>(data_obj);
+            mjModel* m = nullptr;
+            mjData* d = nullptr;
+            if (!model_obj.is_none()) {
+              m = py::cast<mujoco::python::MjModelWrapper&>(model_obj).get();
+            }
+            if (!data_obj.is_none()) {
+              d = py::cast<mujoco::python::MjDataWrapper&>(data_obj).get();
+            }
             py::gil_scoped_release no_gil;
-            return self.Advance(model.get(), data.get());
+            return self.Advance(m, d);
           },
           py::arg("model"), py::arg("data"),
           "Step physics forward, respecting speed settings and refresh budget.")
