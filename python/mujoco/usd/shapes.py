@@ -16,14 +16,15 @@
 
 from typing import Any, Dict, Optional, Tuple, Union
 
-import mujoco
 import numpy as np
+
+import mujoco
 
 
 def get_triangle_uvs(
     vertices: np.ndarray,
     triangles: np.ndarray,
-    texture_type: Optional[mujoco.mjtTexture]
+    texture_type: Optional[mujoco.mjtTexture],
 ):
   """Returns UV coordinates for a given mesh."""
   if texture_type is None:
@@ -88,10 +89,12 @@ class TriangleMesh:
     triangle_uvs: A numpy array of UV coordinates.
   """
 
-  def __init__(self,
-               vertices: np.ndarray,
-               triangles: np.ndarray,
-               triangle_uvs: np.ndarray):
+  def __init__(
+      self,
+      vertices: np.ndarray,
+      triangles: np.ndarray,
+      triangle_uvs: np.ndarray,
+  ):
     """Creates a TriangleMesh object.
 
     Args:
@@ -109,30 +112,34 @@ class TriangleMesh:
       width: float,
       height: float,
       depth: float,
-      texture_type: Optional[mujoco.mjtTexture]
+      texture_type: Optional[mujoco.mjtTexture],
   ) -> "TriangleMesh":
     """Creates a box."""
-    vertices = np.array([[0.0, 0.0, 0.0],
-                         [width, 0.0, 0.0],
-                         [0.0, 0.0, depth],
-                         [width, 0.0, depth],
-                         [0.0, height, 0.0],
-                         [width, height, 0.0],
-                         [0.0, height, depth],
-                         [width, height, depth]])
+    vertices = np.array([
+        [0.0, 0.0, 0.0],
+        [width, 0.0, 0.0],
+        [0.0, 0.0, depth],
+        [width, 0.0, depth],
+        [0.0, height, 0.0],
+        [width, height, 0.0],
+        [0.0, height, depth],
+        [width, height, depth],
+    ])
 
-    triangles = np.array([[4, 7, 5],
-                          [4, 6, 7],
-                          [0, 2, 4],
-                          [2, 6, 4],
-                          [0, 1, 2],
-                          [1, 3, 2],
-                          [1, 5, 7],
-                          [1, 7, 3],
-                          [2, 3, 7],
-                          [2, 7, 6],
-                          [0, 4, 1],
-                          [1, 4, 5]])
+    triangles = np.array([
+        [4, 7, 5],
+        [4, 6, 7],
+        [0, 2, 4],
+        [2, 6, 4],
+        [0, 1, 2],
+        [1, 3, 2],
+        [1, 5, 7],
+        [1, 7, 3],
+        [2, 3, 7],
+        [2, 7, 6],
+        [0, 4, 1],
+        [1, 4, 5],
+    ])
 
     triangle_uvs = get_triangle_uvs(vertices, triangles, texture_type)
 
@@ -143,13 +150,13 @@ class TriangleMesh:
       cls,
       radius: float,
       texture_type: Optional[mujoco.mjtTexture],
-      resolution: int
+      resolution: int,
   ) -> "TriangleMesh":
     """Creates a sphere."""
     vertices = []
     triangles = []
-    for i in range(2*resolution + 1):
-      phi = np.pi * i / (2*resolution)
+    for i in range(2 * resolution + 1):
+      phi = np.pi * i / (2 * resolution)
       for j in range(resolution + 1):
         theta = 2 * np.pi * j / resolution
         x = radius * np.sin(phi) * np.cos(theta)
@@ -157,7 +164,7 @@ class TriangleMesh:
         z = radius * np.cos(phi)
         vertices.append([x, y, z])
 
-    for i in range(2*resolution):
+    for i in range(2 * resolution):
       for j in range(resolution):
         first = i * (resolution + 1) + j
         second = first + resolution + 1
@@ -217,7 +224,7 @@ class TriangleMesh:
       radius: float,
       height: float,
       texture_type: Optional[mujoco.mjtTexture],
-      resolution: int
+      resolution: int,
   ) -> "TriangleMesh":
     """Creates a cylinder."""
     vertices = []
@@ -330,8 +337,8 @@ def mesh_config_generator(
         },
         "right_hemisphere": {
             "radius": size[0],
-            "transform": {"translate": (0, 0, 2*size[2])},
-        }
+            "transform": {"translate": (0, 0, 2 * size[2])},
+        },
     }
   elif geom_type == mujoco.mjtGeom.mjGEOM_ELLIPSOID:
     sphere = mesh_config_generator(
@@ -390,26 +397,26 @@ def mesh_factory(
           width=mesh_config[shape]["width"],
           height=mesh_config[shape]["height"],
           depth=mesh_config[shape]["depth"],
-          texture_type=texture_type
+          texture_type=texture_type,
       )
     elif "hemisphere" in shape:
       prim_mesh = TriangleMesh.create_hemisphere(
           radius=mesh_config[shape]["radius"],
           texture_type=texture_type,
-          resolution=resolution
+          resolution=resolution,
       )
     elif "sphere" in shape:
       prim_mesh = TriangleMesh.create_sphere(
           radius=mesh_config[shape]["radius"],
           texture_type=texture_type,
-          resolution=resolution
+          resolution=resolution,
       )
     elif "cylinder" in shape:
       prim_mesh = TriangleMesh.create_cylinder(
           radius=mesh_config[shape]["radius"],
           height=mesh_config[shape]["height"],
           texture_type=texture_type,
-          resolution=resolution
+          resolution=resolution,
       )
     else:
       raise ValueError("Shape not supported")
