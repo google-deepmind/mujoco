@@ -62,7 +62,7 @@ class Msh:
     if vertex_texcoords.size != 2 * ntexcoord:
       raise ValueError(
           f"Invalid number of texcoords: {vertex_texcoords.size} != "
-          "2*{ntexcoord}."
+          f"2*{ntexcoord}."
       )
     if face_vertex_indices.size != 3 * nface:
       raise ValueError(
