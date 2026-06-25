@@ -143,6 +143,7 @@ var Module = {
       "assets/fontawesome-webfont.ttf",
       "assets/ibl.ktx",
       "assets/AtkinsonHyperlegibleNext[wght].ttf",
+      "assets/AtkinsonHyperlegibleMono-Regular.ttf",
       "assets/pbr.filamat",
       "assets/pbr_transparent.filamat",
       "assets/pbr_packed.filamat",
