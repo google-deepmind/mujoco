@@ -11013,12 +11013,12 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='usage',
                  type=ValueType(name='int'),
-                 doc='mjrVertexAttributeUsage; e.g. position, normal, etc.',
+                 doc='position, normal, etc [mjrVertexAttributeUsage]',
              ),
              StructFieldDecl(
                  name='type',
                  type=ValueType(name='int'),
-                 doc='mjrVertexAttributeType; e.g. float3, ubyte4, etc.',
+                 doc='float3, ubyte4, etc. [mjrVertexAttributeType]',
              ),
          ),
      )),

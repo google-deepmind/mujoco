@@ -1378,8 +1378,8 @@ typedef struct mjrRect_ {         // OpenGL rectangle
 } mjrRect;
 typedef struct mjrVertexAttribute_ {  // vertex attribute format specification
   const void* bytes;                  // vertex data
-  int usage;                          // mjrVertexAttributeUsage; e.g. position, normal, etc.
-  int type;                           // mjrVertexAttributeType; e.g. float3, ubyte4, etc.
+  int usage;                          // position, normal, etc [mjrVertexAttributeUsage]
+  int type;                           // float3, ubyte4, etc. [mjrVertexAttributeType]
 } mjrVertexAttribute;
 typedef struct mjrContext_ {        // custom OpenGL context
   // parameters copied from mjVisual
