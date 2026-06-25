@@ -978,28 +978,43 @@ void App::BuildGui() {
   }
 
   if (tmp_.info) {
-    platform::ScopedStyle style;
-    style.Var(ImGuiStyleVar_Alpha, 0.8f);
     const float scale = ImGui::GetWindowDpiScale();
-    ImGui::SetNextWindowPos(
-        ImVec2(workspace_rect.x,
-               workspace_rect.y + workspace_rect.w),
-        ImGuiCond_Always, ImVec2(0.0f, 1.0f));
-    ImGui::SetNextWindowSizeConstraints(ImVec2(240.0f * scale, -1.0f),
-                                        ImVec2(FLT_MAX, -1.0f));
-    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar |
-                                   ImGuiWindowFlags_NoResize |
-                                   ImGuiWindowFlags_NoMove |
-                                   ImGuiWindowFlags_NoCollapse |
-                                   ImGuiWindowFlags_AlwaysAutoResize |
-                                   ImGuiWindowFlags_NoSavedSettings;
-    if (ImGui::Begin("Info", nullptr, flags)) {
+    if (platform::BeginOverlay("Info", platform::OverlayPos::kBottomLeft,
+                               workspace_rect, 180.0f * scale)) {
       const float fps = renderer_->GetFps();
       platform::InfoGui(
           model(), data(),
           step_control_.GetPauseState() == PauseState::kNormalPaused, fps);
     }
-    ImGui::End();
+    platform::EndOverlay();
+  }
+
+  // pause overlay
+  if (has_model() &&
+      step_control_.GetPauseState() == PauseState::kNormalPaused) {
+    platform::TextOverlay("Pause", platform::OverlayPos::kTop,
+                          workspace_rect, "PAUSE", ImVec4(0, 0, 0, 0), 3.0f);
+  }
+
+  // realtime factor overlay
+  if (has_model() &&
+      step_control_.GetPauseState() == PauseState::kUnpaused) {
+    const float desired = step_control_.GetSpeed();
+    const float measured = step_control_.GetSpeedMeasured();
+    if (desired != 100.0f ||
+        mju_abs(measured - desired) > 0.1f * desired) {
+      char rtlabel[30];
+      bool misaligned = mju_abs(measured - desired) > 0.1f * desired;
+      if (misaligned) {
+        std::snprintf(rtlabel, sizeof(rtlabel), "%g%% (%-4.1f%%)",
+                      desired, measured);
+      } else {
+        std::snprintf(rtlabel, sizeof(rtlabel), "%g%%", desired);
+      }
+      platform::TextOverlay("Realtime", platform::OverlayPos::kTopLeft,
+                            workspace_rect, rtlabel, ImVec4(0, 0, 0, 0),
+                            2.0f);
+    }
   }
 
   // Display a drag-and-drop message if no model is loaded.

@@ -692,6 +692,36 @@ ImPlotPairLayout ImPlot_ComputePairLayout();
 // [1,1,1]).
 void DrawTextAt(const char* text, float x, float y, float z);
 
+// Grid position for overlays within a viewport rectangle.
+enum class OverlayPos {
+  kTopLeft,
+  kTop,
+  kTopRight,
+  kBottomLeft,
+  kBottom,
+  kBottomRight,
+};
+
+// Begin an overlay window at the given grid position within a workspace rect.
+// workspace_rect: (x, y, width, height) of the viewport area.
+// min_width:      minimum window width in scaled pixels (0 = auto).
+// alpha:          window transparency (0.0-1.0).
+// Returns true if the overlay is visible (like ImGui::Begin).
+// Must be paired with EndOverlay(), even if this returns false.
+bool BeginOverlay(const char* id, OverlayPos pos, ImVec4 workspace_rect,
+                  float min_width = 0.0f, float alpha = 0.8f);
+void EndOverlay();
+
+// One-liner: display a text overlay with automatic width sizing.
+// Measures the longest line in `text`, clamps to workspace width, wraps text
+// if needed.
+// color: text color. If all components are 0, uses the theme default.
+// font_scale: scale factor for the default font (1.0 = normal).
+void TextOverlay(const char* id, OverlayPos pos, ImVec4 workspace_rect,
+                 const char* text, ImVec4 color = ImVec4(0, 0, 0, 0),
+                 float font_scale = 1.0f, float alpha = 0.8f,
+                 float min_width = 0.0f);
+
 }  // namespace mujoco::platform
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_UX_IMGUI_WIDGETS_H_

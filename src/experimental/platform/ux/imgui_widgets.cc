@@ -15,6 +15,7 @@
 #include "experimental/platform/ux/imgui_widgets.h"
 
 #include <algorithm>
+#include <cfloat>
 #include <cstdint>
 #include <cstring>
 #include <sstream>
@@ -501,6 +502,119 @@ void DrawTextAt(const char* text, float x, float y, float z) {
   draw_list->AddText(pos, IM_COL32_WHITE, text);
   ImGui::EndChild();
   ImGui::End();
+}
+namespace {
+
+float MeasureTextWidth(const char* text) {
+  float max_width = 0.0f;
+  const char* start = text;
+  while (*start) {
+    const char* end = start;
+    while (*end && *end != '\n') ++end;
+    max_width = std::max(max_width, ImGui::CalcTextSize(start, end).x);
+    start = *end ? end + 1 : end;
+  }
+  return max_width;
+}
+
+void SetNextWindowPosInside(OverlayPos pos, ImVec4 rect) {
+  // compute anchor point and pivot from position enum
+  ImVec2 anchor, pivot;
+  float x = rect.x, y = rect.y, w = rect.z, h = rect.w;
+  float scale = ImGui::GetWindowDpiScale();
+  float margin = 8.0f * scale;
+  switch (pos) {
+    case OverlayPos::kTopLeft:
+      anchor = {x + margin, y + margin};
+      pivot = {0.0f, 0.0f};
+      break;
+    case OverlayPos::kTop:
+      anchor = {x + w * 0.5f, y + margin};
+      pivot = {0.5f, 0.0f};
+      break;
+    case OverlayPos::kTopRight:
+      anchor = {x + w - margin, y + margin};
+      pivot = {1.0f, 0.0f};
+      break;
+    case OverlayPos::kBottomLeft:
+      anchor = {x + margin, y + h - margin};
+      pivot = {0.0f, 1.0f};
+      break;
+    case OverlayPos::kBottom:
+      anchor = {x + w * 0.5f, y + h - margin};
+      pivot = {0.5f, 1.0f};
+      break;
+    case OverlayPos::kBottomRight:
+      anchor = {x + w - margin, y + h - margin};
+      pivot = {1.0f, 1.0f};
+      break;
+  }
+
+  ImGui::SetNextWindowPos(anchor, ImGuiCond_Always, pivot);
+}
+
+}  // namespace
+
+bool BeginOverlay(const char* id, OverlayPos pos, ImVec4 rect,
+                  float min_width, float alpha) {
+  SetNextWindowPosInside(pos, rect);
+
+  if (min_width > 0.0f) {
+    ImGui::SetNextWindowSizeConstraints(ImVec2(min_width, -1.0f),
+                                        ImVec2(FLT_MAX, -1.0f));
+  }
+
+  constexpr ImGuiWindowFlags kFlags =
+      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+      ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
+      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings;
+
+  ImGui::PushStyleVar(ImGuiStyleVar_Alpha, alpha);
+  return ImGui::Begin(id, nullptr, kFlags);
+}
+
+void EndOverlay() {
+  ImGui::End();
+  ImGui::PopStyleVar();
+}
+
+void TextOverlay(const char* id, OverlayPos pos, ImVec4 workspace_rect,
+                 const char* text, ImVec4 color, float font_scale,
+                 float alpha, float min_width) {
+  float scale = ImGui::GetWindowDpiScale();
+  float padding = 30.0f * scale;
+  float max_width = std::max(0.0f, workspace_rect.z - 20.0f);
+  float text_width = MeasureTextWidth(text) * font_scale;
+  float min_target = std::min(min_width * scale, max_width);
+  float target = 0.0f;
+  if (text_width + padding > max_width || min_width > 0.0f) {
+    target = std::clamp(text_width + padding, min_target, max_width);
+  }
+
+  if (BeginOverlay(id, pos, workspace_rect, target, alpha)) {
+    if (font_scale != 1.0f) {
+      ImGui::SetWindowFontScale(font_scale);
+    }
+    bool has_color = color.x != 0 || color.y != 0 || color.z != 0 ||
+                     color.w != 0;
+    if (has_color) {
+      ImGui::PushStyleColor(ImGuiCol_Text, color);
+    }
+    if (text_width + padding > max_width) {
+      ImGui::PushTextWrapPos(max_width - padding);
+      ImGui::TextUnformatted(text);
+      ImGui::PopTextWrapPos();
+    } else {
+      ImGui::TextUnformatted(text);
+    }
+    if (has_color) {
+      ImGui::PopStyleColor();
+    }
+    if (font_scale != 1.0f) {
+      ImGui::SetWindowFontScale(1.0f);
+    }
+  }
+  EndOverlay();
 }
 
 }  // namespace mujoco::platform
