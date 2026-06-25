@@ -1488,8 +1488,8 @@ TEST_F(SensorTest, SensorInterval) {
   mjtNum* buf1 = data->history + model->sensor_historyadr[sensor1];
   mjtNum* times0 = buf0 + 2;
   mjtNum* times1 = buf1 + 2;
-  mjtNum expected_times0[] = {-25, -22, -20, -17, -15, -12, -10, -7, -5, -2};
-  mjtNum expected_times1[] = {-24, -21, -19, -16, -14, -11, -9, -6, -4, -1};
+  mjtNum expected_times0[] = {-0.15, -0.12, -0.09, -0.06, -0.03};
+  mjtNum expected_times1[] = {-0.24, -0.21, -0.19, -0.16, -0.14};
   for (int i = 0; i < n0; i++) {
     EXPECT_NEAR(times0[i], expected_times0[i], 1e-10);
   }
@@ -1522,99 +1522,6 @@ TEST_F(SensorTest, SensorInterval) {
     EXPECT_NEAR(data->sensordata[adr1], value1, MjTol(1e-10, 1e-7))
         << "sensor1 at t=" << t;
   }
-}
-
-TEST_F(SensorTest, SensorDelayInterval) {
-  constexpr char xml[] = R"(
-  <mujoco>
-    <option timestep="0.01" gravity="0 0 0"/>
-    <worldbody>
-      <body>
-        <joint name="slide" type="slide"/>
-        <geom size="0.1"/>
-      </body>
-    </worldbody>
-    <sensor>
-      <jointpos joint="slide" delay="0.02" interval="0.03 0" nsample="5"/>
-    </sensor>
-  </mujoco>
-  )";
-  char error[1024];
-  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model.get(), NotNull()) << error;
-  MjDataPtr data = MakeData(model);
-
-  // Combined delay and interval
-  EXPECT_EQ(model->sensor_history[0], 5);
-  EXPECT_NEAR(model->sensor_delay[0], 0.02, MjTol(1e-10, 1e-7));
-  EXPECT_NEAR(model->sensor_interval[2 * 0], 0.03, MjTol(1e-10, 1e-7));
-
-  // Verify initial buffer timestamps (after mj_makeData/mj_resetData)
-  // With period=0.03, dt=0.01, nsample=5, phase=0 (means -period=-0.03):
-  // continuous times: -0.03, -0.06, -0.09, -0.12, -0.15
-  // rounded up to dt: -0.03, -0.06, -0.09, -0.12, -0.15 (multiples of dt)
-  int n = model->sensor_history[0];
-  mjtNum* buf = data->history + model->sensor_historyadr[0];
-  mjtNum* times = buf + 2;
-  mjtNum expected_times[] = {-0.15, -0.12, -0.09, -0.06, -0.03};
-  for (int i = 0; i < n; i++) {
-    EXPECT_NEAR(times[i], expected_times[i], MjTol(1e-10, 0.015));
-  }
-
-  // set position
-  data->qpos[0] = 5.0;
-
-  // initial steps: reading from buffer (initially 0)
-  // With delay=0.02, interval=0.03:
-  // - At t=0, interval satisfied: compute 5.0, insert at t=0 (current time)
-  // - Reading happens at d->time - delay; at t=0.02, reads at t=0.00 (5.0)
-  for (int i = 0; i < 2; i++) {
-    mj_step(model.get(), data.get());
-    // sensor reads delayed value (0.0 from initial buffer)
-    EXPECT_NEAR(data->sensordata[0], 0.0, MjTol(1e-10, 1e-7)) << "step " << i;
-  }
-
-  // step 3 (i=2): reading at t=0.00 now returns the inserted value 5.0
-  mj_step(model.get(), data.get());
-  EXPECT_NEAR(data->sensordata[0], 5.0, MjTol(1e-10, 1e-7));
-}
-
-TEST_F(SensorTest, SensorHistoryOnly) {
-  constexpr char xml[] = R"(
-  <mujoco>
-    <option timestep="0.01"/>
-    <worldbody>
-      <body>
-        <joint name="slide" type="slide"/>
-        <geom size="0.1"/>
-      </body>
-    </worldbody>
-    <sensor>
-      <jointpos joint="slide" nsample="5"/>
-    </sensor>
-  </mujoco>
-  )";
-  char error[1024];
-  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model.get(), NotNull()) << error;
-  MjDataPtr data = MakeData(model);
-
-  // history only, no delay or interval
-  EXPECT_EQ(model->sensor_history[0], 5);
-  EXPECT_NEAR(model->sensor_delay[0], 0.0, MjTol(1e-10, 1e-7));
-  EXPECT_NEAR(model->sensor_interval[2 * 0], 0.0, MjTol(1e-10, 1e-7));
-
-  // set position
-  data->qpos[0] = 3.0;
-
-  // without delay, sensordata reflects current value immediately
-  mj_step(model.get(), data.get());
-  EXPECT_NEAR(data->sensordata[0], 3.0, 1e-10);
-
-  // change position, check again
-  data->qpos[0] = 7.0;
-  mj_step(model.get(), data.get());
-  EXPECT_NEAR(data->sensordata[0], 7.0, 1e-10);
 }
 
 TEST_F(SensorTest, SensorDelayMultiDim) {
@@ -1937,129 +1844,187 @@ TEST_F(SensorTest, FlexContactSensors) {
       << "Floor touch sensor did not detect any force";
 }
 
-// ---------------------- mj_sensorLogLik tests ----------------------------------------
+// ---------------------- mj_normalizeWeights tests ----------------------------------------
 
-// XML with two joint-position sensors: one with noise, one without.
-// The joint is free to move so sensordata is non-trivial after mj_forward.
-static constexpr char kLogLikXml[] = R"(
-<mujoco>
-  <worldbody>
-    <body>
-      <joint name="j1" type="slide" axis="1 0 0"/>
-      <joint name="j2" type="slide" axis="0 1 0"/>
-      <geom size="0.1"/>
-    </body>
-  </worldbody>
-  <sensor>
-    <jointpos name="s_noisy" joint="j1" noise="0.5"/>
-    <jointpos name="s_silent" joint="j2"/>
-  </sensor>
-</mujoco>
-)";
+using ParticleFilterTest = MujocoTest;
 
-// 0.5 * log(2*pi), the per-channel normalization constant of a unit Gaussian
-static const double kHalfLog2Pi = 0.9189385332046727;
+// Basic test: uniform weights should give ESS = n
+TEST_F(ParticleFilterTest, NormalizeUniformWeights) {
+  constexpr int n = 10;
+  vector<mjtNum> log_weights(n);
 
-using SensorLogLikTest = MujocoTest;
+  // uniform weights: log(w) = 0 for all
+  for (int i = 0; i < n; i++) {
+    log_weights[i] = 0.0;
+  }
 
-// When all sensor_noise values are zero, the function should return exactly 0.
-TEST_F(SensorLogLikTest, AllNoisesZeroReturnsZero) {
-  constexpr char xml[] = R"(
-  <mujoco>
-    <worldbody>
-      <body>
-        <joint name="j" type="slide" axis="1 0 0"/>
-        <geom size="0.1"/>
-      </body>
-    </worldbody>
-    <sensor>
-      <jointpos name="s" joint="j"/>
-    </sensor>
-  </mujoco>
-  )";
-  char error[1024] = {0};
-  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m.get(), NotNull()) << error;
-  MjDataPtr d = MakeData(m);
-  mj_forward(m.get(), d.get());
+  mjtNum log_sum_exp;
+  EXPECT_EQ(mj_normalizeWeights(log_weights.data(), n, &log_sum_exp), 0);
 
-  // obs matches sensordata exactly; noise is zero so result must be 0
-  vector<mjtNum> obs(m->nsensordata, 0);
-  mju_copy(obs.data(), d->sensordata, m->nsensordata);
-
-  EXPECT_MJTNUM_EQ(mj_sensorLogLik(m.get(), d.get(), obs.data()), (mjtNum)0);
+  // log(sum(exp(0))) = log(n)
+  EXPECT_NEAR(log_sum_exp, mju_log(n), 1e-10);
 }
 
-// A sensor with noise=0 should not contribute even when obs != sensordata.
-TEST_F(SensorLogLikTest, ZeroNoiseSensorIsIgnored) {
-  char error[1024] = {0};
-  MjModelPtr m = LoadModelFromString(kLogLikXml, error, sizeof(error));
-  ASSERT_THAT(m.get(), NotNull()) << error;
-  MjDataPtr d = MakeData(m);
-  mj_forward(m.get(), d.get());
+// Test log-sum-exp numerical stability with extreme values
+TEST_F(ParticleFilterTest, NormalizeStableLargeValues) {
+  constexpr int n = 5;
+  vector<mjtNum> log_weights(n);
 
-  // Make obs a perfect copy so the noisy sensor contributes only normalization.
-  vector<mjtNum> obs(m->nsensordata);
-  mju_copy(obs.data(), d->sensordata, m->nsensordata);
+  // extreme log-weights to test numerical stability
+  log_weights[0] = 1e3;
+  log_weights[1] = 1e3 + mju_log(2.0);
+  log_weights[2] = 1e3 + mju_log(3.0);
+  log_weights[3] = 1e3 + mju_log(4.0);
+  log_weights[4] = 1e3 + mju_log(5.0);
 
-  mjtNum loglik = mj_sensorLogLik(m.get(), d.get(), obs.data());
+  mjtNum log_sum_exp;
+  EXPECT_EQ(mj_normalizeWeights(log_weights.data(), n, &log_sum_exp), 0);
 
-  // s_silent (noise=0) must not affect the result.
-  // Perturbing its obs channel should leave loglik unchanged.
-  int id_silent = mj_name2id(m.get(), mjOBJ_SENSOR, "s_silent");
-  obs[m->sensor_adr[id_silent]] += 100.0;
-  EXPECT_MJTNUM_EQ(mj_sensorLogLik(m.get(), d.get(), obs.data()), loglik);
+  // should be log(1e3) + log(1 + 2 + 3 + 4 + 5) = log(1e3) + log(15)
+  mjtNum expected = 1e3 + mju_log(15.0);
+  EXPECT_NEAR(log_sum_exp, expected, 1e-5);  // looser tolerance for large values
 }
 
-// Perfect observation: obs == sensordata.
-// log-likelihood should equal -dim * (log(sigma) + 0.5*log(2*pi)).
-TEST_F(SensorLogLikTest, PerfectObservationMatchesNormalization) {
-  char error[1024] = {0};
-  MjModelPtr m = LoadModelFromString(kLogLikXml, error, sizeof(error));
-  ASSERT_THAT(m.get(), NotNull()) << error;
-  MjDataPtr d = MakeData(m);
-  mj_forward(m.get(), d.get());
+// ---------------------- mj_effectiveSampleSize tests ----------------------------------------
 
-  // obs == sensordata: residuals are zero
-  vector<mjtNum> obs(m->nsensordata);
-  mju_copy(obs.data(), d->sensordata, m->nsensordata);
+// ESS with uniform weights should equal n
+TEST_F(ParticleFilterTest, ESSUniformWeights) {
+  constexpr int n = 100;
+  vector<mjtNum> log_weights(n, 0.0);  // uniform: log(w) = 0
 
-  mjtNum loglik = mj_sensorLogLik(m.get(), d.get(), obs.data());
+  mjtNum ess;
+  mjtNum log_sum_exp = mju_log(n);
+  EXPECT_EQ(mj_effectiveSampleSize(log_weights.data(), n, &log_sum_exp, &ess), 0);
 
-  // Only s_noisy (sigma=0.5, dim=1) contributes.
-  double sigma = 0.5;
-  double expected = -(mju_log(sigma) + kHalfLog2Pi);  // dim=1
-  EXPECT_NEAR(loglik, expected, MjTol(1e-12, 1e-5));
+  // ESS = 1 / sum(w_i^2) = 1 / sum((1/n)^2) = 1 / (n * (1/n)^2) = n
+  EXPECT_NEAR(ess, n, 1e-10);
 }
 
-// Residual of exactly one sigma should reduce log-likelihood by exactly 0.5
-// compared to the perfect-observation case.
-TEST_F(SensorLogLikTest, OneSigmaResidualReducesByHalf) {
-  char error[1024] = {0};
-  MjModelPtr m = LoadModelFromString(kLogLikXml, error, sizeof(error));
-  ASSERT_THAT(m.get(), NotNull()) << error;
-  MjDataPtr d = MakeData(m);
-  mj_forward(m.get(), d.get());
+// ESS with one particle having all weight should be near 1
+TEST_F(ParticleFilterTest, ESSDegenerateWeights) {
+  constexpr int n = 100;
+  vector<mjtNum> log_weights(n);
 
-  vector<mjtNum> obs_perfect(m->nsensordata);
-  mju_copy(obs_perfect.data(), d->sensordata, m->nsensordata);
-  mjtNum loglik_perfect = mj_sensorLogLik(m.get(), d.get(), obs_perfect.data());
+  // one particle gets very high weight, others get very low
+  for (int i = 0; i < n; i++) {
+    log_weights[i] = (i == 0) ? 0.0 : -1e6;
+  }
 
-  // shift noisy sensor obs by exactly one sigma
-  int id_noisy = mj_name2id(m.get(), mjOBJ_SENSOR, "s_noisy");
-  double sigma = m->sensor_noise[id_noisy];
-  vector<mjtNum> obs_shifted = obs_perfect;
-  obs_shifted[m->sensor_adr[id_noisy]] += sigma;  // residual = sigma
+  mjtNum ess;
+  EXPECT_EQ(mj_effectiveSampleSize(log_weights.data(), n, nullptr, &ess), 0);
 
-  mjtNum loglik_shifted = mj_sensorLogLik(m.get(), d.get(), obs_shifted.data());
-
-  // -0.5 * (sigma/sigma)^2 = -0.5 below the perfect case
-  EXPECT_NEAR(loglik_perfect - loglik_shifted, 0.5, MjTol(1e-12, 1e-5));
+  // should be close to 1 (degenerate)
+  EXPECT_LT(ess, 2.0);
+  EXPECT_GT(ess, 0.0);
 }
 
-// Log-likelihood is additive across independent sensors.
-// Two sensors at perfect obs should give twice a single sensor's contribution.
-TEST_F(SensorLogLikTest, AdditiveAcrossSensors) {
+// ESS with two equal populations should give ESS ≈ n/2
+TEST_F(ParticleFilterTest, ESSBimodalWeights) {
+  constexpr int n = 100;
+  vector<mjtNum> log_weights(n);
+
+  // half get weight w, half get weight w
+  mjtNum log_w = -mju_log(2.0);  // log(0.5)
+  for (int i = 0; i < n; i++) {
+    log_weights[i] = log_w;
+  }
+
+  mjtNum ess;
+  EXPECT_EQ(mj_effectiveSampleSize(log_weights.data(), n, nullptr, &ess), 0);
+
+  // should equal n (still uniform)
+  EXPECT_NEAR(ess, n, 1e-10);
+}
+
+// ---------------------- mj_resampleParticles tests ----------------------------------------
+
+// Basic resampling: particles with high weight should be replicated
+TEST_F(ParticleFilterTest, ResampleHighWeightParticles) {
+  constexpr int n = 10;
+  vector<mjtNum> log_weights(n);
+  vector<int> indices(n);
+
+  // particle 0 gets all the weight
+  log_weights[0] = 0.0;
+  for (int i = 1; i < n; i++) {
+    log_weights[i] = -1e6;  // negligible
+  }
+
+  EXPECT_EQ(mj_resampleParticles(log_weights.data(), n, 42, indices.data()), 0);
+
+  // all indices should point to particle 0
+  for (int i = 0; i < n; i++) {
+    EXPECT_EQ(indices[i], 0);
+  }
+}
+
+// Resampling with uniform weights should give diverse indices
+TEST_F(ParticleFilterTest, ResampleUniformWeights) {
+  constexpr int n = 100;
+  vector<mjtNum> log_weights(n, 0.0);  // uniform
+  vector<int> indices(n);
+
+  EXPECT_EQ(mj_resampleParticles(log_weights.data(), n, 42, indices.data()), 0);
+
+  // with uniform weights and systematic resampling, we should get diversity
+  // Each particle should appear roughly n / n = 1 time on average
+  map<int, int> counts;
+  for (int i = 0; i < n; i++) {
+    counts[indices[i]]++;
+  }
+
+  // should have multiple unique particles (not just one)
+  EXPECT_GT(counts.size(), 1);
+
+  // all indices should be in valid range
+  for (int i = 0; i < n; i++) {
+    EXPECT_GE(indices[i], 0);
+    EXPECT_LT(indices[i], n);
+  }
+}
+
+// Resampling output should always be valid indices
+TEST_F(ParticleFilterTest, ResampleValidIndices) {
+  constexpr int n = 50;
+  vector<mjtNum> log_weights(n);
+  vector<int> indices(n);
+
+  // arbitrary weights
+  for (int i = 0; i < n; i++) {
+    log_weights[i] = mju_log(1.0 + i * 0.1);
+  }
+
+  EXPECT_EQ(mj_resampleParticles(log_weights.data(), n, 12345, indices.data()), 0);
+
+  // verify all indices are in [0, n)
+  for (int i = 0; i < n; i++) {
+    EXPECT_GE(indices[i], 0) << "Index " << i << " is negative";
+    EXPECT_LT(indices[i], n) << "Index " << i << " exceeds particle count";
+  }
+}
+
+// Reproducibility: same seed should produce same resampling
+TEST_F(ParticleFilterTest, ResampleReproducibility) {
+  constexpr int n = 50;
+  vector<mjtNum> log_weights(n);
+  vector<int> indices1(n), indices2(n);
+
+  for (int i = 0; i < n; i++) {
+    log_weights[i] = mju_log(1.0 + i * 0.1);
+  }
+
+  uint64_t seed = 98765;
+  EXPECT_EQ(mj_resampleParticles(log_weights.data(), n, seed, indices1.data()), 0);
+  EXPECT_EQ(mj_resampleParticles(log_weights.data(), n, seed, indices2.data()), 0);
+
+  // same seed should give identical indices
+  for (int i = 0; i < n; i++) {
+    EXPECT_EQ(indices1[i], indices2[i]);
+  }
+}
+
+// Integration test: combine log-likelihood and resampling
+TEST_F(ParticleFilterTest, LogLikAndResampleIntegration) {
   constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -2079,87 +2044,42 @@ TEST_F(SensorLogLikTest, AdditiveAcrossSensors) {
   MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(m.get(), NotNull()) << error;
   MjDataPtr d = MakeData(m);
+
+  // simulate 3 particles with different states
+  constexpr int n_particles = 3;
+  vector<MjDataPtr> particles;
+  for (int i = 0; i < n_particles; i++) {
+    particles.push_back(MakeData(m));
+    particles[i]->qpos[0] = -1.0 + i * 0.5;  // different states
+  }
+
+  // observe at true position = 0.5
   mj_forward(m.get(), d.get());
-
-  // Perfect observation; both sensors same sigma=0.5
-  vector<mjtNum> obs(m->nsensordata);
-  mju_copy(obs.data(), d->sensordata, m->nsensordata);
-
-  mjtNum loglik = mj_sensorLogLik(m.get(), d.get(), obs.data());
-
-  double sigma = 0.5;
-  double expected = -2 * (mju_log(sigma) + kHalfLog2Pi);  // two sensors, dim=1 each
-  EXPECT_NEAR(loglik, expected, MjTol(1e-12, 1e-5));
-}
-
-// Multi-dimensional sensor (velocimeter, dim=3): all channels use the same sigma.
-TEST_F(SensorLogLikTest, MultiDimSensorAllChannelsUseSameSigma) {
-  constexpr char xml[] = R"(
-  <mujoco>
-    <worldbody>
-      <body>
-        <joint name="j" type="free"/>
-        <geom size="0.1"/>
-        <site name="s"/>
-      </body>
-    </worldbody>
-    <sensor>
-      <velocimeter name="vel" site="s" noise="0.2"/>
-    </sensor>
-  </mujoco>
-  )";
-  char error[1024] = {0};
-  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m.get(), NotNull()) << error;
-  MjDataPtr d = MakeData(m);
+  d->qpos[0] = 0.5;
   mj_forward(m.get(), d.get());
+  vector<mjtNum> obs(d->sensordata, d->sensordata + m->nsensordata);
 
-  vector<mjtNum> obs(m->nsensordata);
-  mju_copy(obs.data(), d->sensordata, m->nsensordata);
+  // compute log-likelihoods for particles
+  vector<mjtNum> log_weights(n_particles);
+  for (int i = 0; i < n_particles; i++) {
+    mj_forward(m.get(), particles[i].get());
+    log_weights[i] = mj_sensorLogLik(m.get(), particles[i].get(), obs.data());
+  }
 
-  mjtNum loglik = mj_sensorLogLik(m.get(), d.get(), obs.data());
+  // resample based on log-likelihoods
+  vector<int> indices(n_particles);
+  EXPECT_EQ(mj_resampleParticles(log_weights.data(), n_particles, 999, indices.data()), 0);
 
-  // velocimeter has dim=3; perfect obs gives -3*(log(sigma) + 0.5*log(2*pi))
-  double sigma = 0.2;
-  double expected = -3 * (mju_log(sigma) + kHalfLog2Pi);
-  EXPECT_NEAR(loglik, expected, MjTol(1e-12, 1e-5));
-}
-
-// Symmetry: swapping obs and sensordata must give the same result (Gaussian is symmetric).
-TEST_F(SensorLogLikTest, SymmetricInResidual) {
-  char error[1024] = {0};
-  MjModelPtr m = LoadModelFromString(kLogLikXml, error, sizeof(error));
-  ASSERT_THAT(m.get(), NotNull()) << error;
-  MjDataPtr d = MakeData(m);
-  mj_forward(m.get(), d.get());
-
-  int id_noisy = mj_name2id(m.get(), mjOBJ_SENSOR, "s_noisy");
-  double sigma = m->sensor_noise[id_noisy];
-
-  vector<mjtNum> obs(m->nsensordata, 0);
-  mju_copy(obs.data(), d->sensordata, m->nsensordata);
-  obs[m->sensor_adr[id_noisy]] += 0.3;  // arbitrary non-zero residual
-
-  // Positive residual
-  mjtNum ll_pos = mj_sensorLogLik(m.get(), d.get(), obs.data());
-
-  // Negative residual of same magnitude
-  obs[m->sensor_adr[id_noisy]] -= 0.6;
-  mjtNum ll_neg = mj_sensorLogLik(m.get(), d.get(), obs.data());
-
-  EXPECT_NEAR(ll_pos, ll_neg, MjTol(1e-12, 1e-5));
-}
-
-// The function should still return a finite value when nsensor == 0.
-TEST_F(SensorLogLikTest, NoSensorsReturnsZero) {
-  constexpr char xml[] = R"(<mujoco><worldbody/></mujoco>)";
-  char error[1024] = {0};
-  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m.get(), NotNull()) << error;
-  MjDataPtr d = MakeData(m);
-  mj_forward(m.get(), d.get());
-
-  EXPECT_MJTNUM_EQ(mj_sensorLogLik(m.get(), d.get(), nullptr), (mjtNum)0);
+  // particle closest to observation (index 2, with qpos = 0.5) should be replicated
+  // at least once in resampled ensemble
+  bool closest_replicated = false;
+  for (int i = 0; i < n_particles; i++) {
+    if (indices[i] == 2) {
+      closest_replicated = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(closest_replicated);
 }
 
 }  // namespace

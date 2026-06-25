@@ -43,6 +43,39 @@ MJAPI void mj_sensorAcc(const mjModel* m, mjData* d);
 // Suitable as a particle filter importance weight: w = exp(mj_sensorLogLik(m, d, obs)).
 MJAPI mjtNum mj_sensorLogLik(const mjModel* m, const mjData* d, const mjtNum* obs);
 
+// Particle filtering utilities ================================================
+
+// Compute log-partition function for importance weights using log-sum-exp trick.
+// Prevents underflow/overflow when computing log(sum(exp(log_weights[i]))).
+// Input:  log_weights: array of length n containing log-importance weights
+//         n: number of particles
+// Output: log_sum_exp: log(sum(exp(log_weights[i])))
+// Returns: 0 on success
+MJAPI int mj_normalizeWeights(mjtNum* log_weights, int n, mjtNum* log_sum_exp);
+
+// Compute effective sample size (ESS) from normalized log-weights.
+// ESS = 1 / sum(w_i^2) where w_i = exp(log_weights[i] - log_sum_exp)
+// Helps assess particle filter degeneracy: ESS < N/2 typically triggers resampling.
+// Input:  log_weights: array of length n containing log-importance weights
+//         n: number of particles
+//         log_sum_exp: log-partition function (from mj_normalizeWeights, or compute internally if NULL)
+// Output: ess: effective sample size in [0, n]
+// Returns: 0 on success, 1 if n <= 0
+MJAPI int mj_effectiveSampleSize(const mjtNum* log_weights, int n,
+                                  const mjtNum* log_sum_exp, mjtNum* ess);
+
+// Systematic resampling of particles based on importance weights.
+// Implements low-variance systematic resampling: deterministic, numerically stable.
+// Particles with high weights are replicated; low-weight particles are removed.
+// Input:  log_weights: array of length n containing log-importance weights
+//         n: number of particles
+//         seed: random seed for tie-breaking (for stochastic resampling variants)
+// Output: indices: array of length n containing resampled particle indices [0, n-1]
+//         Each entry indicates which original particle to copy for this new particle.
+// Returns: 0 on success, 1 if n <= 0 or weights are all -inf
+MJAPI int mj_resampleParticles(const mjtNum* log_weights, int n, uint64_t seed,
+                                int* indices);
+
 
 //-------------------------------- energy ----------------------------------------------------------
 

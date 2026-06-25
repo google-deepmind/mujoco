@@ -1688,6 +1688,128 @@ mjtNum mj_sensorLogLik(const mjModel* m, const mjData* d, const mjtNum* obs) {
 }
 
 
+//-------------------------------- particle filtering utilities ------------------------------------
+
+// Compute log-partition function using log-sum-exp trick for numerical stability.
+// This prevents underflow when weights are very small.
+// Algorithm: log(sum(exp(x_i))) = max(x_i) + log(sum(exp(x_i - max(x_i))))
+int mj_normalizeWeights(mjtNum* log_weights, int n, mjtNum* log_sum_exp) {
+  if (n <= 0) {
+    return 1;
+  }
+
+  // find maximum log-weight for numerical stability
+  mjtNum max_logw = log_weights[0];
+  for (int i = 1; i < n; i++) {
+    if (log_weights[i] > max_logw) {
+      max_logw = log_weights[i];
+    }
+  }
+
+  // compute sum of exp(log_w - max_logw)
+  mjtNum sum_exp = 0;
+  for (int i = 0; i < n; i++) {
+    sum_exp += mju_exp(log_weights[i] - max_logw);
+  }
+
+  // log-partition: log(sum(exp(log_w_i)))
+  *log_sum_exp = max_logw + mju_log(sum_exp);
+  return 0;
+}
+
+
+// Compute effective sample size from importance weights.
+// ESS = 1 / sum(w_i^2) where w_i are normalized weights.
+// Returns in [0, n]; values near n indicate diverse particles, near 0 indicate degeneracy.
+int mj_effectiveSampleSize(const mjtNum* log_weights, int n,
+                            const mjtNum* log_sum_exp, mjtNum* ess) {
+  if (n <= 0) {
+    return 1;
+  }
+
+  // compute or use provided log-partition
+  mjtNum lse;
+  if (log_sum_exp == NULL) {
+    // compute log-partition locally
+    mjtNum max_logw = log_weights[0];
+    for (int i = 1; i < n; i++) {
+      if (log_weights[i] > max_logw) {
+        max_logw = log_weights[i];
+      }
+    }
+    mjtNum sum_exp = 0;
+    for (int i = 0; i < n; i++) {
+      sum_exp += mju_exp(log_weights[i] - max_logw);
+    }
+    lse = max_logw + mju_log(sum_exp);
+  } else {
+    lse = *log_sum_exp;
+  }
+
+  // compute sum of squared weights: sum((exp(log_w_i - lse))^2)
+  mjtNum sum_w2 = 0;
+  for (int i = 0; i < n; i++) {
+    mjtNum w = mju_exp(log_weights[i] - lse);
+    sum_w2 += w * w;
+  }
+
+  // ESS = 1 / sum(w_i^2)
+  *ess = (sum_w2 > mjMINVAL) ? (mjtNum)1 / sum_w2 : (mjtNum)0;
+  return 0;
+}
+
+
+// Systematic resampling: low-variance, deterministic method.
+// Generates new particle indices by propagating a uniform random offset through
+// normalized cumulative weights.
+int mj_resampleParticles(const mjtNum* log_weights, int n, uint64_t seed,
+                          int* indices) {
+  if (n <= 0) {
+    return 1;
+  }
+
+  // step 1: compute log-partition for normalization
+  mjtNum max_logw = log_weights[0];
+  for (int i = 1; i < n; i++) {
+    if (log_weights[i] > max_logw) {
+      max_logw = log_weights[i];
+    }
+  }
+  mjtNum sum_exp = 0;
+  for (int i = 0; i < n; i++) {
+    sum_exp += mju_exp(log_weights[i] - max_logw);
+  }
+  mjtNum lse = max_logw + mju_log(sum_exp);
+
+  // step 2: compute cumulative distribution from normalized weights
+  // cumsum[i] = sum(w[0..i]) where w[j] = exp(log_w[j] - lse)
+  mjtNum cumsum = 0;
+  int last_idx = 0;
+
+  // generate uniform random starting point in [0, 1/n]
+  // use simple LCG for reproducibility
+  uint64_t rng_state = seed;
+  mjtNum u = (mjtNum)(((rng_state = rng_state * 1103515245 + 12345) >> 16) & 0x7fff) / 32768.0;
+  u /= n;
+
+  // step 3: systematic resampling - assign particles via uniform grid
+  for (int i = 0; i < n; i++) {
+    mjtNum target = u + (mjtNum)i / n;
+
+    // accumulate until we reach target
+    while (last_idx < n && cumsum < target) {
+      cumsum += mju_exp(log_weights[last_idx] - lse);
+      last_idx++;
+    }
+
+    // assign to last_idx-1, but ensure we don't go below 0
+    indices[i] = (last_idx > 0) ? last_idx - 1 : 0;
+  }
+
+  return 0;
+}
+
+
 //-------------------------------- energy ----------------------------------------------------------
 
 // position-dependent energy (potential)
