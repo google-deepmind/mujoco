@@ -314,7 +314,7 @@ void App::UpdatePhysics() {
     platform::StepControl::Status status =
         step_control_.Advance(model(), data());
     if (status == platform::StepControl::Status::kPaused) {
-      // do nothing
+      profiler_.Update(model(), data());
     } else if (status == platform::StepControl::Status::kOk) {
       stepped = true;
       // If we are adding to the history we didn't have a divergence error
@@ -694,7 +694,15 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F2)) {
     ToggleWindow(tmp_.info);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F3)) {
-    ToggleWindow(tmp_.profiler);
+    // Cycle through profiler views.
+    if (!tmp_.profiler) {
+      tmp_.profiler = true;
+      tmp_.profiler_show_iter = false;
+    } else if (!tmp_.profiler_show_iter) {
+      tmp_.profiler_show_iter = true;
+    } else {
+      tmp_.profiler = false;
+    }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F6)) {
     vis_options_.frame = (vis_options_.frame + 1) % mjNFRAME;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F7)) {
@@ -949,7 +957,7 @@ void App::BuildGui() {
   if (tmp_.profiler) {
     if (ImGui::Begin("Profiler", &tmp_.profiler,
                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
-      platform::ProfilerGui(model(), data(), &profiler_);
+      platform::ProfilerGui(model(), data(), &profiler_, tmp_.profiler_show_iter);
     }
     ImGui::End();
   }
@@ -2003,7 +2011,14 @@ void App::MainMenuGui() {
         ToggleWindow(tmp_.info);
       }
       if (ImGui::MenuItem("Profiler", "F3", tmp_.profiler)) {
-        ToggleWindow(tmp_.profiler);
+        if (!tmp_.profiler) {
+          tmp_.profiler = true;
+          tmp_.profiler_show_iter = false;
+        } else if (!tmp_.profiler_show_iter) {
+          tmp_.profiler_show_iter = true;
+        } else {
+          tmp_.profiler = false;
+        }
       }
       ImGui::Separator();
 

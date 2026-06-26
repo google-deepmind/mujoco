@@ -132,6 +132,7 @@ class App {
     bool help = false;
     bool info = false;
     bool profiler = false;
+    bool profiler_show_iter = false;
     bool picture_in_picture = false;
     bool options_panel = true;
     bool toolbar = false;

@@ -1313,19 +1313,25 @@ static int GetPlotXLimit(const mjData* data) {
   for (int k = 0; k < nisland0; k++) {
     max_niter = mjMAX(max_niter, data->solver_niter[k]);
   }
-  return mjMAX(10, ((max_niter + 9) / 10) * 10);
+  return max_niter <= 10 ? 10 : ((max_niter + 59) / 60) * 60;
 }
 
 void ConvergenceGui(const mjModel* model, mjData* data, ImVec2 plot_size) {
+  ScopedStyle style;
+  style.Font(ScopedFont::kMono);
+
   int xlim = GetPlotXLimit(data);
   ImPlotFlags flags =
       ImPlot_SetupPlotFlags(plot_size) | ImPlotFlags_NoMouseText;
-  if (ImPlot::BeginPlot("Convergence (log 10) vs iter", plot_size, flags)) {
+  if (ImPlot::BeginPlot("Convergence vs iter", plot_size, flags)) {
     ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 2.0f);
     ImPlot::SetupAxis(ImAxis_X1, "", ImPlotAxisFlags_AutoFit);
     ImPlot::SetupAxisLimits(ImAxis_X1, 0, xlim, ImPlotCond_Always);
-    ImPlot::SetupAxisFormat(ImAxis_Y1, "%.1f");
-    ImPlot::SetupAxisLimits(ImAxis_Y1, -20, 5, ImPlotCond_Always);
+    ImPlot::SetupAxisFormat(ImAxis_Y1, "%.0e");
+    ImPlot::SetupAxisLimits(ImAxis_Y1, 1e-15, 1e0, ImPlotCond_Always);
+    ImPlot::SetupAxisScale(ImAxis_Y1, ImPlotScale_Log10);
+    const double ticks[] = {1e-15, 1e-12, 1e-9, 1e-6, 1e-3, 1e0};
+    ImPlot::SetupAxisTicks(ImAxis_Y1, ticks, 6);
     ImPlot::SetupLegend(ImPlotLocation_NorthEast);
     ImPlot::SetupFinish();
 
@@ -1342,7 +1348,7 @@ void ConvergenceGui(const mjModel* model, mjData* data, ImVec2 plot_size) {
             const mjSolverStat* stats =
                 static_cast<const mjSolverStat*>(user_data);
             const float x = static_cast<float>(i);
-            const float y = mju_log10(mju_max(mjMINVAL, stats[i].improvement));
+            const float y = mju_max(mjMINVAL, stats[i].improvement);
             return ImPlotPoint{x, y};
           },
           stats, npoints);
@@ -1357,7 +1363,7 @@ void ConvergenceGui(const mjModel* model, mjData* data, ImVec2 plot_size) {
             const mjSolverStat* stats =
                 static_cast<const mjSolverStat*>(user_data);
             const float x = static_cast<float>(i);
-            const float y = mju_log10(mju_max(mjMINVAL, stats[i].gradient));
+            const float y = mju_max(mjMINVAL, stats[i].gradient);
             return ImPlotPoint{x, y};
           },
           stats, npoints);
@@ -1368,7 +1374,7 @@ void ConvergenceGui(const mjModel* model, mjData* data, ImVec2 plot_size) {
             const mjSolverStat* stats =
                 static_cast<const mjSolverStat*>(user_data);
             const float x = static_cast<float>(i);
-            const float y = mju_log10(mju_max(mjMINVAL, stats[i].lineslope));
+            const float y = mju_max(mjMINVAL, stats[i].lineslope);
             return ImPlotPoint{x, y};
           },
           stats, npoints);
@@ -1380,6 +1386,9 @@ void ConvergenceGui(const mjModel* model, mjData* data, ImVec2 plot_size) {
 }
 
 void CountsGui(const mjModel* model, mjData* data, ImVec2 plot_size) {
+  ScopedStyle style;
+  style.Font(ScopedFont::kMono);
+
   int xlim = GetPlotXLimit(data);
   ImPlotFlags flags =
       ImPlot_SetupPlotFlags(plot_size) | ImPlotFlags_NoMouseText;
@@ -1538,27 +1547,13 @@ void InfoGui(const mjModel* model, const mjData* data, bool paused,
   ImGui::Columns();
 }
 
-void ProfilerGui(const mjModel* model, mjData* data, SimProfiler* profiler) {
-  ImGui::SetWindowFontScale(0.8f);
+void ProfilerGui(const mjModel* model, mjData* data, SimProfiler* profiler, bool show_iter) {
   ImVec2 avail = ImGui::GetContentRegionAvail();
   const float pad = ImGui::GetStyle().ItemSpacing.x;
   const float aspect = avail.y > 0 ? avail.x / avail.y : 1.0f;
 
   ImVec2 plot_size;
   int cols;
-  if (aspect < 0.8f) {
-    plot_size.x = avail.x;
-    plot_size.y = (avail.y - pad * 3.0f) * 0.25f;
-    cols = 1;
-  } else if (aspect < 1.8f) {
-    plot_size.x = (avail.x - pad) * 0.5f;
-    plot_size.y = (avail.y - pad) * 0.5f;
-    cols = 2;
-  } else {
-    plot_size.x = (avail.x - pad * 3.0f) * 0.25f;
-    plot_size.y = avail.y;
-    cols = 4;
-  }
 
   int current_col = 0;
   auto advance = [&]() {
@@ -1570,23 +1565,52 @@ void ProfilerGui(const mjModel* model, mjData* data, SimProfiler* profiler) {
     }
   };
 
-  if (cols == 2) {
-    // In 2x2 layout, vertically stack charts with the same x-axis.
-    CountsGui(model, data, plot_size);
-    advance();
+  if (!show_iter) {
+    if (aspect < 0.8f) {
+      plot_size.x = avail.x;
+      plot_size.y = (avail.y - pad) * 0.5f;
+      cols = 1;
+    } else {
+      plot_size.x = (avail.x - pad) * 0.5f;
+      plot_size.y = avail.y;
+      cols = 2;
+    }
     profiler->DimensionsGraph(plot_size);
-    advance();
-    ConvergenceGui(model, data, plot_size);
     advance();
     profiler->CpuTimeGraph(plot_size);
   } else {
-    CountsGui(model, data, plot_size);
-    advance();
-    ConvergenceGui(model, data, plot_size);
-    advance();
-    profiler->DimensionsGraph(plot_size);
-    advance();
-    profiler->CpuTimeGraph(plot_size);
+    if (aspect < 0.8f) {
+      plot_size.x = avail.x;
+      plot_size.y = (avail.y - pad * 3.0f) * 0.25f;
+      cols = 1;
+    } else if (aspect < 1.8f) {
+      plot_size.x = (avail.x - pad) * 0.5f;
+      plot_size.y = (avail.y - pad) * 0.5f;
+      cols = 2;
+    } else {
+      plot_size.x = (avail.x - pad * 3.0f) * 0.25f;
+      plot_size.y = avail.y;
+      cols = 4;
+    }
+
+    if (cols == 2) {
+      // In 2x2 layout, vertically stack charts with the same x-axis.
+      CountsGui(model, data, plot_size);
+      advance();
+      profiler->DimensionsGraph(plot_size);
+      advance();
+      ConvergenceGui(model, data, plot_size);
+      advance();
+      profiler->CpuTimeGraph(plot_size);
+    } else {
+      CountsGui(model, data, plot_size);
+      advance();
+      ConvergenceGui(model, data, plot_size);
+      advance();
+      profiler->DimensionsGraph(plot_size);
+      advance();
+      profiler->CpuTimeGraph(plot_size);
+    }
   }
 }
 

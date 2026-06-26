@@ -160,7 +160,7 @@ void CountsGui(const mjModel* model, mjData* data,
                ImVec2 plot_size = ImVec2(-1, 0));
 
 // UX for Profiler panel combining Solver and Performance metrics.
-void ProfilerGui(const mjModel* model, mjData* data, SimProfiler* profiler);
+void ProfilerGui(const mjModel* model, mjData* data, SimProfiler* profiler, bool show_iter);
 
 // UX for displaying basic simulation information. Note that the pause state and
 // FPS needs to be tracked by the caller and passed here to be displayed.

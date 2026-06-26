@@ -126,6 +126,11 @@ T ReadIniValue(const KeyValues& key_values, const std::string& key, T def) {
   }
 }
 
+enum class ScopedFont {
+  kDefault = 0,
+  kMono = 1,
+};
+
 // Helper class for setting ImGui style options; automatically resets the
 // styles when going out of scope.
 struct ScopedStyle {
@@ -143,6 +148,20 @@ struct ScopedStyle {
   void Swap(ScopedStyle& other) {
     std::swap(num_colors, other.num_colors);
     std::swap(num_vars, other.num_vars);
+    std::swap(num_fonts, other.num_fonts);
+  }
+
+  ScopedStyle& Font(int index) {
+    ImFontAtlas* atlas = ImGui::GetIO().Fonts;
+    if (atlas && index >= 0 && index < atlas->Fonts.Size) {
+      ImGui::PushFont(atlas->Fonts[index]);
+      ++num_fonts;
+    }
+    return *this;
+  }
+
+  ScopedStyle& Font(ScopedFont font) {
+    return Font(static_cast<int>(font));
   }
 
   ScopedStyle& Color(ImGuiCol col, ImColor color) {
@@ -172,14 +191,19 @@ struct ScopedStyle {
   ImVec4 CurrentColor(ImGuiCol col) { return ImGui::GetStyle().Colors[col]; }
 
   void Reset() {
+    for (int i = 0; i < num_fonts; ++i) {
+      ImGui::PopFont();
+    }
     ImGui::PopStyleVar(num_vars);
     ImGui::PopStyleColor(num_colors);
     num_colors = 0;
     num_vars = 0;
+    num_fonts = 0;
   }
 
   int num_colors = 0;
   int num_vars = 0;
+  int num_fonts = 0;
 };
 
 // Helper for displaying rows of key/value pairs in an ImGui table.
