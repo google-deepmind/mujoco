@@ -23,6 +23,7 @@ import mujoco.mjx.third_party.mujoco_warp as mjwarp
 from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 import warp as wp
 
+
 _m = mjwarp.Model(
     **{f.name: None for f in dataclasses.fields(mjwarp.Model) if f.init}
 )
@@ -44,7 +45,6 @@ _e = mjwarp.Constraint(
 _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
-
 
 @ffi.format_args_for_warp
 def _forward_shim(
@@ -1609,8 +1609,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.M_mulm_col,
       m._impl.M_mulm_madr,
       m._impl.M_mulm_rowadr,
-      m._impl.M_rowadr,
-      m._impl.M_rownnz,
+      m.M_rowadr,
+      m.M_rownnz,
       m._impl.M_tiles,
       m.actuator_acc0,
       m.actuator_actadr,
@@ -3899,8 +3899,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.M_mulm_col,
       m._impl.M_mulm_madr,
       m._impl.M_mulm_rowadr,
-      m._impl.M_rowadr,
-      m._impl.M_rownnz,
+      m.M_rowadr,
+      m.M_rownnz,
       m._impl.M_tiles,
       m.actuator_acc0,
       m.actuator_actadr,

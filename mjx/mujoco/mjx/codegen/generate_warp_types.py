@@ -29,7 +29,8 @@ from mujoco.mjx.codegen import file
 import mujoco.mjx.third_party.mujoco_warp as mjwarp
 import numpy as np
 import warp as wp
-from mujoco.mjx.third_party.warp._src.jax_experimental import ffi
+from warp._src.jax.ffi import FfiArg
+from warp import JaxCallableGraphMode as GraphMode
 
 
 _MJX_WARP_TYPES_OUT_FPATH = flags.DEFINE_string(
@@ -116,7 +117,7 @@ def _get_target_annotation_node(
   if annotation in (int, float, bool):
     return _ast_parse_type(annotation.__name__)
 
-  if annotation is ffi.GraphMode:
+  if annotation is GraphMode:
     return _ast_parse_type('GraphMode')
 
   if isinstance(annotation, type) and issubclass(annotation, enum.Enum):
@@ -273,7 +274,8 @@ if typing.TYPE_CHECKING:
     pass
 else:
   try:
-    from warp._src.jax_experimental.ffi import GraphMode
+    from mujoco.mjx.third_party.warp._src.jax import ffi as warp_ffi
+    GraphMode = warp_ffi.JaxCallableGraphMode
     from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
     Callback = mjwp_types.Callback
   except ImportError:
@@ -501,7 +503,7 @@ def _to_jax_ndim(name: str, wp_type: Any) -> int:
     if typing.get_args(wp_type)[1] != ...:
       raise NotImplementedError('Only variadic tuples are supported.')
     return -1  # signals that dim should be untouched in downstream code.
-  ffi_arg = ffi.FfiArg(name, wp_type)
+  ffi_arg = FfiArg(name, wp_type)
   return ffi_arg.jax_ndim
 
 
@@ -573,7 +575,7 @@ def main(argv):
   write_core_cls('Statistic', target_fpath, mjx_types_fpath, set_diff=False)
   write_core_cls(
       'Option', target_fpath, mjx_types_fpath,
-      extra_annotations={'graph_mode': ffi.GraphMode},
+      extra_annotations={'graph_mode': GraphMode},
   )
   write_core_cls('Model', target_fpath, mjx_types_fpath)
   write_core_cls('Data', target_fpath, mjx_types_fpath, flatten_fields=True)

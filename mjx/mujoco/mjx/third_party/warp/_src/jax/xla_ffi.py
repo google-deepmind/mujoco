@@ -3,13 +3,78 @@
 
 import ctypes
 import enum
+import threading
 
-import jax.numpy as jnp
 import numpy as np
 
 import warp as wp
 
-_wp_module_name_ = "warp.jax_experimental.xla_ffi"
+_wp_module_name_ = "warp.jax.xla_ffi"
+
+_xla_data_type_to_constructor = None
+_XLA_DATA_TYPE_TO_CONSTRUCTOR_LOCK = threading.Lock()
+
+
+def _get_jnp():
+    import jax.numpy as jnp  # noqa: PLC0415
+
+    return jnp
+
+
+def _get_xla_data_type_to_constructor():
+    global _xla_data_type_to_constructor
+
+    if _xla_data_type_to_constructor is None:
+        with _XLA_DATA_TYPE_TO_CONSTRUCTOR_LOCK:
+            if _xla_data_type_to_constructor is None:
+                jnp = _get_jnp()
+                constructors = {
+                    # XLA_FFI_DataType.INVALID
+                    XLA_FFI_DataType.PRED: jnp.bool,
+                    XLA_FFI_DataType.S8: jnp.int8,
+                    XLA_FFI_DataType.S16: jnp.int16,
+                    XLA_FFI_DataType.S32: jnp.int32,
+                    XLA_FFI_DataType.S64: jnp.int64,
+                    XLA_FFI_DataType.U8: jnp.uint8,
+                    XLA_FFI_DataType.U16: jnp.uint16,
+                    XLA_FFI_DataType.U32: jnp.uint32,
+                    XLA_FFI_DataType.U64: jnp.uint64,
+                    XLA_FFI_DataType.F16: jnp.float16,
+                    XLA_FFI_DataType.F32: jnp.float32,
+                    XLA_FFI_DataType.F64: jnp.float64,
+                    XLA_FFI_DataType.BF16: jnp.bfloat16,
+                    XLA_FFI_DataType.C64: jnp.complex64,
+                    XLA_FFI_DataType.C128: jnp.complex128,
+                    # XLA_FFI_DataType.TOKEN
+                    # XLA_FFI_DataType.F4E2M1FN: jnp.float4_e2m1fn.dtype,
+                    # XLA_FFI_DataType.F8E8M0FNU: jnp.float8_e8m0fnu.dtype,
+                }
+
+                # newer types not supported by older versions
+                if hasattr(jnp, "float8_e5m2"):
+                    constructors[XLA_FFI_DataType.F8E5M2] = jnp.float8_e5m2
+                if hasattr(jnp, "float8_e3m4"):
+                    constructors[XLA_FFI_DataType.F8E3M4] = jnp.float8_e3m4
+                if hasattr(jnp, "float8_e4m3"):
+                    constructors[XLA_FFI_DataType.F8E4M3] = jnp.float8_e4m3
+                if hasattr(jnp, "float8_e4m3fn"):
+                    constructors[XLA_FFI_DataType.F8E4M3FN] = jnp.float8_e4m3fn
+                if hasattr(jnp, "float8_e4m3b11fnuz"):
+                    constructors[XLA_FFI_DataType.F8E4M3B11FNUZ] = jnp.float8_e4m3b11fnuz
+                if hasattr(jnp, "float8_e5m2fnuz"):
+                    constructors[XLA_FFI_DataType.F8E5M2FNUZ] = jnp.float8_e5m2fnuz
+                if hasattr(jnp, "float8_e4m3fnuz"):
+                    constructors[XLA_FFI_DataType.F8E4M3FNUZ] = jnp.float8_e4m3fnuz
+
+                _xla_data_type_to_constructor = constructors
+
+    return _xla_data_type_to_constructor
+
+
+def _jnp_dtype_for_xla(xla_dtype):
+    jnp = _get_jnp()
+    return jnp.dtype(_get_xla_data_type_to_constructor()[xla_dtype])
+
 
 #######################################################################
 # ctypes structures and enums for XLA's FFI API:
@@ -470,45 +535,6 @@ class XLA_FFI_CallFrame(ctypes.Structure):
     )
 
 
-_xla_data_type_to_constructor = {
-    # XLA_FFI_DataType.INVALID
-    XLA_FFI_DataType.PRED: jnp.bool,
-    XLA_FFI_DataType.S8: jnp.int8,
-    XLA_FFI_DataType.S16: jnp.int16,
-    XLA_FFI_DataType.S32: jnp.int32,
-    XLA_FFI_DataType.S64: jnp.int64,
-    XLA_FFI_DataType.U8: jnp.uint8,
-    XLA_FFI_DataType.U16: jnp.uint16,
-    XLA_FFI_DataType.U32: jnp.uint32,
-    XLA_FFI_DataType.U64: jnp.uint64,
-    XLA_FFI_DataType.F16: jnp.float16,
-    XLA_FFI_DataType.F32: jnp.float32,
-    XLA_FFI_DataType.F64: jnp.float64,
-    XLA_FFI_DataType.BF16: jnp.bfloat16,
-    XLA_FFI_DataType.C64: jnp.complex64,
-    XLA_FFI_DataType.C128: jnp.complex128,
-    # XLA_FFI_DataType.TOKEN
-    # XLA_FFI_DataType.F4E2M1FN: jnp.float4_e2m1fn.dtype,
-    # XLA_FFI_DataType.F8E8M0FNU: jnp.float8_e8m0fnu.dtype,
-}
-
-# newer types not supported by older versions
-if hasattr(jnp, "float8_e5m2"):
-    _xla_data_type_to_constructor[XLA_FFI_DataType.F8E5M2] = jnp.float8_e5m2
-if hasattr(jnp, "float8_e3m4"):
-    _xla_data_type_to_constructor[XLA_FFI_DataType.F8E3M4] = jnp.float8_e3m4
-if hasattr(jnp, "float8_e4m3"):
-    _xla_data_type_to_constructor[XLA_FFI_DataType.F8E4M3] = jnp.float8_e4m3
-if hasattr(jnp, "float8_e4m3fn"):
-    _xla_data_type_to_constructor[XLA_FFI_DataType.F8E4M3FN] = jnp.float8_e4m3fn
-if hasattr(jnp, "float8_e4m3b11fnuz"):
-    _xla_data_type_to_constructor[XLA_FFI_DataType.F8E4M3B11FNUZ] = jnp.float8_e4m3b11fnuz
-if hasattr(jnp, "float8_e5m2fnuz"):
-    _xla_data_type_to_constructor[XLA_FFI_DataType.F8E5M2FNUZ] = jnp.float8_e5m2fnuz
-if hasattr(jnp, "float8_e4m3fnuz"):
-    _xla_data_type_to_constructor[XLA_FFI_DataType.F8E4M3FNUZ] = jnp.float8_e4m3fnuz
-
-
 ########################################################################
 # Helpers for translating between ctypes and python types
 #######################################################################
@@ -522,14 +548,14 @@ def decode_bytespan(span: XLA_FFI_ByteSpan):
 
 def decode_scalar(scalar: XLA_FFI_Scalar):
     # TODO validate if dtype supported
-    dtype = jnp.dtype(_xla_data_type_to_constructor[scalar.dtype])
+    dtype = _jnp_dtype_for_xla(scalar.dtype)
     bytes = ctypes.string_at(scalar.value, dtype.itemsize)
     return np.frombuffer(bytes, dtype=dtype).reshape(())
 
 
 def decode_array(array: XLA_FFI_Array):
     # TODO validate if dtype supported
-    dtype = jnp.dtype(_xla_data_type_to_constructor[array.dtype])
+    dtype = _jnp_dtype_for_xla(array.dtype)
     bytes = ctypes.string_at(array.data, dtype.itemsize * array.size)
     return np.frombuffer(bytes, dtype=dtype)
 
@@ -612,7 +638,7 @@ def dtype_from_ffi(ffi_dtype):
 
 
 def jax_dtype_from_ffi(ffi_dtype):
-    return _xla_data_type_to_constructor.get(ffi_dtype)
+    return _get_xla_data_type_to_constructor().get(ffi_dtype)
 
 
 # Execution context (stream, stage)
@@ -632,7 +658,7 @@ class FfiBuffer:
 
     def __init__(self, xla_buffer):
         # TODO check if valid
-        self.dtype = jnp.dtype(_xla_data_type_to_constructor[xla_buffer.dtype])
+        self.dtype = _jnp_dtype_for_xla(xla_buffer.dtype)
         self.shape = tuple(xla_buffer.dims[i] for i in range(xla_buffer.rank))
         self.data = xla_buffer.data
 

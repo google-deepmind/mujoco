@@ -22,10 +22,11 @@ from typing import Any, Callable, Optional, Sequence, Tuple, Union
 
 import jax
 from jax import numpy as jp
-from mujoco.mjx.warp import types as mjx_warp_types
 import numpy as np
 import warp as wp
-from mujoco.mjx.third_party.warp._src.jax_experimental import ffi
+from mujoco.mjx.third_party.warp._src.jax import ffi as warp_ffi
+
+from mujoco.mjx.warp import types as mjx_warp_types
 
 
 def flatten_signature(signature: inspect.Signature, args: Tuple[Any, ...]):
@@ -97,7 +98,7 @@ def flatten_signature(signature: inspect.Signature, args: Tuple[Any, ...]):
 def jax_callable_variadic_tuple(
     func: Callable,  # pylint: disable=g-bare-generic
     num_outputs: int = 1,
-    graph_mode: ffi.GraphMode = ffi.GraphMode.WARP,
+    graph_mode: warp_ffi.JaxCallableGraphMode = warp_ffi.JaxCallableGraphMode.WARP,
     vmap_method: Optional[str] = None,
     output_dims: Optional[dict[str, tuple[int, ...]]] = None,
     in_out_argnames: Optional[Sequence[str]] = None,
@@ -126,7 +127,7 @@ def jax_callable_variadic_tuple(
     if new_signature.return_annotation is not inspect.Signature.empty:
       func_wrapper.__annotations__['return'] = new_signature.return_annotation
 
-    my_callable = ffi.jax_callable(
+    my_callable = warp_ffi.jax_callable(
         func_wrapper,
         num_outputs=num_outputs,
         graph_mode=graph_mode,

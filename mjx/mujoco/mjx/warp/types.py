@@ -23,7 +23,6 @@ from jax import tree_util
 from jax.interpreters import batching
 from mujoco.mjx._src import dataclasses as mjx_dataclasses
 import numpy as np
-
 if typing.TYPE_CHECKING:
   GraphMode = int
 
@@ -33,7 +32,9 @@ if typing.TYPE_CHECKING:
 
 else:
   try:
-    from warp._src.jax_experimental.ffi import GraphMode
+    from mujoco.mjx.third_party.warp._src.jax import ffi as warp_ffi
+
+    GraphMode = warp_ffi.JaxCallableGraphMode
     from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 
     Callback = mjwp_types.Callback
@@ -170,7 +171,6 @@ class ModelWarp(PyTreeNode):
   D_diag: np.ndarray
   D_rowadr: np.ndarray
   D_rownnz: np.ndarray
-  M_colind: np.ndarray
   M_elemid: np.ndarray
   M_fullm_i: np.ndarray
   M_fullm_j: np.ndarray
@@ -180,8 +180,6 @@ class ModelWarp(PyTreeNode):
   M_mulm_col: np.ndarray
   M_mulm_madr: np.ndarray
   M_mulm_rowadr: np.ndarray
-  M_rowadr: np.ndarray
-  M_rownnz: np.ndarray
   M_tiles: Tuple[TileSet, ...]
   actuator_delay: np.ndarray
   actuator_history: np.ndarray
