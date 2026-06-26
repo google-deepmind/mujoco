@@ -108,10 +108,15 @@ void Renderable::SetMesh(const Mesh* mesh, int elem_offset, int elem_count) {
     part.elem_count = elem_count;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
-    rm.setGeometryAt(rm.getInstance(part.entity), 0,
-                     part.mesh->GetPrimitiveType(), vertex_buffer, index_buffer,
-                     part.elem_offset, part.elem_count);
-
+    auto ri = rm.getInstance(part.entity);
+    rm.setGeometryAt(ri, 0, part.mesh->GetPrimitiveType(), vertex_buffer,
+                     index_buffer, part.elem_offset, part.elem_count);
+    if (part.mesh->HasBounds()) {
+      rm.setAxisAlignedBoundingBox(ri, part.mesh->GetBounds());
+      rm.setCulling(ri, true);
+    } else {
+      rm.setCulling(ri, false);
+    }
   } else {
     mju_error("Cannot set mesh for renderable with multiple parts.");
   }
