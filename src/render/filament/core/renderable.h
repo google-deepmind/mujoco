@@ -32,6 +32,7 @@
 #include "render/filament/core/material_manager.h"
 #include "render/filament/core/mesh.h"
 #include "render/filament/core/reflection_manager.h"
+#include "render/filament/core/types.h"
 
 namespace mujoco {
 

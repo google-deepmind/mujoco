@@ -52,13 +52,13 @@ extern "C" {
 // values are assumed to be 0/NULL unless otherwise specified.
 //
 // For now, we'll just define opaque handles for each of our components.
-typedef struct mjrfContext_ {} mjrfContext;
-typedef struct mjrfTexture_ {} mjrfTexture;
-typedef struct mjrfMesh_ {} mjrfMesh;
-typedef struct mjrfScene_ {} mjrfScene;
-typedef struct mjrfLight_ {} mjrfLight;
-typedef struct mjrfRenderable_ {} mjrfRenderable;
-typedef struct mjrfRenderTarget_ {} mjrfRenderTarget;
+typedef struct mjrfContext_ mjrfContext;
+typedef struct mjrfTexture_ mjrfTexture;
+typedef struct mjrfMesh_ mjrfMesh;
+typedef struct mjrfScene_ mjrfScene;
+typedef struct mjrfLight_ mjrfLight;
+typedef struct mjrfRenderable_ mjrfRenderable;
+typedef struct mjrfRenderTarget_ mjrfRenderTarget;
 
 // ## Rendering Context (mjrfContext)
 //
