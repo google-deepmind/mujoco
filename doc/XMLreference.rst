@@ -3671,7 +3671,7 @@ saving the XML:
      for the entire flex, independent of the number of vertices. The positions of the vertices are updated using
      quadratic interpolation over the bounding box. While this option requires more degrees of freedom than trilinear
      flexes, it enables curved deformation modes, while the only modes achievable for trilinear flexes are
-     strech/compression and shear. To understand the difference between the two parametrizations, see `a trilinear cube
+     stretch/compression and shear. To understand the difference between the two parametrizations, see `a trilinear cube
      <https://github.com/google-deepmind/mujoco/blob/main/model/flex/trilinear.xml>`__ and `a quadratic cube
      <https://github.com/google-deepmind/mujoco/blob/main/model/flex/quadratic.xml>`__.
 
