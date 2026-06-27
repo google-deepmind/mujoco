@@ -1039,6 +1039,11 @@ std::string mjuu_extToContentType(std::string_view filename) {
     return "model/obj";
   } else if (!strcasecmp(ext.c_str(), ".ply")) {
     return "model/ply";
+  } else if (!strcasecmp(ext.c_str(), ".usd") ||
+             !strcasecmp(ext.c_str(), ".usda") ||
+             !strcasecmp(ext.c_str(), ".usdc") ||
+             !strcasecmp(ext.c_str(), ".usdz")) {
+    return "model/usd";
   } else if (!strcasecmp(ext.c_str(), ".msh")) {
     return "model/vnd.mujoco.msh";
   } else if (!strcasecmp(ext.c_str(), ".png")) {
