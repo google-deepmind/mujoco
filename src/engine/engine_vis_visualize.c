@@ -2962,16 +2962,16 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
     mju_copy3(cam->lookat, d->subtree_com + 3*bid);
   }
 
-  // get camera frame
-  mjtNum headpos[3], forward[3], up[3], right[3];
-  mjv_cameraFrame(headpos, forward, up, right, d, cam);
-
-  // get camera frustum
+  // get camera frustum; for a fixed camera this validates fixedcamid
   float zver[2], zhor[2], zclip[2] = {0, 0};
   mjv_cameraFrustum(zver, zhor, zclip, m, cam);
 
+  // get camera frame (fixedcamid already validated by mjv_cameraFrustum above)
+  mjtNum headpos[3], forward[3], up[3], right[3];
+  mjv_cameraFrame(headpos, forward, up, right, d, cam);
+
   // get ipd, orthographic
-  int cid, orthographic = 0;
+  int orthographic = 0;
   mjtNum ipd;
 
   switch (cam->type) {
@@ -2980,15 +2980,13 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
     ipd = m->vis.global.ipd;
     orthographic = m->vis.global.orthographic;
     break;
-  case mjCAMERA_FIXED:
-    // get id, check range
-    cid = cam->fixedcamid;
-    if (cid < 0 || cid >= m->ncam) {
-      mjERROR("fixed camera id is outside valid range");
-    }
+  case mjCAMERA_FIXED: {
+    // fixedcamid range already validated by mjv_cameraFrustum
+    int cid = cam->fixedcamid;
     ipd = m->cam_ipd[cid];
     orthographic = m->cam_projection[cid] == mjPROJ_ORTHOGRAPHIC;
     break;
+  }
 
   default:
     mjERROR("unknown camera type");
