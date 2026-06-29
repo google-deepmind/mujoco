@@ -2474,7 +2474,7 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
         d->solver_nnz[island_stat] = nv*nv;
       }
     } else {
-      d->solver_nnz[island_stat] = 0;
+      d->solver_nnz[island_stat] = ctx.nJ;
     }
   }
 
