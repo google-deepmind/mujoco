@@ -121,7 +121,7 @@ typedef struct mjData_ {
   // solver statistics
   mjSolverStat  solver[mjNISLAND*mjNSOLVER];  // solver statistics per island, per iteration
   int           solver_niter[mjNISLAND];      // number of solver iterations, per island
-  int           solver_nnz[mjNISLAND];        // number of nonzeros in Hessian or efc_AR, per island
+  int           solver_nnz[mjNISLAND];        // number of nonzeros in solver matrix, per island
   mjtNum        solver_fwdinv[2];             // forward-inverse comparison: qfrc, efc
 
   // diagnostics

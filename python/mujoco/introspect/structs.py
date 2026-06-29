@@ -5524,7 +5524,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                      extents=(20,),
                  ),
-                 doc='number of nonzeros in Hessian or efc_AR, per island',
+                 doc='number of nonzeros in solver matrix, per island',
              ),
              StructFieldDecl(
                  name='solver_fwdinv',
