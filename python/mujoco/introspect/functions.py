@@ -436,7 +436,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mj_encode',
      FunctionDecl(
          name='mj_encode',
-         return_type=ValueType(name='int'),
+         return_type=ValueType(name='mjtSize'),
          parameters=(
              FunctionParameterDecl(
                  name='s',

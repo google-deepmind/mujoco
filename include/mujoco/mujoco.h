@@ -147,9 +147,9 @@ MJAPI mjSpec* mj_parse(const char* filename, const char* content_type,
 // Encode spec/model to a file using a registered encoder.
 // Returns the number of bytes written on success, -1 on failure.
 // Nullable: m, vfs, error
-MJAPI int mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
-                    const char* content_type, const mjVFS* vfs, char* error,
-                    int error_sz);
+MJAPI mjtSize mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
+                        const char* content_type, const mjVFS* vfs, char* error,
+                        int error_sz);
 
 // Compile spec to model.
 // Nullable: vfs

@@ -545,7 +545,7 @@ PYBIND11_MODULE(_specs, m) {
       "encode",
       [](MjSpec& self, std::string filename,
          std::optional<py::object> model,
-         std::optional<std::string> content_type) -> int {
+         std::optional<std::string> content_type) -> mjtSize {
         raw::MjModel* m = nullptr;
         if (model.has_value() && !model->is_none()) {
           auto& wrapper =
@@ -572,8 +572,8 @@ PYBIND11_MODULE(_specs, m) {
         err[0] = '\0';
         const char* ct =
             content_type.has_value() ? content_type->c_str() : nullptr;
-        int nbytes = mj_encode(self.ptr, m, filename.c_str(), ct,
-                               vfs_ptr, err.data(), err.size());
+        mjtSize nbytes = mj_encode(self.ptr, m, filename.c_str(), ct,
+                                   vfs_ptr, err.data(), err.size());
 
         if (vfs_ptr) {
           mj_deleteVFS(vfs_ptr);

@@ -306,8 +306,8 @@ std::unordered_map<std::string, AssetEntry> CollectAssets(
   return archive_entries;
 }
 
-int MjzEncode(const mjSpec* spec, const mjModel* model, const mjVFS* vfs,
-              mjResource* resource) {
+mjtSize MjzEncode(const mjSpec* spec, const mjModel* model, const mjVFS* vfs,
+                  mjResource* resource) {
   if (!spec || !resource) {
     return -1;
   }
@@ -399,7 +399,7 @@ int MjzEncode(const mjSpec* spec, const mjModel* model, const mjVFS* vfs,
 
   resource->data = archive_buf;
 
-  return static_cast<int>(archive_size);
+  return static_cast<mjtSize>(archive_size);
 }
 
 void MjzCloseResource(mjResource* resource) {

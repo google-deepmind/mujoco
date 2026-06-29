@@ -34,8 +34,8 @@ struct FakeEncoderOutput {
   char resource_name[512];
 };
 
-int FakeEncode(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
-               mjResource* resource) {
+mjtSize FakeEncode(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
+                   mjResource* resource) {
   auto* output = new FakeEncoderOutput;
   output->nbody = m->nbody;
   output->ngeom = m->ngeom;
@@ -43,7 +43,7 @@ int FakeEncode(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
   std::snprintf(output->resource_name, sizeof(output->resource_name), "%s",
                 resource->name);
   resource->data = output;
-  return sizeof(FakeEncoderOutput);
+  return static_cast<mjtSize>(sizeof(FakeEncoderOutput));
 }
 
 void CloseResource(mjResource* resource) {

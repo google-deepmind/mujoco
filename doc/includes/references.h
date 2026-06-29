@@ -3231,9 +3231,9 @@ mjSpec* mj_parseXML(const char* filename, const mjVFS* vfs, char* error, int err
 mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int error_sz);
 mjSpec* mj_parse(const char* filename, const char* content_type,
                  const mjVFS* vfs, char* error, int error_sz);
-int mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
-              const char* content_type, const mjVFS* vfs, char* error,
-              int error_sz);
+mjtSize mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
+                  const char* content_type, const mjVFS* vfs, char* error,
+                  int error_sz);
 mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
 int mj_copyBack(mjSpec* s, const mjModel* m);
 int mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);

@@ -2053,8 +2053,8 @@ mjfEncode
 
 .. code-block:: C
 
-   typedef int (*mjfEncode)(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
-                            mjResource* resource);
+   typedef mjtSize (*mjfEncode)(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
+                                mjResource* resource);
 
 
 This callback populates the :ref:`mjResource<mjResource>` `data` member with bytes representing the

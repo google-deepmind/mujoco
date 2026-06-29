@@ -91,8 +91,8 @@ typedef struct mjpDecoder {
 
 //---------------------------------- Encoder -------------------------------------------------------
 
-typedef int (*mjfEncode)(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
-                         mjResource* resource);
+typedef mjtSize (*mjfEncode)(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
+                            mjResource* resource);
 
 typedef struct mjpEncoder {
   const char* content_type;

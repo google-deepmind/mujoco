@@ -146,9 +146,9 @@ mjSpec* mj_parse(const char* filename, const char* content_type,
 }
 
 // encode spec/model to file
-int mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
-              const char* content_type, const mjVFS* vfs, char* error,
-              int error_sz) {
+mjtSize mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
+                  const char* content_type, const mjVFS* vfs, char* error,
+                  int error_sz) {
   // TODO(shaves) Move MJCF and URDF to encoders/decoders.
   auto filepath = mujoco::user::FilePath(filename);
   if (filepath.Ext() == ".xml" ||
@@ -158,7 +158,7 @@ int mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
       return -1;
     }
 
-    return std::filesystem::file_size(filename);
+    return static_cast<mjtSize>(std::filesystem::file_size(filename));
   }
 
   const mjpEncoder* encoder = mjp_findEncoder(filename, content_type);
@@ -174,7 +174,7 @@ int mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
   memset(&resource, 0, sizeof(resource));
   resource.name = const_cast<char*>(filename);
 
-  const int nbytes = encoder->encode(s, m, vfs, &resource);
+  const mjtSize nbytes = encoder->encode(s, m, vfs, &resource);
   if (nbytes < 0 || !resource.data) {
     if (error) {
       strncpy(error, "encoder failed", error_sz);
@@ -197,7 +197,7 @@ int mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
   fclose(fp);
   encoder->close_resource(&resource);
 
-  if (static_cast<int>(written) != nbytes) {
+  if (static_cast<mjtSize>(written) != nbytes) {
     if (error) {
       strncpy(error, "failed to write all bytes to file", error_sz);
       error[error_sz - 1] = '\0';
