@@ -806,8 +806,9 @@ class ConvexTest(absltest.TestCase):
             directory / 'test_data' / 'meshes/dodecahedron.stl'
         ).read_bytes(),
     }
-    with warnings.catch_warnings():
+    with warnings.catch_warnings():  # Regression test for #3368
       warnings.simplefilter('error', RuntimeWarning)
+      jax.clear_caches()  # force a re-trace so the cast (and warning) re-runs
       _collide(self._BOX_BOX, keyframe=0)
       _collide(self._CONVEX_CONVEX, assets=assets)
 
