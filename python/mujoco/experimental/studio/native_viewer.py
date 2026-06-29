@@ -23,25 +23,21 @@ to use these classes.
 import mujoco
 from mujoco.experimental.studio import native_viewer_cc as _viewer
 from mujoco.experimental.studio import ux
-from mujoco.experimental.studio import viewer_protocol
+from mujoco.experimental.studio import viewer_protocol as vp
 from mujoco.experimental.dear_imgui import dear_imgui as imgui
 
 
-class NativeViewer(viewer_protocol.Viewer):
+class NativeViewer(vp.Viewer):
   """Simulation-agnostic native viewer for MuJoCo models."""
 
   def __init__(
       self,
-      model: mujoco.MjModel,
+      config: vp.ViewerConfig,
       *,
       camera: mujoco.MjvCamera | None = None,
       vis_options: mujoco.MjvOption | None = None,
       perturb: mujoco.MjvPerturb | None = None,
       render_flags: ux.RenderFlags | None = None,
-      title: str = '',
-      width: int = 1200,
-      height: int = 800,
-      gfx: str | None = None,
   ) -> None:
     """Initializes the NativeViewer.
 
@@ -49,25 +45,23 @@ class NativeViewer(viewer_protocol.Viewer):
     visualization option objects unless they are provided.
 
     Args:
-      model: The MuJoCo model, used to initialize the renderer.
+      config: Viewer window configuration.
       camera: Camera parameters. Internal object is created if None.
       vis_options: Visualization options. Internal object is created if None.
       perturb: Perturbation parameters. Internal object is created if None.
       render_flags: Render flags. Internal object is created if None.
-      title: Title of the viewer window.
-      width: Initial width of the viewer window.
-      height: Initial height of the viewer window.
-      gfx: Graphics mode. If None, uses the platform default.
     """
+    self.config = config
     self.camera = camera or mujoco.MjvCamera()
     self.perturb = perturb or mujoco.MjvPerturb()
     self.vis_options = vis_options or mujoco.MjvOption()
-    self._viewer = _viewer.Viewer(title, width, height, gfx or '')
-    self._viewer.InitRenderer(model)
+    self._viewer = _viewer.Viewer(
+        config.title, config.width, config.height, config.gfx or ''
+    )
     # This class does not own the model but we need to know if the model being
     # rendered has changed, so we store the unique python object id here so we
     # can use it to detect model changes.
-    self._renderer_model_id = id(model)
+    self._renderer_model_id = id(None)
     self._is_running = True
     if render_flags is not None:
       self.render_flags = render_flags
@@ -114,9 +108,14 @@ class NativeViewer(viewer_protocol.Viewer):
         self.render_flags.flags,
     )
 
+  def close(self) -> None:
+    """Close the viewer."""
+    self._is_running = False
+
+  # TODO(matijak): Remove stop() and rename callers to close().
   def stop(self) -> None:
     """Stop the viewer."""
-    self._is_running = False
+    self.close()
 
   def get_drop_file(self) -> str:
     """Returns the path of the file dropped into the window, or empty string."""

@@ -13,12 +13,12 @@
 # limitations under the License.
 """Structural protocol defining the common viewer interface.
 
-StudioApp uses the protocol for convenience methods that accept any viewer.
+ViewerApp uses the protocol for convenience methods that accept any viewer.
 """
 
 import dataclasses
-from typing import Any
-from typing import Protocol
+import enum
+from typing import Any, Protocol
 import mujoco
 from mujoco.experimental.studio import ux
 import numpy as np
@@ -35,10 +35,36 @@ GFX_MODES = (
 )
 
 
+class ViewerMode(enum.StrEnum):
+  """Determines where the viewer is rendered."""
+
+  NATIVE = 'native'
+  WEB = 'web'
+
+
+# -----------------------------------------------------------------------------
+# Viewer configuration.
+# -----------------------------------------------------------------------------
+
+
+@dataclasses.dataclass
+class ViewerConfig:
+  """Common configuration for creating a viewer window."""
+
+  title: str = ''
+  width: int = 1200
+  height: int = 800
+  gfx: str = ''
+  viewer_mode: ViewerMode = ViewerMode.NATIVE
+
+
+# Legacy message types kept for backward compatibility.
+# Will be removed when callers are migrated.
+
+
 @dataclasses.dataclass
 class SimToView:
   """A message sent from the simulation to the viewer."""
-
   model: mujoco.MjModel | None = None
   state: np.ndarray | None = None
   state_sig: int = 0
@@ -48,12 +74,16 @@ class SimToView:
 @dataclasses.dataclass
 class ViewToSim:
   """A message sent from the viewer to the simulation."""
-
   state: np.ndarray | None = None
   state_sig: int = 0
   reset: bool = False
   send_rate: float = 60.0
   user_data: dict[str, Any] = dataclasses.field(default_factory=dict)
+
+
+# -----------------------------------------------------------------------------
+# Structural interface for any viewer.
+# -----------------------------------------------------------------------------
 
 
 class Viewer(Protocol):
@@ -70,8 +100,13 @@ class Viewer(Protocol):
   def sync(self, model: mujoco.MjModel, data: mujoco.MjData) -> None:
     ...
 
-  def stop(self) -> None:
+  def close(self) -> None:
     ...
 
   def get_drop_file(self) -> str:
+    ...
+
+  def upload_image(
+      self, tex_id: int, img: str | bytes, width: int, height: int, bpp: int
+  ) -> int:
     ...

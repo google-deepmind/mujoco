@@ -175,8 +175,9 @@ def handle_step_control_keyboard_events(
       step_control.set_pause_state(sim.PauseState.UNPAUSED)
     return True
   elif pressed(imgui.Key.Backspace):
-    mujoco.mj_resetData(model, data)
-    mujoco.mj_forward(model, data)
+    if model is not None and data is not None:
+      mujoco.mj_resetData(model, data)
+      mujoco.mj_forward(model, data)
     return True
   elif pressed(imgui.Key.Minus):
     ux.set_speed_index(step_control, ux_state, ux_state.speed_index + 1)

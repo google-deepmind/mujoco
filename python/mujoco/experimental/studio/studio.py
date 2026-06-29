@@ -30,12 +30,12 @@ def main(argv: list[str]) -> None:
   app = studio_app.StudioApp.from_argv(argv)
 
   # Initialize the viewer.
-  viewer = native_viewer.NativeViewer(
-      app.model,
+  config = viewer_protocol.ViewerConfig(
       width=_WIDTH.value,
       height=_HEIGHT.value,
       gfx=_GFX.value,
   )
+  viewer = native_viewer.NativeViewer(config)
 
   # Main viewer loop.
   while viewer.is_running():
