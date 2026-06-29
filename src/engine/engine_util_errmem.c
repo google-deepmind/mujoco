@@ -197,7 +197,7 @@ static void mju_localTimeStr(char* buf, int buf_sz) {
   struct tm timeinfo;
   time(&rawtime);
 
-#if defined(_POSIX_C_SOURCE) || defined(__APPLE__) || defined(__STDC_VERSION_TIME_H__) || defined(__EMSCRIPTEN__)
+#if defined(_POSIX_C_SOURCE) || defined(__APPLE__) || defined(__STDC_VERSION_TIME_H__) || defined(__EMSCRIPTEN__) || defined(__linux__)
   localtime_r(&rawtime, &timeinfo);
 #elif defined(_WIN32)
   localtime_s(&timeinfo, &rawtime);
