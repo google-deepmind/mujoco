@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <functional>
 #include <map>
 #include <memory>
@@ -3537,5 +3538,69 @@ TEST_F(MujocoTest, CompilationWarningsClearedOnRecompile) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, MjEncodeNativeFormats) {
+  // simple test spec
+  mjSpec* spec = mj_makeSpec();
+  mjsBody* world = mjs_findBody(spec, "world");
+  mjsBody* body = mjs_addBody(world, nullptr);
+  mjsGeom* geom = mjs_addGeom(body, nullptr);
+  geom->size[0] = 1.0;
+  geom->size[1] = 1.0;
+  geom->size[2] = 1.0;
+
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull());
+
+  std::filesystem::path tmp_dir = std::filesystem::temp_directory_path();
+  std::string xml_path = (tmp_dir / "test_encode.xml").string();
+  std::string mjb_path = (tmp_dir / "test_encode.mjb").string();
+  std::string txt_path = (tmp_dir / "test_encode.txt").string();
+
+  char error[1000];
+
+  // XML Encoding with spec
+  EXPECT_GT(mj_encode(spec, model, xml_path.c_str(), nullptr, nullptr, error,
+                      sizeof(error)),
+            0);
+  EXPECT_TRUE(std::filesystem::exists(xml_path));
+  EXPECT_GT(std::filesystem::file_size(xml_path), 0);
+
+  // XML Encoding without spec (should fail because no XML loaded in global
+  // spec)
+  std::filesystem::remove(xml_path);
+  // free global spec
+  mj_freeLastXML();
+  EXPECT_EQ(mj_encode(nullptr, model, xml_path.c_str(), nullptr, nullptr, error,
+                      sizeof(error)),
+            -1);
+  EXPECT_THAT(error, HasSubstr("No XML model loaded"));
+  EXPECT_TRUE(std::filesystem::exists(xml_path));
+  EXPECT_EQ(std::filesystem::file_size(xml_path), 0);
+  std::filesystem::remove(xml_path);
+
+  // MJB Encoding (spec can be null)
+  EXPECT_GT(mj_encode(nullptr, model, mjb_path.c_str(), nullptr, nullptr, error,
+                      sizeof(error)),
+            0);
+  EXPECT_TRUE(std::filesystem::exists(mjb_path));
+  EXPECT_GT(std::filesystem::file_size(mjb_path), 0);
+
+  mjModel* model2 = mj_loadModel(mjb_path.c_str(), nullptr);
+  EXPECT_THAT(model2, NotNull());
+  mj_deleteModel(model2);
+
+  // TXT Encoding (spec can be null)
+  EXPECT_GT(mj_encode(nullptr, model, txt_path.c_str(), nullptr, nullptr, error,
+                      sizeof(error)),
+            0);
+  EXPECT_TRUE(std::filesystem::exists(txt_path));
+  EXPECT_GT(std::filesystem::file_size(txt_path), 0);
+
+  // Clean up
+  std::filesystem::remove(mjb_path);
+  std::filesystem::remove(txt_path);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
 }  // namespace
 }  // namespace mujoco

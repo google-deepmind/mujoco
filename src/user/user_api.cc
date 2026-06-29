@@ -15,6 +15,7 @@
 #include "user/user_api.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -145,20 +146,97 @@ mjSpec* mj_parse(const char* filename, const char* content_type,
   return spec;
 }
 
+// Encode spec or model as MJCF XML.
+//
+// If a spec is provided, it is saved directly to XML. This preserves the original
+// structure and any user modifications in the spec.
+// If spec is null, the model must be provided, and it is saved using mj_saveLastXML.
+// mj_saveLastXML reconstructs the XML from the compiled model state, which may
+// differ from the original XML (e.g., losing comments, reordering elements) but
+// reflects the actual compiled model.
+//
+// Returns file size in bytes on success, -1 on failure.
+static mjtSize encode_xml(const mjSpec* s, const mjModel* m, const char* filename,
+                          char* error, int error_sz) {
+  if (s) {
+    // Save directly from the spec
+    if (mj_saveXML(s, filename, error, error_sz) < 0) {
+      return -1;
+    }
+  } else {
+    if (!m) {
+      if (error) {
+        strncpy(error, "model is required for XML encoding when spec is null",
+                error_sz);
+        error[error_sz - 1] = '\0';
+      }
+      return -1;
+    }
+    // Reconstruct XML from the compiled model, this will copy values back
+    // from the mjModel into the last compiled spec and write that out
+    // to disk. If there was no last compiled spec, such as when loading from
+    // MJB, this will return fail and we return -1.
+    if (!mj_saveLastXML(filename, m, error, error_sz)) {
+      return -1;
+    }
+  }
+  return static_cast<mjtSize>(std::filesystem::file_size(filename));
+}
+
+// Encode model as MJB (MuJoCo binary format).
+// Requires a compiled model; spec-only encoding is not supported.
+// Returns file size in bytes on success, -1 on failure.
+static mjtSize encode_mjb(const mjModel* m, const char* filename, char* error, int error_sz) {
+  if (!m) {
+    if (error) {
+      strncpy(error, "model is required for MJB encoding", error_sz);
+      error[error_sz - 1] = '\0';
+    }
+    return -1;
+  }
+  mj_saveModel(m, filename, nullptr, 0);
+  return static_cast<mjtSize>(std::filesystem::file_size(filename));
+}
+
+// Encode model as human-readable TXT (via mj_printModel).
+// Requires a compiled model; spec-only encoding is not supported.
+// Returns file size in bytes on success, -1 on failure.
+static mjtSize encode_txt(const mjModel* m, const char* filename, char* error,
+                          int error_sz) {
+  if (!m) {
+    if (error) {
+      strncpy(error, "model is required for TXT encoding", error_sz);
+      error[error_sz - 1] = '\0';
+    }
+    return -1;
+  }
+  mj_printModel(m, filename);
+  return static_cast<mjtSize>(std::filesystem::file_size(filename));
+}
+
 // encode spec/model to file
 mjtSize mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
                   const char* content_type, const mjVFS* vfs, char* error,
                   int error_sz) {
-  // TODO(shaves) Move MJCF and URDF to encoders/decoders.
+  // special case handling
+  // TODO(shaves) write encoder/decoder paths for MJCF, TXT, MJB
   auto filepath = mujoco::user::FilePath(filename);
-  if (filepath.Ext() == ".xml" ||
-      (content_type && std::strcmp(content_type, "text/xml") == 0)) {
-    int result = mj_saveXML(s, filename, error, error_sz);
-    if (result < 0) {
-      return -1;
-    }
+  std::string ext = filepath.Ext();
+  std::transform(ext.begin(), ext.end(), ext.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
 
-    return static_cast<mjtSize>(std::filesystem::file_size(filename));
+  if (ext == ".xml" ||
+      (content_type && std::strcmp(content_type, "text/xml") == 0)) {
+    return encode_xml(s, m, filename, error, error_sz);
+  }
+
+  if (ext == ".mjb") {
+    return encode_mjb(m, filename, error, error_sz);
+  }
+
+  if (ext == ".txt" ||
+      (content_type && std::strcmp(content_type, "text/plain") == 0)) {
+    return encode_txt(m, filename, error, error_sz);
   }
 
   const mjpEncoder* encoder = mjp_findEncoder(filename, content_type);

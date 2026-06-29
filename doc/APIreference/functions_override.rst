@@ -72,6 +72,23 @@ the required size. XML saving automatically compiles the spec before saving.
 
 Save spec to XML file, return 0 on success, -1 otherwise. XML saving requires that the spec first be compiled.
 
+.. _mj_encode:
+
+Encode :ref:`mjSpec` or :ref:`mjModel` to a file. The output format is determined by the file extension (case insensitive) or
+``content_type``. Returns the number of bytes written on success, -1 on failure.
+
+The following formats are supported natively, without a registered encoder:
+
+- **MJCF XML** — extension: ``.xml``, content_type: ``text/xml``. If an :ref:`mjSpec` is provided, saves via
+  :ref:`mj_saveXML`. Otherwise falls back to :ref:`mj_saveLastXML`, which requires a compiled :ref:`mjModel`.
+- **MJB** — extension: ``.mjb``. MuJoCo binary format. Requires a compiled :ref:`mjModel`.
+- **TXT** — extension: ``.txt``, content_type: ``text/plain``. Human-readable text dump via :ref:`mj_printModel`.
+  Requires a compiled :ref:`mjModel`.
+
+For all other formats, a registered encoder is looked up via :ref:`mjp_findEncoder`.
+
+*Nullable:* ``s``, ``m``, ``vfs``, ``error``
+
 .. _Mainsimulation:
 
 These are the main entry points to the simulator. Most users will only need to call :ref:`mj_step`, which computes
