@@ -99,15 +99,34 @@ endfunction()
 
 # Desktop Studio target.
 if(NOT EMSCRIPTEN)
-    add_executable(mujoco_studio)
+    if(APPLE)
+        set(STUDIO_RESOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/../../../dist/mujoco_studio.icns)
+    elseif(WIN32)
+        set(STUDIO_RESOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/../../../dist/mujoco_studio.rc)
+    else()
+        set(STUDIO_RESOURCE_FILES "")
+    endif()
+
+    add_executable(mujoco_studio main.cc ${STUDIO_RESOURCE_FILES})
     if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
         set_target_properties(mujoco_studio PROPERTIES
             MACOSX_BUNDLE TRUE
             INSTALL_RPATH "@executable_path/../Frameworks;@executable_path/../../.."
             BUILD_WITH_INSTALL_RPATH TRUE
+            RESOURCE "${STUDIO_RESOURCE_FILES}"
+            MACOSX_BUNDLE_ICON_FILE "mujoco_studio.icns"
         )
     endif()
-    target_sources(mujoco_studio PRIVATE main.cc)
+    if(WIN32)
+        add_custom_command(
+            TARGET mujoco_studio
+            PRE_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../dist/mujoco_studio.ico
+                    ${CMAKE_CURRENT_SOURCE_DIR}
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E rm ${CMAKE_CURRENT_SOURCE_DIR}/mujoco_studio.ico
+        )
+    endif()
     configure_studio_target(mujoco_studio)
     if(NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
         include(TargetAddRpath)

@@ -26,6 +26,7 @@
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_core_util.h"
 #include "engine/engine_memory.h"
+#include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -375,6 +376,27 @@ static int dualStateChange(const mjData* d, int* state, int* oldstate,
 }
 
 
+// project onto friction ellipsoid, write to force[i+1..i+dim-1]
+// project tangential force onto friction ellipsoid: sum(f_t[j]^2/mu[j]^2) <= f_n^2
+// if feasible is true, only scale down if outside the ellipsoid
+// if feasible is false, always scale to the boundary
+static void projectEllipsoid(mjtNum* friction, mjtNum normal, const mjtNum* mu,
+                             int dim, int feasible) {
+  mjtNum s = 0;
+  for (int j=0; j < dim-1; j++) {
+    s += friction[j]*friction[j] / (mu[j]*mu[j]);
+  }
+
+  mjtNum normal2 = normal*normal;
+  if (!feasible || s > normal2) {
+    mjtNum scl = mju_sqrt(normal2 / mju_max(mjMINVAL, s));
+    for (int j=0; j < dim-1; j++) {
+      friction[j] *= scl;
+    }
+  }
+}
+
+
 // solve QCQP and project onto friction ellipsoid, write to force[i+1..i+dim-1]
 static void solveQCQP(mjtNum* force, int i, int dim,
                       mjtNum* Ac, mjtNum* bc, const mjtNum* mu) {
@@ -392,19 +414,37 @@ static void solveQCQP(mjtNum* force, int i, int dim,
 
   // on constraint: put v on ellipsoid, in case QCQP is approximate
   if (flg_active) {
-    mjtNum s = 0;
-    for (int j=0; j < dim-1; j++) {
-      s += v[j]*v[j] / (mu[j]*mu[j]);
-    }
-    s = mju_sqrt(force[i]*force[i] / mju_max(mjMINVAL, s));
-    for (int j=0; j < dim-1; j++) {
-      v[j] *= s;
-    }
+    projectEllipsoid(v, force[i], mu, dim, /*feasible=*/0);
   }
 
   // assign
   mju_copy(force+i+1, v, dim-1);
 }
+
+
+// project contact force block onto friction cone (pyramidal or elliptic)
+static void projectCone(mjtNum* force, const mjtNum* mu, int dim, int type) {
+  // elliptic cone: project onto friction ellipsoid
+  if (type == mjCNSTR_CONTACT_ELLIPTIC) {
+    // clamp normal force
+    if (force[0] < 0) {
+      mju_zero(force, dim);
+    } else {
+      projectEllipsoid(force+1, force[0], mu, dim, /*feasible=*/1);
+    }
+  }
+
+  // pyramidal or scalar: clamp to non-negative
+  else {
+    if (force[0] < 0) {
+      force[0] = 0;
+    }
+  }
+}
+
+
+// global variable to toggle Nesterov momentum (for benchmarks/tests)
+mjTHREADLOCAL int mj_nesterov_momentum = 1;
 
 
 //---------------------------- PGS solver ----------------------------------------------------------
@@ -422,6 +462,16 @@ static void solPGS(const mjModel* m, mjData* d, int island,
   mjtNum* ARinv = mjSTACKALLOC(d, nefc, mjtNum);
   int* oldstate = mjSTACKALLOC(d, 2*nefc, int);
   int* blockstart = oldstate + nefc;
+
+  // Nesterov momentum
+  mjtBool nesterov = (mj_nesterov_momentum != 0);
+  mjtNum* force_prev = NULL;
+  mjtNum* force_momentum = NULL;
+  if (nesterov) {
+    force_prev = mjSTACKALLOC(d, nefc, mjtNum);
+    force_momentum = mjSTACKALLOC(d, nefc, mjtNum);
+    mju_gather(force_prev, force, efclist, nefc);
+  }
 
   int island_stat = mjMAX(0, island);  // island index for diagnostic stats
   mjtNum scale = 1 / (m->stat.meaninertia * mjMAX(1, m->nv));
@@ -452,7 +502,56 @@ static void solPGS(const mjModel* m, mjData* d, int island,
 
   // main iteration
   int iter = 0;
+  int nesterov_k = 0;  // Nesterov counter (resets on adaptive restart)
   while (iter < maxiter) {
+    // Nesterov momentum extrapolation
+    if (nesterov) {
+      mjtNum beta = 0;
+      if (iter > 0) {
+        beta = (mjtNum)(nesterov_k - 1) / (mjtNum)(nesterov_k + 2);
+      }
+
+      // update with momentum, save pre-extrapolation value
+      if (beta > 0) {
+        for (int c=0; c < nefc; c++) {
+          int i = efclist ? efclist[c] : c;
+          mjtNum f_save = force[i];
+          force[i] += beta*(force[i] - force_prev[c]);
+          force_prev[c] = f_save;
+        }
+
+        // friction loss: project onto bounds
+        for (int c=ne; c < ne+nf; c++) {
+          int i = efclist ? efclist[c] : c;
+          force[i] = mju_clip(force[i], -floss[i], floss[i]);
+        }
+
+        // contact force: project onto friction cone
+        for (int c=ne+nf; c < nefc; ) {
+          int i = efclist ? efclist[c] : c;
+          int dim = 1;
+          int type = d->efc_type[i];
+          const mjtNum* mu = NULL;
+
+          if (type == mjCNSTR_CONTACT_ELLIPTIC) {
+            dim = d->contact[d->efc_id[i]].dim;
+            mu = d->contact[d->efc_id[i]].friction;
+          }
+
+          projectCone(force+i, mu, dim, type);
+          c += dim;
+        }
+      }
+
+      // iter == 0 or beta <= 0 (nesterov_k <= 1): just save current force
+      else {
+        mju_gather(force_prev, force, efclist, nefc);
+      }
+
+      // save extrapolated point for gradient restart check
+      mju_gather(force_momentum, force, efclist, nefc);
+    }
+
     // clear improvement
     mjtNum improvement = 0;
 
@@ -590,6 +689,27 @@ static void solPGS(const mjModel* m, mjData* d, int island,
     // scale improvement, save stats
     improvement *= scale;
     saveStats(m, d, island_stat, iter, improvement, 0, 0, nactive, nchange, 0, 0);
+
+    // Nesterov gradient restart (O'Donoghue-Candès): reset when correction opposes extrapolation
+    if (nesterov) {
+      mjtBool restart = false;
+      if (iter > 0) {
+        mjtNum dot_corr_extr = 0;
+        for (int c=0; c < nefc; c++) {
+          int i = efclist ? efclist[c] : c;
+          mjtNum correction = force[i] - force_momentum[c];
+          mjtNum extrapolation = force_momentum[c] - force_prev[c];
+          dot_corr_extr += correction * extrapolation;
+        }
+        restart = (dot_corr_extr < 0);
+      }
+
+      if (restart) {
+        nesterov_k = 0;
+      } else {
+        nesterov_k++;
+      }
+    }
 
     // increment iteration count
     iter++;

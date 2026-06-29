@@ -1,0 +1,26 @@
+name: update-live
+
+on:
+  release:
+    types: [published] # Trigger when publishing releases ...
+  workflow_dispatch: # or manually (updates to main HEAD).
+
+permissions:
+  contents: write
+
+jobs:
+  merge-branch:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout MuJoCo
+      uses: actions/checkout@v4
+
+    - name: Fast-forward the live branch
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          git fetch origin main:refs/remotes/origin/main
+          REF_NAME="origin/main"
+        else
+          REF_NAME="${{ github.ref_name }}"
+        fi
+        git push origin ${REF_NAME}:refs/heads/live

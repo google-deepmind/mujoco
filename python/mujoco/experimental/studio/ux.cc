@@ -324,14 +324,14 @@ PYBIND11_MODULE(ux, m) {
       py::arg("model"), py::arg("data"), "Render the solver counts chart.");
 
   m.def(
-      "stats_gui",
+      "info_gui",
       [](const mujoco::python::MjModelWrapper& model,
          mujoco::python::MjDataWrapper& data, bool paused, float fps) {
         py::gil_scoped_release no_gil;
-        mujoco::platform::StatsGui(model.get(), data.get(), paused, fps);
+        mujoco::platform::InfoGui(model.get(), data.get(), paused, fps);
       },
       py::arg("model"), py::arg("data"), py::arg("paused"), py::arg("fps"),
-      "Render the simulation statistics UI.");
+      "Render the simulation info UI.");
 
   m.attr("FREE_CAMERA_IDX") = mujoco::platform::kFreeCameraIdx;
   m.attr("TUMBLE_CAMERA_IDX") = mujoco::platform::kTumbleCameraIdx;

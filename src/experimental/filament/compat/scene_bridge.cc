@@ -40,28 +40,25 @@ using filament::math::float4;
 using filament::math::mat3;
 using filament::math::mat4;
 
-SceneBridge::SceneBridge(mjrfContext* ctx, const mjModel* model)
-    : ctx_(ctx) {
-  mjrfSceneParams params;
-  mjrf_defaultSceneParams(&params);
-  scene_ = CreateScene(ctx_, params);
+SceneBridge::SceneBridge(mjrfContext* ctx, mjrfScene* scene, const mjModel* model)
+    : ctx_(ctx), scene_(scene) {
   model_objects_ = std::make_unique<ModelObjects>(model, ctx_);
   scene_objects_ = std::make_unique<SceneObjects>(ctx_);
 
-  mjrf_configureSceneFromModel(scene_.get(), model);
+  mjrf_configureSceneFromModel(scene_, model);
 
   auto clear_color = ReadElement(model, "filament.clearColor",
                                  filament::math::float4(0, 0, 0, 1));
   mjrf_setClearColor(ctx_, &clear_color[0]);
 
   light_manager_ =
-      std::make_unique<LightManager>(ctx_, scene_.get(), model_objects_.get());
+      std::make_unique<LightManager>(ctx_, scene_, model_objects_.get());
 }
 
 SceneBridge::~SceneBridge() {
   light_manager_.reset();
   for (auto& iter : renderables_) {
-    mjrf_removeRenderableFromScene(scene_.get(), iter.get());
+    mjrf_removeRenderableFromScene(scene_, iter.get());
   }
   renderables_.clear();
 }
@@ -115,7 +112,7 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
 
   // Remove all drawables from previous render and prepare new ones.
   for (auto& iter : renderables_) {
-    mjrf_removeRenderableFromScene(scene_.get(), iter.get());
+    mjrf_removeRenderableFromScene(scene_, iter.get());
   }
   renderables_.clear();
   for (int i = 0; i < scene->ngeom; ++i) {
@@ -154,7 +151,7 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
           mjrf_setRenderableMaterial(vertex.get(), &material);
           mjrf_setRenderableSize(vertex.get(), size);
           mjrf_setRenderableTransform(vertex.get(), scene->flexvert + 3*v, rot);
-          mjrf_addRenderableToScene(scene_.get(), vertex.get());
+          mjrf_addRenderableToScene(scene_, vertex.get());
           renderables_.push_back(std::move(vertex));
         }
       }
@@ -199,7 +196,7 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
           mjrf_setRenderableMaterial(vertex.get(), &material);
           mjrf_setRenderableSize(vertex.get(), size);
           mjrf_setRenderableTransform(vertex.get(), pos, rot);
-          mjrf_addRenderableToScene(scene_.get(), vertex.get());
+          mjrf_addRenderableToScene(scene_, vertex.get());
           renderables_.push_back(std::move(vertex));
         }
       }
@@ -213,9 +210,9 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
     }
 
     UniquePtr<mjrfRenderable> renderable = CreateGeomRenderable(
-        *geom, ctx_, model_objects_.get(), scene_objects_.get(), scene->flags);
+        *geom, ctx_, model_objects_.get(), scene_objects_.get());
 
-    mjrf_addRenderableToScene(scene_.get(), renderable.get());
+    mjrf_addRenderableToScene(scene_, renderable.get());
     renderables_.push_back(std::move(renderable));
   }
 
@@ -268,8 +265,6 @@ void SceneBridge::UploadHeightField(const mjModel* model, int id) {
 void SceneBridge::SetDrawTextFunction(DrawTextAtFn fn) {
   draw_text_callback_ = std::move(fn);
 }
-
-mjrfScene* SceneBridge::GetScene() const { return scene_.get(); }
 
 mjrCamera SceneBridge::GetCamera() const { return camera_; }
 

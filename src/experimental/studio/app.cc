@@ -95,8 +95,19 @@ App::App(Config config)
   mjv_defaultPerturb(&perturb_);
   mjv_defaultCamera(&camera_);
   mjv_defaultOption(&vis_options_);
+  std::memset(&plugin_scene_, 0, sizeof(mjvScene));
+  mjv_makeScene(nullptr, &plugin_scene_, 2000);
 
   profiler_.Clear();
+
+  step_control_.SetPreStepCallback(
+      [this](const mjModel* m, mjData* d) { PreStep(m, d); });
+  step_control_.SetPostStepCallback(
+      [this](const mjModel* m, mjData* d) { PostStep(m, d); });
+}
+
+App::~App() {
+  mjv_freeScene(&plugin_scene_);
 }
 
 void App::SwitchGraphicsMode(int width, int height,
@@ -329,6 +340,22 @@ void App::UpdatePhysics() {
   }
 }
 
+void App::PreStep(const mjModel* m, mjData* d) {
+  platform::ForEachPlugin<platform::ModelPlugin>([&](auto* plugin) {
+    if (plugin->pre_step) {
+      plugin->pre_step(plugin, m, d);
+    }
+  });
+}
+
+void App::PostStep(const mjModel* m, mjData* d) {
+  platform::ForEachPlugin<platform::ModelPlugin>([&](auto* plugin) {
+    if (plugin->post_step) {
+      plugin->post_step(plugin, m, d);
+    }
+  });
+}
+
 void App::LoadHistory(int offset) {
   std::span<mjtNum> state = sim_history_.SetIndex(offset);
   if (!state.empty()) {
@@ -368,8 +395,17 @@ void App::Render() {
   } else {
     pixels_.clear();
   }
+
+  plugin_scene_.ngeom = 0;
+  platform::ForEachPlugin<platform::ScenePlugin>([&](auto* plugin) {
+    if (plugin->enhance_scene) {
+      plugin->enhance_scene(plugin, model(), data(), &plugin_scene_);
+    }
+  });
+
   renderer_->Render(model(), data(), &perturb_, &camera_, &vis_options_,
-                    width * scale, height * scale, pixels_);
+                    width * scale, height * scale, pixels_,
+                    {plugin_scene_.geoms, (size_t)plugin_scene_.ngeom});
 
   window_->EndFrame();
   window_->Present(pixels_);
@@ -421,7 +457,9 @@ void App::ProcessPendingLoads() {
       const char* buf = plugin->get_model_to_load(
           plugin, &size, content_type, sizeof(content_type), model_name,
           sizeof(model_name));
-      if (buf && size) {
+      if (buf && buf == model_name) {
+        LoadModelFromFile(model_name);
+      } else if (buf && size) {
         const std::byte* bytes = reinterpret_cast<const std::byte*>(buf);
         LoadModelFromBuffer({bytes, bytes + size}, content_type, model_name);
       }
@@ -649,7 +687,7 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F1)) {
     ToggleWindow(tmp_.help);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F2)) {
-    ToggleWindow(tmp_.stats);
+    ToggleWindow(tmp_.info);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F3)) {
     ToggleWindow(tmp_.profiler);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F6)) {
@@ -934,12 +972,25 @@ void App::BuildGui() {
     ImGui::End();
   }
 
-  if (tmp_.stats) {
+  if (tmp_.info) {
     platform::ScopedStyle style;
-    style.Var(ImGuiStyleVar_Alpha, 0.6f);
-    if (ImGui::Begin("Info", &tmp_.stats)) {
+    style.Var(ImGuiStyleVar_Alpha, 0.8f);
+    const float scale = ImGui::GetWindowDpiScale();
+    ImGui::SetNextWindowPos(
+        ImVec2(workspace_rect.x,
+               workspace_rect.y + workspace_rect.w),
+        ImGuiCond_Always, ImVec2(0.0f, 1.0f));
+    ImGui::SetNextWindowSizeConstraints(ImVec2(240.0f * scale, -1.0f),
+                                        ImVec2(FLT_MAX, -1.0f));
+    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar |
+                                   ImGuiWindowFlags_NoResize |
+                                   ImGuiWindowFlags_NoMove |
+                                   ImGuiWindowFlags_NoCollapse |
+                                   ImGuiWindowFlags_AlwaysAutoResize |
+                                   ImGuiWindowFlags_NoSavedSettings;
+    if (ImGui::Begin("Info", nullptr, flags)) {
       const float fps = renderer_->GetFps();
-      platform::StatsGui(
+      platform::InfoGui(
           model(), data(),
           step_control_.GetPauseState() == PauseState::kNormalPaused, fps);
     }
@@ -1661,8 +1712,8 @@ void App::MainMenuGui() {
       }
       ImGui::Separator();
 
-      if (ImGui::MenuItem("Info", "F2", tmp_.stats)) {
-        ToggleWindow(tmp_.stats);
+      if (ImGui::MenuItem("Info", "F2", tmp_.info)) {
+        ToggleWindow(tmp_.info);
       }
       if (ImGui::MenuItem("Profiler", "F3", tmp_.profiler)) {
         ToggleWindow(tmp_.profiler);

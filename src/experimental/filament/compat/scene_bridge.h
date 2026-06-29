@@ -35,7 +35,7 @@ namespace mujoco {
 // Manages all mjModel data and updates a SceneView using an mjvScene.
 class SceneBridge {
  public:
-  SceneBridge(mjrfContext* ctx, const mjModel* model);
+  SceneBridge(mjrfContext* ctx, mjrfScene* scene, const mjModel* model);
   ~SceneBridge();
 
   // Updates the Entities in the filament Scene to match the current mjvScene
@@ -50,8 +50,7 @@ class SceneBridge {
   using DrawTextAtFn = std::function<void(const char*, float, float, float)>;
   void SetDrawTextFunction(DrawTextAtFn fn);
 
-  // Returns the managed scene.
-  mjrfScene* GetScene() const;
+  // Returns the camera used for rendering the scene.
   mjrCamera GetCamera() const;
 
   SceneBridge(const SceneBridge&) = delete;
@@ -64,12 +63,12 @@ class SceneBridge {
       const filament::math::float3& pos) const;
 
   mjrfContext* ctx_ = nullptr;
+  mjrfScene* scene_ = nullptr;
   std::unique_ptr<ModelObjects> model_objects_;
   std::unique_ptr<SceneObjects> scene_objects_;
   std::unique_ptr<LightManager> light_manager_;
   mjrCamera camera_;
   DrawTextAtFn draw_text_callback_;
-  UniquePtr<mjrfScene> scene_{nullptr, nullptr};
   std::vector<UniquePtr<mjrfRenderable>> renderables_;
   filament::math::mat4 clip_from_world_;
 };

@@ -68,13 +68,9 @@ class BaseTestPlugin {
     advance_count = 0;
   }
 
-  void Compute() {
-    compute_count += stride;
-  }
+  void Compute() { compute_count += stride; }
 
-  void Advance() {
-    advance_count += stride;
-  }
+  void Advance() { advance_count += stride; }
 
  protected:
   int stride;
@@ -458,11 +454,12 @@ TEST_F(MujocoTest, EmptyPluginDisallowed) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, testing::IsNull()) << error.data();
-  EXPECT_THAT(error.data(), HasSubstr(
-              "neither 'plugin' nor 'instance' is specified for body 'world'"));
-  mj_deleteModel(m);
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), testing::IsNull()) << error.data();
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr(
+          "neither 'plugin' nor 'instance' is specified for body 'world'"));
 }
 
 TEST_F(MujocoTest, FirstPartyPlugins) {
@@ -480,13 +477,13 @@ TEST_F(EnginePluginTest, NoAttributePlugin) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, testing::NotNull()) << error.data();
-  mj_deleteModel(m);
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), testing::NotNull()) << error.data();
 }
 
 TEST_F(EnginePluginTest, MultiplePluginTableBlocks) {
-  EXPECT_EQ(mjp_pluginCount(), kNumTruePlugins + kNumFakePlugins + kNumTestPlugins);
+  EXPECT_EQ(mjp_pluginCount(),
+            kNumTruePlugins + kNumFakePlugins + kNumTestPlugins);
 
   const mjpPlugin* last_plugin = nullptr;
   int table_count = 0;
@@ -494,7 +491,7 @@ TEST_F(EnginePluginTest, MultiplePluginTableBlocks) {
     int slot;
     std::string name = absl::StrFormat("mujoco.test.fake%u", i);
     const mjpPlugin* plugin = mjp_getPlugin(name.c_str(), &slot);
-    EXPECT_EQ(slot, kNumTruePlugins+i);
+    EXPECT_EQ(slot, kNumTruePlugins + i);
     EXPECT_THAT(plugin, NotNull());
     if (plugin - last_plugin != 1) {
       ++table_count;
@@ -513,16 +510,17 @@ TEST_F(EnginePluginTest, RegisterIdenticalPlugin) {
   EXPECT_EQ(RegisterSensorPlugin(), kNumTruePlugins);
   EXPECT_EQ(RegisterActuatorPlugin(), kNumTruePlugins + kNumFakePlugins + 1);
   EXPECT_EQ(RegisterPassivePlugin(), kNumTruePlugins + kNumFakePlugins + 2);
-  EXPECT_EQ(mjp_pluginCount(), kNumTruePlugins + kNumFakePlugins + kNumTestPlugins);
+  EXPECT_EQ(mjp_pluginCount(),
+            kNumTruePlugins + kNumFakePlugins + kNumTestPlugins);
 }
 
 TEST_F(EnginePluginTest, SaveXml) {
   char error[1024] = {0};
 
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
 
-  std::string saved_xml = SaveAndReadXml(m);
+  std::string saved_xml = SaveAndReadXml(m.get());
   std::string_view expected_xml(xml);
 
   const std::string extension_open = "<extension>";
@@ -561,12 +559,9 @@ TEST_F(EnginePluginTest, SaveXml) {
   EXPECT_THAT(saved_xml, HasSubstr(expected_sensor_section));
   EXPECT_THAT(saved_xml, HasSubstr(expected_actuator_section));
 
-  mj_deleteModel(m);
-
   // make sure that the saved XML can still be compiled
-  mjModel* m2 = LoadModelFromString(saved_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
-  mj_deleteModel(m2);
+  MjModelPtr m2 = LoadModelFromString(saved_xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
 }
 
 TEST_F(EnginePluginTest, SensorPlugin) {
@@ -575,8 +570,8 @@ TEST_F(EnginePluginTest, SensorPlugin) {
   EXPECT_EQ(expected_init_count, expected_destroy_count);
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
 
   // mj_makeModel calls mj_makeData and mj_deleteData internally
   expected_init_count += 3;
@@ -585,10 +580,10 @@ TEST_F(EnginePluginTest, SensorPlugin) {
   EXPECT_EQ(TestSensor::DestroyCount(), expected_destroy_count);
 
   EXPECT_EQ(m->nplugin, 7);
-  EXPECT_EQ(mj_name2id(m, mjOBJ_PLUGIN, "twosensors"), 0);
-  EXPECT_EQ(mj_name2id(m, mjOBJ_PLUGIN, "threesensors"), 1);
+  EXPECT_EQ(mj_name2id(m.get(), mjOBJ_PLUGIN, "twosensors"), 0);
+  EXPECT_EQ(mj_name2id(m.get(), mjOBJ_PLUGIN, "threesensors"), 1);
 
-  mjData* d = mj_makeData(m);
+  MjDataPtr d = MakeData(m);
   expected_init_count += 3;
   EXPECT_EQ(TestSensor::InitCount(), expected_init_count);
   EXPECT_EQ(TestSensor::DestroyCount(), expected_destroy_count);
@@ -597,32 +592,30 @@ TEST_F(EnginePluginTest, SensorPlugin) {
     for (int j = 0; j < 10; ++j) {
       EXPECT_THAT(*reinterpret_cast<mjtNum(*)[3]>(d->plugin_state +
                                                   m->plugin_stateadr[0]),
-                  testing::ElementsAreArray<int>({i+1, 2*j, j}));
+                  testing::ElementsAreArray<int>({i + 1, 2 * j, j}));
       EXPECT_THAT(*reinterpret_cast<mjtNum(*)[3]>(d->plugin_state +
                                                   m->plugin_stateadr[1]),
-                  testing::ElementsAreArray<int>({3*(i+1), 6*j, 3*j}));
+                  testing::ElementsAreArray<int>({3 * (i + 1), 6 * j, 3 * j}));
       EXPECT_THAT(*reinterpret_cast<mjtNum(*)[3]>(d->plugin_state +
                                                   m->plugin_stateadr[5]),
-                  testing::ElementsAreArray<int>({5*(i+1), 10*j, 5*j}));
+                  testing::ElementsAreArray<int>({5 * (i + 1), 10 * j, 5 * j}));
       EXPECT_THAT(*reinterpret_cast<mjtNum(*)[18]>(d->sensordata),
-                  testing::ElementsAreArray<int>({   i+1,   2*j,   j,
-                                                  5*(i+1), 10*j, 5*j,
-                                                  3*(i+1),  6*j, 3*j,
-                                                     i+1,   2*j,   j,
-                                                  3*(i+1),  6*j, 3*j,
-                                                  3*(i+1),  6*j, 3*j}));
-      mj_step(m, d);
-      mj_forward(m, d);
+                  testing::ElementsAreArray<int>(
+                      {i + 1, 2 * j, j, 5 * (i + 1), 10 * j, 5 * j, 3 * (i + 1),
+                       6 * j, 3 * j, i + 1, 2 * j, j, 3 * (i + 1), 6 * j, 3 * j,
+                       3 * (i + 1), 6 * j, 3 * j}));
+      mj_step(m.get(), d.get());
+      mj_forward(m.get(), d.get());
     }
-    mj_resetData(m, d);
+    mj_resetData(m.get(), d.get());
   }
 
-  mj_deleteData(d);
+  d.reset();
+  m.reset();
+
   expected_destroy_count += 3;
   EXPECT_EQ(TestSensor::InitCount(), expected_init_count);
   EXPECT_EQ(TestSensor::DestroyCount(), expected_destroy_count);
-
-  mj_deleteModel(m);
   EXPECT_EQ(TestSensor::InitCount(), expected_init_count);
   EXPECT_EQ(TestSensor::DestroyCount(), expected_destroy_count);
 }
@@ -633,8 +626,8 @@ TEST_F(EnginePluginTest, ActuatorPlugin) {
   EXPECT_EQ(expected_init_count, expected_destroy_count);
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
 
   // mj_makeModel calls mj_makeData and mj_deleteData internally
   expected_init_count += 2;
@@ -643,9 +636,9 @@ TEST_F(EnginePluginTest, ActuatorPlugin) {
   EXPECT_EQ(TestActuator::DestroyCount(), expected_destroy_count);
 
   EXPECT_EQ(m->nplugin, 7);
-  EXPECT_EQ(mj_name2id(m, mjOBJ_PLUGIN, "actuator2"), 2);
+  EXPECT_EQ(mj_name2id(m.get(), mjOBJ_PLUGIN, "actuator2"), 2);
 
-  mjData* d = mj_makeData(m);
+  MjDataPtr d = MakeData(m);
   expected_init_count += 2;
   EXPECT_EQ(TestActuator::InitCount(), expected_init_count);
   EXPECT_EQ(TestActuator::DestroyCount(), expected_destroy_count);
@@ -654,33 +647,33 @@ TEST_F(EnginePluginTest, ActuatorPlugin) {
     for (int j = 0; j < 10; ++j) {
       EXPECT_THAT(*reinterpret_cast<mjtNum(*)[3]>(d->plugin_state +
                                                   m->plugin_stateadr[2]),
-                  testing::ElementsAreArray<int>({2*(i+1), 4*j, 2*j}));
+                  testing::ElementsAreArray<int>({2 * (i + 1), 4 * j, 2 * j}));
       EXPECT_THAT(*reinterpret_cast<mjtNum(*)[3]>(d->plugin_state +
                                                   m->plugin_stateadr[3]),
-                  testing::ElementsAreArray<int>({4*(i+1), 8*j, 4*j}));
+                  testing::ElementsAreArray<int>({4 * (i + 1), 8 * j, 4 * j}));
       EXPECT_THAT(*reinterpret_cast<mjtNum(*)[2]>(d->actuator_force),
                   testing::ElementsAreArray<mjtNum>(
-                      {(mjtNum)0.125*j, (mjtNum)0.25*j}));
-      mj_step(m, d);
-      mj_forward(m, d);
+                      {(mjtNum)0.125 * j, (mjtNum)0.25 * j}));
+      mj_step(m.get(), d.get());
+      mj_forward(m.get(), d.get());
     }
-    mj_resetData(m, d);
+    mj_resetData(m.get(), d.get());
   }
 
-  mj_deleteData(d);
+  d.reset();
+  m.reset();
+
   expected_destroy_count += 2;
   EXPECT_EQ(TestActuator::InitCount(), expected_init_count);
   EXPECT_EQ(TestActuator::DestroyCount(), expected_destroy_count);
-
-  mj_deleteModel(m);
   EXPECT_EQ(TestActuator::InitCount(), expected_init_count);
   EXPECT_EQ(TestActuator::DestroyCount(), expected_destroy_count);
 }
 
 TEST_F(EnginePluginTest, FilteredActuatorPlugin) {
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
 
   // Expecting 7 actuator state variables: 3x2 from actuator2 instances, and 1
   // from setting dyntype="filter" on one of the plugin actuators
@@ -692,12 +685,12 @@ TEST_F(EnginePluginTest, FilteredActuatorPlugin) {
   EXPECT_EQ(m->actuator_actadr[1], 0);
   EXPECT_EQ(m->actuator_actadr[2], 3);
 
-  mjData* d = mj_makeData(m);
+  MjDataPtr d = MakeData(m);
   EXPECT_EQ(d->act[0], 0.0);
   mju_fill(d->ctrl, 1, m->nu);
   // start with nonzero act for the filter
   d->act[6] = 0.5;
-  mj_step(m, d);
+  mj_step(m.get(), d.get());
 
   for (int i = 0; i < 6; ++i) {
     // act_dot should be computed by the plugin
@@ -715,9 +708,6 @@ TEST_F(EnginePluginTest, FilteredActuatorPlugin) {
   EXPECT_THAT(d->act_dot[6], MjNear(expected_act_dot, 1e-6, 1e-4));
   EXPECT_THAT(d->act[6],
               MjNear(0.5 + expected_act_dot * m->opt.timestep, 1e-6, 1e-4));
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 }  // namespace

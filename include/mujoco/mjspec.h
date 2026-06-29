@@ -57,13 +57,13 @@ extern "C" {
 
 //-------------------------------- enum types (mjt) ------------------------------------------------
 
-typedef enum mjtGeomInertia_ {     // type of inertia inference
+typedef enum mjtGeomInertia {      // type of inertia inference
   mjINERTIA_VOLUME = 0,            // mass distributed in the volume
   mjINERTIA_SHELL,                 // mass distributed on the surface
 } mjtGeomInertia;
 
 
-typedef enum mjtMeshInertia_ {      // type of mesh inertia
+typedef enum mjtMeshInertia {       // type of mesh inertia
   mjMESH_INERTIA_CONVEX = 0,        // convex mesh inertia
   mjMESH_INERTIA_EXACT,             // exact mesh inertia
   mjMESH_INERTIA_LEGACY,            // legacy mesh inertia
@@ -71,7 +71,7 @@ typedef enum mjtMeshInertia_ {      // type of mesh inertia
 } mjtMeshInertia;
 
 
-typedef enum mjtMeshBuiltin_ {      // type of built-in procedural mesh
+typedef enum mjtMeshBuiltin {       // type of built-in procedural mesh
   mjMESH_BUILTIN_NONE = 0,          // no built-in mesh
   mjMESH_BUILTIN_SPHERE,            // sphere
   mjMESH_BUILTIN_HEMISPHERE,        // hemisphere
@@ -83,7 +83,7 @@ typedef enum mjtMeshBuiltin_ {      // type of built-in procedural mesh
 } mjtMeshBuiltin;
 
 
-typedef enum mjtBuiltin_ {         // type of built-in procedural texture
+typedef enum mjtBuiltin {          // type of built-in procedural texture
   mjBUILTIN_NONE = 0,              // no built-in texture
   mjBUILTIN_GRADIENT,              // gradient: rgb1->rgb2
   mjBUILTIN_CHECKER,               // checker pattern: rgb1, rgb2
@@ -91,7 +91,7 @@ typedef enum mjtBuiltin_ {         // type of built-in procedural texture
 } mjtBuiltin;
 
 
-typedef enum mjtMark_ {            // mark type for procedural textures
+typedef enum mjtMark {             // mark type for procedural textures
   mjMARK_NONE = 0,                 // no mark
   mjMARK_EDGE,                     // edges
   mjMARK_CROSS,                    // cross
@@ -99,28 +99,28 @@ typedef enum mjtMark_ {            // mark type for procedural textures
 } mjtMark;
 
 
-typedef enum mjtLimited_ {         // type of limit specification
+typedef enum mjtLimited {          // type of limit specification
   mjLIMITED_FALSE = 0,             // not limited
   mjLIMITED_TRUE,                  // limited
   mjLIMITED_AUTO,                  // limited inferred from presence of range
 } mjtLimited;
 
 
-typedef enum mjtAlignFree_ {       // whether to align free joints with the inertial frame
+typedef enum mjtAlignFree {        // whether to align free joints with the inertial frame
   mjALIGNFREE_FALSE = 0,           // don't align
   mjALIGNFREE_TRUE,                // align
   mjALIGNFREE_AUTO,                // respect the global compiler flag
 } mjtAlignFree;
 
 
-typedef enum mjtInertiaFromGeom_ { // whether to infer body inertias from child geoms
+typedef enum mjtInertiaFromGeom {  // whether to infer body inertias from child geoms
   mjINERTIAFROMGEOM_FALSE = 0,     // do not use; inertial element required
   mjINERTIAFROMGEOM_TRUE,          // always use; overwrite inertial element
   mjINERTIAFROMGEOM_AUTO           // use only if inertial element is missing
 } mjtInertiaFromGeom;
 
 
-typedef enum mjtOrientation_ {     // type of orientation specifier
+typedef enum mjtOrientation {      // type of orientation specifier
   mjORIENTATION_QUAT = 0,          // quaternion
   mjORIENTATION_AXISANGLE,         // axis and angle
   mjORIENTATION_XYAXES,            // x and y axes
@@ -128,13 +128,13 @@ typedef enum mjtOrientation_ {     // type of orientation specifier
   mjORIENTATION_EULER,             // Euler angles
 } mjtOrientation;
 
-typedef enum mjtConflict_ {  // conflict resolution for attach
+typedef enum mjtConflict {   // conflict resolution for attach
   mjCONFLICT_WARNING = 0,    // keep parent, warn on conflict
   mjCONFLICT_MERGE,          // merge: min/max/error per field
   mjCONFLICT_ERROR,          // error on any conflict
 } mjtConflict;
 
-typedef enum mjtCTimer_ {          // compiler timing categories
+typedef enum mjtCTimer {          // compiler timing categories
   // top-level timers (wall-clock)
   mjCTIMER_TOTAL = 0,              // total compile time
   mjCTIMER_ASSETS,                 // asset compilation
@@ -176,7 +176,7 @@ typedef struct mjsCompiler_ {      // compiler options
   int inertiagrouprange[2];        // range of geom groups used to compute inertia
   mjtByte saveinertial;            // save explicit inertial clause for all bodies to XML
   int alignfree;                   // align free joints with inertial frame
-  int conflict;  // conflict resolution for attach (mjtConflict)
+  int conflict;                    // conflict resolution for attach (mjtConflict)
   mjLROpt LRopt;                   // options for lengthrange computation
   mjString* meshdir;               // mesh and hfield directory
   mjString* texturedir;            // texture directory

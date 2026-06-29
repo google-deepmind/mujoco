@@ -27,17 +27,40 @@ class SimProfiler {
  public:
   SimProfiler();
 
+  // Aggregate statistics for a single metric over the recorded frames.
+  struct MetricStats {
+    float average = 0;
+    float min = 0;
+    float max = 0;
+  };
+
+  // Snapshot of aggregate profiling statistics. Useful for tests and for a
+  // textual readout in the UI.
+  struct Summary {
+    int num_frames = 0;  // Recorded frames, saturating at max_frames.
+    int max_frames = 0;  // Maximum frames retained (== kMaxFrames).
+    MetricStats cpu_total, cpu_collision, cpu_prepare, cpu_solve, cpu_other;
+    MetricStats dim_dof, dim_body, dim_constraint, dim_sqrt_nnz, dim_contact, dim_iteration;
+  };
+
   // Clears all captured profiling data.
   void Clear();
 
   // Updates the profiling data with the latest simulation data.
   void Update(const mjModel* model, const mjData* data);
 
+  // Returns aggregate statistics over the currently recorded frames.
+  Summary GetSummary() const;
+
   // Displays the profiling data using ImPlot.
   void CpuTimeGraph(ImVec2 plot_size = ImVec2(-1, 0));
   void DimensionsGraph(ImVec2 plot_size = ImVec2(-1, 0));
 
  private:
+  static constexpr int kMaxFrames = 200;
+  int head_ = 0;
+  int num_frames_ = 0;  // Recorded frames, saturating at kMaxFrames.
+
   std::vector<float> cpu_total_;
   std::vector<float> cpu_collision_;
   std::vector<float> cpu_prepare_;

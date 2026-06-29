@@ -44,9 +44,7 @@ class MjvSceneTest : public MujocoTest {
     }
   }
 
-  void FreeSceneObjects() {
-    mjv_freeScene(&scn_);
-  }
+  void FreeSceneObjects() { mjv_freeScene(&scn_); }
 
   mjvScene scn_;
   mjvOption opt_;
@@ -80,7 +78,6 @@ TEST_F(MjvSceneTest, UpdateScene) {
 
   mj_deleteData(data_copy);
   mj_deleteData(data);
-
   FreeSceneObjects();
   mj_deleteModel(model);
 }
@@ -101,7 +98,6 @@ TEST_F(MjvSceneTest, UpdateSceneGeomsExhausted) {
   mjv_updateScene(model, data, &opt_, &pert_, &cam_, mjCAT_ALL, &scn_);
   EXPECT_EQ(scn_.status, 1);
   EXPECT_EQ(scn_.ngeom, maxgeoms);
-
   mj_deleteData(data);
   FreeSceneObjects();
   mj_deleteModel(model);
@@ -118,17 +114,17 @@ TEST_F(MjvSceneTest, PrincipalPointFrustumSign) {
   </mujoco>
   )";
 
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
-  mjData* data = mj_makeData(model);
-  mj_forward(model, data);
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
 
-  InitSceneObjects(model);
+  InitSceneObjects(model.get());
 
   // point camera at the fixed cam
   cam_.type = mjCAMERA_FIXED;
   cam_.fixedcamid = 0;
-  mjv_updateCamera(model, data, &cam_, &scn_);
+  mjv_updateCamera(model.get(), data.get(), &cam_, &scn_);
 
   float top = scn_.camera[0].frustum_top;
   float bottom = scn_.camera[0].frustum_bottom;
@@ -148,9 +144,7 @@ TEST_F(MjvSceneTest, PrincipalPointFrustumSign) {
   EXPECT_FLOAT_EQ(top, half - offset);
   EXPECT_FLOAT_EQ(bottom, -(half + offset));
 
-  mj_deleteData(data);
   FreeSceneObjects();
-  mj_deleteModel(model);
 }
 
 }  // namespace

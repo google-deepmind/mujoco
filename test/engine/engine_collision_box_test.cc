@@ -72,8 +72,8 @@ TEST_F(MjCollisionBoxTest, BadContacts) {
       g2 = g2new;
 
       // call low-level box-box collider
-      int num = mjc_BoxBox(model, data, precon.data(), g1, g2,
-                           con->includemargin);
+      int num =
+          mjc_BoxBox(model, data, precon.data(), g1, g2, con->includemargin);
 
       // allocate and clear arrays marking already matched contacts
       mju_zeroInt(match_raw.data(), num);
@@ -83,8 +83,7 @@ TEST_F(MjCollisionBoxTest, BadContacts) {
       int nmatched = 0;
       for (int i = 0; i < num; i++) {
         for (int j = 0; j < data->ncon; j++) {
-          if (!match[j] &&
-              precon[i].pos[0] == data->contact[j].pos[0] &&
+          if (!match[j] && precon[i].pos[0] == data->contact[j].pos[0] &&
               precon[i].pos[1] == data->contact[j].pos[1] &&
               precon[i].pos[2] == data->contact[j].pos[2]) {
             match_raw[i] = match[j] = 1;
@@ -110,17 +109,17 @@ TEST_F(MjCollisionBoxTest, BadContacts) {
         if (!match_raw[i]) {
           // === check if outside
 
-          mjtNum sz1[3] = {size1[0]+margin, size1[1]+margin, size1[2]+margin};
-          mjtNum sz2[3] = {size2[0]+margin, size2[1]+margin, size2[2]+margin};
+          mjtNum sz1[3] = {size1[0] + margin, size1[1] + margin,
+                           size1[2] + margin};
+          mjtNum sz2[3] = {size2[0] + margin, size2[1] + margin,
+                           size2[2] + margin};
 
           // relative distance (1%) outside of which contacts are removed
           static mjtNum kRatio = 1.01;
 
           // is the contact outside: 1, inside: -1, within the removal width: 0
-          int out1 = mju_outsideBox(precon[i].pos, pos1, mat1, sz1,
-                                    kRatio);
-          int out2 = mju_outsideBox(precon[i].pos, pos2, mat2, sz2,
-                                    kRatio);
+          int out1 = mju_outsideBox(precon[i].pos, pos1, mat1, sz1, kRatio);
+          int out2 = mju_outsideBox(precon[i].pos, pos2, mat2, sz2, kRatio);
 
           // mark as bad if outside one box and not inside the other box
           bool outside = (out1 == 1 && out2 != -1) || (out2 == 1 && out1 != -1);
@@ -151,7 +150,6 @@ TEST_F(MjCollisionBoxTest, DuplicateContacts) {
   std::vector<int> match_raw(mjMAXCONPAIR);
   std::vector<int> match(data->ncon);
 
-
   int g1 = -1;
   int g2 = -1;
   for (int c = 0; c < data->ncon; c++) {
@@ -174,8 +172,8 @@ TEST_F(MjCollisionBoxTest, DuplicateContacts) {
     g2 = g2new;
 
     // call low-level box-box collider
-    int num = mjc_BoxBox(model, data, precon.data(), g1, g2,
-                         con->includemargin);
+    int num =
+        mjc_BoxBox(model, data, precon.data(), g1, g2, con->includemargin);
 
     // allocate and clear arrays marking already matched contacts
     mju_zeroInt(match_raw.data(), num);
@@ -185,8 +183,7 @@ TEST_F(MjCollisionBoxTest, DuplicateContacts) {
     int nmatched = 0;
     for (int i = 0; i < num; i++) {
       for (int j = 0; j < data->ncon; j++) {
-        if (!match[j] &&
-            precon[i].pos[0] == data->contact[j].pos[0] &&
+        if (!match[j] && precon[i].pos[0] == data->contact[j].pos[0] &&
             precon[i].pos[1] == data->contact[j].pos[1] &&
             precon[i].pos[2] == data->contact[j].pos[2]) {
           match_raw[i] = match[j] = 1;
@@ -255,20 +252,17 @@ TEST_F(MjCollisionBoxTest, BoxSphere) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   for (mjtNum z : {-.015, -.00501, -.005, -.00499, 0.0, 0.004}) {
     data->qpos[2] = z;
-    mj_forward(model, data);
+    mj_forward(model.get(), data.get());
     EXPECT_EQ(data->ncon, 2);
     EXPECT_THAT(data->contact[0].dist,
                 MjNear(data->contact[1].dist, 1e-8, 1e-6));
   }
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(MjCollisionBoxTest, BoxBoxContactDistance) {
@@ -281,22 +275,19 @@ TEST_F(MjCollisionBoxTest, BoxBoxContactDistance) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
-  mjData* data = mj_makeData(model);
-  mj_kinematics(model, data);
+  MjDataPtr data = MakeData(model);
+  mj_kinematics(model.get(), data.get());
   mjPreContact precon[mjMAXCONPAIR];
 
   for (mjfCollision collision : {mjc_BoxBox, mjc_Convex}) {
-    int n = collision(model, data, precon, 0, 1, 0.0);
+    int n = collision(model.get(), data.get(), precon, 0, 1, 0.0);
     for (int i = 0; i < n; i++) {
       EXPECT_NEAR(precon[i].dist, -0.5, MjTol(1e-8, 1e-6));
     }
   }
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 }  // namespace

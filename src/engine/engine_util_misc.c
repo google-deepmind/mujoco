@@ -2129,8 +2129,13 @@ void mju_n2d(double* res, const mjtNum* vec, int n) {
 }
 
 
-// gather
+// gather: res[i] = vec[ind[i]], or copy if ind is NULL
 void mju_gather(mjtNum* restrict res, const mjtNum* restrict vec, const int* restrict ind, int n) {
+  if (!ind) {
+    mju_copy(res, vec, n);
+    return;
+  }
+
   for (int i=0; i < n; i++) {
     res[i] = vec[ind[i]];
   }
@@ -2146,8 +2151,13 @@ void mju_gatherMasked(mjtNum* restrict res, const mjtNum* restrict vec,
 }
 
 
-// scatter
+// scatter: res[ind[i]] = vec[i], or copy if ind is NULL
 void mju_scatter(mjtNum* restrict res, const mjtNum* restrict vec, const int* restrict ind, int n) {
+  if (!ind) {
+    mju_copy(res, vec, n);
+    return;
+  }
+
   for (int i=0; i < n; i++) {
     res[ind[i]] = vec[i];
   }

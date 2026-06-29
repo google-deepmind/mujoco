@@ -59,7 +59,8 @@ class CompatContext {
 
  private:
   mjrDrawMode draw_mode_ = mjDRAW_MODE_DEFAULT;
-  UniquePtr<mjrfContext> context_;
+  UniquePtr<mjrfContext> context_{nullptr, nullptr};
+  UniquePtr<mjrfScene> scene_{nullptr, nullptr};
   std::unique_ptr<SceneBridge> scene_bridge_;
   mjtFramebuffer framebuffer_ = mjFB_WINDOW;
   UniquePtr<mjrfRenderTarget> color_target_{nullptr, nullptr};
@@ -67,9 +68,11 @@ class CompatContext {
 };
 
 CompatContext::CompatContext(const mjrfContextConfig* config,
-                             const mjModel* model)
-    : context_(CreateContext(*config)) {
-  scene_bridge_ = std::make_unique<SceneBridge>(context_.get(), model);
+                             const mjModel* model) {
+  context_ = CreateContext(*config);
+  scene_ = CreateScene(context_.get(), {});
+  scene_bridge_ =
+      std::make_unique<SceneBridge>(context_.get(), scene_.get(), model);
 }
 
 void CompatContext::Render(const mjrRect& viewport, const mjvScene* scene) {
@@ -92,7 +95,7 @@ void CompatContext::Render(const mjrRect& viewport, const mjvScene* scene) {
   if (framebuffer_ == mjFB_WINDOW) {
     mjrfRenderRequest req;
     mjrf_defaultRenderRequest(&req);
-    req.scene = scene_bridge_->GetScene();
+    req.scene = scene_.get();
     req.draw_mode = draw_mode_;
     req.camera = scene_bridge_->GetCamera();
     req.viewport = viewport;
@@ -121,7 +124,7 @@ void CompatContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
 
     mjrfRenderRequest req;
     mjrf_defaultRenderRequest(&req);
-    req.scene = scene_bridge_->GetScene();
+    req.scene = scene_.get();
     req.draw_mode = draw_mode_;
     req.camera = scene_bridge_->GetCamera();
     req.viewport = viewport;
@@ -149,7 +152,7 @@ void CompatContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
 
     mjrfRenderRequest req;
     mjrf_defaultRenderRequest(&req);
-    req.scene = scene_bridge_->GetScene();
+    req.scene = scene_.get();
     req.draw_mode = mjDRAW_MODE_DEPTH;
     req.camera = scene_bridge_->GetCamera();
     req.viewport = viewport;

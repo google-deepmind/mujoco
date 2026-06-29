@@ -61,8 +61,6 @@ void RescaleDock(float ratio);
 //       or manipulating mjData elements (e.g. ControlsGui).
 //   "Explorer": secondary tab connected to the Inspector; designed for
 //       displaying the tree of mjSpec elements.
-//   "Stats": resizable section below the options; designed for displaying
-//       basic simulation statistics (e.g. StatsGui); hidden by default.
 //   "Properties": resizable section below the explorer; designed for displaying
 //       properties of mjSpec elements (e.g. BodyPropertiesGui); hidden by
 //       default.
@@ -161,7 +159,7 @@ void ProfilerGui(const mjModel* model, mjData* data, SimProfiler* profiler);
 
 // UX for displaying basic simulation information. Note that the pause state and
 // FPS needs to be tracked by the caller and passed here to be displayed.
-void StatsGui(const mjModel* model, const mjData* data, bool paused, float fps);
+void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps);
 
 }  // namespace mujoco::platform
 

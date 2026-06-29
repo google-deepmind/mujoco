@@ -405,9 +405,6 @@ void UpdateProfiler(mj::Simulate* sim, const mjModel* m, const mjData* d) {
     }
   }
 
-  for (int i = 0; i < mjNTIMER; i++) {
-    sim->timer_prev_[i] = d->timer[i];
-  }
 
   // get total number of iterations and nonzeros
   mjtNum sqrt_nnz = 0;
@@ -734,6 +731,15 @@ void UpdateInfoText(mj::Simulate* sim, const mjModel* m, const mjData* d,
     solver_niter += d->solver_niter[i];
   }
 
+  mjtNum step_duration =
+      d->timer[mjTIMER_STEP].duration - sim->timer_prev_[mjTIMER_STEP].duration;
+  int step_number =
+      d->timer[mjTIMER_STEP].number - sim->timer_prev_[mjTIMER_STEP].number;
+  mjtNum forward_duration =
+      d->timer[mjTIMER_FORWARD].duration - sim->timer_prev_[mjTIMER_FORWARD].duration;
+  int forward_number =
+      d->timer[mjTIMER_FORWARD].number - sim->timer_prev_[mjTIMER_FORWARD].number;
+
   // prepare info text
   mju::strcpy_arr(title, "Time\nSize\nCPU\nSolver   \nFPS\nMemory");
   mju::sprintf_arr(content,
@@ -741,8 +747,8 @@ void UpdateInfoText(mj::Simulate* sim, const mjModel* m, const mjData* d,
                    d->time,
                    d->nefc, d->ncon,
                    sim->run ?
-                   d->timer[mjTIMER_STEP].duration / mjMAX(1, d->timer[mjTIMER_STEP].number) :
-                   d->timer[mjTIMER_FORWARD].duration / mjMAX(1, d->timer[mjTIMER_FORWARD].number),
+                   step_duration / mjMAX(1, step_number) :
+                   forward_duration / mjMAX(1, forward_number),
                    solerr, solver_niter,
                    fps,
                    100*d->maxuse_arena/(double)(d->narena),
@@ -1674,6 +1680,10 @@ void UiEvent(mjuiState* state) {
 
     // option section
     else if (it && it->sectionid==SECT_OPTION) {
+      if (it->pdata == &sim->info) {
+        // clear load error/warning when toggling info panel
+        sim->load_error[0] = '\0';
+      }
       if (it->pdata == &sim->spacing) {
         sim->ui0.spacing = mjui_themeSpacing(sim->spacing);
         sim->ui1.spacing = mjui_themeSpacing(sim->spacing);
@@ -1695,6 +1705,10 @@ void UiEvent(mjuiState* state) {
 
     // simulation section
     else if (it && it->sectionid==SECT_SIMULATION) {
+      if (it->itemid == 0) {
+        // clear load error/warning when toggling play/pause
+        sim->load_error[0] = '\0';
+      }
       switch (it->itemid) {
       case 1:             // Threadpool
         sim->pending_.update_threadpool = true;
@@ -1873,6 +1887,7 @@ void UiEvent(mjuiState* state) {
       if (!sim->is_passive_ && sim->m_) {
         sim->run = 1 - sim->run;
         sim->pert.active = 0;
+        sim->load_error[0] = '\0';
 
         if (sim->run) sim->scrub_index = 0;  // reset scrubber
 
@@ -2124,6 +2139,7 @@ void Simulate::Sync(bool state_only) {
   if (!m_) {
     return;
   }
+
   if (this->exitrequest.load()) {
     return;
   }
@@ -2208,8 +2224,6 @@ void Simulate::Sync(bool state_only) {
       pending_.ui_update_visualization = true;
       m_->stat = m_passive_->stat;
     }
-
-
   }
 
   if (pending_.save_xml) {
@@ -2403,7 +2417,6 @@ void Simulate::Sync(bool state_only) {
     mjopt_prev_ = m_passive_->opt;
     mjvis_prev_ = m_passive_->vis;
     mjstat_prev_ = m_passive_->stat;
-
   }
 
   // update settings
@@ -2438,6 +2451,10 @@ void Simulate::Sync(bool state_only) {
     mjv_applyPerturbForce(m_, d_, &this->pert);
   } else {
     mjv_applyPerturbPose(m_, d_, &this->pert, 1);  // mocap and dynamic bodies
+  }
+
+  for (int i = 0; i < mjNTIMER; i++) {
+    timer_prev_[i] = d_->timer[i];
   }
 }
 
@@ -2601,6 +2618,8 @@ void Simulate::LoadOnRenderThread() {
   this->pert.select = 0;
   this->pert.flexselect = -1;
   this->pert.skinselect = -1;
+
+  memset(timer_prev_, 0, sizeof(timer_prev_));
 
   // align and scale view unless reloading the same file
   if (this->filename[0] &&

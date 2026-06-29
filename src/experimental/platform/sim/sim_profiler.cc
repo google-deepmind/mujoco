@@ -14,6 +14,9 @@
 
 #include "experimental/platform/sim/sim_profiler.h"
 
+#include <algorithm>
+#include <vector>
+
 #include <imgui.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
@@ -24,30 +27,15 @@ namespace mujoco::platform {
 SimProfiler::SimProfiler() { Clear(); }
 
 void SimProfiler::Clear() {
-  constexpr int kProfilerMaxFrames = 200;
-  cpu_total_.clear();
-  cpu_collision_.clear();
-  cpu_prepare_.clear();
-  cpu_solve_.clear();
-  cpu_other_.clear();
-  dim_dof_.clear();
-  dim_body_.clear();
-  dim_constraint_.clear();
-  dim_sqrt_nnz_.clear();
-  dim_contact_.clear();
-  dim_iteration_.clear();
+  head_ = 0;
+  num_frames_ = 0;
 
-  cpu_total_.resize(kProfilerMaxFrames, 0);
-  cpu_collision_.resize(kProfilerMaxFrames, 0);
-  cpu_prepare_.resize(kProfilerMaxFrames, 0);
-  cpu_solve_.resize(kProfilerMaxFrames, 0);
-  cpu_other_.resize(kProfilerMaxFrames, 0);
-  dim_dof_.resize(kProfilerMaxFrames, 0);
-  dim_body_.resize(kProfilerMaxFrames, 0);
-  dim_constraint_.resize(kProfilerMaxFrames, 0);
-  dim_sqrt_nnz_.resize(kProfilerMaxFrames, 0);
-  dim_contact_.resize(kProfilerMaxFrames, 0);
-  dim_iteration_.resize(kProfilerMaxFrames, 0);
+  for (std::vector<float>* v : {&cpu_total_, &cpu_collision_, &cpu_prepare_,
+                                &cpu_solve_, &cpu_other_, &dim_dof_,
+                                &dim_body_, &dim_constraint_, &dim_sqrt_nnz_,
+                                &dim_contact_, &dim_iteration_}) {
+    v->assign(kMaxFrames, 0);
+  }
 }
 
 void SimProfiler::Update(const mjModel* model, const mjData* data) {
@@ -64,25 +52,20 @@ void SimProfiler::Update(const mjModel* model, const mjData* data) {
   }
 
   mjtNum avg_total = total / number;
-  cpu_total_.erase(cpu_total_.begin());
-  cpu_total_.push_back(avg_total);
+  cpu_total_[head_] = avg_total;
 
   mjtNum collision = data->timer[mjTIMER_POS_COLLISION].duration / number;
-  cpu_collision_.erase(cpu_collision_.begin());
-  cpu_collision_.push_back(collision);
+  cpu_collision_[head_] = collision;
 
   mjtNum prepare = (data->timer[mjTIMER_POS_MAKE].duration / number) +
                    (data->timer[mjTIMER_POS_PROJECT].duration / number);
-  cpu_prepare_.erase(cpu_prepare_.begin());
-  cpu_prepare_.push_back(prepare);
+  cpu_prepare_[head_] = prepare;
 
   mjtNum solve = data->timer[mjTIMER_CONSTRAINT].duration / number;
-  cpu_solve_.erase(cpu_solve_.begin());
-  cpu_solve_.push_back(solve);
+  cpu_solve_[head_] = solve;
 
   mjtNum other = avg_total - collision - prepare - solve;
-  cpu_other_.erase(cpu_other_.begin());
-  cpu_other_.push_back(other);
+  cpu_other_[head_] = other;
 
   // Solver diagnostics.
   mjtNum sqrt_nnz = 0;
@@ -95,27 +78,62 @@ void SimProfiler::Update(const mjModel* model, const mjData* data) {
   }
   sqrt_nnz = mju_sqrt(sqrt_nnz);
 
-  dim_dof_.erase(dim_dof_.begin());
   int nv = (model->opt.enableflags & mjENBL_SLEEP) ? data->nv_awake : model->nv;
-  dim_dof_.push_back(nv);
+  dim_dof_[head_] = nv;
 
-  dim_body_.erase(dim_body_.begin());
   int nbody = (model->opt.enableflags & mjENBL_SLEEP) ? data->nbody_awake
                                                       : model->nbody;
-  dim_body_.push_back(nbody);
+  dim_body_[head_] = nbody;
 
-  dim_constraint_.erase(dim_constraint_.begin());
-  dim_constraint_.push_back(data->nefc);
+  dim_constraint_[head_] = data->nefc;
+  dim_sqrt_nnz_[head_] = sqrt_nnz;
+  dim_contact_[head_] = data->ncon;
+  dim_iteration_[head_] = static_cast<float>(solver_niter) / mjMAX(1, nisland);
 
-  dim_sqrt_nnz_.erase(dim_sqrt_nnz_.begin());
-  dim_sqrt_nnz_.push_back(sqrt_nnz);
+  head_ = (head_ + 1) % kMaxFrames;
+  num_frames_ = std::min(num_frames_ + 1, kMaxFrames);
+}
 
-  dim_contact_.erase(dim_contact_.begin());
-  dim_contact_.push_back(data->ncon);
+SimProfiler::Summary SimProfiler::GetSummary() const {
+  Summary summary;
+  summary.max_frames = kMaxFrames;
+  summary.num_frames = num_frames_;
 
-  dim_iteration_.erase(dim_iteration_.begin());
-  dim_iteration_.push_back(static_cast<float>(solver_niter) /
-                           mjMAX(1, nisland));
+  // Valid data is contiguous in [0, num_frames_): the ring buffer fills from
+  // index 0 and num_frames_ saturates at max_frames, so once it wraps the
+  // entire buffer is valid.
+  const int n = num_frames_;
+  auto stats = [n](const std::vector<float>& buffer) {
+    MetricStats metric;
+    if (n == 0) {
+      return metric;
+    }
+    metric.min = metric.max = buffer[0];
+    double sum = 0;
+    for (int i = 0; i < n; ++i) {
+      sum += buffer[i];
+      metric.min = std::min(metric.min, buffer[i]);
+      metric.max = std::max(metric.max, buffer[i]);
+    }
+    metric.average = static_cast<float>(sum / n);
+    return metric;
+  };
+
+  // CpuTimeGraph stats.
+  summary.cpu_total = stats(cpu_total_);
+  summary.cpu_collision = stats(cpu_collision_);
+  summary.cpu_prepare = stats(cpu_prepare_);
+  summary.cpu_solve = stats(cpu_solve_);
+  summary.cpu_other = stats(cpu_other_);
+
+  // DimensionsGraph stats.
+  summary.dim_dof = stats(dim_dof_);
+  summary.dim_body = stats(dim_body_);
+  summary.dim_constraint = stats(dim_constraint_);
+  summary.dim_sqrt_nnz = stats(dim_sqrt_nnz_);
+  summary.dim_contact = stats(dim_contact_);
+  summary.dim_iteration = stats(dim_iteration_);
+  return summary;
 }
 
 void SimProfiler::CpuTimeGraph(ImVec2 plot_size) {
@@ -128,16 +146,17 @@ void SimProfiler::CpuTimeGraph(ImVec2 plot_size) {
     ImPlot::SetupLegend(ImPlotLocation_NorthEast);
     ImPlot::SetupFinish();
 
-    ImPlot::PlotLine("total", cpu_total_.data(), cpu_total_.size(), 1,
-                     -(int)cpu_total_.size());
-    ImPlot::PlotLine("prepare", cpu_prepare_.data(), cpu_prepare_.size(), 1,
-                     -(int)cpu_prepare_.size());
-    ImPlot::PlotLine("solve", cpu_solve_.data(), cpu_solve_.size(), 1,
-                     -(int)cpu_solve_.size());
-    ImPlot::PlotLine("collision", cpu_collision_.data(), cpu_collision_.size(),
-                     1, -(int)cpu_collision_.size());
-    ImPlot::PlotLine("other", cpu_other_.data(), cpu_other_.size(), 1,
-                     -(int)cpu_other_.size());
+    ImPlot::PlotLine("total", cpu_total_.data(), (int)cpu_total_.size(), 1,
+                     -(double)cpu_total_.size(), 0, head_);
+    ImPlot::PlotLine("prepare", cpu_prepare_.data(), (int)cpu_prepare_.size(),
+                     1, -(double)cpu_prepare_.size(), 0, head_);
+    ImPlot::PlotLine("solve", cpu_solve_.data(), (int)cpu_solve_.size(), 1,
+                     -(double)cpu_solve_.size(), 0, head_);
+    ImPlot::PlotLine("collision", cpu_collision_.data(),
+                     (int)cpu_collision_.size(), 1,
+                     -(double)cpu_collision_.size(), 0, head_);
+    ImPlot::PlotLine("other", cpu_other_.data(), (int)cpu_other_.size(), 1,
+                     -(double)cpu_other_.size(), 0, head_);
     ImPlot::PopStyleVar();
     ImPlot::EndPlot();
   }
@@ -153,18 +172,21 @@ void SimProfiler::DimensionsGraph(ImVec2 plot_size) {
     ImPlot::SetupLegend(ImPlotLocation_NorthEast);
     ImPlot::SetupFinish();
 
-    ImPlot::PlotLine("dof", dim_dof_.data(), dim_dof_.size(), 1,
-                     -(int)dim_dof_.size());
-    ImPlot::PlotLine("body", dim_body_.data(), dim_body_.size(), 1,
-                     -(int)dim_body_.size());
+    ImPlot::PlotLine("dof", dim_dof_.data(), (int)dim_dof_.size(), 1,
+                     -(double)dim_dof_.size(), 0, head_);
+    ImPlot::PlotLine("body", dim_body_.data(), (int)dim_body_.size(), 1,
+                     -(double)dim_body_.size(), 0, head_);
     ImPlot::PlotLine("constraint", dim_constraint_.data(),
-                     dim_constraint_.size(), 1, -(int)dim_constraint_.size());
-    ImPlot::PlotLine("sqrt(nnz)", dim_sqrt_nnz_.data(), dim_sqrt_nnz_.size(), 1,
-                     -(int)dim_sqrt_nnz_.size());
-    ImPlot::PlotLine("contact", dim_contact_.data(), dim_contact_.size(), 1,
-                     -(int)dim_contact_.size());
-    ImPlot::PlotLine("iteration", dim_iteration_.data(), dim_iteration_.size(),
-                     1, -(int)dim_iteration_.size());
+                     (int)dim_constraint_.size(), 1,
+                     -(double)dim_constraint_.size(), 0, head_);
+    ImPlot::PlotLine("sqrt(nnz)", dim_sqrt_nnz_.data(),
+                     (int)dim_sqrt_nnz_.size(), 1,
+                     -(double)dim_sqrt_nnz_.size(), 0, head_);
+    ImPlot::PlotLine("contact", dim_contact_.data(), (int)dim_contact_.size(),
+                     1, -(double)dim_contact_.size(), 0, head_);
+    ImPlot::PlotLine("iteration", dim_iteration_.data(),
+                     (int)dim_iteration_.size(), 1,
+                     -(double)dim_iteration_.size(), 0, head_);
     ImPlot::PopStyleVar();
     ImPlot::EndPlot();
   }

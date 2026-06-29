@@ -866,8 +866,10 @@ static void warmstart(const mjModel* m, mjData* d) {
 static void solveIslandTask(const mjModel* m, mjData* d, void* arg, int thread_id, int island) {
   if (m->opt.solver == mjSOL_NEWTON) {
     mj_solNewton_island(m, d, island, m->opt.iterations);
-  } else {
+  } else if (m->opt.solver == mjSOL_CG) {
     mj_solCG_island(m, d, island, m->opt.iterations);
+  } else {
+    mj_solPGS_island(m, d, island, m->opt.iterations);
   }
 }
 
@@ -908,9 +910,7 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   if (islands_supported) {
     switch ((mjtSolver) m->opt.solver) {
     case mjSOL_PGS:
-      for (int island=0; island < nisland; island++) {
-        mj_solPGS_island(m, d, island, m->opt.iterations);
-      }
+      mju_dispatch(m, d, solveIslandTask, NULL, nisland);
       break;
 
     case mjSOL_CG:

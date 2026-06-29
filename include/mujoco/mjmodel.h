@@ -50,7 +50,7 @@
 
 //---------------------------------- mjLROpt -------------------------------------------------------
 
-struct mjLROpt_ {                 // options for mj_setLengthRange()
+typedef struct mjLROpt_ {         // options for mj_setLengthRange()
   // flags
   int mode;                       // which actuators to process (mjtLRMode)
   int useexisting;                // use existing length range if available
@@ -64,26 +64,23 @@ struct mjLROpt_ {                 // options for mj_setLengthRange()
   mjtNum inttotal;                // total simulation time interval
   mjtNum interval;                // evaluation time interval (at the end)
   mjtNum tolrange;                // convergence tolerance (relative to range)
-};
-typedef struct mjLROpt_ mjLROpt;
+} mjLROpt;
 
 //---------------------------------- mjCache -------------------------------------------------------
 
-struct mjCache_ {                 // asset cache used by the compiler
+typedef struct mjCache_ {         // asset cache used by the compiler
   void* impl_;                    // internal pointer to cache
-};
-typedef struct mjCache_ mjCache;
+} mjCache;
 
 //---------------------------------- mjVFS ---------------------------------------------------------
 
-struct mjVFS_ {                   // virtual file system for loading from memory
+typedef struct mjVFS_ {           // virtual file system for loading from memory
   void* impl_;                    // internal pointer to VFS memory
-};
-typedef struct mjVFS_ mjVFS;
+} mjVFS;
 
 //---------------------------------- mjOption ------------------------------------------------------
 
-struct mjOption_ {                // physics options
+typedef struct mjOption_ {        // physics options
   // timing parameters
   mjtNum timestep;                // timestep
 
@@ -126,13 +123,12 @@ struct mjOption_ {                // physics options
   // sdf collision settings
   int sdf_initpoints;             // number of starting points for gradient descent
   int sdf_iterations;             // max number of iterations for gradient descent
-};
-typedef struct mjOption_ mjOption;
+} mjOption;
 
 
 //---------------------------------- mjVisual ------------------------------------------------------
 
-struct mjVisual_ {                // visualization options
+typedef struct mjVisual_ {        // visualization options
   struct {                        // global parameters
     int   cameraid;               // initial camera id (-1: free)
     int   orthographic;           // is the free camera orthographic (0: no, 1: yes)
@@ -227,25 +223,23 @@ struct mjVisual_ {                // visualization options
     float bv[4];                  // bounding volume
     float bvactive[4];            // active bounding volume
   } rgba;
-};
-typedef struct mjVisual_ mjVisual;
+} mjVisual;
 
 
 //---------------------------------- mjStatistic ---------------------------------------------------
 
-struct mjStatistic_ {             // model statistics (in qpos0)
+typedef struct mjStatistic_ {     // model statistics (in qpos0)
   mjtNum meaninertia;             // mean diagonal inertia
   mjtNum meanmass;                // mean body mass
   mjtNum meansize;                // mean body size
   mjtNum extent;                  // spatial extent
   mjtNum center[3];               // center of model
-};
-typedef struct mjStatistic_ mjStatistic;
+} mjStatistic;
 
 
 //---------------------------------- mjModel -------------------------------------------------------
 
-struct mjModel_ {
+typedef struct mjModel_ {
   // ------------------------------- sizes
 
   // sizes needed at mjModel construction
@@ -896,7 +890,6 @@ struct mjModel_ {
 
   // compilation signature
   uint64_t  signature;            // also held by the mjSpec that compiled this model
-};
-typedef struct mjModel_ mjModel;
+} mjModel;
 
 #endif  // MUJOCO_MJMODEL_H_
