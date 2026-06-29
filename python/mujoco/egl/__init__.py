@@ -139,6 +139,11 @@ def _select_egl_device(devices, cuda_to_egl_device, cuda_devices, device_id):
 def create_initialized_egl_device_display():
   """Creates an initialized EGL display directly on a device."""
   all_devices = EGL.eglQueryDevicesEXT()
+  # Some drivers expose which CUDA device backs each EGL device. When that
+  # mapping is available, use CUDA_VISIBLE_DEVICES to put EGL devices in the
+  # same order CUDA users expect, and let MUJOCO_EGL_DEVICE_ID refer to either a
+  # visible-device index or a CUDA id. If the mapping is missing or ambiguous,
+  # fall back to EGL's native device order.
   cuda_to_egl_device = _get_cuda_to_egl_device_map(all_devices)
   cuda_devices = _parse_cuda_device_ids(os.environ.get('CUDA_VISIBLE_DEVICES'))
   ordered_devices = _ordered_egl_devices(
