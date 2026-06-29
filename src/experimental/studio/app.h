@@ -138,6 +138,7 @@ class App {
     bool toolbar = false;
     bool status_bar = false;
     bool inspector_panel = true;
+    bool editor_panel = false;
     bool full_screen = false;
     bool style_editor = false;
     bool imgui_demo = false;

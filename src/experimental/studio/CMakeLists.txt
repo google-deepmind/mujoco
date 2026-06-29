@@ -118,7 +118,12 @@ if(NOT EMSCRIPTEN)
         set(STUDIO_RESOURCE_FILES "")
     endif()
 
-    add_executable(mujoco_studio main.cc ${STUDIO_RESOURCE_FILES})
+    add_executable(mujoco_studio
+        main.cc
+        launcher.cc
+        launcher.h
+        ${STUDIO_RESOURCE_FILES}
+    )
     if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
         set_target_properties(mujoco_studio PROPERTIES
             MACOSX_BUNDLE TRUE

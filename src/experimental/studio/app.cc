@@ -943,13 +943,15 @@ void App::BuildGui() {
     }
     ImGui::End();
 
-    if (ImGui::Begin("Editor", &tmp_.inspector_panel)) {
-      SpecEditorGui();
-    }
-    ImGui::End();
-
     if (ImGui::Begin("Inspector", &tmp_.inspector_panel)) {
       DataInspectorGui();
+    }
+    ImGui::End();
+  }
+
+  if (tmp_.editor_panel) {
+    if (ImGui::Begin("Editor", &tmp_.editor_panel)) {
+      SpecEditorGui();
     }
     ImGui::End();
   }
@@ -1993,6 +1995,12 @@ void App::MainMenuGui() {
               tmp_.inspector_panel ? "Hide Inspector" : "Show Inspector",
               "Shift+Tab")) {
         tmp_.inspector_panel = !tmp_.inspector_panel;
+      }
+      if (ImGui::MenuItem(tmp_.editor_panel ? "Hide Editor" : "Show Editor")) {
+        tmp_.editor_panel = !tmp_.editor_panel;
+        if (tmp_.editor_panel) {
+          tmp_.inspector_panel = true;
+        }
       }
       if (ImGui::MenuItem(
               tmp_.toolbar ? "Hide Toolbar" : "Show Toolbar")) {
