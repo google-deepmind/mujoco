@@ -16,6 +16,7 @@
 
 import gc
 import inspect
+import io
 import math
 import os
 import textwrap
@@ -1913,6 +1914,45 @@ class SpecsTest(absltest.TestCase):
         string_spec = mujoco.MjSpec.from_string(xml_string, assets=assets)
         string_spec.compile()
         self.assertEqual(spec.to_xml(), string_spec.to_xml())
+
+  def test_to_zip_includes_file_assets(self):
+    """Tests that to_zip includes assets referenced by file path in spec elements.
+
+    Regression test for https://github.com/google-deepmind/mujoco/issues/3104.
+    When a spec is loaded from an XML file with external asset references (e.g.
+    <mesh file="..."/>), those referenced files should be included in the zip
+    even if they were not explicitly added to spec.assets.
+    """
+    msh_xml_path = (
+        epath.resource_path('mujoco') / 'testdata' / 'msh.xml'
+    ).as_posix()
+    spec = mujoco.MjSpec.from_file(msh_xml_path)
+
+    # The mesh is loaded from disk; it should not be in spec.assets yet.
+    self.assertNotIn('abdomen_1_body.msh', spec.assets)
+
+    buf = io.BytesIO()
+    mujoco.to_zip(spec, buf)
+    buf.seek(0)
+
+    with zipfile.ZipFile(buf, 'r') as zf:
+      names = zf.namelist()
+
+    self.assertIn('abdomen_1_body.msh', names)
+
+    # Round-trip: the zip should produce a compilable spec.
+    buf.seek(0)
+    spec2 = mujoco.from_zip(buf)
+    self.assertIsNotNone(spec2.compile())
+
+  def test_to_zip_does_not_mutate_assets(self):
+    """Tests that to_zip does not add the serialized XML to spec.assets."""
+    spec = mujoco.MjSpec()
+    spec.modelname = 'test'
+    assets_before = dict(spec.assets)
+    buf = io.BytesIO()
+    mujoco.to_zip(spec, buf)
+    self.assertEqual(dict(spec.assets), assets_before)
 
   def test_rangefinder_sensor(self):
     """Test rangefinder sensor with mjSpec, iterative model building."""
