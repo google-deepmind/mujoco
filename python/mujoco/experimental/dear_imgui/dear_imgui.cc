@@ -18,6 +18,7 @@
 #define NAMESPACE ImGui
 #include "dear_imgui_macros.h"
 #include <imgui.h>
+#include "third_party/dear_imgui/imgui_internal.h"
 #include <misc/cpp/imgui_stdlib.h>
 #include <pybind11/eval.h>
 #include <pybind11/pybind11.h>
@@ -60,6 +61,7 @@ PYBIND11_MODULE(dear_imgui, m) {
   m.def("GetStyle", &ImGui::GetStyle, py::return_value_policy::reference);
 
   py::class_<ImGuiIO>(m, "IO")
+      .def_readwrite("ConfigFlags", &ImGuiIO::ConfigFlags)
       .def_readonly("DisplaySize", &ImGuiIO::DisplaySize)
       .def_readonly("DeltaTime", &ImGuiIO::DeltaTime)
       .def_readonly("Framerate", &ImGuiIO::Framerate)
@@ -73,7 +75,7 @@ PYBIND11_MODULE(dear_imgui, m) {
       .def_readonly("MouseWheel", &ImGuiIO::MouseWheel)
       .def_readonly("MouseDelta", &ImGuiIO::MouseDelta);
 
-  m.def("GetIO", &ImGui::GetIO, py::return_value_policy::reference);
+  m.def("GetIO", []() -> ImGuiIO& { return ImGui::GetIO(); }, py::return_value_policy::reference);
 
   m.def("GetCurrentContext", []() {
     return reinterpret_cast<uintptr_t>(ImGui::GetCurrentContext());
@@ -825,6 +827,9 @@ PYBIND11_MODULE(dear_imgui, m) {
   DEF0(GetWindowHeight);
   DEF3(SetNextWindowPos, (const ImVec2&, pos, ), (ImGuiCond, cond, = 0), (const ImVec2&, pivot, = ImVec2_Zero));
   DEF2(SetNextWindowSize, (const ImVec2&, size, ), (ImGuiCond, cond, = 0));
+  DEF2_F(SetNextWindowSizeConstraints, (const ImVec2&, size_min, ), (const ImVec2&, size_max, ), {
+    ImGui::SetNextWindowSizeConstraints(size_min, size_max);
+  });
   DEF1(SetNextWindowContentSize, (const ImVec2&, size, ));
   DEF2(SetNextWindowCollapsed, (bool, collapsed, ), (ImGuiCond, cond, = 0));
   DEF0(SetNextWindowFocus);
@@ -906,6 +911,33 @@ PYBIND11_MODULE(dear_imgui, m) {
   DEF0(PopID);
   DEF1(GetID, (ImString, str_id, ));
   DEF2(GetID, (ImString, str_id_begin, ), (ImString, str_id_end, ));
+  DEF3_F(DockSpace, (ImGuiID, id, ), (const ImVec2&, size, = ImVec2_Zero), (ImGuiDockNodeFlags, flags, = 0), {
+    return ImGui::DockSpace(id, size, flags);
+  });
+  DEF1_F(DockBuilderRemoveNode, (ImGuiID, node_id, ), {
+    ImGui::DockBuilderRemoveNode(node_id);
+  });
+  DEF2_F(DockBuilderAddNode, (ImGuiID, node_id, = 0), (ImGuiDockNodeFlags, flags, = 0), {
+    return ImGui::DockBuilderAddNode(node_id, flags);
+  });
+  DEF2_F(DockBuilderSetNodeSize, (ImGuiID, node_id, ), (const ImVec2&, size, ), {
+    ImGui::DockBuilderSetNodeSize(node_id, size);
+  });
+  DEF3_F(DockBuilderSplitNode, (ImGuiID, id, ), (ImGuiDir, split_dir, ), (float, size_ratio_for_node_at_dir, ), {
+    ImGuiID id_at_dir = 0;
+    ImGuiID id_at_opp = 0;
+    ImGui::DockBuilderSplitNode(id, split_dir, size_ratio_for_node_at_dir, &id_at_dir, &id_at_opp);
+    return std::make_tuple(id_at_dir, id_at_opp);
+  });
+  DEF2_F(DockBuilderDockWindow, (ImString, window_name, ), (ImGuiID, node_id, ), {
+    ImGui::DockBuilderDockWindow(window_name, node_id);
+  });
+  DEF1_F(DockBuilderFinish, (ImGuiID, node_id, ), {
+    ImGui::DockBuilderFinish(node_id);
+  });
+  DEF1_F(DockBuilderGetNode, (ImGuiID, node_id, ), {
+    return ImGui::DockBuilderGetNode(node_id) != nullptr;
+  });
   DEF1_F(TextUnformatted, (ImString, txt, ), {
     ImGui::TextUnformatted(txt);
   });
