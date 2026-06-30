@@ -37,6 +37,7 @@
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "engine/engine_util_file.h"
 
 #ifdef ADDRESS_SANITIZER
   #include <sanitizer/asan_interface.h>
@@ -511,7 +512,7 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
 
   // open file for writing if no buffer
   if (!buffer) {
-    fp = fopen(filename, "wb");
+    fp = mju_fopen(filename, "wb");
     if (!fp) {
       mju_warning("Could not open file '%s'", filename);
       return;
