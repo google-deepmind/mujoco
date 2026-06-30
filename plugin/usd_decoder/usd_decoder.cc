@@ -1921,6 +1921,10 @@ void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
     }
   }
 
+  if (gprim.HasAPI<pxr::MjcPhysicsCollisionAPI>()) {
+    ParseMjcPhysicsCollisionAPI(geom, pxr::MjcPhysicsCollisionAPI(gprim));
+  }
+
   if (gprim.HasAPI<pxr::MjcPhysicsImageableAPI>()) {
     auto imageable_api = pxr::MjcPhysicsImageableAPI(gprim);
     auto group_attr = imageable_api.GetGroupAttr();
