@@ -13,7 +13,6 @@
 # limitations under the License.
 """Messages and Channels for Studio."""
 
-
 import dataclasses
 from typing import Protocol
 from typing import runtime_checkable
@@ -129,10 +128,13 @@ class PerturbEvent(Event):
 
 
 @dataclasses.dataclass(frozen=True)
-class SetPauseStateEvent(Event):
-  """An event requesting to set the pause state."""
+class StepControlEvent(Event):
+  """An event carrying the full step control state from the viewer to the sim."""
 
   pause_state: sim.PauseState
+  speed: float
+  noise_scale: float
+  noise_rate: float
 
 
 @dataclasses.dataclass(frozen=True)

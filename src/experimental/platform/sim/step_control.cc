@@ -66,8 +66,11 @@ float StepControl::GetSpeedMeasured() const { return speed_measured_; }
 float StepControl::GetSpeed() const { return speed_; }
 
 void StepControl::SetSpeed(float speed_percent_real_time) {
+  float prev_speed = speed_;
   speed_ = std::clamp(speed_percent_real_time, .1f, 100.f);
-  ForceSync();
+  if (speed_ != prev_speed) {
+    ForceSync();
+  }
 }
 
 void StepControl::ForceSync() { force_sync_ = true; }

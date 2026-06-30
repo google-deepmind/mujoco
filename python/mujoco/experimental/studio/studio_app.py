@@ -39,7 +39,7 @@ import typing
 import mujoco
 from mujoco.experimental.studio import parser
 from mujoco.experimental.studio import sim
-from mujoco.experimental.studio import studio_app_events as events
+from mujoco.experimental.studio import studio_app_events
 from mujoco.experimental.studio import ux
 from mujoco.experimental.studio import viewer_protocol
 import numpy as np
@@ -141,10 +141,7 @@ class StudioApp:
     Returns:
       True if a key was handled, False otherwise.
     """
-    if imgui.GetIO().WantCaptureKeyboard:
-      return False
-
-    return events.handle_vis_options_keyboard_events(
+    return studio_app_events.handle_vis_options_keyboard_events(
         vis_options, is_freecam_wasd
     )
 
@@ -154,11 +151,8 @@ class StudioApp:
     Returns:
       True if a key was handled, False otherwise.
     """
-    if imgui.GetIO().WantCaptureKeyboard:
-      return False
-
-    return events.handle_step_control_keyboard_events(
-        self.model, self.data, self.step_control, self.ux_state
+    return studio_app_events.handle_step_control_keyboard_events(
+        self.step_control, self.ux_state
     )
 
   def handle_freecam_wasd_keyboard_events(
@@ -166,11 +160,10 @@ class StudioApp:
       camera: mujoco.MjvCamera,
   ) -> bool:
     """Handles keyboard shortcuts for free camera movement."""
-    if imgui.GetIO().WantCaptureKeyboard:
-      return False
-
-    handled, self._cam_speed = events.handle_freecam_wasd_keyboard_events(
-        self.model, self.data, camera, self._cam_speed
+    handled, self._cam_speed = (
+        studio_app_events.handle_freecam_wasd_keyboard_events(
+            self.model, self.data, camera, self._cam_speed
+        )
     )
     return handled
 
@@ -180,31 +173,16 @@ class StudioApp:
       vis_options: mujoco.MjvOption,
   ) -> bool:
     """Handle keyboard events according to Studio's bindings."""
-    if imgui.GetIO().WantCaptureKeyboard:
-      return False
-
-    is_freecam_wasd = self.ux_state.camera_index == ux.FREE_CAMERA_IDX
-    if events.handle_step_control_keyboard_events(
-        self.model, self.data, self.step_control, self.ux_state
-    ):
-      return True
-
-    if events.handle_camera_select_keyboard_events(
-        self.model, camera, self.ux_state
-    ):
-      return True
-
-    if events.handle_vis_options_keyboard_events(vis_options, is_freecam_wasd):
-      return True
-
-    if is_freecam_wasd:
-      handled, self._cam_speed = events.handle_freecam_wasd_keyboard_events(
-          self.model, self.data, camera, self._cam_speed
-      )
-      if handled:
-        return True
-
-    return False
+    handled, self._cam_speed = studio_app_events.handle_keyboard_events(
+        self.model,
+        self.data,
+        camera,
+        vis_options,
+        self.step_control,
+        self.ux_state,
+        self._cam_speed,
+    )
+    return handled
 
   def handle_camera_tracking_mouse_events(
       self,
@@ -212,10 +190,7 @@ class StudioApp:
       vis_options: mujoco.MjvOption,
   ) -> None:
     """Handles mouse events for camera tracking."""
-    if imgui.GetIO().WantCaptureMouse:
-      return
-
-    events.handle_camera_tracking_mouse_events(
+    studio_app_events.handle_camera_tracking_mouse_events(
         self.model, self.data, camera, vis_options, self.ux_state
     )
 
@@ -226,10 +201,7 @@ class StudioApp:
       perturb: mujoco.MjvPerturb,
   ) -> None:
     """Handles mouse events."""
-    if imgui.GetIO().WantCaptureMouse:
-      return
-
-    events.handle_mouse_events(
+    studio_app_events.handle_mouse_events(
         self.model, self.data, camera, vis_options, perturb, self.ux_state
     )
 
@@ -391,7 +363,7 @@ class StudioApp:
         self.reset_physics_gui()
 
         imgui.SameLine()
-        ux.step_control_gui(self.model, self.step_control, self.ux_state)
+        ux.step_control_gui(self.step_control, self.ux_state)
 
         imgui.TableNextColumn()
         ux.camera_selection_gui(self.model, self.data, camera, self.ux_state)
@@ -434,7 +406,7 @@ class StudioApp:
     # -- Right pane: Inspector ------------------------------------------------
     imgui.Begin('Inspector')
     if imgui.TreeNodeEx('Noise', node_flags):
-      ux.noise_gui(self.model, self.data, self.ux_state)
+      ux.noise_gui(self.step_control)
       imgui.TreePop()
     if imgui.TreeNodeEx('Joints', node_flags):
       ux.joints_gui(self.model, self.data, vis_options)

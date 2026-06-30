@@ -1509,11 +1509,7 @@ void App::DataInspectorGui() {
 
   ImGui::BeginChild("ControlsGui", {0, 0}, child_flags);
   if (platform::SectionHeader("Controls", node_flags, 0.65f)) {
-    float noise_scale = 0;
-    float noise_rate = 0;
-    step_control_.GetNoiseParameters(noise_scale, noise_rate);
-    platform::NoiseGui(model(), data(), noise_scale, noise_rate);
-    step_control_.SetNoiseParameters(noise_scale, noise_rate);
+    platform::NoiseGui(&step_control_);
     ImGui::Separator();
 
     platform::ControlsGui(model(), data(), &vis_options_);
@@ -1889,7 +1885,7 @@ void App::ToolBarGui() {
 
     // Combined (Normal Pause, Viscous Pause, Play) widget and Speed selection.
     ImGui::SameLine(0, separator_width);
-    platform::StepControlGui(model(), &step_control_, tmp_.speed_index);
+    platform::StepControlGui(&step_control_, tmp_.speed_index);
 
     ImGui::SameLine(0, separator_width);
     ImGui::SetNextItemWidth(120);

@@ -83,8 +83,7 @@ static constexpr std::array<const char*, 31> kPercentRealTime = {
 // UX for controlling the simulation stepping. `speed_index` is an index into
 // kPercentRealTime, an array of available speeds (indices in range [0, 30] map
 // to real-time percentages in range [100%, 0.1%]).
-void StepControlGui(const mjModel* model, StepControl* step_control,
-                    int& speed_index);
+void StepControlGui(StepControl* step_control, int& speed_index);
 
 // Sets the simulation speed index and updates the StepControl object.
 void SetSpeedIndex(StepControl* step_control, int& speed_index,
@@ -148,8 +147,7 @@ void WatchGui(const mjModel* model, const mjData* data, char* field_name,
 
 // UX for controlling noise parameters which can then be applied to the
 // simulation via StepControl::SetNoiseParameters / StepControl::InjectNoise.
-void NoiseGui(const mjModel* model, const mjData* data, float& noise_scale,
-              float& noise_rate);
+void NoiseGui(StepControl* step_control);
 
 // UX for the solver convergence chart.
 void ConvergenceGui(const mjModel* model, mjData* data,

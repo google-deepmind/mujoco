@@ -482,8 +482,7 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
   return ImVec4(workspace_x, workspace_y, workspace_w, workspace_h);
 }
 
-void StepControlGui(const mjModel* model, StepControl* step_control,
-                    int& speed_index) {
+void StepControlGui(StepControl* step_control, int& speed_index) {
   platform::ScopedStyle style;
 
   bool is_dark = ImGui::GetStyle().Colors[ImGuiCol_WindowBg].x < 0.5f;
@@ -1215,13 +1214,15 @@ void GroupsGui(const mjModel* model, mjvOption* vis_options, float min_width) {
   GroupGui("Skins", vis_options->skingroup);
 }
 
-void NoiseGui(const mjModel* model, const mjData* data, float& noise_scale,
-              float& noise_rate) {
+void NoiseGui(StepControl* step_control) {
+  float noise_scale, noise_rate;
+  step_control->GetNoiseParameters(noise_scale, noise_rate);
   const float item_width = ImGui::GetWindowWidth() * .6f;
   ImGui::PushItemWidth(item_width);
   ImGui::SliderFloat("Noise scale", &noise_scale, 0, 1);
   ImGui::SliderFloat("Noise rate", &noise_rate, 0, 4);
   ImGui::PopItemWidth();
+  step_control->SetNoiseParameters(noise_scale, noise_rate);
 }
 
 void JointsGui(const mjModel* model, const mjData* data,

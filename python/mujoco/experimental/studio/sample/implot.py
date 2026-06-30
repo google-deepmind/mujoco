@@ -13,9 +13,9 @@
 # limitations under the License.
 """Example to run studio in the native viewer with responsive ImPlot UI.
 
-This script runs a Studio viewer in-process and adds an 'Inspect Body' window
-using ImGui and ImPlot bindings to visualize selected body data. The example
-demonstrates how responsive UI layout rules are easily implemented.
+This script runs a Studio viewer and adds an 'Inspect Body' window using ImGui
+and ImPlot bindings to visualize selected body data. The example demonstrates
+how responsive UI layout rules are easily implemented.
 
 Provide an MJCF model file via the first command-line argument to launch.
 """

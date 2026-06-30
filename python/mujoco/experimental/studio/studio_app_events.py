@@ -140,16 +140,12 @@ def handle_vis_options_keyboard_events(
 
 
 def handle_step_control_keyboard_events(
-    model: mujoco.MjModel,
-    data: mujoco.MjData,
     step_control: sim.StepControl,
     ux_state: ux.UxState,
 ) -> bool:
   """Handles keyboard shortcuts for simulation stepping control.
 
   Args:
-    model: The MuJoCo model.
-    data: The MuJoCo data.
     step_control: The simulation step control object.
     ux_state: The UX state object.
 
@@ -174,17 +170,30 @@ def handle_step_control_keyboard_events(
     else:
       step_control.set_pause_state(sim.PauseState.UNPAUSED)
     return True
-  elif pressed(imgui.Key.Backspace):
+  elif pressed(imgui.Key.Minus):
+    ux_state.speed_index = ux.set_speed_index(
+        step_control, ux_state.speed_index, ux_state.speed_index + 1
+    )
+    return True
+  elif pressed(imgui.Key.Equal):
+    ux_state.speed_index = ux.set_speed_index(
+        step_control, ux_state.speed_index, ux_state.speed_index - 1
+    )
+    return True
+
+  return False
+
+
+def handle_reset_keyboard_events(
+    model: mujoco.MjModel, data: mujoco.MjData
+) -> bool:
+  """Handles keyboard shortcuts for simulation reset."""
+
+  if imgui.IsKeyChordPressed(imgui.Key.Backspace):
     if model is not None and data is not None:
       mujoco.mj_resetData(model, data)
       mujoco.mj_forward(model, data)
-    return True
-  elif pressed(imgui.Key.Minus):
-    ux.set_speed_index(step_control, ux_state, ux_state.speed_index + 1)
-    return True
-  elif pressed(imgui.Key.Equal):
-    ux.set_speed_index(step_control, ux_state, ux_state.speed_index - 1)
-    return True
+      return True
 
   return False
 
@@ -362,7 +371,10 @@ def handle_keyboard_events(
     return False, cam_speed
 
   is_freecam_wasd = ux_state.camera_index == ux.FREE_CAMERA_IDX
-  if handle_step_control_keyboard_events(model, data, step_control, ux_state):
+  if handle_step_control_keyboard_events(step_control, ux_state):
+    return True, cam_speed
+
+  if handle_reset_keyboard_events(model, data):
     return True, cam_speed
 
   if handle_camera_select_keyboard_events(model, camera, ux_state):
