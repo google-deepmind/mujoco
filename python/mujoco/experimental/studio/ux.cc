@@ -107,7 +107,7 @@ PYBIND11_MODULE(ux, m) {
       "configure_docking_layout",
       []() {
         py::gil_scoped_release no_gil;
-        ImVec4 r = mujoco::platform::ConfigureDockingLayout();
+        ImVec4 r = mujoco::platform::ConfigureDockingLayout(true, true);
         return std::make_tuple(r.x, r.y, r.z, r.w);
       },
       "Configure the docking layout with Options (left) and Inspector (right) "
