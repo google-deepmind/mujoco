@@ -63,13 +63,13 @@ def view(
   data = mujoco.MjData(first_msg.model)
   app = studio_app.StudioApp(first_msg.model, data)
   send_rate = 60.0
-  viewer = _viewer.NativeViewer(
-      app.model,
+  config = vp.ViewerConfig(
       title=title,
       width=_WIDTH.value,
       height=_HEIGHT.value,
       gfx=_GFX.value,
   )
+  viewer = _viewer.NativeViewer(config)
 
   while viewer.is_running() and app.is_running():
 

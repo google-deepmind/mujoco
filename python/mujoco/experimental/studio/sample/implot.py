@@ -106,14 +106,13 @@ def main(argv: list[str]) -> None:
   app = studio_app.StudioApp.from_argv(argv)
   title = os.path.basename(sys.argv[0])
 
-  # Initialize the viewer.
-  viewer = _viewer.NativeViewer(
-      app.model,
+  config = viewer_protocol.ViewerConfig(
       title=title,
       width=_WIDTH.value,
       height=_HEIGHT.value,
       gfx=_GFX.value,
   )
+  viewer = _viewer.NativeViewer(config)
 
   # Variables for the custom UI.
   centroid = [np.zeros(3) for _ in range(_N_HISTORY)]
