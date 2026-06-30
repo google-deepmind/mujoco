@@ -17,7 +17,8 @@
 
 #include <memory>
 #include <cstddef>
-#include <span>
+#include <span>  // NOLINT
+#include <string>
 #include <string_view>
 
 #include <mujoco/mujoco.h>
@@ -56,6 +57,9 @@ class ModelHolder {
   // Returns the error message if the model failed to load.
   std::string_view error() const { return error_; }
 
+  // Returns the warning message(s), newline-separated.
+  std::string_view warning() const { return warning_; }
+
   // Releases ownership of the underlying MuJoCo structures. Callers are now
   // responsible for calling the appropriate `mj_delete*` function on these
   // objects.
@@ -78,6 +82,7 @@ class ModelHolder {
   mjModel* model_ = nullptr;
   mjData* data_ = nullptr;
   char error_[1000] = "";
+  std::string warning_;
 };
 }  // namespace mujoco::platform
 

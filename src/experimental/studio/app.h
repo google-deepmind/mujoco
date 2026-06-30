@@ -247,6 +247,8 @@ class App {
   std::string load_error_;
   std::string step_error_;
   std::string edit_error_;
+  platform::StepControl::PauseState last_pause_state_ =
+      platform::StepControl::PauseState::kNormalPaused;
 
   std::optional<std::string> pending_load_;
   std::function<void()> pending_op_;

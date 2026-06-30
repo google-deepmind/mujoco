@@ -505,18 +505,6 @@ void DrawTextAt(const char* text, float x, float y, float z) {
 }
 namespace {
 
-float MeasureTextWidth(const char* text) {
-  float max_width = 0.0f;
-  const char* start = text;
-  while (*start) {
-    const char* end = start;
-    while (*end && *end != '\n') ++end;
-    max_width = std::max(max_width, ImGui::CalcTextSize(start, end).x);
-    start = *end ? end + 1 : end;
-  }
-  return max_width;
-}
-
 void SetNextWindowPosInside(OverlayPos pos, ImVec4 rect) {
   // compute anchor point and pivot from position enum
   ImVec2 anchor, pivot;
@@ -584,7 +572,7 @@ void TextOverlay(const char* id, OverlayPos pos, ImVec4 workspace_rect,
   float scale = ImGui::GetWindowDpiScale();
   float padding = 30.0f * scale;
   float max_width = std::max(0.0f, workspace_rect.z - 20.0f);
-  float text_width = MeasureTextWidth(text) * font_scale;
+  float text_width = ImGui::CalcTextSize(text).x * font_scale;
   float min_target = std::min(min_width * scale, max_width);
   float target = 0.0f;
   if (text_width + padding > max_width || min_width > 0.0f) {

@@ -196,13 +196,16 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
   step_error_ = "";
   edit_error_ = "";
 
+  if (!model_holder_->warning().empty()) {
+    load_error_ = model_holder_->warning();
+  }
   model_path_ = std::move(filename);
 
   if (model_kind_ == kEmptyModel) {
     step_control_.SetPauseState(PauseState::kUnpaused);
   }
   model_kind_ = model_kind;
-  if (model_kind_ == kEmptyModel) {
+  if (model_kind_ == kEmptyModel || !load_error_.empty()) {
     step_control_.SetPauseState(PauseState::kNormalPaused);
   }
 
@@ -240,6 +243,7 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
     }
   });
   tmp_.update_threadpool = true;
+  last_pause_state_ = step_control_.GetPauseState();
 }
 
 void App::UpdateFilePaths(const std::string& resolved_path) {
@@ -376,6 +380,12 @@ bool App::Update() {
   HandleKeyboardEvents();
 
   ProcessPendingLoads();
+
+  PauseState current_pause = step_control_.GetPauseState();
+  if (current_pause != last_pause_state_) {
+    load_error_ = "";
+    last_pause_state_ = current_pause;
+  }
 
   // Only update the simulation if a popup window is not open. Note that the
   // simulation itself will only update if it is not paused.
@@ -985,6 +995,40 @@ void App::BuildGui() {
       ImGui::PopStyleVar();
     }
     ImGui::End();
+  }
+
+  if (!load_error_.empty()) {
+    const float scale = ImGui::GetWindowDpiScale();
+    const float max_line_width =
+        ImGui::CalcTextSize(load_error_.c_str()).x;
+    const float padding = 30.0f * scale;
+    const float max_workspace_width = std::max(0.0f, workspace_rect.z - 20.0f);
+    const float min_target_width = std::min(350.0f * scale, max_workspace_width);
+    const float target_width = std::clamp(max_line_width + padding,
+                                          min_target_width, max_workspace_width);
+
+    if (platform::BeginOverlay("WarningOverlay", platform::OverlayPos::kBottom,
+                               workspace_rect, target_width, 0.8f)) {
+      const bool is_dark = ImGui::GetStyle().Colors[ImGuiCol_WindowBg].x < 0.5f;
+      if (!model_holder_->warning().empty()) {
+        const ImVec4 warning_color = is_dark ? ImVec4(1.0f, 0.8f, 0.2f, 1.0f)
+                                             : ImVec4(0.7f, 0.45f, 0.0f, 1.0f);
+        ImGui::TextColored(warning_color, "Warning:");
+      } else {
+        const ImVec4 error_color = is_dark ? ImVec4(1.0f, 0.4f, 0.4f, 1.0f)
+                                           : ImVec4(0.8f, 0.1f, 0.1f, 1.0f);
+        ImGui::TextColored(error_color, "Compiler Error:");
+      }
+      ImGui::Separator();
+      if (max_line_width + padding > max_workspace_width) {
+        ImGui::PushTextWrapPos(max_workspace_width - padding);
+        ImGui::TextUnformatted(load_error_.c_str());
+        ImGui::PopTextWrapPos();
+      } else {
+        ImGui::TextUnformatted(load_error_.c_str());
+      }
+    }
+    platform::EndOverlay();
   }
 
   if (tmp_.info) {
@@ -1890,9 +1934,6 @@ void App::StatusBarGui() {
     if (!step_error_.empty()) {
       ImGui::SameLine();
       ImGui::Text(" | Step Error: %s", step_error_.c_str());
-    } else if (!load_error_.empty()) {
-      ImGui::SameLine();
-      ImGui::Text(" | Load Error: %s", load_error_.c_str());
     } else if (!edit_error_.empty()) {
       ImGui::SameLine();
       ImGui::Text(" | Edit Error: %s", edit_error_.c_str());
