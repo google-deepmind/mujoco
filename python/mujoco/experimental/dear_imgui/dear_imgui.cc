@@ -18,7 +18,7 @@
 #define NAMESPACE ImGui
 #include "dear_imgui_macros.h"
 #include <imgui.h>
-#include "third_party/dear_imgui/imgui_internal.h"
+#include <imgui_internal.h>
 #include <misc/cpp/imgui_stdlib.h>
 #include <pybind11/eval.h>
 #include <pybind11/pybind11.h>
