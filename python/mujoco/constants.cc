@@ -48,7 +48,7 @@ py::tuple MakeTuple(const char* (&strings)[N][3]) {
   return std::move(result);
 }
 
-PYBIND11_MODULE(_constants, pymodule) {
+PYBIND11_MODULE(_constants, pymodule, pybind11::mod_gil_not_used()) {
   #define X(var) pymodule.attr(#var) = var
 
   // from mjmodel.h

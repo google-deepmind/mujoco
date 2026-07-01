@@ -23,6 +23,7 @@
 #include <ios>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -35,6 +36,7 @@
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "errors.h"
+#include "gil.h"
 #include "private.h"
 #include "raw.h"
 #include "serialization.h"
@@ -49,6 +51,9 @@
 #include <pybind11/stl.h>
 
 namespace mujoco::python::_impl {
+
+using ::mujoco::python::GetCallbackMutex;
+using ::mujoco::python::MutexLockIfGilDisabled;
 
 namespace py = ::pybind11;
 
@@ -221,11 +226,17 @@ MjModelRawPointerMap() {
   return *hash_map;
 }
 
+static std::mutex& MjModelMapMutex() {
+  static auto* mtx = new std::mutex;
+  return *mtx;
+}
+
 MjModelWrapper* MjModelWrapper::FromRawPointer(raw::MjModel* m) noexcept {
   try {
     auto& map = MjModelRawPointerMap();
     {
       py::gil_scoped_acquire gil;
+      MutexLockIfGilDisabled lock(MjModelMapMutex());
       auto found = map.find(m);
       return found != map.end() ? found->second : nullptr;
     }
@@ -250,6 +261,7 @@ MjModelWrapper::MjWrapper(raw::MjModel* ptr)
   bool is_newly_inserted = false;
   {
     py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(MjModelMapMutex());
     is_newly_inserted = MjModelRawPointerMap().insert({ptr_, this}).second;
   }
   if (!is_newly_inserted) {
@@ -271,6 +283,7 @@ MjModelWrapper::MjWrapper(MjModelWrapper&& other)
   bool is_newly_inserted = false;
   {
     py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(MjModelMapMutex());
     is_newly_inserted =
         MjModelRawPointerMap().insert_or_assign(ptr_, this).second;
   }
@@ -294,6 +307,7 @@ MjModelWrapper::~MjWrapper() {
     bool erased = false;
     {
       py::gil_scoped_acquire gil;
+      MutexLockIfGilDisabled lock(MjModelMapMutex());
       erased = MjModelRawPointerMap().erase(ptr_);
     }
     if (!erased) {
@@ -611,11 +625,17 @@ absl::flat_hash_map<raw::MjData*, MjDataWrapper*>& MjDataRawPointerMap() {
   return *hash_map;
 }
 
+static std::mutex& MjDataMapMutex() {
+  static auto* mtx = new std::mutex;
+  return *mtx;
+}
+
 MjDataWrapper* MjDataWrapper::FromRawPointer(raw::MjData* m) noexcept {
   try {
     auto& map = MjDataRawPointerMap();
     {
       py::gil_scoped_acquire gil;
+      MutexLockIfGilDisabled lock(MjDataMapMutex());
       auto found = map.find(m);
       return found != map.end() ? found->second : nullptr;
     }
@@ -657,6 +677,7 @@ MjDataWrapper::MjWrapper(MjModelWrapper* model)
   bool is_newly_inserted = false;
   {
     py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(MjDataMapMutex());
     is_newly_inserted = MjDataRawPointerMap().insert({ptr_, this}).second;
   }
   if (!is_newly_inserted) {
@@ -666,7 +687,7 @@ MjDataWrapper::MjWrapper(MjModelWrapper* model)
 
   // install default timer if not already installed
   {
-    py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(GetCallbackMutex());
     if (!mjcb_time) {
       mjcb_time = GetTime;
     }
@@ -727,6 +748,7 @@ MjDataWrapper::MjWrapper(MjDataWrapper&& other)
   bool is_newly_inserted = false;
   {
     py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(MjDataMapMutex());
     is_newly_inserted =
         MjDataRawPointerMap().insert_or_assign(ptr_, this).second;
   }
@@ -760,6 +782,7 @@ MjDataWrapper::MjWrapper(const MjDataWrapper& other, MjModelWrapper* model)
   bool is_newly_inserted = false;
   {
     py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(MjDataMapMutex());
     is_newly_inserted = MjDataRawPointerMap().insert({ptr_, this}).second;
   }
   if (!is_newly_inserted) {
@@ -790,6 +813,7 @@ MjDataWrapper::MjWrapper(MjModelWrapper* model, raw::MjData* d)
   bool is_newly_inserted = false;
   {
     py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(MjDataMapMutex());
     is_newly_inserted = MjDataRawPointerMap().insert({ptr_, this}).second;
   }
   if (!is_newly_inserted) {
@@ -803,6 +827,7 @@ MjDataWrapper::~MjWrapper() {
     bool erased = false;
     {
       py::gil_scoped_acquire gil;
+      MutexLockIfGilDisabled lock(MjDataMapMutex());
       erased = MjDataRawPointerMap().erase(ptr_);
     }
     if (!erased) {

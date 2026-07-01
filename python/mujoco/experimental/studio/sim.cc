@@ -25,7 +25,7 @@ namespace py = pybind11;
 
 using StepControl = mujoco::platform::StepControl;
 
-PYBIND11_MODULE(sim, m) {
+PYBIND11_MODULE(sim, m, pybind11::mod_gil_not_used()) {
   py::module_::import("mujoco._structs");
   m.doc() = "MuJoCo platform simulation bindings for Link.";
 

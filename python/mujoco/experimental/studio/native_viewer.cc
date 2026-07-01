@@ -201,7 +201,7 @@ class Viewer {
   std::vector<std::byte> pixels_;
 };
 
-PYBIND11_MODULE(native_viewer_cc, m) {
+PYBIND11_MODULE(native_viewer_cc, m, pybind11::mod_gil_not_used()) {
   pybind11::module_::import("mujoco._structs");
   pybind11::class_<Viewer>(m, "Viewer")
       .def(pybind11::init<const std::string&, int, int, const std::string&>())

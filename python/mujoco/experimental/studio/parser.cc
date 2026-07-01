@@ -45,7 +45,7 @@ py::object Parse(std::string_view filepath) {
 
 }  // namespace mujoco::python
 
-PYBIND11_MODULE(parser, m) {
+PYBIND11_MODULE(parser, m, pybind11::mod_gil_not_used()) {
   pybind11::module_::import("mujoco._structs");
   m.def("parse", &mujoco::python::Parse,
         pybind11::return_value_policy::take_ownership);

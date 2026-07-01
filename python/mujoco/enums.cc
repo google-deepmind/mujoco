@@ -144,7 +144,7 @@ void DefAllEnums(py::module_& m, Tuple&& tuple) {
   }
 }
 
-PYBIND11_MODULE(_enums, pymodule) {
+PYBIND11_MODULE(_enums, pymodule, pybind11::mod_gil_not_used()) {
   DefAllEnums(pymodule, python_traits::kAllEnums);
 }
 }  // namespace

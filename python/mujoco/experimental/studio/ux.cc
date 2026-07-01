@@ -51,7 +51,7 @@ struct RenderFlags {
   std::array<uint8_t, mjNRNDFLAG> flags = {0};
 };
 
-PYBIND11_MODULE(ux, m) {
+PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
   py::module_::import("mujoco._structs");
   py::class_<RenderFlags>(m, "RenderFlags")
       .def(py::init<>())

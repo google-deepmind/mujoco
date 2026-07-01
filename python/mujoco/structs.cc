@@ -101,7 +101,7 @@ py::tuple RecompileSpec(raw::MjSpec* spec, const MjModelWrapper& old_m,
 
 }  // namespace
 
-PYBIND11_MODULE(_structs, m) {
+PYBIND11_MODULE(_structs, m, pybind11::mod_gil_not_used()) {
   py::module_::import("mujoco._enums");
 
   // ==================== MJOPTION =============================================

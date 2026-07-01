@@ -37,7 +37,7 @@
 
 namespace mujoco::python {
 namespace {
-PYBIND11_MODULE(_functions, pymodule) {
+PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
   namespace py = ::pybind11;
   namespace traits = python_traits;
 

@@ -225,7 +225,7 @@ static std::string addPrefixAndSuffix(const std::string& original_path,
   return addSuffixBeforeExtension(prefixed_path, suffix_to_add);
 }
 
-PYBIND11_MODULE(_specs, m) {
+PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
   auto structs_m = py::module::import("mujoco._structs");
   py::function mjmodel_from_raw_ptr =
       structs_m.attr("MjModel").attr("_from_model_ptr");
