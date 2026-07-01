@@ -160,6 +160,7 @@ if(NOT EMSCRIPTEN)
 endif()
 add_subdirectory(plugin/obj_decoder)
 add_subdirectory(plugin/stl_decoder)
+add_subdirectory(plugin/resource_provider)
 
 add_subdirectory(src/engine)
 add_subdirectory(src/user)
@@ -211,6 +212,9 @@ target_link_libraries(
 
 if(NOT EMSCRIPTEN)
   target_link_libraries(mujoco PRIVATE Threads::Threads)
+endif()
+if(CMAKE_DL_LIBS)
+  target_link_libraries(mujoco PRIVATE ${CMAKE_DL_LIBS})
 endif()
 
 set_target_properties(
