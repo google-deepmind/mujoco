@@ -29,10 +29,12 @@ class ViewerEndpoint:
       s2v_snapshot: vp.SnapshotChannel,
       s2v_events: vp.EventChannel,
       v2s_events: vp.EventChannel,
+      v2s_snapshot: vp.SnapshotChannel,
   ):
     self._s2v_snapshot = s2v_snapshot
     self._s2v_events = s2v_events
     self._v2s_events = v2s_events
+    self._v2s_snapshot = v2s_snapshot
     self._is_closed = False
 
   def send_to_sim(self, message: vp.Message) -> None:
@@ -41,9 +43,10 @@ class ViewerEndpoint:
     if isinstance(message, vp.Event):
       self._v2s_events.put(message)
     elif isinstance(message, vp.Snapshot):
-      raise TypeError('viewer cannot produce snapshots')
+      self._v2s_snapshot.put(message)
     else:
-      raise TypeError(f'expected Event, got {type(message).__name__}')
+      name = type(message).__name__
+      raise TypeError(f'expected Event or Snapshot, got {name}')
 
   def get_sim_events(self) -> list[vp.Event]:
     """Returns all pending events from the simulation."""
@@ -62,6 +65,7 @@ class ViewerEndpoint:
     if not self._is_closed:
       self._is_closed = True
       self._v2s_events.close()
+      self._v2s_snapshot.close()
       self._s2v_events.close()
       self._s2v_snapshot.close()
 
@@ -79,10 +83,12 @@ class SimEndpoint:
       s2v_snapshot: vp.SnapshotChannel,
       s2v_events: vp.EventChannel,
       v2s_events: vp.EventChannel,
+      v2s_snapshot: vp.SnapshotChannel,
   ):
     self._s2v_snapshot = s2v_snapshot
     self._s2v_events = s2v_events
     self._v2s_events = v2s_events
+    self._v2s_snapshot = v2s_snapshot
     self._is_closed = False
 
   def send_to_viewer(self, message: vp.Message) -> None:
@@ -103,6 +109,12 @@ class SimEndpoint:
       raise RuntimeError('SimEndpoint is closed')
     return self._v2s_events.get()
 
+  def get_viewer_snapshots(self) -> list[vp.Snapshot]:
+    """Returns all pending latest snapshots from the viewer, one per type."""
+    if self._is_closed:
+      raise RuntimeError('SimEndpoint is closed')
+    return self._v2s_snapshot.get()
+
   def close(self) -> None:
     """Close all channels owned by this endpoint."""
     if not self._is_closed:
@@ -110,6 +122,7 @@ class SimEndpoint:
       self._s2v_snapshot.close()
       self._s2v_events.close()
       self._v2s_events.close()
+      self._v2s_snapshot.close()
 
 
 def make_endpoints(
@@ -117,16 +130,19 @@ def make_endpoints(
     s2v_snapshot: vp.SnapshotChannel,
     s2v_events: vp.EventChannel,
     v2s_events: vp.EventChannel,
+    v2s_snapshot: vp.SnapshotChannel,
 ) -> tuple[ViewerEndpoint, SimEndpoint]:
   """Returns viewer and simulation endpoints."""
   viewer_endpoint = ViewerEndpoint(
       s2v_snapshot=s2v_snapshot,
       s2v_events=s2v_events,
       v2s_events=v2s_events,
+      v2s_snapshot=v2s_snapshot,
   )
   sim_endpoint = SimEndpoint(
       s2v_snapshot=s2v_snapshot,
       s2v_events=s2v_events,
       v2s_events=v2s_events,
+      v2s_snapshot=v2s_snapshot,
   )
   return viewer_endpoint, sim_endpoint

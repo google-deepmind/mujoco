@@ -113,8 +113,8 @@ class ModelEvent(Event):
 
 
 @dataclasses.dataclass(frozen=True)
-class OptionEvent(Event):
-  """An event that transports updated MuJoCo model options."""
+class MjOptionSnapshot(Snapshot):
+  """A snapshot sending mjOption state from viewer to sim each frame."""
 
   opt: mujoco.MjOption
 
@@ -128,8 +128,8 @@ class PerturbEvent(Event):
 
 
 @dataclasses.dataclass(frozen=True)
-class StepControlEvent(Event):
-  """An event carrying the full step control state from the viewer to the sim."""
+class StepControlSnapshot(Snapshot):
+  """A snapshot sending step control state from viewer to sim each frame."""
 
   pause_state: sim.PauseState
   speed: float
