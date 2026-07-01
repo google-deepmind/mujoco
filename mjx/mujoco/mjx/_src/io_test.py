@@ -550,7 +550,15 @@ class DataIOTest(parameterized.TestCase):
     elif impl == 'warp':
       qm = np.zeros((m.nv, m.nv), dtype=np.float64)
       mujoco.mju_sym2dense(qm, d.M, m.M_rownnz, m.M_rowadr, m.M_colind)
-      np.testing.assert_allclose(dx._impl.M[:m.nv, :m.nv], qm)
+      warp_M = np.zeros((m.nv, m.nv))
+      mujoco.mju_sym2dense(
+          warp_M,
+          np.array(dx._impl.M),
+          m.M_rownnz,
+          m.M_rowadr,
+          m.M_colind,
+      )
+      np.testing.assert_allclose(warp_M, qm)
       # TODO(taylorhowell): test efc__J
       np.testing.assert_allclose(dx._impl.efc__aref[:3], d.efc_aref[:3])
 
@@ -810,12 +818,6 @@ class DataIOTest(parameterized.TestCase):
     mx = mjx.put_model(m, impl='warp')
     dx = mjx.make_data(m, impl='warp')
     mjx.get_data_into(d, mx, dx)
-
-    # Island data is not populated when ENABLE_ISLANDS is False, so the host
-    # MjData island fields should be left at their default (nv,)/(ntree,)
-    # shapes rather than triggering a shape mismatch.
-    self.assertEqual(d.dof_island.shape, (m.nv,))
-    self.assertEqual(d.tree_island.shape, (m.ntree,))
 
   @parameterized.parameters(('jax',))
   def test_get_data_into_wrong_shape(self, impl):

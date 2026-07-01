@@ -174,9 +174,6 @@ def _strip_weak_type(tree):
 
 def _wp_to_np_type(wp_field: Any, name: str = '') -> Any:
   """Converts a warp type to an MJX compatible numpy type."""
-  if hasattr(wp_field, '_is_batched'):
-    wp_field.strides = wp_field.strides[1:]
-    wp_field.shape = wp_field.shape[1:]
   # warp scalars
   wp_dtype = type(wp_field)
   if wp_dtype in wp._src.types.warp_type_to_np_dtype:
@@ -202,7 +199,13 @@ def _wp_to_np_type(wp_field: Any, name: str = '') -> Any:
       wp_field[0], mjwp_types.TileSet
   ):
     return tuple(
-        mjxw.types.TileSet(wp_field[i].adr.numpy(), wp_field[i].size)
+        mjxw.types.TileSet(
+            wp_field[i].adr.numpy(),
+            wp_field[i].size,
+            wp_field[i].elemid.numpy()
+            if wp_field[i].elemid is not None
+            else np.zeros(0, dtype=np.int32),
+        )
         for i in range(len(wp_field))
     )
   if isinstance(wp_field, mjwp_types.BlockDim):
@@ -272,11 +275,15 @@ def _put_option(
 
 
   if impl == types.Impl.WARP:
-    if not mjxw.mjwp_io.ENABLE_ISLANDS:
-      fields['disableflags'] = types.DisableBit(
-          fields['disableflags'] | mjwp_types.DisableBit.ISLAND
-      )
-    impl_fields = {k: _wp_to_np_type(v) for k, v in impl_fields.items()}
+    impl_fields = {
+        k: (
+            v_np.reshape(v_np.shape[1:])
+            if isinstance(v_np := _wp_to_np_type(v, k), np.ndarray)
+            and mjxw.types._BATCH_DIM['Option'].get(k, False)  # pylint: disable=protected-access
+            else v_np
+        )
+        for k, v in impl_fields.items()
+    }
     return types.Option(**fields, _impl=mjxw.types.OptionWarp(**impl_fields))
 
   raise NotImplementedError(f'Unsupported implementation: {impl}')
@@ -460,6 +467,8 @@ def _put_model_warp(
     if not hasattr(mw, k) or k in ('stat', 'opt'):
       continue
     field = _wp_to_np_type(getattr(mw, k), k)
+    if mjxw.types._BATCH_DIM['Model'].get(k, False):  # pylint: disable=protected-access
+      field = field.reshape(field.shape[1:])
     if k == 'geom_dataid' and field.ndim > 1:
       # Batched geom_dataid is not supported in MJX.
       field = field[0]
@@ -468,6 +477,8 @@ def _put_model_warp(
   impl_fields = {}
   for k in mjxw.types.ModelWarp.__annotations__.keys():
     field = _wp_to_np_type(getattr(mw, k), k)
+    if mjxw.types._BATCH_DIM['Model'].get(k, False):  # pylint: disable=protected-access
+      field = field.reshape(field.shape[1:])
     impl_fields[k] = field
 
   model = types.Model(
@@ -1298,18 +1309,19 @@ def _get_data_into_warp(
           'ten_J',
           'flexedge_J',
           'M',
+          'map_efc2iefc', 'map_iefc2efc'
       ):
         continue
       if field.name.startswith('efc_'):
         continue
 
+      # Skip island fields; host MjData arena memory cannot be reallocated from Python if not stepped.
+      if field.name.startswith('island_'):
+        continue
+
       if isinstance(value, np.ndarray) and value.shape:
         result_field = getattr(result_i, field.name)
         if result_field.shape != value.shape:
-          # When ENABLE_ISLANDS is False, mujoco_warp allocates island fields with width 0,
-          # while the host MjData sizes to nv/ntree. Skip to prevent mismatch.
-          if value.size == 0 and not mjxw.mjwp_io.ENABLE_ISLANDS:
-            continue
           raise ValueError(
               f'Input field {field.name} has shape {value.shape}, but output'
               f' has shape {result_field.shape}'

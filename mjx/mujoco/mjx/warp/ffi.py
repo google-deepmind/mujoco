@@ -168,20 +168,6 @@ def _format_arg(arg: Any, name: str, annotation: Any, verbose: bool):
         f'Arg ndim {arg.ndim} does not match expected ndim {expected_ndim}.'
     )
 
-  # Add stride 0 to first axis in case the underlying argument should be
-  # batched.
-  # NB: the outer marshalling does an "expand_dims" on Model fields.
-  is_batch_field = mjx_warp_types._BATCH_DIM['Model'].get(name, False)  # pylint: disable=protected-access
-  if arg.shape[0] == 1 and is_batch_field:
-    old_strides = arg.strides
-    arg.strides = (0,) + arg.strides[1:]
-    if verbose:
-      print(
-          f'Leading batch dim of 1, adding stride: {name} {old_strides} =>'
-          f' {arg.strides}'
-      )
-    return arg
-
   if verbose:
     print(f'Did nothing: {name}: {arg.shape}')
   return arg
@@ -347,6 +333,8 @@ def _check_leading_dim(
       not has_batch_dim
       and attr.startswith('contact__')
       and leaf.shape[0] != expected_naconmax
+      and leaf.shape[0]
+      != 0  # Allow empty arrays (shape[0] == 0) for unused contact fields (e.g., flex).
   ):
     raise ValueError(
         f'Leaf node leading dim ({leaf.shape[0]}) does not match naconmax'
@@ -356,6 +344,8 @@ def _check_leading_dim(
       not has_batch_dim
       and attr.startswith('efc__')
       and leaf.shape[0] != expected_njmax
+      and leaf.shape[0]
+      != 0  # Allow empty arrays (shape[0] == 0) for unused constraint fields (e.g., islands).
   ):
     raise ValueError(
         f'Leaf node leading dim ({leaf.shape[0]}) does not match njmax'

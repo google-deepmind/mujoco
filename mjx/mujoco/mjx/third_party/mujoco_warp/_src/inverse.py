@@ -108,10 +108,7 @@ def discrete_acc(m: Model, d: Data, qacc: wp.array2d[float]):
       outputs=[qfrc],
     )
   elif m.opt.integrator == IntegratorType.IMPLICITFAST:
-    if m.is_sparse:
-      qDeriv = wp.empty((d.nworld, 1, m.nC), dtype=float)
-    else:
-      qDeriv = wp.empty((d.nworld, m.nv, m.nv), dtype=float)
+    qDeriv = wp.empty((d.nworld, m.nC), dtype=float)
     derivative.deriv_smooth_vel(m, d, qDeriv)
     mul_m(m, d, qfrc, d.qacc, M=qDeriv)
     smooth.factor_solve_i(m, d, d.M, d.qLD, d.qLDiagInv, qacc, qfrc)

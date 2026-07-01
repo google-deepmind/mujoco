@@ -41,7 +41,7 @@ def _pow4(val: float) -> float:
 
 
 @wp.func
-def _geom_semiaxes(size: wp.vec3, geom_type: int) -> wp.vec3:  # kernel_analyzer: ignore
+def geom_semiaxes(size: wp.vec3, geom_type: int) -> wp.vec3:  # kernel_analyzer: ignore
   if geom_type == GeomType.SPHERE:
     r = size[0]
     return wp.vec3(r, r, r)
@@ -61,7 +61,7 @@ def _geom_semiaxes(size: wp.vec3, geom_type: int) -> wp.vec3:  # kernel_analyzer
 
 
 @wp.func
-def _ellipsoid_max_moment(size: wp.vec3, dir: int) -> float:
+def ellipsoid_max_moment(size: wp.vec3, dir: int) -> float:
   d0 = size[dir]
   d1 = size[(dir + 1) % 3]
   d2 = size[(dir + 2) % 3]
@@ -368,7 +368,7 @@ def _fluid_force(
         continue
 
       size = geom_size[worldid % geom_size.shape[0], geomid]
-      semiaxes = _geom_semiaxes(size, geom_type[geomid])
+      semiaxes = geom_semiaxes(size, geom_type[geomid])
       geom_rot = geom_xmat_in[worldid, geomid]
       geom_rotT = wp.transpose(geom_rot)
       geom_pos = geom_xpos_in[worldid, geomid]
@@ -430,12 +430,8 @@ def _fluid_force(
       proj_denom = _pow4(s12) * _pow2(l_lin[0]) + _pow4(s20) * _pow2(l_lin[1]) + _pow4(s01) * _pow2(l_lin[2])
       proj_num = _pow2(s12 * l_lin[0]) + _pow2(s20 * l_lin[1]) + _pow2(s01 * l_lin[2])
 
-      A_proj = 0.0
-      cos_alpha = 0.0
-      if proj_num > MJ_MINVAL and proj_denom > MJ_MINVAL:
-        A_proj = wp.pi * wp.sqrt(proj_denom / wp.max(MJ_MINVAL, proj_num))
-        if lin_speed > MJ_MINVAL:
-          cos_alpha = proj_num / wp.max(MJ_MINVAL, lin_speed * proj_denom)
+      A_proj = wp.pi * wp.sqrt(proj_denom / wp.max(MJ_MINVAL, proj_num))
+      cos_alpha = proj_num / wp.max(MJ_MINVAL, lin_speed * proj_denom)
 
       norm = wp.vec3(
         _pow2(s12) * l_lin[0],
@@ -453,9 +449,9 @@ def _fluid_force(
       lin_visc_torq_coef = wp.pi * eq_sphere_D * eq_sphere_D * eq_sphere_D
 
       I_max = wp.static(8.0 / 15.0 * wp.pi) * d_mid * _pow4(d_max)
-      II0 = _ellipsoid_max_moment(semiaxes, 0)
-      II1 = _ellipsoid_max_moment(semiaxes, 1)
-      II2 = _ellipsoid_max_moment(semiaxes, 2)
+      II0 = ellipsoid_max_moment(semiaxes, 0)
+      II1 = ellipsoid_max_moment(semiaxes, 1)
+      II2 = ellipsoid_max_moment(semiaxes, 2)
 
       mom_visc = wp.vec3(
         l_ang[0] * (ang_drag_coef * II0 + slender_drag_coef * (I_max - II0)),
@@ -573,7 +569,7 @@ def _qfrc_passive(
   qfrc_gravcomp_in: wp.array2d[float],
   qfrc_fluid_in: wp.array2d[float],
   # In:
-  gravcomp: bool,
+  gravity_enabled: bool,
   # Data out:
   qfrc_passive_out: wp.array2d[float],
 ):
@@ -582,7 +578,7 @@ def _qfrc_passive(
   qfrc_passive += qfrc_damper_in[worldid, dofid]
 
   # add gravcomp unless added by actuators
-  if gravcomp and not jnt_actgravcomp[dof_jntid[dofid]]:
+  if gravity_enabled and not jnt_actgravcomp[dof_jntid[dofid]]:
     qfrc_passive += qfrc_gravcomp_in[worldid, dofid]
 
   # add fluid force
@@ -876,10 +872,9 @@ def passive(m: Model, d: Data):
       outputs=[d.qfrc_spring],
     )
 
-  gravcomp = m.ngravcomp and not (m.opt.disableflags & DisableBit.GRAVITY)
-
-  if gravcomp:
-    d.qfrc_gravcomp.zero_()
+  gravity_enabled = not (m.opt.disableflags & DisableBit.GRAVITY)
+  d.qfrc_gravcomp.zero_()
+  if gravity_enabled:
     wp.launch(
       _gravity_force,
       dim=(d.nworld, m.nbody - 1, m.nv),
@@ -912,7 +907,7 @@ def passive(m: Model, d: Data):
       d.qfrc_damper,
       d.qfrc_gravcomp,
       d.qfrc_fluid,
-      gravcomp,
+      gravity_enabled,
     ],
     outputs=[
       d.qfrc_passive,

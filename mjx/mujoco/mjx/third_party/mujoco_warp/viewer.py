@@ -180,9 +180,9 @@ def _main(argv: Sequence[str]) -> None:
     print(f"MuJoCo Warp simulating with dt = {m.opt.timestep.numpy()[0]:.3f}...")
 
   if _ENGINE.value == EngineOptions.WARP:
-    step_fn = _make_warp_step_fn(mjm, m, d, graph, ctrls)
+    step_fn = _make_warp_step_fn(mjm, m, d, graph, ctrls if cli.REPLAY.value else None)
   else:
-    step_fn = _make_c_step_fn(ctrls)
+    step_fn = _make_c_step_fn(ctrls if cli.REPLAY.value else None)
 
   mjd = mujoco.MjData(mjm)
   mjw.get_data_into(mjd, mjm, d)

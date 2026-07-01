@@ -1988,6 +1988,33 @@ def cylinder_triangle(
             nrm2 = nrm
           cnt += 1
 
+  # edge-vs-segment checks
+  for edge_idx in range(3):
+    if cnt >= 2:
+      break
+    u = t1 if edge_idx == 0 else (t2 if edge_idx == 1 else t3)
+    v = t2 if edge_idx == 0 else (t3 if edge_idx == 1 else t1)
+
+    closest_axis, closest_edge = closest_segment_to_segment_points(p1, p2, u, v)
+    diff = closest_edge - closest_axis
+    dist_raw = wp.length(diff)
+
+    if dist_raw < cylinder_radius + tri_radius:
+      if dist_raw > MJ_MINVAL:
+        nrm = diff / dist_raw
+        d = dist_raw - cylinder_radius - tri_radius
+        p = (closest_axis + closest_edge + nrm * (cylinder_radius - tri_radius)) * 0.5
+
+        if cnt == 0:
+          dist1 = d
+          pos1 = p
+          nrm1 = nrm
+        else:
+          dist2 = d
+          pos2 = p
+          nrm2 = nrm
+        cnt += 1
+
   return (
     wp.vec2(dist1, dist2),
     mat23f(pos1[0], pos1[1], pos1[2], pos2[0], pos2[1], pos2[2]),

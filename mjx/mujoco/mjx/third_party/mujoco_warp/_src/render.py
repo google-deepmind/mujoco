@@ -13,6 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 
+import dataclasses
 from typing import Tuple
 
 import warp as wp
@@ -555,25 +556,10 @@ def render(m: Model, d: Data, rc: RenderContext):
   cast_ray_first_hit = _make_cast_ray(geom_ray_types, first_hit=True)
   compute_lighting = _make_compute_lighting(cast_ray_first_hit)
 
-  # Extract static parameters to avoid capturing rc and m in the kernel closure.
-  static_use_precomputed_rays = rc.use_precomputed_rays
-  static_znear = rc.znear
-  static_enable_backface_culling = rc.enable_backface_culling
-  static_render_skybox = rc.render_skybox
-  static_skybox_tex_id = rc.skybox_tex_id
-  static_skybox_face_width = rc.skybox_face_width
-  static_use_textures = rc.use_textures
-  static_enable_specular = rc.enable_specular
-  static_enable_emission = rc.enable_emission
-  static_use_ambient_lighting = rc.use_ambient_lighting
-  static_headlight_active = rc.headlight_active
-  static_headlight_ambient = rc.headlight_ambient
-  static_headlight_diffuse = rc.headlight_diffuse
-  static_headlight_specular = rc.headlight_specular
-  static_enable_per_light_ambient = rc.enable_per_light_ambient
-  static_light_attenuation_is_default = rc.light_attenuation_is_default
-  static_has_spot_lights = rc.has_spot_lights
-  static_nlight = m.nlight
+  # Static parameters extracted for JAX FFI closure.
+  rc_static = {f.name: getattr(rc, f.name) for f in dataclasses.fields(rc) if f.type in (int, bool, float, wp.vec3)}
+  rc_static["enable_specular_or_emission"] = rc.enable_specular or rc.enable_emission
+  M_NLIGHT = m.nlight
 
   @wp.kernel(module="unique", enable_backward=False)
   def _render_megakernel(
@@ -641,6 +627,8 @@ def render(m: Model, d: Data, rc: RenderContext):
     flex_rgba: wp.array[wp.vec4],
     flex_geom_flexid: wp.array[int],
     flex_geom_edgeid: wp.array[int],
+    skybox_tex_id: wp.array[int],
+    skybox_face_width: wp.array[int],
     textures: wp.array[wp.Texture2D],
     # Out:
     rgb_out: wp.array2d[wp.uint32],
@@ -669,7 +657,7 @@ def render(m: Model, d: Data, rc: RenderContext):
     # Map active camera index to MuJoCo camera ID
     mujoco_cam_id = cam_id_map[camid]
 
-    if wp.static(static_use_precomputed_rays):
+    if wp.static(rc_static["use_precomputed_rays"]):
       ray_dir_local_cam = ray[rayid]
     else:
       img_w = cam_res[camid][0]
@@ -685,7 +673,7 @@ def render(m: Model, d: Data, rc: RenderContext):
         img_h,
         px,
         py,
-        wp.static(static_znear),
+        wp.static(rc_static["znear"]),
       )
 
     ray_origin_world = cam_xpos_in[worldid, mujoco_cam_id]
@@ -717,7 +705,7 @@ def render(m: Model, d: Data, rc: RenderContext):
       ray_origin_world,
       ray_dir_world,
       float(MJ_MAXVAL),
-      wp.static(static_enable_backface_culling),
+      wp.static(rc_static["enable_backface_culling"]),
     )
 
     if render_seg[camid] and geom_id != -1:
@@ -728,10 +716,11 @@ def render(m: Model, d: Data, rc: RenderContext):
 
     # Early Out
     if geom_id == -1:
-      if wp.static(static_render_skybox) and render_rgb[camid]:
+      if wp.static(rc_static["render_skybox"]) and render_rgb[camid]:
+        skybox_id = skybox_tex_id[worldid % skybox_tex_id.shape[0]]
         skybox_color = sample_skybox(
-          textures[wp.static(static_skybox_tex_id)],
-          wp.static(1.0 / float(static_skybox_face_width)),
+          textures[skybox_id],
+          1.0 / float(skybox_face_width[worldid % skybox_face_width.shape[0]]),
           ray_dir_world,
         )
         rgb_out[worldid, rgb_adr[camid] + rayid_local] = pack_rgba_to_uint32(
@@ -765,7 +754,7 @@ def render(m: Model, d: Data, rc: RenderContext):
 
     base_color = wp.vec3(color[0], color[1], color[2])
 
-    if wp.static(static_use_textures):
+    if wp.static(rc_static["use_textures"]):
       if geom_id != -2:
         mat_id = geom_matid[worldid % geom_matid.shape[0], geom_id]
         if mat_id >= 0:
@@ -793,27 +782,27 @@ def render(m: Model, d: Data, rc: RenderContext):
     mat_spec = DEFAULT_MAT_SPECULAR
     mat_shin_exp = DEFAULT_MAT_SHININESS_EXPONENT
     mat_emis = DEFAULT_MAT_EMISSION
-    if wp.static(static_enable_specular or static_enable_emission):
+    if wp.static(rc_static["enable_specular_or_emission"]):
       if geom_id != -2:
         mat_id_for_spec = geom_matid[worldid % geom_matid.shape[0], geom_id]
         if mat_id_for_spec >= 0:
-          if wp.static(static_enable_specular):
+          if wp.static(rc_static["enable_specular"]):
             mat_spec = mat_specular[worldid % mat_specular.shape[0], mat_id_for_spec]
             mat_shin_exp = mat_shininess[worldid % mat_shininess.shape[0], mat_id_for_spec] * MAX_SHININESS
-          if wp.static(static_enable_emission):
+          if wp.static(rc_static["enable_emission"]):
             mat_emis = mat_emission[worldid % mat_emission.shape[0], mat_id_for_spec]
 
     result = wp.vec3(0.0)
-    if wp.static(static_enable_emission):
+    if wp.static(rc_static["enable_emission"]):
       result = base_color * mat_emis
 
-    if wp.static(static_use_ambient_lighting):
-      if wp.static(static_headlight_active):
-        result = result + wp.cw_mul(base_color, wp.static(static_headlight_ambient))
-      elif wp.static(static_nlight == 0):
+    if wp.static(rc_static["use_ambient_lighting"]):
+      if wp.static(rc_static["headlight_active"]):
+        result = result + wp.cw_mul(base_color, wp.static(rc_static["headlight_ambient"]))
+      elif wp.static(M_NLIGHT == 0):
         result = result + base_color * NO_LIGHT_AMBIENT_FALLBACK
-      if wp.static(static_enable_per_light_ambient):
-        for light_index in range(wp.static(static_nlight)):
+      if wp.static(rc_static["enable_per_light_ambient"]):
+        for light_index in range(wp.static(M_NLIGHT)):
           if light_active[worldid % light_active.shape[0], light_index]:
             result = result + wp.cw_mul(base_color, light_ambient[worldid % light_ambient.shape[0], light_index])
 
@@ -830,7 +819,7 @@ def render(m: Model, d: Data, rc: RenderContext):
     light_diffuse_worldid = light_diffuse[worldid % light_diffuse.shape[0]]
     light_specular_worldid = light_specular[worldid % light_specular.shape[0]]
     # Apply Lighting for each light
-    for light_index in range(wp.static(static_nlight)):
+    for light_index in range(wp.static(M_NLIGHT)):
       diff_rgb, spec_rgb = compute_lighting(
         geom_type,
         geom_dataid,
@@ -869,15 +858,15 @@ def render(m: Model, d: Data, rc: RenderContext):
         view_dir,
         mat_spec,
         mat_shin_exp,
-        wp.static(static_enable_backface_culling),
-        wp.static(static_enable_specular),
-        wp.static(static_light_attenuation_is_default),
-        wp.static(static_has_spot_lights),
+        wp.static(rc_static["enable_backface_culling"]),
+        wp.static(rc_static["enable_specular"]),
+        wp.static(rc_static["light_attenuation_is_default"]),
+        wp.static(rc_static["has_spot_lights"]),
       )
       result = result + wp.cw_mul(base_color, diff_rgb) + spec_rgb
 
     # Apply Headlight
-    if wp.static(static_headlight_active):
+    if wp.static(rc_static["headlight_active"]):
       cam_pos = ray_origin_world
       cam_fwd = -cam_mat_world[:, 2]
       hl_diff, hl_spec = compute_lighting(
@@ -911,15 +900,15 @@ def render(m: Model, d: Data, rc: RenderContext):
         wp.vec3(1.0, 0.0, 0.0),
         0.0,
         0.0,
-        wp.static(static_headlight_diffuse),
-        wp.static(static_headlight_specular),
+        wp.static(rc_static["headlight_diffuse"]),
+        wp.static(rc_static["headlight_specular"]),
         normal,
         hit_point,
         view_dir,
         mat_spec,
         mat_shin_exp,
-        wp.static(static_enable_backface_culling),
-        wp.static(static_enable_specular),
+        wp.static(rc_static["enable_backface_culling"]),
+        wp.static(rc_static["enable_specular"]),
         True,
         False,
       )
@@ -1000,6 +989,8 @@ def render(m: Model, d: Data, rc: RenderContext):
       rc.flex_rgba,
       rc.flex_geom_flexid,
       rc.flex_geom_edgeid,
+      rc.skybox_tex_id,
+      rc.skybox_face_width,
       rc.textures,
     ],
     outputs=[

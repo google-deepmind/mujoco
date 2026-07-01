@@ -13,8 +13,6 @@
 # limitations under the License.
 # ==============================================================================
 
-from typing import Optional
-
 import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src import types
@@ -337,7 +335,6 @@ def _wake_kernel(
   tree_awake_in: wp.array2d[int],
   # Out:
   tree_asleep_out: wp.array2d[int],  # kernel_analyzer: ignore
-  nwoke_out: wp.array[int],  # kernel_analyzer: ignore
 ):
   worldid, treeid = wp.tid()
 
@@ -360,9 +357,7 @@ def _wake_kernel(
     treeid,
     0.0,  # zero tolerance
   ):
-    woke = _wake_tree(ntree, worldid, treeid, K_AWAKE_VAL, tree_asleep_out)
-    if woke > 0:
-      wp.atomic_add(nwoke_out, worldid, woke)
+    _wake_tree(ntree, worldid, treeid, K_AWAKE_VAL, tree_asleep_out)
 
 
 @wp.kernel
@@ -378,7 +373,6 @@ def _wake_collision_kernel(
   nacon_in: wp.array[int],
   # Out:
   tree_asleep_out: wp.array2d[int],  # kernel_analyzer: ignore
-  skip_out: wp.array[int],  # kernel_analyzer: ignore
 ):
   conid = wp.tid()
   if conid >= nacon_in[0]:
@@ -413,9 +407,7 @@ def _wake_collision_kernel(
   sleeping_tree = tree2 if awake1 == 1 else tree1
   wakeval = tree_asleep_out[worldid, tree1] if awake1 == 1 else tree_asleep_out[worldid, tree2]
 
-  woke = _wake_tree(ntree, worldid, sleeping_tree, wakeval, tree_asleep_out)
-  if woke > 0:
-    wp.atomic_add(skip_out, 0, woke)
+  _wake_tree(ntree, worldid, sleeping_tree, wakeval, tree_asleep_out)
 
 
 @wp.kernel
@@ -439,8 +431,6 @@ def _wake_tendon_kernel(
   tree_awake_in: wp.array2d[int],
   # Data out:
   tree_asleep_out: wp.array2d[int],
-  # Out:
-  nwoke_out: wp.array[int],
 ):
   worldid, tenid = wp.tid()
 
@@ -487,9 +477,7 @@ def _wake_tendon_kernel(
 
         if t >= 0:
           if tree_awake_in[worldid, t] == 0:
-            woke = _wake_tree(ntree, worldid, t, wakeval, tree_asleep_out)
-            if woke > 0:
-              wp.atomic_add(nwoke_out, worldid, woke)
+            _wake_tree(ntree, worldid, t, wakeval, tree_asleep_out)
 
 
 @wp.func
@@ -560,8 +548,6 @@ def _wake_tendon_trees(
   wakeval: int,
   # Data out:
   tree_asleep_out: wp.array2d[int],
-  # Out:
-  nwoke_out: wp.array[int],
 ):
   """Wakes up all sleeping trees associated with a tendon."""
   if tenid < 0:
@@ -583,9 +569,7 @@ def _wake_tendon_trees(
 
     if t >= 0:
       if tree_awake_in[worldid, t] == 0:
-        woke = _wake_tree(ntree, worldid, t, wakeval, tree_asleep_out)
-        if woke > 0:
-          wp.atomic_add(nwoke_out, worldid, woke)
+        _wake_tree(ntree, worldid, t, wakeval, tree_asleep_out)
 
 
 @wp.kernel
@@ -610,8 +594,6 @@ def _wake_equality_kernel(
   tree_awake_in: wp.array2d[int],
   # Data out:
   tree_asleep_out: wp.array2d[int],  # kernel_analyzer: ignore
-  # Out:
-  nwoke_out: wp.array[int],  # kernel_analyzer: ignore
 ):
   worldid, eqid = wp.tid()
 
@@ -651,15 +633,11 @@ def _wake_equality_kernel(
       cycle1 = _sleep_cycle(tree_asleep_out, ntree, worldid, tree1)
       cycle2 = _sleep_cycle(tree_asleep_out, ntree, worldid, tree2)
       if cycle1 != cycle2:
-        w1 = _wake_tree(ntree, worldid, tree1, K_AWAKE_VAL, tree_asleep_out)
-        w2 = _wake_tree(ntree, worldid, tree2, K_AWAKE_VAL, tree_asleep_out)
-        if w1 + w2 > 0:
-          wp.atomic_add(nwoke_out, worldid, w1 + w2)
+        _wake_tree(ntree, worldid, tree1, K_AWAKE_VAL, tree_asleep_out)
+        _wake_tree(ntree, worldid, tree2, K_AWAKE_VAL, tree_asleep_out)
     else:
       sleeping_tree = tree1 if s1 == SleepState.ASLEEP else tree2
-      woke = _wake_tree(ntree, worldid, sleeping_tree, K_AWAKE_VAL, tree_asleep_out)
-      if woke > 0:
-        wp.atomic_add(nwoke_out, worldid, woke)
+      _wake_tree(ntree, worldid, sleeping_tree, K_AWAKE_VAL, tree_asleep_out)
 
   elif eqtype == EqType.TENDON:
     ten1 = id1
@@ -715,7 +693,6 @@ def _wake_equality_kernel(
         ten1,
         wakeval,
         tree_asleep_out,
-        nwoke_out,
       )
       _wake_tendon_trees(
         ntree,
@@ -732,7 +709,6 @@ def _wake_equality_kernel(
         ten2,
         wakeval,
         tree_asleep_out,
-        nwoke_out,
       )
 
   # TODO(team): Implement waking for EqType.FLEX constraints.
@@ -741,7 +717,6 @@ def _wake_equality_kernel(
 @event_scope
 def wake(m: types.Model, d: types.Data):
   """Wakes sleeping trees due to user changes/perturbations."""
-  nwoke = wp.zeros((d.nworld,), dtype=int)
   wp.launch(
     _wake_kernel,
     dim=(d.nworld, m.ntree),
@@ -757,16 +732,14 @@ def wake(m: types.Model, d: types.Data):
       d.qfrc_applied,
       d.xfrc_applied,
       d.tree_awake,
-      d.tree_asleep,
     ],
-    outputs=[nwoke],
+    outputs=[d.tree_asleep],
   )
 
 
 @event_scope
-def wake_collision(m: types.Model, d: types.Data, skip: Optional[wp.array] = None):
+def wake_collision(m: types.Model, d: types.Data):
   """Wakes sleeping trees that touch awake trees."""
-  skip_out = skip if skip is not None else wp.zeros(1, dtype=int)
   wp.launch(
     _wake_collision_kernel,
     dim=d.naconmax,
@@ -778,9 +751,8 @@ def wake_collision(m: types.Model, d: types.Data, skip: Optional[wp.array] = Non
       d.contact.geom,
       d.contact.worldid,
       d.nacon,
-      d.tree_asleep,
     ],
-    outputs=[skip_out],
+    outputs=[d.tree_asleep],
   )
 
 
@@ -790,7 +762,6 @@ def wake_tendon(m: types.Model, d: types.Data):
   if m.ntendon == 0:
     return
 
-  nwoke = wp.zeros((d.nworld,), dtype=int)
   wp.launch(
     _wake_tendon_kernel,
     dim=(d.nworld, m.ntendon),
@@ -811,7 +782,7 @@ def wake_tendon(m: types.Model, d: types.Data):
       d.ten_length,
       d.tree_awake,
     ],
-    outputs=[d.tree_asleep, nwoke],
+    outputs=[d.tree_asleep],
   )
 
 
@@ -821,7 +792,6 @@ def wake_equality(m: types.Model, d: types.Data):
   if m.neq == 0:
     return
 
-  nwoke = wp.zeros((d.nworld,), dtype=int)
   wp.launch(
     _wake_equality_kernel,
     dim=(d.nworld, m.neq),
@@ -842,9 +812,8 @@ def wake_equality(m: types.Model, d: types.Data):
       m.wrap_objid,
       d.eq_active,
       d.tree_awake,
-      d.tree_asleep,
     ],
-    outputs=[nwoke],
+    outputs=[d.tree_asleep],
   )
 
 
@@ -928,7 +897,6 @@ def _build_cycles(  # kernel_analyzer: ignore
   tree_asleep_out: wp.array2d[int],  # kernel_analyzer: ignore
   qvel_out: wp.array2d[float],  # kernel_analyzer: ignore
   qacc_out: wp.array2d[float],  # kernel_analyzer: ignore
-  nslept_out: wp.array[int],  # kernel_analyzer: ignore
 ):
   worldid = wp.tid()
 
@@ -937,7 +905,6 @@ def _build_cycles(  # kernel_analyzer: ignore
     if island_can_sleep_in[worldid, island_id] == 1:
       first_tree = int(-1)
       prev_tree = int(-1)
-      n = int(0)
       for t in range(ntree):
         if tree_island_in[worldid, t] == island_id:
           if first_tree == -1:
@@ -945,7 +912,6 @@ def _build_cycles(  # kernel_analyzer: ignore
           if prev_tree != -1:
             tree_asleep_out[worldid, prev_tree] = t
           prev_tree = t
-          n += 1
 
           # Zero velocities and accelerations
           dofadr = tree_dofadr[t]
@@ -956,7 +922,6 @@ def _build_cycles(  # kernel_analyzer: ignore
 
       if first_tree != -1:
         tree_asleep_out[worldid, prev_tree] = first_tree
-        wp.atomic_add(nslept_out, worldid, n)
 
   # Sleep unconstrained trees
   for t in range(ntree):
@@ -964,7 +929,6 @@ def _build_cycles(  # kernel_analyzer: ignore
     if island_id < 0 or island_id >= num_islands:
       if tree_asleep_out[worldid, t] == -1:
         tree_asleep_out[worldid, t] = t  # self-cycle
-        wp.atomic_add(nslept_out, worldid, 1)
 
       # Ensure sleeping tree dof velocity and acceleration remain exactly zero
       if tree_asleep_out[worldid, t] >= 0:
@@ -1013,7 +977,6 @@ def sleep(m: types.Model, d: types.Data):
   )
 
   # 3. Build sleep cycles for sleeping islands and sleep unconstrained trees
-  nslept = wp.zeros((d.nworld,), dtype=int)
   wp.launch(
     _build_cycles,
     dim=d.nworld,
@@ -1024,9 +987,10 @@ def sleep(m: types.Model, d: types.Data):
       d.nisland,
       d.tree_island,
       island_can_sleep,
+    ],
+    outputs=[
       d.tree_asleep,
       d.qvel,
       d.qacc,
     ],
-    outputs=[nslept],
   )

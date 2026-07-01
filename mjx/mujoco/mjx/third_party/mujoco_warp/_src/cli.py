@@ -25,7 +25,6 @@ from absl import flags
 from etils import epath
 
 import mujoco.mjx.third_party.mujoco_warp as mjw
-from mujoco.mjx.third_party.mujoco_warp._src import io
 from mujoco.mjx.third_party.mujoco_warp._src import warp_util
 from mujoco.mjx.third_party.mujoco_warp._src.io import load_trajectory
 from mujoco.mjx.third_party.mujoco_warp._src.io import override_model
@@ -43,12 +42,12 @@ KEYFRAME = flags.DEFINE_integer("keyframe", 0, "keyframe to initialize simulatio
 EVENT_TRACE = flags.DEFINE_bool("event_trace", False, "print an event trace report")
 NOISE_STD = flags.DEFINE_float("noise_std", 0.01, "add noise to ctrl signal (standard deviation)")
 NOISE_RATE = flags.DEFINE_float("noise_rate", 0.1, "add noise to ctrl signal (noise rate)")
-ENABLE_ISLANDS = flags.DEFINE_bool(
-  "enable_islands",
-  False,
-  "Enable constraint islands solver",
-)
+NVMAX = flags.DEFINE_integer("nvmax", None, "maximum active DOFs per world")
 
+
+INIT_ASLEEP = flags.DEFINE_bool(
+  "init_asleep", False, "initialize all trees as asleep before simulation (requires sleep enabled)"
+)
 
 DEVICE = flags.DEFINE_string("device", None, "override the default Warp device")
 REPLAY = flags.DEFINE_string("replay", None, "NPZ file with ctrl sequence to replay")
@@ -141,8 +140,6 @@ def init_structs(
   fn: Callable[..., None], mjm: mujoco.MjModel
 ) -> Tuple[mjw.Model, mjw.Data, mjw.RenderContext | None, list[np.ndarray] | None]:
   """Initialize device structs."""
-  io.ENABLE_ISLANDS = ENABLE_ISLANDS.value
-
   mjd = mujoco.MjData(mjm)
   ctrls = None
   if REPLAY.value:
@@ -158,8 +155,18 @@ def init_structs(
     m = mjw.put_model(mjm)
     if OVERRIDE.value:
       override_model(m, OVERRIDE.value)
+    if INIT_ASLEEP.value:
+      mjd.tree_asleep[:] = np.arange(mjm.ntree, dtype=np.int32)
+
     d = mjw.put_data(
-      mjm, mjd, nworld=NWORLD.value, nconmax=NCONMAX.value, njmax=NJMAX.value, njmax_nnz=NJMAX_NNZ.value, nccdmax=NCCDMAX.value
+      mjm,
+      mjd,
+      nworld=NWORLD.value,
+      nconmax=NCONMAX.value,
+      njmax=NJMAX.value,
+      njmax_nnz=NJMAX_NNZ.value,
+      nccdmax=NCCDMAX.value,
+      nvmax=NVMAX.value,
     )
 
     if mjw.RenderContext not in get_type_hints(fn).values():

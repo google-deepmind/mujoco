@@ -23,7 +23,6 @@ import warp as wp
 from mujoco.mjx.third_party.mujoco_warp._src.math import safe_div
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINMU
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
-from mujoco.mjx.third_party.mujoco_warp._src.types import NEW_GAP_SEMANTICS
 from mujoco.mjx.third_party.mujoco_warp._src.types import ContactType
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat63
@@ -219,10 +218,7 @@ def write_contact(
     contact_frame_out[cid] = frame_in
     contact_geom_out[cid] = geoms_in
     contact_worldid_out[cid] = worldid_in
-    if wp.static(NEW_GAP_SEMANTICS):
-      includemargin = margin_in
-    else:
-      includemargin = margin_in - gap_in
+    includemargin = margin_in
     contact_includemargin_out[cid] = includemargin
     contact_dim_out[cid] = condim_in
     contact_friction_out[cid] = friction_in

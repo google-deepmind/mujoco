@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name="mujoco-warp"
-version = "3.9.0.1"
+version = "3.10.0.1"
 # TODO(team): create a distribution list
 authors = [
     {name = "Newton Developers", email = "mujoco@deepmind.com"},
@@ -29,9 +29,9 @@ requires-python = ">=3.10"
 dependencies = [
     "absl-py",
     "etils[epath]",
-    "mujoco>=3.8.0",
+    "mujoco>=3.9.0",
     "numpy",
-    "warp-lang>=1.13",
+    "warp-lang>=1.14",
 ]
 
 [[tool.uv.index]]
@@ -57,7 +57,7 @@ dev = [
     "pygls>=1.0.0,<2.0.0",
     "lsprotocol>=2023.0.1,<2024.0.0",
     "mujoco>=3.8.0.dev0",
-    "warp-lang>=1.11.0.dev0",
+    "warp-lang>=1.14",
     "mjviser>=0.0.10",
     "pillow",
 ]

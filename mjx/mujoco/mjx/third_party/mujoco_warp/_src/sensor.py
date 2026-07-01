@@ -27,7 +27,6 @@ from mujoco.mjx.third_party.mujoco_warp._src.collision_sdf import sdf
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXCONPAIR
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
-from mujoco.mjx.third_party.mujoco_warp._src.types import TACTILE_DEPTH_SEMANTICS
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConeType
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConstraintType
 from mujoco.mjx.third_party.mujoco_warp._src.types import ContactType
@@ -37,6 +36,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import ObjType
+from mujoco.mjx.third_party.mujoco_warp._src.types import OverflowType
 from mujoco.mjx.third_party.mujoco_warp._src.types import SensorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Stage
 from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType
@@ -152,46 +152,27 @@ def _cam_projection(
   xpos = cam_xpos_in[worldid, refid]
   xmat = cam_xmat_in[worldid, refid]
 
-  translation = wp.mat44f(1.0, 0.0, 0.0, -xpos[0], 0.0, 1.0, 0.0, -xpos[1], 0.0, 0.0, 1.0, -xpos[2], 0.0, 0.0, 0.0, 1.0)
-  rotation = wp.mat44f(
-    xmat[0, 0], xmat[1, 0], xmat[2, 0], 0.0,
-    xmat[0, 1], xmat[1, 1], xmat[2, 1], 0.0,
-    xmat[0, 2], xmat[1, 2], xmat[2, 2], 0.0,
-    0.0, 0.0, 0.0, 1.0,
-  )  # fmt: skip
+  # Transform target position into camera-local frame: v = xmat^T @ (target - cam_pos)
+  v = wp.transpose(xmat) @ (target_xpos - xpos)
 
-  # focal transformation matrix (3 x 4)
+  # Compute focal lengths
   if sensorsize[0] != 0.0 and sensorsize[1] != 0.0:
     fx = intrinsic[0] / (sensorsize[0] + MJ_MINVAL) * float(res[0])
     fy = intrinsic[1] / (sensorsize[1] + MJ_MINVAL) * float(res[1])
-    focal = wp.mat44f(-fx, 0.0, 0.0, 0.0, 0.0, fy, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0)
   else:
     f = 0.5 / wp.tan(fovy * wp.static(wp.pi / 360.0)) * float(res[1])
-    focal = wp.mat44f(-f, 0.0, 0.0, 0.0, 0.0, f, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    fx = f
+    fy = f
 
-  # image matrix (3 x 3)
-  image = wp.mat44f(
-    1.0, 0.0, 0.5 * float(res[0]), 0.0, 0.0, 1.0, 0.5 * float(res[1]), 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0
-  )
+  # Compute homogeneous coordinates
+  pixel_x = -fx * v[0]
+  pixel_y = fy * v[1]
 
-  # projection matrix (3 x 4): product of all 4 matrices
-  # TODO(team): compute proj directly
-  proj = image @ focal @ rotation @ translation
-
-  # projection matrix multiples homogeneous [x, y, z, 1] vectors
-  pos_hom = wp.vec4(target_xpos[0], target_xpos[1], target_xpos[2], 1.0)
-
-  # project world coordinates into pixel space, see:
-  # https://en.wikipedia.org/wiki/3D_projection#Mathematical_formula
-  pixel_coord_hom = proj @ pos_hom
-
-  # avoid dividing by tiny numbers
-  denom = pixel_coord_hom[2]
+  denom = v[2]
   if wp.abs(denom) < MJ_MINVAL:
     denom = wp.clamp(denom, -MJ_MINVAL, MJ_MINVAL)
 
-  # compute projection
-  return wp.vec2f(pixel_coord_hom[0], pixel_coord_hom[1]) / denom
+  return wp.vec2(pixel_x, pixel_y) / denom + 0.5 * wp.vec2(float(res[0]), float(res[1]))
 
 
 @wp.kernel
@@ -282,6 +263,117 @@ def _limit_pos(
 
 
 @wp.func
+def _get_pos(
+  # Data in:
+  xpos_in: wp.array2d[wp.vec3],
+  xipos_in: wp.array2d[wp.vec3],
+  geom_xpos_in: wp.array2d[wp.vec3],
+  site_xpos_in: wp.array2d[wp.vec3],
+  cam_xpos_in: wp.array2d[wp.vec3],
+  # In:
+  worldid: int,
+  objtype: int,
+  objid: int,
+) -> wp.vec3:
+  if objtype == ObjType.BODY:
+    return xipos_in[worldid, objid]
+  elif objtype == ObjType.XBODY:
+    return xpos_in[worldid, objid]
+  elif objtype == ObjType.GEOM:
+    return geom_xpos_in[worldid, objid]
+  elif objtype == ObjType.SITE:
+    return site_xpos_in[worldid, objid]
+  elif objtype == ObjType.CAMERA:
+    return cam_xpos_in[worldid, objid]
+  else:
+    return wp.vec3(0.0)
+
+
+@wp.func
+def _get_mat(
+  # Data in:
+  xmat_in: wp.array2d[wp.mat33],
+  ximat_in: wp.array2d[wp.mat33],
+  geom_xmat_in: wp.array2d[wp.mat33],
+  site_xmat_in: wp.array2d[wp.mat33],
+  cam_xmat_in: wp.array2d[wp.mat33],
+  # In:
+  worldid: int,
+  objtype: int,
+  objid: int,
+) -> wp.mat33:
+  if objtype == ObjType.BODY:
+    return ximat_in[worldid, objid]
+  elif objtype == ObjType.XBODY:
+    return xmat_in[worldid, objid]
+  elif objtype == ObjType.GEOM:
+    return geom_xmat_in[worldid, objid]
+  elif objtype == ObjType.SITE:
+    return site_xmat_in[worldid, objid]
+  elif objtype == ObjType.CAMERA:
+    return cam_xmat_in[worldid, objid]
+  else:
+    return wp.identity(3, dtype=wp.float32)
+
+
+@wp.func
+def _get_body_id(
+  # Model:
+  geom_bodyid: wp.array[int],
+  site_bodyid: wp.array[int],
+  cam_bodyid: wp.array[int],
+  # In:
+  objtype: int,
+  objid: int,
+) -> int:
+  if objtype == ObjType.BODY or objtype == ObjType.XBODY:
+    return objid
+  elif objtype == ObjType.GEOM:
+    return geom_bodyid[objid]
+  elif objtype == ObjType.SITE:
+    return site_bodyid[objid]
+  elif objtype == ObjType.CAMERA:
+    return cam_bodyid[objid]
+  else:
+    return 0
+
+
+@wp.func
+def _get_quat(
+  # Model:
+  body_iquat: wp.array2d[wp.quat],
+  geom_bodyid: wp.array[int],
+  geom_quat: wp.array2d[wp.quat],
+  site_bodyid: wp.array[int],
+  site_quat: wp.array2d[wp.quat],
+  cam_bodyid: wp.array[int],
+  cam_quat: wp.array2d[wp.quat],
+  # Data in:
+  xquat_in: wp.array2d[wp.quat],
+  # In:
+  worldid: int,
+  objtype: int,
+  objid: int,
+) -> wp.quat:
+  if objtype == ObjType.BODY:
+    body_iquat_id = worldid % body_iquat.shape[0]
+    return math.mul_quat(xquat_in[worldid, objid], body_iquat[body_iquat_id, objid])
+  elif objtype == ObjType.XBODY:
+    return xquat_in[worldid, objid]
+  elif objtype == ObjType.GEOM:
+    geom_quat_id = worldid % geom_quat.shape[0]
+    return math.mul_quat(xquat_in[worldid, geom_bodyid[objid]], geom_quat[geom_quat_id, objid])
+  elif objtype == ObjType.SITE:
+    site_quat_id = worldid % site_quat.shape[0]
+    return math.mul_quat(xquat_in[worldid, site_bodyid[objid]], site_quat[site_quat_id, objid])
+  elif objtype == ObjType.CAMERA:
+    cam_quat_id = worldid % cam_quat.shape[0]
+    return math.mul_quat(xquat_in[worldid, cam_bodyid[objid]], cam_quat[cam_quat_id, objid])
+  else:
+    return wp.quat(1.0, 0.0, 0.0, 0.0)
+
+
+@wp.func
 def _frame_pos(
   # Data in:
   xpos_in: wp.array2d[wp.vec3],
@@ -301,42 +393,12 @@ def _frame_pos(
   refid: int,
   reftype: int,
 ) -> wp.vec3:
-  if objtype == ObjType.BODY:
-    xpos = xipos_in[worldid, objid]
-  elif objtype == ObjType.XBODY:
-    xpos = xpos_in[worldid, objid]
-  elif objtype == ObjType.GEOM:
-    xpos = geom_xpos_in[worldid, objid]
-  elif objtype == ObjType.SITE:
-    xpos = site_xpos_in[worldid, objid]
-  elif objtype == ObjType.CAMERA:
-    xpos = cam_xpos_in[worldid, objid]
-  else:  # UNKNOWN
-    xpos = wp.vec3(0.0)
-
+  xpos = _get_pos(xpos_in, xipos_in, geom_xpos_in, site_xpos_in, cam_xpos_in, worldid, objtype, objid)
   if refid == -1:
     return xpos
 
-  if reftype == ObjType.BODY:
-    xpos_ref = xipos_in[worldid, refid]
-    xmat_ref = ximat_in[worldid, refid]
-  elif objtype == ObjType.XBODY:
-    xpos_ref = xpos_in[worldid, refid]
-    xmat_ref = xmat_in[worldid, refid]
-  elif reftype == ObjType.GEOM:
-    xpos_ref = geom_xpos_in[worldid, refid]
-    xmat_ref = geom_xmat_in[worldid, refid]
-  elif reftype == ObjType.SITE:
-    xpos_ref = site_xpos_in[worldid, refid]
-    xmat_ref = site_xmat_in[worldid, refid]
-  elif reftype == ObjType.CAMERA:
-    xpos_ref = cam_xpos_in[worldid, refid]
-    xmat_ref = cam_xmat_in[worldid, refid]
-
-  else:  # UNKNOWN
-    xpos_ref = wp.vec3(0.0)
-    xmat_ref = wp.identity(3, wp.float32)
-
+  xpos_ref = _get_pos(xpos_in, xipos_in, geom_xpos_in, site_xpos_in, cam_xpos_in, worldid, reftype, refid)
+  xmat_ref = _get_mat(xmat_in, ximat_in, geom_xmat_in, site_xmat_in, cam_xmat_in, worldid, reftype, refid)
   return wp.transpose(xmat_ref) @ (xpos - xpos_ref)
 
 
@@ -356,40 +418,13 @@ def _frame_axis(
   reftype: int,
   frame_axis: int,
 ) -> wp.vec3:
-  if objtype == ObjType.BODY:
-    xmat = ximat_in[worldid, objid]
-    axis = wp.vec3(xmat[0, frame_axis], xmat[1, frame_axis], xmat[2, frame_axis])
-  elif objtype == ObjType.XBODY:
-    xmat = xmat_in[worldid, objid]
-    axis = wp.vec3(xmat[0, frame_axis], xmat[1, frame_axis], xmat[2, frame_axis])
-  elif objtype == ObjType.GEOM:
-    xmat = geom_xmat_in[worldid, objid]
-    axis = wp.vec3(xmat[0, frame_axis], xmat[1, frame_axis], xmat[2, frame_axis])
-  elif objtype == ObjType.SITE:
-    xmat = site_xmat_in[worldid, objid]
-    axis = wp.vec3(xmat[0, frame_axis], xmat[1, frame_axis], xmat[2, frame_axis])
-  elif objtype == ObjType.CAMERA:
-    xmat = cam_xmat_in[worldid, objid]
-    axis = wp.vec3(xmat[0, frame_axis], xmat[1, frame_axis], xmat[2, frame_axis])
-  else:  # UNKNOWN
-    axis = wp.vec3(xmat[0, frame_axis], xmat[1, frame_axis], xmat[2, frame_axis])
+  xmat = _get_mat(xmat_in, ximat_in, geom_xmat_in, site_xmat_in, cam_xmat_in, worldid, objtype, objid)
+  axis = wp.vec3(xmat[0, frame_axis], xmat[1, frame_axis], xmat[2, frame_axis])
 
   if refid == -1:
     return axis
 
-  if reftype == ObjType.BODY:
-    xmat_ref = ximat_in[worldid, refid]
-  elif reftype == ObjType.XBODY:
-    xmat_ref = xmat_in[worldid, refid]
-  elif reftype == ObjType.GEOM:
-    xmat_ref = geom_xmat_in[worldid, refid]
-  elif reftype == ObjType.SITE:
-    xmat_ref = site_xmat_in[worldid, refid]
-  elif reftype == ObjType.CAMERA:
-    xmat_ref = cam_xmat_in[worldid, refid]
-  else:  # UNKNOWN
-    xmat_ref = wp.identity(3, dtype=wp.float32)
-
+  xmat_ref = _get_mat(xmat_in, ximat_in, geom_xmat_in, site_xmat_in, cam_xmat_in, worldid, reftype, refid)
   return wp.transpose(xmat_ref) @ axis
 
 
@@ -412,38 +447,36 @@ def _frame_quat(
   refid: int,
   reftype: int,
 ) -> wp.quat:
-  body_iquat_id = worldid % body_iquat.shape[0]
-  geom_quat_id = worldid % geom_quat.shape[0]
-  site_quat_id = worldid % site_quat.shape[0]
-  cam_quat_id = worldid % cam_quat.shape[0]
-  if objtype == ObjType.BODY:
-    quat = math.mul_quat(xquat_in[worldid, objid], body_iquat[body_iquat_id, objid])
-  elif objtype == ObjType.XBODY:
-    quat = xquat_in[worldid, objid]
-  elif objtype == ObjType.GEOM:
-    quat = math.mul_quat(xquat_in[worldid, geom_bodyid[objid]], geom_quat[geom_quat_id, objid])
-  elif objtype == ObjType.SITE:
-    quat = math.mul_quat(xquat_in[worldid, site_bodyid[objid]], site_quat[site_quat_id, objid])
-  elif objtype == ObjType.CAMERA:
-    quat = math.mul_quat(xquat_in[worldid, cam_bodyid[objid]], cam_quat[cam_quat_id, objid])
-  else:  # UNKNOWN
-    quat = wp.quat(1.0, 0.0, 0.0, 0.0)
+  quat = _get_quat(
+    body_iquat,
+    geom_bodyid,
+    geom_quat,
+    site_bodyid,
+    site_quat,
+    cam_bodyid,
+    cam_quat,
+    xquat_in,
+    worldid,
+    objtype,
+    objid,
+  )
 
   if refid == -1:
     return quat
 
-  if reftype == ObjType.BODY:
-    refquat = math.mul_quat(xquat_in[worldid, refid], body_iquat[body_iquat_id, refid])
-  elif reftype == ObjType.XBODY:
-    refquat = xquat_in[worldid, refid]
-  elif reftype == ObjType.GEOM:
-    refquat = math.mul_quat(xquat_in[worldid, geom_bodyid[refid]], geom_quat[geom_quat_id, refid])
-  elif reftype == ObjType.SITE:
-    refquat = math.mul_quat(xquat_in[worldid, site_bodyid[refid]], site_quat[site_quat_id, refid])
-  elif reftype == ObjType.CAMERA:
-    refquat = math.mul_quat(xquat_in[worldid, cam_bodyid[refid]], cam_quat[cam_quat_id, refid])
-  else:  # UNKNOWN
-    refquat = wp.quat(1.0, 0.0, 0.0, 0.0)
+  refquat = _get_quat(
+    body_iquat,
+    geom_bodyid,
+    geom_quat,
+    site_bodyid,
+    site_quat,
+    cam_bodyid,
+    cam_quat,
+    xquat_in,
+    worldid,
+    reftype,
+    refid,
+  )
 
   return math.mul_quat(math.quat_inv(refquat), quat)
 
@@ -2263,23 +2296,14 @@ def _sensor_tactile(
     vel_rel = vel_sensor - vel_other
 
     forceT = wp.vec3(0.0, 0.0, 0.0)
-    if wp.static(TACTILE_DEPTH_SEMANTICS):
-      forceT[0] = -depth
-    else:
-      kMaxDepth = 0.05
-      pressure = depth / wp.max(kMaxDepth - depth, MJ_MINVAL)
-      force = wp.mul(normal, pressure)
-      forceT[0] = wp.dot(force, normal)
+    forceT[0] = -depth
 
     if has_frame:
       forceT[1] = wp.abs(wp.dot(vel_rel, tang1))
       forceT[2] = wp.abs(wp.dot(vel_rel, tang2))
 
     dim = sensor_dim[sensor_id] // 3
-    if wp.static(TACTILE_DEPTH_SEMANTICS):
-      wp.atomic_max(sensordata_out, worldid, sensor_adr[sensor_id] + 0 * dim + vertid, forceT[0])
-    else:
-      wp.atomic_add(sensordata_out, worldid, sensor_adr[sensor_id] + 0 * dim + vertid, forceT[0])
+    wp.atomic_max(sensordata_out, worldid, sensor_adr[sensor_id] + 0 * dim + vertid, forceT[0])
     wp.atomic_add(sensordata_out, worldid, sensor_adr[sensor_id] + 1 * dim + vertid, forceT[1])
     wp.atomic_add(sensordata_out, worldid, sensor_adr[sensor_id] + 2 * dim + vertid, forceT[2])
 
@@ -2308,6 +2332,7 @@ def _contact_match(
   # Model:
   opt_cone: int,
   opt_contact_sensor_maxmatch: int,
+  opt_warn_overflow: bool,
   body_parentid: wp.array[int],
   geom_bodyid: wp.array[int],
   site_type: wp.array[int],
@@ -2333,6 +2358,8 @@ def _contact_match(
   efc_force_in: wp.array2d[float],
   njmax_in: int,
   nacon_in: wp.array[int],
+  # Data out:
+  overflow_out: wp.array[int],
   # Out:
   sensor_contact_nmatch_out: wp.array2d[int],
   sensor_contact_matchid_out: wp.array3d[int],
@@ -2407,8 +2434,9 @@ def _contact_match(
   contactmatchid = wp.atomic_add(sensor_contact_nmatch_out[worldid], contactsensorid, 1)
 
   if contactmatchid >= opt_contact_sensor_maxmatch:
-    # TODO(team): alternative to wp.printf for reporting overflow?
-    wp.printf("contact match overflow: please increase Option.contact_sensor_maxmatch to %u\n", contactmatchid)
+    if opt_warn_overflow:
+      wp.printf("contact match overflow: please increase Option.contact_sensor_maxmatch to %u\n", contactmatchid)
+    wp.atomic_or(overflow_out, worldid, OverflowType.CONTACT_MATCH)
     return
 
   sensor_contact_matchid_out[worldid, contactsensorid, contactmatchid] = contactid
@@ -2585,6 +2613,7 @@ def sensor_acc(m: Model, d: Data):
       inputs=[
         m.opt.cone,
         m.opt.contact_sensor_maxmatch,
+        m.opt.warn_overflow,
         m.body_parentid,
         m.geom_bodyid,
         m.site_type,
@@ -2610,7 +2639,7 @@ def sensor_acc(m: Model, d: Data):
         d.njmax,
         d.nacon,
       ],
-      outputs=[sensor_contact_nmatch, sensor_contact_matchid, sensor_contact_criteria, sensor_contact_direction],
+      outputs=[d.overflow, sensor_contact_nmatch, sensor_contact_matchid, sensor_contact_criteria, sensor_contact_direction],
     )
 
     # sorting
