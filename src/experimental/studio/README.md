@@ -35,6 +35,9 @@ If you intend to develop the application you may prefer to work from an IDE:
 ## Known Bugs
 
 * MuJoCo Studio does not yet work using Wayland on Linux, use X11 instead.
+* On Linux, build Filament-backed targets with a single C++ standard library.
+  If Filament is built with `libc++`, configure MuJoCo with clang and matching
+  `-stdlib=libc++` compiler/linker flags to avoid mixed-stdlib link failures.
 
 ## Future Work
 
