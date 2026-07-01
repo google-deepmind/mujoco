@@ -27,6 +27,7 @@
 
 #include "engine/engine_crossplatform.h"  // IWYU pragma: keep
 #include "engine/engine_macro.h"
+#include "engine/engine_util_file.h"
 
 //------------------------- cross-platform aligned malloc/free -------------------------------------
 
@@ -262,7 +263,7 @@ static void mju_defaultLogHandler(const mjLogMessage* msg) {
   }
 
   if (cfg->logto_file && cfg->logfile[0]) {
-    FILE* fp = fopen(cfg->logfile, "a+t");
+    FILE* fp = mju_fopen(cfg->logfile, "a+t");
     if (fp) {
       mju_fprint_message(fp, timestr, msg);
       fclose(fp);
@@ -348,7 +349,7 @@ void mju_writeLog(const char* type, const char* msg) {
   char timestr[64];
   mju_localTimeStr(timestr, sizeof(timestr));
 
-  FILE* fp = fopen("MUJOCO_LOG.TXT", "a+t");
+  FILE* fp = mju_fopen("MUJOCO_LOG.TXT", "a+t");
   if (fp) {
     fprintf(fp, "%s\n%s: %s\n\n", timestr, type, msg);
     fclose(fp);

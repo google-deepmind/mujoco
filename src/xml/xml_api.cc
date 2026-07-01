@@ -31,6 +31,7 @@
 #include "xml/xml_global.h"
 #include "xml/xml_native_reader.h"
 #include "xml/xml_util.h"
+#include "engine/engine_util_file.h"
 
 //---------------------------------- Functions -----------------------------------------------------
 
@@ -84,7 +85,7 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
 int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int error_sz) {
   FILE *fp = stdout;
   if (filename != nullptr && filename[0] != '\0') {
-    fp = fopen(filename, "w");
+    fp = mju_fopen(filename, "w");
     if (!fp) {
       mjCopyError(error, "File not found", error_sz);
       return 0;

@@ -34,6 +34,7 @@
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "engine/engine_util_file.h"
 #include "engine/engine_vis_init.h"
 
 #ifdef MEMORY_SANITIZER
@@ -542,7 +543,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   // get file
   FILE* fp;
   if (filename) {
-    fp = fopen(filename, "wt");
+    fp = mju_fopen(filename, "wt");
   } else {
     fp = stdout;
   }
@@ -1230,7 +1231,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   // get file
   FILE* fp;
   if (filename) {
-    fp = fopen(filename, "wt");
+    fp = mju_fopen(filename, "wt");
   } else {
     fp = stdout;
   }
@@ -1751,7 +1752,7 @@ void mj_printFormattedScene(const mjvScene* s, const char* filename, const char*
   // get file
   FILE* fp;
   if (filename) {
-    fp = fopen(filename, "wt");
+    fp = mju_fopen(filename, "wt");
   } else {
     fp = stdout;
   }

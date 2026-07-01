@@ -43,6 +43,7 @@
 #include "user/user_resolver.h"
 #include "user/user_resource.h"
 #include "user/user_util.h"
+#include "engine/engine_util_file.h"
 
 namespace {
 
@@ -261,7 +262,7 @@ mjtSize mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
     return -1;
   }
 
-  FILE* fp = fopen(filename, "wb");
+  FILE* fp = mju_fopen(filename, "wb");
   if (!fp) {
     std::free(resource.data);
     if (error) {
