@@ -24,22 +24,26 @@ import math
 import os
 import sys
 
-from absl import app as absl_app
-from absl import flags as absl_flags
+from absl import app as _app
+from absl import flags as _flags
 import mujoco
-from mujoco.experimental.studio import native_viewer as _viewer
-from mujoco.experimental.studio import studio_app
-from mujoco.experimental.studio import viewer_protocol
+from mujoco.experimental.studio import launch_passive
+from mujoco.experimental.studio import messages as msg
+from mujoco.experimental.studio import parser
+from mujoco.experimental.studio import sim
+from mujoco.experimental.studio import viewer_app as va
+from mujoco.experimental.studio import viewer_protocol as vp
 import numpy as np
 
 from mujoco.experimental.dear_imgui import dear_imgui as imgui
 from mujoco.experimental.implot import implot
 
-_GFX = absl_flags.DEFINE_enum(
-    'gfx', None, viewer_protocol.GFX_MODES, 'Rendering graphics mode.'
+_GFX = _flags.DEFINE_enum('gfx', None, vp.GFX_MODES, 'Graphics mode.')
+_WIDTH = _flags.DEFINE_integer('width', 1200, 'Width of the output image.')
+_HEIGHT = _flags.DEFINE_integer('height', 800, 'Height of the output image')
+_VIEWER = _flags.DEFINE_enum_class(
+    'viewer', vp.ViewerMode.NATIVE, vp.ViewerMode, 'Viewer mode.'
 )
-_WIDTH = absl_flags.DEFINE_integer('width', 1200, 'Width of the output image.')
-_HEIGHT = absl_flags.DEFINE_integer('height', 800, 'Height of the output image')
 
 
 _N_HISTORY = 100
@@ -102,47 +106,39 @@ def _setup_angle_axis(plot_size: imgui.Vec2) -> None:
   )
 
 
-def main(argv: list[str]) -> None:
-  app = studio_app.StudioApp.from_argv(argv)
-  title = os.path.basename(sys.argv[0])
+class PlottingUi(va.ViewerGuiHook):
+  """Custom GUI component maintaining history buffers for ImPlot charts."""
 
-  config = viewer_protocol.ViewerConfig(
-      title=title,
-      width=_WIDTH.value,
-      height=_HEIGHT.value,
-      gfx=_GFX.value,
-  )
-  viewer = _viewer.NativeViewer(config)
+  def __init__(self):
+    self.centroid = [np.zeros(3) for _ in range(_N_HISTORY)]
+    self.euler = [np.zeros(3) for _ in range(_N_HISTORY)]
+    self.body_id = -1
 
-  # Variables for the custom UI.
-  centroid = [np.zeros(3) for _ in range(_N_HISTORY)]
-  euler = [np.zeros(3) for _ in range(_N_HISTORY)]
-  body_id = -1
-
-  # Main viewer loop.
-  while viewer.is_running():
-    if not app.update(viewer.camera, viewer.vis_options, viewer.perturb):
-      break
-
-    # Build standard Studio UI.
-    app.build_gui(viewer.camera, viewer.vis_options, viewer.render_flags)
-
+  def build_gui(self, app: va.ViewerApp) -> None:
     # Inspect the perturb.select body
-    if viewer.perturb.select > 0:
-      body_id = viewer.perturb.select
+    if app.viewer.perturb.select > 0:
+      self.body_id = app.viewer.perturb.select
 
     # Display selected body information.
-    if body_id > 0:
+    if self.body_id > 0:
       body_name = mujoco.mj_id2name(
-          app.model, int(mujoco.mjtObj.mjOBJ_BODY), body_id
+          app.model, int(mujoco.mjtObj.mjOBJ_BODY), self.body_id
       )
 
+      io = imgui.GetIO()
+      imgui.SetNextWindowPos(
+          imgui.Vec2(io.DisplaySize.x * 0.5, io.DisplaySize.y * 0.5),
+          imgui.Cond.FirstUseEver,
+          imgui.Vec2(0.5, 0.5),
+      )
       imgui.SetNextWindowSize(imgui.Vec2(1200, 600), imgui.Cond.FirstUseEver)
 
       # Note: The window title uses the special "###" markup to ensure the imgui
       # ID for the window is constant for all body names.  This is needed for
       # the window to retain its state for all bodies.
-      window_title = f'Inspect Body {body_name or "(???)"!r} ({body_id})###Plot'
+      window_title = (
+          f'Inspect Body {body_name or "(???)"!r} ({self.body_id})###Plot'
+      )
       if imgui.Begin(window_title):
         avail = imgui.GetContentRegionAvail()
         wide = avail.x > avail.y
@@ -156,10 +152,10 @@ def main(argv: list[str]) -> None:
         plot_flags = _setup_plot_flags(plot_size)
         if implot.BeginPlot('Centroid vs Time', plot_size, flags=plot_flags):
           _setup_time_axis(plot_size)
-          _setup_xpos_axis(centroid, plot_size)
-          implot.PlotLine('x', range(_N_HISTORY), [c[0] for c in centroid])
-          implot.PlotLine('y', range(_N_HISTORY), [c[1] for c in centroid])
-          implot.PlotLine('z', range(_N_HISTORY), [c[2] for c in centroid])
+          _setup_xpos_axis(self.centroid, plot_size)
+          implot.PlotLine('x', range(_N_HISTORY), [c[0] for c in self.centroid])
+          implot.PlotLine('y', range(_N_HISTORY), [c[1] for c in self.centroid])
+          implot.PlotLine('z', range(_N_HISTORY), [c[2] for c in self.centroid])
           implot.EndPlot()
 
         if wide:
@@ -168,34 +164,63 @@ def main(argv: list[str]) -> None:
         if implot.BeginPlot('Euler Angle vs Time', plot_size, flags=plot_flags):
           _setup_time_axis(plot_size)
           _setup_angle_axis(plot_size)
-          implot.PlotLine('roll', range(_N_HISTORY), [e[0] for e in euler])
-          implot.PlotLine('pitch', range(_N_HISTORY), [e[1] for e in euler])
-          implot.PlotLine('yaw', range(_N_HISTORY), [e[2] for e in euler])
+          implot.PlotLine('roll', range(_N_HISTORY), [e[0] for e in self.euler])
+          implot.PlotLine(
+              'pitch', range(_N_HISTORY), [e[1] for e in self.euler]
+          )
+          implot.PlotLine('yaw', range(_N_HISTORY), [e[2] for e in self.euler])
           implot.EndPlot()
       imgui.End()
 
     # Update plot data
-    centroid.pop(0)
-    euler.pop(0)
-    if body_id > 0:
-      centroid.append(app.data.xpos[body_id].copy())
+    self.centroid.pop(0)
+    self.euler.pop(0)
+    if self.body_id > 0 and self.body_id < app.model.nbody:
+      self.centroid.append(app.data.xpos[self.body_id].copy())
       # Convert quaternion to Euler angles via rotation matrix.
-      quat = app.data.xquat[body_id]
+      quat = app.data.xquat[self.body_id]
       mat = np.zeros(9)
       mujoco.mju_quat2Mat(mat, quat)
       # mat is row-major 3x3: R[i,j] = mat[3*i + j].
       roll = math.atan2(mat[7], mat[8])
       pitch = math.atan2(-mat[6], math.sqrt(mat[7] ** 2 + mat[8] ** 2))
       yaw = math.atan2(mat[3], mat[0])
-      euler.append(np.degrees(np.array([roll, pitch, yaw])))
+      self.euler.append(np.degrees(np.array([roll, pitch, yaw])))
     else:
-      centroid.append(np.zeros(3))
-      euler.append(np.zeros(3))
+      self.centroid.append(np.zeros(3))
+      self.euler.append(np.zeros(3))
 
-    viewer.sync(app.model, app.data)
 
-  viewer.stop()
+def main(argv: list[str]) -> None:
+  if len(argv) < 2:
+    print('Usage: implot <model_path.xml>')
+    sys.exit(1)
+
+  data = parser.parse(argv[1])
+  if data is None:
+    print(f'Error loading model from {argv[1]!r}')
+    sys.exit(1)
+  model = data.model
+
+  title = os.path.basename(sys.argv[0])
+  plot_ui = PlottingUi()
+
+  config = vp.ViewerConfig(
+      title=title,
+      width=_WIDTH.value,
+      height=_HEIGHT.value,
+      gfx=_GFX.value or '',
+      viewer_mode=_VIEWER.value,
+  )
+
+  with launch_passive.launch_passive(config, viewer_gui_hook=plot_ui) as handle:
+    handle.send_to_viewer(msg.ModelEvent(model=model))
+
+    step_control = sim.StepControl()
+    while handle.is_running():
+      step_control.advance(model, data)
+      model, data, step_control = handle.sync(model, data, step_control)
 
 
 if __name__ == '__main__':
-  absl_app.run(main)
+  _app.run(main)
