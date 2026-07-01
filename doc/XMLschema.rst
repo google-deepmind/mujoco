@@ -984,6 +984,9 @@
                :ref:`body<body-attach-body>`
 
             .. grid-item::
+               :ref:`frame<body-attach-frame>`
+
+            .. grid-item::
                :ref:`prefix<body-attach-prefix>`
 
 

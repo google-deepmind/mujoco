@@ -470,7 +470,7 @@ std::vector<const char*> MJCF[nMJCF] = {
     {"config", "*", "key", "value"},
     {">"},
     {">"},
-    {"attach", "*", "model", "body", "prefix"},
+    {"attach", "*", "model", "body", "frame", "prefix"},
     {"site", "*", "name", "class", "type", "group", "pos", "quat", "material",
      "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
     {"camera",         "*",          "name",       "class",      "projection",
@@ -4170,35 +4170,40 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
 
     // attachment
     else if (name == "attach") {
-      string model_name, body_name, prefix;
+      string model_name, child_name, prefix;
       ReadAttrTxt(elem, "model", model_name, /*required=*/true);
-      ReadAttrTxt(elem, "body", body_name, /*required=*/false);
+      bool has_body = ReadAttrTxt(elem, "body", child_name, /*required=*/false);
+      bool has_frame = ReadAttrTxt(elem, "frame", child_name, /*required=*/false);
       ReadAttrTxt(elem, "prefix", prefix, /*required=*/true);
 
-      mjsBody* child_body = mjs_findBody(spec, (prefix+body_name).c_str());
+      if (has_body && has_frame) {
+        throw mjXError(elem, "only one of body or frame can be specified in attach");
+      }
+      mjtObj type = has_body ? mjOBJ_BODY : mjOBJ_FRAME;
+
+      mjsElement* child = mjs_findElement(spec, type, (prefix+child_name).c_str());
       mjsFrame* pframe = frame ? frame : mjs_addFrame(body, nullptr);
 
-      if (!child_body) {
+      if (!child) {
         mjSpec* asset = mjs_findSpec(spec, model_name.c_str());
         if (!asset) {
           throw mjXError(elem, "could not find model '%s'", model_name.c_str());
         }
-        mjsElement* child;
-        if (body_name.empty()) {
+        if (child_name.empty()) {
           child = asset->element;
         } else {
-          child_body = mjs_findBody(asset, body_name.c_str());
-          if (!child_body) {
-            throw mjXError(elem, "could not find body '%s''%s'", body_name.c_str());
+          child = mjs_findElement(asset, type, child_name.c_str());
+          if (!child) {
+            throw mjXError(elem, "could not find %s",
+                           (string(mju_type2Str(type)) + " '" + child_name + "'").c_str());
           }
-          child = child_body->element;
         }
         if (!mjs_attach(pframe->element, child, prefix.c_str(), "")) {
           throw mjXError(elem, "%s", stripError(mjs_getError(spec)));
         }
       } else {
         // only set frame to existing body
-        if (mjs_setFrame(child_body->element, pframe)) {
+        if (mjs_setFrame(child, pframe)) {
           throw mjXError(elem, "%s", stripError(mjs_getError(spec)));
         }
       }

@@ -3996,33 +3996,50 @@ Associate this body with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` 
 :el-prefix:`body/` |-| **attach** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The :el:`attach` element is used to insert a sub-tree of bodies from another model into this model's kinematic tree.
+The :el:`attach` element is used to insert elements from another (child) model into this (parent) model's kinematic tree.
 Unlike :ref:`include<include>`, which is implemented in the parser and is equivalent to copying and pasting XML from one
 file into another, :el:`attach` is implemented in the model compiler. In order to use this element, the sub-model must
-first be defined as an :ref:`asset<asset-model>`. When creating an attachment, the top body of the attached subtree is
-specified, and all referencing elements outside the kinematic tree (e.g., sensors and actuators), are also copied into
-the top-level model. Additionally, any elements referenced from within the attached subtree (e.g. defaults and assets)
-will be copied in to the top-level model. :el:`attach` is a :ref:`meta-element`, so upon saving all attachments will
+first be defined as an :ref:`asset<asset-model>`. When creating an attachment, a frame, body or the entire child model in the
+child model is specified, and all referencing elements outside the kinematic tree (e.g., sensors and actuators), are also copied into
+the parent model. Additionally, any elements referenced from within the attached subtree (e.g. defaults and assets)
+will be copied in to the parent model. :el:`attach` is a :ref:`meta-element`, so upon saving all attachments will
 appear in the saved XML file. Note that this element is a subset of the functionality of the procedural
-:ref:`attachment<meAttachment>` functionality. As such, it shares the same limitations as described there. In addition,
-when the :el:`attach` element is used, it is not possible to attach an entire model (i.e. including all elements,
-referenced or not).
+:ref:`attachment<meAttachment>` functionality. As such, it shares the same limitations as described there. See example `here
+<https://github.com/google-deepmind/mujoco/blob/main/test/xml/testdata/parent.xml>`__.
+
+.. admonition:: Known issues
+   :class: note
+
+   The following known limitations exist, to be addressed in a future release:
+
+   - All assets from the child model will be copied in, whether they are referenced or not.
+   - Circular references are not checked for and will lead to infinite loops.
+   - When attaching a model with :ref:`keyframes<keyframe>`, model compilation is required for the re-indexing to be
+     finalized. If a second attachment is performed without compilation, the keyframes from the first attachment will be
+     lost.
 
 .. _body-attach-model:
 
 :at:`model`: :at-val:`string, required`
-   The sub-model from which to attach a subtree.
+   The child model from which to attach a subtree or a frame.
 
 .. _body-attach-body:
 
 :at:`body`: :at-val:`string, optional`
-   Name of the body in the sub-model to attach here. The body and its subtree will be attached. If this attribute is not
-   specified, the contents of the world body will be attached in a new :ref:`frame<body-frame>`.
+   Name of the body in the child model to attach here. The body and its subtree will be attached. If neither this
+   attribute nor :ref:`frame<body-attach-frame>` is specified (only one allowed), the contents of the world body will
+   be attached in a new :ref:`frame<body-frame>`.
+
+.. _body-attach-frame:
+
+:at:`frame`: :at-val:`string, optional`
+   Name of the frame in the child model to attach here. If neither this attribute nor :ref:`body<body-attach-body>` is
+   specified (only one allowed), the contents of the world body will be attached in a new :ref:`frame<body-frame>`.
 
 .. _body-attach-prefix:
 
 :at:`prefix`: :at-val:`string, required`
-   Prefix to prepend to names of elements in the sub-model. This attribute is required to prevent name collisions with
+   Prefix to prepend to names of elements in the child model. This attribute is required to prevent name collisions with
    the parent or when attaching the same sub-tree multiple times.
 
 
