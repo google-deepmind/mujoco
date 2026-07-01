@@ -49,10 +49,11 @@ namespace mujoco {
 FilamentContext::FilamentContext(const mjrfContextConfig* config)
     : config_(*config) {
   FilamentPlatformSetup setup = CreateFilamentPlatform(config_);
+  backend_ = setup.backend;
   platform_ = std::move(setup.platform);
 
   filament::Engine::Builder engine_builder;
-  engine_builder.backend(setup.backend);
+  engine_builder.backend(backend_);
   engine_builder.platform(platform_.get());
   engine_builder.feature("backend.disable_parallel_shader_compile",
                          setup.disable_parallel_shader_compile);

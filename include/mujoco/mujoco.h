@@ -855,6 +855,12 @@ MJAPI void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2],  cons
 // Set default mjrContext.
 MJAPI void mjr_defaultContext(mjrContext* con);
 
+// Set default mjrRendererInfo.
+MJAPI void mjr_defaultRendererInfo(mjrRendererInfo* info);
+
+// Get active renderer information.
+MJAPI void mjr_getRendererInfo(mjrRendererInfo* info);
+
 // Allocate resources in custom OpenGL context; fontscale is mjtFontScale.
 MJAPI void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale);
 
