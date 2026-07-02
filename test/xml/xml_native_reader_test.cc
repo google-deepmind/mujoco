@@ -1632,7 +1632,7 @@ TEST_F(XMLReaderTest, RepeatedPrefix) {
 
   mjSpec* spec = mj_parseXMLString(parent, vfs.get(), err.data(), err.size());
   EXPECT_THAT(spec, IsNull());
-  EXPECT_THAT(err.data(), HasSubstr("mismatched parents"));
+  EXPECT_THAT(err.data(), HasSubstr("cannot attach"));
   mj_deleteSpec(spec);
   mj_deleteVFS(vfs.get());
 }

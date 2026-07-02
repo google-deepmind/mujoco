@@ -4181,31 +4181,30 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
       }
       mjtObj type = has_body ? mjOBJ_BODY : mjOBJ_FRAME;
 
-      mjsElement* child = mjs_findElement(spec, type, (prefix+child_name).c_str());
-      mjsFrame* pframe = frame ? frame : mjs_addFrame(body, nullptr);
+      string full_name = prefix+child_name;
+      if (mjs_findElement(spec, type, full_name.c_str())) {
+        throw mjXError(elem, "cannot attach: element %s already exists", full_name.c_str());
+      }
 
-      if (!child) {
-        mjSpec* asset = mjs_findSpec(spec, model_name.c_str());
-        if (!asset) {
-          throw mjXError(elem, "could not find model '%s'", model_name.c_str());
-        }
-        if (child_name.empty()) {
-          child = asset->element;
-        } else {
-          child = mjs_findElement(asset, type, child_name.c_str());
-          if (!child) {
-            throw mjXError(elem, "could not find %s",
-                           (string(mju_type2Str(type)) + " '" + child_name + "'").c_str());
-          }
-        }
-        if (!mjs_attach(pframe->element, child, prefix.c_str(), "")) {
-          throw mjXError(elem, "%s", stripError(mjs_getError(spec)));
-        }
+      mjSpec* asset = mjs_findSpec(spec, model_name.c_str());
+      if (!asset) {
+        throw mjXError(elem, "could not find model '%s'", model_name.c_str());
+      }
+
+      mjsElement* child;
+      if (child_name.empty()) {
+        child = asset->element;
       } else {
-        // only set frame to existing body
-        if (mjs_setFrame(child, pframe)) {
-          throw mjXError(elem, "%s", stripError(mjs_getError(spec)));
+        child = mjs_findElement(asset, type, child_name.c_str());
+        if (!child) {
+          throw mjXError(elem, "could not find %s",
+                          (string(mju_type2Str(type)) + " '" + child_name + "'").c_str());
         }
+      }
+
+      mjsFrame* pframe = frame ? frame : mjs_addFrame(body, nullptr);
+      if (!mjs_attach(pframe->element, child, prefix.c_str(), "")) {
+        throw mjXError(elem, "%s", stripError(mjs_getError(spec)));
       }
     }
 
