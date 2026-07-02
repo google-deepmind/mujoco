@@ -14,8 +14,10 @@
 """Messages and Channels for Studio."""
 
 import dataclasses
-from typing import Protocol
-from typing import runtime_checkable
+import enum
+import inspect
+from typing import Any, Callable, Protocol, runtime_checkable
+
 import mujoco
 from mujoco.experimental.studio import sim
 import numpy as np
@@ -147,3 +149,81 @@ class StepControlSnapshot(Snapshot):
 @dataclasses.dataclass(frozen=True)
 class ExitEvent(Event):
   """An event requesting to exit."""
+
+
+# ---------------------------------------------------------------------------
+# Message handling decorator.
+# ---------------------------------------------------------------------------
+
+_HANDLER_INFO_ATTR = '_studio_handler_info'
+
+
+@dataclasses.dataclass(frozen=True)
+class _HandlerInfo:
+  """Metadata stamped on a decorated method."""
+
+  priority: int
+  message_type: type[Message]
+
+
+class Priority(enum.IntEnum):
+  """Execution priority levels for message handlers.
+
+  Handlers with higher values execute first. When multiple handlers share the
+  same priority, their relative order is undefined.
+  """
+
+  INTERNAL = 1  # For built-in handlers.
+  LIBRARY = 10  # For library extensions.
+  USER = 100  # For user extensions. Default when no priority is specified.
+  CRITICAL = 1000  # For handlers that must run before everything else.
+
+
+def handler(
+    fn: Callable[..., Any] | None = None, *, priority: int = Priority.USER
+) -> Callable[..., Any]:
+  """Decorator to mark a class method as a message handler.
+
+  The class method must accept exactly two arguments: self and a message event.
+  e.g., ``@handler`` or ``@handler(priority=...)``.
+
+  Args:
+    fn: The method to stamp with handler metadata.
+    priority: The priority of the handler.
+
+  Returns:
+    The stamped method.
+  """
+
+  def stamp(target: Callable[..., Any]) -> Callable[..., Any]:
+    fn_name = getattr(target, '__name__', str(target))
+    params = list(inspect.signature(target).parameters.values())
+    if len(params) != 2:
+      raise TypeError(
+          f'{fn_name} must accept exactly two arguments, got {len(params)}'
+      )
+
+    message_type = params[1].annotation
+    if message_type is inspect.Parameter.empty:
+      raise TypeError(
+          f'{fn_name}: second parameter must have a type annotation'
+      )
+
+    if not (
+        isinstance(message_type, type) and issubclass(message_type, Message)
+    ):
+      raise TypeError(
+          f'{fn_name}: second parameter type annotation {message_type} is not'
+          ' a Message subclass'
+      )
+
+    info = _HandlerInfo(priority=priority, message_type=message_type)
+    setattr(target, _HANDLER_INFO_ATTR, info)
+    return target
+
+  # Used without parens: e.g., @handler
+  if fn is not None:
+    return stamp(fn)
+
+  # Used with parens: e.g., @handler() or @handler(priority=...)
+  return stamp

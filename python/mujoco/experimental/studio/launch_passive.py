@@ -19,22 +19,22 @@ that the calling thread uses to push simulation state into the viewer.
 
 import queue
 import threading
+from typing import Any
 
 from mujoco.experimental.studio import endpoints
 from mujoco.experimental.studio import messages
-from mujoco.experimental.studio import sim_app
 from mujoco.experimental.studio import viewer_app
+from mujoco.experimental.studio import viewer_handle
 from mujoco.experimental.studio import viewer_protocol
 
-sa = sim_app
-va = viewer_app
-vp = viewer_protocol
 
+class _PassiveSnapshotChannel(messages.SnapshotChannel):
+  """SnapshotChannel for passive mode.
 
-class _PassiveSnapshotChannel:
-  """SnapshotChannel for passive mode: per-type snapshot by reference, wakes the viewer thread on put."""
+  Stores per-type snapshot by reference and wakes the viewer thread when put.
+  """
 
-  def __init__(self):
+  def __init__(self) -> None:
     self._pending_snapshots: dict[
         type[messages.Snapshot], messages.Snapshot
     ] = {}
@@ -58,9 +58,9 @@ class _PassiveSnapshotChannel:
 
 
 class _PassiveEventChannel(messages.EventChannel):
-  """EventChannel for passive mode: a thread-safe queue.Queue of event messages."""
+  """EventChannel for passive mode using a thread-safe queue."""
 
-  def __init__(self):
+  def __init__(self) -> None:
     self._events: queue.Queue[messages.Event] = queue.Queue()
 
   def put(self, event: messages.Event) -> None:
@@ -79,15 +79,23 @@ class _PassiveEventChannel(messages.EventChannel):
     pass
 
 
-def _run_viewer_target(
+def run_viewer_target(
     config: viewer_protocol.ViewerConfig,
     viewer_endpoint: endpoints.ViewerEndpoint,
-    viewer_gui_hook: va.ViewerGuiHook | None = None,
-    viewer_update_hook: va.ViewerUpdateHook | None = None,
-    viewer_event_handler: va.ViewerEventHandler | None = None,
-    viewer_snapshot_handler: va.ViewerSnapshotHandler | None = None,
+    handlers: list[Any] | None = None,
 ) -> None:
-  """Creates the appropriate viewer and runs the viewer loop."""
+  """Creates the appropriate viewer and runs the viewer loop.
+
+  Args:
+    config: Configuration specifying the viewer mode and window settings.
+    viewer_endpoint: Endpoint for communicating with the simulation side.
+    handlers: Optional list of viewer-side handler instances, which are classes
+      with methods decorated with ``@handler``.
+
+  Raises:
+    ValueError: If the viewer mode requested in config is unknown.
+    NotImplementedError: If web mode is requested.
+  """
 
   if config.viewer_mode == viewer_protocol.ViewerMode.NATIVE:
     from mujoco.experimental.studio import native_viewer  # pylint: disable=g-import-not-at-top
@@ -98,25 +106,15 @@ def _run_viewer_target(
   else:
     raise ValueError(f'Unknown viewer mode: {config.viewer_mode!r}')
 
-  va.run_viewer(
-      viewer,
-      viewer_endpoint,
-      viewer_gui_hook=viewer_gui_hook,
-      viewer_update_hook=viewer_update_hook,
-      viewer_event_handler=viewer_event_handler,
-      viewer_snapshot_handler=viewer_snapshot_handler,
-  )
+  viewer_app.run_viewer(viewer, viewer_endpoint, handlers=handlers)
 
 
 def launch_passive(
-    config: vp.ViewerConfig,
+    config: viewer_protocol.ViewerConfig,
     *,
-    viewer_gui_hook: va.ViewerGuiHook | None = None,
-    viewer_update_hook: va.ViewerUpdateHook | None = None,
-    viewer_event_handler: va.ViewerEventHandler | None = None,
-    viewer_snapshot_handler: va.ViewerSnapshotHandler | None = None,
-    sim_event_handler: sa.SimEventHandler | None = None,
-) -> sa.ViewerHandle:
+    viewer_handlers: list[Any] | None = None,
+    sim_handlers: list[Any] | None = None,
+) -> viewer_handle.ViewerHandle:
   """Launches the Studio GUI in a daemon thread without blocking.
 
   The viewer runs the full Studio UI (toolbar, options, inspector) on the
@@ -125,11 +123,10 @@ def launch_passive(
 
   Args:
     config: Viewer window configuration.
-    viewer_gui_hook: Optional hook to draw custom ImGui panels.
-    viewer_update_hook: Optional hook called once per frame before GUI.
-    viewer_event_handler: Optional handler for sim-to-viewer events.
-    viewer_snapshot_handler: Optional handler for sim-to-viewer snapshots.
-    sim_event_handler: Optional handler for viewer-to-sim events.
+    viewer_handlers: Optional list of viewer-side handler instances, which are
+      classes with methods decorated with ``@handler``.
+    sim_handlers: Optional list of sim-side handler instances, which are classes
+      with methods decorated with ``@handler``.
 
   Returns:
     A ViewerHandle for interacting with the viewer.
@@ -142,22 +139,15 @@ def launch_passive(
   )
 
   thread = threading.Thread(
-      target=_run_viewer_target,
-      args=(
-          config,
-          viewer_endpoint,
-          viewer_gui_hook,
-          viewer_update_hook,
-          viewer_event_handler,
-          viewer_snapshot_handler,
-      ),
+      target=run_viewer_target,
+      args=(config, viewer_endpoint, viewer_handlers),
       daemon=True,
   )
   thread.start()
 
-  handle = sa.ViewerHandle(
+  handle = viewer_handle.ViewerHandle(
       sim_endpoint,
       is_alive_fn=thread.is_alive,
-      sim_event_handler=sim_event_handler,
+      handlers=sim_handlers,
   )
   return handle

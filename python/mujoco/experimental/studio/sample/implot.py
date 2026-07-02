@@ -28,15 +28,17 @@ from absl import app as _app
 from absl import flags as _flags
 import mujoco
 from mujoco.experimental.studio import launch_passive
-from mujoco.experimental.studio import messages as msg
+from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import parser
 from mujoco.experimental.studio import sim
-from mujoco.experimental.studio import viewer_app as va
-from mujoco.experimental.studio import viewer_protocol as vp
+from mujoco.experimental.studio import viewer_app
+from mujoco.experimental.studio import viewer_protocol
 import numpy as np
 
 from mujoco.experimental.dear_imgui import dear_imgui as imgui
 from mujoco.experimental.implot import implot
+
+vp = viewer_protocol
 
 _GFX = _flags.DEFINE_enum('gfx', None, vp.GFX_MODES, 'Graphics mode.')
 _WIDTH = _flags.DEFINE_integer('width', 1200, 'Width of the output image.')
@@ -106,23 +108,34 @@ def _setup_angle_axis(plot_size: imgui.Vec2) -> None:
   )
 
 
-class PlottingUi(va.ViewerGuiHook):
-  """Custom GUI component maintaining history buffers for ImPlot charts."""
+class BodyInspectorHandler:
+  """Handler that draws body-inspection plots using ImGui/ImPlot."""
 
-  def __init__(self):
-    self.centroid = [np.zeros(3) for _ in range(_N_HISTORY)]
-    self.euler = [np.zeros(3) for _ in range(_N_HISTORY)]
-    self.body_id = -1
+  def __init__(self) -> None:
+    self._app: viewer_app.ViewerApp | None = None
+    self._centroid: list[np.ndarray] = [np.zeros(3) for _ in range(_N_HISTORY)]
+    self._euler: list[np.ndarray] = [np.zeros(3) for _ in range(_N_HISTORY)]
+    self._body_id: int = -1
 
-  def build_gui(self, app: va.ViewerApp) -> None:
-    # Inspect the perturb.select body
+  @messages.handler
+  def on_viewer_app_init(self, event: viewer_app.ViewerAppInitEvent) -> None:
+    """Caches the ViewerApp reference on startup."""
+    assert isinstance(event.viewer_app, viewer_app.ViewerApp)
+    self._app = event.viewer_app
+
+  @messages.handler
+  def inspect_body(self, _: viewer_app.BuildGuiEvent) -> None:
+    """Renders the body-inspection charts in ImGui/ImPlot."""
+    app = self._app
+    if app is None:
+      return
     if app.viewer.perturb.select > 0:
-      self.body_id = app.viewer.perturb.select
+      self._body_id = app.viewer.perturb.select
 
     # Display selected body information.
-    if self.body_id > 0:
+    if self._body_id > 0:
       body_name = mujoco.mj_id2name(
-          app.model, int(mujoco.mjtObj.mjOBJ_BODY), self.body_id
+          app.model, int(mujoco.mjtObj.mjOBJ_BODY), self._body_id
       )
 
       io = imgui.GetIO()
@@ -137,7 +150,7 @@ class PlottingUi(va.ViewerGuiHook):
       # ID for the window is constant for all body names.  This is needed for
       # the window to retain its state for all bodies.
       window_title = (
-          f'Inspect Body {body_name or "(???)"!r} ({self.body_id})###Plot'
+          f'Inspect Body {body_name or "(???)"!r} ({self._body_id})###Plot'
       )
       if imgui.Begin(window_title):
         avail = imgui.GetContentRegionAvail()
@@ -152,10 +165,16 @@ class PlottingUi(va.ViewerGuiHook):
         plot_flags = _setup_plot_flags(plot_size)
         if implot.BeginPlot('Centroid vs Time', plot_size, flags=plot_flags):
           _setup_time_axis(plot_size)
-          _setup_xpos_axis(self.centroid, plot_size)
-          implot.PlotLine('x', range(_N_HISTORY), [c[0] for c in self.centroid])
-          implot.PlotLine('y', range(_N_HISTORY), [c[1] for c in self.centroid])
-          implot.PlotLine('z', range(_N_HISTORY), [c[2] for c in self.centroid])
+          _setup_xpos_axis(self._centroid, plot_size)
+          implot.PlotLine(
+              'x', range(_N_HISTORY), [c[0] for c in self._centroid]
+          )
+          implot.PlotLine(
+              'y', range(_N_HISTORY), [c[1] for c in self._centroid]
+          )
+          implot.PlotLine(
+              'z', range(_N_HISTORY), [c[2] for c in self._centroid]
+          )
           implot.EndPlot()
 
         if wide:
@@ -164,31 +183,31 @@ class PlottingUi(va.ViewerGuiHook):
         if implot.BeginPlot('Euler Angle vs Time', plot_size, flags=plot_flags):
           _setup_time_axis(plot_size)
           _setup_angle_axis(plot_size)
-          implot.PlotLine('roll', range(_N_HISTORY), [e[0] for e in self.euler])
           implot.PlotLine(
-              'pitch', range(_N_HISTORY), [e[1] for e in self.euler]
+              'roll', range(_N_HISTORY), [e[0] for e in self._euler]
           )
-          implot.PlotLine('yaw', range(_N_HISTORY), [e[2] for e in self.euler])
+          implot.PlotLine(
+              'pitch', range(_N_HISTORY), [e[1] for e in self._euler]
+          )
+          implot.PlotLine('yaw', range(_N_HISTORY), [e[2] for e in self._euler])
           implot.EndPlot()
       imgui.End()
 
-    # Update plot data
-    self.centroid.pop(0)
-    self.euler.pop(0)
-    if self.body_id > 0 and self.body_id < app.model.nbody:
-      self.centroid.append(app.data.xpos[self.body_id].copy())
-      # Convert quaternion to Euler angles via rotation matrix.
-      quat = app.data.xquat[self.body_id]
+    self._centroid.pop(0)
+    self._euler.pop(0)
+    if self._body_id > 0 and self._body_id < app.model.nbody:
+      self._centroid.append(app.data.xpos[self._body_id].copy())
+      quat = app.data.xquat[self._body_id]
       mat = np.zeros(9)
       mujoco.mju_quat2Mat(mat, quat)
       # mat is row-major 3x3: R[i,j] = mat[3*i + j].
       roll = math.atan2(mat[7], mat[8])
       pitch = math.atan2(-mat[6], math.sqrt(mat[7] ** 2 + mat[8] ** 2))
       yaw = math.atan2(mat[3], mat[0])
-      self.euler.append(np.degrees(np.array([roll, pitch, yaw])))
+      self._euler.append(np.degrees(np.array([roll, pitch, yaw])))
     else:
-      self.centroid.append(np.zeros(3))
-      self.euler.append(np.zeros(3))
+      self._centroid.append(np.zeros(3))
+      self._euler.append(np.zeros(3))
 
 
 def main(argv: list[str]) -> None:
@@ -203,9 +222,8 @@ def main(argv: list[str]) -> None:
   model = data.model
 
   title = os.path.basename(sys.argv[0])
-  plot_ui = PlottingUi()
 
-  config = vp.ViewerConfig(
+  config = viewer_protocol.ViewerConfig(
       title=title,
       width=_WIDTH.value,
       height=_HEIGHT.value,
@@ -213,8 +231,10 @@ def main(argv: list[str]) -> None:
       viewer_mode=_VIEWER.value,
   )
 
-  with launch_passive.launch_passive(config, viewer_gui_hook=plot_ui) as handle:
-    handle.send_to_viewer(msg.ModelEvent(model=model))
+  with launch_passive.launch_passive(
+      config, viewer_handlers=[BodyInspectorHandler()]
+  ) as handle:
+    handle.send_to_viewer(messages.ModelEvent(model=model))
 
     step_control = sim.StepControl()
     while handle.is_running():
