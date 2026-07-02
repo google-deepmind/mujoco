@@ -1,0 +1,13 @@
+<mujoco model="load_pallet_usd">
+  <asset>
+    <model name="pallet_asset" file="/mnt/c/Users/David/Hard_Documents/mujoco/usd_tests/Industrial_NVD_10012/Assets/ArchVis/Industrial/Pallets/Pallet_A1.usd" content_type="text/usd"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 5"/>
+    <geom name="floor" type="plane" size="5 5 0.1"/>
+    <body name="pallet_holder" pos="0 0 0">
+      <attach model="pallet_asset" prefix="pallet_"/>
+    </body>
+  </worldbody>
+</mujoco>
