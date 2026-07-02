@@ -82,6 +82,112 @@ static int GetWrapBodyTreeId(const mjModel* m, int wrap_index) {
   return (bodyid != -1) ? m->body_treeid[bodyid] : -1;
 }
 
+
+// tolerance for frame comparison, must match compiler's kFrameEps
+static const mjtNum kSameFrameEps = 1e-6;
+
+
+// return 1 if all 3 elements are near zero
+static int isNullVec3(const mjtNum v[3]) {
+  return mju_abs(v[0]) < kSameFrameEps &&
+         mju_abs(v[1]) < kSameFrameEps &&
+         mju_abs(v[2]) < kSameFrameEps;
+}
+
+
+// return 1 if quaternion is near identity (1,0,0,0), accounting for double-cover
+static int isNullQuat(const mjtNum q[4]) {
+  int plus  = mju_abs(q[0] - 1) < kSameFrameEps &&
+              mju_abs(q[1]) < kSameFrameEps &&
+              mju_abs(q[2]) < kSameFrameEps &&
+              mju_abs(q[3]) < kSameFrameEps;
+  int minus = mju_abs(q[0] + 1) < kSameFrameEps &&
+              mju_abs(q[1]) < kSameFrameEps &&
+              mju_abs(q[2]) < kSameFrameEps &&
+              mju_abs(q[3]) < kSameFrameEps;
+  return plus || minus;
+}
+
+
+// return 1 if two quaternions are near equal, accounting for double-cover
+static int isSameQuat(const mjtNum q1[4], const mjtNum q2[4]) {
+  int plus  = mju_abs(q1[0] - q2[0]) < kSameFrameEps &&
+              mju_abs(q1[1] - q2[1]) < kSameFrameEps &&
+              mju_abs(q1[2] - q2[2]) < kSameFrameEps &&
+              mju_abs(q1[3] - q2[3]) < kSameFrameEps;
+  int minus = mju_abs(q1[0] + q2[0]) < kSameFrameEps &&
+              mju_abs(q1[1] + q2[1]) < kSameFrameEps &&
+              mju_abs(q1[2] + q2[2]) < kSameFrameEps &&
+              mju_abs(q1[3] + q2[3]) < kSameFrameEps;
+  return plus || minus;
+}
+
+
+// return 1 if two 3-vectors are near equal
+static int isSameVec3(const mjtNum v1[3], const mjtNum v2[3]) {
+  return mju_abs(v1[0] - v2[0]) < kSameFrameEps &&
+         mju_abs(v1[1] - v2[1]) < kSameFrameEps &&
+         mju_abs(v1[2] - v2[2]) < kSameFrameEps;
+}
+
+
+// recompute body_sameframe, geom_sameframe, site_sameframe from model geometry
+static void setSameframe(mjModel* m) {
+  // body_sameframe: compare body inertial frame to body frame
+  for (int i=1; i < m->nbody; i++) {
+    mjtNum* ipos = m->body_ipos+3*i;
+    mjtNum* iquat = m->body_iquat+4*i;
+    if (isNullVec3(ipos) && isNullQuat(iquat)) {
+      m->body_sameframe[i] = mjSAMEFRAME_BODY;
+    } else if (isNullQuat(iquat)) {
+      m->body_sameframe[i] = mjSAMEFRAME_BODYROT;
+    } else {
+      m->body_sameframe[i] = mjSAMEFRAME_NONE;
+    }
+  }
+
+  // geom_sameframe: compare geom frame to body and inertial frames
+  for (int i=0; i < m->ngeom; i++) {
+    int b = m->geom_bodyid[i];
+    mjtNum* gpos = m->geom_pos+3*i;
+    mjtNum* gquat = m->geom_quat+4*i;
+    mjtNum* ipos = m->body_ipos+3*b;
+    mjtNum* iquat = m->body_iquat+4*b;
+    if (isNullVec3(gpos) && isNullQuat(gquat)) {
+      m->geom_sameframe[i] = mjSAMEFRAME_BODY;
+    } else if (isNullQuat(gquat)) {
+      m->geom_sameframe[i] = mjSAMEFRAME_BODYROT;
+    } else if (isSameVec3(gpos, ipos) && isSameQuat(gquat, iquat)) {
+      m->geom_sameframe[i] = mjSAMEFRAME_INERTIA;
+    } else if (isSameQuat(gquat, iquat)) {
+      m->geom_sameframe[i] = mjSAMEFRAME_INERTIAROT;
+    } else {
+      m->geom_sameframe[i] = mjSAMEFRAME_NONE;
+    }
+  }
+
+  // site_sameframe: compare site frame to body and inertial frames
+  for (int i=0; i < m->nsite; i++) {
+    int b = m->site_bodyid[i];
+    mjtNum* spos = m->site_pos+3*i;
+    mjtNum* squat = m->site_quat+4*i;
+    mjtNum* ipos = m->body_ipos+3*b;
+    mjtNum* iquat = m->body_iquat+4*b;
+    if (isNullVec3(spos) && isNullQuat(squat)) {
+      m->site_sameframe[i] = mjSAMEFRAME_BODY;
+    } else if (isNullQuat(squat)) {
+      m->site_sameframe[i] = mjSAMEFRAME_BODYROT;
+    } else if (isSameVec3(spos, ipos) && isSameQuat(squat, iquat)) {
+      m->site_sameframe[i] = mjSAMEFRAME_INERTIA;
+    } else if (isSameQuat(squat, iquat)) {
+      m->site_sameframe[i] = mjSAMEFRAME_INERTIAROT;
+    } else {
+      m->site_sameframe[i] = mjSAMEFRAME_NONE;
+    }
+  }
+}
+
+
 // set fixed quantities (do not depend on qpos0)
 static void setFixed(mjModel* m, mjData* d) {
   mj_markStack(d);
@@ -1215,6 +1321,9 @@ static void setSpring(mjModel* m, mjData* d) {
 
 // entry point: set all remaining constant fields of mjModel, except for lengthrange
 void mj_setConst(mjModel* m, mjData* d) {
+  // recompute sameframe flags from current model geometry
+  setSameframe(m);
+
   // set fixed quantities
   setFixed(m, d);
 
