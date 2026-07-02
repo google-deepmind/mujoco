@@ -3996,16 +3996,18 @@ Associate this body with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` 
 :el-prefix:`body/` |-| **attach** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The :el:`attach` element is used to insert elements from another (child) model into this (parent) model's kinematic tree.
-Unlike :ref:`include<include>`, which is implemented in the parser and is equivalent to copying and pasting XML from one
-file into another, :el:`attach` is implemented in the model compiler. In order to use this element, the sub-model must
-first be defined as an :ref:`asset<asset-model>`. When creating an attachment, a frame, body or the entire child model in the
-child model is specified, and all referencing elements outside the kinematic tree (e.g., sensors and actuators), are also copied into
-the parent model. Additionally, any elements referenced from within the attached subtree (e.g. defaults and assets)
-will be copied in to the parent model. :el:`attach` is a :ref:`meta-element`, so upon saving all attachments will
-appear in the saved XML file. Note that this element is a subset of the functionality of the procedural
-:ref:`attachment<meAttachment>` functionality. As such, it shares the same limitations as described there. See example `here
-<https://github.com/google-deepmind/mujoco/blob/main/test/xml/testdata/parent.xml>`__.
+The :el:`attach` element is used to insert elements from another (child) model, or from the current model itself
+(self-attachment), into this (parent) model's kinematic tree. Unlike :ref:`include<include>`, which is implemented in
+the parser and is equivalent to copying and pasting XML from one file into another, :el:`attach` is implemented in the
+model compiler. In order to use this element to import from another model, the sub-model must first be defined as an
+:ref:`asset<asset-model>`. When creating an attachment, a frame, body or the entire child model in the child model is
+specified, and all referencing elements outside the kinematic tree (e.g., sensors and actuators), are also copied into
+the parent model. Additionally, any elements referenced from within the attached subtree (e.g. defaults and assets) will
+be copied in to the parent model. For self-attaching within the same model, the :at:`model` attribute is omitted, and a
+body or frame must be specified. :el:`attach` is a :ref:`meta-element`, so upon saving all attachments will appear in
+the saved XML file. Note that this element is a subset of the functionality of the procedural
+:ref:`attachment<meAttachment>` functionality. As such, it shares the same limitations as described there. See example
+`here <https://github.com/google-deepmind/mujoco/blob/main/test/xml/testdata/parent.xml>`__.
 
 .. admonition:: Known issues
    :class: note
@@ -4020,8 +4022,9 @@ appear in the saved XML file. Note that this element is a subset of the function
 
 .. _body-attach-model:
 
-:at:`model`: :at-val:`string, required`
+:at:`model`: :at-val:`string, optional`
    The child model from which to attach a subtree or a frame.
+   If omitted, the attachment is performed within the current model (self-attachment).
 
 .. _body-attach-body:
 

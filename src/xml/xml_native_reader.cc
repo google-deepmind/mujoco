@@ -3942,7 +3942,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
     // attachment
     else if (name == "attach") {
       string model_name, child_name, prefix;
-      ReadAttrTxt(elem, "model", model_name, /*required=*/true);
+      bool has_model = ReadAttrTxt(elem, "model", model_name, /*required=*/false);
       bool has_body = ReadAttrTxt(elem, "body", child_name, /*required=*/false);
       bool has_frame = ReadAttrTxt(elem, "frame", child_name, /*required=*/false);
       ReadAttrTxt(elem, "prefix", prefix, /*required=*/true);
@@ -3950,31 +3950,61 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
       if (has_body && has_frame) {
         throw mjXError(elem, "only one of body or frame can be specified in attach");
       }
-      mjtObj type = has_body ? mjOBJ_BODY : mjOBJ_FRAME;
+      mjtObj type = mjOBJ_UNKNOWN;
+      if (has_body) type = mjOBJ_BODY;
+      else if (has_frame) type = mjOBJ_FRAME;
 
-      string full_name = prefix+child_name;
-      if (mjs_findElement(spec, type, full_name.c_str())) {
-        throw mjXError(elem, "cannot attach: element %s already exists", full_name.c_str());
-      }
+      mjsElement* source_elem = nullptr;
+      if (!has_model) { // Self-attach
+        if (type == mjOBJ_UNKNOWN) {
+          throw mjXError(elem, "either 'body' or 'frame' attribute must be specified for self-attach");
+        }
 
-      mjSpec* asset = mjs_findSpec(spec, model_name.c_str());
-      if (!asset) {
-        throw mjXError(elem, "could not find model '%s'", model_name.c_str());
-      }
+        // check for name collision in the current spec
+        string full_name = prefix + child_name;
+        if (mjs_findElement(spec, type, full_name.c_str())) {
+          throw mjXError(elem, "cannot self-attach: element %s already exists", full_name.c_str());
+        }
+        source_elem = mjs_findElement(spec, type, child_name.c_str());
+        if (!source_elem) {
+          throw mjXError(elem, "%s",
+                         (string("could not find ") + mju_type2Str(type) + " '" + child_name +
+                          "' in the current model for self-attachment").c_str());
+        }
+      } else { // Attach from external model asset
+        // Check for name collision in the current spec
+        if (!child_name.empty()) {
+            string full_name = prefix + child_name;
+            if (mjs_findElement(spec, type, full_name.c_str())) {
+                throw mjXError(elem, "%s",
+                               (string("cannot attach: element ") + child_name +
+                                " already exists with prefix " + prefix).c_str());
+            }
+        }
 
-      mjsElement* child;
-      if (child_name.empty()) {
-        child = asset->element;
-      } else {
-        child = mjs_findElement(asset, type, child_name.c_str());
-        if (!child) {
-          throw mjXError(elem, "could not find %s",
-                          (string(mju_type2Str(type)) + " '" + child_name + "'").c_str());
+        mjSpec* asset = mjs_findSpec(spec, model_name.c_str());
+        if (!asset) {
+          throw mjXError(elem, "could not find model '%s'", model_name.c_str());
+        }
+
+        if (type == mjOBJ_UNKNOWN) { // Attach world body contents
+          source_elem = asset->element;
+        } else { // Attach specific body or frame
+          source_elem = mjs_findElement(asset, type, child_name.c_str());
+          if (!source_elem) {
+            throw mjXError(elem, "%s",
+                           (string("could not find ") + mju_type2Str(type) + " '" + child_name +
+                            "' in model asset '" + model_name + "'").c_str());
+          }
         }
       }
 
       mjsFrame* pframe = frame ? frame : mjs_addFrame(body, nullptr);
-      if (!mjs_attach(pframe->element, child, prefix.c_str(), "")) {
+      // Set default for the new frame from the current context
+      mjs_setDefault(pframe->element, mjs_getDefault(frame ? frame->element : body->element));
+      mjs_setString(pframe->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+
+      if (!mjs_attach(pframe->element, source_elem, prefix.c_str(), "")) {
         throw mjXError(elem, "%s", stripError(mjs_getError(spec)));
       }
     }
