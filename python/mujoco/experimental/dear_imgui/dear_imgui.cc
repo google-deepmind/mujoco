@@ -911,6 +911,9 @@ PYBIND11_MODULE(dear_imgui, m) {
   DEF0(PopID);
   DEF1(GetID, (ImString, str_id, ));
   DEF2(GetID, (ImString, str_id_begin, ), (ImString, str_id_end, ));
+  DEF2_F(DockSpaceOverMainViewport, (ImGuiID, id, = 0), (ImGuiDockNodeFlags, flags, = 0), {
+    return ImGui::DockSpaceOverViewport(id, nullptr, flags);
+  });
   DEF3_F(DockSpace, (ImGuiID, id, ), (const ImVec2&, size, = ImVec2_Zero), (ImGuiDockNodeFlags, flags, = 0), {
     return ImGui::DockSpace(id, size, flags);
   });
