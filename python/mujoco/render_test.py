@@ -14,6 +14,8 @@
 # ==============================================================================
 """Tests for MuJoCo Python rendering."""
 
+import os
+
 from absl.testing import absltest
 import mujoco
 import numpy as np
@@ -102,6 +104,34 @@ class MuJoCoRenderTest(absltest.TestCase):
     mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN, context)
 
     context.free()
+    context.free()
+
+  def test_ktx_texture_does_not_crash_classic_renderer(self):
+    # KTX textures are stored as opaque single-channel blobs for the Filament
+    # renderer; mjCTexture::LoadKTX does not decode them. The classic renderer
+    # must skip such textures with a warning rather than aborting in
+    # mjr_uploadTexture (https://github.com/google-deepmind/mujoco/issues/3343).
+    ktx_path = os.path.join(self.create_tempdir().full_path, 'texture.ktx')
+    with open(ktx_path, 'wb') as f:
+      # LoadKTX stores the raw payload as a 1-channel blob without decoding, so
+      # the contents do not matter; start with the KTX 2.0 identifier for realism.
+      f.write(b'\xabKTX 20\xbb\r\n\x1a\n' + bytes(64))
+
+    model = mujoco.MjModel.from_xml_string(f"""
+      <mujoco>
+        <asset>
+          <texture name="ktx" type="2d" file="{ktx_path}"/>
+          <material name="mat" texture="ktx"/>
+        </asset>
+        <worldbody>
+          <geom type="plane" size="1 1 .1" material="mat"/>
+        </worldbody>
+      </mujoco>""")
+    self.assertEqual(model.tex_nchannel[0], 1)
+
+    # Building the render context uploads all textures; before the fix this
+    # aborted with "Number of channels not supported: 1". It must not raise now.
+    context = mujoco.MjrContext(model, mujoco.mjtFontScale.mjFONTSCALE_150)
     context.free()
 
   def test_mjrrect_repr(self):
