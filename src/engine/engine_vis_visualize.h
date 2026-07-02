@@ -69,8 +69,8 @@ MJAPI void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2],  cons
 MJAPI int mjv_isCatenary(const mjModel* m, const mjData* d, int i, mjtNum* length);
 
 // computes points along a catenary curve
-int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3], mjtNum length,
-                 mjtNum* catenary, int ncatenary);
+MJAPI int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3],
+                       mjtNum length, mjtNum* catenary, int ncatenary);
 
 // convert HSV to RGB
 MJAPI void hsv2rgb(float *RGB, float H, float S, float V);
