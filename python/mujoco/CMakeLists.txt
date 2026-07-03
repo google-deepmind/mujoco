@@ -68,6 +68,19 @@ add_link_options("${MUJOCO_HARDEN_LINK_OPTIONS}")
 
 find_package(Python3 COMPONENTS Interpreter Development)
 
+# Detect free-threaded Python and enable Py_GIL_DISABLED.
+# This is needed because we have some STATIC libraries that do not automatically
+# get the Py_GIL_DISABLED macro definition through pybind11.
+execute_process(
+  COMMAND ${Python3_EXECUTABLE} -c "import sysconfig; print(sysconfig.get_config_var('Py_GIL_DISABLED') or 0)"
+  OUTPUT_VARIABLE PYTHON_GIL_DISABLED
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+if(PYTHON_GIL_DISABLED EQUAL "1")
+  message(STATUS "Free-threaded Python detected, enabling Py_GIL_DISABLED")
+  add_compile_definitions(Py_GIL_DISABLED)
+endif()
+
 include(FindOrFetch)
 
 # ==================== MUJOCO LIBRARY ==========================================
