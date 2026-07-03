@@ -785,7 +785,7 @@ TEST_F(DerivativeTest, LinearSystemInverse) {
 
   int nv = model->nv;
   int ns = model->nsensordata;
-  int nM = model->nM;
+  int nC = model->nC;
 
   vector<mjtNum> DfDq(nv * nv);
   vector<mjtNum> DfDv(nv * nv);
@@ -793,7 +793,7 @@ TEST_F(DerivativeTest, LinearSystemInverse) {
   vector<mjtNum> DsDq(nv * ns);
   vector<mjtNum> DsDv(nv * ns);
   vector<mjtNum> DsDa(nv * ns);
-  vector<mjtNum> DmDq(nv * nM);
+  vector<mjtNum> DmDq(nv * nC);
 
   // call mj_forward to get accelerations at initial state
   mj_forward(model, data);
@@ -847,7 +847,7 @@ TEST_F(DerivativeTest, LinearSystemInverse) {
   EXPECT_THAT(DsDa, Pointwise(DoubleNear(eps), DsDa_expect));
 
   // expect that mass matrix derivatives are zero
-  vector<mjtNum> DmDq_expect(nv * nM, 0);
+  vector<mjtNum> DmDq_expect(nv * nC, 0);
   EXPECT_THAT(DmDq, Pointwise(DoubleNear(eps), DmDq_expect));
 
   mj_deleteData(data);

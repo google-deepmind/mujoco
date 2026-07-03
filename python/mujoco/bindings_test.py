@@ -1508,7 +1508,7 @@ Euler integrator, semi-implicit in velocity.
     ds_dq = np.zeros((self.model.nv, self.model.nsensordata), dtype=DTYPE)
     ds_dv = np.zeros((self.model.nv, self.model.nsensordata), dtype=DTYPE)
     ds_da = np.zeros((self.model.nv, self.model.nsensordata), dtype=DTYPE)
-    dm_dq = np.zeros((self.model.nv, self.model.nM), dtype=DTYPE)
+    dm_dq = np.zeros((self.model.nv, self.model.nC), dtype=DTYPE)
     mujoco.mjd_inverseFD(
         self.model,
         self.data,

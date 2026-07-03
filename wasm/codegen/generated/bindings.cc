@@ -2057,7 +2057,7 @@ void mjd_inverseFD_wrapper(const MjModel& m, MjData& d, mjtNum eps, mjtBool flg_
   CHECK_SIZE(DsDq, m.nv() * m.nsensordata());
   CHECK_SIZE(DsDv, m.nv() * m.nsensordata());
   CHECK_SIZE(DsDa, m.nv() * m.nsensordata());
-  CHECK_SIZE(DmDq, m.nv() * m.nM());
+  CHECK_SIZE(DmDq, m.nv() * m.nC());
   mjd_inverseFD(m.get(), d.get(), eps, flg_actuation, DfDq_.data(), DfDv_.data(), DfDa_.data(), DsDq_.data(), DsDv_.data(), DsDa_.data(), DmDq_.data());
 }
 

@@ -1305,7 +1305,7 @@ describe('MuJoCo WASM Bindings', () => {
 
     const nv = model!.nv;
     const nsensordata = model!.nsensordata;
-    const nM = model!.nM;
+    const nC = model!.nC;
 
     const dfDq = new mujoco.DoubleBuffer(nv * nv);
     const dfDv = new mujoco.DoubleBuffer(nv * nv);
@@ -1313,7 +1313,7 @@ describe('MuJoCo WASM Bindings', () => {
     const dsDq = new mujoco.DoubleBuffer(nv * nsensordata);
     const dsDv = new mujoco.DoubleBuffer(nv * nsensordata);
     const dsDa = new mujoco.DoubleBuffer(nv * nsensordata);
-    const dmDq = new mujoco.DoubleBuffer(nv * nM);
+    const dmDq = new mujoco.DoubleBuffer(nv * nC);
 
     try {
       mujoco.mjd_inverseFD(

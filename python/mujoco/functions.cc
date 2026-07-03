@@ -1640,8 +1640,8 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
           throw py::type_error("DsDa should be of shape (nv, nsensordata)");
         }
         if (DmDq.has_value() &&
-            (DmDq->rows() != m->nv || DmDq->cols() != m->nM)) {
-          throw py::type_error("DmDq should be of shape (nv, nM)");
+            (DmDq->rows() != m->nv || DmDq->cols() != m->nC)) {
+          throw py::type_error("DmDq should be of shape (nv, nC)");
         }
         return InterceptMjErrors(::mjd_inverseFD)(
             m, d, eps, flg_actuation,

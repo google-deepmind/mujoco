@@ -22,6 +22,9 @@ General
    :class: attention
 
    - Return type of :ref:`mj_encode` and the :ref:`mjfEncode` callback changed from ``int`` to ``mjtSize`` (64-bit).
+   - Switched :ref:`mjd_inverseFD` to use the CSR-format ``mjData.M`` representation instead of the legacy ``mjData.qM``
+     for the mass matrix derivative. This changes the shape of the ``DmDq`` parameter from ``(nv x nM)`` to
+     ``(nv x nC)``.
 
 Version 3.10.0 (June 22, 2026)
 ------------------------------
