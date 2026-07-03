@@ -228,6 +228,8 @@ Window::Status Window::NewFrame() {
         int drawable_height = height_;
         SDL_GL_GetDrawableSize(sdl_window_, &drawable_width, &drawable_height);
         scale_ = (float)drawable_width / (float)width_;
+      } else if (event.window.event == SDL_WINDOWEVENT_CLOSE) {
+        should_exit_ = true;
       }
     } else if (event.type == SDL_DROPFILE) {
       drop_file_ = event.drop.file;
