@@ -15,6 +15,7 @@
 """Functions for ray interesection testing."""
 
 from typing import Sequence, Tuple
+import warnings
 
 import jax
 from jax import numpy as jp
@@ -220,8 +221,88 @@ def _ray_mesh(
   return dist, id_
 
 
+def _ray_hfield(
+    m: Model,
+    geom_id: np.ndarray,
+    unused_size: jax.Array,
+    pnt: jax.Array,
+    vec: jax.Array,
+) -> Tuple[jax.Array, np.ndarray]:
+  """Returns the distance at which rays intersect with height fields.
+
+  Follows mj_rayHfield (engine_ray.c): the hfield is the union of the base box
+  (spanning z in [-size[3], 0] in local frame), the terrain surface triangles
+  (two per grid cell), and the four prism sides below the terrain edge. Like
+  _ray_mesh, triangles are tested by brute force with no pruning.
+  """
+  data_id = m.geom_dataid[geom_id]
+
+  ray_basis = lambda x: jp.array(math.orthogonals(math.normalize(x))).T
+  basis = jax.vmap(ray_basis)(vec)
+
+  dists = []
+  for i, hid in enumerate(data_id):
+    nrow, ncol = int(m.hfield_nrow[hid]), int(m.hfield_ncol[hid])
+    size = m.hfield_size[hid]
+    adr = int(m.hfield_adr[hid])
+    data = m.hfield_data[adr : adr + nrow * ncol].reshape(nrow, ncol)
+    p, v = pnt[i], vec[i]
+
+    # base box, centered at z = -size[3]/2 in the local frame
+    base_size = jp.array([size[0], size[1], 0.5 * size[3]])
+    x = _ray_box(base_size, p + jp.array([0.0, 0.0, 0.5 * size[3]]), v)
+
+    # terrain surface: two triangles per grid cell
+    xg = jp.array(np.linspace(-size[0], size[0], ncol))
+    yg = jp.array(np.linspace(-size[1], size[1], nrow))
+    vert = jp.stack(
+        [
+            jp.broadcast_to(xg[None, :], (nrow, ncol)),
+            jp.broadcast_to(yg[:, None], (nrow, ncol)),
+            data * size[2],
+        ],
+        axis=-1,
+    )
+    v00, v10 = vert[:-1, :-1], vert[:-1, 1:]
+    v01, v11 = vert[1:, :-1], vert[1:, 1:]
+    tri = jp.concatenate([
+        jp.stack([v00, v10, v11], axis=2).reshape(-1, 3, 3),
+        jp.stack([v00, v11, v01], axis=2).reshape(-1, 3, 3),
+    ])
+    dist = jax.vmap(_ray_triangle, in_axes=(0, None, None, None))(
+        tri, p, v, basis[i]
+    )
+    x = jp.minimum(x, jp.min(dist))
+
+    # prism sides (z in [0, size[2]]): a side hit counts if the hit point lies
+    # below the terrain edge, interpolated between neighboring data points
+    dx = 2 * size[0] / (ncol - 1)
+    dy = 2 * size[1] / (nrow - 1)
+    for axis, sgn, edge, cell in (
+        (0, -1, data[:, 0], dy),
+        (0, 1, data[:, ncol - 1], dy),
+        (1, -1, data[0, :], dx),
+        (1, 1, data[nrow - 1, :], dx),
+    ):
+      t = math.safe_div(sgn * size[axis] - p[axis], v[axis])
+      hit = p + t * v
+      valid = (jp.abs(v[axis]) > mujoco.mjMINVAL) & (t >= 0)
+      valid &= jp.abs(hit[1 - axis]) <= size[1 - axis]
+      valid &= (hit[2] >= 0) & (hit[2] <= size[2])
+      y = (hit[1 - axis] + size[1 - axis]) / cell
+      y0 = jp.clip(jp.floor(y), 0, edge.shape[0] - 2)
+      z0, z1 = edge[y0.astype(int)], edge[y0.astype(int) + 1]
+      valid &= hit[2] / size[2] < z0 * (y0 + 1 - y) + z1 * (y - y0)
+      x = jp.minimum(x, jp.where(valid, t, jp.inf))
+
+    dists.append(x)
+
+  return jp.stack(dists), geom_id
+
+
 _RAY_FUNC = {
     GeomType.PLANE: _ray_plane,
+    GeomType.HFIELD: _ray_hfield,
     GeomType.SPHERE: _ray_sphere,
     GeomType.CAPSULE: _ray_capsule,
     GeomType.ELLIPSOID: _ray_ellipsoid,
@@ -270,6 +351,15 @@ def ray(
   geom_pnts = jax.vmap(lambda x, y: x.T @ (pnt - y))(d.geom_xmat, d.geom_xpos)
   geom_vecs = jax.vmap(lambda x: x.T @ vec)(d.geom_xmat)
 
+  # warn about candidate geoms whose type has no ray intersection function:
+  # they are invisible to rays (silently reported as a miss)
+  unsupported = set(m.geom_type[geom_filter].tolist()) - set(_RAY_FUNC)
+  if unsupported:
+    names = ', '.join(GeomType(t).name for t in sorted(unsupported))
+    warnings.warn(
+        f'mjx.ray: unsupported geom types treated as invisible: {names}'
+    )
+
   geom_filter_dyn = (m.geom_matid != -1) | (m.geom_rgba[:, 3] != 0)
   geom_filter_dyn &= (m.geom_matid == -1) | (m.mat_rgba[m.geom_matid, 3] != 0)
   for geom_type, fn in _RAY_FUNC.items():
@@ -280,7 +370,7 @@ def ray(
 
     args = m.geom_size[id_], geom_pnts[id_], geom_vecs[id_]
 
-    if geom_type == GeomType.MESH:
+    if geom_type in (GeomType.MESH, GeomType.HFIELD):
       dist, id_ = fn(m, id_, *args)
     else:
       dist = jax.vmap(fn)(*args)

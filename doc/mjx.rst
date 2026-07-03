@@ -510,7 +510,7 @@ The following table compares feature support between MJX-Warp and MJX-JAX compar
      - Positions and directions
    * - Ray
      - All, BVH for meshes, hfield, and flex
-     - Slow for meshes, hfield and flex unimplemented
+     - Slow for meshes and hfield, flex unimplemented
 
 
 .. [1] Differentiability is `mostly supported <https://github.com/google-deepmind/mujoco/issues/2259>`__ in MJX-JAX but is
