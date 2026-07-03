@@ -30,6 +30,7 @@ import numpy as np
 
 from mujoco.experimental.dear_imgui import dear_imgui as imgui
 
+
 @dataclasses.dataclass(frozen=True)
 class ViewerAppInitEvent(messages.Event):
   """Lifecycle event dispatched once when the ViewerApp is initialised.
@@ -418,12 +419,14 @@ class ViewerApp:
     imgui.End()
     imgui.PopStyleVar(3)
 
-  @messages.handler(priority=messages.Priority.INTERNAL)
+  # CRITICAL priority ensures the model is copied before any other handlers
+  # are notified of the ModelEvent.
+  @messages.handler(priority=messages.Priority.CRITICAL)
   def _on_model(self, event: messages.ModelEvent) -> bool:
     self.model = copy.deepcopy(event.model)
     self.data = mujoco.MjData(self.model)
     assert id(self.model) != id(event.model)
-    return True
+    return False  # Do not consume to allow other handlers to recieve the event.
 
   @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_exit(self, _: messages.ExitEvent) -> bool:
