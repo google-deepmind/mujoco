@@ -38,6 +38,7 @@ class NativeViewer(vp.Viewer):
       vis_options: mujoco.MjvOption | None = None,
       perturb: mujoco.MjvPerturb | None = None,
       render_flags: ux.RenderFlags | None = None,
+      extra_geoms: list[mujoco.MjvGeom] | None = None,
   ) -> None:
     """Initializes the NativeViewer.
 
@@ -50,25 +51,32 @@ class NativeViewer(vp.Viewer):
       vis_options: Visualization options. Internal object is created if None.
       perturb: Perturbation parameters. Internal object is created if None.
       render_flags: Render flags. Internal object is created if None.
+      extra_geoms: List of extra geoms. Internal list is created if None.
     """
     self.config = config
+
+    # Set members of vp.Viewer.
     self.camera = camera or mujoco.MjvCamera()
     self.perturb = perturb or mujoco.MjvPerturb()
     self.vis_options = vis_options or mujoco.MjvOption()
-    self._viewer = _viewer.Viewer(
-        config.title, config.width, config.height, config.gfx or ''
-    )
-    # This class does not own the model but we need to know if the model being
-    # rendered has changed, so we store the unique python object id here so we
-    # can use it to detect model changes.
-    self._renderer_model_id = id(None)
-    self._is_running = True
+    self.extra_geoms = extra_geoms or []
     if render_flags is not None:
       self.render_flags = render_flags
     else:
       self.render_flags = ux.RenderFlags()
       # Initted to match mujoco/src/engine/engine_vis_init.c
       self.render_flags.flags = [1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1]
+
+    # Create the renderer.
+    self._viewer = _viewer.Viewer(
+        config.title, config.width, config.height, config.gfx or ''
+    )
+
+    # This class does not own the model but we need to know if the model being
+    # rendered has changed, so we store the unique python object id here so we
+    # can use it to detect model changes.
+    self._renderer_model_id = id(None)
+    self._is_running = True
 
     ctx = self._viewer.GetImGuiContext()
     imgui.SetCurrentContext(ctx)
@@ -106,6 +114,7 @@ class NativeViewer(vp.Viewer):
         self.camera,
         self.vis_options,
         self.render_flags.flags,
+        self.extra_geoms,
     )
 
   def close(self) -> None:

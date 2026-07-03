@@ -164,7 +164,17 @@ class Viewer {
                mujoco::python::MjvPerturbWrapper& perturb,
                mujoco::python::MjvCameraWrapper& camera,
                mujoco::python::MjvOptionWrapper& vis_options,
-               const std::vector<uint8_t>& render_flags) {
+               const std::vector<uint8_t>& render_flags,
+               const std::vector<mujoco::python::MjvGeomWrapper>& extra_geoms =
+                   {}) {
+    std::vector<mjvGeom> geoms;
+    geoms.reserve(extra_geoms.size());
+    for (const auto& geom_wrapper : extra_geoms) {
+      if (geom_wrapper.get()) {
+        geoms.push_back(*geom_wrapper.get());
+      }
+    }
+
     py::gil_scoped_release no_gil;
 
     const float width = window_->GetWidth();
@@ -185,7 +195,7 @@ class Viewer {
 
     renderer_->Render(model.get(), data.get(), perturb.get(), camera.get(),
                       vis_options.get(), width * scale, height * scale,
-                      pixels_);
+                      pixels_, geoms);
 
     window_->EndFrame();
     window_->Present(pixels_);
@@ -207,7 +217,12 @@ PYBIND11_MODULE(native_viewer_cc, m, pybind11::mod_gil_not_used()) {
       .def(pybind11::init<const std::string&, int, int, const std::string&>())
       .def("InitRenderer", &Viewer::InitRenderer)
       .def("NewFrame", &Viewer::NewFrame)
-      .def("Present", &Viewer::Present)
+      .def("Present", &Viewer::Present, pybind11::arg("model"),
+           pybind11::arg("data"), pybind11::arg("perturb"),
+           pybind11::arg("camera"), pybind11::arg("vis_options"),
+           pybind11::arg("render_flags"),
+           pybind11::arg("extra_geoms") =
+               std::vector<mujoco::python::MjvGeomWrapper>())
       .def("UploadImage", &Viewer::UploadImage)
       .def("RenderToTexture", &Viewer::RenderToTexture)
       .def("GetDropFile", &Viewer::GetDropFile)

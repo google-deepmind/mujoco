@@ -93,6 +93,7 @@ class Viewer(Protocol):
   perturb: mujoco.MjvPerturb
   vis_options: mujoco.MjvOption
   render_flags: ux.RenderFlags
+  extra_geoms: list[mujoco.MjvGeom]
 
   def is_running(self) -> bool:
     ...
