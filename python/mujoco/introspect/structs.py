@@ -7392,6 +7392,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='sleep policy',
              ),
              StructFieldDecl(
+                 name='simple',
+                 type=ValueType(name='mjtByte'),
+                 doc='simple body optimization (0: false, 1: auto)',
+             ),
+             StructFieldDecl(
                  name='userdata',
                  type=PointerType(
                      inner_type=ValueType(name='mjDoubleVec'),

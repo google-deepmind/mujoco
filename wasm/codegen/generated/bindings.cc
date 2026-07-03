@@ -5593,6 +5593,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("plugin", &MjsBody::plugin, reference())
     .property("pos", &MjsBody::pos)
     .property("quat", &MjsBody::quat)
+    .property("simple", &MjsBody::simple, &MjsBody::set_simple, reference())
     .property("sleep", &MjsBody::sleep, &MjsBody::set_sleep, reference())
     .property("userdata", &MjsBody::userdata, reference());
   emscripten::class_<MjsCamera>("MjsCamera")

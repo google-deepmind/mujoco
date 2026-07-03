@@ -1002,6 +1002,11 @@ void mjCModel::ComputeSparseSizes() {
                            bodies_[parentid]->parent          &&
                            bodies_[parentid]->parent->id == 0 &&
                            bodies_[parentid]->dofnum == 0)));
+
+    // user override: disable simple optimization
+    if (!pb->simple) {
+      body_simple_pre[i] = 0;
+    }
   }
 
   // a parent body is never simple (unless world)
@@ -2815,6 +2820,11 @@ void mjCModel::CopyTree(mjModel* m) {
                          (m->body_rootid[i] == i ||
                           (m->body_parentid[parentid] == 0 &&
                            m->body_dofnum[parentid] == 0)));
+
+    // user override: disable simple optimization
+    if (!pb->simple) {
+      m->body_simple[i] = 0;
+    }
 
     // a parent body is never simple (unless world)
     if (m->body_parentid[i] > 0) {

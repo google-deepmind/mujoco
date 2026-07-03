@@ -335,9 +335,8 @@ std::vector<const char*> MJCF[nMJCF] = {
         {">"},
         {"model", "*", "name", "file", "content_type"},
     {">"},
-
-    {"body", "R", "name", "childclass", "pos", "quat", "mocap",
-        "axisangle", "xyaxes", "zaxis", "euler", "gravcomp", "sleep", "user"},
+    {"body", "R", "name", "childclass", "pos", "quat", "mocap", "axisangle",
+        "xyaxes", "zaxis", "euler", "gravcomp", "sleep", "simple", "user"},
     {"<"},
         {"inertial", "?", "pos", "quat", "mass", "diaginertia",
             "axisangle", "xyaxes", "zaxis", "euler", "fullinertia"},
@@ -641,6 +640,13 @@ const mjMap TFAuto_map[3] = {
   {"false",   0},
   {"true",    1},
   {"auto",    2}
+};
+
+
+// FAuto type
+const mjMap FAuto_map[2] = {
+  {"false",   0},
+  {"auto",    1}
 };
 
 
@@ -3925,6 +3931,9 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
       ReadAttr(elem, "gravcomp", 1, &child->gravcomp, text);
       if (MapValue(elem, "sleep", &n, bodysleep_map, bodysleep_sz)) {
         child->sleep = (mjtSleepPolicy) n;
+      }
+      if (MapValue(elem, "simple", &n, FAuto_map, 2)) {
+        child->simple = (mjtByte) n;
       }
 
       // read userdata

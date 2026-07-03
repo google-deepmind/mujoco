@@ -1726,6 +1726,9 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
       WriteAttrKey(elem, "sleep", bodysleep_map, bodysleep_sz, body->sleep);
     }
 
+    // simple optimization
+    WriteAttrKey(elem, "simple", FAuto_map, 2, body->simple, 1);
+
     // userdata
     WriteVector(elem, "user", body->get_userdata());
 

@@ -6087,6 +6087,12 @@ struct MjsBody {
   void set_sleep(mjtSleepPolicy value) {
     ptr_->sleep = value;
   }
+  mjtByte simple() const {
+    return ptr_->simple;
+  }
+  void set_simple(mjtByte value) {
+    ptr_->simple = value;
+  }
   mjDoubleVec &userdata() const {
     return *(ptr_->userdata);
   }

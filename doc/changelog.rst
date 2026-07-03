@@ -12,6 +12,8 @@ General
 - :ref:`mj_encode` now supports encoding of MJB and TXT files.
 - :ref:`mj_setConst` now recomputes the ``mjModel.{body,geom,site}_sameframe`` flags, to account for changes in
   body/geom/site frames after compilation.
+- Added :ref:`body/simple<body-simple>` attribute ("false"/"auto") to disable the *simple body* mass matrix
+  optimization. This is useful for domain randomization, where model parameters may change post-compilation.
 - The :el:`attach` element now supports self-attachment (attaching elements of the current model to itself) by omitting
   the :at:`model` attribute. It also supports attaching a frame via the new :at:`frame` attribute, which is mutually
   exclusive with :at:`body`.

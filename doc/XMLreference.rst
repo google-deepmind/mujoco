@@ -2152,6 +2152,31 @@ defined. Its body name is automatically defined as "world".
 
    See :ref:`implementation notes<siSleep>` for more details.
 
+.. _body-simple:
+
+:at:`simple`: :at-val:`[false, auto], "auto"`
+   Controls the *simple body* optimization. When a body qualifies as "simple", its inertial matrix block in the mass
+   matrix is diagonal, representing independent translational and rotational degrees of freedom. The optimization
+   omits storing of the zero-valued off-diagonal entries, reducing memory footprint and computation.
+
+   A body qualifies for this optimization if it satisfies all of the following:
+
+   - **Inertial frame alignment**: The body's inertial frame coincides with its body frame.
+   - **Kinematic root**: The body's parent is either the world body or a static body.
+   - **Leaf body**: The body is a leaf node in the kinematic tree (it has no child bodies).
+   - **Origin-centered joints**: All joints belonging to this body must reside at the body's origin.
+   - **Aligned joint axes**: Any hinge or slide joint axes must be aligned with the local coordinate axes, and at most
+     one joint with rotational degrees of freedom (hinge or ball) is permitted.
+   - **No inertia-bearing tendons**: The body must not contain sites or geoms used as wrap objects by any tendon that
+     has non-zero :ref:`armature<tendon-spatial-armature>`.
+
+   Setting this attribute to :at-val:`false` disables the optimization for this body. This is necessary for domain
+   randomization workflows where model parameters (such as joint/inertial offsets or angles) are perturbed dynamically
+   during simulation and updated via :ref:`mj_setConst`. Because a body compiled with the simple optimization active
+   cannot dynamically lose its simple state at runtime (which would require reallocation of sparse matrix structures),
+   any runtime parameter change that violates the simple conditions will trigger a validation error unless
+   ``simple="false"`` was explicitly declared in the XML.
+
 .. _body-user:
 
 :at:`user`: :at-val:`real(nbody_user), "0 0 ..."`

@@ -329,10 +329,12 @@ TEST_F(SetConstTest, TendonTreeId) {
   int t_static_id = mj_name2id(model.get(), mjOBJ_TENDON, "T_static");
   int t_tree1_id = mj_name2id(model.get(), mjOBJ_TENDON, "T_tree1");
   int t_intertree12_id = mj_name2id(model.get(), mjOBJ_TENDON, "T_intertree12");
-  int t_intertree123_id = mj_name2id(model.get(), mjOBJ_TENDON, "T_intertree123");
-
-  int b1_1_treeid = model->body_treeid[mj_name2id(model.get(), mjOBJ_BODY, "B1_1")];
-  int b2_1_treeid = model->body_treeid[mj_name2id(model.get(), mjOBJ_BODY, "B2_1")];
+  int t_intertree123_id =
+      mj_name2id(model.get(), mjOBJ_TENDON, "T_intertree123");
+  int b1_1_treeid =
+      model->body_treeid[mj_name2id(model.get(), mjOBJ_BODY, "B1_1")];
+  int b2_1_treeid =
+      model->body_treeid[mj_name2id(model.get(), mjOBJ_BODY, "B2_1")];
 
   // Tendon 1: Not associated with any tree
   EXPECT_EQ(model->tendon_treenum[t_static_id], 0);
@@ -461,7 +463,7 @@ TEST_F(SetConstTest, BodySameframeRecomputed) {
   constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
-      <body name="B1">
+      <body name="B1" simple="false">
         <joint type="slide"/>
         <geom size=".1"/>
       </body>
@@ -570,7 +572,7 @@ TEST_F(SetConstTest, SameframeKinematicsCorrect) {
   constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
-      <body name="B1" pos="1 0 0">
+      <body name="B1" pos="1 0 0" simple="false">
         <joint type="slide" axis="1 0 0"/>
         <geom name="G1" size=".1"/>
         <site name="S1"/>
@@ -602,6 +604,35 @@ TEST_F(SetConstTest, SameframeKinematicsCorrect) {
   EXPECT_NE(m->geom_sameframe[g], mjSAMEFRAME_BODY);
   mj_forward(m.get(), d.get());
   EXPECT_NEAR(d->geom_xpos[3*g+2], 0.3, MjTol(1e-10, 1e-6));
+}
+
+TEST_F(SetConstTest, SimpleBodyLostSameframeError) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="B1">
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d(mj_makeData(m.get()));
+
+  int b = mj_name2id(m.get(), mjOBJ_BODY, "B1");
+
+  // confirm body is compiled as simple
+  EXPECT_GT(m->body_simple[b], 0);
+
+  // perturb body_ipos, breaking sameframe; calling mj_setConst should fail
+  m->body_ipos[3*b+0] = 1.0;
+
+  std::string err = MjuErrorMessageFrom(mj_setConst)(m.get(), d.get());
+  EXPECT_THAT(err, HasSubstr("body 1 is compiled as simple but "
+                             "sameframe no longer holds"));
 }
 
 }  // namespace

@@ -140,7 +140,7 @@ CHECK_STRUCT(mjsDefault, MJSDEFAULT_FIELDS)
 #undef XIMPL
 
 TEST(MjspecmacroTest, CompileTimeChecks) {
-  // Verifies that the test binary compiled successfully and all static_asserts passed.
+  // Verifies that the test compiled successfully and all static_asserts passed.
   EXPECT_TRUE(true);
 }
 

@@ -279,6 +279,7 @@ typedef struct mjsBody_ {          // body specification
   mjtByte mocap;                   // is this a mocap body
   double gravcomp;                 // gravity compensation
   mjtSleepPolicy sleep;            // sleep policy
+  mjtByte simple;                  // simple body optimization (0: false, 1: auto)
   mjDoubleVec* userdata;           // user data
   mjtByte explicitinertial;        // whether to save the body with explicit inertial clause
   mjsPlugin plugin;                // passive force plugin

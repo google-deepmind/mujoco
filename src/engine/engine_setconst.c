@@ -1324,6 +1324,14 @@ void mj_setConst(mjModel* m, mjData* d) {
   // recompute sameframe flags from current model geometry
   setSameframe(m);
 
+  // error if simple body lost sameframe (user must set simple="false")
+  for (int i = 1; i < m->nbody; i++) {
+    if (m->body_simple[i] > 0 && m->body_sameframe[i] != mjSAMEFRAME_BODY) {
+      mjERROR("body %d is compiled as simple but sameframe no longer holds, "
+              "use body/simple='false'", i);
+    }
+  }
+
   // set fixed quantities
   setFixed(m, d);
 
