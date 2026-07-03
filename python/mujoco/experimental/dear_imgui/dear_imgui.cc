@@ -63,6 +63,7 @@ PYBIND11_MODULE(dear_imgui, m) {
   py::class_<ImGuiIO>(m, "IO")
       .def_readwrite("ConfigFlags", &ImGuiIO::ConfigFlags)
       .def_readonly("DisplaySize", &ImGuiIO::DisplaySize)
+      .def_readonly("FontGlobalScale", &ImGuiIO::FontGlobalScale)
       .def_readonly("DeltaTime", &ImGuiIO::DeltaTime)
       .def_readonly("Framerate", &ImGuiIO::Framerate)
       .def_readonly("WantCaptureMouse", &ImGuiIO::WantCaptureMouse)
