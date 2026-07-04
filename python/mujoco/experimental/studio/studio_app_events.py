@@ -188,6 +188,8 @@ def handle_reset_keyboard_events(
     model: mujoco.MjModel, data: mujoco.MjData
 ) -> bool:
   """Handles keyboard shortcuts for simulation reset."""
+  if imgui.GetIO().WantCaptureKeyboard:
+    return False
 
   if imgui.IsKeyChordPressed(imgui.Key.Backspace):
     if model is not None and data is not None:
