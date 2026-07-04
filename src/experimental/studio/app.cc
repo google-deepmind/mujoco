@@ -161,7 +161,11 @@ void App::LoadModelFromFile(const std::string& filepath) {
   model_holder_ = platform::ModelHolder::FromFile(resolved_file);
   if (model_holder_->ok()) {
     OnModelLoaded(filepath, kModelFromFile);
-    spec_editor_.Reset(*spec());
+    if (spec()) {
+      spec_editor_.Reset(*spec());
+    } else {
+      spec_editor_.Reset();
+    }
     UpdateFilePaths(resolved_file);
     if (model() && model()->names) {
       // Assumes the first string in the model is the name of the model itself.
@@ -188,7 +192,11 @@ void App::LoadModelFromBuffer(std::span<const std::byte> buffer,
   } else {
     SetLoadError(std::string(model_holder_->error()));
   }
-  spec_editor_.Reset(*spec());
+  if (spec()) {
+    spec_editor_.Reset(*spec());
+  } else {
+    spec_editor_.Reset();
+  }
 }
 
 void App::OnModelLoaded(std::string filename, ModelKind model_kind) {

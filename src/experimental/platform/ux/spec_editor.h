@@ -38,6 +38,9 @@ class SpecEditor {
  public:
   explicit SpecEditor(int history_size = 256);
 
+  // Resets the editor with an empty spec. No editing will be allowed.
+  void Reset();
+
   // Resets the editor to manage the given spec, clearing all cached data.
   // Assumes the given spec is correctly formed (i.e. compilable).
   void Reset(const mjSpec& spec);
