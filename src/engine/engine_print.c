@@ -242,41 +242,6 @@ static void printBlockArray(const char* str, const mjtNum* data, int nc,
 }
 
 
-// print sparse inertia-like matrix
-static void printInertia(const char* str, const mjtNum* mat, const mjModel* m,
-                         FILE* fp, const char* float_format) {
-  int nv = m->nv;
-  // if no data, or too many rows to be visually useful, return
-  if (!mat || !nv || nv > 300) {
-    return;
-  }
-
-  // get length of string produced by float_format
-  char test[100];
-  int len = snprintf(test, sizeof(test), float_format, 0.0);
-
-  fprintf(fp, "%s\n", str);
-
-  for (int i=0; i < nv; i++) {
-    fprintf(fp, " ");
-    int adr = (i == nv-1) ? m->nM - 1 : m->dof_Madr[i+1] - 1;
-    for (int k=0; k <= i; k++) {
-      int j = i;
-      while (j != k && j >= 0) {
-        j = m->dof_parentid[j];
-      }
-      if (j == k) {
-        fprintf(fp, " ");
-        fprintf(fp, float_format, mat[adr--]);
-      } else {
-        for (int d=0; d < len+1; d++) fprintf(fp, " ");
-      }
-    }
-    fprintf(fp, "\n");
-  }
-  fprintf(fp, "\n");
-}
-
 
 // print sparse matrix structure
 void mj_printSparsity(const char* str, int nr, int nc, const int* rowadr, const int* diag,
@@ -1464,7 +1429,6 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   printSparse("ACTUATOR_MOMENT", d->actuator_moment, m->nu, d->moment_rownnz,
               d->moment_rowadr, d->moment_colind, fp, float_format);
   printArray2d("CRB", m->nbody, 10, d->crb, fp, float_format);
-  printInertia("QM", d->qM, m, fp, float_format);
   printSparse("M", d->M, m->nv, m->M_rownnz,
               m->M_rowadr, m->M_colind, fp, float_format);
   printSparse("QLD", d->qLD, m->nv, m->M_rownnz,

@@ -6116,19 +6116,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nbody', 10),
              ),
              StructFieldDecl(
-                 name='qM',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='inertia (sparse)',
-                 array_extent=('nM',),
-             ),
-             StructFieldDecl(
                  name='M',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='reduced inertia (compressed sparse row)',
+                 doc='inertia (sparse)',
                  array_extent=('nC',),
              ),
              StructFieldDecl(
@@ -6328,7 +6320,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='sparse LU of (qM - dt*qDeriv)',
+                 doc='sparse LU of (M - dt*qDeriv)',
                  array_extent=('nD',),
              ),
              StructFieldDecl(

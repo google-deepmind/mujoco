@@ -4664,7 +4664,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("qLD", &MjData::qLD)
     .property("qLDiagInv", &MjData::qLDiagInv)
     .property("qLU", &MjData::qLU)
-    .property("qM", &MjData::qM)
     .property("qacc", &MjData::qacc)
     .property("qacc_smooth", &MjData::qacc_smooth)
     .property("qacc_warmstart", &MjData::qacc_warmstart)

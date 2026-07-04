@@ -671,7 +671,6 @@ class DataIOTest(parameterized.TestCase):
     np.testing.assert_allclose(d_2.xpos, d.xpos)
     np.testing.assert_allclose(d_2.cvel, d.cvel)
     np.testing.assert_allclose(d_2.cdof_dot, d.cdof_dot)
-    np.testing.assert_allclose(d_2.qM, d.qM)
     np.testing.assert_allclose(d_2.qLD, d.qLD, atol=1e-6)
     np.testing.assert_allclose(d_2.qLDiagInv, d.qLDiagInv, atol=1e-6)
 
@@ -782,7 +781,6 @@ class DataIOTest(parameterized.TestCase):
     # check a few fields
     np.testing.assert_allclose(d_2.qpos, d.qpos)
     np.testing.assert_allclose(d_2.xpos, d.xpos)
-    np.testing.assert_allclose(d_2.qM, d.qM)
 
     # only 1 contact active
     self.assertEqual(d_2.contact.dist.shape, (1,))

@@ -5757,7 +5757,6 @@ public unsafe struct mjData_ {
   public int* moment_colind;
   public double* actuator_moment;
   public double* crb;
-  public double* qM;
   public double* M;
   public double* qLD;
   public double* qLDiagInv;

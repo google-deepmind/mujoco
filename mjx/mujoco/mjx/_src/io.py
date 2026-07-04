@@ -1297,12 +1297,11 @@ def _get_data_into_warp(
         value = value.reshape((-1, 9))
       # elif field.name == 'efc_J':  # TODO(btaba): add this back
       # elif field.name.startswith('efc_'):  # TODO(btaba): add this back
-      # TODO(btaba): qM, qLD, qLDiagInv
+      # TODO(btaba): qLD, qLDiagInv
 
       if field.name in (
           'actuator_moment',
           'contact',
-          'qM',
           'qLD',
           'qLU',
           'qLDiagInv',
@@ -1471,10 +1470,6 @@ def _get_data_into(
         result_field[:] = value
       else:
         setattr(result_i, field.name, value)
-
-    if hasattr(result_i, 'qM'):
-      result_i.qM.fill(0.0)
-      result_i.qM[m.mapM2M] = result_i.M
 
     # recalculate qLD and qLDiagInv as MJX and MuJoCo have different
     # representations of the Cholesky decomposition.

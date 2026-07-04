@@ -1446,9 +1446,6 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
     }
   }
 
-  // zero out qM, special case because scattering from M skips simple body off-diagonals
-  mju_zero(d->qM, m->nM);
-
   // copy qpos0 from model
   if (m->qpos0) {
     mju_copy(d->qpos, m->qpos0, m->nq);

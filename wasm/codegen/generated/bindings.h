@@ -6875,9 +6875,6 @@ struct MjData {
   emscripten::val crb() const {
     return emscripten::val(emscripten::typed_memory_view(model->nbody * 10, ptr_->crb));
   }
-  emscripten::val qM() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nM, ptr_->qM));
-  }
   emscripten::val M() const {
     return emscripten::val(emscripten::typed_memory_view(model->nC, ptr_->M));
   }

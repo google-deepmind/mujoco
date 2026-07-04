@@ -390,9 +390,9 @@ TEST_F(UserFlexTest, TrilinearInterpolation) {
     EXPECT_NEAR(d1->flexvert_xpos[i], d2->flexvert_xpos[i], 1e-7);
   }
 
-  EXPECT_EQ(m1->nM, m2->nM);
-  for (int i = 0; i < m1->nM; ++i) {
-    EXPECT_EQ(d1->qM[i], d2->qM[i]);
+  EXPECT_EQ(m1->nC, m2->nC);
+  for (int i = 0; i < m1->nC; ++i) {
+    EXPECT_EQ(d1->M[i], d2->M[i]);
   }
 
   EXPECT_EQ(m1->nbody, m2->nbody);

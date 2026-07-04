@@ -875,7 +875,6 @@
     X   ( int,       moment_colind,     nJmom,       1           ) \
     X   ( mjtNum,    actuator_moment,   nJmom,       1           ) \
     XNV ( mjtNum,    crb,               nbody,       10          ) \
-    XNV ( mjtNum,    qM,                nM,          1           ) \
     XNV ( mjtNum,    M,                 nC,          1           ) \
     XNV ( mjtNum,    qLD,               nC,          1           ) \
     X   ( mjtNum,    qLDiagInv,         nv,          1           ) \

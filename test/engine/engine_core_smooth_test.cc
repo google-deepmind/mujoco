@@ -227,7 +227,6 @@ TEST_F(CoreSmoothTest, TendonArmature) {
 
     // put only CRB inertia in M2
     mj_crb(m, d);
-    mju_scatter(d->qM, d->M, m->mapM2M, m->nC);
     vector<mjtNum> M2(nv * nv);
     mj_fullM(m, d, M2.data());
 

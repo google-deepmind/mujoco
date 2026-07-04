@@ -132,10 +132,10 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
     // compute qDeriv
     mjd_smooth_vel(m, d, /* flg_bias = */ 1);
 
-    // gather qLU <- qM (lower to full)
+    // gather qLU <- M (lower to full)
     mju_gatherMasked(d->qLU, d->M, m->mapM2D, nD);
 
-    // set qLU = qM - dt*qDeriv
+    // set qLU = M - dt*qDeriv
     mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
 
     // set qfrc = qLU * qacc
