@@ -16,7 +16,7 @@
 import dataclasses
 import enum
 import inspect
-from typing import Any, Callable, Protocol, runtime_checkable
+from typing import Any, Callable, Protocol, get_type_hints, runtime_checkable
 
 import mujoco
 from mujoco.experimental.studio import sim
@@ -204,11 +204,28 @@ def handler(
       )
 
     message_type = params[1].annotation
+
+    # When `from __future__ import annotations` is enabled or string forward
+    # references are used, annotations are stored as strings rather than code
+    # objects. In this case, resolve the string into its actual class type.
+    if isinstance(message_type, str):
+      try:
+        hints = get_type_hints(target)
+        param_name = params[1].name
+        if param_name in hints:
+          message_type = hints[param_name]
+      except Exception:  # pylint: disable=broad-except
+        pass
+
+    # Verify we got a type annotation.
     if message_type is inspect.Parameter.empty:
       raise TypeError(
           f'{fn_name}: second parameter must have a type annotation'
       )
 
+    # Verify that the annotation resolved to an actual Python class and that the
+    # class is a valid subclass of Message. This also catches cases where a
+    # string forward reference failed to resolve via get_type_hints above.
     if not (
         isinstance(message_type, type) and issubclass(message_type, Message)
     ):
