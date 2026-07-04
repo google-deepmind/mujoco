@@ -64,20 +64,12 @@ MJAPI void mj_tendonArmature(const mjModel* m, mjData* d);
 // make inertia matrix
 MJAPI void mj_makeM(const mjModel* m, mjData* d);
 
-// sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd  (legacy implementation)
-MJAPI void mj_factorI_legacy(const mjModel* m, mjData* d, const mjtNum* M,
-                             mjtNum* qLD, mjtNum* qLDiagInv);
-
 // sparse L'*D*L factorizaton of inertia-like matrix (only dofs in index, if given)
 MJAPI void mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
                       const int* rownnz, const int* rowadr, const int* colind, const int* index);
 
 // sparse L'*D*L factorizaton of the inertia matrix M, assumed spd
 MJAPI void mj_factorM(const mjModel* m, mjData* d);
-
-// sparse backsubstitution:  x = inv(L'*D*L)*x  (legacy implementation)
-MJAPI void mj_solveLD_legacy(const mjModel* m, mjtNum* x, int n,
-                             const mjtNum* qLD, const mjtNum* qLDiagInv);
 
 // in-place sparse backsubstitution (only dofs in index, if given):  x = inv(L'*D*L)*x
 //  handle n vectors at once
