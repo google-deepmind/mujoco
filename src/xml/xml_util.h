@@ -179,6 +179,17 @@ class mjXUtil {
   static bool MapValue(tinyxml2::XMLElement* elem, const char* attr, int* data,
                        const mjMap* map, int mapSz, bool required = false);
 
+  template <typename T>
+  static bool MapValue(tinyxml2::XMLElement* elem, const char* attr, T* data,
+                       const mjMap* map, int mapSz, bool required = false) {
+    int value;
+    if (MapValue(elem, attr, &value, map, mapSz, required)) {
+      *data = static_cast<T>(value);
+      return true;
+    }
+    return false;
+  }
+
   // find attribute, translate unique space-separated keys to data, return number of keys found
   static int MapValues(tinyxml2::XMLElement* elem, const char* attr, int* data,
                        const mjMap* map, int mapSz, bool required = false);

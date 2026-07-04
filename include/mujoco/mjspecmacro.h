@@ -25,27 +25,27 @@
 
 //-------------------------------- mjsCompiler -----------------------------------------------------
 
-#define MJSCOMPILER_FIELDS        \
-  X(mjtByte, autolimits, 1)       \
-  X(double, boundmass, 1)         \
-  X(double, boundinertia, 1)      \
-  X(double, settotalmass, 1)      \
-  X(mjtByte, balanceinertia, 1)   \
-  X(mjtByte, fitaabb, 1)          \
-  X(mjtByte, degree, 1)           \
-  XVEC(char, eulerseq, 3)         \
-  X(mjtByte, discardvisual, 1)    \
-  X(mjtByte, usethread, 1)        \
-  X(mjtByte, fusestatic, 1)       \
-  X(int, inertiafromgeom, 1)      \
-  XVEC(int, inertiagrouprange, 2) \
-  X(mjtByte, saveinertial, 1)     \
-  X(int, alignfree, 1)            \
-  X(int, conflict, 1)             \
-  X(mjLROpt, LRopt, 1)            \
-  X(mjString*, meshdir, 1)        \
-  X(mjString*, texturedir, 1)     \
-  X(uint64_t, authored, 1)
+#define MJSCOMPILER_FIELDS                    \
+  X(mjtBool,            autolimits,        1) \
+  X(double,             boundmass,         1) \
+  X(double,             boundinertia,      1) \
+  X(double,             settotalmass,      1) \
+  X(mjtBool,            balanceinertia,    1) \
+  X(mjtBool,            fitaabb,           1) \
+  X(mjtBool,            degree,            1) \
+  XVEC(char,            eulerseq,          3) \
+  X(mjtBool,            discardvisual,     1) \
+  X(mjtBool,            usethread,         1) \
+  X(mjtBool,            fusestatic,        1) \
+  X(mjtInertiaFromGeom, inertiafromgeom,   1) \
+  XVEC(int,             inertiagrouprange, 2) \
+  X(mjtBool,            saveinertial,      1) \
+  X(mjtBool,            alignfree,         1) \
+  X(mjtConflict,        conflict,          1) \
+  X(mjLROpt,            LRopt,             1) \
+  X(mjString*,          meshdir,           1) \
+  X(mjString*,          texturedir,        1) \
+  X(uint64_t,           authored,          1)
 
 //-------------------------------- mjSpec ----------------------------------------------------------
 
@@ -53,7 +53,7 @@
     X( mjsElement*, element,               1 ) \
     X( mjString*,   modelname,             1 ) \
     X( mjsCompiler, compiler,              1 ) \
-    X( mjtByte,     strippath,             1 ) \
+    X( mjtBool,     strippath,             1 ) \
     X( mjOption,    option,                1 ) \
     X( mjVisual,    visual,                1 ) \
     X( mjStatistic, stat,                  1 ) \
@@ -74,7 +74,7 @@
     X( mjtSize,     nstack,                1 ) \
     X( mjString*,   comment,               1 ) \
     X( mjString*,   modelfiledir,          1 ) \
-    X( mjtByte,     hasImplicitPluginElem, 1 )
+    X( mjtBool,     hasImplicitPluginElem, 1 )
 
 
 //-------------------------------- mjsOrientation --------------------------------------------------
@@ -93,7 +93,7 @@
     X( mjsElement*, element,     1 ) \
     X( mjString*,   name,        1 ) \
     X( mjString*,   plugin_name, 1 ) \
-    X( mjtByte,     active,      1 ) \
+    X( mjtBool,     active,      1 ) \
     X( mjString*,   info,        1 )
 
 
@@ -111,12 +111,12 @@
     XVEC( double,          inertia,          3 ) \
     X   ( mjsOrientation,  ialt,             1 ) \
     XVEC( double,          fullinertia,      6 ) \
-    X   ( mjtByte,         mocap,            1 ) \
+    X   ( mjtBool,         mocap,            1 ) \
     X   ( double,          gravcomp,         1 ) \
     X   ( mjtSleepPolicy,  sleep,            1 ) \
     X   ( mjtByte,         simple,           1 ) \
     X   ( mjDoubleVec*,    userdata,         1 ) \
-    X   ( mjtByte,         explicitinertial, 1 ) \
+    X   ( mjtBool,         explicitinertial, 1 ) \
     X   ( mjsPlugin,       plugin,           1 ) \
     X   ( mjString*,       info,             1 )
 
@@ -140,16 +140,16 @@
     XVEC( double,        pos,             3         ) \
     XVEC( double,        axis,            3         ) \
     X   ( double,        ref,             1         ) \
-    X   ( int,           align,           1         ) \
+    X   ( mjtAlignFree,  align,           1         ) \
     XVEC( double,        stiffness,       mjNPOLY+1 ) \
     X   ( double,        springref,       1         ) \
     XVEC( double,        springdamper,    2         ) \
-    X   ( int,           limited,         1         ) \
+    X   ( mjtLimited,    limited,         1         ) \
     XVEC( double,        range,           2         ) \
     X   ( double,        margin,          1         ) \
     XVEC( mjtNum,        solref_limit,    mjNREF    ) \
     XVEC( mjtNum,        solimp_limit,    mjNIMP    ) \
-    X   ( int,           actfrclimited,   1         ) \
+    X   ( mjtLimited,    actfrclimited,   1         ) \
     XVEC( double,        actfrcrange,     2         ) \
     X   ( double,        armature,        1         ) \
     XVEC( double,        damping,         mjNPOLY+1 ) \
@@ -157,7 +157,7 @@
     XVEC( mjtNum,        solref_friction, mjNREF    ) \
     XVEC( mjtNum,        solimp_friction, mjNIMP    ) \
     X   ( int,           group,           1         ) \
-    X   ( mjtByte,       actgravcomp,     1         ) \
+    X   ( mjtBool,       actgravcomp,     1         ) \
     X   ( mjDoubleVec*,  userdata,        1         ) \
     X   ( mjString*,     info,            1         )
 
@@ -247,10 +247,10 @@
     XVEC( double,       dir,         3 ) \
     X   ( mjtCamLight,  mode,        1 ) \
     X   ( mjString*,    targetbody,  1 ) \
-    X   ( mjtByte,      active,      1 ) \
+    X   ( mjtBool,      active,      1 ) \
     X   ( mjtLightType, type,        1 ) \
     X   ( mjString*,    texture,     1 ) \
-    X   ( mjtByte,      castshadow,  1 ) \
+    X   ( mjtBool,      castshadow,  1 ) \
     X   ( float,        bulbradius,  1 ) \
     X   ( float,        intensity,   1 ) \
     X   ( float,        range,       1 ) \
@@ -280,9 +280,9 @@
     X   ( int,           dim,           1      ) \
     X   ( double,        radius,        1      ) \
     XVEC( double,        size,          3      ) \
-    X   ( mjtByte,       internal,      1      ) \
-    X   ( mjtByte,       flatskin,      1      ) \
-    X   ( int,           selfcollide,   1      ) \
+    X   ( mjtBool,       internal,      1      ) \
+    X   ( mjtBool,       flatskin,      1      ) \
+    X   ( mjtFlexSelf,   selfcollide,   1      ) \
     X   ( int,           passive,       1      ) \
     X   ( int,           activelayers,  1      ) \
     X   ( int,           group,         1      ) \
@@ -317,8 +317,8 @@
     XVEC( double,          refquat,          4 ) \
     XVEC( double,          scale,            3 ) \
     X   ( mjtMeshInertia,  inertia,          1 ) \
-    X   ( mjtByte,         smoothnormal,     1 ) \
-    X   ( mjtByte,         needsdf,          1 ) \
+    X   ( mjtBool,         smoothnormal,     1 ) \
+    X   ( mjtBool,         needsdf,          1 ) \
     X   ( int,             maxhullvert,      1 ) \
     X   ( mjFloatVec*,     uservert,         1 ) \
     X   ( mjFloatVec*,     usernormal,       1 ) \
@@ -371,8 +371,8 @@
     X   ( mjsElement*,    element,      1  ) \
     X   ( mjtTexture,     type,         1  ) \
     X   ( mjtColorSpace,  colorspace,   1  ) \
-    X   ( int,            builtin,      1  ) \
-    X   ( int,            mark,         1  ) \
+    X   ( mjtBuiltin,     builtin,      1  ) \
+    X   ( mjtMark,        mark,         1  ) \
     XVEC( double,         rgb1,         3  ) \
     XVEC( double,         rgb2,         3  ) \
     XVEC( double,         markrgb,      3  ) \
@@ -386,8 +386,8 @@
     XVEC( char,           gridlayout,   12 ) \
     X   ( mjStringVec*,   cubefiles,    1  ) \
     X   ( mjByteVec*,     data,         1  ) \
-    X   ( mjtByte,        hflip,        1  ) \
-    X   ( mjtByte,        vflip,        1  ) \
+    X   ( mjtBool,        hflip,        1  ) \
+    X   ( mjtBool,        vflip,        1  ) \
     X   ( mjString*,      info,         1  )
 
 
@@ -396,7 +396,7 @@
 #define MJSMATERIAL_FIELDS               \
     X   ( mjsElement*,  element,     1 ) \
     X   ( mjStringVec*, textures,    1 ) \
-    X   ( mjtByte,      texuniform,  1 ) \
+    X   ( mjtBool,      texuniform,  1 ) \
     XVEC( float,        texrepeat,   2 ) \
     X   ( float,        emission,    1 ) \
     X   ( float,        specular,    1 ) \
@@ -439,7 +439,7 @@
     X   ( mjsElement*, element, 1         ) \
     X   ( mjtEq,       type,    1         ) \
     XVEC( double,      data,    mjNEQDATA ) \
-    X   ( mjtByte,     active,  1         ) \
+    X   ( mjtBool,     active,  1         ) \
     X   ( mjString*,   name1,   1         ) \
     X   ( mjString*,   name2,   1         ) \
     X   ( mjtObj,      objtype, 1         ) \
@@ -459,8 +459,8 @@
     XVEC( mjtNum,        solref_friction, mjNREF    ) \
     XVEC( mjtNum,        solimp_friction, mjNIMP    ) \
     X   ( double,        armature,        1         ) \
-    X   ( int,           limited,         1         ) \
-    X   ( int,           actfrclimited,   1         ) \
+    X   ( mjtLimited,    limited,         1         ) \
+    X   ( mjtLimited,    actfrclimited,   1         ) \
     XVEC( double,        range,           2         ) \
     XVEC( double,        actfrcrange,     2         ) \
     X   ( double,        margin,          1         ) \
@@ -493,7 +493,7 @@
     X   ( mjtDyn,        dyntype,       1         ) \
     XVEC( double,        dynprm,        mjNDYN    ) \
     X   ( int,           actdim,        1         ) \
-    X   ( mjtByte,       actearly,      1         ) \
+    X   ( mjtBool,       actearly,      1         ) \
     X   ( mjtTrn,        trntype,       1         ) \
     XVEC( double,        gear,          6         ) \
     X   ( mjString*,     target,        1         ) \
@@ -504,11 +504,11 @@
     X   ( double,        inheritrange,  1         ) \
     XVEC( double,        damping,       mjNPOLY+1 ) \
     X   ( double,        armature,      1         ) \
-    X   ( int,           ctrllimited,   1         ) \
+    X   ( mjtLimited,    ctrllimited,   1         ) \
     XVEC( double,        ctrlrange,     2         ) \
-    X   ( int,           forcelimited,  1         ) \
+    X   ( mjtLimited,    forcelimited,  1         ) \
     XVEC( double,        forcerange,    2         ) \
-    X   ( int,           actlimited,    1         ) \
+    X   ( mjtLimited,    actlimited,    1         ) \
     XVEC( double,        actrange,      2         ) \
     X   ( int,           group,         1         ) \
     X   ( int,           nsample,       1         ) \

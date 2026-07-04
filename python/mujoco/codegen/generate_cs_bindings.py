@@ -304,6 +304,8 @@ def _resolve_type_name(raw_name):
     return C_TO_CS_TYPE[name]
   if name in _STRUCT_NAME_OVERRIDES:
     return _STRUCT_NAME_OVERRIDES[name]
+  if name in introspect_enums.ENUMS:
+    return name
   if name.endswith('_'):
     return name
   return name + '_'

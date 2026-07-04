@@ -5866,11 +5866,11 @@ public unsafe struct mjsCompiler_ {
   public byte discardvisual;
   public byte usethread;
   public byte fusestatic;
-  public int inertiafromgeom;
+  public mjtInertiaFromGeom inertiafromgeom;
   public fixed int inertiagrouprange[2];
   public byte saveinertial;
-  public int alignfree;
-  public int conflict;
+  public byte alignfree;
+  public mjtConflict conflict;
   public mjLROpt_ LRopt;
   public void* meshdir;
   public void* texturedir;

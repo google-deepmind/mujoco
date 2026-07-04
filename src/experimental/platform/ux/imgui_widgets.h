@@ -257,6 +257,8 @@ class ImGui_SpecElementTable : public ImGui_DataPtrTable {
   // Scalar values used by mjSpec elements.
   void operator()(const char* label, mjtByte& val, const mjtByte& ref,
                   const char* tooltip);
+  void operator()(const char* label, bool& val, const bool& ref,
+                  const char* tooltip);
   void operator()(const char* label, mjtSize& val, const mjtSize& ref,
                   const char* tooltip);
   void operator()(const char* label, int& val, const int& ref,

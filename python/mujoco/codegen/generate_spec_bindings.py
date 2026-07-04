@@ -19,6 +19,7 @@ from collections.abc import Sequence
 from absl import app
 
 from introspect import ast_nodes
+from introspect import enums
 from introspect import structs
 
 
@@ -96,6 +97,7 @@ def _value_binding_code(
   fulltype = fulltype.replace('mjVisual', 'raw::MjVisual')
   fulltype = fulltype.replace('mjStatistic', 'raw::MjStatistic')
   element = ''
+  is_enum = field.name in enums.ENUMS
 
   if field.name == 'mjsPlugin':
     setter = f"""[]({rawclassname}& self, {fulltype} {varname}) {{
@@ -104,6 +106,10 @@ def _value_binding_code(
       self.{fullvarname}.active = {varname}.active;
       if (self.{fullvarname}.info && {varname}.info) *self.{fullvarname}.info = *{varname}.info;
     }}"""
+  elif is_enum:
+    setter = f"""[]({rawclassname}& self, int {varname}) {{
+      self.{fullvarname}{element} = static_cast<{field.name}>({varname}){element};
+    }}"""
   else:
     setter = f"""[]({rawclassname}& self, {fulltype} {varname}) {{
       self.{fullvarname}{element} = {varname}{element};
@@ -111,13 +117,13 @@ def _value_binding_code(
 
   def_property_args = (
       f'"{varname}"',
-      f"""[]({rawclassname}& self) -> {fulltype} {{
+      f"""[]({rawclassname}& self) -> {field.name if is_enum else fulltype} {{
         return self.{fullvarname};
       }}""",
       setter,
   )
 
-  if field.name not in SCALAR_TYPES:
+  if field.name not in SCALAR_TYPES and not is_enum:
     def_property_args += ('py::return_value_policy::reference_internal',)
 
   return f'{classname}.def_property({",".join(def_property_args)});'

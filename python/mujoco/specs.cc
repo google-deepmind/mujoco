@@ -777,7 +777,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
           std::string key = py::str(item.first);
           if (key == "align") {
             try {
-              out->align = kwargs["align"].cast<int>();
+              out->align = static_cast<mjtAlignFree>(kwargs["align"].cast<int>());
             } catch (const py::cast_error& e) {
               throw pybind11::value_error("align is the wrong type.");
             }

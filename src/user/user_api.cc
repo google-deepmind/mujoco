@@ -1324,7 +1324,7 @@ const char* mjs_setToIntVelocity(mjsActuator* actuator, double kp, double kv[1],
                                  double dampratio[1], double timeconst[1], double inheritrange) {
   mjs_setToPosition(actuator, kp, kv, dampratio, timeconst, inheritrange);
   actuator->dyntype = mjDYN_INTEGRATOR;
-  actuator->actlimited = 1;
+  actuator->actlimited = mjLIMITED_TRUE;
 
   if (inheritrange > 0) {
     if (actuator->actrange[0] || actuator->actrange[1]) {
@@ -1353,7 +1353,7 @@ const char* mjs_setToVelocity(mjsActuator* actuator, double kv) {
 const char* mjs_setToDamper(mjsActuator* actuator, double kv) {
   mjuu_zerovec(actuator->gainprm, mjNGAIN);
   actuator->gainprm[2] = -kv;
-  actuator->ctrllimited = 1;
+  actuator->ctrllimited = mjLIMITED_TRUE;
   actuator->dyntype = mjDYN_NONE;
   actuator->gaintype = mjGAIN_AFFINE;
   actuator->biastype = mjBIAS_NONE;
@@ -1435,7 +1435,7 @@ const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], double t
 // Set to adhesion actuator.
 const char* mjs_setToAdhesion(mjsActuator* actuator, double gain) {
   actuator->gainprm[0] = gain;
-  actuator->ctrllimited = 1;
+  actuator->ctrllimited = mjLIMITED_TRUE;
   actuator->gaintype = mjGAIN_FIXED;
   actuator->biastype = mjBIAS_NONE;
 
@@ -1523,7 +1523,7 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
     }
     actuator->forcerange[0] = -tau_max;
     actuator->forcerange[1] = tau_max;
-    actuator->forcelimited = 1;
+    actuator->forcelimited = mjLIMITED_TRUE;
   }
 
   // saturation: [tau_max, i_max, (di/dt)_max]
@@ -1601,7 +1601,7 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
   actuator->actdim = actdim;
 
   // enforce actlimited = 0; homogeneous bounds are invalid across DC motor states
-  actuator->actlimited = 0;
+  actuator->actlimited = mjLIMITED_FALSE;
 
   // DC motor always uses actearly
   actuator->actearly = 1;

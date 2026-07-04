@@ -2154,10 +2154,10 @@ struct MjsCompiler {
   explicit MjsCompiler(mjsCompiler *ptr);
   mjsCompiler* get() const;
   void set(mjsCompiler* ptr);
-  mjtByte autolimits() const {
+  mjtBool autolimits() const {
     return ptr_->autolimits;
   }
-  void set_autolimits(mjtByte value) {
+  void set_autolimits(mjtBool value) {
     ptr_->autolimits = value;
   }
   double boundmass() const {
@@ -2178,70 +2178,70 @@ struct MjsCompiler {
   void set_settotalmass(double value) {
     ptr_->settotalmass = value;
   }
-  mjtByte balanceinertia() const {
+  mjtBool balanceinertia() const {
     return ptr_->balanceinertia;
   }
-  void set_balanceinertia(mjtByte value) {
+  void set_balanceinertia(mjtBool value) {
     ptr_->balanceinertia = value;
   }
-  mjtByte fitaabb() const {
+  mjtBool fitaabb() const {
     return ptr_->fitaabb;
   }
-  void set_fitaabb(mjtByte value) {
+  void set_fitaabb(mjtBool value) {
     ptr_->fitaabb = value;
   }
-  mjtByte degree() const {
+  mjtBool degree() const {
     return ptr_->degree;
   }
-  void set_degree(mjtByte value) {
+  void set_degree(mjtBool value) {
     ptr_->degree = value;
   }
   emscripten::val eulerseq() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->eulerseq));
   }
-  mjtByte discardvisual() const {
+  mjtBool discardvisual() const {
     return ptr_->discardvisual;
   }
-  void set_discardvisual(mjtByte value) {
+  void set_discardvisual(mjtBool value) {
     ptr_->discardvisual = value;
   }
-  mjtByte usethread() const {
+  mjtBool usethread() const {
     return ptr_->usethread;
   }
-  void set_usethread(mjtByte value) {
+  void set_usethread(mjtBool value) {
     ptr_->usethread = value;
   }
-  mjtByte fusestatic() const {
+  mjtBool fusestatic() const {
     return ptr_->fusestatic;
   }
-  void set_fusestatic(mjtByte value) {
+  void set_fusestatic(mjtBool value) {
     ptr_->fusestatic = value;
   }
-  int inertiafromgeom() const {
+  mjtInertiaFromGeom inertiafromgeom() const {
     return ptr_->inertiafromgeom;
   }
-  void set_inertiafromgeom(int value) {
+  void set_inertiafromgeom(mjtInertiaFromGeom value) {
     ptr_->inertiafromgeom = value;
   }
   emscripten::val inertiagrouprange() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->inertiagrouprange));
   }
-  mjtByte saveinertial() const {
+  mjtBool saveinertial() const {
     return ptr_->saveinertial;
   }
-  void set_saveinertial(mjtByte value) {
+  void set_saveinertial(mjtBool value) {
     ptr_->saveinertial = value;
   }
-  int alignfree() const {
+  mjtBool alignfree() const {
     return ptr_->alignfree;
   }
-  void set_alignfree(int value) {
+  void set_alignfree(mjtBool value) {
     ptr_->alignfree = value;
   }
-  int conflict() const {
+  mjtConflict conflict() const {
     return ptr_->conflict;
   }
-  void set_conflict(int value) {
+  void set_conflict(mjtConflict value) {
     ptr_->conflict = value;
   }
   mjString meshdir() const {
@@ -2310,10 +2310,10 @@ struct MjsEquality {
   emscripten::val data() const {
     return emscripten::val(emscripten::typed_memory_view(11, ptr_->data));
   }
-  mjtByte active() const {
+  mjtBool active() const {
     return ptr_->active;
   }
-  void set_active(mjtByte value) {
+  void set_active(mjtBool value) {
     ptr_->active = value;
   }
   mjString name1() const {
@@ -2466,22 +2466,22 @@ struct MjsFlex {
   emscripten::val size() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->size));
   }
-  mjtByte internal() const {
+  mjtBool internal() const {
     return ptr_->internal;
   }
-  void set_internal(mjtByte value) {
+  void set_internal(mjtBool value) {
     ptr_->internal = value;
   }
-  mjtByte flatskin() const {
+  mjtBool flatskin() const {
     return ptr_->flatskin;
   }
-  void set_flatskin(mjtByte value) {
+  void set_flatskin(mjtBool value) {
     ptr_->flatskin = value;
   }
-  int selfcollide() const {
+  mjtFlexSelf selfcollide() const {
     return ptr_->selfcollide;
   }
-  void set_selfcollide(int value) {
+  void set_selfcollide(mjtFlexSelf value) {
     ptr_->selfcollide = value;
   }
   int passive() const {
@@ -2677,10 +2677,10 @@ struct MjsJoint {
   void set_ref(double value) {
     ptr_->ref = value;
   }
-  int align() const {
+  mjtAlignFree align() const {
     return ptr_->align;
   }
-  void set_align(int value) {
+  void set_align(mjtAlignFree value) {
     ptr_->align = value;
   }
   emscripten::val stiffness() const {
@@ -2695,10 +2695,10 @@ struct MjsJoint {
   emscripten::val springdamper() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->springdamper));
   }
-  int limited() const {
+  mjtLimited limited() const {
     return ptr_->limited;
   }
-  void set_limited(int value) {
+  void set_limited(mjtLimited value) {
     ptr_->limited = value;
   }
   emscripten::val range() const {
@@ -2716,10 +2716,10 @@ struct MjsJoint {
   emscripten::val solimp_limit() const {
     return emscripten::val(emscripten::typed_memory_view(5, ptr_->solimp_limit));
   }
-  int actfrclimited() const {
+  mjtLimited actfrclimited() const {
     return ptr_->actfrclimited;
   }
-  void set_actfrclimited(int value) {
+  void set_actfrclimited(mjtLimited value) {
     ptr_->actfrclimited = value;
   }
   emscripten::val actfrcrange() const {
@@ -2752,10 +2752,10 @@ struct MjsJoint {
   void set_group(int value) {
     ptr_->group = value;
   }
-  mjtByte actgravcomp() const {
+  mjtBool actgravcomp() const {
     return ptr_->actgravcomp;
   }
-  void set_actgravcomp(mjtByte value) {
+  void set_actgravcomp(mjtBool value) {
     ptr_->actgravcomp = value;
   }
   mjDoubleVec &userdata() const {
@@ -2845,10 +2845,10 @@ struct MjsLight {
       *(ptr_->targetbody) = value;
     }
   }
-  mjtByte active() const {
+  mjtBool active() const {
     return ptr_->active;
   }
-  void set_active(mjtByte value) {
+  void set_active(mjtBool value) {
     ptr_->active = value;
   }
   mjtLightType type() const {
@@ -2865,10 +2865,10 @@ struct MjsLight {
       *(ptr_->texture) = value;
     }
   }
-  mjtByte castshadow() const {
+  mjtBool castshadow() const {
     return ptr_->castshadow;
   }
-  void set_castshadow(mjtByte value) {
+  void set_castshadow(mjtBool value) {
     ptr_->castshadow = value;
   }
   float bulbradius() const {
@@ -2936,10 +2936,10 @@ struct MjsMaterial {
   mjStringVec &textures() const {
     return *(ptr_->textures);
   }
-  mjtByte texuniform() const {
+  mjtBool texuniform() const {
     return ptr_->texuniform;
   }
-  void set_texuniform(mjtByte value) {
+  void set_texuniform(mjtBool value) {
     ptr_->texuniform = value;
   }
   emscripten::val texrepeat() const {
@@ -3115,10 +3115,10 @@ struct MjsPlugin {
       *(ptr_->plugin_name) = value;
     }
   }
-  mjtByte active() const {
+  mjtBool active() const {
     return ptr_->active;
   }
-  void set_active(mjtByte value) {
+  void set_active(mjtBool value) {
     ptr_->active = value;
   }
   mjString info() const {
@@ -3243,16 +3243,16 @@ struct MjsTendon {
   void set_armature(double value) {
     ptr_->armature = value;
   }
-  int limited() const {
+  mjtLimited limited() const {
     return ptr_->limited;
   }
-  void set_limited(int value) {
+  void set_limited(mjtLimited value) {
     ptr_->limited = value;
   }
-  int actfrclimited() const {
+  mjtLimited actfrclimited() const {
     return ptr_->actfrclimited;
   }
-  void set_actfrclimited(int value) {
+  void set_actfrclimited(mjtLimited value) {
     ptr_->actfrclimited = value;
   }
   emscripten::val range() const {
@@ -3359,16 +3359,16 @@ struct MjsTexture {
   void set_colorspace(mjtColorSpace value) {
     ptr_->colorspace = value;
   }
-  int builtin() const {
+  mjtBuiltin builtin() const {
     return ptr_->builtin;
   }
-  void set_builtin(int value) {
+  void set_builtin(mjtBuiltin value) {
     ptr_->builtin = value;
   }
-  int mark() const {
+  mjtMark mark() const {
     return ptr_->mark;
   }
-  void set_mark(int value) {
+  void set_mark(mjtMark value) {
     ptr_->mark = value;
   }
   emscripten::val rgb1() const {
@@ -3432,16 +3432,16 @@ struct MjsTexture {
   std::vector<uint8_t> &data() const {
     return *(reinterpret_cast<std::vector<uint8_t>*>(ptr_->data));
   }
-  mjtByte hflip() const {
+  mjtBool hflip() const {
     return ptr_->hflip;
   }
-  void set_hflip(mjtByte value) {
+  void set_hflip(mjtBool value) {
     ptr_->hflip = value;
   }
-  mjtByte vflip() const {
+  mjtBool vflip() const {
     return ptr_->vflip;
   }
-  void set_vflip(mjtByte value) {
+  void set_vflip(mjtBool value) {
     ptr_->vflip = value;
   }
   mjString info() const {
@@ -5730,10 +5730,10 @@ struct MjSpec {
       *(ptr_->modelname) = value;
     }
   }
-  mjtByte strippath() const {
+  mjtBool strippath() const {
     return ptr_->strippath;
   }
-  void set_strippath(mjtByte value) {
+  void set_strippath(mjtBool value) {
     ptr_->strippath = value;
   }
   int memory() const {
@@ -5842,10 +5842,10 @@ struct MjSpec {
       *(ptr_->modelfiledir) = value;
     }
   }
-  mjtByte hasImplicitPluginElem() const {
+  mjtBool hasImplicitPluginElem() const {
     return ptr_->hasImplicitPluginElem;
   }
-  void set_hasImplicitPluginElem(mjtByte value) {
+  void set_hasImplicitPluginElem(mjtBool value) {
     ptr_->hasImplicitPluginElem = value;
   }
 
@@ -5899,10 +5899,10 @@ struct MjsActuator {
   void set_actdim(int value) {
     ptr_->actdim = value;
   }
-  mjtByte actearly() const {
+  mjtBool actearly() const {
     return ptr_->actearly;
   }
-  void set_actearly(mjtByte value) {
+  void set_actearly(mjtBool value) {
     ptr_->actearly = value;
   }
   mjtTrn trntype() const {
@@ -5962,28 +5962,28 @@ struct MjsActuator {
   void set_armature(double value) {
     ptr_->armature = value;
   }
-  int ctrllimited() const {
+  mjtLimited ctrllimited() const {
     return ptr_->ctrllimited;
   }
-  void set_ctrllimited(int value) {
+  void set_ctrllimited(mjtLimited value) {
     ptr_->ctrllimited = value;
   }
   emscripten::val ctrlrange() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->ctrlrange));
   }
-  int forcelimited() const {
+  mjtLimited forcelimited() const {
     return ptr_->forcelimited;
   }
-  void set_forcelimited(int value) {
+  void set_forcelimited(mjtLimited value) {
     ptr_->forcelimited = value;
   }
   emscripten::val forcerange() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->forcerange));
   }
-  int actlimited() const {
+  mjtLimited actlimited() const {
     return ptr_->actlimited;
   }
-  void set_actlimited(int value) {
+  void set_actlimited(mjtLimited value) {
     ptr_->actlimited = value;
   }
   emscripten::val actrange() const {
@@ -6069,10 +6069,10 @@ struct MjsBody {
   emscripten::val fullinertia() const {
     return emscripten::val(emscripten::typed_memory_view(6, ptr_->fullinertia));
   }
-  mjtByte mocap() const {
+  mjtBool mocap() const {
     return ptr_->mocap;
   }
-  void set_mocap(mjtByte value) {
+  void set_mocap(mjtBool value) {
     ptr_->mocap = value;
   }
   double gravcomp() const {
@@ -6096,10 +6096,10 @@ struct MjsBody {
   mjDoubleVec &userdata() const {
     return *(ptr_->userdata);
   }
-  mjtByte explicitinertial() const {
+  mjtBool explicitinertial() const {
     return ptr_->explicitinertial;
   }
-  void set_explicitinertial(mjtByte value) {
+  void set_explicitinertial(mjtBool value) {
     ptr_->explicitinertial = value;
   }
   mjString info() const {
@@ -6316,16 +6316,16 @@ struct MjsMesh {
   void set_inertia(mjtMeshInertia value) {
     ptr_->inertia = value;
   }
-  mjtByte smoothnormal() const {
+  mjtBool smoothnormal() const {
     return ptr_->smoothnormal;
   }
-  void set_smoothnormal(mjtByte value) {
+  void set_smoothnormal(mjtBool value) {
     ptr_->smoothnormal = value;
   }
-  mjtByte needsdf() const {
+  mjtBool needsdf() const {
     return ptr_->needsdf;
   }
-  void set_needsdf(mjtByte value) {
+  void set_needsdf(mjtBool value) {
     ptr_->needsdf = value;
   }
   int maxhullvert() const {

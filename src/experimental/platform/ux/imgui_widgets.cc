@@ -225,6 +225,13 @@ void ImGui_SpecElementTable::operator()(const char* label, mjtByte& val,
   Input(val, ref);
 }
 
+void ImGui_SpecElementTable::operator()(const char* label, bool& val,
+                                        const bool& ref,
+                                        const char* tooltip) {
+  Label(label, tooltip);
+  Input(val, ref);
+}
+
 void ImGui_SpecElementTable::operator()(const char* label, mjtSize& val,
                                         const mjtSize& ref,
                                         const char* tooltip) {

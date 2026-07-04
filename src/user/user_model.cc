@@ -5045,9 +5045,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // the internal compiler struct (not the spec) to avoid permanently mutating
   // the spec (which would cause usethread="false" to appear in a saved XML).
   struct ScopedDisableThreading {
-    mjtByte& ref;
-    mjtByte saved;
-    explicit ScopedDisableThreading(mjtByte& r) : ref(r), saved(r) { ref = 0; }
+    mjtBool& ref;
+    mjtBool saved;
+    explicit ScopedDisableThreading(mjtBool& r) : ref(r), saved(r) { ref = 0; }
     ~ScopedDisableThreading() { ref = saved; }
   } disable_usethread(compiler.usethread);
 #endif
