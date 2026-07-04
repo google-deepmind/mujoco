@@ -51,7 +51,13 @@ FilamentContext::FilamentContext(const mjrfContextConfig* config)
   FilamentPlatformSetup setup = CreateFilamentPlatform(config_);
   platform_ = std::move(setup.platform);
 
+  filament::Engine::Config engine_config;
+  engine_config.commandBufferSizeMB *= 8;
+  engine_config.perFrameCommandsSizeMB *= 8;
+  engine_config.perRenderPassArenaSizeMB *= 8;
+
   filament::Engine::Builder engine_builder;
+  engine_builder.config(&engine_config);
   engine_builder.backend(setup.backend);
   engine_builder.platform(platform_.get());
   engine_builder.feature("backend.disable_parallel_shader_compile",
