@@ -21,6 +21,12 @@
 #include <string.h>
 #include <time.h>
 
+#if defined(_WIN32)
+#include <windows.h>
+#elif defined(__unix__) || (defined(__APPLE__) && defined(__MACH__)) || defined(__EMSCRIPTEN__)
+#include <sched.h>
+#endif
+
 #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
 #include <unistd.h>
 #endif
@@ -152,7 +158,11 @@ static const mjLogConfig* mju_getLogConfigPtr(void) {
     } else {
       // another thread is initializing; spin until it completes
       while (!mj_atomic_load_bool(&env_init_done)) {
-        // empty
+#if defined(_WIN32)
+        Sleep(0);
+#elif defined(__unix__) || (defined(__APPLE__) && defined(__MACH__)) || defined(__EMSCRIPTEN__)
+        sched_yield();
+#endif
       }
     }
   }
