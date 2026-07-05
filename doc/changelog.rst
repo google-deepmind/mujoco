@@ -27,6 +27,8 @@ General
      ``(nv x nC)``.
    - Removed the legacy sparse ancestor-walk inertia matrix ``mjData.qM``. The joint-space inertia matrix is now stored
      exclusively in the compressed sparse row (CSR) format ``mjData.M``.
+   - :ref:`mju_round` now breaks ties away from zero rather than towards :math:`+\infty`. This only affects
+     negative half-integers, e.g. ``mju_round(-2.5)`` now returns -3 rather than -2.
 
 Version 3.10.0 (June 22, 2026)
 ------------------------------

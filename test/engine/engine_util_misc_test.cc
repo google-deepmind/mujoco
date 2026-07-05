@@ -17,6 +17,7 @@
 #include "src/engine/engine_util_misc.h"
 
 #include <array>
+#include <climits>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -1718,6 +1719,29 @@ TEST_F(ShellTFITest, NoInteriorSmallGrid) {
   for (int i = 0; i < 3 * nx * ny * nz; i++) {
     EXPECT_EQ(nodexpos[i], saved[i]);
   }
+}
+
+TEST_F(UtilMiscTest, Round) {
+  // basic rounding
+  EXPECT_EQ(mju_round(2.3), 2);
+  EXPECT_EQ(mju_round(2.7), 3);
+  EXPECT_EQ(mju_round(-2.3), -2);
+  EXPECT_EQ(mju_round(-2.7), -3);
+
+  // exact integers
+  EXPECT_EQ(mju_round(0.0), 0);
+  EXPECT_EQ(mju_round(3.0), 3);
+  EXPECT_EQ(mju_round(-3.0), -3);
+
+  // ties: round() rounds away from zero
+  EXPECT_EQ(mju_round(0.5), 1);
+  EXPECT_EQ(mju_round(1.5), 2);
+  EXPECT_EQ(mju_round(-0.5), -1);
+  EXPECT_EQ(mju_round(-1.5), -2);
+
+  // overflow clamps to INT_MAX/INT_MIN
+  EXPECT_EQ(mju_round(1e18), INT_MAX);
+  EXPECT_EQ(mju_round(-1e18), INT_MIN);
 }
 
 }  // namespace

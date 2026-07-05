@@ -15,13 +15,13 @@
 #include "engine/engine_util_misc.h"
 
 #include <ctype.h>
+#include <limits.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_array_safety.h"
@@ -1762,14 +1762,10 @@ mjtNum mju_sign(mjtNum x) {
 
 // round to nearest integer
 int mju_round(mjtNum x) {
-  mjtNum lower = floor(x);
-  mjtNum upper = ceil(x);
-
-  if (x-lower < upper-x) {
-    return (int)lower;
-  } else {
-    return (int)upper;
-  }
+  double d = (double)x;
+  if (d > INT_MAX) return INT_MAX;
+  if (d < INT_MIN) return INT_MIN;
+  return (int)round(d);
 }
 
 
