@@ -1263,6 +1263,12 @@ void JointsGui(const mjModel* model, const mjData* data,
 
     const int data_adr = model->jnt_qposadr[i];
     ImGui_Slider(name, &data->qpos[data_adr], min, max);
+    if (ImGui::BeginPopupContextItem()) {
+      if (ImGui::MenuItem("Reset to default")) {
+        data->qpos[data_adr] = model->qpos0[data_adr];
+      }
+      ImGui::EndPopup();
+    }
   }
 
   ImGui::PopItemWidth();
@@ -1302,6 +1308,12 @@ void ControlsGui(const mjModel* model, const mjData* data,
       max = model->actuator_ctrlrange[2 * i + 1];
     }
     ImGui_Slider(name, &data->ctrl[i], min, max);
+    if (ImGui::BeginPopupContextItem()) {
+      if (ImGui::MenuItem("Reset to 0")) {
+        data->ctrl[i] = mju_clip(0.0, min, max);
+      }
+      ImGui::EndPopup();
+    }
   }
 
   ImGui::PopItemWidth();
