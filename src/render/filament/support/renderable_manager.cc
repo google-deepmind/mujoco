@@ -356,6 +356,20 @@ mjrfRenderable* RenderableManager::GetRenderable(mjtObj obj_type,
         return sliders_[obj_index].get();
       }
       break;
+    case mjOBJ_BODY: {
+      const mjModel* model = model_objects_->GetModel();
+      for (int i = 0; i < model->ngeom; ++i) {
+        if (model->geom_bodyid[i] == obj_index) {
+          return geoms_[i].get();
+        }
+      }
+      for (int i = 0; i < model->nsite; ++i) {
+        if (model->site_bodyid[i] == obj_index) {
+          return sites_[i].get();
+        }
+      }
+      break;
+    }
     default:
       break;
   }
@@ -851,7 +865,8 @@ void RenderableManager::SelectObject(mjtObj obj_type, int obj_index) {
   if (obj_type != selected_obj_type_ || obj_index != selected_obj_index_) {
     mjrfMaterial material;
 
-    mjrfRenderable* prev_renderable = GetSelectedRenderable();
+    mjrfRenderable* prev_renderable =
+        GetRenderable(selected_obj_type_, selected_obj_index_);
     if (prev_renderable) {
       mjrf_getRenderableMaterial(prev_renderable, &material);
       material.selected = 0;
@@ -861,34 +876,14 @@ void RenderableManager::SelectObject(mjtObj obj_type, int obj_index) {
     selected_obj_type_ = obj_type;
     selected_obj_index_ = obj_index;
 
-    mjrfRenderable* curr_renderable = GetSelectedRenderable();
+    mjrfRenderable* curr_renderable =
+        GetRenderable(selected_obj_type_, selected_obj_index_);
     if (curr_renderable) {
       mjrf_getRenderableMaterial(curr_renderable, &material);
       material.selected = 1;
       mjrf_setRenderableMaterial(curr_renderable, &material);
     }
   }
-}
-
-mjrfRenderable* RenderableManager::GetSelectedRenderable() {
-  const mjModel* model = model_objects_->GetModel();
-  if (selected_obj_type_ == mjOBJ_FLEX) {
-    return flexes_[selected_obj_index_].get();
-  } else if (selected_obj_type_ == mjOBJ_SKIN) {
-    return skins_[selected_obj_index_].get();
-  } else if (selected_obj_type_ == mjOBJ_BODY) {
-    for (int i = 0; i < model->ngeom; ++i) {
-      if (model->geom_bodyid[i] == selected_obj_index_) {
-        return geoms_[i].get();
-      }
-    }
-    for (int i = 0; i < model->nsite; ++i) {
-      if (model->site_bodyid[i] == selected_obj_index_) {
-        return sites_[i].get();
-      }
-    }
-  }
-  return nullptr;
 }
 
 void RenderableManager::SetVisibility(mjtObj obj_type, bool visible,

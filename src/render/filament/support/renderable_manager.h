@@ -58,6 +58,9 @@ class RenderableManager {
   // Applies the visualization options to the renderables in the scene.
   void Apply(const mjvOption& vopts);
 
+  RenderableManager(const RenderableManager&) = delete;
+  RenderableManager& operator=(const RenderableManager&) = delete;
+
  private:
   void AddGeomGeoms();
   void AddSiteGeoms();
@@ -71,8 +74,6 @@ class RenderableManager {
   void UpdateSliderCranks(const mjData* data, int actuator_id, int index);
 
   int GetSegmentationId(mjtObj obj_type, int obj_index);
-
-  mjrfRenderable* GetSelectedRenderable();
 
   mjrfContext* ctx_;
   mjrfScene* scene_;
