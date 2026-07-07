@@ -26,6 +26,7 @@ import numpy as np
 import warp as wp
 from mujoco.mjx.third_party.warp._src.jax import ffi as warp_ffi
 
+from mujoco.mjx._src.types import tree_path_to_attr_str
 from mujoco.mjx.warp import types as mjx_warp_types
 
 
@@ -186,29 +187,12 @@ def format_args_for_warp(func, verbose=False):
   return wrapper
 
 
-def _tree_path_to_attr_str(path: jax.tree_util.KeyPath) -> str:
-  """Converts a tree path to a dataclass attribute string."""
-  if not isinstance(path, tuple):
-    raise NotImplementedError(
-        f'Parsing for jax tree path {path} not implemented.'
-    )
-
-  if any(isinstance(p, jax.tree_util.SequenceKey) for p in path):
-    # get the path up to the first sequence key, we assume variadic sequences
-    is_seq_key = [isinstance(p, jax.tree_util.SequenceKey) for p in path]
-    path = path[: is_seq_key.index(True)]
-
-  assert all(isinstance(p, jax.tree_util.GetAttrKey) for p in path)
-  path = [p for p in path if p.name != '_impl']
-  return '__'.join(p.name for p in path)
-
-
 def _get_mapping_from_tree_path(
     path: jax.tree_util.KeyPath,
     mapping: dict[str, int],
 ) -> Optional[int]:
   """Gets the mapped value from a tree path."""
-  attr = _tree_path_to_attr_str(path)
+  attr = tree_path_to_attr_str(path)
   # None if the MJX public field is not present in the MJX-Warp mapping.
   return mapping.get(attr)
 
@@ -323,11 +307,13 @@ def _check_leading_dim(
   has_batch_dim = _get_mapping_from_tree_path(
       path, mjx_warp_types._BATCH_DIM['Data']
   )
-  attr = _tree_path_to_attr_str(path)
+  attr = tree_path_to_attr_str(path)
   if has_batch_dim and leaf.shape[0] != expected_batch_dim:
     raise ValueError(
         f'Leaf node batch size ({leaf.shape[0]}) and expected batch size'
         f' ({expected_batch_dim}) do not match for field {attr}.'
+        ' If you are trying to merge Data objects (e.g. for resets),'
+        ' use Data.where instead of jax.tree.map.'
     )
   if (
       not has_batch_dim
@@ -339,6 +325,8 @@ def _check_leading_dim(
     raise ValueError(
         f'Leaf node leading dim ({leaf.shape[0]}) does not match naconmax'
         f' ({expected_naconmax}) for field {attr}.'
+        ' If you are trying to merge Data objects (e.g. for resets),'
+        ' use Data.where instead of jax.tree.map.'
     )
   if (
       not has_batch_dim
@@ -350,6 +338,8 @@ def _check_leading_dim(
     raise ValueError(
         f'Leaf node leading dim ({leaf.shape[0]}) does not match njmax'
         f' ({expected_njmax}) for field {attr}.'
+        ' If you are trying to merge Data objects (e.g. for resets),'
+        ' use Data.where instead of jax.tree.map.'
     )
 
 

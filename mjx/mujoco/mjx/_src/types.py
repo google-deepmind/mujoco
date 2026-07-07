@@ -1155,21 +1155,62 @@ class Data(PyTreeNode):
     return val
 
   def __getitem__(self, key):
-    def get_name_from_path(path: jax.tree_util.KeyPath) -> str:
-      if any(isinstance(p, jax.tree_util.SequenceKey) for p in path):
-        is_seq_key = [isinstance(p, jax.tree_util.SequenceKey) for p in path]
-        path = path[: is_seq_key.index(True)]
-      assert all(isinstance(p, jax.tree_util.GetAttrKey) for p in path)
-      path = [p for p in path if p.name != '_impl']
-      attr = '__'.join(p.name for p in path)
-      return attr
-
     if self.impl == Impl.WARP:
       return jax.tree.map_with_path(
           lambda path, x, k=key: x[k]
-          if get_name_from_path(path) not in mjxw_types.DATA_NON_VMAP
+          if tree_path_to_attr_str(path) not in mjxw_types.DATA_NON_VMAP
           else x,
           self,
       )
 
     return jax.tree.map(lambda x: x[key], self)
+
+  def where(self, done: jax.Array, other: 'Data') -> 'Data':
+    """Selectively merge self and other based on done.
+
+    Args:
+      done: Boolean array (or scalar inside vmap) indicating reset status.
+      other: Data object to select when done is True.
+
+    Returns:
+      Merged Data object.
+    """
+    if self.impl != Impl.JAX and self.impl != Impl.WARP:
+      raise NotImplementedError(
+          'where is only supported for JAX and WARP implementations.'
+      )
+
+    if self.impl == Impl.JAX:
+      return jax.tree.map(
+          lambda x, y: jax.numpy.where(done, x, y), other, self
+      )
+
+    # Warp impl:
+    def merge_leaf(path, r_val, s_val):
+      field_name = tree_path_to_attr_str(path)
+      is_batched = mjxw_types._BATCH_DIM['Data'].get(field_name, True)
+
+      if is_batched:
+        return jax.numpy.where(done, r_val, s_val)
+      else:
+        return s_val
+
+    return jax.tree_util.tree_map_with_path(merge_leaf, other, self)
+
+
+def tree_path_to_attr_str(path: jax.tree_util.KeyPath) -> str:
+  """Converts a tree path to a dataclass attribute string."""
+  if not isinstance(path, tuple):
+    raise NotImplementedError(
+        f'Parsing for jax tree path {path} not implemented.'
+    )
+
+  if any(isinstance(p, jax.tree_util.SequenceKey) for p in path):
+    # get the path up to the first sequence key, we assume variadic sequences
+    is_seq_key = [isinstance(p, jax.tree_util.SequenceKey) for p in path]
+    path = path[: is_seq_key.index(True)]
+
+  assert all(isinstance(p, jax.tree_util.GetAttrKey) for p in path)
+  path = [p for p in path if p.name != '_impl']
+  return '__'.join(p.name for p in path)
+

@@ -386,6 +386,59 @@ class StepTest(parameterized.TestCase):
       )
       _ = jax.jit(jax.vmap(forward.step, in_axes=(None, 0)))(mx, dx_batch)
 
+  def test_where_autoreset(self):
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
+
+    m = test_util.load_test_file('pendula.xml')
+    mx = mjx.put_model(m, impl='warp')
+
+    batch_size = 4
+    num_steps = 2
+
+    data_template = mjx.make_data(
+        m, impl='warp', naconmax=16 * batch_size, njmax=64
+    )
+
+    def reset_fn(key):
+      qpos = data_template.qpos.at[0].set(0.1)
+      d = data_template.replace(qpos=qpos)
+      return forward.forward(mx, d)
+
+    keys = jp.arange(batch_size)
+    batched_data = jax.vmap(reset_fn)(keys)
+
+    def step_fn(key, data):
+      stepped_data = forward.step(mx, data)
+      # dummy condition: reset if first joint pos > 0.05
+      done = stepped_data.qpos[0] > 0.05
+      reset_data = reset_fn(key)
+      return stepped_data.where(done, reset_data)
+
+    def rollout(data, key):
+      def body(carry, _):
+        data, key = carry
+        key, sk = jax.random.split(key)
+        step_keys = jax.random.split(sk, batch_size)
+        data = jax.vmap(step_fn)(step_keys, data)
+        return (data, key), None
+
+      (next_data, key), _ = jax.lax.scan(
+          body, (data, key), None, length=num_steps
+      )
+      return next_data
+
+    out = jax.jit(rollout)(batched_data, jax.random.PRNGKey(1))
+
+    self.assertEqual(out.qpos.shape, (batch_size, m.nq))
+    self.assertEqual(
+        out._impl.contact__type.shape, (data_template._impl.naconmax,)
+    )
+
+
 
 if __name__ == '__main__':
   absltest.main()
