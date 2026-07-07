@@ -66,7 +66,7 @@ static void S1D(mjtNum lambda[2], const mjtNum s1[3], const mjtNum s2[3]);
 static void gjkSupport(Vertex* v, mjCCDObj* obj1, mjCCDObj* obj2,
                        const mjtNum x_k[3], mjtNum x_norm);
 
-// compute the linear combination of 1 - 4 3D vectors
+// compute the linear combination of up to 4 3D vectors
 static inline void lincomb(mjtNum res[3], const mjtNum* coef, int n, const mjtNum v1[3],
                            const mjtNum v2[3], const mjtNum v3[3], const mjtNum v4[3]);
 
@@ -207,7 +207,7 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum* x1_k = status->x1;               // the kth approximation point for obj1
   mjtNum* x2_k = status->x2;               // the kth approximation point for obj2
   mjtNum x_k[3];                           // the kth approximation point in Minkowski difference
-  mjtNum lambda[4] = {1, 0, 0, 0};         // barycentric coordinates for x_k
+  mjtNum lambda[4];                        // barycentric coordinates for x_k
   mjtNum cutoff2 = status->dist_cutoff * status->dist_cutoff;
   mjtNum tol2 = status->tolerance * status->tolerance;
 
@@ -237,7 +237,6 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
     mjtNum diff[3];
     sub3(diff, x_k, s_k);
     if (dot3(x_k, diff) < epsilon) {
-      if (!k) n = 1;
       break;
     }
 
@@ -318,10 +317,12 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   }
 
   // compute the approximate witness points
-  lincomb(x1_k, lambda, n, simplex[0].vert1, simplex[1].vert1, simplex[2].vert1,
-          simplex[3].vert1);
-  lincomb(x2_k, lambda, n, simplex[0].vert2, simplex[1].vert2, simplex[2].vert2,
-          simplex[3].vert2);
+  if (n > 0) {
+    lincomb(x1_k, lambda, n, simplex[0].vert1, simplex[1].vert1, simplex[2].vert1,
+            simplex[3].vert1);
+    lincomb(x2_k, lambda, n, simplex[0].vert2, simplex[1].vert2, simplex[2].vert2,
+            simplex[3].vert2);
+  }
 
   status->nx = 1;
   status->gjk_iterations = k;
@@ -475,10 +476,13 @@ static int gjkIntersect(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
 }
 
 
-// linear combination of n 3D vectors
+// compute the linear combination of up to 4 3D vectors
 static inline void lincomb(mjtNum res[3], const mjtNum* coef, int n, const mjtNum v1[3],
                            const mjtNum v2[3], const mjtNum v3[3], const mjtNum v4[3]) {
   switch (n) {
+    case 0:
+      res[0] = res[1] = res[2] = 0;
+      break;
     case 1:
       res[0] = coef[0]*v1[0];
       res[1] = coef[0]*v1[1];
@@ -564,7 +568,7 @@ static inline int sameSign2(mjtNum a, mjtNum b) {
 // simplex closest to the origin
 // implementation adapted from Montanari et al, ToG 2017
 static inline void subdistance(mjtNum lambda[4], int n, const Vertex simplex[4]) {
-  memset(lambda, 0, 4 * sizeof(mjtNum));
+  lambda[0] = lambda[1] = lambda[2] = lambda[3] = 0;
   const mjtNum* s1 = simplex[0].vert;
   const mjtNum* s2 = simplex[1].vert;
   const mjtNum* s3 = simplex[2].vert;
