@@ -116,9 +116,25 @@ class ResetEvent(Event):
 
 @dataclasses.dataclass(frozen=True)
 class ModelEvent(Event):
-  """An event that transports a MuJoCo model."""
+  """An event that transports a MuJoCo model.
+
+  Attributes:
+    model: The compiled MuJoCo model.
+    path: Optional file path the model was loaded from.
+  """
 
   model: mujoco.MjModel
+  path: str = ''
+
+
+@dataclasses.dataclass(frozen=True)
+class BuildGuiEvent(Event):
+  """Lifecycle event dispatched on every frame on the viewer side to build ImGui elements."""
+
+
+@dataclasses.dataclass(frozen=True)
+class UpdateEvent(Event):
+  """Lifecycle event dispatched on every frame on the viewer side before building GUI."""
 
 
 @dataclasses.dataclass(frozen=True)

@@ -108,7 +108,7 @@ def _setup_angle_axis(plot_size: imgui.Vec2) -> None:
   )
 
 
-class BodyInspectorHandler:
+class BodyInspector:
   """Handler that draws body-inspection plots using ImGui/ImPlot."""
 
   def __init__(self) -> None:
@@ -124,7 +124,7 @@ class BodyInspectorHandler:
     self._app = event.viewer_app
 
   @messages.handler
-  def inspect_body(self, _: viewer_app.BuildGuiEvent) -> None:
+  def inspect_body(self, _: messages.BuildGuiEvent) -> None:
     """Renders the body-inspection charts in ImGui/ImPlot."""
     app = self._app
     if app is None:
@@ -215,8 +215,7 @@ def main(argv: list[str]) -> None:
     print('Usage: implot <model_path.xml>')
     sys.exit(1)
 
-  data = parser.parse(argv[1])
-  if data is None:
+  if (data := parser.parse(argv[1])) is None:
     print(f'Error loading model from {argv[1]!r}')
     sys.exit(1)
   model = data.model
@@ -232,7 +231,8 @@ def main(argv: list[str]) -> None:
   )
 
   with launch_passive.launch_passive(
-      config, viewer_handlers=[BodyInspectorHandler()]
+      config,
+      viewer_handlers=[viewer_app.ViewerApp(), BodyInspector()],
   ) as handle:
     handle.send_to_viewer(messages.ModelEvent(model=model))
 

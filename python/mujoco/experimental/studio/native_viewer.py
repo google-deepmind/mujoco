@@ -13,27 +13,33 @@
 # limitations under the License.
 """Simulation-agnostic native viewer for MuJoCo models.
 
-This class is simulation-agnostic and as such it does not own the model or data.
-
 See the documentation for studio_app.py for more details on the architecture
 separating the viewer and simulation. See the sample/ folder for examples of how
 to use these classes.
 """
 
+from typing import Any
+
 import mujoco
+from mujoco.experimental.studio import endpoints
 from mujoco.experimental.studio import native_viewer_cc as _viewer
 from mujoco.experimental.studio import ux
-from mujoco.experimental.studio import viewer_protocol as vp
+from mujoco.experimental.studio import viewer_protocol
+
 from mujoco.experimental.dear_imgui import dear_imgui as imgui
 
 
-class NativeViewer(vp.Viewer):
+class NativeViewer(viewer_protocol.Viewer):
   """Simulation-agnostic native viewer for MuJoCo models."""
 
   def __init__(
       self,
-      config: vp.ViewerConfig,
+      config: viewer_protocol.ViewerConfig,
+      endpoint: endpoints.ViewerEndpoint,
       *,
+      model: mujoco.MjModel | None = None,
+      model_path: str = '',
+      handlers: list[Any] | None = None,
       camera: mujoco.MjvCamera | None = None,
       vis_options: mujoco.MjvOption | None = None,
       perturb: mujoco.MjvPerturb | None = None,
@@ -42,45 +48,46 @@ class NativeViewer(vp.Viewer):
   ) -> None:
     """Initializes the NativeViewer.
 
-    The viewer creates and modifies its own camera, perturbation, and
-    visualization option objects unless they are provided.
-
     Args:
       config: Viewer window configuration.
+      endpoint: The viewer endpoint for communication with the sim side.
+      model: Optional initial MjModel. Forwarded to the base Viewer.
+      model_path: Optional path to the model file.
+      handlers: Optional list of handler instances.
       camera: Camera parameters. Internal object is created if None.
       vis_options: Visualization options. Internal object is created if None.
       perturb: Perturbation parameters. Internal object is created if None.
       render_flags: Render flags. Internal object is created if None.
       extra_geoms: List of extra geoms. Internal list is created if None.
     """
-    self.config = config
-
-    # Set members of vp.Viewer.
-    self.camera = camera or mujoco.MjvCamera()
-    self.perturb = perturb or mujoco.MjvPerturb()
-    self.vis_options = vis_options or mujoco.MjvOption()
-    self.extra_geoms = extra_geoms or []
-    if render_flags is not None:
-      self.render_flags = render_flags
-    else:
-      self.render_flags = ux.RenderFlags()
-      # Initted to match mujoco/src/engine/engine_vis_init.c
-      self.render_flags.flags = [1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1]
+    super().__init__(
+        config,
+        endpoint,
+        model=model,
+        model_path=model_path,
+        handlers=handlers,
+        camera=camera,
+        vis_options=vis_options,
+        perturb=perturb,
+        render_flags=render_flags,
+        extra_geoms=extra_geoms,
+    )
 
     # Create the renderer.
     self._viewer = _viewer.Viewer(
         config.title, config.width, config.height, config.gfx or ''
     )
 
-    # This class does not own the model but we need to know if the model being
-    # rendered has changed, so we store the unique python object id here so we
-    # can use it to detect model changes.
+    # Track the python object id of the model currently loaded in the renderer
+    # so we can detect when the model changes and re-initialize.
     self._renderer_model_id = id(None)
-    self._is_running = True
 
     ctx = self._viewer.GetImGuiContext()
     imgui.SetCurrentContext(ctx)
     ux.set_imgui_context(ctx)
+
+    # Dispatch lifecycle event so handlers can cache the viewer reference.
+    self.dispatch(viewer_protocol.ViewerInitEvent(viewer=self))
 
   def _sync_renderer(self, model: mujoco.MjModel) -> None:
     """Re-initializes the renderer if the model object has changed."""
@@ -90,36 +97,22 @@ class NativeViewer(vp.Viewer):
 
   def is_running(self) -> bool:
     """Poll for a new frame; returns ``False`` when the window is closed."""
-    if not self._is_running:
-      return False
-    self._is_running = self._viewer.NewFrame()
-    return self._is_running
+    if super().is_running() and not self._viewer.NewFrame():
+      self.close()
+    return super().is_running()
 
-  def sync(
-      self,
-      model: mujoco.MjModel,
-      data: mujoco.MjData,
-  ) -> None:
-    """Render the scene and present it to the window.
-
-    Args:
-      model: The MuJoCo model provided by the simulation.
-      data: The MuJoCo data provided by the simulation.
-    """
-    self._sync_renderer(model)
+  def sync(self) -> None:
+    """Render the scene and present it to the window."""
+    self._sync_renderer(self.model)
     self._viewer.Present(
-        model,
-        data,
+        self.model,
+        self.data,
         self.perturb,
         self.camera,
         self.vis_options,
         self.render_flags.flags,
         self.extra_geoms,
     )
-
-  def close(self) -> None:
-    """Close the viewer."""
-    self._is_running = False
 
   # TODO(matijak): Remove stop() and rename callers to close().
   def stop(self) -> None:

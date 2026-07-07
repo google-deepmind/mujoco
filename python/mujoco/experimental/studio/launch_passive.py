@@ -23,7 +23,6 @@ from typing import Any
 
 from mujoco.experimental.studio import endpoints
 from mujoco.experimental.studio import messages
-from mujoco.experimental.studio import viewer_app
 from mujoco.experimental.studio import viewer_handle
 from mujoco.experimental.studio import viewer_protocol
 
@@ -100,13 +99,15 @@ def run_viewer_target(
   if config.viewer_mode == viewer_protocol.ViewerMode.NATIVE:
     from mujoco.experimental.studio import native_viewer  # pylint: disable=g-import-not-at-top
 
-    viewer = native_viewer.NativeViewer(config)
+    viewer = native_viewer.NativeViewer(
+        config, viewer_endpoint, handlers=handlers
+    )
   elif config.viewer_mode == viewer_protocol.ViewerMode.WEB:
     raise NotImplementedError('Web viewer not implemented yet')
   else:
     raise ValueError(f'Unknown viewer mode: {config.viewer_mode!r}')
 
-  viewer_app.run_viewer(viewer, viewer_endpoint, handlers=handlers)
+  viewer_protocol.run_viewer_loop(viewer)
 
 
 def launch_passive(

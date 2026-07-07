@@ -19,6 +19,7 @@ from mujoco.experimental.studio import launch_passive
 from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import parser
 from mujoco.experimental.studio import sim
+from mujoco.experimental.studio import viewer_app
 from mujoco.experimental.studio import viewer_protocol
 
 vp = viewer_protocol
@@ -40,24 +41,23 @@ def main(argv: list[str]) -> None:
       viewer_mode=_VIEWER.value,
   )
 
-  # Get the model path, if provided.
-  model_path = None
-  if _MJCF_PATH.value is not None:
-    model_path = _MJCF_PATH.value
-  elif len(argv) > 1 and not argv[1].startswith('--'):
-    model_path = argv[1]
+  # Resolve model path, if provided.
+  model_path = _MJCF_PATH.value or (
+      argv[1] if len(argv) > 1 and not argv[1].startswith('--') else None
+  )
 
-  with launch_passive.launch_passive(config) as handle:
-    # Load the model if we have a path.
-    model, data = None, None
-    if model_path is not None:
-      data = parser.parse(model_path)
-      if data is not None:
-        model = data.model
+  # Load model if path was provided.
+  data, model = None, None
+  if model_path and (data := parser.parse(model_path)):
+    model = data.model
 
+  with launch_passive.launch_passive(
+      config,
+      viewer_handlers=[viewer_app.ViewerApp()],
+  ) as handle:
     # Send the model to the viewer, if we have a model.
     if model is not None:
-      handle.send_to_viewer(messages.ModelEvent(model=model))
+      handle.send_to_viewer(messages.ModelEvent(model=model, path=model_path))
 
     # Run the simulation.
     step_control = sim.StepControl()
