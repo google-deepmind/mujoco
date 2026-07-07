@@ -27,7 +27,7 @@ namespace mujoco {
 // Manages Light entities for an mjrfScene.
 class LightManager {
  public:
-  LightManager(mjrfContext* ctx, mjrfScene* scene, ModelObjects* model_objects);
+  LightManager(mjrfScene* scene, ModelObjects* model_objects);
   ~LightManager();
 
   // Updates the state of the lights in the scene.
@@ -43,7 +43,6 @@ class LightManager {
  private:
   void Prepare();
 
-  mjrfContext* ctx_ = nullptr;
   mjrfScene* scene_ = nullptr;
   ModelObjects* model_objects_ = nullptr;
 

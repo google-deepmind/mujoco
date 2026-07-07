@@ -31,8 +31,7 @@ namespace mujoco {
 class RenderableManager {
  public:
   // Populates the mjrScene with the renderables from the model.
-  RenderableManager(mjrfContext* ctx, mjrfScene* scene,
-                    ModelObjects* model_objects);
+  RenderableManager(mjrfScene* scene, ModelObjects* model_objects);
   ~RenderableManager();
 
   // Updates the state of the renderables in the scene.
@@ -75,7 +74,6 @@ class RenderableManager {
 
   int GetSegmentationId(mjtObj obj_type, int obj_index);
 
-  mjrfContext* ctx_;
   mjrfScene* scene_;
   ModelObjects* model_objects_;
 

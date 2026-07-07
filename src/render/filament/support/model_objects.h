@@ -55,6 +55,9 @@ class ModelObjects {
   // Returns the skybox texture in the mjModel.
   const mjrfTexture* GetSkyboxTexture() const;
 
+  // Returns the mjrfContext used by the ModelObjects.
+  mjrfContext* GetContext() const { return ctx_; }
+
   // Returns the mjModel from which the Model Objects are created.
   const mjModel* GetModel() const { return model_; }
 
