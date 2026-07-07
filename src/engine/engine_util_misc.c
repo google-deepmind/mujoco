@@ -1738,25 +1738,13 @@ mjtNum mju_max(mjtNum a, mjtNum b) {
 
 // clip x to the range [min, max]
 mjtNum mju_clip(mjtNum x, mjtNum min, mjtNum max) {
-  if (x < min) {
-    return min;
-  } else if (x > max) {
-    return max;
-  } else {
-    return x;
-  }
+  return x < min ? min : (x > max ? max : x);
 }
 
 
 // sign function
 mjtNum mju_sign(mjtNum x) {
-  if (x < 0) {
-    return -1;
-  } else if (x > 0) {
-    return 1;
-  } else {
-    return 0;
-  }
+  return (x > 0.0) - (x < 0.0);
 }
 
 
