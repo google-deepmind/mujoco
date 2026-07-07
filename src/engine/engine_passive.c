@@ -481,10 +481,15 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
     frc[0][1] = -(frc[1][1] + frc[2][1] + frc[3][1]);
     frc[0][2] = -(frc[1][2] + frc[2][2] + frc[3][2]);
 
-    // velocities
-    mjtNum* vel[4];
+    // velocities. A PINNED vertex is welded to a parent body (not a free 3-slide flex vertex): its bending
+    // reaction is absorbed by the pin, so treat its velocity as zero (exact for a static pin) and (below) apply
+    // no force to it. isfree[i] distinguishes the two -- a free flex vertex's body has exactly 3 (slide) dofs.
+    static const mjtNum zero3[3] = {0, 0, 0};
+    const mjtNum* vel[4]; int isfree[4];
     for (int i = 0; i < 4; i++) {
-      vel[i] = d->qvel + m->body_dofadr[bodyid[v[i]]];
+      int bid = bodyid[v[i]];
+      isfree[i] = (m->body_dofnum[bid] == 3);
+      vel[i] = isfree[i] ? (d->qvel + m->body_dofadr[bid]) : zero3;
     }
 
     // force
@@ -506,12 +511,13 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
       }
     }
 
-    // insert into global force
+    // insert into global force (free flex vertices only: 3 translational dofs, no moment arm). A pinned vertex has
+    // no free flex dof -- its bending reaction is carried by the pin -- so it is skipped (its POSITION still enters
+    // every neighbor's force via the xpos sum above, which is what the pin constrains).
     for (int i = 0; i < 4; i++) {
-      int bid = bodyid[v[i]];
-      int body_dofnum = m->body_dofnum[bid];
-      int body_dofadr = m->body_dofadr[bid];
-      for (int x = 0; x < body_dofnum; x++) {
+      if (!isfree[i]) continue;
+      int body_dofadr = m->body_dofadr[bodyid[v[i]]];
+      for (int x = 0; x < 3; x++) {
         if (enbl_spring) d->qfrc_spring[body_dofadr+x] -= spring[3*i+x];
         if (enbl_damper) d->qfrc_damper[body_dofadr+x] -= damper[3*i+x] * m->flex_damping[f];
       }

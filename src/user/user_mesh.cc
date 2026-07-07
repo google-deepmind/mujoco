@@ -4280,11 +4280,9 @@ void mjCFlex::ResolveReferences(const mjCModel* m) {
     mjCBody* pbody = static_cast<mjCBody*>(m->FindObject(mjOBJ_BODY, vertbody));
     if (pbody) {
       vertbodyid.push_back(pbody->id);
-      if (pbody->joints.size() != 3 && dim == 2 &&
-          (elastic2d == 1 || elastic2d == 3) && !interpolated) {
-        // TODO(quaglino): add support for pins
-        throw mjCError(this, "pins are not supported for bending");
-      }
+      // pinned vertices (body without 3 free slide dofs) ARE supported for bending now: mj_flexPassiveBend skips
+      // applying the bending force to them (the reaction is carried by the pin) while still using their position
+      // in every neighbor's force; the IPC integrator's bending does the same. So no restriction here.
     } else {
       throw mjCError(this, "unknown body '%s' in flex", vertbody.c_str());
     }
