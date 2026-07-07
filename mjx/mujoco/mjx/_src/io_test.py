@@ -495,9 +495,20 @@ class DataIOTest(parameterized.TestCase):
     if not mjx_io.has_cuda_gpu_device():
       self.skipTest('No CUDA GPU device.')
     m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONVEX_OBJECTS)
-    d = mjx.make_data(m, impl='warp', naconmax=9, njmax=23)
+    d = mjx.make_data(m, impl='warp', naconmax=9, njmax=23, nvmax=8)
     self.assertEqual(d._impl.contact__dist.shape[0], 9)
     self.assertEqual(d._impl.efc__pos.shape[0], 23)
+    self.assertEqual(d._impl.nvmax, 8)
+
+  def test_put_data_warp_nvmax(self):
+    if not mjxw.WARP_INSTALLED:
+      self.skipTest('Warp is not installed.')
+    if not mjx_io.has_cuda_gpu_device():
+      self.skipTest('No CUDA GPU device.')
+    m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONVEX_OBJECTS)
+    d = mujoco.MjData(m)
+    dx = mjx.put_data(m, d, impl='warp', nvmax=8)
+    self.assertEqual(dx._impl.nvmax, 8)
 
   @parameterized.parameters('jax', 'cpp', 'warp')
   def test_put_data(self, impl: str):

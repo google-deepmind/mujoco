@@ -746,6 +746,7 @@ def _make_data_warp(
     naconmax: Optional[int] = None,
     naccdmax: Optional[int] = None,
     njmax: Optional[int] = None,
+    nvmax: Optional[int] = None,
 ) -> types.Data:
   """Allocate and initialize Data for the Warp implementation."""
   if not isinstance(m, mujoco.MjModel):
@@ -755,7 +756,14 @@ def _make_data_warp(
     )
 
   with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
-    dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, naccdmax=naccdmax, njmax=njmax)  # pylint: disable=undefined-variable
+    dw = mjwp.make_data(
+        m,
+        nworld=1,
+        naconmax=naconmax,
+        naccdmax=naccdmax,
+        njmax=njmax,
+        nvmax=nvmax,
+    )  # pylint: disable=undefined-variable
 
   fields = _make_data_public_fields(m)
   for k in fields:
@@ -845,6 +853,7 @@ def make_data(
     naconmax: Optional[int] = None,
     naccdmax: Optional[int] = None,
     njmax: Optional[int] = None,
+    nvmax: Optional[int] = None,
     keepalive_refs: Optional[Dict[int, Any]] = None,
 ) -> types.Data:
   """Allocate and initialize Data.
@@ -862,6 +871,7 @@ def make_data(
       `naccdmax` argument to set the upper bound for the number of contacts
       across all worlds, rather than the `nccdmax` argument from MuJoCo Warp.
     njmax: maximum number of constraints to allocate for warp across all worlds
+    nvmax: capacity for compacted active DOFs per world
     keepalive_refs: optional dict to store references to underlying MuJoCo
       objects, preventing them from being garbage collected. Required for CPP
       impl when passing a types.Model.
@@ -887,7 +897,7 @@ def make_data(
     return _make_data_cpp(m, device, keepalive_refs=keepalive_refs)
   elif impl == types.Impl.WARP:
     _check_warp_installed()
-    return _make_data_warp(m, device, naconmax, naccdmax, njmax)
+    return _make_data_warp(m, device, naconmax, naccdmax, njmax, nvmax)
 
   raise NotImplementedError(
       f'make_data for implementation "{impl}" not implemented yet.'
@@ -1150,11 +1160,14 @@ def _put_data_warp(
     device: Optional[jax.Device] = None,
     naconmax: Optional[int] = None,
     njmax: Optional[int] = None,
+    nvmax: Optional[int] = None,
 ) -> types.Data:
   """Puts mujoco.MjData onto a device, resulting in mjx.Data."""
 
   with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
-    dw = mjwp.put_data(m, d, nworld=1, naconmax=naconmax, njmax=njmax)  # pylint: disable=undefined-variable
+    dw = mjwp.put_data(
+        m, d, nworld=1, naconmax=naconmax, njmax=njmax, nvmax=nvmax
+    )  # pylint: disable=undefined-variable
 
   fields = _put_data_public_fields(d)
   for k in fields:
@@ -1189,6 +1202,7 @@ def put_data(
     impl: Optional[Union[str, types.Impl]] = None,
     naconmax: Optional[int] = None,
     njmax: Optional[int] = None,
+    nvmax: Optional[int] = None,
     dummy_arg_for_batching: Optional[jax.Array] = None,
     keepalive_refs: Optional[Dict[int, Any]] = None,
 ) -> types.Data:
@@ -1204,6 +1218,7 @@ def put_data(
       `naconmax` argument to set the upper bound for the number of contacts
       across all worlds.
     njmax: maximum number of constraints to allocate for warp
+    nvmax: capacity for compacted active DOFs per world
     dummy_arg_for_batching: dummy argument to use for batching in cpp
       implementation
     keepalive_refs: optional dict to store references to underlying MuJoCo
@@ -1226,7 +1241,7 @@ def put_data(
     )
   elif impl == types.Impl.WARP:
     _check_warp_installed()
-    return _put_data_warp(m, d, device, naconmax, njmax)
+    return _put_data_warp(m, d, device, naconmax, njmax, nvmax)
 
   raise NotImplementedError(
       f'put_data for implementation "{impl}" not implemented yet.'
