@@ -1052,7 +1052,7 @@ void App::BuildGui() {
   }
 
   // pause overlay
-  if (has_model() &&
+  if (tmp_.info && has_model() &&
       step_control_.GetPauseState() == PauseState::kNormalPaused) {
     platform::TextOverlay("Pause", platform::OverlayPos::kTop,
                           workspace_rect, "PAUSE", ImVec4(0, 0, 0, 0), 3.0f);
