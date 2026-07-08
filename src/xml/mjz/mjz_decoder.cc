@@ -233,9 +233,14 @@ mjPLUGIN_LIB_INIT(mjz_decoder) {
     if (size <= 0) {
       return nullptr;
     }
-    char error[1024];
-    return ParseZipBuffer(buffer, size, resource->name, const_cast<mjVFS*>(vfs),
-                          error, sizeof(error));
+    char error[1024] = "";
+    mjSpec* spec = ParseZipBuffer(buffer, size, resource->name,
+                                  const_cast<mjVFS*>(vfs), error,
+                                  sizeof(error));
+    if (!spec && error[0]) {
+      mju_warning("%s", error);
+    }
+    return spec;
   };
   mjp_registerDecoder(&decoder);
 }

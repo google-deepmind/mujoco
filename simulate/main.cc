@@ -241,13 +241,21 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
   } else if (extension == ".xml") {
     mnew = mj_loadXML(filename, nullptr, loadError, kErrorLength);
   } else {
-    mjSpec* spec = mj_parse(filename, nullptr, nullptr, loadError, kErrorLength);
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    mjSpec* spec = mj_parse(filename, nullptr, &vfs, loadError, kErrorLength);
     if (!spec) {
-      mju::strcpy_arr(loadError, "could not parse model");
+      if (!loadError[0]) {
+        mju::strcpy_arr(loadError, "could not parse model");
+      }
     } else {
-      mnew = mj_compile(spec, nullptr);
+      mnew = mj_compile(spec, &vfs);
+      if (!mnew) {
+        mju::strcpy_arr(loadError, mjs_getError(spec));
+      }
       mj_deleteSpec(spec);
     }
+    mj_deleteVFS(&vfs);
   }
 
   // remove trailing newline character from loadError

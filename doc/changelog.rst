@@ -17,6 +17,9 @@ General
 - The :el:`attach` element now supports self-attachment (attaching elements of the current model to itself) by omitting
   the :at:`model` attribute. It also supports attaching a frame via the new :at:`frame` attribute, which is mutually
   exclusive with :at:`body`.
+- Fixed loading of ``.mjz`` archives in :ref:`simulate<saSimulate>`: the archive was unmounted before model compilation,
+  so assets contained in it failed to load. Failures in the ``mjz`` decoder now emit a warning with the underlying
+  error instead of the generic "could not decode content" message.
 
 .. admonition:: Breaking API changes
    :class: attention
