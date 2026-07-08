@@ -26,6 +26,7 @@
 
     <!-- The first instance of the plugin MUST define the magnetic field at the origin and the gradient -->
     <plugin plugin="mujoco.magnet">
+      <config key="type" value="linear_field"/>
       <config key="B0" value="0.01 0.01 0.01"/>
       <config key="dB" value="0.01 0 0"/>
     </plugin>
@@ -33,6 +34,7 @@
     <!-- The following declarations only define the intrinsic parameters of the magnet -->
     <body name="disk" pos="0 0 1" quat="1 1 0 0">
       <plugin plugin="mujoco.magnet">
+        <config key="type" value="induced_magnet"/>
         <config key="mu_r" value="1000"/>
         <config key="V" value="7.7e-5"/>
         <config key="N" value="0.2 0.2 0.6"/>
@@ -44,6 +46,7 @@
     <!-- Another magnet -->
     <body name="disk2" pos="0.3 -0.1 1" quat="1 0 0 0">
       <plugin plugin="mujoco.magnet">
+        <config key="type" value="induced_magnet"/>
         <config key="mu_r" value="1000"/>
         <config key="V" value="7.7e-5"/>
         <config key="N" value="0.2 0.2 0.6"/>
@@ -55,6 +58,7 @@
     <!-- An isotropic ball -->
     <body name="ball" pos="0.3 0.2 1" quat="1 0 0 0">
       <plugin plugin="mujoco.magnet">
+        <config key="type" value="induced_magnet"/>
         <config key="mu_r" value="1000"/>
         <config key="V" value="2.82e-3"/>
       </plugin>

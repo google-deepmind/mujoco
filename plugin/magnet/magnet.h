@@ -21,10 +21,7 @@
 #include <fstream>
 #include <variant>
 
-#include <mujoco/mjdata.h>
-#include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
-#include <mujoco/mjvisualize.h>
+#include <mujoco/mujoco.h>
 
 namespace mujoco::plugin::passive {
 
@@ -78,6 +75,77 @@ struct InducedMagnetConfig {
    * @return An instance of the InducedMagnetConfig class with the fields read from the model
    */
   static InducedMagnetConfig FromModel(const mjModel* m, int instance);
+};
+
+class LinearMagneticField {
+public:
+  LinearMagneticField(const mjtNum B0[3], const mjtNum dB[9]) {
+    mju_copy3(B0_, B0);
+    mju_copy(dB_, dB, 9);
+  }
+
+  void getField(mjtNum res[3], const mjtNum pos[3]) const {
+    mju_mulMatVec3(res, dB_, pos);
+    mju_add3(res, B0_, res);
+  }
+
+  void getGradient(mjtNum res[9]) const {
+    mju_copy(res, dB_, 9);
+  }
+
+private:
+  mjtNum B0_[3];
+  mjtNum dB_[9];
+};
+
+class SphericalMagneticField {
+public:
+  SphericalMagneticField(const mjtNum center[3], const mjtNum Bmax[3], mjtNum radius)
+      : radius_(radius) {
+    mju_copy3(center_, center);
+    mju_copy3(Bmax_, Bmax);
+  }
+
+  void getField(mjtNum res[3], const mjtNum pos[3]) const {
+    mjtNum r[3];
+    mju_sub3(r, pos, center_);
+
+    mjtNum dist = mju_norm3(r);
+    if (dist >= radius_) {
+      mju_zero3(res);
+      return;
+    }
+
+    mjtNum pct = dist / radius_;
+    mjtNum factor = 1.0 - (pct * pct);
+
+    mju_scl3(res, Bmax_, factor);
+  }
+
+
+  void getGradient(mjtNum res[9], const mjtNum pos[3]) const {
+    mjtNum r[3];
+    mju_sub3(r, pos, center_);
+
+    mjtNum dist = mju_norm3(r);
+    if (dist >= radius_) {
+      mju_zero(res, 9);
+      return;
+    }
+
+    mjtNum scale = -2.0 / (radius_ * radius_);
+
+    for (int i = 0; i < 3; ++i) {
+      for (int j = 0; j < 3; ++j) {
+        res[i * 3 + j] = scale * Bmax_[i] * r[j];
+      }
+    }
+  }
+
+private:
+  mjtNum center_[3];
+  mjtNum Bmax_[3];
+  mjtNum radius_;
 };
 
 /**
