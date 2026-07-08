@@ -4280,10 +4280,16 @@ void mjCFlex::ResolveReferences(const mjCModel* m) {
     mjCBody* pbody = static_cast<mjCBody*>(m->FindObject(mjOBJ_BODY, vertbody));
     if (pbody) {
       vertbodyid.push_back(pbody->id);
-      if (pbody->joints.size() != 3 && dim == 2 &&
+      // pinned vertices with bending are only valid for static (jointless) pin
+      // bodies: the runtime treats pin velocity as zero, which is only correct
+      // for static bodies.
+      if (!pbody->joints.empty() && pbody->joints.size() != 3 && dim == 2 &&
           (elastic2d == 1 || elastic2d == 3) && !interpolated) {
-        // TODO(quaglino): add support for pins
-        throw mjCError(this, "pins are not supported for bending");
+        throw mjCError(
+            this,
+            "pinned flex vertices with bending require a static (jointless) "
+            "pin body, body '%s' has joints",
+            vertbody.c_str());
       }
     } else {
       throw mjCError(this, "unknown body '%s' in flex", vertbody.c_str());

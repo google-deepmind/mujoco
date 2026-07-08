@@ -1366,5 +1366,48 @@ TEST_F(UserFlexTest, Load1DFlexFromOBJ) {
   mj_deleteModel(m);
 }
 
+TEST_F(UserFlexTest, PinBendingRejectsNonStaticBody) {
+  // pinned vertex inherits the flexcomp's parent body, which here has a joint
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <body name="moving">
+      <joint type="hinge"/>
+      <geom size="0.1"/>
+      <flexcomp name="test" type="grid" count="3 3 1" spacing="1 1 1"
+                radius="0.01" dim="2">
+        <elasticity young="1" poisson="0" thickness="1" elastic2d="bend"/>
+        <pin id="0"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("static"));
+}
+
+TEST_F(UserFlexTest, PinBendingAcceptsStaticBody) {
+  // pinned vertex inherits the flexcomp's parent body (world), which is static
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <body name="parent">
+      <flexcomp name="test" type="grid" count="3 3 1" spacing="1 1 1"
+                radius="0.01" dim="2">
+        <elasticity young="1" poisson="0" thickness="1" elastic2d="bend"/>
+        <pin id="0"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), NotNull()) << error.data();
+}
+
 }  // namespace
 }  // namespace mujoco
