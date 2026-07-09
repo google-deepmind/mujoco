@@ -24,20 +24,6 @@
     },
     {
       "os": "ubuntu-24.04",
-      "label": "ubuntu-24.04-clang-20",
-      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-20 -DCMAKE_CXX_COMPILER:STRING=clang++-20 -DMUJOCO_HARDEN:BOOL=ON",
-      "tmpdir": "/tmp",
-      "tier": "core"
-    },
-    {
-      "os": "ubuntu-24.04",
-      "label": "ubuntu-24.04-clang-19",
-      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-19 -DCMAKE_CXX_COMPILER:STRING=clang++-19 -DMUJOCO_HARDEN:BOOL=ON",
-      "tmpdir": "/tmp",
-      "tier": "core"
-    },
-    {
-      "os": "ubuntu-24.04",
       "label": "ubuntu-24.04-clang-18",
       "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-18 -DCMAKE_CXX_COMPILER:STRING=clang++-18 -DMUJOCO_HARDEN:BOOL=ON",
       "tmpdir": "/tmp",
