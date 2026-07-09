@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include <filament/Engine.h>
 #include <filament/MaterialInstance.h>
@@ -83,6 +84,11 @@ class MaterialManager {
   ObjectManager* object_mgr_;
   std::unordered_map<MaterialKey, filament::MaterialInstance*> instances_;
   std::unordered_set<MaterialKey> used_keys_;
+
+  // Instances swept by RemoveUnusedMaterials, destroyed one frame later:
+  // renderable entities may still be bound to a swept instance until they are
+  // re-bound during rendering, and destroying a bound instance is an error.
+  std::vector<filament::MaterialInstance*> graveyard_;
 };
 }  // namespace mujoco
 

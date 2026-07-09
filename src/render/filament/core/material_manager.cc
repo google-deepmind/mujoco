@@ -79,6 +79,9 @@ MaterialManager::MaterialManager(ObjectManager* object_mgr)
     : object_mgr_(object_mgr) {}
 
 MaterialManager::~MaterialManager() {
+  for (filament::MaterialInstance* instance : graveyard_) {
+    object_mgr_->GetEngine()->destroy(instance);
+  }
   for (auto& [key, instance] : instances_) {
     object_mgr_->GetEngine()->destroy(instance);
   }
@@ -87,12 +90,20 @@ MaterialManager::~MaterialManager() {
 void MaterialManager::PrepareToRender() { used_keys_.clear(); }
 
 void MaterialManager::RemoveUnusedMaterials() {
+  // Destroy instances swept on the previous frame. By now, every renderable
+  // that was drawn has been re-bound to a current instance, so the swept
+  // instances are no longer referenced by any live entity.
+  for (filament::MaterialInstance* instance : graveyard_) {
+    object_mgr_->GetEngine()->destroy(instance);
+  }
+  graveyard_.clear();
+
   if (instances_.size() == used_keys_.size()) {
     return;
   }
   for (auto it = instances_.begin(); it != instances_.end();) {
     if (!used_keys_.contains(it->first)) {
-      object_mgr_->GetEngine()->destroy(it->second);
+      graveyard_.push_back(it->second);
       it = instances_.erase(it);
     } else {
       ++it;
