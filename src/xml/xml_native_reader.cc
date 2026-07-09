@@ -2561,7 +2561,8 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
 
   // damper
   else if (type == "damper") {
-    double kv = 0;
+    bool inherited = (actuator->gaintype == mjGAIN_AFFINE);
+    double kv = inherited ? -actuator->gainprm[2] : 0;
     ReadAttr(elem, "kv", 1, &kv, text);
     err = mjs_setToDamper(actuator, kv);
   }

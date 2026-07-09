@@ -2984,6 +2984,29 @@ TEST_F(ActuatorParseTest, DampersDontRequireRange) {
   EXPECT_EQ(model->actuator_ctrlrange[1], 2);
 }
 
+TEST_F(ActuatorParseTest, DamperInheritsKv) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <damper kv="5" ctrlrange="0 2"/>
+    </default>
+    <worldbody>
+      <body name="sphere">
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <damper joint="hinge"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->actuator_gainprm[2], -5.0);
+}
+
 // adhesion actuators inherit from general defaults
 TEST_F(ActuatorParseTest, AdhesionInheritsFromGeneral) {
   static constexpr char xml[] = R"(
