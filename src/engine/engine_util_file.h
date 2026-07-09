@@ -1,0 +1,58 @@
+// Copyright 2024 DeepMind Technologies Limited
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef MUJOCO_SRC_ENGINE_ENGINE_UTIL_FILE_H_
+#define MUJOCO_SRC_ENGINE_ENGINE_UTIL_FILE_H_
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+// Platform-aware fopen that supports UTF-8 encoded file paths on Windows.
+// On non-Windows platforms, this is equivalent to fopen.
+static inline FILE* mju_fopen(const char* filename, const char* mode) {
+#ifdef _WIN32
+  // Convert UTF-8 filename to wide string
+  int wlen = MultiByteToWideChar(CP_UTF8, 0, filename, -1, NULL, 0);
+  if (wlen <= 0) {
+    return fopen(filename, mode);  // fallback
+  }
+  wchar_t* wfilename = (wchar_t*)malloc(wlen * sizeof(wchar_t));
+  if (!wfilename) {
+    return fopen(filename, mode);  // fallback
+  }
+  MultiByteToWideChar(CP_UTF8, 0, filename, -1, wfilename, wlen);
+
+  // Convert mode to wide string
+  int wmlen = MultiByteToWideChar(CP_UTF8, 0, mode, -1, NULL, 0);
+  wchar_t* wmode = (wchar_t*)malloc(wmlen * sizeof(wchar_t));
+  if (!wmode) {
+    free(wfilename);
+    return fopen(filename, mode);  // fallback
+  }
+  MultiByteToWideChar(CP_UTF8, 0, mode, -1, wmode, wmlen);
+
+  FILE* fp = _wfopen(wfilename, wmode);
+  free(wfilename);
+  free(wmode);
+  return fp;
+#else
+  return fopen(filename, mode);
+#endif
+}
+
+#endif  // MUJOCO_SRC_ENGINE_ENGINE_UTIL_FILE_H_
