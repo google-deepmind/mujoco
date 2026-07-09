@@ -1693,5 +1693,280 @@ TEST_F(DerivativeTest, FlexInterpDerivativesDeformed) {
       << "Jacobian approximation should differ from FD when deformed";
 }
 
+// Helper: assemble the standard-flex stretch stiffness into a dense matrix,
+// column-by-column using mjd_flexStretch_mul with scale (s1 + s2*damping).
+static void stretchK_dense(mjModel* m, mjData* d, mjtNum* K, int nv,
+                           mjtNum s1, mjtNum s2) {
+  std::vector<mjtNum> e_i(nv, 0);
+  std::vector<mjtNum> col(nv, 0);
+  for (int i = 0; i < nv; i++) {
+    mju_zero(e_i.data(), nv);
+    mju_zero(col.data(), nv);
+    e_i[i] = 1.0;
+    mjd_flexStretch_mul(m, d, col.data(), e_i.data(), s1, s2);
+    for (int j = 0; j < nv; j++) {
+      K[j * nv + i] = col[j];
+    }
+  }
+}
+
+// verify mjd_flexStretch_mul (Gauss-Newton Hessian of the standard-flex
+// stretch force) against finite differences of qfrc_passive, plus symmetry,
+// positive semi-definiteness and (s1, s2) scale linearity. The model covers
+// both element edge tables (dim=2 triangles and dim=3 tets) and a pinned
+// vertex (zero-dof body guard).
+TEST_F(DerivativeTest, FlexStretchDerivatives) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option integrator="implicit"/>
+    <worldbody>
+      <flexcomp name="cloth" type="grid" count="4 4 1" spacing="0.1 0.1 0.1"
+                radius=".01" dim="2" mass="1" pos="0 0 1">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e4" poisson="0.3" thickness="0.01"
+                    elastic2d="stretch" damping="50"/>
+        <pin id="0"/>
+      </flexcomp>
+      <flexcomp name="solid" type="grid" count="3 3 3" spacing="0.1 0.1 0.1"
+                radius=".01" dim="3" mass="1" pos="1 0 1">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e4" poisson="0.3" damping="10"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  int nv = model->nv;
+  ASSERT_EQ(model->nq, nv);  // all slide dofs
+
+  MjDataPtr data = MakeData(model);
+
+  // deform both flexes deterministically. Keep the strain small: the operator
+  // is the Gauss-Newton Hessian, exact to O(strain) (the geometric term is
+  // dropped, see FlexInterpDerivativesDeformed for the analogous property).
+  for (int i = 0; i < nv; i++) {
+    data->qpos[i] += 5e-4 * (mju_Halton(i, 2) - 0.5);
+  }
+  mj_forward(model.get(), data.get());
+
+  // part 1: FD verification of K*vec against qfrc_passive (qvel = 0, so the
+  // kD elongation term vanishes and qfrc_passive is the pure stretch spring)
+  {
+    std::vector<mjtNum> vec(nv), res(nv, 0);
+    for (int i = 0; i < nv; i++) {
+      vec[i] = mju_Halton(i, 2) - 0.5;
+    }
+    mjd_flexStretch_mul(model.get(), data.get(), res.data(), vec.data(), 1, 0);
+
+    mjtNum eps = MjTol(1e-7, 1e-4);
+    mjData* data_perturbed = mj_copyData(NULL, model.get(), data.get());
+    mju_addToScl(data_perturbed->qpos, vec.data(), eps, nv);
+    mj_forward(model.get(), data_perturbed);
+
+    // qfrc_passive = -dV/dq  =>  -(qfrc_new - qfrc)/eps ~= K * vec.
+    // Compare max error against the force scale: the operator omits the
+    // geometric (stress-proportional) term, so the residual is O(strain) of
+    // the overall scale and individual near-zero entries are not meaningful.
+    mjtNum max_err = 0, scale = 0;
+    for (int i = 0; i < nv; ++i) {
+      mjtNum fd =
+          -(data_perturbed->qfrc_passive[i] - data->qfrc_passive[i]) / eps;
+      max_err = mju_max(max_err, mju_abs(res[i] - fd));
+      scale = mju_max(scale, mju_abs(fd));
+    }
+    EXPECT_GT(scale, 1.0) << "test should exercise nontrivial stiffness";
+    EXPECT_LT(max_err, MjTol(5e-3, 5e-2) * scale)
+        << "stretch stiffness mismatch: max_err " << max_err
+        << " at force scale " << scale;
+    mj_deleteData(data_perturbed);
+  }
+
+  // part 2: symmetry and positive semi-definiteness of the assembled K
+  {
+    std::vector<mjtNum> K(nv * nv, 0);
+    stretchK_dense(model.get(), data.get(), K.data(), nv, 1, 0);
+
+    mjtNum max_asymmetry = 0;
+    for (int i = 0; i < nv; i++) {
+      for (int j = 0; j < i; j++) {
+        max_asymmetry =
+            mju_max(max_asymmetry, mju_abs(K[i * nv + j] - K[j * nv + i]));
+      }
+    }
+    EXPECT_THAT(max_asymmetry, MjNear(0, 1e-10, 5e-4))
+        << "K_stretch is not symmetric";
+
+    for (int trial = 0; trial < 5; trial++) {
+      std::vector<mjtNum> v(nv);
+      for (int i = 0; i < nv; i++) {
+        v[i] = mju_Halton(i + trial * nv, 3) - 0.5;
+      }
+      mjtNum vKv = 0;
+      for (int i = 0; i < nv; i++) {
+        for (int j = 0; j < nv; j++) {
+          vKv += v[i] * K[i * nv + j] * v[j];
+        }
+      }
+      EXPECT_GE(vKv, MjTol(-1e-8, -1e-5)) << "K_stretch is not PSD";
+    }
+  }
+
+  // part 3: (s1, s2) scale linearity across flexes with different damping:
+  // mul(s1, s2) == s1*mul(1, 0) + s2*mul(0, 1)
+  {
+    std::vector<mjtNum> vec(nv), a(nv, 0), b(nv, 0), c(nv, 0);
+    for (int i = 0; i < nv; i++) {
+      vec[i] = mju_Halton(i, 5) - 0.5;
+    }
+    mjtNum h = 1e-3;
+    mjd_flexStretch_mul(model.get(), data.get(), a.data(), vec.data(),
+                        h * h, h);
+    mjd_flexStretch_mul(model.get(), data.get(), b.data(), vec.data(), 1, 0);
+    mjd_flexStretch_mul(model.get(), data.get(), c.data(), vec.data(), 0, 1);
+    for (int i = 0; i < nv; i++) {
+      EXPECT_THAT(a[i], MjNear(h * h * b[i] + h * c[i], 1e-12, 1e-6))
+          << "scale linearity mismatch at DOF " << i;
+    }
+  }
+}
+
+// verify mjd_flexStiff_assemble against the matrix-free operators: the assembled CSR applied
+// to test vectors must reproduce mjd_flexBend_mul + mjd_flexStretch_mul at the same state
+TEST_F(DerivativeTest, FlexStiffAssemble) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option integrator="implicit"/>
+    <worldbody>
+      <flexcomp name="cloth" type="grid" count="4 4 1" spacing="0.1 0.1 0.1"
+                radius=".01" dim="2" mass="1" pos="0 0 1">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e4" poisson="0.3" thickness="0.01"
+                    elastic2d="both" damping="7"/>
+      </flexcomp>
+      <flexcomp name="solid" type="grid" count="3 3 3" spacing="0.1 0.1 0.1"
+                radius=".01" dim="3" mass="1" pos="1 0 1">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e4" poisson="0.3" damping="10"/>
+        <pin id="0"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  int nv = model->nv;
+  MjDataPtr data = MakeData(model);
+
+  // deform deterministically
+  for (int i = 0; i < nv; i++) {
+    data->qpos[i] += 2e-3 * (mju_Halton(i, 2) - 0.5);
+  }
+  mj_forward(model.get(), data.get());
+
+  // assemble both terms with a mixed (s1, s2) scale
+  mjtNum s1 = 4e-6, s2 = 2e-3;
+  std::vector<int> rownnz(nv), rowadr(nv);
+  int nnz = mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(), rowadr.data(),
+                                   NULL, NULL, s1, s2, /*flg_bend=*/1, /*flg_stretch=*/1, NULL);
+  ASSERT_GT(nnz, 0);
+  std::vector<int> colind(nnz);
+  std::vector<mjtNum> val(nnz);
+  mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(), rowadr.data(),
+                         colind.data(), val.data(), s1, s2, /*flg_bend=*/1, /*flg_stretch=*/1,
+                         NULL);
+
+  // compare CSR apply vs operators on test vectors
+  for (int trial = 0; trial < 3; trial++) {
+    std::vector<mjtNum> vec(nv), res_op(nv, 0), res_csr(nv, 0);
+    for (int i = 0; i < nv; i++) {
+      vec[i] = mju_Halton(i + trial*nv, 3) - 0.5;
+    }
+    mjd_flexBend_mul(model.get(), data.get(), res_op.data(), vec.data(), s1, s2);
+    mjd_flexStretch_mul(model.get(), data.get(), res_op.data(), vec.data(), s1, s2);
+    for (int i = 0; i < nv; i++) {
+      mjtNum sum = 0;
+      for (int k = 0; k < rownnz[i]; k++) {
+        sum += val[rowadr[i] + k]*vec[colind[rowadr[i] + k]];
+      }
+      res_csr[i] = sum;
+    }
+    for (int i = 0; i < nv; i++) {
+      EXPECT_THAT(res_csr[i], MjNear(res_op[i], 1e-12, 1e-6))
+          << "assembly/operator mismatch at DOF " << i << " trial " << trial;
+    }
+  }
+}
+
+// verify the interp assembly mode: with the K_rot cache supplied, the assembled CSR applied
+// to test vectors must reproduce mjd_flexInterp_mul, whose sign convention is negated
+TEST_F(DerivativeTest, FlexStiffAssembleInterp) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option integrator="implicit"/>
+    <worldbody>
+      <flexcomp name="soft" type="grid" count="4 4 4" spacing="0.1 0.1 0.1"
+                radius=".01" dim="3" mass="1" pos="0 0 1" dof="trilinear">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e4" poisson="0.3" damping="2"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  int nv = model->nv;
+  MjDataPtr data = MakeData(model);
+  ASSERT_EQ(mjd_flexInterpAssemblable(model.get()), 1);
+
+  // deform deterministically, refresh kinematics, cache the corotated stiffness
+  for (int i = 0; i < nv; i++) {
+    data->qpos[i] += 2e-3 * (mju_Halton(i, 2) - 0.5);
+  }
+  mj_forward(model.get(), data.get());
+  std::vector<mjtNum> krot(model->nflexstiffness, 0);
+  mjd_flexInterp_cacheKrot(model.get(), data.get(), krot.data());
+
+  // assemble interp only
+  mjtNum s1 = 4e-6, s2 = 2e-3;
+  std::vector<int> rownnz(nv), rowadr(nv);
+  int nnz = mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(), rowadr.data(),
+                                   NULL, NULL, s1, s2, /*flg_bend=*/0, /*flg_stretch=*/0,
+                                   krot.data());
+  ASSERT_GT(nnz, 0);
+  std::vector<int> colind(nnz);
+  std::vector<mjtNum> val(nnz);
+  mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(), rowadr.data(),
+                         colind.data(), val.data(), s1, s2, /*flg_bend=*/0, /*flg_stretch=*/0,
+                         krot.data());
+
+  // compare CSR apply vs the operator called with negated scales (its convention)
+  for (int trial = 0; trial < 3; trial++) {
+    std::vector<mjtNum> vec(nv), res_op(nv, 0), res_csr(nv, 0);
+    for (int i = 0; i < nv; i++) {
+      vec[i] = mju_Halton(i + trial*nv, 3) - 0.5;
+    }
+    mjd_flexInterp_mul(model.get(), data.get(), res_op.data(), vec.data(), -s1, -s2,
+                       krot.data());
+    for (int i = 0; i < nv; i++) {
+      mjtNum sum = 0;
+      for (int k = 0; k < rownnz[i]; k++) {
+        sum += val[rowadr[i] + k]*vec[colind[rowadr[i] + k]];
+      }
+      res_csr[i] = sum;
+    }
+    for (int i = 0; i < nv; i++) {
+      EXPECT_THAT(res_csr[i], MjNear(res_op[i], 1e-12, 1e-6))
+          << "interp assembly/operator mismatch at DOF " << i << " trial " << trial;
+    }
+  }
+}
+
 }  // namespace
 }  // namespace mujoco

@@ -29,6 +29,7 @@
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "engine/engine_util_solve.h"
 #include "engine/engine_util_sparse.h"
 #include "engine/engine_util_spatial.h"
 
@@ -1320,6 +1321,252 @@ static void setSpring(mjModel* m, mjData* d) {
 
 
 // entry point: set all remaining constant fields of mjModel, except for lengthrange
+
+// constant part of the implicit effective metric factor (currently dim-2 bending): sparse
+// reverse-Cholesky of M + (h^2 + h*damping)*K_bend over
+// the dofs of unpinned vertices of standard dim-2 flexes with bending. The matrix is constant
+// (flat-rest bending stiffness, point masses), so the factor is computed here once and reused
+// by the implicit-flex constraint solve every step. Bending couples only same-coordinate dofs,
+// so the pattern is three interleaved copies of the vertex flap adjacency. Row order (flex
+// order, vertex order, coordinate fastest) and the resulting fill count must match the
+// compiler's symbolic sizing (checked below).
+static void setEfm0Factor(mjModel* m, mjData* d) {
+  int nbd = m->nefm0dof;
+  if (!nbd) {
+    return;
+  }
+  mj_markStack(d);
+  mjtNum h = m->opt.timestep;
+
+  // enumerate covered vertices: compact slot per unpinned vertex of qualifying flexes
+  int* vslot = mjSTACKALLOC(d, m->nflexvert > 0 ? m->nflexvert : 1, int);
+  int* vflex = mjSTACKALLOC(d, m->nflexvert > 0 ? m->nflexvert : 1, int);
+  for (int i=0; i < m->nflexvert; i++) {
+    vslot[i] = -1;
+  }
+  int nfree = 0;
+  for (int f=0; f < m->nflex; f++) {
+    if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] != 2 ||
+        m->flex_bendingadr[f] < 0) {
+      continue;
+    }
+    for (int lv=0; lv < m->flex_vertnum[f]; lv++) {
+      int gv = m->flex_vertadr[f] + lv;
+      if (m->body_dofnum[m->flex_vertbodyid[gv]] == 3) {
+        vslot[gv] = nfree;
+        vflex[nfree] = f;
+        nfree++;
+      }
+    }
+  }
+  if (3*nfree != nbd) {
+    mj_freeStack(d);
+    mjERROR("constant metric factor dof count mismatch: compiler sized %d, engine found %d",
+            nbd, 3*nfree);
+  }
+
+  // fill row -> dof address (row 3*slot + k, coordinate fastest)
+  for (int gv=0; gv < m->nflexvert; gv++) {
+    if (vslot[gv] >= 0) {
+      int da = m->body_dofadr[m->flex_vertbodyid[gv]];
+      for (int k=0; k < 3; k++) {
+        m->efm0_dofid[3*vslot[gv] + k] = da + k;
+      }
+    }
+  }
+
+  // vertex flap adjacency: count candidates, fill, sort, unique
+  int* ncand = mjSTACKALLOC(d, nfree, int);
+  mju_zeroInt(ncand, nfree);
+  for (int f=0; f < m->nflex; f++) {
+    if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] != 2 ||
+        m->flex_bendingadr[f] < 0) {
+      continue;
+    }
+    for (int e=0; e < m->flex_edgenum[f]; e++) {
+      const int* flap = m->flex_edgeflap + 2*(e + m->flex_edgeadr[f]);
+      if (flap[1] == -1) continue;
+      const int* edge = m->flex_edge + 2*(e + m->flex_edgeadr[f]);
+      int v[4] = {edge[0], edge[1], flap[0], flap[1]};
+      for (int i=0; i < 4; i++) {
+        int si = vslot[m->flex_vertadr[f] + v[i]];
+        if (si >= 0) ncand[si] += 4;
+      }
+    }
+  }
+  int* cadr = mjSTACKALLOC(d, nfree + 1, int);
+  cadr[0] = 0;
+  for (int s=0; s < nfree; s++) {
+    cadr[s+1] = cadr[s] + ncand[s];
+  }
+  int* cand = mjSTACKALLOC(d, cadr[nfree] > 0 ? cadr[nfree] : 1, int);
+  mju_zeroInt(ncand, nfree);
+  for (int f=0; f < m->nflex; f++) {
+    if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] != 2 ||
+        m->flex_bendingadr[f] < 0) {
+      continue;
+    }
+    for (int e=0; e < m->flex_edgenum[f]; e++) {
+      const int* flap = m->flex_edgeflap + 2*(e + m->flex_edgeadr[f]);
+      if (flap[1] == -1) continue;
+      const int* edge = m->flex_edge + 2*(e + m->flex_edgeadr[f]);
+      int v[4] = {edge[0], edge[1], flap[0], flap[1]};
+      for (int i=0; i < 4; i++) {
+        int si = vslot[m->flex_vertadr[f] + v[i]];
+        if (si < 0) continue;
+        for (int j=0; j < 4; j++) {
+          int sj = vslot[m->flex_vertadr[f] + v[j]];
+          if (sj >= 0 && sj != si) {
+            cand[cadr[si] + ncand[si]++] = sj;
+          }
+        }
+      }
+    }
+  }
+  int* nadr = mjSTACKALLOC(d, nfree + 1, int);
+  int* neigh = mjSTACKALLOC(d, cadr[nfree] > 0 ? cadr[nfree] : 1, int);
+  nadr[0] = 0;
+  for (int s=0; s < nfree; s++) {
+    int* c = cand + cadr[s];
+    int n = ncand[s];
+    for (int i=1; i < n; i++) {
+      int key = c[i], j = i - 1;
+      while (j >= 0 && c[j] > key) {
+        c[j+1] = c[j];
+        j--;
+      }
+      c[j+1] = key;
+    }
+    int nn = 0;
+    for (int i=0; i < n; i++) {
+      if (nn == 0 || neigh[nadr[s] + nn - 1] != c[i]) {
+        neigh[nadr[s] + nn++] = c[i];
+      }
+    }
+    nadr[s+1] = nadr[s] + nn;
+  }
+
+  // H = M + (h^2+h*d)*K_bend in compact dof indices: lower CSR (values) + upper CSR (pattern)
+  int nHl = 0, nHu = 0;
+  for (int s=0; s < nfree; s++) {
+    for (int j=nadr[s]; j < nadr[s+1]; j++) {
+      if (neigh[j] < s) nHl += 3;
+      else nHu += 3;
+    }
+  }
+  nHl += nbd;  // diagonals
+  int* Hl_rownnz = mjSTACKALLOC(d, nbd, int);
+  int* Hl_rowadr = mjSTACKALLOC(d, nbd, int);
+  int* Hl_colind = mjSTACKALLOC(d, nHl, int);
+  mjtNum* Hl_val  = mjSTACKALLOC(d, nHl, mjtNum);
+  int* Hu_rownnz = mjSTACKALLOC(d, nbd, int);
+  int* Hu_rowadr = mjSTACKALLOC(d, nbd, int);
+  int* Hu_colind = mjSTACKALLOC(d, nHu > 0 ? nHu : 1, int);
+  mju_zero(Hl_val, nHl);
+
+  int ladr = 0, uadr = 0;
+  for (int s=0; s < nfree; s++) {
+    for (int k=0; k < 3; k++) {
+      int r = 3*s + k;
+      Hl_rowadr[r] = ladr;
+      Hu_rowadr[r] = uadr;
+      // lower: smaller neighbors then diagonal (ascending)
+      for (int j=nadr[s]; j < nadr[s+1]; j++) {
+        if (neigh[j] < s) {
+          Hl_colind[ladr++] = 3*neigh[j] + k;
+        }
+      }
+      Hl_colind[ladr++] = r;
+      Hl_rownnz[r] = ladr - Hl_rowadr[r];
+      // upper: larger neighbors (ascending)
+      for (int j=nadr[s]; j < nadr[s+1]; j++) {
+        if (neigh[j] > s) {
+          Hu_colind[uadr++] = 3*neigh[j] + k;
+        }
+      }
+      Hu_rownnz[r] = uadr - Hu_rowadr[r];
+    }
+  }
+
+  // H values: diagonal = mass + armature, plus bending Q terms on same-coordinate entries
+  for (int gv=0; gv < m->nflexvert; gv++) {
+    if (vslot[gv] < 0) continue;
+    int b = m->flex_vertbodyid[gv], da = m->body_dofadr[b];
+    for (int k=0; k < 3; k++) {
+      int r = 3*vslot[gv] + k;
+      Hl_val[Hl_rowadr[r] + Hl_rownnz[r] - 1] = m->body_mass[b] + m->dof_armature[da + k];
+    }
+  }
+  for (int f=0; f < m->nflex; f++) {
+    if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] != 2 ||
+        m->flex_bendingadr[f] < 0) {
+      continue;
+    }
+    mjtNum scale = h*h + h*m->flex_damping[f];
+    const mjtNum* b = m->flex_bending + m->flex_bendingadr[f];
+    for (int e=0; e < m->flex_edgenum[f]; e++) {
+      const int* flap = m->flex_edgeflap + 2*(e + m->flex_edgeadr[f]);
+      if (flap[1] == -1) continue;
+      const int* edge = m->flex_edge + 2*(e + m->flex_edgeadr[f]);
+      int v[4] = {edge[0], edge[1], flap[0], flap[1]};
+      for (int i=0; i < 4; i++) {
+        int si = vslot[m->flex_vertadr[f] + v[i]];
+        if (si < 0) continue;
+        for (int j=0; j < 4; j++) {
+          int sj = vslot[m->flex_vertadr[f] + v[j]];
+          if (sj < 0 || sj > si) continue;   // lower triangle + diagonal only
+          mjtNum q = scale*b[17*e + 4*i + j];
+          if (!q) continue;
+          for (int k=0; k < 3; k++) {
+            int r = 3*si + k, col = 3*sj + k;
+            // find col in the sorted lower row by binary search
+            int lo = Hl_rowadr[r], hi = Hl_rowadr[r] + Hl_rownnz[r] - 1, pos = -1;
+            while (lo <= hi) {
+              int mid = (lo + hi)/2;
+              if (Hl_colind[mid] == col)     { pos = mid; break; }
+              else if (Hl_colind[mid] < col) { lo = mid + 1; }
+              else                           { hi = mid - 1; }
+            }
+            Hl_val[pos] += q;
+          }
+        }
+      }
+    }
+  }
+
+  // symbolic factorization: counting phase (from the upper-triangle pattern)
+  int* LT_rownnz = mjSTACKALLOC(d, nbd, int);
+  int* LT_rowadr = mjSTACKALLOC(d, nbd, int);
+  int nnz = mju_cholFactorSymbolic(NULL, m->efm0_L_rownnz, m->efm0_L_rowadr,
+                                   NULL, LT_rownnz, LT_rowadr, NULL,
+                                   Hu_rownnz, Hu_rowadr, Hu_colind, nbd, d);
+  if (nnz != m->nefm0L) {
+    mj_freeStack(d);
+    mjERROR("constant metric factor size mismatch: compiler sized %d, symbolic found %d",
+            (int)m->nefm0L, nnz);
+  }
+
+  // symbolic factorization: filling phase
+  int* LT_colind = mjSTACKALLOC(d, nnz, int);
+  int* LT_map = mjSTACKALLOC(d, nnz, int);
+  mju_cholFactorSymbolic(m->efm0_L_colind, m->efm0_L_rownnz, m->efm0_L_rowadr,
+                         LT_colind, LT_rownnz, LT_rowadr, LT_map,
+                         Hu_rownnz, Hu_rowadr, Hu_colind, nbd, d);
+
+  // numeric factorization
+  int rank = mju_cholFactorNumeric(m->efm0_L, nbd, mjMINVAL,
+                                   m->efm0_L_rownnz, m->efm0_L_rowadr, m->efm0_L_colind,
+                                   LT_rownnz, LT_rowadr, LT_colind, LT_map,
+                                   Hl_val, Hl_rownnz, Hl_rowadr, Hl_colind, d);
+  if (rank != nbd) {
+    mj_freeStack(d);
+    mjERROR("constant metric factor is rank-deficient (%d of %d)", rank, nbd);
+  }
+
+  mj_freeStack(d);
+}
+
+
 void mj_setConst(mjModel* m, mjData* d) {
   // recompute sameframe flags from current model geometry
   setSameframe(m);
@@ -1343,6 +1590,9 @@ void mj_setConst(mjModel* m, mjData* d) {
 
   // set quantities that depend qpos_spring
   setSpring(m, d);
+
+  // precompute the constant part of the implicit effective metric factor
+  setEfm0Factor(m, d);
 }
 
 

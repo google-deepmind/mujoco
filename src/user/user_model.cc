@@ -1200,6 +1200,8 @@ void mjCModel::Clear() {
   nflexelemdata = 0;
   nflexstiffness = 0;
   nflexbending = 0;
+  nefm0dof = 0;
+  nefm0L = 0;
   nflexelemedge = 0;
   nflexshelldata = 0;
   nflexevpair = 0;
@@ -2229,6 +2231,89 @@ void mjCModel::SetSizes() {
     nflexbending += flexes_[i]->bending.size();
     if (flexes_[i]->interpolated || flexes_[i]->rigid) {
       continue;
+    }
+
+    // bending factor sizes: symbolic reverse-Cholesky count on the (M + K_bend) pattern.
+    // Bending couples only same-coordinate dofs of unpinned flap vertices, so the pattern is
+    // three interleaved copies of the vertex flap adjacency. The count must match the symbolic
+    // factorization performed in mj_setConst (asserted there).
+    if (flexes_[i]->dim == 2 && !flexes_[i]->bending.empty()) {
+      const mjCFlex* fl = flexes_[i];
+      int nvrt = fl->nvert;
+
+      // unpinned vertices -> compact slots (vertex enumeration order)
+      std::vector<int> slot(nvrt, -1);
+      int nfree = 0;
+      for (int v=0; v < nvrt; v++) {
+        if (!bodies_[fl->vertbodyid[v]]->joints.empty()) {
+          slot[v] = nfree++;
+        }
+      }
+      if (!nfree) {
+        continue;
+      }
+
+      // vertex adjacency from 4-vertex flap stencils (self excluded; diagonal is implicit)
+      std::vector<std::set<int>> adj(nfree);
+      for (const auto& flap : fl->flaps) {
+        if (flap.vertices[3] < 0) {
+          continue;
+        }
+        for (int a=0; a < 4; a++) {
+          int sa = slot[flap.vertices[a]];
+          if (sa < 0) continue;
+          for (int b=0; b < 4; b++) {
+            int sb = slot[flap.vertices[b]];
+            if (sb >= 0 && sb != sa) {
+              adj[sa].insert(sb);
+            }
+          }
+        }
+      }
+
+      // dof-level upper-triangle pattern: row 3*s+k has columns {3*t+k : t > s, t in adj(s)}
+      int n = 3*nfree;
+      std::vector<std::vector<int>> upper(n);
+      for (int s=0; s < nfree; s++) {
+        for (int t : adj[s]) {
+          if (t > s) {
+            for (int k=0; k < 3; k++) {
+              upper[3*s+k].push_back(3*t+k);
+            }
+          }
+        }
+      }
+      for (auto& row : upper) {
+        std::sort(row.begin(), row.end());
+      }
+
+      // symbolic reverse-Cholesky count (ports the counting phase of mju_cholFactorSymbolic)
+      std::vector<int> parent(n), flag(n), rownnz(n);
+      mjtSize nnz = 0;
+      for (int r=n-1; r >= 0; r--) {
+        parent[r] = -1;
+        flag[r] = r;
+        rownnz[r] = 1;
+      }
+      for (int r=n-1; r >= 0; r--) {
+        for (int col : upper[r]) {
+          int j = col;
+          while (flag[j] != r) {
+            if (parent[j] == -1) {
+              parent[j] = r;
+            }
+            rownnz[j]++;
+            flag[j] = r;
+            j = parent[j];
+          }
+        }
+      }
+      for (int r=0; r < n; r++) {
+        nnz += rownnz[r];
+      }
+
+      nefm0dof += n;
+      nefm0L += nnz;
     }
 
     // count number of non-zero elements in the edge Jacobian matrix
@@ -5241,7 +5326,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   mj_makeModel(&m,
                nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, noct, njnt, ntree, nM, nB, nC,
                nD, ngeom, nsite, ncam, nlight, nflex, nflexnode, nflexvert, nflexedge, nflexelem,
-               nflexelemdata, nflexstiffness, nflexbending, nflexelemedge, nflexshelldata,
+               nflexelemdata, nflexstiffness, nflexbending, nefm0dof, nefm0L,
+               nflexelemedge, nflexshelldata,
                nflexevpair, nflextexcoord, nJfe, nJfv, nmesh, nmeshvert, nmeshnormal, nmeshtexcoord,
                nmeshface, nmeshgraph, nmeshpoly, nmeshpolyvert, nmeshpolymap, nskin, nskinvert,
                nskintexvert, nskinface, nskinbone, nskinbonevert, nhfield, nhfielddata, ntex,

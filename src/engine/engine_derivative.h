@@ -56,6 +56,39 @@ MJAPI void mjd_flexInterp_cacheKrot(const mjModel* m, mjData* d, mjtNum* K_rot_o
 MJAPI void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                             mjtNum s1, mjtNum s2);
 
+// compute res += scale * K_stretch * vec for standard (non-interp) flex stretch,
+// K_stretch the Gauss-Newton Hessian of the passive stretch force at the current state
+//   scale = s1 + s2 * flex_damping[f]  per flex
+MJAPI void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                               mjtNum s1, mjtNum s2);
+
+// assemble the standard-flex implicit stiffness (s1 + s2*damping)*(K_bend + K_stretch) into
+// dof-level CSR; phase 1 (colind==NULL) fills rownnz/rowadr and returns total nnz, phase 2
+// fills colind/val. Interp flexes are assembled iff Krot (mjd_flexInterp_cacheKrot cache) is
+// non-NULL and the centered fast path applies (check mjd_flexInterpAssemblable first).
+MJAPI int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr,
+                                 int* colind, mjtNum* val, mjtNum s1, mjtNum s2,
+                                 int flg_bend, int flg_stretch, const mjtNum* Krot);
+
+// can all interp flexes be assembled to dof-level CSR? (centered fast path everywhere)
+MJAPI int mjd_flexInterpAssemblable(const mjModel* m);
+
+// does any flex contribute assemblable implicit stiffness? (existence check)
+MJAPI int mjd_flexStiff_any(const mjModel* m, int flg_interp);
+
+// implicit effective metric Mtilde = M + (h^2+h*d)*K: per-step arena object (see mjdata.h efm_*)
+// build (or deactivate, active==0); the gate decision belongs to the caller
+MJAPI void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor);
+
+// refresh the metric's smooth-force shift c = h*K*qvel (values only, velocity stage)
+MJAPI void mjd_effShift(const mjModel* m, mjData* d);
+
+// res += B*vec (the stiffness part of the metric; caller supplies the M part)
+MJAPI void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
+
+// x = (M + B)^-1 b to 1e-10 relative; x = M^-1 b when the metric is inactive
+MJAPI void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);
+
 
 #ifdef __cplusplus
 }

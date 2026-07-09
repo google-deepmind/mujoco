@@ -70,6 +70,9 @@ void mj_invPosition(const mjModel* m, mjData* d) {
   mj_transmission(m, d);
   TM_ADD(mjTIMER_POS_KINEMATICS);
 
+  // implicit effective metric: multiply-only build (no factorization) for the inverse
+  mjd_effBuild(m, d, mj_flexCG(m), /*flg_factor=*/0);
+
   TM_END1(mjTIMER_POSITION);
 }
 
@@ -166,6 +169,9 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
   mj_solveM(m, d, qacc, qfrc, 1);
 
   mj_freeStack(d);
+
+  // refresh the effective-metric velocity shift
+  mjd_effShift(m, d);
 }
 
 
@@ -250,6 +256,13 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
   // compute Ma = M*qacc
   mjtNum* Ma = mjSTACKALLOC(d, nv, mjtNum);
   mj_mulM(m, d, Ma, d->qacc);
+
+  // implicit effective metric (built in mj_invPosition): the forward dynamics solved
+  // (M+B)*qacc = qfrc + c + J'*f, so the discrete-consistent inverse adds B*qacc - c
+  if (d->efm_active) {
+    mjd_effMulAdd(m, d, Ma, d->qacc);
+    mju_subFrom(Ma, d->efm_c, nv);
+  }
 
   // qfrc_inverse += Ma - qfrc_passive - qfrc_constraint
   for (int i=0; i < nv; i++) {

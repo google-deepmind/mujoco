@@ -25,6 +25,7 @@
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_core_util.h"
+#include "engine/engine_derivative.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
@@ -1068,6 +1069,13 @@ typedef struct {
   mjtNum* L;              // Cholesky factor                              (nL x 1)
   mjtNum* Lcone;          // Cholesky factor with cone contributions      (nL x 1)
 
+  // implicit effective metric Mtilde = M + B (built per step in mj_fwdPosition): when
+  // active, ctx.qfrc_smooth is pre-shifted by +c and Ma/Mv carry the B term, so the stock
+  // objective/gradient/linesearch formulas below operate in the Mtilde metric unchanged
+  int flg_flex;           // effective metric active for this solve
+  const mjModel* fm;      // model, for the metric calls
+  mjData* fd;             // data, for the metric calls
+
   // globals
   mjtNum cost;            // constraint + Gauss cost
   mjtNum quadGauss[3];    // quadratic polynomial for Gauss cost
@@ -1331,10 +1339,17 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
 
   // sparse: compute Jacobian transpose
   if (is_sparse) {
-    int offset = ctx->J_rowadr[0];
-    mju_transposeSparse(ctx->JT, ctx->J + offset, nefc, nv,
-                        ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper,
-                        ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind + offset);
+    if (nefc) {
+      int offset = ctx->J_rowadr[0];
+      mju_transposeSparse(ctx->JT, ctx->J + offset, nefc, nv,
+                          ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper,
+                          ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind + offset);
+    } else {
+      // no constraints (reachable via the flex CG dispatch): valid empty transpose structures
+      mju_zeroInt(ctx->JT_rownnz, nv);
+      mju_zeroInt(ctx->JT_rowadr, nv);
+      mju_zeroInt(ctx->JT_rowsuper, nv);
+    }
   }
 }
 
@@ -1393,6 +1408,11 @@ static void PrimalUpdateGradient(mjPrimalContext* ctx, int flg_Newton) {
     } else {
       mju_cholSolve(ctx->Mgrad, (ctx->ncone ? ctx->Lcone : ctx->L), ctx->grad, nv);
     }
+  }
+
+  // CG: Mgrad = Mtilde \ grad
+  else if (ctx->flg_flex) {
+    mjd_effSolve(ctx->fm, ctx->fd, ctx->Mgrad, ctx->grad);
   }
 
   // CG: Mgrad = M \ grad
@@ -1831,9 +1851,12 @@ static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_ite
   mjtNum gtol = tolerance * snorm / ctx->scale;
   mjtNum slopescl = ctx->scale / snorm;
 
-  // compute Mv = M * v
+  // compute Mv = Mtilde * v
   mju_mulSymVecSparse(ctx->Mv, ctx->M, ctx->search, nv,
                       ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
+  if (ctx->flg_flex) {
+    mjd_effMulAdd(ctx->fm, ctx->fd, ctx->Mv, ctx->search);
+  }
 
   // compute Jv = J * search  (dense or sparse)
   if (!ctx->is_sparse) {
@@ -2309,9 +2332,23 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
   int nefc = ctx.nefc;
   int* oldstate = ctx.oldstate;
 
-  // compute Ma = M * qacc
+  // implicit effective metric (built in mj_fwdPosition): shift the smooth force so the
+  // stock objective/gradient/linesearch formulas operate in the Mtilde = M+B metric
+  if (island < 0 && !ctx.is_elliptic && !flg_Newton && d->efm_active) {
+    ctx.flg_flex = 1;
+    ctx.fm = m;
+    ctx.fd = d;
+    mjtNum* qfrc_eff = mjSTACKALLOC(d, nv, mjtNum);
+    mju_add(qfrc_eff, ctx.qfrc_smooth, d->efm_c, nv);
+    ctx.qfrc_smooth = qfrc_eff;
+  }
+
+  // compute Ma = Mtilde * qacc
   mju_mulSymVecSparse(ctx.Ma, ctx.M, ctx.qacc, nv,
                       ctx.M_rownnz, ctx.M_rowadr, ctx.M_colind);
+  if (ctx.flg_flex) {
+    mjd_effMulAdd(m, d, ctx.Ma, ctx.qacc);
+  }
 
 
   // compute Jaref = J * qacc - aref  (dense or sparse)
