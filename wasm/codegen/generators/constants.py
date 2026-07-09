@@ -193,6 +193,7 @@ _SKIPPED_UTILITY_FUNCTIONS: tuple[str, ...] = (
     "mju_isModifiedResource",
     "mju_openResource",
     "mju_readResource",
+    "mju_writeResource",
     # go/keep-sorted end
 )
 

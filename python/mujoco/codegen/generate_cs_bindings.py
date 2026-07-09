@@ -265,6 +265,7 @@ _OMITTED_FUNCTIONS = [
     'mju_openResource',
     'mju_closeResource',
     'mju_readResource',
+    'mju_writeResource',
     'mju_getResourceDir',
     'mju_isModifiedResource',
     'mj_compile',

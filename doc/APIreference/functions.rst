@@ -1639,6 +1639,17 @@ Close a resource; no-op if resource is NULL.
 Set buffer to bytes read from the resource and return number of bytes in buffer;
 return negative value if error.
 
+.. _mju_writeResource:
+
+`mju_writeResource <#mju_writeResource>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_writeResource
+
+Write resource data via its resource provider, return bytes written or -1 on error.
+
+*Nullable:* ``vfs``, ``error``
+
 .. _mju_getResourceDir:
 
 `mju_getResourceDir <#mju_getResourceDir>`__

@@ -23,6 +23,7 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <functional>
@@ -120,6 +121,15 @@ VFS::VFS(mjVFS* vfs) {
   default_provider_.modified = [](const mjResource* res, const char* time) {
     return FileModified(res, time);
   };
+  default_provider_.write = [](mjResource* res, const void* buffer, mjtSize nbytes) -> mjtSize {
+    FILE* fp = fopen(res->name, "wb");
+    if (!fp) {
+      return -1;
+    }
+    mjtSize written = static_cast<mjtSize>(fwrite(buffer, 1, nbytes, fp));
+    fclose(fp);
+    return written == nbytes ? written : -1;
+  };
 
   default_provider_.prefix = nullptr;
   default_mount_.vfs = &wrapped_vfs_;
@@ -149,22 +159,28 @@ VFS::~VFS() {
   mounts_.clear();
 }
 
-mjResource* VFS::Open(const char* dir, const char* name) {
+mjResource* VFS::Open(const char* dir, const char* name, char* error,
+                      size_t nerror) {
   const std::string path = FilePath(dir, name).Str();
 
   const mjResource* mount = FindMount(path);
-  if (!mount) {
+  if (!mount || !mount->provider) {
+    if (error) {
+      std::snprintf(error, nerror, "No provider found for '%s'", name);
+    }
     MaybeSelfDestruct();
     return nullptr;
   }
 
-  ResourcePtr res = CreateResource(path.c_str(), mount->provider);
+  const mjpResourceProvider* provider = mount->provider;
+
+  ResourcePtr res = CreateResource(path.c_str(), provider);
 
   // Smuggle the mounted resource provider's mount-specific data pointer in the
   // requested resource's data pointer. This allows the provider to access its
   // own per-mount data without any intrusive changes to the provider interface.
   res->data = mount->data;
-  const int result = mount->provider->open(res.get());
+  const int result = provider->open ? provider->open(res.get()) : 0;
   // If the data pointer was not modified, then that means the resource did not
   // set its own data pointer. So, we need to set it back to nullptr.
   if (res->data == mount->data) {
@@ -259,6 +275,25 @@ int VFS::Read(mjResource* resource, const void** buffer) {
     return resource->provider->read(resource, buffer);
   }
   return kFailedToRead;
+}
+
+mjtSize VFS::Write(mjResource* resource, const void* buffer, mjtSize nbytes) {
+  if (resource) {
+    if (!resource->provider) {
+      const mjResource* mount = FindMount(resource->name);
+      if (mount) {
+        resource->provider = mount->provider;
+        // Smuggle mount data if not already set.
+        if (!resource->data) {
+          resource->data = mount->data;
+        }
+      }
+    }
+    if (resource->provider && resource->provider->write) {
+      return resource->provider->write(resource, buffer, nbytes);
+    }
+  }
+  return -1;
 }
 
 VFS::ResourcePtr VFS::CreateResource(std::string_view name,

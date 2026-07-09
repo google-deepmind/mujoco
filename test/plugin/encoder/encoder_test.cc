@@ -48,7 +48,7 @@ mjtSize FakeEncode(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
 
 void CloseResource(mjResource* resource) {
   delete static_cast<FakeEncoderOutput*>(resource->data);
-  delete resource;
+  resource->data = nullptr;
 }
 
 mjpEncoder FakeEncoder() {
@@ -125,7 +125,7 @@ TEST_F(EncoderPluginTest, EncodeModel) {
   EXPECT_EQ(output->njnt, 0);
   EXPECT_STREQ(output->resource_name, "output.fakeformat");
 
-  delete output;
+  found->close_resource(&resource);
   mj_deleteModel(model);
   mj_deleteSpec(spec);
 }

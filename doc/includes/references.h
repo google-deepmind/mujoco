@@ -1218,6 +1218,7 @@ typedef struct mjpResourceProvider {
   mjfMountResource mount;           // mounting callback (optional)
   mjfUnmountResource unmount;       // unmounting callback (optional)
   mjfResourceModified modified;     // resource modified callback (optional)
+  mjfWriteResource write;           // writing callback (optional)
   void* data;                       // opaque data pointer (resource invariant)
 } mjpResourceProvider;
 typedef struct mjpDecoder {
@@ -3684,6 +3685,8 @@ mjResource* mju_openResource(const char* dir, const char* name,
                              const mjVFS* vfs, char* error, size_t nerror);
 void mju_closeResource(mjResource* resource);
 int mju_readResource(mjResource* resource, const void** buffer);
+mjtSize mju_writeResource(const char* name, const void* buffer, mjtSize nbytes,
+                          const mjVFS* vfs, char* error, size_t nerror);
 void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir);
 int mju_isModifiedResource(const mjResource* resource, const char* timestamp);
 mjSpec* mju_decodeResource(mjResource* resource, const char* content_type,

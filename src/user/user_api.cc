@@ -261,29 +261,18 @@ mjtSize mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
     return -1;
   }
 
-  FILE* fp = fopen(filename, "wb");
-  if (!fp) {
-    std::free(resource.data);
-    if (error) {
-      strncpy(error, "could not open file for writing", error_sz);
-      error[error_sz - 1] = '\0';
-    }
-    return -1;
-  }
-
-  const std::size_t written = fwrite(resource.data, 1, nbytes, fp);
-  fclose(fp);
+  mjtSize written = mju_writeResource(filename, resource.data, nbytes, vfs, error, error_sz);
   encoder->close_resource(&resource);
 
-  if (static_cast<mjtSize>(written) != nbytes) {
-    if (error) {
-      strncpy(error, "failed to write all bytes to file", error_sz);
+  if (written != nbytes) {
+    if (error && error[0] == '\0') {
+      strncpy(error, "write failed", error_sz);
       error[error_sz - 1] = '\0';
     }
     return -1;
   }
 
-  return nbytes;
+  return written;
 }
 
 // helper function to log compile time diagnostics

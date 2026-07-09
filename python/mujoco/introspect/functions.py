@@ -9929,6 +9929,48 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Set buffer to bytes read from the resource and return number of bytes in buffer; return negative value if error.',  # pylint: disable=line-too-long
      )),
+    ('mju_writeResource',
+     FunctionDecl(
+         name='mju_writeResource',
+         return_type=ValueType(name='mjtSize'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='buffer',
+                 type=PointerType(
+                     inner_type=ValueType(name='void', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='nbytes',
+                 type=ValueType(name='mjtSize'),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='error',
+                 type=PointerType(
+                     inner_type=ValueType(name='char'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='nerror',
+                 type=ValueType(name='size_t'),
+             ),
+         ),
+         doc='Write resource data via its resource provider, return bytes written or -1 on error.',  # pylint: disable=line-too-long
+     )),
     ('mju_getResourceDir',
      FunctionDecl(
          name='mju_getResourceDir',

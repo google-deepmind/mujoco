@@ -1588,6 +1588,11 @@ MJAPI void mju_closeResource(mjResource* resource);
 // return negative value if error.
 MJAPI int mju_readResource(mjResource* resource, const void** buffer);
 
+// Write resource data via its resource provider, return bytes written or -1 on error.
+// Nullable: vfs, error
+MJAPI mjtSize mju_writeResource(const char* name, const void* buffer, mjtSize nbytes,
+                                const mjVFS* vfs, char* error, size_t nerror);
+
 // For a resource with a name partitioned as {dir}{filename}, get the dir and ndir pointers.
 MJAPI void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir);
 

@@ -503,56 +503,43 @@ void mjv_copyModel(mjModel* dest, const mjModel* src) {
 
 // save model to binary file, or memory buffer of szbuf>0
 void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buffer_sz) {
-  FILE* fp = 0;
   mjtSize ptrbuf = 0;
 
   // standard header
   int header[NHEADER] = {ID, sizeof(mjtNum), getnsize(), mj_version(), getnptr()};
 
-  // open file for writing if no buffer
+  // no buffer: serialize to temporary buffer, then write via resource provider
   if (!buffer) {
-    fp = fopen(filename, "wb");
-    if (!fp) {
-      mju_warning("Could not open file '%s'", filename);
+    mjtSize sz = mj_sizeModel(m);
+    void* tmpbuf = mju_malloc(sz);
+    if (!tmpbuf) {
+      mju_warning("Could not allocate buffer for saving model");
       return;
     }
+    mj_saveModel(m, NULL, tmpbuf, (int)sz);
+
+    mjtSize written = mju_writeResource(filename, tmpbuf, sz, NULL, NULL, 0);
+    if (written != sz) {
+      mju_warning("Could not save model to '%s'", filename);
+    }
+    mju_free(tmpbuf);
+    return;
   }
 
   // write standard header, info, options, buffer (omit pointers)
-  if (fp) {
-    fwrite(header, sizeof(int), NHEADER, fp);
-    #define X(name) fwrite(&m->name, sizeof(m->name), 1, fp);
-    MJMODEL_SIZES
+  bufwrite(header, sizeof(header), buffer_sz, buffer, &ptrbuf);
+  #define X(name) bufwrite(&m->name, sizeof(m->name), buffer_sz, buffer, &ptrbuf);
+  MJMODEL_SIZES
+  #undef X
+  bufwrite((void*)&m->opt, sizeof(mjOption), buffer_sz, buffer, &ptrbuf);
+  bufwrite((void*)&m->vis, sizeof(mjVisual), buffer_sz, buffer, &ptrbuf);
+  bufwrite((void*)&m->stat, sizeof(mjStatistic), buffer_sz, buffer, &ptrbuf);
+  {
+    MJMODEL_POINTERS_PREAMBLE(m)
+    #define X(type, name, nr, nc)  \
+      bufwrite((void*)m->name, sizeof(type)*(m->nr)*(nc), buffer_sz, buffer, &ptrbuf);
+    MJMODEL_POINTERS
     #undef X
-    fwrite((void*)&m->opt, sizeof(mjOption), 1, fp);
-    fwrite((void*)&m->vis, sizeof(mjVisual), 1, fp);
-    fwrite((void*)&m->stat, sizeof(mjStatistic), 1, fp);
-    {
-      MJMODEL_POINTERS_PREAMBLE(m)
-      #define X(type, name, nr, nc)  \
-        fwrite((void*)m->name, sizeof(type), (m->nr)*(nc), fp);
-      MJMODEL_POINTERS
-      #undef X
-    }
-  } else {
-    bufwrite(header, sizeof(header), buffer_sz, buffer, &ptrbuf);
-    #define X(name) bufwrite(&m->name, sizeof(m->name), buffer_sz, buffer, &ptrbuf);
-    MJMODEL_SIZES
-    #undef X
-    bufwrite((void*)&m->opt, sizeof(mjOption), buffer_sz, buffer, &ptrbuf);
-    bufwrite((void*)&m->vis, sizeof(mjVisual), buffer_sz, buffer, &ptrbuf);
-    bufwrite((void*)&m->stat, sizeof(mjStatistic), buffer_sz, buffer, &ptrbuf);
-    {
-      MJMODEL_POINTERS_PREAMBLE(m)
-      #define X(type, name, nr, nc)  \
-        bufwrite((void*)m->name, sizeof(type)*(m->nr)*(nc), buffer_sz, buffer, &ptrbuf);
-      MJMODEL_POINTERS
-      #undef X
-    }
-  }
-
-  if (fp) {
-    fclose(fp);
   }
 }
 

@@ -14,8 +14,11 @@
 
 // Tests for user/user_resource.cc
 
+#include "src/user/user_resource.h"
+
 #include <array>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <string>
@@ -29,7 +32,6 @@
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_plugin.h"
 #include "src/engine/engine_util_misc.h"
-#include "src/user/user_resource.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -439,6 +441,107 @@ TEST_F(ResourceTest, OSFilesystemTimestamps) {
   EXPECT_EQ(mju_isModifiedResource(resource, test_timestamp.data()), 1);
 
   mju_closeResource(resource);
+}
+
+// ===================== Write Resource Tests =====================
+
+struct WriteBuffer {
+  std::vector<uint8_t> data;
+};
+
+// static storage for the last written buffer (for round-trip testing)
+static std::vector<uint8_t> last_written;
+
+mjtSize write_capture(mjResource* resource, const void* buffer, mjtSize nbytes) {
+  last_written.clear();
+  const uint8_t* bytes = static_cast<const uint8_t*>(buffer);
+  last_written.insert(last_written.end(), bytes, bytes + nbytes);
+  return nbytes;
+}
+
+// open callback for reading back captured data
+int open_read_capture(mjResource* resource) { return 1; }
+
+int read_capture(mjResource* resource, const void** buffer) {
+  *buffer = last_written.data();
+  return static_cast<int>(last_written.size());
+}
+
+void close_read_capture(mjResource* resource) {}
+
+TEST_F(ResourceTest, WriteResourceWithProvider) {
+  // Register a provider with write callbacks
+  mjpResourceProvider provider = {
+      .prefix = "wrtest",
+      .open = open_read_capture,
+      .read = read_capture,
+      .close = close_read_capture,
+      .write = write_capture,
+  };
+
+  mjp_registerResourceProvider(&provider);
+
+  // Write some data
+  const char* data = "Hello, Resource Writer!";
+  mjtSize nbytes = static_cast<mjtSize>(std::strlen(data));
+
+  mjtSize written = mju_writeResource("wrtest:myfile.txt", data, nbytes, nullptr, nullptr, 0);
+  EXPECT_EQ(written, nbytes);
+
+  // Read it back via the same provider
+  char error[256] = {0};
+  mjResource* resource =
+      mju_openResource("", "wrtest:myfile.txt", nullptr, error, sizeof(error));
+  ASSERT_THAT(resource, NotNull());
+
+  const void* buf = nullptr;
+  int read_bytes = mju_readResource(resource, &buf);
+  EXPECT_EQ(read_bytes, nbytes);
+  EXPECT_EQ(std::memcmp(buf, data, nbytes), 0);
+
+  mju_closeResource(resource);
+}
+
+TEST_F(ResourceTest, WriteResourceDefaultPosix) {
+  // Write to a temp file using the default POSIX provider (no prefix)
+  std::string tmpfile = testing::TempDir() + "/mj_write_test.bin";
+  const char* data = "MuJoCo resource write test";
+  mjtSize nbytes = static_cast<mjtSize>(std::strlen(data));
+
+  mjtSize written = mju_writeResource(tmpfile.c_str(), data, nbytes, nullptr, nullptr, 0);
+  EXPECT_EQ(written, nbytes);
+
+  // Read it back via mju_openResource (default POSIX provider)
+  char error[256] = {0};
+  mjResource* resource =
+      mju_openResource("", tmpfile.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(resource, NotNull());
+
+  const void* buf = nullptr;
+  int read_bytes = mju_readResource(resource, &buf);
+  EXPECT_EQ(read_bytes, nbytes);
+  EXPECT_EQ(std::memcmp(buf, data, nbytes), 0);
+
+  mju_closeResource(resource);
+
+  // Clean up
+  std::remove(tmpfile.c_str());
+}
+
+TEST_F(ResourceTest, WriteResourceNoWriteCallback) {
+  // Register a read-only provider (no write callback)
+  mjpResourceProvider provider = {
+      .prefix = "rdonly",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
+  };
+
+  mjp_registerResourceProvider(&provider);
+
+  const char* data = "data";
+  mjtSize written = mju_writeResource("rdonly:somefile", data, 4, nullptr, nullptr, 0);
+  EXPECT_EQ(written, -1);
 }
 
 }  // namespace

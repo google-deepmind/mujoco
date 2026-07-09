@@ -20,6 +20,7 @@ General
 - Fixed loading of ``.mjz`` archives in :ref:`simulate<saSimulate>`: the archive was unmounted before model compilation,
   so assets contained in it failed to load. Failures in the ``mjz`` decoder now emit a warning with the underlying
   error instead of the generic "could not decode content" message.
+- Added support for resource writing via :ref:`mju_writeResource` and the ``write`` callback in :ref:`mjpResourceProvider`.
 
 .. admonition:: Breaking API changes
    :class: attention
