@@ -24,7 +24,6 @@ extern "C" {
 
 #define mjNAUX          10        // number of auxiliary buffers
 #define mjMAXTEXTURE    1000      // maximum number of textures
-#define mjMAXMATERIAL   1000      // maximum number of materials with textures
 
 //---------------------------------- primitive types (mjt) -----------------------------------------
 
@@ -169,11 +168,6 @@ typedef struct mjrContext_ {        // custom OpenGL context
   unsigned int auxFBO_r[mjNAUX];    // auxiliary framebuffer object for resolving
   unsigned int auxColor[mjNAUX];    // auxiliary color buffer
   unsigned int auxColor_r[mjNAUX];  // auxiliary color buffer for resolving
-
-  // materials with textures
-  int mat_texid[mjMAXMATERIAL*mjNTEXROLE]; // material texture ids (-1: no texture)
-  int mat_texuniform[mjMAXMATERIAL];       // uniform cube mapping
-  float mat_texrepeat[mjMAXMATERIAL*2];    // texture repetition for 2d mapping
 
   // texture objects and info
   int ntexture;                            // number of allocated textures

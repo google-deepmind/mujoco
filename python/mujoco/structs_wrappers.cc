@@ -1193,7 +1193,8 @@ MjvGeomWrapper::MjWrapper()
         static_assert(sizeof(ptr_->mat) == sizeof(ptr_->mat[0]) * 9);
         return InitPyArray(std::array{3, 3}, ptr_->mat, owner_);
       }()),
-      X(rgba) {
+      X(rgba),
+      X(texrepeat) {
   mjv_initGeom(ptr_, mjGEOM_NONE, nullptr, nullptr, nullptr, nullptr);
 }
 
@@ -1205,7 +1206,8 @@ MjvGeomWrapper::MjWrapper(raw::MjvGeom* ptr, py::handle owner)
         static_assert(sizeof(ptr_->mat) == sizeof(ptr_->mat[0]) * 9);
         return InitPyArray(std::array{3, 3}, ptr_->mat, owner_);
       }()),
-      X(rgba) {}
+      X(rgba),
+      X(texrepeat) {}
 #undef X
 
 MjvGeomWrapper::MjWrapper(const MjvGeomWrapper& other) : MjvGeomWrapper() {

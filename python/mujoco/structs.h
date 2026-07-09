@@ -832,6 +832,7 @@ class MjWrapper<raw::MjvGeom> : public WrapperBase<raw::MjvGeom> {
   X(pos);
   X(mat);
   X(rgba);
+  X(texrepeat);
   #undef X
 };
 

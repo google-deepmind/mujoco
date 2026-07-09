@@ -32,6 +32,15 @@ General
      exclusively in the compressed sparse row (CSR) format ``mjData.M``.
    - :ref:`mju_round` now breaks ties away from zero rather than towards :math:`+\infty`. This only affects
      negative half-integers, e.g. ``mju_round(-2.5)`` now returns -3 rather than -2.
+   - Removed the ``mjMAXMATERIAL`` constant. The classic renderer no longer caps the number of textured materials.
+
+.. admonition:: Breaking ABI changes
+   :class: attention
+
+   - Removed ``mat_texid``, ``mat_texuniform`` and ``mat_texrepeat`` from ``mjrContext``; the equivalent per-geom fields
+     ``texid``, ``texuniform`` and ``texrepeat`` were added to ``mjvGeom``, populated from the model each frame by
+     :ref:`mjv_updateScene`. The classic renderer now resolves them live, so runtime material changes (e.g. domain
+     randomization) no longer require rebuilding the render context.
 
 Version 3.10.0 (June 22, 2026)
 ------------------------------

@@ -1185,6 +1185,8 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(objid);
   X(category);
   X(matid);
+  X(texid);
+  X(texuniform);
   X(texcoord);
   X(segid);
   X(emission);
@@ -1201,6 +1203,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(pos);
   X(mat);
   X(rgba);
+  X(texrepeat);
 #undef X
 
   DefinePyStr(mjvGeom, "label", &raw::MjvGeom::label);

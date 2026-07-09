@@ -10141,6 +10141,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='material id; -1: no textured material',
              ),
              StructFieldDecl(
+                 name='texid',
+                 type=ValueType(name='int'),
+                 doc='texture id; -1: none',
+             ),
+             StructFieldDecl(
+                 name='texuniform',
+                 type=ValueType(name='int'),
+                 doc='uniform cube mapping',
+             ),
+             StructFieldDecl(
                  name='texcoord',
                  type=ValueType(name='int'),
                  doc='mesh or flex geom has texture coordinates',
@@ -10201,6 +10211,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='reflectance',
                  type=ValueType(name='float'),
                  doc='reflectance coef',
+             ),
+             StructFieldDecl(
+                 name='texrepeat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(2,),
+                 ),
+                 doc='texture repetition for 2d mapping',
              ),
              StructFieldDecl(
                  name='label',
@@ -11177,30 +11195,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      extents=(10,),
                  ),
                  doc='auxiliary color buffer for resolving',
-             ),
-             StructFieldDecl(
-                 name='mat_texid',
-                 type=ArrayType(
-                     inner_type=ValueType(name='int'),
-                     extents=(10000,),
-                 ),
-                 doc='material texture ids (-1: no texture)',
-             ),
-             StructFieldDecl(
-                 name='mat_texuniform',
-                 type=ArrayType(
-                     inner_type=ValueType(name='int'),
-                     extents=(1000,),
-                 ),
-                 doc='uniform cube mapping',
-             ),
-             StructFieldDecl(
-                 name='mat_texrepeat',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(2000,),
-                 ),
-                 doc='texture repetition for 2d mapping',
              ),
              StructFieldDecl(
                  name='ntexture',
