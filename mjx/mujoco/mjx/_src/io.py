@@ -442,11 +442,13 @@ def _put_model_warp(
     m: mujoco.MjModel,
     graph_mode: mjxw.types.GraphMode,
     device: Optional[jax.Device] = None,
+    batch_sizes: Optional[Dict[str, int]] = None,
 ) -> types.Model:
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model."""
   with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
-    mw = mjwp.put_model(m)  # pylint: disable=undefined-variable
+    mw = mjwp.put_model(m, batch_sizes=batch_sizes)  # pylint: disable=undefined-variable
 
+  batch_sizes = batch_sizes or {}
   fields = {f.name for f in types.Model.fields() if f.name != '_impl'}
   fields = {f: getattr(m, f) for f in fields}
   # Grab MJW private Option fields, and assume that public MjOption fields are
@@ -467,7 +469,9 @@ def _put_model_warp(
     if not hasattr(mw, k) or k in ('stat', 'opt'):
       continue
     field = _wp_to_np_type(getattr(mw, k), k)
-    if mjxw.types._BATCH_DIM['Model'].get(k, False):  # pylint: disable=protected-access
+    if (  # pylint: disable=protected-access
+        k not in batch_sizes and mjxw.types._BATCH_DIM['Model'].get(k, False)
+    ):
       field = field.reshape(field.shape[1:])
     if k == 'geom_dataid' and field.ndim > 1:
       # Batched geom_dataid is not supported in MJX.
@@ -477,7 +481,9 @@ def _put_model_warp(
   impl_fields = {}
   for k in mjxw.types.ModelWarp.__annotations__.keys():
     field = _wp_to_np_type(getattr(mw, k), k)
-    if mjxw.types._BATCH_DIM['Model'].get(k, False):  # pylint: disable=protected-access
+    if (  # pylint: disable=protected-access
+        k not in batch_sizes and mjxw.types._BATCH_DIM['Model'].get(k, False)
+    ):
       field = field.reshape(field.shape[1:])
     impl_fields[k] = field
 
@@ -534,6 +540,7 @@ def put_model(
     impl: Optional[Union[str, types.Impl]] = None,
     graph_mode: Optional[mjxw.types.GraphMode] = None,
     keepalive_refs: Optional[Dict[int, Any]] = None,
+    batch_sizes: Optional[Dict[str, int]] = None,
 ) -> types.Model:
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model.
 
@@ -546,6 +553,7 @@ def put_model(
     keepalive_refs: optional dict to store references to underlying MuJoCo
       objects, preventing them from being garbage collected. Required for CPP
       impl to keep the model alive.
+    batch_sizes: optional per-field leading batch sizes for Warp model fields.
 
   Returns:
     an mjx.Model placed on device
@@ -561,7 +569,7 @@ def put_model(
   elif impl == types.Impl.WARP:
     _check_warp_installed()
     graph_mode = graph_mode or getattr(mjxw.types.GraphMode, 'WARP')
-    return _put_model_warp(m, graph_mode, device)
+    return _put_model_warp(m, graph_mode, device, batch_sizes=batch_sizes)
   elif impl == types.Impl.CPP:
     return _put_model_cpp(m, device, keepalive_refs=keepalive_refs)
   else:
