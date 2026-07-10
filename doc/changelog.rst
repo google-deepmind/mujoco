@@ -309,7 +309,7 @@ General
    :ref:`invdiscrete<option-flag-invdiscrete>` flag now also disables midpoint integration, providing an opt-out
    mechanism.
 5. Added the centripetal/Coriolis acceleration term :math:`\dot{J}v` to the constraint solver bias for
-   :ref:`connect<equality-connect>` and :ref:`weld<equality-weld>` equality constaints. This significantly improves the
+   :ref:`connect<equality-connect>` and :ref:`weld<equality-weld>` equality constraints. This significantly improves the
    stability of constrained mechanisms like four-bar linkages. See :ref:`Dual problem<soDual>` for details.
 
 6. Introduced :ref:`mjpEncoder`, the counterpart to :ref:`mjpDecoder` for encoding of :ref:`mjSpec` and :ref:`mjModel`
