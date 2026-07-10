@@ -293,4 +293,5 @@ accelerated headless rendering.
     ui
     modeledit
     samples
+    simulate
     extension
