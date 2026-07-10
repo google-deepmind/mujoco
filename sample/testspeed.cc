@@ -310,7 +310,7 @@ int main(int argc, char** argv) {
       "  --integrator=I         Euler     Euler, RK4, Implicit, ImplicitFast\n"
       "  --iterations=N         100       solver iterations limit\n"
       "  --tolerance=X          1e-8      solver tolerance\n"
-      "  --sleep_tolerance=X    1e-4      sleep tolerance\n"
+      "  --sleep_tolerance=X    1e-3      sleep tolerance\n"
       "  --noslip_iterations=N  0         noslip solver iterations limit\n"
       "  --help (or no arguments)         print this help message\n"
       "\n"

@@ -446,7 +446,7 @@ high-performance tensor/matrix operations optimized for fixed tile sizes.
 
 .. note::
    Consider increasing the sleep tolerance setting (e.g., ``sleep_tolerance="0.01"`` in XML options or
-   ``spec.option.sleep_tolerance = 0.01`` in Python) from its default value (0.0001) to more quickly
+   ``spec.option.sleep_tolerance = 0.01`` in Python) from its default value (0.001) to more quickly
    sleep objects.
 
 .. _mjwBatch:

@@ -466,7 +466,7 @@ adjust it properly through the XML.
 
 .. _option-sleep_tolerance:
 
-:at:`sleep_tolerance`: :at-val:`real, "1e-4"`
+:at:`sleep_tolerance`: :at-val:`real, "1e-3"`
    Velocity tolerance below which :ref:`sleeping<Sleeping>` is allowed.
 
 .. _option-sdf_iterations:

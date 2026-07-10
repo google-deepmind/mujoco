@@ -63,7 +63,7 @@ void mj_defaultOption(mjOption* opt) {
   opt->ccd_tolerance      = 1e-6;
 
   // sleep settings
-  opt->sleep_tolerance    = 1e-4;
+  opt->sleep_tolerance    = 1e-3;
 
   // physical constants
   opt->gravity[0]         = 0;

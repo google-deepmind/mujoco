@@ -33,6 +33,8 @@ General
      exclusively in the compressed sparse row (CSR) format ``mjData.M``.
    - :ref:`mju_round` now breaks ties away from zero rather than towards :math:`+\infty`. This only affects
      negative half-integers, e.g. ``mju_round(-2.5)`` now returns -3 rather than -2.
+   - Changed the default value of :ref:`sleep_tolerance<option-sleep_tolerance>` from 1e-4 to 1e-3 (1mm/sec in SI
+     units).
 
 Version 3.10.0 (June 22, 2026)
 ------------------------------
