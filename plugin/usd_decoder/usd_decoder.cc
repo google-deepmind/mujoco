@@ -1919,14 +1919,35 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
     ParseMjcPhysicsCollisionAPI(geom, pxr::MjcPhysicsCollisionAPI(prim));
   }
 
+  // Check for physics-purpose material binding first (for contact properties)
+  pxr::TfToken physics_purpose("physics");
+  pxr::UsdShadeMaterial physics_material =
+      pxr::UsdShadeMaterialBindingAPI(prim).ComputeBoundMaterial(
+          physics_purpose, &caches.bindings_cache, &caches.collection_query_cache);
+  if (physics_material) {
+    pxr::UsdPrim physics_material_prim = physics_material.GetPrim();
+    if (physics_material_prim.HasAPI<pxr::UsdPhysicsMaterialAPI>() ||
+        physics_material_prim.HasAPI<pxr::MjcPhysicsMaterialAPI>() ||
+        physics_material_prim.HasAPI(kNewtonTokens->NewtonMaterialAPI)) {
+      ParseUsdPhysicsMaterialAPI(
+          geom, pxr::UsdPhysicsMaterialAPI(physics_material_prim));
+      ParseMjcPhysicsMaterialAPI(
+          geom, physics_material_prim,
+          pxr::MjcPhysicsMaterialAPI(physics_material_prim));
+    }
+  }
+
+  // Check for default/all-purpose material binding (for visual properties)
   pxr::UsdShadeMaterial bound_material =
       pxr::UsdShadeMaterialBindingAPI(prim).ComputeBoundMaterial(
           &caches.bindings_cache, &caches.collection_query_cache);
   if (bound_material) {
     pxr::UsdPrim bound_material_prim = bound_material.GetPrim();
-    if (bound_material_prim.HasAPI<pxr::UsdPhysicsMaterialAPI>() ||
-        bound_material_prim.HasAPI<pxr::MjcPhysicsMaterialAPI>() ||
-        bound_material_prim.HasAPI(kNewtonTokens->NewtonMaterialAPI)) {
+    // If no physics-purpose binding was found, check default binding for physics APIs
+    if (!physics_material &&
+        (bound_material_prim.HasAPI<pxr::UsdPhysicsMaterialAPI>() ||
+         bound_material_prim.HasAPI<pxr::MjcPhysicsMaterialAPI>() ||
+         bound_material_prim.HasAPI(kNewtonTokens->NewtonMaterialAPI))) {
       ParseUsdPhysicsMaterialAPI(
           geom, pxr::UsdPhysicsMaterialAPI(bound_material_prim));
       ParseMjcPhysicsMaterialAPI(
