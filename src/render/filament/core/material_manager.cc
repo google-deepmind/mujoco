@@ -236,7 +236,11 @@ MaterialManager::MaterialKey MaterialManager::PrepareMaterialInstance(
   return key;
 }
 
-filament::MaterialInstance* MaterialManager::GetInstance(MaterialKey key) {
+const filament::MaterialInstance* MaterialManager::GetInstance(MaterialKey key) {
+  if (key == 0) {
+    return GetEngine()->getDefaultMaterial()->getDefaultInstance();
+  }
+
   auto it = instances_.find(key);
   if (it == instances_.end()) {
     return nullptr;

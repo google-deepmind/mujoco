@@ -239,6 +239,9 @@ const mjrfMaterial& Renderable::GetMaterial() const { return material_; }
 
 void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
                          ReflectionManager* reflection_mgr) {
+  // Ensure the renderable has no material instances set from the previous
+  // frame. This will allow us to recycle material instances if needed.
+  SetMaterialInstance(0);
   // We assume BindMaterialInstance will be called with the same requests in
   // the same order. As such, we'll just store the draw state in a deque rather
   // than trying to perform any kind of matching with the requests.
@@ -388,7 +391,8 @@ MaterialManager::MaterialKey Renderable::SetMaterialInstance(
     MaterialManager::MaterialKey key) {
   MaterialManager::MaterialKey prev = curr_state_.material_key;
   if (key != curr_state_.material_key) {
-    filament::MaterialInstance* instance = material_mgr_->GetInstance(key);
+    const filament::MaterialInstance* instance =
+        material_mgr_->GetInstance(key);
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (Part& part : parts_) {
       filament::RenderableManager::Instance ri = rm.getInstance(part.entity);

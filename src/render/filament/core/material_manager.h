@@ -67,7 +67,7 @@ class MaterialManager {
                                       const Mesh* mesh);
 
   // Returns the MaterialInstance associated with the given key.
-  filament::MaterialInstance* GetInstance(MaterialKey key);
+  const filament::MaterialInstance* GetInstance(MaterialKey key);
 
   ObjectManager* GetObjectManager() const;
   filament::Engine* GetEngine() const;
