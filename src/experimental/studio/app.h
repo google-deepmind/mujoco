@@ -232,6 +232,7 @@ class App {
 
   void MainMenuGui();
   void ToolBarGui();
+  void TimelineScrubberGui();
   void StatusBarGui();
   void HelpGui();
   void FileDialogGui();
