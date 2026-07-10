@@ -228,14 +228,19 @@ def _site_local_to_global(
 def _flex_vertices(
   # Model:
   nflex: int,
+  flex_interp: wp.array[int],
+  flex_cellnum: wp.array[wp.vec3i],
+  flex_nodeadr: wp.array[int],
   flex_vertadr: wp.array[int],
   flex_vertnum: wp.array[int],
   flex_vertbodyid: wp.array[int],
   flex_vert: wp.array[wp.vec3],
+  flex_vert0: wp.array[wp.vec3],
   flex_centered: wp.array[bool],
   # Data in:
   xpos_in: wp.array2d[wp.vec3],
   xmat_in: wp.array2d[wp.mat33],
+  flexnode_xpos_in: wp.array2d[wp.vec3],
   # Data out:
   flexvert_xpos_out: wp.array2d[wp.vec3],
 ):
@@ -246,15 +251,93 @@ def _flex_vertices(
     if locid >= 0 and locid < flex_vertnum[f]:
       break
 
-  bodyid = flex_vertbodyid[vertid]
+  if flex_interp[f] != 0:
+    # Interpolated flex: vertex position = weighted sum of node positions
+    coord = flex_vert0[vertid]
+    cn = flex_cellnum[f]
+    cx = cn[0]
+    cy = cn[1]
+    cz = cn[2]
+
+    # Cell lookup: find containing cell
+    ci = wp.min(int(coord[0] * float(cx)), cx - 1)
+    ci = wp.max(ci, 0)
+    cj = wp.min(int(coord[1] * float(cy)), cy - 1)
+    cj = wp.max(cj, 0)
+    ck = wp.min(int(coord[2] * float(cz)), cz - 1)
+    ck = wp.max(ck, 0)
+
+    # Local parametric coordinates within cell
+    local_x = wp.clamp(coord[0] * float(cx) - float(ci), 0.0, 1.0)
+    local_y = wp.clamp(coord[1] * float(cy) - float(cj), 0.0, 1.0)
+    local_z = wp.clamp(coord[2] * float(cz) - float(ck), 0.0, 1.0)
+    local = wp.vec3(local_x, local_y, local_z)
+
+    # Node grid dimensions
+    ny_g = cy + 1
+    nz_g = cz + 1
+    nstart = flex_nodeadr[f]
+
+    # Accumulate weighted node positions
+    result = wp.vec3(0.0, 0.0, 0.0)
+    for li in range(2):
+      for lj in range(2):
+        for lk in range(2):
+          w = support.eval_basis_trilinear(local, li * 4 + lj * 2 + lk)
+          gi = ci + li
+          gj = cj + lj
+          gk = ck + lk
+          node_idx = gi * ny_g * nz_g + gj * nz_g + gk
+          result += w * flexnode_xpos_in[worldid, nstart + node_idx]
+
+    flexvert_xpos_out[worldid, vertid] = result
+  else:
+    # Non-interpolated flex: vertex position from single body
+    bodyid = flex_vertbodyid[vertid]
+    xpos = xpos_in[worldid, bodyid]
+
+    if flex_centered[f]:
+      flexvert_xpos_out[worldid, vertid] = xpos
+    else:
+      xmat = xmat_in[worldid, bodyid]
+      local_pos = flex_vert[vertid]
+      flexvert_xpos_out[worldid, vertid] = xmat @ local_pos + xpos
+
+
+@wp.kernel
+def _flex_nodes(
+  # Model:
+  nflex: int,
+  flex_nodeadr: wp.array[int],
+  flex_nodenum: wp.array[int],
+  flex_nodebodyid: wp.array[int],
+  flex_node: wp.array[wp.vec3],
+  flex_centered: wp.array[bool],
+  # Data in:
+  xpos_in: wp.array2d[wp.vec3],
+  xmat_in: wp.array2d[wp.mat33],
+  # Data out:
+  flexnode_xpos_out: wp.array2d[wp.vec3],
+):
+  worldid, nodeid = wp.tid()
+
+  for f in range(nflex):
+    locid = nodeid - flex_nodeadr[f]
+    if locid >= 0 and locid < flex_nodenum[f]:
+      break
+
+  bodyid = flex_nodebodyid[nodeid]
   xpos = xpos_in[worldid, bodyid]
 
   if flex_centered[f]:
-    flexvert_xpos_out[worldid, vertid] = xpos
+    flexnode_xpos_out[worldid, nodeid] = xpos
   else:
-    xmat = xmat_in[worldid, bodyid]
-    local_pos = flex_vert[vertid]
-    flexvert_xpos_out[worldid, vertid] = xmat @ local_pos + xpos
+    local_pos = flex_node[nodeid]
+    if local_pos[0] == 0.0 and local_pos[1] == 0.0 and local_pos[2] == 0.0:
+      flexnode_xpos_out[worldid, nodeid] = xpos
+    else:
+      xmat = xmat_in[worldid, bodyid]
+      flexnode_xpos_out[worldid, nodeid] = xmat @ local_pos + xpos
 
 
 @wp.kernel
@@ -301,6 +384,11 @@ def _flex_edges(
   # TODO(quaglino): use Jacobian
   b1 = flex_vertbodyid[vbase0]
   b2 = flex_vertbodyid[vbase1]
+
+  # skip Jacobian/velocity for trilinear flex (vertbodyid == -1)
+  if b1 < 0 or b2 < 0:
+    flexedge_velocity_out[worldid, edgeid] = 0.0
+    return
 
   dofnum1 = body_dofnum[b1]
   dofnum2 = body_dofnum[b2]
@@ -417,18 +505,40 @@ def kinematics(m: Model, d: Data):
 
 @event_scope
 def flex(m: Model, d: Data):
+  # Compute node positions first (needed for interpolated vertex positions)
+  wp.launch(
+    _flex_nodes,
+    dim=(d.nworld, m.nflexnode),
+    inputs=[
+      m.nflex,
+      m.flex_nodeadr,
+      m.flex_nodenum,
+      m.flex_nodebodyid,
+      m.flex_node,
+      m.flex_centered,
+      d.xpos,
+      d.xmat,
+    ],
+    outputs=[d.flexnode_xpos],
+  )
+
   wp.launch(
     _flex_vertices,
     dim=(d.nworld, m.nflexvert),
     inputs=[
       m.nflex,
+      m.flex_interp,
+      m.flex_cellnum,
+      m.flex_nodeadr,
       m.flex_vertadr,
       m.flex_vertnum,
       m.flex_vertbodyid,
       m.flex_vert,
+      m.flex_vert0,
       m.flex_centered,
       d.xpos,
       d.xmat,
+      d.flexnode_xpos,
     ],
     outputs=[d.flexvert_xpos],
   )

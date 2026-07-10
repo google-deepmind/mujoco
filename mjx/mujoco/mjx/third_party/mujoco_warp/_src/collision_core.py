@@ -16,7 +16,7 @@
 """Core collision types and utilities shared across collision modules."""
 
 import dataclasses
-from typing import Tuple
+from typing import Any, Tuple
 
 import warp as wp
 
@@ -63,9 +63,8 @@ class Geom:
 
 
 @wp.func
-def geom_collision_pair(
+def geom_collision_pair_from_types(
   # Model:
-  geom_type: wp.array[int],
   geom_dataid: wp.array2d[int],
   geom_size: wp.array2d[wp.vec3],
   mesh_vertadr: wp.array[int],
@@ -86,6 +85,8 @@ def geom_collision_pair(
   geom_xpos_in: wp.array2d[wp.vec3],
   geom_xmat_in: wp.array2d[wp.mat33],
   # In:
+  geom_type1: int,
+  geom_type2: int,
   geoms: wp.vec2i,
   worldid: int,
 ) -> Tuple[Geom, Geom]:
@@ -94,8 +95,6 @@ def geom_collision_pair(
 
   g1 = geoms[0]
   g2 = geoms[1]
-  geom_type1 = geom_type[g1]
-  geom_type2 = geom_type[g2]
 
   geom1.pos = geom_xpos_in[worldid, g1]
   geom1.rot = geom_xmat_in[worldid, g1]
@@ -154,6 +153,61 @@ def geom_collision_pair(
   geom2.margin = 0.0
 
   return geom1, geom2
+
+
+@wp.func
+def geom_collision_pair(
+  # Model:
+  geom_type: wp.array[int],
+  geom_dataid: wp.array2d[int],
+  geom_size: wp.array2d[wp.vec3],
+  mesh_vertadr: wp.array[int],
+  mesh_vertnum: wp.array[int],
+  mesh_graphadr: wp.array[int],
+  mesh_vert: wp.array[wp.vec3],
+  mesh_graph: wp.array[int],
+  mesh_polynum: wp.array[int],
+  mesh_polyadr: wp.array[int],
+  mesh_polynormal: wp.array[wp.vec3],
+  mesh_polyvertadr: wp.array[int],
+  mesh_polyvertnum: wp.array[int],
+  mesh_polyvert: wp.array[int],
+  mesh_polymapadr: wp.array[int],
+  mesh_polymapnum: wp.array[int],
+  mesh_polymap: wp.array[int],
+  # Data in:
+  geom_xpos_in: wp.array2d[wp.vec3],
+  geom_xmat_in: wp.array2d[wp.mat33],
+  # In:
+  geoms: wp.vec2i,
+  worldid: int,
+) -> Tuple[Geom, Geom]:
+  geom_type1 = geom_type[geoms[0]]
+  geom_type2 = geom_type[geoms[1]]
+  return geom_collision_pair_from_types(
+    geom_dataid,
+    geom_size,
+    mesh_vertadr,
+    mesh_vertnum,
+    mesh_graphadr,
+    mesh_vert,
+    mesh_graph,
+    mesh_polynum,
+    mesh_polyadr,
+    mesh_polynormal,
+    mesh_polyvertadr,
+    mesh_polyvertnum,
+    mesh_polyvert,
+    mesh_polymapadr,
+    mesh_polymapnum,
+    mesh_polymap,
+    geom_xpos_in,
+    geom_xmat_in,
+    geom_type1,
+    geom_type2,
+    geoms,
+    worldid,
+  )
 
 
 @wp.func
@@ -234,7 +288,33 @@ def write_contact(
 
 
 @wp.func
-def contact_params(
+def contact_margin_gap(
+  # Model:
+  geom_margin: wp.array2d[float],
+  geom_gap: wp.array2d[float],
+  pair_margin: wp.array2d[float],
+  pair_gap: wp.array2d[float],
+  # In:
+  geoms: wp.vec2i,
+  pairid: int,
+  worldid: int,
+) -> Tuple[float, float]:
+  if pairid > -1:
+    margin = pair_margin[worldid % pair_margin.shape[0], pairid]
+    gap = pair_gap[worldid % pair_gap.shape[0], pairid]
+  else:
+    g1 = geoms[0]
+    g2 = geoms[1]
+    margin_id = worldid % geom_margin.shape[0]
+    gap_id = worldid % geom_gap.shape[0]
+    margin = geom_margin[margin_id, g1] + geom_margin[margin_id, g2]
+    gap = geom_gap[gap_id, g1] + geom_gap[gap_id, g2]
+
+  return margin, gap
+
+
+@wp.func
+def contact_material_params(
   # Model:
   geom_condim: wp.array[int],
   geom_priority: wp.array[int],
@@ -242,35 +322,17 @@ def contact_params(
   geom_solref: wp.array2d[wp.vec2],
   geom_solimp: wp.array2d[vec5],
   geom_friction: wp.array2d[wp.vec3],
-  geom_margin: wp.array2d[float],
-  geom_gap: wp.array2d[float],
   pair_dim: wp.array[int],
   pair_solref: wp.array2d[wp.vec2],
   pair_solreffriction: wp.array2d[wp.vec2],
   pair_solimp: wp.array2d[vec5],
-  pair_margin: wp.array2d[float],
-  pair_gap: wp.array2d[float],
   pair_friction: wp.array2d[vec5],
   # In:
-  collision_pair_in: wp.array[wp.vec2i],
-  collision_pairid_in: wp.array[wp.vec2i],
-  cid: int,
+  geoms: wp.vec2i,
+  pairid: int,
   worldid: int,
 ):
-  """Resolve contact parameters for a collision pair.
-
-  Uses explicit pair overrides when available, otherwise mixes geom-level
-  properties by priority and solmix weights.
-  """
-  geoms = collision_pair_in[cid]
-  pairid = collision_pairid_in[cid][0]
-
-  # TODO(team): early return if collision sensor but no contact
-  # (ie, pairid[0] < -1 and pairid[1] < 0)
-
   if pairid > -1:
-    margin = pair_margin[worldid % pair_margin.shape[0], pairid]
-    gap = pair_gap[worldid % pair_gap.shape[0], pairid]
     condim = pair_dim[pairid]
     friction = pair_friction[worldid % pair_friction.shape[0], pairid]
     solref = pair_solref[worldid % pair_solref.shape[0], pairid]
@@ -283,8 +345,6 @@ def contact_params(
     friction_id = worldid % geom_friction.shape[0]
     solref_id = worldid % geom_solref.shape[0]
     solimp_id = worldid % geom_solimp.shape[0]
-    margin_id = worldid % geom_margin.shape[0]
-    gap_id = worldid % geom_gap.shape[0]
 
     solmix1 = geom_solmix[solmix_id, g1]
     solmix2 = geom_solmix[solmix_id, g2]
@@ -327,9 +387,6 @@ def contact_params(
 
     solreffriction = wp.vec2(0.0, 0.0)
     solimp = mix * geom_solimp[solimp_id, g1] + (1.0 - mix) * geom_solimp[solimp_id, g2]
-    # geom priority is ignored
-    margin = geom_margin[margin_id, g1] + geom_margin[margin_id, g2]
-    gap = geom_gap[gap_id, g1] + geom_gap[gap_id, g2]
 
   friction = vec5(
     wp.max(MJ_MINMU, friction[0]),
@@ -337,6 +394,62 @@ def contact_params(
     wp.max(MJ_MINMU, friction[2]),
     wp.max(MJ_MINMU, friction[3]),
     wp.max(MJ_MINMU, friction[4]),
+  )
+
+  return condim, friction, solref, solreffriction, solimp
+
+
+@wp.func
+def contact_params(
+  # Model:
+  geom_condim: wp.array[int],
+  geom_priority: wp.array[int],
+  geom_solmix: wp.array2d[float],
+  geom_solref: wp.array2d[wp.vec2],
+  geom_solimp: wp.array2d[vec5],
+  geom_friction: wp.array2d[wp.vec3],
+  geom_margin: wp.array2d[float],
+  geom_gap: wp.array2d[float],
+  pair_dim: wp.array[int],
+  pair_solref: wp.array2d[wp.vec2],
+  pair_solreffriction: wp.array2d[wp.vec2],
+  pair_solimp: wp.array2d[vec5],
+  pair_margin: wp.array2d[float],
+  pair_gap: wp.array2d[float],
+  pair_friction: wp.array2d[vec5],
+  # In:
+  collision_pair_in: wp.array[wp.vec2i],
+  collision_pairid_in: wp.array[wp.vec2i],
+  cid: int,
+  worldid: int,
+):
+  """Resolve contact parameters for a collision pair.
+
+  Uses explicit pair overrides when available, otherwise mixes geom-level
+  properties by priority and solmix weights.
+  """
+  geoms = collision_pair_in[cid]
+  pairid = collision_pairid_in[cid][0]
+
+  # TODO(team): early return if collision sensor but no contact
+  # (ie, pairid[0] < -1 and pairid[1] < 0)
+
+  margin, gap = contact_margin_gap(geom_margin, geom_gap, pair_margin, pair_gap, geoms, pairid, worldid)
+  condim, friction, solref, solreffriction, solimp = contact_material_params(
+    geom_condim,
+    geom_priority,
+    geom_solmix,
+    geom_solref,
+    geom_solimp,
+    geom_friction,
+    pair_dim,
+    pair_solref,
+    pair_solreffriction,
+    pair_solimp,
+    pair_friction,
+    geoms,
+    pairid,
+    worldid,
   )
 
   return geoms, margin, gap, condim, friction, solref, solreffriction, solimp
@@ -355,6 +468,111 @@ class CollisionContext:
   collision_pair: wp.array
   collision_pairid: wp.array
   collision_worldid: wp.array
+
+
+@wp.func
+def sap_binary_search(values: wp.array[Any], value: Any, lower: int, upper: int) -> int:
+  """Binary search for the first element > value in sorted array."""
+  while lower < upper:
+    mid = (lower + upper) >> 1
+    if values[mid] > value:
+      upper = mid
+    else:
+      lower = mid + 1
+  return upper
+
+
+@wp.kernel
+def sap_range(
+  # In:
+  n: int,
+  lower_in: wp.array2d[float],
+  upper_in: wp.array2d[float],
+  sort_index_in: wp.array2d[int],
+  # Out:
+  range_out: wp.array2d[int],
+):
+  """Compute the sweep range for each sorted element."""
+  worldid, sortedid = wp.tid()
+
+  idx = sort_index_in[worldid, sortedid]
+  upper = upper_in[worldid, idx]
+
+  limit = sap_binary_search(lower_in[worldid], upper, sortedid + 1, n)
+  limit = wp.min(n - 1, limit)
+
+  range_out[worldid, sortedid] = limit - sortedid
+
+
+@wp.kernel
+def sap_sweep(
+  # In:
+  n: int,
+  sort_index_in: wp.array2d[int],
+  cumulative_sum_in: wp.array[int],
+  nsweep_in: int,
+  aabb_lower_in: wp.array2d[wp.vec3],
+  aabb_upper_in: wp.array2d[wp.vec3],
+  max_pairs: int,
+  # Out:
+  npairs_out: wp.array[int],
+  pair_id1_out: wp.array[int],
+  pair_id2_out: wp.array[int],
+  pair_worldid_out: wp.array[int],
+):
+  """Generic SAP sweep: output AABB-overlapping pairs.
+
+  This is the GPU equivalent of MuJoCo's mj_SAP function. It takes
+  axis-aligned bounding boxes and outputs pairs whose AABBs overlap
+  on all 3 axes. Domain-specific filtering is done by the caller.
+  """
+  worldelemid = wp.tid()
+
+  nworldelem = cumulative_sum_in.shape[0]
+  nworkpackages = cumulative_sum_in[nworldelem - 1]
+
+  while worldelemid < nworkpackages:
+    # Binary search to find sortedid (i) and partner sortedid (j)
+    i = sap_binary_search(cumulative_sum_in, worldelemid, 0, nworldelem)
+    j = i + worldelemid + 1
+    if i > 0:
+      j -= cumulative_sum_in[i - 1]
+
+    worldid = i // n
+    i = i % n
+    j = j % n
+
+    # Get actual element indices from sorted order
+    elem1 = sort_index_in[worldid, i]
+    elem2 = sort_index_in[worldid, j]
+
+    # Ensure elem1 < elem2 for consistent ordering
+    if elem1 > elem2:
+      tmp = elem1
+      elem1 = elem2
+      elem2 = tmp
+
+    worldelemid += nsweep_in
+
+    # AABB overlap test on all 3 axes
+    lower1 = aabb_lower_in[worldid, elem1]
+    upper1 = aabb_upper_in[worldid, elem1]
+    lower2 = aabb_lower_in[worldid, elem2]
+    upper2 = aabb_upper_in[worldid, elem2]
+
+    if lower1[0] > upper2[0] or lower2[0] > upper1[0]:
+      continue
+    if lower1[1] > upper2[1] or lower2[1] > upper1[1]:
+      continue
+    if lower1[2] > upper2[2] or lower2[2] > upper1[2]:
+      continue
+
+    # Output this pair
+    idx = wp.atomic_add(npairs_out, 0, 1)
+    if idx < max_pairs:
+      pair_id1_out[idx] = elem1
+      pair_id2_out[idx] = elem2
+      pair_worldid_out[idx] = worldid
 
 
 def create_collision_context(naconmax: int) -> CollisionContext:

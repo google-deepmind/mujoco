@@ -64,6 +64,115 @@ def next_act(
   return act
 
 
+@wp.func
+def mat33_to_quat_polar(F: wp.mat33) -> wp.quat:
+  cell_quat = wp.quat(0.0, 0.0, 0.0, 1.0)
+  for _iter in range(10):
+    rot = wp.quat_to_matrix(cell_quat)
+    rot_t = wp.transpose(rot)
+    col1_rot = rot_t[0]
+    col2_rot = rot_t[1]
+    col3_rot = rot_t[2]
+    F_t = wp.transpose(F)
+    col1_mat = F_t[0]
+    col2_mat = F_t[1]
+    col3_mat = F_t[2]
+
+    omega = wp.cross(col1_rot, col1_mat) + wp.cross(col2_rot, col2_mat) + wp.cross(col3_rot, col3_mat)
+    denom = wp.abs(wp.dot(col1_rot, col1_mat) + wp.dot(col2_rot, col2_mat) + wp.dot(col3_rot, col3_mat)) + 1.0e-10
+    omega = omega / denom
+
+    w = wp.length(omega)
+    if w < 1.0e-6:
+      break
+
+    axis = omega / w
+    half_w = 0.5 * w
+    qrot = wp.quat(
+      axis[0] * wp.sin(half_w),
+      axis[1] * wp.sin(half_w),
+      axis[2] * wp.sin(half_w),
+      wp.cos(half_w),
+    )
+    cell_quat = wp.normalize(qrot * cell_quat)
+  return cell_quat
+
+
+@wp.func
+def compute_interp_cell_quat(
+  # Data in:
+  flexnode_xpos_in: wp.array2d[wp.vec3],
+  # In:
+  order: int,
+  ci: int,
+  cj: int,
+  ck: int,
+  cy: int,
+  cz: int,
+  ny_g: int,
+  nz_g: int,
+  nstart: int,
+  worldid: int,
+) -> wp.quat:
+  """Computes corotational cell quaternion from deformation gradient at cell center."""
+  npc = (order + 1) * (order + 1) * (order + 1)
+  F = wp.mat33(0.0)
+  idx = int(0)
+  for li in range(order + 1):
+    for lj in range(order + 1):
+      for lk in range(order + 1):
+        if idx < npc:
+          gi = ci * order + li
+          gj = cj * order + lj
+          gk = ck * order + lk
+          gidx = gi * ny_g * nz_g + gj * nz_g + gk
+
+          node_pos = flexnode_xpos_in[worldid, nstart + gidx]
+
+          if order == 1:
+            dphi_x = float(-1) if li == 0 else float(1)
+            dphi_y = float(-1) if lj == 0 else float(1)
+            dphi_z = float(-1) if lk == 0 else float(1)
+            phi_x = float(0.5)
+            phi_y = float(0.5)
+            phi_z = float(0.5)
+          else:
+            if li == 0:
+              dphi_x = -1.0
+            elif li == 1:
+              dphi_x = 0.0
+            else:
+              dphi_x = 1.0
+            if lj == 0:
+              dphi_y = -1.0
+            elif lj == 1:
+              dphi_y = 0.0
+            else:
+              dphi_y = 1.0
+            if lk == 0:
+              dphi_z = -1.0
+            elif lk == 1:
+              dphi_z = 0.0
+            else:
+              dphi_z = 1.0
+            phi_x = 0.5 if li == 0 or li == 2 else 1.0
+            phi_y = 0.5 if lj == 0 or lj == 2 else 1.0
+            phi_z = 0.5 if lk == 0 or lk == 2 else 1.0
+
+          grad_x = dphi_x * phi_y * phi_z
+          grad_y = phi_x * dphi_y * phi_z
+          grad_z = phi_x * phi_y * dphi_z
+
+          for r in range(3):
+            F[r, 0] += node_pos[r] * grad_x
+            F[r, 1] += node_pos[r] * grad_y
+            F[r, 2] += node_pos[r] * grad_z
+
+          idx += 1
+
+  return mat33_to_quat_polar(F)
+
+
 @cache_kernel
 def mul_m_kernel(check_skip: bool):
   @wp.kernel(module="unique")
@@ -893,3 +1002,84 @@ def set_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
       d.userdata,
     ],
   )
+
+
+@wp.func
+def _phi(s: float, i: int) -> float:
+  """1D trilinear basis function (order=1 only).
+
+  phi(s, 0) = 1 - s
+  phi(s, 1) = s
+  """
+  if i == 0:
+    return 1.0 - s
+  return s
+
+
+@wp.func
+def eval_basis_trilinear(local: wp.vec3, node_idx: int) -> float:
+  """Evaluate trilinear basis function for node_idx at local coords [0,1]^3.
+
+  For order=1 (trilinear), node_idx encodes (i,j,k) via bits:
+    k = node_idx & 1, j = (node_idx >> 1) & 1, i = (node_idx >> 2) & 1
+  """
+  k = node_idx & 1
+  j = (node_idx >> 1) & 1
+  i = (node_idx >> 2) & 1
+  return _phi(local[0], i) * _phi(local[1], j) * _phi(local[2], k)
+
+
+@wp.func
+def select_top4_weights(
+  # In:
+  W_mat: wp.mat33,
+  b_mat: wp.mat33,
+) -> tuple[wp.vec4i, wp.vec4]:
+  """Selects top 4 weights and their corresponding body IDs from 8 voxel corners."""
+  selected_b = wp.vec4i(-1, -1, -1, -1)
+  selected_W = wp.vec4(0.0, 0.0, 0.0, 0.0)
+
+  local_W = W_mat
+  for p in range(4):
+    max_w = -1.0
+    max_b = -1
+    max_r = -1
+    max_c = -1
+    for r in range(3):
+      for c in range(3):
+        idx = 3 * r + c
+        if idx < 8:
+          w = local_W[r, c]
+          if w > max_w:
+            max_w = w
+            max_b = int(b_mat[r, c])
+            max_r = r
+            max_c = c
+    # Record top choice for this pass and mark it as visited
+    if max_r >= 0:
+      local_W[max_r, max_c] = -1.0
+
+      if p == 0:
+        selected_b = wp.vec4i(max_b, -1, -1, -1)
+        selected_W = wp.vec4(max_w, 0.0, 0.0, 0.0)
+      elif p == 1:
+        selected_b = wp.vec4i(selected_b[0], max_b, -1, -1)
+        selected_W = wp.vec4(selected_W[0], max_w, 0.0, 0.0)
+      elif p == 2:
+        selected_b = wp.vec4i(selected_b[0], selected_b[1], max_b, -1)
+        selected_W = wp.vec4(selected_W[0], selected_W[1], max_w, 0.0)
+      else:
+        selected_b = wp.vec4i(selected_b[0], selected_b[1], selected_b[2], max_b)
+        selected_W = wp.vec4(selected_W[0], selected_W[1], selected_W[2], max_w)
+
+  # Normalize selected weights
+  sum_W = selected_W[0] + selected_W[1] + selected_W[2] + selected_W[3]
+  if sum_W > 1.0e-5:
+    selected_W = wp.vec4(
+      selected_W[0] / sum_W,
+      selected_W[1] / sum_W,
+      selected_W[2] / sum_W,
+      selected_W[3] / sum_W,
+    )
+
+  return selected_b, selected_W

@@ -87,6 +87,7 @@ def _create_solver_context(m: types.Model, d: types.Data) -> SolverContext:
     jv=wp.empty((nworld, njmax), dtype=float),
     quad=wp.empty((nworld, njmax), dtype=wp.vec3),
     alpha=wp.empty((nworld,), dtype=float),
+    grad_scale=wp.empty((nworld,), dtype=float),
     improvement=wp.empty((nworld,), dtype=float),
     prev_grad=wp.empty((nworld, nv), dtype=float),
     prev_Mgrad=wp.empty((nworld, nv), dtype=float),
@@ -839,6 +840,7 @@ def _linesearch_iterative_kernel(ls_iterations: int, cone_type: types.ConeType, 
     ctx_jv_out: wp.array2d[float],
     ctx_quad_out: wp.array2d[wp.vec3],
     ctx_improvement_out: wp.array[float],
+    ctx_alpha_out: wp.array[float],
   ):
     worldid, tid = wp.tid()
 
@@ -1202,7 +1204,11 @@ def _linesearch_iterative_kernel(ls_iterations: int, cone_type: types.ConeType, 
         swap_hi = swap_hi_hi_next or swap_hi_mid or swap_hi_lo_next
 
         # check for convergence
-        ls_done = (not swap_lo and not swap_hi) or (lo[1] < 0.0 and lo[1] > -gtol) or (hi[1] > 0.0 and hi[1] < gtol)
+        ls_done = (
+          (not swap_lo and not swap_hi)
+          or (lo[0] < 0.0 and lo[1] < 0.0 and lo[1] > -gtol)
+          or (hi[0] < 0.0 and hi[1] > 0.0 and hi[1] < gtol)
+        )
 
         # update alpha if improved
         improved = lo[0] < 0.0 or hi[0] < 0.0
@@ -1229,6 +1235,7 @@ def _linesearch_iterative_kernel(ls_iterations: int, cone_type: types.ConeType, 
 
     if tid == 0:
       ctx_improvement_out[worldid] = improvement
+      ctx_alpha_out[worldid] = alpha
 
   return kernel
 
@@ -1276,7 +1283,7 @@ def _linesearch_iterative(m: types.Model, d: types.Data, ctx: SolverContext, fus
       ctx.quad,
       ctx.done,
     ],
-    outputs=[d.qacc, d.efc.Ma, ctx.Jaref, ctx.jv, ctx.quad, ctx.improvement],
+    outputs=[d.qacc, d.efc.Ma, ctx.Jaref, ctx.jv, ctx.quad, ctx.improvement, ctx.alpha],
     block_dim=m.block_dim.linesearch_iterative,
   )
 
@@ -1380,8 +1387,13 @@ def _linesearch(m: types.Model, d: types.Data, ctx: SolverContext):
 
   # jv = J @ search (when not fused into iterative kernel)
   if not fuse_jv:
-    dofs_per_thread = 20 if m.nv > 50 else 50
-    threads_per_efc = ceil(m.nv / dofs_per_thread)
+    if m.is_sparse:
+      # Sparse J has few nonzeros per row, one thread handles them all.
+      dofs_per_thread = m.nv
+      threads_per_efc = 1
+    else:
+      dofs_per_thread = 20 if m.nv > 50 else 50
+      threads_per_efc = ceil(m.nv / dofs_per_thread)
 
     if threads_per_efc > 1:
       wp.launch(
@@ -1636,6 +1648,7 @@ def _update_constraint_init_qfrc_constraint_sparse(
   efc_J_in: wp.array3d[float],
   efc_force_in: wp.array2d[float],
   # In:
+  changed_count_in: wp.array[int],
   ctx_done_in: wp.array[bool],
   # Data out:
   qfrc_constraint_out: wp.array2d[float],
@@ -1645,10 +1658,15 @@ def _update_constraint_init_qfrc_constraint_sparse(
   if ctx_done_in[worldid]:
     return
 
+  if changed_count_in[worldid] == 0:
+    return
+
   if efcid >= nefc_in[worldid]:
     return
 
   force = efc_force_in[worldid, efcid]
+  if force == 0.0:
+    return
 
   rownnz = efc_J_rownnz_in[worldid, efcid]
   rowadr = efc_J_rowadr_in[worldid, efcid]
@@ -1660,29 +1678,58 @@ def _update_constraint_init_qfrc_constraint_sparse(
 
 
 @wp.kernel
-def _update_constraint_init_qfrc_constraint_dense(
+def _qfrc_constraint_from_grad(
   # Data in:
-  nefc_in: wp.array[int],
-  efc_J_in: wp.array3d[float],
-  efc_force_in: wp.array2d[float],
-  njmax_in: int,
+  qfrc_smooth_in: wp.array2d[float],
+  efc_Ma_in: wp.array2d[float],
   # In:
-  ctx_done_in: wp.array[bool],
+  ctx_grad_in: wp.array2d[float],
+  ctx_grad_scale_in: wp.array[float],
   # Data out:
   qfrc_constraint_out: wp.array2d[float],
 ):
   worldid, dofid = wp.tid()
 
-  if ctx_done_in[worldid]:
-    return
+  grad = ctx_grad_scale_in[worldid] * ctx_grad_in[worldid, dofid]
+  qfrc_constraint_out[worldid, dofid] = efc_Ma_in[worldid, dofid] - qfrc_smooth_in[worldid, dofid] - grad
 
-  sum_qfrc = float(0.0)
-  for efcid in range(min(njmax_in, nefc_in[worldid])):
-    efc_J = efc_J_in[worldid, efcid, dofid]
-    force = efc_force_in[worldid, efcid]
-    sum_qfrc += efc_J * force
 
-  qfrc_constraint_out[worldid, dofid] = sum_qfrc
+@cache_kernel
+def _update_constraint_init_qfrc_constraint_dense(stable_fast: bool):
+  STABLE_FAST = stable_fast
+
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Data in:
+    nefc_in: wp.array[int],
+    efc_J_in: wp.array3d[float],
+    efc_force_in: wp.array2d[float],
+    njmax_in: int,
+    # In:
+    changed_count_in: wp.array[int],
+    ctx_done_in: wp.array[bool],
+    # Data out:
+    qfrc_constraint_out: wp.array2d[float],
+  ):
+    worldid, dofid = wp.tid()
+
+    if ctx_done_in[worldid]:
+      return
+
+    # Fast path: stale qfrc_constraint is never read; recovered after the solve.
+    if wp.static(STABLE_FAST):
+      if changed_count_in[worldid] == 0:
+        return
+
+    sum_qfrc = float(0.0)
+    for efcid in range(min(njmax_in, nefc_in[worldid])):
+      efc_J = efc_J_in[worldid, efcid, dofid]
+      force = efc_force_in[worldid, efcid]
+      sum_qfrc += efc_J * force
+
+    qfrc_constraint_out[worldid, dofid] = sum_qfrc
+
+  return kernel
 
 
 @wp.kernel
@@ -1744,48 +1791,51 @@ def _update_gradient_h_incremental_sparse(
   # In:
   changed_ids_in: wp.array2d[int],
   changed_count_in: wp.array[int],
+  slots_per_world: int,
   # Out:
   ctx_h_out: wp.array3d[float],
 ):
-  """Incrementally update upper triangle of H for changed constraints (sparse J)."""
-  worldid, change_idx = wp.tid()
+  """Incrementally update upper triangle of H for changed constraints (sparse J).
+
+  One warp per changed constraint row: the lanes split the row's upper-triangular
+  entries (same sqrt triangular-number decode as _JTDAJ_sparse), replacing the
+  serial nnz^2 loop that dominated this kernel.
+  """
+  worldid, slot, lane = wp.tid()
 
   n_changes = changed_count_in[worldid]
-  if change_idx >= n_changes:
-    return
+  for change_idx in range(slot, n_changes, slots_per_world):
+    efcid = changed_ids_in[worldid, change_idx]
+    D = efc_D_in[worldid, efcid]
+    sign = float(0.0)
+    if efc_state_in[worldid, efcid] == types.ConstraintState.QUADRATIC.value:
+      sign = D
+    else:
+      sign = -D
 
-  efcid = changed_ids_in[worldid, change_idx]
-  D = efc_D_in[worldid, efcid]
-  sign = float(0.0)
-  if efc_state_in[worldid, efcid] == types.ConstraintState.QUADRATIC.value:
-    sign = D
-  else:
-    sign = -D
+    rownnz = efc_J_rownnz_in[worldid, efcid]
+    rowadr = efc_J_rowadr_in[worldid, efcid]
+    n_entries = rownnz * (rownnz + 1) // 2
 
-  rownnz = efc_J_rownnz_in[worldid, efcid]
-  rowadr = efc_J_rowadr_in[worldid, efcid]
-
-  for ii in range(rownnz):
-    sparseidi = rowadr + ii
-    Ji = efc_J_in[worldid, 0, sparseidi]
-    if Ji == 0.0:
-      continue
-    colindi = efc_J_colind_in[worldid, 0, sparseidi]
-    for jj in range(ii + 1):
-      sparseidj = rowadr + jj
-      Jj = efc_J_in[worldid, 0, sparseidj]
-      if Jj == 0.0:
-        continue
-      colindj = efc_J_colind_in[worldid, 0, sparseidj]
+    for entry in range(lane, n_entries, wp.static(_JTDAJ_THREADS_PER_GROUP)):
+      ii = int((wp.sqrt(float(8 * entry + 1)) - 1.0) * 0.5)
+      jj = entry - ii * (ii + 1) // 2
+      Ji = efc_J_in[worldid, 0, rowadr + ii]
+      Jj = efc_J_in[worldid, 0, rowadr + jj]
       h = sign * Ji * Jj
-      # Ensure upper triangle: smaller index first.
-      if colindi <= colindj:
-        wp.atomic_add(ctx_h_out[worldid, colindi], colindj, h)
-      else:
-        wp.atomic_add(ctx_h_out[worldid, colindj], colindi, h)
+      if h != 0.0:
+        colindi = efc_J_colind_in[worldid, 0, rowadr + ii]
+        colindj = efc_J_colind_in[worldid, 0, rowadr + jj]
+        wp.atomic_add(ctx_h_out[worldid, wp.min(colindi, colindj)], wp.max(colindi, colindj), h)
 
 
-def _update_constraint(m: types.Model, d: types.Data, ctx: SolverContext | InverseContext, track_changes: bool = False):
+def _update_constraint(
+  m: types.Model,
+  d: types.Data,
+  ctx: SolverContext | InverseContext,
+  track_changes: bool = False,
+  stable_fast: bool = False,
+):
   """Update constraint arrays after each solve iteration."""
   efc_inputs = [
     m.opt.impratio_invsqrt,
@@ -1811,59 +1861,97 @@ def _update_constraint(m: types.Model, d: types.Data, ctx: SolverContext | Inver
     outputs=[d.efc.force, d.efc.state, ctx.changed_efc_ids, ctx.changed_efc_count],
   )
 
-  # qfrc_constraint = efc_J.T @ efc_force
+  # qfrc_constraint = efc_J.T @ efc_force. Fast-path worlds with no state flips
+  # skip the rebuild; the public value is recovered after the solve.
+  changed = ctx.changed_efc_count if stable_fast else d.nefc
   if m.is_sparse:
     d.qfrc_constraint.zero_()
     wp.launch(
       _update_constraint_init_qfrc_constraint_sparse,
       dim=(d.nworld, d.njmax),
-      inputs=[d.nefc, d.efc.J_rownnz, d.efc.J_rowadr, d.efc.J_colind, d.efc.J, d.efc.force, ctx.done],
+      inputs=[d.nefc, d.efc.J_rownnz, d.efc.J_rowadr, d.efc.J_colind, d.efc.J, d.efc.force, changed, ctx.done],
       outputs=[d.qfrc_constraint],
     )
   else:
     wp.launch(
-      _update_constraint_init_qfrc_constraint_dense,
+      _update_constraint_init_qfrc_constraint_dense(stable_fast),
       dim=(d.nworld, m.nv),
-      inputs=[d.nefc, d.efc.J, d.efc.force, d.njmax, ctx.done],
+      inputs=[d.nefc, d.efc.J, d.efc.force, d.njmax, changed, ctx.done],
       outputs=[d.qfrc_constraint],
     )
 
 
-@wp.kernel
-def _update_gradient_zero_grad_dot(
-  # In:
-  ctx_done_in: wp.array[bool],
-  # Out:
-  ctx_grad_dot_out: wp.array[float],
-):
-  worldid = wp.tid()
+@cache_kernel
+def _update_gradient_zero_grad_dot(stable_fast: bool):
+  STABLE_FAST = stable_fast
 
-  if ctx_done_in[worldid]:
-    return
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # In:
+    changed_count_in: wp.array[int],
+    ctx_alpha_in: wp.array[float],
+    ctx_done_in: wp.array[bool],
+    # Out:
+    ctx_grad_dot_out: wp.array[float],
+    ctx_grad_scale_out: wp.array[float],
+  ):
+    worldid = wp.tid()
 
-  ctx_grad_dot_out[worldid] = 0.0
+    if ctx_done_in[worldid]:
+      return
+
+    # Fast path: grad stays stale at its last rebuilt value g. The true
+    # gradient is grad_scale * g, and a linesearch step t along the (equally
+    # stale) search direction changes it to (grad_scale - t) * g.
+    if wp.static(STABLE_FAST):
+      if changed_count_in[worldid] == 0:
+        sigma = ctx_grad_scale_out[worldid]
+        new_sigma = sigma - ctx_alpha_in[worldid]
+        ratio = float(0.0)
+        if sigma != 0.0:
+          ratio = new_sigma / sigma
+        ctx_grad_dot_out[worldid] *= ratio * ratio
+        ctx_grad_scale_out[worldid] = new_sigma
+        return
+
+    ctx_grad_dot_out[worldid] = 0.0
+    ctx_grad_scale_out[worldid] = 1.0
+
+  return kernel
 
 
-@wp.kernel
-def _update_gradient_grad(
-  # Data in:
-  qfrc_smooth_in: wp.array2d[float],
-  qfrc_constraint_in: wp.array2d[float],
-  efc_Ma_in: wp.array2d[float],
-  # In:
-  ctx_done_in: wp.array[bool],
-  # Out:
-  ctx_grad_out: wp.array2d[float],
-  ctx_grad_dot_out: wp.array[float],
-):
-  worldid, dofid = wp.tid()
+@cache_kernel
+def _update_gradient_grad(stable_fast: bool):
+  STABLE_FAST = stable_fast
 
-  if ctx_done_in[worldid]:
-    return
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Data in:
+    qfrc_smooth_in: wp.array2d[float],
+    qfrc_constraint_in: wp.array2d[float],
+    efc_Ma_in: wp.array2d[float],
+    # In:
+    changed_count_in: wp.array[int],
+    ctx_done_in: wp.array[bool],
+    # Out:
+    ctx_grad_out: wp.array2d[float],
+    ctx_grad_dot_out: wp.array[float],
+  ):
+    worldid, dofid = wp.tid()
 
-  grad = efc_Ma_in[worldid, dofid] - qfrc_smooth_in[worldid, dofid] - qfrc_constraint_in[worldid, dofid]
-  ctx_grad_out[worldid, dofid] = grad
-  wp.atomic_add(ctx_grad_dot_out, worldid, grad * grad)
+    if ctx_done_in[worldid]:
+      return
+
+    # Fast path: grad stays stale (see _update_gradient_zero_grad_dot).
+    if wp.static(STABLE_FAST):
+      if changed_count_in[worldid] == 0:
+        return
+
+    grad = efc_Ma_in[worldid, dofid] - qfrc_smooth_in[worldid, dofid] - qfrc_constraint_in[worldid, dofid]
+    ctx_grad_out[worldid, dofid] = grad
+    wp.atomic_add(ctx_grad_dot_out, worldid, grad * grad)
+
+  return kernel
 
 
 @wp.kernel
@@ -2585,12 +2673,15 @@ def _update_gradient_JTCJ_dense(
 
 
 @cache_kernel
-def _update_gradient_cholesky(tile_size: int):
+def _update_gradient_cholesky(tile_size: int, skip_noflip: bool = False):
+  SKIP_NOFLIP = skip_noflip
+
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # In:
     ctx_grad_in: wp.array2d[float],
     h_in: wp.array3d[float],
+    changed_count_in: wp.array[int],
     ctx_done_in: wp.array[bool],
     # Out:
     ctx_Mgrad_out: wp.array2d[float],
@@ -2600,6 +2691,11 @@ def _update_gradient_cholesky(tile_size: int):
 
     if ctx_done_in[worldid]:
       return
+
+    # Fast path: skip the solve (see the blocked skip_unchanged variant).
+    if wp.static(SKIP_NOFLIP):
+      if changed_count_in[worldid] == 0:
+        return
 
     mat_tile = wp.tile_load(h_in[worldid], shape=(TILE_SIZE, TILE_SIZE))
     wp.tile_cholesky_inplace(mat_tile, fill_mode="upper")
@@ -2642,8 +2738,9 @@ def _update_gradient_cholesky_blocked(tile_size: int, matrix_size: int, check_sk
 
 
 @cache_kernel
-def _update_gradient_cholesky_blocked_skip_unchanged(tile_size: int, matrix_size: int):
+def _update_gradient_cholesky_blocked_skip_unchanged(tile_size: int, matrix_size: int, skip_noflip: bool = False):
   """Blocked Cholesky that skips factorization when no constraints changed."""
+  SKIP_NOFLIP = skip_noflip
 
   @wp.kernel(module="unique", enable_backward=False, module_options={"enable_mathdx_gemm": False})
   def kernel(
@@ -2662,14 +2759,24 @@ def _update_gradient_cholesky_blocked_skip_unchanged(tile_size: int, matrix_size
     if ctx_done_in[worldid]:
       return
 
-    if changed_count_in[worldid] > 0:
+    # Fast path: skip the solve; Mgrad stays stale on the unchanged ray, and
+    # the linesearch is invariant to the scale of its direction.
+    if wp.static(SKIP_NOFLIP):
+      if changed_count_in[worldid] == 0:
+        return
+
       wp.static(create_blocked_cholesky_factorize_solve_func(TILE_SIZE, matrix_size))(
         ctx_h_in[worldid], ctx_grad_in[worldid], matrix_size, ctx_hfactor[worldid], ctx_Mgrad_out[worldid]
       )
     else:
-      wp.static(create_blocked_cholesky_solve_func(TILE_SIZE, matrix_size))(
-        ctx_hfactor[worldid], ctx_grad_in[worldid], matrix_size, ctx_Mgrad_out[worldid]
-      )
+      if changed_count_in[worldid] > 0:
+        wp.static(create_blocked_cholesky_factorize_solve_func(TILE_SIZE, matrix_size))(
+          ctx_h_in[worldid], ctx_grad_in[worldid], matrix_size, ctx_hfactor[worldid], ctx_Mgrad_out[worldid]
+        )
+      else:
+        wp.static(create_blocked_cholesky_solve_func(TILE_SIZE, matrix_size))(
+          ctx_hfactor[worldid], ctx_grad_in[worldid], matrix_size, ctx_Mgrad_out[worldid]
+        )
 
   return kernel
 
@@ -2685,7 +2792,9 @@ def _padding_h(nv: int, ctx_done_in: wp.array[bool], ctx_h_out: wp.array3d[float
   ctx_h_out[worldid, dofid, dofid] = 1.0
 
 
-def _cholesky_factorize_solve(m: types.Model, d: types.Data, ctx: SolverContext, skip_unchanged: bool = False):
+def _cholesky_factorize_solve(
+  m: types.Model, d: types.Data, ctx: SolverContext, skip_unchanged: bool = False, skip_noflip: bool = False
+):
   """Cholesky factorize ctx.h and solve for Mgrad.
 
   If skip_unchanged is True (blocked path only), worlds where no constraints
@@ -2693,9 +2802,9 @@ def _cholesky_factorize_solve(m: types.Model, d: types.Data, ctx: SolverContext,
   """
   if m.nv <= _BLOCK_CHOLESKY_DIM:
     wp.launch_tiled(
-      _update_gradient_cholesky(m.nv),
+      _update_gradient_cholesky(m.nv, skip_noflip),
       dim=d.nworld,
-      inputs=[ctx.grad, ctx.h, ctx.done],
+      inputs=[ctx.grad, ctx.h, ctx.changed_efc_count if skip_noflip else d.nefc, ctx.done],
       outputs=[ctx.Mgrad],
       block_dim=m.block_dim.update_gradient_cholesky,
     )
@@ -2709,7 +2818,7 @@ def _cholesky_factorize_solve(m: types.Model, d: types.Data, ctx: SolverContext,
 
     if skip_unchanged:
       wp.launch_tiled(
-        _update_gradient_cholesky_blocked_skip_unchanged(types.TILE_SIZE_JTDAJ_DENSE, m.nv_pad),
+        _update_gradient_cholesky_blocked_skip_unchanged(types.TILE_SIZE_JTDAJ_DENSE, m.nv_pad, skip_noflip),
         dim=d.nworld,
         inputs=[ctx.done, ctx.grad.reshape(shape=(d.nworld, ctx.grad.shape[1], 1)), ctx.h, ctx.changed_efc_count, ctx.hfactor],
         outputs=[ctx.Mgrad.reshape(shape=(d.nworld, ctx.Mgrad.shape[1], 1))],
@@ -2806,11 +2915,16 @@ def _update_gradient(m: types.Model, d: types.Data, ctx: SolverContext, compact:
       block_dim=m.block_dim.update_gradient_grad,
     )
   else:
-    wp.launch(_update_gradient_zero_grad_dot, dim=d.nworld, inputs=[ctx.done], outputs=[ctx.grad_dot])
     wp.launch(
-      _update_gradient_grad,
+      _update_gradient_zero_grad_dot(False),
+      dim=d.nworld,
+      inputs=[d.nefc, ctx.alpha, ctx.done],
+      outputs=[ctx.grad_dot, ctx.grad_scale],
+    )
+    wp.launch(
+      _update_gradient_grad(False),
       dim=(d.nworld, m.nv),
-      inputs=[d.qfrc_smooth, d.qfrc_constraint, d.efc.Ma, ctx.done],
+      inputs=[d.qfrc_smooth, d.qfrc_constraint, d.efc.Ma, d.nefc, ctx.done],
       outputs=[ctx.grad, ctx.grad_dot],
     )
 
@@ -3002,26 +3116,33 @@ def _update_gradient(m: types.Model, d: types.Data, ctx: SolverContext, compact:
     raise ValueError(f"Unknown solver type: {m.opt.solver}")
 
 
-def _update_gradient_incremental(m: types.Model, d: types.Data, ctx: SolverContext):
+def _update_gradient_incremental(m: types.Model, d: types.Data, ctx: SolverContext, stable_fast: bool = False):
   """Incremental gradient update: update H for changed constraints + re-factorize.
 
   Skips the full J^T*D*J rebuild by applying only the delta from constraints
   that changed QUADRATIC state, then re-factorizes and solves.
   """
-  wp.launch(_update_gradient_zero_grad_dot, dim=d.nworld, inputs=[ctx.done], outputs=[ctx.grad_dot])
+  changed = ctx.changed_efc_count if stable_fast else d.nefc
+  wp.launch(
+    _update_gradient_zero_grad_dot(stable_fast),
+    dim=d.nworld,
+    inputs=[changed, ctx.alpha, ctx.done],
+    outputs=[ctx.grad_dot, ctx.grad_scale],
+  )
 
   wp.launch(
-    _update_gradient_grad,
+    _update_gradient_grad(stable_fast),
     dim=(d.nworld, m.nv),
-    inputs=[d.qfrc_smooth, d.qfrc_constraint, d.efc.Ma, ctx.done],
+    inputs=[d.qfrc_smooth, d.qfrc_constraint, d.efc.Ma, changed, ctx.done],
     outputs=[ctx.grad, ctx.grad_dot],
   )
 
   # Update upper triangle of H with delta from changed constraints.
   if m.is_sparse:
+    slots = _jtdaj_groups_per_world(d.nworld, ctx.changed_efc_ids.shape[1])
     wp.launch(
       _update_gradient_h_incremental_sparse,
-      dim=(d.nworld, ctx.changed_efc_ids.shape[1]),
+      dim=(d.nworld, slots, _JTDAJ_THREADS_PER_GROUP),
       inputs=[
         d.efc.J_rownnz,
         d.efc.J_rowadr,
@@ -3031,6 +3152,7 @@ def _update_gradient_incremental(m: types.Model, d: types.Data, ctx: SolverConte
         d.efc.state,
         ctx.changed_efc_ids,
         ctx.changed_efc_count,
+        slots,
       ],
       outputs=[ctx.h],
     )
@@ -3049,7 +3171,7 @@ def _update_gradient_incremental(m: types.Model, d: types.Data, ctx: SolverConte
       outputs=[ctx.h],
     )
 
-  _cholesky_factorize_solve(m, d, ctx, skip_unchanged=True)
+  _cholesky_factorize_solve(m, d, ctx, skip_unchanged=True, skip_noflip=stable_fast)
 
 
 @wp.kernel
@@ -3128,46 +3250,70 @@ def _solve_beta_accumulate(
   wp.atomic_add(ctx_beta_den_out, worldid, den)
 
 
-@wp.kernel
-def _solve_zero_search_dot(
-  # In:
-  ctx_done_in: wp.array[bool],
-  # Out:
-  ctx_search_dot_out: wp.array[float],
-):
-  worldid = wp.tid()
+@cache_kernel
+def _solve_zero_search_dot(stable_fast: bool):
+  STABLE_FAST = stable_fast
 
-  if ctx_done_in[worldid]:
-    return
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # In:
+    changed_count_in: wp.array[int],
+    ctx_done_in: wp.array[bool],
+    # Out:
+    ctx_search_dot_out: wp.array[float],
+  ):
+    worldid = wp.tid()
 
-  ctx_search_dot_out[worldid] = 0.0
+    if ctx_done_in[worldid]:
+      return
+
+    # Fast path: search stays on the same ray; keep search_dot consistent with it.
+    if wp.static(STABLE_FAST):
+      if changed_count_in[worldid] == 0:
+        return
+
+    ctx_search_dot_out[worldid] = 0.0
+
+  return kernel
 
 
-@wp.kernel
-def _solve_search_update(
-  # Model:
-  opt_solver: int,
-  # In:
-  ctx_Mgrad_in: wp.array2d[float],
-  ctx_search_in: wp.array2d[float],
-  ctx_beta_in: wp.array[float],
-  ctx_done_in: wp.array[bool],
-  # Out:
-  ctx_search_out: wp.array2d[float],
-  ctx_search_dot_out: wp.array[float],
-):
-  worldid, dofid = wp.tid()
+@cache_kernel
+def _solve_search_update(stable_fast: bool):
+  STABLE_FAST = stable_fast
 
-  if ctx_done_in[worldid]:
-    return
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    opt_solver: int,
+    # In:
+    changed_count_in: wp.array[int],
+    ctx_Mgrad_in: wp.array2d[float],
+    ctx_search_in: wp.array2d[float],
+    ctx_beta_in: wp.array[float],
+    ctx_done_in: wp.array[bool],
+    # Out:
+    ctx_search_out: wp.array2d[float],
+    ctx_search_dot_out: wp.array[float],
+  ):
+    worldid, dofid = wp.tid()
 
-  search = -1.0 * ctx_Mgrad_in[worldid, dofid]
+    if ctx_done_in[worldid]:
+      return
 
-  if opt_solver == types.SolverType.CG:
-    search += ctx_beta_in[worldid] * ctx_search_in[worldid, dofid]
+    # Fast path: search stays on the stale ray; the linesearch absorbs its scale.
+    if wp.static(STABLE_FAST):
+      if changed_count_in[worldid] == 0:
+        return
 
-  ctx_search_out[worldid, dofid] = search
-  wp.atomic_add(ctx_search_dot_out, worldid, search * search)
+    search = -1.0 * ctx_Mgrad_in[worldid, dofid]
+
+    if opt_solver == types.SolverType.CG:
+      search += ctx_beta_in[worldid] * ctx_search_in[worldid, dofid]
+
+    ctx_search_out[worldid, dofid] = search
+    wp.atomic_add(ctx_search_dot_out, worldid, search * search)
+
+  return kernel
 
 
 @wp.kernel
@@ -3291,6 +3437,16 @@ def _solve_done(
     wp.atomic_add(nsolving_out, 0, -1)
 
 
+def _use_incremental(m: types.Model) -> bool:
+  """Whether constraint state changes are tracked for incremental H updates."""
+  return m.opt.solver == types.SolverType.NEWTON and m.opt.cone != types.ConeType.ELLIPTIC
+
+
+def _stable_fast(m: types.Model, compact: bool) -> bool:
+  """Stable-state fast path: needs state-change tracking; compact scatters qfrc itself."""
+  return _use_incremental(m) and not compact
+
+
 @event_scope
 def _solver_iteration(
   m: types.Model,
@@ -3305,16 +3461,21 @@ def _solver_iteration(
   # path in _update_constraint_efc has early returns that skip state change
   # tracking, and the additional JTCJ Hessian term depends on Jaref which
   # changes every iteration.
-  incremental = m.opt.solver == types.SolverType.NEWTON and m.opt.cone != types.ConeType.ELLIPTIC
+  incremental = _use_incremental(m)
+  # Stable-state fast path: worlds with no state flips this iteration were
+  # exactly quadratic over the step, so grad/Mgrad/search only changed by a
+  # scalar along the same ray. Skip their qfrc/grad/solve/search updates and
+  # track the scalar in ctx.grad_scale.
+  stable_fast = _stable_fast(m, compact)
 
   if incremental:
     # Must complete before _update_constraint_efc which atomically increments.
     ctx.changed_efc_count.zero_()
 
-  _update_constraint(m, d, ctx, track_changes=incremental)
+  _update_constraint(m, d, ctx, track_changes=incremental, stable_fast=stable_fast)
 
   if incremental:
-    _update_gradient_incremental(m, d, ctx)
+    _update_gradient_incremental(m, d, ctx, stable_fast)
   else:
     _update_gradient(m, d, ctx, compact=compact)
 
@@ -3362,12 +3523,13 @@ def _solver_iteration(
     )
 
   else:
-    wp.launch(_solve_zero_search_dot, dim=d.nworld, inputs=[ctx.done], outputs=[ctx.search_dot])
+    changed = ctx.changed_efc_count if stable_fast else d.nefc
+    wp.launch(_solve_zero_search_dot(stable_fast), dim=d.nworld, inputs=[changed, ctx.done], outputs=[ctx.search_dot])
 
     wp.launch(
-      _solve_search_update,
+      _solve_search_update(stable_fast),
       dim=(d.nworld, m.nv),
-      inputs=[m.opt.solver, ctx.Mgrad, ctx.search, ctx.beta, ctx.done],
+      inputs=[m.opt.solver, changed, ctx.Mgrad, ctx.search, ctx.beta, ctx.done],
       outputs=[ctx.search, ctx.search_dot],
     )
 
@@ -3400,12 +3562,16 @@ def init_context(m: types.Model, d: types.Data, ctx: SolverContext | InverseCont
   # if we are only using 1 thread, it makes sense to do more dofs as we can also skip the
   # init kernel. For more than 1 thread, dofs_per_thread is lower for better load balancing.
 
-  if m.nv > 50:
+  if m.is_sparse:
+    # Sparse J has few nonzeros per row, one thread handles them all.
+    dofs_per_thread = m.nv
+    threads_per_efc = 1
+  elif m.nv > 50:
     dofs_per_thread = 20
+    threads_per_efc = ceil(m.nv / dofs_per_thread)
   else:
     dofs_per_thread = 50
-
-  threads_per_efc = ceil(m.nv / dofs_per_thread)
+    threads_per_efc = ceil(m.nv / dofs_per_thread)
   # we need to clear the jaref array if we're doing atomic adds.
   if threads_per_efc > 1:
     ctx.Jaref.zero_()
@@ -3489,6 +3655,16 @@ def _solve(m: types.Model, d: types.Data, ctx: SolverContext, compact: bool = Fa
     # It should be removed when JAX becomes compatible.
     for _ in range(m.opt.iterations):
       _solver_iteration(m, d, ctx, nsolving, compact=compact)
+
+  # Recover the public qfrc_constraint: the fast path leaves it stale, and the
+  # per-iteration zeroing wiped it for worlds that converged early.
+  if _stable_fast(m, compact):
+    wp.launch(
+      _qfrc_constraint_from_grad,
+      dim=(d.nworld, m.nv),
+      inputs=[d.qfrc_smooth, d.efc.Ma, ctx.grad, ctx.grad_scale],
+      outputs=[d.qfrc_constraint],
+    )
 
 
 # Active-DOF compaction solve (nvmax < nv).

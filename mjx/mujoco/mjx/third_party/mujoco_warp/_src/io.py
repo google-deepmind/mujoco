@@ -143,6 +143,20 @@ def _jtdaj_groups(mjd: mujoco.MjData) -> tuple[np.ndarray, np.ndarray]:
   return adr, nrow
 
 
+def _get_nflexintcell(mjm: mujoco.MjModel) -> int:
+  nflexintcell = 0
+  if mjm.nflex > 0 and hasattr(mjm, "flex_interp"):
+    for fi in range(mjm.nflex):
+      order = abs(int(mjm.flex_interp[fi]))
+      if order == 0:
+        continue
+      if hasattr(mjm, "flex_edgeequality") and mjm.flex_edgeequality[fi] == 3:
+        continue
+      cx, cy, cz = mjm.flex_cellnum[fi]
+      nflexintcell += int(cx) * int(cy) * int(cz)
+  return nflexintcell
+
+
 def is_sparse(mjm: mujoco.MjModel) -> bool:
   if mjm.opt.jacobian == mujoco.mjtJacobian.mjJAC_AUTO:
     if mjm.nv > 32:
@@ -330,6 +344,9 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   if (mjm.opt.enableflags & mujoco.mjtEnableBit.mjENBL_SLEEP) and (mjm.eq_type == mujoco.mjtEq.mjEQ_FLEX).any():
     raise NotImplementedError("Flex equality constraints are not supported with sleeping enabled.")
 
+  if mjm.nflex > 0 and (mjm.flex_interp < 0).any():
+    raise NotImplementedError("Flex interpolation order < 0 (shell/quad elements) is not supported.")
+
   if mjm.opt.noslip_iterations > 0:
     raise NotImplementedError(f"noslip solver not implemented.")
 
@@ -437,10 +454,16 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   condim_arrays = [np.array([0]), mjm.geom_condim, mjm.pair_dim]
   if mjm.nflex > 0:
     condim_arrays.append(mjm.flex_condim)
+    if (mjm.geom_type == mujoco.mjtGeom.mjGEOM_SDF).any():
+      raise NotImplementedError("Flex-SDF collision is not implemented.")
+    if (mjm.geom_type == mujoco.mjtGeom.mjGEOM_HFIELD).any():
+      raise NotImplementedError("Flex-HField collision is not implemented.")
   m.nmaxcondim = np.concatenate(condim_arrays).max()
   m.nmaxpyramid = np.maximum(1, 2 * (m.nmaxcondim - 1))
   m.has_sdf_geom = (mjm.geom_type == mujoco.mjtGeom.mjGEOM_SDF).any()
+  m.has_ellipsoid_geom = (mjm.geom_type == mujoco.mjtGeom.mjGEOM_ELLIPSOID).any()
   m.has_flex_selfcollide = bool(mjm.nflex > 0 and np.any(mjm.flex_selfcollide != 0))
+  m.has_3d_flex = bool(mjm.nflex > 0 and np.any(mjm.flex_dim == 3))
   m.max_flex_dim = int(np.max(mjm.flex_dim)) if mjm.nflex > 0 else 0
   m.block_dim = types.BlockDim()
   # Derive CG solver block_dim from nv: clamp(round_up_to_32(nv), 32, 256)
@@ -453,6 +476,28 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
     m.block_dim.linesearch_iterative = 512
   m.is_sparse = is_sparse(mjm)
   m.has_fluid = mjm.opt.wind.any() or mjm.opt.density > 0 or mjm.opt.viscosity > 0
+
+  m.nflexintcell = _get_nflexintcell(mjm)
+
+  # Precompute flex_cell_map
+  flex_cell_map = []
+  if mjm.nflex > 0 and hasattr(mjm, "flex_interp"):
+    for fi in range(mjm.nflex):
+      order = abs(int(mjm.flex_interp[fi]))
+      if order == 0:
+        continue
+      if hasattr(mjm, "flex_edgeequality") and mjm.flex_edgeequality[fi] == 3:
+        continue
+      cx, cy, cz = mjm.flex_cellnum[fi]
+      for ci in range(cx):
+        for cj in range(cy):
+          for ck in range(cz):
+            flex_cell_map.append((fi, ci, cj, ck))
+  if not flex_cell_map:
+    m.flex_cell_map = np.zeros((0, 4), dtype=np.int32)
+  else:
+    m.flex_cell_map = np.array(flex_cell_map, dtype=np.int32)
+
   m.max_ten_J_rownnz = int(mjm.ten_J_rownnz.max()) if mjm.ntendon else 0
 
   # body ids grouped by tree level (depth-based traversal)
@@ -699,6 +744,49 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   m.eq_jnt_adr = np.nonzero(mjm.eq_type == types.EqType.JOINT)[0]
   m.eq_ten_adr = np.nonzero(mjm.eq_type == types.EqType.TENDON)[0]
   m.eq_flex_adr = np.nonzero(mjm.eq_type == types.EqType.FLEX)[0]
+  m.eq_flexstrain_adr = np.nonzero(mjm.eq_type == types.EqType.FLEXSTRAIN)[0]
+  m.neq_flexstrain = m.eq_flexstrain_adr.size
+
+  # Precompute flex strain Jacobian sparsity pattern
+  flexstrain_J_rownnz = []
+  flexstrain_J_colind = []
+
+  if m.neq_flexstrain > 0:
+    for eqstrainid, eqid in enumerate(m.eq_flexstrain_adr):
+      f = int(mjm.eq_obj1id[eqid])
+      order = int(mjm.flex_interp[f])
+      ci = int(mjm.eq_data[eqid, 0])
+      cj = int(mjm.eq_data[eqid, 1])
+      ck = int(mjm.eq_data[eqid, 2])
+
+      cellnum = mjm.flex_cellnum[f]
+      cy = cellnum[1]
+      cz = cellnum[2]
+      nstart = mjm.flex_nodeadr[f]
+      ny_g = cy * order + 1
+      nz_g = cz * order + 1
+
+      node_bodies = [
+        mjm.flex_nodebodyid[nstart + (ci * order + li) * ny_g * nz_g + (cj * order + lj) * nz_g + (ck * order + lk)]
+        for li in range(order + 1)
+        for lj in range(order + 1)
+        for lk in range(order + 1)
+      ]
+
+      active_dof_mask = np.any(body_isdofancestor[node_bodies, :] != 0, axis=0)
+      sorted_dofs = np.nonzero(active_dof_mask)[0].tolist()
+      flexstrain_J_rownnz.append(len(sorted_dofs))
+      flexstrain_J_colind.extend(sorted_dofs)
+
+    m.flexstrain_J_rownnz = np.array(flexstrain_J_rownnz, dtype=np.int32)
+    m.flexstrain_J_colind = np.array(flexstrain_J_colind, dtype=np.int32)
+    m.flexstrain_J_rowadr = np.cumsum([0] + flexstrain_J_rownnz[:-1], dtype=np.int32)
+  else:
+    m.flexstrain_J_rownnz = np.zeros((0,), dtype=np.int32)
+    m.flexstrain_J_rowadr = np.zeros((0,), dtype=np.int32)
+    m.flexstrain_J_colind = np.zeros((0,), dtype=np.int32)
+
+  m.nJfs = m.flexstrain_J_colind.size
 
   # fixed tendon
   m.tendon_jnt_adr, m.wrap_jnt_adr = [], []
@@ -952,7 +1040,6 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
 
   # Populate lookup maps and candidate pairs
   flexelem_geom_pairs = []
-  flexshell_geom_pairs = []
   flexvert_geom_pairs = []
 
   flex_elemflexid = np.zeros(mjm.nflexelem, dtype=np.int32)
@@ -996,6 +1083,7 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
           mujoco.mjtGeom.mjGEOM_BOX,
           mujoco.mjtGeom.mjGEOM_CYLINDER,
           mujoco.mjtGeom.mjGEOM_MESH,
+          mujoco.mjtGeom.mjGEOM_ELLIPSOID,
         ],
       )
       is_pl = mjm.geom_type == mujoco.mjtGeom.mjGEOM_PLANE
@@ -1017,19 +1105,6 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
             filtered = _filter_tri_geoms(mjm, v0, v1, v2, matching_primitive_geoms, filterparent)
             for g in matching_primitive_geoms[~filtered]:
               flexelem_geom_pairs.append((elemid, g))
-
-      elif fdim == 3:
-        shelldata_start = mjm.flex_shelldataadr[fi]
-        prev_shells_offset = shell_offset - shell_num
-        for s in range(shell_num):
-          v0 = vert_start + mjm.flex_shell[shelldata_start + s * 3]
-          v1 = vert_start + mjm.flex_shell[shelldata_start + s * 3 + 1]
-          v2 = vert_start + mjm.flex_shell[shelldata_start + s * 3 + 2]
-
-          if len(matching_primitive_geoms) > 0:
-            filtered = _filter_tri_geoms(mjm, v0, v1, v2, matching_primitive_geoms, filterparent)
-            for g in matching_primitive_geoms[~filtered]:
-              flexshell_geom_pairs.append((prev_shells_offset + s, g))
 
       # Planes vs Vertices
       if len(matching_plane_geoms) > 0:
@@ -1057,13 +1132,10 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
 
   if not flexelem_geom_pairs:
     flexelem_geom_pairs = np.zeros((0, 2), dtype=np.int32)
-  if not flexshell_geom_pairs:
-    flexshell_geom_pairs = np.zeros((0, 2), dtype=np.int32)
   if not flexvert_geom_pairs:
     flexvert_geom_pairs = np.zeros((0, 2), dtype=np.int32)
 
   m.flexelem_geom_pair_filtered = np.array(flexelem_geom_pairs, dtype=np.int32)
-  m.flexshell_geom_pair_filtered = np.array(flexshell_geom_pairs, dtype=np.int32)
   m.flexvert_geom_pair_filtered = np.array(flexvert_geom_pairs, dtype=np.int32)
 
   m.flex_elemflexid = flex_elemflexid
@@ -1207,6 +1279,15 @@ def _default_njmax_nnz(mjm: mujoco.MjModel, nconmax: int, njmax: int) -> int:
         edge_count = mjm.flex_edgenum[obj1id]
         for e in range(edge_count):
           total_nnz += mjm.flexedge_J_rownnz[edge_start + e]
+
+    elif eq_type == mujoco.mjtEq.mjEQ_FLEXSTRAIN:
+      # strain constraints: each cell produces neig rows, each dense (nv)
+      obj1id = mjm.eq_obj1id[i]
+      if obj1id < mjm.nflex and hasattr(mjm, "flex_stiffnessadr"):
+        # estimate neig from stiffness data
+        adr = mjm.flex_stiffnessadr[obj1id]
+        neig = int(mjm.flex_stiffness[adr])
+        total_nnz += neig * mjm.nv
 
   # friction constraints
   total_nnz += (mjm.dof_frictionloss > 0).sum()
@@ -1494,6 +1575,7 @@ def make_data(
   sizes["njmax"] = njmax
   sizes["nvmax"] = nvmax
   sizes["nvmax_pad"] = _nvmax_pad(nvmax)
+  sizes["nflexintcell"] = _get_nflexintcell(mjm)
 
   if njmax_nnz is None:
     if is_sparse(mjm):
@@ -2524,6 +2606,83 @@ def _copy_tendon_length0(
 
 
 @wp.kernel
+def _compute_eq_data0(
+  # Model:
+  eq_type: wp.array[int],
+  eq_obj1id: wp.array[int],
+  eq_obj2id: wp.array[int],
+  eq_objtype: wp.array[int],
+  # Data in:
+  xpos_in: wp.array2d[wp.vec3],
+  xquat_in: wp.array2d[wp.quat],
+  xmat_in: wp.array2d[wp.mat33],
+  # Out:
+  eq_data_out: wp.array2d[types.vec11],
+):
+  """Compute eq_data for connect/weld constraints.
+
+  Kinematics must have been evaluated at qpos0 so the constraint is satisfied at qpos0.
+  """
+  worldid, eqid = wp.tid()
+  eq_data_id = worldid % eq_data_out.shape[0]
+
+  eqtype = eq_type[eqid]
+  objtype = eq_objtype[eqid]
+  data = eq_data_out[eq_data_id, eqid]
+
+  if eqtype == int(types.EqType.CONNECT.value):
+    if objtype == int(types.ObjType.BODY.value):
+      obj1id = eq_obj1id[eqid]
+      obj2id = eq_obj2id[eqid]
+
+      # data[0:3] = anchor in body1 local frame; map to global frame
+      anchor1 = wp.vec3(data[0], data[1], data[2])
+      pos = xpos_in[worldid, obj1id] + xmat_in[worldid, obj1id] @ anchor1
+
+      # data[3:6] = anchor position in body2 local frame
+      anchor2 = wp.transpose(xmat_in[worldid, obj2id]) @ (pos - xpos_in[worldid, obj2id])
+      data[3] = anchor2[0]
+      data[4] = anchor2[1]
+      data[5] = anchor2[2]
+      eq_data_out[eq_data_id, eqid] = data
+    elif objtype == int(types.ObjType.SITE.value):
+      # site-based connect, eq_data is unused
+      eq_data_out[eq_data_id, eqid] = types.vec11(0.0)
+  elif eqtype == int(types.EqType.WELD.value):
+    if objtype == int(types.ObjType.BODY.value):
+      quat = wp.quat(data[6], data[7], data[8], data[9])
+      if wp.length_sq(quat) > 0.0:
+        # user has set quaternion data: normalize it and keep the remaining data
+        quat = wp.normalize(quat)
+        data[6] = quat[0]
+        data[7] = quat[1]
+        data[8] = quat[2]
+        data[9] = quat[3]
+        eq_data_out[eq_data_id, eqid] = data
+      else:
+        obj1id = eq_obj1id[eqid]
+        obj2id = eq_obj2id[eqid]
+
+        # data[0:3] = anchor in body2 local frame; map to global frame
+        anchor2 = wp.vec3(data[0], data[1], data[2])
+        pos = xpos_in[worldid, obj2id] + xmat_in[worldid, obj2id] @ anchor2
+
+        # data[3:6] = anchor position in body1 local frame
+        anchor1 = wp.transpose(xmat_in[worldid, obj1id]) @ (pos - xpos_in[worldid, obj1id])
+        data[3] = anchor1[0]
+        data[4] = anchor1[1]
+        data[5] = anchor1[2]
+
+        # data[6:10] = neg(xquat1) * xquat2 = "xquat2 - xquat1" in body1 local frame
+        relquat = mjmath.mul_quat(mjmath.quat_inv(xquat_in[worldid, obj1id]), xquat_in[worldid, obj2id])
+        data[6] = relquat[0]
+        data[7] = relquat[1]
+        data[8] = relquat[2]
+        data[9] = relquat[3]
+        eq_data_out[eq_data_id, eqid] = data
+
+
+@wp.kernel
 def _resolve_tendon_lengthspring(
   ten_length_in: wp.array2d[float],
   tendon_lengthspring_out: wp.array2d[wp.vec2],
@@ -3005,6 +3164,8 @@ def set_const_0(m: types.Model, d: types.Data, restore: bool = True):
 
   Computes:
     - tendon_length0: tendon resting lengths
+    - eq_data: connect/weld anchor data, recomputed so the constraint is
+      satisfied at qpos0
     - dof_invweight0: inverse inertia for DOFs
     - body_invweight0: inverse spatial inertia for bodies
     - tendon_invweight0: inverse weight for tendons
@@ -3043,6 +3204,13 @@ def set_const_0(m: types.Model, d: types.Data, restore: bool = True):
   )
 
   wp.launch(_copy_tendon_length0, dim=(d.nworld, m.ntendon), inputs=[d.ten_length], outputs=[m.tendon_length0])
+
+  wp.launch(
+    _compute_eq_data0,
+    dim=(d.nworld, m.neq),
+    inputs=[m.eq_type, m.eq_obj1id, m.eq_obj2id, m.eq_objtype, d.xpos, d.xquat, d.xmat],
+    outputs=[m.eq_data],
+  )
 
   # dof_invweight0: computed per joint with averaging for multi-DOF joints
   # FREE: 6 DOFs, trans gets mean(A[0:3]), rot gets mean(A[3:6])

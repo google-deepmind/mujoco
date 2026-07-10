@@ -808,6 +808,7 @@ def _equality_flex(is_sparse: bool, newton: bool):
     nv: int,
     opt_timestep: wp.array[float],
     opt_disableflags: int,
+    flex_interp: wp.array[int],
     flex_edgeadr: wp.array[int],
     flex_edgenum: wp.array[int],
     flexedge_length0: wp.array[float],
@@ -854,6 +855,11 @@ def _equality_flex(is_sparse: bool, newton: bool):
       return
 
     flexid = eq_obj1id[eqid]
+
+    # skip edge-based equality for interpolated (trilinear/quadratic) flex
+    if flex_interp[flexid] != 0:
+      return
+
     if edgeid < flex_edgeadr[flexid] or edgeid >= flex_edgeadr[flexid] + flex_edgenum[flexid]:
       return
 
@@ -1402,6 +1408,273 @@ def _equality_weld(is_sparse: bool, newton: bool):
       )
 
       efc_aref_out[worldid, efcid + 3 + i] -= Jdotv_r[i]
+
+  return kernel
+
+
+@cache_kernel
+def _equality_flexstrain(is_sparse: bool, newton: bool):
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    nv: int,
+    opt_timestep: wp.array[float],
+    opt_disableflags: int,
+    body_parentid: wp.array[int],
+    body_rootid: wp.array[int],
+    body_dofnum: wp.array[int],
+    body_dofadr: wp.array[int],
+    body_invweight0: wp.array2d[wp.vec2],
+    dof_bodyid: wp.array[int],
+    flex_interp: wp.array[int],
+    flex_cellnum: wp.array[wp.vec3i],
+    flex_nodeadr: wp.array[int],
+    flex_nodenum: wp.array[int],
+    flex_stiffnessadr: wp.array[int],
+    flex_nodebodyid: wp.array[int],
+    flex_node: wp.array[wp.vec3],
+    flex_node0: wp.array[wp.vec3],
+    flex_stiffness: wp.array[float],
+    flex_centered: wp.array[bool],
+    eq_obj1id: wp.array[int],
+    eq_solref: wp.array2d[wp.vec2],
+    eq_solimp: wp.array2d[vec5],
+    eq_data: wp.array2d[vec11],
+    body_isdofancestor: wp.array2d[int],
+    eq_flexstrain_adr: wp.array[int],
+    flexstrain_J_rownnz: wp.array[int],
+    flexstrain_J_rowadr: wp.array[int],
+    flexstrain_J_colind: wp.array[int],
+    # Data in:
+    qvel_in: wp.array2d[float],
+    eq_active_in: wp.array2d[bool],
+    xpos_in: wp.array2d[wp.vec3],
+    xmat_in: wp.array2d[wp.mat33],
+    subtree_com_in: wp.array2d[wp.vec3],
+    cdof_in: wp.array2d[wp.spatial_vector],
+    njmax_in: int,
+    njmax_nnz_in: int,
+    flexnode_xpos_in: wp.array2d[wp.vec3],
+    # Data out:
+    ne_out: wp.array[int],
+    nefc_out: wp.array[int],
+    efc_type_out: wp.array2d[int],
+    efc_id_out: wp.array2d[int],
+    efc_jtdaj_adr_out: wp.array2d[int],
+    efc_jtdaj_nrow_out: wp.array2d[int],
+    efc_jtdaj_nblock_out: wp.array[int],
+    efc_J_rownnz_out: wp.array2d[int],
+    efc_J_rowadr_out: wp.array2d[int],
+    efc_J_colind_out: wp.array3d[int],
+    efc_J_out: wp.array3d[float],
+    efc_pos_out: wp.array2d[float],
+    efc_margin_out: wp.array2d[float],
+    efc_D_out: wp.array2d[float],
+    efc_vel_out: wp.array2d[float],
+    efc_aref_out: wp.array2d[float],
+    efc_frictionloss_out: wp.array2d[float],
+    # Out:
+    efc_nnz_out: wp.array[int],
+  ):
+    worldid, eqstrainid = wp.tid()
+    eqid = eq_flexstrain_adr[eqstrainid]
+
+    if not eq_active_in[worldid, eqid]:
+      return
+
+    f = eq_obj1id[eqid]
+    order = flex_interp[f]
+    if order <= 0:
+      return
+
+    # nodes per cell
+    npc = (order + 1) * (order + 1) * (order + 1)
+
+    # cell indices from eq_data
+    data = eq_data[worldid % eq_data.shape[0], eqid]
+    ci = int(data[0])
+    cj = int(data[1])
+    ck = int(data[2])
+
+    cellnum = flex_cellnum[f]
+    cy = cellnum[1]
+    cz = cellnum[2]
+    nstart = flex_nodeadr[f]
+    ny_g = cy * order + 1
+    nz_g = cz * order + 1
+
+    ndof_cell = 3 * npc
+
+    # read eigenmode data from flex_stiffness
+    cell_idx = ci * cy * cz + cj * cz + ck
+    k_base = flex_stiffnessadr[f] + cell_idx * ndof_cell * ndof_cell
+    neig = int(flex_stiffness[k_base])
+
+    if neig == 0:
+      return
+
+    solref = eq_solref[worldid % eq_solref.shape[0], eqid]
+    solimp = eq_solimp[worldid % eq_solimp.shape[0], eqid]
+
+    # gather cell node positions and reference positions (order==1: npc=8)
+    # We compute the corotational quaternion from the deformation gradient
+    # at the cell center (0.5, 0.5, 0.5)
+
+    cell_quat = support.compute_interp_cell_quat(flexnode_xpos_in, order, ci, cj, ck, cy, cz, ny_g, nz_g, nstart, worldid)
+    cell_quat_inv = wp.quat(-cell_quat[0], -cell_quat[1], -cell_quat[2], cell_quat[3])
+
+    # Compute average invweight across cell nodes (translation component)
+    avg_invweight = float(0.0)
+    idx_iw = int(0)
+    for li_iw in range(order + 1):
+      for lj_iw in range(order + 1):
+        for lk_iw in range(order + 1):
+          if idx_iw < npc:
+            gi_iw = ci * order + li_iw
+            gj_iw = cj * order + lj_iw
+            gk_iw = ck * order + lk_iw
+            gidx_iw = gi_iw * ny_g * nz_g + gj_iw * nz_g + gk_iw
+            bodyid_iw = flex_nodebodyid[nstart + gidx_iw]
+            avg_invweight += body_invweight0[worldid % body_invweight0.shape[0], bodyid_iw][0]
+            idx_iw += 1
+    avg_invweight /= float(npc)
+
+    # Loop over eigenmodes
+    for eig in range(neig):
+      wp.atomic_add(ne_out, worldid, 1)
+      efcid = wp.atomic_add(nefc_out, worldid, 1)
+
+      if efcid >= njmax_in:
+        return
+
+      if wp.static(is_sparse and newton):
+        jgid = wp.atomic_add(efc_jtdaj_nblock_out, worldid, 1)
+        efc_jtdaj_adr_out[worldid, jgid] = efcid
+        efc_jtdaj_nrow_out[worldid, jgid] = 6
+
+      # Read eigenvector from stiffness data
+      eigvec_base = k_base + 1 + eig * ndof_cell
+
+      # Compute constraint residual: dot(eigvec, displacement_in_corot_frame)
+      residual = float(0.0)
+      idx2 = int(0)
+      for li2 in range(order + 1):
+        for lj2 in range(order + 1):
+          for lk2 in range(order + 1):
+            if idx2 < npc:
+              gi2 = ci * order + li2
+              gj2 = cj * order + lj2
+              gk2 = ck * order + lk2
+              gidx2 = gi2 * ny_g * nz_g + gj2 * nz_g + gk2
+
+              xpos_n = flexnode_xpos_in[worldid, nstart + gidx2]
+              refpos_n = flex_node0[nstart + gidx2]
+
+              # Rotate xpos to corotational frame
+              xrot = wp.quat_rotate(cell_quat_inv, xpos_n)
+              displ = wp.vec3(xrot[0] - refpos_n[0], xrot[1] - refpos_n[1], xrot[2] - refpos_n[2])
+
+              for c in range(3):
+                residual += flex_stiffness[eigvec_base + 3 * idx2 + c] * displ[c]
+
+              idx2 += 1
+
+      efc_pos_out[worldid, efcid] = residual
+
+      # Compute Jacobian: J_q = dSdx_world * dxpos/dq
+      # dSdx_world = R_inv * eigvec (rotate eigenvector to world frame)
+      # Then contract with per-node body Jacobians
+
+      Jqvel = float(0.0)
+      invweight = float(0.0)
+
+      rownnz = flexstrain_J_rownnz[eqstrainid]
+      fs_rowadr = flexstrain_J_rowadr[eqstrainid]
+
+      efc_rowadr = int(0)
+      if wp.static(is_sparse):
+        efc_J_rownnz_out[worldid, efcid] = rownnz
+        efc_rowadr = wp.atomic_add(efc_nnz_out, worldid, rownnz)
+        if efc_rowadr + rownnz > njmax_nnz_in:
+          return
+        efc_J_rowadr_out[worldid, efcid] = efc_rowadr
+      else:
+        for q in range(nv):
+          efc_J_out[worldid, efcid, q] = 0.0
+
+      for sparseid in range(rownnz):
+        q = flexstrain_J_colind[fs_rowadr + sparseid]
+        J_val = float(0.0)
+        idx3 = int(0)
+        for li3 in range(order + 1):
+          for lj3 in range(order + 1):
+            for lk3 in range(order + 1):
+              if idx3 < npc:
+                gi3 = ci * order + li3
+                gj3 = cj * order + lj3
+                gk3 = ck * order + lk3
+                gidx3 = gi3 * ny_g * nz_g + gj3 * nz_g + gk3
+
+                bodyid3 = flex_nodebodyid[nstart + gidx3]
+                xpos_n3 = flexnode_xpos_in[worldid, nstart + gidx3]
+
+                if body_isdofancestor[bodyid3, q] != 0:
+                  # Rotate eigenvector component to world frame
+                  eig_local = wp.vec3(
+                    flex_stiffness[eigvec_base + 3 * idx3 + 0],
+                    flex_stiffness[eigvec_base + 3 * idx3 + 1],
+                    flex_stiffness[eigvec_base + 3 * idx3 + 2],
+                  )
+                  eig_world = wp.quat_rotate(cell_quat, eig_local)
+
+                  jacp, jacr = support.jac_dof(
+                    body_parentid,
+                    body_rootid,
+                    dof_bodyid,
+                    body_isdofancestor,
+                    subtree_com_in,
+                    cdof_in,
+                    xpos_n3,
+                    bodyid3,
+                    q,
+                    worldid,
+                  )
+                  J_val += wp.dot(eig_world, jacp)
+                idx3 += 1
+
+        if wp.static(is_sparse):
+          efc_J_colind_out[worldid, 0, efc_rowadr + sparseid] = q
+          efc_J_out[worldid, 0, efc_rowadr + sparseid] = J_val
+        else:
+          efc_J_out[worldid, efcid, q] = J_val
+        Jqvel += J_val * qvel_in[worldid, q]
+
+      invweight = avg_invweight
+
+      _efc_row(
+        opt_disableflags,
+        worldid,
+        opt_timestep[worldid % opt_timestep.shape[0]],
+        efcid,
+        residual,
+        residual,
+        invweight,
+        solref,
+        solimp,
+        0.0,
+        Jqvel,
+        0.0,
+        ConstraintType.EQUALITY,
+        eqid,
+        efc_type_out,
+        efc_id_out,
+        efc_pos_out,
+        efc_margin_out,
+        efc_D_out,
+        efc_vel_out,
+        efc_aref_out,
+        efc_frictionloss_out,
+      )
 
   return kernel
 
@@ -2021,12 +2294,16 @@ def _get_contact_bodies_and_weights(
   # Model:
   geom_bodyid: wp.array[int],
   flex_dim: wp.array[int],
+  flex_cellnum: wp.array[wp.vec3i],
+  flex_nodeadr: wp.array[int],
   flex_vertadr: wp.array[int],
   flex_elemdataadr: wp.array[int],
   flex_shelldataadr: wp.array[int],
+  flex_nodebodyid: wp.array[int],
   flex_vertbodyid: wp.array[int],
   flex_elem: wp.array[int],
   flex_shell: wp.array[int],
+  flex_vert0: wp.array[wp.vec3],
   # Data in:
   flexvert_xpos_in: wp.array2d[wp.vec3],
   # In:
@@ -2052,7 +2329,70 @@ def _get_contact_bodies_and_weights(
   flex_vert_start = flex_vertadr[flex_id]
   if vert_id >= 0:
     body = flex_vertbodyid[flex_vert_start + vert_id]
-    return wp.vec4i(body, -1, -1, -1), wp.vec4(1.0, 0.0, 0.0, 0.0)
+    if body >= 0:
+      return wp.vec4i(body, -1, -1, -1), wp.vec4(1.0, 0.0, 0.0, 0.0)
+
+    # Interpolated flex vertex contact: interpolate to the 8 corner nodes
+    v_adr = flex_vert_start + vert_id
+    coord = flex_vert0[v_adr]
+    cn = flex_cellnum[flex_id]
+    cx = cn[0]
+    cy = cn[1]
+    cz = cn[2]
+
+    ci = wp.min(int(coord[0] * float(cx)), cx - 1)
+    ci = wp.max(ci, 0)
+    cj = wp.min(int(coord[1] * float(cy)), cy - 1)
+    cj = wp.max(cj, 0)
+    ck = wp.min(int(coord[2] * float(cz)), cz - 1)
+    ck = wp.max(ck, 0)
+
+    local_x = wp.clamp(coord[0] * float(cx) - float(ci), 0.0, 1.0)
+    local_y = wp.clamp(coord[1] * float(cy) - float(cj), 0.0, 1.0)
+    local_z = wp.clamp(coord[2] * float(cz) - float(ck), 0.0, 1.0)
+    local = wp.vec3(local_x, local_y, local_z)
+
+    ny_g = cy + 1
+    nz_g = cz + 1
+    nstart = flex_nodeadr[flex_id]
+
+    body_ids = wp.vec4i(-1, -1, -1, -1)
+    weights = wp.vec4(0.0, 0.0, 0.0, 0.0)
+    n_collected = int(0)
+
+    for li in range(2):
+      for lj in range(2):
+        for lk in range(2):
+          w = support.eval_basis_trilinear(local, li * 4 + lj * 2 + lk)
+          if w > 1.0e-5 and n_collected < 4:
+            gi = ci + li
+            gj = cj + lj
+            gk = ck + lk
+            node_idx = gi * ny_g * nz_g + gj * nz_g + gk
+            b = flex_nodebodyid[nstart + node_idx]
+
+            # Put into body_ids and weights
+            if n_collected == 0:
+              body_ids = wp.vec4i(b, -1, -1, -1)
+              weights = wp.vec4(w, 0.0, 0.0, 0.0)
+            elif n_collected == 1:
+              body_ids = wp.vec4i(body_ids[0], b, -1, -1)
+              weights = wp.vec4(weights[0], w, 0.0, 0.0)
+            elif n_collected == 2:
+              body_ids = wp.vec4i(body_ids[0], body_ids[1], b, -1)
+              weights = wp.vec4(weights[0], weights[1], w, 0.0)
+            else:
+              body_ids = wp.vec4i(body_ids[0], body_ids[1], body_ids[2], b)
+              weights = wp.vec4(weights[0], weights[1], weights[2], w)
+
+            n_collected += 1
+
+    # Normalize weights so they sum to 1.0
+    w_sum = weights[0] + weights[1] + weights[2] + weights[3]
+    if w_sum > 1.0e-5:
+      weights = wp.vec4(weights[0] / w_sum, weights[1] / w_sum, weights[2] / w_sum, weights[3] / w_sum)
+
+    return body_ids, weights
 
   # Element contact: Retrieve local vertices
   dim = flex_dim[flex_id]
@@ -2115,14 +2455,104 @@ def _get_contact_bodies_and_weights(
     w3 = w3 / w_sum
 
     b0 = flex_vertbodyid[flex_vert_start + v0]
-    b1 = flex_vertbodyid[flex_vert_start + v1]
-    b2 = flex_vertbodyid[flex_vert_start + v2]
-    b3 = flex_vertbodyid[flex_vert_start + v3]
+    if b0 >= 0:
+      b1 = flex_vertbodyid[flex_vert_start + v1]
+      b2 = flex_vertbodyid[flex_vert_start + v2]
+      b3 = flex_vertbodyid[flex_vert_start + v3]
+      return wp.vec4i(b0, b1, b2, b3), wp.vec4(w0, w1, w2, w3)
+    else:
+      # Interpolated 3D flex element contact: accumulate node weights and select top 4
+      coord0 = flex_vert0[flex_vert_start + v0]
+      cn = flex_cellnum[flex_id]
+      cx = cn[0]
+      cy = cn[1]
+      cz = cn[2]
 
-    return wp.vec4i(b0, b1, b2, b3), wp.vec4(w0, w1, w2, w3)
+      ci = wp.min(int(coord0[0] * float(cx)), cx - 1)
+      ci = wp.max(ci, 0)
+      cj = wp.min(int(coord0[1] * float(cy)), cy - 1)
+      cj = wp.max(cj, 0)
+      ck = wp.min(int(coord0[2] * float(cz)), cz - 1)
+      ck = wp.max(ck, 0)
+
+      ny_g = cy + 1
+      nz_g = cz + 1
+      nstart = flex_nodeadr[flex_id]
+
+      # 8 accumulated weights for the voxel corners
+      W0 = float(0.0)
+      W1 = float(0.0)
+      W2 = float(0.0)
+      W3 = float(0.0)
+      W4 = float(0.0)
+      W5 = float(0.0)
+      W6 = float(0.0)
+      W7 = float(0.0)
+
+      # Loop over the 4 vertices of the tetrahedron
+      for k in range(4):
+        v_idx = v0
+        w_k = w0
+        if k == 1:
+          v_idx = v1
+          w_k = w1
+        elif k == 2:
+          v_idx = v2
+          w_k = w2
+        elif k == 3:
+          v_idx = v3
+          w_k = w3
+
+        coord = flex_vert0[flex_vert_start + v_idx]
+        local_x = wp.clamp(coord[0] * float(cx) - float(ci), 0.0, 1.0)
+        local_y = wp.clamp(coord[1] * float(cy) - float(cj), 0.0, 1.0)
+        local_z = wp.clamp(coord[2] * float(cz) - float(ck), 0.0, 1.0)
+        local = wp.vec3(local_x, local_y, local_z)
+
+        # Accumulate trilinear weights
+        W0 += w_k * support.eval_basis_trilinear(local, 0)
+        W1 += w_k * support.eval_basis_trilinear(local, 1)
+        W2 += w_k * support.eval_basis_trilinear(local, 2)
+        W3 += w_k * support.eval_basis_trilinear(local, 3)
+        W4 += w_k * support.eval_basis_trilinear(local, 4)
+        W5 += w_k * support.eval_basis_trilinear(local, 5)
+        W6 += w_k * support.eval_basis_trilinear(local, 6)
+        W7 += w_k * support.eval_basis_trilinear(local, 7)
+
+      # 8 node body IDs corresponding to the 8 voxel corners
+      b0_node = flex_nodebodyid[nstart + (ci + 0) * ny_g * nz_g + (cj + 0) * nz_g + (ck + 0)]
+      b1_node = flex_nodebodyid[nstart + (ci + 0) * ny_g * nz_g + (cj + 0) * nz_g + (ck + 1)]
+      b2_node = flex_nodebodyid[nstart + (ci + 0) * ny_g * nz_g + (cj + 1) * nz_g + (ck + 0)]
+      b3_node = flex_nodebodyid[nstart + (ci + 0) * ny_g * nz_g + (cj + 1) * nz_g + (ck + 1)]
+      b4_node = flex_nodebodyid[nstart + (ci + 1) * ny_g * nz_g + (cj + 0) * nz_g + (ck + 0)]
+      b5_node = flex_nodebodyid[nstart + (ci + 1) * ny_g * nz_g + (cj + 0) * nz_g + (ck + 1)]
+      b6_node = flex_nodebodyid[nstart + (ci + 1) * ny_g * nz_g + (cj + 1) * nz_g + (ck + 0)]
+      b7_node = flex_nodebodyid[nstart + (ci + 1) * ny_g * nz_g + (cj + 1) * nz_g + (ck + 1)]
+
+      W_mat = wp.mat33(W0, W1, W2, W3, W4, W5, W6, W7, -1.0)
+      b_mat = wp.mat33(
+        float(b0_node),
+        float(b1_node),
+        float(b2_node),
+        float(b3_node),
+        float(b4_node),
+        float(b5_node),
+        float(b6_node),
+        float(b7_node),
+        -1.0,
+      )
+      return support.select_top4_weights(W_mat, b_mat)
 
   else:
     return wp.vec4i(-1, -1, -1, -1), wp.vec4(0.0, 0.0, 0.0, 0.0)
+
+
+# TODO(flex): Add interpolated flex self-collision support. Currently, interpolated
+# flex contacts only handle flex-vs-geom contacts (e.g., flex on ground plane).
+# Self-collision requires distributing both sides of the contact across cell nodes.
+
+# TODO(flex): Replace inverse-distance contact weights with barycentric weights
+# (mj_elemBodyWeight-style) for element contacts on interpolated flex.
 
 
 @cache_kernel
@@ -2242,6 +2672,7 @@ def _efc_contact_init(cone_type: types.ConeType, is_sparse: bool, newton: bool):
 def _efc_contact_init_flex(cone_type: types.ConeType, is_sparse: bool, newton: bool):
   IS_ELLIPTIC = cone_type == types.ConeType.ELLIPTIC
   IS_SPARSE = is_sparse
+  HAS_FLEX = True
 
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
@@ -2253,12 +2684,17 @@ def _efc_contact_init_flex(cone_type: types.ConeType, is_sparse: bool, newton: b
     dof_parentid: wp.array[int],
     geom_bodyid: wp.array[int],
     flex_dim: wp.array[int],
+    flex_interp: wp.array[int],
+    flex_cellnum: wp.array[wp.vec3i],
+    flex_nodeadr: wp.array[int],
     flex_vertadr: wp.array[int],
     flex_elemdataadr: wp.array[int],
     flex_shelldataadr: wp.array[int],
+    flex_nodebodyid: wp.array[int],
     flex_vertbodyid: wp.array[int],
     flex_elem: wp.array[int],
     flex_shell: wp.array[int],
+    flex_vert0: wp.array[wp.vec3],
     # Data in:
     flexvert_xpos_in: wp.array2d[wp.vec3],
     njmax_in: int,
@@ -2266,7 +2702,6 @@ def _efc_contact_init_flex(cone_type: types.ConeType, is_sparse: bool, newton: b
     nacon_in: wp.array[int],
     # In:
     dist_in: wp.array[float],
-    pos_in: wp.array[wp.vec3],
     condim_in: wp.array[int],
     includemargin_in: wp.array[float],
     worldid_in: wp.array[int],
@@ -2274,6 +2709,7 @@ def _efc_contact_init_flex(cone_type: types.ConeType, is_sparse: bool, newton: b
     flex_in: wp.array[wp.vec2i],
     elem_in: wp.array[wp.vec2i],
     vert_in: wp.array[wp.vec2i],
+    pos_in: wp.array[wp.vec3],
     type_in: wp.array[int],
     # Data out:
     nefc_out: wp.array[int],
@@ -2341,12 +2777,16 @@ def _efc_contact_init_flex(cone_type: types.ConeType, is_sparse: bool, newton: b
       body_ids1, weights1 = _get_contact_bodies_and_weights(
         geom_bodyid,
         flex_dim,
+        flex_cellnum,
+        flex_nodeadr,
         flex_vertadr,
         flex_elemdataadr,
         flex_shelldataadr,
+        flex_nodebodyid,
         flex_vertbodyid,
         flex_elem,
         flex_shell,
+        flex_vert0,
         flexvert_xpos_in,
         conid,
         0,
@@ -2360,12 +2800,16 @@ def _efc_contact_init_flex(cone_type: types.ConeType, is_sparse: bool, newton: b
       body_ids2, weights2 = _get_contact_bodies_and_weights(
         geom_bodyid,
         flex_dim,
+        flex_cellnum,
+        flex_nodeadr,
         flex_vertadr,
         flex_elemdataadr,
         flex_shelldataadr,
+        flex_nodebodyid,
         flex_vertbodyid,
         flex_elem,
         flex_shell,
+        flex_vert0,
         flexvert_xpos_in,
         conid,
         1,
@@ -2377,54 +2821,168 @@ def _efc_contact_init_flex(cone_type: types.ConeType, is_sparse: bool, newton: b
         worldid,
       )
 
-      b1_0 = body_weldid[body_ids1[0]]
-      b1_1 = body_weldid[body_ids1[1]] if body_ids1[1] >= 0 else -1
-      b1_2 = body_weldid[body_ids1[2]] if body_ids1[2] >= 0 else -1
-      b1_3 = body_weldid[body_ids1[3]] if body_ids1[3] >= 0 else -1
+      is_interp = False
+      if wp.static(HAS_FLEX):
+        if geom[0] < 0 and flex[0] >= 0 and (vert[0] >= 0 or elem[0] >= 0):
+          if flex_interp[flex[0]] != 0:
+            is_interp = True
+        if geom[1] < 0 and flex[1] >= 0 and (vert[1] >= 0 or elem[1] >= 0):
+          if flex_interp[flex[1]] != 0:
+            is_interp = True
 
-      b2_0 = body_weldid[body_ids2[0]]
-      b2_1 = body_weldid[body_ids2[1]] if body_ids2[1] >= 0 else -1
-      b2_2 = body_weldid[body_ids2[2]] if body_ids2[2] >= 0 else -1
-      b2_3 = body_weldid[body_ids2[3]] if body_ids2[3] >= 0 else -1
+      if is_interp:
+        # Interpolated flex: sum of all contributing body dofnums
+        rownnz = int(0)
+        for side in range(2):
+          if geom[side] >= 0:
+            b = body_weldid[geom_bodyid[geom[side]]]
+            rownnz += body_dofnum[b]
+          elif flex[side] >= 0 and vert[side] >= 0:
+            f = flex[side]
+            if flex_interp[f] != 0:
+              # Compute parametric coordinate from flex_vert0
+              v_adr = flex_vertadr[f] + vert[side]
+              coord = flex_vert0[v_adr]
+              cn = flex_cellnum[f]
+              cx = cn[0]
+              cy = cn[1]
+              cz = cn[2]
 
-      dof1_0 = int(body_dofadr[b1_0] + body_dofnum[b1_0] - 1) if b1_0 >= 0 else -1
-      dof1_1 = int(body_dofadr[b1_1] + body_dofnum[b1_1] - 1) if b1_1 >= 0 else -1
-      dof1_2 = int(body_dofadr[b1_2] + body_dofnum[b1_2] - 1) if b1_2 >= 0 else -1
-      dof1_3 = int(body_dofadr[b1_3] + body_dofnum[b1_3] - 1) if b1_3 >= 0 else -1
+              # Cell lookup
+              ci = wp.min(int(coord[0] * float(cx)), cx - 1)
+              ci = wp.max(ci, 0)
+              cj = wp.min(int(coord[1] * float(cy)), cy - 1)
+              cj = wp.max(cj, 0)
+              ck = wp.min(int(coord[2] * float(cz)), cz - 1)
+              ck = wp.max(ck, 0)
 
-      dof2_0 = int(body_dofadr[b2_0] + body_dofnum[b2_0] - 1) if b2_0 >= 0 else -1
-      dof2_1 = int(body_dofadr[b2_1] + body_dofnum[b2_1] - 1) if b2_1 >= 0 else -1
-      dof2_2 = int(body_dofadr[b2_2] + body_dofnum[b2_2] - 1) if b2_2 >= 0 else -1
-      dof2_3 = int(body_dofadr[b2_3] + body_dofnum[b2_3] - 1) if b2_3 >= 0 else -1
+              # Local parametric coordinates
+              local_x = wp.clamp(coord[0] * float(cx) - float(ci), 0.0, 1.0)
+              local_y = wp.clamp(coord[1] * float(cy) - float(cj), 0.0, 1.0)
+              local_z = wp.clamp(coord[2] * float(cz) - float(ck), 0.0, 1.0)
+              local = wp.vec3(local_x, local_y, local_z)
 
-      # count non-zeros
-      rownnz = int(0)
-      while (
-        dof1_0 >= 0 or dof1_1 >= 0 or dof1_2 >= 0 or dof1_3 >= 0 or dof2_0 >= 0 or dof2_1 >= 0 or dof2_2 >= 0 or dof2_3 >= 0
-      ):
-        da1_max = wp.max(dof1_0, wp.max(dof1_1, wp.max(dof1_2, dof1_3)))
-        da2_max = wp.max(dof2_0, wp.max(dof2_1, wp.max(dof2_2, dof2_3)))
-        da = wp.max(da1_max, da2_max)
+              # Node grid dimensions
+              ny_g = cy + 1
+              nz_g = cz + 1
+              nstart = flex_nodeadr[f]
 
-        if dof1_0 == da:
-          dof1_0 = dof_parentid[dof1_0]
-        if dof1_1 == da:
-          dof1_1 = dof_parentid[dof1_1]
-        if dof1_2 == da:
-          dof1_2 = dof_parentid[dof1_2]
-        if dof1_3 == da:
-          dof1_3 = dof_parentid[dof1_3]
+              # Loop over 8 trilinear nodes
+              for li in range(2):
+                for lj in range(2):
+                  for lk in range(2):
+                    w = support.eval_basis_trilinear(local, li * 4 + lj * 2 + lk)
+                    if w > 1.0e-5:
+                      gi = ci + li
+                      gj = cj + lj
+                      gk = ck + lk
+                      node_idx = gi * ny_g * nz_g + gj * nz_g + gk
+                      b = body_weldid[flex_nodebodyid[nstart + node_idx]]
+                      rownnz += body_dofnum[b]
+            else:
+              b = body_weldid[flex_vertbodyid[flex_vertadr[f] + vert[side]]]
+              rownnz += body_dofnum[b]
+          elif flex[side] >= 0 and elem[side] >= 0:
+            # Elem contact: use blended coordinate from distance weighting
+            f = flex[side]
+            e = elem[side]
+            dim_f = flex_dim[f]
+            edata_adr = flex_elemdataadr[f] + e * (dim_f + 1)
+            vert_adr_f = flex_vertadr[f]
+            contact_pos = pos_in[conid]
 
-        if dof2_0 == da:
-          dof2_0 = dof_parentid[dof2_0]
-        if dof2_1 == da:
-          dof2_1 = dof_parentid[dof2_1]
-        if dof2_2 == da:
-          dof2_2 = dof_parentid[dof2_2]
-        if dof2_3 == da:
-          dof2_3 = dof_parentid[dof2_3]
+            total_inv_dist = float(0.0)
+            blended_coord = wp.vec3(0.0, 0.0, 0.0)
+            for vi in range(4):
+              if vi <= dim_f:
+                v_idx = flex_elem[edata_adr + vi]
+                vpos = flexvert_xpos_in[worldid, vert_adr_f + v_idx]
+                dist_v = wp.length(contact_pos - vpos)
+                w_inv = 1.0 / wp.max(1.0e-10, dist_v)
+                total_inv_dist += w_inv
+                blended_coord += flex_vert0[vert_adr_f + v_idx] * w_inv
+            if total_inv_dist > 1.0e-10:
+              blended_coord = blended_coord / total_inv_dist
 
-        rownnz += 1
+            if flex_interp[f] != 0:
+              cn = flex_cellnum[f]
+              cx = cn[0]
+              cy = cn[1]
+              cz = cn[2]
+              ci = wp.min(int(blended_coord[0] * float(cx)), cx - 1)
+              ci = wp.max(ci, 0)
+              cj = wp.min(int(blended_coord[1] * float(cy)), cy - 1)
+              cj = wp.max(cj, 0)
+              ck = wp.min(int(blended_coord[2] * float(cz)), cz - 1)
+              ck = wp.max(ck, 0)
+              local_x = wp.clamp(blended_coord[0] * float(cx) - float(ci), 0.0, 1.0)
+              local_y = wp.clamp(blended_coord[1] * float(cy) - float(cj), 0.0, 1.0)
+              local_z = wp.clamp(blended_coord[2] * float(cz) - float(ck), 0.0, 1.0)
+              local = wp.vec3(local_x, local_y, local_z)
+              ny_g = cy + 1
+              nz_g = cz + 1
+              nstart = flex_nodeadr[f]
+              for li in range(2):
+                for lj in range(2):
+                  for lk in range(2):
+                    w = support.eval_basis_trilinear(local, li * 4 + lj * 2 + lk)
+                    if w > 1.0e-5:
+                      gi = ci + li
+                      gj = cj + lj
+                      gk = ck + lk
+                      node_idx = gi * ny_g * nz_g + gj * nz_g + gk
+                      b = body_weldid[flex_nodebodyid[nstart + node_idx]]
+                      rownnz += body_dofnum[b]
+      else:
+        # Standard path (including elements up to 4 bodies)
+        b1_0 = body_weldid[body_ids1[0]]
+        b1_1 = body_weldid[body_ids1[1]] if body_ids1[1] >= 0 else -1
+        b1_2 = body_weldid[body_ids1[2]] if body_ids1[2] >= 0 else -1
+        b1_3 = body_weldid[body_ids1[3]] if body_ids1[3] >= 0 else -1
+
+        b2_0 = body_weldid[body_ids2[0]]
+        b2_1 = body_weldid[body_ids2[1]] if body_ids2[1] >= 0 else -1
+        b2_2 = body_weldid[body_ids2[2]] if body_ids2[2] >= 0 else -1
+        b2_3 = body_weldid[body_ids2[3]] if body_ids2[3] >= 0 else -1
+
+        dof1_0 = int(body_dofadr[b1_0] + body_dofnum[b1_0] - 1) if b1_0 >= 0 else -1
+        dof1_1 = int(body_dofadr[b1_1] + body_dofnum[b1_1] - 1) if b1_1 >= 0 else -1
+        dof1_2 = int(body_dofadr[b1_2] + body_dofnum[b1_2] - 1) if b1_2 >= 0 else -1
+        dof1_3 = int(body_dofadr[b1_3] + body_dofnum[b1_3] - 1) if b1_3 >= 0 else -1
+
+        dof2_0 = int(body_dofadr[b2_0] + body_dofnum[b2_0] - 1) if b2_0 >= 0 else -1
+        dof2_1 = int(body_dofadr[b2_1] + body_dofnum[b2_1] - 1) if b2_1 >= 0 else -1
+        dof2_2 = int(body_dofadr[b2_2] + body_dofnum[b2_2] - 1) if b2_2 >= 0 else -1
+        dof2_3 = int(body_dofadr[b2_3] + body_dofnum[b2_3] - 1) if b2_3 >= 0 else -1
+
+        # count non-zeros
+        rownnz = int(0)
+        while (
+          dof1_0 >= 0 or dof1_1 >= 0 or dof1_2 >= 0 or dof1_3 >= 0 or dof2_0 >= 0 or dof2_1 >= 0 or dof2_2 >= 0 or dof2_3 >= 0
+        ):
+          da1_max = wp.max(dof1_0, wp.max(dof1_1, wp.max(dof1_2, dof1_3)))
+          da2_max = wp.max(dof2_0, wp.max(dof2_1, wp.max(dof2_2, dof2_3)))
+          da = wp.max(da1_max, da2_max)
+
+          if dof1_0 == da:
+            dof1_0 = dof_parentid[dof1_0]
+          if dof1_1 == da:
+            dof1_1 = dof_parentid[dof1_1]
+          if dof1_2 == da:
+            dof1_2 = dof_parentid[dof1_2]
+          if dof1_3 == da:
+            dof1_3 = dof_parentid[dof1_3]
+
+          if dof2_0 == da:
+            dof2_0 = dof_parentid[dof2_0]
+          if dof2_1 == da:
+            dof2_1 = dof_parentid[dof2_1]
+          if dof2_2 == da:
+            dof2_2 = dof_parentid[dof2_2]
+          if dof2_3 == da:
+            dof2_3 = dof_parentid[dof2_3]
+
+          rownnz += 1
 
       rowadr = wp.atomic_add(efc_nnz_out, worldid, rownnz * ndim)
       if rowadr + rownnz * ndim > njmax_nnz_in:
@@ -2593,6 +3151,7 @@ def _efc_contact_jac_sparse(cone_type: types.ConeType):
 @cache_kernel
 def _efc_contact_jac_sparse_flex(cone_type: types.ConeType):
   IS_ELLIPTIC = cone_type == types.ConeType.ELLIPTIC
+  HAS_FLEX = True
 
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
@@ -2606,12 +3165,17 @@ def _efc_contact_jac_sparse_flex(cone_type: types.ConeType):
     dof_parentid: wp.array[int],
     geom_bodyid: wp.array[int],
     flex_dim: wp.array[int],
+    flex_interp: wp.array[int],
+    flex_cellnum: wp.array[wp.vec3i],
+    flex_nodeadr: wp.array[int],
     flex_vertadr: wp.array[int],
     flex_elemdataadr: wp.array[int],
     flex_shelldataadr: wp.array[int],
+    flex_nodebodyid: wp.array[int],
     flex_vertbodyid: wp.array[int],
     flex_elem: wp.array[int],
     flex_shell: wp.array[int],
+    flex_vert0: wp.array[wp.vec3],
     body_isdofancestor: wp.array2d[int],
     # Data in:
     qvel_in: wp.array2d[float],
@@ -2655,55 +3219,14 @@ def _efc_contact_jac_sparse_flex(cone_type: types.ConeType):
     vert = vert_in[conid]
     con_pos = pos_in[conid]
 
-    body_ids1, weights1 = _get_contact_bodies_and_weights(
-      geom_bodyid,
-      flex_dim,
-      flex_vertadr,
-      flex_elemdataadr,
-      flex_shelldataadr,
-      flex_vertbodyid,
-      flex_elem,
-      flex_shell,
-      flexvert_xpos_in,
-      conid,
-      0,
-      geom,
-      flex,
-      elem,
-      vert,
-      con_pos,
-      worldid,
-    )
-    body_ids2, weights2 = _get_contact_bodies_and_weights(
-      geom_bodyid,
-      flex_dim,
-      flex_vertadr,
-      flex_elemdataadr,
-      flex_shelldataadr,
-      flex_vertbodyid,
-      flex_elem,
-      flex_shell,
-      flexvert_xpos_in,
-      conid,
-      1,
-      geom,
-      flex,
-      elem,
-      vert,
-      con_pos,
-      worldid,
-    )
-
-    # skip fixed bodies
-    b1_0 = body_weldid[body_ids1[0]]
-    b1_1 = body_weldid[body_ids1[1]] if body_ids1[1] >= 0 else -1
-    b1_2 = body_weldid[body_ids1[2]] if body_ids1[2] >= 0 else -1
-    b1_3 = body_weldid[body_ids1[3]] if body_ids1[3] >= 0 else -1
-
-    b2_0 = body_weldid[body_ids2[0]]
-    b2_1 = body_weldid[body_ids2[1]] if body_ids2[1] >= 0 else -1
-    b2_2 = body_weldid[body_ids2[2]] if body_ids2[2] >= 0 else -1
-    b2_3 = body_weldid[body_ids2[3]] if body_ids2[3] >= 0 else -1
+    is_interp = False
+    if wp.static(HAS_FLEX):
+      if geom[0] < 0 and flex[0] >= 0 and (vert[0] >= 0 or elem[0] >= 0):
+        if flex_interp[flex[0]] != 0:
+          is_interp = True
+      if geom[1] < 0 and flex[1] >= 0 and (vert[1] >= 0 or elem[1] >= 0):
+        if flex_interp[flex[1]] != 0:
+          is_interp = True
 
     if not wp.static(IS_ELLIPTIC):
       frame_0 = frame_in[conid, 0]
@@ -2711,149 +3234,515 @@ def _efc_contact_jac_sparse_flex(cone_type: types.ConeType):
         dimid2 = dimid / 2 + 1
         frii = friction_in[conid, dimid2 - 1]
 
-    dof1_0 = int(body_dofadr[b1_0] + body_dofnum[b1_0] - 1) if b1_0 >= 0 else -1
-    dof1_1 = int(body_dofadr[b1_1] + body_dofnum[b1_1] - 1) if b1_1 >= 0 else -1
-    dof1_2 = int(body_dofadr[b1_2] + body_dofnum[b1_2] - 1) if b1_2 >= 0 else -1
-    dof1_3 = int(body_dofadr[b1_3] + body_dofnum[b1_3] - 1) if b1_3 >= 0 else -1
-    da1 = wp.max(dof1_0, wp.max(dof1_1, wp.max(dof1_2, dof1_3)))
-
-    dof2_0 = int(body_dofadr[b2_0] + body_dofnum[b2_0] - 1) if b2_0 >= 0 else -1
-    dof2_1 = int(body_dofadr[b2_1] + body_dofnum[b2_1] - 1) if b2_1 >= 0 else -1
-    dof2_2 = int(body_dofadr[b2_2] + body_dofnum[b2_2] - 1) if b2_2 >= 0 else -1
-    dof2_3 = int(body_dofadr[b2_3] + body_dofnum[b2_3] - 1) if b2_3 >= 0 else -1
-    da2 = wp.max(dof2_0, wp.max(dof2_1, wp.max(dof2_2, dof2_3)))
-
-    da = wp.max(da1, da2)
-
     rowadr = efc_J_rowadr_in[worldid, efcid]
     rownnz = efc_J_rownnz_in[worldid, efcid]
 
-    Jqvel = float(0.0)
-    nnz = int(0)
-    dofid = int(da)
+    if is_interp:
+      # Interpolated flex path: iterate over bodies per side, accumulate weighted Jacobians
+      nnz = int(0)
+      Jqvel = float(0.0)
 
-    while True:
-      if nnz >= rownnz:
-        break
+      for side in range(2):
+        sign = float(-1.0) if side == 0 else float(1.0)
 
-      if dofid == da:
-        jac1p = wp.vec3(0.0)
-        jac1r = wp.vec3(0.0)
-        if dof1_0 == da:
-          jp, jr = support.jac_dof(
-            body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, con_pos, b1_0, dofid, worldid
-          )
-          jac1p += jp * weights1[0]
-          jac1r += jr * weights1[0]
-        if dof1_1 == da:
-          jp, jr = support.jac_dof(
-            body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, con_pos, b1_1, dofid, worldid
-          )
-          jac1p += jp * weights1[1]
-          jac1r += jr * weights1[1]
-        if dof1_2 == da:
-          jp, jr = support.jac_dof(
-            body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, con_pos, b1_2, dofid, worldid
-          )
-          jac1p += jp * weights1[2]
-          jac1r += jr * weights1[2]
-        if dof1_3 == da:
-          jp, jr = support.jac_dof(
-            body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, con_pos, b1_3, dofid, worldid
-          )
-          jac1p += jp * weights1[3]
-          jac1r += jr * weights1[3]
+        if geom[side] >= 0:
+          # Geom side: single body
+          b = body_weldid[geom_bodyid[geom[side]]]
+          dof_start = body_dofadr[b]
+          ndof = body_dofnum[b]
+          for di in range(ndof):
+            dofid = dof_start + di
+            jacp, jacr = support.jac_dof(
+              body_parentid,
+              body_rootid,
+              dof_bodyid,
+              body_isdofancestor,
+              subtree_com_in,
+              cdof_in,
+              con_pos,
+              b,
+              dofid,
+              worldid,
+            )
 
-        jac2p = wp.vec3(0.0)
-        jac2r = wp.vec3(0.0)
-        if dof2_0 == da:
-          jp, jr = support.jac_dof(
-            body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, con_pos, b2_0, dofid, worldid
-          )
-          jac2p += jp * weights2[0]
-          jac2r += jr * weights2[0]
-        if dof2_1 == da:
-          jp, jr = support.jac_dof(
-            body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, con_pos, b2_1, dofid, worldid
-          )
-          jac2p += jp * weights2[1]
-          jac2r += jr * weights2[1]
-        if dof2_2 == da:
-          jp, jr = support.jac_dof(
-            body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, con_pos, b2_2, dofid, worldid
-          )
-          jac2p += jp * weights2[2]
-          jac2r += jr * weights2[2]
-        if dof2_3 == da:
-          jp, jr = support.jac_dof(
-            body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, con_pos, b2_3, dofid, worldid
-          )
-          jac2p += jp * weights2[3]
-          jac2r += jr * weights2[3]
+            if wp.static(IS_ELLIPTIC):
+              J = float(0.0)
+              if dimid < 3:
+                frame_row = frame_in[conid, dimid]
+                for xyz in range(3):
+                  J += frame_row[xyz] * jacp[xyz] * sign
+              else:
+                frame_row = frame_in[conid, dimid - 3]
+                for xyz in range(3):
+                  J += frame_row[xyz] * jacr[xyz] * sign
+            else:
+              J = float(0.0)
+              Ji = float(0.0)
+              for xyz in range(3):
+                J += frame_0[xyz] * jacp[xyz] * sign
+                if condim > 1:
+                  if dimid2 < 3:
+                    Ji += frame_in[conid, dimid2][xyz] * jacp[xyz] * sign
+                  else:
+                    Ji += frame_in[conid, dimid2 - 3][xyz] * jacr[xyz] * sign
+              if condim > 1:
+                if dimid % 2 == 0:
+                  J += Ji * frii
+                else:
+                  J -= Ji * frii
 
-        jacp_dif = jac2p - jac1p
-        jacr_dif = jac2r - jac1r
+            if nnz < rownnz:
+              sparseid = rowadr + nnz
+              efc_J_colind_out[worldid, 0, sparseid] = dofid
+              efc_J_out[worldid, 0, sparseid] = J
+              Jqvel += J * qvel_in[worldid, dofid]
+              nnz += 1
 
-        if wp.static(IS_ELLIPTIC):
-          J = float(0.0)
-          if dimid < 3:
-            frame_row = frame_in[conid, dimid]
-            for xyz in range(3):
-              J += frame_row[xyz] * jacp_dif[xyz]
+        elif flex[side] >= 0 and vert[side] >= 0:
+          f = flex[side]
+          if flex_interp[f] != 0:
+            # Interpolated flex side: compute cell node bodies and weights
+            v_adr = flex_vertadr[f] + vert[side]
+            coord = flex_vert0[v_adr]
+            cn = flex_cellnum[f]
+            cx = cn[0]
+            cy = cn[1]
+            cz = cn[2]
+
+            ci = wp.min(int(coord[0] * float(cx)), cx - 1)
+            ci = wp.max(ci, 0)
+            cj = wp.min(int(coord[1] * float(cy)), cy - 1)
+            cj = wp.max(cj, 0)
+            ck = wp.min(int(coord[2] * float(cz)), cz - 1)
+            ck = wp.max(ck, 0)
+
+            local_x = wp.clamp(coord[0] * float(cx) - float(ci), 0.0, 1.0)
+            local_y = wp.clamp(coord[1] * float(cy) - float(cj), 0.0, 1.0)
+            local_z = wp.clamp(coord[2] * float(cz) - float(ck), 0.0, 1.0)
+            local = wp.vec3(local_x, local_y, local_z)
+
+            ny_g = cy + 1
+            nz_g = cz + 1
+            nstart = flex_nodeadr[f]
+
+            for li in range(2):
+              for lj in range(2):
+                for lk in range(2):
+                  w = support.eval_basis_trilinear(local, li * 4 + lj * 2 + lk)
+                  if w > 1.0e-5:
+                    gi = ci + li
+                    gj = cj + lj
+                    gk = ck + lk
+                    node_idx = gi * ny_g * nz_g + gj * nz_g + gk
+                    b = body_weldid[flex_nodebodyid[nstart + node_idx]]
+                    w_sign = w * sign
+
+                    dof_start = body_dofadr[b]
+                    ndof = body_dofnum[b]
+                    for di in range(ndof):
+                      dofid = dof_start + di
+                      jacp, jacr = support.jac_dof(
+                        body_parentid,
+                        body_rootid,
+                        dof_bodyid,
+                        body_isdofancestor,
+                        subtree_com_in,
+                        cdof_in,
+                        con_pos,
+                        b,
+                        dofid,
+                        worldid,
+                      )
+
+                      if wp.static(IS_ELLIPTIC):
+                        J = float(0.0)
+                        if dimid < 3:
+                          frame_row = frame_in[conid, dimid]
+                          for xyz in range(3):
+                            J += frame_row[xyz] * jacp[xyz] * w_sign
+                        else:
+                          frame_row = frame_in[conid, dimid - 3]
+                          for xyz in range(3):
+                            J += frame_row[xyz] * jacr[xyz] * w_sign
+                      else:
+                        J = float(0.0)
+                        Ji = float(0.0)
+                        for xyz in range(3):
+                          J += frame_0[xyz] * jacp[xyz] * w_sign
+                          if condim > 1:
+                            if dimid2 < 3:
+                              Ji += frame_in[conid, dimid2][xyz] * jacp[xyz] * w_sign
+                            else:
+                              Ji += frame_in[conid, dimid2 - 3][xyz] * jacr[xyz] * w_sign
+                        if condim > 1:
+                          if dimid % 2 == 0:
+                            J += Ji * frii
+                          else:
+                            J -= Ji * frii
+
+                      if nnz < rownnz:
+                        sparseid = rowadr + nnz
+                        efc_J_colind_out[worldid, 0, sparseid] = dofid
+                        efc_J_out[worldid, 0, sparseid] = J
+                        Jqvel += J * qvel_in[worldid, dofid]
+                        nnz += 1
           else:
-            frame_row = frame_in[conid, dimid - 3]
-            for xyz in range(3):
-              J += frame_row[xyz] * jacr_dif[xyz]
-        else:
-          J = float(0.0)
-          Ji = float(0.0)
+            # Non-interpolated flex: single body
+            b = body_weldid[flex_vertbodyid[flex_vertadr[f] + vert[side]]]
+            dof_start = body_dofadr[b]
+            ndof = body_dofnum[b]
+            for di in range(ndof):
+              dofid = dof_start + di
+              jacp, jacr = support.jac_dof(
+                body_parentid,
+                body_rootid,
+                dof_bodyid,
+                body_isdofancestor,
+                subtree_com_in,
+                cdof_in,
+                con_pos,
+                b,
+                dofid,
+                worldid,
+              )
 
-          for xyz in range(3):
-            J += frame_0[xyz] * jacp_dif[xyz]
+              if wp.static(IS_ELLIPTIC):
+                J = float(0.0)
+                if dimid < 3:
+                  frame_row = frame_in[conid, dimid]
+                  for xyz in range(3):
+                    J += frame_row[xyz] * jacp[xyz] * sign
+                else:
+                  frame_row = frame_in[conid, dimid - 3]
+                  for xyz in range(3):
+                    J += frame_row[xyz] * jacr[xyz] * sign
+              else:
+                J = float(0.0)
+                Ji = float(0.0)
+                for xyz in range(3):
+                  J += frame_0[xyz] * jacp[xyz] * sign
+                  if condim > 1:
+                    if dimid2 < 3:
+                      Ji += frame_in[conid, dimid2][xyz] * jacp[xyz] * sign
+                    else:
+                      Ji += frame_in[conid, dimid2 - 3][xyz] * jacr[xyz] * sign
+                if condim > 1:
+                  if dimid % 2 == 0:
+                    J += Ji * frii
+                  else:
+                    J -= Ji * frii
+
+              if nnz < rownnz:
+                sparseid = rowadr + nnz
+                efc_J_colind_out[worldid, 0, sparseid] = dofid
+                efc_J_out[worldid, 0, sparseid] = J
+                Jqvel += J * qvel_in[worldid, dofid]
+                nnz += 1
+
+        elif flex[side] >= 0 and elem[side] >= 0:
+          # Elem contact: compute blended coordinate from distance weighting
+          f = flex[side]
+          e = elem[side]
+          dim_f = flex_dim[f]
+          edata_adr = flex_elemdataadr[f] + e * (dim_f + 1)
+          vert_adr_f = flex_vertadr[f]
+
+          total_inv_dist = float(0.0)
+          blended_coord = wp.vec3(0.0, 0.0, 0.0)
+          for vi in range(4):
+            if vi <= dim_f:
+              v_idx = flex_elem[edata_adr + vi]
+              vpos = flexvert_xpos_in[worldid, vert_adr_f + v_idx]
+              dist_v = wp.length(con_pos - vpos)
+              w_inv = 1.0 / wp.max(1.0e-10, dist_v)
+              total_inv_dist += w_inv
+              blended_coord += flex_vert0[vert_adr_f + v_idx] * w_inv
+          if total_inv_dist > 1.0e-10:
+            blended_coord = blended_coord / total_inv_dist
+
+          if flex_interp[f] != 0:
+            cn = flex_cellnum[f]
+            cx = cn[0]
+            cy = cn[1]
+            cz = cn[2]
+            ci = wp.min(int(blended_coord[0] * float(cx)), cx - 1)
+            ci = wp.max(ci, 0)
+            cj = wp.min(int(blended_coord[1] * float(cy)), cy - 1)
+            cj = wp.max(cj, 0)
+            ck = wp.min(int(blended_coord[2] * float(cz)), cz - 1)
+            ck = wp.max(ck, 0)
+            local_x = wp.clamp(blended_coord[0] * float(cx) - float(ci), 0.0, 1.0)
+            local_y = wp.clamp(blended_coord[1] * float(cy) - float(cj), 0.0, 1.0)
+            local_z = wp.clamp(blended_coord[2] * float(cz) - float(ck), 0.0, 1.0)
+            local = wp.vec3(local_x, local_y, local_z)
+            ny_g = cy + 1
+            nz_g = cz + 1
+            nstart = flex_nodeadr[f]
+
+            for li in range(2):
+              for lj in range(2):
+                for lk in range(2):
+                  w = support.eval_basis_trilinear(local, li * 4 + lj * 2 + lk)
+                  if w > 1.0e-5:
+                    gi = ci + li
+                    gj = cj + lj
+                    gk = ck + lk
+                    node_idx = gi * ny_g * nz_g + gj * nz_g + gk
+                    b = body_weldid[flex_nodebodyid[nstart + node_idx]]
+                    w_sign = w * sign
+
+                    dof_start = body_dofadr[b]
+                    ndof = body_dofnum[b]
+                    for di in range(ndof):
+                      dofid = dof_start + di
+                      jacp, jacr = support.jac_dof(
+                        body_parentid,
+                        body_rootid,
+                        dof_bodyid,
+                        body_isdofancestor,
+                        subtree_com_in,
+                        cdof_in,
+                        con_pos,
+                        b,
+                        dofid,
+                        worldid,
+                      )
+
+                      if wp.static(IS_ELLIPTIC):
+                        J = float(0.0)
+                        if dimid < 3:
+                          frame_row = frame_in[conid, dimid]
+                          for xyz in range(3):
+                            J += frame_row[xyz] * jacp[xyz] * w_sign
+                        else:
+                          frame_row = frame_in[conid, dimid - 3]
+                          for xyz in range(3):
+                            J += frame_row[xyz] * jacr[xyz] * w_sign
+                      else:
+                        J = float(0.0)
+                        Ji = float(0.0)
+                        for xyz in range(3):
+                          J += frame_0[xyz] * jacp[xyz] * w_sign
+                          if condim > 1:
+                            if dimid2 < 3:
+                              Ji += frame_in[conid, dimid2][xyz] * jacp[xyz] * w_sign
+                            else:
+                              Ji += frame_in[conid, dimid2 - 3][xyz] * jacr[xyz] * w_sign
+                        if condim > 1:
+                          if dimid % 2 == 0:
+                            J += Ji * frii
+                          else:
+                            J -= Ji * frii
+
+                      if nnz < rownnz:
+                        sparseid = rowadr + nnz
+                        efc_J_colind_out[worldid, 0, sparseid] = dofid
+                        efc_J_out[worldid, 0, sparseid] = J
+                        Jqvel += J * qvel_in[worldid, dofid]
+                        nnz += 1
+
+      efc_Jqvel_out[worldid, efcid] = Jqvel
+
+    else:
+      # Non-interpolated flex path: use HEAD's 4-body lockstep tree-walk
+      body_ids1, weights1 = _get_contact_bodies_and_weights(
+        geom_bodyid,
+        flex_dim,
+        flex_cellnum,
+        flex_nodeadr,
+        flex_vertadr,
+        flex_elemdataadr,
+        flex_shelldataadr,
+        flex_nodebodyid,
+        flex_vertbodyid,
+        flex_elem,
+        flex_shell,
+        flex_vert0,
+        flexvert_xpos_in,
+        conid,
+        0,
+        geom,
+        flex,
+        elem,
+        vert,
+        con_pos,
+        worldid,
+      )
+      body_ids2, weights2 = _get_contact_bodies_and_weights(
+        geom_bodyid,
+        flex_dim,
+        flex_cellnum,
+        flex_nodeadr,
+        flex_vertadr,
+        flex_elemdataadr,
+        flex_shelldataadr,
+        flex_nodebodyid,
+        flex_vertbodyid,
+        flex_elem,
+        flex_shell,
+        flex_vert0,
+        flexvert_xpos_in,
+        conid,
+        1,
+        geom,
+        flex,
+        elem,
+        vert,
+        con_pos,
+        worldid,
+      )
+
+      # skip fixed bodies
+      b1_0 = body_weldid[body_ids1[0]]
+      b1_1 = body_weldid[body_ids1[1]] if body_ids1[1] >= 0 else -1
+      b1_2 = body_weldid[body_ids1[2]] if body_ids1[2] >= 0 else -1
+      b1_3 = body_weldid[body_ids1[3]] if body_ids1[3] >= 0 else -1
+
+      b2_0 = body_weldid[body_ids2[0]]
+      b2_1 = body_weldid[body_ids2[1]] if body_ids2[1] >= 0 else -1
+      b2_2 = body_weldid[body_ids2[2]] if body_ids2[2] >= 0 else -1
+      b2_3 = body_weldid[body_ids2[3]] if body_ids2[3] >= 0 else -1
+
+      dof1_0 = int(body_dofadr[b1_0] + body_dofnum[b1_0] - 1) if b1_0 >= 0 else -1
+      dof1_1 = int(body_dofadr[b1_1] + body_dofnum[b1_1] - 1) if b1_1 >= 0 else -1
+      dof1_2 = int(body_dofadr[b1_2] + body_dofnum[b1_2] - 1) if b1_2 >= 0 else -1
+      dof1_3 = int(body_dofadr[b1_3] + body_dofnum[b1_3] - 1) if b1_3 >= 0 else -1
+      da1 = wp.max(dof1_0, wp.max(dof1_1, wp.max(dof1_2, dof1_3)))
+
+      dof2_0 = int(body_dofadr[b2_0] + body_dofnum[b2_0] - 1) if b2_0 >= 0 else -1
+      dof2_1 = int(body_dofadr[b2_1] + body_dofnum[b2_1] - 1) if b2_1 >= 0 else -1
+      dof2_2 = int(body_dofadr[b2_2] + body_dofnum[b2_2] - 1) if b2_2 >= 0 else -1
+      dof2_3 = int(body_dofadr[b2_3] + body_dofnum[b2_3] - 1) if b2_3 >= 0 else -1
+      da2 = wp.max(dof2_0, wp.max(dof2_1, wp.max(dof2_2, dof2_3)))
+
+      da = wp.max(da1, da2)
+
+      Jqvel = float(0.0)
+      nnz = int(0)
+      dofid = int(da)
+
+      while True:
+        if nnz >= rownnz:
+          break
+
+        if dofid == da:
+          jac1p = wp.vec3(0.0)
+          jac1r = wp.vec3(0.0)
+          if dof1_0 == da:
+            jp, jr = support.jac_dof(
+              body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, con_pos, b1_0, dofid, worldid
+            )
+            jac1p += jp * weights1[0]
+            jac1r += jr * weights1[0]
+          if dof1_1 == da:
+            jp, jr = support.jac_dof(
+              body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, con_pos, b1_1, dofid, worldid
+            )
+            jac1p += jp * weights1[1]
+            jac1r += jr * weights1[1]
+          if dof1_2 == da:
+            jp, jr = support.jac_dof(
+              body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, con_pos, b1_2, dofid, worldid
+            )
+            jac1p += jp * weights1[2]
+            jac1r += jr * weights1[2]
+          if dof1_3 == da:
+            jp, jr = support.jac_dof(
+              body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, con_pos, b1_3, dofid, worldid
+            )
+            jac1p += jp * weights1[3]
+            jac1r += jr * weights1[3]
+
+          jac2p = wp.vec3(0.0)
+          jac2r = wp.vec3(0.0)
+          if dof2_0 == da:
+            jp, jr = support.jac_dof(
+              body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, con_pos, b2_0, dofid, worldid
+            )
+            jac2p += jp * weights2[0]
+            jac2r += jr * weights2[0]
+          if dof2_1 == da:
+            jp, jr = support.jac_dof(
+              body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, con_pos, b2_1, dofid, worldid
+            )
+            jac2p += jp * weights2[1]
+            jac2r += jr * weights2[1]
+          if dof2_2 == da:
+            jp, jr = support.jac_dof(
+              body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, con_pos, b2_2, dofid, worldid
+            )
+            jac2p += jp * weights2[2]
+            jac2r += jr * weights2[2]
+          if dof2_3 == da:
+            jp, jr = support.jac_dof(
+              body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, con_pos, b2_3, dofid, worldid
+            )
+            jac2p += jp * weights2[3]
+            jac2r += jr * weights2[3]
+
+          jacp_dif = jac2p - jac1p
+          jacr_dif = jac2r - jac1r
+
+          if wp.static(IS_ELLIPTIC):
+            J = float(0.0)
+            if dimid < 3:
+              frame_row = frame_in[conid, dimid]
+              for xyz in range(3):
+                J += frame_row[xyz] * jacp_dif[xyz]
+            else:
+              frame_row = frame_in[conid, dimid - 3]
+              for xyz in range(3):
+                J += frame_row[xyz] * jacr_dif[xyz]
+          else:
+            J = float(0.0)
+            Ji = float(0.0)
+
+            for xyz in range(3):
+              J += frame_0[xyz] * jacp_dif[xyz]
+
+              if condim > 1:
+                if dimid2 < 3:
+                  Ji += frame_in[conid, dimid2][xyz] * jacp_dif[xyz]
+                else:
+                  Ji += frame_in[conid, dimid2 - 3][xyz] * jacr_dif[xyz]
 
             if condim > 1:
-              if dimid2 < 3:
-                Ji += frame_in[conid, dimid2][xyz] * jacp_dif[xyz]
+              if dimid % 2 == 0:
+                J += Ji * frii
               else:
-                Ji += frame_in[conid, dimid2 - 3][xyz] * jacr_dif[xyz]
+                J -= Ji * frii
 
-          if condim > 1:
-            if dimid % 2 == 0:
-              J += Ji * frii
-            else:
-              J -= Ji * frii
+          sparseid = rowadr + nnz
+          efc_J_colind_out[worldid, 0, sparseid] = dofid
+          efc_J_out[worldid, 0, sparseid] = J
+          nnz += 1
+          Jqvel += J * qvel_in[worldid, dofid]
 
-        sparseid = rowadr + nnz
-        efc_J_colind_out[worldid, 0, sparseid] = dofid
-        efc_J_out[worldid, 0, sparseid] = J
-        nnz += 1
-        Jqvel += J * qvel_in[worldid, dofid]
+          # Advance tree pointers
+          if dof1_0 == da:
+            dof1_0 = dof_parentid[dof1_0]
+          if dof1_1 == da:
+            dof1_1 = dof_parentid[dof1_1]
+          if dof1_2 == da:
+            dof1_2 = dof_parentid[dof1_2]
+          if dof1_3 == da:
+            dof1_3 = dof_parentid[dof1_3]
+          da1 = wp.max(dof1_0, wp.max(dof1_1, wp.max(dof1_2, dof1_3)))
 
-        # Advance tree pointers
-        if dof1_0 == da:
-          dof1_0 = dof_parentid[dof1_0]
-        if dof1_1 == da:
-          dof1_1 = dof_parentid[dof1_1]
-        if dof1_2 == da:
-          dof1_2 = dof_parentid[dof1_2]
-        if dof1_3 == da:
-          dof1_3 = dof_parentid[dof1_3]
-        da1 = wp.max(dof1_0, wp.max(dof1_1, wp.max(dof1_2, dof1_3)))
+          if dof2_0 == da:
+            dof2_0 = dof_parentid[dof2_0]
+          if dof2_1 == da:
+            dof2_1 = dof_parentid[dof2_1]
+          if dof2_2 == da:
+            dof2_2 = dof_parentid[dof2_2]
+          if dof2_3 == da:
+            dof2_3 = dof_parentid[dof2_3]
+          da2 = wp.max(dof2_0, wp.max(dof2_1, wp.max(dof2_2, dof2_3)))
 
-        if dof2_0 == da:
-          dof2_0 = dof_parentid[dof2_0]
-        if dof2_1 == da:
-          dof2_1 = dof_parentid[dof2_1]
-        if dof2_2 == da:
-          dof2_2 = dof_parentid[dof2_2]
-        if dof2_3 == da:
-          dof2_3 = dof_parentid[dof2_3]
-        da2 = wp.max(dof2_0, wp.max(dof2_1, wp.max(dof2_2, dof2_3)))
+          da = wp.max(da1, da2)
+          dofid = da
 
-        da = wp.max(da1, da2)
-        dofid = da
-
-    efc_Jqvel_out[worldid, efcid] = Jqvel
+      efc_Jqvel_out[worldid, efcid] = Jqvel
 
   return kernel
 
@@ -2920,17 +3809,16 @@ def _efc_contact_jac_dense(tile_size: int, cone_type: types.ConeType):
 
         con_pos = pos_in[conid]
         offset1 = con_pos - subtree_com_in[worldid, body_rootid[body1]]
-        offset2 = con_pos - subtree_com_in[worldid, body_rootid[body2]]
-
         affects1_tile = wp.tile_load(body_isdofancestor[body1], shape=TILE_SIZE, offset=dof_start, bounds_check=True)
-        affects2_tile = wp.tile_load(body_isdofancestor[body2], shape=TILE_SIZE, offset=dof_start, bounds_check=True)
-
         jacp1_tile = wp.tile_map(support._compute_jacp, cdof_tile, offset1, affects1_tile)
-        jacp2_tile = wp.tile_map(support._compute_jacp, cdof_tile, offset2, affects2_tile)
-        jacp_dif_tile = wp.tile_map(wp.sub, jacp2_tile, jacp1_tile)
-
         jacr1_tile = wp.tile_map(support._compute_jacr, cdof_tile, affects1_tile)
+
+        offset2 = con_pos - subtree_com_in[worldid, body_rootid[body2]]
+        affects2_tile = wp.tile_load(body_isdofancestor[body2], shape=TILE_SIZE, offset=dof_start, bounds_check=True)
+        jacp2_tile = wp.tile_map(support._compute_jacp, cdof_tile, offset2, affects2_tile)
         jacr2_tile = wp.tile_map(support._compute_jacr, cdof_tile, affects2_tile)
+
+        jacp_dif_tile = wp.tile_map(wp.sub, jacp2_tile, jacp1_tile)
         jacr_dif_tile = wp.tile_map(wp.sub, jacr2_tile, jacr1_tile)
 
         if not wp.static(IS_ELLIPTIC):
@@ -2999,12 +3887,16 @@ def _efc_contact_jac_dense_flex(tile_size: int, cone_type: types.ConeType):
     body_rootid: wp.array[int],
     geom_bodyid: wp.array[int],
     flex_dim: wp.array[int],
+    flex_cellnum: wp.array[wp.vec3i],
+    flex_nodeadr: wp.array[int],
     flex_vertadr: wp.array[int],
     flex_elemdataadr: wp.array[int],
     flex_shelldataadr: wp.array[int],
+    flex_nodebodyid: wp.array[int],
     flex_vertbodyid: wp.array[int],
     flex_elem: wp.array[int],
     flex_shell: wp.array[int],
+    flex_vert0: wp.array[wp.vec3],
     body_isdofancestor: wp.array2d[int],
     # Data in:
     ne_in: wp.array[int],
@@ -3064,12 +3956,16 @@ def _efc_contact_jac_dense_flex(tile_size: int, cone_type: types.ConeType):
         body_ids1, weights1 = _get_contact_bodies_and_weights(
           geom_bodyid,
           flex_dim,
+          flex_cellnum,
+          flex_nodeadr,
           flex_vertadr,
           flex_elemdataadr,
           flex_shelldataadr,
+          flex_nodebodyid,
           flex_vertbodyid,
           flex_elem,
           flex_shell,
+          flex_vert0,
           flexvert_xpos_in,
           conid,
           0,
@@ -3083,12 +3979,16 @@ def _efc_contact_jac_dense_flex(tile_size: int, cone_type: types.ConeType):
         body_ids2, weights2 = _get_contact_bodies_and_weights(
           geom_bodyid,
           flex_dim,
+          flex_cellnum,
+          flex_nodeadr,
           flex_vertadr,
           flex_elemdataadr,
           flex_shelldataadr,
+          flex_nodebodyid,
           flex_vertbodyid,
           flex_elem,
           flex_shell,
+          flex_vert0,
           flexvert_xpos_in,
           conid,
           1,
@@ -3445,12 +4345,17 @@ def _efc_contact_update_flex(cone_type: types.ConeType):
     body_invweight0: wp.array2d[wp.vec2],
     geom_bodyid: wp.array[int],
     flex_dim: wp.array[int],
+    flex_interp: wp.array[int],
+    flex_cellnum: wp.array[wp.vec3i],
+    flex_nodeadr: wp.array[int],
     flex_vertadr: wp.array[int],
     flex_elemdataadr: wp.array[int],
     flex_shelldataadr: wp.array[int],
+    flex_nodebodyid: wp.array[int],
     flex_vertbodyid: wp.array[int],
     flex_elem: wp.array[int],
     flex_shell: wp.array[int],
+    flex_vert0: wp.array[wp.vec3],
     # Data in:
     flexvert_xpos_in: wp.array2d[wp.vec3],
     contact_efc_address_in: wp.array2d[int],
@@ -3518,72 +4423,268 @@ def _efc_contact_update_flex(cone_type: types.ConeType):
     con_pos = pos_in[conid]
     Jqvel = efc_Jqvel_in[worldid, efcid]
 
-    body_ids1, weights1 = _get_contact_bodies_and_weights(
-      geom_bodyid,
-      flex_dim,
-      flex_vertadr,
-      flex_elemdataadr,
-      flex_shelldataadr,
-      flex_vertbodyid,
-      flex_elem,
-      flex_shell,
-      flexvert_xpos_in,
-      conid,
-      0,
-      geom,
-      flex,
-      elem,
-      vert,
-      con_pos,
-      worldid,
-    )
-    body_ids2, weights2 = _get_contact_bodies_and_weights(
-      geom_bodyid,
-      flex_dim,
-      flex_vertadr,
-      flex_elemdataadr,
-      flex_shelldataadr,
-      flex_vertbodyid,
-      flex_elem,
-      flex_shell,
-      flexvert_xpos_in,
-      conid,
-      1,
-      geom,
-      flex,
-      elem,
-      vert,
-      con_pos,
-      worldid,
-    )
-
-    b1_0 = body_ids1[0]
-    b1_1 = body_ids1[1]
-    b1_2 = body_ids1[2]
-    b1_3 = body_ids1[3]
-
-    b2_0 = body_ids2[0]
-    b2_1 = body_ids2[1]
-    b2_2 = body_ids2[2]
-    b2_3 = body_ids2[3]
-
     body_invweight0_id = worldid % body_invweight0.shape[0]
+    invweight1 = float(0.0)
 
-    invweight1 = weights1[0] * body_invweight0[body_invweight0_id, b1_0][0]
-    if b1_1 >= 0:
-      invweight1 += weights1[1] * body_invweight0[body_invweight0_id, b1_1][0]
-    if b1_2 >= 0:
-      invweight1 += weights1[2] * body_invweight0[body_invweight0_id, b1_2][0]
-    if b1_3 >= 0:
-      invweight1 += weights1[3] * body_invweight0[body_invweight0_id, b1_3][0]
+    if geom[0] >= 0:
+      b1 = geom_bodyid[geom[0]]
+      invweight1 = body_invweight0[body_invweight0_id, b1][0]
+    elif flex[0] >= 0:
+      f1 = flex[0]
+      if flex_interp[f1] != 0:
+        if vert[0] >= 0:
+          v_adr = flex_vertadr[f1] + vert[0]
+          coord = flex_vert0[v_adr]
+          cn = flex_cellnum[f1]
+          cx = cn[0]
+          cy = cn[1]
+          cz = cn[2]
 
-    invweight2 = weights2[0] * body_invweight0[body_invweight0_id, b2_0][0]
-    if b2_1 >= 0:
-      invweight2 += weights2[1] * body_invweight0[body_invweight0_id, b2_1][0]
-    if b2_2 >= 0:
-      invweight2 += weights2[2] * body_invweight0[body_invweight0_id, b2_2][0]
-    if b2_3 >= 0:
-      invweight2 += weights2[3] * body_invweight0[body_invweight0_id, b2_3][0]
+          ci = wp.min(int(coord[0] * float(cx)), cx - 1)
+          ci = wp.max(ci, 0)
+          cj = wp.min(int(coord[1] * float(cy)), cy - 1)
+          cj = wp.max(cj, 0)
+          ck = wp.min(int(coord[2] * float(cz)), cz - 1)
+          ck = wp.max(ck, 0)
+
+          local_x = wp.clamp(coord[0] * float(cx) - float(ci), 0.0, 1.0)
+          local_y = wp.clamp(coord[1] * float(cy) - float(cj), 0.0, 1.0)
+          local_z = wp.clamp(coord[2] * float(cz) - float(ck), 0.0, 1.0)
+          local = wp.vec3(local_x, local_y, local_z)
+
+          ny_g = cy + 1
+          nz_g = cz + 1
+          nstart = flex_nodeadr[f1]
+
+          for li in range(2):
+            for lj in range(2):
+              for lk in range(2):
+                w = support.eval_basis_trilinear(local, li * 4 + lj * 2 + lk)
+                if w > 1.0e-5:
+                  gi = ci + li
+                  gj = cj + lj
+                  gk = ck + lk
+                  node_idx = gi * ny_g * nz_g + gj * nz_g + gk
+                  b = flex_nodebodyid[nstart + node_idx]
+                  invweight1 += body_invweight0[body_invweight0_id, b][0] * w
+        elif elem[0] >= 0:
+          e = elem[0]
+          dim_f = flex_dim[f1]
+          edata_adr = flex_elemdataadr[f1] + e * (dim_f + 1)
+          vert_adr_f = flex_vertadr[f1]
+
+          total_inv_dist = float(0.0)
+          blended_coord = wp.vec3(0.0, 0.0, 0.0)
+          for vi in range(4):
+            if vi <= dim_f:
+              v_idx = flex_elem[edata_adr + vi]
+              vpos = flexvert_xpos_in[worldid, vert_adr_f + v_idx]
+              dist_v = wp.length(con_pos - vpos)
+              w_inv = 1.0 / wp.max(1.0e-10, dist_v)
+              total_inv_dist += w_inv
+              blended_coord += flex_vert0[vert_adr_f + v_idx] * w_inv
+
+          if total_inv_dist > 1.0e-10:
+            blended_coord = blended_coord / total_inv_dist
+
+          cn = flex_cellnum[f1]
+          cx = cn[0]
+          cy = cn[1]
+          cz = cn[2]
+
+          ci = wp.min(int(blended_coord[0] * float(cx)), cx - 1)
+          ci = wp.max(ci, 0)
+          cj = wp.min(int(blended_coord[1] * float(cy)), cy - 1)
+          cj = wp.max(cj, 0)
+          ck = wp.min(int(blended_coord[2] * float(cz)), cz - 1)
+          ck = wp.max(ck, 0)
+
+          local_x = wp.clamp(blended_coord[0] * float(cx) - float(ci), 0.0, 1.0)
+          local_y = wp.clamp(blended_coord[1] * float(cy) - float(cj), 0.0, 1.0)
+          local_z = wp.clamp(blended_coord[2] * float(cz) - float(ck), 0.0, 1.0)
+          local = wp.vec3(local_x, local_y, local_z)
+
+          ny_g = cy + 1
+          nz_g = cz + 1
+          nstart = flex_nodeadr[f1]
+
+          for li in range(2):
+            for lj in range(2):
+              for lk in range(2):
+                w = support.eval_basis_trilinear(local, li * 4 + lj * 2 + lk)
+                if w > 1.0e-5:
+                  gi = ci + li
+                  gj = cj + lj
+                  gk = ck + lk
+                  node_idx = gi * ny_g * nz_g + gj * nz_g + gk
+                  b = flex_nodebodyid[nstart + node_idx]
+                  invweight1 += body_invweight0[body_invweight0_id, b][0] * w
+      else:
+        body_ids, weights = _get_contact_bodies_and_weights(
+          geom_bodyid,
+          flex_dim,
+          flex_cellnum,
+          flex_nodeadr,
+          flex_vertadr,
+          flex_elemdataadr,
+          flex_shelldataadr,
+          flex_nodebodyid,
+          flex_vertbodyid,
+          flex_elem,
+          flex_shell,
+          flex_vert0,
+          flexvert_xpos_in,
+          conid,
+          0,
+          geom,
+          flex,
+          elem,
+          vert,
+          con_pos,
+          worldid,
+        )
+        b0 = body_ids[0]
+        b1 = body_ids[1]
+        b2 = body_ids[2]
+        b3 = body_ids[3]
+        invweight1 = weights[0] * body_invweight0[body_invweight0_id, b0][0]
+        if b1 >= 0:
+          invweight1 += weights[1] * body_invweight0[body_invweight0_id, b1][0]
+        if b2 >= 0:
+          invweight1 += weights[2] * body_invweight0[body_invweight0_id, b2][0]
+        if b3 >= 0:
+          invweight1 += weights[3] * body_invweight0[body_invweight0_id, b3][0]
+
+    invweight2 = float(0.0)
+
+    if geom[1] >= 0:
+      b2 = geom_bodyid[geom[1]]
+      invweight2 = body_invweight0[body_invweight0_id, b2][0]
+    elif flex[1] >= 0:
+      f2 = flex[1]
+      if flex_interp[f2] != 0:
+        if vert[1] >= 0:
+          v_adr = flex_vertadr[f2] + vert[1]
+          coord = flex_vert0[v_adr]
+          cn = flex_cellnum[f2]
+          cx = cn[0]
+          cy = cn[1]
+          cz = cn[2]
+
+          ci = wp.min(int(coord[0] * float(cx)), cx - 1)
+          ci = wp.max(ci, 0)
+          cj = wp.min(int(coord[1] * float(cy)), cy - 1)
+          cj = wp.max(cj, 0)
+          ck = wp.min(int(coord[2] * float(cz)), cz - 1)
+          ck = wp.max(ck, 0)
+
+          local_x = wp.clamp(coord[0] * float(cx) - float(ci), 0.0, 1.0)
+          local_y = wp.clamp(coord[1] * float(cy) - float(cj), 0.0, 1.0)
+          local_z = wp.clamp(coord[2] * float(cz) - float(ck), 0.0, 1.0)
+          local = wp.vec3(local_x, local_y, local_z)
+
+          ny_g = cy + 1
+          nz_g = cz + 1
+          nstart = flex_nodeadr[f2]
+
+          for li in range(2):
+            for lj in range(2):
+              for lk in range(2):
+                w = support.eval_basis_trilinear(local, li * 4 + lj * 2 + lk)
+                if w > 1.0e-5:
+                  gi = ci + li
+                  gj = cj + lj
+                  gk = ck + lk
+                  node_idx = gi * ny_g * nz_g + gj * nz_g + gk
+                  b = flex_nodebodyid[nstart + node_idx]
+                  invweight2 += body_invweight0[body_invweight0_id, b][0] * w
+        elif elem[1] >= 0:
+          e = elem[1]
+          dim_f = flex_dim[f2]
+          edata_adr = flex_elemdataadr[f2] + e * (dim_f + 1)
+          vert_adr_f = flex_vertadr[f2]
+
+          total_inv_dist = float(0.0)
+          blended_coord = wp.vec3(0.0, 0.0, 0.0)
+          for vi in range(4):
+            if vi <= dim_f:
+              v_idx = flex_elem[edata_adr + vi]
+              vpos = flexvert_xpos_in[worldid, vert_adr_f + v_idx]
+              dist_v = wp.length(con_pos - vpos)
+              w_inv = 1.0 / wp.max(1.0e-10, dist_v)
+              total_inv_dist += w_inv
+              blended_coord += flex_vert0[vert_adr_f + v_idx] * w_inv
+
+          if total_inv_dist > 1.0e-10:
+            blended_coord = blended_coord / total_inv_dist
+
+          cn = flex_cellnum[f2]
+          cx = cn[0]
+          cy = cn[1]
+          cz = cn[2]
+
+          ci = wp.min(int(blended_coord[0] * float(cx)), cx - 1)
+          ci = wp.max(ci, 0)
+          cj = wp.min(int(blended_coord[1] * float(cy)), cy - 1)
+          cj = wp.max(cj, 0)
+          ck = wp.min(int(blended_coord[2] * float(cz)), cz - 1)
+          ck = wp.max(ck, 0)
+
+          local_x = wp.clamp(blended_coord[0] * float(cx) - float(ci), 0.0, 1.0)
+          local_y = wp.clamp(blended_coord[1] * float(cy) - float(cj), 0.0, 1.0)
+          local_z = wp.clamp(blended_coord[2] * float(cz) - float(ck), 0.0, 1.0)
+          local = wp.vec3(local_x, local_y, local_z)
+
+          ny_g = cy + 1
+          nz_g = cz + 1
+          nstart = flex_nodeadr[f2]
+
+          for li in range(2):
+            for lj in range(2):
+              for lk in range(2):
+                w = support.eval_basis_trilinear(local, li * 4 + lj * 2 + lk)
+                if w > 1.0e-5:
+                  gi = ci + li
+                  gj = cj + lj
+                  gk = ck + lk
+                  node_idx = gi * ny_g * nz_g + gj * nz_g + gk
+                  b = flex_nodebodyid[nstart + node_idx]
+                  invweight2 += body_invweight0[body_invweight0_id, b][0] * w
+      else:
+        body_ids, weights = _get_contact_bodies_and_weights(
+          geom_bodyid,
+          flex_dim,
+          flex_cellnum,
+          flex_nodeadr,
+          flex_vertadr,
+          flex_elemdataadr,
+          flex_shelldataadr,
+          flex_nodebodyid,
+          flex_vertbodyid,
+          flex_elem,
+          flex_shell,
+          flex_vert0,
+          flexvert_xpos_in,
+          conid,
+          1,
+          geom,
+          flex,
+          elem,
+          vert,
+          con_pos,
+          worldid,
+        )
+        b0 = body_ids[0]
+        b1 = body_ids[1]
+        b2 = body_ids[2]
+        b3 = body_ids[3]
+        invweight2 = weights[0] * body_invweight0[body_invweight0_id, b0][0]
+        if b1 >= 0:
+          invweight2 += weights[1] * body_invweight0[body_invweight0_id, b1][0]
+        if b2 >= 0:
+          invweight2 += weights[2] * body_invweight0[body_invweight0_id, b2][0]
+        if b3 >= 0:
+          invweight2 += weights[3] * body_invweight0[body_invweight0_id, b3][0]
 
     invweight = invweight1 + invweight2
 
@@ -3881,52 +4982,119 @@ def make_constraint(m: types.Model, d: types.Data):
         ],
       )
 
-      wp.launch(
-        _equality_flex(m.is_sparse, newton),
-        dim=(d.nworld, m.eq_flex_adr.size, m.nflexedge),
-        inputs=[
-          m.nv,
-          m.opt.timestep,
-          m.opt.disableflags,
-          m.flex_edgeadr,
-          m.flex_edgenum,
-          m.flexedge_length0,
-          m.flexedge_invweight0,
-          m.flexedge_J_rownnz,
-          m.flexedge_J_rowadr,
-          m.flexedge_J_colind,
-          m.eq_obj1id,
-          m.eq_solref,
-          m.eq_solimp,
-          m.eq_flex_adr,
-          d.qvel,
-          d.eq_active,
-          d.flexedge_J,
-          d.flexedge_length,
-          d.njmax,
-          d.njmax_nnz,
-        ],
-        outputs=[
-          d.ne,
-          d.nefc,
-          d.efc.type,
-          d.efc.id,
-          d.efc.jtdaj_adr,
-          d.efc.jtdaj_nrow,
-          d.efc.jtdaj_nblock,
-          d.efc.J_rownnz,
-          d.efc.J_rowadr,
-          d.efc.J_colind,
-          d.efc.J,
-          d.efc.pos,
-          d.efc.margin,
-          d.efc.D,
-          d.efc.vel,
-          d.efc.aref,
-          d.efc.frictionloss,
-          efc_nnz,
-        ],
-      )
+      if m.nflex > 0:
+        wp.launch(
+          _equality_flex(m.is_sparse, newton),
+          dim=(d.nworld, m.eq_flex_adr.size, m.nflexedge),
+          inputs=[
+            m.nv,
+            m.opt.timestep,
+            m.opt.disableflags,
+            m.flex_interp,
+            m.flex_edgeadr,
+            m.flex_edgenum,
+            m.flexedge_length0,
+            m.flexedge_invweight0,
+            m.flexedge_J_rownnz,
+            m.flexedge_J_rowadr,
+            m.flexedge_J_colind,
+            m.eq_obj1id,
+            m.eq_solref,
+            m.eq_solimp,
+            m.eq_flex_adr,
+            d.qvel,
+            d.eq_active,
+            d.flexedge_J,
+            d.flexedge_length,
+            d.njmax,
+            d.njmax_nnz,
+          ],
+          outputs=[
+            d.ne,
+            d.nefc,
+            d.efc.type,
+            d.efc.id,
+            d.efc.jtdaj_adr,
+            d.efc.jtdaj_nrow,
+            d.efc.jtdaj_nblock,
+            d.efc.J_rownnz,
+            d.efc.J_rowadr,
+            d.efc.J_colind,
+            d.efc.J,
+            d.efc.pos,
+            d.efc.margin,
+            d.efc.D,
+            d.efc.vel,
+            d.efc.aref,
+            d.efc.frictionloss,
+            efc_nnz,
+          ],
+        )
+
+        if m.eq_flexstrain_adr.size:
+          wp.launch(
+            _equality_flexstrain(m.is_sparse, newton),
+            dim=(d.nworld, m.eq_flexstrain_adr.size),
+            inputs=[
+              m.nv,
+              m.opt.timestep,
+              m.opt.disableflags,
+              m.body_parentid,
+              m.body_rootid,
+              m.body_dofnum,
+              m.body_dofadr,
+              m.body_invweight0,
+              m.dof_bodyid,
+              m.flex_interp,
+              m.flex_cellnum,
+              m.flex_nodeadr,
+              m.flex_nodenum,
+              m.flex_stiffnessadr,
+              m.flex_nodebodyid,
+              m.flex_node,
+              m.flex_node0,
+              m.flex_stiffness,
+              m.flex_centered,
+              m.eq_obj1id,
+              m.eq_solref,
+              m.eq_solimp,
+              m.eq_data,
+              m.body_isdofancestor,
+              m.eq_flexstrain_adr,
+              m.flexstrain_J_rownnz,
+              m.flexstrain_J_rowadr,
+              m.flexstrain_J_colind,
+              d.qvel,
+              d.eq_active,
+              d.xpos,
+              d.xmat,
+              d.subtree_com,
+              d.cdof,
+              d.njmax,
+              d.njmax_nnz,
+              d.flexnode_xpos,
+            ],
+            outputs=[
+              d.ne,
+              d.nefc,
+              d.efc.type,
+              d.efc.id,
+              d.efc.jtdaj_adr,
+              d.efc.jtdaj_nrow,
+              d.efc.jtdaj_nblock,
+              d.efc.J_rownnz,
+              d.efc.J_rowadr,
+              d.efc.J_colind,
+              d.efc.J,
+              d.efc.pos,
+              d.efc.margin,
+              d.efc.D,
+              d.efc.vel,
+              d.efc.aref,
+              d.efc.frictionloss,
+              efc_nnz,
+            ],
+          )
 
     if not (m.opt.disableflags & types.DisableBit.FRICTIONLOSS):
       wp.launch(
@@ -4158,7 +5326,6 @@ def make_constraint(m: types.Model, d: types.Data):
       )
 
       has_flex = m.nflex > 0
-
       if has_flex:
         wp.launch(
           _efc_contact_init_flex(m.opt.cone, m.is_sparse, newton),
@@ -4171,18 +5338,22 @@ def make_constraint(m: types.Model, d: types.Data):
             m.dof_parentid,
             m.geom_bodyid,
             m.flex_dim,
+            m.flex_interp,
+            m.flex_cellnum,
+            m.flex_nodeadr,
             m.flex_vertadr,
             m.flex_elemdataadr,
             m.flex_shelldataadr,
+            m.flex_nodebodyid,
             m.flex_vertbodyid,
             m.flex_elem,
             m.flex_shell,
+            m.flex_vert0,
             d.flexvert_xpos,
             d.njmax,
             d.njmax_nnz,
             d.nacon,
             d.contact.dist,
-            d.contact.pos,
             d.contact.dim,
             d.contact.includemargin,
             d.contact.worldid,
@@ -4190,6 +5361,7 @@ def make_constraint(m: types.Model, d: types.Data):
             d.contact.flex,
             d.contact.elem,
             d.contact.vert,
+            d.contact.pos,
             d.contact.type,
           ],
           outputs=[
@@ -4252,12 +5424,17 @@ def make_constraint(m: types.Model, d: types.Data):
               m.dof_parentid,
               m.geom_bodyid,
               m.flex_dim,
+              m.flex_interp,
+              m.flex_cellnum,
+              m.flex_nodeadr,
               m.flex_vertadr,
               m.flex_elemdataadr,
               m.flex_shelldataadr,
+              m.flex_nodebodyid,
               m.flex_vertbodyid,
               m.flex_elem,
               m.flex_shell,
+              m.flex_vert0,
               m.body_isdofancestor,
               d.qvel,
               d.subtree_com,
@@ -4330,12 +5507,16 @@ def make_constraint(m: types.Model, d: types.Data):
               m.body_rootid,
               m.geom_bodyid,
               m.flex_dim,
+              m.flex_cellnum,
+              m.flex_nodeadr,
               m.flex_vertadr,
               m.flex_elemdataadr,
               m.flex_shelldataadr,
+              m.flex_nodebodyid,
               m.flex_vertbodyid,
               m.flex_elem,
               m.flex_shell,
+              m.flex_vert0,
               m.body_isdofancestor,
               d.ne,
               d.nf,
@@ -4407,12 +5588,17 @@ def make_constraint(m: types.Model, d: types.Data):
             m.body_invweight0,
             m.geom_bodyid,
             m.flex_dim,
+            m.flex_interp,
+            m.flex_cellnum,
+            m.flex_nodeadr,
             m.flex_vertadr,
             m.flex_elemdataadr,
             m.flex_shelldataadr,
+            m.flex_nodebodyid,
             m.flex_vertbodyid,
             m.flex_elem,
             m.flex_shell,
+            m.flex_vert0,
             d.flexvert_xpos,
             d.contact.efc_address,
             d.efc.Jqvel,
