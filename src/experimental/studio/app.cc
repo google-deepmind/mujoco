@@ -733,8 +733,16 @@ void App::HandleKeyboardEvents() {
         LoadHistory(sim_history_.GetIndex() + 1);
       }
     }
+  } else if (ImGui_IsChordJustPressed(ImGuiMod_Ctrl | ImGuiKey_Space)) {
+    if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
+      step_control_.SetPauseState(PauseState::kUnpaused);
+    } else {
+      step_control_.SetPauseState(PauseState::kViscousPaused);
+    }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Space)) {
-    if (step_control_.GetPauseState() == PauseState::kUnpaused) {
+    if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
+      step_control_.SetPauseState(PauseState::kNormalPaused);
+    } else if (step_control_.GetPauseState() == PauseState::kUnpaused) {
       step_control_.SetPauseState(PauseState::kNormalPaused);
     } else {
       step_control_.SetPauseState(PauseState::kUnpaused);
@@ -1453,7 +1461,6 @@ void App::TimelineScrubberGui() {
 
   // Advance layout cursor past this row.
   ImGui::SetCursorScreenPos(ImVec2(cursor.x, cursor.y + total_h));
-  ImGui::Dummy(ImVec2(0.0f, 0.0f));
 }
 
 void App::ModelOptionsGui() {
@@ -2171,8 +2178,8 @@ void App::ToolBarGui() {
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, right_width);
 
     ImGui::TableNextColumn();
-    ImGui::Dummy(ImVec2(ImGui::GetStyle().WindowPadding.x, 0.0f));
-    ImGui::SameLine(0.0f, 0.0f);
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
+                         ImGui::GetStyle().WindowPadding.x);
 
     const float btn_size = ImGui::GetFrameHeight();
     const ImVec2 square_size(btn_size, btn_size);
@@ -2193,7 +2200,7 @@ void App::ToolBarGui() {
     }
     ImGui::SetItemTooltip("%s", "Reset");
 
-    // Combined (Pause, Play) widget and Speed selection.
+    // Combined (Normal Pause, Viscous Pause, Play) widget and Speed selection.
     ImGui::SameLine(0, separator_width);
     platform::StepControlGui(&step_control_, tmp_.speed_index);
 
@@ -2221,6 +2228,9 @@ void App::StatusBarGui() {
 
     if (!has_model()) {
       ImGui::Text("No model loaded");
+    } else if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
+      ImGui::Text("Viscous Pause");
+      ImGui::SetItemTooltip("Zero gravity, high viscosity, no spring forces");
     } else if (step_control_.GetPauseState() == PauseState::kNormalPaused) {
       ImGui::Text("Paused");
     } else {

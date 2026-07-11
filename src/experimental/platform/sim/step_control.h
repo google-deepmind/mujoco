@@ -38,6 +38,9 @@ class StepControl {
     // Simulation was not stepped because it is paused.
     kPaused,
 
+    // Simulation is viscously paused (stepping with zero gravity, high
+    // viscosity, and no spring forces).
+    kViscousPaused,
 
     // Simulation diverged with autoreset enabled.
     kAutoReset,
@@ -70,7 +73,7 @@ class StepControl {
   void SetPreStepCallback(StepFn step_fn);
   void SetPostStepCallback(StepFn step_fn);
 
-  enum class PauseState { kUnpaused, kNormalPaused };
+  enum class PauseState { kUnpaused, kNormalPaused, kViscousPaused };
 
   // Sets the pause state of the simulation.
   void SetPauseState(PauseState state);
