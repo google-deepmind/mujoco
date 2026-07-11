@@ -130,8 +130,9 @@ static void dsuUnion(int* parent, int tree1, int tree2) {
 
 
 // assign deterministic island ids in ascending canonical-root order
-static int dsuAssign(int* island, int* parent, int ntree) {
+static int dsuAssign(int* island, int* parent, const int* tree_dofnum, int ntree, int* nidof) {
   int nisland = 0;
+  *nidof = 0;
   for (int tree=0; tree < ntree; tree++) {
     if (parent[tree] == -1) {
       island[tree] = -1;
@@ -140,6 +141,7 @@ static int dsuAssign(int* island, int* parent, int ntree) {
 
     int root = dsuFind(parent, tree);
     island[tree] = root == tree ? nisland++ : island[root];
+    *nidof += tree_dofnum[tree];
   }
 
   return nisland;
@@ -445,7 +447,8 @@ void mj_island(const mjModel* m, mjData* d) {
   dsuInit(parent, ntree);
   unionConstraintTrees(m, d, parent);
   int* tree_island = mjSTACKALLOC(d, ntree, int);
-  d->nisland = dsuAssign(tree_island, parent, ntree);
+  int nidof;
+  d->nisland = dsuAssign(tree_island, parent, m->tree_dofnum, ntree, &nidof);
 
   // no islands found: quick return
   if (!d->nisland) {
@@ -454,13 +457,6 @@ void mj_island(const mjModel* m, mjData* d) {
     return;
   }
 
-  // count nidof: total number of dofs in islands
-  int nidof = 0;
-  for (int i=0; i < ntree; i++) {
-    if (tree_island[i] >= 0) {
-      nidof += m->tree_dofnum[i];
-    }
-  }
   d->nidof = nidof;
 
   // allocate island arrays on arena
@@ -599,17 +595,15 @@ void mj_island(const mjModel* m, mjData* d) {
     int ic = d->island_iefcadr[island] + island_nefc2[island]++;
     d->map_efc2iefc[c] = ic;
     d->map_iefc2efc[ic] = c;
+    d->iefc_type[ic] = d->efc_type[c];
+    d->iefc_id[ic] = d->efc_id[c];
+    d->iefc_frictionloss[ic] = d->efc_frictionloss[c];
+    d->iefc_D[ic] = d->efc_D[c];
+    d->iefc_R[ic] = d->efc_R[c];
   }
 
   // SHOULD NOT OCCUR
   if (!mju_compare(island_nefc2, d->island_nefc, nisland)) mjERROR("island_nefc miscount");
-
-  // copy position-dependent efc vectors required by solver
-  mju_gatherInt(d->iefc_type, d->efc_type, d->map_iefc2efc, nefc);
-  mju_gatherInt(d->iefc_id, d->efc_id, d->map_iefc2efc, nefc);
-  mju_gather(d->iefc_frictionloss, d->efc_frictionloss, d->map_iefc2efc, nefc);
-  mju_gather(d->iefc_D, d->efc_D, d->map_iefc2efc, nefc);
-  mju_gather(d->iefc_R, d->efc_R, d->map_iefc2efc, nefc);
 
   mj_freeStack(d);
 }
