@@ -198,6 +198,11 @@ typedef struct mjData_ {
   // sleep state
   int*    tree_asleep;       // <0: awake; >=0: index cycle of sleeping trees    (ntree x 1)
 
+  // opaque internal island topology cache; users must not modify
+  int* island_cache_tree;    // tree and island topology                         (ntree x 28)
+  int* island_cache_dof;     // DOF topology                                     (nv x 8)
+  int* island_cache_eq;      // equality topology                                (neq x 40)
+
   // plugins
   int*       plugin;         // copy of m->plugin, required for deletion         (nplugin x 1)
   uintptr_t* plugin_data;    // pointer to plugin-managed data structure         (nplugin x 1)
