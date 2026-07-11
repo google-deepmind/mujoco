@@ -1527,44 +1527,6 @@ static mjtNum frictionCostDif(mjtNum start, mjtNum x, mjtNum f, mjtNum Rf, mjtNu
 }
 
 
-// compute cost of an elliptic cone at a given alpha
-static mjtNum ellipticCost(const mjtNum* quad, mjtNum alpha, mjtNum mu, mjtNum Dm) {
-  mjtNum U0 = quad[3], V0 = quad[4], UU = quad[5];
-  mjtNum UV = quad[6], VV = quad[7];
-  mjtNum N = U0 + alpha*V0;
-  mjtNum Tsqr = UU + alpha*(2*UV + alpha*VV);
-
-  // no tangential force : top or bottom zone
-  if (Tsqr <= 0) {
-    // bottom zone: quadratic cost
-    if (N < 0) return alpha*alpha*quad[2] + alpha*quad[1] + quad[0];
-
-    // top zone: nothing to do
-  }
-
-  // otherwise regular processing
-  else {
-    mjtNum T = mju_sqrt(Tsqr);
-    // N>=mu*T : top zone
-    if (N >= mu*T) {
-      // nothing to do
-    }
-
-    // mu*N+T<=0 : bottom zone
-    else if (mu*N+T <= 0) {
-      return alpha*alpha*quad[2] + alpha*quad[1] + quad[0];
-    }
-
-    // otherwise middle zone
-    else {
-      return 0.5*Dm*(N-mu*T)*(N-mu*T);
-    }
-  }
-
-  return 0;
-}
-
-
 // compute cost difference of an elliptic cone at a given alpha: cost(alpha) - cost(0)
 static mjtNum ellipticCostDif(const mjtNum* quad, mjtNum alpha, mjtNum mu, mjtNum Dm) {
   mjtNum U0 = quad[3], V0 = quad[4], UU = quad[5];
@@ -1586,7 +1548,7 @@ static mjtNum ellipticCostDif(const mjtNum* quad, mjtNum alpha, mjtNum mu, mjtNu
     }
   }
 
-  // determine zone and cost at alpha
+  // determine zone at alpha
   mjtNum N = U0 + alpha*V0;
   mjtNum Tsqr = UU + alpha*(2*UV + alpha*VV);
   int zone_alpha = 0;
@@ -1615,15 +1577,54 @@ static mjtNum ellipticCostDif(const mjtNum* quad, mjtNum alpha, mjtNum mu, mjtNu
     return alpha*alpha*quad[2] + alpha*quad[1];
   }
 
-  // both middle zone
+  // both middle zone: apply rationalized formula to avoid cancellation
   if (zone0 == 3 && zone_alpha == 3) {
-    mjtNum diff_alpha = N - mu*T;
-    mjtNum diff0 = U0 - mu*T0;
-    return 0.5*Dm*(diff_alpha - diff0)*(diff_alpha + diff0);
+    mjtNum Tsqr_delta = alpha*(2*UV + alpha*VV);
+    mjtNum T_delta = Tsqr_delta / (T + T0);
+    mjtNum r_delta = alpha*V0 - mu*T_delta;
+    mjtNum r0 = U0 - mu*T0;
+    return 0.5*Dm*r_delta*(2*r0 + r_delta);
   }
 
-  // otherwise different zones: compute absolute costs and subtract
-  return ellipticCost(quad, alpha, mu, Dm) - ellipticCost(quad, 0, mu, Dm);
+  // CONE -> QUADRATIC (3 -> 2)
+  if (zone0 == 3 && zone_alpha == 2) {
+    mjtNum dq = alpha*(alpha*quad[2] + quad[1]);
+    mjtNum boundary0 = mu*U0 + T0;
+    mjtNum gap0 = 0.5*Dm*boundary0*boundary0;
+    return dq + gap0;
+  }
+
+  // QUADRATIC -> CONE (2 -> 3)
+  if (zone0 == 2 && zone_alpha == 3) {
+    mjtNum dq = alpha*(alpha*quad[2] + quad[1]);
+    mjtNum boundary = mu*N + T;
+    mjtNum gap = 0.5*Dm*boundary*boundary;
+    return dq - gap;
+  }
+
+  // SATISFIED -> QUADRATIC (1 -> 2)
+  if (zone0 == 1 && zone_alpha == 2) {
+    return alpha*alpha*quad[2] + alpha*quad[1] + quad[0];
+  }
+
+  // SATISFIED -> CONE (1 -> 3)
+  if (zone0 == 1 && zone_alpha == 3) {
+    mjtNum r = N - mu*T;
+    return 0.5*Dm*r*r;
+  }
+
+  // CONE -> SATISFIED (3 -> 1)
+  if (zone0 == 3 && zone_alpha == 1) {
+    mjtNum r0 = U0 - mu*T0;
+    return -0.5*Dm*r0*r0;
+  }
+
+  // QUADRATIC -> SATISFIED (2 -> 1)
+  if (zone0 == 2 && zone_alpha == 1) {
+    return -quad[0];
+  }
+
+  return 0;
 }
 
 

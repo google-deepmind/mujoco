@@ -347,5 +347,49 @@ TEST_F(SolverTest, SolversEquivalent) {
   }
 }
 
+TEST_F(SolverTest, EllipticLineSearchPrecisionDiagnostics) {
+  std::string xml = R"(
+  <mujoco>
+    <option cone="elliptic" solver="Newton"/>
+    <worldbody>
+      <geom name="floor" type="plane" size="10 10 1"/>
+      <body name="box" pos="0 0 0.499">
+        <joint type="free"/>
+        <geom type="box" size="0.5 0.5 0.5" mass="1" friction="0.5"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // Set gravity to 0
+  model->opt.gravity[0] = 0;
+  model->opt.gravity[1] = 0;
+  model->opt.gravity[2] = 0;
+
+  for (double fn : {1e2, 1e4, 1e6, 1e8}) {
+    mj_resetData(model.get(), data.get());
+
+    // Apply large downward force
+    data->qfrc_applied[2] = -fn;
+
+    // Apply large lateral force (dynamic friction limit is 0.5 * fn)
+    double ft = fn * 1.5;
+    data->qfrc_applied[0] = ft;
+
+    mj_forward(model.get(), data.get());
+
+    int niter = std::min(data->solver_niter[0], mjNSOLVER);
+    for (int i = 0; i < niter; ++i) {
+      const mjSolverStat& stat = data->solver[i];
+      EXPECT_GE(stat.improvement, -MjTol(1e-5, 100.0));
+    }
+  }
+}
+
 }  // namespace
 }  // namespace mujoco
