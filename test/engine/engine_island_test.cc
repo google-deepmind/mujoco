@@ -156,6 +156,196 @@ TEST_F(IslandTest, FloodFill3b) {
   EXPECT_THAT(island, ElementsAre(0, 1, 1, -1, 0, 0, 0));
 }
 
+TEST_F(IslandTest, ProductionStaticFirstAndRepeatedRows) {
+  static constexpr char xml[] = R"(
+<mujoco>
+  <option jacobian="sparse"><flag contact="disable" gravity="disable"/></option>
+  <worldbody>
+    <site name="world"/>
+    <body name="b0">
+      <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      <joint type="slide"/><site name="s0"/>
+    </body>
+    <body name="b1">
+      <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      <joint type="slide"/><site name="s1"/>
+    </body>
+    <body name="b2">
+      <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      <joint type="slide"/><site name="s2"/>
+    </body>
+  </worldbody>
+  <equality>
+    <connect site1="world" site2="s0"/>
+    <connect site1="s1" site2="s2"/>
+  </equality>
+</mujoco>
+)";
+  char error[1024] = {};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_EQ(model->ntree, 3);
+  ASSERT_EQ(model->nv, 3);
+
+  // The first equality incidence is static first, then dynamic tree 0.
+  ASSERT_EQ(model->eq_objtype[0], mjOBJ_SITE);
+  int body1 = model->site_bodyid[model->eq_obj1id[0]];
+  int body2 = model->site_bodyid[model->eq_obj2id[0]];
+  EXPECT_EQ(model->body_treeid[body1], -1);
+  EXPECT_EQ(model->body_treeid[body2], 0);
+
+  MjDataPtr data = MakeData(model);
+  mj_fwdPosition(model.get(), data.get());
+
+  ASSERT_EQ(data->nefc, 6);
+  EXPECT_EQ(data->nisland, 2);
+  EXPECT_EQ(data->nidof, 3);
+  EXPECT_EQ(data->ne, 6);
+  EXPECT_EQ(data->nf, 0);
+  EXPECT_THAT(AsVector(data->efc_type, data->nefc),
+              ElementsAre(mjCNSTR_EQUALITY, mjCNSTR_EQUALITY, mjCNSTR_EQUALITY,
+                          mjCNSTR_EQUALITY, mjCNSTR_EQUALITY, mjCNSTR_EQUALITY));
+  EXPECT_THAT(AsVector(data->efc_id, data->nefc), ElementsAre(0, 0, 0, 1, 1, 1));
+  EXPECT_THAT(AsVector(data->tree_island, model->ntree), ElementsAre(0, 1, 1));
+  EXPECT_THAT(AsVector(data->island_ntree, data->nisland), ElementsAre(1, 2));
+  EXPECT_THAT(AsVector(data->island_itreeadr, data->nisland), ElementsAre(0, 1));
+  EXPECT_THAT(AsVector(data->map_itree2tree, model->ntree), ElementsAre(0, 1, 2));
+  EXPECT_THAT(AsVector(data->dof_island, model->nv), ElementsAre(0, 1, 1));
+  EXPECT_THAT(AsVector(data->island_nv, data->nisland), ElementsAre(1, 2));
+  EXPECT_THAT(AsVector(data->island_idofadr, data->nisland), ElementsAre(0, 1));
+  EXPECT_THAT(AsVector(data->island_dofadr, data->nisland), ElementsAre(0, 1));
+  EXPECT_THAT(AsVector(data->map_dof2idof, model->nv), ElementsAre(0, 1, 2));
+  EXPECT_THAT(AsVector(data->map_idof2dof, model->nv), ElementsAre(0, 1, 2));
+  EXPECT_THAT(AsVector(data->efc_island, data->nefc), ElementsAre(0, 0, 0, 1, 1, 1));
+  EXPECT_THAT(AsVector(data->island_ne, data->nisland), ElementsAre(3, 3));
+  EXPECT_THAT(AsVector(data->island_nf, data->nisland), ElementsAre(0, 0));
+  EXPECT_THAT(AsVector(data->island_nefc, data->nisland), ElementsAre(3, 3));
+  EXPECT_THAT(AsVector(data->island_iefcadr, data->nisland), ElementsAre(0, 3));
+  EXPECT_THAT(AsVector(data->map_efc2iefc, data->nefc), ElementsAre(0, 1, 2, 3, 4, 5));
+  EXPECT_THAT(AsVector(data->map_iefc2efc, data->nefc), ElementsAre(0, 1, 2, 3, 4, 5));
+}
+
+TEST_F(IslandTest, ProductionFlexEqualityRescansRows) {
+  static constexpr char xml[] = R"(
+<mujoco>
+  <option jacobian="sparse"><flag contact="disable" gravity="disable"/></option>
+  <worldbody>
+    <flexcomp name="f" type="grid" dim="1" count="3 1 1"
+              spacing=".05 .05 .05" radius=".01" mass="1">
+      <edge equality="true"/>
+      <contact internal="false" selfcollide="none"/>
+    </flexcomp>
+  </worldbody>
+</mujoco>
+)";
+  char error[1024] = {};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_EQ(model->ntree, 3);
+  ASSERT_EQ(model->nv, 9);
+  ASSERT_EQ(model->neq, 1);
+  ASSERT_EQ(model->eq_type[0], mjEQ_FLEX);
+  ASSERT_TRUE(mj_isSparse(model.get()));
+
+  MjDataPtr data = MakeData(model);
+  mj_fwdPosition(model.get(), data.get());
+
+  ASSERT_EQ(data->nefc, 2);
+  auto row_trees = [&](int row) {
+    std::vector<int> trees;
+    for (int j=0; j < data->efc_J_rownnz[row]; j++) {
+      int dof = data->efc_J_colind[data->efc_J_rowadr[row] + j];
+      int tree = model->dof_treeid[dof];
+      if (trees.empty() || trees.back() != tree) {
+        trees.push_back(tree);
+      }
+    }
+    return trees;
+  };
+
+  // Rows share one flex equality id but have different tree incidence.
+  EXPECT_THAT(row_trees(0), ElementsAre(0, 1));
+  EXPECT_THAT(row_trees(1), ElementsAre(1, 2));
+  EXPECT_THAT(AsVector(data->efc_type, data->nefc),
+              ElementsAre(mjCNSTR_EQUALITY, mjCNSTR_EQUALITY));
+  EXPECT_THAT(AsVector(data->efc_id, data->nefc), ElementsAre(0, 0));
+  EXPECT_EQ(data->nisland, 1);
+  EXPECT_EQ(data->nidof, 9);
+  EXPECT_EQ(data->ne, 2);
+  EXPECT_EQ(data->nf, 0);
+  EXPECT_THAT(AsVector(data->tree_island, model->ntree), ElementsAre(0, 0, 0));
+  EXPECT_THAT(AsVector(data->island_ntree, data->nisland), ElementsAre(3));
+  EXPECT_THAT(AsVector(data->island_itreeadr, data->nisland), ElementsAre(0));
+  EXPECT_THAT(AsVector(data->map_itree2tree, model->ntree), ElementsAre(0, 1, 2));
+  EXPECT_THAT(AsVector(data->dof_island, model->nv),
+              ElementsAre(0, 0, 0, 0, 0, 0, 0, 0, 0));
+  EXPECT_THAT(AsVector(data->island_nv, data->nisland), ElementsAre(9));
+  EXPECT_THAT(AsVector(data->island_idofadr, data->nisland), ElementsAre(0));
+  EXPECT_THAT(AsVector(data->island_dofadr, data->nisland), ElementsAre(0));
+  EXPECT_THAT(AsVector(data->map_dof2idof, model->nv),
+              ElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8));
+  EXPECT_THAT(AsVector(data->map_idof2dof, model->nv),
+              ElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8));
+  EXPECT_THAT(AsVector(data->efc_island, data->nefc), ElementsAre(0, 0));
+  EXPECT_THAT(AsVector(data->island_ne, data->nisland), ElementsAre(2));
+  EXPECT_THAT(AsVector(data->island_nf, data->nisland), ElementsAre(0));
+  EXPECT_THAT(AsVector(data->island_nefc, data->nisland), ElementsAre(2));
+  EXPECT_THAT(AsVector(data->island_iefcadr, data->nisland), ElementsAre(0));
+  EXPECT_THAT(AsVector(data->map_efc2iefc, data->nefc), ElementsAre(0, 1));
+  EXPECT_THAT(AsVector(data->map_iefc2efc, data->nefc), ElementsAre(0, 1));
+}
+
+TEST_F(IslandTest, BoundedArenaSupports1024Trees) {
+  constexpr int kTreeCount = 1024;
+  constexpr size_t kArenaBytes = 2 * 1024 * 1024;
+  std::string xml = R"(
+<mujoco>
+  <size memory="2M"/>
+  <option jacobian="sparse">
+    <flag contact="disable"/>
+  </option>
+  <worldbody>
+)";
+  xml.reserve(160 * kTreeCount);
+  for (int i=0; i < kTreeCount; i++) {
+    std::string name = std::to_string(i);
+    xml += "<body name=\"b" + name + "\">";
+    xml += "<inertial pos=\"0 0 0\" mass=\"1\" diaginertia=\"1 1 1\"/>";
+    xml += "<joint name=\"j" + name + "\" type=\"slide\"/>";
+    if (i < 2) {
+      xml += "<site name=\"s" + name + "\"/>";
+    }
+    xml += "</body>";
+  }
+  xml += R"(
+  </worldbody>
+  <equality>
+    <connect site1="s0" site2="s1"/>
+  </equality>
+</mujoco>
+)";
+
+  char error[1024] = {};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_EQ(model->ntree, kTreeCount);
+  ASSERT_EQ(model->narena, kArenaBytes);
+  MjDataPtr data = MakeData(model);
+  ASSERT_THAT(data.get(), NotNull());
+
+  mj_fwdPosition(model.get(), data.get());
+
+  ASSERT_EQ(data->nefc, 3);
+  ASSERT_EQ(data->nisland, 1);
+  ASSERT_THAT(data->tree_island, NotNull());
+  EXPECT_EQ(data->tree_island[0], 0);
+  EXPECT_EQ(data->tree_island[1], 0);
+  for (int tree=2; tree < kTreeCount; tree++) {
+    EXPECT_EQ(data->tree_island[tree], -1);
+  }
+  EXPECT_LE(data->maxuse_arena, kArenaBytes);
+}
+
 static const char* const kAbacusPath = "engine/testdata/island/abacus.xml";
 
 TEST_F(IslandTest, Abacus) {
