@@ -295,69 +295,6 @@ TEST_F(IslandTest, ProductionFlexEqualityRescansRows) {
   EXPECT_THAT(AsVector(data->map_iefc2efc, data->nefc), ElementsAre(0, 1));
 }
 
-TEST_F(IslandTest, EqualityTopologyCacheInvalidatesExactly) {
-  static constexpr char xml[] = R"(
-<mujoco>
-  <option jacobian="sparse"><flag contact="disable" gravity="disable"/></option>
-  <worldbody>
-    <body name="b0"><joint type="slide"/><geom size=".1"/></body>
-    <body name="b1"><joint type="slide"/><geom size=".1"/></body>
-    <body name="b2"><joint type="slide"/><geom size=".1"/></body>
-  </worldbody>
-  <equality>
-    <connect body1="b0" body2="b1" anchor="0 0 0"/>
-    <connect body1="b1" body2="b2" anchor="0 0 0"/>
-  </equality>
-</mujoco>
-)";
-  char error[1024] = {};
-  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model.get(), NotNull()) << error;
-  MjDataPtr data = MakeData(model);
-
-  auto expect_all_connected = [&] {
-    EXPECT_EQ(data->nisland, 1);
-    EXPECT_EQ(data->nidof, 3);
-    EXPECT_EQ(data->nefc, 6);
-    EXPECT_THAT(AsVector(data->tree_island, model->ntree),
-                ElementsAre(0, 0, 0));
-    EXPECT_THAT(AsVector(data->dof_island, model->nv), ElementsAre(0, 0, 0));
-    EXPECT_THAT(AsVector(data->efc_island, data->nefc),
-                ElementsAre(0, 0, 0, 0, 0, 0));
-  };
-
-  // Identical topology is stable across repeated evaluation and ordinary reset.
-  mj_fwdPosition(model.get(), data.get());
-  expect_all_connected();
-  mj_fwdPosition(model.get(), data.get());
-  expect_all_connected();
-
-  // Copying a warm cache produces independent data with the same result.
-  MjDataPtr copy(mj_copyData(nullptr, model.get(), data.get()));
-  ASSERT_THAT(copy.get(), NotNull());
-  mj_fwdPosition(model.get(), copy.get());
-  EXPECT_THAT(AsVector(copy->tree_island, model->ntree),
-              ElementsAre(0, 0, 0));
-
-  mj_resetData(model.get(), data.get());
-  mj_fwdPosition(model.get(), data.get());
-  expect_all_connected();
-
-  // Equality activation changes invalidate the cached partition.
-  data->eq_active[1] = 0;
-  mj_fwdPosition(model.get(), data.get());
-  EXPECT_EQ(data->nisland, 1);
-  EXPECT_EQ(data->nidof, 2);
-  EXPECT_EQ(data->nefc, 3);
-  EXPECT_THAT(AsVector(data->tree_island, model->ntree), ElementsAre(0, 0, -1));
-  EXPECT_THAT(AsVector(data->dof_island, model->nv), ElementsAre(0, 0, -1));
-  EXPECT_THAT(AsVector(data->efc_island, data->nefc), ElementsAre(0, 0, 0));
-
-  // The earlier copy remains independent after the source topology changes.
-  mj_fwdPosition(model.get(), copy.get());
-  EXPECT_THAT(AsVector(copy->tree_island, model->ntree), ElementsAre(0, 0, 0));
-}
-
 TEST_F(IslandTest, BoundedArenaSupports1024Trees) {
   constexpr int kTreeCount = 1024;
   constexpr size_t kArenaBytes = 2 * 1024 * 1024;

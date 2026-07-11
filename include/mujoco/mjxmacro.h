@@ -929,10 +929,7 @@
     X   ( mjtNum,    qfrc_inverse,      nv,          1           ) \
     X   ( mjtNum,    cacc,              nbody,       6           ) \
     X   ( mjtNum,    cfrc_int,          nbody,       6           ) \
-    X   ( mjtNum,    cfrc_ext,          nbody,       6           ) \
-    XIC ( int,       island_cache_tree, ntree,       28          ) \
-    XIC ( int,       island_cache_dof,  nv,          8           ) \
-    XIC ( int,       island_cache_eq,   neq,         40          )
+    X   ( mjtNum,    cfrc_ext,          nbody,       6           )
 
 
 // macro for annotating that an array size in an X macro is a member of mjData
@@ -1083,6 +1080,5 @@
 // to obtain only X macros for fields that are relevant for mjvScene creation,
 // redefine XNV to expand to nothing
 #define XNV X
-#define XIC(type, name, nr, nc)
 
 #endif  // MUJOCO_MJXMACRO_H_

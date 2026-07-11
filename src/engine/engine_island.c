@@ -14,10 +14,8 @@
 
 #include "engine/engine_island.h"
 
-#include <stdint.h>
 #include <stdio.h>
 #include <stddef.h>
-#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
@@ -429,211 +427,6 @@ static void assignConstraintIslands(const mjModel* m, mjData* d, const int* tree
 }
 
 
-enum {
-  kCacheMagic = 0x49534C44,
-  kCacheHeader = 16,
-};
-
-typedef struct mjIslandCacheView_ {
-  int* tree_island;
-  int* island_ntree;
-  int* island_itreeadr;
-  int* map_itree2tree;
-  int* island_nv;
-  int* island_idofadr;
-  int* island_dofadr;
-  int* island_ne;
-  int* island_nf;
-  int* island_nefc;
-  int* island_iefcadr;
-  int* tree_dofnum;
-  int* dof_treeid;
-  int* dof_island;
-  int* map_dof2idof;
-  int* map_idof2dof;
-  int* efc_island;
-  int* efc_type;
-  int* efc_id;
-  int* map_efc2iefc;
-  int* map_iefc2efc;
-  int* eq_active;
-  int* eq_type;
-  int* eq_tree1;
-  int* eq_tree2;
-} mjIslandCacheView;
-
-static mjIslandCacheView islandCacheView(const mjModel* m, const mjData* d) {
-  int* tree = d->island_cache_tree + kCacheHeader;
-  int* dof = d->island_cache_dof;
-  int* eq = d->island_cache_eq;
-  int nisland = d->island_cache_tree[4];
-  int nefc = d->island_cache_tree[3];
-  mjIslandCacheView view;
-#define TAKE(base, name, count) view.name = base; base += (count)
-  TAKE(tree, tree_island, m->ntree);
-  TAKE(tree, island_ntree, nisland);
-  TAKE(tree, island_itreeadr, nisland);
-  TAKE(tree, map_itree2tree, m->ntree);
-  TAKE(tree, island_nv, nisland);
-  TAKE(tree, island_idofadr, nisland);
-  TAKE(tree, island_dofadr, nisland);
-  TAKE(tree, island_ne, nisland);
-  TAKE(tree, island_nf, nisland);
-  TAKE(tree, island_nefc, nisland);
-  TAKE(tree, island_iefcadr, nisland);
-  TAKE(tree, tree_dofnum, m->ntree);
-  TAKE(dof, dof_treeid, m->nv);
-  TAKE(dof, dof_island, m->nv);
-  TAKE(dof, map_dof2idof, m->nv);
-  TAKE(dof, map_idof2dof, m->nv);
-  TAKE(eq, efc_island, nefc);
-  TAKE(eq, efc_type, nefc);
-  TAKE(eq, efc_id, nefc);
-  TAKE(eq, map_efc2iefc, nefc);
-  TAKE(eq, map_iefc2efc, nefc);
-  TAKE(eq, eq_active, m->neq);
-  TAKE(eq, eq_type, m->neq);
-  TAKE(eq, eq_tree1, m->neq);
-  TAKE(eq, eq_tree2, m->neq);
-#undef TAKE
-  return view;
-}
-
-static int islandCacheMatches(const mjModel* m, const mjData* d) {
-  if (!m->ntree || !m->neq || d->island_cache_tree[0] != kCacheMagic ||
-      d->island_cache_tree[1] != m->ntree || d->island_cache_tree[2] != m->nv ||
-      d->island_cache_tree[3] != d->nefc || d->island_cache_tree[6] != m->neq ||
-      d->nefc != d->ne || d->nefc < 0 || (int64_t)d->nefc > 6*(int64_t)m->neq ||
-      d->island_cache_tree[4] < 0 || d->island_cache_tree[4] > m->ntree ||
-      d->island_cache_tree[5] < 0 || d->island_cache_tree[5] > m->nv) {
-    return 0;
-  }
-  mjIslandCacheView view = islandCacheView(m, d);
-  if (memcmp(view.efc_type, d->efc_type, d->nefc*sizeof(int)) ||
-      memcmp(view.efc_id, d->efc_id, d->nefc*sizeof(int)) ||
-      memcmp(view.dof_treeid, m->dof_treeid, m->nv*sizeof(int)) ||
-      memcmp(view.tree_dofnum, m->tree_dofnum, m->ntree*sizeof(int))) {
-    return 0;
-  }
-  for (int i=0; i < m->neq; i++) {
-    if (view.eq_active[i] != d->eq_active[i] || view.eq_type[i] != m->eq_type[i] ||
-        (m->eq_type[i] != mjEQ_CONNECT && m->eq_type[i] != mjEQ_WELD)) {
-      return 0;
-    }
-    int obj1 = m->eq_obj1id[i];
-    int obj2 = m->eq_obj2id[i];
-    if (m->eq_objtype[i] == mjOBJ_SITE) {
-      obj1 = m->site_bodyid[obj1];
-      obj2 = m->site_bodyid[obj2];
-    }
-    if (view.eq_tree1[i] != m->body_treeid[obj1] ||
-        view.eq_tree2[i] != m->body_treeid[obj2]) {
-      return 0;
-    }
-  }
-  return 1;
-}
-
-static void restoreIslandCache(const mjModel* m, mjData* d) {
-  mjIslandCacheView view = islandCacheView(m, d);
-#define RESTORE(name, count) mju_copyInt(d->name, view.name, (count))
-  RESTORE(tree_island, m->ntree);
-  RESTORE(island_ntree, d->nisland);
-  RESTORE(island_itreeadr, d->nisland);
-  RESTORE(map_itree2tree, m->ntree);
-  RESTORE(dof_island, m->nv);
-  RESTORE(island_nv, d->nisland);
-  RESTORE(island_idofadr, d->nisland);
-  RESTORE(island_dofadr, d->nisland);
-  RESTORE(map_dof2idof, m->nv);
-  RESTORE(map_idof2dof, m->nv);
-  RESTORE(efc_island, d->nefc);
-  RESTORE(island_ne, d->nisland);
-  RESTORE(island_nf, d->nisland);
-  RESTORE(island_nefc, d->nisland);
-  RESTORE(island_iefcadr, d->nisland);
-  RESTORE(map_efc2iefc, d->nefc);
-  RESTORE(map_iefc2efc, d->nefc);
-#undef RESTORE
-}
-
-static void saveIslandCache(const mjModel* m, mjData* d) {
-  if (!m->ntree || !m->neq || d->nefc != d->ne ||
-      (int64_t)d->nefc > 6*(int64_t)m->neq) {
-    if (m->ntree) d->island_cache_tree[0] = 0;
-    return;
-  }
-  d->island_cache_tree[0] = 0;
-  d->island_cache_tree[1] = m->ntree;
-  d->island_cache_tree[2] = m->nv;
-  d->island_cache_tree[3] = d->nefc;
-  d->island_cache_tree[4] = d->nisland;
-  d->island_cache_tree[5] = d->nidof;
-  d->island_cache_tree[6] = m->neq;
-  d->island_cache_tree[7] = 1;
-  mjIslandCacheView view = islandCacheView(m, d);
-  for (int i=0; i < m->neq; i++) {
-    view.eq_active[i] = d->eq_active[i];
-    view.eq_type[i] = m->eq_type[i];
-    if (m->eq_type[i] != mjEQ_CONNECT && m->eq_type[i] != mjEQ_WELD) return;
-    int obj1 = m->eq_obj1id[i];
-    int obj2 = m->eq_obj2id[i];
-    if (m->eq_objtype[i] == mjOBJ_SITE) {
-      obj1 = m->site_bodyid[obj1];
-      obj2 = m->site_bodyid[obj2];
-    }
-    view.eq_tree1[i] = m->body_treeid[obj1];
-    view.eq_tree2[i] = m->body_treeid[obj2];
-  }
-#define SAVE(name, count) mju_copyInt(view.name, d->name, (count))
-  SAVE(tree_island, m->ntree);
-  SAVE(island_ntree, d->nisland);
-  SAVE(island_itreeadr, d->nisland);
-  SAVE(map_itree2tree, m->ntree);
-  SAVE(dof_island, m->nv);
-  SAVE(island_nv, d->nisland);
-  SAVE(island_idofadr, d->nisland);
-  SAVE(island_dofadr, d->nisland);
-  SAVE(map_dof2idof, m->nv);
-  SAVE(map_idof2dof, m->nv);
-  SAVE(efc_island, d->nefc);
-  SAVE(island_ne, d->nisland);
-  SAVE(island_nf, d->nisland);
-  SAVE(island_nefc, d->nisland);
-  SAVE(island_iefcadr, d->nisland);
-  SAVE(map_efc2iefc, d->nefc);
-  SAVE(map_iefc2efc, d->nefc);
-  mju_copyInt(view.efc_type, d->efc_type, d->nefc);
-  mju_copyInt(view.efc_id, d->efc_id, d->nefc);
-  mju_copyInt(view.dof_treeid, m->dof_treeid, m->nv);
-  mju_copyInt(view.tree_dofnum, m->tree_dofnum, m->ntree);
-#undef SAVE
-  for (int i=0; i < d->nefc; i++) {
-    if (d->map_iefc2efc[i] != i) {
-      d->island_cache_tree[7] = 0;
-      break;
-    }
-  }
-  d->island_cache_tree[0] = kCacheMagic;
-}
-
-static void copyIslandEfcVectors(mjData* d) {
-  if (d->island_cache_tree[0] == kCacheMagic && d->island_cache_tree[7]) {
-    d->iefc_type = d->efc_type;
-    d->iefc_id = d->efc_id;
-    d->iefc_frictionloss = d->efc_frictionloss;
-    d->iefc_D = d->efc_D;
-    d->iefc_R = d->efc_R;
-    return;
-  }
-  mju_gatherInt(d->iefc_type, d->efc_type, d->map_iefc2efc, d->nefc);
-  mju_gatherInt(d->iefc_id, d->efc_id, d->map_iefc2efc, d->nefc);
-  mju_gather(d->iefc_frictionloss, d->efc_frictionloss, d->map_iefc2efc, d->nefc);
-  mju_gather(d->iefc_D, d->efc_D, d->map_iefc2efc, d->nefc);
-  mju_gather(d->iefc_R, d->efc_R, d->map_iefc2efc, d->nefc);
-}
-
-
 //-------------------------- main entry-point  -----------------------------------------------------
 
 // discover islands:
@@ -644,16 +437,6 @@ void mj_island(const mjModel* m, mjData* d) {
   // no constraints or islands disabled: quick return
   if (mjDISABLED(mjDSBL_ISLAND) || !nefc) {
     d->nisland = d->nidof = 0;
-    return;
-  }
-
-  // exact fast path for topology-stable connect/weld equality constraints
-  if (islandCacheMatches(m, d)) {
-    d->nisland = d->island_cache_tree[4];
-    d->nidof = d->island_cache_tree[5];
-    if (!arenaAllocIsland(m, d)) return;
-    restoreIslandCache(m, d);
-    copyIslandEfcVectors(d);
     return;
   }
 
@@ -822,6 +605,5 @@ void mj_island(const mjModel* m, mjData* d) {
   // SHOULD NOT OCCUR
   if (!mju_compare(island_nefc2, d->island_nefc, nisland)) mjERROR("island_nefc miscount");
 
-  saveIslandCache(m, d);
   mj_freeStack(d);
 }

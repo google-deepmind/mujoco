@@ -998,11 +998,7 @@ static void mj_setPtrData(const mjModel* m, mjData* d) {
   ASAN_POISON_MEMORY_REGION(ptr, PTRDIFF(d->name, ptr));  \
   ptr += SKIP((intptr_t)ptr) + sizeof(type)*(m->nr)*(nc);
 
-  #undef XIC
-  #define XIC X
   MJDATA_POINTERS
-  #undef XIC
-  #define XIC(type, name, nr, nc)
 #undef X
 
   // check size
@@ -1089,11 +1085,7 @@ void mj_makeRawData(mjData** dest, const mjModel* m) {
     return;                                                                  \
   }
 
-  #undef XIC
-  #define XIC X
   MJDATA_POINTERS
-  #undef XIC
-  #define XIC(type, name, nr, nc)
 #undef X
 
   // copy stack size from model
@@ -1116,9 +1108,6 @@ void mj_makeRawData(mjData** dest, const mjModel* m) {
 
   // set pointers into buffer
   mj_setPtrData(m, d);
-  if (m->ntree) {
-    d->island_cache_tree[0] = 0;
-  }
 
   // clear threadpool
   d->threadpool = 0;
@@ -1184,9 +1173,6 @@ mjData* mj_copyDataVisual(mjData* dest, const mjModel* m, const mjData* src, int
   dest->arena = save_arena;
   dest->threadpool = 0;
   mj_setPtrData(m, dest);
-  if (m->ntree) {
-    dest->island_cache_tree[0] = 0;
-  }
 
   // save plugin_data, since the X macro copying block below will override it
   const size_t plugin_data_size = sizeof(*dest->plugin_data) * dest->nplugin;
@@ -1387,31 +1373,18 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   // fill buffer with debug_value (normally 0)
 #ifdef ADDRESS_SANITIZER
   {
-    #undef XIC
-    #define XIC(type, name, nr, nc)
     #define X(type, name, nr, nc) memset(d->name, (int)debug_value, sizeof(type)*(m->nr)*(nc));
     MJDATA_POINTERS
     #undef X
-    #undef XIC
-    #define XIC(type, name, nr, nc)
   }
 #else
-  size_t cache_offset = d->island_cache_tree ?
-      (size_t)PTRDIFF(d->island_cache_tree, d->buffer) : d->nbuffer;
-  memset(d->buffer, (int)debug_value, cache_offset);
+  memset(d->buffer, (int)debug_value, d->nbuffer);
 #endif
 
 #ifdef MEMORY_SANITIZER
   // under MSAN, mark the entire buffer as uninitialized
   __msan_allocated_memory(d->buffer, d->nbuffer);
-  if (m->ntree) {
-    d->island_cache_tree[0] = 0;
-  }
 #endif
-
-  if (debug_value && m->ntree) {
-    d->island_cache_tree[0] = 0;
-  }
 
   // zero out user-settable state and input arrays (MSAN: mark as initialized)
   mju_zero(d->qpos, m->nq);
