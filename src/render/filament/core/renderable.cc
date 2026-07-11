@@ -251,6 +251,9 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
   for (const mjrfRenderRequest* request : requests) {
     DrawState draw_state;
     mjrfMaterial material = material_;
+
+    // Selected materials are handled in a separate pass, so clear the value
+    // here to take advantage of shared materials.
     material.selected = false;
 
     draw_state.wireframe = (request->draw_mode == mjDRAW_MODE_WIREFRAME);
@@ -322,10 +325,6 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
     if (reflective) {
       material.reflection_texture = reflection_mgr->Register(
           this, request->viewport.width, request->viewport.height);
-    }
-
-    if (material.selected) {
-      material.emissive += 0.3f;  // vis->global.glow
     }
 
     const Mesh* mesh = !parts_.empty() ? parts_[0].mesh : nullptr;
