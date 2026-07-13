@@ -1292,10 +1292,11 @@ void mjCMesh::ApplyTransformations(double* dvert) {
       dvert[3*i + 2] *= scale[2];
     }
 
+    // normals are covectors: transform by the inverse scale
     for (int i = 0; i < nnormal(); i++) {
-      normal_[3*i + 0] *= scale[0];
-      normal_[3*i + 1] *= scale[1];
-      normal_[3*i + 2] *= scale[2];
+      normal_[3*i + 0] /= scale[0];
+      normal_[3*i + 1] /= scale[1];
+      normal_[3*i + 2] /= scale[2];
     }
   }
 

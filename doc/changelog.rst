@@ -36,6 +36,10 @@ General
    - Changed the default value of :ref:`sleep_tolerance<option-sleep_tolerance>` from 1e-4 to 1e-3 (1mm/sec in SI
      units).
 
+Bug fixes
+^^^^^^^^^
+- Fixed a bug in the mesh compiler where normals were scaled as vectors rather than covectors.
+
 Version 3.10.0 (June 22, 2026)
 ------------------------------
 
