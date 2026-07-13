@@ -18,6 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,13 +31,11 @@ void mj_updateSleepInit(const mjModel* m, mjData* d, int flg_staticawake);
 MJAPI void mj_updateSleep(const mjModel* m, mjData* d);
 
 // return the first tree in the sleep cycle that starts at i, -1 if error
-int mj_sleepCycle(const int* tree_asleep, int ntree, int i);
-
-// return the first tree in the sleep cycle that starts at i, -1 if error
-int mj_sleepCycle(const int* tree_asleep, int ntree, int i);
+MJAPI int mj_sleepCycle(const int* tree_asleep, int ntree, int i);
 
 // wake tree i and its related island cycle, return number of woke trees
-MJAPI int mj_wakeTree(int* tree_asleep, int ntree, int i, int wakeval);
+MJAPI int mj_wakeIsland(int* tree_asleep, int ntree, int i, int wakeval,
+                        const char* reason, mjtNum time);
 
 // wake trees with nonzero velocity or external forces, return number of woke trees
 int mj_wake(const mjModel* m, mjData* d);
@@ -52,6 +51,9 @@ int mj_wakeEquality(const mjModel* m, mjData* d);
 
 // put trees to sleep according to tolerance, return number of slept trees
 int mj_sleep(const mjModel* m, mjData* d);
+
+// get a representative body from a flex contact side
+int mj_flexBody(const mjModel* m, const mjContact* con, int side);
 
 // return sleep state of object i
 MJAPI mjtSleepState mj_sleepState(const mjModel* m, const mjData* d, mjtObj type, int i);

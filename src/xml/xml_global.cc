@@ -14,9 +14,11 @@
 
 #include "xml/xml_global.h"
 
+#include <cstdlib>
 #include <mutex>
 #include <string>
 #include <type_traits>
+
 #include <mujoco/mujoco.h>
 #include "xml/xml.h"
 #include "xml/xml_util.h"
@@ -48,7 +50,14 @@ std::string GlobalModel::ToXML(const mjModel* m, char* error,
   return WriteXML(m, spec_, error, error_sz);
 }
 
+GlobalModel& GetGlobalModel();
+
 void GlobalModel::Set(mjSpec* spec) {
+  static std::once_flag atexit_once;
+  std::call_once(atexit_once, []() {
+    std::atexit([]() { GetGlobalModel().Set(nullptr); });
+  });
+
   std::lock_guard<std::mutex> lock(*mutex_);
   if (spec_ != nullptr) {
     mj_deleteSpec(spec_);

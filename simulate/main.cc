@@ -241,13 +241,21 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
   } else if (extension == ".xml") {
     mnew = mj_loadXML(filename, nullptr, loadError, kErrorLength);
   } else {
-    mjSpec* spec = mj_parse(filename, nullptr, nullptr, loadError, kErrorLength);
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    mjSpec* spec = mj_parse(filename, nullptr, &vfs, loadError, kErrorLength);
     if (!spec) {
-      mju::strcpy_arr(loadError, "could not parse model");
+      if (!loadError[0]) {
+        mju::strcpy_arr(loadError, "could not parse model");
+      }
     } else {
-      mnew = mj_compile(spec, nullptr);
+      mnew = mj_compile(spec, &vfs);
+      if (!mnew) {
+        mju::strcpy_arr(loadError, mjs_getError(spec));
+      }
       mj_deleteSpec(spec);
     }
+    mj_deleteVFS(&vfs);
   }
 
   // remove trailing newline character from loadError
@@ -289,6 +297,8 @@ void PhysicsLoop(mj::Simulate& sim) {
   // cpu-sim synchronization point
   std::chrono::time_point<mj::Simulate::Clock> syncCPU;
   mjtNum syncSim = 0;
+
+  int last_run = -1;
 
   // run until asked to exit
   while (!sim.exitrequest.load()) {
@@ -355,6 +365,15 @@ void PhysicsLoop(mj::Simulate& sim) {
 
       // run only if model is present
       if (m) {
+        // reset timers on transition between running and paused
+        if (sim.run != last_run) {
+          if (last_run != -1) {
+            std::memset(d->timer, 0, sizeof(d->timer));
+            std::memset(sim.timer_prev_, 0, sizeof(sim.timer_prev_));
+          }
+          last_run = sim.run;
+        }
+
         // running
         if (sim.run) {
           bool stepped = false;

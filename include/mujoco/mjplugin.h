@@ -18,22 +18,24 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjspec.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjvisualize.h>
 
 
 //---------------------------------- Resource Provider ---------------------------------------------
 
-struct mjResource_ {
+typedef struct mjResource_ {
   char* name;                                   // name of resource (filename, etc)
   void* data;                                   // opaque data pointer
   mjVFS* vfs;                                   // pointer to the VFS
   char timestamp[512];                          // timestamp of the resource
   const struct mjpResourceProvider* provider;   // pointer to the provider
-};
-typedef struct mjResource_ mjResource;
+} mjResource;
 
-// callback for opening a resource, returns zero on failure
+// callback for opening a resource, returns zero on failure.
+// Note: If opening fails, the close callback will not be called. Therefore, the
+// open callback is responsible for cleaning up any allocated memory before
+// returning 0.
 typedef int (*mjfOpenResource)(mjResource* resource);
 
 // callback for reading a resource
@@ -56,8 +58,12 @@ typedef int (*mjfUnmountResource)(mjResource* resource);
 // returns < 0 if the resource is older than the given timestamp
 typedef int (*mjfResourceModified)(const mjResource* resource, const char* timestamp);
 
+// callback for writing bytes to a resource
+// return number of bytes written, return -1 if error
+typedef mjtSize (*mjfWriteResource)(mjResource* resource, const void* buffer, mjtSize nbytes);
+
 // struct describing a single resource provider
-struct mjpResourceProvider {
+typedef struct mjpResourceProvider {
   const char* prefix;               // prefix for match against a resource name
   mjfOpenResource open;             // opening callback
   mjfReadResource read;             // reading callback
@@ -65,9 +71,9 @@ struct mjpResourceProvider {
   mjfMountResource mount;           // mounting callback (optional)
   mjfUnmountResource unmount;       // unmounting callback (optional)
   mjfResourceModified modified;     // resource modified callback (optional)
+  mjfWriteResource write;           // writing callback (optional)
   void* data;                       // opaque data pointer (resource invariant)
-};
-typedef struct mjpResourceProvider mjpResourceProvider;
+} mjpResourceProvider;
 
 //---------------------------------- Decoder -------------------------------------------------------
 
@@ -78,7 +84,7 @@ typedef mjSpec* (*mjfDecode)(mjResource* resource, const mjVFS* vfs);
 typedef int (*mjfCanDecode)(const mjResource* resource);
 
 // the struct defining the decoder plugin's interface
-struct mjpDecoder {
+typedef struct mjpDecoder {
   const char* content_type;
   const char* extension;
   // user-facing functions
@@ -86,21 +92,19 @@ struct mjpDecoder {
   mjfDecode decode;         // main decoding function
   // the caller takes ownership of the spec returned by decode and is responsible
   // for cleaning it up
-};
-typedef struct mjpDecoder mjpDecoder;
+} mjpDecoder;
 
 //---------------------------------- Encoder -------------------------------------------------------
 
-typedef int (*mjfEncode)(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
-                         mjResource* resource);
+typedef mjtSize (*mjfEncode)(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
+                            mjResource* resource);
 
-struct mjpEncoder {
+typedef struct mjpEncoder {
   const char* content_type;
   const char* extension;
   mjfEncode encode;  //  Function to encode an mjSpec and mjModel to a mjResource.
   mjfCloseResource close_resource;  // Function to close/free the resource.
-};
-typedef struct mjpEncoder mjpEncoder;
+} mjpEncoder;
 
 //---------------------------------- Plugins -------------------------------------------------------
 
@@ -111,7 +115,7 @@ typedef enum mjtPluginCapabilityBit_ {
   mjPLUGIN_SDF      = 1<<3,       // signed distance fields
 } mjtPluginCapabilityBit;
 
-struct mjpPlugin_ {
+typedef struct mjpPlugin_ {
   const char* name;               // globally unique name identifying the plugin
 
   int nattribute;                 // number of configuration attributes
@@ -169,18 +173,16 @@ struct mjpPlugin_ {
 
   // bounding box of implicit surface
   void (*sdf_aabb)(mjtNum aabb[6], const mjtNum* attributes);
-};
-typedef struct mjpPlugin_ mjpPlugin;
+} mjpPlugin;
 
-struct mjSDF_ {
+typedef struct mjSDF_ {
   const mjpPlugin** plugin;
   int* id;
   mjtSDFType type;
   mjtNum* relpos;
   mjtNum* relmat;
   mjtGeom* geomtype;
-};
-typedef struct mjSDF_ mjSDF;
+} mjSDF;
 
 //------------------------------------ Initialization ----------------------------------------------
 

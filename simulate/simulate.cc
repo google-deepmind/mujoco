@@ -107,6 +107,7 @@ enum {
   SECT_RENDERING,
   SECT_VISUALIZATION,
   SECT_GROUP,
+  SECT_LOGGING,
   NSECT0,
 
   // right ui
@@ -367,22 +368,27 @@ void UpdateProfiler(mj::Simulate* sim, const mjModel* m, const mjData* d) {
   }
 
   // get timers: total, collision, prepare, solve, other
-  mjtNum total = d->timer[mjTIMER_STEP].duration;
-  int number = d->timer[mjTIMER_STEP].number;
+  mjtNum total = d->timer[mjTIMER_STEP].duration - sim->timer_prev_[mjTIMER_STEP].duration;
+  int number = d->timer[mjTIMER_STEP].number - sim->timer_prev_[mjTIMER_STEP].number;
+  int prev_forward_number = sim->timer_prev_[mjTIMER_FORWARD].number;
+  mjtNum prev_forward_duration = sim->timer_prev_[mjTIMER_FORWARD].duration;
   if (!number) {
-    total = d->timer[mjTIMER_FORWARD].duration;
-    number = d->timer[mjTIMER_FORWARD].number;
+    total = d->timer[mjTIMER_FORWARD].duration - prev_forward_duration;
+    number = d->timer[mjTIMER_FORWARD].number - prev_forward_number;
   }
 
-  if (number) {  // skip update if no measurements
+  if (number > 0) {  // skip update if no measurements
     float tdata[5] = {
-      static_cast<float>(total/number),
-      static_cast<float>(d->timer[mjTIMER_POS_COLLISION].duration/number),
-      static_cast<float>(d->timer[mjTIMER_POS_MAKE].duration/number) +
-      static_cast<float>(d->timer[mjTIMER_POS_PROJECT].duration/number),
-      static_cast<float>(d->timer[mjTIMER_CONSTRAINT].duration/number),
-      0
-    };
+        static_cast<float>(total / number),
+        static_cast<float>((d->timer[mjTIMER_POS_COLLISION].duration -
+                            sim->timer_prev_[mjTIMER_POS_COLLISION].duration) / number),
+        static_cast<float>((d->timer[mjTIMER_POS_MAKE].duration -
+                            sim->timer_prev_[mjTIMER_POS_MAKE].duration +
+                            d->timer[mjTIMER_POS_PROJECT].duration -
+                            sim->timer_prev_[mjTIMER_POS_PROJECT].duration) / number),
+        static_cast<float>((d->timer[mjTIMER_CONSTRAINT].duration -
+                            sim->timer_prev_[mjTIMER_CONSTRAINT].duration) / number),
+        0};
     tdata[4] = tdata[0] - tdata[1] - tdata[2] - tdata[3];
 
     // update figtimer
@@ -398,6 +404,7 @@ void UpdateProfiler(mj::Simulate* sim, const mjModel* m, const mjData* d) {
       sim->figtimer.linedata[n][1] = tdata[n];
     }
   }
+
 
   // get total number of iterations and nonzeros
   mjtNum sqrt_nnz = 0;
@@ -724,6 +731,15 @@ void UpdateInfoText(mj::Simulate* sim, const mjModel* m, const mjData* d,
     solver_niter += d->solver_niter[i];
   }
 
+  mjtNum step_duration =
+      d->timer[mjTIMER_STEP].duration - sim->timer_prev_[mjTIMER_STEP].duration;
+  int step_number =
+      d->timer[mjTIMER_STEP].number - sim->timer_prev_[mjTIMER_STEP].number;
+  mjtNum forward_duration =
+      d->timer[mjTIMER_FORWARD].duration - sim->timer_prev_[mjTIMER_FORWARD].duration;
+  int forward_number =
+      d->timer[mjTIMER_FORWARD].number - sim->timer_prev_[mjTIMER_FORWARD].number;
+
   // prepare info text
   mju::strcpy_arr(title, "Time\nSize\nCPU\nSolver   \nFPS\nMemory");
   mju::sprintf_arr(content,
@@ -731,8 +747,8 @@ void UpdateInfoText(mj::Simulate* sim, const mjModel* m, const mjData* d,
                    d->time,
                    d->nefc, d->ncon,
                    sim->run ?
-                   d->timer[mjTIMER_STEP].duration / mjMAX(1, d->timer[mjTIMER_STEP].number) :
-                   d->timer[mjTIMER_FORWARD].duration / mjMAX(1, d->timer[mjTIMER_FORWARD].number),
+                   step_duration / mjMAX(1, step_number) :
+                   forward_duration / mjMAX(1, forward_number),
                    solerr, solver_niter,
                    fps,
                    100*d->maxuse_arena/(double)(d->narena),
@@ -756,7 +772,7 @@ void UpdateInfoText(mj::Simulate* sim, const mjModel* m, const mjData* d,
     }
 
     // add islands if enabled
-    if (!mjDISABLED(mjDSBL_ISLAND) && d->nisland > 0) {
+    if (!mjDISABLED(mjDSBL_ISLAND)) {
       mju::sprintf_arr(tmp, "\n%d", d->nisland);
       mju::strcat_arr(content, tmp);
       mju::strcat_arr(title, "\nIslands");
@@ -1154,6 +1170,35 @@ void MakeGroupSection(mj::Simulate* sim) {
   mjui_add(&sim->ui0, defGroup);
 }
 
+// make logging section of UI
+void MakeLoggingSection(mj::Simulate* sim) {
+  mjLogConfig cfg = mju_getLogConfig();
+  sim->log_console = cfg.logto_console;
+  sim->log_file = cfg.logto_file;
+  for (int i = 0; i < mjNTOPIC; i++) {
+    sim->log_topics[i] = ((cfg.topics & (1 << i)) != 0);
+  }
+
+  mjuiDef defLogging[] = {
+    {mjITEM_SECTION,    "Logging",          mjPRESERVE, nullptr,            "AL"},
+    {mjITEM_CHECKBYTE,  "Console",          2, &sim->log_console,           ""},
+    {mjITEM_CHECKBYTE,  "File",             2, &sim->log_file,              ""},
+    {mjITEM_SEPARATOR,  "Info topics",      1},
+    {mjITEM_END}
+  };
+  mjui_add(&sim->ui0, defLogging);
+
+  mjuiDef defTopic[] = {
+    {mjITEM_CHECKBYTE,  "",                 2, nullptr,                     ""},
+    {mjITEM_END}
+  };
+  for (int i = 0; i < mjNTOPIC; i++) {
+    mju::strcpy_arr(defTopic[0].name, mjTOPICSTRING[i]);
+    defTopic[0].pdata = sim->log_topics + i;
+    mjui_add(&sim->ui0, defTopic);
+  }
+}
+
 // make joint section of UI
 void MakeJointSection(mj::Simulate* sim) {
   mjuiDef defJoint[] = {
@@ -1304,6 +1349,7 @@ void MakeUiSections(mj::Simulate* sim, const mjModel* m, const mjData* d) {
   MakeRenderingSection(sim, m);
   MakeVisualizationSection(sim, m);
   MakeGroupSection(sim);
+  MakeLoggingSection(sim);
   MakeJointSection(sim);
   MakeControlSection(sim);
   MakeEqualitySection(sim);
@@ -1406,14 +1452,6 @@ mjtNum Timer() {
   return elapsed.count();
 }
 
-// clear all times
-void ClearTimers(mjData* d) {
-  for (int i=0; i<mjNTIMER; i++) {
-    d->timer[i].duration = 0;
-    d->timer[i].number = 0;
-  }
-}
-
 // copy current camera to clipboard as MJCF specification
 void CopyCamera(mj::Simulate* sim) {
   mjvGLCamera* camera = sim->scn.camera;
@@ -1478,6 +1516,28 @@ void UpdateSettings(mj::Simulate* sim, const mjModel* m) {
   }
   if (old_camera != sim->camera) {
     sim->pending_.ui_update_rendering = true;
+  }
+
+  // logging flags
+  mjLogConfig cfg = mju_getLogConfig();
+  bool logging_changed = false;
+  if (sim->log_console != cfg.logto_console) {
+    sim->log_console = cfg.logto_console;
+    logging_changed = true;
+  }
+  if (sim->log_file != cfg.logto_file) {
+    sim->log_file = cfg.logto_file;
+    logging_changed = true;
+  }
+  for (int i = 0; i < mjNTOPIC; i++) {
+    int enabled = ((cfg.topics & (1 << i)) != 0);
+    if (sim->log_topics[i] != enabled) {
+      sim->log_topics[i] = enabled;
+      logging_changed = true;
+    }
+  }
+  if (logging_changed) {
+    sim->pending_.ui_update_logging = true;
   }
 }
 
@@ -1620,6 +1680,10 @@ void UiEvent(mjuiState* state) {
 
     // option section
     else if (it && it->sectionid==SECT_OPTION) {
+      if (it->pdata == &sim->info) {
+        // clear load error/warning when toggling info panel
+        sim->load_error[0] = '\0';
+      }
       if (it->pdata == &sim->spacing) {
         sim->ui0.spacing = mjui_themeSpacing(sim->spacing);
         sim->ui1.spacing = mjui_themeSpacing(sim->spacing);
@@ -1641,34 +1705,41 @@ void UiEvent(mjuiState* state) {
 
     // simulation section
     else if (it && it->sectionid==SECT_SIMULATION) {
+      if (it->itemid == 0) {
+        // clear load error/warning when toggling play/pause
+        sim->load_error[0] = '\0';
+      }
       switch (it->itemid) {
-      case 1:             // Reset
+      case 1:             // Threadpool
+        sim->pending_.update_threadpool = true;
+        break;
+      case 2:             // Reset
         sim->pending_.reset = true;
         break;
 
-      case 2:             // Reload
+      case 3:             // Reload
         sim->uiloadrequest.fetch_add(1);
         break;
 
-      case 3:             // Align
+      case 4:             // Align
         sim->pending_.align = true;
         break;
 
-      case 4:             // Copy key
+      case 5:             // Copy key
         sim->pending_.copy_key = true;
         sim->pending_.copy_key_full_precision = sim->platform_ui->IsShiftKeyPressed();
         break;
 
-      case 5:             // Adjust key
-      case 6:             // Load key
+      case 6:             // Adjust key
+      case 7:             // Load key
         sim->pending_.load_key = true;
         break;
 
-      case 7:             // Save key
+      case 8:             // Save key
         sim->pending_.save_key = true;
         break;
 
-      case 11:            // History scrubber
+      case 12:            // History scrubber
         sim->run = 0;
         sim->pending_.load_from_history = true;
         mjui0_update_section(sim, SECT_SIMULATION);
@@ -1719,7 +1790,6 @@ void UiEvent(mjuiState* state) {
 
     // rendering section
     else if (it && it->sectionid==SECT_RENDERING) {
-
       // only update the camera when the camera itself changed
       if (it->pdata == &sim->camera) {
         if (sim->camera==0) {
@@ -1769,6 +1839,20 @@ void UiEvent(mjuiState* state) {
       }
     }
 
+    // logging section
+    else if (it && it->sectionid==SECT_LOGGING) {
+      mjLogConfig cfg = mju_getLogConfig();
+      cfg.logto_console = sim->log_console;
+      cfg.logto_file = sim->log_file;
+      cfg.topics = 0;
+      for (int i = 0; i < mjNTOPIC; i++) {
+        if (sim->log_topics[i]) {
+          cfg.topics |= (1 << i);
+        }
+      }
+      mju_setLogConfig(cfg);
+    }
+
     // stop if UI processed event
     if (it!=nullptr || (state->type==mjEVENT_KEY && state->key==0)) {
       return;
@@ -1803,6 +1887,7 @@ void UiEvent(mjuiState* state) {
       if (!sim->is_passive_ && sim->m_) {
         sim->run = 1 - sim->run;
         sim->pert.active = 0;
+        sim->load_error[0] = '\0';
 
         if (sim->run) sim->scrub_index = 0;  // reset scrubber
 
@@ -1812,8 +1897,6 @@ void UiEvent(mjuiState* state) {
 
     case mjKEY_RIGHT:           // step forward
       if (!sim->is_passive_ && sim->m_ && !sim->run) {
-        ClearTimers(sim->d_);
-
         // currently in scrubber: increment scrub, load state, update slider UI
         if (sim->scrub_index < 0) {
           sim->scrub_index++;
@@ -1836,7 +1919,6 @@ void UiEvent(mjuiState* state) {
     case mjKEY_LEFT:           // step backward
       if (!sim->is_passive_ && sim->m_) {
         sim->run = 0;
-        ClearTimers(sim->d_);
 
         // decrement scrub, load state
         sim->scrub_index = mjMAX(sim->scrub_index - 1, 1 - sim->nhistory_);
@@ -2057,6 +2139,7 @@ void Simulate::Sync(bool state_only) {
   if (!m_) {
     return;
   }
+
   if (this->exitrequest.load()) {
     return;
   }
@@ -2141,8 +2224,6 @@ void Simulate::Sync(bool state_only) {
       pending_.ui_update_visualization = true;
       m_->stat = m_passive_->stat;
     }
-
-
   }
 
   if (pending_.save_xml) {
@@ -2174,8 +2255,14 @@ void Simulate::Sync(bool state_only) {
     pending_.print_data = std::nullopt;
   }
 
+  if (pending_.update_threadpool) {
+    mju_threadpool(d_, nthread);
+    pending_.update_threadpool = false;
+  }
+
   if (pending_.reset) {
     mj_resetData(m_, d_);
+    memset(timer_prev_, 0, sizeof(timer_prev_));
     mj_forward(m_, d_);
     load_error[0] = '\0';
     update_profiler = true;
@@ -2330,7 +2417,6 @@ void Simulate::Sync(bool state_only) {
     mjopt_prev_ = m_passive_->opt;
     mjvis_prev_ = m_passive_->vis;
     mjstat_prev_ = m_passive_->stat;
-
   }
 
   // update settings
@@ -2358,9 +2444,6 @@ void Simulate::Sync(bool state_only) {
     UpdateSensorImage(this, m_, d_);
   }
 
-  // clear timers once profiler info has been copied
-  ClearTimers(d_);
-
   if (this->run || this->is_passive_) {
     // clear old perturbations, apply new
     mju_zero(d_->xfrc_applied, 6*m_->nbody);
@@ -2368,6 +2451,10 @@ void Simulate::Sync(bool state_only) {
     mjv_applyPerturbForce(m_, d_, &this->pert);
   } else {
     mjv_applyPerturbPose(m_, d_, &this->pert, 1);  // mocap and dynamic bodies
+  }
+
+  for (int i = 0; i < mjNTIMER; i++) {
+    timer_prev_[i] = d_->timer[i];
   }
 }
 
@@ -2532,6 +2619,8 @@ void Simulate::LoadOnRenderThread() {
   this->pert.flexselect = -1;
   this->pert.skinselect = -1;
 
+  memset(timer_prev_, 0, sizeof(timer_prev_));
+
   // align and scale view unless reloading the same file
   if (this->filename[0] &&
       mju::strcmp_arr(this->filename, this->previous_filename)) {
@@ -2561,13 +2650,13 @@ void Simulate::LoadOnRenderThread() {
   }
 
   // set keyframe range and divisions
-  this->ui0.sect[SECT_SIMULATION].item[5].slider.range[0] = 0;
-  this->ui0.sect[SECT_SIMULATION].item[5].slider.range[1] = mjMAX(0, this->m_->nkey - 1);
-  this->ui0.sect[SECT_SIMULATION].item[5].slider.divisions = mjMAX(1, this->m_->nkey - 1);
+  this->ui0.sect[SECT_SIMULATION].item[6].slider.range[0] = 0;
+  this->ui0.sect[SECT_SIMULATION].item[6].slider.range[1] = mjMAX(0, this->m_->nkey - 1);
+  this->ui0.sect[SECT_SIMULATION].item[6].slider.divisions = mjMAX(1, this->m_->nkey - 1);
 
   // set scrubber range and divisions
-  this->ui0.sect[SECT_SIMULATION].item[11].slider.range[0] = 1 - nhistory_;
-  this->ui0.sect[SECT_SIMULATION].item[11].slider.divisions = nhistory_;
+  this->ui0.sect[SECT_SIMULATION].item[12].slider.range[0] = 1 - nhistory_;
+  this->ui0.sect[SECT_SIMULATION].item[12].slider.divisions = nhistory_;
 
   // detect image sensors for visualization
   DetectImageSensors(this, this->m_);
@@ -2679,6 +2768,13 @@ void Simulate::Render() {
       mjui0_update_section(this, SECT_VISUALIZATION);
     }
     pending_.ui_update_visualization = false;
+  }
+
+  if (pending_.ui_update_logging) {
+    if (this->ui0_enable && this->ui0.sect[SECT_LOGGING].state) {
+      mjui0_update_section(this, SECT_LOGGING);
+    }
+    pending_.ui_update_logging = false;
   }
 
   if (is_passive_) {

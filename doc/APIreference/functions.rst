@@ -66,11 +66,20 @@ Parse spec from a file.
 
 .. mujoco-include:: mj_encode
 
-Encode spec/model to a file using a registered encoder.
+Encode :ref:`mjSpec` or :ref:`mjModel` to a file. The output format is determined by the file extension (case insensitive) or
+``content_type``. Returns the number of bytes written on success, -1 on failure.
 
-Returns the number of bytes written on success, -1 on failure.
+The following formats are supported natively, without a registered encoder:
 
-*Nullable:* ``m``, ``vfs``, ``error``
+- **MJCF XML** — extension: ``.xml``, content_type: ``text/xml``. If an :ref:`mjSpec` is provided, saves via
+  :ref:`mj_saveXML`. Otherwise falls back to :ref:`mj_saveLastXML`, which requires a compiled :ref:`mjModel`.
+- **MJB** — extension: ``.mjb``. MuJoCo binary format. Requires a compiled :ref:`mjModel`.
+- **TXT** — extension: ``.txt``, content_type: ``text/plain``. Human-readable text dump via :ref:`mj_printModel`.
+  Requires a compiled :ref:`mjModel`.
+
+For all other formats, a registered encoder is looked up via :ref:`mjp_findEncoder`.
+
+*Nullable:* ``s``, ``m``, ``vfs``, ``error``
 
 .. _mj_compile:
 
@@ -601,14 +610,7 @@ Get name of object with the specified :ref:`mjtObj` type and id, returns ``NULL`
 
 .. mujoco-include:: mj_fullM
 
-Convert sparse inertia matrix ``M`` into full (i.e. dense) matrix.
-|br| ``dst`` must be of size ``nv x nv``, ``M`` must be of the same structure as ``mjData.qM``.
-
-The ``mjData`` members ``qM`` and ``M`` represent the same matrix in different formats; the former is unique to
-MuJoCo, the latter is standard Compressed Sparse Row (lower triangle only). The :math:`L^T D L` factor of the inertia
-matrix ``mjData.qLD`` uses the same CSR format as ``mjData.M``. See
-`engine_support_test <https://github.com/google-deepmind/mujoco/blob/main/test/engine/engine_support_test.cc>`__ for
-pedagogical examples.
+Convert sparse inertia matrix into full (i.e. dense) matrix.
 
 .. _mj_mulM:
 
@@ -1637,6 +1639,17 @@ Close a resource; no-op if resource is NULL.
 Set buffer to bytes read from the resource and return number of bytes in buffer;
 return negative value if error.
 
+.. _mju_writeResource:
+
+`mju_writeResource <#mju_writeResource>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_writeResource
+
+Write resource data via its resource provider, return bytes written or -1 on error.
+
+*Nullable:* ``vfs``, ``error``
+
 .. _mju_getResourceDir:
 
 `mju_getResourceDir <#mju_getResourceDir>`__
@@ -1978,25 +1991,9 @@ Error and memory
 
 .. mujoco-include:: mju_error
 
-Main error function; does not return to caller.
-
-.. _mju_error_i:
-
-`mju_error_i <#mju_error_i>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_error_i
-
-Deprecated: use mju_error.
-
-.. _mju_error_s:
-
-`mju_error_s <#mju_error_s>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_error_s
-
-Deprecated: use mju_error.
+Main error function. The error message is dispatched to the active log handler (see :ref:`mju_setLogHandler`).
+Errors are always fatal: if the handler returns, the process is terminated with ``exit(EXIT_FAILURE)``. Handlers
+wishing to recover must ``longjmp`` or otherwise transfer control before returning.
 
 .. _mju_warning:
 
@@ -2005,25 +2002,7 @@ Deprecated: use mju_error.
 
 .. mujoco-include:: mju_warning
 
-Main warning function; returns to caller.
-
-.. _mju_warning_i:
-
-`mju_warning_i <#mju_warning_i>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_warning_i
-
-Deprecated: use mju_warning.
-
-.. _mju_warning_s:
-
-`mju_warning_s <#mju_warning_s>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_warning_s
-
-Deprecated: use mju_warning.
+Main warning function; returns to caller. The warning message is dispatched to the active log handler.
 
 .. _mju_clearHandlers:
 
@@ -2032,7 +2011,114 @@ Deprecated: use mju_warning.
 
 .. mujoco-include:: mju_clearHandlers
 
-Clear user error and memory handlers.
+Clear all user handlers and restore defaults. Resets the legacy error/warning/memory callbacks to ``NULL``, restores
+the default log handler, and resets the log configuration to its defaults (console and file output enabled, all info
+topics disabled).
+
+.. _mju_setLogHandler:
+
+`mju_setLogHandler <#mju_setLogHandler>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_setLogHandler
+
+Set the active global log handler. Returns the previous handler (which is never ``NULL``), intended for save/restore
+or callback chaining. If ``handler`` is ``NULL``, the default handler is restored. The handler receives all errors,
+warnings and informational messages as a structured :ref:`mjLogMessage`. See :ref:`siLogHandler` for usage examples.
+
+.. _mju_getLogConfig:
+
+`mju_getLogConfig <#mju_getLogConfig>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_getLogConfig
+
+Get the current default handler configuration. See :ref:`mjLogConfig`.
+
+.. _mju_setLogConfig:
+
+`mju_setLogConfig <#mju_setLogConfig>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_setLogConfig
+
+Set the default handler configuration. Controls console output, file output, and info topic filtering.
+See :ref:`mjLogConfig`.
+
+Example usage (disabling file output):
+
+.. code-block:: C
+
+   mjLogConfig config = mju_getLogConfig();
+   config.logto_file = false;
+   mju_setLogConfig(config);
+
+.. _mju_info:
+
+`mju_info <#mju_info>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_info
+
+Log an informational message with optional topic filtering. The ``topic`` argument is a :ref:`mjtLogTopic` value.
+Topic 0 (``mjTOPIC_NONE``) always passes through. Other topics must be enabled in the default handler configuration
+via :ref:`mju_setLogConfig`. Note that topic filtering is implemented in the default handler; custom handlers
+receive all info messages regardless.
+
+.. _mju_message:
+
+`mju_message <#mju_message>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_message
+
+Dispatch a structured :ref:`mjLogMessage` to the active log handler. This is the primary entry point for emitting
+log messages with full control over all fields. The convenience functions :ref:`mju_error`, :ref:`mju_warning`, and
+:ref:`mju_info` are thin wrappers that populate an ``mjLogMessage`` and call this function.
+
+The ``subject`` field is a one-line summary (up to 1024 bytes, inline in the struct). The ``body`` field is an
+optional ``const char*`` pointer to multi-line detail text, owned by the caller. When ``body`` is ``NULL``, only the
+subject line is printed.
+
+The default handler formats the output as follows:
+
+.. code-block:: text
+
+   LEVEL FUNC (FILE:LINE) TIME: SUBJECT
+   BODY
+
+where:
+
+- ``LEVEL`` is ``ERROR``, ``WARNING``, ``INFO``, or ``DEBUG``.
+- ``FUNC`` is present when the ``func`` field is set.
+- ``(FILE:LINE)`` is present when the ``file`` and ``line`` fields are set.
+- ``TIME`` is present when the ``timestamp`` field is set or file logging is active.
+- ``SUBJECT`` is the contents of the ``subject`` field.
+- ``BODY`` follows on the next line(s), printed raw without indentation or separators, only if non-NULL.
+
+The default handler appends a trailing blank line after ``ERROR``, ``WARNING``, and ``INFO`` messages for visual
+separation. ``DEBUG`` messages are printed compactly without a trailing blank line.
+
+Example usage:
+
+.. code-block:: C
+
+   mjLogMessage msg = {
+     .level = mjLOG_INFO,
+     .timestamp = true,
+     .body = "  height:     0.001 m\n  velocity:   0.000 m/s\n  bounces:    47",
+   };
+   snprintf(msg.subject, sizeof(msg.subject), "The ball has come to rest");
+   mju_message(&msg);
+
+This produces:
+
+.. code-block:: text
+
+   INFO Mon Jun  9 15:04:05 2026: The ball has come to rest
+     height:     0.001 m
+     velocity:   0.000 m/s
+     bounces:    47
 
 .. _mju_malloc:
 
@@ -2079,6 +2165,15 @@ Write [datetime, type: message] to MUJOCO_LOG.TXT.
 
 Get compiler error message from spec.
 
+.. _mjs_getTimer:
+
+`mjs_getTimer <#mjs_getTimer>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getTimer
+
+Get compiler timing diagnostics from spec, returns pointer to array of size mjNCTIMER.
+
 .. _mjs_isWarning:
 
 `mjs_isWarning <#mjs_isWarning>`__
@@ -2086,7 +2181,25 @@ Get compiler error message from spec.
 
 .. mujoco-include:: mjs_isWarning
 
-Return 1 if compiler error is a warning.
+Return 1 if compiler error is a warning. Deprecated: use mjs_numWarnings(s) > 0.
+
+.. _mjs_numWarnings:
+
+`mjs_numWarnings <#mjs_numWarnings>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_numWarnings
+
+Get number of warnings accumulated in the spec.
+
+.. _mjs_getWarning:
+
+`mjs_getWarning <#mjs_getWarning>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWarning
+
+Get the i-th warning message (returns nullptr if index out of bounds).
 
 .. _Miscellaneous:
 
@@ -3096,7 +3209,7 @@ using finite-differencing. These matrices and their dimensions are:
    ``DsDq``, :math:`\partial s / \partial q`, ``nv x nsensordata``
    ``DsDv``, :math:`\partial s / \partial v`, ``nv x nsensordata``
    ``DsDa``, :math:`\partial s / \partial a`, ``nv x nsensordata``
-   ``DmDq``, :math:`\partial M / \partial q`, ``nv x nM``
+   ``DmDq``, :math:`\partial M / \partial q`, ``nv x nC``
 
 - All outputs are optional (can be NULL).
 - All outputs are transposed relative to Control Theory convention (i.e., column major).
@@ -3366,59 +3479,14 @@ If no match, return NULL.
 
 Threads
 ^^^^^^^
-.. _mju_threadPoolCreate:
+.. _mju_threadpool:
 
-`mju_threadPoolCreate <#mju_threadPoolCreate>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mju_threadpool <#mju_threadpool>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mju_threadPoolCreate
+.. mujoco-include:: mju_threadpool
 
-Create a thread pool with the specified number of threads running.
-
-.. _mju_bindThreadPool:
-
-`mju_bindThreadPool <#mju_bindThreadPool>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_bindThreadPool
-
-Adds a thread pool to mjData and configures it for multi-threaded use.
-
-.. _mju_threadPoolEnqueue:
-
-`mju_threadPoolEnqueue <#mju_threadPoolEnqueue>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_threadPoolEnqueue
-
-Enqueue a task in a thread pool.
-
-.. _mju_threadPoolDestroy:
-
-`mju_threadPoolDestroy <#mju_threadPoolDestroy>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_threadPoolDestroy
-
-Destroy a thread pool.
-
-.. _mju_defaultTask:
-
-`mju_defaultTask <#mju_defaultTask>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_defaultTask
-
-Initialize an mjTask.
-
-.. _mju_taskJoin:
-
-`mju_taskJoin <#mju_taskJoin>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_taskJoin
-
-Wait for a task to complete.
+Create a thread pool with nthread worker threads.
 
 .. _Standardmath:
 
@@ -4487,6 +4555,17 @@ Add sensor.
 
 Add flex.
 
+.. _mjs_makeFlex:
+
+`mjs_makeFlex <#mjs_makeFlex>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_makeFlex
+
+Add flexcomp: create flex with auto-generated bodies/joints, return flex spec.
+
+*Nullable:* ``type``, ``dof``, ``count``, ``cellcount``, ``spacing``, ``scale``, ``pos``, ``quat``, ``origin``, ``file``, ``vfs``
+
 .. _mjs_addPair:
 
 `mjs_addPair <#mjs_addPair>`__
@@ -4782,6 +4861,16 @@ Find and get utilities
 .. mujoco-include:: mjs_getSpec
 
 Get spec from body.
+
+.. _mjs_getOriginSpec:
+
+`mjs_getOriginSpec <#mjs_getOriginSpec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getOriginSpec
+
+get spec that originally defined an element
+contrary to mjs_getSpec, this does not change after attachment
 
 .. _mjs_getCompiler:
 

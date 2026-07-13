@@ -41,10 +41,10 @@ def assert_attr_eq(a, b, attr):
 
 
 def make_data(
-    m: mujoco.MjModel, worldid: int, nconmax: int = 1_000, njmax: int = 200
+    m: mujoco.MjModel, worldid: int, naconmax: int = 1_000, njmax: int = 200
 ):
   """Make data for a given worldid using keyframes when available."""
-  dx = mjx.make_data(m, impl='warp', nconmax=nconmax, njmax=njmax)
+  dx = mjx.make_data(m, impl='warp', naconmax=naconmax, njmax=njmax)
 
   rng = jax.random.PRNGKey(worldid)
   rng, key = jax.random.split(rng)

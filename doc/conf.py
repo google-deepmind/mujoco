@@ -168,6 +168,7 @@ SHARED_CSS_VARIABLES = {
 # font-stack--monospace used in code blocks, Inconsolata fits in 100 chars.
 html_theme_options = {
     'light_css_variables': {
+        'color-brand-visited': 'var(--color-brand-content)',
         'font-stack--monospace': 'Inconsolata,Consolas,ui-monospace,monospace',
         'at-color': '#830b2b',
         'at-val-color': '#bc103e',
@@ -182,6 +183,7 @@ html_theme_options = {
         'wy-nav-side-background-color': '#0053d6',
     },
     'dark_css_variables': {
+        'color-brand-visited': 'var(--color-brand-content)',
         'at-color': '#ffaab7',
         'at-val-color': '#ff95a6',
         'body-color': '#14234b',

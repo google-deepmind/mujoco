@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include <pybind11/cast.h>
@@ -47,7 +48,7 @@ py::tuple MakeTuple(const char* (&strings)[N][3]) {
   return std::move(result);
 }
 
-PYBIND11_MODULE(_constants, pymodule) {
+PYBIND11_MODULE(_constants, pymodule, pybind11::mod_gil_not_used()) {
   #define X(var) pymodule.attr(#var) = var
 
   // from mjmodel.h
@@ -83,7 +84,7 @@ PYBIND11_MODULE(_constants, pymodule) {
   // from mujoco.h
   X(mjVERSION_HEADER);
 
-  // from mjtnum.h
+  // from mjtype.h
   X(mjMINVAL);
 
   #undef X
@@ -94,6 +95,7 @@ PYBIND11_MODULE(_constants, pymodule) {
   pymodule.attr("mjFRAMESTRING") = MakeTuple(mjFRAMESTRING);
   pymodule.attr("mjVISSTRING") = MakeTuple(mjVISSTRING);
   pymodule.attr("mjRNDSTRING") = MakeTuple(mjRNDSTRING);
+  pymodule.attr("MJTNUM_BYTES") = sizeof(mjtNum);
 }
 }  // namespace
 }  // namespace mujoco::python

@@ -63,6 +63,10 @@ def _get_imported_module_fpaths(fpath: epath.Path) -> Dict[str, str]:
 
   all_resolved_fpaths = {}
   for fully_qualified_name, alias in all_imported_names:
+    # only trace mujoco and mujoco warp
+    if not (fully_qualified_name.startswith('mujoco_warp') or
+            fully_qualified_name.startswith('mujoco')):
+      continue
     fpath = _resolve_module_name_to_fpath(fully_qualified_name)
     if fpath:
       all_resolved_fpaths[alias] = fpath
@@ -181,9 +185,17 @@ class _FunctionFieldUsageVisitor(ast.NodeVisitor):
         self.add_field_usage(in_node, False)
         return
 
-      for arg in node.args:
-        if isinstance(arg, ast.Attribute):
-          self.add_field_usage(arg, is_output=True)
+      # do not trace array creation
+      is_input_only_wp_fn = (
+          len(parts) == 2
+          and parts[0] == 'wp'
+          and parts[1] in ('empty', 'zeros', 'array', 'clone')
+      )
+
+      if not is_input_only_wp_fn:
+        for arg in node.args:
+          if isinstance(arg, ast.Attribute):
+            self.add_field_usage(arg, is_output=True)
 
       called_fn_name = '.'.join(parts[1:])
       key = (hash(self._current_fpath), called_fn_name)

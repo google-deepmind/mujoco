@@ -21,34 +21,61 @@ the console. To simulate controlled dynamics instead of passive dynamics one can
 
 .. code-block:: Shell
 
-   testspeed modelfile [nstep nthread ctrlnoise npoolthread]
+   testspeed [options] model
 
-Where the command line arguments are
+Where the command-line options and arguments are
 
 .. list-table::
    :width: 95%
    :align: left
-   :widths: 1 1 5
+   :widths: 2 1 4
    :header-rows: 1
 
-   * - Argument
+   * - Option
      - Default
      - Meaning
-   * - ``modelfile``
+   * - ``model``
      - (required)
-     - path to model
-   * - ``nstep``
+     - path to model (positional argument)
+   * - ``--nstep=N``
      - 10000
      - number of steps per rollout
-   * - ``nthread``
+   * - ``--nthread=N``
      - 1
      - number of threads running parallel rollouts
-   * - ``ctrlnoise``
+   * - ``--noisestd=X``
      - 0.01
      - scale of pseudo-random noise injected into actuators
-   * - ``npoolthread``
-     - 1
+   * - ``--noiserate=X``
+     - 0.1
+     - rate of convergence to ctrl keyframe/midpoint
+   * - ``--nenginethread=N``
+     - 0
      - number of threads in engine-internal threadpool
+   * - ``--solver=S``
+     - Newton
+     - override constraint solver algorithm (PGS, CG, Newton)
+   * - ``--cone=C``
+     - Pyramidal
+     - override friction cone type (Pyramidal, Elliptic)
+   * - ``--jacobian=J``
+     - Auto
+     - override constraint Jacobian type (Dense, Sparse, Auto)
+   * - ``--integrator=I``
+     - Euler
+     - override integration mode (Euler, RK4, Implicit, ImplicitFast)
+   * - ``--iterations=N``
+     - 100
+     - override solver iterations limit
+   * - ``--tolerance=X``
+     - 1e-8
+     - override solver convergence tolerance
+   * - ``--sleep_tolerance=X``
+     - 1e-4
+     - override sleep tolerance
+   * - ``--noslip_iterations=N``
+     - 0
+     - override noslip solver iterations limit
 
 **Notes:**
 
@@ -58,11 +85,13 @@ Where the command line arguments are
   logical cores.
 - By default, the simulation starts from the model reference configuration with zero velocities. However, if a
   keyframe named "test" is present in the model, it is used as the initial state.
-- The ``ctrlnoise`` argument prevents models from settling into a static state where, due to warmstarts, one can
-  measure artificially faster simulation.
-- When ``npoolthread > 1`` is specified, an engine-internal :ref:`mjThreadPool` is created with the specified number of
+- The physics option override flags (such as ``--solver``) only override the model settings if they are explicitly
+  specified on the command line; otherwise, the model options configured in the XML file are preserved.
+- The control noise arguments (``noisestd`` and ``noiserate``) prevent models from settling into a static state where,
+  due to warmstarts, one can measure artificially faster simulation.
+- When ``nenginethread > 1`` is specified, an engine-internal thread pool is created with the specified number of
   threads, to speed up simulation of large scenes. Note that while it is possible to use both ``nthread`` and
-  ``npoolthread``, the scenarios for which one would want these different types of multithreading are usually mutually
+  ``nenginethread``, the scenarios for which one would want these different types of multithreading are usually mutually
   exclusive.
 - For more repeatable performance statistics, run the tool with the ``performance``
   `governor <https://www.kernel.org/doc/Documentation/cpu-freq/governors.txt>`__ on Linux, or the
@@ -120,16 +149,19 @@ Windows power plan so that the minimum processor state is 100%.
 `compile <https://github.com/google-deepmind/mujoco/blob/main/sample/compile.cc>`_
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This code sample evokes the built-in parser and compiler. It implements all possible model conversions from (MJCF, URDF,
-MJB) format to (MJCF, MJB, TXT) format. Models saved as MJCF use a canonical subset of our format as described in the
-:doc:`../modeling` chapter, and therefore MJCF-to-MJCF conversion will generally result in a different file.
+This code sample invokes the built-in parser and compiler. It implements all possible model conversions from (MJCF,
+URDF, MJB) format to (MJCF, MJB, TXT) format. Models saved as MJCF use a canonical subset of our format as described in
+the :doc:`../modeling` chapter, and therefore MJCF-to-MJCF conversion will generally result in a different file.
 The TXT format is a human-readable road-map to the model. It cannot be loaded by MuJoCo, but can be a very useful aid
 during model development. It is in one-to-one correspondence with the compiled mjModel. Note also that one can use the
 function :ref:`mj_printData` to create a text file which is in one-to-one correspondence
 with mjData, although this is not done by the code sample.
 
-If the input file is MJCF and the output file is empty, compilation is performed and timed twice to measure the impact
-of the compiler's :ref:`asset cache<Assetcache>`.
+If the input file is MJCF or URDF and the output file is empty, compilation is performed twice to measure the impact
+of the compiler's :ref:`asset cache<Assetcache>`. A detailed timing breakdown is printed for each compilation, showing
+total time, asset processing time (wall clock), and per-category CPU times for meshes and textures. These timings are
+read from the :ref:`mjtCTimer` fields via :ref:`mjs_getTimer`, which can be read programmatically
+after any call to :ref:`mj_compile`.
 
 .. _saBasic:
 

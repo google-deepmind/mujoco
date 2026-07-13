@@ -10,7 +10,7 @@ MuJoCo defines a large number of types:
   - Enums used in :ref:`mjModel<tyModelEnums>`.
   - Enums used in :ref:`mjData<tyDataEnums>`.
   - Enums for abstract :ref:`visualization<tyVisEnums>`.
-  - Enums used by the :ref:`openGL renderer<tyRenderEnums>`.
+  - Enums used by the :ref:`renderer<tyRenderEnums>`.
   - Enums used by the :ref:`mjUI<tyUIEnums>` user interface package.
   - Enums used by :ref:`engine plugins<tyPluginEnums>`.
   - Enums used for :ref:`procedural model manipulation<tySpecEnums>`.
@@ -31,7 +31,7 @@ MuJoCo defines a large number of types:
   - :ref:`Auxiliary struct types<tyAuxStructure>`, also used by the engine.
   - Structs for collecting :ref:`simulation statistics<tyStatStructure>`.
   - Structs for :ref:`abstract visualization<tyVisStructure>`.
-  - Structs used by the :ref:`openGL renderer<tyRenderStructure>`.
+  - Structs used by the :ref:`renderer<tyRenderStructure>`.
   - Structs used by the :ref:`UI framework<tyUIStructure>`.
   - Structs used for :ref:`procedural model manipulation<tySpecStructure>`.
   - Structs used by :ref:`engine plugins<tyPluginStructure>`.
@@ -46,7 +46,7 @@ MuJoCo defines a large number of types:
 Primitive types
 ---------------
 
-The two types below are defined in `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__.
+The three types below are defined in `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`__.
 
 
 .. _mjtNum:
@@ -63,7 +63,7 @@ double-precision version will always be available. Thus it is safe to write user
 However, our preference is to write code that works with either single or double precision. To this end we provide math
 utility functions that are always defined with the correct floating-point type.
 
-Note that changing ``mjUSESINGLE`` in ``mjtnum.h`` will not change how the library was compiled, and instead will
+Note that changing ``mjUSESINGLE`` in ``mjtype.h`` will not change how the library was compiled, and instead will
 result in numerous link errors. In general, the header files distributed with precompiled MuJoCo should never be
 changed by the user.
 
@@ -84,11 +84,27 @@ changed by the user.
 mjtByte
 ^^^^^^^
 
-Byte type used to represent boolean variables.
+Byte type used to represent small integers and binary data.
 
 .. code-block:: C
 
    typedef unsigned char mjtByte;
+
+
+.. _mjtBool:
+
+mjtBool
+^^^^^^^
+
+Boolean type used to represent true/false values.
+
+.. code-block:: C
+
+   #ifndef __cplusplus
+     typedef _Bool mjtBool;
+   #else
+     typedef bool mjtBool;
+   #endif
 
 
 .. _mjtSize:
@@ -115,7 +131,7 @@ All enum types use the ``mjt`` prefix.
 Model
 ^^^^^
 
-The enums below are defined in `mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__.
+The enums below are defined in `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`__.
 
 
 .. _mjtDisableBit:
@@ -456,7 +472,7 @@ Formulas used to combine SDFs when calling mjc_distance and mjc_gradient.
 Data
 ^^^^
 
-The enums below are defined in `mjdata.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`__.
+The enums below are defined in `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`__.
 
 
 
@@ -522,6 +538,33 @@ mjtSleepState
 Sleep state of an object.
 
 .. mujoco-include:: mjtSleepState
+
+
+.. _tyLogEnums:
+
+Logging
+~~~~~~~
+
+.. _mjtLogLevel:
+
+mjtLogLevel
+"""""""""""
+
+Log message severity level.
+
+.. mujoco-include:: mjtLogLevel
+
+
+.. _mjtLogTopic:
+
+mjtLogTopic
+"""""""""""
+
+Topic identifiers for informational messages. Used with :ref:`mju_info` for topic-based filtering.
+Topic 0 (``mjTOPIC_NONE``) always passes through the default handler's filter. Other topics must be enabled in
+the :ref:`mjLogConfig` bitmask. Since topics are 1-indexed, the bitmask for topic ``t`` is ``(1 << (t - 1))``.
+
+.. mujoco-include:: mjtLogTopic
 
 
 .. _tyVisEnums:
@@ -689,6 +732,51 @@ These are the possible font types.
 
 .. mujoco-include:: mjtFont
 
+.. _mjrPixelFormat:
+
+mjrPixelFormat
+~~~~~~~~~~~~~~
+
+There are the possible values:
+
+.. mujoco-include:: mjrPixelFormat
+
+.. _mjrVertexAttributeUsage:
+
+mjrVertexAttributeUsage
+~~~~~~~~~~~~~~~~~~~~~~~
+
+There are the possible values:
+
+.. mujoco-include:: mjrVertexAttributeUsage
+
+.. _mjrVertexAttributeType:
+
+mjrVertexAttributeType
+~~~~~~~~~~~~~~~~~~~~~~
+
+There are the possible values:
+
+.. mujoco-include:: mjrVertexAttributeType
+
+.. _mjrIndexType:
+
+mjrIndexType
+~~~~~~~~~~~~
+
+There are the possible values:
+
+.. mujoco-include:: mjrIndexType
+
+.. _mjrMeshPrimitiveType:
+
+mjrMeshPrimitiveType
+~~~~~~~~~~~~~~~~~~~~
+
+There are the possible values:
+
+.. mujoco-include:: mjrMeshPrimitiveType
+
 
 .. _tyUIEnums:
 
@@ -827,6 +915,27 @@ Type of built-in procedural mesh.
 
 .. mujoco-include:: mjtMeshBuiltin
 
+.. _mjtConflict:
+
+mjtConflict
+~~~~~~~~~~~
+
+Conflict resolution mode for attach.
+
+.. mujoco-include:: mjtConflict
+
+
+.. _mjtCTimer:
+
+mjtCTimer
+~~~~~~~~~
+
+Compiler timing categories, used in :ref:`mjs_getTimer`. Top-level timers (``TOTAL``, ``ASSETS``) measure wall-clock
+time. Asset sub-timers measure CPU time summed across all assets; with multi-threaded compilation their sum can exceed
+the ``ASSETS`` wall-clock time.
+
+.. mujoco-include:: mjtCTimer
+
 
 .. _tyPluginEnums:
 
@@ -924,6 +1033,15 @@ MJCF element :ref:`statistic <statistic>`. One instance of it is embedded in mjM
 .. mujoco-include:: mjStatistic
 
 
+.. _mjPreContact:
+
+mjPreContact
+~~~~~~~~~~~~
+
+This is the data structure holding information about one contact filled out by a narrowphase collision detector.
+
+.. mujoco-include:: mjPreContact
+
 .. _mjContact:
 
 mjContact
@@ -976,36 +1094,36 @@ Asset cache used by the compiler to avoid repeated slow recompilation. See :ref:
 
 .. mujoco-include:: mjCache
 
-.. _mjtTaskStatus:
 
-mjtTaskStatus
-~~~~~~~~~~~~~
+.. _tyLogStructure:
 
-Status values for :ref:`mjTask`.
+Logging
+^^^^^^^
 
-.. mujoco-include:: mjtTaskStatus
+.. _mjLogMessage:
 
-.. _mjTask:
-
-mjTask
-~~~~~~
-
-This is a representation of a task to be run asynchronously inside of an :ref:`mjThreadPool` . It is created in the
-:ref:`mju_threadPoolEnqueue` method of the :ref:`mjThreadPool`  and is used to join the task at completion.
-The ``status`` field uses values from :ref:`mjtTaskStatus`.
-
-.. mujoco-include:: mjTask
-
-.. _mjThreadPool:
-
-mjThreadPool
+mjLogMessage
 ~~~~~~~~~~~~
 
-This is the data structure of the threadpool. It can only be constructed programmatically, and does not
-have an analog in MJCF. In order to enable multi-threaded calculations, a pointer to an existing :ref:`mjThreadPool`
-should be assigned to the ``mjData.threadpool``.
+Structured log message passed to :ref:`mjfLogHandler` callbacks. Contains the severity level, optional topic for
+info messages, a one-line subject, an optional multi-line body, and optional source location (function name, file
+name, line number).
 
-.. mujoco-include:: mjThreadPool
+.. mujoco-include:: mjLogMessage
+
+
+.. _mjLogConfig:
+
+mjLogConfig
+~~~~~~~~~~~
+
+Configuration for the default log handler. Controls whether messages are printed to the console and/or written to
+a log file (default: ``MUJOCO_LOG.TXT``). The ``logto_file`` field enables file logging, while ``logfile`` specifies
+the file path. The ``topics`` field is a bitmask of :ref:`mjtLogTopic` values: bit ``(topic - 1)`` enables
+that topic. Topic 0 (``mjTOPIC_NONE``) always passes through.
+
+.. mujoco-include:: mjLogConfig
+
 
 .. _tyStatStructure:
 
@@ -1157,6 +1275,17 @@ This structure specifies a rectangle.
 .. mujoco-include:: mjrRect
 
 
+.. _mjrVertexAttribute:
+
+mjrVertexAttribute
+~~~~~~~~~~~~~~~~~~
+
+This structure specifies the attributes for a single vertex.
+
+.. mujoco-include:: mjrVertexAttribute
+
+
+
 .. _mjrContext:
 
 mjrContext
@@ -1298,6 +1427,16 @@ mjsCompiler
 Compiler options.
 
 .. mujoco-include:: mjsCompiler
+
+
+.. _mjsAuthored:
+
+mjsAuthored
+~~~~~~~~~~~
+
+Authored tracking bitmasks for ``mjModel`` structs.
+
+.. mujoco-include:: mjsAuthored
 
 
 .. _mjsBody:
@@ -1768,9 +1907,29 @@ mjfCollision
 .. code-block:: C
 
    typedef int (*mjfCollision)(const mjModel* m, const mjData* d,
-                               mjContact* con, int g1, int g2, mjtNum margin);
+                               mjPreContact* con, int g1, int g2, mjtNum margin);
 
 This is the function type of the callbacks in the collision table :ref:`mjCOLLISIONFUNC`.
+
+
+.. _tyLogCallbacks:
+
+Log Callbacks
+^^^^^^^^^^^^^
+
+.. _mjfLogHandler:
+
+mjfLogHandler
+~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   typedef void (*mjfLogHandler)(const mjLogMessage*);
+
+This is the function type of the log handler callback installed via :ref:`mju_setLogHandler`. The handler receives
+all errors, warnings and informational messages as structured :ref:`mjLogMessage` data. It must be thread-safe.
+
+It must not call :ref:`mju_error` from within the callback.
 
 
 .. _tyUICallbacks:
@@ -1808,7 +1967,10 @@ mjfOpenResource
 
    typedef int (*mjfOpenResource)(mjResource* resource);
 
-This callback is for opening a resource; returns zero on failure.
+This callback is for opening a resource; returns zero on failure. Note that
+if this callback returns zero, the ``close`` callback will not be called.
+Therefore, the ``open`` callback is responsible for cleaning up any allocated
+memory or resources before returning zero to avoid memory leaks.
 
 .. _mjfReadResource:
 
@@ -1891,8 +2053,8 @@ mjfEncode
 
 .. code-block:: C
 
-   typedef int (*mjfEncode)(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
-                            mjResource* resource);
+   typedef mjtSize (*mjfEncode)(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
+                                mjResource* resource);
 
 
 This callback populates the :ref:`mjResource<mjResource>` `data` member with bytes representing the

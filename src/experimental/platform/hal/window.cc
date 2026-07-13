@@ -70,9 +70,10 @@ static void InitImGui(SDL_Window* window, float content_scale,
     ImFontConfig main_cfg;
     main_cfg.FontDataOwnedByAtlas = false;
     font =
-        mju_openResource("", "font:OpenSans-Regular.ttf", nullptr, nullptr, 0);
+        mju_openResource("", "font:AtkinsonHyperlegibleNext[wght].ttf",
+                         nullptr, nullptr, 0);
     size = mju_readResource(font, const_cast<const void**>(&data));
-    io.Fonts->AddFontFromMemoryTTF(data, size, 20.f, &main_cfg);
+    io.Fonts->AddFontFromMemoryTTF(data, size, 16.f, &main_cfg);
 
     ImFontConfig icon_cfg;
     icon_cfg.FontDataOwnedByAtlas = false;
@@ -81,7 +82,14 @@ static void InitImGui(SDL_Window* window, float content_scale,
                             nullptr, 0);
     size = mju_readResource(font, const_cast<const void**>(&data));
     constexpr ImWchar icon_ranges[] = {0xf000, 0xf3ff, 0x000};
-    io.Fonts->AddFontFromMemoryTTF(data, size, 14.f, &icon_cfg, icon_ranges);
+    io.Fonts->AddFontFromMemoryTTF(data, size, 13.f, &icon_cfg, icon_ranges);
+
+    ImFontConfig mono_cfg;
+    mono_cfg.FontDataOwnedByAtlas = false;
+    font = mju_openResource("", "font:AtkinsonHyperlegibleMono-Regular.ttf", nullptr,
+                            nullptr, 0);
+    size = mju_readResource(font, const_cast<const void**>(&data));
+    io.Fonts->AddFontFromMemoryTTF(data, size, 14.f, &mono_cfg);
 
     // Note: we purposefully do not "close" the font resources as ImGui may
     // need them again to resize fonts.
@@ -104,7 +112,9 @@ Window::Window(std::string_view title, int width, int height, Config config)
   }
 
   int window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
-  if (IsVulkan(config_.gfx_mode)) {
+  if (IsHeadless(config_.gfx_mode)) {
+    // No additional window flags needed for headless rendering.
+  } else if (IsVulkan(config_.gfx_mode)) {
     window_flags |= SDL_WINDOW_VULKAN;
   } else if (IsWebGl(config_.gfx_mode)) {
     window_flags |= SDL_WINDOW_OPENGL;
@@ -177,6 +187,18 @@ void Window::SetTitle(std::string_view title) {
   SDL_SetWindowTitle(sdl_window_, title.data());
 }
 
+void Window::Resize(int width, int height) {
+  SDL_SetWindowSize(sdl_window_, width, height);
+  SDL_SetWindowPosition(sdl_window_, SDL_WINDOWPOS_CENTERED,
+                        SDL_WINDOWPOS_CENTERED);
+
+  SDL_GetWindowSize(sdl_window_, &width_, &height_);
+  int drawable_width = width_;
+  int drawable_height = height_;
+  SDL_GL_GetDrawableSize(sdl_window_, &drawable_width, &drawable_height);
+  scale_ = (float)drawable_width / (float)width_;
+}
+
 void Window::DisableWindowResizing() {
   SDL_SetWindowResizable(sdl_window_, SDL_FALSE);
 }
@@ -206,6 +228,8 @@ Window::Status Window::NewFrame() {
         int drawable_height = height_;
         SDL_GL_GetDrawableSize(sdl_window_, &drawable_width, &drawable_height);
         scale_ = (float)drawable_width / (float)width_;
+      } else if (event.window.event == SDL_WINDOWEVENT_CLOSE) {
+        should_exit_ = true;
       }
     } else if (event.type == SDL_DROPFILE) {
       drop_file_ = event.drop.file;

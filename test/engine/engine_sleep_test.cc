@@ -14,26 +14,27 @@
 
 // Tests for engine/engine_sleep.c.
 
+#include "src/engine/engine_sleep.h"
+
 #include <string>
 #include <vector>
 
 #include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include <gtest/gtest-spi.h>
+#include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
-#include "src/engine/engine_sleep.h"
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
 
-using ::testing::ElementsAre;
-using ::testing::IsNull;
-using ::testing::HasSubstr;
-using ::testing::NotNull;
 using ::std::string;
 using ::std::vector;
+using ::testing::ElementsAre;
+using ::testing::HasSubstr;
+using ::testing::IsNull;
+using ::testing::NotNull;
 
 using SleepTest = MujocoTest;
 
@@ -72,13 +73,13 @@ static constexpr char kSimple[] = R"(
 </mujoco>
 )";
 
-static constexpr int kAwake = -(1+mjMINAWAKE);
+static constexpr int kAwake = -(1 + mjMINAWAKE);
 
 TEST_F(SleepTest, MjSleepUpdate) {
   char error[1024];
-  mjModel* m = LoadModelFromString(kSimple, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(kSimple, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
 
   // ntree = 2, nbody = 5, nv = 5, njnt = 3, ngeom = 6
   // body 0: world, 1 geom
@@ -93,132 +94,100 @@ TEST_F(SleepTest, MjSleepUpdate) {
   EXPECT_EQ(m->njnt, 3);
   EXPECT_EQ(m->ngeom, 6);
 
-  EXPECT_THAT(AsVector(m->body_treeid, m->nbody),
-              ElementsAre(-1, 0, -1, 1, 1));
-  EXPECT_THAT(AsVector(m->dof_bodyid, m->nv),
-              ElementsAre(1, 1, 1, 3, 4));
+  EXPECT_THAT(AsVector(m->body_treeid, m->nbody), ElementsAre(-1, 0, -1, 1, 1));
+  EXPECT_THAT(AsVector(m->dof_bodyid, m->nv), ElementsAre(1, 1, 1, 3, 4));
   EXPECT_THAT(AsVector(m->geom_bodyid, m->ngeom),
               ElementsAre(0, 1, 2, 3, 3, 4));
-  EXPECT_THAT(AsVector(m->jnt_bodyid, m->njnt),
-              ElementsAre(1, 3, 4));
+  EXPECT_THAT(AsVector(m->jnt_bodyid, m->njnt), ElementsAre(1, 3, 4));
 
   // Test Case 1: Initial state
-  EXPECT_THAT(AsVector(d->tree_asleep, m->ntree),
-              ElementsAre(kAwake, kAwake));
+  EXPECT_THAT(AsVector(d->tree_asleep, m->ntree), ElementsAre(kAwake, kAwake));
   EXPECT_EQ(d->ntree_awake, 2);
   EXPECT_EQ(d->nv_awake, 5);
   EXPECT_THAT(AsVector(d->dof_awake_ind, d->nv_awake),
               ElementsAre(0, 1, 2, 3, 4));
-  EXPECT_THAT(AsVector(d->tree_awake, m->ntree),
-              ElementsAre(1, 1));
-  EXPECT_THAT(AsVector(d->body_awake, m->nbody),
-              ElementsAre(mjS_STATIC,
-                          mjS_AWAKE,
-                          mjS_STATIC,
-                          mjS_AWAKE,
-                          mjS_AWAKE));
+  EXPECT_THAT(AsVector(d->tree_awake, m->ntree), ElementsAre(1, 1));
+  EXPECT_THAT(
+      AsVector(d->body_awake, m->nbody),
+      ElementsAre(mjS_STATIC, mjS_AWAKE, mjS_STATIC, mjS_AWAKE, mjS_AWAKE));
 
   // Test Case 2: Call mj_sleepUpdate, expect no changes
-  mj_updateSleep(m, d);
+  mj_updateSleep(m.get(), d.get());
   EXPECT_EQ(d->ntree_awake, 2);
   EXPECT_EQ(d->nv_awake, 5);
   EXPECT_THAT(AsVector(d->dof_awake_ind, d->nv_awake),
               ElementsAre(0, 1, 2, 3, 4));
-  EXPECT_THAT(AsVector(d->body_awake, m->nbody),
-              ElementsAre(mjS_STATIC,
-                          mjS_AWAKE,
-                          mjS_STATIC,
-                          mjS_AWAKE,
-                          mjS_AWAKE));
-  EXPECT_THAT(AsVector(d->tree_awake, m->ntree),
-              ElementsAre(1, 1));
+  EXPECT_THAT(
+      AsVector(d->body_awake, m->nbody),
+      ElementsAre(mjS_STATIC, mjS_AWAKE, mjS_STATIC, mjS_AWAKE, mjS_AWAKE));
+  EXPECT_THAT(AsVector(d->tree_awake, m->ntree), ElementsAre(1, 1));
 
   // Test Case 3: Tree 0 asleep
-  d->tree_asleep[0] = 0; d->tree_asleep[1] = -1;
-  mj_updateSleep(m, d);
+  d->tree_asleep[0] = 0;
+  d->tree_asleep[1] = -1;
+  mj_updateSleep(m.get(), d.get());
   EXPECT_EQ(d->ntree_awake, 1);
   EXPECT_EQ(d->nv_awake, 2);
-  EXPECT_THAT(AsVector(d->dof_awake_ind, d->nv_awake),
-              ElementsAre(3, 4));
-  EXPECT_THAT(AsVector(d->tree_awake, m->ntree),
-              ElementsAre(0, 1));
-  EXPECT_THAT(AsVector(d->body_awake, m->nbody),
-              ElementsAre(mjS_STATIC,
-                          mjS_ASLEEP,
-                          mjS_STATIC,
-                          mjS_AWAKE,
-                          mjS_AWAKE));
+  EXPECT_THAT(AsVector(d->dof_awake_ind, d->nv_awake), ElementsAre(3, 4));
+  EXPECT_THAT(AsVector(d->tree_awake, m->ntree), ElementsAre(0, 1));
+  EXPECT_THAT(
+      AsVector(d->body_awake, m->nbody),
+      ElementsAre(mjS_STATIC, mjS_ASLEEP, mjS_STATIC, mjS_AWAKE, mjS_AWAKE));
 
   // Test Case 4: Tree 1 asleep
-  d->tree_asleep[0] = -1; d->tree_asleep[1] = 1;
-  mj_updateSleep(m, d);
+  d->tree_asleep[0] = -1;
+  d->tree_asleep[1] = 1;
+  mj_updateSleep(m.get(), d.get());
   EXPECT_EQ(d->ntree_awake, 1);
   EXPECT_EQ(d->nv_awake, 3);
-  EXPECT_THAT(AsVector(d->dof_awake_ind, d->nv_awake),
-              ElementsAre(0, 1, 2));
-  EXPECT_THAT(AsVector(d->tree_awake, m->ntree),
-              ElementsAre(1, 0));
-  EXPECT_THAT(AsVector(d->body_awake, m->nbody),
-              ElementsAre(mjS_STATIC,
-                          mjS_AWAKE,
-                          mjS_STATIC,
-                          mjS_ASLEEP,
-                          mjS_ASLEEP));
+  EXPECT_THAT(AsVector(d->dof_awake_ind, d->nv_awake), ElementsAre(0, 1, 2));
+  EXPECT_THAT(AsVector(d->tree_awake, m->ntree), ElementsAre(1, 0));
+  EXPECT_THAT(
+      AsVector(d->body_awake, m->nbody),
+      ElementsAre(mjS_STATIC, mjS_AWAKE, mjS_STATIC, mjS_ASLEEP, mjS_ASLEEP));
 
   // Test Case 5: All trees asleep
-  d->tree_asleep[0] = 0; d->tree_asleep[1] = 1;
-  mj_updateSleep(m, d);
+  d->tree_asleep[0] = 0;
+  d->tree_asleep[1] = 1;
+  mj_updateSleep(m.get(), d.get());
   EXPECT_EQ(d->ntree_awake, 0);
   EXPECT_EQ(d->nv_awake, 0);
-  EXPECT_THAT(AsVector(d->dof_awake_ind, d->nv_awake),
-              ElementsAre());
-  EXPECT_THAT(AsVector(d->tree_awake, m->ntree),
-              ElementsAre(0, 0));
-  EXPECT_THAT(AsVector(d->body_awake, m->nbody),
-              ElementsAre(mjS_STATIC,
-                          mjS_ASLEEP,
-                          mjS_STATIC,
-                          mjS_ASLEEP,
-                          mjS_ASLEEP));
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
+  EXPECT_THAT(AsVector(d->dof_awake_ind, d->nv_awake), ElementsAre());
+  EXPECT_THAT(AsVector(d->tree_awake, m->ntree), ElementsAre(0, 0));
+  EXPECT_THAT(
+      AsVector(d->body_awake, m->nbody),
+      ElementsAre(mjS_STATIC, mjS_ASLEEP, mjS_STATIC, mjS_ASLEEP, mjS_ASLEEP));
 }
 
-TEST_F(SleepTest, MjWakeTree) {
+TEST_F(SleepTest, MjWakeIsland) {
   // one awake tree and two cycles
   int asleep[] = {kAwake, 2, 1, 3};
-  EXPECT_EQ(mj_wakeTree(asleep, 4, 0, kAwake), 0);
+  EXPECT_EQ(mj_wakeIsland(asleep, 4, 0, kAwake, nullptr, 0), 0);
   EXPECT_THAT(AsVector(asleep, 4), ElementsAre(kAwake, 2, 1, 3));
-  EXPECT_EQ(mj_wakeTree(asleep, 4, 1, kAwake), 2);
-  EXPECT_THAT(AsVector(asleep, 4),
-              ElementsAre(kAwake, kAwake, kAwake, 3));
-  EXPECT_EQ(mj_wakeTree(asleep, 4, 3, kAwake), 1);
-  EXPECT_THAT(AsVector(asleep, 4),
-              ElementsAre(kAwake, kAwake, kAwake, kAwake));
+  EXPECT_EQ(mj_wakeIsland(asleep, 4, 1, kAwake, nullptr, 0), 2);
+  EXPECT_THAT(AsVector(asleep, 4), ElementsAre(kAwake, kAwake, kAwake, 3));
+  EXPECT_EQ(mj_wakeIsland(asleep, 4, 3, kAwake, nullptr, 0), 1);
+  EXPECT_THAT(AsVector(asleep, 4), ElementsAre(kAwake, kAwake, kAwake, kAwake));
 }
 
-TEST_F(SleepTest, BadWakeTree) {
-  EXPECT_FATAL_FAILURE(
-      ([] {
-        int asleep_bad1[] = {-1, 0};
-        mj_wakeTree(asleep_bad1, 2, 1, kAwake);
-      }()),
-      "invalid sleep state index -1 when waking tree 1");
+TEST_F(SleepTest, BadWakeIsland) {
+  EXPECT_FATAL_FAILURE(([] {
+                         int asleep_bad1[] = {-1, 0};
+                         mj_wakeIsland(asleep_bad1, 2, 1, kAwake, nullptr, 0);
+                       }()),
+                       "invalid sleep state index -1 when waking tree 1");
 
-  EXPECT_FATAL_FAILURE(
-      ([] {
-        int asleep_bad2[] = {-1, 2};
-        mj_wakeTree(asleep_bad2, 2, 1, kAwake);
-      }()),
-      "invalid sleep state index 2 when waking tree 1");
+  EXPECT_FATAL_FAILURE(([] {
+                         int asleep_bad2[] = {-1, 2};
+                         mj_wakeIsland(asleep_bad2, 2, 1, kAwake, nullptr, 0);
+                       }()),
+                       "invalid sleep state index 2 when waking tree 1");
 
-  EXPECT_FATAL_FAILURE(
-      ([] {
-        int asleep_bad3[] = {1, 2, 1};
-        mj_wakeTree(asleep_bad3, 3, 0, kAwake);
-      }()),
-      "tree 0 is not in a cycle");
+  EXPECT_FATAL_FAILURE(([] {
+                         int asleep_bad3[] = {1, 2, 1};
+                         mj_wakeIsland(asleep_bad3, 3, 0, kAwake, nullptr, 0);
+                       }()),
+                       "tree 0 is not in a cycle");
 }
 
 static const char* const kStaticModel = "engine/testdata/sleep/static.xml";
@@ -273,7 +242,7 @@ TEST_F(SleepTest, WakingUnaffectedBySleeping) {
   for (mjtJacobian jacobian : {mjJAC_DENSE, mjJAC_SPARSE}) {
     m->opt.jacobian = jacobian;
     for (mjtIntegrator integrator :  // TODO: b/457674312 - Add support for RK4.
-        {mjINT_EULER, mjINT_IMPLICITFAST, mjINT_IMPLICIT}) {
+         {mjINT_EULER, mjINT_IMPLICITFAST, mjINT_IMPLICIT}) {
       m->opt.integrator = integrator;
 
       // make data with sleeping enabled
@@ -360,7 +329,6 @@ TEST_F(SleepTest, WakingUnaffectedBySleeping) {
   }
   mj_deleteModel(m);
 }
-
 
 // Test that waking does not affect sleeping trees for pos/vel-dependent arrays.
 // Roll out models where some trees wake and/or sleep. At kCompare intervals,
@@ -496,8 +464,8 @@ TEST_F(SleepTest, SleepingUnaffectedByWaking) {
 
       for (int i = 0; i < m->nsensor; i++) {
         if (m->nuser_sensor == 1 && m->sensor_user[i] == 1) {
-            EXPECT_TRUE(sensor_mismatch[i])
-                << "contact sensor " << i << " comparison was expected to fail";
+          EXPECT_TRUE(sensor_mismatch[i])
+              << "contact sensor " << i << " comparison was expected to fail";
         }
       }
 
@@ -555,9 +523,9 @@ TEST_F(SleepTest, MidpointSleepZeroVelocity) {
   )";
 
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
 
   // give initial velocity (both translational and angular)
   d->qvel[0] = 0.5;
@@ -569,7 +537,7 @@ TEST_F(SleepTest, MidpointSleepZeroVelocity) {
 
   // step until body goes to sleep
   for (int step = 0; step < 1000; step++) {
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
     if (d->ntree_awake == 0) break;
   }
 
@@ -581,9 +549,6 @@ TEST_F(SleepTest, MidpointSleepZeroVelocity) {
     EXPECT_EQ(d->qvel[i], 0.0) << "qvel[" << i << "] not zero after sleep";
     EXPECT_EQ(d->qacc[i], 0.0) << "qacc[" << i << "] not zero after sleep";
   }
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 static const char* const kInitIslandFailModel =
@@ -598,6 +563,231 @@ TEST_F(SleepTest, InitIslandFail) {
               HasSubstr("3 trees were marked as sleep='init' but only 0 could "
                         "be slept.\nBody 'asleep_init0' (id=1) is the root of "
                         "the first tree that could not be slept."));
+}
+
+// Test that a constrained flex eventually goes to sleep.
+TEST_F(SleepTest, FlexEdgeSleep) {
+  const std::string xml_path =
+      GetTestDataFilePath("engine/testdata/sleep/flex_edge.xml");
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  EXPECT_GT(m->flex_edgeequality[0], 0);
+  mjData* d = mj_makeData(m);
+
+  // give initial velocity
+  d->qvel[0] = 0.1;
+
+  // step until body goes to sleep
+  for (int step = 0; step < 2000; step++) {
+    mj_step(m, d);
+    if (d->ntree_awake == 0) break;
+  }
+
+  EXPECT_EQ(d->ntree_awake, 0) << "flex did not go to sleep";
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// Test that a constraint-free flex never sleeps.
+TEST_F(SleepTest, FlexNoConstraintNeverSleeps) {
+  const std::string xml_path =
+      GetTestDataFilePath("engine/testdata/sleep/flex_nocnstr.xml");
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  EXPECT_EQ(m->flex_edgeequality[0], 0);
+  mjData* d = mj_makeData(m);
+
+  // step for a while
+  for (int step = 0; step < 500; step++) {
+    mj_step(m, d);
+  }
+
+  // tree should have AUTO_NEVER policy
+  EXPECT_EQ(m->tree_sleep_policy[0], mjSLEEP_AUTO_NEVER);
+  EXPECT_GT(d->ntree_awake, 0) << "constraint-free flex should not sleep";
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// Test that mj_sleepState returns correct values for flex objects.
+TEST_F(SleepTest, FlexSleepState) {
+  const std::string xml_path =
+      GetTestDataFilePath("engine/testdata/sleep/flex_state.xml");
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  // initially awake
+  EXPECT_EQ(mj_sleepState(m, d, mjOBJ_FLEX, 0), mjS_AWAKE);
+
+  // step until flex goes to sleep
+  for (int step = 0; step < 1000; step++) {
+    mj_step(m, d);
+    if (d->ntree_awake == 0) break;
+  }
+
+  // flex should be asleep
+  EXPECT_EQ(mj_sleepState(m, d, mjOBJ_FLEX, 0), mjS_ASLEEP);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// Test that a sleeping flex wakes on contact with a falling ball,
+// then both go back to sleep after the ball rolls off.
+TEST_F(SleepTest, FlexWakeContact) {
+  const std::string xml_path =
+      GetTestDataFilePath("engine/testdata/sleep/flex_contact.xml");
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  int flexid = mj_name2id(m, mjOBJ_FLEX, "f1");
+  ASSERT_GE(flexid, 0);
+
+  // phase 1: flex settles and goes to sleep
+  for (int step = 0; step < 5000; step++) {
+    mj_step(m, d);
+    if (mj_sleepState(m, d, mjOBJ_FLEX, flexid) == mjS_ASLEEP) break;
+  }
+  ASSERT_EQ(mj_sleepState(m, d, mjOBJ_FLEX, flexid), mjS_ASLEEP)
+      << "flex did not go to sleep";
+
+  // phase 2: ball hits flex, flex wakes up
+  for (int step = 0; step < 5000; step++) {
+    mj_step(m, d);
+    if (mj_sleepState(m, d, mjOBJ_FLEX, flexid) == mjS_AWAKE) break;
+  }
+  EXPECT_EQ(mj_sleepState(m, d, mjOBJ_FLEX, flexid), mjS_AWAKE)
+      << "flex should have been woken by ball contact";
+
+  // phase 3: ball rolls off, everything goes back to sleep
+  for (int step = 0; step < 10000; step++) {
+    mj_step(m, d);
+    if (d->ntree_awake == 0) break;
+  }
+  EXPECT_EQ(d->ntree_awake, 0) << "all trees should be asleep again";
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// Test full sleep/wake lifecycle with two grippers and two flex objects.
+TEST_F(SleepTest, HollowVsSolidSleep) {
+  const std::string xml_path =
+      GetTestDataFilePath("engine/testdata/sleep/hollow_vs_solid.xml");
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  // look up flex IDs
+  int solid_flex = mj_name2id(m, mjOBJ_FLEX, "soft_mesh");
+  int hollow_flex = mj_name2id(m, mjOBJ_FLEX, "soft_mesh_2");
+  ASSERT_GE(solid_flex, 0);
+  ASSERT_GE(hollow_flex, 0);
+
+  // look up actuator IDs
+  int grasp_r = mj_name2id(m, mjOBJ_ACTUATOR, "grasp_r");
+  int grasp_s = mj_name2id(m, mjOBJ_ACTUATOR, "grasp_s");
+  ASSERT_GE(grasp_r, 0);
+  ASSERT_GE(grasp_s, 0);
+
+  // phase 1: everything starts awake
+  mj_forward(m, d);
+  EXPECT_EQ(mj_sleepState(m, d, mjOBJ_FLEX, solid_flex), mjS_AWAKE);
+  EXPECT_EQ(mj_sleepState(m, d, mjOBJ_FLEX, hollow_flex), mjS_AWAKE);
+
+  // phase 2: both flexes go to sleep within 500 steps
+  for (int step = 0; step < 500; step++) {
+    mj_step(m, d);
+  }
+  ASSERT_EQ(mj_sleepState(m, d, mjOBJ_FLEX, solid_flex), mjS_ASLEEP)
+      << "solid flex did not go to sleep";
+  ASSERT_EQ(mj_sleepState(m, d, mjOBJ_FLEX, hollow_flex), mjS_ASLEEP)
+      << "hollow flex did not go to sleep";
+
+  // phase 3: close gripper_solid (grasp_r), it wakes soft_mesh_2 (hollow)
+  d->ctrl[grasp_r] = 1;
+  for (int step = 0; step < 2000; step++) {
+    mj_step(m, d);
+    if (mj_sleepState(m, d, mjOBJ_FLEX, hollow_flex) == mjS_AWAKE) break;
+  }
+  EXPECT_EQ(mj_sleepState(m, d, mjOBJ_FLEX, hollow_flex), mjS_AWAKE)
+      << "hollow flex should be woken by gripper_solid";
+  EXPECT_EQ(mj_sleepState(m, d, mjOBJ_FLEX, solid_flex), mjS_ASLEEP)
+      << "solid flex should still be asleep";
+
+  // phase 4: close gripper_hollow (grasp_s), it wakes soft_mesh (solid)
+  d->ctrl[grasp_s] = 1;
+  for (int step = 0; step < 2000; step++) {
+    mj_step(m, d);
+    if (mj_sleepState(m, d, mjOBJ_FLEX, solid_flex) == mjS_AWAKE) break;
+  }
+  EXPECT_EQ(mj_sleepState(m, d, mjOBJ_FLEX, solid_flex), mjS_AWAKE)
+      << "solid flex should be woken by gripper_hollow";
+
+  // phase 5: open gripper_solid (grasp_r=0), hollow flex goes back to sleep
+  d->ctrl[grasp_r] = 0;
+  for (int step = 0; step < 2000; step++) {
+    mj_step(m, d);
+    if (mj_sleepState(m, d, mjOBJ_FLEX, hollow_flex) == mjS_ASLEEP) break;
+  }
+  EXPECT_EQ(mj_sleepState(m, d, mjOBJ_FLEX, hollow_flex), mjS_ASLEEP)
+      << "hollow flex should go back to sleep after gripper release";
+
+  // phase 6: open gripper_hollow (grasp_s=0), solid flex goes back to sleep
+  d->ctrl[grasp_s] = 0;
+  for (int step = 0; step < 2000; step++) {
+    mj_step(m, d);
+    if (mj_sleepState(m, d, mjOBJ_FLEX, solid_flex) == mjS_ASLEEP) break;
+  }
+  EXPECT_EQ(mj_sleepState(m, d, mjOBJ_FLEX, solid_flex), mjS_ASLEEP)
+      << "solid flex should go back to sleep after gripper release";
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// Test that a sleeping flex touching a non-world static body doesn't crash.
+TEST_F(SleepTest, FlexStaticContact) {
+  const std::string xml_path =
+      GetTestDataFilePath("engine/testdata/sleep/flex_static.xml");
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  // step until flex goes to sleep, should not throw
+  for (int step = 0; step < 1000; step++) {
+    mj_step(m, d);
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// Test that a sleeping flex near a mocap body doesn't crash.
+TEST_F(SleepTest, FlexMocapContact) {
+  const std::string xml_path =
+      GetTestDataFilePath("engine/testdata/sleep/flex_mocap.xml");
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  for (int step = 0; step < 200; step++) {
+    mj_step(m, d);
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 }  // namespace

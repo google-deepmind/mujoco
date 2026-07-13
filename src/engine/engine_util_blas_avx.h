@@ -22,7 +22,7 @@
 
 #include <immintrin.h>
 
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 // res = vec*scl
 static inline

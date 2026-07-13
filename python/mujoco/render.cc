@@ -147,7 +147,7 @@ void MjrContextWrapper::Free() {
 }  // namespace _impl
 
 namespace {
-PYBIND11_MODULE(_render, pymodule) {
+PYBIND11_MODULE(_render, pymodule, pybind11::mod_gil_not_used()) {
   namespace py = ::pybind11;
   namespace traits = python_traits;
 

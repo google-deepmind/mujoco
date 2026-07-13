@@ -80,11 +80,13 @@ function(
   _bin_dir
   _lib_dir
 )
+  get_filename_component(_bin_dir_abs "${_bin_dir}" ABSOLUTE BASE_DIR "${CMAKE_BINARY_DIR}")
+  get_filename_component(_lib_dir_abs "${_lib_dir}" ABSOLUTE BASE_DIR "${CMAKE_BINARY_DIR}")
   file(
     RELATIVE_PATH
     _rel_path
-    ${_bin_dir}
-    ${_lib_dir}
+    ${_bin_dir_abs}
+    ${_lib_dir_abs}
   )
   if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(${_output_var}
@@ -100,6 +102,9 @@ function(
 endfunction()
 
 function(target_add_rpath)
+  if(WIN32)
+    return()
+  endif()
   set(_options USE_LINK_PATH)
   set(_oneValueArgs INSTALL_NAME_DIR INSTALL_DIRECTORY)
   set(_multiValueArgs TARGETS LIB_DIRS DEPENDS)

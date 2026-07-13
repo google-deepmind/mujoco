@@ -25,7 +25,7 @@ class EnumsTest(absltest.TestCase):
   def test_mjtJoint(self):  # pylint: disable=invalid-name
     enum_decl = enums.ENUMS['mjtJoint']
     self.assertEqual(enum_decl.name, 'mjtJoint')
-    self.assertEqual(enum_decl.declname, 'enum mjtJoint_')
+    self.assertEqual(enum_decl.declname, 'enum mjtJoint')
     self.assertEqual(
         tuple(enum_decl.values.items()), (('mjJNT_FREE', 0),
                                           ('mjJNT_BALL', 1),
@@ -36,20 +36,21 @@ class EnumsTest(absltest.TestCase):
   def test_mjtEnableBit(self):  # pylint: disable=invalid-name
     enum_decl = enums.ENUMS['mjtEnableBit']
     self.assertEqual(enum_decl.name, 'mjtEnableBit')
-    self.assertEqual(enum_decl.declname, 'enum mjtEnableBit_')
+    self.assertEqual(enum_decl.declname, 'enum mjtEnableBit')
     self.assertEqual(
         tuple(enum_decl.values.items()), (('mjENBL_OVERRIDE', 1<<0),
                                           ('mjENBL_ENERGY', 1<<1),
                                           ('mjENBL_FWDINV', 1<<2),
                                           ('mjENBL_INVDISCRETE', 1<<3),
                                           ('mjENBL_SLEEP', 1<<4),
-                                          ('mjNENABLE', 5)))
+                                          ('mjENBL_DIAGEXACT', 1<<5),
+                                          ('mjNENABLE', 6)))
 
   # values mostly increment by one with occasional overrides
   def test_mjtGeom(self):  # pylint: disable=invalid-name
     enum_decl = enums.ENUMS['mjtGeom']
     self.assertEqual(enum_decl.name, 'mjtGeom')
-    self.assertEqual(enum_decl.declname, 'enum mjtGeom_')
+    self.assertEqual(enum_decl.declname, 'enum mjtGeom')
 
     self.assertEqual(enum_decl.values['mjGEOM_PLANE'], 0)
     self.assertEqual(enum_decl.values['mjGEOM_HFIELD'], 1)

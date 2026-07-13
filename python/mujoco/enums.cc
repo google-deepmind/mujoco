@@ -106,19 +106,19 @@ void DefEnum(py::module_& m) {
         });
   e.def("__mod__",
         [](const typename Trait::type& a, std::int64_t b) -> std::int64_t {
-          return a - FloorDiv<std::int64_t>(a, b) * b;
+          return static_cast<std::int64_t>(a) - FloorDiv<std::int64_t>(static_cast<std::int64_t>(a), b) * b;
         });
   e.def("__mod__",
         [](const typename Trait::type& a, double b) -> double {
-          return a - FloorDiv<double>(a, b) * b;
+          return static_cast<double>(a) - FloorDiv<double>(static_cast<double>(a), b) * b;
         });
   e.def("__rmod__",
         [](const typename Trait::type& b, std::int64_t a) -> std::int64_t {
-          return a - FloorDiv<std::int64_t>(a, b) * b;
+          return a - FloorDiv<std::int64_t>(a, static_cast<std::int64_t>(b)) * static_cast<std::int64_t>(b);
         });
   e.def("__rmod__",
         [](const typename Trait::type& b, double a) -> double {
-          return a - FloorDiv<double>(a, b) * b;
+          return a - FloorDiv<double>(a, static_cast<double>(b)) * static_cast<double>(b);
         });
 
   // Bitwise operators
@@ -144,7 +144,7 @@ void DefAllEnums(py::module_& m, Tuple&& tuple) {
   }
 }
 
-PYBIND11_MODULE(_enums, pymodule) {
+PYBIND11_MODULE(_enums, pymodule, pybind11::mod_gil_not_used()) {
   DefAllEnums(pymodule, python_traits::kAllEnums);
 }
 }  // namespace

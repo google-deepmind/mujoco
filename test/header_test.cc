@@ -21,12 +21,7 @@
 #include <vector>
 
 #include <gtest/gtest.h>
-#include <mujoco/mjdata.h>
-#include <mujoco/mjmodel.h>
-#include <mujoco/mjrender.h>
-#include <mujoco/mjtnum.h>
-#include <mujoco/mjui.h>
-#include <mujoco/mjvisualize.h>
+#include <mujoco/mujoco.h>
 #include <mujoco/mjxmacro.h>
 #include "test/fixture.h"
 
@@ -58,57 +53,9 @@ void CheckAddressOrdering(
 
 using HeaderTest = MujocoTest;
 
-TEST_F(HeaderTest, IntsHave4Bytes) {
-  EXPECT_EQ(4, sizeof(int));
-}
-
 TEST_F(HeaderTest, IntsHaveAtLeast31Bits) {
   int shift_left_30 = 1 << 30;
   EXPECT_GT(shift_left_30, 0);
-}
-
-TEST_F(HeaderTest, EnumsAreInts) {
-  EXPECT_EQ(sizeof(mjtDisableBit),      sizeof(int));
-  EXPECT_EQ(sizeof(mjtEnableBit),       sizeof(int));
-  EXPECT_EQ(sizeof(mjtJoint),           sizeof(int));
-  EXPECT_EQ(sizeof(mjtGeom),            sizeof(int));
-  EXPECT_EQ(sizeof(mjtCamLight),        sizeof(int));
-  EXPECT_EQ(sizeof(mjtTexture),         sizeof(int));
-  EXPECT_EQ(sizeof(mjtIntegrator),      sizeof(int));
-  EXPECT_EQ(sizeof(mjtCone),            sizeof(int));
-  EXPECT_EQ(sizeof(mjtJacobian),        sizeof(int));
-  EXPECT_EQ(sizeof(mjtSolver),          sizeof(int));
-  EXPECT_EQ(sizeof(mjtEq),              sizeof(int));
-  EXPECT_EQ(sizeof(mjtWrap),            sizeof(int));
-  EXPECT_EQ(sizeof(mjtTrn),             sizeof(int));
-  EXPECT_EQ(sizeof(mjtDyn),             sizeof(int));
-  EXPECT_EQ(sizeof(mjtGain),            sizeof(int));
-  EXPECT_EQ(sizeof(mjtBias),            sizeof(int));
-  EXPECT_EQ(sizeof(mjtObj),             sizeof(int));
-  EXPECT_EQ(sizeof(mjtConstraint),      sizeof(int));
-  EXPECT_EQ(sizeof(mjtConstraintState), sizeof(int));
-  EXPECT_EQ(sizeof(mjtSensor),          sizeof(int));
-  EXPECT_EQ(sizeof(mjtStage),           sizeof(int));
-  EXPECT_EQ(sizeof(mjtDataType),        sizeof(int));
-  EXPECT_EQ(sizeof(mjtLRMode),          sizeof(int));
-  EXPECT_EQ(sizeof(mjtWarning),         sizeof(int));
-  EXPECT_EQ(sizeof(mjtTimer),           sizeof(int));
-  EXPECT_EQ(sizeof(mjtGridPos),         sizeof(int));
-  EXPECT_EQ(sizeof(mjtFramebuffer),     sizeof(int));
-  EXPECT_EQ(sizeof(mjtFontScale),       sizeof(int));
-  EXPECT_EQ(sizeof(mjtFont),            sizeof(int));
-  EXPECT_EQ(sizeof(mjtButton),          sizeof(int));
-  EXPECT_EQ(sizeof(mjtEvent),           sizeof(int));
-  EXPECT_EQ(sizeof(mjtItem),            sizeof(int));
-  EXPECT_EQ(sizeof(mjtCatBit),          sizeof(int));
-  EXPECT_EQ(sizeof(mjtMouse),           sizeof(int));
-  EXPECT_EQ(sizeof(mjtPertBit),         sizeof(int));
-  EXPECT_EQ(sizeof(mjtCamera),          sizeof(int));
-  EXPECT_EQ(sizeof(mjtLabel),           sizeof(int));
-  EXPECT_EQ(sizeof(mjtFrame),           sizeof(int));
-  EXPECT_EQ(sizeof(mjtVisFlag),         sizeof(int));
-  EXPECT_EQ(sizeof(mjtRndFlag),         sizeof(int));
-  EXPECT_EQ(sizeof(mjtStereo),          sizeof(int));
 }
 
 TEST_F(HeaderTest, MjOptionFields) {
@@ -206,14 +153,8 @@ TEST_F(HeaderTest, MjVisualFields) {
   mjVisual v;
   std::vector<std::pair<const void*, const char*>> fields;
 
-  // All member fields in quality, map, scale, and rgba have the same type.
-  using QualityMemberType = int;
-  using MapMemberType = float;
-  using ScaleMemberType = float;
-  using RgbaMemberType = float[4];
-
   // check that all X macros have the correct type and dim
-#define X(type, name)                                      \
+#define X(type, name, dim)                                 \
   static_assert(                                           \
       std::is_same_v<decltype(v.global.name), type>,       \
       "incorrect type for mjVisual::global::" #name);
@@ -222,10 +163,9 @@ TEST_F(HeaderTest, MjVisualFields) {
 
 #undef X
 
-#define X(name)                                                     \
-  static_assert(                                                    \
-      std::is_same_v<decltype(v.quality.name), QualityMemberType>,  \
-      "incorrect type for mjVisual::quality::" #name);
+#define X(type, name, dim)                                      \
+  static_assert(std::is_same_v<decltype(v.quality.name), type>, \
+                "incorrect type for mjVisual::quality::" #name);
 
   MJVISUAL_QUALITY_FIELDS
 
@@ -238,8 +178,8 @@ TEST_F(HeaderTest, MjVisualFields) {
 #define X(type, name, dim)                                   \
   static_assert(dim == 1, "use XVEC for non-scalar fields"); \
   XIMPL(type, name, dim)
-#define XVEC(type, name, dim)                                                \
-  static_assert(dim > 1, "use X for scalar fields");                      \
+#define XVEC(type, name, dim)                        \
+  static_assert(dim > 1, "use X for scalar fields"); \
   XIMPL(type, name, dim)
 
   MJVISUAL_HEADLIGHT_FIELDS
@@ -247,39 +187,37 @@ TEST_F(HeaderTest, MjVisualFields) {
 #undef X
 #undef XVEC
 
-#define X(name)                                            \
-  static_assert(                                           \
-      std::is_same_v<decltype(v.map.name), MapMemberType>, \
-      "incorrect type for mjVisual::map::" #name);
+#define X(type, name, dim)                                  \
+  static_assert(std::is_same_v<decltype(v.map.name), type>, \
+                "incorrect type for mjVisual::map::" #name);
 
   MJVISUAL_MAP_FIELDS
 
 #undef X
 
-#define X(name)                                                \
-  static_assert(                                               \
-      std::is_same_v<decltype(v.scale.name), ScaleMemberType>, \
-      "incorrect type for mjVisual::scale::" #name);
+#define X(type, name, dim)                                    \
+  static_assert(std::is_same_v<decltype(v.scale.name), type>, \
+                "incorrect type for mjVisual::scale::" #name);
 
   MJVISUAL_SCALE_FIELDS
 
 #undef X
 
-#define X(name)                                              \
-  static_assert(                                             \
-      std::is_same_v<decltype(v.rgba.name), RgbaMemberType>, \
+#define XVEC(type, name, dim)                                           \
+  static_assert(                                                        \
+      std::is_same_v<decltype(v.rgba.name), ArrayOrScalarT<type, dim>>, \
       "incorrect type for mjVisual::rgba::" #name);
 
   MJVISUAL_RGBA_FIELDS
 
-#undef X
+#undef XVEC
 
   // check that the ordering of X macros agrees with the struct fields
-#define X(type, name) \
+#define X(type, name, dim) \
   fields.push_back({static_cast<const void*>(&v.global.name), #name});
   MJVISUAL_GLOBAL_FIELDS
 #undef X
-#define X(name) \
+#define X(type, name, dim) \
   fields.push_back({static_cast<const void*>(&v.quality.name), #name});
   MJVISUAL_QUALITY_FIELDS
 #undef X
@@ -289,30 +227,30 @@ TEST_F(HeaderTest, MjVisualFields) {
   MJVISUAL_HEADLIGHT_FIELDS
 #undef XVEC
 #undef X
-#define X(name) \
+#define X(type, name, dim) \
   fields.push_back({static_cast<const void*>(&v.map.name), #name});
   MJVISUAL_MAP_FIELDS
 #undef X
-#define X(name) \
+#define X(type, name, dim) \
   fields.push_back({static_cast<const void*>(&v.scale.name), #name});
   MJVISUAL_SCALE_FIELDS
 #undef X
-#define X(name) \
+#define XVEC(type, name, dim) \
   fields.push_back({static_cast<const void*>(&v.rgba.name), #name});
   MJVISUAL_RGBA_FIELDS
-#undef X
+#undef XVEC
 
   CheckAddressOrdering(fields, "MJVISUAL_FIELDS");
 
   // check that MJVISUAL_FIELDS is a complete list of fields
   struct ExpectedMjVisual {
     struct {
-#define X(type, name) type name;
+#define X(type, name, dim) type name;
     MJVISUAL_GLOBAL_FIELDS;
 #undef X
     } global;
     struct {
-#define X(name) QualityMemberType name;
+#define X(type, name, dim) type name;
       MJVISUAL_QUALITY_FIELDS;
 #undef X
     } quality;
@@ -324,19 +262,19 @@ TEST_F(HeaderTest, MjVisualFields) {
 #undef X
     } headlight;
     struct {
-#define X(name) MapMemberType name;
+#define X(type, name, dim) type name;
       MJVISUAL_MAP_FIELDS;
 #undef X
     } map;
     struct {
-#define X(name) ScaleMemberType name;
+#define X(type, name, dim) type name;
       MJVISUAL_SCALE_FIELDS;
 #undef X
     } scale;
     struct {
-#define X(name) RgbaMemberType name;
+#define XVEC(type, name, dim) type name[dim];
       MJVISUAL_RGBA_FIELDS;
-#undef X
+#undef XVEC
     } rgba;
   };
 

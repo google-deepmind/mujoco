@@ -19,11 +19,11 @@ import dataclasses
 import math
 from typing import Tuple, Union, cast
 
+from mujoco.codegen import code_builder
 from introspect import ast_nodes
 from introspect import functions as introspect_functions
 from introspect import structs as introspect_structs
 
-from wasm.codegen.generators import code_builder
 from wasm.codegen.generators import common
 from wasm.codegen.generators import constants
 
@@ -229,6 +229,36 @@ def _generate_field_data(
           binding=_get_property_binding(f, w, setter=False, reference=True),
       )
 
+    # Case 2.5: const char* without array_extent (C strings like body, func).
+    elif (
+        inner_type_name == "char"
+        and not is_dynamically_sized
+    ):
+      builder = code_builder.CodeBuilder()
+      if f.type.inner_type.is_const:
+        with builder.function(f"std::string {f.name}() const"):
+          builder.line(
+              f'return ptr_->{f.name} ? std::string(ptr_->{f.name}) : "";'
+          )
+      else:
+        with builder.function(f"std::string {f.name}() const"):
+          builder.line(
+              f'return ptr_->{f.name} ? std::string(ptr_->{f.name}) : "";'
+          )
+        with builder.function(f"void set_{f.name}(const std::string& value)"):
+          with builder.block(f"if (ptr_->{f.name})"):
+            builder.line(
+                f"std::strncpy(ptr_->{f.name}, value.c_str(),"
+                f" sizeof(ptr_->{f.name}));"
+            )
+      return WrappedFieldData(
+          declaration=builder.to_string(),
+          typename=_get_field_struct_type(f, s),
+          binding=_get_property_binding(
+              f, w, setter=not f.type.inner_type.is_const, reference=True
+          ),
+      )
+
     # Case 3: Non-dynamically sized pointer fields to other structs.
     elif (
         not is_dynamically_sized
@@ -381,6 +411,9 @@ def build_struct_header(
     builder.line(f"{s}* get() const;")
     builder.line(f"void set({s}* ptr);")
 
+    if w == "MjSpec":
+      builder.line("emscripten::val timer() const;")
+
     # field declarations
     for field in wrapped_fields:
       if field.declaration and field not in member_inits:
@@ -490,7 +523,7 @@ def build_struct_source(
 
   if not is_mjs:
     # default constructor
-    with builder.function(f"{w}::{w}() : ptr_(new {s}){fields_init}"):
+    with builder.function(f"{w}::{w}() : ptr_(new {s}()){fields_init}"):
       builder.line("owned_ = true;")
       default_func = _default_function_statement(s)
       if default_func:
@@ -598,6 +631,7 @@ def _build_struct_bindings(
   #undef X_ACCESSOR""".lstrip())
     elif w == "MjSpec":
       builder.line(".constructor<const MjSpec &>()")
+      builder.line('.property("timer", &MjSpec::timer)')
     elif w == "MjvScene":
       builder.line(".constructor<MjModel *, int>()")
       builder.line(".constructor<>()")

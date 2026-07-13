@@ -53,6 +53,21 @@ struct GuiPlugin final {
   void* data = nullptr;
 };
 
+// Plugin for adding additional scene geoms.
+struct ScenePlugin final {
+  using EnhanceSceneFn = void (*)(ScenePlugin* self, const mjModel* model,
+                                  mjData* data, mjvScene* scene);
+
+  // The name of the plugin; must be unique.
+  const char* name = "";
+
+  // This function will add additional mjvGeom objects to the mjvScene.
+  EnhanceSceneFn enhance_scene = nullptr;
+
+  // Optional data pointer.
+  void* data = nullptr;
+};
+
 // Plugin for loading and updating models.
 struct ModelPlugin final {
   using GetModelToLoadFn = const char* (*)(ModelPlugin* self, int* size,
@@ -62,13 +77,18 @@ struct ModelPlugin final {
                                            int model_name_size);
   using PostModelLoadedFn = void (*)(ModelPlugin* self, const char* model_path);
   using DoUpdateFn = bool (*)(ModelPlugin* self, mjModel* model, mjData* data);
+  using PreStepFn = void (*)(ModelPlugin* self, const mjModel* model,
+                             mjData* data);
+  using PostStepFn = void (*)(ModelPlugin* self, const mjModel* model,
+                              mjData* data);
 
   // The name of the plugin; must be unique.
   const char* name = "";
 
   // Callback for when the plugin wants to load a new model. This function will
   // return a buffer containing the model data as well as the content type of
-  // the buffer. Returns nullptr if no model needs to be loaded.s
+  // the buffer. If buf == model_name, then we assume that model_name stores the
+  // path of the model to load. Returns nullptr if no model needs to be loaded.
   GetModelToLoadFn get_model_to_load = nullptr;
 
   // Callback when a new model is loaded.
@@ -77,6 +97,14 @@ struct ModelPlugin final {
   // Callback when the physics simulation is updated. Returns true if the
   // simulation should be stepped.
   DoUpdateFn do_update = nullptr;
+
+  // Callback immediately before mj_step is called on the model. This may be
+  // called multiple times per update/frame.
+  PreStepFn pre_step = nullptr;
+
+  // Callback immediately after mj_step is called on the model. This may be
+  // called multiple times per update/frame.
+  PostStepFn post_step = nullptr;
 
   // Optional data pointer.
   void* data = nullptr;

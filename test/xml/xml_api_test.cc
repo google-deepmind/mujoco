@@ -14,6 +14,8 @@
 
 // Tests for xml/xml_api.cc.
 
+#include "src/xml/xml_api.h"
+
 #include <array>
 #include <cstddef>
 #include <cstring>
@@ -23,18 +25,17 @@
 #include <gtest/gtest.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mujoco.h>
 #include <mujoco/mjspec.h>
-#include "src/xml/xml_api.h"
+#include <mujoco/mujoco.h>
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
 
+using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
 using ::testing::StartsWith;
-using ::testing::HasSubstr;
 
 static constexpr char xml[] = R"(
   <mujoco>
@@ -57,62 +58,56 @@ using LoadXmlTest = MujocoTest;
 
 TEST_F(LoadXmlTest, EmptyModel) {
   static constexpr char xml[] = "<mujoco/>";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
-  ASSERT_THAT(model, NotNull());
+  MjModelPtr model = LoadModelFromString(xml, 0, 0);
+  ASSERT_THAT(model.get(), NotNull());
   EXPECT_EQ(model->nq, 0);
   EXPECT_EQ(model->nv, 0);
   EXPECT_EQ(model->nu, 0);
   EXPECT_EQ(model->na, 0);
   EXPECT_EQ(model->nbody, 1);  // worldbody exists even in empty model
 
-  mjData* data = mj_makeData(model);
+  MjDataPtr data = MakeData(model);
   EXPECT_THAT(data, NotNull());
-  mj_step(model, data);
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  mj_step(model.get(), data.get());
 }
 
 TEST_F(LoadXmlTest, InvalidXmlFailsToLoad) {
   static constexpr char invalid_xml[] = "<mujoc";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(invalid_xml, error.data(), error.size());
-  EXPECT_THAT(model, IsNull()) << "Expected model loading to fail.";
+  MjModelPtr model =
+      LoadModelFromString(invalid_xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), IsNull()) << "Expected model loading to fail.";
   EXPECT_GT(std::strlen(error.data()), 0);
-  if (model) {
-    mj_deleteModel(model);
+  if (model.get()) {
   }
 }
 
 TEST_F(LoadXmlTest, MultipleBodies) {
   std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
 
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
   EXPECT_EQ(model->nbody, 3);
 
-  mjData* data = mj_makeData(model);
+  MjDataPtr data = MakeData(model);
   EXPECT_THAT(data, NotNull());
-  mj_step(model, data);
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  mj_step(model.get(), data.get());
 }
 using SaveLastXmlTest = MujocoTest;
 
 TEST_F(SaveLastXmlTest, EmptyModel) {
   static constexpr char xml[] = "<mujoco/>";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, 0, 0);
+  MjDataPtr data = MakeData(model);
 
   std::array<char, 1024> error;
   error.data()[0] = '\0';
 
   testing::internal::CaptureStdout();
-  mj_saveLastXML(nullptr, model, error.data(), error.size());
+  mj_saveLastXML(nullptr, model.get(), error.data(), error.size());
 
   EXPECT_THAT(testing::internal::GetCapturedStdout(), StartsWith("<mujoco"));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(LoadXmlTest, NullFileFails) {
@@ -138,8 +133,9 @@ TEST_F(MujocoTest, SaveXmlShortString) {
   EXPECT_THAT(model, NotNull()) << "Failed to compile model: " << error.data();
 
   std::array<char, 10> out;
-  EXPECT_THAT(mj_saveXMLString(spec, out.data(), out.size(),
-                               error.data(), error.size()), 273);
+  EXPECT_THAT(mj_saveXMLString(spec, out.data(), out.size(), error.data(),
+                               error.size()),
+              273);
   EXPECT_STREQ(error.data(), "Output string too short, should be at least 274");
 
   mj_deleteSpec(spec);
@@ -156,10 +152,13 @@ TEST_F(MujocoTest, SaveXml) {
 
   std::array<char, 274> out;
   EXPECT_THAT(mj_saveXMLString(NULL, out.data(), out.size(), error.data(),
-                               error.size()), -1);
+                               error.size()),
+              -1);
   EXPECT_STREQ(error.data(), "Cannot write empty model");
   EXPECT_THAT(mj_saveXMLString(spec, out.data(), out.size(), error.data(),
-                               error.size()), 0) << error.data();
+                               error.size()),
+              0)
+      << error.data();
 
   mjSpec* saved_spec = mj_parseXMLString(xml, 0, error.data(), error.size());
   EXPECT_THAT(saved_spec, NotNull()) << "Invalid saved spec: " << error.data();
@@ -197,7 +196,9 @@ TEST_F(MujocoTest, SaveXmlWithDefaultMesh) {
 
   std::array<char, 1024> out;
   EXPECT_THAT(mj_saveXMLString(spec, out.data(), out.size(), error.data(),
-                               error.size()), 0) << error.data();
+                               error.size()),
+              0)
+      << error.data();
 
   mjSpec* saved_spec = mj_parseXMLString(xml, 0, error.data(), error.size());
   EXPECT_THAT(saved_spec, NotNull()) << "Invalid saved spec: " << error.data();
@@ -215,9 +216,8 @@ TEST_F(MujocoTest, SaveXmlWithDefaultMesh) {
 
 TEST_F(MujocoTest, FreeLastXml) {
   static constexpr char xml[] = "<mujoco/>";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
-  ASSERT_THAT(model, NotNull());
-  mj_deleteModel(model);
+  MjModelPtr model = LoadModelFromString(xml, 0, 0);
+  ASSERT_THAT(model.get(), NotNull());
   ASSERT_NE(mj_saveLastXML(nullptr, nullptr, nullptr, 0), 0);
   mj_freeLastXML();
   ASSERT_EQ(mj_saveLastXML(nullptr, nullptr, nullptr, 0), 0);

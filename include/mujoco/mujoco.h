@@ -16,7 +16,7 @@
 #define MUJOCO_MUJOCO_H_
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 3008001
+#define mjVERSION_HEADER 3010001
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -31,21 +31,23 @@
 #include <mujoco/mjrender.h>
 #include <mujoco/mjsan.h>
 #include <mujoco/mjspec.h>
-#include <mujoco/mjthread.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjui.h>
 #include <mujoco/mjvisualize.h>
+#include <mujoco/mjassert.h>
 
 // this is a C-API
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// user error and memory handlers
-MJAPI extern void  (*mju_user_error)(const char*);
-MJAPI extern void  (*mju_user_warning)(const char*);
+// user memory handlers
 MJAPI extern void* (*mju_user_malloc)(size_t);
 MJAPI extern void  (*mju_user_free)(void*);
+
+// legacy error/warning handlers (deprecated: prefer mju_setLogHandler)
+MJAPI extern void  (*mju_user_error)(const char*);
+MJAPI extern void  (*mju_user_warning)(const char*);
 
 
 // callbacks extending computation pipeline
@@ -71,6 +73,7 @@ MJAPI extern const char* mjLABELSTRING[mjNLABEL];
 MJAPI extern const char* mjFRAMESTRING[mjNFRAME];
 MJAPI extern const char* mjVISSTRING[mjNVISFLAG][3];
 MJAPI extern const char* mjRNDSTRING[mjNRNDFLAG][3];
+MJAPI extern const char* mjTOPICSTRING[mjNTOPIC];
 
 
 //---------------------------------- Virtual file system -------------------------------------------
@@ -144,9 +147,9 @@ MJAPI mjSpec* mj_parse(const char* filename, const char* content_type,
 // Encode spec/model to a file using a registered encoder.
 // Returns the number of bytes written on success, -1 on failure.
 // Nullable: m, vfs, error
-MJAPI int mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
-                    const char* content_type, const mjVFS* vfs, char* error,
-                    int error_sz);
+MJAPI mjtSize mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
+                        const char* content_type, const mjVFS* vfs, char* error,
+                        int error_sz);
 
 // Compile spec to model.
 // Nullable: vfs
@@ -598,8 +601,8 @@ MJAPI int mj_name2id(const mjModel* m, int type, const char* name);
 // Get name of object with the specified mjtObj type and id; return NULL if name not found.
 MJAPI const char* mj_id2name(const mjModel* m, int type, int id);
 
-// Convert sparse inertia matrix M into full (i.e. dense) matrix.
-MJAPI void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M);
+// Convert sparse inertia matrix into full (i.e. dense) matrix.
+MJAPI void mj_fullM(const mjModel* m, const mjData* d, mjtNum* dst);
 
 // Multiply vector by inertia matrix.
 MJAPI void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
@@ -679,7 +682,7 @@ MJAPI const char* mj_versionString(void);
 // geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion.
 // Nullable: geomgroup, geomid, normal
 MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
-                    const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                    const mjtByte* geomgroup, mjtBool flg_static, int bodyexclude,
                     int geomid[1], mjtNum normal[3]);
 
 // Intersect multiple rays emanating from a single point, compute normals if given.
@@ -687,7 +690,7 @@ MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], cons
 // Geoms further than cutoff are ignored.
 // Nullable: geomgroup, geomid, normal
 MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
-                       const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                       const mjtByte* geomgroup, mjtBool flg_static, int bodyexclude,
                        int* geomid, mjtNum* dist, mjtNum* normal, int nray, mjtNum cutoff);
 
 // Intersect ray with hfield; return nearest distance or -1 if no intersection.
@@ -710,8 +713,8 @@ MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum 
 // and also output nearest vertex id and surface normal.
 // Nullable: vertid, normal
 MJAPI mjtNum mj_rayFlex(const mjModel* m, const mjData* d, int flex_layer,
-                        mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face,
-                        mjtByte flg_skin, int flexid, const mjtNum pnt[3],
+                        mjtBool flg_vert, mjtBool flg_edge, mjtBool flg_face,
+                        mjtBool flg_skin, int flexid, const mjtNum pnt[3],
                         const mjtNum vec[3], int vertid[1], mjtNum normal[3]);
 
 // Intersect ray with skin; return nearest distance or -1 if no intersection,
@@ -972,23 +975,27 @@ MJAPI void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con);
 // Main error function; does not return to caller.
 MJAPI void mju_error(const char* msg, ...) mjPRINTFLIKE(1, 2);
 
-// Deprecated: use mju_error.
-MJAPI void mju_error_i(const char* msg, int i);
-
-// Deprecated: use mju_error.
-MJAPI void mju_error_s(const char* msg, const char* text);
-
 // Main warning function; returns to caller.
 MJAPI void mju_warning(const char* msg, ...) mjPRINTFLIKE(1, 2);
 
-// Deprecated: use mju_warning.
-MJAPI void mju_warning_i(const char* msg, int i);
-
-// Deprecated: use mju_warning.
-MJAPI void mju_warning_s(const char* msg, const char* text);
-
 // Clear user error and memory handlers.
 MJAPI void mju_clearHandlers(void);
+
+// Set the active log handler; return the previous handler.
+// If handler is NULL, restore the default handler.
+MJAPI mjfLogHandler mju_setLogHandler(mjfLogHandler handler);
+
+// Get default handler configuration.
+MJAPI mjLogConfig mju_getLogConfig(void);
+
+// Set default handler configuration.
+MJAPI void mju_setLogConfig(mjLogConfig config);
+
+// Log an info message with optional topic filtering.
+MJAPI void mju_info(int topic, const char* msg, ...) mjPRINTFLIKE(2, 3);
+
+// Dispatch a structured log message to the active handler.
+MJAPI void mju_message(const mjLogMessage* msg);
 
 // Allocate memory; byte-align on 64; pad size to multiple of 64.
 MJAPI void* mju_malloc(size_t size);
@@ -1005,9 +1012,17 @@ MJAPI void mju_writeLog(const char* type, const char* msg);
 // Get compiler error message from spec.
 MJAPI const char* mjs_getError(mjSpec* s);
 
-// Return 1 if compiler error is a warning.
+// Get compiler timing diagnostics from spec, returns pointer to array of size mjNCTIMER.
+MJAPI const double* mjs_getTimer(mjSpec* s);
+
+// Return 1 if compiler error is a warning. Deprecated: use mjs_numWarnings(s) > 0.
 MJAPI int mjs_isWarning(mjSpec* s);
 
+// Get number of warnings accumulated in the spec.
+MJAPI int mjs_numWarnings(const mjSpec* spec);
+
+// Get the i-th warning message (returns nullptr if index out of bounds).
+MJAPI const char* mjs_getWarning(const mjSpec* spec, int index);
 
 //---------------------------------- Standard math -------------------------------------------------
 
@@ -1300,14 +1315,14 @@ MJAPI void mju_cholSolveBand(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 
 // Convert banded matrix to dense matrix, fill upper triangle if flg_sym>0.
 MJAPI void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense,
-                          mjtByte flg_sym);
+                          mjtBool flg_sym);
 
 // Convert dense matrix to banded matrix.
 MJAPI void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense);
 
 // Multiply band-diagonal matrix with nvec vectors, include upper triangle if flg_sym>0.
 MJAPI void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                             int ntotal, int nband, int ndense, int nvec, mjtByte flg_sym);
+                             int ntotal, int nband, int ndense, int nvec, mjtBool flg_sym);
 
 // Address of diagonal element i in band-dense matrix representation.
 MJAPI int mju_bandDiag(int i, int ntotal, int nband, int ndense);
@@ -1457,7 +1472,7 @@ MJAPI void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s, mjtNu
 //      D: (nsensordata x 2*nv+na)
 //      C: (nsensordata x nu)
 // Nullable: A, B, C, D
-MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
+MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
                             mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D);
 
 // Finite differenced Jacobians of (force, sensors) = mj_inverse(state, acceleration)
@@ -1468,15 +1483,15 @@ MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg
 //     DsDq: (nv x nsensordata)
 //     DsDv: (nv x nsensordata)
 //     DsDa: (nv x nsensordata)
-//     DmDq: (nv x nM)
+//     DmDq: (nv x nC)
 //   single-letter shortcuts:
 //     inputs: q=qpos, v=qvel, a=qacc
-//     outputs: f=qfrc_inverse, s=sensordata, m=qM
+//     outputs: f=qfrc_inverse, s=sensordata, m=M
 //   notes:
 //     optionally computes mass matrix Jacobian DmDq
 //     flg_actuation specifies whether to subtract qfrc_actuator from qfrc_inverse
 // Nullable: DfDq, DfDv, DfDa, DsDq, DsDv, DsDa, DmDq
-MJAPI void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuation,
+MJAPI void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_actuation,
                          mjtNum *DfDq, mjtNum *DfDv, mjtNum *DfDa,
                          mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
                          mjtNum *DmDq);
@@ -1573,6 +1588,11 @@ MJAPI void mju_closeResource(mjResource* resource);
 // return negative value if error.
 MJAPI int mju_readResource(mjResource* resource, const void** buffer);
 
+// Write resource data via its resource provider, return bytes written or -1 on error.
+// Nullable: vfs, error
+MJAPI mjtSize mju_writeResource(const char* name, const void* buffer, mjtSize nbytes,
+                                const mjVFS* vfs, char* error, size_t nerror);
+
 // For a resource with a name partitioned as {dir}{filename}, get the dir and ndir pointers.
 MJAPI void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir);
 
@@ -1589,23 +1609,8 @@ MJAPI mjSpec* mju_decodeResource(mjResource* resource, const char* content_type,
 
 //---------------------------------- Threads -------------------------------------------------------
 
-// Create a thread pool with the specified number of threads running.
-MJAPI mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);
-
-// Adds a thread pool to mjData and configures it for multi-threaded use.
-MJAPI void mju_bindThreadPool(mjData* d, void* thread_pool);
-
-// Enqueue a task in a thread pool.
-MJAPI void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task);
-
-// Destroy a thread pool.
-MJAPI void mju_threadPoolDestroy(mjThreadPool* thread_pool);
-
-// Initialize an mjTask.
-MJAPI void mju_defaultTask(mjTask* task);
-
-// Wait for a task to complete.
-MJAPI void mju_taskJoin(mjTask* task);
+// Create a thread pool with nthread worker threads.
+MJAPI void mju_threadpool(mjData* d, int nthread);
 
 
 //---------------------------------- Attachment ----------------------------------------------------
@@ -1662,6 +1667,15 @@ MJAPI mjsSensor* mjs_addSensor(mjSpec* s);
 
 // Add flex.
 MJAPI mjsFlex* mjs_addFlex(mjSpec* s);
+
+// Add flexcomp: create flex with auto-generated bodies/joints, return flex spec.
+// Nullable: type, dof, count, cellcount, spacing, scale, pos, quat, origin, file, vfs
+MJAPI mjsFlex* mjs_makeFlex(mjsBody* body, const char* name, const char* type, int dim,
+                            const char* dof, const int count[3], const int cellcount[3],
+                            const double spacing[3], const double scale[3], double radius,
+                            double mass, double inertiabox, int equality, int rigid, int flatskin,
+                            int elastic2d, const double pos[3], const double quat[4],
+                            const double origin[3], const char* file, const mjVFS* vfs);
 
 // Add contact pair.
 // Nullable: def
@@ -1776,6 +1790,10 @@ MJAPI int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, in
 // Get spec from body.
 MJAPI mjSpec* mjs_getSpec(const mjsElement* element);
 
+// get spec that originally defined an element
+// contrary to mjs_getSpec, this does not change after attachment
+MJAPI mjSpec* mjs_getOriginSpec(const mjsElement* element);
+
 // Get compiler associated with element's origin spec.
 MJAPI mjsCompiler* mjs_getCompiler(const mjsElement* element);
 
@@ -1852,7 +1870,7 @@ MJAPI void mjs_setString(mjString* dest, const char* text);
 MJAPI void mjs_setStringVec(mjStringVec* dest, const char* text);
 
 // Set entry in string vector.
-MJAPI mjtByte mjs_setInStringVec(mjStringVec* dest, int i, const char* text);
+MJAPI mjtBool mjs_setInStringVec(mjStringVec* dest, int i, const char* text);
 
 // Append text entry to string vector.
 MJAPI void mjs_appendString(mjStringVec* dest, const char* text);

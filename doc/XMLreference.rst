@@ -376,8 +376,8 @@ adjust it properly through the XML.
 :at:`o_margin`: :at-val:`real, "0"`
    This attribute replaces the margin parameter of all active contact pairs when :ref:`Contact override <COverride>` is
    enabled. Otherwise MuJoCo uses the element-specific margin attribute of :ref:`geom<body-geom>` or
-   :ref:`pair<contact-pair>` depending on how the contact pair was generated. See also :ref:`Collision` in the
-   Computation chapter. The related gap parameter does not have a global override.
+   :ref:`pair<contact-pair>` depending on how the contact pair was generated. See :ref:`margin and gap<coMarginGap>` in
+   the Computation chapter. The related gap parameter does not have a global override.
 
 .. _option-o_solref:
 .. _option-o_solimp:
@@ -466,7 +466,7 @@ adjust it properly through the XML.
 
 .. _option-sleep_tolerance:
 
-:at:`sleep_tolerance`: :at-val:`real, "1e-4"`
+:at:`sleep_tolerance`: :at-val:`real, "1e-3"`
    Velocity tolerance below which :ref:`sleeping<Sleeping>` is allowed.
 
 .. _option-sdf_iterations:
@@ -697,6 +697,19 @@ from its default.
       order for the :ref:`sleep-init<body-sleep>` policy to take effect. Second, it must be set in order for static
       quantities to be computed. See :ref:`implementation notes<siSleep>` for more details.
 
+.. _option-flag-diagexact:
+
+:at:`diagexact`: :at-val:`[disable, enable], "disable"`
+   This flag enables computation of the exact diagonal of the constraint-space inertia matrix :math:`A = J M^{-1} J^T`,
+   replacing the body-based approximation normally used. The exact diagonal is computed from the whitened Jacobian
+   :math:`Y = J M^{-1/2}` as :math:`A_{ii} = \|Y_i\|^2`. This provides a more accurate
+   :ref:`impedance<soParameters>` computation, which can improve solver quality for models with complex kinematic
+   coupling. See :ref:`Diagonal approximation <soExactDiag>` for details on the approximation errors that this flag
+   eliminates. The cost is one back-substitution with the Cholesky factor of the mass matrix per active constraint row;
+   if dual solvers are used (:ref:`PGS<option-solver>` or :ref:`NoSlip<option-noslip_iterations>`), the cost is
+   negligible since :math:`Y` is computed anyway. Consider enabling this flag when observing divergence or poor
+   constraint quality, particularly in models with highly anisotropic body inertias or bodies operating far from the
+   initial configuration ``qpos0``.
 
 .. _compiler:
 
@@ -886,6 +899,27 @@ has any effect. The settings here are global and apply to the entire model.
 
 :at:`saveinertial`: :at-val:`[false, true], "false"`
    If set to "true", the compiler will save explicit :ref:`inertial <body-inertial>` clauses for all bodies.
+
+.. _compiler-conflict:
+
+:at:`conflict`: :at-val:`[warning, merge, error], "warning"`
+   This attribute controls how conflicting global attributes (physics options, sizes, visual settings) are resolved when
+   a child spec is attached to a parent using :ref:`mjs_attach`. A conflict occurs when both the parent and child specify
+   authored values for the same field and those values differ. See :ref:`Attribute Merging <meAttributeMerging>` for
+   details and a per-field table.
+
+   :at-val:`warning`
+      Parent values take precedence. When a conflict is detected, a warning is emitted but the parent value is not
+      modified. This is the default and preserves the pre-existing attachment behavior.
+
+   :at-val:`merge`
+      Fields are merged using field-specific strategies (minimum, maximum, OR, or error), depending on the field's
+      semantics. When only the child specifies an authored value, it is adopted by the parent. See the
+      :ref:`merging table <meAttributeMergingTable>` for per-field details.
+
+   :at-val:`error`
+      Any conflict between authored values results in a compile error. This is the strictest mode and is useful for
+      detecting unintended attribute mismatches.
 
 .. _compiler-lengthrange:
 
@@ -2100,7 +2134,7 @@ defined. Its body name is automatically defined as "world".
    - Trees which are connected by tendons which have non-zero stiffness and damping are not allowed to sleep
      (overridable).
    - Trees which are connected by tendons which connect more than two trees are not allowed to sleep (not overridable).
-   - :ref:`flexes<ElemFlex>` are not allowed to sleep (not overridable).
+   - Constraint-free :ref:`flexes<ElemFlex>` are not allowed to sleep (not overridable).
    - All other trees are allowed to sleep (overridable).
 
    The policies :at-val:`never` and :at-val:`allowed` constitute user overrides of the automatic compiler policy.
@@ -2117,6 +2151,31 @@ defined. Its body name is automatically defined as "world".
    a compilation error.
 
    See :ref:`implementation notes<siSleep>` for more details.
+
+.. _body-simple:
+
+:at:`simple`: :at-val:`[false, auto], "auto"`
+   Controls the *simple body* optimization. When a body qualifies as "simple", its inertial matrix block in the mass
+   matrix is diagonal, representing independent translational and rotational degrees of freedom. The optimization
+   omits storing of the zero-valued off-diagonal entries, reducing memory footprint and computation.
+
+   A body qualifies for this optimization if it satisfies all of the following:
+
+   - **Inertial frame alignment**: The body's inertial frame coincides with its body frame.
+   - **Kinematic root**: The body's parent is either the world body or a static body.
+   - **Leaf body**: The body is a leaf node in the kinematic tree (it has no child bodies).
+   - **Origin-centered joints**: All joints belonging to this body must reside at the body's origin.
+   - **Aligned joint axes**: Any hinge or slide joint axes must be aligned with the local coordinate axes, and at most
+     one joint with rotational degrees of freedom (hinge or ball) is permitted.
+   - **No inertia-bearing tendons**: The body must not contain sites or geoms used as wrap objects by any tendon that
+     has non-zero :ref:`armature<tendon-spatial-armature>`.
+
+   Setting this attribute to :at-val:`false` disables the optimization for this body. This is necessary for domain
+   randomization workflows where model parameters (such as joint/inertial offsets or angles) are perturbed dynamically
+   during simulation and updated via :ref:`mj_setConst`. Because a body compiled with the simple optimization active
+   cannot dynamically lose its simple state at runtime (which would require reallocation of sparse matrix structures),
+   any runtime parameter change that violates the simple conditions will trigger a validation error unless
+   ``simple="false"`` was explicitly declared in the XML.
 
 .. _body-user:
 
@@ -2702,18 +2761,20 @@ helps clarify the role of bodies and geoms in MuJoCo.
 .. _body-geom-margin:
 
 :at:`margin`: :at-val:`real, "0"`
-   Distance threshold below which contacts are detected and included in the global array mjData.contact. This however
-   does not mean that contact force will be generated. A contact is considered active only if the distance between the
-   two geom surfaces is below margin-gap. Recall that constraint impedance can be a function of distance, as explained
-   in :ref:`CSolver`. The quantity this function is applied to is the distance between
-   the two geoms minus the margin plus the gap.
+   Geometric inflation of the geom surface for the purpose of contact force generation. When the distance between two
+   geom surfaces is below ``margin``, the contact is considered active and contact forces are generated. The constraint
+   impedance can be a function of distance, as explained in :ref:`CSolver`. The quantity this function is applied to is
+   the distance between the two geoms minus the ``margin``. See :ref:`margin and gap<coMarginGap>`.
 
 .. _body-geom-gap:
 
 :at:`gap`: :at-val:`real, "0"`
-   This attribute is used to enable the generation of inactive contacts, i.e., contacts that are ignored by the
-   constraint solver but are included in mjData.contact for the purpose of custom computations. When this value is
-   positive, geom distances between margin and margin-gap correspond to such inactive contacts.
+   Additional contact detection buffer beyond ``margin``. When this value is positive, contacts are detected at
+   distance ``margin + gap`` but forces are only generated at distance ``margin``. Contacts with distance between
+   ``margin`` and ``margin + gap`` are included in ``mjData.contact`` as inactive contacts (with ``efc_address`` = -1).
+   These inactive contacts can be used for custom computations, for example by :ref:`adhesion<actuator-adhesion>`
+   actuators which use contacts in the gap zone to generate adhesive forces without producing contact forces.
+   See :ref:`margin and gap<coMarginGap>`.
 
 .. _body-geom-fromto:
 
@@ -3122,7 +3183,7 @@ Attributes may be applied or ignored depending on the lighting model being used.
 .. _body-light-directional:
 
 :at:`directional`: :at-val:`[false, true], "false"`
-   This is a deprecated legacy attribute. Please use :ref:`light <body-light-type>` type instead. If set to "true", and
+   This is a deprecated legacy attribute. Please use light :ref:`type <body-light-type>` instead. If set to "true", and
    no type is specified, this will change the light type to be directional.
 
 .. _body-light-castshadow:
@@ -3960,33 +4021,53 @@ Associate this body with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` 
 :el-prefix:`body/` |-| **attach** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The :el:`attach` element is used to insert a sub-tree of bodies from another model into this model's kinematic tree.
-Unlike :ref:`include<include>`, which is implemented in the parser and is equivalent to copying and pasting XML from one
-file into another, :el:`attach` is implemented in the model compiler. In order to use this element, the sub-model must
-first be defined as an :ref:`asset<asset-model>`. When creating an attachment, the top body of the attached subtree is
+The :el:`attach` element is used to insert elements from another (child) model, or from the current model itself
+(self-attachment), into this (parent) model's kinematic tree. Unlike :ref:`include<include>`, which is implemented in
+the parser and is equivalent to copying and pasting XML from one file into another, :el:`attach` is implemented in the
+model compiler. In order to use this element to import from another model, the sub-model must first be defined as an
+:ref:`asset<asset-model>`. When creating an attachment, a frame, body or the entire child model in the child model is
 specified, and all referencing elements outside the kinematic tree (e.g., sensors and actuators), are also copied into
-the top-level model. Additionally, any elements referenced from within the attached subtree (e.g. defaults and assets)
-will be copied in to the top-level model. :el:`attach` is a :ref:`meta-element`, so upon saving all attachments will
-appear in the saved XML file. Note that this element is a subset of the functionality of the procedural
-:ref:`attachment<meAttachment>` functionality. As such, it shares the same limitations as described there. In addition,
-when the :el:`attach` element is used, it is not possible to attach an entire model (i.e. including all elements,
-referenced or not).
+the parent model. Additionally, any elements referenced from within the attached subtree (e.g. defaults and assets) will
+be copied in to the parent model. For self-attaching within the same model, the :at:`model` attribute is omitted, and a
+body or frame must be specified. :el:`attach` is a :ref:`meta-element`, so upon saving all attachments will appear in
+the saved XML file. Note that this element is a subset of the functionality of the procedural
+:ref:`attachment<meAttachment>` functionality. As such, it shares the same limitations as described there. See example
+`here <https://github.com/google-deepmind/mujoco/blob/main/test/xml/testdata/parent.xml>`__.
+
+.. admonition:: Known issues
+   :class: note
+
+   The following known limitations exist, to be addressed in a future release:
+
+   - All assets from the child model will be copied in, whether they are referenced or not.
+   - Circular references are not checked for and will lead to infinite loops.
+   - When attaching a model with :ref:`keyframes<keyframe>`, model compilation is required for the re-indexing to be
+     finalized. If a second attachment is performed without compilation, the keyframes from the first attachment will be
+     lost.
 
 .. _body-attach-model:
 
-:at:`model`: :at-val:`string, required`
-   The sub-model from which to attach a subtree.
+:at:`model`: :at-val:`string, optional`
+   The child model from which to attach a subtree or a frame.
+   If omitted, the attachment is performed within the current model (self-attachment).
 
 .. _body-attach-body:
 
 :at:`body`: :at-val:`string, optional`
-   Name of the body in the sub-model to attach here. The body and its subtree will be attached. If this attribute is not
-   specified, the contents of the world body will be attached in a new :ref:`frame<body-frame>`.
+   Name of the body in the child model to attach here. The body and its subtree will be attached. If neither this
+   attribute nor :ref:`frame<body-attach-frame>` is specified (only one allowed), the contents of the world body will
+   be attached in a new :ref:`frame<body-frame>`.
+
+.. _body-attach-frame:
+
+:at:`frame`: :at-val:`string, optional`
+   Name of the frame in the child model to attach here. If neither this attribute nor :ref:`body<body-attach-body>` is
+   specified (only one allowed), the contents of the world body will be attached in a new :ref:`frame<body-frame>`.
 
 .. _body-attach-prefix:
 
 :at:`prefix`: :at-val:`string, required`
-   Prefix to prepend to names of elements in the sub-model. This attribute is required to prevent name collisions with
+   Prefix to prepend to names of elements in the child model. This attribute is required to prevent name collisions with
    the parent or when attaching the same sub-tree multiple times.
 
 
@@ -4110,14 +4191,15 @@ friction can only be created with this element.
 .. _contact-pair-margin:
 
 :at:`margin`: :at-val:`real, "0"`
-   Distance threshold below which contacts are detected and included in the global array mjData.contact.
+   Geometric inflation for the purpose of contact force generation. Contacts are detected at distance ``margin + gap``
+   and forces are generated at distance ``margin``.
 
 .. _contact-pair-gap:
 
 :at:`gap`: :at-val:`real, "0"`
-   This attribute is used to enable the generation of inactive contacts, i.e., contacts that are ignored by the
-   constraint solver but are included in mjData.contact for the purpose of custom computations. When this value is
-   positive, geom distances between margin and margin-gap correspond to such inactive contacts.
+   Additional contact detection buffer beyond ``margin``. When this value is positive, contacts with distance between
+   ``margin`` and ``margin + gap`` are included in ``mjData.contact`` as inactive contacts but no contact forces are
+   generated.
 
 
 .. _contact-exclude:
@@ -6286,16 +6368,16 @@ This element has nine custom attributes in addition to the common attributes:
 
 This element defines an active adhesion actuator which injects forces at contacts in the normal direction, see
 illustration video. The model shown in the video can be found `here
-<https://github.com/google-deepmind/mujoco/tree/main/model/adhesion>`_ and includes inline annotations. The transmission target
-is a :el:`body`, and adhesive forces are injected into all contacts involving geoms which belong to this body. The force
-is divided equally between multiple contacts. When the :at:`gap` attribute is not used, this actuator requires active
-contacts and cannot apply a force at a distance, more like the active adhesion on the feet of geckos and insects rather
-than an industrial vacuum gripper. In order to enable "suction at a distance", "inflate" the body's geoms by
-:at:`margin` and add a corresponding :at:`gap` which activates contacts only after :at:`gap` penetration distance. This
-will create a layer around the geom where contacts are detected but are inactive, and can be used for
-applying the adhesive force. In the video above, such inactive contacts are blue, while active contacts are orange.
-An adhesion actuator's length is always 0. :at:`ctrlrange` is required and must also be nonnegative (no repulsive forces
-are allowed). The underlying :el:`general` attributes are set as follows:
+<https://github.com/google-deepmind/mujoco/tree/main/model/adhesion>`_ and includes inline annotations. The transmission
+target is a :el:`body`, and adhesive forces are injected into all contacts involving geoms which belong to this body.
+The force is divided equally between multiple contacts. When the :ref:`gap<body-geom-gap>` attribute is not used, this
+actuator requires active contacts and cannot apply a force at a distance, more like the active adhesion on the feet of
+geckos and insects rather than an industrial vacuum gripper. In order to enable "suction at a distance", set the
+:ref:`gap<body-geom-gap>` attribute of the body's geoms to a positive value. This creates a layer around each geom where
+contacts are detected but no contact forces are generated, and the adhesive force can act across this gap. In the video
+above, such inactive contacts are blue, while active contacts are orange. An adhesion actuator's length is always 0.
+:at:`ctrlrange` is required and must also be nonnegative (no repulsive forces are allowed). The underlying :el:`general`
+attributes are set as follows:
 
 =========== ======= =========== ========
 Attribute   Setting Attribute   Setting
@@ -8498,15 +8580,14 @@ Extraction
    :width: 30%
    :target: https://github.com/google-deepmind/mujoco/blob/main/model/tactile/tactile.xml
 
-The tactile sensor returns the penetration pressure and the sliding velocities in the tangent frame at given points
-between the geom associated with the sensor and the SDF geoms in contact with it. We define the penetration pressure as
-a function of the penetration depth :math:`p(d) = \frac{d}{d_{max}-d}`, which is zero at the surface and goes to
-infinity as the maximum depth is reached. The sensor is associated with a geom and a mesh. It is activated by the
-contact between its associated geom and other geoms. The vertices of the mesh, when positioned in the geom frame, are
-the points at which sensor values are computed, so the dimension of the output is 3 times the number of vertices in the
-mesh. The mesh must have 3 normal vectors per vertex, which are used to compute the tangent frame. If the penetration
-depth is positive (no contact), then all values are 0 for the corresponding vertex. Only contacts with geoms of type SDF
-contribute to the sensor output. The sensor can be visualized by enabling the visualization of contact points.
+The tactile sensor returns the maximum penetration depth and the sliding velocities in the tangent frame at given points
+between the geom associated with the sensor and the SDF geoms in contact with it. The sensor is associated with a geom
+and a mesh. It is activated by the contact between its associated geom and other geoms. The vertices of the mesh, when
+positioned in the geom frame, are the points at which sensor values are computed, so the dimension of the output is 3
+times the number of vertices in the mesh. The mesh must have 3 normal vectors per vertex, which are used to compute the
+tangent frame. If the penetration depth is positive (no contact), then all values are 0 for the corresponding vertex.
+Only contacts with geoms of type SDF contribute to the sensor output. The sensor can be visualized by enabling the
+visualization of contact points.
 
 .. _sensor-tactile-geom:
 

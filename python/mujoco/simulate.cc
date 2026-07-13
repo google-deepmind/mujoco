@@ -323,7 +323,7 @@ inline auto SetIfNotNull(T mujoco::Simulate::* member) {
   };
 }
 
-PYBIND11_MODULE(_simulate, pymodule) {
+PYBIND11_MODULE(_simulate, pymodule, pybind11::mod_gil_not_used()) {
   py::class_<SimulateMutex>(pymodule, "Mutex")
       .def(
           "__enter__", [](SimulateMutex& mtx) { mtx.lock(); },

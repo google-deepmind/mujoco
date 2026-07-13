@@ -17,8 +17,9 @@
 
 #include <cstddef>
 #include <iostream>
+#include <type_traits>
 
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 namespace mujoco::python::_impl {
 
@@ -30,7 +31,8 @@ namespace mujoco::python::_impl {
 
 static_assert(sizeof(char) == 1);
 static_assert(sizeof(int) == 4);
-static_assert(sizeof(mjtNum) == 8);
+static_assert((std::is_same_v<mjtNum, float> && sizeof(mjtNum) == 4) ||
+              (std::is_same_v<mjtNum, double> && sizeof(mjtNum) == 8));
 
 inline void WriteChar(std::ostream& output, char c) {
   output.write(&c, 1);

@@ -31,35 +31,6 @@
   </default>
 
   <worldbody>
-    <body name="solid" pos=".32 0 .2">
-      <flexcomp
-        origin="0 0 0" count="8 2 12" cellcount="6 1 6"
-        type="grid" name="soft_mesh" dim="3" spacing=".025 .05 .025"
-        mass="0.43" radius="0.005" dof="trilinear" rgba="0.7 0.9 0.7 1">
-        <edge equality="strain" solref="0.001 1"/>
-        <contact selfcollide="none"
-              internal="false"
-              friction="2.0 0.5 0.01"
-              solref="0.001 1"
-              solimp="0.99 0.999 0.001"/>
-      </flexcomp>
-    </body>
-
-    <body name="hollow" pos=".32 .45 .2">
-      <flexcomp
-        origin="0 0 0" count="8 2 12" cellcount="6 1 6"
-        type="grid" name="soft_mesh_2" dim="3" spacing=".025 .05 .025"
-        mass="0.43" radius="0.005" dof="trilinear" rgba="0.9 0.7 0.7 1">
-        <elasticity young="1e5" poisson="0.3" damping="0" elastic2d="bend" thickness="0.03"/>
-        <edge equality="strain" solref="0.001 1" solimp="0.99 0.999 0.001"/>
-        <contact selfcollide="none"
-              internal="false"
-              friction="2.0 0.5 0.01"
-              solref="0.001 1"
-              solimp="0.99 0.999 0.001"/>
-      </flexcomp>
-    </body>
-
     <body name="gripper_solid" pos="0.2 0.45 0.2">
       <joint name="lift_solid" class="gripper"/>
       <geom class="gripper"/>
@@ -84,6 +55,35 @@
         <joint name="right_slide_s" axis="0 -1 0"/>
         <geom rgba="0.2 0.8 0.2 1"/>
       </body>
+    </body>
+
+    <body name="solid" pos=".32 0 .2">
+      <flexcomp
+        origin="0 0 0" count="8 2 12" cellcount="6 1 6"
+        type="grid" name="soft_mesh" dim="3" spacing=".025 .05 .025"
+        mass="0.43" radius="0.005" dof="trilinear" rgba="0.7 0.9 0.7 1">
+        <edge equality="strain" solref="0.001 1"/>
+        <contact selfcollide="none"
+              internal="false"
+              friction="2.0 0.5 0.01"
+              solref="0.001 1"
+              solimp="0.99 0.999 0.001"/>
+      </flexcomp>
+    </body>
+
+    <body name="hollow" pos=".32 .45 .2">
+      <flexcomp
+        origin="0 0 0" count="8 2 12" cellcount="6 1 6"
+        type="grid" name="soft_mesh_2" dim="3" spacing=".025 .05 .025"
+        mass="0.43" radius="0.005" dof="trilinear" rgba="0.9 0.7 0.7 1">
+        <elasticity young="1e4" poisson="0.3" damping="0" elastic2d="bend" thickness="0.02"/>
+        <edge equality="strain" solref="0.001 1" solimp="0.99 0.999 0.001"/>
+        <contact selfcollide="none"
+              internal="false"
+              friction="2.0 0.5 0.01"
+              solref="0.001 1"
+              solimp="0.99 0.999 0.001"/>
+      </flexcomp>
     </body>
   </worldbody>
 

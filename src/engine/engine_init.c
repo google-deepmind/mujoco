@@ -17,7 +17,7 @@
 #include <string.h>
 
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include "engine/engine_util_blas.h"
 
 #ifdef _MSC_VER
@@ -63,7 +63,7 @@ void mj_defaultOption(mjOption* opt) {
   opt->ccd_tolerance      = 1e-6;
 
   // sleep settings
-  opt->sleep_tolerance    = 1e-4;
+  opt->sleep_tolerance    = 1e-3;
 
   // physical constants
   opt->gravity[0]         = 0;

@@ -82,6 +82,112 @@ static int GetWrapBodyTreeId(const mjModel* m, int wrap_index) {
   return (bodyid != -1) ? m->body_treeid[bodyid] : -1;
 }
 
+
+// tolerance for frame comparison, must match compiler's kFrameEps
+static const mjtNum kSameFrameEps = 1e-6;
+
+
+// return 1 if all 3 elements are near zero
+static int isNullVec3(const mjtNum v[3]) {
+  return mju_abs(v[0]) < kSameFrameEps &&
+         mju_abs(v[1]) < kSameFrameEps &&
+         mju_abs(v[2]) < kSameFrameEps;
+}
+
+
+// return 1 if quaternion is near identity (1,0,0,0), accounting for double-cover
+static int isNullQuat(const mjtNum q[4]) {
+  int plus  = mju_abs(q[0] - 1) < kSameFrameEps &&
+              mju_abs(q[1]) < kSameFrameEps &&
+              mju_abs(q[2]) < kSameFrameEps &&
+              mju_abs(q[3]) < kSameFrameEps;
+  int minus = mju_abs(q[0] + 1) < kSameFrameEps &&
+              mju_abs(q[1]) < kSameFrameEps &&
+              mju_abs(q[2]) < kSameFrameEps &&
+              mju_abs(q[3]) < kSameFrameEps;
+  return plus || minus;
+}
+
+
+// return 1 if two quaternions are near equal, accounting for double-cover
+static int isSameQuat(const mjtNum q1[4], const mjtNum q2[4]) {
+  int plus  = mju_abs(q1[0] - q2[0]) < kSameFrameEps &&
+              mju_abs(q1[1] - q2[1]) < kSameFrameEps &&
+              mju_abs(q1[2] - q2[2]) < kSameFrameEps &&
+              mju_abs(q1[3] - q2[3]) < kSameFrameEps;
+  int minus = mju_abs(q1[0] + q2[0]) < kSameFrameEps &&
+              mju_abs(q1[1] + q2[1]) < kSameFrameEps &&
+              mju_abs(q1[2] + q2[2]) < kSameFrameEps &&
+              mju_abs(q1[3] + q2[3]) < kSameFrameEps;
+  return plus || minus;
+}
+
+
+// return 1 if two 3-vectors are near equal
+static int isSameVec3(const mjtNum v1[3], const mjtNum v2[3]) {
+  return mju_abs(v1[0] - v2[0]) < kSameFrameEps &&
+         mju_abs(v1[1] - v2[1]) < kSameFrameEps &&
+         mju_abs(v1[2] - v2[2]) < kSameFrameEps;
+}
+
+
+// recompute body_sameframe, geom_sameframe, site_sameframe from model geometry
+static void setSameframe(mjModel* m) {
+  // body_sameframe: compare body inertial frame to body frame
+  for (int i=1; i < m->nbody; i++) {
+    mjtNum* ipos = m->body_ipos+3*i;
+    mjtNum* iquat = m->body_iquat+4*i;
+    if (isNullVec3(ipos) && isNullQuat(iquat)) {
+      m->body_sameframe[i] = mjSAMEFRAME_BODY;
+    } else if (isNullQuat(iquat)) {
+      m->body_sameframe[i] = mjSAMEFRAME_BODYROT;
+    } else {
+      m->body_sameframe[i] = mjSAMEFRAME_NONE;
+    }
+  }
+
+  // geom_sameframe: compare geom frame to body and inertial frames
+  for (int i=0; i < m->ngeom; i++) {
+    int b = m->geom_bodyid[i];
+    mjtNum* gpos = m->geom_pos+3*i;
+    mjtNum* gquat = m->geom_quat+4*i;
+    mjtNum* ipos = m->body_ipos+3*b;
+    mjtNum* iquat = m->body_iquat+4*b;
+    if (isNullVec3(gpos) && isNullQuat(gquat)) {
+      m->geom_sameframe[i] = mjSAMEFRAME_BODY;
+    } else if (isNullQuat(gquat)) {
+      m->geom_sameframe[i] = mjSAMEFRAME_BODYROT;
+    } else if (isSameVec3(gpos, ipos) && isSameQuat(gquat, iquat)) {
+      m->geom_sameframe[i] = mjSAMEFRAME_INERTIA;
+    } else if (isSameQuat(gquat, iquat)) {
+      m->geom_sameframe[i] = mjSAMEFRAME_INERTIAROT;
+    } else {
+      m->geom_sameframe[i] = mjSAMEFRAME_NONE;
+    }
+  }
+
+  // site_sameframe: compare site frame to body and inertial frames
+  for (int i=0; i < m->nsite; i++) {
+    int b = m->site_bodyid[i];
+    mjtNum* spos = m->site_pos+3*i;
+    mjtNum* squat = m->site_quat+4*i;
+    mjtNum* ipos = m->body_ipos+3*b;
+    mjtNum* iquat = m->body_iquat+4*b;
+    if (isNullVec3(spos) && isNullQuat(squat)) {
+      m->site_sameframe[i] = mjSAMEFRAME_BODY;
+    } else if (isNullQuat(squat)) {
+      m->site_sameframe[i] = mjSAMEFRAME_BODYROT;
+    } else if (isSameVec3(spos, ipos) && isSameQuat(squat, iquat)) {
+      m->site_sameframe[i] = mjSAMEFRAME_INERTIA;
+    } else if (isSameQuat(squat, iquat)) {
+      m->site_sameframe[i] = mjSAMEFRAME_INERTIAROT;
+    } else {
+      m->site_sameframe[i] = mjSAMEFRAME_NONE;
+    }
+  }
+}
+
+
 // set fixed quantities (do not depend on qpos0)
 static void setFixed(mjModel* m, mjData* d) {
   mj_markStack(d);
@@ -291,8 +397,13 @@ static void setFixed(mjModel* m, mjData* d) {
     }
   }
 
-  // flexes: trees containing bodies that are part of any flex are not allowed to sleep
+  // flexes: constraint-free trees are not allowed to sleep
   for (int i = 0; i < m->nflex; ++i) {
+    // constrained flexes are allowed to sleep
+    if (m->flex_edgeequality[i]) {
+      continue;
+    }
+
     // node-based flex
     if (m->flex_interp[i]) {
       int nodenum = m->flex_nodenum[i];
@@ -447,6 +558,8 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
   mju_zeroInt(m->flex_vertedge, 2 * m->nflexedge);
   mju_zeroInt(m->flex_vertedge, 2 * m->nflexedge);
   mju_zero(m->flex_vertmetric, 4 * m->nflexvert);
+  mju_zeroInt(m->flexedge_J_colind, m->nJfe);
+  mju_zeroInt(m->flexvert_J_colind, 2 * m->nJfv);
   int current_adj_offset = 0;
 
   // compute lengths and Jacobians of edges
@@ -636,135 +749,6 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
   mj_freeStack(d);
 }
 
-// compute flex bandwidth for trilinear interpolation
-static void makeFlexBandwidth(mjModel* m, mjData* d) {
-  if (!m->nflex) {
-    return;
-  }
-
-  mj_markStack(d);
-  int* chain_dofs = mjSTACKALLOC(d, m->nv, int);
-  int* seen_dof = mjSTACKALLOC(d, m->nv, int);
-  int* dof_indices = mjSTACKALLOC(d, m->nv, int);
-  int* global2local = mjSTACKALLOC(d, m->nv, int);
-
-  mju_zeroInt(seen_dof, m->nv);
-  for (int i = 0; i < m->nv; i++) {
-    global2local[i] = -1;
-  }
-
-  int ndof = 0;
-  for (int f = 0; f < m->nflex; f++) {
-    if (m->flex_interp[f]) {
-      int nodenum = m->flex_nodenum[f];
-      int nodeadr = m->flex_nodeadr[f];
-      for (int n = 0; n < nodenum; n++) {
-        int b = m->flex_nodebodyid[nodeadr + n];
-        // only the body's own DOFs enter the reduced banded flex system;
-        // ancestor DOFs are solved by the global factorization and coupled
-        // via off-diagonal correction (see flexInterp_solve in engine_forward)
-        int chain_nnz;
-        if (m->body_dofnum[b] == 0) {
-          chain_nnz = mj_bodyChain(m, b, chain_dofs);
-        } else {
-          chain_nnz = m->body_dofnum[b];
-          for (int j = 0; j < chain_nnz; j++) {
-            chain_dofs[j] = m->body_dofadr[b] + j;
-          }
-        }
-        for (int i = 0; i < chain_nnz; i++) {
-          int dof = chain_dofs[i];
-          if (!seen_dof[dof]) {
-            seen_dof[dof] = 1;
-            dof_indices[ndof] = dof;
-            global2local[dof] = ndof++;
-          }
-        }
-      }
-    }
-  }
-
-  int bandwidth = 0;
-  if (ndof > 0) {
-    // check sparse matrix coupling (both D and M)
-    for (int integrator = 0; integrator < 2; integrator++) {
-      const int* rownnz = (integrator == 0) ? m->D_rownnz : m->M_rownnz;
-      const int* rowadr = (integrator == 0) ? m->D_rowadr : m->M_rowadr;
-      const int* colind = (integrator == 0) ? m->D_colind : m->M_colind;
-
-      // D arrays are only allocated for implicit integrators
-      if (!rownnz) continue;
-
-      for (int i = 0; i < ndof; i++) {
-        int row = dof_indices[i];
-        int start = rowadr[row];
-        int end = start + rownnz[row];
-        for (int k = start; k < end; k++) {
-          int local_j = global2local[colind[k]];
-          if (local_j >= 0) {
-            int diff = i - local_j;
-            if (diff < 0) diff = -diff;
-            if (diff > bandwidth) bandwidth = diff;
-          }
-        }
-      }
-    }
-
-    // check stiffness coupling
-    for (int f = 0; f < m->nflex; f++) {
-      if (!m->flex_interp[f]) continue;
-      int order = m->flex_interp[f];
-      order = order < 0 ? -order : order;
-      int nodeadr = m->flex_nodeadr[f];
-      int nodenum = m->flex_nodenum[f];
-      int cx = m->flex_cellnum[3*f+0];
-      int cy = m->flex_cellnum[3*f+1];
-      int cz = m->flex_cellnum[3*f+2];
-      int ny = cy * order + 1;
-      int nz = cz * order + 1;
-
-      for (int icx = 0; icx < cx; icx++) {
-        for (int icy = 0; icy < cy; icy++) {
-          for (int icz = 0; icz < cz; icz++) {
-            int min_local = ndof, max_local = -1;
-            for (int lx = 0; lx <= order; lx++) {
-              for (int ly = 0; ly <= order; ly++) {
-                for (int lz = 0; lz <= order; lz++) {
-                  int gx = icx * order + lx;
-                  int gy = icy * order + ly;
-                  int gz = icz * order + lz;
-                  int node_idx = gx * ny * nz + gy * nz + gz;  // non-negative by construction
-                  if (node_idx < nodenum) {
-                    int b = m->flex_nodebodyid[nodeadr + node_idx];
-                    int chain_nnz = mj_bodyChain(m, b, chain_dofs);
-                    for (int i = 0; i < chain_nnz; i++) {
-                      int dof = chain_dofs[i];
-                      int local = global2local[dof];
-                      if (local >= 0) {
-                        if (local < min_local) min_local = local;
-                        if (local > max_local) max_local = local;
-                      }
-                    }
-                  }
-                }
-              }
-            }
-            if (max_local >= 0 && max_local - min_local > bandwidth) {
-              bandwidth = max_local - min_local;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // store bandwidth for all flexes (global max)
-  for (int f = 0; f < m->nflex; f++) {
-    m->flex_bandwidth[f] = bandwidth;
-  }
-
-  mj_freeStack(d);
-}
 
 // align 2D flexes to the XY plane
 static void mj_alignFlex(mjModel* m, mjData* d) {
@@ -817,7 +801,7 @@ static void mj_alignFlex(mjModel* m, mjData* d) {
 static void set0(mjModel* m, mjData* d) {
   makeTendonSparse(m);
   makeFlexSparse(m, d);
-  makeFlexBandwidth(m, d);
+
   mj_alignFlex(m, d);
   int nv = m->nv;
   mjtNum A[36] = {0}, pos[3], quat[4];
@@ -1202,7 +1186,7 @@ static void setStat(mjModel* m, mjData* d) {
 
       // infinite in both directions
       else {
-        rbound = 1;
+        rbound = 0.01;
       }
     } else if (m->geom_type[i] == mjGEOM_HFIELD) {
       int j = m->geom_dataid[i];
@@ -1337,6 +1321,17 @@ static void setSpring(mjModel* m, mjData* d) {
 
 // entry point: set all remaining constant fields of mjModel, except for lengthrange
 void mj_setConst(mjModel* m, mjData* d) {
+  // recompute sameframe flags from current model geometry
+  setSameframe(m);
+
+  // error if simple body lost sameframe (user must set simple="false")
+  for (int i = 1; i < m->nbody; i++) {
+    if (m->body_simple[i] > 0 && m->body_sameframe[i] != mjSAMEFRAME_BODY) {
+      mjERROR("body %d is compiled as simple but sameframe no longer holds, "
+              "use body/simple='false'", i);
+    }
+  }
+
   // set fixed quantities
   setFixed(m, d);
 

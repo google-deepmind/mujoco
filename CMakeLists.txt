@@ -29,7 +29,7 @@ set(MSVC_INCREMENTAL_DEFAULT ON)
 
 project(
   mujoco
-  VERSION 3.8.1
+  VERSION 3.10.1
   DESCRIPTION "MuJoCo Physics Simulator"
   HOMEPAGE_URL "https://mujoco.org"
 )
@@ -62,15 +62,15 @@ if(EMSCRIPTEN)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
   endif()
 
-  # Filament uses the WEBGL variable (not EMSCRIPTEN) to identify web builds.
+  # Filament uses the WASM variable (not EMSCRIPTEN) to identify web builds.
   # Without this, it falls into the LINUX path and tries to compile with
   # futex, X11, Vulkan, etc.
   if(MUJOCO_USE_FILAMENT)
-    set(WEBGL ON CACHE BOOL "Filament WebGL mode" FORCE)
+    set(WASM ON CACHE BOOL "Filament WASM mode" FORCE)
   endif()
 
   # Automatically generate host tool imports for Filament cross-compilation.
-  # When WEBGL is true, Filament hardcodes the path to:
+  # When WASM is true, Filament hardcodes the path to:
   #   ${FILAMENT}/${IMPORT_EXECUTABLES_DIR}/ImportExecutables-Release.cmake
   # So we write our file with that exact name and set IMPORT_EXECUTABLES_DIR
   # to point at CMAKE_BINARY_DIR (which is ../../ relative to filament-src).
@@ -90,7 +90,7 @@ if(EMSCRIPTEN)
       "add_executable(cmgen IMPORTED)\n"
       "set_property(TARGET cmgen PROPERTY IMPORTED_LOCATION \"${CMGEN_EXE}\")\n"
     )
-    # Filament's WEBGL path resolves: ${FILAMENT}/${IMPORT_EXECUTABLES_DIR}/ImportExecutables-Release.cmake
+    # Filament's WASM path resolves: ${FILAMENT}/${IMPORT_EXECUTABLES_DIR}/ImportExecutables-Release.cmake
     # FILAMENT = _deps/filament-src, so ../../ resolves to CMAKE_BINARY_DIR.
     set(IMPORT_EXECUTABLES_DIR "../../" CACHE PATH "" FORCE)
   else()
@@ -98,7 +98,11 @@ if(EMSCRIPTEN)
   endif()
 endif()
 
-if(APPLE AND (MUJOCO_BUILD_EXAMPLES OR MUJOCO_BUILD_SIMULATE))
+if(APPLE AND (MUJOCO_BUILD_EXAMPLES OR MUJOCO_BUILD_SIMULATE OR MUJOCO_USE_FILAMENT))
+  # NOTE: OBJC* languages are proactively enabled when using Filament to
+  # workaround a CMake bug triggered by Filament recently adding:
+  #   set(EXTRA_LANGS OBJC OBJCXX)
+  # See also: https://gitlab.kitware.com/cmake/cmake/-/work_items/24104
   enable_language(OBJC)
   enable_language(OBJCXX)
 endif()
@@ -108,16 +112,18 @@ include(MujocoMacOS)
 include(MujocoDependencies)
 
 set(MUJOCO_HEADERS
+    include/mujoco/mjassert.h
     include/mujoco/mjdata.h
     include/mujoco/mjexport.h
     include/mujoco/mjmacro.h
     include/mujoco/mjmodel.h
     include/mujoco/mjplugin.h
     include/mujoco/mjrender.h
+    include/mujoco/mjrfilament.h
     include/mujoco/mjsan.h
     include/mujoco/mjspec.h
-    include/mujoco/mjthread.h
-    include/mujoco/mjtnum.h
+    include/mujoco/mjspecmacro.h
+    include/mujoco/mjtype.h
     include/mujoco/mjui.h
     include/mujoco/mjvisualize.h
     include/mujoco/mjxmacro.h
@@ -133,6 +139,7 @@ endif()
 
 # Emscripten does not support SHARED libs
 if(NOT EMSCRIPTEN)
+  find_package(Threads REQUIRED)
   add_library(mujoco SHARED ${MUJOCO_RESOURCE_FILES})
 else()
   add_library(mujoco STATIC ${MUJOCO_RESOURCE_FILES})
@@ -157,7 +164,7 @@ add_subdirectory(plugin/stl_decoder)
 add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)
-add_subdirectory(src/thread)
+add_subdirectory(src/xml/mjz)
 if(NOT EMSCRIPTEN AND NOT MUJOCO_USE_FILAMENT_MJR_COMPAT)
   add_subdirectory(src/render/classic)
   add_subdirectory(src/ui)
@@ -165,6 +172,7 @@ endif()
 add_subdirectory(src/render/noop)
 
 if(MUJOCO_USE_FILAMENT)
+  add_subdirectory(src/render/filament)
   add_subdirectory(src/experimental/filament)
 endif()
 
@@ -200,6 +208,10 @@ target_link_libraries(
           tinyobjloader
           tinyxml2
 )
+
+if(NOT EMSCRIPTEN)
+  target_link_libraries(mujoco PRIVATE Threads::Threads)
+endif()
 
 set_target_properties(
   mujoco PROPERTIES VERSION "${mujoco_VERSION}" PUBLIC_HEADER "${MUJOCO_HEADERS}"
@@ -256,7 +268,6 @@ if(MUJOCO_BUILD_SIMULATE)
 endif()
 
 if(MUJOCO_BUILD_STUDIO)
-  add_subdirectory(src/experimental/mjz)
   add_subdirectory(src/experimental/platform)
   add_subdirectory(src/experimental/studio)
 endif()
@@ -296,11 +307,8 @@ if(BUILD_TESTING AND MUJOCO_BUILD_TESTS)
   endif()
 endif()
 
-if(NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
+if(NOT EMSCRIPTEN AND NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
   set(MUJOCO_TARGETS mujoco)
-  if (EMSCRIPTEN)
-    list(APPEND MUJOCO_TARGETS lodepng)
-  endif()
 
   # Install the libraries.
   install(

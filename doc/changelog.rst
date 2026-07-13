@@ -7,33 +7,248 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
-- Added island support for the :ref:`PGS solver<soAlgorithms>`.
-- The :ref:`PGS solver<soAlgorithms>` now iterates over constraints in pseudo-random order, improving performance by
-  ~20%.
-- Added support for :ref:`elastic2d<flex-elasticity-elastic2d>` for trilinear and quadratic flex
-  :ref:`dofs<body-flexcomp-dof>`.
-- :ref:`Midpoint integration<geMidpoint>` is now restricted to the ``implicitfast``
-  :ref:`integrator<geIntegrators>` and is disabled when fluid forces are active
-  (nonzero :ref:`density<option-density>` or :ref:`viscosity<option-viscosity>`).
-  Midpoint integration treats external forces as zero-order-hold constants, which causes
-  energy gain in the presence of contacts and in fluid media.
-- Added :ref:`mju_sym2dense`, converting a lower-triangular, implicitly symmetric CSR matrix to a dense
-  symmetric matrix. The inertia matrix ``mjData.M`` is an example of such a matrix.
+- Added Nesterov momentum extrapolation with adaptive gradient restart (O'Donoghue-Candès) to the PGS solver,
+  significantly improving convergence. Overall PGS now requires ~2x fewer iterations.
+- :ref:`mj_encode` now supports encoding of MJB and TXT files.
+- :ref:`mj_setConst` now recomputes the ``mjModel.{body,geom,site}_sameframe`` flags, to account for changes in
+  body/geom/site frames after compilation.
+- Added :ref:`body/simple<body-simple>` attribute ("false"/"auto") to disable the *simple body* mass matrix
+  optimization. This is useful for domain randomization, where model parameters may change post-compilation.
+- The :el:`attach` element now supports self-attachment (attaching elements of the current model to itself) by omitting
+  the :at:`model` attribute. It also supports attaching a frame via the new :at:`frame` attribute, which is mutually
+  exclusive with :at:`body`.
+- Fixed loading of ``.mjz`` archives in :ref:`simulate<saSimulate>`: the archive was unmounted before model compilation,
+  so assets contained in it failed to load. Failures in the ``mjz`` decoder now emit a warning with the underlying
+  error instead of the generic "could not decode content" message.
+- Added support for resource writing via :ref:`mju_writeResource` and the ``write`` callback in :ref:`mjpResourceProvider`.
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - Return type of :ref:`mj_encode` and the :ref:`mjfEncode` callback changed from ``int`` to ``mjtSize`` (64-bit).
+   - Switched :ref:`mjd_inverseFD` to use the CSR-format ``mjData.M`` representation instead of the legacy ``mjData.qM``
+     for the mass matrix derivative. This changes the shape of the ``DmDq`` parameter from ``(nv x nM)`` to
+     ``(nv x nC)``.
+   - Removed the legacy sparse ancestor-walk inertia matrix ``mjData.qM``. The joint-space inertia matrix is now stored
+     exclusively in the compressed sparse row (CSR) format ``mjData.M``.
+   - :ref:`mju_round` now breaks ties away from zero rather than towards :math:`+\infty`. This only affects
+     negative half-integers, e.g. ``mju_round(-2.5)`` now returns -3 rather than -2.
+   - Changed the default value of :ref:`sleep_tolerance<option-sleep_tolerance>` from 1e-4 to 1e-3 (1mm/sec in SI
+     units).
+
+Bug fixes
+^^^^^^^^^
+- Fixed a bug where ``body_margin`` excluded ``gap``, causing the mid-phase collision filter to incorrectly prune
+  in-gap contacts on multi-geom bodies.
+- Fixed a bug in the mesh compiler where normals were scaled as vectors rather than covectors.
+
+Version 3.10.0 (June 22, 2026)
+------------------------------
+
+General
+^^^^^^^
+1. Added :ref:`mju_threadpool`, a new function for creating a thread pool on an ``mjData`` instance. When a thread pool
+   is initialized, parts of the simulation pipeline, such as collision detection and constraint solving across islands,
+   are parallelized. The thread pool is automatically destroyed when the ``mjData`` is freed.
+2. Added a unified :ref:`logging API<siError>`:
+
+   - All errors, warnings, and informational messages are now routed through a single :ref:`mjfLogHandler` callback
+     receiving a structured :ref:`mjLogMessage`.
+   - Users can install a custom handler via :ref:`mju_setLogHandler`,
+     configure the default handler's behavior (console/file output, topic filtering) via :ref:`mju_setLogConfig`.
+   - Messages can be emitted via :ref:`mju_info` and :ref:`mju_message`.
+   - New types: :ref:`mjtLogLevel`, :ref:`mjtLogTopic`, :ref:`mjLogMessage`, :ref:`mjLogConfig`.
+   - The legacy callbacks :ref:`mju_user_error` and :ref:`mju_user_warning` are deprecated but remain functional.
+
+3. Added :ref:`mjs_numWarnings` and :ref:`mjs_getWarning` for retrieving all warnings accumulated during model
+   compilation and attachment. Deprecated :ref:`mjs_isWarning` in favor of ``mjs_numWarnings(s) > 0``.
+4. Added the :ref:`compiler/conflict<compiler-conflict>` attribute for controlling how conflicting global attributes
+   are resolved during :ref:`attachment<mjs_attach>`. Possible values are "warning" (default: parent values take
+   precedence, warnings emitted on conflicts), "merge" (per-field min/max/error strategy), and "error" (any
+   conflict raises an error). See :ref:`Attribute Merging <meAttributeMerging>` for details.
+
+   .. admonition:: Future breaking API changes
+      :class: warning
+
+      The current default conflict resolution policy "warn" (ignore the child model) is backward compatible.
+      However, the default policy will change to "merge" in a future release.
+
+5. Improved primal solver convergence under float32. Improvements initially proposed by :github:user:`n3b` in
+   :issue:`2313` and :github:user:`adenzler-nvidia` in :doc:`MJWarp <mjwarp/index>` pull request
+   `1374 <https://github.com/google-deepmind/mujoco_warp/pull/1374>`__.
+6. The :ref:`CG solver<soAlgorithms>` now uses the Hager-Zhang conjugate direction update instead of the
+   Polak-Ribiere-Plus formula. This improves convergence and leads to a significant speedup under float32.
+7. Added :ref:`mjs_makeFlex`, a new C API function equivalent to the :ref:`flexcomp<body-flexcomp>` element for
+   programmatically creating flex objects with auto-generated bodies, joints, and equality constraints. Exposed as
+   ``body.make_flex()`` in Python.
+8. Added support for loading 1D flex components from OBJ line segments
+9. Significantly improved the quality of coarse convex hulls produced by the :ref:`maxhullvert<asset-mesh-maxhullvert>`
+   attribute by invoking Qhull's `Q9 <http://www.qhull.org/html/qh-optq.htm#Q9>`__ option.
+
+   .. admonition:: Breaking API changes
+      :class: attention
+
+      - The header file ``mjthread.h`` was removed along with the old engine threading API.
+        |br| **Migration:** Use :ref:`mju_threadpool` to set number of worker threads for the engine.
+      - Moved island sparse matrix construction from :ref:`mj_island` (single threaded) into :ref:`mj_fwdConstraint`
+        (multi-threaded). The island-specific matrices ``iM, iLD, iefc_J`` were removed from the arena and are now
+        allocated on the stack.
+      - Following the introduction of the :ref:`diagexact<option-flag-diagexact>` flag, the ``mjData`` field
+        ``efc_diagApprox`` was renamed to ``efc_diagA``, as it can now be either the exact or approximate diagonal of
+        the :math:`A` ("Delassus") matrix.
+      - The deprecated functions ``mju_{error,warning}_{i,s}`` have been removed.
+
+      - Changed the signature of :ref:`mj_fullM` from ``mj_fullM(m, dst, M)`` to ``mj_fullM(m, d, dst)`` as part of the
+        planned deprecation of ``mjData.qM`` in favor of the CSR-format ``mjData.M``.
+
+        **Migration:** For inertia matrix conversion, replace ``mj_fullM(m, dst, d->qM)`` with ``mj_fullM(m, d, dst)`` or
+        ``mju_sym2dense(dst, d->M, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind)``.
+
+Bug fixes
+^^^^^^^^^
+10. Fixed a vulnerability in the System Identification toolbox where loading a trajectory or time series called
+    ``np.load`` with ``allow_pickle=True``, allowing arbitrary code execution from a malicious ``.npz`` file. Signal
+    metadata is now serialized as JSON and loaded with ``allow_pickle=False``.
+11. Fixed a bug in the ``mjz`` :ref:`decoder <mjpDecoder>` where unnormalized paths would fail to be read.
+12. Fixed a bug where the mesh compiler would produce non-unit convex hull polygon normals.
+
+Version 3.9.0 (May 27, 2026)
+----------------------------
+
+General
+^^^^^^^
+1. Added ``mjData.efc_Y``, the whitened constraint Jacobian :math:`Y = J M^{-1/2}`, allocated in the arena when
+   dual solvers (PGS or NoSlip) are used or when :ref:`diagexact<option-flag-diagexact>` is enabled.
+2. Added the :ref:`diagexact<option-flag-diagexact>` enable flag, which computes the exact diagonal of the
+   constraint-space inertia matrix at the current configuration, replacing the default compile-time approximation.
+   This improves solver quality for models with anisotropic inertias or complex kinematic coupling. See
+   :ref:`Exact diagonal <soExactDiag>` for details.
+3. The pseudo-random constraint visitation order in the :ref:`PGS solver<soAlgorithms>`, introduced in the previous
+   release, now uses a fixed seed. The previous implementation seeded with ``mjData.time``, which introduced subtle yet
+   undesirable time dependence.
+4. Flexes are now allowed to sleep, with the exception of completely passive (constraint-free) flexes.
+5. Added compiler timing diagnostics via the new :ref:`mjtCTimer` enum and the :ref:`mjs_getTimer` C API. After
+   :ref:`mj_compile`, per-category timings (total, assets, mesh loading, convex hull, normals, inertia, BVH, octree,
+   textures) are available via ``mjs_getTimer(spec)``. The :ref:`compile<saCompile>` sample prints a detailed timing
+   breakdown when run without an output file.
+6. Added :ref:`mjtBool` to represent boolean variables, replacing :ref:`mjtByte` across all boolean fields in
+   :ref:`mjModel`, :ref:`mjData`, and public C API function signatures.
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   7. The semantics of the contact ``margin`` and ``gap`` parameters have been redesigned for conceptual clarity and
+      consistency with `Newton <https://github.com/newton-physics/newton>`__. See the new
+      :ref:`margin and gap<coMarginGap>` documentation section for details.
+
+      Previously, ``margin`` controlled the *detection threshold* (contacts exist when ``dist < margin``) and ``gap``
+      was subtracted from it to produce the *force threshold* (forces generated when ``dist < margin - gap``). This was
+      unintuitive: users expected ``margin`` to mean geometric inflation and ``gap`` to mean a spatial gap.
+
+      Under the new semantics, ``margin`` is the geometric inflation of the geom surface and ``gap`` is an additional
+      detection buffer beyond the inflated surface:
+
+      - **Detection**: contacts are created when ``dist < margin + gap``.
+      - **Force generation**: constraint forces are applied when ``dist < margin``.
+      - **Inactive contacts**: contacts with ``margin < dist ≤ margin + gap`` are included in ``mjData.contact`` but
+        generate no force (``efc_address = -1``). This is useful for :ref:`adhesion<actuator-adhesion>` actuators and
+        custom callbacks.
+
+      With the default values ``margin = 0``, ``gap = 0``, the behavior is unchanged.
+
+      .. image:: images/modeling/margin_gap_light.svg
+         :width: 80%
+         :align: center
+         :class: only-light
+
+      .. image:: images/modeling/margin_gap_dark.svg
+         :width: 80%
+         :align: center
+         :class: only-dark
+
+      |
+
+      **Migration:** Models that use the default ``gap="0"`` (the vast majority) require no changes. For models with
+      ``gap > 0``, apply the following transformation to preserve identical behavior:
+
+      .. code-block::
+
+         margin_new = margin_old - gap_old
+         gap_new    = gap_old
+
+      For example, a geom with the old attributes ``margin="0.1" gap="0.1"`` should be changed to
+      ``margin="0" gap="0.1"``.
+
+      Negative ``margin`` values are now permitted (corresponding to ``gap > margin`` under the old semantics). The
+      constraint ``margin + gap >= 0`` should be maintained to ensure valid collision detection.
+
+   8. The :ref:`mjfCollision` functions now populate the :ref:`mjPreContact` struct instead of the :ref:`mjContact`
+      struct. The :ref:`mjPreContact` only contains the necessary fields needed for the narrowphase collision detection.
+
+   9. The header file ``mjtnum.h`` was renamed to
+      `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>` and now includes all
+      enum type definitions.
+
+   10. The :ref:`tactile<sensor-tactile>` sensor now reports raw depth instead of an estimated pressure.
+
+   11. MJX: Removed the deprecated ``nconmax`` argument from ``mjx.make_data`` and ``mjx.put_data`` in favor of
+       ``naconmax``.
+
+   12. Maybe-breaking: Added `mjassert.h
+       <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjassert.h>`__, a new header containing
+       compile-time assertions that verify the sizes of MuJoCo's public types for ABI stability. This is a first step
+       towards replacing ``int`` with strongly-typed enums in the public API. If these assertions fail on your compiler or
+       platform, please report the issue on GitHub.
+
+
+Version 3.8.1 (May 11, 2026)
+----------------------------
+
+General
+^^^^^^^
+1. Added island support for the :ref:`PGS solver<soAlgorithms>`.
+2. The :ref:`PGS solver<soAlgorithms>` now iterates over constraints in pseudo-random order, improving performance by
+   ~20%.
+3. Added support for :ref:`elastic2d<flex-elasticity-elastic2d>` for trilinear and quadratic flex
+   :ref:`dofs<body-flexcomp-dof>`.
+4. :ref:`Midpoint integration<geMidpoint>` is now restricted to the ``implicitfast``
+   :ref:`integrator<geIntegrators>` and is disabled when fluid forces are active
+   (nonzero :ref:`density<option-density>` or :ref:`viscosity<option-viscosity>`).
+   Midpoint integration treats external forces as zero-order-hold constants, which causes
+   energy gain in the presence of contacts and in fluid media.
+5. Added :ref:`mjs_getOriginSpec`, returning the spec that originally defined an element, prior to attachment. This is
+   in contrast to :ref:`mjs_getSpec` which returns the spec currently owning the element. If the element is not the
+   result of an attach operation, the functions are identical.
+6. Added :ref:`mju_sym2dense`, converting a lower-triangular, implicitly symmetric CSR matrix to a dense symmetric
+   matrix. The inertia matrix ``mjData.M`` is an example of such a matrix.
 
 .. admonition:: Future breaking API changes
    :class: warning
 
-   - The introduction of :ref:`mju_sym2dense` is a step towards the removal of the legacy-format ``mjData.qM`` in favor
-     of the CSR-format ``mjData.M``. This removal will involve a future breaking change to :ref:`mj_fullM` (which
-     currently accepts a ``qM``-like matrix as an argument). To prevent a future breakage, replace
-     ``mj_fullM(m, dst, d->qM)``  with
-     |br| ``mju_sym2dense(dst, d->M, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind)``.
+   7. The introduction of :ref:`mju_sym2dense` is a step towards the removal of the legacy-format ``mjData.qM`` in favor
+      of the CSR-format ``mjData.M``. This removal will involve a future breaking change to :ref:`mj_fullM` (which
+      currently accepts a ``qM``-like matrix as an argument). To prevent a future breakage, replace
+      ``mj_fullM(m, dst, d->qM)``  with
+      |br| ``mju_sym2dense(dst, d->M, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind)``.
 
+
+Bug fixes
+^^^^^^^^^
+
+8. Fixed default for multiccd in :doc:`mjcPhysics <OpenUSD/mjcPhysics>`.
 
 Python
 ^^^^^^
 
-- Added ``MjSpec.encode`` method, wrapping :ref:`mj_encode`.
+9. Added ``MjSpec.encode`` method, wrapping :ref:`mj_encode`.
+10. Added ``mujoco.MjVfs`` Python binding to interact with the Virtual File System directly from Python.
+    See :ref:`Virtual File System <PyVFS>` for usage details.
+
+    .. warning::
+       The previous way of passing assets via a dictionary mapping asset names to bytes is **deprecated** and will be
+       removed in an upcoming release. You cannot specify both the ``assets`` dictionary and the ``vfs`` argument at the
+       same time. ``MjVfs`` should be used as a drop-in replacement.
+
 
 Version 3.8.0 (April 24, 2026)
 ------------------------------
@@ -70,19 +285,6 @@ Bug fixes
 8. Asset paths in attached child specs are now resolved relative to the model file directory of the child spec, rather
    than the parent spec. This prevents the origin of the parent spec to affect the resolution of asset paths in the
    child spec.
-
-Python
-^^^^^^
-
-- Added ``mujoco.MjVfs`` Python binding to interact with the Virtual File System directly from Python.
-  See :ref:`Virtual File System <PyVFS>` for usage details.
-
-  .. warning::
-   The previous way of passing assets via a dictionary mapping asset names to bytes is **deprecated** and will be
-   removed in an upcoming release. You cannot specify both the ``assets`` dictionary and the ``vfs`` argument at the same
-   time. ``MjVfs`` should be used as a drop-in replacement.
-
-
 
 Version 3.7.0 (April 14, 2026)
 ------------------------------
@@ -1117,7 +1319,7 @@ General
 10. Added :ref:`mj_setKeyframe` for saving the current state into a model keyframe.
 11. Added support for ``ball`` joints in the URDF parser ("spherical" in URDF).
 12. Replaced ``mjUSEDOUBLE`` which was previously hard-coded in
-    `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
+    `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/3577e2cf8bf841475b489aefff52276a39f24d51/include/mjtnum.h>`__
     with the build-time flag ``mjUSESINGLE``. If this symbol is not defined, MuJoCo will use double-precision floating
     point, as usual. If ``mjUSESINGLE`` is defined, MuJoCo will use single-precision floating point. See :ref:`mjtNum`.
 
@@ -1603,7 +1805,7 @@ New features
    If island discovery is enabled, geoms, contacts and tendons will be colored according to the corresponding island,
    see video. Island discovery is currently disabled for models that have deformable objects (see previous item).
 
-5. Added :ref:`mjThreadPool` and :ref:`mjTask` which allow for multi-threaded operations within the MuJoCo engine
+5. Added ``mjThreadPool`` and ``mjTask`` which allow for multi-threaded operations within the MuJoCo engine
    pipeline. If engine-internal threading is enabled, the following operations will be multi-threaded:
 
    - Island constraint resolution, if island discovery is :ref:`enabled<option-flag-island>` and the
@@ -2019,7 +2221,7 @@ General
    <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid/humanoid100.xml>`__ model, which previously
    required ~500,000 ``mjtNum``'s, now only requires ~6000. Very large models can now load and run with the CG solver.
 #. Modified :ref:`mju_error` and :ref:`mju_warning` to be variadic functions (support for printf-like arguments). The
-   functions :ref:`mju_error_i`, :ref:`mju_error_s`, :ref:`mju_warning_i`, and :ref:`mju_warning_s` are now deprecated.
+   functions ``mju_error_i``, ``mju_error_s``, ``mju_warning_i``, and ``mju_warning_s`` are now deprecated.
 #. Implemented a performant ``mju_sqrMatTDSparse`` function that doesn't require dense memory allocation.
 #. Added ``mj_stackAllocInt`` to get correct size for allocating ints on mjData stack. Reducing stack memory usage
    by 10% - 15%.

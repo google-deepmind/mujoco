@@ -16,6 +16,7 @@
 #define MUJOCO_PYTHON_STRUCTS_H_
 
 #include <algorithm>
+#include <mutex>
 #include <array>
 #include <cctype>
 #include <cstddef>
@@ -35,6 +36,7 @@
 #include <absl/types/span.h>
 #include <mujoco/mujoco.h>
 #include <mujoco/mjxmacro.h>
+#include "gil.h"
 #include "indexers.h"
 #include "raw.h"
 #include <pybind11/numpy.h>
@@ -154,7 +156,12 @@ class StructListBase {
   }
 
   StructListBase(const StructListBase& other) = delete;
-  StructListBase(StructListBase&& other) = default;
+  StructListBase(StructListBase&& other)
+      : ptr_(other.ptr_),
+        num_(other.num_),
+        owner_(std::move(other.owner_)),
+        wrappers_(std::move(other.wrappers_)) {}
+        // populate_mutex_ is default-constructed (std::mutex is not movable)
 
   virtual ~StructListBase() = default;
 
@@ -175,6 +182,8 @@ class StructListBase {
 
  protected:
   void PopulateUpTo(int n) {
+    MutexLockIfGilDisabled lock(populate_mutex_);
+    wrappers_.reserve(n + 1);
     while (wrappers_.size() <= n) {
       wrappers_.push_back(
           std::make_shared<MjWrapper<T>>(&ptr_[wrappers_.size()], owner_));
@@ -202,6 +211,7 @@ class StructListBase {
 
   // Using shared_ptr here so that we get identical Python objects when slicing.
   std::vector<std::shared_ptr<MjWrapper<T>>> wrappers_;
+  mutable std::mutex populate_mutex_;
 };
 
 template <typename T>
@@ -270,12 +280,12 @@ class MjWrapper<raw::MjVisualRgba> : public WrapperBase<raw::MjVisualRgba> {
   MjWrapper(raw::MjVisualRgba* ptr, pybind11::handle owner);
   ~MjWrapper() = default;
 
-  #define X(var)                                                     \
-    py_array_or_tuple_t<                                             \
-        std::remove_all_extents_t<decltype(raw::MjVisualRgba::var)>> \
-        var;
+#define XVEC(type, var, dim)                                       \
+  py_array_or_tuple_t<                                             \
+      std::remove_all_extents_t<decltype(raw::MjVisualRgba::var)>> \
+      var;
   MJVISUAL_RGBA_FIELDS
-  #undef X
+#undef XVEC
 };
 
 using MjVisualRgbaWrapper = MjWrapper<raw::MjVisualRgba>;
@@ -376,6 +386,38 @@ template <>
 struct is_mj_struct_list<raw::MjWarningStat> {
   static constexpr bool value = true;
 };
+
+// ==================== MJLOGCONFIG ============================================
+template <>
+class MjWrapper<raw::MjLogConfig> : public WrapperBase<raw::MjLogConfig> {
+ public:
+  MjWrapper();
+  MjWrapper(const MjWrapper&);
+  MjWrapper(MjWrapper&&) = default;
+  MjWrapper(raw::MjLogConfig* ptr, pybind11::handle owner);
+  ~MjWrapper() = default;
+};
+
+using MjLogConfigWrapper = MjWrapper<raw::MjLogConfig>;
+
+template <>
+struct enable_if_mj_struct<raw::MjLogConfig> { using type = void; };
+
+// ==================== MJLOGMESSAGE ===========================================
+template <>
+class MjWrapper<raw::MjLogMessage> : public WrapperBase<raw::MjLogMessage> {
+ public:
+  MjWrapper();
+  MjWrapper(const MjWrapper&);
+  MjWrapper(MjWrapper&&) = default;
+  MjWrapper(raw::MjLogMessage* ptr, pybind11::handle owner);
+  ~MjWrapper() = default;
+};
+
+using MjLogMessageWrapper = MjWrapper<raw::MjLogMessage>;
+
+template <>
+struct enable_if_mj_struct<raw::MjLogMessage> { using type = void; };
 
 // ==================== MJTIMERSTAT ============================================
 template <>
@@ -547,6 +589,27 @@ template <>
 struct enable_if_mj_struct<raw::MjModel> { using type = void; };
 
 // ==================== MJCONTACT ==============================================
+template <>
+class MjWrapper<raw::MjPreContact> : public WrapperBase<raw::MjPreContact> {
+ public:
+  MjWrapper();
+  MjWrapper(const MjWrapper&);
+  MjWrapper(MjWrapper&&) = default;
+  MjWrapper(raw::MjPreContact* ptr, pybind11::handle owner);
+  ~MjWrapper() = default;
+
+  #define X(var)                                                     \
+    py_array_or_tuple_t<                                             \
+        std::remove_all_extents_t<decltype(raw::MjPreContact::var)>> \
+        var
+  X(pos);
+  X(normal);
+  X(tangent);
+  #undef X
+};
+
+using MjPreContactWrapper = MjWrapper<raw::MjPreContact>;
+
 template <>
 class MjWrapper<raw::MjContact> : public WrapperBase<raw::MjContact> {
  public:
@@ -956,11 +1019,14 @@ using _impl::MjVisualRgbaWrapper;
 using _impl::MjVisualWrapper;
 using _impl::MjStatisticWrapper;
 using _impl::MjWarningStatWrapper;
+using _impl::MjLogConfigWrapper;
+using _impl::MjLogMessageWrapper;
 using _impl::MjTimerStatWrapper;
 using _impl::MjSolverStatWrapper;
 using _impl::MjModelWrapper;
 using _impl::MjDataWrapper;
 using _impl::MjContactWrapper;
+using _impl::MjPreContactWrapper;
 using _impl::MjvPerturbWrapper;
 using _impl::MjvCameraWrapper;
 using _impl::MjvGLCameraWrapper;

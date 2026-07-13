@@ -34,6 +34,13 @@ TEST_F(MujocoTestTest, MjUserWarningFailsTest) {
   EXPECT_NONFATAL_FAILURE(mju_warning("Warning."), "Warning.");
 }
 
+TEST_F(MujocoTestTest, BenignWarningDoesNotFailTest) {
+  // Warnings in the benign list should not trigger test failures
+  mju_warning(
+      "flex 'soft' is not rigid and has no equality constraints "
+      "or passive forces");
+}
+
 TEST_F(MujocoTestTest, MjUserErrorFailsTest) {
   EXPECT_FATAL_FAILURE(mju_error("Error."), "Error.");
 }

@@ -19,10 +19,11 @@ from collections.abc import Sequence
 from absl import app
 
 from introspect import ast_nodes
+from introspect import enums
 from introspect import structs
 
 
-SCALAR_TYPES = {'int', 'double', 'float', 'mjtByte', 'mjtNum'}
+SCALAR_TYPES = {'int', 'double', 'float', 'mjtByte', 'mjtBool', 'mjtNum'}
 
 # pylint: disable=bad-whitespace
 # key, parent, default, listname, objtype
@@ -82,8 +83,10 @@ def _value_binding_code(
         field.name == 'mjsPlugin'
         or field.name == 'mjsOrientation'
         or field.name == 'mjsCompiler'
+        or field.name == 'mjsAuthored'
     ):
-      fulltype = fulltype + '&'  # plugin, orientation, compiler aren't pointers
+      # plugin, orientation, compiler, authored aren't pointers
+      fulltype = fulltype + '&'
     else:
       fulltype = fulltype + '*'
   # non-mjs structs
@@ -94,6 +97,7 @@ def _value_binding_code(
   fulltype = fulltype.replace('mjVisual', 'raw::MjVisual')
   fulltype = fulltype.replace('mjStatistic', 'raw::MjStatistic')
   element = ''
+  is_enum = field.name in enums.ENUMS
 
   if field.name == 'mjsPlugin':
     setter = f"""[]({rawclassname}& self, {fulltype} {varname}) {{
@@ -102,6 +106,10 @@ def _value_binding_code(
       self.{fullvarname}.active = {varname}.active;
       if (self.{fullvarname}.info && {varname}.info) *self.{fullvarname}.info = *{varname}.info;
     }}"""
+  elif is_enum:
+    setter = f"""[]({rawclassname}& self, int {varname}) {{
+      self.{fullvarname}{element} = static_cast<{field.name}>({varname}){element};
+    }}"""
   else:
     setter = f"""[]({rawclassname}& self, {fulltype} {varname}) {{
       self.{fullvarname}{element} = {varname}{element};
@@ -109,13 +117,13 @@ def _value_binding_code(
 
   def_property_args = (
       f'"{varname}"',
-      f"""[]({rawclassname}& self) -> {fulltype} {{
+      f"""[]({rawclassname}& self) -> {field.name if is_enum else fulltype} {{
         return self.{fullvarname};
       }}""",
       setter,
   )
 
-  if field.name not in SCALAR_TYPES:
+  if field.name not in SCALAR_TYPES and not is_enum:
     def_property_args += ('py::return_value_policy::reference_internal',)
 
   return f'{classname}.def_property({",".join(def_property_args)});'
@@ -156,8 +164,10 @@ def _array_binding_code(
   if classname == 'mjSpec':  # raw mjSpec has a wrapper
     rawclassname = classname.replace('mjS', 'MjS')
     fullvarname = 'ptr->' + varname
-  if innertype == 'double' or innertype == 'mjtNum':
-    innertype = 'MjDouble'  # custom Eigen type
+  if innertype == 'mjtNum':
+    innertype = 'MjNum'  # custom Eigen type for mjtNum fields
+  elif innertype == 'double':
+    innertype = 'MjDouble'  # custom Eigen type for double fields
   elif innertype == 'float':
     innertype = 'MjFloat'  # custom Eigen type
   elif innertype == 'int':

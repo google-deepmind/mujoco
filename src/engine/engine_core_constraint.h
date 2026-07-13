@@ -18,7 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -66,18 +66,18 @@ void mj_instantiateEquality(const mjModel* m, mjData* d);
 void mj_instantiateContact(const mjModel* m, mjData* d);
 
 // compute Jacobian for contact, return number of DOFs affected
-int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int dim,
-                       mjtNum* jac, mjtNum* jacdif, mjtNum* jacdifp,
-                       mjtNum* jacdifr, mjtNum* jac1p, mjtNum* jac2p,
-                       mjtNum* jac1r, mjtNum* jac2r, int* chain);
+MJAPI int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int dim,
+                             mjtNum* jac, mjtNum* jacdif, mjtNum* jacdifp,
+                             mjtNum* jacdifr, mjtNum* jac1p, mjtNum* jac2p,
+                             mjtNum* jac1r, mjtNum* jac2r, int* chain);
 
 
 //------------------------ parameter computation/extraction ----------------------------------------
 
-// compute efc_diagApprox
+// compute efc_diagA
 void mj_diagApprox(const mjModel* m, mjData* d);
 
-// compute efc_R, efc_D, efc_KDIP, adjust diagApprox
+// compute efc_R, efc_D, efc_KDIP, adjust diagA
 void mj_makeImpedance(const mjModel* m, mjData* d);
 
 

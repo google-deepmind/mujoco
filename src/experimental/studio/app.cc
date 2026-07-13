@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <array>
 #include <cfloat>
+#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -28,6 +29,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -81,16 +83,31 @@ static constexpr const char* ICON_UNDO_SPEC = platform::ICON_FA_UNDO;
 static constexpr const char* ICON_REDO_SPEC = platform::ICON_FA_REPEAT;
 
 App::App(Config config)
-    : ini_path_(std::move(config.ini_path)), gfx_mode_(config.gfx_mode) {
+    : app_title_(std::move(config.title)),
+      ini_path_(std::move(config.ini_path)),
+      gfx_mode_(config.gfx_mode) {
   SwitchGraphicsMode(config.width, config.height, config.gfx_mode);
+
+  if (config.initial_theme.has_value()) {
+    ui_.theme = *config.initial_theme;
+  }
 
   ImPlot::CreateContext();
   mjv_defaultPerturb(&perturb_);
   mjv_defaultCamera(&camera_);
   mjv_defaultOption(&vis_options_);
+  std::memset(&plugin_scene_, 0, sizeof(mjvScene));
+  mjv_makeScene(nullptr, &plugin_scene_, 2000);
 
   profiler_.Clear();
+
+  step_control_.SetPreStepCallback(
+      [this](const mjModel* m, mjData* d) { PreStep(m, d); });
+  step_control_.SetPostStepCallback(
+      [this](const mjModel* m, mjData* d) { PostStep(m, d); });
 }
+
+App::~App() { mjv_freeScene(&plugin_scene_); }
 
 void App::SwitchGraphicsMode(int width, int height,
                              platform::GraphicsMode mode) {
@@ -100,21 +117,16 @@ void App::SwitchGraphicsMode(int width, int height,
 
   platform::Window::Config window_config;
   window_config.gfx_mode = gfx_mode_;
-  window_ = std::make_unique<platform::Window>("MuJoCo Studio", width, height,
+  window_ = std::make_unique<platform::Window>(app_title_, width, height,
                                                window_config);
   renderer_ = std::make_unique<platform::Renderer>(
       window_->GetNativeWindowHandle(), gfx_mode_);
-}
 
-void App::ClearModel() {
-  model_holder_.reset();
-  window_->SetTitle("MuJoCo Studio");
-  step_control_.SetSpeed(100.f);
-  profiler_.Clear();
-  tmp_ = UiTempState();
-  load_error_ = "";
-  step_error_ = "";
-  edit_error_ = "";
+  // TODO: Figure out why this breaks on some platforms.
+  // LoadSettings();
+  if (ui_.window_width > 0 && ui_.window_height > 0) {
+    window_->Resize(ui_.window_width, ui_.window_height);
+  }
 }
 
 void App::Recompile() {
@@ -122,6 +134,17 @@ void App::Recompile() {
                model_holder_->model(), model_holder_->data());
   const int state_size = mj_stateSize(model(), mjSTATE_INTEGRATION);
   sim_history_.Init(state_size);
+  if (has_model() && has_data()) {
+    std::span<mjtNum> state = sim_history_.AddToHistory();
+    if (!state.empty()) {
+      mj_getState(model(), data(), state.data(), mjSTATE_INTEGRATION);
+    }
+  }
+  tmp_.sim_head_time_ = has_data() ? data()->time : 0.0;
+  tmp_.timeline_lh_width = 0.0f;
+  tmp_.timeline_rh_width = 0.0f;
+  tmp_.scrubber_active = false;
+  tmp_.scrubber_grab_offset = 0.0f;
 }
 
 void App::RequestModelLoad(std::string model_file) {
@@ -129,7 +152,8 @@ void App::RequestModelLoad(std::string model_file) {
 }
 
 void App::RequestModelReload() {
-  if (model_kind_ == kModelFromFile) {
+  if (model_kind_ == kModelFromFile ||
+      (model_kind_ == kEmptyModel && !model_path_.empty())) {
     pending_load_ = model_path_;
     preserve_camera_on_load_ = true;
   }
@@ -147,17 +171,24 @@ void App::LoadModelFromFile(const std::string& filepath) {
   model_holder_ = platform::ModelHolder::FromFile(resolved_file);
   if (model_holder_->ok()) {
     OnModelLoaded(filepath, kModelFromFile);
-    spec_editor_.Reset(*spec());
+    if (spec()) {
+      spec_editor_.Reset(*spec());
+    } else {
+      spec_editor_.Reset();
+    }
     UpdateFilePaths(resolved_file);
     if (model() && model()->names) {
       // Assumes the first string in the model is the name of the model itself.
-      window_->SetTitle("MuJoCo Studio : " + std::string(model()->names));
+      window_->SetTitle(app_title_ + " : " + std::string(model()->names));
     } else {
-      window_->SetTitle("MuJoCo Studio : " +
+      window_->SetTitle(app_title_ + " : " +
                         std::filesystem::path(filepath).stem().string());
     }
   } else {
     SetLoadError(std::string(model_holder_->error()));
+    // Keep track of the attempted load in case the user fixes the error and
+    // tries to reload the same file again.
+    model_path_ = resolved_file;
   }
 }
 
@@ -171,17 +202,28 @@ void App::LoadModelFromBuffer(std::span<const std::byte> buffer,
   } else {
     SetLoadError(std::string(model_holder_->error()));
   }
-  spec_editor_.Reset(*spec());
+  if (spec()) {
+    spec_editor_.Reset(*spec());
+  } else {
+    spec_editor_.Reset();
+  }
 }
 
 void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
+  load_error_ = "";
+  step_error_ = "";
+  edit_error_ = "";
+
+  if (!model_holder_->warning().empty()) {
+    load_error_ = model_holder_->warning();
+  }
   model_path_ = std::move(filename);
 
   if (model_kind_ == kEmptyModel) {
     step_control_.SetPauseState(PauseState::kUnpaused);
   }
   model_kind_ = model_kind;
-  if (model_kind_ == kEmptyModel) {
+  if (model_kind_ == kEmptyModel || !load_error_.empty()) {
     step_control_.SetPauseState(PauseState::kNormalPaused);
   }
 
@@ -190,6 +232,17 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
   renderer_->Init(model);
   const int state_size = mj_stateSize(model, mjSTATE_INTEGRATION);
   sim_history_.Init(state_size);
+  if (has_model() && has_data()) {
+    std::span<mjtNum> state = sim_history_.AddToHistory();
+    if (!state.empty()) {
+      mj_getState(model, data(), state.data(), mjSTATE_INTEGRATION);
+    }
+  }
+  tmp_.sim_head_time_ = has_data() ? data()->time : 0.0;
+  tmp_.timeline_lh_width = 0.0f;
+  tmp_.timeline_rh_width = 0.0f;
+  tmp_.scrubber_active = false;
+  tmp_.scrubber_grab_offset = 0.0f;
 
   if (!preserve_camera_on_load_) {
     const int model_cam = model->vis.global.cameraid;
@@ -218,6 +271,8 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
       plugin->post_model_loaded(plugin, model_path_.c_str());
     }
   });
+  tmp_.update_threadpool = true;
+  last_pause_state_ = step_control_.GetPauseState();
 }
 
 void App::UpdateFilePaths(const std::string& resolved_path) {
@@ -243,11 +298,28 @@ void App::UpdateFilePaths(const std::string& resolved_path) {
 void App::SetLoadError(std::string error) {
   InitEmptyModel();
   load_error_ = std::move(error);
+  step_error_ = "";
+  edit_error_ = "";
 }
 
 void App::ResetPhysics() {
   mj_resetData(model(), data());
   mj_forward(model(), data());
+  if (has_model()) {
+    const int state_size = mj_stateSize(model(), mjSTATE_INTEGRATION);
+    sim_history_.Init(state_size);
+  }
+  if (has_model() && has_data()) {
+    std::span<mjtNum> state = sim_history_.AddToHistory();
+    if (!state.empty()) {
+      mj_getState(model(), data(), state.data(), mjSTATE_INTEGRATION);
+    }
+  }
+  tmp_.sim_head_time_ = has_data() ? data()->time : 0.0;
+  tmp_.timeline_lh_width = 0.0f;
+  tmp_.timeline_rh_width = 0.0f;
+  tmp_.scrubber_active = false;
+  tmp_.scrubber_grab_offset = 0.0f;
   step_error_ = "";
   edit_error_ = "";
 }
@@ -257,16 +329,22 @@ void App::UpdatePhysics() {
     return;
   }
 
-  bool stepped = false;
+  if (tmp_.update_threadpool) {
+    mju_threadpool(data(), ui_.nthread);
+    tmp_.update_threadpool = false;
+  }
+
+  bool plugin_stepped = false;
   platform::ForEachPlugin<platform::ModelPlugin>([&](auto* plugin) {
     if (plugin->do_update) {
       if (plugin->do_update(plugin, model(), data())) {
-        stepped = true;
+        plugin_stepped = true;
       }
     }
   });
 
-  if (!stepped) {
+  bool stepped = plugin_stepped;
+  if (!plugin_stepped) {
     if (step_control_.GetPauseState() != PauseState::kNormalPaused) {
       mju_zero(data()->xfrc_applied, 6 * model()->nbody);
       mjv_applyPerturbPose(model(), data(), &perturb_, 0);
@@ -285,7 +363,7 @@ void App::UpdatePhysics() {
     platform::StepControl::Status status =
         step_control_.Advance(model(), data());
     if (status == platform::StepControl::Status::kPaused) {
-      // do nothing
+      profiler_.Update(model(), data());
     } else if (status == platform::StepControl::Status::kOk) {
       stepped = true;
       // If we are adding to the history we didn't have a divergence error
@@ -304,10 +382,35 @@ void App::UpdatePhysics() {
 
   if (stepped) {
     profiler_.Update(model(), data());
-    std::span<mjtNum> state = sim_history_.AddToHistory();
-    if (!state.empty()) {
-      mj_getState(model(), data(), state.data(), mjSTATE_INTEGRATION);
+    if (plugin_stepped) {
+      std::span<mjtNum> state = sim_history_.AddToHistory();
+      if (!state.empty()) {
+        mj_getState(model(), data(), state.data(), mjSTATE_INTEGRATION);
+        tmp_.sim_head_time_ = data()->time;
+      }
     }
+  }
+}
+
+void App::PreStep(const mjModel* m, mjData* d) {
+  platform::ForEachPlugin<platform::ModelPlugin>([&](auto* plugin) {
+    if (plugin->pre_step) {
+      plugin->pre_step(plugin, m, d);
+    }
+  });
+}
+
+void App::PostStep(const mjModel* m, mjData* d) {
+  platform::ForEachPlugin<platform::ModelPlugin>([&](auto* plugin) {
+    if (plugin->post_step) {
+      plugin->post_step(plugin, m, d);
+    }
+  });
+
+  std::span<mjtNum> state = sim_history_.AddToHistory();
+  if (!state.empty()) {
+    mj_getState(m, d, state.data(), mjSTATE_INTEGRATION);
+    tmp_.sim_head_time_ = d->time;
   }
 }
 
@@ -332,6 +435,12 @@ bool App::Update() {
 
   ProcessPendingLoads();
 
+  PauseState current_pause = step_control_.GetPauseState();
+  if (current_pause != last_pause_state_) {
+    load_error_ = "";
+    last_pause_state_ = current_pause;
+  }
+
   // Only update the simulation if a popup window is not open. Note that the
   // simulation itself will only update if it is not paused.
   if (tmp_.file_dialog == UiTempState::FileDialog_None) {
@@ -350,8 +459,17 @@ void App::Render() {
   } else {
     pixels_.clear();
   }
+
+  plugin_scene_.ngeom = 0;
+  platform::ForEachPlugin<platform::ScenePlugin>([&](auto* plugin) {
+    if (plugin->enhance_scene) {
+      plugin->enhance_scene(plugin, model(), data(), &plugin_scene_);
+    }
+  });
+
   renderer_->Render(model(), data(), &perturb_, &camera_, &vis_options_,
-                    width * scale, height * scale, pixels_);
+                    width * scale, height * scale, pixels_,
+                    {plugin_scene_.geoms, (size_t)plugin_scene_.ngeom});
 
   window_->EndFrame();
   window_->Present(pixels_);
@@ -403,7 +521,9 @@ void App::ProcessPendingLoads() {
       const char* buf = plugin->get_model_to_load(
           plugin, &size, content_type, sizeof(content_type), model_name,
           sizeof(model_name));
-      if (buf && size) {
+      if (buf && buf == model_name) {
+        LoadModelFromFile(model_name);
+      } else if (buf && size) {
         const std::byte* bytes = reinterpret_cast<const std::byte*>(buf);
         LoadModelFromBuffer({bytes, bytes + size}, content_type, model_name);
       }
@@ -450,14 +570,20 @@ void App::HandleMouseEvents() {
     if (perturb_.select > 0) {
       mjtMouse action = mjMOUSE_NONE;
       if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        action = io.KeyShift ? mjMOUSE_ROTATE_H : mjMOUSE_ROTATE_V;
+        if (io.KeyAlt) {
+          action = io.KeyShift ? mjMOUSE_MOVE_H : mjMOUSE_MOVE_V;
+        } else {
+          action = io.KeyShift ? mjMOUSE_ROTATE_H : mjMOUSE_ROTATE_V;
+        }
       } else if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
         action = io.KeyShift ? mjMOUSE_MOVE_H : mjMOUSE_MOVE_V;
       } else if (ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
         action = mjMOUSE_ZOOM;
       }
       const mjtPertBit active =
-          action == mjMOUSE_MOVE_V ? mjPERT_TRANSLATE : mjPERT_ROTATE;
+          (action == mjMOUSE_MOVE_V || action == mjMOUSE_MOVE_H)
+              ? mjPERT_TRANSLATE
+              : mjPERT_ROTATE;
       if (active != perturb_.active) {
         platform::InitPerturb(model(), data(), &camera_, &perturb_, active);
       }
@@ -573,7 +699,12 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Q | ImGuiMod_Ctrl)) {
     tmp_.should_exit = true;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_A | ImGuiMod_Ctrl)) {
-    mjv_defaultFreeCamera(model(), &camera_);
+    const int cam_id = model()->vis.global.cameraid;
+    if (cam_id >= 0 && cam_id < model()->ncam) {
+      ui_.camera_idx = platform::SetCamera(model(), &camera_, cam_id);
+    } else {
+      mjv_defaultFreeCamera(model(), &camera_);
+    }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Tab | ImGuiMod_Shift)) {
     tmp_.inspector_panel = !tmp_.inspector_panel;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Tab)) {
@@ -625,15 +756,21 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F1)) {
     ToggleWindow(tmp_.help);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F2)) {
-    ToggleWindow(tmp_.stats);
+    ToggleWindow(tmp_.info);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_F3)) {
+    // Cycle through profiler views.
+    if (!tmp_.profiler) {
+      tmp_.profiler = true;
+      tmp_.profiler_show_iter = false;
+    } else if (!tmp_.profiler_show_iter) {
+      tmp_.profiler_show_iter = true;
+    } else {
+      tmp_.profiler = false;
+    }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F6)) {
     vis_options_.frame = (vis_options_.frame + 1) % mjNFRAME;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F7)) {
     vis_options_.label = (vis_options_.label + 1) % mjNLABEL;
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_F9)) {
-    tmp_.chart_solver = !tmp_.chart_solver;
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_F10)) {
-    tmp_.chart_performance = !tmp_.chart_performance;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F11)) {
     tmp_.full_screen = !tmp_.full_screen;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_H)) {
@@ -794,6 +931,10 @@ void App::LoadSettings() {
 void App::SaveSettings() {
   if (!ini_path_.empty()) {
     std::string settings = ImGui::SaveIniSettingsToMemory();
+    if (window_) {
+      ui_.window_width = window_->GetWidth();
+      ui_.window_height = window_->GetHeight();
+    }
     platform::AppendIniSection(settings, "[Studio][UX]", ui_.ToDict());
 
     platform::KeyValues plugin_names;
@@ -807,14 +948,7 @@ void App::SaveSettings() {
 }
 
 void App::SetSpeedIndex(int idx) {
-  if (idx == tmp_.speed_index || platform::kPercentRealTime.empty()) {
-    return;
-  }
-
-  tmp_.speed_index =
-      std::clamp<int>(idx, 0, platform::kPercentRealTime.size() - 1);
-  float speed = std::stof(platform::kPercentRealTime[tmp_.speed_index]);
-  step_control_.SetSpeed(speed);
+  platform::SetSpeedIndex(&step_control_, tmp_.speed_index, idx);
 }
 
 void App::MoveCamera(platform::CameraMotion motion, mjtNum reldx,
@@ -833,7 +967,8 @@ void App::BuildGui() {
 
   ImGui::GetIO().FontGlobalScale = ui_.font_scale;
 
-  const ImVec4 workspace_rect = platform::ConfigureDockingLayout();
+  const ImVec4 workspace_rect =
+      platform::ConfigureDockingLayout(tmp_.toolbar, tmp_.status_bar);
 
   // Place charts in bottom right corner of the workspace.
   const ImVec2 chart_size(250, 500);
@@ -842,18 +977,14 @@ void App::BuildGui() {
 
   MainMenuGui();
 
-  {
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+  if (tmp_.toolbar) {
     if (ImGui::Begin("ToolBar")) {
-      ImGui::PopStyleVar();
       ToolBarGui();
-    } else {
-      ImGui::PopStyleVar();
     }
     ImGui::End();
   }
 
-  {
+  if (tmp_.status_bar) {
     platform::ScopedStyle style;
     style.Var(ImGuiStyleVar_CellPadding, ImVec2(0, 0));
     style.Var(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
@@ -872,46 +1003,30 @@ void App::BuildGui() {
   }
 
   if (tmp_.inspector_panel) {
-    if (ImGui::Begin("Inspector", &tmp_.inspector_panel)) {
-      DataInspectorGui();
-    }
-    ImGui::End();
-
     if (ImGui::Begin("Explorer", &tmp_.inspector_panel)) {
       SpecExplorerGui();
     }
     ImGui::End();
 
-    if (ImGui::Begin("Editor", &tmp_.inspector_panel)) {
+    if (ImGui::Begin("Inspector", &tmp_.inspector_panel)) {
+      DataInspectorGui();
+    }
+    ImGui::End();
+  }
+
+  if (tmp_.editor_panel) {
+    if (ImGui::Begin("Editor", &tmp_.editor_panel)) {
       SpecEditorGui();
     }
     ImGui::End();
   }
 
-  if (tmp_.chart_performance) {
-    ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Performance", &tmp_.chart_performance)) {
-      auto layout = platform::ImPlot_ComputePairLayout();
-      profiler_.CpuTimeGraph(layout.plot_size);
-      if (layout.direction == platform::ImPlotLayoutDirection::kHorizontal) {
-        ImGui::SameLine();
-      }
-      profiler_.DimensionsGraph(layout.plot_size);
-    }
-    ImGui::End();
-  }
-
-  if (tmp_.chart_solver) {
-    ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Solver", &tmp_.chart_solver)) {
-      auto layout = platform::ImPlot_ComputePairLayout();
-      platform::CountsGui(model(), data(), layout.plot_size);
-      if (layout.direction == platform::ImPlotLayoutDirection::kHorizontal) {
-        ImGui::SameLine();
-      }
-      platform::ConvergenceGui(model(), data(), layout.plot_size);
+  if (tmp_.profiler) {
+    if (ImGui::Begin("Profiler", &tmp_.profiler,
+                     ImGuiWindowFlags_NoScrollbar |
+                         ImGuiWindowFlags_NoScrollWithMouse)) {
+      platform::ProfilerGui(model(), data(), &profiler_,
+                            tmp_.profiler_show_iter);
     }
     ImGui::End();
   }
@@ -930,8 +1045,7 @@ void App::BuildGui() {
     ImGui::SetNextWindowPos(ImVec2(workspace_rect.x, workspace_rect.y),
                             ImGuiCond_Appearing);
     ImGui::SetNextWindowSize(ImVec2(0, 0), ImGuiCond_Appearing);
-    if (ImGui::Begin("Help", &tmp_.help,
-                     ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::Begin("Help", &tmp_.help, ImGuiWindowFlags_AlwaysAutoResize)) {
       ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2.0f, 5.0f));
       HelpGui();
       ImGui::PopStyleVar();
@@ -939,16 +1053,75 @@ void App::BuildGui() {
     ImGui::End();
   }
 
-  if (tmp_.stats) {
-    platform::ScopedStyle style;
-    style.Var(ImGuiStyleVar_Alpha, 0.6f);
-    if (ImGui::Begin("Stats", &tmp_.stats)) {
+  if (!load_error_.empty()) {
+    const float scale = ImGui::GetWindowDpiScale();
+    const float max_line_width = ImGui::CalcTextSize(load_error_.c_str()).x;
+    const float padding = 30.0f * scale;
+    const float max_workspace_width = std::max(0.0f, workspace_rect.z - 20.0f);
+    const float min_target_width =
+        std::min(350.0f * scale, max_workspace_width);
+    const float target_width = std::clamp(
+        max_line_width + padding, min_target_width, max_workspace_width);
+
+    if (platform::BeginOverlay("WarningOverlay", platform::OverlayPos::kBottom,
+                               workspace_rect, target_width, 0.8f)) {
+      const bool is_dark = ImGui::GetStyle().Colors[ImGuiCol_WindowBg].x < 0.5f;
+      if (!model_holder_->warning().empty()) {
+        const ImVec4 warning_color = is_dark ? ImVec4(1.0f, 0.8f, 0.2f, 1.0f)
+                                             : ImVec4(0.7f, 0.45f, 0.0f, 1.0f);
+        ImGui::TextColored(warning_color, "Warning:");
+      } else {
+        const ImVec4 error_color = is_dark ? ImVec4(1.0f, 0.4f, 0.4f, 1.0f)
+                                           : ImVec4(0.8f, 0.1f, 0.1f, 1.0f);
+        ImGui::TextColored(error_color, "Compiler Error:");
+      }
+      ImGui::Separator();
+      if (max_line_width + padding > max_workspace_width) {
+        ImGui::PushTextWrapPos(max_workspace_width - padding);
+        ImGui::TextUnformatted(load_error_.c_str());
+        ImGui::PopTextWrapPos();
+      } else {
+        ImGui::TextUnformatted(load_error_.c_str());
+      }
+    }
+    platform::EndOverlay();
+  }
+
+  if (tmp_.info) {
+    const float scale = ImGui::GetWindowDpiScale();
+    if (platform::BeginOverlay("Info", platform::OverlayPos::kBottomLeft,
+                               workspace_rect, 180.0f * scale)) {
       const float fps = renderer_->GetFps();
-      platform::StatsGui(
+      platform::InfoGui(
           model(), data(),
           step_control_.GetPauseState() == PauseState::kNormalPaused, fps);
     }
-    ImGui::End();
+    platform::EndOverlay();
+  }
+
+  // pause overlay
+  if (tmp_.info && has_model() &&
+      step_control_.GetPauseState() == PauseState::kNormalPaused) {
+    platform::TextOverlay("Pause", platform::OverlayPos::kTop, workspace_rect,
+                          "PAUSE", ImVec4(0, 0, 0, 0), 3.0f);
+  }
+
+  // realtime factor overlay
+  if (has_model() && step_control_.GetPauseState() == PauseState::kUnpaused) {
+    const float desired = step_control_.GetSpeed();
+    const float measured = step_control_.GetSpeedMeasured();
+    if (desired != 100.0f || mju_abs(measured - desired) > 0.1f * desired) {
+      char rtlabel[30];
+      bool misaligned = mju_abs(measured - desired) > 0.1f * desired;
+      if (misaligned) {
+        std::snprintf(rtlabel, sizeof(rtlabel), "%g%% (%-4.1f%%)", desired,
+                      measured);
+      } else {
+        std::snprintf(rtlabel, sizeof(rtlabel), "%g%%", desired);
+      }
+      platform::TextOverlay("Realtime", platform::OverlayPos::kTopLeft,
+                            workspace_rect, rtlabel, ImVec4(0, 0, 0, 0), 2.0f);
+    }
   }
 
   // Display a drag-and-drop message if no model is loaded.
@@ -1022,22 +1195,593 @@ void App::BuildGui() {
   }
 }
 
+static std::string FormatTimelineTime(double time_in_s) {
+  if (time_in_s < 0.0) time_in_s = 0.0;
+  char buf[64];
+  if (time_in_s == 0.0) {
+    return "0.00s";
+  } else if (time_in_s < 1e-3) {
+    // Microseconds range.
+    const double t_us = time_in_s * 1e6;
+    if (t_us >= 100.0) {
+      std::snprintf(buf, sizeof(buf), "%.0f\xC2\xB5s", t_us);
+    } else if (t_us >= 10.0) {
+      std::snprintf(buf, sizeof(buf), "%.1f\xC2\xB5s", t_us);
+    } else {
+      std::snprintf(buf, sizeof(buf), "%.2f\xC2\xB5s", t_us);
+    }
+  } else if (time_in_s < 1.0) {
+    // Milliseconds range.
+    const double t_ms = time_in_s * 1e3;
+    if (t_ms >= 100.0) {
+      std::snprintf(buf, sizeof(buf), "%.0fms", t_ms);
+    } else if (t_ms >= 10.0) {
+      std::snprintf(buf, sizeof(buf), "%.1fms", t_ms);
+    } else {
+      std::snprintf(buf, sizeof(buf), "%.2fms", t_ms);
+    }
+  } else {
+    // Seconds range.
+    if (time_in_s >= 100.0) {
+      std::snprintf(buf, sizeof(buf), "%.0fs", time_in_s);
+    } else if (time_in_s >= 10.0) {
+      std::snprintf(buf, sizeof(buf), "%.1fs", time_in_s);
+    } else {
+      std::snprintf(buf, sizeof(buf), "%.2fs", time_in_s);
+    }
+  }
+  return buf;
+}
+
+void App::TimelineScrubberGui() {
+  // Timeline scrubber: spine + sliding knob widget.
+  const double max_time = tmp_.sim_head_time_;
+  const int hist_size = sim_history_.Size();
+  const int hist_min = 1 - hist_size;  // most negative index (oldest)
+  const int hist_max = 0;              // index 0 = most recent
+  int current_index = sim_history_.GetIndex();
+  const bool locked = (hist_size <= 1);
+
+  // Compute current timestamp for LH label.
+  double curr_time =
+      (has_data() && current_index == sim_history_.GetIndex())
+          ? data()->time
+          : (max_time +
+             current_index *
+                 (has_model() ? model()->opt.timestep : 0.002));
+  if (curr_time < 0.0) curr_time = 0.0;
+
+  const int curr_step = (has_model() && model()->opt.timestep > 0)
+                            ? static_cast<int>(std::round(
+                                  curr_time / model()->opt.timestep))
+                            : 0;
+  const int max_step =
+      (has_model() && model()->opt.timestep > 0)
+          ? static_cast<int>(std::round(max_time / model()->opt.timestep))
+          : 0;
+
+  // Both LH and RH labels aim to be at 3 digits, switching units
+  // independently.
+  std::string lh_top_str = FormatTimelineTime(curr_time);
+  std::string rh_top_str = FormatTimelineTime(max_time);
+  std::string lh_bot_str = "(" + std::to_string(curr_step) + ")";
+  std::string rh_bot_str = "(" + std::to_string(max_step) + ")";
+  const char* lh_top_label = lh_top_str.c_str();
+  const char* rh_top_label = rh_top_str.c_str();
+  const char* lh_bot_label = lh_bot_str.c_str();
+  const char* rh_bot_label = rh_bot_str.c_str();
+
+  // Use slightly smaller text for timeline labels (e.g. 90% scale).
+  ImGui::SetWindowFontScale(0.9f);
+
+  const ImVec2 cursor = ImGui::GetCursorScreenPos();
+  const float spacing = ImGui::GetStyle().ItemSpacing.x;
+  const float base_label_w =
+      std::max(ImGui::CalcTextSize("88.8 ms").x,
+               ImGui::CalcTextSize("88.8 \xC2\xB5s").x);
+  const float curr_lh_w =
+      std::max({base_label_w, ImGui::CalcTextSize(lh_top_label).x,
+                ImGui::CalcTextSize(lh_bot_label).x});
+  if (curr_lh_w > tmp_.timeline_lh_width) {
+    tmp_.timeline_lh_width = curr_lh_w;
+  }
+  const float curr_rh_w =
+      std::max({base_label_w, ImGui::CalcTextSize(rh_top_label).x,
+                ImGui::CalcTextSize(rh_bot_label).x});
+  if (curr_rh_w > tmp_.timeline_rh_width) {
+    tmp_.timeline_rh_width = curr_rh_w;
+  }
+  const float lh_box_w = tmp_.timeline_lh_width;
+  const float rh_box_w = tmp_.timeline_rh_width;
+  const float track_w =
+      std::max(10.0f, ImGui::GetContentRegionAvail().x - lh_box_w -
+                          rh_box_w - spacing * 2.0f);
+
+  const float spine_h = 3.0f;
+  const float knob_w = 12.0f;
+  const float knob_h = 27.0f;  // 1.5x taller than 18.0f
+  const float text_line_h = ImGui::GetTextLineHeight();
+  const float custom_line_spacing =
+      1.0f;  // Decreased spacing between the two lines
+  const float text_2lines_h = text_line_h * 2.0f + custom_line_spacing;
+  const float total_h = std::max(knob_h, text_2lines_h);
+
+  // Vertical center of the track row.
+  const float row_center_y = cursor.y + total_h * 0.5f;
+  const float track_x0 = cursor.x + lh_box_w + spacing;
+  const float spine_y0 = row_center_y - spine_h * 0.5f;
+  const float spine_y1 = row_center_y + spine_h * 0.5f;
+  const float spine_x0 = track_x0;
+  const float spine_x1 = track_x0 + track_w;
+
+  // Compute knob position [0,1] along the spine.
+  float t = 1.0f;  // Default: pinned to right end.
+  if (!locked) {
+    t = static_cast<float>(current_index - hist_min) /
+        static_cast<float>(hist_max - hist_min);
+  }
+  const float knob_cx = spine_x0 + t * (track_w - knob_w) + knob_w * 0.5f;
+
+  // Invisible interaction button over the full track area.
+  ImGui::SetCursorScreenPos(
+      ImVec2(track_x0, row_center_y - total_h * 0.5f));
+  ImGui::InvisibleButton("##Scrubber", ImVec2(track_w, total_h));
+  const bool hovered = ImGui::IsItemHovered();
+  const bool active = ImGui::IsItemActive();
+
+  // Handle dragging.
+  if (!locked && (active || (hovered && ImGui::IsMouseDown(
+                                            ImGuiMouseButton_Left)))) {
+    const float mouse_x = ImGui::GetIO().MousePos.x;
+    if (!tmp_.scrubber_active) {
+      tmp_.scrubber_active = true;
+      if (std::abs(mouse_x - knob_cx) <= knob_w) {
+        tmp_.scrubber_grab_offset = mouse_x - knob_cx;
+      } else {
+        tmp_.scrubber_grab_offset = 0.0f;
+      }
+    }
+
+    const float effective_mouse_x = mouse_x - tmp_.scrubber_grab_offset;
+    const float raw_t = (effective_mouse_x - spine_x0 - knob_w * 0.5f) /
+                        std::max(1.0f, track_w - knob_w);
+    const float clamped_t = std::clamp(raw_t, 0.0f, 1.0f);
+
+    int new_index = current_index;
+    const float snap_eps = std::max(
+        0.02f, std::min(0.05f, 8.0f / std::max(1.0f, track_w - knob_w)));
+    if (clamped_t <= snap_eps ||
+        effective_mouse_x <= spine_x0 + knob_w * 0.5f + 6.0f) {
+      new_index = hist_min;
+    } else if (clamped_t >= 1.0f - snap_eps ||
+               effective_mouse_x >= spine_x1 - knob_w * 0.5f - 6.0f) {
+      new_index = hist_max;
+    } else {
+      const float inner_t =
+          (clamped_t - snap_eps) / (1.0f - 2.0f * snap_eps);
+      new_index =
+          hist_min +
+          static_cast<int>(std::round(inner_t * (hist_max - hist_min)));
+    }
+
+    if (new_index != current_index) {
+      LoadHistory(new_index);
+      current_index = new_index;
+      t = static_cast<float>(current_index - hist_min) /
+          static_cast<float>(hist_max - hist_min);
+      if (has_data() && current_index == sim_history_.GetIndex()) {
+        curr_time = data()->time;
+        if (curr_time < 0.0) curr_time = 0.0;
+        lh_top_str = FormatTimelineTime(curr_time);
+        lh_top_label = lh_top_str.c_str();
+        const int updated_curr_step =
+            (has_model() && model()->opt.timestep > 0)
+                ? static_cast<int>(
+                      std::round(curr_time / model()->opt.timestep))
+                : 0;
+        lh_bot_str = "(" + std::to_string(updated_curr_step) + ")";
+        lh_bot_label = lh_bot_str.c_str();
+        const float updated_lh_w =
+            std::max({base_label_w, ImGui::CalcTextSize(lh_top_label).x,
+                      ImGui::CalcTextSize(lh_bot_label).x});
+        if (updated_lh_w > tmp_.timeline_lh_width) {
+          tmp_.timeline_lh_width = updated_lh_w;
+        }
+      }
+    }
+  } else {
+    tmp_.scrubber_active = false;
+  }
+
+  // Draw LH labels (two lines, both right-aligned).
+  const float text_y0 = row_center_y - text_2lines_h * 0.5f;
+  const float text_y1 = text_y0 + text_line_h + custom_line_spacing;
+
+  const float lh_top_x =
+      cursor.x + lh_box_w - ImGui::CalcTextSize(lh_top_label).x;
+  ImGui::SetCursorScreenPos(ImVec2(lh_top_x, text_y0));
+  ImGui::TextUnformatted(lh_top_label);
+
+  const float lh_bot_x =
+      cursor.x + lh_box_w - ImGui::CalcTextSize(lh_bot_label).x;
+  ImGui::SetCursorScreenPos(ImVec2(lh_bot_x, text_y1));
+  ImGui::TextUnformatted(lh_bot_label);
+
+  // Draw RH labels (two lines, both left-aligned).
+  const float rh_x0 = track_x0 + track_w + spacing;
+  ImGui::SetCursorScreenPos(ImVec2(rh_x0, text_y0));
+  ImGui::TextUnformatted(rh_top_label);
+
+  ImGui::SetCursorScreenPos(ImVec2(rh_x0, text_y1));
+  ImGui::TextUnformatted(rh_bot_label);
+
+  // Restore window font scale.
+  ImGui::SetWindowFontScale(1.0f);
+
+  // Draw spine and knob on the draw list.
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  const ImGuiStyle& style = ImGui::GetStyle();
+
+  // Spine.
+  const ImVec4 scrollbar_bg =
+      ImGui::GetStyle().Colors[ImGuiCol_ScrollbarBg];
+  ImGuiCol bg_col_idx;
+  if (active) {
+    bg_col_idx = ImGuiCol_FrameBgActive;
+  } else if (hovered) {
+    bg_col_idx = ImGuiCol_FrameBgHovered;
+  } else {
+    bg_col_idx = (scrollbar_bg.w > 0.01f) ? ImGuiCol_ScrollbarBg
+                                          : ImGuiCol_FrameBg;
+  }
+  const ImU32 spine_col = ImGui::GetColorU32(bg_col_idx);
+  dl->AddRectFilled(ImVec2(spine_x0, spine_y0),
+                    ImVec2(spine_x1, spine_y1), spine_col,
+                    spine_h * 0.5f);
+
+  // Knob rectangle.
+  const float knob_x0 = knob_cx - knob_w * 0.5f;
+  const float knob_x1 = knob_cx + knob_w * 0.5f;
+  const float knob_y0 = row_center_y - knob_h * 0.5f;
+  const float knob_y1 = row_center_y + knob_h * 0.5f;
+
+  ImU32 knob_col;
+  if (active) {
+    knob_col = ImGui::GetColorU32(ImGuiCol_SliderGrabActive);
+  } else if (hovered) {
+    knob_col = ImGui::GetColorU32(ImGuiCol_SliderGrab);
+  } else {
+    knob_col = ImGui::GetColorU32(ImGuiCol_SliderGrab);
+  }
+  dl->AddRectFilled(ImVec2(knob_x0, knob_y0), ImVec2(knob_x1, knob_y1),
+                    knob_col, style.GrabRounding);
+  // Knob border.
+  dl->AddRect(ImVec2(knob_x0, knob_y0), ImVec2(knob_x1, knob_y1),
+              ImGui::GetColorU32(ImGuiCol_Border), style.GrabRounding);
+
+  // Advance layout cursor past this row.
+  ImGui::SetCursorScreenPos(ImVec2(cursor.x, cursor.y + total_h));
+}
+
 void App::ModelOptionsGui() {
-  const float min_width = GetExpectedLabelWidth();
+  const float min_width = platform::GetExpectedLabelWidth();
   const ImGuiChildFlags child_flags =
       ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize;
   const ImGuiTreeNodeFlags node_flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
+  ImGui::BeginChild("SimulationGui", {0, 0}, child_flags);
+  if (platform::SectionHeader(
+          "Simulation", node_flags | ImGuiTreeNodeFlags_DefaultOpen, 0.65f)) {
+    ImGui::PushID("SimSection");
+
+    const float slider_w = -ImGui::CalcTextSize(" Keyframe").x -
+                           ImGui::GetStyle().ItemInnerSpacing.x;
+
+    bool is_dark = ImGui::GetStyle().Colors[ImGuiCol_WindowBg].x < 0.5f;
+    const ImColor green =
+        is_dark ? ImColor(40, 125, 60, 255) : ImColor(40, 180, 40, 255);
+    const ImColor yellow =
+        is_dark ? ImColor(158, 115, 18, 255) : ImColor(255, 215, 0, 255);
+
+    // Reset / Reload / Align buttons.
+    {
+      char reset_label[32];
+      std::snprintf(reset_label, sizeof(reset_label), "%s  Reset",
+                    platform::ICON_FA_UNDO);
+      char reload_label[32];
+      std::snprintf(reload_label, sizeof(reload_label), "%s  Reload",
+                    platform::ICON_FA_REFRESH);
+      char align_label[32];
+      std::snprintf(align_label, sizeof(align_label), "%s  Align",
+                    platform::ICON_FA_CROSSHAIRS);
+
+      const float avail = ImGui::GetContentRegionAvail().x;
+      const float spacing = ImGui::GetStyle().ItemSpacing.x;
+      const float btn_w = (avail - spacing * 2) / 3.0f;
+
+      if (ImGui::Button(reset_label, ImVec2(btn_w, 0))) {
+        ResetPhysics();
+      }
+      ImGui::SameLine();
+      if (ImGui::Button(reload_label, ImVec2(btn_w, 0))) {
+        RequestModelReload();
+      }
+      ImGui::SameLine();
+      if (ImGui::Button(align_label, ImVec2(btn_w, 0))) {
+        const int cam_id = model()->vis.global.cameraid;
+        if (cam_id >= 0 && cam_id < model()->ncam) {
+          ui_.camera_idx = platform::SetCamera(model(), &camera_, cam_id);
+        } else {
+          mjv_defaultFreeCamera(model(), &camera_);
+        }
+      }
+    }
+
+    // Pause / Run toggle.
+    {
+      ImGui::Spacing();
+      char pause_label[32];
+      std::snprintf(pause_label, sizeof(pause_label), "%s  Pause",
+                    platform::ICON_FA_PAUSE);
+      char run_label[32];
+      std::snprintf(run_label, sizeof(run_label), "%s  Run",
+                    platform::ICON_FA_PLAY);
+
+      bool paused = step_control_.GetPauseState() != PauseState::kUnpaused;
+      bool running = step_control_.GetPauseState() == PauseState::kUnpaused;
+
+      const float avail = ImGui::GetContentRegionAvail().x;
+      const float half = avail * 0.5f;
+      const float h = ImGui::GetFrameHeight() * 1.4f;
+
+      ImGui::SetWindowFontScale(1.3f);
+      if (platform::ImGui_ColorButtonEx(pause_label, paused, yellow,
+                                        ImDrawFlags_RoundCornersLeft,
+                                        ImVec2(half, h))) {
+        step_control_.SetPauseState(PauseState::kNormalPaused);
+      }
+      ImGui::SameLine(0.f, 0.f);
+      if (platform::ImGui_ColorButtonEx(run_label, running, green,
+                                        ImDrawFlags_RoundCornersRight,
+                                        ImVec2(half, h))) {
+        step_control_.SetPauseState(PauseState::kUnpaused);
+      }
+      ImGui::SetWindowFontScale(1.0f);
+    }
+
+    // Speed slider.
+    {
+      const int max_idx = platform::kPercentRealTime.size() - 1;
+      int slider_val = max_idx - tmp_.speed_index;
+      float speed_pct = std::stof(platform::kPercentRealTime[tmp_.speed_index]);
+
+      char fmt[64];
+      const float desired = step_control_.GetSpeed();
+      const float measured = step_control_.GetSpeedMeasured();
+      bool misaligned = std::abs(measured - desired) > 0.1f * desired;
+      if (misaligned) {
+        std::snprintf(fmt, sizeof(fmt), "%.1f%%%% (%.1f%%%%)", speed_pct,
+                      measured);
+      } else {
+        std::snprintf(fmt, sizeof(fmt), "%.1f%%%%", speed_pct);
+      }
+
+      ImGui::SetNextItemWidth(slider_w);
+      if (ImGui::SliderInt("Speed", &slider_val, 0, max_idx, fmt)) {
+        SetSpeedIndex(max_idx - slider_val);
+      }
+      if (misaligned) {
+        ImGui::SetItemTooltip("%s", "Desired Speed (Measured Speed)");
+      } else {
+        ImGui::SetItemTooltip("%s", "Percent of real-time");
+      }
+    }
+
+    // History controls (Frame Scrubber).
+    {
+      ImGui::Spacing();
+      ImGui::Separator();
+      ImGui::Spacing();
+      char prev_label[32];
+      std::snprintf(prev_label, sizeof(prev_label), "%s Step Back",
+                    ICON_PREV_FRAME);
+      char next_label[32];
+      std::snprintf(next_label, sizeof(next_label), "%s Step Fwd",
+                    ICON_NEXT_FRAME);
+
+      const float avail = ImGui::GetContentRegionAvail().x;
+      const float spacing = ImGui::GetStyle().ItemSpacing.x;
+      const float btn_w = (avail - spacing) / 2.0f;
+
+      if (ImGui::Button(prev_label, ImVec2(btn_w, 0))) {
+        LoadHistory(sim_history_.GetIndex() - 1);
+      }
+      ImGui::SetItemTooltip("%s", "Load previous frame from history");
+      ImGui::SameLine();
+      if (ImGui::Button(next_label, ImVec2(btn_w, 0))) {
+        if (sim_history_.GetIndex() == 0) {
+          step_control_.RequestSingleStep();
+        } else {
+          LoadHistory(sim_history_.GetIndex() + 1);
+        }
+      }
+      ImGui::SetItemTooltip("%s", "Load next frame from history / Single step");
+
+      // Timeline scrubber.
+      TimelineScrubberGui();
+    }
+
+    // Keyframe controls.
+    if (model()->nkey > 0) {
+      ImGui::Spacing();
+      ImGui::Separator();
+      ImGui::Spacing();
+      {
+        char key_fmt[128];
+        const char* key_name =
+            model()->names + model()->name_keyadr[ui_.key_idx];
+        if (key_name[0] != '\0') {
+          std::snprintf(key_fmt, sizeof(key_fmt), "%s", key_name);
+        } else {
+          std::snprintf(key_fmt, sizeof(key_fmt), "Key %d", ui_.key_idx);
+        }
+        ImGui::SetNextItemWidth(slider_w);
+        ImGui::SliderInt("Keyframe", &ui_.key_idx, 0, model()->nkey - 1,
+                         key_fmt);
+      }
+
+      // Keyframe buttons.
+      {
+        char load_label[32];
+        std::snprintf(load_label, sizeof(load_label), "%s Load key",
+                      platform::ICON_FA_DOWNLOAD);
+        char save_label[32];
+        std::snprintf(save_label, sizeof(save_label), "%s Save key",
+                      platform::ICON_FA_UPLOAD);
+        char copy_label[32];
+        std::snprintf(copy_label, sizeof(copy_label), "%s Copy key",
+                      platform::ICON_FA_COPY);
+
+        const float avail = ImGui::GetContentRegionAvail().x;
+        const float spacing = ImGui::GetStyle().ItemSpacing.x;
+        const float btn_w = (avail - spacing * 2) / 3.0f;
+
+        if (ImGui::Button(load_label, ImVec2(btn_w, 0))) {
+          mj_resetDataKeyframe(model(), data(), ui_.key_idx);
+          mj_forward(model(), data());
+        }
+        ImGui::SetItemTooltip("%s", "Load selected keyframe to active state");
+        ImGui::SameLine();
+        if (ImGui::Button(save_label, ImVec2(btn_w, 0))) {
+          mj_setKeyframe(model(), data(), ui_.key_idx);
+        }
+        ImGui::SetItemTooltip("%s", "Save active state to selected keyframe");
+        ImGui::SameLine();
+        if (ImGui::Button(copy_label, ImVec2(btn_w, 0))) {
+          std::string str = platform::KeyframeToString(model(), data(), false);
+          platform::MaybeSaveToClipboard(str);
+        }
+        ImGui::SetItemTooltip(
+            "%s", "Copy selected keyframe to clipboard as MJCF XML");
+      }
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // Thread control.
+    ImGui::SetNextItemWidth(slider_w);
+    ImGui::BeginDisabled(std::thread::hardware_concurrency() <= 1);
+    if (ImGui::SliderInt("Threads", &ui_.nthread, 0, 8, "%d worker threads")) {
+      tmp_.update_threadpool = true;
+    }
+    ImGui::EndDisabled();
+    ImGui::SetItemTooltip("%s", "Number of worker threads in threadpool");
+    ImGui::Spacing();
+
+    ImGui::PopID();
+    ImGui::TreePop();
+  }
+  ImGui::EndChild();
+
   ImGui::BeginChild("PhysicsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Physics", node_flags)) {
+  if (platform::SectionHeader("Physics", node_flags, 0.65f)) {
     platform::PhysicsGui(model(), min_width);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("RenderingGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Rendering", node_flags)) {
+  if (platform::SectionHeader("Rendering", node_flags, 0.65f)) {
+    ImGui::PushID("RenderingSection");
+
+    // Compute combo width so labels align on the right.
+    char frame_label_tmp[32];
+    std::snprintf(frame_label_tmp, sizeof(frame_label_tmp), " %s  Camera",
+                  platform::ICON_FA_CAMERA);
+    const float combo_w = -ImGui::CalcTextSize(frame_label_tmp).x -
+                          ImGui::GetStyle().ItemInnerSpacing.x;
+
+    // Camera selector.
+    {
+      std::string cam_name =
+          platform::GetCameraName(model(), camera_, ui_.camera_idx);
+
+      char camera_text[32];
+      std::snprintf(camera_text, sizeof(camera_text), "%s  Camera",
+                    platform::ICON_FA_CAMERA);
+
+      ImGui::SetNextItemWidth(combo_w);
+      if (ImGui::BeginCombo(camera_text, cam_name.c_str())) {
+        auto select = [&](int idx) {
+          std::string name = platform::GetCameraName(model(), camera_, idx);
+          if (ImGui::Selectable(name.c_str(), (ui_.camera_idx == idx))) {
+            ui_.camera_idx = platform::SetCamera(model(), &camera_, idx);
+          }
+        };
+        select(platform::kTumbleCameraIdx);
+        select(platform::kFreeCameraIdx);
+        select(platform::kTrackingCameraIdx);
+        for (int c = 0; c < model()->ncam; c++) {
+          select(c);
+        }
+        ImGui::EndCombo();
+      }
+    }
+
+    // Label selector.
+    {
+      char label_text[32];
+      std::snprintf(label_text, sizeof(label_text), "%s  Label",
+                    platform::ICON_FA_COMMENT);
+      ImGui::SetNextItemWidth(combo_w);
+      if (ImGui::BeginCombo(label_text, mjLABELSTRING[vis_options_.label])) {
+        for (int n = 0; n < mjNLABEL; n++) {
+          if (ImGui::Selectable(mjLABELSTRING[n], (vis_options_.label == n))) {
+            vis_options_.label = n;
+          }
+        }
+        ImGui::EndCombo();
+      }
+    }
+
+    // Frame selector.
+    {
+      char frame_text[32];
+      std::snprintf(frame_text, sizeof(frame_text), "%s  Frame",
+                    platform::ICON_FA_ARROWS);
+      ImGui::SetNextItemWidth(combo_w);
+      if (ImGui::BeginCombo(frame_text, mjFRAMESTRING[vis_options_.frame])) {
+        for (int n = 0; n < mjNFRAME; n++) {
+          if (ImGui::Selectable(mjFRAMESTRING[n], (vis_options_.frame == n))) {
+            vis_options_.frame = n;
+          }
+        }
+        ImGui::EndCombo();
+      }
+    }
+
+    // Copy camera button.
+    {
+      char copy_cam_label[48];
+      std::snprintf(copy_cam_label, sizeof(copy_cam_label), "%s  Copy Camera",
+                    platform::ICON_FA_COPY);
+      if (ImGui::Button(copy_cam_label)) {
+        std::string camera_string = platform::CameraToString(data(), &camera_);
+        platform::MaybeSaveToClipboard(camera_string);
+      }
+      ImGui::SetItemTooltip(
+          "%s", "Copy the current camera pose as an MJCF XML string");
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    ImGui::PopID();
+
     platform::RenderingGui(model(), &vis_options_, renderer_->GetRenderFlags(),
                            min_width);
     ImGui::TreePop();
@@ -1045,14 +1789,14 @@ void App::ModelOptionsGui() {
   ImGui::EndChild();
 
   ImGui::BeginChild("GroupsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Visibility Groups", node_flags)) {
+  if (platform::SectionHeader("Visibility Groups", node_flags, 0.65f)) {
     platform::GroupsGui(model(), &vis_options_, min_width);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("VisualizationGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Visualization", node_flags)) {
+  if (platform::SectionHeader("Visualization", node_flags, 0.65f)) {
     platform::VisualizationGui(model(), &vis_options_, &camera_, min_width);
     ImGui::TreePop();
   }
@@ -1065,46 +1809,38 @@ void App::DataInspectorGui() {
     return;
   }
 
-  const float min_width = GetExpectedLabelWidth();
+  const float min_width = platform::GetExpectedLabelWidth();
   const ImGuiChildFlags child_flags =
       ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize;
   const ImGuiTreeNodeFlags node_flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
-  ImGui::BeginChild("NoiseGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Noise", node_flags)) {
-    float noise_scale = 0;
-    float noise_rate = 0;
-    step_control_.GetNoiseParameters(noise_scale, noise_rate);
-    platform::NoiseGui(model(), data(), noise_scale, noise_rate);
-    step_control_.SetNoiseParameters(noise_scale, noise_rate);
-    ImGui::TreePop();
-  }
-  ImGui::EndChild();
-
   ImGui::BeginChild("JointsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Joints", node_flags)) {
+  if (platform::SectionHeader("Joints", node_flags, 0.65f)) {
     platform::JointsGui(model(), data(), &vis_options_);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("ControlsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Controls", node_flags)) {
+  if (platform::SectionHeader("Controls", node_flags, 0.65f)) {
+    platform::NoiseGui(&step_control_);
+    ImGui::Separator();
+
     platform::ControlsGui(model(), data(), &vis_options_);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("SensorGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Sensor", node_flags)) {
+  if (platform::SectionHeader("Sensor", node_flags, 0.65f)) {
     platform::SensorGui(model(), data());
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("WatchGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Watch", node_flags)) {
+  if (platform::SectionHeader("Watch", node_flags, 0.65f)) {
     platform::WatchGui(model(), data(), ui_.watch_field,
                        sizeof(ui_.watch_field), ui_.watch_index);
     ImGui::TreePop();
@@ -1112,7 +1848,7 @@ void App::DataInspectorGui() {
   ImGui::EndChild();
 
   ImGui::BeginChild("StateGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("State", node_flags)) {
+  if (platform::SectionHeader("State", node_flags, 0.65f)) {
     platform::StateGui(model(), data(), tmp_.state, tmp_.state_sig, min_width);
     ImGui::TreePop();
   }
@@ -1216,7 +1952,10 @@ void App::SpecEditorGui() {
       ImGui::EndDisabled();
 
       ImGui::TableNextColumn();
-      ImGui::PushStyleColor(ImGuiCol_Button, ImColor(40, 180, 40, 255).Value);
+      bool is_dark = ImGui::GetStyle().Colors[ImGuiCol_WindowBg].x < 0.5f;
+      ImColor compile_green =
+          is_dark ? ImColor(40, 125, 60, 255) : ImColor(40, 180, 40, 255);
+      ImGui::PushStyleColor(ImGuiCol_Button, compile_green.Value);
       if (ImGui::Button("Compile and Reload", ImVec2(-1, 0))) {
         pending_op_ = [this]() {
           auto tmp_holder = spec_editor_.Compile();
@@ -1314,11 +2053,10 @@ void App::HelpGui() {
   ImGui::SetColumnWidth(3, col3);
 
   ImGui::Text("Help");
-  ImGui::Text("Stats");
+  ImGui::Text("Info");
+  ImGui::Text("Profiler");
   ImGui::Text("Cycle Frames");
   ImGui::Text("Cycle Labels");
-  ImGui::Text("Solver Charts");
-  ImGui::Text("Perf. Charts");
   ImGui::Text("Toggle Fullscreen");
   ImGui::Text("Free Camera");
   ImGui::Text("Toggle Pause");
@@ -1342,10 +2080,9 @@ void App::HelpGui() {
   ImGui::Indent(indent);
   ImGui::Text("F1");
   ImGui::Text("F2");
+  ImGui::Text("F3");
   ImGui::Text("F6");
   ImGui::Text("F7");
-  ImGui::Text("F9");
-  ImGui::Text("F10");
   ImGui::Text("F11");
   ImGui::Text("Esc");
   ImGui::Text("Spc");
@@ -1430,23 +2167,19 @@ void App::ToolBarGui() {
               ImVec2(ImGui::GetStyle().ItemSpacing.x * 2.0f,
                      ImGui::GetStyle().ItemSpacing.y));
 
-    const float label_width = GetExpectedLabelWidth();
-    const float copy_btn_width = ImGui::CalcTextSize(ICON_COPY_CAMERA).x +
-                                 ImGui::GetStyle().FramePadding.x * 2;
-    const float theme_width =
-        ImGui::CalcTextSize(platform::ICON_FA_CIRCLE_O).x +
-        ImGui::GetStyle().FramePadding.x * 2;
+    const float label_width = platform::GetExpectedLabelWidth();
+    const float copy_btn_width = ImGui::GetFrameHeight();
     const float sp = ImGui::GetStyle().ItemSpacing.x;
-    const float right_width = label_width + sp + label_width + sp +
-                              label_width + sp + copy_btn_width + sp +
-                              theme_width;
+    const float right_width =
+        copy_btn_width + label_width + sp + label_width + sp + label_width;
     const float separator_width = ImGui::GetFrameHeight() * .6f;
 
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, right_width);
 
     ImGui::TableNextColumn();
-    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetStyle().WindowPadding.x);
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
+                         ImGui::GetStyle().WindowPadding.x);
 
     const float btn_size = ImGui::GetFrameHeight();
     const ImVec2 square_size(btn_size, btn_size);
@@ -1469,34 +2202,20 @@ void App::ToolBarGui() {
 
     // Combined (Normal Pause, Viscous Pause, Play) widget and Speed selection.
     ImGui::SameLine(0, separator_width);
-    platform::StepControlGui(model(), &step_control_, tmp_.speed_index);
+    platform::StepControlGui(&step_control_, tmp_.speed_index);
+
+    ImGui::SameLine(0, separator_width);
+    TimelineScrubberGui();
 
     ImGui::TableNextColumn();
 
-    if (ImGui::Button(ICON_COPY_CAMERA, square_size)) {
-      std::string camera_string = platform::CameraToString(data(), &camera_);
-      platform::MaybeSaveToClipboard(camera_string);
-    }
-    ImGui::SetItemTooltip("%s", "Copy Camera");
-
-    ImGui::SameLine(0, 0);
-    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
     platform::CameraSelectionGui(model(), data(), camera_, ui_.camera_idx);
 
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
     platform::LabelSelectionGui(&vis_options_);
 
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
     platform::FrameSelectionGui(&vis_options_);
-
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
-    if (platform::ThemeSelectGui(&ui_.theme, square_size)) {
-      platform::SetupTheme(ui_.theme);
-      ImGui::GetIO().WantSaveIniSettings = true;
-    }
 
     ImGui::EndTable();
   }
@@ -1504,10 +2223,7 @@ void App::ToolBarGui() {
 }
 
 void App::StatusBarGui() {
-  if (ImGui::BeginTable("##StatusBarTable", 2)) {
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 520);
-
+  if (ImGui::BeginTable("##StatusBarTable", 1)) {
     ImGui::TableNextColumn();
 
     if (!has_model()) {
@@ -1524,59 +2240,19 @@ void App::StatusBarGui() {
     if (!step_error_.empty()) {
       ImGui::SameLine();
       ImGui::Text(" | Step Error: %s", step_error_.c_str());
-    } else if (!load_error_.empty()) {
-      ImGui::SameLine();
-      ImGui::Text(" | Load Error: %s", load_error_.c_str());
     } else if (!edit_error_.empty()) {
       ImGui::SameLine();
       ImGui::Text(" | Edit Error: %s", edit_error_.c_str());
     }
-
-    ImGui::TableNextColumn();
-    ImGui::Text("%s", " |");
-
-    // Frame scrubber.
-    platform::ScopedStyle style;
-
-    style.Var(ImGuiStyleVar_FrameBorderSize, 0);
-    style.Color(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_WindowBg]);
-    ImGui::SameLine();
-    if (ImGui::Button(ICON_PREV_FRAME)) {
-      LoadHistory(sim_history_.GetIndex() - 1);
-    }
-    ImGui::SetItemTooltip("%s", "Previous Frame");
-
-    style.Reset();
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(450);
-    int index = sim_history_.GetIndex();
-    if (ImGui::SliderInt("##ScrubIndex", &index, 1 - sim_history_.Size(), 0)) {
-      LoadHistory(index);
-    }
-
-    style.Var(ImGuiStyleVar_FrameBorderSize, 0);
-    style.Color(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_WindowBg]);
-    ImGui::SameLine();
-    if (ImGui::Button(ICON_NEXT_FRAME)) {
-      if (sim_history_.GetIndex() == 0) {
-        step_control_.RequestSingleStep();
-      } else {
-        LoadHistory(sim_history_.GetIndex() + 1);
-      }
-    }
-    ImGui::SetItemTooltip("%s", "Next Frame");
-
-    ImGui::SameLine();
-    if (ImGui::Button(ICON_CURR_FRAME)) {
-      LoadHistory(0);
-    }
-    ImGui::SetItemTooltip("%s", "Current Frame");
 
     ImGui::EndTable();
   }
 }
 
 void App::MainMenuGui() {
+  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
+                      ImVec2(12.0f * ImGui::GetStyle().FontScaleDpi,
+                             ImGui::GetStyle().ItemSpacing.y));
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("File")) {
 #ifndef __EMSCRIPTEN__
@@ -1669,8 +2345,36 @@ void App::MainMenuGui() {
               "Shift+Tab")) {
         tmp_.inspector_panel = !tmp_.inspector_panel;
       }
+      if (ImGui::MenuItem(tmp_.editor_panel ? "Hide Editor" : "Show Editor")) {
+        tmp_.editor_panel = !tmp_.editor_panel;
+        if (tmp_.editor_panel) {
+          tmp_.inspector_panel = true;
+        }
+      }
+      if (ImGui::MenuItem(tmp_.toolbar ? "Hide Toolbar" : "Show Toolbar")) {
+        tmp_.toolbar = !tmp_.toolbar;
+      }
+      if (ImGui::MenuItem(tmp_.status_bar ? "Hide Status Bar"
+                                          : "Show Status Bar")) {
+        tmp_.status_bar = !tmp_.status_bar;
+      }
       if (ImGui::MenuItem("Full Screen", "F11")) {
         tmp_.full_screen = !tmp_.full_screen;
+      }
+      ImGui::Separator();
+
+      if (ImGui::MenuItem("Info", "F2", tmp_.info)) {
+        ToggleWindow(tmp_.info);
+      }
+      if (ImGui::MenuItem("Profiler", "F3", tmp_.profiler)) {
+        if (!tmp_.profiler) {
+          tmp_.profiler = true;
+          tmp_.profiler_show_iter = false;
+        } else if (!tmp_.profiler_show_iter) {
+          tmp_.profiler_show_iter = true;
+        } else {
+          tmp_.profiler = false;
+        }
       }
       ImGui::Separator();
 
@@ -1678,6 +2382,28 @@ void App::MainMenuGui() {
         tmp_.picture_in_picture = !tmp_.picture_in_picture;
       }
       ImGui::Separator();
+
+      if (ImGui::BeginMenu("Theme")) {
+        if (ImGui::MenuItem("Light", nullptr,
+                            ui_.theme == platform::GuiTheme::kLight)) {
+          ui_.theme = platform::GuiTheme::kLight;
+          platform::SetupTheme(ui_.theme);
+          ImGui::GetIO().WantSaveIniSettings = true;
+        }
+        if (ImGui::MenuItem("Dark", nullptr,
+                            ui_.theme == platform::GuiTheme::kDark)) {
+          ui_.theme = platform::GuiTheme::kDark;
+          platform::SetupTheme(ui_.theme);
+          ImGui::GetIO().WantSaveIniSettings = true;
+        }
+        if (ImGui::MenuItem("Classic", nullptr,
+                            ui_.theme == platform::GuiTheme::kClassic)) {
+          ui_.theme = platform::GuiTheme::kClassic;
+          platform::SetupTheme(ui_.theme);
+          ImGui::GetIO().WantSaveIniSettings = true;
+        }
+        ImGui::EndMenu();
+      }
 
 #ifdef __linux__
       if (ImGui::BeginMenu("Graphics Mode (Experimental)")) {
@@ -1712,6 +2438,11 @@ void App::MainMenuGui() {
                 gfx_mode_ == platform::GraphicsMode::FilamentVulkan)) {
           mode = platform::GraphicsMode::FilamentVulkan;
         }
+        if (ImGui::MenuItem(
+                "Filament Vulkan Software", nullptr,
+                gfx_mode_ == platform::GraphicsMode::FilamentVulkanSoftware)) {
+          mode = platform::GraphicsMode::FilamentVulkanSoftware;
+        }
         if (mode.has_value()) {
           pending_op_ = [=, this]() {
             const int width = window_->GetWidth();
@@ -1731,15 +2462,6 @@ void App::MainMenuGui() {
       ImGui::EndMenu();
     }
 
-    if (ImGui::BeginMenu("Charts")) {
-      if (ImGui::MenuItem("Solver", "F9")) {
-        tmp_.chart_solver = !tmp_.chart_solver;
-      }
-      if (ImGui::MenuItem("Performance", "F10")) {
-        tmp_.chart_performance = !tmp_.chart_performance;
-      }
-      ImGui::EndMenu();
-    }
     if (ImGui::BeginMenu("Plugins")) {
       // Placeholder menu item that will be populated by plugins later on. We
       // do this now in so that the menu is present at the right place.
@@ -1748,9 +2470,6 @@ void App::MainMenuGui() {
     if (ImGui::BeginMenu("Help")) {
       if (ImGui::MenuItem("Help", "F1", tmp_.help)) {
         ToggleWindow(tmp_.help);
-      }
-      if (ImGui::MenuItem("Stats", "F2", tmp_.stats)) {
-        ToggleWindow(tmp_.stats);
       }
       ImGui::Separator();
       if (ImGui::MenuItem("Style Editor", "", tmp_.style_editor)) {
@@ -1770,6 +2489,7 @@ void App::MainMenuGui() {
     }
     ImGui::EndMainMenuBar();
   }
+  ImGui::PopStyleVar();
 }
 
 void App::FileDialogGui() {
@@ -1840,37 +2560,24 @@ void App::FileDialogGui() {
   }
 }
 
-float App::GetExpectedLabelWidth() {
-  // Find the longest label which we'll use to set the minimum toggle button
-  // width. This isn't perfect because we may have labels that are longer, but
-  // it's a good enough approximation.
-  if (tmp_.expected_label_width == 0) {
-    int longest = 0;
-    const char* longest_label = "";
-    for (int i = 0; i < mjNVISFLAG; ++i) {
-      int length = static_cast<int>(strlen(mjVISSTRING[i][0]));
-      if (length > longest) {
-        longest_label = mjVISSTRING[i][0];
-        longest = length;
-      }
-    }
-    // Pad the width a bit to account for how the labels will be displayed
-    // (e.g. as button labels or besides checkboxes).
-    tmp_.expected_label_width = ImGui::CalcTextSize(longest_label).x + 16;
-  }
-  return tmp_.expected_label_width;
-}
-
 App::UiState::Dict App::UiState::ToDict() const {
   return {
       {"theme", std::to_string(static_cast<int>(theme))},
       {"font_scale", std::to_string(font_scale)},
+      {"window_width", std::to_string(window_width)},
+      {"window_height", std::to_string(window_height)},
+      {"nthread", std::to_string(nthread)},
   };
 }
 
 void App::UiState::FromDict(const Dict& dict) {
+  using platform::ReadIniValue;
+
   *this = UiState();
   theme = ReadIniValue(dict, "theme", theme);
-  font_scale = platform::ReadIniValue(dict, "font_scale", font_scale);
+  window_width = ReadIniValue(dict, "window_width", window_width);
+  window_height = ReadIniValue(dict, "window_height", window_height);
+  font_scale = ReadIniValue(dict, "font_scale", font_scale);
+  nthread = ReadIniValue(dict, "nthread", nthread);
 }
 }  // namespace mujoco::studio

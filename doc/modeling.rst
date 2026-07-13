@@ -344,7 +344,7 @@ of the function :math:`d(r)` is determined by the element-specific parameter vec
 
    For equality constraints, :math:`r` is the constraint violation. For limits, normal directions of elliptic cones and
    all directions of pyramidal cones, :math:`r` is the (limit or contact) distance minus the margin at which the
-   constraint becomes active; for contacts this margin is :ref:`margin<body-geom-margin>`-:ref:`gap<body-geom-gap>`.
+   constraint becomes active; for contacts this margin is :ref:`margin<body-geom-margin>`.
    Limit and contact constraints are active when :math:`r < 0` (penetration).
 
    For frictional constraints, see :ref:`Friction<CSolverFriction>`.
@@ -516,6 +516,7 @@ are as follows:
 **margin**, **gap**
    The sum of the two geom margins (or gaps respectively) is used. The geom priority is ignored here, because the
    margin and gap are distance properties and a one-sided specification makes little sense.
+   See :ref:`margin and gap<coMarginGap>`.
 
 .. _solmixing:
 
@@ -1852,6 +1853,25 @@ in a visible way, and the energy fluctuates around the initial value instead of 
        <geom type="sphere" size="0.1" solref="-1000 0"/>
      </body>
    </worldbody>
+
+
+.. _CConstraintImpedance:
+
+Constraint accuracy
+~~~~~~~~~~~~~~~~~~~
+MuJoCo's :ref:`constraint impedance<soParameters>` computation relies on an approximate diagonal of the constraint-space
+inertia matrix, computed once at compile time from the initial configuration ``qpos0``.
+
+In the vast majority of models this approximation is entirely adequate. However, in certain situations—such as models
+with highly anisotropic inertias, complex kinematic chains, or bodies operating far from ``qpos0``—the approximation
+may become inaccurate. This can occasionally manifest as unexplained solver divergence (``badqacc`` warnings),
+excessive penetration, unrealistic slip, or poor solver convergence. A useful diagnostic is the
+:ref:`fwdinv<option-flag-fwdinv>` flag: if the forward-inverse discrepancy is large, inaccurate constraint scaling may
+be a contributing factor.
+
+If you suspect that the compile-time approximation is insufficient for your model, you can enable the
+:ref:`diagexact<option-flag-diagexact>` flag to compute the exact diagonal at runtime. See :ref:`Diagonal approximation
+<soExactDiag>` for details on the underlying mechanics and performance implications.
 
 
 .. |image3| image:: images/modeling/tendonwraps.png

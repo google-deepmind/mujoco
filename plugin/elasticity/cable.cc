@@ -18,7 +18,7 @@
 #include <optional>
 
 #include <mujoco/mjplugin.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 #include "cable.h"
 

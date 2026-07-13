@@ -16,7 +16,7 @@
 
 #include <algorithm>
 #include <array>
-#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <csetjmp>
 #include <cstdint>
@@ -41,7 +41,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjspec.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
 #include "engine/engine_core_util.h"
@@ -662,7 +662,6 @@ mjCModel& mjCModel::operator+=(mjCDef& subtree) {
 
 // remove default class from array
 mjCModel& mjCModel::operator-=(const mjCDef& subtree) {
-
   // check we aren't trying to remove the 'main' default
   if (subtree.id == 0) {
     throw mjCError(0, "cannot remove the global default ('main')");
@@ -922,7 +921,7 @@ void mjCModel::ComputeSparseSizes() {
 
   // 1. build dof_parentid, dof_bodyid
   if (nbody > 0) {
-    body_lastdof_map[0] = -1; // world has no parent dof
+    body_lastdof_map[0] = -1;  // world has no parent dof
   }
   for (int i = 0; i < nbody; ++i) {
     mjCBody* pb = bodies_[i];
@@ -961,7 +960,7 @@ void mjCModel::ComputeSparseSizes() {
   nD = 2 * nM - nv;
 
   // 4. compute subtreedofs and nB
-  for(int i = nbody - 1; i >= 0; --i) {
+  for (int i = nbody - 1; i >= 0; --i) {
     bodies_[i]->subtreedofs = bodies_[i]->dofnum;
     for (const auto* child : bodies_[i]->Bodies()) {
       bodies_[i]->subtreedofs += child->subtreedofs;
@@ -984,7 +983,7 @@ void mjCModel::ComputeSparseSizes() {
   }
 
   // 5. compute nC
-  for(int i = 0; i < nbody; ++i) {
+  for (int i = 0; i < nbody; ++i) {
     mjCBody* pb = bodies_[i];
     mjCBody* par = pb->parent;
     int parentid = par ? par->id : 0;
@@ -1003,6 +1002,11 @@ void mjCModel::ComputeSparseSizes() {
                            bodies_[parentid]->parent          &&
                            bodies_[parentid]->parent->id == 0 &&
                            bodies_[parentid]->dofnum == 0)));
+
+    // user override: disable simple optimization
+    if (!pb->simple) {
+      body_simple_pre[i] = 0;
+    }
   }
 
   // a parent body is never simple (unless world)
@@ -1240,6 +1244,7 @@ void mjCModel::Clear() {
   hasImplicitPluginElem = false;
   compiled = false;
   errInfo = mjCError();
+  ClearCompileWarnings();
   qpos0.clear();
 }
 
@@ -1509,7 +1514,37 @@ const mjCError& mjCModel::GetError() const {
   return errInfo;
 }
 
+// add warning to vector (immediate delivery outside compile)
+void mjCModel::AddWarning(std::string msg, const mjCBase* obj) {
+  if (obj) {
+    msg += "\nElement name '" + obj->name + "', id " + std::to_string(obj->id);
+    if (!obj->info.empty()) {
+      msg += ", " + obj->info;
+    }
+  }
 
+  // outside compile: deliver immediately via normal handler chain
+  if (!compiling_) {
+    mju_warning("%s", msg.c_str());
+  }
+  warnings_.push_back(std::move(msg));
+}
+
+// add grouped warning with subject/body split (immediate delivery outside
+// compile)
+void mjCModel::AddGroupedWarning(const std::string& subject,
+                                 const std::string& body) {
+  std::string full = body.empty() ? subject : subject + "\n" + body;
+  warnings_.push_back(full);
+
+  // outside compile: deliver immediately via structured log message
+  if (!compiling_) {
+    mjLogMessage m = {.level = mjLOG_WARNING};
+    snprintf(m.subject, sizeof(m.subject), "%s", subject.c_str());
+    m.body = body.empty() ? nullptr : body.c_str();
+    mju_message(&m);
+  }
+}
 
 // pointer to world body
 mjCBody* mjCModel::GetWorld() {
@@ -2106,21 +2141,6 @@ static size_t getpathslength(std::vector<T> list) {
   return result;
 }
 
-// compute extra stiffness/bending array size for an interpolated flex
-static int flexInterpExtraSize(int order, const int cellcount[3], bool shell) {
-  int npe, nelem;
-  int cx = cellcount[0], cy = cellcount[1], cz = cellcount[2];
-  if (shell) {
-    npe = (int)pow(order + 1, 2);
-    nelem = 2*(cy*cz + cx*cz + cx*cy);
-  } else {
-    npe = (int)pow(order + 1, 3);
-    nelem = cx * cy * cz;
-  }
-  int ndof_elem = 3 * npe;
-  return nelem * ndof_elem * ndof_elem;
-}
-
 // set array sizes
 void mjCModel::SetSizes() {
   // set from object list sizes
@@ -2194,8 +2214,6 @@ void mjCModel::SetSizes() {
   }
   nbvh = nbvhstatic + nbvhdynamic;
 
-  int extra_stiffness_size = 0;
-  int extra_bending_size = 0;
   // flex counts
   for (int i=0; i < nflex; i++) {
     nflexnode += flexes_[i]->nnode;
@@ -2207,13 +2225,8 @@ void mjCModel::SetSizes() {
     nflexshelldata += (int)flexes_[i]->shell.size();
     nflexevpair += (int)flexes_[i]->evpair.size()/2;
     nflextexcoord += (flexes_[i]->HasTexcoord() ? flexes_[i]->get_texcoord().size()/2 : 0);
-    if (flexes_[i]->spec.order != 0) {
-      int extra_size = flexInterpExtraSize(
-          flexes_[i]->spec.order, flexes_[i]->spec.cellcount,
-          flexes_[i]->elastic2d != 0);
-      extra_stiffness_size += extra_size;
-      extra_bending_size += extra_size;
-    }
+    nflexstiffness += flexes_[i]->stiffness.size();
+    nflexbending += flexes_[i]->bending.size();
     if (flexes_[i]->interpolated || flexes_[i]->rigid) {
       continue;
     }
@@ -2263,10 +2276,6 @@ void mjCModel::SetSizes() {
       }
     }
   }
-  // TODO: This can be compacted further when we update mjwarp to not rely on
-  // 21*elem_adr for non-interpolated flexes and 17*edge_adr for bending.
-  nflexstiffness = nflexelem * 21 + extra_stiffness_size;
-  nflexbending = nflexedge * 17 + extra_bending_size;
 
   // mesh counts
   for (int i=0; i < nmesh; i++) {
@@ -2812,6 +2821,11 @@ void mjCModel::CopyTree(mjModel* m) {
                           (m->body_parentid[parentid] == 0 &&
                            m->body_dofnum[parentid] == 0)));
 
+    // user override: disable simple optimization
+    if (!pb->simple) {
+      m->body_simple[i] = 0;
+    }
+
     // a parent body is never simple (unless world)
     if (m->body_parentid[i] > 0) {
       m->body_simple[m->body_parentid[i]] = 0;
@@ -2827,8 +2841,8 @@ void mjCModel::CopyTree(mjModel* m) {
       // set joint fields
       m->jnt_type[jid] = pj->type;
       m->jnt_group[jid] = pj->group;
-      m->jnt_limited[jid] = (mjtByte)pj->is_limited();
-      m->jnt_actfrclimited[jid] = (mjtByte)pj->is_actfrclimited();
+      m->jnt_limited[jid] = (mjtBool)pj->is_limited();
+      m->jnt_actfrclimited[jid] = (mjtBool)pj->is_actfrclimited();
       m->jnt_actgravcomp[jid] = pj->actgravcomp;
       m->jnt_qposadr[jid] = pj->qposadr_;
       m->jnt_dofadr[jid] = pj->dofadr_;
@@ -3043,8 +3057,8 @@ void mjCModel::CopyTree(mjModel* m) {
       m->light_targetbodyid[lid] = pl->targetbodyid;
       m->light_type[lid] = pl->type;
       m->light_texid[lid] = pl->texid;
-      m->light_castshadow[lid] = (mjtByte)pl->castshadow;
-      m->light_active[lid] = (mjtByte)pl->active;
+      m->light_castshadow[lid] = (mjtBool)pl->castshadow;
+      m->light_active[lid] = (mjtBool)pl->active;
       mjuu_copyvec(m->light_pos+3*lid, pl->pos, 3);
       mjuu_copyvec(m->light_dir+3*lid, pl->dir, 3);
       m->light_bulbradius[lid] = pl->bulbradius;
@@ -3351,6 +3365,7 @@ int mjCModel::CountNJten(const mjModel* m) {
 // copy objects outside kinematic tree
 void mjCModel::CopyObjects(mjModel* m) {
   mjtSize adr, bone_adr, vert_adr, node_adr, normal_adr, face_adr, texcoord_adr, oct_adr;
+  mjtSize stiffness_adr, bending_adr;
   mjtSize edge_adr, elem_adr, elemdata_adr, elemedge_adr, shelldata_adr, evpair_adr;
   mjtSize bonevert_adr, graph_adr, data_adr, bvh_adr;
   mjtSize poly_adr, polymap_adr, polyvert_adr;
@@ -3465,10 +3480,8 @@ void mjCModel::CopyObjects(mjModel* m) {
   shelldata_adr = 0;
   evpair_adr = 0;
   texcoord_adr = 0;
-  int standard_stiffness_size = 21 * m->nflexelem;
-  int current_extra_stiffness_adr = standard_stiffness_size;
-  int standard_bending_size = 17 * m->nflexedge;
-  int current_extra_bending_adr = standard_bending_size;
+  stiffness_adr = 0;
+  bending_adr = 0;
   for (int i=0; i < nflex; i++) {
     // get pointer
     mjCFlex* pfl = flexes_[i];
@@ -3491,46 +3504,19 @@ void mjCModel::CopyObjects(mjModel* m) {
     mjuu_copyvec(m->flex_rgba + 4 * i, pfl->rgba, 4);
 
     // elasticity
-    if (pfl->spec.order == 0) {
-      m->flex_stiffnessadr[i] = 21 * elem_adr;
+    if (pfl->stiffness.empty()) {
+      m->flex_stiffnessadr[i] = -1;
     } else {
-      m->flex_stiffnessadr[i] = current_extra_stiffness_adr;
-      current_extra_stiffness_adr += flexInterpExtraSize(
-          pfl->spec.order, pfl->spec.cellcount, pfl->elastic2d != 0);
-    }
-
-    if (!pfl->stiffness.empty()) {
+      m->flex_stiffnessadr[i] = stiffness_adr;
       mjuu_copyvec(m->flex_stiffness + m->flex_stiffnessadr[i],
                    pfl->stiffness.data(), pfl->stiffness.size());
-    } else {
-      int stiff_size;
-      if (pfl->spec.order == 0) {
-        stiff_size = 21 * pfl->nelem;
-      } else {
-        stiff_size = flexInterpExtraSize(
-            pfl->spec.order, pfl->spec.cellcount, pfl->elastic2d != 0);
-      }
-      mjuu_zerovec(m->flex_stiffness + m->flex_stiffnessadr[i], stiff_size);
     }
-    if (pfl->spec.order == 0) {
-      m->flex_bendingadr[i] = 17 * edge_adr;
+    if (pfl->bending.empty()) {
+      m->flex_bendingadr[i] = -1;
     } else {
-      m->flex_bendingadr[i] = current_extra_bending_adr;
-      current_extra_bending_adr += flexInterpExtraSize(
-          pfl->spec.order, pfl->spec.cellcount, pfl->elastic2d != 0);
-    }
-
-    if (!pfl->bending.empty()) {
-      mjuu_copyvec(m->flex_bending + m->flex_bendingadr[i], pfl->bending.data(), pfl->bending.size());
-    } else {
-      int bending_size;
-      if (pfl->spec.order == 0) {
-        bending_size = 17 * pfl->nedge;
-      } else {
-        bending_size = flexInterpExtraSize(
-            pfl->spec.order, pfl->spec.cellcount, pfl->elastic2d != 0);
-      }
-      mjuu_zerovec(m->flex_bending + m->flex_bendingadr[i], bending_size);
+      m->flex_bendingadr[i] = bending_adr;
+      mjuu_copyvec(m->flex_bending + m->flex_bendingadr[i],
+                   pfl->bending.data(), pfl->bending.size());
     }
     m->flex_damping[i] = (mjtNum)pfl->damping;
 
@@ -3606,8 +3592,10 @@ void mjCModel::CopyObjects(mjModel* m) {
     if (!pfl->rigid && m->flex_edgeequality[i] == 0 &&
         !pfl->edgestiffness && !pfl->edgedamping && !pfl->damping &&
         pfl->bending.empty()) {
-      mju_warning("flex '%s' is not rigid and has no equality constraints "
-                  "or passive forces", pfl->name.c_str());
+      AddWarning("flex '" + pfl->name +
+                     "' is not rigid and has no equality constraints or "
+                     "passive forces",
+                 pfl);
     }
 
     // copy bvh data (flex aabb computed dynamically in mjData)
@@ -3704,6 +3692,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     evpair_adr += (int)pfl->evpair.size()/2;
     texcoord_adr += (int)pfl->texcoord_.size()/2;
     bvh_adr += pfl->tree.Nbvh();
+    stiffness_adr += pfl->stiffness.size();
+    bending_adr += pfl->bending.size();
   }
 
   // skins
@@ -3875,8 +3865,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tendon_num[i] = (int)pte->path.size();
     m->tendon_matid[i] = pte->matid;
     m->tendon_group[i] = pte->group;
-    m->tendon_limited[i] = (mjtByte)pte->is_limited();
-    m->tendon_actfrclimited[i] = (mjtByte)pte->is_actfrclimited();
+    m->tendon_limited[i] = (mjtBool)pte->is_limited();
+    m->tendon_actfrclimited[i] = (mjtBool)pte->is_actfrclimited();
     m->tendon_width[i] = (mjtNum)pte->width;
     mjuu_copyvec(m->tendon_solref_lim+mjNREF*i, pte->solref_limit, mjNREF);
     mjuu_copyvec(m->tendon_solimp_lim+mjNIMP*i, pte->solimp_limit, mjNIMP);
@@ -3944,9 +3934,9 @@ void mjCModel::CopyObjects(mjModel* m) {
       m->actuator_historyadr[i] = -1;
     }
 
-    m->actuator_ctrllimited[i] = (mjtByte)pac->is_ctrllimited();
-    m->actuator_forcelimited[i] = (mjtByte)pac->is_forcelimited();
-    m->actuator_actlimited[i] = (mjtByte)pac->is_actlimited();
+    m->actuator_ctrllimited[i] = (mjtBool)pac->is_ctrllimited();
+    m->actuator_forcelimited[i] = (mjtBool)pac->is_forcelimited();
+    m->actuator_actlimited[i] = (mjtBool)pac->is_actlimited();
     m->actuator_actearly[i] = pac->actearly;
     m->actuator_cranklength[i] = (mjtNum)pac->cranklength;
     mjuu_copyvec(m->actuator_gear + 6*i, pac->gear, 6);
@@ -4265,9 +4255,10 @@ template void mjCModel::RestoreState<mjtNum>(
 // resolve keyframe references
 void mjCModel::StoreKeyframes(mjCModel* dest) {
   if (this != dest && !key_pending_.empty()) {
-    mju_warning(
-      "Child model has pending keyframes. They will not be namespaced correctly. "
-      "To prevent this, compile the child model before attaching it again.");
+    dest->AddWarning(
+        "Child model has pending keyframes. They will not be namespaced "
+        "correctly. "
+        "To prevent this, compile the child model before attaching it again.");
   }
 
   // do not change compilation quantities in case the user wants to recompile preserving the state
@@ -4548,7 +4539,7 @@ void mjCModel::FuseStatic(void) {
     for (const auto& geom : par->geoms) {
       par->contype |= geom->contype;
       par->conaffinity |= geom->conaffinity;
-      par->margin = std::max(par->margin, geom->margin);
+      par->margin = std::max(par->margin, geom->margin + geom->gap);
     }
 
     // recompute BVH
@@ -4676,20 +4667,28 @@ void mjCModel::CheckRepeat(mjtObj type) {
 constexpr int kErrorBufferSize = 500;
 static thread_local std::jmp_buf error_jmp_buf;
 static thread_local char errortext[kErrorBufferSize] = "";
-static void errorhandler(const char* msg) {
-  mju::strcpy_arr(errortext, msg);
-  std::longjmp(error_jmp_buf, 1);
-}
 
 
 // warning handler for low-level engine
 static thread_local char warningtext[kErrorBufferSize] = "";       // top-level warning buffer
 static thread_local std::string* local_warningtext_ptr = nullptr;  // sub-thread warning buffer
-static void warninghandler(const char* msg) {
-  if (local_warningtext_ptr) {
-    *local_warningtext_ptr = msg;
-  } else {
-    mju::strcpy_arr(warningtext, msg);
+static void compilerLogHandler(const mjLogMessage* msg) {
+  if (msg->level == mjLOG_ERROR) {
+    mju::strcpy_arr(errortext, msg->subject);
+    std::longjmp(error_jmp_buf, 1);
+  } else if (msg->level == mjLOG_WARNING) {
+    // buffer for structured capture (append, not overwrite)
+    if (local_warningtext_ptr) {
+      if (!local_warningtext_ptr->empty()) {
+        *local_warningtext_ptr += '\n';
+      }
+      *local_warningtext_ptr += msg->subject;
+    } else {
+      if (warningtext[0]) {
+        mju::strcat_arr(warningtext, "\n");
+      }
+      mju::strcat_arr(warningtext, msg->subject);
+    }
   }
 }
 
@@ -4713,15 +4712,15 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
   mjModel* volatile model = (m && *m) ? *m : nullptr;
   mjData* volatile data = nullptr;
 
-  // save error and warning handlers
-  void (*save_error)(const char*) = _mjPRIVATE__get_tls_error_fn();
-  void (*save_warning)(const char*) = _mjPRIVATE__get_tls_warning_fn();
-
-  // install error and warning handlers, clear error and warning
-  _mjPRIVATE__set_tls_error_fn(errorhandler);
-  _mjPRIVATE__set_tls_warning_fn(warninghandler);
+  // install compiler log handler (captures warnings silently)
+  mjfLogHandler prev_tls = _mjPRIVATE_setTlsLogHandler(compilerLogHandler);
 
   errInfo = mjCError();
+
+  // set flag so warnings are captured in the spec vector rather than delivered
+  // immediately
+  compiling_ = true;
+  ClearCompileWarnings();
   warningtext[0] = 0;
 
   try {
@@ -4734,7 +4733,7 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
       // also include the last warning that was issued. this is useful for
       // warnings that came out of plugin implementations.
       if (warningtext[0]) {
-        error_msg += "\n";
+        error_msg += '\n';
         error_msg += warningtext;
       }
       throw mjCError(0, "engine error: %s", error_msg.c_str());
@@ -4758,15 +4757,21 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
     }
 
     // restore handler, return 0
-    _mjPRIVATE__set_tls_error_fn(save_error);
-    _mjPRIVATE__set_tls_warning_fn(save_warning);
+    _mjPRIVATE_setTlsLogHandler(prev_tls);
+    compiling_ = false;
     return nullptr;
   }
 
-  // restore error handler, mark as compiled, return mjModel
-  _mjPRIVATE__set_tls_error_fn(save_error);
-  _mjPRIVATE__set_tls_warning_fn(save_warning);
+  // restore log handler
+  _mjPRIVATE_setTlsLogHandler(prev_tls);
+  compiling_ = false;
   compiled = true;
+
+  // play back compile warnings through the normal handler chain
+  for (int i = num_attach_warnings_; i < warnings_.size(); ++i) {
+    mju_warning("%s", warnings_[i].c_str());
+  }
+
   return model;
 }
 
@@ -4776,8 +4781,7 @@ static void CompileMesh(mjCMesh* mesh, const mjVFS* vfs,
                         std::exception_ptr& exception, std::mutex& exception_mutex,
                         std::string* warningtext) {
   local_warningtext_ptr = warningtext;
-  auto previous_handler = _mjPRIVATE__get_tls_warning_fn();
-  _mjPRIVATE__set_tls_warning_fn(warninghandler);
+  auto previous_handler = _mjPRIVATE_setTlsLogHandler(compilerLogHandler);
 
   try {
     mesh->Compile(vfs);
@@ -4788,7 +4792,7 @@ static void CompileMesh(mjCMesh* mesh, const mjVFS* vfs,
     }
   }
 
-  _mjPRIVATE__set_tls_warning_fn(previous_handler);
+  _mjPRIVATE_setTlsLogHandler(previous_handler);
   local_warningtext_ptr = nullptr;
 }
 
@@ -4796,10 +4800,12 @@ static void CompileMesh(mjCMesh* mesh, const mjVFS* vfs,
 static void CompileTexture(mjCTexture* texture, const mjVFS* vfs,
                            std::exception_ptr& exception,
                            std::mutex& exception_mutex, std::string* warningtext) {
+  using Clock = std::chrono::steady_clock;
+  using Seconds = std::chrono::duration<double>;
   local_warningtext_ptr = warningtext;
-  auto previous_handler = _mjPRIVATE__get_tls_warning_fn();
-  _mjPRIVATE__set_tls_warning_fn(warninghandler);
+  auto previous_handler = _mjPRIVATE_setTlsLogHandler(compilerLogHandler);
 
+  Clock::time_point t0 = Clock::now();
   try {
     texture->Compile(vfs);
   } catch (...) {
@@ -4808,8 +4814,9 @@ static void CompileTexture(mjCTexture* texture, const mjVFS* vfs,
       exception = std::current_exception();
     }
   }
+  texture->texture_time_ = Seconds(Clock::now() - t0).count();
 
-  _mjPRIVATE__set_tls_warning_fn(previous_handler);
+  _mjPRIVATE_setTlsLogHandler(previous_handler);
   local_warningtext_ptr = nullptr;
 }
 
@@ -4871,7 +4878,7 @@ void mjCModel::CompileMeshesAndTextures(const mjVFS* vfs) {
   for (int i = 0; i < nmesh; i++) {
     if (!mesh_warningtext[i].empty()) {
       if (has_warning) {
-        concatenated_warnings += "\n";
+        concatenated_warnings += '\n';
       }
       concatenated_warnings += mesh_warningtext[i];
       has_warning = true;
@@ -4894,6 +4901,15 @@ void mjCModel::CompileMeshesAndTextures(const mjVFS* vfs) {
   }
   if (texture_exception) {
     std::rethrow_exception(texture_exception);
+  }
+
+  for (int i = 0; i < nmesh; i++) {
+    for (int t = 0; t < mjNCTIMER; t++) {
+      timer[t] += meshes_[i]->mesh_timer_[t];
+    }
+  }
+  for (int i = 0; i < ntexture; i++) {
+    timer[mjCTIMER_TEXTURE] += textures_[i]->texture_time_;
   }
 }
 
@@ -5029,13 +5045,22 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // the internal compiler struct (not the spec) to avoid permanently mutating
   // the spec (which would cause usethread="false" to appear in a saved XML).
   struct ScopedDisableThreading {
-    mjtByte& ref;
-    mjtByte saved;
-    explicit ScopedDisableThreading(mjtByte& r) : ref(r), saved(r) { ref = 0; }
+    mjtBool& ref;
+    mjtBool saved;
+    explicit ScopedDisableThreading(mjtBool& r) : ref(r), saved(r) { ref = 0; }
     ~ScopedDisableThreading() { ref = saved; }
   } disable_usethread(compiler.usethread);
 #endif
 
+  // clear compile-phase warnings from previous compile, keep attach warnings
+  ClearCompileWarnings();
+
+  using Clock = std::chrono::steady_clock;
+  using Seconds = std::chrono::duration<double>;
+  for (int i=0; i < mjNCTIMER; i++) {
+    timer[i] = 0;
+  }
+  Clock::time_point timer_start = Clock::now();
   // check if nan test works
   double test = mjNAN;
   if (mjuu_defined(test)) {
@@ -5137,7 +5162,11 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   SetNuser();
 
   // compile meshes and textures (needed for geom compilation)
-  CompileMeshesAndTextures(vfs);
+  {
+    Clock::time_point t0 = Clock::now();
+    CompileMeshesAndTextures(vfs);
+    timer[mjCTIMER_ASSETS] = Seconds(Clock::now() - t0).count();
+  }
 
   // compile objects in kinematic tree
   for (int i=0; i < bodies_.size(); i++) {
@@ -5391,7 +5420,22 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     throw mjCError(0, "could not create mjData");
   }
 
+  // pass compiler warnings into structured warning vector before validation
+  if (warningtext[0]) {
+    std::string warnings(warningtext);
+    std::istringstream stream(warnings);
+    std::string line;
+    while (std::getline(stream, line)) {
+      if (!line.empty()) {
+        AddWarning(line);
+      }
+    }
+  }
+
   // test forward simulation unless asleep_init is true (potentially expensive)
+  // reset warningtext: engine warnings from validation are not compiler
+  // warnings
+  warningtext[0] = 0;
   if (!asleep_init) {
     mj_step(m, d);
   }
@@ -5402,14 +5446,11 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   m->opt.enableflags = enableflags;
   d = nullptr;
 
-  // pass warning back
-  if (warningtext[0]) {
-    mju::strcpy_arr(errInfo.message, warningtext);
-    errInfo.warning = true;
-  }
 
   // save signature
   m->signature = Signature();
+
+  timer[mjCTIMER_TOTAL] = Seconds(Clock::now() - timer_start).count();
 
   // special cases that are not caused by user edits
   if (compiler.fusestatic || compiler.discardvisual ||

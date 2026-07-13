@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cstddef>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -177,10 +178,11 @@ void _unsafe_rollout(std::vector<const mjModel*>& m, mjData* d, int start_roll,
 }
 
 // C-style threaded version of _unsafe_rollout
-void _unsafe_rollout_threaded(std::vector<const mjModel*>& m, std::vector<mjData*>& d,
-                              int nbatch, int nstep, unsigned int control_spec,
-                              const mjtNum* state0, const mjtNum* warmstart0,
-                              const mjtNum* control, mjtNum* state, mjtNum* sensordata,
+void _unsafe_rollout_threaded(std::vector<const mjModel*>& m,
+                              std::vector<mjData*>& d, int nbatch, int nstep,
+                              unsigned int control_spec, const mjtNum* state0,
+                              const mjtNum* warmstart0, const mjtNum* control,
+                              mjtNum* state, mjtNum* sensordata,
                               ThreadPool* pool, int chunk_size) {
   int nfulljobs = nbatch / chunk_size;
   int chunk_remainder = nbatch % chunk_size;
@@ -209,7 +211,7 @@ void _unsafe_rollout_threaded(std::vector<const mjModel*>& m, std::vector<mjData
     pool->Schedule(task);
   }
 
-  // wait for job counter to incremented up to the number of jobs submitted by this thread
+  // wait for counter to increment up to number of jobs submitted by this thread
   pool->WaitCount(njobs);
 }
 
@@ -227,8 +229,8 @@ mjtNum* get_array_ptr(std::optional<const py::array_t<mjtNum>> arg,
   py::buffer_info info = arg->request();
 
   // check size
-  size_t expected_size =
-    static_cast<size_t>(nbatch) * static_cast<size_t>(nstep) * static_cast<size_t>(dim);
+  size_t expected_size = static_cast<size_t>(nbatch) *
+                         static_cast<size_t>(nstep) * static_cast<size_t>(dim);
   if (info.size != expected_size) {
     std::ostringstream msg;
     msg << name << ".size should be " << expected_size << ", got " << info.size;
@@ -328,7 +330,7 @@ class Rollout {
   std::shared_ptr<ThreadPool> pool_;
 };
 
-PYBIND11_MODULE(_rollout, pymodule) {
+PYBIND11_MODULE(_rollout, pymodule, pybind11::mod_gil_not_used()) {
   namespace py = ::pybind11;
 
   py::class_<Rollout>(pymodule, "Rollout")

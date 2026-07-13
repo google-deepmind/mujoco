@@ -42,6 +42,12 @@ KEYFRAME = flags.DEFINE_integer("keyframe", 0, "keyframe to initialize simulatio
 EVENT_TRACE = flags.DEFINE_bool("event_trace", False, "print an event trace report")
 NOISE_STD = flags.DEFINE_float("noise_std", 0.01, "add noise to ctrl signal (standard deviation)")
 NOISE_RATE = flags.DEFINE_float("noise_rate", 0.1, "add noise to ctrl signal (noise rate)")
+NVMAX = flags.DEFINE_integer("nvmax", None, "maximum active DOFs per world")
+
+
+INIT_ASLEEP = flags.DEFINE_bool(
+  "init_asleep", False, "initialize all trees as asleep before simulation (requires sleep enabled)"
+)
 
 DEVICE = flags.DEFINE_string("device", None, "override the default Warp device")
 REPLAY = flags.DEFINE_string("replay", None, "NPZ file with ctrl sequence to replay")
@@ -52,6 +58,12 @@ RENDER_RGB = flags.DEFINE_bool("render_rgb", True, "render RGB image")
 RENDER_DEPTH = flags.DEFINE_bool("render_depth", True, "render depth image")
 RENDER_TEXTURES = flags.DEFINE_bool("render_textures", True, "use textures")
 RENDER_SHADOWS = flags.DEFINE_bool("render_shadows", False, "use shadows")
+RENDER_BACKFACE_CULLING = flags.DEFINE_bool(
+  "render_backface_culling",
+  True,
+  "enable renderer backface culling (RenderContext.enable_backface_culling)",
+)
+RENDER_SKYBOX = flags.DEFINE_bool("render_skybox", True, "render skybox texture if available")
 
 
 def load_model(path: epath.Path) -> mujoco.MjModel:
@@ -143,8 +155,18 @@ def init_structs(
     m = mjw.put_model(mjm)
     if OVERRIDE.value:
       override_model(m, OVERRIDE.value)
+    if INIT_ASLEEP.value:
+      mjd.tree_asleep[:] = np.arange(mjm.ntree, dtype=np.int32)
+
     d = mjw.put_data(
-      mjm, mjd, nworld=NWORLD.value, nconmax=NCONMAX.value, njmax=NJMAX.value, njmax_nnz=NJMAX_NNZ.value, nccdmax=NCCDMAX.value
+      mjm,
+      mjd,
+      nworld=NWORLD.value,
+      nconmax=NCONMAX.value,
+      njmax=NJMAX.value,
+      njmax_nnz=NJMAX_NNZ.value,
+      nccdmax=NCCDMAX.value,
+      nvmax=NVMAX.value,
     )
 
     if mjw.RenderContext not in get_type_hints(fn).values():
@@ -152,12 +174,14 @@ def init_structs(
 
     rc = mjw.create_render_context(
       mjm,
-      NWORLD.value,
-      (RENDER_WIDTH.value, RENDER_HEIGHT.value),
-      RENDER_RGB.value,
-      RENDER_DEPTH.value,
-      RENDER_TEXTURES.value,
-      RENDER_SHADOWS.value,
+      nworld=NWORLD.value,
+      cam_res=(RENDER_WIDTH.value, RENDER_HEIGHT.value),
+      render_rgb=RENDER_RGB.value,
+      render_depth=RENDER_DEPTH.value,
+      use_textures=RENDER_TEXTURES.value,
+      use_shadows=RENDER_SHADOWS.value,
+      enable_backface_culling=RENDER_BACKFACE_CULLING.value,
+      render_skybox=RENDER_SKYBOX.value,
     )
 
     return m, d, rc, ctrls

@@ -62,7 +62,12 @@ static void inline GradSquaredLengths(mjtNum gradient[6][2][3],
 // passive forces for interpolated flex (stretch + bending)
 static void mj_flexPassiveInterp(const mjModel* m, mjData* d, int f,
                                  int enbl_spring, int enbl_damper) {
-  mjtNum* k = m->flex_stiffness + m->flex_stiffnessadr[f];
+  int stiffnessadr = m->flex_stiffnessadr[f];
+  if (stiffnessadr < 0) {
+    return;
+  }
+
+  mjtNum* k = m->flex_stiffness + stiffnessadr;
   int nodenum = m->flex_nodenum[f];
 
   int order = m->flex_interp[f];
@@ -238,8 +243,17 @@ static inline mjtNum mju_dphi2D(mjtNum s0, int l0, mjtNum s1, int l1,
 // accuracy for elements with varying curvature.
 static void mj_flexPassiveBendInterp(const mjModel* m, mjData* d, int f,
                                       int enbl_spring, int enbl_damper) {
+  if (m->flex_interp[f] >= 0) {
+    return;
+  }
+
+  int bendingadr = m->flex_bendingadr[f];
+  if (bendingadr < 0) {
+    return;
+  }
+
   // read bending edge data
-  const mjtNum* bdata = m->flex_bending + m->flex_bendingadr[f];
+  const mjtNum* bdata = m->flex_bending + bendingadr;
   int nedge = (int)bdata[0];
   if (nedge == 0) return;
 
@@ -261,11 +275,30 @@ static void mj_flexPassiveBendInterp(const mjModel* m, mjData* d, int f,
   mju_zero(frc_g, 3*nodenum);
   mju_zero(dmp_g, 3*nodenum);
 
-  // per-face temporaries
+  // precompute per-face cache: each face appears in multiple bending edges,
+  // so caching avoids redundant position gathering and quaternion computation
+  int nfaces = 2*(cy*cz + cx*cz + cx*cy);
+  mjtNum* face_xpos = mjSTACKALLOC(d, nfaces * 3*npe, mjtNum);
+  int* face_gidx = mjSTACKALLOC(d, nfaces * npe, int);
+  mjtNum* face_quat = mjSTACKALLOC(d, nfaces * 4, mjtNum);
+  for (int fi = 0; fi < nfaces; fi++) {
+    mju_flexGatherFaceState(order, cx, cy, cz, fi, xpos_g,
+                            NULL, NULL,
+                            face_xpos + fi * 3*npe, NULL, NULL,
+                            face_gidx + fi * npe, face_quat + fi * 4);
+  }
+
+  // check cached node indices are in bounds
+  for (int i = 0; i < nfaces * npe; i++) {
+    if (face_gidx[i] < 0 || face_gidx[i] >= nodenum) {
+      mjERROR("cached node index out of range: face_gidx[%d]=%d, nodenum=%d",
+              i, face_gidx[i], nodenum);
+    }
+  }
+
+  // per-edge temporaries
   mjtNum* xpos_A = mjSTACKALLOC(d, 3*npe, mjtNum);
   mjtNum* xpos_B = mjSTACKALLOC(d, 3*npe, mjtNum);
-  mjtNum* vel_A = mjSTACKALLOC(d, 3*npe, mjtNum);
-  mjtNum* vel_B = mjSTACKALLOC(d, 3*npe, mjtNum);
   int* gidx_A = mjSTACKALLOC(d, npe, int);
   int* gidx_B = mjSTACKALLOC(d, npe, int);
 
@@ -285,15 +318,15 @@ static void mj_flexPassiveBendInterp(const mjModel* m, mjData* d, int f,
 
     if (stiffness == 0) continue;
 
-    // gather face A and B positions + velocities
-    mju_flexGatherFaceState(order, cx, cy, cz, fe_A, xpos_g,
-                            enbl_damper ? vel_g : NULL, NULL,
-                            xpos_A, enbl_damper ? vel_A : NULL, NULL,
-                            gidx_A, NULL);
-    mju_flexGatherFaceState(order, cx, cy, cz, fe_B, xpos_g,
-                            enbl_damper ? vel_g : NULL, NULL,
-                            xpos_B, enbl_damper ? vel_B : NULL, NULL,
-                            gidx_B, NULL);
+    // look up cached face data instead of recomputing
+    mju_copy(xpos_A, face_xpos + fe_A * 3*npe, 3*npe);
+    mju_copy(xpos_B, face_xpos + fe_B * 3*npe, 3*npe);
+    mju_copyInt(gidx_A, face_gidx + fe_A * npe, npe);
+    mju_copyInt(gidx_B, face_gidx + fe_B * npe, npe);
+    mjtNum quat_A[4], quat_B[4];
+    mju_copy(quat_A, face_quat + fe_A * 4, 4);
+    mju_copy(quat_B, face_quat + fe_B * 4, 4);
+
 
     // compute deformed normals at edge midpoint
     mjtNum n_A[3], t1_A[3], t2_A[3];
@@ -310,10 +343,26 @@ static void mj_flexPassiveBendInterp(const mjModel* m, mjData* d, int f,
     n_A[0] *= inv_A; n_A[1] *= inv_A; n_A[2] *= inv_A;
     n_B[0] *= inv_B; n_B[1] *= inv_B; n_B[2] *= inv_B;
 
-    // normal jump residual: r = (n_A - n_B) - dn0
+    // average corotational frame: symmetric under face swap
+    // quat_A and quat_B encode R^{-1}; average them, then negate to get R_avg
+    // ensure quaternions are in the same hemisphere before averaging
+    if (mju_dot(quat_A, quat_B, 4) < 0) {
+      mju_scl(quat_B, quat_B, -1, 4);
+    }
+    mjtNum quat_avg[4];
+    mju_add(quat_avg, quat_A, quat_B, 4);
+    mju_normalize(quat_avg, 4);  // NLERP = SLERP at t=0.5 for two quaternions
+    // negate to get R_avg (from rest frame to current frame)
+    mju_negQuat(quat_avg, quat_avg);
+
+    // rotate dn0 from rest frame to current frame using average corotational R
+    mjtNum dn0_rot[3];
+    mju_rotVecQuat(dn0_rot, dn0, quat_avg);
+
+    // normal jump residual: r = (n_A - n_B) - R_avg * dn0
     mjtNum r[3];
     mji_sub3(r, n_A, n_B);
-    r[0] -= dn0[0]; r[1] -= dn0[1]; r[2] -= dn0[2];
+    r[0] -= dn0_rot[0]; r[1] -= dn0_rot[1]; r[2] -= dn0_rot[2];
 
     // --- spring force ---
     if (enbl_spring) {
@@ -414,10 +463,15 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
     return;
   }
 
+  int bendingadr = m->flex_bendingadr[f];
+  if (bendingadr < 0) {
+    return;
+  }
+
   int edgenum = m->flex_edgenum[f];
   mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
   int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
-  mjtNum* b = m->flex_bending + 17*m->flex_edgeadr[f];
+  mjtNum* b = m->flex_bending + bendingadr;
 
   for (int e = 0; e < edgenum; e++) {
     const int* edge = m->flex_edge + 2*(e+m->flex_edgeadr[f]);
@@ -443,10 +497,14 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
     frc[0][1] = -(frc[1][1] + frc[2][1] + frc[3][1]);
     frc[0][2] = -(frc[1][2] + frc[2][2] + frc[3][2]);
 
-    // velocities
-    mjtNum* vel[4];
+    // a pinned vertex is welded to a static (jointless) parent body: its bending reaction is
+    // absorbed by the pin, so its velocity is zero and (below) no force is applied to it.
+    static const mjtNum zero3[3] = {0, 0, 0};
+    const mjtNum* vel[4]; int isfree[4];
     for (int i = 0; i < 4; i++) {
-      vel[i] = d->qvel + m->body_dofadr[bodyid[v[i]]];
+      int bid = bodyid[v[i]];
+      isfree[i] = (m->body_dofnum[bid] == 3);
+      vel[i] = isfree[i] ? (d->qvel + m->body_dofadr[bid]) : zero3;
     }
 
     // force
@@ -468,12 +526,14 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
       }
     }
 
-    // insert into global force
+    // insert into global force (free flex vertices only: 3 translational dofs, no moment arm).
+    // A pinned vertex has no free flex dof -- its bending reaction is carried by the pin -- so it
+    // is skipped (its POSITION still enters every neighbor's force via the xpos sum above,
+    // which is what the pin constrains).
     for (int i = 0; i < 4; i++) {
-      int bid = bodyid[v[i]];
-      int body_dofnum = m->body_dofnum[bid];
-      int body_dofadr = m->body_dofadr[bid];
-      for (int x = 0; x < body_dofnum; x++) {
+      if (!isfree[i]) continue;
+      int body_dofadr = m->body_dofadr[bodyid[v[i]]];
+      for (int x = 0; x < 3; x++) {
         if (enbl_spring) d->qfrc_spring[body_dofadr+x] -= spring[3*i+x];
         if (enbl_damper) d->qfrc_damper[body_dofadr+x] -= damper[3*i+x] * m->flex_damping[f];
       }
@@ -485,7 +545,11 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
 // passive forces for flex stretch
 static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
                                   int enbl_spring, int enbl_damper) {
-  mjtNum* k = m->flex_stiffness + m->flex_stiffnessadr[f];
+  int stiffnessadr = m->flex_stiffnessadr[f];
+  if (stiffnessadr < 0) {
+    return;
+  }
+  mjtNum* k = m->flex_stiffness + stiffnessadr;
   if (k[0] == 0) {
     return;
   }
@@ -678,9 +742,7 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
       mj_flexPassiveInterp(m, d, f, enbl_spring, enbl_damper);
 
       // interpolated shell bending forces
-      if (m->flex_interp[f] < 0) {
-        mj_flexPassiveBendInterp(m, d, f, enbl_spring, enbl_damper);
-      }
+      mj_flexPassiveBendInterp(m, d, f, enbl_spring, enbl_damper);
     } else {
       // add bending forces
       mj_flexPassiveBend(m, d, f, enbl_spring, enbl_damper);

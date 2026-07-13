@@ -33,6 +33,31 @@
 
 namespace mujoco::platform {
 
+// Helper to get available content region width that does not change/reflow
+// when the vertical scrollbar appears or disappears.
+// Walks up the parent window chain to find the scroll-owning ancestor (the
+// actual panel window, not a child window), and reserves scrollbar width
+// when that panel's scrollbar is not currently visible.
+inline float GetStableAvailWidth() {
+  ImGuiWindow* window = ImGui::GetCurrentWindow();
+  float avail_x = ImGui::GetContentRegionAvail().x;
+
+  // Walk up past child windows to the actual panel that owns the scrollbar.
+  ImGuiWindow* scroll_owner = window;
+  while (scroll_owner &&
+         (scroll_owner->Flags & ImGuiWindowFlags_ChildWindow) &&
+         scroll_owner->ParentWindow) {
+    scroll_owner = scroll_owner->ParentWindow;
+  }
+
+  if (scroll_owner &&
+      !(scroll_owner->Flags & ImGuiWindowFlags_NoScrollbar) &&
+      !scroll_owner->ScrollbarY) {
+    avail_x -= ImGui::GetStyle().ScrollbarSize;
+  }
+  return avail_x;
+}
+
 // FontAwesome icon codes.
 static constexpr const char ICON_FA_ADJUST[] = "\xEF\x81\x82";
 static constexpr const char ICON_FA_ARROWS[] = "\xEF\x81\x87";
@@ -44,7 +69,9 @@ static constexpr const char ICON_FA_CIRCLE_O[] = "\xEF\x84\x8C";
 static constexpr const char ICON_FA_CIRCLE[] = "\xEF\x84\x91";
 static constexpr const char ICON_FA_COMMENT[] = "\xEF\x83\xA5";
 static constexpr const char ICON_FA_COPY[] = "\xEF\x83\x85";
+static constexpr const char ICON_FA_CROSSHAIRS[] = "\xEF\x81\x9B";
 static constexpr const char ICON_FA_DIAMOND[] = "\xEF\x88\x99";
+static constexpr const char ICON_FA_DOWNLOAD[] = "\xEF\x80\x99";
 static constexpr const char ICON_FA_EJECT[] = "\xEF\x81\x92";
 static constexpr const char ICON_FA_FAST_FORWARD[] = "\xEF\x81\x90";
 static constexpr const char ICON_FA_MAGIC[] = "\xEF\x83\x90";
@@ -59,6 +86,7 @@ static constexpr const char ICON_FA_SUN[] = "\xEF\x86\x85";
 static constexpr const char ICON_FA_TACHOMETER[] = "\xEF\x83\xA4";
 static constexpr const char ICON_FA_TRASH_CAN[] = "\xEF\x87\xB8";
 static constexpr const char ICON_FA_UNDO[] = "\xEF\x83\xA2";
+static constexpr const char ICON_FA_UPLOAD[] = "\xEF\x82\x93";
 
 using KeyValues = std::unordered_map<std::string, std::string>;
 
@@ -98,6 +126,11 @@ T ReadIniValue(const KeyValues& key_values, const std::string& key, T def) {
   }
 }
 
+enum class ScopedFont {
+  kDefault = 0,
+  kMono = 1,
+};
+
 // Helper class for setting ImGui style options; automatically resets the
 // styles when going out of scope.
 struct ScopedStyle {
@@ -115,6 +148,20 @@ struct ScopedStyle {
   void Swap(ScopedStyle& other) {
     std::swap(num_colors, other.num_colors);
     std::swap(num_vars, other.num_vars);
+    std::swap(num_fonts, other.num_fonts);
+  }
+
+  ScopedStyle& Font(int index) {
+    ImFontAtlas* atlas = ImGui::GetIO().Fonts;
+    if (atlas && index >= 0 && index < atlas->Fonts.Size) {
+      ImGui::PushFont(atlas->Fonts[index]);
+      ++num_fonts;
+    }
+    return *this;
+  }
+
+  ScopedStyle& Font(ScopedFont font) {
+    return Font(static_cast<int>(font));
   }
 
   ScopedStyle& Color(ImGuiCol col, ImColor color) {
@@ -144,14 +191,19 @@ struct ScopedStyle {
   ImVec4 CurrentColor(ImGuiCol col) { return ImGui::GetStyle().Colors[col]; }
 
   void Reset() {
+    for (int i = 0; i < num_fonts; ++i) {
+      ImGui::PopFont();
+    }
     ImGui::PopStyleVar(num_vars);
     ImGui::PopStyleColor(num_colors);
     num_colors = 0;
     num_vars = 0;
+    num_fonts = 0;
   }
 
   int num_colors = 0;
   int num_vars = 0;
+  int num_fonts = 0;
 };
 
 // Helper for displaying rows of key/value pairs in an ImGui table.
@@ -174,6 +226,7 @@ class ImGui_DataPtrTable {
   // dimensionality of n.
   void DataPtr(const char* label, const char* ptr, int index, int n);
   void DataPtr(const char* label, const mjtByte* ptr, int index, int n);
+  void DataPtr(const char* label, const mjtBool* ptr, int index, int n);
   void DataPtr(const char* label, const mjtSize* ptr, int index, int n);
   void DataPtr(const char* label, const int* ptr, int index, int n);
   void DataPtr(const char* label, const float* ptr, int index, int n);
@@ -203,6 +256,8 @@ class ImGui_SpecElementTable : public ImGui_DataPtrTable {
 
   // Scalar values used by mjSpec elements.
   void operator()(const char* label, mjtByte& val, const mjtByte& ref,
+                  const char* tooltip);
+  void operator()(const char* label, bool& val, const bool& ref,
                   const char* tooltip);
   void operator()(const char* label, mjtSize& val, const mjtSize& ref,
                   const char* tooltip);
@@ -299,7 +354,7 @@ class ImGui_SpecElementTable : public ImGui_DataPtrTable {
 
     ImGui::PushID(&val);
     ImGui::SetNextItemWidth(-1.0f);
-    if constexpr (std::is_same_v<T, mjtByte>) {
+    if constexpr (std::is_same_v<T, mjtByte> || std::is_same_v<T, mjtBool>) {
       if (read_only_) {
         ImGui::Text("%s", val ? "true" : "false");
       } else {
@@ -616,6 +671,9 @@ inline void EndBoxSection() { ImGui::EndTable(); }
 // Saves the given contents to the clipboard if the clipboard is available.
 void MaybeSaveToClipboard(const std::string& contents);
 
+// Returns the expected width of a UI label based on MuJoCo visualization flags.
+float GetExpectedLabelWidth();
+
 // Returns plot flags with title/legend conditionally hidden when the plot
 // area is too small.  `plot_size` is the final rendered size of the plot.
 ImPlotFlags ImPlot_SetupPlotFlags(ImVec2 plot_size);
@@ -655,6 +713,40 @@ struct ImPlotPairLayout {
 // content region.  When the region is wider than tall, the plots are placed
 // side-by-side; otherwise they are stacked vertically.
 ImPlotPairLayout ImPlot_ComputePairLayout();
+
+// Draws text at the given screen coordinates in clip space (i.e. [-1,-1,-1] to
+// [1,1,1]).
+void DrawTextAt(const char* text, float x, float y, float z);
+
+// Grid position for overlays within a viewport rectangle.
+enum class OverlayPos {
+  kTopLeft,
+  kTop,
+  kTopRight,
+  kBottomLeft,
+  kBottom,
+  kBottomRight,
+};
+
+// Begin an overlay window at the given grid position within a workspace rect.
+// workspace_rect: (x, y, width, height) of the viewport area.
+// min_width:      minimum window width in scaled pixels (0 = auto).
+// alpha:          window transparency (0.0-1.0).
+// Returns true if the overlay is visible (like ImGui::Begin).
+// Must be paired with EndOverlay(), even if this returns false.
+bool BeginOverlay(const char* id, OverlayPos pos, ImVec4 workspace_rect,
+                  float min_width = 0.0f, float alpha = 0.8f);
+void EndOverlay();
+
+// One-liner: display a text overlay with automatic width sizing.
+// Measures the longest line in `text`, clamps to workspace width, wraps text
+// if needed.
+// color: text color. If all components are 0, uses the theme default.
+// font_scale: scale factor for the default font (1.0 = normal).
+void TextOverlay(const char* id, OverlayPos pos, ImVec4 workspace_rect,
+                 const char* text, ImVec4 color = ImVec4(0, 0, 0, 0),
+                 float font_scale = 1.0f, float alpha = 0.8f,
+                 float min_width = 0.0f);
 
 }  // namespace mujoco::platform
 

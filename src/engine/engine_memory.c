@@ -26,7 +26,7 @@
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_util_errmem.h"
-#include "thread/thread_pool.h"
+
 
 #ifdef ADDRESS_SANITIZER
   #include <sanitizer/asan_interface.h>
@@ -58,23 +58,18 @@ static inline size_t fastmod(size_t a, size_t b) {
 }
 
 typedef struct {
+  uintptr_t bottom;      // first memory address available to the stack
+  uintptr_t top;         // current memory address used by the stack
+  uintptr_t limit;       // top limit of the stack (stack grows down)
+  uintptr_t stack_base;  // current stack base for mark and free stack
+} mjStackInfo;
+
+
+typedef struct {
   size_t pbase;   // value of d->pbase immediately before mj_markStack
   size_t pstack;  // value of d->pstack immediately before mj_markStack
   void* pc;       // program counter of the call site of mj_markStack (only set when under asan)
 } mjStackFrame;
-
-static void maybe_lock_alloc_mutex(mjData* d) {
-  if (d->threadpool != 0) {
-    mju_threadPoolLockAllocMutex((mjThreadPool*)d->threadpool);
-  }
-}
-
-static void maybe_unlock_alloc_mutex(mjData* d) {
-  if (d->threadpool != 0) {
-    mju_threadPoolUnlockAllocMutex((mjThreadPool*)d->threadpool);
-  }
-}
-
 
 static inline mjStackInfo get_stack_info_from_data(const mjData* d) {
   mjStackInfo stack_info;
@@ -110,14 +105,12 @@ static size_t stack_usage_redzone(const mjStackInfo* stack_info) {
 
 // allocate memory from the mjData arena
 void* mj_arenaAllocByte(mjData* d, size_t bytes, size_t alignment) {
-  maybe_lock_alloc_mutex(d);
   size_t misalignment = fastmod(d->parena, alignment);
   size_t padding = misalignment ? alignment - misalignment : 0;
 
   // check size
   size_t bytes_available = d->narena - d->pstack;
   if (mjUNLIKELY(d->parena + padding + bytes > bytes_available)) {
-    maybe_unlock_alloc_mutex(d);
     return NULL;
   }
 
@@ -125,16 +118,8 @@ void* mj_arenaAllocByte(mjData* d, size_t bytes, size_t alignment) {
 
   // under ASAN, get stack usage from red zone
 #ifdef ADDRESS_SANITIZER
-  mjStackInfo stack_info;
-  mjStackInfo* stack_info_ptr;
-  if (!d->threadpool) {
-    stack_info = get_stack_info_from_data(d);
-    stack_info_ptr = &stack_info;
-  } else {
-    size_t thread_id = mju_threadPoolCurrentWorkerId((mjThreadPool*)d->threadpool);
-    stack_info_ptr = mju_getStackInfoForThread(d, thread_id);
-  }
-  stack_usage = stack_usage_redzone(stack_info_ptr);
+  mjStackInfo stack_info = get_stack_info_from_data(d);
+  stack_usage = stack_usage_redzone(&stack_info);
 #endif
 
   // allocate, update max, return pointer to buffer
@@ -150,7 +135,6 @@ void* mj_arenaAllocByte(mjData* d, size_t bytes, size_t alignment) {
   __msan_allocated_memory(result, bytes);
 #endif
 
-  maybe_unlock_alloc_mutex(d);
   return result;
 }
 
@@ -212,13 +196,8 @@ static inline void* stackallocinternal(mjData* d, mjStackInfo* stack_info, size_
 
   // update max usage statistics
   stack_info->top = new_top_ptr;
-  if (!d->threadpool) {
-    d->maxuse_stack = mjMAX(d->maxuse_stack, usage);
-    d->maxuse_arena = mjMAX(d->maxuse_arena, usage + d->parena);
-  } else {
-    size_t thread_id = mju_threadPoolCurrentWorkerId((mjThreadPool*)d->threadpool);
-    d->maxuse_threadstack[thread_id] = mjMAX(d->maxuse_threadstack[thread_id], usage);
-  }
+  d->maxuse_stack = mjMAX(d->maxuse_stack, usage);
+  d->maxuse_arena = mjMAX(d->maxuse_arena, usage + d->parena);
 
   return (void*)start_ptr;
 }
@@ -228,18 +207,45 @@ static inline void* stackallocinternal(mjData* d, mjStackInfo* stack_info, size_
 // declared inline so that modular arithmetic with specific alignments can be optimized out
 static inline void* stackalloc(mjData* d, size_t size, size_t alignment,
                                const char* caller, int line) {
-  // single threaded allocation
-  if (!d->threadpool) {
-    mjStackInfo stack_info = get_stack_info_from_data(d);
-    void* result = stackallocinternal(d, &stack_info, size, alignment, caller, line);
-    d->pstack = stack_info.bottom - stack_info.top;
-    return result;
+  // size zero: no-op
+  if (!size) {
+    return NULL;
   }
 
-  // multi threaded allocation
-  size_t thread_id = mju_threadPoolCurrentWorkerId((mjThreadPool*)d->threadpool);
-  mjStackInfo* stack_info = mju_getStackInfoForThread(d, thread_id);
-  return stackallocinternal(d, stack_info, size, alignment, caller, line);
+  // call in mju_dispatch: atomically reserve space on the stack
+  if (d->threadlock) {
+    size_t alloc_size = size + alignment - 1 + 2 * mjREDZONE;
+    size_t old_pstack = mj_atomic_add_size_t(&d->pstack, alloc_size);
+
+    // check for stack overflow
+    size_t stack_available_bytes = (size_t)d->narena - d->parena;
+    if (mjUNLIKELY(old_pstack + alloc_size > stack_available_bytes)) {
+      char info[1024];
+      if (caller) {
+        snprintf(info, sizeof(info), " at %s, line %d", caller, line);
+      } else {
+        info[0] = '\0';
+      }
+      mju_error(
+          "mj_stackAlloc: out of memory, stack overflow%s (threadlock)\n"
+          "  max = %" PRIuPTR ", available = %" PRIuPTR ", requested = %" PRIuPTR
+          "\n nefc = %d, ncon = %d",
+          info, (uintptr_t)stack_available_bytes,
+          (uintptr_t)(stack_available_bytes - old_pstack),
+          (uintptr_t)alloc_size, d->nefc, d->ncon);
+    }
+
+    uintptr_t bottom = (uintptr_t)d->arena + (uintptr_t)d->narena;
+    uintptr_t start_ptr = bottom - old_pstack - size - mjREDZONE;
+    start_ptr -= fastmod(start_ptr, alignment);
+    ASAN_UNPOISON_MEMORY_REGION((void*)start_ptr, size);
+    return (void*)start_ptr;
+  }
+
+  mjStackInfo stack_info = get_stack_info_from_data(d);
+  void* result = stackallocinternal(d, &stack_info, size, alignment, caller, line);
+  d->pstack = stack_info.bottom - stack_info.top;
+  return result;
 }
 
 
@@ -268,17 +274,15 @@ void mj_markStack(mjData* d)
 void mj__markStack(mjData* d)
 #endif
 {
-  if (!d->threadpool) {
-    mjStackInfo stack_info = get_stack_info_from_data(d);
-    markstackinternal(d, &stack_info);
-    d->pstack = stack_info.bottom - stack_info.top;
-    d->pbase = stack_info.stack_base;
+  // no-op if called from mju_dispatch
+  if (d->threadlock) {
     return;
   }
 
-  size_t thread_id = mju_threadPoolCurrentWorkerId((mjThreadPool*)d->threadpool);
-  mjStackInfo* stack_info = mju_getStackInfoForThread(d, thread_id);
-  markstackinternal(d, stack_info);
+  mjStackInfo stack_info = get_stack_info_from_data(d);
+  markstackinternal(d, &stack_info);
+  d->pstack = stack_info.bottom - stack_info.top;
+  d->pbase = stack_info.stack_base;
 }
 
 
@@ -319,30 +323,14 @@ void mj_freeStack(mjData* d)
 void mj__freeStack(mjData* d)
 #endif
 {
-  if (!d->threadpool) {
-    mjStackInfo stack_info = get_stack_info_from_data(d);
-    freestackinternal(&stack_info);
-    d->pstack = stack_info.bottom - stack_info.top;
-    d->pbase = stack_info.stack_base;
+  if (d->threadlock) {
     return;
   }
 
-  size_t thread_id = mju_threadPoolCurrentWorkerId((mjThreadPool*)d->threadpool);
-  mjStackInfo* stack_info = mju_getStackInfoForThread(d, thread_id);
-  freestackinternal(stack_info);
-}
-
-
-// returns the number of bytes available on the stack
-size_t mj_stackBytesAvailable(mjData* d) {
-  if (!d->threadpool) {
-    mjStackInfo stack_info = get_stack_info_from_data(d);
-    return stack_info.top - stack_info.limit;
-  } else {
-    size_t thread_id = mju_threadPoolCurrentWorkerId((mjThreadPool*)d->threadpool);
-    mjStackInfo* stack_info = mju_getStackInfoForThread(d, thread_id);
-    return stack_info->top - stack_info->limit;
-  }
+  mjStackInfo stack_info = get_stack_info_from_data(d);
+  freestackinternal(&stack_info);
+  d->pstack = stack_info.bottom - stack_info.top;
+  d->pbase = stack_info.stack_base;
 }
 
 

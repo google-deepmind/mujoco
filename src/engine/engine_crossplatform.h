@@ -33,6 +33,12 @@
   #include <strings.h>
 #endif
 
+// Environment variable handling.
+#ifdef _WIN32
+  #define setenv(name, value, overwrite) _putenv_s(name, value)
+  #define unsetenv(name) _putenv_s(name, "")
+#endif
+
 // Switch-case fallthrough annotation.
 #if defined(__cplusplus)
   #define mjFALLTHROUGH [[fallthrough]]
@@ -67,6 +73,30 @@
       #define ADDRESS_SANITIZER
     #endif
   #endif
+#endif
+
+// Atomics helper for size_t.
+#if defined(_MSC_VER) && !defined(__clang__)
+  #include <intrin.h>
+  #define mj_atomic_add_size_t(ptr, val) \
+      (size_t)_InterlockedExchangeAdd64((__int64 volatile*)(ptr), (__int64)(val))
+#else
+  #define mj_atomic_add_size_t(ptr, val) \
+      __atomic_fetch_add(ptr, val, __ATOMIC_RELAXED)
+#endif
+
+// Atomics helpers for mjtBool (1-byte _Bool) with acquire/release semantics.
+#if defined(_MSC_VER) && !defined(__clang__)
+  #define mj_atomic_load_bool(ptr) \
+      (mjtBool) _InterlockedCompareExchange8((volatile char*)(ptr), 0, 0)
+  #define mj_atomic_store_bool(ptr, val) \
+      (void)_InterlockedExchange8((volatile char*)(ptr), (char)(val))
+  #define mj_atomic_exchange_bool(ptr, val) \
+      (mjtBool) _InterlockedExchange8((volatile char*)(ptr), (char)(val))
+#else
+  #define mj_atomic_load_bool(ptr) __atomic_load_n(ptr, __ATOMIC_ACQUIRE)
+  #define mj_atomic_store_bool(ptr, val) __atomic_store_n(ptr, val, __ATOMIC_RELEASE)
+  #define mj_atomic_exchange_bool(ptr, val) __atomic_exchange_n(ptr, val, __ATOMIC_ACQ_REL)
 #endif
 
 #ifdef __cplusplus

@@ -31,12 +31,7 @@ static const int kNumBenchmarkSteps = 50;
 
 // ----------------------------- benchmark ------------------------------------
 
-enum class SolveType {
-  kLegacy = 0,
-  kCsr,
-};
-
-static void BM_solve(benchmark::State& state, SolveType type) {
+static void BM_solve(benchmark::State& state) {
   static mjModel* m;
   m = LoadModelFromPath("../test/benchmark/testdata/inertia.xml");
 
@@ -48,10 +43,7 @@ static void BM_solve(benchmark::State& state, SolveType type) {
 
   // M: mass matrix in CSR format
   mjtNum* M = mj_stackAllocNum(d, m->nC);
-  mju_gather(M, d->qM, m->mapM2M, m->nC);
-
-  // LDlegacy: legacy LD matrix (size nM)
-  mjtNum* LDlegacy = mj_stackAllocNum(d, m->nM);
+  mju_copy(M, d->M, m->nC);
 
   // arbitrary input vector
   mjtNum *res = mj_stackAllocNum(d, m->nv);
@@ -64,19 +56,11 @@ static void BM_solve(benchmark::State& state, SolveType type) {
   while (state.KeepRunningBatch(kNumBenchmarkSteps)) {
     for (int i=0; i < kNumBenchmarkSteps; i++) {
       mju_copy(res, vec, m->nv);
-      switch (type) {
-        case SolveType::kLegacy:
-          mj_factorI_legacy(m, d, d->qM, LDlegacy, d->qLDiagInv);
-          mj_solveLD_legacy(m, res, 1, LDlegacy, d->qLDiagInv);
-          mj_solveM(m, d, res, vec, 1);
-          break;
-        case SolveType::kCsr:
-          mju_copy(d->qLD, M, m->nC);
-          mj_factorI(d->qLD, d->qLDiagInv, m->nv,
-                     m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
-          mj_solveLD(res, d->qLD, d->qLDiagInv, m->nv, 1,
-                     m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
-      }
+      mju_copy(d->qLD, M, m->nC);
+      mj_factorI(d->qLD, d->qLDiagInv, m->nv,
+                 m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
+      mj_solveLD(res, d->qLD, d->qLDiagInv, m->nv, 1,
+                 m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
     }
   }
 
@@ -87,15 +71,9 @@ static void BM_solve(benchmark::State& state, SolveType type) {
   state.SetItemsProcessed(state.iterations());
 }
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_solve_LEGACY(benchmark::State& state) {
-  MujocoErrorTestGuard guard;
-  BM_solve(state, SolveType::kLegacy);
-}
-BENCHMARK(BM_solve_LEGACY);
-
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_solve_CSR(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_solve(state, SolveType::kCsr);
+  BM_solve(state);
 }
 BENCHMARK(BM_solve_CSR);
 

@@ -21,7 +21,7 @@
 
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjspec.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include "cc/array_safety.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"

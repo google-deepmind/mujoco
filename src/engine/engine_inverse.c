@@ -59,6 +59,13 @@ void mj_invPosition(const mjModel* m, mjData* d) {
   mj_makeConstraint(m, d);
   TM_END(mjTIMER_POS_MAKE);
 
+  // compute exact diagonal if enabled
+  if (mjENABLED(mjENBL_DIAGEXACT)) {
+    TM_RESTART;
+    mj_projectConstraint(m, d);
+    TM_END(mjTIMER_POS_PROJECT);
+  }
+
   TM_RESTART;
   mj_transmission(m, d);
   TM_ADD(mjTIMER_POS_KINEMATICS);
@@ -125,10 +132,10 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
     // compute qDeriv
     mjd_smooth_vel(m, d, /* flg_bias = */ 1);
 
-    // gather qLU <- qM (lower to full)
+    // gather qLU <- M (lower to full)
     mju_gatherMasked(d->qLU, d->M, m->mapM2D, nD);
 
-    // set qLU = qM - dt*qDeriv
+    // set qLU = M - dt*qDeriv
     mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
 
     // set qfrc = qLU * qacc

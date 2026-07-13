@@ -215,7 +215,7 @@ def _warp_function(
       info = mjwarp_field_info[f]
       expected_type = _clean_type(info.expected_type)
       fn_args_model.append((f'{f}: {expected_type},', info.param_order))
-      fn_assignments.append(f'  _m.{f.replace('__', '.')} = {f}')
+      fn_assignments.append(f"  _m.{f.replace('__', '.')} = {f}")
     fn_args_model = sorted(fn_args_model, key=lambda x: x[1])
     fn_args_model = ['# Model'] + [f[0] for f in fn_args_model]
 
@@ -233,7 +233,7 @@ def _warp_function(
       param_order = info.param_order
       expected_type = _clean_type(info.expected_type)
       fn_args_data.append((f'{f}: {expected_type},', (is_out, param_order)))
-      fn_assignments.append(f'  _d.{f.replace('__', '.')} = {f}')
+      fn_assignments.append(f"  _d.{f.replace('__', '.')} = {f}")
     fn_args_data = sorted(fn_args_data, key=lambda x: x[1])
     fn_args_data = ['# Data'] + [f[0] for f in fn_args_data]
 
@@ -327,7 +327,12 @@ def _jax_shim_fn(
           f'Unknown param source: {mjwarp_field_info[arg].param_source}'
       )
 
-    if arg in field_usage.data_out_fields:
+    # Only treat as output if it is a Warp array (excludes scalars like
+    # naconmax).
+    if (
+        arg in field_usage.data_out_fields
+        and 'array' in mjwarp_field_info[arg].expected_type
+    ):
       # all out fields are in_out, since JAX already allocated them
       in_out_argnames.append(f"'{arg}'")
       num_outputs += 1
@@ -344,7 +349,11 @@ def _jax_shim_fn(
   if field_usage.render_context_in_caller:
     jax_args.append('ctx.key')
 
-  needs_dummy_output = not field_usage.data_out_fields
+  # If there are no Warp array outputs, we need a dummy output for JAX FFI.
+  needs_dummy_output = not any(
+      'array' in mjwarp_field_info[f].expected_type
+      for f in field_usage.data_out_fields
+  )
   if needs_dummy_output and fn_name != 'render':
     num_outputs = 1
     if field_usage.render_context_in_caller:
@@ -418,6 +427,7 @@ def create_jax_warp_shim(
   fn_args_raw_str = '\n'.join(['    ' + arg for arg in fn_args_raw])
   warp_fn_args = [arg.split(':')[0] for arg in fn_args_raw if '#' not in arg]  # pytype: disable=attribute-error
 
+  fn_assignments_str = '\n'.join(fn_assignments)
   src += f"""
 @ffi.format_args_for_warp
 def _{fn_name}_shim(
@@ -428,7 +438,7 @@ def _{fn_name}_shim(
   _m.callback = _cb
   _d.efc = _e
   _d.contact = _c
-{'\n'.join(fn_assignments)}
+{fn_assignments_str}
   {fn_call}
   """
   src += '\n\n'

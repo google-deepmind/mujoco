@@ -17,7 +17,7 @@
 #include <cstddef>
 #include <cstring>
 #include <memory>
-#include <span>
+#include <span>  // NOLINT
 #include <string_view>
 
 #include <mujoco/mujoco.h>
@@ -88,6 +88,11 @@ void ModelHolder::PostInit() {
     if (!model_) {
       SetLoadError(mjs_getError(spec_));
       return;
+    }
+    int num_warnings = mjs_numWarnings(spec_);
+    for (int i = 0; i < num_warnings; ++i) {
+      if (!warning_.empty()) warning_ += '\n';
+      warning_ += mjs_getWarning(spec_, i);
     }
   }
   data_ = mj_makeData(model_);

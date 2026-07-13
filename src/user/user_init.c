@@ -82,6 +82,9 @@ void mjs_defaultBody(mjsBody* body) {
   body->ipos[0] = mjNAN;
   body->iquat[0] = 1;
   body->fullinertia[0] = mjNAN;
+
+  // simple optimization: auto
+  body->simple = 1;
 }
 
 
@@ -243,6 +246,7 @@ void mjs_defaultMesh(mjsMesh* mesh) {
   mesh->scale[0] = mesh->scale[1] = mesh->scale[2] = 1;
   mesh->maxhullvert = -1;
   mesh->inertia = mjMESH_INERTIA_LEGACY;
+  mesh->octree_maxdepth = 6;
 }
 
 
@@ -271,7 +275,7 @@ void mjs_defaultTexture(mjsTexture* texture) {
   texture->gridsize[0] = texture->gridsize[1] = 1;
   texture->nchannel = 3;
   char defaultlayout[sizeof(texture->gridlayout)] = "............";
-  strncpy(texture->gridlayout, defaultlayout, sizeof(texture->gridlayout));
+  memcpy(texture->gridlayout, defaultlayout, sizeof(texture->gridlayout));
 }
 
 

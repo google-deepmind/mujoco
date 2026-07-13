@@ -1,0 +1,80 @@
+<mujoco>
+  <asset>
+    <texture file="test-pattern.png" type="2d"/>
+    <texture name="white" type="2d" builtin="flat" rgb1="1 1 1" width="2" height="2"/>
+    <texture name="grid" type="2d" builtin="checker" rgb1="1 1 1" rgb2="0.9 0.9 0.9" width="64" height="64"/>
+
+    <material name="pattern" texture="test-pattern"/>
+    <material name="floor" reflectance="0.5" texture="grid" texuniform="true"/>
+    <material name="metal" metallic="1.0" roughness="0.0">
+      <layer role="rgb" texture="white"/>
+      <layer role="metallic" texture="white"/>
+      <layer role="roughness" texture="white"/>
+    </material>
+
+    <mesh name="icosahedron"
+          vertex="0         1       1.618
+                  0        -1       1.618
+                  0         1      -1.618
+                  0        -1      -1.618
+                  1         1.618   0
+                 -1         1.618   0
+                  1        -1.618   0
+                 -1        -1.618   0
+                  1.618     0       1
+                  1.618     0      -1
+                 -1.618     0       1
+                 -1.618     0      -1"/>
+    <hfield name="hfield" nrow="3" ncol="3" size="1 1 0.1 0.1"
+            elevation="1 0 1
+                       0 1 0
+                       1 0 1"/>
+
+  </asset>
+  <worldbody>
+    <geom name="ground" type="plane" size="14 8 0.1" pos="0 0 -1" material="floor"/>
+
+    <geom type="box"       rgba="0.3 0.6 0.9 1.0" size="1 1 1" pos="-11 0 0"/>
+    <geom type="sphere"    rgba="0.3 0.6 0.9 1.0" size="1"     pos="-8 0 0"/>
+    <geom type="ellipsoid" rgba="0.3 0.6 0.9 1.0" size="1 2 1" pos="-5 0 0"/>
+    <geom type="capsule"   rgba="0.3 0.6 0.9 1.0" size="1 1"   pos="-2 0 1"/>
+    <geom type="cylinder"  rgba="0.3 0.6 0.9 1.0" size="1 1"   pos="1 0 0"/>
+    <geom type="hfield" hfield="hfield" rgba="0.3 0.6 0.9 1.0" pos="4 0 -0.5"/>
+    <geom type="sdf" mesh="icosahedron" rgba="0.3 0.6 0.9 1.0" pos="7 0 0.809"/>
+    <flexcomp name="f1" type="grid" radius="0.01" dim="2" pos="10 0 1"
+              zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" rgba="0.3 0.6 0.9 1.0">
+      <edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/>
+      <contact internal="true"/>
+      <pin id="35"/>
+    </flexcomp>
+
+    <geom type="box"       material="pattern" size="1 1 1" pos="-11 5 0"/>
+    <geom type="sphere"    material="pattern" size="1"     pos="-8 5 0"/>
+    <geom type="ellipsoid" material="pattern" size="1 2 1" pos="-5 5 0"/>
+    <geom type="capsule"   material="pattern" size="1 1"   pos="-2 5 1"/>
+    <geom type="cylinder"  material="pattern" size="1 1"   pos="1 5 0"/>
+    <geom type="hfield" hfield="hfield" material="pattern" pos="4 5 -0.5"/>
+    <geom type="sdf" mesh="icosahedron" material="pattern" pos="7 5 0.809"/>
+    <flexcomp name="f2" type="grid" radius="0.01" dim="2" pos="10 5 1"
+              zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" material="pattern">
+      <edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/>
+      <contact internal="true"/>
+      <pin id="35"/>
+    </flexcomp>
+
+    <geom type="box"       material="metal" size="1 1 1" pos="-11 -5 0"/>
+    <geom type="sphere"    material="metal" size="1"     pos="-8 -5 0"/>
+    <geom type="ellipsoid" material="metal" size="1 2 1" pos="-5 -5 0"/>
+    <geom type="capsule"   material="metal" size="1 1"   pos="-2 -5 1"/>
+    <geom type="cylinder"  material="metal" size="1 1"   pos="1 -5 0"/>
+    <geom type="hfield" hfield="hfield" material="metal" pos="4 -5 -0.5"/>
+    <geom type="sdf" mesh="icosahedron" material="metal" pos="7 -5 0.809"/>
+    <flexcomp name="f3" type="grid" radius="0.01" dim="2" pos="10 -5 1"
+              zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" material="metal">
+      <edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/>
+      <contact internal="true"/>
+      <pin id="35"/>
+    </flexcomp>
+
+  </worldbody>
+</mujoco>

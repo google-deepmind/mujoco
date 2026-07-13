@@ -607,6 +607,11 @@ void mj_flex(const mjModel* m, mjData* d) {
         mjERROR("flex_interp_order mismatch");
       }
 
+      // shell mode: reconstruct interior node positions from boundary via TFI
+      if (interp < 0) {
+        mju_shellTrackInterior(nodexpos, nx_g, ny_g, nz_g);
+      }
+
       for (int i=vstart; i < vend; i++) {
         mju_zero3(d->flexvert_xpos+3*i);
 
@@ -1866,71 +1871,7 @@ void mj_makeM(const mjModel* m, mjData* d) {
   TM_START;
   mj_crb(m, d);
   mj_tendonArmature(m, d);
-  mju_scatter(d->qM, d->M, m->mapM2M, m->nC);  // TODO(tassa): scatter only awake dofs
   TM_END(mjTIMER_POS_INERTIA);
-}
-
-
-// sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd
-// (legacy implementation)
-void mj_factorI_legacy(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD,
-                       mjtNum* qLDiagInv) {
-  int cnt;
-  int Madr_kk, Madr_ki;
-  mjtNum tmp;
-
-  // local copies of key variables
-  int* dof_Madr = m->dof_Madr;
-  int* dof_parentid = m->dof_parentid;
-  int nv = m->nv;
-
-  // copy M into LD
-  mju_copy(qLD, M, m->nM);
-
-  // dense backward loop over dofs (regular only, simple diagonal already copied)
-  for (int k=nv-1; k >= 0; k--) {
-    // get address of M(k,k)
-    Madr_kk = dof_Madr[k];
-
-    // check for small/negative numbers on diagonal
-    if (qLD[Madr_kk] < mjMINVAL) {
-      mj_warning(d, mjWARN_INERTIA, k);
-      qLD[Madr_kk] = mjMINVAL;
-    }
-
-    // skip the rest if simple
-    if (m->dof_simplenum[k]) {
-      continue;
-    }
-
-    // sparse backward loop over ancestors of k (excluding k)
-    Madr_ki = Madr_kk + 1;
-    int i = dof_parentid[k];
-    while (i >= 0) {
-      tmp = qLD[Madr_ki] / qLD[Madr_kk];          // tmp = M(k,i) / M(k,k)
-
-      // get number of ancestors of i (including i)
-      if (i < nv-1) {
-        cnt = dof_Madr[i+1] - dof_Madr[i];
-      } else {
-        cnt = m->nM - dof_Madr[i+1];
-      }
-
-      // M(i,j) -= M(k,j) * tmp
-      mju_addToScl(qLD+dof_Madr[i], qLD+Madr_ki, -tmp, cnt);
-
-      qLD[Madr_ki] = tmp;                         // M(k,i) = tmp
-
-      // advance to i's parent
-      i = dof_parentid[i];
-      Madr_ki++;
-    }
-  }
-
-  // compute 1/diag(D)
-  for (int i=0; i < nv; i++) {
-    qLDiagInv[i] = 1.0 / qLD[dof_Madr[i]];
-  }
 }
 
 
@@ -1988,118 +1929,6 @@ void mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
 
     // update row k:  L(k, :) /= L(k, k)
     mju_scl(mat + start, mat + start, invD, diag);
-  }
-}
-
-
-// in-place sparse backsubstitution:  x = inv(L'*D*L)*x
-// (legacy implementation)
-void mj_solveLD_legacy(const mjModel* m, mjtNum* restrict x, int n,
-                       const mjtNum* qLD, const mjtNum* qLDiagInv) {
-  // local copies of key variables
-  int* dof_Madr = m->dof_Madr;
-  int* dof_parentid = m->dof_parentid;
-  int nv = m->nv;
-
-  // single vector
-  if (n == 1) {
-    // x <- inv(L') * x; skip simple, exploit sparsity of input vector
-    for (int i=nv-1; i >= 0; i--) {
-      if (!m->dof_simplenum[i] && x[i]) {
-        // init
-        int Madr_ij = dof_Madr[i]+1;
-        int j = dof_parentid[i];
-
-        // traverse ancestors backwards
-        // read directly from x[i] since i cannot be a parent of itself
-        while (j >= 0) {
-          x[j] -= qLD[Madr_ij++]*x[i];         // x(j) -= L(i,j) * x(i)
-
-          // advance to parent
-          j = dof_parentid[j];
-        }
-      }
-    }
-
-    // x <- inv(D) * x
-    for (int i=0; i < nv; i++) {
-      x[i] *= qLDiagInv[i];  // x(i) /= L(i,i)
-    }
-
-    // x <- inv(L) * x; skip simple
-    for (int i=0; i < nv; i++) {
-      if (!m->dof_simplenum[i]) {
-        // init
-        int Madr_ij = dof_Madr[i]+1;
-        int j = dof_parentid[i];
-
-        // traverse ancestors backwards
-        // write directly in x[i] since i cannot be a parent of itself
-        while (j >= 0) {
-          x[i] -= qLD[Madr_ij++]*x[j];             // x(i) -= L(i,j) * x(j)
-
-          // advance to parent
-          j = dof_parentid[j];
-        }
-      }
-    }
-  }
-
-  // multiple vectors
-  else {
-    int offset;
-    mjtNum tmp;
-
-    // x <- inv(L') * x; skip simple
-    for (int i=nv-1; i >= 0; i--) {
-      if (!m->dof_simplenum[i]) {
-        // init
-        int Madr_ij = dof_Madr[i]+1;
-        int j = dof_parentid[i];
-
-        // traverse ancestors backwards
-        while (j >= 0) {
-          // process all vectors, exploit sparsity
-          for (offset=0; offset < n*nv; offset+=nv)
-            if ((tmp = x[i+offset])) {
-              x[j+offset] -= qLD[Madr_ij]*tmp;  // x(j) -= L(i,j) * x(i)
-            }
-
-          // advance to parent
-          Madr_ij++;
-          j = dof_parentid[j];
-        }
-      }
-    }
-
-    // x <- inv(D) * x
-    for (int i=0; i < nv; i++) {
-      for (offset=0; offset < n*nv; offset+=nv) {
-        x[i+offset] *= qLDiagInv[i];  // x(i) /= L(i,i)
-      }
-    }
-
-    // x <- inv(L) * x; skip simple
-    for (int i=0; i < nv; i++) {
-      if (!m->dof_simplenum[i]) {
-        // init
-        int Madr_ij = dof_Madr[i]+1;
-        int j = dof_parentid[i];
-
-        // traverse ancestors backwards
-        tmp = x[i+offset];
-        while (j >= 0) {
-          // process all vectors
-          for (offset=0; offset < n*nv; offset+=nv) {
-            x[i+offset] -= qLD[Madr_ij]*x[j+offset];  // x(i) -= L(i,j) * x(j)
-          }
-
-          // advance to parent
-          Madr_ij++;
-          j = dof_parentid[j];
-        }
-      }
-    }
   }
 }
 

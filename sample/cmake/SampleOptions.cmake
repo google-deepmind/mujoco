@@ -108,7 +108,12 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang
   endif()
 endif()
 
-if(NOT CMAKE_INTERPROCEDURAL_OPTIMIZATION AND (CMAKE_BUILD_TYPE AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug"))
+# Enable interprocedural optimization (LTO) by default for non-Debug builds, but
+# only when the caller has not made an explicit choice. Checking the value (rather
+# than whether it is DEFINED) meant an explicit `-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF`
+# was silently overridden back to ON, e.g. in CI where LTO is disabled to cut
+# build time.
+if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION AND (CMAKE_BUILD_TYPE AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug"))
   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 endif()
 

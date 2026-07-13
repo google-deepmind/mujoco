@@ -23,6 +23,7 @@
 #include <ios>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -35,6 +36,7 @@
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "errors.h"
+#include "gil.h"
 #include "private.h"
 #include "raw.h"
 #include "serialization.h"
@@ -49,6 +51,9 @@
 #include <pybind11/stl.h>
 
 namespace mujoco::python::_impl {
+
+using ::mujoco::python::GetCallbackMutex;
+using ::mujoco::python::MutexLockIfGilDisabled;
 
 namespace py = ::pybind11;
 
@@ -221,11 +226,17 @@ MjModelRawPointerMap() {
   return *hash_map;
 }
 
+static std::mutex& MjModelMapMutex() {
+  static auto* mtx = new std::mutex;
+  return *mtx;
+}
+
 MjModelWrapper* MjModelWrapper::FromRawPointer(raw::MjModel* m) noexcept {
   try {
     auto& map = MjModelRawPointerMap();
     {
       py::gil_scoped_acquire gil;
+      MutexLockIfGilDisabled lock(MjModelMapMutex());
       auto found = map.find(m);
       return found != map.end() ? found->second : nullptr;
     }
@@ -250,6 +261,7 @@ MjModelWrapper::MjWrapper(raw::MjModel* ptr)
   bool is_newly_inserted = false;
   {
     py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(MjModelMapMutex());
     is_newly_inserted = MjModelRawPointerMap().insert({ptr_, this}).second;
   }
   if (!is_newly_inserted) {
@@ -271,6 +283,7 @@ MjModelWrapper::MjWrapper(MjModelWrapper&& other)
   bool is_newly_inserted = false;
   {
     py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(MjModelMapMutex());
     is_newly_inserted =
         MjModelRawPointerMap().insert_or_assign(ptr_, this).second;
   }
@@ -294,6 +307,7 @@ MjModelWrapper::~MjWrapper() {
     bool erased = false;
     {
       py::gil_scoped_acquire gil;
+      MutexLockIfGilDisabled lock(MjModelMapMutex());
       erased = MjModelRawPointerMap().erase(ptr_);
     }
     if (!erased) {
@@ -535,6 +549,26 @@ std::unique_ptr<MjModelWrapper> MjModelWrapper::Deserialize(
   return std::unique_ptr<MjModelWrapper>(new MjModelWrapper(model));
 }
 
+// ==================== MJPRECONTACT ==========================================
+#define X(var) var(InitPyArray(ptr_->var, owner_))
+MjPreContactWrapper::MjWrapper()
+    : WrapperBase(new raw::MjPreContact{}),
+      X(pos),
+      X(normal),
+      X(tangent) {}
+
+MjPreContactWrapper::MjWrapper(raw::MjPreContact* ptr, py::handle owner)
+    : WrapperBase(ptr, owner),
+      X(pos),
+      X(normal),
+      X(tangent) {}
+#undef X
+
+MjPreContactWrapper::MjWrapper(const MjPreContactWrapper& other)
+    : MjPreContactWrapper() {
+  *this->ptr_ = *other.ptr_;
+}
+
 // ==================== MJCONTACT ==============================================
 #define X(var) var(InitPyArray(ptr_->var, owner_))
 MjContactWrapper::MjWrapper()
@@ -591,11 +625,17 @@ absl::flat_hash_map<raw::MjData*, MjDataWrapper*>& MjDataRawPointerMap() {
   return *hash_map;
 }
 
+static std::mutex& MjDataMapMutex() {
+  static auto* mtx = new std::mutex;
+  return *mtx;
+}
+
 MjDataWrapper* MjDataWrapper::FromRawPointer(raw::MjData* m) noexcept {
   try {
     auto& map = MjDataRawPointerMap();
     {
       py::gil_scoped_acquire gil;
+      MutexLockIfGilDisabled lock(MjDataMapMutex());
       auto found = map.find(m);
       return found != map.end() ? found->second : nullptr;
     }
@@ -637,6 +677,7 @@ MjDataWrapper::MjWrapper(MjModelWrapper* model)
   bool is_newly_inserted = false;
   {
     py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(MjDataMapMutex());
     is_newly_inserted = MjDataRawPointerMap().insert({ptr_, this}).second;
   }
   if (!is_newly_inserted) {
@@ -646,7 +687,7 @@ MjDataWrapper::MjWrapper(MjModelWrapper* model)
 
   // install default timer if not already installed
   {
-    py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(GetCallbackMutex());
     if (!mjcb_time) {
       mjcb_time = GetTime;
     }
@@ -707,6 +748,7 @@ MjDataWrapper::MjWrapper(MjDataWrapper&& other)
   bool is_newly_inserted = false;
   {
     py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(MjDataMapMutex());
     is_newly_inserted =
         MjDataRawPointerMap().insert_or_assign(ptr_, this).second;
   }
@@ -740,6 +782,7 @@ MjDataWrapper::MjWrapper(const MjDataWrapper& other, MjModelWrapper* model)
   bool is_newly_inserted = false;
   {
     py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(MjDataMapMutex());
     is_newly_inserted = MjDataRawPointerMap().insert({ptr_, this}).second;
   }
   if (!is_newly_inserted) {
@@ -770,6 +813,7 @@ MjDataWrapper::MjWrapper(MjModelWrapper* model, raw::MjData* d)
   bool is_newly_inserted = false;
   {
     py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(MjDataMapMutex());
     is_newly_inserted = MjDataRawPointerMap().insert({ptr_, this}).second;
   }
   if (!is_newly_inserted) {
@@ -783,6 +827,7 @@ MjDataWrapper::~MjWrapper() {
     bool erased = false;
     {
       py::gil_scoped_acquire gil;
+      MutexLockIfGilDisabled lock(MjDataMapMutex());
       erased = MjDataRawPointerMap().erase(ptr_);
     }
     if (!erased) {
@@ -812,6 +857,7 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
   X(ne);
   X(nf);
   X(nJ);
+  X(nY);
   X(nA);
   X(nefc);
   X(nisland);
@@ -891,6 +937,7 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
   X(ne);
   X(nf);
   X(nJ);
+  X(nY);
   X(nA);
   X(nefc);
   X(nisland);
@@ -996,6 +1043,28 @@ MjWarningStatList::MjStructList(raw::MjWarningStat* ptr, int num,
 MjWarningStatList::MjStructList(MjWarningStatList& other, py::slice slice)
     : StructListBase(other, slice), X(int, lastinfo), X(int, number) {}
 #undef X
+
+// ==================== MJLOGCONFIG ============================================
+MjLogConfigWrapper::MjWrapper() : WrapperBase(new raw::MjLogConfig{}) {}
+
+MjLogConfigWrapper::MjWrapper(raw::MjLogConfig* ptr, py::handle owner)
+    : WrapperBase(ptr, owner) {}
+
+MjLogConfigWrapper::MjWrapper(const MjLogConfigWrapper& other)
+    : MjLogConfigWrapper() {
+  *this->ptr_ = *other.ptr_;
+}
+
+// ==================== MJLOGMESSAGE ===========================================
+MjLogMessageWrapper::MjWrapper() : WrapperBase(new raw::MjLogMessage{}) {}
+
+MjLogMessageWrapper::MjWrapper(raw::MjLogMessage* ptr, py::handle owner)
+    : WrapperBase(ptr, owner) {}
+
+MjLogMessageWrapper::MjWrapper(const MjLogMessageWrapper& other)
+    : MjLogMessageWrapper() {
+  *this->ptr_ = *other.ptr_;
+}
 
 // ==================== MJTIMERSTAT ============================================
 MjTimerStatWrapper::MjWrapper() : WrapperBase(new raw::MjTimerStat{}) {}

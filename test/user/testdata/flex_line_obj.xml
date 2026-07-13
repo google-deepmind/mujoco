@@ -1,0 +1,5 @@
+<mujoco>
+  <worldbody>
+    <flexcomp name="line" type="mesh" file="line.obj" dim="1" radius="0.1"/>
+  </worldbody>
+</mujoco>

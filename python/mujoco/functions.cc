@@ -37,7 +37,7 @@
 
 namespace mujoco::python {
 namespace {
-PYBIND11_MODULE(_functions, pymodule) {
+PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
   namespace py = ::pybind11;
   namespace traits = python_traits;
 
@@ -591,15 +591,12 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_id2name>(pymodule);
   Def<traits::mj_fullM>(
       pymodule,
-      [](const raw::MjModel* m, Eigen::Ref<EigenArrayXX> dst,
-         Eigen::Ref<const EigenVectorX> M) {
-        if (M.size() != m->nM) {
-          throw py::type_error("M should be of size nM");
-        }
+      [](const raw::MjModel* m, const raw::MjData* d,
+         Eigen::Ref<EigenArrayXX> dst) {
         if (dst.cols() != m->nv || dst.rows() != m->nv) {
           throw py::type_error("dst should be of shape (nv, nv)");
         }
-        return ::mj_fullM(m, dst.data(), M.data());
+        return ::mj_fullM(m, d, dst.data());
       });
   Def<traits::mj_mulM>(
       pymodule,
@@ -725,6 +722,9 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_version>(pymodule);
   Def<traits::mj_versionString>(pymodule);
 
+  // Thread pool
+  Def<traits::mju_threadpool>(pymodule);
+
   // Ray collision
   Def<traits::mj_multiRay>(
       pymodule,
@@ -732,7 +732,7 @@ PYBIND11_MODULE(_functions, pymodule) {
          Eigen::Ref<const EigenVectorX> vec,
          std::optional<Eigen::Ref<const Eigen::Vector<mjtByte, mjNGROUP>>>
              geomgroup,
-         mjtByte flg_static, int bodyexclude, Eigen::Ref<EigenVectorI> geomid,
+         mjtBool flg_static, int bodyexclude, Eigen::Ref<EigenVectorI> geomid,
          Eigen::Ref<EigenVectorX> dist,
          std::optional<Eigen::Ref<EigenVectorX>> normal,
          int nray, mjtNum cutoff) {
@@ -758,7 +758,7 @@ PYBIND11_MODULE(_functions, pymodule) {
              const mjtNum(*vec)[3],
              std::optional<Eigen::Ref<const Eigen::Vector<mjtByte, mjNGROUP>>>
                  geomgroup,
-             mjtByte flg_static, int bodyexclude,
+             mjtBool flg_static, int bodyexclude,
              std::optional<Eigen::Ref<Eigen::Vector<int, 1>>> geomid,
              std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 3>>> normal) {
             return mj_ray(m, d, &(*pnt)[0], &(*vec)[0],
@@ -817,8 +817,8 @@ PYBIND11_MODULE(_functions, pymodule) {
       "mj_rayFlex",
       util::UnwrapArgs(
           [](const raw::MjModel* m, const raw::MjData* d, int flex_layer,
-             mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face,
-             mjtByte flg_skin, int flexid, const mjtNum(*pnt)[3],
+             mjtBool flg_vert, mjtBool flg_edge, mjtBool flg_face,
+             mjtBool flg_skin, int flexid, const mjtNum(*pnt)[3],
              const mjtNum(*vec)[3],
              std::optional<Eigen::Ref<Eigen::Vector<int, 1>>> vertid,
              std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 3>>> normal) {
@@ -1370,7 +1370,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mju_band2Dense>(
       pymodule,
       [](Eigen::Ref<EigenArrayXX> res, Eigen::Ref<const EigenVectorX> mat,
-         int ntotal, int nband, int ndense, mjtByte flg_sym) {
+         int ntotal, int nband, int ndense, mjtBool flg_sym) {
         int nMat = (ntotal - ndense) * nband + ndense * ntotal;
         if (mat.size() != nMat) {
           throw py::type_error(
@@ -1406,7 +1406,7 @@ PYBIND11_MODULE(_functions, pymodule) {
       pymodule,
       [](Eigen::Ref<EigenVectorX> res, Eigen::Ref<const EigenArrayXX> mat,
          Eigen::Ref<const EigenArrayXX> vec, int ntotal, int nband, int ndense,
-         int nVec, mjtByte flg_sym) {
+         int nVec, mjtBool flg_sym) {
         int nMat = (ntotal - ndense) * nband + ndense * ntotal;
         if (mat.size() != nMat) {
           throw py::type_error(
@@ -1576,7 +1576,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjd_transitionFD>(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d,
-         mjtNum eps, mjtByte flg_centered,
+         mjtNum eps, mjtBool flg_centered,
          std::optional<Eigen::Ref<EigenArrayXX>> A,
          std::optional<Eigen::Ref<EigenArrayXX>> B,
          std::optional<Eigen::Ref<EigenArrayXX>> C,
@@ -1607,7 +1607,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjd_inverseFD>(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d,
-         mjtNum eps, mjtByte flg_actuation,
+         mjtNum eps, mjtBool flg_actuation,
          std::optional<Eigen::Ref<EigenArrayXX>> DfDq,
          std::optional<Eigen::Ref<EigenArrayXX>> DfDv,
          std::optional<Eigen::Ref<EigenArrayXX>> DfDa,
@@ -1640,8 +1640,8 @@ PYBIND11_MODULE(_functions, pymodule) {
           throw py::type_error("DsDa should be of shape (nv, nsensordata)");
         }
         if (DmDq.has_value() &&
-            (DmDq->rows() != m->nv || DmDq->cols() != m->nM)) {
-          throw py::type_error("DmDq should be of shape (nv, nM)");
+            (DmDq->rows() != m->nv || DmDq->cols() != m->nC)) {
+          throw py::type_error("DmDq should be of shape (nv, nC)");
         }
         return InterceptMjErrors(::mjd_inverseFD)(
             m, d, eps, flg_actuation,
@@ -1696,6 +1696,7 @@ PYBIND11_MODULE(_functions, pymodule) {
 #define X(type, name, nr, nc) data->name = nullptr;
           MJDATA_ARENA_POINTERS_SOLVER
           MJDATA_ARENA_POINTERS_DUAL
+          MJDATA_ARENA_POINTERS_ISLAND
 #undef X
         };
 
@@ -1743,6 +1744,74 @@ PYBIND11_MODULE(_functions, pymodule) {
 #define MJ_M(x) x
       },
       py::arg("d"), py::arg("ncon"), py::arg("nefc"), py::arg("nJ") = -1,
+      py::call_guard<py::gil_scoped_release>());
+
+  pymodule.def(
+      "_realloc_island",
+      [](MjDataWrapper& d, int nisland, int nidof) {
+        raw::MjData* data = d.get();
+
+        size_t parena_start = data->parena;
+        // Find island block start in arena to reclaim memory on re-allocation.
+        char* min_ptr = nullptr;
+#define X(type, name, nr, nc)                                                   \
+        if (data->name &&                                                       \
+            (!min_ptr || reinterpret_cast<char*>(data->name) < min_ptr)) {      \
+          min_ptr = reinterpret_cast<char*>(data->name);                        \
+        }
+        MJDATA_ARENA_POINTERS_ISLAND
+#undef X
+        if (min_ptr && data->arena) {
+          parena_start = min_ptr - static_cast<char*>(data->arena);
+        }
+
+        auto cleanup = [](raw::MjData* data, size_t target_parena) {
+#define X(type, name, nr, nc) data->name = nullptr;
+          MJDATA_ARENA_POINTERS_ISLAND
+#undef X
+          data->nisland = 0;
+          data->nidof = 0;
+          data->parena = target_parena;
+#ifdef ADDRESS_SANITIZER
+          ASAN_POISON_MEMORY_REGION(
+              static_cast<char*>(data->arena) + target_parena,
+              data->narena - data->pstack - target_parena);
+#endif
+        };
+
+        cleanup(data, parena_start);
+
+        char error_msg[128];
+        error_msg[0] = '\0';
+        const char* error_msg_fmt =
+            "Insufficient arena memory, currently allocated memory=\"%s\". "
+            "Increase using <size memory=\"X\"/>.";
+
+        data->nisland = nisland;
+        data->nidof = nidof;
+
+#undef MJ_M
+#define MJ_M(x) d.model().get()->x
+#undef MJ_D
+#define MJ_D(x) data->x
+#define X(type, name, nr, nc)                                                   \
+        data->name = static_cast<type*>(InterceptMjErrors(::mj_arenaAllocByte)( \
+            data, sizeof(type) * (nr) * (nc), alignof(type)));                  \
+        if (!data->name) {                                                      \
+          cleanup(data, parena_start);                                          \
+          std::snprintf(error_msg, sizeof(error_msg), error_msg_fmt,            \
+                        mju_writeNumBytes(data->narena));                       \
+          throw FatalError(error_msg);                                          \
+        }
+
+        MJDATA_ARENA_POINTERS_ISLAND
+#undef X
+#undef MJ_D
+#define MJ_D(x) x
+#undef MJ_M
+#define MJ_M(x) x
+      },
+      py::arg("d"), py::arg("nisland"), py::arg("nidof"),
       py::call_guard<py::gil_scoped_release>());
 }  // PYBIND11_MODULE NOLINT(readability/fn_size)
 }  // namespace

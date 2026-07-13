@@ -78,6 +78,10 @@ MJAPI int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
                      const mjvScene* scn, mjtNum selpnt[3],
                      int geomid[1], int flexid[1], int skinid[1]);
 
+// return body id, compute position of a vertex in a flex
+MJAPI int mjv_flexBodyId(const mjModel* m, const mjData* d, int flexid, int vertid,
+                         mjtNum flexpnt[3]);
+
 #ifdef __cplusplus
 }
 #endif

@@ -18,30 +18,25 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <string_view>
 #include <vector>
 
 #include <math/mat4.h>
 #include <math/vec3.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/compat/model_objects.h"
-#include "experimental/filament/render_context_filament.h"
-#include "experimental/filament/render_context_filament_cpp.h"
+#include "experimental/filament/compat/scene_objects.h"
+#include "render/filament/mjrfilament_cpp.h"
+#include "render/filament/support/model_objects.h"
+#include "render/filament/support/light_manager.h"
 
 namespace mujoco {
 
 // Manages all mjModel data and updates a SceneView using an mjvScene.
 class SceneBridge {
  public:
-  SceneBridge(mjrfContext* ctx, const mjModel* model);
+  SceneBridge(mjrfContext* ctx, mjrfScene* scene, const mjModel* model);
   ~SceneBridge();
-
-  // Updates the environment light using the KTX image at the given path.
-  void SetEnvironmentLight(std::string_view filename, float intensity);
-
-  // Updates the environment light to the fallback light
-  void SetFallbackEnvironmentLight(float intensity);
 
   // Updates the Entities in the filament Scene to match the current mjvScene
   // state.
@@ -55,34 +50,27 @@ class SceneBridge {
   using DrawTextAtFn = std::function<void(const char*, float, float, float)>;
   void SetDrawTextFunction(DrawTextAtFn fn);
 
-  // Returns the managed scene.
-  mjrScene* GetScene() const { return scene_.get(); }
+  // Returns the camera used for rendering the scene.
+  mjrCamera GetCamera() const;
 
   SceneBridge(const SceneBridge&) = delete;
   SceneBridge& operator=(const SceneBridge&) = delete;
 
  private:
-  void PrepareLights();
-
   // Converts a point in world space to clip space, eg. in the range [-1,-1, 0]
   // to [1, 1, 1]. Returns std::nullopt if the point is behind the camera.
   std::optional<filament::math::float3> ClipFromWorld(
       const filament::math::float3& pos) const;
 
   mjrfContext* ctx_ = nullptr;
+  mjrfScene* scene_ = nullptr;
   std::unique_ptr<ModelObjects> model_objects_;
+  std::unique_ptr<SceneObjects> scene_objects_;
+  std::unique_ptr<LightManager> light_manager_;
+  mjrCamera camera_;
   DrawTextAtFn draw_text_callback_;
-  UniquePtr<mjrScene> scene_{nullptr, nullptr};
-  UniquePtr<mjrLight> fallback_ibl_{nullptr, nullptr};
-  UniquePtr<mjrTexture> fallback_ibl_texture_{nullptr, nullptr};
-  std::vector<UniquePtr<mjrLight>> lights_;
-  std::vector<UniquePtr<mjrRenderable>> renderables_;
+  std::vector<UniquePtr<mjrfRenderable>> renderables_;
   filament::math::mat4 clip_from_world_;
-  int default_shadow_map_size_ = 2048;
-  float default_vsm_blur_width_ = 0.0f;
-  float fallback_head_light_intensity_ = 0.f;
-  float fallback_scene_light_intensity_ = 80'000.f;
-  float fallback_environment_light_intensity_ = 5'000.f;
 };
 
 }  // namespace mujoco

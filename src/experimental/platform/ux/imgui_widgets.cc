@@ -15,6 +15,7 @@
 #include "experimental/platform/ux/imgui_widgets.h"
 
 #include <algorithm>
+#include <cfloat>
 #include <cstdint>
 #include <cstring>
 #include <sstream>
@@ -65,7 +66,7 @@ KeyValues ReadIniSection(const std::string& contents,
 
 ImGui_DataPtrTable::ImGui_DataPtrTable(float w1, float w2) {
   ImGui::BeginTable("##PropertiesTable", 2, ImGuiTableFlags_RowBg);
-  const float width = ImGui::GetContentRegionAvail().x;
+  const float width = GetStableAvailWidth();
   ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, width * w1);
   ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, width * w2);
   ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(3.0f, 0.0f));
@@ -96,6 +97,14 @@ void ImGui_DataPtrTable::DataPtr(const char* label, const char* ptr, int index,
 }
 
 void ImGui_DataPtrTable::DataPtr(const char* label, const mjtByte* ptr,
+                                 int index, int n) {
+  for (int i = 0; i < n; ++i) {
+    MakeLabel(label, i, n);
+    ImGui::Text("%s", ptr[index + i] ? "true" : "false");
+  }
+}
+
+void ImGui_DataPtrTable::DataPtr(const char* label, const mjtBool* ptr,
                                  int index, int n) {
   for (int i = 0; i < n; ++i) {
     MakeLabel(label, i, n);
@@ -211,6 +220,13 @@ void ImGui_DataPtrTable::MakeLabel(const char* label, int index, int total) {
 
 void ImGui_SpecElementTable::operator()(const char* label, mjtByte& val,
                                         const mjtByte& ref,
+                                        const char* tooltip) {
+  Label(label, tooltip);
+  Input(val, ref);
+}
+
+void ImGui_SpecElementTable::operator()(const char* label, bool& val,
+                                        const bool& ref,
                                         const char* tooltip) {
   Label(label, tooltip);
   Input(val, ref);
@@ -378,14 +394,31 @@ void MaybeSaveToClipboard(const std::string& contents) {
   ImGui::SetClipboardText(contents.c_str());
 }
 
+float GetExpectedLabelWidth() {
+  static float expected_label_width = 0;
+  if (expected_label_width == 0) {
+    int longest = 0;
+    const char* longest_label = "";
+    for (int i = 0; i < mjNVISFLAG; ++i) {
+      int length = static_cast<int>(std::strlen(mjVISSTRING[i][0]));
+      if (length > longest) {
+        longest_label = mjVISSTRING[i][0];
+        longest = length;
+      }
+    }
+    expected_label_width = ImGui::CalcTextSize(longest_label).x + 16;
+  }
+  return expected_label_width;
+}
+
 ImPlotFlags ImPlot_SetupPlotFlags(ImVec2 plot_size) {
   ImPlotFlags flags = ImPlotFlags_None;
   if (plot_size.x > 0 && plot_size.y > 0) {
     const float min_dim = std::min(plot_size.x, plot_size.y);
-    if (min_dim < 300) {
+    if (min_dim < 150) {
       flags |= ImPlotFlags_NoTitle;
     }
-    if (min_dim < 200) {
+    if (min_dim < 140) {
       flags |= ImPlotFlags_NoLegend;
     }
   }
@@ -395,7 +428,7 @@ ImPlotFlags ImPlot_SetupPlotFlags(ImVec2 plot_size) {
 void ImPlot_SetupTimeAxis(ImVec2 plot_size, const char* label,
                           ImPlotAxisFlags extra_flags) {
   ImPlotAxisFlags flags = extra_flags;
-  if (plot_size.x > 0 && plot_size.x < 300) {
+  if (plot_size.x > 0 && plot_size.x < 180) {
     flags |= ImPlotAxisFlags_NoTickLabels;
   }
   ImPlot::SetupAxis(ImAxis_X1, label, flags);
@@ -404,7 +437,7 @@ void ImPlot_SetupTimeAxis(ImVec2 plot_size, const char* label,
 void ImPlot_SetupValueAxis(ImVec2 plot_size, const char* label,
                            const char* format, ImPlotAxisFlags extra_flags) {
   ImPlotAxisFlags flags = extra_flags;
-  if (plot_size.y > 0 && plot_size.y < 150) {
+  if (plot_size.y > 0 && plot_size.y < 90) {
     flags |= ImPlotAxisFlags_NoTickLabels;
   }
   ImPlot::SetupAxis(ImAxis_Y1, label, flags);
@@ -418,7 +451,7 @@ void ImPlot_SetupFixedAxis(ImVec2 plot_size, double y_min, double y_max,
                            const double* tick_values,
                            const char* const* tick_labels, int n_ticks) {
   ImPlotAxisFlags flags = ImPlotAxisFlags_None;
-  if (plot_size.y > 0 && plot_size.y < 150) {
+  if (plot_size.y > 0 && plot_size.y < 90) {
     flags |= ImPlotAxisFlags_NoTickLabels;
   }
   ImPlot::SetupAxis(ImAxis_Y1, label, flags);
@@ -444,6 +477,139 @@ ImPlotPairLayout ImPlot_ComputePairLayout() {
       is_wide ? ImPlotLayoutDirection::kHorizontal
               : ImPlotLayoutDirection::kVertical,
   };
+}
+
+static ImVec2 ClipSpaceToWindowCoordinates(float x, float y) {
+  const ImVec2& display_size = ImGui::GetIO().DisplaySize;
+  const float pos_x = display_size.x * ((x + 1) * 0.5f);
+  const float pos_y = display_size.y * (1.0f - ((y + 1) * 0.5f));
+  return ImVec2(pos_x, pos_y);
+}
+
+void DrawTextAt(const char* text, float x, float y, float z) {
+  if (x < -1 || y < -1 || x > 1 || y > 1 || z < -1 || z > 1) {
+    return;
+  }
+
+  const ImVec2 center_pos = ClipSpaceToWindowCoordinates(x, y);
+  const ImVec2 size = ImGui::CalcTextSize(text);
+
+  const ImVec2 pos = ImVec2(center_pos.x - size.x / 2, center_pos.y);
+  const ImVec2 shadow_pos = ImVec2(pos.x + 2, pos.y + 2);
+  const int flags = ImGuiWindowFlags_NoBringToFrontOnFocus |
+                    ImGuiWindowFlags_NoFocusOnAppearing |
+                    ImGuiWindowFlags_NoBackground |
+                    ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
+                    ImGuiWindowFlags_NoNav;
+
+  ImGui::Begin("labels", nullptr, flags);
+  ImGui::BeginChild("labels", ImGui::GetIO().DisplaySize, 0, flags);
+  ImDrawList* draw_list = ImGui::GetWindowDrawList();
+  draw_list->AddText(shadow_pos, IM_COL32_BLACK, text);
+  draw_list->AddText(pos, IM_COL32_WHITE, text);
+  ImGui::EndChild();
+  ImGui::End();
+}
+namespace {
+
+void SetNextWindowPosInside(OverlayPos pos, ImVec4 rect) {
+  // compute anchor point and pivot from position enum
+  ImVec2 anchor, pivot;
+  float x = rect.x, y = rect.y, w = rect.z, h = rect.w;
+  float scale = ImGui::GetWindowDpiScale();
+  float margin = 8.0f * scale;
+  switch (pos) {
+    case OverlayPos::kTopLeft:
+      anchor = {x + margin, y + margin};
+      pivot = {0.0f, 0.0f};
+      break;
+    case OverlayPos::kTop:
+      anchor = {x + w * 0.5f, y + margin};
+      pivot = {0.5f, 0.0f};
+      break;
+    case OverlayPos::kTopRight:
+      anchor = {x + w - margin, y + margin};
+      pivot = {1.0f, 0.0f};
+      break;
+    case OverlayPos::kBottomLeft:
+      anchor = {x + margin, y + h - margin};
+      pivot = {0.0f, 1.0f};
+      break;
+    case OverlayPos::kBottom:
+      anchor = {x + w * 0.5f, y + h - margin};
+      pivot = {0.5f, 1.0f};
+      break;
+    case OverlayPos::kBottomRight:
+      anchor = {x + w - margin, y + h - margin};
+      pivot = {1.0f, 1.0f};
+      break;
+  }
+
+  ImGui::SetNextWindowPos(anchor, ImGuiCond_Always, pivot);
+}
+
+}  // namespace
+
+bool BeginOverlay(const char* id, OverlayPos pos, ImVec4 rect,
+                  float min_width, float alpha) {
+  SetNextWindowPosInside(pos, rect);
+
+  if (min_width > 0.0f) {
+    ImGui::SetNextWindowSizeConstraints(ImVec2(min_width, -1.0f),
+                                        ImVec2(FLT_MAX, -1.0f));
+  }
+
+  constexpr ImGuiWindowFlags kFlags =
+      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+      ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
+      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings;
+
+  ImGui::PushStyleVar(ImGuiStyleVar_Alpha, alpha);
+  return ImGui::Begin(id, nullptr, kFlags);
+}
+
+void EndOverlay() {
+  ImGui::End();
+  ImGui::PopStyleVar();
+}
+
+void TextOverlay(const char* id, OverlayPos pos, ImVec4 workspace_rect,
+                 const char* text, ImVec4 color, float font_scale,
+                 float alpha, float min_width) {
+  float scale = ImGui::GetWindowDpiScale();
+  float padding = 30.0f * scale;
+  float max_width = std::max(0.0f, workspace_rect.z - 20.0f);
+  float text_width = ImGui::CalcTextSize(text).x * font_scale;
+  float min_target = std::min(min_width * scale, max_width);
+  float target = 0.0f;
+  if (text_width + padding > max_width || min_width > 0.0f) {
+    target = std::clamp(text_width + padding, min_target, max_width);
+  }
+
+  if (BeginOverlay(id, pos, workspace_rect, target, alpha)) {
+    if (font_scale != 1.0f) {
+      ImGui::SetWindowFontScale(font_scale);
+    }
+    bool has_color = color.x != 0 || color.y != 0 || color.z != 0 ||
+                     color.w != 0;
+    if (has_color) {
+      ImGui::PushStyleColor(ImGuiCol_Text, color);
+    }
+    if (text_width + padding > max_width) {
+      ImGui::PushTextWrapPos(max_width - padding);
+      ImGui::TextUnformatted(text);
+      ImGui::PopTextWrapPos();
+    } else {
+      ImGui::TextUnformatted(text);
+    }
+    if (has_color) {
+      ImGui::PopStyleColor();
+    }
+    if (font_scale != 1.0f) {
+      ImGui::SetWindowFontScale(1.0f);
+    }
+  }
+  EndOverlay();
 }
 
 }  // namespace mujoco::platform
