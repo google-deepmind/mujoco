@@ -2780,7 +2780,7 @@ void mjCBody::Compile(void) {
   for (int i=0; i < geoms.size(); i++) {
     contype |= geoms[i]->contype;
     conaffinity |= geoms[i]->conaffinity;
-    margin = std::max(margin, geoms[i]->margin);
+    margin = std::max(margin, geoms[i]->margin + geoms[i]->gap);
   }
 
   // check conditions for free-joint alignment

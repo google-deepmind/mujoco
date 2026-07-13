@@ -4539,7 +4539,7 @@ void mjCModel::FuseStatic(void) {
     for (const auto& geom : par->geoms) {
       par->contype |= geom->contype;
       par->conaffinity |= geom->conaffinity;
-      par->margin = std::max(par->margin, geom->margin);
+      par->margin = std::max(par->margin, geom->margin + geom->gap);
     }
 
     // recompute BVH

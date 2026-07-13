@@ -1612,7 +1612,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='MAX over all geom margins',
+                 doc='MAX over all geom margins+gaps',
                  array_extent=('nbody',),
              ),
              StructFieldDecl(
