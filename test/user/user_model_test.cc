@@ -907,7 +907,7 @@ TEST_F(MujocoTest, ResolvePluginMissingInstanceThrowsError) {
 
   if (model) mj_deleteModel(model);
   mj_deleteSpec(spec);
-}commit
+}
 
 // ----------------------------- test modeldir  --------------------------------
 
