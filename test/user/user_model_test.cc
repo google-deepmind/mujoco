@@ -880,7 +880,7 @@ TEST_F(MujocoTest, ResolvePluginMissingInstanceThrowsError) {
   <mujoco>
     <extension>
       <plugin plugin="mujoco.pid">
-        <instance name="my_pid_config" /> 
+        <instance name="my_pid_config" />
       </plugin>
     </extension>
     <worldbody>
@@ -901,13 +901,13 @@ TEST_F(MujocoTest, ResolvePluginMissingInstanceThrowsError) {
 
   mjModel* model = mj_compile(spec, nullptr);
   EXPECT_THAT(model, IsNull());
- 
+
   std::string error_msg = mjs_getError(spec);
-  EXPECT_THAT(error_msg, HasSubstr("unrecognized name 'pid_config' for plugin instance")); 
-  
+  EXPECT_THAT(error_msg, HasSubstr("unrecognized name 'pid_config' for plugin instance"));
+
   if (model) mj_deleteModel(model);
   mj_deleteSpec(spec);
-}
+}commit
 
 // ----------------------------- test modeldir  --------------------------------
 
