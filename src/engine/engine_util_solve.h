@@ -104,6 +104,12 @@ MJAPI int mju_factorLU(mjtNum* A, int n, int* pivot);
 // solve A*x = b given LU factorization of A, LU and pivot are output of mju_factorLU
 MJAPI void mju_solveLU(mjtNum* x, const mjtNum* LU, const mjtNum* b, const int* pivot, int n);
 
+// 6x6 specialization of mju_factorLU (identical results, allows full unrolling)
+MJAPI int mju_factorLU6(mjtNum A[36], int pivot[6]);
+
+// solve A*x = b given 6x6 LU factorization from mju_factorLU6
+MJAPI void mju_solveLU6(mjtNum x[6], const mjtNum LU[36], const mjtNum b[6], const int pivot[6]);
+
 // sparse reverse-order LU factorization, assume tree topology (only dofs in index, if given)
 //  LU = L + U; original = (U+I) * L; scratch is size n
 void mju_factorLUSparse(mjtNum *LU, int n, int* scratch,

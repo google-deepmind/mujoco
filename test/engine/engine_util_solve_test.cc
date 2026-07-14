@@ -1235,5 +1235,76 @@ TEST_F(DenseLUTest, Singular) {
   EXPECT_EQ(mju_factorLU(A, n, pivot), 0);
 }
 
+// 6x6 specialization: identical results to the generic version
+TEST_F(DenseLUTest, Fixed6MatchesGeneric) {
+  constexpr int n = 6;
+  std::mt19937_64 rng;
+  rng.seed(3);
+  std::normal_distribution<double> dist(0, 1);
+
+  for (int trial = 0; trial < 100; trial++) {
+    mjtNum A[n * n], A6[n * n], b[n], x[n], x6[n];
+    int pivot[n], pivot6[n];
+
+    // random asymmetric matrix; first trial zeroes the diagonal to force
+    // pivoting
+    for (int i = 0; i < n * n; i++) {
+      A[i] = dist(rng);
+    }
+    if (trial == 0) {
+      for (int i = 0; i < n; i++) {
+        A[i * n + i] = 0;
+      }
+    }
+    for (int i = 0; i < n; i++) {
+      b[i] = dist(rng);
+    }
+    mju_copy(A6, A, n * n);
+
+    // same algorithm; results agree to rounding (not bitwise: the compiler may
+    // contract the unrolled fixed-size version differently)
+    int rank = mju_factorLU(A, n, pivot);
+    int rank6 = mju_factorLU6(A6, pivot6);
+    ASSERT_EQ(rank, rank6);
+    if (!rank) {
+      continue;
+    }
+    for (int i = 0; i < n; i++) {
+      EXPECT_EQ(pivot[i], pivot6[i]);
+    }
+    for (int i = 0; i < n * n; i++) {
+      EXPECT_NEAR(A[i], A6[i], MjTol(1e-13, 1e-4));
+    }
+
+    mju_solveLU(x, A, b, pivot, n);
+    mju_solveLU6(x6, A6, b, pivot6);
+    for (int i = 0; i < n; i++) {
+      EXPECT_NEAR(x[i], x6[i], MjTol(1e-12, 1e-3));
+    }
+  }
+}
+
+// nonsingular matrix with all-zero diagonal: requires pivoting
+TEST_F(DenseLUTest, ZeroDiagonal) {
+  constexpr int n = 3;
+  // A = [0 2 1; 1 0 3; 4 1 0], det(A) = 25
+  mjtNum A[n * n] = {
+      0, 2, 1, 1, 0, 3, 4, 1, 0,
+  };
+  mjtNum A_orig[n * n];
+  mju_copy(A_orig, A, n * n);
+  int pivot[n];
+  mjtNum b[n] = {1, 2, 3};
+  mjtNum x[n], Ax[n];
+
+  EXPECT_EQ(mju_factorLU(A, n, pivot), 1);
+  mju_solveLU(x, A, b, pivot, n);
+
+  // verify A_orig * x == b
+  mju_mulMatVec(Ax, A_orig, x, n, n);
+  mjtNum eps = MjTol(1e-14, 1e-6);
+  EXPECT_THAT(AsVector(Ax, n), Pointwise(MjNear(eps, eps), AsVector(b, n)));
+}
+
 }  // namespace
 }  // namespace mujoco
