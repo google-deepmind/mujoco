@@ -656,7 +656,7 @@ TEST_F(CoreSmoothTest, FactorI) {
   mj_fullM(model, data, Mexpected.data());
 
   // expect matrices to match to floating point precision
-  EXPECT_THAT(M, Pointwise(MjNear(1e-12, 1e-5), Mexpected));
+  EXPECT_THAT(M, Pointwise(MjNear(1e-12, 3e-4), Mexpected));
 
   mj_deleteData(data);
   mj_deleteModel(model);

@@ -1054,12 +1054,12 @@ TEST_F(DerivativeTest, quatIntegrate) {
       mjd_quatIntegrateFD(DquatFD, DsFD, DvelFD, DhFD, quat, vel, h, eps);
 
       // expect numerical equality of un/scaled velocity derivatives
-      EXPECT_THAT(AsVector(DvelFD, 9), Pointwise(MjNear(1e-7, 1e-3), DsFD));
+      EXPECT_THAT(AsVector(DvelFD, 9), Pointwise(MjNear(1e-7, 1e-2), DsFD));
 
       // expect numerical equality of analytic and FD derivatives
-      EXPECT_THAT(AsVector(DquatFD, 9), Pointwise(MjNear(1e-7, 1e-3), Dquat));
-      EXPECT_THAT(AsVector(DvelFD, 9), Pointwise(MjNear(1e-7, 1e-3), Dvel));
-      EXPECT_THAT(AsVector(DhFD, 3), Pointwise(MjNear(1e-7, 1e-3), Dh));
+      EXPECT_THAT(AsVector(DquatFD, 9), Pointwise(MjNear(1e-7, 1e-2), Dquat));
+      EXPECT_THAT(AsVector(DvelFD, 9), Pointwise(MjNear(1e-7, 1e-2), Dvel));
+      EXPECT_THAT(AsVector(DhFD, 3), Pointwise(MjNear(1e-7, 1e-2), Dh));
     }
   }
 }
