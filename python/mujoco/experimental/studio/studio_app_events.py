@@ -157,15 +157,8 @@ def handle_step_control_keyboard_events(
 
   pressed = imgui.IsKeyChordPressed
 
-  if pressed(int(imgui.Key.Ctrl) | int(imgui.Key.Space)):
-    if step_control.get_pause_state() == sim.PauseState.VISCOUS_PAUSED:
-      step_control.set_pause_state(sim.PauseState.UNPAUSED)
-    else:
-      step_control.set_pause_state(sim.PauseState.VISCOUS_PAUSED)
-    return True
-  elif pressed(imgui.Key.Space):
-    pause = step_control.get_pause_state()
-    if pause in (sim.PauseState.VISCOUS_PAUSED, sim.PauseState.UNPAUSED):
+  if pressed(imgui.Key.Space):
+    if step_control.get_pause_state() == sim.PauseState.UNPAUSED:
       step_control.set_pause_state(sim.PauseState.NORMAL_PAUSED)
     else:
       step_control.set_pause_state(sim.PauseState.UNPAUSED)

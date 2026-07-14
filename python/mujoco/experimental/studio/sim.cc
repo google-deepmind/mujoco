@@ -32,14 +32,12 @@ PYBIND11_MODULE(sim, m, pybind11::mod_gil_not_used()) {
   py::enum_<StepControl::Status>(m, "StepStatus")
       .value("OK", StepControl::Status::kOk)
       .value("PAUSED", StepControl::Status::kPaused)
-      .value("VISCOUS_PAUSED", StepControl::Status::kViscousPaused)
       .value("AUTO_RESET", StepControl::Status::kAutoReset)
       .value("DIVERGED", StepControl::Status::kDiverged);
 
   py::enum_<StepControl::PauseState>(m, "PauseState")
       .value("UNPAUSED", StepControl::PauseState::kUnpaused)
-      .value("NORMAL_PAUSED", StepControl::PauseState::kNormalPaused)
-      .value("VISCOUS_PAUSED", StepControl::PauseState::kViscousPaused);
+      .value("NORMAL_PAUSED", StepControl::PauseState::kNormalPaused);
 
   py::class_<StepControl>(m, "StepControl")
       .def(py::init<>())

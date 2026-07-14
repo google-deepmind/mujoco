@@ -511,9 +511,6 @@ void StepControlGui(StepControl* step_control, int& speed_index) {
   make_button(ICON_FA_PAUSE, StepControl::PauseState::kNormalPaused, yellow,
               ImDrawFlags_RoundCornersLeft, "Pause", .3f, 1.6f);
   ImGui::SameLine(0.f, 0.f);
-  make_button(ICON_FA_MAGIC, StepControl::PauseState::kViscousPaused, yellow,
-              ImDrawFlags_RoundCornersNone, "Viscous Pause", .3f, 1.3f);
-  ImGui::SameLine(0.f, 0.f);
   make_button(ICON_FA_PLAY, StepControl::PauseState::kUnpaused, green,
               ImDrawFlags_RoundCornersRight, "", .3f, 1.6f);
 
@@ -983,6 +980,30 @@ void PhysicsGui(mjModel* model, float min_width) {
   }
 
   if (SectionHeader("Physical Parameters")) {
+    // Viscous posing mode toggle: disables gravity and passive springs, adds
+    // viscosity. All changes are directly visible in the parameters below.
+    {
+      constexpr mjtNum kPosingViscosity = 10;
+      bool active = (opt.disableflags & mjDSBL_GRAVITY) &&
+                    (opt.disableflags & mjDSBL_SPRING) &&
+                    (opt.viscosity >= kPosingViscosity);
+      if (ImGui_ButtonToggle("Viscous posing mode", &active)) {
+        if (active) {
+          opt.disableflags |= mjDSBL_GRAVITY;
+          opt.disableflags |= mjDSBL_SPRING;
+          opt.viscosity += kPosingViscosity;
+        } else {
+          opt.disableflags &= ~mjDSBL_GRAVITY;
+          opt.disableflags &= ~mjDSBL_SPRING;
+          opt.viscosity = std::max<mjtNum>(0, opt.viscosity - kPosingViscosity);
+        }
+      }
+      ImGui::SetItemTooltip(
+          "Disable gravity and passive springs,\n"
+          "add viscosity for easier posing.");
+    }
+    ImGui::Spacing();
+
     ImGui_InputN("Gravity", opt.gravity, 3);
     ImGui_InputN("Wind", opt.wind, 3);
     ImGui_InputN("Magnetic", opt.magnetic, 3);
