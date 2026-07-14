@@ -1390,7 +1390,7 @@ static int flexStiff_active(const mjModel* m, int f, int flg_bend, int flg_stret
 }
 
 
-// assemble the standard-flex implicit stiffness B = (s1 + s2*damping) * (K_bend + K_stretch)
+// assemble the standard-flex implicit stiffness K = (s1 + s2*damping) * (K_bend + K_stretch)
 // into dof-level CSR (same terms mjd_flexBend_mul / mjd_flexStretch_mul apply matrix-free; the
 // matrix is constant during a solve, so assembling once and applying as a sparse matvec avoids
 // re-walking stencils and re-unpacking metrics on every apply). Rows/columns exist only on the
@@ -2588,8 +2588,8 @@ void mjd_smooth_vel(const mjModel* m, mjData* d, int flg_bias) {
 }
 
 
-//------------------------- implicit effective metric Mtilde = M + B -------------------------------
-// B = (h^2 + h*damping) * K, the PSD implicit flex stiffness. Built once per step on the arena by
+//------------------------- implicit effective metric Mtilde = M + K -------------------------------
+// K = (h^2 + h*damping) * (K_bend + K_stretch), the PSD implicit flex stiffness. Built once per step on the arena by
 // mjd_effBuild (called from mj_fwdAcceleration under the mj_flexCG gate), then consumed uniformly:
 // the smooth acceleration, the constraint solver and inverse dynamics all see the same metric.
 
@@ -2607,24 +2607,24 @@ static void* effAlloc(mjData* d, size_t bytes, size_t align) {
 // per-step assembled CSR; terms not in the CSR fall back to the matrix-free stencil operators.
 void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) {
   mjtNum h = m->opt.timestep;
-  if (d->nefmB) {
+  if (d->nefmK) {
     int nv = m->nv;
     for (int i=0; i < nv; i++) {
-      int nnz = d->efm_B_rownnz[i];
+      int nnz = d->efm_K_rownnz[i];
       if (!nnz) {
         continue;
       }
-      res[i] += mju_dotSparse(d->efm_B_val + d->efm_B_rowadr[i], vec, nnz,
-                              d->efm_B_colind + d->efm_B_rowadr[i]);
+      res[i] += mju_dotSparse(d->efm_K_val + d->efm_K_rowadr[i], vec, nnz,
+                              d->efm_K_colind + d->efm_K_rowadr[i]);
     }
   }
   // terms not folded into the CSR fall back to the matrix-free operators; which terms those
   // are is derivable, not state: the CSR is only ever built with bending included, and with
   // interp included iff the model is assemblable
-  if (!d->nefmB) {
+  if (!d->nefmK) {
     mjd_flexBend_mul(m, d, res, vec, h*h, h);
   }
-  if (!d->nefmB || !mjd_flexInterpAssemblable(m)) {
+  if (!d->nefmK || !mjd_flexInterpAssemblable(m)) {
     mjd_flexInterp_mul(m, d, res, vec, -(h*h), -h, d->flexelem_krot);
   }
 }
@@ -2638,7 +2638,7 @@ static void effPrecond(const mjModel* m, mjData* d, mjtNum* z, const mjtNum* r,
   mju_copy(z, r, nv);
   mj_solveLD(z, d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
 
-  // precomputed bending factor (mj_setConst): exact (M + B_bend)^-1 on covered dofs
+  // precomputed bending factor (mj_setConst): exact (M + K_bend)^-1 on covered dofs
   int nbd = m->nefm0dof;
   if (nbd) {
     for (int i=0; i < nbd; i++) {
@@ -2651,7 +2651,7 @@ static void effPrecond(const mjModel* m, mjData* d, mjtNum* z, const mjtNum* r,
     }
   }
 
-  // per-step factor: exact (diag(M) + B)^-1 on its covered dofs, applied last (the constant
+  // per-step factor: exact (diag(M) + K)^-1 on its covered dofs, applied last (the constant
   // factor and block-Jacobi miss the state-dependent stretch term, the stiff one)
   if (d->nefmdof) {
     int n = d->nefmdof;
@@ -2667,7 +2667,7 @@ static void effPrecond(const mjModel* m, mjData* d, mjtNum* z, const mjtNum* r,
 }
 
 
-// x = (M + B)^-1 b: warm-started from M\b, refined by linear matrix-free CG preconditioned by
+// x = (M + K)^-1 b: warm-started from M\b, refined by linear matrix-free CG preconditioned by
 // effPrecond (same tolerance/cap as the old post-hoc treatment). Inactive metric: x = M\b.
 void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
   int nv = m->nv;
@@ -2690,7 +2690,7 @@ void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
   mjtNum* bfr = mjSTACKALLOC(d, nbd > 0 ? nbd : 1, mjtNum);
   mjtNum* bfz = mjSTACKALLOC(d, nbd > 0 ? nbd : 1, mjtNum);
 
-  // r = b - (M+B)*x
+  // r = b - (M+K)*x
   mju_mulSymVecSparse(Ap, d->M, x, nv, m->M_rownnz, m->M_rowadr, m->M_colind);
   mjd_effMulAdd(m, d, Ap, x);
   mju_sub(r, b, Ap, nv);
@@ -2827,7 +2827,7 @@ static void effNDOrder(mjEffND* nd, int lo, int hi) {
 }
 
 
-// per-step sparse factor of the flex block of (M + B): reverse-Cholesky over the covered dofs,
+// per-step sparse factor of the flex block of (M + K): reverse-Cholesky over the covered dofs,
 // nested-dissection ordered. M enters as its diagonal there -- exact for free vertices;
 // parent-coupled vertices make this a preconditioner, refined to tolerance by mjd_effSolve.
 // Exact zeros are dropped from the off-diagonal pattern (bending couples same-coordinate dofs
@@ -2835,10 +2835,10 @@ static void effNDOrder(mjEffND* nd, int lo, int hi) {
 // model (near-zero mass and stiffness on a covered dof) and is a hard error.
 static void effFactor(const mjModel* m, mjData* d) {
   int nv = m->nv;
-  const int* B_rownnz = d->efm_B_rownnz;
-  const int* B_rowadr = d->efm_B_rowadr;
-  const int* B_colind = d->efm_B_colind;
-  const mjtNum* B_val = d->efm_B_val;
+  const int* B_rownnz = d->efm_K_rownnz;
+  const int* B_rowadr = d->efm_K_rowadr;
+  const int* B_colind = d->efm_K_colind;
+  const mjtNum* B_val = d->efm_K_val;
 
   mj_markStack(d);
 
@@ -2897,7 +2897,7 @@ static void effFactor(const mjModel* m, mjData* d) {
     dof2c[psdofid[i]] = i;
   }
 
-  // H = diag(M) + B in compact indices: lower CSR (values, diagonal last) + upper CSR (pattern)
+  // H = diag(M) + K in compact indices: lower CSR (values, diagonal last) + upper CSR (pattern)
   int nHl = 0, nHu = 0;
   for (int c=0; c < n; c++) {
     int adr = B_rowadr[psdofid[c]], nnzB = B_rownnz[psdofid[c]];
@@ -3022,7 +3022,7 @@ void mjd_effShift(const mjModel* m, mjData* d) {
 void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
   int nv = m->nv;
   d->efm_active = 0;
-  d->nefmB = 0;
+  d->nefmK = 0;
   d->nefmdof = 0;
   d->nefmL = 0;
   if (!active) {
@@ -3042,19 +3042,19 @@ void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
   // serves both the matvec and the per-step factor. Bending-only models keep the stencil
   // operator + the constant mj_setConst factor.
   const mjtNum* krot = mjd_flexInterpAssemblable(m) ? d->flexelem_krot : NULL;
-  d->efm_B_rownnz = EFMALLOC(int, nv);
-  d->efm_B_rowadr = EFMALLOC(int, nv);
+  d->efm_K_rownnz = EFMALLOC(int, nv);
+  d->efm_K_rowadr = EFMALLOC(int, nv);
   if (mjd_flexStiff_any(m, krot != NULL)) {
-    d->nefmB = mjd_flexStiff_assemble(m, d, d->efm_B_rownnz, d->efm_B_rowadr,
+    d->nefmK = mjd_flexStiff_assemble(m, d, d->efm_K_rownnz, d->efm_K_rowadr,
                                       NULL, NULL, h*h, h, /*bend*/ 1, /*stretch*/ 1, krot);
   }
-  if (d->nefmB) {
-    d->efm_B_colind = EFMALLOC(int, d->nefmB);
-    d->efm_B_val    = EFMALLOC(mjtNum, d->nefmB);
-    mjd_flexStiff_assemble(m, d, d->efm_B_rownnz, d->efm_B_rowadr,
-                           d->efm_B_colind, d->efm_B_val, h*h, h,
+  if (d->nefmK) {
+    d->efm_K_colind = EFMALLOC(int, d->nefmK);
+    d->efm_K_val    = EFMALLOC(mjtNum, d->nefmK);
+    mjd_flexStiff_assemble(m, d, d->efm_K_rownnz, d->efm_K_rowadr,
+                           d->efm_K_colind, d->efm_K_val, h*h, h,
                            /*bend*/ 1, /*stretch*/ 1, krot);
-    // per-step factor of the flex block of (M + B): the stiffness is constant during the
+    // per-step factor of the flex block of (M + K): the stiffness is constant during the
     // step, so one factorization here turns every preconditioner application into a direct
     // solve (the stiff flex block stops being iterated on). Consumers that only multiply
     // (inverse dynamics) skip it.
@@ -3063,8 +3063,8 @@ void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
     }
 
   } else {
-    mju_zeroInt(d->efm_B_rownnz, nv);
-    mju_zeroInt(d->efm_B_rowadr, nv);
+    mju_zeroInt(d->efm_K_rownnz, nv);
+    mju_zeroInt(d->efm_K_rowadr, nv);
   }
   d->efm_active = 1;
 

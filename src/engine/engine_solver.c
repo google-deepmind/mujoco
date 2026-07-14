@@ -1069,7 +1069,7 @@ typedef struct {
   mjtNum* L;              // Cholesky factor                              (nL x 1)
   mjtNum* Lcone;          // Cholesky factor with cone contributions      (nL x 1)
 
-  // implicit effective metric Mtilde = M + B (built per step in mj_fwdPosition): when
+  // implicit effective metric Mtilde = M + K (built per step in mj_fwdPosition): when
   // active, ctx.qfrc_smooth is pre-shifted by +c and Ma/Mv carry the B term, so the stock
   // objective/gradient/linesearch formulas below operate in the Mtilde metric unchanged
   int flg_flex;           // effective metric active for this solve
@@ -2333,7 +2333,7 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
   int* oldstate = ctx.oldstate;
 
   // implicit effective metric (built in mj_fwdPosition): shift the smooth force so the
-  // stock objective/gradient/linesearch formulas operate in the Mtilde = M+B metric
+  // stock objective/gradient/linesearch formulas operate in the Mtilde = M+K metric
   if (island < 0 && !ctx.is_elliptic && !flg_Newton && d->efm_active) {
     ctx.flg_flex = 1;
     ctx.fm = m;

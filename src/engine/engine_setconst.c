@@ -1376,18 +1376,18 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
     }
   }
 
-  // assemble the bending-only stiffness B = (h^2 + h*damping)*K_bend over all dofs with the
+  // assemble the bending-only stiffness K = (h^2 + h*damping)*K_bend over all dofs with the
   // shared stencil walker from engine_derivative: bending values are configuration-independent
   // and stretch/interp are gated off, so the call is valid at set-constants time (d is used
   // for stack scratch only)
   int nv = m->nv;
-  int* B_rownnz = mjSTACKALLOC(d, nv, int);
-  int* B_rowadr = mjSTACKALLOC(d, nv, int);
-  int nB = mjd_flexStiff_assemble(m, d, B_rownnz, B_rowadr, NULL, NULL, h*h, h,
+  int* K_rownnz = mjSTACKALLOC(d, nv, int);
+  int* K_rowadr = mjSTACKALLOC(d, nv, int);
+  int nK = mjd_flexStiff_assemble(m, d, K_rownnz, K_rowadr, NULL, NULL, h*h, h,
                                   /*flg_bend=*/1, /*flg_stretch=*/0, NULL);
-  int* B_colind = mjSTACKALLOC(d, nB > 0 ? nB : 1, int);
-  mjtNum* B_val = mjSTACKALLOC(d, nB > 0 ? nB : 1, mjtNum);
-  mjd_flexStiff_assemble(m, d, B_rownnz, B_rowadr, B_colind, B_val, h*h, h, 1, 0, NULL);
+  int* K_colind = mjSTACKALLOC(d, nK > 0 ? nK : 1, int);
+  mjtNum* K_val = mjSTACKALLOC(d, nK > 0 ? nK : 1, mjtNum);
+  mjd_flexStiff_assemble(m, d, K_rownnz, K_rowadr, K_colind, K_val, h*h, h, 1, 0, NULL);
 
   // inverse map: dof address -> compact factor row (monotone: slots follow dof order)
   int* dofrow = mjSTACKALLOC(d, nv, int);
@@ -1405,8 +1405,8 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
   int nHl = 0, nHu = 0;
   for (int r=0; r < nbd; r++) {
     int dof = m->efm0_dofid[r];
-    for (int c=0; c < B_rownnz[dof]; c++) {
-      int rc = dofrow[B_colind[B_rowadr[dof] + c]];
+    for (int c=0; c < K_rownnz[dof]; c++) {
+      int rc = dofrow[K_colind[K_rowadr[dof] + c]];
       if (rc < 0 || (rc - r) % 3 != 0) continue;  // uncovered or off-coordinate
       if (rc < r) nHl++;
       else if (rc > r) nHu++;
@@ -1428,17 +1428,17 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
     Hu_rowadr[r] = uadr;
     mjtNum diag = 0;
     // B columns are dof-ascending, so filtered lower/upper columns stay ascending
-    for (int c=0; c < B_rownnz[dof]; c++) {
-      int adr = B_rowadr[dof] + c;
-      int rc = dofrow[B_colind[adr]];
+    for (int c=0; c < K_rownnz[dof]; c++) {
+      int adr = K_rowadr[dof] + c;
+      int rc = dofrow[K_colind[adr]];
       if (rc < 0 || (rc - r) % 3 != 0) continue;
       if (rc < r) {
         Hl_colind[ladr] = rc;
-        Hl_val[ladr++] = B_val[adr];
+        Hl_val[ladr++] = K_val[adr];
       } else if (rc > r) {
         Hu_colind[uadr++] = rc;
       } else {
-        diag = B_val[adr];
+        diag = K_val[adr];
       }
     }
     // diagonal last: point mass + armature + bending diagonal

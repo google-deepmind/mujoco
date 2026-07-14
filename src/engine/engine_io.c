@@ -1354,7 +1354,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   d->nisland = 0;
   d->nidof = 0;
   d->efm_active = 0;
-  d->nefmB = 0;
+  d->nefmK = 0;
   d->nefmdof = 0;
   d->nefmL = 0;
 

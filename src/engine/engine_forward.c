@@ -168,7 +168,7 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
   mj_transmission(m, d);
   TM_ADD(mjTIMER_POS_KINEMATICS);
 
-  // implicit effective metric Mtilde = M + B: build (or deactivate) for this step. Arena
+  // implicit effective metric Mtilde = M + K: build (or deactivate) for this step. Arena
   // lifetime and skip semantics mirror the constraint data: built once per position stage,
   // value-refreshed in the velocity stage, consumed downstream.
   mjd_effBuild(m, d, mj_flexCG(m), /*flg_factor=*/1);
@@ -777,7 +777,7 @@ void mj_fwdAcceleration(const mjModel* m, mjData* d) {
   mj_xfrcAccumulate(m, d, d->qfrc_smooth);
 
   // implicit effective metric (built in mj_fwdPosition): the smooth acceleration is that of
-  // the linearly-implicit dynamics, (M + B)*qacc_smooth = qfrc_smooth + c, so the constraint
+  // the linearly-implicit dynamics, (M + K)*qacc_smooth = qfrc_smooth + c, so the constraint
   // solver, the no-constraint shortcut and the warmstart all see one consistent metric.
   if (d->efm_active) {
     mj_markStack(d);
@@ -1333,8 +1333,8 @@ static int flex_has_implicit_stiffness(const mjModel* m) {
 
 
 // implicit-flex solve gate: with the CG solver, an implicit integrator and flex stiffness
-// present, the CG solve carries the implicit flex stiffness itself -- B = (h^2+h*d)*K enters
-// the objective/gradient/linesearch, and the preconditioned gradient becomes (M+B)\grad by
+// present, the CG solve carries the implicit flex stiffness itself -- K = (h^2+h*d) times the flex stiffness enters
+// the objective/gradient/linesearch, and the preconditioned gradient becomes (M+K)\grad by
 // linear matrix-free CG against the existing M factor (the in-solver form of the old post-hoc
 // flexInterp_cgsolve treatment, no factorization anywhere); mj_implicitSkip then folds the
 // implicit flex force of the solver's qacc into qfrc. When active with islands

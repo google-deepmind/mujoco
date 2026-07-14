@@ -997,10 +997,10 @@
 // array fields of mjData that live in d->arena
 #define MJDATA_ARENA_POINTERS_EFM                        \
     X  ( mjtNum,   efm_c,             MJ_M(nv),          1 ) \
-    X  ( int,      efm_B_rownnz,      MJ_M(nv),          1 ) \
-    X  ( int,      efm_B_rowadr,      MJ_M(nv),          1 ) \
-    X  ( int,      efm_B_colind,      MJ_D(nefmB),       1 ) \
-    X  ( mjtNum,   efm_B_val,         MJ_D(nefmB),       1 ) \
+    X  ( int,      efm_K_rownnz,      MJ_M(nv),          1 ) \
+    X  ( int,      efm_K_rowadr,      MJ_M(nv),          1 ) \
+    X  ( int,      efm_K_colind,      MJ_D(nefmK),       1 ) \
+    X  ( mjtNum,   efm_K_val,         MJ_D(nefmK),       1 ) \
     X  ( int,      efm_dofid,         MJ_D(nefmdof),     1 ) \
     X  ( int,      efm_L_rownnz,      MJ_D(nefmdof),     1 ) \
     X  ( int,      efm_L_rowadr,      MJ_D(nefmdof),     1 ) \
@@ -1036,7 +1036,7 @@
     X( int,       nefc               ) \
     X( int,       nJ                 ) \
     X( int,       efm_active         ) \
-    X( int,       nefmB              ) \
+    X( int,       nefmK              ) \
     X( int,       nefmdof            ) \
     X( int,       nefmL              ) \
     X( int,       nY                 ) \

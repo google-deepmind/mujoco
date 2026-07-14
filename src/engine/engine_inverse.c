@@ -258,7 +258,7 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
   mj_mulM(m, d, Ma, d->qacc);
 
   // implicit effective metric (built in mj_invPosition): the forward dynamics solved
-  // (M+B)*qacc = qfrc + c + J'*f, so the discrete-consistent inverse adds B*qacc - c
+  // (M+K)*qacc = qfrc + c + J'*f, so the discrete-consistent inverse adds K*qacc - c
   if (d->efm_active) {
     mjd_effMulAdd(m, d, Ma, d->qacc);
     mju_subFrom(Ma, d->efm_c, nv);
