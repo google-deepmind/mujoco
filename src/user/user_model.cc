@@ -52,6 +52,7 @@
 #include "engine/engine_setconst.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
+#include "engine/engine_util_solve.h"
 #include "engine/engine_util_misc.h"
 #include "user/user_api.h"
 #include "user/user_objects.h"
@@ -2287,30 +2288,19 @@ void mjCModel::SetSizes() {
         std::sort(row.begin(), row.end());
       }
 
-      // symbolic reverse-Cholesky count (ports the counting phase of mju_cholFactorSymbolic)
-      std::vector<int> parent(n), flag(n), rownnz(n);
-      mjtSize nnz = 0;
-      for (int r=n-1; r >= 0; r--) {
-        parent[r] = -1;
-        flag[r] = r;
-        rownnz[r] = 1;
-      }
-      for (int r=n-1; r >= 0; r--) {
-        for (int col : upper[r]) {
-          int j = col;
-          while (flag[j] != r) {
-            if (parent[j] == -1) {
-              parent[j] = r;
-            }
-            rownnz[j]++;
-            flag[j] = r;
-            j = parent[j];
-          }
-        }
-      }
+      // flatten the pattern to CSR and count fill with the engine's symbolic factorization
+      // (d == NULL: no mjData exists yet, scratch is heap-allocated)
+      std::vector<int> u_rownnz(n), u_rowadr(n), u_colind;
       for (int r=0; r < n; r++) {
-        nnz += rownnz[r];
+        u_rownnz[r] = (int)upper[r].size();
+        u_rowadr[r] = (int)u_colind.size();
+        u_colind.insert(u_colind.end(), upper[r].begin(), upper[r].end());
       }
+      std::vector<int> L_rownnz(n), L_rowadr(n), LT_rownnz(n), LT_rowadr(n);
+      mjtSize nnz = mju_cholFactorSymbolic(NULL, L_rownnz.data(), L_rowadr.data(),
+                                           NULL, LT_rownnz.data(), LT_rowadr.data(), NULL,
+                                           u_rownnz.data(), u_rowadr.data(), u_colind.data(),
+                                           n, NULL);
 
       nefm0dof += n;
       nefm0L += nnz;
