@@ -5962,15 +5962,14 @@ void mjCModel::ResolvePlugin(mjCBase* obj, const std::string& plugin_name,
   else if (!*plugin_instance) {
     *plugin_instance =
       static_cast<mjCPlugin*>(FindObject(mjOBJ_PLUGIN, plugin_instance_name));
-    (*plugin_instance)->plugin_slot = plugin_slot;
     if (!*plugin_instance) {
       throw mjCError(
               obj, "unrecognized name '%s' for plugin instance", plugin_instance_name.c_str());
     }
+    (*plugin_instance)->plugin_slot = plugin_slot;
     if (plugin_slot != -1 && plugin_slot != (*plugin_instance)->plugin_slot) {
       throw mjCError(
               obj, "'plugin' attribute does not match that of the instance");
     }
-    plugin_slot = (*plugin_instance)->plugin_slot;
   }
 }
