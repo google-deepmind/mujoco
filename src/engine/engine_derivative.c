@@ -2669,10 +2669,13 @@ static void effPrecond(const mjModel* m, mjData* d, mjtNum* z, const mjtNum* r,
 }
 
 
-// x = (M + K)^-1 b. When the preconditioner is exact (efm_active == 2, see mjd_effBuild)
-// this is a direct solve; otherwise warm-started from M\b and refined by linear matrix-free
-// CG preconditioned by effPrecond (same tolerance/cap as the old post-hoc treatment).
-// Inactive metric: x = M\b.
+// solve x = Mtilde \ b, where Mtilde is this step's effective metric:
+//   efm_active == 0:  Mtilde = M      one sparse LD solve, no elasticity anywhere
+//   efm_active == 2:  Mtilde = M + K  exact direct solve, blockdiag(qLD, flex factor);
+//                                     exactness conditions in mjd_effBuild
+//   efm_active == 1:  Mtilde = M + K  iterative: x0 = M \ b ignores the elasticity, then
+//                                     matrix-free PCG on the residual, preconditioned by
+//                                     effPrecond (tolerance/cap match the old post-hoc)
 void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
   int nv = m->nv;
 

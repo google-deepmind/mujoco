@@ -1351,6 +1351,18 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
       mju_zeroInt(ctx->JT_rowsuper, nv);
     }
   }
+
+  // implicit effective metric (built in mj_fwdPosition): route Ma/Mv/Mgrad through the
+  // metric operators and shift the smooth force, so the stock objective/gradient/linesearch
+  // formulas operate in the Mtilde = M+K metric
+  if (ctx->island < 0 && !is_elliptic && !flg_Newton && d->efm_active) {
+    ctx->flg_flex = 1;
+    ctx->fm = m;
+    ctx->fd = d;
+    mjtNum* qfrc_eff = mjSTACKALLOC(d, nv, mjtNum);
+    mju_add(qfrc_eff, ctx->qfrc_smooth, d->efm_c, nv);
+    ctx->qfrc_smooth = qfrc_eff;
+  }
 }
 
 
@@ -2331,17 +2343,6 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
   int nv   = ctx.nv;
   int nefc = ctx.nefc;
   int* oldstate = ctx.oldstate;
-
-  // implicit effective metric (built in mj_fwdPosition): shift the smooth force so the
-  // stock objective/gradient/linesearch formulas operate in the Mtilde = M+K metric
-  if (island < 0 && !ctx.is_elliptic && !flg_Newton && d->efm_active) {
-    ctx.flg_flex = 1;
-    ctx.fm = m;
-    ctx.fd = d;
-    mjtNum* qfrc_eff = mjSTACKALLOC(d, nv, mjtNum);
-    mju_add(qfrc_eff, ctx.qfrc_smooth, d->efm_c, nv);
-    ctx.qfrc_smooth = qfrc_eff;
-  }
 
   // compute Ma = Mtilde * qacc
   mju_mulSymVecSparse(ctx.Ma, ctx.M, ctx.qacc, nv,
