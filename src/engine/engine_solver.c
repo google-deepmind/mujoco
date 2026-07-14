@@ -2393,12 +2393,17 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
     saveStats(m, d, island, iter, improvement, gradient, ctx.LSslope,
               ctx.nactive, nchange, ctx.LSiter, ctx.nupdate);
 
+    // Newton decrement: 0.5*grad'*H^-1*grad, the model's predicted improvement of the
+    // next step; clamp to 0 so that tolerance == 0 keeps early termination disabled
+    mjtNum decrement = flg_Newton ? mju_max(0, 0.5*scale*mju_dot(ctx.grad, ctx.Mgrad, nv)) : 0;
+
     // increment iteration count
     iter++;
 
     // termination
     if ((improvement > 0 && improvement < m->opt.tolerance) ||
-         gradient < m->opt.tolerance) {
+         gradient < m->opt.tolerance ||
+         (flg_Newton && decrement < m->opt.tolerance)) {
       break;
     }
 

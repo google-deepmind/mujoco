@@ -9,6 +9,10 @@ General
 ^^^^^^^
 - Added Nesterov momentum extrapolation with adaptive gradient restart (O'Donoghue-Candès) to the PGS solver,
   significantly improving convergence. Overall PGS now requires ~2x fewer iterations.
+- Added the Newton decrement -- the quadratic model's predicted cost improvement of the next iteration -- as a third
+  early-termination criterion of the :ref:`Newton solver<soAlgorithms>`, alongside cost improvement and gradient norm.
+  This reduces iteration counts at no accuracy cost. Proposed by :github:user:`adenzler-nvidia` in
+  :doc:`MJWarp <mjwarp/index>` pull request `1520 <https://github.com/google-deepmind/mujoco_warp/pull/1520>`__.
 - :ref:`mj_encode` now supports encoding of MJB and TXT files.
 - :ref:`mj_setConst` now recomputes the ``mjModel.{body,geom,site}_sameframe`` flags, to account for changes in
   body/geom/site frames after compilation.

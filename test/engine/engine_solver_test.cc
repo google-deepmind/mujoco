@@ -391,5 +391,101 @@ TEST_F(SolverTest, EllipticLineSearchPrecisionDiagnostics) {
   }
 }
 
+// Newton terminates early when the decrement predicts sub-tolerance improvement
+TEST_F(SolverTest, NewtonDecrementTermination) {
+  const std::string xml_path = GetTestDataFilePath(kHumanoidPath);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  model->opt.solver = mjSOL_NEWTON;
+  model->opt.disableflags |= mjDSBL_ISLAND;  // monolithic solve
+  model->opt.iterations = 100;
+  const mjtNum tolerance = MjTol(1e-6, 1e-4);
+
+  int state_size = mj_stateSize(model, mjSTATE_FULLPHYSICS);
+  mjtNum* state = (mjtNum*) mju_malloc(sizeof(mjtNum)*state_size);
+
+  mjData* data = mj_makeData(model);
+  mjData* data_test = mj_makeData(model);
+  mjData* data_deep = mj_makeData(model);
+  mj_resetDataKeyframe(model, data, 0);
+
+  int nfired = 0;
+  mjtNum max_leftover = 0;
+  for (int step = 0; step < 200; step++) {
+    model->opt.tolerance = tolerance;
+    mj_step(model, data);
+    mj_getState(model, data, state, mjSTATE_FULLPHYSICS);
+
+    // solve with the test tolerance
+    mj_setState(model, data_test, state, mjSTATE_FULLPHYSICS);
+    mj_forward(model, data_test);
+
+    // reference: tolerance 0 runs until the line search finds no improvement
+    model->opt.tolerance = 0;
+    mj_setState(model, data_deep, state, mjSTATE_FULLPHYSICS);
+    mj_forward(model, data_deep);
+
+    // accuracy: both runs produce identical iterates up to the test run's
+    // stopping point, so the cost improvement forgone by early termination is
+    // the sum of the deep run's remaining (scaled) improvements
+    int niter = data_test->solver_niter[0];
+    int niter_deep = std::min(data_deep->solver_niter[0], mjNSOLVER);
+    mjtNum leftover = 0;
+    for (int i = niter; i < niter_deep; i++) {
+      leftover += max(static_cast<mjtNum>(0), data_deep->solver[i].improvement);
+    }
+    max_leftover = max(max_leftover, leftover);
+
+    // count decrement terminations: the test run stopped while both existing
+    // criteria were above tolerance, and the deep run shows that the next
+    // iteration would have improved the cost by less than tolerance
+    if (niter > 0 && niter < std::min(model->opt.iterations, mjNSOLVER) &&
+        data_deep->solver_niter[0] > niter) {
+      const mjSolverStat& last = data_test->solver[niter - 1];
+      const mjSolverStat& next = data_deep->solver[niter];
+      if (last.improvement >= tolerance && last.gradient >= tolerance &&
+          next.improvement < tolerance) {
+        nfired++;
+      }
+    }
+  }
+
+  EXPECT_LT(max_leftover, 10*tolerance)
+      << "early termination forgoes more than a small multiple of tolerance";
+  EXPECT_GT(nfired, 0)
+      << "no state exercised the Newton decrement termination criterion";
+
+  mj_deleteData(data_deep);
+  mj_deleteData(data_test);
+  mj_deleteData(data);
+  mju_free(state);
+  mj_deleteModel(model);
+}
+
+// tolerance == 0 disables early termination, including the Newton decrement
+TEST_F(SolverTest, ZeroToleranceDisablesTermination) {
+  const std::string xml_path = GetTestDataFilePath(kHumanoidPath);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  model->opt.solver = mjSOL_NEWTON;
+  model->opt.disableflags |= mjDSBL_ISLAND | mjDSBL_WARMSTART;
+  model->opt.tolerance = 0;
+  model->opt.iterations = 3;
+
+  mjData* data = mj_makeData(model);
+  for (mjtCone cone : {mjCONE_PYRAMIDAL, mjCONE_ELLIPTIC}) {
+    model->opt.cone = cone;
+    mj_resetDataKeyframe(model, data, 0);
+    mj_forward(model, data);
+    EXPECT_EQ(data->solver_niter[0], 3)
+        << "cone: " << (cone == mjCONE_ELLIPTIC ? "elliptic" : "pyramidal");
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

@@ -595,6 +595,9 @@ TEST_F(CoreSmoothTest, RefsiteConservesMomentum) {
   ASSERT_THAT(model, NotNull());
   mjData* data = mj_makeData(model);
 
+  // this test asserts tight momentum conservation: solve exactly, no early termination
+  model->opt.tolerance = 0;
+
   data->ctrl[0] = 1;
   data->ctrl[1] = -1;
 

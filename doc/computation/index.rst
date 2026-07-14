@@ -1392,7 +1392,10 @@ representations of the constraint Jacobian and related matrices.
    This algorithm implements the exact Newton method, with analytical second-order derivatives and Cholesky
    factorization of the Hessian. The line-search is the same as in the CG method. When constraint states change between
    iterations (e.g., a constraint transitions from quadratic to linear), the Hessian factorization is updated
-   incrementally via rank-1 Cholesky updates, avoiding full refactorization. It is the default solver.
+   incrementally via rank-1 Cholesky updates, avoiding full refactorization. Early termination is triggered when any of
+   three quantities falls below :ref:`tolerance<option-tolerance>`: the cost improvement of the last iteration, the
+   gradient norm, and the Newton decrement :math:`\tfrac{1}{2} g^T H^{-1} g` -- the predicted cost improvement of the
+   next iteration. It is the default solver.
 
 **PGS** : Projected Gauss-Seidel method
    This is the most common algorithm used in physics simulators, and used to be the default in MuJoCo, until we
