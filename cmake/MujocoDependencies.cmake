@@ -200,7 +200,12 @@ if(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
   unset(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
 endif()
 
-set(ENABLE_DOUBLE_PRECISION ON)
+# build ccd in single precision when MuJoCo is built with mjUSESINGLE
+if(CMAKE_C_FLAGS MATCHES "mjUSESINGLE")
+  set(ENABLE_DOUBLE_PRECISION OFF)
+else()
+  set(ENABLE_DOUBLE_PRECISION ON)
+endif()
 set(CCD_HIDE_ALL_SYMBOLS ON)
 
 # Patch changes in https://github.com/danfis/libccd/pull/83.patch
