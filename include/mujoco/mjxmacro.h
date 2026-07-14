@@ -246,6 +246,8 @@
     X( nemax )              \
     X( njmax )              \
     X( nconmax )            \
+    X( npolygonmax )        \
+    X( nmeshdegmax )        \
     X( nuserdata )          \
     X( nsensordata )        \
     X( npluginstate )       \

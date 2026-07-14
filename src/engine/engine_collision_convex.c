@@ -102,11 +102,16 @@ static int mjc_penetration(const mjModel* m, mjData* d, mjCCDObj* obj1, mjCCDObj
   config.tolerance = m->opt.ccd_tolerance;
   config.max_contacts = ncon;
   config.dist_cutoff = 0;  // no geom distances needed
+  config.npolygonmax = m->npolygonmax;
+  config.nmeshdegmax = m->nmeshdegmax;
   if (buffer) {
     config.buffer = buffer;
   } else {
     mj_markStack(d);
-    config.buffer = mj_stackAllocByte(d, mjc_ccdSize(config.max_iterations), sizeof(mjtNum));
+    int npolygonmax = mjDISABLED(mjDSBL_MULTICCD) ? 0 : m->npolygonmax;
+    int nmeshdegmax = mjDISABLED(mjDSBL_MULTICCD) ? 0 : m->nmeshdegmax;
+    config.buffer = mj_stackAllocByte(d, mjc_ccdSize(npolygonmax, nmeshdegmax,
+                                                     config.max_iterations), sizeof(mjtNum));
   }
 
   if ((dist = mjc_ccd(&config, &status, obj1, obj2)) < 0) {

@@ -1887,7 +1887,9 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
 static void mj_narrowphase(const mjModel* m, mjData* d, const mjcPair* buffer, int npair,
                            size_t parena) {
   int nthread = mju_numThread(d);
-  int ccd_size = mjc_ccdSize(m->opt.ccd_iterations);
+  int npolygonmax = mjDISABLED(mjDSBL_MULTICCD) ? 0 : m->npolygonmax;
+  int nmeshdegmax = mjDISABLED(mjDSBL_MULTICCD) ? 0 : m->nmeshdegmax;
+  int ccd_size = mjc_ccdSize(npolygonmax, nmeshdegmax, m->opt.ccd_iterations);
   mjtNum margin, gap;
 
   // try to balance load of 5 chunks per thread (chunksize should be divisible by 16)

@@ -1364,6 +1364,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of potential contacts in contact list (legacy)',
              ),
              StructFieldDecl(
+                 name='npolygonmax',
+                 type=ValueType(name='mjtSize'),
+                 doc='maximum number of vertices in a mesh polygon',
+             ),
+             StructFieldDecl(
+                 name='nmeshdegmax',
+                 type=ValueType(name='mjtSize'),
+                 doc='maximum number of edges adjacent to a mesh vertex',
+             ),
+             StructFieldDecl(
                  name='nuserdata',
                  type=ValueType(name='mjtSize'),
                  doc='number of mjtNums reserved for the user',

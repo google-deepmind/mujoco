@@ -125,11 +125,14 @@ int Penetration(mjCCDStatus& status, mjtNum& depth, std::vector<mjtNum>& dir,
   mjCCDConfig config;
 
   // set config
-  auto buffer = std::vector<std::byte>(mjc_ccdSize(kMaxIterations));
+  auto buffer = std::vector<std::byte>(
+      mjc_ccdSize(model->npolygonmax, model->nmeshdegmax, kMaxIterations));
   config.max_iterations = kMaxIterations;
   config.tolerance = kTolerance;
   config.max_contacts = max_contacts;
   config.dist_cutoff = 0;  // no geom distances needed
+  config.npolygonmax = model->npolygonmax;
+  config.nmeshdegmax = model->nmeshdegmax;
   config.max_contacts = max_contacts;
   config.buffer = buffer.data();
 

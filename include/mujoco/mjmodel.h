@@ -331,6 +331,8 @@ typedef struct mjModel_ {
   mjtSize nemax;                  // number of potential equality-constraint rows
   mjtSize njmax;                  // number of available rows in constraint Jacobian (legacy)
   mjtSize nconmax;                // number of potential contacts in contact list (legacy)
+  mjtSize npolygonmax;            // maximum number of vertices in a mesh polygon
+  mjtSize nmeshdegmax;            // maximum number of edges adjacent to a mesh vertex
   mjtSize nuserdata;              // number of mjtNums reserved for the user
   mjtSize nsensordata;            // number of mjtNums in sensor data vector
   mjtSize npluginstate;           // number of mjtNums in plugin state vector

@@ -525,9 +525,11 @@ static mjtNum mj_geomDistanceCCD(const mjModel* m, mjData* d, int g1, int g2,
   // set config
   config.max_iterations = m->opt.ccd_iterations;
   config.tolerance = m->opt.ccd_tolerance;
+  config.npolygonmax = 0;
+  config.nmeshdegmax = 0;
   config.max_contacts = 1;        // want contacts
   config.dist_cutoff = distmax;   // want geom distances
-  config.buffer = mj_stackAllocByte(d, mjc_ccdSize(config.max_iterations), sizeof(mjtNum));
+  config.buffer = mj_stackAllocByte(d, mjc_ccdSize(0, 0, config.max_iterations), sizeof(mjtNum));
 
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, 0);

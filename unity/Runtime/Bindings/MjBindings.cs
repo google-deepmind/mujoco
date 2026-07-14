@@ -1102,6 +1102,8 @@ public unsafe struct mjModel_ {
   public UInt64 nemax;
   public UInt64 njmax;
   public UInt64 nconmax;
+  public UInt64 npolygonmax;
+  public UInt64 nmeshdegmax;
   public UInt64 nuserdata;
   public UInt64 nsensordata;
   public UInt64 npluginstate;

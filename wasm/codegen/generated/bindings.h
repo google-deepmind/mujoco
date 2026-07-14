@@ -4221,6 +4221,18 @@ struct MjModel {
   void set_nconmax(int value) {
     ptr_->nconmax = static_cast<mjtSize>(value);
   }
+  int npolygonmax() const {
+    return static_cast<int>(ptr_->npolygonmax);
+  }
+  void set_npolygonmax(int value) {
+    ptr_->npolygonmax = static_cast<mjtSize>(value);
+  }
+  int nmeshdegmax() const {
+    return static_cast<int>(ptr_->nmeshdegmax);
+  }
+  void set_nmeshdegmax(int value) {
+    ptr_->nmeshdegmax = static_cast<mjtSize>(value);
+  }
   int nuserdata() const {
     return static_cast<int>(ptr_->nuserdata);
   }

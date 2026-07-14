@@ -1321,6 +1321,17 @@ static void setSpring(mjModel* m, mjData* d) {
 
 // entry point: set all remaining constant fields of mjModel, except for lengthrange
 void mj_setConst(mjModel* m, mjData* d) {
+  // compute npolygonmax and nmeshdegmax
+  m->npolygonmax = 0;
+  for (int i=0; i < m->nmeshpoly; i++) {
+    m->npolygonmax = mjMAX(m->npolygonmax, m->mesh_polyvertnum[i]);
+  }
+
+  m->nmeshdegmax = 0;
+  for (int i=0; i < m->nmeshvert; i++) {
+    m->nmeshdegmax = mjMAX(m->nmeshdegmax, m->mesh_polymapnum[i]);
+  }
+
   // recompute sameframe flags from current model geometry
   setSameframe(m);
 
