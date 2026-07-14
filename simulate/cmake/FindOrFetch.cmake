@@ -111,17 +111,44 @@ if(NOT COMMAND FindOrFetch)
         find_package(${_ARGS_PACKAGE_NAME} REQUIRED)
         message(CHECK_PASS "found")
       else()
-        message(CHECK_START
-                "mujoco::FindOrFetch: Using FetchContent to retrieve `${_ARGS_LIBRARY_NAME}`"
-        )
-        FetchContent_Declare(
-          ${_ARGS_LIBRARY_NAME}
-          GIT_REPOSITORY ${_ARGS_GIT_REPO}
-          GIT_TAG ${_ARGS_GIT_TAG}
-          GIT_SHALLOW FALSE
-          PATCH_COMMAND ${_ARGS_PATCH_COMMAND}
-          UPDATE_DISCONNECTED TRUE
-        )
+        set(USE_LOCAL_TARBALL FALSE)
+        if(MUJOCO_CMAKE_DEP_CACHE)
+          # Try to find versioned library tarball.
+          set(TARBALL_PATH "${MUJOCO_CMAKE_DEP_CACHE}/${_ARGS_LIBRARY_NAME}-${_ARGS_GIT_TAG}.tar.gz")
+          if(EXISTS "${TARBALL_PATH}")
+            set(USE_LOCAL_TARBALL TRUE)
+          else()
+            # Try to find generic library tarball.
+            set(TARBALL_PATH "${MUJOCO_CMAKE_DEP_CACHE}/${_ARGS_LIBRARY_NAME}.tar.gz")
+            if(EXISTS "${TARBALL_PATH}")
+              set(USE_LOCAL_TARBALL TRUE)
+            endif()
+          endif()
+        endif()
+        if(_ARGS_PATCH_COMMAND)
+          set(_WRAPPED_PATCH_COMMAND ${CMAKE_COMMAND} -E env GIT_CEILING_DIRECTORIES=${CMAKE_BINARY_DIR} ${_ARGS_PATCH_COMMAND})
+        else()
+          set(_WRAPPED_PATCH_COMMAND)
+        endif()
+
+        if(USE_LOCAL_TARBALL)
+          message(STATUS "mujoco::FindOrFetch: Using package cache for ${_ARGS_LIBRARY_NAME}: ${TARBALL_PATH}")
+          FetchContent_Declare(
+            ${_ARGS_LIBRARY_NAME}
+            URL ${TARBALL_PATH}
+            PATCH_COMMAND ${_WRAPPED_PATCH_COMMAND}
+          )
+        else()
+          message(STATUS "mujoco::FindOrFetch: Using FetchContent for ${_ARGS_LIBRARY_NAME}: ${_ARGS_GIT_REPO}")
+          FetchContent_Declare(
+            ${_ARGS_LIBRARY_NAME}
+            GIT_REPOSITORY ${_ARGS_GIT_REPO}
+            GIT_TAG ${_ARGS_GIT_TAG}
+            GIT_SHALLOW FALSE
+            PATCH_COMMAND ${_WRAPPED_PATCH_COMMAND}
+            UPDATE_DISCONNECTED TRUE
+          )
+        endif()
         if(${_ARGS_EXCLUDE_FROM_ALL})
           FetchContent_GetProperties(${_ARGS_LIBRARY_NAME})
           if(NOT ${${_ARGS_LIBRARY_NAME}_POPULATED})
