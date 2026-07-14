@@ -30,6 +30,7 @@
 #include "src/engine/engine_forward.h"
 #include "src/engine/engine_io.h"
 #include "src/engine/engine_util_blas.h"
+#include "src/engine/engine_util_sparse.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -1966,6 +1967,98 @@ TEST_F(DerivativeTest, FlexStiffAssembleInterp) {
           << "interp assembly/operator mismatch at DOF " << i << " trial " << trial;
     }
   }
+}
+
+// mjd_effSolve: exact-preconditioner fast path solves (M+K)x = b directly; the general
+// refinement path stays within its tolerance when exactness does not hold
+TEST_F(DerivativeTest, EffSolveExact) {
+  // relative residual of (M+K)x - b after mjd_effSolve
+  auto solve_residual = [](const mjModel* m, mjData* d) {
+    int nv = m->nv;
+    std::vector<mjtNum> b(nv), x(nv), r(nv);
+    for (int i = 0; i < nv; i++) {
+      b[i] = mju_Halton(i, 3) - 0.5;
+    }
+    mjd_effSolve(m, d, x.data(), b.data());
+    mju_mulSymVecSparse(r.data(), d->M, x.data(), nv, m->M_rownnz, m->M_rowadr, m->M_colind);
+    mjd_effMulAdd(m, d, r.data(), x.data());
+    mju_subFrom(r.data(), b.data(), nv);
+    return mju_norm(r.data(), nv) / mju_norm(b.data(), nv);
+  };
+
+  // stretch + bending cloth on world: per-step factor, exact
+  static const char* const kXmlBoth = R"(
+  <mujoco>
+    <option solver="CG" integrator="implicitfast"/>
+    <worldbody>
+      <flexcomp name="cloth" type="grid" count="6 6 1" spacing="0.05 0.05 0.05"
+                radius=".005" dim="2" mass="0.5" pos="0 0 1" dof="full">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e3" poisson="0.2" damping="0.1" elastic2d="both" thickness="0.01"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXmlBoth, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  ASSERT_GE(data->efm_active, 1);
+  EXPECT_GT(data->nefmK, 0);
+  EXPECT_GT(data->nefmdof, 0);
+  EXPECT_EQ(data->efm_active, 2);
+  EXPECT_LT(solve_residual(model.get(), data.get()), 1e-10);
+
+  // bending-only cloth: no CSR or per-step factor, constant factor covers, exact
+  static const char* const kXmlBend = R"(
+  <mujoco>
+    <option solver="CG" integrator="implicitfast"/>
+    <worldbody>
+      <flexcomp name="cloth" type="grid" count="6 6 1" spacing="0.05 0.05 0.05"
+                radius=".005" dim="2" mass="0.5" pos="0 0 1" dof="full">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e3" poisson="0.2" damping="0.1" elastic2d="bend" thickness="0.01"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  model = LoadModelFromString(kXmlBend, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  ASSERT_GE(data->efm_active, 1);
+  EXPECT_EQ(data->nefmK, 0);
+  EXPECT_EQ(data->nefmdof, 0);
+  EXPECT_GT(model->nefm0dof, 0);
+  EXPECT_EQ(data->efm_active, 2);
+  EXPECT_LT(solve_residual(model.get(), data.get()), 1e-10);
+
+  // cloth under a jointed parent: M couples across the covered block, not exact,
+  // the refinement path must still meet its tolerance
+  static const char* const kXmlMoving = R"(
+  <mujoco>
+    <option solver="CG" integrator="implicitfast"/>
+    <worldbody>
+      <body name="base" pos="0 0 1">
+        <joint type="slide" axis="0 0 1"/>
+        <geom type="sphere" size=".01" mass="1" contype="0" conaffinity="0"/>
+        <flexcomp name="cloth" type="grid" count="6 6 1" spacing="0.05 0.05 0.05"
+                  radius=".005" dim="2" mass="0.5" pos="0 0 0" dof="full">
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="1e3" poisson="0.2" damping="0.1" elastic2d="both" thickness="0.01"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  model = LoadModelFromString(kXmlMoving, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  ASSERT_GE(data->efm_active, 1);
+  EXPECT_EQ(data->efm_active, 1);
+  EXPECT_LT(solve_residual(model.get(), data.get()), 1e-4);
 }
 
 }  // namespace

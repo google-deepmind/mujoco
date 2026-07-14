@@ -135,7 +135,7 @@ typedef struct mjData_ {
   int     nl;                // number of limit constraints
   int     nefc;              // number of constraints
   int     nJ;                // number of non-zeros in constraint Jacobian
-  int     efm_active;        // implicit effective metric M+K active this step
+  int     efm_active;        // implicit effective metric M+K: 0 inactive, 1 active, 2 active + preconditioner exact
   int     nefmK;             // number of non-zeros in effective-stiffness CSR
   int     nefmdof;           // number of rows in effective-metric factor
   int     nefmL;             // number of non-zeros in the effective-metric factor

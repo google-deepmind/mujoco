@@ -2638,9 +2638,11 @@ static void effPrecond(const mjModel* m, mjData* d, mjtNum* z, const mjtNum* r,
   mju_copy(z, r, nv);
   mj_solveLD(z, d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
 
-  // precomputed bending factor (mj_setConst): exact (M + K_bend)^-1 on covered dofs
+  // precomputed bending factor (mj_setConst): exact (M + K_bend)^-1 on covered dofs.
+  // Skipped when the per-step factor exists: it covers these rows and is applied last,
+  // so this solve would be overwritten
   int nbd = m->nefm0dof;
-  if (nbd) {
+  if (nbd && !d->nefmdof) {
     for (int i=0; i < nbd; i++) {
       bfr[i] = r[m->efm0_dofid[i]];
     }
@@ -2667,17 +2669,40 @@ static void effPrecond(const mjModel* m, mjData* d, mjtNum* z, const mjtNum* r,
 }
 
 
-// x = (M + K)^-1 b: warm-started from M\b, refined by linear matrix-free CG preconditioned by
-// effPrecond (same tolerance/cap as the old post-hoc treatment). Inactive metric: x = M\b.
+// x = (M + K)^-1 b. When the preconditioner is exact (efm_active == 2, see mjd_effBuild)
+// this is a direct solve; otherwise warm-started from M\b and refined by linear matrix-free
+// CG preconditioned by effPrecond (same tolerance/cap as the old post-hoc treatment).
+// Inactive metric: x = M\b.
 void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
   int nv = m->nv;
+
+  // inactive metric: x = M \ b
+  if (!d->efm_active) {
+    if (x != b) {
+      mju_copy(x, b, nv);
+    }
+    mj_solveLD(x, d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+    return;
+  }
+
+  // exact preconditioner: blockdiag(qLD, flex factor) is (M+K)^-1, solve directly
+  if (d->efm_active == 2) {
+    mj_markStack(d);
+    mjtNum* psr = mjSTACKALLOC(d, d->nefmdof > 0 ? d->nefmdof : 1, mjtNum);
+    mjtNum* psz = mjSTACKALLOC(d, d->nefmdof > 0 ? d->nefmdof : 1, mjtNum);
+    int nbd0 = m->nefm0dof;
+    mjtNum* bfr = mjSTACKALLOC(d, nbd0 > 0 ? nbd0 : 1, mjtNum);
+    mjtNum* bfz = mjSTACKALLOC(d, nbd0 > 0 ? nbd0 : 1, mjtNum);
+    effPrecond(m, d, x, b, psr, psz, bfr, bfz);
+    mj_freeStack(d);
+    return;
+  }
+
+  // general path: warm start from M \ b, refine below
   if (x != b) {
     mju_copy(x, b, nv);
   }
   mj_solveLD(x, d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
-  if (!d->efm_active) {
-    return;
-  }
 
   mj_markStack(d);
   mjtNum* r  = mjSTACKALLOC(d, nv, mjtNum);
@@ -3067,6 +3092,36 @@ void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
     mju_zeroInt(d->efm_K_rowadr, nv);
   }
   d->efm_active = 1;
+
+  // preconditioner exactness (efm_active == 2): when every dof the stiffness touches sits on
+  // a simple slider body (diagonal M row, no kinematic children), M has no coupling across
+  // the covered block, so blockdiag(qLD, flex factor) is exactly (M+K)^-1 and mjd_effSolve
+  // skips the refinement. Interp flexes outside the assembled CSR act only through the
+  // matrix-free operator (no factor rows), which breaks exactness.
+  int exact = d->nefmK ? (d->nefmdof > 0) : 1;
+  for (int f=0; exact && f < m->nflex; f++) {
+    if (!krot && flexInterp_processed(m, f)) {
+      exact = 0;
+    }
+  }
+  if (exact && d->nefmK) {
+    for (int i=0; i < nv; i++) {
+      if (d->efm_K_rownnz[i] && m->body_simple[m->dof_bodyid[i]] != 2) {
+        exact = 0;
+        break;
+      }
+    }
+  } else if (exact) {
+    for (int i=0; i < m->nefm0dof; i++) {
+      if (m->body_simple[m->dof_bodyid[m->efm0_dofid[i]]] != 2) {
+        exact = 0;
+        break;
+      }
+    }
+  }
+  if (exact) {
+    d->efm_active = 2;
+  }
 
   // fill the shift with the current velocity (refreshed again in the velocity stage)
   mjd_effShift(m, d);
