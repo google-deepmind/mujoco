@@ -38,7 +38,6 @@ in order to guarantee static shapes for contacts and jacobians.
 """
 
 import itertools
-import os
 from typing import Dict, Iterator, List, Tuple, Union
 
 import jax
