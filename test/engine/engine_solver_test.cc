@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -461,6 +462,139 @@ TEST_F(SolverTest, NewtonDecrementTermination) {
   mj_deleteData(data);
   mju_free(state);
   mj_deleteModel(model);
+}
+
+// a settled, warmstarted scene certifies convergence and solves in zero iterations
+TEST_F(SolverTest, WarmstartZeroIterations) {
+  std::string xml = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="plane" size="1 1 .1"/>
+      <body pos="0 0 0.1">
+        <freejoint/>
+        <geom type="box" size="0.1 0.1 0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  model->opt.disableflags |= mjDSBL_ISLAND;  // monolithic solve: stats in slot 0
+  model->opt.enableflags |= mjENBL_FWDINV;
+
+  int nv = model->nv;
+  int state_size = mj_stateSize(model.get(), mjSTATE_FULLPHYSICS);
+  std::vector<mjtNum> state(state_size);
+  std::vector<mjtNum> qacc(nv), qfrc(nv);
+
+  // float32 cannot resolve the default tolerance: use a resolvable one
+  const mjtNum tolerance = MjTol(1e-8, 1e-6);
+
+  for (mjtSolver solver : {mjSOL_CG, mjSOL_NEWTON}) {
+    for (mjtCone cone : {mjCONE_PYRAMIDAL, mjCONE_ELLIPTIC}) {
+      for (mjtJacobian jacobian : {mjJAC_DENSE, mjJAC_SPARSE}) {
+        std::string config = std::string(solver == mjSOL_CG ? "CG" : "Newton") +
+                             (cone == mjCONE_ELLIPTIC ? "/elliptic" : "/pyramidal") +
+                             (jacobian == mjJAC_SPARSE ? "/sparse" : "/dense");
+        model->opt.solver = solver;
+        model->opt.cone = cone;
+        model->opt.jacobian = jacobian;
+        model->opt.tolerance = tolerance;
+
+        // settle the box on the plane
+        mj_resetData(model.get(), data.get());
+        for (int i=0; i < 500; i++) {
+          mj_step(model.get(), data.get());
+        }
+        mj_getState(model.get(), data.get(), state.data(), mjSTATE_FULLPHYSICS);
+
+        // solve once more: certificate fires, forward/inverse stay consistent
+        mj_forward(model.get(), data.get());
+        EXPECT_EQ(data->solver_niter[0], 0) << config;
+
+        // thresholds here and below are ~10x above measured, per precision
+        EXPECT_LT(data->solver_fwdinv[0], MjTol(1e-12, 1e-4)) << config;
+        EXPECT_LT(data->solver_fwdinv[1], MjTol(1e-2, 2e-1)) << config;
+        mju_copy(qacc.data(), data->qacc, nv);
+        mju_copy(qfrc.data(), data->qfrc_constraint, nv);
+
+        // control arm: tolerance = 0 disables the certificate, full solve from
+        // the same state must agree with the skipped solve
+        model->opt.tolerance = 0;
+        mj_setState(model.get(), data.get(), state.data(), mjSTATE_FULLPHYSICS);
+        mj_forward(model.get(), data.get());
+        mjtNum dqacc = 0, dqfrc = 0;
+        for (int j=0; j < nv; j++) {
+          dqacc = max(dqacc, std::abs(qacc[j] - data->qacc[j]));
+          dqfrc = max(dqfrc, std::abs(qfrc[j] - data->qfrc_constraint[j]));
+        }
+        EXPECT_LT(dqacc, MjTol(2e-4, 1.5e-3)) << config;
+        EXPECT_LT(dqfrc, MjTol(2e-2, 4e-1)) << config;
+
+        // guard: a perturbed scene does not certify
+        model->opt.tolerance = tolerance;
+        mj_setState(model.get(), data.get(), state.data(), mjSTATE_FULLPHYSICS);
+        data->qfrc_applied[0] = 5;
+        mj_forward(model.get(), data.get());
+        EXPECT_GT(data->solver_niter[0], 0) << config;
+        data->qfrc_applied[0] = 0;
+      }
+    }
+  }
+}
+
+// per-island certificates: settled islands solve in zero iterations while
+// islands with new loads solve normally
+TEST_F(SolverTest, WarmstartZeroIterationsIslands) {
+  std::string xml = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="plane" size="2 2 .1"/>
+      <body pos="-0.5 0 0.1">
+        <freejoint/>
+        <geom type="box" size="0.1 0.1 0.1"/>
+      </body>
+      <body pos="0.5 0 0.1">
+        <freejoint/>
+        <geom type="box" size="0.1 0.1 0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // float32 cannot resolve the default tolerance: use a resolvable one
+  model->opt.tolerance = MjTol(1e-8, 1e-6);
+
+  // settle both boxes, islands enabled (default)
+  for (int i=0; i < 500; i++) {
+    mj_step(model.get(), data.get());
+  }
+
+  // both islands certify: zero iterations everywhere
+  mj_forward(model.get(), data.get());
+  ASSERT_EQ(data->nisland, 2);
+  EXPECT_EQ(data->solver_niter[0], 0);
+  EXPECT_EQ(data->solver_niter[1], 0);
+
+  // kick the second box: its island solves, the settled island still certifies
+  data->qfrc_applied[6] = 5;
+  mj_forward(model.get(), data.get());
+  ASSERT_EQ(data->nisland, 2);
+  int island1 = data->dof_island[0];
+  int island2 = data->dof_island[6];
+  ASSERT_GE(island1, 0);
+  ASSERT_GE(island2, 0);
+  ASSERT_NE(island1, island2);
+  EXPECT_EQ(data->solver_niter[island1], 0);
+  EXPECT_GT(data->solver_niter[island2], 0);
 }
 
 // tolerance == 0 disables early termination, including the Newton decrement

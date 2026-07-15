@@ -1376,14 +1376,18 @@ static void PrimalUpdateConstraint(mjPrimalContext* ctx, int flg_HessianCone) {
 }
 
 
-// update grad, Mgrad
-static void PrimalUpdateGradient(mjPrimalContext* ctx, int flg_Newton) {
+// update grad = M*qacc - qfrc_smooth - qfrc_constraint
+static void PrimalUpdateGrad(mjPrimalContext* ctx) {
   int nv = ctx->nv;
-
-  // grad = M*qacc - qfrc_smooth - qfrc_constraint
   for (int i=0; i < nv; i++) {
     ctx->grad[i] = ctx->Ma[i] - ctx->qfrc_smooth[i] - ctx->qfrc_constraint[i];
   }
+}
+
+
+// update Mgrad;  Newton: Mgrad = H \ grad,  CG: Mgrad = M \ grad
+static void PrimalUpdateMgrad(mjPrimalContext* ctx, int flg_Newton) {
+  int nv = ctx->nv;
 
   // Newton: Mgrad = H \ grad
   if (flg_Newton) {
@@ -1401,6 +1405,13 @@ static void PrimalUpdateGradient(mjPrimalContext* ctx, int flg_Newton) {
     mj_solveLD(ctx->Mgrad, ctx->qLD, ctx->qLDiagInv, nv, 1,
                ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind, NULL);
   }
+}
+
+
+// update grad, Mgrad
+static void PrimalUpdateGradient(mjPrimalContext* ctx, int flg_Newton) {
+  PrimalUpdateGrad(ctx);
+  PrimalUpdateMgrad(ctx, flg_Newton);
 }
 
 
@@ -2326,15 +2337,7 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
 
   // first update
   PrimalUpdateConstraint(&ctx, flg_Newton & (m->opt.cone == mjCONE_ELLIPTIC));
-  if (flg_Newton) {
-    // compute and factorize Hessian
-    MakeHessian(d, &ctx);
-    FactorizeHessian(d, &ctx, /*flg_recompute=*/0);
-  }
-  PrimalUpdateGradient(&ctx, flg_Newton);
-
-  // start both with preconditioned gradient
-  mju_scl(ctx.search, ctx.Mgrad, -1, nv);
+  PrimalUpdateGrad(&ctx);
 
   // compute and save scaling factor
   mjtNum scale;
@@ -2350,8 +2353,42 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
   }
   ctx.scale = scale;
 
+  // Mgrad = M \ grad: the CG preconditioned gradient, also the convergence certificate
+  PrimalUpdateMgrad(&ctx, /*flg_Newton=*/0);
+
+  // convergence certificate: the cost is strongly convex in the M-norm, bounding the
+  // suboptimality by the duality gap at the current constraint forces:
+  //   cost(qacc) - cost* <= 0.5 * grad'*M^-1*grad
+  // if already below tolerance (e.g. good warmstart), skip the Hessian and the main loop
+  int flg_gap = mju_max(0, 0.5*scale*mju_dot(ctx.grad, ctx.Mgrad, nv)) < m->opt.tolerance;
+
+  // the gap bounds the *cost* suboptimality; on stiff constraints this permits force
+  // errors of order sqrt(2*gap*stiffness). Newton solutions are characteristically
+  // force-accurate, so Newton zero-iteration exits also require the gradient criterion;
+  // CG solutions are characteristically cost-accurate and exit on the gap alone
+  int flg_gradient = scale*mju_norm(ctx.grad, nv) < m->opt.tolerance;
+  int flg_certificate = flg_gap && (!flg_Newton || flg_gradient);
+  int flg_done = flg_certificate;
+
+  // Newton: compute and factorize Hessian, Mgrad = H \ grad
+  if (!flg_done && flg_Newton) {
+    MakeHessian(d, &ctx);
+    FactorizeHessian(d, &ctx, /*flg_recompute=*/0);
+    PrimalUpdateMgrad(&ctx, /*flg_Newton=*/1);
+
+    // Newton decrement already below tolerance: converged, skip the first line search
+    // (gradient-gated like the certificate: H^-1 suppresses stiff-direction force errors)
+    flg_done = flg_gradient &&
+               mju_max(0, 0.5*scale*mju_dot(ctx.grad, ctx.Mgrad, nv)) < m->opt.tolerance;
+  }
+
+  // start both with preconditioned gradient
+  if (!flg_done) {
+    mju_scl(ctx.search, ctx.Mgrad, -1, nv);
+  }
+
   // main loop
-  while (iter < maxiter) {
+  while (!flg_done && iter < maxiter) {
     // perform linesearch
     mjtNum ls_improvement;
     alpha = PrimalSearch(&ctx, m->opt.tolerance * m->opt.ls_tolerance, m->opt.ls_iterations,
@@ -2470,8 +2507,8 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
     // update solver iterations
     d->solver_niter[island_stat] += iter;
 
-    // set solver_nnz
-    if (flg_Newton) {
+    // set solver_nnz; if the certificate fired, no Hessian was built: report Jacobian nnz
+    if (flg_Newton && !flg_certificate) {
       if (mj_isSparse(m)) {
         // two L factors if Lcone is present
         int num_factors = 1 + (ctx.Lcone != NULL);

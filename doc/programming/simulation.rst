@@ -1105,9 +1105,10 @@ does not need timing, and in that case there is no reason to call timing functio
 One part of the simulation pipeline that needs to be monitored closely is the iterative constraint solver. The
 simplest diagnostic here is ``mjData.solver_niter`` which shows how many iterations the solver took on the last call to
 mj_step or ``mj_forward``. Note that the solver has tolerance parameters for early termination, so this number is
-usually smaller than the maximum number of iterations allowed. The array ``mjData.solver`` contains one
-:ref:`mjSolverStat` data structure per iteration of the constraint solver, with information about the constraint state
-and line search.
+usually smaller than the maximum number of iterations allowed; it can be 0 when a warmstarted solution is already
+certified as converged, in which case no iterations are performed and no statistics are written. The array
+``mjData.solver`` contains one :ref:`mjSolverStat` data structure per iteration of the constraint solver, with
+information about the constraint state and line search.
 
 When the option :at:`fwdinv` is enabled in ``mjModel.opt.enableflags``, the field ``mjData.fwdinv`` is also populated.
 It contains the difference between the forward and inverse dynamics, in terms of generalized forces and constraint

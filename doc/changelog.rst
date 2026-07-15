@@ -13,6 +13,11 @@ General
   early-termination criterion of the :ref:`Newton solver<soAlgorithms>`, alongside cost improvement and gradient norm.
   This reduces iteration counts at no accuracy cost. Proposed by :github:user:`adenzler-nvidia` in
   :doc:`MJWarp <mjwarp/index>` pull request `1520 <https://github.com/google-deepmind/mujoco_warp/pull/1520>`__.
+- The CG and Newton solvers now terminate with zero iterations when a duality-gap certificate proves that the
+  warmstarted solution already satisfies the tolerance. The certificate requires only the existing mass-matrix
+  factorization, so quiescent scenes skip Hessian construction, factorization and the line search entirely. Newton
+  zero-iteration exits additionally require the gradient criterion, preserving Newton's characteristic force-level
+  accuracy. See :ref:`Warmstart<soAlgorithms>` in the Computation chapter for details.
 - :ref:`mj_encode` now supports encoding of MJB and TXT files.
 - :ref:`mj_setConst` now recomputes the ``mjModel.{body,geom,site}_sameframe`` flags, to account for changes in
   body/geom/site frames after compilation.

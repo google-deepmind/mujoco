@@ -1445,6 +1445,14 @@ representations of the constraint Jacobian and related matrices.
    bootstraps the solver when constraints persist across time steps, but avoids carrying over stale forces from
    constraints that have disappeared.
 
+   Because every zone of the piecewise-quadratic cost has curvature of at least :math:`M`, the cost is strongly convex
+   in the :math:`M`-norm, which bounds the suboptimality of any point by the duality gap at its constraint forces:
+   :math:`\text{cost}(a) - \text{cost}^* \le \tfrac{1}{2} g^T M^{-1} g`. Before starting iterations, the CG and Newton
+   solvers evaluate this certificate at the warmstarted point, using the already-computed factorization of
+   :math:`M`. If it is below tolerance, convergence is proven and the solver returns immediately with zero iterations;
+   in the Newton case this skips constructing and factorizing the Hessian. In a quiescent, well-warmstarted scene this
+   eliminates nearly the entire cost of the constraint solver.
+
 .. _soIsland:
 
 Constraint islands
