@@ -4198,7 +4198,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjMOUSE_MOVE_H", mjMOUSE_MOVE_H)
     .value("mjMOUSE_ZOOM", mjMOUSE_ZOOM)
     .value("mjMOUSE_MOVE_V_REL", mjMOUSE_MOVE_V_REL)
-    .value("mjMOUSE_MOVE_H_REL", mjMOUSE_MOVE_H_REL);
+    .value("mjMOUSE_MOVE_H_REL", mjMOUSE_MOVE_H_REL)
+    .value("mjMOUSE_TURN_V", mjMOUSE_TURN_V)
+    .value("mjMOUSE_TURN_H", mjMOUSE_TURN_H);
   enum_<mjtObj>("mjtObj")
     .value("mjOBJ_UNKNOWN", mjOBJ_UNKNOWN)
     .value("mjOBJ_BODY", mjOBJ_BODY)

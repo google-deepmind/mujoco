@@ -366,6 +366,25 @@ void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy, mj
     mju_addToScl3(cam->lookat, vec, -scl);
     break;
 
+  case mjMOUSE_TURN_V:
+  case mjMOUSE_TURN_H:
+    if (cam->type == mjCAMERA_TRACKING) {
+      return;
+    }
+
+    mjv_cameraFrame(headpos, forward, NULL, NULL, NULL, cam);
+    if (action == mjMOUSE_TURN_H) {
+      cam->azimuth -= reldx * 180.0;
+    }
+    if (action == mjMOUSE_TURN_V) {
+      cam->elevation -= reldy * 180.0;
+    }
+    mjv_cameraFrame(NULL, forward, NULL, NULL, NULL, cam);
+
+    // move lookat point so that camera faces new direction
+    mju_addScl3(cam->lookat, headpos, forward, cam->distance);
+    break;
+
   case mjMOUSE_ZOOM:
     cam->distance -= mju_log(1 + cam->distance/m->stat.extent/3) * reldy * 9 * m->stat.extent;
     break;

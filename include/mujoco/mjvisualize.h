@@ -40,13 +40,15 @@ typedef enum mjtCatBit_ {         // bitflags for mjvGeom category
 
 typedef enum mjtMouse_ {          // mouse interaction mode
   mjMOUSE_NONE        = 0,        // no action
-  mjMOUSE_ROTATE_V,               // rotate, vertical plane
-  mjMOUSE_ROTATE_H,               // rotate, horizontal plane
-  mjMOUSE_MOVE_V,                 // move, vertical plane
-  mjMOUSE_MOVE_H,                 // move, horizontal plane
-  mjMOUSE_ZOOM,                   // zoom
-  mjMOUSE_MOVE_V_REL,             // move, vertical plane, relative to target
-  mjMOUSE_MOVE_H_REL,             // move, horizontal plane, relative to target
+  mjMOUSE_ROTATE_V,               // rotate (orbit) vertically
+  mjMOUSE_ROTATE_H,               // rotate (orbit) horizontally
+  mjMOUSE_MOVE_V,                 // move along vertical plane
+  mjMOUSE_MOVE_H,                 // move along horizontal plane
+  mjMOUSE_ZOOM,                   // zoom (towards/away from lookat point)
+  mjMOUSE_MOVE_V_REL,             // move (truck, pedestal), vertical plane rel. to target
+  mjMOUSE_MOVE_H_REL,             // move (truck, dolly), horizontal plane rel. to target
+  mjMOUSE_TURN_V,                 // turn (tilt) vertically
+  mjMOUSE_TURN_H,                 // turn (pan) horizontally
 } mjtMouse;
 
 
