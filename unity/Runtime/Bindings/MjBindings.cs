@@ -7150,7 +7150,7 @@ public static unsafe extern double mjv_frustumHeight(mjvScene_* scn);
 public static unsafe extern void mjv_alignToCamera(double* res, double* vec, double* forward);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mjv_moveCamera(mjModel_* m, int action, double reldx, double reldy, mjvScene_* scn, mjvCamera_* cam);
+public static unsafe extern void mjv_moveCamera(mjModel_* m, int action, double reldx, double reldy, mjvCamera_* cam);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_movePerturb(mjModel_* m, mjData_* d, int action, double reldx, double reldy, mjvScene_* scn, mjvPerturb_* pert);

@@ -3438,8 +3438,7 @@ void mjv_cameraInRoom(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3],
                       const mjvScene* scn);
 mjtNum mjv_frustumHeight(const mjvScene* scn);
 void mjv_alignToCamera(mjtNum res[3], const mjtNum vec[3], const mjtNum forward[3]);
-void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
-                    const mjvScene* scn, mjvCamera* cam);
+void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy, mjvCamera* cam);
 void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx,
                      mjtNum reldy, const mjvScene* scn, mjvPerturb* pert);
 void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,

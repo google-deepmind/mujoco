@@ -45,6 +45,7 @@ General
      negative half-integers, e.g. ``mju_round(-2.5)`` now returns -3 rather than -2.
    - Changed the default value of :ref:`sleep_tolerance<option-sleep_tolerance>` from 1e-4 to 1e-3 (1mm/sec in SI
      units).
+   - Removed unneeded `mjvScene` argument from :ref:`mjv_moveCamera`.
 
 Bug fixes
 ^^^^^^^^^

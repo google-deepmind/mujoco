@@ -4729,12 +4729,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='mjtNum'),
              ),
              FunctionParameterDecl(
-                 name='scn',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjvScene', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
                  name='cam',
                  type=PointerType(
                      inner_type=ValueType(name='mjvCamera'),

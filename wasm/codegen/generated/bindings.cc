@@ -3801,8 +3801,8 @@ void mjv_model2room_wrapper(const val& roompos, const val& roomquat, const Numbe
   mjv_model2room(roompos_.data(), roomquat_.data(), modelpos_.data(), modelquat_.data(), scn.get());
 }
 
-void mjv_moveCamera_wrapper(const MjModel& m, int action, mjtNum reldx, mjtNum reldy, const MjvScene& scn, MjvCamera& cam) {
-  mjv_moveCamera(m.get(), action, reldx, reldy, scn.get(), cam.get());
+void mjv_moveCamera_wrapper(const MjModel& m, int action, mjtNum reldx, mjtNum reldy, MjvCamera& cam) {
+  mjv_moveCamera(m.get(), action, reldx, reldy, cam.get());
 }
 
 void mjv_moveModel_wrapper(const MjModel& m, int action, mjtNum reldx, mjtNum reldy, const NumberArray& roomup, MjvScene& scn) {

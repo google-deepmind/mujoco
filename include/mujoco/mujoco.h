@@ -757,8 +757,7 @@ MJAPI mjtNum mjv_frustumHeight(const mjvScene* scn);
 MJAPI void mjv_alignToCamera(mjtNum res[3], const mjtNum vec[3], const mjtNum forward[3]);
 
 // Move camera with mouse; action is mjtMouse.
-MJAPI void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
-                          const mjvScene* scn, mjvCamera* cam);
+MJAPI void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy, mjvCamera* cam);
 
 // Move perturb object with mouse; action is mjtMouse.
 MJAPI void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx,
