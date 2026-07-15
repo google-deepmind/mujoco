@@ -920,6 +920,9 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
   int* chain_colind = mjSTACKALLOC(d, nv, int);
   mjtNum* blk_jac = mjSTACKALLOC(d, 3*nv, mjtNum);
 
+  // temp buffer for fast path element result
+  mjtNum* fast_tmp = mjSTACKALLOC(d, max_dim_c, mjtNum);
+
   // loop over flexes
   for (int f=0; f < m->nflex; f++) {
     // only process flex_interp
@@ -977,6 +980,19 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
 
     // gather raw node positions (unrotated)
     mju_flexGatherState(m, d, f, xpos, NULL);
+
+    // check if centered fast path applies: centered, all nodes on simple slider
+    // bodies (body_simple == 2 means diag M with sliders only, J = R_body per node)
+    int use_fast_path = m->flex_centered[f];
+    if (use_fast_path) {
+      int nodenum_f = m->flex_nodenum[f];
+      for (int n = 0; n < nodenum_f; n++) {
+        if (m->body_simple[bodyid[n]] != 2) {
+          use_fast_path = 0;
+          break;
+        }
+      }
+    }
 
     // loop over finite elements
     for (int fe = 0; fe < nelem_fe; fe++) {
@@ -1070,33 +1086,60 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
         continue;
       }
 
-      // ponytail: always use general path with correct Jacobian construction.
-      // The previous "fast path" (direct K*vec scatter) assumes J=I, which is
-      // only correct when the body is not rotated (R_body = I).
-      // general path: construct sparse Jacobian for this element's nodes
-      int current_adr = 0;
-      for (int n = 0; n < npe; n++) {
-        int bid = bodyid[gindices[n]];
-        int chain_nnz = mj_bodyChain(m, bid, chain_colind);
-        mj_jacSparse(m, d, blk_jac, NULL, xpos+3*gindices[n], bid,
-                     chain_nnz, chain_colind, /*flg_skipcommon=*/0);
+      // fast path: centered flex with 3 translational DOFs per body
+      // J = R_body (not I when body is rotated), so J'*K*J*vec = R^T*K*(R*vec)
+      if (use_fast_path) {
+        // apply R_body to vec for each node
+        for (int n = 0; n < npe; n++) {
+          int dof = m->body_dofadr[bodyid[gindices[n]]];
+          mju_mulMatVec3(fast_tmp + 3*n, d->xmat + 9*bodyid[gindices[n]], vec + dof);
+        }
 
-        for (int r = 0; r < 3; r++) {
-          int row_idx = 3*n + r;
-          J_rownnz[row_idx] = chain_nnz;
-          J_rowadr[row_idx] = current_adr;
-
-          for (int idx = 0; idx < chain_nnz; idx++) {
-            J_colind[current_adr] = chain_colind[idx];
-            J_val[current_adr] = blk_jac[r*chain_nnz + idx];
-            current_adr++;
+        // compute R^T * K_rot * (R*vec) and add to res
+        for (int a = 0; a < npe; a++) {
+          int dof_a = m->body_dofadr[bodyid[gindices[a]]];
+          mjtNum row[3] = {0, 0, 0};
+          for (int b = 0; b < npe; b++) {
+            int adr = (3*a)*dim_e + 3*b;
+            for (int r = 0; r < 3; r++) {
+              for (int c = 0; c < 3; c++) {
+                row[r] += K_rot_cell[adr + r*dim_e + c] * fast_tmp[3*b + c];
+              }
+            }
+          }
+          // apply R^T and add to res
+          mjtNum qfrc_loc[3];
+          mju_mulMatTVec3(qfrc_loc, d->xmat + 9*bodyid[gindices[a]], row);
+          for (int r = 0; r < 3; r++) {
+            res[dof_a + r] += qfrc_loc[r];
           }
         }
-      }
+      } else {
+        // general path: construct sparse Jacobian for this element's nodes
+        int current_adr = 0;
+        for (int n = 0; n < npe; n++) {
+          int bid = bodyid[gindices[n]];
+          int chain_nnz = mj_bodyChain(m, bid, chain_colind);
+          mj_jacSparse(m, d, blk_jac, NULL, xpos+3*gindices[n], bid,
+                       chain_nnz, chain_colind, /*flg_skipcommon=*/0);
 
-      // res += J'*K_rot*J*vec
-      addJTBJ_mulSparse(m, d, res, vec, J_rownnz, J_rowadr, J_colind,
-                        J_val, K_rot_cell, dim_e);
+          for (int r = 0; r < 3; r++) {
+            int row_idx = 3*n + r;
+            J_rownnz[row_idx] = chain_nnz;
+            J_rowadr[row_idx] = current_adr;
+
+            for (int idx = 0; idx < chain_nnz; idx++) {
+              J_colind[current_adr] = chain_colind[idx];
+              J_val[current_adr] = blk_jac[r*chain_nnz + idx];
+              current_adr++;
+            }
+          }
+        }
+
+        // res += J'*K_rot*J*vec
+        addJTBJ_mulSparse(m, d, res, vec, J_rownnz, J_rowadr, J_colind,
+                          J_val, K_rot_cell, dim_e);
+      }
 
     }
   }
