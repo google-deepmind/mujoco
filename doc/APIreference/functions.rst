@@ -2797,6 +2797,24 @@ of how to use these functions.
 
 Set default mjrContext.
 
+.. _mjr_defaultRendererInfo:
+
+`mjr_defaultRendererInfo <#mjr_defaultRendererInfo>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjr_defaultRendererInfo
+
+Set default mjrRendererInfo.
+
+.. _mjr_getRendererInfo:
+
+`mjr_getRendererInfo <#mjr_getRendererInfo>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjr_getRendererInfo
+
+Get active renderer information.
+
 .. _mjr_makeContext:
 
 `mjr_makeContext <#mjr_makeContext>`__

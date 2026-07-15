@@ -1286,6 +1286,16 @@ This structure specifies the attributes for a single vertex.
 
 
 
+.. _mjrRendererInfo:
+
+mjrRendererInfo
+~~~~~~~~~~~~~~~
+
+This structure contains information about the available renderer and its current context.
+
+.. mujoco-include:: mjrRendererInfo
+
+
 .. _mjrContext:
 
 mjrContext

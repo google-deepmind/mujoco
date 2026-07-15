@@ -5480,6 +5480,34 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Set default mjrContext.',
      )),
+    ('mjr_defaultRendererInfo',
+     FunctionDecl(
+         name='mjr_defaultRendererInfo',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='info',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjrRendererInfo'),
+                 ),
+             ),
+         ),
+         doc='Set default mjrRendererInfo.',
+     )),
+    ('mjr_getRendererInfo',
+     FunctionDecl(
+         name='mjr_getRendererInfo',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='info',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjrRendererInfo'),
+                 ),
+             ),
+         ),
+         doc='Get active renderer information.',
+     )),
     ('mjr_makeContext',
      FunctionDecl(
          name='mjr_makeContext',

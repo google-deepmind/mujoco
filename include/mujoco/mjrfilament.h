@@ -104,6 +104,9 @@ mjrfContext* mjrf_createContext(const mjrfContextConfig* config);
 // Destroys the filament rendering context.
 void mjrf_destroyContext(mjrfContext* ctx);
 
+// Gets active renderer information for the given filament context.
+void mjrf_getRendererInfo(mjrfContext* ctx, mjrRendererInfo* info);
+
 typedef enum mjrDrawMode_ {           // how to draw objects in the scene
   mjDRAW_MODE_DEFAULT,                // default colors and lighting
   mjDRAW_MODE_DEFAULT_NO_TEXTURES,    // default, but without textures

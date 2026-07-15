@@ -218,6 +218,7 @@ SKIPPED_STRUCTS: tuple[str, ...] = (
     "mjUI",
     "mjVFS",
     "mjrContext",
+    "mjrRendererInfo",
     "mjrRect",
     "mjrVertexAttribute",
     "mjuiDef",

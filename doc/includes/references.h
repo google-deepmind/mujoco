@@ -1378,6 +1378,10 @@ typedef struct mjrRect_ {         // OpenGL rectangle
   int width;                      // width (usually buffer width)
   int height;                     // height (usually buffer height)
 } mjrRect;
+typedef struct mjrRendererInfo_ {  // active renderer identity
+  const char* renderer;            // renderer family: classic, filament, noop
+  const char* backend;             // graphics backend: opengl, vulkan; empty if uninitialized
+} mjrRendererInfo;
 typedef struct mjrVertexAttribute_ {  // vertex attribute format specification
   const void* bytes;                  // vertex data
   int usage;                          // position, normal, etc [mjrVertexAttributeUsage]
@@ -3471,6 +3475,8 @@ void mjv_cameraFrame(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3], mjtNum 
 void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2],  const mjModel* m,
                        const mjvCamera* cam);
 void mjr_defaultContext(mjrContext* con);
+void mjr_defaultRendererInfo(mjrRendererInfo* info);
+void mjr_getRendererInfo(mjrRendererInfo* info);
 void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale);
 void mjr_changeFont(int fontscale, mjrContext* con);
 void mjr_addAux(int index, int width, int height, int samples, mjrContext* con);

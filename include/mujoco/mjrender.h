@@ -117,6 +117,12 @@ typedef struct mjrRect_ {         // OpenGL rectangle
 } mjrRect;
 
 
+typedef struct mjrRendererInfo_ {  // active renderer identity
+  const char* renderer;            // renderer family: classic, filament, noop
+  const char* backend;             // graphics backend: opengl, vulkan; empty if uninitialized
+} mjrRendererInfo;
+
+
 typedef struct mjrVertexAttribute_ {  // vertex attribute format specification
   const void* bytes;                  // vertex data
   int usage;                          // position, normal, etc [mjrVertexAttributeUsage]

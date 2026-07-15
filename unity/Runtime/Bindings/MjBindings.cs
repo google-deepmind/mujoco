@@ -6183,6 +6183,12 @@ public unsafe struct mjrRect_ {
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjrRendererInfo_ {
+  public char* renderer;
+  public char* backend;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public unsafe struct mjrVertexAttribute_ {
   public void* bytes;
   public int usage;
@@ -7214,6 +7220,12 @@ public static unsafe extern void mjv_cameraFrustum(float* zver, float* zhor, flo
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjr_defaultContext(mjrContext_* con);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjr_defaultRendererInfo(mjrRendererInfo_* info);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjr_getRendererInfo(mjrRendererInfo_* info);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjr_makeContext(mjModel_* m, mjrContext_* con, int fontscale);
