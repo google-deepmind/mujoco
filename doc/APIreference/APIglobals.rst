@@ -583,6 +583,9 @@ Defined in `mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/incl
    * - ``mjMAXTEXTURE``
      - 1000
      - Maximum number of textures allowed.
+   * - ``mjMAXMATERIAL``
+     - 1000
+     - Maximum number of materials with textures.
 
 
 .. _glNumericUI:

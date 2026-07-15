@@ -11197,6 +11197,30 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='auxiliary color buffer for resolving',
              ),
              StructFieldDecl(
+                 name='mat_texid',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(10000,),
+                 ),
+                 doc='material texture ids (-1: no texture)',
+             ),
+             StructFieldDecl(
+                 name='mat_texuniform',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(1000,),
+                 ),
+                 doc='uniform cube mapping',
+             ),
+             StructFieldDecl(
+                 name='mat_texrepeat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(2000,),
+                 ),
+                 doc='texture repetition for 2d mapping',
+             ),
+             StructFieldDecl(
                  name='ntexture',
                  type=ValueType(name='int'),
                  doc='number of allocated textures',
