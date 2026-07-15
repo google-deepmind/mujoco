@@ -595,28 +595,30 @@ void App::HandleMouseEvents() {
   else if (is_mouse_dragging) {
     if (ui_.camera_idx == platform::kFreeCameraIdx) {
       if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        MoveCamera(platform::CameraMotion::PAN_TILT, mouse_dx, mouse_dy);
+        mjv_moveCamera(model(), mjMOUSE_TURN_H, mouse_dx, 0.f, &camera_);
+        mjv_moveCamera(model(), mjMOUSE_TURN_V, 0.f, mouse_dy, &camera_);
       }
     } else {
       if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        MoveCamera(platform::CameraMotion::ORBIT, mouse_dx, mouse_dy);
+        mjv_moveCamera(model(), mjMOUSE_ROTATE_H, mouse_dx, 0.f, &camera_);
+        mjv_moveCamera(model(), mjMOUSE_ROTATE_V, 0.f, mouse_dy, &camera_);
       } else if (ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
-        MoveCamera(platform::CameraMotion::ZOOM, mouse_dx, mouse_dy);
+        mjv_moveCamera(model(), mjMOUSE_ZOOM, 0.f, mouse_dy, &camera_);
       }
     }
 
     // Right mouse movement is relative to the horizontal and vertical planes.
     if (ImGui::IsMouseDown(ImGuiMouseButton_Right) && io.KeyShift) {
-      MoveCamera(platform::CameraMotion::PLANAR_MOVE_H, mouse_dx, mouse_dy);
+      mjv_moveCamera(model(), mjMOUSE_MOVE_H, mouse_dx, mouse_dy, &camera_);
     } else if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
-      MoveCamera(platform::CameraMotion::PLANAR_MOVE_V, mouse_dx, mouse_dy);
+      mjv_moveCamera(model(), mjMOUSE_MOVE_V, mouse_dx, mouse_dy, &camera_);
     }
   }
 
   // Mouse scroll zooms the camera towards/away from the lookat point.
   // Ignored by user-centered free cameras which don't have a lookat point.
   if (mouse_scroll != 0.0f && ui_.camera_idx != platform::kFreeCameraIdx) {
-    MoveCamera(platform::CameraMotion::ZOOM, 0, -mouse_scroll);
+    mjv_moveCamera(model(), mjMOUSE_ZOOM, 0.f, -mouse_scroll, &camera_);
   }
 
   // Left double click.
@@ -855,28 +857,28 @@ void App::HandleKeyboardEvents() {
 
     // Move (dolly) forward/backward using W and S keys.
     if (ImGui::IsKeyDown(ImGuiKey_W)) {
-      MoveCamera(platform::CameraMotion::TRUCK_DOLLY, 0, tmp_.cam_speed);
+      mjv_moveCamera(model(), mjMOUSE_MOVE_H_REL, 0, tmp_.cam_speed, &camera_);
       moved = true;
     } else if (ImGui::IsKeyDown(ImGuiKey_S)) {
-      MoveCamera(platform::CameraMotion::TRUCK_DOLLY, 0, -tmp_.cam_speed);
+      mjv_moveCamera(model(), mjMOUSE_MOVE_H_REL, 0, -tmp_.cam_speed, &camera_);
       moved = true;
     }
 
     // Strafe (truck) left/right using A and D keys.
     if (ImGui::IsKeyDown(ImGuiKey_A)) {
-      MoveCamera(platform::CameraMotion::TRUCK_DOLLY, -tmp_.cam_speed, 0);
+      mjv_moveCamera(model(), mjMOUSE_MOVE_H_REL, -tmp_.cam_speed, 0, &camera_);
       moved = true;
     } else if (ImGui::IsKeyDown(ImGuiKey_D)) {
-      MoveCamera(platform::CameraMotion::TRUCK_DOLLY, tmp_.cam_speed, 0);
+      mjv_moveCamera(model(), mjMOUSE_MOVE_H_REL, tmp_.cam_speed, 0, &camera_);
       moved = true;
     }
 
     // Move (pedestal) up/down using Q and E keys.
     if (ImGui::IsKeyDown(ImGuiKey_Q)) {
-      MoveCamera(platform::CameraMotion::TRUCK_PEDESTAL, 0, tmp_.cam_speed);
+      mjv_moveCamera(model(), mjMOUSE_MOVE_V_REL, 0, tmp_.cam_speed, &camera_);
       moved = true;
     } else if (ImGui::IsKeyDown(ImGuiKey_E)) {
-      MoveCamera(platform::CameraMotion::TRUCK_PEDESTAL, 0, -tmp_.cam_speed);
+      mjv_moveCamera(model(), mjMOUSE_MOVE_V_REL, 0, -tmp_.cam_speed, &camera_);
       moved = true;
     }
 
@@ -941,11 +943,6 @@ void App::SaveSettings() {
 
 void App::SetSpeedIndex(int idx) {
   platform::SetSpeedIndex(&step_control_, tmp_.speed_index, idx);
-}
-
-void App::MoveCamera(platform::CameraMotion motion, mjtNum reldx,
-                     mjtNum reldy) {
-  platform::MoveCamera(model(), data(), &camera_, motion, reldx, reldy);
 }
 
 void App::BuildGui() {
