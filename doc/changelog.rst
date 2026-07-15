@@ -99,29 +99,29 @@ General
    .. admonition:: Breaking API changes
       :class: attention
 
-      - The header file ``mjthread.h`` was removed along with the old engine threading API.
-        |br| **Migration:** Use :ref:`mju_threadpool` to set number of worker threads for the engine.
-      - Moved island sparse matrix construction from :ref:`mj_island` (single threaded) into :ref:`mj_fwdConstraint`
-        (multi-threaded). The island-specific matrices ``iM, iLD, iefc_J`` were removed from the arena and are now
-        allocated on the stack.
-      - Following the introduction of the :ref:`diagexact<option-flag-diagexact>` flag, the ``mjData`` field
-        ``efc_diagApprox`` was renamed to ``efc_diagA``, as it can now be either the exact or approximate diagonal of
-        the :math:`A` ("Delassus") matrix.
-      - The deprecated functions ``mju_{error,warning}_{i,s}`` have been removed.
+      10. The header file ``mjthread.h`` was removed along with the old engine threading API.
+          |br| **Migration:** Use :ref:`mju_threadpool` to set number of worker threads for the engine.
+      11. Moved island sparse matrix construction from :ref:`mj_island` (single threaded) into :ref:`mj_fwdConstraint`
+          (multi-threaded). The island-specific matrices ``iM, iLD, iefc_J`` were removed from the arena and are now
+          allocated on the stack.
+      12. Following the introduction of the :ref:`diagexact<option-flag-diagexact>` flag, the ``mjData`` field
+          ``efc_diagApprox`` was renamed to ``efc_diagA``, as it can now be either the exact or approximate diagonal of
+          the :math:`A` ("Delassus") matrix.
+      13. The deprecated functions ``mju_{error,warning}_{i,s}`` have been removed.
 
-      - Changed the signature of :ref:`mj_fullM` from ``mj_fullM(m, dst, M)`` to ``mj_fullM(m, d, dst)`` as part of the
-        planned deprecation of ``mjData.qM`` in favor of the CSR-format ``mjData.M``.
+      14. Changed the signature of :ref:`mj_fullM` from ``mj_fullM(m, dst, M)`` to ``mj_fullM(m, d, dst)`` as part of
+          the planned deprecation of ``mjData.qM`` in favor of the CSR-format ``mjData.M``.
 
-        **Migration:** For inertia matrix conversion, replace ``mj_fullM(m, dst, d->qM)`` with ``mj_fullM(m, d, dst)`` or
-        ``mju_sym2dense(dst, d->M, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind)``.
+          **Migration:** For inertia matrix conversion, replace ``mj_fullM(m, dst, d->qM)`` with ``mj_fullM(m, d, dst)``
+          or ``mju_sym2dense(dst, d->M, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind)``.
 
 Bug fixes
 ^^^^^^^^^
-10. Fixed a vulnerability in the System Identification toolbox where loading a trajectory or time series called
+15. Fixed a vulnerability in the System Identification toolbox where loading a trajectory or time series called
     ``np.load`` with ``allow_pickle=True``, allowing arbitrary code execution from a malicious ``.npz`` file. Signal
     metadata is now serialized as JSON and loaded with ``allow_pickle=False``.
-11. Fixed a bug in the ``mjz`` :ref:`decoder <mjpDecoder>` where unnormalized paths would fail to be read.
-12. Fixed a bug where the mesh compiler would produce non-unit convex hull polygon normals.
+16. Fixed a bug in the ``mjz`` :ref:`decoder <mjpDecoder>` where unnormalized paths would fail to be read.
+17. Fixed a bug where the mesh compiler would produce non-unit convex hull polygon normals.
 
 Version 3.9.0 (May 27, 2026)
 ----------------------------
@@ -596,15 +596,15 @@ MJX
 .. admonition:: Breaking ABI changes
    :class: attention
 
-   - ``mjx.Model.tex_data`` is now a numpy ndarray instead of a jax.Array, to avoid vmapping over this potentially
-     large array. This may break certain use-cases with Madrona MJX, but we are no longer supporting this codepath.
-     We will be migrating users to a Warp-based batch renderer.
+   12. ``mjx.Model.tex_data`` is now a numpy ndarray instead of a jax.Array, to avoid vmapping over this potentially
+       large array. This may break certain use-cases with Madrona MJX, but we are no longer supporting this codepath.
+       We will be migrating users to a Warp-based batch renderer.
 
 
 Bug fixes
 ^^^^^^^^^
 
-12. Fixed a bug in the box-box distance computation. Reported by :github:user:`nvtw`.
+13. Fixed a bug in the box-box distance computation. Reported by :github:user:`nvtw`.
 
 Version 3.3.7 (October 13, 2025)
 --------------------------------
@@ -627,30 +627,30 @@ General
       in favor of ``naconmax`` in a future release.
 
 
-3. Joint decorators and spatial tendons which have limits defined and whose current value (angle or length) exceeds the
+4. Joint decorators and spatial tendons which have limits defined and whose current value (angle or length) exceeds the
    limit, are recolored by using the :ref:`constraint impedance<soParameters>` :math:`d` to mix the existing color with
    :ref:`visual/rgba/constraint<visual-rgba-constraint>`. For spatial tendons, this visualization aid is active only if
    no :ref:`material<tendon-spatial-material>` is set and :ref:`rgba<tendon-spatial-rgba>` is default.
-4. Added :ref:`mju_getXMLDependencies` for computing a list of unique asset dependencies from an MJCF file.
-5. Added the code sample ``dependencies`` which provides command line utility for printing the result of :ref:`mju_getXMLDependencies`.
-6. The minimum C++ standard required to compile MuJoCo is now C++20, this has been the case within Google since 2023
+5. Added :ref:`mju_getXMLDependencies` for computing a list of unique asset dependencies from an MJCF file.
+6. Added the code sample ``dependencies`` which provides command line utility for printing the result of :ref:`mju_getXMLDependencies`.
+7. The minimum C++ standard required to compile MuJoCo is now C++20, this has been the case within Google since 2023
    but the CMake update was forgotten.
 
 .. admonition:: Breaking ABI changes
    :class: attention
 
-   7. The attribute ``mjOption.apirate`` was unused and has been removed.
-   8. MJX ``nconmax`` and ``njmax`` fields in ``mjx.make_data`` now default to ``None`` instead of -1.
+   8. The attribute ``mjOption.apirate`` was unused and has been removed.
+   9. MJX ``nconmax`` and ``njmax`` fields in ``mjx.make_data`` now default to ``None`` instead of -1.
 
 MJX
 ^^^
-9. Fix :issue:`2508`, ``qLD`` shapes mismatched mjModel during ``get_data_into``.
-10. Pull in MuJoCo Warp update to ``io.py``, and use ``naconmax`` instead of ``nconmax`` to set the maximum number
+10. Fix :issue:`2508`, ``qLD`` shapes mismatched mjModel during ``get_data_into``.
+11. Pull in MuJoCo Warp update to ``io.py``, and use ``naconmax`` instead of ``nconmax`` to set the maximum number
     of contacts over all environments.
 
 Bug fixes
 ^^^^^^^^^
-11. Fix :issue:`2881`, :at:`fitaabb` was adding an offset to the mesh and applying an incorrect frame
+12. Fix :issue:`2881`, :at:`fitaabb` was adding an offset to the mesh and applying an incorrect frame
     transformation. Also, unify the meaning of fitting a geom to a mesh AABB: it now means to find the smallest geom
     such that its AABB contains the mesh AABB.
 
@@ -792,20 +792,20 @@ Version 3.3.4 (July 8, 2025)
 
 General
 ^^^^^^^
-4. Added support for setting the initial camera in the viewer using
+5. Added support for setting the initial camera in the viewer using
    :ref:`visual/global/cameraid<visual-global-cameraid>`.
-5. Added support to only sync the state in the Python :ref:`passive viewer<PyViewerPassive>`'s ``Sync`` method, this is
+6. Added support to only sync the state in the Python :ref:`passive viewer<PyViewerPassive>`'s ``Sync`` method, this is
    useful to improve performance. The default behavior is unchanged and copies the entire model and data.
 
 Bug fixes
 ^^^^^^^^^
-6. Inverse dynamics were not being computed correctly when :ref:`tendon armature<tendon-spatial-armature>` was present,
+7. Inverse dynamics were not being computed correctly when :ref:`tendon armature<tendon-spatial-armature>` was present,
    now fixed.
-7. Fix bug in ``mjx.put_data`` where ``actuator_moment`` was not being copied correctly for the C implementation.
+8. Fix bug in ``mjx.put_data`` where ``actuator_moment`` was not being copied correctly for the C implementation.
 
 Documentation
 ^^^^^^^^^^^^^
-8. Added missing item documentation and clarified the nature of breaking changes in the 3.3.3 changelog.
+9. Added missing item documentation and clarified the nature of breaking changes in the 3.3.3 changelog.
    See items 3 and 4 below.
 
 Version 3.3.3 (June 10, 2025)
