@@ -1479,6 +1479,131 @@ typedef struct mjrContext_ {        // custom OpenGL context
   // depth output format
   int readDepthMap;                 // depth mapping: mjDEPTH_ZERONEAR or mjDEPTH_ZEROFAR
 } mjrContext;
+typedef struct mjrfContext_ mjrfContext;
+typedef struct mjrfTexture_ mjrfTexture;
+typedef struct mjrfMesh_ mjrfMesh;
+typedef struct mjrfScene_ mjrfScene;
+typedef struct mjrfLight_ mjrfLight;
+typedef struct mjrfRenderable_ mjrfRenderable;
+typedef struct mjrfRenderTarget_ mjrfRenderTarget;
+typedef enum mjrGraphicsApi_ {
+  mjGRAPHICS_API_DEFAULT = 0,   // default (platform-dependent)
+  mjGRAPHICS_API_OPENGL,        // desktop, mobile (GLES), web (WebGL)
+  mjGRAPHICS_API_VULKAN,        // vulkan
+} mjrGraphicsApi;
+typedef struct mjrfContextConfig_ {
+  int graphics_api;                  // rendering graphics API [mjrGraphicsApi]
+  mjtBool force_software_rendering;  // force backend to use software rendering
+  void* native_window;               // platform-dependent window handle (or nullptr for windowless)
+} mjrfContextConfig;
+typedef enum mjrDrawMode_ {
+  mjDRAW_MODE_DEFAULT,                // default colors and lighting
+  mjDRAW_MODE_DEFAULT_NO_TEXTURES,    // default, but without textures
+  mjDRAW_MODE_WIREFRAME,              // wireframe rendering
+  mjDRAW_MODE_DEPTH,                  // grayscale depth map
+  mjDRAW_MODE_ISLANDS,                // color objects based on island and sleep state
+  mjDRAW_MODE_SEGMENTATION_BY_ID,     // color objects based on segmentation id
+  mjDRAW_MODE_SEGMENTATION_BY_COLOR,  // generate visually distinct colors using segmentation id
+} mjrDrawMode;
+typedef struct mjrfRenderRequest_ {
+  mjrfScene* scene;                  // scene to render
+  mjrCamera camera;                  // camera (viewpoint) from which to render scene
+  mjrRect viewport;                  // viewport (rect area) into which to render
+  mjrfRenderTarget* target;          // target used for rendering (or nullptr for window rendering)
+  int draw_mode;                     // method to use for drawing objects [mjrDrawMode]
+  mjtBool enable_post_processing;    // enable post processing, enabled by default
+  mjtBool enable_reflections;        // enable reflections, enabled by default
+  mjtBool enable_shadows;            // enable shadows, enabled by default
+} mjrfRenderRequest;
+typedef struct mjrfReadPixelsRequest_ {
+  mjrfRenderTarget* target;              // render target from which to read the image pixels
+  void* output;                          // buffer into which the pixels will be stored
+  mjtSize num_bytes;                     // size of output buffer
+  mjrfCallback read_completed;           // callback when read is complete; can use to free output
+  void* user_data;                       // user data for read_completed_callback
+} mjrfReadPixelsRequest;
+typedef struct mjrfFrameStats_ {
+  double frame_rate;              // frame rate, in frames per second
+} mjrfFrameStats;
+typedef struct mjrfTextureConfig_ {
+  int width;                         // texture width, or number of bytes for compressed data (e.g. KTX)
+  int height;                        // texture height, or 0 for compressed data (e.g. KTX)
+  int format;                        // pixel format (e.g. RGB8, RGBA8, KTX, etc.) [mjrPixelFormat]
+  int color_space;                   // color space (e.g. LINEAR, sRGB, etc.) [mjrColorSpace]
+  int sampler_type;                  // texture sampler (e.g. 2D, cube, etc.) [mjrSamplerType]
+} mjrfTextureConfig;
+typedef struct mjrfTextureData_ {
+  const void* bytes;               // pointer to image data, or nullptr for empty texture
+  mjtSize num_bytes;               // number of bytes in the image data
+  mjrfCallback release;            // callback when data has finished uploading
+  void* user_data;                 // user data for release callback
+} mjrfTextureData;
+typedef struct mjrfMeshData_ {
+  mjtSize num_vertices;         // number of vertices; all vertex attributes share this size
+  int num_attributes;           // number of attributes defined
+  mjrVertexAttribute attributes[mjMAX_VERTEX_ATTRIBUTES];  // per-vertex attribute information
+  mjtBool interleaved;          // true if vertex attributes are interleaved
+  mjtSize num_indices;          // number of indices
+  const void* indices;          // indices data array
+  int index_type;               // index data format (e.g. UINT16 or UINT32) [mjrIndexType]
+  int primitive_type;           // index interpretation (e.g. TRIANGLES, etc.) [mjrMeshPrimitiveType]
+  mjtBool compute_bounds;       // if true, compute bounds from vertex positions
+  float bounds_min[3];          // min/max bounds; assume unset if bounds_min == bounds_max
+  float bounds_max[3];
+  mjrfCallback release;         // callback when data has finished uploading
+  void* user_data;              // user data for release callback
+} mjrfMeshData;
+typedef struct mjrfSceneParams_ {
+} mjrfSceneParams;
+typedef struct mjrfLightParams_ {
+  int type;                        // type of light (e.g. spot, point, image, etc.) [mjrLightType]
+  const mjrfTexture* texture;      // texture; only for image lights
+  float color[3];                  // RGB color
+  float intensity;                 // light intensity, in candela
+  mjtBool cast_shadows;            // if true, cast shadows
+  float range;                     // effective range of light, in meters
+  float spot_cone_angle;           // spot light cone angle, in degrees
+  int shadow_map_size;             // size of shadow map texture, 0 to use default size
+  float bulb_radius;               // bulb radius, used for soft shadows
+  float vsm_blur_width;            // variance shadow map blur width
+} mjrfLightParams;
+typedef struct mjrfMaterial_ {
+  float color[4];               // object color; defaults to white
+  int32_t segmentation_id;      // ID for segmentation rendering; maps to RGB8 color (i.e. 24 bits)
+  int32_t island_id;            // ID to which the renderable belongs
+  int sleep_state;              // sleep state of the renderable [mjtSleepState]
+  float uv_scale[3];            // scale applied to UV coordinates; defaults to (1,1,1)
+  float uv_offset[3];           // offset applied to UV coordinates; defaults to (0,0,0)
+  float scissor[4];             // if non-zero, applies scissor testing when rendering
+  float metallic;               // metallic factory [0, 1]; disabled if < 0
+  float roughness;              // roughness factor [0, 1]; disabled if < 0
+  float specular;               // specular factor [0, 1]; disabled if < 0
+  float glossiness;             // glossiness factor [0, 1]; disabled if < 0
+  float emissive;               // emissive/glow factor [0, 1]; disabled if < 0
+  float reflectance;            // blend factor for reflective surfaces [0, 1]; applies only to planes
+  mjtBool decor_ux;             // for ux elements, does not apply any lighting
+  mjtBool selected;             // for "selected" ux elements, adds additional styling
+  const mjrfTexture* color_texture;       // color/albedo texture (RGB8)
+  const mjrfTexture* opacity_texture;     // opacity texture (A8)
+  const mjrfTexture* normal_texture;      // normal map texture (RGB8)
+  const mjrfTexture* metallic_texture;    // metallic map texture (R8)
+  const mjrfTexture* roughness_texture;   // roughness map texture (R8)
+  const mjrfTexture* occlusion_texture;   // ambient occlusion texture (R8)
+  const mjrfTexture* orm_texture;         // occlusion/roughness/metallic texture (RGB8)
+  const mjrfTexture* emissive_texture;    // emissive texture (RGB8)
+  const mjrfTexture* reflection_texture;  // reflection texture, for internal use only
+} mjrfMaterial;
+typedef struct mjrfRenderableParams_ {
+  mjtBool cast_shadows;                 // if true, casts shadows
+  mjtBool receive_shadows;              // if true, receives shadows
+  uint16_t blend_order;                 // controls draw order for transparent objects [0, 8]
+} mjrfRenderableParams;
+typedef struct mjrfRenderTargetConfig_ {
+  int width;                              // texture width
+  int height;                             // texture height
+  int color_format;                       // pixel format for color buffer [mjrPixelFormat]
+  int depth_format;                       // pixel format for depth buffer [mjrPixelFormat]
+} mjrfRenderTargetConfig;
 typedef enum mjtGeomInertia {      // type of inertia inference
   mjINERTIA_VOLUME = 0,            // mass distributed in the volume
   mjINERTIA_SHELL,                 // mass distributed on the surface
@@ -3219,6 +3344,63 @@ typedef struct mjvFigure_ {       // abstract 2D figure passed to OpenGL rendere
 } mjvFigure;
 
 //----------------------------- MJAPI FUNCTIONS --------------------------------
+void mjrf_defaultContextConfig(mjrfContextConfig* config);
+mjrfContext* mjrf_createContext(const mjrfContextConfig* config);
+void mjrf_destroyContext(mjrfContext* ctx);
+void mjrf_getRendererInfo(mjrfContext* ctx, mjrRendererInfo* info);
+void mjrf_defaultRenderRequest(mjrfRenderRequest* request);
+void mjrf_defaultReadPixelsRequest(mjrfReadPixelsRequest* request);
+mjrfFrameHandle mjrf_render(mjrfContext* ctx, const mjrfRenderRequest* req, int nreq,
+                      const mjrfReadPixelsRequest* read_req, int nread_req);
+void mjrf_waitForFrame(mjrfContext* ctx, mjrfFrameHandle frame);
+void mjrf_setClearColor(mjrfContext* ctx, const float color[3]);
+void mjrf_defaultFrameStats(mjrfFrameStats* stats);
+void mjrf_getFrameStats(mjrfContext* ctx, mjrfFrameHandle frame, mjrfFrameStats* stats_out);
+void mjrf_defaultTextureConfig(mjrfTextureConfig* config);
+mjrfTexture* mjrf_createTexture(mjrfContext* ctx, const mjrfTextureConfig* config);
+void mjrf_destroyTexture(mjrfTexture* texture);
+void mjrf_defaultTextureData(mjrfTextureData* data);
+void mjrf_setTextureData(mjrfTexture* texture, const mjrfTextureData* data);
+int mjrf_getTextureWidth(const mjrfTexture* texture);
+int mjrf_getTextureHeight(const mjrfTexture* texture);
+int mjrf_getTextureSamplerType(const mjrfTexture* texture);
+void mjrf_defaultMeshData(mjrfMeshData* data);
+mjrfMesh* mjrf_createMesh(mjrfContext* ctx, const mjrfMeshData* data);
+void mjrf_destroyMesh(mjrfMesh* mesh);
+void mjrf_defaultSceneParams(mjrfSceneParams* params);
+mjrfScene* mjrf_createScene(mjrfContext* ctx, const mjrfSceneParams* params);
+void mjrf_destroyScene(mjrfScene* scene);
+void mjrf_addLightToScene(mjrfScene* scene, mjrfLight* light);
+void mjrf_removeLightFromScene(mjrfScene* scene, mjrfLight* light);
+void mjrf_addRenderableToScene(mjrfScene* scene, mjrfRenderable* renderable);
+void mjrf_removeRenderableFromScene(mjrfScene* scene, mjrfRenderable* renderable);
+void mjrf_setSceneSkybox(mjrfScene* scene, const mjrfTexture* texture);
+void mjrf_configureSceneFromModel(mjrfScene* scene, const mjModel* model);
+void mjrf_defaultLightParams(mjrfLightParams* params);
+mjrfLight* mjrf_createLight(mjrfContext* ctx, const mjrfLightParams* params);
+void mjrf_destroyLight(mjrfLight* light);
+void mjrf_setLightEnabled(mjrfLight* light, mjtBool enabled);
+void mjrf_setLightIntensity(mjrfLight* light, float intensity);
+void mjrf_setLightColor(mjrfLight* light, const float color[3]);
+void mjrf_setLightTransform(mjrfLight* light, const float position[3], const float direction[3]);
+int mjrf_getLightType(const mjrfLight* light);
+void mjrf_defaultMaterial(mjrfMaterial* material);
+void mjrf_defaultRenderableParams(mjrfRenderableParams* params);
+mjrfRenderable* mjrf_createRenderable(mjrfContext* ctx, const mjrfRenderableParams* params);
+void mjrf_destroyRenderable(mjrfRenderable* renderable);
+void mjrf_setRenderableMesh(mjrfRenderable* renderable, const mjrfMesh* mesh, int elem_offset,
+                      int elem_count);
+void mjrf_setRenderableGeomMesh(mjrfRenderable* renderable, int type, int nstack, int nslice,
+                          int nquad);
+void mjrf_setRenderableMaterial(mjrfRenderable* renderable, const mjrfMaterial* material);
+void mjrf_getRenderableMaterial(mjrfRenderable* renderable, mjrfMaterial* material);
+void mjrf_setRenderableTransform(mjrfRenderable* renderable, const float position[3],
+                           const float rotation[9]);
+void mjrf_setRenderableSize(mjrfRenderable* renderable, const float size[3]);
+void mjrf_defaultRenderTargetConfig(mjrfRenderTargetConfig* config);
+mjrfRenderTarget* mjrf_createRenderTarget(mjrfContext* ctx, const mjrfRenderTargetConfig* config);
+void mjrf_destroyRenderTarget(mjrfRenderTarget* render_target);
+void mjrf_resizeRenderTarget(mjrfRenderTarget* render_target, int width, int height);
 void mj_defaultVFS(mjVFS* vfs);
 int mj_mountVFS(mjVFS* vfs, const char* filepath, const mjpResourceProvider* provider);
 int mj_unmountVFS(mjVFS* vfs, const char* filename);

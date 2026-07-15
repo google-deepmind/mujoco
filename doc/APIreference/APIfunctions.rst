@@ -38,6 +38,7 @@ API function can be classified as:
    - :ref:`Abstract interaction<Interaction>`: mouse control of cameras and perturbations.
    - :ref:`Abstract Visualization<Visualization-api>`.
    - :ref:`OpenGL rendering<OpenGLrendering>`.
+   - :ref:`Filament rendering<FilamentRenderingApi>`.
    - :ref:`UI framework<UIframework>`.
 
 - **Threads, Plugins, Derivatives**
