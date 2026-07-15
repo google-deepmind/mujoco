@@ -262,12 +262,21 @@ detailed summary of the :ref:`simulation pipeline <Pipeline>` is given at the en
 Actuation model
 ~~~~~~~~~~~~~~~
 
-MuJoCo provides a flexible actuator model. All actuators are single-input-single-output (SISO). The input to actuator
-:math:`i` is a scalar control :math:`u_i` specified by the user. The output is a scalar force :math:`p_i` which is
-mapped to joint coordinates by a vector of moment arms determined by the transmission. An actuator can also have
-activation state :math:`w_i` with its own dynamics. The control inputs for all actuators are stored in ``mjData.ctrl``,
-the force outputs are stored in ``mjData.actuator_force``, and the activation states (if any) are stored in
-``mjData.act``.
+MuJoCo provides a flexible actuator model. Most actuators are single-input-single-output (SISO): the input to
+actuator :math:`i` is a scalar control :math:`u_i` specified by the user, and the output is a scalar force
+:math:`p_i`, which is mapped to joint coordinates by a vector of moment arms determined by the transmission. An
+actuator can also have activation state :math:`w_i` with its own dynamics. The control inputs for all actuators are
+stored in ``mjData.ctrl``, the force outputs are stored in ``mjData.actuator_force``, and the activation states (if
+any) are stored in ``mjData.act``.
+
+More generally, an actuator can have several control inputs, several force outputs, or both. For example, a servo
+which accepts both a position setpoint and a velocity setpoint has two inputs and one output. The number of inputs
+is a property of the actuator type, and the number of outputs is a property of its transmission; neither is
+specified directly by the user. Since the number of inputs and the number of outputs can vary per actuator, the model
+has three separate counts: the number of actuators ``nactuator``, the total number of controls ``nu``, and the total
+number of force outputs ``nout``. In a model where all actuators are SISO, all three are equal. Note that outputs are
+counted in actuation space, before the mapping to joint coordinates: a tendon actuator with a single force output can
+move many joints.
 
 These three components of an actuator -- transmission, activation dynamics, and force generation -- determine how the
 actuator works. The user can set them independently for maximum flexibility, or use :ref:`Actuator shortcuts
@@ -278,11 +287,13 @@ actuator works. The user can set them independently for maximum flexibility, or 
 Transmission
 ^^^^^^^^^^^^
 
-Each actuator has a scalar length :math:`l_i(q)` defined by the type of transmission and its parameters. The gradient
-:math:`\nabla l_i` is an :math:`\nv`-dimensional vector of moment arms. It determines the mapping from scalar
-actuator force to joint force. The transmission properties are determined by the MuJoCo object to which the actuator
-is attached; the possible attachment object types are :at:`joint`, :at:`tendon`, :at:`jointinparent`,
-:at:`slider-crank`, :at:`site`, and :at:`body`.
+The transmission attaches the actuator to the rest of the system. Each force output of the actuator has a scalar
+length :math:`l_k(q)`, defined by the type of transmission and its parameters, for example the
+:ref:`gear<actuator-general-gear>` vector. The gradient :math:`\nabla l_k` is an :math:`\nv`-dimensional vector of
+moment arms; it determines the mapping from the scalar output force to joint forces. The number of force outputs is
+likewise determined by the transmission; all the types listed below define a single output. The transmission
+properties are determined by the MuJoCo object to which the actuator is attached; the possible attachment object
+types are :at:`joint`, :at:`tendon`, :at:`jointinparent`, :at:`slider-crank`, :at:`site`, and :at:`body`.
 
 :at:`joint` and :at:`tendon`
    The :at:`joint` and :at:`tendon` transmission types act as expected and correspond to the actuator applying forces or
@@ -369,14 +380,10 @@ diverge for :math:`\texttt{t} < h`, while exactly-integrated filters are stable 
 Force generation
 ^^^^^^^^^^^^^^^^
 
-Each actuator generates a scalar force :math:`p_i` which is some function
-
-.. math::
-   p_i \left( u_i, w_i, l_i, \dot{l}_i \right)
-
-Similarly to activation dynamics, the force generation mechanism is actuator-specific and cannot interact with the
-other actuators in the model. Currently the force is affine in the activation state when present, and in the control
-otherwise:
+Each actuator generates a scalar force for each of its outputs, as a function of its controls, activation states,
+and lengths and velocities. Similarly to activation dynamics, force generation is actuator-specific: the inputs and
+outputs of a single actuator can interact, but different actuators cannot affect each other. For SISO actuators the
+force is affine in the activation state when present, and in the control otherwise:
 
 .. math::
    p_i = (a w_i \; \text{or} \; a u_i) + b_0 + b_1 l_i + b_2 \dot{l}_i
@@ -384,17 +391,17 @@ otherwise:
 Here :math:`a` is an actuator-specific gain parameter and :math:`b_0, b_1, b_2` are actuator-specific bias
 parameters, stored in ``mjModel.actuator_gainprm`` and ``mjModel.actuator_biasprm`` respectively. Different settings
 of the gain and bias parameters can be used to model direct force control as well as position and velocity servos -in
-which case the control/activation has the meaning of reference position or velocity. One can also compute custom gain
-and bias terms by installing the callbacks :ref:`mjcb_act_gain` and :ref:`mjcb_act_bias` and setting the gain and
-bias type to "user". Note that affine force generation makes it possible to infer the controls/activations from the
-applied force computed in inverse dynamics, using the pseudo-inverse of the matrix of moment arms. However some of
-the actuators used in the real world are not affine (especially those that have embedded low-level controllers), so
-we are considering extensions to the above model.
+which case the control/activation has the meaning of reference position or velocity. Multi-input actuator types
+define their own force laws. One can also compute custom gain and bias terms for SISO actuators by installing the
+callbacks :ref:`mjcb_act_gain` and :ref:`mjcb_act_bias` and setting the gain and bias type to "user". Note that
+affine force generation makes it possible to infer the controls/activations from the applied force computed in
+inverse dynamics, using the pseudo-inverse of the matrix of moment arms.
 
-Putting all this together, the net force in generalized coordinates contributed by all actuators is
+Putting all this together, the net force in generalized coordinates contributed by all actuators is the sum over all
+force outputs
 
 .. math::
-   \sum_i \nabla l_i(q) \; p_i \left(u_i, w_i, l_i(q), \dot{l}_i(q, v) \right)
+   \sum_k \nabla l_k(q) \; p_k
 
 This quantity is stored in ``mjData.qfrc_actuator``. It is added to the applied force vector :math:`\tau`, together
 with any user-defined forces in joint or Cartesian coordinates (which are stored in ``mjData.qfrc_applied`` and

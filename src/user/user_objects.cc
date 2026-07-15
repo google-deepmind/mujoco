@@ -6908,6 +6908,12 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   // no previous state when an actuator is created
   actadr_ = -1;
   actdim_ = -1;
+
+  // input and output blocks, set by mjCModel; all actuator types are currently 1x1
+  ctrladr_ = -1;
+  ctrlnum_ = 1;
+  outadr_ = -1;
+  outnum_ = 1;
 }
 
 

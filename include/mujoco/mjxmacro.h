@@ -163,6 +163,8 @@
     X( nq )                 \
     X( nv )                 \
     X( nu )                 \
+    X( nactuator )          \
+    X( nout )               \
     X( na )                 \
     X( nbody )              \
     X( nbvh )               \
@@ -666,37 +668,41 @@
     X   ( float,   tendon_rgba,           ntendon,       4                    )
 
 #define MJMODEL_POINTERS_ACTUATOR                                               \
-    X   ( int,     actuator_trntype,      nu,            1                    ) \
-    X   ( int,     actuator_dyntype,      nu,            1                    ) \
-    X   ( int,     actuator_gaintype,     nu,            1                    ) \
-    X   ( int,     actuator_biastype,     nu,            1                    ) \
-    X   ( int,     actuator_trnid,        nu,            2                    ) \
-    X   ( mjtNum,  actuator_damping,      nu,            1                    ) \
-    X   ( mjtNum,  actuator_dampingpoly,  nu,            mjNPOLY              ) \
-    X   ( mjtNum,  actuator_armature,     nu,            1                    ) \
-    X   ( int,     actuator_actadr,       nu,            1                    ) \
-    X   ( int,     actuator_actnum,       nu,            1                    ) \
-    X   ( int,     actuator_group,        nu,            1                    ) \
-    X   ( int,     actuator_history,      nu,            2                    ) \
-    X   ( int,     actuator_historyadr,   nu,            1                    ) \
-    X   ( mjtNum,  actuator_delay,        nu,            1                    ) \
+    X   ( int,     actuator_trntype,      nactuator,     1                    ) \
+    X   ( int,     actuator_dyntype,      nactuator,     1                    ) \
+    X   ( int,     actuator_gaintype,     nactuator,     1                    ) \
+    X   ( int,     actuator_biastype,     nactuator,     1                    ) \
+    X   ( int,     actuator_ctrladr,      nactuator,     1                    ) \
+    X   ( int,     actuator_ctrlnum,      nactuator,     1                    ) \
+    X   ( int,     actuator_outadr,       nactuator,     1                    ) \
+    X   ( int,     actuator_outnum,       nactuator,     1                    ) \
+    X   ( int,     actuator_actadr,       nactuator,     1                    ) \
+    X   ( int,     actuator_actnum,       nactuator,     1                    ) \
+    X   ( int,     actuator_trnid,        nactuator,     2                    ) \
+    X   ( mjtNum,  actuator_cranklength,  nactuator,     1                    ) \
+    X   ( mjtNum,  actuator_dynprm,       nactuator,     mjNDYN               ) \
+    X   ( mjtNum,  actuator_gainprm,      nactuator,     mjNGAIN              ) \
+    X   ( mjtNum,  actuator_biasprm,      nactuator,     mjNBIAS              ) \
+    X   ( mjtBool, actuator_actlimited,   nactuator,     1                    ) \
+    X   ( mjtNum,  actuator_actrange,     nactuator,     2                    ) \
+    X   ( mjtBool, actuator_actearly,     nactuator,     1                    ) \
+    X   ( int,     actuator_history,      nactuator,     2                    ) \
+    X   ( int,     actuator_historyadr,   nactuator,     1                    ) \
+    X   ( mjtNum,  actuator_delay,        nactuator,     1                    ) \
+    X   ( mjtNum,  actuator_damping,      nactuator,     1                    ) \
+    X   ( mjtNum,  actuator_dampingpoly,  nactuator,     mjNPOLY              ) \
+    X   ( mjtNum,  actuator_armature,     nactuator,     1                    ) \
+    X   ( int,     actuator_group,        nactuator,     1                    ) \
+    X   ( mjtNum,  actuator_user,         nactuator,     MJ_M(nuser_actuator) ) \
+    X   ( int,     actuator_plugin,       nactuator,     1                    ) \
     X   ( mjtBool, actuator_ctrllimited,  nu,            1                    ) \
-    X   ( mjtBool, actuator_forcelimited, nu,            1                    ) \
-    X   ( mjtBool, actuator_actlimited,   nu,            1                    ) \
-    X   ( mjtNum,  actuator_dynprm,       nu,            mjNDYN               ) \
-    X   ( mjtNum,  actuator_gainprm,      nu,            mjNGAIN              ) \
-    X   ( mjtNum,  actuator_biasprm,      nu,            mjNBIAS              ) \
-    X   ( mjtBool, actuator_actearly,     nu,            1                    ) \
     X   ( mjtNum,  actuator_ctrlrange,    nu,            2                    ) \
-    X   ( mjtNum,  actuator_forcerange,   nu,            2                    ) \
-    X   ( mjtNum,  actuator_actrange,     nu,            2                    ) \
-    X   ( mjtNum,  actuator_gear,         nu,            6                    ) \
-    X   ( mjtNum,  actuator_cranklength,  nu,            1                    ) \
-    X   ( mjtNum,  actuator_acc0,         nu,            1                    ) \
-    X   ( mjtNum,  actuator_length0,      nu,            1                    ) \
-    X   ( mjtNum,  actuator_lengthrange,  nu,            2                    ) \
-    X   ( mjtNum,  actuator_user,         nu,            MJ_M(nuser_actuator) ) \
-    X   ( int,     actuator_plugin,       nu,            1                    )
+    X   ( mjtNum,  actuator_gear,         nout,          6                    ) \
+    X   ( mjtBool, actuator_forcelimited, nout,          1                    ) \
+    X   ( mjtNum,  actuator_forcerange,   nout,          2                    ) \
+    X   ( mjtNum,  actuator_acc0,         nout,          1                    ) \
+    X   ( mjtNum,  actuator_length0,      nout,          1                    ) \
+    X   ( mjtNum,  actuator_lengthrange,  nout,          2                    )
 
 #define MJMODEL_POINTERS_SENSOR                                                 \
     X   ( int,     sensor_type,           nsensor,       1                    ) \
@@ -791,7 +797,7 @@
     X   ( int,     name_excludeadr,       nexclude,      1                    ) \
     X   ( int,     name_eqadr,            neq,           1                    ) \
     X   ( int,     name_tendonadr,        ntendon,       1                    ) \
-    X   ( int,     name_actuatoradr,      nu,            1                    ) \
+    X   ( int,     name_actuatoradr,      nactuator,     1                    ) \
     X   ( int,     name_sensoradr,        nsensor,       1                    ) \
     X   ( int,     name_numericadr,       nnumeric,      1                    ) \
     X   ( int,     name_textadr,          ntext,         1                    ) \
@@ -871,9 +877,9 @@
     X   ( mjtNum,    ten_length,        ntendon,     1           ) \
     X   ( int,       wrap_obj,          nwrap,       2           ) \
     X   ( mjtNum,    wrap_xpos,         nwrap,       6           ) \
-    X   ( mjtNum,    actuator_length,   nu,          1           ) \
-    X   ( int,       moment_rownnz,     nu,          1           ) \
-    X   ( int,       moment_rowadr,     nu,          1           ) \
+    X   ( mjtNum,    actuator_length,   nout,        1           ) \
+    X   ( int,       moment_rownnz,     nout,        1           ) \
+    X   ( int,       moment_rowadr,     nout,        1           ) \
     X   ( int,       moment_colind,     nJmom,       1           ) \
     X   ( mjtNum,    actuator_moment,   nJmom,       1           ) \
     XNV ( mjtNum,    crb,               nbody,       10          ) \
@@ -888,7 +894,7 @@
     X   ( int,       dof_awake_ind,     nv,          1           ) \
     X   ( mjtNum,    flexedge_velocity, nflexedge,   1           ) \
     X   ( mjtNum,    ten_velocity,      ntendon,     1           ) \
-    X   ( mjtNum,    actuator_velocity, nu,          1           ) \
+    X   ( mjtNum,    actuator_velocity, nout,        1           ) \
     X   ( mjtNum,    cvel,              nbody,       6           ) \
     X   ( mjtNum,    cdof_dot,          nv,          6           ) \
     X   ( mjtNum,    qfrc_bias,         nv,          1           ) \
@@ -903,7 +909,7 @@
     X   ( mjtNum,    qHDiagInv,         nv,          1           ) \
     XNV ( mjtNum,    qDeriv,            nD,          1           ) \
     XNV ( mjtNum,    qLU,               nD,          1           ) \
-    X   ( mjtNum,    actuator_force,    nu,          1           ) \
+    X   ( mjtNum,    actuator_force,    nout,        1           ) \
     X   ( mjtNum,    qfrc_actuator,     nv,          1           ) \
     X   ( mjtNum,    qfrc_smooth,       nv,          1           ) \
     X   ( mjtNum,    qacc_smooth,       nv,          1           ) \

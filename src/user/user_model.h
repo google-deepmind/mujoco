@@ -84,7 +84,9 @@ class mjCModel_ : public mjsElement {
   // sizes computed by Compile
   mjtSize nq;              // number of generalized coordinates = dim(qpos)
   mjtSize nv;              // number of degrees of freedom = dim(qvel)
-  mjtSize nu;              // number of actuators/controls
+  mjtSize nu;              // number of scalar controls = dim(ctrl)
+  mjtSize nactuator;       // number of actuators
+  mjtSize nout;            // number of force outputs = dim(actuator_force)
   mjtSize na;              // number of activation variables
   mjtSize ntree;           // number of trees
   mjtSize nbvh;            // number of total boundary volume hierarchies

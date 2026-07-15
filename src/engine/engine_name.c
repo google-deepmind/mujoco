@@ -160,10 +160,10 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
     mjFALLTHROUGH;
 
   case mjOBJ_ACTUATOR:
-    *mapadr -= mjLOAD_MULTIPLE*m->nu;
+    *mapadr -= mjLOAD_MULTIPLE*m->nactuator;
     if (num < 0) {
       *padr = m->name_actuatoradr;
-      num = m->nu;
+      num = m->nactuator;
     }
     mjFALLTHROUGH;
 

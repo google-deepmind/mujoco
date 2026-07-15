@@ -239,9 +239,9 @@ typedef struct mjData_ {
   mjtNum* wrap_xpos;         // Cartesian 3D points in all paths                 (nwrap x 6)
 
   // computed by mj_fwdPosition/mj_transmission
-  mjtNum* actuator_length;   // actuator lengths                                 (nu x 1)
-  int*    moment_rownnz;     // number of non-zeros in actuator_moment row       (nu x 1)
-  int*    moment_rowadr;     // row start address in colind array                (nu x 1)
+  mjtNum* actuator_length;   // actuator lengths, one per force output           (nout x 1)
+  int*    moment_rownnz;     // number of non-zeros in actuator_moment row       (nout x 1)
+  int*    moment_rowadr;     // row start address in colind array                (nout x 1)
   int*    moment_colind;     // column indices in sparse Jacobian                (nJmom x 1)
   mjtNum* actuator_moment;   // actuator moments                                 (nJmom x 1)
 
@@ -268,7 +268,7 @@ typedef struct mjData_ {
   // computed by mj_fwdVelocity
   mjtNum* flexedge_velocity; // flex edge velocities                             (nflexedge x 1)
   mjtNum* ten_velocity;      // tendon velocities                                (ntendon x 1)
-  mjtNum* actuator_velocity; // actuator velocities                              (nu x 1)
+  mjtNum* actuator_velocity; // actuator velocities, one per force output        (nout x 1)
 
   // computed by mj_fwdVelocity/mj_comVel
   mjtNum* cvel;              // com-based velocity (rot:lin)                     (nbody x 6)
@@ -301,8 +301,8 @@ typedef struct mjData_ {
   //-------------------- POSITION, VELOCITY, CONTROL/ACCELERATION dependent
 
   // computed by mj_fwdActuation
-  mjtNum* actuator_force;    // actuator force in actuation space                (nu x 1)
-  mjtNum* qfrc_actuator;     // actuator force                                   (nv x 1)
+  mjtNum* actuator_force;    // actuator force in actuation space                (nout x 1)
+  mjtNum* qfrc_actuator;     // actuator force in joint space                    (nv x 1)
 
   // computed by mj_fwdAcceleration
   mjtNum* qfrc_smooth;       // net unconstrained force                          (nv x 1)

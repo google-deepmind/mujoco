@@ -225,7 +225,8 @@ static void freeModelBuffers(mjModel* m) {
 
 // allocate and initialize mjModel structure
 void mj_makeModel(mjModel** dest,
-    mjtSize nq, mjtSize nv, mjtSize nu, mjtSize na, mjtSize nbody, mjtSize nbvh, mjtSize nbvhstatic,
+    mjtSize nq, mjtSize nv, mjtSize nu, mjtSize nactuator, mjtSize nout, mjtSize na,
+    mjtSize nbody, mjtSize nbvh, mjtSize nbvhstatic,
     mjtSize nbvhdynamic, mjtSize noct, mjtSize njnt, mjtSize ntree, mjtSize nM, mjtSize nB,
     mjtSize nC, mjtSize nD, mjtSize ngeom, mjtSize nsite, mjtSize ncam, mjtSize nlight,
     mjtSize nflex, mjtSize nflexnode, mjtSize nflexvert, mjtSize nflexedge, mjtSize nflexelem,
@@ -297,6 +298,8 @@ void mj_makeModel(mjModel** dest,
   m->nq = nq;
   m->nv = nv;
   m->nu = nu;
+  m->nactuator = nactuator;
+  m->nout = nout;
   m->na = na;
   m->nbody = nbody;
   m->nbvh = nbvh;
@@ -374,7 +377,7 @@ void mj_makeModel(mjModel** dest,
   m->nuser_sensor = nuser_sensor;
   m->nnames = nnames;
   long nnames_map = (long)nbody + njnt + ngeom + nsite + ncam + nlight + nflex + nmesh + nskin +
-                    nhfield + ntex + nmat + npair + nexclude + neq + ntendon + nu + nsensor +
+                    nhfield + ntex + nmat + npair + nexclude + neq + ntendon + nactuator + nsensor +
                     nnumeric + ntext + ntuple + nkey + nplugin;
   if (nnames_map >= INT_MAX / mjLOAD_MULTIPLE) {
     if (allocate) mju_free(m);
@@ -428,7 +431,8 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
   // allocate new model if needed
   if (!dest) {
     mj_makeModel(
-        &dest, src->nq, src->nv, src->nu, src->na, src->nbody, src->nbvh, src->nbvhstatic,
+        &dest, src->nq, src->nv, src->nu, src->nactuator, src->nout, src->na,
+        src->nbody, src->nbvh, src->nbvhstatic,
         src->nbvhdynamic, src->noct, src->njnt, src->ntree, src->nM, src->nB, src->nC, src->nD,
         src->ngeom, src->nsite, src->ncam, src->nlight, src->nflex, src->nflexnode, src->nflexvert,
         src->nflexedge, src->nflexelem, src->nflexelemdata, src->nflexstiffness,
@@ -611,7 +615,7 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
                sizes[56], sizes[57], sizes[58], sizes[59], sizes[60], sizes[61], sizes[62],
                sizes[63], sizes[64], sizes[65], sizes[66], sizes[67], sizes[68], sizes[69],
                sizes[70], sizes[71], sizes[72], sizes[73], sizes[74], sizes[75], sizes[76],
-               sizes[77], sizes[78], sizes[79]);
+               sizes[77], sizes[78], sizes[79], sizes[80], sizes[81]);
 
   // mj_makeModel may fail if the input buffer has invalid sizes
   if (!m) {
@@ -1384,7 +1388,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   mju_zero(d->mocap_quat, 4*m->nmocap);
 
   // initialize ctrl history buffers: timestamps at [-n*dt, ..., -dt]
-  for (int i = 0; i < m->nu; i++) {
+  for (int i = 0; i < m->nactuator; i++) {
     int n = m->actuator_history[2*i];
     if (n > 0) {
       mjtNum* buf = d->history + m->actuator_historyadr[i];
@@ -1785,7 +1789,7 @@ static int numObjects(const mjModel* m, mjtObj objtype) {
   case mjOBJ_TENDON:
     return m->ntendon;
   case mjOBJ_ACTUATOR:
-    return m->nu;
+    return m->nactuator;
   case mjOBJ_SENSOR:
     return m->nsensor;
   case mjOBJ_NUMERIC:
@@ -1871,8 +1875,10 @@ const char* mj_validateReferences(const mjModel* m) {
   X(skin_bonevertid,    nskinbonevert,  nskinvert     , 0                      ) \
   X(pair_geom1,         npair,          ngeom         , 0                      ) \
   X(pair_geom2,         npair,          ngeom         , 0                      ) \
-  X(actuator_plugin,    nu,             nplugin       , 0                      ) \
-  X(actuator_actadr,    nu,             na            , m->actuator_actnum     ) \
+  X(actuator_plugin,    nactuator,      nplugin       , 0                      ) \
+  X(actuator_actadr,    nactuator,      na            , m->actuator_actnum     ) \
+  X(actuator_ctrladr,   nactuator,      nu            , m->actuator_ctrlnum    ) \
+  X(actuator_outadr,    nactuator,      nout          , m->actuator_outnum     ) \
   X(sensor_plugin,      nsensor,        nplugin       , 0                      ) \
   X(plugin_stateadr,    nplugin,        npluginstate  , m->plugin_statenum     ) \
   X(plugin_attradr,     nplugin,        npluginattr   , 0                      ) \
@@ -1897,7 +1903,7 @@ const char* mj_validateReferences(const mjModel* m) {
   X(name_excludeadr,    nexclude,       nnames        , 0                      ) \
   X(name_eqadr,         neq,            nnames        , 0                      ) \
   X(name_tendonadr,     ntendon,        nnames        , 0                      ) \
-  X(name_actuatoradr,   nu,             nnames        , 0                      ) \
+  X(name_actuatoradr,   nactuator,      nnames        , 0                      ) \
   X(name_sensoradr,     nsensor,        nnames        , 0                      ) \
   X(name_numericadr,    nnumeric,       nnames        , 0                      ) \
   X(name_textadr,       ntext,          nnames        , 0                      ) \
@@ -2085,7 +2091,7 @@ const char* mj_validateReferences(const mjModel* m) {
       break;
     }
   }
-  for (int i=0; i < m->nu; i++) {
+  for (int i=0; i < m->nactuator; i++) {
     int actuator_trntype = m->actuator_trntype[i];
     int id = m->actuator_trnid[2*i];
     int idslider = m->actuator_trnid[2*i+1];

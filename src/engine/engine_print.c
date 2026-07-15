@@ -503,6 +503,7 @@ static bool validateFloatFormat(const char* float_format) {
 
 // print mjModel to text file, specifying format. float_format must be a
 // valid printf-style format string for a single float value
+// NOLINTBEGIN(readability/fn_size)
 void mj_printFormattedModel(const mjModel* m, const char* filename, const char* float_format) {
   // get file
   FILE* fp;
@@ -938,15 +939,35 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   }
   if (m->ntendon) fprintf(fp, "\n");
 
-  // actuators
-  object_class = &m->nu;
-  for (int i=0; i < m->nu; i++) {
+  // actuators: per-actuator fields, then per-input (nu) and per-output (nout) blocks
+  for (int i=0; i < m->nactuator; i++) {
     fprintf(fp, "\nACTUATOR %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_actuatoradr[i]);
+    object_class = &m->nactuator;
     MJMODEL_POINTERS_ACTUATOR
+    {
+      int actuator = i;
+      int ctrladr = m->actuator_ctrladr[actuator];
+      int ctrlnum = m->actuator_ctrlnum[actuator];
+      int outadr = m->actuator_outadr[actuator];
+      int outnum = m->actuator_outnum[actuator];
+      object_class = &m->nu;
+      i = ctrladr;
+      while (i < ctrladr + ctrlnum) {
+        MJMODEL_POINTERS_ACTUATOR
+        i++;
+      }
+      object_class = &m->nout;
+      i = outadr;
+      while (i < outadr + outnum) {
+        MJMODEL_POINTERS_ACTUATOR
+        i++;
+      }
+      i = actuator;
+    }
   }
-  if (m->nu) fprintf(fp, "\n");
+  if (m->nactuator) fprintf(fp, "\n");
 
   // sensors
   object_class = &m->nsensor;
@@ -1170,6 +1191,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
     fclose(fp);
   }
 }
+// NOLINTEND(readability/fn_size)
 
 // print mjModel to text file
 void mj_printModel(const mjModel* m, const char* filename) {
@@ -1335,7 +1357,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     fprintf(fp, "DELAY\n");
 
     // actuator history buffers
-    for (int i = 0; i < m->nu; i++) {
+    for (int i = 0; i < m->nactuator; i++) {
       int adr = m->actuator_historyadr[i];
       if (adr >= 0) {
         char name[100];
@@ -1423,10 +1445,10 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     fprintf(fp, "\n");
   }
 
-  printArray2d("ACTUATOR_LENGTH", m->nu, 1, d->actuator_length, fp, float_format);
-  mj_printSparsity("actuator_moment", m->nu, m->nv,
+  printArray2d("ACTUATOR_LENGTH", m->nout, 1, d->actuator_length, fp, float_format);
+  mj_printSparsity("actuator_moment", m->nout, m->nv,
                    d->moment_rowadr, NULL, d->moment_rownnz, NULL, d->moment_colind, fp);
-  printSparse("ACTUATOR_MOMENT", d->actuator_moment, m->nu, d->moment_rownnz,
+  printSparse("ACTUATOR_MOMENT", d->actuator_moment, m->nout, d->moment_rownnz,
               d->moment_rowadr, d->moment_colind, fp, float_format);
   printArray2d("CRB", m->nbody, 10, d->crb, fp, float_format);
   printSparse("M", d->M, m->nv, m->M_rownnz,
@@ -1568,7 +1590,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
 
   printArray2d("FLEXEDGE_VELOCITY", m->nflexedge, 1, d->flexedge_velocity, fp, float_format);
   printArray2d("TEN_VELOCITY", m->ntendon, 1, d->ten_velocity, fp, float_format);
-  printArray2d("ACTUATOR_VELOCITY", m->nu, 1, d->actuator_velocity, fp, float_format);
+  printArray2d("ACTUATOR_VELOCITY", m->nout, 1, d->actuator_velocity, fp, float_format);
 
   printArray2d("CVEL", m->nbody, 6, d->cvel, fp, float_format);
   printArray2d("CDOF_DOT", m->nv, 6, d->cdof_dot, fp, float_format);
@@ -1587,7 +1609,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   printArray2d("SUBTREE_LINVEL", m->nbody, 3, d->subtree_linvel, fp, float_format);
   printArray2d("SUBTREE_ANGMOM", m->nbody, 3, d->subtree_angmom, fp, float_format);
 
-  printArray2d("ACTUATOR_FORCE", m->nu, 1, d->actuator_force, fp, float_format);
+  printArray2d("ACTUATOR_FORCE", m->nout, 1, d->actuator_force, fp, float_format);
   printArray2d("QFRC_ACTUATOR", m->nv, 1, d->qfrc_actuator, fp, float_format);
 
   printArray2d("QFRC_SMOOTH", m->nv, 1, d->qfrc_smooth, fp, float_format);

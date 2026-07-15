@@ -3723,6 +3723,18 @@ struct MjModel {
   void set_nu(int value) {
     ptr_->nu = static_cast<mjtSize>(value);
   }
+  int nactuator() const {
+    return static_cast<int>(ptr_->nactuator);
+  }
+  void set_nactuator(int value) {
+    ptr_->nactuator = static_cast<mjtSize>(value);
+  }
+  int nout() const {
+    return static_cast<int>(ptr_->nout);
+  }
+  void set_nout(int value) {
+    ptr_->nout = static_cast<mjtSize>(value);
+  }
   int na() const {
     return static_cast<int>(ptr_->na);
   }
@@ -5353,97 +5365,109 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nwrap, ptr_->wrap_prm));
   }
   emscripten::val actuator_trntype() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_trntype));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_trntype));
   }
   emscripten::val actuator_dyntype() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_dyntype));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_dyntype));
   }
   emscripten::val actuator_gaintype() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_gaintype));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_gaintype));
   }
   emscripten::val actuator_biastype() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_biastype));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_biastype));
   }
-  emscripten::val actuator_trnid() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 2, ptr_->actuator_trnid));
+  emscripten::val actuator_ctrladr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_ctrladr));
   }
-  emscripten::val actuator_damping() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_damping));
+  emscripten::val actuator_ctrlnum() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_ctrlnum));
   }
-  emscripten::val actuator_dampingpoly() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * mjNPOLY, ptr_->actuator_dampingpoly));
+  emscripten::val actuator_outadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_outadr));
   }
-  emscripten::val actuator_armature() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_armature));
+  emscripten::val actuator_outnum() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_outnum));
   }
   emscripten::val actuator_actadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_actadr));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_actadr));
   }
   emscripten::val actuator_actnum() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_actnum));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_actnum));
   }
-  emscripten::val actuator_group() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_group));
+  emscripten::val actuator_trnid() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * 2, ptr_->actuator_trnid));
+  }
+  emscripten::val actuator_cranklength() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_cranklength));
+  }
+  emscripten::val actuator_dynprm() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * mjNDYN, ptr_->actuator_dynprm));
+  }
+  emscripten::val actuator_gainprm() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * mjNGAIN, ptr_->actuator_gainprm));
+  }
+  emscripten::val actuator_biasprm() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * mjNBIAS, ptr_->actuator_biasprm));
+  }
+  emscripten::val actuator_actlimited() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_actlimited));
+  }
+  emscripten::val actuator_actrange() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * 2, ptr_->actuator_actrange));
+  }
+  emscripten::val actuator_actearly() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_actearly));
   }
   emscripten::val actuator_history() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 2, ptr_->actuator_history));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * 2, ptr_->actuator_history));
   }
   emscripten::val actuator_historyadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_historyadr));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_historyadr));
   }
   emscripten::val actuator_delay() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_delay));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_delay));
+  }
+  emscripten::val actuator_damping() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_damping));
+  }
+  emscripten::val actuator_dampingpoly() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * mjNPOLY, ptr_->actuator_dampingpoly));
+  }
+  emscripten::val actuator_armature() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_armature));
+  }
+  emscripten::val actuator_group() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_group));
+  }
+  emscripten::val actuator_user() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * ptr_->nuser_actuator, ptr_->actuator_user));
+  }
+  emscripten::val actuator_plugin() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_plugin));
   }
   emscripten::val actuator_ctrllimited() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_ctrllimited));
   }
-  emscripten::val actuator_forcelimited() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_forcelimited));
-  }
-  emscripten::val actuator_actlimited() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_actlimited));
-  }
-  emscripten::val actuator_dynprm() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * mjNDYN, ptr_->actuator_dynprm));
-  }
-  emscripten::val actuator_gainprm() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * mjNGAIN, ptr_->actuator_gainprm));
-  }
-  emscripten::val actuator_biasprm() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * mjNBIAS, ptr_->actuator_biasprm));
-  }
-  emscripten::val actuator_actearly() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_actearly));
-  }
   emscripten::val actuator_ctrlrange() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 2, ptr_->actuator_ctrlrange));
   }
-  emscripten::val actuator_forcerange() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 2, ptr_->actuator_forcerange));
-  }
-  emscripten::val actuator_actrange() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 2, ptr_->actuator_actrange));
-  }
   emscripten::val actuator_gear() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 6, ptr_->actuator_gear));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nout * 6, ptr_->actuator_gear));
   }
-  emscripten::val actuator_cranklength() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_cranklength));
+  emscripten::val actuator_forcelimited() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nout, ptr_->actuator_forcelimited));
+  }
+  emscripten::val actuator_forcerange() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nout * 2, ptr_->actuator_forcerange));
   }
   emscripten::val actuator_acc0() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_acc0));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nout, ptr_->actuator_acc0));
   }
   emscripten::val actuator_length0() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_length0));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nout, ptr_->actuator_length0));
   }
   emscripten::val actuator_lengthrange() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 2, ptr_->actuator_lengthrange));
-  }
-  emscripten::val actuator_user() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * ptr_->nuser_actuator, ptr_->actuator_user));
-  }
-  emscripten::val actuator_plugin() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_plugin));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nout * 2, ptr_->actuator_lengthrange));
   }
   emscripten::val sensor_type() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nsensor, ptr_->sensor_type));
@@ -5617,7 +5641,7 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->name_tendonadr));
   }
   emscripten::val name_actuatoradr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->name_actuatoradr));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->name_actuatoradr));
   }
   emscripten::val name_sensoradr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nsensor, ptr_->name_sensoradr));
@@ -6870,13 +6894,13 @@ struct MjData {
     return emscripten::val(emscripten::typed_memory_view(model->nwrap * 6, ptr_->wrap_xpos));
   }
   emscripten::val actuator_length() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nu, ptr_->actuator_length));
+    return emscripten::val(emscripten::typed_memory_view(model->nout, ptr_->actuator_length));
   }
   emscripten::val moment_rownnz() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nu, ptr_->moment_rownnz));
+    return emscripten::val(emscripten::typed_memory_view(model->nout, ptr_->moment_rownnz));
   }
   emscripten::val moment_rowadr() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nu, ptr_->moment_rowadr));
+    return emscripten::val(emscripten::typed_memory_view(model->nout, ptr_->moment_rowadr));
   }
   emscripten::val moment_colind() const {
     return emscripten::val(emscripten::typed_memory_view(model->nJmom, ptr_->moment_colind));
@@ -6921,7 +6945,7 @@ struct MjData {
     return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->ten_velocity));
   }
   emscripten::val actuator_velocity() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nu, ptr_->actuator_velocity));
+    return emscripten::val(emscripten::typed_memory_view(model->nout, ptr_->actuator_velocity));
   }
   emscripten::val cvel() const {
     return emscripten::val(emscripten::typed_memory_view(model->nbody * 6, ptr_->cvel));
@@ -6966,7 +6990,7 @@ struct MjData {
     return emscripten::val(emscripten::typed_memory_view(model->nD, ptr_->qLU));
   }
   emscripten::val actuator_force() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nu, ptr_->actuator_force));
+    return emscripten::val(emscripten::typed_memory_view(model->nout, ptr_->actuator_force));
   }
   emscripten::val qfrc_actuator() const {
     return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qfrc_actuator));

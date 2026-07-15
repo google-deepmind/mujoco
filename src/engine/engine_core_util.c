@@ -1102,7 +1102,7 @@ mjtNum mj_actuatorDamping(const mjModel* m, mjtObj type, int id, mjtNum poly[mjN
 
   // single actuator contributes damping
   if (actuatorid >= 0) {
-    mjtNum gear2 = m->actuator_gear[6*actuatorid] * m->actuator_gear[6*actuatorid];
+    mjtNum gear2 = m->actuator_gear[6*m->actuator_outadr[actuatorid]] * m->actuator_gear[6*m->actuator_outadr[actuatorid]];
     damping = m->actuator_damping[actuatorid] * gear2;
     for (int k = 0; k < mjNPOLY; k++) {
       poly[k] += m->actuator_dampingpoly[mjNPOLY*actuatorid+k] * gear2;
@@ -1111,7 +1111,7 @@ mjtNum mj_actuatorDamping(const mjModel* m, mjtObj type, int id, mjtNum poly[mjN
 
   // actuatorid < -1: scan all actuators for contributions
   else {
-    for (int k = 0; k < m->nu; k++) {
+    for (int k = 0; k < m->nactuator; k++) {
       // skip actuators that don't actuate the given joint/tendon
       if (m->actuator_trnid[2*k] != id) {
         continue;
@@ -1126,7 +1126,7 @@ mjtNum mj_actuatorDamping(const mjModel* m, mjtObj type, int id, mjtNum poly[mjN
       }
 
       // accumulate damping contribution
-      mjtNum gear2 = m->actuator_gear[6*k] * m->actuator_gear[6*k];
+      mjtNum gear2 = m->actuator_gear[6*m->actuator_outadr[k]] * m->actuator_gear[6*m->actuator_outadr[k]];
       damping += m->actuator_damping[k] * gear2;
       for (int j = 0; j < mjNPOLY; j++) {
         poly[j] += m->actuator_dampingpoly[mjNPOLY*k+j] * gear2;
@@ -1157,13 +1157,13 @@ mjtNum mj_actuatorArmature(const mjModel* m, mjtObj type, int id) {
 
   // single actuator contributes armature
   if (actuatorid >= 0) {
-    mjtNum gear2 = m->actuator_gear[6*actuatorid] * m->actuator_gear[6*actuatorid];
+    mjtNum gear2 = m->actuator_gear[6*m->actuator_outadr[actuatorid]] * m->actuator_gear[6*m->actuator_outadr[actuatorid]];
     armature = m->actuator_armature[actuatorid] * gear2;
   }
 
   // actuatorid < -1: scan all actuators for contributions
   else {
-    for (int k = 0; k < m->nu; k++) {
+    for (int k = 0; k < m->nactuator; k++) {
       // skip actuators that don't actuate the given joint/tendon
       if (m->actuator_trnid[2*k] != id) {
         continue;
@@ -1178,7 +1178,7 @@ mjtNum mj_actuatorArmature(const mjModel* m, mjtObj type, int id) {
       }
 
       // accumulate armature contribution
-      mjtNum gear2 = m->actuator_gear[6*k] * m->actuator_gear[6*k];
+      mjtNum gear2 = m->actuator_gear[6*m->actuator_outadr[k]] * m->actuator_gear[6*m->actuator_outadr[k]];
       armature += m->actuator_armature[k] * gear2;
     }
   }

@@ -197,10 +197,10 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
 
   // actuator velocity: always sparse
   if (!mjDISABLED(mjDSBL_ACTUATION)) {
-    mju_mulMatVecSparse(d->actuator_velocity, d->actuator_moment, d->qvel, m->nu,
+    mju_mulMatVecSparse(d->actuator_velocity, d->actuator_moment, d->qvel, m->nout,
                         d->moment_rownnz, d->moment_rowadr, d->moment_colind, NULL);
   } else {
-    mju_zero(d->actuator_velocity, m->nu);
+    mju_zero(d->actuator_velocity, m->nout);
   }
 
   // com-based velocities, passive forces, constraint references
@@ -264,17 +264,17 @@ static void clampVec(mjtNum* vec, const mjtNum* range, const mjtBool* limited, i
 // (qpos, qvel, ctrl, act) => (qfrc_actuator, actuator_force, act_dot)
 void mj_fwdActuation(const mjModel* m, mjData* d) {
   TM_START;
-  int nv = m->nv, nu = m->nu, ntendon = m->ntendon;
+  int nv = m->nv, nu = m->nu, nactuator = m->nactuator, nout = m->nout, ntendon = m->ntendon;
   mjtNum gain, bias, tau;
   mjtNum *force = d->actuator_force;
 
   // clear actuator_force
-  mju_zero(force, nu);
+  mju_zero(force, nout);
 
   int sleep_filter = mjENABLED(mjENBL_SLEEP);
 
   // disabled or no actuation: return
-  if (nu == 0 || mjDISABLED(mjDSBL_ACTUATION)) {
+  if (nactuator == 0 || mjDISABLED(mjDSBL_ACTUATION)) {
     mju_zero(d->qfrc_actuator, nv);
     return;
   }
@@ -287,9 +287,15 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   mjtNum *ctrl = mjSTACKALLOC(d, nu, mjtNum);
 
   // read from ctrl or history buffer for delayed actuators
-  for (int i = 0; i < nu; i++) {
-    int interp = m->actuator_history[2*i+1];
-    ctrl[i] = m->actuator_delay[i] ? mj_readCtrl(m, d, i, d->time, interp) : d->ctrl[i];
+  for (int i = 0; i < nactuator; i++) {
+    int adr = m->actuator_ctrladr[i];
+    if (m->actuator_delay[i]) {
+      // delayed: read from history buffer (scalar input)
+      int interp = m->actuator_history[2*i+1];
+      ctrl[adr] = mj_readCtrl(m, d, i, d->time, interp);
+    } else {
+      mju_copy(ctrl + adr, d->ctrl + adr, m->actuator_ctrlnum[i]);
+    }
   }
 
   // clamp local copy
@@ -307,7 +313,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   }
 
   // act_dot for stateful actuators
-  for (int i=0; i < nu; i++) {
+  for (int i=0; i < nactuator; i++) {
     if (sleep_filter && mj_sleepState(m, d, mjOBJ_ACTUATOR, i) == mjS_ASLEEP) {
       continue;
     }
@@ -316,6 +322,10 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     if (act_first < 0) {
       continue;
     }
+
+    // addresses of the actuator's input and output blocks
+    int uadr = m->actuator_ctrladr[i];
+    int oadr = m->actuator_outadr[i];
 
     // zero act_dot for actuator plugins
     int actnum = m->actuator_actnum[i];
@@ -334,17 +344,17 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     // compute act_dot according to dynamics type
     switch (dyntype) {
     case mjDYN_INTEGRATOR:          // simple integrator
-      d->act_dot[act_last] = ctrl[i];
+      d->act_dot[act_last] = ctrl[uadr];
       break;
 
     case mjDYN_FILTER:              // linear filter: dynprm = tau
     case mjDYN_FILTEREXACT:
       tau = mju_max(mjMINVAL, dynprm[0]);
-      d->act_dot[act_last] = (ctrl[i] - d->act[act_last]) / tau;
+      d->act_dot[act_last] = (ctrl[uadr] - d->act[act_last]) / tau;
       break;
 
     case mjDYN_MUSCLE:              // muscle model: dynprm = (tau_act, tau_deact)
-      d->act_dot[act_last] = mju_muscleDynamics(ctrl[i], d->act[act_last], dynprm);
+      d->act_dot[act_last] = mju_muscleDynamics(ctrl[uadr], d->act[act_last], dynprm);
       break;
 
     case mjDYN_DCMOTOR: {           // DC motor: up to 5 optional states
@@ -356,7 +366,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       }
 
       int adr = act_first;
-      mjtNum velocity = d->actuator_velocity[i];
+      mjtNum velocity = d->actuator_velocity[oadr];
       mjtNum R = gainprm[0];   // resistance
       mjtNum K = gainprm[1];   // motor constant
       mjtNum ki = gainprm[5];  // integral gain
@@ -369,9 +379,9 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       if (slew_s > 0) {
         mjtNum u_prev = d->act[adr];
         mjtNum slew = slew_s * m->opt.timestep;
-        mjtNum u_eff = mju_clip(ctrl[i], u_prev - slew, u_prev + slew);
+        mjtNum u_eff = mju_clip(ctrl[uadr], u_prev - slew, u_prev + slew);
         d->act_dot[adr] = (u_eff - u_prev) / m->opt.timestep;
-        ctrl[i] = u_eff;
+        ctrl[uadr] = u_eff;
         adr++;
       }
 
@@ -381,11 +391,11 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
         x_I = d->act[adr];
         int input_mode = (int)gainprm[8];
         mjtNum Imax = dynprm[8];   // integral clamp
-        mjtNum act_dot = ctrl[i];  // default raw accumulator for voltage and velocity modes
+        mjtNum act_dot = ctrl[uadr];  // default raw accumulator for voltage and velocity modes
 
         // position mode
         if (input_mode == 1) {
-          act_dot = ctrl[i] - d->actuator_length[i];
+          act_dot = ctrl[uadr] - d->actuator_length[oadr];
         }
 
         // clamp act_dot based on integral state
@@ -401,7 +411,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       }
 
       // compute physical voltage to feed into current and temperature equations
-      mjtNum V = dcmotorVoltage(ctrl[i], d->actuator_length[i], velocity, x_I, gainprm);
+      mjtNum V = dcmotorVoltage(ctrl[uadr], d->actuator_length[oadr], velocity, x_I, gainprm);
 
       // temperature: dT/dt = (R*i^2 - T/RT) / C, where T = delta above ambient
       mjtNum RT = dynprm[2];  // thermal resistance
@@ -476,7 +486,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   }
 
   // force = gain .* [ctrl/act] + bias
-  for (int i=0; i < nu; i++) {
+  for (int i=0; i < nactuator; i++) {
     // skip if sleeping
     if (sleep_filter && mj_sleepState(m, d, mjOBJ_ACTUATOR, i) == mjS_ASLEEP) {
       continue;
@@ -491,6 +501,10 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     if (m->actuator_plugin[i] >= 0) {
       continue;
     }
+
+    // addresses of the actuator's input and output blocks
+    int uadr = m->actuator_ctrladr[i];
+    int oadr = m->actuator_outadr[i];
 
     // check for tendon transmission with force limits
     if (ntendon && !tendon_frclimited && m->actuator_trntype[i] == mjTRN_TENDON) {
@@ -510,14 +524,15 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       break;
 
     case mjGAIN_AFFINE:             // affine: prm = [const, kp, kv]
-      gain = gainprm[0] + gainprm[1]*d->actuator_length[i] + gainprm[2]*d->actuator_velocity[i];
+      gain = gainprm[0] + gainprm[1]*d->actuator_length[oadr] +
+             gainprm[2]*d->actuator_velocity[oadr];
       break;
 
     case mjGAIN_MUSCLE:             // muscle gain
-      gain = mju_muscleGain(d->actuator_length[i],
-                            d->actuator_velocity[i],
-                            m->actuator_lengthrange+2*i,
-                            m->actuator_acc0[i],
+      gain = mju_muscleGain(d->actuator_length[oadr],
+                            d->actuator_velocity[oadr],
+                            m->actuator_lengthrange+2*oadr,
+                            m->actuator_acc0[oadr],
                             gainprm);
       break;
 
@@ -546,11 +561,11 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       // stateless: gain = K/R, force = K/R * ctrl (condition below)
       gain = (dynprm[0] > 0) ? K : K / mju_max(mjMINVAL, R);
 
-      // controller: compute voltage, override ctrl[i] for force computation
+      // controller: compute voltage, override ctrl[uadr] for force computation
       if ((int)gainprm[8] > 0) {
         mjtNum x_I = (slots.integral >= 0) ? d->act[adr + slots.integral] : 0;
-        ctrl[i] = dcmotorVoltage(ctrl[i], d->actuator_length[i],
-                                  d->actuator_velocity[i], x_I, gainprm);
+        ctrl[uadr] = dcmotorVoltage(ctrl[uadr], d->actuator_length[oadr],
+                                    d->actuator_velocity[oadr], x_I, gainprm);
       }
       break;
     }
@@ -568,7 +583,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     // DC motor without current state: use ctrl even if other activations exist
     int dcmotor_no_current = (gaintype == mjGAIN_DCMOTOR && dynprm[0] <= 0);
     if (actnum == 0 || dcmotor_no_current) {
-      force[i] = gain * ctrl[i];
+      force[oadr] = gain * ctrl[uadr];
     } else {
       // use last activation variable associated with actuator i
       int act_adr = m->actuator_actadr[i] + actnum - 1;
@@ -579,7 +594,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       } else {
         act = d->act[act_adr];
       }
-      force[i] = gain * act;
+      force[oadr] = gain * act;
     }
 
     // extract bias info
@@ -593,13 +608,14 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       break;
 
     case mjBIAS_AFFINE:             // affine: biasprm = [const, kp, kv]
-      bias = biasprm[0] + biasprm[1]*d->actuator_length[i] + biasprm[2]*d->actuator_velocity[i];
+      bias = biasprm[0] + biasprm[1]*d->actuator_length[oadr] +
+             biasprm[2]*d->actuator_velocity[oadr];
       break;
 
     case mjBIAS_MUSCLE:             // muscle passive force
-      bias =  mju_muscleBias(d->actuator_length[i],
-                             m->actuator_lengthrange+2*i,
-                             m->actuator_acc0[i],
+      bias =  mju_muscleBias(d->actuator_length[oadr],
+                             m->actuator_lengthrange+2*oadr,
+                             m->actuator_acc0[oadr],
                              biasprm);
       break;
 
@@ -610,7 +626,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       mjtNum te = m->actuator_dynprm[mjNDYN*i];  // electrical time constant
       if (te <= 0) {
         mjtNum K = gainprm[1];   // motor constant
-        bias -= gain * K * d->actuator_velocity[i];
+        bias -= gain * K * d->actuator_velocity[oadr];
       }
       break;
     }
@@ -624,7 +640,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     }
 
     // add bias
-    force[i] += bias;
+    force[oadr] += bias;
   }
 
   // handle actuator plugins
@@ -650,17 +666,17 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     // compute total force for each tendon
     mjtNum* tendon_total_force = mjSTACKALLOC(d, ntendon, mjtNum);
     mju_zero(tendon_total_force, ntendon);
-    for (int i=0; i < nu; i++) {
+    for (int i=0; i < nactuator; i++) {
       if (m->actuator_trntype[i] == mjTRN_TENDON) {
         int tendon_id = m->actuator_trnid[2*i];
         if (m->tendon_actfrclimited[tendon_id]) {
-          tendon_total_force[tendon_id] += force[i];
+          tendon_total_force[tendon_id] += force[m->actuator_outadr[i]];
         }
       }
     }
 
     // scale tendon actuator forces if limited and outside range
-    for (int i=0; i < nu; i++) {
+    for (int i=0; i < nactuator; i++) {
       if (m->actuator_trntype[i] != mjTRN_TENDON) {
         continue;
       }
@@ -669,19 +685,19 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       if (m->tendon_actfrclimited[tendon_id] && tendon_force) {
         const mjtNum* range = m->tendon_actfrcrange + 2 * tendon_id;
         if (tendon_force < range[0]) {
-          force[i] *= range[0] / tendon_force;
+          force[m->actuator_outadr[i]] *= range[0] / tendon_force;
         } else if (tendon_force > range[1]) {
-          force[i] *= range[1] / tendon_force;
+          force[m->actuator_outadr[i]] *= range[1] / tendon_force;
         }
       }
     }
   }
 
   // clamp actuator_force
-  clampVec(force, m->actuator_forcerange, m->actuator_forcelimited, nu, NULL);
+  clampVec(force, m->actuator_forcerange, m->actuator_forcelimited, nout, NULL);
 
   // add DC motor mechanical forces (not subject to current limits)
-  for (int i=0; i < nu; i++) {
+  for (int i=0; i < nactuator; i++) {
     if (m->actuator_biastype[i] != mjBIAS_DCMOTOR) {
       continue;
     }
@@ -694,13 +710,14 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
     const mjtNum* biasprm = m->actuator_biasprm + mjNBIAS*i;
     const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
+    int oadr = m->actuator_outadr[i];
 
     // cogging torque
     mjtNum A = biasprm[0];
     if (A != 0) {
       mjtNum Np = biasprm[1];
       mjtNum phi = biasprm[2];
-      force[i] += A * mju_sin(Np*d->actuator_length[i] + phi);
+      force[oadr] += A * mju_sin(Np*d->actuator_length[oadr] + phi);
     }
 
     // LuGre friction
@@ -711,12 +728,12 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       int adr = m->actuator_actadr[i] + slots.bristle;
       mjtNum z = d->act[adr];
       mjtNum z_dot = d->act_dot[adr];
-      force[i] -= sigma0 * z + sigma1 * z_dot;
+      force[oadr] -= sigma0 * z + sigma1 * z_dot;
     }
   }
 
   // qfrc_actuator = moment' * force
-  mju_mulMatTVecSparse(d->qfrc_actuator, d->actuator_moment, force, nu, nv,
+  mju_mulMatTVecSparse(d->qfrc_actuator, d->actuator_moment, force, nout, nv,
                        d->moment_rownnz, d->moment_rowadr, d->moment_colind);
 
   // actuator-level gravity compensation
@@ -980,18 +997,18 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 //   qvel:    optional velocity used for position integration; if NULL, use d->qvel
 static void mj_advance(const mjModel* m, mjData* d,
                        const mjtNum* act_dot, const mjtNum* qacc, const mjtNum* qvel) {
-  int nu = m->nu, nsensor = m->nsensor;
+  int nactuator = m->nactuator, nsensor = m->nsensor;
 
   // advance history buffers
   if (m->nhistory > 0) {
     // advance ctrl history buffers
-    for (int i = 0; i < nu; i++) {
+    for (int i = 0; i < nactuator; i++) {
       int nsample = m->actuator_history[2*i];
       if (nsample == 0) continue;
 
       // get history buffer pointer and insert ctrl at current time
       mjtNum* buf = d->history + m->actuator_historyadr[i];
-      *mju_historyInsert(buf, nsample, /*dim=*/1, d->time) = d->ctrl[i];
+      *mju_historyInsert(buf, nsample, /*dim=*/1, d->time) = d->ctrl[m->actuator_ctrladr[i]];
     }
 
     // advance sensor history buffers
@@ -1033,7 +1050,7 @@ static void mj_advance(const mjModel* m, mjData* d,
 
   // advance activations
   if (m->na && !mjDISABLED(mjDSBL_ACTUATION)) {
-    for (int i=0; i < nu; i++) {
+    for (int i=0; i < nactuator; i++) {
       int actadr = m->actuator_actadr[i];
       int actadr_end = actadr + m->actuator_actnum[i];
       for (int j=actadr; j < actadr_end; j++) {

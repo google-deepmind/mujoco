@@ -885,7 +885,7 @@ void mju_camIntrinsics(const mjModel* m, int camid,
 // read delayed ctrl value for actuator at given time
 mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int interp) {
   // validate actuator id
-  if (id < 0 || id >= m->nu) {
+  if (id < 0 || id >= m->nactuator) {
     mjERROR("invalid actuator id %d", id);
     return 0;
   }
@@ -893,7 +893,7 @@ mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int i
   // no delay: return current ctrl value
   int nsample = m->actuator_history[2*id];
   if (nsample == 0) {
-    return d->ctrl[id];
+    return d->ctrl[m->actuator_ctrladr[id]];
   }
 
   // resolve interpolation order: use model's interp if argument is -1
@@ -938,7 +938,7 @@ const mjtNum* mj_readSensor(const mjModel* m, const mjData* d, int id, mjtNum ti
 void mj_initCtrlHistory(const mjModel* m, mjData* d, int id,
                         const mjtNum* times, const mjtNum* values) {
   // validate actuator id
-  if (id < 0 || id >= m->nu) {
+  if (id < 0 || id >= m->nactuator) {
     mjERROR("invalid actuator id %d", id);
     return;
   }

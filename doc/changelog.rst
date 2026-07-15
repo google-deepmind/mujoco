@@ -31,6 +31,11 @@ General
   error instead of the generic "could not decode content" message.
 - Added support for resource writing via :ref:`mju_writeResource` and the ``write`` callback in :ref:`mjpResourceProvider`.
 - Added support for :ref:`multiccd <coMultiCCD>` with arbitrarily large meshes.
+- Refactored actuator infrastructure in preparation for MIMO (multi-input multi-output) actuator support. Each actuator
+  now has ``ctrlnum`` (number of controls) and ``outnum`` (number of force outputs). The total counts
+  ``nu = sum(ctrlnum)`` and ``nout = sum(outnum)`` dimension ``mjData.ctrl`` and ``mjData.actuator_force``,
+  respectively, ``nactuator`` is the number of actuators. For existing actuators ``ctrnum = outnum = 1``, so
+  ``nactuator == nu == nout`` and existing code is unaffected.
 
 .. admonition:: Breaking API changes
    :class: attention

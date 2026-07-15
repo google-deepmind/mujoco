@@ -212,7 +212,7 @@ static void setFixed(mjModel* m, mjData* d) {
   // set jnt_actuatorid and tendon_actuatorid
   mju_fillInt(m->jnt_actuatorid, -1, m->njnt);
   mju_fillInt(m->tendon_actuatorid, -1, m->ntendon);
-  for (int i=0; i < m->nu; i++) {
+  for (int i=0; i < m->nactuator; i++) {
     // skip actuator with no damping and no armature
     if (m->actuator_damping[i] == 0 &&
         mju_isZero(m->actuator_dampingpoly+mjNPOLY*i, mjNPOLY) &&
@@ -312,7 +312,7 @@ static void setFixed(mjModel* m, mjData* d) {
   // ----- apply compiler AUTO tree sleep policy
 
   // actuators: trees with any actuated joint, site, body, or tendon do not auto-sleep
-  for (int i=0; i < m->nu; i++) {
+  for (int i=0; i < m->nactuator; i++) {
     int bodyid = -1;
     int tid = m->actuator_trnid[2*i];
     switch ((mjtTrn)m->actuator_trntype[i]) {
@@ -868,7 +868,7 @@ static void set0(mjModel* m, mjData* d) {
   // copy fields
   mju_copy(m->flexedge_length0, d->flexedge_length, m->nflexedge);
   mju_copy(m->tendon_length0, d->ten_length, m->ntendon);
-  mju_copy(m->actuator_length0, d->actuator_length, m->nu);
+  mju_copy(m->actuator_length0, d->actuator_length, m->nout);
 
   // compute body_invweight0
   m->body_invweight0[0] = m->body_invweight0[1] = 0.0;
@@ -1002,8 +1002,8 @@ static void set0(mjModel* m, mjData* d) {
       m->tendon_invweight0[i] = mju_dot(tmp, tmp+nv, nv);
     }
 
-    // compute actuator_acc0
-    for (int i=0; i < m->nu; i++) {
+    // compute actuator_acc0, one per force output (moment row)
+    for (int i=0; i < m->nout; i++) {
       mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + i,
                        d->moment_rowadr + i, d->moment_colind);
       mj_solveM(m, d, tmp, moment, 1);
@@ -1011,7 +1011,7 @@ static void set0(mjModel* m, mjData* d) {
     }
   } else {
     mju_zero(m->tendon_invweight0, m->ntendon);
-    mju_zero(m->actuator_acc0, m->nu);
+    mju_zero(m->actuator_acc0, m->nout);
   }
 
   // compute missing eq_data for body constraints
@@ -1101,7 +1101,7 @@ static void set0(mjModel* m, mjData* d) {
   }
 
   // compute actuator damping from dampratio
-  for (int i=0; i < m->nu; i++) {
+  for (int i=0; i < m->nactuator; i++) {
     // get bias, gain parameters
     mjtNum* biasprm = m->actuator_biasprm + i*mjNBIAS;
     mjtNum* gainprm = m->actuator_gainprm + i*mjNGAIN;
@@ -1119,8 +1119,8 @@ static void set0(mjModel* m, mjData* d) {
     // === interpret biasprm[2] > 0 as dampratio for position-like actuators
 
     // "reflected" inertia (inversely scaled by transmission squared)
-    int rownnz = d->moment_rownnz[i];
-    int rowadr = d->moment_rowadr[i];
+    int rownnz = d->moment_rownnz[m->actuator_outadr[i]];
+    int rowadr = d->moment_rowadr[m->actuator_outadr[i]];
     mjtNum* transmission = d->actuator_moment + rowadr;
     mjtNum mass = 0;
     for (int j=0; j < rownnz; j++) {
@@ -1363,6 +1363,7 @@ void mj_setConst(mjModel* m, mjData* d) {
 static mjtNum evalAct(const mjModel* m, mjData* d, int index, int side,
                       const mjLROpt* opt) {
   int nv = m->nv;
+  int out = m->actuator_outadr[index];
 
   // reduce velocity
   mju_scl(d->qvel, d->qvel, mju_exp(-m->opt.timestep/mjMAX(0.01, opt->timeconst)), nv);
@@ -1373,8 +1374,8 @@ static mjtNum evalAct(const mjModel* m, mjData* d, int index, int side,
   // dense actuator_moment row
   mj_markStack(d);
   mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
-  mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + index,
-                   d->moment_rowadr + index, d->moment_colind);
+  mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + out,
+                   d->moment_rowadr + out, d->moment_colind);
 
   // set force to generate desired acceleration
   mj_solveM(m, d, d->qfrc_applied, moment, 1);
@@ -1393,7 +1394,7 @@ static mjtNum evalAct(const mjModel* m, mjData* d, int index, int side,
   mj_freeStack(d);
 
   // return actuator length
-  return d->actuator_length[index];
+  return d->actuator_length[out];
 }
 
 
@@ -1401,9 +1402,10 @@ static mjtNum evalAct(const mjModel* m, mjData* d, int index, int side,
 int mj_setLengthRange(mjModel* m, mjData* d, int index,
                       const mjLROpt* opt, char* error, int error_sz) {
   // check index
-  if (index < 0 || index >= m->nu) {
+  if (index < 0 || index >= m->nactuator) {
     mjERROR("invalid actuator index");
   }
+  int out = m->actuator_outadr[index];
 
   // skip depending on mode and type
   int ismuscle = (m->actuator_gaintype[index] == mjGAIN_MUSCLE ||
@@ -1417,7 +1419,7 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
   }
 
   // use existing length range if available
-  if (opt->useexisting && (m->actuator_lengthrange[2*index] < m->actuator_lengthrange[2*index+1])) {
+  if (opt->useexisting && (m->actuator_lengthrange[2*out] < m->actuator_lengthrange[2*out+1])) {
     return 1;
   }
 
@@ -1432,8 +1434,8 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
       // make sure joint is limited
       if (m->jnt_limited[threadid]) {
         // copy range
-        m->actuator_lengthrange[2*index] = m->jnt_range[2*threadid];
-        m->actuator_lengthrange[2*index+1] = m->jnt_range[2*threadid+1];
+        m->actuator_lengthrange[2*out] = m->jnt_range[2*threadid];
+        m->actuator_lengthrange[2*out+1] = m->jnt_range[2*threadid+1];
 
         // skip optimization
         return 1;
@@ -1445,8 +1447,8 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
       // make sure tendon is limited
       if (m->tendon_limited[threadid]) {
         // copy range
-        m->actuator_lengthrange[2*index] = m->tendon_range[2*threadid];
-        m->actuator_lengthrange[2*index+1] = m->tendon_range[2*threadid+1];
+        m->actuator_lengthrange[2*out] = m->tendon_range[2*threadid];
+        m->actuator_lengthrange[2*out+1] = m->tendon_range[2*threadid+1];
 
         // skip optimization
         return 1;
@@ -1491,12 +1493,12 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
   }
 
   // check range
-  mjtNum dif = m->actuator_lengthrange[2*index+1] - m->actuator_lengthrange[2*index];
+  mjtNum dif = m->actuator_lengthrange[2*out+1] - m->actuator_lengthrange[2*out];
   if (dif <= 0) {
     snprintf(error, error_sz,
              "Invalid lengthrange (%g, %g) in actuator %d",
-             m->actuator_lengthrange[2*index],
-             m->actuator_lengthrange[2*index+1], index);
+             m->actuator_lengthrange[2*out],
+             m->actuator_lengthrange[2*out+1], index);
     return 0;
   }
 
@@ -1506,8 +1508,8 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
              "Lengthrange computation did not converge in actuator %d:\n"
              "  eval (%g, %g)\n  range (%g, %g)",
              index, lmin[0], lmax[0],
-             m->actuator_lengthrange[2*index],
-             m->actuator_lengthrange[2*index+1]);
+             m->actuator_lengthrange[2*out],
+             m->actuator_lengthrange[2*out+1]);
     return 0;
   }
 
@@ -1517,8 +1519,8 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
              "Lengthrange computation did not converge in actuator %d:\n"
              "  eval (%g, %g)\n range (%g, %g)",
              index, lmin[1], lmax[1],
-             m->actuator_lengthrange[2*index],
-             m->actuator_lengthrange[2*index+1]);
+             m->actuator_lengthrange[2*out],
+             m->actuator_lengthrange[2*out+1]);
     return 0;
   }
 

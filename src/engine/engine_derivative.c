@@ -1211,7 +1211,7 @@ void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* ve
 
 // add (d qfrc_actuator / d qvel) to qDeriv
 void mjd_actuator_vel(const mjModel* m, mjData* d) {
-  int nu = m->nu;
+  int nactuator = m->nactuator;
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
 
   // disabled: nothing to add
@@ -1220,7 +1220,10 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
   }
 
   // process actuators
-  for (int i=0; i < nu; i++) {
+  for (int i=0; i < nactuator; i++) {
+    int uadr = m->actuator_ctrladr[i];
+    int oadr = m->actuator_outadr[i];
+
     // skip if disabled
     if (mj_actuatorDisabled(m, i)) {
       continue;
@@ -1233,8 +1236,8 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
 
     // skip if force is clamped by forcerange
     if (m->actuator_forcelimited[i]) {
-      mjtNum force = d->actuator_force[i];
-      mjtNum* range = m->actuator_forcerange + 2*i;
+      mjtNum force = d->actuator_force[oadr];
+      mjtNum* range = m->actuator_forcerange + 2*oadr;
       if (force <= range[0] || force >= range[1]) {
         continue;
       }
@@ -1267,10 +1270,10 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
 
     // muscle gain
     else if (m->actuator_gaintype[i] == mjGAIN_MUSCLE) {
-      gain_vel = mjd_muscleGain_vel(d->actuator_length[i],
-                                    d->actuator_velocity[i],
-                                    m->actuator_lengthrange+2*i,
-                                    m->actuator_acc0[i],
+      gain_vel = mjd_muscleGain_vel(d->actuator_length[oadr],
+                                    d->actuator_velocity[oadr],
+                                    m->actuator_lengthrange+2*oadr,
+                                    m->actuator_acc0[oadr],
                                     m->actuator_gainprm + mjNGAIN*i);
     }
 
@@ -1311,7 +1314,7 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
     // force = gain .* [ctrl/act]
     if (gain_vel != 0) {
       if (m->actuator_dyntype[i] == mjDYN_NONE) {
-        bias_vel += gain_vel * d->ctrl[i];
+        bias_vel += gain_vel * d->ctrl[uadr];
       } else {
         int act_adr = m->actuator_actadr[i] + m->actuator_actnum[i] - 1;
         mjtNum act = d->act[act_adr];
@@ -1327,7 +1330,7 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
 
     // add
     if (bias_vel != 0) {
-      addJTBJSparse(m, d, d->actuator_moment, &bias_vel, 1, i,
+      addJTBJSparse(m, d, d->actuator_moment, &bias_vel, 1, oadr,
                     d->moment_rownnz, d->moment_rowadr, d->moment_colind);
     }
   }

@@ -330,6 +330,8 @@ void mjCModel::SaveDofOffsets(bool computesize) {
   int qposadr = 0;
   int dofadr = 0;
   int actadr = 0;
+  int ctrladr = 0;
+  int outadr = 0;
   int mocapadr = 0;
 
   for (auto joint : joints_) {
@@ -347,6 +349,12 @@ void mjCModel::SaveDofOffsets(bool computesize) {
     }
     actuator->actadr_ = actuator->actdim_ ? actadr : -1;
     actadr += actuator->actdim_;
+
+    // input and output blocks; all actuator types are currently 1x1
+    actuator->ctrladr_ = ctrladr;
+    ctrladr += actuator->ctrlnum_;
+    actuator->outadr_ = outadr;
+    outadr += actuator->outnum_;
   }
 
   for (mjCBody* body : bodies_) {
@@ -361,7 +369,9 @@ void mjCModel::SaveDofOffsets(bool computesize) {
     nq = qposadr;
     nv = dofadr;
     na = actadr;
-    nu = (int)actuators_.size();
+    nu = ctrladr;
+    nactuator = (int)actuators_.size();
+    nout = outadr;
     nmocap = mocapadr;
   }
 }
@@ -1192,6 +1202,8 @@ void mjCModel::Clear() {
   nq = 0;
   nv = 0;
   nu = 0;
+  nactuator = 0;
+  nout = 0;
   na = 0;
   nflexnode = 0;
   nflexvert = 0;
@@ -2166,7 +2178,7 @@ void mjCModel::SetSizes() {
   ntuple = (int)tuples_.size();
   nkey = (int)keys_.size();
   nplugin = (int)plugins_.size();
-  nq = nv = ntree = nu = na = nmocap = 0;
+  nq = nv = ntree = nu = nactuator = nout = na = nmocap = 0;
 
   // nq, nv, ntree
   for (int i=0; i < njnt; i++) {
@@ -2195,9 +2207,11 @@ void mjCModel::SetSizes() {
     }
   }
 
-  // nu, na
+  // nu, nactuator, nout, na; all actuator types are currently 1x1
   for (int i=0; i < actuators_.size(); i++) {
-    nu++;
+    nactuator++;
+    nu += actuators_[i]->ctrlnum_;
+    nout += actuators_[i]->outnum_;
     na += actuators_[i]->actdim;
   }
 
@@ -2373,7 +2387,7 @@ void mjCModel::SetSizes() {
   for (int i=0; i < nexclude; i++) nnames += (int)excludes_[i]->name.length() + 1;
   for (int i=0; i < neq; i++)      nnames += (int)equalities_[i]->name.length() + 1;
   for (int i=0; i < ntendon; i++)  nnames += (int)tendons_[i]->name.length() + 1;
-  for (int i=0; i < nu; i++)       nnames += (int)actuators_[i]->name.length() + 1;
+  for (int i=0; i < nactuator; i++) nnames += (int)actuators_[i]->name.length() + 1;
   for (int i=0; i < nsensor; i++)  nnames += (int)sensors_[i]->name.length() + 1;
   for (int i=0; i < nnumeric; i++) nnames += (int)numerics_[i]->name.length() + 1;
   for (int i=0; i < ntext; i++)    nnames += (int)texts_[i]->name.length() + 1;
@@ -2465,7 +2479,7 @@ void* LRfunc(void* arg) {
   LRThreadArg* larg = (LRThreadArg*)arg;
 
   for (int i=larg->start; i < larg->start+larg->num; i++) {
-    if (i < larg->m->nu) {
+    if (i < larg->m->nactuator) {
       if (!mj_setLengthRange(larg->m, larg->data, i, larg->LRopt, larg->error, larg->error_sz)) {
         return nullptr;
       }
@@ -2488,7 +2502,7 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
 
   // count actuators that need computation
   int cnt = 0;
-  for (int i=0; i < m->nu; i++) {
+  for (int i=0; i < m->nactuator; i++) {
     // skip depending on mode and type
     int ismuscle = (m->actuator_gaintype[i] == mjGAIN_MUSCLE ||
                     m->actuator_biastype[i] == mjBIAS_MUSCLE);
@@ -2515,7 +2529,7 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
   // single thread
   if (!compiler.usethread || cnt < 2 || nthread < 2) {
     char err[200];
-    for (int i=0; i < m->nu; i++) {
+    for (int i=0; i < m->nactuator; i++) {
       if (!mj_setLengthRange(m, data, i, &compiler.LRopt, err, 200)) {
         throw mjCError(0, "%s", err);
       }
@@ -2535,8 +2549,8 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
     }
 
     // number of actuators per thread
-    int num = m->nu / nthread;
-    while (num*nthread < m->nu) {
+    int num = m->nactuator / nthread;
+    while (num*nthread < m->nactuator) {
       num++;
     }
 
@@ -3178,7 +3192,7 @@ void mjCModel::CopyPlugins(mjModel* m) {
   {
     // set actuator_plugin to the plugin instance ID
     std::vector<std::vector<int> > plugin_to_actuators(nplugin);
-    for (int i = 0; i < nu; ++i) {
+    for (int i = 0; i < nactuator; ++i) {
       if (actuators_[i]->plugin.active) {
         int actuator_plugin = static_cast<mjCPlugin*>(actuators_[i]->plugin.element)->id;
         m->actuator_plugin[i] = actuator_plugin;
@@ -3287,11 +3301,11 @@ int mjCModel::CountTendonDofs(const mjModel* m, int id) {
 }
 
 int mjCModel::CountNJmom(const mjModel* m) {
-  int nu = m->nu;
+  int nactuator = m->nactuator;
   int nv = m->nv;
 
   int count = 0;
-  for (int i = 0; i < nu; i++) {
+  for (int i = 0; i < nactuator; i++) {
     // extract info
     int id = m->actuator_trnid[2 * i];
 
@@ -3363,6 +3377,7 @@ int mjCModel::CountNJten(const mjModel* m) {
 }
 
 // copy objects outside kinematic tree
+// NOLINTBEGIN(readability/fn_size)
 void mjCModel::CopyObjects(mjModel* m) {
   mjtSize adr, bone_adr, vert_adr, node_adr, normal_adr, face_adr, texcoord_adr, oct_adr;
   mjtSize stiffness_adr, bending_adr;
@@ -3905,7 +3920,9 @@ void mjCModel::CopyObjects(mjModel* m) {
   // actuators
   adr = 0;
   int delay_adr = 0;
-  for (int i=0; i < nu; i++) {
+  int ctrladr = 0;
+  int outadr = 0;
+  for (int i=0; i < nactuator; i++) {
     // get pointer
     mjCActuator* pac = actuators_[i];
 
@@ -3923,6 +3940,16 @@ void mjCModel::CopyObjects(mjModel* m) {
     adr += m->actuator_actnum[i];
     m->actuator_group[i] = pac->group;
 
+    // input and output blocks; all actuator types are currently 1x1
+    m->actuator_ctrladr[i] = ctrladr;
+    m->actuator_ctrlnum[i] = pac->ctrlnum_;
+    pac->ctrladr_ = ctrladr;
+    ctrladr += pac->ctrlnum_;
+    m->actuator_outadr[i] = outadr;
+    m->actuator_outnum[i] = pac->outnum_;
+    pac->outadr_ = outadr;
+    outadr += pac->outnum_;
+
     // historyadr
     m->actuator_delay[i] = (mjtNum)pac->delay;
     m->actuator_history[2*i] = pac->nsample;
@@ -3934,23 +3961,32 @@ void mjCModel::CopyObjects(mjModel* m) {
       m->actuator_historyadr[i] = -1;
     }
 
-    m->actuator_ctrllimited[i] = (mjtBool)pac->is_ctrllimited();
-    m->actuator_forcelimited[i] = (mjtBool)pac->is_forcelimited();
     m->actuator_actlimited[i] = (mjtBool)pac->is_actlimited();
     m->actuator_actearly[i] = pac->actearly;
     m->actuator_cranklength[i] = (mjtNum)pac->cranklength;
-    mjuu_copyvec(m->actuator_gear + 6*i, pac->gear, 6);
     m->actuator_damping[i] = (mjtNum)pac->damping[0];
     mjuu_copyvec(m->actuator_dampingpoly + mjNPOLY*i, pac->damping + 1, mjNPOLY);
     m->actuator_armature[i] = (mjtNum)pac->armature;
     mjuu_copyvec(m->actuator_dynprm + mjNDYN*i, pac->dynprm, mjNDYN);
     mjuu_copyvec(m->actuator_gainprm + mjNGAIN*i, pac->gainprm, mjNGAIN);
     mjuu_copyvec(m->actuator_biasprm + mjNBIAS*i, pac->biasprm, mjNBIAS);
-    mjuu_copyvec(m->actuator_ctrlrange + 2*i, pac->ctrlrange, 2);
-    mjuu_copyvec(m->actuator_forcerange + 2*i, pac->forcerange, 2);
     mjuu_copyvec(m->actuator_actrange + 2*i, pac->actrange, 2);
-    mjuu_copyvec(m->actuator_lengthrange + 2*i, pac->lengthrange, 2);
     mjuu_copyvec(m->actuator_user+nuser_actuator*i, pac->get_userdata().data(), nuser_actuator);
+
+    // per-input arrays, at the actuator's ctrl block
+    for (int j = m->actuator_ctrladr[i];
+         j < m->actuator_ctrladr[i] + m->actuator_ctrlnum[i]; j++) {
+      m->actuator_ctrllimited[j] = (mjtBool)pac->is_ctrllimited();
+      mjuu_copyvec(m->actuator_ctrlrange + 2 * j, pac->ctrlrange, 2);
+    }
+
+    // per-output arrays, at the actuator's output block
+    for (int j=m->actuator_outadr[i]; j < m->actuator_outadr[i]+m->actuator_outnum[i]; j++) {
+      m->actuator_forcelimited[j] = (mjtBool)pac->is_forcelimited();
+      mjuu_copyvec(m->actuator_forcerange + 2*j, pac->forcerange, 2);
+      mjuu_copyvec(m->actuator_gear + 6*j, pac->gear, 6);
+      mjuu_copyvec(m->actuator_lengthrange + 2*j, pac->lengthrange, 2);
+    }
   }
 
   // sensors
@@ -4084,6 +4120,7 @@ void mjCModel::CopyObjects(mjModel* m) {
   mjuu_copyvec(body_pos0.data(), m->body_pos, 3*nbody);
   mjuu_copyvec(body_quat0.data(), m->body_quat, 4*nbody);
 }
+// NOLINTEND(readability/fn_size)
 
 
 
@@ -4309,7 +4346,7 @@ void mjCModel::StoreKeyframes(mjCModel* dest) {
   }
 
   if (!compiled) {
-    nq = nv = na = nu = nmocap = 0;
+    nq = nv = na = nu = nactuator = nout = nmocap = 0;
   }
 }
 
@@ -4958,7 +4995,7 @@ void mjCModel::ExpandAllKeyframes() {
   for (auto* key : keys_) {
     ExpandKeyframe(key, qpos0.data(), body_pos0.data(), body_quat0.data());
   }
-  nq = nv = na = nu = nmocap = 0;
+  nq = nv = na = nu = nactuator = nout = nmocap = 0;
 }
 
 
@@ -5239,7 +5276,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // create low-level model
   mj_makeModel(&m,
-               nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, noct, njnt, ntree, nM, nB, nC,
+               nq, nv, nu, nactuator, nout, na,
+               nbody, nbvh, nbvhstatic, nbvhdynamic, noct, njnt, ntree, nM, nB, nC,
                nD, ngeom, nsite, ncam, nlight, nflex, nflexnode, nflexvert, nflexedge, nflexelem,
                nflexelemdata, nflexstiffness, nflexbending, nflexelemedge, nflexshelldata,
                nflexevpair, nflextexcoord, nJfe, nJfv, nmesh, nmeshvert, nmeshnormal, nmeshtexcoord,
@@ -5603,7 +5641,8 @@ bool mjCModel::CopyBack(const mjModel* m) {
   }
 
   // make sure sizes match
-  if (nq != m->nq || nv != m->nv || nu != m->nu || na != m->na ||
+  if (nq != m->nq || nv != m->nv || nu != m->nu || nactuator != m->nactuator ||
+      nout != m->nout || na != m->na ||
       nbody != m->nbody ||njnt != m->njnt || ngeom != m->ngeom || nsite != m->nsite ||
       ncam != m->ncam || nlight != m->nlight || nmesh != m->nmesh ||
       nskin != m->nskin || nhfield != m->nhfield ||
@@ -5838,17 +5877,17 @@ bool mjCModel::CopyBack(const mjModel* m) {
 
   // actuators
   mjCActuator* pa;
-  for (int i=0; i < nu; i++) {
+  for (int i=0; i < nactuator; i++) {
     pa = actuators_[i];
 
     mjuu_copyvec(pa->dynprm, m->actuator_dynprm+i*mjNDYN, mjNDYN);
     mjuu_copyvec(pa->gainprm, m->actuator_gainprm+i*mjNGAIN, mjNGAIN);
     mjuu_copyvec(pa->biasprm, m->actuator_biasprm+i*mjNBIAS, mjNBIAS);
-    mjuu_copyvec(pa->ctrlrange, m->actuator_ctrlrange+2*i, 2);
-    mjuu_copyvec(pa->forcerange, m->actuator_forcerange+2*i, 2);
+    mjuu_copyvec(pa->ctrlrange, m->actuator_ctrlrange+2*m->actuator_ctrladr[i], 2);
+    mjuu_copyvec(pa->forcerange, m->actuator_forcerange+2*m->actuator_outadr[i], 2);
     mjuu_copyvec(pa->actrange, m->actuator_actrange+2*i, 2);
-    mjuu_copyvec(pa->lengthrange, m->actuator_lengthrange+2*i, 2);
-    mjuu_copyvec(pa->gear, m->actuator_gear+6*i, 6);
+    mjuu_copyvec(pa->lengthrange, m->actuator_lengthrange+2*m->actuator_outadr[i], 2);
+    mjuu_copyvec(pa->gear, m->actuator_gear+6*m->actuator_outadr[i], 6);
     pa->damping[0] = (double)m->actuator_damping[i];
     mjuu_copyvec(pa->damping + 1, m->actuator_dampingpoly + mjNPOLY*i, mjNPOLY);
     pa->armature = (double)m->actuator_armature[i];

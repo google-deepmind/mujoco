@@ -48,7 +48,8 @@ void mj_defaultStatistic(mjStatistic* stat);
 
 // allocate mjModel
 void mj_makeModel(mjModel** dest,
-    mjtSize nq, mjtSize nv, mjtSize nu, mjtSize na, mjtSize nbody, mjtSize nbvh, mjtSize nbvhstatic,
+    mjtSize nq, mjtSize nv, mjtSize nu, mjtSize nactuator, mjtSize nout, mjtSize na,
+    mjtSize nbody, mjtSize nbvh, mjtSize nbvhstatic,
     mjtSize nbvhdynamic, mjtSize noct, mjtSize njnt, mjtSize ntree, mjtSize nM, mjtSize nB,
     mjtSize nC, mjtSize nD, mjtSize ngeom, mjtSize nsite, mjtSize ncam, mjtSize nlight,
     mjtSize nflex, mjtSize nflexnode, mjtSize nflexvert, mjtSize nflexedge, mjtSize nflexelem,
