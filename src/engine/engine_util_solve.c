@@ -192,16 +192,19 @@ int mju_cholFactorSymbolic(int* restrict L_colind, int* restrict L_rownnz, int* 
                            int* restrict LT_rowadr, int* restrict LT_map,
                            const int* rownnz, const int* rowadr, const int* colind, int n,
                            mjData* d) {
-  mj_markStack(d);
-  int* restrict parent = mjSTACKALLOC(d, n, int);
-  int* restrict flag = mjSTACKALLOC(d, n, int);
+  // d supplies stack scratch; if NULL, scratch is heap-allocated
+  if (d) {
+    mj_markStack(d);
+  }
+  int* restrict parent = d ? mjSTACKALLOC(d, n, int) : (int*) mju_malloc(sizeof(int)*n);
+  int* restrict flag = d ? mjSTACKALLOC(d, n, int) : (int*) mju_malloc(sizeof(int)*n);
   int* restrict cursor = NULL;
   int* LT_write = NULL;
 
   // filling phase: initialize write positions
   if (L_colind) {
-    cursor = mjSTACKALLOC(d, n, int);
-    LT_write = mjSTACKALLOC(d, n, int);
+    cursor = d ? mjSTACKALLOC(d, n, int) : (int*) mju_malloc(sizeof(int)*n);
+    LT_write = d ? mjSTACKALLOC(d, n, int) : (int*) mju_malloc(sizeof(int)*n);
     for (int r = 0; r < n; r++) {
       cursor[r] = L_rowadr[r] + L_rownnz[r] - 2;  // end of row r (before diagonal)
       LT_write[r] = LT_rowadr[r];                 // start of LT row r
@@ -270,7 +273,14 @@ int mju_cholFactorSymbolic(int* restrict L_colind, int* restrict L_rownnz, int* 
     }
   }
 
-  mj_freeStack(d);
+  if (d) {
+    mj_freeStack(d);
+  } else {
+    mju_free(parent);
+    mju_free(flag);
+    mju_free(cursor);
+    mju_free(LT_write);
+  }
 
   // counting phase: compute row addresses, add up total non-zeros
   int nnz = 0;

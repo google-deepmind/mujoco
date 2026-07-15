@@ -1079,6 +1079,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of bending parameters in all flexes',
              ),
              StructFieldDecl(
+                 name='nefm0dof',
+                 type=ValueType(name='mjtSize'),
+                 doc='number of dofs covered by the constant metric factor',
+             ),
+             StructFieldDecl(
+                 name='nefm0L',
+                 type=ValueType(name='mjtSize'),
+                 doc='number of non-zeros in the constant metric factor',
+             ),
+             StructFieldDecl(
                  name='nflexelemedge',
                  type=ValueType(name='mjtSize'),
                  doc='number of element edge ids in all flexes',
@@ -3114,6 +3124,46 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='bending stiffness',
                  array_extent=('nflexbending',),
+             ),
+             StructFieldDecl(
+                 name='efm0_dofid',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='constant metric factor row->dof address',
+                 array_extent=('nefm0dof',),
+             ),
+             StructFieldDecl(
+                 name='efm0_L_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='constant metric factor row nonzeros',
+                 array_extent=('nefm0dof',),
+             ),
+             StructFieldDecl(
+                 name='efm0_L_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='constant metric factor row addresses',
+                 array_extent=('nefm0dof',),
+             ),
+             StructFieldDecl(
+                 name='efm0_L_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='constant metric factor column indices',
+                 array_extent=('nefm0L',),
+             ),
+             StructFieldDecl(
+                 name='efm0_L',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='factor of M + (dt^2+dt*d)*K_bend',
+                 array_extent=('nefm0L',),
              ),
              StructFieldDecl(
                  name='flex_damping',
@@ -5633,6 +5683,26 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of non-zeros in constraint Jacobian',
              ),
              StructFieldDecl(
+                 name='efm_active',
+                 type=ValueType(name='int'),
+                 doc='implicit effective metric M+K: 0 inactive, 1 active, 2 active + preconditioner exact',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='nefmK',
+                 type=ValueType(name='int'),
+                 doc='number of non-zeros in effective-stiffness CSR',
+             ),
+             StructFieldDecl(
+                 name='nefmdof',
+                 type=ValueType(name='int'),
+                 doc='number of rows in effective-metric factor',
+             ),
+             StructFieldDecl(
+                 name='nefmL',
+                 type=ValueType(name='int'),
+                 doc='number of non-zeros in the effective-metric factor',
+             ),
+             StructFieldDecl(
                  name='nY',
                  type=ValueType(name='int'),
                  doc='number of non-zeros in constraint inverse inertia square root',  # pylint: disable=line-too-long
@@ -6030,6 +6100,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='flex element bounding boxes (center, size)',
                  array_extent=('nflexelem', 6),
+             ),
+             StructFieldDecl(
+                 name='flexelem_krot',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='corotated element stiffness (implicit only)',
+                 array_extent=('nflexstiffness',),
              ),
              StructFieldDecl(
                  name='flexedge_J',
@@ -6854,6 +6932,86 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='reference pseudo-acceleration',
                  array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='efm_c',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='smooth-force shift h*K*qvel',
+                 array_extent=('nv',),
+             ),
+             StructFieldDecl(
+                 name='efm_K_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='effective-stiffness CSR row nonzeros',
+                 array_extent=('nv',),
+             ),
+             StructFieldDecl(
+                 name='efm_K_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='effective-stiffness CSR row addresses',
+                 array_extent=('nv',),
+             ),
+             StructFieldDecl(
+                 name='efm_K_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='effective-stiffness CSR column indices',
+                 array_extent=('nefmK',),
+             ),
+             StructFieldDecl(
+                 name='efm_K_val',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='effective-stiffness CSR values',
+                 array_extent=('nefmK',),
+             ),
+             StructFieldDecl(
+                 name='efm_dofid',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='factor row -> dof address',
+                 array_extent=('nefmdof',),
+             ),
+             StructFieldDecl(
+                 name='efm_L_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='factor row nonzeros',
+                 array_extent=('nefmdof',),
+             ),
+             StructFieldDecl(
+                 name='efm_L_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='factor row addresses',
+                 array_extent=('nefmdof',),
+             ),
+             StructFieldDecl(
+                 name='efm_L_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='factor column indices',
+                 array_extent=('nefmL',),
+             ),
+             StructFieldDecl(
+                 name='efm_L',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='Cholesky factor of diag(M)+K, covered dofs',
+                 array_extent=('nefmL',),
              ),
              StructFieldDecl(
                  name='efc_b',

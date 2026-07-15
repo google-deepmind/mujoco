@@ -27,6 +27,7 @@
 #include <filesystem>  // NOLINT(build/c++17)
 #include <functional>
 #include <mutex>
+#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -52,6 +53,7 @@
 #include "engine/engine_setconst.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
+#include "engine/engine_util_solve.h"
 #include "engine/engine_util_misc.h"
 #include "user/user_api.h"
 #include "user/user_objects.h"
@@ -1212,6 +1214,8 @@ void mjCModel::Clear() {
   nflexelemdata = 0;
   nflexstiffness = 0;
   nflexbending = 0;
+  nefm0dof = 0;
+  nefm0L = 0;
   nflexelemedge = 0;
   nflexshelldata = 0;
   nflexevpair = 0;
@@ -2243,6 +2247,83 @@ void mjCModel::SetSizes() {
     nflexbending += flexes_[i]->bending.size();
     if (flexes_[i]->interpolated || flexes_[i]->rigid) {
       continue;
+    }
+
+    // bending factor sizes: symbolic reverse-Cholesky count on the (M + K_bend) pattern.
+    // Bending couples only same-coordinate dofs of unpinned flap vertices, so the pattern is
+    // three interleaved copies of the vertex flap adjacency. The count must match the symbolic
+    // factorization performed in mj_setConst (asserted there).
+    if (flexes_[i]->dim == 2 && !flexes_[i]->bending.empty()) {
+      const mjCFlex* fl = flexes_[i];
+      int nvrt = fl->nvert;
+
+      // unpinned vertices -> compact slots (vertex enumeration order)
+      std::vector<int> slot(nvrt, -1);
+      int nfree = 0;
+      for (int v=0; v < nvrt; v++) {
+        if (!bodies_[fl->vertbodyid[v]]->joints.empty()) {
+          slot[v] = nfree++;
+        }
+      }
+      if (!nfree) {
+        continue;
+      }
+
+      // vertex adjacency from 4-vertex flap stencils (self excluded; diagonal is implicit)
+      std::vector<std::set<int>> adj(nfree);
+      for (const auto& flap : fl->flaps) {
+        if (flap.vertices[3] < 0) {
+          continue;
+        }
+        for (int a=0; a < 4; a++) {
+          int sa = slot[flap.vertices[a]];
+          if (sa < 0) continue;
+          for (int b=0; b < 4; b++) {
+            int sb = slot[flap.vertices[b]];
+            if (sb >= 0 && sb != sa) {
+              adj[sa].insert(sb);
+            }
+          }
+        }
+      }
+
+      // dof-level upper-triangle pattern: row 3*s+k has columns {3*t+k : t > s, t in adj(s)}
+      int n = 3*nfree;
+      std::vector<std::vector<int>> upper(n);
+      for (int s=0; s < nfree; s++) {
+        for (int t : adj[s]) {
+          if (t > s) {
+            for (int k=0; k < 3; k++) {
+              upper[3*s+k].push_back(3*t+k);
+            }
+          }
+        }
+      }
+      for (auto& row : upper) {
+        std::sort(row.begin(), row.end());
+      }
+
+      // flatten the pattern to CSR and count fill with the engine's symbolic factorization
+      // (d == NULL: no mjData exists yet, scratch is heap-allocated)
+      std::vector<int> u_rownnz(n), u_rowadr(n), u_colind;
+      int u_nnz = 0;
+      for (int r=0; r < n; r++) {
+        u_nnz += (int)upper[r].size();
+      }
+      u_colind.reserve(u_nnz);
+      for (int r=0; r < n; r++) {
+        u_rownnz[r] = (int)upper[r].size();
+        u_rowadr[r] = (int)u_colind.size();
+        u_colind.insert(u_colind.end(), upper[r].begin(), upper[r].end());
+      }
+      std::vector<int> L_rownnz(n), L_rowadr(n), LT_rownnz(n), LT_rowadr(n);
+      mjtSize nnz = mju_cholFactorSymbolic(NULL, L_rownnz.data(), L_rowadr.data(),
+                                           NULL, LT_rownnz.data(), LT_rowadr.data(), NULL,
+                                           u_rownnz.data(), u_rowadr.data(), u_colind.data(),
+                                           n, NULL);
+
+      nefm0dof += n;
+      nefm0L += nnz;
     }
 
     // count number of non-zero elements in the edge Jacobian matrix
@@ -5279,7 +5360,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
                nq, nv, nu, nactuator, nout, na,
                nbody, nbvh, nbvhstatic, nbvhdynamic, noct, njnt, ntree, nM, nB, nC,
                nD, ngeom, nsite, ncam, nlight, nflex, nflexnode, nflexvert, nflexedge, nflexelem,
-               nflexelemdata, nflexstiffness, nflexbending, nflexelemedge, nflexshelldata,
+               nflexelemdata, nflexstiffness, nflexbending, nefm0dof, nefm0L,
+               nflexelemedge, nflexshelldata,
                nflexevpair, nflextexcoord, nJfe, nJfv, nmesh, nmeshvert, nmeshnormal, nmeshtexcoord,
                nmeshface, nmeshgraph, nmeshpoly, nmeshpolyvert, nmeshpolymap, nskin, nskinvert,
                nskintexvert, nskinface, nskinbone, nskinbonevert, nhfield, nhfielddata, ntex,

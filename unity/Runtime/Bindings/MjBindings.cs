@@ -1047,6 +1047,8 @@ public unsafe struct mjModel_ {
   public UInt64 nflexelemdata;
   public UInt64 nflexstiffness;
   public UInt64 nflexbending;
+  public UInt64 nefm0dof;
+  public UInt64 nefm0L;
   public UInt64 nflexelemedge;
   public UInt64 nflexshelldata;
   public UInt64 nflexevpair;
@@ -1328,6 +1330,11 @@ public unsafe struct mjModel_ {
   public double* flex_size;
   public double* flex_stiffness;
   public double* flex_bending;
+  public int* efm0_dofid;
+  public int* efm0_L_rownnz;
+  public int* efm0_L_rowadr;
+  public int* efm0_L_colind;
+  public double* efm0_L;
   public double* flex_damping;
   public double* flex_edgestiffness;
   public double* flex_edgedamping;
@@ -5695,6 +5702,10 @@ public unsafe struct mjData_ {
   public int nl;
   public int nefc;
   public int nJ;
+  public int efm_active;
+  public int nefmK;
+  public int nefmdof;
+  public int nefmL;
   public int nY;
   public int nA;
   public int nisland;
@@ -5750,6 +5761,7 @@ public unsafe struct mjData_ {
   public double* cinert;
   public double* flexvert_xpos;
   public double* flexelem_aabb;
+  public double* flexelem_krot;
   public double* flexedge_J;
   public double* flexedge_length;
   public double* flexvert_J;
@@ -5853,6 +5865,16 @@ public unsafe struct mjData_ {
   public double* efc_AR;
   public double* efc_vel;
   public double* efc_aref;
+  public double* efm_c;
+  public int* efm_K_rownnz;
+  public int* efm_K_rowadr;
+  public int* efm_K_colind;
+  public double* efm_K_val;
+  public int* efm_dofid;
+  public int* efm_L_rownnz;
+  public int* efm_L_rowadr;
+  public int* efm_L_colind;
+  public double* efm_L;
   public double* efc_b;
   public double* iefc_aref;
   public int* iefc_state;

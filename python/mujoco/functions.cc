@@ -1697,6 +1697,7 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
           MJDATA_ARENA_POINTERS_SOLVER
           MJDATA_ARENA_POINTERS_DUAL
           MJDATA_ARENA_POINTERS_ISLAND
+          MJDATA_ARENA_POINTERS_EFM
 #undef X
         };
 

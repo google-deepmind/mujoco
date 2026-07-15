@@ -41,6 +41,7 @@ MJAPI int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
 //   if L_colind is NULL, perform counting logic (fill rownnz/rowadr arrays and return total nnz)
 //   if L_colind is not NULL, assume rownnz/rowadr are precomputed and fill colind/map arrays
 //   reads pattern from upper triangle
+//   d may be NULL: scratch is then heap-allocated
 //   based on ldl_symbolic from 'Algorithm 8xx: a concise sparse Cholesky factorization package'
 MJAPI int mju_cholFactorSymbolic(int* L_colind, int* L_rownnz, int* L_rowadr,
                                  int* LT_colind, int* LT_rownnz, int* LT_rowadr, int* LT_map,

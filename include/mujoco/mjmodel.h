@@ -272,6 +272,8 @@ typedef struct mjModel_ {
   mjtSize nflexelemdata;          // number of element vertex ids in all flexes
   mjtSize nflexstiffness;         // number of stiffness parameters in all flexes
   mjtSize nflexbending;           // number of bending parameters in all flexes
+  mjtSize nefm0dof;               // number of dofs covered by the constant metric factor
+  mjtSize nefm0L;                 // number of non-zeros in the constant metric factor
   mjtSize nflexelemedge;          // number of element edge ids in all flexes
   mjtSize nflexshelldata;         // number of shell fragment vertex ids in all flexes
   mjtSize nflexevpair;            // number of element-vertex pairs in all flexes
@@ -590,6 +592,11 @@ typedef struct mjModel_ {
   mjtNum*   flex_size;            // vertex bounding box half sizes in qpos0  (nflex x 3)
   mjtNum*   flex_stiffness;       // finite element stiffness matrix          (nflexstiffness x 1)
   mjtNum*   flex_bending;         // bending stiffness                        (nflexbending x 1)
+  int*      efm0_dofid;           // constant metric factor row->dof address  (nefm0dof x 1)
+  int*      efm0_L_rownnz;        // constant metric factor row nonzeros      (nefm0dof x 1)
+  int*      efm0_L_rowadr;        // constant metric factor row addresses     (nefm0dof x 1)
+  int*      efm0_L_colind;        // constant metric factor column indices    (nefm0L x 1)
+  mjtNum*   efm0_L;               // factor of M + (dt^2+dt*d)*K_bend         (nefm0L x 1)
   mjtNum*   flex_damping;         // Rayleigh's damping coefficient           (nflex x 1)
   mjtNum*   flex_edgestiffness;   // edge stiffness                           (nflex x 1)
   mjtNum*   flex_edgedamping;     // edge damping                             (nflex x 1)

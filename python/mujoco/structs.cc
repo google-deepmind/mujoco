@@ -893,6 +893,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   MJDATA_ARENA_POINTERS_SOLVER
   MJDATA_ARENA_POINTERS_DUAL
   MJDATA_ARENA_POINTERS_ISLAND
+  MJDATA_ARENA_POINTERS_EFM
 
 #undef MJ_M
 #define MJ_M(x) (x)

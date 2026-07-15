@@ -230,7 +230,8 @@ void mj_makeModel(mjModel** dest,
     mjtSize nbvhdynamic, mjtSize noct, mjtSize njnt, mjtSize ntree, mjtSize nM, mjtSize nB,
     mjtSize nC, mjtSize nD, mjtSize ngeom, mjtSize nsite, mjtSize ncam, mjtSize nlight,
     mjtSize nflex, mjtSize nflexnode, mjtSize nflexvert, mjtSize nflexedge, mjtSize nflexelem,
-    mjtSize nflexelemdata, mjtSize nflexstiffness, mjtSize nflexbending, mjtSize nflexelemedge,
+    mjtSize nflexelemdata, mjtSize nflexstiffness, mjtSize nflexbending,
+    mjtSize nefm0dof, mjtSize nefm0L, mjtSize nflexelemedge,
     mjtSize nflexshelldata, mjtSize nflexevpair, mjtSize nflextexcoord, mjtSize nJfe, mjtSize nJfv,
     mjtSize nmesh, mjtSize nmeshvert, mjtSize nmeshnormal, mjtSize nmeshtexcoord, mjtSize nmeshface,
     mjtSize nmeshgraph, mjtSize nmeshpoly, mjtSize nmeshpolyvert, mjtSize nmeshpolymap,
@@ -324,6 +325,8 @@ void mj_makeModel(mjModel** dest,
   m->nflexelemdata = nflexelemdata;
   m->nflexstiffness = nflexstiffness;
   m->nflexbending = nflexbending;
+  m->nefm0dof = nefm0dof;
+  m->nefm0L = nefm0L;
   m->nflexelemedge = nflexelemedge;
   m->nflexshelldata = nflexshelldata;
   m->nflexevpair = nflexevpair;
@@ -436,7 +439,7 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
         src->nbvhdynamic, src->noct, src->njnt, src->ntree, src->nM, src->nB, src->nC, src->nD,
         src->ngeom, src->nsite, src->ncam, src->nlight, src->nflex, src->nflexnode, src->nflexvert,
         src->nflexedge, src->nflexelem, src->nflexelemdata, src->nflexstiffness,
-        src->nflexbending, src->nflexelemedge, src->nflexshelldata, src->nflexevpair,
+        src->nflexbending, src->nefm0dof, src->nefm0L, src->nflexelemedge, src->nflexshelldata, src->nflexevpair,
         src->nflextexcoord, src->nJfe, src->nJfv, src->nmesh, src->nmeshvert, src->nmeshnormal,
         src->nmeshtexcoord, src->nmeshface, src->nmeshgraph, src->nmeshpoly, src->nmeshpolyvert,
         src->nmeshpolymap, src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
@@ -615,7 +618,8 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
                sizes[56], sizes[57], sizes[58], sizes[59], sizes[60], sizes[61], sizes[62],
                sizes[63], sizes[64], sizes[65], sizes[66], sizes[67], sizes[68], sizes[69],
                sizes[70], sizes[71], sizes[72], sizes[73], sizes[74], sizes[75], sizes[76],
-               sizes[77], sizes[78], sizes[79], sizes[80], sizes[81]);
+               sizes[77], sizes[78], sizes[79], sizes[80], sizes[81],
+               sizes[82], sizes[83]);
 
   // mj_makeModel may fail if the input buffer has invalid sizes
   if (!m) {
@@ -1343,6 +1347,10 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   d->nA = 0;
   d->nisland = 0;
   d->nidof = 0;
+  d->efm_active = 0;
+  d->nefmK = 0;
+  d->nefmdof = 0;
+  d->nefmL = 0;
 
   // clear global properties
   d->time = 0;

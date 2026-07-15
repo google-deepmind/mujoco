@@ -23,11 +23,13 @@
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_core_util.h"
+#include "engine/engine_derivative.h"
 #include "engine/engine_forward.h"
 #include "engine/engine_io.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
+#include "engine/engine_util_solve.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_sparse.h"
 #include "engine/engine_util_spatial.h"
@@ -1320,6 +1322,165 @@ static void setSpring(mjModel* m, mjData* d) {
 
 
 // entry point: set all remaining constant fields of mjModel, except for lengthrange
+
+// constant part of the implicit effective metric factor (currently dim-2 bending): sparse
+// reverse-Cholesky of M + (h^2 + h*damping)*K_bend over
+// the dofs of unpinned vertices of standard dim-2 flexes with bending. The matrix is constant
+// (flat-rest bending stiffness, point masses), so the factor is computed here once and reused
+// by the implicit-flex constraint solve every step. Bending couples only same-coordinate dofs,
+// so the pattern is three interleaved copies of the vertex flap adjacency. Row order (flex
+// order, vertex order, coordinate fastest) and the resulting fill count must match the
+// compiler's symbolic sizing (checked below).
+static void setEfm0Factor(mjModel* m, mjData* d) {
+  int nbd = m->nefm0dof;
+  if (!nbd) {
+    return;
+  }
+  mj_markStack(d);
+  mjtNum h = m->opt.timestep;
+
+  // enumerate covered vertices: compact slot per unpinned vertex of qualifying flexes
+  // (filter matches the compiler's sizing and, for bending, flexStiff_active in
+  // engine_derivative.c: bending data exists only for dim-2 flexes)
+  int* vslot = mjSTACKALLOC(d, m->nflexvert > 0 ? m->nflexvert : 1, int);
+  for (int i=0; i < m->nflexvert; i++) {
+    vslot[i] = -1;
+  }
+  int nfree = 0;
+  for (int f=0; f < m->nflex; f++) {
+    if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] != 2 ||
+        m->flex_bendingadr[f] < 0) {
+      continue;
+    }
+    for (int lv=0; lv < m->flex_vertnum[f]; lv++) {
+      int gv = m->flex_vertadr[f] + lv;
+      if (m->body_dofnum[m->flex_vertbodyid[gv]] == 3) {
+        vslot[gv] = nfree;
+        nfree++;
+      }
+    }
+  }
+  if (3*nfree != nbd) {
+    mj_freeStack(d);
+    mjERROR("constant metric factor dof count mismatch: compiler sized %d, engine found %d",
+            nbd, 3*nfree);
+  }
+
+  // fill row -> dof address (row 3*slot + k, coordinate fastest)
+  for (int gv=0; gv < m->nflexvert; gv++) {
+    if (vslot[gv] >= 0) {
+      int da = m->body_dofadr[m->flex_vertbodyid[gv]];
+      for (int k=0; k < 3; k++) {
+        m->efm0_dofid[3*vslot[gv] + k] = da + k;
+      }
+    }
+  }
+
+  // assemble the bending-only stiffness K = (h^2 + h*damping)*K_bend over all dofs with the
+  // shared stencil walker from engine_derivative: bending values are configuration-independent
+  // and stretch/interp are gated off, so the call is valid at set-constants time (d is used
+  // for stack scratch only)
+  int nv = m->nv;
+  int* K_rownnz = mjSTACKALLOC(d, nv, int);
+  int* K_rowadr = mjSTACKALLOC(d, nv, int);
+  int nK = mjd_flexStiff_assemble(m, d, K_rownnz, K_rowadr, NULL, NULL, h*h, h,
+                                  /*flg_bend=*/1, /*flg_stretch=*/0, NULL);
+  int* K_colind = mjSTACKALLOC(d, nK > 0 ? nK : 1, int);
+  mjtNum* K_val = mjSTACKALLOC(d, nK > 0 ? nK : 1, mjtNum);
+  mjd_flexStiff_assemble(m, d, K_rownnz, K_rowadr, K_colind, K_val, h*h, h, 1, 0, NULL);
+
+  // inverse map: dof address -> compact factor row (monotone: slots follow dof order)
+  int* dofrow = mjSTACKALLOC(d, nv, int);
+  for (int i=0; i < nv; i++) {
+    dofrow[i] = -1;
+  }
+  for (int r=0; r < nbd; r++) {
+    dofrow[m->efm0_dofid[r]] = r;
+  }
+
+  // compact B to covered rows, keeping same-coordinate entries only: bending blocks are
+  // isotropic (q * I3), so the off-coordinate entries of assemble's 3x3 block pattern are
+  // structurally zero and dropping them preserves the pattern the compiler sized.
+  // H = M + (h^2+h*d)*K_bend in compact dof indices: lower CSR (values) + upper CSR (pattern)
+  int nHl = 0, nHu = 0;
+  for (int r=0; r < nbd; r++) {
+    int dof = m->efm0_dofid[r];
+    for (int c=0; c < K_rownnz[dof]; c++) {
+      int rc = dofrow[K_colind[K_rowadr[dof] + c]];
+      if (rc < 0 || (rc - r) % 3 != 0) continue;  // uncovered or off-coordinate
+      if (rc < r) nHl++;
+      else if (rc > r) nHu++;
+    }
+  }
+  nHl += nbd;  // diagonals: always present, also for rows without bending entries
+  int* Hl_rownnz = mjSTACKALLOC(d, nbd, int);
+  int* Hl_rowadr = mjSTACKALLOC(d, nbd, int);
+  int* Hl_colind = mjSTACKALLOC(d, nHl, int);
+  mjtNum* Hl_val  = mjSTACKALLOC(d, nHl, mjtNum);
+  int* Hu_rownnz = mjSTACKALLOC(d, nbd, int);
+  int* Hu_rowadr = mjSTACKALLOC(d, nbd, int);
+  int* Hu_colind = mjSTACKALLOC(d, nHu > 0 ? nHu : 1, int);
+
+  int ladr = 0, uadr = 0;
+  for (int r=0; r < nbd; r++) {
+    int dof = m->efm0_dofid[r];
+    Hl_rowadr[r] = ladr;
+    Hu_rowadr[r] = uadr;
+    mjtNum diag = 0;
+    // B columns are dof-ascending, so filtered lower/upper columns stay ascending
+    for (int c=0; c < K_rownnz[dof]; c++) {
+      int adr = K_rowadr[dof] + c;
+      int rc = dofrow[K_colind[adr]];
+      if (rc < 0 || (rc - r) % 3 != 0) continue;
+      if (rc < r) {
+        Hl_colind[ladr] = rc;
+        Hl_val[ladr++] = K_val[adr];
+      } else if (rc > r) {
+        Hu_colind[uadr++] = rc;
+      } else {
+        diag = K_val[adr];
+      }
+    }
+    // diagonal last: point mass + armature + bending diagonal
+    Hl_colind[ladr] = r;
+    Hl_val[ladr++] = m->body_mass[m->dof_bodyid[dof]] + m->dof_armature[dof] + diag;
+    Hl_rownnz[r] = ladr - Hl_rowadr[r];
+    Hu_rownnz[r] = uadr - Hu_rowadr[r];
+  }
+
+  // symbolic factorization: counting phase (from the upper-triangle pattern)
+  int* LT_rownnz = mjSTACKALLOC(d, nbd, int);
+  int* LT_rowadr = mjSTACKALLOC(d, nbd, int);
+  int nnz = mju_cholFactorSymbolic(NULL, m->efm0_L_rownnz, m->efm0_L_rowadr,
+                                   NULL, LT_rownnz, LT_rowadr, NULL,
+                                   Hu_rownnz, Hu_rowadr, Hu_colind, nbd, d);
+  if (nnz != m->nefm0L) {
+    mj_freeStack(d);
+    mjERROR("constant metric factor size mismatch: compiler sized %d, symbolic found %d",
+            (int)m->nefm0L, nnz);
+  }
+
+  // symbolic factorization: filling phase
+  int* LT_colind = mjSTACKALLOC(d, nnz, int);
+  int* LT_map = mjSTACKALLOC(d, nnz, int);
+  mju_cholFactorSymbolic(m->efm0_L_colind, m->efm0_L_rownnz, m->efm0_L_rowadr,
+                         LT_colind, LT_rownnz, LT_rowadr, LT_map,
+                         Hu_rownnz, Hu_rowadr, Hu_colind, nbd, d);
+
+  // numeric factorization
+  int rank = mju_cholFactorNumeric(m->efm0_L, nbd, mjMINVAL,
+                                   m->efm0_L_rownnz, m->efm0_L_rowadr, m->efm0_L_colind,
+                                   LT_rownnz, LT_rowadr, LT_colind, LT_map,
+                                   Hl_val, Hl_rownnz, Hl_rowadr, Hl_colind, d);
+  if (rank != nbd) {
+    mj_freeStack(d);
+    mjERROR("constant metric factor is rank-deficient (%d of %d)", rank, nbd);
+  }
+
+  mj_freeStack(d);
+}
+
+
 void mj_setConst(mjModel* m, mjData* d) {
   // compute npolygonmax and nmeshdegmax
   m->npolygonmax = 0;
@@ -1354,6 +1515,9 @@ void mj_setConst(mjModel* m, mjData* d) {
 
   // set quantities that depend qpos_spring
   setSpring(m, d);
+
+  // precompute the constant part of the implicit effective metric factor
+  setEfm0Factor(m, d);
 }
 
 

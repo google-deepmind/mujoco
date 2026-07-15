@@ -111,6 +111,10 @@ typedef struct mjData_ {
   int     nl;                // number of limit constraints
   int     nefc;              // number of constraints
   int     nJ;                // number of non-zeros in constraint Jacobian
+  int     efm_active;        // implicit effective metric M+K: 0 inactive, 1 active, 2 active + preconditioner exact
+  int     nefmK;             // number of non-zeros in effective-stiffness CSR
+  int     nefmdof;           // number of rows in effective-metric factor
+  int     nefmL;             // number of non-zeros in the effective-metric factor
   int     nY;                // number of non-zeros in constraint inverse inertia square root
   int     nA;                // number of non-zeros in constraint inverse inertia matrix
   int     nisland;           // number of detected constraint islands
@@ -200,6 +204,7 @@ typedef struct mjData_ {
   // computed by mj_fwdPosition/mj_flex
   mjtNum* flexvert_xpos;     // Cartesian flex vertex positions                  (nflexvert x 3)
   mjtNum* flexelem_aabb;     // flex element bounding boxes (center, size)       (nflexelem x 6)
+  mjtNum* flexelem_krot;     // corotated element stiffness (implicit only)      (nflexstiffness x 1)
   mjtNum* flexedge_J;        // flex edge Jacobian                               (nJfe x 1)
   mjtNum* flexedge_length;   // flex edge lengths                                (nflexedge x 1)
   mjtNum* flexvert_J;        // flex vertex Jacobian                             (nJfv x 2)
@@ -368,6 +373,18 @@ typedef struct mjData_ {
   // computed by mj_fwdVelocity/mj_referenceConstraint
   mjtNum* efc_vel;           // velocity in constraint space: J*qvel             (nefc x 1)
   mjtNum* efc_aref;          // reference pseudo-acceleration                    (nefc x 1)
+
+  // computed by mj_fwdPosition/mj_invPosition when the implicit effective metric M+K is active
+  mjtNum* efm_c;             // smooth-force shift h*K*qvel                      (nv x 1)
+  int*    efm_K_rownnz;      // effective-stiffness CSR row nonzeros             (nv x 1)
+  int*    efm_K_rowadr;      // effective-stiffness CSR row addresses            (nv x 1)
+  int*    efm_K_colind;      // effective-stiffness CSR column indices           (nefmK x 1)
+  mjtNum* efm_K_val;         // effective-stiffness CSR values                   (nefmK x 1)
+  int*    efm_dofid;         // factor row -> dof address                        (nefmdof x 1)
+  int*    efm_L_rownnz;      // factor row nonzeros                              (nefmdof x 1)
+  int*    efm_L_rowadr;      // factor row addresses                             (nefmdof x 1)
+  int*    efm_L_colind;      // factor column indices                            (nefmL x 1)
+  mjtNum* efm_L;             // Cholesky factor of diag(M)+K, covered dofs       (nefmL x 1)
 
   //-------------------- arena-allocated: POSITION, VELOCITY, CONTROL/ACCELERATION dependent
 
@@ -584,6 +601,8 @@ typedef struct mjModel_ {
   mjtSize nflexelemdata;          // number of element vertex ids in all flexes
   mjtSize nflexstiffness;         // number of stiffness parameters in all flexes
   mjtSize nflexbending;           // number of bending parameters in all flexes
+  mjtSize nefm0dof;               // number of dofs covered by the constant metric factor
+  mjtSize nefm0L;                 // number of non-zeros in the constant metric factor
   mjtSize nflexelemedge;          // number of element edge ids in all flexes
   mjtSize nflexshelldata;         // number of shell fragment vertex ids in all flexes
   mjtSize nflexevpair;            // number of element-vertex pairs in all flexes
@@ -902,6 +921,11 @@ typedef struct mjModel_ {
   mjtNum*   flex_size;            // vertex bounding box half sizes in qpos0  (nflex x 3)
   mjtNum*   flex_stiffness;       // finite element stiffness matrix          (nflexstiffness x 1)
   mjtNum*   flex_bending;         // bending stiffness                        (nflexbending x 1)
+  int*      efm0_dofid;           // constant metric factor row->dof address  (nefm0dof x 1)
+  int*      efm0_L_rownnz;        // constant metric factor row nonzeros      (nefm0dof x 1)
+  int*      efm0_L_rowadr;        // constant metric factor row addresses     (nefm0dof x 1)
+  int*      efm0_L_colind;        // constant metric factor column indices    (nefm0L x 1)
+  mjtNum*   efm0_L;               // factor of M + (dt^2+dt*d)*K_bend         (nefm0L x 1)
   mjtNum*   flex_damping;         // Rayleigh's damping coefficient           (nflex x 1)
   mjtNum*   flex_edgestiffness;   // edge stiffness                           (nflex x 1)
   mjtNum*   flex_edgedamping;     // edge damping                             (nflex x 1)

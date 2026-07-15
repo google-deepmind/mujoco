@@ -189,6 +189,8 @@
     X( nflexelemdata )      \
     X( nflexstiffness )     \
     X( nflexbending )       \
+    X( nefm0dof )           \
+    X( nefm0L )             \
     X( nflexelemedge )      \
     X( nflexshelldata )     \
     X( nflexevpair )        \
@@ -501,6 +503,11 @@
     X   ( mjtNum,  flex_size,             nflex,         3                    ) \
     X   ( mjtNum,  flex_stiffness,        nflexstiffness, 1                   ) \
     X   ( mjtNum,  flex_bending,          nflexbending,  1                    ) \
+    X   ( int,     efm0_dofid,            nefm0dof,      1                    ) \
+    X   ( int,     efm0_L_rownnz,         nefm0dof,      1                    ) \
+    X   ( int,     efm0_L_rowadr,         nefm0dof,      1                    ) \
+    X   ( int,     efm0_L_colind,         nefm0L,        1                    ) \
+    X   ( mjtNum,  efm0_L,                nefm0L,        1                    ) \
     X   ( mjtNum,  flex_damping,          nflex,         1                    ) \
     X   ( mjtNum,  flex_edgestiffness,    nflex,         1                    ) \
     X   ( mjtNum,  flex_edgedamping,      nflex,         1                    ) \
@@ -866,6 +873,7 @@
     X   ( mjtNum,    cinert,            nbody,       10          ) \
     X   ( mjtNum,    flexvert_xpos,     nflexvert,   3           ) \
     X   ( mjtNum,    flexelem_aabb,     nflexelem,   6           ) \
+    X   ( mjtNum,    flexelem_krot,     nflexstiffness, 1        ) \
     X   ( mjtNum,    flexedge_J,        nJfe,        1           ) \
     X   ( mjtNum,    flexedge_length,   nflexedge,   1           ) \
     X   ( mjtNum,    flexvert_J,        nJfv,        2           ) \
@@ -995,11 +1003,25 @@
     X  ( mjtNum,  ifrc_constraint,   MJ_D(nidof),    1 )
 
 // array fields of mjData that live in d->arena
+#define MJDATA_ARENA_POINTERS_EFM                        \
+    X  ( mjtNum,   efm_c,             MJ_M(nv),          1 ) \
+    X  ( int,      efm_K_rownnz,      MJ_M(nv),          1 ) \
+    X  ( int,      efm_K_rowadr,      MJ_M(nv),          1 ) \
+    X  ( int,      efm_K_colind,      MJ_D(nefmK),       1 ) \
+    X  ( mjtNum,   efm_K_val,         MJ_D(nefmK),       1 ) \
+    X  ( int,      efm_dofid,         MJ_D(nefmdof),     1 ) \
+    X  ( int,      efm_L_rownnz,      MJ_D(nefmdof),     1 ) \
+    X  ( int,      efm_L_rowadr,      MJ_D(nefmdof),     1 ) \
+    X  ( int,      efm_L_colind,      MJ_D(nefmL),       1 ) \
+    X  ( mjtNum,   efm_L,             MJ_D(nefmL),       1 )
+
+
 #define MJDATA_ARENA_POINTERS          \
     MJDATA_ARENA_POINTERS_CONTACT      \
     MJDATA_ARENA_POINTERS_SOLVER       \
     MJDATA_ARENA_POINTERS_DUAL         \
-    MJDATA_ARENA_POINTERS_ISLAND
+    MJDATA_ARENA_POINTERS_ISLAND       \
+    MJDATA_ARENA_POINTERS_EFM
 
 
 // scalar fields of mjData
@@ -1021,6 +1043,10 @@
     X( int,       nl                 ) \
     X( int,       nefc               ) \
     X( int,       nJ                 ) \
+    X( int,       efm_active         ) \
+    X( int,       nefmK              ) \
+    X( int,       nefmdof            ) \
+    X( int,       nefmL              ) \
     X( int,       nY                 ) \
     X( int,       nA                 ) \
     X( int,       nisland            ) \
