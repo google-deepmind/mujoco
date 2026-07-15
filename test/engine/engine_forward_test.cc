@@ -464,112 +464,149 @@ TEST_F(ImplicitIntegratorTest, EnergyConservation) {
   mj_deleteModel(model);
 }
 
-// Energy and angmom conservation for free body with implicitfast (IMR)
-TEST_F(ImplicitIntegratorTest, ConservationMidpoint) {
-  // aligned: CoM at joint origin
-  static constexpr char xml1[] = R"(
+// free-body local solve: implicitfast matches implicit exactly for a standalone
+// free body
+TEST_F(ImplicitIntegratorTest, FreeBodyMatchesImplicit) {
+  static constexpr char xml[] = R"(
   <mujoco>
-    <option integrator="implicitfast" timestep="0.01">
-      <flag energy="enable" gravity="disable"/>
-    </option>
+    <option timestep="0.005"/>
     <worldbody>
-      <body>
-        <freejoint/>
-        <geom type="box" size=".1 .2 .3" mass="1" euler="10 20 30"/>
+      <body pos="0.1 -0.2 0.5" euler="20 -30 40">
+        <joint type="free" damping="0.1"/>
+        <geom type="box" size=".1 .2 .3" mass="2" pos=".04 -.02 .03" euler="10 20 30"/>
       </body>
     </worldbody>
   </mujoco>
   )";
 
-  // auto-aligned: CoM at joint origin
-  static constexpr char xml2[] = R"(
-  <mujoco>
-    <option integrator="implicitfast" timestep="0.01">
-      <flag energy="enable" gravity="disable"/>
-    </option>
-    <worldbody>
-      <body>
-        <freejoint align="true"/>
-        <geom type="box" size=".1 .2 .3" mass="1" euler="10 20 30" pos=".03 .02 .01"/>
-      </body>
-    </worldbody>
-  </mujoco>
-  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr d1 = MakeData(model);
+  MjDataPtr d2 = MakeData(model);
+  mjModel* m = model.get();
 
-  // non-aligned: CoM offset from joint origin
-  static constexpr char xml3[] = R"(
-  <mujoco>
-    <option integrator="implicitfast" timestep="0.01">
-      <flag energy="enable" gravity="disable"/>
-    </option>
-    <worldbody>
-      <body>
-        <freejoint/>
-        <geom type="box" size=".1 .2 .3" mass="1" euler="10 20 30" pos=".03 .02 .01"/>
-      </body>
-    </worldbody>
-  </mujoco>
-  )";
-  int xml_idx = 1;
-  for (auto xml : {xml1, xml2, xml3}) {
-    SCOPED_TRACE(testing::Message() << "XML case " << xml_idx++);
-    char error[1024];
-    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
-    ASSERT_THAT(model.get(), NotNull()) << error;
-    MjDataPtr data = MakeData(model);
+  // tumbling initial velocity
+  mj_resetData(m, d1.get());
+  d1->qvel[3] = 5;
+  d1->qvel[4] = -3;
+  d1->qvel[5] = 2;
 
-    const int nstep = 500;
-    mjtNum energy_drift[2], angmom_drift[2];  // [0]=midpoint, [1]=rk4
+  // step both integrators from identical states, re-synchronizing each step
+  // to avoid chaotic divergence of tumbling trajectories
+  int nstate = mj_stateSize(m, mjSTATE_INTEGRATION);
+  std::vector<mjtNum> state(nstate);
+  mjtNum tol = MjTol(1e-14, 1e-6);
+  for (int i = 0; i < 50; i++) {
+    mj_getState(m, d1.get(), state.data(), mjSTATE_INTEGRATION);
+    mj_setState(m, d2.get(), state.data(), mjSTATE_INTEGRATION);
 
-    for (int integrator : {mjINT_IMPLICITFAST, mjINT_RK4}) {
-      int idx = (integrator == mjINT_IMPLICITFAST) ? 0 : 1;
-      model->opt.integrator = integrator;
+    m->opt.integrator = mjINT_IMPLICITFAST;
+    mj_step(m, d1.get());
+    m->opt.integrator = mjINT_IMPLICIT;
+    mj_step(m, d2.get());
 
-      // reset
-      mj_resetData(model.get(), data.get());
-      data->qvel[3] = 1.0;
-      data->qvel[4] = 2.0;
-      data->qvel[5] = 3.0;
-      mj_forward(model.get(), data.get());
-      mjtNum initial_energy = data->energy[1];
-      mjtNum initial_angmom[3];
-      mj_subtreeVel(model.get(), data.get());
-      mju_copy3(initial_angmom, data->subtree_angmom);
-
-      for (int i = 0; i < nstep; i++) {
-        mj_step(model.get(), data.get());
-      }
-
-      energy_drift[idx] = fabs(data->energy[1] - initial_energy);
-      mj_subtreeVel(model.get(), data.get());
-      mjtNum angmom_err[3];
-      mju_sub3(angmom_err, data->subtree_angmom, initial_angmom);
-      angmom_drift[idx] = mju_norm3(angmom_err);
+    for (int k = 0; k < m->nv; k++) {
+      EXPECT_NEAR(d1->qvel[k], d2->qvel[k], tol)
+          << "step " << i << " dof " << k;
     }
-
-    // midpoint should conserve energy better than RK4 (double only)
-#ifndef mjUSESINGLE
-    EXPECT_LT(energy_drift[0], energy_drift[1]);
-#endif
-
-    // both should conserve angular momentum well
-    EXPECT_LT(angmom_drift[0], MjTol(1e-3, 1e-2));
-    EXPECT_LT(angmom_drift[1], MjTol(1e-3, 1e-2));
   }
 }
 
-// verify second-order convergence of midpoint integration
-TEST_F(ImplicitIntegratorTest, MidpointConvergenceOrder) {
-  // aligned: CoM at joint origin
-  static constexpr char xml1[] = R"(
+// free-body local solve: spinning free bodies do not gain energy in vacuum
+TEST_F(ImplicitIntegratorTest, FreeBodyGyroStable) {
+  static constexpr char xml[] = R"(
   <mujoco>
-    <option integrator="implicitfast">
-      <flag gravity="disable"/>
+    <option integrator="implicitfast" timestep="0.005">
+      <flag energy="enable" gravity="disable"/>
     </option>
     <worldbody>
       <body>
         <freejoint/>
-        <geom type="box" size=".1 .2 .3" mass="1" euler="10 20 30"/>
+        <geom type="box" size=".1 .2 .3" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
+
+  // middle-axis tumble and fast principal-axis spin
+  static constexpr mjtNum qvel0[2][3] = {{0.05, 5, 0.05}, {20, 0.05, 0.05}};
+
+  for (int c = 0; c < 2; c++) {
+    SCOPED_TRACE(testing::Message() << "velocity case " << c);
+    mj_resetData(m, d);
+    mju_copy3(d->qvel + 3, qvel0[c]);
+    mj_forward(m, d);
+    mjtNum initial_energy = d->energy[1];
+
+    // 100 simulated seconds
+    for (int i = 0; i < 20000; i++) {
+      mj_step(m, d);
+      ASSERT_LT(d->energy[1], 1.01 * initial_energy)
+          << "energy gain at step " << i;
+    }
+  }
+}
+
+// free-body local solve: applies to bodies in contact
+TEST_F(ImplicitIntegratorTest, FreeBodyGyroStableContact) {
+  // spinning ellipsoid on an inclined plane, as in gyroscopic.xml
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast" timestep="0.002"/>
+    <worldbody>
+      <geom type="plane" size="5 5 .1" euler="0 15 0"/>
+      <body pos="0 0 .2">
+        <freejoint/>
+        <geom type="ellipsoid" size=".05 .1 .15" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
+
+  mj_resetData(m, d);
+  d->qvel[3] = 30;
+  mjtNum initial_speed = mju_norm(d->qvel, m->nv);
+
+  int ncon_total = 0;
+  for (int i = 0; i < 5000; i++) {
+    mj_step(m, d);
+    ncon_total += d->ncon;
+    ASSERT_LT(mju_norm(d->qvel, m->nv), 2 * initial_speed)
+        << "speed gain at step " << i;
+  }
+
+  // the body was in contact while spinning
+  EXPECT_GT(ncon_total, 1000);
+}
+
+// free-body local solve: energy of a tumbling free body never increases and is
+// only mildly damped; angular momentum drift is bounded
+TEST_F(ImplicitIntegratorTest, FreeBodyConservation) {
+  // aligned: CoM at joint origin
+  static constexpr char xml1[] = R"(
+  <mujoco>
+    <option integrator="implicitfast" timestep="0.01">
+      <flag energy="enable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="box" size=".1 .2 .3" mass="1"/>
       </body>
     </worldbody>
   </mujoco>
@@ -578,14 +615,13 @@ TEST_F(ImplicitIntegratorTest, MidpointConvergenceOrder) {
   // non-aligned: CoM offset from joint origin
   static constexpr char xml2[] = R"(
   <mujoco>
-    <option integrator="implicitfast">
-      <flag gravity="disable"/>
+    <option integrator="implicitfast" timestep="0.01">
+      <flag energy="enable" gravity="disable"/>
     </option>
     <worldbody>
       <body>
         <freejoint/>
-        <geom type="box" size=".1 .2 .3" mass="1" euler="10 20 30"
-              pos=".05 .03 .02"/>
+        <geom type="box" size=".1 .2 .3" mass="1" euler="10 20 30" pos=".03 .02 .01"/>
       </body>
     </worldbody>
   </mujoco>
@@ -597,302 +633,131 @@ TEST_F(ImplicitIntegratorTest, MidpointConvergenceOrder) {
     char error[1024];
     MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
     ASSERT_THAT(model.get(), NotNull()) << error;
+    MjDataPtr data = MakeData(model);
+    mjModel* m = model.get();
+    mjData* d = data.get();
 
-    mjtNum T = 1.0;
-    mjtNum h_coarse = 0.02;
-    mjtNum quat_coarse[4], quat_fine[4], quat_ref[4];
+    mj_resetData(m, d);
+    d->qvel[3] = 1.0;
+    d->qvel[4] = 2.0;
+    d->qvel[5] = 3.0;
+    mj_forward(m, d);
+    mjtNum initial_energy = d->energy[1];
+    mjtNum initial_angmom[3];
+    mj_subtreeVel(m, d);
+    mju_copy3(initial_angmom, d->subtree_angmom);
 
-    auto run = [&](mjtNum h, mjtNum quat_out[4]) {
-      model->opt.timestep = h;
-      MjDataPtr data = MakeData(model);
+    for (int i = 0; i < 500; i++) {
+      mj_step(m, d);
 
-      data->qvel[3] = 1.0;
-      data->qvel[4] = 2.0;
-      data->qvel[5] = 3.0;
-
-      int nstep = (int)(T / h + 0.5);
-      for (int i = 0; i < nstep; i++) {
-        mj_step(model.get(), data.get());
-      }
-
-      mju_copy4(quat_out, data->qpos + 3);
-    };
-
-    run(h_coarse, quat_coarse);
-    run(h_coarse / 2, quat_fine);
-    run(h_coarse / 16, quat_ref);
-
-    // quaternion distance: ||quat - quat_ref|| (handles sign ambiguity)
-    auto quat_dist = [](const mjtNum a[4], const mjtNum b[4]) -> mjtNum {
-      mjtNum pos = 0, neg = 0;
-      for (int i = 0; i < 4; i++) {
-        pos += (a[i] - b[i]) * (a[i] - b[i]);
-        neg += (a[i] + b[i]) * (a[i] + b[i]);
-      }
-      return mju_sqrt(mju_min(pos, neg));
-    };
-
-    mjtNum err_coarse = quat_dist(quat_coarse, quat_ref);
-    mjtNum err_fine = quat_dist(quat_fine, quat_ref);
-
-    // second-order: error ratio should be ~4 when halving timestep
-    mjtNum ratio = err_coarse / err_fine;
-    EXPECT_GT(ratio, 3.5);
-    EXPECT_LT(ratio, 4.5);
-  }
-}
-
-// verify that Newton iteration in mj_midpoint converges quickly (aligned case)
-TEST_F(ImplicitIntegratorTest, MidpointNewtonConvergence) {
-  // inertia ratios: symmetric, mildly asymmetric, extremely asymmetric
-  mjtNum inertias[][3] = {
-      {1.0, 1.0, 1.0},
-      {1.0, 2.0, 3.0},
-      {0.01, 1.0, 100.0},
-      {1.0, 1.0, 1000.0},
-  };
-
-  mjtNum timesteps[] = {0.001, 0.01, 0.1};
-
-  mjtNum velocities[][3] = {
-      {1.0, 2.0, 3.0},
-      {100.0, 0.0, 0.0},
-      {10.0, 10.0, 10.0},
-      {0.01, 0.01, 100.0},
-  };
-
-  mjtNum q_identity[4] = {1, 0, 0, 0};
-  mjtNum torques[][3] = {
-      {0, 0, 0},
-      {10.0, 20.0, 30.0},
-      {100.0, 0.0, 0.0},
-      {0.0, 0.0, 100.0},
-  };
-
-  int max_iter = 0;
-  int total_iter = 0;
-  int ncases = 0;
-
-  for (auto& I : inertias) {
-    for (mjtNum h : timesteps) {
-      for (auto& w : velocities) {
-        for (auto& tau : torques) {
-          mjtNum vel[6] = {0, 0, 0, w[0], w[1], w[2]};
-          mjtNum tau_ext[6] = {0, 0, 0, tau[0], tau[1], tau[2]};
-          mjtNum v_new[6];
-          mjtNum ipos[3] = {0, 0, 0};
-          int niter = mj_midpoint(1.0, I, ipos, q_identity, q_identity, vel,
-                                  tau_ext, NULL, h, v_new);
-          EXPECT_LT(niter, 10)
-              << "Failed for I=(" << I[0] << "," << I[1] << "," << I[2] << ")"
-              << " h=" << h << " w=(" << w[0] << "," << w[1] << "," << w[2]
-              << ")"
-              << " tau=(" << tau[0] << "," << tau[1] << "," << tau[2] << ")";
-          max_iter = std::max(max_iter, niter);
-          total_iter += niter;
-          ncases++;
-        }
-      }
+      // energy never increases (small tolerance for rounding)
+      ASSERT_LT(d->energy[1], initial_energy * (1 + MjTol(1e-9, 1e-4)))
+          << "energy gain at step " << i;
     }
-  }
 
-  EXPECT_LE(max_iter, 4);
-  EXPECT_LT((mjtNum)total_iter / ncases, 2.0);
+    // implicit damping of tumbling is mild: measured E_end/E0 = 0.93
+    EXPECT_GT(d->energy[1], 0.7 * initial_energy);
+
+    // angular momentum drift is bounded: measured 5e-3
+    mj_subtreeVel(m, d);
+    mjtNum angmom_err[3];
+    mju_sub3(angmom_err, d->subtree_angmom, initial_angmom);
+    EXPECT_LT(mju_norm3(angmom_err), 0.05);
+  }
 }
 
-// verify that Newton iteration in mj_midpoint converges quickly (non-aligned)
-TEST_F(ImplicitIntegratorTest, MidpointFullNewtonConvergence) {
-  mjtNum masses[] = {0.1, 1.0, 10.0};
-
-  mjtNum inertias[][3] = {
-      {1.0, 1.0, 1.0},
-      {1.0, 2.0, 3.0},
-      {0.01, 1.0, 100.0},
-  };
-
-  mjtNum offsets[][3] = {
-      {0.1, 0.0, 0.0},
-      {0.05, 0.03, 0.02},
-      {0.0, 0.0, 0.5},
-  };
-
-  mjtNum timesteps[] = {0.001, 0.01, 0.1};
-
-  mjtNum velocities[][6] = {
-      {1.0, 0.0, 0.0, 1.0, 2.0, 3.0},
-      {0.0, 0.0, 0.0, 10.0, 10.0, 10.0},
-      {5.0, 5.0, 5.0, 0.01, 0.01, 100.0},
-  };
-
-  mjtNum q_identity[4] = {1, 0, 0, 0};
-  mjtNum forces[][6] = {
-      {0, 0, 0, 0, 0, 0},
-      {10.0, 20.0, 30.0, 1.0, 2.0, 3.0},
-  };
-
-  int max_iter = 0;
-  int total_iter = 0;
-  int ncases = 0;
-
-  for (mjtNum mass : masses) {
-    for (auto& I : inertias) {
-      for (auto& r : offsets) {
-        for (mjtNum h : timesteps) {
-          for (auto& vel : velocities) {
-            for (auto& frc : forces) {
-              mjtNum v_new[6];
-              int niter = mj_midpoint(mass, I, r, q_identity, q_identity, vel,
-                                      frc, NULL, h, v_new);
-              EXPECT_LT(niter, 10)
-                  << "Failed for mass=" << mass << " I=(" << I[0] << "," << I[1]
-                  << "," << I[2] << ")"
-                  << " r=(" << r[0] << "," << r[1] << "," << r[2] << ")"
-                  << " h=" << h;
-              max_iter = std::max(max_iter, niter);
-              total_iter += niter;
-              ncases++;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  EXPECT_LE(max_iter, 6);
-  EXPECT_LT((mjtNum)total_iter / ncases, 3.0);
-}
-
-// verify midpoint eligibility: compare with/without invdiscrete
-//   if trajectories differ, midpoint was applied
-//   if trajectories match, midpoint was skipped
-TEST_F(ImplicitIntegratorTest, MidpointEligibility) {
-  // free body with asymmetric inertia, optionally near a plane
+// gyroscopic instability: Euler gains energy where implicitfast does not
+TEST_F(ImplicitIntegratorTest, FreeBodyEulerGainsImplicitfastDissipates) {
   static constexpr char xml[] = R"(
   <mujoco>
-    <option integrator="implicitfast" timestep="0.01">
-      <flag energy="enable"/>
+    <option timestep="0.01">
+      <flag energy="enable" gravity="disable"/>
     </option>
     <worldbody>
-      <geom type="plane" size="5 5 0.1"/>
-      <body name="free" pos="0 0 2">
+      <body>
         <freejoint/>
-        <geom type="ellipsoid" size="0.3 0.2 0.1" mass="1"/>
+        <geom type="box" size=".1 .2 .3" mass="1"/>
       </body>
     </worldbody>
   </mujoco>
   )";
 
   char error[1024];
-  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m.get(), NotNull()) << error;
-  MjDataPtr d1 = MakeData(m);
-  MjDataPtr d2 = MakeData(m);
-  int nsteps = 50;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
 
-  auto spin_and_compare = [&](const char* label, bool expect_midpoint) {
-    mj_resetData(m.get(), d1.get());
-    mj_resetData(m.get(), d2.get());
-    d1->qvel[3] = d2->qvel[3] = 5;
-    d1->qvel[4] = d2->qvel[4] = 3;
-    d1->qvel[5] = d2->qvel[5] = 1;
-
-    // d1: midpoint enabled (default)
-    m->opt.enableflags &= ~mjENBL_INVDISCRETE;
-    for (int i = 0; i < nsteps; i++) mj_step(m.get(), d1.get());
-
-    // d2: midpoint disabled
-    m->opt.enableflags |= mjENBL_INVDISCRETE;
-    mj_resetData(m.get(), d2.get());
-    d2->qvel[3] = 5;
-    d2->qvel[4] = 3;
-    d2->qvel[5] = 1;
-    for (int i = 0; i < nsteps; i++) mj_step(m.get(), d2.get());
-    m->opt.enableflags &= ~mjENBL_INVDISCRETE;
-
-    // compare angular velocities
-    mjtNum diff = 0;
-    for (int k = 3; k < 6; k++) {
-      mjtNum d = d1->qvel[k] - d2->qvel[k];
-      diff += d * d;
+  mjtNum energy_end[2];
+  for (int integrator : {mjINT_EULER, mjINT_IMPLICITFAST}) {
+    m->opt.integrator = integrator;
+    mj_resetData(m, d);
+    d->qvel[3] = 1.0;
+    d->qvel[4] = 2.0;
+    d->qvel[5] = 3.0;
+    mj_forward(m, d);
+    mjtNum initial_energy = d->energy[1];
+    for (int i = 0; i < 500; i++) {
+      mj_step(m, d);
     }
-    if (expect_midpoint) {
-      EXPECT_GT(diff, 1e-6) << label << ": expected midpoint to be applied";
-    } else {
-      EXPECT_LT(diff, 1e-20) << label << ": expected midpoint to be skipped";
-    }
-  };
-
-  // case 1: free body in vacuum, implicitfast -> midpoint applied
-  m->opt.integrator = mjINT_IMPLICITFAST;
-  m->opt.density = 0;
-  m->opt.viscosity = 0;
-  spin_and_compare("vacuum+implicitfast", true);
-
-  // case 2: implicit integrator -> midpoint NOT applied
-  m->opt.integrator = mjINT_IMPLICIT;
-  spin_and_compare("vacuum+implicit", false);
-
-  // case 3: fluid (nonzero density) -> midpoint NOT applied
-  m->opt.integrator = mjINT_IMPLICITFAST;
-  m->opt.density = 1.2;
-  spin_and_compare("fluid+implicitfast", false);
-  m->opt.density = 0;
-
-  // case 4: fluid (nonzero viscosity) -> midpoint NOT applied
-  m->opt.viscosity = 0.001;
-  spin_and_compare("viscosity+implicitfast", false);
-  m->opt.viscosity = 0;
-
-  // case 5: body with active contacts -> midpoint NOT applied
-  // test both island-enabled and island-disabled branches
-  for (int disable_island = 0; disable_island < 2; disable_island++) {
-    m->opt.integrator = mjINT_IMPLICITFAST;
-    if (disable_island) {
-      m->opt.disableflags |= mjDSBL_ISLAND;
-    } else {
-      m->opt.disableflags &= ~mjDSBL_ISLAND;
-    }
-
-    mj_resetData(m.get(), d1.get());
-    mj_resetData(m.get(), d2.get());
-    d1->qpos[2] = d2->qpos[2] = 0.05;
-    d1->qvel[3] = d2->qvel[3] = 5;
-    d1->qvel[4] = d2->qvel[4] = 3;
-    d1->qvel[5] = d2->qvel[5] = 1;
-
-    // verify contacts are active
-    mj_forward(m.get(), d1.get());
-    ASSERT_GT(d1->ncon, 0) << "body should be in contact with the plane";
-
-    // single step with midpoint enabled
-    mj_resetData(m.get(), d1.get());
-    d1->qpos[2] = 0.05;
-    d1->qvel[3] = 5;
-    d1->qvel[4] = 3;
-    d1->qvel[5] = 1;
-    m->opt.enableflags &= ~mjENBL_INVDISCRETE;
-    mj_step(m.get(), d1.get());
-
-    // single step with midpoint disabled
-    mj_resetData(m.get(), d2.get());
-    d2->qpos[2] = 0.05;
-    d2->qvel[3] = 5;
-    d2->qvel[4] = 3;
-    d2->qvel[5] = 1;
-    m->opt.enableflags |= mjENBL_INVDISCRETE;
-    mj_step(m.get(), d2.get());
-    m->opt.enableflags &= ~mjENBL_INVDISCRETE;
-
-    mjtNum diff = 0;
-    for (int k = 0; k < m->nv; k++) {
-      mjtNum d = d1->qvel[k] - d2->qvel[k];
-      diff += d * d;
-    }
-    EXPECT_LT(diff, 1e-20) << "contact (island "
-                           << (disable_island ? "disabled" : "enabled")
-                           << "): expected midpoint to be skipped";
+    energy_end[integrator == mjINT_IMPLICITFAST] =
+        d->energy[1] / initial_energy;
   }
-  m->opt.disableflags &= ~mjDSBL_ISLAND;
+
+  // Euler gains energy (measured: 1.09), implicitfast does not
+  EXPECT_GT(energy_end[0], 1.01);
+  EXPECT_LT(energy_end[1], 1.0);
+}
+
+// the invdiscrete flag has no effect on forward dynamics
+TEST_F(ImplicitIntegratorTest, InvdiscreteForwardNoop) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.005"/>
+    <worldbody>
+      <geom type="plane" size="2 2 .1"/>
+      <body pos="0 0 .3">
+        <joint type="free" damping="0.1"/>
+        <geom type="box" size=".1 .2 .3" mass="2" pos=".03 .02 .01"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr d1 = MakeData(model);
+  MjDataPtr d2 = MakeData(model);
+  mjModel* m = model.get();
+
+  for (int integrator : {mjINT_IMPLICITFAST, mjINT_IMPLICIT}) {
+    m->opt.integrator = integrator;
+
+    mj_resetData(m, d1.get());
+    d1->qvel[3] = 5;
+    d1->qvel[5] = 2;
+    mj_resetData(m, d2.get());
+    d2->qvel[3] = 5;
+    d2->qvel[5] = 2;
+
+    for (int i = 0; i < 200; i++) {
+      m->opt.enableflags &= ~mjENBL_INVDISCRETE;
+      mj_step(m, d1.get());
+      m->opt.enableflags |= mjENBL_INVDISCRETE;
+      mj_step(m, d2.get());
+    }
+    m->opt.enableflags &= ~mjENBL_INVDISCRETE;
+
+    // trajectories are bit-identical
+    for (int k = 0; k < m->nq; k++) {
+      EXPECT_EQ(d1->qpos[k], d2->qpos[k]) << "qpos " << k;
+    }
+    for (int k = 0; k < m->nv; k++) {
+      EXPECT_EQ(d1->qvel[k], d2->qvel[k]) << "qvel " << k;
+    }
+  }
 }
 
 // model with degenerate translational inertia

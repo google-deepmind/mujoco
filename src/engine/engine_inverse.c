@@ -159,6 +159,17 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
 
     // set qfrc = (M - dt*qDeriv) * qacc
     mju_mulSymVecSparse(qfrc, d->qH, qacc, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind);
+
+    // standalone free bodies: overwrite block rows with the unsymmetric local product,
+    // including the bias (gyroscopic) derivative, mirroring mj_implicitSkip
+    for (int j=0; j < m->njnt; j++) {
+      mjtNum A[36];
+      if (!mjd_freeMhat(m, d, j, m->opt.timestep, A)) {
+        continue;
+      }
+      int adr = m->jnt_dofadr[j];
+      mju_mulMatVec(qfrc+adr, A, qacc+adr, 6, 6);
+    }
     break;
   }
 

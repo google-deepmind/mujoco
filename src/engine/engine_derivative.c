@@ -19,6 +19,7 @@
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"
+#include "engine/engine_inline.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_passive.h"
 #include "engine/engine_sleep.h"
@@ -702,6 +703,186 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
   }
 
   mj_freeStack(d);
+}
+
+
+// 3x3 sub-blocks of (d qfrc_bias / d qvel) for a standalone free body
+//   outputs the two 3x3 blocks lin and rot such that the rotational columns
+//   of the full 6x6 bias Jacobian B are  [-mass*lin; rot]  (linear columns are zero)
+//
+// derivation: let R = xmat, s = xipos - xpos, w = R*qvel[rot] (world angular velocity),
+// Iw = ximat * diag(body_inertia) * ximat' (world inertia about the CoM). with qacc = 0,
+// the CoM acceleration is w x (w x s) and the world bias force/torque at the CoM are
+//   f = mass * w x (w x s),   tau = w x Iw*w
+// projected onto the joint coordinates: bias = [f;  R'*(s x f + tau)]. differentiating
+// w.r.t. the rotational dofs (through w = R*qvel[rot]), with K = [w x s]_x + [w]_x [s]_x:
+//   d f / d w   = -mass * K            =>  lin = K * R
+//   d tau / d w = [w]_x Iw - [Iw*w]_x  =>  rot = R' * (-mass*[s]_x K + d tau/d w) * R
+static void freeBias_vel_blocks(mjtNum mass, const mjtNum R[9], const mjtNum Xi[9],
+                                const mjtNum inertia[3], const mjtNum s[3],
+                                const mjtNum qvel_rot[3], mjtNum lin[9], mjtNum rot[9]) {
+  // world-frame angular velocity
+  mjtNum w[3];
+  mji_mulMatVec3(w, R, qvel_rot);
+
+  // world-frame inertia about CoM: Iw = Xi * diag(inertia) * Xi^T
+  mjtNum Xi_I[9];
+  for (int i=0; i < 3; i++) {
+    Xi_I[3*i+0] = Xi[3*i+0] * inertia[0];
+    Xi_I[3*i+1] = Xi[3*i+1] * inertia[1];
+    Xi_I[3*i+2] = Xi[3*i+2] * inertia[2];
+  }
+  mjtNum Iw[9];
+  Iw[0] = Xi_I[0]*Xi[0] + Xi_I[1]*Xi[1] + Xi_I[2]*Xi[2];
+  Iw[4] = Xi_I[3]*Xi[3] + Xi_I[4]*Xi[4] + Xi_I[5]*Xi[5];
+  Iw[8] = Xi_I[6]*Xi[6] + Xi_I[7]*Xi[7] + Xi_I[8]*Xi[8];
+  Iw[1] = Iw[3] = Xi_I[0]*Xi[3] + Xi_I[1]*Xi[4] + Xi_I[2]*Xi[5];
+  Iw[2] = Iw[6] = Xi_I[0]*Xi[6] + Xi_I[1]*Xi[7] + Xi_I[2]*Xi[8];
+  Iw[5] = Iw[7] = Xi_I[3]*Xi[6] + Xi_I[4]*Xi[7] + Xi_I[5]*Xi[8];
+
+  // intermediate vectors: ws = w x s  (CoM offset velocity),  Iww = Iw * w  (angular momentum)
+  mjtNum ws[3], Iww[3];
+  mji_cross(ws, w, s);
+  mji_mulMatVec3(Iww, Iw, w);
+
+  // K = [w x s]_x + [w]_x [s]_x = s w^T - (w . s) I + [ws]_x
+  mjtNum w_dot_s = w[0]*s[0] + w[1]*s[1] + w[2]*s[2];
+  mjtNum K[9];
+  K[0] = s[0]*w[0] - w_dot_s;
+  K[1] = s[0]*w[1] - ws[2];
+  K[2] = s[0]*w[2] + ws[1];
+
+  K[3] = s[1]*w[0] + ws[2];
+  K[4] = s[1]*w[1] - w_dot_s;
+  K[5] = s[1]*w[2] - ws[0];
+
+  K[6] = s[2]*w[0] - ws[1];
+  K[7] = s[2]*w[1] + ws[0];
+  K[8] = s[2]*w[2] - w_dot_s;
+
+  // lin = K * R
+  mji_mulMatMat3(lin, K, R);
+
+  // C = -mass * [s]_x K + [w]_x Iw - [Iww]_x,  column by column
+  // the last term (-[Iww]_x) is the negated cross-product matrix, added via ternaries
+  mjtNum C[9];
+  for (int c=0; c < 3; c++) {
+    mjtNum s_x_K_row0 = s[1]*K[6+c] - s[2]*K[3+c];
+    mjtNum s_x_K_row1 = s[2]*K[c] - s[0]*K[6+c];
+    mjtNum s_x_K_row2 = s[0]*K[3+c] - s[1]*K[c];
+
+    mjtNum w_x_Iw_row0 = w[1]*Iw[6+c] - w[2]*Iw[3+c];
+    mjtNum w_x_Iw_row1 = w[2]*Iw[c] - w[0]*Iw[6+c];
+    mjtNum w_x_Iw_row2 = w[0]*Iw[3+c] - w[1]*Iw[c];
+
+    C[c]     = -mass * s_x_K_row0 + w_x_Iw_row0 + (c == 1 ? Iww[2] : (c == 2 ? -Iww[1] : 0));
+    C[3 + c] = -mass * s_x_K_row1 + w_x_Iw_row1 + (c == 0 ? -Iww[2] : (c == 2 ? Iww[0] : 0));
+    C[6 + c] = -mass * s_x_K_row2 + w_x_Iw_row2 + (c == 0 ? Iww[1] : (c == 1 ? -Iww[0] : 0));
+  }
+
+  // rot = R^T * C * R
+  mjtNum tmp[9];
+  mji_mulMatTMat3(tmp, R, C);
+  mji_mulMatMat3(rot, tmp, R);
+}
+
+
+// 6x6 block B = d qfrc_bias / d qvel for a standalone free body
+//   assembles the full 6x6 from the 3x3 sub-blocks computed by freeBias_vel_blocks
+//   rows/cols ordered like the free joint dofs: [linear(3); rotational(3)]
+//   linear columns are zero: the bias force does not depend on linear velocity
+void mjd_freeBias_vel(const mjModel* m, const mjData* d, int jnt, mjtNum B[36]) {
+  int body = m->jnt_bodyid[jnt];
+  int adr = m->jnt_dofadr[jnt];
+  mjtNum mass = m->body_mass[body];
+  const mjtNum* R = d->xmat + 9*body;    // body  -> world
+  const mjtNum* Xi = d->ximat + 9*body;  // inertia -> world
+  const mjtNum* inertia = m->body_inertia + 3*body;
+
+  // CoM offset from joint origin, world frame
+  mjtNum s[3];
+  mji_sub3(s, d->xipos + 3*body, d->xpos + 3*body);
+
+  mjtNum lin[9], rot[9];
+  freeBias_vel_blocks(mass, R, Xi, inertia, s, d->qvel + adr + 3, lin, rot);
+
+  mju_zero(B, 36);
+  for (int r=0; r < 3; r++) {
+    for (int c=0; c < 3; c++) {
+      B[6*r + 3+c] = -mass * lin[3*r+c];
+      B[6*(3+r) + 3+c] = rot[3*r+c];
+    }
+  }
+}
+
+
+// 6x6 block A = M - h * (d qfrc_smooth / d qvel) for the free joint of a standalone body
+//   returns 1 and writes A if jnt is the free joint of a standalone awake body, 0 otherwise
+//   requires valid d->qDeriv rows for the block, computed with flg_bias = 0; the bias
+//   derivative excluded from qDeriv is added here via freeBias_vel_blocks
+int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjtNum A[36]) {
+  // must be a free joint
+  if (m->jnt_type[jnt] != mjJNT_FREE) {
+    return 0;
+  }
+
+  int body = m->jnt_bodyid[jnt];
+  int adr = m->jnt_dofadr[jnt];
+  int tree = m->dof_treeid[adr];
+  mjtNum mass = m->body_mass[body];
+
+  // must be a standalone 6-DOF tree with no children, awake
+  if (m->tree_dofnum[tree] != 6 ||
+      m->body_subtreemass[body] != mass ||
+      !d->tree_awake[tree]) {
+    return 0;
+  }
+
+  // D rows of a standalone free body are exactly the 6x6 block (D sparsity is tree-local);
+  // guard the gathers below against any violation of this invariant
+  if (m->D_rownnz[adr] != 6) {
+    return 0;
+  }
+
+  // A = M block (gather from sparse lower triangle)
+  mju_zero(A, 36);
+  for (int r=0; r < 6; r++) {
+    int rowadr = m->M_rowadr[adr+r];
+    int rownnz = m->M_rownnz[adr+r];
+    for (int k=0; k < rownnz; k++) {
+      int c = m->M_colind[rowadr+k] - adr;
+      A[6*r+c] = A[6*c+r] = d->M[rowadr+k];
+    }
+  }
+
+  // A -= h * qDeriv block (actuator and passive derivatives)
+  for (int r=0; r < 6; r++) {
+    int rowadr = m->D_rowadr[adr+r];
+    int rownnz = m->D_rownnz[adr+r];
+    for (int k=0; k < rownnz; k++) {
+      int c = m->D_colind[rowadr+k] - adr;
+      A[6*r+c] -= h * d->qDeriv[rowadr+k];
+    }
+  }
+
+  // A -= h * d(qfrc_smooth)/d(qvel) for the bias term missing from qDeriv;
+  // qfrc_smooth includes -qfrc_bias, so subtracting its derivative adds +h*B
+  mjtNum s[3];
+  mji_sub3(s, d->xipos + 3*body, d->xpos + 3*body);
+
+  mjtNum lin[9], rot[9];
+  freeBias_vel_blocks(mass, d->xmat + 9*body, d->ximat + 9*body,
+                      m->body_inertia + 3*body, s, d->qvel + adr + 3, lin, rot);
+
+  mjtNum h_mass = -h * mass;
+  for (int r=0; r < 3; r++) {
+    for (int c=0; c < 3; c++) {
+      A[6*r + 3+c] += h_mass * lin[3*r+c];
+      A[6*(3+r) + 3+c] += h * rot[3*r+c];
+    }
+  }
+
+  return 1;
 }
 
 

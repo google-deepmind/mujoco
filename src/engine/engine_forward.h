@@ -64,13 +64,6 @@ MJAPI void mj_implicit(const mjModel *m, mjData *d);
 // fully implicit in velocity, possibly skipping factorization
 MJAPI void mj_implicitSkip(const mjModel *m, mjData *d, int skipfactor);
 
-// implicit midpoint integration for 6 DOFs (translation + rotation) of a single body
-// returns number of Newton iterations
-MJAPI int mj_midpoint(mjtNum mass, const mjtNum inertia[3], const mjtNum ipos[3],
-                      const mjtNum iquat[4], const mjtNum xquat[4], const mjtNum qvel[6],
-                      const mjtNum qfrc[6], const mjtNum gravity[3], mjtNum h,
-                      mjtNum qvel_new[6]);
-
 
 //-------------------------------- solver components -----------------------------------------------
 

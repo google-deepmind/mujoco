@@ -7,6 +7,14 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+- Replaced midpoint integration of free bodies with :ref:`gyroscopic derivatives<geFreeBody>` in the ``implicitfast``
+  :ref:`integrator<geIntegrators>`: the bias-force derivative of every standalone free body is applied via a local
+  unsymmetric solve of its decoupled block, making ``implicitfast`` identical to ``implicit`` for such bodies.
+  Unlike midpoint integration, which required vacuum and no constraints, this applies in all environments (contacts,
+  fluid, constraints), and is compatible with discrete-time inverse dynamics. Spinning free bodies no
+  longer gain energy, but tumbling motion is now mildly damped; models requiring long-horizon energy conservation of
+  tumbling bodies in vacuum should use ``RK4``. The :ref:`invdiscrete<option-flag-invdiscrete>` flag no longer has any
+  effect on forward dynamics.
 - Added Nesterov momentum extrapolation with adaptive gradient restart (O'Donoghue-Candès) to the PGS solver,
   significantly improving convergence. Overall PGS now requires ~2x fewer iterations.
 - Added the Newton decrement -- the quadratic model's predicted cost improvement of the next iteration -- as a third
@@ -233,7 +241,7 @@ General
    improving performance by ~20%.
 3. :commit:`b9c1877e` Added support for :ref:`elastic2d<flex-elasticity-elastic2d>` for trilinear and quadratic flex
    :ref:`dofs<body-flexcomp-dof>`.
-4. :commit:`910b3336` :ref:`Midpoint integration<geMidpoint>` is now restricted to the ``implicitfast``
+4. :commit:`910b3336` Midpoint integration is now restricted to the ``implicitfast``
    :ref:`integrator<geIntegrators>` and is disabled when fluid forces are active
    (nonzero :ref:`density<option-density>` or :ref:`viscosity<option-viscosity>`).
    Midpoint integration treats external forces as zero-order-hold constants, which causes
@@ -335,7 +343,7 @@ General
    scalar arrays (``jnt_stiffness``, ``dof_damping``, etc.) continue to hold the linear coefficient and are unchanged.
    The polynomial order is defined by the new constant :ref:`mjNPOLY<glNumericSizes>`. A future breaking C-API change
    may unify the linear and higher-order coefficients into a single array.
-4. :commit:`0c337799` Added :ref:`midpoint integration<geMidpoint>` for standalone free bodies in ``implicit`` and
+4. :commit:`0c337799` Added midpoint integration for standalone free bodies in ``implicit`` and
    ``implicitfast`` :ref:`integrators<geIntegrators>`. This applies the implicit midpoint rule to the rotational
    dynamics of free bodies with no children, conserving kinetic energy to machine precision in the absence of external
    torques. The :ref:`invdiscrete<option-flag-invdiscrete>` flag now also disables midpoint integration, providing an

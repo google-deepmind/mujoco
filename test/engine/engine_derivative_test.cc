@@ -147,6 +147,84 @@ TEST_F(DerivativeTest, SmoothDvel) {
   }
 }
 
+// mjd_freeBias_vel: 6x6 bias-derivative block for a standalone free body
+//   validated against mjd_rne_vel and against finite-differenced mj_rne
+TEST_F(DerivativeTest, FreeBiasVel) {
+  // free body with offset CoM, rotated inertia, non-identity orientation
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="0.1 -0.2 0.3" euler="20 -30 40">
+        <freejoint/>
+        <geom type="box" size=".1 .2 .3" mass="2" pos=".04 -.02 .03" euler="10 20 30"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
+
+  // set fast, fully populated velocity
+  mjtNum qvel[6] = {0.4, -0.3, 0.2, 5, -3, 2};
+  mju_copy(d->qvel, qvel, 6);
+  mj_forward(m, d);
+
+  // analytic block
+  mjtNum B[36];
+  mjd_freeBias_vel(m, d, /*jnt=*/0, B);
+
+  // linear columns are zero by construction
+  for (int r = 0; r < 6; r++) {
+    for (int c = 0; c < 3; c++) {
+      EXPECT_EQ(B[6 * r + c], 0);
+    }
+  }
+
+  // compare with mjd_rne_vel: B == -(qDeriv(flg_bias=1) - qDeriv(flg_bias=0))
+  mju_zero(d->qDeriv, m->nD);
+  mjd_smooth_vel(m, d, /*flg_bias=*/1);
+  vector<mjtNum> qDeriv_bias = AsVector(d->qDeriv, m->nD);
+  mju_zero(d->qDeriv, m->nD);
+  mjd_smooth_vel(m, d, /*flg_bias=*/0);
+  for (int r = 0; r < 6; r++) {
+    int rowadr = m->D_rowadr[r];
+    ASSERT_EQ(m->D_rownnz[r], 6);
+    for (int k = 0; k < 6; k++) {
+      int c = m->D_colind[rowadr + k];
+      mjtNum rne_val = -(qDeriv_bias[rowadr + k] - d->qDeriv[rowadr + k]);
+      EXPECT_NEAR(B[6 * r + c], rne_val, MjTol(1e-14, 1e-6))
+          << "mismatch at (" << r << ", " << c << ")";
+    }
+  }
+
+  // compare with central finite differences of mj_rne
+  mjtNum eps = MjTol(1e-6, 1e-3);
+  for (int c = 0; c < 6; c++) {
+    mjtNum bias_plus[6], bias_minus[6];
+
+    d->qvel[c] = qvel[c] + eps;
+    mj_comVel(m, d);
+    mj_rne(m, d, /*flg_acc=*/0, bias_plus);
+
+    d->qvel[c] = qvel[c] - eps;
+    mj_comVel(m, d);
+    mj_rne(m, d, /*flg_acc=*/0, bias_minus);
+
+    d->qvel[c] = qvel[c];
+
+    for (int r = 0; r < 6; r++) {
+      mjtNum fd = (bias_plus[r] - bias_minus[r]) / (2 * eps);
+      EXPECT_NEAR(B[6 * r + c], fd, MjTol(1e-7, 1e-2))
+          << "FD mismatch at (" << r << ", " << c << ")";
+    }
+  }
+}
+
 // disabled actuators do not contribute to d_qfrc_actuator/d_qvel
 TEST_F(DerivativeTest, DisabledActuators) {
   // model with only a position actuator

@@ -43,6 +43,15 @@ MJAPI void mjd_passive_vel(const mjModel* m, mjData* d);
 // subtract (d qfrc_bias / d qvel) from qDeriv (dense version)
 MJAPI void mjd_rne_vel_dense(const mjModel* m, mjData* d);
 
+// 6x6 block B = d qfrc_bias / d qvel for the free joint of a standalone body
+MJAPI void mjd_freeBias_vel(const mjModel* m, const mjData* d, int jnt,
+                            mjtNum B[36]);
+
+// 6x6 block A = M - h * (d qfrc_smooth / d qvel) for the free joint of a standalone body
+//   returns 1 and writes A if jnt is the free joint of a standalone awake body, 0 otherwise
+//   requires valid d->qDeriv rows for the block, computed with flg_bias = 0
+MJAPI int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjtNum A[36]);
+
 // compute res += (s1 + s2*damping) * J'*K*J * vec, for all interpolated flexes
 //   K_rot_cache: if non-NULL, use pre-cached K_rot (same layout as m->flex_stiffness)
 MJAPI void mjd_flexInterp_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
