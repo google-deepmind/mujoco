@@ -406,9 +406,9 @@ static void mjc_hillclimbSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[
   mjtNum local_dir[3];
   mulMatTVec3(local_dir, mat, dir);
 
-  mjtNum max = -FLT_MAX;
   int prev = -1;
   int imax = obj->meshindex >= 0 ? obj->meshindex : 0;
+  mjtNum max = dot3f(local_dir, verts + 3*vert_globalid[imax]);
 
   // hillclimb until no change
   while (imax != prev) {
