@@ -14,15 +14,15 @@
 
 #include "render/filament/support/renderable_manager.h"
 
-#include <cmath>
+#include <array>
 #include <memory>
-#include <optional>
+#include <span>
 #include <utility>
 #include <vector>
 
+#include <math/TVecHelpers.h>
 #include <math/mat3.h>
 #include <math/quat.h>
-#include <math/TVecHelpers.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include <mujoco/mjdata.h>
@@ -208,11 +208,10 @@ RenderableManager::~RenderableManager() {
       mjrf_removeRenderableFromScene(scene_, renderable.get());
     }
   }
-  for (auto& renderable : sliders_) {
-    mjrf_removeRenderableFromScene(scene_, renderable.get());
-  }
-  for (auto& renderable : cranks_) {
-    mjrf_removeRenderableFromScene(scene_, renderable.get());
+  for (auto& [_, renderables] : slider_cranks_) {
+    for (auto& renderable : renderables) {
+      mjrf_removeRenderableFromScene(scene_, renderable.get());
+    }
   }
 }
 
@@ -237,8 +236,8 @@ void RenderableManager::Update(const mjData* data) {
     const bool smooth_skinning = vopts_.flags[mjVIS_FLEXSKIN];
     const bool edges = !smooth_skinning && vopts_.flags[mjVIS_FLEXEDGE];
     const bool vertices = !smooth_skinning && vopts_.flags[mjVIS_FLEXVERT];
-    auto mesh = CreateFlexMesh(ctx, model, data, i, flex_layer,
-                               smooth_skinning, edges, vertices);
+    auto mesh = CreateFlexMesh(ctx, model, data, i, flex_layer, smooth_skinning,
+                               edges, vertices);
     mjrf_setRenderableMesh(flexes_[i].get(), mesh.get(), 0, 0);
     flex_meshes_[i] = std::move(mesh);
   }
@@ -253,12 +252,10 @@ void RenderableManager::Update(const mjData* data) {
     UpdateSpatialTendons(data, i);
   }
 
-  int renderable_index = 0;
   for (int i = 0; i < model->nu; i++) {
-    if (model->actuator_trntype[i] != mjTRN_SLIDERCRANK) {
-      continue;
+    if (model->actuator_trntype[i] == mjTRN_SLIDERCRANK) {
+      UpdateSliderCranks(data, i);
     }
-    UpdateSliderCranks(data, i, renderable_index++);
   }
 
   if (vopts_.flags[mjVIS_ISLAND]) {
@@ -293,13 +290,13 @@ void RenderableManager::Update(const mjData* data) {
       if (model->flex_interp[i]) {
         int nodeadr = model->flex_nodeadr[i];
         for (int j = 0; j < model->flex_nodenum[i] && bodyid < 0; j++) {
-          int b = model->flex_nodebodyid[nodeadr+j];
+          int b = model->flex_nodebodyid[nodeadr + j];
           if (model->body_treeid[b] >= 0) bodyid = b;
         }
       } else {
         int vertadr = model->flex_vertadr[i];
-        for (int j=0; j < model->flex_vertnum[i] && bodyid < 0; j++) {
-          int b = model->flex_vertbodyid[vertadr+j];
+        for (int j = 0; j < model->flex_vertnum[i] && bodyid < 0; j++) {
+          int b = model->flex_vertbodyid[vertadr + j];
           if (model->body_treeid[b] >= 0) bodyid = b;
         }
       }
@@ -328,8 +325,8 @@ void RenderableManager::Update(const mjData* data) {
   }
 }
 
-mjrfRenderable* RenderableManager::GetRenderable(mjtObj obj_type,
-                                                 int obj_index) {
+mjrfRenderable* RenderableManager::GetRenderable(mjtObj obj_type, int obj_index,
+                                                 int sub_index) {
   switch (obj_type) {
     case mjOBJ_GEOM:
       if (obj_index >= 0 && obj_index < geoms_.size()) {
@@ -351,9 +348,20 @@ mjrfRenderable* RenderableManager::GetRenderable(mjtObj obj_type,
         return skins_[obj_index].get();
       }
       break;
+    case mjOBJ_TENDON:
+      if (obj_index >= 0 && obj_index < tendons_.size()) {
+        auto& segments = tendons_[obj_index];
+        if (sub_index >= 0 && sub_index < segments.size()) {
+          return segments[sub_index].get();
+        }
+      }
+      break;
     case mjOBJ_ACTUATOR:
-      if (obj_index >= 0 && obj_index < sliders_.size()) {
-        return sliders_[obj_index].get();
+      if (auto it = slider_cranks_.find(obj_index);
+          it != slider_cranks_.end()) {
+        if (sub_index >= 0 && sub_index < it->second.size()) {
+          return it->second[sub_index].get();
+        }
       }
       break;
     case mjOBJ_BODY: {
@@ -488,8 +496,6 @@ void RenderableManager::AddSliderCrankGeoms() {
   mjrfRenderableParams params;
   mjrf_defaultRenderableParams(&params);
 
-  sliders_.reserve(model->nu);
-  cranks_.reserve(model->nu);
   for (int i = 0; i < model->nu; i++) {
     if (model->actuator_trntype[i] != mjTRN_SLIDERCRANK) {
       continue;
@@ -500,18 +506,26 @@ void RenderableManager::AddSliderCrankGeoms() {
     mjrf_setRenderableGeomMesh(slider.get(), mjGEOM_CYLINDER, nstack, nslice,
                                nquad);
     mjrf_addRenderableToScene(scene_, slider.get());
-    sliders_.emplace_back(std::move(slider));
 
     auto crank = CreateRenderable(ctx, params);
     mjrf_setRenderableGeomMesh(crank.get(), mjGEOM_CAPSULE, nstack, nslice,
                                nquad);
     mjrf_addRenderableToScene(scene_, crank.get());
-    cranks_.emplace_back(std::move(crank));
+
+    std::array<UniquePtr<mjrfRenderable>, 2> pair{std::move(slider),
+                                                  std::move(crank)};
+    slider_cranks_.emplace(i, std::move(pair));
   }
 }
 
-void RenderableManager::UpdateSliderCranks(const mjData* data, int actuator_id,
-                                           int index) {
+void RenderableManager::UpdateSliderCranks(const mjData* data,
+                                           int actuator_id) {
+  auto it = slider_cranks_.find(actuator_id);
+  if (it == slider_cranks_.end()) {
+    mju_error("Slider/crank not found: %d", actuator_id);
+    return;
+  }
+
   const mjModel* model = model_objects_->GetModel();
   const float scale = model->stat.meansize;
   const float slider_width = scale * model->vis.scale.slidercrank;
@@ -539,8 +553,8 @@ void RenderableManager::UpdateSliderCranks(const mjData* data, int actuator_id,
 
   const float3 end = slider_pos + (axis * len);
 
-  mjrfRenderable* slider = sliders_[index].get();
-  mjrfRenderable* crank = cranks_[index].get();
+  mjrfRenderable* slider = it->second[0].get();
+  mjrfRenderable* crank = it->second[1].get();
   Connect(slider, slider_pos, end, slider_width);
   Connect(crank, end, crank_pos, crank_width);
 
@@ -583,7 +597,8 @@ void RenderableManager::RemoveSegmentFromTendon(int tendon_id) {
   segments.pop_back();
 }
 
-void RenderableManager::UpdateSpatialTendons(const mjData* data, int tendon_id) {
+void RenderableManager::UpdateSpatialTendons(const mjData* data,
+                                             int tendon_id) {
   const mjModel* model = model_objects_->GetModel();
 
   // Gather the points that define the tendon. We'll use a simple cache to avoid
@@ -869,85 +884,96 @@ mjrfMaterial RenderableManager::GetDefaultMaterial(mjtObj obj_type,
   return material;
 }
 
-void RenderableManager::SelectObject(mjtObj obj_type, int obj_index) {
-  if (obj_type != selected_obj_type_ || obj_index != selected_obj_index_) {
-    mjrfMaterial material;
+namespace {
+enum VisibilityOp { kNoop, kShow, kHide };
+}
 
-    mjrfRenderable* prev_renderable =
-        GetRenderable(selected_obj_type_, selected_obj_index_);
-    if (prev_renderable) {
-      mjrf_getRenderableMaterial(prev_renderable, &material);
-      material.selected = 0;
-      mjrf_setRenderableMaterial(prev_renderable, &material);
+static void DetermineVisibilities(VisibilityOp* ops, mjtByte* vis_by_group,
+                                  mjtByte* vis_by_flag, int idx, bool visible) {
+  const bool prev_global_vis = vis_by_flag ? *vis_by_flag : true;
+  const bool curr_global_vis = idx == mjNGROUP ? visible : prev_global_vis;
+
+  for (int i = 0; i < mjNGROUP; ++i) {
+    const bool prev_group_vis = vis_by_group[i];
+    const bool curr_group_vis = idx == i ? visible : prev_group_vis;
+
+    const bool previously_visible = prev_global_vis && prev_group_vis;
+    const bool currently_visible = curr_global_vis && curr_group_vis;
+
+    if (previously_visible == currently_visible) {
+      ops[i] = kNoop;
+    } else if (currently_visible) {
+      ops[i] = kShow;
+    } else {
+      ops[i] = kHide;
     }
+  }
 
-    selected_obj_type_ = obj_type;
-    selected_obj_index_ = obj_index;
+  if (idx < mjNGROUP) {
+    vis_by_group[idx] = visible;
+  } else if (vis_by_flag) {
+    *vis_by_flag = visible;
+  }
+}
 
-    mjrfRenderable* curr_renderable =
-        GetRenderable(selected_obj_type_, selected_obj_index_);
-    if (curr_renderable) {
-      mjrf_getRenderableMaterial(curr_renderable, &material);
-      material.selected = 1;
-      mjrf_setRenderableMaterial(curr_renderable, &material);
+static void ApplyVisibility(VisibilityOp* ops, int group, mjrfScene* scene,
+                            std::span<UniquePtr<mjrfRenderable>> renderables) {
+  const VisibilityOp op = ops[group];
+  if (op == kShow) {
+    for (auto& renderable : renderables) {
+      mjrf_addRenderableToScene(scene, renderable.get());
+    }
+  } else if (op == kHide) {
+    for (auto& renderable : renderables) {
+      mjrf_removeRenderableFromScene(scene, renderable.get());
     }
   }
 }
 
-void RenderableManager::SetVisibility(mjtObj obj_type, bool visible,
-                                 std::optional<int> group) {
+void RenderableManager::SetVisibility(mjtObj obj_type, int idx, bool visible) {
   const mjModel* model = model_objects_->GetModel();
 
+  VisibilityOp ops[mjNGROUP] = {kNoop};
   switch (obj_type) {
     case mjOBJ_GEOM:
-      if (group.has_value()) {
-        if (vopts_.geomgroup[group.value()] == visible) {
-          return;
-        }
-        for (int i = 0; i < model->ngeom; ++i) {
-          if (model->geom_group[i] != group.value()) {
-            continue;
-          }
-          mjrfRenderable* renderable = geoms_[i].get();
-          if (visible) {
-            mjrf_addRenderableToScene(scene_, renderable);
-          } else {
-            mjrf_removeRenderableFromScene(scene_, renderable);
-          }
-        }
-      } else {
-        mju_error("Unsupported object type: %d", obj_type);
+      DetermineVisibilities(ops, vopts_.geomgroup, nullptr, idx, visible);
+      for (int i = 0; i < model->ngeom; ++i) {
+        ApplyVisibility(ops, model->geom_group[i], scene_, {&geoms_[i], 1});
       }
       break;
     case mjOBJ_SITE:
-      if (group.has_value()) {
-        if (vopts_.sitegroup[group.value()] == visible) {
-          return;
-        }
-        for (int i = 0; i < model->nsite; ++i) {
-          if (model->site_group[i] != group.value()) {
-            continue;
-          }
-          mjrfRenderable* renderable = sites_[i].get();
-          if (visible) {
-            mjrf_addRenderableToScene(scene_, renderable);
-          } else {
-            mjrf_removeRenderableFromScene(scene_, renderable);
-          }
-        }
-      } else {
-        mju_error("Unsupported object type: %d", obj_type);
+      DetermineVisibilities(ops, vopts_.sitegroup, nullptr, idx, visible);
+      for (int i = 0; i < model->nsite; ++i) {
+        ApplyVisibility(ops, model->site_group[i], scene_, {&sites_[i], 1});
       }
       break;
-    case mjOBJ_JOINT:
-      break;
-    case mjOBJ_TENDON:
-      break;
-    case mjOBJ_ACTUATOR:
-      break;
     case mjOBJ_FLEX:
+      DetermineVisibilities(ops, vopts_.flexgroup, &vopts_.flags[mjVIS_FLEXSKIN], idx, visible);
+      for (int i = 0; i < model->nflex; ++i) {
+        ApplyVisibility(ops, model->flex_group[i], scene_, {&flexes_[i], 1});
+      }
       break;
     case mjOBJ_SKIN:
+      DetermineVisibilities(ops, vopts_.skingroup, &vopts_.flags[mjVIS_SKIN], idx, visible);
+      for (int i = 0; i < model->nskin; ++i) {
+        ApplyVisibility(ops, model->skin_group[i], scene_, {&skins_[i], 1});
+      }
+      break;
+    case mjOBJ_TENDON:
+      DetermineVisibilities(ops, vopts_.tendongroup, &vopts_.flags[mjVIS_TENDON], idx, visible);
+      for (int i = 0; i < model->ntendon; ++i) {
+        ApplyVisibility(ops, model->tendon_group[i], scene_, tendons_[i]);
+      }
+      break;
+    case mjOBJ_ACTUATOR:
+      DetermineVisibilities(ops, vopts_.actuatorgroup, &vopts_.flags[mjVIS_ACTUATOR], idx, visible);
+      for (int i = 0; i < model->nu; ++i) {
+        auto it = slider_cranks_.find(i);
+        if (it == slider_cranks_.end()) {
+          continue;
+        }
+        ApplyVisibility(ops, model->actuator_group[i], scene_, it->second);
+      }
       break;
     default:
       mju_error("Unsupported object type: %d", obj_type);
@@ -955,31 +981,49 @@ void RenderableManager::SetVisibility(mjtObj obj_type, bool visible,
   }
 }
 
-void RenderableManager::Apply(const mjvOption& vopts) {
+void RenderableManager::SetOptions(const mjvOption& opt) {
   const mjModel* model = model_objects_->GetModel();
-  for (int i = 0; i < mjNGROUP; ++i) {
-    SetVisibility(mjOBJ_GEOM, vopts.geomgroup[i], i);
-    SetVisibility(mjOBJ_SITE, vopts.sitegroup[i], i);
-    SetVisibility(mjOBJ_JOINT, vopts.jointgroup[i], i);
-    SetVisibility(mjOBJ_TENDON, vopts.tendongroup[i], i);
-    SetVisibility(mjOBJ_ACTUATOR, vopts.actuatorgroup[i], i);
-    SetVisibility(mjOBJ_FLEX, vopts.flexgroup[i], i);
-    SetVisibility(mjOBJ_SKIN, vopts.skingroup[i], i);
-  }
-  SetVisibility(mjOBJ_JOINT, vopts.flags[mjVIS_JOINT]);
-  SetVisibility(mjOBJ_TENDON, vopts.flags[mjVIS_TENDON]);
-  SetVisibility(mjOBJ_ACTUATOR, vopts.flags[mjVIS_ACTUATOR]);
-  SetVisibility(mjOBJ_SKIN, vopts.flags[mjVIS_SKIN]);
-  SetVisibility(mjOBJ_FLEX, vopts.flags[mjVIS_FLEXSKIN]);
 
-  // Swap geoms between convex and non-convex meshes based on flags.
-  if (vopts.flags[mjVIS_CONVEXHULL] != vopts_.flags[mjVIS_CONVEXHULL]) {
+  for (int i = 0; i < mjNGROUP; ++i) {
+    if (vopts_.geomgroup[i] != opt.geomgroup[i]) {
+      SetVisibility(mjOBJ_GEOM, i, opt.geomgroup[i]);
+    }
+    if (vopts_.sitegroup[i] != opt.sitegroup[i]) {
+      SetVisibility(mjOBJ_SITE, i, opt.sitegroup[i]);
+    }
+    if (vopts_.skingroup[i] != opt.skingroup[i]) {
+      SetVisibility(mjOBJ_SKIN, i, opt.skingroup[i]);
+    }
+    if (vopts_.flexgroup[i] != opt.flexgroup[i]) {
+      SetVisibility(mjOBJ_FLEX, i, opt.flexgroup[i]);
+    }
+    if (vopts_.tendongroup[i] != opt.tendongroup[i]) {
+      SetVisibility(mjOBJ_TENDON, i, opt.tendongroup[i]);
+    }
+    if (vopts_.actuatorgroup[i] != opt.actuatorgroup[i]) {
+      SetVisibility(mjOBJ_ACTUATOR, i, opt.actuatorgroup[i]);
+    }
+  }
+  if (vopts_.flags[mjVIS_SKIN] != opt.flags[mjVIS_SKIN]) {
+    SetVisibility(mjOBJ_SKIN, mjNGROUP, opt.flags[mjVIS_SKIN]);
+  }
+  if (vopts_.flags[mjVIS_FLEXSKIN] != opt.flags[mjVIS_FLEXSKIN]) {
+    SetVisibility(mjOBJ_FLEX, mjNGROUP, opt.flags[mjVIS_FLEXSKIN]);
+  }
+  if (vopts_.flags[mjVIS_TENDON] != opt.flags[mjVIS_TENDON]) {
+    SetVisibility(mjOBJ_TENDON, mjNGROUP, opt.flags[mjVIS_TENDON]);
+  }
+  if (vopts_.flags[mjVIS_ACTUATOR] != opt.flags[mjVIS_ACTUATOR]) {
+    SetVisibility(mjOBJ_ACTUATOR, mjNGROUP, opt.flags[mjVIS_ACTUATOR]);
+  }
+
+  if (vopts_.flags[mjVIS_CONVEXHULL] != opt.flags[mjVIS_CONVEXHULL]) {
     for (int i = 0; i < model->ngeom; ++i) {
       const mjtGeom geom_type = (mjtGeom)model->geom_type[i];
       if (geom_type == mjGEOM_MESH || geom_type == mjGEOM_SDF) {
         mjrfRenderable* renderable = geoms_[i].get();
         const int mesh_id =
-            model->geom_dataid[i] * 2 + (vopts.flags[mjVIS_CONVEXHULL] ? 1 : 0);
+            model->geom_dataid[i] * 2 + (opt.flags[mjVIS_CONVEXHULL] ? 1 : 0);
         const mjrfMesh* mesh = model_objects_->GetMesh(mesh_id);
         if (mesh) {
           mjrf_setRenderableMesh(renderable, mesh, 0, 0);
@@ -988,10 +1032,9 @@ void RenderableManager::Apply(const mjvOption& vopts) {
     }
   }
 
-  // Adjust alpha of dynamic geoms based on transparent flag.
-  if (vopts.flags[mjVIS_TRANSPARENT] != vopts_.flags[mjVIS_TRANSPARENT]) {
+  if (vopts_.flags[mjVIS_TRANSPARENT] != opt.flags[mjVIS_TRANSPARENT]) {
     float multiplier = model->vis.map.alpha;
-    if (!vopts.flags[mjVIS_TRANSPARENT]) {
+    if (!opt.flags[mjVIS_TRANSPARENT]) {
       multiplier = 1.0f / multiplier;
     }
 
@@ -1006,7 +1049,32 @@ void RenderableManager::Apply(const mjvOption& vopts) {
     }
   }
 
-  vopts_ = vopts;
+  vopts_ = opt;
+}
+
+void RenderableManager::MarkAsSelected(mjtObj obj_type, int obj_index) {
+  if (obj_type != selected_obj_type_ || obj_index != selected_obj_index_) {
+    mjrfMaterial material;
+
+    mjrfRenderable* prev_renderable = GetRenderable(
+        selected_obj_type_, selected_obj_index_);
+    if (prev_renderable) {
+      mjrf_getRenderableMaterial(prev_renderable, &material);
+      material.selected = 0;
+      mjrf_setRenderableMaterial(prev_renderable, &material);
+    }
+
+    selected_obj_type_ = obj_type;
+    selected_obj_index_ = obj_index;
+
+    mjrfRenderable* curr_renderable = GetRenderable(
+        selected_obj_type_, selected_obj_index_);
+    if (curr_renderable) {
+      mjrf_getRenderableMaterial(curr_renderable, &material);
+      material.selected = 1;
+      mjrf_setRenderableMaterial(curr_renderable, &material);
+    }
+  }
 }
 
 }  // namespace mujoco
