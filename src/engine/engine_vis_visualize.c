@@ -469,13 +469,23 @@ void mjv_cameraFrame(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3], mjtNum 
         right[2] = 0;
       }
       if (headpos) {
-        mju_addScl3(headpos, cam->lookat, forward, -cam->distance);
+        if (cam->type == mjCAMERA_TRACKING && cam->trackbodyid >= 0) {
+          if (!d) {
+            mjERROR("data pointer is NULL");
+          }
+          mju_addScl3(headpos, d->subtree_com + 3*cam->trackbodyid, forward, -cam->distance);
+        } else {
+          mju_addScl3(headpos, cam->lookat, forward, -cam->distance);
+        }
       }
       break;
     }
 
     case mjCAMERA_FIXED: {
       const int cid = cam->fixedcamid;
+      if (!d) {
+        mjERROR("data pointer is NULL");
+      }
       const mjtNum* mat = d->cam_xmat + 9*cid;
       if (forward) {
         forward[0] = -mat[2];
