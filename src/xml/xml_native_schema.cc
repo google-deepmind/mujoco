@@ -291,6 +291,9 @@ void EmitAttribute(std::stringstream& out, int level, const char* element,
 // Is this node recursive? ('R' cardinality)
 bool IsRecursive(const Node& n) { return n.type == 'R'; }
 
+void EmitElementInternal(std::stringstream& out, const Node& node, int level,
+                         bool top_level, const char* name_override);
+
 // Emit the body of a complexType (choice + attributes) for a given element.
 // Separated from EmitElement so it can be reused for named types that are
 // referenced from multiple places.
@@ -301,8 +304,6 @@ void EmitComplexTypeBody(std::stringstream& out, const Node& node, int level,
     Indent(out, level);
     out << "<xs:choice minOccurs=\"0\" maxOccurs=\"unbounded\">\n";
     for (const Node& child : node.children) {
-      extern void EmitElementInternal(std::stringstream&, const Node&, int,
-                                       bool, const char*);
       EmitElementInternal(out, child, level + 1, /*top_level=*/false, nullptr);
     }
     // Recursive self-reference for 'R' elements.
