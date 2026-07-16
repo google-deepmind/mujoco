@@ -1609,9 +1609,8 @@ void App::ModelOptionsGui() {
       ImGui::Spacing();
       {
         char key_fmt[128];
-        const char* key_name =
-            model()->names + model()->name_keyadr[ui_.key_idx];
-        if (key_name[0] != '\0') {
+        const char* key_name = mj_id2name(model(), mjOBJ_KEY, ui_.key_idx);
+        if (key_name) {
           std::snprintf(key_fmt, sizeof(key_fmt), "%s", key_name);
         } else {
           std::snprintf(key_fmt, sizeof(key_fmt), "Key %d", ui_.key_idx);

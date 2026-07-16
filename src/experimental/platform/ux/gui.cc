@@ -642,8 +642,8 @@ std::string GetCameraName(const mjModel* model, const mjvCamera& camera,
     return kCameraWasdName;
   } else if (index == kTrackingCameraIdx) {
     return "Tracking (" + std::to_string(camera.trackbodyid) + ")";
-  } else if (model->names[model->name_camadr[index]]) {
-    return std::string(model->names + model->name_camadr[index]);
+  } else if (const char* cam_name = mj_id2name(model, mjOBJ_CAMERA, index)) {
+    return cam_name;
   } else {
     return kCameraUnnamedName;
   }
@@ -1262,8 +1262,8 @@ void JointsGui(const mjModel* model, const mjData* data,
       continue;
     }
 
-    const char* jnt_name = model->names + model->name_jntadr[i];
-    if (*jnt_name) {
+    const char* jnt_name = mj_id2name(model, mjOBJ_JOINT, i);
+    if (jnt_name) {
       std::snprintf(name, sizeof(name), "%s", jnt_name);
     } else {
       std::snprintf(name, sizeof(name), "joint %d", i);
@@ -1315,8 +1315,8 @@ void ControlsGui(const mjModel* model, const mjData* data,
       continue;
     }
 
-    const char* ctrl_name = model->names + model->name_actuatoradr[i];
-    if (*ctrl_name) {
+    const char* ctrl_name = mj_id2name(model, mjOBJ_ACTUATOR, i);
+    if (ctrl_name) {
       std::snprintf(name, sizeof(name), "%s", ctrl_name);
     } else {
       std::snprintf(name, sizeof(name), "control %d", i);

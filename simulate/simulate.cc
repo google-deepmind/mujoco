@@ -596,9 +596,9 @@ void DetectImageSensors(mj::Simulate* sim, const mjModel* m) {
 
       // Check if this is an image sensor: width*height*3 == dim
       if (width > 0 && height > 0 && width * height * 3 == dim) {
-        const char* name = m->names + m->name_sensoradr[i];
+        const char* name = mj_id2name(m, mjOBJ_SENSOR, i);
         sim->image_sensor_indices.push_back(i);
-        sim->image_sensor_names.push_back(name);
+        sim->image_sensor_names.push_back(name ? name : "");
         sim->image_sensor_count++;
       }
     }
@@ -932,8 +932,9 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m) {
   for (int i=0; i<mjMIN(m->ncam, mjMAXUIMULTI-2); i++) {
     // prepare name
     char camname[mjMAXUINAME] = "\n";
-    if (m->names[m->name_camadr[i]]) {
-      mju::strcat_arr(camname, m->names+m->name_camadr[i]);
+    const char* name = mj_id2name(m, mjOBJ_CAMERA, i);
+    if (name) {
+      mju::strcat_arr(camname, name);
     } else {
       mju::sprintf_arr(camname, "\nCamera %d", i);
     }
@@ -2529,7 +2530,8 @@ void Simulate::LoadOnRenderThread() {
   jnt_names_.clear();
   jnt_names_.reserve(this->m_->njnt);
   for (int i = 0; i < this->m_->njnt; ++i) {
-    jnt_names_.emplace_back(this->m_->names + this->m_->name_jntadr[i]);
+    const char* name = mj_id2name(this->m_, mjOBJ_JOINT, i);
+    jnt_names_.emplace_back(name ? name : "");
   }
 
   actuator_group_.resize(this->m_->nu);
@@ -2550,13 +2552,15 @@ void Simulate::LoadOnRenderThread() {
   actuator_names_.clear();
   actuator_names_.reserve(this->m_->nu);
   for (int i = 0; i < this->m_->nu; ++i) {
-    actuator_names_.emplace_back(this->m_->names + this->m_->name_actuatoradr[i]);
+    const char* name = mj_id2name(this->m_, mjOBJ_ACTUATOR, i);
+    actuator_names_.emplace_back(name ? name : "");
   }
 
   equality_names_.clear();
   equality_names_.reserve(this->m_->neq);
   for (int i = 0; i < this->m_->neq; ++i) {
-    equality_names_.emplace_back(this->m_->names + this->m_->name_eqadr[i]);
+    const char* name = mj_id2name(this->m_, mjOBJ_EQUALITY, i);
+    equality_names_.emplace_back(name ? name : "");
   }
 
   qpos_.resize(this->m_->nq);
