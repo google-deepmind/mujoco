@@ -20,8 +20,8 @@
 // Release pipeline (regenerating doc/mjcf.xsd):
 //   $ cmake --build build --target xmlschema
 //   $ ./build/bin/xmlschema /tmp/raw.xsd
-//   $ ./doc/mjcf_schema_enrich.py --in /tmp/raw.xsd \
-//         --rst doc/XMLreference.rst --out doc/mjcf.xsd --strict --report
+//   $ ./doc/mjcf_schema_enrich.py --in /tmp/raw.xsd --rst doc/XMLreference.rst
+//       --out doc/mjcf.xsd --strict --report
 
 #include "xml/xml_native_schema.h"
 
