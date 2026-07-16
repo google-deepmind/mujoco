@@ -899,7 +899,11 @@ class DataIOTest(parameterized.TestCase):
     d = mujoco.MjData(m)
     mujoco.mj_step(m, d, 2)
 
-    with jax.enable_x64(True):
+    enable_x64 = getattr(jax, 'enable_x64', None)
+    if enable_x64 is None:
+      from jax.experimental import enable_x64  # pylint: disable=g-import-not-at-top
+
+    with enable_x64(True):
       mx = mjx.put_model(m, impl='jax')
       dx = mjx.put_data(m, d, impl='jax')
 
