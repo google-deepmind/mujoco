@@ -1086,6 +1086,7 @@ const mjXAttr kMjXAttrTable[] = {
   {"compiler", "saveinertial",      kMjXEnum,   0, bool_map,        2},
   {"compiler", "assetdir",          kMjXString, 0, nullptr,         0},
   {"compiler", "alignfree",         kMjXEnum,   0, bool_map,        2},
+  {"compiler", "conflict",          kMjXEnum,   0, conflict_map,    conflict_sz},
   //-------------------------------- <compiler><lengthrange> ---------------------------------------
   {"lengthrange", "mode",        kMjXEnum, 0, lrmode_map, 4},
   {"lengthrange", "useexisting", kMjXEnum, 0, bool_map,   2},
@@ -1749,6 +1750,7 @@ const mjXAttr kMjXAttrTable[] = {
   {"frame", "euler",      kMjXRealN,  3, nullptr, 0},
 
   //-------------------------------- <body><replicate> --------------------------------------------
+  {"replicate", "prefix",     kMjXString, 0, nullptr, 0},
   {"replicate", "count",      kMjXInt,    0, nullptr, 0},
   {"replicate", "offset",     kMjXRealN,  3, nullptr, 0},
   {"replicate", "euler",      kMjXRealN,  3, nullptr, 0},
@@ -1768,7 +1770,7 @@ const mjXAttr kMjXAttrTable[] = {
   {"composite", "vertex",  kMjXRealVec, 0, nullptr,  0},
   {"composite", "initial", kMjXString,  0, nullptr,  0},
   {"composite", "curve",   kMjXString,  0, nullptr,  0},
-  {"composite", "size",    kMjXRealN,   3, nullptr,  0},
+  {"composite", "size",    kMjXRealUpToN, 3, nullptr, 0},
   {"composite", "quat",    kMjXRealN,   4, nullptr,  0},
 
   //-------------------------------- <flexcomp> ---------------------------------------------------
