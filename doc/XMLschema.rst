@@ -909,6 +909,9 @@
                :ref:`gap<body-geom-gap>`
 
             .. grid-item::
+               :ref:`surfacevel<body-geom-surfacevel>`
+
+            .. grid-item::
                :ref:`fromto<body-geom-fromto>`
 
             .. grid-item::
@@ -1372,6 +1375,9 @@
 
                .. grid-item::
                   :ref:`gap<composite-geom-gap>`
+
+               .. grid-item::
+                  :ref:`surfacevel<composite-geom-surfacevel>`
 
 
          .. dropdown:: :ref:`site<composite-site>` :octicon:`dot`
@@ -5491,6 +5497,9 @@
 
             .. grid-item::
                :ref:`gap<default-geom-gap>`
+
+            .. grid-item::
+               :ref:`surfacevel<default-geom-surfacevel>`
 
             .. grid-item::
                :ref:`fromto<default-geom-fromto>`

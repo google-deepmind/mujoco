@@ -95,6 +95,206 @@ TEST_F(CoreConstraintTest, RestPenetration) {
   }
 }
 
+// surfacevel: conveyor belt drags a box to belt speed
+TEST_F(CoreConstraintTest, SurfaceVelocityConveyor) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="belt" type="plane" size="5 5 .1" surfacevel=".5 0 0  0 0 0"/>
+      <body pos="0 0 .1">
+        <freejoint/>
+        <geom type="box" size=".1 .1 .1" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), testing::NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  for (const mjtCone cone : {mjCONE_PYRAMIDAL, mjCONE_ELLIPTIC}) {
+    model->opt.cone = cone;
+    mj_resetData(model.get(), data.get());
+    while (data->time < 2) {
+      mj_step(model.get(), data.get());
+    }
+
+    // box is transported at belt speed, no lateral or angular motion
+    EXPECT_NEAR(data->qvel[0], 0.5, 1e-3);
+    EXPECT_NEAR(data->qvel[1], 0.0, 1e-3);
+    EXPECT_NEAR(data->qvel[5], 0.0, 1e-3);
+  }
+}
+
+// surfacevel: turntable spins a centered box via the torsional friction row
+TEST_F(CoreConstraintTest, SurfaceVelocityTurntable) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="table" type="plane" size="5 5 .1" condim="6"
+            surfacevel="0 0 0  0 0 1"/>
+      <body pos="0 0 .1">
+        <freejoint/>
+        <geom type="box" size=".1 .1 .1" mass="1" condim="6"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), testing::NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  for (const mjtCone cone : {mjCONE_PYRAMIDAL, mjCONE_ELLIPTIC}) {
+    model->opt.cone = cone;
+    mj_resetData(model.get(), data.get());
+    while (data->time < 4) {
+      mj_step(model.get(), data.get());
+    }
+
+    // box spins up to the table's angular velocity, stays in place
+    EXPECT_NEAR(data->qvel[5], 1.0, 1e-3);
+    EXPECT_NEAR(data->qvel[0], 0.0, 1e-3);
+    EXPECT_NEAR(data->qvel[1], 0.0, 1e-3);
+  }
+}
+
+// surfacevel: the normal component is projected out, normal-only is inert
+TEST_F(CoreConstraintTest, SurfaceVelocityNormalProjected) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="plane" size="5 5 .1" surfacevel="0 0 1  0 0 0"/>
+      <body pos="0 0 .1">
+        <freejoint/>
+        <geom type="box" size=".1 .1 .1" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), testing::NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  while (data->time < 2) {
+    mj_step(model.get(), data.get());
+  }
+
+  // box rests as if the floor were plain
+  for (int i=0; i < 6; i++) {
+    EXPECT_NEAR(data->qvel[i], 0.0, 1e-6);
+  }
+}
+
+// surfacevel: two facing belts launch a squeezed plank at belt speed
+TEST_F(CoreConstraintTest, SurfaceVelocityFacingBelts) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="box" size=".05 .3 .5" pos="-.152 0 .5" surfacevel="0 0 1  0 0 0"/>
+      <geom type="box" size=".05 .3 .5" pos=".152 0 .5" surfacevel="0 0 1  0 0 0"/>
+      <body pos="0 0 .5">
+        <freejoint/>
+        <geom type="box" size=".103 .1 .1" mass=".2"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), testing::NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  mjtNum vmax = 0;
+  while (data->time < 2) {
+    mj_step(model.get(), data.get());
+    vmax = mju_max(vmax, data->qvel[2]);
+  }
+  EXPECT_NEAR(vmax, 1.0, 5e-3);
+}
+
+// surfacevel: belt on a moving vehicle, cargo vel composes with body vel
+TEST_F(CoreConstraintTest, SurfaceVelocityComposition) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="plane" size="10 10 .1" friction="0 0 0" condim="1" priority="1"/>
+      <body name="vehicle" pos="0 0 .15">
+        <freejoint/>
+        <geom type="box" size=".5 .3 .04" mass="10"/>
+        <geom type="box" size=".4 .25 .01" pos="0 0 .05" mass=".01"
+              surfacevel=".3 0 0  0 0 0"/>
+      </body>
+      <body name="cargo" pos="0 0 .3">
+        <freejoint/>
+        <geom type="box" size=".08 .08 .08" mass=".1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qvel=".2 0 0 0 0 0  0 0 0 0 0 0"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), testing::NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_resetDataKeyframe(model.get(), data.get(), 0);
+
+  // measure while the cargo is still riding the belt (exits the far end later)
+  while (data->time < 1) {
+    mj_step(model.get(), data.get());
+  }
+  EXPECT_NEAR(data->qvel[6] - data->qvel[0], 0.3, 1e-3);
+}
+
+// surfacevel: interpreted in the authored geom frame, including for mesh geoms
+// whose compiled frame absorbs the mesh's centering/principal-axes transform
+TEST_F(CoreConstraintTest, SurfaceVelocityMeshFrame) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="ring" builtin="supertorus" params="32 .3 .2 1" scale="1.6 1.6 .8"/>
+    </asset>
+    <worldbody>
+      <geom name="carousel" type="mesh" mesh="ring" pos="0 0 .24"
+            surfacevel="0 0 0  0 0 .4"/>
+      <body pos="1.6 0 .6">
+        <freejoint/>
+        <geom type="box" size=".1 .1 .1" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), testing::NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  // the compiled angular surfacevel, rotated by the compiled geom orientation,
+  // recovers the authored world-frame spin (0, 0, .4)
+  int carousel = mj_name2id(model.get(), mjOBJ_GEOM, "carousel");
+  mjtNum w_world[3];
+  mju_mulMatVec3(w_world, data->geom_xmat + 9*carousel,
+                 model->geom_surfacevel + 6*carousel + 3);
+  EXPECT_NEAR(w_world[0], 0.0, MjTol(1e-10, 1e-6));
+  EXPECT_NEAR(w_world[1], 0.0, MjTol(1e-10, 1e-6));
+  EXPECT_NEAR(w_world[2], 0.4, MjTol(1e-10, 1e-6));
+
+  // functionally: the box is dragged around the ring at speed omega * r
+  while (data->time < 3) {
+    mj_step(model.get(), data.get());
+  }
+  mjtNum x = data->qpos[0], y = data->qpos[1];
+  mjtNum r = mju_sqrt(x*x + y*y);
+  mjtNum speed =
+      mju_sqrt(data->qvel[0] * data->qvel[0] + data->qvel[1] * data->qvel[1]);
+  EXPECT_NEAR(speed, 0.4*r, 5e-3);
+}
+
 static const char* const kDoflessContactPath =
     "engine/testdata/core_constraint/dofless_contact.xml";
 static const char* const kDoflessTendonFrictionalPath =

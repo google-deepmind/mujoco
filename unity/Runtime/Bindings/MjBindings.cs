@@ -1105,6 +1105,7 @@ public unsafe struct mjModel_ {
   public UInt64 nnames_map;
   public UInt64 nJmom;
   public UInt64 ngravcomp;
+  public UInt64 nsurfacevel;
   public UInt64 nemax;
   public UInt64 njmax;
   public UInt64 nconmax;
@@ -1220,6 +1221,7 @@ public unsafe struct mjModel_ {
   public double* geom_friction;
   public double* geom_margin;
   public double* geom_gap;
+  public double* geom_surfacevel;
   public double* geom_fluid;
   public double* geom_user;
   public float* geom_rgba;

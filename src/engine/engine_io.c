@@ -250,7 +250,7 @@ void mj_makeModel(mjModel** dest,
   // CHECK SIZE PARAMETERS
   {
     // dummy variables for MJMODEL_SIZES set after mjModel construction
-    int nnames_map = 0, nJmom = 0, ngravcomp = 0, nemax = 0, njmax = 0, nconmax=0;
+    int nnames_map = 0, nJmom = 0, ngravcomp = 0, nsurfacevel = 0, nemax = 0, njmax = 0, nconmax=0;
     int npolygonmax = 0, nmeshdegmax = 0;
     int nuserdata=0, nsensordata=0, npluginstate=0, nhistory=0, narena=0, nbuffer=0;
 
@@ -270,7 +270,7 @@ void mj_makeModel(mjModel** dest,
 #undef X
 
     // suppress unused variable warnings
-    (void)nnames_map; (void)nJmom; (void)ngravcomp; (void)nemax; (void)njmax; (void)nconmax;
+    (void)nnames_map; (void)nJmom; (void)ngravcomp; (void)nsurfacevel; (void)nemax; (void)njmax; (void)nconmax;
     (void)npolygonmax; (void)nmeshdegmax;
     (void)nuserdata; (void)nsensordata; (void)npluginstate; (void)nhistory; (void)narena;
     (void)nbuffer;

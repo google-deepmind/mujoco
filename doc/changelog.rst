@@ -7,6 +7,19 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+.. youtube:: PdSdrqhSiZA
+   :align: right
+   :width: 35%
+
+- Added :ref:`geom/surfacevel<body-geom-surfacevel>`: the velocity of a geom's surface as seen by contacts, given as
+  a velocity field with a constant component and a rotational component about the geom frame origin. This allows
+  conveyor belts, treadmills and turntables to be modeled with static geoms and no degrees of freedom: friction
+  drives touching bodies toward the motion of the surface, with the field projected onto each contact's tangent
+  plane. Surface velocities compose correctly with each other and with body motion.
+  Note that the contact rows of ``mjData.efc_vel``, and the constraint-state sensors that read them, report the
+  velocity relative to the moving surface rather than to the geom, since that is the quantity the constraint acts
+  on; for geoms without :at:`surfacevel` the two are identical. Contact-point visualization draws an arrow along the
+  surface velocity at contacts with moving surfaces.
 - Replaced midpoint integration of free bodies with :ref:`gyroscopic derivatives<geFreeBody>` in the ``implicitfast``
   :ref:`integrator<geIntegrators>`: the bias-force derivative of every standalone free body is applied via a local
   unsymmetric solve of its decoupled block, making ``implicitfast`` identical to ``implicit`` for such bodies.

@@ -656,7 +656,49 @@ static void addContactGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
         mjSNPRINTF(thisgeom->label, "%s | %s", contactlabel[0], contactlabel[1]);
       }
 
+      float contactrgba[4];
+      f2f(contactrgba, thisgeom->rgba, 4);
       releaseGeom(&thisgeom, scn);
+
+      // surface velocity: one arrow per moving surface, pointing along the
+      // tangential material velocity at the contact point
+      const mjtNum kVelocityMap = 0.5;  // units of time: arrow length = velocity * kVelocityMap
+      for (int side=0; side < 2; side++) {
+        int g = con->geom[side];
+        if (g < 0) {
+          // TODO(team): support flex
+          continue;
+        }
+        const mjtNum* sv = m->geom_surfacevel + 6*g;
+        if (!sv[0] && !sv[1] && !sv[2] && !sv[3] && !sv[4] && !sv[5]) {
+          continue;
+        }
+
+        // material velocity at the contact point, world frame
+        mjtNum vw[3], ww[3];
+        mj_geomSurfaceVelocity(m, d, g, con->pos, vw, ww);
+
+        // project out the normal component: only the tangential part acts
+        mjtNum vn = mju_dot3(vw, con->frame);
+        mju_addToScl3(vw, con->frame, -vn);
+        if (mju_norm3(vw) < mjMINVAL) {
+          continue;
+        }
+
+        // anchor slightly off the contact point on the owning geom's side
+        mjtNum from[3], to[3];
+        mjtNum offset = (side ? 1 : -1) * 0.5 * m->vis.scale.forcewidth * scl;
+        mju_addScl3(from, con->pos, con->frame, offset);
+        mju_addScl3(to, from, vw, kVelocityMap);
+
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
+          return;
+        }
+        mjv_connector(thisgeom, mjGEOM_ARROW, m->vis.scale.forcewidth * scl, from, to);
+        f2f(thisgeom->rgba, contactrgba, 4);
+        releaseGeom(&thisgeom, scn);
+      }
     }
 
     // mat = contact frame rotation matrix (normal along x)

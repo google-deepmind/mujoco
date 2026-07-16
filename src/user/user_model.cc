@@ -3062,6 +3062,7 @@ void mjCModel::CopyTree(mjModel* m) {
       mjuu_copyvec(m->geom_solimp+mjNIMP*gid, pg->solimp, mjNIMP);
       m->geom_margin[gid] = (mjtNum)pg->margin;
       m->geom_gap[gid] = (mjtNum)pg->gap;
+      mjuu_copyvec(m->geom_surfacevel+6*gid, pg->surfacevel, 6);
       mjuu_copyvec(m->geom_fluid+mjNFLUID*gid, pg->fluid, mjNFLUID);
       mjuu_copyvec(m->geom_user+nuser_geom*gid, pg->get_userdata().data(), nuser_geom);
       mjuu_copyvec(m->geom_rgba+4*gid, pg->rgba, 4);
@@ -5841,6 +5842,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     pg->solmix = (double)m->geom_solmix[i];
     pg->margin = (double)m->geom_margin[i];
     pg->gap = (double)m->geom_gap[i];
+    mjuu_copyvec(pg->surfacevel, m->geom_surfacevel+6*i, 6);
 
     if (nuser_geom) {
       mjuu_copyvec(pg->userdata_.data(), m->geom_user + nuser_geom*i, nuser_geom);

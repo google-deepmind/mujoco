@@ -247,6 +247,7 @@
     X( nnames_map )         \
     X( nJmom )              \
     X( ngravcomp )          \
+    X( nsurfacevel )        \
     X( nemax )              \
     X( njmax )              \
     X( nconmax )            \
@@ -385,6 +386,7 @@
     X   ( mjtNum,  geom_friction,         ngeom,         3                    ) \
     X   ( mjtNum,  geom_margin,           ngeom,         1                    ) \
     X   ( mjtNum,  geom_gap,              ngeom,         1                    ) \
+    X   ( mjtNum,  geom_surfacevel,       ngeom,         6                    ) \
     XNV ( mjtNum,  geom_fluid,            ngeom,         mjNFLUID             ) \
     X   ( mjtNum,  geom_user,             ngeom,         MJ_M(nuser_geom)     ) \
     X   ( float,   geom_rgba,             ngeom,         4                    )

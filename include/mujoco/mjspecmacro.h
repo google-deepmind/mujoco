@@ -182,6 +182,7 @@
     XVEC( mjtNum,         solimp,          mjNIMP ) \
     X   ( double,         margin,          1      ) \
     X   ( double,         gap,             1      ) \
+    XVEC( double,         surfacevel,      6      ) \
     X   ( double,         mass,            1      ) \
     X   ( double,         density,         1      ) \
     X   ( mjtGeomInertia, typeinertia,     1      ) \

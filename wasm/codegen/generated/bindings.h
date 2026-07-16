@@ -4227,6 +4227,12 @@ struct MjModel {
   void set_ngravcomp(int value) {
     ptr_->ngravcomp = static_cast<mjtSize>(value);
   }
+  int nsurfacevel() const {
+    return static_cast<int>(ptr_->nsurfacevel);
+  }
+  void set_nsurfacevel(int value) {
+    ptr_->nsurfacevel = static_cast<mjtSize>(value);
+  }
   int nemax() const {
     return static_cast<int>(ptr_->nemax);
   }
@@ -4595,6 +4601,9 @@ struct MjModel {
   }
   emscripten::val geom_gap() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ngeom, ptr_->geom_gap));
+  }
+  emscripten::val geom_surfacevel() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ngeom * 6, ptr_->geom_surfacevel));
   }
   emscripten::val geom_fluid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ngeom * mjNFLUID, ptr_->geom_fluid));
@@ -6256,6 +6265,9 @@ struct MjsGeom {
   }
   void set_gap(double value) {
     ptr_->gap = value;
+  }
+  emscripten::val surfacevel() const {
+    return emscripten::val(emscripten::typed_memory_view(6, ptr_->surfacevel));
   }
   double mass() const {
     return ptr_->mass;

@@ -877,6 +877,23 @@ void mj_objectVelocity(const mjModel* m, const mjData* d,
 }
 
 
+// compute material surface velocity of a geom at a point, in the world frame
+void mj_geomSurfaceVelocity(const mjModel* m, const mjData* d, int geomid,
+                            const mjtNum point[3], mjtNum linear[3], mjtNum angular[3]) {
+  const mjtNum* sv = m->geom_surfacevel + 6*geomid;
+
+  // rotate local linear and angular surface velocities to the world frame
+  mji_mulMatVec3(linear, d->geom_xmat + 9*geomid, sv);
+  mji_mulMatVec3(angular, d->geom_xmat + 9*geomid, sv + 3);
+
+  // add angular velocity contribution (w x r) at the query point
+  mjtNum arm[3], wxr[3];
+  mji_sub3(arm, point, d->geom_xpos + 3*geomid);
+  mji_cross(wxr, angular, arm);
+  mji_addTo3(linear, wxr);
+}
+
+
 // compute object 6D acceleration in object-centered frame, world/local orientation
 void mj_objectAcceleration(const mjModel* m, const mjData* d,
                            int objtype, int objid, mjtNum res[6], int flg_local) {

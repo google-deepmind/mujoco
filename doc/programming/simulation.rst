@@ -723,6 +723,10 @@ Exceptions to the general rule that **real-valued** types **are safe to change**
    * - ``geom_pos`` |br| ``geom_quat`` |br| ``geom_size`` |br| ``geom_rbound`` |br| ``geom_aabb``
      - Unsafe.
      -
+   * - ``geom_surfacevel``
+     - Safe.
+     - If the number of geoms with nonzero surface velocity is changed from zero to non-zero (or vice versa),
+       :ref:`mj_setConst` must be called.
    * - ``{site,cam,light}_`` |br| ``{pos,quat}``
      - Mostly safe.
      - For cameras and lights with tracking or targeting, :ref:`mj_setConst` is required.

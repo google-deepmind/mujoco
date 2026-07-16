@@ -1369,6 +1369,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of bodies with nonzero gravcomp',
              ),
              StructFieldDecl(
+                 name='nsurfacevel',
+                 type=ValueType(name='mjtSize'),
+                 doc='number of geoms with nonzero surfacevel',
+             ),
+             StructFieldDecl(
                  name='nemax',
                  type=ValueType(name='mjtSize'),
                  doc='number of potential equality-constraint rows',
@@ -2244,6 +2249,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='additional contact detection buffer',
                  array_extent=('ngeom',),
+             ),
+             StructFieldDecl(
+                 name='geom_surfacevel',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='surface velocity in local frame: lin,ang',
+                 array_extent=('ngeom', 6),
              ),
              StructFieldDecl(
                  name='geom_fluid',
@@ -7956,6 +7969,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='gap',
                  type=ValueType(name='double'),
                  doc='additional contact detection buffer',
+             ),
+             StructFieldDecl(
+                 name='surfacevel',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(6,),
+                 ),
+                 doc='surface velocity in local frame: linear, angular',
              ),
              StructFieldDecl(
                  name='mass',

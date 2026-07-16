@@ -19,7 +19,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>
+#include <filesystem> // NOLINT
 #include <string>
 #include <vector>
 
@@ -87,6 +87,7 @@ std::vector<std::string> GetWriteReadTestModels() {
             absl::StrContains(xml, "rfcamera") ||
             absl::StrContains(xml, "tactile") ||
             absl::StrContains(xml, "makemesh") ||
+            absl::StrContains(xml, "carousel") ||
             absl::StrContains(xml, "many_dependencies") ||
             absl::StrContains(xml, "usd") ||
             absl::StrContains(xml, "torus_maxhull") ||
@@ -101,7 +102,7 @@ std::vector<std::string> GetWriteReadTestModels() {
             absl::StrContains(xml, "strain") ||
             // exclude conflict test assets (designed to fail compile)
             absl::StrContains(xml, "xml/testdata/parent_") ||
-            // exclude mjz testdata with VFS files
+            // exclude mjz test data with VFS files
             absl::StrContains(xml, "mixed_test")) {
           continue;
         }

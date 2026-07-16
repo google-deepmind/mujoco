@@ -238,7 +238,7 @@ std::vector<const char*> MJCF[nMJCF] = {
         {"geom", "?", "type", "pos", "quat", "contype", "conaffinity", "condim",
             "group", "priority", "size", "material", "friction", "mass", "density",
             "shellinertia", "solmix", "solref", "solimp",
-            "margin", "gap", "fromto", "axisangle", "xyaxes", "zaxis", "euler",
+            "margin", "gap", "surfacevel", "fromto", "axisangle", "xyaxes", "zaxis", "euler",
             "hfield", "mesh", "fitscale", "rgba", "fluidshape", "fluidcoef", "user"},
         {"site", "?", "type", "group", "pos", "quat", "material",
             "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
@@ -349,8 +349,9 @@ std::vector<const char*> MJCF[nMJCF] = {
         {"geom", "*", "name", "class", "type", "contype", "conaffinity", "condim",
             "group", "priority", "size", "material", "friction", "mass", "density",
             "shellinertia", "solmix", "solref", "solimp",
-            "margin", "gap", "fromto", "pos", "quat", "axisangle", "xyaxes", "zaxis", "euler",
-            "hfield", "mesh", "fitscale", "rgba", "fluidshape", "fluidcoef", "user"},
+            "margin", "gap", "surfacevel", "fromto", "pos", "quat", "axisangle", "xyaxes",
+            "zaxis", "euler", "hfield", "mesh", "fitscale", "rgba", "fluidshape", "fluidcoef",
+            "user"},
         {"<"},
             {"plugin", "*", "plugin", "instance"},
             {"<"},
@@ -380,7 +381,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             {"skin", "?", "texcoord", "material", "group", "rgba", "inflate", "subgrid"},
             {"geom", "?", "type", "contype", "conaffinity", "condim",
                 "group", "priority", "size", "material", "rgba", "friction", "mass",
-                "density", "solmix", "solref", "solimp", "margin", "gap"},
+                "density", "solmix", "solref", "solimp", "margin", "gap", "surfacevel"},
             {"site", "?", "group", "size", "material", "rgba"},
             {"plugin", "*", "plugin", "instance"},
             {"<"},
@@ -1973,6 +1974,7 @@ void mjXReader::OneGeom(XMLElement* elem, mjsGeom* geom) {
   ReadAttr(elem, "solimp", mjNIMP, geom->solimp, text, false, false);
   ReadAttr(elem, "margin", 1, &geom->margin, text);
   ReadAttr(elem, "gap", 1, &geom->gap, text);
+  ReadAttr(elem, "surfacevel", 6, geom->surfacevel, text, false, false);
   if (ReadAttrTxt(elem, "hfield", hfieldname)) {
     mjs_setString(geom->hfieldname, hfieldname.c_str());
   }
@@ -2782,6 +2784,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, mjsFrame* frame, c
     ReadAttr(egeom, "solimp", mjNIMP, dgeom.solimp, text, false, false);
     ReadAttr(egeom, "margin", 1, &dgeom.margin, text);
     ReadAttr(egeom, "gap", 1, &dgeom.gap, text);
+    ReadAttr(egeom, "surfacevel", 6, dgeom.surfacevel, text, false, false);
     if (ReadAttrTxt(egeom, "material", material)) {
       mjs_setString(dgeom.material, material.c_str());
     }

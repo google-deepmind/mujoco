@@ -497,7 +497,7 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
   WriteAttr(elem, "solimp", mjNIMP, geom->solimp, def->Geom().solimp, true);
   WriteAttr(elem, "margin", 1, &geom->margin, &def->Geom().margin);
   WriteAttr(elem, "gap", 1, &geom->gap, &def->Geom().gap);
-  WriteAttr(elem, "gap", 1, &geom->gap, &def->Geom().gap);
+  WriteAttr(elem, "surfacevel", 6, geom->surfacevel, def->Geom().surfacevel, true);
   WriteAttrKey(elem, "fluidshape",
                fluid_map, 2, geom->fluid_ellipsoid, def->Geom().fluid_ellipsoid);
   WriteAttr(elem, "fluidcoef", 5, geom->fluid_coefs, def->Geom().fluid_coefs);

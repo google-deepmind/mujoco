@@ -2771,6 +2771,32 @@ helps clarify the role of bodies and geoms in MuJoCo.
    actuators which use contacts in the gap zone to generate adhesive forces without producing contact forces.
    See :ref:`margin and gap<coMarginGap>`.
 
+.. _body-geom-surfacevel:
+
+.. youtube:: PdSdrqhSiZA
+   :align: right
+   :width: 35%
+
+:at:`surfacevel`: :at-val:`real(6), "0 0 0 0 0 0"`
+   Velocity of the geom's surface as seen by contacts, given as a velocity field :math:`\sigma(x)` with two components:
+   a constant velocity :math:`v` (first three numbers) and a rotational field with angular velocity :math:`\omega` (last
+   three numbers) about the geom frame origin :math:`p`, both expressed in the geom frame:
+
+   .. math::
+      \sigma(x) = v + \omega \times (x - p)
+
+   A contact with the geom observes the surface moving along this field, with the velocity projected onto the contact's
+   tangent plane: no normal velocity is imparted. When :at:`condim` is 4 or larger, the angular velocity :math:`\omega`
+   also drives torsional friction. :at:`surfacevel` models surfaces that move while the geom itself does not: conveyor
+   belts, treadmills and turntables can be constructed with no degrees of freedom. Friction drives touching bodies along
+   the motion of the surface: objects placed on a conveyor are transported at belt speed, and a turntable (angular
+   surface velocity about the cylinder axis) imparts tangential velocity that grows with radius. Surface velocities of
+   two touching geoms compose as relative velocity, and compose correctly with body motion (a conveyor mounted on a
+   moving vehicle works as expected). Note that this attribute describes the geom's *entire* surface: a box with
+   constant ``surfacevel`` moves all six faces. When contact points are visualized, a contact with a moving surface
+   additionally displays an arrow along the tangential surface velocity at the contact point. This attribute can be
+   modified at runtime.
+
 .. _body-geom-fromto:
 
 :at:`fromto`: :at-val:`real(6), optional`
@@ -3460,10 +3486,12 @@ joints and tendons have different sets of attributes, while all geoms in the com
 
 .. _composite-geom-gap:
 
+.. _composite-geom-surfacevel:
+
 .. |body/composite/geom attrib list| replace::
    :at:`type`, :at:`contype`, :at:`conaffinity`, :at:`condim`, :at:`group`, :at:`priority`, :at:`size`, :at:`material`,
    :at:`rgba`, :at:`friction`, :at:`mass`, :at:`density`, :at:`solmix`, :at:`solref`, :at:`solimp`, :at:`margin`,
-   :at:`gap`
+   :at:`gap`, :at:`surfacevel`
 
 |body/composite/geom attrib list|
    Same meaning as regular :ref:`geom <body-geom>` attributes.
@@ -9539,6 +9567,8 @@ if omitted.
 .. _default-geom-margin:
 
 .. _default-geom-gap:
+
+.. _default-geom-surfacevel:
 
 .. _default-geom-fromto:
 

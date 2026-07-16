@@ -5005,6 +5005,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("geom_solimp", &MjModel::geom_solimp)
     .property("geom_solmix", &MjModel::geom_solmix)
     .property("geom_solref", &MjModel::geom_solref)
+    .property("geom_surfacevel", &MjModel::geom_surfacevel)
     .property("geom_type", &MjModel::geom_type)
     .property("geom_user", &MjModel::geom_user)
     .property("hfield_adr", &MjModel::hfield_adr)
@@ -5209,6 +5210,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("nskinface", &MjModel::nskinface, &MjModel::set_nskinface, reference())
     .property("nskintexvert", &MjModel::nskintexvert, &MjModel::set_nskintexvert, reference())
     .property("nskinvert", &MjModel::nskinvert, &MjModel::set_nskinvert, reference())
+    .property("nsurfacevel", &MjModel::nsurfacevel, &MjModel::set_nsurfacevel, reference())
     .property("ntendon", &MjModel::ntendon, &MjModel::set_ntendon, reference())
     .property("ntex", &MjModel::ntex, &MjModel::set_ntex, reference())
     .property("ntexdata", &MjModel::ntexdata, &MjModel::set_ntexdata, reference())
@@ -5777,6 +5779,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("solimp", &MjsGeom::solimp)
     .property("solmix", &MjsGeom::solmix, &MjsGeom::set_solmix, reference())
     .property("solref", &MjsGeom::solref)
+    .property("surfacevel", &MjsGeom::surfacevel)
     .property("type", &MjsGeom::type, &MjsGeom::set_type, reference())
     .property("typeinertia", &MjsGeom::typeinertia, &MjsGeom::set_typeinertia, reference())
     .property("userdata", &MjsGeom::userdata, reference());

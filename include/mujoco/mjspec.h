@@ -358,6 +358,7 @@ typedef struct mjsGeom_ {          // geom specification
   mjtNum solimp[mjNIMP];           // solver impedance
   double margin;                   // margin for contact detection
   double gap;                      // additional contact detection buffer
+  double surfacevel[6];            // surface velocity in local frame: linear, angular
 
   // inertia inference
   double mass;                     // used to compute density

@@ -661,6 +661,7 @@ typedef struct mjModel_ {
   mjtSize nnames_map;             // number of slots in the names hash map
   mjtSize nJmom;                  // number of non-zeros in sparse actuator_moment matrix
   mjtSize ngravcomp;              // number of bodies with nonzero gravcomp
+  mjtSize nsurfacevel;            // number of geoms with nonzero surfacevel
   mjtSize nemax;                  // number of potential equality-constraint rows
   mjtSize njmax;                  // number of available rows in constraint Jacobian (legacy)
   mjtSize nconmax;                // number of potential contacts in contact list (legacy)
@@ -801,6 +802,7 @@ typedef struct mjModel_ {
   mjtNum*   geom_friction;        // friction for (slide, spin, roll)         (ngeom x 3)
   mjtNum*   geom_margin;          // geometric inflation for contact          (ngeom x 1)
   mjtNum*   geom_gap;             // additional contact detection buffer      (ngeom x 1)
+  mjtNum*   geom_surfacevel;      // surface velocity in local frame: lin,ang (ngeom x 6)
   mjtNum*   geom_fluid;           // fluid interaction parameters             (ngeom x mjNFLUID)
   mjtNum*   geom_user;            // user data                                (ngeom x nuser_geom)
   float*    geom_rgba;            // rgba when material is omitted            (ngeom x 4)
@@ -1895,6 +1897,7 @@ typedef struct mjsGeom_ {          // geom specification
   mjtNum solimp[mjNIMP];           // solver impedance
   double margin;                   // margin for contact detection
   double gap;                      // additional contact detection buffer
+  double surfacevel[6];            // surface velocity in local frame: linear, angular
 
   // inertia inference
   double mass;                     // used to compute density

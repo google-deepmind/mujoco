@@ -52,6 +52,26 @@ TEST_F(UserCompositeTest, ShapeCanBeOmitted) {
   EXPECT_THAT(m.get(), NotNull()) << error.data();
 }
 
+TEST_F(UserCompositeTest, GeomSurfacevel) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <composite type="cable" count="5 1 1" curve="s">
+      <geom type="capsule" size=".02" surfacevel="0 0 0 0 0 3"/>
+    </composite>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  for (int g = 0; g < m->ngeom; g++) {
+    if (m->geom_type[g] == mjGEOM_CAPSULE) {
+      EXPECT_EQ(m->geom_surfacevel[6*g + 5], 3);
+    }
+  }
+}
+
 TEST_F(UserCompositeTest, InvalidShape) {
   static constexpr char xml[] = R"(
   <mujoco>
