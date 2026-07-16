@@ -818,31 +818,35 @@ void mjd_freeBias_vel(const mjModel* m, const mjData* d, int jnt, mjtNum B[36]) 
 }
 
 
+// return 1 if body is a standalone free body (single free joint, no children)
+mjtBool mj_isFreeBody(const mjModel* m, int body) {
+  // must have exactly one joint, of free type
+  if (m->body_jntnum[body] != 1 || m->jnt_type[m->body_jntadr[body]] != mjJNT_FREE) {
+    return false;
+  }
+
+  int adr = m->jnt_dofadr[m->body_jntadr[body]];
+
+  // must be a standalone 6-DOF tree with no children
+  if (m->tree_dofnum[m->dof_treeid[adr]] != 6 ||
+      m->body_subtreemass[body] != m->body_mass[body]) {
+    return false;
+  }
+
+  return true;
+}
+
+
 // 6x6 block A = M - h * (d qfrc_smooth / d qvel) for the free joint of a standalone body
 //   returns 1 and writes A if jnt is the free joint of a standalone awake body, 0 otherwise
 //   requires valid d->qDeriv rows for the block, computed with flg_bias = 0; the bias
-//   derivative excluded from qDeriv is added here via freeBias_vel_blocks
+//   derivative excluded from qDeriv is added here via mjd_freeBias_vel
 int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjtNum A[36]) {
-  // must be a free joint
-  if (m->jnt_type[jnt] != mjJNT_FREE) {
-    return 0;
-  }
-
   int body = m->jnt_bodyid[jnt];
   int adr = m->jnt_dofadr[jnt];
-  int tree = m->dof_treeid[adr];
-  mjtNum mass = m->body_mass[body];
 
-  // must be a standalone 6-DOF tree with no children, awake
-  if (m->tree_dofnum[tree] != 6 ||
-      m->body_subtreemass[body] != mass ||
-      !d->tree_awake[tree]) {
-    return 0;
-  }
-
-  // D rows of a standalone free body are exactly the 6x6 block (D sparsity is tree-local);
-  // guard the gathers below against any violation of this invariant
-  if (m->D_rownnz[adr] != 6) {
+  // must be a standalone free body, awake
+  if (!mj_isFreeBody(m, body) || !d->tree_awake[m->dof_treeid[adr]]) {
     return 0;
   }
 
@@ -872,6 +876,7 @@ int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjtNum A[
   mjtNum s[3];
   mji_sub3(s, d->xipos + 3*body, d->xpos + 3*body);
 
+  mjtNum mass = m->body_mass[body];
   mjtNum lin[9], rot[9];
   freeBias_vel_blocks(mass, d->xmat + 9*body, d->ximat + 9*body,
                       m->body_inertia + 3*body, s, d->qvel + adr + 3, lin, rot);
@@ -2482,8 +2487,8 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
 
     mjd_addedMassForces(B, lvel, m->opt.density, virtual_mass, virtual_inertia);
 
-    // make B symmetric if integrator is IMPLICITFAST
-    if (m->opt.integrator == mjINT_IMPLICITFAST) {
+    // make B symmetric if integrator is IMPLICITFAST, except for standalone free bodies
+    if (m->opt.integrator == mjINT_IMPLICITFAST && !mj_isFreeBody(m, bodyid)) {
       mju_symmetrize(B, B, 6);
     }
 

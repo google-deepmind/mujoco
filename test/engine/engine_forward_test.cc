@@ -16,7 +16,6 @@
 
 #include "src/engine/engine_forward.h"
 
-#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdlib>
@@ -68,7 +67,6 @@ using ::testing::Pointwise;
 
 using ::testing::_;
 using ::testing::Gt;
-using ::testing::HasSubstr;
 using ::testing::Ne;
 using ::testing::NotNull;
 
@@ -467,7 +465,8 @@ TEST_F(ImplicitIntegratorTest, EnergyConservation) {
 // free-body local solve: implicitfast matches implicit exactly for a standalone
 // free body
 TEST_F(ImplicitIntegratorTest, FreeBodyMatchesImplicit) {
-  static constexpr char xml[] = R"(
+  // damped free body in vacuum
+  static constexpr char xml1[] = R"(
   <mujoco>
     <option timestep="0.005"/>
     <worldbody>
@@ -479,36 +478,54 @@ TEST_F(ImplicitIntegratorTest, FreeBodyMatchesImplicit) {
   </mujoco>
   )";
 
-  char error[1024];
-  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model.get(), NotNull()) << error;
-  MjDataPtr d1 = MakeData(model);
-  MjDataPtr d2 = MakeData(model);
-  mjModel* m = model.get();
+  // free body in fluid with wind, ellipsoid fluid model (asymmetric lift
+  // derivatives)
+  static constexpr char xml2[] = R"(
+  <mujoco>
+    <option timestep="0.005" density="1.2" viscosity="0.002" wind="1 2 3"/>
+    <worldbody>
+      <body pos="0.1 -0.2 0.5" euler="20 -30 40">
+        <joint type="free"/>
+        <geom type="ellipsoid" size=".1 .2 .3" mass="2" pos=".04 -.02 .03"
+              fluidshape="ellipsoid"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
 
-  // tumbling initial velocity
-  mj_resetData(m, d1.get());
-  d1->qvel[3] = 5;
-  d1->qvel[4] = -3;
-  d1->qvel[5] = 2;
+  int xml_idx = 1;
+  for (auto xml : {xml1, xml2}) {
+    SCOPED_TRACE(testing::Message() << "XML case " << xml_idx++);
+    char error[1024];
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    MjDataPtr d1 = MakeData(model);
+    MjDataPtr d2 = MakeData(model);
+    mjModel* m = model.get();
 
-  // step both integrators from identical states, re-synchronizing each step
-  // to avoid chaotic divergence of tumbling trajectories
-  int nstate = mj_stateSize(m, mjSTATE_INTEGRATION);
-  std::vector<mjtNum> state(nstate);
-  mjtNum tol = MjTol(1e-14, 1e-6);
-  for (int i = 0; i < 50; i++) {
-    mj_getState(m, d1.get(), state.data(), mjSTATE_INTEGRATION);
-    mj_setState(m, d2.get(), state.data(), mjSTATE_INTEGRATION);
+    // tumbling initial velocity
+    mj_resetData(m, d1.get());
+    d1->qvel[3] = 5;
+    d1->qvel[4] = -3;
+    d1->qvel[5] = 2;
 
-    m->opt.integrator = mjINT_IMPLICITFAST;
-    mj_step(m, d1.get());
-    m->opt.integrator = mjINT_IMPLICIT;
-    mj_step(m, d2.get());
+    // step both integrators from identical states, re-synchronizing each step
+    // to avoid chaotic divergence of tumbling trajectories
+    int nstate = mj_stateSize(m, mjSTATE_INTEGRATION);
+    std::vector<mjtNum> state(nstate);
+    for (int i = 0; i < 50; i++) {
+      mj_getState(m, d1.get(), state.data(), mjSTATE_INTEGRATION);
+      mj_setState(m, d2.get(), state.data(), mjSTATE_INTEGRATION);
 
-    for (int k = 0; k < m->nv; k++) {
-      EXPECT_NEAR(d1->qvel[k], d2->qvel[k], tol)
-          << "step " << i << " dof " << k;
+      m->opt.integrator = mjINT_IMPLICITFAST;
+      mj_step(m, d1.get());
+      m->opt.integrator = mjINT_IMPLICIT;
+      mj_step(m, d2.get());
+
+      for (int k = 0; k < m->nv; k++) {
+        EXPECT_NEAR(d1->qvel[k], d2->qvel[k], MjTol(1e-14, 1e-6))
+            << "step " << i << " dof " << k;
+      }
     }
   }
 }

@@ -1377,7 +1377,7 @@ int mj_flexCG(const mjModel* m) {
 // fully implicit in velocity, possibly skipping factorization
 void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   TM_START;
-  int nD = m->nD, nC = m->nC;
+  int nD = m->nD, nC = m->nC, njnt = m->njnt;
 
   mj_markStack(d);
   mjtNum* qfrc = mjSTACKALLOC(d, m->nv, mjtNum);
@@ -1427,6 +1427,18 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
 
       // set qH = M - dt*qDeriv
       mju_addScl(d->qH, d->M, d->qH, -m->opt.timestep, nC);
+
+      // standalone free bodies: reset qH block rows to M; their qDeriv rows may be asymmetric and
+      // are handled by the local LU solve; we reset to keep LTL well-defined
+      for (int j=0; j < njnt; j++) {
+        if (m->jnt_type[j] != mjJNT_FREE || !mj_isFreeBody(m, m->jnt_bodyid[j])) {
+          continue;
+        }
+        int adr = m->jnt_dofadr[j];
+        for (int r=0; r < 6; r++) {
+          mju_copy(d->qH + m->M_rowadr[adr+r], d->M + m->M_rowadr[adr+r], m->M_rownnz[adr+r]);
+        }
+      }
     } else {
       mjERROR("integrator must be implicit or implicitfast");
     }
