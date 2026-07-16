@@ -57,6 +57,13 @@ General
   ``nu = sum(ctrlnum)`` and ``nout = sum(outnum)`` dimension ``mjData.ctrl`` and ``mjData.actuator_force``,
   respectively, ``nactuator`` is the number of actuators. For existing actuators ``ctrnum = outnum = 1``, so
   ``nactuator == nu == nout`` and existing code is unaffected.
+- Flex elasticity (stretch, bending, interpolation stiffness) is now integrated implicitly inside the CG constraint
+  solver via an *effective metric*: the mass matrix is augmented with the stiffness Hessian,
+  so contact and elastic forces are solved against one consistent metric. This replaces the previous post-hoc CG
+  correction, which modified ``qacc`` after the constraint solve. The gate is ``solver="CG"`` with an implicit
+  integrator and flex stiffness present; Newton and PGS are unaffected. Bending-only models pay zero per-step
+  factorization cost (the factor is precomputed in :ref:`mj_setConst<mj_setConst>`). Inverse dynamics
+  (:ref:`mj_inverse<mj_inverse>`) is now discrete-consistent with forward dynamics for gated models.
 
 .. admonition:: Breaking API changes
    :class: attention
