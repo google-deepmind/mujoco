@@ -72,6 +72,7 @@ General
   integrator and flex stiffness present; Newton and PGS are unaffected. Bending-only models pay zero per-step
   factorization cost (the factor is precomputed in :ref:`mj_setConst<mj_setConst>`). Inverse dynamics
   (:ref:`mj_inverse<mj_inverse>`) is now discrete-consistent with forward dynamics for gated models.
+- The ``mjz`` decoder now searches for ``model.xml`` at the root of the archive as a fallback if the archive-named XML is not found.
 
 .. admonition:: Breaking API changes
    :class: attention
