@@ -5974,6 +5974,8 @@ public unsafe struct mjvGeom_ {
   public int objid;
   public int category;
   public int matid;
+  public int texid;
+  public int texuniform;
   public int texcoord;
   public int segid;
   public fixed float size[3];
@@ -5984,6 +5986,7 @@ public unsafe struct mjvGeom_ {
   public float specular;
   public float shininess;
   public float reflectance;
+  public fixed float texrepeat[2];
   public fixed char label[100];
   public float camdist;
   public float modelrbound;

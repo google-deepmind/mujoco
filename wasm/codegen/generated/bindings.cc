@@ -6099,6 +6099,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("size", &MjvGeom::size)
     .property("specular", &MjvGeom::specular, &MjvGeom::set_specular, reference())
     .property("texcoord", &MjvGeom::texcoord, &MjvGeom::set_texcoord, reference())
+    .property("texid", &MjvGeom::texid, &MjvGeom::set_texid, reference())
+    .property("texrepeat", &MjvGeom::texrepeat)
+    .property("texuniform", &MjvGeom::texuniform, &MjvGeom::set_texuniform, reference())
     .property("transparent", &MjvGeom::transparent, &MjvGeom::set_transparent, reference())
     .property("type", &MjvGeom::type, &MjvGeom::set_type, reference());
   emscripten::class_<MjvLight>("MjvLight")

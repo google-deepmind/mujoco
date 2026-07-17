@@ -241,6 +241,10 @@ static void setMaterial(const mjModel* m, mjvGeom* geom, int matid, const float*
   // set texture
   if (flags[mjVIS_TEXTURE] && matid >= 0) {
     geom->matid = matid;
+    geom->texid = m->mat_texid[matid*mjNTEXROLE + mjTEXROLE_RGB];
+    geom->texuniform = m->mat_texuniform[matid];
+    geom->texrepeat[0] = m->mat_texrepeat[2*matid];
+    geom->texrepeat[1] = m->mat_texrepeat[2*matid+1];
   }
 
   // scale alpha for dynamic geoms only
@@ -379,6 +383,10 @@ void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
   // set defaults that cannot be assigned via this function
   geom->dataid       = -1;
   geom->matid        = -1;
+  geom->texid        = -1;
+  geom->texuniform   = 0;
+  geom->texrepeat[0] = 0;
+  geom->texrepeat[1] = 0;
   geom->texcoord     = 0;
   geom->emission     = 0;
   geom->specular     = 0.5;

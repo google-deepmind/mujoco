@@ -1850,6 +1850,18 @@ struct MjvGeom {
   void set_matid(int value) {
     ptr_->matid = value;
   }
+  int texid() const {
+    return ptr_->texid;
+  }
+  void set_texid(int value) {
+    ptr_->texid = value;
+  }
+  int texuniform() const {
+    return ptr_->texuniform;
+  }
+  void set_texuniform(int value) {
+    ptr_->texuniform = value;
+  }
   int texcoord() const {
     return ptr_->texcoord;
   }
@@ -1897,6 +1909,9 @@ struct MjvGeom {
   }
   void set_reflectance(float value) {
     ptr_->reflectance = value;
+  }
+  emscripten::val texrepeat() const {
+    return emscripten::val(emscripten::typed_memory_view(2, ptr_->texrepeat));
   }
   emscripten::val label() const {
     return emscripten::val(emscripten::typed_memory_view(100, ptr_->label));

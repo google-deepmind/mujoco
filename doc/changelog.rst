@@ -86,6 +86,11 @@ Bug fixes
   in-gap contacts on multi-geom bodies.
 - Fixed a bug in the mesh compiler where normals were scaled as vectors rather than covectors.
 
+.. admonition:: Breaking ABI changes
+   :class: attention
+
+   - Added ``texid``, ``texuniform`` and ``texrepeat`` fields to ``mjvGeom``.
+
 Version 3.10.0 (June 22, 2026)
 ------------------------------
 

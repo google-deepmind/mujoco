@@ -231,6 +231,8 @@ typedef struct mjvGeom_ {         // abstract geom
   int      objid;                 // mujoco object id; -1 for decor
   int      category;              // visual category
   int      matid;                 // material id; -1: no textured material
+  int      texid;                 // texture id; -1: none
+  int      texuniform;            // uniform cube mapping
   int      texcoord;              // mesh or flex geom has texture coordinates
   int      segid;                 // segmentation id; -1: not shown
 
@@ -245,6 +247,7 @@ typedef struct mjvGeom_ {         // abstract geom
   float    specular;              // specular coef
   float    shininess;             // shininess coef
   float    reflectance;           // reflectance coef
+  float    texrepeat[2];          // texture repetition for 2d mapping
 
   char     label[100];            // text label
 
