@@ -5,8 +5,9 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
-General
-^^^^^^^
+Engine
+^^^^^^
+
 .. youtube:: PdSdrqhSiZA
    :align: right
    :width: 35%
@@ -14,7 +15,7 @@ General
 - Added :ref:`geom/surfacevel<body-geom-surfacevel>`: the velocity of a geom's surface as seen by contacts, given as
   a velocity field with a constant component and a rotational component about the geom frame origin. This allows
   conveyor belts, treadmills and turntables to be modeled with static geoms and no degrees of freedom: friction
-  drives touching bodies toward the motion of the surface, with the field projected onto each contact's tangent
+  drives touching bodies along the motion of the surface, with the field projected onto each contact's tangent
   plane. Surface velocities compose correctly with each other and with body motion.
   Note that the contact rows of ``mjData.efc_vel``, and the constraint-state sensors that read them, report the
   velocity relative to the moving surface rather than to the geom, since that is the quantity the constraint acts
@@ -28,6 +29,67 @@ General
   longer gain energy, but tumbling motion is now mildly damped; models requiring long-horizon energy conservation of
   tumbling bodies in vacuum should use ``RK4``. The :ref:`invdiscrete<option-flag-invdiscrete>` flag no longer has any
   effect on forward dynamics.
+- Added :ref:`body/simple<body-simple>` attribute ("false"/"auto") to disable the *simple body* mass matrix
+  optimization. This is useful for domain randomization, where model parameters may change post-compilation.
+- :ref:`mj_setConst` now recomputes the ``mjModel.{body,geom,site}_sameframe`` flags, to account for changes in
+  body/geom/site frames after compilation.
+- Added support for :ref:`multiccd <coMultiCCD>` with arbitrarily large meshes.
+- Added ``flg_gravcomp`` and ``flg_surfacevel`` boolean flags to ``mjModel``. These flags replace the fast-path checks
+  as originally guarded by ``ngravcomp``. Since the engine uses these integers as flags (zero vs. non-zero), the new
+  flags are honest boolean properties, writeable from the Python bindings at runtime. The field ``ngravcomp`` is
+  deprecated and will be removed in a future release.
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - Changed the default value of :ref:`sleep_tolerance<option-sleep_tolerance>` from 1e-4 to 1e-3 (1mm/sec in SI
+     units).
+   - Removed the legacy sparse ancestor-walk inertia matrix ``mjData.qM``. The joint-space inertia matrix is now stored
+     exclusively in the compressed sparse row (CSR) format ``mjData.M``.
+   - Switched :ref:`mjd_inverseFD` to use the CSR-format ``mjData.M`` representation instead of the legacy ``mjData.qM``
+     for the mass matrix derivative. This changes the shape of the ``DmDq`` parameter from ``(nv x nM)`` to
+     ``(nv x nC)``.
+   - :ref:`mju_round` now breaks ties away from zero rather than towards :math:`+\infty`. This only affects
+     negative half-integers, e.g. ``mju_round(-2.5)`` now returns -3 rather than -2.
+   - Removed unneeded `mjvScene` argument from :ref:`mjv_moveCamera`.
+
+.. admonition:: Breaking ABI changes
+   :class: caution
+
+   - Added ``texid``, ``texuniform`` and ``texrepeat`` fields to ``mjvGeom``.
+
+.. admonition:: Bug fixes
+   :class: admonition
+
+   - Fixed a bug where ``body_margin`` excluded ``gap``, causing the mid-phase collision filter to incorrectly prune
+     in-gap contacts on multi-geom bodies.
+
+Actuation
+^^^^^^^^^
+- Refactored actuator infrastructure in preparation for MIMO (multi-input multi-output) actuator support. Each actuator
+  now has ``ctrlnum`` (number of controls) and ``outnum`` (number of force outputs). The total counts
+  ``nu = sum(ctrlnum)`` and ``nout = sum(outnum)`` dimension ``mjData.ctrl`` and ``mjData.actuator_force``,
+  respectively, ``nactuator`` is the number of actuators. For existing actuators ``ctrnum = outnum = 1``, so
+  ``nactuator == nu == nout`` and existing code is unaffected.
+- Setpoints of :ref:`position<actuator-position>` and :ref:`intvelocity<actuator-intvelocity>` servos acting on 3D
+  rotational transmissions (ball joints, or site transmissions with a :ref:`refsite<actuator-general-refsite>` and
+  purely rotational gear) are now interpreted on the circle: the force uses the setpoint representative nearest the
+  current angle, so targets winding beyond half a turn are tracked continuously instead of slipping by full turns.
+  Behavior is identical whenever the error does not exceed π. Relatedly, ``intvelocity`` actuators now expose
+  :ref:`actlimited<actuator-intvelocity-actlimited>`, which was previously hardcoded to "true": as for
+  :ref:`general<actuator-general>` actuators it defaults to "auto", so activation clamping is enabled by specifying
+  ``actrange``. Unclamped integrated setpoints are well-behaved on rotational transmissions, where they wrap.
+
+
+Solvers
+^^^^^^^
+- Flex elasticity (stretch, bending, interpolation stiffness) is now integrated implicitly inside the CG constraint
+  solver via an *effective metric*: the mass matrix is augmented with the stiffness Hessian,
+  so contact and elastic forces are solved against one consistent metric. This replaces the previous post-hoc CG
+  correction, which modified ``qacc`` after the constraint solve. The gate is ``solver="CG"`` with an implicit
+  integrator and flex stiffness present; Newton and PGS are unaffected. Bending-only models pay zero per-step
+  factorization cost (the factor is precomputed in :ref:`mj_setConst<mj_setConst>`). Inverse dynamics
+  (:ref:`mj_inverse<mj_inverse>`) is now discrete-consistent with forward dynamics for gated models.
 - Added Nesterov momentum extrapolation with adaptive gradient restart (O'Donoghue-Candès) to the PGS solver,
   significantly improving convergence. Overall PGS now requires ~2x fewer iterations.
 - Added the Newton decrement -- the quadratic model's predicted cost improvement of the next iteration -- as a third
@@ -39,71 +101,32 @@ General
   factorization, so quiescent scenes skip Hessian construction, factorization and the line search entirely. Newton
   zero-iteration exits additionally require the gradient criterion, preserving Newton's characteristic force-level
   accuracy. See :ref:`Warmstart<soAlgorithms>` in the Computation chapter for details.
+
+
+Compiler
+^^^^^^^^
 - :ref:`mj_encode` now supports encoding of MJB and TXT files.
-- :ref:`mj_setConst` now recomputes the ``mjModel.{body,geom,site}_sameframe`` flags, to account for changes in
-  body/geom/site frames after compilation.
-- Added :ref:`body/simple<body-simple>` attribute ("false"/"auto") to disable the *simple body* mass matrix
-  optimization. This is useful for domain randomization, where model parameters may change post-compilation.
-- The :el:`attach` element now supports self-attachment (attaching elements of the current model to itself) by omitting
-  the :at:`model` attribute. It also supports attaching a frame via the new :at:`frame` attribute, which is mutually
-  exclusive with :at:`body`.
+- The :ref:`attach<body-attach>` element now supports self-attachment (attaching elements of the current model to
+  itself) by omitting the :ref:`model<body-attach-model>` attribute. It also supports attaching a frame via the new
+  :ref:`frame<body-attach-frame>` attribute, which is mutually exclusive with :ref:`body<body-attach-body>`.
 - Fixed loading of ``.mjz`` archives in :ref:`simulate<saSimulate>`: the archive was unmounted before model compilation,
-  so assets contained in it failed to load. Failures in the ``mjz`` decoder now emit a warning with the underlying
-  error instead of the generic "could not decode content" message.
-- Added support for resource writing via :ref:`mju_writeResource` and the ``write`` callback in :ref:`mjpResourceProvider`.
-- Added support for :ref:`multiccd <coMultiCCD>` with arbitrarily large meshes.
-- Setpoints of :ref:`position<actuator-position>` and :ref:`intvelocity<actuator-intvelocity>` servos acting on 3D
-  rotational transmissions (ball joints, or site transmissions with a :ref:`refsite<actuator-general-refsite>` and
-  purely rotational gear) are now interpreted on the circle: the force uses the setpoint representative nearest the
-  current angle, so targets winding beyond half a turn are tracked continuously instead of slipping by full turns.
-  Behavior is identical whenever the error does not exceed π. Relatedly, ``intvelocity`` actuators now expose
-  :ref:`actlimited<actuator-intvelocity-actlimited>`, which was previously hardcoded to "true": as for
-  :ref:`general<actuator-general>` actuators it defaults to "auto", so activation clamping is enabled by specifying
-  ``actrange``. Unclamped integrated setpoints are well-behaved on rotational transmissions, where they wrap.
-- Refactored actuator infrastructure in preparation for MIMO (multi-input multi-output) actuator support. Each actuator
-  now has ``ctrlnum`` (number of controls) and ``outnum`` (number of force outputs). The total counts
-  ``nu = sum(ctrlnum)`` and ``nout = sum(outnum)`` dimension ``mjData.ctrl`` and ``mjData.actuator_force``,
-  respectively, ``nactuator`` is the number of actuators. For existing actuators ``ctrnum = outnum = 1``, so
-  ``nactuator == nu == nout`` and existing code is unaffected.
-- Flex elasticity (stretch, bending, interpolation stiffness) is now integrated implicitly inside the CG constraint
-  solver via an *effective metric*: the mass matrix is augmented with the stiffness Hessian,
-  so contact and elastic forces are solved against one consistent metric. This replaces the previous post-hoc CG
-  correction, which modified ``qacc`` after the constraint solve. The gate is ``solver="CG"`` with an implicit
-  integrator and flex stiffness present; Newton and PGS are unaffected. Bending-only models pay zero per-step
-  factorization cost (the factor is precomputed in :ref:`mj_setConst<mj_setConst>`). Inverse dynamics
-  (:ref:`mj_inverse<mj_inverse>`) is now discrete-consistent with forward dynamics for gated models.
+  so assets failed to load. Failures in the ``mjz`` decoder now emit a warning with the underlying error instead of the
+  generic "could not decode content" message.
 - The ``mjz`` decoder now searches for ``model.xml`` at the root of the archive as a fallback if the archive-named XML
   is not found.
-- Added ``flg_gravcomp`` and ``flg_surfacevel`` boolean flags to ``mjModel``. These flags replace the fast-path checks
-  as originally guarded by ``ngravcomp``. Since the engine uses these integers as flags (zero vs. non-zero), the new
-  flags are honest boolean properties, writeable from the Python bindings at runtime. The field ``ngravcomp`` is
-  deprecated and will be removed in a future release.
+- Added support for resource writing via :ref:`mju_writeResource` and the ``write`` callback in
+  :ref:`mjpResourceProvider`.
 
 .. admonition:: Breaking API changes
    :class: attention
 
-   - Return type of :ref:`mj_encode` and the :ref:`mjfEncode` callback changed from ``int`` to ``mjtSize`` (64-bit).
-   - Switched :ref:`mjd_inverseFD` to use the CSR-format ``mjData.M`` representation instead of the legacy ``mjData.qM``
-     for the mass matrix derivative. This changes the shape of the ``DmDq`` parameter from ``(nv x nM)`` to
-     ``(nv x nC)``.
-   - Removed the legacy sparse ancestor-walk inertia matrix ``mjData.qM``. The joint-space inertia matrix is now stored
-     exclusively in the compressed sparse row (CSR) format ``mjData.M``.
-   - :ref:`mju_round` now breaks ties away from zero rather than towards :math:`+\infty`. This only affects
-     negative half-integers, e.g. ``mju_round(-2.5)`` now returns -3 rather than -2.
-   - Changed the default value of :ref:`sleep_tolerance<option-sleep_tolerance>` from 1e-4 to 1e-3 (1mm/sec in SI
-     units).
-   - Removed unneeded `mjvScene` argument from :ref:`mjv_moveCamera`.
+   - The return type of :ref:`mj_encode` and the :ref:`mjfEncode` callback changed from ``int`` to ``mjtSize``
+     (64-bit).
 
-Bug fixes
-^^^^^^^^^
-- Fixed a bug where ``body_margin`` excluded ``gap``, causing the mid-phase collision filter to incorrectly prune
-  in-gap contacts on multi-geom bodies.
-- Fixed a bug in the mesh compiler where normals were scaled as vectors rather than covectors.
+.. admonition:: Bug fixes
+   :class: admonition
 
-.. admonition:: Breaking ABI changes
-   :class: attention
-
-   - Added ``texid``, ``texuniform`` and ``texrepeat`` fields to ``mjvGeom``.
+   - Fixed a bug in the mesh compiler where normals were scaled as vectors rather than covectors.
 
 Version 3.10.0 (June 22, 2026)
 ------------------------------
@@ -149,25 +172,24 @@ General
    :ref:`maxhullvert<asset-mesh-maxhullvert>` attribute by invoking Qhull's
    `Q9 <http://www.qhull.org/html/qh-optq.htm#Q9>`__ option.
 
-   .. admonition:: Breaking API changes
-      :class: attention
+.. admonition:: Breaking API changes
+   :class: attention
 
-      10. :commit:`b935d415` The header file ``mjthread.h`` was removed along with the old engine threading API.
-          |br| **Migration:** Use :ref:`mju_threadpool` to set number of worker threads for the engine.
-      11. :commit:`96bf8aea` Moved island sparse matrix construction from :ref:`mj_island` (single threaded) into
-          :ref:`mj_fwdConstraint` (multi-threaded). The island-specific matrices ``iM, iLD, iefc_J`` were removed from
-          the arena and are now allocated on the stack.
-      12. :commit:`4548e81e` Following the introduction of the :ref:`diagexact<option-flag-diagexact>` flag, the
-          ``mjData`` field ``efc_diagApprox`` was renamed to ``efc_diagA``, as it can now be either the exact or
-          approximate diagonal of the :math:`A` ("Delassus") matrix.
-      13. :commit:`062b0f1e` The deprecated functions ``mju_{error,warning}_{i,s}`` have been removed.
+   10. :commit:`b935d415` The header file ``mjthread.h`` was removed along with the old engine threading API.
+       |br| **Migration:** Use :ref:`mju_threadpool` to set number of worker threads for the engine.
+   11. :commit:`96bf8aea` Moved island sparse matrix construction from :ref:`mj_island` (single threaded) into
+       :ref:`mj_fwdConstraint` (multi-threaded). The island-specific matrices ``iM, iLD, iefc_J`` were removed from
+       the arena and are now allocated on the stack.
+   12. :commit:`4548e81e` Following the introduction of the :ref:`diagexact<option-flag-diagexact>` flag, the
+       ``mjData`` field ``efc_diagApprox`` was renamed to ``efc_diagA``, as it can now be either the exact or
+       approximate diagonal of the :math:`A` ("Delassus") matrix.
+   13. :commit:`062b0f1e` The deprecated functions ``mju_{error,warning}_{i,s}`` have been removed.
+   14. :commit:`7b9b8806` Changed the signature of :ref:`mj_fullM` from ``mj_fullM(m, dst, M)`` to
+       ``mj_fullM(m, d, dst)`` as part of the planned deprecation of ``mjData.qM`` in favor of the CSR-format
+       ``mjData.M``.
 
-      14. :commit:`7b9b8806` Changed the signature of :ref:`mj_fullM` from ``mj_fullM(m, dst, M)`` to
-          ``mj_fullM(m, d, dst)`` as part of the planned deprecation of ``mjData.qM`` in favor of the CSR-format
-          ``mjData.M``.
-
-          **Migration:** For inertia matrix conversion, replace ``mj_fullM(m, dst, d->qM)`` with ``mj_fullM(m, d, dst)``
-          or ``mju_sym2dense(dst, d->M, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind)``.
+       **Migration:** For inertia matrix conversion, replace ``mj_fullM(m, dst, d->qM)`` with ``mj_fullM(m, d, dst)``
+       or ``mju_sym2dense(dst, d->M, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind)``.
 
 Bug fixes
 ^^^^^^^^^
