@@ -352,10 +352,35 @@ int mj_isElemActive(const mjModel* m, int f, int e) {
 
 // internal structure for storing pairs meant for narrowphase collision detection
 typedef struct {
-  int g1;
-  int g2;
-  int ipair;
+  // type of collision pair
+  enum {
+    mjCPAIR_GEOM_GEOM = 0,
+    mjCPAIR_GEOM_FLEX,
+    mjCPAIR_GEOM_ELEM,
+    mjCPAIR_ELEM_VERT,
+    mjCPAIR_ELEM_ELEM,
+  } type;
+  int conpos;
+  union {
+    struct { int g1, g2, ipair; } geom_geom;
+    struct { int g, f; } geom_flex;
+    struct { int g, f, e; } geom_elem;
+    struct { int f, e, v; } elem_vert;
+    struct { int f1, e1, f2, e2; } elem_elem;
+  };
 } mjcPair;
+
+
+// initialize a default collision pair
+static inline void defaultPair(mjcPair* pair, int type) {
+  pair->type = type;
+  // clear all fields in the union
+  pair->elem_elem.f1 = -1;
+  pair->elem_elem.e1 = -1;
+  pair->elem_elem.f2 = -1;
+  pair->elem_elem.e2 = -1;
+}
+
 
 // binary search between two bodyflex trees
 static void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
@@ -486,21 +511,30 @@ static void filterFlexContacts(mjData* d, int ncon_before) {
 
 
 // push a candidate collision pair onto the arena
-static void pushPairArena(const mjModel* m, mjData* d, int g1, int g2, int ipair) {
+static void pushPairArena(mjData* d, mjcPair* pair) {
   // allocate geom pair on the arena
-  mjcPair* pair = (mjcPair*) mj_arenaAllocByte(d, sizeof(mjcPair), _Alignof(mjcPair));
+  mjcPair* new_pair = (mjcPair*) mj_arenaAllocByte(d, sizeof(mjcPair), _Alignof(mjcPair));
   if (!pair) {
     mjERROR("arena too small to allocate geom pair");
   }
+  *new_pair = *pair;
+}
 
-  if (g1 >= 0 && g2 >= 0 && m->geom_type[g1] > m->geom_type[g2]) {
-    pair->g1 = g2;
-    pair->g2 = g1;
-  } else {
-    pair->g1 = g1;
-    pair->g2 = g2;
+
+// push a geom-geom collision pair onto the arena
+static void pushGeomGeom(const mjModel* m, mjData* d, int g1, int g2, int ipair) {
+  if (m->geom_type[g1] > m->geom_type[g2]) {
+    int tmp = g1;
+    g1 = g2;
+    g2 = tmp;
   }
-  pair->ipair = ipair;
+
+  mjcPair pair;
+  defaultPair(&pair, mjCPAIR_GEOM_GEOM);
+  pair.geom_geom.g1 = g1;
+  pair.geom_geom.g2 = g2;
+  pair.geom_geom.ipair = ipair;
+  pushPairArena(d, &pair);
 }
 
 
@@ -616,7 +650,7 @@ void mj_collision(const mjModel* m, mjData* d) {
       merged = (m->pair_signature[pairadr] == signature);
       g1 = m->pair_geom1[pairadr], g2 = m->pair_geom2[pairadr];
       if (filterCollisionPair(m, d, g1, g2, pairadr, 0, 0, 0)) {
-        pushPairArena(m, d, g1, g2, pairadr);
+        pushGeomGeom(m, d, g1, g2, pairadr);
         ngeompair++;
       }
     }
@@ -651,7 +685,7 @@ void mj_collision(const mjModel* m, mjData* d) {
     // process bodyflex pair: two single-geom bodies
     if (isbody1 && isbody2 && m->body_geomnum[bf1] == 1 && m->body_geomnum[bf2] == 1) {
       if (filterCollisionPair(m, d, geomadr1, geomadr2, -1, merged, startadr, pairadr)) {
-        pushPairArena(m, d, geomadr1, geomadr2, -1);
+        pushGeomGeom(m, d, geomadr1, geomadr2, -1);
         ngeompair++;
       }
     }
@@ -697,7 +731,7 @@ void mj_collision(const mjModel* m, mjData* d) {
         for (g1=geomadr1; g1 < geomadr_end1; g1++) {
           for (g2=geomadr2; g2 < geomadr_end2; g2++) {
             if (filterCollisionPair(m, d, g1, g2, -1, merged, startadr, pairadr)) {
-              pushPairArena(m, d, g1, g2, -1);
+              pushGeomGeom(m, d, g1, g2, -1);
               ngeompair++;
             }
           }
@@ -780,7 +814,7 @@ void mj_collision(const mjModel* m, mjData* d) {
   for (; pairadr < npair; pairadr++) {
     g1 = m->pair_geom1[pairadr], g2 = m->pair_geom2[pairadr];
     if (filterCollisionPair(m, d, g1, g2, pairadr, 0, 0, 0)) {
-      pushPairArena(m, d, g1, g2, pairadr);
+      pushGeomGeom(m, d, g1, g2, pairadr);
       ngeompair++;
     }
   }
@@ -1048,9 +1082,9 @@ static void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
                 n2 = nodeid1;
               }
               mjcPair pair;
-              pair.g1 = n1;
-              pair.g2 = n2;
-              pair.ipair = -1;
+              defaultPair(&pair, mjCPAIR_GEOM_GEOM);
+              pair.geom_geom.g1 = n1;
+              pair.geom_geom.g2 = n2;
               mj_narrowphase(m, d, &pair, 1, 0);
             }
             if (mark_active) {
@@ -1833,16 +1867,23 @@ static void mj_makeCapsule(const mjModel* m, mjData* d, int f, const int vid[2],
 }
 
 
+// struct holding extra data for a flex precontact
+typedef struct {
+  int elem[2];
+  int vert[2];
+} mjPreFlex;
+
 // struct for collision task
 typedef struct {
-  mjPreContact* conbuffer;  // pre-contact buffer returned by collision functions
-  int* nconbuffer;          // contact count for each collision pair
-  char* epabuffer;          // buffer for nativeccd
-  int ccd_size;             // size of nativeccd buffer
-  const int* pairbuffer;    // collision pairs (g1, g2, ipair, index into conbuffer)
-  int npair;                // number of collision pairs
-  int chunksize;            // number of pairs to process per task
-  int maxcon;               // maximum number of contacts (size of conbuffer)
+  mjPreContact* conbuffer;    // pre-contact buffer returned by collision functions
+  mjPreFlex* flexbuffer;      // pre-flex buffer returned by collision functions
+  int* nconbuffer;            // contact count for each collision pair
+  char* epabuffer;            // buffer for nativeccd
+  int ccd_size;               // size of nativeccd buffer
+  const mjcPair* pairbuffer;  // collision pairs
+  int npair;                  // number of collision pairs
+  int chunksize;              // number of pairs to process per task
+  int maxcon;                 // maximum number of contacts (size of conbuffer)
 } mjContactArg;
 
 
@@ -1852,7 +1893,7 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
   char* epabuffer = conargs->epabuffer;
   int chunksize = conargs->chunksize;
   int globalidx = chunksize * idx;
-  const int* pair = conargs->pairbuffer + 4 * globalidx;
+  const mjcPair* pair = conargs->pairbuffer + globalidx;
   int* ncon = conargs->nconbuffer + chunksize * idx;
 
   int npair = conargs->npair;
@@ -1860,10 +1901,10 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
 
   mjc_setCCDBuffer(epabuffer + thread_id * conargs->ccd_size);
   for (int i = 0; i < n; i++) {
-    int g1 = pair[4*i + 0];
-    int g2 = pair[4*i + 1];
-    int ipair = pair[4*i + 2];
-    int conpos = pair[4*i + 3];
+    int g1 = pair[i].geom_geom.g1;
+    int g2 = pair[i].geom_geom.g2;
+    int ipair = pair[i].geom_geom.ipair;
+    int conpos = pair[i].conpos;
 
     mjfCollision collision_func = mjCOLLISIONFUNC[m->geom_type[g1]][m->geom_type[g2]];
     mjtNum margin = getMargin(m, g1, g2, ipair);
@@ -1871,7 +1912,7 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
     ncon[i] = collision_func(m, d, conbuffer + conpos, g1, g2, margin + gap);
 
     // SHOULD NOT OCCUR
-    int expected_max = (globalidx + i + 1 < npair ? pair[4*(i+1) + 3] : conargs->maxcon) - conpos;
+    int expected_max = (globalidx + i + 1 < npair ? pair[i+1].conpos : conargs->maxcon) - conpos;
     if (ncon[i] > expected_max) {
       mjERROR("collision function returned %d contacts for geom pair (%d, %d), "
               "expected at most %d from mj_maxContact", ncon[i], g1, g2, expected_max);
@@ -1906,18 +1947,16 @@ static void mj_narrowphase(const mjModel* m, mjData* d, const mjcPair* buffer, i
 
   mj_markStack(d);
 
-  // buffer for pair data (g1, g2, ipair, index into conbuffer)
-  int* pairbuffer = mj_stackAllocInt(d, 4 * npair);
+  // buffer for pair data
+  mjcPair* pairbuffer = mjSTACKALLOC(d, npair, mjcPair);
   int maxcon = 0;
   for (int i = 0; i < npair; i++) {
-    int g1 = buffer[i].g1;
-    int g2 = buffer[i].g2;
-    int ipair = buffer[i].ipair;
+    int g1 = buffer[i].geom_geom.g1;
+    int g2 = buffer[i].geom_geom.g2;
+    int ipair = buffer[i].geom_geom.ipair;
 
-    pairbuffer[4*i + 0] = g1;
-    pairbuffer[4*i + 1] = g2;
-    pairbuffer[4*i + 2] = ipair;
-    pairbuffer[4*i + 3] = maxcon;
+    pairbuffer[i] = buffer[i];
+    pairbuffer[i].conpos = maxcon;
     margin = getMargin(m, g1, g2, ipair);
     gap = getGap(m, g1, g2, ipair);
     maxcon += mj_maxContact(m, g1, g2, margin + gap > 0);
@@ -1973,9 +2012,9 @@ static void mj_narrowphase(const mjModel* m, mjData* d, const mjcPair* buffer, i
     int condim;
     mjtNum friction[5], solref[mjNREF], solimp[mjNIMP];
     mjtNum solreffriction[mjNREF] = {0};
-    int g1 = pairbuffer[4*i + 0];
-    int g2 = pairbuffer[4*i + 1];
-    int ipair = pairbuffer[4*i + 2];
+    int g1 = pairbuffer[i].geom_geom.g1;
+    int g2 = pairbuffer[i].geom_geom.g2;
+    int ipair = pairbuffer[i].geom_geom.ipair;
 
     if (ipair >= 0) {
       condim = m->pair_dim[ipair];
@@ -1989,7 +2028,7 @@ static void mj_narrowphase(const mjModel* m, mjData* d, const mjcPair* buffer, i
       mj_contactParam(m, &condim, solref, solimp, friction, g1, g2, -1, -1);
     }
 
-    mjPreContact* bc = arg.conbuffer + pairbuffer[4*i+3];
+    mjPreContact* bc = arg.conbuffer + pairbuffer[i].conpos;
     margin = getMargin(m, g1, g2, ipair);
     for (int j=0; j < ncon; j++) {
       mjContact* c = con + conpos + j;
