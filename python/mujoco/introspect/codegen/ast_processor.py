@@ -332,9 +332,13 @@ class AstProcessor:
     )
 
   def _make_anonymous_key(self, node: ClangJsonNode) -> str:
-    line = node['loc']['line']
-    col = node['loc']['col']
-    return f'{line}:{col}'
+    loc = node['loc']
+    if 'line' not in loc:
+      # Clang elides 'line' when unchanged from the previous node. This only
+      # occurs for system-header structs never referenced by MuJoCo types, so
+      # the key merely needs to be unique.
+      return f"offset{loc.get('offset')}:{loc.get('col')}"
+    return f"{loc['line']}:{loc['col']}"
 
 
 def _traverse(node, visitor):
