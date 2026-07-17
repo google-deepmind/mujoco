@@ -94,9 +94,12 @@ target_include_directories(${MUJOCO_PLATFORM_TARGET_NAME}
         ${PROJECT_SOURCE_DIR}/src
 )
 
+# SDL2 must come before dear_imgui so that the dear_imgui_SDL2 backend target
+# gets created (usually a no-op: both are already set up by the top-level
+# CMakeLists.txt before src/render/filament).
+include(third_party_deps/sdl2)
 include(third_party_deps/dear_imgui)
 include(third_party_deps/implot)
-include(third_party_deps/sdl2)
 include(third_party_deps/libwebp)
 
 target_link_libraries(${MUJOCO_PLATFORM_TARGET_NAME}

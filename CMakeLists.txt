@@ -171,6 +171,14 @@ if(NOT EMSCRIPTEN AND NOT MUJOCO_USE_FILAMENT_MJR_COMPAT)
 endif()
 add_subdirectory(src/render/noop)
 
+# Studio's platform layer (src/experimental/platform) uses dear_imgui's SDL2
+# backend, which is only defined if SDL2::SDL2-static exists when dear_imgui is
+# first fetched — and that happens in src/render/filament below. Set up SDL2
+# first so the backend target gets created.
+if(MUJOCO_BUILD_STUDIO)
+  include(third_party_deps/sdl2)
+endif()
+
 if(MUJOCO_USE_FILAMENT)
   add_subdirectory(src/render/filament)
   add_subdirectory(src/experimental/filament)
