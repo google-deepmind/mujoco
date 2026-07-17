@@ -1116,7 +1116,7 @@ information about the constraint state and line search.
 
 When the option :at:`fwdinv` is enabled in ``mjModel.opt.enableflags``, the field ``mjData.fwdinv`` is also populated.
 It contains the difference between the forward and inverse dynamics, in terms of generalized forces and constraint
-forces. Recall that that the inverse dynamics use analytical formulas and are always exact, thus any discrepancy is
+forces. Recall that the inverse dynamics use analytical formulas and are always exact, thus any discrepancy is
 due to poor convergence of the iterative solver in the forward dynamics. The numbers in ``mjData.solver`` near
 termination have similar order-of-magnitude as the numbers in ``mjData.fwdinv``, but nevertheless these are two
 different diagnostics.
