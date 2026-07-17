@@ -101,12 +101,12 @@ jobs:
     # each compiler gets its own cache; the action's restore-keys let PR branches
     # fall back to main's cache. ccache on Windows/MSVC is finicky and Windows
     # isn't the bottleneck, so we skip it there.
-    - name: Setup ccache
-      if: ${{ runner.os != 'Windows' }}
-      uses: hendrikmuhs/ccache-action@v1.2.23
-      with:
-        key: ${{ matrix.label }}
-        max-size: "1.5G"
+#    - name: Setup ccache
+#      if: ${{ runner.os != 'Windows' }}
+#      uses: hendrikmuhs/ccache-action@v1.2.23
+#      with:
+#        key: ${{ matrix.label }}
+#        max-size: "1.5G"
 
     - name: Configure MuJoCo
       env:
