@@ -1105,7 +1105,6 @@ public unsafe struct mjModel_ {
   public UInt64 nnames_map;
   public UInt64 nJmom;
   public UInt64 ngravcomp;
-  public UInt64 nsurfacevel;
   public UInt64 nemax;
   public UInt64 njmax;
   public UInt64 nconmax;
@@ -1117,6 +1116,8 @@ public unsafe struct mjModel_ {
   public UInt64 nhistory;
   public UInt64 narena;
   public UInt64 nbuffer;
+  public byte flg_gravcomp;
+  public byte flg_surfacevel;
   public mjOption_ opt;
   public mjVisual_ vis;
   public mjStatistic_ stat;

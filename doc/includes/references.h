@@ -661,7 +661,6 @@ typedef struct mjModel_ {
   mjtSize nnames_map;             // number of slots in the names hash map
   mjtSize nJmom;                  // number of non-zeros in sparse actuator_moment matrix
   mjtSize ngravcomp;              // number of bodies with nonzero gravcomp
-  mjtSize nsurfacevel;            // number of geoms with nonzero surfacevel
   mjtSize nemax;                  // number of potential equality-constraint rows
   mjtSize njmax;                  // number of available rows in constraint Jacobian (legacy)
   mjtSize nconmax;                // number of potential contacts in contact list (legacy)
@@ -675,6 +674,11 @@ typedef struct mjModel_ {
   // buffer sizes
   mjtSize narena;                 // number of bytes in the mjData arena (inclusive of stack)
   mjtSize nbuffer;                // number of bytes in buffer
+
+  // ------------------------------- flags
+
+  mjtBool flg_gravcomp;           // whether any body has nonzero gravcomp
+  mjtBool flg_surfacevel;         // whether any geom has nonzero surfacevel
 
   // ------------------------------- options and statistics
 

@@ -3130,7 +3130,7 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 // add relative surface velocity of contacting geoms to contact rows of efc_vel
 static void mj_addSurfaceVel(const mjModel* m, mjData* d) {
   // no surface velocity on any geom: quick return
-  if (!m->nsurfacevel) {
+  if (!m->flg_surfacevel) {
     return;
   }
 

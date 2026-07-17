@@ -350,6 +350,21 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   mjModel.def_readonly("vis", &MjModelWrapper::vis);
   mjModel.def_readonly("stat", &MjModelWrapper::stat);
 
+  mjModel.def_property(
+      "flg_gravcomp",
+      [](const MjModelWrapper& m) { return m.get()->flg_gravcomp; },
+      [](MjModelWrapper& m, bool val) {
+        m.get()->flg_gravcomp = val;
+        m.get()->ngravcomp = val ? 1 : 0;
+      });
+
+  mjModel.def_property(
+      "flg_surfacevel",
+      [](const MjModelWrapper& m) { return m.get()->flg_surfacevel; },
+      [](MjModelWrapper& m, bool val) {
+        m.get()->flg_surfacevel = val;
+      });
+
 #define X(var)                   \
   mjModel.def_property_readonly( \
       #var, [](const MjModelWrapper& m) { return m.get()->var; });

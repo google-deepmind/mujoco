@@ -247,7 +247,6 @@
     X( nnames_map )         \
     X( nJmom )              \
     X( ngravcomp )          \
-    X( nsurfacevel )        \
     X( nemax )              \
     X( njmax )              \
     X( nconmax )            \

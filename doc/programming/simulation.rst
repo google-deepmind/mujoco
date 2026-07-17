@@ -715,8 +715,9 @@ Exceptions to the general rule that **real-valued** types **are safe to change**
      - Unsafe for static bodies, invalidates the midphase collision structures (BVH).
    * - ``body_gravcomp``
      - Safe.
-     - If the number of bodies with gravity compensation is changed from zero to non-zero,
-       :ref:`mj_setConst` must be called.
+     - If passing from a state where all bodies have zero gravity compensation to a state where some bodies have
+       non-zero gravity compensation (or vice-versa), the ``flg_gravcomp`` flag in :ref:`mjModel` must be updated.
+       This can be done directly or by calling :ref:`mj_setConst`.
    * - ``dof_armature``
      - Safe with :ref:`mj_setConst`.
      -
@@ -725,8 +726,9 @@ Exceptions to the general rule that **real-valued** types **are safe to change**
      -
    * - ``geom_surfacevel``
      - Safe.
-     - If the number of geoms with nonzero surface velocity is changed from zero to non-zero (or vice versa),
-       :ref:`mj_setConst` must be called.
+     - If passing from a state where all geoms have zero surface velocity to a state where some geoms have
+       non-zero surface velocity (or vice-versa), the ``flg_surfacevel`` flag in :ref:`mjModel` must be updated.
+       This can be done directly or by calling :ref:`mj_setConst`.
    * - ``{site,cam,light}_`` |br| ``{pos,quat}``
      - Mostly safe.
      - For cameras and lights with tracking or targeting, :ref:`mj_setConst` is required.

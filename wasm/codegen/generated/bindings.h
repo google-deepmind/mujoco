@@ -4242,12 +4242,6 @@ struct MjModel {
   void set_ngravcomp(int value) {
     ptr_->ngravcomp = static_cast<mjtSize>(value);
   }
-  int nsurfacevel() const {
-    return static_cast<int>(ptr_->nsurfacevel);
-  }
-  void set_nsurfacevel(int value) {
-    ptr_->nsurfacevel = static_cast<mjtSize>(value);
-  }
   int nemax() const {
     return static_cast<int>(ptr_->nemax);
   }
@@ -4313,6 +4307,18 @@ struct MjModel {
   }
   void set_nbuffer(int value) {
     ptr_->nbuffer = static_cast<mjtSize>(value);
+  }
+  mjtBool flg_gravcomp() const {
+    return ptr_->flg_gravcomp;
+  }
+  void set_flg_gravcomp(mjtBool value) {
+    ptr_->flg_gravcomp = value;
+  }
+  mjtBool flg_surfacevel() const {
+    return ptr_->flg_surfacevel;
+  }
+  void set_flg_surfacevel(mjtBool value) {
+    ptr_->flg_surfacevel = value;
   }
   emscripten::val buffer() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nbuffer, static_cast<uint8_t*>(ptr_->buffer)));

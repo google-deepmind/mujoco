@@ -641,6 +641,8 @@ class Model(PyTreeNode):
   nJmom: int  # pylint:disable=invalid-name
   nJten: int  # pylint:disable=invalid-name
   ngravcomp: int
+  flg_gravcomp: bool
+  flg_surfacevel: bool
   nuserdata: int
   nsensordata: int
   npluginstate: int

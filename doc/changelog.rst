@@ -72,7 +72,12 @@ General
   integrator and flex stiffness present; Newton and PGS are unaffected. Bending-only models pay zero per-step
   factorization cost (the factor is precomputed in :ref:`mj_setConst<mj_setConst>`). Inverse dynamics
   (:ref:`mj_inverse<mj_inverse>`) is now discrete-consistent with forward dynamics for gated models.
-- The ``mjz`` decoder now searches for ``model.xml`` at the root of the archive as a fallback if the archive-named XML is not found.
+- The ``mjz`` decoder now searches for ``model.xml`` at the root of the archive as a fallback if the archive-named XML
+  is not found.
+- Added ``flg_gravcomp`` and ``flg_surfacevel`` boolean flags to ``mjModel``. These flags replace the fast-path checks
+  as originally guarded by ``ngravcomp``. Since the engine uses these integers as flags (zero vs. non-zero), the new
+  flags are honest boolean properties, writeable from the Python bindings at runtime. The field ``ngravcomp`` is
+  deprecated and will be removed in a future release.
 
 .. admonition:: Breaking API changes
    :class: attention

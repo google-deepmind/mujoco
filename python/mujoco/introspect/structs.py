@@ -1369,11 +1369,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of bodies with nonzero gravcomp',
              ),
              StructFieldDecl(
-                 name='nsurfacevel',
-                 type=ValueType(name='mjtSize'),
-                 doc='number of geoms with nonzero surfacevel',
-             ),
-             StructFieldDecl(
                  name='nemax',
                  type=ValueType(name='mjtSize'),
                  doc='number of potential equality-constraint rows',
@@ -1427,6 +1422,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='nbuffer',
                  type=ValueType(name='mjtSize'),
                  doc='number of bytes in buffer',
+             ),
+             StructFieldDecl(
+                 name='flg_gravcomp',
+                 type=ValueType(name='mjtBool'),
+                 doc='whether any body has nonzero gravcomp',
+             ),
+             StructFieldDecl(
+                 name='flg_surfacevel',
+                 type=ValueType(name='mjtBool'),
+                 doc='whether any geom has nonzero surfacevel',
              ),
              StructFieldDecl(
                  name='opt',

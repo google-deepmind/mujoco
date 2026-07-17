@@ -569,6 +569,12 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 #undef X
   fprintf(fp, "\n");
 
+  // flags
+  fprintf(fp, "FLAG\n");
+  printInt(fp, "  flg_gravcomp", m->flg_gravcomp);
+  printInt(fp, "  flg_surfacevel", m->flg_surfacevel);
+  fprintf(fp, "\n");
+
   // options
   fprintf(fp, "OPTION\n");
 #define X(type, name, sz)                                             \

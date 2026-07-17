@@ -210,16 +210,18 @@ static void setFixed(mjModel* m, mjData* d) {
     ngravcomp += (m->body_gravcomp[i] > 0);
   }
   m->ngravcomp = ngravcomp;
+  m->flg_gravcomp = (ngravcomp > 0);
 
-  // compute nsurfacevel: number of geoms with nonzero surfacevel
-  int nsurfacevel = 0;
+  // compute flg_surfacevel: whether any geom has nonzero surfacevel
+  mjtBool flg_surfacevel = 0;
   for (int i=0; i < m->ngeom; i++) {
     const mjtNum* sv = m->geom_surfacevel + 6*i;
     if (sv[0] || sv[1] || sv[2] || sv[3] || sv[4] || sv[5]) {
-      nsurfacevel++;
+      flg_surfacevel = 1;
+      break;
     }
   }
-  m->nsurfacevel = nsurfacevel;
+  m->flg_surfacevel = flg_surfacevel;
 
   // set jnt_actuatorid and tendon_actuatorid
   mju_fillInt(m->jnt_actuatorid, -1, m->njnt);
