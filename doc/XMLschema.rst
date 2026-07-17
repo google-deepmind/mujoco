@@ -2661,6 +2661,9 @@
                :ref:`forcelimited<actuator-intvelocity-forcelimited>`
 
             .. grid-item::
+               :ref:`actlimited<actuator-intvelocity-actlimited>`
+
+            .. grid-item::
                :ref:`ctrlrange<actuator-intvelocity-ctrlrange>`
 
             .. grid-item::
@@ -6031,6 +6034,9 @@
 
             .. grid-item::
                :ref:`forcelimited<default-intvelocity-forcelimited>`
+
+            .. grid-item::
+               :ref:`actlimited<default-intvelocity-actlimited>`
 
             .. grid-item::
                :ref:`ctrlrange<default-intvelocity-ctrlrange>`

@@ -616,6 +616,172 @@ TEST_F(CoreSmoothTest, RefsiteConservesMomentum) {
   mj_deleteModel(model);
 }
 
+// Test smooth tracking of a rotational target ramped through the pi boundary.
+// Rotational transmission lengths live in (-pi, pi]; a servo whose error is
+// computed in the chart rather than on the circle loses the target once it
+// crosses pi and enters a phase-slipping limit cycle.
+TEST_F(CoreSmoothTest, RefsiteTracksWindingTarget) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast">
+      <flag contact="disable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <site name="reference"/>
+      <body name="box">
+        <freejoint/>
+        <geom type="box" size=".05 .07 .03"/>
+        <site name="end_effector"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position name="rz" site="end_effector" refsite="reference"
+                gear="0 0 0 0 0 1" kp="1" dampratio="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  mjData* data = mj_makeData(model.get());
+
+  int rz = mj_name2id(model.get(), mjOBJ_ACTUATOR, "rz");
+  ASSERT_GE(rz, 0);
+
+  // ramp the rz target from 0 to 2*pi, slowly enough to track
+  const mjtNum rate = 0.5;  // rad/s
+  while (data->time < 2 * mjPI / rate) {
+    data->ctrl[rz] = rate * data->time;
+    mj_step(model.get(), data);
+
+    // distance between target and actuator length, measured on the circle
+    mjtNum error = data->ctrl[rz] - data->actuator_length[rz];
+    error -= 2 * mjPI * mju_round(error / (2 * mjPI));
+    ASSERT_LT(mju_abs(error), 0.5)
+        << "tracking lost at time " << data->time << ", target "
+        << data->ctrl[rz] << ", length " << data->actuator_length[rz];
+  }
+
+  mj_deleteData(data);
+}
+
+// Test single-axis winding on a ball joint with per-axis (wrapped) servos:
+// a target ramped through pi is tracked smoothly.
+TEST_F(CoreSmoothTest, BallTracksWindingTarget) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast">
+      <flag contact="disable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <joint name="ball" type="ball"/>
+        <geom type="box" size=".05 .07 .03"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position name="rx" joint="ball" gear="1 0 0" kp="1" dampratio="1"/>
+      <position name="ry" joint="ball" gear="0 1 0" kp="1" dampratio="1"/>
+      <position name="rz" joint="ball" gear="0 0 1" kp="1" dampratio="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  mjData* data = mj_makeData(model.get());
+
+  int rz = mj_name2id(model.get(), mjOBJ_ACTUATOR, "rz");
+  ASSERT_GE(rz, 0);
+
+  // ramp the rz target from 0 to 2*pi, assert tracking on the circle
+  const mjtNum rate = 0.5;  // rad/s
+  while (data->time < 2 * mjPI / rate) {
+    data->ctrl[rz] = rate * data->time;
+    mj_step(model.get(), data);
+    mjtNum error = data->ctrl[rz] - data->actuator_length[rz];
+    error -= 2 * mjPI * mju_round(error / (2 * mjPI));
+    ASSERT_LT(mju_abs(error), 0.5) << "tracking lost at time " << data->time;
+  }
+
+  mj_deleteData(data);
+}
+
+// Wrapped rotational intvelocity: actrange is optional, constant ctrl produces
+// steady rotation over many periods, activation stays bounded.
+TEST_F(CoreSmoothTest, IntVelocityWindsWithBoundedAct) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast">
+      <flag contact="disable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <joint name="ball" type="ball"/>
+        <geom type="box" size=".05 .07 .03"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <intvelocity name="rz" joint="ball" gear="0 0 1" kp="1" dampratio="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  mjData* data = mj_makeData(model.get());
+
+  // command constant angular rate for 4 full turns
+  const mjtNum rate = 1.0;  // rad/s
+  data->ctrl[0] = rate;
+  while (data->time < 8 * mjPI / rate) {
+    mj_step(model.get(), data);
+    ASSERT_LT(mju_abs(data->act[0]), mjPI + 0.1) << "act unbounded";
+  }
+
+  // steady rotation at the commanded rate
+  EXPECT_NEAR(data->actuator_velocity[0], rate, 0.01);
+
+  mj_deleteData(data);
+}
+
+// mj_forward must not mutate state: wrapping of act happens at integration
+// time (mj_advance), never in the forward pass.
+TEST_F(CoreSmoothTest, ForwardDoesNotMutateAct) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast">
+      <flag contact="disable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <joint name="ball" type="ball"/>
+        <geom type="box" size=".05 .07 .03"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <intvelocity name="rz" joint="ball" gear="0 0 1" kp="1" dampratio="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  mjData* data = mj_makeData(model.get());
+
+  // forward leaves a far-from-length activation untouched, bit-for-bit
+  data->act[0] = 100;
+  mj_forward(model.get(), data);
+  mj_forward(model.get(), data);
+  EXPECT_EQ(data->act[0], 100);
+
+  // stepping wraps it to a bounded representative
+  mj_step(model.get(), data);
+  EXPECT_LT(mju_abs(data->act[0]), mjPI + 0.1);
+
+  mj_deleteData(data);
+}
+
 static const char* const kInertiaPath = "engine/testdata/inertia.xml";
 
 TEST_F(CoreSmoothTest, FactorI) {

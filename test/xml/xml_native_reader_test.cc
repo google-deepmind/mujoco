@@ -2859,7 +2859,7 @@ TEST_F(ActuatorParseTest, IntvelocityCheckDefaultsIfNotSpecified) {
   EXPECT_DOUBLE_EQ(model->actuator_biasprm[2], 0.0);
 }
 
-TEST_F(ActuatorParseTest, IntvelocityNoActrangeThrowsError) {
+TEST_F(ActuatorParseTest, IntvelocityNoActrangeIsValid) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -2875,9 +2875,9 @@ TEST_F(ActuatorParseTest, IntvelocityNoActrangeThrowsError) {
   )";
   std::array<char, 1024> error;
   MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model.get(), IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("invalid actrange for actuator"));
-  EXPECT_THAT(error.data(), HasSubstr("line 10"));
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  // actlimited resolves to false when no actrange is provided
+  EXPECT_EQ(model->actuator_actlimited[0], 0);
 }
 
 TEST_F(ActuatorParseTest, IntvelocityDefaultsPropagate) {

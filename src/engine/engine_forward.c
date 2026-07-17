@@ -268,6 +268,43 @@ static void clampVec(mjtNum* vec, const mjtNum* range, const mjtBool* limited, i
 }
 
 
+// period of the rotational transmission for wrap-eligible servo actuators, 0 otherwise
+static mjtNum wrapPeriod(const mjModel* m, int i) {
+  // servo shape: fixed gain, affine bias, matching kp, setpoint input
+  mjtDyn dyntype = m->actuator_dyntype[i];
+  if (m->actuator_gaintype[i] != mjGAIN_FIXED  ||
+      m->actuator_biastype[i] != mjBIAS_AFFINE ||
+      m->actuator_gainprm[mjNGAIN*i] != -m->actuator_biasprm[mjNBIAS*i+1] ||
+      (dyntype != mjDYN_NONE && dyntype != mjDYN_INTEGRATOR)) {
+    return 0;
+  }
+
+  const mjtNum* gear = m->actuator_gear+6*m->actuator_outadr[i];
+  mjtTrn trntype = m->actuator_trntype[i];
+
+  // site transmission with refsite and purely rotational gear
+  if (trntype == mjTRN_SITE && m->actuator_trnid[2*i+1] >= 0 &&
+      !gear[0] && !gear[1] && !gear[2]) {
+    return 2*mjPI * mju_norm3(gear+3);
+  }
+
+  // joint transmission on a ball joint
+  if ((trntype == mjTRN_JOINT || trntype == mjTRN_JOINTINPARENT) &&
+      m->jnt_type[m->actuator_trnid[2*i]] == mjJNT_BALL) {
+    return 2*mjPI * mju_norm3(gear);
+  }
+
+  return 0;
+}
+
+
+// representative of setpoint u nearest to length, given period
+static mjtNum wrapSetpoint(mjtNum u, mjtNum length, mjtNum period) {
+  mjtNum err = u - length;
+  return u - period * mju_round(err / period);
+}
+
+
 // (qpos, qvel, ctrl, act) => (qfrc_actuator, actuator_force, act_dot)
 void mj_fwdActuation(const mjModel* m, mjData* d) {
   TM_START;
@@ -590,7 +627,14 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     // DC motor without current state: use ctrl even if other activations exist
     int dcmotor_no_current = (gaintype == mjGAIN_DCMOTOR && dynprm[0] <= 0);
     if (actnum == 0 || dcmotor_no_current) {
-      force[oadr] = gain * ctrl[uadr];
+      mjtNum input = ctrl[uadr];
+
+      // rotational setpoint: use representative nearest the length (local, no state change)
+      mjtNum period = wrapPeriod(m, i);
+      if (period > 0) {
+        input = wrapSetpoint(input, d->actuator_length[oadr], period);
+      }
+      force[oadr] = gain * input;
     } else {
       // use last activation variable associated with actuator i
       int act_adr = m->actuator_actadr[i] + actnum - 1;
@@ -600,6 +644,12 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
         act = mj_nextActivation(m, d, i, act_adr, d->act_dot[act_adr]);
       } else {
         act = d->act[act_adr];
+      }
+
+      // rotational setpoint: use representative nearest the length (local, no state change)
+      mjtNum period = wrapPeriod(m, i);
+      if (period > 0) {
+        act = wrapSetpoint(act, d->actuator_length[oadr], period);
       }
       force[oadr] = gain * act;
     }
@@ -1085,6 +1135,21 @@ static void mj_advance(const mjModel* m, mjData* d,
       for (int j=actadr; j < actadr_end; j++) {
         // if disabled, set act_dot to 0
         d->act[j] = mj_nextActivation(m, d, i, j, mj_actuatorDisabled(m, i) ? 0 : act_dot[j]);
+      }
+    }
+
+    // rotational setpoints stored in act: replace with an equivalent bounded representative,
+    // like the actrange clamp above, this is a projection applied at integration time
+    for (int i=0; i < nactuator; i++) {
+      if (m->actuator_dyntype[i] != mjDYN_INTEGRATOR) {
+        continue;
+      }
+
+      // per-axis servo: wrap act to the representative nearest the length
+      mjtNum period = wrapPeriod(m, i);
+      if (period > 0) {
+        int adr = m->actuator_actadr[i] + m->actuator_actnum[i] - 1;
+        d->act[adr] = wrapSetpoint(d->act[adr], d->actuator_length[m->actuator_outadr[i]], period);
       }
     }
   }

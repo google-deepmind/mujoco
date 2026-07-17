@@ -52,6 +52,14 @@ General
   error instead of the generic "could not decode content" message.
 - Added support for resource writing via :ref:`mju_writeResource` and the ``write`` callback in :ref:`mjpResourceProvider`.
 - Added support for :ref:`multiccd <coMultiCCD>` with arbitrarily large meshes.
+- Setpoints of :ref:`position<actuator-position>` and :ref:`intvelocity<actuator-intvelocity>` servos acting on 3D
+  rotational transmissions (ball joints, or site transmissions with a :ref:`refsite<actuator-general-refsite>` and
+  purely rotational gear) are now interpreted on the circle: the force uses the setpoint representative nearest the
+  current angle, so targets winding beyond half a turn are tracked continuously instead of slipping by full turns.
+  Behavior is identical whenever the error does not exceed π. Relatedly, ``intvelocity`` actuators now expose
+  :ref:`actlimited<actuator-intvelocity-actlimited>`, which was previously hardcoded to "true": as for
+  :ref:`general<actuator-general>` actuators it defaults to "auto", so activation clamping is enabled by specifying
+  ``actrange``. Unclamped integrated setpoints are well-behaved on rotational transmissions, where they wrap.
 - Refactored actuator infrastructure in preparation for MIMO (multi-input multi-output) actuator support. Each actuator
   now has ``ctrlnum`` (number of controls) and ``outnum`` (number of force outputs). The total counts
   ``nu = sum(ctrlnum)`` and ``nout = sum(outnum)`` dimension ``mjData.ctrl`` and ``mjData.actuator_force``,
