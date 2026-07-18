@@ -16,6 +16,8 @@
 
 #include "src/engine/engine_island.h"
 
+#include <array>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -34,6 +36,310 @@ using ::testing::ElementsAre;
 using ::testing::NotNull;
 using ::testing::Pointwise;
 using IslandTest = MujocoTest;
+
+TEST_F(IslandTest, DsuInitHandlesEmptyAndNonemptyRanges) {
+  int parent[] = {8, 6, 7, 5};
+
+  _mjPRIVATE_dsuInit(parent, 0);
+  EXPECT_THAT(parent, ElementsAre(8, 6, 7, 5));
+
+  _mjPRIVATE_dsuInit(parent, 4);
+  EXPECT_THAT(parent, ElementsAre(-1, -1, -1, -1));
+}
+
+TEST_F(IslandTest, DsuFindReturnsCanonicalRootAndCompressesPath) {
+  int parent[] = {0, 0, 1, 2, 3};
+
+  EXPECT_EQ(_mjPRIVATE_dsuFind(parent, 0), 0);
+  EXPECT_EQ(_mjPRIVATE_dsuFind(parent, 4), 0);
+  EXPECT_THAT(parent, ElementsAre(0, 0, 0, 0, 0));
+}
+
+TEST_F(IslandTest, DsuUnionActivatesEndpointsAndUsesMinimumRoot) {
+  int parent[] = {-1, -1, -1, -1, -1, -1};
+
+  _mjPRIVATE_dsuUnion(parent, -1, 4);
+  _mjPRIVATE_dsuUnion(parent, 3, -1);
+  _mjPRIVATE_dsuUnion(parent, 5, 2);
+  _mjPRIVATE_dsuUnion(parent, 4, 5);
+  _mjPRIVATE_dsuUnion(parent, 3, 4);
+
+  EXPECT_THAT(parent, ElementsAre(-1, -1, 2, 2, 2, 2));
+  for (int tree = 2; tree < 6; ++tree) {
+    EXPECT_EQ(_mjPRIVATE_dsuFind(parent, tree), 2);
+  }
+  EXPECT_THAT(parent, ElementsAre(-1, -1, 2, 2, 2, 2));
+}
+
+TEST_F(IslandTest, DsuUnionRedundantAndReversedEdgesAreIdempotent) {
+  int parent[] = {-1, -1, -1, -1};
+  _mjPRIVATE_dsuUnion(parent, 3, 1);
+  _mjPRIVATE_dsuUnion(parent, 2, 1);
+  EXPECT_THAT(parent, ElementsAre(-1, 1, 1, 1));
+
+  _mjPRIVATE_dsuUnion(parent, 1, 3);
+  _mjPRIVATE_dsuUnion(parent, 3, 1);
+  _mjPRIVATE_dsuUnion(parent, 2, 2);
+  _mjPRIVATE_dsuUnion(parent, -1, 2);
+  EXPECT_THAT(parent, ElementsAre(-1, 1, 1, 1));
+}
+
+TEST_F(IslandTest, DsuUnionFastPathActivatesBeforeTestingParents) {
+  int self_parent[] = {-1, -1, -1};
+  _mjPRIVATE_dsuUnion(self_parent, 1, 1);
+  EXPECT_THAT(self_parent, ElementsAre(-1, 1, -1));
+
+  int static_first[] = {-1, -1, -1};
+  _mjPRIVATE_dsuUnion(static_first, -1, 2);
+  EXPECT_THAT(static_first, ElementsAre(-1, -1, 2));
+
+  int static_second[] = {-1, -1, -1};
+  _mjPRIVATE_dsuUnion(static_second, 0, -1);
+  EXPECT_THAT(static_second, ElementsAre(0, -1, -1));
+}
+
+TEST_F(IslandTest, DsuUnionFastPathDistinguishesParentsFromRoots) {
+  int distinct_parent[] = {0, 0, 2, 2};
+  _mjPRIVATE_dsuUnion(distinct_parent, 1, 3);
+  EXPECT_THAT(distinct_parent, ElementsAre(0, 0, 0, 2));
+
+  int shared_parent[] = {0, 0, 0, 3};
+  _mjPRIVATE_dsuUnion(shared_parent, 1, 2);
+  EXPECT_THAT(shared_parent, ElementsAre(0, 0, 0, 3));
+
+  int long_paths[] = {0, 0, 1, 3, 3, 4};
+  _mjPRIVATE_dsuUnion(long_paths, 2, 5);
+  EXPECT_THAT(long_paths, ElementsAre(0, 0, 0, 0, 3, 3));
+}
+
+TEST_F(IslandTest, DsuUnionFastPathPreservesCyclesDuplicatesAndForest) {
+  int parent[] = {-1, -1, -1, -1, -1, -1};
+  _mjPRIVATE_dsuUnion(parent, 0, 1);
+  _mjPRIVATE_dsuUnion(parent, 1, 2);
+  _mjPRIVATE_dsuUnion(parent, 2, 0);
+  _mjPRIVATE_dsuUnion(parent, 0, 2);
+  _mjPRIVATE_dsuUnion(parent, 3, 4);
+  _mjPRIVATE_dsuUnion(parent, 4, 5);
+  EXPECT_THAT(parent, ElementsAre(0, 0, 0, 3, 3, 3));
+
+  _mjPRIVATE_dsuUnion(parent, 5, 0);
+  EXPECT_THAT(parent, ElementsAre(0, 0, 0, 0, 3, 3));
+}
+
+TEST_F(IslandTest, DsuUnionRejectsStaticSelfIncidence) {
+  int parent[] = {-1, 1, 1, 3};
+
+  EXPECT_EQ(MjuErrorMessageFrom(_mjPRIVATE_dsuUnion)(parent, -1, -1),
+            "self-incidence of the static tree");
+  EXPECT_THAT(parent, ElementsAre(-1, 1, 1, 3));
+}
+
+TEST_F(IslandTest, DsuAssignHandlesEmptyAndInactiveInputs) {
+  int island[] = {71};
+  int parent[] = {72};
+  const int tree_dofnum[] = {73};
+  int nidof = -1;
+
+  EXPECT_EQ(_mjPRIVATE_dsuAssign(island, parent, tree_dofnum, 0, &nidof), 0);
+  EXPECT_EQ(nidof, 0);
+  EXPECT_THAT(island, ElementsAre(71));
+  EXPECT_THAT(parent, ElementsAre(72));
+
+  parent[0] = -1;
+  EXPECT_EQ(_mjPRIVATE_dsuAssign(island, parent, tree_dofnum, 1, &nidof), 0);
+  EXPECT_EQ(nidof, 0);
+  EXPECT_THAT(island, ElementsAre(-1));
+  EXPECT_THAT(parent, ElementsAre(-1));
+}
+
+TEST_F(IslandTest, DsuAssignLabelsComponentsAndCountsOnlyActiveDofs) {
+  int parent[] = {-1, 1, 1, 2, 4, 4, 6};
+  const int tree_dofnum[] = {1000, 0, 3, 5, 7, 11, 13};
+  int island[] = {9, 9, 9, 9, 9, 9, 9};
+  int nidof = -1;
+
+  EXPECT_EQ(_mjPRIVATE_dsuAssign(island, parent, tree_dofnum, 7, &nidof), 3);
+  EXPECT_EQ(nidof, 39);
+  EXPECT_THAT(island, ElementsAre(-1, 0, 0, 0, 1, 1, 2));
+  EXPECT_THAT(parent, ElementsAre(-1, 1, 1, 1, 4, 4, 6));
+}
+
+TEST_F(IslandTest, DsuAssignCompressesAscendingMultiHopForest) {
+  int parent[] = {-1, 1, 1, 2, 4, 4, 5, 7, 7, 8};
+  const int tree_dofnum[] = {99, 0, 2, 3, 0, 5, 7, 11, 0, 13};
+  int island[] = {9, 9, 9, 9, 9, 9, 9, 9, 9, 9};
+  int nidof = -1;
+
+  EXPECT_EQ(_mjPRIVATE_dsuAssign(island, parent, tree_dofnum, 10, &nidof), 3);
+  EXPECT_EQ(nidof, 41);
+  EXPECT_THAT(island, ElementsAre(-1, 0, 0, 0, 1, 1, 1, 2, 2, 2));
+  EXPECT_THAT(parent, ElementsAre(-1, 1, 1, 1, 4, 4, 4, 7, 7, 7));
+}
+
+TEST_F(IslandTest, DsuAssignCompresses4096NodeAdversarialChain) {
+  constexpr int kTreeCount = 4096;
+  std::vector<int> parent(kTreeCount);
+  std::vector<int> island(kTreeCount, -2);
+  std::vector<int> tree_dofnum(kTreeCount);
+  parent[0] = 0;
+  int expected_nidof = 0;
+  for (int tree = 1; tree < kTreeCount; ++tree) {
+    parent[tree] = tree - 1;
+    tree_dofnum[tree] = tree % 5;
+    expected_nidof += tree_dofnum[tree];
+  }
+
+  int nidof = -1;
+  EXPECT_EQ(_mjPRIVATE_dsuAssign(island.data(), parent.data(), tree_dofnum.data(),
+                                kTreeCount, &nidof),
+            1);
+  EXPECT_EQ(nidof, expected_nidof);
+  for (int tree = 0; tree < kTreeCount; ++tree) {
+    EXPECT_EQ(island[tree], 0);
+    EXPECT_EQ(parent[tree], 0);
+  }
+}
+
+TEST_F(IslandTest, DsuHandlesLongConnectedBoundaryCase) {
+  constexpr int kTreeCount = 4096;
+  std::vector<int> parent(kTreeCount);
+  std::vector<int> island(kTreeCount, -2);
+  std::vector<int> tree_dofnum(kTreeCount);
+  _mjPRIVATE_dsuInit(parent.data(), kTreeCount);
+
+  int expected_nidof = 0;
+  for (int tree = kTreeCount - 1; tree > 0; --tree) {
+    _mjPRIVATE_dsuUnion(parent.data(), tree, tree - 1);
+  }
+  for (int tree = 0; tree < kTreeCount; ++tree) {
+    tree_dofnum[tree] = tree % 7;
+    expected_nidof += tree_dofnum[tree];
+  }
+
+  int nidof = -1;
+  EXPECT_EQ(_mjPRIVATE_dsuAssign(island.data(), parent.data(), tree_dofnum.data(),
+                                kTreeCount, &nidof),
+            1);
+  EXPECT_EQ(nidof, expected_nidof);
+  for (int tree = 0; tree < kTreeCount; ++tree) {
+    EXPECT_EQ(island[tree], 0);
+    EXPECT_EQ(parent[tree], 0);
+  }
+}
+
+TEST_F(IslandTest, DsuRandomizedDifferentialAgainstGraphTraversal) {
+  constexpr uint32_t kSeed = 0x5eed3396u;
+  constexpr int kTrials = 2000;
+  uint32_t state = kSeed;
+  auto next = [&state]() {
+    state = state * 1664525u + 1013904223u;
+    return state;
+  };
+
+  for (int trial = 0; trial < kTrials; ++trial) {
+    const int ntree = 1 + next() % 64;
+    const int nedge = next() % 192;
+    std::vector<std::array<int, 2>> edges;
+    edges.reserve(nedge);
+    for (int edge = 0; edge < nedge; ++edge) {
+      int tree1;
+      int tree2;
+      switch (next() % 8) {
+        case 0:
+          tree1 = -1;
+          tree2 = next() % ntree;
+          break;
+        case 1:
+          tree1 = next() % ntree;
+          tree2 = -1;
+          break;
+        case 2:
+          tree1 = next() % ntree;
+          tree2 = tree1;
+          break;
+        case 3:
+          if (!edges.empty()) {
+            const auto& previous = edges[next() % edges.size()];
+            tree1 = previous[0];
+            tree2 = previous[1];
+            break;
+          }
+          [[fallthrough]];
+        case 4:
+          if (!edges.empty()) {
+            const auto& previous = edges[next() % edges.size()];
+            tree1 = previous[1];
+            tree2 = previous[0];
+            break;
+          }
+          [[fallthrough]];
+        default:
+          tree1 = next() % ntree;
+          tree2 = next() % ntree;
+          break;
+      }
+      edges.push_back({tree1, tree2});
+    }
+
+    std::vector<int> parent(ntree);
+    _mjPRIVATE_dsuInit(parent.data(), ntree);
+    for (const auto& edge : edges) {
+      _mjPRIVATE_dsuUnion(parent.data(), edge[0], edge[1]);
+    }
+
+    std::vector<int> active(ntree);
+    std::vector<std::vector<int>> adjacent(ntree);
+    for (const auto& edge : edges) {
+      if (edge[0] >= 0) active[edge[0]] = 1;
+      if (edge[1] >= 0) active[edge[1]] = 1;
+      if (edge[0] >= 0 && edge[1] >= 0) {
+        adjacent[edge[0]].push_back(edge[1]);
+        adjacent[edge[1]].push_back(edge[0]);
+      }
+    }
+
+    std::vector<int> expected_island(ntree, -1);
+    std::vector<int> expected_parent(ntree, -1);
+    int expected_nisland = 0;
+    for (int start = 0; start < ntree; ++start) {
+      if (!active[start] || expected_island[start] != -1) continue;
+      std::vector<int> pending = {start};
+      std::vector<int> component;
+      expected_island[start] = expected_nisland;
+      while (!pending.empty()) {
+        const int tree = pending.back();
+        pending.pop_back();
+        component.push_back(tree);
+        for (int neighbor : adjacent[tree]) {
+          if (expected_island[neighbor] == -1) {
+            expected_island[neighbor] = expected_nisland;
+            pending.push_back(neighbor);
+          }
+        }
+      }
+      for (int tree : component) expected_parent[tree] = start;
+      ++expected_nisland;
+    }
+
+    std::vector<int> tree_dofnum(ntree);
+    int expected_nidof = 0;
+    for (int tree = 0; tree < ntree; ++tree) {
+      tree_dofnum[tree] = next() % 8;
+      if (active[tree]) expected_nidof += tree_dofnum[tree];
+    }
+    std::vector<int> island(ntree, -2);
+    int nidof = -1;
+    const int nisland = _mjPRIVATE_dsuAssign(
+        island.data(), parent.data(), tree_dofnum.data(), ntree, &nidof);
+
+    SCOPED_TRACE(::testing::Message() << "seed=" << kSeed << " trial=" << trial
+                                      << " ntree=" << ntree << " nedge=" << nedge);
+    EXPECT_EQ(nisland, expected_nisland);
+    EXPECT_EQ(nidof, expected_nidof);
+    EXPECT_EQ(island, expected_island);
+    EXPECT_EQ(parent, expected_parent);
+  }
+}
 
 TEST_F(IslandTest, FloodFillSingleton) {
   // adjacency matrix for the graph  0   1   2
@@ -532,6 +838,13 @@ TEST_F(IslandTest, IslandEfc) {
   EXPECT_EQ(data->nf, 2);
   EXPECT_EQ(data->nl, 1);
   EXPECT_EQ(data->nefc, 30);
+  EXPECT_THAT(AsVector(data->island_ne, data->nisland), ElementsAre(1, 0, 0, 6));
+  EXPECT_THAT(AsVector(data->island_nf, data->nisland), ElementsAre(0, 1, 1, 0));
+  EXPECT_THAT(AsVector(data->island_nefc, data->nisland), ElementsAre(6, 17, 1, 6));
+  EXPECT_THAT(AsVector(data->efc_island, data->nefc),
+              ElementsAre(0, 3, 3, 3, 3, 3, 3, 1, 2, 0,
+                          0, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+                          1, 1, 1, 1, 1, 1, 1, 1, 1, 1));
 
   mj_deleteData(data);
   mj_deleteModel(model);
