@@ -6388,7 +6388,7 @@ This element has nine custom attributes in addition to the common attributes:
 .. _actuator-muscle-fpmax:
 
 :at:`fpmax`: :at-val:`real, "1.3"`
-   Passive force generated at lmax, relative to the peak rest force.
+   Passive force scaling parameter, relative to the peak rest force.
 
 .. _actuator-muscle-fvmax:
 
