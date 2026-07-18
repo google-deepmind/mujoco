@@ -26,9 +26,6 @@ namespace Mujoco {
 
 // API for importing Mujoco XML files into Unity scenes.
 public class MjImporterWithAssets : MjcfImporter {
-
-  private const string _semiTransparentMaterialName = "mujoco_semitransparent_template";
-
   private string _sourceMeshesDir;
   private string _targetMeshesDir;
   private string _targetAssetDir;
@@ -153,7 +150,7 @@ public class MjImporterWithAssets : MjcfImporter {
     var assetReferenceName = MjEngineTool.Sanitize(unsanitizedAssetReferenceName);
     var sourceFilePath = Path.Combine(_sourceMeshesDir, fileName);
 
-    if (Path.GetExtension(sourceFilePath) != ".obj" && Path.GetExtension(sourceFilePath) != ".stl") {
+    if (Path.GetExtension(sourceFilePath).ToLower() != ".obj" && Path.GetExtension(sourceFilePath).ToLower() != ".stl") {
       throw new NotImplementedException("Type of mesh file not yet supported. " +
                                         "Please convert to binary STL or OBJ. " +
                                         $"Attempted to load: {sourceFilePath}");
@@ -194,11 +191,11 @@ public class MjImporterWithAssets : MjcfImporter {
   private void CopyMeshAndRescale(
       string sourceFilePath, string targetFilePath, Vector3 scale) {
     var originalMeshBytes = File.ReadAllBytes(sourceFilePath);
-    if (Path.GetExtension(sourceFilePath) == ".stl") {
+    if (Path.GetExtension(sourceFilePath).ToLower() == ".stl") {
       var mesh = StlMeshParser.ParseBinary(originalMeshBytes, scale);
       var rescaledMeshBytes = StlMeshParser.SerializeBinary(mesh);
       File.WriteAllBytes(targetFilePath, rescaledMeshBytes);
-    } else if (Path.GetExtension(sourceFilePath) == ".obj") {
+    } else if (Path.GetExtension(sourceFilePath).ToLower() == ".obj") {
       ObjMeshImportUtility.CopyAndScaleOBJFile(sourceFilePath, targetFilePath, scale);
     } else {
       throw new NotImplementedException($"Extension {Path.GetExtension(sourceFilePath)} " +
@@ -225,11 +222,12 @@ public class MjImporterWithAssets : MjcfImporter {
     if (rgba[3] < 1f) {
       material = new Material(AssetDatabase.LoadMainAssetAtPath(
         AssetDatabase.GUIDToAssetPath(
-          AssetDatabase.FindAssets(_semiTransparentMaterialName)[0])) as Material);
+          AssetDatabase.FindAssets(SemiTransparentMaterialName)[0])) as Material);
     } else {
-      material = new Material(Shader.Find("Standard"));
+      material = new Material(GetLitShader());
     }
     material.SetColor("_Color", albedo);
+    material.SetColor("_BaseColor", albedo);
     material.SetFloat("_Metallic", reflectance);
 
     // In order to convert the specular/shininess parameters into glossiness/roughness,
@@ -282,11 +280,11 @@ public class MjImporterWithAssets : MjcfImporter {
           material = new Material(
             AssetDatabase.LoadMainAssetAtPath(
               AssetDatabase.GUIDToAssetPath(
-                AssetDatabase.FindAssets(_semiTransparentMaterialName)[0])) as Material);
+                AssetDatabase.FindAssets(SemiTransparentMaterialName)[0])) as Material);
         } else {
-          material = new Material(Shader.Find("Standard"));
+          material = new Material(GetLitShader());
         }
-        material.color = new Color(rgba[0], rgba[1], rgba[2], rgba[3]);
+        material.SetColor("_BaseColor", new Color(rgba[0], rgba[1], rgba[2], rgba[3]));
         // We use the geom's name, guaranteed to be unique, as the asset name.
         // If geom is nameless, use a random number.
         var name =
