@@ -893,6 +893,32 @@ class DataIOTest(parameterized.TestCase):
     # calling make_data.  they should be interchangeable for jax functions:
     step_fn_jit(mjx.make_data(m, impl=impl))
 
+  def test_make_matches_put_x64(self):
+    """Test that put_data matches make_data and step dtypes under x64."""
+    m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 2)
+
+    with jax.enable_x64(True):
+      mx = mjx.put_model(m, impl='jax')
+      dx = mjx.put_data(m, d, impl='jax')
+
+      # these dtypes follow the canonical jax int precision, matching the
+      # Data that jit-compiled functions produce:
+      int_ = jp.zeros(1, int).dtype
+      self.assertEqual(dx._impl.contact.geom1.dtype, int_)
+      self.assertEqual(dx._impl.contact.geom2.dtype, int_)
+      self.assertEqual(dx._impl.contact.geom.dtype, int_)
+      self.assertEqual(dx._impl.ten_wrapadr.dtype, int_)
+      self.assertEqual(dx._impl.ten_wrapnum.dtype, int_)
+      self.assertEqual(dx._impl.wrap_obj.dtype, int_)
+
+      # step AOT-compiled against put_data should accept make_data and its
+      # own output (the mjx viewer AOT path):
+      step_fn = jax.jit(mjx.step).lower(mx, dx).compile()
+      step_fn(mx, mjx.make_data(m, impl='jax'))
+      step_fn(mx, step_fn(mx, dx))
+
   def test_contact_elliptic_condim1(self):
     """Test that condim=1 with ConeType.ELLIPTIC is not implemented."""
     m = mujoco.MjModel.from_xml_string("""
