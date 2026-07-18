@@ -202,6 +202,13 @@ void GlfwAdapter::ToggleFullscreen() {
                                 0, vidmode_.width, vidmode_.height,
                                 vidmode_.refreshRate);
   }
+  
+  //Ensure GLFW processes the monitor switch, then update the UI/renderer
+  Glfw().glfwPollEvents();
+  // with the new window size so rendering and input coordinates remain synced.
+  int new_width, new_height;
+  Glfw().glfwGetWindowSize(window_, &new_width, &new_height);
+  OnWindowResize(new_width, new_height);
 }
 
 bool GlfwAdapter::IsLeftMouseButtonPressed() const {
