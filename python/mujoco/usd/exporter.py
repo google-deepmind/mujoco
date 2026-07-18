@@ -25,6 +25,7 @@ import mujoco.usd.shapes as shapes_module
 import numpy as np
 from PIL import Image as im
 from PIL import ImageOps
+import re
 
 # TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
 # pytype: disable=module-attr
@@ -517,6 +518,10 @@ class USDExporter:
       geom_name += "_geom"
     elif geom.objtype == mujoco.mjtObj.mjOBJ_TENDON:
       geom_name += f"_tendon_segid{geom.segid}"
+
+    # Collapse duplicate/leading/trailing slashes in geom names (e.g. /robot//arm/)
+    # Valid in mujoco, not valid for USD file and will cause a crash
+    geom_name = re.sub(r'/+', '/', geom_name.strip('/'))
 
     return geom_name
 
