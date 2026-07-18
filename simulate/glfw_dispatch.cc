@@ -59,7 +59,7 @@ const struct Glfw& Glfw(void* dlhandle) {
       glfw.func = reinterpret_cast<decltype(glfw.func)>(  \
           GetProcAddress(reinterpret_cast<HMODULE>(dlhandle), #func))
   #else
-    if (!dlhandle) dlhandle = dlopen("nullptr", RTLD_GLOBAL | RTLD_NOW);
+    if (!dlhandle) dlhandle = dlopen(nullptr, RTLD_GLOBAL | RTLD_NOW);
     if (!dlhandle) {
       std::cerr << "cannot obtain a shared object handle\n";
       abort();
