@@ -19,6 +19,7 @@ import tempfile
 
 from absl.testing import absltest
 from etils import epath
+
 import mujoco
 
 try:
@@ -37,13 +38,13 @@ class ExporterTest(absltest.TestCase):
     )
     output_dir_name = "usd_test"
     xml = """
-<mujoco>
-  <worldbody>
-    <camera name="closeup" pos="0 -6 0" xyaxes="1 0 0 0 1 100"/>
-    <geom name="white_box" type="box" size="1 1 1" rgba="1 1 1 1"/>
-  </worldbody>
-</mujoco>
-"""
+      <mujoco>
+        <worldbody>
+          <camera name="closeup" pos="0 -6 0" xyaxes="1 0 0 0 1 100"/>
+          <geom name="white_box" type="box" size="1 1 1" rgba="1 1 1 1"/>
+        </worldbody>
+      </mujoco>
+      """
     model = mujoco.MjModel.from_xml_string(xml)
     data = mujoco.MjData(model)
     exporter = exporter_module.USDExporter(
