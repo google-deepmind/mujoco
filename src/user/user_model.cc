@@ -654,6 +654,16 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
 
 // add default tree to this model
 mjCModel& mjCModel::operator+=(mjCDef& subtree) {
+  // if the name is already in use, make it unique; this happens when a spec is
+  // attached without prefix or suffix, since the global default is always named 'main'
+  if (FindDefault(subtree.name)) {
+    int i = 1;
+    while (FindDefault(subtree.name + "_" + std::to_string(i))) {
+      i++;
+    }
+    subtree.name += "_" + std::to_string(i);
+  }
+
   defaults_.push_back(&subtree);
   def_map[subtree.name] = &subtree;
   subtree.model = this;

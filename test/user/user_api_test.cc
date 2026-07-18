@@ -1692,6 +1692,91 @@ TEST_F(MujocoTest, AttachCompiled) {
   mj_deleteModel(m_child);
 }
 
+TEST_F(MujocoTest, AttachDefaultsWithoutPrefix) {
+  std::array<char, 1024> er;
+  mjtNum tol = 0;
+  std::string field = "";
+
+  static constexpr char xml_parent[] = R"(
+  <mujoco model="parent">
+    <default>
+      <default class="parent_class">
+        <geom size="0.25"/>
+      </default>
+    </default>
+
+    <worldbody>
+      <body name="sphere">
+        <geom class="parent_class"/>
+        <frame name="frame"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_child2[] = R"(
+  <mujoco model="child">
+    <default>
+      <geom size="0.3"/>
+      <default class="cylinder">
+        <geom type="cylinder" size=".1 1 0"/>
+      </default>
+    </default>
+
+    <worldbody>
+      <body name="body">
+        <geom class="cylinder"/>
+        <geom name="sphere_geom"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  ASSERT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child2, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+
+  // store the parent's global default before attaching
+  mjsDefault* parent_main = mjs_getSpecDefault(parent);
+
+  // attach child body to parent frame without prefix or suffix
+  mjsFrame* frame = mjs_findFrame(parent, "frame");
+  ASSERT_THAT(frame, NotNull());
+  mjsBody* body = mjs_findBody(child, "body");
+  ASSERT_THAT(body, NotNull());
+  ASSERT_THAT(mjs_attach(frame->element, body->element, "", ""), NotNull())
+      << mjs_getError(parent);
+
+  // the copy of the child's global default should be renamed to a unique name
+  EXPECT_EQ(mjs_findDefault(parent, "main"), parent_main);
+  EXPECT_THAT(mjs_findDefault(parent, "main_1"), NotNull());
+  EXPECT_THAT(mjs_findDefault(parent, "cylinder"), NotNull());
+
+  // the parent's elements should still resolve to the parent's global default
+  mjsBody* sphere = mjs_findBody(parent, "sphere");
+  ASSERT_THAT(sphere, NotNull());
+  EXPECT_EQ(mjs_getDefault(sphere->element), parent_main);
+
+  // compile and save to XML
+  mjModel* m_attached = mj_compile(parent, 0);
+  ASSERT_THAT(m_attached, NotNull()) << mjs_getError(parent);
+  std::array<char, 4096> xml;
+  ASSERT_GE(mj_saveXMLString(parent, xml.data(), xml.size(), er.data(),
+                             er.size()), 0) << er.data();
+
+  // the saved XML should be loadable and produce the same model
+  mjModel* m_reloaded = LoadModelFromString(xml.data(), er.data(), er.size());
+  ASSERT_THAT(m_reloaded, NotNull()) << er.data();
+  EXPECT_LE(CompareModel(m_attached, m_reloaded, field), tol)
+            << "Attached and reloaded models are different!\n"
+            << "Different field: " << field << '\n';
+
+  // destroy everything
+  mj_deleteModel(m_reloaded);
+  mj_deleteModel(m_attached);
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+}
+
 void TestDetachBody(bool compile) {
   std::array<char, 1000> er;
   mjtNum tol = 0;
