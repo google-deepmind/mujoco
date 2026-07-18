@@ -1437,10 +1437,19 @@ static mjsElement* GetNext(const std::vector<T*>& list, const mjsElement* child)
     return list[0]->spec.element;
   }
 
-  // TODO: use id for direct indexing instead of a loop
-  for (unsigned int i = 0; i < list.size()-1; i++) {
+  // use id for direct indexing if valid
+  int id = static_cast<const mjCBase*>(child)->id;
+  if (id >= 0 && id < (int)list.size() && list[id]->spec.element == child) {
+    if (id + 1 < (int)list.size()) {
+      return list[id + 1]->spec.element;
+    }
+    return nullptr;
+  }
+
+  // fallback to linear search if id is stale or invalid
+  for (int i = 0; i < (int)list.size() - 1; i++) {
     if (list[i]->spec.element == child) {
-      return list[i+1]->spec.element;
+      return list[i + 1]->spec.element;
     }
   }
   return nullptr;
