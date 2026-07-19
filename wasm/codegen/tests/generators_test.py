@@ -15,9 +15,9 @@
 """Tests for helper modules."""
 
 from absl.testing import absltest
+from mujoco.codegen import code_builder
 from introspect import ast_nodes
 
-from wasm.codegen.generators import code_builder
 from wasm.codegen.generators import common
 from wasm.codegen.generators import enums
 from wasm.codegen.generators import functions

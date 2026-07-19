@@ -1263,10 +1263,10 @@ mjtNum mj_tendonDot(const mjModel* m, mjData* d, int id, const mjtNum* vec) {
 
 // compute actuator/transmission lengths and moments
 void mj_transmission(const mjModel* m, mjData* d) {
-  int nv = m->nv, nu = m->nu;
+  int nv = m->nv, nactuator = m->nactuator;
 
   // nothing to do
-  if (!nu) {
+  if (!nactuator) {
     return;
   }
 
@@ -1295,19 +1295,21 @@ void mj_transmission(const mjModel* m, mjData* d) {
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nv_awake < nv;
 
   // compute lengths and moments
-  for (int i=0; i < nu; i++) {
-    rowadr[i] = i == 0 ? 0 : rowadr[i-1] + rownnz[i-1];
-    int nnz, adr = rowadr[i];
+  for (int i=0; i < nactuator; i++) {
+    // address of the actuator's output block (single row for all current types)
+    int out = m->actuator_outadr[i];
+    rowadr[out] = out == 0 ? 0 : rowadr[out-1] + rownnz[out-1];
+    int nnz, adr = rowadr[out];
 
     // skip sleeping actuator
     if (sleep_filter && mj_sleepState(m, d, mjOBJ_ACTUATOR, i) == mjS_ASLEEP) {
-      rownnz[i] = 0;
+      rownnz[out] = 0;
       continue;
     }
 
     // extract info
     int id = m->actuator_trnid[2*i];
-    mjtNum* gear = m->actuator_gear+6*i;
+    mjtNum* gear = m->actuator_gear+6*out;
 
     // process according to transmission type
     switch ((mjtTrn) m->actuator_trntype[i]) {
@@ -1316,10 +1318,10 @@ void mj_transmission(const mjModel* m, mjData* d) {
       // slide and hinge joint: scalar gear
       if (m->jnt_type[id] == mjJNT_SLIDE || m->jnt_type[id] == mjJNT_HINGE) {
         // sparsity
-        rownnz[i] = 1;
+        rownnz[out] = 1;
         colind[adr] = m->jnt_dofadr[id];
 
-        length[i] = d->qpos[m->jnt_qposadr[id]]*gear[0];
+        length[out] = d->qpos[m->jnt_qposadr[id]]*gear[0];
         moment[adr] = gear[0];
       }
 
@@ -1341,7 +1343,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
         }
 
         // length: axis*gearAxis
-        length[i] = mju_dot3(axis, gearAxis);
+        length[out] = mju_dot3(axis, gearAxis);
 
         // dof start address
         int jnt_dofadr = m->jnt_dofadr[id];
@@ -1350,7 +1352,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
         for (int j = 0; j < 3; j++) {
           colind[adr+j] = jnt_dofadr + j;
         }
-        rownnz[i] = 3;
+        rownnz[out] = 3;
 
         // moment: gearAxis
         mji_copy3(moment+adr, gearAxis);
@@ -1359,7 +1361,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
       // free joint: 6D wrench gear
       else {
         // cannot compute meaningful length, set to 0
-        length[i] = 0;
+        length[out] = 0;
 
         // gearAxis: rotate to world frame if necessary
         mjtNum gearAxis[3];
@@ -1380,7 +1382,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
         for (int j = 0; j < 6; j++) {
           colind[adr+j] = jnt_dofadr + j;
         }
-        rownnz[i] = 6;
+        rownnz[out] = 6;
 
         // moment: gear(tran), gearAxis
         mji_copy3(moment+adr, gear);
@@ -1392,7 +1394,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
       {
         // get data
         int idslider = m->actuator_trnid[2*i+1];
-        mjtNum rod = m->actuator_cranklength[i];
+        mjtNum rod = m->actuator_cranklength[out];
         mjtNum axis[3] = {d->site_xmat[9 * idslider + 2],
                           d->site_xmat[9 * idslider + 5],
                           d->site_xmat[9 * idslider + 8]};
@@ -1407,10 +1409,10 @@ void mj_transmission(const mjModel* m, mjData* d) {
         if (det <= 0) {
           ok = 0;
           sdet = 0;
-          length[i] = av;
+          length[out] = av;
         } else {
           sdet = mju_sqrt(det);
-          length[i] = av - sdet;
+          length[out] = av - sdet;
         }
 
         // compute derivatives of length w.r.t. vec and axis
@@ -1445,7 +1447,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
         }
 
         // scale by gear ratio
-        length[i] *= gear[0];
+        length[out] *= gear[0];
 
         // sparsity (compress)
         nnz = 0;
@@ -1456,18 +1458,18 @@ void mj_transmission(const mjModel* m, mjData* d) {
             nnz++;
           }
         }
-        rownnz[i] = nnz;
+        rownnz[out] = nnz;
       }
       break;
 
     case mjTRN_TENDON:                  // tendon
-      length[i] = d->ten_length[id]*gear[0];
+      length[out] = d->ten_length[id]*gear[0];
 
       // moment
       {
         int ten_J_rownnz = m->ten_J_rownnz[id];
         int ten_J_rowadr = m->ten_J_rowadr[id];
-        rownnz[i] = ten_J_rownnz;
+        rownnz[out] = ten_J_rownnz;
         mju_copyInt(colind + adr, m->ten_J_colind + ten_J_rowadr, ten_J_rownnz);
 
         mju_scl(moment + adr, d->ten_J + ten_J_rowadr, gear[0], ten_J_rownnz);
@@ -1479,7 +1481,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
       mj_jacSite(m, d, jac, jacS, id);
 
       // clear length
-      length[i] = 0;
+      length[out] = 0;
 
       if (!moment_row) moment_row = mjSTACKALLOC(d, nv, mjtNum);
 
@@ -1540,7 +1542,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
           mju_mulMatTVec3(vec, d->site_xmat+9*refid, vec);
 
           // length: dot product with gear
-          length[i] += mju_dot3(vec, gear);
+          length[out] += mju_dot3(vec, gear);
 
           // jacref: global Jacobian of reference site
           mj_jacSite(m, d, jacref, NULL, refid);
@@ -1579,7 +1581,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
           mji_subQuat(vec, quat, refquat);
 
           // add length: dot product with gear
-          length[i] += mju_dot3(vec, gear+3);
+          length[out] += mju_dot3(vec, gear+3);
 
           // jacref: global rotational Jacobian of reference site
           mj_jacSite(m, d, NULL, jacref, refid);
@@ -1616,13 +1618,13 @@ void mj_transmission(const mjModel* m, mjData* d) {
           nnz++;
         }
       }
-      rownnz[i] = nnz;
+      rownnz[out] = nnz;
 
       break;
 
     case mjTRN_BODY:                  // body (adhesive contacts)
       // cannot compute meaningful length, set to 0
-      length[i] = 0;
+      length[out] = 0;
 
       // clear moment
       if (!moment_row) moment_row = mjSTACKALLOC(d, nv, mjtNum);
@@ -1730,7 +1732,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
           nnz++;
         }
       }
-      rownnz[i] = nnz;
+      rownnz[out] = nnz;
 
       break;
 
@@ -1871,71 +1873,7 @@ void mj_makeM(const mjModel* m, mjData* d) {
   TM_START;
   mj_crb(m, d);
   mj_tendonArmature(m, d);
-  mju_scatter(d->qM, d->M, m->mapM2M, m->nC);  // TODO(tassa): scatter only awake dofs
   TM_END(mjTIMER_POS_INERTIA);
-}
-
-
-// sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd
-// (legacy implementation)
-void mj_factorI_legacy(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD,
-                       mjtNum* qLDiagInv) {
-  int cnt;
-  int Madr_kk, Madr_ki;
-  mjtNum tmp;
-
-  // local copies of key variables
-  int* dof_Madr = m->dof_Madr;
-  int* dof_parentid = m->dof_parentid;
-  int nv = m->nv;
-
-  // copy M into LD
-  mju_copy(qLD, M, m->nM);
-
-  // dense backward loop over dofs (regular only, simple diagonal already copied)
-  for (int k=nv-1; k >= 0; k--) {
-    // get address of M(k,k)
-    Madr_kk = dof_Madr[k];
-
-    // check for small/negative numbers on diagonal
-    if (qLD[Madr_kk] < mjMINVAL) {
-      mj_warning(d, mjWARN_INERTIA, k);
-      qLD[Madr_kk] = mjMINVAL;
-    }
-
-    // skip the rest if simple
-    if (m->dof_simplenum[k]) {
-      continue;
-    }
-
-    // sparse backward loop over ancestors of k (excluding k)
-    Madr_ki = Madr_kk + 1;
-    int i = dof_parentid[k];
-    while (i >= 0) {
-      tmp = qLD[Madr_ki] / qLD[Madr_kk];          // tmp = M(k,i) / M(k,k)
-
-      // get number of ancestors of i (including i)
-      if (i < nv-1) {
-        cnt = dof_Madr[i+1] - dof_Madr[i];
-      } else {
-        cnt = m->nM - dof_Madr[i+1];
-      }
-
-      // M(i,j) -= M(k,j) * tmp
-      mju_addToScl(qLD+dof_Madr[i], qLD+Madr_ki, -tmp, cnt);
-
-      qLD[Madr_ki] = tmp;                         // M(k,i) = tmp
-
-      // advance to i's parent
-      i = dof_parentid[i];
-      Madr_ki++;
-    }
-  }
-
-  // compute 1/diag(D)
-  for (int i=0; i < nv; i++) {
-    qLDiagInv[i] = 1.0 / qLD[dof_Madr[i]];
-  }
 }
 
 
@@ -1993,118 +1931,6 @@ void mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
 
     // update row k:  L(k, :) /= L(k, k)
     mju_scl(mat + start, mat + start, invD, diag);
-  }
-}
-
-
-// in-place sparse backsubstitution:  x = inv(L'*D*L)*x
-// (legacy implementation)
-void mj_solveLD_legacy(const mjModel* m, mjtNum* restrict x, int n,
-                       const mjtNum* qLD, const mjtNum* qLDiagInv) {
-  // local copies of key variables
-  int* dof_Madr = m->dof_Madr;
-  int* dof_parentid = m->dof_parentid;
-  int nv = m->nv;
-
-  // single vector
-  if (n == 1) {
-    // x <- inv(L') * x; skip simple, exploit sparsity of input vector
-    for (int i=nv-1; i >= 0; i--) {
-      if (!m->dof_simplenum[i] && x[i]) {
-        // init
-        int Madr_ij = dof_Madr[i]+1;
-        int j = dof_parentid[i];
-
-        // traverse ancestors backwards
-        // read directly from x[i] since i cannot be a parent of itself
-        while (j >= 0) {
-          x[j] -= qLD[Madr_ij++]*x[i];         // x(j) -= L(i,j) * x(i)
-
-          // advance to parent
-          j = dof_parentid[j];
-        }
-      }
-    }
-
-    // x <- inv(D) * x
-    for (int i=0; i < nv; i++) {
-      x[i] *= qLDiagInv[i];  // x(i) /= L(i,i)
-    }
-
-    // x <- inv(L) * x; skip simple
-    for (int i=0; i < nv; i++) {
-      if (!m->dof_simplenum[i]) {
-        // init
-        int Madr_ij = dof_Madr[i]+1;
-        int j = dof_parentid[i];
-
-        // traverse ancestors backwards
-        // write directly in x[i] since i cannot be a parent of itself
-        while (j >= 0) {
-          x[i] -= qLD[Madr_ij++]*x[j];             // x(i) -= L(i,j) * x(j)
-
-          // advance to parent
-          j = dof_parentid[j];
-        }
-      }
-    }
-  }
-
-  // multiple vectors
-  else {
-    int offset;
-    mjtNum tmp;
-
-    // x <- inv(L') * x; skip simple
-    for (int i=nv-1; i >= 0; i--) {
-      if (!m->dof_simplenum[i]) {
-        // init
-        int Madr_ij = dof_Madr[i]+1;
-        int j = dof_parentid[i];
-
-        // traverse ancestors backwards
-        while (j >= 0) {
-          // process all vectors, exploit sparsity
-          for (offset=0; offset < n*nv; offset+=nv)
-            if ((tmp = x[i+offset])) {
-              x[j+offset] -= qLD[Madr_ij]*tmp;  // x(j) -= L(i,j) * x(i)
-            }
-
-          // advance to parent
-          Madr_ij++;
-          j = dof_parentid[j];
-        }
-      }
-    }
-
-    // x <- inv(D) * x
-    for (int i=0; i < nv; i++) {
-      for (offset=0; offset < n*nv; offset+=nv) {
-        x[i+offset] *= qLDiagInv[i];  // x(i) /= L(i,i)
-      }
-    }
-
-    // x <- inv(L) * x; skip simple
-    for (int i=0; i < nv; i++) {
-      if (!m->dof_simplenum[i]) {
-        // init
-        int Madr_ij = dof_Madr[i]+1;
-        int j = dof_parentid[i];
-
-        // traverse ancestors backwards
-        tmp = x[i+offset];
-        while (j >= 0) {
-          // process all vectors
-          for (offset=0; offset < n*nv; offset+=nv) {
-            x[i+offset] -= qLD[Madr_ij]*x[j+offset];  // x(i) -= L(i,j) * x(j)
-          }
-
-          // advance to parent
-          Madr_ij++;
-          j = dof_parentid[j];
-        }
-      }
-    }
   }
 }
 

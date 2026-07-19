@@ -21,6 +21,12 @@
 #include <string.h>
 #include <time.h>
 
+#if defined(_WIN32)
+#include <windows.h>
+#elif defined(__unix__) || (defined(__APPLE__) && defined(__MACH__)) || defined(__EMSCRIPTEN__)
+#include <sched.h>
+#endif
+
 #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
 #include <unistd.h>
 #endif
@@ -104,7 +110,8 @@ static mjLogConfig log_config = {.logto_console = true,
                                  .logto_file = true,
                                  .logfile = "MUJOCO_LOG.TXT",
                                  .topics = 0};
-static mjtBool env_checked = 0;
+static mjtBool env_init_claimed = 0;  // claimed by first thread to enter init
+static mjtBool env_init_done = 0;     // set after log_config init completes
 
 // parse MUJOCO_LOG_TOPICS env var to seed initial topic bitmask
 // example: MUJOCO_LOG_TOPICS="time_stp,sleep"
@@ -143,9 +150,21 @@ static void mju_initLogTopicsFromEnv(void) {
 
 // private pointer getter encapsulates lazy init with zero copy overhead
 static const mjLogConfig* mju_getLogConfigPtr(void) {
-  if (!env_checked) {
-    mju_initLogTopicsFromEnv();
-    env_checked = 1;
+  if (!mj_atomic_load_bool(&env_init_done)) {
+    // atomically claim right to initialize; only one thread gets old value 0
+    if (!mj_atomic_exchange_bool(&env_init_claimed, 1)) {
+      mju_initLogTopicsFromEnv();
+      mj_atomic_store_bool(&env_init_done, 1);
+    } else {
+      // another thread is initializing; spin until it completes
+      while (!mj_atomic_load_bool(&env_init_done)) {
+#if defined(_WIN32)
+        Sleep(0);
+#elif defined(__unix__) || (defined(__APPLE__) && defined(__MACH__)) || defined(__EMSCRIPTEN__)
+        sched_yield();
+#endif
+      }
+    }
   }
   return &log_config;
 }
@@ -171,8 +190,9 @@ mjLogConfig mju_getLogConfig(void) {
 
 // set default handler configuration
 void mju_setLogConfig(mjLogConfig config) {
-  env_checked = 1;
   log_config = config;
+  mj_atomic_store_bool(&env_init_claimed, 1);
+  mj_atomic_store_bool(&env_init_done, 1);
 }
 
 // restore default processing
@@ -182,8 +202,9 @@ void mju_clearHandlers(void) {
                              .logto_file = true,
                              .logfile = "MUJOCO_LOG.TXT",
                              .topics = 0};
-  env_checked = 1;
+  mj_atomic_store_bool(&env_init_claimed, 1);
   mju_initLogTopicsFromEnv();
+  mj_atomic_store_bool(&env_init_done, 1);
 
   mju_user_error = 0;
   mju_user_warning = 0;

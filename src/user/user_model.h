@@ -84,7 +84,9 @@ class mjCModel_ : public mjsElement {
   // sizes computed by Compile
   mjtSize nq;              // number of generalized coordinates = dim(qpos)
   mjtSize nv;              // number of degrees of freedom = dim(qvel)
-  mjtSize nu;              // number of actuators/controls
+  mjtSize nu;              // number of scalar controls = dim(ctrl)
+  mjtSize nactuator;       // number of actuators
+  mjtSize nout;            // number of force outputs = dim(actuator_force)
   mjtSize na;              // number of activation variables
   mjtSize ntree;           // number of trees
   mjtSize nbvh;            // number of total boundary volume hierarchies
@@ -98,6 +100,8 @@ class mjCModel_ : public mjsElement {
   mjtSize nflexelemdata;   // number of element vertex ids in all flexes
   mjtSize nflexstiffness;  // number of stiffness parameters in all flexes
   mjtSize nflexbending;    // number of bending parameters in all flexes
+  mjtSize nefm0dof;        // number of dofs covered by the bending factor
+  mjtSize nefm0L;          // number of non-zeros in the bending factor
   mjtSize nflexelemedge;   // number of element edges in all flexes
   mjtSize nflexshelldata;  // number of shell fragment vertex ids in all flexes
   mjtSize nflexevpair;     // number of element-vertex pairs in all flexes

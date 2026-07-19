@@ -330,7 +330,7 @@ class Rollout {
   std::shared_ptr<ThreadPool> pool_;
 };
 
-PYBIND11_MODULE(_rollout, pymodule) {
+PYBIND11_MODULE(_rollout, pymodule, pybind11::mod_gil_not_used()) {
   namespace py = ::pybind11;
 
   py::class_<Rollout>(pymodule, "Rollout")

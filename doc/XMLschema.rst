@@ -714,6 +714,9 @@
             :ref:`sleep<body-sleep>`
 
          .. grid-item::
+            :ref:`simple<body-simple>`
+
+         .. grid-item::
             :ref:`user<body-user>`
 
 
@@ -906,6 +909,9 @@
                :ref:`gap<body-geom-gap>`
 
             .. grid-item::
+               :ref:`surfacevel<body-geom-surfacevel>`
+
+            .. grid-item::
                :ref:`fromto<body-geom-fromto>`
 
             .. grid-item::
@@ -982,6 +988,9 @@
 
             .. grid-item::
                :ref:`body<body-attach-body>`
+
+            .. grid-item::
+               :ref:`frame<body-attach-frame>`
 
             .. grid-item::
                :ref:`prefix<body-attach-prefix>`
@@ -1366,6 +1375,9 @@
 
                .. grid-item::
                   :ref:`gap<composite-geom-gap>`
+
+               .. grid-item::
+                  :ref:`surfacevel<composite-geom-surfacevel>`
 
 
          .. dropdown:: :ref:`site<composite-site>` :octicon:`dot`
@@ -2647,6 +2659,9 @@
 
             .. grid-item::
                :ref:`forcelimited<actuator-intvelocity-forcelimited>`
+
+            .. grid-item::
+               :ref:`actlimited<actuator-intvelocity-actlimited>`
 
             .. grid-item::
                :ref:`ctrlrange<actuator-intvelocity-ctrlrange>`
@@ -5487,6 +5502,9 @@
                :ref:`gap<default-geom-gap>`
 
             .. grid-item::
+               :ref:`surfacevel<default-geom-surfacevel>`
+
+            .. grid-item::
                :ref:`fromto<default-geom-fromto>`
 
             .. grid-item::
@@ -6016,6 +6034,9 @@
 
             .. grid-item::
                :ref:`forcelimited<default-intvelocity-forcelimited>`
+
+            .. grid-item::
+               :ref:`actlimited<default-intvelocity-actlimited>`
 
             .. grid-item::
                :ref:`ctrlrange<default-intvelocity-ctrlrange>`

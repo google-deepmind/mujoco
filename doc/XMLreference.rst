@@ -418,16 +418,20 @@ adjust it properly through the XML.
 
 :at:`iterations`: :at-val:`int, "100"`
    Maximum number of iterations of the constraint solver. When the warmstart attribute of :ref:`flag <option-flag>` is
-   enabled (which is the default), accurate results are obtained with fewer iterations. Larger and more complex systems
-   with many interacting constraints require more iterations. Note that mjData.solver contains statistics about solver
-   convergence, also shown in the profiler.
+   enabled (which is the default), accurate results are obtained with fewer iterations; if the warmstarted solution
+   already satisfies the tolerance, the CG and Newton solvers terminate with zero iterations. Larger and more complex
+   systems with many interacting constraints require more iterations. Note that mjData.solver contains statistics about
+   solver convergence, also shown in the profiler.
 
 .. _option-tolerance:
 
 :at:`tolerance`: :at-val:`real, "1e-8"`
    Tolerance threshold used for early termination of the iterative solver. For PGS, the threshold is applied to the cost
    improvement between two iterations. For CG and Newton, it is applied to the smaller of the cost improvement and the
-   gradient norm. Set the tolerance to 0 to disable early termination.
+   gradient norm. For Newton, it is additionally applied to the Newton decrement :math:`\tfrac{1}{2} g^T H^{-1} g`, the
+   predicted cost improvement of the next iteration. Before the first iteration, CG and Newton also apply it to a
+   :ref:`convergence certificate<soAlgorithms>` of the warmstarted solution, possibly terminating with zero iterations.
+   Set the tolerance to 0 to disable early termination.
 
 .. _option-ls_iterations:
 
@@ -466,7 +470,7 @@ adjust it properly through the XML.
 
 .. _option-sleep_tolerance:
 
-:at:`sleep_tolerance`: :at-val:`real, "1e-4"`
+:at:`sleep_tolerance`: :at-val:`real, "1e-3"`
    Velocity tolerance below which :ref:`sleeping<Sleeping>` is allowed.
 
 .. _option-sdf_iterations:
@@ -657,22 +661,13 @@ from its default.
 .. _option-flag-invdiscrete:
 
 :at:`invdiscrete`: :at-val:`[disable, enable], "disable"`
-   This dual-purpose flag enables discrete-time inverse dynamics and disables :ref:`midpoint integration<geMidpoint>`.
-
-   Enable discrete-time inverse dynamics
-     This flag **enables** discrete-time inverse dynamics with :ref:`mj_inverse` for all
-     :ref:`integrators<option-integrator>` other than ``RK4``. Recall from the :ref:`numerical
-     integration<geIntegration>` section that the one-step integrators (``Euler``, ``implicit`` and ``implicitfast``),
-     modify the mass matrix :math:`M \rightarrow M-hD`. This implies that finite-differenced accelerations
-     :math:`(v_{t+h} - v_t)/h` will not correspond to the continuous-time acceleration ``mjData.qacc``. When this flag
-     is enabled, :ref:`mj_inverse` will interpret ``qacc`` as having been computed from the difference of two sequential
-     velocities, and undo the above modification.
-
-   Disable midpoint integration
-     Additionally and relatedly, this flag **disables** :ref:`midpoint integration<geMidpoint>` for free bodies, which
-     would otherwise break the linear relationship between finite-differenced velocities and forces assumed by discrete
-     inverse dynamics. Note that disabling midpoint integration might be useful for debugging or for other reasons,
-     regardless or whether inverse dynamics are used.
+   This flag enables discrete-time inverse dynamics with :ref:`mj_inverse` for all
+   :ref:`integrators<option-integrator>` other than ``RK4``. Recall from the
+   :ref:`numerical integration<geIntegration>` section that the one-step integrators (``Euler``, ``implicit`` and
+   ``implicitfast``), modify the mass matrix :math:`M \rightarrow M-hD`. This implies that finite-differenced
+   accelerations :math:`(v_{t+h} - v_t)/h` will not correspond to the continuous-time acceleration ``mjData.qacc``.
+   When this flag is enabled, :ref:`mj_inverse` will interpret ``qacc`` as having been computed from the difference of
+   two sequential velocities, and undo the above modification.
 
 
 .. _option-flag-multiccd:
@@ -2152,6 +2147,31 @@ defined. Its body name is automatically defined as "world".
 
    See :ref:`implementation notes<siSleep>` for more details.
 
+.. _body-simple:
+
+:at:`simple`: :at-val:`[false, auto], "auto"`
+   Controls the *simple body* optimization. When a body qualifies as "simple", its inertial matrix block in the mass
+   matrix is diagonal, representing independent translational and rotational degrees of freedom. The optimization
+   omits storing of the zero-valued off-diagonal entries, reducing memory footprint and computation.
+
+   A body qualifies for this optimization if it satisfies all of the following:
+
+   - **Inertial frame alignment**: The body's inertial frame coincides with its body frame.
+   - **Kinematic root**: The body's parent is either the world body or a static body.
+   - **Leaf body**: The body is a leaf node in the kinematic tree (it has no child bodies).
+   - **Origin-centered joints**: All joints belonging to this body must reside at the body's origin.
+   - **Aligned joint axes**: Any hinge or slide joint axes must be aligned with the local coordinate axes, and at most
+     one joint with rotational degrees of freedom (hinge or ball) is permitted.
+   - **No inertia-bearing tendons**: The body must not contain sites or geoms used as wrap objects by any tendon that
+     has non-zero :ref:`armature<tendon-spatial-armature>`.
+
+   Setting this attribute to :at-val:`false` disables the optimization for this body. This is necessary for domain
+   randomization workflows where model parameters (such as joint/inertial offsets or angles) are perturbed dynamically
+   during simulation and updated via :ref:`mj_setConst`. Because a body compiled with the simple optimization active
+   cannot dynamically lose its simple state at runtime (which would require reallocation of sparse matrix structures),
+   any runtime parameter change that violates the simple conditions will trigger a validation error unless
+   ``simple="false"`` was explicitly declared in the XML.
+
 .. _body-user:
 
 :at:`user`: :at-val:`real(nbody_user), "0 0 ..."`
@@ -2750,6 +2770,32 @@ helps clarify the role of bodies and geoms in MuJoCo.
    These inactive contacts can be used for custom computations, for example by :ref:`adhesion<actuator-adhesion>`
    actuators which use contacts in the gap zone to generate adhesive forces without producing contact forces.
    See :ref:`margin and gap<coMarginGap>`.
+
+.. _body-geom-surfacevel:
+
+.. youtube:: PdSdrqhSiZA
+   :align: right
+   :width: 35%
+
+:at:`surfacevel`: :at-val:`real(6), "0 0 0 0 0 0"`
+   Velocity of the geom's surface as seen by contacts, given as a velocity field :math:`\sigma(x)` with two components:
+   a constant velocity :math:`v` (first three numbers) and a rotational field with angular velocity :math:`\omega` (last
+   three numbers) about the geom frame origin :math:`p`, both expressed in the geom frame:
+
+   .. math::
+      \sigma(x) = v + \omega \times (x - p)
+
+   A contact with the geom observes the surface moving along this field, with the velocity projected onto the contact's
+   tangent plane: no normal velocity is imparted. When :at:`condim` is 4 or larger, the angular velocity :math:`\omega`
+   also drives torsional friction. :at:`surfacevel` models surfaces that move while the geom itself does not: conveyor
+   belts, treadmills and turntables can be constructed with no degrees of freedom. Friction drives touching bodies along
+   the motion of the surface: objects placed on a conveyor are transported at belt speed, and a turntable (angular
+   surface velocity about the cylinder axis) imparts tangential velocity that grows with radius. Surface velocities of
+   two touching geoms compose as relative velocity, and compose correctly with body motion (a conveyor mounted on a
+   moving vehicle works as expected). Note that this attribute describes the geom's *entire* surface: a box with
+   constant ``surfacevel`` moves all six faces. When contact points are visualized, a contact with a moving surface
+   additionally displays an arrow along the tangential surface velocity at the contact point. This attribute can be
+   modified at runtime.
 
 .. _body-geom-fromto:
 
@@ -3440,10 +3486,12 @@ joints and tendons have different sets of attributes, while all geoms in the com
 
 .. _composite-geom-gap:
 
+.. _composite-geom-surfacevel:
+
 .. |body/composite/geom attrib list| replace::
    :at:`type`, :at:`contype`, :at:`conaffinity`, :at:`condim`, :at:`group`, :at:`priority`, :at:`size`, :at:`material`,
    :at:`rgba`, :at:`friction`, :at:`mass`, :at:`density`, :at:`solmix`, :at:`solref`, :at:`solimp`, :at:`margin`,
-   :at:`gap`
+   :at:`gap`, :at:`surfacevel`
 
 |body/composite/geom attrib list|
    Same meaning as regular :ref:`geom <body-geom>` attributes.
@@ -3996,33 +4044,53 @@ Associate this body with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` 
 :el-prefix:`body/` |-| **attach** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The :el:`attach` element is used to insert a sub-tree of bodies from another model into this model's kinematic tree.
-Unlike :ref:`include<include>`, which is implemented in the parser and is equivalent to copying and pasting XML from one
-file into another, :el:`attach` is implemented in the model compiler. In order to use this element, the sub-model must
-first be defined as an :ref:`asset<asset-model>`. When creating an attachment, the top body of the attached subtree is
+The :el:`attach` element is used to insert elements from another (child) model, or from the current model itself
+(self-attachment), into this (parent) model's kinematic tree. Unlike :ref:`include<include>`, which is implemented in
+the parser and is equivalent to copying and pasting XML from one file into another, :el:`attach` is implemented in the
+model compiler. In order to use this element to import from another model, the sub-model must first be defined as an
+:ref:`asset<asset-model>`. When creating an attachment, a frame, body or the entire child model in the child model is
 specified, and all referencing elements outside the kinematic tree (e.g., sensors and actuators), are also copied into
-the top-level model. Additionally, any elements referenced from within the attached subtree (e.g. defaults and assets)
-will be copied in to the top-level model. :el:`attach` is a :ref:`meta-element`, so upon saving all attachments will
-appear in the saved XML file. Note that this element is a subset of the functionality of the procedural
-:ref:`attachment<meAttachment>` functionality. As such, it shares the same limitations as described there. In addition,
-when the :el:`attach` element is used, it is not possible to attach an entire model (i.e. including all elements,
-referenced or not).
+the parent model. Additionally, any elements referenced from within the attached subtree (e.g. defaults and assets) will
+be copied in to the parent model. For self-attaching within the same model, the :at:`model` attribute is omitted, and a
+body or frame must be specified. :el:`attach` is a :ref:`meta-element`, so upon saving all attachments will appear in
+the saved XML file. Note that this element is a subset of the functionality of the procedural
+:ref:`attachment<meAttachment>` functionality. As such, it shares the same limitations as described there. See example
+`here <https://github.com/google-deepmind/mujoco/blob/main/test/xml/testdata/parent.xml>`__.
+
+.. admonition:: Known issues
+   :class: note
+
+   The following known limitations exist, to be addressed in a future release:
+
+   - All assets from the child model will be copied in, whether they are referenced or not.
+   - Circular references are not checked for and will lead to infinite loops.
+   - When attaching a model with :ref:`keyframes<keyframe>`, model compilation is required for the re-indexing to be
+     finalized. If a second attachment is performed without compilation, the keyframes from the first attachment will be
+     lost.
 
 .. _body-attach-model:
 
-:at:`model`: :at-val:`string, required`
-   The sub-model from which to attach a subtree.
+:at:`model`: :at-val:`string, optional`
+   The child model from which to attach a subtree or a frame.
+   If omitted, the attachment is performed within the current model (self-attachment).
 
 .. _body-attach-body:
 
 :at:`body`: :at-val:`string, optional`
-   Name of the body in the sub-model to attach here. The body and its subtree will be attached. If this attribute is not
-   specified, the contents of the world body will be attached in a new :ref:`frame<body-frame>`.
+   Name of the body in the child model to attach here. The body and its subtree will be attached. If neither this
+   attribute nor :ref:`frame<body-attach-frame>` is specified (only one allowed), the contents of the world body will
+   be attached in a new :ref:`frame<body-frame>`.
+
+.. _body-attach-frame:
+
+:at:`frame`: :at-val:`string, optional`
+   Name of the frame in the child model to attach here. If neither this attribute nor :ref:`body<body-attach-body>` is
+   specified (only one allowed), the contents of the world body will be attached in a new :ref:`frame<body-frame>`.
 
 .. _body-attach-prefix:
 
 :at:`prefix`: :at-val:`string, required`
-   Prefix to prepend to names of elements in the sub-model. This attribute is required to prevent name collisions with
+   Prefix to prepend to names of elements in the child model. This attribute is required to prevent name collisions with
    the parent or when attaching the same sub-tree multiple times.
 
 
@@ -5463,16 +5531,23 @@ specify them independently.
 
 :at:`joint`: :at-val:`string, optional`
    This and the next four attributes determine the type of actuator transmission. All of them are optional, and exactly
-   one of them must be specified. If this attribute is specified, the actuator acts on the given joint. For **hinge**
-   and **slide** joints, the actuator length equals the joint position/angle times the first element of :at:`gear`. For
-   **ball** joints, the first three elements of gear define a 3d rotation axis in the child frame around which the
+   one of them must be specified. If this attribute is specified, the actuator acts on the given joint.
+
+   For **hinge** and **slide** joints, the actuator length equals the joint position/angle times the first element of
+   :at:`gear`.
+
+   For **ball** joints, the first three elements of gear define a 3d rotation axis in the child frame around which the
    actuator produces torque. The actuator length is defined as the dot-product between this gear axis and the angle-axis
    representation of the joint quaternion, and is in units of radian if :at:`gear` is normalized (generally scaled by
-   by the norm of :at:`gear`). Note that after total rotation of more than :math:`\pi`, the length will wrap to :math:`-
-   \pi`, and vice-versa. Therefore :el:`position` servos for ball joints should generally use tighter limits which
-   prevent this wrapping. For **free** joints, gear defines a 3d translation axis in the world frame followed by a 3d
-   rotation axis in the child frame. The actuator generates force and torque relative to the specified axes. The
-   actuator length for free joints is defined as zero (so it should not be used with position servos).
+   the norm of :at:`gear`). Note that the length is defined on a circle: after total rotation of more than :math:`\pi`
+   it wraps to :math:`-\pi`, and vice-versa. :ref:`position<actuator-position>` and
+   :ref:`intvelocity<actuator-intvelocity>` servos on such transmissions interpret their setpoint on the circle, driving
+   towards the nearest representative of the target, so targets can be wound continuously through any number of turns
+   and no control limits are required to prevent wrapping.
+
+   For **free** joints, gear defines a 3d translation axis in the world frame followed by a 3d rotation axis in the
+   child frame. The actuator generates force and torque relative to the specified axes. The actuator length for free
+   joints is defined as zero (so cannot be used with position servos).
 
 .. _actuator-general-jointinparent:
 
@@ -5502,13 +5577,14 @@ specify them independently.
    When using a :at:`site` transmission, measure the translation and rotation w.r.t the frame of the :at:`refsite`. In
    this case the actuator *does* have length and :el:`position` actuators can be used to directly control an end
    effector, see `refsite.xml
-   <https://github.com/google-deepmind/mujoco/tree/main/test/engine/testdata/actuation/refsite.xml>`__ example
-   model. As above, the length is the dot product of the :at:`gear` vector and the frame difference. So ``gear="0 1 0 0
-   0 0"`` means "Y-offset of :at:`site` in the :at:`refsite` frame", while ``gear="0 0 0 0 0 1"`` means rotation "Z-
-   rotation of :at:`site` in the :at:`refsite` frame". It is recommended to use a normalized :at:`gear` vector with
-   nonzeros in only the first 3 *or* the last 3 elements of :at:`gear`, so the actuator length will be in either length
-   units or radians, respectively. As with ball joints (see :at:`joint` above), for rotations which exceed a total angle
-   of :math:`\pi` will wrap around, so tighter limits are recommended.
+   <https://github.com/google-deepmind/mujoco/tree/main/test/engine/testdata/actuation/refsite.xml>`__ example model. As
+   above, the length is the dot product of the :at:`gear` vector and the frame difference. So ``gear="0 1 0 0 0 0"``
+   means "Y-offset of :at:`site` in the :at:`refsite` frame", while ``gear="0 0 0 0 0 1"`` means rotation "Z- rotation
+   of :at:`site` in the :at:`refsite` frame". It is recommended to use a normalized :at:`gear` vector with nonzeros in
+   only the first 3 *or* the last 3 elements of :at:`gear`, so the actuator length will be in either length units or
+   radians, respectively. As with ball joints (see :ref:`general/joint<actuator-general-joint>` above), rotational
+   lengths are defined on a circle and servo setpoints are interpreted on it; control limits are not required to prevent
+   wrapping.
 
 .. _actuator-general-body:
 
@@ -5726,6 +5802,7 @@ gaintype  fixed               gainprm   kp 0 0
 biastype  affine              biasprm   0 -kp -kv
 ========= =================== ========= =============
 
+On purely rotational transmissions, setpoints are interpreted on the circle; see :ref:`gear<actuator-general-gear>`.
 
 This element has one custom attribute in addition to the common attributes:
 
@@ -5921,14 +5998,18 @@ This element creates an integrated-velocity servo. For more information, see the
 :ref:`Activation clamping <CActRange>` section of the Modeling chapter. The underlying
 :el:`general` attributes are set as follows:
 
-==========   =========== ========= =========
-Attribute    Setting     Attribute Setting
-==========   =========== ========= =========
-dyntype      integrator  dynprm    1 0 0
-gaintype     fixed       gainprm   kp 0 0
-biastype     affine      biasprm   0 -kp -kv
-actlimited   true
-==========   =========== ========= =========
+========= =========== ========= =========
+Attribute Setting     Attribute Setting
+========= =========== ========= =========
+dyntype   integrator  dynprm    1 0 0
+gaintype  fixed       gainprm   kp 0 0
+biastype  affine      biasprm   0 -kp -kv
+========= =========== ========= =========
+
+Activation clamping is controlled by :at:`actlimited` and :at:`actrange`, like any stateful actuator. On purely
+rotational transmissions, setpoints are interpreted on the circle, as for :ref:`position<actuator-position>`; the
+integrated setpoint is re-anchored to a bounded representative at each timestep, so clamping is not required for
+winding targets.
 
 This element has one custom attribute in addition to the common attributes:
 
@@ -5947,6 +6028,8 @@ This element has one custom attribute in addition to the common attributes:
 .. _actuator-intvelocity-ctrllimited:
 
 .. _actuator-intvelocity-forcelimited:
+
+.. _actuator-intvelocity-actlimited:
 
 .. _actuator-intvelocity-ctrlrange:
 
@@ -5981,9 +6064,10 @@ This element has one custom attribute in addition to the common attributes:
 .. _actuator-intvelocity-armature:
 
 .. |actuator/intvelocity attrib list| replace::
-   :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`,
-   :at:`forcerange`, :at:`actrange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`,
-   :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`, :at:`damping`, :at:`armature`
+   :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`actlimited`,
+   :at:`ctrlrange`, :at:`forcerange`, :at:`actrange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`,
+   :at:`jointinparent`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`,
+   :at:`damping`, :at:`armature`
 
 |actuator/intvelocity attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -9500,6 +9584,8 @@ if omitted.
 
 .. _default-geom-gap:
 
+.. _default-geom-surfacevel:
+
 .. _default-geom-fromto:
 
 .. _default-geom-axisangle:
@@ -9919,6 +10005,8 @@ refsite, tendon, slidersite, cranksite.
 .. _default-intvelocity-ctrllimited:
 
 .. _default-intvelocity-forcelimited:
+
+.. _default-intvelocity-actlimited:
 
 .. _default-intvelocity-ctrlrange:
 

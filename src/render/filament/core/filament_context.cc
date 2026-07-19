@@ -49,10 +49,17 @@ namespace mujoco {
 FilamentContext::FilamentContext(const mjrfContextConfig* config)
     : config_(*config) {
   FilamentPlatformSetup setup = CreateFilamentPlatform(config_);
+  backend_ = setup.backend;
   platform_ = std::move(setup.platform);
 
+  filament::Engine::Config engine_config;
+  engine_config.commandBufferSizeMB *= 8;
+  engine_config.perFrameCommandsSizeMB *= 8;
+  engine_config.perRenderPassArenaSizeMB *= 8;
+
   filament::Engine::Builder engine_builder;
-  engine_builder.backend(setup.backend);
+  engine_builder.config(&engine_config);
+  engine_builder.backend(backend_);
   engine_builder.platform(platform_.get());
   engine_builder.feature("backend.disable_parallel_shader_compile",
                          setup.disable_parallel_shader_compile);
@@ -94,16 +101,17 @@ mjrfFrameHandle FilamentContext::Render(
 
   ValidateSwapChains(requests);
 
-  material_manager_->BeginFrame();
-
   std::unordered_map<mjrfScene*, std::vector<const mjrfRenderRequest*>>
       scene_to_requests;
   for (const mjrfRenderRequest& request : requests) {
     scene_to_requests[request.scene].push_back(&request);
   }
+
+  material_manager_->PrepareToRender();
   for (auto& [scene, requests] : scene_to_requests) {
     SceneView::downcast(scene)->PrepareToRender(requests);
   }
+  material_manager_->RemoveUnusedMaterials();
 
   bool render_began = false;
   mjrfRenderTarget* current_target = nullptr;
@@ -159,7 +167,6 @@ mjrfFrameHandle FilamentContext::Render(
 
   if (render_began) {
     renderer_->endFrame();
-    material_manager_->EndFrame();
   }
   if constexpr (!UTILS_HAS_THREADING) {
     engine_->execute();

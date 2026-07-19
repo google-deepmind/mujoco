@@ -31,8 +31,8 @@ static bool PipGuiImpl(const mjModel* model, mjData* data, float aspect_ratio,
   bool result = true;
 
   auto get_camera_name = [model](int i) -> const char* {
-    if (model->names[model->name_camadr[i]]) {
-      return model->names + model->name_camadr[i];
+    if (const char* name = mj_id2name(model, mjOBJ_CAMERA, i)) {
+      return name;
     } else {
       return "Unnamed";
     }

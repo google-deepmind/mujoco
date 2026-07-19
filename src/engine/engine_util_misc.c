@@ -15,13 +15,13 @@
 #include "engine/engine_util_misc.h"
 
 #include <ctype.h>
+#include <limits.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_array_safety.h"
@@ -1738,38 +1738,22 @@ mjtNum mju_max(mjtNum a, mjtNum b) {
 
 // clip x to the range [min, max]
 mjtNum mju_clip(mjtNum x, mjtNum min, mjtNum max) {
-  if (x < min) {
-    return min;
-  } else if (x > max) {
-    return max;
-  } else {
-    return x;
-  }
+  return x < min ? min : (x > max ? max : x);
 }
 
 
 // sign function
 mjtNum mju_sign(mjtNum x) {
-  if (x < 0) {
-    return -1;
-  } else if (x > 0) {
-    return 1;
-  } else {
-    return 0;
-  }
+  return (x > 0.0) - (x < 0.0);
 }
 
 
 // round to nearest integer
 int mju_round(mjtNum x) {
-  mjtNum lower = floor(x);
-  mjtNum upper = ceil(x);
-
-  if (x-lower < upper-x) {
-    return (int)lower;
-  } else {
-    return (int)upper;
-  }
+  double d = (double)x;
+  if (d > INT_MAX) return INT_MAX;
+  if (d < INT_MIN) return INT_MIN;
+  return (int)round(d);
 }
 
 

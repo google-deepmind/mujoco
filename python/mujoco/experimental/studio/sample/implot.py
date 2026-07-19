@@ -13,9 +13,9 @@
 # limitations under the License.
 """Example to run studio in the native viewer with responsive ImPlot UI.
 
-This script runs a Studio viewer in-process and adds an 'Inspect Body' window
-using ImGui and ImPlot bindings to visualize selected body data. The example
-demonstrates how responsive UI layout rules are easily implemented.
+This script runs a Studio viewer and adds an 'Inspect Body' window using ImGui
+and ImPlot bindings to visualize selected body data. The example demonstrates
+how responsive UI layout rules are easily implemented.
 
 Provide an MJCF model file via the first command-line argument to launch.
 """
@@ -24,22 +24,28 @@ import math
 import os
 import sys
 
-from absl import app as absl_app
-from absl import flags as absl_flags
+from absl import app as _app
+from absl import flags as _flags
 import mujoco
-from mujoco.experimental.studio import native_viewer as _viewer
-from mujoco.experimental.studio import studio_app
+from mujoco.experimental.studio import launch_passive
+from mujoco.experimental.studio import messages
+from mujoco.experimental.studio import parser
+from mujoco.experimental.studio import sim
+from mujoco.experimental.studio import viewer_app
 from mujoco.experimental.studio import viewer_protocol
 import numpy as np
 
 from mujoco.experimental.dear_imgui import dear_imgui as imgui
 from mujoco.experimental.implot import implot
 
-_GFX = absl_flags.DEFINE_enum(
-    'gfx', None, viewer_protocol.GFX_MODES, 'Rendering graphics mode.'
+vp = viewer_protocol
+
+_GFX = _flags.DEFINE_enum('gfx', None, vp.GFX_MODES, 'Graphics mode.')
+_WIDTH = _flags.DEFINE_integer('width', 1200, 'Width of the output image.')
+_HEIGHT = _flags.DEFINE_integer('height', 800, 'Height of the output image')
+_VIEWER = _flags.DEFINE_enum_class(
+    'viewer', vp.ViewerMode.NATIVE, vp.ViewerMode, 'Viewer mode.'
 )
-_WIDTH = absl_flags.DEFINE_integer('width', 1200, 'Width of the output image.')
-_HEIGHT = absl_flags.DEFINE_integer('height', 800, 'Height of the output image')
 
 
 _N_HISTORY = 100
@@ -102,48 +108,50 @@ def _setup_angle_axis(plot_size: imgui.Vec2) -> None:
   )
 
 
-def main(argv: list[str]) -> None:
-  app = studio_app.StudioApp.from_argv(argv)
-  title = os.path.basename(sys.argv[0])
+class BodyInspector:
+  """Handler that draws body-inspection plots using ImGui/ImPlot."""
 
-  # Initialize the viewer.
-  viewer = _viewer.NativeViewer(
-      app.model,
-      title=title,
-      width=_WIDTH.value,
-      height=_HEIGHT.value,
-      gfx=_GFX.value,
-  )
+  def __init__(self) -> None:
+    self._app: viewer_app.ViewerApp | None = None
+    self._centroid: list[np.ndarray] = [np.zeros(3) for _ in range(_N_HISTORY)]
+    self._euler: list[np.ndarray] = [np.zeros(3) for _ in range(_N_HISTORY)]
+    self._body_id: int = -1
 
-  # Variables for the custom UI.
-  centroid = [np.zeros(3) for _ in range(_N_HISTORY)]
-  euler = [np.zeros(3) for _ in range(_N_HISTORY)]
-  body_id = -1
+  @messages.handler
+  def on_viewer_app_init(self, event: viewer_app.ViewerAppInitEvent) -> None:
+    """Caches the ViewerApp reference on startup."""
+    assert isinstance(event.viewer_app, viewer_app.ViewerApp)
+    self._app = event.viewer_app
 
-  # Main viewer loop.
-  while viewer.is_running():
-    if not app.update(viewer.camera, viewer.vis_options, viewer.perturb):
-      break
-
-    # Build standard Studio UI.
-    app.build_gui(viewer.camera, viewer.vis_options, viewer.render_flags)
-
-    # Inspect the perturb.select body
-    if viewer.perturb.select > 0:
-      body_id = viewer.perturb.select
+  @messages.handler
+  def inspect_body(self, _: messages.BuildGuiEvent) -> None:
+    """Renders the body-inspection charts in ImGui/ImPlot."""
+    app = self._app
+    if app is None:
+      return
+    if app.viewer.perturb.select > 0:
+      self._body_id = app.viewer.perturb.select
 
     # Display selected body information.
-    if body_id > 0:
+    if self._body_id > 0:
       body_name = mujoco.mj_id2name(
-          app.model, int(mujoco.mjtObj.mjOBJ_BODY), body_id
+          app.model, int(mujoco.mjtObj.mjOBJ_BODY), self._body_id
       )
 
+      io = imgui.GetIO()
+      imgui.SetNextWindowPos(
+          imgui.Vec2(io.DisplaySize.x * 0.5, io.DisplaySize.y * 0.5),
+          imgui.Cond.FirstUseEver,
+          imgui.Vec2(0.5, 0.5),
+      )
       imgui.SetNextWindowSize(imgui.Vec2(1200, 600), imgui.Cond.FirstUseEver)
 
       # Note: The window title uses the special "###" markup to ensure the imgui
       # ID for the window is constant for all body names.  This is needed for
       # the window to retain its state for all bodies.
-      window_title = f'Inspect Body {body_name or "(???)"!r} ({body_id})###Plot'
+      window_title = (
+          f'Inspect Body {body_name or "(???)"!r} ({self._body_id})###Plot'
+      )
       if imgui.Begin(window_title):
         avail = imgui.GetContentRegionAvail()
         wide = avail.x > avail.y
@@ -157,10 +165,16 @@ def main(argv: list[str]) -> None:
         plot_flags = _setup_plot_flags(plot_size)
         if implot.BeginPlot('Centroid vs Time', plot_size, flags=plot_flags):
           _setup_time_axis(plot_size)
-          _setup_xpos_axis(centroid, plot_size)
-          implot.PlotLine('x', range(_N_HISTORY), [c[0] for c in centroid])
-          implot.PlotLine('y', range(_N_HISTORY), [c[1] for c in centroid])
-          implot.PlotLine('z', range(_N_HISTORY), [c[2] for c in centroid])
+          _setup_xpos_axis(self._centroid, plot_size)
+          implot.PlotLine(
+              'x', range(_N_HISTORY), [c[0] for c in self._centroid]
+          )
+          implot.PlotLine(
+              'y', range(_N_HISTORY), [c[1] for c in self._centroid]
+          )
+          implot.PlotLine(
+              'z', range(_N_HISTORY), [c[2] for c in self._centroid]
+          )
           implot.EndPlot()
 
         if wide:
@@ -169,34 +183,64 @@ def main(argv: list[str]) -> None:
         if implot.BeginPlot('Euler Angle vs Time', plot_size, flags=plot_flags):
           _setup_time_axis(plot_size)
           _setup_angle_axis(plot_size)
-          implot.PlotLine('roll', range(_N_HISTORY), [e[0] for e in euler])
-          implot.PlotLine('pitch', range(_N_HISTORY), [e[1] for e in euler])
-          implot.PlotLine('yaw', range(_N_HISTORY), [e[2] for e in euler])
+          implot.PlotLine(
+              'roll', range(_N_HISTORY), [e[0] for e in self._euler]
+          )
+          implot.PlotLine(
+              'pitch', range(_N_HISTORY), [e[1] for e in self._euler]
+          )
+          implot.PlotLine('yaw', range(_N_HISTORY), [e[2] for e in self._euler])
           implot.EndPlot()
       imgui.End()
 
-    # Update plot data
-    centroid.pop(0)
-    euler.pop(0)
-    if body_id > 0:
-      centroid.append(app.data.xpos[body_id].copy())
-      # Convert quaternion to Euler angles via rotation matrix.
-      quat = app.data.xquat[body_id]
+    self._centroid.pop(0)
+    self._euler.pop(0)
+    if self._body_id > 0 and self._body_id < app.model.nbody:
+      self._centroid.append(app.data.xpos[self._body_id].copy())
+      quat = app.data.xquat[self._body_id]
       mat = np.zeros(9)
       mujoco.mju_quat2Mat(mat, quat)
       # mat is row-major 3x3: R[i,j] = mat[3*i + j].
       roll = math.atan2(mat[7], mat[8])
       pitch = math.atan2(-mat[6], math.sqrt(mat[7] ** 2 + mat[8] ** 2))
       yaw = math.atan2(mat[3], mat[0])
-      euler.append(np.degrees(np.array([roll, pitch, yaw])))
+      self._euler.append(np.degrees(np.array([roll, pitch, yaw])))
     else:
-      centroid.append(np.zeros(3))
-      euler.append(np.zeros(3))
+      self._centroid.append(np.zeros(3))
+      self._euler.append(np.zeros(3))
 
-    viewer.sync(app.model, app.data)
 
-  viewer.stop()
+def main(argv: list[str]) -> None:
+  if len(argv) < 2:
+    print('Usage: implot <model_path.xml>')
+    sys.exit(1)
+
+  if (data := parser.parse(argv[1])) is None:
+    print(f'Error loading model from {argv[1]!r}')
+    sys.exit(1)
+  model = data.model
+
+  title = os.path.basename(sys.argv[0])
+
+  config = viewer_protocol.ViewerConfig(
+      title=title,
+      width=_WIDTH.value,
+      height=_HEIGHT.value,
+      gfx=_GFX.value or '',
+      viewer_mode=_VIEWER.value,
+  )
+
+  with launch_passive.launch_passive(
+      config,
+      viewer_handlers=[viewer_app.ViewerApp(), BodyInspector()],
+  ) as handle:
+    handle.send_to_viewer(messages.ModelEvent(model=model))
+
+    step_control = sim.StepControl()
+    while handle.is_running():
+      step_control.advance(model, data)
+      model, data, step_control = handle.sync(model, data, step_control)
 
 
 if __name__ == '__main__':
-  absl_app.run(main)
+  _app.run(main)

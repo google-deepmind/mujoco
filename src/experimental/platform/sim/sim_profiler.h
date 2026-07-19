@@ -40,7 +40,8 @@ class SimProfiler {
     int num_frames = 0;  // Recorded frames, saturating at max_frames.
     int max_frames = 0;  // Maximum frames retained (== kMaxFrames).
     MetricStats cpu_total, cpu_collision, cpu_prepare, cpu_solve, cpu_other;
-    MetricStats dim_dof, dim_body, dim_constraint, dim_sqrt_nnz, dim_contact, dim_iteration;
+    MetricStats dim_dof, dim_body, dim_constraint, dim_nnz, dim_contact,
+        dim_iteration;
   };
 
   // Clears all captured profiling data.
@@ -69,7 +70,7 @@ class SimProfiler {
   std::vector<float> dim_dof_;
   std::vector<float> dim_body_;
   std::vector<float> dim_constraint_;
-  std::vector<float> dim_sqrt_nnz_;
+  std::vector<float> dim_nnz_;
   std::vector<float> dim_contact_;
   std::vector<float> dim_iteration_;
 };

@@ -242,41 +242,6 @@ static void printBlockArray(const char* str, const mjtNum* data, int nc,
 }
 
 
-// print sparse inertia-like matrix
-static void printInertia(const char* str, const mjtNum* mat, const mjModel* m,
-                         FILE* fp, const char* float_format) {
-  int nv = m->nv;
-  // if no data, or too many rows to be visually useful, return
-  if (!mat || !nv || nv > 300) {
-    return;
-  }
-
-  // get length of string produced by float_format
-  char test[100];
-  int len = snprintf(test, sizeof(test), float_format, 0.0);
-
-  fprintf(fp, "%s\n", str);
-
-  for (int i=0; i < nv; i++) {
-    fprintf(fp, " ");
-    int adr = (i == nv-1) ? m->nM - 1 : m->dof_Madr[i+1] - 1;
-    for (int k=0; k <= i; k++) {
-      int j = i;
-      while (j != k && j >= 0) {
-        j = m->dof_parentid[j];
-      }
-      if (j == k) {
-        fprintf(fp, " ");
-        fprintf(fp, float_format, mat[adr--]);
-      } else {
-        for (int d=0; d < len+1; d++) fprintf(fp, " ");
-      }
-    }
-    fprintf(fp, "\n");
-  }
-  fprintf(fp, "\n");
-}
-
 
 // print sparse matrix structure
 void mj_printSparsity(const char* str, int nr, int nc, const int* rowadr, const int* diag,
@@ -538,6 +503,7 @@ static bool validateFloatFormat(const char* float_format) {
 
 // print mjModel to text file, specifying format. float_format must be a
 // valid printf-style format string for a single float value
+// NOLINTBEGIN(readability/fn_size)
 void mj_printFormattedModel(const mjModel* m, const char* filename, const char* float_format) {
   // get file
   FILE* fp;
@@ -601,6 +567,12 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 
   MJMODEL_SIZES
 #undef X
+  fprintf(fp, "\n");
+
+  // flags
+  fprintf(fp, "FLAG\n");
+  printInt(fp, "  flg_gravcomp", m->flg_gravcomp);
+  printInt(fp, "  flg_surfacevel", m->flg_surfacevel);
   fprintf(fp, "\n");
 
   // options
@@ -973,15 +945,35 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   }
   if (m->ntendon) fprintf(fp, "\n");
 
-  // actuators
-  object_class = &m->nu;
-  for (int i=0; i < m->nu; i++) {
+  // actuators: per-actuator fields, then per-input (nu) and per-output (nout) blocks
+  for (int i=0; i < m->nactuator; i++) {
     fprintf(fp, "\nACTUATOR %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_actuatoradr[i]);
+    object_class = &m->nactuator;
     MJMODEL_POINTERS_ACTUATOR
+    {
+      int actuator = i;
+      int ctrladr = m->actuator_ctrladr[actuator];
+      int ctrlnum = m->actuator_ctrlnum[actuator];
+      int outadr = m->actuator_outadr[actuator];
+      int outnum = m->actuator_outnum[actuator];
+      object_class = &m->nu;
+      i = ctrladr;
+      while (i < ctrladr + ctrlnum) {
+        MJMODEL_POINTERS_ACTUATOR
+        i++;
+      }
+      object_class = &m->nout;
+      i = outadr;
+      while (i < outadr + outnum) {
+        MJMODEL_POINTERS_ACTUATOR
+        i++;
+      }
+      i = actuator;
+    }
   }
-  if (m->nu) fprintf(fp, "\n");
+  if (m->nactuator) fprintf(fp, "\n");
 
   // sensors
   object_class = &m->nsensor;
@@ -1205,6 +1197,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
     fclose(fp);
   }
 }
+// NOLINTEND(readability/fn_size)
 
 // print mjModel to text file
 void mj_printModel(const mjModel* m, const char* filename) {
@@ -1370,7 +1363,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     fprintf(fp, "DELAY\n");
 
     // actuator history buffers
-    for (int i = 0; i < m->nu; i++) {
+    for (int i = 0; i < m->nactuator; i++) {
       int adr = m->actuator_historyadr[i];
       if (adr >= 0) {
         char name[100];
@@ -1458,13 +1451,12 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     fprintf(fp, "\n");
   }
 
-  printArray2d("ACTUATOR_LENGTH", m->nu, 1, d->actuator_length, fp, float_format);
-  mj_printSparsity("actuator_moment", m->nu, m->nv,
+  printArray2d("ACTUATOR_LENGTH", m->nout, 1, d->actuator_length, fp, float_format);
+  mj_printSparsity("actuator_moment", m->nout, m->nv,
                    d->moment_rowadr, NULL, d->moment_rownnz, NULL, d->moment_colind, fp);
-  printSparse("ACTUATOR_MOMENT", d->actuator_moment, m->nu, d->moment_rownnz,
+  printSparse("ACTUATOR_MOMENT", d->actuator_moment, m->nout, d->moment_rownnz,
               d->moment_rowadr, d->moment_colind, fp, float_format);
   printArray2d("CRB", m->nbody, 10, d->crb, fp, float_format);
-  printInertia("QM", d->qM, m, fp, float_format);
   printSparse("M", d->M, m->nv, m->M_rownnz,
               m->M_rowadr, m->M_colind, fp, float_format);
   printSparse("QLD", d->qLD, m->nv, m->M_rownnz,
@@ -1604,7 +1596,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
 
   printArray2d("FLEXEDGE_VELOCITY", m->nflexedge, 1, d->flexedge_velocity, fp, float_format);
   printArray2d("TEN_VELOCITY", m->ntendon, 1, d->ten_velocity, fp, float_format);
-  printArray2d("ACTUATOR_VELOCITY", m->nu, 1, d->actuator_velocity, fp, float_format);
+  printArray2d("ACTUATOR_VELOCITY", m->nout, 1, d->actuator_velocity, fp, float_format);
 
   printArray2d("CVEL", m->nbody, 6, d->cvel, fp, float_format);
   printArray2d("CDOF_DOT", m->nv, 6, d->cdof_dot, fp, float_format);
@@ -1623,7 +1615,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   printArray2d("SUBTREE_LINVEL", m->nbody, 3, d->subtree_linvel, fp, float_format);
   printArray2d("SUBTREE_ANGMOM", m->nbody, 3, d->subtree_angmom, fp, float_format);
 
-  printArray2d("ACTUATOR_FORCE", m->nu, 1, d->actuator_force, fp, float_format);
+  printArray2d("ACTUATOR_FORCE", m->nout, 1, d->actuator_force, fp, float_format);
   printArray2d("QFRC_ACTUATOR", m->nv, 1, d->qfrc_actuator, fp, float_format);
 
   printArray2d("QFRC_SMOOTH", m->nv, 1, d->qfrc_smooth, fp, float_format);

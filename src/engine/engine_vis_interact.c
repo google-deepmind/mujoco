@@ -28,6 +28,7 @@
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
+#include "engine/engine_vis_visualize.h"
 
 // transform pose from room to model space
 void mjv_room2model(mjtNum* modelpos, mjtNum* modelquat, const mjtNum* roompos,
@@ -247,6 +248,20 @@ mjtNum mjv_frustumHeight(const mjvScene* scn) {
 }
 
 
+static mjtNum cameraFrustumHeight(const mjModel* m, const mjvCamera* cam) {
+  float zclip[2] = {0, 0}, zver[2] = {0, 0};
+  mjv_cameraFrustum(zver, NULL, zclip, m, cam);
+  if (cam->orthographic) {
+    return (zver[1] + zver[0]);
+  } else {
+    if (zclip[0] < mjMINVAL) {
+      mjERROR("mjvScene frustum_near too small");
+    }
+    return (zver[1] + zver[0]) / zclip[0];
+  }
+}
+
+
 // rotate 3D vec in horizontal plane by angle between (0,1) and (forward_x,forward_y)
 void mjv_alignToCamera(mjtNum* res, const mjtNum* vec, const mjtNum* forward) {
   mjtNum xaxis[2], yaxis[2];
@@ -311,12 +326,12 @@ static void convert2D(mjtNum* res, int action, mjtNum dx, mjtNum dy, const mjtNu
 
 
 // move camera with mouse; action is mjtMouse
-void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
-                    const mjvScene* scn, mjvCamera* cam) {
+void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy, mjvCamera* cam) {
   mjtNum headpos[3], forward[3], up[3], right[3];
   mjtNum vec[3], dif[3], scl;
 
   // fixed camera: nothing to do
+  // note: mjv_cameraFrame, which we use below, requires mjData for non-fixed camera
   if (cam->type == mjCAMERA_FIXED) {
     return;
   }
@@ -337,18 +352,37 @@ void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
     }
 
     // get camera info and align
-    mjv_cameraInModel(headpos, forward, NULL, scn);
+    mjv_cameraFrame(headpos, forward, NULL, NULL, NULL, cam);
     convert2D(vec, action, reldx, reldy, forward);
 
     // compute scaling: rendered lookat displacement = mouse displacement
     mju_sub3(dif, cam->lookat, headpos);
-    scl = mjv_frustumHeight(scn) * mju_dot3(dif, forward);
+    scl = cameraFrustumHeight(m, cam) * mju_dot3(dif, forward);
 
     // multiply by mystery coefficient TODO: b/346130949
     if (cam->orthographic) scl *= 0.15;
 
     // move lookat point in opposite direction
     mju_addToScl3(cam->lookat, vec, -scl);
+    break;
+
+  case mjMOUSE_TURN_V:
+  case mjMOUSE_TURN_H:
+    if (cam->type == mjCAMERA_TRACKING) {
+      return;
+    }
+
+    mjv_cameraFrame(headpos, forward, NULL, NULL, NULL, cam);
+    if (action == mjMOUSE_TURN_H) {
+      cam->azimuth -= reldx * 180.0;
+    }
+    if (action == mjMOUSE_TURN_V) {
+      cam->elevation -= reldy * 180.0;
+    }
+    mjv_cameraFrame(NULL, forward, NULL, NULL, NULL, cam);
+
+    // move lookat point so that camera faces new direction
+    mju_addScl3(cam->lookat, headpos, forward, cam->distance);
     break;
 
   case mjMOUSE_ZOOM:
@@ -362,7 +396,7 @@ void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
       return;
     }
 
-    mjv_cameraInModel(headpos, forward, up, scn);
+    mjv_cameraFrame(headpos, forward, up, NULL, NULL, cam);
     mju_cross(right, forward, up);
 
     // y-axis movement moves forward/backward (ie. camera dolly) on horizontal plane or up/down

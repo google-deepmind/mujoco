@@ -17,7 +17,7 @@
 
 namespace mujoco::python {
 namespace {
-PYBIND11_MODULE(_errors, m) {
+PYBIND11_MODULE(_errors, m, pybind11::mod_gil_not_used()) {
   m.attr("FatalError") = FatalError::GetPyExc();
   m.attr("UnexpectedError") = UnexpectedError::GetPyExc();
 }

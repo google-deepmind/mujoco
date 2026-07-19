@@ -11,25 +11,22 @@ import traceback
 from collections.abc import Callable
 from enum import IntEnum
 
-import jax
-
 import warp as wp
 from warp._src.codegen import get_full_arg_spec, make_full_qualified_name
-from warp._src.context import CudaMemcpyKind
-from warp._src.jax import get_jax_device
+from warp._src.context import CudaMemcpyKind, _build_launch_bounds
+from mujoco.mjx.third_party.warp._src.jax import get_jax_device
+from warp._src.logger import log_warning
 from warp._src.types import (
     array_t,
-    launch_bounds_t,
     matches_array_class,
     strides_from_shape,
     type_size_in_bytes,
     type_to_warp,
 )
-from warp._src.utils import warn
 
 from .xla_ffi import *
 
-_wp_module_name_ = "warp.jax_experimental.ffi"
+_wp_module_name_ = "warp.jax.ffi"
 
 # Holders for the custom callbacks to keep them alive.
 _FFI_KERNEL_REGISTRY: dict[tuple, FfiKernel] = {}
@@ -41,8 +38,20 @@ _FFI_REGISTRY_LOCK = threading.Lock()
 # Lock when XLA invokes callbacks from multiple threads.
 _FFI_CALLBACK_LOCK = threading.Lock()
 
+# Sentinel for detecting when per-call kwargs are passed to differentiable wrappers.
+_MISSING = object()
+
+JAX_CALLABLE_DEFAULT_GRAPH_CACHE_MAX = 32
+
+
+def _get_jax():
+    import jax  # noqa: PLC0415
+
+    return jax
+
 
 def check_jax_version():
+    jax = _get_jax()
     # check if JAX version supports this
     if jax.__version_info__ < (0, 5, 0):
         msg = (
@@ -69,8 +78,8 @@ def compute_batch_size(shape, batch_ndim):
     return batch_size
 
 
-class GraphMode(IntEnum):
-    """CUDA graph capture modes for :func:`warp.jax_experimental.jax_callable`.
+class JaxCallableGraphMode(IntEnum):
+    """CUDA graph capture modes for :func:`warp.jax_callable`.
 
     These modes control whether JAX or Warp captures a CUDA graph, and whether
     staging buffers are used when capturing with Warp.
@@ -88,10 +97,18 @@ class GraphMode(IntEnum):
     """Capture a Warp graph using staging buffers and perform memcpy outside the graph."""
 
 
-class ModulePreloadMode(IntEnum):
+GraphMode = JaxCallableGraphMode
+
+
+class JaxModulePreloadMode(IntEnum):
+    """Module preload modes for JAX interop callables."""
+
     NONE = 0  # don't preload modules
     CURRENT_DEVICE = 1  # preload on currently active device
     ALL_DEVICES = 2  # preload on all supported devices
+
+
+ModulePreloadMode = JaxModulePreloadMode
 
 
 class FfiArg:
@@ -211,6 +228,7 @@ class FfiKernel:
         self.input_output_aliases = input_output_aliases
 
         # register the callback
+        jax = _get_jax()
         FFI_CCALLFUNC = ctypes.CFUNCTYPE(
                 ctypes.c_void_p, ctypes.POINTER(XLA_FFI_CallFrame)
         )
@@ -226,6 +244,7 @@ class FfiKernel:
         jax.ffi.register_ffi_target(self.name, ffi_capsule_host, platform="Host")
 
     def __call__(self, *args, output_dims=None, launch_dims=None, vmap_method=None):
+        jax = _get_jax()
         num_inputs = len(args)
         if num_inputs != self.num_inputs:
             raise ValueError(f"Expected {self.num_inputs} inputs, but got {num_inputs}")
@@ -314,19 +333,19 @@ class FfiKernel:
         )
 
         # preload on the specified devices
-        if self.module_preload_mode == ModulePreloadMode.CURRENT_DEVICE:
+        if self.module_preload_mode == JaxModulePreloadMode.CURRENT_DEVICE:
             device = wp.device_from_jax(get_jax_device())
             self.kernel.module.load(device)
-        elif self.module_preload_mode == ModulePreloadMode.ALL_DEVICES:
+        elif self.module_preload_mode == JaxModulePreloadMode.ALL_DEVICES:
             for d in jax.local_devices():
                 try:
                     dev = wp.device_from_jax(d)
+                    # we only support CUDA devices for now
+                    if dev.is_cuda:
+                        self.kernel.module.load(dev)
                 except Exception:
                     # ignore unsupported devices like TPUs
                     pass
-                # we only support CUDA devices for now
-                if dev.is_cuda:
-                    self.kernel.module.load(dev)
 
         # save launch data to be retrieved by callback
         launch_id = self.launch_id
@@ -429,7 +448,7 @@ class FfiKernel:
                         # roll batch size into the first launch dimension
                         launch_dims = (batch_size * launch_dims[0], *launch_dims[1:])
 
-                launch_bounds = launch_bounds_t(launch_dims)
+                launch_bounds = _build_launch_bounds(launch_dims, self.kernel.adj.kernel_dim)
                 kernel_params[0] = ctypes.addressof(launch_bounds)
 
                 # get device and stream
@@ -500,7 +519,7 @@ class FfiCallDesc:
 
 
 class FfiCallable:
-    default_graph_cache_max: int | None = 32
+    default_graph_cache_max: int | None = JAX_CALLABLE_DEFAULT_GRAPH_CACHE_MAX
 
     def __init__(
         self,
@@ -616,6 +635,7 @@ class FfiCallable:
         self.input_output_aliases = input_output_aliases
 
         # register the callback
+        jax = _get_jax()
         FFI_CCALLFUNC = ctypes.CFUNCTYPE(
                 ctypes.c_void_p, ctypes.POINTER(XLA_FFI_CallFrame)
         )
@@ -631,6 +651,7 @@ class FfiCallable:
         jax.ffi.register_ffi_target(self.name, ffi_capsule_host, platform="Host")
 
     def __call__(self, *args, output_dims=None, vmap_method=None):
+        jax = _get_jax()
         num_inputs = len(args)
         if num_inputs != self.num_inputs:
             input_names = ", ".join(arg.name for arg in self.input_args)
@@ -709,18 +730,18 @@ class FfiCallable:
         # preload on the specified devices
         # NOTE: if the target function uses kernels from different modules, they will not be loaded here
         module = wp.get_module(self.func.__module__)
-        if self.module_preload_mode == ModulePreloadMode.CURRENT_DEVICE:
+        if self.module_preload_mode == JaxModulePreloadMode.CURRENT_DEVICE:
             device = wp.device_from_jax(get_jax_device())
             module.load(device)
-        elif self.module_preload_mode == ModulePreloadMode.ALL_DEVICES:
+        elif self.module_preload_mode == JaxModulePreloadMode.ALL_DEVICES:
             for d in jax.local_devices():
                 try:
                     dev = wp.device_from_jax(d)
+                    if dev.is_cuda or dev.is_cpu:
+                        module.load(dev)
                 except Exception:
                     # ignore unsupported devices like TPUs
                     pass
-                if dev.is_cuda or dev.is_cpu:
-                    module.load(dev)
 
         # save call data to be retrieved by callback
         call_id = self.call_id
@@ -741,7 +762,7 @@ class FfiCallable:
                     metadata_ext.contents.metadata.contents.api_version.major_version = 0
                     metadata_ext.contents.metadata.contents.api_version.minor_version = 1
                     # Turn on CUDA graphs for this handler if on CUDA platform.
-                    if self.graph_mode is GraphMode.JAX and platform == "CUDA":
+                    if self.graph_mode is JaxCallableGraphMode.JAX and platform == "CUDA":
                         metadata_ext.contents.metadata.contents.traits = (
                             XLA_FFI_Handler_TraitsBits.COMMAND_BUFFER_COMPATIBLE
                         )
@@ -800,7 +821,7 @@ class FfiCallable:
                 cuda_stream = get_stream_from_callframe(call_frame.contents)
                 device_ordinal = get_device_ordinal_from_callframe(call_frame.contents)
 
-                if self.graph_mode == GraphMode.WARP:
+                if self.graph_mode == JaxCallableGraphMode.WARP:
                     # check if we already captured an identical call
                     ip = [inputs[i].contents.data for i in self.array_input_indices]
                     op = [outputs[i].contents.data for i in self.array_output_indices]
@@ -819,7 +840,7 @@ class FfiCallable:
                         # early out
                         return
 
-                elif self.graph_mode == GraphMode.WARP_STAGED_EX:
+                elif self.graph_mode == JaxCallableGraphMode.WARP_STAGED_EX:
                     if call_desc.capture is not None:
                         graph_exec = call_desc.capture.graph.graph_exec
                         context = call_desc.capture.graph.device.context
@@ -866,7 +887,7 @@ class FfiCallable:
                         # early out
                         return
 
-                elif self.graph_mode == GraphMode.WARP_STAGED:
+                elif self.graph_mode == JaxCallableGraphMode.WARP_STAGED:
                     if call_desc.capture is not None:
                         graph_exec = call_desc.capture.graph.graph_exec
 
@@ -938,7 +959,7 @@ class FfiCallable:
                         # keep a reference to the capture object to prevent required modules getting unloaded
                         call_desc.capture = capture
 
-                    elif self.graph_mode == GraphMode.WARP and device.is_cuda:
+                    elif self.graph_mode == JaxCallableGraphMode.WARP and device.is_cuda:
                         # capturing with WARP
                         with wp.ScopedCapture() as capture:
                             self.func(*arg_list)
@@ -951,7 +972,7 @@ class FfiCallable:
                         if self._graph_cache_max is not None and len(self.captures) > self._graph_cache_max:
                             self.captures.popitem(last=False)
 
-                    elif self.graph_mode == GraphMode.WARP_STAGED_EX and device.is_cuda:
+                    elif self.graph_mode == JaxCallableGraphMode.WARP_STAGED_EX and device.is_cuda:
                         # capturing with WARP using staging buffers and memcopies done outside of the graph
                         wp_memcpy_batch = wp._src.context.runtime.core.wp_memcpy_batch
 
@@ -994,7 +1015,7 @@ class FfiCallable:
                         # TODO: we should have a way of freeing this
                         call_desc.capture = capture
 
-                    elif self.graph_mode == GraphMode.WARP_STAGED and device.is_cuda:
+                    elif self.graph_mode == JaxCallableGraphMode.WARP_STAGED and device.is_cuda:
                         # capturing with WARP using staging buffers and memcopies done inside of the graph
                         wp_cuda_graph_insert_memcpy_batch = (
                             wp._src.context.runtime.core.wp_cuda_graph_insert_memcpy_batch
@@ -1198,7 +1219,7 @@ def jax_kernel(
     launch_dims=None,
     output_dims=None,
     in_out_argnames=None,
-    module_preload_mode=ModulePreloadMode.CURRENT_DEVICE,
+    module_preload_mode=JaxModulePreloadMode.CURRENT_DEVICE,
     enable_backward: bool = False,
     has_side_effect: bool = False,
 ):
@@ -1212,12 +1233,16 @@ def jax_kernel(
             This must include the number of ``in_out_arguments``.
         vmap_method: String specifying how the callback transforms under ``vmap()``.
             This argument can also be specified for individual calls.
-        launch_dims: Specify the default kernel launch dimensions. If None, launch
-            dimensions are inferred from the shape of the first array argument.
-            This argument can also be specified for individual calls.
+        launch_dims: Specify the kernel launch dimensions. If None, launch dimensions
+            are inferred from the shape of the first array argument. When
+            ``enable_backward=False``, this value will be used by default but
+            can be overridden for individual calls. When ``enable_backward=True``,
+            this value is fixed at construction time and cannot be overridden
+            per call.
         output_dims: Specify the default dimensions of output arrays.  If None, output
             dimensions are inferred from the launch dimensions.
             This argument can also be specified for individual calls.
+            Not supported when ``enable_backward=True``.
         in_out_argnames: Names of arguments that are both inputs and outputs (aliased buffers).
             These must be array arguments that appear before any pure output arguments in the
             kernel signature. The number of in-out arguments is included in ``num_outputs``.
@@ -1233,9 +1258,11 @@ def jax_kernel(
         - Input and input-output arguments must precede the output arguments in the ``kernel`` definition.
         - There must be at least one output or input-output argument.
         - Only the CUDA backend is supported.
+        - ``output_dims`` and ``in_out_argnames`` are not supported when ``enable_backward=True``.
     """
 
     check_jax_version()
+    jax = _get_jax()
 
     if isinstance(output_dims, dict):
         hashable_output_dims = tuple(sorted(output_dims.items()))
@@ -1283,11 +1310,11 @@ def jax_kernel(
             "jax_kernel(): Input-output arguments (in_out_argnames) are not supported when enable_backward=True."
         )
 
-    # TODO: we should support passing these to the forward and backward callables
-    if launch_dims is not None or output_dims is not None:
-        raise NotImplementedError(
-            "jax_kernel(): Custom dimensions (launch_dims, output_dims) are not supported when enable_backward=True."
-        )
+    # TODO: support output_dims with enable_backward=True (requires separate
+    # output-buffer allocation logic). launch_dims is supported below: the
+    # captured value is applied to both the forward and the adjoint launches.
+    if output_dims is not None:
+        raise NotImplementedError("jax_kernel(): output_dims is not yet supported when enable_backward=True.")
 
     # Differentiable path: build a custom VJP wrapper inline.
     # Infer the original kernel signature (names and annotations)
@@ -1307,8 +1334,17 @@ def jax_kernel(
             else:
                 raise TypeError(f"Invalid type for argument '{p.name}', expected array or scalar, got {type}")
 
+    # Capture an explicit user-supplied launch_dims so the same value is used
+    # for both the forward launch and the adjoint launch (required for
+    # correct gradient values when array.ndim > kernel.tid_ndim).
+    # Reuse `hashable_launch_dims` (computed above for the cache key path)
+    # so 1-D integer and sequence forms are normalized identically.
+    _user_launch_dims = hashable_launch_dims if launch_dims is not None else None
+
     def _resolve_launch_dims(call_args):
-        # determine launch dimensions from the shape of the first input array
+        if _user_launch_dims is not None:
+            return _user_launch_dims
+        # Fallback: determine launch dimensions from the shape of the first input array
         for i, p in enumerate(parameters[:num_inputs]):
             param_type = p.annotation
             if matches_array_class(param_type, wp.array):
@@ -1360,11 +1396,15 @@ def jax_kernel(
                 try:
                     gi.zero_()
                 except Exception as e:
-                    warn(f"Failed to zero gradient array: {e}", stacklevel=2)
+                    log_warning(f"Failed to zero gradient array: {e}", stacklevel=2)
                     raise e
 
-        # NOTE: We cannot use a passed launch_dims here, the backward rule doesn't receive it (and it could be wrong under pmap/vmap).
-        # We need to infer from the inputs.
+        # The same _resolve_launch_dims() is used here so that the adjoint
+        # kernel launches with exactly the same iteration space as the forward
+        # kernel (captured from the enclosing scope via _user_launch_dims when
+        # the caller supplied an explicit value, otherwise inferred from the
+        # inputs). This matches the forward path and avoids N x
+        # over-accumulation in atomic_add when array.ndim > kernel.tid_ndim.
         wp.launch(
             kernel,
             dim=_resolve_launch_dims(inputs),
@@ -1498,46 +1538,65 @@ def jax_kernel(
         vmap_method,
         module_preload_mode,
         has_side_effect,
+        # Include the normalized launch_dims so that wrapping the same kernel
+        # with different launch_dims produces independent cache entries.
+        # Reusing _user_launch_dims ensures int and 1-tuple forms of the same
+        # value map to the same key.
+        _user_launch_dims,
     )
 
     if static_args:
         static_names = [parameters[i].name for i in static_args]
+    else:
+        static_names = []
 
-        def _user_callable(*args):
-            return jax_func(*args)
+    key = (*key, tuple(sorted(static_names)))
 
-        _user_callable.__signature__ = signature
+    def _user_callable(*args):
+        return jax_func(*args)
 
-        # Cache differentiable wrapper
-        key = (*key, tuple(sorted(static_names)))
-        with _FFI_REGISTRY_LOCK:
-            cached = _FFI_DIFF_KERNEL_REGISTRY.get(key)
-            if cached is None:
-                cached = jax.jit(_user_callable, static_argnames=tuple(static_names))
-                _FFI_DIFF_KERNEL_REGISTRY[key] = cached
-        return _FFI_DIFF_KERNEL_REGISTRY[key]
+    _user_callable.__signature__ = signature
 
-    # Cache differentiable wrapper (no static args)
-    key = (*key, ())
+    # Cache differentiable wrapper
     with _FFI_REGISTRY_LOCK:
         cached = _FFI_DIFF_KERNEL_REGISTRY.get(key)
         if cached is None:
-            _FFI_DIFF_KERNEL_REGISTRY[key] = jax_func
-            cached = jax_func
-    return cached
+            cached = jax.jit(_user_callable, static_argnames=tuple(static_names))
+            _FFI_DIFF_KERNEL_REGISTRY[key] = cached
+
+    # Thin Python-level wrapper that intercepts FfiKernel-style per-call kwargs
+    # and raises informative errors before JAX tracing begins.
+    def _checked_wrapper(*args, launch_dims=_MISSING, output_dims=_MISSING, vmap_method=_MISSING):
+        if launch_dims is not _MISSING:
+            raise TypeError(
+                "jax_kernel(): launch_dims cannot be overridden per-call when enable_backward=True "
+                f"(this wrapper was created with launch_dims={_user_launch_dims!r}). "
+                "Call jax_kernel() again with a different launch_dims to create a new wrapper."
+            )
+        if output_dims is not _MISSING:
+            raise TypeError("jax_kernel(): output_dims is not supported when enable_backward=True.")
+        if vmap_method is not _MISSING:
+            raise TypeError(
+                "jax_kernel(): vmap_method cannot be overridden per-call when enable_backward=True; "
+                "it is fixed at construction time. "
+                "Call jax_kernel() again with a different vmap_method to create a new wrapper."
+            )
+        return cached(*args)
+
+    return _checked_wrapper
 
 
 def jax_callable(
     func: Callable,
     num_outputs: int = 1,
-    graph_mode: GraphMode = GraphMode.JAX,
+    graph_mode: JaxCallableGraphMode = JaxCallableGraphMode.JAX,
     vmap_method: str | None = "broadcast_all",
     output_dims=None,
     in_out_argnames=None,
     stage_in_argnames=None,
     stage_out_argnames=None,
-    graph_cache_max: int | None = None,
-    module_preload_mode: ModulePreloadMode = ModulePreloadMode.CURRENT_DEVICE,
+    graph_cache_max: int | None = JAX_CALLABLE_DEFAULT_GRAPH_CACHE_MAX,
+    module_preload_mode: JaxModulePreloadMode = JaxModulePreloadMode.CURRENT_DEVICE,
     has_side_effect: bool = False,
 ):
     """Create a JAX callback from an annotated Python function.
@@ -1551,10 +1610,10 @@ def jax_callable(
         num_outputs: Specify the number of output arguments if greater than 1.
             This must include the number of ``in_out_arguments``.
         graph_mode: CUDA graph capture mode.
-            ``GraphMode.JAX`` (default): Let JAX capture the graph, which may be used as a subgraph in an enclosing JAX capture.
-            ``GraphMode.WARP``: Let Warp capture the graph. Use this mode when the callable cannot be used as a subgraph,
+            ``JaxCallableGraphMode.JAX`` (default): Let JAX capture the graph, which may be used as a subgraph in an enclosing JAX capture.
+            ``JaxCallableGraphMode.WARP``: Let Warp capture the graph. Use this mode when the callable cannot be used as a subgraph,
             such as when the callable uses conditional graph nodes.
-            ``GraphMode.NONE``: Disable graph capture. Use when the callable performs operations that are not legal in a graph,
+            ``JaxCallableGraphMode.NONE``: Disable graph capture. Use when the callable performs operations that are not legal in a graph,
             such as host synchronization.
         vmap_method: String specifying how the callback transforms under ``vmap()``.
             This argument can also be specified for individual calls.
@@ -1564,12 +1623,12 @@ def jax_callable(
         in_out_argnames: Names of arguments that are both inputs and outputs (aliased buffers).
             These must be array arguments that appear before any pure output arguments in the
             function signature. The number of in-out arguments is included in ``num_outputs``.
-        stage_in_argnames: Names of input arguments that need to be copied with ``GraphMode.WARP_STAGED*``.
+        stage_in_argnames: Names of input arguments that need to be copied with ``JaxCallableGraphMode.WARP_STAGED*``.
             If ``None``, copy all input arguments.
-        stage_out_argnames: Names of output arguments that need to be copied with ``GraphMode.WARP_STAGED*``.
+        stage_out_argnames: Names of output arguments that need to be copied with ``JaxCallableGraphMode.WARP_STAGED*``.
             If ``None``, copy all output arguments.
-        graph_cache_max: Maximum number of cached graphs captured using ``GraphMode.WARP``.
-            If ``None``, use ``warp.jax_experimental.get_jax_callable_default_graph_cache_max()``.
+        graph_cache_max: Maximum number of cached graphs captured using ``JaxCallableGraphMode.WARP``.
+            If ``None``, the graph cache is unlimited.
         module_preload_mode: Specify the devices where the module should be preloaded.
         has_side_effect: Whether the custom call has side effects. When True,
             the FFI call will be executed even when the outputs are not used.
@@ -1583,9 +1642,6 @@ def jax_callable(
     """
 
     check_jax_version()
-
-    if graph_cache_max is None:
-        graph_cache_max = FfiCallable.default_graph_cache_max
 
     if isinstance(output_dims, dict):
         hashable_output_dims = tuple(sorted(output_dims.items()))
@@ -1631,14 +1687,14 @@ def jax_callable(
 
 def get_jax_callable_default_graph_cache_max():
     """
-    Get the maximum size of the graph cache for graphs captured using ``GraphMode.WARP``, unlimited if ``None``.
+    Get the maximum size of the graph cache for graphs captured using ``JaxCallableGraphMode.WARP``, unlimited if ``None``.
     """
     return FfiCallable.default_graph_cache_max
 
 
 def set_jax_callable_default_graph_cache_max(cache_max: int | None):
     """
-    Set the maximum size of the graph cache for graphs captured using ``GraphMode.WARP``, unlimited if ``None``.
+    Set the maximum size of the graph cache for graphs captured using ``JaxCallableGraphMode.WARP``, unlimited if ``None``.
     """
     FfiCallable.default_graph_cache_max = cache_max
 
@@ -1677,6 +1733,7 @@ def register_ffi_callback(name: str, func: Callable, graph_compatible: bool = Tr
     """
 
     check_jax_version()
+    jax = _get_jax()
 
     # TODO check that the name is not already registered
 
@@ -1765,6 +1822,8 @@ def get_warp_shape(arg, dims):
 
 
 def get_jax_output_type(arg, dims):
+    jax = _get_jax()
+
     if isinstance(dims, int):
         dims = (dims,)
 

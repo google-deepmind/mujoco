@@ -27,7 +27,7 @@ namespace mujoco {
 // Manages Light entities for an mjrfScene.
 class LightManager {
  public:
-  LightManager(mjrfContext* ctx, mjrfScene* scene, ModelObjects* model_objects);
+  LightManager(mjrfScene* scene, ModelObjects* model_objects);
   ~LightManager();
 
   // Updates the state of the lights in the scene.
@@ -43,7 +43,6 @@ class LightManager {
  private:
   void Prepare();
 
-  mjrfContext* ctx_ = nullptr;
   mjrfScene* scene_ = nullptr;
   ModelObjects* model_objects_ = nullptr;
 
@@ -51,7 +50,6 @@ class LightManager {
   UniquePtr<mjrfTexture> fallback_ibl_texture_{nullptr, nullptr};
   std::vector<UniquePtr<mjrfLight>> lights_;
   int default_shadow_map_size_ = 2048;
-  float default_vsm_blur_width_ = 0.0f;
   float fallback_head_light_intensity_ = 0.f;
   float fallback_scene_light_intensity_ = 80'000.f;
   float fallback_environment_light_intensity_ = 5'000.f;

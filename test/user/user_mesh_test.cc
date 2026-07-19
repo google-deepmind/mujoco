@@ -1120,6 +1120,64 @@ TEST_F(MjCMeshTest, MeshScale) {
   EXPECT_THAT(AsVector(model->mesh_scale + 3, 3), ElementsAre(0.9, 1, -1));
 }
 
+TEST_F(MjCMeshTest, UserNormalsAnisotropicScale) {
+  // normals are covectors: under mesh scale s they must transform by 1/s.
+  // cube with per-vertex normals along the vertex directions, anisotropic
+  // scale; expected compiled normals follow (+-1/sx, +-1/sy, +-1/sz)
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="cube" scale=".2 .1 .1"
+        vertex="-1 -1 -1  1 -1 -1  1 1 -1  -1 1 -1  -1 -1 1  1 -1 1  1 1 1  -1 1 1"
+        normal="-1 -1 -1  1 -1 -1  1 1 -1  -1 1 -1  -1 -1 1  1 -1 1  1 1 1  -1 1 1"
+        face="0 2 1  0 3 2  4 5 6  4 6 7  0 1 5  0 5 4  1 2 6  1 6 5
+              2 3 7  2 7 6  3 0 4  3 4 7"/>
+    </asset>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="mesh" mesh="cube"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  const mjModel* m = model.get();
+  int mid = 0;
+  const mjtNum* mq = m->mesh_quat + 4*mid;
+  const mjtNum* mp = m->mesh_pos + 3*mid;
+  double scale[3] = {.2, .1, .1};
+  int va = m->mesh_vertadr[mid];
+  int na = m->mesh_normaladr[mid];
+  int fa = m->mesh_faceadr[mid];
+  for (int i = 0; i < 3*m->mesh_facenum[mid]; i++) {
+    int vid = m->mesh_face[3*fa + i];
+    int nid = m->mesh_facenormal[3*fa + i];
+
+    // rotate vertex and normal back to the authored frame
+    mjtNum vm[3] = {m->mesh_vert[3*(va+vid)+0],
+                    m->mesh_vert[3*(va+vid)+1],
+                    m->mesh_vert[3*(va+vid)+2]};
+    mjtNum nm[3] = {m->mesh_normal[3*(na+nid)+0],
+                    m->mesh_normal[3*(na+nid)+1],
+                    m->mesh_normal[3*(na+nid)+2]};
+    mjtNum v[3], n[3];
+    mju_rotVecQuat(v, vm, mq);
+    mju_addTo3(v, mp);
+    mju_rotVecQuat(n, nm, mq);
+
+    // expected: sign pattern of the vertex, divided by scale, normalized
+    mjtNum expected[3];
+    for (int k = 0; k < 3; k++) {
+      expected[k] = (v[k] > 0 ? 1.0 : -1.0) / scale[k];
+    }
+    mju_normalize3(expected);
+    EXPECT_GT(mju_dot3(n, expected), 0.999);
+  }
+}
+
 TEST_F(MjCMeshTest, NegativeScaleUserMeshCompiles) {
   static constexpr char xml[] = R"(
   <mujoco>

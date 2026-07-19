@@ -64,16 +64,125 @@ def next_act(
   return act
 
 
+@wp.func
+def mat33_to_quat_polar(F: wp.mat33) -> wp.quat:
+  cell_quat = wp.quat(0.0, 0.0, 0.0, 1.0)
+  for _iter in range(10):
+    rot = wp.quat_to_matrix(cell_quat)
+    rot_t = wp.transpose(rot)
+    col1_rot = rot_t[0]
+    col2_rot = rot_t[1]
+    col3_rot = rot_t[2]
+    F_t = wp.transpose(F)
+    col1_mat = F_t[0]
+    col2_mat = F_t[1]
+    col3_mat = F_t[2]
+
+    omega = wp.cross(col1_rot, col1_mat) + wp.cross(col2_rot, col2_mat) + wp.cross(col3_rot, col3_mat)
+    denom = wp.abs(wp.dot(col1_rot, col1_mat) + wp.dot(col2_rot, col2_mat) + wp.dot(col3_rot, col3_mat)) + 1.0e-10
+    omega = omega / denom
+
+    w = wp.length(omega)
+    if w < 1.0e-6:
+      break
+
+    axis = omega / w
+    half_w = 0.5 * w
+    qrot = wp.quat(
+      axis[0] * wp.sin(half_w),
+      axis[1] * wp.sin(half_w),
+      axis[2] * wp.sin(half_w),
+      wp.cos(half_w),
+    )
+    cell_quat = wp.normalize(qrot * cell_quat)
+  return cell_quat
+
+
+@wp.func
+def compute_interp_cell_quat(
+  # Data in:
+  flexnode_xpos_in: wp.array2d[wp.vec3],
+  # In:
+  order: int,
+  ci: int,
+  cj: int,
+  ck: int,
+  cy: int,
+  cz: int,
+  ny_g: int,
+  nz_g: int,
+  nstart: int,
+  worldid: int,
+) -> wp.quat:
+  """Computes corotational cell quaternion from deformation gradient at cell center."""
+  npc = (order + 1) * (order + 1) * (order + 1)
+  F = wp.mat33(0.0)
+  idx = int(0)
+  for li in range(order + 1):
+    for lj in range(order + 1):
+      for lk in range(order + 1):
+        if idx < npc:
+          gi = ci * order + li
+          gj = cj * order + lj
+          gk = ck * order + lk
+          gidx = gi * ny_g * nz_g + gj * nz_g + gk
+
+          node_pos = flexnode_xpos_in[worldid, nstart + gidx]
+
+          if order == 1:
+            dphi_x = float(-1) if li == 0 else float(1)
+            dphi_y = float(-1) if lj == 0 else float(1)
+            dphi_z = float(-1) if lk == 0 else float(1)
+            phi_x = float(0.5)
+            phi_y = float(0.5)
+            phi_z = float(0.5)
+          else:
+            if li == 0:
+              dphi_x = -1.0
+            elif li == 1:
+              dphi_x = 0.0
+            else:
+              dphi_x = 1.0
+            if lj == 0:
+              dphi_y = -1.0
+            elif lj == 1:
+              dphi_y = 0.0
+            else:
+              dphi_y = 1.0
+            if lk == 0:
+              dphi_z = -1.0
+            elif lk == 1:
+              dphi_z = 0.0
+            else:
+              dphi_z = 1.0
+            phi_x = 0.5 if li == 0 or li == 2 else 1.0
+            phi_y = 0.5 if lj == 0 or lj == 2 else 1.0
+            phi_z = 0.5 if lk == 0 or lk == 2 else 1.0
+
+          grad_x = dphi_x * phi_y * phi_z
+          grad_y = phi_x * dphi_y * phi_z
+          grad_z = phi_x * phi_y * dphi_z
+
+          for r in range(3):
+            F[r, 0] += node_pos[r] * grad_x
+            F[r, 1] += node_pos[r] * grad_y
+            F[r, 2] += node_pos[r] * grad_z
+
+          idx += 1
+
+  return mat33_to_quat_polar(F)
+
+
 @cache_kernel
-def mul_m_sparse(check_skip: bool):
+def mul_m_kernel(check_skip: bool):
   @wp.kernel(module="unique")
-  def _mul_m_sparse(
+  def _mul_m(
     # Model:
     M_mulm_rowadr: wp.array[int],
     M_mulm_col: wp.array[int],
     M_mulm_madr: wp.array[int],
     # Data in:
-    M_in: wp.array3d[float],
+    M_in: wp.array2d[float],
     # In:
     vec: wp.array2d[float],
     skip: wp.array[bool],
@@ -87,34 +196,33 @@ def mul_m_sparse(check_skip: bool):
       if skip[worldid]:
         return
 
-    # Gather all contributions (diagonal + off-diagonal)
+    # Gather all contributions (diagonal + off-diagonal).
     acc = float(0.0)
     start = M_mulm_rowadr[dofid]
     end = M_mulm_rowadr[dofid + 1]
     for k in range(start, end):
       col = M_mulm_col[k]
       madr = M_mulm_madr[k]
-      acc += M_in[worldid, 0, madr] * vec[worldid, col]
+      acc += M_in[worldid, madr] * vec[worldid, col]
 
     res[worldid, dofid] = acc
 
-  return _mul_m_sparse
+  return _mul_m
 
 
 @cache_kernel
 def mul_m_dense(nv: int, check_skip: bool):
-  """Simple SIMT dense matmul: one thread per output element."""
-
   @wp.kernel(module="unique")
   def _mul_m_dense(
     # Data in:
-    M_in: wp.array3d[float],
+    M_in: wp.array3d[float],  # kernel_analyzer: ignore
     # In:
     vec: wp.array2d[float],
     skip: wp.array[bool],
     # Out:
     res: wp.array2d[float],
   ):
+    """Dense matmul for the compact active-DOF inertia block (nworld, nv, nv)."""
     worldid, i = wp.tid()
 
     if wp.static(check_skip):
@@ -154,355 +262,21 @@ def mul_m(
   if M is None:
     M = d.M
 
-  if m.is_sparse:
-    wp.launch(
-      mul_m_sparse(check_skip),
-      dim=(d.nworld, m.nv),
-      inputs=[m.M_mulm_rowadr, m.M_mulm_col, m.M_mulm_madr, M, vec, skip],
-      outputs=[res],
-    )
-
-  else:
+  if M.ndim == 3:
+    # Dense compact active-DOF block (nworld, nv, nv) used by the compact solver.
     wp.launch(
       mul_m_dense(m.nv, check_skip),
       dim=(d.nworld, m.nv),
       inputs=[M, vec, skip],
       outputs=[res],
     )
-
-
-@wp.kernel
-def _mul_m_island_sparse(
-  # Model:
-  M_mulm_rowadr: wp.array[int],
-  M_mulm_col: wp.array[int],
-  M_mulm_madr: wp.array[int],
-  # Data in:
-  nidof_in: wp.array[int],
-  M_in: wp.array3d[float],
-  map_dof2idof_in: wp.array2d[int],
-  map_idof2dof_in: wp.array2d[int],
-  # In:
-  idof_islandid_in: wp.array2d[int],
-  vec: wp.array2d[float],
-  island_done_in: wp.array2d[bool],
-  check_skip: int,
-  # Out:
-  res: wp.array2d[float],
-):
-  """Sparse island mul_m for ALL islands in parallel."""
-  worldid, idofid = wp.tid()
-
-  nidof = nidof_in[worldid]
-  if idofid >= nidof:
-    return
-
-  islandid = idof_islandid_in[worldid, idofid]
-  if islandid < 0:
-    return
-
-  if check_skip:
-    if island_done_in[worldid, islandid]:
-      return
-
-  dof = map_idof2dof_in[worldid, idofid]
-
-  acc = float(0.0)
-  start = M_mulm_rowadr[dof]
-  end = M_mulm_rowadr[dof + 1]
-  for k in range(start, end):
-    col = M_mulm_col[k]
-    madr = M_mulm_madr[k]
-    col_idof = map_dof2idof_in[worldid, col]
-    # skip unconstrained DOFs
-    if col_idof < nidof:
-      acc += M_in[worldid, 0, madr] * vec[worldid, col_idof]
-
-  res[worldid, idofid] = acc
-
-
-@wp.kernel
-def _mul_m_island_dense(
-  # Model:
-  nv: int,
-  # Data in:
-  nidof_in: wp.array[int],
-  M_in: wp.array3d[float],
-  map_dof2idof_in: wp.array2d[int],
-  map_idof2dof_in: wp.array2d[int],
-  # In:
-  idof_islandid_in: wp.array2d[int],
-  vec: wp.array2d[float],
-  island_done_in: wp.array2d[bool],
-  check_skip: int,
-  # Out:
-  res: wp.array2d[float],
-):
-  """Dense island mul_m for ALL islands in parallel."""
-  worldid, idofid = wp.tid()
-
-  nidof = nidof_in[worldid]
-  if idofid >= nidof:
-    return
-
-  islandid = idof_islandid_in[worldid, idofid]
-  if islandid < 0:
-    return
-
-  if check_skip:
-    if island_done_in[worldid, islandid]:
-      return
-
-  dof = map_idof2dof_in[worldid, idofid]
-
-  acc = float(0.0)
-  for j in range(nv):
-    col_idof = map_dof2idof_in[worldid, j]
-    # skip unconstrained DOFs
-    if col_idof < nidof:
-      acc += M_in[worldid, dof, j] * vec[worldid, col_idof]
-
-  res[worldid, idofid] = acc
-
-
-@event_scope
-def mul_m_island(
-  m: Model,
-  d: Data,
-  res: wp.array2d[float],
-  vec: wp.array2d[float],
-  nidof: wp.array[int],
-  map_idof2dof: wp.array2d[int],
-  map_dof2idof: wp.array2d[int],
-  idof_islandid: wp.array2d[int],
-  island_done: Optional[wp.array] = None,
-  M: Optional[wp.array] = None,
-):
-  """Multiply island-local vectors by inertia matrix for all islands in parallel.
-
-  Args:
-    m: The model containing kinematic and dynamic information.
-    d: The data object containing the current state and output arrays.
-    res: Result: qM @ vec (island-local DOF order).
-    vec: Input vector (island-local DOF order).
-    nidof: Number of island DOFs per world.
-    map_idof2dof: Island-local DOF → global DOF map.
-    map_dof2idof: Global DOF → island-local DOF map.
-    idof_islandid: Island ID per island-local DOF.
-    island_done: Per-island done flags (nworld, ntree).
-    M: Optional mass matrix override.
-  """
-  check_skip = int(island_done is not None)
-  island_done = island_done or wp.empty((0, 0), dtype=bool)
-
-  if M is None:
-    M = d.M
-
-  if m.is_sparse:
-    wp.launch(
-      _mul_m_island_sparse,
-      dim=(d.nworld, m.nv),
-      inputs=[
-        m.M_mulm_rowadr,
-        m.M_mulm_col,
-        m.M_mulm_madr,
-        nidof,
-        M,
-        map_dof2idof,
-        map_idof2dof,
-        idof_islandid,
-        vec,
-        island_done,
-        check_skip,
-      ],
-      outputs=[res],
-    )
   else:
     wp.launch(
-      _mul_m_island_dense,
+      mul_m_kernel(check_skip),
       dim=(d.nworld, m.nv),
-      inputs=[
-        m.nv,
-        nidof,
-        M,
-        map_dof2idof,
-        map_idof2dof,
-        idof_islandid,
-        vec,
-        island_done,
-        check_skip,
-      ],
+      inputs=[m.M_mulm_rowadr, m.M_mulm_col, m.M_mulm_madr, M, vec, skip],
       outputs=[res],
     )
-
-
-@cache_kernel
-def _solve_LD_sparse_island(nv: int, nlevels: int):
-  """Sparse backsubstitution with island-local index remapping.
-
-  Same algorithm as _solve_LD_sparse_fused, but reads/writes x/y in
-  island-local DOF order. The L/D factorization stays in global DOF order.
-  """
-
-  @wp.func_native(snippet="WP_TILE_SYNC();")
-  def _syncthreads():
-    pass
-
-  @wp.kernel(module="unique", enable_backward=False)
-  def kernel(
-    # Data in:
-    nidof_in: wp.array[int],
-    map_dof2idof_in: wp.array2d[int],
-    map_idof2dof_in: wp.array2d[int],
-    # In:
-    L: wp.array3d[float],
-    D: wp.array2d[float],
-    all_updates: wp.array[wp.vec3i],
-    level_offsets: wp.array[int],
-    y: wp.array2d[float],
-    # Out:
-    x_out: wp.array2d[float],
-  ):
-    worldid, tid = wp.tid()
-    NLEVELS = wp.static(nlevels)
-    BLOCK_DIM = wp.block_dim()
-    nid = nidof_in[worldid]
-
-    # Copy y to x_out (island-local, only iterate up to nid)
-    for idof in range(tid, nid, BLOCK_DIM):
-      x_out[worldid, idof] = y[worldid, idof]
-    _syncthreads()
-
-    # Forward substitution
-    for level in range(NLEVELS):
-      level_idx = NLEVELS - 1 - level
-      level_offset = level_offsets[level_idx]
-      level_size = level_offsets[level_idx + 1] - level_offset
-
-      for u in range(tid, level_size, BLOCK_DIM):
-        update = all_updates[level_offset + u]
-        i, k, Madr_ki = update[0], update[1], update[2]
-        idof_i = map_dof2idof_in[worldid, i]
-        if idof_i < nid:
-          idof_k = map_dof2idof_in[worldid, k]
-          wp.atomic_sub(x_out[worldid], idof_i, L[worldid, 0, Madr_ki] * x_out[worldid, idof_k])
-      _syncthreads()
-
-    # Diagonal multiply (only iterate up to nid)
-    for idof in range(tid, nid, BLOCK_DIM):
-      dofid = map_idof2dof_in[worldid, idof]
-      x_out[worldid, idof] *= D[worldid, dofid]
-    _syncthreads()
-
-    # Backward substitution
-    for level in range(NLEVELS):
-      level_idx = level
-      level_offset = level_offsets[level_idx]
-      level_size = level_offsets[level_idx + 1] - level_offset
-
-      for u in range(tid, level_size, BLOCK_DIM):
-        update = all_updates[level_offset + u]
-        i, k, Madr_ki = update[0], update[1], update[2]
-        idof_k = map_dof2idof_in[worldid, k]
-        if idof_k < nid:
-          idof_i = map_dof2idof_in[worldid, i]
-          wp.atomic_sub(x_out[worldid], idof_k, L[worldid, 0, Madr_ki] * x_out[worldid, idof_i])
-      _syncthreads()
-
-  return kernel
-
-
-@cache_kernel
-def _tile_cholesky_solve_island(tile):
-  """Dense Cholesky backsubstitution with island-local index remapping.
-
-  L is loaded from global DOF offsets (factorization unchanged).
-  y/x are loaded/stored at island-local DOF offsets via map_dof2idof.
-  """
-
-  @wp.kernel(module="unique", enable_backward=False)
-  def cholesky_solve(
-    # Data in:
-    nidof_in: wp.array[int],
-    map_dof2idof_in: wp.array2d[int],
-    # In:
-    L: wp.array3d[float],
-    y: wp.array2d[float],
-    adr: wp.array[int],
-    # Out:
-    x: wp.array2d[float],
-  ):
-    worldid, nodeid = wp.tid()
-    TILE_SIZE = wp.static(tile.size)
-
-    dofid = adr[nodeid]
-    idofid = map_dof2idof_in[worldid, dofid]
-
-    # Skip unconstrained trees (uniform branch — all threads in block agree)
-    if idofid >= nidof_in[worldid]:
-      return
-
-    # L stays in global order
-    L_tile = wp.tile_load(L[worldid], shape=(TILE_SIZE, TILE_SIZE), offset=(dofid, dofid))
-    # y and x use island-local offsets
-    y_slice = wp.tile_load(y[worldid], shape=(TILE_SIZE,), offset=(idofid,))
-    x_slice = wp.tile_cholesky_solve(L_tile, y_slice)
-    wp.tile_store(x[worldid], x_slice, offset=(idofid,))
-
-  return cholesky_solve
-
-
-@event_scope
-def solve_m_island(
-  m: Model,
-  d: Data,
-  res: wp.array2d[float],
-  vec: wp.array2d[float],
-  nidof: wp.array[int],
-  map_idof2dof: wp.array2d[int],
-):
-  """Compute res = M^{-1} @ vec for island-local DOFs.
-
-  Args:
-    m: Model.
-    d: Data.
-    res: Output in island-local DOF order.
-    vec: Input in island-local DOF order.
-    nidof: Number of island DOFs per world.
-    map_idof2dof: Island-local DOF -> global DOF map.
-  """
-  if m.is_sparse:
-    nlevels = len(m.qLD_updates)
-    if wp.get_device().is_cuda:
-      dim_block = m.block_dim.solve_LD_sparse_fused
-    else:
-      dim_block = 1
-
-    wp.launch(
-      _solve_LD_sparse_island(m.nv, nlevels),
-      dim=(d.nworld, dim_block),
-      inputs=[
-        d.nidof,
-        d.map_dof2idof,
-        map_idof2dof,
-        d.qLD,
-        d.qLDiagInv,
-        m.qLD_all_updates,
-        m.qLD_level_offsets,
-        vec,
-      ],
-      outputs=[res],
-      block_dim=dim_block,
-    )
-  else:
-    for tile in m.M_tiles:
-      wp.launch_tiled(
-        _tile_cholesky_solve_island(tile),
-        dim=(d.nworld, tile.adr.size),
-        inputs=[d.nidof, d.map_dof2idof, d.qLD, vec, tile.adr],
-        outputs=[res],
-        block_dim=m.block_dim.cholesky_solve,
-      )
 
 
 @wp.kernel
@@ -938,6 +712,7 @@ def get_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
     nbody: int,
     neq: int,
     nmocap: int,
+    nuserdata: int,
     nhistory: int,
     # Data in:
     time_in: wp.array[float],
@@ -952,6 +727,7 @@ def get_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
     eq_active_in: wp.array2d[bool],
     mocap_pos_in: wp.array2d[wp.vec3],
     mocap_quat_in: wp.array2d[wp.quat],
+    userdata_in: wp.array2d[float],
     # In:
     sig_in: int,
     active_in: wp.array[bool],
@@ -1028,6 +804,10 @@ def get_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
             state_out[worldid, adr + 2] = quat[2]
             state_out[worldid, adr + 3] = quat[3]
             adr += 4
+        elif element == State.USERDATA:
+          for j in range(nuserdata):
+            state_out[worldid, adr + j] = userdata_in[worldid, j]
+          adr += nuserdata
 
   wp.launch(
     _get_state,
@@ -1040,6 +820,7 @@ def get_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
       m.nbody,
       m.neq,
       m.nmocap,
+      m.nuserdata,
       m.nhistory,
       d.time,
       d.qpos,
@@ -1053,6 +834,7 @@ def get_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
       d.eq_active,
       d.mocap_pos,
       d.mocap_quat,
+      d.userdata,
       int(sig),
       active or wp.ones(d.nworld, dtype=bool),
     ],
@@ -1085,6 +867,7 @@ def set_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
     nbody: int,
     neq: int,
     nmocap: int,
+    nuserdata: int,
     nhistory: int,
     # In:
     sig_in: int,
@@ -1103,6 +886,7 @@ def set_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
     eq_active_out: wp.array2d[bool],
     mocap_pos_out: wp.array2d[wp.vec3],
     mocap_quat_out: wp.array2d[wp.quat],
+    userdata_out: wp.array2d[float],
   ):
     worldid = wp.tid()
 
@@ -1180,6 +964,10 @@ def set_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
             )
             mocap_quat_out[worldid, j] = quat
             adr += 4
+        elif element == State.USERDATA:
+          for j in range(nuserdata):
+            userdata_out[worldid, j] = state_in[worldid, adr + j]
+          adr += nuserdata
 
   wp.launch(
     _set_state,
@@ -1192,6 +980,7 @@ def set_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
       m.nbody,
       m.neq,
       m.nmocap,
+      m.nuserdata,
       m.nhistory,
       int(sig),
       active or wp.ones(d.nworld, dtype=bool),
@@ -1210,5 +999,87 @@ def set_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
       d.eq_active,
       d.mocap_pos,
       d.mocap_quat,
+      d.userdata,
     ],
   )
+
+
+@wp.func
+def _phi(s: float, i: int) -> float:
+  """1D trilinear basis function (order=1 only).
+
+  phi(s, 0) = 1 - s
+  phi(s, 1) = s
+  """
+  if i == 0:
+    return 1.0 - s
+  return s
+
+
+@wp.func
+def eval_basis_trilinear(local: wp.vec3, node_idx: int) -> float:
+  """Evaluate trilinear basis function for node_idx at local coords [0,1]^3.
+
+  For order=1 (trilinear), node_idx encodes (i,j,k) via bits:
+    k = node_idx & 1, j = (node_idx >> 1) & 1, i = (node_idx >> 2) & 1
+  """
+  k = node_idx & 1
+  j = (node_idx >> 1) & 1
+  i = (node_idx >> 2) & 1
+  return _phi(local[0], i) * _phi(local[1], j) * _phi(local[2], k)
+
+
+@wp.func
+def select_top4_weights(
+  # In:
+  W_mat: wp.mat33,
+  b_mat: wp.mat33,
+) -> tuple[wp.vec4i, wp.vec4]:
+  """Selects top 4 weights and their corresponding body IDs from 8 voxel corners."""
+  selected_b = wp.vec4i(-1, -1, -1, -1)
+  selected_W = wp.vec4(0.0, 0.0, 0.0, 0.0)
+
+  local_W = W_mat
+  for p in range(4):
+    max_w = -1.0
+    max_b = -1
+    max_r = -1
+    max_c = -1
+    for r in range(3):
+      for c in range(3):
+        idx = 3 * r + c
+        if idx < 8:
+          w = local_W[r, c]
+          if w > max_w:
+            max_w = w
+            max_b = int(b_mat[r, c])
+            max_r = r
+            max_c = c
+    # Record top choice for this pass and mark it as visited
+    if max_r >= 0:
+      local_W[max_r, max_c] = -1.0
+
+      if p == 0:
+        selected_b = wp.vec4i(max_b, -1, -1, -1)
+        selected_W = wp.vec4(max_w, 0.0, 0.0, 0.0)
+      elif p == 1:
+        selected_b = wp.vec4i(selected_b[0], max_b, -1, -1)
+        selected_W = wp.vec4(selected_W[0], max_w, 0.0, 0.0)
+      elif p == 2:
+        selected_b = wp.vec4i(selected_b[0], selected_b[1], max_b, -1)
+        selected_W = wp.vec4(selected_W[0], selected_W[1], max_w, 0.0)
+      else:
+        selected_b = wp.vec4i(selected_b[0], selected_b[1], selected_b[2], max_b)
+        selected_W = wp.vec4(selected_W[0], selected_W[1], selected_W[2], max_w)
+
+  # Normalize selected weights
+  sum_W = selected_W[0] + selected_W[1] + selected_W[2] + selected_W[3]
+  if sum_W > 1.0e-5:
+    selected_W = wp.vec4(
+      selected_W[0] / sum_W,
+      selected_W[1] / sum_W,
+      selected_W[2] / sum_W,
+      selected_W[3] / sum_W,
+    )
+
+  return selected_b, selected_W

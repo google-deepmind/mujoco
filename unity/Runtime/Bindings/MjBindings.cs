@@ -616,6 +616,8 @@ public enum mjtMouse : int{
   mjMOUSE_ZOOM = 5,
   mjMOUSE_MOVE_V_REL = 6,
   mjMOUSE_MOVE_H_REL = 7,
+  mjMOUSE_TURN_V = 8,
+  mjMOUSE_TURN_H = 9,
 }
 public enum mjtPertBit : int{
   mjPERT_TRANSLATE = 1,
@@ -1019,6 +1021,8 @@ public unsafe struct mjModel_ {
   public UInt64 nq;
   public UInt64 nv;
   public UInt64 nu;
+  public UInt64 nactuator;
+  public UInt64 nout;
   public UInt64 na;
   public UInt64 nbody;
   public UInt64 nbvh;
@@ -1043,6 +1047,8 @@ public unsafe struct mjModel_ {
   public UInt64 nflexelemdata;
   public UInt64 nflexstiffness;
   public UInt64 nflexbending;
+  public UInt64 nefm0dof;
+  public UInt64 nefm0L;
   public UInt64 nflexelemedge;
   public UInt64 nflexshelldata;
   public UInt64 nflexevpair;
@@ -1102,12 +1108,16 @@ public unsafe struct mjModel_ {
   public UInt64 nemax;
   public UInt64 njmax;
   public UInt64 nconmax;
+  public UInt64 npolygonmax;
+  public UInt64 nmeshdegmax;
   public UInt64 nuserdata;
   public UInt64 nsensordata;
   public UInt64 npluginstate;
   public UInt64 nhistory;
   public UInt64 narena;
   public UInt64 nbuffer;
+  public byte flg_gravcomp;
+  public byte flg_surfacevel;
   public mjOption_ opt;
   public mjVisual_ vis;
   public mjStatistic_ stat;
@@ -1212,6 +1222,7 @@ public unsafe struct mjModel_ {
   public double* geom_friction;
   public double* geom_margin;
   public double* geom_gap;
+  public double* geom_surfacevel;
   public double* geom_fluid;
   public double* geom_user;
   public float* geom_rgba;
@@ -1322,6 +1333,11 @@ public unsafe struct mjModel_ {
   public double* flex_size;
   public double* flex_stiffness;
   public double* flex_bending;
+  public int* efm0_dofid;
+  public int* efm0_L_rownnz;
+  public int* efm0_L_rowadr;
+  public int* efm0_L_colind;
+  public double* efm0_L;
   public double* flex_damping;
   public double* flex_edgestiffness;
   public double* flex_edgedamping;
@@ -1476,33 +1492,37 @@ public unsafe struct mjModel_ {
   public int* actuator_dyntype;
   public int* actuator_gaintype;
   public int* actuator_biastype;
-  public int* actuator_trnid;
-  public double* actuator_damping;
-  public double* actuator_dampingpoly;
-  public double* actuator_armature;
+  public int* actuator_ctrladr;
+  public int* actuator_ctrlnum;
+  public int* actuator_outadr;
+  public int* actuator_outnum;
   public int* actuator_actadr;
   public int* actuator_actnum;
-  public int* actuator_group;
-  public int* actuator_history;
-  public int* actuator_historyadr;
-  public double* actuator_delay;
-  public byte* actuator_ctrllimited;
-  public byte* actuator_forcelimited;
-  public byte* actuator_actlimited;
+  public int* actuator_trnid;
+  public double* actuator_cranklength;
   public double* actuator_dynprm;
   public double* actuator_gainprm;
   public double* actuator_biasprm;
-  public byte* actuator_actearly;
-  public double* actuator_ctrlrange;
-  public double* actuator_forcerange;
+  public byte* actuator_actlimited;
   public double* actuator_actrange;
+  public byte* actuator_actearly;
+  public int* actuator_history;
+  public int* actuator_historyadr;
+  public double* actuator_delay;
+  public double* actuator_damping;
+  public double* actuator_dampingpoly;
+  public double* actuator_armature;
+  public int* actuator_group;
+  public double* actuator_user;
+  public int* actuator_plugin;
+  public byte* actuator_ctrllimited;
+  public double* actuator_ctrlrange;
   public double* actuator_gear;
-  public double* actuator_cranklength;
+  public byte* actuator_forcelimited;
+  public double* actuator_forcerange;
   public double* actuator_acc0;
   public double* actuator_length0;
   public double* actuator_lengthrange;
-  public double* actuator_user;
-  public int* actuator_plugin;
   public int* sensor_type;
   public int* sensor_datatype;
   public int* sensor_needstage;
@@ -5685,6 +5705,10 @@ public unsafe struct mjData_ {
   public int nl;
   public int nefc;
   public int nJ;
+  public int efm_active;
+  public int nefmK;
+  public int nefmdof;
+  public int nefmL;
   public int nY;
   public int nA;
   public int nisland;
@@ -5740,6 +5764,7 @@ public unsafe struct mjData_ {
   public double* cinert;
   public double* flexvert_xpos;
   public double* flexelem_aabb;
+  public double* flexelem_krot;
   public double* flexedge_J;
   public double* flexedge_length;
   public double* flexvert_J;
@@ -5757,7 +5782,6 @@ public unsafe struct mjData_ {
   public int* moment_colind;
   public double* actuator_moment;
   public double* crb;
-  public double* qM;
   public double* M;
   public double* qLD;
   public double* qLDiagInv;
@@ -5844,6 +5868,16 @@ public unsafe struct mjData_ {
   public double* efc_AR;
   public double* efc_vel;
   public double* efc_aref;
+  public double* efm_c;
+  public int* efm_K_rownnz;
+  public int* efm_K_rowadr;
+  public int* efm_K_colind;
+  public double* efm_K_val;
+  public int* efm_dofid;
+  public int* efm_L_rownnz;
+  public int* efm_L_rowadr;
+  public int* efm_L_colind;
+  public double* efm_L;
   public double* efc_b;
   public double* iefc_aref;
   public int* iefc_state;
@@ -5867,11 +5901,11 @@ public unsafe struct mjsCompiler_ {
   public byte discardvisual;
   public byte usethread;
   public byte fusestatic;
-  public int inertiafromgeom;
+  public mjtInertiaFromGeom inertiafromgeom;
   public fixed int inertiagrouprange[2];
   public byte saveinertial;
-  public int alignfree;
-  public int conflict;
+  public byte alignfree;
+  public mjtConflict conflict;
   public mjLROpt_ LRopt;
   public void* meshdir;
   public void* texturedir;
@@ -5941,6 +5975,8 @@ public unsafe struct mjvGeom_ {
   public int objid;
   public int category;
   public int matid;
+  public int texid;
+  public int texuniform;
   public int texcoord;
   public int segid;
   public fixed float size[3];
@@ -5951,6 +5987,7 @@ public unsafe struct mjvGeom_ {
   public float specular;
   public float shininess;
   public float reflectance;
+  public fixed float texrepeat[2];
   public fixed char label[100];
   public float camdist;
   public float modelrbound;
@@ -6179,6 +6216,12 @@ public unsafe struct mjrRect_ {
   public int bottom;
   public int width;
   public int height;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjrRendererInfo_ {
+  public char* renderer;
+  public char* backend;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -6690,7 +6733,7 @@ public static unsafe extern void mj_clearCache(mjCache_* cache);
 public static unsafe extern mjModel_* mj_loadXML([MarshalAs(UnmanagedType.LPStr)]string filename, void* vfs, StringBuilder error, int error_sz);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mj_encode(void* s, mjModel_* m, [MarshalAs(UnmanagedType.LPStr)]string filename, [MarshalAs(UnmanagedType.LPStr)]string content_type, void* vfs, StringBuilder error, int error_sz);
+public static unsafe extern UInt64 mj_encode(void* s, mjModel_* m, [MarshalAs(UnmanagedType.LPStr)]string filename, [MarshalAs(UnmanagedType.LPStr)]string content_type, void* vfs, StringBuilder error, int error_sz);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mj_saveLastXML([MarshalAs(UnmanagedType.LPStr)]string filename, mjModel_* m, StringBuilder error, int error_sz);
@@ -7143,7 +7186,7 @@ public static unsafe extern double mjv_frustumHeight(mjvScene_* scn);
 public static unsafe extern void mjv_alignToCamera(double* res, double* vec, double* forward);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mjv_moveCamera(mjModel_* m, int action, double reldx, double reldy, mjvScene_* scn, mjvCamera_* cam);
+public static unsafe extern void mjv_moveCamera(mjModel_* m, int action, double reldx, double reldy, mjvCamera_* cam);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_movePerturb(mjModel_* m, mjData_* d, int action, double reldx, double reldy, mjvScene_* scn, mjvPerturb_* pert);
@@ -7213,6 +7256,12 @@ public static unsafe extern void mjv_cameraFrustum(float* zver, float* zhor, flo
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjr_defaultContext(mjrContext_* con);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjr_defaultRendererInfo(mjrRendererInfo_* info);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjr_getRendererInfo(mjrRendererInfo_* info);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjr_makeContext(mjModel_* m, mjrContext_* con, int fontscale);

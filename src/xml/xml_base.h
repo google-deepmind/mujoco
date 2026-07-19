@@ -54,6 +54,7 @@ extern const mjMap enable_map[];
 extern const mjMap bool_map[];
 extern const mjMap fluid_map[];
 extern const mjMap TFAuto_map[];
+extern const mjMap FAuto_map[];
 extern const mjMap joint_map[];
 extern const mjMap bodysleep_map[];
 extern const mjMap geom_map[];

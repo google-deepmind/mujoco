@@ -132,6 +132,20 @@ Since JAX and Warp diverge in their implementations of contact buffers, contacts
 For more details and examples of using MJX-Warp in the wild, see the announcement in MuJoCo Playground
 `here <https://github.com/google-deepmind/mujoco_playground/discussions/197>`__.
 
+Batched ``Data`` updates
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+With MJX-JAX it is possible to reset a subset of environments in a batch with
+`jax.tree.map(jax.numpy.where, done, reset_data, data)`. However, this approach does not work out-of-the-box for
+MJX-Warp due to internal implementation details.
+
+To support batched ``Data`` updates for both implementations, MJX provides a unified `where` method on `Data` objects:
+
+.. code-block:: python
+
+   data = data.where(done, reset_data)
+
+
 .. _MjxWarpGraphModes:
 
 Graph Modes

@@ -371,6 +371,47 @@ static int findEdges(const mjModel* m, const mjData* d,
     }
   }
 
+  // flex stiffness couples all vertices (nodes for interpolated flexes) of a flex without any
+  // constraint row representing the coupling: union the trees of every stiffness-active flex
+  // (star around the first dynamic tree). This keeps the partition valid when the implicit
+  // effective metric (mj_flexCG) carries the stiffness inside the constraint solve. Awake
+  // trees only: sleeping trees must stay out of islands (mj_sleep invariant, matching the
+  // constraint filter); waking a flex as a unit remains the wake machinery's job.
+  for (int f=0; f < m->nflex; f++) {
+    // mirror the stiffness-activity conditions of engine_derivative's flexStiff_active /
+    // flexInterp_processed: deformable dim>=2 flex with bending or nonzero stiffness
+    if (m->flex_rigid[f] || m->flex_dim[f] < 2) {
+      continue;
+    }
+    int sadr = m->flex_stiffnessadr[f];
+    if (m->flex_bendingadr[f] < 0 && (sadr < 0 || m->flex_stiffness[sadr] == 0)) {
+      continue;
+    }
+    int num, adr;
+    const int* bodyid;
+    if (m->flex_interp[f]) {
+      num = m->flex_nodenum[f];
+      adr = m->flex_nodeadr[f];
+      bodyid = m->flex_nodebodyid;
+    } else {
+      num = m->flex_vertnum[f];
+      adr = m->flex_vertadr[f];
+      bodyid = m->flex_vertbodyid;
+    }
+    int tree1 = -1;
+    for (int j=0; j < num; j++) {
+      int treeid = m->body_treeid[bodyid[adr+j]];
+      if (treeid < 0 || treeid == tree1 || !d->tree_awake[treeid]) {
+        continue;
+      }
+      if (tree1 < 0) {
+        tree1 = treeid;
+      } else {
+        nnz += addEdge(rownnz, colind, tree_tree, ntree, tree1, treeid);
+      }
+    }
+  }
+
   return nnz;
 }
 

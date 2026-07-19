@@ -18,12 +18,15 @@ from wasm.codegen.generators import binding_builder
 
 
 if __name__ == "__main__":
-  template_file = "wasm/codegen/templates/bindings.cc"
-  generated_file = "wasm/codegen/generated/bindings.cc"
+  template_file_cc = "wasm/codegen/templates/bindings.cc"
+  generated_file_cc = "wasm/codegen/generated/bindings.cc"
+  template_file_h = "wasm/codegen/templates/bindings.h"
+  generated_file_h = "wasm/codegen/generated/bindings.h"
 
-  builder = binding_builder.BindingBuilder(template_file)
+  builder = binding_builder.BindingBuilder()
   builder.set_enums()
   builder.set_structs()
   builder.set_functions()
 
-  builder.build(generated_file)
+  builder.build_file(template_file_h, generated_file_h)
+  builder.build_file(template_file_cc, generated_file_cc)

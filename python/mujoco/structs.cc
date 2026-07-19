@@ -101,7 +101,7 @@ py::tuple RecompileSpec(raw::MjSpec* spec, const MjModelWrapper& old_m,
 
 }  // namespace
 
-PYBIND11_MODULE(_structs, m) {
+PYBIND11_MODULE(_structs, m, pybind11::mod_gil_not_used()) {
   py::module_::import("mujoco._enums");
 
   // ==================== MJOPTION =============================================
@@ -349,6 +349,21 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   mjModel.def_readonly("opt", &MjModelWrapper::opt);
   mjModel.def_readonly("vis", &MjModelWrapper::vis);
   mjModel.def_readonly("stat", &MjModelWrapper::stat);
+
+  mjModel.def_property(
+      "flg_gravcomp",
+      [](const MjModelWrapper& m) { return m.get()->flg_gravcomp; },
+      [](MjModelWrapper& m, bool val) {
+        m.get()->flg_gravcomp = val;
+        m.get()->ngravcomp = val ? 1 : 0;
+      });
+
+  mjModel.def_property(
+      "flg_surfacevel",
+      [](const MjModelWrapper& m) { return m.get()->flg_surfacevel; },
+      [](MjModelWrapper& m, bool val) {
+        m.get()->flg_surfacevel = val;
+      });
 
 #define X(var)                   \
   mjModel.def_property_readonly( \
@@ -893,6 +908,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   MJDATA_ARENA_POINTERS_SOLVER
   MJDATA_ARENA_POINTERS_DUAL
   MJDATA_ARENA_POINTERS_ISLAND
+  MJDATA_ARENA_POINTERS_EFM
 
 #undef MJ_M
 #define MJ_M(x) (x)
@@ -1185,6 +1201,8 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(objid);
   X(category);
   X(matid);
+  X(texid);
+  X(texuniform);
   X(texcoord);
   X(segid);
   X(emission);
@@ -1201,6 +1219,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(pos);
   X(mat);
   X(rgba);
+  X(texrepeat);
 #undef X
 
   DefinePyStr(mjvGeom, "label", &raw::MjvGeom::label);

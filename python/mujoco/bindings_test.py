@@ -169,6 +169,25 @@ class MuJoCoBindingsTest(parameterized.TestCase):
         self.data.qpos, [0.12345] * len(self.data.qpos)
     )
 
+  def test_flg_gravcomp_and_surfacevel_properties(self):
+    self.assertFalse(self.model.flg_gravcomp)
+    self.assertFalse(self.model.flg_surfacevel)
+    self.assertEqual(self.model.ngravcomp, 0)
+
+    self.model.flg_gravcomp = True
+    self.assertTrue(self.model.flg_gravcomp)
+    self.assertEqual(self.model.ngravcomp, 1)
+
+    self.model.flg_surfacevel = True
+    self.assertTrue(self.model.flg_surfacevel)
+
+    self.model.flg_gravcomp = False
+    self.assertFalse(self.model.flg_gravcomp)
+    self.assertEqual(self.model.ngravcomp, 0)
+
+    self.model.flg_surfacevel = False
+    self.assertFalse(self.model.flg_surfacevel)
+
   def test_array_is_a_view(self):
     qpos_ref = self.data.qpos
     self.data.qpos = 0.789
@@ -698,6 +717,49 @@ class MuJoCoBindingsTest(parameterized.TestCase):
       mujoco._functions._realloc_con_efc(self.data, 100000000, 100000000)
     self.assertEmpty(self.data.contact)
     self.assertEmpty(self.data.efc_id)
+
+  def test_realloc_island(self):
+    # Test allocation on fresh data (on its own)
+    nisland = 2
+    nidof = 4
+    mujoco._functions._realloc_island(self.data, nisland=nisland, nidof=nidof)
+    self.assertEqual(self.data.nisland, nisland)
+    self.assertEqual(self.data.nidof, nidof)
+    self.assertEqual(self.data.island_nv.shape, (nisland,))
+    self.assertEqual(self.data.ifrc_smooth.shape, (nidof,))
+
+    # Test allocation after _realloc_con_efc
+    nefc = 10
+    mujoco._functions._realloc_con_efc(self.data, ncon=0, nefc=nefc)
+
+    nisland = 3
+    nidof = 5
+    mujoco._functions._realloc_island(self.data, nisland=nisland, nidof=nidof)
+
+    self.assertEqual(self.data.nisland, nisland)
+    self.assertEqual(self.data.nidof, nidof)
+    self.assertEqual(self.data.island_nv.shape, (nisland,))
+    self.assertEqual(self.data.ifrc_smooth.shape, (nidof,))
+
+    # Test re-allocation (calling it again with different sizes)
+    nisland2 = 4
+    nidof2 = 6
+    mujoco._functions._realloc_island(self.data, nisland=nisland2, nidof=nidof2)
+
+    self.assertEqual(self.data.nisland, nisland2)
+    self.assertEqual(self.data.nidof, nidof2)
+    self.assertEqual(self.data.island_nv.shape, (nisland2,))
+    self.assertEqual(self.data.ifrc_smooth.shape, (nidof2,))
+
+    # Test insufficient memory handling
+    expected_error = (
+        r'Insufficient arena memory, currently allocated memory=' +
+        r'"[0-9]+[A-Z]?". Increase using <size memory="X"/>.'
+    )
+    with self.assertRaisesRegex(mujoco.FatalError, expected_error):
+      mujoco._functions._realloc_island(self.data, 100000000, 100000000)
+    self.assertEqual(self.data.nisland, 0)
+    self.assertEqual(self.data.nidof, 0)
 
   def test_mj_struct_list_equality(self):
     model2 = mujoco.MjModel.from_xml_string(TEST_XML)
@@ -1465,7 +1527,7 @@ Euler integrator, semi-implicit in velocity.
     ds_dq = np.zeros((self.model.nv, self.model.nsensordata), dtype=DTYPE)
     ds_dv = np.zeros((self.model.nv, self.model.nsensordata), dtype=DTYPE)
     ds_da = np.zeros((self.model.nv, self.model.nsensordata), dtype=DTYPE)
-    dm_dq = np.zeros((self.model.nv, self.model.nM), dtype=DTYPE)
+    dm_dq = np.zeros((self.model.nv, self.model.nC), dtype=DTYPE)
     mujoco.mjd_inverseFD(
         self.model,
         self.data,

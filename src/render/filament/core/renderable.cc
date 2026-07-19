@@ -108,10 +108,15 @@ void Renderable::SetMesh(const Mesh* mesh, int elem_offset, int elem_count) {
     part.elem_count = elem_count;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
-    rm.setGeometryAt(rm.getInstance(part.entity), 0,
-                     part.mesh->GetPrimitiveType(), vertex_buffer, index_buffer,
-                     part.elem_offset, part.elem_count);
-
+    auto ri = rm.getInstance(part.entity);
+    rm.setGeometryAt(ri, 0, part.mesh->GetPrimitiveType(), vertex_buffer,
+                     index_buffer, part.elem_offset, part.elem_count);
+    if (part.mesh->HasBounds()) {
+      rm.setAxisAlignedBoundingBox(ri, part.mesh->GetBounds());
+      rm.setCulling(ri, true);
+    } else {
+      rm.setCulling(ri, false);
+    }
   } else {
     mju_error("Cannot set mesh for renderable with multiple parts.");
   }
@@ -234,6 +239,9 @@ const mjrfMaterial& Renderable::GetMaterial() const { return material_; }
 
 void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
                          ReflectionManager* reflection_mgr) {
+  // Ensure the renderable has no material instances set from the previous
+  // frame. This will allow us to recycle material instances if needed.
+  SetMaterialInstance(0);
   // We assume BindMaterialInstance will be called with the same requests in
   // the same order. As such, we'll just store the draw state in a deque rather
   // than trying to perform any kind of matching with the requests.
@@ -243,6 +251,9 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
   for (const mjrfRenderRequest* request : requests) {
     DrawState draw_state;
     mjrfMaterial material = material_;
+
+    // Selected materials are handled in a separate pass, so clear the value
+    // here to take advantage of shared materials.
     material.selected = false;
 
     draw_state.wireframe = (request->draw_mode == mjDRAW_MODE_WIREFRAME);
@@ -316,10 +327,6 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
           this, request->viewport.width, request->viewport.height);
     }
 
-    if (material.selected) {
-      material.emissive += 0.3f;  // vis->global.glow
-    }
-
     const Mesh* mesh = !parts_.empty() ? parts_[0].mesh : nullptr;
     draw_state.material_key = material_mgr_->PrepareMaterialInstance(
         material, static_cast<mjrDrawMode>(request->draw_mode), geom_type_,
@@ -383,7 +390,8 @@ MaterialManager::MaterialKey Renderable::SetMaterialInstance(
     MaterialManager::MaterialKey key) {
   MaterialManager::MaterialKey prev = curr_state_.material_key;
   if (key != curr_state_.material_key) {
-    filament::MaterialInstance* instance = material_mgr_->GetInstance(key);
+    const filament::MaterialInstance* instance =
+        material_mgr_->GetInstance(key);
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (Part& part : parts_) {
       filament::RenderableManager::Instance ri = rm.getInstance(part.entity);

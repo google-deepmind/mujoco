@@ -390,9 +390,9 @@ TEST_F(UserFlexTest, TrilinearInterpolation) {
     EXPECT_NEAR(d1->flexvert_xpos[i], d2->flexvert_xpos[i], 1e-7);
   }
 
-  EXPECT_EQ(m1->nM, m2->nM);
-  for (int i = 0; i < m1->nM; ++i) {
-    EXPECT_EQ(d1->qM[i], d2->qM[i]);
+  EXPECT_EQ(m1->nC, m2->nC);
+  for (int i = 0; i < m1->nC; ++i) {
+    EXPECT_EQ(d1->M[i], d2->M[i]);
   }
 
   EXPECT_EQ(m1->nbody, m2->nbody);
@@ -1364,6 +1364,49 @@ TEST_F(UserFlexTest, Load1DFlexFromOBJ) {
   EXPECT_EQ(m->nflexelem, 3);
   EXPECT_EQ(m->flex_dim[0], 1);
   mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, PinBendingRejectsNonStaticBody) {
+  // pinned vertex inherits the flexcomp's parent body, which here has a joint
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <body name="moving">
+      <joint type="hinge"/>
+      <geom size="0.1"/>
+      <flexcomp name="test" type="grid" count="3 3 1" spacing="1 1 1"
+                radius="0.01" dim="2">
+        <elasticity young="1" poisson="0" thickness="1" elastic2d="bend"/>
+        <pin id="0"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("static"));
+}
+
+TEST_F(UserFlexTest, PinBendingAcceptsStaticBody) {
+  // pinned vertex inherits the flexcomp's parent body (world), which is static
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <body name="parent">
+      <flexcomp name="test" type="grid" count="3 3 1" spacing="1 1 1"
+                radius="0.01" dim="2">
+        <elasticity young="1" poisson="0" thickness="1" elastic2d="bend"/>
+        <pin id="0"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), NotNull()) << error.data();
 }
 
 }  // namespace

@@ -317,13 +317,13 @@ TEST_F(EngineUtilSparseTest, MjuTranspose1by1) {
 TEST_F(EngineUtilSparseTest, MjuTransposeNullMatrix) {
   // 0 -> 0
 
-  mjtNum mat[] = {};
-  int colind[] = {};
+  mjtNum* mat = nullptr;
+  int* colind = nullptr;
   int rownnz[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   int rowadr[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-  mjtNum matT[] = {};
-  int colindT[] = {};
+  mjtNum* matT = nullptr;
+  int* colindT = nullptr;
   int rownnzT[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
   int rowadrT[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
@@ -1272,7 +1272,7 @@ TEST_F(EngineUtilSparseTest, MjuDenseToSparse) {
 
 TEST_F(EngineUtilSparseTest, MergeSorted) {
   const int chain1_a[] = {1, 2, 3};
-  const int chain2_a[] = {};
+  const int* chain2_a = nullptr;
   int merged_a[3];
   int n1 = 3;
   int n2 = 0;

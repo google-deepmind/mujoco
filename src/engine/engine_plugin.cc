@@ -249,11 +249,10 @@ std::string_view GlobalTable<mjpResourceProvider>::ObjectKey(const mjpResourcePr
 // check if two resource providers are identical
 template <>
 bool GlobalTable<mjpResourceProvider>::ObjectEqual(const mjpResourceProvider& p1, const mjpResourceProvider& p2) {
-  return (CaseInsensitiveEqual(p1.prefix, p2.prefix) &&
-          p1.open == p2.open &&
-          p1.read == p2.read &&
-          p1.close == p2.close &&
+  return (CaseInsensitiveEqual(p1.prefix, p2.prefix) && p1.open == p2.open &&
+          p1.read == p2.read && p1.close == p2.close &&
           p1.modified == p2.modified &&
+          p1.write == p2.write &&
           p1.data == p2.data);
 }
 
@@ -390,7 +389,8 @@ bool GlobalTable<mjpEncoder>::ObjectEqual(const mjpEncoder& e1,
   }
 
   return content_type_match && extension_match
-         && e1.encode == e2.encode && e1.close_resource == e2.close_resource;
+         && e1.encode == e2.encode
+         && e1.close_resource == e2.close_resource;
 }
 
 template <>

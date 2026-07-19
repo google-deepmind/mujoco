@@ -51,8 +51,7 @@ SceneBridge::SceneBridge(mjrfContext* ctx, mjrfScene* scene, const mjModel* mode
                                  filament::math::float4(0, 0, 0, 1));
   mjrf_setClearColor(ctx_, &clear_color[0]);
 
-  light_manager_ =
-      std::make_unique<LightManager>(ctx_, scene_, model_objects_.get());
+  light_manager_ = std::make_unique<LightManager>(scene_, model_objects_.get());
 }
 
 SceneBridge::~SceneBridge() {

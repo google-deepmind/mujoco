@@ -828,8 +828,9 @@ is the most common implementation of actuators with velocity semantics, rather t
 often quite unstable (both in real life and in simulation).
 
 In the case of integrated-velocity actuators, it is often desirable to *clamp* the activation state, since otherwise the
-position target would keep integrating beyond the joint limits, leading to loss of controllabillity. To see the effect
-of activation clamping, load the example model below:
+position target would keep integrating beyond the joint limits, leading to loss of controllabillity. (On purely
+rotational transmissions, the setpoint wraps on the circle and stays bounded without clamping; see
+:ref:`gear<actuator-general-gear>`.) To see the effect of activation clamping, load the example model below:
 
 .. collapse:: Example model with activation limits
 
@@ -853,8 +854,7 @@ of activation clamping, load the example model below:
       </worldbody>
 
       <actuator>
-         <general name="unclamped" joint="joint1" gainprm="1" biastype="affine"
-            biasprm="0 -1" dyntype="integrator"/>
+         <intvelocity name="unclamped" joint="joint1"/>
          <intvelocity name="clamped" joint="joint2" actrange="-1.57 1.57"/>
       </actuator>
       </mujoco>

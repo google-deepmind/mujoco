@@ -29,6 +29,7 @@
 #include <filament/VertexBuffer.h>
 #include <math/vec4.h>
 #include <mujoco/mjrfilament.h>
+#include "render/filament/core/types.h"
 
 namespace mujoco {
 

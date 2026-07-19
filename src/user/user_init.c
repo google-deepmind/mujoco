@@ -82,6 +82,9 @@ void mjs_defaultBody(mjsBody* body) {
   body->ipos[0] = mjNAN;
   body->iquat[0] = 1;
   body->fullinertia[0] = mjNAN;
+
+  // simple optimization: auto
+  body->simple = 1;
 }
 
 

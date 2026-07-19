@@ -50,7 +50,9 @@ TEST_F(SimProfilerTest, SummaryAcrossWrap) {
   ASSERT_THAT(holder->model(), NotNull()) << holder->error();
 
   // Records one frame with step time 1, 2, 3, ... on successive calls, so the
-  // recorded cpu_total equals the call count.
+  // recorded cpu_total equals kCpuScale times the call count (Update() scales
+  // the raw timer values by 1000 to display microseconds).
+  constexpr float kCpuScale = 1000.0f;
   SimProfiler profiler;
   int frame = 0;
   auto record_frame = [&]() {
@@ -72,7 +74,8 @@ TEST_F(SimProfilerTest, SummaryAcrossWrap) {
     EXPECT_EQ(s.max_frames, max_frames);
     // cpu_total is the mean of step times 1..max_frames-1. The component timers
     // are zero, so cpu_other == cpu_total.
-    EXPECT_METRIC_EQ(s.cpu_total, max_frames / 2.0f, 1, max_frames - 1);
+    EXPECT_METRIC_EQ(s.cpu_total, kCpuScale * max_frames / 2.0f, kCpuScale,
+                     kCpuScale * (max_frames - 1));
     EXPECT_FLOAT_EQ(s.cpu_other.average, s.cpu_total.average);
     const int nv = holder->model()->nv;
     EXPECT_METRIC_EQ(s.dim_dof, nv, nv, nv);
@@ -83,7 +86,8 @@ TEST_F(SimProfilerTest, SummaryAcrossWrap) {
   {
     SimProfiler::Summary s = profiler.GetSummary();
     EXPECT_EQ(s.num_frames, max_frames);
-    EXPECT_METRIC_EQ(s.cpu_total, (max_frames + 1) / 2.0f, 1, max_frames);
+    EXPECT_METRIC_EQ(s.cpu_total, kCpuScale * (max_frames + 1) / 2.0f,
+                     kCpuScale, kCpuScale * max_frames);
   }
 
   // One more frame wraps: slot 0 (value 1) is overwritten with max_frames + 1,
@@ -92,7 +96,8 @@ TEST_F(SimProfilerTest, SummaryAcrossWrap) {
   {
     SimProfiler::Summary s = profiler.GetSummary();
     EXPECT_EQ(s.num_frames, max_frames);
-    EXPECT_METRIC_EQ(s.cpu_total, (max_frames + 3) / 2.0f, 2, max_frames + 1);
+    EXPECT_METRIC_EQ(s.cpu_total, kCpuScale * (max_frames + 3) / 2.0f,
+                     kCpuScale * 2, kCpuScale * (max_frames + 1));
   }
 
   // Clear the profiler and check for empty summary.

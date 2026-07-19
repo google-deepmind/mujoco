@@ -228,7 +228,7 @@ def fwd_actuation(m: Model, d: Data) -> Data:
 
   qfrc_actuator = d._impl.actuator_moment.T @ force
 
-  if m.ngravcomp:
+  if m.flg_gravcomp:
     # actuator-level gravity compensation, skip if added as passive force
     qfrc_actuator += d.qfrc_gravcomp * m.jnt_actgravcomp[m.dof_jntid]
 

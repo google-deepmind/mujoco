@@ -17,8 +17,10 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
+#include "engine/engine_core_smooth.h"
 #include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"
+#include "engine/engine_inline.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_passive.h"
 #include "engine/engine_sleep.h"
@@ -26,6 +28,7 @@
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "engine/engine_util_solve.h"
 #include "engine/engine_util_spatial.h"
 #include "engine/engine_util_sparse.h"
 
@@ -705,6 +708,191 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
 }
 
 
+// 3x3 sub-blocks of (d qfrc_bias / d qvel) for a standalone free body
+//   outputs the two 3x3 blocks lin and rot such that the rotational columns
+//   of the full 6x6 bias Jacobian B are  [-mass*lin; rot]  (linear columns are zero)
+//
+// derivation: let R = xmat, s = xipos - xpos, w = R*qvel[rot] (world angular velocity),
+// Iw = ximat * diag(body_inertia) * ximat' (world inertia about the CoM). with qacc = 0,
+// the CoM acceleration is w x (w x s) and the world bias force/torque at the CoM are
+//   f = mass * w x (w x s),   tau = w x Iw*w
+// projected onto the joint coordinates: bias = [f;  R'*(s x f + tau)]. differentiating
+// w.r.t. the rotational dofs (through w = R*qvel[rot]), with K = [w x s]_x + [w]_x [s]_x:
+//   d f / d w   = -mass * K            =>  lin = K * R
+//   d tau / d w = [w]_x Iw - [Iw*w]_x  =>  rot = R' * (-mass*[s]_x K + d tau/d w) * R
+static void freeBias_vel_blocks(mjtNum mass, const mjtNum R[9], const mjtNum Xi[9],
+                                const mjtNum inertia[3], const mjtNum s[3],
+                                const mjtNum qvel_rot[3], mjtNum lin[9], mjtNum rot[9]) {
+  // world-frame angular velocity
+  mjtNum w[3];
+  mji_mulMatVec3(w, R, qvel_rot);
+
+  // world-frame inertia about CoM: Iw = Xi * diag(inertia) * Xi^T
+  mjtNum Xi_I[9];
+  for (int i=0; i < 3; i++) {
+    Xi_I[3*i+0] = Xi[3*i+0] * inertia[0];
+    Xi_I[3*i+1] = Xi[3*i+1] * inertia[1];
+    Xi_I[3*i+2] = Xi[3*i+2] * inertia[2];
+  }
+  mjtNum Iw[9];
+  Iw[0] = Xi_I[0]*Xi[0] + Xi_I[1]*Xi[1] + Xi_I[2]*Xi[2];
+  Iw[4] = Xi_I[3]*Xi[3] + Xi_I[4]*Xi[4] + Xi_I[5]*Xi[5];
+  Iw[8] = Xi_I[6]*Xi[6] + Xi_I[7]*Xi[7] + Xi_I[8]*Xi[8];
+  Iw[1] = Iw[3] = Xi_I[0]*Xi[3] + Xi_I[1]*Xi[4] + Xi_I[2]*Xi[5];
+  Iw[2] = Iw[6] = Xi_I[0]*Xi[6] + Xi_I[1]*Xi[7] + Xi_I[2]*Xi[8];
+  Iw[5] = Iw[7] = Xi_I[3]*Xi[6] + Xi_I[4]*Xi[7] + Xi_I[5]*Xi[8];
+
+  // intermediate vectors: ws = w x s  (CoM offset velocity),  Iww = Iw * w  (angular momentum)
+  mjtNum ws[3], Iww[3];
+  mji_cross(ws, w, s);
+  mji_mulMatVec3(Iww, Iw, w);
+
+  // K = [w x s]_x + [w]_x [s]_x = s w^T - (w . s) I + [ws]_x
+  mjtNum w_dot_s = w[0]*s[0] + w[1]*s[1] + w[2]*s[2];
+  mjtNum K[9];
+  K[0] = s[0]*w[0] - w_dot_s;
+  K[1] = s[0]*w[1] - ws[2];
+  K[2] = s[0]*w[2] + ws[1];
+
+  K[3] = s[1]*w[0] + ws[2];
+  K[4] = s[1]*w[1] - w_dot_s;
+  K[5] = s[1]*w[2] - ws[0];
+
+  K[6] = s[2]*w[0] - ws[1];
+  K[7] = s[2]*w[1] + ws[0];
+  K[8] = s[2]*w[2] - w_dot_s;
+
+  // lin = K * R
+  mji_mulMatMat3(lin, K, R);
+
+  // C = -mass * [s]_x K + [w]_x Iw - [Iww]_x,  column by column
+  // the last term (-[Iww]_x) is the negated cross-product matrix, added via ternaries
+  mjtNum C[9];
+  for (int c=0; c < 3; c++) {
+    mjtNum s_x_K_row0 = s[1]*K[6+c] - s[2]*K[3+c];
+    mjtNum s_x_K_row1 = s[2]*K[c] - s[0]*K[6+c];
+    mjtNum s_x_K_row2 = s[0]*K[3+c] - s[1]*K[c];
+
+    mjtNum w_x_Iw_row0 = w[1]*Iw[6+c] - w[2]*Iw[3+c];
+    mjtNum w_x_Iw_row1 = w[2]*Iw[c] - w[0]*Iw[6+c];
+    mjtNum w_x_Iw_row2 = w[0]*Iw[3+c] - w[1]*Iw[c];
+
+    C[c]     = -mass * s_x_K_row0 + w_x_Iw_row0 + (c == 1 ? Iww[2] : (c == 2 ? -Iww[1] : 0));
+    C[3 + c] = -mass * s_x_K_row1 + w_x_Iw_row1 + (c == 0 ? -Iww[2] : (c == 2 ? Iww[0] : 0));
+    C[6 + c] = -mass * s_x_K_row2 + w_x_Iw_row2 + (c == 0 ? Iww[1] : (c == 1 ? -Iww[0] : 0));
+  }
+
+  // rot = R^T * C * R
+  mjtNum tmp[9];
+  mji_mulMatTMat3(tmp, R, C);
+  mji_mulMatMat3(rot, tmp, R);
+}
+
+
+// 6x6 block B = d qfrc_bias / d qvel for a standalone free body
+//   assembles the full 6x6 from the 3x3 sub-blocks computed by freeBias_vel_blocks
+//   rows/cols ordered like the free joint dofs: [linear(3); rotational(3)]
+//   linear columns are zero: the bias force does not depend on linear velocity
+void mjd_freeBias_vel(const mjModel* m, const mjData* d, int jnt, mjtNum B[36]) {
+  int body = m->jnt_bodyid[jnt];
+  int adr = m->jnt_dofadr[jnt];
+  mjtNum mass = m->body_mass[body];
+  const mjtNum* R = d->xmat + 9*body;    // body  -> world
+  const mjtNum* Xi = d->ximat + 9*body;  // inertia -> world
+  const mjtNum* inertia = m->body_inertia + 3*body;
+
+  // CoM offset from joint origin, world frame
+  mjtNum s[3];
+  mji_sub3(s, d->xipos + 3*body, d->xpos + 3*body);
+
+  mjtNum lin[9], rot[9];
+  freeBias_vel_blocks(mass, R, Xi, inertia, s, d->qvel + adr + 3, lin, rot);
+
+  mju_zero(B, 36);
+  for (int r=0; r < 3; r++) {
+    for (int c=0; c < 3; c++) {
+      B[6*r + 3+c] = -mass * lin[3*r+c];
+      B[6*(3+r) + 3+c] = rot[3*r+c];
+    }
+  }
+}
+
+
+// return 1 if body is a standalone free body (single free joint, no children)
+mjtBool mj_isFreeBody(const mjModel* m, int body) {
+  // must have exactly one joint, of free type
+  if (m->body_jntnum[body] != 1 || m->jnt_type[m->body_jntadr[body]] != mjJNT_FREE) {
+    return false;
+  }
+
+  int adr = m->jnt_dofadr[m->body_jntadr[body]];
+
+  // must be a standalone 6-DOF tree with no children
+  if (m->tree_dofnum[m->dof_treeid[adr]] != 6 ||
+      m->body_subtreemass[body] != m->body_mass[body]) {
+    return false;
+  }
+
+  return true;
+}
+
+
+// 6x6 block A = M - h * (d qfrc_smooth / d qvel) for the free joint of a standalone body
+//   returns 1 and writes A if jnt is the free joint of a standalone awake body, 0 otherwise
+//   requires valid d->qDeriv rows for the block, computed with flg_bias = 0; the bias
+//   derivative excluded from qDeriv is added here via mjd_freeBias_vel
+int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjtNum A[36]) {
+  int body = m->jnt_bodyid[jnt];
+  int adr = m->jnt_dofadr[jnt];
+
+  // must be a standalone free body, awake
+  if (!mj_isFreeBody(m, body) || !d->tree_awake[m->dof_treeid[adr]]) {
+    return 0;
+  }
+
+  // A = M block (gather from sparse lower triangle)
+  mju_zero(A, 36);
+  for (int r=0; r < 6; r++) {
+    int rowadr = m->M_rowadr[adr+r];
+    int rownnz = m->M_rownnz[adr+r];
+    for (int k=0; k < rownnz; k++) {
+      int c = m->M_colind[rowadr+k] - adr;
+      A[6*r+c] = A[6*c+r] = d->M[rowadr+k];
+    }
+  }
+
+  // A -= h * qDeriv block (actuator and passive derivatives)
+  for (int r=0; r < 6; r++) {
+    int rowadr = m->D_rowadr[adr+r];
+    int rownnz = m->D_rownnz[adr+r];
+    for (int k=0; k < rownnz; k++) {
+      int c = m->D_colind[rowadr+k] - adr;
+      A[6*r+c] -= h * d->qDeriv[rowadr+k];
+    }
+  }
+
+  // A -= h * d(qfrc_smooth)/d(qvel) for the bias term missing from qDeriv;
+  // qfrc_smooth includes -qfrc_bias, so subtracting its derivative adds +h*B
+  mjtNum s[3];
+  mji_sub3(s, d->xipos + 3*body, d->xpos + 3*body);
+
+  mjtNum mass = m->body_mass[body];
+  mjtNum lin[9], rot[9];
+  freeBias_vel_blocks(mass, d->xmat + 9*body, d->ximat + 9*body,
+                      m->body_inertia + 3*body, s, d->qvel + adr + 3, lin, rot);
+
+  mjtNum h_mass = -h * mass;
+  for (int r=0; r < 3; r++) {
+    for (int c=0; c < 3; c++) {
+      A[6*r + 3+c] += h_mass * lin[3*r+c];
+      A[6*(3+r) + 3+c] += h * rot[3*r+c];
+    }
+  }
+
+  return 1;
+}
+
+
 //--------------------- utility functions for (d force / d vel) Jacobians --------------------------
 
 // add J'*B*J to qDeriv
@@ -1206,12 +1394,604 @@ void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* ve
 }
 
 
+// local edge-based vertex indexing for 2D and 3D elements (mirrors engine_passive.c: the
+// flex_stiffness metric ordering is tied to this edge order)
+static const int stretch_edges[2][6][2] = {
+  {{1, 2}, {2, 0}, {0, 1}, {0, 0}, {0, 0}, {0, 0}},
+  {{0, 1}, {1, 2}, {2, 0}, {2, 3}, {0, 3}, {1, 3}}};
+
+// compute res += (s1 + s2*flex_damping) * K_stretch * vec for standard (non-interp) flex
+// stretch, where K_stretch is the Gauss-Newton Hessian of the passive stretch force in
+// mj_flexPassiveStretch: with elongation e_a = L_a^2 - L0_a^2 and force
+// f = -sum_ab M_ab e_a grad(e_b)/2, the GN Hessian is K = 2 sum_ab M_ab (s_a d_a)(s_b d_b)^T,
+// d_a the current edge vector. Pinned vertices (zero-dof bodies) contribute nothing.
+void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                         mjtNum s1, mjtNum s2) {
+  for (int f = 0; f < m->nflex; f++) {
+    // skip interp, rigid, or 1D
+    if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] < 2) {
+      continue;
+    }
+
+    int stiffnessadr = m->flex_stiffnessadr[f];
+    if (stiffnessadr < 0 || m->flex_stiffness[stiffnessadr] == 0) {
+      continue;
+    }
+
+    mjtNum scale = s1 + s2 * m->flex_damping[f];
+    if (!scale) {
+      continue;
+    }
+
+    int dim = m->flex_dim[f];
+    int nedge = (dim == 2) ? 3 : 6;
+    const int (*edge)[2] = stretch_edges[dim-2];
+    const int* elem = m->flex_elem + m->flex_elemdataadr[f];
+    const mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
+    const int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
+    const mjtNum* k = m->flex_stiffness + stiffnessadr;
+    int elemnum = m->flex_elemnum[f];
+
+    for (int t = 0; t < elemnum; t++) {
+      const int* vert = elem + (dim+1)*t;
+
+      // current edge vectors and g_a = d_a . (vec_{a0} - vec_{a1}), zero on pinned vertices
+      mjtNum dvec[6][3];
+      mjtNum g[6];
+      for (int e = 0; e < nedge; e++) {
+        int v0 = vert[edge[e][0]], v1 = vert[edge[e][1]];
+        int b0 = bodyid[v0],       b1 = bodyid[v1];
+        g[e] = 0;
+        for (int x = 0; x < 3; x++) {
+          dvec[e][x] = xpos[3*v0+x] - xpos[3*v1+x];
+          mjtNum dv = 0;
+          if (m->body_dofnum[b0]) dv += vec[m->body_dofadr[b0]+x];
+          if (m->body_dofnum[b1]) dv -= vec[m->body_dofadr[b1]+x];
+          g[e] += dvec[e][x]*dv;
+        }
+      }
+
+      // unpack upper triangular metric (21 elements, matching mj_flexPassiveStretch)
+      mjtNum metric[36];
+      int id = 0;
+
+      for (int e1 = 0; e1 < nedge; e1++) {
+        for (int e2 = e1; e2 < nedge; e2++) {
+          metric[nedge*e1 + e2] = k[21*t + id];
+          metric[nedge*e2 + e1] = k[21*t + id++];
+        }
+      }
+
+      // scatter: res_{b0/b1} +/-= 2*scale*(sum_a M_ba g_a) * d_b
+      for (int e = 0; e < nedge; e++) {
+        mjtNum coef = 0;
+        for (int a = 0; a < nedge; a++) {
+          coef += metric[nedge*e + a]*g[a];
+        }
+        coef *= 2*scale;
+        int b0 = bodyid[vert[edge[e][0]]], b1 = bodyid[vert[edge[e][1]]];
+        for (int x = 0; x < 3; x++) {
+          if (m->body_dofnum[b0]) res[m->body_dofadr[b0]+x] += coef*dvec[e][x];
+          if (m->body_dofnum[b1]) res[m->body_dofadr[b1]+x] -= coef*dvec[e][x];
+        }
+      }
+    }
+  }
+}
+
+
+// returns true if the interpolated flex is processed by mjd_flexInterp_mul
+static mjtBool flexInterp_processed(const mjModel* m, int f) {
+  if (!m->flex_interp[f]) {
+    return 0;
+  }
+  int sa = m->flex_stiffnessadr[f];
+  if (sa < 0 || m->flex_rigid[f] || m->flex_stiffness[sa] == 0) {
+    return 0;
+  }
+  if (m->flex_edgeequality[f] == 3) {
+    return 0;
+  }
+  return 1;
+}
+
+
+// can ALL operator-processed interp flexes be assembled to dof-level CSR? Requires every node
+// to sit on a simple slider body (body_simple == 2: sliders only, so the point Jacobian is I3
+// regardless of the node offset -- flex_centered is NOT required) or to be fixed (0 dofs, row
+// dropped like a pinned vertex). All-or-nothing: mjd_flexInterp_mul applies every interp flex,
+// so the CSR can replace the operator only if it covers them all.
+mjtBool mjd_flexInterpAssemblable(const mjModel* m) {
+  for (int f = 0; f < m->nflex; f++) {
+    if (!flexInterp_processed(m, f)) {
+      continue;
+    }
+    const int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
+    for (int n = 0; n < m->flex_nodenum[f]; n++) {
+      int dofnum = m->body_dofnum[bodyid[n]];
+      if (dofnum == 0) {
+        continue;
+      }
+      if (m->body_simple[bodyid[n]] != 2 || dofnum != 3) {
+        return 0;
+      }
+    }
+  }
+  return 1;
+}
+
+
+// element walk shared by the interp assembly passes: geometry of interp finite elements
+// (mirrors mjd_flexInterp_kernel; index-only gather calls)
+#define FLEXINTERP_WALK(f, body)                                             \
+  {                                                                          \
+    int order_ = m->flex_interp[f];                                          \
+    int shell_ = order_ < 0;                                                 \
+    order_ = order_ < 0 ? -order_ : order_;                                  \
+    int cx_ = m->flex_cellnum[3 * (f) + 0];                                  \
+    int cy_ = m->flex_cellnum[3 * (f) + 1];                                  \
+    int cz_ = m->flex_cellnum[3 * (f) + 2];                                  \
+    int npe = shell_ ? (order_ + 1) * (order_ + 1)                           \
+                     : (order_ + 1) * (order_ + 1) * (order_ + 1);           \
+    int nelem_fe_ =                                                          \
+        shell_ ? 2 * (cy_ * cz_ + cx_ * cz_ + cx_ * cy_) : cx_ * cy_ * cz_;  \
+    const mjtNum* K_ = m->flex_stiffness + m->flex_stiffnessadr[f];          \
+    int gindices[125];                                                       \
+    for (int fe = 0; fe < nelem_fe_; fe++) {                                 \
+      if (K_[(size_t)fe * 3 * npe * 3 * npe] == 0) continue;                 \
+      if (shell_) {                                                          \
+        mju_flexGatherFaceState(order_, cx_, cy_, cz_, fe, NULL, NULL, NULL, \
+                                NULL, NULL, NULL, gindices, NULL);           \
+      } else {                                                               \
+        int ci_ = fe / (cy_ * cz_), cj_ = (fe / cz_) % cy_, ck_ = fe % cz_;  \
+        mju_flexGatherCellState(order_, cy_, cz_, ci_, cj_, ck_, NULL, NULL, \
+                                NULL, NULL, NULL, NULL, gindices, NULL);     \
+      }                                                                      \
+      body                                                                   \
+    }                                                                        \
+  }
+
+// does ANY flex contribute assemblable implicit stiffness? (cheap existence check for the
+// solver gate: stretch stiffness on a standard flex, or -- when Krot will be supplied -- an
+// operator-processed interp flex)
+mjtBool mjd_flexStiff_any(const mjModel* m, int flg_interp) {
+  for (int f = 0; f < m->nflex; f++) {
+    if (flg_interp && flexInterp_processed(m, f)) {
+      return 1;
+    }
+    if (!m->flex_interp[f] && !m->flex_rigid[f] && m->flex_dim[f] >= 2 &&
+        m->flex_stiffnessadr[f] >= 0 && m->flex_stiffness[m->flex_stiffnessadr[f]] != 0) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+
+// does this standard flex contribute implicit stiffness under the given term flags?
+static mjtBool flexStiff_active(const mjModel* m, int f, int flg_bend, int flg_stretch) {
+  if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] < 2) {
+    return 0;
+  }
+  int bend = flg_bend && m->flex_bendingadr[f] >= 0;
+  int stretch = flg_stretch && m->flex_stiffnessadr[f] >= 0 &&
+                m->flex_stiffness[m->flex_stiffnessadr[f]] != 0;
+  return bend || stretch;
+}
+
+
+// assemble the standard-flex implicit stiffness K = (s1 + s2*damping) * (K_bend + K_stretch)
+// into dof-level CSR (same terms mjd_flexBend_mul / mjd_flexStretch_mul apply matrix-free; the
+// matrix is constant during a solve, so assembling once and applying as a sparse matvec avoids
+// re-walking stencils and re-unpacking metrics on every apply). Rows/columns exist only on the
+// dofs of unpinned vertices of standard dim>=2 flexes with bending or stretch stiffness.
+// Phase 1 (colind == NULL): fill rownnz/rowadr over nv, return total nnz.
+// Phase 2: fill colind and val (rownnz/rowadr must come from phase 1).
+// Interp flexes are assembled iff Krot (the mjd_flexInterp_cacheKrot cache) is non-NULL and
+// they qualify for the centered fast path (caller checks mjd_flexInterpAssemblable): rows on
+// node body dofs, corotated 3x3 blocks, with the operator's NEGATED sign convention folded in
+// so one CSR replaces all three matrix-free operators uniformly.
+int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr,
+                           int* colind, mjtNum* val, mjtNum s1, mjtNum s2,
+                           int flg_bend, int flg_stretch, const mjtNum* Krot) {
+  int nv = m->nv;
+  mj_markStack(d);
+
+  // collect participating vertices: global flex vertex id -> local slot, dofadr
+  int nvert = 0;
+  int* vslot = mjSTACKALLOC(d, m->nflexvert > 0 ? m->nflexvert : 1, int);
+  for (int i = 0; i < m->nflexvert; i++) {
+    vslot[i] = -1;
+  }
+  for (int f = 0; f < m->nflex; f++) {
+    if (!flexStiff_active(m, f, flg_bend, flg_stretch)) {
+      continue;
+    }
+    for (int lv = 0; lv < m->flex_vertnum[f]; lv++) {
+      int gv = m->flex_vertadr[f] + lv;
+      if (m->body_dofnum[m->flex_vertbodyid[gv]] == 3) {
+        vslot[gv] = nvert++;
+      }
+    }
+  }
+
+  // interp nodes participate when the caller supplies the K_rot cache (centered fast path)
+  int* nslot = mjSTACKALLOC(d, m->nflexnode > 0 ? (int)m->nflexnode : 1, int);
+  for (int i = 0; i < m->nflexnode; i++) {
+    nslot[i] = -1;
+  }
+  if (Krot) {
+    for (int f = 0; f < m->nflex; f++) {
+      if (!flexInterp_processed(m, f)) {
+        continue;
+      }
+      const int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
+      for (int ln = 0; ln < m->flex_nodenum[f]; ln++) {
+        if (m->body_dofnum[bodyid[ln]] == 3) {
+          nslot[m->flex_nodeadr[f] + ln] = nvert++;
+        }
+      }
+    }
+  }
+
+  if (!nvert) {
+    mju_zeroInt(rownnz, nv);
+    if (rowadr) mju_zeroInt(rowadr, nv);
+    mj_freeStack(d);
+    return 0;
+  }
+  int* vdof = mjSTACKALLOC(d, nvert, int);
+  for (int gv = 0; gv < m->nflexvert; gv++) {
+    if (vslot[gv] >= 0) {
+      vdof[vslot[gv]] = m->body_dofadr[m->flex_vertbodyid[gv]];
+    }
+  }
+  for (int gn = 0; gn < m->nflexnode; gn++) {
+    if (nslot[gn] >= 0) {
+      vdof[nslot[gn]] = m->body_dofadr[m->flex_nodebodyid[gn]];
+    }
+  }
+
+  // count stencil incidence per vertex slot (with duplicates)
+  int* ncand = mjSTACKALLOC(d, nvert, int);
+  mju_zeroInt(ncand, nvert);
+  for (int f = 0; f < m->nflex; f++) {
+    if (!flexStiff_active(m, f, flg_bend, flg_stretch)) {
+      continue;
+    }
+    int dim = m->flex_dim[f], nvrt = dim + 1;
+    // bending stencils: 4-vertex flaps per edge
+    if (flg_bend && m->flex_bendingadr[f] >= 0) {
+      for (int e = 0; e < m->flex_edgenum[f]; e++) {
+        const int* edge = m->flex_edge + 2*(e + m->flex_edgeadr[f]);
+        const int* flap = m->flex_edgeflap + 2*(e + m->flex_edgeadr[f]);
+        if (flap[1] == -1) continue;
+        int v[4] = {edge[0], edge[1], flap[0], flap[1]};
+        for (int i = 0; i < 4; i++) {
+          int si = vslot[m->flex_vertadr[f] + v[i]];
+          if (si >= 0) ncand[si] += 4;
+        }
+      }
+    }
+    // stretch elements: (dim+1)-vertex cliques
+    if (flg_stretch && m->flex_stiffnessadr[f] >= 0 &&
+        m->flex_stiffness[m->flex_stiffnessadr[f]] != 0) {
+      const int* elem = m->flex_elem + m->flex_elemdataadr[f];
+      for (int t = 0; t < m->flex_elemnum[f]; t++) {
+        for (int i = 0; i < nvrt; i++) {
+          int si = vslot[m->flex_vertadr[f] + elem[(dim+1)*t + i]];
+          if (si >= 0) ncand[si] += nvrt;
+        }
+      }
+    }
+  }
+
+  // interp stencils: npe-node element cliques (counting)
+  if (Krot) {
+    for (int f = 0; f < m->nflex; f++) {
+      if (!flexInterp_processed(m, f)) {
+        continue;
+      }
+      FLEXINTERP_WALK(f, {
+        for (int i = 0; i < npe; i++) {
+          int si = nslot[m->flex_nodeadr[f] + gindices[i]];
+          if (si >= 0) ncand[si] += npe;
+        }
+      })
+    }
+  }
+
+  // gather candidate neighbor lists (vertex slots, with duplicates)
+  int* cadr = mjSTACKALLOC(d, nvert + 1, int);
+  cadr[0] = 0;
+  for (int s = 0; s < nvert; s++) {
+    cadr[s+1] = cadr[s] + ncand[s];
+  }
+  int* cand = mjSTACKALLOC(d, cadr[nvert] > 0 ? cadr[nvert] : 1, int);
+  mju_zeroInt(ncand, nvert);
+  for (int f = 0; f < m->nflex; f++) {
+    if (!flexStiff_active(m, f, flg_bend, flg_stretch)) {
+      continue;
+    }
+    int dim = m->flex_dim[f], nvrt = dim + 1;
+    if (flg_bend && m->flex_bendingadr[f] >= 0) {
+      for (int e = 0; e < m->flex_edgenum[f]; e++) {
+        const int* edge = m->flex_edge + 2*(e + m->flex_edgeadr[f]);
+        const int* flap = m->flex_edgeflap + 2*(e + m->flex_edgeadr[f]);
+        if (flap[1] == -1) continue;
+        int v[4] = {edge[0], edge[1], flap[0], flap[1]};
+        for (int i = 0; i < 4; i++) {
+          int si = vslot[m->flex_vertadr[f] + v[i]];
+          if (si < 0) continue;
+          for (int j = 0; j < 4; j++) {
+            int sj = vslot[m->flex_vertadr[f] + v[j]];
+            if (sj >= 0) cand[cadr[si] + ncand[si]++] = sj;
+          }
+        }
+      }
+    }
+    if (flg_stretch && m->flex_stiffnessadr[f] >= 0 &&
+        m->flex_stiffness[m->flex_stiffnessadr[f]] != 0) {
+      const int* elem = m->flex_elem + m->flex_elemdataadr[f];
+      for (int t = 0; t < m->flex_elemnum[f]; t++) {
+        const int* vert = elem + (dim+1)*t;
+        for (int i = 0; i < nvrt; i++) {
+          int si = vslot[m->flex_vertadr[f] + vert[i]];
+          if (si < 0) continue;
+          for (int j = 0; j < nvrt; j++) {
+            int sj = vslot[m->flex_vertadr[f] + vert[j]];
+            if (sj >= 0) cand[cadr[si] + ncand[si]++] = sj;
+          }
+        }
+      }
+    }
+  }
+
+  // interp stencils: npe-node element cliques (filling)
+  if (Krot) {
+    for (int f = 0; f < m->nflex; f++) {
+      if (!flexInterp_processed(m, f)) {
+        continue;
+      }
+      FLEXINTERP_WALK(f, {
+        for (int i = 0; i < npe; i++) {
+          int si = nslot[m->flex_nodeadr[f] + gindices[i]];
+          if (si < 0) continue;
+          for (int j = 0; j < npe; j++) {
+            int sj = nslot[m->flex_nodeadr[f] + gindices[j]];
+            if (sj >= 0) cand[cadr[si] + ncand[si]++] = sj;
+          }
+        }
+      })
+    }
+  }
+
+  // per vertex: sort by neighbor dofadr, unique -> neighbor lists
+  int* nadr = mjSTACKALLOC(d, nvert + 1, int);
+  int* neigh = mjSTACKALLOC(d, cadr[nvert] > 0 ? cadr[nvert] : 1, int);
+  nadr[0] = 0;
+  for (int s = 0; s < nvert; s++) {
+    int* c = cand + cadr[s];
+    int n = ncand[s];
+    // insertion sort by dof address (stencil-local lists are short)
+    for (int i = 1; i < n; i++) {
+      int key = c[i], kd = vdof[key], j = i - 1;
+      while (j >= 0 && vdof[c[j]] > kd) {
+        c[j+1] = c[j];
+        j--;
+      }
+      c[j+1] = key;
+    }
+    int nn = 0;
+    for (int i = 0; i < n; i++) {
+      if (nn == 0 || neigh[nadr[s] + nn - 1] != c[i]) {
+        neigh[nadr[s] + nn++] = c[i];
+      }
+    }
+    nadr[s+1] = nadr[s] + nn;
+  }
+
+  // dof-level CSR structure: each vertex contributes 3 rows of 3*nneigh entries
+  mju_zeroInt(rownnz, nv);
+  int nnz = 0;
+  for (int s = 0; s < nvert; s++) {
+    int nn = nadr[s+1] - nadr[s];
+    for (int k = 0; k < 3; k++) {
+      rownnz[vdof[s] + k] = 3*nn;
+    }
+    nnz += 9*nn;
+  }
+  if (rowadr) {
+    rowadr[0] = 0;
+    for (int i = 1; i < nv; i++) {
+      rowadr[i] = rowadr[i-1] + rownnz[i-1];
+    }
+  }
+
+  // phase 1: structure only
+  if (!colind) {
+    mj_freeStack(d);
+    return nnz;
+  }
+
+  // column indices (per vertex row: the 3 dofs of each neighbor, neighbor-dof-sorted)
+  for (int s = 0; s < nvert; s++) {
+    for (int k = 0; k < 3; k++) {
+      int adr = rowadr[vdof[s] + k];
+      for (int j = nadr[s]; j < nadr[s+1]; j++) {
+        for (int c = 0; c < 3; c++) {
+          colind[adr++] = vdof[neigh[j]] + c;
+        }
+      }
+    }
+  }
+  mju_zero(val, nnz);
+
+// block accumulation helper data: find neighbor position by binary search on dofadr
+#define FLEXSTIFF_BLOCK(si, sj, pos)          \
+  {                                           \
+    int lo = nadr[si], hi = nadr[si + 1] - 1; \
+    pos = -1;                                 \
+    while (lo <= hi) {                        \
+      int mid = (lo + hi) / 2;                \
+      if (vdof[neigh[mid]] == vdof[sj]) {     \
+        pos = mid - nadr[si];                 \
+        break;                                \
+      }                                       \
+      if (vdof[neigh[mid]] < vdof[sj])        \
+        lo = mid + 1;                         \
+      else                                    \
+        hi = mid - 1;                         \
+    }                                         \
+  }
+
+  // values: bending (Q_ij * I3 per 4-vertex stencil) and stretch (GN blocks per element)
+  for (int f = 0; f < m->nflex; f++) {
+    if (!flexStiff_active(m, f, flg_bend, flg_stretch)) {
+      continue;
+    }
+    mjtNum scale = s1 + s2*m->flex_damping[f];
+    if (!scale) {
+      continue;
+    }
+    int dim = m->flex_dim[f], nvrt = dim + 1;
+    int nedge = (dim == 2) ? 3 : 6;
+    const int (*edget)[2] = stretch_edges[dim-2];
+
+    if (flg_bend && m->flex_bendingadr[f] >= 0) {
+      const mjtNum* b = m->flex_bending + m->flex_bendingadr[f];
+      for (int e = 0; e < m->flex_edgenum[f]; e++) {
+        const int* edge = m->flex_edge + 2*(e + m->flex_edgeadr[f]);
+        const int* flap = m->flex_edgeflap + 2*(e + m->flex_edgeadr[f]);
+        if (flap[1] == -1) continue;
+        int v[4] = {edge[0], edge[1], flap[0], flap[1]};
+        for (int i = 0; i < 4; i++) {
+          int si = vslot[m->flex_vertadr[f] + v[i]];
+          if (si < 0) continue;
+          for (int j = 0; j < 4; j++) {
+            int sj = vslot[m->flex_vertadr[f] + v[j]];
+            if (sj < 0) continue;
+            mjtNum q = scale*b[17*e + 4*i + j];
+            if (!q) continue;
+            int pos;
+            FLEXSTIFF_BLOCK(si, sj, pos);
+            for (int k = 0; k < 3; k++) {
+              val[rowadr[vdof[si] + k] + 3*pos + k] += q;
+            }
+          }
+        }
+      }
+    }
+
+    if (flg_stretch && m->flex_stiffnessadr[f] >= 0 &&
+        m->flex_stiffness[m->flex_stiffnessadr[f]] != 0) {
+      const int* elem = m->flex_elem + m->flex_elemdataadr[f];
+      const mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
+      const mjtNum* kk = m->flex_stiffness + m->flex_stiffnessadr[f];
+      for (int t = 0; t < m->flex_elemnum[f]; t++) {
+        const int* vert = elem + (dim+1)*t;
+
+        // current edge vectors
+        mjtNum dvec[6][3];
+        for (int e = 0; e < nedge; e++) {
+          int v0 = vert[edget[e][0]], v1 = vert[edget[e][1]];
+          for (int x = 0; x < 3; x++) {
+            dvec[e][x] = xpos[3*v0+x] - xpos[3*v1+x];
+          }
+        }
+
+        // unpack triangular metric
+        mjtNum metric[36];
+        int id = 0;
+        for (int e1 = 0; e1 < nedge; e1++) {
+          for (int e2 = e1; e2 < nedge; e2++) {
+            metric[nedge*e1 + e2] = kk[21*t + id];
+            metric[nedge*e2 + e1] = kk[21*t + id++];
+          }
+        }
+
+        // per vertex pair: block += 2*scale * sum_ab M_ab s_a,vi s_b,vj d_a d_b^T
+        for (int i = 0; i < nvrt; i++) {
+          int si = vslot[m->flex_vertadr[f] + vert[i]];
+          if (si < 0) continue;
+          for (int j = 0; j < nvrt; j++) {
+            int sj = vslot[m->flex_vertadr[f] + vert[j]];
+            if (sj < 0) continue;
+            mjtNum blk[9] = {0};
+            for (int a = 0; a < nedge; a++) {
+              mjtNum sa = (i == edget[a][0]) ? 1 : ((i == edget[a][1]) ? -1 : 0);
+              if (!sa) continue;
+              for (int bb = 0; bb < nedge; bb++) {
+                mjtNum sb = (j == edget[bb][0]) ? 1 : ((j == edget[bb][1]) ? -1 : 0);
+                if (!sb) continue;
+                mjtNum w = 2*scale*metric[nedge*a + bb]*sa*sb;
+                for (int r = 0; r < 3; r++) {
+                  for (int c = 0; c < 3; c++) {
+                    blk[3*r+c] += w*dvec[a][r]*dvec[bb][c];
+                  }
+                }
+              }
+            }
+            int pos;
+            FLEXSTIFF_BLOCK(si, sj, pos);
+            for (int k = 0; k < 3; k++) {
+              for (int c = 0; c < 3; c++) {
+                val[rowadr[vdof[si] + k] + 3*pos + c] += blk[3*k+c];
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // values: interp (corotated K_rot 3x3 node blocks per element). The interp operator's sign
+  // convention is opposite to bend/stretch -- FlexBmulAdd calls it with negated scales -- so
+  // the negation is folded in here and one CSR replaces all three operators uniformly.
+  if (Krot) {
+    for (int f = 0; f < m->nflex; f++) {
+      if (!flexInterp_processed(m, f)) {
+        continue;
+      }
+      mjtNum iscale = -(s1 + s2*m->flex_damping[f]);
+      if (!iscale) {
+        continue;
+      }
+      FLEXINTERP_WALK(f, {
+        int dim_e = 3*npe;
+        const mjtNum* kb = Krot + m->flex_stiffnessadr[f] + (size_t)fe*dim_e*dim_e;
+        for (int i = 0; i < npe; i++) {
+          int si = nslot[m->flex_nodeadr[f] + gindices[i]];
+          if (si < 0) continue;
+          for (int j = 0; j < npe; j++) {
+            int sj = nslot[m->flex_nodeadr[f] + gindices[j]];
+            if (sj < 0) continue;
+            int pos;
+            FLEXSTIFF_BLOCK(si, sj, pos);
+            for (int r = 0; r < 3; r++) {
+              for (int c = 0; c < 3; c++) {
+                val[rowadr[vdof[si] + r] + 3*pos + c] += iscale*kb[(3*i + r)*dim_e + 3*j + c];
+              }
+            }
+          }
+        }
+      })
+    }
+  }
+  #undef FLEXSTIFF_BLOCK
+  #undef FLEXINTERP_WALK
+
+  mj_freeStack(d);
+  return nnz;
+}
+
+
 
 
 
 // add (d qfrc_actuator / d qvel) to qDeriv
 void mjd_actuator_vel(const mjModel* m, mjData* d) {
-  int nu = m->nu;
+  int nactuator = m->nactuator;
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
 
   // disabled: nothing to add
@@ -1220,7 +2000,10 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
   }
 
   // process actuators
-  for (int i=0; i < nu; i++) {
+  for (int i=0; i < nactuator; i++) {
+    int uadr = m->actuator_ctrladr[i];
+    int oadr = m->actuator_outadr[i];
+
     // skip if disabled
     if (mj_actuatorDisabled(m, i)) {
       continue;
@@ -1233,8 +2016,8 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
 
     // skip if force is clamped by forcerange
     if (m->actuator_forcelimited[i]) {
-      mjtNum force = d->actuator_force[i];
-      mjtNum* range = m->actuator_forcerange + 2*i;
+      mjtNum force = d->actuator_force[oadr];
+      mjtNum* range = m->actuator_forcerange + 2*oadr;
       if (force <= range[0] || force >= range[1]) {
         continue;
       }
@@ -1267,10 +2050,10 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
 
     // muscle gain
     else if (m->actuator_gaintype[i] == mjGAIN_MUSCLE) {
-      gain_vel = mjd_muscleGain_vel(d->actuator_length[i],
-                                    d->actuator_velocity[i],
-                                    m->actuator_lengthrange+2*i,
-                                    m->actuator_acc0[i],
+      gain_vel = mjd_muscleGain_vel(d->actuator_length[oadr],
+                                    d->actuator_velocity[oadr],
+                                    m->actuator_lengthrange+2*oadr,
+                                    m->actuator_acc0[oadr],
                                     m->actuator_gainprm + mjNGAIN*i);
     }
 
@@ -1311,7 +2094,7 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
     // force = gain .* [ctrl/act]
     if (gain_vel != 0) {
       if (m->actuator_dyntype[i] == mjDYN_NONE) {
-        bias_vel += gain_vel * d->ctrl[i];
+        bias_vel += gain_vel * d->ctrl[uadr];
       } else {
         int act_adr = m->actuator_actadr[i] + m->actuator_actnum[i] - 1;
         mjtNum act = d->act[act_adr];
@@ -1327,7 +2110,7 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
 
     // add
     if (bias_vel != 0) {
-      addJTBJSparse(m, d, d->actuator_moment, &bias_vel, 1, i,
+      addJTBJSparse(m, d, d->actuator_moment, &bias_vel, 1, oadr,
                     d->moment_rownnz, d->moment_rowadr, d->moment_colind);
     }
   }
@@ -1704,8 +2487,8 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
 
     mjd_addedMassForces(B, lvel, m->opt.density, virtual_mass, virtual_inertia);
 
-    // make B symmetric if integrator is IMPLICITFAST
-    if (m->opt.integrator == mjINT_IMPLICITFAST) {
+    // make B symmetric if integrator is IMPLICITFAST, except for standalone free bodies
+    if (m->opt.integrator == mjINT_IMPLICITFAST && !mj_isFreeBody(m, bodyid)) {
       mju_symmetrize(B, B, 6);
     }
 
@@ -2002,4 +2785,548 @@ void mjd_smooth_vel(const mjModel* m, mjData* d, int flg_bias) {
   if (flg_bias) {
     mjd_rne_vel(m, d);
   }
+}
+
+
+//------------------------- implicit effective metric Mtilde = M + K -------------------------------
+// K = (h^2 + h*damping) * (K_bend + K_stretch), the PSD implicit flex stiffness. Built once per step on the arena by
+// mjd_effBuild (called from mj_fwdAcceleration under the mj_flexCG gate), then consumed uniformly:
+// the smooth acceleration, the constraint solver and inverse dynamics all see the same metric.
+
+// arena allocation with hard failure (mirrors stack overflow semantics)
+static void* effAlloc(mjData* d, size_t bytes, size_t align) {
+  void* p = mj_arenaAllocByte(d, bytes, align);
+  if (!p) {
+    mjERROR("arena overflow in implicit effective metric");
+  }
+  return p;
+}
+#define EFMALLOC(type, n) (type*) effAlloc(d, sizeof(type)*(size_t)(n), _Alignof(type))
+
+// res += B*vec. The STRETCH (and, when assemblable, bending and interp) part is applied from the
+// per-step assembled CSR; terms not in the CSR fall back to the matrix-free stencil operators.
+void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) {
+  mjtNum h = m->opt.timestep;
+  if (d->nefmK) {
+    int nv = m->nv;
+    for (int i=0; i < nv; i++) {
+      int nnz = d->efm_K_rownnz[i];
+      if (!nnz) {
+        continue;
+      }
+      res[i] += mju_dotSparse(d->efm_K_val + d->efm_K_rowadr[i], vec, nnz,
+                              d->efm_K_colind + d->efm_K_rowadr[i]);
+    }
+  }
+
+  // terms not folded into the CSR fall back to the matrix-free operators; which terms those
+  // are is derivable, not state: the CSR is only ever built with bending included, and with
+  // interp included iff the model is assemblable
+  if (!d->nefmK) {
+    mjd_flexBend_mul(m, d, res, vec, h*h, h);
+  }
+  if (!d->nefmK || !mjd_flexInterpAssemblable(m)) {
+    mjd_flexInterp_mul(m, d, res, vec, -(h*h), -h, d->flexelem_krot);
+  }
+}
+
+
+// z = P \ r with P = M everywhere except the flex block: per-step factor where present, else
+// block-Jacobi, plus the constant mj_setConst bending factor on its covered dofs
+static void effPrecond(const mjModel* m, mjData* d, mjtNum* z, const mjtNum* r,
+                       mjtNum* psr, mjtNum* psz, mjtNum* bfr, mjtNum* bfz) {
+  int nv = m->nv;
+  mju_copy(z, r, nv);
+  mj_solveLD(z, d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+
+  // precomputed bending factor (mj_setConst): exact (M + K_bend)^-1 on covered dofs.
+  // Skipped when the per-step factor exists: it covers these rows and is applied last,
+  // so this solve would be overwritten
+  int nbd = m->nefm0dof;
+  if (nbd && !d->nefmdof) {
+    for (int i=0; i < nbd; i++) {
+      bfr[i] = r[m->efm0_dofid[i]];
+    }
+    mju_cholSolveSparse(bfz, m->efm0_L, bfr, nbd,
+                        m->efm0_L_rownnz, m->efm0_L_rowadr, m->efm0_L_colind);
+    for (int i=0; i < nbd; i++) {
+      z[m->efm0_dofid[i]] = bfz[i];
+    }
+  }
+
+  // per-step factor: exact (diag(M) + K)^-1 on its covered dofs, applied last
+  if (d->nefmdof) {
+    int n = d->nefmdof;
+    for (int i=0; i < n; i++) {
+      psr[i] = r[d->efm_dofid[i]];
+    }
+    mju_cholSolveSparse(psz, d->efm_L, psr, n,
+                        d->efm_L_rownnz, d->efm_L_rowadr, d->efm_L_colind);
+    for (int i=0; i < n; i++) {
+      z[d->efm_dofid[i]] = psz[i];
+    }
+  }
+}
+
+
+// solve x = Mtilde \ b, where Mtilde is this step's effective metric:
+//   efm_active == 0:  Mtilde = M      one sparse LD solve, no elasticity anywhere
+//   efm_active == 2:  Mtilde = M + K  exact direct solve, blockdiag(qLD, flex factor);
+//                                     exactness conditions in mjd_effBuild
+//   efm_active == 1:  Mtilde = M + K  iterative: x0 = M \ b ignores the elasticity, then
+//                                     matrix-free PCG on the residual, preconditioned by
+//                                     effPrecond (tolerance/cap match the old post-hoc)
+void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
+  int nv = m->nv;
+
+  // inactive metric: x = M \ b
+  if (!d->efm_active) {
+    if (x != b) {
+      mju_copy(x, b, nv);
+    }
+    mj_solveLD(x, d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+    return;
+  }
+
+  // exact preconditioner: blockdiag(qLD, flex factor) is (M+K)^-1, solve directly
+  if (d->efm_active == 2) {
+    mj_markStack(d);
+    mjtNum* psr = mjSTACKALLOC(d, d->nefmdof > 0 ? d->nefmdof : 1, mjtNum);
+    mjtNum* psz = mjSTACKALLOC(d, d->nefmdof > 0 ? d->nefmdof : 1, mjtNum);
+    int nbd0 = m->nefm0dof;
+    mjtNum* bfr = mjSTACKALLOC(d, nbd0 > 0 ? nbd0 : 1, mjtNum);
+    mjtNum* bfz = mjSTACKALLOC(d, nbd0 > 0 ? nbd0 : 1, mjtNum);
+    effPrecond(m, d, x, b, psr, psz, bfr, bfz);
+    mj_freeStack(d);
+    return;
+  }
+
+  // general path: warm start from M \ b, refine below
+  if (x != b) {
+    mju_copy(x, b, nv);
+  }
+  mj_solveLD(x, d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+
+  mj_markStack(d);
+  mjtNum* r  = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* z  = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* p  = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* Ap = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* psr = mjSTACKALLOC(d, d->nefmdof > 0 ? d->nefmdof : 1, mjtNum);
+  mjtNum* psz = mjSTACKALLOC(d, d->nefmdof > 0 ? d->nefmdof : 1, mjtNum);
+  int nbd = m->nefm0dof;
+  mjtNum* bfr = mjSTACKALLOC(d, nbd > 0 ? nbd : 1, mjtNum);
+  mjtNum* bfz = mjSTACKALLOC(d, nbd > 0 ? nbd : 1, mjtNum);
+
+  // r = b - (M+K)*x
+  mju_mulSymVecSparse(Ap, d->M, x, nv, m->M_rownnz, m->M_rowadr, m->M_colind);
+  mjd_effMulAdd(m, d, Ap, x);
+  mju_sub(r, b, Ap, nv);
+
+  // relative tolerance on the residual
+  mjtNum tol = 1e-10 * mju_dot(b, b, nv);
+  if (mju_dot(r, r, nv) < tol) {
+    mj_freeStack(d);
+    return;
+  }
+
+  effPrecond(m, d, z, r, psr, psz, bfr, bfz);
+  mju_copy(p, z, nv);
+  mjtNum rz = mju_dot(r, z, nv);
+
+  for (int k=0; k < 50; k++) {
+    mju_mulSymVecSparse(Ap, d->M, p, nv, m->M_rownnz, m->M_rowadr, m->M_colind);
+    mjd_effMulAdd(m, d, Ap, p);
+    mjtNum pAp = mju_dot(p, Ap, nv);
+    if (pAp < mjMINVAL) {
+      break;
+    }
+    mjtNum alpha = rz/pAp;
+    mju_addToScl(x, p, alpha, nv);
+    mju_addToScl(r, Ap, -alpha, nv);
+    if (mju_dot(r, r, nv) < tol) {
+      break;
+    }
+    effPrecond(m, d, z, r, psr, psz, bfr, bfz);
+    mjtNum rznew = mju_dot(r, z, nv);
+    mju_addScl(p, z, p, rznew/rz, nv);
+    rz = rznew;
+  }
+  mj_freeStack(d);
+}
+
+
+// geometric nested-dissection ordering for the per-step factor: recursive coordinate bisection
+// with adjacency-detected separators, emitted ancestors-first (the reverse-Cholesky convention)
+typedef struct {
+  const mjtNum* pos;     // block positions                              (3 x nblk)
+  const int* B_rownnz;   // dof-level B pattern, for block adjacency
+  const int* B_rowadr;
+  const int* B_colind;
+  const int* dofid;      // block -> first dof address (3 dofs per block)
+  const int* dof2c;      // dof -> compact index (pre-permutation)
+  int* work;             // block id work array                          (nblk x 1)
+  int* stamp;            // current-range stamp per block                (nblk x 1)
+  int* side;             // bisection side per block (valid when stamped)(nblk x 1)
+  int stampctr;          // running range id
+  int* scratch;          // side-1 gather scratch                        (nblk x 1)
+  int* perm;             // output: block emission order                 (nblk x 1)
+  int nperm;             // emitted count
+} mjEffND;
+
+static void effNDOrder(mjEffND* nd, int lo, int hi) {
+  int nblk = hi - lo;
+  if (nblk <= 16) {
+    for (int i=lo; i < hi; i++) {
+      nd->perm[nd->nperm++] = nd->work[i];
+    }
+    return;
+  }
+
+  // widest axis of the range's bounding box, split at the mean coordinate
+  mjtNum bmin[3] = {mjMAXVAL, mjMAXVAL, mjMAXVAL}, bmax[3] = {-mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
+  mjtNum mean[3] = {0, 0, 0};
+  for (int i=lo; i < hi; i++) {
+    const mjtNum* p = nd->pos + 3*nd->work[i];
+    for (int x=0; x < 3; x++) {
+      bmin[x] = p[x] < bmin[x] ? p[x] : bmin[x];
+      bmax[x] = p[x] > bmax[x] ? p[x] : bmax[x];
+      mean[x] += p[x];
+    }
+  }
+  int axis = 0;
+  for (int x=1; x < 3; x++) {
+    if (bmax[x] - bmin[x] > bmax[axis] - bmin[axis]) {
+      axis = x;
+    }
+  }
+  mjtNum split = mean[axis] / nblk;
+
+  // stamp the range, assign sides
+  int id = ++nd->stampctr, n0 = 0;
+  for (int i=lo; i < hi; i++) {
+    int b = nd->work[i];
+    nd->stamp[b] = id;
+    nd->side[b] = nd->pos[3*b + axis] > split;
+    n0 += !nd->side[b];
+  }
+
+  // degenerate split (coincident positions): fall back to an arbitrary halving
+  if (n0 == 0 || n0 == nblk) {
+    for (int i=lo; i < hi; i++) {
+      nd->side[nd->work[i]] = (i - lo) >= nblk/2;
+    }
+  }
+
+  // emit the separator (side-0 blocks adjacent to side 1) first; compact A in place and
+  // side-1 blocks via the scratch list (in-place would clobber unread entries)
+  int na = 0, nb = 0;
+  for (int i=lo; i < hi; i++) {
+    int b = nd->work[i];
+    if (nd->side[b]) {
+      nd->scratch[nb++] = b;
+      continue;
+    }
+
+    // side 0: separator iff adjacent to side 1 (block adjacency via the first dof's B row)
+    int dof = nd->dofid[3*b];
+    int adr = nd->B_rowadr[dof], nnz = nd->B_rownnz[dof], sep = 0;
+    for (int k=0; k < nnz; k++) {
+      int cc = nd->dof2c[nd->B_colind[adr + k]];
+      if (cc >= 0) {
+        int nbr = cc/3;
+        if (nd->stamp[nbr] == id && nd->side[nbr]) {
+          sep = 1;
+          break;
+        }
+      }
+    }
+    if (sep) {
+      nd->perm[nd->nperm++] = b;
+    } else {
+      nd->work[lo + na++] = b;
+    }
+  }
+  for (int i=0; i < nb; i++) {
+    nd->work[lo + na + i] = nd->scratch[i];
+  }
+  effNDOrder(nd, lo, lo + na);
+  effNDOrder(nd, lo + na, lo + na + nb);
+}
+
+
+// per-step sparse factor of the flex block of (M + K): reverse-Cholesky over the covered dofs,
+// nested-dissection ordered. M enters as its diagonal there -- exact for free vertices;
+// parent-coupled vertices make this a preconditioner, refined to tolerance by mjd_effSolve.
+// Exact zeros are dropped from the off-diagonal pattern (bending couples same-coordinate dofs
+// only). The matrix is SPD by construction, so rank deficiency can only mean a degenerate
+// model (near-zero mass and stiffness on a covered dof) and is a hard error.
+static void effFactor(const mjModel* m, mjData* d) {
+  int nv = m->nv;
+  const int* B_rownnz = d->efm_K_rownnz;
+  const int* B_rowadr = d->efm_K_rowadr;
+  const int* B_colind = d->efm_K_colind;
+  const mjtNum* B_val = d->efm_K_val;
+
+  mj_markStack(d);
+
+  // compact dof map over covered rows (ascending, so compact indices stay sorted)
+  int* dof2c = mjSTACKALLOC(d, nv, int);
+  int n = 0;
+  for (int i=0; i < nv; i++) {
+    dof2c[i] = B_rownnz[i] ? n++ : -1;
+  }
+  int* dofid = mjSTACKALLOC(d, n, int);
+  for (int i=0; i < nv; i++) {
+    if (dof2c[i] >= 0) {
+      dofid[dof2c[i]] = i;
+    }
+  }
+
+  // nested-dissection reordering of the covered blocks (one block = 3 dofs of one point)
+  int nblk = n/3;
+  int* nd_perm = mjSTACKALLOC(d, nblk, int);
+  {
+    int* nd_work  = mjSTACKALLOC(d, nblk, int);
+    int* nd_stamp = mjSTACKALLOC(d, nblk, int);
+    int* nd_side  = mjSTACKALLOC(d, nblk, int);
+    int* nd_scr   = mjSTACKALLOC(d, nblk, int);
+    mjtNum* bpos  = mjSTACKALLOC(d, 3*nblk, mjtNum);
+    for (int b=0; b < nblk; b++) {
+      nd_work[b] = b;
+      nd_stamp[b] = 0;
+      mju_copy3(bpos + 3*b, d->xpos + 3*m->dof_bodyid[dofid[3*b]]);
+    }
+    mjEffND nd;
+    nd.pos = bpos;
+    nd.B_rownnz = B_rownnz;
+    nd.B_rowadr = B_rowadr;
+    nd.B_colind = B_colind;
+    nd.dofid = dofid;
+    nd.dof2c = dof2c;
+    nd.work = nd_work;
+    nd.stamp = nd_stamp;
+    nd.side = nd_side;
+    nd.stampctr = 0;
+    nd.scratch = nd_scr;
+    nd.perm = nd_perm;
+    nd.nperm = 0;
+    effNDOrder(&nd, 0, nblk);
+  }
+
+  // apply the permutation to the compact indexing; the permuted dofid persists on the arena
+  int* psdofid = EFMALLOC(int, n);
+  for (int r=0; r < nblk; r++) {
+    psdofid[3*r]   = dofid[3*nd_perm[r]];
+    psdofid[3*r+1] = dofid[3*nd_perm[r] + 1];
+    psdofid[3*r+2] = dofid[3*nd_perm[r] + 2];
+  }
+  for (int i=0; i < n; i++) {
+    dof2c[psdofid[i]] = i;
+  }
+
+  // H = diag(M) + K in compact indices: lower CSR (values, diagonal last) + upper CSR (pattern)
+  int nHl = 0, nHu = 0;
+  for (int c=0; c < n; c++) {
+    int adr = B_rowadr[psdofid[c]], nnzB = B_rownnz[psdofid[c]];
+    for (int k=0; k < nnzB; k++) {
+      int cc = dof2c[B_colind[adr + k]];
+      if (B_val[adr + k] == 0 && cc != c) {
+        continue;
+      }
+      if (cc <= c) {
+        nHl++;
+      } else {
+        nHu++;
+      }
+    }
+  }
+  int* Hl_rownnz = mjSTACKALLOC(d, n, int);
+  int* Hl_rowadr = mjSTACKALLOC(d, n, int);
+  int* Hl_colind = mjSTACKALLOC(d, nHl, int);
+  mjtNum* Hl_val  = mjSTACKALLOC(d, nHl, mjtNum);
+  int* Hu_rownnz = mjSTACKALLOC(d, n, int);
+  int* Hu_rowadr = mjSTACKALLOC(d, n, int);
+  int* Hu_colind = mjSTACKALLOC(d, nHu > 0 ? nHu : 1, int);
+  int maxrow = 0;
+  for (int c=0; c < n; c++) {
+    maxrow = B_rownnz[psdofid[c]] > maxrow ? B_rownnz[psdofid[c]] : maxrow;
+  }
+  int* rind = mjSTACKALLOC(d, maxrow, int);
+  mjtNum* rval = mjSTACKALLOC(d, maxrow, mjtNum);
+  int ladr = 0, uadr = 0;
+  for (int c=0; c < n; c++) {
+    int i = psdofid[c];
+    Hl_rowadr[c] = ladr;
+    Hu_rowadr[c] = uadr;
+
+    // gather the row in permuted compact indices, then sort (columns are no longer monotone)
+    int adr = B_rowadr[i], nnzB = B_rownnz[i], nr = 0;
+    for (int k=0; k < nnzB; k++) {
+      int cc = dof2c[B_colind[adr + k]];
+      if (B_val[adr + k] == 0 && cc != c) {
+        continue;
+      }
+      rind[nr] = cc;
+      rval[nr++] = B_val[adr + k];
+    }
+    for (int k=1; k < nr; k++) {
+      int ci = rind[k];
+      mjtNum vi = rval[k];
+      int j = k - 1;
+      while (j >= 0 && rind[j] > ci) {
+        rind[j+1] = rind[j];
+        rval[j+1] = rval[j];
+        j--;
+      }
+      rind[j+1] = ci;
+      rval[j+1] = vi;
+    }
+    for (int k=0; k < nr; k++) {
+      if (rind[k] < c) {
+        Hl_colind[ladr] = rind[k];
+        Hl_val[ladr++] = rval[k];
+      } else if (rind[k] == c) {
+        Hl_colind[ladr] = c;
+        Hl_val[ladr++] = rval[k] + d->M[m->M_rowadr[i] + m->M_rownnz[i] - 1];
+      } else {
+        Hu_colind[uadr++] = rind[k];
+      }
+    }
+    Hl_rownnz[c] = ladr - Hl_rowadr[c];
+    Hu_rownnz[c] = uadr - Hu_rowadr[c];
+  }
+
+  // symbolic factorization: counting phase, then filling phase
+  int* L_rownnz  = EFMALLOC(int, n);
+  int* L_rowadr  = EFMALLOC(int, n);
+  int* LT_rownnz = mjSTACKALLOC(d, n, int);
+  int* LT_rowadr = mjSTACKALLOC(d, n, int);
+  int nnz = mju_cholFactorSymbolic(NULL, L_rownnz, L_rowadr, NULL, LT_rownnz, LT_rowadr, NULL,
+                                   Hu_rownnz, Hu_rowadr, Hu_colind, n, d);
+  int* L_colind  = EFMALLOC(int, nnz);
+  int* LT_colind = mjSTACKALLOC(d, nnz, int);
+  int* LT_map    = mjSTACKALLOC(d, nnz, int);
+  mju_cholFactorSymbolic(L_colind, L_rownnz, L_rowadr, LT_colind, LT_rownnz, LT_rowadr, LT_map,
+                         Hu_rownnz, Hu_rowadr, Hu_colind, n, d);
+
+  // numeric factorization
+  mjtNum* L = EFMALLOC(mjtNum, nnz);
+  int rank = mju_cholFactorNumeric(L, n, mjMINVAL, L_rownnz, L_rowadr, L_colind,
+                                   LT_rownnz, LT_rowadr, LT_colind, LT_map,
+                                   Hl_val, Hl_rownnz, Hl_rowadr, Hl_colind, d);
+  mj_freeStack(d);
+  if (rank != n) {
+    mjERROR("effective metric factorization is rank-deficient (%d of %d): "
+            "degenerate mass or stiffness in the flex block", rank, n);
+  }
+
+  d->nefmdof      = n;
+  d->nefmL        = nnz;
+  d->efm_dofid    = psdofid;
+  d->efm_L_rownnz = L_rownnz;
+  d->efm_L_rowadr = L_rowadr;
+  d->efm_L_colind = L_colind;
+  d->efm_L        = L;
+}
+
+
+// refresh the smooth-force shift c = h*K*qvel of the active metric (values only, no
+// allocation: called from the velocity stage, mirroring the efc value refresh pattern)
+void mjd_effShift(const mjModel* m, mjData* d) {
+  if (!d->efm_active) {
+    return;
+  }
+  mjtNum h = m->opt.timestep;
+  mju_zero(d->efm_c, m->nv);
+  mjd_flexInterp_mul(m, d, d->efm_c, d->qvel, h, 0, d->flexelem_krot);
+  mjd_flexBend_mul(m, d, d->efm_c, d->qvel, -h, 0);
+  mjd_flexStretch_mul(m, d, d->efm_c, d->qvel, -h, 0);
+}
+
+
+// build the per-step implicit effective metric on the arena, or deactivate it. The gate
+// decision (mj_flexCG) is the caller's: the metric module has no dependency on the solver
+// configuration beyond what it is told here.
+void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
+  int nv = m->nv;
+  d->efm_active = 0;
+  d->nefmK = 0;
+  d->nefmdof = 0;
+  d->nefmL = 0;
+  if (!active) {
+    return;
+  }
+  mjtNum h = m->opt.timestep;
+
+  // corotated element stiffness cache (used by the shift and the matrix-free fallback)
+  mju_zero(d->flexelem_krot, m->nflexstiffness);
+  mjd_flexInterp_cacheKrot(m, d, d->flexelem_krot);
+
+  // smooth-force shift c = h*K*qvel (values refreshed by mjd_effShift in the velocity stage)
+  d->efm_c = EFMALLOC(mjtNum, nv);
+
+  // assemble the standard-flex part of B into CSR (constant during the step). With stretch or
+  // assemblable interp present, assemble the FULL matrix (bending included): one CSR then
+  // serves both the matvec and the per-step factor. Bending-only models keep the stencil
+  // operator + the constant mj_setConst factor.
+  const mjtNum* krot = mjd_flexInterpAssemblable(m) ? d->flexelem_krot : NULL;
+  d->efm_K_rownnz = EFMALLOC(int, nv);
+  d->efm_K_rowadr = EFMALLOC(int, nv);
+  if (mjd_flexStiff_any(m, krot != NULL)) {
+    d->nefmK = mjd_flexStiff_assemble(m, d, d->efm_K_rownnz, d->efm_K_rowadr,
+                                      NULL, NULL, h*h, h, /*bend*/ 1, /*stretch*/ 1, krot);
+  }
+  if (d->nefmK) {
+    d->efm_K_colind = EFMALLOC(int, d->nefmK);
+    d->efm_K_val    = EFMALLOC(mjtNum, d->nefmK);
+    mjd_flexStiff_assemble(m, d, d->efm_K_rownnz, d->efm_K_rowadr,
+                           d->efm_K_colind, d->efm_K_val, h*h, h,
+                           /*bend*/ 1, /*stretch*/ 1, krot);
+    // per-step factor of the flex block of (M + K): the stiffness is constant during the
+    // step, so one factorization here turns every preconditioner application into a direct
+    // solve (the stiff flex block stops being iterated on). Consumers that only multiply
+    // (inverse dynamics) skip it.
+    if (flg_factor) {
+      effFactor(m, d);
+    }
+
+  } else {
+    mju_zeroInt(d->efm_K_rownnz, nv);
+    mju_zeroInt(d->efm_K_rowadr, nv);
+  }
+  d->efm_active = 1;
+
+  // preconditioner exactness (efm_active == 2): when every dof the stiffness touches sits on
+  // a simple slider body (diagonal M row, no kinematic children), M has no coupling across
+  // the covered block, so blockdiag(qLD, flex factor) is exactly (M+K)^-1 and mjd_effSolve
+  // skips the refinement. Interp flexes outside the assembled CSR act only through the
+  // matrix-free operator (no factor rows), which breaks exactness.
+  int exact = d->nefmK ? (d->nefmdof > 0) : 1;
+  for (int f=0; exact && f < m->nflex; f++) {
+    if (!krot && flexInterp_processed(m, f)) {
+      exact = 0;
+    }
+  }
+  if (exact && d->nefmK) {
+    for (int i=0; i < nv; i++) {
+      if (d->efm_K_rownnz[i] && m->body_simple[m->dof_bodyid[i]] != 2) {
+        exact = 0;
+        break;
+      }
+    }
+  } else if (exact) {
+    for (int i=0; i < m->nefm0dof; i++) {
+      if (m->body_simple[m->dof_bodyid[m->efm0_dofid[i]]] != 2) {
+        exact = 0;
+        break;
+      }
+    }
+  }
+  if (exact) {
+    d->efm_active = 2;
+  }
+
+  // fill the shift with the current velocity (refreshed again in the velocity stage)
+  mjd_effShift(m, d);
 }

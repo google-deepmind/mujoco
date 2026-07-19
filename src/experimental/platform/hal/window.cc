@@ -84,6 +84,13 @@ static void InitImGui(SDL_Window* window, float content_scale,
     constexpr ImWchar icon_ranges[] = {0xf000, 0xf3ff, 0x000};
     io.Fonts->AddFontFromMemoryTTF(data, size, 13.f, &icon_cfg, icon_ranges);
 
+    ImFontConfig mono_cfg;
+    mono_cfg.FontDataOwnedByAtlas = false;
+    font = mju_openResource("", "font:AtkinsonHyperlegibleMono-Regular.ttf", nullptr,
+                            nullptr, 0);
+    size = mju_readResource(font, const_cast<const void**>(&data));
+    io.Fonts->AddFontFromMemoryTTF(data, size, 14.f, &mono_cfg);
+
     // Note: we purposefully do not "close" the font resources as ImGui may
     // need them again to resize fonts.
   }
@@ -221,6 +228,8 @@ Window::Status Window::NewFrame() {
         int drawable_height = height_;
         SDL_GL_GetDrawableSize(sdl_window_, &drawable_width, &drawable_height);
         scale_ = (float)drawable_width / (float)width_;
+      } else if (event.window.event == SDL_WINDOWEVENT_CLOSE) {
+        should_exit_ = true;
       }
     } else if (event.type == SDL_DROPFILE) {
       drop_file_ = event.drop.file;

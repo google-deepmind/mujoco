@@ -15,10 +15,12 @@
 #ifndef MUJOCO_SRC_RENDER_FILAMENT_CORE_TEXTURE_H_
 #define MUJOCO_SRC_RENDER_FILAMENT_CORE_TEXTURE_H_
 
+#include <cstdint>
 #include <filament/Engine.h>
 #include <filament/Texture.h>
 #include <math/vec3.h>
 #include <mujoco/mjrfilament.h>
+#include "render/filament/core/types.h"
 
 // Functions for creating filament textures.
 namespace mujoco {
@@ -57,6 +59,9 @@ class Texture : public mjrfTexture {
   // Returns the underlying filament texture.
   filament::Texture* GetFilamentTexture() const { return texture_; }
 
+  // Returns the unique id of the texture.
+  uint64_t Id() const { return id_; }
+
   // Returns any spherical harmonics data associated with the texture.
   using SphericalHarmonics = filament::math::float3[9];
   const SphericalHarmonics* GetSphericalHarmonics() const {
@@ -73,6 +78,7 @@ class Texture : public mjrfTexture {
  private:
   void ReleaseData();
 
+  uint64_t id_ = 0;
   filament::Engine* engine_ = nullptr;
   filament::Texture* texture_ = nullptr;
   mjrfTextureConfig config_;

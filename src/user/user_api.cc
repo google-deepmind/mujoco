@@ -15,6 +15,7 @@
 #include "user/user_api.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -145,20 +146,97 @@ mjSpec* mj_parse(const char* filename, const char* content_type,
   return spec;
 }
 
-// encode spec/model to file
-int mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
-              const char* content_type, const mjVFS* vfs, char* error,
-              int error_sz) {
-  // TODO(shaves) Move MJCF and URDF to encoders/decoders.
-  auto filepath = mujoco::user::FilePath(filename);
-  if (filepath.Ext() == ".xml" ||
-      (content_type && std::strcmp(content_type, "text/xml") == 0)) {
-    int result = mj_saveXML(s, filename, error, error_sz);
-    if (result < 0) {
+// Encode spec or model as MJCF XML.
+//
+// If a spec is provided, it is saved directly to XML. This preserves the original
+// structure and any user modifications in the spec.
+// If spec is null, the model must be provided, and it is saved using mj_saveLastXML.
+// mj_saveLastXML reconstructs the XML from the compiled model state, which may
+// differ from the original XML (e.g., losing comments, reordering elements) but
+// reflects the actual compiled model.
+//
+// Returns file size in bytes on success, -1 on failure.
+static mjtSize encode_xml(const mjSpec* s, const mjModel* m, const char* filename,
+                          char* error, int error_sz) {
+  if (s) {
+    // Save directly from the spec
+    if (mj_saveXML(s, filename, error, error_sz) < 0) {
       return -1;
     }
+  } else {
+    if (!m) {
+      if (error) {
+        strncpy(error, "model is required for XML encoding when spec is null",
+                error_sz);
+        error[error_sz - 1] = '\0';
+      }
+      return -1;
+    }
+    // Reconstruct XML from the compiled model, this will copy values back
+    // from the mjModel into the last compiled spec and write that out
+    // to disk. If there was no last compiled spec, such as when loading from
+    // MJB, this will return fail and we return -1.
+    if (!mj_saveLastXML(filename, m, error, error_sz)) {
+      return -1;
+    }
+  }
+  return static_cast<mjtSize>(std::filesystem::file_size(filename));
+}
 
-    return std::filesystem::file_size(filename);
+// Encode model as MJB (MuJoCo binary format).
+// Requires a compiled model; spec-only encoding is not supported.
+// Returns file size in bytes on success, -1 on failure.
+static mjtSize encode_mjb(const mjModel* m, const char* filename, char* error, int error_sz) {
+  if (!m) {
+    if (error) {
+      strncpy(error, "model is required for MJB encoding", error_sz);
+      error[error_sz - 1] = '\0';
+    }
+    return -1;
+  }
+  mj_saveModel(m, filename, nullptr, 0);
+  return static_cast<mjtSize>(std::filesystem::file_size(filename));
+}
+
+// Encode model as human-readable TXT (via mj_printModel).
+// Requires a compiled model; spec-only encoding is not supported.
+// Returns file size in bytes on success, -1 on failure.
+static mjtSize encode_txt(const mjModel* m, const char* filename, char* error,
+                          int error_sz) {
+  if (!m) {
+    if (error) {
+      strncpy(error, "model is required for TXT encoding", error_sz);
+      error[error_sz - 1] = '\0';
+    }
+    return -1;
+  }
+  mj_printModel(m, filename);
+  return static_cast<mjtSize>(std::filesystem::file_size(filename));
+}
+
+// encode spec/model to file
+mjtSize mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
+                  const char* content_type, const mjVFS* vfs, char* error,
+                  int error_sz) {
+  // special case handling
+  // TODO(shaves) write encoder/decoder paths for MJCF, TXT, MJB
+  auto filepath = mujoco::user::FilePath(filename);
+  std::string ext = filepath.Ext();
+  std::transform(ext.begin(), ext.end(), ext.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+
+  if (ext == ".xml" ||
+      (content_type && std::strcmp(content_type, "text/xml") == 0)) {
+    return encode_xml(s, m, filename, error, error_sz);
+  }
+
+  if (ext == ".mjb") {
+    return encode_mjb(m, filename, error, error_sz);
+  }
+
+  if (ext == ".txt" ||
+      (content_type && std::strcmp(content_type, "text/plain") == 0)) {
+    return encode_txt(m, filename, error, error_sz);
   }
 
   const mjpEncoder* encoder = mjp_findEncoder(filename, content_type);
@@ -174,7 +252,7 @@ int mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
   memset(&resource, 0, sizeof(resource));
   resource.name = const_cast<char*>(filename);
 
-  const int nbytes = encoder->encode(s, m, vfs, &resource);
+  const mjtSize nbytes = encoder->encode(s, m, vfs, &resource);
   if (nbytes < 0 || !resource.data) {
     if (error) {
       strncpy(error, "encoder failed", error_sz);
@@ -183,29 +261,18 @@ int mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
     return -1;
   }
 
-  FILE* fp = fopen(filename, "wb");
-  if (!fp) {
-    std::free(resource.data);
-    if (error) {
-      strncpy(error, "could not open file for writing", error_sz);
-      error[error_sz - 1] = '\0';
-    }
-    return -1;
-  }
-
-  const std::size_t written = fwrite(resource.data, 1, nbytes, fp);
-  fclose(fp);
+  mjtSize written = mju_writeResource(filename, resource.data, nbytes, vfs, error, error_sz);
   encoder->close_resource(&resource);
 
-  if (static_cast<int>(written) != nbytes) {
-    if (error) {
-      strncpy(error, "failed to write all bytes to file", error_sz);
+  if (written != nbytes) {
+    if (error && error[0] == '\0') {
+      strncpy(error, "write failed", error_sz);
       error[error_sz - 1] = '\0';
     }
     return -1;
   }
 
-  return nbytes;
+  return written;
 }
 
 // helper function to log compile time diagnostics
@@ -1246,7 +1313,6 @@ const char* mjs_setToIntVelocity(mjsActuator* actuator, double kp, double kv[1],
                                  double dampratio[1], double timeconst[1], double inheritrange) {
   mjs_setToPosition(actuator, kp, kv, dampratio, timeconst, inheritrange);
   actuator->dyntype = mjDYN_INTEGRATOR;
-  actuator->actlimited = 1;
 
   if (inheritrange > 0) {
     if (actuator->actrange[0] || actuator->actrange[1]) {
@@ -1275,7 +1341,7 @@ const char* mjs_setToVelocity(mjsActuator* actuator, double kv) {
 const char* mjs_setToDamper(mjsActuator* actuator, double kv) {
   mjuu_zerovec(actuator->gainprm, mjNGAIN);
   actuator->gainprm[2] = -kv;
-  actuator->ctrllimited = 1;
+  actuator->ctrllimited = mjLIMITED_TRUE;
   actuator->dyntype = mjDYN_NONE;
   actuator->gaintype = mjGAIN_AFFINE;
   actuator->biastype = mjBIAS_NONE;
@@ -1357,7 +1423,7 @@ const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], double t
 // Set to adhesion actuator.
 const char* mjs_setToAdhesion(mjsActuator* actuator, double gain) {
   actuator->gainprm[0] = gain;
-  actuator->ctrllimited = 1;
+  actuator->ctrllimited = mjLIMITED_TRUE;
   actuator->gaintype = mjGAIN_FIXED;
   actuator->biastype = mjBIAS_NONE;
 
@@ -1445,7 +1511,7 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
     }
     actuator->forcerange[0] = -tau_max;
     actuator->forcerange[1] = tau_max;
-    actuator->forcelimited = 1;
+    actuator->forcelimited = mjLIMITED_TRUE;
   }
 
   // saturation: [tau_max, i_max, (di/dt)_max]
@@ -1523,7 +1589,7 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
   actuator->actdim = actdim;
 
   // enforce actlimited = 0; homogeneous bounds are invalid across DC motor states
-  actuator->actlimited = 0;
+  actuator->actlimited = mjLIMITED_FALSE;
 
   // DC motor always uses actearly
   actuator->actearly = 1;

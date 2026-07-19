@@ -132,9 +132,13 @@ class App {
     bool help = false;
     bool info = false;
     bool profiler = false;
+    bool profiler_show_iter = false;
     bool picture_in_picture = false;
     bool options_panel = true;
+    bool toolbar = false;
+    bool status_bar = false;
     bool inspector_panel = true;
+    bool editor_panel = false;
     bool full_screen = false;
     bool style_editor = false;
     bool imgui_demo = false;
@@ -159,6 +163,13 @@ class App {
     // State.
     int state_sig = 0;
     std::vector<mjtNum> state;
+
+    // Timeline: simulation time recorded at history index 0 (the head).
+    double sim_head_time_ = 0.0;
+    float timeline_lh_width = 0.0f;
+    float timeline_rh_width = 0.0f;
+    bool scrubber_active = false;
+    float scrubber_grab_offset = 0.0f;
 
     // Picture-in-Picture.
     std::vector<platform::PipState> pips;
@@ -215,12 +226,11 @@ class App {
 
   void ProcessPendingLoads();
 
-  void MoveCamera(platform::CameraMotion motion, mjtNum reldx, mjtNum reldy);
-
   void SetupTheme(platform::GuiTheme theme);
 
   void MainMenuGui();
   void ToolBarGui();
+  void TimelineScrubberGui();
   void StatusBarGui();
   void HelpGui();
   void FileDialogGui();
@@ -243,6 +253,8 @@ class App {
   std::string load_error_;
   std::string step_error_;
   std::string edit_error_;
+  platform::StepControl::PauseState last_pause_state_ =
+      platform::StepControl::PauseState::kNormalPaused;
 
   std::optional<std::string> pending_load_;
   std::function<void()> pending_op_;

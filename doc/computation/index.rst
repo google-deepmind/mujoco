@@ -262,12 +262,21 @@ detailed summary of the :ref:`simulation pipeline <Pipeline>` is given at the en
 Actuation model
 ~~~~~~~~~~~~~~~
 
-MuJoCo provides a flexible actuator model. All actuators are single-input-single-output (SISO). The input to actuator
-:math:`i` is a scalar control :math:`u_i` specified by the user. The output is a scalar force :math:`p_i` which is
-mapped to joint coordinates by a vector of moment arms determined by the transmission. An actuator can also have
-activation state :math:`w_i` with its own dynamics. The control inputs for all actuators are stored in ``mjData.ctrl``,
-the force outputs are stored in ``mjData.actuator_force``, and the activation states (if any) are stored in
-``mjData.act``.
+MuJoCo provides a flexible actuator model. Most actuators are single-input-single-output (SISO): the input to
+actuator :math:`i` is a scalar control :math:`u_i` specified by the user, and the output is a scalar force
+:math:`p_i`, which is mapped to joint coordinates by a vector of moment arms determined by the transmission. An
+actuator can also have activation state :math:`w_i` with its own dynamics. The control inputs for all actuators are
+stored in ``mjData.ctrl``, the force outputs are stored in ``mjData.actuator_force``, and the activation states (if
+any) are stored in ``mjData.act``.
+
+More generally, an actuator can have several control inputs, several force outputs, or both. For example, a servo
+which accepts both a position setpoint and a velocity setpoint has two inputs and one output. The number of inputs
+is a property of the actuator type, and the number of outputs is a property of its transmission; neither is
+specified directly by the user. Since the number of inputs and the number of outputs can vary per actuator, the model
+has three separate counts: the number of actuators ``nactuator``, the total number of controls ``nu``, and the total
+number of force outputs ``nout``. In a model where all actuators are SISO, all three are equal. Note that outputs are
+counted in actuation space, before the mapping to joint coordinates: a tendon actuator with a single force output can
+move many joints.
 
 These three components of an actuator -- transmission, activation dynamics, and force generation -- determine how the
 actuator works. The user can set them independently for maximum flexibility, or use :ref:`Actuator shortcuts
@@ -278,11 +287,13 @@ actuator works. The user can set them independently for maximum flexibility, or 
 Transmission
 ^^^^^^^^^^^^
 
-Each actuator has a scalar length :math:`l_i(q)` defined by the type of transmission and its parameters. The gradient
-:math:`\nabla l_i` is an :math:`\nv`-dimensional vector of moment arms. It determines the mapping from scalar
-actuator force to joint force. The transmission properties are determined by the MuJoCo object to which the actuator
-is attached; the possible attachment object types are :at:`joint`, :at:`tendon`, :at:`jointinparent`,
-:at:`slider-crank`, :at:`site`, and :at:`body`.
+The transmission attaches the actuator to the rest of the system. Each force output of the actuator has a scalar
+length :math:`l_k(q)`, defined by the type of transmission and its parameters, for example the
+:ref:`gear<actuator-general-gear>` vector. The gradient :math:`\nabla l_k` is an :math:`\nv`-dimensional vector of
+moment arms; it determines the mapping from the scalar output force to joint forces. The number of force outputs is
+likewise determined by the transmission; all the types listed below define a single output. The transmission
+properties are determined by the MuJoCo object to which the actuator is attached; the possible attachment object
+types are :at:`joint`, :at:`tendon`, :at:`jointinparent`, :at:`slider-crank`, :at:`site`, and :at:`body`.
 
 :at:`joint` and :at:`tendon`
    The :at:`joint` and :at:`tendon` transmission types act as expected and correspond to the actuator applying forces or
@@ -369,14 +380,10 @@ diverge for :math:`\texttt{t} < h`, while exactly-integrated filters are stable 
 Force generation
 ^^^^^^^^^^^^^^^^
 
-Each actuator generates a scalar force :math:`p_i` which is some function
-
-.. math::
-   p_i \left( u_i, w_i, l_i, \dot{l}_i \right)
-
-Similarly to activation dynamics, the force generation mechanism is actuator-specific and cannot interact with the
-other actuators in the model. Currently the force is affine in the activation state when present, and in the control
-otherwise:
+Each actuator generates a scalar force for each of its outputs, as a function of its controls, activation states,
+and lengths and velocities. Similarly to activation dynamics, force generation is actuator-specific: the inputs and
+outputs of a single actuator can interact, but different actuators cannot affect each other. For SISO actuators the
+force is affine in the activation state when present, and in the control otherwise:
 
 .. math::
    p_i = (a w_i \; \text{or} \; a u_i) + b_0 + b_1 l_i + b_2 \dot{l}_i
@@ -384,17 +391,17 @@ otherwise:
 Here :math:`a` is an actuator-specific gain parameter and :math:`b_0, b_1, b_2` are actuator-specific bias
 parameters, stored in ``mjModel.actuator_gainprm`` and ``mjModel.actuator_biasprm`` respectively. Different settings
 of the gain and bias parameters can be used to model direct force control as well as position and velocity servos -in
-which case the control/activation has the meaning of reference position or velocity. One can also compute custom gain
-and bias terms by installing the callbacks :ref:`mjcb_act_gain` and :ref:`mjcb_act_bias` and setting the gain and
-bias type to "user". Note that affine force generation makes it possible to infer the controls/activations from the
-applied force computed in inverse dynamics, using the pseudo-inverse of the matrix of moment arms. However some of
-the actuators used in the real world are not affine (especially those that have embedded low-level controllers), so
-we are considering extensions to the above model.
+which case the control/activation has the meaning of reference position or velocity. Multi-input actuator types
+define their own force laws. One can also compute custom gain and bias terms for SISO actuators by installing the
+callbacks :ref:`mjcb_act_gain` and :ref:`mjcb_act_bias` and setting the gain and bias type to "user". Note that
+affine force generation makes it possible to infer the controls/activations from the applied force computed in
+inverse dynamics, using the pseudo-inverse of the matrix of moment arms.
 
-Putting all this together, the net force in generalized coordinates contributed by all actuators is
+Putting all this together, the net force in generalized coordinates contributed by all actuators is the sum over all
+force outputs
 
 .. math::
-   \sum_i \nabla l_i(q) \; p_i \left(u_i, w_i, l_i(q), \dot{l}_i(q, v) \right)
+   \sum_k \nabla l_k(q) \; p_k
 
 This quantity is stored in ``mjData.qfrc_actuator``. It is added to the applied force vector :math:`\tau`, together
 with any user-defined forces in joint or Cartesian coordinates (which are stored in ``mjData.qfrc_applied`` and
@@ -573,50 +580,24 @@ Solving for :math:`v_{t+h}`, we obtain the implicit-in-velocity update
        \widehat{M} &\equiv M-h D
    \end{aligned}
 
-.. _geMidpoint:
+.. _geFreeBody:
 
-Midpoint integration for free bodies in vacuum
-   The implicit-in-velocity update :eq:`eq_implicit_update` treats the acceleration as a function of velocity and
-   linearizes. While effective for damping-like forces, it is sub-optimal for rotational dynamics, where
-   Coriolis and gyroscopic forces are *quadratic* in angular velocity. For this case, a better approach is to directly
-   discretize the rotational equations of motion using the *midpoint method*.
+Gyroscopic derivatives for free bodies
+   The ``implicitfast`` integrator described :ref:`below<geIntegrators>` excludes the derivatives of centripetal,
+   Coriolis and gyroscopic forces from :math:`D`, so that :math:`\widehat M` remains symmetric and can be factorized
+   with the faster Cholesky decomposition. However integrating gyroscopic forces explicitly can lead to
+   energy gain and divergence of fast-spinning free bodies with asymmetric inertia.
 
-   Consider a rigid body rotating in its principal-axis frame with angular velocity
-   :math:`\omega \in \mathbb{R}^3` and diagonal inertia tensor :math:`I = \text{diag}(I_1, I_2, I_3)`. The rotational
-   dynamics are given by `Euler's rotation equation
-   <https://en.wikipedia.org/wiki/Euler%27s_equations_(rigid_body_dynamics)>`__:
+   Therefore for *standalone free bodies* (free joints whose body has no children), these derivatives are reinstated.
+   The rows of :math:`\widehat M` corresponding to such a body form a :math:`6\times 6` block which is decoupled from
+   the rest of the system. After the global Cholesky solve, this block is re-assembled with the exact derivative of the
+   body's bias force and re-solved with an optimized :math:`6\times 6` LU routine. For standalone free bodies,
+   ``implicitfast`` and ``implicit`` therefore compute identical updates.
 
-   .. math::
-      I \dot{\omega} + \omega \times I\omega = \tau
-
-   where :math:`\tau` is the external torque in the principal-axis frame.
-   Evaluating the velocities at the midpoint, :math:`\omega_\text{mid} = (\omega_t + \omega_{t+h})/2`, gives:
-
-   .. math::
-      \frac{2}{h} I (\omega_\text{mid} - \omega_t) + \omega_\text{mid} \times I \omega_\text{mid} = \tau
-
-   This is a system of 3 nonlinear equations in 3 unknowns :math:`\omega_\text{mid}`, solved at each timestep using
-   Newton's method with a backtracking line search. After solving, the new velocity is recovered as
-   :math:`\omega_{t+h} = 2\omega_\text{mid} - \omega_t`.
-
-   **Properties.** The midpoint method preserves all `quadratic first integrals
-   <https://doi.org/10.1007/3-540-30666-8>`__ of the ODE. For Euler's equations, these are the
-   kinetic energy :math:`H = \frac{1}{2}\omega^T I\omega` and the squared angular momentum
-   :math:`C = \frac{1}{2}|I\omega|^2`, both conserved exactly in the absence of external torque. Since :math:`C` is the
-   Casimir function of the `Lie-Poisson <https://en.wikipedia.org/wiki/Poisson_bracket>`__ structure, the midpoint
-   method is a symmetric (time-reversible) and second-order accurate *Poisson integrator*.
-
-   **Eligibility.** Midpoint integration is only applied when using the ``implicitfast`` integrator, to
-   free bodies with no child bodies, and only when the medium has zero :ref:`density<option-density>` and
-   :ref:`viscosity<option-viscosity>`.
-
-   **Performance.** While the midpoint method carries computational overhead, we've found it to be
-   negligible compared to the rest of the pipeline, on the order of 1% in the worst case.
-
-   **Disabling.** Because midpoint integration solves a nonlinear equation for the next velocity, it breaks the linear
-   relationship between finite-differenced velocities and forces assumed by discrete inverse dynamics. Therefore,
-   setting the :ref:`invdiscrete<option-flag-invdiscrete>` flag disables midpoint integration, and also provides a
-   general opt-out mechanism for this integrator.
+   **Properties.** The kinetic energy of a spinning free body is non-increasing in the absence of applied force.
+   Steady spins about principal axes are conserved almost exactly; tumbling motion is mildly damped, at a rate
+   scaling like :math:`(h|\omega|)^2` per step. Systems requiring long-horizon energy conservation of tumbling
+   bodies should use the ``RK4`` integrator.
 
 .. _geIntegrators:
 
@@ -654,8 +635,8 @@ Fast implicit-in-velocity (``implicitfast``)
    scenarios which are not common and already well-handled by the Runge-Kutta integrator (see below). Because the RNE
    derivatives are also the main source of asymmetry of :math:`D`, by dropping them and symmetrizing, we can use the
    faster :math:`L^TL` rather than :math:`LU` decomposition.
-   The ``implicitfast`` integrator applies :ref:`midpoint integration<geMidpoint>` to eligible free bodies in vacuum,
-   providing exact energy conservation for spinning objects at negligible additional cost.
+   For standalone free bodies, the dropped :ref:`gyroscopic derivatives<geFreeBody>` are reinstated with a local
+   unsymmetric solve, preventing energy gain of spinning bodies at negligible additional cost.
 
 4th-order Runge-Kutta (``RK4``)
    One advantage of our continuous-time formulation is that we can use higher order integrators such as Runge-Kutta or
@@ -689,11 +670,10 @@ Fast implicit-in-velocity (``implicitfast``)
      increased stability, and is therefore a strict improvement. It is the recommended integrator for most models.
     **implicit**:
      The benefit over ``implicitfast`` is the implicit integration of Coriolis and centripetal forces for *coupled*
-     rotational systems such as multi-link pendula. Note that ``implicit`` does not apply :ref:`midpoint
-     integration<geMidpoint>` (only ``implicitfast`` does), but its RNE derivatives provide comparable stability
-     for free-body rotation. For example, `gyroscopic.xml <../_static/gyroscopic.xml>`__ shows an ellipsoid rolling
-     on an inclined plane; both ``implicitfast`` and ``implicit`` handle this case well, while ``Euler`` quickly
-     diverges.
+     rotational systems such as multi-link pendula. For standalone free bodies the two integrators coincide, since
+     ``implicitfast`` applies the :ref:`gyroscopic derivatives<geFreeBody>` to such bodies. For example,
+     `gyroscopic.xml <../_static/gyroscopic.xml>`__ shows an ellipsoid rolling on an inclined plane; both
+     ``implicitfast`` and ``implicit`` handle this case well, while ``Euler`` quickly diverges.
     **RK4**:
      This integrator is best for systems which are energy conserving, or almost energy-conserving. `pendulum.xml
      <../_static/pendulum.xml>`__ shows a complicated pendulum mechanism which diverges quickly using ``Euler`` or
@@ -1392,7 +1372,10 @@ representations of the constraint Jacobian and related matrices.
    This algorithm implements the exact Newton method, with analytical second-order derivatives and Cholesky
    factorization of the Hessian. The line-search is the same as in the CG method. When constraint states change between
    iterations (e.g., a constraint transitions from quadratic to linear), the Hessian factorization is updated
-   incrementally via rank-1 Cholesky updates, avoiding full refactorization. It is the default solver.
+   incrementally via rank-1 Cholesky updates, avoiding full refactorization. Early termination is triggered when any of
+   three quantities falls below :ref:`tolerance<option-tolerance>`: the cost improvement of the last iteration, the
+   gradient norm, and the Newton decrement :math:`\tfrac{1}{2} g^T H^{-1} g` -- the predicted cost improvement of the
+   next iteration. It is the default solver.
 
 **PGS** : Projected Gauss-Seidel method
    This is the most common algorithm used in physics simulators, and used to be the default in MuJoCo, until we
@@ -1441,6 +1424,14 @@ representations of the constraint Jacobian and related matrices.
    ``qacc_smooth``). The lower-cost initialization is used. This dual warmstart strategy is robust: it quickly
    bootstraps the solver when constraints persist across time steps, but avoids carrying over stale forces from
    constraints that have disappeared.
+
+   Because every zone of the piecewise-quadratic cost has curvature of at least :math:`M`, the cost is strongly convex
+   in the :math:`M`-norm, which bounds the suboptimality of any point by the duality gap at its constraint forces:
+   :math:`\text{cost}(a) - \text{cost}^* \le \tfrac{1}{2} g^T M^{-1} g`. Before starting iterations, the CG and Newton
+   solvers evaluate this certificate at the warmstarted point, using the already-computed factorization of
+   :math:`M`. If it is below tolerance, convergence is proven and the solver returns immediately with zero iterations;
+   in the Newton case this skips constructing and factorizing the Hessian. In a quiescent, well-warmstarted scene this
+   eliminates nearly the entire cost of the constraint solver.
 
 .. _soIsland:
 
@@ -1540,7 +1531,11 @@ Recall that :math:`r` is the position residual, while :math:`J v` is the joint v
 the indexing notation refers to one component of the projected velocity vector. For friction loss and friction
 dimensions of elliptic cones, :math:`r \equiv 0` and therefore :math:`k=0`, so the reference acceleration reduces to
 pure damping: :math:`\ari = -b_i (J v)_i`. More detail is given in the :ref:`Friction<CSolverFriction>` section of the
-Modeling chapter.
+Modeling chapter. For the tangential rows of contacts whose geoms specify a
+:ref:`surface velocity<body-geom-surfacevel>`, the projected velocity :math:`(J v)_i` is biased by the relative
+velocity of the surface material, so that the reference acceleration drives the contact toward moving *with* the
+surface; this is how conveyor belts and turntables are implemented, and it is also the quantity reported in the
+contact rows of ``mjData.efc_vel``.
 
 To summarize, the constraint behavior is determined by three per-constraint quantities: impedance :math:`0<d<1`, damping
 :math:`b > 0`, and stiffness :math:`k \geq 0`. These are computed from the :at:`solimp` and :at:`solref` attributes as

@@ -16,9 +16,9 @@
 
 from typing import Tuple, cast
 
+from mujoco.codegen import code_builder
 from introspect import ast_nodes
 
-from wasm.codegen.generators import code_builder
 from wasm.codegen.generators import common
 from wasm.codegen.generators import constants
 

@@ -17,6 +17,7 @@ cmake_minimum_required(VERSION 3.16)
 include(third_party_deps/dear_imgui)
 include(third_party_deps/implot)
 include(third_party_deps/atkinson_hyperlegible_next)
+include(third_party_deps/atkinson_hyperlegible_mono)
 include(third_party_deps/font_awesome)
 
 # Common configuration shared between mujoco_studio and mujoco_live.
@@ -81,6 +82,16 @@ function(configure_studio_target TARGET_NAME)
                 ${STUDIO_ASSETS_DIR}
         COMMENT "Copying fontawesome-webfont.ttf to build directory"
     )
+    add_custom_command(
+        TARGET ${TARGET_NAME}
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${STUDIO_ASSETS_DIR}
+        COMMAND ${CMAKE_COMMAND}
+            -E copy
+                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/atkinson_hyperlegible_mono-src/fonts/ttf/AtkinsonHyperlegibleMono-Regular.ttf"
+                ${STUDIO_ASSETS_DIR}/AtkinsonHyperlegibleMono-Regular.ttf
+        COMMENT "Copying AtkinsonHyperlegibleMono-Regular font to build directory"
+    )
 
     # Filament backend requires additional files to be copied into an "assets" folder.
     if(MUJOCO_USE_FILAMENT)
@@ -107,7 +118,12 @@ if(NOT EMSCRIPTEN)
         set(STUDIO_RESOURCE_FILES "")
     endif()
 
-    add_executable(mujoco_studio main.cc ${STUDIO_RESOURCE_FILES})
+    add_executable(mujoco_studio
+        main.cc
+        launcher.cc
+        launcher.h
+        ${STUDIO_RESOURCE_FILES}
+    )
     if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
         set_target_properties(mujoco_studio PROPERTIES
             MACOSX_BUNDLE TRUE

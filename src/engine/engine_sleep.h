@@ -31,7 +31,7 @@ void mj_updateSleepInit(const mjModel* m, mjData* d, int flg_staticawake);
 MJAPI void mj_updateSleep(const mjModel* m, mjData* d);
 
 // return the first tree in the sleep cycle that starts at i, -1 if error
-int mj_sleepCycle(const int* tree_asleep, int ntree, int i);
+MJAPI int mj_sleepCycle(const int* tree_asleep, int ntree, int i);
 
 // wake tree i and its related island cycle, return number of woke trees
 MJAPI int mj_wakeIsland(int* tree_asleep, int ntree, int i, int wakeval,

@@ -24,6 +24,11 @@ namespace mujoco::platform {
 
 SpecEditor::SpecEditor(int history_size) : capacity_(history_size) {}
 
+void SpecEditor::Reset() {
+  ref_spec_.reset();
+  active_spec_.reset();
+}
+
 void SpecEditor::Reset(const mjSpec& spec) {
   active_element_key_ = kInvalidElementKey;
   active_element_ = nullptr;
@@ -55,6 +60,10 @@ void SpecEditor::Reset(const mjSpec& spec) {
 }
 
 std::unique_ptr<ModelHolder> SpecEditor::Compile() {
+  if (!active_spec_) {
+    return nullptr;
+  }
+
   auto holder = ModelHolder::FromSpec(mj_copySpec(active_spec_.get()));
   if (holder->ok()) {
     ref_spec_ = Copy(active_spec_.get());
@@ -66,6 +75,10 @@ std::unique_ptr<ModelHolder> SpecEditor::Compile() {
 mjSpec* SpecEditor::GetActiveSpec() const { return active_spec_.get(); }
 
 mjsElement* SpecEditor::AddElement(mjtObj type) {
+  if (!active_spec_) {
+    return nullptr;
+  }
+
   // TODO: check that type is only for spec elements.
   mjsElement* element = AddElementToSpec(active_spec_.get(), type);
   if (element) {
@@ -82,6 +95,10 @@ mjsElement* SpecEditor::AddElement(mjtObj type) {
 }
 
 mjsElement* SpecEditor::AddBodyElement(mjsBody* body, mjtObj type) {
+  if (!active_spec_) {
+    return nullptr;
+  }
+
   // TODO: check that type is only for body elements.
   mjsElement* element = AddElementToSpec(active_spec_.get(), type, body);
   if (element) {
@@ -98,6 +115,10 @@ mjsElement* SpecEditor::AddBodyElement(mjsBody* body, mjtObj type) {
 }
 
 void SpecEditor::DeleteActiveElement() {
+  if (!active_spec_) {
+    return;
+  }
+
   if (active_element_) {
     const mjtObj type = active_element_->elemtype;
     const int index = active_map_.Remove(active_element_key_);
@@ -116,6 +137,10 @@ void SpecEditor::DeleteActiveElement() {
 }
 
 void SpecEditor::SetActiveElement(mjsElement* element) {
+  if (!active_spec_) {
+    return;
+  }
+
   if (element == nullptr) {
     ref_element_ = nullptr;
     active_element_ = nullptr;
@@ -152,6 +177,10 @@ void SpecEditor::SetActiveElement(mjsElement* element) {
 }
 
 void SpecEditor::UpdateReferenceElement() {
+  if (!active_spec_) {
+    return;
+  }
+
   if (active_element_ == nullptr) {
     ref_element_ = nullptr;
   } else {
@@ -175,6 +204,10 @@ mjsElement* SpecEditor::GetActiveElement() const { return active_element_; }
 mjsElement* SpecEditor::GetRefElement() const { return ref_element_; }
 
 void SpecEditor::CommitChanges(mjsElement* element) {
+  if (!active_spec_) {
+    return;
+  }
+
   if (element == nullptr) {
     mju_warning("Element is null.");
     return;
@@ -233,6 +266,10 @@ void SpecEditor::Redo() {
 bool SpecEditor::CanRedo() const { return cursor_ < history_.size() - 1; }
 
 void SpecEditor::AppendHistory(HistoryEntry entry) {
+  if (!active_spec_) {
+    return;
+  }
+
   ++cursor_;
   while (history_.size() > cursor_) {
     history_.pop_back();

@@ -327,7 +327,12 @@ def _jax_shim_fn(
           f'Unknown param source: {mjwarp_field_info[arg].param_source}'
       )
 
-    if arg in field_usage.data_out_fields:
+    # Only treat as output if it is a Warp array (excludes scalars like
+    # naconmax).
+    if (
+        arg in field_usage.data_out_fields
+        and 'array' in mjwarp_field_info[arg].expected_type
+    ):
       # all out fields are in_out, since JAX already allocated them
       in_out_argnames.append(f"'{arg}'")
       num_outputs += 1
@@ -344,7 +349,11 @@ def _jax_shim_fn(
   if field_usage.render_context_in_caller:
     jax_args.append('ctx.key')
 
-  needs_dummy_output = not field_usage.data_out_fields
+  # If there are no Warp array outputs, we need a dummy output for JAX FFI.
+  needs_dummy_output = not any(
+      'array' in mjwarp_field_info[f].expected_type
+      for f in field_usage.data_out_fields
+  )
   if needs_dummy_output and fn_name != 'render':
     num_outputs = 1
     if field_usage.render_context_in_caller:

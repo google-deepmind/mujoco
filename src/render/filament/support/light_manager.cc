@@ -72,14 +72,11 @@ static UniquePtr<mjrfTexture> CreateFallbackIndirectLightTexture(
   return texture;
 }
 
-LightManager::LightManager(mjrfContext* ctx, mjrfScene* scene,
-                           ModelObjects* model_objects)
-    : ctx_(ctx), scene_(scene), model_objects_(model_objects) {
+LightManager::LightManager(mjrfScene* scene, ModelObjects* model_objects)
+    : scene_(scene), model_objects_(model_objects) {
   const mjModel* model = model_objects->GetModel();
   default_shadow_map_size_ = ReadElement(
       model, "filament.shadows.map_size", default_shadow_map_size_);
-  default_vsm_blur_width_ = ReadElement(
-      model, "filament.shadows.vsm_blur_width", default_vsm_blur_width_);
   fallback_head_light_intensity_ =
       ReadElement(model, "filament.fallback.head_light_intensity",
                   fallback_head_light_intensity_);
@@ -104,6 +101,7 @@ LightManager::~LightManager() {
 }
 
 void LightManager::Prepare() {
+  mjrfContext* ctx = model_objects_->GetContext();
   const mjModel* model = model_objects_->GetModel();
 
   bool has_image_based_light = false;
@@ -117,7 +115,7 @@ void LightManager::Prepare() {
       params.type = mjLIGHT_IMAGE;
       params.texture = model_objects_->GetTexture(model->light_texid[i]);
       params.intensity = model->light_intensity[i];
-      auto light_obj = CreateLight(ctx_, params);
+      auto light_obj = CreateLight(ctx, params);
       mjrf_addLightToScene(scene_, light_obj.get());
       lights_.emplace_back(std::move(light_obj));
       has_image_based_light = true;
@@ -129,16 +127,18 @@ void LightManager::Prepare() {
       params.color[2] = model->light_diffuse[2];
       params.type = (mjtLightType)model->light_type[i];
       params.cast_shadows = model->light_castshadow[i];
+      // The bulb_radius is only used by DPCF or PCSS shadows. For VSM shadows,
+      // we use light_bulbradius to control the blur width.
       params.bulb_radius = model->light_bulbradius[i];
+      params.vsm_blur_width = model->light_bulbradius[i];
       params.range = model->light_range[i];
       params.intensity = model->light_intensity[i];
       params.shadow_map_size = default_shadow_map_size_;
-      params.vsm_blur_width = default_vsm_blur_width_;
       if (params.type == mjLIGHT_SPOT) {
         params.spot_cone_angle = model->light_cutoff[i];
       }
 
-      auto light_obj = CreateLight(ctx_, params);
+      auto light_obj = CreateLight(ctx, params);
       mjrf_addLightToScene(scene_, light_obj.get());
       lights_.emplace_back(std::move(light_obj));
     }
@@ -158,7 +158,7 @@ void LightManager::Prepare() {
     params.cast_shadows = 0;
     params.intensity = 0.0f;
     params.spot_cone_angle = 90.0f;
-    auto light_obj = CreateLight(ctx_, params);
+    auto light_obj = CreateLight(ctx, params);
     mjrf_addLightToScene(scene_, light_obj.get());
     lights_.emplace_back(std::move(light_obj));
   }
@@ -170,7 +170,7 @@ void LightManager::Prepare() {
     mjrf_defaultLightParams(&params);
     params.type = mjLIGHT_IMAGE;
     params.intensity = 10.0f;
-    fallback_ibl_ = CreateLight(ctx_, params);
+    fallback_ibl_ = CreateLight(ctx, params);
     mjrf_addLightToScene(scene_, fallback_ibl_.get());
   }
 
@@ -179,14 +179,14 @@ void LightManager::Prepare() {
   // default environment light and set the light intensity ourselves.
   if (total_light_intensity == 0.0f) {
     // Create a fallback environment light.
-    fallback_ibl_texture_ = CreateFallbackIndirectLightTexture(ctx_);
+    fallback_ibl_texture_ = CreateFallbackIndirectLightTexture(ctx);
 
     mjrfLightParams params;
     mjrf_defaultLightParams(&params);
     params.type = mjLIGHT_IMAGE;
     params.texture = fallback_ibl_texture_.get();
     params.intensity = fallback_environment_light_intensity_;
-    fallback_ibl_ = CreateLight(ctx_, params);
+    fallback_ibl_ = CreateLight(ctx, params);
     mjrf_addLightToScene(scene_, fallback_ibl_.get());
 
     // Distribute the fallback scene light intensity among the lights.

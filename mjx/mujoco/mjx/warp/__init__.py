@@ -69,11 +69,7 @@ else:
     def BlockDim(self, *args, **kwargs):  # pylint: disable=invalid-name
       pass
 
-  class _MjwpIoStub:
-    ENABLE_ISLANDS = True
-
   WARP_INSTALLED: bool = True
   warp: Any = _WpStub()
   mujoco_warp: Any = _MjwpStub()
   mjwp_types: Any = _MjwpTypesStub()
-  mjwp_io: Any = _MjwpIoStub()

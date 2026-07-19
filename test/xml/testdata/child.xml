@@ -1,7 +1,18 @@
 <mujoco model="child">
   <worldbody>
     <body name="body">
-      <geom name="geom" size="1" pos="2 0 0"/>
+      <geom name="geom" size="1" pos="0 0 -2" rgba="1 0 0 1"/>
     </body>
+
+    <frame name="frame">
+      <body name="body2" pos="-1 0 0">
+        <freejoint/>
+        <geom name="geom2" type="box" size="1 1 1" rgba="0 1 0 1"/>
+      </body>
+      <body name="body3" pos="1 0 0">
+        <freejoint/>
+        <geom name="geom3" type="box" size="1 1 1" rgba="0 1 0 1"/>
+      </body>
+    </frame>
   </worldbody>
 </mujoco>

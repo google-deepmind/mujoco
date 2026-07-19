@@ -1426,7 +1426,7 @@ void ParseMjcPhysicsActuator(mjSpec* spec,
 
   auto setLimitedField = [](mjsActuator* mj_act,
                             const pxr::UsdAttribute& usd_attribute,
-                            int* mj_limited_field) {
+                            mjtLimited* mj_limited_field) {
     if (usd_attribute.HasAuthoredValue()) {
       pxr::TfToken limited;
       usd_attribute.Get(&limited);

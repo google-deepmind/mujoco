@@ -14,6 +14,7 @@
 # ==============================================================================
 import functools
 import os
+import tempfile
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -70,11 +71,21 @@ def _get_model_data_rc(xml, batch_size, render_seg=False):
 
 class RenderTest(parameterized.TestCase):
 
+  @classmethod
+  def setUpClass(cls):
+    super().setUpClass()
+    if mjxw.WARP_INSTALLED:
+      cls.tempdir = tempfile.TemporaryDirectory()
+      wp.config.kernel_cache_dir = cls.tempdir.name
+
+  @classmethod
+  def tearDownClass(cls):
+    super().tearDownClass()
+    if hasattr(cls, 'tempdir'):
+      cls.tempdir.cleanup()
+
   def setUp(self):
     super().setUp()
-    if mjxw.WARP_INSTALLED:
-      tempdir = '/tmp/wp_kernel_cache_dir_RenderTest'
-      wp.config.kernel_cache_dir = tempdir
     np.random.seed(0)
 
   def _maybe_skip(self):
@@ -251,11 +262,18 @@ class RenderTest(parameterized.TestCase):
 class RenderContextGarbageCollectionTest(absltest.TestCase):
   """Tests that RenderContext cleans up buffers on deletion."""
 
-  def setUp(self):
-    super().setUp()
+  @classmethod
+  def setUpClass(cls):
+    super().setUpClass()
     if mjxw.WARP_INSTALLED:
-      tempdir = '/tmp/wp_kernel_cache_dir_RenderContextGCTest'
-      wp.config.kernel_cache_dir = tempdir
+      cls.tempdir = tempfile.TemporaryDirectory()
+      wp.config.kernel_cache_dir = cls.tempdir.name
+
+  @classmethod
+  def tearDownClass(cls):
+    super().tearDownClass()
+    if hasattr(cls, 'tempdir'):
+      cls.tempdir.cleanup()
 
   def _maybe_skip(self):
     if not mjxw.WARP_INSTALLED:

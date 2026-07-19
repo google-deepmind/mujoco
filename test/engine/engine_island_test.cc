@@ -373,6 +373,39 @@ TEST_F(IslandTest, IslandFlex) {
   mj_deleteModel(model);
 }
 
+// stiffness couples all vertices of a flex: one contact anywhere on the flex
+// must pull every vertex tree (and the contacting body) into a single island
+TEST_F(IslandTest, FlexStiffnessUnionsTrees) {
+  static const char xml[] = R"(
+  <mujoco>
+    <option solver="Newton"/>
+    <worldbody>
+      <flexcomp name="cloth" type="grid" count="4 4 1" spacing="0.1 0.1 0.1"
+                radius=".005" dim="2" mass="0.5" pos="0 0 1" dof="full">
+        <contact selfcollide="none"/>
+        <elasticity young="1e3" poisson="0.2" damping="0.1" elastic2d="both" thickness="0.01"/>
+      </flexcomp>
+      <body pos="0.1 0.1 0.96">
+        <freejoint/>
+        <geom type="sphere" size="0.05"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  // the sphere penetrates the cloth at one corner
+  ASSERT_GT(data->ncon, 0);
+
+  // one island containing every dof: 16 vertices and the free sphere
+  EXPECT_EQ(data->nisland, 1);
+  EXPECT_EQ(data->nidof, model->nv);
+}
+
 TEST_F(IslandTest, IslandEfcElliptic) {
   const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
   char error[1024];

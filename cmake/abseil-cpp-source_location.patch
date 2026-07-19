@@ -7,7 +7,7 @@ diff --git a/absl/base/options.h b/absl/base/options.h
  //
 -#define ABSL_OPTION_USE_STD_SOURCE_LOCATION 2
 +#define ABSL_OPTION_USE_STD_SOURCE_LOCATION 0
-
+ 
  // ABSL_OPTION_USE_STD_ORDERING
 diff --git a/absl/base/config.h b/absl/base/config.h
 --- a/absl/base/config.h

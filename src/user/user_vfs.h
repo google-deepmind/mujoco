@@ -72,15 +72,21 @@ class VFS {
   // Opens a mjResource for the given path, or nullptr on error. If successful,
   // will invoke the 'open' callback for the mjpResourceProvider associated with
   // the path/dir.
-  mjResource* Open(const char* dir, const char* name);
+  mjResource* Open(const char* dir, const char* name, char* error = nullptr,
+                   size_t nerror = 0);
 
   // Sets `buffer` to the contents of the resource and returns the number of
   // bytes of the content. This is done by invoking the 'read' callback for the
   // mjpResourceProvider associated with the resource. Returns -1 on error.
   int Read(mjResource* resource, const void** buffer);
 
-  // Closes the resource by invoking the 'close' callback for the
-  // mjpResourceProvider associated with the resource.
+  // Writes the resource data. This is done by invoking the 'write' callback for
+  // the mjpResourceProvider associated with the resource.
+  // Returns bytes written, or -1 on error.
+  mjtSize Write(mjResource* resource, const void* buffer, mjtSize nbytes);
+
+  // Closes the resource by invoking the 'close' callback for
+  // the mjpResourceProvider associated with the resource.
   Status Close(mjResource* resource);
 
   // Mounts a ResourceProvider at the given path. All subsequent operations

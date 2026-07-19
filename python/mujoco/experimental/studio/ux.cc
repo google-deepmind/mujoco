@@ -14,7 +14,6 @@
 
 // Python bindings for MuJoCo platform UX components.
 
-#include <algorithm>
 #include <array>
 #include <string>
 #include <tuple>
@@ -44,10 +43,6 @@ struct UxState {
   char watch_field_name[256] = {0};
   int watch_field_index = 0;
 
-  // Read/edited by noise_gui
-  float noise_scale = 0.0f;
-  float noise_rate = 0.0f;
-
   // Read/edited by camera_selection_gui
   int camera_index = mujoco::platform::kTumbleCameraIdx;
 };
@@ -56,7 +51,7 @@ struct RenderFlags {
   std::array<uint8_t, mjNRNDFLAG> flags = {0};
 };
 
-PYBIND11_MODULE(ux, m) {
+PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
   py::module_::import("mujoco._structs");
   py::class_<RenderFlags>(m, "RenderFlags")
       .def(py::init<>())
@@ -75,8 +70,6 @@ PYBIND11_MODULE(ux, m) {
       .def_readwrite("state", &UxState::state)
       .def_readwrite("state_sig", &UxState::state_sig)
       .def_readwrite("watch_field_index", &UxState::watch_field_index)
-      .def_readwrite("noise_scale", &UxState::noise_scale)
-      .def_readwrite("noise_rate", &UxState::noise_rate)
       .def_readwrite("camera_index", &UxState::camera_index)
       .def_property(
           "watch_field_name",
@@ -107,7 +100,7 @@ PYBIND11_MODULE(ux, m) {
       "configure_docking_layout",
       []() {
         py::gil_scoped_release no_gil;
-        ImVec4 r = mujoco::platform::ConfigureDockingLayout();
+        ImVec4 r = mujoco::platform::ConfigureDockingLayout(true, true);
         return std::make_tuple(r.x, r.y, r.z, r.w);
       },
       "Configure the docking layout with Options (left) and Inspector (right) "
@@ -115,13 +108,11 @@ PYBIND11_MODULE(ux, m) {
 
   m.def(
       "step_control_gui",
-      [](const mujoco::python::MjModelWrapper& model,
-         mujoco::platform::StepControl* step_control, UxState& ux_state) {
+      [](mujoco::platform::StepControl* step_control, UxState& ux_state) {
         py::gil_scoped_release no_gil;
-        mujoco::platform::StepControlGui(model.get(), step_control,
-                                         ux_state.speed_index);
+        mujoco::platform::StepControlGui(step_control, ux_state.speed_index);
       },
-      py::arg("model"), py::arg("step_control"), py::arg("ux_state"),
+      py::arg("step_control"), py::arg("ux_state"),
       "Render the simulation stepping control GUI. Modifies "
       "ux_state.speed_index.");
 
@@ -170,19 +161,25 @@ PYBIND11_MODULE(ux, m) {
       [](const mujoco::python::MjModelWrapper& model,
          mujoco::python::MjvCameraWrapper& camera, int request_idx) {
         py::gil_scoped_release no_gil;
-        return mujoco::platform::SetCamera(model.get(), camera.get(), request_idx);
+        return mujoco::platform::SetCamera(model.get(), camera.get(),
+                                           request_idx);
       },
       py::arg("model"), py::arg("camera"), py::arg("request_idx"),
       "Set the camera index and update the camera object.");
 
   m.def(
       "set_speed_index",
-      [](mujoco::platform::StepControl* step_control, UxState& ux_state, int idx) {
-        py::gil_scoped_release no_gil;
-        mujoco::platform::SetSpeedIndex(step_control, ux_state.speed_index, idx);
+      [](mujoco::platform::StepControl* step_control, int speed_index,
+         int request_idx) {
+        {
+          py::gil_scoped_release no_gil;
+          mujoco::platform::SetSpeedIndex(step_control, speed_index,
+                                          request_idx);
+        }
+        return speed_index;
       },
-      py::arg("step_control"), py::arg("ux_state"), py::arg("idx"),
-      "Set the simulation speed index.");
+      py::arg("step_control"), py::arg("speed_index"), py::arg("request_idx"),
+      "Set the simulation speed index. Returns new_speed_index.");
 
   m.def(
       "physics_gui",
@@ -294,15 +291,11 @@ PYBIND11_MODULE(ux, m) {
 
   m.def(
       "noise_gui",
-      [](const mujoco::python::MjModelWrapper& model,
-         mujoco::python::MjDataWrapper& data, UxState& ux_state) {
+      [](mujoco::platform::StepControl* step_control) {
         py::gil_scoped_release no_gil;
-        mujoco::platform::NoiseGui(model.get(), data.get(),
-                                   ux_state.noise_scale, ux_state.noise_rate);
+        mujoco::platform::NoiseGui(step_control);
       },
-      py::arg("model"), py::arg("data"), py::arg("ux_state"),
-      "Render the noise UI. Modifies ux_state.noise_scale and "
-      "ux_state.noise_rate.");
+      py::arg("step_control"), "Render the noise UI.");
 
   m.def(
       "convergence_gui",

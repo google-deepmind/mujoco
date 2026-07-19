@@ -436,7 +436,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mj_encode',
      FunctionDecl(
          name='mj_encode',
-         return_type=ValueType(name='int'),
+         return_type=ValueType(name='mjtSize'),
          parameters=(
              FunctionParameterDecl(
                  name='s',
@@ -4729,12 +4729,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='mjtNum'),
              ),
              FunctionParameterDecl(
-                 name='scn',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjvScene', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
                  name='cam',
                  type=PointerType(
                      inner_type=ValueType(name='mjvCamera'),
@@ -5479,6 +5473,34 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Set default mjrContext.',
+     )),
+    ('mjr_defaultRendererInfo',
+     FunctionDecl(
+         name='mjr_defaultRendererInfo',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='info',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjrRendererInfo'),
+                 ),
+             ),
+         ),
+         doc='Set default mjrRendererInfo.',
+     )),
+    ('mjr_getRendererInfo',
+     FunctionDecl(
+         name='mjr_getRendererInfo',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='info',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjrRendererInfo'),
+                 ),
+             ),
+         ),
+         doc='Get active renderer information.',
      )),
     ('mjr_makeContext',
      FunctionDecl(
@@ -9533,7 +9555,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  nullable=True,
              ),
          ),
-         doc='Finite differenced Jacobians of (force, sensors) = mj_inverse(state, acceleration)   All outputs are optional. Output dimensions (transposed w.r.t Control Theory convention):     DfDq: (nv x nv)     DfDv: (nv x nv)     DfDa: (nv x nv)     DsDq: (nv x nsensordata)     DsDv: (nv x nsensordata)     DsDa: (nv x nsensordata)     DmDq: (nv x nM)   single-letter shortcuts:     inputs: q=qpos, v=qvel, a=qacc     outputs: f=qfrc_inverse, s=sensordata, m=qM   notes:     optionally computes mass matrix Jacobian DmDq     flg_actuation specifies whether to subtract qfrc_actuator from qfrc_inverse',  # pylint: disable=line-too-long
+         doc='Finite differenced Jacobians of (force, sensors) = mj_inverse(state, acceleration)   All outputs are optional. Output dimensions (transposed w.r.t Control Theory convention):     DfDq: (nv x nv)     DfDv: (nv x nv)     DfDa: (nv x nv)     DsDq: (nv x nsensordata)     DsDv: (nv x nsensordata)     DsDa: (nv x nsensordata)     DmDq: (nv x nC)   single-letter shortcuts:     inputs: q=qpos, v=qvel, a=qacc     outputs: f=qfrc_inverse, s=sensordata, m=M   notes:     optionally computes mass matrix Jacobian DmDq     flg_actuation specifies whether to subtract qfrc_actuator from qfrc_inverse',  # pylint: disable=line-too-long
      )),
     ('mjd_subQuat',
      FunctionDecl(
@@ -9928,6 +9950,48 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Set buffer to bytes read from the resource and return number of bytes in buffer; return negative value if error.',  # pylint: disable=line-too-long
+     )),
+    ('mju_writeResource',
+     FunctionDecl(
+         name='mju_writeResource',
+         return_type=ValueType(name='mjtSize'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='buffer',
+                 type=PointerType(
+                     inner_type=ValueType(name='void', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='nbytes',
+                 type=ValueType(name='mjtSize'),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='error',
+                 type=PointerType(
+                     inner_type=ValueType(name='char'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='nerror',
+                 type=ValueType(name='size_t'),
+             ),
+         ),
+         doc='Write resource data via its resource provider, return bytes written or -1 on error.',  # pylint: disable=line-too-long
      )),
     ('mju_getResourceDir',
      FunctionDecl(

@@ -186,10 +186,13 @@ int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz)
     return -1;
   }
 
-  std::ofstream file;
-  file.open(filename);
-  file << result;
-  file.close();
+  mjtSize written = mju_writeResource(filename, result.data(), result.size(), NULL, error, error_sz);
+  if (written != result.size()) {
+    if (error && error_sz > 0 && error[0] == '\0') {
+      std::snprintf(error, error_sz, "Error writing XML file '%s'", filename);
+    }
+    return -1;
+  }
   return 0;
 }
 

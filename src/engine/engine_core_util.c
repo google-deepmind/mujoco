@@ -877,6 +877,23 @@ void mj_objectVelocity(const mjModel* m, const mjData* d,
 }
 
 
+// compute material surface velocity of a geom at a point, in the world frame
+void mj_geomSurfaceVelocity(const mjModel* m, const mjData* d, int geomid,
+                            const mjtNum point[3], mjtNum linear[3], mjtNum angular[3]) {
+  const mjtNum* sv = m->geom_surfacevel + 6*geomid;
+
+  // rotate local linear and angular surface velocities to the world frame
+  mji_mulMatVec3(linear, d->geom_xmat + 9*geomid, sv);
+  mji_mulMatVec3(angular, d->geom_xmat + 9*geomid, sv + 3);
+
+  // add angular velocity contribution (w x r) at the query point
+  mjtNum arm[3], wxr[3];
+  mji_sub3(arm, point, d->geom_xpos + 3*geomid);
+  mji_cross(wxr, angular, arm);
+  mji_addTo3(linear, wxr);
+}
+
+
 // compute object 6D acceleration in object-centered frame, world/local orientation
 void mj_objectAcceleration(const mjModel* m, const mjData* d,
                            int objtype, int objid, mjtNum res[6], int flg_local) {
@@ -1102,7 +1119,7 @@ mjtNum mj_actuatorDamping(const mjModel* m, mjtObj type, int id, mjtNum poly[mjN
 
   // single actuator contributes damping
   if (actuatorid >= 0) {
-    mjtNum gear2 = m->actuator_gear[6*actuatorid] * m->actuator_gear[6*actuatorid];
+    mjtNum gear2 = m->actuator_gear[6*m->actuator_outadr[actuatorid]] * m->actuator_gear[6*m->actuator_outadr[actuatorid]];
     damping = m->actuator_damping[actuatorid] * gear2;
     for (int k = 0; k < mjNPOLY; k++) {
       poly[k] += m->actuator_dampingpoly[mjNPOLY*actuatorid+k] * gear2;
@@ -1111,7 +1128,7 @@ mjtNum mj_actuatorDamping(const mjModel* m, mjtObj type, int id, mjtNum poly[mjN
 
   // actuatorid < -1: scan all actuators for contributions
   else {
-    for (int k = 0; k < m->nu; k++) {
+    for (int k = 0; k < m->nactuator; k++) {
       // skip actuators that don't actuate the given joint/tendon
       if (m->actuator_trnid[2*k] != id) {
         continue;
@@ -1126,7 +1143,7 @@ mjtNum mj_actuatorDamping(const mjModel* m, mjtObj type, int id, mjtNum poly[mjN
       }
 
       // accumulate damping contribution
-      mjtNum gear2 = m->actuator_gear[6*k] * m->actuator_gear[6*k];
+      mjtNum gear2 = m->actuator_gear[6*m->actuator_outadr[k]] * m->actuator_gear[6*m->actuator_outadr[k]];
       damping += m->actuator_damping[k] * gear2;
       for (int j = 0; j < mjNPOLY; j++) {
         poly[j] += m->actuator_dampingpoly[mjNPOLY*k+j] * gear2;
@@ -1157,13 +1174,13 @@ mjtNum mj_actuatorArmature(const mjModel* m, mjtObj type, int id) {
 
   // single actuator contributes armature
   if (actuatorid >= 0) {
-    mjtNum gear2 = m->actuator_gear[6*actuatorid] * m->actuator_gear[6*actuatorid];
+    mjtNum gear2 = m->actuator_gear[6*m->actuator_outadr[actuatorid]] * m->actuator_gear[6*m->actuator_outadr[actuatorid]];
     armature = m->actuator_armature[actuatorid] * gear2;
   }
 
   // actuatorid < -1: scan all actuators for contributions
   else {
-    for (int k = 0; k < m->nu; k++) {
+    for (int k = 0; k < m->nactuator; k++) {
       // skip actuators that don't actuate the given joint/tendon
       if (m->actuator_trnid[2*k] != id) {
         continue;
@@ -1178,7 +1195,7 @@ mjtNum mj_actuatorArmature(const mjModel* m, mjtObj type, int id) {
       }
 
       // accumulate armature contribution
-      mjtNum gear2 = m->actuator_gear[6*k] * m->actuator_gear[6*k];
+      mjtNum gear2 = m->actuator_gear[6*m->actuator_outadr[k]] * m->actuator_gear[6*m->actuator_outadr[k]];
       armature += m->actuator_armature[k] * gear2;
     }
   }

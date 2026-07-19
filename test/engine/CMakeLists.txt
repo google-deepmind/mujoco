@@ -24,6 +24,8 @@ mujoco_test(engine_core_constraint_test)
 
 mujoco_test(engine_core_smooth_test ADDITIONAL_LINK_LIBRARIES absl::span)
 
+mujoco_test(engine_core_util_test)
+
 mujoco_test(engine_derivative_test)
 
 mujoco_test(engine_forward_test)
@@ -71,7 +73,11 @@ mujoco_test(engine_util_blas_test)
 
 mujoco_test(engine_util_errmem_test)
 
+mujoco_test(engine_util_misc_test)
+
 mujoco_test(engine_util_solve_test)
+
+mujoco_test(engine_util_sparse_test)
 
 mujoco_test(engine_util_spatial_test)
 

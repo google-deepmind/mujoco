@@ -21,34 +21,61 @@ the console. To simulate controlled dynamics instead of passive dynamics one can
 
 .. code-block:: Shell
 
-   testspeed modelfile [nstep nthread ctrlnoise npoolthread]
+   testspeed [options] model
 
-Where the command line arguments are
+Where the command-line options and arguments are
 
 .. list-table::
    :width: 95%
    :align: left
-   :widths: 1 1 5
+   :widths: 2 1 4
    :header-rows: 1
 
-   * - Argument
+   * - Option
      - Default
      - Meaning
-   * - ``modelfile``
+   * - ``model``
      - (required)
-     - path to model
-   * - ``nstep``
+     - path to model (positional argument)
+   * - ``--nstep=N``
      - 10000
      - number of steps per rollout
-   * - ``nthread``
+   * - ``--nthread=N``
      - 1
      - number of threads running parallel rollouts
-   * - ``ctrlnoise``
+   * - ``--noisestd=X``
      - 0.01
      - scale of pseudo-random noise injected into actuators
-   * - ``npoolthread``
-     - 1
+   * - ``--noiserate=X``
+     - 0.1
+     - rate of convergence to ctrl keyframe/midpoint
+   * - ``--nenginethread=N``
+     - 0
      - number of threads in engine-internal threadpool
+   * - ``--solver=S``
+     - Newton
+     - override constraint solver algorithm (PGS, CG, Newton)
+   * - ``--cone=C``
+     - Pyramidal
+     - override friction cone type (Pyramidal, Elliptic)
+   * - ``--jacobian=J``
+     - Auto
+     - override constraint Jacobian type (Dense, Sparse, Auto)
+   * - ``--integrator=I``
+     - Euler
+     - override integration mode (Euler, RK4, Implicit, ImplicitFast)
+   * - ``--iterations=N``
+     - 100
+     - override solver iterations limit
+   * - ``--tolerance=X``
+     - 1e-8
+     - override solver convergence tolerance
+   * - ``--sleep_tolerance=X``
+     - 1e-4
+     - override sleep tolerance
+   * - ``--noslip_iterations=N``
+     - 0
+     - override noslip solver iterations limit
 
 **Notes:**
 
@@ -58,11 +85,13 @@ Where the command line arguments are
   logical cores.
 - By default, the simulation starts from the model reference configuration with zero velocities. However, if a
   keyframe named "test" is present in the model, it is used as the initial state.
-- The ``ctrlnoise`` argument prevents models from settling into a static state where, due to warmstarts, one can
-  measure artificially faster simulation.
-- When ``npoolthread > 1`` is specified, an engine-internal thread pool is created with the specified number of
+- The physics option override flags (such as ``--solver``) only override the model settings if they are explicitly
+  specified on the command line; otherwise, the model options configured in the XML file are preserved.
+- The control noise arguments (``noisestd`` and ``noiserate``) prevent models from settling into a static state where,
+  due to warmstarts, one can measure artificially faster simulation.
+- When ``nenginethread > 1`` is specified, an engine-internal thread pool is created with the specified number of
   threads, to speed up simulation of large scenes. Note that while it is possible to use both ``nthread`` and
-  ``npoolthread``, the scenarios for which one would want these different types of multithreading are usually mutually
+  ``nenginethread``, the scenarios for which one would want these different types of multithreading are usually mutually
   exclusive.
 - For more repeatable performance statistics, run the tool with the ``performance``
   `governor <https://www.kernel.org/doc/Documentation/cpu-freq/governors.txt>`__ on Linux, or the
@@ -93,7 +122,250 @@ Interaction is done with the mouse; built-in help with a summary of available co
 ``F1`` key. Briefly, an object is selected by left-double-click. The user can then apply forces and torques on the
 selected object by holding Ctrl and dragging the mouse. Dragging the mouse alone (without Ctrl) moves the camera. There
 are keyboard shortcuts for pausing the simulation, resetting, and re-loading the model file. The latter functionality is
-very useful while editing the model in an XML editor.
+very useful while editing the model in an XML editor. The complete set of shortcuts is given in
+:ref:`saSimulateShortcuts` below.
+
+.. _saSimulateShortcuts:
+
+Shortcuts
+^^^^^^^^^
+
+The ``F1`` help overlay lists the most common commands. The tables below are the complete reference, and also apply to
+the Python viewer launched with :ref:`mujoco.viewer<PyViewer>`, which is built on the same ``Simulate`` UI. Shortcuts
+that step or pause the simulation have no effect in passive mode, where stepping is driven by user code.
+
+In addition to the shortcuts listed here, every UI control shows its own shortcut when the right mouse button is held
+over the UI panel.
+
+Simulation and camera
+"""""""""""""""""""""
+
+.. list-table::
+   :width: 95%
+   :align: left
+   :widths: 1 3
+   :header-rows: 1
+
+   * - Key
+     - Action
+   * - ``Space``
+     - Play / pause
+   * - ``Right arrow``
+     - Step forward
+   * - ``Left arrow``
+     - Step backward, through the history buffer
+   * - ``+`` (actually ``=``)
+     - Speed up
+   * - ``-``
+     - Slow down
+   * - ``Backspace``
+     - Reset
+   * - ``Ctrl C``
+     - Copy state to clipboard
+   * - ``Ctrl L``
+     - Reload the model
+   * - ``Ctrl A``
+     - Align the free camera
+   * - ``Esc``
+     - Switch to the free camera
+   * - ``[`` / ``]``
+     - Cycle down / up through the fixed cameras defined in the model
+   * - ``Page Up``
+     - Select the parent of the currently selected body
+   * - ``Tab`` / ``Shift Tab``
+     - Toggle the left / right UI panel
+
+Panels and files
+""""""""""""""""
+
+.. list-table::
+   :width: 95%
+   :align: left
+   :widths: 1 3
+   :header-rows: 1
+
+   * - Key
+     - Action
+   * - ``F1``
+     - Toggle the help overlay
+   * - ``F2``
+     - Toggle the info overlay
+   * - ``F3``
+     - Toggle the profiler
+   * - ``F4``
+     - Toggle the sensor plots
+   * - ``F5``
+     - Toggle fullscreen
+   * - ``F6``
+     - Cycle the frame visualization
+   * - ``F7``
+     - Cycle the label visualization
+   * - ``Ctrl M``
+     - Print the model to ``MJMODEL.TXT``
+   * - ``Ctrl D``
+     - Print the data to ``MJDATA.TXT``
+   * - ``Ctrl P``
+     - Save a screenshot
+   * - ``Ctrl Q``
+     - Quit
+   * - ``Alt`` + letter
+     - Expand / collapse a UI section: ``F`` File, ``O`` Option, ``S`` Simulation, ``W`` Watch, ``P`` Physics,
+       ``R`` Rendering, ``V`` Visualization, ``G`` Group enable, ``L`` Logging, ``J`` Joint, ``C`` Control,
+       ``E`` Equality
+
+Visibility groups
+"""""""""""""""""
+
+.. list-table::
+   :width: 95%
+   :align: left
+   :widths: 1 3
+   :header-rows: 1
+
+   * - Key
+     - Action
+   * - ``0`` … ``5``
+     - Toggle visibility of geom group 0 … 5
+   * - ``Shift 0`` … ``Shift 5``
+     - Toggle visibility of site group 0 … 5
+
+Visualization flags
+"""""""""""""""""""
+
+These toggle the abstract visualization flags in the Rendering section, and correspond to the shortcuts declared in
+``mjVISSTRING``. Flags with no shortcut assigned (Select Point, the Flex flags and SDF iters) are omitted.
+
+.. list-table::
+   :width: 95%
+   :align: left
+   :widths: 1 3 1 3
+   :header-rows: 1
+
+   * - Key
+     - Flag
+     - Key
+     - Flag
+   * - ``H``
+     - Convex Hull
+     - ``X``
+     - Texture
+   * - ``J``
+     - Joint
+     - ``Q``
+     - Camera
+   * - ``U``
+     - Actuator
+     - ``,``
+     - Activation
+   * - ``Z``
+     - Light
+     - ``V``
+     - Tendon
+   * - ``Y``
+     - Range Finder
+     - ``E``
+     - Equality
+   * - ``I``
+     - Inertia
+     - ``'``
+     - Scale Inertia
+   * - ``B``
+     - Perturb Force
+     - ``O``
+     - Perturb Object
+   * - ``C``
+     - Contact Point
+     - ``N``
+     - Island
+   * - ``F``
+     - Contact Force
+     - ``P``
+     - Contact Split
+   * - ``T``
+     - Transparent
+     - ``A``
+     - Auto Connect
+   * - ``M``
+     - Center of Mass
+     - ``D``
+     - Static Body
+   * - ``;``
+     - Skin
+     - :literal:`\``
+     - Body Tree
+   * - ``\``
+     - Mesh Tree
+     -
+     -
+
+Rendering flags
+"""""""""""""""
+
+These toggle the OpenGL effects in the Rendering section, and correspond to the shortcuts declared in ``mjRNDSTRING``.
+Flags with no shortcut assigned (Depth, Id Color and Cull Face) are omitted.
+
+.. list-table::
+   :width: 95%
+   :align: left
+   :widths: 1 3 1 3
+   :header-rows: 1
+
+   * - Key
+     - Flag
+     - Key
+     - Flag
+   * - ``S``
+     - Shadow
+     - ``W``
+     - Wireframe
+   * - ``R``
+     - Reflection
+     - ``L``
+     - Additive
+   * - ``K``
+     - Skybox
+     - ``G``
+     - Fog
+   * - ``/``
+     - Haze
+     -
+     -
+
+Mouse
+"""""
+
+.. list-table::
+   :width: 95%
+   :align: left
+   :widths: 2 3
+   :header-rows: 1
+
+   * - Action
+     - Effect
+   * - Left drag
+     - Orbit the camera
+   * - Right drag
+     - Pan camera in vertical plane
+   * - ``Shift`` right drag
+     - Pan camera in horizontal plane
+   * - Scroll, or middle drag
+     - Zoom
+   * - Double-click
+     - Select an object
+   * - Right double-click
+     - Center the camera on the clicked point
+   * - ``Ctrl`` right double-click
+     - Track the selected body
+   * - ``Ctrl`` drag
+     - Rotate the selected object
+   * - ``Ctrl`` right drag
+     - Translate object in vertical plane
+   * - ``Ctrl`` ``Shift`` right drag
+     - Translate object in horizontal plane
+   * - Right-button hold over the UI
+     - Show the shortcut of each UI control
+   * - Double-click a UI section title
+     - Expand / collapse all sections
 
 The code is long yet reasonably commented, so it is best to just read it. Here we provide a high-level overview.
 The ``main()`` function initializes both MuJoCo and GLFW, opens a window, and install GLFW callbacks for mouse and

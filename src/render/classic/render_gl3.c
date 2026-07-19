@@ -61,10 +61,19 @@ enum {
 // enable/disable texture mapping
 static void settexture(int type, int state, const mjrContext* con, const mjvGeom* geom) {
   float plane[4], scl[2];
-  int texid = -1;
+  int texid = -1, texuniform = 0;
+  float texrepeat[2] = {0, 0};
   if (geom) {
-    if (geom->matid >= 0) {
+    if (geom->texid >= 0) {
+      texid = geom->texid;
+      texuniform = geom->texuniform;
+      texrepeat[0] = geom->texrepeat[0];
+      texrepeat[1] = geom->texrepeat[1];
+    } else if (geom->matid >= 0) {
       texid = con->mat_texid[mjNTEXROLE * geom->matid + mjTEXROLE_RGB];
+      texuniform = con->mat_texuniform[geom->matid];
+      texrepeat[0] = con->mat_texrepeat[geom->matid*2];
+      texrepeat[1] = con->mat_texrepeat[geom->matid*2+1];
     }
   }
 
@@ -119,8 +128,8 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
       glBindTexture(GL_TEXTURE_2D, con->texture[texid]);
 
       // determine scaling, adjust for pre-scaled geoms
-      scl[0] = con->mat_texrepeat[geom->matid*2];
-      scl[1] = con->mat_texrepeat[geom->matid*2+1];
+      scl[0] = texrepeat[0];
+      scl[1] = texrepeat[1];
       if (geom->dataid >= 0) {
         if (geom->size[0] > 0) {
           scl[0] = scl[0] / mju_max(mjMINVAL, geom->size[0]);
@@ -132,7 +141,7 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
       }
 
       // uniform: repeat relative to spatial units rather than object
-      if (con->mat_texuniform[geom->matid]) {
+      if (texuniform) {
         if (geom->size[0] > 0) {
           scl[0] = scl[0] * geom->size[0];
         }
@@ -171,11 +180,11 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
 
       // set mapping : cube
       if (type == mjtexREGULAR) {
-        mjr_setf4(plane, con->mat_texuniform[geom->matid] ? geom->size[0] : 1, 0, 0, 0);
+        mjr_setf4(plane, texuniform ? geom->size[0] : 1, 0, 0, 0);
         glTexGenfv(GL_S, GL_OBJECT_PLANE, plane);
-        mjr_setf4(plane, 0, con->mat_texuniform[geom->matid] ? geom->size[1] : 1, 0, 0);
+        mjr_setf4(plane, 0, texuniform ? geom->size[1] : 1, 0, 0);
         glTexGenfv(GL_T, GL_OBJECT_PLANE, plane);
-        mjr_setf4(plane, 0, 0, con->mat_texuniform[geom->matid] ? geom->size[2] : 1, 0);
+        mjr_setf4(plane, 0, 0, texuniform ? geom->size[2] : 1, 0);
         glTexGenfv(GL_R, GL_OBJECT_PLANE, plane);
       }
 
@@ -1317,7 +1326,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
         if (con->textureType[i] == mjTEXTURE_SKYBOX) {
           // save first skybox texture id in tempgeom
           memset(&tempgeom, 0, sizeof(mjvGeom));
-          tempgeom.matid = mjMAXMATERIAL - 1;
+          tempgeom.texid = i;
 
           // modify settings
           glDisable(GL_LIGHTING);

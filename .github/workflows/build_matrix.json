@@ -51,29 +51,8 @@
       "tier": "extended"
     },
     {
-      "os": "ubuntu-22.04",
-      "label": "ubuntu-22.04-clang-14",
-      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-14 -DCMAKE_CXX_COMPILER:STRING=clang++-14 -DMUJOCO_HARDEN:BOOL=ON",
-      "tmpdir": "/tmp",
-      "tier": "extended"
-    },
-    {
-      "os": "ubuntu-22.04",
-      "label": "ubuntu-22.04-clang-13",
-      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-13 -DCMAKE_CXX_COMPILER:STRING=clang++-13 -DCMAKE_EXE_LINKER_FLAGS:STRING=-rtlib=compiler-rt -DCMAKE_SHARED_LINKER_FLAGS:STRING=-rtlib=compiler-rt -DMUJOCO_HARDEN:BOOL=ON",
-      "tmpdir": "/tmp",
-      "tier": "core"
-    },
-    {
       "os": "macos-15",
       "label": "macos-15-arm64",
-      "cmake_args": "-G Ninja -DMUJOCO_HARDEN:BOOL=ON",
-      "tmpdir": "/tmp",
-      "tier": "core"
-    },
-    {
-      "os": "macos-15-large",
-      "label": "macos-15-x86_64",
       "cmake_args": "-G Ninja -DMUJOCO_HARDEN:BOOL=ON",
       "tmpdir": "/tmp",
       "tier": "core"

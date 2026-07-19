@@ -521,7 +521,8 @@ TEST_F(XMLReaderTest, InvalidDoubleOrientation) {
         if (orient1 == orient2) continue;
         std::string xml = prefix + field + orient1 + orient2 + suffix;
         std::array<char, 1024> error;
-        MjModelPtr model = LoadModelFromString(xml.c_str(), error.data(), error.size());
+        MjModelPtr model =
+            LoadModelFromString(xml.c_str(), error.data(), error.size());
         ASSERT_THAT(model.get(), IsNull());
         EXPECT_THAT(
             error.data(),
@@ -1632,7 +1633,7 @@ TEST_F(XMLReaderTest, RepeatedPrefix) {
 
   mjSpec* spec = mj_parseXMLString(parent, vfs.get(), err.data(), err.size());
   EXPECT_THAT(spec, IsNull());
-  EXPECT_THAT(err.data(), HasSubstr("mismatched parents"));
+  EXPECT_THAT(err.data(), HasSubstr("cannot attach"));
   mj_deleteSpec(spec);
   mj_deleteVFS(vfs.get());
 }
@@ -1836,7 +1837,8 @@ TEST_F(XMLReaderTest, AttachSpecAssets) {
   mj_addBufferVFS(vfs.get(), "xml_child.xml", xml_child, sizeof(xml_child));
 
   std::array<char, 1024> er;
-  MjModelPtr model = LoadModelFromString(xml_parent, er.data(), er.size(), vfs.get());
+  MjModelPtr model =
+      LoadModelFromString(xml_parent, er.data(), er.size(), vfs.get());
   EXPECT_THAT(model.get(), NotNull()) << er.data();
 
   MjModelPtr expected = LoadModelFromString(xml_expected, er.data(), er.size());
@@ -1890,7 +1892,8 @@ TEST_F(XMLReaderTest, InvalidAttach) {
   mj_addBufferVFS(vfs.get(), "child.xml", xml_child, sizeof(xml_child));
 
   std::array<char, 1024> er;
-  MjModelPtr model = LoadModelFromString(xml_parent, er.data(), er.size(), vfs.get());
+  MjModelPtr model =
+      LoadModelFromString(xml_parent, er.data(), er.size(), vfs.get());
 
   EXPECT_THAT(model.get(), IsNull()) << er.data();
   EXPECT_THAT(er.data(), HasSubstr("repeated name '_actuator' in actuator"));
@@ -1999,7 +2002,8 @@ TEST_F(XMLReaderTest, ResizeKeyframeAfterParsing) {
   mj_addBufferVFS(vfs.get(), "child.xml", child_xml, sizeof(child_xml));
 
   std::array<char, 1024> error;
-  MjModelPtr m = LoadModelFromString(parent_xml, error.data(), error.size(), vfs.get());
+  MjModelPtr m =
+      LoadModelFromString(parent_xml, error.data(), error.size(), vfs.get());
   EXPECT_THAT(m.get(), NotNull()) << error.data();
   mj_deleteVFS(vfs.get());
 }
@@ -2855,7 +2859,7 @@ TEST_F(ActuatorParseTest, IntvelocityCheckDefaultsIfNotSpecified) {
   EXPECT_DOUBLE_EQ(model->actuator_biasprm[2], 0.0);
 }
 
-TEST_F(ActuatorParseTest, IntvelocityNoActrangeThrowsError) {
+TEST_F(ActuatorParseTest, IntvelocityNoActrangeIsValid) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -2871,9 +2875,9 @@ TEST_F(ActuatorParseTest, IntvelocityNoActrangeThrowsError) {
   )";
   std::array<char, 1024> error;
   MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model.get(), IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("invalid actrange for actuator"));
-  EXPECT_THAT(error.data(), HasSubstr("line 10"));
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  // actlimited resolves to false when no actrange is provided
+  EXPECT_EQ(model->actuator_actlimited[0], 0);
 }
 
 TEST_F(ActuatorParseTest, IntvelocityDefaultsPropagate) {
@@ -2978,6 +2982,29 @@ TEST_F(ActuatorParseTest, DampersDontRequireRange) {
   ASSERT_THAT(model.get(), NotNull());
   EXPECT_EQ(model->actuator_ctrlrange[0], 0);
   EXPECT_EQ(model->actuator_ctrlrange[1], 2);
+}
+
+TEST_F(ActuatorParseTest, DamperInheritsKv) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <damper kv="5" ctrlrange="0 2"/>
+    </default>
+    <worldbody>
+      <body name="sphere">
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <damper joint="hinge"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->actuator_gainprm[2], -5.0);
 }
 
 // adhesion actuators inherit from general defaults
@@ -3725,7 +3752,7 @@ TEST_F(ActuatorParseTest, ActuatorDelayParsed) {
   ASSERT_EQ(model->nu, 3);
   // actuator_history[2*i] = nsample, actuator_history[2*i+1] = interp
   EXPECT_EQ(model->actuator_history[0], 0);   // jnt1 nsample
-  EXPECT_EQ(model->actuator_history[1], 0);   // jnt1 interp (no buffer, default 0)
+  EXPECT_EQ(model->actuator_history[1], 0);   // jnt1 interp (no buffer, def 0)
   EXPECT_EQ(model->actuator_history[2], 3);   // jnt2 nsample
   EXPECT_EQ(model->actuator_history[3], 0);   // jnt2 interp (ZOH)
   EXPECT_EQ(model->actuator_history[4], 10);  // jnt3 nsample
@@ -3785,6 +3812,7 @@ TEST_F(ActuatorParseTest, ActuatorDelayRequiresHistory) {
   EXPECT_THAT(error.data(),
               HasSubstr("setting delay > 0 without a history buffer"));
 }
+
 TEST_F(ActuatorParseTest, DampingArmatureDefaultsPropagate) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -3882,6 +3910,107 @@ TEST_F(XMLReaderTest, AttachConflictXMLMergeUnmergableError) {
   EXPECT_THAT(spec, IsNull());
   EXPECT_THAT(error.data(),
               HasSubstr("gravity: parent has 0 0 -10, child has 0 0 0"));
+}
+
+TEST_F(XMLReaderTest, SelfAttach) {
+  static constexpr char xml[] = R"(
+    <mujoco model="self-attach-test">
+      <worldbody>
+        <body name="body1">
+          <geom name="geom1" size="1"/>
+        </body>
+        <body name="body2">
+          <attach body="body1" prefix="attached_"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull());
+
+  int body2_id = mj_name2id(m, mjOBJ_BODY, "body2");
+  int attached_body1_id = mj_name2id(m, mjOBJ_BODY, "attached_body1");
+
+  EXPECT_GE(body2_id, 0);
+  EXPECT_GE(attached_body1_id, 0);
+  EXPECT_EQ(m->body_parentid[attached_body1_id], body2_id);
+
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(XMLReaderTest, SelfAttachCollisionError) {
+  static constexpr char xml[] = R"(
+    <mujoco model="self-attach-collision">
+      <worldbody>
+        <body name="body1"/>
+        <body name="attached_body1"/>
+        <body name="body2">
+          <attach body="body1" prefix="attached_"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  EXPECT_THAT(spec, IsNull());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr("cannot self-attach: element attached_body1 already exists"));
+}
+
+TEST_F(XMLReaderTest, SelfAttachMissingError) {
+  static constexpr char xml[] = R"(
+    <mujoco model="self-attach-missing">
+      <worldbody>
+        <body name="body1">
+          <attach body="nonexistent" prefix="attached_"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  EXPECT_THAT(spec, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("could not find body 'nonexistent' in "
+                                      "the current model for self-attachment"));
+}
+
+TEST_F(XMLReaderTest, SelfAttachFrame) {
+  static constexpr char xml[] = R"(
+    <mujoco model="self-attach-frame-test">
+      <worldbody>
+        <frame name="frame1">
+          <body name="body1" pos="-1 0 0">
+            <geom name="geom1" type="box" size="1 1 1"/>
+          </body>
+        </frame>
+        <body name="body2">
+          <attach frame="frame1" prefix="attached_"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+
+  int body2_id = mj_name2id(m, mjOBJ_BODY, "body2");
+  int attached_body1_id = mj_name2id(m, mjOBJ_BODY, "attached_body1");
+
+  EXPECT_GE(body2_id, 0);
+  EXPECT_GE(attached_body1_id, 0);
+  EXPECT_EQ(m->body_parentid[attached_body1_id], body2_id);
+
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
 }
 
 }  // namespace

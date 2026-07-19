@@ -28,7 +28,6 @@ from mujoco.mjx.third_party.mujoco_warp._src import sensor
 from mujoco.mjx.third_party.mujoco_warp._src import sleep
 from mujoco.mjx.third_party.mujoco_warp._src import smooth
 from mujoco.mjx.third_party.mujoco_warp._src import solver
-from mujoco.mjx.third_party.mujoco_warp._src import types
 from mujoco.mjx.third_party.mujoco_warp._src import util_misc
 from mujoco.mjx.third_party.mujoco_warp._src.support import next_act
 from mujoco.mjx.third_party.mujoco_warp._src.support import xfrc_accumulate
@@ -42,7 +41,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import GainType
 from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
-from mujoco.mjx.third_party.mujoco_warp._src.types import TileSet
+from mujoco.mjx.third_party.mujoco_warp._src.types import OverflowType
 from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec10f
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
@@ -219,46 +218,59 @@ def _next_activation(
       act_out[worldid, j] = act
 
 
-@wp.kernel
-def _next_time(
-  # Model:
-  opt_timestep: wp.array[float],
-  is_sparse: bool,
-  # Data in:
-  nefc_in: wp.array[int],
-  time_in: wp.array[float],
-  efc_J_rownnz_in: wp.array2d[int],
-  efc_J_rowadr_in: wp.array2d[int],
-  nworld_in: int,
-  naconmax_in: int,
-  njmax_in: int,
-  njmax_nnz_in: int,
-  nacon_in: wp.array[int],
-  ncollision_in: wp.array[int],
-  # Data out:
-  time_out: wp.array[float],
-):
-  worldid = wp.tid()
-  time_out[worldid] = time_in[worldid] + opt_timestep[worldid % opt_timestep.shape[0]]
-  nefc = nefc_in[worldid]
+@cache_kernel
+def _next_time_builder(warn_overflow: bool):
+  @wp.kernel(module="unique", enable_backward=False)
+  def _next_time(
+    # Model:
+    opt_timestep: wp.array[float],
+    is_sparse: bool,
+    # Data in:
+    nefc_in: wp.array[int],
+    time_in: wp.array[float],
+    efc_J_rownnz_in: wp.array2d[int],
+    efc_J_rowadr_in: wp.array2d[int],
+    nworld_in: int,
+    naconmax_in: int,
+    njmax_in: int,
+    njmax_nnz_in: int,
+    nacon_in: wp.array[int],
+    ncollision_in: wp.array[int],
+    # Data out:
+    time_out: wp.array[float],
+    overflow_out: wp.array[int],
+  ):
+    worldid = wp.tid()
+    time_out[worldid] = time_in[worldid] + opt_timestep[worldid % opt_timestep.shape[0]]
+    nefc = nefc_in[worldid]
 
-  if nefc > njmax_in:
-    wp.printf("nefc overflow - please increase njmax to %u\n", nefc)
-  elif nefc > 0 and is_sparse:
-    efcid = wp.min(nefc, njmax_in) - 1
-    efc_nnz = efc_J_rowadr_in[worldid, efcid] + efc_J_rownnz_in[worldid, efcid]
-    if efc_nnz > njmax_nnz_in:
-      wp.printf("njmax_nnz overflow - please increase njmax_nnz to %u\n", efc_nnz)
+    if nefc > njmax_in:
+      if wp.static(warn_overflow):
+        wp.printf("nefc overflow - please increase njmax to %u\n", nefc)
+      overflow_out[worldid] = overflow_out[worldid] | OverflowType.NEFC
+    elif nefc > 0 and is_sparse:
+      efcid = wp.min(nefc, njmax_in) - 1
+      efc_nnz = efc_J_rowadr_in[worldid, efcid] + efc_J_rownnz_in[worldid, efcid]
+      if efc_nnz > njmax_nnz_in:
+        if wp.static(warn_overflow):
+          wp.printf("njmax_nnz overflow - please increase njmax_nnz to %u\n", efc_nnz)
+        overflow_out[worldid] = overflow_out[worldid] | OverflowType.NJMAX_NNZ
 
-  if worldid == 0:
     ncollision = ncollision_in[0]
     if ncollision > naconmax_in:
-      nconmax = int(wp.ceil(float(ncollision) / float(nworld_in)))
-      wp.printf("broadphase overflow - please increase nconmax to %u or naconmax to %u\n", nconmax, ncollision)
+      if worldid == 0 and wp.static(warn_overflow):
+        nconmax = int(wp.ceil(float(ncollision) / float(nworld_in)))
+        wp.printf("broadphase overflow - please increase nconmax to %u or naconmax to %u\n", nconmax, ncollision)
+      overflow_out[worldid] = overflow_out[worldid] | OverflowType.BROADPHASE
 
-    if nacon_in[0] > naconmax_in:
-      nconmax = int(wp.ceil(float(nacon_in[0]) / float(nworld_in)))
-      wp.printf("narrowphase overflow - please increase nconmax to %u or naconmax to %u\n", nconmax, nacon_in[0])
+    nacon = nacon_in[0]
+    if nacon > naconmax_in:
+      if worldid == 0 and wp.static(warn_overflow):
+        nconmax = int(wp.ceil(float(nacon) / float(nworld_in)))
+        wp.printf("narrowphase overflow - please increase nconmax to %u or naconmax to %u\n", nconmax, nacon)
+      overflow_out[worldid] = overflow_out[worldid] | OverflowType.NARROWPHASE
+
+  return _next_time
 
 
 def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None):
@@ -309,7 +321,7 @@ def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None)
   history.insert_ctrl_history(m, d)
 
   wp.launch(
-    _next_time,
+    _next_time_builder(bool(m.opt.warn_overflow)),
     dim=d.nworld,
     inputs=[
       m.opt.timestep,
@@ -325,12 +337,13 @@ def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None)
       d.nacon,
       d.ncollision,
     ],
-    outputs=[d.time],
+    outputs=[d.time, d.overflow],
   )
 
   wp.copy(d.qacc_warmstart, d.qacc)
 
-  if not (m.opt.disableflags & DisableBit.ISLAND) and (m.opt.enableflags & EnableBit.SLEEP):
+  sleep_enabled = bool(m.opt.enableflags & EnableBit.SLEEP) and not bool(m.opt.disableflags & DisableBit.ISLAND)
+  if sleep_enabled:
     sleep.sleep(m, d)
     fwd_velocity(m, d)
     sleep.update_sleep(m, d)
@@ -354,7 +367,7 @@ def _compute_damping_deriv(
 
 
 @wp.kernel
-def _euler_damp_qfrc_sparse(
+def _euler_damp_qfrc(
   # Model:
   opt_timestep: wp.array[float],
   M_rownnz: wp.array[int],
@@ -362,46 +375,13 @@ def _euler_damp_qfrc_sparse(
   # In:
   damp_deriv: wp.array2d[float],
   # Out:
-  M_integration_out: wp.array3d[float],
+  M_integration_out: wp.array2d[float],
 ):
   worldid, tid = wp.tid()
   timestep = opt_timestep[worldid % opt_timestep.shape[0]]
 
   adr = M_rowadr[tid] + M_rownnz[tid] - 1
-  M_integration_out[worldid, 0, adr] += timestep * damp_deriv[worldid, tid]
-
-
-@cache_kernel
-def _tile_euler_dense(tile: TileSet):
-  @wp.kernel(module="unique", enable_backward=False)
-  def euler_dense(
-    # Model:
-    opt_timestep: wp.array[float],
-    # Data in:
-    M_in: wp.array3d[float],
-    efc_Ma_in: wp.array2d[float],
-    # In:
-    damp_deriv: wp.array2d[float],
-    adr_in: wp.array[int],
-    # Data out:
-    qacc_out: wp.array2d[float],
-  ):
-    worldid, nodeid = wp.tid()
-    timestep = opt_timestep[worldid % opt_timestep.shape[0]]
-    TILE_SIZE = wp.static(tile.size)
-
-    dofid = adr_in[nodeid]
-    M_tile = wp.tile_load(M_in[worldid], shape=(TILE_SIZE, TILE_SIZE), offset=(dofid, dofid))
-    damping_tile = wp.tile_load(damp_deriv[worldid], shape=(TILE_SIZE,), offset=(dofid,))
-    damping_scaled = damping_tile * timestep
-    qm_integration_tile = wp.tile_diag_add(M_tile, damping_scaled)
-
-    Ma_tile = wp.tile_load(efc_Ma_in[worldid], shape=(TILE_SIZE,), offset=(dofid,))
-    L_tile = wp.tile_cholesky(qm_integration_tile, fill_mode="upper")
-    qacc_tile = wp.tile_cholesky_solve(L_tile, Ma_tile, fill_mode="upper")
-    wp.tile_store(qacc_out[worldid], qacc_tile, offset=(dofid))
-
-  return euler_dense
+  M_integration_out[worldid, adr] += timestep * damp_deriv[worldid, tid]
 
 
 @event_scope
@@ -420,26 +400,18 @@ def euler(m: Model, d: Data):
       outputs=[damp_deriv],
     )
 
-    if m.is_sparse:
-      M = wp.clone(d.M)
-      qLD = wp.empty((d.nworld, 1, m.nC), dtype=float)
-      qLDiagInv = wp.empty((d.nworld, m.nv), dtype=float)
-      wp.launch(
-        _euler_damp_qfrc_sparse,
-        dim=(d.nworld, m.nv),
-        inputs=[m.opt.timestep, m.M_rownnz, m.M_rowadr, damp_deriv],
-        outputs=[M],
-      )
-      smooth.factor_solve_i(m, d, M, qLD, qLDiagInv, qacc, d.efc.Ma)
-    else:
-      for tile in m.M_tiles:
-        wp.launch_tiled(
-          _tile_euler_dense(tile),
-          dim=(d.nworld, tile.adr.size),
-          inputs=[m.opt.timestep, d.M, d.efc.Ma, damp_deriv, tile.adr],
-          outputs=[qacc],
-          block_dim=m.block_dim.euler_dense,
-        )
+    # Clone M, add the damping to the diagonal, and factor-solve. factor_solve_i factors each block
+    # per-block (packed dense and/or sparse LDL); the scratch qLD matches d.qLD.
+    M = wp.clone(d.M)
+    qLD = wp.empty_like(d.qLD)
+    qLDiagInv = wp.empty((d.nworld, m.nv), dtype=float)
+    wp.launch(
+      _euler_damp_qfrc,
+      dim=(d.nworld, m.nv),
+      inputs=[m.opt.timestep, m.M_rownnz, m.M_rowadr, damp_deriv],
+      outputs=[M],
+    )
+    smooth.factor_solve_i(m, d, M, qLD, qLDiagInv, qacc, d.efc.Ma)
     _advance(m, d, qacc)
   else:
     _advance(m, d, d.qacc)
@@ -589,25 +561,18 @@ def rungekutta4(m: Model, d: Data):
 def _map_m2d(
   # Model:
   mapM2D: wp.array[int],
-  is_sparse: bool,
   # In:
-  qDi: wp.array[int],
-  qDj: wp.array[int],
-  qH_M: wp.array3d[float],
+  qH_M: wp.array2d[float],
   # Data out:
-  qLU_out: wp.array3d[float],
+  qLU_out: wp.array2d[float],
 ):
+  # Scatter qH_M (M-structure) into the D-structure qLU via mapM2D.
   worldid, elemid = wp.tid()
-  if is_sparse:
-    m_idx = mapM2D[elemid]
-    if m_idx >= 0:
-      qLU_out[worldid, 0, elemid] = qH_M[worldid, 0, m_idx]
-    else:
-      qLU_out[worldid, 0, elemid] = 0.0
+  m_idx = mapM2D[elemid]
+  if m_idx >= 0:
+    qLU_out[worldid, elemid] = qH_M[worldid, m_idx]
   else:
-    i = qDi[elemid]
-    j = qDj[elemid]
-    qLU_out[worldid, 0, elemid] = qH_M[worldid, i, j]
+    qLU_out[worldid, elemid] = 0.0
 
 
 @event_scope
@@ -623,7 +588,7 @@ def implicit(m: Model, d: Data):
     wp.launch(
       _map_m2d,
       dim=(d.nworld, m.nD),
-      inputs=[m.mapM2D, m.is_sparse, m.qD_fullm_i, m.qD_fullm_j, qH_M],
+      inputs=[m.mapM2D, qH_M],
       outputs=[d.qLU],
     )
 
@@ -635,12 +600,9 @@ def implicit(m: Model, d: Data):
     smooth.factor_solve_lu(m, d, d.qLU, qacc, d.efc.Ma)
     _advance(m, d, qacc)
   elif ~(m.opt.disableflags | ~(DisableBit.ACTUATION | DisableBit.SPRING | DisableBit.DAMPER)):
-    if m.is_sparse:
-      qDeriv = wp.empty((d.nworld, 1, m.nC), dtype=float)
-      qLD = wp.empty((d.nworld, 1, m.nC), dtype=float)
-    else:
-      qDeriv = wp.empty(d.M.shape, dtype=float)
-      qLD = wp.empty(d.M.shape, dtype=float)
+    # qDeriv is in M-structure; the scratch qLD matches d.qLD (per-block).
+    qDeriv = wp.empty((d.nworld, m.nC), dtype=float)
+    qLD = wp.empty_like(d.qLD)
     qLDiagInv = wp.empty((d.nworld, m.nv), dtype=float)
     derivative.deriv_smooth_vel(m, d, qDeriv)
     qacc = wp.empty((d.nworld, m.nv), dtype=float)
@@ -665,7 +627,7 @@ def fwd_position(m: Model, d: Data, factorize: bool = True):
   smooth.flex(m, d)
   smooth.tendon(m, d)
 
-  sleep_enabled = not (m.opt.disableflags & DisableBit.ISLAND) and (m.opt.enableflags & EnableBit.SLEEP)
+  sleep_enabled = bool(m.opt.enableflags & EnableBit.SLEEP) and not bool(m.opt.disableflags & DisableBit.ISLAND)
 
   if sleep_enabled and m.ntendon > 0:
     sleep.wake_tendon(m, d)
@@ -679,12 +641,15 @@ def fwd_position(m: Model, d: Data, factorize: bool = True):
     if sleep_enabled:
       # pass 1
       collision_driver.collision(m, d)
-      # check for newly awake
-      skip = wp.zeros(1, dtype=int)
-      sleep.wake_collision(m, d, skip)
+      # wake any sleeping tree touched by an awake one
+      sleep.wake_collision(m, d)
+      # snapshot the awake state pass 1 used, before update_sleep overwrites it. a body is "newly
+      # awakened" if it was asleep here but awake after update_sleep below.
+      awake_prev = wp.clone(d.body_awake)
       sleep.update_sleep(m, d)
-      # pass 2: broadphase kernels early-return if skip[0] is 0
-      collision_driver.collision(m, d, skip)
+      # pass 2: passing awake_prev runs the incremental pass, emitting only pairs involving a
+      # newly-awakened body and appending them to the pass-1 buffer.
+      collision_driver.collision(m, d, awake_prev=awake_prev)
     else:
       collision_driver.collision(m, d)
 
@@ -695,7 +660,7 @@ def fwd_position(m: Model, d: Data, factorize: bool = True):
       sleep.wake_equality(m, d)
     sleep.update_sleep(m, d)
 
-  if m.ntree > 1 and not (m.opt.disableflags & types.DisableBit.ISLAND):
+  if sleep_enabled:
     island.island(m, d)
   smooth.transmission(m, d)
 
@@ -1142,7 +1107,6 @@ def _qfrc_actuator(
 @wp.kernel
 def _qfrc_actuator_gravcomp_limits(
   # Model:
-  ngravcomp: int,
   jnt_actfrclimited: wp.array[bool],
   jnt_actgravcomp: wp.array[int],
   jnt_actfrcrange: wp.array2d[wp.vec2],
@@ -1150,6 +1114,8 @@ def _qfrc_actuator_gravcomp_limits(
   # Data in:
   qfrc_gravcomp_in: wp.array2d[float],
   qfrc_actuator_in: wp.array2d[float],
+  # In:
+  gravity_enabled: bool,
   # Data out:
   qfrc_actuator_out: wp.array2d[float],
 ):
@@ -1159,7 +1125,7 @@ def _qfrc_actuator_gravcomp_limits(
   qfrc = qfrc_actuator_in[worldid, dofid]
 
   # actuator-level gravity compensation, skip if added as passive force
-  if ngravcomp and jnt_actgravcomp[jntid]:
+  if gravity_enabled and jnt_actgravcomp[jntid]:
     qfrc += qfrc_gravcomp_in[worldid, dofid]
 
   # limits
@@ -1256,17 +1222,18 @@ def fwd_actuation(m: Model, d: Data):
     ],
     outputs=[d.qfrc_actuator],
   )
+  gravity_enabled = not (m.opt.disableflags & DisableBit.GRAVITY)
   wp.launch(
     _qfrc_actuator_gravcomp_limits,
     dim=(d.nworld, m.nv),
     inputs=[
-      m.ngravcomp,
       m.jnt_actfrclimited,
       m.jnt_actgravcomp,
       m.jnt_actfrcrange,
       m.dof_jntid,
       d.qfrc_gravcomp,
       d.qfrc_actuator,
+      gravity_enabled,
     ],
     outputs=[d.qfrc_actuator],
   )
@@ -1316,7 +1283,7 @@ def fwd_acceleration(m: Model, d: Data, factorize: bool = False):
     d: The data object containing the current state and output arrays.
     factorize: Flag to factorize inertia matrix.
   """
-  enable_sleep = bool(m.opt.enableflags & EnableBit.SLEEP)
+  enable_sleep = bool(m.opt.enableflags & EnableBit.SLEEP) and not bool(m.opt.disableflags & DisableBit.ISLAND)
   wp.launch(
     _qfrc_smooth(enable_sleep),
     dim=(d.nworld, m.nv),
@@ -1333,7 +1300,12 @@ def fwd_acceleration(m: Model, d: Data, factorize: bool = False):
   )
   xfrc_accumulate(m, d, d.qfrc_smooth)
 
-  if factorize:
+  if enable_sleep:
+    # update the active-DOF set (needs contacts from fwd_position) and solve
+    # the smooth acceleration in compacted dense space.
+    island.update_active_dofs(m, d)
+    solver.smooth_solve_compact(m, d)
+  elif factorize:
     smooth.factor_solve_i(m, d, d.M, d.qLD, d.qLDiagInv, d.qacc_smooth, d.qfrc_smooth)
   else:
     smooth.solve_m(m, d, d.qacc_smooth, d.qfrc_smooth)
@@ -1342,7 +1314,8 @@ def fwd_acceleration(m: Model, d: Data, factorize: bool = False):
 @event_scope
 def forward(m: Model, d: Data):
   """Forward dynamics."""
-  if not (m.opt.disableflags & DisableBit.ISLAND) and (m.opt.enableflags & EnableBit.SLEEP):
+  sleep_enabled = bool(m.opt.enableflags & EnableBit.SLEEP) and not bool(m.opt.disableflags & DisableBit.ISLAND)
+  if sleep_enabled:
     sleep.wake(m, d)
     sleep.update_sleep(m, d)
 

@@ -1,4 +1,4 @@
-// Copyright 2025 DeepMind Technologies Limited
+// Copyright 2026 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,151 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Main entry point for the Filament-based MuJoCo renderer.
-
-#include <cstdlib>
-#include <cstring>
-#include <filesystem>  // NOLINT(build/c++17)
-#include <fstream>
-#include <ios>
-#include <iosfwd>
 #include <string>
-#include <string_view>
-#include <vector>
 
 #include <absl/flags/flag.h>
 #include <absl/flags/parse.h>
-#include <mujoco/mujoco.h>
-#include "experimental/platform/hal/graphics_mode.h"
-#include "experimental/platform/sys_utils.h"
-#include "experimental/studio/app.h"
+#include "experimental/studio/launcher.h"
 
 ABSL_FLAG(int, window_width, 1400, "Window width");
 ABSL_FLAG(int, window_height, 720, "Window height");
 ABSL_FLAG(std::string, model_file, "", "MuJoCo model file.");
 ABSL_FLAG(std::string, gfx, "", "Graphics API");
 
-std::string Resolve(std::string_view path) {
-  std::string_view subpath = path.substr(path.find(':') + 1);
-  std::filesystem::path exe_dir = mujoco::platform::GetModuleDir((void*)&Resolve);
-  if (exe_dir.empty()) {
-    return std::string("assets/") + std::string(subpath);
-  }
-  std::filesystem::path resources_dir = exe_dir.parent_path() / "Resources";
-  if (std::filesystem::exists(resources_dir / "assets")) {
-    return (resources_dir / "assets" / subpath).string();
-  }
-  return (exe_dir / "assets" / subpath).string();
-}
-
-class FileResource {
- public:
-  explicit FileResource(const std::string& path)
-      : file_(path, std::ios::binary | std::ios::ate) {
-    if (!file_.is_open()) {
-      mju_warning("Cannot open file %s", path.c_str());
-      return;
-    }
-
-    size_ = file_.tellg();
-    file_.seekg(0, std::ios::beg);
-  }
-
-  int Read(const void** buffer) {
-    buffer_.resize(size_);
-    if (!file_.read(reinterpret_cast<char*>(buffer_.data()), size_)) {
-      return 0;
-    }
-    *buffer = buffer_.data();
-    return size_;
-  }
-
-  int Size() const { return size_; }
-
-  FileResource(const FileResource&) = delete;
-  FileResource& operator=(const FileResource&) = delete;
-
- private:
-  std::ifstream file_;
-  std::vector<char> buffer_;
-  int size_ = 0;
-};
-
-int main(int argc, char** argv, char** envp) {
+int main(int argc, char** argv) {
   absl::ParseCommandLine(argc, argv);
 
-  const char* home = std::getenv("HOME");
-  const std::string ini_path = std::string(home ? home : ".") + "/.mujoco.ini";
-
-  mjpResourceProvider resource_provider;
-  mjp_defaultResourceProvider(&resource_provider);
-
-  resource_provider.open = [](mjResource* resource) {
-    const std::string resolved_path = Resolve(resource->name);
-    FileResource* f = new FileResource(resolved_path);
-    if (f->Size() == 0) {
-      delete f;
-      return 0;
-    }
-    resource->data = f;
-    return f->Size();
-  };
-  resource_provider.read = [](mjResource* resource, const void** buffer) {
-    FileResource* f = static_cast<FileResource*>(resource->data);
-    return f->Read(buffer);
-  };
-  resource_provider.close = [](mjResource* resource) {
-    delete static_cast<FileResource*>(resource->data);
-    resource->data = nullptr;
-  };
-
-  resource_provider.prefix = "font";
-  mjp_registerResourceProvider(&resource_provider);
-  resource_provider.prefix = "filament";
-  mjp_registerResourceProvider(&resource_provider);
-
-  std::string gfx = absl::GetFlag(FLAGS_gfx);
-
-  const char* session_type = std::getenv("XDG_SESSION_TYPE");
-  const char* wayland_display = std::getenv("WAYLAND_DISPLAY");
-  if ((session_type && std::string_view(session_type) == "wayland") ||
-      wayland_display) {
-    if (gfx.empty()) {
-      gfx = "opengl_headless";
-    } else if (gfx == "classic" || gfx == "opengl") {
-      mju_error(
-          "Wayland does not support '%s' graphics mode. "
-          "Restart with a different graphics mode, or login using X11.",
-          gfx.c_str());
-    }
-  }
-
-  mujoco::platform::GraphicsMode gfx_mode =
-      mujoco::platform::GraphicsModeFromString(
-          gfx, mujoco::platform::GraphicsMode::FilamentOpenGl);
-
-  const int width = absl::GetFlag(FLAGS_window_width);
-  const int height = absl::GetFlag(FLAGS_window_height);
-  mujoco::studio::App app({
-    .width = width,
-    .height = height,
-    .ini_path = ini_path,
-    .gfx_mode = gfx_mode,
-  });
-
-  // If the model file is not specified, try to load it from the first argument
   std::string model_file = absl::GetFlag(FLAGS_model_file);
-  if (model_file.empty() && argc > 1 && argv[1][0] != '-') model_file = argv[1];
-
-  if (model_file.empty()) {
-    app.InitEmptyModel();
-  } else {
-    app.LoadModelFromFile(model_file);
+  if (model_file.empty() && argc > 1 && argv[1][0] != '-') {
+    model_file = argv[1];
   }
 
-  while (app.Update()) {
-    app.BuildGui();
-    app.Render();
-  }
-  return 0;
+  return mujoco::studio::LaunchStudio(argc, argv, {
+      .window_width = absl::GetFlag(FLAGS_window_width),
+      .window_height = absl::GetFlag(FLAGS_window_height),
+      .model_file = model_file,
+      .gfx_mode = absl::GetFlag(FLAGS_gfx),
+  });
 }

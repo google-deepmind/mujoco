@@ -29,7 +29,8 @@ from mujoco.mjx.codegen import file
 import mujoco.mjx.third_party.mujoco_warp as mjwarp
 import numpy as np
 import warp as wp
-from mujoco.mjx.third_party.warp._src.jax_experimental import ffi
+from warp._src.jax.ffi import FfiArg
+from warp import JaxCallableGraphMode as GraphMode
 
 
 _MJX_WARP_TYPES_OUT_FPATH = flags.DEFINE_string(
@@ -116,7 +117,7 @@ def _get_target_annotation_node(
   if annotation in (int, float, bool):
     return _ast_parse_type(annotation.__name__)
 
-  if annotation is ffi.GraphMode:
+  if annotation is GraphMode:
     return _ast_parse_type('GraphMode')
 
   if isinstance(annotation, type) and issubclass(annotation, enum.Enum):
@@ -180,11 +181,13 @@ def _get_annotations_recursive(
 
 
 def _build_new_class_body_ast(
-    keys: Set[str],
+    keys: typing.Iterable[str],
     cls_name: str,
     target_annotations: Dict[str, Any],
+    defaults: Optional[Dict[str, Any]] = None,
     shape_property: Optional[str] = None,
     add_docstring: bool = True,
+    sort_keys: bool = True,
 ) -> List[ast.AST]:
   """Builds the list of AST nodes for the new class body."""
   new_body_nodes: List[ast.AST] = []
@@ -193,16 +196,29 @@ def _build_new_class_body_ast(
     docstring = f'Derived fields from {cls_name}.'
     new_body_nodes.append(ast.Expr(value=ast.Constant(value=docstring)))
 
-  # Sort keys alphabetically before creating AST nodes
-  sorted_keys = sorted(list(keys))
-  for key in sorted_keys:
+  if sort_keys:
+    maybe_sorted_keys = sorted(list(keys))
+  else:
+    maybe_sorted_keys = list(keys)
+
+  for key in maybe_sorted_keys:
     annotation_node = _get_target_annotation_node(key, target_annotations)
+
+    value_node = None
+    if defaults and key in defaults:
+      value_node = ast.Constant(value=defaults[key])
+
+    if value_node and value_node.value is None:
+      annotation_node = _ast_parse_type(
+          f'typing.Optional[{ast.unparse(annotation_node)}]'
+      )
 
     new_body_nodes.append(
         ast.AnnAssign(
             target=ast.Name(id=key, ctx=ast.Store()),
             annotation=annotation_node,
-            simple=1,  # No value assignment
+            value=value_node,
+            simple=1,
         )
     )
 
@@ -273,7 +289,8 @@ if typing.TYPE_CHECKING:
     pass
 else:
   try:
-    from warp._src.jax_experimental.ffi import GraphMode
+    from mujoco.mjx.third_party.warp._src.jax import ffi as warp_ffi
+    GraphMode = warp_ffi.JaxCallableGraphMode
     from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
     Callback = mjwp_types.Callback
   except ImportError:
@@ -314,11 +331,21 @@ _NESTED_DATACLASS_MANUAL_METHODS = {
 
 
 def write_nested_dataclass(target_fpath: epath.Path, cls: Any):
+  fields = dataclasses.fields(cls)
+  keys = [f.name for f in fields]
+  defaults = {
+      f.name: f.default
+      for f in fields
+      if f.default is not dataclasses.MISSING
+  }
+
   new_class_body = _build_new_class_body_ast(
-      set(cls.__annotations__.keys()),
+      keys,
       cls.__name__,
       dict(cls.__annotations__),
+      defaults=defaults,
       add_docstring=False,
+      sort_keys=False,
   )
   cls_str = '\n'.join(['  ' + ast.unparse(node) for node in new_class_body])
   cls_str = cls_str.replace('jax.Array', 'np.ndarray')
@@ -501,7 +528,7 @@ def _to_jax_ndim(name: str, wp_type: Any) -> int:
     if typing.get_args(wp_type)[1] != ...:
       raise NotImplementedError('Only variadic tuples are supported.')
     return -1  # signals that dim should be untouched in downstream code.
-  ffi_arg = ffi.FfiArg(name, wp_type)
+  ffi_arg = FfiArg(name, wp_type)
   return ffi_arg.jax_ndim
 
 
@@ -573,7 +600,7 @@ def main(argv):
   write_core_cls('Statistic', target_fpath, mjx_types_fpath, set_diff=False)
   write_core_cls(
       'Option', target_fpath, mjx_types_fpath,
-      extra_annotations={'graph_mode': ffi.GraphMode},
+      extra_annotations={'graph_mode': GraphMode},
   )
   write_core_cls('Model', target_fpath, mjx_types_fpath)
   write_core_cls('Data', target_fpath, mjx_types_fpath, flatten_fields=True)

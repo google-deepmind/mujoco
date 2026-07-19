@@ -714,7 +714,7 @@ def _box_box(b1: ConvexInfo, b2: ConvexInfo) -> Collision:
   # Go back to world frame.
   pos = b2.pos + pos @ b2.mat.T
   n = normal @ b2.mat.T
-  dist = jp.where(jp.isinf(dist), jp.finfo(float).max, dist)
+  dist = jp.where(jp.isinf(dist), jp.finfo(dist.dtype).max, dist)
 
   return dist, pos, n
 
@@ -927,7 +927,7 @@ def _convex_convex(c1: ConvexInfo, c2: ConvexInfo) -> Collision:
   pos = c2.pos + pos @ c2.mat.T
   n = normal @ c2.mat.T
   n = -n if swapped else n
-  dist = jp.where(jp.isinf(dist), jp.finfo(float).max, dist)
+  dist = jp.where(jp.isinf(dist), jp.finfo(dist.dtype).max, dist)
 
   return dist, pos, n
 

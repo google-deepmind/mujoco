@@ -1590,5 +1590,41 @@ TEST_F(XMLWriterTest, WritesActuatorDelayHistory) {
   EXPECT_THAT(saved_xml, HasSubstr("interp=\"cubic\""));
 }
 
+TEST_F(XMLWriterTest, BodySimpleRoundtrip) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="B1" simple="false">
+        <joint type="ball"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  std::string saved_xml = SaveAndReadXml(model.get());
+  EXPECT_THAT(saved_xml, HasSubstr("simple=\"false\""));
+
+  // auto should not be written
+  static constexpr char xml_auto[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="B1">
+        <joint type="ball"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr model_auto = LoadModelFromString(xml_auto);
+  ASSERT_THAT(model_auto.get(), NotNull());
+  std::string saved_auto = SaveAndReadXml(model_auto.get());
+  EXPECT_THAT(saved_auto, Not(HasSubstr("simple=")));
+
+  // nC should increase when simple is disabled
+  EXPECT_GT(model->nC, model_auto->nC);
+}
+
 }  // namespace
 }  // namespace mujoco

@@ -193,6 +193,7 @@ _SKIPPED_UTILITY_FUNCTIONS: tuple[str, ...] = (
     "mju_isModifiedResource",
     "mju_openResource",
     "mju_readResource",
+    "mju_writeResource",
     # go/keep-sorted end
 )
 
@@ -217,6 +218,7 @@ SKIPPED_STRUCTS: tuple[str, ...] = (
     "mjUI",
     "mjVFS",
     "mjrContext",
+    "mjrRendererInfo",
     "mjrRect",
     "mjrVertexAttribute",
     "mjuiDef",
@@ -337,6 +339,13 @@ MJDATA_SIZES: tuple[str, ...] = (
     "efc_state",
     "efc_type",
     "efc_vel",
+    "efm_K_colind",
+    "efm_K_val",
+    "efm_dofid",
+    "efm_L",
+    "efm_L_colind",
+    "efm_L_rowadr",
+    "efm_L_rownnz",
     "iLDiagInv",
     "iM_rowadr",
     "iM_rownnz",
@@ -660,7 +669,7 @@ FUNCTION_BOUNDS_CHECKS: Dict[str, str] = {
   CHECK_SIZE(DsDq, m.nv() * m.nsensordata());
   CHECK_SIZE(DsDv, m.nv() * m.nsensordata());
   CHECK_SIZE(DsDa, m.nv() * m.nsensordata());
-  CHECK_SIZE(DmDq, m.nv() * m.nM());
+  CHECK_SIZE(DmDq, m.nv() * m.nC());
     """.strip(),
     "mjd_subQuat": """
   CHECK_SIZE(qa, 4);
