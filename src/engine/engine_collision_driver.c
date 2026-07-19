@@ -354,11 +354,11 @@ int mj_isElemActive(const mjModel* m, int f, int e) {
 typedef struct {
   // type of collision pair
   enum {
-    mjCPAIR_GEOM_GEOM = 0,
-    mjCPAIR_GEOM_FLEX,
-    mjCPAIR_GEOM_ELEM,
-    mjCPAIR_ELEM_VERT,
-    mjCPAIR_ELEM_ELEM,
+    mjCPAIR_GEOM_GEOM = 0,  // mjCOLLISIONFUNC[type1][type2]
+    mjCPAIR_GEOM_FLEX,      // mj_collidePlaneFlex, mj_collideSdfFlex
+    mjCPAIR_GEOM_ELEM,      // mj_collideGeomElem
+    mjCPAIR_ELEM_VERT,      // mj_collideElemVert
+    mjCPAIR_ELEM_ELEM,      // mj_collideElems
   } type;
   int conpos;
   union {
