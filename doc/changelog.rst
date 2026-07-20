@@ -48,6 +48,8 @@ Engine
   as originally guarded by ``ngravcomp``. Since the engine uses these integers as flags (zero vs. non-zero), the new
   flags are honest boolean properties, writeable from the Python bindings at runtime. The field ``ngravcomp`` is
   deprecated and will be removed in a future release.
+- Replaced quadratic scratch in DFS flood-fill island discovery with a linear-memory Union-Find (disjoint set).
+  Contribution by :github:user:`teerthsharma`.
 
 .. admonition:: Breaking API changes
    :class: attention

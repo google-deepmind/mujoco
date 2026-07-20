@@ -16,6 +16,9 @@
 
 #include "src/engine/engine_island.h"
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -34,6 +37,301 @@ using ::testing::ElementsAre;
 using ::testing::NotNull;
 using ::testing::Pointwise;
 using IslandTest = MujocoTest;
+
+
+
+TEST_F(IslandTest, DsuRootReturnsCanonicalRootAndCompressesPath) {
+  int parent[] = {0, 0, 1, 2, 3};
+
+  EXPECT_EQ(mj_dsuRoot(parent, 0), 0);
+  EXPECT_EQ(mj_dsuRoot(parent, 4), 0);
+  EXPECT_THAT(parent, ElementsAre(0, 0, 0, 0, 0));
+}
+
+TEST_F(IslandTest, DsuMergeActivatesEndpointsAndUsesMinimumRoot) {
+  int parent[] = {-1, -1, -1, -1, -1, -1};
+
+  mj_dsuMerge(parent, -1, 4);
+  mj_dsuMerge(parent, 3, -1);
+  mj_dsuMerge(parent, 5, 2);
+  mj_dsuMerge(parent, 4, 5);
+  mj_dsuMerge(parent, 3, 4);
+
+  EXPECT_THAT(parent, ElementsAre(-1, -1, 2, 2, 2, 2));
+  for (int tree = 2; tree < 6; ++tree) {
+    EXPECT_EQ(mj_dsuRoot(parent, tree), 2);
+  }
+  EXPECT_THAT(parent, ElementsAre(-1, -1, 2, 2, 2, 2));
+}
+
+TEST_F(IslandTest, DsuMergeRedundantAndReversedEdgesAreIdempotent) {
+  int parent[] = {-1, -1, -1, -1};
+  mj_dsuMerge(parent, 3, 1);
+  mj_dsuMerge(parent, 2, 1);
+  EXPECT_THAT(parent, ElementsAre(-1, 1, 1, 1));
+
+  mj_dsuMerge(parent, 1, 3);
+  mj_dsuMerge(parent, 3, 1);
+  mj_dsuMerge(parent, 2, 2);
+  mj_dsuMerge(parent, -1, 2);
+  EXPECT_THAT(parent, ElementsAre(-1, 1, 1, 1));
+}
+
+TEST_F(IslandTest, DsuMergeFastPathActivatesBeforeTestingParents) {
+  int self_parent[] = {-1, -1, -1};
+  mj_dsuMerge(self_parent, 1, 1);
+  EXPECT_THAT(self_parent, ElementsAre(-1, 1, -1));
+
+  int static_first[] = {-1, -1, -1};
+  mj_dsuMerge(static_first, -1, 2);
+  EXPECT_THAT(static_first, ElementsAre(-1, -1, 2));
+
+  int static_second[] = {-1, -1, -1};
+  mj_dsuMerge(static_second, 0, -1);
+  EXPECT_THAT(static_second, ElementsAre(0, -1, -1));
+}
+
+TEST_F(IslandTest, DsuMergeFastPathDistinguishesParentsFromRoots) {
+  int distinct_parent[] = {0, 0, 2, 2};
+  mj_dsuMerge(distinct_parent, 1, 3);
+  EXPECT_THAT(distinct_parent, ElementsAre(0, 0, 0, 2));
+
+  int shared_parent[] = {0, 0, 0, 3};
+  mj_dsuMerge(shared_parent, 1, 2);
+  EXPECT_THAT(shared_parent, ElementsAre(0, 0, 0, 3));
+
+  int long_paths[] = {0, 0, 1, 3, 3, 4};
+  mj_dsuMerge(long_paths, 2, 5);
+  EXPECT_THAT(long_paths, ElementsAre(0, 0, 0, 0, 3, 3));
+}
+
+TEST_F(IslandTest, DsuMergeFastPathPreservesCyclesDuplicatesAndForest) {
+  int parent[] = {-1, -1, -1, -1, -1, -1};
+  mj_dsuMerge(parent, 0, 1);
+  mj_dsuMerge(parent, 1, 2);
+  mj_dsuMerge(parent, 2, 0);
+  mj_dsuMerge(parent, 0, 2);
+  mj_dsuMerge(parent, 3, 4);
+  mj_dsuMerge(parent, 4, 5);
+  EXPECT_THAT(parent, ElementsAre(0, 0, 0, 3, 3, 3));
+
+  mj_dsuMerge(parent, 5, 0);
+  EXPECT_THAT(parent, ElementsAre(0, 0, 0, 0, 3, 3));
+}
+
+TEST_F(IslandTest, DsuMergeRejectsStaticSelfIncidence) {
+  int parent[] = {-1, 1, 1, 3};
+
+  EXPECT_EQ(MjuErrorMessageFrom(mj_dsuMerge)(parent, -1, -1),
+            "self-incidence of the static tree");
+  EXPECT_THAT(parent, ElementsAre(-1, 1, 1, 3));
+}
+
+TEST_F(IslandTest, DsuAssignHandlesEmptyAndInactiveInputs) {
+  int island[] = {71};
+  int parent[] = {72};
+  const int tree_dofnum[] = {73};
+  int nidof = -1;
+
+  EXPECT_EQ(mj_dsuAssign(island, parent, tree_dofnum, 0, &nidof), 0);
+  EXPECT_EQ(nidof, 0);
+  EXPECT_THAT(island, ElementsAre(71));
+  EXPECT_THAT(parent, ElementsAre(72));
+
+  parent[0] = -1;
+  EXPECT_EQ(mj_dsuAssign(island, parent, tree_dofnum, 1, &nidof), 0);
+  EXPECT_EQ(nidof, 0);
+  EXPECT_THAT(island, ElementsAre(-1));
+  EXPECT_THAT(parent, ElementsAre(-1));
+}
+
+TEST_F(IslandTest, DsuAssignLabelsComponentsAndCountsOnlyActiveDofs) {
+  int parent[] = {-1, 1, 1, 2, 4, 4, 6};
+  const int tree_dofnum[] = {1000, 0, 3, 5, 7, 11, 13};
+  int island[] = {9, 9, 9, 9, 9, 9, 9};
+  int nidof = -1;
+
+  EXPECT_EQ(mj_dsuAssign(island, parent, tree_dofnum, 7, &nidof), 3);
+  EXPECT_EQ(nidof, 39);
+  EXPECT_THAT(island, ElementsAre(-1, 0, 0, 0, 1, 1, 2));
+  EXPECT_THAT(parent, ElementsAre(-1, 1, 1, 1, 4, 4, 6));
+}
+
+TEST_F(IslandTest, DsuAssignCompressesAscendingMultiHopForest) {
+  int parent[] = {-1, 1, 1, 2, 4, 4, 5, 7, 7, 8};
+  const int tree_dofnum[] = {99, 0, 2, 3, 0, 5, 7, 11, 0, 13};
+  int island[] = {9, 9, 9, 9, 9, 9, 9, 9, 9, 9};
+  int nidof = -1;
+
+  EXPECT_EQ(mj_dsuAssign(island, parent, tree_dofnum, 10, &nidof), 3);
+  EXPECT_EQ(nidof, 41);
+  EXPECT_THAT(island, ElementsAre(-1, 0, 0, 0, 1, 1, 1, 2, 2, 2));
+  EXPECT_THAT(parent, ElementsAre(-1, 1, 1, 1, 4, 4, 4, 7, 7, 7));
+}
+
+TEST_F(IslandTest, DsuAssignCompresses4096NodeAdversarialChain) {
+  constexpr int kTreeCount = 4096;
+  std::vector<int> parent(kTreeCount);
+  std::vector<int> island(kTreeCount, -2);
+  std::vector<int> tree_dofnum(kTreeCount);
+  parent[0] = 0;
+  int expected_nidof = 0;
+  for (int tree = 1; tree < kTreeCount; ++tree) {
+    parent[tree] = tree - 1;
+    tree_dofnum[tree] = tree % 5;
+    expected_nidof += tree_dofnum[tree];
+  }
+
+  int nidof = -1;
+  EXPECT_EQ(mj_dsuAssign(island.data(), parent.data(), tree_dofnum.data(),
+                                kTreeCount, &nidof),
+            1);
+  EXPECT_EQ(nidof, expected_nidof);
+  for (int tree = 0; tree < kTreeCount; ++tree) {
+    EXPECT_EQ(island[tree], 0);
+    EXPECT_EQ(parent[tree], 0);
+  }
+}
+
+TEST_F(IslandTest, DsuHandlesLongConnectedBoundaryCase) {
+  constexpr int kTreeCount = 4096;
+  std::vector<int> parent(kTreeCount, -1);
+  std::vector<int> island(kTreeCount, -2);
+  std::vector<int> tree_dofnum(kTreeCount);
+
+  int expected_nidof = 0;
+  for (int tree = kTreeCount - 1; tree > 0; --tree) {
+    mj_dsuMerge(parent.data(), tree, tree - 1);
+  }
+  for (int tree = 0; tree < kTreeCount; ++tree) {
+    tree_dofnum[tree] = tree % 7;
+    expected_nidof += tree_dofnum[tree];
+  }
+
+  int nidof = -1;
+  EXPECT_EQ(mj_dsuAssign(island.data(), parent.data(), tree_dofnum.data(),
+                                kTreeCount, &nidof),
+            1);
+  EXPECT_EQ(nidof, expected_nidof);
+  for (int tree = 0; tree < kTreeCount; ++tree) {
+    EXPECT_EQ(island[tree], 0);
+    EXPECT_EQ(parent[tree], 0);
+  }
+}
+
+TEST_F(IslandTest, DsuRandomizedDifferentialAgainstGraphTraversal) {
+  constexpr uint32_t kSeed = 0x5eed3396u;
+  constexpr int kTrials = 2000;
+  uint32_t state = kSeed;
+  auto next = [&state]() {
+    state = state * 1664525u + 1013904223u;
+    return state;
+  };
+
+  for (int trial = 0; trial < kTrials; ++trial) {
+    const int ntree = 1 + next() % 64;
+    const int nedge = next() % 192;
+    std::vector<std::array<int, 2>> edges;
+    edges.reserve(nedge);
+    for (int edge = 0; edge < nedge; ++edge) {
+      int tree1;
+      int tree2;
+      switch (next() % 8) {
+        case 0:
+          tree1 = -1;
+          tree2 = next() % ntree;
+          break;
+        case 1:
+          tree1 = next() % ntree;
+          tree2 = -1;
+          break;
+        case 2:
+          tree1 = next() % ntree;
+          tree2 = tree1;
+          break;
+        case 3:
+          if (!edges.empty()) {
+            const auto& previous = edges[next() % edges.size()];
+            tree1 = previous[0];
+            tree2 = previous[1];
+            break;
+          }
+          [[fallthrough]];
+        case 4:
+          if (!edges.empty()) {
+            const auto& previous = edges[next() % edges.size()];
+            tree1 = previous[1];
+            tree2 = previous[0];
+            break;
+          }
+          [[fallthrough]];
+        default:
+          tree1 = next() % ntree;
+          tree2 = next() % ntree;
+          break;
+      }
+      edges.push_back({tree1, tree2});
+    }
+
+    std::vector<int> parent(ntree, -1);
+    for (const auto& edge : edges) {
+      mj_dsuMerge(parent.data(), edge[0], edge[1]);
+    }
+
+    std::vector<int> active(ntree);
+    std::vector<std::vector<int>> adjacent(ntree);
+    for (const auto& edge : edges) {
+      if (edge[0] >= 0) active[edge[0]] = 1;
+      if (edge[1] >= 0) active[edge[1]] = 1;
+      if (edge[0] >= 0 && edge[1] >= 0) {
+        adjacent[edge[0]].push_back(edge[1]);
+        adjacent[edge[1]].push_back(edge[0]);
+      }
+    }
+
+    std::vector<int> expected_island(ntree, -1);
+    std::vector<int> expected_parent(ntree, -1);
+    int expected_nisland = 0;
+    for (int start = 0; start < ntree; ++start) {
+      if (!active[start] || expected_island[start] != -1) continue;
+      std::vector<int> pending = {start};
+      std::vector<int> component;
+      expected_island[start] = expected_nisland;
+      while (!pending.empty()) {
+        const int tree = pending.back();
+        pending.pop_back();
+        component.push_back(tree);
+        for (int neighbor : adjacent[tree]) {
+          if (expected_island[neighbor] == -1) {
+            expected_island[neighbor] = expected_nisland;
+            pending.push_back(neighbor);
+          }
+        }
+      }
+      for (int tree : component) expected_parent[tree] = start;
+      ++expected_nisland;
+    }
+
+    std::vector<int> tree_dofnum(ntree);
+    int expected_nidof = 0;
+    for (int tree = 0; tree < ntree; ++tree) {
+      tree_dofnum[tree] = next() % 8;
+      if (active[tree]) expected_nidof += tree_dofnum[tree];
+    }
+    std::vector<int> island(ntree, -2);
+    int nidof = -1;
+    const int nisland = mj_dsuAssign(
+        island.data(), parent.data(), tree_dofnum.data(), ntree, &nidof);
+
+    SCOPED_TRACE(::testing::Message()
+                 << "seed=" << kSeed << " trial=" << trial << " ntree=" << ntree
+                 << " nedge=" << nedge);
+    EXPECT_EQ(nisland, expected_nisland);
+    EXPECT_EQ(nidof, expected_nidof);
+    EXPECT_EQ(island, expected_island);
+    EXPECT_EQ(parent, expected_parent);
+  }
+}
 
 TEST_F(IslandTest, FloodFillSingleton) {
   // adjacency matrix for the graph  0   1   2
@@ -154,6 +452,230 @@ TEST_F(IslandTest, FloodFill3b) {
 
   EXPECT_EQ(nisland, 2);
   EXPECT_THAT(island, ElementsAre(0, 1, 1, -1, 0, 0, 0));
+}
+
+TEST_F(IslandTest, ProductionStaticFirstAndRepeatedRows) {
+  static constexpr char xml[] = R"(
+<mujoco>
+  <option jacobian="sparse"><flag contact="disable" gravity="disable"/></option>
+  <worldbody>
+    <site name="world"/>
+    <body name="b0">
+      <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      <joint type="slide"/><site name="s0"/>
+    </body>
+    <body name="b1">
+      <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      <joint type="slide"/><site name="s1"/>
+    </body>
+    <body name="b2">
+      <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      <joint type="slide"/><site name="s2"/>
+    </body>
+  </worldbody>
+  <equality>
+    <connect site1="world" site2="s0"/>
+    <connect site1="s1" site2="s2"/>
+  </equality>
+</mujoco>
+)";
+  char error[1024] = {};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_EQ(model->ntree, 3);
+  ASSERT_EQ(model->nv, 3);
+
+  // The first equality incidence is static first, then dynamic tree 0.
+  ASSERT_EQ(model->eq_objtype[0], mjOBJ_SITE);
+  int body1 = model->site_bodyid[model->eq_obj1id[0]];
+  int body2 = model->site_bodyid[model->eq_obj2id[0]];
+  EXPECT_EQ(model->body_treeid[body1], -1);
+  EXPECT_EQ(model->body_treeid[body2], 0);
+
+  MjDataPtr data = MakeData(model);
+  mj_fwdPosition(model.get(), data.get());
+
+  ASSERT_EQ(data->nefc, 6);
+  EXPECT_EQ(data->nisland, 2);
+  EXPECT_EQ(data->nidof, 3);
+  EXPECT_EQ(data->ne, 6);
+  EXPECT_EQ(data->nf, 0);
+  EXPECT_THAT(
+      AsVector(data->efc_type, data->nefc),
+      ElementsAre(mjCNSTR_EQUALITY, mjCNSTR_EQUALITY, mjCNSTR_EQUALITY,
+                  mjCNSTR_EQUALITY, mjCNSTR_EQUALITY, mjCNSTR_EQUALITY));
+  EXPECT_THAT(AsVector(data->efc_id, data->nefc),
+              ElementsAre(0, 0, 0, 1, 1, 1));
+  EXPECT_THAT(AsVector(data->tree_island, model->ntree), ElementsAre(0, 1, 1));
+  EXPECT_THAT(AsVector(data->island_ntree, data->nisland), ElementsAre(1, 2));
+  EXPECT_THAT(AsVector(data->island_itreeadr, data->nisland),
+              ElementsAre(0, 1));
+  EXPECT_THAT(AsVector(data->map_itree2tree, model->ntree),
+              ElementsAre(0, 1, 2));
+  EXPECT_THAT(AsVector(data->dof_island, model->nv), ElementsAre(0, 1, 1));
+  EXPECT_THAT(AsVector(data->island_nv, data->nisland), ElementsAre(1, 2));
+  EXPECT_THAT(AsVector(data->island_idofadr, data->nisland), ElementsAre(0, 1));
+  EXPECT_THAT(AsVector(data->island_dofadr, data->nisland), ElementsAre(0, 1));
+  EXPECT_THAT(AsVector(data->map_dof2idof, model->nv), ElementsAre(0, 1, 2));
+  EXPECT_THAT(AsVector(data->map_idof2dof, model->nv), ElementsAre(0, 1, 2));
+  EXPECT_THAT(AsVector(data->efc_island, data->nefc),
+              ElementsAre(0, 0, 0, 1, 1, 1));
+  EXPECT_THAT(AsVector(data->island_ne, data->nisland), ElementsAre(3, 3));
+  EXPECT_THAT(AsVector(data->island_nf, data->nisland), ElementsAre(0, 0));
+  EXPECT_THAT(AsVector(data->island_nefc, data->nisland), ElementsAre(3, 3));
+  EXPECT_THAT(AsVector(data->island_iefcadr, data->nisland), ElementsAre(0, 3));
+  EXPECT_THAT(AsVector(data->map_efc2iefc, data->nefc),
+              ElementsAre(0, 1, 2, 3, 4, 5));
+  EXPECT_THAT(AsVector(data->map_iefc2efc, data->nefc),
+              ElementsAre(0, 1, 2, 3, 4, 5));
+}
+
+TEST_F(IslandTest, ReportsConstraintBetweenTwoStaticBodies) {
+  static constexpr char xml[] = R"(
+<mujoco>
+  <option jacobian="sparse"><flag contact="disable" gravity="disable"/></option>
+  <worldbody>
+    <body>
+      <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      <joint type="slide" frictionloss="1"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+  char error[1024] = {};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_fwdPosition(model.get(), data.get());
+  ASSERT_GT(data->nefc, 0);
+  ASSERT_EQ(data->efc_type[0], mjCNSTR_FRICTION_DOF);
+
+  model->dof_treeid[data->efc_id[0]] = -1;
+
+  EXPECT_EQ(MjuErrorMessageFrom(mj_island)(model.get(), data.get()),
+            "constraint 0 is between two static bodies");
+}
+
+TEST_F(IslandTest, ProductionFlexEqualityRescansRows) {
+  static constexpr char xml[] = R"(
+<mujoco>
+  <option jacobian="sparse"><flag contact="disable" gravity="disable"/></option>
+  <worldbody>
+    <flexcomp name="f" type="grid" dim="1" count="3 1 1"
+              spacing=".05 .05 .05" radius=".01" mass="1">
+      <edge equality="true"/>
+      <contact internal="false" selfcollide="none"/>
+    </flexcomp>
+  </worldbody>
+</mujoco>
+)";
+  char error[1024] = {};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_EQ(model->ntree, 3);
+  ASSERT_EQ(model->nv, 9);
+  ASSERT_EQ(model->neq, 1);
+  ASSERT_EQ(model->eq_type[0], mjEQ_FLEX);
+  ASSERT_TRUE(mj_isSparse(model.get()));
+
+  MjDataPtr data = MakeData(model);
+  mj_fwdPosition(model.get(), data.get());
+
+  ASSERT_EQ(data->nefc, 2);
+  auto row_trees = [&](int row) {
+    std::vector<int> trees;
+    for (int j=0; j < data->efc_J_rownnz[row]; j++) {
+      int dof = data->efc_J_colind[data->efc_J_rowadr[row] + j];
+      int tree = model->dof_treeid[dof];
+      if (trees.empty() || trees.back() != tree) {
+        trees.push_back(tree);
+      }
+    }
+    return trees;
+  };
+
+  // Rows share one flex equality id but have different tree incidence.
+  EXPECT_THAT(row_trees(0), ElementsAre(0, 1));
+  EXPECT_THAT(row_trees(1), ElementsAre(1, 2));
+  EXPECT_THAT(AsVector(data->efc_type, data->nefc),
+              ElementsAre(mjCNSTR_EQUALITY, mjCNSTR_EQUALITY));
+  EXPECT_THAT(AsVector(data->efc_id, data->nefc), ElementsAre(0, 0));
+  EXPECT_EQ(data->nisland, 1);
+  EXPECT_EQ(data->nidof, 9);
+  EXPECT_EQ(data->ne, 2);
+  EXPECT_EQ(data->nf, 0);
+  EXPECT_THAT(AsVector(data->tree_island, model->ntree), ElementsAre(0, 0, 0));
+  EXPECT_THAT(AsVector(data->island_ntree, data->nisland), ElementsAre(3));
+  EXPECT_THAT(AsVector(data->island_itreeadr, data->nisland), ElementsAre(0));
+  EXPECT_THAT(AsVector(data->map_itree2tree, model->ntree),
+              ElementsAre(0, 1, 2));
+  EXPECT_THAT(AsVector(data->dof_island, model->nv),
+              ElementsAre(0, 0, 0, 0, 0, 0, 0, 0, 0));
+  EXPECT_THAT(AsVector(data->island_nv, data->nisland), ElementsAre(9));
+  EXPECT_THAT(AsVector(data->island_idofadr, data->nisland), ElementsAre(0));
+  EXPECT_THAT(AsVector(data->island_dofadr, data->nisland), ElementsAre(0));
+  EXPECT_THAT(AsVector(data->map_dof2idof, model->nv),
+              ElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8));
+  EXPECT_THAT(AsVector(data->map_idof2dof, model->nv),
+              ElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8));
+  EXPECT_THAT(AsVector(data->efc_island, data->nefc), ElementsAre(0, 0));
+  EXPECT_THAT(AsVector(data->island_ne, data->nisland), ElementsAre(2));
+  EXPECT_THAT(AsVector(data->island_nf, data->nisland), ElementsAre(0));
+  EXPECT_THAT(AsVector(data->island_nefc, data->nisland), ElementsAre(2));
+  EXPECT_THAT(AsVector(data->island_iefcadr, data->nisland), ElementsAre(0));
+  EXPECT_THAT(AsVector(data->map_efc2iefc, data->nefc), ElementsAre(0, 1));
+  EXPECT_THAT(AsVector(data->map_iefc2efc, data->nefc), ElementsAre(0, 1));
+}
+
+TEST_F(IslandTest, BoundedArenaSupports1024Trees) {
+  constexpr int kTreeCount = 1024;
+  constexpr size_t kArenaBytes = 2 * 1024 * 1024;
+  std::string xml = R"(
+<mujoco>
+  <size memory="2M"/>
+  <option jacobian="sparse">
+    <flag contact="disable"/>
+  </option>
+  <worldbody>
+)";
+  xml.reserve(160 * kTreeCount);
+  for (int i=0; i < kTreeCount; i++) {
+    std::string name = std::to_string(i);
+    xml += "<body name=\"b" + name + "\">";
+    xml += "<inertial pos=\"0 0 0\" mass=\"1\" diaginertia=\"1 1 1\"/>";
+    xml += "<joint name=\"j" + name + "\" type=\"slide\"/>";
+    if (i < 2) {
+      xml += "<site name=\"s" + name + "\"/>";
+    }
+    xml += "</body>";
+  }
+  xml += R"(
+  </worldbody>
+  <equality>
+    <connect site1="s0" site2="s1"/>
+  </equality>
+</mujoco>
+)";
+
+  char error[1024] = {};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_EQ(model->ntree, kTreeCount);
+  ASSERT_EQ(model->narena, kArenaBytes);
+  MjDataPtr data = MakeData(model);
+  ASSERT_THAT(data.get(), NotNull());
+
+  mj_fwdPosition(model.get(), data.get());
+
+  ASSERT_EQ(data->nefc, 3);
+  ASSERT_EQ(data->nisland, 1);
+  ASSERT_THAT(data->tree_island, NotNull());
+  EXPECT_EQ(data->tree_island[0], 0);
+  EXPECT_EQ(data->tree_island[1], 0);
+  for (int tree=2; tree < kTreeCount; tree++) {
+    EXPECT_EQ(data->tree_island[tree], -1);
+  }
+  EXPECT_LE(data->maxuse_arena, kArenaBytes);
 }
 
 static const char* const kAbacusPath = "engine/testdata/island/abacus.xml";
@@ -342,6 +864,16 @@ TEST_F(IslandTest, IslandEfc) {
   EXPECT_EQ(data->nf, 2);
   EXPECT_EQ(data->nl, 1);
   EXPECT_EQ(data->nefc, 30);
+  EXPECT_THAT(AsVector(data->island_ne, data->nisland),
+              ElementsAre(1, 0, 0, 6));
+  EXPECT_THAT(AsVector(data->island_nf, data->nisland),
+              ElementsAre(0, 1, 1, 0));
+  EXPECT_THAT(AsVector(data->island_nefc, data->nisland),
+              ElementsAre(6, 17, 1, 6));
+  EXPECT_THAT(AsVector(data->efc_island, data->nefc),
+              ElementsAre(0, 3, 3, 3, 3, 3, 3, 1, 2, 0,
+                          0, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+                          1, 1, 1, 1, 1, 1, 1, 1, 1, 1));
 
   mj_deleteData(data);
   mj_deleteModel(model);
