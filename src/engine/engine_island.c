@@ -410,9 +410,15 @@ static void unionConstraintTrees(const mjModel* m, const mjData* d, int* parent,
     }
   }
 
-  // Flex stiffness couples all vertices (nodes for interpolated flexes) without a constraint
-  // row representing the coupling. Union the awake dynamic trees of each stiffness-active flex.
+  // flex stiffness couples all vertices (nodes for interpolated flexes) of a flex without any
+  // constraint row representing the coupling: union the trees of every stiffness-active flex
+  // (star around the first dynamic tree). This keeps the partition valid when the implicit
+  // effective metric (mj_flexCG) carries the stiffness inside the constraint solve. Awake
+  // trees only: sleeping trees must stay out of islands (mj_sleep invariant, matching the
+  // constraint filter); waking a flex as a unit remains the wake machinery's job.
   for (int f=0; f < m->nflex; f++) {
+    // mirror the stiffness-activity conditions of engine_derivative's flexStiff_active /
+    // flexInterp_processed: deformable dim>=2 flex with bending or nonzero stiffness
     if (m->flex_rigid[f] || m->flex_dim[f] < 2) {
       continue;
     }
