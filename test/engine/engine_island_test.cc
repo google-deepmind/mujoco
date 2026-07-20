@@ -531,6 +531,32 @@ TEST_F(IslandTest, ProductionStaticFirstAndRepeatedRows) {
   EXPECT_THAT(AsVector(data->map_iefc2efc, data->nefc), ElementsAre(0, 1, 2, 3, 4, 5));
 }
 
+TEST_F(IslandTest, ReportsConstraintBetweenTwoStaticBodies) {
+  static constexpr char xml[] = R"(
+<mujoco>
+  <option jacobian="sparse"><flag contact="disable" gravity="disable"/></option>
+  <worldbody>
+    <body>
+      <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      <joint type="slide" frictionloss="1"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+  char error[1024] = {};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_fwdPosition(model.get(), data.get());
+  ASSERT_GT(data->nefc, 0);
+  ASSERT_EQ(data->efc_type[0], mjCNSTR_FRICTION_DOF);
+
+  model->dof_treeid[data->efc_id[0]] = -1;
+
+  EXPECT_EQ(MjuErrorMessageFrom(mj_island)(model.get(), data.get()),
+            "constraint 0 is between two static bodies");
+}
+
 TEST_F(IslandTest, ProductionFlexEqualityRescansRows) {
   static constexpr char xml[] = R"(
 <mujoco>

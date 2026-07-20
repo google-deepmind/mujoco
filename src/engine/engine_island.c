@@ -389,7 +389,11 @@ static void unionConstraintTrees(const mjModel* m, const mjData* d, int* parent,
     int tree1 = treeNext(m, d, i, &iter);
     if (tree1 != -2) {
       int tree2 = treeNext(m, d, i, &iter);
-      efc_tree[i] = tree1 == -1 ? tree2 : tree1;
+      // assign tree to constraint, one of (tree1, tree2) must be non-negative
+      efc_tree[i] = tree1 >= 0 ? tree1 : tree2;
+      if (efc_tree[i] < 0) {
+        mjERROR("constraint %d is between two static bodies", i);  // SHOULD NOT OCCUR
+      }
 
       // activate a singleton or union all trees in a multi-tree constraint
       if (tree2 == -2) {
