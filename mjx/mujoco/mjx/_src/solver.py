@@ -482,7 +482,7 @@ def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
     vv = jp.sum(v[:, 1:] * v[:, 1:], axis=1)
 
   point_fn = lambda a: _LSPoint.create(
-      m, d, ctx, a, jv, quad, quad_gauss, uu, v0, uv, vv
+      m, d, ctx, a, jv, quad, quad_gauss, uu, v0, uv, vv  # pyrefly: ignore[bad-argument-type]
   )
 
   def cond(ctx: _LSContext) -> jax.Array:
@@ -601,7 +601,7 @@ def solve(m: Model, d: Data) -> Data:
   else:
     ctx = jax.lax.while_loop(cond, body, ctx)
 
-  d = d.tree_replace({
+  d = d.tree_replace({  # pyrefly: ignore[bad-assignment]
       'qfrc_constraint': ctx.qfrc_constraint,
       'qacc': ctx.qacc,
       '_impl.efc_force': ctx.efc_force,

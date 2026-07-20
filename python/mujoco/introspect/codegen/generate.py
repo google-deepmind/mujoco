@@ -126,22 +126,22 @@ def main(argv: Sequence[str]) -> None:
     raise app.UsageError('Too many command-line arguments.')
 
   visitor = ast_processor.process(
-      _JSON_PATH.value,
+      _JSON_PATH.value,  # pyrefly: ignore[bad-argument-type]
       (_HEADER_PATHS.value or '').split(),
       _EXCLUDED,
   )
 
-  with open(_OUT_FUNCTIONS.value, 'w') as f:
+  with open(_OUT_FUNCTIONS.value, 'w') as f:  # pyrefly: ignore[no-matching-overload]
     functions_str = formatter.format_as_python_code(visitor.exported_functions)
     f.write(_HEADER_TEMPLATE.format(year=2022, type='functions'))
     f.write(_FUNCTIONS_TEMPLATE.format(functions_str=functions_str))
 
-  with open(_OUT_ENUMS.value, 'w') as f:
+  with open(_OUT_ENUMS.value, 'w') as f:  # pyrefly: ignore[no-matching-overload]
     enums_str = formatter.format_as_python_code(visitor.exported_enums)
     f.write(_HEADER_TEMPLATE.format(year=2022, type='enums'))
     f.write(_ENUMS_TEMPLATE.format(enums_str=enums_str))
 
-  with open(_OUT_STRUCTS.value, 'w') as f:
+  with open(_OUT_STRUCTS.value, 'w') as f:  # pyrefly: ignore[no-matching-overload]
     structs_str = formatter.format_as_python_code(visitor.exported_structs)
     f.write(_HEADER_TEMPLATE.format(year=2023, type='structs'))
     f.write(_STRUCTS_TEMPLATE.format(structs_str=structs_str))

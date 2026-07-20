@@ -384,7 +384,7 @@ def make_condim(
     if k.types[1] == mujoco.mjtGeom.mjGEOM_SDF:
       ncon = sdf_initpoints
     else:
-      func = _COLLISION_FUNC.get(k.types, None)
+      func = _COLLISION_FUNC.get(k.types, None)  # pyrefly: ignore[no-matching-overload]
       if func is not None:
         ncon = func.ncon  # pytype: disable=attribute-error
       else:
@@ -430,7 +430,7 @@ def collision(m: Model, d: Data) -> Data:
       contact = jax.tree_util.tree_map(lambda x, idx=idx: x[idx], contact)
 
     # run the collision function specified by the grouping key
-    func = _COLLISION_FUNC[key.types]
+    func = _COLLISION_FUNC[key.types]  # pyrefly: ignore[bad-index]
     ncon = func.ncon  # pytype: disable=attribute-error
 
     dist, pos, frame = func(m, d, key, contact.geom)
@@ -457,4 +457,4 @@ def collision(m: Model, d: Data) -> Data:
   contacts = sum([condim_groups[k] for k in sorted(condim_groups)], [])
   contact = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *contacts)
 
-  return d.tree_replace({'_impl.contact': contact})
+  return d.tree_replace({'_impl.contact': contact})  # pyrefly: ignore[bad-return]

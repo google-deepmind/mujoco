@@ -232,8 +232,8 @@ def _bind_data(
 
 _specs.MjSpec.from_zip = from_zip
 _specs.MjSpec.to_zip = to_zip
-_structs.MjData.bind = _bind_data
-_structs.MjModel.bind = _bind_model
+_structs.MjData.bind = _bind_data  # pyrefly: ignore[bad-assignment]
+_structs.MjModel.bind = _bind_model  # pyrefly: ignore[bad-assignment]
 
 HEADERS_DIR = os.path.join(os.path.dirname(__file__), 'include/mujoco')
 PLUGINS_DIR = os.path.join(os.path.dirname(__file__), 'plugin')

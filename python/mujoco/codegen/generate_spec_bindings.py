@@ -142,10 +142,10 @@ def _struct_binding_code(
       for f in field.fields
   ):
     for subfield in field.fields:
-      code += _binding_code(subfield, name)
+      code += _binding_code(subfield, name)  # pyrefly: ignore[bad-argument-type]
   # generate for the struct itself
-  field = ast_nodes.ValueType(name=name)
-  code += _value_binding_code(field, classname, varname)
+  field = ast_nodes.ValueType(name=name)  # pyrefly: ignore[bad-assignment]
+  code += _value_binding_code(field, classname, varname)  # pyrefly: ignore[bad-argument-type]
   return code
 
 
@@ -211,7 +211,7 @@ def _ptr_binding_code(
   if vartype == 'mjsElement':  # this is ignored by the caller
     return 'mjsElement'
   if vartype.startswith('mjs'):  # for structs, use the value case
-    return _value_binding_code(field.inner_type, classname, varname)
+    return _value_binding_code(field.inner_type, classname, varname)  # pyrefly: ignore[bad-argument-type]
   elif vartype == 'mjString':  # C++ string -> Python string
     return f"""\
   {classname}.def_property(
@@ -347,7 +347,7 @@ def generate() -> None:
     ) and key != 'mjsElement':
       print('\n  // ' + key)
       for field in structs.STRUCTS[key].fields:
-        code = _binding_code(field, key)
+        code = _binding_code(field, key)  # pyrefly: ignore[bad-argument-type]
         if code != 'mjsElement':
           print(code)
 
@@ -556,7 +556,7 @@ def generate_add() -> None:
       py_args = ['py::arg("name") = py::none()']
 
     for field in structs.STRUCTS[key].fields:
-      line, set_type, name, type_name, cpp_arg, py_arg = _field(field)
+      line, set_type, name, type_name, cpp_arg, py_arg = _field(field)  # pyrefly: ignore[bad-argument-type]
       if line:
         code_field = code_field + '\n        ' + line
         set_types.append(set_type)

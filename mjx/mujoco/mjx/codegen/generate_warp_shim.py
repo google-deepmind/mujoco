@@ -264,8 +264,8 @@ def _warp_function(
   # create a dummy output if there are no output fields
   needs_dummy_output = not field_usage.data_out_fields
   if needs_dummy_output and fn_name != 'render':
-    fn_args_raw.append('# Dummy output')
-    fn_args_raw.append('dummy: wp.array[int],')
+    fn_args_raw.append('# Dummy output')  # pyrefly: ignore[bad-argument-type]
+    fn_args_raw.append('dummy: wp.array[int],')  # pyrefly: ignore[bad-argument-type]
 
   return fn_args_raw, fn_assignments, fn_call
 

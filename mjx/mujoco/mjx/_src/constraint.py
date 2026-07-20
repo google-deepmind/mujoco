@@ -716,8 +716,8 @@ def make_constraint(m: Model, d: Data) -> Data:
 
   if not efcs:
     z = jp.empty(0)
-    d = d.tree_replace({'_impl.efc_J': jp.empty((0, m.nv))})
-    d = d.tree_replace({
+    d = d.tree_replace({'_impl.efc_J': jp.empty((0, m.nv))})  # pyrefly: ignore[bad-assignment]
+    d = d.tree_replace({  # pyrefly: ignore[bad-assignment]
         '_impl.efc_D': z,
         '_impl.efc_aref': z,
         '_impl.efc_frictionloss': z,
@@ -736,13 +736,13 @@ def make_constraint(m: Model, d: Data) -> Data:
     return aref, r, efc.pos_aref + efc.margin, efc.margin, efc.frictionloss
 
   aref, r, pos, margin, frictionloss = fn(efc)
-  d = d.tree_replace({
+  d = d.tree_replace({  # pyrefly: ignore[bad-assignment]
       '_impl.efc_J': efc.J,
       '_impl.efc_D': 1 / r,
       '_impl.efc_aref': aref,
       '_impl.efc_pos': pos,
       '_impl.efc_margin': margin,
   })
-  d = d.tree_replace({'_impl.efc_frictionloss': frictionloss})
+  d = d.tree_replace({'_impl.efc_frictionloss': frictionloss})  # pyrefly: ignore[bad-assignment]
 
   return d

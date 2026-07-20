@@ -76,7 +76,7 @@ def inv_constraint(m: Model, d: Data) -> Data:
   # update
   ctx = solver.Context.create(m, d, grad=False)
 
-  return d.tree_replace({
+  return d.tree_replace({  # pyrefly: ignore[bad-return]
       'qfrc_constraint': ctx.qfrc_constraint,
       '_impl.efc_force': ctx.efc_force,
   })
