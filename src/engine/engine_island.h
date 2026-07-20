@@ -23,11 +23,12 @@
 extern "C" {
 #endif
 
-MJAPI int _mjPRIVATE_dsuFind(int* parent, int tree);
-MJAPI void _mjPRIVATE_dsuInit(int* parent, int ntree);
-MJAPI void _mjPRIVATE_dsuUnion(int* parent, int tree1, int tree2);
-MJAPI int _mjPRIVATE_dsuAssign(int* island, int* parent,
-                               const int* tree_dofnum, int ntree, int* nidof);
+// disjoint-set roots are minimum tree indices; mj_dsuRoot requires parent[tree] >= 0
+MJAPI void mj_dsuInit(int* parent, int ntree);
+MJAPI void mj_dsuMerge(int* parent, int tree1, int tree2);
+MJAPI int mj_dsuRoot(int* parent, int tree);
+MJAPI int mj_dsuAssign(int* island, int* parent,
+                       const int* tree_dofnum, int ntree, int* nidof);
 
 
 // find disjoint subgraphs ("islands") given sparse symmetric adjacency matrix

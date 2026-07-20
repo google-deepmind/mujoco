@@ -40,96 +40,96 @@ using IslandTest = MujocoTest;
 TEST_F(IslandTest, DsuInitHandlesEmptyAndNonemptyRanges) {
   int parent[] = {8, 6, 7, 5};
 
-  _mjPRIVATE_dsuInit(parent, 0);
+  mj_dsuInit(parent, 0);
   EXPECT_THAT(parent, ElementsAre(8, 6, 7, 5));
 
-  _mjPRIVATE_dsuInit(parent, 4);
+  mj_dsuInit(parent, 4);
   EXPECT_THAT(parent, ElementsAre(-1, -1, -1, -1));
 }
 
-TEST_F(IslandTest, DsuFindReturnsCanonicalRootAndCompressesPath) {
+TEST_F(IslandTest, DsuRootReturnsCanonicalRootAndCompressesPath) {
   int parent[] = {0, 0, 1, 2, 3};
 
-  EXPECT_EQ(_mjPRIVATE_dsuFind(parent, 0), 0);
-  EXPECT_EQ(_mjPRIVATE_dsuFind(parent, 4), 0);
+  EXPECT_EQ(mj_dsuRoot(parent, 0), 0);
+  EXPECT_EQ(mj_dsuRoot(parent, 4), 0);
   EXPECT_THAT(parent, ElementsAre(0, 0, 0, 0, 0));
 }
 
-TEST_F(IslandTest, DsuUnionActivatesEndpointsAndUsesMinimumRoot) {
+TEST_F(IslandTest, DsuMergeActivatesEndpointsAndUsesMinimumRoot) {
   int parent[] = {-1, -1, -1, -1, -1, -1};
 
-  _mjPRIVATE_dsuUnion(parent, -1, 4);
-  _mjPRIVATE_dsuUnion(parent, 3, -1);
-  _mjPRIVATE_dsuUnion(parent, 5, 2);
-  _mjPRIVATE_dsuUnion(parent, 4, 5);
-  _mjPRIVATE_dsuUnion(parent, 3, 4);
+  mj_dsuMerge(parent, -1, 4);
+  mj_dsuMerge(parent, 3, -1);
+  mj_dsuMerge(parent, 5, 2);
+  mj_dsuMerge(parent, 4, 5);
+  mj_dsuMerge(parent, 3, 4);
 
   EXPECT_THAT(parent, ElementsAre(-1, -1, 2, 2, 2, 2));
   for (int tree = 2; tree < 6; ++tree) {
-    EXPECT_EQ(_mjPRIVATE_dsuFind(parent, tree), 2);
+    EXPECT_EQ(mj_dsuRoot(parent, tree), 2);
   }
   EXPECT_THAT(parent, ElementsAre(-1, -1, 2, 2, 2, 2));
 }
 
-TEST_F(IslandTest, DsuUnionRedundantAndReversedEdgesAreIdempotent) {
+TEST_F(IslandTest, DsuMergeRedundantAndReversedEdgesAreIdempotent) {
   int parent[] = {-1, -1, -1, -1};
-  _mjPRIVATE_dsuUnion(parent, 3, 1);
-  _mjPRIVATE_dsuUnion(parent, 2, 1);
+  mj_dsuMerge(parent, 3, 1);
+  mj_dsuMerge(parent, 2, 1);
   EXPECT_THAT(parent, ElementsAre(-1, 1, 1, 1));
 
-  _mjPRIVATE_dsuUnion(parent, 1, 3);
-  _mjPRIVATE_dsuUnion(parent, 3, 1);
-  _mjPRIVATE_dsuUnion(parent, 2, 2);
-  _mjPRIVATE_dsuUnion(parent, -1, 2);
+  mj_dsuMerge(parent, 1, 3);
+  mj_dsuMerge(parent, 3, 1);
+  mj_dsuMerge(parent, 2, 2);
+  mj_dsuMerge(parent, -1, 2);
   EXPECT_THAT(parent, ElementsAre(-1, 1, 1, 1));
 }
 
-TEST_F(IslandTest, DsuUnionFastPathActivatesBeforeTestingParents) {
+TEST_F(IslandTest, DsuMergeFastPathActivatesBeforeTestingParents) {
   int self_parent[] = {-1, -1, -1};
-  _mjPRIVATE_dsuUnion(self_parent, 1, 1);
+  mj_dsuMerge(self_parent, 1, 1);
   EXPECT_THAT(self_parent, ElementsAre(-1, 1, -1));
 
   int static_first[] = {-1, -1, -1};
-  _mjPRIVATE_dsuUnion(static_first, -1, 2);
+  mj_dsuMerge(static_first, -1, 2);
   EXPECT_THAT(static_first, ElementsAre(-1, -1, 2));
 
   int static_second[] = {-1, -1, -1};
-  _mjPRIVATE_dsuUnion(static_second, 0, -1);
+  mj_dsuMerge(static_second, 0, -1);
   EXPECT_THAT(static_second, ElementsAre(0, -1, -1));
 }
 
-TEST_F(IslandTest, DsuUnionFastPathDistinguishesParentsFromRoots) {
+TEST_F(IslandTest, DsuMergeFastPathDistinguishesParentsFromRoots) {
   int distinct_parent[] = {0, 0, 2, 2};
-  _mjPRIVATE_dsuUnion(distinct_parent, 1, 3);
+  mj_dsuMerge(distinct_parent, 1, 3);
   EXPECT_THAT(distinct_parent, ElementsAre(0, 0, 0, 2));
 
   int shared_parent[] = {0, 0, 0, 3};
-  _mjPRIVATE_dsuUnion(shared_parent, 1, 2);
+  mj_dsuMerge(shared_parent, 1, 2);
   EXPECT_THAT(shared_parent, ElementsAre(0, 0, 0, 3));
 
   int long_paths[] = {0, 0, 1, 3, 3, 4};
-  _mjPRIVATE_dsuUnion(long_paths, 2, 5);
+  mj_dsuMerge(long_paths, 2, 5);
   EXPECT_THAT(long_paths, ElementsAre(0, 0, 0, 0, 3, 3));
 }
 
-TEST_F(IslandTest, DsuUnionFastPathPreservesCyclesDuplicatesAndForest) {
+TEST_F(IslandTest, DsuMergeFastPathPreservesCyclesDuplicatesAndForest) {
   int parent[] = {-1, -1, -1, -1, -1, -1};
-  _mjPRIVATE_dsuUnion(parent, 0, 1);
-  _mjPRIVATE_dsuUnion(parent, 1, 2);
-  _mjPRIVATE_dsuUnion(parent, 2, 0);
-  _mjPRIVATE_dsuUnion(parent, 0, 2);
-  _mjPRIVATE_dsuUnion(parent, 3, 4);
-  _mjPRIVATE_dsuUnion(parent, 4, 5);
+  mj_dsuMerge(parent, 0, 1);
+  mj_dsuMerge(parent, 1, 2);
+  mj_dsuMerge(parent, 2, 0);
+  mj_dsuMerge(parent, 0, 2);
+  mj_dsuMerge(parent, 3, 4);
+  mj_dsuMerge(parent, 4, 5);
   EXPECT_THAT(parent, ElementsAre(0, 0, 0, 3, 3, 3));
 
-  _mjPRIVATE_dsuUnion(parent, 5, 0);
+  mj_dsuMerge(parent, 5, 0);
   EXPECT_THAT(parent, ElementsAre(0, 0, 0, 0, 3, 3));
 }
 
-TEST_F(IslandTest, DsuUnionRejectsStaticSelfIncidence) {
+TEST_F(IslandTest, DsuMergeRejectsStaticSelfIncidence) {
   int parent[] = {-1, 1, 1, 3};
 
-  EXPECT_EQ(MjuErrorMessageFrom(_mjPRIVATE_dsuUnion)(parent, -1, -1),
+  EXPECT_EQ(MjuErrorMessageFrom(mj_dsuMerge)(parent, -1, -1),
             "self-incidence of the static tree");
   EXPECT_THAT(parent, ElementsAre(-1, 1, 1, 3));
 }
@@ -140,13 +140,13 @@ TEST_F(IslandTest, DsuAssignHandlesEmptyAndInactiveInputs) {
   const int tree_dofnum[] = {73};
   int nidof = -1;
 
-  EXPECT_EQ(_mjPRIVATE_dsuAssign(island, parent, tree_dofnum, 0, &nidof), 0);
+  EXPECT_EQ(mj_dsuAssign(island, parent, tree_dofnum, 0, &nidof), 0);
   EXPECT_EQ(nidof, 0);
   EXPECT_THAT(island, ElementsAre(71));
   EXPECT_THAT(parent, ElementsAre(72));
 
   parent[0] = -1;
-  EXPECT_EQ(_mjPRIVATE_dsuAssign(island, parent, tree_dofnum, 1, &nidof), 0);
+  EXPECT_EQ(mj_dsuAssign(island, parent, tree_dofnum, 1, &nidof), 0);
   EXPECT_EQ(nidof, 0);
   EXPECT_THAT(island, ElementsAre(-1));
   EXPECT_THAT(parent, ElementsAre(-1));
@@ -158,7 +158,7 @@ TEST_F(IslandTest, DsuAssignLabelsComponentsAndCountsOnlyActiveDofs) {
   int island[] = {9, 9, 9, 9, 9, 9, 9};
   int nidof = -1;
 
-  EXPECT_EQ(_mjPRIVATE_dsuAssign(island, parent, tree_dofnum, 7, &nidof), 3);
+  EXPECT_EQ(mj_dsuAssign(island, parent, tree_dofnum, 7, &nidof), 3);
   EXPECT_EQ(nidof, 39);
   EXPECT_THAT(island, ElementsAre(-1, 0, 0, 0, 1, 1, 2));
   EXPECT_THAT(parent, ElementsAre(-1, 1, 1, 1, 4, 4, 6));
@@ -170,7 +170,7 @@ TEST_F(IslandTest, DsuAssignCompressesAscendingMultiHopForest) {
   int island[] = {9, 9, 9, 9, 9, 9, 9, 9, 9, 9};
   int nidof = -1;
 
-  EXPECT_EQ(_mjPRIVATE_dsuAssign(island, parent, tree_dofnum, 10, &nidof), 3);
+  EXPECT_EQ(mj_dsuAssign(island, parent, tree_dofnum, 10, &nidof), 3);
   EXPECT_EQ(nidof, 41);
   EXPECT_THAT(island, ElementsAre(-1, 0, 0, 0, 1, 1, 1, 2, 2, 2));
   EXPECT_THAT(parent, ElementsAre(-1, 1, 1, 1, 4, 4, 4, 7, 7, 7));
@@ -190,7 +190,7 @@ TEST_F(IslandTest, DsuAssignCompresses4096NodeAdversarialChain) {
   }
 
   int nidof = -1;
-  EXPECT_EQ(_mjPRIVATE_dsuAssign(island.data(), parent.data(), tree_dofnum.data(),
+  EXPECT_EQ(mj_dsuAssign(island.data(), parent.data(), tree_dofnum.data(),
                                 kTreeCount, &nidof),
             1);
   EXPECT_EQ(nidof, expected_nidof);
@@ -205,11 +205,11 @@ TEST_F(IslandTest, DsuHandlesLongConnectedBoundaryCase) {
   std::vector<int> parent(kTreeCount);
   std::vector<int> island(kTreeCount, -2);
   std::vector<int> tree_dofnum(kTreeCount);
-  _mjPRIVATE_dsuInit(parent.data(), kTreeCount);
+  mj_dsuInit(parent.data(), kTreeCount);
 
   int expected_nidof = 0;
   for (int tree = kTreeCount - 1; tree > 0; --tree) {
-    _mjPRIVATE_dsuUnion(parent.data(), tree, tree - 1);
+    mj_dsuMerge(parent.data(), tree, tree - 1);
   }
   for (int tree = 0; tree < kTreeCount; ++tree) {
     tree_dofnum[tree] = tree % 7;
@@ -217,7 +217,7 @@ TEST_F(IslandTest, DsuHandlesLongConnectedBoundaryCase) {
   }
 
   int nidof = -1;
-  EXPECT_EQ(_mjPRIVATE_dsuAssign(island.data(), parent.data(), tree_dofnum.data(),
+  EXPECT_EQ(mj_dsuAssign(island.data(), parent.data(), tree_dofnum.data(),
                                 kTreeCount, &nidof),
             1);
   EXPECT_EQ(nidof, expected_nidof);
@@ -282,9 +282,9 @@ TEST_F(IslandTest, DsuRandomizedDifferentialAgainstGraphTraversal) {
     }
 
     std::vector<int> parent(ntree);
-    _mjPRIVATE_dsuInit(parent.data(), ntree);
+    mj_dsuInit(parent.data(), ntree);
     for (const auto& edge : edges) {
-      _mjPRIVATE_dsuUnion(parent.data(), edge[0], edge[1]);
+      mj_dsuMerge(parent.data(), edge[0], edge[1]);
     }
 
     std::vector<int> active(ntree);
@@ -329,7 +329,7 @@ TEST_F(IslandTest, DsuRandomizedDifferentialAgainstGraphTraversal) {
     }
     std::vector<int> island(ntree, -2);
     int nidof = -1;
-    const int nisland = _mjPRIVATE_dsuAssign(
+    const int nisland = mj_dsuAssign(
         island.data(), parent.data(), tree_dofnum.data(), ntree, &nidof);
 
     SCOPED_TRACE(::testing::Message() << "seed=" << kSeed << " trial=" << trial

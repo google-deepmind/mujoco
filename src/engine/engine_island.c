@@ -84,7 +84,7 @@ static int arenaAllocIsland(const mjModel* m, mjData* d) {
 //-------------------------- flood-fill and graph construction  ------------------------------------
 
 // find the canonical root of an active tree and compress its path
-static inline int dsuFind(int* parent, int tree) {
+int mj_dsuRoot(int* parent, int tree) {
   int root = tree;
   while (parent[root] != root) {
     root = parent[root];
@@ -101,13 +101,13 @@ static inline int dsuFind(int* parent, int tree) {
 
 
 // initialize all trees as inactive
-static inline void dsuInit(int* parent, int ntree) {
+void mj_dsuInit(int* parent, int ntree) {
   mju_fillInt(parent, -1, ntree);
 }
 
 
 // activate and union two incident trees; -1 denotes a static endpoint
-static inline void dsuUnion(int* parent, int tree1, int tree2) {
+void mj_dsuMerge(int* parent, int tree1, int tree2) {
   if (tree1 == -1 && tree2 == -1) {
     mjERROR("self-incidence of the static tree");  // SHOULD NOT OCCUR
     return;
@@ -121,8 +121,8 @@ static inline void dsuUnion(int* parent, int tree1, int tree2) {
 
   if (parent[tree1] == parent[tree2]) return;
 
-  int root1 = dsuFind(parent, tree1);
-  int root2 = dsuFind(parent, tree2);
+  int root1 = mj_dsuRoot(parent, tree1);
+  int root2 = mj_dsuRoot(parent, tree2);
   if (root1 < root2) {
     parent[root2] = root1;
   } else if (root2 < root1) {
@@ -132,8 +132,8 @@ static inline void dsuUnion(int* parent, int tree1, int tree2) {
 
 
 // assign deterministic island ids in ascending canonical-root order
-static inline int dsuAssign(int* island, int* parent, const int* tree_dofnum, int ntree,
-                            int* nidof) {
+int mj_dsuAssign(int* island, int* parent, const int* tree_dofnum, int ntree,
+                 int* nidof) {
   int nisland = 0;
   *nidof = 0;
   for (int tree=0; tree < ntree; tree++) {
@@ -145,7 +145,7 @@ static inline int dsuAssign(int* island, int* parent, const int* tree_dofnum, in
     if (parent[tree] == tree) {
       island[tree] = nisland++;
     } else {
-      // Union always links the larger root to the smaller root. Since trees are visited in
+      // union always links the larger root to the smaller root. Since trees are visited in
       // ascending order, this predecessor has already been compressed and assigned an island.
       parent[tree] = parent[parent[tree]];
       island[tree] = island[parent[tree]];
@@ -156,26 +156,6 @@ static inline int dsuAssign(int* island, int* parent, const int* tree_dofnum, in
   return nisland;
 }
 
-
-// exported private wrappers for direct unit tests and benchmarks
-int _mjPRIVATE_dsuFind(int* parent, int tree) {
-  return dsuFind(parent, tree);
-}
-
-
-void _mjPRIVATE_dsuInit(int* parent, int ntree) {
-  dsuInit(parent, ntree);
-}
-
-
-void _mjPRIVATE_dsuUnion(int* parent, int tree1, int tree2) {
-  dsuUnion(parent, tree1, tree2);
-}
-
-
-int _mjPRIVATE_dsuAssign(int* island, int* parent, const int* tree_dofnum, int ntree, int* nidof) {
-  return dsuAssign(island, parent, tree_dofnum, ntree, nidof);
-}
 
 // find disjoint subgraphs ("islands") given sparse symmetric adjacency matrix
 //   arguments:
@@ -413,10 +393,10 @@ static void unionConstraintTrees(const mjModel* m, const mjData* d, int* parent,
 
       // activate a singleton or union all trees in a multi-tree constraint
       if (tree2 == -2) {
-        dsuUnion(parent, tree1, -1);
+        mj_dsuMerge(parent, tree1, -1);
       } else {
         while (tree2 != -2) {
-          dsuUnion(parent, tree1, tree2);
+          mj_dsuMerge(parent, tree1, tree2);
           tree1 = tree2;
           tree2 = treeNext(m, d, i, &iter);
         }
@@ -458,7 +438,7 @@ static void unionConstraintTrees(const mjModel* m, const mjData* d, int* parent,
       if (tree1 < 0) {
         tree1 = tree2;
       } else {
-        dsuUnion(parent, tree1, tree2);
+        mj_dsuMerge(parent, tree1, tree2);
       }
     }
   }
@@ -483,11 +463,11 @@ void mj_island(const mjModel* m, mjData* d) {
   // union direct tree incidence and assign deterministic components
   int* efc_tree = mjSTACKALLOC(d, nefc, int);
   int* parent = mjSTACKALLOC(d, ntree, int);
-  dsuInit(parent, ntree);
+  mj_dsuInit(parent, ntree);
   unionConstraintTrees(m, d, parent, efc_tree);
   int* tree_island = mjSTACKALLOC(d, ntree, int);
   int nidof;
-  d->nisland = dsuAssign(tree_island, parent, m->tree_dofnum, ntree, &nidof);
+  d->nisland = mj_dsuAssign(tree_island, parent, m->tree_dofnum, ntree, &nidof);
 
   // no islands found: quick return
   if (!d->nisland) {
