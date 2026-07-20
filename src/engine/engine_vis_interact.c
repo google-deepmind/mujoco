@@ -833,6 +833,38 @@ mjvGLCamera mjv_averageCamera(const mjvGLCamera* cam1, const mjvGLCamera* cam2) 
 }
 
 
+// converts a mjvCamera to a mjvGLCamera
+mjvGLCamera mjv_camera2GLCamera(const mjModel* model, const mjData* data,
+                                const mjvCamera* mjv_camera) {
+  mjvGLCamera gl_camera;
+  gl_camera.orthographic = model->vis.global.orthographic;
+  if (mjv_camera->type == mjCAMERA_FIXED) {
+    const int cid = mjv_camera->fixedcamid;
+    if (cid >= 0 &&  cid < model->ncam) {
+      gl_camera.orthographic = model->cam_projection[cid] == mjPROJ_ORTHOGRAPHIC;
+    }
+  }
+
+  mjtNum headpos[3], forward[3], up[3];
+  mjv_cameraFrame(headpos, forward, up, NULL, data, mjv_camera);
+  for (int i = 0; i < 3; i++) {
+    gl_camera.pos[i] = (float)(headpos[i]);
+    gl_camera.forward[i] = (float)forward[i];
+    gl_camera.up[i] = (float)up[i];
+  }
+
+  float zver[2], zhor[2], zclip[2];
+  mjv_cameraFrustum(zver, zhor, zclip, model, mjv_camera);
+  gl_camera.frustum_top = zver[0];
+  gl_camera.frustum_bottom = -zver[1];
+  gl_camera.frustum_center = (zhor[1] - zhor[0]) / 2;
+  gl_camera.frustum_width = (zhor[1] + zhor[0]) / 2;
+  gl_camera.frustum_near = zclip[0];
+  gl_camera.frustum_far = zclip[1];
+  return gl_camera;
+}
+
+
 // return body id, compute position of a vertex in a flex
 int mjv_flexBodyId(const mjModel* m, const mjData* d, int flexid, int vertid, mjtNum flexpnt[3]) {
   int flexbodyid = -1;
