@@ -126,4 +126,4 @@ add_subdirectory(xml)
 add_subdirectory(plugin/elasticity)
 add_subdirectory(plugin/actuator)
 add_subdirectory(experimental)
-
+add_subdirectory(doc)
