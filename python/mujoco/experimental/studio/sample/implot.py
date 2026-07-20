@@ -237,9 +237,13 @@ def main(argv: list[str]) -> None:
     handle.send_to_viewer(messages.ModelEvent(model=model))
 
     step_control = sim.StepControl()
-    while handle.is_running():
-      step_control.advance(model, data)
-      model, data, step_control = handle.sync(model, data, step_control)
+    try:
+      while handle.is_running():
+        step_control.advance(model, data)
+        model, data, step_control = handle.sync(model, data, step_control)
+    except KeyboardInterrupt:
+      # Ctrl+C is the documented way to quit; exit cleanly, no traceback.
+      print('\nShutting down.', flush=True)
 
 
 if __name__ == '__main__':

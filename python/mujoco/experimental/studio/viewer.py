@@ -61,9 +61,13 @@ def main(argv: list[str]) -> None:
 
     # Run the simulation.
     step_control = sim.StepControl()
-    while handle.is_running():
-      step_control.advance(model, data)
-      model, data, step_control = handle.sync(model, data, step_control)
+    try:
+      while handle.is_running():
+        step_control.advance(model, data)
+        model, data, step_control = handle.sync(model, data, step_control)
+    except KeyboardInterrupt:
+      # Ctrl+C is the documented way to quit; exit cleanly, no traceback.
+      print('\nShutting down.', flush=True)
 
 
 _app.run(main)
