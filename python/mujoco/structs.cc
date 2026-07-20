@@ -505,6 +505,12 @@ This is useful for example when the MJB is not available as a file on disk.)"));
         "id", [](GroupedViews& views) { return views.index(); });              \
     groupedViews.def_property_readonly(                                        \
         "name", [](GroupedViews& views) { return views.name(); });             \
+    groupedViews.def("__dlpack__", [](GroupedViews& views, py::object stream) { \
+      return ToDLPack(views.field(), views.owner());                           \
+    }, py::arg("stream") = py::none());                                        \
+    groupedViews.def("__dlpack_device__", [](GroupedViews& views) {            \
+      return py::make_tuple(kDLCPU, 0);                                        \
+    });                                                                        \
   }
 #define X(type, prefix, var, dim0, dim1)                                    \
   groupedViews.def_property(                                                \
@@ -988,6 +994,12 @@ This is useful for example when the MJB is not available as a file on disk.)"));
         "id", [](GroupedViews& views) { return views.index(); });            \
     groupedViews.def_property_readonly(                                      \
         "name", [](GroupedViews& views) { return views.name(); });           \
+    groupedViews.def("__dlpack__", [](GroupedViews& views, py::object stream) { \
+      return ToDLPack(views.field(), views.owner());                           \
+    }, py::arg("stream") = py::none());                                        \
+    groupedViews.def("__dlpack_device__", [](GroupedViews& views) {            \
+      return py::make_tuple(kDLCPU, 0);                                        \
+    });                                                                        \
   }
 #define X(type, prefix, var, dim0, dim1)                                    \
   groupedViews.def_property(                                                \
