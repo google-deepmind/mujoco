@@ -359,6 +359,7 @@ typedef struct mjsGeom_ {          // geom specification
   double margin;                   // margin for contact detection
   double gap;                      // additional contact detection buffer
   double surfacevel[6];            // surface velocity in local frame: linear, angular
+  double adhesion;                 // adhesive force of contacts
 
   // inertia inference
   double mass;                     // used to compute density
@@ -642,6 +643,7 @@ typedef struct mjsPair_ {          // pair specification
   mjtNum solimp[mjNIMP];           // solver impedance
   double margin;                   // margin for contact detection
   double gap;                      // additional contact detection buffer
+  double adhesion;                 // adhesive force of contacts
   double friction[5];              // full contact friction
   mjString* info;                  // message appended to errors
 } mjsPair;

@@ -1,0 +1,54 @@
+<mujoco model="Magnetic fridge door">
+  <!-- The two dark strips are magnets, modeled with adhesion: within the gap band
+       (the magnet's range) they attract with the summed adhesion of the pair, so a
+       nearly-closed door snaps shut on its own and stays latched; pulling harder
+       than the pull-off force pops it open cleanly. Drag the door with Ctrl+drag
+       after double-clicking it. -->
+
+  <option cone="elliptic"/>
+
+  <statistic center="0 0 .4" extent="1.4" meansize="0.03"/>
+
+  <visual>
+    <headlight diffuse=".8 .8 .8" ambient=".3 .3 .3"/>
+    <map stiffness="30"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1=".5 .6 .7" rgb2=".9 .9 .95" width="32" height="512"/>
+    <material name="body" rgba=".92 .92 .94 1" reflectance=".3"/>
+    <material name="inside" rgba=".8 .8 .82 1"/>
+    <material name="magnet" rgba=".2 .2 .22 1"/>
+  </asset>
+
+  <worldbody>
+    <light pos="1.5 -.5 2" dir="-.6 .2 -.75" diffuse=".7 .7 .7" intensity="200000"/>
+    <geom name="floor" type="plane" size="2 2 .01" rgba=".7 .75 .7 1"/>
+
+    <!-- cabinet: interior x [-.35 0], y [-.25 .25], z [0 .8] -->
+    <geom name="left"   type="box" size=".175 .015 .4"  pos="-.175 -.235 .4" material="body"/>
+    <geom name="right"  type="box" size=".175 .015 .4"  pos="-.175 .235 .4"  material="body"/>
+    <geom name="top"    type="box" size=".175 .25 .015" pos="-.175 0 .785"   material="body"/>
+    <geom name="bottom" type="box" size=".175 .25 .015" pos="-.175 0 .03"    material="body"/>
+    <geom name="back"   type="box" size=".015 .25 .4"   pos="-.335 0 .4"     material="body"/>
+    <geom name="shelf"  type="box" size=".155 .21 .008" pos="-.18 0 .4"      material="inside"/>
+
+    <!-- frame magnet strip, just inside the right wall's front edge -->
+    <geom name="magnet1" type="box" size=".005 .01 .3" pos="-.015 .19 .4" material="magnet" adhesion="1.5" gap=".003"/>
+
+    <body name="door" pos="0 -.25 .42">
+      <joint name="hinge" pos="0 0 0" axis="0 0 -1" range="0 135" damping=".08" stiffness="0.05"/>
+      <geom name="hinge" type="cylinder" size=".007" fromto="0 0 -.37 0 0 .37" rgba=".4 .4 .42 1" contype="0" conaffinity="0"/>
+      <geom name="panel" type="box" size=".015 .24 .37" pos=".015 .25 0" material="body" mass="1.5"/>
+      <body name="handle">
+        <geom name="handle" type="capsule" size=".012" fromto=".06 .46 -.12 .06 .46 .12" rgba=".4 .4 .42 1" mass=".1"/>
+      </body>
+      <geom name="magnet2" type="box" size=".005 .01 .3" pos="-.005 .44 0" material="magnet" adhesion="1.5" gap=".003" mass=".05"/>
+    </body>
+  </worldbody>
+
+  <keyframe>
+    <key name="open" qpos="1.6"/>
+    <key name="ajar" qpos=".006"/>
+  </keyframe>
+</mujoco>

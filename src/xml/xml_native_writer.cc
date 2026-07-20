@@ -498,6 +498,7 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
   WriteAttr(elem, "margin", 1, &geom->margin, &def->Geom().margin);
   WriteAttr(elem, "gap", 1, &geom->gap, &def->Geom().gap);
   WriteAttr(elem, "surfacevel", 6, geom->surfacevel, def->Geom().surfacevel, true);
+  WriteAttr(elem, "adhesion", 1, &geom->adhesion, &def->Geom().adhesion);
   WriteAttrKey(elem, "fluidshape",
                fluid_map, 2, geom->fluid_ellipsoid, def->Geom().fluid_ellipsoid);
   WriteAttr(elem, "fluidcoef", 5, geom->fluid_coefs, def->Geom().fluid_coefs);
@@ -672,6 +673,7 @@ void mjXWriter::OnePair(XMLElement* elem, const mjCPair* pair, mjCDef* def) {
   WriteAttrInt(elem, "condim", pair->condim, def->Pair().spec.condim);
   WriteAttr(elem, "margin", 1, &pair->margin, &def->Pair().spec.margin);
   WriteAttr(elem, "gap", 1, &pair->gap, &def->Pair().spec.gap);
+  WriteAttr(elem, "adhesion", 1, &pair->adhesion, &def->Pair().spec.adhesion);
   WriteAttr(elem, "solref", mjNREF, pair->solref, def->Pair().spec.solref, true);
   WriteAttr(elem, "solreffriction", mjNREF, pair->solreffriction, def->Pair().spec.solreffriction,
             true);

@@ -1434,6 +1434,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='whether any geom has nonzero surfacevel',
              ),
              StructFieldDecl(
+                 name='flg_adhesion',
+                 type=ValueType(name='mjtBool'),
+                 doc='whether any geom or pair has nonzero adhesion',
+             ),
+             StructFieldDecl(
                  name='opt',
                  type=ValueType(name='mjOption'),
                  doc='physics options',
@@ -2262,6 +2267,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='surface velocity in local frame: lin,ang',
                  array_extent=('ngeom', 6),
+             ),
+             StructFieldDecl(
+                 name='geom_adhesion',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='adhesive force of contacts',
+                 array_extent=('ngeom',),
              ),
              StructFieldDecl(
                  name='geom_fluid',
@@ -4032,6 +4045,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('npair',),
              ),
              StructFieldDecl(
+                 name='pair_adhesion',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='adhesive force of contacts',
+                 array_extent=('npair',),
+             ),
+             StructFieldDecl(
                  name='pair_friction',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -5410,6 +5431,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='constraint solver impedance',
              ),
              StructFieldDecl(
+                 name='adhesion',
+                 type=ValueType(name='mjtNum'),
+                 doc='adhesive force along the contact normal',
+             ),
+             StructFieldDecl(
                  name='mu',
                  type=ValueType(name='mjtNum'),
                  doc='friction of regularized cone, set by mj_makeConstraint',
@@ -6413,6 +6439,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='passive fluid force',
+                 array_extent=('nv',),
+             ),
+             StructFieldDecl(
+                 name='qfrc_adhesion',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='passive contact adhesion force',
                  array_extent=('nv',),
              ),
              StructFieldDecl(
@@ -7984,6 +8018,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='surface velocity in local frame: linear, angular',
              ),
              StructFieldDecl(
+                 name='adhesion',
+                 type=ValueType(name='double'),
+                 doc='adhesive force of contacts',
+             ),
+             StructFieldDecl(
                  name='mass',
                  type=ValueType(name='double'),
                  doc='used to compute density',
@@ -9255,6 +9294,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='gap',
                  type=ValueType(name='double'),
                  doc='additional contact detection buffer',
+             ),
+             StructFieldDecl(
+                 name='adhesion',
+                 type=ValueType(name='double'),
+                 doc='adhesive force of contacts',
              ),
              StructFieldDecl(
                  name='friction',

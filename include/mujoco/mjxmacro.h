@@ -386,6 +386,7 @@
     X   ( mjtNum,  geom_margin,           ngeom,         1                    ) \
     X   ( mjtNum,  geom_gap,              ngeom,         1                    ) \
     X   ( mjtNum,  geom_surfacevel,       ngeom,         6                    ) \
+    X   ( mjtNum,  geom_adhesion,         ngeom,         1                    ) \
     XNV ( mjtNum,  geom_fluid,            ngeom,         mjNFLUID             ) \
     X   ( mjtNum,  geom_user,             ngeom,         MJ_M(nuser_geom)     ) \
     X   ( float,   geom_rgba,             ngeom,         4                    )
@@ -627,6 +628,7 @@
     X   ( mjtNum,  pair_solimp,           npair,         mjNIMP               ) \
     X   ( mjtNum,  pair_margin,           npair,         1                    ) \
     X   ( mjtNum,  pair_gap,              npair,         1                    ) \
+    X   ( mjtNum,  pair_adhesion,         npair,         1                    ) \
     X   ( mjtNum,  pair_friction,         npair,         5                    )
 
 #define MJMODEL_POINTERS_EXCLUDE                                                \
@@ -911,6 +913,7 @@
     X   ( mjtNum,    qfrc_damper,       nv,          1           ) \
     X   ( mjtNum,    qfrc_gravcomp,     nv,          1           ) \
     X   ( mjtNum,    qfrc_fluid,        nv,          1           ) \
+    X   ( mjtNum,    qfrc_adhesion,     nv,          1           ) \
     X   ( mjtNum,    qfrc_passive,      nv,          1           ) \
     X   ( mjtNum,    subtree_linvel,    nbody,       3           ) \
     X   ( mjtNum,    subtree_angmom,    nbody,       3           ) \

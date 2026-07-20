@@ -1118,6 +1118,7 @@ public unsafe struct mjModel_ {
   public UInt64 nbuffer;
   public byte flg_gravcomp;
   public byte flg_surfacevel;
+  public byte flg_adhesion;
   public mjOption_ opt;
   public mjVisual_ vis;
   public mjStatistic_ stat;
@@ -1223,6 +1224,7 @@ public unsafe struct mjModel_ {
   public double* geom_margin;
   public double* geom_gap;
   public double* geom_surfacevel;
+  public double* geom_adhesion;
   public double* geom_fluid;
   public double* geom_user;
   public float* geom_rgba;
@@ -1444,6 +1446,7 @@ public unsafe struct mjModel_ {
   public double* pair_solimp;
   public double* pair_margin;
   public double* pair_gap;
+  public double* pair_adhesion;
   public double* pair_friction;
   public int* exclude_signature;
   public int* eq_type;
@@ -1624,6 +1627,7 @@ public unsafe struct mjContact_ {
   public fixed double solref[2];
   public fixed double solreffriction[2];
   public fixed double solimp[5];
+  public double adhesion;
   public double mu;
   public fixed double H[36];
   public int dim;
@@ -5801,6 +5805,7 @@ public unsafe struct mjData_ {
   public double* qfrc_damper;
   public double* qfrc_gravcomp;
   public double* qfrc_fluid;
+  public double* qfrc_adhesion;
   public double* qfrc_passive;
   public double* subtree_linvel;
   public double* subtree_angmom;

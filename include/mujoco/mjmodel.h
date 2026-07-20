@@ -350,6 +350,7 @@ typedef struct mjModel_ {
 
   mjtBool flg_gravcomp;           // whether any body has nonzero gravcomp
   mjtBool flg_surfacevel;         // whether any geom has nonzero surfacevel
+  mjtBool flg_adhesion;           // whether any geom or pair has nonzero adhesion
 
   // ------------------------------- options and statistics
 
@@ -478,6 +479,7 @@ typedef struct mjModel_ {
   mjtNum*   geom_margin;          // geometric inflation for contact          (ngeom x 1)
   mjtNum*   geom_gap;             // additional contact detection buffer      (ngeom x 1)
   mjtNum*   geom_surfacevel;      // surface velocity in local frame: lin,ang (ngeom x 6)
+  mjtNum*   geom_adhesion;        // adhesive force of contacts               (ngeom x 1)
   mjtNum*   geom_fluid;           // fluid interaction parameters             (ngeom x mjNFLUID)
   mjtNum*   geom_user;            // user data                                (ngeom x nuser_geom)
   float*    geom_rgba;            // rgba when material is omitted            (ngeom x 4)
@@ -721,6 +723,7 @@ typedef struct mjModel_ {
   mjtNum*   pair_solimp;          // solver impedance: contact                (npair x mjNIMP)
   mjtNum*   pair_margin;          // geometric inflation for contact          (npair x 1)
   mjtNum*   pair_gap;             // additional contact detection buffer      (npair x 1)
+  mjtNum*   pair_adhesion;        // adhesive force of contacts               (npair x 1)
   mjtNum*   pair_friction;        // tangent1, 2, spin, roll1, 2              (npair x 5)
 
   // excluded body pairs for collision detection

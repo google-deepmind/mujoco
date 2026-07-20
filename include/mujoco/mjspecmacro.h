@@ -183,6 +183,7 @@
     X   ( double,         margin,          1      ) \
     X   ( double,         gap,             1      ) \
     XVEC( double,         surfacevel,      6      ) \
+    X   ( double,         adhesion,        1      ) \
     X   ( double,         mass,            1      ) \
     X   ( double,         density,         1      ) \
     X   ( mjtGeomInertia, typeinertia,     1      ) \
@@ -421,6 +422,7 @@
     XVEC( mjtNum,      solimp,         mjNIMP ) \
     X   ( double,      margin,         1      ) \
     X   ( double,      gap,            1      ) \
+    X   ( double,      adhesion,       1      ) \
     XVEC( double,      friction,       5      ) \
     X   ( mjString*,   info,           1      )
 

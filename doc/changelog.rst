@@ -21,6 +21,16 @@ Engine
   velocity relative to the moving surface rather than to the geom, since that is the quantity the constraint acts
   on; for geoms without :at:`surfacevel` the two are identical. Contact-point visualization draws an arrow along the
   surface velocity at contacts with moving surfaces.
+
+.. youtube:: GioWwB36XHI
+   :align: right
+   :width: 35%
+
+- Added :ref:`geom/adhesion<body-geom-adhesion>` and :ref:`pair/adhesion<contact-pair-adhesion>`: an adhesive force
+  associated with a contact, useful for modeling sticky materials. Contacts can pull with up to the given force before
+  breaking, and the friction budget becomes :math:`\mu(f_N + \text{adhesion})`. Combined with :ref:`gap<body-geom-gap>`,
+  adhesive contacts apply "adhesion at a distance", useful for modeling magnets. Resting penetration is unaffected by
+  adhesion. :ref:`mj_contactForce` reports the net interface force, whose normal component can now be negative.
 - Replaced midpoint integration of free bodies with :ref:`gyroscopic derivatives<geFreeBody>` in the ``implicitfast``
   :ref:`integrator<geIntegrators>`: the bias-force derivative of every standalone free body is applied via a local
   unsymmetric solve of its decoupled block, making ``implicitfast`` identical to ``implicit`` for such bodies.
@@ -56,7 +66,8 @@ Engine
 .. admonition:: Breaking ABI changes
    :class: caution
 
-   - Added ``texid``, ``texuniform`` and ``texrepeat`` fields to ``mjvGeom``.
+   - Added ``texid``, ``texuniform`` and ``texrepeat`` fields to :ref:`mjvGeom`.
+   - The :ref:`mjContact`` struct gained an ``adhesion`` member, changing its size and layout.
 
 .. admonition:: Bug fixes
    :class: admonition

@@ -46,6 +46,7 @@ typedef struct mjContact_ {        // result of collision detection functions
   mjtNum  solref[mjNREF];          // constraint solver reference, normal direction
   mjtNum  solreffriction[mjNREF];  // constraint solver reference, friction directions
   mjtNum  solimp[mjNIMP];          // constraint solver impedance
+  mjtNum  adhesion;                // adhesive force along the contact normal
 
   // internal storage used by solver
   mjtNum  mu;                      // friction of regularized cone, set by mj_makeConstraint
@@ -287,6 +288,7 @@ typedef struct mjData_ {
   mjtNum* qfrc_damper;       // passive damper force                             (nv x 1)
   mjtNum* qfrc_gravcomp;     // passive gravity compensation force               (nv x 1)
   mjtNum* qfrc_fluid;        // passive fluid force                              (nv x 1)
+  mjtNum* qfrc_adhesion;     // passive contact adhesion force                   (nv x 1)
   mjtNum* qfrc_passive;      // total passive force                              (nv x 1)
 
   // computed by mj_sensorVel/mj_subtreeVel if needed

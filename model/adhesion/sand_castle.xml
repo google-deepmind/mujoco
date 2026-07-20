@@ -1,0 +1,115 @@
+<mujoco model="Sand castles">
+  <!-- Adhesion is Mohr-Coulomb cohesion: the shear strength of a contact is
+       mu*(N + adhesion), nonzero even without confining pressure, and contacts
+       resist tension up to the summed adhesion of the two geoms. Three identical
+       cubes of grains differ only in adhesion: dry sand avalanches to its angle
+       of repose, damp sand slumps but holds a mound, wet sand stands as a castle.
+       The small gap is the moisture film: grains within it form tensile bridges. -->
+
+  <option solver="CG" timestep="4e-3"/>
+
+  <statistic center="0 0 .15" extent="1.2"/>
+
+  <visual>
+    <headlight diffuse=".8 .8 .8" ambient=".3 .3 .3"/>
+    <quality shadowsize="8192"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1=".4 .6 .8" rgb2=".9 .9 .95" width="32" height="512"/>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+    <material name="grid" texture="grid" texrepeat="6 3" reflectance=".2"/>
+  </asset>
+
+  <default>
+    <geom type="sphere" size=".01" friction="1 .005 .005" solref=".01 1"/>
+    <default class="dry">
+      <geom rgba=".87 .78 .55 1" adhesion=".002" gap=".001"/>
+    </default>
+    <default class="damp">
+      <geom rgba=".72 .58 .38 1" adhesion=".02" gap=".001"/>
+    </default>
+    <default class="wet">
+      <geom rgba=".5 .38 .25 1" adhesion=".05" gap=".001"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light pos=".5 -1 1.5" dir="-.3 .6 -.8" diffuse=".7 .7 .7"/>
+    <geom name="floor" type="plane" size="1.2 .6 .01" material="grid"/>
+    <geom name="rail-x" type="plane" size=".6 .05 .01" pos="-1.2 0 .05" xyaxes="0 1 0 0 0 1" rgba=".5 .5 .5 .15"/>
+    <geom name="rail+x" type="plane" size=".6 .05 .01" pos="1.2 0 .05" xyaxes="0 -1 0 0 0 1" rgba=".5 .5 .5 .15"/>
+    <geom name="rail-y" type="plane" size="1.2 .05 .01" pos="0 -.6 .05" xyaxes="-1 0 0 0 0 1" rgba=".5 .5 .5 .15"/>
+    <geom name="rail+y" type="plane" size="1.2 .05 .01" pos="0 .6 .05" xyaxes="1 0 0 0 0 1" rgba=".5 .5 .5 .15"/>
+
+    <body name="ramp1" mocap="true" pos="-.4 0 .02" euler="0 18 0">
+      <geom type="box" size=".1 .12 .06" rgba=".35 .42 .28 1"/>
+    </body>
+    <body name="ramp2" mocap="true" pos="0 0 .02" euler="0 18 0">
+      <geom type="box" size=".1 .12 .06" rgba=".35 .42 .28 1"/>
+    </body>
+    <body name="ramp3" mocap="true" pos=".4 0 .02" euler="0 18 0">
+      <geom type="box" size=".1 .12 .06" rgba=".35 .42 .28 1"/>
+    </body>
+
+    <site name="adhesion = 0.002" size="1e-5" pos="-.45 0 .4"/>
+    <replicate count="3" offset="0 0 .02828">
+      <replicate count="6" offset=".02 0 0">
+        <replicate count="6" offset="0 .02 0">
+          <body name="a" pos="-0.45 -.05 .29" childclass="dry">
+            <freejoint/>
+            <geom/>
+          </body>
+        </replicate>
+      </replicate>
+      <replicate count="5" offset=".02 0 0">
+        <replicate count="5" offset="0 .02 0">
+          <body name="a2" pos="-0.44 -.04 .30414" childclass="dry">
+            <freejoint/>
+            <geom/>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
+
+    <site name="adhesion = 0.02" size="1e-5" pos="-.05 0 .4"/>
+    <replicate count="3" offset="0 0 .02828">
+      <replicate count="6" offset=".02 0 0">
+        <replicate count="6" offset="0 .02 0">
+          <body name="b" pos="-0.05 -.05 .29" childclass="damp">
+            <freejoint/>
+            <geom/>
+          </body>
+        </replicate>
+      </replicate>
+      <replicate count="5" offset=".02 0 0">
+        <replicate count="5" offset="0 .02 0">
+          <body name="b2" pos="-0.04 -.04 .30414" childclass="damp">
+            <freejoint/>
+            <geom/>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
+
+    <site name="adhesion = 0.05" size="1e-5" pos=".35 0 .4"/>
+    <replicate count="3" offset="0 0 .02828">
+      <replicate count="6" offset=".02 0 0">
+        <replicate count="6" offset="0 .02 0">
+          <body name="c" pos="0.35 -.05 .29" childclass="wet">
+            <freejoint/>
+            <geom/>
+          </body>
+        </replicate>
+      </replicate>
+      <replicate count="5" offset=".02 0 0">
+        <replicate count="5" offset="0 .02 0">
+          <body name="c2" pos="0.36 -.04 .30414" childclass="wet">
+            <freejoint/>
+            <geom/>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
+  </worldbody>
+</mujoco>

@@ -3199,6 +3199,38 @@ static void mj_addSurfaceVel(const mjModel* m, mjData* d) {
 
 
 
+// bias aref of adhesive contact rows: makes the compression branch of the net
+// force-penetration curve independent of adhesion (exact translated-cone semantics)
+static void mj_adhesionRef(const mjModel* m, mjData* d) {
+  // no adhesion on any geom or pair: quick return
+  if (!m->flg_adhesion) {
+    return;
+  }
+
+  int ispyramid = mj_isPyramidal(m), ncon = d->ncon;
+
+  for (int i=0; i < ncon; i++) {
+    const mjContact* con = d->contact + i;
+    if (!con->adhesion || con->efc_address < 0) {
+      continue;
+    }
+
+    int adr = con->efc_address, dim = con->dim;
+    if (dim == 1 || !ispyramid) {
+      // normal row
+      d->efc_aref[adr] += d->efc_R[adr] * con->adhesion;
+    } else {
+      // pyramid rows: the normal decomposes equally over the 2*(dim-1) edges
+      mjtNum edge = con->adhesion / (2*(dim-1));
+      for (int j=0; j < 2*(dim-1); j++) {
+        d->efc_aref[adr+j] += d->efc_R[adr+j] * edge;
+      }
+    }
+  }
+}
+
+
+
 // compute efc_vel, efc_aref
 void mj_referenceConstraint(const mjModel* m, mjData* d) {
   int nefc = d->nefc;
@@ -3215,6 +3247,9 @@ void mj_referenceConstraint(const mjModel* m, mjData* d) {
     d->efc_aref[i] = -KBIP[4*i+1]*d->efc_vel[i]
                      -KBIP[4*i]*KBIP[4*i+2]*(d->efc_pos[i]-d->efc_margin[i]);
   }
+
+  // bias adhesive contact rows
+  mj_adhesionRef(m, d);
 
   // subtract Jdot*v correction for connect/weld equality constraints
   if (d->ne > 0) {

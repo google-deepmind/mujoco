@@ -34,6 +34,7 @@ typedef struct mjContact_ {        // result of collision detection functions
   mjtNum  solref[mjNREF];          // constraint solver reference, normal direction
   mjtNum  solreffriction[mjNREF];  // constraint solver reference, friction directions
   mjtNum  solimp[mjNIMP];          // constraint solver impedance
+  mjtNum  adhesion;                // adhesive force along the contact normal
 
   // internal storage used by solver
   mjtNum  mu;                      // friction of regularized cone, set by mj_makeConstraint
@@ -263,6 +264,7 @@ typedef struct mjData_ {
   mjtNum* qfrc_damper;       // passive damper force                             (nv x 1)
   mjtNum* qfrc_gravcomp;     // passive gravity compensation force               (nv x 1)
   mjtNum* qfrc_fluid;        // passive fluid force                              (nv x 1)
+  mjtNum* qfrc_adhesion;     // passive contact adhesion force                   (nv x 1)
   mjtNum* qfrc_passive;      // total passive force                              (nv x 1)
 
   // computed by mj_sensorVel/mj_subtreeVel if needed
@@ -679,6 +681,7 @@ typedef struct mjModel_ {
 
   mjtBool flg_gravcomp;           // whether any body has nonzero gravcomp
   mjtBool flg_surfacevel;         // whether any geom has nonzero surfacevel
+  mjtBool flg_adhesion;           // whether any geom or pair has nonzero adhesion
 
   // ------------------------------- options and statistics
 
@@ -807,6 +810,7 @@ typedef struct mjModel_ {
   mjtNum*   geom_margin;          // geometric inflation for contact          (ngeom x 1)
   mjtNum*   geom_gap;             // additional contact detection buffer      (ngeom x 1)
   mjtNum*   geom_surfacevel;      // surface velocity in local frame: lin,ang (ngeom x 6)
+  mjtNum*   geom_adhesion;        // adhesive force of contacts               (ngeom x 1)
   mjtNum*   geom_fluid;           // fluid interaction parameters             (ngeom x mjNFLUID)
   mjtNum*   geom_user;            // user data                                (ngeom x nuser_geom)
   float*    geom_rgba;            // rgba when material is omitted            (ngeom x 4)
@@ -1050,6 +1054,7 @@ typedef struct mjModel_ {
   mjtNum*   pair_solimp;          // solver impedance: contact                (npair x mjNIMP)
   mjtNum*   pair_margin;          // geometric inflation for contact          (npair x 1)
   mjtNum*   pair_gap;             // additional contact detection buffer      (npair x 1)
+  mjtNum*   pair_adhesion;        // adhesive force of contacts               (npair x 1)
   mjtNum*   pair_friction;        // tangent1, 2, spin, roll1, 2              (npair x 5)
 
   // excluded body pairs for collision detection
@@ -1902,6 +1907,7 @@ typedef struct mjsGeom_ {          // geom specification
   double margin;                   // margin for contact detection
   double gap;                      // additional contact detection buffer
   double surfacevel[6];            // surface velocity in local frame: linear, angular
+  double adhesion;                 // adhesive force of contacts
 
   // inertia inference
   double mass;                     // used to compute density
@@ -2164,6 +2170,7 @@ typedef struct mjsPair_ {          // pair specification
   mjtNum solimp[mjNIMP];           // solver impedance
   double margin;                   // margin for contact detection
   double gap;                      // additional contact detection buffer
+  double adhesion;                 // adhesive force of contacts
   double friction[5];              // full contact friction
   mjString* info;                  // message appended to errors
 } mjsPair;

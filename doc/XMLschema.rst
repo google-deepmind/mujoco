@@ -912,6 +912,9 @@
                :ref:`surfacevel<body-geom-surfacevel>`
 
             .. grid-item::
+               :ref:`adhesion<body-geom-adhesion>`
+
+            .. grid-item::
                :ref:`fromto<body-geom-fromto>`
 
             .. grid-item::
@@ -1378,6 +1381,9 @@
 
                .. grid-item::
                   :ref:`surfacevel<composite-geom-surfacevel>`
+
+               .. grid-item::
+                  :ref:`adhesion<composite-geom-adhesion>`
 
 
          .. dropdown:: :ref:`site<composite-site>` :octicon:`dot`
@@ -1870,6 +1876,9 @@
 
             .. grid-item::
                :ref:`margin<contact-pair-margin>`
+
+            .. grid-item::
+               :ref:`adhesion<contact-pair-adhesion>`
 
 
       .. dropdown:: :ref:`exclude<contact-exclude>` |*|
@@ -5505,6 +5514,9 @@
                :ref:`surfacevel<default-geom-surfacevel>`
 
             .. grid-item::
+               :ref:`adhesion<default-geom-adhesion>`
+
+            .. grid-item::
                :ref:`fromto<default-geom-fromto>`
 
             .. grid-item::
@@ -5725,6 +5737,9 @@
 
             .. grid-item::
                :ref:`margin<default-pair-margin>`
+
+            .. grid-item::
+               :ref:`adhesion<default-pair-adhesion>`
 
 
       .. dropdown:: :ref:`equality<default-equality>` :octicon:`dot`

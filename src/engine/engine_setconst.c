@@ -223,6 +223,21 @@ static void setFixed(mjModel* m, mjData* d) {
   }
   m->flg_surfacevel = flg_surfacevel;
 
+  // compute flg_adhesion: whether any geom or pair has nonzero adhesion
+  mjtBool flg_adhesion = 0;
+  for (int i=0; i < m->ngeom; i++) {
+    if (m->geom_adhesion[i]) {
+      flg_adhesion = 1;
+      break;
+    }
+  }
+  for (int i=0; i < m->npair && !flg_adhesion; i++) {
+    if (m->pair_adhesion[i]) {
+      flg_adhesion = 1;
+    }
+  }
+  m->flg_adhesion = flg_adhesion;
+
   // set jnt_actuatorid and tendon_actuatorid
   mju_fillInt(m->jnt_actuatorid, -1, m->njnt);
   mju_fillInt(m->tendon_actuatorid, -1, m->ntendon);

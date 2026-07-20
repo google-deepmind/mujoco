@@ -1345,5 +1345,184 @@ TEST_F(CoreConstraintTest, ShellModeContactJacobian) {
       << "Interior nodes should not receive contact force";
 }
 
+
+// ------------------------------- adhesion ------------------------------------
+
+static const char* kAdhereCeiling = R"(
+<mujoco>
+  <worldbody>
+    <geom type="box" size=".2 .2 .02" pos="0 0 1" gap=".05" adhesion="20"/>
+    <body pos="0 0 .93">
+      <freejoint/>
+      <geom type="box" size=".1 .1 .05" mass="1"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+// a box sticks to an adhesive ceiling, holds up to ncon*delta, then detaches
+TEST_F(CoreConstraintTest, AdhesionPulloff) {
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kAdhereCeiling, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // hangs at rest
+  while (data->time < 2) {
+    mj_step(model.get(), data.get());
+  }
+  ASSERT_EQ(data->ncon, 4);
+  EXPECT_GT(data->qpos[2], 0.9);
+
+  // holds a load below 4*delta - mg
+  data->xfrc_applied[6*1 + 2] = -60;
+  while (data->time < 4) {
+    mj_step(model.get(), data.get());
+  }
+  EXPECT_GT(data->qpos[2], 0.9);
+
+  // detaches above 4*delta
+  data->xfrc_applied[6*1 + 2] = -85;
+  while (data->time < 5) {
+    mj_step(model.get(), data.get());
+  }
+  EXPECT_LT(data->qpos[2], 0.5);
+}
+
+// under tension the box hangs at positive separation which grows with load
+TEST_F(CoreConstraintTest, AdhesionTether) {
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kAdhereCeiling, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  mjtNum dist[2];
+  for (int k=0; k < 2; k++) {
+    data->xfrc_applied[6*1 + 2] = k ? -50 : 0;
+    mjtNum tend = data->time + 3;
+    while (data->time < tend) {
+      mj_step(model.get(), data.get());
+    }
+    ASSERT_GT(data->ncon, 0);
+    dist[k] = data->contact[0].dist;
+  }
+  EXPECT_GT(dist[0], 0);         // hanging in tension at positive separation
+  EXPECT_GT(dist[1], dist[0]);   // separation grows with load
+}
+
+// a box released inside the adhesion band is captured into steady contact
+TEST_F(CoreConstraintTest, AdhesionCapture) {
+  std::string xml = kAdhereCeiling;
+  size_t pos = xml.find("0 0 .93");
+  xml.replace(pos, 7, "0 0 .89");
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  while (data->time < 3) {
+    mj_step(model.get(), data.get());
+  }
+  mjtNum zmin = 10, zmax = -10;
+  while (data->time < 4) {
+    mj_step(model.get(), data.get());
+    zmin = mju_min(zmin, data->qpos[2]);
+    zmax = mju_max(zmax, data->qpos[2]);
+  }
+  EXPECT_GT(zmax, 0.928);         // captured up to the ceiling
+  EXPECT_LT(zmax - zmin, 1e-4);   // and steady
+}
+
+// resting penetration is independent of adhesion (the R*delta correction)
+TEST_F(CoreConstraintTest, AdhesionRestingPenetration) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="plane" size="2 2 .1" adhesion="ADH"/>
+      <body pos="0 0 .1">
+        <freejoint/>
+        <geom type="box" size=".1 .1 .1" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjtNum depth[2];
+  for (int k=0; k < 2; k++) {
+    std::string xml2 = xml;
+    size_t pos = xml2.find("ADH");
+    xml2.replace(pos, 3, k ? "50" : "0");
+    MjModelPtr model = LoadModelFromString(xml2.c_str(), error, sizeof(error));
+    ASSERT_THAT(model.get(), testing::NotNull()) << error;
+    MjDataPtr data = MakeData(model);
+    while (data->time < 3) {
+      mj_step(model.get(), data.get());
+    }
+    ASSERT_GT(data->ncon, 0);
+    depth[k] = -data->contact[0].dist;
+
+    // net reported force sums to the weight
+    if (k) {
+      mjtNum total = 0, f[6];
+      for (int i=0; i < data->ncon; i++) {
+        mj_contactForce(model.get(), data.get(), i, f);
+        total += f[0];
+      }
+      EXPECT_NEAR(total, 9.81, 1e-2);
+    }
+  }
+  EXPECT_NEAR(depth[0], depth[1], MjTol(1e-9, 1e-6));
+}
+
+// adhesion combines by sum, with pair override
+TEST_F(CoreConstraintTest, AdhesionCombination) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="plane" size="2 2 .1" adhesion="10"/>
+      <body pos="0 0 .1">
+        <freejoint/>
+        <geom name="box" type="box" size=".1 .1 .1" mass="1" adhesion="5"/>
+      </body>
+    </worldbody>
+    <contact>
+      <pair geom1="floor" geom2="box" adhesion="7"/>
+    </contact>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), testing::NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  ASSERT_GT(data->ncon, 0);
+
+  // explicit pair overrides: 7, not 10+5
+  EXPECT_EQ(data->contact[0].adhesion, 7);
+}
+
+TEST_F(CoreConstraintTest, AdhesionPriority) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="plane" size="2 2 .1" adhesion="10" priority="1"/>
+      <body pos="0 0 .1">
+        <freejoint/>
+        <geom name="box" type="box" size=".1 .1 .1" mass="1" adhesion="5"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), testing::NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  ASSERT_GT(data->ncon, 0);
+
+  // higher-priority geom wins: 10, not 10+5
+  EXPECT_EQ(data->contact[0].adhesion, 10);
+}
+
 }  // namespace
 }  // namespace mujoco

@@ -365,6 +365,13 @@ This is useful for example when the MJB is not available as a file on disk.)"));
         m.get()->flg_surfacevel = val;
       });
 
+  mjModel.def_property(
+      "flg_adhesion",
+      [](const MjModelWrapper& m) { return m.get()->flg_adhesion; },
+      [](MjModelWrapper& m, bool val) {
+        m.get()->flg_adhesion = val;
+      });
+
 #define X(var)                   \
   mjModel.def_property_readonly( \
       #var, [](const MjModelWrapper& m) { return m.get()->var; });
@@ -770,6 +777,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       })
   X(dist);
   X(includemargin);
+  X(adhesion);
   X(mu);
   X(dim);
   X(geom1);
@@ -821,6 +829,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   XN(mjtNum, solref);
   XN(mjtNum, solreffriction);
   XN(mjtNum, solimp);
+  X(mjtNum, adhesion);
   X(mjtNum, mu);
   XN(mjtNum, H);
   X(int, dim);

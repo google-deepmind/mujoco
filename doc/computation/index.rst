@@ -1507,17 +1507,18 @@ here is to construct a sensible and intuitive parameterization of the constraint
 
 .. _soExactDiag:
 
-**Diagonal approximation:** The approximation has three sources of error: (i) it is frozen at ``qpos0`` rather than
-evaluated at the current configuration; (ii) it averages the directional inverse inertia into a scalar, assuming
-isotropy; and (iii) it treats the contributions of different bodies as independent, ignoring kinematic coupling through
-shared DOFs. These errors are usually modest, but can become significant for models with highly anisotropic inertias or
-long kinematic chains that operate far from ``qpos0``. In severe cases — particularly when the averaged inertia becomes
-near-zero despite finite directional inertia — the regularizer :math:`R` becomes near-zero, making constraints
-infinitely hard and causing divergence. The :ref:`diagexact<option-flag-diagexact>` flag replaces the approximation with
-the exact diagonal :math:`A_{ii} = \|Y_i\|^2`, where :math:`Y = J M^{-1/2}` is the whitened Jacobian, computed at the
-current configuration. This eliminates all three sources of error at a modest runtime cost: computing :math:`Y` requires
-a back-substitution with the Cholesky factor of the mass matrix for each active constraint row; if
-:ref:`dual solvers<soAlgorithms>` are used (PGS or NoSlip), the cost is negligible since :math:`Y` is computed anyway.
+Diagonal approximation
+  The approximation has three sources of error: (i) it is frozen at ``qpos0`` rather than evaluated at the current
+  configuration; (ii) it averages the directional inverse inertia into a scalar, assuming isotropy; and (iii) it treats
+  the contributions of different bodies as independent, ignoring kinematic coupling through shared DOFs. These errors
+  are usually modest, but can become significant for models with highly anisotropic inertias or long kinematic chains
+  that operate far from ``qpos0``. In severe cases — particularly when the averaged inertia becomes near-zero despite
+  finite directional inertia — the regularizer :math:`R` becomes near-zero, making constraints infinitely hard and
+  causing divergence. The :ref:`diagexact<option-flag-diagexact>` flag replaces the approximation with the exact
+  diagonal :math:`A_{ii} = \|Y_i\|^2`, where :math:`Y = J M^{-1/2}` is the whitened Jacobian, computed at the current
+  configuration. This eliminates all three sources of error at a modest runtime cost: computing :math:`Y` requires a
+  back-substitution with the Cholesky factor of the mass matrix for each active constraint row; if :ref:`dual
+  solvers<soAlgorithms>` are used (PGS or NoSlip), the cost is negligible since :math:`Y` is computed anyway.
 
 Next we explain how the reference acceleration is computed. As already mentioned, we use a spring-damper model
 parameterized by *damping* and *stiffness* coefficients element-wise:
@@ -1536,6 +1537,28 @@ Modeling chapter. For the tangential rows of contacts whose geoms specify a
 velocity of the surface material, so that the reference acceleration drives the contact toward moving *with* the
 surface; this is how conveyor belts and turntables are implemented, and it is also the quantity reported in the
 contact rows of ``mjData.efc_vel``.
+
+.. _soAdhesion:
+
+Adhesion
+  Contacts of geoms with nonzero :ref:`adhesion<body-geom-adhesion>` force :math:`\delta` can pull: the feasible force
+  set is the friction cone *translated down the contact normal* by :math:`\delta`. This is implemented with an exact
+  factorization which leaves the cone machinery untouched. A constant attractive force :math:`\delta` along the contact
+  normal is accumulated into the passive force ``mjData.qfrc_adhesion``, and the reference acceleration of the contact's
+  normal row is biased:
+
+  .. math::
+     \ar \rightarrow \ar + R \, \delta
+
+  (for pyramidal cones the bias is distributed equally over the :math:`2(\mathrm{dim}-1)` edges). To see that this
+  factorization is exactly cone translation, combine :math:`f = (A+R)^{-1}(\ar - \au)` with :eq:`eq:identity` to obtain
+  the force relation :math:`R f = \ar - \ac`, and consider the net interface force :math:`f - \delta`: the passive
+  attraction cancels :math:`A \delta` in :eq:`eq:identity` while the bias cancels :math:`R \delta` in the force
+  relation, so the pair :math:`(f - \delta, \ac)` satisfies exactly the unbiased equations, with the cone membership of
+  :math:`f` becoming membership of the translated cone for :math:`f - \delta`. Consequently the compression branch of
+  the net contact force is independent of adhesion — resting penetration is unaffected — while a tensile branch of depth
+  :math:`\delta` is added. Adhesive contacts remain active when separated within the :ref:`gap<body-geom-gap>` band and
+  the biased reference acceleration continues to pull the geoms together across this distance.
 
 To summarize, the constraint behavior is determined by three per-constraint quantities: impedance :math:`0<d<1`, damping
 :math:`b > 0`, and stiffness :math:`k \geq 0`. These are computed from the :at:`solimp` and :at:`solref` attributes as

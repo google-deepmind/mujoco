@@ -1077,6 +1077,9 @@ void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]
     } else {
       mju_copy(result, d->efc_force + con->efc_address, con->dim);
     }
+
+    // report the net interface force: the solver's cone force minus the adhesive pull
+    result[0] -= con->adhesion;
   }
 }
 

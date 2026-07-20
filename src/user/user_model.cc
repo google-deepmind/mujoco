@@ -3063,6 +3063,7 @@ void mjCModel::CopyTree(mjModel* m) {
       m->geom_margin[gid] = (mjtNum)pg->margin;
       m->geom_gap[gid] = (mjtNum)pg->gap;
       mjuu_copyvec(m->geom_surfacevel+6*gid, pg->surfacevel, 6);
+      m->geom_adhesion[gid] = (mjtNum)pg->adhesion;
       mjuu_copyvec(m->geom_fluid+mjNFLUID*gid, pg->fluid, mjNFLUID);
       mjuu_copyvec(m->geom_user+nuser_geom*gid, pg->get_userdata().data(), nuser_geom);
       mjuu_copyvec(m->geom_rgba+4*gid, pg->rgba, 4);
@@ -3927,6 +3928,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     mjuu_copyvec(m->pair_solimp+mjNIMP*i, pairs_[i]->solimp, mjNIMP);
     m->pair_margin[i] = (mjtNum)pairs_[i]->margin;
     m->pair_gap[i] = (mjtNum)pairs_[i]->gap;
+    m->pair_adhesion[i] = (mjtNum)pairs_[i]->adhesion;
     mjuu_copyvec(m->pair_friction+5*i, pairs_[i]->friction, 5);
   }
 
@@ -5843,6 +5845,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     pg->margin = (double)m->geom_margin[i];
     pg->gap = (double)m->geom_gap[i];
     mjuu_copyvec(pg->surfacevel, m->geom_surfacevel+6*i, 6);
+    pg->adhesion = (double)m->geom_adhesion[i];
 
     if (nuser_geom) {
       mjuu_copyvec(pg->userdata_.data(), m->geom_user + nuser_geom*i, nuser_geom);
@@ -5926,6 +5929,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     mjuu_copyvec(pairs_[i]->solimp, m->pair_solimp+mjNIMP*i, mjNIMP);
     pairs_[i]->margin = (double)m->pair_margin[i];
     pairs_[i]->gap = (double)m->pair_gap[i];
+    pairs_[i]->adhesion = (double)m->pair_adhesion[i];
     mjuu_copyvec(pairs_[i]->friction, m->pair_friction+5*i, 5);
   }
 
