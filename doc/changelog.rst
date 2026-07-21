@@ -162,6 +162,10 @@ Compiler
 
    - Fixed a bug in the mesh compiler where normals were scaled as vectors rather than covectors.
 
+Python bindings
+^^^^^^^^^^^^^^^
+- The bindings now support free threading (`PEP 703 <https://peps.python.org/pep-0703/>`__) for Python 3.14.
+
 Version 3.10.0 (June 22, 2026)
 ------------------------------
 
@@ -677,7 +681,7 @@ Version 3.4.0 (December 5, 2025)
 General
 ^^^^^^^
 
-.. youtube:: aKa3ZlEF9_Y
+.. youtube:: vct493lGQ8Q
    :aspect: 2:1
    :align: right
    :width: 35%
