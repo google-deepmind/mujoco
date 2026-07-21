@@ -180,7 +180,7 @@ class Rollout:
       model = [model]  # Use a length 1 list to simplify code below
 
     if not isinstance(data, list):
-      data = [data]  # Use a length 1 list to simplify code below
+      data = [data]  # Use a length 1 list to simplify code below  # pyrefly: ignore[bad-assignment]
 
     # infer nstep, check for incompatibilities
     nstep = _infer_dimension(
@@ -310,9 +310,9 @@ def rollout(
     ValueError: bad shapes or sizes.
   """  # fmt: skip
   if not isinstance(data, list):
-    data = [data]  # Use a length 1 list to simplify code below
+    data = [data]  # Use a length 1 list to simplify code below  # pyrefly: ignore[bad-assignment]
 
-  nthread = len(data) if len(data) > 1 else 0
+  nthread = len(data) if len(data) > 1 else 0  # pyrefly: ignore[bad-argument-type]
 
   # Use a persistent thread pool if requested
   if persistent_pool:

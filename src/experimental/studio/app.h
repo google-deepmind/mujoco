@@ -226,8 +226,6 @@ class App {
 
   void ProcessPendingLoads();
 
-  void MoveCamera(platform::CameraMotion motion, mjtNum reldx, mjtNum reldy);
-
   void SetupTheme(platform::GuiTheme theme);
 
   void MainMenuGui();

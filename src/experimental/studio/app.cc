@@ -595,28 +595,30 @@ void App::HandleMouseEvents() {
   else if (is_mouse_dragging) {
     if (ui_.camera_idx == platform::kFreeCameraIdx) {
       if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        MoveCamera(platform::CameraMotion::PAN_TILT, mouse_dx, mouse_dy);
+        mjv_moveCamera(model(), mjMOUSE_TURN_H, mouse_dx, 0.f, &camera_);
+        mjv_moveCamera(model(), mjMOUSE_TURN_V, 0.f, mouse_dy, &camera_);
       }
     } else {
       if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        MoveCamera(platform::CameraMotion::ORBIT, mouse_dx, mouse_dy);
+        mjv_moveCamera(model(), mjMOUSE_ROTATE_H, mouse_dx, 0.f, &camera_);
+        mjv_moveCamera(model(), mjMOUSE_ROTATE_V, 0.f, mouse_dy, &camera_);
       } else if (ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
-        MoveCamera(platform::CameraMotion::ZOOM, mouse_dx, mouse_dy);
+        mjv_moveCamera(model(), mjMOUSE_ZOOM, 0.f, mouse_dy, &camera_);
       }
     }
 
     // Right mouse movement is relative to the horizontal and vertical planes.
     if (ImGui::IsMouseDown(ImGuiMouseButton_Right) && io.KeyShift) {
-      MoveCamera(platform::CameraMotion::PLANAR_MOVE_H, mouse_dx, mouse_dy);
+      mjv_moveCamera(model(), mjMOUSE_MOVE_H, mouse_dx, mouse_dy, &camera_);
     } else if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
-      MoveCamera(platform::CameraMotion::PLANAR_MOVE_V, mouse_dx, mouse_dy);
+      mjv_moveCamera(model(), mjMOUSE_MOVE_V, mouse_dx, mouse_dy, &camera_);
     }
   }
 
   // Mouse scroll zooms the camera towards/away from the lookat point.
   // Ignored by user-centered free cameras which don't have a lookat point.
   if (mouse_scroll != 0.0f && ui_.camera_idx != platform::kFreeCameraIdx) {
-    MoveCamera(platform::CameraMotion::ZOOM, 0, -mouse_scroll);
+    mjv_moveCamera(model(), mjMOUSE_ZOOM, 0.f, -mouse_scroll, &camera_);
   }
 
   // Left double click.
@@ -733,16 +735,8 @@ void App::HandleKeyboardEvents() {
         LoadHistory(sim_history_.GetIndex() + 1);
       }
     }
-  } else if (ImGui_IsChordJustPressed(ImGuiMod_Ctrl | ImGuiKey_Space)) {
-    if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
-      step_control_.SetPauseState(PauseState::kUnpaused);
-    } else {
-      step_control_.SetPauseState(PauseState::kViscousPaused);
-    }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Space)) {
-    if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
-      step_control_.SetPauseState(PauseState::kNormalPaused);
-    } else if (step_control_.GetPauseState() == PauseState::kUnpaused) {
+    if (step_control_.GetPauseState() == PauseState::kUnpaused) {
       step_control_.SetPauseState(PauseState::kNormalPaused);
     } else {
       step_control_.SetPauseState(PauseState::kUnpaused);
@@ -863,28 +857,28 @@ void App::HandleKeyboardEvents() {
 
     // Move (dolly) forward/backward using W and S keys.
     if (ImGui::IsKeyDown(ImGuiKey_W)) {
-      MoveCamera(platform::CameraMotion::TRUCK_DOLLY, 0, tmp_.cam_speed);
+      mjv_moveCamera(model(), mjMOUSE_MOVE_H_REL, 0, tmp_.cam_speed, &camera_);
       moved = true;
     } else if (ImGui::IsKeyDown(ImGuiKey_S)) {
-      MoveCamera(platform::CameraMotion::TRUCK_DOLLY, 0, -tmp_.cam_speed);
+      mjv_moveCamera(model(), mjMOUSE_MOVE_H_REL, 0, -tmp_.cam_speed, &camera_);
       moved = true;
     }
 
     // Strafe (truck) left/right using A and D keys.
     if (ImGui::IsKeyDown(ImGuiKey_A)) {
-      MoveCamera(platform::CameraMotion::TRUCK_DOLLY, -tmp_.cam_speed, 0);
+      mjv_moveCamera(model(), mjMOUSE_MOVE_H_REL, -tmp_.cam_speed, 0, &camera_);
       moved = true;
     } else if (ImGui::IsKeyDown(ImGuiKey_D)) {
-      MoveCamera(platform::CameraMotion::TRUCK_DOLLY, tmp_.cam_speed, 0);
+      mjv_moveCamera(model(), mjMOUSE_MOVE_H_REL, tmp_.cam_speed, 0, &camera_);
       moved = true;
     }
 
     // Move (pedestal) up/down using Q and E keys.
     if (ImGui::IsKeyDown(ImGuiKey_Q)) {
-      MoveCamera(platform::CameraMotion::TRUCK_PEDESTAL, 0, tmp_.cam_speed);
+      mjv_moveCamera(model(), mjMOUSE_MOVE_V_REL, 0, tmp_.cam_speed, &camera_);
       moved = true;
     } else if (ImGui::IsKeyDown(ImGuiKey_E)) {
-      MoveCamera(platform::CameraMotion::TRUCK_PEDESTAL, 0, -tmp_.cam_speed);
+      mjv_moveCamera(model(), mjMOUSE_MOVE_V_REL, 0, -tmp_.cam_speed, &camera_);
       moved = true;
     }
 
@@ -949,11 +943,6 @@ void App::SaveSettings() {
 
 void App::SetSpeedIndex(int idx) {
   platform::SetSpeedIndex(&step_control_, tmp_.speed_index, idx);
-}
-
-void App::MoveCamera(platform::CameraMotion motion, mjtNum reldx,
-                     mjtNum reldy) {
-  platform::MoveCamera(model(), data(), &camera_, motion, reldx, reldy);
 }
 
 void App::BuildGui() {
@@ -1461,6 +1450,7 @@ void App::TimelineScrubberGui() {
 
   // Advance layout cursor past this row.
   ImGui::SetCursorScreenPos(ImVec2(cursor.x, cursor.y + total_h));
+  ImGui::Dummy(ImVec2(0.0f, 0.0f));
 }
 
 void App::ModelOptionsGui() {
@@ -1619,9 +1609,8 @@ void App::ModelOptionsGui() {
       ImGui::Spacing();
       {
         char key_fmt[128];
-        const char* key_name =
-            model()->names + model()->name_keyadr[ui_.key_idx];
-        if (key_name[0] != '\0') {
+        const char* key_name = mj_id2name(model(), mjOBJ_KEY, ui_.key_idx);
+        if (key_name) {
           std::snprintf(key_fmt, sizeof(key_fmt), "%s", key_name);
         } else {
           std::snprintf(key_fmt, sizeof(key_fmt), "Key %d", ui_.key_idx);
@@ -2178,8 +2167,8 @@ void App::ToolBarGui() {
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, right_width);
 
     ImGui::TableNextColumn();
-    ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
-                         ImGui::GetStyle().WindowPadding.x);
+    ImGui::Dummy(ImVec2(ImGui::GetStyle().WindowPadding.x, 0.0f));
+    ImGui::SameLine(0.0f, 0.0f);
 
     const float btn_size = ImGui::GetFrameHeight();
     const ImVec2 square_size(btn_size, btn_size);
@@ -2200,7 +2189,7 @@ void App::ToolBarGui() {
     }
     ImGui::SetItemTooltip("%s", "Reset");
 
-    // Combined (Normal Pause, Viscous Pause, Play) widget and Speed selection.
+    // Combined (Pause, Play) widget and Speed selection.
     ImGui::SameLine(0, separator_width);
     platform::StepControlGui(&step_control_, tmp_.speed_index);
 
@@ -2228,9 +2217,6 @@ void App::StatusBarGui() {
 
     if (!has_model()) {
       ImGui::Text("No model loaded");
-    } else if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
-      ImGui::Text("Viscous Pause");
-      ImGui::SetItemTooltip("Zero gravity, high viscosity, no spring forces");
     } else if (step_control_.GetPauseState() == PauseState::kNormalPaused) {
       ImGui::Text("Paused");
     } else {

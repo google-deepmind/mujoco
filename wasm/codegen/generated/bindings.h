@@ -377,6 +377,12 @@ struct MjContact {
   emscripten::val solimp() const {
     return emscripten::val(emscripten::typed_memory_view(5, ptr_->solimp));
   }
+  mjtNum adhesion() const {
+    return ptr_->adhesion;
+  }
+  void set_adhesion(mjtNum value) {
+    ptr_->adhesion = value;
+  }
   mjtNum mu() const {
     return ptr_->mu;
   }
@@ -1850,6 +1856,18 @@ struct MjvGeom {
   void set_matid(int value) {
     ptr_->matid = value;
   }
+  int texid() const {
+    return ptr_->texid;
+  }
+  void set_texid(int value) {
+    ptr_->texid = value;
+  }
+  int texuniform() const {
+    return ptr_->texuniform;
+  }
+  void set_texuniform(int value) {
+    ptr_->texuniform = value;
+  }
   int texcoord() const {
     return ptr_->texcoord;
   }
@@ -1897,6 +1915,9 @@ struct MjvGeom {
   }
   void set_reflectance(float value) {
     ptr_->reflectance = value;
+  }
+  emscripten::val texrepeat() const {
+    return emscripten::val(emscripten::typed_memory_view(2, ptr_->texrepeat));
   }
   emscripten::val label() const {
     return emscripten::val(emscripten::typed_memory_view(100, ptr_->label));
@@ -3076,6 +3097,12 @@ struct MjsPair {
   void set_gap(double value) {
     ptr_->gap = value;
   }
+  double adhesion() const {
+    return ptr_->adhesion;
+  }
+  void set_adhesion(double value) {
+    ptr_->adhesion = value;
+  }
   emscripten::val friction() const {
     return emscripten::val(emscripten::typed_memory_view(5, ptr_->friction));
   }
@@ -3723,6 +3750,18 @@ struct MjModel {
   void set_nu(int value) {
     ptr_->nu = static_cast<mjtSize>(value);
   }
+  int nactuator() const {
+    return static_cast<int>(ptr_->nactuator);
+  }
+  void set_nactuator(int value) {
+    ptr_->nactuator = static_cast<mjtSize>(value);
+  }
+  int nout() const {
+    return static_cast<int>(ptr_->nout);
+  }
+  void set_nout(int value) {
+    ptr_->nout = static_cast<mjtSize>(value);
+  }
   int na() const {
     return static_cast<int>(ptr_->na);
   }
@@ -3866,6 +3905,18 @@ struct MjModel {
   }
   void set_nflexbending(int value) {
     ptr_->nflexbending = static_cast<mjtSize>(value);
+  }
+  int nefm0dof() const {
+    return static_cast<int>(ptr_->nefm0dof);
+  }
+  void set_nefm0dof(int value) {
+    ptr_->nefm0dof = static_cast<mjtSize>(value);
+  }
+  int nefm0L() const {
+    return static_cast<int>(ptr_->nefm0L);
+  }
+  void set_nefm0L(int value) {
+    ptr_->nefm0L = static_cast<mjtSize>(value);
   }
   int nflexelemedge() const {
     return static_cast<int>(ptr_->nflexelemedge);
@@ -4221,6 +4272,18 @@ struct MjModel {
   void set_nconmax(int value) {
     ptr_->nconmax = static_cast<mjtSize>(value);
   }
+  int npolygonmax() const {
+    return static_cast<int>(ptr_->npolygonmax);
+  }
+  void set_npolygonmax(int value) {
+    ptr_->npolygonmax = static_cast<mjtSize>(value);
+  }
+  int nmeshdegmax() const {
+    return static_cast<int>(ptr_->nmeshdegmax);
+  }
+  void set_nmeshdegmax(int value) {
+    ptr_->nmeshdegmax = static_cast<mjtSize>(value);
+  }
   int nuserdata() const {
     return static_cast<int>(ptr_->nuserdata);
   }
@@ -4256,6 +4319,24 @@ struct MjModel {
   }
   void set_nbuffer(int value) {
     ptr_->nbuffer = static_cast<mjtSize>(value);
+  }
+  mjtBool flg_gravcomp() const {
+    return ptr_->flg_gravcomp;
+  }
+  void set_flg_gravcomp(mjtBool value) {
+    ptr_->flg_gravcomp = value;
+  }
+  mjtBool flg_surfacevel() const {
+    return ptr_->flg_surfacevel;
+  }
+  void set_flg_surfacevel(mjtBool value) {
+    ptr_->flg_surfacevel = value;
+  }
+  mjtBool flg_adhesion() const {
+    return ptr_->flg_adhesion;
+  }
+  void set_flg_adhesion(mjtBool value) {
+    ptr_->flg_adhesion = value;
   }
   emscripten::val buffer() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nbuffer, static_cast<uint8_t*>(ptr_->buffer)));
@@ -4559,6 +4640,12 @@ struct MjModel {
   }
   emscripten::val geom_gap() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ngeom, ptr_->geom_gap));
+  }
+  emscripten::val geom_surfacevel() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ngeom * 6, ptr_->geom_surfacevel));
+  }
+  emscripten::val geom_adhesion() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ngeom, ptr_->geom_adhesion));
   }
   emscripten::val geom_fluid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ngeom * mjNFLUID, ptr_->geom_fluid));
@@ -4890,6 +4977,21 @@ struct MjModel {
   emscripten::val flex_bending() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexbending, ptr_->flex_bending));
   }
+  emscripten::val efm0_dofid() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefm0dof, ptr_->efm0_dofid));
+  }
+  emscripten::val efm0_L_rownnz() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefm0dof, ptr_->efm0_L_rownnz));
+  }
+  emscripten::val efm0_L_rowadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefm0dof, ptr_->efm0_L_rowadr));
+  }
+  emscripten::val efm0_L_colind() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefm0L, ptr_->efm0_L_colind));
+  }
+  emscripten::val efm0_L() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefm0L, ptr_->efm0_L));
+  }
   emscripten::val flex_damping() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_damping));
   }
@@ -5208,6 +5310,9 @@ struct MjModel {
   emscripten::val pair_gap() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->npair, ptr_->pair_gap));
   }
+  emscripten::val pair_adhesion() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->npair, ptr_->pair_adhesion));
+  }
   emscripten::val pair_friction() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->npair * 5, ptr_->pair_friction));
   }
@@ -5341,97 +5446,109 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nwrap, ptr_->wrap_prm));
   }
   emscripten::val actuator_trntype() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_trntype));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_trntype));
   }
   emscripten::val actuator_dyntype() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_dyntype));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_dyntype));
   }
   emscripten::val actuator_gaintype() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_gaintype));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_gaintype));
   }
   emscripten::val actuator_biastype() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_biastype));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_biastype));
   }
-  emscripten::val actuator_trnid() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 2, ptr_->actuator_trnid));
+  emscripten::val actuator_ctrladr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_ctrladr));
   }
-  emscripten::val actuator_damping() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_damping));
+  emscripten::val actuator_ctrlnum() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_ctrlnum));
   }
-  emscripten::val actuator_dampingpoly() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * mjNPOLY, ptr_->actuator_dampingpoly));
+  emscripten::val actuator_outadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_outadr));
   }
-  emscripten::val actuator_armature() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_armature));
+  emscripten::val actuator_outnum() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_outnum));
   }
   emscripten::val actuator_actadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_actadr));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_actadr));
   }
   emscripten::val actuator_actnum() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_actnum));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_actnum));
   }
-  emscripten::val actuator_group() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_group));
+  emscripten::val actuator_trnid() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * 2, ptr_->actuator_trnid));
+  }
+  emscripten::val actuator_cranklength() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_cranklength));
+  }
+  emscripten::val actuator_dynprm() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * mjNDYN, ptr_->actuator_dynprm));
+  }
+  emscripten::val actuator_gainprm() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * mjNGAIN, ptr_->actuator_gainprm));
+  }
+  emscripten::val actuator_biasprm() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * mjNBIAS, ptr_->actuator_biasprm));
+  }
+  emscripten::val actuator_actlimited() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_actlimited));
+  }
+  emscripten::val actuator_actrange() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * 2, ptr_->actuator_actrange));
+  }
+  emscripten::val actuator_actearly() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_actearly));
   }
   emscripten::val actuator_history() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 2, ptr_->actuator_history));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * 2, ptr_->actuator_history));
   }
   emscripten::val actuator_historyadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_historyadr));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_historyadr));
   }
   emscripten::val actuator_delay() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_delay));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_delay));
+  }
+  emscripten::val actuator_damping() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_damping));
+  }
+  emscripten::val actuator_dampingpoly() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * mjNPOLY, ptr_->actuator_dampingpoly));
+  }
+  emscripten::val actuator_armature() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_armature));
+  }
+  emscripten::val actuator_group() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_group));
+  }
+  emscripten::val actuator_user() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * ptr_->nuser_actuator, ptr_->actuator_user));
+  }
+  emscripten::val actuator_plugin() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_plugin));
   }
   emscripten::val actuator_ctrllimited() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_ctrllimited));
   }
-  emscripten::val actuator_forcelimited() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_forcelimited));
-  }
-  emscripten::val actuator_actlimited() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_actlimited));
-  }
-  emscripten::val actuator_dynprm() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * mjNDYN, ptr_->actuator_dynprm));
-  }
-  emscripten::val actuator_gainprm() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * mjNGAIN, ptr_->actuator_gainprm));
-  }
-  emscripten::val actuator_biasprm() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * mjNBIAS, ptr_->actuator_biasprm));
-  }
-  emscripten::val actuator_actearly() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_actearly));
-  }
   emscripten::val actuator_ctrlrange() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 2, ptr_->actuator_ctrlrange));
   }
-  emscripten::val actuator_forcerange() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 2, ptr_->actuator_forcerange));
-  }
-  emscripten::val actuator_actrange() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 2, ptr_->actuator_actrange));
-  }
   emscripten::val actuator_gear() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 6, ptr_->actuator_gear));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nout * 6, ptr_->actuator_gear));
   }
-  emscripten::val actuator_cranklength() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_cranklength));
+  emscripten::val actuator_forcelimited() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nout, ptr_->actuator_forcelimited));
+  }
+  emscripten::val actuator_forcerange() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nout * 2, ptr_->actuator_forcerange));
   }
   emscripten::val actuator_acc0() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_acc0));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nout, ptr_->actuator_acc0));
   }
   emscripten::val actuator_length0() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_length0));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nout, ptr_->actuator_length0));
   }
   emscripten::val actuator_lengthrange() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 2, ptr_->actuator_lengthrange));
-  }
-  emscripten::val actuator_user() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * ptr_->nuser_actuator, ptr_->actuator_user));
-  }
-  emscripten::val actuator_plugin() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_plugin));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nout * 2, ptr_->actuator_lengthrange));
   }
   emscripten::val sensor_type() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nsensor, ptr_->sensor_type));
@@ -5605,7 +5722,7 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->name_tendonadr));
   }
   emscripten::val name_actuatoradr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->name_actuatoradr));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->name_actuatoradr));
   }
   emscripten::val name_sensoradr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nsensor, ptr_->name_sensoradr));
@@ -6194,6 +6311,15 @@ struct MjsGeom {
   void set_gap(double value) {
     ptr_->gap = value;
   }
+  emscripten::val surfacevel() const {
+    return emscripten::val(emscripten::typed_memory_view(6, ptr_->surfacevel));
+  }
+  double adhesion() const {
+    return ptr_->adhesion;
+  }
+  void set_adhesion(double value) {
+    ptr_->adhesion = value;
+  }
   double mass() const {
     return ptr_->mass;
   }
@@ -6620,6 +6746,30 @@ struct MjData {
   void set_nJ(int value) {
     ptr_->nJ = value;
   }
+  int efm_active() const {
+    return ptr_->efm_active;
+  }
+  void set_efm_active(int value) {
+    ptr_->efm_active = value;
+  }
+  int nefmK() const {
+    return ptr_->nefmK;
+  }
+  void set_nefmK(int value) {
+    ptr_->nefmK = value;
+  }
+  int nefmdof() const {
+    return ptr_->nefmdof;
+  }
+  void set_nefmdof(int value) {
+    ptr_->nefmdof = value;
+  }
+  int nefmL() const {
+    return ptr_->nefmL;
+  }
+  void set_nefmL(int value) {
+    ptr_->nefmL = value;
+  }
   int nY() const {
     return ptr_->nY;
   }
@@ -6824,6 +6974,9 @@ struct MjData {
   emscripten::val flexelem_aabb() const {
     return emscripten::val(emscripten::typed_memory_view(model->nflexelem * 6, ptr_->flexelem_aabb));
   }
+  emscripten::val flexelem_krot() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nflexstiffness, ptr_->flexelem_krot));
+  }
   emscripten::val flexedge_J() const {
     return emscripten::val(emscripten::typed_memory_view(model->nJfe, ptr_->flexedge_J));
   }
@@ -6858,13 +7011,13 @@ struct MjData {
     return emscripten::val(emscripten::typed_memory_view(model->nwrap * 6, ptr_->wrap_xpos));
   }
   emscripten::val actuator_length() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nu, ptr_->actuator_length));
+    return emscripten::val(emscripten::typed_memory_view(model->nout, ptr_->actuator_length));
   }
   emscripten::val moment_rownnz() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nu, ptr_->moment_rownnz));
+    return emscripten::val(emscripten::typed_memory_view(model->nout, ptr_->moment_rownnz));
   }
   emscripten::val moment_rowadr() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nu, ptr_->moment_rowadr));
+    return emscripten::val(emscripten::typed_memory_view(model->nout, ptr_->moment_rowadr));
   }
   emscripten::val moment_colind() const {
     return emscripten::val(emscripten::typed_memory_view(model->nJmom, ptr_->moment_colind));
@@ -6909,7 +7062,7 @@ struct MjData {
     return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->ten_velocity));
   }
   emscripten::val actuator_velocity() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nu, ptr_->actuator_velocity));
+    return emscripten::val(emscripten::typed_memory_view(model->nout, ptr_->actuator_velocity));
   }
   emscripten::val cvel() const {
     return emscripten::val(emscripten::typed_memory_view(model->nbody * 6, ptr_->cvel));
@@ -6931,6 +7084,9 @@ struct MjData {
   }
   emscripten::val qfrc_fluid() const {
     return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qfrc_fluid));
+  }
+  emscripten::val qfrc_adhesion() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qfrc_adhesion));
   }
   emscripten::val qfrc_passive() const {
     return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qfrc_passive));
@@ -6954,7 +7110,7 @@ struct MjData {
     return emscripten::val(emscripten::typed_memory_view(model->nD, ptr_->qLU));
   }
   emscripten::val actuator_force() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nu, ptr_->actuator_force));
+    return emscripten::val(emscripten::typed_memory_view(model->nout, ptr_->actuator_force));
   }
   emscripten::val qfrc_actuator() const {
     return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qfrc_actuator));
@@ -7130,6 +7286,36 @@ struct MjData {
   }
   emscripten::val efc_aref() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_aref));
+  }
+  emscripten::val efm_c() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->efm_c));
+  }
+  emscripten::val efm_K_rownnz() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->efm_K_rownnz));
+  }
+  emscripten::val efm_K_rowadr() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->efm_K_rowadr));
+  }
+  emscripten::val efm_K_colind() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmK, ptr_->efm_K_colind));
+  }
+  emscripten::val efm_K_val() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmK, ptr_->efm_K_val));
+  }
+  emscripten::val efm_dofid() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmdof, ptr_->efm_dofid));
+  }
+  emscripten::val efm_L_rownnz() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmdof, ptr_->efm_L_rownnz));
+  }
+  emscripten::val efm_L_rowadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmdof, ptr_->efm_L_rowadr));
+  }
+  emscripten::val efm_L_colind() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmL, ptr_->efm_L_colind));
+  }
+  emscripten::val efm_L() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmL, ptr_->efm_L));
   }
   emscripten::val efc_b() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_b));

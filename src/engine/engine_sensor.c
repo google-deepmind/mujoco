@@ -650,7 +650,7 @@ static void mj_computeSensorPos(const mjModel* m, mjData* d, int i, mjtNum* sens
     break;
 
   case mjSENS_ACTUATORPOS:                            // actuator position
-    sensordata[0] = d->actuator_length[objid];
+    sensordata[0] = d->actuator_length[m->actuator_outadr[objid]];
     break;
 
   case mjSENS_BALLQUAT:                               // ball joint quaternion
@@ -879,7 +879,7 @@ static void mj_computeSensorVel(const mjModel* m, mjData* d, int i, mjtNum* sens
     break;
 
   case mjSENS_ACTUATORVEL:                            // actuator velocity
-    sensordata[0] = d->actuator_velocity[objid];
+    sensordata[0] = d->actuator_velocity[m->actuator_outadr[objid]];
     break;
 
   case mjSENS_BALLANGVEL:                             // ball joint angular velocity
@@ -956,7 +956,7 @@ static void mj_computeSensorVel(const mjModel* m, mjData* d, int i, mjtNum* sens
 
 // compute acceleration-stage sensor value, write to data buffer
 static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sensordata) {
-  int ne = d->ne, nf = d->nf, nefc = d->nefc, nu = m->nu;
+  int ne = d->ne, nf = d->nf, nefc = d->nefc, nactuator = m->nactuator;
   mjtSensor type = (mjtSensor)m->sensor_type[i];
   int objtype = m->sensor_objtype[i];
   int objid = m->sensor_objid[i];
@@ -1303,7 +1303,7 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
     break;
 
   case mjSENS_ACTUATORFRC:                            // actuator force
-    sensordata[0] = d->actuator_force[objid];
+    sensordata[0] = d->actuator_force[m->actuator_outadr[objid]];
     break;
 
   case mjSENS_JOINTACTFRC:                            // actuator force at joint
@@ -1312,9 +1312,9 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
 
   case mjSENS_TENDONACTFRC:                           // actuator force at tendon
     frc = 0.0;
-    for (int j=0; j < nu; j++) {
+    for (int j=0; j < nactuator; j++) {
       if (m->actuator_trntype[j] == mjTRN_TENDON && m->actuator_trnid[2*j] == objid) {
-        frc += d->actuator_force[j];
+        frc += d->actuator_force[m->actuator_outadr[j]];
       }
     }
     sensordata[0] = frc;

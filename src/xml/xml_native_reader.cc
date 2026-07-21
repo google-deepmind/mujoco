@@ -238,7 +238,8 @@ std::vector<const char*> MJCF[nMJCF] = {
         {"geom", "?", "type", "pos", "quat", "contype", "conaffinity", "condim",
             "group", "priority", "size", "material", "friction", "mass", "density",
             "shellinertia", "solmix", "solref", "solimp",
-            "margin", "gap", "fromto", "axisangle", "xyaxes", "zaxis", "euler",
+            "margin", "gap", "surfacevel", "adhesion", "fromto", "axisangle", "xyaxes", "zaxis",
+            "euler",
             "hfield", "mesh", "fitscale", "rgba", "fluidshape", "fluidcoef", "user"},
         {"site", "?", "type", "group", "pos", "quat", "material",
             "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
@@ -249,7 +250,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             "directional", "type", "castshadow", "active", "attenuation", "cutoff", "exponent",
             "ambient", "diffuse", "specular", "mode"},
         {"pair", "?", "condim", "friction", "solref", "solreffriction", "solimp",
-         "gap", "margin"},
+         "gap", "margin", "adhesion"},
         {"equality", "?", "active", "solref", "solimp"},
         {"tendon", "?", "group", "limited", "range",
             "solreflimit", "solimplimit", "solreffriction", "solimpfriction",
@@ -266,8 +267,8 @@ std::vector<const char*> MJCF[nMJCF] = {
             "delay", "kp", "kv", "dampratio", "timeconst"},
         {"velocity", "?", "ctrllimited", "forcelimited", "ctrlrange", "forcerange", "gear",
             "damping", "armature", "cranklength", "user", "group", "nsample", "interp", "delay", "kv"},
-        {"intvelocity", "?", "ctrllimited", "forcelimited", "ctrlrange", "forcerange", "actrange",
-            "inheritrange", "gear", "damping", "armature", "cranklength", "user", "group",
+        {"intvelocity", "?", "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange",
+             "actrange", "inheritrange", "gear", "damping", "armature", "cranklength", "user", "group",
             "nsample", "interp", "delay", "kp", "kv", "dampratio"},
         {"damper", "?", "forcelimited", "ctrlrange", "forcerange",
             "gear", "damping", "armature", "cranklength", "user", "group", "nsample", "interp", "delay", "kv"},
@@ -349,8 +350,9 @@ std::vector<const char*> MJCF[nMJCF] = {
         {"geom", "*", "name", "class", "type", "contype", "conaffinity", "condim",
             "group", "priority", "size", "material", "friction", "mass", "density",
             "shellinertia", "solmix", "solref", "solimp",
-            "margin", "gap", "fromto", "pos", "quat", "axisangle", "xyaxes", "zaxis", "euler",
-            "hfield", "mesh", "fitscale", "rgba", "fluidshape", "fluidcoef", "user"},
+            "margin", "gap", "surfacevel", "adhesion", "fromto", "pos", "quat", "axisangle",
+            "xyaxes", "zaxis", "euler", "hfield", "mesh", "fitscale", "rgba", "fluidshape",
+            "fluidcoef", "user"},
         {"<"},
             {"plugin", "*", "plugin", "instance"},
             {"<"},
@@ -380,7 +382,8 @@ std::vector<const char*> MJCF[nMJCF] = {
             {"skin", "?", "texcoord", "material", "group", "rgba", "inflate", "subgrid"},
             {"geom", "?", "type", "contype", "conaffinity", "condim",
                 "group", "priority", "size", "material", "rgba", "friction", "mass",
-                "density", "solmix", "solref", "solimp", "margin", "gap"},
+                "density", "solmix", "solref", "solimp", "margin", "gap", "surfacevel",
+                "adhesion"},
             {"site", "?", "group", "size", "material", "rgba"},
             {"plugin", "*", "plugin", "instance"},
             {"<"},
@@ -426,7 +429,7 @@ std::vector<const char*> MJCF[nMJCF] = {
     {"contact", "*"},
     {"<"},
         {"pair", "*", "name", "class", "geom1", "geom2", "condim", "friction",
-            "solref", "solreffriction", "solimp", "gap", "margin"},
+            "solref", "solreffriction", "solimp", "gap", "margin", "adhesion"},
         {"exclude", "*", "name", "body1", "body2"},
     {">"},
 
@@ -490,7 +493,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kv"},
         {"intvelocity", "*", "name", "class", "group", "nsample", "interp", "delay",
-            "ctrllimited", "forcelimited",
+            "ctrllimited", "forcelimited", "actlimited",
             "ctrlrange", "forcerange", "actrange", "inheritrange", "lengthrange",
             "gear", "damping", "armature", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
@@ -1973,6 +1976,8 @@ void mjXReader::OneGeom(XMLElement* elem, mjsGeom* geom) {
   ReadAttr(elem, "solimp", mjNIMP, geom->solimp, text, false, false);
   ReadAttr(elem, "margin", 1, &geom->margin, text);
   ReadAttr(elem, "gap", 1, &geom->gap, text);
+  ReadAttr(elem, "surfacevel", 6, geom->surfacevel, text, false, false);
+  ReadAttr(elem, "adhesion", 1, &geom->adhesion, text);
   if (ReadAttrTxt(elem, "hfield", hfieldname)) {
     mjs_setString(geom->hfieldname, hfieldname.c_str());
   }
@@ -2195,6 +2200,7 @@ void mjXReader::OnePair(XMLElement* elem, mjsPair* pair) {
   ReadAttr(elem, "solimp", mjNIMP, pair->solimp, text, false, false);
   ReadAttr(elem, "margin", 1, &pair->margin, text);
   ReadAttr(elem, "gap", 1, &pair->gap, text);
+  ReadAttr(elem, "adhesion", 1, &pair->adhesion, text);
   ReadAttr(elem, "friction", 5, pair->friction, text, false, false);
 
   // write error info
@@ -2782,6 +2788,8 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, mjsFrame* frame, c
     ReadAttr(egeom, "solimp", mjNIMP, dgeom.solimp, text, false, false);
     ReadAttr(egeom, "margin", 1, &dgeom.margin, text);
     ReadAttr(egeom, "gap", 1, &dgeom.gap, text);
+    ReadAttr(egeom, "surfacevel", 6, dgeom.surfacevel, text, false, false);
+    ReadAttr(egeom, "adhesion", 1, &dgeom.adhesion, text);
     if (ReadAttrTxt(egeom, "material", material)) {
       mjs_setString(dgeom.material, material.c_str());
     }

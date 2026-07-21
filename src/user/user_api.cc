@@ -1313,7 +1313,6 @@ const char* mjs_setToIntVelocity(mjsActuator* actuator, double kp, double kv[1],
                                  double dampratio[1], double timeconst[1], double inheritrange) {
   mjs_setToPosition(actuator, kp, kv, dampratio, timeconst, inheritrange);
   actuator->dyntype = mjDYN_INTEGRATOR;
-  actuator->actlimited = mjLIMITED_TRUE;
 
   if (inheritrange > 0) {
     if (actuator->actrange[0] || actuator->actrange[1]) {

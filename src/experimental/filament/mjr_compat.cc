@@ -57,6 +57,8 @@ class CompatContext {
     scene_bridge_->UploadHeightField(model, id);
   }
 
+  mjrfContext* Context() const { return context_.get(); }
+
  private:
   mjrDrawMode draw_mode_ = mjDRAW_MODE_DEFAULT;
   UniquePtr<mjrfContext> context_{nullptr, nullptr};
@@ -187,6 +189,19 @@ extern "C" {
 
 void mjr_defaultContext(mjrContext* con) {
   memset(con, 0, sizeof(mjrContext));
+}
+
+void mjr_defaultRendererInfo(mjrRendererInfo* info) {
+  memset(info, 0, sizeof(mjrRendererInfo));
+  info->renderer = "filament";
+  info->backend = "";
+}
+
+void mjr_getRendererInfo(mjrRendererInfo* info) {
+  mjr_defaultRendererInfo(info);
+  if (g_context) {
+    mjrf_getRendererInfo(g_context->Context(), info);
+  }
 }
 
 void mjr_makeFilamentContext(const mjModel* m, const mjrfContextConfig* cfg,

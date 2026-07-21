@@ -102,11 +102,16 @@ static int mjc_penetration(const mjModel* m, mjData* d, mjCCDObj* obj1, mjCCDObj
   config.tolerance = m->opt.ccd_tolerance;
   config.max_contacts = ncon;
   config.dist_cutoff = 0;  // no geom distances needed
+  config.npolygonmax = m->npolygonmax;
+  config.nmeshdegmax = m->nmeshdegmax;
   if (buffer) {
     config.buffer = buffer;
   } else {
     mj_markStack(d);
-    config.buffer = mj_stackAllocByte(d, mjc_ccdSize(config.max_iterations), sizeof(mjtNum));
+    int npolygonmax = mjDISABLED(mjDSBL_MULTICCD) ? 0 : m->npolygonmax;
+    int nmeshdegmax = mjDISABLED(mjDSBL_MULTICCD) ? 0 : m->nmeshdegmax;
+    config.buffer = mj_stackAllocByte(d, mjc_ccdSize(npolygonmax, nmeshdegmax,
+                                                     config.max_iterations), sizeof(mjtNum));
   }
 
   if ((dist = mjc_ccd(&config, &status, obj1, obj2)) < 0) {
@@ -401,9 +406,9 @@ static void mjc_hillclimbSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[
   mjtNum local_dir[3];
   mulMatTVec3(local_dir, mat, dir);
 
-  mjtNum max = -FLT_MAX;
   int prev = -1;
   int imax = obj->meshindex >= 0 ? obj->meshindex : 0;
+  mjtNum max = dot3f(local_dir, verts + 3*vert_globalid[imax]);
 
   // hillclimb until no change
   while (imax != prev) {

@@ -24,6 +24,7 @@
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
+#include "engine/engine_derivative.h"
 #include "engine/engine_core_util.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_macro.h"
@@ -1068,6 +1069,13 @@ typedef struct {
   mjtNum* L;              // Cholesky factor                              (nL x 1)
   mjtNum* Lcone;          // Cholesky factor with cone contributions      (nL x 1)
 
+  // implicit effective metric for flex: Mtilde = M + K (built per step in mj_fwdPosition): when
+  // active, ctx.qfrc_smooth is pre-shifted by +c and Ma/Mv carry the B term, so the stock
+  // objective/gradient/linesearch formulas below operate in the Mtilde metric unchanged
+  int flg_flex;           // effective metric active for this solve
+  const mjModel* fm;      // model, for the metric calls
+  mjData* fd;             // data, for the metric calls
+
   // globals
   mjtNum cost;            // constraint + Gauss cost
   mjtNum quadGauss[3];    // quadratic polynomial for Gauss cost
@@ -1331,10 +1339,29 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
 
   // sparse: compute Jacobian transpose
   if (is_sparse) {
-    int offset = ctx->J_rowadr[0];
-    mju_transposeSparse(ctx->JT, ctx->J + offset, nefc, nv,
-                        ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper,
-                        ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind + offset);
+    if (nefc) {
+      int offset = ctx->J_rowadr[0];
+      mju_transposeSparse(ctx->JT, ctx->J + offset, nefc, nv,
+                          ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper,
+                          ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind + offset);
+    } else {
+      // no constraints (reachable via the flex CG dispatch): valid empty transpose structures
+      mju_zeroInt(ctx->JT_rownnz, nv);
+      mju_zeroInt(ctx->JT_rowadr, nv);
+      mju_zeroInt(ctx->JT_rowsuper, nv);
+    }
+  }
+
+  // implicit effective metric (built in mj_fwdPosition): route Ma/Mv/Mgrad through the
+  // metric operators and shift the smooth force, so the stock objective/gradient/linesearch
+  // formulas operate in the Mtilde = M+K metric
+  if (ctx->island < 0 && !is_elliptic && !flg_Newton && d->efm_active) {
+    ctx->flg_flex = 1;
+    ctx->fm = m;
+    ctx->fd = d;
+    mjtNum* qfrc_eff = mjSTACKALLOC(d, nv, mjtNum);
+    mju_add(qfrc_eff, ctx->qfrc_smooth, d->efm_c, nv);
+    ctx->qfrc_smooth = qfrc_eff;
   }
 }
 
@@ -1376,14 +1403,18 @@ static void PrimalUpdateConstraint(mjPrimalContext* ctx, int flg_HessianCone) {
 }
 
 
-// update grad, Mgrad
-static void PrimalUpdateGradient(mjPrimalContext* ctx, int flg_Newton) {
+// update grad = M*qacc - qfrc_smooth - qfrc_constraint
+static void PrimalUpdateGrad(mjPrimalContext* ctx) {
   int nv = ctx->nv;
-
-  // grad = M*qacc - qfrc_smooth - qfrc_constraint
   for (int i=0; i < nv; i++) {
     ctx->grad[i] = ctx->Ma[i] - ctx->qfrc_smooth[i] - ctx->qfrc_constraint[i];
   }
+}
+
+
+// update Mgrad;  Newton: Mgrad = H \ grad,  CG: Mgrad = M \ grad
+static void PrimalUpdateMgrad(mjPrimalContext* ctx, int flg_Newton) {
+  int nv = ctx->nv;
 
   // Newton: Mgrad = H \ grad
   if (flg_Newton) {
@@ -1395,12 +1426,24 @@ static void PrimalUpdateGradient(mjPrimalContext* ctx, int flg_Newton) {
     }
   }
 
+  // CG: Mgrad = Mtilde \ grad
+  else if (ctx->flg_flex) {
+    mjd_effSolve(ctx->fm, ctx->fd, ctx->Mgrad, ctx->grad);
+  }
+
   // CG: Mgrad = M \ grad
   else {
     mju_copy(ctx->Mgrad, ctx->grad, nv);
     mj_solveLD(ctx->Mgrad, ctx->qLD, ctx->qLDiagInv, nv, 1,
                ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind, NULL);
   }
+}
+
+
+// update grad, Mgrad
+static void PrimalUpdateGradient(mjPrimalContext* ctx, int flg_Newton) {
+  PrimalUpdateGrad(ctx);
+  PrimalUpdateMgrad(ctx, flg_Newton);
 }
 
 
@@ -1832,9 +1875,12 @@ static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_ite
   mjtNum gtol = tolerance * snorm / ctx->scale;
   mjtNum slopescl = ctx->scale / snorm;
 
-  // compute Mv = M * v
+  // compute Mv = Mtilde * v
   mju_mulSymVecSparse(ctx->Mv, ctx->M, ctx->search, nv,
                       ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
+  if (ctx->flg_flex) {
+    mjd_effMulAdd(ctx->fm, ctx->fd, ctx->Mv, ctx->search);
+  }
 
   // compute Jv = J * search  (dense or sparse)
   if (!ctx->is_sparse) {
@@ -2310,9 +2356,12 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
   int nefc = ctx.nefc;
   int* oldstate = ctx.oldstate;
 
-  // compute Ma = M * qacc
+  // compute Ma = Mtilde * qacc
   mju_mulSymVecSparse(ctx.Ma, ctx.M, ctx.qacc, nv,
                       ctx.M_rownnz, ctx.M_rowadr, ctx.M_colind);
+  if (ctx.flg_flex) {
+    mjd_effMulAdd(m, d, ctx.Ma, ctx.qacc);
+  }
 
 
   // compute Jaref = J * qacc - aref  (dense or sparse)
@@ -2326,15 +2375,7 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
 
   // first update
   PrimalUpdateConstraint(&ctx, flg_Newton & (m->opt.cone == mjCONE_ELLIPTIC));
-  if (flg_Newton) {
-    // compute and factorize Hessian
-    MakeHessian(d, &ctx);
-    FactorizeHessian(d, &ctx, /*flg_recompute=*/0);
-  }
-  PrimalUpdateGradient(&ctx, flg_Newton);
-
-  // start both with preconditioned gradient
-  mju_scl(ctx.search, ctx.Mgrad, -1, nv);
+  PrimalUpdateGrad(&ctx);
 
   // compute and save scaling factor
   mjtNum scale;
@@ -2350,8 +2391,42 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
   }
   ctx.scale = scale;
 
+  // Mgrad = M \ grad: the CG preconditioned gradient, also the convergence certificate
+  PrimalUpdateMgrad(&ctx, /*flg_Newton=*/0);
+
+  // convergence certificate: the cost is strongly convex in the M-norm, bounding the
+  // suboptimality by the duality gap at the current constraint forces:
+  //   cost(qacc) - cost* <= 0.5 * grad'*M^-1*grad
+  // if already below tolerance (e.g. good warmstart), skip the Hessian and the main loop
+  int flg_gap = mju_max(0, 0.5*scale*mju_dot(ctx.grad, ctx.Mgrad, nv)) < m->opt.tolerance;
+
+  // the gap bounds the *cost* suboptimality; on stiff constraints this permits force
+  // errors of order sqrt(2*gap*stiffness). Newton solutions are characteristically
+  // force-accurate, so Newton zero-iteration exits also require the gradient criterion;
+  // CG solutions are characteristically cost-accurate and exit on the gap alone
+  int flg_gradient = scale*mju_norm(ctx.grad, nv) < m->opt.tolerance;
+  int flg_certificate = flg_gap && (!flg_Newton || flg_gradient);
+  int flg_done = flg_certificate;
+
+  // Newton: compute and factorize Hessian, Mgrad = H \ grad
+  if (!flg_done && flg_Newton) {
+    MakeHessian(d, &ctx);
+    FactorizeHessian(d, &ctx, /*flg_recompute=*/0);
+    PrimalUpdateMgrad(&ctx, /*flg_Newton=*/1);
+
+    // Newton decrement already below tolerance: converged, skip the first line search
+    // (gradient-gated like the certificate: H^-1 suppresses stiff-direction force errors)
+    flg_done = flg_gradient &&
+               mju_max(0, 0.5*scale*mju_dot(ctx.grad, ctx.Mgrad, nv)) < m->opt.tolerance;
+  }
+
+  // start both with preconditioned gradient
+  if (!flg_done) {
+    mju_scl(ctx.search, ctx.Mgrad, -1, nv);
+  }
+
   // main loop
-  while (iter < maxiter) {
+  while (!flg_done && iter < maxiter) {
     // perform linesearch
     mjtNum ls_improvement;
     alpha = PrimalSearch(&ctx, m->opt.tolerance * m->opt.ls_tolerance, m->opt.ls_iterations,
@@ -2393,12 +2468,17 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
     saveStats(m, d, island, iter, improvement, gradient, ctx.LSslope,
               ctx.nactive, nchange, ctx.LSiter, ctx.nupdate);
 
+    // Newton decrement: 0.5*grad'*H^-1*grad, the model's predicted improvement of the
+    // next step; clamp to 0 so that tolerance == 0 keeps early termination disabled
+    mjtNum decrement = flg_Newton ? mju_max(0, 0.5*scale*mju_dot(ctx.grad, ctx.Mgrad, nv)) : 0;
+
     // increment iteration count
     iter++;
 
     // termination
     if ((improvement > 0 && improvement < m->opt.tolerance) ||
-         gradient < m->opt.tolerance) {
+         gradient < m->opt.tolerance ||
+         (flg_Newton && decrement < m->opt.tolerance)) {
       break;
     }
 
@@ -2465,8 +2545,8 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
     // update solver iterations
     d->solver_niter[island_stat] += iter;
 
-    // set solver_nnz
-    if (flg_Newton) {
+    // set solver_nnz; if the certificate fired, no Hessian was built: report Jacobian nnz
+    if (flg_Newton && !flg_certificate) {
       if (mj_isSparse(m)) {
         // two L factors if Lcone is present
         int num_factors = 1 + (ctx.Lcone != NULL);

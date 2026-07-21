@@ -53,7 +53,7 @@ def _warn_if_ill_conditioned(
           residual=f,
           x=x0.reshape(-1, 1),
           r=r0,
-          eps=eps,
+          eps=eps,  # pyrefly: ignore[bad-argument-type]
           n_res=0,
           bounds=[bounds[0].reshape(-1, 1), bounds[1].reshape(-1, 1)],
       )[0],

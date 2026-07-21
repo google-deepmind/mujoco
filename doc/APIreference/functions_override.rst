@@ -434,6 +434,11 @@ The functions in this section implement abstract visualization. The results are 
 also be used by users wishing to implement their own renderer, or hook up MuJoCo to advanced rendering tools such as
 Unity or Unreal Engine. See :ref:`simulate<saSimulate>` for illustration of how to use these functions.
 
+.. _FilamentRenderingApi:
+
+Rendering functions using the Filament rendering engine. These functions are prefixed with ``mjrf``. See
+:ref:`Filament Rendering<tyFilamentRenderStructure>` for an overview of the core types and their uses.
+
 .. _OpenGLrendering:
 
 These functions expose the OpenGL renderer. See :ref:`simulate<saSimulate>` for an illustration

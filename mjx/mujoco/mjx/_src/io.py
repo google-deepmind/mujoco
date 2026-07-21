@@ -151,15 +151,15 @@ def _resolve_impl_and_device(
   if (has_impl, has_device) == (True, True):
     pass
   elif (has_impl, has_device) == (True, False):
-    device = _resolve_device(impl)
+    device = _resolve_device(impl)  # pyrefly: ignore[bad-argument-type]
   elif (has_impl, has_device) == (False, True):
-    impl = _resolve_impl(device)
+    impl = _resolve_impl(device)  # pyrefly: ignore[bad-argument-type]
   else:
     device = jax.devices()[0]
     logging.info('Using JAX default device: %s.', device)
     impl = _resolve_impl(device)
 
-  _check_impl_device_compatibility(impl, device)
+  _check_impl_device_compatibility(impl, device)  # pyrefly: ignore[bad-argument-type]
   return impl, device  # pytype: disable=bad-return-type
 
 
@@ -724,7 +724,7 @@ def _make_data_jax(
       qpos=jp.array(m.qpos0, dtype=float_),
       eq_active=m.eq_active0,
       _impl=impl,
-      **_make_data_public_fields(m),
+      **_make_data_public_fields(m),  # pyrefly: ignore[bad-argument-type]
   )
 
   if m.nmocap:
@@ -773,7 +773,7 @@ def _make_data_warp(
         nvmax=nvmax,
     )  # pylint: disable=undefined-variable
 
-  fields = _make_data_public_fields(m)
+  fields = _make_data_public_fields(m)  # pyrefly: ignore[bad-argument-type]
   for k in fields:
     if k in {'userdata', 'plugin_state', 'history'}:
       continue
@@ -1287,14 +1287,14 @@ def _get_data_into_warp(
         if batched
         else d
     )
-    result_i = result[i] if batched else result
+    result_i = result[i] if batched else result  # pyrefly: ignore[bad-index]
     ncon = d_i._impl.nacon[0]
     nefc = int(d_i._impl.nefc)
     # nj = int(d_i._impl.nj[0])
     nj = 0  # TODO(btaba): add nj back
 
-    if ncon != result_i.ncon or nefc != result_i.nefc or nj != result_i.nJ:
-      mujoco._functions._realloc_con_efc(result_i, ncon=ncon, nefc=nefc, nJ=nj)  # pylint: disable=protected-access
+    if ncon != result_i.ncon or nefc != result_i.nefc or nj != result_i.nJ:  # pyrefly: ignore[missing-attribute]
+      mujoco._functions._realloc_con_efc(result_i, ncon=ncon, nefc=nefc, nJ=nj)  # pylint: disable=protected-access  # pyrefly: ignore[bad-argument-type]
 
     all_fields = types.Data.fields() + mjxw.types.DataWarp.fields()
     for field in all_fields:
@@ -1368,14 +1368,14 @@ def _get_data_into(
 
   for i in range(batch_size):
     d_i = jax.tree_util.tree_map(lambda x, i=i: x[i], d) if batched else d
-    result_i = result[i] if batched else result
+    result_i = result[i] if batched else result  # pyrefly: ignore[bad-index]
     ncon = (d_i._impl.contact.dist <= 0).sum()
     efc_active = (d_i._impl.efc_J != 0).any(axis=1)
     nefc = int(efc_active.sum())
     nj = (d_i._impl.efc_J != 0).sum() if support.is_sparse(m) else nefc * m.nv
 
-    if ncon != result_i.ncon or nefc != result_i.nefc or nj != result_i.nJ:
-      mujoco._functions._realloc_con_efc(result_i, ncon=ncon, nefc=nefc, nJ=nj)  # pylint: disable=protected-access
+    if ncon != result_i.ncon or nefc != result_i.nefc or nj != result_i.nJ:  # pyrefly: ignore[missing-attribute]
+      mujoco._functions._realloc_con_efc(result_i, ncon=ncon, nefc=nefc, nJ=nj)  # pylint: disable=protected-access  # pyrefly: ignore[bad-argument-type]
 
     if d.impl == types.Impl.JAX:
       all_fields = types.Data.fields() + types.DataJAX.fields()
@@ -1389,10 +1389,10 @@ def _get_data_into(
         continue
 
       if field.name == 'contact':
-        _get_contact(result_i.contact, d_i._impl.contact)
+        _get_contact(result_i.contact, d_i._impl.contact)  # pyrefly: ignore[missing-attribute]
         # efc_address must be updated because rows were deleted above:
         efc_map = np.cumsum(efc_active) - 1
-        result_i.contact.efc_address[:] = efc_map[result_i.contact.efc_address]
+        result_i.contact.efc_address[:] = efc_map[result_i.contact.efc_address]  # pyrefly: ignore[missing-attribute]
         continue
 
       # MuJoCo actuator_moment is sparse, MJX uses a dense representation.
@@ -1412,10 +1412,10 @@ def _get_data_into(
             )
           else:
             actuator_moment = d_i._impl.actuator_moment
-        result_i.moment_rownnz[:] = moment_rownnz
-        result_i.moment_rowadr[:] = moment_rowadr
-        result_i.moment_colind[:] = moment_colind
-        result_i.actuator_moment[:] = actuator_moment
+        result_i.moment_rownnz[:] = moment_rownnz  # pyrefly: ignore[missing-attribute]
+        result_i.moment_rowadr[:] = moment_rowadr  # pyrefly: ignore[missing-attribute]
+        result_i.moment_colind[:] = moment_colind  # pyrefly: ignore[missing-attribute]
+        result_i.actuator_moment[:] = actuator_moment  # pyrefly: ignore[missing-attribute]
         continue
 
       # MuJoCo ten_J is sparse, MJX uses a dense representation.
@@ -1435,7 +1435,7 @@ def _get_data_into(
             )
           else:
             ten_j = d_i._impl.ten_J
-        result_i.ten_J[:] = ten_j
+        result_i.ten_J[:] = ten_j  # pyrefly: ignore[missing-attribute]
         continue
 
       if hasattr(d_i._impl, field.name):
@@ -1461,9 +1461,9 @@ def _get_data_into(
               efc_J_rowadr,
               efc_J_colind,
           )
-          result_i.efc_J_rownnz[:] = efc_J_rownnz
-          result_i.efc_J_rowadr[:] = efc_J_rowadr
-          result_i.efc_J_colind[:] = efc_J_colind
+          result_i.efc_J_rownnz[:] = efc_J_rownnz  # pyrefly: ignore[missing-attribute]
+          result_i.efc_J_rowadr[:] = efc_J_rowadr  # pyrefly: ignore[missing-attribute]
+          result_i.efc_J_colind[:] = efc_J_colind  # pyrefly: ignore[missing-attribute]
           value = efc_J
         else:
           value = value.reshape(-1)
@@ -1496,7 +1496,7 @@ def _get_data_into(
 
     # recalculate qLD and qLDiagInv as MJX and MuJoCo have different
     # representations of the Cholesky decomposition.
-    mujoco.mj_factorM(m, result_i)
+    mujoco.mj_factorM(m, result_i)  # pyrefly: ignore[bad-argument-type]
 
 
 # TODO(josechenf): Iterate on the keepalive implementation to make it easier to
@@ -1533,7 +1533,7 @@ def _get_data_into_cpp(
     d_i: types.Data = (
         jax.tree_util.tree_map(lambda x, i=i: x[i], d) if batched else d
     )
-    result_i = result[i] if batched else result
+    result_i = result[i] if batched else result  # pyrefly: ignore[bad-index]
 
     if batched:
       addr_i = int(d_impl.pointer_lo[i]) | (int(d_impl.pointer_hi[i]) << 32)
@@ -1562,7 +1562,7 @@ def _get_data_into_cpp(
       src_data.mocap_quat[:] = d_i.mocap_quat
       mujoco.mj_kinematics(m, src_data)
 
-    mujoco.mj_copyData(result_i, m, src_data)
+    mujoco.mj_copyData(result_i, m, src_data)  # pyrefly: ignore[bad-argument-type]
 
 
 def get_data_into(
@@ -1810,5 +1810,5 @@ def create_render_context(
   _check_warp_installed()
   from mujoco.mjx.warp import io as mjxw_io  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
   return mjxw_io.create_render_context(
-      mjm, nworld=nworld, devices=devices, **kwargs
+      mjm, nworld=nworld, devices=devices, **kwargs  # pyrefly: ignore[bad-argument-type]
   )

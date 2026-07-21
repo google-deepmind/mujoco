@@ -79,6 +79,7 @@ using MjLogMessage = ::mjLogMessage;
 
 // From mjrender.h
 using MjrRect = ::mjrRect;
+using MjrRendererInfo = ::mjrRendererInfo;
 using MjrContext = ::mjrContext;
 using MjrVertexAttribute = ::mjrVertexAttribute;
 

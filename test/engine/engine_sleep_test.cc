@@ -501,10 +501,10 @@ TEST_F(SleepTest, Equality) {
   mj_deleteModel(m);
 }
 
-// Test that the midpoint integrator doesn't break the sleep qvel=0 invariant.
-// A standalone free body (eligible for midpoint) with high viscosity should
+// Test that the free-body implicit (gyroscopic) solve doesn't break the sleep
+// qvel=0 invariant. A standalone free body with high viscosity should
 // eventually go to sleep, and after sleeping, qvel/qacc must be exactly zero.
-TEST_F(SleepTest, MidpointSleepZeroVelocity) {
+TEST_F(SleepTest, FreeBodySleepZeroVelocity) {
   static constexpr char xml[] = R"(
   <mujoco>
     <option integrator="implicitfast" viscosity="10"

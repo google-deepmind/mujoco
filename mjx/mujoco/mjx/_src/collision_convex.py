@@ -56,27 +56,27 @@ def collider(ncon: int):
       fn = collision_fn
       for i in [0, 1]:
         if key.types[i] == GeomType.BOX:
-          infos[i] = mesh.box(infos[i])
+          infos[i] = mesh.box(infos[i])  # pyrefly: ignore[unsupported-operation]
           in_axes[i] = jax.tree_util.tree_map(lambda x: None, infos[i]).replace(
               pos=0, mat=0, size=0, face=0, vert=0
           )
         elif key.types[i] == GeomType.MESH:
           c, cm = infos[i], m._impl.mesh_convex[key.data_ids[i]]
-          infos[i] = ConvexInfo(**vars(c), **vars(cm))
+          infos[i] = ConvexInfo(**vars(c), **vars(cm))  # pyrefly: ignore[unsupported-operation]
           in_axes[i] = jax.tree_util.tree_map(lambda x: None, infos[i]).replace(
               pos=0, mat=0, size=0
           )
         elif key.types[i] == GeomType.HFIELD:
           hfield_info = mesh.hfield(m, key.data_ids[i])
-          infos[i] = hfield_info.replace(pos=infos[i].pos, mat=infos[i].mat)
-          in_axes[i] = hfield_info.replace(pos=0, mat=0, data=None)
+          infos[i] = hfield_info.replace(pos=infos[i].pos, mat=infos[i].mat)  # pyrefly: ignore[unsupported-operation]
+          in_axes[i] = hfield_info.replace(pos=0, mat=0, data=None)  # pyrefly: ignore[unsupported-operation]
           fn = functools.partial(fn, subgrid_size=key.subgrid_size)
       dist, pos, frame = jax.vmap(fn, in_axes=in_axes)(*infos)  # pytype: disable=wrong-keyword-args
       if ncon > 1:
         return jax.tree_util.tree_map(jp.concatenate, (dist, pos, frame))
       return dist, pos, frame
 
-    collide.ncon = ncon
+    collide.ncon = ncon  # pyrefly: ignore[missing-attribute]
     return collide
 
   return wrapper
@@ -1051,7 +1051,7 @@ def hfield_sphere(
 ) -> Collision:
   """Calculates contacts between a hfield and a sphere."""
   rbound = jp.max(s.size)
-  dist, pos, n = _hfield_collision(_sphere_convex, h, s, rbound, subgrid_size)
+  dist, pos, n = _hfield_collision(_sphere_convex, h, s, rbound, subgrid_size)  # pyrefly: ignore[bad-argument-type]
 
   n_mean = jp.mean(n, axis=0)
   mask = dist < jp.minimum(0, dist.min() + 1e-3)
@@ -1075,7 +1075,7 @@ def hfield_capsule(
 ) -> Collision:
   """Calculates contacts between a hfield and a capsule."""
   rbound = c.size[0] + c.size[1]
-  dist, pos, n = _hfield_collision(_capsule_convex, h, c, rbound, subgrid_size)
+  dist, pos, n = _hfield_collision(_capsule_convex, h, c, rbound, subgrid_size)  # pyrefly: ignore[bad-argument-type]
 
   n_mean = jp.mean(n, axis=0)
   mask = dist < jp.minimum(0, dist.min() + 1e-3)
@@ -1099,7 +1099,7 @@ def hfield_convex(
 ) -> Collision:
   """Calculates contacts between a hfield and a capsule."""
   rbound = jp.max(c.size)
-  dist, pos, n = _hfield_collision(_convex_convex, h, c, rbound, subgrid_size)
+  dist, pos, n = _hfield_collision(_convex_convex, h, c, rbound, subgrid_size)  # pyrefly: ignore[bad-argument-type]
 
   n_mean = jp.mean(n, axis=0)
   mask = dist < jp.minimum(0, dist.min() + 1e-3)

@@ -38,6 +38,7 @@ const SRCS = [
   'render/classic/render_gl2.c',
   'render/classic/render_gl3.c',
   'render/classic/render_util.c',
+  'render/filament/mjrfilament.cc',
   'render/noop/render_noop.c',
   'ui/ui_main.c',
   'user/user_api.cc',

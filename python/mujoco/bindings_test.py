@@ -169,6 +169,25 @@ class MuJoCoBindingsTest(parameterized.TestCase):
         self.data.qpos, [0.12345] * len(self.data.qpos)
     )
 
+  def test_flg_gravcomp_and_surfacevel_properties(self):
+    self.assertFalse(self.model.flg_gravcomp)
+    self.assertFalse(self.model.flg_surfacevel)
+    self.assertEqual(self.model.ngravcomp, 0)
+
+    self.model.flg_gravcomp = True
+    self.assertTrue(self.model.flg_gravcomp)
+    self.assertEqual(self.model.ngravcomp, 1)
+
+    self.model.flg_surfacevel = True
+    self.assertTrue(self.model.flg_surfacevel)
+
+    self.model.flg_gravcomp = False
+    self.assertFalse(self.model.flg_gravcomp)
+    self.assertEqual(self.model.ngravcomp, 0)
+
+    self.model.flg_surfacevel = False
+    self.assertFalse(self.model.flg_surfacevel)
+
   def test_array_is_a_view(self):
     qpos_ref = self.data.qpos
     self.data.qpos = 0.789

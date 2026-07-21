@@ -58,13 +58,6 @@
       "tier": "core"
     },
     {
-      "os": "macos-15-large",
-      "label": "macos-15-x86_64",
-      "cmake_args": "-G Ninja -DMUJOCO_HARDEN:BOOL=ON",
-      "tmpdir": "/tmp",
-      "tier": "core"
-    },
-    {
       "os": "windows-2025",
       "label": "windows-2025",
       "cmake_args": "-DCMAKE_SYSTEM_VERSION=\"10.0.26100.0\"",

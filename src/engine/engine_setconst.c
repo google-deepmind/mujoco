@@ -23,11 +23,13 @@
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_core_util.h"
+#include "engine/engine_derivative.h"
 #include "engine/engine_forward.h"
 #include "engine/engine_io.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
+#include "engine/engine_util_solve.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_sparse.h"
 #include "engine/engine_util_spatial.h"
@@ -208,11 +210,38 @@ static void setFixed(mjModel* m, mjData* d) {
     ngravcomp += (m->body_gravcomp[i] > 0);
   }
   m->ngravcomp = ngravcomp;
+  m->flg_gravcomp = (ngravcomp > 0);
+
+  // compute flg_surfacevel: whether any geom has nonzero surfacevel
+  mjtBool flg_surfacevel = 0;
+  for (int i=0; i < m->ngeom; i++) {
+    const mjtNum* sv = m->geom_surfacevel + 6*i;
+    if (sv[0] || sv[1] || sv[2] || sv[3] || sv[4] || sv[5]) {
+      flg_surfacevel = 1;
+      break;
+    }
+  }
+  m->flg_surfacevel = flg_surfacevel;
+
+  // compute flg_adhesion: whether any geom or pair has nonzero adhesion
+  mjtBool flg_adhesion = 0;
+  for (int i=0; i < m->ngeom; i++) {
+    if (m->geom_adhesion[i]) {
+      flg_adhesion = 1;
+      break;
+    }
+  }
+  for (int i=0; i < m->npair && !flg_adhesion; i++) {
+    if (m->pair_adhesion[i]) {
+      flg_adhesion = 1;
+    }
+  }
+  m->flg_adhesion = flg_adhesion;
 
   // set jnt_actuatorid and tendon_actuatorid
   mju_fillInt(m->jnt_actuatorid, -1, m->njnt);
   mju_fillInt(m->tendon_actuatorid, -1, m->ntendon);
-  for (int i=0; i < m->nu; i++) {
+  for (int i=0; i < m->nactuator; i++) {
     // skip actuator with no damping and no armature
     if (m->actuator_damping[i] == 0 &&
         mju_isZero(m->actuator_dampingpoly+mjNPOLY*i, mjNPOLY) &&
@@ -312,7 +341,7 @@ static void setFixed(mjModel* m, mjData* d) {
   // ----- apply compiler AUTO tree sleep policy
 
   // actuators: trees with any actuated joint, site, body, or tendon do not auto-sleep
-  for (int i=0; i < m->nu; i++) {
+  for (int i=0; i < m->nactuator; i++) {
     int bodyid = -1;
     int tid = m->actuator_trnid[2*i];
     switch ((mjtTrn)m->actuator_trntype[i]) {
@@ -868,7 +897,7 @@ static void set0(mjModel* m, mjData* d) {
   // copy fields
   mju_copy(m->flexedge_length0, d->flexedge_length, m->nflexedge);
   mju_copy(m->tendon_length0, d->ten_length, m->ntendon);
-  mju_copy(m->actuator_length0, d->actuator_length, m->nu);
+  mju_copy(m->actuator_length0, d->actuator_length, m->nout);
 
   // compute body_invweight0
   m->body_invweight0[0] = m->body_invweight0[1] = 0.0;
@@ -1002,8 +1031,8 @@ static void set0(mjModel* m, mjData* d) {
       m->tendon_invweight0[i] = mju_dot(tmp, tmp+nv, nv);
     }
 
-    // compute actuator_acc0
-    for (int i=0; i < m->nu; i++) {
+    // compute actuator_acc0, one per force output (moment row)
+    for (int i=0; i < m->nout; i++) {
       mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + i,
                        d->moment_rowadr + i, d->moment_colind);
       mj_solveM(m, d, tmp, moment, 1);
@@ -1011,7 +1040,7 @@ static void set0(mjModel* m, mjData* d) {
     }
   } else {
     mju_zero(m->tendon_invweight0, m->ntendon);
-    mju_zero(m->actuator_acc0, m->nu);
+    mju_zero(m->actuator_acc0, m->nout);
   }
 
   // compute missing eq_data for body constraints
@@ -1101,7 +1130,7 @@ static void set0(mjModel* m, mjData* d) {
   }
 
   // compute actuator damping from dampratio
-  for (int i=0; i < m->nu; i++) {
+  for (int i=0; i < m->nactuator; i++) {
     // get bias, gain parameters
     mjtNum* biasprm = m->actuator_biasprm + i*mjNBIAS;
     mjtNum* gainprm = m->actuator_gainprm + i*mjNGAIN;
@@ -1119,8 +1148,8 @@ static void set0(mjModel* m, mjData* d) {
     // === interpret biasprm[2] > 0 as dampratio for position-like actuators
 
     // "reflected" inertia (inversely scaled by transmission squared)
-    int rownnz = d->moment_rownnz[i];
-    int rowadr = d->moment_rowadr[i];
+    int rownnz = d->moment_rownnz[m->actuator_outadr[i]];
+    int rowadr = d->moment_rowadr[m->actuator_outadr[i]];
     mjtNum* transmission = d->actuator_moment + rowadr;
     mjtNum mass = 0;
     for (int j=0; j < rownnz; j++) {
@@ -1320,7 +1349,177 @@ static void setSpring(mjModel* m, mjData* d) {
 
 
 // entry point: set all remaining constant fields of mjModel, except for lengthrange
+
+// constant part of the implicit effective metric factor (currently dim-2 bending): sparse
+// reverse-Cholesky of M + (h^2 + h*damping)*K_bend over
+// the dofs of unpinned vertices of standard dim-2 flexes with bending. The matrix is constant
+// (flat-rest bending stiffness, point masses), so the factor is computed here once and reused
+// by the implicit-flex constraint solve every step. Bending couples only same-coordinate dofs,
+// so the pattern is three interleaved copies of the vertex flap adjacency. Row order (flex
+// order, vertex order, coordinate fastest) and the resulting fill count must match the
+// compiler's symbolic sizing (checked below).
+static void setEfm0Factor(mjModel* m, mjData* d) {
+  int nbd = m->nefm0dof;
+  if (!nbd) {
+    return;
+  }
+  mj_markStack(d);
+  mjtNum h = m->opt.timestep;
+
+  // enumerate covered vertices: compact slot per unpinned vertex of qualifying flexes
+  // (filter matches the compiler's sizing and, for bending, flexStiff_active in
+  // engine_derivative.c: bending data exists only for dim-2 flexes)
+  int* vslot = mjSTACKALLOC(d, m->nflexvert > 0 ? m->nflexvert : 1, int);
+  for (int i=0; i < m->nflexvert; i++) {
+    vslot[i] = -1;
+  }
+  int nfree = 0;
+  for (int f=0; f < m->nflex; f++) {
+    if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] != 2 ||
+        m->flex_bendingadr[f] < 0) {
+      continue;
+    }
+    for (int lv=0; lv < m->flex_vertnum[f]; lv++) {
+      int gv = m->flex_vertadr[f] + lv;
+      if (m->body_dofnum[m->flex_vertbodyid[gv]] == 3) {
+        vslot[gv] = nfree;
+        nfree++;
+      }
+    }
+  }
+  if (3*nfree != nbd) {
+    mj_freeStack(d);
+    mjERROR("constant metric factor dof count mismatch: compiler sized %d, engine found %d",
+            nbd, 3*nfree);
+  }
+
+  // fill row -> dof address (row 3*slot + k, coordinate fastest)
+  for (int gv=0; gv < m->nflexvert; gv++) {
+    if (vslot[gv] >= 0) {
+      int da = m->body_dofadr[m->flex_vertbodyid[gv]];
+      for (int k=0; k < 3; k++) {
+        m->efm0_dofid[3*vslot[gv] + k] = da + k;
+      }
+    }
+  }
+
+  // assemble the bending-only stiffness K = (h^2 + h*damping)*K_bend over all dofs with the
+  // shared stencil walker from engine_derivative: bending values are configuration-independent
+  // and stretch/interp are gated off, so the call is valid at set-constants time (d is used
+  // for stack scratch only)
+  int nv = m->nv;
+  int* K_rownnz = mjSTACKALLOC(d, nv, int);
+  int* K_rowadr = mjSTACKALLOC(d, nv, int);
+  int nK = mjd_flexStiff_assemble(m, d, K_rownnz, K_rowadr, NULL, NULL, h*h, h,
+                                  /*flg_bend=*/1, /*flg_stretch=*/0, NULL);
+  int* K_colind = mjSTACKALLOC(d, nK > 0 ? nK : 1, int);
+  mjtNum* K_val = mjSTACKALLOC(d, nK > 0 ? nK : 1, mjtNum);
+  mjd_flexStiff_assemble(m, d, K_rownnz, K_rowadr, K_colind, K_val, h*h, h, 1, 0, NULL);
+
+  // inverse map: dof address -> compact factor row (monotone: slots follow dof order)
+  int* dofrow = mjSTACKALLOC(d, nv, int);
+  for (int i=0; i < nv; i++) {
+    dofrow[i] = -1;
+  }
+  for (int r=0; r < nbd; r++) {
+    dofrow[m->efm0_dofid[r]] = r;
+  }
+
+  // compact B to covered rows, keeping same-coordinate entries only: bending blocks are
+  // isotropic (q * I3), so the off-coordinate entries of assemble's 3x3 block pattern are
+  // structurally zero and dropping them preserves the pattern the compiler sized.
+  // H = M + (h^2+h*d)*K_bend in compact dof indices: lower CSR (values) + upper CSR (pattern)
+  int nHl = 0, nHu = 0;
+  for (int r=0; r < nbd; r++) {
+    int dof = m->efm0_dofid[r];
+    for (int c=0; c < K_rownnz[dof]; c++) {
+      int rc = dofrow[K_colind[K_rowadr[dof] + c]];
+      if (rc < 0 || (rc - r) % 3 != 0) continue;  // uncovered or off-coordinate
+      if (rc < r) nHl++;
+      else if (rc > r) nHu++;
+    }
+  }
+  nHl += nbd;  // diagonals: always present, also for rows without bending entries
+  int* Hl_rownnz = mjSTACKALLOC(d, nbd, int);
+  int* Hl_rowadr = mjSTACKALLOC(d, nbd, int);
+  int* Hl_colind = mjSTACKALLOC(d, nHl, int);
+  mjtNum* Hl_val  = mjSTACKALLOC(d, nHl, mjtNum);
+  int* Hu_rownnz = mjSTACKALLOC(d, nbd, int);
+  int* Hu_rowadr = mjSTACKALLOC(d, nbd, int);
+  int* Hu_colind = mjSTACKALLOC(d, nHu > 0 ? nHu : 1, int);
+
+  int ladr = 0, uadr = 0;
+  for (int r=0; r < nbd; r++) {
+    int dof = m->efm0_dofid[r];
+    Hl_rowadr[r] = ladr;
+    Hu_rowadr[r] = uadr;
+    mjtNum diag = 0;
+    // B columns are dof-ascending, so filtered lower/upper columns stay ascending
+    for (int c=0; c < K_rownnz[dof]; c++) {
+      int adr = K_rowadr[dof] + c;
+      int rc = dofrow[K_colind[adr]];
+      if (rc < 0 || (rc - r) % 3 != 0) continue;
+      if (rc < r) {
+        Hl_colind[ladr] = rc;
+        Hl_val[ladr++] = K_val[adr];
+      } else if (rc > r) {
+        Hu_colind[uadr++] = rc;
+      } else {
+        diag = K_val[adr];
+      }
+    }
+    // diagonal last: point mass + armature + bending diagonal
+    Hl_colind[ladr] = r;
+    Hl_val[ladr++] = m->body_mass[m->dof_bodyid[dof]] + m->dof_armature[dof] + diag;
+    Hl_rownnz[r] = ladr - Hl_rowadr[r];
+    Hu_rownnz[r] = uadr - Hu_rowadr[r];
+  }
+
+  // symbolic factorization: counting phase (from the upper-triangle pattern)
+  int* LT_rownnz = mjSTACKALLOC(d, nbd, int);
+  int* LT_rowadr = mjSTACKALLOC(d, nbd, int);
+  int nnz = mju_cholFactorSymbolic(NULL, m->efm0_L_rownnz, m->efm0_L_rowadr,
+                                   NULL, LT_rownnz, LT_rowadr, NULL,
+                                   Hu_rownnz, Hu_rowadr, Hu_colind, nbd, d);
+  if (nnz != m->nefm0L) {
+    mj_freeStack(d);
+    mjERROR("constant metric factor size mismatch: compiler sized %d, symbolic found %d",
+            (int)m->nefm0L, nnz);
+  }
+
+  // symbolic factorization: filling phase
+  int* LT_colind = mjSTACKALLOC(d, nnz, int);
+  int* LT_map = mjSTACKALLOC(d, nnz, int);
+  mju_cholFactorSymbolic(m->efm0_L_colind, m->efm0_L_rownnz, m->efm0_L_rowadr,
+                         LT_colind, LT_rownnz, LT_rowadr, LT_map,
+                         Hu_rownnz, Hu_rowadr, Hu_colind, nbd, d);
+
+  // numeric factorization
+  int rank = mju_cholFactorNumeric(m->efm0_L, nbd, mjMINVAL,
+                                   m->efm0_L_rownnz, m->efm0_L_rowadr, m->efm0_L_colind,
+                                   LT_rownnz, LT_rowadr, LT_colind, LT_map,
+                                   Hl_val, Hl_rownnz, Hl_rowadr, Hl_colind, d);
+  if (rank != nbd) {
+    mj_freeStack(d);
+    mjERROR("constant metric factor is rank-deficient (%d of %d)", rank, nbd);
+  }
+
+  mj_freeStack(d);
+}
+
+
 void mj_setConst(mjModel* m, mjData* d) {
+  // compute npolygonmax and nmeshdegmax
+  m->npolygonmax = 0;
+  for (int i=0; i < m->nmeshpoly; i++) {
+    m->npolygonmax = mjMAX(m->npolygonmax, m->mesh_polyvertnum[i]);
+  }
+
+  m->nmeshdegmax = 0;
+  for (int i=0; i < m->nmeshvert; i++) {
+    m->nmeshdegmax = mjMAX(m->nmeshdegmax, m->mesh_polymapnum[i]);
+  }
+
   // recompute sameframe flags from current model geometry
   setSameframe(m);
 
@@ -1343,6 +1542,9 @@ void mj_setConst(mjModel* m, mjData* d) {
 
   // set quantities that depend qpos_spring
   setSpring(m, d);
+
+  // precompute the constant part of the implicit effective metric factor
+  setEfm0Factor(m, d);
 }
 
 
@@ -1352,6 +1554,7 @@ void mj_setConst(mjModel* m, mjData* d) {
 static mjtNum evalAct(const mjModel* m, mjData* d, int index, int side,
                       const mjLROpt* opt) {
   int nv = m->nv;
+  int out = m->actuator_outadr[index];
 
   // reduce velocity
   mju_scl(d->qvel, d->qvel, mju_exp(-m->opt.timestep/mjMAX(0.01, opt->timeconst)), nv);
@@ -1362,8 +1565,8 @@ static mjtNum evalAct(const mjModel* m, mjData* d, int index, int side,
   // dense actuator_moment row
   mj_markStack(d);
   mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
-  mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + index,
-                   d->moment_rowadr + index, d->moment_colind);
+  mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + out,
+                   d->moment_rowadr + out, d->moment_colind);
 
   // set force to generate desired acceleration
   mj_solveM(m, d, d->qfrc_applied, moment, 1);
@@ -1382,7 +1585,7 @@ static mjtNum evalAct(const mjModel* m, mjData* d, int index, int side,
   mj_freeStack(d);
 
   // return actuator length
-  return d->actuator_length[index];
+  return d->actuator_length[out];
 }
 
 
@@ -1390,9 +1593,10 @@ static mjtNum evalAct(const mjModel* m, mjData* d, int index, int side,
 int mj_setLengthRange(mjModel* m, mjData* d, int index,
                       const mjLROpt* opt, char* error, int error_sz) {
   // check index
-  if (index < 0 || index >= m->nu) {
+  if (index < 0 || index >= m->nactuator) {
     mjERROR("invalid actuator index");
   }
+  int out = m->actuator_outadr[index];
 
   // skip depending on mode and type
   int ismuscle = (m->actuator_gaintype[index] == mjGAIN_MUSCLE ||
@@ -1406,7 +1610,7 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
   }
 
   // use existing length range if available
-  if (opt->useexisting && (m->actuator_lengthrange[2*index] < m->actuator_lengthrange[2*index+1])) {
+  if (opt->useexisting && (m->actuator_lengthrange[2*out] < m->actuator_lengthrange[2*out+1])) {
     return 1;
   }
 
@@ -1421,8 +1625,8 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
       // make sure joint is limited
       if (m->jnt_limited[threadid]) {
         // copy range
-        m->actuator_lengthrange[2*index] = m->jnt_range[2*threadid];
-        m->actuator_lengthrange[2*index+1] = m->jnt_range[2*threadid+1];
+        m->actuator_lengthrange[2*out] = m->jnt_range[2*threadid];
+        m->actuator_lengthrange[2*out+1] = m->jnt_range[2*threadid+1];
 
         // skip optimization
         return 1;
@@ -1434,8 +1638,8 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
       // make sure tendon is limited
       if (m->tendon_limited[threadid]) {
         // copy range
-        m->actuator_lengthrange[2*index] = m->tendon_range[2*threadid];
-        m->actuator_lengthrange[2*index+1] = m->tendon_range[2*threadid+1];
+        m->actuator_lengthrange[2*out] = m->tendon_range[2*threadid];
+        m->actuator_lengthrange[2*out+1] = m->tendon_range[2*threadid+1];
 
         // skip optimization
         return 1;
@@ -1480,12 +1684,12 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
   }
 
   // check range
-  mjtNum dif = m->actuator_lengthrange[2*index+1] - m->actuator_lengthrange[2*index];
+  mjtNum dif = m->actuator_lengthrange[2*out+1] - m->actuator_lengthrange[2*out];
   if (dif <= 0) {
     snprintf(error, error_sz,
              "Invalid lengthrange (%g, %g) in actuator %d",
-             m->actuator_lengthrange[2*index],
-             m->actuator_lengthrange[2*index+1], index);
+             m->actuator_lengthrange[2*out],
+             m->actuator_lengthrange[2*out+1], index);
     return 0;
   }
 
@@ -1495,8 +1699,8 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
              "Lengthrange computation did not converge in actuator %d:\n"
              "  eval (%g, %g)\n  range (%g, %g)",
              index, lmin[0], lmax[0],
-             m->actuator_lengthrange[2*index],
-             m->actuator_lengthrange[2*index+1]);
+             m->actuator_lengthrange[2*out],
+             m->actuator_lengthrange[2*out+1]);
     return 0;
   }
 
@@ -1506,8 +1710,8 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
              "Lengthrange computation did not converge in actuator %d:\n"
              "  eval (%g, %g)\n range (%g, %g)",
              index, lmin[1], lmax[1],
-             m->actuator_lengthrange[2*index],
-             m->actuator_lengthrange[2*index+1]);
+             m->actuator_lengthrange[2*out],
+             m->actuator_lengthrange[2*out+1]);
     return 0;
   }
 

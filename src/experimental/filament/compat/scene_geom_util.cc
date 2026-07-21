@@ -174,6 +174,9 @@ static void UpdateGeomMaterial(mjrfRenderable* renderable, const mjvGeom& geom,
     material.roughness_texture = get_texture(mjTEXROLE_ROUGHNESS);
     material.occlusion_texture = get_texture(mjTEXROLE_OCCLUSION);
   }
+  if (geom.texid >= 0) {
+    material.color_texture = model_objs->GetTexture(geom.texid);
+  }
 
   material.reflectance = geom.reflectance;
   material.emissive = geom.emission;
@@ -200,14 +203,21 @@ static void UpdateGeomMaterial(mjrfRenderable* renderable, const mjvGeom& geom,
   // the programmatic UVs.
 
   if (material.color_texture) {
-    const bool tex_uniform = model->mat_texuniform[geom.matid];
+    bool tex_uniform;
+    float tex_repeat[2];
+    if (geom.texid >= 0) {
+      tex_uniform = geom.texuniform;
+      tex_repeat[0] = geom.texrepeat[0];
+      tex_repeat[1] = geom.texrepeat[1];
+    } else {
+      tex_uniform = model->mat_texuniform[geom.matid];
+      tex_repeat[0] = model->mat_texrepeat[(geom.matid * 2) + 0];
+      tex_repeat[1] = model->mat_texrepeat[(geom.matid * 2) + 1];
+    }
     if (mjrf_getTextureSamplerType(material.color_texture) == mjTEXTURE_2D) {
       // For 2D textures, `tex_repeat` specifies how many times the texture
       // image is repeated. The `tex_uniform` flag determines if the repetition
       // is applied at in object space (false) or in world space (true).
-      float tex_repeat[2];
-      tex_repeat[0] = model->mat_texrepeat[(geom.matid * 2) + 0];
-      tex_repeat[1] = model->mat_texrepeat[(geom.matid * 2) + 1];
       material.uv_scale[0] = tex_repeat[0];
       material.uv_scale[1] = tex_repeat[1];
 

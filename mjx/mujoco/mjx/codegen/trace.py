@@ -162,7 +162,7 @@ class _FunctionFieldUsageVisitor(ast.NodeVisitor):
       called_fn_name = node.func.id
       key = (hash(self._current_fpath), called_fn_name)
       if key not in self._visited_fns:
-        self._visited_fns.add(key)
+        self._visited_fns.add(key)  # pyrefly: ignore[bad-argument-type]
         next_fpath = self._module_fpaths.get(
             called_fn_name, self._current_fpath
         )
@@ -181,8 +181,8 @@ class _FunctionFieldUsageVisitor(ast.NodeVisitor):
         if len(node.args) != 2:
           raise ValueError(f'wp.copy() must have 2 arguments, got {node.args}.')
         out_node, in_node = node.args
-        self.add_field_usage(out_node, True)
-        self.add_field_usage(in_node, False)
+        self.add_field_usage(out_node, True)  # pyrefly: ignore[bad-argument-type]
+        self.add_field_usage(in_node, False)  # pyrefly: ignore[bad-argument-type]
         return
 
       # do not trace array creation
@@ -201,7 +201,7 @@ class _FunctionFieldUsageVisitor(ast.NodeVisitor):
       key = (hash(self._current_fpath), called_fn_name)
       next_fpath = self._module_fpaths.get(parts[0])
       if next_fpath and key not in self._visited_fns:
-        self._visited_fns.add(key)
+        self._visited_fns.add(key)  # pyrefly: ignore[bad-argument-type]
         self.recurse_trace(next_fpath, called_fn_name)
 
     self.generic_visit(node)
@@ -223,10 +223,10 @@ def trace_function(
 ) -> FieldUsage:
   """Traces the function statically to find usages of model and data fields."""
   base_path = file.get_base_path()
-  fpath = base_path / fpath
+  fpath = base_path / fpath  # pyrefly: ignore[bad-assignment]
   logging.info('Tracing function: "%s" in "%s"', fn, fpath)
 
-  src = fpath.read_text()
+  src = fpath.read_text()  # pyrefly: ignore[missing-attribute]
   parsed_ast = ast.parse(src, filename=str(fpath))
 
   target_fn_nodes = (
@@ -262,7 +262,7 @@ def trace_function(
   if visited_fns is None:
     visited_fns = set()
 
-  visitor = _FunctionFieldUsageVisitor(fpath, visited_fns, mjwarp_field_info)
+  visitor = _FunctionFieldUsageVisitor(fpath, visited_fns, mjwarp_field_info)  # pyrefly: ignore[bad-argument-type]
   for body in target_fn_node.body:
     visitor.visit(body)
 

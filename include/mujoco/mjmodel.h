@@ -245,7 +245,9 @@ typedef struct mjModel_ {
   // sizes needed at mjModel construction
   mjtSize nq;                     // number of generalized coordinates = dim(qpos)
   mjtSize nv;                     // number of degrees of freedom = dim(qvel)
-  mjtSize nu;                     // number of actuators/controls = dim(ctrl)
+  mjtSize nu;                     // number of scalar controls = dim(ctrl)
+  mjtSize nactuator;              // number of actuators
+  mjtSize nout;                   // number of force outputs, derived from transmission type
   mjtSize na;                     // number of activation states = dim(act)
   mjtSize nbody;                  // number of bodies
   mjtSize nbvh;                   // number of total bounding volumes in all bodies
@@ -270,6 +272,8 @@ typedef struct mjModel_ {
   mjtSize nflexelemdata;          // number of element vertex ids in all flexes
   mjtSize nflexstiffness;         // number of stiffness parameters in all flexes
   mjtSize nflexbending;           // number of bending parameters in all flexes
+  mjtSize nefm0dof;               // number of dofs covered by the constant metric factor
+  mjtSize nefm0L;                 // number of non-zeros in the constant metric factor
   mjtSize nflexelemedge;          // number of element edge ids in all flexes
   mjtSize nflexshelldata;         // number of shell fragment vertex ids in all flexes
   mjtSize nflexevpair;            // number of element-vertex pairs in all flexes
@@ -331,6 +335,8 @@ typedef struct mjModel_ {
   mjtSize nemax;                  // number of potential equality-constraint rows
   mjtSize njmax;                  // number of available rows in constraint Jacobian (legacy)
   mjtSize nconmax;                // number of potential contacts in contact list (legacy)
+  mjtSize npolygonmax;            // maximum number of vertices in a mesh polygon
+  mjtSize nmeshdegmax;            // maximum number of edges adjacent to a mesh vertex
   mjtSize nuserdata;              // number of mjtNums reserved for the user
   mjtSize nsensordata;            // number of mjtNums in sensor data vector
   mjtSize npluginstate;           // number of mjtNums in plugin state vector
@@ -339,6 +345,12 @@ typedef struct mjModel_ {
   // buffer sizes
   mjtSize narena;                 // number of bytes in the mjData arena (inclusive of stack)
   mjtSize nbuffer;                // number of bytes in buffer
+
+  // ------------------------------- flags
+
+  mjtBool flg_gravcomp;           // whether any body has nonzero gravcomp
+  mjtBool flg_surfacevel;         // whether any geom has nonzero surfacevel
+  mjtBool flg_adhesion;           // whether any geom or pair has nonzero adhesion
 
   // ------------------------------- options and statistics
 
@@ -466,6 +478,8 @@ typedef struct mjModel_ {
   mjtNum*   geom_friction;        // friction for (slide, spin, roll)         (ngeom x 3)
   mjtNum*   geom_margin;          // geometric inflation for contact          (ngeom x 1)
   mjtNum*   geom_gap;             // additional contact detection buffer      (ngeom x 1)
+  mjtNum*   geom_surfacevel;      // surface velocity in local frame: lin,ang (ngeom x 6)
+  mjtNum*   geom_adhesion;        // adhesive force of contacts               (ngeom x 1)
   mjtNum*   geom_fluid;           // fluid interaction parameters             (ngeom x mjNFLUID)
   mjtNum*   geom_user;            // user data                                (ngeom x nuser_geom)
   float*    geom_rgba;            // rgba when material is omitted            (ngeom x 4)
@@ -586,6 +600,11 @@ typedef struct mjModel_ {
   mjtNum*   flex_size;            // vertex bounding box half sizes in qpos0  (nflex x 3)
   mjtNum*   flex_stiffness;       // finite element stiffness matrix          (nflexstiffness x 1)
   mjtNum*   flex_bending;         // bending stiffness                        (nflexbending x 1)
+  int*      efm0_dofid;           // constant metric factor row->dof address  (nefm0dof x 1)
+  int*      efm0_L_rownnz;        // constant metric factor row nonzeros      (nefm0dof x 1)
+  int*      efm0_L_rowadr;        // constant metric factor row addresses     (nefm0dof x 1)
+  int*      efm0_L_colind;        // constant metric factor column indices    (nefm0L x 1)
+  mjtNum*   efm0_L;               // factor of M + (dt^2+dt*d)*K_bend         (nefm0L x 1)
   mjtNum*   flex_damping;         // Rayleigh's damping coefficient           (nflex x 1)
   mjtNum*   flex_edgestiffness;   // edge stiffness                           (nflex x 1)
   mjtNum*   flex_edgedamping;     // edge damping                             (nflex x 1)
@@ -704,6 +723,7 @@ typedef struct mjModel_ {
   mjtNum*   pair_solimp;          // solver impedance: contact                (npair x mjNIMP)
   mjtNum*   pair_margin;          // geometric inflation for contact          (npair x 1)
   mjtNum*   pair_gap;             // additional contact detection buffer      (npair x 1)
+  mjtNum*   pair_adhesion;        // adhesive force of contacts               (npair x 1)
   mjtNum*   pair_friction;        // tangent1, 2, spin, roll1, 2              (npair x 5)
 
   // excluded body pairs for collision detection
@@ -758,37 +778,41 @@ typedef struct mjModel_ {
   mjtNum*   wrap_prm;             // divisor, joint coef, or site id          (nwrap x 1)
 
   // actuators
-  int*      actuator_trntype;     // transmission type (mjtTrn)               (nu x 1)
-  int*      actuator_dyntype;     // dynamics type (mjtDyn)                   (nu x 1)
-  int*      actuator_gaintype;    // gain type (mjtGain)                      (nu x 1)
-  int*      actuator_biastype;    // bias type (mjtBias)                      (nu x 1)
-  int*      actuator_trnid;       // transmission id: joint, tendon, site     (nu x 2)
-  mjtNum*   actuator_damping;     // linear damping coefficient               (nu x 1)
-  mjtNum*   actuator_dampingpoly; // high-order damping coefficients          (nu x mjNPOLY)
-  mjtNum*   actuator_armature;    // armature added to target (joint, tendon) (nu x 1)
-  int*      actuator_actadr;      // first activation address; -1: stateless  (nu x 1)
-  int*      actuator_actnum;      // number of activation variables           (nu x 1)
-  int*      actuator_group;       // group for visibility                     (nu x 1)
-  int*      actuator_history;     // history buffer: [nsample, interp]        (nu x 2)
-  int*      actuator_historyadr;  // address in history buffer; -1: none      (nu x 1)
-  mjtNum*   actuator_delay;       // delay time in seconds; 0: no delay       (nu x 1)
+  int*      actuator_trntype;     // transmission type (mjtTrn)               (nactuator x 1)
+  int*      actuator_dyntype;     // dynamics type (mjtDyn)                   (nactuator x 1)
+  int*      actuator_gaintype;    // gain type (mjtGain)                      (nactuator x 1)
+  int*      actuator_biastype;    // bias type (mjtBias)                      (nactuator x 1)
+  int*      actuator_ctrladr;     // address of first control                 (nactuator x 1)
+  int*      actuator_ctrlnum;     // number of controls                       (nactuator x 1)
+  int*      actuator_outadr;      // address of first force output            (nactuator x 1)
+  int*      actuator_outnum;      // number of force outputs, from trntype    (nactuator x 1)
+  int*      actuator_actadr;      // first activation address; -1: stateless  (nactuator x 1)
+  int*      actuator_actnum;      // number of activation variables           (nactuator x 1)
+  int*      actuator_trnid;       // transmission id: joint, tendon, site     (nactuator x 2)
+  mjtNum*   actuator_cranklength; // crank length for slider-crank            (nactuator x 1)
+  mjtNum*   actuator_dynprm;      // dynamics parameters                      (nactuator x mjNDYN)
+  mjtNum*   actuator_gainprm;     // gain parameters                          (nactuator x mjNGAIN)
+  mjtNum*   actuator_biasprm;     // bias parameters                          (nactuator x mjNBIAS)
+  mjtBool*  actuator_actlimited;  // is activation limited                    (nactuator x 1)
+  mjtNum*   actuator_actrange;    // range of activations                     (nactuator x 2)
+  mjtBool*  actuator_actearly;    // step activation before force             (nactuator x 1)
+  int*      actuator_history;     // history buffer: [nsample, interp]        (nactuator x 2)
+  int*      actuator_historyadr;  // address in history buffer; -1: none      (nactuator x 1)
+  mjtNum*   actuator_delay;       // delay time; 0: no delay                  (nactuator x 1)
+  mjtNum*   actuator_damping;     // linear damping coefficient               (nactuator x 1)
+  mjtNum*   actuator_dampingpoly; // high-order damping coefficients          (nactuator x mjNPOLY)
+  mjtNum*   actuator_armature;    // armature added to target (joint, tendon) (nactuator x 1)
+  int*      actuator_group;       // group for visibility                     (nactuator x 1)
+  mjtNum*   actuator_user;        // user data                                (nactuator x nuser_actuator)
+  int*      actuator_plugin;      // plugin instance id; -1: not a plugin     (nactuator x 1)
   mjtBool*  actuator_ctrllimited; // is control limited                       (nu x 1)
-  mjtBool*  actuator_forcelimited;// is force limited                         (nu x 1)
-  mjtBool*  actuator_actlimited;  // is activation limited                    (nu x 1)
-  mjtNum*   actuator_dynprm;      // dynamics parameters                      (nu x mjNDYN)
-  mjtNum*   actuator_gainprm;     // gain parameters                          (nu x mjNGAIN)
-  mjtNum*   actuator_biasprm;     // bias parameters                          (nu x mjNBIAS)
-  mjtBool*  actuator_actearly;    // step activation before force             (nu x 1)
   mjtNum*   actuator_ctrlrange;   // range of controls                        (nu x 2)
-  mjtNum*   actuator_forcerange;  // range of forces                          (nu x 2)
-  mjtNum*   actuator_actrange;    // range of activations                     (nu x 2)
-  mjtNum*   actuator_gear;        // scale length and transmitted force       (nu x 6)
-  mjtNum*   actuator_cranklength; // crank length for slider-crank            (nu x 1)
-  mjtNum*   actuator_acc0;        // acceleration from unit force in qpos0    (nu x 1)
-  mjtNum*   actuator_length0;     // actuator length in qpos0                 (nu x 1)
-  mjtNum*   actuator_lengthrange; // feasible actuator length range           (nu x 2)
-  mjtNum*   actuator_user;        // user data                                (nu x nuser_actuator)
-  int*      actuator_plugin;      // plugin instance id; -1: not a plugin     (nu x 1)
+  mjtNum*   actuator_gear;        // scale length and transmitted force       (nout x 6)
+  mjtBool*  actuator_forcelimited;// is force limited                         (nout x 1)
+  mjtNum*   actuator_forcerange;  // range of forces                          (nout x 2)
+  mjtNum*   actuator_acc0;        // acceleration from unit force in qpos0    (nout x 1)
+  mjtNum*   actuator_length0;     // actuator length in qpos0                 (nout x 1)
+  mjtNum*   actuator_lengthrange; // feasible actuator length range           (nout x 2)
 
   // sensors
   int*      sensor_type;          // sensor type (mjtSensor)                  (nsensor x 1)
@@ -860,7 +884,7 @@ typedef struct mjModel_ {
   int*      name_excludeadr;      // exclude name pointers                    (nexclude x 1)
   int*      name_eqadr;           // equality constraint name pointers        (neq x 1)
   int*      name_tendonadr;       // tendon name pointers                     (ntendon x 1)
-  int*      name_actuatoradr;     // actuator name pointers                   (nu x 1)
+  int*      name_actuatoradr;     // actuator name pointers                   (nactuator x 1)
   int*      name_sensoradr;       // sensor name pointers                     (nsensor x 1)
   int*      name_numericadr;      // numeric name pointers                    (nnumeric x 1)
   int*      name_textadr;         // text name pointers                       (ntext x 1)

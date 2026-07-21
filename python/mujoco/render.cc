@@ -143,7 +143,6 @@ void MjrContextWrapper::Free() {
   // mjr_freeContext is safe to call multiple times.
   InterceptMjErrors(mjr_freeContext)(ptr_);
 }
-
 }  // namespace _impl
 
 namespace {
@@ -241,10 +240,38 @@ PYBIND11_MODULE(_render, pymodule, pybind11::mod_gil_not_used()) {
   X(charWidthBig);
 #undef X
 
+  // ==================== MJRRENDERERINFO ======================================
+  py::class_<raw::MjrRendererInfo> mjrRendererInfo(pymodule, "MjrRendererInfo");
+  mjrRendererInfo.def(py::init([]() {
+    raw::MjrRendererInfo info;
+    mjr_defaultRendererInfo(&info);
+    return info;
+  }));
+  mjrRendererInfo.def("__copy__", [](const raw::MjrRendererInfo& other) {
+    return raw::MjrRendererInfo(other);
+  });
+  mjrRendererInfo.def("__deepcopy__",
+                      [](const raw::MjrRendererInfo& other, py::dict) {
+                        return raw::MjrRendererInfo(other);
+  });
+  DefineStructFunctions(mjrRendererInfo);
+  mjrRendererInfo.def_property_readonly("renderer",
+                                        [](const raw::MjrRendererInfo& info) {
+                                          return info.renderer ? info.renderer
+                                                               : "";
+                                        });
+  mjrRendererInfo.def_property_readonly("backend",
+                                        [](const raw::MjrRendererInfo& info) {
+                                          return info.backend ? info.backend
+                                                              : "";
+                                        });
+
   using EigenUnsignedCharVectorX = Eigen::Vector<unsigned char, Eigen::Dynamic>;
   using EigenFloatVectorX = Eigen::Vector<float, Eigen::Dynamic>;
 
   // Skipped: mjr_defaultContext (have MjrContext.__init__)
+  Def<traits::mjr_defaultRendererInfo>(pymodule);
+  Def<traits::mjr_getRendererInfo>(pymodule);
   // Skipped: mjr_makeContext (have MjrContext.__init__)
   Def<traits::mjr_changeFont>(pymodule);
   Def<traits::mjr_addAux>(pymodule);

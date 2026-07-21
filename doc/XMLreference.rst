@@ -418,16 +418,20 @@ adjust it properly through the XML.
 
 :at:`iterations`: :at-val:`int, "100"`
    Maximum number of iterations of the constraint solver. When the warmstart attribute of :ref:`flag <option-flag>` is
-   enabled (which is the default), accurate results are obtained with fewer iterations. Larger and more complex systems
-   with many interacting constraints require more iterations. Note that mjData.solver contains statistics about solver
-   convergence, also shown in the profiler.
+   enabled (which is the default), accurate results are obtained with fewer iterations; if the warmstarted solution
+   already satisfies the tolerance, the CG and Newton solvers terminate with zero iterations. Larger and more complex
+   systems with many interacting constraints require more iterations. Note that mjData.solver contains statistics about
+   solver convergence, also shown in the profiler.
 
 .. _option-tolerance:
 
 :at:`tolerance`: :at-val:`real, "1e-8"`
    Tolerance threshold used for early termination of the iterative solver. For PGS, the threshold is applied to the cost
    improvement between two iterations. For CG and Newton, it is applied to the smaller of the cost improvement and the
-   gradient norm. Set the tolerance to 0 to disable early termination.
+   gradient norm. For Newton, it is additionally applied to the Newton decrement :math:`\tfrac{1}{2} g^T H^{-1} g`, the
+   predicted cost improvement of the next iteration. Before the first iteration, CG and Newton also apply it to a
+   :ref:`convergence certificate<soAlgorithms>` of the warmstarted solution, possibly terminating with zero iterations.
+   Set the tolerance to 0 to disable early termination.
 
 .. _option-ls_iterations:
 
@@ -657,22 +661,13 @@ from its default.
 .. _option-flag-invdiscrete:
 
 :at:`invdiscrete`: :at-val:`[disable, enable], "disable"`
-   This dual-purpose flag enables discrete-time inverse dynamics and disables :ref:`midpoint integration<geMidpoint>`.
-
-   Enable discrete-time inverse dynamics
-     This flag **enables** discrete-time inverse dynamics with :ref:`mj_inverse` for all
-     :ref:`integrators<option-integrator>` other than ``RK4``. Recall from the :ref:`numerical
-     integration<geIntegration>` section that the one-step integrators (``Euler``, ``implicit`` and ``implicitfast``),
-     modify the mass matrix :math:`M \rightarrow M-hD`. This implies that finite-differenced accelerations
-     :math:`(v_{t+h} - v_t)/h` will not correspond to the continuous-time acceleration ``mjData.qacc``. When this flag
-     is enabled, :ref:`mj_inverse` will interpret ``qacc`` as having been computed from the difference of two sequential
-     velocities, and undo the above modification.
-
-   Disable midpoint integration
-     Additionally and relatedly, this flag **disables** :ref:`midpoint integration<geMidpoint>` for free bodies, which
-     would otherwise break the linear relationship between finite-differenced velocities and forces assumed by discrete
-     inverse dynamics. Note that disabling midpoint integration might be useful for debugging or for other reasons,
-     regardless or whether inverse dynamics are used.
+   This flag enables discrete-time inverse dynamics with :ref:`mj_inverse` for all
+   :ref:`integrators<option-integrator>` other than ``RK4``. Recall from the
+   :ref:`numerical integration<geIntegration>` section that the one-step integrators (``Euler``, ``implicit`` and
+   ``implicitfast``), modify the mass matrix :math:`M \rightarrow M-hD`. This implies that finite-differenced
+   accelerations :math:`(v_{t+h} - v_t)/h` will not correspond to the continuous-time acceleration ``mjData.qacc``.
+   When this flag is enabled, :ref:`mj_inverse` will interpret ``qacc`` as having been computed from the difference of
+   two sequential velocities, and undo the above modification.
 
 
 .. _option-flag-multiccd:
@@ -2776,6 +2771,55 @@ helps clarify the role of bodies and geoms in MuJoCo.
    actuators which use contacts in the gap zone to generate adhesive forces without producing contact forces.
    See :ref:`margin and gap<coMarginGap>`.
 
+.. _body-geom-surfacevel:
+
+.. youtube:: PdSdrqhSiZA
+   :align: right
+   :width: 35%
+
+:at:`surfacevel`: :at-val:`real(6), "0 0 0 0 0 0"`
+   Velocity of the geom's surface as seen by contacts, given as a velocity field :math:`\sigma(x)` with two components:
+   a constant velocity :math:`v` (first three numbers) and a rotational field with angular velocity :math:`\omega` (last
+   three numbers) about the geom frame origin :math:`p`, both expressed in the geom frame:
+
+   .. math::
+      \sigma(x) = v + \omega \times (x - p)
+
+   A contact with the geom observes the surface moving along this field, with the velocity projected onto the contact's
+   tangent plane: no normal velocity is imparted. When :at:`condim` is 4 or larger, the angular velocity :math:`\omega`
+   also drives torsional friction. :at:`surfacevel` models surfaces that move while the geom itself does not: conveyor
+   belts, treadmills and turntables can be constructed with no degrees of freedom. Friction drives touching bodies along
+   the motion of the surface: objects placed on a conveyor are transported at belt speed, and a turntable (angular
+   surface velocity about the cylinder axis) imparts tangential velocity that grows with radius. Surface velocities of
+   two touching geoms compose as relative velocity, and compose correctly with body motion (a conveyor mounted on a
+   moving vehicle works as expected). Note that this attribute describes the geom's *entire* surface: a box with
+   constant ``surfacevel`` moves all six faces. When contact points are visualized, a contact with a moving surface
+   additionally displays an arrow along the tangential surface velocity at the contact point. This attribute can be
+   modified at runtime.
+
+.. _body-geom-adhesion:
+
+.. youtube:: GioWwB36XHI
+   :align: right
+   :width: 40%
+
+:at:`adhesion`: :at-val:`real, "0"`
+   Adhesive force of contacts with this geom, in units of force. Geometrically, the friction cone is translated down
+   along the normal so that the force origin lies strictly inside it: each contact can pull with up to ``adhesion``
+   before breaking, and the friction budget becomes :math:`\mu(f_N + \text{adhesion})`. Contacts resist sliding even
+   under zero normal force, the defining property of cohesive materials. This is useful for sticky materials (tape,
+   gecko feet, tacky rubber) and as a physical stabilizer for grasping. The adhesion of a contact is the sum of the
+   values of the two contacting geoms, or the value of the higher-:ref:`priority<body-geom-priority>` geom if priorities
+   differ; an explicit contact :ref:`pair<contact-pair>` overrides both. Note that adhesion is *per contact*: a box face
+   resting on a plane generates four contact points and therefore four times the pull-off force of a single-point
+   contact. To let adhesion act across a small separation (attraction at a distance), set :ref:`gap<body-geom-gap>` to
+   the desired interaction range. This can be used to model magnets. Resting penetration is unaffected by adhesion (the
+   compression behavior of the contact is unchanged; only a tensile branch is added), and :ref:`mj_contactForce` reports
+   the net interface force, whose normal component can be negative under tension. The underlying model is described in
+   the :ref:`Computation chapter<soAdhesion>`. For adhesion as a *controlled* force — switched on and off like a vacuum
+   gripper, dividing a total force between a body's contacts and pressing the bodies together — see the :ref:`adhesion
+   actuator<actuator-adhesion>`.
+
 .. _body-geom-fromto:
 
 :at:`fromto`: :at-val:`real(6), optional`
@@ -3465,10 +3509,14 @@ joints and tendons have different sets of attributes, while all geoms in the com
 
 .. _composite-geom-gap:
 
+.. _composite-geom-surfacevel:
+
+.. _composite-geom-adhesion:
+
 .. |body/composite/geom attrib list| replace::
    :at:`type`, :at:`contype`, :at:`conaffinity`, :at:`condim`, :at:`group`, :at:`priority`, :at:`size`, :at:`material`,
    :at:`rgba`, :at:`friction`, :at:`mass`, :at:`density`, :at:`solmix`, :at:`solref`, :at:`solimp`, :at:`margin`,
-   :at:`gap`
+   :at:`gap`, :at:`surfacevel`, :at:`adhesion`
 
 |body/composite/geom attrib list|
    Same meaning as regular :ref:`geom <body-geom>` attributes.
@@ -4200,6 +4248,12 @@ friction can only be created with this element.
    Additional contact detection buffer beyond ``margin``. When this value is positive, contacts with distance between
    ``margin`` and ``margin + gap`` are included in ``mjData.contact`` as inactive contacts but no contact forces are
    generated.
+
+.. _contact-pair-adhesion:
+
+:at:`adhesion`: :at-val:`real, "0"`
+   Adhesive force of contacts generated by this pair, overriding the sum of the geoms'
+   :ref:`adhesion<body-geom-adhesion>` values. See there for detailed semantics.
 
 
 .. _contact-exclude:
@@ -5508,16 +5562,23 @@ specify them independently.
 
 :at:`joint`: :at-val:`string, optional`
    This and the next four attributes determine the type of actuator transmission. All of them are optional, and exactly
-   one of them must be specified. If this attribute is specified, the actuator acts on the given joint. For **hinge**
-   and **slide** joints, the actuator length equals the joint position/angle times the first element of :at:`gear`. For
-   **ball** joints, the first three elements of gear define a 3d rotation axis in the child frame around which the
+   one of them must be specified. If this attribute is specified, the actuator acts on the given joint.
+
+   For **hinge** and **slide** joints, the actuator length equals the joint position/angle times the first element of
+   :at:`gear`.
+
+   For **ball** joints, the first three elements of gear define a 3d rotation axis in the child frame around which the
    actuator produces torque. The actuator length is defined as the dot-product between this gear axis and the angle-axis
    representation of the joint quaternion, and is in units of radian if :at:`gear` is normalized (generally scaled by
-   by the norm of :at:`gear`). Note that after total rotation of more than :math:`\pi`, the length will wrap to :math:`-
-   \pi`, and vice-versa. Therefore :el:`position` servos for ball joints should generally use tighter limits which
-   prevent this wrapping. For **free** joints, gear defines a 3d translation axis in the world frame followed by a 3d
-   rotation axis in the child frame. The actuator generates force and torque relative to the specified axes. The
-   actuator length for free joints is defined as zero (so it should not be used with position servos).
+   the norm of :at:`gear`). Note that the length is defined on a circle: after total rotation of more than :math:`\pi`
+   it wraps to :math:`-\pi`, and vice-versa. :ref:`position<actuator-position>` and
+   :ref:`intvelocity<actuator-intvelocity>` servos on such transmissions interpret their setpoint on the circle, driving
+   towards the nearest representative of the target, so targets can be wound continuously through any number of turns
+   and no control limits are required to prevent wrapping.
+
+   For **free** joints, gear defines a 3d translation axis in the world frame followed by a 3d rotation axis in the
+   child frame. The actuator generates force and torque relative to the specified axes. The actuator length for free
+   joints is defined as zero (so cannot be used with position servos).
 
 .. _actuator-general-jointinparent:
 
@@ -5547,13 +5608,14 @@ specify them independently.
    When using a :at:`site` transmission, measure the translation and rotation w.r.t the frame of the :at:`refsite`. In
    this case the actuator *does* have length and :el:`position` actuators can be used to directly control an end
    effector, see `refsite.xml
-   <https://github.com/google-deepmind/mujoco/tree/main/test/engine/testdata/actuation/refsite.xml>`__ example
-   model. As above, the length is the dot product of the :at:`gear` vector and the frame difference. So ``gear="0 1 0 0
-   0 0"`` means "Y-offset of :at:`site` in the :at:`refsite` frame", while ``gear="0 0 0 0 0 1"`` means rotation "Z-
-   rotation of :at:`site` in the :at:`refsite` frame". It is recommended to use a normalized :at:`gear` vector with
-   nonzeros in only the first 3 *or* the last 3 elements of :at:`gear`, so the actuator length will be in either length
-   units or radians, respectively. As with ball joints (see :at:`joint` above), for rotations which exceed a total angle
-   of :math:`\pi` will wrap around, so tighter limits are recommended.
+   <https://github.com/google-deepmind/mujoco/tree/main/test/engine/testdata/actuation/refsite.xml>`__ example model. As
+   above, the length is the dot product of the :at:`gear` vector and the frame difference. So ``gear="0 1 0 0 0 0"``
+   means "Y-offset of :at:`site` in the :at:`refsite` frame", while ``gear="0 0 0 0 0 1"`` means rotation "Z- rotation
+   of :at:`site` in the :at:`refsite` frame". It is recommended to use a normalized :at:`gear` vector with nonzeros in
+   only the first 3 *or* the last 3 elements of :at:`gear`, so the actuator length will be in either length units or
+   radians, respectively. As with ball joints (see :ref:`general/joint<actuator-general-joint>` above), rotational
+   lengths are defined on a circle and servo setpoints are interpreted on it; control limits are not required to prevent
+   wrapping.
 
 .. _actuator-general-body:
 
@@ -5771,6 +5833,7 @@ gaintype  fixed               gainprm   kp 0 0
 biastype  affine              biasprm   0 -kp -kv
 ========= =================== ========= =============
 
+On purely rotational transmissions, setpoints are interpreted on the circle; see :ref:`gear<actuator-general-gear>`.
 
 This element has one custom attribute in addition to the common attributes:
 
@@ -5966,14 +6029,18 @@ This element creates an integrated-velocity servo. For more information, see the
 :ref:`Activation clamping <CActRange>` section of the Modeling chapter. The underlying
 :el:`general` attributes are set as follows:
 
-==========   =========== ========= =========
-Attribute    Setting     Attribute Setting
-==========   =========== ========= =========
-dyntype      integrator  dynprm    1 0 0
-gaintype     fixed       gainprm   kp 0 0
-biastype     affine      biasprm   0 -kp -kv
-actlimited   true
-==========   =========== ========= =========
+========= =========== ========= =========
+Attribute Setting     Attribute Setting
+========= =========== ========= =========
+dyntype   integrator  dynprm    1 0 0
+gaintype  fixed       gainprm   kp 0 0
+biastype  affine      biasprm   0 -kp -kv
+========= =========== ========= =========
+
+Activation clamping is controlled by :at:`actlimited` and :at:`actrange`, like any stateful actuator. On purely
+rotational transmissions, setpoints are interpreted on the circle, as for :ref:`position<actuator-position>`; the
+integrated setpoint is re-anchored to a bounded representative at each timestep, so clamping is not required for
+winding targets.
 
 This element has one custom attribute in addition to the common attributes:
 
@@ -5992,6 +6059,8 @@ This element has one custom attribute in addition to the common attributes:
 .. _actuator-intvelocity-ctrllimited:
 
 .. _actuator-intvelocity-forcelimited:
+
+.. _actuator-intvelocity-actlimited:
 
 .. _actuator-intvelocity-ctrlrange:
 
@@ -6026,9 +6095,10 @@ This element has one custom attribute in addition to the common attributes:
 .. _actuator-intvelocity-armature:
 
 .. |actuator/intvelocity attrib list| replace::
-   :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`,
-   :at:`forcerange`, :at:`actrange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`,
-   :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`, :at:`damping`, :at:`armature`
+   :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`actlimited`,
+   :at:`ctrlrange`, :at:`forcerange`, :at:`actrange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`,
+   :at:`jointinparent`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`,
+   :at:`damping`, :at:`armature`
 
 |actuator/intvelocity attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -6376,7 +6446,9 @@ geckos and insects rather than an industrial vacuum gripper. In order to enable 
 :ref:`gap<body-geom-gap>` attribute of the body's geoms to a positive value. This creates a layer around each geom where
 contacts are detected but no contact forces are generated, and the adhesive force can act across this gap. In the video
 above, such inactive contacts are blue, while active contacts are orange. An adhesion actuator's length is always 0.
-:at:`ctrlrange` is required and must also be nonnegative (no repulsive forces are allowed). The underlying :el:`general`
+:at:`ctrlrange` is required and must also be nonnegative (no repulsive forces are allowed). For adhesion as a
+*passive* property of the contacting surfaces — always on, per contact, and leaving resting penetration unaffected —
+see the :ref:`geom/adhesion<body-geom-adhesion>` attribute. The underlying :el:`general`
 attributes are set as follows:
 
 =========== ======= =========== ========
@@ -9545,6 +9617,10 @@ if omitted.
 
 .. _default-geom-gap:
 
+.. _default-geom-surfacevel:
+
+.. _default-geom-adhesion:
+
 .. _default-geom-fromto:
 
 .. _default-geom-axisangle:
@@ -9712,6 +9788,8 @@ if omitted.
 .. _default-pair-gap:
 
 .. _default-pair-margin:
+
+.. _default-pair-adhesion:
 
 :el-prefix:`default/` |-| **pair** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -9964,6 +10042,8 @@ refsite, tendon, slidersite, cranksite.
 .. _default-intvelocity-ctrllimited:
 
 .. _default-intvelocity-forcelimited:
+
+.. _default-intvelocity-actlimited:
 
 .. _default-intvelocity-ctrlrange:
 

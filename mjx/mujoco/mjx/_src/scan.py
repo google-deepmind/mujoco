@@ -331,7 +331,7 @@ def flat(
     reordered_ys.append(_take(y, _index(ids, input_order)))
   y = reordered_ys if f_ret_is_seq else reordered_ys[0]
 
-  return y
+  return y  # pyrefly: ignore[bad-return]
 
 
 def body_tree(
@@ -443,7 +443,7 @@ def body_tree(
       if i < len(in_types):
         key_in_take.setdefault(key, []).append(ids)
       else:
-        key_y_take.setdefault(key, []).append(np.hstack(ids))
+        key_y_take.setdefault(key, []).append(np.hstack(ids))  # pyrefly: ignore[no-matching-overload]
 
   # use this grouping to take the right data subsets and call vmap(f)
   keys = sorted(key_body_ids, reverse=reverse)
@@ -494,4 +494,4 @@ def body_tree(
 
   y = y[0] if len(out_types) == 1 else y
 
-  return y
+  return y  # pyrefly: ignore[bad-return]

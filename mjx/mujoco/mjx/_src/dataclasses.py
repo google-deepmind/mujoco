@@ -75,7 +75,7 @@ def dataclass(clz: _T, register_as_pytree: bool) -> _T:
   Returns:
     the resulting dataclass, registered with Jax
   """
-  data_clz = dataclasses.dataclass(frozen=True)(clz)
+  data_clz = dataclasses.dataclass(frozen=True)(clz)  # pyrefly: ignore[bad-argument-type]
   data_clz.replace = dataclasses.replace
 
   if register_as_pytree:
@@ -137,7 +137,7 @@ def dataclass(clz: _T, register_as_pytree: bool) -> _T:
         data_clz, iterate_clz_with_keys, clz_from_iterable
     )
 
-  return data_clz
+  return data_clz  # pyrefly: ignore[bad-return]
 
 
 TNode = TypeVar('TNode', bound='PyTreeNode')
@@ -163,7 +163,7 @@ class PyTreeNode:
 
   @classmethod
   def fields(cls) -> Tuple[dataclasses.Field, ...]:  # pylint: disable=g-bare-generic
-    return dataclasses.fields(cls)
+    return dataclasses.fields(cls)  # pyrefly: ignore[bad-argument-type]
 
   def tree_replace(
       self, params: Dict[str, Optional[jax.typing.ArrayLike]]
@@ -190,7 +190,7 @@ def _tree_replace(
     for i, g in enumerate(lst):
       if not hasattr(g, attr[1]):
         continue
-      v = val if not hasattr(val, '__iter__') else val[i]
+      v = val if not hasattr(val, '__iter__') else val[i]  # pyrefly: ignore[bad-index, unsupported-operation]
       lst[i] = _tree_replace(g, attr[1:], v)
 
     return base.replace(**{attr[0]: lst})

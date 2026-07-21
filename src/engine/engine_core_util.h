@@ -117,6 +117,10 @@ MJAPI void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body);
 MJAPI void mj_objectVelocity(const mjModel* m, const mjData* d,
                              int objtype, int objid, mjtNum res[6], int flg_local);
 
+// compute material surface velocity of a geom at a point, in world frame
+void mj_geomSurfaceVelocity(const mjModel* m, const mjData* d, int geomid,
+                            const mjtNum point[3], mjtNum linear[3], mjtNum angular[3]);
+
 // compute object 6D acceleration in object-centered frame, world/local orientation
 MJAPI void mj_objectAcceleration(const mjModel* m, const mjData* d,
                                  int objtype, int objid, mjtNum res[6], int flg_local);

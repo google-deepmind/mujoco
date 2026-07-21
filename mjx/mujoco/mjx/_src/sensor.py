@@ -339,9 +339,9 @@ def sensor_vel(m: Model, d: Data) -> Data:
     elif sensor_type == SensorType.JOINTVEL:
       sensor = d.qvel[m.jnt_dofadr[objid]]
     elif sensor_type == SensorType.TENDONVEL:
-      sensor = d._impl.ten_velocity[objid]
+      sensor = d._impl.ten_velocity[objid]  # pyrefly: ignore[missing-attribute]
     elif sensor_type == SensorType.ACTUATORVEL:
-      sensor = d._impl.actuator_velocity[objid]
+      sensor = d._impl.actuator_velocity[objid]  # pyrefly: ignore[missing-attribute]
     elif sensor_type == SensorType.BALLANGVEL:
       jnt_dotadr = m.jnt_dofadr[objid, None] + np.arange(3)[None]
       sensor = d.qvel[jnt_dotadr]
@@ -403,10 +403,10 @@ def sensor_vel(m: Model, d: Data) -> Data:
         adrs.append(adrt.reshape(-1))
       continue  # avoid adding to sensors/adrs list a second time
     elif sensor_type == SensorType.SUBTREELINVEL:
-      sensor = d._impl.subtree_linvel[objid]
+      sensor = d._impl.subtree_linvel[objid]  # pyrefly: ignore[missing-attribute]
       adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
     elif sensor_type == SensorType.SUBTREEANGMOM:
-      sensor = d._impl.subtree_angmom[objid]
+      sensor = d._impl.subtree_angmom[objid]  # pyrefly: ignore[missing-attribute]
       adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
     else:
       # TODO(taylorhowell): raise error after adding sensor check to io.py
@@ -502,7 +502,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
       # compute conray, flip if second body
       conray = jax.vmap(
           lambda frame, force: math.normalize(frame[0] * force[0])
-      )(d._impl.contact.frame, contact_force)
+      )(d._impl.contact.frame, contact_force)  # pyrefly: ignore[unbound-name]
       conray = jp.where(conbody1[..., None], -conray, conray)
 
       # compute distance, mapping over sites and contacts
@@ -547,7 +547,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
         # compute force magnitude for each contact
         force_mag = jax.vmap(
             lambda forcetorque: jp.dot(forcetorque[:3], forcetorque[:3])
-        )(contact_force)
+        )(contact_force)  # pyrefly: ignore[unbound-name]
 
       def _reduce(reduction, mask):
         if reduction == 1:  # mindist
@@ -662,7 +662,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
           slot.append(jp.repeat(nfound, num)[:, None])
 
         if dataspec & (1 << 1):  # force
-          slot.append(flip * contact_force[cid, :3])
+          slot.append(flip * contact_force[cid, :3])  # pyrefly: ignore[unbound-name]
 
         if dataspec & (1 << 2):  # torque
           slot.append(flip * contact_force[cid, 3:])
@@ -699,14 +699,14 @@ def sensor_acc(m: Model, d: Data) -> Data:
       bodyid = m.site_bodyid[objid]
       rot = d.site_xmat[objid]
       cvel = d.cvel[bodyid]
-      cacc = d._impl.cacc[bodyid]
+      cacc = d._impl.cacc[bodyid]  # pyrefly: ignore[missing-attribute]
       dif = d.site_xpos[objid] - d.subtree_com[m.body_rootid[bodyid]]
 
       sensor = _accelerometer(cvel, cacc, dif, rot)
       adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
     elif sensor_type == SensorType.FORCE:
       bodyid = m.site_bodyid[objid]
-      cfrc_int = d._impl.cfrc_int[bodyid]
+      cfrc_int = d._impl.cfrc_int[bodyid]  # pyrefly: ignore[missing-attribute]
       site_xmat = d.site_xmat[objid]
       sensor = jax.vmap(lambda mat, vec: mat.T @ vec)(
           site_xmat, cfrc_int[:, 3:]
@@ -715,7 +715,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
     elif sensor_type == SensorType.TORQUE:
       bodyid = m.site_bodyid[objid]
       rootid = m.body_rootid[bodyid]
-      cfrc_int = d._impl.cfrc_int[bodyid]
+      cfrc_int = d._impl.cfrc_int[bodyid]  # pyrefly: ignore[missing-attribute]
       site_xmat = d.site_xmat[objid]
       dif = d.site_xpos[objid] - d.subtree_com[rootid]
       sensor = jax.vmap(
@@ -744,7 +744,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
         pos, bodyid = objtype_data[ot]
         pos = pos[objidt]
         bodyid = bodyid[objidt]
-        cacc = d._impl.cacc[bodyid]
+        cacc = d._impl.cacc[bodyid]  # pyrefly: ignore[missing-attribute]
 
         if sensor_type == SensorType.FRAMELINACC:
 
@@ -774,7 +774,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
       # TODO(taylorhowell): raise error after adding sensor check to io.py
       continue  # unsupported sensor type
 
-    sensors.append(_apply_cutoff(sensor, cutoff, data_type[0]).reshape(-1))
+    sensors.append(_apply_cutoff(sensor, cutoff, data_type[0]).reshape(-1))  # pyrefly: ignore[bad-argument-type]
     adrs.append(adr)
 
   if not adrs:

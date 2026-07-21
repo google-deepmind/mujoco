@@ -1,0 +1,72 @@
+<mujoco model="Treadmill">
+  <!-- A treadmill with no degrees of freedom: the deck surface moves via surfacevel,
+       with matched spinning end rollers (w = v/r). Standard running-treadmill
+       dimensions: 0.51 x 1.52 m belt, deck top 0.20 m, console at 1.35 m. The
+       attached humanoid is passive: it collapses and is swept off the back. -->
+
+  <statistic center="0 0 .7" extent="2.5"/>
+
+  <visual>
+    <headlight diffuse=".7 .7 .7" ambient=".3 .3 .3"/>
+    <quality shadowsize="8192"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1=".4 .5 .6" rgb2=".1 .1 .15"
+             width="32" height="512"/>
+    <texture name="tm_floor" type="2d" builtin="checker" rgb1=".25 .27 .28" rgb2=".3 .32 .34"
+             width="300" height="300"/>
+    <material name="tm_floor" texture="tm_floor" texrepeat="10 10" reflectance=".1"/>
+    <material name="tm_belt" rgba=".3 .45 .7 1"/>
+    <material name="tm_frame" rgba=".2 .2 .22 1"/>
+    <material name="tm_step" rgba=".5 .5 .52 1"/>
+    <model name="humanoid" file="../humanoid/humanoid.xml"/>
+  </asset>
+
+  <worldbody>
+    <!-- soft key (large bulb = soft shadows), shadowless cool fill, dim ambience -->
+    <light pos="-2.5 -1.5 3" dir=".6 .35 -.7" diffuse=".65 .6 .52" intensity="1000000" range="15"
+           bulbradius=".15"/>
+    <light pos="2 1.5 2.5" dir="-.5 -.4 -.6" diffuse=".35 .4 .48" intensity="700000" range="15"
+           castshadow="false"/>
+    <light type="point" pos="0 0 4" diffuse=".3 .3 .33" intensity="300000" range="20"
+           castshadow="false"/>
+    <geom name="floor" type="plane" size="4 4 .1" material="tm_floor"/>
+
+    <!-- deck: belt surface flows front to rear (+x), sweeping the rider off the back;
+         end rollers have radius = deck half-thickness, spin matched: w = 1.4/.05 -->
+    <geom name="deck" type="box" size=".76 .255 .05" pos="0 0 .15" material="tm_belt"
+          surfacevel="1.4 0 0  0 0 0"/>
+    <geom name="roller_front" type="cylinder" size=".05 .255" pos="-.76 0 .15" euler="90 0 0"
+          material="tm_belt" surfacevel="0 0 0  0 0 -28"/>
+    <geom name="roller_rear" type="cylinder" size=".05 .255" pos=".76 0 .15" euler="90 0 0"
+          material="tm_belt" surfacevel="0 0 0  0 0 -28"/>
+
+    <!-- side steps, flush with the belt surface -->
+    <geom name="step_left" type="box" size=".76 .04 .05" pos="0 -.295 .155" material="tm_step"/>
+    <geom name="step_right" type="box" size=".76 .04 .05" pos="0 .295 .155" material="tm_step"/>
+
+    <!-- motor hood over the front roller -->
+    <geom name="hood" type="box" size=".16 .3 .05" pos="-.86 0 .25" euler="0 -10 0"
+          material="tm_frame"/>
+
+    <!-- uprights, handrails and console -->
+    <geom name="upright_left" type="capsule" size=".025" fromto="-.8 -.28 .25 -.95 -.28 1.15"
+          material="tm_frame"/>
+    <geom name="upright_right" type="capsule" size=".025" fromto="-.8 .28 .25 -.95 .28 1.15"
+          material="tm_frame"/>
+    <geom name="rail_left" type="capsule" size=".02" fromto="-.95 -.28 1.15 -.35 -.28 1.05"
+          material="tm_step"/>
+    <geom name="rail_right" type="capsule" size=".02" fromto="-.95 .28 1.15 -.35 .28 1.05"
+          material="tm_step"/>
+    <geom name="console" type="box" size=".04 .3 .12" pos="-1 0 1.3" euler="0 -30 0"
+          material="tm_frame"/>
+    <geom name="screen" type="box" size=".005 .14 .07" pos="-.963 0 1.32" euler="0 -30 0"
+          rgba=".1 .25 .2 1"/>
+
+    <!-- passive rider -->
+    <frame pos="-.3 0 .21" euler="0 0 180">
+      <attach model="humanoid" body="torso" prefix="rider_"/>
+    </frame>
+  </worldbody>
+</mujoco>

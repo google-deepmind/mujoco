@@ -4051,6 +4051,24 @@ void mjCGeom::Compile(void) {
 
     // accumulate mesh frame into geom frame
     mjuu_frameaccum(pos, quat, meshpos, pmesh->GetQuatPtr());
+
+    // re-express surfacevel in the compiled geom frame, which absorbed the mesh frame
+    if (surfacevel[0] || surfacevel[1] || surfacevel[2] ||
+        surfacevel[3] || surfacevel[4] || surfacevel[5]) {
+      // angular origin moves to meshpos: linear part gains omega x meshpos
+      double wxp[3];
+      mjuu_crossvec(wxp, surfacevel+3, meshpos);
+      mjuu_addtovec(surfacevel, wxp, 3);
+
+      // rotate both parts by the inverse mesh orientation
+      const double* mq = pmesh->GetQuatPtr();
+      double invq[4] = {mq[0], -mq[1], -mq[2], -mq[3]};
+      double tmp[3];
+      mjuu_rotVecQuat(tmp, surfacevel, invq);
+      mjuu_copyvec(surfacevel, tmp, 3);
+      mjuu_rotVecQuat(tmp, surfacevel+3, invq);
+      mjuu_copyvec(surfacevel+3, tmp, 3);
+    }
   }
 
   // check size parameters
@@ -6433,8 +6451,9 @@ void mjCTendon::CopyFromSpec() {
   material_ = spec_material_;
   userdata_ = spec_userdata_;
 
-  // clear precompiled
+  // propagate model pointer to wraps and clear precompiled
   for (int i=0; i < path.size(); i++) {
+    path[i]->model = model;
     if (path[i]->Type() == mjWRAP_CYLINDER) {
       path[i]->spec.type = mjWRAP_SPHERE;
     }
@@ -6908,6 +6927,12 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   // no previous state when an actuator is created
   actadr_ = -1;
   actdim_ = -1;
+
+  // input and output blocks, set by mjCModel; all actuator types are currently 1x1
+  ctrladr_ = -1;
+  ctrlnum_ = 1;
+  outadr_ = -1;
+  outnum_ = 1;
 }
 
 

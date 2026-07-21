@@ -440,7 +440,7 @@ def write_core_cls(
     shape_property = _DATA_SHAPE_PROPERTY_FIELD
 
   new_class_body = _build_new_class_body_ast(
-      keys,
+      keys,  # pyrefly: ignore[bad-argument-type]
       cls_name,
       annotations,
       shape_property=shape_property,

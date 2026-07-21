@@ -4,13 +4,16 @@ Types
 
 MuJoCo defines a large number of types:
 
-- Two :ref:`primitive types<tyPrimitive>`.
+- Four :ref:`primitive types<tyPrimitive>`: :ref:`mjtNum<mjtNum>`, :ref:`mjtByte<mjtByte>`, :ref:`mjtBool<mjtBool>`, and
+  :ref:`mjtSize<mjtSize>`.
+
 - :ref:`C enum types<tyEnums>` used to define categorical values. These can be classified as:
 
   - Enums used in :ref:`mjModel<tyModelEnums>`.
   - Enums used in :ref:`mjData<tyDataEnums>`.
   - Enums for abstract :ref:`visualization<tyVisEnums>`.
-  - Enums used by the :ref:`renderer<tyRenderEnums>`.
+  - Enums used by the :ref:`classic renderer<tyRenderEnums>`.
+  - Enums used by the :ref:`filament renderer<tyFilamentRenderEnums>`.
   - Enums used by the :ref:`mjUI<tyUIEnums>` user interface package.
   - Enums used by :ref:`engine plugins<tyPluginEnums>`.
   - Enums used for :ref:`procedural model manipulation<tySpecEnums>`.
@@ -31,7 +34,8 @@ MuJoCo defines a large number of types:
   - :ref:`Auxiliary struct types<tyAuxStructure>`, also used by the engine.
   - Structs for collecting :ref:`simulation statistics<tyStatStructure>`.
   - Structs for :ref:`abstract visualization<tyVisStructure>`.
-  - Structs used by the :ref:`renderer<tyRenderStructure>`.
+  - Structs used by the :ref:`classic renderer<tyRenderStructure>`.
+  - Structs used by the :ref:`filament renderer<tyFilamentRenderStructure>`.
   - Structs used by the :ref:`UI framework<tyUIStructure>`.
   - Structs used for :ref:`procedural model manipulation<tySpecStructure>`.
   - Structs used by :ref:`engine plugins<tyPluginStructure>`.
@@ -737,7 +741,7 @@ These are the possible font types.
 mjrPixelFormat
 ~~~~~~~~~~~~~~
 
-There are the possible values:
+These are the possible values:
 
 .. mujoco-include:: mjrPixelFormat
 
@@ -746,7 +750,7 @@ There are the possible values:
 mjrVertexAttributeUsage
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-There are the possible values:
+These are the possible values:
 
 .. mujoco-include:: mjrVertexAttributeUsage
 
@@ -755,7 +759,7 @@ There are the possible values:
 mjrVertexAttributeType
 ~~~~~~~~~~~~~~~~~~~~~~
 
-There are the possible values:
+These are the possible values:
 
 .. mujoco-include:: mjrVertexAttributeType
 
@@ -764,7 +768,7 @@ There are the possible values:
 mjrIndexType
 ~~~~~~~~~~~~
 
-There are the possible values:
+These are the possible values:
 
 .. mujoco-include:: mjrIndexType
 
@@ -776,6 +780,34 @@ mjrMeshPrimitiveType
 There are the possible values:
 
 .. mujoco-include:: mjrMeshPrimitiveType
+
+
+.. _tyFilamentRenderEnums:
+
+Filament Rendering
+^^^^^^^^^^^^^^^^^^
+
+The enums below are defined in `mjrfilament.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrfilament.h>`__.
+
+
+.. _mjrGraphicsApi:
+
+mjrGraphicsApi
+~~~~~~~~~~~~~~
+
+The underlying graphics API to use for Filament rendering.
+
+.. mujoco-include:: mjrGraphicsApi
+
+
+.. _mjrDrawMode:
+
+mjrDrawMode
+~~~~~~~~~~~
+
+High-level control for how to draw objects in the scene for Filament rendering.
+
+.. mujoco-include:: mjrDrawMode
 
 
 .. _tyUIEnums:
@@ -1286,6 +1318,16 @@ This structure specifies the attributes for a single vertex.
 
 
 
+.. _mjrRendererInfo:
+
+mjrRendererInfo
+~~~~~~~~~~~~~~~
+
+This structure contains information about the available renderer and its current context.
+
+.. mujoco-include:: mjrRendererInfo
+
+
 .. _mjrContext:
 
 mjrContext
@@ -1294,6 +1336,263 @@ mjrContext
 This structure contains the custom OpenGL rendering context, with the ids of all OpenGL resources uploaded to the GPU.
 
 .. mujoco-include:: mjrContext
+
+
+.. _tyFilamentRenderStructure:
+
+Filament Rendering
+^^^^^^^^^^^^^^^^^^
+
+The names of these struct types are prefixed with ``mjrf``. They are defined in
+`mjrfilament.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrfilament.h>`__.
+
+There are seven key types defined by this API: :ref:`mjrfContext<mjrfContext>`, :ref:`mjrfTexture<mjrfTexture>`,
+:ref:`mjrfMesh<mjrfMesh>`, :ref:`mjrfLight<mjrfLight>`, :ref:`mjrfRenderable<mjrfRenderable>`,
+:ref:`mjrfScene<mjrfScene>`, and :ref:`mjrfRenderTarget<mjrfRenderTarget>`.
+
+Each object is created using a `create` function and destroyed using a `destroy` function, e.g. `mjrf_createTexture` and
+`mjrf_destroyTexture`. All objects require a :ref:`Context<mjrfContext>` in order to be created (with the exception of
+the :ref:`Context<mjrfContext>` object itself). Additionally, the `create` functions accept a pointer to a configuration
+struct (e.g. `mjrTextureConfig`) which describes the parameters for the object to be created. Each of these structs has
+a corresponding `default` function (e.g. `mjrf_defaultTextureConfig`) which can be used to initialize the struct to
+default values. The default values are assumed to be `0` or `NULL` unless otherwise specified.
+
+
+.. _mjrfContext:
+
+mjrfContext
+~~~~~~~~~~~
+
+The Context is the main entry point for the filament rendering library. It manages all the core filament objects that
+are responsible for the rendering of an image. All other objects (e.g. Textures, Meshes, Scenes, etc.) need a Context in
+order to be created.
+
+Otherwise, the main function to use with the Context is :ref:`mjrf_render()<mjrf_render>` which performs the actual
+rendering of an image.
+
+Filament uses a separate thread for rendering. However, despite that, this API is not thread-safe; calls are expected to
+be made from a single thread. Due to the asynchronous nature of filament, some APIs provide handles or callbacks to
+signal when an operation is complete. (Note: for WASM builds, filament does not use a separate thread.)
+
+There are two key differences between the :ref:`mjrfContext<mjrfContext>` and the classic :ref:`mjrContext<mjrContext>`.
+Firstly, the filament context will manage the underlying graphics context itself. This means users do not need to
+initialize EGL or similar libraries beforehand. Secondly, the filament context is independent of a MuJoCo model. That
+means you can use a single :ref:`mjrfContext<mjrfContext>` instance to render images for multiple models.
+
+.. _mjrfContextConfig:
+
+mjrfContextConfig
+~~~~~~~~~~~~~~~~~
+
+Parameters for creating :ref:`filament graphics context<mjrfContext>`.
+
+.. mujoco-include:: mjrfContextConfig
+
+
+.. _mjrfTexture:
+
+mjrfTexture
+~~~~~~~~~~~
+
+A texture is a 2D or 3D (cubemap) image that adds visual detail to a rendered model, such as color or bumpiness, without
+increasing geometric complexity. A texture is simply a memory buffer holds pixel data, as well as metadata such as the
+dimensions of the image or the format of the pixels (e.g. 8-bit RGB).
+
+.. _mjrfTextureConfig:
+
+mjrfTextureConfig
+~~~~~~~~~~~~~~~~~
+
+Parameters for creating a :ref:`texture<mjrfTexture>`.
+
+.. mujoco-include:: mjrfTextureConfig
+
+
+.. _mjrfTextureData:
+
+mjrfTextureData
+~~~~~~~~~~~~~~~
+
+Binary data payload for a :ref:`texture<mjrfTexture>`.
+
+.. mujoco-include:: mjrfTextureData
+
+
+.. _mjrfMesh:
+
+mjrfMesh
+~~~~~~~~
+
+A mesh describes the surface geometry of an object to be rendered. It is defined as a collection of vertices (i.e. a
+VertexBuffer), a set of indices (i.e. an IndexBuffer) that describes the order in which the vertices should be
+processed, and a primitive type that defined how the vertices are to be interpreted (e.g. triangles, lines, etc.) when
+rendering the surface.
+
+Filament does not directly support normals. Instead, it encodes the normal, tangent, and bitangent into a 4-component
+quaternion describing the "orientation" of the vertex. Ideally, you should preprocess your assets to generate this data
+offline, but we will compute it on the fly if needed (at a performance cost).
+
+Vertex data may or may not be interleaved. Interleaved data assumes that the attributes are packed in the order
+specified in the attributes array, with no padding in-between. Additionally, the `data` pointer for each attribute is
+assumed to point to the first element of that type. For non-interleaved data, each attribute is assumed to be stored in
+a separate array.
+
+Additionally, the bounds of the mesh should be computed in order to allow the filament renderer to perform frustum-based
+culling. Alternatively, the bounds can be computed at runtime (though there is a small performance cost). If no bounds
+are provided (or calculated), then frustum culling will not be performed.
+
+
+.. _mjrfMeshData:
+
+mjrfMeshData
+~~~~~~~~~~~~
+
+Binary data used for creating a :ref:`mesh<mjrfMesh>`.
+
+.. mujoco-include:: mjrfMeshData
+
+
+.. _mjrfScene:
+
+mjrfScene
+~~~~~~~~~
+
+A Scene is a collection of :ref:`Lights<mjrfLight>` and :ref:`Renderables<mjrfRenderable>` that describes what is to be
+rendered.
+
+
+.. _mjrfSceneParams:
+
+mjrfSceneParams
+~~~~~~~~~~~~~~~
+
+Parameters for creating a :ref:`scene<mjrfScene>`.
+
+.. mujoco-include: mjrfSceneParams
+
+
+.. _mjrfLight:
+
+mjrfLight
+~~~~~~~~~
+
+A light is a source of illumination. (Without lights, a rendered image will be completely black.) There are several
+different types of lights such as directional, spot, point, and image lights.
+
+The primary light in a scene is the image light (also sometimes known as the environment light). This is a light that
+"surrounds" the entire scene and is defined as a 3D texture. Each "pixel" of the cubemap is interpreted as the color of
+projected into the scene from a particular direction.
+
+The texture used for image-based lighting can be generated using filament's `cmgen` tool. The tool should be configured
+to output a KTX file from your source image. This tool calculates additional data (i.e. the spherical harmonics) and
+encodes that information into the KTX file.
+
+Directional lights are the next most common type of light and is usually used to simulate the sun; a uniformly colored
+light that is emitted in a single direction.
+
+Filament only supports a single image and directional light. You can define as many point or spot lights as you want.
+Each light source (except image based lights) may or may not cast shadows. Each shadow-casting light incurs a
+performance cost.
+
+
+.. _mjrfLightParams:
+
+mjrfLightParams
+~~~~~~~~~~~~~~~
+
+Parameters for creating a :ref:`light<mjrfLight>`.
+
+.. mujoco-include:: mjrfLightParams
+
+
+.. _mjrfRenderable:
+
+mjrfRenderable
+~~~~~~~~~~~~~~
+
+A renderable is a single object that is to be drawn. It is defined as a combination of a :ref:`mjrfMesh<mjrfMesh>`
+(i.e. the shape or surface geometry, as described above) and a :ref:`mjrfMaterial<mjrfMaterial>` (i.e. a description of
+how the surface interacts with lights to product the final visual appearance).
+
+
+.. _mjrfRenderableParams:
+
+mjrfRenderableParams
+~~~~~~~~~~~~~~~~~~~~
+
+Parameters for creating a :ref:`renderable<mjrfRenderable>`.
+
+.. mujoco-include:: mjrfRenderableParams
+
+
+.. _mjrfMaterial:
+
+mjrfMaterial
+~~~~~~~~~~~~
+
+Materials describe the properties of the surface of a renderable, effectively dictating how the surface interacts with
+lights to produce a final pixel color in the output image. Different lighting models will be applied to the surface
+depending on the values of the material properties. There there are three lighting models currently supported:
+
+1. Metallic-roughness (PBR): this is the preferred model for rendering models based standard
+metallic-roughness workflows.
+
+2. Specular-glossiness (non-PBR): this is a legacy model designed to be compatible with classic
+:ref:`mjr<Rendering>` renderer, though it is not 100% identical.
+
+3. Unlit: this model ignores lighting and is used for rendering UX or decorative elements like
+contact forces and labels.
+
+.. mujoco-include:: mjrfMaterial
+
+
+.. _mjrfRenderTarget:
+
+mjrfRenderTarget
+~~~~~~~~~~~~~~~~
+
+A RenderTarget is a memory buffer that holds the results of a rendering operation. (This is an alternative to rendering
+directly to the screen.)
+
+
+.. _mjrfRenderTargetConfig:
+
+mjrfRenderTargetConfig
+~~~~~~~~~~~~~~~~~~~~~~
+
+Parameters for creating a :ref:`render target<mjrfRenderTarget>`.
+
+.. mujoco-include:: mjrfRenderTargetConfig
+
+
+.. _mjrfRenderRequest:
+
+mjrfRenderRequest
+~~~~~~~~~~~~~~~~~
+
+A single rendering operation.
+
+.. mujoco-include:: mjrfRenderRequest
+
+
+.. _mjrfReadPixelsRequest:
+
+mjrfReadPixelsRequest
+~~~~~~~~~~~~~~~~~~~~~
+
+A single pixel read operation.
+
+.. mujoco-include:: mjrfReadPixelsRequest
+
+
+.. _mjrfFrameStats:
+
+mjrfFrameStats
+~~~~~~~~~~~~~~
+
+Information about a single frame of rendering.
+
+.. mujoco-include:: mjrfFrameStats
 
 
 .. _tyUIStructure:

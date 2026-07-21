@@ -55,6 +55,29 @@ void mjr_defaultContext(mjrContext* con) {
   memset(con, 0, sizeof(mjrContext));
 }
 
+static int context_count = 0;
+
+static int contextHasResources(const mjrContext* con) {
+  return con->ntexture || con->offColor || con->offDepthStencil || con->offFBO ||
+         con->shadowTex || con->shadowFBO || con->rangePlane || con->rangeMesh ||
+         con->rangeHField || con->rangeBuiltin || con->rangeFont || con->nskin;
+}
+
+// set default mjrRendererInfo
+void mjr_defaultRendererInfo(mjrRendererInfo* info) {
+  memset(info, 0, sizeof(mjrRendererInfo));
+  info->renderer = "classic";
+  info->backend = "";
+}
+
+// get active renderer information
+void mjr_getRendererInfo(mjrRendererInfo* info) {
+  mjr_defaultRendererInfo(info);
+  if (context_count > 0) {
+    info->backend = "opengl";
+  }
+}
+
 
 
 // allocate lists
@@ -1608,6 +1631,7 @@ void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
     // try to bind window (bind offscreen if no window)
     mjr_setBuffer(mjFB_WINDOW, con);
 
+    context_count++;
     return;
   }
 
@@ -1667,6 +1691,7 @@ void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
 
   // set default depth mapping for mjr_readPixels
   con->readDepthMap = mjDEPTH_ZERONEAR;
+  context_count++;
 }
 
 
@@ -1811,6 +1836,8 @@ void mjr_addAux(int index, int width, int height, int samples, mjrContext* con) 
 
 // free resources in custom OpenGL context
 void mjr_freeContext(mjrContext* con) {
+  int had_resources = contextHasResources(con);
+
   // save flags
   int glInitialized = con->glInitialized;
   int windowAvailable = con->windowAvailable;
@@ -1867,6 +1894,10 @@ void mjr_freeContext(mjrContext* con) {
   con->windowSamples = windowSamples;
   con->windowStereo = windowStereo;
   con->windowDoublebuffer = windowDoublebuffer;
+
+  if (had_resources && context_count > 0) {
+    context_count--;
+  }
 }
 
 

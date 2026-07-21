@@ -119,7 +119,7 @@ def jax_callable_variadic_tuple(
 
     # Provide a flattened signature for the Warp callable machinery.
     new_signature = flatten_signature(inspect.signature(func), args)
-    func_wrapper.__signature__ = new_signature
+    func_wrapper.__signature__ = new_signature  # pyrefly: ignore[missing-attribute]
     func_wrapper.__annotations__ = {
         p.name: p.annotation
         for p in new_signature.parameters.values()
@@ -205,7 +205,7 @@ def _expand_dim_from_path(
   if ndim is None or ndim < 0:
     return leaf
   if ndim > leaf.ndim:
-    leaf = jp.expand_dims(leaf, axis=np.arange(ndim - leaf.ndim))
+    leaf = jp.expand_dims(leaf, axis=np.arange(ndim - leaf.ndim))  # pyrefly: ignore[bad-argument-type]
   if ndim != leaf.ndim:
     raise AssertionError(
         f'Leaf node ndim ({leaf.ndim}) and expected ndim ({ndim}) do not match'
@@ -221,7 +221,7 @@ def _squeeze_dim(leaf_expanded: Any, leaf: Any) -> Any:
         f' ndim {leaf.ndim}'
     )
   if leaf_expanded.ndim > leaf.ndim:
-    return jp.squeeze(leaf_expanded, np.arange(leaf_expanded.ndim - leaf.ndim))
+    return jp.squeeze(leaf_expanded, np.arange(leaf_expanded.ndim - leaf.ndim))  # pyrefly: ignore[bad-argument-type]
   return leaf_expanded
 
 
@@ -288,7 +288,7 @@ def _maybe_broadcast_to(
   """Broadcasts fields that are used in MuJoCo Warp."""
   ndim = _get_mapping_from_tree_path(path, mjx_warp_types._NDIM[cls_str])
   needs_batch_dim = _get_mapping_from_tree_path(
-      path, mjx_warp_types._BATCH_DIM[cls_str]  # pylint: disable=protected-access
+      path, mjx_warp_types._BATCH_DIM[cls_str]  # pylint: disable=protected-access  # pyrefly: ignore[bad-argument-type]
   )
   needs_batch_dim = bool(needs_batch_dim) and (ndim is not None and ndim > 0)
   if needs_batch_dim and not is_batched:
@@ -305,7 +305,7 @@ def _check_leading_dim(
 ):
   """Asserts that the batch dimension of a leaf node matches the expected batch dimension."""
   has_batch_dim = _get_mapping_from_tree_path(
-      path, mjx_warp_types._BATCH_DIM['Data']
+      path, mjx_warp_types._BATCH_DIM['Data']  # pyrefly: ignore[bad-argument-type]
   )
   attr = tree_path_to_attr_str(path)
   if has_batch_dim and leaf.shape[0] != expected_batch_dim:
@@ -396,7 +396,7 @@ def marshal_custom_vmap(
     out_batched = jax.tree.map_with_path(
         # NB: if a field is not in MuJoCo Warp, we let JAX do its magic.
         lambda path, x: _get_mapping_from_tree_path(
-            path, mjx_warp_types._BATCH_DIM['Data']  # pylint: disable=protected-access
+            path, mjx_warp_types._BATCH_DIM['Data']  # pylint: disable=protected-access  # pyrefly: ignore[bad-argument-type]
         )
         or x,
         out_batched,
