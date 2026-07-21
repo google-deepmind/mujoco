@@ -5,91 +5,33 @@ Modeling
 Introduction
 ------------
 
-MuJoCo can load XML model files in its native **MJCF** format, as well as in the popular but more limited **URDF**
-format. This chapter is the MJCF modeling guide. The reference manual is available in the :doc:`XMLreference`
-chapter. The URDF documentation can be found elsewhere; here we only describe
-MuJoCo-specific :ref:`URDF extensions <CURDF>`.
+MuJoCo's native model format is **MJCF**, an XML-based language designed to describe complex dynamical systems. This
+chapter is the primary MJCF modeling guide. The complete element and attribute reference manual is available in the
+:doc:`XMLreference` chapter. MuJoCo also supports loading models from other formats such as URDF (see :ref:`URDF
+extensions <CURDF>`), MJZ Zip archives (see :ref:`MJZ Archives <MJZArchives>`), and OpenUSD (see :doc:`OpenUSD/index`).
 
 MJCF models can represent complex dynamical systems with a wide range of features and model elements. Accessing all
 these features requires a rich modeling format, which can become cumbersome if it is not designed with usability in
 mind. Therefore we have made an effort to design MJCF as a scalable format, allowing users to start small and build
 more detailed models later. Particularly helpful in this regard is the extensive :ref:`default setting <CDefault>`
-mechanism inspired by the idea of Cascading Style Sheets (CSS) inlined in HTML. It enables users to rapidly create
-new models and experiment with them. Experimentation is further aided by numerous :ref:`options <option>` which
-can be used to reconfigure the simulation pipeline, and by quick re-loading that makes model editing an interactive
-process.
+mechanism inspired by the idea of Cascading Style Sheets (CSS) inlined in HTML. It enables users to rapidly create new
+models and experiment with them. Experimentation is further aided by numerous :ref:`options <option>` which can be used
+to reconfigure the simulation pipeline, and by quick re-loading that makes model editing an interactive process.
 
 One can think of MJCF as a hybrid between a modeling format and a programming language. There is a built-in compiler,
 which is a concept normally associated with programming languages. While MJCF does not have the power of a
 general-purpose programming language, a number of sophisticated compile-time computations are invoked automatically
 depending on how the model is designed.
 
-.. _Load:
+.. _ProceduralModeling:
 
-Loading models
-~~~~~~~~~~~~~~
+Procedural Modeling
+~~~~~~~~~~~~~~~~~~~~~
 
-As explained in :ref:`Model instances <Instance>` in the Overview chapter, MuJoCo models can be loaded from plain-text
-XML files in the MJCF or URDF formats, and then compiled into a low-level mjModel. Alternatively a previously saved
-mjModel can be loaded directly from a binary MJB file -- whose format is not documented but is essentially a copy of the
-mjModel memory buffer. MJCF and URDF files are loaded with :ref:`mj_loadXML` while MJB files are loaded with
-:ref:`mj_loadModel`.
+This chapter covers high-level model design. For detailed documentation on programmatic modeling via the :ref:`mjSpec`
+API—including loading, editing, compiling, and saving models in C/C++ or Python—see the
+:doc:`Model Editing <programming/modeledit>` chapter.
 
-When an XML file is loaded, it is first parsed into a document object model (DOM) using the TinyXML parser internally.
-This DOM is then processed and converted into a high-level :ref:`mjSpec` object. The conversion depends on the model
-format -- which is inferred from the top-level element in the XML file, and not from the file extension. Recall that a
-valid XML file has a unique top-level element. This element must be :el:`mujoco` for MJCF, and :el:`robot` for URDF.
-
-.. _Compile:
-
-Compiling models
-~~~~~~~~~~~~~~~~
-
-Once a high-level :ref:`mjSpec` is created---by loading an MJCF file or a URDF file, or
-:doc:`programmatically<programming/modeledit>`---it is compiled into :ref:`mjModel`.
-Compilation is independent of loading, meaning that the compiler works in the same way regardless of how :ref:`mjSpec`
-was created. Both the parser and the compiler perform extensive error checking, and abort
-when the first error is encountered. The resulting error messages contain the row and column number in the XML file,
-and are self-explanatory so we do not document them here. The parser uses a custom schema to make sure that the file
-structure, elements and attributes are valid. The compiler then applies many additional semantic checks. Finally, one
-simulation step of the compiled model is performed and any runtime errors are intercepted. The latter is done by
-(temporarily) setting :ref:`mju_user_error` to point to a function that throws C++
-exceptions; the user can implement similar error-interception functionality at runtime if desired.
-
-The entire process of parsing and compilation is very fast -- less than a second if the model does not contain large
-meshes or actuator lengthranges that need to be computed via simulation. This makes it possible to design models
-interactively, by re-loading often and visualizing the changes. Note that the :ref:`simulate.cc <saSimulate>` code
-sample has a keyboard shortcut for re-loading the current model (Ctrl+L).
-
-.. _Save:
-
-Saving models
-~~~~~~~~~~~~~
-
-An MJCF model can consist of multiple (included) XML files as well as meshes, height fields and textures referenced
-from the XML. After compilation, the contents of all these files are assembled into mjModel, which can be saved into a
-binary MJB file with :ref:`mj_saveModel`. The MJB is a stand-alone file and does not
-refer to any other files. It also loads faster. So we recommend saving commonly used models as MJB and loading them
-when needed for simulation.
-
-It is also possible to save a compiled :ref:`mjSpec` as MJCF with :ref:`mj_saveLastXML`. If any real-valued fields in
-the corresponding mjModel were modified after compilation (which is unusual but can happen in system identification
-applications for example), the modifications are automatically copied back into :ref:`mjSpec` before saving. Note that
-structural changes cannot be made in the compiled model. The XML writer attempts to generate the smallest MJCF file
-which is guaranteed to compile into the same model, modulo negligible numeric differences caused by the plain text
-representation of real values. The resulting file may not have the same structure as the original because MJCF has many
-user convenience features, allowing the same model to be specified in different ways. The XML writer uses a "canonical"
-subset of MJCF where all coordinates are local and all body positions, orientations and inertial properties are
-explicitly specified. In the Computation chapter we showed an `example <_static/example.xml>`__ MJCF file and the
-corresponding `saved example <_static/example_saved.xml>`__.
-
-.. _EditModel:
-
-Editing models
-~~~~~~~~~~~~~~
-
-As of MuJoCo 3.2, it is possible to create and modify models using the :ref:`mjSpec` struct and related API.
-For further documentation, please see the :doc:`Model Editing<programming/modeledit>` chapter.
 
 .. _Mechanisms:
 

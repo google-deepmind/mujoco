@@ -26,6 +26,114 @@ The workflow using :ref:`mjSpec` is:
  After compilation, the :ref:`mjSpec` remains editable, so steps 2 and 3 are interchangeable.
 
 
+.. _Load:
+.. _meLoading:
+
+Model Parsing & Loading
+~~~~~~~~~~~~~~~~~~~~~~~
+
+As summarized in :ref:`Model instances <Instance>`, model description files (MJCF, MJZ, URDF, USD) are parsed into an
+:ref:`mjSpec` using :ref:`mj_parse` (or ``mjSpec.from_file()`` / ``mjSpec.from_string()`` in Python). The model format is
+inferred from the content type or file extension, and parsing into an :ref:`mjSpec` is delegated to the appropriate
+:ref:`decoder <exDecoder>` plugin.
+
+.. code-block:: C
+
+   char error[1000] = "";
+   mjSpec* spec = mj_parse(vfs, "robot.xml", NULL, NULL, error, sizeof(error));
+
+For convenience, :ref:`mj_loadXML` (or Python ``MjModel.from_xml_path()``) combines parsing and compilation into a
+single step, returning a compiled :ref:`mjModel` directly from an XML file or ``.mjz`` archive.
+
+Alternatively, a pre-compiled :ref:`mjModel` can be loaded directly from a binary MJB file using :ref:`mj_loadModel`
+(or Python ``MjModel.from_binary_path()``).
+
+.. _Compile:
+.. _meCompilation:
+
+Model Compilation
+~~~~~~~~~~~~~~~~~
+
+Once a high-level :ref:`mjSpec` is created---by parsing a file, loading an archive, or constructing it
+programmatically---it is compiled into an :ref:`mjModel` using :ref:`mj_compile`.
+
+Compilation is independent of loading, working in the exact same way regardless of how :ref:`mjSpec` was constructed.
+Both the parser and the compiler perform extensive error checking and abort when the first error is encountered. The
+parser uses a custom schema to validate file structure, elements, and attributes, while the compiler applies semantic
+checks and executes a test simulation step to catch runtime errors.
+
+Parsing and compilation are extremely fast—typically less than a second—making interactive model design, live editing,
+and rapid reloading seamless.
+
+.. _Save:
+.. _meSaving:
+
+Model Encoding & Saving
+~~~~~~~~~~~~~~~~~~~~~~~
+Model specs and compiled models can be serialized to files using :ref:`mj_encode`, or directly saved to XML strings
+using :ref:`mj_saveXMLString` or :ref:`mj_saveXML`.
+
+The :ref:`mj_encode` function provides a unified entry point for serializing models:
+
+.. code-block:: C
+
+   char error[1024] = "";
+   mjtSize bytes_written = mj_encode(spec, model, "robot.mjz", NULL, vfs, error, sizeof(error));
+
+The output format is selected automatically based on the file extension (case-insensitive) or explicit ``content_type``:
+
+- **MJCF XML** (``.xml``): Flattens the spec into a single MJCF XML file using :ref:`mj_saveXML`. If an explicit
+  :ref:`mjModel` argument is passed, :ref:`mj_encode` will copy modified values back from ``mjModel`` into the spec
+  prior to saving. In the Computation chapter we show an `example <_static/example.xml>`__ MJCF file and the
+  corresponding `saved example <_static/example_saved.xml>`__.
+- **MJZ Archive** (``.mjz`` or ``.zip``): Bundles the spec and all associated external assets (meshes, textures,
+  included XMLs) into a self-contained Zip archive via the built-in ``mjz_encoder``.
+- **MJB Binary** (``.mjb``): Serializes the compiled :ref:`mjModel` in MuJoCo binary format via :ref:`mj_saveModel`.
+  MJB files are standalone, do not refer to external files, and load faster than XML, but are version-specific and
+  cannot be decompiled back to XML. Requires a compiled ``model``; does **not** serialize anything from ``spec``.
+- **TXT** (``.txt``): Writes a human-readable text dump via :ref:`mj_printModel`. Useful for diffing and debugging.
+  Requires a compiled ``model``; does **not** serialize anything from ``spec``.
+
+Importantly, saved XML will take into account any defined defaults. This is useful when a model has many repeated
+values, for example if loaded from URDF, which does not support defaults. In such a case one can add default classes,
+set the class of the relevant elements, and save; the resulting XML will use the defaults and be more human-readable.
+
+.. _MJZArchives:
+
+MJZ Archives
+~~~~~~~~~~~~
+
+Complex MuJoCo models often consist of multiple files: a main MJCF XML file, included XML sub-trees, and external asset
+files (meshes, textures, height fields). The **MJZ** format (extension ``.mjz`` or ``.zip``) provides a convenient way
+to bundle an entire model and all of its referenced assets into a single **Zip archive**.
+
+Root XML Discovery
+^^^^^^^^^^^^^^^^^^
+
+When decoding an ``.mjz`` archive, MuJoCo searches for the root model XML file in the following order:
+
+1. `<archive_stem>.xml` at the root of the archive (e.g. ``my_model.xml`` inside ``my_model.mjz``). This is
+   considered **best practice**.
+2. `<archive_stem>/<archive_stem>.xml` inside a top-level directory matching the archive name (e.g.
+   ``my_model/my_model.xml``).
+3. `model.xml` at the root of the archive (common zipped MJCF fallback).
+
+VFS Requirement
+^^^^^^^^^^^^^^^
+
+Parsing and compilation of an ``.mjz`` archive (and all of its contained asset files) require using the **exact same
+VFS instance**.
+
+.. _meCustomFormats:
+
+Custom formats
+~~~~~~~~~~~~~~
+Adding support for new file formats can be done with :ref:`mjp_registerDecoder` and :ref:`mjp_registerEncoder`.
+When :ref:`mj_parse` and :ref:`mj_encode` are called for a non-native extension or content type, the appropriate plugins
+are found via :ref:`mjp_findDecoder` and :ref:`mjp_findEncoder`. For further details on writing custom format plugins,
+see :ref:`Decoders <exDecoder>` and :ref:`Encoders <exEncoder>`.
+
+
 .. _meUsage:
 
 Usage
@@ -58,13 +166,6 @@ In C++, one can use vectors and strings directly:
 
    std::string modelname = "my_model";
    *spec->modelname = modelname;
-
-Loading a spec from XML can be done as follows:
-
-.. code-block:: C
-
-   std::array<char, 1000> error;
-   mjSpec* s = mj_parseXML(filename, vfs, error.data(), error.size());
 
 .. _meMjsElements:
 
@@ -258,15 +359,6 @@ already initialized elements.
    loading pipeline. A future API change could allow defaults to be changed and applied after initialization. If you
    think this feature is important to you, please let us know on GitHub.
 
-.. _meSaving:
-
-XML saving
-^^^^^^^^^^
-Specs can be saved to an XML file or string using :ref:`mj_saveXML` or :ref:`mj_saveXMLString`, respectively.
-Saving requires that the spec first be compiled.
-Importantly, the saved XML will take into account any defined defaults. This is useful when a model has many repeated
-values, for example if loaded from URDF, which does not support defaults. In such a case one can add default classes,
-set the class of the relevant elements, and save; the resulting XML will use the defaults and be more human-readable.
 
 .. _meRecompilation:
 

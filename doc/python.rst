@@ -597,11 +597,25 @@ Compiled ``MjSpec`` objects can be saved to XML string with the ``to_xml()`` met
      </worldbody>
    </mujoco>
 
-Alternatively, the spec can be saved directly to a file using ``encode()``:
+Alternatively, specs or compiled models can be serialized to a file using ``encode()``:
 
 .. code-block:: python
 
-   spec.encode('model.xml', model)
+   # Save spec directly to an MJCF XML file
+   spec.encode('model.xml')
+
+   # Save XML from a compiled model; copies modified model values back to spec prior to saving
+   spec.encode('model.xml', model=model)
+
+   # Save compiled model to binary MJB format (serializes mjModel only, not spec)
+   spec.encode('model.mjb', model=model)
+
+   # Package spec and all referenced external assets (meshes, textures) into an MJZ zip archive
+   spec.encode('robot.mjz', model=model)
+
+The ``encode()`` method accepts the target filename, an optional compiled ``model`` (:ref:`MjModel`), an optional
+``vfs`` (:ref:`MjVFS`), and an optional ``content_type``. The target format is automatically determined by the file
+extension (``.xml``, ``.mjb``, ``.txt``, ``.mjz``) or content type.
 
 Attachment
 ----------

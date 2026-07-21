@@ -166,30 +166,33 @@ There are several entities called "model" in MuJoCo. The user defines the model 
 The software can then create multiple instances of the same model in different media (file or memory) and on different
 levels of description (high or low). All combinations are possible as shown in the following table:
 
-+------------+---------------------------+----------------------------+
-|            | High level                | Low level                  |
-+============+===========================+============================+
-| **File**   | MJCF/URDF (XML)           | MJB (binary)               |
-+------------+---------------------------+----------------------------+
-| **Memory** | :ref:`mjSpec` (C struct)  | :ref:`mjModel` (C struct)  |
-+------------+---------------------------+----------------------------+
++------------+-------------------------------------+----------------------------+
+|            | High level                          | Low level                  |
++============+=====================================+============================+
+| **File**   | MJCF/URDF (XML), MJZ (Zip archive)  | MJB (binary)               |
++------------+-------------------------------------+----------------------------+
+| **Memory** | :ref:`mjSpec` (C struct)            | :ref:`mjModel` (C struct)  |
++------------+-------------------------------------+----------------------------+
 
 All runtime computations are performed with :ref:`mjModel` which is too complex to create manually. This is why we have
 two levels of modeling. The high level exists for user convenience: its sole purpose is to be compiled into a low level
 model on which computations can be performed. The resulting :ref:`mjModel` can be loaded and saved into a binary file
 (MJB), however those are version-specific and cannot be decompiled, thus models should always be maintained as XML
-files.
+files or packaged into MJZ archives.
 
 The :ref:`mjSpec` C struct is in one-to-one correspondence with the MJCF file format. The XML loader interprets the MJCF
 or URDF file, creates the corresponding :ref:`mjSpec` and compiles it to :ref:`mjModel`. The user can create
-:ref:`mjSpec` programmatically and then save it to MJCF or compile it. Procedural model creation and editing is
+:ref:`mjSpec` programmatically and then save it to MJCF/MJZ or compile it. Procedural model creation and editing is
 described in the :doc:`Model Editing <programming/modeledit>` chapter.
 
 The following diagram shows the different paths to obtaining an :ref:`mjModel`:
 
 -  (text editor) → MJCF/URDF file → (MuJoCo parser → mjSpec → compiler) → mjModel
+-  MJZ archive → (MJZ decoder → mjSpec → compiler) → mjModel
 -  (user code) → mjSpec → (MuJoCo compiler) → mjModel
 -  MJB file → (model loader) → mjModel
+
+Models and specs can also be serialized or packaged back to disk using :ref:`mj_encode`.
 
 .. _Examples:
 

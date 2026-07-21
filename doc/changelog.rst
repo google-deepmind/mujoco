@@ -143,11 +143,11 @@ Compiler
 - The :ref:`attach<body-attach>` element now supports self-attachment (attaching elements of the current model to
   itself) by omitting the :ref:`model<body-attach-model>` attribute. It also supports attaching a frame via the new
   :ref:`frame<body-attach-frame>` attribute, which is mutually exclusive with :ref:`body<body-attach-body>`.
-- Fixed loading of ``.mjz`` archives in :ref:`simulate<saSimulate>`: the archive was unmounted before model compilation,
-  so assets failed to load. Failures in the ``mjz`` decoder now emit a warning with the underlying error instead of the
-  generic "could not decode content" message.
-- The ``mjz`` decoder now searches for ``model.xml`` at the root of the archive as a fallback if the archive-named XML
-  is not found.
+- Fixed loading of :ref:`.mjz <MJZArchives>` archives in :ref:`simulate<saSimulate>`: the archive was unmounted
+  before model compilation, so assets failed to load. Failures in the :ref:`mjz <MJZArchives>` decoder now emit a
+  warning with the underlying error instead of the generic "could not decode content" message.
+- The :ref:`mjz <MJZArchives>` decoder now searches for ``model.xml`` at the root of the archive as a fallback if the
+  archive-named XML is not found.
 - Added support for resource writing via :ref:`mju_writeResource` and the ``write`` callback in
   :ref:`mjpResourceProvider`.
 
@@ -165,6 +165,12 @@ Compiler
 Python bindings
 ^^^^^^^^^^^^^^^
 - The bindings now support free threading (`PEP 703 <https://peps.python.org/pep-0703/>`__) for Python 3.14.
+
+Documentation
+^^^^^^^^^^^^^
+- Expanded documentation for :ref:`spec.encode <meSaving>` workflows and added detailed documentation for the
+  :ref:`MJZ Archive <MJZArchives>` format (``.mjz`` / ``.zip``).
+
 
 Version 3.10.0 (June 22, 2026)
 ------------------------------
@@ -234,8 +240,8 @@ Bug fixes
 15. :commit:`a8eaccd2` Fixed a vulnerability in the System Identification toolbox where loading a trajectory or time
     series called ``np.load`` with ``allow_pickle=True``, allowing arbitrary code execution from a malicious ``.npz``
     file. Signal metadata is now serialized as JSON and loaded with ``allow_pickle=False``.
-16. :commit:`b9fb817a` Fixed a bug in the ``mjz`` :ref:`decoder <mjpDecoder>` where unnormalized paths would fail to be
-    read.
+16. :commit:`b9fb817a` Fixed a bug in the :ref:`mjz <MJZArchives>` :ref:`decoder <mjpDecoder>` where unnormalized paths
+    would fail to be read.
 17. :commit:`986d73c0` Fixed a bug where the mesh compiler would produce non-unit convex hull polygon normals.
 
 Version 3.9.0 (May 27, 2026)
