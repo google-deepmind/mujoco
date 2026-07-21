@@ -9,6 +9,7 @@ Engine
 ^^^^^^
 
 .. youtube:: PdSdrqhSiZA
+   :aspect: 16:7
    :align: right
    :width: 35%
 
@@ -23,6 +24,7 @@ Engine
   surface velocity at contacts with moving surfaces.
 
 .. youtube:: GioWwB36XHI
+   :aspect: 16:7
    :align: right
    :width: 35%
 
@@ -97,6 +99,7 @@ Actuation
   ``actrange``. Unclamped integrated setpoints are well-behaved on rotational transmissions, where they wrap.
 
 .. youtube:: 17XpwnqyCXs
+   :aspect: 16:7
    :align: right
    :width: 35%
 

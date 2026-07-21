@@ -2774,6 +2774,7 @@ helps clarify the role of bodies and geoms in MuJoCo.
 .. _body-geom-surfacevel:
 
 .. youtube:: PdSdrqhSiZA
+   :aspect: 16:7
    :align: right
    :width: 35%
 
@@ -5601,6 +5602,7 @@ specify them independently.
    translation and rotation are global for :at:`jointinparent`.
 
 ..  youtube:: s-0JHanqV1A
+    :aspect: 16:7
     :align: right
     :height: 150px
 
@@ -5958,6 +5960,7 @@ This element has one custom attribute in addition to the common attributes:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. youtube:: 17XpwnqyCXs
+   :aspect: 16:7
    :align: right
    :width: 40%
 
@@ -6542,6 +6545,7 @@ This element has nine custom attributes in addition to the common attributes:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 ..  youtube:: BcHZ5BFeTmU
+    :aspect: 16:7
     :align: right
     :height: 150px
 
