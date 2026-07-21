@@ -187,6 +187,81 @@ void mj_kinematics1(const mjModel* m, mjData* d) {
 }
 
 
+static int sameframe_pos(const mjtNum pos1[3], const mjtNum pos2[3]) {
+  static const mjtNum eps = 1e-6;
+  return mju_abs(pos1[0] - pos2[0]) < eps &&
+         mju_abs(pos1[1] - pos2[1]) < eps &&
+         mju_abs(pos1[2] - pos2[2]) < eps;
+}
+
+
+static int sameframe_quat(const mjtNum quat1[4], const mjtNum quat2[4]) {
+  static const mjtNum eps = 1e-6;
+  int same_quat_minus =
+      mju_abs(quat1[0] - quat2[0]) < eps &&
+      mju_abs(quat1[1] - quat2[1]) < eps &&
+      mju_abs(quat1[2] - quat2[2]) < eps &&
+      mju_abs(quat1[3] - quat2[3]) < eps;
+  int same_quat_plus =
+      mju_abs(quat1[0] + quat2[0]) < eps &&
+      mju_abs(quat1[1] + quat2[1]) < eps &&
+      mju_abs(quat1[2] + quat2[2]) < eps &&
+      mju_abs(quat1[3] + quat2[3]) < eps;
+
+  return same_quat_minus || same_quat_plus;
+}
+
+
+static mjtByte site_sameframe(const mjModel* m, int site) {
+  static const mjtNum zero[3] = {0, 0, 0};
+  static const mjtNum identity[4] = {1, 0, 0, 0};
+
+  mjtSameFrame sameframe = m->site_sameframe[site];
+  const mjtNum* pos = m->site_pos + 3*site;
+  const mjtNum* quat = m->site_quat + 4*site;
+
+  switch (sameframe) {
+  case mjSAMEFRAME_BODY:
+    if (sameframe_pos(pos, zero) && sameframe_quat(quat, identity)) {
+      return mjSAMEFRAME_BODY;
+    }
+    if (sameframe_quat(quat, identity)) {
+      return mjSAMEFRAME_BODYROT;
+    }
+    return mjSAMEFRAME_NONE;
+
+  case mjSAMEFRAME_BODYROT:
+    return sameframe_quat(quat, identity) ? mjSAMEFRAME_BODYROT : mjSAMEFRAME_NONE;
+
+  case mjSAMEFRAME_INERTIA:
+    {
+      int body = m->site_bodyid[site];
+      const mjtNum* ipos = m->body_ipos + 3*body;
+      const mjtNum* iquat = m->body_iquat + 4*body;
+      if (sameframe_pos(pos, ipos) && sameframe_quat(quat, iquat)) {
+        return mjSAMEFRAME_INERTIA;
+      }
+      if (sameframe_quat(quat, iquat)) {
+        return mjSAMEFRAME_INERTIAROT;
+      }
+      return mjSAMEFRAME_NONE;
+    }
+
+  case mjSAMEFRAME_INERTIAROT:
+    {
+      int body = m->site_bodyid[site];
+      return sameframe_quat(quat, m->body_iquat + 4*body) ?
+             mjSAMEFRAME_INERTIAROT : mjSAMEFRAME_NONE;
+    }
+
+  case mjSAMEFRAME_NONE:
+    return mjSAMEFRAME_NONE;
+  }
+
+  return sameframe;
+}
+
+
 // forward kinematics part 2: body inertias, geoms and sites
 void mj_kinematics2(const mjModel* m, mjData* d) {
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
@@ -227,7 +302,7 @@ void mj_kinematics2(const mjModel* m, mjData* d) {
 
     mj_local2Global(d, d->site_xpos+3*i, d->site_xmat+9*i,
                     m->site_pos+3*i, m->site_quat+4*i,
-                    bodyid, m->site_sameframe[i]);
+                    bodyid, site_sameframe(m, i));
   }
 }
 
