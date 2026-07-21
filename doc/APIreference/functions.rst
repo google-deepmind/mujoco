@@ -603,6 +603,16 @@ Get id of object with the specified :ref:`mjtObj` type and name, returns -1 if i
 
 Get name of object with the specified :ref:`mjtObj` type and id, returns ``NULL`` if name not found.
 
+.. _mj_actuatorInputName:
+
+`mj_actuatorInputName <#mj_actuatorInputName>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_actuatorInputName
+
+Get name of actuator input, determined by the actuator type and input signature;
+return NULL if the actuator type defines no input names.
+
 .. _mj_fullM:
 
 `mj_fullM <#mj_fullM>`__
@@ -1820,6 +1830,15 @@ m is only required to contain the size fields from MJMODEL_INTS.
 .. mujoco-include:: mjv_copyData
 
 Copy mjData, skip large arrays not required for visualization.
+
+.. _mj_resetCtrl:
+
+`mj_resetCtrl <#mj_resetCtrl>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_resetCtrl
+
+Reset ctrl to neutral values: zero, except quaternion inputs which reset to the identity.
 
 .. _mj_resetData:
 
@@ -5257,6 +5276,15 @@ Set actuator to integrated velocity; return error if any.
 .. mujoco-include:: mjs_setToVelocity
 
 Set actuator to velocity servo; return error if any.
+
+.. _mjs_setToOrientation:
+
+`mjs_setToOrientation <#mjs_setToOrientation>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setToOrientation
+
+Set actuator to orientation servo.
 
 .. _mjs_setToDamper:
 

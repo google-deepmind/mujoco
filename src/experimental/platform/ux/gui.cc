@@ -1295,17 +1295,17 @@ void JointsGui(const mjModel* model, const mjData* data,
   ImGui::PopItemWidth();
 }
 
-void ControlsGui(const mjModel* model, const mjData* data,
+void ControlsGui(const mjModel* model, mjData* data,
                  const mjvOption* vis_options) {
   const float item_width = ImGui::GetWindowWidth() * .6f;
   ImGui::PushItemWidth(item_width);
 
   if (ImGui::Button("Clear All")) {
-    mju_zero(data->ctrl, model->nu);
+    mj_resetCtrl(model, data);
   }
 
   char name[100];
-  for (int i = 0; i < model->nu; i++) {
+  for (int i = 0; i < model->nactuator; i++) {
     int group = std::clamp(model->actuator_group[i], 0, mjNGROUP - 1);
     if (!vis_options->actuatorgroup[group]) {
       continue;
@@ -1315,25 +1315,38 @@ void ControlsGui(const mjModel* model, const mjData* data,
       continue;
     }
 
-    const char* ctrl_name = mj_id2name(model, mjOBJ_ACTUATOR, i);
-    if (ctrl_name) {
-      std::snprintf(name, sizeof(name), "%s", ctrl_name);
-    } else {
-      std::snprintf(name, sizeof(name), "control %d", i);
-    }
-
-    double min = -1.0;
-    double max = 1.0;
-    if (model->actuator_ctrllimited[i]) {
-      min = model->actuator_ctrlrange[2 * i + 0];
-      max = model->actuator_ctrlrange[2 * i + 1];
-    }
-    ImGui_Slider(name, &data->ctrl[i], min, max);
-    if (ImGui::BeginPopupContextItem()) {
-      if (ImGui::MenuItem("Reset to 0")) {
-        data->ctrl[i] = mju_clip(0.0, min, max);
+    // one slider per control; multi-input actuators suffix the input name
+    const char* act_name = mj_id2name(model, mjOBJ_ACTUATOR, i);
+    int ctrlnum = model->actuator_ctrlnum[i];
+    for (int k = 0; k < ctrlnum; k++) {
+      int j = model->actuator_ctrladr[i] + k;
+      if (act_name && ctrlnum > 1) {
+        const char* input_name = mj_actuatorInputName(model, i, k);
+        if (input_name) {
+          std::snprintf(name, sizeof(name), "%s/%s", act_name, input_name);
+        } else {
+          std::snprintf(name, sizeof(name), "%s/%d", act_name, k);
+        }
+      } else if (act_name) {
+        std::snprintf(name, sizeof(name), "%s", act_name);
+      } else {
+        std::snprintf(name, sizeof(name), "control %d", j);
       }
-      ImGui::EndPopup();
+
+      double min = -1.0;
+      double max = 1.0;
+      // a defined ctrlrange sets the slider range, even when ctrl is not clamped
+      if (model->actuator_ctrlrange[2 * j] < model->actuator_ctrlrange[2 * j + 1]) {
+        min = model->actuator_ctrlrange[2 * j + 0];
+        max = model->actuator_ctrlrange[2 * j + 1];
+      }
+      ImGui_Slider(name, &data->ctrl[j], min, max);
+      if (ImGui::BeginPopupContextItem()) {
+        if (ImGui::MenuItem("Reset to 0")) {
+          data->ctrl[j] = mju_clip(0.0, min, max);
+        }
+        ImGui::EndPopup();
+      }
     }
   }
 

@@ -5463,6 +5463,9 @@ struct MjModel {
   emscripten::val actuator_ctrlnum() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_ctrlnum));
   }
+  emscripten::val actuator_ctrlspec() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_ctrlspec));
+  }
   emscripten::val actuator_outadr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_outadr));
   }
@@ -5526,6 +5529,12 @@ struct MjModel {
   emscripten::val actuator_plugin() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_plugin));
   }
+  emscripten::val actuator_forcelimited() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_forcelimited));
+  }
+  emscripten::val actuator_forcerange() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * 2, ptr_->actuator_forcerange));
+  }
   emscripten::val actuator_ctrllimited() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_ctrllimited));
   }
@@ -5534,12 +5543,6 @@ struct MjModel {
   }
   emscripten::val actuator_gear() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nout * 6, ptr_->actuator_gear));
-  }
-  emscripten::val actuator_forcelimited() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nout, ptr_->actuator_forcelimited));
-  }
-  emscripten::val actuator_forcerange() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nout * 2, ptr_->actuator_forcerange));
   }
   emscripten::val actuator_acc0() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nout, ptr_->actuator_acc0));
@@ -6015,6 +6018,12 @@ struct MjsActuator {
   }
   void set_actdim(int value) {
     ptr_->actdim = value;
+  }
+  int ctrlspec() const {
+    return ptr_->ctrlspec;
+  }
+  void set_ctrlspec(int value) {
+    ptr_->ctrlspec = value;
   }
   mjtBool actearly() const {
     return ptr_->actearly;

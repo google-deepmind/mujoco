@@ -124,6 +124,9 @@ MJAPI mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src);
 // copy mjData, skip large arrays not required for abstract visualization
 MJAPI mjData* mjv_copyData(mjData* dest, const mjModel* m, const mjData* src);
 
+// set ctrl to neutral values: zero, except quaternion inputs which reset to the identity
+MJAPI void mj_resetCtrl(const mjModel* m, mjData* d);
+
 // set data to defaults
 MJAPI void mj_resetData(const mjModel* m, mjData* d);
 

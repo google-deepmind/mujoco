@@ -68,8 +68,11 @@ Engine
 .. admonition:: Breaking ABI changes
    :class: caution
 
+   - :ref:`mjModel` gained the ``actuator_ctrlspec`` field (input signature of each actuator), and :ref:`mjsActuator`
+     gained ``ctrlspec``, changing their size and layout. The :ref:`mjtGain` and :ref:`mjtBias` enums gained ``so3``
+     members, shifting the values of ``mjGAIN_USER`` and ``mjBIAS_USER``.
    - Added ``texid``, ``texuniform`` and ``texrepeat`` fields to :ref:`mjvGeom`.
-   - The :ref:`mjContact`` struct gained an ``adhesion`` member, changing its size and layout.
+   - The :ref:`mjContact` struct gained an ``adhesion`` member, changing its size and layout.
 
 .. admonition:: Bug fixes
    :class: admonition
@@ -93,6 +96,24 @@ Actuation
   :ref:`general<actuator-general>` actuators it defaults to "auto", so activation clamping is enabled by specifying
   ``actrange``. Unclamped integrated setpoints are well-behaved on rotational transmissions, where they wrap.
 
+.. youtube:: 17XpwnqyCXs
+   :align: right
+   :width: 35%
+
+- Added the :ref:`orientation<actuator-orientation>` actuator: a geodesic servo on a new SO(3) transmission (ball
+  joints, or a site with a :ref:`refsite<actuator-general-refsite>`), acting jointly on the full relative orientation
+  with an exact equilibrium at every commanded orientation. This is the first actuator with multiple force outputs
+  (3), and, with ``input="quat"``, the first with different input and output dimensions (4 controls, 3 outputs). The
+  input signature is recorded in the new ``mjModel.actuator_ctrlspec``, exposed as the
+  :ref:`input<actuator-general-input>` attribute.
+- Added :ref:`mj_actuatorInputName`, returning the name of an actuator input (e.g. "qw" for the first control of a
+  quaternion-commanded orientation actuator). The control sliders in :ref:`simulate<saSimulate>` and MuJoCo Studio are
+  now generated per control and labeled with the actuator name plus the input name suffix.
+- Viewer control sliders now use a defined :ref:`ctrlrange<actuator-general-ctrlrange>` even when
+  :ref:`ctrllimited<actuator-general-ctrllimited>` is "false": the range sets the slider span, while clamping remains
+  controlled by :at:`ctrllimited`.
+- Added :ref:`mj_resetCtrl`, setting controls to neutral values: zero, except quaternion inputs which reset to the
+  identity quaternion. Called by :ref:`mj_resetData` and the viewers' "Clear All".
 
 Solvers
 ^^^^^^^

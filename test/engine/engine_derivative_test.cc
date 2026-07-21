@@ -1226,6 +1226,59 @@ TEST_F(DerivativeTest, ForcerangeClampedDerivative) {
       << "when forcerange derivatives are correctly handled";
 }
 
+// forcelimited actuator following a multi-output SO3 actuator: the derivative
+// skip for saturated actuators must index forcerange per actuator, not per
+// output.
+TEST_F(DerivativeTest, ForcerangeClampedAfterSO3) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag contact="disable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <joint name="ball" type="ball"/>
+        <geom type="box" size=".05 .07 .03"/>
+      </body>
+      <body pos="0 0 .3">
+        <joint name="hinge"/>
+        <geom size=".05"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <orientation joint="ball" kp="1" kv="1"/>
+      <velocity joint="hinge" kv="10" forcerange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
+
+  // spin the hinge so the velocity actuator saturates: force -50, clamped -1
+  mjtNum qvel[4] = {0.1, 0.2, 0.3, 5};
+  mju_copy(d->qvel, qvel, 4);
+  mj_forward(m, d);
+  ASSERT_EQ(d->actuator_force[3], -1);
+
+  // analytic qDeriv
+  mju_zero(d->qDeriv, m->nD);
+  mjd_smooth_vel(m, d, /*flg_bias=*/1);
+  vector<mjtNum> qDerivAnalytic = AsVector(d->qDeriv, m->nD);
+  EXPECT_GT(mju_norm(qDerivAnalytic.data(), m->nD), 0);
+
+  // expect match with finite differences: the saturated actuator contributes
+  // nothing, the SO3 actuator's damping is unaffected by its neighbor
+  mjtNum eps = MjTol(1e-7, 1e-3);
+  mju_zero(d->qDeriv, m->nD);
+  mjd_smooth_velFD(m, d, eps);
+  EXPECT_THAT(AsVector(d->qDeriv, m->nD),
+              Pointwise(MjNear(1e-7, 3e-3), qDerivAnalytic));
+}
+
 TEST_F(DerivativeTest, NonlinearDampingDerivative) {
   static constexpr char xml[] = R"(
   <mujoco>

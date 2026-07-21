@@ -1390,7 +1390,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   mju_zero(d->qpos, m->nq);
   mju_zero(d->qvel, m->nv);
   mju_zero(d->act, m->na);
-  mju_zero(d->ctrl, m->nu);
+  mj_resetCtrl(m, d);
   for (int i=0; i < m->neq; i++) d->eq_active[i] = m->eq_active0[i];
   mju_zero(d->qfrc_applied, m->nv);
   mju_zero(d->xfrc_applied, 6*m->nbody);
@@ -1636,6 +1636,17 @@ static void mj_logTimingDiagnostics(const mjData* d) {
   snprintf(msg.subject, sizeof(msg.subject),
            "average time per step (%d steps, units: \u00B5s)", nstep);
   mju_message(&msg);
+}
+
+
+// set ctrl to neutral values: zero, except quaternion inputs which reset to the identity
+void mj_resetCtrl(const mjModel* m, mjData* d) {
+  mju_zero(d->ctrl, m->nu);
+  for (int i=0; i < m->nactuator; i++) {
+    if (m->actuator_gaintype[i] == mjGAIN_SO3 && m->actuator_ctrlspec[i] == mjCHART_QUAT) {
+      d->ctrl[m->actuator_ctrladr[i]] = 1;
+    }
+  }
 }
 
 
@@ -2137,6 +2148,18 @@ const char* mj_validateReferences(const mjModel* m) {
     case mjTRN_BODY:
       if (id < 0 || id >= m->nbody) {
         return "Invalid model: actuator_trnid out of bounds.";
+      }
+      break;
+    case mjTRN_SO3:
+      // ball joint target (idslider == -1) or site + refsite target
+      if (idslider == -1) {
+        if (id < 0 || id >= m->njnt) {
+          return "Invalid model: actuator_trnid out of bounds.";
+        }
+      } else {
+        if (id < 0 || id >= m->nsite || idslider < 0 || idslider >= m->nsite) {
+          return "Invalid model: actuator_trnid out of bounds.";
+        }
       }
       break;
     case mjTRN_UNDEFINED:

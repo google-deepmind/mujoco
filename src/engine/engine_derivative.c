@@ -2016,10 +2016,18 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
 
     // skip if force is clamped by forcerange
     if (m->actuator_forcelimited[i]) {
-      mjtNum force = d->actuator_force[oadr];
-      mjtNum* range = m->actuator_forcerange + 2*oadr;
-      if (force <= range[0] || force >= range[1]) {
-        continue;
+      const mjtNum* range = m->actuator_forcerange + 2*i;
+
+      // SO3: force is norm-clamped (approximation: saturated force still varies tangentially)
+      if (m->actuator_gaintype[i] == mjGAIN_SO3) {
+        if (mju_norm3(d->actuator_force + oadr) >= range[1]) {
+          continue;
+        }
+      } else {
+        mjtNum force = d->actuator_force[oadr];
+        if (force <= range[0] || force >= range[1]) {
+          continue;
+        }
       }
     }
 
@@ -2028,6 +2036,11 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
     // affine bias
     if (m->actuator_biastype[i] == mjBIAS_AFFINE) {
       // extract bias info: prm = [const, kp, kv]
+      bias_vel = (m->actuator_biasprm + mjNBIAS*i)[2];
+    }
+
+    // SO3 geodesic servo: kv term, applied to each output row below
+    else if (m->actuator_biastype[i] == mjBIAS_SO3) {
       bias_vel = (m->actuator_biasprm + mjNBIAS*i)[2];
     }
 
@@ -2108,10 +2121,12 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
       }
     }
 
-    // add
+    // add, once per output row
     if (bias_vel != 0) {
-      addJTBJSparse(m, d, d->actuator_moment, &bias_vel, 1, oadr,
-                    d->moment_rownnz, d->moment_rowadr, d->moment_colind);
+      for (int k=0; k < m->actuator_outnum[i]; k++) {
+        addJTBJSparse(m, d, d->actuator_moment, &bias_vel, 1, oadr+k,
+                      d->moment_rownnz, d->moment_rowadr, d->moment_colind);
+      }
     }
   }
 }

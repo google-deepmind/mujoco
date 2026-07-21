@@ -1588,6 +1588,14 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_AFFINE)
     self.assertEqual(actuator.inheritrange, True)
 
+    actuator.set_to_orientation(kp=2.0, dampratio=1.0)
+    self.assertEqual(actuator.gainprm[0], 2)
+    self.assertEqual(actuator.biasprm[1], -2)
+    self.assertEqual(actuator.biasprm[2], 1)
+    self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_SO3)
+    self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_SO3)
+    self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_NONE)
+
     actuator.set_to_velocity(kv=5.0)
     self.assertEqual(actuator.gainprm[0], 5)
     self.assertEqual(actuator.biasprm[2], -5)

@@ -483,6 +483,36 @@ TEST_F(MujocoTest, SetToDCMotorLuGre) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, SetToOrientation) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  // kv variant, default (expmap) chart
+  double kv = 2.0;
+  const char* err = mjs_setToOrientation(actuator, 5.0, &kv, nullptr, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->gaintype, mjGAIN_SO3);
+  EXPECT_EQ(actuator->biastype, mjBIAS_SO3);
+  EXPECT_EQ(actuator->dyntype, mjDYN_NONE);
+  EXPECT_EQ(actuator->gainprm[0], 5.0);
+  EXPECT_EQ(actuator->biasprm[1], -5.0);
+  EXPECT_EQ(actuator->biasprm[2], -2.0);
+  EXPECT_EQ(actuator->ctrlspec, 0);
+
+  // dampratio variant, quat chart
+  double dampratio = 1.0;
+  err = mjs_setToOrientation(actuator, 5.0, nullptr, &dampratio, mjCHART_QUAT);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->biasprm[2], 1.0);
+  EXPECT_EQ(actuator->ctrlspec, mjCHART_QUAT);
+
+  // kv and dampratio are mutually exclusive
+  err = mjs_setToOrientation(actuator, 5.0, &kv, &dampratio, 0);
+  EXPECT_STREQ(err, "kv and dampratio cannot both be defined");
+
+  mj_deleteSpec(spec);
+}
+
 static constexpr char xml_plugin_1[] = R"(
   <mujoco model="MuJoCo Model">
     <worldbody>

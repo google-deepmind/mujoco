@@ -2376,6 +2376,9 @@
                :ref:`actdim<actuator-general-actdim>`
 
             .. grid-item::
+               :ref:`input<actuator-general-input>`
+
+            .. grid-item::
                :ref:`dyntype<actuator-general-dyntype>`
 
             .. grid-item::
@@ -2731,6 +2734,63 @@
 
             .. grid-item::
                :ref:`dampratio<actuator-intvelocity-dampratio>`
+
+
+      .. dropdown:: :ref:`orientation<actuator-orientation>` |*|
+
+         .. grid:: 2 3 4 4
+            :gutter: 0
+
+            .. grid-item::
+               :ref:`name<actuator-orientation-name>`
+
+            .. grid-item::
+               :ref:`class<actuator-orientation-class>`
+
+            .. grid-item::
+               :ref:`group<actuator-orientation-group>`
+
+            .. grid-item::
+               :ref:`nsample<actuator-orientation-nsample>`
+
+            .. grid-item::
+               :ref:`interp<actuator-orientation-interp>`
+
+            .. grid-item::
+               :ref:`delay<actuator-orientation-delay>`
+
+            .. grid-item::
+               :ref:`forcelimited<actuator-orientation-forcelimited>`
+
+            .. grid-item::
+               :ref:`ctrlrange<actuator-orientation-ctrlrange>`
+
+            .. grid-item::
+               :ref:`forcerange<actuator-orientation-forcerange>`
+
+            .. grid-item::
+               :ref:`user<actuator-orientation-user>`
+
+            .. grid-item::
+               :ref:`joint<actuator-orientation-joint>`
+
+            .. grid-item::
+               :ref:`site<actuator-orientation-site>`
+
+            .. grid-item::
+               :ref:`refsite<actuator-orientation-refsite>`
+
+            .. grid-item::
+               :ref:`kp<actuator-orientation-kp>`
+
+            .. grid-item::
+               :ref:`kv<actuator-orientation-kv>`
+
+            .. grid-item::
+               :ref:`dampratio<actuator-orientation-dampratio>`
+
+            .. grid-item::
+               :ref:`input<actuator-orientation-input>`
 
 
       .. dropdown:: :ref:`damper<actuator-damper>` |*|
@@ -5863,6 +5923,9 @@
 
             .. grid-item::
                :ref:`actdim<default-general-actdim>`
+
+            .. grid-item::
+               :ref:`input<default-general-input>`
 
             .. grid-item::
                :ref:`dyntype<default-general-dyntype>`

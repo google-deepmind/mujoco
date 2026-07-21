@@ -4453,6 +4453,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nactuator',),
              ),
              StructFieldDecl(
+                 name='actuator_ctrlspec',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='input signature, scoped by gaintype',
+                 array_extent=('nactuator',),
+             ),
+             StructFieldDecl(
                  name='actuator_outadr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -4621,6 +4629,22 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nactuator',),
              ),
              StructFieldDecl(
+                 name='actuator_forcelimited',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtBool'),
+                 ),
+                 doc='is force limited',
+                 array_extent=('nactuator',),
+             ),
+             StructFieldDecl(
+                 name='actuator_forcerange',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='range of forces',
+                 array_extent=('nactuator', 2),
+             ),
+             StructFieldDecl(
                  name='actuator_ctrllimited',
                  type=PointerType(
                      inner_type=ValueType(name='mjtBool'),
@@ -4643,22 +4667,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='scale length and transmitted force',
                  array_extent=('nout', 6),
-             ),
-             StructFieldDecl(
-                 name='actuator_forcelimited',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtBool'),
-                 ),
-                 doc='is force limited',
-                 array_extent=('nout',),
-             ),
-             StructFieldDecl(
-                 name='actuator_forcerange',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='range of forces',
-                 array_extent=('nout', 2),
              ),
              StructFieldDecl(
                  name='actuator_acc0',
@@ -9657,6 +9665,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='actdim',
                  type=ValueType(name='int'),
                  doc='number of activation variables',
+             ),
+             StructFieldDecl(
+                 name='ctrlspec',
+                 type=ValueType(name='int'),
+                 doc='input signature, scoped by gaintype; 0: type default',
              ),
              StructFieldDecl(
                  name='actearly',

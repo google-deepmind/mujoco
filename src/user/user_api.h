@@ -185,6 +185,10 @@ MJAPI const char* mjs_setToIntVelocity(mjsActuator* actuator, double kp, double 
 // Set actuator to velocity, return error on failure.
 MJAPI const char* mjs_setToVelocity(mjsActuator* actuator, double kv);
 
+// Set to orientation actuator.
+MJAPI const char* mjs_setToOrientation(mjsActuator* actuator, double kp, double kv[1],
+                                       double dampratio[1], int ctrlspec);
+
 // Set actuator to damper, return error on failure.
 MJAPI const char* mjs_setToDamper(mjsActuator* actuator, double kv);
 

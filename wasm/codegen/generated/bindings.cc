@@ -1436,6 +1436,10 @@ void mj_RungeKutta_wrapper(const MjModel& m, MjData& d, int N) {
   mj_RungeKutta(m.get(), d.get(), N);
 }
 
+std::string mj_actuatorInputName_wrapper(const MjModel& m, int id, int input) {
+  return std::string(mj_actuatorInputName(m.get(), id, input));
+}
+
 int mj_addContact_wrapper(const MjModel& m, MjData& d, const MjContact& con) {
   return mj_addContact(m.get(), d.get(), con.get());
 }
@@ -1933,6 +1937,10 @@ mjtNum mj_readCtrl_wrapper(const MjModel& m, const MjData& d, int id, mjtNum tim
 
 void mj_referenceConstraint_wrapper(const MjModel& m, MjData& d) {
   mj_referenceConstraint(m.get(), d.get());
+}
+
+void mj_resetCtrl_wrapper(const MjModel& m, MjData& d) {
+  mj_resetCtrl(m.get(), d.get());
 }
 
 void mj_resetData_wrapper(const MjModel& m, MjData& d) {
@@ -2909,6 +2917,12 @@ std::string mjs_setToMuscle_wrapper(MjsActuator& actuator, const val& timeconst,
   return std::string(mjs_setToMuscle(actuator.get(), timeconst_.data(), tausmooth, range_.data(), force, scale, lmin, lmax, vmax, fpmax, fvmax));
 }
 
+std::string mjs_setToOrientation_wrapper(MjsActuator& actuator, double kp, const val& kv, const val& dampratio, int ctrlspec) {
+  UNPACK_VALUE(double, kv);
+  UNPACK_VALUE(double, dampratio);
+  return std::string(mjs_setToOrientation(actuator.get(), kp, kv_.data(), dampratio_.data(), ctrlspec));
+}
+
 std::string mjs_setToPosition_wrapper(MjsActuator& actuator, double kp, const val& kv, const val& dampratio, const val& timeconst, double inheritrange) {
   UNPACK_VALUE(double, kv);
   UNPACK_VALUE(double, dampratio);
@@ -3877,6 +3891,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjBIAS_AFFINE", mjBIAS_AFFINE)
     .value("mjBIAS_MUSCLE", mjBIAS_MUSCLE)
     .value("mjBIAS_DCMOTOR", mjBIAS_DCMOTOR)
+    .value("mjBIAS_SO3", mjBIAS_SO3)
     .value("mjBIAS_USER", mjBIAS_USER);
   enum_<mjtBuiltin>("mjtBuiltin")
     .value("mjBUILTIN_NONE", mjBUILTIN_NONE)
@@ -3957,6 +3972,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjCNSTRSTATE_LINEARNEG", mjCNSTRSTATE_LINEARNEG)
     .value("mjCNSTRSTATE_LINEARPOS", mjCNSTRSTATE_LINEARPOS)
     .value("mjCNSTRSTATE_CONE", mjCNSTRSTATE_CONE);
+  enum_<mjtCtrlChart>("mjtCtrlChart")
+    .value("mjCHART_EXPMAP", mjCHART_EXPMAP)
+    .value("mjCHART_QUAT", mjCHART_QUAT);
   enum_<mjtDataType>("mjtDataType")
     .value("mjDATATYPE_REAL", mjDATATYPE_REAL)
     .value("mjDATATYPE_POSITIVE", mjDATATYPE_POSITIVE)
@@ -4057,6 +4075,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjGAIN_AFFINE", mjGAIN_AFFINE)
     .value("mjGAIN_MUSCLE", mjGAIN_MUSCLE)
     .value("mjGAIN_DCMOTOR", mjGAIN_DCMOTOR)
+    .value("mjGAIN_SO3", mjGAIN_SO3)
     .value("mjGAIN_USER", mjGAIN_USER);
   enum_<mjtGeom>("mjtGeom")
     .value("mjGEOM_PLANE", mjGEOM_PLANE)
@@ -4419,6 +4438,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjTRN_TENDON", mjTRN_TENDON)
     .value("mjTRN_SITE", mjTRN_SITE)
     .value("mjTRN_BODY", mjTRN_BODY)
+    .value("mjTRN_SO3", mjTRN_SO3)
     .value("mjTRN_UNDEFINED", mjTRN_UNDEFINED);
   enum_<mjtVisFlag>("mjtVisFlag")
     .value("mjVIS_CONVEXHULL", mjVIS_CONVEXHULL)
@@ -4806,6 +4826,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("actuator_ctrllimited", &MjModel::actuator_ctrllimited)
     .property("actuator_ctrlnum", &MjModel::actuator_ctrlnum)
     .property("actuator_ctrlrange", &MjModel::actuator_ctrlrange)
+    .property("actuator_ctrlspec", &MjModel::actuator_ctrlspec)
     .property("actuator_damping", &MjModel::actuator_damping)
     .property("actuator_dampingpoly", &MjModel::actuator_dampingpoly)
     .property("actuator_delay", &MjModel::actuator_delay)
@@ -5582,6 +5603,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("cranklength", &MjsActuator::cranklength, &MjsActuator::set_cranklength, reference())
     .property("ctrllimited", &MjsActuator::ctrllimited, &MjsActuator::set_ctrllimited, reference())
     .property("ctrlrange", &MjsActuator::ctrlrange)
+    .property("ctrlspec", &MjsActuator::ctrlspec, &MjsActuator::set_ctrlspec, reference())
     .property("damping", &MjsActuator::damping)
     .property("delay", &MjsActuator::delay, &MjsActuator::set_delay, reference())
     .property("dynprm", &MjsActuator::dynprm)
@@ -6241,6 +6263,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
 
   function("mj_Euler", &mj_Euler_wrapper);
   function("mj_RungeKutta", &mj_RungeKutta_wrapper);
+  function("mj_actuatorInputName", &mj_actuatorInputName_wrapper);
   function("mj_addContact", &mj_addContact_wrapper);
   function("mj_addM", &mj_addM_wrapper);
   function("mj_angmomMat", &mj_angmomMat_wrapper);
@@ -6331,6 +6354,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_readCtrl", &mj_readCtrl_wrapper);
   function("mj_referenceConstraint", &mj_referenceConstraint_wrapper);
   function("mj_resetCallbacks", &mj_resetCallbacks);
+  function("mj_resetCtrl", &mj_resetCtrl_wrapper);
   function("mj_resetData", &mj_resetData_wrapper);
   function("mj_resetDataDebug", &mj_resetDataDebug_wrapper);
   function("mj_resetDataKeyframe", &mj_resetDataKeyframe_wrapper);
@@ -6482,6 +6506,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_setToIntVelocity", &mjs_setToIntVelocity_wrapper);
   function("mjs_setToMotor", &mjs_setToMotor_wrapper);
   function("mjs_setToMuscle", &mjs_setToMuscle_wrapper);
+  function("mjs_setToOrientation", &mjs_setToOrientation_wrapper);
   function("mjs_setToPosition", &mjs_setToPosition_wrapper);
   function("mjs_setToVelocity", &mjs_setToVelocity_wrapper);
   function("mjs_wrapGeom", &mjs_wrapGeom_wrapper);

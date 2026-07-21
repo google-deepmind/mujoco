@@ -265,6 +265,7 @@ public enum mjtTrn : int{
   mjTRN_TENDON = 3,
   mjTRN_SITE = 4,
   mjTRN_BODY = 5,
+  mjTRN_SO3 = 6,
   mjTRN_UNDEFINED = 1000,
 }
 public enum mjtDyn : int{
@@ -281,14 +282,20 @@ public enum mjtGain : int{
   mjGAIN_AFFINE = 1,
   mjGAIN_MUSCLE = 2,
   mjGAIN_DCMOTOR = 3,
-  mjGAIN_USER = 4,
+  mjGAIN_SO3 = 4,
+  mjGAIN_USER = 5,
 }
 public enum mjtBias : int{
   mjBIAS_NONE = 0,
   mjBIAS_AFFINE = 1,
   mjBIAS_MUSCLE = 2,
   mjBIAS_DCMOTOR = 3,
-  mjBIAS_USER = 4,
+  mjBIAS_SO3 = 4,
+  mjBIAS_USER = 5,
+}
+public enum mjtCtrlChart : int{
+  mjCHART_EXPMAP = 1,
+  mjCHART_QUAT = 2,
 }
 public enum mjtObj : int{
   mjOBJ_UNKNOWN = 0,
@@ -1497,6 +1504,7 @@ public unsafe struct mjModel_ {
   public int* actuator_biastype;
   public int* actuator_ctrladr;
   public int* actuator_ctrlnum;
+  public int* actuator_ctrlspec;
   public int* actuator_outadr;
   public int* actuator_outnum;
   public int* actuator_actadr;
@@ -1518,11 +1526,11 @@ public unsafe struct mjModel_ {
   public int* actuator_group;
   public double* actuator_user;
   public int* actuator_plugin;
+  public byte* actuator_forcelimited;
+  public double* actuator_forcerange;
   public byte* actuator_ctrllimited;
   public double* actuator_ctrlrange;
   public double* actuator_gear;
-  public byte* actuator_forcelimited;
-  public double* actuator_forcerange;
   public double* actuator_acc0;
   public double* actuator_length0;
   public double* actuator_lengthrange;
@@ -6810,6 +6818,9 @@ public static unsafe extern mjData_* mj_copyData(mjData_* dest, mjModel_* m, mjD
 public static unsafe extern mjData_* mjv_copyData(mjData_* dest, mjModel_* m, mjData_* src);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_resetCtrl(mjModel_* m, mjData_* d);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_resetData(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -7084,6 +7095,9 @@ public static unsafe extern int mj_name2id(mjModel_* m, int type, [MarshalAs(Unm
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern IntPtr mj_id2name(mjModel_* m, int type, int id);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern IntPtr mj_actuatorInputName(mjModel_* m, int id, int input);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_fullM(mjModel_* m, mjData_* d, double* dst);

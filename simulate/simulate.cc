@@ -2160,7 +2160,8 @@ void Simulate::Sync(bool state_only) {
 
   for (int i = 0; i < m_->nu; ++i) {
     std::optional<std::pair<mjtNum, mjtNum>> range;
-    if (m_->actuator_ctrllimited[i]) {
+    // a defined ctrlrange sets the slider range, even when ctrl is not clamped
+    if (m_->actuator_ctrlrange[2*i] < m_->actuator_ctrlrange[2*i + 1]) {
       range.emplace(m_->actuator_ctrlrange[2*i], m_->actuator_ctrlrange[2*i + 1]);
     }
     if (actuator_ctrlrange_[i] != range) {
@@ -2304,7 +2305,7 @@ void Simulate::Sync(bool state_only) {
   }
 
   if (pending_.zero_ctrl) {
-    mju_zero(d_->ctrl, m_->nu);
+    mj_resetCtrl(m_, d_);
     pending_.zero_ctrl = false;
   }
 
@@ -2534,14 +2535,11 @@ void Simulate::LoadOnRenderThread() {
     jnt_names_.emplace_back(name ? name : "");
   }
 
-  actuator_group_.resize(this->m_->nu);
-  std::memcpy(actuator_group_.data(), this->m_->actuator_group,
-              sizeof(this->m_->actuator_group[0]) * this->m_->nu);
-
   actuator_ctrlrange_.clear();
   actuator_ctrlrange_.reserve(this->m_->nu);
   for (int i = 0; i < this->m_->nu; ++i) {
-    if (this->m_->actuator_ctrllimited[i]) {
+    // a defined ctrlrange sets the slider range, even when ctrl is not clamped
+    if (this->m_->actuator_ctrlrange[2 * i] < this->m_->actuator_ctrlrange[2 * i + 1]) {
       actuator_ctrlrange_.push_back(std::make_pair(
           this->m_->actuator_ctrlrange[2 * i], this->m_->actuator_ctrlrange[2 * i + 1]));
     } else {
@@ -2549,11 +2547,23 @@ void Simulate::LoadOnRenderThread() {
     }
   }
 
+  // per-control group and name; multi-input actuators suffix the input name
+  actuator_group_.resize(this->m_->nu);
   actuator_names_.clear();
   actuator_names_.reserve(this->m_->nu);
-  for (int i = 0; i < this->m_->nu; ++i) {
-    const char* name = mj_id2name(this->m_, mjOBJ_ACTUATOR, i);
-    actuator_names_.emplace_back(name ? name : "");
+  for (int i = 0; i < this->m_->nactuator; ++i) {
+    const char* actname = mj_id2name(this->m_, mjOBJ_ACTUATOR, i);
+    int ctrlnum = this->m_->actuator_ctrlnum[i];
+    for (int k = 0; k < ctrlnum; ++k) {
+      actuator_group_[this->m_->actuator_ctrladr[i] + k] = this->m_->actuator_group[i];
+      std::string name = actname ? actname : "";
+      if (ctrlnum > 1 && actname) {
+        const char* input_name = mj_actuatorInputName(this->m_, i, k);
+        name += '/';
+        name += input_name ? input_name : std::to_string(k);
+      }
+      actuator_names_.emplace_back(std::move(name));
+    }
   }
 
   equality_names_.clear();

@@ -1115,6 +1115,7 @@ typedef struct mjModel_ {
   int*      actuator_biastype;    // bias type (mjtBias)                      (nactuator x 1)
   int*      actuator_ctrladr;     // address of first control                 (nactuator x 1)
   int*      actuator_ctrlnum;     // number of controls                       (nactuator x 1)
+  int*      actuator_ctrlspec;    // input signature, scoped by gaintype      (nactuator x 1)
   int*      actuator_outadr;      // address of first force output            (nactuator x 1)
   int*      actuator_outnum;      // number of force outputs, from trntype    (nactuator x 1)
   int*      actuator_actadr;      // first activation address; -1: stateless  (nactuator x 1)
@@ -1136,11 +1137,11 @@ typedef struct mjModel_ {
   int*      actuator_group;       // group for visibility                     (nactuator x 1)
   mjtNum*   actuator_user;        // user data                                (nactuator x nuser_actuator)
   int*      actuator_plugin;      // plugin instance id; -1: not a plugin     (nactuator x 1)
+  mjtBool*  actuator_forcelimited;// is force limited                         (nactuator x 1)
+  mjtNum*   actuator_forcerange;  // range of forces                          (nactuator x 2)
   mjtBool*  actuator_ctrllimited; // is control limited                       (nu x 1)
   mjtNum*   actuator_ctrlrange;   // range of controls                        (nu x 2)
   mjtNum*   actuator_gear;        // scale length and transmitted force       (nout x 6)
-  mjtBool*  actuator_forcelimited;// is force limited                         (nout x 1)
-  mjtNum*   actuator_forcerange;  // range of forces                          (nout x 2)
   mjtNum*   actuator_acc0;        // acceleration from unit force in qpos0    (nout x 1)
   mjtNum*   actuator_length0;     // actuator length in qpos0                 (nout x 1)
   mjtNum*   actuator_lengthrange; // feasible actuator length range           (nout x 2)
@@ -2241,6 +2242,7 @@ typedef struct mjsActuator_ {      // actuator specification
   mjtDyn dyntype;                  // dynamics type
   double dynprm[mjNDYN];           // dynamics parameters
   int actdim;                      // number of activation variables
+  int ctrlspec;                    // input signature, scoped by gaintype; 0: type default
   mjtBool actearly;                // apply next activations to qfrc
 
   // transmission
@@ -2499,6 +2501,7 @@ typedef enum mjtTrn {             // type of actuator transmission
   mjTRN_TENDON,                   // force on tendon
   mjTRN_SITE,                     // force on site
   mjTRN_BODY,                     // adhesion force on a body's geoms
+  mjTRN_SO3,                      // torque on a relative orientation (3 force outputs)
 
   mjTRN_UNDEFINED     = 1000      // undefined transmission type
 } mjtTrn;
@@ -2516,6 +2519,7 @@ typedef enum mjtGain {            // type of actuator gain
   mjGAIN_AFFINE,                  // const + kp*length + kv*velocity
   mjGAIN_MUSCLE,                  // muscle FLV curve computed by mju_muscleGain()
   mjGAIN_DCMOTOR,                 // DC motor gain: K or K/R
+  mjGAIN_SO3,                     // geodesic servo on an SO3 transmission: force = kp * log(error)
   mjGAIN_USER                     // user-defined gain type
 } mjtGain;
 typedef enum mjtBias {            // type of actuator bias
@@ -2523,8 +2527,13 @@ typedef enum mjtBias {            // type of actuator bias
   mjBIAS_AFFINE,                  // const + kp*length + kv*velocity
   mjBIAS_MUSCLE,                  // muscle passive force computed by mju_muscleBias()
   mjBIAS_DCMOTOR,                 // DC motor bias: back-EMF, cogging, LuGre friction
+  mjBIAS_SO3,                     // damping term of the SO3 geodesic servo
   mjBIAS_USER                     // user-defined bias type
 } mjtBias;
+typedef enum mjtCtrlChart {       // so3 input signature (actuator_ctrlspec): orientation chart
+  mjCHART_EXPMAP      = 1,        // exponential-map orientation target: 3 controls
+  mjCHART_QUAT        = 2         // quaternion orientation target: 4 controls
+} mjtCtrlChart;
 typedef enum mjtObj {             // type of MujoCo object
   mjOBJ_UNKNOWN       = 0,        // unknown object type
   mjOBJ_BODY,                     // body
@@ -3500,6 +3509,7 @@ mjtSize mj_sizeModel(const mjModel* m);
 mjData* mj_makeData(const mjModel* m);
 mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src);
 mjData* mjv_copyData(mjData* dest, const mjModel* m, const mjData* src);
+void mj_resetCtrl(const mjModel* m, mjData* d);
 void mj_resetData(const mjModel* m, mjData* d);
 void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_value);
 void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
@@ -3611,6 +3621,7 @@ void mj_jacDot(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr,
 void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body);
 int mj_name2id(const mjModel* m, int type, const char* name);
 const char* mj_id2name(const mjModel* m, int type, int id);
+const char* mj_actuatorInputName(const mjModel* m, int id, int input);
 void mj_fullM(const mjModel* m, const mjData* d, mjtNum* dst);
 void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
@@ -3970,6 +3981,8 @@ const char* mjs_setToPosition(mjsActuator* actuator, double kp, double kv[1],
 const char* mjs_setToIntVelocity(mjsActuator* actuator, double kp, double kv[1],
                                  double dampratio[1], double timeconst[1], double inheritrange);
 const char* mjs_setToVelocity(mjsActuator* actuator, double kv);
+const char* mjs_setToOrientation(mjsActuator* actuator, double kp, double kv[1],
+                                 double dampratio[1], int ctrlspec);
 const char* mjs_setToDamper(mjsActuator* actuator, double kv);
 const char* mjs_setToCylinder(mjsActuator* actuator, double timeconst,
                               double bias, double area, double diameter);

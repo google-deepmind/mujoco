@@ -649,8 +649,8 @@ static void mj_computeSensorPos(const mjModel* m, mjData* d, int i, mjtNum* sens
     sensordata[0] = d->ten_length[objid];
     break;
 
-  case mjSENS_ACTUATORPOS:                            // actuator position
-    sensordata[0] = d->actuator_length[m->actuator_outadr[objid]];
+  case mjSENS_ACTUATORPOS:                            // actuator position, one per output
+    mju_copy(sensordata, d->actuator_length + m->actuator_outadr[objid], m->sensor_dim[i]);
     break;
 
   case mjSENS_BALLQUAT:                               // ball joint quaternion
@@ -878,8 +878,8 @@ static void mj_computeSensorVel(const mjModel* m, mjData* d, int i, mjtNum* sens
     sensordata[0] = d->ten_velocity[objid];
     break;
 
-  case mjSENS_ACTUATORVEL:                            // actuator velocity
-    sensordata[0] = d->actuator_velocity[m->actuator_outadr[objid]];
+  case mjSENS_ACTUATORVEL:                            // actuator velocity, one per output
+    mju_copy(sensordata, d->actuator_velocity + m->actuator_outadr[objid], m->sensor_dim[i]);
     break;
 
   case mjSENS_BALLANGVEL:                             // ball joint angular velocity
@@ -1302,8 +1302,8 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
     mju_copy3(sensordata, tmp);
     break;
 
-  case mjSENS_ACTUATORFRC:                            // actuator force
-    sensordata[0] = d->actuator_force[m->actuator_outadr[objid]];
+  case mjSENS_ACTUATORFRC:                            // actuator force, one per output
+    mju_copy(sensordata, d->actuator_force + m->actuator_outadr[objid], m->sensor_dim[i]);
     break;
 
   case mjSENS_JOINTACTFRC:                            // actuator force at joint

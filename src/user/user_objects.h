@@ -1812,8 +1812,10 @@ class mjCActuator_ : public mjCBase {
   int actdim_;                                      // number of dofs in data->act
   int ctrladr_;                                     // address of first control in data->ctrl
   int ctrlnum_;                                     // number of controls
+  int ctrlspec_;                                    // resolved input signature, scoped by gaintype
   int outadr_;                                      // address of first force output
   int outnum_;                                      // number of force outputs, from trntype
+  bool so3_;                                        // compiles to an SO3 transmission
   std::map<std::string, std::vector<mjtNum>> act_;  // act at the previous step
   std::map<std::string, mjtNum> ctrl_;              // ctrl at the previous step
 
@@ -1833,6 +1835,7 @@ class mjCActuator_ : public mjCBase {
 class mjCActuator : public mjCActuator_, private mjsActuator {
   friend class mjCDef;
   friend class mjCModel;
+  friend class mjCSensor;
   friend class mjXWriter;
 
  public:

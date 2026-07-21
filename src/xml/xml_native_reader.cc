@@ -258,7 +258,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             "margin", "stiffness", "damping", "rgba", "user"},
         {"general", "?", "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange",
             "actrange", "gear", "damping", "armature", "cranklength", "user", "group", "nsample",
-            "interp", "delay", "actdim", "dyntype", "gaintype", "biastype", "dynprm", "gainprm",
+            "interp", "delay", "actdim", "input", "dyntype", "gaintype", "biastype", "dynprm", "gainprm",
             "biasprm", "actearly"},
         {"motor", "?", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "damping", "armature", "cranklength", "user", "group", "nsample", "interp", "delay"},
@@ -476,7 +476,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange", "actrange",
             "lengthrange", "gear", "damping", "armature", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
-            "body", "actdim", "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm",
+            "body", "actdim", "input", "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm",
             "actearly"},
         {"motor", "*", "name", "class", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
@@ -498,6 +498,10 @@ std::vector<const char*> MJCF[nMJCF] = {
             "gear", "damping", "armature", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kp", "kv", "dampratio"},
+        {"orientation", "*", "name", "class", "group", "nsample", "interp", "delay",
+            "forcelimited", "ctrlrange", "forcerange", "user",
+            "joint", "site", "refsite",
+            "kp", "kv", "dampratio", "input"},
         {"damper", "*", "name", "class", "group", "nsample", "interp", "delay",
             "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "damping", "armature", "cranklength", "user",
@@ -840,23 +844,33 @@ const mjMap dcmotorinput_map[dcmotorinput_sz] = {
 
 
 // gain type
-const int gain_sz = 5;
+const int gain_sz = 6;
 const mjMap gain_map[gain_sz] = {
   {"fixed",         mjGAIN_FIXED},
   {"affine",        mjGAIN_AFFINE},
   {"muscle",        mjGAIN_MUSCLE},
   {"dcmotor",       mjGAIN_DCMOTOR},
+  {"so3",           mjGAIN_SO3},
   {"user",          mjGAIN_USER}
 };
 
 
+// so3 input chart
+const int input_sz = 2;
+const mjMap input_map[input_sz] = {
+  {"expmap",        mjCHART_EXPMAP},
+  {"quat",          mjCHART_QUAT}
+};
+
+
 // bias type
-const int bias_sz = 5;
+const int bias_sz = 6;
 const mjMap bias_map[bias_sz] = {
   {"none",          mjBIAS_NONE},
   {"affine",        mjBIAS_AFFINE},
   {"muscle",        mjBIAS_MUSCLE},
   {"dcmotor",       mjBIAS_DCMOTOR},
+  {"so3",           mjBIAS_SO3},
   {"user",          mjBIAS_USER}
 };
 
@@ -2514,6 +2528,9 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
     ReadAttr(elem, "gainprm", mjNGAIN, actuator->gainprm, text, false, false);
     ReadAttr(elem, "biasprm", mjNBIAS, actuator->biasprm, text, false, false);
     ReadAttrInt(elem, "actdim", &actuator->actdim);
+    if (MapValue(elem, "input", &n, input_map, input_sz)) {
+      actuator->ctrlspec = n;
+    }
   }
 
   // direct drive motor
@@ -2556,6 +2573,32 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
     } else {
       err = mjs_setToIntVelocity(actuator, kp, kv, dampratio, timeconst, inheritrange);
     }
+  }
+
+  // orientation servo: geodesic PD on an SO3 transmission
+  else if (type == "orientation") {
+    double kp = actuator->gainprm[0];
+    ReadAttr(elem, "kp", 1, &kp, text);
+
+    double kv_data;
+    double *kv = &kv_data;
+    if (!ReadAttr(elem, "kv", 1, kv, text)) {
+      kv = nullptr;
+    }
+
+    double dampratio_data;
+    double *dampratio = &dampratio_data;
+    if (!ReadAttr(elem, "dampratio", 1, dampratio, text)) {
+      dampratio = nullptr;
+    }
+
+    // input chart: expmap (default) or quat
+    int n;
+    if (MapValue(elem, "input", &n, input_map, input_sz)) {
+      actuator->ctrlspec = n;
+    }
+
+    err = mjs_setToOrientation(actuator, kp, kv, dampratio, actuator->ctrlspec);
   }
 
   // velocity servo
@@ -3122,6 +3165,7 @@ void mjXReader::Default(XMLElement* section, const mjsDefault* def, const mjVFS*
              name == "velocity"    ||
              name == "damper"      ||
              name == "intvelocity" ||
+             name == "orientation" ||
              name == "cylinder"    ||
              name == "muscle"      ||
              name == "adhesion"    ||

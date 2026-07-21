@@ -349,6 +349,9 @@ static void setFixed(mjModel* m, mjData* d) {
     case mjTRN_JOINTINPARENT:
       bodyid = m->jnt_bodyid[tid];
       break;
+    case mjTRN_SO3:
+      bodyid = m->actuator_trnid[2*i+1] >= 0 ? m->site_bodyid[tid] : m->jnt_bodyid[tid];
+      break;
     case mjTRN_SITE:
     case mjTRN_SLIDERCRANK:
       bodyid = m->site_bodyid[tid];

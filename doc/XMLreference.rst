@@ -5488,6 +5488,8 @@ specify them independently.
 
 :at:`forcerange`: :at-val:`real(2), "0 0"`
    Range for clamping the force output. The first value must be no greater than the second value.
+   On :ref:`orientation<actuator-orientation>` actuators the force is a 3D torque, clamped on its norm: the second
+   value bounds the torque magnitude and the first value must be 0.
    |br| Setting this attribute without specifying :at:`forcelimited` is an error if :at:`autolimits` is "false" in
    :ref:`compiler <compiler>`.
 
@@ -5678,7 +5680,7 @@ specify them independently.
 
 .. _actuator-general-gaintype:
 
-:at:`gaintype`: :at-val:`[fixed, affine, muscle, user], "fixed"`
+:at:`gaintype`: :at-val:`[fixed, affine, muscle, so3, user], "fixed"`
    The gain and bias together determine the output of the force generation mechanism, which is currently assumed to be
    affine. As already explained in :ref:`Actuation model <geActuation>`, the general formula is:
    scalar_force = gain_term \* (act or ctrl) + bias_term.
@@ -5691,12 +5693,13 @@ specify them independently.
    fixed   gain_term = gainprm[0]
    affine  gain_term = gain_prm[0] + gain_prm[1]*length + gain_prm[2]*velocity
    muscle  gain_term = mju_muscleGain(...)
+   so3     geodesic orientation servo, computed jointly over 3 force outputs, see :ref:`orientation<actuator-orientation>`
    user    gain_term = mjcb_act_gain(...)
    ======= ===============================
 
 .. _actuator-general-biastype:
 
-:at:`biastype`: :at-val:`[none, affine, muscle, user], "none"`
+:at:`biastype`: :at-val:`[none, affine, muscle, so3, user], "none"`
    The keywords have the following meaning:
 
    ======= ================================================================
@@ -5705,8 +5708,11 @@ specify them independently.
    none    bias_term = 0
    affine  bias_term = biasprm[0] + biasprm[1]*length + biasprm[2]*velocity
    muscle  bias_term = mju_muscleBias(...)
+   so3     damping term of the geodesic orientation servo, see :ref:`orientation<actuator-orientation>`
    user    bias_term = mjcb_act_bias(...)
    ======= ================================================================
+
+   Note that :at:`gaintype` and :at:`biastype` must either both be "so3" or neither.
 
 .. _actuator-general-dynprm:
 
@@ -5730,6 +5736,13 @@ specify them independently.
    Bias parameters. The affine bias type uses three parameters. The length of this array is not enforced by the parser,
    so the user can enter as many parameters as needed. These defaults are not compatible with muscle actuators; see
    :ref:`muscle <actuator-muscle>` below.
+
+.. _actuator-general-input:
+
+:at:`input`: :at-val:`string, optional`
+   Input signature of the actuator: which controls make up its control block, recorded in
+   ``mjModel.actuator_ctrlspec``. Available for gaintype "so3", where it selects the orientation chart: "expmap"
+   (3 controls, the default) or "quat" (4 controls); see :ref:`orientation/input<actuator-orientation-input>`.
 
 .. _actuator-general-actearly:
 
@@ -5938,6 +5951,102 @@ This element has one custom attribute in addition to the common attributes:
    transmissions which have :at:`range` defined. Note that while :at:`inheritrange` is available both as a
    :ref:`position<actuator-position>` attribute and in the :ref:`default class<default-position-inheritrange>`,
    saved XMLs always convert it to explicit :at:`ctrlrange` at the actuator.
+
+.. _actuator-orientation:
+
+:el-prefix:`actuator/` |-| **orientation** |*|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. youtube:: 17XpwnqyCXs
+   :align: right
+   :width: 40%
+
+This element creates an orientation servo: a geodesic PD controller on a relative orientation, targeting a ball
+:ref:`joint<actuator-general-joint>` or a :ref:`site<actuator-general-site>` with a
+:ref:`refsite<actuator-general-refsite>`. Unlike per-axis :ref:`position<actuator-position>` servos, the servo acts
+jointly on the full orientation: the force is :math:`k_p \log(q^{-1} q_{target}) - k_v \omega`, exact for arbitrary axis
+combinations, with a unique equilibrium at every commanded orientation. The transmission has 3 force outputs; force,
+error and angular velocity are expressed in the child (joint or site) frame. The commanded orientation is given in the
+:ref:`input<actuator-orientation-input>` chart: an exponential-map vector (3 controls, the default) or a quaternion (4
+controls). :ref:`forcerange<actuator-general-forcerange>` clamps the norm of the output torque,
+preserving its direction; the lower bound must be 0.
+:ref:`Actuator sensors<sensor-actuatorpos>` report one value per force output. The integrator variant, which
+stores the orientation setpoint in :ref:`act<siPhysicsState>`, is available via :ref:`general<actuator-general>` with
+:ref:`dyntype<actuator-general-dyntype>` "integrator" and is expmap-only. The video on the right shows this `example
+model <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sensor/actuation/orientation.xml>`__.
+The underlying :el:`general` attributes are set as follows:
+
+========= ======= ========= =========
+Attribute Setting Attribute Setting
+========= ======= ========= =========
+dyntype   none    gainprm   kp 0 0
+gaintype  so3     biasprm   0 -kp -kv
+biastype  so3
+========= ======= ========= =========
+
+.. _actuator-orientation-ctrlrange:
+
+:at:`ctrlrange`: :at-val:`real(2), "0 0"`
+   Range for clamping the control input, as described in :ref:`ctrlrange <actuator-general-ctrlrange>`. For this
+   multi-input actuator, the same range limits are replicated and applied independently to each of the 3 (expmap) or 4
+   (quaternion) control inputs in the control block.
+
+.. _actuator-orientation-forcerange:
+
+:at:`forcerange`: :at-val:`real(2), "0 0"`
+   Range for clamping the torque output, as described in :ref:`forcerange <actuator-general-forcerange>`. The torque is
+   clamped on its norm, preserving its direction: the second value bounds the torque magnitude and the first value must
+   be 0.
+
+This element has custom attributes in addition to the common attributes:
+
+.. _actuator-orientation-name:
+
+.. _actuator-orientation-class:
+
+.. _actuator-orientation-group:
+
+.. _actuator-orientation-nsample:
+
+.. _actuator-orientation-interp:
+
+.. _actuator-orientation-delay:
+
+.. _actuator-orientation-forcelimited:
+
+.. _actuator-orientation-user:
+
+.. _actuator-orientation-joint:
+
+.. _actuator-orientation-site:
+
+.. _actuator-orientation-refsite:
+
+.. _actuator-orientation-kp:
+
+:at:`kp`: :at-val:`real, "1"`
+   Position feedback gain, in units of torque per radian of geodesic error.
+
+.. _actuator-orientation-kv:
+
+:at:`kv`: :at-val:`real, "0"`
+   Damping applied by the actuator, per force output.
+   When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
+
+.. _actuator-orientation-dampratio:
+
+:at:`dampratio`: :at-val:`real, "0"`
+   Damping applied by the actuator, using damping ratio units, as for
+   :ref:`position/dampratio<actuator-position-dampratio>`. This attribute is exclusive with :at:`kv`.
+
+.. _actuator-orientation-input:
+
+:at:`input`: :at-val:`[expmap, quat], "expmap"`
+   `Chart <https://en.wikipedia.org/wiki/Manifold#Charts>`__ of the commanded orientation. With "expmap" the control
+   block is an exponential-map vector (3 controls, in radians). With "quat" the control block is a quaternion (4
+   controls, :ref:`w-first <siLayout>`); the commanded quaternion is normalized by the servo, making the force scale-
+   and antipodally-invariant, and the control block resets to the identity quaternion. The quat chart requires
+   ``dyntype="none"``.
 
 .. _actuator-velocity:
 
@@ -9906,6 +10015,8 @@ if omitted.
 .. _default-general-gainprm:
 
 .. _default-general-biasprm:
+
+.. _default-general-input:
 
 .. _default-general-actearly:
 

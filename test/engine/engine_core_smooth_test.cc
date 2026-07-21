@@ -38,6 +38,8 @@ namespace {
 using ::std::string;
 using ::std::vector;
 using ::testing::Each;
+using ::testing::HasSubstr;
+using ::testing::IsNull;
 using ::testing::ElementsAre;
 using ::testing::Not;
 using ::testing::NotNull;
@@ -780,6 +782,600 @@ TEST_F(CoreSmoothTest, ForwardDoesNotMutateAct) {
   EXPECT_LT(mju_abs(data->act[0]), mjPI + 0.1);
 
   mj_deleteData(data);
+}
+
+// expmap (axis-angle) vector to quaternion
+static void Expmap2Quat(mjtNum quat[4], const mjtNum v[3]) {
+  mjtNum angle = mju_norm3(v);
+  if (angle < mjMINVAL) {
+    quat[0] = 1;
+    quat[1] = quat[2] = quat[3] = 0;
+  } else {
+    mjtNum axis[3] = {v[0]/angle, v[1]/angle, v[2]/angle};
+    mju_axisAngle2Quat(quat, axis, angle);
+  }
+}
+
+// geodesic distance between the orientations given by expmap vectors u and v
+static mjtNum GeodesicError(const mjtNum u[3], const mjtNum v[3]) {
+  mjtNum q_tgt[4], q_cur[4], q_err[4], e[3];
+  Expmap2Quat(q_tgt, u);
+  Expmap2Quat(q_cur, v);
+  mju_negQuat(q_cur, q_cur);
+  mju_mulQuat(q_err, q_tgt, q_cur);
+  mju_quat2Vel(e, q_err, 1);
+  return mju_norm3(e);
+}
+
+// mixed model: three scalar translation servos and one SO3 orientation servo
+static constexpr char kSO3RefsiteXml[] = R"(
+<mujoco>
+  <option integrator="implicitfast">
+    <flag contact="disable" gravity="disable"/>
+  </option>
+  <worldbody>
+    <site name="reference"/>
+    <body name="box">
+      <freejoint/>
+      <geom type="box" size=".05 .07 .03"/>
+      <site name="end_effector"/>
+    </body>
+  </worldbody>
+  <actuator>
+    <position name="x" site="end_effector" refsite="reference" gear="1 0 0 0 0 0"
+              kp="100" dampratio="1"/>
+    <orientation name="orient" site="end_effector" refsite="reference" kp="1" dampratio="1"/>
+    <position name="y" site="end_effector" refsite="reference" gear="0 1 0 0 0 0"
+              kp="100" dampratio="1"/>
+    <position name="z" site="end_effector" refsite="reference" gear="0 0 1 0 0 0"
+              kp="100" dampratio="1"/>
+  </actuator>
+  <sensor>
+    <actuatorpos actuator="orient"/>
+    <actuatorfrc actuator="orient"/>
+  </sensor>
+</mujoco>
+)";
+
+// Layout of a mixed model: the SO3 actuator owns 3-wide control and output
+// blocks, misaligning nu/nout/nactuator with the actuator index; sensors on it
+// are 3-dimensional; the model round-trips through XML.
+TEST_F(CoreSmoothTest, SO3MixedModelLayout) {
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kSO3RefsiteXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  // counts: 4 actuators, 3+3 controls, 3+3 force outputs
+  EXPECT_EQ(model->nactuator, 4);
+  EXPECT_EQ(model->nu, 6);
+  EXPECT_EQ(model->nout, 6);
+
+  // the orientation actuator is second, exercising address accumulation
+  int orient = mj_name2id(model.get(), mjOBJ_ACTUATOR, "orient");
+  ASSERT_EQ(orient, 1);
+  EXPECT_EQ(model->actuator_ctrladr[orient], 1);
+  EXPECT_EQ(model->actuator_ctrlnum[orient], 3);
+  EXPECT_EQ(model->actuator_outadr[orient], 1);
+  EXPECT_EQ(model->actuator_outnum[orient], 3);
+  EXPECT_EQ(model->actuator_trntype[orient], mjTRN_SO3);
+
+  // actuator sensors report one value per force output
+  EXPECT_EQ(model->sensor_dim[0], 3);
+  EXPECT_EQ(model->sensor_dim[1], 3);
+  EXPECT_EQ(model->sensor_adr[1], 3);
+
+  // XML round-trip preserves the layout
+  std::string saved = SaveAndReadXml(model.get());
+  MjModelPtr model2 = LoadModelFromString(saved.c_str(), error, sizeof(error));
+  ASSERT_THAT(model2.get(), NotNull()) << error;
+  EXPECT_EQ(model2->nactuator, 4);
+  EXPECT_EQ(model2->nu, 6);
+  EXPECT_EQ(model2->nout, 6);
+  EXPECT_EQ(model2->actuator_trntype[orient], mjTRN_SO3);
+}
+
+// A mixed-axis orientation target beyond the pi shell is a true equilibrium:
+// zero force when the body is at the commanded orientation, convergence to it
+// from the initial state.
+TEST_F(CoreSmoothTest, SO3RefsiteMixedAxisEquilibrium) {
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kSO3RefsiteXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  mjData* data = mj_makeData(model.get());
+
+  int orient = mj_name2id(model.get(), mjOBJ_ACTUATOR, "orient");
+  int uadr = model->actuator_ctrladr[orient];
+  int oadr = model->actuator_outadr[orient];
+
+  // target: 5.66 rad rotation about the mixed axis (1,1,0)/sqrt(2), beyond pi;
+  // canonical (shortest) expmap is u*(1 - 2*pi/norm(u)) = (-.4429, -.4429, 0)
+  mjtNum target[3] = {4, 4, 0};
+  mjtNum shrink = 1 - 2*mjPI/mju_norm3(target);
+  mjtNum canonical[3] = {target[0]*shrink, target[1]*shrink, target[2]*shrink};
+  mju_copy3(data->ctrl + uadr, target);
+
+  // place the body exactly at the commanded orientation: force must vanish
+  Expmap2Quat(data->qpos + 3, target);
+  mj_forward(model.get(), data);
+  for (int k=0; k < 3; k++) {
+    EXPECT_LT(mju_abs(data->actuator_force[oadr + k]), MjTol(1e-10, 1e-6));
+    EXPECT_LT(mju_abs(data->actuator_length[oadr + k] - canonical[k]),
+              MjTol(1e-10, 1e-6));
+
+    // sensors: actuatorpos = canonical expmap, actuatorfrc = 0
+    EXPECT_LT(mju_abs(data->sensordata[k] - canonical[k]), MjTol(1e-10, 1e-6));
+    EXPECT_LT(mju_abs(data->sensordata[3 + k]), MjTol(1e-10, 1e-6));
+  }
+
+  // from the initial state, converge to the commanded orientation
+  mj_resetData(model.get(), data);
+  mju_copy3(data->ctrl + uadr, target);
+  while (data->time < 10) {
+    mj_step(model.get(), data);
+  }
+  for (int k=0; k < 3; k++) {
+    EXPECT_LT(mju_abs(data->actuator_length[oadr + k] - canonical[k]), 1e-3);
+    EXPECT_LT(mju_abs(data->actuator_velocity[oadr + k]), 1e-3);
+  }
+
+  mj_deleteData(data);
+}
+
+// Test smooth tracking while winding one axis with another axis held nonzero:
+// the regime where per-axis servo errors cannot work and only the geodesic
+// error on SO(3) tracks correctly.
+TEST_F(CoreSmoothTest, SO3RefsiteTracksMixedWindingTarget) {
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kSO3RefsiteXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  mjData* data = mj_makeData(model.get());
+
+  int orient = mj_name2id(model.get(), mjOBJ_ACTUATOR, "orient");
+  int uadr = model->actuator_ctrladr[orient];
+  int oadr = model->actuator_outadr[orient];
+
+  // hold rx at 1 rad, let the servo settle
+  data->ctrl[uadr] = 1;
+  while (data->time < 2) {
+    mj_step(model.get(), data);
+  }
+
+  // ramp the rz target from 0 to 2*pi
+  const mjtNum rate = 0.5;  // rad/s
+  mjtNum start = data->time;
+  while (data->time - start < 2*mjPI / rate) {
+    data->ctrl[uadr + 2] = rate * (data->time - start);
+    mj_step(model.get(), data);
+
+    // geodesic distance between commanded and current orientation
+    mjtNum err = GeodesicError(data->ctrl + uadr, data->actuator_length + oadr);
+    ASSERT_LT(err, 0.5) << "tracking lost at time " << data->time
+                        << ", target rz " << data->ctrl[uadr + 2];
+  }
+
+  mj_deleteData(data);
+}
+
+// Mixed-axis target beyond the pi shell on ball joints: the SO3 actuator has
+// an exact equilibrium at the commanded orientation, per-axis wrapped servos
+// do not.
+TEST_F(CoreSmoothTest, SO3BallMixedAxisContrast) {
+  constexpr char kOrientationPath[] =
+      "engine/testdata/actuation/orientation.xml";
+  const std::string xml_path = GetTestDataFilePath(kOrientationPath);
+  char error[1024];
+  MjModelPtr model(mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error)));
+  ASSERT_THAT(model.get(), NotNull()) << "Failed to load model: " << error;
+  mjData* data = mj_makeData(model.get());
+
+  // place both joints exactly at the target orientation, expmap (4, 4, 0)
+  mjtNum target[3] = {4, 4, 0};
+  mjtNum quat[4];
+  Expmap2Quat(quat, target);
+  for (const char* name : {"peraxis", "expmap"}) {
+    int jnt = mj_name2id(model.get(), mjOBJ_JOINT, name);
+    mju_copy4(data->qpos + model->jnt_qposadr[jnt], quat);
+  }
+
+  int rx_peraxis = mj_name2id(model.get(), mjOBJ_ACTUATOR, "rx_peraxis");
+  int orient = mj_name2id(model.get(), mjOBJ_ACTUATOR, "expmap");
+  int uadr = model->actuator_ctrladr[orient];
+  int oadr = model->actuator_outadr[orient];
+  data->ctrl[rx_peraxis] = data->ctrl[rx_peraxis + 1] = 4;
+  data->ctrl[uadr] = data->ctrl[uadr + 1] = 4;
+  mj_forward(model.get(), data);
+
+  // SO3: zero force at the commanded orientation
+  for (int k=0; k < 3; k++) {
+    EXPECT_LT(mju_abs(data->actuator_force[oadr + k]), MjTol(1e-10, 1e-6));
+  }
+
+  // per-axis: residual force kp*(4.443 - 2*pi) = -1.84 on the wound members
+  EXPECT_GT(mju_abs(data->actuator_force[rx_peraxis]), 1);
+  EXPECT_GT(mju_abs(data->actuator_force[rx_peraxis + 1]), 1);
+
+  mj_deleteData(data);
+}
+
+// Geodesic servo converges to large mixed-axis targets from rest: no limit
+// cycles. Regression test: a parent-frame error driving child-frame torques is
+// non-gradient feedback which pumps energy at large angles, settling into
+// steady spinning.
+TEST_F(CoreSmoothTest, SO3LargeAngleConvergence) {
+  constexpr char kOrientationPath[] =
+      "engine/testdata/actuation/orientation.xml";
+  const std::string xml_path = GetTestDataFilePath(kOrientationPath);
+  char error[1024];
+  MjModelPtr model(mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error)));
+  ASSERT_THAT(model.get(), NotNull()) << "Failed to load model: " << error;
+  mjData* data = mj_makeData(model.get());
+
+  int expmap = mj_name2id(model.get(), mjOBJ_ACTUATOR, "expmap");
+  int jnt = mj_name2id(model.get(), mjOBJ_JOINT, "expmap");
+  int uadr = model->actuator_ctrladr[expmap];
+  int dofadr = model->jnt_dofadr[jnt];
+
+  mjtNum targets[4][3] = {{1, 1, 1}, {-1, -1, 0}, {1, -1, 1}, {2.2, 2.2, 2.2}};
+  for (const auto& u : targets) {
+    SCOPED_TRACE(testing::Message()
+                 << "target (" << u[0] << ", " << u[1] << ", " << u[2] << ")");
+    mj_resetData(model.get(), data);
+    mju_copy3(data->ctrl + uadr, u);
+    for (int i = 0; i < 4000; i++) {
+      mj_step(model.get(), data);
+    }
+
+    // orientation error and angular velocity vanish
+    mjtNum q_tgt[4], q_cur[4], e[3];
+    mjtNum axis[3] = {u[0], u[1], u[2]};
+    mjtNum angle = mju_normalize3(axis);
+    mju_axisAngle2Quat(q_tgt, axis, angle);
+    mju_copy4(q_cur, data->qpos + model->jnt_qposadr[jnt]);
+    mju_normalize4(q_cur);
+    mju_subQuat(e, q_tgt, q_cur);
+    EXPECT_LT(mju_norm3(e), MjTol(1e-4, 1e-2));
+    EXPECT_LT(mju_norm3(data->qvel + dofadr), MjTol(1e-4, 1e-2));
+  }
+  mj_deleteData(data);
+}
+
+// Neutral ctrl: reset zeroes all controls except quat (to the identity).
+TEST_F(CoreSmoothTest, SO3QuatNeutralCtrl) {
+  constexpr char kOrientationPath[] =
+      "engine/testdata/actuation/orientation.xml";
+  const std::string xml_path = GetTestDataFilePath(kOrientationPath);
+  char error[1024];
+  MjModelPtr model(mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error)));
+  ASSERT_THAT(model.get(), NotNull()) << "Failed to load model: " << error;
+  mjData* data = mj_makeData(model.get());
+
+  int quat = mj_name2id(model.get(), mjOBJ_ACTUATOR, "quat");
+  int uadr = model->actuator_ctrladr[quat];
+  for (int trial = 0; trial < 2; trial++) {
+    for (int j = 0; j < model->nu; j++) {
+      EXPECT_EQ(data->ctrl[j], j == uadr ? 1 : 0)
+          << "ctrl " << j << " trial " << trial;
+    }
+    mju_fill(data->ctrl, 0.5, model->nu);
+    mj_resetData(model.get(), data);
+  }
+  mj_deleteData(data);
+}
+
+// Input names: NULL for single-input actuators, chart components for SO3.
+TEST_F(CoreSmoothTest, ActuatorInputNames) {
+  constexpr char kOrientationPath[] =
+      "engine/testdata/actuation/orientation.xml";
+  const std::string xml_path = GetTestDataFilePath(kOrientationPath);
+  char error[1024];
+  MjModelPtr model(mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error)));
+  ASSERT_THAT(model.get(), NotNull()) << "Failed to load model: " << error;
+
+  int rx_peraxis = mj_name2id(model.get(), mjOBJ_ACTUATOR, "rx_peraxis");
+  int expmap = mj_name2id(model.get(), mjOBJ_ACTUATOR, "expmap");
+  int quat = mj_name2id(model.get(), mjOBJ_ACTUATOR, "quat");
+  EXPECT_EQ(mj_actuatorInputName(model.get(), rx_peraxis, 0), nullptr);
+  EXPECT_STREQ(mj_actuatorInputName(model.get(), expmap, 0), "rx");
+  EXPECT_STREQ(mj_actuatorInputName(model.get(), expmap, 2), "rz");
+  EXPECT_EQ(mj_actuatorInputName(model.get(), expmap, 3),
+            nullptr);  // out of range
+  EXPECT_STREQ(mj_actuatorInputName(model.get(), quat, 0), "qw");
+  EXPECT_STREQ(mj_actuatorInputName(model.get(), quat, 3), "qz");
+}
+
+// SO3 integrator variant: act is the 3D orientation setpoint; constant ctrl
+// produces steady rotation over many periods with bounded activation.
+TEST_F(CoreSmoothTest, SO3IntVelocityWindsWithBoundedAct) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast">
+      <flag contact="disable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <joint name="ball" type="ball"/>
+        <geom type="box" size=".05 .07 .03"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general name="rot" joint="ball" dyntype="integrator"
+               gaintype="so3" biastype="so3" gainprm="1" biasprm="0 -1 -1"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  // one actuator: 3 controls, 3 outputs, 3 activations
+  EXPECT_EQ(model->nu, 3);
+  EXPECT_EQ(model->nout, 3);
+  EXPECT_EQ(model->na, 3);
+
+  mjData* data = mj_makeData(model.get());
+
+  // spin about z for 4 full turns
+  const mjtNum rate = 1.0;  // rad/s
+  data->ctrl[2] = rate;
+  while (data->time < 8*mjPI / rate) {
+    mj_step(model.get(), data);
+    ASSERT_LT(mju_norm3(data->act), mjPI + 0.1) << "act unbounded";
+  }
+
+  // steady rotation at the commanded rate about z
+  EXPECT_NEAR(data->actuator_velocity[2], rate, 0.02);
+
+  mj_deleteData(data);
+}
+
+// Compile-time validation of the SO3 actuator.
+TEST_F(CoreSmoothTest, SO3CompileErrors) {
+  char error[1024];
+
+  // hinge joint target: rejected
+  static constexpr char hinge_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size=".05"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <orientation joint="hinge" kp="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(hinge_xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("ball"));
+
+  // site without refsite: rejected
+  static constexpr char nosite_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom size=".05"/>
+        <site name="ee"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <orientation site="ee" kp="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  model = LoadModelFromString(nosite_xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("refsite"));
+
+  // mismatched gaintype/biastype: rejected
+  static constexpr char mismatch_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="ball" type="ball"/>
+        <geom type="box" size=".05 .07 .03"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="ball" gaintype="so3" biastype="affine" gainprm="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  model = LoadModelFromString(mismatch_xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("both"));
+
+  // forcerange with nonzero lower bound: rejected (force clamped on the norm)
+  static constexpr char forcerange_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="ball" type="ball"/>
+        <geom type="box" size=".05 .07 .03"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <orientation joint="ball" kp="1" forcerange="-4 4"/>
+    </actuator>
+  </mujoco>
+  )";
+  model = LoadModelFromString(forcerange_xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("lower bound must be 0"));
+}
+
+// forcerange clamps the norm of the SO3 output torque, preserving direction.
+TEST_F(CoreSmoothTest, SO3ForcerangeClampsNorm) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag contact="disable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <joint name="unclamped" type="ball"/>
+        <geom type="box" size=".05 .07 .03"/>
+      </body>
+      <body pos="0 0 .3">
+        <joint name="clamped" type="ball"/>
+        <geom type="box" size=".05 .07 .03"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <orientation name="unclamped" joint="unclamped" kp="1"/>
+      <orientation name="clamped" joint="clamped" kp="1" forcerange="0 .5"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  mjData* data = mj_makeData(model.get());
+
+  // command the same mixed-axis target, error norm sqrt(5) > 0.5
+  int unclamped = mj_name2id(model.get(), mjOBJ_ACTUATOR, "unclamped");
+  int clamped = mj_name2id(model.get(), mjOBJ_ACTUATOR, "clamped");
+  for (int i : {unclamped, clamped}) {
+    int uadr = model->actuator_ctrladr[i];
+    data->ctrl[uadr + 0] = 1;
+    data->ctrl[uadr + 1] = 2;
+    data->ctrl[uadr + 2] = 0;
+  }
+  mj_forward(model.get(), data);
+
+  // clamped force has norm forcerange[1], parallel to the unclamped force
+  const mjtNum* f_unclamped =
+      data->actuator_force + model->actuator_outadr[unclamped];
+  const mjtNum* f_clamped =
+      data->actuator_force + model->actuator_outadr[clamped];
+  mjtNum norm_unclamped = mju_norm3(f_unclamped);
+  EXPECT_GT(norm_unclamped, 0.5);
+  EXPECT_NEAR(mju_norm3(f_clamped), 0.5, MjTol(1e-12, 1e-6));
+  mjtNum scale = 0.5 / norm_unclamped;
+  for (int k = 0; k < 3; k++) {
+    EXPECT_NEAR(f_clamped[k], scale * f_unclamped[k], MjTol(1e-12, 1e-6));
+  }
+
+  mj_deleteData(data);
+}
+
+// Quat-setpoint variant of the SO3 servo: 4 inputs, 3 outputs -- the first
+// actuator with different input and output widths.
+TEST_F(CoreSmoothTest, SO3QuatSetpoint) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast">
+      <flag contact="disable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body pos="-.15 0 .2">
+        <joint name="ball_scalar" type="ball"/>
+        <geom type="box" size=".05 .07 .03"/>
+      </body>
+      <body pos=".15 0 .2">
+        <joint name="ball_quat" type="ball"/>
+        <geom type="box" size=".05 .07 .03"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position name="rz" joint="ball_scalar" gear="0 0 1" kp="1" dampratio="1"/>
+      <orientation name="orient" joint="ball_quat" kp="1" dampratio="1" input="quat"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  // rectangular layout: 2 actuators, 1+4 controls, 1+3 force outputs
+  EXPECT_EQ(model->nactuator, 2);
+  EXPECT_EQ(model->nu, 5);
+  EXPECT_EQ(model->nout, 4);
+  int orient = mj_name2id(model.get(), mjOBJ_ACTUATOR, "orient");
+  int uadr = model->actuator_ctrladr[orient];
+  int oadr = model->actuator_outadr[orient];
+  EXPECT_EQ(uadr, 1);
+  EXPECT_EQ(model->actuator_ctrlnum[orient], 4);
+  EXPECT_EQ(oadr, 1);
+  EXPECT_EQ(model->actuator_outnum[orient], 3);
+
+  // XML round-trip preserves the input chart
+  std::string saved = SaveAndReadXml(model.get());
+  MjModelPtr model2 = LoadModelFromString(saved.c_str(), error, sizeof(error));
+  ASSERT_THAT(model2.get(), NotNull()) << error;
+  EXPECT_EQ(model2->nu, 5);
+  EXPECT_EQ(model2->nout, 4);
+
+  mjData* data = mj_makeData(model.get());
+
+  // zero ctrl commands the identity orientation: zero force at qpos0
+  mj_forward(model.get(), data);
+  for (int k=0; k < 3; k++) {
+    EXPECT_LT(mju_abs(data->actuator_force[oadr + k]), MjTol(1e-10, 1e-6));
+  }
+
+  // target beyond the pi shell, mixed axis
+  mjtNum target[3] = {4, 4, 0};
+  mjtNum q_tgt[4];
+  Expmap2Quat(q_tgt, target);
+  int jnt = mj_name2id(model.get(), mjOBJ_JOINT, "ball_quat");
+
+  // scale and antipodal invariance: q, 2q and -q command the same orientation
+  mjtNum ctrl_variants[3][4];
+  mju_copy4(ctrl_variants[0], q_tgt);
+  for (int k=0; k < 4; k++) {
+    ctrl_variants[1][k] = 2*q_tgt[k];
+    ctrl_variants[2][k] = -q_tgt[k];
+  }
+  for (int v=0; v < 3; v++) {
+    mj_resetData(model.get(), data);
+    mju_copy4(data->qpos + model->jnt_qposadr[jnt], q_tgt);
+    mju_copy4(data->ctrl + uadr, ctrl_variants[v]);
+    mj_forward(model.get(), data);
+    for (int k=0; k < 3; k++) {
+      EXPECT_LT(mju_abs(data->actuator_force[oadr + k]), MjTol(1e-10, 1e-6))
+          << "variant " << v;
+    }
+  }
+
+  // from the initial state, converge to the commanded orientation
+  mj_resetData(model.get(), data);
+  mju_copy4(data->ctrl + uadr, q_tgt);
+  while (data->time < 10) {
+    mj_step(model.get(), data);
+  }
+  mjtNum shrink = 1 - 2*mjPI/mju_norm3(target);
+  for (int k=0; k < 3; k++) {
+    EXPECT_LT(mju_abs(data->actuator_length[oadr + k] - target[k] * shrink),
+              1e-3);
+    EXPECT_LT(mju_abs(data->actuator_velocity[oadr + k]), 1e-3);
+  }
+
+  mj_deleteData(data);
+}
+
+// The quat input chart requires stateless dynamics.
+TEST_F(CoreSmoothTest, SO3QuatSetpointRequiresStateless) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="ball" type="ball"/>
+        <geom type="box" size=".05 .07 .03"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="ball" dyntype="integrator" input="quat"
+               gaintype="so3" biastype="so3" gainprm="1" biasprm="0 -1 -1"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("dyntype"));
 }
 
 static const char* const kInertiaPath = "engine/testdata/inertia.xml";

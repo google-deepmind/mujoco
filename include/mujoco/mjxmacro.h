@@ -684,6 +684,7 @@
     X   ( int,     actuator_biastype,     nactuator,     1                    ) \
     X   ( int,     actuator_ctrladr,      nactuator,     1                    ) \
     X   ( int,     actuator_ctrlnum,      nactuator,     1                    ) \
+    X   ( int,     actuator_ctrlspec,     nactuator,     1                    ) \
     X   ( int,     actuator_outadr,       nactuator,     1                    ) \
     X   ( int,     actuator_outnum,       nactuator,     1                    ) \
     X   ( int,     actuator_actadr,       nactuator,     1                    ) \
@@ -705,11 +706,11 @@
     X   ( int,     actuator_group,        nactuator,     1                    ) \
     X   ( mjtNum,  actuator_user,         nactuator,     MJ_M(nuser_actuator) ) \
     X   ( int,     actuator_plugin,       nactuator,     1                    ) \
+    X   ( mjtBool, actuator_forcelimited, nactuator,     1                    ) \
+    X   ( mjtNum,  actuator_forcerange,   nactuator,     2                    ) \
     X   ( mjtBool, actuator_ctrllimited,  nu,            1                    ) \
     X   ( mjtNum,  actuator_ctrlrange,    nu,            2                    ) \
     X   ( mjtNum,  actuator_gear,         nout,          6                    ) \
-    X   ( mjtBool, actuator_forcelimited, nout,          1                    ) \
-    X   ( mjtNum,  actuator_forcerange,   nout,          2                    ) \
     X   ( mjtNum,  actuator_acc0,         nout,          1                    ) \
     X   ( mjtNum,  actuator_length0,      nout,          1                    ) \
     X   ( mjtNum,  actuator_lengthrange,  nout,          2                    )

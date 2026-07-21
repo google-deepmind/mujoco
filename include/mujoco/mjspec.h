@@ -724,6 +724,7 @@ typedef struct mjsActuator_ {      // actuator specification
   mjtDyn dyntype;                  // dynamics type
   double dynprm[mjNDYN];           // dynamics parameters
   int actdim;                      // number of activation variables
+  int ctrlspec;                    // input signature, scoped by gaintype; 0: type default
   mjtBool actearly;                // apply next activations to qfrc
 
   // transmission

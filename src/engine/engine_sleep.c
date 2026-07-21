@@ -676,6 +676,15 @@ static mjtSleepState mj_actuatorSleepState(const mjModel* m, const mjData* d, in
   case mjTRN_SITE:
     return mj_sleepState(m, d, mjOBJ_SITE, trnid);
 
+  case mjTRN_SO3:
+    // ball joint target or site + refsite target
+    if (m->actuator_trnid[i*2+1] == -1) {
+      return mj_sleepState(m, d, mjOBJ_JOINT, trnid);
+    }
+    s1 = mj_sleepState(m, d, mjOBJ_SITE, trnid);
+    s2 = mj_sleepState(m, d, mjOBJ_SITE, m->actuator_trnid[i*2+1]);
+    return (s1 == mjS_AWAKE || s2 == mjS_AWAKE) ? mjS_AWAKE : mjS_ASLEEP;
+
   case mjTRN_BODY:
     return mj_sleepState(m, d, mjOBJ_BODY, trnid);
 

@@ -166,6 +166,7 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
         InterceptMjErrors(::mj_copyData)(dest, m, src);
       });
   Def<traits::mj_resetData>(pymodule);
+  Def<traits::mj_resetCtrl>(pymodule);
   Def<traits::mj_resetDataDebug>(pymodule);
   Def<traits::mj_resetDataKeyframe>(pymodule);
   // Skipped: mj_stackAllocByte (doesn't make sense in Python)
@@ -589,6 +590,7 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
       });
   Def<traits::mj_name2id>(pymodule);
   Def<traits::mj_id2name>(pymodule);
+  Def<traits::mj_actuatorInputName>(pymodule);
   Def<traits::mj_fullM>(
       pymodule,
       [](const raw::MjModel* m, const raw::MjData* d,

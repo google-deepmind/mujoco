@@ -268,6 +268,19 @@ static void clampVec(mjtNum* vec, const mjtNum* range, const mjtBool* limited, i
 }
 
 
+// expmap (axis-angle) vector to quaternion
+static void expmap2Quat(mjtNum quat[4], const mjtNum v[3]) {
+  mjtNum angle = mju_norm3(v);
+  if (angle < mjMINVAL) {
+    quat[0] = 1;
+    quat[1] = quat[2] = quat[3] = 0;
+  } else {
+    mjtNum axis[3] = {v[0]/angle, v[1]/angle, v[2]/angle};
+    mju_axisAngle2Quat(quat, axis, angle);
+  }
+}
+
+
 // period of the rotational transmission for wrap-eligible servo actuators, 0 otherwise
 static mjtNum wrapPeriod(const mjModel* m, int i) {
   // servo shape: fixed gain, affine bias, matching kp, setpoint input
@@ -387,9 +400,13 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
     // compute act_dot according to dynamics type
     switch (dyntype) {
-    case mjDYN_INTEGRATOR:          // simple integrator
-      d->act_dot[act_last] = ctrl[uadr];
+    case mjDYN_INTEGRATOR: {        // simple integrator, one per control
+      int num = m->actuator_ctrlnum[i];
+      for (int j=0; j < num; j++) {
+        d->act_dot[act_last-num+1+j] = ctrl[uadr+j];
+      }
       break;
+    }
 
     case mjDYN_FILTER:              // linear filter: dynprm = tau
     case mjDYN_FILTEREXACT:
@@ -550,6 +567,51 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     int uadr = m->actuator_ctrladr[i];
     int oadr = m->actuator_outadr[i];
 
+    // SO(3) geodesic servo: 3 or 4 inputs and 3 outputs on an SO3 transmission
+    if (m->actuator_gaintype[i] == mjGAIN_SO3) {
+      mjtNum q_tgt[4];
+
+      // quat input: normalize ctrl directly (zero maps to the identity)
+      if (m->actuator_ctrlspec[i] == mjCHART_QUAT) {
+        mju_copy4(q_tgt, ctrl + uadr);
+        mju_normalize4(q_tgt);
+      }
+
+      // expmap input: ctrl block (position) or act block (integrator)
+      else {
+        mjtNum u[3];
+        if (m->actuator_dyntype[i] == mjDYN_NONE) {
+          mju_copy3(u, ctrl + uadr);
+        } else {
+          int act_adr = m->actuator_actadr[i];
+          if (m->actuator_actearly[i]) {
+            for (int k=0; k < 3; k++) {
+              u[k] = mj_nextActivation(m, d, i, act_adr+k, d->act_dot[act_adr+k]);
+            }
+          } else {
+            mju_copy3(u, d->act + act_adr);
+          }
+        }
+        expmap2Quat(q_tgt, u);
+      }
+
+      // error rotation from current to target: e = log(q_cur^-1 * q_tgt), in the local frame
+      // of the transmission, matching the frame of the moment rows and of actuator_velocity
+      // note: the force is invariant to the setpoint representative (exp is ray-periodic),
+      // so no wrapping is required; act is re-anchored at integration time in mj_advance
+      mjtNum q_cur[4], e[3];
+      expmap2Quat(q_cur, d->actuator_length + oadr);
+      mju_subQuat(e, q_tgt, q_cur);
+
+      // output force: kp * error + constant - kv * velocity
+      mjtNum kp = m->actuator_gainprm[mjNGAIN*i];
+      const mjtNum* prm = m->actuator_biasprm + mjNBIAS*i;
+      for (int k=0; k < 3; k++) {
+        force[oadr+k] = kp*e[k] + prm[0] + prm[2]*d->actuator_velocity[oadr+k];
+      }
+      continue;
+    }
+
     // check for tendon transmission with force limits
     if (ntendon && !tendon_frclimited && m->actuator_trntype[i] == mjTRN_TENDON) {
       tendon_frclimited = m->tendon_actfrclimited[m->actuator_trnid[2*i]];
@@ -561,7 +623,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     mjtGain gaintype = m->actuator_gaintype[i];
     int actnum = m->actuator_actnum[i];
 
-    // handle according to gain type
+    // handle SISO actuators according to gain type
     switch (gaintype) {
     case mjGAIN_FIXED:              // fixed gain: prm = gain
       gain = gainprm[0];
@@ -613,6 +675,10 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       }
       break;
     }
+
+    case mjGAIN_SO3:                // handled above via early continue
+      mjERROR("mjGAIN_SO3 reached SISO switch (actuator %d)", i);
+      break;
 
     default:                        // user gain
       if (mjcb_act_gain) {
@@ -751,7 +817,29 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   }
 
   // clamp actuator_force
-  clampVec(force, m->actuator_forcerange, m->actuator_forcelimited, nout, NULL);
+  for (int i=0; i < nactuator; i++) {
+    if (!m->actuator_forcelimited[i]) {
+      continue;
+    }
+    const mjtNum* range = m->actuator_forcerange + 2*i;
+    mjtNum* f = force + m->actuator_outadr[i];
+
+    // SO3: clamp the norm of the output torque, preserving its direction
+    if (m->actuator_gaintype[i] == mjGAIN_SO3) {
+      mjtNum norm = mju_norm3(f);
+      if (norm > range[1]) {
+        mju_scl3(f, f, range[1]/norm);
+      }
+    }
+
+    // otherwise: clamp each output
+    else {
+      int outnum = m->actuator_outnum[i];
+      for (int j=0; j < outnum; j++) {
+        f[j] = mju_clip(f[j], range[0], range[1]);
+      }
+    }
+  }
 
   // add DC motor mechanical forces (not subject to current limits)
   for (int i=0; i < nactuator; i++) {
@@ -1150,6 +1238,18 @@ static void mj_advance(const mjModel* m, mjData* d,
       if (period > 0) {
         int adr = m->actuator_actadr[i] + m->actuator_actnum[i] - 1;
         d->act[adr] = wrapSetpoint(d->act[adr], d->actuator_length[m->actuator_outadr[i]], period);
+      }
+
+      // SO3 servo: re-anchor the act setpoint to the canonical representative
+      else if (m->actuator_gaintype[i] == mjGAIN_SO3) {
+        int adr = m->actuator_actadr[i];
+        mjtNum angle = mju_norm3(d->act + adr);
+        if (angle > mjPI) {
+          mjtNum scale = (angle - 2*mjPI*mju_round(angle/(2*mjPI))) / angle;
+          for (int k=0; k < 3; k++) {
+            d->act[adr+k] *= scale;
+          }
+        }
       }
     }
   }

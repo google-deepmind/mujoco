@@ -347,6 +347,16 @@ Actuator bias types. These values are used in ``m->actuator_biastype``.
 .. mujoco-include:: mjtBias
 
 
+.. _mjtCtrlChart:
+
+mjtCtrlChart
+~~~~~~~~~~~~
+
+Orientation input charts of so3 actuators. These values are used in ``m->actuator_ctrlspec``.
+
+.. mujoco-include:: mjtCtrlChart
+
+
 .. _mjtObj:
 
 mjtObj

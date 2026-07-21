@@ -125,7 +125,7 @@ void VisualizationGui(mjModel* model, mjvOption* vis_options, mjvCamera* camera,
                       float min_width);
 
 // UX for visualizing actuator controls data in mjData.
-void ControlsGui(const mjModel* model, const mjData* data,
+void ControlsGui(const mjModel* model, mjData* data,
                  const mjvOption* vis_options);
 
 // UX for visualizing joint data in mjData.

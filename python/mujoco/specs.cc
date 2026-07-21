@@ -1555,6 +1555,19 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
       },
       py::arg("kv"));
   mjsActuator.def(
+      "set_to_orientation",
+      [](raw::MjsActuator* self, double kp, double kv, double dampratio,
+         int ctrlspec) {
+        std::string err = mjs_setToOrientation(
+            self, kp, kv == -1 ? nullptr : &kv,
+            dampratio == -1 ? nullptr : &dampratio, ctrlspec);
+        if (!err.empty()) {
+          throw pybind11::value_error(err);
+        }
+      },
+      py::arg("kp"), py::arg("kv") = -1, py::arg("dampratio") = -1,
+      py::arg("ctrlspec") = 0);
+  mjsActuator.def(
       "set_to_damper",
       [](raw::MjsActuator* self, double kv) {
         std::string err = mjs_setToDamper(self, kv);

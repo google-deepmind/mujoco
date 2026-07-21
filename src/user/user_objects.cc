@@ -6931,8 +6931,10 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   // input and output blocks, set by mjCModel; all actuator types are currently 1x1
   ctrladr_ = -1;
   ctrlnum_ = 1;
+  ctrlspec_ = 0;
   outadr_ = -1;
   outnum_ = 1;
+  so3_ = false;
 }
 
 
@@ -7123,6 +7125,12 @@ void mjCActuator::ResolveReferences(const mjCModel* m) {
 void mjCActuator::Compile(void) {
   CopyFromSpec();
 
+  // reset input/output block widths, resolved below
+  ctrlnum_ = 1;
+  ctrlspec_ = 0;
+  outnum_ = 1;
+  so3_ = false;
+
   // resize userdata
   if (userdata_.size() > model->nuser_actuator) {
     throw mjCError(this, "user has more values than nuser_actuator in actuator '%s' (id = %d)",
@@ -7138,6 +7146,79 @@ void mjCActuator::Compile(void) {
 
   // find transmission target in object arrays
   ResolveReferences(model);
+
+  // SO3 geodesic servo: validate and resolve the SO3 transmission
+  if (gaintype == mjGAIN_SO3 || biastype == mjBIAS_SO3) {
+    if (gaintype != mjGAIN_SO3 || biastype != mjBIAS_SO3) {
+      throw mjCError(this, "gaintype and biastype must both be 'so3' in actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+    if (dyntype != mjDYN_NONE && dyntype != mjDYN_INTEGRATOR) {
+      throw mjCError(this, "so3 requires dyntype 'none' or 'integrator' in actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+    if (gainprm[0] != -biasprm[1]) {
+      throw mjCError(this, "so3 requires gainprm[0] == -biasprm[1] in actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+    if (trntype == mjTRN_SITE) {
+      if (refsite_.empty()) {
+        throw mjCError(this, "so3 site transmission requires refsite in actuator '%s' (id = %d)",
+                       name.c_str(), id);
+      }
+    } else if (trntype == mjTRN_JOINT) {
+      if (((mjCJoint*)ptarget)->spec.type != mjJNT_BALL) {
+        throw mjCError(this, "so3 joint transmission requires a ball joint in actuator '%s' "
+                       "(id = %d)", name.c_str(), id);
+      }
+    } else {
+      throw mjCError(this, "so3 requires site or ball joint transmission in actuator '%s' "
+                     "(id = %d)", name.c_str(), id);
+    }
+
+    // integrator variant: activation is the 3D orientation setpoint
+    if (dyntype == mjDYN_INTEGRATOR) {
+      if (actdim > 0 && actdim != 3) {
+        throw mjCError(this, "so3 integrator requires actdim 3 in actuator '%s' (id = %d)",
+                       name.c_str(), id);
+      }
+      actdim = 3;
+
+      // the act setpoint is re-anchored to a bounded representative at integration time
+      if (actlimited == mjLIMITED_TRUE && actrange[0] == 0 && actrange[1] == 0) {
+        actlimited = mjLIMITED_FALSE;
+      }
+    }
+
+    // input chart: expmap (3 controls, default) or quat (4 controls)
+    ctrlspec_ = ctrlspec ? ctrlspec : mjCHART_EXPMAP;
+    if (ctrlspec_ == mjCHART_QUAT) {
+      if (dyntype != mjDYN_NONE) {
+        throw mjCError(this, "so3 quat input requires dyntype 'none' in actuator '%s' (id = %d)",
+                       name.c_str(), id);
+      }
+    } else if (ctrlspec_ != mjCHART_EXPMAP) {
+      throw mjCError(this, "so3 input must be expmap or quat in actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+
+    // force is clamped on the norm of the output torque: lower bound must be 0
+    if (is_forcelimited() && forcerange[0] != 0) {
+      throw mjCError(this, "so3 forcerange bounds the force norm, lower bound must be 0 in "
+                     "actuator '%s' (id = %d)", name.c_str(), id);
+    }
+
+    // input and output blocks
+    ctrlnum_ = ctrlspec_ == mjCHART_QUAT ? 4 : 3;
+    outnum_ = 3;
+    so3_ = true;
+  }
+
+  // input signature selection is so3-only
+  if (ctrlspec && gaintype != mjGAIN_SO3) {
+    throw mjCError(this, "input is only available for so3 actuators, actuator '%s' (id = %d)",
+                   name.c_str(), id);
+  }
 
   // check damping/armature only valid for joint and tendon transmission
   bool has_damping = false;
@@ -7234,7 +7315,7 @@ void mjCActuator::Compile(void) {
 
   // check and set actdim
   if (!plugin.active) {
-    if (actdim > 1 && dyntype != mjDYN_USER && dyntype != mjDYN_DCMOTOR) {
+    if (actdim > 1 && dyntype != mjDYN_USER && dyntype != mjDYN_DCMOTOR && !so3_) {
       throw mjCError(this, "actdim > 1 is only allowed for dyntype 'user' and 'dcmotor'");
     }
     if (actdim == 1 && dyntype == mjDYN_NONE) {
@@ -7969,6 +8050,11 @@ void mjCSensor::Compile(void) {
   }
 
   dim = mjs_sensorDim(this);
+
+  // actuator sensors report one value per force output
+  if (type == mjSENS_ACTUATORPOS || type == mjSENS_ACTUATORVEL || type == mjSENS_ACTUATORFRC) {
+    dim = ((mjCActuator*)obj)->outnum_;
+  }
 
   // check cutoff for incompatible data types
   if (cutoff > 0 && (datatype == mjDATATYPE_QUATERNION ||

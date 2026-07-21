@@ -899,6 +899,7 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* actuator, mjCDe
   // non-plugins: write actuator parameters
   else {
     WriteAttrKey(elem, "gaintype", gain_map, gain_sz, actuator->gaintype, def->Actuator().gaintype);
+    WriteAttrKey(elem, "input", input_map, input_sz, actuator->ctrlspec, def->Actuator().ctrlspec);
     WriteAttrKey(elem, "biastype", bias_map, bias_sz, actuator->biastype, def->Actuator().biastype);
     WriteAttr(elem, "gainprm", mjNGAIN, actuator->gainprm, def->Actuator().gainprm, true);
     WriteAttr(elem, "biasprm", mjNBIAS, actuator->biasprm, def->Actuator().biasprm, true);
