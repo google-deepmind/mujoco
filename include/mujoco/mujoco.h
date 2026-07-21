@@ -267,7 +267,7 @@ MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_va
 // Reset data. If 0 <= key < nkey, set fields from specified keyframe.
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
-#ifndef ADDRESS_SANITIZER  // Stack management functions declared in mjsan.h if ASAN is active.
+#ifndef mjUSEASAN  // Stack management functions declared in mjsan.h if ASAN is active.
 
 // Mark a new frame on the mjData stack.
 MJAPI void mj_markStack(mjData* d);

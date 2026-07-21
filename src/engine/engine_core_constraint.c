@@ -137,7 +137,7 @@ static int arenaAllocEfc(const mjModel* m, mjData* d) {
   d->parena = d->ncon * sizeof(mjContact);
 
   // poison remaining memory
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   ASAN_POISON_MEMORY_REGION(
     (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
 #endif
@@ -390,7 +390,7 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
 int mj_addContact(const mjModel* m, mjData* d, const mjContact* con) {
   // move arena pointer back to the end of the existing contact array and invalidate efc_ arrays
   d->parena = d->ncon * sizeof(mjContact);
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   ASAN_POISON_MEMORY_REGION(
     (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
 #endif

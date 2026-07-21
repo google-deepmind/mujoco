@@ -75,6 +75,10 @@
   #endif
 #endif
 
+#if defined(ADDRESS_SANITIZER) && !defined(_MSC_VER)
+  #define mjUSEASAN
+#endif
+
 // Atomics helper for size_t.
 #if defined(_MSC_VER) && !defined(__clang__)
   #include <intrin.h>
@@ -103,7 +107,7 @@
 extern "C" {
 #endif
 
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
 int mj__comparePcFuncName(void* pc1, void* pc2);
 const char* mj__getPcDebugInfo(void* pc);
 #endif

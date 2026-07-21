@@ -812,7 +812,7 @@ TEST_F(EngineIoTest, TestStackShardingForThreads) {
   }
 }
 
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
 void MarkFreeStack(mjData* d, bool free) {
   mj_markStack(d);
   if (free) {

@@ -65,6 +65,7 @@ public const int mjMAXMATERIAL = 1000;
 public const bool THIRD_PARTY_MUJOCO_MJRFILAMENT_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJSAN_H_ = true;
 public const bool ADDRESS_SANITIZER = true;
+public const bool mjUSEASAN = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJSPEC_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MJSPECMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTYPE_H_ = true;

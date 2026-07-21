@@ -34,7 +34,7 @@ extern "C" {
 // mjData arena allocate
 MJAPI void* mj_arenaAllocByte(mjData* d, size_t bytes, size_t alignment);
 
-#ifndef ADDRESS_SANITIZER
+#ifndef mjUSEASAN
 
 // mjData mark stack frame
 MJAPI void mj_markStack(mjData* d);

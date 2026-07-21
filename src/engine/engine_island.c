@@ -45,7 +45,7 @@ static void clearIsland(mjData* d, size_t parena) {
   d->parena = parena;
 
   // poison remaining memory
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   ASAN_POISON_MEMORY_REGION(
     (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
 #endif

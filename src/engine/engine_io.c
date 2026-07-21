@@ -38,7 +38,7 @@
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   #include <sanitizer/asan_interface.h>
   #include <sanitizer/common_interface_defs.h>
 #endif
@@ -1037,7 +1037,7 @@ void mj_initPlugin(const mjModel* m, mjData* d) {
 
 // free mjData memory without destroying the struct
 static void freeDataBuffers(mjData* d) {
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
     // raise an error if there's a dangling stack frame
     mj_freeStack(d);
 #endif
@@ -1315,7 +1315,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   d->parena = 0;
 
   // poison the entire arena+stack memory region when built with asan
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   ASAN_POISON_MEMORY_REGION(d->arena, d->narena);
 #endif
 
@@ -1371,7 +1371,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   //------------------------------ clear buffer, set defaults
 
   // fill buffer with debug_value (normally 0)
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   {
     #define X(type, name, nr, nc) memset(d->name, (int)debug_value, sizeof(type)*(m->nr)*(nc));
     MJDATA_POINTERS

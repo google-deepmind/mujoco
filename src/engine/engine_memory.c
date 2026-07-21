@@ -28,7 +28,7 @@
 #include "engine/engine_util_errmem.h"
 
 
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   #include <sanitizer/asan_interface.h>
   #include <sanitizer/common_interface_defs.h>
 #endif
@@ -42,7 +42,7 @@
 #endif
 
 // add red zone padding when built with asan, to detect out-of-bound accesses
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   #define mjREDZONE 32
 #else
   #define mjREDZONE 0
@@ -82,7 +82,7 @@ static inline mjStackInfo get_stack_info_from_data(const mjData* d) {
 }
 
 
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
 // get stack usage from red-zone (under ASAN)
 static size_t stack_usage_redzone(const mjStackInfo* stack_info) {
   size_t usage = 0;
@@ -117,7 +117,7 @@ void* mj_arenaAllocByte(mjData* d, size_t bytes, size_t alignment) {
   size_t stack_usage = d->pstack;
 
   // under ASAN, get stack usage from red zone
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   mjStackInfo stack_info = get_stack_info_from_data(d);
   stack_usage = stack_usage_redzone(&stack_info);
 #endif
@@ -127,7 +127,7 @@ void* mj_arenaAllocByte(mjData* d, size_t bytes, size_t alignment) {
   d->parena += padding + bytes;
   d->maxuse_arena = mjMAX(d->maxuse_arena, stack_usage + d->parena);
 
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   ASAN_UNPOISON_MEMORY_REGION(result, bytes);
 #endif
 
@@ -179,7 +179,7 @@ static inline void* stackallocinternal(mjData* d, mjStackInfo* stack_info, size_
         stack_required_bytes, d->nefc, d->ncon);
   }
 
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   usage = current_alloc_usage + stack_usage_redzone(stack_info);
 
   // store new stack usage in the red zone
@@ -250,7 +250,7 @@ static inline void* stackalloc(mjData* d, size_t size, size_t alignment,
 
 
 // mjStackInfo mark stack frame, inline so ASAN errors point to correct code unit
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
 __attribute__((always_inline))
 #endif
 static inline void markstackinternal(mjData* d, mjStackInfo* stack_info) {
@@ -259,7 +259,7 @@ static inline void markstackinternal(mjData* d, mjStackInfo* stack_info) {
     (mjStackFrame*) stackallocinternal(d, stack_info, sizeof(mjStackFrame), _Alignof(mjStackFrame), NULL, 0);
   s->pbase = stack_info->stack_base;
   s->pstack = top_old;
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   // store the program counter to the caller so that we can compare against mj_freeStack later
   s->pc = __sanitizer_return_address();
 #endif
@@ -268,7 +268,7 @@ static inline void markstackinternal(mjData* d, mjStackInfo* stack_info) {
 
 
 // mjData mark stack frame
-#ifndef ADDRESS_SANITIZER
+#ifndef mjUSEASAN
 void mj_markStack(mjData* d)
 #else
 void mj__markStack(mjData* d)
@@ -286,7 +286,7 @@ void mj__markStack(mjData* d)
 }
 
 
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
 __attribute__((always_inline))
 #endif
 static inline void freestackinternal(mjStackInfo* stack_info) {
@@ -295,7 +295,7 @@ static inline void freestackinternal(mjStackInfo* stack_info) {
   }
 
   mjStackFrame* s = (mjStackFrame*) stack_info->stack_base;
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   // raise an error if caller function name doesn't match the most recent caller of mj_markStack
   if (!mj__comparePcFuncName(s->pc, __sanitizer_return_address())) {
     mjERROR("mj_markStack %s has no corresponding mj_freeStack (detected %s)",
@@ -310,14 +310,14 @@ static inline void freestackinternal(mjStackInfo* stack_info) {
   stack_info->top = s->pstack;
 
   // if running under asan, poison the newly freed memory region
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   ASAN_POISON_MEMORY_REGION((char*)old_top, stack_info->top - old_top);
 #endif
 }
 
 
 // mjData free stack frame
-#ifndef ADDRESS_SANITIZER
+#ifndef mjUSEASAN
 void mj_freeStack(mjData* d)
 #else
 void mj__freeStack(mjData* d)

@@ -178,7 +178,7 @@ static inline mjtNum getGap(const mjModel* m, int g1, int g2, int ipair) {
 // move arena pointer back to the end of the contact array
 static inline void resetArena(mjData* d) {
   d->parena = d->ncon * sizeof(mjContact);
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
     ASAN_POISON_MEMORY_REGION(
       (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
 #endif
