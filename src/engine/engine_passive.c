@@ -884,7 +884,7 @@ static int mj_fluid(const mjModel* m, mjData* d) {
 int mj_contactPassive(const mjModel* m, mjData* d) {
   int ncon = d->ncon, issparse = mj_isSparse(m);
   int dim, NV, nv = m->nv, *chain = NULL;
-  mjtNum *jac, *jacdif, *jacdifp, *jacdifr, *jac1p, *jac2p, *jac1r, *jac2r, *qfrc;
+  mjtNum *jac, *jacdifp, *jac1p, *jac2p, *qfrc;
   mjContact* con;
   int has_contact = 0;
 
@@ -907,13 +907,9 @@ int mj_contactPassive(const mjModel* m, mjData* d) {
   // allocate Jacobian
   mj_markStack(d);
   jac     = mjSTACKALLOC(d, 6*nv, mjtNum);
-  jacdif  = mjSTACKALLOC(d, 6*nv, mjtNum);
-  jacdifp = jacdif;
-  jacdifr = jacdif + 3*nv;
+  jacdifp = mjSTACKALLOC(d, 3*nv, mjtNum);
   jac1p   = mjSTACKALLOC(d, 3*nv, mjtNum);
   jac2p   = mjSTACKALLOC(d, 3*nv, mjtNum);
-  jac1r   = mjSTACKALLOC(d, 3*nv, mjtNum);
-  jac2r   = mjSTACKALLOC(d, 3*nv, mjtNum);
   qfrc    = mjSTACKALLOC(d, nv, mjtNum);
   if (issparse) {
     chain = mjSTACKALLOC(d, nv, int);
@@ -929,8 +925,8 @@ int mj_contactPassive(const mjModel* m, mjData* d) {
     con = d->contact + i;
     dim = con->dim;
     con->efc_address = -1;
-    NV = mj_contactJacobian(m, d, con, dim, jac, jacdif, jacdifp, jacdifr,
-                            jac1p, jac2p, jac1r, jac2r, chain);
+    NV = mj_contactJacobian(m, d, con, dim, jacdifp, NULL,
+                            jac1p, jac2p, NULL, NULL, chain);
 
     // skip contact if no DOFs affected
     if (NV == 0) {
@@ -941,9 +937,6 @@ int mj_contactPassive(const mjModel* m, mjData* d) {
 
     // rotate Jacobian differences to contact frame
     mju_mulMatMat(jac, con->frame, jacdifp, dim > 1 ? 3 : 1, 3, NV);
-    if (dim > 3) {
-      mju_mulMatMat(jac + 3*NV, con->frame, jacdifr, dim-3, 3, NV);
-    }
 
     // compute passive contact force (dim = 1)
     mjtNum scl = -kContactStiffness*con->dist;
@@ -1004,7 +997,7 @@ int mj_adhesion(const mjModel* m, mjData* d) {
     }
 
     // normal Jacobian
-    NV = mj_contactJacobian(m, d, con, 1, jac, jacdif, jacdif, NULL,
+    NV = mj_contactJacobian(m, d, con, 1, jacdif, NULL,
                             jac1p, jac2p, NULL, NULL, chain);
     if (NV == 0) {
       continue;

@@ -1533,8 +1533,8 @@ static int mj_instantiateLimit(const mjModel* m, mjData* d, int count_only, int*
 
 // compute Jacobian for contact, return number of DOFs affected
 int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int dim,
-                       mjtNum* jac, mjtNum* jacdif, mjtNum* jacdifp,
-                       mjtNum* jacdifr, mjtNum* jac1p, mjtNum* jac2p,
+                       mjtNum* jacdifp, mjtNum* jacdifr,
+                       mjtNum* jac1p, mjtNum* jac2p,
                        mjtNum* jac1r, mjtNum* jac2r, int* chain) {
   // special case: single body on each side
   if ((con->geom[0] >= 0 || (con->vert[0] >= 0 && m->flex_interp[con->flex[0]] == 0)) &&
@@ -1608,7 +1608,7 @@ int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int di
     }
 
     // combine weighted Jacobians
-    return mj_jacSum(m, d, chain, nb, bid, bweight, con->pos, jacdif, dim > 3);
+    return mj_jacSum(m, d, chain, nb, bid, bweight, con->pos, jacdifp, jacdifr, dim > 3);
   }
 }
 
@@ -1618,7 +1618,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
   int ispyramid = mj_isPyramidal(m), issparse = mj_isSparse(m), ncon = d->ncon;
   int dim, NV, nv = m->nv, *chain = NULL;
   mjContact* con;
-  mjtNum cpos[6], cmargin[6], *jac, *jacdif, *jacdifp, *jacdifr, *jac1p, *jac2p, *jac1r, *jac2r;
+  mjtNum cpos[6], cmargin[6], *jac, *jacdifp, *jacdifr, *jac1p, *jac2p, *jac1r, *jac2r;
 
   if (mjDISABLED(mjDSBL_CONTACT) || ncon == 0 || nv == 0) {
     return;
@@ -1628,9 +1628,8 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
 
   // allocate Jacobian
   jac = mjSTACKALLOC(d, 6*nv, mjtNum);
-  jacdif = mjSTACKALLOC(d, 6*nv, mjtNum);
-  jacdifp = jacdif;
-  jacdifr = jacdif + 3*nv;
+  jacdifp = mjSTACKALLOC(d, 3*nv, mjtNum);
+  jacdifr = mjSTACKALLOC(d, 3*nv, mjtNum);
   jac1p = mjSTACKALLOC(d, 3*nv, mjtNum);
   jac2p = mjSTACKALLOC(d, 3*nv, mjtNum);
   jac1r = mjSTACKALLOC(d, 3*nv, mjtNum);
@@ -1649,7 +1648,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
     con = d->contact + i;
     dim = con->dim;
     con->efc_address = d->nefc;
-    NV = mj_contactJacobian(m, d, con, dim, jac, jacdif, jacdifp, jacdifr,
+    NV = mj_contactJacobian(m, d, con, dim, jacdifp, jacdifr,
                             jac1p, jac2p, jac1r, jac2r, chain);
 
     // skip contact if no DOFs affected

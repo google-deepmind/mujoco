@@ -517,29 +517,29 @@ int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
 // dense or sparse weighted sum of multiple body Jacobians at same point
 int mj_jacSum(const mjModel* m, mjData* d, int* chain,
               int n, const int* body, const mjtNum* weight,
-              const mjtNum point[3], mjtNum* jac, int flg_rot) {
+              const mjtNum point[3], mjtNum* jacp, mjtNum* jacr, int flg_rot) {
   int nv = m->nv, NV;
-  mjtNum* jacp = jac;
 
   mj_markStack(d);
   mjtNum* jtmp = mjSTACKALLOC(d, flg_rot ? 6*nv : 3*nv, mjtNum);
-  mjtNum* jp = jtmp;
 
   // sparse
   if (mj_isSparse(m)) {
+    // the sparse merge produces one packed [jacp; jacr] block; split into the outputs at the end
+    mjtNum* jac = mjSTACKALLOC(d, flg_rot ? 6*nv : 3*nv, mjtNum);
     mjtNum* buf = mjSTACKALLOC(d, flg_rot ? 6*nv : 3*nv, mjtNum);
     int* buf_ind = mjSTACKALLOC(d, nv, int);
     int* bodychain = mjSTACKALLOC(d, nv, int);
 
-    // set first
+    // set first (rotational rows packed right after the translational rows, at offset 3*NV)
     NV = mj_bodyChain(m, body[0], chain);
     if (NV) {
       // get Jacobian
-      mjtNum* jacr = flg_rot ? jac + 3*NV : NULL;
+      mjtNum* jr = flg_rot ? jac + 3*NV : NULL;
       if (m->body_simple[body[0]]) {
-        mj_jacSparseSimple(m, d, jacp, jacr, point, body[0], 1, NV, 0);
+        mj_jacSparseSimple(m, d, jac, jr, point, body[0], 1, NV, 0);
       } else {
-        mj_jacSparse(m, d, jacp, jacr, point, body[0], NV, chain, /*flg_skipcommon=*/0);
+        mj_jacSparse(m, d, jac, jr, point, body[0], NV, chain, /*flg_skipcommon=*/0);
       }
 
       // apply weight
@@ -555,30 +555,41 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
       }
       mjtNum* jr = flg_rot ? jtmp + 3*bodyNV : NULL;
       if (m->body_simple[body[i]]) {
-        mj_jacSparseSimple(m, d, jp, jr, point, body[i], 1, bodyNV, 0);
+        mj_jacSparseSimple(m, d, jtmp, jr, point, body[i], 1, bodyNV, 0);
       } else {
-        mj_jacSparse(m, d, jp, jr, point, body[i], bodyNV, bodychain, /*flg_skipcommon=*/0);
+        mj_jacSparse(m, d, jtmp, jr, point, body[i], bodyNV, bodychain, /*flg_skipcommon=*/0);
       }
 
       // combine sparse matrices
       NV = mju_addToSparseMat(jac, jtmp, nv, flg_rot ? 6 : 3, weight[i],
                               NV, bodyNV, chain, bodychain, buf, buf_ind);
     }
+
+    // split the packed block into the separate output buffers (each NV-packed)
+    mju_copy(jacp, jac, 3*NV);
+    if (flg_rot) {
+      mju_copy(jacr, jac + 3*NV, 3*NV);
+    }
   }
 
   // dense
   else {
-    mjtNum* jacr = flg_rot ? jac + 3*nv : NULL;
     mjtNum* jr = flg_rot ? jtmp + 3*nv : NULL;
 
     // set first
-    mj_jac(m, d, jacp, jacr, point, body[0]);
-    mju_scl(jac, jac, weight[0], flg_rot ? 6*nv : 3*nv);
+    mj_jac(m, d, jacp, flg_rot ? jacr : NULL, point, body[0]);
+    mju_scl(jacp, jacp, weight[0], 3*nv);
+    if (flg_rot) {
+      mju_scl(jacr, jacr, weight[0], 3*nv);
+    }
 
     // accumulate remaining
     for (int i=1; i < n; i++) {
-      mj_jac(m, d, jp, jr, point, body[i]);
-      mju_addToScl(jac, jtmp, weight[i], flg_rot ? 6*nv : 3*nv);
+      mj_jac(m, d, jtmp, jr, point, body[i]);
+      mju_addToScl(jacp, jtmp, weight[i], 3*nv);
+      if (flg_rot) {
+        mju_addToScl(jacr, jr, weight[i], 3*nv);
+      }
     }
 
     NV = nv;

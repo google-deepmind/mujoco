@@ -17,8 +17,10 @@
 #include "src/engine/engine_core_constraint.h"
 
 #include <array>
+#include <cstdio>
 #include <cstring>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -1301,10 +1303,8 @@ TEST_F(CoreConstraintTest, ShellModeContactJacobian) {
   // buffer for Jacobian
   std::vector<mjtNum> jacdif(3 * model->nv, 0.0);
 
-  // call mj_contactJacobian
-  mj_contactJacobian(model.get(), data.get(), &con, 1, nullptr, jacdif.data(),
-                     nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-                     nullptr);
+  mj_contactJacobian(model.get(), data.get(), &con, 1, jacdif.data(),
+                     nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
 
   // check that boundary nodes have non-zero entries, and central node has zero
 
@@ -1522,6 +1522,128 @@ TEST_F(CoreConstraintTest, AdhesionPriority) {
 
   // higher-priority geom wins: 10, not 10+5
   EXPECT_EQ(data->contact[0].adhesion, 10);
+}
+
+// Verify that the rotational Jacobian from mj_jacSum in the sparse path matches
+// the dense path. This is a regression test for the bug where the sparse path
+// wrote rotational rows at offset 3*NV inside a packed buffer, but the caller
+// expected them at offset 3*nv.
+TEST_F(CoreConstraintTest, SparseRotationalJacobianMatchesDense) {
+  // XML template with a %s placeholder for the jacobian type
+  constexpr char xml_template[] = R"(
+  <mujoco>
+    <option jacobian="%s"/>
+    <worldbody>
+      <body name="parent" pos="0 0 1">
+        <freejoint/>
+        <geom size=".01" mass="1"/>
+        <flexcomp name="flex" type="grid" count="3 3 3" spacing=".1 .1 .1" dim="3" dof="trilinear">
+          <elasticity elastic2d="stretch" thickness="0.01"/>
+          <contact selfcollide="none"/>
+        </flexcomp>
+      </body>
+      <geom name="plane" type="plane" size="1 1 1" pos="0 0 -1"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  auto run_contact_jacobian = [&](const char* jacobian_type,
+                                  std::vector<mjtNum>& jacdifp_dense_out,
+                                  std::vector<mjtNum>& jacdifr_dense_out) {
+    char xml[1024];
+    snprintf(xml, sizeof(xml), xml_template, jacobian_type);
+    char error[1024];
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model.get(), testing::NotNull()) << error;
+    MjDataPtr data = MakeData(model);
+    mj_forward(model.get(), data.get());
+
+    int nv = model->nv;
+
+    // pick a boundary vertex so the Jacobian is non-trivial
+    int vert_idx = 0;
+
+    int plane_geom_id = mj_name2id(model.get(), mjOBJ_GEOM, "plane");
+    ASSERT_GE(plane_geom_id, 0);
+
+    // create a frictional contact with dim=6 (normal + 2 tangent + 3 torsional)
+    mjContact con;
+    memset(&con, 0, sizeof(mjContact));
+    con.flex[0] = -1;
+    con.flex[1] = -1;
+    con.vert[0] = -1;
+    con.vert[1] = -1;
+    con.geom[0] = plane_geom_id;  // plane geom (world body)
+    con.geom[1] = -1;  // trigger flex branch in mj_contactJacobian
+    con.flex[1] = 0;
+    con.vert[1] = vert_idx;
+    con.dim = 6;  // full frictional contact: exercises rotational Jacobian
+    mju_copy3(con.pos, data->flexvert_xpos + 3 * vert_idx);
+    // set contact frame to identity
+    mju_zero(con.frame, 9);
+    con.frame[0] = 1;
+    con.frame[4] = 1;
+    con.frame[8] = 1;
+
+    // allocate output buffers
+    std::vector<mjtNum> jacdifp(3 * nv, 0.0);
+    std::vector<mjtNum> jacdifr(3 * nv, 0.0);
+    std::vector<int> chain(nv, 0);
+
+    int NV = mj_contactJacobian(model.get(), data.get(), &con, con.dim,
+                                jacdifp.data(), jacdifr.data(),
+                                nullptr, nullptr, nullptr, nullptr,
+                                chain.data());
+    ASSERT_GT(NV, 0);
+
+    // for sparse: unpack to dense using chain indices
+    if (strcmp(jacobian_type, "sparse") == 0) {
+      std::vector<mjtNum> jacdifp_full(3 * nv, 0.0);
+      std::vector<mjtNum> jacdifr_full(3 * nv, 0.0);
+      for (int row = 0; row < 3; row++) {
+        for (int j = 0; j < NV; j++) {
+          jacdifp_full[row * nv + chain[j]] = jacdifp[row * NV + j];
+          jacdifr_full[row * nv + chain[j]] = jacdifr[row * NV + j];
+        }
+      }
+      jacdifp_dense_out = std::move(jacdifp_full);
+      jacdifr_dense_out = std::move(jacdifr_full);
+    } else {
+      jacdifp_dense_out = std::move(jacdifp);
+      jacdifr_dense_out = std::move(jacdifr);
+    }
+  };
+
+  // compute Jacobians with dense and sparse paths
+  std::vector<mjtNum> dense_jacdifp, dense_jacdifr;
+  std::vector<mjtNum> sparse_jacdifp, sparse_jacdifr;
+
+  run_contact_jacobian("dense", dense_jacdifp, dense_jacdifr);
+  ASSERT_FALSE(HasFatalFailure());
+  run_contact_jacobian("sparse", sparse_jacdifp, sparse_jacdifr);
+  ASSERT_FALSE(HasFatalFailure());
+
+  ASSERT_EQ(dense_jacdifp.size(), sparse_jacdifp.size());
+  ASSERT_EQ(dense_jacdifr.size(), sparse_jacdifr.size());
+
+  // verify positional Jacobian matches
+  const mjtNum tol = MjTol(1e-10, 1e-5);
+  for (int i = 0; i < dense_jacdifp.size(); i++) {
+    EXPECT_NEAR(dense_jacdifp[i], sparse_jacdifp[i], tol)
+        << "jacdifp mismatch at index " << i;
+  }
+
+  // verify rotational Jacobian matches (this is where the bug was)
+  bool has_nonzero_rot = false;
+  for (int i = 0; i < dense_jacdifr.size(); i++) {
+    EXPECT_NEAR(dense_jacdifr[i], sparse_jacdifr[i], tol)
+        << "jacdifr mismatch at index " << i;
+    if (mju_abs(dense_jacdifr[i]) > tol) {
+      has_nonzero_rot = true;
+    }
+  }
+  EXPECT_TRUE(has_nonzero_rot)
+      << "Rotational Jacobian should have non-zero entries";
 }
 
 }  // namespace
