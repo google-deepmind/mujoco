@@ -1388,6 +1388,16 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
   int w = m->tex_width[texid];
   float plane[4];
 
+  // the classic renderer only uploads 3- (RGB) or 4-channel (RGBA) textures. KTX
+  // and other encoded textures are single-channel blobs for the Filament renderer
+  // (see LoadKTX); skip them with a warning instead of aborting (issue #3343).
+  if (m->tex_nchannel[texid] != 3 && m->tex_nchannel[texid] != 4) {
+    mju_warning("texture %d: classic renderer can't upload %d-channel data, "
+                "skipping (KTX/encoded textures need the Filament renderer)",
+                texid, m->tex_nchannel[texid]);
+    return;
+  }
+
   // 2D texture
   if (m->tex_type[texid] == mjTEXTURE_2D) {
     // OpenGL settings
@@ -1413,11 +1423,9 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
     if (m->tex_nchannel[texid] == 3) {
       type = GL_RGB;
       internaltype = (m->tex_colorspace[texid] == mjCOLORSPACE_SRGB) ? GL_SRGB8_EXT : GL_RGB;
-    } else if (m->tex_nchannel[texid] == 4) {
+    } else {  // 4 channels, guaranteed by the channel check at the top of the function
       type = GL_RGBA;
       internaltype = (m->tex_colorspace[texid] == mjCOLORSPACE_SRGB) ? GL_SRGB8_ALPHA8_EXT : GL_RGBA;
-    } else {
-      mju_error("Number of channels not supported: %d", m->tex_nchannel[texid]);
     }
 
     glTexImage2D(GL_TEXTURE_2D, 0, internaltype, m->tex_width[texid],
