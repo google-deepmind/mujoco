@@ -25,9 +25,7 @@ namespace mujoco {
 
 // Creates a mjrfMesh for the given flex object.
 UniquePtr<mjrfMesh> CreateFlexMesh(mjrfContext* ctx, const mjModel* model,
-                                   const mjData* data, int flex_id,
-                                   int flex_layer, bool smooth_skinning,
-                                   bool generate_edges, bool generate_vertices);
+                                   const mjData* data, int flex_id);
 
 // Creates a mjrfMesh for the given skin object.
 UniquePtr<mjrfMesh> CreateSkinMesh(mjrfContext* ctx, const mjModel* model,

@@ -50,10 +50,10 @@ class SceneDecorator {
   SceneDecorator& operator=(const SceneDecorator&) = delete;
 
  private:
-  mjrfContext* ctx_;
   mjrfScene* scene_;
   ModelObjects* model_objects_;
   mjvScene mjv_scene_;
+  std::vector<UniquePtr<mjrfMesh>> meshes_;
   std::vector<UniquePtr<mjrfRenderable>> decorations_;
 };
 

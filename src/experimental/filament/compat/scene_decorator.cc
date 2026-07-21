@@ -129,6 +129,7 @@ void SceneDecorator::Update(mjData* data, const mjvOption* vis_option,
     mjrf_removeRenderableFromScene(scene_, iter.get());
   }
   decorations_.clear();
+  meshes_.clear();
 
   const mat4 clip_from_world =
       CalcClipFromWorld(model, data, *camera, viewport);
@@ -143,12 +144,133 @@ void SceneDecorator::Update(mjData* data, const mjvOption* vis_option,
         draw_text_at_fn(geom.label, pos.x, pos.y, pos.z);
       }
     }
-    if (geom.category != mjCAT_DECOR) {
+
+    const mjtGeom geom_type = (mjtGeom)geom.type;
+
+    if (geom_type == mjGEOM_NONE || geom_type == mjGEOM_LABEL) {
+      continue;
+    }
+    if (geom.category != mjCAT_DECOR && geom.type != mjGEOM_FLEX) {
       continue;
     }
 
-    const mjtGeom geom_type = (mjtGeom)geom.type;
-    if (geom_type == mjGEOM_NONE || geom_type == mjGEOM_LABEL) {
+    if (geom.type == mjGEOM_FLEX) {
+      // Draw flexes "normally" with skins; no decor/debug rendering needed.
+      if (mjv_scene_.flexskinopt) {
+        continue;
+      }
+
+      mjrfMaterial material;
+      mjrf_defaultMaterial(&material);
+      material.decor_ux = true;
+      material.color[0] = model->flex_rgba[4 * geom.objid + 0];
+      material.color[1] = model->flex_rgba[4 * geom.objid + 1];
+      material.color[2] = model->flex_rgba[4 * geom.objid + 2];
+      material.color[3] = model->flex_rgba[4 * geom.objid + 3];
+
+      mjrfRenderableParams params;
+      mjrf_defaultRenderableParams(&params);
+
+      const int vertadr = mjv_scene_.flexvertadr[geom.objid];
+      const int vertnum = mjv_scene_.flexvertnum[geom.objid];
+      const float radius = model->flex_radius[geom.objid];
+
+      if (mjv_scene_.flexvertopt) {
+        // Use small spheres to represent vertices.
+        const float rot[] = {1.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 1.f};
+        const float size[] = {radius, radius, radius};
+        for (int v = vertadr; v < vertadr + vertnum; ++v) {
+          auto vertex = CreateRenderable(ctx, params);
+          mjrf_setRenderableGeomMesh(vertex.get(), mjGEOM_SPHERE, 8, 8, 1);
+          mjrf_setRenderableMaterial(vertex.get(), &material);
+          mjrf_setRenderableSize(vertex.get(), size);
+          mjrf_setRenderableTransform(vertex.get(), mjv_scene_.flexvert + 3*v, rot);
+          mjrf_addRenderableToScene(scene_, vertex.get());
+          decorations_.push_back(std::move(vertex));
+        }
+      }
+
+      if (mjv_scene_.flexedgeopt) {
+        const int edgeadr = mjv_scene_.flexedgeadr[geom.objid];
+        const int edgenum = mjv_scene_.flexedgenum[geom.objid];
+
+        // Use small thin cylinders to represent the edges.
+        for (int e = edgeadr; e < edgeadr + edgenum; ++e) {
+          const float* v1 = mjv_scene_.flexvert + 3 * (vertadr + mjv_scene_.flexedge[2*e]);
+          const float* v2 = mjv_scene_.flexvert + 3 * (vertadr + mjv_scene_.flexedge[2*e+1]);
+          const mjtNum vec[3] = {v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]};
+
+          const float pos[3]{
+              (v1[0] + v2[0]) * 0.5f,
+              (v1[1] + v2[1]) * 0.5f,
+              (v1[2] + v2[2]) * 0.5f,
+          };
+
+          mjtNum quat[4];
+          mju_quatZ2Vec(quat, vec);
+          mjtNum edgemat[9];
+          mju_quat2Mat(edgemat, quat);
+          const float rot[9] = {
+            static_cast<float>(edgemat[0]),
+            static_cast<float>(edgemat[1]),
+            static_cast<float>(edgemat[2]),
+            static_cast<float>(edgemat[3]),
+            static_cast<float>(edgemat[4]),
+            static_cast<float>(edgemat[5]),
+            static_cast<float>(edgemat[6]),
+            static_cast<float>(edgemat[7]),
+            static_cast<float>(edgemat[8]),
+          };
+
+          const float len = static_cast<float>(mju_norm3(vec));
+          const float size[3] = {radius, radius, len * 0.5f};
+
+          auto vertex = CreateRenderable(ctx, params);
+          mjrf_setRenderableGeomMesh(vertex.get(), mjGEOM_CYLINDER, 1, 8, 1);
+          mjrf_setRenderableMaterial(vertex.get(), &material);
+          mjrf_setRenderableSize(vertex.get(), size);
+          mjrf_setRenderableTransform(vertex.get(), pos, rot);
+          mjrf_addRenderableToScene(scene_, vertex.get());
+          decorations_.push_back(std::move(vertex));
+        }
+      }
+
+      if (mjv_scene_.flexfaceopt && mjv_scene_.flexfaceused[geom.objid]) {
+        const bool has_uvs = geom.texcoord && geom.matid >= 0;
+        const int addr = mjv_scene_.flexfaceadr[geom.objid];
+        const float* positions = mjv_scene_.flexface + (9 * addr);
+        const float* normals = mjv_scene_.flexnormal + (9 * addr);
+        const float* uvs =
+            has_uvs ? mjv_scene_.flextexcoord + (6 * addr) : nullptr;
+
+        mjrfMeshData data;
+        mjrf_defaultMeshData(&data);
+        data.num_attributes = has_uvs ? 3 : 2;
+        data.attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
+        data.attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
+        data.attributes[0].bytes = positions;
+        data.attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_NORMAL;
+        data.attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
+        data.attributes[1].bytes = normals;
+        data.attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
+        data.attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
+        data.attributes[2].bytes = uvs;
+        data.num_vertices = 3 * mjv_scene_.flexfaceused[geom.objid];
+        data.num_indices = 3 * mjv_scene_.flexfaceused[geom.objid];
+        data.indices = nullptr;
+        data.index_type = mjINDEX_TYPE_U32;
+        data.primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
+        data.compute_bounds = true;
+        data.release = nullptr;
+        data.user_data = nullptr;
+        meshes_.push_back(CreateMesh(ctx, data));
+
+        auto renderable = CreateRenderable(ctx, params);
+        mjrf_setRenderableMesh(renderable.get(), meshes_.back().get(), 0, 0);
+        mjrf_setRenderableMaterial(renderable.get(), &material);
+        mjrf_addRenderableToScene(scene_, renderable.get());
+        decorations_.push_back(std::move(renderable));
+      }
       continue;
     }
 

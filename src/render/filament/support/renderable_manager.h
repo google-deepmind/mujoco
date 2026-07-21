@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_RENDERABLE_MANAGER_H_
-#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_RENDERABLE_MANAGER_H_
+#ifndef MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_RENDERABLE_MANAGER_H_
+#define MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_RENDERABLE_MANAGER_H_
 
 #include <array>
 #include <unordered_map>
@@ -98,10 +98,10 @@ class RenderableManager {
 
   std::vector<UniquePtr<mjrfRenderable>> geoms_;
   std::vector<UniquePtr<mjrfRenderable>> sites_;
-  std::vector<UniquePtr<mjrfRenderable>> flexes_;
   std::vector<UniquePtr<mjrfRenderable>> skins_;
-  std::unordered_map<int, std::array<UniquePtr<mjrfRenderable>, 2>> slider_cranks_;
+  std::vector<std::vector<UniquePtr<mjrfRenderable>>> flexes_;
   std::vector<std::vector<UniquePtr<mjrfRenderable>>> tendons_;
+  std::unordered_map<int, std::array<UniquePtr<mjrfRenderable>, 2>> slider_cranks_;
 
   std::vector<UniquePtr<mjrfMesh>> flex_meshes_;
   std::vector<UniquePtr<mjrfMesh>> skin_meshes_;
@@ -109,4 +109,4 @@ class RenderableManager {
 };
 }  // namespace mujoco
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_RENDERABLE_MANAGER_H_
+#endif  // MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_RENDERABLE_MANAGER_H_

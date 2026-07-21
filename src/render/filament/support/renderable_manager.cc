@@ -197,8 +197,10 @@ RenderableManager::~RenderableManager() {
   for (auto& renderable : sites_) {
     mjrf_removeRenderableFromScene(scene_, renderable.get());
   }
-  for (auto& renderable : flexes_) {
-    mjrf_removeRenderableFromScene(scene_, renderable.get());
+  for (auto& parts : flexes_) {
+    for (auto& renderable : parts) {
+      mjrf_removeRenderableFromScene(scene_, renderable.get());
+    }
   }
   for (auto& renderable : skins_) {
     mjrf_removeRenderableFromScene(scene_, renderable.get());
@@ -231,15 +233,29 @@ void RenderableManager::Update(const mjData* data) {
     mjrf_setRenderableTransform(sites_[i].get(), pos.v, mat.asArray());
   }
 
-  for (int i = 0; i < model->nflex; ++i) {
-    const int flex_layer = vopts_.flex_layer;
-    const bool smooth_skinning = vopts_.flags[mjVIS_FLEXSKIN];
-    const bool edges = !smooth_skinning && vopts_.flags[mjVIS_FLEXEDGE];
-    const bool vertices = !smooth_skinning && vopts_.flags[mjVIS_FLEXVERT];
-    auto mesh = CreateFlexMesh(ctx, model, data, i, flex_layer, smooth_skinning,
-                               edges, vertices);
-    mjrf_setRenderableMesh(flexes_[i].get(), mesh.get(), 0, 0);
-    flex_meshes_[i] = std::move(mesh);
+  if (vopts_.flags[mjVIS_FLEXSKIN]) {
+    for (int i = 0; i < model->nflex; ++i) {
+      const int dim = model->flex_dim[i];
+      if (dim > 1) {
+        auto mesh = CreateFlexMesh(ctx, model, data, i);
+        mjrf_setRenderableMesh(flexes_[i][0].get(), mesh.get(), 0, 0);
+        flex_meshes_[i] = std::move(mesh);
+      } else {
+        const int vertadr = model->flex_vertadr[i];
+        const int edgeadr = model->flex_edgeadr[i];
+        const int edgenum = model->flex_edgenum[i];
+        const float radius = model->flex_radius[i];
+        auto& edges = flexes_[i];
+        for (int j = 0; j < edgenum; ++j) {
+          const int e = j + edgeadr;
+          const int idx0 = model->flex_edge[2 * e];
+          const int idx1 = model->flex_edge[2 * e + 1];
+          const float3 v0 = ReadFloat3(data->flexvert_xpos, vertadr + idx0);
+          const float3 v1 = ReadFloat3(data->flexvert_xpos, vertadr + idx1);
+          Connect(edges[j].get(), v0, v1, radius);
+        }
+      }
+    }
   }
 
   for (int i = 0; i < model->nskin; ++i) {
@@ -316,11 +332,13 @@ void RenderableManager::Update(const mjData* data) {
         island_id = model->tree_dofadr[tree];
       }
 
-      mjrfMaterial material;
-      mjrf_getRenderableMaterial(flexes_[i].get(), &material);
-      material.island_id = island_id;
-      material.sleep_state = awake ? mjS_AWAKE : mjS_ASLEEP;
-      mjrf_setRenderableMaterial(flexes_[i].get(), &material);
+      for (auto& renderable : flexes_[i]) {
+        mjrfMaterial material;
+        mjrf_getRenderableMaterial(renderable.get(), &material);
+        material.island_id = island_id;
+        material.sleep_state = awake ? mjS_AWAKE : mjS_ASLEEP;
+        mjrf_setRenderableMaterial(renderable.get(), &material);
+      }
     }
   }
 }
@@ -340,7 +358,10 @@ mjrfRenderable* RenderableManager::GetRenderable(mjtObj obj_type, int obj_index,
       break;
     case mjOBJ_FLEX:
       if (obj_index >= 0 && obj_index < flexes_.size()) {
-        return flexes_[obj_index].get();
+        auto& parts = flexes_[obj_index];
+        if (sub_index >= 0 && sub_index < parts.size()) {
+          return parts[sub_index].get();
+        }
       }
       break;
     case mjOBJ_SKIN:
@@ -449,18 +470,37 @@ void RenderableManager::AddFlexGeoms() {
   flexes_.reserve(model->nflex);
   flex_meshes_.reserve(model->nflex);
   for (int i = 0; i < model->nflex; ++i) {
-    mjrfRenderableParams params;
-    mjrf_defaultRenderableParams(&params);
-    auto renderable = CreateRenderable(ctx, params);
+    flex_meshes_.emplace_back(nullptr, nullptr);
 
     mjrfMaterial material = GetDefaultMaterial(mjOBJ_FLEX, i);
-    mjrf_setRenderableMaterial(renderable.get(), &material);
+
+    mjrfRenderableParams params;
+    mjrf_defaultRenderableParams(&params);
+
+    auto& parts = flexes_.emplace_back();
+
+    const int dim = model->flex_dim[i];
+    if (dim == 1) {
+      const float radius = model->flex_radius[i];
+      const float size[3] = {radius, radius, radius};
+      for (int j = 0; j < model->flex_edgenum[i]; ++j) {
+        auto renderable = CreateRenderable(ctx, params);
+        mjrf_setRenderableGeomMesh(renderable.get(), mjGEOM_CAPSULE, 4, 8, 1);
+        mjrf_setRenderableSize(renderable.get(), size);
+        mjrf_setRenderableMaterial(renderable.get(), &material);
+        parts.push_back(std::move(renderable));
+      }
+    } else {
+      auto renderable = CreateRenderable(ctx, params);
+      mjrf_setRenderableMaterial(renderable.get(), &material);
+      parts.push_back(std::move(renderable));
+    }
 
     if (vopts_.flexgroup[model->flex_group[i]]) {
-      mjrf_addRenderableToScene(scene_, renderable.get());
+      for (auto& renderable : parts) {
+        mjrf_addRenderableToScene(scene_, renderable.get());
+      }
     }
-    flexes_.emplace_back(std::move(renderable));
-    flex_meshes_.emplace_back(nullptr, nullptr);
   }
 }
 
@@ -950,7 +990,7 @@ void RenderableManager::SetVisibility(mjtObj obj_type, int idx, bool visible) {
     case mjOBJ_FLEX:
       DetermineVisibilities(ops, vopts_.flexgroup, &vopts_.flags[mjVIS_FLEXSKIN], idx, visible);
       for (int i = 0; i < model->nflex; ++i) {
-        ApplyVisibility(ops, model->flex_group[i], scene_, {&flexes_[i], 1});
+        ApplyVisibility(ops, model->flex_group[i], scene_, flexes_[i]);
       }
       break;
     case mjOBJ_SKIN:
