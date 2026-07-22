@@ -35,6 +35,33 @@
 #include "engine/engine_util_sparse.h"
 
 
+//---------------------------------- extra primal term ---------------------------------------------
+
+// [IPC prototype] optional extra convex penalty term injected into the monolithic primal objective.
+// Not thread-safe by design (prototype): set before a solver call, cleared after. See engine_solver.h.
+static const mjExtraPrimal* g_extraPrimal = NULL;
+
+void mj_setExtraPrimal(const mjExtraPrimal* extra) {
+  g_extraPrimal = extra;
+}
+
+// number of injected extra-primal rows currently active (0 if none): lets mj_fwdConstraint
+// run the solver even when nefc==0 (pure-flex: native contacts dropped, contact is injected)
+int mj_extraPrimalRows(void) {
+  return g_extraPrimal ? g_extraPrimal->nrow : 0;
+}
+
+// residual of extra row t at the given qacc: r = sum val*qacc[colind] - ref
+static inline mjtNum ExtraPrimalResidual(const mjExtraPrimal* e, int t, const mjtNum* qacc) {
+  mjtNum r = -e->ref[t];
+  int adr = e->rowadr[t], nnz = e->rownnz[t];
+  for (int k=0; k < nnz; k++) {
+    r += e->val[adr+k] * qacc[e->colind[adr+k]];
+  }
+  return r;
+}
+
+
 //---------------------------------- utility functions ---------------------------------------------
 
 // save solver statistics
@@ -1400,6 +1427,24 @@ static void PrimalUpdateConstraint(mjPrimalContext* ctx, int flg_HessianCone) {
 
   ctx->quadGauss[0] = Gauss;
   ctx->cost += Gauss;
+
+  // [IPC prototype] extra primal penalty term: add 0.5*D*r^2 to the cost and its force -D*r*J into
+  // qfrc_constraint (so the gradient update picks it up as grad += D*r*J). island path skips it.
+  if (g_extraPrimal && ctx->island < 0) {
+    const mjExtraPrimal* e = g_extraPrimal;
+    for (int t=0; t < e->nrow; t++) {
+      mjtNum r = ExtraPrimalResidual(e, t, ctx->qacc);
+      if (e->onesided[t] && r >= 0) {
+        continue;                             // one-sided penalty inactive when separated
+      }
+      ctx->cost += 0.5 * e->D[t] * r * r;
+      mjtNum f = -e->D[t] * r;                // efc-convention force (grad = Ma - qfrc_smooth - qfrc_constraint)
+      int adr = e->rowadr[t], nnz = e->rownnz[t];
+      for (int k=0; k < nnz; k++) {
+        ctx->qfrc_constraint[e->colind[adr+k]] += f * e->val[adr+k];
+      }
+    }
+  }
 }
 
 
@@ -1799,6 +1844,35 @@ static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
         quadTotal[2] += ctx->quad[3*i+2];
       } else {
         cost -= cost0;
+      }
+    }
+  }
+
+  // [IPC prototype] extra primal penalty term along the search line (mirror of the contact branch):
+  // quad coeffs [0.5*D*r0^2, D*r0*rv, 0.5*D*rv^2] with r0 = residual@qacc, rv = J*search.
+  if (g_extraPrimal && ctx->island < 0) {
+    const mjExtraPrimal* e = g_extraPrimal;
+    for (int t=0; t < e->nrow; t++) {
+      mjtNum r0 = ExtraPrimalResidual(e, t, ctx->qacc);
+      mjtNum rv = 0;
+      int adr = e->rowadr[t], nnz = e->rownnz[t];
+      for (int k=0; k < nnz; k++) {
+        rv += e->val[adr+k] * ctx->search[e->colind[adr+k]];
+      }
+      mjtNum q1 = e->D[t]*r0*rv, q2 = 0.5*e->D[t]*rv*rv;
+      if (!e->onesided[t]) {                              // two-sided: always active
+        quadTotal[1] += q1;
+        quadTotal[2] += q2;
+      } else {                                            // one-sided: active iff residual < 0
+        mjtNum q0 = 0.5*e->D[t]*r0*r0;
+        mjtNum cost0 = r0 < 0 ? q0 : 0;
+        if (r0 + alpha*rv < 0) {
+          quadTotal[0] += q0 - cost0;
+          quadTotal[1] += q1;
+          quadTotal[2] += q2;
+        } else {
+          cost -= cost0;
+        }
       }
     }
   }
@@ -2342,6 +2416,12 @@ static void HessianIncremental(mjData* d, mjPrimalContext* ctx, const int* oldst
 
 // driver
 static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, int flg_Newton) {
+  // [IPC] injected extra-primal rows are carried by the CG path (cost/gradient/line-search
+  // quadratics); the Newton Hessian does not include them, so force CG whenever rows are
+  // registered (engine_ipc requires mjSOL_CG anyway -- this guards direct callers).
+  if (g_extraPrimal && island < 0) {
+    flg_Newton = 0;
+  }
   int iter = 0;
   mjtNum alpha, beta;
   mjPrimalContext ctx;

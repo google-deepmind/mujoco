@@ -29,6 +29,7 @@
 #include "engine/engine_core_util.h"
 #include "engine/engine_derivative.h"
 #include "engine/engine_inverse.h"
+#include "engine/engine_ipc.h"
 #include "engine/engine_island.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
@@ -918,9 +919,10 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   // always clear qfrc_constraint
   mju_zero(d->qfrc_constraint, nv);
 
-  // no constraints: copy unconstrained acc, clear forces, return
-  // (with the effective metric active, qacc_smooth is already the implicit answer)
-  if (!nefc) {
+  // no constraints AND no injected extra-primal rows: copy unconstrained acc, clear forces,
+  // return (with the effective metric active, qacc_smooth is already the implicit answer).
+  // Injected flex-flex contact (engine_ipc) still needs the primal solve when nefc==0.
+  if (!nefc && !mj_extraPrimalRows()) {
     mju_copy(d->qacc, d->qacc_smooth, nv);
     mju_zeroInt(d->solver_niter, mjNISLAND);
     TM_END(mjTIMER_CONSTRAINT);
@@ -1572,7 +1574,23 @@ void mj_step(const mjModel* m, mjData* d) {
   // common to all integrators
   mj_checkPos(m, d);
   mj_checkVel(m, d);
-  mj_forward(m, d);
+  // The FLEX IPC predictor runs without constraints or contacts: qacc_smooth is the free-flight
+  // acceleration (passive spring/damper forces kept), the shared linearization center of the
+  // inner QP and the merit. Edge-equality rows and native contacts are rebuilt inside mj_IPC,
+  // which owns them; flex-flex contact is injected there as extra-primal rows. The RIGID IPC
+  // path drives its penalty from the NATIVE contact set, so it runs the normal forward.
+  int ipcflex = 0;
+  if ((mjtIntegrator) m->opt.integrator == mjINT_IPC) {
+    for (int i=0; i < m->nflex; i++) if (m->flex_dim[i] == 2) { ipcflex = 1; break; }
+  }
+  if (ipcflex) {
+    int saved = m->opt.disableflags;
+    ((mjModel*) m)->opt.disableflags = saved | mjDSBL_CONSTRAINT | mjDSBL_CONTACT;
+    mj_forward(m, d);
+    ((mjModel*) m)->opt.disableflags = saved;
+  } else {
+    mj_forward(m, d);
+  }
   mj_checkAcc(m, d);
 
   // compare forward and inverse solutions if enabled
@@ -1593,6 +1611,10 @@ void mj_step(const mjModel* m, mjData* d) {
   case mjINT_IMPLICIT:
   case mjINT_IMPLICITFAST:
     mj_implicit(m, d);
+    break;
+
+  case mjINT_IPC:
+    mj_IPC(m, d);
     break;
 
   default:
