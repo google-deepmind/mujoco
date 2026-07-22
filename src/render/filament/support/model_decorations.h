@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_SCENE_DECORATOR_H_
-#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_SCENE_DECORATOR_H_
+#ifndef MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_MODEL_DECORATIONS_H_
+#define MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_MODEL_DECORATIONS_H_
 
 #include <functional>
 #include <span>
@@ -31,11 +31,11 @@ namespace mujoco {
 //
 // Internally uses mjvScene to generate decorative mjvGeoms from which the
 // renderables are then created.
-class SceneDecorator {
+class ModelDecorations {
  public:
-  SceneDecorator(mjrfScene* scene, ModelObjects* model_objects,
+  ModelDecorations(mjrfScene* scene, ModelObjects* model_objects,
                  int num_geoms = 2000);
-  ~SceneDecorator();
+  ~ModelDecorations();
 
   // Function for drawing text at a given position in clip space.
   using DrawTextAtFn = std::function<void(const char*, float, float, float)>;
@@ -46,8 +46,8 @@ class SceneDecorator {
               const mjrRect& viewport, DrawTextAtFn draw_text_at_fn = nullptr,
               std::span<const mjvGeom> extra_geoms = {});
 
-  SceneDecorator(const SceneDecorator&) = delete;
-  SceneDecorator& operator=(const SceneDecorator&) = delete;
+  ModelDecorations(const ModelDecorations&) = delete;
+  ModelDecorations& operator=(const ModelDecorations&) = delete;
 
  private:
   mjrfScene* scene_;
@@ -59,4 +59,4 @@ class SceneDecorator {
 
 }  // namespace mujoco
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_SCENE_DECORATOR_H_
+#endif  // MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_MODEL_DECORATIONS_H_

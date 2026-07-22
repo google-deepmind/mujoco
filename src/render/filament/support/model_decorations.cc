@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/filament/compat/scene_decorator.h"
+#include "render/filament/support/model_decorations.h"
 
 #include <algorithm>
 #include <cstring>
@@ -34,14 +34,14 @@ using filament::math::float3;
 using filament::math::float4;
 using filament::math::mat4;
 
-SceneDecorator::SceneDecorator(mjrfScene* scene, ModelObjects* model_objects,
+ModelDecorations::ModelDecorations(mjrfScene* scene, ModelObjects* model_objects,
                                int num_geoms)
     : scene_(scene), model_objects_(model_objects) {
   std::memset(&mjv_scene_, 0, sizeof(mjvScene));
   mjv_makeScene(model_objects_->GetModel(), &mjv_scene_, 2000);
 }
 
-SceneDecorator::~SceneDecorator() {
+ModelDecorations::~ModelDecorations() {
   mjv_freeScene(&mjv_scene_);
 }
 
@@ -101,7 +101,7 @@ static mat4 CalcClipFromWorld(const mjModel* model, const mjData* data,
   return projection * inverse(look_at);
 }
 
-void SceneDecorator::Update(mjData* data, const mjvOption* vis_option,
+void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
                             const mjvPerturb* perturb, mjvCamera* camera,
                             const mjrRect& viewport,
                             DrawTextAtFn draw_text_at_fn,

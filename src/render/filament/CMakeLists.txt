@@ -59,6 +59,8 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         support/light_manager.cc
         support/mesh_util.h
         support/mesh_util.cc
+        support/model_decorations.h
+        support/model_decorations.cc
         support/model_objects.h
         support/model_objects.cc
         support/renderable_manager.h

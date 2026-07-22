@@ -23,8 +23,6 @@ target_sources(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME}
     PUBLIC
         compat/scene_bridge.cc
         compat/scene_bridge.h
-        compat/scene_decorator.cc
-        compat/scene_decorator.h
         compat/scene_geom_util.cc
         compat/scene_geom_util.h
         compat/scene_objects.cc
