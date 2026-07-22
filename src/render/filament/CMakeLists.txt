@@ -55,16 +55,16 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         core/types.h
         support/filament_util.h
         support/filament_util.cc
-        support/light_manager.h
-        support/light_manager.cc
         support/mesh_util.h
         support/mesh_util.cc
         support/model_decorations.h
         support/model_decorations.cc
+        support/model_lights.h
+        support/model_lights.cc
         support/model_objects.h
         support/model_objects.cc
-        support/renderable_manager.h
-        support/renderable_manager.cc
+        support/model_renderables.h
+        support/model_renderables.cc
 )
 
 target_include_directories(${MUJOCO_FILAMENT_TARGET_NAME}

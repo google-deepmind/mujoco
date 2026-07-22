@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "render/filament/support/renderable_manager.h"
+#include "render/filament/support/model_renderables.h"
 
 #include <array>
 #include <memory>
@@ -142,7 +142,8 @@ static void SetGeomMesh(mjrfRenderable* renderable, ModelObjects* model_objs,
     }
     case mjGEOM_HFIELD: {
       const int data_id = model->geom_dataid[geom_index];
-      mjrf_setRenderableMesh(renderable, model_objs->GetHeightField(data_id), 0, 0);
+      mjrf_setRenderableMesh(renderable, model_objs->GetHeightField(data_id), 0,
+                             0);
       break;
     }
     case mjGEOM_FLEX:
@@ -175,8 +176,8 @@ static void SetGeomMesh(mjrfRenderable* renderable, ModelObjects* model_objs,
   }
 }
 
-RenderableManager::RenderableManager(mjrfScene* scene,
-                                     ModelObjects* model_objects)
+ModelRenderables::ModelRenderables(mjrfScene* scene,
+                                   ModelObjects* model_objects)
     : scene_(scene), model_objects_(model_objects) {
   mjv_defaultOption(&vopts_);
 
@@ -190,7 +191,7 @@ RenderableManager::RenderableManager(mjrfScene* scene,
   tendons_.resize(model_objects_->GetModel()->ntendon);
 }
 
-RenderableManager::~RenderableManager() {
+ModelRenderables::~ModelRenderables() {
   for (auto& renderable : geoms_) {
     mjrf_removeRenderableFromScene(scene_, renderable.get());
   }
@@ -217,7 +218,7 @@ RenderableManager::~RenderableManager() {
   }
 }
 
-void RenderableManager::Update(const mjData* data) {
+void ModelRenderables::Update(const mjData* data) {
   mjrfContext* ctx = model_objects_->GetContext();
   const mjModel* model = model_objects_->GetModel();
 
@@ -343,8 +344,8 @@ void RenderableManager::Update(const mjData* data) {
   }
 }
 
-mjrfRenderable* RenderableManager::GetRenderable(mjtObj obj_type, int obj_index,
-                                                 int sub_index) {
+mjrfRenderable* ModelRenderables::GetRenderable(mjtObj obj_type, int obj_index,
+                                                int sub_index) {
   switch (obj_type) {
     case mjOBJ_GEOM:
       if (obj_index >= 0 && obj_index < geoms_.size()) {
@@ -405,7 +406,7 @@ mjrfRenderable* RenderableManager::GetRenderable(mjtObj obj_type, int obj_index,
   return nullptr;
 }
 
-void RenderableManager::AddGeomGeoms() {
+void ModelRenderables::AddGeomGeoms() {
   mjrfContext* ctx = model_objects_->GetContext();
   const mjModel* model = model_objects_->GetModel();
 
@@ -434,7 +435,7 @@ void RenderableManager::AddGeomGeoms() {
   }
 }
 
-void RenderableManager::AddSiteGeoms() {
+void ModelRenderables::AddSiteGeoms() {
   mjrfContext* ctx = model_objects_->GetContext();
   const mjModel* model = model_objects_->GetModel();
 
@@ -463,7 +464,7 @@ void RenderableManager::AddSiteGeoms() {
   }
 }
 
-void RenderableManager::AddFlexGeoms() {
+void ModelRenderables::AddFlexGeoms() {
   mjrfContext* ctx = model_objects_->GetContext();
   const mjModel* model = model_objects_->GetModel();
 
@@ -504,7 +505,7 @@ void RenderableManager::AddFlexGeoms() {
   }
 }
 
-void RenderableManager::AddSkinGeoms() {
+void ModelRenderables::AddSkinGeoms() {
   mjrfContext* ctx = model_objects_->GetContext();
   const mjModel* model = model_objects_->GetModel();
 
@@ -526,7 +527,7 @@ void RenderableManager::AddSkinGeoms() {
   }
 }
 
-void RenderableManager::AddSliderCrankGeoms() {
+void ModelRenderables::AddSliderCrankGeoms() {
   mjrfContext* ctx = model_objects_->GetContext();
   const mjModel* model = model_objects_->GetModel();
   const int nstack = model->vis.quality.numstacks;
@@ -558,8 +559,7 @@ void RenderableManager::AddSliderCrankGeoms() {
   }
 }
 
-void RenderableManager::UpdateSliderCranks(const mjData* data,
-                                           int actuator_id) {
+void ModelRenderables::UpdateSliderCranks(const mjData* data, int actuator_id) {
   auto it = slider_cranks_.find(actuator_id);
   if (it == slider_cranks_.end()) {
     mju_error("Slider/crank not found: %d", actuator_id);
@@ -609,7 +609,7 @@ void RenderableManager::UpdateSliderCranks(const mjData* data,
   mjrf_setRenderableMaterial(crank, &material);
 }
 
-void RenderableManager::AppendSegmentToTendon(int tendon_id) {
+void ModelRenderables::AppendSegmentToTendon(int tendon_id) {
   mjrfContext* ctx = model_objects_->GetContext();
   const mjModel* model = model_objects_->GetModel();
 
@@ -630,15 +630,14 @@ void RenderableManager::AppendSegmentToTendon(int tendon_id) {
   segments.emplace_back(std::move(renderable));
 }
 
-void RenderableManager::RemoveSegmentFromTendon(int tendon_id) {
+void ModelRenderables::RemoveSegmentFromTendon(int tendon_id) {
   auto& segments = tendons_[tendon_id];
   mjrfRenderable* renderable = segments.back().get();
   mjrf_removeRenderableFromScene(scene_, renderable);
   segments.pop_back();
 }
 
-void RenderableManager::UpdateSpatialTendons(const mjData* data,
-                                             int tendon_id) {
+void ModelRenderables::UpdateSpatialTendons(const mjData* data, int tendon_id) {
   const mjModel* model = model_objects_->GetModel();
 
   // Gather the points that define the tendon. We'll use a simple cache to avoid
@@ -697,7 +696,7 @@ void RenderableManager::UpdateSpatialTendons(const mjData* data,
   }
 }
 
-int RenderableManager::GetSegmentationId(mjtObj obj_type, int obj_index) {
+int ModelRenderables::GetSegmentationId(mjtObj obj_type, int obj_index) {
   const mjModel* model = model_objects_->GetModel();
 
   int id = 0;
@@ -735,8 +734,8 @@ int RenderableManager::GetSegmentationId(mjtObj obj_type, int obj_index) {
   return -1;
 }
 
-mjrfMaterial RenderableManager::GetDefaultMaterial(mjtObj obj_type,
-                                                   int obj_index) {
+mjrfMaterial ModelRenderables::GetDefaultMaterial(mjtObj obj_type,
+                                                  int obj_index) {
   const mjModel* model = model_objects_->GetModel();
 
   mjrfMaterial material;
@@ -970,7 +969,7 @@ static void ApplyVisibility(VisibilityOp* ops, int group, mjrfScene* scene,
   }
 }
 
-void RenderableManager::SetVisibility(mjtObj obj_type, int idx, bool visible) {
+void ModelRenderables::SetVisibility(mjtObj obj_type, int idx, bool visible) {
   const mjModel* model = model_objects_->GetModel();
 
   VisibilityOp ops[mjNGROUP] = {kNoop};
@@ -988,25 +987,29 @@ void RenderableManager::SetVisibility(mjtObj obj_type, int idx, bool visible) {
       }
       break;
     case mjOBJ_FLEX:
-      DetermineVisibilities(ops, vopts_.flexgroup, &vopts_.flags[mjVIS_FLEXSKIN], idx, visible);
+      DetermineVisibilities(ops, vopts_.flexgroup,
+                            &vopts_.flags[mjVIS_FLEXSKIN], idx, visible);
       for (int i = 0; i < model->nflex; ++i) {
         ApplyVisibility(ops, model->flex_group[i], scene_, flexes_[i]);
       }
       break;
     case mjOBJ_SKIN:
-      DetermineVisibilities(ops, vopts_.skingroup, &vopts_.flags[mjVIS_SKIN], idx, visible);
+      DetermineVisibilities(ops, vopts_.skingroup, &vopts_.flags[mjVIS_SKIN],
+                            idx, visible);
       for (int i = 0; i < model->nskin; ++i) {
         ApplyVisibility(ops, model->skin_group[i], scene_, {&skins_[i], 1});
       }
       break;
     case mjOBJ_TENDON:
-      DetermineVisibilities(ops, vopts_.tendongroup, &vopts_.flags[mjVIS_TENDON], idx, visible);
+      DetermineVisibilities(ops, vopts_.tendongroup,
+                            &vopts_.flags[mjVIS_TENDON], idx, visible);
       for (int i = 0; i < model->ntendon; ++i) {
         ApplyVisibility(ops, model->tendon_group[i], scene_, tendons_[i]);
       }
       break;
     case mjOBJ_ACTUATOR:
-      DetermineVisibilities(ops, vopts_.actuatorgroup, &vopts_.flags[mjVIS_ACTUATOR], idx, visible);
+      DetermineVisibilities(ops, vopts_.actuatorgroup,
+                            &vopts_.flags[mjVIS_ACTUATOR], idx, visible);
       for (int i = 0; i < model->nu; ++i) {
         auto it = slider_cranks_.find(i);
         if (it == slider_cranks_.end()) {
@@ -1021,7 +1024,7 @@ void RenderableManager::SetVisibility(mjtObj obj_type, int idx, bool visible) {
   }
 }
 
-void RenderableManager::SetOptions(const mjvOption& opt) {
+void ModelRenderables::SetOptions(const mjvOption& opt) {
   const mjModel* model = model_objects_->GetModel();
 
   for (int i = 0; i < mjNGROUP; ++i) {
@@ -1092,12 +1095,12 @@ void RenderableManager::SetOptions(const mjvOption& opt) {
   vopts_ = opt;
 }
 
-void RenderableManager::MarkAsSelected(mjtObj obj_type, int obj_index) {
+void ModelRenderables::MarkAsSelected(mjtObj obj_type, int obj_index) {
   if (obj_type != selected_obj_type_ || obj_index != selected_obj_index_) {
     mjrfMaterial material;
 
-    mjrfRenderable* prev_renderable = GetRenderable(
-        selected_obj_type_, selected_obj_index_);
+    mjrfRenderable* prev_renderable =
+        GetRenderable(selected_obj_type_, selected_obj_index_);
     if (prev_renderable) {
       mjrf_getRenderableMaterial(prev_renderable, &material);
       material.selected = 0;
@@ -1107,8 +1110,8 @@ void RenderableManager::MarkAsSelected(mjtObj obj_type, int obj_index) {
     selected_obj_type_ = obj_type;
     selected_obj_index_ = obj_index;
 
-    mjrfRenderable* curr_renderable = GetRenderable(
-        selected_obj_type_, selected_obj_index_);
+    mjrfRenderable* curr_renderable =
+        GetRenderable(selected_obj_type_, selected_obj_index_);
     if (curr_renderable) {
       mjrf_getRenderableMaterial(curr_renderable, &material);
       material.selected = 1;

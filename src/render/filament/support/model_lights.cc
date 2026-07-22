@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "render/filament/support/light_manager.h"
+#include "render/filament/support/model_lights.h"
 
 #include <memory>
 #include <string>
@@ -63,20 +63,19 @@ static UniquePtr<mjrfTexture> CreateFallbackIndirectLightTexture(
   mjrf_defaultTextureData(&payload);
   payload.bytes = bytes;
   payload.num_bytes = nbytes;
-  payload.release = +[](void* user_data) {
-    mju_closeResource((mjResource*)user_data);
-  };
+  payload.release =
+      +[](void* user_data) { mju_closeResource((mjResource*)user_data); };
   payload.user_data = resource;
 
   mjrf_setTextureData(texture.get(), &payload);
   return texture;
 }
 
-LightManager::LightManager(mjrfScene* scene, ModelObjects* model_objects)
+ModelLights::ModelLights(mjrfScene* scene, ModelObjects* model_objects)
     : scene_(scene), model_objects_(model_objects) {
   const mjModel* model = model_objects->GetModel();
-  default_shadow_map_size_ = ReadElement(
-      model, "filament.shadows.map_size", default_shadow_map_size_);
+  default_shadow_map_size_ =
+      ReadElement(model, "filament.shadows.map_size", default_shadow_map_size_);
   fallback_head_light_intensity_ =
       ReadElement(model, "filament.fallback.head_light_intensity",
                   fallback_head_light_intensity_);
@@ -89,7 +88,7 @@ LightManager::LightManager(mjrfScene* scene, ModelObjects* model_objects)
   Prepare();
 }
 
-LightManager::~LightManager() {
+ModelLights::~ModelLights() {
   for (auto& iter : lights_) {
     mjrf_removeLightFromScene(scene_, iter.get());
   }
@@ -100,7 +99,7 @@ LightManager::~LightManager() {
   fallback_ibl_.reset();
 }
 
-void LightManager::Prepare() {
+void ModelLights::Prepare() {
   mjrfContext* ctx = model_objects_->GetContext();
   const mjModel* model = model_objects_->GetModel();
 
@@ -194,9 +193,9 @@ void LightManager::Prepare() {
     for (auto& light : lights_) {
       if (light) {
         const bool is_headlight = (light == lights_.back());
-        mjrf_setLightIntensity(light.get(),
-                               is_headlight ? fallback_head_light_intensity_
-                                            : intensity);
+        mjrf_setLightIntensity(light.get(), is_headlight
+                                                ? fallback_head_light_intensity_
+                                                : intensity);
       }
     }
   }
@@ -204,7 +203,7 @@ void LightManager::Prepare() {
   mjrf_setSceneSkybox(scene_, model_objects_->GetSkyboxTexture());
 }
 
-void LightManager::Update(const mjData* data) {
+void ModelLights::Update(const mjData* data) {
   const mjModel* model = model_objects_->GetModel();
   for (int i = 0; i <= model->nlight; ++i) {
     // Light with index nlight is the headlight.
@@ -226,7 +225,7 @@ void LightManager::Update(const mjData* data) {
   }
 }
 
-mjrfLight* LightManager::GetLight(int index) {
+mjrfLight* ModelLights::GetLight(int index) {
   if (index < 0 || index >= lights_.size()) {
     return nullptr;
   }

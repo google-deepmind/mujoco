@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_LIGHT_MANAGER_H_
-#define MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_LIGHT_MANAGER_H_
+#ifndef MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_MODEL_LIGHTS_H_
+#define MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_MODEL_LIGHTS_H_
 
 #include <vector>
 
@@ -24,11 +24,11 @@
 
 namespace mujoco {
 
-// Manages Light entities for an mjrfScene.
-class LightManager {
+// Manages Light entities in an mjrfScene for an mjModel.
+class ModelLights {
  public:
-  LightManager(mjrfScene* scene, ModelObjects* model_objects);
-  ~LightManager();
+  ModelLights(mjrfScene* scene, ModelObjects* model_objects);
+  ~ModelLights();
 
   // Updates the state of the lights in the scene.
   void Update(const mjData* data);
@@ -37,8 +37,8 @@ class LightManager {
   // headlight is assigned of the index `nlight`.
   mjrfLight* GetLight(int index);
 
-  LightManager(const LightManager&) = delete;
-  LightManager& operator=(const LightManager&) = delete;
+  ModelLights(const ModelLights&) = delete;
+  ModelLights& operator=(const ModelLights&) = delete;
 
  private:
   void Prepare();
@@ -57,4 +57,4 @@ class LightManager {
 
 }  // namespace mujoco
 
-#endif  // MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_LIGHT_MANAGER_H_
+#endif  // MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_MODEL_LIGHTS_H_
