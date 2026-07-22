@@ -66,6 +66,9 @@ Engine
    - :ref:`mju_round` now breaks ties away from zero rather than towards :math:`+\infty`. This only affects
      negative half-integers, e.g. ``mju_round(-2.5)`` now returns -3 rather than -2.
    - Removed unneeded `mjvScene` argument from :ref:`mjv_moveCamera`.
+   - Split up :ref:`mjrfMeshData` into `mjrfMeshData` and `mjrfMeshConfig` to allow reuploading of mesh data without
+     having to recreate the mesh object. Introduces :ref:`mjrfDefaultMeshConfig` and :ref:`mjrfSetMeshData` functions.
+   - Removed `bytes` field from :ref:`mjrVertexAttribute`.
 
 .. admonition:: Breaking ABI changes
    :class: caution

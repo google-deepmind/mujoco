@@ -1078,7 +1078,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   py::class_<raw::MjrVertexAttribute> mjrVertexAttribute(m,
                                                          "MjrVertexAttribute");
   mjrVertexAttribute.def(py::init([](int usage, int type) {
-                           return raw::MjrVertexAttribute{nullptr, usage, type};
+                           return raw::MjrVertexAttribute{usage, type};
                          }),
                          py::arg("usage") = 0, py::arg("type") = 0);
   mjrVertexAttribute.def("__copy__", [](const raw::MjrVertexAttribute& other) {

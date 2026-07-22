@@ -6240,7 +6240,6 @@ public unsafe struct mjrRendererInfo_ {
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct mjrVertexAttribute_ {
-  public void* bytes;
   public int usage;
   public int type;
 }

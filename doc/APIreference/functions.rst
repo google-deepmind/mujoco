@@ -3249,14 +3249,14 @@ Returns the height of the texture.
 Returns the sampler type (mjrSamplerType) used by the texture.
 [returns: mjrSamplerType]
 
-.. _mjrf_defaultMeshData:
+.. _mjrf_defaultMeshConfig:
 
-`mjrf_defaultMeshData <#mjrf_defaultMeshData>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjrf_defaultMeshConfig <#mjrf_defaultMeshConfig>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjrf_defaultMeshData
+.. mujoco-include:: mjrf_defaultMeshConfig
 
-Initializes the mjrfMeshData to default values.
+Initializes the mjrfMeshConfig to default values.
 
 .. _mjrf_createMesh:
 
@@ -3265,7 +3265,7 @@ Initializes the mjrfMeshData to default values.
 
 .. mujoco-include:: mjrf_createMesh
 
-Creates a mesh with the given data.
+Creates an empty mesh with the given config.
 
 .. _mjrf_destroyMesh:
 
@@ -3275,6 +3275,24 @@ Creates a mesh with the given data.
 .. mujoco-include:: mjrf_destroyMesh
 
 Destroys the mesh.
+
+.. _mjrf_defaultMeshData:
+
+`mjrf_defaultMeshData <#mjrf_defaultMeshData>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_defaultMeshData
+
+Initializes the mjrfMeshData to default values.
+
+.. _mjrf_setMeshData:
+
+`mjrf_setMeshData <#mjrf_setMeshData>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setMeshData
+
+Uploads the given mesh data to the mesh.
 
 .. _mjrf_defaultSceneParams:
 

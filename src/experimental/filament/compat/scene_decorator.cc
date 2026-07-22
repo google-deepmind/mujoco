@@ -243,27 +243,35 @@ void SceneDecorator::Update(mjData* data, const mjvOption* vis_option,
         const float* uvs =
             has_uvs ? mjv_scene_.flextexcoord + (6 * addr) : nullptr;
 
+        mjrfMeshConfig config;
+        mjrf_defaultMeshConfig(&config);
+        config.num_attributes = has_uvs ? 3 : 2;
+        config.max_vertices = 3 * mjv_scene_.flexfaceused[geom.objid];
+        config.max_indices = 3 * mjv_scene_.flexfaceused[geom.objid];
+        config.attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
+        config.attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
+        config.attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_NORMAL;
+        config.attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
+        config.attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
+        config.attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
+        config.index_type = mjINDEX_TYPE_U32;
+        config.primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
+
         mjrfMeshData data;
         mjrf_defaultMeshData(&data);
-        data.num_attributes = has_uvs ? 3 : 2;
-        data.attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
-        data.attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
-        data.attributes[0].bytes = positions;
-        data.attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_NORMAL;
-        data.attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
-        data.attributes[1].bytes = normals;
-        data.attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
-        data.attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
-        data.attributes[2].bytes = uvs;
+        data.vertices[0] = positions;
+        data.vertices[1] = normals;
+        data.vertices[2] = uvs;
         data.num_vertices = 3 * mjv_scene_.flexfaceused[geom.objid];
         data.num_indices = 3 * mjv_scene_.flexfaceused[geom.objid];
         data.indices = nullptr;
-        data.index_type = mjINDEX_TYPE_U32;
-        data.primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
         data.compute_bounds = true;
         data.release = nullptr;
         data.user_data = nullptr;
-        meshes_.push_back(CreateMesh(ctx, data));
+
+        auto mesh = CreateMesh(ctx, config);
+        mjrf_setMeshData(mesh.get(), &data);
+        meshes_.push_back(std::move(mesh));
 
         auto renderable = CreateRenderable(ctx, params);
         mjrf_setRenderableMesh(renderable.get(), meshes_.back().get(), 0, 0);

@@ -38,8 +38,8 @@ inline UniquePtr<mjrfTexture> CreateTexture(mjrfContext* ctx,
 }
 
 inline UniquePtr<mjrfMesh> CreateMesh(mjrfContext* ctx,
-                                      const mjrfMeshData& data) {
-  mjrfMesh* mesh = mjrf_createMesh(ctx, &data);
+                                      const mjrfMeshConfig& config) {
+  mjrfMesh* mesh = mjrf_createMesh(ctx, &config);
   return UniquePtr<mjrfMesh>(mesh, mjrf_destroyMesh);
 }
 

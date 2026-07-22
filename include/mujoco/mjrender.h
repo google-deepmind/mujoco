@@ -124,7 +124,6 @@ typedef struct mjrRendererInfo_ {  // active renderer identity
 
 
 typedef struct mjrVertexAttribute_ {  // vertex attribute format specification
-  const void* bytes;                  // vertex data
   int usage;                          // position, normal, etc [mjrVertexAttributeUsage]
   int type;                           // float3, ubyte4, etc. [mjrVertexAttributeType]
 } mjrVertexAttribute;

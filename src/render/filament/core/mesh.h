@@ -37,11 +37,14 @@ namespace mujoco {
 class Mesh : public mjrfMesh {
  public:
   // Creates a Mesh from the given MeshData.
-  Mesh(filament::Engine* engine, const mjrfMeshData& data);
+  Mesh(filament::Engine* engine, const mjrfMeshConfig& config);
   ~Mesh();
 
   Mesh(const Mesh&) = delete;
   Mesh& operator=(const Mesh&) = delete;
+
+  // Uploads the given MeshData to the mesh.
+  void Upload(const mjrfMeshData& data);
 
   // Returns the filament IndexBuffer for the mesh.
   filament::IndexBuffer* GetFilamentIndexBuffer() const;
@@ -67,29 +70,31 @@ class Mesh : public mjrfMesh {
   }
 
  private:
-  void BuildVertexBuffer(const mjrfMeshData& data);
-  void BuildIndexBuffer(const mjrfMeshData& data);
+  void InitVertexBuffer();
+  void InitIndexBuffer();
+
+  void UpdateVertexBuffer(const mjrfMeshData& data);
+  void UpdateIndexBuffer(const mjrfMeshData& data);
   void UpdateBounds(const mjrfMeshData& data);
 
-  filament::math::float4* BuildOrientationsFromNormals(
-      int num_vertices, const mjrVertexAttribute& normals);
+  filament::math::float4* BuildOrientationsFromNormals(int num_vertices,
+                                                       const void* normals);
 
   void ReleaseResources();
 
   filament::Engine* engine_ = nullptr;
+  mjrfMeshConfig config_;
+
   filament::IndexBuffer* index_buffer_ = nullptr;
   filament::VertexBuffer* vertex_buffer_ = nullptr;
-  filament::RenderableManager::PrimitiveType type_ =
-      filament::RenderableManager::PrimitiveType::TRIANGLES;
   std::optional<filament::Box> bounds_;
+
   struct SharedState {
     std::vector<std::function<void()>> callbacks;
     std::mutex mutex;
     bool called = false;
   };
   std::shared_ptr<SharedState> shared_state_;
-  std::array<filament::VertexAttribute, mjMAX_VERTEX_ATTRIBUTES> attributes_;
-  int num_attributes_ = 0;
 };
 
 }  // namespace mujoco

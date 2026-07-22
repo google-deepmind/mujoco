@@ -1425,7 +1425,6 @@ typedef struct mjrRendererInfo_ {  // active renderer identity
   const char* backend;             // graphics backend: opengl, vulkan; empty if uninitialized
 } mjrRendererInfo;
 typedef struct mjrVertexAttribute_ {  // vertex attribute format specification
-  const void* bytes;                  // vertex data
   int usage;                          // position, normal, etc [mjrVertexAttributeUsage]
   int type;                           // float3, ubyte4, etc. [mjrVertexAttributeType]
 } mjrVertexAttribute;
@@ -1580,15 +1579,20 @@ typedef struct mjrfTextureData_ {
   mjrfCallback release;            // callback when data has finished uploading
   void* user_data;                 // user data for release callback
 } mjrfTextureData;
-typedef struct mjrfMeshData_ {
-  mjtSize num_vertices;         // number of vertices; all vertex attributes share this size
-  int num_attributes;           // number of attributes defined
+typedef struct mjrfMeshConfig_ {
+  mjtSize max_vertices;         // maximum number of vertices
+  mjtSize max_indices;          // maximum number of indices
+  int num_attributes;           // number of defined attributes
   mjrVertexAttribute attributes[mjMAX_VERTEX_ATTRIBUTES];  // per-vertex attribute information
   mjtBool interleaved;          // true if vertex attributes are interleaved
-  mjtSize num_indices;          // number of indices
-  const void* indices;          // indices data array
   int index_type;               // index data format (e.g. UINT16 or UINT32) [mjrIndexType]
   int primitive_type;           // index interpretation (e.g. TRIANGLES, etc.) [mjrMeshPrimitiveType]
+} mjrfMeshConfig;
+typedef struct mjrfMeshData_ {
+  mjtSize num_vertices;         // number of vertices
+  const void* vertices[mjMAX_VERTEX_ATTRIBUTES];  // per-vertex attribute data arrays
+  mjtSize num_indices;          // number of indices
+  const void* indices;          // indices data array
   mjtBool compute_bounds;       // if true, compute bounds from vertex positions
   float bounds_min[3];          // min/max bounds; assume unset if bounds_min == bounds_max
   float bounds_max[3];
@@ -3422,9 +3426,11 @@ void mjrf_setTextureData(mjrfTexture* texture, const mjrfTextureData* data);
 int mjrf_getTextureWidth(const mjrfTexture* texture);
 int mjrf_getTextureHeight(const mjrfTexture* texture);
 int mjrf_getTextureSamplerType(const mjrfTexture* texture);
-void mjrf_defaultMeshData(mjrfMeshData* data);
-mjrfMesh* mjrf_createMesh(mjrfContext* ctx, const mjrfMeshData* data);
+void mjrf_defaultMeshConfig(mjrfMeshConfig* config);
+mjrfMesh* mjrf_createMesh(mjrfContext* ctx, const mjrfMeshConfig* config);
 void mjrf_destroyMesh(mjrfMesh* mesh);
+void mjrf_defaultMeshData(mjrfMeshData* data);
+void mjrf_setMeshData(mjrfMesh* mesh, const mjrfMeshData* data);
 void mjrf_defaultSceneParams(mjrfSceneParams* params);
 mjrfScene* mjrf_createScene(mjrfContext* ctx, const mjrfSceneParams* params);
 void mjrf_destroyScene(mjrfScene* scene);

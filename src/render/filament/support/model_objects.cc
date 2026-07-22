@@ -329,8 +329,8 @@ static int GetNumVertices(const mjModel* model, int id, MeshType mesh_type) {
   }
 }
 
-static void UpdateMeshData(mjrfMeshData* data, const mjModel* model, int id,
-                           MeshType mesh_type) {
+static void UpdateMeshData(mjrfMeshConfig* config, mjrfMeshData* data,
+                           const mjModel* model, int id, MeshType mesh_type) {
   if (!IsValidIndex(model, id, mesh_type)) {
     mju_error("Invalid index %d for type %d", id, mesh_type);
     return;
@@ -357,24 +357,29 @@ static void UpdateMeshData(mjrfMeshData* data, const mjModel* model, int id,
       break;
   }
 
-  data->primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
-  data->num_vertices = num_vertices;
-  data->num_indices = data->num_vertices;
-  data->indices = nullptr;
-  data->index_type = data->num_vertices >= std::numeric_limits<uint16_t>::max()
-                         ? mjINDEX_TYPE_U32
-                         : mjINDEX_TYPE_U16;
-  data->num_attributes = has_uvs ? 3 : 2;
-  data->attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
-  data->attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
-  data->attributes[0].bytes = builder->positions.data();
-  data->attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_TANGENTS;
-  data->attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT4;
-  data->attributes[1].bytes = builder->orientations.data();
+  config->max_vertices = num_vertices;
+  config->max_indices = num_vertices;
+  config->primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
+  config->index_type = num_vertices >= std::numeric_limits<uint16_t>::max()
+                           ? mjINDEX_TYPE_U32
+                           : mjINDEX_TYPE_U16;
+  config->num_attributes = has_uvs ? 3 : 2;
+  config->attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
+  config->attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
+  config->attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_TANGENTS;
+  config->attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT4;
   if (has_uvs) {
-    data->attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
-    data->attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
-    data->attributes[2].bytes = builder->uvs.data();
+    config->attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
+    config->attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
+  }
+
+  data->num_vertices = num_vertices;
+  data->num_indices = num_vertices;
+  data->indices = nullptr;
+  data->vertices[0] = builder->positions.data();
+  data->vertices[1] = builder->orientations.data();
+  if (has_uvs) {
+    data->vertices[2] = builder->uvs.data();
   }
   data->bounds_min[0] = builder->bounds_min.x;
   data->bounds_min[1] = builder->bounds_min.y;
@@ -415,16 +420,27 @@ void ModelObjects::UploadMesh(const mjModel* model, int id) {
   meshes_.erase(id);
   convex_hulls_.erase(id);
 
+  mjrfMeshConfig config;
+  mjrf_defaultMeshConfig(&config);
   mjrfMeshData data;
   mjrf_defaultMeshData(&data);
-  UpdateMeshData(&data, model, id, MeshType::kNormal);
-  meshes_.insert_or_assign(id, CreateMesh(ctx_, data));
+  UpdateMeshData(&config, &data, model, id, MeshType::kNormal);
+
+  auto mesh = CreateMesh(ctx_, config);
+  mjrf_setMeshData(mesh.get(), &data);
+  meshes_.insert_or_assign(id, std::move(mesh));
 
   if (model->mesh_graphadr[id] >= 0) {
+    mjrfMeshConfig convex_hull_config;
+    mjrf_defaultMeshConfig(&convex_hull_config);
     mjrfMeshData convex_hull_data;
     mjrf_defaultMeshData(&convex_hull_data);
-    UpdateMeshData(&convex_hull_data, model, id, MeshType::kConvexHull);
-    convex_hulls_.insert_or_assign(id, CreateMesh(ctx_, convex_hull_data));
+    UpdateMeshData(&convex_hull_config, &convex_hull_data, model, id,
+                   MeshType::kConvexHull);
+
+    auto convex_hull = CreateMesh(ctx_, convex_hull_config);
+    mjrf_setMeshData(convex_hull.get(), &convex_hull_data);
+    convex_hulls_.insert_or_assign(id, std::move(convex_hull));
   }
 }
 
@@ -484,10 +500,15 @@ void ModelObjects::UploadHeightField(const mjModel* model, int id) {
 
   height_fields_.erase(id);
 
+  mjrfMeshConfig config;
+  mjrf_defaultMeshConfig(&config);
   mjrfMeshData data;
   mjrf_defaultMeshData(&data);
-  UpdateMeshData(&data, model, id, MeshType::kHeightField);
-  height_fields_.insert_or_assign(id, CreateMesh(ctx_, data));
+  UpdateMeshData(&config, &data, model, id, MeshType::kHeightField);
+
+  auto mesh = CreateMesh(ctx_, config);
+  mjrf_setMeshData(mesh.get(), &data);
+  height_fields_.insert_or_assign(id, std::move(mesh));
 }
 
 const mjrfMesh* ModelObjects::GetMesh(int data_id) const {

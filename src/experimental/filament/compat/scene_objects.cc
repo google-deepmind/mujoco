@@ -103,8 +103,11 @@ static std::span<const int> GetIndices(const mjModel* model,
   }
 }
 
-static bool UpdateSkinFlexMeshData(mjrfMeshData* data, const mjModel* model,
-                                   const mjvScene* scene, const mjvGeom& geom) {
+SceneObjects::SceneObjects(mjrfContext* ctx) : ctx_(ctx) {}
+
+bool SceneObjects::CreateSkinFlexMesh(const mjvScene* scene,
+                                      const mjModel* model,
+                                      const mjvGeom& geom) {
   auto positions = GetPositions(model, scene, geom);
   if (positions.empty()) {
     return false;
@@ -119,41 +122,44 @@ static bool UpdateSkinFlexMeshData(mjrfMeshData* data, const mjModel* model,
     num_indices = 3 * scene->flexfaceused[geom.objid];
   }
 
-  data->num_attributes = uvs.data() ? 3 : 2;
-  data->attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
-  data->attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
-  data->attributes[0].bytes = positions.data();
-  data->attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_NORMAL;
-  data->attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
-  data->attributes[1].bytes = normals.data();
-  data->attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
-  data->attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
-  data->attributes[2].bytes = uvs.data();
-  data->num_vertices = positions.size() / 3;
-  data->num_indices = num_indices;
-  data->indices = indices.data();
-  data->index_type = mjINDEX_TYPE_U32;
-  data->primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
-  data->compute_bounds = true;
-  data->release = nullptr;
-  data->user_data = nullptr;
-  return true;
-}
+  mjrfMeshConfig config;
+  mjrf_defaultMeshConfig(&config);
+  config.num_attributes = uvs.data() ? 3 : 2;
+  config.attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
+  config.attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
+  config.attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_NORMAL;
+  config.attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
+  config.attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
+  config.attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
+  config.max_vertices = positions.size() / 3;
+  config.max_indices = num_indices;
+  config.index_type = mjINDEX_TYPE_U32;
+  config.primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
 
-SceneObjects::SceneObjects(mjrfContext* ctx) : ctx_(ctx) {}
-
-bool SceneObjects::CreateSkinFlexMesh(const mjvScene* scene,
-                                      const mjModel* model,
-                                      const mjvGeom& geom) {
   mjrfMeshData data;
   mjrf_defaultMeshData(&data);
-  if (!UpdateSkinFlexMeshData(&data, model, scene, geom)) {
-    return false;
-  }
+  data.vertices[0] = positions.data();
+  data.vertices[1] = normals.data();
+  data.vertices[2] = uvs.data();
+  data.num_vertices = positions.size() / 3;
+  data.num_indices = num_indices;
+  data.indices = indices.data();
+  data.compute_bounds = true;
+  data.release = nullptr;
+  data.user_data = nullptr;
+
   if (geom.type == mjGEOM_FLEX) {
-    flexes_.insert_or_assign(geom.objid, CreateMesh(ctx_, data));
+    auto iter = flexes_.find(geom.objid);
+    if (iter == flexes_.end()) {
+      iter = flexes_.insert({geom.objid, CreateMesh(ctx_, config)}).first;
+    }
+    mjrf_setMeshData(iter->second.get(), &data);
   } else if (geom.type == mjGEOM_SKIN) {
-    skins_.insert_or_assign(geom.objid, CreateMesh(ctx_, data));
+    auto iter = skins_.find(geom.objid);
+    if (iter == skins_.end()) {
+      iter = skins_.insert({geom.objid, CreateMesh(ctx_, config)}).first;
+    }
+    mjrf_setMeshData(iter->second.get(), &data);
   } else {
     mju_error("Unsupported dynamic mesh type: %d", geom.type);
   }

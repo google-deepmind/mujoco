@@ -11333,13 +11333,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
          declname='struct mjrVertexAttribute_',
          fields=(
              StructFieldDecl(
-                 name='bytes',
-                 type=PointerType(
-                     inner_type=ValueType(name='void', is_const=True),
-                 ),
-                 doc='vertex data',
-             ),
-             StructFieldDecl(
                  name='usage',
                  type=ValueType(name='int'),
                  doc='position, normal, etc [mjrVertexAttributeUsage]',

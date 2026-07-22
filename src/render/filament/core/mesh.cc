@@ -102,21 +102,43 @@ int FillSequence(std::byte* buffer, std::size_t num_bytes) {
   return num;
 }
 
-Mesh::Mesh(filament::Engine* engine, const mjrfMeshData& data)
-    : engine_(engine), shared_state_(std::make_shared<SharedState>()) {
-  type_ = data.primitive_type == mjMESH_PRIMITIVE_TYPE_TRIANGLES
-              ? filament::RenderableManager::PrimitiveType::TRIANGLES
-              : filament::RenderableManager::PrimitiveType::LINES;
-
-  // If the user has provided a release callback, then we need to ensure we
-  // call is when filament is done with the mesh data.
-  if (data.release) {
-    shared_state_->callbacks.push_back([=]() { data.release(data.user_data); });
+Mesh::Mesh(filament::Engine* engine, const mjrfMeshConfig& config)
+    : engine_(engine),
+      config_(config),
+      shared_state_(std::make_shared<SharedState>()) {
+  // Perform some validation on the config.
+  const mjrVertexAttribute* positions = nullptr;
+  const mjrVertexAttribute* normals = nullptr;
+  const mjrVertexAttribute* tangents = nullptr;
+  for (int i = 0; i < config_.num_attributes; ++i) {
+    if (config_.attributes[i].usage == mjVERTEX_ATTRIBUTE_USAGE_POSITION) {
+      positions = &config_.attributes[i];
+    } else if (config_.attributes[i].usage == mjVERTEX_ATTRIBUTE_USAGE_NORMAL) {
+      normals = &config_.attributes[i];
+    } else if (config_.attributes[i].usage == mjVERTEX_ATTRIBUTE_USAGE_TANGENTS) {
+      tangents = &config_.attributes[i];
+    }
+  }
+  if (config_.max_vertices == 0) {
+    mju_error("Mesh has no vertices.");
+  }
+  if (!positions) {
+    mju_error("Mesh has no positions.");
+  }
+  if (config_.attributes[0].usage != mjVERTEX_ATTRIBUTE_USAGE_POSITION) {
+    mju_error("Positions must be the first attribute.");
+  }
+  if (normals && tangents) {
+    mju_error("Mesh has both normals and tangents.");
+  }
+  if (normals && config_.interleaved) {
+    // We need to build orientations from normals and so we require each
+    // attribute to be in a separate buffer.
+    mju_error("Cannot support normals with interleaved vertex attributes.");
   }
 
-  BuildVertexBuffer(data);
-  BuildIndexBuffer(data);
-  UpdateBounds(data);
+  InitVertexBuffer();
+  InitIndexBuffer();
 }
 
 Mesh::~Mesh() {
@@ -129,9 +151,84 @@ Mesh::~Mesh() {
   }
 }
 
-void Mesh::BuildVertexBuffer(const mjrfMeshData& data) {
-  if (data.num_vertices == 0) {
-    mju_error("mjrfMeshData has no vertices.");
+void Mesh::Upload(const mjrfMeshData& data) {
+  // If the user has provided a release callback, then we need to ensure we
+  // call is when filament is done with the mesh data.
+  if (data.release) {
+    shared_state_->callbacks.push_back([=]() { data.release(data.user_data); });
+  }
+
+  UpdateVertexBuffer(data);
+  UpdateIndexBuffer(data);
+  UpdateBounds(data);
+}
+
+void Mesh::InitVertexBuffer() {
+  filament::VertexBuffer::Builder vb_builder;
+  vb_builder.vertexCount(config_.max_vertices);
+
+  if (config_.interleaved) {
+    // For an interleaved vertex buffer, we will create a single buffer which
+    // contains the data in the order specified by the attributes array,
+    // starting from the first attribute's payload.
+    vb_builder.bufferCount(1);
+    int total_vertex_size = 0;
+    for (int i = 0; i < config_.num_attributes; ++i) {
+      total_vertex_size += VertexAttributeTypeSize(config_.attributes[i]);
+    }
+
+    // We assume the buffer is tightly packed with no padding between
+    // attributes. As such, the stride is equal to the total vertex size and
+    // each offset is the sum of the sizes of the preceding attributes.
+    int offset = 0;
+    for (int i = 0; i < config_.num_attributes; ++i) {
+      const mjrVertexAttribute& attrib = config_.attributes[i];
+      const filament::VertexAttribute usage = GetUsage(attrib);
+      filament::VertexBuffer::AttributeType type = GetType(attrib);
+      vb_builder.attribute(usage, 0, type, offset, total_vertex_size);
+      if (usage == filament::VertexAttribute::COLOR) {
+        vb_builder.normalized(usage);
+      }
+      offset += VertexAttributeTypeSize(attrib);
+    }
+    vertex_buffer_ = vb_builder.build(*engine_);
+  } else {
+    // For a non-interleaved vertex buffer, we assign a separate buffer to each
+    // attribute.
+    vb_builder.bufferCount(config_.num_attributes);
+    for (int i = 0; i < config_.num_attributes; ++i) {
+      const mjrVertexAttribute& attrib = config_.attributes[i];
+      const filament::VertexAttribute usage = GetUsage(attrib);
+      filament::VertexBuffer::AttributeType type = GetType(attrib);
+      if (attrib.usage == mjVERTEX_ATTRIBUTE_USAGE_NORMAL) {
+        // We will replace normals with orientations.
+        type = filament::VertexBuffer::AttributeType::FLOAT4;
+      }
+      vb_builder.attribute(usage, i, type);
+      if (usage == filament::VertexAttribute::COLOR) {
+        vb_builder.normalized(usage);
+      }
+    }
+    vertex_buffer_ = vb_builder.build(*engine_);
+  }
+}
+
+void Mesh::InitIndexBuffer() {
+  if (config_.max_indices == 0) {
+    return;
+  }
+
+  filament::IndexBuffer::Builder ib_builder;
+  ib_builder.indexCount(config_.max_indices);
+  ib_builder.bufferType(config_.index_type == mjINDEX_TYPE_U16
+                            ? filament::IndexBuffer::IndexType::USHORT
+                            : filament::IndexBuffer::IndexType::UINT);
+  index_buffer_ = ib_builder.build(*engine_);
+}
+
+void Mesh::UpdateVertexBuffer(const mjrfMeshData& data) {
+  if (config_.max_vertices != data.num_vertices) {
+    mju_error("Vertex count does not match config.");
   }
 
   // The filament BufferDescriptor callback for releasing the memory.
@@ -151,100 +248,27 @@ void Mesh::BuildVertexBuffer(const mjrfMeshData& data) {
     }
   };
 
-  // Pointers to specific attributes in the mesh data, used for additional
-  // validation and processing.
-  const mjrVertexAttribute* positions = nullptr;
-  const mjrVertexAttribute* normals = nullptr;
-  const mjrVertexAttribute* tangents = nullptr;
-  for (int i = 0; i < data.num_attributes; ++i) {
-    if (data.attributes[i].usage == mjVERTEX_ATTRIBUTE_USAGE_POSITION) {
-      positions = &data.attributes[i];
-    } else if (data.attributes[i].usage == mjVERTEX_ATTRIBUTE_USAGE_NORMAL) {
-      normals = &data.attributes[i];
-    } else if (data.attributes[i].usage == mjVERTEX_ATTRIBUTE_USAGE_TANGENTS) {
-      tangents = &data.attributes[i];
-    }
-  }
-  if (!positions) {
-    mju_error("mjrfMeshData has no positions.");
-  }
-  if (data.attributes[0].usage != mjVERTEX_ATTRIBUTE_USAGE_POSITION) {
-    mju_error("Positions must be the first attribute.");
-  }
-  if (normals && tangents) {
-    mju_error("mjrfMeshData has both normals and tangents.");
-  }
-  if (normals && data.interleaved) {
-    // We need to build orientations from normals and so we require each
-    // attribute to be in a separate buffer.
-    mju_error("Cannot support normals with interleaved vertex attributes.");
-  }
-
-  // Build the vertex buffer.
-  filament::VertexBuffer::Builder vb_builder;
-  vb_builder.vertexCount(data.num_vertices);
-
-  if (data.interleaved) {
-    // For an interleaved vertex buffer, we will create a single buffer which
-    // contains the data in the order specified by the attributes array,
-    // starting from the first attribute's payload.
-    vb_builder.bufferCount(1);
+  if (config_.interleaved) {
     int total_vertex_size = 0;
-    for (int i = 0; i < data.num_attributes; ++i) {
-      total_vertex_size += VertexAttributeTypeSize(data.attributes[i]);
+    for (int i = 0; i < config_.num_attributes; ++i) {
+      total_vertex_size += VertexAttributeTypeSize(config_.attributes[i]);
     }
-    const void* bytes = data.attributes[0].bytes;
-    const size_t nbytes = data.num_vertices * total_vertex_size;
 
-    // We assume the buffer is tightly packed with no padding between
-    // attributes. As such, the stride is equal to the total vertex size and
-    // each offset is the sum of the sizes of the preceding attributes.
-    int offset = 0;
-    for (int i = 0; i < data.num_attributes; ++i) {
-      const mjrVertexAttribute& attrib = data.attributes[i];
-      const filament::VertexAttribute usage = GetUsage(attrib);
-      filament::VertexBuffer::AttributeType type = GetType(attrib);
-      vb_builder.attribute(usage, 0, type, offset, total_vertex_size);
-      if (usage == filament::VertexAttribute::COLOR) {
-        vb_builder.normalized(usage);
-      }
-      offset += VertexAttributeTypeSize(attrib);
-      attributes_[i] = usage;
-    }
-    vertex_buffer_ = vb_builder.build(*engine_);
     auto* user_data = new std::shared_ptr<SharedState>(shared_state_);
+    const void* bytes = data.vertices[0];
+    const size_t nbytes = data.num_vertices * total_vertex_size;
     vertex_buffer_->setBufferAt(*engine_, 0,
                                 {bytes, nbytes, callback, user_data});
   } else {
-    // For a non-interleaved vertex buffer, we assign a separate buffer to each
-    // attribute.
-    vb_builder.bufferCount(data.num_attributes);
-    for (int i = 0; i < data.num_attributes; ++i) {
-      const mjrVertexAttribute& attrib = data.attributes[i];
-      const filament::VertexAttribute usage = GetUsage(attrib);
-      filament::VertexBuffer::AttributeType type = GetType(attrib);
-      if (attrib.usage == mjVERTEX_ATTRIBUTE_USAGE_NORMAL) {
-        // We will replace normals with orientations.
-        type = filament::VertexBuffer::AttributeType::FLOAT4;
-      }
-      vb_builder.attribute(usage, i, type);
-      if (usage == filament::VertexAttribute::COLOR) {
-        vb_builder.normalized(usage);
-      }
-      attributes_[i] = usage;
-    }
-    num_attributes_ = data.num_attributes;
-    vertex_buffer_ = vb_builder.build(*engine_);
-
     // Assign the individual data buffers.
-    for (int i = 0; i < data.num_attributes; ++i) {
-      const mjrVertexAttribute& attrib = data.attributes[i];
-      const void* bytes = attrib.bytes;
+    for (int i = 0; i < config_.num_attributes; ++i) {
+      const mjrVertexAttribute& attrib = config_.attributes[i];
+      const void* bytes = data.vertices[i];
       size_t nbytes = data.num_vertices * VertexAttributeTypeSize(attrib);
       if (attrib.usage == mjVERTEX_ATTRIBUTE_USAGE_NORMAL) {
         // Replace normals with orientations.
         nbytes = data.num_vertices * sizeof(float4);
-        bytes = BuildOrientationsFromNormals(data.num_vertices, attrib);
+        bytes = BuildOrientationsFromNormals(data.num_vertices, bytes);
       }
       auto* user_data = new std::shared_ptr<SharedState>(shared_state_);
       vertex_buffer_->setBufferAt(*engine_, i,
@@ -253,14 +277,17 @@ void Mesh::BuildVertexBuffer(const mjrfMeshData& data) {
   }
 }
 
-void Mesh::BuildIndexBuffer(const mjrfMeshData& data) {
+void Mesh::UpdateIndexBuffer(const mjrfMeshData& data) {
   if (data.num_indices == 0) {
     return;
   }
+  if (data.num_indices != config_.max_indices) {
+    mju_error("Index count does not match config.");
+  }
 
   const int element_size =
-      data.index_type == mjINDEX_TYPE_U16 ? sizeof(uint16_t) : sizeof(uint32_t);
-  const int num_bytes = data.num_indices * element_size;
+      config_.index_type == mjINDEX_TYPE_U16 ? sizeof(uint16_t) : sizeof(uint32_t);
+  const int num_bytes = config_.max_indices * element_size;
 
   // If indices == 0 and num_indices > 0, then the user is specifying that the
   // vertices are provided "in order", i.e. the indices are 0, 1, 2, 3, ...
@@ -270,35 +297,17 @@ void Mesh::BuildIndexBuffer(const mjrfMeshData& data) {
     std::byte* sequence = new std::byte[num_bytes];
     shared_state_->callbacks.push_back([=]() { delete[] sequence; });
 
-    if (data.index_type == mjINDEX_TYPE_U16) {
+    if (config_.index_type == mjINDEX_TYPE_U16) {
       FillSequence<uint16_t>(sequence, num_bytes);
     } else {
       FillSequence<uint32_t>(sequence, num_bytes);
     }
     indices = sequence;
   }
-
-  filament::IndexBuffer::Builder ib_builder;
-  ib_builder.indexCount(data.num_indices);
-  ib_builder.bufferType(data.index_type == mjINDEX_TYPE_U16
-                            ? filament::IndexBuffer::IndexType::USHORT
-                            : filament::IndexBuffer::IndexType::UINT);
-  index_buffer_ = ib_builder.build(*engine_);
   // We don't worry about setting a release callback here because the release
   // callback for the vertex buffer will call release_callbacks_.
   filament::backend::BufferDescriptor desc(indices, num_bytes);
   index_buffer_->setBuffer(*engine_, std::move(desc));
-}
-
-float4* Mesh::BuildOrientationsFromNormals(int num_vertices,
-                                           const mjrVertexAttribute& normals) {
-  float4* orientations = new float4[num_vertices];
-  shared_state_->callbacks.push_back([=]() { delete[] orientations; });
-  const float* normals_ptr = reinterpret_cast<const float*>(normals.bytes);
-  for (int i = 0; i < num_vertices; ++i) {
-    orientations[i] = CalculateOrientation(ReadFloat3(normals_ptr, i));
-  }
-  return orientations;
 }
 
 void Mesh::UpdateBounds(const mjrfMeshData& data) {
@@ -310,11 +319,11 @@ void Mesh::UpdateBounds(const mjrfMeshData& data) {
     bounds_min = float3(FLT_MAX, FLT_MAX, FLT_MAX);
     bounds_max = float3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
 
-    if (data.attributes[0].usage != mjVERTEX_ATTRIBUTE_USAGE_POSITION) {
+    if (config_.attributes[0].usage != mjVERTEX_ATTRIBUTE_USAGE_POSITION) {
       mju_error("mjrfMeshData has no positions.");
     }
     const float* positions =
-        reinterpret_cast<const float*>(data.attributes[0].bytes);
+        reinterpret_cast<const float*>(data.vertices[0]);
 
     for (int i = 0; i < data.num_vertices; ++i) {
       const float3 position = ReadFloat3(positions, i);
@@ -336,6 +345,18 @@ void Mesh::ReleaseResources() {
   }
 }
 
+float4* Mesh::BuildOrientationsFromNormals(int num_vertices,
+                                           const void* normals) {
+  float4* orientations = new float4[num_vertices];
+  shared_state_->callbacks.push_back([=]() { delete[] orientations; });
+
+  const float* normals_ptr = reinterpret_cast<const float*>(normals);
+  for (int i = 0; i < num_vertices; ++i) {
+    orientations[i] = CalculateOrientation(ReadFloat3(normals_ptr, i));
+  }
+  return orientations;
+}
+
 filament::IndexBuffer* Mesh::GetFilamentIndexBuffer() const {
   return index_buffer_;
 }
@@ -345,13 +366,18 @@ filament::VertexBuffer* Mesh::GetFilamentVertexBuffer() const {
 }
 
 filament::RenderableManager::PrimitiveType Mesh::GetPrimitiveType() const {
-  return type_;
+  return config_.primitive_type == mjMESH_PRIMITIVE_TYPE_TRIANGLES
+             ? filament::RenderableManager::PrimitiveType::TRIANGLES
+             : filament::RenderableManager::PrimitiveType::LINES;
 }
 
 bool Mesh::HasVertexAttribute(mjrVertexAttributeUsage attrib) const {
-  auto fattrib = GetUsage(mjrVertexAttribute{.usage = attrib});
-  auto it = std::find(attributes_.begin(), attributes_.end(), fattrib);
-  return it != attributes_.end();
+  for (int i = 0; i < config_.num_attributes; ++i) {
+    if (config_.attributes[i].usage == attrib) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool Mesh::HasBounds() const { return bounds_.has_value(); }

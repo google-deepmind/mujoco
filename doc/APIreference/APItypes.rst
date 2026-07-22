@@ -1452,12 +1452,22 @@ culling. Alternatively, the bounds can be computed at runtime (though there is a
 are provided (or calculated), then frustum culling will not be performed.
 
 
+.. _mjrfMeshConfig:
+
+mjrfMeshConfig
+~~~~~~~~~~~~~~~~~
+
+Parameters for creating a :ref:`mesh<mjrfMesh>`.
+
+.. mujoco-include:: mjrfMeshConfig
+
+
 .. _mjrfMeshData:
 
 mjrfMeshData
 ~~~~~~~~~~~~
 
-Binary data used for creating a :ref:`mesh<mjrfMesh>`.
+Binary data for a :ref:`mesh<mjrfMesh>`.
 
 .. mujoco-include:: mjrfMeshData
 

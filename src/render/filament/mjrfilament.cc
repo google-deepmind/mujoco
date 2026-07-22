@@ -62,6 +62,10 @@ void mjrf_defaultTextureConfig(mjrfTextureConfig* config) {
   memset(config, 0, sizeof(mjrfTextureConfig));
 }
 
+void mjrf_defaultMeshConfig(mjrfMeshConfig* config) {
+  memset(config, 0, sizeof(mjrfMeshConfig));
+}
+
 void mjrf_defaultMeshData(mjrfMeshData* data) {
   memset(data, 0, sizeof(mjrfMeshData));
 }
@@ -151,9 +155,9 @@ void mjrf_destroyTexture(mjrfTexture* texture) {
   delete mujoco::Texture::downcast(texture);
 }
 
-mjrfMesh* mjrf_createMesh(mjrfContext* ctx, const mjrfMeshData* data) {
+mjrfMesh* mjrf_createMesh(mjrfContext* ctx, const mjrfMeshConfig* config) {
   return new mujoco::Mesh(mujoco::FilamentContext::downcast(ctx)->GetEngine(),
-                          *data);
+                          *config);
 }
 
 void mjrf_destroyMesh(mjrfMesh* mesh) { delete mujoco::Mesh::downcast(mesh); }
@@ -200,6 +204,10 @@ void mjrf_destroyRenderTarget(mjrfRenderTarget* render_target) {
 
 void mjrf_setTextureData(mjrfTexture* texture, const mjrfTextureData* data) {
   mujoco::Texture::downcast(texture)->Upload(*data);
+}
+
+void mjrf_setMeshData(mjrfMesh* mesh, const mjrfMeshData* data) {
+  mujoco::Mesh::downcast(mesh)->Upload(*data);
 }
 
 int mjrf_getTextureWidth(const mjrfTexture* texture) {

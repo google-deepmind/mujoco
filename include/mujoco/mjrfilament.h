@@ -182,16 +182,32 @@ int mjrf_getTextureSamplerType(const mjrfTexture* texture);
 // Maximum number of vertex attributes in a mesh.
 enum { mjMAX_VERTEX_ATTRIBUTES = 16 };
 
-// Binary data used for creating a mesh (mjrfMesh).
-typedef struct mjrfMeshData_ {
-  mjtSize num_vertices;         // number of vertices; all vertex attributes share this size
-  int num_attributes;           // number of attributes defined
+// Parameters describing a mesh (mjrfMesh).
+typedef struct mjrfMeshConfig_ {
+  mjtSize max_vertices;         // maximum number of vertices
+  mjtSize max_indices;          // maximum number of indices
+  int num_attributes;           // number of defined attributes
   mjrVertexAttribute attributes[mjMAX_VERTEX_ATTRIBUTES];  // per-vertex attribute information
   mjtBool interleaved;          // true if vertex attributes are interleaved
-  mjtSize num_indices;          // number of indices
-  const void* indices;          // indices data array
   int index_type;               // index data format (e.g. UINT16 or UINT32) [mjrIndexType]
   int primitive_type;           // index interpretation (e.g. TRIANGLES, etc.) [mjrMeshPrimitiveType]
+} mjrfMeshConfig;
+
+// Initializes the mjrfMeshConfig to default values.
+void mjrf_defaultMeshConfig(mjrfMeshConfig* config);
+
+// Creates an empty mesh with the given config.
+mjrfMesh* mjrf_createMesh(mjrfContext* ctx, const mjrfMeshConfig* config);
+
+// Destroys the mesh.
+void mjrf_destroyMesh(mjrfMesh* mesh);
+
+// Binary data used for creating a mesh (mjrfMesh).
+typedef struct mjrfMeshData_ {
+  mjtSize num_vertices;         // number of vertices
+  const void* vertices[mjMAX_VERTEX_ATTRIBUTES];  // per-vertex attribute data arrays
+  mjtSize num_indices;          // number of indices
+  const void* indices;          // indices data array
   mjtBool compute_bounds;       // if true, compute bounds from vertex positions
   float bounds_min[3];          // min/max bounds; assume unset if bounds_min == bounds_max
   float bounds_max[3];
@@ -202,11 +218,8 @@ typedef struct mjrfMeshData_ {
 // Initializes the mjrfMeshData to default values.
 void mjrf_defaultMeshData(mjrfMeshData* data);
 
-// Creates a mesh with the given data.
-mjrfMesh* mjrf_createMesh(mjrfContext* ctx, const mjrfMeshData* data);
-
-// Destroys the mesh.
-void mjrf_destroyMesh(mjrfMesh* mesh);
+// Uploads the given mesh data to the mesh.
+void mjrf_setMeshData(mjrfMesh* mesh, const mjrfMeshData* data);
 
 // Parameters for creating a scene (mjrfScene).
 typedef struct mjrfSceneParams_ {

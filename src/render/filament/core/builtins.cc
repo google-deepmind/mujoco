@@ -27,6 +27,7 @@
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include <mujoco/mjrfilament.h>
+#include <mujoco/mujoco.h>
 #include "render/filament/core/mesh.h"
 #include "render/filament/support/filament_util.h"
 
@@ -59,59 +60,69 @@ static std::size_t NumIndicesPerSide(int num_quads_per_axis) {
   return kNumIndicesPerQuad * num_quads_per_axis * num_quads_per_axis;
 }
 
-class BuiltinBuilder : public mjrfMeshData {
+class BuiltinBuilder {
  public:
-  BuiltinBuilder() { mjrf_defaultMeshData(this); }
+  BuiltinBuilder() {}
   virtual ~BuiltinBuilder() = default;
 
   template <typename T, typename... Args>
   static std::unique_ptr<Mesh> Create(filament::Engine* engine,
                                       Args&&... args) {
     auto builder = new T(std::forward<Args>(args)...);
-    mjrfMeshData* mesh_data = builder->PrepareMeshData();
-    mesh_data->release = +[](void* user_data) {
+
+    mjrfMeshConfig config;
+    mjrf_defaultMeshConfig(&config);
+    config.max_vertices = builder->positions_.size();
+    config.max_indices = builder->indices_.size();
+    config.index_type = mjINDEX_TYPE_U16;
+    config.primitive_type = builder->primitive_type_;
+    config.num_attributes = 2;
+    config.attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
+    config.attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
+    config.attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_TANGENTS;
+    config.attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT4;
+
+    mjrfMeshData data;
+    mjrf_defaultMeshData(&data);
+    data.num_vertices = builder->positions_.size();
+    data.vertices[0] = builder->positions_.data();
+    data.vertices[1] = builder->orientations_.data();
+    data.num_indices = builder->indices_.size();
+    data.indices = builder->indices_.data();
+    data.bounds_min[0] = builder->bounds_min_.x;
+    data.bounds_min[1] = builder->bounds_min_.y;
+    data.bounds_min[2] = builder->bounds_min_.z;
+    data.bounds_max[0] = builder->bounds_max_.x;
+    data.bounds_max[1] = builder->bounds_max_.y;
+    data.bounds_max[2] = builder->bounds_max_.z;
+    data.release = +[](void* user_data) {
       delete static_cast<BuiltinBuilder*>(user_data);
     };
-    mesh_data->user_data = builder;
-    return std::make_unique<Mesh>(engine, *mesh_data);
-  }
+    data.user_data = builder;
 
-  mjrfMeshData* PrepareMeshData() {
-    // Update the `mjrfMeshData` fields.
-    num_attributes = 2;
-    attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
-    attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
-    attributes[0].bytes = reinterpret_cast<const void*>(positions_.data());
-    attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_TANGENTS;
-    attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT4;
-    attributes[1].bytes = reinterpret_cast<const void*>(orientations_.data());
-    num_vertices = positions_.size();
-
-    indices = indices_.data();
-    num_indices = indices_.size();
-    index_type = mjINDEX_TYPE_U16;
-    return this;
+    auto mesh = std::make_unique<Mesh>(engine, config);
+    mesh->Upload(data);
+    return mesh;
   }
 
  protected:
   void SetBounds(const float3& min, const float3& max) {
-    bounds_min[0] = min.x;
-    bounds_min[1] = min.y;
-    bounds_min[2] = min.z;
-    bounds_max[0] = max.x;
-    bounds_max[1] = max.y;
-    bounds_max[2] = max.z;
+    bounds_min_ = min;
+    bounds_max_ = max;
   }
 
+  int primitive_type_ = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
   std::vector<float3> positions_;
   std::vector<float4> orientations_;
   std::vector<uint16_t> indices_;
+  float3 bounds_min_ = {0, 0, 0};
+  float3 bounds_max_ = {0, 0, 0};
 };
 
 class LineBuilder : public BuiltinBuilder {
  public:
   LineBuilder() {
-    primitive_type = mjMESH_PRIMITIVE_TYPE_LINES;
+    primitive_type_ = mjMESH_PRIMITIVE_TYPE_LINES;
 
     positions_.reserve(2);
     positions_.emplace_back(0, 0, 0);
@@ -183,7 +194,7 @@ class TriangleBuilder : public BuiltinBuilder {
 class LineBoxBuilder : public BuiltinBuilder {
  public:
   explicit LineBoxBuilder() {
-    primitive_type = mjMESH_PRIMITIVE_TYPE_LINES;
+    primitive_type_ = mjMESH_PRIMITIVE_TYPE_LINES;
 
     positions_.reserve(8);
     positions_.emplace_back(-1.0f, -1.0f, -1.0f);

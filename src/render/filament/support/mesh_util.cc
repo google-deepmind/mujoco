@@ -362,43 +362,47 @@ static void FillSkinVertices(T* vertices, const mjModel* model,
   }
 }
 
-static mjrfMeshData PrepareMeshData(int num_vertices, bool has_uvs) {
-  mjrfMeshData mesh_data;
-  mjrf_defaultMeshData(&mesh_data);
+static void PrepareMeshData(mjrfMeshConfig* config, mjrfMeshData* data,
+                            int num_vertices, bool has_uvs) {
+  mjrf_defaultMeshConfig(config);
+  config->max_vertices = num_vertices;
+  config->num_attributes = has_uvs ? 3 : 2;
+  config->interleaved = true;
+  config->primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
+  config->max_indices = num_vertices;
+  config->index_type = mjINDEX_TYPE_U32;
+  config->attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
+  config->attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
+  config->attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_TANGENTS;
+  config->attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT4;
+  if (has_uvs) {
+    config->attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
+    config->attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
+  }
 
+  mjrf_defaultMeshData(data);
   if (has_uvs) {
     const int nbytes = sizeof(VertexWithUv) * num_vertices;
-    mesh_data.user_data = new char[nbytes];
-    std::memset(mesh_data.user_data, 0, nbytes);
+    data->user_data = new char[nbytes];
+    std::memset(data->user_data, 0, nbytes);
   } else {
     const int nbytes = sizeof(VertexNoUv) * num_vertices;
-    mesh_data.user_data = new char[nbytes];
-    std::memset(mesh_data.user_data, 0, nbytes);
+    data->user_data = new char[nbytes];
+    std::memset(data->user_data, 0, nbytes);
   }
-  mesh_data.release = [](void* user_data) {
+  data->release = [](void* user_data) {
     delete[] (char*)(user_data);
   };
 
-  char* buf = reinterpret_cast<char*>(mesh_data.user_data);
-  mesh_data.num_vertices = num_vertices;
-  mesh_data.num_attributes = has_uvs ? 3 : 2;
-  mesh_data.interleaved = true;
-  mesh_data.attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
-  mesh_data.attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
-  mesh_data.attributes[0].bytes = buf;
-  mesh_data.attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_TANGENTS;
-  mesh_data.attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT4;
-  mesh_data.attributes[1].bytes = buf + sizeof(float[3]);
+  char* buf = reinterpret_cast<char*>(data->user_data);
+  data->num_vertices = num_vertices;
+  data->vertices[0] = buf;
+  data->vertices[1] = buf + sizeof(float[3]);
   if (has_uvs) {
-    mesh_data.attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
-    mesh_data.attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
-    mesh_data.attributes[2].bytes = buf + sizeof(float[7]);
+    data->vertices[2] = buf + sizeof(float[7]);
   }
-  mesh_data.primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
-  mesh_data.num_indices = num_vertices;
-  mesh_data.index_type = mjINDEX_TYPE_U32;
-  mesh_data.indices = nullptr;
-  return mesh_data;
+  data->num_indices = num_vertices;
+  data->indices = nullptr;
 }
 
 static void SetBounds(mjrfMeshData* mesh_data, const float3& min_pt,
@@ -428,7 +432,10 @@ UniquePtr<mjrfMesh> CreateFlexMesh(mjrfContext* ctx, const mjModel* model,
 
   const int num_vertices = num_faces * 3;
   const bool has_uvs = model->flex_texcoordadr[flex_id] >= 0;
-  mjrfMeshData mesh_data = PrepareMeshData(num_vertices, has_uvs);
+
+  mjrfMeshConfig mesh_config;
+  mjrfMeshData mesh_data;
+  PrepareMeshData(&mesh_config, &mesh_data, num_vertices, has_uvs);
 
   float3 min_pt = float3(FLT_MAX);
   float3 max_pt = float3(FLT_MIN);
@@ -440,14 +447,21 @@ UniquePtr<mjrfMesh> CreateFlexMesh(mjrfContext* ctx, const mjModel* model,
     FillFlexVertices(vertices, model, data, flex_id, &min_pt, &max_pt);
   }
   SetBounds(&mesh_data, min_pt, max_pt);
-  return CreateMesh(ctx, mesh_data);
+
+  auto mesh = CreateMesh(ctx, mesh_config);
+  mjrf_setMeshData(mesh.get(), &mesh_data);
+  return mesh;
 }
 
 UniquePtr<mjrfMesh> CreateSkinMesh(mjrfContext* ctx, const mjModel* model,
                                    const mjData* data, int skin_id) {
   const int num_vertices = model->skin_vertnum[skin_id];
   const bool has_uvs = model->skin_texcoordadr[skin_id] >= 0;
-  mjrfMeshData mesh_data = PrepareMeshData(num_vertices, has_uvs);
+
+
+  mjrfMeshConfig mesh_config;
+  mjrfMeshData mesh_data;
+  PrepareMeshData(&mesh_config, &mesh_data, num_vertices, has_uvs);
 
   float3 min_pt = float3(FLT_MAX);
   float3 max_pt = float3(FLT_MIN);
@@ -461,7 +475,10 @@ UniquePtr<mjrfMesh> CreateSkinMesh(mjrfContext* ctx, const mjModel* model,
   mesh_data.num_indices = 3 * model->skin_facenum[skin_id];
   mesh_data.indices = model->skin_face + 3 * model->skin_faceadr[skin_id];
   SetBounds(&mesh_data, min_pt, max_pt);
-  return CreateMesh(ctx, mesh_data);
+
+  auto mesh = CreateMesh(ctx, mesh_config);
+  mjrf_setMeshData(mesh.get(), &mesh_data);
+  return mesh;
 }
 
 void GatherSpatialTendonPoints(const mjModel* model, const mjData* data,

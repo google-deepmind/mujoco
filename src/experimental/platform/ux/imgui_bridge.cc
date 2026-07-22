@@ -219,27 +219,32 @@ void ImguiBridge::Update() {
   for (int n = 0; n < commands->CmdListsCount; ++n) {
     const ImDrawList* cmds = commands->CmdLists[n];
 
+    mjrfMeshConfig config;
+    mjrf_defaultMeshConfig(&config);
+    config.num_attributes = 3;
+    config.attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
+    config.attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
+    config.attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
+    config.attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
+    config.attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_COLOR;
+    config.attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_UBYTE4;
+    config.max_vertices = cmds->VtxBuffer.Size;
+    config.max_indices = cmds->IdxBuffer.Size;
+    config.interleaved = true;
+    config.index_type = mjINDEX_TYPE_U16;
+    config.primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
+    meshes_.push_back(CreateMesh(ctx_, config));
+    mjrfMesh* mesh = meshes_.back().get();
+
     mjrfMeshData data;
     mjrf_defaultMeshData(&data);
-    data.num_attributes = 3;
-    data.attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
-    data.attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
-    data.attributes[0].bytes = cmds->VtxBuffer.Data;
-    data.attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
-    data.attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
-    data.attributes[1].bytes = cmds->VtxBuffer.Data + sizeof(float) * 2;
-    data.attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_COLOR;
-    data.attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_UBYTE4;
-    data.attributes[2].bytes = cmds->VtxBuffer.Data + sizeof(float) * 4;
-    data.interleaved = true;
     data.num_vertices = cmds->VtxBuffer.Size;
+    data.vertices[0] = cmds->VtxBuffer.Data;
+    data.vertices[1] = cmds->VtxBuffer.Data + sizeof(float) * 2;
+    data.vertices[2] = cmds->VtxBuffer.Data + sizeof(float) * 4;
     data.num_indices = cmds->IdxBuffer.Size;
     data.indices = cmds->IdxBuffer.Data;
-    data.index_type = mjINDEX_TYPE_U16;
-    data.primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
-    meshes_.push_back(CreateMesh(ctx_, data));
-
-    const mjrfMesh* mesh = meshes_.back().get();
+    mjrf_setMeshData(mesh, &data);
 
     int index_offset = 0;
     for (const ImDrawCmd& command : cmds->CmdBuffer) {
