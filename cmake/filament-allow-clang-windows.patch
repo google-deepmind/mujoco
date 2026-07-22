@@ -1,20 +1,7 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
+index e5475ef5..4eb8a68b 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -11,12 +11,7 @@ cmake_minimum_required(VERSION 3.22.1)
- # Unsupported environment
- # ==================================================================================================
- 
--# Filament does not support MSYS2-based environment on Windows. See issue #9968.
--if(DEFINED ENV{MSYSTEM})
--    message(FATAL_ERROR
--        "MSYS2 Subsystem detected($ENV{MSYSTEM}). "
--        "Filament does not support MSYS2-based environment on Windows.")
--endif()
-+
- 
- # ==================================================================================================
- # Toolchain configuration
 @@ -247,57 +247,59 @@ if (WIN32)
      # __declspec(dllexport) in front of each functions).
      set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
@@ -505,32 +492,15 @@ diff --git a/filament/CMakeLists.txt b/filament/CMakeLists.txt
 +    endif()
  endif()
 
-
-diff --git a/libs/utils/include/utils/compiler.h b/libs/utils/include/utils/compiler.h
---- a/libs/utils/include/utils/compiler.h
-+++ b/libs/utils/include/utils/compiler.h
-@@ -227,7 +227,7 @@
- // AND multi-threading is enabled (UTILS_HAS_THREADING is not 0).
- // This prevents compile failures on single-threaded targets or builds where standard
- // annotations are disabled by default in the platform's standard library headers.
--#if defined(_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS) && UTILS_HAS_THREADING
-+#if defined(_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS) && UTILS_HAS_THREADING && !defined(_WIN32)
- #define UTILS_THREAD_ANNOTATION_ATTRIBUTE(x)   __attribute__((x))
- #else
- #define UTILS_THREAD_ANNOTATION_ATTRIBUTE(x)
-
 diff --git a/filament/backend/CMakeLists.txt b/filament/backend/CMakeLists.txt
-index 78c05dd22..b124685c4 100644
 --- a/filament/backend/CMakeLists.txt
 +++ b/filament/backend/CMakeLists.txt
-@@ -523,6 +523,9 @@ else()
-             -Wover-aligned -Wreorder-init-list
-             -Werror
-     )
-+    if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-+        list(APPEND FILAMENT_WARNINGS -Wno-error=cast-function-type-mismatch -Wno-error=unused-variable -Wno-error=microsoft-unqualified-friend)
-+    endif()
+@@ -525,3 +525,7 @@
  endif()
-
+ 
++if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
++    list(APPEND FILAMENT_WARNINGS -Wno-error=cast-function-type-mismatch -Wno-error=unused-variable -Wno-error=microsoft-unqualified-friend)
++endif()
++
  if (APPLE)
 
