@@ -504,3 +504,16 @@ diff --git a/filament/backend/CMakeLists.txt b/filament/backend/CMakeLists.txt
 +
  if (APPLE)
 
+diff --git a/libs/utils/include/utils/compiler.h b/libs/utils/include/utils/compiler.h
+--- a/libs/utils/include/utils/compiler.h
++++ b/libs/utils/include/utils/compiler.h
+@@ -227,7 +227,7 @@
+ // AND multi-threading is enabled (UTILS_HAS_THREADING is not 0).
+ // This prevents compile failures on single-threaded targets or builds where standard
+ // annotations are disabled by default in the platform's standard library headers.
+-#if defined(_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS) && UTILS_HAS_THREADING
++#if defined(_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS) && UTILS_HAS_THREADING && !defined(_WIN32)
+ #define UTILS_THREAD_ANNOTATION_ATTRIBUTE(x)   __attribute__((x))
+ #else
+ #define UTILS_THREAD_ANNOTATION_ATTRIBUTE(x)
+
