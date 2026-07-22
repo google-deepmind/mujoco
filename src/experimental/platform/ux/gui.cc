@@ -40,20 +40,40 @@ struct SpeedStatus {
   float measured;
 };
 
+// Reports whether the measured step speed has drifted from the desired speed
+// enough for the toolbar to surface it, plus the measured value itself.
 static SpeedStatus IsSpeedMisaligned(const StepControl& step_control) {
+  static bool misaligned = false;
+
   const float desired = step_control.GetSpeed();
   const float measured = step_control.GetSpeedMeasured();
-  return {std::abs(measured - desired) > 0.1f * desired, measured};
+  const float deviation = std::abs(measured - desired);
+
+  // Hysteresis: a raw threshold flips at exactly the 10% band edge, and
+  // measurement noise straddling it would toggle the preview text (and with it
+  // the combo width) every few frames causing layout flicker. Require the state
+  // to leave a wider band before switching back: become misaligned past 12%,
+  // return to aligned only under 8%, and follow an extreme deviation (>20%)
+  // immediately.
+  const bool misaligned_now = deviation > 0.1f * desired;
+  misaligned = misaligned ? (deviation > 0.08f * desired)
+                          : (deviation > 0.12f * desired);
+  if (misaligned_now != misaligned && deviation > 0.2f * desired) {
+    misaligned = misaligned_now;  // far outside both bands: follow immediately
+  }
+
+  return {misaligned, measured};
 }
 }  // namespace
 
 static ImVec2 GetFlexElementSize(int num_cols) {
-  const float width = (GetStableAvailWidth() / num_cols) -
-                      ImGui::GetStyle().FramePadding.x * 2;
+  const float width =
+      (GetStableAvailWidth() / num_cols) - ImGui::GetStyle().FramePadding.x * 2;
   return ImVec2(width, 0);
 }
 
-bool SectionHeader(const char* label, ImGuiTreeNodeFlags flags, float arrow_scale) {
+bool SectionHeader(const char* label, ImGuiTreeNodeFlags flags,
+                   float arrow_scale) {
   const bool is_framed = (flags & ImGuiTreeNodeFlags_Framed) != 0;
 
   ImGuiContext& g = *GImGui;
@@ -64,7 +84,8 @@ bool SectionHeader(const char* label, ImGuiTreeNodeFlags flags, float arrow_scal
   const ImGuiID id = window->GetID(label);
 
   // Control the bar height via FramePadding.y.
-  // Main (framed): a bit of padding. Sub (unframed): less padding to be visually thinner.
+  // Main (framed): a bit of padding. Sub (unframed): less padding to be
+  // visually thinner.
   const float pad_y = (is_framed ? 3.0f : 2.0f) * style.FontScaleDpi;
   ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
                       ImVec2(style.FramePadding.x, pad_y));
@@ -73,25 +94,27 @@ bool SectionHeader(const char* label, ImGuiTreeNodeFlags flags, float arrow_scal
   // TreeNodeBehavior.
   ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 0, 0, 0));
 
-  // Record cursor position before the widget so we can compute the arrow position.
+  // Record cursor position before the widget so we can compute the arrow
+  // position.
   const ImVec2 cursor_before = ImGui::GetCursorScreenPos();
 
   // Use TreeNodeBehavior (the same function CollapsingHeader uses internally).
   // This gives us proper click-to-toggle and open/close state management.
-  // We do NOT add _Leaf here so toggling works, and we don't add _NoTreePushOnOpen
-  // so the callers' TreePop() still works.
+  // We do NOT add _Leaf here so toggling works, and we don't add
+  // _NoTreePushOnOpen so the callers' TreePop() still works.
   //
-  // For unframed nodes, add _FramePadding so TreeNodeBehavior uses FramePadding.y
-  // for layout (making arrow Y position predictable = cursor.y + pad_y).
-  // Also add _SpanAvailWidth for consistent full-width hit testing.
+  // For unframed nodes, add _FramePadding so TreeNodeBehavior uses
+  // FramePadding.y for layout (making arrow Y position predictable = cursor.y +
+  // pad_y). Also add _SpanAvailWidth for consistent full-width hit testing.
   ImGuiTreeNodeFlags effective_flags = flags;
   if (!is_framed) {
-    effective_flags |= ImGuiTreeNodeFlags_FramePadding |
-                       ImGuiTreeNodeFlags_SpanAvailWidth;
+    effective_flags |=
+        ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth;
   }
   bool is_open = ImGui::TreeNodeBehavior(id, effective_flags, label);
 
-  // Restore style state before manual rendering (so we get the correct text color).
+  // Restore style state before manual rendering (so we get the correct text
+  // color).
   ImGui::PopStyleColor();
   ImGui::PopStyleVar();
 
@@ -100,7 +123,8 @@ bool SectionHeader(const char* label, ImGuiTreeNodeFlags flags, float arrow_scal
   const ImU32 text_col = ImGui::GetColorU32(ImGuiCol_Text);
 
   // Match position offsets used by TreeNodeBehavior.
-  // Arrow coordinate: (cursor_before.x + FramePadding.x, cursor_before.y + pad_y)
+  // Arrow coordinate: (cursor_before.x + FramePadding.x, cursor_before.y +
+  // pad_y)
   const float pad_x = style.FramePadding.x;
   const float arrow_x = cursor_before.x + pad_x;
   const float arrow_y = cursor_before.y + pad_y;
@@ -110,13 +134,15 @@ bool SectionHeader(const char* label, ImGuiTreeNodeFlags flags, float arrow_scal
   const float custom_size = full_arrow_size * arrow_scale;
   const float offset = (full_arrow_size - custom_size) * 0.5f;
   const ImGuiDir arrow_dir = is_open ? ImGuiDir_Down : ImGuiDir_Right;
-  ImGui::RenderArrow(dl, ImVec2(arrow_x + offset, arrow_y + offset),
-                     text_col, arrow_dir, arrow_scale);
+  ImGui::RenderArrow(dl, ImVec2(arrow_x + offset, arrow_y + offset), text_col,
+                     arrow_dir, arrow_scale);
 
   // Render text manually.
   // text_offset_x = FontSize + padding.x * (display_frame ? 3 : 2)
-  const float text_offset_x = full_arrow_size + pad_x * (is_framed ? 3.0f : 2.0f);
-  ImGui::RenderText(ImVec2(cursor_before.x + text_offset_x, cursor_before.y + pad_y), label);
+  const float text_offset_x =
+      full_arrow_size + pad_x * (is_framed ? 3.0f : 2.0f);
+  ImGui::RenderText(
+      ImVec2(cursor_before.x + text_offset_x, cursor_before.y + pad_y), label);
 
   return is_open;
 }
@@ -158,7 +184,8 @@ void SetupTheme(GuiTheme theme) {
     c[ImGuiCol_SliderGrab] = ImVec4(0.28, 0.40, 0.58, 1.00);
     c[ImGuiCol_SliderGrabActive] = ImVec4(0.35, 0.50, 0.72, 1.00);
 
-    // Buttons: slightly lighter than frame background (0.22) to provide subtle but visible contrast.
+    // Buttons: slightly lighter than frame background (0.22) to provide subtle
+    // but visible contrast.
     c[ImGuiCol_Button] = ImVec4(0.28, 0.29, 0.33, 1.00);
     c[ImGuiCol_ButtonHovered] = ImVec4(0.34, 0.36, 0.40, 1.00);
     c[ImGuiCol_ButtonActive] = ImVec4(0.32, 0.45, 0.66, 1.00);
@@ -238,7 +265,8 @@ void SetupTheme(GuiTheme theme) {
     c[ImGuiCol_SliderGrab] = accent;
     c[ImGuiCol_SliderGrabActive] = ImVec4(0.30, 0.52, 0.82, 1.00);
 
-    // Buttons: slightly darker than frame background (0.93) to provide subtle but visible contrast.
+    // Buttons: slightly darker than frame background (0.93) to provide subtle
+    // but visible contrast.
     c[ImGuiCol_Button] = ImVec4(0.86, 0.87, 0.89, 1.00);
     c[ImGuiCol_ButtonHovered] = accent_hover;
     c[ImGuiCol_ButtonActive] = accent;
@@ -360,16 +388,23 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
   const float kOptionsRelWidth = 0.15f;
   const float kInspectorRelWidth = 0.22f;
   const float kPropertiesRelHeight = 0.3f;
-  const float kToolsBarHeight =
-      show_toolbar ? 36.f * scale * font_scale : 0.0f;
+  const float kToolsBarHeight = show_toolbar ? 36.f * scale * font_scale : 0.0f;
   const float kStatusBarHeight =
       show_status_bar ? 32.f * scale * font_scale : 0.0f;
 
-  const ImVec2 dockspace_pos{viewport->WorkPos.x,
-                             viewport->WorkPos.y + kToolsBarHeight};
+  // Lay out from the absolute viewport origin with an explicitly computed
+  // menu bar height, NOT from WorkPos/WorkSize: the work area only reflects
+  // the menu bar's reservation from the previous frame, so any hiccup in
+  // that reservation shifts the whole dock layout by a menu-bar height for
+  // a frame and every docked window re-clips (visible as UI-wide flicker).
+  // The menu bar's height equals the frame height by definition.
+  const float menu_bar_height = ImGui::GetFrameHeight();
+  const ImVec2 toolbar_pos{viewport->Pos.x, viewport->Pos.y + menu_bar_height};
+  const ImVec2 dockspace_pos{
+      viewport->Pos.x, viewport->Pos.y + menu_bar_height + kToolsBarHeight};
   const ImVec2 dockspace_size{
-      viewport->WorkSize.x,
-      viewport->WorkSize.y - kToolsBarHeight - kStatusBarHeight};
+      viewport->Size.x,
+      viewport->Size.y - menu_bar_height - kToolsBarHeight - kStatusBarHeight};
 
   ImGuiID root = ImGui::GetID("Root");
   const bool first_time = (ImGui::DockBuilderGetNode(root) == nullptr);
@@ -444,12 +479,12 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
     style.Var(ImGuiStyleVar_WindowBorderSize, 1.0f);
     style.Var(ImGuiStyleVar_WindowRounding, 0.0f);
     style.Var(ImGuiStyleVar_WindowMinSize, ImVec2(1, 1));
-    const float toolbar_vpad =
-        std::max(0.f, (36.f * scale * font_scale - ImGui::GetFrameHeight()) * 0.5f);
+    const float toolbar_vpad = std::max(
+        0.f, (36.f * scale * font_scale - ImGui::GetFrameHeight()) * 0.5f);
     style.Var(ImGuiStyleVar_WindowPadding, ImVec2(4 * scale, toolbar_vpad));
-    ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, 36.f * scale * font_scale),
-                             ImGuiCond_Always);
+    ImGui::SetNextWindowPos(toolbar_pos, ImGuiCond_Always);
+    ImGui::SetNextWindowSize(
+        ImVec2(viewport->Size.x, 36.f * scale * font_scale), ImGuiCond_Always);
     ImGui::Begin("ToolBar", nullptr, kFixedFlags);
     ImGui::End();
   }
@@ -470,8 +505,8 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
 
   ImGuiDockNode* central = ImGui::DockBuilderGetCentralNode(root);
   if (central) {
-    return ImVec4(central->Pos.x, central->Pos.y,
-                  central->Size.x, central->Size.y);
+    return ImVec4(central->Pos.x, central->Pos.y, central->Size.x,
+                  central->Size.y);
   }
   const int settings_width = dockspace_size.x * kOptionsRelWidth;
   const int inspector_width = dockspace_size.x * kInspectorRelWidth;
@@ -486,13 +521,15 @@ void StepControlGui(StepControl* step_control, int& speed_index) {
   platform::ScopedStyle style;
 
   bool is_dark = ImGui::GetStyle().Colors[ImGuiCol_WindowBg].x < 0.5f;
-  const ImColor yellow = is_dark ? ImColor(158, 115, 18, 255) : ImColor(255, 215, 0, 255);
-  const ImColor green = is_dark ? ImColor(40, 125, 60, 255) : ImColor(40, 180, 40, 255);
+  const ImColor yellow =
+      is_dark ? ImColor(158, 115, 18, 255) : ImColor(255, 215, 0, 255);
+  const ImColor green =
+      is_dark ? ImColor(40, 125, 60, 255) : ImColor(40, 180, 40, 255);
 
   auto make_button = [&](const char* icon, StepControl::PauseState target_state,
                          ImColor color, ImDrawFlags corners,
-                         const char* tooltip = "",
-                         float hover_alpha = 1.f, float width_scale = 1.f) {
+                         const char* tooltip = "", float hover_alpha = 1.f,
+                         float width_scale = 1.f) {
     ImVec2 size(0, 0);
     if (width_scale != 1.f) {
       const ImGuiStyle& s = ImGui::GetStyle();
@@ -523,6 +560,7 @@ void StepControlGui(StepControl* step_control, int& speed_index) {
                              ImGui::GetStyle().FramePadding.y));
 
   const auto [misaligned, measured] = IsSpeedMisaligned(*step_control);
+
   char speed_preview[64];
   if (misaligned) {
     snprintf(speed_preview, sizeof(speed_preview), "%s %s (%-4.1f%%)",
@@ -532,7 +570,12 @@ void StepControlGui(StepControl* step_control, int& speed_index) {
              kPercentRealTime[speed_index]);
   }
 
-  ImGui::SetNextItemWidth(ImGui::CalcTextSize(speed_preview).x +
+  // Size the combo for the worst-case text so toggling the measured-speed
+  // suffix (or its digit count changing) never shifts the toolbar layout.
+  char speed_sizing[64];
+  snprintf(speed_sizing, sizeof(speed_sizing), "%s %s (-99.9%%)",
+           ICON_FA_TACHOMETER, kPercentRealTime[speed_index]);
+  ImGui::SetNextItemWidth(ImGui::CalcTextSize(speed_sizing).x +
                           ImGui::GetStyle().FramePadding.x * 2.f);
   if (ImGui::BeginCombo("##Speed", speed_preview,
                         ImGuiComboFlags_NoArrowButton)) {
@@ -589,8 +632,9 @@ bool LabelSelectionGui(mjvOption* opts) {
 
   bool changed = false;
   const std::string label_preview =
-      opts->label == 0 ? std::string(ICON_LABEL) + " Label"
-                       : std::string(ICON_LABEL) + " " + kLabelNames[opts->label];
+      opts->label == 0
+          ? std::string(ICON_LABEL) + " Label"
+          : std::string(ICON_LABEL) + " " + kLabelNames[opts->label];
   ImGui::SetNextItemWidth(GetExpectedLabelWidth());
   if (ImGui::BeginCombo("##Label", label_preview.c_str(),
                         ImGuiComboFlags_NoArrowButton)) {
@@ -613,8 +657,9 @@ bool FrameSelectionGui(mjvOption* opts) {
 
   bool changed = false;
   const std::string frame_preview =
-      opts->frame == 0 ? std::string(ICON_FRAME) + " Frame"
-                       : std::string(ICON_FRAME) + " " + kFrameNames[opts->frame];
+      opts->frame == 0
+          ? std::string(ICON_FRAME) + " Frame"
+          : std::string(ICON_FRAME) + " " + kFrameNames[opts->frame];
   ImGui::SetNextItemWidth(GetExpectedLabelWidth());
   if (ImGui::BeginCombo("##Frame", frame_preview.c_str(),
                         ImGuiComboFlags_NoArrowButton)) {
@@ -631,7 +676,7 @@ bool FrameSelectionGui(mjvOption* opts) {
 }
 
 std::string GetCameraName(const mjModel* model, const mjvCamera& camera,
-                                 int index) {
+                          int index) {
   static constexpr char kCameraTumbleName[] = "Free: tumble";
   static constexpr char kCameraWasdName[] = "Free: wasd";
   static constexpr char kCameraUnnamedName[] = "Unnamed";
@@ -961,9 +1006,7 @@ void PhysicsGui(mjModel* model, float min_width) {
   const char* opts3[] = {"PGS", "CG", "Newton"};
   ImGui::Combo("Solver", &opt.solver, opts3, IM_ARRAYSIZE(opts3));
 
-
-  if (SectionHeader("Algorithmic Parameters",
-                    ImGuiTreeNodeFlags_DefaultOpen)) {
+  if (SectionHeader("Algorithmic Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
     ImGui_Input("Timestep", &opt.timestep, {0, 1, 0.01, 0.1});
     ImGui_Input("Iterations", &opt.iterations, {0, 1000, 1, 10});
     ImGui_Input("Tolerance", &opt.tolerance, {0, 1, 1e-7, 1e-6});
@@ -1525,8 +1568,7 @@ void CountsGui(const mjModel* model, mjData* data, ImVec2 plot_size) {
   }
 }
 
-void InfoGui(const mjModel* model, const mjData* data, bool paused,
-             float fps) {
+void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps) {
   const int num_islands = std::clamp(data->nisland, 1, mjNISLAND);
 
   // compute solver error (maximum over islands)
@@ -1594,7 +1636,8 @@ void InfoGui(const mjModel* model, const mjData* data, bool paused,
   ImGui::Columns();
 }
 
-void ProfilerGui(const mjModel* model, mjData* data, SimProfiler* profiler, bool show_iter) {
+void ProfilerGui(const mjModel* model, mjData* data, SimProfiler* profiler,
+                 bool show_iter) {
   ImVec2 avail = ImGui::GetContentRegionAvail();
   const float pad = ImGui::GetStyle().ItemSpacing.x;
   const float aspect = avail.y > 0 ? avail.x / avail.y : 1.0f;

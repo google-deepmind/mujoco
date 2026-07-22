@@ -226,8 +226,7 @@ void ImGui_SpecElementTable::operator()(const char* label, mjtByte& val,
 }
 
 void ImGui_SpecElementTable::operator()(const char* label, bool& val,
-                                        const bool& ref,
-                                        const char* tooltip) {
+                                        const bool& ref, const char* tooltip) {
   Label(label, tooltip);
   Input(val, ref);
 }
@@ -550,8 +549,8 @@ void SetNextWindowPosInside(OverlayPos pos, ImVec4 rect) {
 
 }  // namespace
 
-bool BeginOverlay(const char* id, OverlayPos pos, ImVec4 rect,
-                  float min_width, float alpha) {
+bool BeginOverlay(const char* id, OverlayPos pos, ImVec4 rect, float min_width,
+                  float alpha) {
   SetNextWindowPosInside(pos, rect);
 
   if (min_width > 0.0f) {
@@ -574,8 +573,8 @@ void EndOverlay() {
 }
 
 void TextOverlay(const char* id, OverlayPos pos, ImVec4 workspace_rect,
-                 const char* text, ImVec4 color, float font_scale,
-                 float alpha, float min_width) {
+                 const char* text, ImVec4 color, float font_scale, float alpha,
+                 float min_width) {
   float scale = ImGui::GetWindowDpiScale();
   float padding = 30.0f * scale;
   float max_width = std::max(0.0f, workspace_rect.z - 20.0f);
@@ -590,8 +589,8 @@ void TextOverlay(const char* id, OverlayPos pos, ImVec4 workspace_rect,
     if (font_scale != 1.0f) {
       ImGui::SetWindowFontScale(font_scale);
     }
-    bool has_color = color.x != 0 || color.y != 0 || color.z != 0 ||
-                     color.w != 0;
+    bool has_color =
+        color.x != 0 || color.y != 0 || color.z != 0 || color.w != 0;
     if (has_color) {
       ImGui::PushStyleColor(ImGuiCol_Text, color);
     }

@@ -279,8 +279,9 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
   // if editor, assert that element == editor->GetActiveElement();
   mjsElement* ref_element = editor ? editor->GetRefElement() : element;
 
-  #define FIELD(NAME, TIP) table(#NAME, elem->NAME, ref->NAME, TIP);
-  #define QFIELD(NAME, ALT, TIP) table(#NAME, #ALT, elem->NAME, ref->NAME, elem->ALT, ref->ALT, TIP);
+#define FIELD(NAME, TIP) table(#NAME, elem->NAME, ref->NAME, TIP);
+#define QFIELD(NAME, ALT, TIP) \
+  table(#NAME, #ALT, elem->NAME, ref->NAME, elem->ALT, ref->ALT, TIP);
 
   ImGui_SpecElementTable table(editor == nullptr);
   switch (element->elemtype) {
@@ -297,7 +298,8 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(fullinertia, "non-axis-aligned inertia matrix");
       FIELD(mocap, "is this a mocap body");
       FIELD(gravcomp, "gravity compensation");
-      FIELD(explicitinertial, "whether to save the body with explicit inertial clause");
+      FIELD(explicitinertial,
+            "whether to save the body with explicit inertial clause");
       FIELD(sleep, "sleep policy");
       FIELD(info, "message appended to compiler errors");
       break;
@@ -347,7 +349,8 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(slidersite, "site defining cylinder, for slider-crank");
       FIELD(cranklength, "crank length, for slider-crank");
       FIELD(lengthrange, "transmission length range");
-      FIELD(inheritrange, "automatic range setting for position and intvelocity");
+      FIELD(inheritrange,
+            "automatic range setting for position and intvelocity");
       FIELD(ctrllimited, "are control limits defined (mjtLimited)");
       FIELD(ctrlrange, "control range");
       FIELD(forcelimited, "are force limits defined (mjtLimited)");
@@ -549,7 +552,8 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(poisson, "Poisson's ratio");
       FIELD(damping, "Rayleigh's damping");
       FIELD(thickness, "thickness (2D only)");
-      FIELD(elastic2d, "2D passive forces; 0: none, 1: bending, 2: stretching, 3: both");
+      FIELD(elastic2d,
+            "2D passive forces; 0: none, 1: bending, 2: stretching, 3: both");
       FIELD(info, "message appended to compiler errors");
       break;
     }
@@ -705,7 +709,7 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       break;
   }
 
-  #undef FIELD
+#undef FIELD
 
   if (editor && table.WasModified()) {
     editor->CommitChanges(element);

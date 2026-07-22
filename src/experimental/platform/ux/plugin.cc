@@ -69,5 +69,7 @@ void ForEachPlugin(const std::function<void(T*)>& fn) {
 MUJOCO_SPECIALIZE_PLUGIN(mujoco::platform::GuiPlugin, "gui plugin");
 MUJOCO_SPECIALIZE_PLUGIN(mujoco::platform::ModelPlugin, "model plugin");
 MUJOCO_SPECIALIZE_PLUGIN(mujoco::platform::ScenePlugin, "scene plugin");
-MUJOCO_SPECIALIZE_PLUGIN(mujoco::platform::KeyHandlerPlugin, "key handler plugin");
-MUJOCO_SPECIALIZE_PLUGIN(mujoco::platform::SpecEditorPlugin, "spec editor plugin");
+MUJOCO_SPECIALIZE_PLUGIN(mujoco::platform::KeyHandlerPlugin,
+                         "key handler plugin");
+MUJOCO_SPECIALIZE_PLUGIN(mujoco::platform::SpecEditorPlugin,
+                         "spec editor plugin");
