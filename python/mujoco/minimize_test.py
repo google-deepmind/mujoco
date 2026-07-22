@@ -45,6 +45,17 @@ class MinimizeTest(absltest.TestCase):
     self.assertIn('norm(gradient) < tol', out.getvalue())
     self.assertIn('exact minimum found', out.getvalue())
 
+  def test_xtol_returns_accepted_candidate(self) -> None:
+    def residual(x):
+      return x - 1.0
+
+    out = io.StringIO()
+    x, _ = minimize.least_squares(
+        np.array([0.0]), residual, xtol=2.0, gtol=0.0, output=out
+    )
+    np.testing.assert_array_equal(x, np.array([1.0]))
+    self.assertIn('norm(dx) < tol', out.getvalue())
+
   def test_jac_callback(self) -> None:
     def residual(x):
       return np.stack([1 - x[0, :], 10 * (x[1, :] - x[0, :] ** 2)])
