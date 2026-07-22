@@ -2619,14 +2619,16 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
   // cylinder
   else if (type == "cylinder") {
     double timeconst = actuator->dynprm[0];
-    double bias = actuator->biasprm[0];
+    double bias[3] = {actuator->biasprm[0], actuator->biasprm[1], actuator->biasprm[2]};
     double area = actuator->gainprm[0];
     double diameter = -1;
     ReadAttr(elem, "timeconst", 1, &timeconst, text);
-    ReadAttr(elem, "bias", 3, &bias, text);
+    ReadAttr(elem, "bias", 3, bias, text);
     ReadAttr(elem, "area", 1, &area, text);
     ReadAttr(elem, "diameter", 1, &diameter, text);
-    err = mjs_setToCylinder(actuator, timeconst, bias, area, diameter);
+    err = mjs_setToCylinder(actuator, timeconst, bias[0], area, diameter);
+    actuator->biasprm[1] = bias[1];
+    actuator->biasprm[2] = bias[2];
   }
 
   // muscle
