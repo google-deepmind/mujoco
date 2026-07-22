@@ -23,7 +23,6 @@
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "render/filament/mjrfilament_cpp.h"
-#include "render/filament/support/model_objects.h"
 
 namespace mujoco {
 
@@ -33,8 +32,8 @@ namespace mujoco {
 // renderables are then created.
 class ModelDecorations {
  public:
-  ModelDecorations(mjrfScene* scene, ModelObjects* model_objects,
-                 int num_geoms = 2000);
+  ModelDecorations(mjrfContext* ctx, mjrfScene* scene, const mjModel* model,
+                   int num_geoms = 2000);
   ~ModelDecorations();
 
   // Function for drawing text at a given position in clip space.
@@ -46,12 +45,16 @@ class ModelDecorations {
               const mjrRect& viewport, DrawTextAtFn draw_text_at_fn = nullptr,
               std::span<const mjvGeom> extra_geoms = {});
 
+  // Removes all decorative renderables from the scene.
+  void Clear();
+
   ModelDecorations(const ModelDecorations&) = delete;
   ModelDecorations& operator=(const ModelDecorations&) = delete;
 
  private:
+  mjrfContext* ctx_;
   mjrfScene* scene_;
-  ModelObjects* model_objects_;
+  const mjModel* model_;
   mjvScene mjv_scene_;
   std::vector<UniquePtr<mjrfMesh>> meshes_;
   std::vector<UniquePtr<mjrfRenderable>> decorations_;

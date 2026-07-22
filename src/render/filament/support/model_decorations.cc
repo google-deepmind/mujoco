@@ -26,7 +26,6 @@
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "render/filament/mjrfilament_cpp.h"
-#include "render/filament/support/model_objects.h"
 
 namespace mujoco {
 
@@ -34,15 +33,21 @@ using filament::math::float3;
 using filament::math::float4;
 using filament::math::mat4;
 
-ModelDecorations::ModelDecorations(mjrfScene* scene, ModelObjects* model_objects,
-                               int num_geoms)
-    : scene_(scene), model_objects_(model_objects) {
+ModelDecorations::ModelDecorations(mjrfContext* ctx, mjrfScene* scene,
+                                   const mjModel* model, int num_geoms)
+    : ctx_(ctx), scene_(scene), model_(model) {
   std::memset(&mjv_scene_, 0, sizeof(mjvScene));
-  mjv_makeScene(model_objects_->GetModel(), &mjv_scene_, 2000);
+  mjv_makeScene(model_, &mjv_scene_, 2000);
 }
 
-ModelDecorations::~ModelDecorations() {
-  mjv_freeScene(&mjv_scene_);
+ModelDecorations::~ModelDecorations() { mjv_freeScene(&mjv_scene_); }
+
+void ModelDecorations::Clear() {
+  for (auto& iter : decorations_) {
+    mjrf_removeRenderableFromScene(scene_, iter.get());
+  }
+  decorations_.clear();
+  meshes_.clear();
 }
 
 static mat4 CalcClipFromWorld(const mjModel* model, const mjData* data,
@@ -102,19 +107,19 @@ static mat4 CalcClipFromWorld(const mjModel* model, const mjData* data,
 }
 
 void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
-                            const mjvPerturb* perturb, mjvCamera* camera,
-                            const mjrRect& viewport,
-                            DrawTextAtFn draw_text_at_fn,
-                            std::span<const mjvGeom> extra_geoms) {
-  mjrfContext* ctx = model_objects_->GetContext();
-  const mjModel* model = model_objects_->GetModel();
-  const int nstack = model->vis.quality.numstacks;
-  const int nslice = model->vis.quality.numslices;
-  const int nquad = model->vis.quality.numquads;
+                              const mjvPerturb* perturb, mjvCamera* camera,
+                              const mjrRect& viewport,
+                              DrawTextAtFn draw_text_at_fn,
+                              std::span<const mjvGeom> extra_geoms) {
+  Clear();
+
+  const int nstack = model_->vis.quality.numstacks;
+  const int nslice = model_->vis.quality.numslices;
+  const int nquad = model_->vis.quality.numquads;
 
   // For decor rendering, we go through the mjvScene. Ideally, we would only
   // update the mjvGeoms in the scene, but the API is not capable of that.
-  mjv_updateScene(model, data, vis_option, perturb, camera, mjCAT_ALL,
+  mjv_updateScene(model_, data, vis_option, perturb, camera, mjCAT_ALL,
                   &mjv_scene_);
   const int num_extra_geoms =
       std::min<int>(extra_geoms.size(), mjv_scene_.maxgeom - mjv_scene_.ngeom);
@@ -124,21 +129,13 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
     ++mjv_scene_.ngeom;
   }
 
-  // Remove all decorative elements from previous render and prepare new ones.
-  for (auto& iter : decorations_) {
-    mjrf_removeRenderableFromScene(scene_, iter.get());
-  }
-  decorations_.clear();
-  meshes_.clear();
-
   const mat4 clip_from_world =
-      CalcClipFromWorld(model, data, *camera, viewport);
+      CalcClipFromWorld(model_, data, *camera, viewport);
   for (int i = 0; i < mjv_scene_.ngeom; ++i) {
     const mjvGeom& geom = mjv_scene_.geoms[i];
     if (draw_text_at_fn && geom.label[0] != 0) {
       const float4 clip_pos =
-          clip_from_world *
-          float4(geom.pos[0], geom.pos[1], geom.pos[2], 1.0f);
+          clip_from_world * float4(geom.pos[0], geom.pos[1], geom.pos[2], 1.0f);
       if (clip_pos.w != 0.0f) {
         const float3 pos = clip_pos.xyz / clip_pos.w;
         draw_text_at_fn(geom.label, pos.x, pos.y, pos.z);
@@ -163,28 +160,29 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
       mjrfMaterial material;
       mjrf_defaultMaterial(&material);
       material.decor_ux = true;
-      material.color[0] = model->flex_rgba[4 * geom.objid + 0];
-      material.color[1] = model->flex_rgba[4 * geom.objid + 1];
-      material.color[2] = model->flex_rgba[4 * geom.objid + 2];
-      material.color[3] = model->flex_rgba[4 * geom.objid + 3];
+      material.color[0] = model_->flex_rgba[4 * geom.objid + 0];
+      material.color[1] = model_->flex_rgba[4 * geom.objid + 1];
+      material.color[2] = model_->flex_rgba[4 * geom.objid + 2];
+      material.color[3] = model_->flex_rgba[4 * geom.objid + 3];
 
       mjrfRenderableParams params;
       mjrf_defaultRenderableParams(&params);
 
       const int vertadr = mjv_scene_.flexvertadr[geom.objid];
       const int vertnum = mjv_scene_.flexvertnum[geom.objid];
-      const float radius = model->flex_radius[geom.objid];
+      const float radius = model_->flex_radius[geom.objid];
 
       if (mjv_scene_.flexvertopt) {
         // Use small spheres to represent vertices.
         const float rot[] = {1.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 1.f};
         const float size[] = {radius, radius, radius};
         for (int v = vertadr; v < vertadr + vertnum; ++v) {
-          auto vertex = CreateRenderable(ctx, params);
+          auto vertex = CreateRenderable(ctx_, params);
           mjrf_setRenderableGeomMesh(vertex.get(), mjGEOM_SPHERE, 8, 8, 1);
           mjrf_setRenderableMaterial(vertex.get(), &material);
           mjrf_setRenderableSize(vertex.get(), size);
-          mjrf_setRenderableTransform(vertex.get(), mjv_scene_.flexvert + 3*v, rot);
+          mjrf_setRenderableTransform(vertex.get(), mjv_scene_.flexvert + 3 * v,
+                                      rot);
           mjrf_addRenderableToScene(scene_, vertex.get());
           decorations_.push_back(std::move(vertex));
         }
@@ -196,8 +194,10 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
 
         // Use small thin cylinders to represent the edges.
         for (int e = edgeadr; e < edgeadr + edgenum; ++e) {
-          const float* v1 = mjv_scene_.flexvert + 3 * (vertadr + mjv_scene_.flexedge[2*e]);
-          const float* v2 = mjv_scene_.flexvert + 3 * (vertadr + mjv_scene_.flexedge[2*e+1]);
+          const float* v1 =
+              mjv_scene_.flexvert + 3 * (vertadr + mjv_scene_.flexedge[2 * e]);
+          const float* v2 = mjv_scene_.flexvert +
+                            3 * (vertadr + mjv_scene_.flexedge[2 * e + 1]);
           const mjtNum vec[3] = {v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]};
 
           const float pos[3]{
@@ -211,21 +211,17 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
           mjtNum edgemat[9];
           mju_quat2Mat(edgemat, quat);
           const float rot[9] = {
-            static_cast<float>(edgemat[0]),
-            static_cast<float>(edgemat[1]),
-            static_cast<float>(edgemat[2]),
-            static_cast<float>(edgemat[3]),
-            static_cast<float>(edgemat[4]),
-            static_cast<float>(edgemat[5]),
-            static_cast<float>(edgemat[6]),
-            static_cast<float>(edgemat[7]),
-            static_cast<float>(edgemat[8]),
+              static_cast<float>(edgemat[0]), static_cast<float>(edgemat[1]),
+              static_cast<float>(edgemat[2]), static_cast<float>(edgemat[3]),
+              static_cast<float>(edgemat[4]), static_cast<float>(edgemat[5]),
+              static_cast<float>(edgemat[6]), static_cast<float>(edgemat[7]),
+              static_cast<float>(edgemat[8]),
           };
 
           const float len = static_cast<float>(mju_norm3(vec));
           const float size[3] = {radius, radius, len * 0.5f};
 
-          auto vertex = CreateRenderable(ctx, params);
+          auto vertex = CreateRenderable(ctx_, params);
           mjrf_setRenderableGeomMesh(vertex.get(), mjGEOM_CYLINDER, 1, 8, 1);
           mjrf_setRenderableMaterial(vertex.get(), &material);
           mjrf_setRenderableSize(vertex.get(), size);
@@ -269,11 +265,11 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
         data.release = nullptr;
         data.user_data = nullptr;
 
-        auto mesh = CreateMesh(ctx, config);
+        auto mesh = CreateMesh(ctx_, config);
         mjrf_setMeshData(mesh.get(), &data);
         meshes_.push_back(std::move(mesh));
 
-        auto renderable = CreateRenderable(ctx, params);
+        auto renderable = CreateRenderable(ctx_, params);
         mjrf_setRenderableMesh(renderable.get(), meshes_.back().get(), 0, 0);
         mjrf_setRenderableMaterial(renderable.get(), &material);
         mjrf_addRenderableToScene(scene_, renderable.get());
@@ -284,9 +280,10 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
 
     mjrfRenderableParams params;
     mjrf_defaultRenderableParams(&params);
-    auto renderable = CreateRenderable(ctx, params);
+    auto renderable = CreateRenderable(ctx_, params);
 
-    mjrf_setRenderableGeomMesh(renderable.get(), geom_type, nstack, nslice, nquad);
+    mjrf_setRenderableGeomMesh(renderable.get(), geom_type, nstack, nslice,
+                               nquad);
     mjrf_setRenderableTransform(renderable.get(), geom.pos, geom.mat);
     if (geom_type == mjGEOM_PLANE) {
       // Planes only define an xy size, so set the z-dimension to 1.0f.
