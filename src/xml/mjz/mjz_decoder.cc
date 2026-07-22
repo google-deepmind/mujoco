@@ -89,15 +89,17 @@ class ZipArchiveProvider : public mjpResourceProvider {
 
     // Look for the root XML model in the archive. We try the following
     // locations:
-    // 1. [archive_name].xml at the root of the archive.
-    // 2. [archive_name]/[archive_name].xml inside a subdirectory.
-    // 3. model.xml at the root of the archive (common zipped MJCF pattern).
+    // 1. [archive_name].xml
+    // 2. [archive_name]/[archive_name].xml
+    // 3. model.xml
+    // 4. [archive_name]/model.xml
     const std::filesystem::path path(name_);
     const std::string stem = path.stem().string();
     std::vector<std::string> candidates = {
         (path / stem).generic_string() + ".xml",
         (path / stem / stem).generic_string() + ".xml",
         (path / "model").generic_string() + ".xml",
+        (path / stem / "model").generic_string() + ".xml",
     };
 
     bool found = false;

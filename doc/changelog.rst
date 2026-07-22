@@ -152,8 +152,8 @@ Compiler
 - Fixed loading of :ref:`.mjz <MJZArchives>` archives in :ref:`simulate<saSimulate>`: the archive was unmounted
   before model compilation, so assets failed to load. Failures in the :ref:`mjz <MJZArchives>` decoder now emit a
   warning with the underlying error instead of the generic "could not decode content" message.
-- The :ref:`mjz <MJZArchives>` decoder now searches for ``model.xml`` at the root of the archive as a fallback if the
-  archive-named XML is not found.
+- The :ref:`mjz <MJZArchives>` decoder now searches for ``model.xml`` and ``<stem>/model.xml`` as a fallback if
+  ``<stem>.xml`` and ``<stem>/<stem>.xml`` are not found.
 - Added support for resource writing via :ref:`mju_writeResource` and the ``write`` callback in
   :ref:`mjpResourceProvider`.
 
