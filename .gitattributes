@@ -1,0 +1,4 @@
+# Patch files encode significant whitespace (e.g. empty context lines) and
+# must never be CRLF-converted at checkout: git apply rejects a mangled
+# patch with "corrupt patch" on Windows runners where core.autocrlf=true.
+*.patch -text

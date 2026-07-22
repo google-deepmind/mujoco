@@ -569,4 +569,3 @@ int mj_containsFileVFS(mjVFS* vfs, const char* directory, const char* filename) 
   }
   return impl->ContainsFile(directory, filename);
 }
-

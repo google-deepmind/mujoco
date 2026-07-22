@@ -6526,5 +6526,3 @@
 
                   .. grid-item::
                      :ref:`value<instance-config-value>`
-
-
