@@ -320,13 +320,12 @@ static int ipc_geomEdges(const mjModel* m, int gi, const mjtNum* gpos, const mjt
 #define IPC_MU_SCALE 5e7   // per-vertex AL stiffness: mu_v = mass*IPC_MU_SCALE*h^2
 #define IPC_DECAY 0.3          // cnt-aging stiffness decay: scale = pow(IPC_DECAY,c)*mu
 #define IPC_VEL_TOL 0.05       // newton velocity tolerance (m/s); abs dx tol = IPC_VEL_TOL*h (L-inf dx checker)
-#define IPC_TOI_THRESH 0.1     // terminate when beta >= 1 - IPC_TOI_THRESH (feasibility threshold)
 #define IPC_ALPHA_LB 1e-6      // advance xfree only if CCD alpha > this (alpha lower bound)
 #define IPC_STALL_MAX 64       // consecutive outer iters with CCD alpha <= IPC_ALPHA_LB (no feasible advance) -> solve is frozen
 #define IPC_PCG_MAXITER 4000   // PCG hard cap (keep iterating to here; only reached on a badly ill-conditioned Hessian)
 #define IPC_PCG_WARN 200       // WARN (but do NOT stop) once PCG needs more than this -> ill-conditioned, direction getting costly
 #define IPC_FLEX_MIN_ITER 1    // minimum Newton iterations. Terminate once beta is feasible
-                               // (beta >= 1 - IPC_TOI_THRESH) AND the articulated block converged AND the flex block
+                               // (beta ~ 1, complete advance) AND the articulated block converged AND the flex block
                                // converged-or-full-step (contact-type-aware: rigid gcon contact needs convergence, AL
                                // flex contact is stable at the alpha==1 bail). The persistent active set + per-element
                                // PSD projection make the single-Newton flex step sound.
@@ -1273,7 +1272,7 @@ void mj_IPC(const mjModel* m, mjData* d) {
   // contact is ever missed in the barrier), and the CCD's cgap-based step cap stays conservative (safe).
   for (int i=0; i < 3*nstate; i++) xfree[i] = xold[i];   // intersection-free output path (paper x[k]), from feasible xold
   // Single AL Newton loop: inner_cap=1, beta ACCUMULATES to 1 (beta += (1-beta)*ac), terminate when
-  // beta >= 1 - IPC_TOI_THRESH (0.9) AND the articulated block converged AND (the flex block converged OR
+  // beta ~ 1 (complete advance) AND the articulated block converged AND (the flex block converged OR
   // the line search took a full step); no floor, no CFL cap, plain monotone-or-converged line search.
   mjtNum beta = 0.0;
   int inner_cap = 1;   // single AL Newton iteration per outer
@@ -1520,10 +1519,15 @@ void mj_IPC(const mjModel* m, mjData* d) {
   // N8f advance non-penetrate positions(alpha): advance the FLEX xfree, iff alpha > alpha lower bound. beta -> 1.
   if (ac > IPC_ALPHA_LB) for (int i=0; i < 3*npt; i++) xfree[i] = (1.0-ac)*xfree[i] + ac*x[i];
   beta = beta + (1.0 - beta)*ac;
-  // terminate: beta feasible (>= 1 - IPC_TOI_THRESH) AND the articulated block truly converged AND the flex
+  // terminate: beta COMPLETE AND the articulated block truly converged AND the flex
   // block converged-or-full-step. Contact-type-aware: rigid (gcon/explicit-aref) contact NEEDS convergence
   // (energy injection otherwise); AL flex contact is stable at the alpha==1 bail and forcing it is ~100x outers.
-  if (beta >= 1.0 - IPC_TOI_THRESH && artic_converged_out &&
+  // A complete advance is required to commit: beta is the fraction of the step's motion the
+  // committed positions have absorbed, not a residual -- accepting beta<1 discards (1-beta) of
+  // the motion while time still advances by h (time-dilated, slow-motion physics; sustained
+  // beta~0.9 commits in contact-rich phases read as a visible freeze). Partial advances are
+  // fine WITHIN the loop; the stall path below is the loud escape when CCD cannot complete.
+  if (beta >= 1.0 - 1e-6 && artic_converged_out &&
       (flex_converged_out || last_ls_alpha >= 1.0 - 1e-9)) break;
   if (ac > IPC_ALPHA_LB) stall = 0; else if (++stall >= IPC_STALL_MAX) { stalled = 1; break; }   // CCD froze -> stop grinding, error below
   (void)last_maxdx;
