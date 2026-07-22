@@ -416,6 +416,8 @@ def least_squares(
 
     # Check termination condition on step norm.
     if dx_norm < xtol * (xtol + np.linalg.norm(x)):
+      x = xnew
+      r = rnew
       status = Status.DX_TOL
       break
 
