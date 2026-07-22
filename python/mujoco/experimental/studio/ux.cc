@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <imgui.h>
+#include <implot.h>
 #include <mujoco/mujoco.h>
 #include <mujoco/experimental/platform/helpers.h>
 #include <mujoco/experimental/platform/sim/step_control.h>
@@ -95,6 +96,17 @@ PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
         ImGui::SetCurrentContext(reinterpret_cast<ImGuiContext*>(ptr));
       },
       py::arg("ptr"), "Set ImGui context pointer.");
+
+  // Each pybind extension module holds its own copy of the ImGui/ImPlot
+  // globals (extension modules are loaded RTLD_LOCAL), so the viewer that
+  // owns the contexts must share the pointers with this module. Without
+  // this, the plotting GUIs would dereference a null ImPlot context.
+  m.def(
+      "set_implot_context",
+      [](intptr_t ptr) {
+        ImPlot::SetCurrentContext(reinterpret_cast<ImPlotContext*>(ptr));
+      },
+      py::arg("ptr"), "Set ImPlot context pointer.");
 
   m.def(
       "configure_docking_layout",

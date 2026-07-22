@@ -22,7 +22,6 @@
 #include <string_view>
 #include <vector>
 
-
 #include <fstream>
 #include <imgui.h>
 #include <implot.h>
@@ -155,18 +154,16 @@ class Viewer {
                                   bytes_per_pixel);
   }
 
-  std::string GetDropFile() {
-    return window_->GetDropFile();
-  }
+  std::string GetDropFile() { return window_->GetDropFile(); }
 
-  void Present(const mujoco::python::MjModelWrapper& model,
-               mujoco::python::MjDataWrapper& data,
-               mujoco::python::MjvPerturbWrapper& perturb,
-               mujoco::python::MjvCameraWrapper& camera,
-               mujoco::python::MjvOptionWrapper& vis_options,
-               const std::vector<uint8_t>& render_flags,
-               const std::vector<mujoco::python::MjvGeomWrapper>& extra_geoms =
-                   {}) {
+  void Present(
+      const mujoco::python::MjModelWrapper& model,
+      mujoco::python::MjDataWrapper& data,
+      mujoco::python::MjvPerturbWrapper& perturb,
+      mujoco::python::MjvCameraWrapper& camera,
+      mujoco::python::MjvOptionWrapper& vis_options,
+      const std::vector<uint8_t>& render_flags,
+      const std::vector<mujoco::python::MjvGeomWrapper>& extra_geoms = {}) {
     std::vector<mjvGeom> geoms;
     geoms.reserve(extra_geoms.size());
     for (const auto& geom_wrapper : extra_geoms) {
@@ -194,8 +191,8 @@ class Viewer {
     }
 
     renderer_->Render(model.get(), data.get(), perturb.get(), camera.get(),
-                      vis_options.get(), width * scale, height * scale,
-                      pixels_, geoms);
+                      vis_options.get(), width * scale, height * scale, pixels_,
+                      geoms);
 
     window_->EndFrame();
     window_->Present(pixels_);
@@ -203,6 +200,12 @@ class Viewer {
 
   intptr_t GetImGuiContext() {
     return reinterpret_cast<intptr_t>(ImGui::GetCurrentContext());
+  }
+
+  // See ux.set_implot_context: extension modules each hold their own copy of
+  // the ImPlot globals, so the context pointer must be shared explicitly.
+  intptr_t GetImPlotContext() {
+    return reinterpret_cast<intptr_t>(ImPlot::GetCurrentContext());
   }
 
  private:
@@ -226,7 +229,8 @@ PYBIND11_MODULE(native_viewer_cc, m, pybind11::mod_gil_not_used()) {
       .def("UploadImage", &Viewer::UploadImage)
       .def("RenderToTexture", &Viewer::RenderToTexture)
       .def("GetDropFile", &Viewer::GetDropFile)
-      .def("GetImGuiContext", &Viewer::GetImGuiContext);
+      .def("GetImGuiContext", &Viewer::GetImGuiContext)
+      .def("GetImPlotContext", &Viewer::GetImPlotContext);
   m.def("IsCrd", &IsCrd);
   m.def("IsCuda", &IsCuda);
 }

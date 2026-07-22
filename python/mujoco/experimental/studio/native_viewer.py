@@ -27,6 +27,7 @@ from mujoco.experimental.studio import ux
 from mujoco.experimental.studio import viewer_protocol
 
 from mujoco.experimental.dear_imgui import dear_imgui as imgui
+from mujoco.experimental.implot import implot
 
 
 class NativeViewer(viewer_protocol.Viewer):
@@ -85,6 +86,9 @@ class NativeViewer(viewer_protocol.Viewer):
     ctx = self._viewer.GetImGuiContext()
     imgui.SetCurrentContext(ctx)
     ux.set_imgui_context(ctx)
+    ux.set_implot_context(self._viewer.GetImPlotContext())
+    implot.set_imgui_context(ctx)
+    implot.set_implot_context(self._viewer.GetImPlotContext())
 
     # Dispatch lifecycle event so handlers can cache the viewer reference.
     self.dispatch(viewer_protocol.ViewerInitEvent(viewer=self))
