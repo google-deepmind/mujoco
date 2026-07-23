@@ -1108,6 +1108,9 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
   int* chain_colind = mjSTACKALLOC(d, nv, int);
   mjtNum* blk_jac = mjSTACKALLOC(d, 3*nv, mjtNum);
 
+  // temp buffer for fast path element result
+  mjtNum* fast_tmp = mjSTACKALLOC(d, max_dim_c, mjtNum);
+
   // loop over flexes
   for (int f=0; f < m->nflex; f++) {
     // only process flex_interp
@@ -1167,7 +1170,7 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
     mju_flexGatherState(m, d, f, xpos, NULL);
 
     // check if centered fast path applies: centered, all nodes on simple slider
-    // bodies (body_simple == 2 means diag M with sliders only, J = I_3 per node)
+    // bodies (body_simple == 2 means diag M with sliders only, J = R_body per node)
     int use_fast_path = m->flex_centered[f];
     if (use_fast_path) {
       int nodenum_f = m->flex_nodenum[f];
@@ -1272,21 +1275,31 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
       }
 
       // fast path: centered flex with 3 translational DOFs per body
-      // J is identity, so J'*K*J*vec = K*vec — scatter directly
+      // J = R_body (not I when body is rotated), so J'*K*J*vec = R^T*K*(R*vec)
       if (use_fast_path) {
+        // apply R_body to vec for each node
+        for (int n = 0; n < npe; n++) {
+          int dof = m->body_dofadr[bodyid[gindices[n]]];
+          mji_mulMatVec3(fast_tmp + 3*n, d->xmat + 9*bodyid[gindices[n]], vec + dof);
+        }
+
+        // compute R^T * K_rot * (R*vec) and add to res
         for (int a = 0; a < npe; a++) {
           int dof_a = m->body_dofadr[bodyid[gindices[a]]];
+          mjtNum row[3] = {0, 0, 0};
           for (int b = 0; b < npe; b++) {
-            int dof_b = m->body_dofadr[bodyid[gindices[b]]];
-            // K_rot_cell[3*a, 3*b] is the 3x3 block
             int adr = (3*a)*dim_e + 3*b;
             for (int r = 0; r < 3; r++) {
-              mjtNum val = 0;
               for (int c = 0; c < 3; c++) {
-                val += K_rot_cell[adr + r*dim_e + c] * vec[dof_b + c];
+                row[r] += K_rot_cell[adr + r*dim_e + c] * fast_tmp[3*b + c];
               }
-              res[dof_a + r] += val;
             }
+          }
+          // apply R^T and add to res
+          mjtNum qfrc_loc[3];
+          mji_mulMatTVec3(qfrc_loc, d->xmat + 9*bodyid[gindices[a]], row);
+          for (int r = 0; r < 3; r++) {
+            res[dof_a + r] += qfrc_loc[r];
           }
         }
       } else {
@@ -1963,14 +1976,28 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
         for (int i = 0; i < npe; i++) {
           int si = nslot[m->flex_nodeadr[f] + gindices[i]];
           if (si < 0) continue;
+          int bi = m->flex_nodebodyid[m->flex_nodeadr[f] + gindices[i]];
           for (int j = 0; j < npe; j++) {
             int sj = nslot[m->flex_nodeadr[f] + gindices[j]];
             if (sj < 0) continue;
+            int bj = m->flex_nodebodyid[m->flex_nodeadr[f] + gindices[j]];
+            // extract K_rot 3x3 block for (i,j)
+            mjtNum kb_ij[9];
+            for (int r = 0; r < 3; r++) {
+              for (int c = 0; c < 3; c++) {
+                kb_ij[3*r+c] = iscale*kb[(3*i + r)*dim_e + 3*j + c];
+              }
+            }
+            // apply R_bi^T * kb_ij * R_bj to transform to DOF space
+            mjtNum tmp[9];
+            mjtNum blk[9];
+            mji_mulMatMat3(tmp, kb_ij, d->xmat + 9*bj);     // tmp = kb * R_bj
+            mji_mulMatTMat3(blk, d->xmat + 9*bi, tmp);      // blk = R_bi^T * tmp
             int pos;
             FLEXSTIFF_BLOCK(si, sj, pos);
             for (int r = 0; r < 3; r++) {
               for (int c = 0; c < 3; c++) {
-                val[rowadr[vdof[si] + r] + 3*pos + c] += iscale*kb[(3*i + r)*dim_e + 3*j + c];
+                val[rowadr[vdof[si] + r] + 3*pos + c] += blk[3*r+c];
               }
             }
           }

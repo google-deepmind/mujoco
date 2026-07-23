@@ -194,8 +194,16 @@ static void mj_flexPassiveInterp(const mjModel* m, mjData* d, int f,
          (m->flex_node[3*nidx+0] == 0 &&
           m->flex_node[3*nidx+1] == 0 &&
           m->flex_node[3*nidx+2] == 0))) {
-      if (enbl_spring) mji_addTo3(d->qfrc_spring + m->body_dofadr[bid], frc_g+3*i);
-      if (enbl_damper) mji_addTo3(d->qfrc_damper + m->body_dofadr[bid], dmp_g+3*i);
+      if (enbl_spring) {
+        mjtNum qfrc_loc[3];
+        mju_mulMatTVec3(qfrc_loc, d->xmat+9*bid, frc_g+3*i);
+        mji_addTo3(d->qfrc_spring + m->body_dofadr[bid], qfrc_loc);
+      }
+      if (enbl_damper) {
+        mjtNum qdmp_loc[3];
+        mju_mulMatTVec3(qdmp_loc, d->xmat+9*bid, dmp_g+3*i);
+        mji_addTo3(d->qfrc_damper + m->body_dofadr[bid], qdmp_loc);
+      }
     } else {
       if (enbl_spring) mj_applyFT(m, d, frc_g+3*i, 0, xpos_g+3*i, bid, d->qfrc_spring);
       if (enbl_damper) mj_applyFT(m, d, dmp_g+3*i, 0, xpos_g+3*i, bid, d->qfrc_damper);
@@ -428,8 +436,16 @@ static void mj_flexPassiveBendInterp(const mjModel* m, mjData* d, int f,
          (m->flex_node[3*nidx+0] == 0 &&
           m->flex_node[3*nidx+1] == 0 &&
           m->flex_node[3*nidx+2] == 0))) {
-      if (enbl_spring) mji_addTo3(d->qfrc_spring + m->body_dofadr[bid], frc_g+3*i);
-      if (enbl_damper) mji_addTo3(d->qfrc_damper + m->body_dofadr[bid], dmp_g+3*i);
+      if (enbl_spring) {
+        mjtNum qfrc_loc[3];
+        mju_mulMatTVec3(qfrc_loc, d->xmat+9*bid, frc_g+3*i);
+        mji_addTo3(d->qfrc_spring + m->body_dofadr[bid], qfrc_loc);
+      }
+      if (enbl_damper) {
+        mjtNum qdmp_loc[3];
+        mju_mulMatTVec3(qdmp_loc, d->xmat+9*bid, dmp_g+3*i);
+        mji_addTo3(d->qfrc_damper + m->body_dofadr[bid], qdmp_loc);
+      }
     } else {
       if (enbl_spring) mj_applyFT(m, d, frc_g+3*i, 0, xpos_g+3*i, bid, d->qfrc_spring);
       if (enbl_damper) mj_applyFT(m, d, dmp_g+3*i, 0, xpos_g+3*i, bid, d->qfrc_damper);
@@ -618,8 +634,10 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
     } else {
       int body_dofnum = m->body_dofnum[bid];
       int body_dofadr = m->body_dofadr[bid];
+      mjtNum qfrc_loc[3];
+      mju_mulMatTVec3(qfrc_loc, d->xmat+9*bid, qfrc+3*v);
       for (int x = 0; x < body_dofnum; x++) {
-        d->qfrc_spring[body_dofadr+x] += qfrc[3*v+x];
+        d->qfrc_spring[body_dofadr+x] += qfrc_loc[x];
       }
     }
   }
