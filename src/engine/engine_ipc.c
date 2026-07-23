@@ -1439,12 +1439,3 @@ void mj_IPC(const mjModel* m, mjData* d) {
   mju_free(qacc_pred);
   (void)stalled;  // CCD-freeze detector; the diagnostic kill was env-gated and is removed
 }
-
-// -------------------------------------------------------------------------------------------------
-// Thin wrappers exposing the internal IPC kernels to the unit tests (engine_ipc_test.cc). These let
-// the barrier and the geometry/contact distance functions be checked directly, without stepping a
-// model. Not a supported API; kept here so the kernels themselves stay static.
-
-
-
-
