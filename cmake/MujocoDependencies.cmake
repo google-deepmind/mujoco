@@ -129,7 +129,7 @@ endif()
 set(QHULL_ENABLE_TESTING OFF)
 # Patch changes in https://github.com/qhull/qhull/pull/173.patch
 set(QHULL_PATCH_COMMAND
-  git apply --reject --whitespace=fix ${mujoco_SOURCE_DIR}/cmake/qhull-support-emscripten.patch
+  git -c core.autocrlf=false -c core.whitespace=cr-at-eol apply --verbose --whitespace=fix --ignore-space-change ${mujoco_SOURCE_DIR}/cmake/qhull-support-emscripten.patch
 )
 
 findorfetch(
@@ -210,7 +210,7 @@ set(CCD_HIDE_ALL_SYMBOLS ON)
 
 # Patch changes in https://github.com/danfis/libccd/pull/83.patch
 set(CCD_PATCH_COMMAND
-  git apply --reject --whitespace=fix ${mujoco_SOURCE_DIR}/cmake/ccd-support-emscripten.patch
+  git -c core.autocrlf=false -c core.whitespace=cr-at-eol apply --verbose --whitespace=fix --ignore-space-change ${mujoco_SOURCE_DIR}/cmake/ccd-support-emscripten.patch
 )
 
 # update cmake_minimum_required version for compatibility with newer version of cmake
@@ -284,7 +284,7 @@ if(MUJOCO_BUILD_TESTS OR MUJOCO_BUILD_STUDIO OR MUJOCO_USE_FILAMENT)
   )
 
   set(ABSL_PATCH_COMMAND
-    git apply --reject --whitespace=fix ${mujoco_SOURCE_DIR}/cmake/abseil-cpp-source_location.patch
+    git -c core.autocrlf=false -c core.whitespace=cr-at-eol apply --verbose --whitespace=fix --ignore-space-change ${mujoco_SOURCE_DIR}/cmake/abseil-cpp-source_location.patch
   )
   set(ABSL_BUILD_TESTING OFF)
   findorfetch(
