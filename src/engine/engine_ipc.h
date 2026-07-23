@@ -30,12 +30,6 @@ extern "C" {
 // (vertex-triangle + edge-edge) and flex-vs-geom; falls back to Euler if the model has no 2D flex.
 MJAPI void mj_IPC(const mjModel* m, mjData* d);
 
-// Internal IPC kernels exposed for unit tests only (engine_ipc_test.cc); not a supported API.
-MJAPI mjtNum mj_ipcPtTri(const mjtNum* p, const mjtNum* a, const mjtNum* b, const mjtNum* c);
-MJAPI mjtNum mj_ipcSegSeg(const mjtNum* p1, const mjtNum* p2, const mjtNum* q1, const mjtNum* q2);
-MJAPI mjtNum mj_ipcGeomDist(const mjModel* m, const mjData* d, int gi, const mjtNum* x, mjtNum* n);
-MJAPI int mj_ipcGeomVerts(const mjModel* m, const mjData* d, int gi, mjtNum* out);
-MJAPI int mj_ipcGeomEdges(const mjModel* m, const mjData* d, int gi, mjtNum* out);
 
 #ifdef __cplusplus
 }

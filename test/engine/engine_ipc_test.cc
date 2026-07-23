@@ -18,6 +18,7 @@
 // take a single mj_step on a 3x3 cloth: one checks free fall, one checks the intersection-free
 // guarantee (a fast cloth cannot tunnel a plane in one step).
 
+#include "src/engine/engine_collision_continuous.h"
 #include "src/engine/engine_ipc.h"
 
 #include <cmath>
@@ -30,6 +31,25 @@
 
 namespace mujoco {
 namespace {
+
+// convenience shims over the MJAPI geometry kernels (pose taken from d, scratch dropped)
+static mjtNum PtTri(const mjtNum* p, const mjtNum* a, const mjtNum* b, const mjtNum* c) {
+  mjtNum cp[3], w[3];
+  return mjc_PtTri(p, a, b, c, cp, w);
+}
+static mjtNum SegSeg(const mjtNum* p1, const mjtNum* p2, const mjtNum* q1, const mjtNum* q2) {
+  mjtNum cp1[3], cp2[3], st[2];
+  return mjc_SegSeg(p1, p2, q1, q2, cp1, cp2, st);
+}
+static mjtNum GeomDist(const mjModel* m, const mjData* d, int gi, const mjtNum* x, mjtNum* n) {
+  return mjc_GeomDist(m, gi, d->geom_xpos + 3*gi, d->geom_xmat + 9*gi, x, n, 1e30);
+}
+static int GeomVerts(const mjModel* m, const mjData* d, int gi, mjtNum* out) {
+  return mjc_GeomVerts(m, gi, d->geom_xpos + 3*gi, d->geom_xmat + 9*gi, out);
+}
+static int GeomEdges(const mjModel* m, const mjData* d, int gi, mjtNum* out) {
+  return mjc_GeomEdges(m, gi, d->geom_xpos + 3*gi, d->geom_xmat + 9*gi, out);
+}
 
 using ::testing::NotNull;
 using IpcTest = MujocoTest;
@@ -51,16 +71,16 @@ TEST_F(IpcTest, PointTriangleDistance) {
   mjtNum a[3] = {0, 0, 0}, b[3] = {1, 0, 0}, c[3] = {0, 1, 0};
 
   mjtNum p_above[3] = {0.2, 0.2, 0.5};        // over the interior
-  EXPECT_NEAR(mj_ipcPtTri(p_above, a, b, c), 0.5, 1e-12);
+  EXPECT_NEAR(PtTri(p_above, a, b, c), 0.5, 1e-12);
 
   mjtNum p_edge[3] = {-1, 0.5, 0};            // nearest the x=0 edge
-  EXPECT_NEAR(mj_ipcPtTri(p_edge, a, b, c), 1.0, 1e-12);
+  EXPECT_NEAR(PtTri(p_edge, a, b, c), 1.0, 1e-12);
 
   mjtNum p_vert[3] = {-3, -4, 0};             // nearest vertex a
-  EXPECT_NEAR(mj_ipcPtTri(p_vert, a, b, c), 5.0, 1e-12);
+  EXPECT_NEAR(PtTri(p_vert, a, b, c), 5.0, 1e-12);
 
   mjtNum p_on[3] = {0.25, 0.25, 0};           // on the triangle
-  EXPECT_NEAR(mj_ipcPtTri(p_on, a, b, c), 0.0, 1e-12);
+  EXPECT_NEAR(PtTri(p_on, a, b, c), 0.0, 1e-12);
 }
 
 // segment-segment distance: perpendicular crossing, collinear gap, parallel offset
@@ -68,13 +88,13 @@ TEST_F(IpcTest, SegmentSegmentDistance) {
   mjtNum p1[3] = {-1, 0, 0}, p2[3] = {1, 0, 0};
 
   mjtNum q1[3] = {0, -1, 0.3}, q2[3] = {0, 1, 0.3};       // perpendicular, 0.3 above
-  EXPECT_NEAR(mj_ipcSegSeg(p1, p2, q1, q2), 0.3, 1e-12);
+  EXPECT_NEAR(SegSeg(p1, p2, q1, q2), 0.3, 1e-12);
 
   mjtNum r1[3] = {2, 0, 0}, r2[3] = {3, 0, 0};            // collinear, gap 1
-  EXPECT_NEAR(mj_ipcSegSeg(p1, p2, r1, r2), 1.0, 1e-12);
+  EXPECT_NEAR(SegSeg(p1, p2, r1, r2), 1.0, 1e-12);
 
   mjtNum s1[3] = {-1, 0, 0.5}, s2[3] = {1, 0, 0.5};       // parallel, 0.5 above
-  EXPECT_NEAR(mj_ipcSegSeg(p1, p2, s1, s2), 0.5, 1e-12);
+  EXPECT_NEAR(SegSeg(p1, p2, s1, s2), 0.5, 1e-12);
 }
 
 //---------------------------------- geom distance ------------------------------------------------
@@ -100,21 +120,21 @@ TEST_F(IpcTest, GeomDistance) {
 
   // box (half-extent 0.1 in x): point on +x at 0.5 -> surface distance 0.4, normal +x
   mjtNum px[3] = {0.5, 0, 0};
-  EXPECT_NEAR(mj_ipcGeomDist(m, d, box, px, n), 0.4, 1e-9);
+  EXPECT_NEAR(GeomDist(m, d, box, px, n), 0.4, 1e-9);
   EXPECT_NEAR(n[0], 1, 1e-9); EXPECT_NEAR(n[1], 0, 1e-9); EXPECT_NEAR(n[2], 0, 1e-9);
 
   // interior point -> negative signed distance
   mjtNum pc[3] = {0, 0, 0};
-  EXPECT_LT(mj_ipcGeomDist(m, d, box, pc, n), 0);
+  EXPECT_LT(GeomDist(m, d, box, pc, n), 0);
 
   // sphere radius 0.1 at (1,0,0): point at (1.3,0,0) -> 0.2, normal +x
   mjtNum ps[3] = {1.3, 0, 0};
-  EXPECT_NEAR(mj_ipcGeomDist(m, d, sphere, ps, n), 0.2, 1e-9);
+  EXPECT_NEAR(GeomDist(m, d, sphere, ps, n), 0.2, 1e-9);
   EXPECT_NEAR(n[0], 1, 1e-9);
 
   // plane at z=-1: point at z=0 -> 1.0, normal +z
   mjtNum pp[3] = {0.3, -0.2, 0};
-  EXPECT_NEAR(mj_ipcGeomDist(m, d, plane, pp, n), 1.0, 1e-9);
+  EXPECT_NEAR(GeomDist(m, d, plane, pp, n), 1.0, 1e-9);
   EXPECT_NEAR(n[2], 1, 1e-9);
 
   mj_deleteData(d);
@@ -134,8 +154,8 @@ TEST_F(IpcTest, BoxFeatures) {
   mj_forward(m, d);
 
   mjtNum verts[8*3], edges[12*6];
-  int nv = mj_ipcGeomVerts(m, d, FirstGeom(m), verts);
-  int ne = mj_ipcGeomEdges(m, d, FirstGeom(m), edges);
+  int nv = GeomVerts(m, d, FirstGeom(m), verts);
+  int ne = GeomEdges(m, d, FirstGeom(m), edges);
   EXPECT_EQ(nv, 8);
   EXPECT_EQ(ne, 12);
   for (int i = 0; i < nv; i++) {
@@ -168,8 +188,8 @@ TEST_F(IpcTest, MeshFeatures) {
   mj_forward(m, d);
 
   mjtNum verts[64*3], edges[256*6];
-  int nv = mj_ipcGeomVerts(m, d, FirstGeom(m), verts);
-  int ne = mj_ipcGeomEdges(m, d, FirstGeom(m), edges);
+  int nv = GeomVerts(m, d, FirstGeom(m), verts);
+  int ne = GeomEdges(m, d, FirstGeom(m), edges);
   EXPECT_EQ(nv, 4);   // tetrahedron vertices
   EXPECT_EQ(ne, 6);   // tetrahedron edges (each shared hull edge emitted once)
   mj_deleteData(d);
