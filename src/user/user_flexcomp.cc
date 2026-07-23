@@ -446,12 +446,12 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
     // construct reindex
     bool hasunused = false;
     std::vector<int> reindex (npnt, 0);
+    int nunused = 0;
     for (int i=0; i < npnt; i++) {
+      reindex[i] = -nunused;
       if (!used[i]) {
         hasunused = true;
-        for (int k=i+1; k < npnt; k++) {
-          reindex[k]--;
-        }
+        nunused++;
       }
     }
 

@@ -52,6 +52,8 @@ Engine
   deprecated and will be removed in a future release.
 - Replaced quadratic scratch in DFS flood-fill island discovery with a linear-memory Union-Find (disjoint set).
   Contribution by :github:user:`teerthsharma`.
+- Replaced quadratic flexcomp unused-point reindexing with an equivalent linear prefix scan.
+  Contribution by :github:user:`teerthsharma`.
 
 .. admonition:: Breaking API changes
    :class: attention
