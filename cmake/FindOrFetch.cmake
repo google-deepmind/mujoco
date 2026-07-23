@@ -125,6 +125,7 @@ if(NOT COMMAND FindOrFetch)
           set(_WRAPPED_PATCH_COMMAND)
         endif()
 
+        set(FETCHCONTENT_QUIET OFF)
         if(USE_LOCAL_TARBALL)
           message(STATUS "mujoco::FindOrFetch: Using package cache for ${_ARGS_LIBRARY_NAME}: ${TARBALL_PATH}")
           FetchContent_Declare(

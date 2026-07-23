@@ -21,7 +21,7 @@ mark_as_advanced(MUJOCO_DEP_VERSION_libwebp)
 include(FindOrFetch)
 
 set(LIBWEBP_PATCH_COMMAND
-  git apply --reject --whitespace=fix ${mujoco_SOURCE_DIR}/cmake/libwebp-apple-float16.patch
+  git -c core.autocrlf=false -c core.whitespace=cr-at-eol apply --verbose --whitespace=fix --ignore-space-change ${mujoco_SOURCE_DIR}/cmake/libwebp-apple-float16.patch
 )
 
 set(BUILD_SHARED_LIBS_OLD ${BUILD_SHARED_LIBS})
@@ -36,5 +36,3 @@ fetchpackage(
 )
 
 set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_OLD})
-
-
