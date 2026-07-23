@@ -912,7 +912,10 @@ static int ipc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, co
       for (int kk=0; kk<3; kk++) { qc[kk]=0.5*(p0[kk]+p1[kk]); qh[kk]=0.5*mju_abs(p1[kk]-p0[kk])+threshGeom+rk; }
       int n = ipc_bvhBox(m, d, fk, qc, qh, stk, outel, ne_k); qid++;
       for (int i=0; i < n; i++) { int e = outel[i];
-        for (int j=0; j<3; j++) { int e2 = eme_k[3*e+j]; if (stampG[e2]==qid) continue; stampG[e2]=qid;
+        for (int j=0; j<3; j++) {
+          int e2 = eme_k[3*e+j];
+          if (stampG[e2] == qid) continue;
+          stampG[e2] = qid;
           ipcCon con = {4, {c, off_k+m->flex_edge[2*(ea_k+e2)], off_k+m->flex_edge[2*(ea_k+e2)+1], 0}, -1};
           ipc_addCand(con, m, d, x, gv, ge, r, rad, threshGeom, dfrom, dto, ghat, cand, &nc, candmax); } }
     }
@@ -944,7 +947,8 @@ static int ipc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, co
         for (int i=0; i < n; i++) { int e = outel[i];
           for (int j=0; j<3; j++) { int e2 = eme_k[3*e+j];
             if (self && e2 <= e1) continue;            // canonical within a flex
-            if (stampG[e2] == qid) continue; stampG[e2] = qid;
+            if (stampG[e2] == qid) continue;
+            stampG[e2] = qid;
             int a2 = off_k+m->flex_edge[2*(ea_k+e2)], b2 = off_k+m->flex_edge[2*(ea_k+e2)+1];
             if (a1==a2||a1==b2||b1==a2||b1==b2) continue;   // shared vertex -> adjacent, skip
             ipcCon con = {1, {a1, b1, a2, b2}, -1};
