@@ -2447,7 +2447,8 @@ typedef enum mjtIntegrator {      // integrator mode
   mjINT_EULER         = 0,        // semi-implicit Euler
   mjINT_RK4,                      // 4th-order Runge Kutta
   mjINT_IMPLICIT,                 // implicit in velocity
-  mjINT_IMPLICITFAST              // implicit in velocity, no rne derivative
+  mjINT_IMPLICITFAST,             // implicit in velocity, no rne derivative
+  mjINT_IPC                       // IPC-style variational integrator (flex prototype)
 } mjtIntegrator;
 typedef enum mjtCone {            // type of friction cone
   mjCONE_PYRAMIDAL     = 0,       // pyramidal
