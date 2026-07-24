@@ -174,6 +174,10 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
       mju_mulMatVec(qfrc+adr, A, qacc+adr, 6, 6);
     }
     break;
+
+  case mjINT_IPC:
+    mjERROR("discrete inverse dynamics is not supported by the IPC integrator");
+    return;
   }
 
   // solve for qacc: qfrc = M * qacc

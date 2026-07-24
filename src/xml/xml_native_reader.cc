@@ -734,12 +734,13 @@ const mjMap texrole_map[texrole_sz] = {
 
 
 // integrator type
-const int integrator_sz = 4;
+const int integrator_sz = 5;
 const mjMap integrator_map[integrator_sz] = {
   {"Euler",         mjINT_EULER},
   {"RK4",           mjINT_RK4},
   {"implicit",      mjINT_IMPLICIT},
-  {"implicitfast",  mjINT_IMPLICITFAST}
+  {"implicitfast",  mjINT_IMPLICITFAST},
+  {"ipc",           mjINT_IPC}
 };
 
 
