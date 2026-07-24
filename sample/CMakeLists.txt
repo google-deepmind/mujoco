@@ -87,9 +87,15 @@ target_compile_options(testspeed PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
 target_link_libraries(testspeed Threads::Threads)
 target_link_options(testspeed PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
 
+add_executable(xmlschema xmlschema.cc)
+target_compile_options(xmlschema PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
+target_link_libraries(xmlschema Threads::Threads)
+target_link_options(xmlschema PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
+
 target_link_libraries(compile mujoco::mujoco)
 target_link_libraries(dependencies mujoco::mujoco)
 target_link_libraries(testspeed mujoco::mujoco)
+target_link_libraries(xmlschema mujoco::mujoco)
 
 # Build samples that require GLFW.
 
