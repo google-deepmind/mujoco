@@ -34,15 +34,29 @@ if _MUJOCO_GL not in ('disable', 'disabled', 'off', 'false', '0'):
     raise RuntimeError(
         f'invalid value for environment variable MUJOCO_GL: {_MUJOCO_GL}')
 
-  if _SYSTEM == 'Linux' and _MUJOCO_GL == 'osmesa':
-    from mujoco.osmesa import GLContext as _GLContext
-    GLContext = _GLContext
-  elif _SYSTEM == 'Linux' and _MUJOCO_GL == 'egl':
-    from mujoco.egl import GLContext as _GLContext
-    GLContext = _GLContext
-  elif _SYSTEM == 'Darwin':
-    from mujoco.cgl import GLContext as _GLContext
-    GLContext = _GLContext
-  else:
-    from mujoco.glfw import GLContext as _GLContext
-    GLContext = _GLContext
+  def _resolve_gl_context():
+    """Imports and returns the configured backend's GLContext class."""
+    if _SYSTEM == 'Linux' and _MUJOCO_GL == 'osmesa':
+      from mujoco.osmesa import GLContext as _GLContext
+    elif _SYSTEM == 'Linux' and _MUJOCO_GL == 'egl':
+      from mujoco.egl import GLContext as _GLContext
+    elif _SYSTEM == 'Darwin':
+      from mujoco.cgl import GLContext as _GLContext
+    else:
+      from mujoco.glfw import GLContext as _GLContext
+    return _GLContext
+
+  class GLContext:
+    """Configured OpenGL backend, resolved lazily on construction."""
+
+    def __new__(cls, *args, **kwargs):
+      try:
+        backend = _resolve_gl_context()
+      except (ImportError, AttributeError) as exc:
+        raise ImportError(
+            f'Could not initialize the OpenGL backend for '
+            f'MUJOCO_GL={_MUJOCO_GL!r}. Rendering is unavailable; the required '
+            'OpenGL libraries may not be installed. Set MUJOCO_GL=disable to '
+            'skip GL initialization entirely.'
+        ) from exc
+      return backend(*args, **kwargs)
