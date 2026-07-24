@@ -23,6 +23,8 @@ set(MUJOCO_XML_SRCS
     xml.h
     xml_native_reader.cc
     xml_native_reader.h
+    xml_native_schema.cc
+    xml_native_schema.h
     xml_numeric_format.cc
     xml_numeric_format.h
     xml_native_writer.cc
