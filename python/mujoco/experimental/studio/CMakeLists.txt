@@ -23,9 +23,6 @@ set(STUDIO_COMMON_LIBS
   structs_wrappers
 )
 
-mujoco_pybind11_module(parser parser.cc)
-target_link_libraries(parser PRIVATE ${STUDIO_COMMON_LIBS})
-
 mujoco_pybind11_module(native_viewer_cc native_viewer.cc)
 target_link_libraries(native_viewer_cc PRIVATE ${STUDIO_COMMON_LIBS})
 
@@ -39,7 +36,6 @@ mujoco_pybind11_module(sim sim.cc)
 target_link_libraries(sim PRIVATE ${STUDIO_COMMON_LIBS})
 
 set(MUJOCO_STUDIO_TARGETS
-    parser
     native_viewer_cc
     renderer
     ux
@@ -73,7 +69,6 @@ set_target_properties(implot PROPERTIES
 # when linking both GLFW (via Filament) and SDL2 statically on Linux.
 if(UNIX AND NOT APPLE)
   set(STUDIO_PY_MODULES
-      parser
       native_viewer_cc
       renderer
       ux
@@ -86,7 +81,6 @@ endif()
 
 if(APPLE)
   set(STUDIO_PY_MODULES
-      parser
       native_viewer_cc
       renderer
       ux
