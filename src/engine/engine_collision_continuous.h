@@ -29,13 +29,12 @@ extern "C" {
 // the conservative CCD advance. Kept apart from the discrete collision pipeline
 // (engine_collision_*): those generate contact points; these price gaps along trajectories.
 
-// Contact STANDOFF: every active contact rests at a small positive gap delta = min(ghc,
-// IPC_DELTACAP). The AL multiplier holds the constraint there, so the MaxStepSize CCD always sees a
-// positive gap (nonzero TOI, no lock) and the committed trajectory stays STRICTLY intersection-free
-// (no penetration). delta is a small geometric skin: it shrinks for thin participants (ghc small ->
-// thin cloth keeps its no-penetration guarantee) and is capped so thick participants don't carry a
-// fat layer.
-#define IPC_DELTACAP 0.001  // 1 mm standoff cap
+// Contact layers: the gap is the MIDSURFACE distance (mjc_conGap); a pair RESTS at
+// gap = r1 + r2 (mjc_conGhat) -- the flex radius is not a physical thickness but the rest
+// offset, the whole skin below it is the soft recoverable band. The only hard invariant is
+// that midsurfaces never cross: the CCD advance (mjc_advance) floors every committed gap at
+// IPC_DMIN > 0, which also keeps the distance kernels' normals well-conditioned.
+#define IPC_DMIN 1e-5  // absolute commit floor on the midsurface gap (10 um)
 
 // one active contact. type: 0 vertex-triangle self, 1 edge-edge self, 2 flex-vertex vs geom
 // surface, 3 geom-corner vs flex-triangle, 4 geom-edge vs flex-edge. idx/gi meaning per type
@@ -58,12 +57,11 @@ typedef struct {
 // aging); s = materialized AL slack for the d0 bake (slack update -> assemble -> lambda update
 // un-bake)
 
-mjtNum mjc_off(mjtNum ghc);
 mjtNum mjc_conGap(const ipcCon* con, const mjModel* m, const mjData* d, const mjtNum* x,
                   const mjtNum* gv, const mjtNum* ge, mjtNum r, const mjtNum* rad, mjtNum* n,
                   int* idv, mjtNum* cw, int* nidx, mjtNum cutoff);
 void mjc_conVerts(const ipcCon* con, int* v, int* nv);
-mjtNum mjc_conGhat(const ipcCon* con, const mjtNum* rad, mjtNum ghat);
+mjtNum mjc_conGhat(const ipcCon* con, const mjtNum* rad);
 mjtNum mjc_advance(const mjModel* m, const mjData* d, const mjtNum* x, const mjtNum* dxw,
                    const mjtNum* gv, const mjtNum* ge, mjtNum r, const mjtNum* rad, int nfv,
                    const int* fidx, const ipcCon* cand, int ncand, const mjtNum* cgap,

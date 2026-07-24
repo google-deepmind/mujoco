@@ -150,7 +150,7 @@ static unsigned long ipc_pairHash(const ipcCon* con) {
 static void ipc_try(ipcCon con, const mjtNum* x, const mjtNum* xfree, const mjtNum* rad,
                     mjtNum ghat, ipcCon* acon, int* nacon, int amax, mjtNum* gout) {
   mjtNum craw =
-      con.ld0 - mjc_off(mjc_conGhat(&con, rad, ghat));  // c_raw(x) (un-baked linearized gap)
+      con.ld0 - mjc_conGhat(&con, rad);  // c_raw(x) (un-baked linearized gap)
   for (int p = 0; p < con.lniv; p++) {
     int v = con.liv[p];
     for (int k = 0; k < 3; k++)
@@ -177,8 +177,7 @@ static void ipc_updateSlack(ipcCon* cand, int ncand, const int* held, const mjtN
     }
     ipcCon* con = &cand[c];
     mjtNum mu = ipc_muPair(con, mass, ih2);
-    mjtNum craw = con->ld0 - mjc_off(mjc_conGhat(
-                                 con, rad, ghat));  // c_raw(x) = (ld0-delta) + d_grad.(x-xfree)
+    mjtNum craw = con->ld0 - mjc_conGhat(con, rad);  // c_raw(x) = (ld0-delta) + d_grad.(x-xfree)
     for (int p = 0; p < con->lniv; p++) {
       int v = con->liv[p];
       for (int k = 0; k < 3; k++)
@@ -293,8 +292,7 @@ static void ipc_flexLamUpdate(const mjModel* m, const mjData* d, const mjtNum* x
     ipcCon* con = &cand[c];
     mjtNum mu = ipc_muPair(con, mass, ih2);
     mjtNum lam0 = con->lam;  // lambda BEFORE this update (the dual update reads pre-update)
-    mjtNum craw = con->ld0 - mjc_off(mjc_conGhat(
-                                 con, rad, ghat));  // c_raw(x) (un-baked: == baked_d + s + lam/mu)
+    mjtNum craw = con->ld0 - mjc_conGhat(con, rad);  // c_raw(x) (un-baked: == baked_d + s + lam/mu)
     for (int p = 0; p < con->lniv; p++) {
       int v = con->liv[p];
       for (int k = 0; k < 3; k++)
@@ -427,7 +425,7 @@ static mjtNum ipc_energy(const mjModel* m, const mjData* d, int nfv, const mjtNu
     // ipc_try's gradient. d = c_raw - s - lam/mu, scale = pow(IPC_DECAY, cnt-exp)*mu_pair. Keep
     // mj's dashpot energy.
     mjtNum mu = ipc_muPair(&acon[c], mass, ih2);
-    mjtNum craw = acon[c].ld0 - mjc_off(mjc_conGhat(&acon[c], rad, ghat));
+    mjtNum craw = acon[c].ld0 - mjc_conGhat(&acon[c], rad);
     for (int p = 0; p < acon[c].lniv; p++) {
       int v = acon[c].liv[p];
       for (int k = 0; k < 3; k++)
@@ -1038,7 +1036,7 @@ void mj_IPC(const mjModel* m, mjData* d) {
           mjtNum D = mu;
           for (int e = 0; e < cexp; e++)
             D *= IPC_DECAY;  // scale = mu*DECAY^cnt (the GN stiffness)
-          mjtNum delta = mjc_off(mjc_conGhat(con, rad, ghat));
+          mjtNum delta = mjc_conGhat(con, rad);
           mjtNum refc = -(con->ld0 - delta) + con->s + con->lam / mu;
           epadr[nrow] = nnz;
           // This reference is EXACT: r(qacc(x)) = dd(x) algebraically (the h*Rqv terms cancel per
@@ -1307,10 +1305,10 @@ void mj_IPC(const mjModel* m, mjData* d) {
         mjc_advance(m, d, xfree, dx, gv, ge, r, rad, nfv, fidx, cand, ncand, cgap, pt2flex, appr);
     // N8e update_active_set: MERGE the admitted broad-phase candidates into the persistent set
     // (keep existing with abs(cnt)<=25, add new with toi<1-1e-6, dedup). Admit a candidate iff it
-    // is closing this step (appr) OR already distance-active (gap<=0): both are the CCD
-    // time-of-impact < 1-1e-6 set. New entries seed lam(g_pal)/cnt(store).
+    // is closing this step (appr) OR already inside its skin (midsurface gap <= the pair's rest
+    // separation r1+r2): compressed pairs are force-carrying. New entries seed lam(g_pal)/cnt(store).
     for (int c = 0; c < ncand; c++)
-      actc[c] = (appr[c] || cgap[c] <= 0.0) ? 1 : 0;
+      actc[c] = (appr[c] || cgap[c] <= mjc_conGhat(&cand[c], rad)) ? 1 : 0;
     ipc_mergeActiveSet(aset, &naset, cand, ncand, actc, amerge, g_pal, candmax);
     // N8f advance non-penetrate positions(alpha): advance the FLEX xfree, iff alpha > alpha lower
     // bound. beta -> 1.

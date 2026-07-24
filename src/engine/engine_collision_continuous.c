@@ -440,7 +440,6 @@ int mjc_GeomEdges(const mjModel* m, int gi, const mjtNum* gpos, const mjtNum* gm
   return 0;
 }
 
-mjtNum mjc_off(mjtNum ghc) { return ghc < IPC_DELTACAP ? ghc : IPC_DELTACAP; }
 
 // gap g of a contact at configuration x, plus the barrier gradient direction n, the involved flex
 // vertices idv[*nidx] and their weights cw (dg/d(vertex_p) = cw[p]*n). gv/ge are the precomputed
@@ -465,9 +464,7 @@ mjtNum mjc_conGap(const ipcCon* con, const mjModel* m, const mjData* d, const mj
       cw[2] = -w[1];
       cw[3] = -w[2];
       *nidx = 4;
-      return dd -
-             (rad[v] +
-              rad[A]);  // point radius + triangle (flex) radius; per-flex for cross-flex contact
+      return dd;  // midsurface distance; the radii sum is the pair's rest separation (conGhat)
     }
     case 1: {  // edge-edge contact (edge a1b1 against edge a2b2): flex self OR cross-flex
       int a1 = con->idx[0], b1 = con->idx[1], a2 = con->idx[2], b2 = con->idx[3];
@@ -483,7 +480,7 @@ mjtNum mjc_conGap(const ipcCon* con, const mjModel* m, const mjData* d, const mj
       cw[2] = -(1 - st[1]);
       cw[3] = -st[1];
       *nidx = 4;
-      return dd - (rad[a1] + rad[a2]);  // both edges' (flex) radii
+      return dd;  // midsurface distance; the radii sum is the rest separation
     }
     case 2: {  // flex vertex v vs static geom gi surface
       int v = con->idx[0], gi = con->gi;
@@ -492,7 +489,7 @@ mjtNum mjc_conGap(const ipcCon* con, const mjModel* m, const mjData* d, const mj
       idv[0] = v;
       cw[0] = 1;
       *nidx = 1;
-      return dd - rad[v];
+      return dd;  // distance to the true geom surface; rad[v] is the rest separation
     }
     case 3: {  // static geom corner gv[idx0] vs flex triangle A,B,C
       const mjtNum* corner = &gv[3 * con->idx[0]];
@@ -506,7 +503,7 @@ mjtNum mjc_conGap(const ipcCon* con, const mjModel* m, const mjData* d, const mj
       cw[1] = -w[1];
       cw[2] = -w[2];
       *nidx = 3;
-      return dd - rad[A];  // flex triangle radius
+      return dd;  // midsurface distance; the flex radius is the rest separation
     }
     default: {  // case 4: static geom edge ge[idx0] vs flex edge a,b
       const mjtNum* eg = &ge[6 * con->idx[0]];
@@ -518,7 +515,7 @@ mjtNum mjc_conGap(const ipcCon* con, const mjModel* m, const mjData* d, const mj
       cw[0] = -(1 - st[1]);
       cw[1] = -st[1];
       *nidx = 2;
-      return dd - rad[a];  // flex edge radius
+      return dd;  // midsurface distance; the flex radius is the rest separation
     }
   }
 }
@@ -552,18 +549,24 @@ void mjc_conVerts(const ipcCon* con, int* v, int* nv) {
   }
 }
 
-// per-contact barrier activation distance d_hat. Never exceeds the global ghat, but shrinks to the
-// thinnest participating radius: a thin flex (e.g. a drawstring sitting in a thick bag's sleeve)
-// then gets a proportionally thin barrier zone instead of resting deep inside the thick neighbour's
-// zone (which keeps it permanently active + ratchets kappa -> ill-conditioned). Geom features carry
-// no radius (excluded by mjc_conVerts), so geom/flex and sphere/flex contacts keep the global ghat.
-mjtNum mjc_conGhat(const ipcCon* con, const mjtNum* rad, mjtNum ghat) {
-  int vv[4], nvv;
-  mjc_conVerts(con, vv, &nvv);
-  mjtNum g = ghat;
-  for (int q = 0; q < nvv; q++)
-    if (rad[vv[q]] < g) g = rad[vv[q]];
-  return g;
+// per-contact REST separation delta: the sum of the two sides' skin radii (a static-geom side is
+// a true surface and contributes zero). The gap (mjc_conGap) is the midsurface distance; the AL
+// holds a pair toward gap = delta, so at rest two midsurfaces sit r1 + r2 apart. The skin below
+// delta is the soft band -- compression there is a normal, recoverable state. The only hard
+// boundary is the midsurface crossing at gap 0, guarded by the CCD floor (mjc_advance).
+mjtNum mjc_conGhat(const ipcCon* con, const mjtNum* rad) {
+  switch (con->type) {
+    case 0:
+      return rad[con->idx[0]] + rad[con->idx[1]];  // vertex + triangle flex radius
+    case 1:
+      return rad[con->idx[0]] + rad[con->idx[2]];  // the two edges' flex radii
+    case 2:
+      return rad[con->idx[0]];  // flex vertex vs true geom surface
+    case 3:
+      return rad[con->idx[1]];  // flex triangle vs geom corner
+    default:
+      return rad[con->idx[1]];  // flex edge vs geom edge
+  }
 }
 
 // surface gap of a contact with its flex vertices advanced by t*dxw (geom features fixed);
@@ -583,20 +586,20 @@ static mjtNum conGapAdv(const ipcCon* con, const mjModel* m, const mjData* d, co
   mjtNum cp[3], w[3], c1[3], c2[3], st[2];
   switch (con->type) {
     case 0:
-      return mjc_PtTri(P[0], P[1], P[2], P[3], cp, w) - (rad[con->idx[0]] + rad[con->idx[1]]);
+      return mjc_PtTri(P[0], P[1], P[2], P[3], cp, w);  // midsurface, same as mjc_conGap
     case 1:
-      return mjc_SegSeg(P[0], P[1], P[2], P[3], c1, c2, st) - (rad[con->idx[0]] + rad[con->idx[2]]);
+      return mjc_SegSeg(P[0], P[1], P[2], P[3], c1, c2, st);  // midsurface
     case 2: {
       mjtNum nn[3];
       return mjc_GeomDist(m, con->gi, d->geom_xpos + 3 * con->gi, d->geom_xmat + 9 * con->gi, P[0],
                           nn, 1e30) -
-             rad[con->idx[0]];
+             0.0;  // true geom surface (midsurface semantics)
     }
     case 3:
-      return mjc_PtTri(&gv[3 * con->idx[0]], P[0], P[1], P[2], cp, w) - rad[con->idx[1]];
+      return mjc_PtTri(&gv[3 * con->idx[0]], P[0], P[1], P[2], cp, w);  // midsurface
     default: {
       const mjtNum* eg = &ge[6 * con->idx[0]];
-      return mjc_SegSeg(eg, eg + 3, P[0], P[1], c1, c2, st) - rad[con->idx[1]];
+      return mjc_SegSeg(eg, eg + 3, P[0], P[1], c1, c2, st);  // midsurface
     }
   }
 }
@@ -665,15 +668,14 @@ mjtNum mjc_advance(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
       }
     }
     if (l < 1e-12) continue;
-    mjtNum g0 =
-        cgap[c];  // true gap at x (>= standoff delta at rest, so the CCD always has room: no lock)
-    if (g0 <= 0) continue;  // already at/under the surface: the AL + energy own it
-    if (l <= 0.8 * g0)
-      continue;  // full alpha=1 step shrinks gap by <= l, stays above the 20% floor
+    mjtNum g0 = cgap[c];  // midsurface gap at x (rest = r1+r2, so the CCD has ample room)
+    if (g0 <= IPC_DMIN) continue;  // at/under the commit floor: the AL owns recovery
+    if (l <= 0.8 * (g0 - IPC_DMIN))
+      continue;  // full alpha=1 step keeps the gap above the floor
     if (approut)
       approut[c] =
           1;  // reaches the bisection -> the proxy closes this pair's gap this step (Alg.3 add)
-    mjtNum gtarget = 0.2 * g0, t = 0;
+    mjtNum gtarget = 0.2 * g0 > IPC_DMIN ? 0.2 * g0 : IPC_DMIN, t = 0;
     for (int it = 0; it < 32; it++) {
       mjtNum g = conGapAdv(con, m, d, x, dxw, t, gv, ge, r, rad, fidx);
       mjtNum room = g - gtarget;
@@ -703,7 +705,7 @@ static void addCand(ipcCon con, const mjModel* m, const mjData* d, const mjtNum*
   mjtNum n[3], cw[4];
   int idv[4], nidx;
   mjtNum g = mjc_conGap(&con, m, d, x, gv, ge, r, rad, n, idv, cw, &nidx, thresh);
-  if (g <= 0 || g >= thresh) return;
+  if (g <= 0 || g >= mjc_conGhat(&con, rad) + thresh) return;
   // closing-bound prune: over the step the gap changes by at most |sum_p cw[p]*(dto-dfrom)[idv[p]]|
   // (Cauchy-Schwarz, |n|=1), so a pair beyond its per-contact ghc + that bound cannot become active
   // this step -> drop it. Replaces the crude GLOBAL 4*maxdisp band (which inflated by the fastest
@@ -716,7 +718,7 @@ static void addCand(ipcCon con, const mjModel* m, const mjData* d, const mjtNum*
     if (vp < 0) continue;
     for (int c = 0; c < 3; c++) rel[c] += cw[p] * (dto[3 * vp + c] - dfrom[3 * vp + c]);
   }
-  if (g < mjc_conGhat(&con, rad, ghat) + sqrt(mju_dot3(rel, rel))) cand[(*nc)++] = con;
+  if (g < mjc_conGhat(&con, rad) + sqrt(mju_dot3(rel, rel))) cand[(*nc)++] = con;
 }
 
 // descend flex f's element BVH (built and AABB-refreshed by mj_flex at the step's xold), collecting
