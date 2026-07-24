@@ -779,6 +779,32 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     np.testing.assert_array_equal(state[1:], expected_state)
     np.testing.assert_array_equal(sensordata[1:], expected_sensordata)
 
+  def test_python_callback_exception_does_not_stop_worker_thread(self):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    models = [model, model]
+    data = [mujoco.MjData(model)]
+    initial_state = np.zeros((2, nstate))
+    ctrl = np.zeros((2, 1, model.nu))
+
+    def raise_from_control_callback(m, d):
+      del m, d
+      raise RuntimeError('control callback failed')
+
+    with rollout.Rollout(nthread=1) as rollout_:
+      mujoco.set_mjcb_control(raise_from_control_callback)
+      try:
+        with self.assertRaisesRegex(
+            mujoco.FatalError, 'Python exception raised'
+        ):
+          rollout_.rollout(models, data, initial_state, ctrl)
+      finally:
+        mujoco.set_mjcb_control(None)
+
+      # The pool remains usable after forwarding the worker exception.
+      state, _ = rollout_.rollout(models, data, initial_state, ctrl)
+      self.assertEqual(state.shape, (2, 1, nstate))
+
   def test_invalid(self):
     model = mujoco.MjModel.from_xml_string(TEST_XML)
     nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
