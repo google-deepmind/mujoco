@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <string_view>
 
 #include <filament/Color.h>
 #include <filament/Material.h>
