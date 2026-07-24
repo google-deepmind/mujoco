@@ -333,6 +333,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   // disabled or no actuation: return
   if (nactuator == 0 || mjDISABLED(mjDSBL_ACTUATION)) {
     mju_zero(d->qfrc_actuator, nv);
+    TM_END(mjTIMER_ACTUATION);
     return;
   }
 
