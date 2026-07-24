@@ -1,8 +1,22 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index e5475ef5..4eb8a68b 100644
+index 18f692b0..d871d95c 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -247,57 +247,59 @@ if (WIN32)
+@@ -11,12 +11,7 @@ cmake_minimum_required(VERSION 3.22.1)
+ # Unsupported environment
+ # ==================================================================================================
+ 
+-# Filament does not support MSYS2-based environment on Windows. See issue #9968.
+-if(DEFINED ENV{MSYSTEM})
+-    message(FATAL_ERROR
+-        "MSYS2 Subsystem detected($ENV{MSYSTEM}). "
+-        "Filament does not support MSYS2-based environment on Windows.")
+-endif()
++
+ 
+ # ==================================================================================================
+ # Toolchain configuration
+@@ -258,57 +253,59 @@ if (WIN32)
      # __declspec(dllexport) in front of each functions).
      set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
  
@@ -112,7 +126,7 @@ index e5475ef5..4eb8a68b 100644
      endif()
  
      if (MSVC)
-@@ -344,7 +346,7 @@ endif()
+@@ -355,7 +352,7 @@ endif()
  # Detect use of the clang-cl.exe frontend, which does not support all of clangs normal options
  if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
      if ("${CMAKE_CXX_SIMULATE_ID}" STREQUAL "MSVC")
@@ -121,7 +135,7 @@ index e5475ef5..4eb8a68b 100644
      endif()
  endif()
  
-@@ -376,7 +378,7 @@ if (APPLE AND NOT IOS)
+@@ -387,7 +384,7 @@ if (APPLE AND NOT IOS)
  endif()
  
  set(CXX_STANDARD "-std=c++20")
@@ -130,7 +144,7 @@ index e5475ef5..4eb8a68b 100644
      set(CXX_STANDARD "/std:c++20")
  endif()
  
-@@ -770,9 +772,14 @@ function(combine_static_libs TARGET OUTPUT DEPS)
+@@ -781,9 +778,14 @@ function(combine_static_libs TARGET OUTPUT DEPS)
      endforeach()
  
      if (WIN32)
@@ -146,6 +160,35 @@ index e5475ef5..4eb8a68b 100644
              COMMAND "${CMAKE_COMMAND}" -E rename temp.lib ${OUTPUT}
              COMMENT "Combining ${target} dependencies into single shared library"
              VERBATIM
+diff --git a/filament/CMakeLists.txt b/filament/CMakeLists.txt
+index 3a34ba4b..2bdf5a04 100644
+--- a/filament/CMakeLists.txt
++++ b/filament/CMakeLists.txt
+@@ -797,6 +797,9 @@ else()
+             -Wover-aligned
+             -Werror
+     )
++    if (WIN32)
++        list(APPEND FILAMENT_WARNINGS -Wno-error=cast-function-type-mismatch -Wno-error=unused-variable -Wno-error=microsoft-unqualified-friend)
++    endif()
+ endif()
+ 
+ target_compile_options(${TARGET} PRIVATE
+diff --git a/filament/backend/CMakeLists.txt b/filament/backend/CMakeLists.txt
+index 78c05dd2..4f8c0bf3 100644
+--- a/filament/backend/CMakeLists.txt
++++ b/filament/backend/CMakeLists.txt
+@@ -525,6 +525,10 @@ else()
+     )
+ endif()
+ 
++if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
++    list(APPEND FILAMENT_WARNINGS -Wno-error=cast-function-type-mismatch -Wno-error=unused-variable -Wno-error=microsoft-unqualified-friend)
++endif()
++
+ if (APPLE)
+     # Turn on Automatic Reference Counting.
+     target_compile_options(${TARGET} PRIVATE "-fobjc-arc")
 diff --git a/filament/backend/src/CommandStream.cpp b/filament/backend/src/CommandStream.cpp
 index 7146800f..d7973ffd 100644
 --- a/filament/backend/src/CommandStream.cpp
@@ -160,10 +203,10 @@ index 7146800f..d7973ffd 100644
      auto pos = command.rfind(startPattern);
      auto end = command.rfind('(');
 diff --git a/filament/backend/src/opengl/platforms/PlatformWGL.cpp b/filament/backend/src/opengl/platforms/PlatformWGL.cpp
-index 1cc84db0..aa3d24f8 100644
+index 31843028..8664ea3c 100644
 --- a/filament/backend/src/opengl/platforms/PlatformWGL.cpp
 +++ b/filament/backend/src/opengl/platforms/PlatformWGL.cpp
-@@ -241,7 +241,7 @@ Platform::SwapChain* PlatformWGL::createSwapChain(uint32_t width, uint32_t heigh
+@@ -251,7 +251,7 @@ Platform::SwapChain* PlatformWGL::createSwapChain(uint32_t width, uint32_t heigh
      // WS_POPUP was chosen for the window style here after some experimentation.
      // For some reason, using other window styles resulted in corrupted pixel buffers when using
      // readPixels.
@@ -357,7 +400,7 @@ index 9f83c6c6..6593581e 100644
  #pragma pack(pop)
  
 diff --git a/libs/utils/include/utils/StructureOfArrays.h b/libs/utils/include/utils/StructureOfArrays.h
-index d92a45f4..2e15150d 100644
+index 7ee9da70..956aa8ec 100644
 --- a/libs/utils/include/utils/StructureOfArrays.h
 +++ b/libs/utils/include/utils/StructureOfArrays.h
 @@ -742,7 +742,7 @@ typename StructureOfArraysBase<Allocator, Elements...>::IteratorValueRef&
@@ -396,6 +439,19 @@ index d92a45f4..2e15150d 100644
              (soa->elementAt<Is>(index) = std::move(std::get<Is>(rhs.elements)), 0)... };
      return *this;
  }
+diff --git a/libs/utils/include/utils/compiler.h b/libs/utils/include/utils/compiler.h
+index ff73d43f..2b7824ec 100644
+--- a/libs/utils/include/utils/compiler.h
++++ b/libs/utils/include/utils/compiler.h
+@@ -228,7 +228,7 @@
+ // AND multi-threading is enabled (UTILS_HAS_THREADING is not 0).
+ // This prevents compile failures on single-threaded targets or builds where standard
+ // annotations are disabled by default in the platform's standard library headers.
+-#if defined(_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS) && UTILS_HAS_THREADING
++#if defined(_LIBCPP_VERSION) && defined(_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS) && UTILS_HAS_THREADING && !defined(_WIN32)
+ #define UTILS_THREAD_ANNOTATION_ATTRIBUTE(x)   __attribute__((x))
+ #else
+ #define UTILS_THREAD_ANNOTATION_ATTRIBUTE(x)
 diff --git a/libs/utils/src/CallStack.cpp b/libs/utils/src/CallStack.cpp
 index 798fd642..be5f15d4 100644
 --- a/libs/utils/src/CallStack.cpp
@@ -429,6 +485,40 @@ index cf2984af..1dacef63 100644
  #else
  #include <unistd.h>
  #endif
+diff --git a/third_party/spirv-cross/CMakeLists.txt b/third_party/spirv-cross/CMakeLists.txt
+index 8e5129c8..76191108 100644
+--- a/third_party/spirv-cross/CMakeLists.txt
++++ b/third_party/spirv-cross/CMakeLists.txt
+@@ -20,7 +20,11 @@
+ #
+ 
+ cmake_minimum_required(VERSION 3.10)
+-set(CMAKE_CXX_STANDARD 11)
++if (WIN32)
++	set(CMAKE_CXX_STANDARD 17)
++else()
++	set(CMAKE_CXX_STANDARD 11)
++endif()
+ set(CMAKE_CXX_EXTENSIONS OFF)
+ 
+ # Avoid a warning if parent project sets VERSION in project().
+diff --git a/third_party/spirv-cross/tnt/CMakeLists.txt b/third_party/spirv-cross/tnt/CMakeLists.txt
+index 4cb9bdcc..086bec67 100644
+--- a/third_party/spirv-cross/tnt/CMakeLists.txt
++++ b/third_party/spirv-cross/tnt/CMakeLists.txt
+@@ -37,7 +37,11 @@ endif()
+ # -DCMAKE_CXX_COMPILE_FLAGS
+ # However, we require the C++11 dialect.
+ if (NOT "${MSVC}")
+-  set(spirv-compiler-options ${spirv-compiler-options} -std=c++11 -Wall -Wextra -Werror -Wshadow)
++  if (WIN32)
++    set(spirv-compiler-options ${spirv-compiler-options} -std=c++17 -Wall -Wextra -Werror -Wshadow)
++  else()
++    set(spirv-compiler-options ${spirv-compiler-options} -std=c++11 -Wall -Wextra -Werror -Wshadow)
++  endif()
+   set(spirv-compiler-defines ${spirv-compiler-defines} __STDC_LIMIT_MACROS)
+ 
+   if(SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS)
 diff --git a/tools/cmgen/src/cmgen.cpp b/tools/cmgen/src/cmgen.cpp
 index 722e5737..288be3ce 100644
 --- a/tools/cmgen/src/cmgen.cpp
@@ -451,56 +541,3 @@ index 722e5737..288be3ce 100644
          const std::unique_ptr<filament::math::float3[]>& sh, size_t numBands) {
      // We assume a symetrical function (i.e. m!=0 terms are zero)
      for (ssize_t l = 0; l < numBands; l++) {
-
-diff --git a/third_party/spirv-cross/CMakeLists.txt b/third_party/spirv-cross/CMakeLists.txt
---- a/third_party/spirv-cross/CMakeLists.txt
-+++ b/third_party/spirv-cross/CMakeLists.txt
-@@ -30,3 +30,7 @@
- cmake_minimum_required(VERSION 3.10)
--set(CMAKE_CXX_STANDARD 11)
-+if (WIN32)
-+	set(CMAKE_CXX_STANDARD 17)
-+else()
-+	set(CMAKE_CXX_STANDARD 11)
-+endif()
- set(CMAKE_CXX_EXTENSIONS OFF)
-
-diff --git a/third_party/spirv-cross/tnt/CMakeLists.txt b/third_party/spirv-cross/tnt/CMakeLists.txt
---- a/third_party/spirv-cross/tnt/CMakeLists.txt
-+++ b/third_party/spirv-cross/tnt/CMakeLists.txt
-@@ -38,4 +38,8 @@
- # However, we require the C++11 dialect.
- if (NOT "${MSVC}")
--  set(spirv-compiler-options ${spirv-compiler-options} -std=c++11 -Wall -Wextra -Werror -Wshadow)
-+  if (WIN32)
-+    set(spirv-compiler-options ${spirv-compiler-options} -std=c++17 -Wall -Wextra -Werror -Wshadow)
-+  else()
-+    set(spirv-compiler-options ${spirv-compiler-options} -std=c++11 -Wall -Wextra -Werror -Wshadow)
-+  endif()
-   set(spirv-compiler-defines ${spirv-compiler-defines} __STDC_LIMIT_MACROS)
-
-diff --git a/filament/CMakeLists.txt b/filament/CMakeLists.txt
---- a/filament/CMakeLists.txt
-+++ b/filament/CMakeLists.txt
-@@ -793,5 +793,8 @@
-             -Wweak-vtables -Wnon-virtual-dtor -Wclass-varargs -Wimplicit-fallthrough
-             -Wover-aligned
-             -Werror
-     )
-+    if (WIN32)
-+        list(APPEND FILAMENT_WARNINGS -Wno-error=cast-function-type-mismatch -Wno-error=unused-variable -Wno-error=microsoft-unqualified-friend)
-+    endif()
- endif()
-
-diff --git a/filament/backend/CMakeLists.txt b/filament/backend/CMakeLists.txt
---- a/filament/backend/CMakeLists.txt
-+++ b/filament/backend/CMakeLists.txt
-@@ -525,3 +525,7 @@
- endif()
- 
-+if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-+    list(APPEND FILAMENT_WARNINGS -Wno-error=cast-function-type-mismatch -Wno-error=unused-variable -Wno-error=microsoft-unqualified-friend)
-+endif()
-+
- if (APPLE)
-

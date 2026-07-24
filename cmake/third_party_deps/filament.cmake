@@ -13,7 +13,7 @@
 # limitations under the License.
 
 set(MUJOCO_DEP_VERSION_filament
-    da22932b543b59810caf490d7f9e8859ec3fe204
+    10d2fc35128c2bc41ec4a1913c288d5df24afdaf
     CACHE STRING "Tag/version of `filament` to be fetched."
 )
 mark_as_advanced(MUJOCO_DEP_VERSION_filament)
@@ -39,6 +39,7 @@ endif()
 
 set(FILAMENT_ENABLE_EXPERIMENTAL_GCC_SUPPORT ON)
 set(FILAMENT_SKIP_SDL2 ON)
+set(FILAMENT_SKIP_SAMPLES ON)
 set(FILAMENT_USE_EXTERNAL_ABSL ON)
 set(FILAMENT_USE_EXTERNAL_BENCHMARK ON)
 set(FILAMENT_USE_EXTERNAL_GTEST ON)
