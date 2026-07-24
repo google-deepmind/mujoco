@@ -14,6 +14,7 @@
 
 #include "xml/xml_native_writer.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdio>
@@ -1747,15 +1748,25 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
   }
 
   // joints in this frame
+  // collect joints in this frame
+  std::vector<mjCJoint*> frame_joints;
   for (int i = 0; i < body->joints.size(); i++) {
-    if (body->joints[i]->frame != frame) {
-      continue;
+    if (body->joints[i]->frame == frame) {
+      frame_joints.push_back(body->joints[i]);
     }
-    string classname = body->joints[i]->frame && !body->joints[i]->frame->classname.empty()
-                           ? body->joints[i]->frame->classname
+  }
+  // sort by compiled joint id to preserve ordering
+  std::sort(frame_joints.begin(), frame_joints.end(),
+            [](const mjCJoint* a, const mjCJoint* b) {
+              return a->id < b->id;
+            });
+  // write joints in sorted order
+  for (mjCJoint* joint : frame_joints) {
+    string classname = joint->frame && !joint->frame->classname.empty()
+                           ? joint->frame->classname
                            : body->classname;
-    OneJoint(InsertEnd(elem, "joint"), body->joints[i],
-             model->def_map[body->joints[i]->classname],
+    OneJoint(InsertEnd(elem, "joint"), joint,
+             model->def_map[joint->classname],
              classname.empty() ? childclass : classname);
   }
 
@@ -1817,42 +1828,34 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
   }
 
   // write children recursively
-  int i = 0, j = 0;
-  while (i < body->bodies.size() || body->bodies.empty()) {
-    mjCFrame* bframe = body->bodies.empty() ? nullptr : body->bodies[i]->frame;
+  // collect bodies in this frame and sort by compiled id to preserve ordering
+  std::vector<mjCBody*> frame_bodies;
+  for (mjCBody* child : body->bodies) {
+    if (child->frame == frame) {
+      frame_bodies.push_back(child);
+    }
+  }
+  std::sort(frame_bodies.begin(), frame_bodies.end(),
+            [](const mjCBody* a, const mjCBody* b) {
+              return a->id < b->id;
+            });
+  // write bodies in sorted order
+  for (mjCBody* child : frame_bodies) {
+    string classname = child->frame && !child->frame->classname.empty()
+                           ? child->frame->classname
+                           : body->classname;
+    Body(InsertEnd(elem, "body"), child, nullptr,
+         classname.empty() ? childclass : classname);
+  }
 
-    // write body if its frame matches the current frame, avoid access if there are no bodies
-    if (bframe == frame && !body->bodies.empty()) {
-      string classname = bframe && !bframe->classname.empty()
-                             ? bframe->classname
+  // loop over frames in the current body
+  for (mjCFrame* fframe : body->frames) {
+    // write frame if its frame matches the current frame
+    if (fframe->frame == frame) {
+      string classname = fframe && !fframe->classname.empty()
+                             ? fframe->classname
                              : body->classname;
-      Body(InsertEnd(elem, "body"), body->bodies[i], nullptr,
-           classname.empty() ? childclass : classname);
-    }
-
-    i++;
-
-    // do not go to frames until we reach a body with a frame or we are done with bodies
-    if (!bframe && i < body->bodies.size()) {
-      continue;
-    }
-
-    // loop over the remaining frames in the current body
-    while (j < body->frames.size()) {
-      mjCFrame* fframe = body->frames[j++];
-
-      // write frame if its frame matches the current frame
-      if (fframe->frame == frame) {
-        string classname = fframe && !fframe->classname.empty()
-                               ? fframe->classname
-                               : body->classname;
-        Body(OneFrame(elem, fframe), body, fframe, childclass);
-      }
-    }
-
-    // if there are no bodies, we only want to run the loop once
-    if (body->bodies.empty()) {
-      break;
+      Body(OneFrame(elem, fframe), body, fframe, childclass);
     }
   }
 }
