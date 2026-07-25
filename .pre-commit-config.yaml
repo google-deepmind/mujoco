@@ -3,4 +3,5 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: \.patch$
       - id: end-of-file-fixer
