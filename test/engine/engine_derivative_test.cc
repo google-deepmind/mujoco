@@ -1279,6 +1279,83 @@ TEST_F(DerivativeTest, ForcerangeClampedAfterSO3) {
               Pointwise(MjNear(1e-7, 3e-3), qDerivAnalytic));
 }
 
+// derivatives should vanish when the actuator force is clamped at the joint
+// (jnt_actfrcrange) or tendon (tendon_actfrcrange) level
+TEST_F(DerivativeTest, ActfrcrangeClampedDerivative) {
+  static constexpr char kJointClamped[] = R"(
+  <mujoco>
+    <option integrator="implicitfast"/>
+    <worldbody>
+      <body pos="0 0 1">
+        <joint name="j0" type="hinge" axis="0 1 0" actuatorfrcrange="-0.5 0.5"/>
+        <geom type="capsule" size=".03" fromto="0 0 0 .3 0 0" mass=".5"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <velocity joint="j0" kv="100" ctrlrange="-10 10"/>
+    </actuator>
+  </mujoco>
+  )";
+  static constexpr char kTendonClamped[] = R"(
+  <mujoco>
+    <option integrator="implicitfast"/>
+    <worldbody>
+      <body pos="0 0 1">
+        <joint name="j0" type="hinge" axis="0 1 0"/>
+        <geom type="capsule" size=".03" fromto="0 0 0 .3 0 0" mass=".5"/>
+        <site name="s1" pos=".3 0 0"/>
+      </body>
+      <site name="s0" pos="0 0 1.5"/>
+    </worldbody>
+    <tendon>
+      <spatial name="ten" actuatorfrclimited="true" actuatorfrcrange="-0.5 0.5">
+        <site site="s0"/>
+        <site site="s1"/>
+      </spatial>
+    </tendon>
+    <actuator>
+      <velocity tendon="ten" kv="100" ctrlrange="-10 10"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  bool is_tendon = false;
+  for (const char* xml : {kJointClamped, kTendonClamped}) {
+    char error[1024];
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    MjDataPtr data = MakeData(model);
+    mjModel* m = model.get();
+    mjData* d = data.get();
+
+    // saturate the servo: force 500, clamped to 0.5
+    d->ctrl[0] = 5;
+    mj_forward(m, d);
+
+    // check that the force is clamped
+    if (is_tendon) {
+      ASSERT_EQ(d->actuator_force[0], 0.5);
+    } else {
+      ASSERT_EQ(d->qfrc_actuator[0], 0.5);
+    }
+
+    // analytic qDeriv
+    mju_zero(d->qDeriv, m->nD);
+    mjd_smooth_vel(m, d, /*flg_bias=*/1);
+    vector<mjtNum> qDerivAnalytic = AsVector(d->qDeriv, m->nD);
+
+    // expect match with finite differences: the clamped force is locally
+    // constant, so it contributes nothing to the derivative
+    mjtNum eps = MjTol(1e-7, 1e-3);
+    mju_zero(d->qDeriv, m->nD);
+    mjd_smooth_velFD(m, d, eps);
+    EXPECT_THAT(AsVector(d->qDeriv, m->nD),
+                Pointwise(MjNear(1e-7, 3e-3), qDerivAnalytic));
+
+    is_tendon = true;
+  }
+}
+
 TEST_F(DerivativeTest, NonlinearDampingDerivative) {
   static constexpr char xml[] = R"(
   <mujoco>

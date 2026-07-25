@@ -930,11 +930,11 @@ static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* 
 }
 
 
-// add J'*B*J to qDeriv, sparse version
-static void addJTBJSparse(
+// add J'*B*J to qDeriv, sparse version; if skiprow is not NULL, skip marked qDeriv rows
+static void addJTBJSparseSkip(
   const mjModel* m, mjData* d, const mjtNum* J,
   const mjtNum* B, int n, int offset,
-  const int* J_rownnz, const int* J_rowadr, const int* J_colind) {
+  const int* J_rownnz, const int* J_rowadr, const int* J_colind, const int* skiprow) {
 
   // compute qDeriv(k,p) += sum_{i,j} ( J(i,k)*B(i,j)*J(j,p) )
   for (int i = 0; i < n; i++) {
@@ -952,6 +952,11 @@ static void addJTBJSparse(
         int ik = adr_i + k;
         int colik = J_colind[ik];
 
+        // skip masked rows
+        if (skiprow && skiprow[colik]) {
+          continue;
+        }
+
         // qDeriv(k,:) += J(j,:) * J(i,k)*B(i,j)
         mju_addToSclSparseInc(d->qDeriv + m->D_rowadr[colik], J + adr_j,
                               m->D_rownnz[colik], m->D_colind + m->D_rowadr[colik],
@@ -960,6 +965,15 @@ static void addJTBJSparse(
       }
     }
   }
+}
+
+
+// add J'*B*J to qDeriv, sparse version
+static void addJTBJSparse(
+  const mjModel* m, mjData* d, const mjtNum* J,
+  const mjtNum* B, int n, int offset,
+  const int* J_rownnz, const int* J_rowadr, const int* J_colind) {
+  addJTBJSparseSkip(m, d, J, B, n, offset, J_rownnz, J_rowadr, J_colind, NULL);
 }
 
 
@@ -2026,6 +2040,43 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
     return;
   }
 
+  mj_markStack(d);
+
+  // compute total actuator force of force-limited tendons, mirroring mj_fwdActuation
+  mjtNum* tendon_total_force = NULL;
+  for (int i=0; i < nactuator; i++) {
+    if (m->ntendon && m->actuator_trntype[i] == mjTRN_TENDON &&
+        m->tendon_actfrclimited[m->actuator_trnid[2*i]]) {
+      if (!tendon_total_force) {
+        tendon_total_force = mjSTACKALLOC(d, m->ntendon, mjtNum);
+        mju_zero(tendon_total_force, m->ntendon);
+      }
+      tendon_total_force[m->actuator_trnid[2*i]] += d->actuator_force[m->actuator_outadr[i]];
+    }
+  }
+
+  // mark dofs where qfrc_actuator is clamped by jnt_actfrcrange: force is velocity-independent
+  int* dof_clamped = NULL;
+  int njnt = m->njnt;
+  for (int i=0; i < njnt; i++) {
+    if (!m->jnt_actfrclimited[i]) {
+      continue;
+    }
+    int dof = m->jnt_dofadr[i];
+    if (sleep_filter && !d->tree_awake[m->dof_treeid[dof]]) {
+      continue;
+    }
+    const mjtNum* range = m->jnt_actfrcrange + 2*i;
+    mjtNum force = d->qfrc_actuator[dof];
+    if (force <= range[0] || force >= range[1]) {
+      if (!dof_clamped) {
+        dof_clamped = mjSTACKALLOC(d, m->nv, int);
+        mju_zeroInt(dof_clamped, m->nv);
+      }
+      dof_clamped[dof] = 1;
+    }
+  }
+
   // process actuators
   for (int i=0; i < nactuator; i++) {
     int uadr = m->actuator_ctrladr[i];
@@ -2055,6 +2106,18 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
         if (force <= range[0] || force >= range[1]) {
           continue;
         }
+      }
+    }
+
+    // skip if total tendon force is clamped by tendon actfrcrange
+    // (approximation: exact when all actuators on the tendon have equal moments)
+    if (tendon_total_force && m->actuator_trntype[i] == mjTRN_TENDON &&
+        m->tendon_actfrclimited[m->actuator_trnid[2*i]]) {
+      int tendon_id = m->actuator_trnid[2*i];
+      const mjtNum* range = m->tendon_actfrcrange + 2*tendon_id;
+      mjtNum total = tendon_total_force[tendon_id];
+      if (total && (total <= range[0] || total >= range[1])) {
+        continue;
       }
     }
 
@@ -2148,14 +2211,16 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
       }
     }
 
-    // add, once per output row
+    // add, once per output row, skipping rows clamped by jnt_actfrcrange
     if (bias_vel != 0) {
       for (int k=0; k < m->actuator_outnum[i]; k++) {
-        addJTBJSparse(m, d, d->actuator_moment, &bias_vel, 1, oadr+k,
-                      d->moment_rownnz, d->moment_rowadr, d->moment_colind);
+        addJTBJSparseSkip(m, d, d->actuator_moment, &bias_vel, 1, oadr+k,
+                          d->moment_rownnz, d->moment_rowadr, d->moment_colind, dof_clamped);
       }
     }
   }
+
+  mj_freeStack(d);
 }
 
 

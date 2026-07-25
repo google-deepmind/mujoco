@@ -84,6 +84,10 @@ Engine
 
    - Fixed a bug where ``body_margin`` excluded ``gap``, causing the mid-phase collision filter to incorrectly prune
      in-gap contacts on multi-geom bodies.
+   - Fixed implicit integrator derivatives when the actuator force is clamped by joint-level
+     (:ref:`actuatorfrcrange<body-joint-actuatorfrcrange>`) or tendon-level
+     (:ref:`actuatorfrcrange<tendon-spatial-actuatorfrcrange>`) force limits. As with the per-actuator
+     ``forcerange`` clamp, the clamped force is locally constant, so its derivative is now zeroed.
 
 Actuation
 ^^^^^^^^^
