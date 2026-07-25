@@ -943,7 +943,9 @@ int mj_contactPassive(const mjModel* m, mjData* d) {
     con = d->contact + i;
     dim = con->dim;
     con->efc_address = -1;
-    NV = mj_contactJacobian(m, d, con, dim, jacdifp, NULL,
+
+    // only the translational Jacobian is required; pass dim <= 3 since jacdifr is NULL
+    NV = mj_contactJacobian(m, d, con, mjMIN(dim, 3), jacdifp, NULL,
                             jac1p, jac2p, NULL, NULL, chain);
 
     // skip contact if no DOFs affected

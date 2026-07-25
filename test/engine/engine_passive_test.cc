@@ -1093,6 +1093,57 @@ TEST_F(ElasticityTest, TrilinearParentBodyRotation) {
   EXPECT_LT(max_qacc, 1e4);
 }
 
+// passive flex contacts with condim > 3 should not crash (regression test)
+TEST_F(PassiveTest, PassiveContactCondimGreaterThan3) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="1e-4"/>
+    <worldbody>
+      <body name="parent" pos="0 0 .03">
+        <freejoint/>
+        <geom size=".01" mass=".1" pos="0 0 .1"/>
+        <flexcomp name="soft" type="grid" count="2 2 2" spacing=".05 .05 .05"
+                  dim="3" radius=".001" mass=".4" dof="trilinear">
+          <elasticity young="1e4" poisson="0.1" damping="0.1"/>
+          <contact selfcollide="none" internal="false" condim="6" passive="true"/>
+        </flexcomp>
+      </body>
+      <geom name="plane" type="plane" size="1 1 1"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  // test both dense and sparse Jacobian code paths
+  for (mjtJacobian jacobian : {mjJAC_DENSE, mjJAC_SPARSE}) {
+    m->opt.jacobian = jacobian;
+    mj_resetData(m.get(), d.get());
+
+    // step and count passive contacts with condim > 3
+    int npassive = 0;
+    for (int step = 0; step < 500; step++) {
+      mj_step(m.get(), d.get());
+      for (int i = 0; i < d->ncon; i++) {
+        if (d->contact[i].exclude == 4 && d->contact[i].dim > 3) {
+          npassive++;
+        }
+      }
+      for (int i = 0; i < m->nv; i++) {
+        ASSERT_TRUE(std::isfinite(d->qacc[i]))
+            << "NaN/Inf in qacc at DOF " << i << " at step " << step;
+      }
+      if (HasFatalFailure()) return;
+    }
+
+    // ensure the passive contact path was actually exercised
+    EXPECT_GT(npassive, 0);
+  }
+}
+
 }  // namespace
 }  // namespace mujoco
 

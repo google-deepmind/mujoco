@@ -84,6 +84,7 @@ Engine
 
    - Fixed a bug where ``body_margin`` excluded ``gap``, causing the mid-phase collision filter to incorrectly prune
      in-gap contacts on multi-geom bodies.
+   - Fixed a segfault when computing passive contact forces for flex contacts with ``condim`` larger than 3.
 
 Actuation
 ^^^^^^^^^
