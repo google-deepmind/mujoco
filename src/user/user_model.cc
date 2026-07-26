@@ -5279,9 +5279,16 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     if (geoms_[i]->mesh &&
         (geoms_[i]->spec.type == mjGEOM_MESH ||
          geoms_[i]->spec.type == mjGEOM_SDF) &&
-        (geoms_[i]->spec.contype || geoms_[i]->spec.conaffinity || is_in_pair ||
-         geoms_[i]->mesh->spec.inertia == mjMESH_INERTIA_CONVEX)) {
+        (geoms_[i]->spec.contype || geoms_[i]->spec.conaffinity || is_in_pair)) {
       geoms_[i]->mesh->SetNeedHull(true);
+    }
+  }
+
+  // convex inertia is computed from the hull, so it is needed whether or not
+  // any geom references the mesh
+  for (mjCMesh* mesh : meshes_) {
+    if (mesh->spec.inertia == mjMESH_INERTIA_CONVEX) {
+      mesh->SetNeedHull(true);
     }
   }
 
