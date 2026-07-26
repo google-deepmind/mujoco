@@ -14,6 +14,7 @@
 
 #include "experimental/platform/ux/imgui_bridge.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -178,7 +179,6 @@ void ImguiBridge::Update() {
     PrepareRenderables(0);
     return;
   }
-  commands->ScaleClipRects(scale);
 
   // 2 floats for position, 2 floats for uv, 4 bytes for color.
   constexpr size_t kExpectedVertexSize =
@@ -260,19 +260,27 @@ void ImguiBridge::Update() {
       material.color_texture = GetTexture(command.GetTexID());
 
       material.decor_ux = true;
-      material.scissor[0] = command.ClipRect.x;
-      material.scissor[1] = height - command.ClipRect.w;
-      material.scissor[2] = command.ClipRect.z - command.ClipRect.x;
-      material.scissor[3] = command.ClipRect.w - command.ClipRect.y;
-      // Modal dialogs try to cover the whole window, but also a little outside
-      // of it. This doesn't work well with filament's scissor test, so we clip
-      // them to the window.
-      if (material.scissor[0] < 0 || material.scissor[1] < 0) {
-        material.scissor[0] = 0;
-        material.scissor[1] = 0;
-        material.scissor[2] = width;
-        material.scissor[3] = height;
-      }
+      // Scale clip rects to physical pixels here instead of using
+      // ScaleClipRects, which previously caused flickering and clipping bugs:
+      // it mutates draw data in place, so draw lists that are re-rendered
+      // across frames get scaled repeatedly (this happens in the web viewer,
+      // where the same draw lists are rendered until a new network frame
+      // arrives). We also clamp to the viewport because clip rects may extend
+      // slightly outside it (modal dialogs by design; fractional DPI rounding
+      // for bottom or right-docked windows), and filament rejects out-of-window
+      // scissor rects.
+      const float clip_x0 = std::clamp(command.ClipRect.x * scale.x, 0.0f,
+                                       static_cast<float>(width));
+      const float clip_y0 = std::clamp(command.ClipRect.y * scale.y, 0.0f,
+                                       static_cast<float>(height));
+      const float clip_x1 = std::clamp(command.ClipRect.z * scale.x, clip_x0,
+                                       static_cast<float>(width));
+      const float clip_y1 = std::clamp(command.ClipRect.w * scale.y, clip_y0,
+                                       static_cast<float>(height));
+      material.scissor[0] = clip_x0;
+      material.scissor[1] = height - clip_y1;
+      material.scissor[2] = clip_x1 - clip_x0;
+      material.scissor[3] = clip_y1 - clip_y0;
       mjrf_setRenderableMaterial(renderable.get(), &material);
 
       const float size[] = {scale.x, scale.y, 1.0f};
@@ -291,7 +299,8 @@ void ImguiBridge::PrepareRenderables(int count) {
     params.cast_shadows = false;
     params.receive_shadows = false;
     params.blend_order = static_cast<std::uint16_t>(renderables_.size() + 1);
-    auto& renderable = renderables_.emplace_back(CreateRenderable(ctx_, params));
+    auto& renderable =
+        renderables_.emplace_back(CreateRenderable(ctx_, params));
     mjrf_addRenderableToScene(scene_, renderable.get());
   }
   while (renderables_.size() > count) {
