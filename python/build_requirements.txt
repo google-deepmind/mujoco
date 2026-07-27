@@ -87,9 +87,9 @@ PyOpenGL==3.1.7 \
 pytest==9.0.3 \
     --hash=sha256:2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9 \
     --hash=sha256:b86ada508af81d19edeb213c681b1d48246c1a91d304c6c81a427674c17eb91c
-setuptools==78.1.1 \
-    --hash=sha256:c3a9c4211ff4c309edb8b8c4f1cbfa7ae324c4ba9f91ff254e3d305b9fd54561 \
-    --hash=sha256:fcc17fd9cd898242f6b4adfaca46137a9edef687f43e6f78469692a5e70d851d
+setuptools==83.0.0 \
+    --hash=sha256:025bccbbf0fa05b6192bc64ae1e7b16e001fd6d6d4d5de03c97b1c1ade523bef \
+    --hash=sha256:29b23c360f22f414dc7336bb39178cc7bcbf6021ed2733cde173f09dba19abb3
 wheel==0.46.2 \
     --hash=sha256:33ae60725d69eaa249bc1982e739943c23b34b58d51f1cb6253453773aca6e65 \
     --hash=sha256:3d79e48fde9847618a5a181f3cc35764c349c752e2fe911e65fa17faab9809b0
