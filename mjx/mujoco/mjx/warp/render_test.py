@@ -33,6 +33,35 @@ import numpy as np
 
 _FORCE_TEST = os.environ.get('MJX_WARP_FORCE_TEST', '0') == '1'
 
+# A single mocap box sliding across a ground plane. The box travels far enough
+# between the rendered poses that a bounding volume fit to one pose does not
+# overlap the box in any other pose, so a ray cast paired with the wrong refit
+# misses the box entirely and reports the plane behind it.
+_SLIDING_BOX_XML = """
+<mujoco>
+  <option gravity="0 0 0"/>
+  <asset>
+    <material name="mat" rgba="1 1 1 1"/>
+  </asset>
+  <worldbody>
+    <camera name="cam" pos="0 0 1" euler="0 0 0" resolution="64 64"
+      sensorsize="0.036 0.036" focal="0.012 0.012"/>
+    <geom name="plane" type="plane" size="2 2 0.1" material="mat"/>
+    <body name="box_body" pos="0 0 0.1" mocap="true">
+      <geom name="box" type="box" size="0.1 0.1 0.1" material="mat"/>
+    </body>
+    <!-- MJX needs at least one degree of freedom. This body is weightless,
+         collision free, and in a geom group the render context does not
+         enable, so it cannot perturb the rendered image. -->
+    <body name="dof_body" pos="0 0 5">
+      <joint type="free"/>
+      <geom name="dof_geom" type="sphere" size="0.01" group="3"
+        contype="0" conaffinity="0"/>
+    </body>
+  </worldbody>
+</mujoco>
+"""
+
 
 def _get_model_data_rc(xml, batch_size, render_seg=False):
   m = tu.load_test_file(xml)
@@ -114,6 +143,52 @@ class RenderTest(parameterized.TestCase):
     self.assertGreater(np.count_nonzero(depth), 0)
     self.assertNotEqual(np.unique(rgb).shape[0], 1)
     self.assertNotEqual(np.unique(depth).shape[0], 1)
+
+  def test_render_pairs_with_its_own_refit_in_one_jit(self):
+    """Tests that batching several frames into one jit keeps refit/render paired.
+
+    `refit_bvh` mutates the BVH owned by the render context and `render` reads
+    it back, but the two lower to custom calls that exchange nothing through
+    the JAX graph, so XLA is free to order them however it likes. Rendering a
+    single frame per executable hides this because JAX dispatches executables
+    in order. Rendering several frames from one executable does not, and XLA
+    hoists every refit ahead of every ray cast.
+    """
+    self._maybe_skip()
+
+    m = mujoco.MjModel.from_xml_string(_SLIDING_BOX_XML)
+    mx = mjx.put_model(m, impl='warp')
+    dx = mjx.put_data(m, mujoco.MjData(m), impl='warp')
+    rc = mjx.create_render_context(
+        mjm=m,
+        nworld=1,
+        cam_res=(64, 64),
+        render_rgb=True,
+        render_depth=True,
+    )
+
+    def at(x_pos):
+      mocap_pos = dx.mocap_pos.at[0, 0].set(x_pos)
+      return forward.forward(mx, dx.replace(mocap_pos=mocap_pos))
+
+    poses = [at(x) for x in (-0.8, -0.4, 0.0, 0.4, 0.8)]
+
+    def render_one(d):
+      d = mjx.refit_bvh(mx, d, rc.pytree())
+      return mjx.render(mx, d, rc.pytree())[1]
+
+    # One refit/render pair per executable, which JAX dispatches in order.
+    separately = [np.asarray(jax.jit(render_one)(d)) for d in poses]
+
+    # Every pair in a single executable, where XLA chooses the order.
+    together = jax.jit(lambda *ds: tuple(render_one(d) for d in ds))(*poses)
+
+    for i, (want, got) in enumerate(zip(separately, together)):
+      np.testing.assert_array_equal(
+          np.asarray(got),
+          want,
+          err_msg=f'frame {i} was rendered against another frame\'s BVH',
+      )
 
   @parameterized.product(
       xml=('humanoid/humanoid.xml',),
