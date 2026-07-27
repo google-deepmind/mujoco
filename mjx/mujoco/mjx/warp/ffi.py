@@ -141,7 +141,37 @@ def jax_callable_variadic_tuple(
     )
 
     flat_args, in_tree = jax.tree.flatten(args)
-    return my_callable(*flat_args, **kwargs)
+    result = my_callable(*flat_args, **kwargs)
+
+    # Warp derives its FFI output types from plain shape/dtype descriptors,
+    # which carry no manual-axis metadata, so every value returned by
+    # `ffi_call` has an empty varying set. Under `shard_map(check_vma=True)`
+    # that is unsound: genuinely per-device data is reported as replicated.
+    # The call still succeeds, but a downstream `lax.scan` rejects the
+    # resulting carry-type mismatch. Restore the union of the inputs' varying
+    # axes, which is JAX's standard propagation rule for an opaque op --
+    # over-marking as varying is always sound, under-marking is not.
+    # TODO(mujoco #3426): remove once upstream Warp propagates this itself.
+    # `jax.lax.pcast` requires JAX >= 0.10; on older versions leave the
+    # result untouched rather than fail at import.
+    if not hasattr(jax.lax, 'pcast'):
+      return result
+
+    input_vma = frozenset().union(
+        *(jax.typeof(x).manual_axis_type.varying for x in flat_args)
+    )
+
+    def propagate_vma(x):
+      # Cast only the axes that are missing: `pcast` has no varying ->
+      # varying rule, so casting an already-varying axis raises. `sorted`
+      # keeps the traced axis order stable across processes, since
+      # frozenset iteration order depends on per-process string hashing.
+      missing = input_vma - jax.typeof(x).manual_axis_type.varying
+      if not missing:
+        return x
+      return jax.lax.pcast(x, tuple(sorted(missing)), to='varying')
+
+    return jax.tree.map(propagate_vma, result)
 
   return callable_wrapper
 
