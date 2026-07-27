@@ -258,7 +258,12 @@ def _warp_function(
     else:
       fn_assignments.append('  dummy.zero_()')
 
-  fn_call = f'mjwarp.{fn_name}(_m, _d{render_context_call_arg})'
+  # `refit_bvh` and `render` lower to two custom calls that communicate only
+  # through Warp-owned memory, so nothing in the JAX graph keeps a frame's refit
+  # paired with its own ray cast. Have the ray cast refit for itself instead.
+  fn_kwargs = ', refit=True' if fn_name == 'render' else ''
+
+  fn_call = f'mjwarp.{fn_name}(_m, _d{render_context_call_arg}{fn_kwargs})'
   fn_args_raw = fn_args_model + fn_args_data + render_context_args
 
   # create a dummy output if there are no output fields

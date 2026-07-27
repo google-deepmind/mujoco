@@ -56,9 +56,17 @@ def _render_shim(
     cam_intrinsic: wp.array2d[wp.vec4],
     cam_projection: wp.array[int],
     cam_sensorsize: wp.array[wp.vec2],
+    flex_dim: wp.array[int],
     flex_edge: wp.array[wp.vec2i],
+    flex_elem: wp.array[int],
+    flex_elemadr: wp.array[int],
+    flex_elemdataadr: wp.array[int],
+    flex_elemnum: wp.array[int],
     flex_radius: wp.array[float],
+    flex_shell: wp.array[int],
+    flex_shelldataadr: wp.array[int],
     flex_vertadr: wp.array[int],
+    flex_vertnum: wp.array[int],
     geom_dataid: wp.array2d[int],
     geom_matid: wp.array2d[int],
     geom_rgba: wp.array2d[wp.vec4],
@@ -80,6 +88,8 @@ def _render_shim(
     mat_texid: wp.array3d[int],
     mat_texrepeat: wp.array2d[wp.vec2],
     mesh_faceadr: wp.array[int],
+    nflex: int,
+    nflexelem: int,
     nlight: int,
     # Data
     cam_xmat: wp.array2d[wp.mat33],
@@ -105,9 +115,17 @@ def _render_shim(
   _m.cam_intrinsic = cam_intrinsic
   _m.cam_projection = cam_projection
   _m.cam_sensorsize = cam_sensorsize
+  _m.flex_dim = flex_dim
   _m.flex_edge = flex_edge
+  _m.flex_elem = flex_elem
+  _m.flex_elemadr = flex_elemadr
+  _m.flex_elemdataadr = flex_elemdataadr
+  _m.flex_elemnum = flex_elemnum
   _m.flex_radius = flex_radius
+  _m.flex_shell = flex_shell
+  _m.flex_shelldataadr = flex_shelldataadr
   _m.flex_vertadr = flex_vertadr
+  _m.flex_vertnum = flex_vertnum
   _m.geom_dataid = geom_dataid
   _m.geom_matid = geom_matid
   _m.geom_rgba = geom_rgba
@@ -129,6 +147,8 @@ def _render_shim(
   _m.mat_texid = mat_texid
   _m.mat_texrepeat = mat_texrepeat
   _m.mesh_faceadr = mesh_faceadr
+  _m.nflex = nflex
+  _m.nflexelem = nflexelem
   _m.nlight = nlight
   _d.cam_xmat = cam_xmat
   _d.cam_xpos = cam_xpos
@@ -142,7 +162,7 @@ def _render_shim(
   render_context.rgb_data = rgb
   render_context.depth_data = depth
   render_context.seg_data = seg
-  mjwarp.render(_m, _d, render_context)
+  mjwarp.render(_m, _d, render_context, refit=True)
 
 
 def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
@@ -194,9 +214,17 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
       m.cam_intrinsic,
       m._impl.cam_projection,
       m.cam_sensorsize,
+      m._impl.flex_dim,
       m._impl.flex_edge,
+      m._impl.flex_elem,
+      m._impl.flex_elemadr,
+      m._impl.flex_elemdataadr,
+      m._impl.flex_elemnum,
       m._impl.flex_radius,
+      m._impl.flex_shell,
+      m._impl.flex_shelldataadr,
       m.flex_vertadr,
+      m.flex_vertnum,
       jax.numpy.expand_dims(m.geom_dataid, 0),
       m.geom_matid,
       m.geom_rgba,
@@ -218,6 +246,8 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
       m.mat_texid,
       m._impl.mat_texrepeat,
       m.mesh_faceadr,
+      m.nflex,
+      m._impl.nflexelem,
       m.nlight,
       d.cam_xmat,
       d.cam_xpos,
