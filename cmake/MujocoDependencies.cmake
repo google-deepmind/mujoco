@@ -200,7 +200,12 @@ if(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
   unset(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
 endif()
 
-set(ENABLE_DOUBLE_PRECISION ON)
+# build ccd in single precision when MuJoCo is built with mjUSESINGLE
+if(CMAKE_C_FLAGS MATCHES "mjUSESINGLE")
+  set(ENABLE_DOUBLE_PRECISION OFF)
+else()
+  set(ENABLE_DOUBLE_PRECISION ON)
+endif()
 set(CCD_HIDE_ALL_SYMBOLS ON)
 
 # Patch changes in https://github.com/danfis/libccd/pull/83.patch
@@ -254,12 +259,16 @@ else()
   set(_BUILD_TESTS_WAS_DEFINED FALSE)
 endif()
 set(BUILD_TESTS OFF)
-fetchpackage(
-  PACKAGE_NAME  miniz
-  GIT_REPO      https://github.com/richgel999/miniz.git
-  GIT_TAG       ${MUJOCO_DEP_VERSION_miniz}
-  TARGETS       miniz
-)
+if(CMAKE_SYSTEM_NAME STREQUAL "QNX")
+  find_package(miniz CONFIG REQUIRED)
+else()
+  fetchpackage(
+    PACKAGE_NAME  miniz
+    GIT_REPO      https://github.com/richgel999/miniz.git
+    GIT_TAG       ${MUJOCO_DEP_VERSION_miniz}
+    TARGETS       miniz
+  )
+endif()
 if(_BUILD_TESTS_WAS_DEFINED)
   set(BUILD_TESTS "${_OLD_BUILD_TESTS}")
 else()
