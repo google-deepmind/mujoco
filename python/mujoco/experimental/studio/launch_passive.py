@@ -149,6 +149,7 @@ def launch_passive(
   handle = viewer_handle.ViewerHandle(
       sim_endpoint,
       is_alive_fn=thread.is_alive,
+      shutdown_fn=thread.join,
       handlers=sim_handlers,
   )
   return handle
