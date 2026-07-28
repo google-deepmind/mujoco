@@ -25,7 +25,6 @@ import jax.numpy as jp
 import mediapy as media
 import mujoco
 from mujoco import mjx
-from mujoco.mjx._src import bvh
 from mujoco.mjx._src import forward
 from mujoco.mjx._src import render
 from mujoco.mjx._src import render_util
@@ -177,10 +176,6 @@ def _main(_: Sequence[str]):
       enabled_geom_groups=[0, 1, 2],
   )
 
-  dx_batch = jax_jit(jax.vmap(bvh.refit_bvh, in_axes=(None, 0, None)))(
-      mx, dx_batch, rc.pytree()
-  )
-
   if _RENDER_SEGMENTATION.value:
     render_fn = render.render_with_segmentation
   else:
@@ -291,7 +286,6 @@ def _main(_: Sequence[str]):
     mx_pmap = jax.tree.map(lambda x: safe_shard(x, sharded), mx)
 
     def inner(mx, dx):
-      dx = bvh.refit_bvh(mx, dx, pmap_rc.pytree())
       out = render.render(mx, dx, pmap_rc.pytree())
       return render_util.get_rgb(pmap_rc.pytree(), _CAMERA_ID.value, out[0])
 

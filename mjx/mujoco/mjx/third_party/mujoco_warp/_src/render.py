@@ -19,7 +19,6 @@ from typing import Tuple
 import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src import math
-from mujoco.mjx.third_party.mujoco_warp._src.bvh import refit_bvh
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_box
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_capsule
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_cylinder
@@ -536,7 +535,7 @@ def _make_compute_lighting(cast_ray_first_hit: wp.Function) -> wp.Function:
 
 
 @event_scope
-def render(m: Model, d: Data, rc: RenderContext, refit: bool = False):
+def render(m: Model, d: Data, rc: RenderContext):
   """Render the current frame.
 
   Outputs are stored in buffers within the render context.
@@ -545,18 +544,7 @@ def render(m: Model, d: Data, rc: RenderContext, refit: bool = False):
     m: The model on device.
     d: The data on device.
     rc: The render context on device.
-    refit: Whether to refit the scene BVH before casting rays. The default assumes the caller
-      has already refit for this pose, which is what an imperative pipeline does when it calls
-      `refit_bvh` right before `render`. Set this to `True` when `render` is driven by a graph
-      executor that is free to reorder or interleave independent operations, such as the JAX/XLA
-      bindings in MJX (`mujoco.mjx.warp`). There, `refit_bvh` and `render` lower to two custom
-      calls that communicate only through Warp-owned memory, so the graph carries no dependency
-      that keeps a frame's refit paired with its own ray cast, and the ray cast has to refit for
-      itself to stay correct.
   """
-  if refit:
-    refit_bvh(m, d, rc)
-
   rc.rgb_data.fill_(rc.background_color)
   rc.depth_data.fill_(0.0)
   rc.seg_data.fill_(wp.vec2i(-1, -1))

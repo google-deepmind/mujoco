@@ -35,6 +35,15 @@ _MJWARP_FUNCTION = flags.DEFINE_string(
     'third_party/py/mujoco_warp/_src/smooth.py:kinematics',
     'Function to create the shim for.',
 )
+_MJWARP_PRELUDE_FUNCTION = flags.DEFINE_multi_string(
+    'mjwarp_prelude_function',
+    [],
+    'Function to call from the same shim, immediately before the function'
+    ' given by --mjwarp_function, formatted the same way. Its field usage is'
+    ' merged into the shim signature. Use this when the two must run as one'
+    ' FFI call, since XLA is otherwise free to schedule them apart. Repeat the'
+    ' flag to add more, which run in the order given.',
+)
 _MJWARP_TYPES = flags.DEFINE_string(
     'mjwarp_types',
     'third_party/py/mujoco_warp/_src/types.py',
@@ -201,11 +210,12 @@ def _global_assignments():
 
 def _warp_function(
     fn_name: str,
+    prelude_fn_names: Sequence[str],
     field_usage: trace.FieldUsage,
     mjwarp_field_info: Dict[str, trace.FieldInfo],
     mjx_warp_field_info: Dict[str, trace.FieldInfo],
 ):
-  """Returns warp function arguments, assignments, and call."""
+  """Returns warp function arguments, assignments, and calls."""
   # create warp function.
   fn_args_model, fn_assignments = [('nworld: int,', (-1, ''))], []
   if field_usage.model_fields:
@@ -258,12 +268,10 @@ def _warp_function(
     else:
       fn_assignments.append('  dummy.zero_()')
 
-  # `refit_bvh` and `render` lower to two custom calls that communicate only
-  # through Warp-owned memory, so nothing in the JAX graph keeps a frame's refit
-  # paired with its own ray cast. Have the ray cast refit for itself instead.
-  fn_kwargs = ', refit=True' if fn_name == 'render' else ''
-
-  fn_call = f'mjwarp.{fn_name}(_m, _d{render_context_call_arg}{fn_kwargs})'
+  fn_calls = [
+      f'mjwarp.{f}(_m, _d{render_context_call_arg})'
+      for f in (*prelude_fn_names, fn_name)
+  ]
   fn_args_raw = fn_args_model + fn_args_data + render_context_args
 
   # create a dummy output if there are no output fields
@@ -272,7 +280,7 @@ def _warp_function(
     fn_args_raw.append('# Dummy output')  # pyrefly: ignore[bad-argument-type]
     fn_args_raw.append('dummy: wp.array[int],')  # pyrefly: ignore[bad-argument-type]
 
-  return fn_args_raw, fn_assignments, fn_call
+  return fn_args_raw, fn_assignments, fn_calls
 
 
 def _jax_shim_fn(
@@ -398,6 +406,7 @@ def _jax_shim_fn(
 
 def create_jax_warp_shim(
     fn_name: str,
+    prelude_fn_names: Sequence[str],
     field_usage: trace.FieldUsage,
     mjwarp_field_info: Dict[str, trace.FieldInfo],
     mjx_warp_field_info: Dict[str, trace.FieldInfo],
@@ -426,13 +435,18 @@ def create_jax_warp_shim(
     src += assignments
 
   # create warp function.
-  fn_args_raw, fn_assignments, fn_call = _warp_function(
-      fn_name, field_usage, mjwarp_field_info, mjx_warp_field_info
+  fn_args_raw, fn_assignments, fn_calls = _warp_function(
+      fn_name,
+      prelude_fn_names,
+      field_usage,
+      mjwarp_field_info,
+      mjx_warp_field_info,
   )
   fn_args_raw_str = '\n'.join(['    ' + arg for arg in fn_args_raw])
   warp_fn_args = [arg.split(':')[0] for arg in fn_args_raw if '#' not in arg]  # pytype: disable=attribute-error
 
   fn_assignments_str = '\n'.join(fn_assignments)
+  fn_calls_str = '\n  '.join(fn_calls)
   src += f"""
 @ffi.format_args_for_warp
 def _{fn_name}_shim(
@@ -444,7 +458,7 @@ def _{fn_name}_shim(
   _d.efc = _e
   _d.contact = _c
 {fn_assignments_str}
-  {fn_call}
+  {fn_calls_str}
   """
   src += '\n\n'
 
@@ -538,6 +552,25 @@ def main(argv: Sequence[str]) -> None:
   fpath, fn_name = _MJWARP_FUNCTION.value.split(':')
   field_usage = trace.trace_function(fpath, fn_name, mjwarp_field_info)
 
+  # Trace the functions fused into the same shim, and merge in what they read
+  # so the shim hands Warp every field they need.
+  prelude_fn_names = []
+  for prelude in _MJWARP_PRELUDE_FUNCTION.value:
+    prelude_fpath, prelude_fn_name = prelude.split(':')
+    prelude_usage = trace.trace_function(
+        prelude_fpath, prelude_fn_name, mjwarp_field_info
+    )
+    if prelude_usage.render_context_in_caller != (
+        field_usage.render_context_in_caller
+    ):
+      raise ValueError(
+          f'Prelude function "{prelude_fn_name}" and "{fn_name}" must agree on'
+          ' whether they take a render context, since the shim calls both with'
+          ' the same arguments.'
+      )
+    field_usage = trace.merge_field_usage(prelude_usage, field_usage)
+    prelude_fn_names.append(prelude_fn_name)
+
   base_path = file.get_base_path()
   types_fpath = base_path / _MJX_WARP_OUTPUT_PATH.value / 'types.py'
   mjx_warp_field_info = trace.get_mjx_warp_field_info(
@@ -549,7 +582,12 @@ def main(argv: Sequence[str]) -> None:
       base_path / _MJX_WARP_OUTPUT_PATH.value / epath.Path(fpath).name
   )
   create_jax_warp_shim(
-      fn_name, field_usage, mjwarp_field_info, mjx_warp_field_info, target_fpath
+      fn_name,
+      prelude_fn_names,
+      field_usage,
+      mjwarp_field_info,
+      mjx_warp_field_info,
+      target_fpath,
   )
 
   if not _APPEND_TO_OUTPUT_FILE.value:

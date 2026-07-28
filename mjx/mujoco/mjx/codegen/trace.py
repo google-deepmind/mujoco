@@ -215,6 +215,20 @@ class FieldUsage:
   render_context_in_caller: bool = False
 
 
+def merge_field_usage(*field_usages: FieldUsage) -> FieldUsage:
+  """Unions the field usage of several traced functions."""
+  merged = FieldUsage()
+  for attr in ('model_fields', 'data_fields', 'data_out_fields'):
+    fields = set()
+    for field_usage in field_usages:
+      fields.update(getattr(field_usage, attr))
+    setattr(merged, attr, sorted(fields))
+  merged.render_context_in_caller = any(
+      f.render_context_in_caller for f in field_usages
+  )
+  return merged
+
+
 def trace_function(
     fpath: str,
     fn: str,

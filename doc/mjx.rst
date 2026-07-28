@@ -254,8 +254,9 @@ Hold a reference to ``rc`` for the lifetime of your program and pass ``rc.pytree
 downstream JAX functions.  The pytree is a lightweight handle that refers back to the
 context via an internal registry.
 
-Once the context is created, you can render images within a compiled JAX function. This involves updating the bounding
-volume hierarchy (BVH) and executing the raycaster:
+Once the context is created, you can render images within a compiled JAX function.
+:func:`~mujoco.mjx.render` refits the bounding volume hierarchy (BVH) to the current scene state before
+executing the raycaster, so a single call is all that is needed:
 
 .. code-block:: python
 
@@ -263,18 +264,22 @@ volume hierarchy (BVH) and executing the raycaster:
 
     @jax.jit
     def render_fn(mx, d, rc_pytree):
-        # 1. Update the BVH for the current scene state
-        d = mjx.refit_bvh(mx, d, rc_pytree)
-
-        # 2. Render all configured cameras
+        # 1. Render all configured cameras
         pixels, _ = mjx.render(mx, d, rc_pytree)
 
-        # 3. Extract the RGB tensor for the first camera (index 0)
+        # 2. Extract the RGB tensor for the first camera (index 0)
         rgb = get_rgb(rc_pytree, 0, pixels)
 
-        return rgb, d
+        return rgb
 
-    rgb, d = render_fn(mx, d, rc.pytree())
+    rgb = render_fn(mx, d, rc.pytree())
+
+.. NOTE::
+   :func:`~mujoco.mjx.refit_bvh` remains available for pipelines that refit without rendering, but
+   calling it before :func:`~mujoco.mjx.render` is redundant. The two are deliberately fused into one
+   FFI call: they communicate through Warp-owned memory rather than through the JAX graph, so as
+   separate calls XLA would be free to run every refit ahead of every ray cast and pair a frame with
+   another frame's bounding volumes.
 
 .. WARNING::
    The batch dimension ``nworld`` is fixed when the render context is created via

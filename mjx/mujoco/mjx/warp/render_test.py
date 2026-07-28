@@ -144,18 +144,8 @@ class RenderTest(parameterized.TestCase):
     self.assertNotEqual(np.unique(rgb).shape[0], 1)
     self.assertNotEqual(np.unique(depth).shape[0], 1)
 
-  def test_render_pairs_with_its_own_refit_in_one_jit(self):
-    """Tests that batching several frames into one jit keeps refit/render paired.
-
-    `refit_bvh` mutates the BVH owned by the render context and `render` reads
-    it back, but the two lower to custom calls that exchange nothing through
-    the JAX graph, so XLA is free to order them however it likes. Rendering a
-    single frame per executable hides this because JAX dispatches executables
-    in order. Rendering several frames from one executable does not, and XLA
-    hoists every refit ahead of every ray cast.
-    """
-    self._maybe_skip()
-
+  def _sliding_box_poses(self):
+    """Returns a model, render context, and the box at five distinct poses."""
     m = mujoco.MjModel.from_xml_string(_SLIDING_BOX_XML)
     mx = mjx.put_model(m, impl='warp')
     dx = mjx.put_data(m, mujoco.MjData(m), impl='warp')
@@ -171,7 +161,20 @@ class RenderTest(parameterized.TestCase):
       mocap_pos = dx.mocap_pos.at[0, 0].set(x_pos)
       return forward.forward(mx, dx.replace(mocap_pos=mocap_pos))
 
-    poses = [at(x) for x in (-0.8, -0.4, 0.0, 0.4, 0.8)]
+    return mx, rc, [at(x) for x in (-0.8, -0.4, 0.0, 0.4, 0.8)]
+
+  def test_render_pairs_with_its_own_refit_in_one_jit(self):
+    """Tests that batching several frames into one jit keeps refit/render paired.
+
+    A refit writes the BVH owned by the render context and a ray cast reads it
+    back, but nothing passes between them through the JAX graph, so XLA is free
+    to order them however it likes. Rendering a single frame per executable
+    hides this because JAX dispatches executables in order. Rendering several
+    frames from one executable does not, and XLA hoists every refit ahead of
+    every ray cast.
+    """
+    self._maybe_skip()
+    mx, rc, poses = self._sliding_box_poses()
 
     def render_one(d):
       d = mjx.refit_bvh(mx, d, rc.pytree())
@@ -188,6 +191,39 @@ class RenderTest(parameterized.TestCase):
           np.asarray(got),
           want,
           err_msg=f'frame {i} was rendered against another frame\'s BVH',
+      )
+
+  def test_render_refits_the_bvh_itself(self):
+    """Tests that `render` renders the pose in `d` however the BVH was left.
+
+    This is the invariant that makes rendering safe to schedule: `render`
+    refits within its own FFI call, so no other operation can interpose
+    between the refit and the ray cast. Unlike the test above it does not
+    depend on XLA picking any particular order.
+    """
+    self._maybe_skip()
+    mx, rc, poses = self._sliding_box_poses()
+
+    def refit_and_render(d):
+      d = mjx.refit_bvh(mx, d, rc.pytree())
+      return mjx.render(mx, d, rc.pytree())[1]
+
+    # One refit/render pair per executable, which JAX dispatches in order, so
+    # this is correct however `render` treats the BVH.
+    reference = [np.asarray(jax.jit(refit_and_render)(d)) for d in poses]
+
+    render_only = jax.jit(lambda d: mjx.render(mx, d, rc.pytree())[1])
+    refit_only = jax.jit(mjx.refit_bvh)
+
+    for i, (d, want) in enumerate(zip(poses, reference)):
+      # Leave the BVH fit to a different pose, then render without refitting.
+      jax.block_until_ready(
+          refit_only(mx, poses[(i + 1) % len(poses)], rc.pytree())
+      )
+      np.testing.assert_array_equal(
+          np.asarray(render_only(d)),
+          want,
+          err_msg=f'frame {i} was rendered against a stale BVH',
       )
 
   @parameterized.product(

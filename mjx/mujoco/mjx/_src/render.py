@@ -37,7 +37,11 @@ def _require_segmentation_enabled(warp_rc) -> None:
 
 
 def render(m: Model, d: Data, ctx: Any) -> tuple[jax.Array, jax.Array]:
-  """Render packed RGB and depth buffers."""
+  """Render packed RGB and depth buffers.
+
+  Refits the scene BVH to the pose in ``d`` as part of the same FFI call, so
+  calling :func:`~mujoco.mjx.refit_bvh` beforehand is not needed.
+  """
   if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
     from mujoco.mjx.warp import render as mjxw_render  # pytype: disable=import-error
     from mujoco.mjx.warp import render_context  # pytype: disable=import-error
@@ -53,6 +57,9 @@ def render_with_segmentation(
     m: Model, d: Data, ctx: Any
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
   """Render and return RGB, depth, and packed segmentation outputs.
+
+  Refits the scene BVH to the pose in ``d`` as part of the same FFI call, so
+  calling :func:`~mujoco.mjx.refit_bvh` beforehand is not needed.
 
   Returns:
     A tuple ``(rgb, depth, seg)`` of packed buffers. The segmentation buffer

@@ -162,7 +162,8 @@ def _render_shim(
   render_context.rgb_data = rgb
   render_context.depth_data = depth
   render_context.seg_data = seg
-  mjwarp.render(_m, _d, render_context, refit=True)
+  mjwarp.refit_bvh(_m, _d, render_context)
+  mjwarp.render(_m, _d, render_context)
 
 
 def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):

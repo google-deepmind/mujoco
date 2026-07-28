@@ -153,9 +153,8 @@ def benchmark(
     )
 
   def render_fn(mx, d, rc):
-    d = mjx.refit_bvh(mx, d, rc)
     pixels, _ = mjx.render(mx, d, rc)
-    return render_util.get_rgb(rc, 0, pixels), d
+    return render_util.get_rgb(rc, 0, pixels)
 
   @jax_jit
   def unroll(d):
@@ -165,9 +164,7 @@ def benchmark(
       d = step_fn(mx, d)
 
       if render:
-        rgb, d = jax.vmap(render_fn, in_axes=(None, 0, None))(
-            mx, d, rc.pytree()
-        )
+        rgb = jax.vmap(render_fn, in_axes=(None, 0, None))(mx, d, rc.pytree())
         accum += rgb[0, 0, 0, 0]
 
       return (d, accum), None

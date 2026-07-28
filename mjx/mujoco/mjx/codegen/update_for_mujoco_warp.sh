@@ -110,8 +110,13 @@ run_shim "bvh:refit_bvh" ${generate_warp_shim} \
  --mjx_warp_output_path=${mjx_warp_out}/ \
  --mjwarp_types=${mjwarp}/types.py
 
+# `refit_bvh` writes the scene BVH and `render` reads it back, but they exchange
+# nothing through the JAX graph, so as two custom calls XLA is free to run every
+# refit ahead of every ray cast. Fuse the refit into the render shim so a frame
+# can only ever be cast against its own bounding volumes.
 run_shim "render:render" ${generate_warp_shim} \
  --mjwarp_function=${mjwarp}/render.py:render \
+ --mjwarp_prelude_function=${mjwarp}/bvh.py:refit_bvh \
  --mjx_warp_output_path=${mjx_warp_out}/ \
  --mjwarp_types=${mjwarp}/types.py
 
