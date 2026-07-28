@@ -245,7 +245,7 @@ void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db
 
   // add term linear in K * K
   mjtNum KK[9];
-  mju_mulMatMat3(KK, K, K);
+  mji_mulMatMat3(KK, K, K);
   mjtNum coef = 1.0 - (half_angle < 6e-8 ? 1.0 : half_angle / mju_tan(half_angle));
   mju_addToScl(Da_tmp, KK, coef, 9);
 
@@ -313,7 +313,7 @@ void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
     if (Dvel || Dscale) Dvel_[i] = b*eye[i] + c*cross[i] + d*outer[i];
   }
   if (Dvel) mju_copy9(Dvel, Dvel_);
-  if (Dscale) mju_mulMatVec3(Dscale, Dvel_, vel);
+  if (Dscale) mji_mulMatVec3(Dscale, Dvel_, vel);
 }
 
 
@@ -1247,9 +1247,9 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
             }
 
             // tmp = K * R
-            mju_mulMatMat3(tmp, blk, R);
+            mji_mulMatMat3(tmp, blk, R);
             // blk = RT * tmp = RT * K * R
-            mju_mulMatMat3(blk, RT, tmp);
+            mji_mulMatMat3(blk, RT, tmp);
 
             // store in K_rot_cell at (a, b)
             int adr_out = (3*a)*dim_e + 3*b;
