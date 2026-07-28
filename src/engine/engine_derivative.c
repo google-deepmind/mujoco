@@ -245,7 +245,7 @@ void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db
 
   // add term linear in K * K
   mjtNum KK[9];
-  mju_mulMatMat3(KK, K, K);
+  mji_mulMatMat3(KK, K, K);
   mjtNum coef = 1.0 - (half_angle < 6e-8 ? 1.0 : half_angle / mju_tan(half_angle));
   mju_addToScl(Da_tmp, KK, coef, 9);
 
@@ -313,7 +313,7 @@ void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
     if (Dvel || Dscale) Dvel_[i] = b*eye[i] + c*cross[i] + d*outer[i];
   }
   if (Dvel) mju_copy9(Dvel, Dvel_);
-  if (Dscale) mju_mulMatVec3(Dscale, Dvel_, vel);
+  if (Dscale) mji_mulMatVec3(Dscale, Dvel_, vel);
 }
 
 
@@ -1247,9 +1247,9 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
             }
 
             // tmp = K * R
-            mju_mulMatMat3(tmp, blk, R);
+            mji_mulMatMat3(tmp, blk, R);
             // blk = RT * tmp = RT * K * R
-            mju_mulMatMat3(blk, RT, tmp);
+            mji_mulMatMat3(blk, RT, tmp);
 
             // store in K_rot_cell at (a, b)
             int adr_out = (3*a)*dim_e + 3*b;
@@ -1455,12 +1455,21 @@ void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum*
         int v0 = vert[edge[e][0]], v1 = vert[edge[e][1]];
         int b0 = bodyid[v0],       b1 = bodyid[v1];
         g[e] = 0;
+
+        // the vertex bodies' slide dofs are expressed in their own (possibly rotated) frame while
+        // the stiffness is built from world-space edge vectors, so the operator must be sandwiched
+        // with R (dof -> world) and R^T (world -> dof); mj_flexPassiveStretch applies the same R^T
+        // to its world-space force. R = I for the common case of an unrotated parent body.
+        mjtNum w0[3] = {0}, w1[3] = {0};
+        if (m->body_dofnum[b0]) {
+          mji_mulMatVec3(w0, d->xmat + 9*b0, vec + m->body_dofadr[b0]);
+        }
+        if (m->body_dofnum[b1]) {
+          mji_mulMatVec3(w1, d->xmat + 9*b1, vec + m->body_dofadr[b1]);
+        }
         for (int x = 0; x < 3; x++) {
           dvec[e][x] = xpos[3*v0+x] - xpos[3*v1+x];
-          mjtNum dv = 0;
-          if (m->body_dofnum[b0]) dv += vec[m->body_dofadr[b0]+x];
-          if (m->body_dofnum[b1]) dv -= vec[m->body_dofadr[b1]+x];
-          g[e] += dvec[e][x]*dv;
+          g[e] += dvec[e][x]*(w0[x] - w1[x]);
         }
       }
 
@@ -1483,9 +1492,21 @@ void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum*
         }
         coef *= 2*scale;
         int b0 = bodyid[vert[edge[e][0]]], b1 = bodyid[vert[edge[e][1]]];
+        mjtNum rw[3], rl[3];
         for (int x = 0; x < 3; x++) {
-          if (m->body_dofnum[b0]) res[m->body_dofadr[b0]+x] += coef*dvec[e][x];
-          if (m->body_dofnum[b1]) res[m->body_dofadr[b1]+x] -= coef*dvec[e][x];
+          rw[x] = coef*dvec[e][x];
+        }
+        if (m->body_dofnum[b0]) {   // world -> dof frame
+          mji_mulMatTVec3(rl, d->xmat + 9*b0, rw);
+          for (int x = 0; x < 3; x++) {
+            res[m->body_dofadr[b0]+x] += rl[x];
+          }
+        }
+        if (m->body_dofnum[b1]) {
+          mji_mulMatTVec3(rl, d->xmat + 9*b1, rw);
+          for (int x = 0; x < 3; x++) {
+            res[m->body_dofadr[b1]+x] -= rl[x];
+          }
         }
       }
     }
@@ -1945,11 +1966,18 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
                 }
               }
             }
+            // blk is world-space but the destination dofs are the vertex bodies' own (possibly
+            // rotated) slide axes: blk_dof = R_bi^T * blk_world * R_bj, matching the force path
+            int bi = m->flex_vertbodyid[m->flex_vertadr[f] + vert[i]];
+            int bj = m->flex_vertbodyid[m->flex_vertadr[f] + vert[j]];
+            mjtNum tmp[9], blkd[9];
+            mji_mulMatMat3(tmp, blk, d->xmat + 9*bj);      // tmp  = blk * R_bj
+            mji_mulMatTMat3(blkd, d->xmat + 9*bi, tmp);    // blkd = R_bi^T * tmp
             int pos;
             FLEXSTIFF_BLOCK(si, sj, pos);
             for (int k = 0; k < 3; k++) {
               for (int c = 0; c < 3; c++) {
-                val[rowadr[vdof[si] + k] + 3*pos + c] += blk[3*k+c];
+                val[rowadr[vdof[si] + k] + 3*pos + c] += blkd[3*k+c];
               }
             }
           }
