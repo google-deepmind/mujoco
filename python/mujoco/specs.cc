@@ -22,6 +22,7 @@
 #include <string>
 #include <string_view>  // IWYU pragma: keep
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>       // IWYU pragma: keep
 
@@ -667,15 +668,17 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
             throw pybind11::value_error(mjs_getError(self.ptr));
           }
         }
-        // add prefix and suffix to the assets keys
+        // Prefix asset dict keys on the parent.
         std::string pre(p);
         std::string suf(s);
+        std::unordered_set<std::string> child_asset_files;
         for (const auto& asset : child.assets) {
+          std::string original_name = asset.first.cast<std::string>();
+          child_asset_files.insert(original_name);
           std::string asset_name =
-              addPrefixAndSuffix(asset.first.cast<std::string>(), pre, suf);
+              addPrefixAndSuffix(original_name, pre, suf);
           if (self.assets.contains(asset_name) && !self.override_assets) {
-            throw pybind11::value_error("Asset " +
-                                        asset.first.cast<std::string>() +
+            throw pybind11::value_error("Asset " + original_name +
                                         " already exists in parent spec.");
           }
           self.assets[py::str(asset_name)] = asset.second;
@@ -704,22 +707,29 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
               "asset dict might result in missing assets when attaching again.",
               1);
         }
+        // Rename mesh/texture file fields on the PARENT after attach.
+        // With copy_during_attach, mjs_attach copies child elements first; the
+        // parent copies still reference the original filenames, while asset
+        // keys are prefixed. Mutating the child would leave the parent broken
+        // and would also poison a deep-copied child for later attaches.
         if (child_use_asset_dict) {
-          while (mesh) {
-            std::string file = mjs_getString(mjs_asMesh(mesh)->file);
-            if (!file.empty()) {
+          parent_mesh = mjs_firstElement(self.ptr, mjOBJ_MESH);
+          while (parent_mesh) {
+            std::string file = mjs_getString(mjs_asMesh(parent_mesh)->file);
+            if (!file.empty() && child_asset_files.count(file)) {
               std::string mesh_file = addPrefixAndSuffix(file, pre, suf);
-              mjs_setString(mjs_asMesh(mesh)->file, mesh_file.c_str());
+              mjs_setString(mjs_asMesh(parent_mesh)->file, mesh_file.c_str());
             }
-            mesh = mjs_nextElement(child.ptr, mesh);
+            parent_mesh = mjs_nextElement(self.ptr, parent_mesh);
           }
-          while (tex) {
-            std::string file = mjs_getString(mjs_asTexture(tex)->file);
-            if (!file.empty()) {
+          parent_tex = mjs_firstElement(self.ptr, mjOBJ_TEXTURE);
+          while (parent_tex) {
+            std::string file = mjs_getString(mjs_asTexture(parent_tex)->file);
+            if (!file.empty() && child_asset_files.count(file)) {
               std::string tex_file = addPrefixAndSuffix(file, pre, suf);
-              mjs_setString(mjs_asTexture(tex)->file, tex_file.c_str());
+              mjs_setString(mjs_asTexture(parent_tex)->file, tex_file.c_str());
             }
-            tex = mjs_nextElement(child.ptr, tex);
+            parent_tex = mjs_nextElement(self.ptr, parent_tex);
           }
         }
         child.parent = &self;

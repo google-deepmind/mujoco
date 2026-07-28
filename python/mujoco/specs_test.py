@@ -16,6 +16,7 @@
 
 import gc
 import inspect
+import io
 import math
 import os
 import textwrap
@@ -1921,6 +1922,86 @@ class SpecsTest(absltest.TestCase):
         string_spec = mujoco.MjSpec.from_string(xml_string, assets=assets)
         string_spec.compile()
         self.assertEqual(spec.to_xml(), string_spec.to_xml())
+
+  def test_from_zip_with_includes(self):
+    """XML includes inside a zip must round-trip through from_zip."""
+    root_xml = textwrap.dedent("""
+      <mujoco model="root">
+        <include file="included.xml"/>
+      </mujoco>
+    """).encode("utf-8")
+    included_xml = textwrap.dedent("""
+      <mujoco>
+        <worldbody>
+          <body name="included_body">
+            <geom type="box" size="1 1 1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """).encode("utf-8")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+      zf.writestr("included.xml", included_xml)
+      zf.writestr("root.xml", root_xml)
+    buf.seek(0)
+
+    spec = mujoco.MjSpec.from_zip(buf)
+    model = spec.compile()
+    self.assertEqual(model.nbody, 2)
+    self.assertIsNotNone(spec.body("included_body"))
+
+  def test_deepcopy_attach_renames_parent_asset_files(self):
+    """Deep-copy attach must prefix mesh files on the parent, not the child."""
+    mesh_obj = b"v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n"
+    child = mujoco.MjSpec.from_string(
+        textwrap.dedent("""
+          <mujoco>
+            <asset>
+              <mesh name="tri" file="tri.obj"/>
+            </asset>
+            <worldbody>
+              <body name="c">
+                <geom type="mesh" mesh="tri"/>
+              </body>
+            </worldbody>
+          </mujoco>
+        """),
+        assets={"tri.obj": mesh_obj},
+    )
+    parent = mujoco.MjSpec.from_string(
+        textwrap.dedent("""
+          <mujoco>
+            <worldbody>
+              <frame name="mount"/>
+            </worldbody>
+          </mujoco>
+        """)
+    )
+    parent.copy_during_attach = True
+    parent.attach(child, frame="mount", prefix="child_")
+
+    self.assertIn("child_tri.obj", parent.assets)
+    self.assertEqual([mesh.file for mesh in parent.meshes], ["child_tri.obj"])
+    # Child remains reusable for another deep-copy attach.
+    self.assertEqual([mesh.file for mesh in child.meshes], ["tri.obj"])
+
+    model = parent.compile()
+    self.assertGreaterEqual(model.nmesh, 1)
+
+    parent2 = mujoco.MjSpec.from_string(
+        textwrap.dedent("""
+          <mujoco>
+            <worldbody>
+              <frame name="mount2"/>
+            </worldbody>
+          </mujoco>
+        """)
+    )
+    parent2.copy_during_attach = True
+    parent2.attach(child, frame="mount2", prefix="again_")
+    self.assertEqual([mesh.file for mesh in parent2.meshes], ["again_tri.obj"])
+    parent2.compile()
 
   def test_rangefinder_sensor(self):
     """Test rangefinder sensor with mjSpec, iterative model building."""
