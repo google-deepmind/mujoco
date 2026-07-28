@@ -196,6 +196,94 @@ class SensorTest(parameterized.TestCase):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(m)
 
+  def test_framelinacc_cutoff(self):
+    """FRAMELINACC must apply cutoff like other real-valued sensors."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <option gravity="0 0 -9.81"/>
+        <worldbody>
+          <body name="b">
+            <joint name="j" axis="0 1 0"/>
+            <geom size=".1" mass="1" contype="0" conaffinity="0"/>
+            <site name="s"/>
+          </body>
+        </worldbody>
+        <sensor>
+          <framelinacc name="a" objtype="site" objname="s" cutoff="0.05"/>
+          <accelerometer name="acc" site="s" cutoff="0.05"/>
+        </sensor>
+      </mujoco>
+    """)
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+
+    from mujoco.mjx._src import forward as fwd
+    from mujoco.mjx._src import sensor as sensor_mod
+
+    mx = mjx.put_model(m)
+    dx = mjx.make_data(mx)
+    dx = fwd.fwd_position(mx, dx)
+    dx = sensor_mod.sensor_pos(mx, dx)
+    dx = fwd.fwd_velocity(mx, dx)
+    dx = sensor_mod.sensor_vel(mx, dx)
+    dx = fwd.fwd_actuation(mx, dx)
+    dx = fwd.fwd_acceleration(mx, dx)
+    dx = dx.replace(qacc=dx.qacc_smooth)
+    dx = sensor_mod.sensor_acc(mx, dx)
+
+    _assert_eq(d.sensordata, dx.sensordata, 'sensordata')
+    # Gravity (~9.81) must be clipped to cutoff on both sensors.
+    np.testing.assert_allclose(dx.sensordata[2], 0.05, atol=1e-6)
+    np.testing.assert_allclose(dx.sensordata[5], 0.05, atol=1e-6)
+
+  def test_touch_with_empty_contact_capacity(self):
+    """TOUCH must return zero when the model has no contact pairs."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <worldbody>
+          <body>
+            <joint name="j"/>
+            <geom size=".1" contype="0" conaffinity="0"/>
+            <site name="s" size=".2"/>
+          </body>
+        </worldbody>
+        <sensor><touch site="s"/></sensor>
+      </mujoco>
+    """)
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+
+    mx = mjx.put_model(m)
+    dx = jax.jit(mjx.forward)(mx, mjx.make_data(mx))
+
+    self.assertEqual(dx._impl.contact.dim.size, 0)
+    _assert_eq(d.sensordata, dx.sensordata, 'sensordata')
+
+  def test_camprojection_near_camera_plane(self):
+    """CAMPROJECTION denom guard must match native sign-preserving mjMINVAL."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <worldbody>
+          <body>
+            <joint type="slide" axis="1 0 0"/>
+            <geom size=".01" contype="0" conaffinity="0"/>
+            <site name="target" pos="1 0 0"/>
+          </body>
+          <camera name="cam" pos="0 0 0" xyaxes="0 1 0 0 0 1"
+                  resolution="640 480"/>
+        </worldbody>
+        <sensor><camprojection site="target" camera="cam"/></sensor>
+      </mujoco>
+    """)
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+
+    mx = mjx.put_model(m)
+    dx = jax.jit(mjx.forward)(mx, mjx.make_data(mx))
+
+    self.assertTrue(np.all(np.isfinite(dx.sensordata)))
+    _assert_eq(d.sensordata, dx.sensordata, 'sensordata')
+
 
 if __name__ == '__main__':
   absltest.main()

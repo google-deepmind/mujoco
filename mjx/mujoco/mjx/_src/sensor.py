@@ -129,11 +129,11 @@ def sensor_pos(m: Model, d: Data) -> Data:
         # https://en.wikipedia.org/wiki/3D_projection#Mathematical_formula
         pixel_coord_hom = proj @ pos_hom
 
-        # avoid dividing by tiny numbers
+        # avoid dividing by tiny numbers (match native engine_sensor.c)
         denom = pixel_coord_hom[2]
         denom = jp.where(
             jp.abs(denom) < mujoco.mjMINVAL,
-            jp.clip(denom, -mujoco.mjMINVAL, mujoco.mjMINVAL),
+            jp.where(denom < 0, -mujoco.mjMINVAL, mujoco.mjMINVAL),
             denom,
         )
 
@@ -463,16 +463,19 @@ def sensor_acc(m: Model, d: Data) -> Data:
       (m.sensor_type[stage_acc] == SensorType.CONTACT).any()
       and (contact_maxforce | contact_dataforce | contact_datatorque)
   ):
-    # compute contact forces
+    # compute contact forces; empty contact capacity -> zero forces
     contact_force = []
     condim_ids = []
     for dim in set(d._impl.contact.dim):
       force, condim_id = support.contact_force_dim(m, d, dim)
       contact_force.append(force)
       condim_ids.append(condim_id)
-    contact_force = jp.concatenate(contact_force)[
-        np.argsort(np.concatenate(condim_ids))
-    ]
+    if contact_force:
+      contact_force = jp.concatenate(contact_force)[
+          np.argsort(np.concatenate(condim_ids))
+      ]
+    else:
+      contact_force = jp.zeros((0, 6))
 
   sensors, adrs = [], []
 
@@ -759,15 +762,18 @@ def sensor_acc(m: Model, d: Data) -> Data:
           cvel = d.cvel[bodyid]
           offset = pos - d.subtree_com[m.body_rootid[bodyid]]
 
-          sensor = _framelinacc(cvel, cacc, offset).reshape(-1)
+          sensor = _framelinacc(cvel, cacc, offset)
         elif sensor_type == SensorType.FRAMEANGACC:
-          sensor = cacc[:, :3].reshape(-1)
+          sensor = cacc[:, :3]
         else:
           raise ValueError(f'Unknown sensor type: {sensor_type}')
 
+        cutofft = cutoff[idxt]
         adrt = adr[idxt, None] + np.arange(3)[None]
 
-        sensors.append(sensor.reshape(-1))
+        sensors.append(
+            _apply_cutoff(sensor, cutofft, data_type[0]).reshape(-1)
+        )
         adrs.append(adrt.reshape(-1))
       continue  # avoid adding to sensors/adrs list a second time
     else:

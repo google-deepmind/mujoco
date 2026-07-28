@@ -139,7 +139,11 @@ def passive(m: Model, d: Data) -> Data:
   ):
     raise ValueError('passive requires JAX backend implementation.')
 
-  if m.opt.disableflags & (DisableBit.SPRING | DisableBit.DAMPER):
+  # Match native mj_passive: skip all passive forces only when BOTH spring and
+  # damper are disabled. _spring_damper already honors each flag independently.
+  if (m.opt.disableflags & DisableBit.SPRING) and (
+      m.opt.disableflags & DisableBit.DAMPER
+  ):
     return d.replace(qfrc_passive=jp.zeros(m.nv), qfrc_gravcomp=jp.zeros(m.nv))
 
   qfrc_passive = _spring_damper(m, d)
