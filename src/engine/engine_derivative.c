@@ -1455,16 +1455,17 @@ void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum*
         int v0 = vert[edge[e][0]], v1 = vert[edge[e][1]];
         int b0 = bodyid[v0],       b1 = bodyid[v1];
         g[e] = 0;
+
         // the vertex bodies' slide dofs are expressed in their own (possibly rotated) frame while
         // the stiffness is built from world-space edge vectors, so the operator must be sandwiched
         // with R (dof -> world) and R^T (world -> dof); mj_flexPassiveStretch applies the same R^T
         // to its world-space force. R = I for the common case of an unrotated parent body.
         mjtNum w0[3] = {0}, w1[3] = {0};
         if (m->body_dofnum[b0]) {
-          mju_mulMatVec3(w0, d->xmat + 9*b0, vec + m->body_dofadr[b0]);
+          mji_mulMatVec3(w0, d->xmat + 9*b0, vec + m->body_dofadr[b0]);
         }
         if (m->body_dofnum[b1]) {
-          mju_mulMatVec3(w1, d->xmat + 9*b1, vec + m->body_dofadr[b1]);
+          mji_mulMatVec3(w1, d->xmat + 9*b1, vec + m->body_dofadr[b1]);
         }
         for (int x = 0; x < 3; x++) {
           dvec[e][x] = xpos[3*v0+x] - xpos[3*v1+x];
@@ -1496,13 +1497,13 @@ void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum*
           rw[x] = coef*dvec[e][x];
         }
         if (m->body_dofnum[b0]) {   // world -> dof frame
-          mju_mulMatTVec3(rl, d->xmat + 9*b0, rw);
+          mji_mulMatTVec3(rl, d->xmat + 9*b0, rw);
           for (int x = 0; x < 3; x++) {
             res[m->body_dofadr[b0]+x] += rl[x];
           }
         }
         if (m->body_dofnum[b1]) {
-          mju_mulMatTVec3(rl, d->xmat + 9*b1, rw);
+          mji_mulMatTVec3(rl, d->xmat + 9*b1, rw);
           for (int x = 0; x < 3; x++) {
             res[m->body_dofadr[b1]+x] -= rl[x];
           }
@@ -1970,8 +1971,8 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
             int bi = m->flex_vertbodyid[m->flex_vertadr[f] + vert[i]];
             int bj = m->flex_vertbodyid[m->flex_vertadr[f] + vert[j]];
             mjtNum tmp[9], blkd[9];
-            mju_mulMatMat3(tmp, blk, d->xmat + 9*bj);      // tmp  = blk * R_bj
-            mju_mulMatTMat3(blkd, d->xmat + 9*bi, tmp);    // blkd = R_bi^T * tmp
+            mji_mulMatMat3(tmp, blk, d->xmat + 9*bj);      // tmp  = blk * R_bj
+            mji_mulMatTMat3(blkd, d->xmat + 9*bi, tmp);    // blkd = R_bi^T * tmp
             int pos;
             FLEXSTIFF_BLOCK(si, sj, pos);
             for (int k = 0; k < 3; k++) {
