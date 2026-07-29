@@ -1082,7 +1082,7 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   // check if islands are supported
   // TODO: support islands with the implicit effective metric and remove the mj_flexCG
   // condition. It is here because the metric machinery is monolithic: the efm_c shift and
-  // the Ma/Mv/Mgrad operators (mjd_effMulAdd, mjd_effSolve) act on global dof vectors with
+  // the Ma/Mv/Mgrad operators (mjd_effMulAdd, mjd_effPrec) act on global dof vectors with
   // no island-local form. Discovery is already handled: findEdges unions the trees of every
   // stiffness-active flex, so a flex always lands in one island together with everything it
   // touches. Removal therefore needs only the solver side: apply the efm_c shift to that

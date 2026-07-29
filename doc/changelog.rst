@@ -2,6 +2,34 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+Engine
+^^^^^^
+
+- Replaced the per-step sparse Cholesky factorization of the flex block of the implicit effective metric M + K with
+  its prefactored per-vertex 3x3 diagonal blocks. The blocks precondition the CG constraint solver and drive an
+  iterative solve for ``qacc_smooth``, which now converges on :ref:`tolerance<option-tolerance>` rather than a fixed
+  threshold. Flexes with :ref:`elastic2d<flex-elasticity-elastic2d>` stretch stiffness step roughly twice as fast;
+  bending-only flexes keep the exact constant factor and are unchanged.
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - Removed ``mjData.efm_L_rownnz``, ``mjData.efm_L_rowadr`` and ``mjData.efm_L_colind``. They described the sparsity
+     of the effective-metric Cholesky factor, which no longer exists; ``mjData.efm_L`` now holds dense 3x3 blocks,
+     9 numbers per covered vertex. ``mjData.efm_active`` no longer takes the value 2: nothing selects a solve path on
+     preconditioner exactness, so it is now a plain 0/1 flag.
+
+Models
+^^^^^^
+
+- Added `bag <https://github.com/google-deepmind/mujoco/blob/main/model/flex/bag.xml>`__ example model: a cloth bag,
+  held open by pinning the ring of vertices around its mouth, catching the standard humanoid dropped in from above.
+  Unlike the poncho models, which are bending-only, this model exercises the 2D
+  :ref:`stretch<flex-elasticity-elastic2d>` elasticity of a flex.
+
 Version 3.11.0 (July 27, 2026)
 ------------------------------
 

@@ -1428,7 +1428,7 @@ static void PrimalUpdateMgrad(mjPrimalContext* ctx, int flg_Newton) {
 
   // CG: Mgrad = Mtilde \ grad
   else if (ctx->flg_flex) {
-    mjd_effSolve(ctx->fm, ctx->fd, ctx->Mgrad, ctx->grad);
+    mjd_effPrec(ctx->fm, ctx->fd, ctx->Mgrad, ctx->grad);
   }
 
   // CG: Mgrad = M \ grad

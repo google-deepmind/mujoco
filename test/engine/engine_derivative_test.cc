@@ -2104,9 +2104,11 @@ TEST_F(DerivativeTest, FlexStiffAssembleInterp) {
   }
 }
 
-// mjd_effSolve: exact-preconditioner fast path solves (M+K)x = b directly; the general
-// refinement path stays within its tolerance when exactness does not hold
-TEST_F(DerivativeTest, EffSolveExact) {
+// mjd_effSolve drives (M+K)x = b to opt.tolerance on the relative residual,
+// for every metric coverage case. It is a PCG whose preconditioner
+// (mjd_effPrec) is only approximate, so the accuracy comes from the iteration
+// and not from the preconditioner being exact.
+TEST_F(DerivativeTest, EffSolve) {
   // relative residual of (M+K)x - b after mjd_effSolve
   auto solve_residual = [](const mjModel* m, mjData* d) {
     int nv = m->nv;
@@ -2142,8 +2144,7 @@ TEST_F(DerivativeTest, EffSolveExact) {
   ASSERT_GE(data->efm_active, 1);
   EXPECT_GT(data->nefmK, 0);
   EXPECT_GT(data->nefmdof, 0);
-  EXPECT_EQ(data->efm_active, 2);
-  EXPECT_LT(solve_residual(model.get(), data.get()), MjTol(1e-10, 1e-6));
+  EXPECT_LT(solve_residual(model.get(), data.get()), MjTol(1e-8, 1e-4));
 
   // bending-only cloth: no CSR or per-step factor, constant factor covers, exact
   static const char* const kXmlBend = R"(
@@ -2166,8 +2167,7 @@ TEST_F(DerivativeTest, EffSolveExact) {
   EXPECT_EQ(data->nefmK, 0);
   EXPECT_EQ(data->nefmdof, 0);
   EXPECT_GT(model->nefm0dof, 0);
-  EXPECT_EQ(data->efm_active, 2);
-  EXPECT_LT(solve_residual(model.get(), data.get()), MjTol(1e-10, 1e-6));
+  EXPECT_LT(solve_residual(model.get(), data.get()), MjTol(1e-8, 1e-4));
 
   // cloth under a jointed parent: M couples across the covered block, not exact,
   // the refinement path must still meet its tolerance
@@ -2192,8 +2192,70 @@ TEST_F(DerivativeTest, EffSolveExact) {
   data = MakeData(model);
   mj_forward(model.get(), data.get());
   ASSERT_GE(data->efm_active, 1);
-  EXPECT_EQ(data->efm_active, 1);
   EXPECT_LT(solve_residual(model.get(), data.get()), 1e-4);
+}
+
+// A cloth with per-step stretch stiffness, used by the two tests below.
+static const char* const kStretchCloth = R"(
+<mujoco>
+  <option solver="CG" integrator="implicitfast"/>
+  <worldbody>
+    <body name="base" pos="0 0 1">
+      <joint type="slide" axis="0 0 1"/>
+      <geom type="sphere" size=".01" mass="1" contype="0" conaffinity="0"/>
+      <flexcomp name="cloth" type="grid" count="6 6 1" spacing="0.05 0.05 0.05"
+                radius=".005" dim="2" mass="0.5" pos="0 0 0" dof="full">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e3" poisson="0.2" damping="0.1" elastic2d="both"
+                    thickness="0.01"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+// An unreachable tolerance drives mjd_effSolve to its iteration cap; it must
+// report that rather than return an under-converged qacc_smooth silently.
+TEST_F(DerivativeTest, EffSolveCapWarns) {
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kStretchCloth, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  model->opt.tolerance = 0;  // unreachable: the PCG can never meet it
+  MjDataPtr data = MakeData(model);
+
+  MockWarningHandler warning_handler;
+  // both: the specific cause, then the mjWARN_INERTIA it is reported through
+  warning_handler.ExpectWarnings("Flex stiffness is too ill-conditioned");
+  warning_handler.ExpectWarnings("Inertia matrix is too close to singular");
+  mj_forward(model.get(), data.get());
+  testing::Mock::VerifyAndClearExpectations(&warning_handler);
+}
+
+// PCG requires a symmetric preconditioner. mjd_effPrec must satisfy
+// u.P(v) == v.P(u); it did not when the covered and uncovered dofs shared a
+// kinematic tree, which is what the flex-under-a-slider model here exercises.
+TEST_F(DerivativeTest, EffPrecIsSymmetric) {
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kStretchCloth, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  ASSERT_GE(data->efm_active, 1);
+
+  int nv = model->nv;
+  std::vector<mjtNum> u(nv), v(nv), Pu(nv), Pv(nv);
+  for (int trial = 0; trial < 5; trial++) {
+    for (int i = 0; i < nv; i++) {
+      u[i] = mju_Halton(i + trial*nv, 2) - 0.5;
+      v[i] = mju_Halton(i + trial*nv, 5) - 0.5;
+    }
+    mjd_effPrec(model.get(), data.get(), Pu.data(), u.data());
+    mjd_effPrec(model.get(), data.get(), Pv.data(), v.data());
+    mjtNum a = mju_dot(v.data(), Pu.data(), nv);
+    mjtNum b = mju_dot(u.data(), Pv.data(), nv);
+    EXPECT_THAT(a, MjNear(b, 1e-10, 1e-4))
+        << "preconditioner is not symmetric, trial " << trial;
+  }
 }
 
 }  // namespace

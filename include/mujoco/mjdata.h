@@ -136,10 +136,10 @@ typedef struct mjData_ {
   int     nl;                // number of limit constraints
   int     nefc;              // number of constraints
   int     nJ;                // number of non-zeros in constraint Jacobian
-  int     efm_active;        // implicit effective metric M+K: 0 inactive, 1 active, 2 active + preconditioner exact
+  int     efm_active;        // implicit effective metric M+K is active (see mjd_effBuild)
   int     nefmK;             // number of non-zeros in effective-stiffness CSR
-  int     nefmdof;           // number of rows in effective-metric factor
-  int     nefmL;             // number of non-zeros in the effective-metric factor
+  int     nefmdof;           // number of 3x3 blocks in the effective-metric preconditioner
+  int     nefmL;             // size of the effective-metric block storage (9*nefmdof)
   int     nY;                // number of non-zeros in constraint inverse inertia square root
   int     nA;                // number of non-zeros in constraint inverse inertia matrix
   int     nisland;           // number of detected constraint islands
@@ -406,11 +406,8 @@ typedef struct mjData_ {
   int*    efm_K_rowadr;      // effective-stiffness CSR row addresses            (nv x 1)
   int*    efm_K_colind;      // effective-stiffness CSR column indices           (nefmK x 1)
   mjtNum* efm_K_val;         // effective-stiffness CSR values                   (nefmK x 1)
-  int*    efm_dofid;         // factor row -> dof address                        (nefmdof x 1)
-  int*    efm_L_rownnz;      // factor row nonzeros                              (nefmdof x 1)
-  int*    efm_L_rowadr;      // factor row addresses                             (nefmdof x 1)
-  int*    efm_L_colind;      // factor column indices                            (nefmL x 1)
-  mjtNum* efm_L;             // Cholesky factor of diag(M)+K, covered dofs       (nefmL x 1)
+  int*    efm_dofid;         // block k -> dof address of its vertex triple      (nefmdof x 1)
+  mjtNum* efm_L;             // factored 3x3 diagonal blocks of M+K              (nefmL x 1)
 
   //-------------------- arena-allocated: POSITION, VELOCITY, CONTROL/ACCELERATION dependent
 
