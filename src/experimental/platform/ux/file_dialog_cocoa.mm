@@ -20,13 +20,30 @@
 
 namespace mujoco::platform {
 
+// Points the panel at the directory of `path` with its filename pre-filled,
+// falling back to the user's Documents directory when no path is given.
+// NSOpenPanel inherits from NSSavePanel.
+static void SetInitialPath(NSSavePanel* panel, std::string_view path) {
+  NSString* str = [[NSString alloc] initWithBytes:path.data()
+                                           length:path.size()
+                                         encoding:NSUTF8StringEncoding];
+  if (str.length > 0) {
+    [panel setDirectoryURL:
+        [NSURL fileURLWithPath:[str stringByDeletingLastPathComponent]
+                   isDirectory:YES]];
+    [panel setNameFieldStringValue:[str lastPathComponent]];
+  } else {
+    NSURL* userDocumentsDir =
+        [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory
+                                             inDomains:NSUserDomainMask].firstObject;
+    [panel setDirectoryURL:userDocumentsDir];
+  }
+}
+
 DialogResult OpenFileDialog(std::string_view path,
                             std::span<std::string_view> filters) {
   NSOpenPanel* panel = [NSOpenPanel openPanel];
-  NSURL* userDocumentsDir = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory
-                                                          inDomains:NSUserDomainMask].firstObject;
-  [panel setDirectoryURL:userDocumentsDir];
-  [panel setNameFieldStringValue:[NSString stringWithUTF8String:path.data()]];
+  SetInitialPath(panel, path);
 
   DialogResult result;
   if ([panel runModal] == NSModalResponseOK) {
@@ -43,10 +60,7 @@ DialogResult OpenFileDialog(std::string_view path,
 DialogResult SaveFileDialog(std::string_view path,
                             std::span<std::string_view> filters) {
   NSSavePanel* panel = [NSSavePanel savePanel];
-  NSURL* userDocumentsDir = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory
-                                                          inDomains:NSUserDomainMask].firstObject;
-  [panel setDirectoryURL:userDocumentsDir];
-  [panel setNameFieldStringValue:[NSString stringWithUTF8String:path.data()]];
+  SetInitialPath(panel, path);
 
   DialogResult result;
   if ([panel runModal] == NSModalResponseOK) {
