@@ -111,7 +111,7 @@ void mjGlad_close_gl(void) {
 #include <dlfcn.h>
 static void* mjGlad_libGL;
 
-#if !defined(__APPLE__) && !defined(__HAIKU__) && !defined(__QNXNTO__)
+#if !defined(__APPLE__) && !defined(__HAIKU__)
 #include <link.h>
 
 typedef void* (APIENTRYP PFNGLXGETPROCADDRESSPROC_PRIVATE)(const char*);
