@@ -444,6 +444,15 @@ high-performance tensor/matrix operations optimized for fixed tile sizes.
    to a tight upper bound of the expected active DOFs significantly reduces GPU memory usage and improves
    throughput.
 
+.. TODO(taylorhowell): update example with correct island cycles initialization
+
+4. When setting ``nvmax < nv`` it is recommended to initialize all trees to asleep in order to avoid initial dof
+   overflow.
+
+   .. code-block:: python
+
+      d.tree_asleep.assign(np.array(np.arange(mjm.ntree, dtype=np.int32)), dtype=np.int32)
+
 .. note::
    Consider increasing the sleep tolerance setting (e.g., ``sleep_tolerance="0.01"`` in XML options or
    ``spec.option.sleep_tolerance = 0.01`` in Python) from its default value (0.001) to more quickly
