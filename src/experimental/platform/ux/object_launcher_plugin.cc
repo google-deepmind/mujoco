@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cstring>
 #include <random>
 #include <string>
 #include <vector>
@@ -24,6 +25,8 @@
 
 namespace mujoco::studio {
 
+inline constexpr char kObjectLauncherName[] = "ObjectLauncher";
+
 class ObjectLauncher {
  public:
   ObjectLauncher() : rng_(std::random_device{}()) {}
@@ -31,7 +34,6 @@ class ObjectLauncher {
   void UpdateGui() {
     using platform::ImGui_Input;
 
-    ImGui::Checkbox("Enable Key Binding (Ctrl+Shift+Enter)", &enabled_);
     ImGui_Input("Size", &size_, {0.01f, 1.0f, 0.01, 0.1});
     ImGui_Input("Speed", &speed_, {0.01f, 100.0f, 0.1, 1.0});
     ImGui_Input("Mass", &mass_, {0.01f, 100.0f, 0.01, 0.1});
@@ -42,7 +44,7 @@ class ObjectLauncher {
     ImGui::Combo("Shape", &shape, names, 2);
     type_ = shape == 0 ? mjGEOM_BOX : mjGEOM_SPHERE;
 
-    if (ImGui::Button("Launch", ImVec2(-1.0f, 0.0f))) {
+    if (ImGui::Button("Launch (Enter)", ImVec2(-1.0f, 0.0f))) {
       active_ = true;
     }
 
@@ -54,7 +56,12 @@ class ObjectLauncher {
   }
 
   void HandleKeyboardEvent() {
-    if (enabled_) active_ = true;
+    // The key binding is armed only while the plugin window is open.
+    platform::ForEachPlugin<platform::GuiPlugin>([this](auto* gui) {
+      if (gui->active && !std::strcmp(gui->name, kObjectLauncherName)) {
+        active_ = true;
+      }
+    });
   }
 
   bool UpdateSpecPreCompile(mjSpec* spec, const mjModel* model,
@@ -162,7 +169,6 @@ class ObjectLauncher {
 
   std::mt19937 rng_;
   int counter_ = 0;
-  bool enabled_ = false;
   bool active_ = false;
   mjtNum size_ = 0.13365;
   mjtNum speed_ = 10.0;
@@ -182,7 +188,7 @@ mjPLUGIN_LIB_INIT(object_launcher) {
 
   mujoco::platform::GuiPlugin gui;
   gui.data = &plugin;
-  gui.name = "ObjectLauncher";
+  gui.name = mujoco::studio::kObjectLauncherName;
   gui.update = [](mujoco::platform::GuiPlugin* self) {
     auto* plugin = static_cast<mujoco::studio::ObjectLauncher*>(self->data);
     plugin->UpdateGui();
@@ -191,8 +197,8 @@ mjPLUGIN_LIB_INIT(object_launcher) {
 
   mujoco::platform::KeyHandlerPlugin key_handler;
   key_handler.data = &plugin;
-  key_handler.name = "ObjectLauncher";
-  key_handler.key_chord = ImGuiKey_Enter | ImGuiMod_Ctrl | ImGuiMod_Shift;
+  key_handler.name = mujoco::studio::kObjectLauncherName;
+  key_handler.key_chord = ImGuiKey_Enter;
   key_handler.on_key_pressed = [](mujoco::platform::KeyHandlerPlugin* self) {
     auto* plugin = static_cast<mujoco::studio::ObjectLauncher*>(self->data);
     plugin->HandleKeyboardEvent();
@@ -201,7 +207,7 @@ mjPLUGIN_LIB_INIT(object_launcher) {
 
   mujoco::platform::SpecEditorPlugin spec_editor;
   spec_editor.data = &plugin;
-  spec_editor.name = "ObjectLauncher";
+  spec_editor.name = mujoco::studio::kObjectLauncherName;
   spec_editor.pre_compile = [](mujoco::platform::SpecEditorPlugin* self,
                                mjSpec* spec, const mjModel* model,
                                const mjData* data, const mjvCamera* camera) {
