@@ -460,6 +460,11 @@ void ImGui_EndHSplit(bool open);
 // ImGui Slider that supports both float and double types.
 bool ImGui_Slider(const char* name, mjtNum* value, mjtNum min, mjtNum max);
 
+// Small right-aligned reset button on the current line; returns true when
+// clicked. Use after a widget to give it a visible reset affordance.
+bool ImGui_ResetButton(const char* id, const char* icon = ICON_FA_UNDO,
+                       const char* tooltip = "Reset");
+
 template <typename T>
 bool ImGui_Checkbox(const char* name, T& value) {
   static_assert(std::is_integral<T>());

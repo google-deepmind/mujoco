@@ -343,6 +343,18 @@ bool ImGui_Slider(const char* name, mjtNum* value, mjtNum min, mjtNum max) {
   return res;
 }
 
+bool ImGui_ResetButton(const char* id, const char* icon,
+                       const char* tooltip) {
+  const float size = ImGui::GetFrameHeight();
+  ImGui::SameLine();
+  ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - size);
+  ImGui::PushID(id);
+  const bool clicked = ImGui::SmallButton(icon);
+  ImGui::PopID();
+  ImGui::SetItemTooltip("%s", tooltip);
+  return clicked;
+}
+
 bool ImGui_BeginHSplit(const char* id, float* height, bool* open) {
   const ImVec2 region = ImGui::GetContentRegionAvail();
   if (*height < 0) {
