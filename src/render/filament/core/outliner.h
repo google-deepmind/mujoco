@@ -31,11 +31,13 @@ namespace mujoco {
 // Renders an outline of selected objects.
 //
 // This class uses the "jump flood" algorithm to create an outline of selected
-// objects.
+// objects. The outline is dimmed by `occlusion_dim` where the selected objects
+// are occluded by scene geometry on the `scene_layer_mask` layers.
 class Outliner {
  public:
   Outliner(ObjectManager* object_mgr, uint8_t layer_mask,
-           filament::math::float4 color, float thickness);
+           uint8_t scene_layer_mask, filament::math::float4 color,
+           float thickness, float occlusion_dim);
   ~Outliner();
 
   Outliner(const Outliner&) = delete;
@@ -53,6 +55,7 @@ class Outliner {
   void Reset();
 
   enum Pass {
+    kPassSceneDepth,
     kPassFlatten,
     kPassJumpFlood1,
     kPassJumpFlood2,
@@ -65,17 +68,27 @@ class Outliner {
     kNumJumpFloodPasses = kPassJumpFlood5 - kPassJumpFlood1 + 1,
   };
 
+  enum Target {
+    kTargetSceneDepth,  // depth of the scene, used for occlusion dimming
+    kTargetFlatten,     // selection mask (color) and selection depth (depth)
+    kTargetPing,        // jump flood ping-pong buffer
+    kTargetPong,        // jump flood ping-pong buffer
+    kNumTargets,
+  };
+
   ObjectManager* object_mgr_ = nullptr;
   filament::Engine* engine_ = nullptr;
   uint8_t layer_mask_ = 0xff;
+  uint8_t scene_layer_mask_ = 0xff;
   filament::math::float4 color_ = {1.0f, 1.0f, 1.0f, 1.0f};
   float thickness_ = 2.5f;
+  float occlusion_dim_ = 1.0f;
 
   int width_ = 0;
   int height_ = 0;
 
   filament::Camera* camera_ = nullptr;
-  std::unique_ptr<RenderTarget> targets_[2];
+  std::unique_ptr<RenderTarget> targets_[kNumTargets];
 
   filament::View* views_[kNumPasses] = {};
   filament::Scene* scenes_[kNumPasses] = {};

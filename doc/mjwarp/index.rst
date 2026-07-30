@@ -444,6 +444,15 @@ high-performance tensor/matrix operations optimized for fixed tile sizes.
    to a tight upper bound of the expected active DOFs significantly reduces GPU memory usage and improves
    throughput.
 
+.. TODO(taylorhowell): update example with correct island cycles initialization
+
+4. When setting ``nvmax < nv`` it is recommended to initialize all trees to asleep in order to avoid initial dof
+   overflow.
+
+   .. code-block:: python
+
+      d.tree_asleep.assign(np.array(np.arange(mjm.ntree, dtype=np.int32)), dtype=np.int32)
+
 .. note::
    Consider increasing the sleep tolerance setting (e.g., ``sleep_tolerance="0.01"`` in XML options or
    ``spec.option.sleep_tolerance = 0.01`` in Python) from its default value (0.001) to more quickly
@@ -501,19 +510,22 @@ Certain fields are safe to modify directly without compilation, enabling on-devi
 `GitHub issue 893 <https://github.com/google-deepmind/mujoco_warp/issues/893>`__ tracks adding on-device updates for a
 subset of fields.
 
-Per-world meshes
+Per-world assets
 ----------------
 
-Per-world meshes enable heterogeneous worlds where different worlds simulate different meshes. The workflow
-is:
+Per-world assets enable heterogeneous worlds where different worlds simulate different
+`assets <https://mujoco.readthedocs.io/en/latest/XMLreference.html#asset>`__ including meshes, height fields, materials,
+and textures. The general workflow is:
 
-1. Create an :ref:`mjSpec` with **all** mesh assets and the **maximum** number of geom slots needed across variants.
+1. Create an :ref:`mjSpec` with **all** assets.
 2. Compile each variant by mutating the spec and calling ``spec.compile()``.
 3. Compile a **base** model and create :class:`mjw.Model <mujoco_warp.Model>` from it.
 4. Override the relevant :class:`mjw.Model <mujoco_warp.Model>` fields with per-world arrays built from the compiled
    variants.
 
-**Example 1 — Geom-level** randomization (1 body, 1 geom, 2 mesh assets):
+.. rubric:: Per-world meshes
+
+**Example 1 — Per-world meshes: Geom-level** randomization (1 body, 1 geom, 2 mesh assets):
 
 The base scene includes all mesh assets. The geom references one mesh (``mesh_a``); a second mesh
 (``mesh_b``) is available for per-world substitution.
@@ -612,7 +624,7 @@ The base scene includes all mesh assets. The geom references one mesh (``mesh_a`
   m.body_ipos = wp.array(body_ipos, dtype=wp.vec3)
   m.body_iquat = wp.array(body_iquat, dtype=wp.quat)
 
-**Example 2 — Body-level** randomization (1 body, 1 or 2 geoms, 3 mesh assets):
+**Example 2 — Per-world meshes: Body-level** randomization (1 body, 1 or 2 geoms, 3 mesh assets):
 
 .. admonition:: Maximum geom count
    :class: important
@@ -783,6 +795,14 @@ The base scene includes all mesh assets. The geom references one mesh (``mesh_a`
    * - ``body_iquat``
      - ``wp.quat``
      - ``(nworld, nbody)``
+
+Per-world height fields, materials, and textures can be similarly formulated.
+
+.. admonition:: Per-world asset dependent field construction
+  :class: note
+
+  MJWarp enables per-world asset functionality but does not provide utilities for construction of dependent per-world
+  field variants. Construction is left to the user or environment authoring frameworks.
 
 Batch Rendering
 ===============
