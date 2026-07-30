@@ -1167,8 +1167,9 @@ void App::BuildGui() {
       ImGui::EndMainMenuBar();
     }
     if (plugin->active) {
-      ImGui::Begin(plugin->name);
-      plugin->update(plugin);
+      if (ImGui::Begin(plugin->name, &plugin->active)) {
+        plugin->update(plugin);
+      }
       ImGui::End();
     }
   });
