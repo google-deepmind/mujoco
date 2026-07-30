@@ -123,6 +123,21 @@ struct StatePayloadView {
 // with unknown tags are skipped.
 bool ParseStatePayload(const void* data, size_t size, StatePayloadView* out);
 
+// A decoded render state block.
+struct RenderStateView {
+  mjvCamera camera;
+  mjvPerturb perturb;
+  mjvOption vis_options;
+  mjOption opt;
+  mjVisual vis;
+  mjStatistic stat;
+  uint8_t render_flags[mjNRNDFLAG];
+};
+
+// Decodes a render state block produced by the serializer. `data` must hold
+// kRenderStateSize bytes (e.g. StatePayloadView::render_state).
+void ParseRenderState(const std::byte* data, RenderStateView* out);
+
 }  // namespace mujoco::studio
 
 #endif  // MUJOCO_PYTHON_EXPERIMENTAL_STUDIO_WEB_STATE_PAYLOAD_H_

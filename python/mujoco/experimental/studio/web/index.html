@@ -1,0 +1,207 @@
+<!doctype html>
+<!--
+Copyright 2026 DeepMind Technologies Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>MuJoCo Web Viewer</title>
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: #1a1a2e;
+      }
+      canvas {
+        width: 100vw;
+        height: 100vh;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+    <script>
+      // Standard WebSocket close codes.
+      const WS_CLOSE_POLICY_VIOLATION = 1008;
+      const WS_CLOSE_MESSAGE_TOO_BIG = 1009;
+
+      // Our custom WebSocket close codes in range 4xxx.
+      const WS_CLOSE_CONTROLLER_TAKEN = 4001;
+      const WS_CLOSE_SESSION_FULL = 4002;
+      const WS_CLOSE_INACTIVE = 4003;
+      const WS_CLOSE_NOT_CONTROLLER = 4004;
+
+      var Module = {
+        canvas: (() => {
+          const canvas = document.getElementById("canvas");
+          return canvas;
+        })(),
+        locateFile: function (path, prefix) {
+          if (path.endsWith(".data")) {
+            return "web_client.data";
+          }
+          if (path.includes("assets/")) {
+            const filename = path.substring(path.lastIndexOf("/") + 1);
+            return "assets/" + filename;
+          }
+          return prefix + path;
+        },
+        onRuntimeInitialized: () => {
+          const assetsToPrefetch = [
+            "AtkinsonHyperlegibleNext[wght].ttf",
+            "AtkinsonHyperlegibleMono-Regular.ttf",
+            "fontawesome-webfont.ttf",
+            "ibl.ktx",
+            "pbr.filamat",
+            "pbr_transparent.filamat",
+            "pbr_packed.filamat",
+            "pbr_packed_transparent.filamat",
+            "phong_2d.filamat",
+            "phong_2d_fade.filamat",
+            "phong_2d_reflect.filamat",
+            "phong_2d_uv.filamat",
+            "phong_2d_uv_fade.filamat",
+            "phong_2d_uv_reflect.filamat",
+            "phong_color.filamat",
+            "phong_color_fade.filamat",
+            "phong_color_reflect.filamat",
+            "phong_cube.filamat",
+            "phong_cube_fade.filamat",
+            "phong_cube_reflect.filamat",
+            "outline_composite.filamat",
+            "outline_flatten.filamat",
+            "outline_jumpflood.filamat",
+            "decor.filamat",
+            "unlit_depth.filamat",
+            "unlit_segmentation.filamat",
+            "unlit_ui.filamat",
+          ];
+
+          const assetPromises = assetsToPrefetch.map(async (filename) => {
+            try {
+              const response = await fetch("assets/" + filename);
+              if (!response.ok) {
+                console.error(`Failed to fetch asset ${filename}: ${response.statusText}`);
+                return;
+              }
+              const buffer = await response.arrayBuffer();
+              Module.registerAsset(filename, new Uint8Array(buffer));
+            } catch (error) {
+              console.error(`Error prefetching asset ${filename}:`, error);
+            }
+          });
+          Promise.all(assetPromises).then(() => {
+            Module.startApp();
+          });
+        },
+      };
+      // Set only the CSS size; SDL owns canvas.width/height. Use whole
+      // pixels: a fractional size (100vw/100vh under display scaling) makes
+      // the streamed UI relayout — and visibly flicker — every frame.
+      function fitCanvas() {
+        Module.canvas.style.width = Math.floor(window.innerWidth) + "px";
+        Module.canvas.style.height = Math.floor(window.innerHeight) + "px";
+      }
+      fitCanvas();
+      window.addEventListener("resize", fitCanvas);
+
+      // Drag & drop: upload dropped model files to the viewer over the
+      // /drop WebSocket. Each file is one binary frame ([u32 path length]
+      // [relative path utf-8][file bytes], little-endian), an empty frame
+      // marks the end of the drop, and the server closes once it has
+      // everything (parsed by web_server.py's drop_handler). Folders are
+      // walked recursively so models with separate asset files work; the
+      // viewer picks the root model file (see web_viewer._pick_drop_root).
+      // Loading a model changes the session for everyone, so only the
+      // controller may drop; the server rejects drops from other pages and the
+      // spectator check below just skips the pointless upload.
+      window.addEventListener("dragover", (e) => e.preventDefault());
+      window.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        if (window.Module && Module.isSpectator) {
+          console.warn("Model drop ignored: only the controlling page can load models.");
+          return;
+        }
+        // Capture entries synchronously: DataTransferItems are invalidated
+        // as soon as this handler awaits.
+        const items = e.dataTransfer ? [...e.dataTransfer.items] : [];
+        const entries = items
+          .map((i) => i.webkitGetAsEntry && i.webkitGetAsEntry())
+          .filter(Boolean);
+        const files = []; // {path, file}
+        async function walk(entry, prefix) {
+          if (entry.isFile) {
+            const file = await new Promise((ok, err) => entry.file(ok, err));
+            files.push({ path: prefix + entry.name, file });
+          } else if (entry.isDirectory) {
+            const reader = entry.createReader();
+            for (;;) {
+              // readEntries returns batches (<=100); loop until empty.
+              const batch = await new Promise((ok, err) => reader.readEntries(ok, err));
+              if (!batch.length) break;
+              for (const child of batch) {
+                await walk(child, prefix + entry.name + "/");
+              }
+            }
+          }
+        }
+        for (const entry of entries) await walk(entry, "");
+        if (!files.length) return;
+        // The server limits each WebSocket message size. If any file exceeds the limit, the server
+        // closes the connection with WS_CLOSE_MESSAGE_TOO_BIG mid-upload and the entire drop is
+        // discarded. Check client-side first to give a clear message, not a silent failure.
+        const MAX_DROP_FILE_BYTES = 64 * 1024 * 1024;
+        const tooBig = files.find((f) => f.file.size > MAX_DROP_FILE_BYTES);
+        if (tooBig) {
+          console.warn(
+            `Model drop rejected: "${tooBig.path}" is larger than ` +
+              `${MAX_DROP_FILE_BYTES / (1024 * 1024)} MiB.`,
+          );
+          return;
+        }
+        const frames = [];
+        for (const { path, file } of files) {
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          const name = new TextEncoder().encode(path);
+          const frame = new Uint8Array(4 + name.length + bytes.length);
+          new DataView(frame.buffer).setUint32(0, name.length, true);
+          frame.set(name, 4);
+          frame.set(bytes, 4 + name.length);
+          frames.push(frame);
+        }
+        const proto = location.protocol === "https:" ? "wss://" : "ws://";
+        // The session id tells the server which page is dropping; it only
+        // accepts drops from the controller.
+        const sid = (window.Module && Module.sessionId) || "";
+        const ws = new WebSocket(proto + location.host + "/drop?sid=" + encodeURIComponent(sid));
+        ws.binaryType = "arraybuffer";
+        ws.onopen = () => {
+          for (const frame of frames) ws.send(frame);
+          ws.send(new Uint8Array(0)); // End marker; the server closes.
+        };
+        ws.onclose = (ev) => {
+          if (ev.code === WS_CLOSE_NOT_CONTROLLER) {
+            console.warn("Model drop rejected: only the controlling page can load models.");
+          } else if (ev.code === WS_CLOSE_MESSAGE_TOO_BIG) {
+            console.warn("Model drop rejected: a file exceeded the server's size limit.");
+          }
+        };
+      });
+    </script>
+    <script async src="web_client.js"></script>
+  </body>
+</html>
