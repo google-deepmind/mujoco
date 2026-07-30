@@ -16,11 +16,15 @@
 // This material writes the the screen-space position of each fragment as the
 // output color of that fragment. This will provide us with the initial data for
 // the Jump Flood Algorithm. See "outline_jumpflood.mat" for more details.
+//
+// Depth is also written so that the render target's depth attachment holds the
+// depth of the selected objects; "outline_composite.mat" samples it to dim
+// occluded portions of the outline.
 material {
     name : outline_flatten,
     shadingModel : unlit,
     culling : none,
-    depthWrite : false
+    depthWrite : true
 }
 
 fragment {

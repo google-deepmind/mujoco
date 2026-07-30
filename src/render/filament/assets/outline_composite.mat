@@ -16,6 +16,8 @@
 // outline around an object. The outline is drawn by checking the distance to
 // the nearest edge point (as computed by the algorithm) and, if within the
 // desired width, setting the color of the pixel to the desired outline color.
+// The outline is dimmed where it is occluded, i.e. where the scene contains
+// geometry that is closer than the selected object at the nearest edge point.
 
 material {
     name : outline_composite,
@@ -25,8 +27,11 @@ material {
     depthCulling : false,
     parameters : [
         { type : sampler2d, name : source },
+        { type : sampler2d, name : scene_depth, precision : high, filterable : false },
+        { type : sampler2d, name : selection_depth, precision : high, filterable : false },
         { type : float4, name : color },
-        { type : float, name : width }
+        { type : float, name : width },
+        { type : float, name : dim }
     ],
     variables : [
         vertex
@@ -77,6 +82,18 @@ fragment {
     float inner_alpha = smoothstep(0.0, 1.0, dist);
     float outer_alpha = smoothstep(width, width - 1.0, dist);
     float alpha = outer_alpha * inner_alpha;
+
+    // Dim the outline where it is occluded. The depth buffer is reversed
+    // (1 = near, 0 = far), so the outline is occluded if the scene depth at
+    // this pixel is greater than the depth of the selected object at the
+    // nearest edge point. The epsilon avoids spurious dimming where the two
+    // depths are nearly equal, e.g. at contact points.
+    highp float scene_z = texture(materialParams_scene_depth, variable_vertex.xy).r;
+    highp float edge_z = texture(materialParams_selection_depth, edge).r;
+    if (scene_z > edge_z * 1.001 + 1e-6) {
+      alpha *= materialParams.dim;
+    }
+
     postProcess.color = mix(vec4(0), materialParams.color, alpha * materialParams.color.a);
   }
 }
