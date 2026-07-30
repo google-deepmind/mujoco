@@ -471,6 +471,8 @@ class FfiKernel:
                         launch_bounds.size,
                         0,
                         256,
+                        int(self.kernel.grid_stride),
+                        hooks.cluster_dim,
                         hooks.forward_smem_bytes,
                         kernel_params,
                         stream,

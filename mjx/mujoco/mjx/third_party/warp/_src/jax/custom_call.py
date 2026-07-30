@@ -5,7 +5,7 @@ import ctypes
 from functools import reduce
 
 import warp as wp
-from warp._src.context import _build_launch_bounds, type_str
+from warp._src.context import _build_launch_bounds, _raise_cuda_launch_error, _validate_cluster_launch, type_str
 from mujoco.mjx.third_party.warp._src.jax import get_jax_device
 from warp._src.logger import log_warning
 from warp._src.types import array_t, matches_array_class, strides_from_shape
@@ -129,10 +129,25 @@ def _warp_custom_callback(stream, buffers, opaque, opaque_len):
     hooks = kernel.module.get_kernel_hooks(kernel, device)
     assert hooks.forward, "Failed to find kernel entry point"
 
-    # Launch the kernel.
-    wp._src.context.runtime.core.wp_cuda_launch_kernel(
-        device.context, hooks.forward, bounds.size, 0, 256, hooks.forward_smem_bytes, kernel_params, stream, None
-    )
+    # Reject non-cluster-aligned grids with a clear Python error instead of a
+    # cryptic native CUDA error (block_dim=256, max_blocks=0 below).
+    _validate_cluster_launch(hooks.cluster_dim, bounds.size, 256, 0)
+
+    # Launch the kernel (cluster_dim is cached on the hooks at load time).
+    if wp._src.context.runtime.core.wp_cuda_launch_kernel(
+        device.context,
+        hooks.forward,
+        bounds.size,
+        0,
+        256,
+        int(kernel.grid_stride),
+        hooks.cluster_dim,
+        hooks.forward_smem_bytes,
+        kernel_params,
+        stream,
+        None,
+    ):
+        _raise_cuda_launch_error(kernel, device)
 
 
 def _create_jax_warp_primitive():
