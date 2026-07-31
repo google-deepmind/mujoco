@@ -32,6 +32,7 @@
 #include <imgui.h>
 #include <mujoco/mujoco.h>
 #include "experimental/platform/hal/graphics_mode.h"
+#include "experimental/platform/ux/fonts.h"
 #include "user/user_resource.h"
 
 // Because X11/Xlib.h defines Status.
@@ -63,36 +64,7 @@ static void InitImGui(SDL_Window* window, float content_scale,
   style.FontScaleDpi = content_scale;
 
   if (load_fonts) {
-    mjResource* font = nullptr;
-    int size = 0;
-    void* data = nullptr;
-
-    ImFontConfig main_cfg;
-    main_cfg.FontDataOwnedByAtlas = false;
-    font =
-        mju_openResource("", "font:AtkinsonHyperlegibleNext[wght].ttf",
-                         nullptr, nullptr, 0);
-    size = mju_readResource(font, const_cast<const void**>(&data));
-    io.Fonts->AddFontFromMemoryTTF(data, size, 16.f, &main_cfg);
-
-    ImFontConfig icon_cfg;
-    icon_cfg.FontDataOwnedByAtlas = false;
-    icon_cfg.MergeMode = true;
-    font = mju_openResource("", "font:fontawesome-webfont.ttf", nullptr,
-                            nullptr, 0);
-    size = mju_readResource(font, const_cast<const void**>(&data));
-    constexpr ImWchar icon_ranges[] = {0xf000, 0xf3ff, 0x000};
-    io.Fonts->AddFontFromMemoryTTF(data, size, 13.f, &icon_cfg, icon_ranges);
-
-    ImFontConfig mono_cfg;
-    mono_cfg.FontDataOwnedByAtlas = false;
-    font = mju_openResource("", "font:AtkinsonHyperlegibleMono-Regular.ttf", nullptr,
-                            nullptr, 0);
-    size = mju_readResource(font, const_cast<const void**>(&data));
-    io.Fonts->AddFontFromMemoryTTF(data, size, 14.f, &mono_cfg);
-
-    // Note: we purposefully do not "close" the font resources as ImGui may
-    // need them again to resize fonts.
+    AddStudioFonts(LoadFontResource);
   }
 }
 
