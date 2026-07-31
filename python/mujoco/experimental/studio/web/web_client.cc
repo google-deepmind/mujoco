@@ -37,8 +37,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "third_party/SDL2/include/SDL.h"
-#include "third_party/SDL2/include/SDL_opengl.h"
+#include <SDL.h>
+#include <SDL_opengl.h>
 #include <imgui.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>

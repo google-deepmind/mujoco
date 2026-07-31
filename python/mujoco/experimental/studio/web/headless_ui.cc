@@ -30,7 +30,7 @@
 
 #include <imgui.h>
 #include <implot.h>
-#include "experimental/platform/ux/fonts.h"
+#include <mujoco/experimental/platform/ux/fonts.h>
 #include <NetImgui_Api.h>
 #include "google/logging.h"
 #include <pybind11/pybind11.h>
