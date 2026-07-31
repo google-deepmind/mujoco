@@ -75,7 +75,8 @@ struct ModelPlugin final {
                                            int content_type_size,
                                            char* model_name,
                                            int model_name_size);
-  using PostModelLoadedFn = void (*)(ModelPlugin* self, const char* model_path);
+  using PostModelLoadedFn = void (*)(ModelPlugin* self, const mjModel* model,
+                                     const char* model_path);
   using DoUpdateFn = bool (*)(ModelPlugin* self, mjModel* model, mjData* data);
   using PreStepFn = void (*)(ModelPlugin* self, const mjModel* model,
                              mjData* data);

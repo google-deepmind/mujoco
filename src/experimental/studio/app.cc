@@ -268,7 +268,7 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
 
   platform::ForEachPlugin<platform::ModelPlugin>([&](auto* plugin) {
     if (plugin->post_model_loaded) {
-      plugin->post_model_loaded(plugin, model_path_.c_str());
+      plugin->post_model_loaded(plugin, model, model_path_.c_str());
     }
   });
   tmp_.update_threadpool = true;

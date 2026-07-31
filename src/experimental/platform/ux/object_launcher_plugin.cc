@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <random>
 #include <string>
@@ -34,9 +35,12 @@ class ObjectLauncher {
   void UpdateGui() {
     using platform::ImGui_Input;
 
-    ImGui_Input("Size", &size_, {0.01f, 1.0f, 0.01, 0.1});
-    ImGui_Input("Speed", &speed_, {0.01f, 100.0f, 0.1, 1.0});
-    ImGui_Input("Mass", &mass_, {0.01f, 100.0f, 0.01, 0.1});
+    ImGui_Input("Size", &size_,
+                {size_seed_ * 1e-3, size_seed_ * 1e4, size_seed_ * 0.1, size_seed_});
+    ImGui_Input("Speed", &speed_,
+                {speed_seed_ * 1e-3, speed_seed_ * 1e4, speed_seed_ * 0.1, speed_seed_});
+    ImGui_Input("Mass", &mass_,
+                {mass_seed_ * 1e-3, mass_seed_ * 1e4, mass_seed_ * 0.1, mass_seed_});
     ImGui_Input("Life", &lifetime_, {0.0f, 60.0f, 0.1, 1.0});
 
     int shape = type_ == mjGEOM_BOX ? 0 : 1;
@@ -62,6 +66,16 @@ class ObjectLauncher {
         active_ = true;
       }
     });
+  }
+
+  void OnModelLoaded(const mjModel* model) {
+    if (!model) return;
+    Seed(model->stat.meansize, &size_, &size_seed_);
+    Seed(model->stat.meanmass, &mass_, &mass_seed_);
+    const mjtNum gravity = mju_norm3(model->opt.gravity);
+    const mjtNum g = gravity > mjMINVAL ? gravity : 9.81;
+    // Ballistic scale: the launch arc spans a few model extents.
+    Seed(1.5 * mju_sqrt(model->stat.extent * g), &speed_, &speed_seed_);
   }
 
   bool UpdateSpecPreCompile(mjSpec* spec, const mjModel* model,
@@ -103,8 +117,7 @@ class ObjectLauncher {
 
     mjtNum pos[3];
     mjtNum dir[3];
-    mjtNum up[3];
-    mjv_cameraFrame(pos, dir, up, nullptr, data, camera);
+    mjv_cameraFrame(pos, dir, nullptr, nullptr, data, camera);
     mjs_setName(body->element, object.name.c_str());
 
     joint->type = mjJNT_FREE;
@@ -122,10 +135,9 @@ class ObjectLauncher {
     geom->rgba[1] = std::uniform_real_distribution<float>(0.3f, 1.0f)(rng_);
     geom->rgba[2] = std::uniform_real_distribution<float>(0.3f, 1.0f)(rng_);
     geom->rgba[3] = 1.0;
-    // Launch it slightly upwards to get a nice arc.
-    launch_vel_[0] = (dir[0] * speed_) + up[0];
-    launch_vel_[1] = (dir[1] * speed_) + up[1];
-    launch_vel_[2] = (dir[2] * speed_) + up[2];
+    launch_vel_[0] = dir[0] * speed_;
+    launch_vel_[1] = dir[1] * speed_;
+    launch_vel_[2] = dir[2] * speed_;
     return true;
   }
 
@@ -160,6 +172,13 @@ class ObjectLauncher {
   }
 
  private:
+  // Update value with the new seed, unless the user has edited it.
+  static void Seed(mjtNum seed, mjtNum* value, mjtNum* prev_seed) {
+    if (seed <= 0 || !std::isfinite(seed)) return;
+    if (*value == *prev_seed) *value = seed;
+    *prev_seed = seed;
+  }
+
   struct ObjectInfo {
     std::string name;
     int body_id = -1;
@@ -170,10 +189,13 @@ class ObjectLauncher {
   std::mt19937 rng_;
   int counter_ = 0;
   bool active_ = false;
-  mjtNum size_ = 0.13365;
+  mjtNum size_ = 0.1;
   mjtNum speed_ = 10.0;
   mjtNum mass_ = 10.0;
   mjtNum lifetime_ = 5.0;
+  mjtNum size_seed_ = 0.1;
+  mjtNum speed_seed_ = 10.0;
+  mjtNum mass_seed_ = 10.0;
   mjtGeom type_ = mjGEOM_BOX;
   mjtNum launch_vel_[3] = {0, 0, 0};
   std::vector<ObjectInfo> objects_;
@@ -204,6 +226,17 @@ mjPLUGIN_LIB_INIT(object_launcher) {
     plugin->HandleKeyboardEvent();
   };
   mujoco::platform::RegisterPlugin(key_handler);
+
+  mujoco::platform::ModelPlugin model_plugin;
+  model_plugin.data = &plugin;
+  model_plugin.name = mujoco::studio::kObjectLauncherName;
+  model_plugin.post_model_loaded = [](mujoco::platform::ModelPlugin* self,
+                                      const mjModel* model,
+                                      const char* model_path) {
+    auto* plugin = static_cast<mujoco::studio::ObjectLauncher*>(self->data);
+    plugin->OnModelLoaded(model);
+  };
+  mujoco::platform::RegisterPlugin(model_plugin);
 
   mujoco::platform::SpecEditorPlugin spec_editor;
   spec_editor.data = &plugin;
