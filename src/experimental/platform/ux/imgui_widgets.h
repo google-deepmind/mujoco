@@ -44,18 +44,36 @@ inline float GetStableAvailWidth() {
 
   // Walk up past child windows to the actual panel that owns the scrollbar.
   ImGuiWindow* scroll_owner = window;
-  while (scroll_owner &&
-         (scroll_owner->Flags & ImGuiWindowFlags_ChildWindow) &&
+  while (scroll_owner && (scroll_owner->Flags & ImGuiWindowFlags_ChildWindow) &&
          scroll_owner->ParentWindow) {
     scroll_owner = scroll_owner->ParentWindow;
   }
 
-  if (scroll_owner &&
-      !(scroll_owner->Flags & ImGuiWindowFlags_NoScrollbar) &&
+  if (scroll_owner && !(scroll_owner->Flags & ImGuiWindowFlags_NoScrollbar) &&
       !scroll_owner->ScrollbarY) {
     avail_x -= ImGui::GetStyle().ScrollbarSize;
   }
   return avail_x;
+}
+
+// Draws one line of text horizontally centered in the current window.
+inline void CenteredLine(const char* text, const ImVec4* color = nullptr) {
+  ImGui::SetCursorPosX(ImMax(
+      0.0f, (ImGui::GetWindowWidth() - ImGui::CalcTextSize(text).x) * 0.5f));
+  if (color != nullptr) {
+    ImGui::TextColored(*color, "%s", text);
+  } else {
+    ImGui::TextUnformatted(text);
+  }
+}
+
+// Large centered banner text.
+inline void CenteredBanner(const char* text, const ImVec4& color) {
+  ImGui::SetWindowFontScale(1.6f);
+  ImGui::SetCursorPosX(ImMax(
+      0.0f, (ImGui::GetWindowWidth() - ImGui::CalcTextSize(text).x) * 0.5f));
+  ImGui::TextColored(color, "%s", text);
+  ImGui::SetWindowFontScale(1.0f);
 }
 
 // FontAwesome icon codes.
@@ -160,9 +178,7 @@ struct ScopedStyle {
     return *this;
   }
 
-  ScopedStyle& Font(ScopedFont font) {
-    return Font(static_cast<int>(font));
-  }
+  ScopedStyle& Font(ScopedFont font) { return Font(static_cast<int>(font)); }
 
   ScopedStyle& Color(ImGuiCol col, ImColor color) {
     ImGui::PushStyleColor(col, (ImU32)color);
@@ -460,6 +476,15 @@ void ImGui_EndHSplit(bool open);
 // ImGui Slider that supports both float and double types.
 bool ImGui_Slider(const char* name, mjtNum* value, mjtNum min, mjtNum max);
 
+// Logarithmic slider; the geometric mean of min and max sits mid-slider.
+// Ctrl+Click values typed by the user may exceed [min, max].
+bool ImGui_SliderLog(const char* name, mjtNum* value, mjtNum min, mjtNum max);
+
+// Small right-aligned reset button on the current line; returns true when
+// clicked. Use after a widget to give it a visible reset affordance.
+bool ImGui_ResetButton(const char* id, const char* icon = ICON_FA_UNDO,
+                       const char* tooltip = "Reset");
+
 template <typename T>
 bool ImGui_Checkbox(const char* name, T& value) {
   static_assert(std::is_integral<T>());
@@ -643,8 +668,8 @@ inline bool ImGui_ColorButtonEx(const char* label, bool active, ImColor color,
 
   // Draw border.
   if (s.FrameBorderSize > 0) {
-    dl->AddRect(pos, max, ImGui::GetColorU32(ImGuiCol_Border),
-                s.FrameRounding, corners, s.FrameBorderSize);
+    dl->AddRect(pos, max, ImGui::GetColorU32(ImGuiCol_Border), s.FrameRounding,
+                corners, s.FrameBorderSize);
   }
 
   // Draw label centered.

@@ -16,7 +16,7 @@
 #define MUJOCO_MUJOCO_H_
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 3011000
+#define mjVERSION_HEADER 3011001
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -787,6 +787,10 @@ MJAPI void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* 
 
 // Return the average of two OpenGL cameras.
 MJAPI mjvGLCamera mjv_averageCamera(const mjvGLCamera* cam1, const mjvGLCamera* cam2);
+
+// Converts a mjvCamera to a mjvGLCamera.
+MJAPI mjvGLCamera mjv_camera2GLCamera(const mjModel* model, const mjData* data,
+                                      const mjvCamera* mjv_camera);
 
 // Select geom, flex or skin with mouse; return bodyid; -1: none selected.
 // Nullable: geomid, flexid, skinid

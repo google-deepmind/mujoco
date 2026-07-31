@@ -667,10 +667,23 @@ static void initGL3(const mjvScene* scn, const mjrContext* con) {
 
 
 
+// light type is supported by the fixed-function pipeline
+static int isSupportedLight(const mjvLight* light) {
+  return light->type == mjLIGHT_DIRECTIONAL || light->type == mjLIGHT_SPOT;
+}
+
+
+
 // init lights
 static void initLights(mjvScene* scn) {
-  // create some ambient light if no ligths are present
-  float global = scn->nlight ? 0 : 0.3f;
+  // count supported lights
+  int nsupported = 0;
+  for (int i=0; i < scn->nlight; i++) {
+    nsupported += isSupportedLight(scn->lights+i);
+  }
+
+  // create some ambient light if no supported lights are present
+  float global = nsupported ? 0 : 0.3f;
   float rgba_global[4] = {global, global, global, 1};
 
   // init light model
@@ -680,6 +693,11 @@ static void initLights(mjvScene* scn) {
 
   // set light properties
   for (int i=0; i < scn->nlight; i++) {
+    // ignore unsupported light types: mjLIGHT_POINT, mjLIGHT_IMAGE
+    if (!isSupportedLight(scn->lights+i)) {
+      continue;
+    }
+
     // colors
     glLightfv(GL_LIGHT0+i, GL_AMBIENT, scn->lights[i].ambient);
     glLightfv(GL_LIGHT0+i, GL_DIFFUSE, scn->lights[i].diffuse);
@@ -701,10 +719,6 @@ static void initLights(mjvScene* scn) {
       glLightf(GL_LIGHT0+i, GL_CONSTANT_ATTENUATION,  scn->lights[i].attenuation[0]);
       glLightf(GL_LIGHT0+i, GL_LINEAR_ATTENUATION,    scn->lights[i].attenuation[1]);
       glLightf(GL_LIGHT0+i, GL_QUADRATIC_ATTENUATION, scn->lights[i].attenuation[2]);
-    }
-
-    else {
-      // ignore unsupported light types: mjLIGHT_POINT, mjLIGHT_IMAGE
     }
   }
 
@@ -1089,10 +1103,12 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           glPushMatrix();
           mjr_reflect(thisgeom->pos, thisgeom->mat);
 
-          // set light position and direction, enable
+          // set light position and direction, enable supported lights
           for (int j=0; j < nlight; j++) {
-            adjustLight(scn->lights+j, j);
-            glEnable(GL_LIGHT0+j);
+            if (isSupportedLight(scn->lights+j)) {
+              adjustLight(scn->lights+j, j);
+              glEnable(GL_LIGHT0+j);
+            }
           }
 
           // render reflected non-transparent geoms, except for thisgeom
@@ -1143,8 +1159,13 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
 
     // set light position and direction, enable non-shadow lights
     for (int i=0; i < nlight; i++) {
-      // set light
+      // get pointer, ignore unsupported light types
       thislight = scn->lights + i;
+      if (!isSupportedLight(thislight)) {
+        continue;
+      }
+
+      // set light
       adjustLight(thislight, i);
 
       // enable lights without shadows
@@ -1184,10 +1205,10 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
     // shadow map rendering
     if (scn->flags[mjRND_SHADOW] && con->shadowFBO) {
       for (int i=0; i < nlight; i++) {
-        // get pointer
+        // get pointer, ignore unsupported light types
         thislight = scn->lights + i;
 
-        if (thislight->castshadow) {
+        if (thislight->castshadow && isSupportedLight(thislight)) {
           // prepare up-direction
           mjr_orthoVec(temp, thislight->dir);
 
@@ -1210,8 +1231,6 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           } else if (thislight->type == mjLIGHT_SPOT) {
             mjr_perspective(mju_min(2*thislight->cutoff*con->shadowScale, 160), 1,
                             cam.frustum_near, cam.frustum_far);
-          } else {
-            // ignore unsupported light types: mjLIGHT_POINT, mjLIGHT_IMAGE
           }
           glGetFloatv(GL_PROJECTION_MATRIX, lightProject);
 
@@ -1408,9 +1427,11 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
 
     //------------------------------------ transparent regular rendering
 
-    // enable lights
+    // enable supported lights
     for (int i=0; i < nlight; i++) {
-      glEnable(GL_LIGHT0+i);
+      if (isSupportedLight(scn->lights+i)) {
+        glEnable(GL_LIGHT0+i);
+      }
     }
 
     // blend mode

@@ -1421,9 +1421,10 @@ This is useful for example when the MJB is not available as a file on disk.)"));
 
   mjvFigure.def_readonly("linename", &MjvFigureWrapper::linename);
 
-  // mjv_averageCamera returns an mjvGLCamera and we need to call the wrapper's
-  // constructor on the return value. Defining the binding for this function
-  // in this file to avoid symbol dependency across modules.
+  // mjv_averageCamera and mjv_camera2GLCamera both return an mjvGLCamera.
+  // We need to call the wrapper's constructor on the return value. Defining the
+  // binding for these functions in this file to avoid symbol dependency across
+  // modules.
   m.def(
       "mjv_averageCamera",
       [](const MjvGLCameraWrapper& cam1, const MjvGLCameraWrapper& cam2) {
@@ -1434,6 +1435,19 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       },
       py::arg("cam1"), py::arg("cam2"),
       py::doc(python_traits::mjv_averageCamera::doc));
+
+  m.def(
+      "mjv_camera2GLCamera",
+      [](const MjModelWrapper& m, const MjDataWrapper& d,
+         const MjvCameraWrapper& cam) {
+        return MjvGLCameraWrapper([&m, &d, &cam]() {
+          py::gil_scoped_release no_gil;
+          return InterceptMjErrors(mjv_camera2GLCamera)(m.get(), d.get(),
+                                                        cam.get());
+        }());
+      },
+      py::arg("m"), py::arg("d"), py::arg("cam"),
+      py::doc(python_traits::mjv_camera2GLCamera::doc));
 
   m.def("_recompile_spec_addr", [](uintptr_t spec_addr, const MjModelWrapper& m,
                                    const MjDataWrapper& d) {

@@ -117,7 +117,7 @@ public const int mjMAXLINEPNT = 1001;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 3011000;
+public const int mjVERSION_HEADER = 3011001;
 
 
 // ------------------------------------Enums------------------------------------
@@ -5888,9 +5888,6 @@ public unsafe struct mjData_ {
   public int* efm_K_colind;
   public double* efm_K_val;
   public int* efm_dofid;
-  public int* efm_L_rownnz;
-  public int* efm_L_rowadr;
-  public int* efm_L_colind;
   public double* efm_L;
   public double* efc_b;
   public double* iefc_aref;
@@ -7224,6 +7221,9 @@ public static unsafe extern void mjv_applyPerturbForce(mjModel_* m, mjData_* d, 
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern mjvGLCamera_ mjv_averageCamera(mjvGLCamera_* cam1, mjvGLCamera_* cam2);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern mjvGLCamera_ mjv_camera2GLCamera(mjModel_* model, mjData_* data, mjvCamera_* mjv_camera);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mjv_select(mjModel_* m, mjData_* d, mjvOption_* vopt, double aspectratio, double relx, double rely, mjvScene_* scn, double* selpnt, int* geomid, int* flexid, int* skinid);

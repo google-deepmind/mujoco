@@ -58,6 +58,9 @@ class ViewerConfig:
   height: int = 800
   gfx: str = ''
   viewer_mode: ViewerMode = ViewerMode.NATIVE
+  # Web viewer only: public port. 0 picks the first free port starting at 8080,
+  # so several viewers can run side by side.
+  http_port: int = 0
 
 
 # Legacy message types kept for backward compatibility.
@@ -141,6 +144,7 @@ class Viewer(abc.ABC):
     self.config = config
     self._endpoint = endpoint
     self._is_running = True
+    self._closed = False
 
     # Viewer-owned model and data.
     if model is None:
@@ -169,13 +173,21 @@ class Viewer(abc.ABC):
 
   def close(self) -> None:
     """Closes the viewer, sends an exit event and shuts down the endpoint."""
-    if self._is_running:
-      self._is_running = False
-      try:
-        self.send_to_sim(messages.ExitEvent())
-      except Exception:  # pylint: disable=broad-exception-caught
-        pass  # Ignore exceptions, the sim may have already closed.
-      self._endpoint.close()
+    if self._closed:
+      return
+    self._closed = True
+    self._is_running = False
+    try:
+      self.send_to_sim(messages.ExitEvent())
+    except Exception:  # pylint: disable=broad-exception-caught
+      pass  # Ignore exceptions, the sim may have already closed.
+    self._endpoint.close()
+
+  @messages.handler(priority=messages.Priority.CRITICAL)
+  def _on_exit(self, _: messages.ExitEvent) -> bool:
+    """Stops the viewer loop when the sim side requests an exit."""
+    self._is_running = False
+    return False  # Do not consume; app handlers may want cleanup too.
 
   def is_running(self) -> bool:
     """Returns True while the viewer has not been closed."""
@@ -222,6 +234,11 @@ class Viewer(abc.ABC):
     return False  # Do not consume; let other handlers see the event.
 
   @abc.abstractmethod
+  def prepare_next_frame(self) -> bool:
+    """Advances to the next frame; returns whether one is ready to render."""
+    ...
+
+  @abc.abstractmethod
   def sync(self) -> None:
     """Renders the scene using the viewer's current model and data."""
     ...
@@ -251,18 +268,30 @@ def run_viewer_loop(viewer: Viewer) -> None:
   Args:
     viewer: A Viewer that owns the endpoint and handler registry.
   """
-  while viewer.is_running():
-    # Process incoming messages.
+  while True:
+    # Get the next frame; this also gets the frame's mouse/keyboard events.
+    frame = viewer.prepare_next_frame()
+
+    # Process incoming simulation events.
     for event in viewer.get_sim_events():
       viewer.dispatch(event)
+
+    # Stop the loop if the viewer is not running (endpoint will be closed).
+    if not viewer.is_running():
+      break
+
+    # Process incoming simulation snapshots.
     for snapshot in viewer.get_sim_snapshots():
       viewer.dispatch(snapshot)
 
-    # Dispatch lifecycle events.
-    viewer.dispatch(messages.UpdateEvent())
-    viewer.dispatch(messages.BuildGuiEvent())
+    # Skip rendering when prepare_next_frame returned no active frame.
+    # e.g., no browser is connected to the web viewer.
+    if frame:
+      # Dispatch lifecycle events.
+      viewer.dispatch(messages.UpdateEvent())
+      viewer.dispatch(messages.BuildGuiEvent())
 
-    # Render the scene.
-    viewer.sync()
+      # Render the scene.
+      viewer.sync()
 
   viewer.close()

@@ -606,6 +606,7 @@ void mj_collision(const mjModel* m, mjData* d) {
 
   // return if disabled
   if (mjDISABLED(mjDSBL_CONSTRAINT) || mjDISABLED(mjDSBL_CONTACT) || nbodyflex < 2) {
+    TM_END1(mjTIMER_POS_COLLISION);
     return;
   }
 

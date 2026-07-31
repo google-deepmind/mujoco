@@ -8,20 +8,48 @@ Upcoming version (not yet released)
 Engine
 ^^^^^^
 
+- Replaced the per-step sparse Cholesky factorization of the flex block of the implicit effective metric M + K with
+  its prefactored per-vertex 3x3 diagonal blocks. The blocks precondition the CG constraint solver and drive an
+  iterative solve for ``qacc_smooth``, which now converges on :ref:`tolerance<option-tolerance>` rather than a fixed
+  threshold. Flexes with :ref:`elastic2d<flex-elasticity-elastic2d>` stretch stiffness step roughly twice as fast;
+  bending-only flexes keep the exact constant factor and are unchanged.
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - Removed ``mjData.efm_L_rownnz``, ``mjData.efm_L_rowadr`` and ``mjData.efm_L_colind``. They described the sparsity
+     of the effective-metric Cholesky factor, which no longer exists; ``mjData.efm_L`` now holds dense 3x3 blocks,
+     9 numbers per covered vertex. ``mjData.efm_active`` no longer takes the value 2: nothing selects a solve path on
+     preconditioner exactness, so it is now a plain 0/1 flag.
+
+Models
+^^^^^^
+
+- Added `bag <https://github.com/google-deepmind/mujoco/blob/main/model/flex/bag.xml>`__ example model: a cloth bag,
+  held open by pinning the ring of vertices around its mouth, catching the standard humanoid dropped in from above.
+  Unlike the poncho models, which are bending-only, this model exercises the 2D
+  :ref:`stretch<flex-elasticity-elastic2d>` elasticity of a flex.
+
+Version 3.11.0 (July 27, 2026)
+------------------------------
+
+Engine
+^^^^^^
+
 .. youtube:: PdSdrqhSiZA
    :aspect: 16:7
    :align: right
    :width: 35%
 
-- Added :ref:`geom/surfacevel<body-geom-surfacevel>`: the velocity of a geom's surface as seen by contacts, given as
-  a velocity field with a constant component and a rotational component about the geom frame origin. This allows
-  conveyor belts, treadmills and turntables to be modeled with static geoms and no degrees of freedom: friction
-  drives touching bodies along the motion of the surface, with the field projected onto each contact's tangent
-  plane. Surface velocities compose correctly with each other and with body motion.
-  Note that the contact rows of ``mjData.efc_vel``, and the constraint-state sensors that read them, report the
-  velocity relative to the moving surface rather than to the geom, since that is the quantity the constraint acts
-  on; for geoms without :at:`surfacevel` the two are identical. Contact-point visualization draws an arrow along the
-  surface velocity at contacts with moving surfaces.
+1. :commit:`4787c809` Added :ref:`geom/surfacevel<body-geom-surfacevel>`: the velocity of a geom's surface as seen by
+   contacts, given as a velocity field with a constant component and a rotational component about the geom frame origin.
+   This allows conveyor belts, treadmills and turntables to be modeled with static geoms and no degrees of freedom:
+   friction drives touching bodies along the motion of the surface, with the field projected onto each contact's tangent
+   plane. Surface velocities compose correctly with each other and with body motion.
+   Note that the contact rows of ``mjData.efc_vel``, and the constraint-state sensors that read them, report the
+   velocity relative to the moving surface rather than to the geom, since that is the quantity the constraint acts
+   on; for geoms without :at:`surfacevel` the two are identical. Contact-point visualization draws an arrow along the
+   surface velocity at contacts with moving surfaces.
 
 .. youtube:: GioWwB36XHI
    :aspect: 16:7
@@ -54,130 +82,160 @@ Engine
   Contribution by :github:user:`teerthsharma`.
 - Replaced quadratic flexcomp unused-point reindexing with an equivalent linear prefix scan.
   Contribution by :github:user:`teerthsharma`.
+2. :commit:`a264d0bc` Added :ref:`geom/adhesion<body-geom-adhesion>` and :ref:`pair/adhesion<contact-pair-adhesion>`: an
+   adhesive force associated with a contact, useful for modeling sticky materials. Contacts can pull with up to the
+   given force before breaking, and the friction budget becomes :math:`\mu(f_N + \text{adhesion})`. Combined with
+   :ref:`gap<body-geom-gap>`, adhesive contacts apply "adhesion at a distance", useful for modeling magnets. Resting
+   penetration is unaffected by adhesion. :ref:`mj_contactForce` reports the net interface force, whose normal component
+   can now be negative.
+3. :commit:`f0fa3d82` Replaced midpoint integration of free bodies with :ref:`gyroscopic derivatives<geFreeBody>` in the
+   ``implicitfast`` :ref:`integrator<geIntegrators>`: the bias-force derivative of every standalone free body is applied
+   via a local unsymmetric solve of its decoupled block, making ``implicitfast`` identical to ``implicit`` for such
+   bodies. Unlike midpoint integration, which required vacuum and no constraints, this applies in all environments
+   (contacts, fluid, constraints), and is compatible with discrete-time inverse dynamics. Spinning free bodies no
+   longer gain energy, but tumbling motion is now mildly damped; models requiring long-horizon energy conservation of
+   tumbling bodies in vacuum should use ``RK4``. The :ref:`invdiscrete<option-flag-invdiscrete>` flag no longer has any
+   effect on forward dynamics.
+4. :commit:`5618666a` Added :ref:`body/simple<body-simple>` attribute ("false"/"auto") to disable the *simple body* mass
+   matrix optimization. This is useful for domain randomization, where model parameters may change post-compilation.
+5. :commit:`14c0b0c9` :ref:`mj_setConst` now recomputes the ``mjModel.{body,geom,site}_sameframe`` flags, to account for
+   changes in body/geom/site frames after compilation.
+6. :commit:`2444defc` Added support for :ref:`multiccd <coMultiCCD>` with arbitrarily large meshes.
+7. :commit:`a04b0c5b` Added ``flg_gravcomp`` and ``flg_surfacevel`` boolean flags to ``mjModel``. These flags replace
+   the fast-path checks as originally guarded by ``ngravcomp``. Since the engine uses these integers as flags (zero vs.
+   non-zero), the new flags are honest boolean properties, writeable from the Python bindings at runtime. The field
+   ``ngravcomp`` is deprecated and will be removed in a future release.
+8. :commit:`a1f38c8e` Replaced quadratic scratch in DFS flood-fill island discovery with a linear-memory Union-Find
+   (disjoint set). Contribution by :github:user:`teerthsharma`.
 
 .. admonition:: Breaking API changes
    :class: attention
 
-   - Changed the default value of :ref:`sleep_tolerance<option-sleep_tolerance>` from 1e-4 to 1e-3 (1mm/sec in SI
-     units).
-   - Removed the legacy sparse ancestor-walk inertia matrix ``mjData.qM``. The joint-space inertia matrix is now stored
-     exclusively in the compressed sparse row (CSR) format ``mjData.M``.
-   - Switched :ref:`mjd_inverseFD` to use the CSR-format ``mjData.M`` representation instead of the legacy ``mjData.qM``
-     for the mass matrix derivative. This changes the shape of the ``DmDq`` parameter from ``(nv x nM)`` to
-     ``(nv x nC)``.
-   - :ref:`mju_round` now breaks ties away from zero rather than towards :math:`+\infty`. This only affects
-     negative half-integers, e.g. ``mju_round(-2.5)`` now returns -3 rather than -2.
-   - Removed unneeded `mjvScene` argument from :ref:`mjv_moveCamera`.
-   - Split up :ref:`mjrfMeshData` into `mjrfMeshData` and `mjrfMeshConfig` to allow reuploading of mesh data without
-     having to recreate the mesh object. Introduces :ref:`mjrfDefaultMeshConfig` and :ref:`mjrfSetMeshData` functions.
-   - Removed `bytes` field from :ref:`mjrVertexAttribute`.
+   9. :commit:`ff629889` Changed the default value of :ref:`sleep_tolerance<option-sleep_tolerance>` from 1e-4 to 1e-3
+      (1mm/sec in SI units).
+   10. :commit:`315bcfbf` Removed the legacy sparse ancestor-walk inertia matrix ``mjData.qM``. The joint-space inertia
+       matrix is now stored exclusively in the compressed sparse row (CSR) format ``mjData.M``.
+   11. :commit:`7e9ac58f` Switched :ref:`mjd_inverseFD` to use the CSR-format ``mjData.M`` representation instead of the
+       legacy ``mjData.qM`` for the mass matrix derivative. This changes the shape of the ``DmDq`` parameter from
+       ``(nv x nM)`` to ``(nv x nC)``.
+   12. :commit:`1ea2d884` :ref:`mju_round` now breaks ties away from zero rather than towards :math:`+\infty`. This only
+       affects negative half-integers, e.g. ``mju_round(-2.5)`` now returns -3 rather than -2.
+   13. :commit:`fa36015b` Removed unneeded `mjvScene` argument from :ref:`mjv_moveCamera`.
+   14. :commit:`ba9a6503` Split up :ref:`mjrfMeshData` into `mjrfMeshData` and `mjrfMeshConfig` to allow reuploading of
+       mesh data without having to recreate the mesh object. Introduces :ref:`mjrf_defaultMeshConfig` and
+       :ref:`mjrf_setMeshData` functions.
+   15. :commit:`ba9a6503` Removed `bytes` field from :ref:`mjrVertexAttribute`.
 
 .. admonition:: Breaking ABI changes
    :class: caution
 
-   - :ref:`mjModel` gained the ``actuator_ctrlspec`` field (input signature of each actuator), and :ref:`mjsActuator`
-     gained ``ctrlspec``, changing their size and layout. The :ref:`mjtGain` and :ref:`mjtBias` enums gained ``so3``
-     members, shifting the values of ``mjGAIN_USER`` and ``mjBIAS_USER``.
-   - Added ``texid``, ``texuniform`` and ``texrepeat`` fields to :ref:`mjvGeom`.
-   - The :ref:`mjContact` struct gained an ``adhesion`` member, changing its size and layout.
+   16. :commit:`072e963f` :ref:`mjModel` gained the ``actuator_ctrlspec`` field (input signature of each actuator), and
+       :ref:`mjsActuator` gained ``ctrlspec``, changing their size and layout. The :ref:`mjtGain` and :ref:`mjtBias`
+       enums gained ``so3`` members, shifting the values of ``mjGAIN_USER`` and ``mjBIAS_USER``.
+   17. :commit:`d43c3ed4` Added ``texid``, ``texuniform`` and ``texrepeat`` fields to :ref:`mjvGeom`.
+   18. :commit:`a264d0bc` The :ref:`mjContact` struct gained an ``adhesion`` member, changing its size and layout.
 
 .. admonition:: Bug fixes
    :class: admonition
 
-   - Fixed a bug where ``body_margin`` excluded ``gap``, causing the mid-phase collision filter to incorrectly prune
-     in-gap contacts on multi-geom bodies.
+   19. :commit:`dddb2767` Fixed a bug where ``body_margin`` excluded ``gap``, causing the mid-phase collision filter to
+       incorrectly prune in-gap contacts on multi-geom bodies.
 
 Actuation
 ^^^^^^^^^
-- Refactored actuator infrastructure in preparation for MIMO (multi-input multi-output) actuator support. Each actuator
-  now has ``ctrlnum`` (number of controls) and ``outnum`` (number of force outputs). The total counts
-  ``nu = sum(ctrlnum)`` and ``nout = sum(outnum)`` dimension ``mjData.ctrl`` and ``mjData.actuator_force``,
-  respectively, ``nactuator`` is the number of actuators. For existing actuators ``ctrnum = outnum = 1``, so
-  ``nactuator == nu == nout`` and existing code is unaffected.
-- Setpoints of :ref:`position<actuator-position>` and :ref:`intvelocity<actuator-intvelocity>` servos acting on 3D
-  rotational transmissions (ball joints, or site transmissions with a :ref:`refsite<actuator-general-refsite>` and
-  purely rotational gear) are now interpreted on the circle: the force uses the setpoint representative nearest the
-  current angle, so targets winding beyond half a turn are tracked continuously instead of slipping by full turns.
-  Behavior is identical whenever the error does not exceed π. Relatedly, ``intvelocity`` actuators now expose
-  :ref:`actlimited<actuator-intvelocity-actlimited>`, which was previously hardcoded to "true": as for
-  :ref:`general<actuator-general>` actuators it defaults to "auto", so activation clamping is enabled by specifying
-  ``actrange``. Unclamped integrated setpoints are well-behaved on rotational transmissions, where they wrap.
+20. :commit:`d507e921` Refactored actuator infrastructure in preparation for MIMO (multi-input multi-output) actuator
+    support. Each actuator now has ``ctrlnum`` (number of controls) and ``outnum`` (number of force outputs). The total
+    counts ``nu = sum(ctrlnum)`` and ``nout = sum(outnum)`` dimension ``mjData.ctrl`` and ``mjData.actuator_force``,
+    respectively, ``nactuator`` is the number of actuators. For existing actuators ``ctrnum = outnum = 1``, so
+    ``nactuator == nu == nout`` and existing code is unaffected.
+21. :commit:`56a93979` Setpoints of :ref:`position<actuator-position>` and :ref:`intvelocity<actuator-intvelocity>`
+    servos acting on 3D rotational transmissions (ball joints, or site transmissions with a
+    :ref:`refsite<actuator-general-refsite>` and purely rotational gear) are now interpreted on the circle: the force
+    uses the setpoint representative nearest the current angle, so targets winding beyond half a turn are tracked
+    continuously instead of slipping by full turns. Behavior is identical whenever the error does not exceed π.
+    Relatedly, ``intvelocity`` actuators now expose :ref:`actlimited<actuator-intvelocity-actlimited>`, which was
+    previously hardcoded to "true": as for :ref:`general<actuator-general>` actuators it defaults to "auto", so
+    activation clamping is enabled by specifying ``actrange``. Unclamped integrated setpoints are well-behaved on
+    rotational transmissions, where they wrap.
 
 .. youtube:: 17XpwnqyCXs
    :aspect: 16:7
    :align: right
    :width: 35%
 
-- Added the :ref:`orientation<actuator-orientation>` actuator: a geodesic servo on a new SO(3) transmission (ball
-  joints, or a site with a :ref:`refsite<actuator-general-refsite>`), acting jointly on the full relative orientation
-  with an exact equilibrium at every commanded orientation. This is the first actuator with multiple force outputs
-  (3), and, with ``input="quat"``, the first with different input and output dimensions (4 controls, 3 outputs). The
-  input signature is recorded in the new ``mjModel.actuator_ctrlspec``, exposed as the
-  :ref:`input<actuator-general-input>` attribute.
-- Added :ref:`mj_actuatorInputName`, returning the name of an actuator input (e.g. "qw" for the first control of a
-  quaternion-commanded orientation actuator). The control sliders in :ref:`simulate<saSimulate>` and MuJoCo Studio are
-  now generated per control and labeled with the actuator name plus the input name suffix.
-- Viewer control sliders now use a defined :ref:`ctrlrange<actuator-general-ctrlrange>` even when
-  :ref:`ctrllimited<actuator-general-ctrllimited>` is "false": the range sets the slider span, while clamping remains
-  controlled by :at:`ctrllimited`.
-- Added :ref:`mj_resetCtrl`, setting controls to neutral values: zero, except quaternion inputs which reset to the
-  identity quaternion. Called by :ref:`mj_resetData` and the viewers' "Clear All".
+22. :commit:`072e963f` Added the :ref:`orientation<actuator-orientation>` actuator: a geodesic servo on a new SO(3)
+    transmission (ball joints, or a site with a :ref:`refsite<actuator-general-refsite>`), acting jointly on the full
+    relative orientation with an exact equilibrium at every commanded orientation. This is the first actuator with
+    multiple force outputs (3), and, with ``input="quat"``, the first with different input and output dimensions (4
+    controls, 3 outputs). The input signature is recorded in the new ``mjModel.actuator_ctrlspec``, exposed as the
+    :ref:`input<actuator-general-input>` attribute.
+23. :commit:`072e963f` Added :ref:`mj_actuatorInputName`, returning the name of an actuator input (e.g. "qw" for the
+    first control of a quaternion-commanded orientation actuator). The control sliders in :ref:`simulate<saSimulate>`
+    and MuJoCo Studio are now generated per control and labeled with the actuator name plus the input name suffix.
+24. :commit:`072e963f` Viewer control sliders now use a defined :ref:`ctrlrange<actuator-general-ctrlrange>` even when
+    :ref:`ctrllimited<actuator-general-ctrllimited>` is "false": the range sets the slider span, while clamping remains
+    controlled by :at:`ctrllimited`.
+25. :commit:`072e963f` Added :ref:`mj_resetCtrl`, setting controls to neutral values: zero, except quaternion inputs
+    which reset to the identity quaternion. Called by :ref:`mj_resetData` and the viewers' "Clear All".
 
 Solvers
 ^^^^^^^
-- Flex elasticity (stretch, bending, interpolation stiffness) is now integrated implicitly inside the CG constraint
-  solver via an *effective metric*: the mass matrix is augmented with the stiffness Hessian,
-  so contact and elastic forces are solved against one consistent metric. This replaces the previous post-hoc CG
-  correction, which modified ``qacc`` after the constraint solve. The gate is ``solver="CG"`` with an implicit
-  integrator and flex stiffness present; Newton and PGS are unaffected. Bending-only models pay zero per-step
-  factorization cost (the factor is precomputed in :ref:`mj_setConst<mj_setConst>`). Inverse dynamics
-  (:ref:`mj_inverse<mj_inverse>`) is now discrete-consistent with forward dynamics for gated models.
-- Added Nesterov momentum extrapolation with adaptive gradient restart (O'Donoghue-Candès) to the PGS solver,
-  significantly improving convergence. Overall PGS now requires ~2x fewer iterations.
-- Added the Newton decrement -- the quadratic model's predicted cost improvement of the next iteration -- as a third
-  early-termination criterion of the :ref:`Newton solver<soAlgorithms>`, alongside cost improvement and gradient norm.
-  This reduces iteration counts at no accuracy cost. Proposed by :github:user:`adenzler-nvidia` in
-  :doc:`MJWarp <mjwarp/index>` pull request `1520 <https://github.com/google-deepmind/mujoco_warp/pull/1520>`__.
-- The CG and Newton solvers now terminate with zero iterations when a duality-gap certificate proves that the
-  warmstarted solution already satisfies the tolerance. The certificate requires only the existing mass-matrix
-  factorization, so quiescent scenes skip Hessian construction, factorization and the line search entirely. Newton
-  zero-iteration exits additionally require the gradient criterion, preserving Newton's characteristic force-level
-  accuracy. See :ref:`Warmstart<soAlgorithms>` in the Computation chapter for details.
+26. :commit:`ea230a95` Flex elasticity (stretch, bending, interpolation stiffness) is now integrated implicitly inside
+    the CG constraint solver via an *effective metric*: the mass matrix is augmented with the stiffness Hessian,
+    so contact and elastic forces are solved against one consistent metric. This replaces the previous post-hoc CG
+    correction, which modified ``qacc`` after the constraint solve. The gate is ``solver="CG"`` with an implicit
+    integrator and flex stiffness present; Newton and PGS are unaffected. Bending-only models pay zero per-step
+    factorization cost (the factor is precomputed in :ref:`mj_setConst<mj_setConst>`). Inverse dynamics
+    (:ref:`mj_inverse<mj_inverse>`) is now discrete-consistent with forward dynamics for gated models.
+27. :commit:`c499f7f2` Added Nesterov momentum extrapolation with adaptive gradient restart (O'Donoghue-Candès) to the
+    PGS solver, significantly improving convergence. Overall PGS now requires ~2x fewer iterations.
+28. :commit:`1e66efd1` Added the Newton decrement -- the quadratic model's predicted cost improvement of the next
+    iteration -- as a third early-termination criterion of the :ref:`Newton solver<soAlgorithms>`, alongside cost
+    improvement and gradient norm. This reduces iteration counts at no accuracy cost. Proposed by
+    :github:user:`adenzler-nvidia` in :doc:`MJWarp <mjwarp/index>` pull request
+    `1520 <https://github.com/google-deepmind/mujoco_warp/pull/1520>`__.
+29. :commit:`c69ef030` The CG and Newton solvers now terminate with zero iterations when a duality-gap certificate
+    proves that the warmstarted solution already satisfies the tolerance. The certificate requires only the existing
+    mass-matrix factorization, so quiescent scenes skip Hessian construction, factorization and the line search
+    entirely. Newton zero-iteration exits additionally require the gradient criterion, preserving Newton's
+    characteristic force-level accuracy. See :ref:`Warmstart<soAlgorithms>` in the Computation chapter for details.
 
 
 Compiler
 ^^^^^^^^
-- :ref:`mj_encode` now supports encoding of MJB and TXT files.
-- The :ref:`attach<body-attach>` element now supports self-attachment (attaching elements of the current model to
-  itself) by omitting the :ref:`model<body-attach-model>` attribute. It also supports attaching a frame via the new
-  :ref:`frame<body-attach-frame>` attribute, which is mutually exclusive with :ref:`body<body-attach-body>`.
-- Fixed loading of :ref:`.mjz <MJZArchives>` archives in :ref:`simulate<saSimulate>`: the archive was unmounted
-  before model compilation, so assets failed to load. Failures in the :ref:`mjz <MJZArchives>` decoder now emit a
-  warning with the underlying error instead of the generic "could not decode content" message.
-- The :ref:`mjz <MJZArchives>` decoder now searches for ``model.xml`` and ``<stem>/model.xml`` as a fallback if
-  ``<stem>.xml`` and ``<stem>/<stem>.xml`` are not found.
-- Added support for resource writing via :ref:`mju_writeResource` and the ``write`` callback in
-  :ref:`mjpResourceProvider`.
+30. :commit:`4e1795b9` :ref:`mj_encode` now supports encoding of MJB and TXT files.
+31. :commit:`c6c3ec31` The :ref:`attach<body-attach>` element now supports self-attachment (attaching elements of the
+    current model to itself) by omitting the :ref:`model<body-attach-model>` attribute. It also supports attaching a
+    frame via the new :ref:`frame<body-attach-frame>` attribute, which is mutually exclusive with
+    :ref:`body<body-attach-body>`.
+32. :commit:`040872fd` Fixed loading of :ref:`.mjz <MJZArchives>` archives in :ref:`simulate<saSimulate>`: the archive
+    was unmounted before model compilation, so assets failed to load. Failures in the :ref:`mjz <MJZArchives>` decoder
+    now emit a warning with the underlying error instead of the generic "could not decode content" message.
+33. :commit:`ebd4abae` The :ref:`mjz <MJZArchives>` decoder now searches for ``model.xml`` and ``<stem>/model.xml`` as a
+    fallback if ``<stem>.xml`` and ``<stem>/<stem>.xml`` are not found.
+34. :commit:`dc7581ac` Added support for resource writing via :ref:`mju_writeResource` and the ``write`` callback in
+    :ref:`mjpResourceProvider`.
 
 .. admonition:: Breaking API changes
    :class: attention
 
-   - The return type of :ref:`mj_encode` and the :ref:`mjfEncode` callback changed from ``int`` to ``mjtSize``
-     (64-bit).
+   35. :commit:`d83ef0b6` The return type of :ref:`mj_encode` and the :ref:`mjfEncode` callback changed from ``int`` to
+       ``mjtSize`` (64-bit).
 
 .. admonition:: Bug fixes
    :class: admonition
 
-   - Fixed a bug in the mesh compiler where normals were scaled as vectors rather than covectors.
+   36. :commit:`f5f9d9ef` Fixed a bug in the mesh compiler where normals were scaled as vectors rather than covectors.
 
 Python bindings
 ^^^^^^^^^^^^^^^
-- The bindings now support free threading (`PEP 703 <https://peps.python.org/pep-0703/>`__) for Python 3.14.
+37. :commit:`a07ae6f8` The bindings now support free threading (`PEP 703 <https://peps.python.org/pep-0703/>`__) for
+    Python 3.14.
 
 Documentation
 ^^^^^^^^^^^^^
-- Expanded documentation for :ref:`spec.encode <meSaving>` workflows and added detailed documentation for the
-  :ref:`MJZ Archive <MJZArchives>` format (``.mjz`` / ``.zip``).
+38. :commit:`1f1bfa9e` Expanded documentation for :ref:`spec.encode <meSaving>` workflows and added detailed
+    documentation for the :ref:`MJZ Archive <MJZArchives>` format (``.mjz`` / ``.zip``).
 
 
 Version 3.10.0 (June 22, 2026)

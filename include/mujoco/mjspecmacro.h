@@ -492,7 +492,7 @@
     X   ( mjtGain,       gaintype,      1         ) \
     XVEC( double,        gainprm,       mjNGAIN   ) \
     X   ( mjtBias,       biastype,      1         ) \
-    XVEC( double,        biasprm,       mjNGAIN   ) \
+    XVEC( double,        biasprm,       mjNBIAS   ) \
     X   ( mjtDyn,        dyntype,       1         ) \
     XVEC( double,        dynprm,        mjNDYN    ) \
     X   ( int,           actdim,        1         ) \

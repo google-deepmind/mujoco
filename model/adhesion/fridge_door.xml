@@ -5,24 +5,25 @@
        than the pull-off force pops it open cleanly. Drag the door with Ctrl+drag
        after double-clicking it. -->
 
-  <option cone="elliptic"/>
-
-  <statistic center="0 0 .4" extent="1.4" meansize="0.03"/>
+  <statistic center="0 0 .4" meansize="0.03"/>
 
   <visual>
-    <headlight diffuse=".8 .8 .8" ambient=".3 .3 .3"/>
+    <global elevation="-20" azimuth="-120"/>
+    <headlight diffuse=".5 .5 .5"/>
     <map stiffness="30"/>
   </visual>
 
   <asset>
+    <texture name="ibl" type="cube" builtin="gradient" rgb1=".5 .6 .7" rgb2=".9 .9 .95" width="32" height="32"/>
     <texture type="skybox" builtin="gradient" rgb1=".5 .6 .7" rgb2=".9 .9 .95" width="32" height="512"/>
-    <material name="body" rgba=".92 .92 .94 1" reflectance=".3"/>
+    <material name="body" rgba=".92 .92 .94 1"/>
     <material name="inside" rgba=".8 .8 .82 1"/>
     <material name="magnet" rgba=".2 .2 .22 1"/>
   </asset>
 
   <worldbody>
     <light pos="1.5 -.5 2" dir="-.6 .2 -.75" diffuse=".7 .7 .7" intensity="200000"/>
+    <light type="image" texture="ibl" intensity="10000"/>
     <geom name="floor" type="plane" size="2 2 .01" rgba=".7 .75 .7 1"/>
 
     <!-- cabinet: interior x [-.35 0], y [-.25 .25], z [0 .8] -->

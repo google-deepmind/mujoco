@@ -97,8 +97,14 @@ MJAPI void mjd_effShift(const mjModel* m, mjData* d);
 // res += B*vec (the stiffness part of the metric; caller supplies the M part)
 MJAPI void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
 
-// x = (M + B)^-1 b to 1e-10 relative; x = M^-1 b when the metric is inactive
+// solve (M + B) x = b by PCG preconditioned with mjd_effPrec, to opt.tolerance on the relative
+// residual; x = M^-1 b when the metric is inactive. Warns (mjWARN_INERTIA) if the iteration cap
+// is reached before convergence, in which case x is returned under-converged.
 MJAPI void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);
+
+// apply the metric preconditioner: x ~= (M + B)^-1 b, a cheap fixed linear operator, NOT a solve.
+// Exact only when the metric is inactive (x = M^-1 b); otherwise approximate by construction.
+MJAPI void mjd_effPrec(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);
 
 
 #ifdef __cplusplus

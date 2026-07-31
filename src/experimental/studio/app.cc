@@ -268,7 +268,7 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
 
   platform::ForEachPlugin<platform::ModelPlugin>([&](auto* plugin) {
     if (plugin->post_model_loaded) {
-      plugin->post_model_loaded(plugin, model_path_.c_str());
+      plugin->post_model_loaded(plugin, model, model_path_.c_str());
     }
   });
   tmp_.update_threadpool = true;
@@ -811,6 +811,8 @@ void App::HandleKeyboardEvents() {
     ToggleFlag(vis_options_.flags[mjVIS_COM]);
   } else if (!is_freecam_wasd && ImGui_IsChordJustPressed(ImGuiKey_D)) {
     ToggleFlag(vis_options_.flags[mjVIS_STATIC]);
+  } else if (!is_freecam_wasd && ImGui_IsChordJustPressed(ImGuiKey_W)) {
+    ToggleFlag(renderer_->GetRenderFlags()[mjRND_WIREFRAME]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Semicolon)) {
     ToggleFlag(vis_options_.flags[mjVIS_SKIN]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_GraveAccent)) {
@@ -1167,8 +1169,9 @@ void App::BuildGui() {
       ImGui::EndMainMenuBar();
     }
     if (plugin->active) {
-      ImGui::Begin(plugin->name);
-      plugin->update(plugin);
+      if (ImGui::Begin(plugin->name, &plugin->active)) {
+        plugin->update(plugin);
+      }
       ImGui::End();
     }
   });
@@ -2028,10 +2031,14 @@ void App::SpecEditorGui() {
 }
 
 void App::HelpGui() {
+  // With ConfigMacOSXBehaviors, imgui swaps the Cmd and Ctrl keys, so
+  // ImGuiMod_Ctrl chords and io.KeyCtrl match the Command key on macOS.
+  const char* mod = ImGui::GetIO().ConfigMacOSXBehaviors ? "Cmd" : "Ctrl";
+
   const float pad = ImGui::GetStyle().ItemSpacing.x;
   const float indent = pad * 2;
-  const float col0 = ImGui::CalcTextSize("Toggle Visc Pause").x + pad;
-  const float col1 = ImGui::CalcTextSize("Ctrl+Spc").x + pad + indent;
+  const float col0 = ImGui::CalcTextSize("Toggle Fullscreen").x + pad;
+  const float col1 = ImGui::CalcTextSize("Ctrl+R-Dblclick").x + pad + indent;
   const float col2 = ImGui::CalcTextSize("Center of Mass").x + pad + indent;
   const float col3 = ImGui::CalcTextSize("M").x + pad + indent;
   ImGui::Dummy(ImVec2(col0 + col1 + col2 + col3, 0));
@@ -2041,109 +2048,143 @@ void App::HelpGui() {
   ImGui::SetColumnWidth(2, col2);
   ImGui::SetColumnWidth(3, col3);
 
+  ImGui::SeparatorText("Windows & UI");
   ImGui::Text("Help");
   ImGui::Text("Info");
   ImGui::Text("Profiler");
-  ImGui::Text("Cycle Frames");
-  ImGui::Text("Cycle Labels");
   ImGui::Text("Toggle Fullscreen");
-  ImGui::Text("Free Camera");
-  ImGui::Text("Toggle Pause");
-  ImGui::Text("Toggle Visc Pause");
-  ImGui::Text("Reset Sim");
   ImGui::Text("Toggle Left UI");
   ImGui::Text("Toggle Right UI");
-  ImGui::Text("Speed Up");
-  ImGui::Text("Speed Down");
-  ImGui::Text("Prev Camera");
-  ImGui::Text("Next Camera");
+  ImGui::Text("Font Bigger");
+  ImGui::Text("Font Smaller");
+  ImGui::SeparatorText("Simulation");
+  ImGui::Text("Toggle Pause");
+  ImGui::Text("Reset Sim");
   ImGui::Text("Step Back");
   ImGui::Text("Step Forward");
-  ImGui::Text("Select Parent");
-  ImGui::Text("Align Camera");
+  ImGui::Text("Speed Up");
+  ImGui::Text("Speed Down");
   ImGui::Text("Copy Keyframe");
+  ImGui::SeparatorText("Camera");
+  ImGui::Text("Tumble Camera");
+  ImGui::Text("Prev Camera");
+  ImGui::Text("Next Camera");
+  ImGui::Text("Align Camera");
+  ImGui::Text("Orbit Camera");
+  ImGui::Text("Pan Camera");
+  ImGui::Text("Zoom Camera");
+  ImGui::Text("Center Camera");
+  ImGui::Text("Track Camera");
+  ImGui::SeparatorText("Selection");
+  ImGui::Text("Select");
+  ImGui::Text("Select Parent");
+  ImGui::Text("Rotate Object");
+  ImGui::Text("Move Object");
+  ImGui::SeparatorText("Visualization");
+  ImGui::Text("Cycle Frames");
+  ImGui::Text("Cycle Labels");
   ImGui::Text("Geom Group");
   ImGui::Text("Site Group");
 
   ImGui::NextColumn();
   ImGui::Indent(indent);
+  ImGui::SeparatorText("");
   ImGui::Text("F1");
   ImGui::Text("F2");
   ImGui::Text("F3");
-  ImGui::Text("F6");
-  ImGui::Text("F7");
   ImGui::Text("F11");
-  ImGui::Text("Esc");
-  ImGui::Text("Spc");
-  ImGui::Text("Ctrl+Spc");
-  ImGui::Text("Bksp");
   ImGui::Text("Tab");
   ImGui::Text("Sh+Tab");
-  ImGui::Text("+");
-  ImGui::Text("-");
-  ImGui::Text("[");
-  ImGui::Text("]");
+  ImGui::Text("%s+=", mod);
+  ImGui::Text("%s+-", mod);
+  ImGui::SeparatorText("");
+  ImGui::Text("Spc");
+  ImGui::Text("Bksp");
   ImGui::Text("Left");
   ImGui::Text("Right");
+  ImGui::Text("+");
+  ImGui::Text("-");
+  ImGui::Text("%s+C", mod);
+  ImGui::SeparatorText("");
+  ImGui::Text("Esc");
+  ImGui::Text("[");
+  ImGui::Text("]");
+  ImGui::Text("%s+A", mod);
+  ImGui::Text("L-Drag");
+  ImGui::Text("[Sh+]R-Drag");
+  ImGui::Text("Scroll");
+  ImGui::Text("R-Dblclick");
+  ImGui::Text("%s+R-Dblclick", mod);
+  ImGui::SeparatorText("");
+  ImGui::Text("Dblclick");
   ImGui::Text("PgUp");
-  ImGui::Text("Ctrl+A");
-  ImGui::Text("Ctrl+C");
+  ImGui::Text("%s+L-Drag", mod);
+  ImGui::Text("%s+R-Drag", mod);
+  ImGui::SeparatorText("");
+  ImGui::Text("F6");
+  ImGui::Text("F7");
   ImGui::Text("0-5");
   ImGui::Text("Sh+0-5");
 
   ImGui::NextColumn();
   ImGui::Indent(indent);
+  ImGui::SeparatorText("Flags");
   ImGui::Text("Activation");
+  ImGui::Text("Actuator");
   ImGui::Text("Auto Connect");
   ImGui::Text("Body Tree");
-  ImGui::Text("Mesh Tree");
-  ImGui::Text("Scale Inertia");
-  ImGui::Text("Skin");
-  ImGui::Text("Actuator");
   ImGui::Text("Camera");
   ImGui::Text("Center of Mass");
+  ImGui::Text("Constraint");
   ImGui::Text("Contact Force");
   ImGui::Text("Contact Point");
   ImGui::Text("Contact Split");
   ImGui::Text("Convex Hull");
-  ImGui::Text("Constraint");
+  ImGui::Text("Inertia");
   ImGui::Text("Island");
   ImGui::Text("Joint");
   ImGui::Text("Light");
+  ImGui::Text("Mesh Tree");
   ImGui::Text("Perturb Force");
   ImGui::Text("Perturb Object");
   ImGui::Text("Range Finder");
+  ImGui::Text("Scale Inertia");
+  ImGui::Text("Skin");
   ImGui::Text("Static Body");
   ImGui::Text("Tendon");
   ImGui::Text("Texture");
   ImGui::Text("Transparent");
+  ImGui::Text("Wireframe");
 
   ImGui::NextColumn();
   ImGui::Indent(indent);
+  ImGui::SeparatorText("");
   ImGui::Text(",");
-  ImGui::Text("K");
-  ImGui::Text("`");
-  ImGui::Text("\\");
-  ImGui::Text("\"");
-  ImGui::Text(";");
   ImGui::Text("U");
-  ImGui::Text("L");
+  ImGui::Text("A");
+  ImGui::Text("`");
+  ImGui::Text("Q");
   ImGui::Text("M");
+  ImGui::Text("E");
   ImGui::Text("F");
   ImGui::Text("C");
   ImGui::Text("P");
   ImGui::Text("H");
-  ImGui::Text("N");
   ImGui::Text("I");
+  ImGui::Text("N");
   ImGui::Text("J");
   ImGui::Text("Z");
+  ImGui::Text("\\");
   ImGui::Text("B");
   ImGui::Text("O");
   ImGui::Text("Y");
-  ImGui::Text("G");
+  ImGui::Text("'");
+  ImGui::Text(";");
+  ImGui::Text("D");
   ImGui::Text("V");
   ImGui::Text("X");
   ImGui::Text("T");
+  ImGui::Text("W");
 
   ImGui::Columns();
 }

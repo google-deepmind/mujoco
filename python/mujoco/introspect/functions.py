@@ -4972,6 +4972,32 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Return the average of two OpenGL cameras.',
      )),
+    ('mjv_camera2GLCamera',
+     FunctionDecl(
+         name='mjv_camera2GLCamera',
+         return_type=ValueType(name='mjvGLCamera'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='model',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='data',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mjv_camera',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjvCamera', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Converts a mjvCamera to a mjvGLCamera.',
+     )),
     ('mjv_select',
      FunctionDecl(
          name='mjv_select',

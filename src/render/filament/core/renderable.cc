@@ -461,11 +461,22 @@ void Renderable::SetWireframe(bool wireframe) {
     for (Part& part : parts_) {
       filament::VertexBuffer* vertex_buffer =
           part.mesh->GetFilamentVertexBuffer();
-      filament::IndexBuffer* index_buffer = part.mesh->GetFilamentIndexBuffer();
-      rm.setGeometryAt(
-          rm.getInstance(part.entity), 0,
-          wireframe ? kWireframeType : part.mesh->GetPrimitiveType(),
-          vertex_buffer, index_buffer, part.elem_offset, part.elem_count);
+      filament::IndexBuffer* wireframe_index_buffer =
+          part.mesh->GetWireframeIndexBuffer();
+      if (wireframe && wireframe_index_buffer) {
+        // Triangle meshes have a dedicated line index buffer enumerating the
+        // three edges of each triangle, addressed by doubling the range.
+        rm.setGeometryAt(rm.getInstance(part.entity), 0, kWireframeType,
+                         vertex_buffer, wireframe_index_buffer,
+                         2 * part.elem_offset, 2 * part.elem_count);
+      } else {
+        // Line meshes are drawn as-is in both modes.
+        rm.setGeometryAt(rm.getInstance(part.entity), 0,
+                         wireframe ? kWireframeType
+                                   : part.mesh->GetPrimitiveType(),
+                         vertex_buffer, part.mesh->GetFilamentIndexBuffer(),
+                         part.elem_offset, part.elem_count);
+      }
     }
   }
 }

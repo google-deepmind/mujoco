@@ -22,6 +22,8 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
     PUBLIC
         helpers.cc
         helpers.h
+        resources.cc
+        resources.h
         sys_utils.cc
         sys_utils.h
         hal/egl_utils.cc
@@ -42,6 +44,8 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         sim/step_control.h
         ux/enum_utils.h
         ux/file_dialog.h
+        ux/fonts.cc
+        ux/fonts.h
         ux/gui.cc
         ux/gui.h
         ux/gui_spec.cc

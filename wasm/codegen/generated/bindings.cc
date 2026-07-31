@@ -3732,6 +3732,12 @@ void mjv_applyPerturbPose_wrapper(const MjModel& m, MjData& d, const MjvPerturb&
   mjv_applyPerturbPose(m.get(), d.get(), pert.get(), flg_paused);
 }
 
+MjvGLCamera mjv_camera2GLCamera_wrapper(const MjModel& model, const MjData& data, const MjvCamera& mjv_camera) {
+  MjvGLCamera result;
+  *result.get() = mjv_camera2GLCamera(model.get(), data.get(), mjv_camera.get());
+  return result;
+}
+
 void mjv_cameraFrame_wrapper(const val& headpos, const val& forward, const val& up, const val& right, const MjData& d, const MjvCamera& cam) {
   UNPACK_NULLABLE_VALUE(mjtNum, headpos);
   UNPACK_NULLABLE_VALUE(mjtNum, forward);
@@ -4609,9 +4615,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("efm_K_rownnz", &MjData::efm_K_rownnz)
     .property("efm_K_val", &MjData::efm_K_val)
     .property("efm_L", &MjData::efm_L)
-    .property("efm_L_colind", &MjData::efm_L_colind)
-    .property("efm_L_rowadr", &MjData::efm_L_rowadr)
-    .property("efm_L_rownnz", &MjData::efm_L_rownnz)
     .property("efm_active", &MjData::efm_active, &MjData::set_efm_active, reference())
     .property("efm_c", &MjData::efm_c)
     .property("efm_dofid", &MjData::efm_dofid)
@@ -6629,6 +6632,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjv_alignToCamera", &mjv_alignToCamera_wrapper);
   function("mjv_applyPerturbForce", &mjv_applyPerturbForce_wrapper);
   function("mjv_applyPerturbPose", &mjv_applyPerturbPose_wrapper);
+  function("mjv_camera2GLCamera", &mjv_camera2GLCamera_wrapper);
   function("mjv_cameraFrame", &mjv_cameraFrame_wrapper);
   function("mjv_cameraFrustum", &mjv_cameraFrustum_wrapper);
   function("mjv_cameraInModel", &mjv_cameraInModel_wrapper);

@@ -49,6 +49,12 @@ class Mesh : public mjrfMesh {
   // Returns the filament IndexBuffer for the mesh.
   filament::IndexBuffer* GetFilamentIndexBuffer() const;
 
+  // Returns the filament IndexBuffer of line indices for wireframe rendering,
+  // or nullptr for non-triangle meshes. Each triangle contributes its three
+  // edges, so a triangle index range [offset, count) maps to the line index
+  // range [2*offset, 2*count).
+  filament::IndexBuffer* GetWireframeIndexBuffer() const;
+
   // Returns the filament VertexBuffer for the mesh.
   filament::VertexBuffer* GetFilamentVertexBuffer() const;
 
@@ -75,6 +81,7 @@ class Mesh : public mjrfMesh {
 
   void UpdateVertexBuffer(const mjrfMeshData& data);
   void UpdateIndexBuffer(const mjrfMeshData& data);
+  void UpdateWireframeIndexBuffer(const void* indices);
   void UpdateBounds(const mjrfMeshData& data);
 
   filament::math::float4* BuildOrientationsFromNormals(int num_vertices,
@@ -86,6 +93,7 @@ class Mesh : public mjrfMesh {
   mjrfMeshConfig config_;
 
   filament::IndexBuffer* index_buffer_ = nullptr;
+  filament::IndexBuffer* wireframe_index_buffer_ = nullptr;
   filament::VertexBuffer* vertex_buffer_ = nullptr;
   std::optional<filament::Box> bounds_;
 

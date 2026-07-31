@@ -321,9 +321,9 @@ void SceneView::Render(filament::Renderer* renderer,
 
   if (!selected_renderables.empty()) {
     if (!outliner_) {
-      outliner_ =
-          std::make_unique<Outliner>(object_mgr_, kLayerMask_Outline,
-                                     float4{0.9f, 0.9f, 0.2f, 0.7f}, 3.5f);
+      outliner_ = std::make_unique<Outliner>(
+          object_mgr_, kLayerMask_Outline, kLayerMask_Object,
+          float4{0.9f, 0.9f, 0.2f, 0.7f}, 3.5f, 0.25f);
     }
 
     for (Renderable* renderable : selected_renderables) {

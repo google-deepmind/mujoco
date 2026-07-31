@@ -37,12 +37,15 @@
 namespace mujoco {
 
 Outliner::Outliner(ObjectManager* object_mgr, uint8_t layer_mask,
-                   filament::math::float4 color, float thickness)
+                   uint8_t scene_layer_mask, filament::math::float4 color,
+                   float thickness, float occlusion_dim)
     : object_mgr_(object_mgr),
       engine_(object_mgr->GetEngine()),
       layer_mask_(layer_mask),
+      scene_layer_mask_(scene_layer_mask),
       color_(color),
-      thickness_(thickness) {}
+      thickness_(thickness),
+      occlusion_dim_(occlusion_dim) {}
 
 Outliner::~Outliner() { Reset(); }
 
@@ -98,9 +101,10 @@ void Outliner::Prepare(int width, int height) {
     }
   };
 
-  // Set up two render targets. We will alternate between the two targets to
-  // allow for chaining passes together.
-  for (int i = 0; i < 2; ++i) {
+  // Set up the render targets: one for the scene depth, one for the flattened
+  // selection mask and its depth, and two ping-pong targets for chaining the
+  // jump flood passes together.
+  for (int i = 0; i < kNumTargets; ++i) {
     mjrfRenderTargetConfig config;
     mjrf_defaultRenderTargetConfig(&config);
     config.color_format = mjPIXEL_FORMAT_RGBA8;
@@ -127,9 +131,11 @@ void Outliner::Prepare(int width, int height) {
     view->setMultiSampleAntiAliasingOptions({.enabled = false});
   }
 
-  // In the first pass, we will render a given scene, but only render the
-  // objects marked as outlines. We assume that the objects have already been
-  // assigned the kOutlineFlatten material.
+  // In the first pass, we render the scene layers that can occlude the
+  // outline; only the resulting depth is used. In the second pass, we render
+  // the given scene again, but only the objects marked as outlines. We assume
+  // that the objects have already been assigned the kOutlineFlatten material.
+  views_[kPassSceneDepth]->setVisibleLayers(0xff, scene_layer_mask_);
   views_[kPassFlatten]->setVisibleLayers(0xff, layer_mask_);
 
   // All subsequent passes are full-screen post-processing passes.
@@ -141,16 +147,19 @@ void Outliner::Prepare(int width, int height) {
   setup_fullscreen(kPassDrawOutline, ObjectManager::kOutlineComposite);
 
   // Chain the passes together such that the output of a pass is the input to
-  // the next pass. The first pass has no input (we are just rendering the
-  // selected objects) and the last pass has no output (we are just rendering
-  // the outline to the externally provided target).
-  bind(kPassFlatten, -1, 0);
-  bind(kPassJumpFlood1, 0, 1);
-  bind(kPassJumpFlood2, 1, 0);
-  bind(kPassJumpFlood3, 0, 1);
-  bind(kPassJumpFlood4, 1, 0);
-  bind(kPassJumpFlood5, 0, 1);
-  bind(kPassDrawOutline, 1, -1);
+  // the next pass. The scene passes have no input (we are just rendering the
+  // scene) and the last pass has no output (we are just rendering the outline
+  // to the externally provided target). The flatten pass has its own target
+  // (rather than a ping-pong target) so that its depth attachment survives the
+  // jump flood passes and can be sampled by the composite pass.
+  bind(kPassSceneDepth, -1, kTargetSceneDepth);
+  bind(kPassFlatten, -1, kTargetFlatten);
+  bind(kPassJumpFlood1, kTargetFlatten, kTargetPing);
+  bind(kPassJumpFlood2, kTargetPing, kTargetPong);
+  bind(kPassJumpFlood3, kTargetPong, kTargetPing);
+  bind(kPassJumpFlood4, kTargetPing, kTargetPong);
+  bind(kPassJumpFlood5, kTargetPong, kTargetPing);
+  bind(kPassDrawOutline, kTargetPing, -1);
 
   // Bind the parameters for each pass. For the jump flood passes, the step
   // parameter determines how far to propagate the outline in each pass.
@@ -160,9 +169,22 @@ void Outliner::Prepare(int width, int height) {
   material_instances_[kPassJumpFlood4]->setParameter("step", 2.0f);
   material_instances_[kPassJumpFlood5]->setParameter("step", 1.0f);
 
-  // The final pass renders the actual outline onto a render target.
+  // The final pass renders the actual outline onto a render target. It samples
+  // the scene depth and the selection depth to dim occluded outline pixels.
+  const filament::TextureSampler depth_sampler(
+      filament::TextureSampler::MinFilter::NEAREST,
+      filament::TextureSampler::MagFilter::NEAREST);
   material_instances_[kPassDrawOutline]->setParameter("color", color_);
   material_instances_[kPassDrawOutline]->setParameter("width", thickness_);
+  material_instances_[kPassDrawOutline]->setParameter("dim", occlusion_dim_);
+  material_instances_[kPassDrawOutline]->setParameter(
+      "scene_depth",
+      targets_[kTargetSceneDepth]->GetDepthTexture()->GetFilamentTexture(),
+      depth_sampler);
+  material_instances_[kPassDrawOutline]->setParameter(
+      "selection_depth",
+      targets_[kTargetFlatten]->GetDepthTexture()->GetFilamentTexture(),
+      depth_sampler);
 
   // Commit all the material instances to the engine.
   for (auto& material_instance : material_instances_) {
@@ -222,9 +244,13 @@ void Outliner::Render(filament::Renderer* renderer, filament::View* view,
     view->setViewport(viewport);
   }
 
-  // Re-render the view's scene to create the flattened selection mask.
+  // Re-render the view's scene to capture the scene depth (used for occlusion
+  // dimming) and to create the flattened selection mask.
   auto prev_clear_opts = renderer->getClearOptions();
   renderer->setClearOptions({.clearColor = {0, 0, 0, 0}, .clear = true});
+  views_[kPassSceneDepth]->setScene(view->getScene());
+  views_[kPassSceneDepth]->setCamera(&view->getCamera());
+  renderer->render(views_[kPassSceneDepth]);
   views_[kPassFlatten]->setScene(view->getScene());
   views_[kPassFlatten]->setCamera(&view->getCamera());
   renderer->render(views_[kPassFlatten]);

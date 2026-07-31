@@ -1015,9 +1015,6 @@
     X  ( int,      efm_K_colind,      MJ_D(nefmK),       1 ) \
     X  ( mjtNum,   efm_K_val,         MJ_D(nefmK),       1 ) \
     X  ( int,      efm_dofid,         MJ_D(nefmdof),     1 ) \
-    X  ( int,      efm_L_rownnz,      MJ_D(nefmdof),     1 ) \
-    X  ( int,      efm_L_rowadr,      MJ_D(nefmdof),     1 ) \
-    X  ( int,      efm_L_colind,      MJ_D(nefmL),       1 ) \
     X  ( mjtNum,   efm_L,             MJ_D(nefmL),       1 )
 
 

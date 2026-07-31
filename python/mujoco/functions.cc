@@ -854,6 +854,7 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
   Def<traits::mjv_applyPerturbPose>(pymodule);
   Def<traits::mjv_applyPerturbForce>(pymodule);
   // Skipped: mjv_averageCamera (defined in structs.cc due to the return type)
+  // Skipped: mjv_camera2GLCamera (defined in structs.cc due to the return type)
   Def<traits::mjv_select>(pymodule);
 
   // Visualization

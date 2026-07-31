@@ -21,6 +21,15 @@ from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import sim as _sim
 import numpy as np
 
+# Launcher-owned liveness check: returns True while the viewer is still alive.
+# This enables the handle to notice a viewer died without sending ExitEvent.
+IsAliveFn = Callable[[], bool]
+
+# Launcher-owned shutdown function: waits up to the given timeout (seconds) for
+# the viewer to finish after close() has sent the ExitEvent. Waiting lets the
+# viewer release its resources before the interpreter tears itself down.
+ShutdownFn = Callable[[float], None]
+
 
 class ViewerHandle:
   """A handle for interacting with a running Studio application from the sim."""
@@ -30,7 +39,8 @@ class ViewerHandle:
       sim_endpoint: endpoints.SimEndpoint,
       *,
       handlers: list[Any] | None = None,
-      is_alive_fn: Callable[[], bool] | None = None,
+      is_alive_fn: IsAliveFn | None = None,
+      shutdown_fn: ShutdownFn | None = None,
   ) -> None:
     """Initializes the ViewerHandle.
 
@@ -38,14 +48,15 @@ class ViewerHandle:
       sim_endpoint: The endpoint to use for communication with the viewer.
       handlers: Optional list of handler instances for sim-side processing,
         which are classes with methods decorated with ``@handler``.
-      is_alive_fn: Optional function called to check if the viewer is still
-        alive/responsive. If not provided, the viewer is assumed to be running
-        until ``close()`` is called.
+      is_alive_fn: Optional liveness check; without one the viewer is assumed to
+        be running until ``close()`` is called.
+      shutdown_fn: Optional launcher-owned shutdown hook, called by ``close()``.
     """
 
     self._sim_endpoint = sim_endpoint
     self._is_running = True
     self._is_alive_fn = is_alive_fn
+    self._shutdown_fn = shutdown_fn
     self.model: mujoco.MjModel | None = None
     self.data: mujoco.MjData | None = None
     self.step_control: _sim.StepControl | None = None
@@ -56,13 +67,15 @@ class ViewerHandle:
     self._handlers = handler_registry.HandlerRegistry(all_handlers)
 
   def close(self) -> None:
-    """Signals the viewer to exit and closes the sim endpoint."""
+    """Signals the viewer to exit and waits for it to shut down."""
     if self._is_running:
       self._is_running = False
       try:
         self.send_to_viewer(messages.ExitEvent())
       except Exception:  # pylint: disable=broad-exception-caught
         pass  # Ignore exceptions, the viewer may have already closed.
+      if self._shutdown_fn is not None:
+        self._shutdown_fn(5.0)
     self._sim_endpoint.close()
 
   def __enter__(self) -> 'ViewerHandle':

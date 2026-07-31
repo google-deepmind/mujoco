@@ -2623,6 +2623,15 @@ Set perturb force,torque in d->xfrc_applied, if selected body is dynamic.
 
 Return the average of two OpenGL cameras.
 
+.. _mjv_camera2GLCamera:
+
+`mjv_camera2GLCamera <#mjv_camera2GLCamera>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_camera2GLCamera
+
+Converts a mjvCamera to a mjvGLCamera.
+
 .. _mjv_select:
 
 `mjv_select <#mjv_select>`__

@@ -1289,11 +1289,35 @@ void NoiseGui(StepControl* step_control) {
   step_control->SetNoiseParameters(noise_scale, noise_rate);
 }
 
+// Slider row with a clipped label and a right-aligned reset button; the
+// button is disabled while the value is at its reset target.
+static void SliderRowWithReset(const char* name, mjtNum* value, mjtNum min,
+                               mjtNum max, mjtNum reset) {
+  const float btn = ImGui::GetFrameHeight();
+  const float spacing = ImGui::GetStyle().ItemSpacing.x;
+  const float usable_end =
+      ImGui::GetWindowContentRegionMax().x - btn - spacing;
+  const float usable = usable_end - ImGui::GetCursorPosX();
+  ImGui::SetNextItemWidth(usable * 0.5f);
+  char hidden[104];
+  std::snprintf(hidden, sizeof(hidden), "##%s", name);
+  ImGui_Slider(hidden, value, min, max);
+  ImGui::SameLine();
+  const ImVec2 clip_min = ImGui::GetCursorScreenPos();
+  const ImVec2 clip_max(ImGui::GetWindowPos().x + usable_end,
+                        clip_min.y + ImGui::GetFrameHeight());
+  ImGui::PushClipRect(clip_min, clip_max, true);
+  ImGui::TextUnformatted(name);
+  ImGui::PopClipRect();
+  ImGui::BeginDisabled(*value == reset);
+  if (ImGui_ResetButton(name)) {
+    *value = reset;
+  }
+  ImGui::EndDisabled();
+}
+
 void JointsGui(const mjModel* model, const mjData* data,
                const mjvOption* vis_options) {
-  const float item_width = ImGui::GetWindowWidth() * .6f;
-  ImGui::PushItemWidth(item_width);
-
   char name[100];
   for (int i = 0; i < model->njnt; ++i) {
     if (model->jnt_type[i] != mjJNT_HINGE &&
@@ -1326,23 +1350,13 @@ void JointsGui(const mjModel* model, const mjData* data,
     }
 
     const int data_adr = model->jnt_qposadr[i];
-    ImGui_Slider(name, &data->qpos[data_adr], min, max);
-    if (ImGui::BeginPopupContextItem()) {
-      if (ImGui::MenuItem("Reset to default")) {
-        data->qpos[data_adr] = model->qpos0[data_adr];
-      }
-      ImGui::EndPopup();
-    }
+    SliderRowWithReset(name, &data->qpos[data_adr], min, max,
+                       model->qpos0[data_adr]);
   }
-
-  ImGui::PopItemWidth();
 }
 
 void ControlsGui(const mjModel* model, mjData* data,
                  const mjvOption* vis_options) {
-  const float item_width = ImGui::GetWindowWidth() * .6f;
-  ImGui::PushItemWidth(item_width);
-
   if (ImGui::Button("Clear All")) {
     mj_resetCtrl(model, data);
   }
@@ -1383,17 +1397,10 @@ void ControlsGui(const mjModel* model, mjData* data,
         min = model->actuator_ctrlrange[2 * j + 0];
         max = model->actuator_ctrlrange[2 * j + 1];
       }
-      ImGui_Slider(name, &data->ctrl[j], min, max);
-      if (ImGui::BeginPopupContextItem()) {
-        if (ImGui::MenuItem("Reset to 0")) {
-          data->ctrl[j] = mju_clip(0.0, min, max);
-        }
-        ImGui::EndPopup();
-      }
+      SliderRowWithReset(name, &data->ctrl[j], min, max,
+                         mju_clip(0.0, min, max));
     }
   }
-
-  ImGui::PopItemWidth();
 }
 
 static int GetPlotXLimit(const mjData* data) {
