@@ -33,15 +33,26 @@ class ObjectLauncher {
   ObjectLauncher() : rng_(std::random_device{}()) {}
 
   void UpdateGui() {
-    using platform::ImGui_Input;
+    using platform::ImGui_ResetButton;
+    using platform::ImGui_SliderLog;
 
-    ImGui_Input("Size", &size_,
-                {size_seed_ * 1e-3, size_seed_ * 1e4, size_seed_ * 0.1, size_seed_});
-    ImGui_Input("Speed", &speed_,
-                {speed_seed_ * 1e-3, speed_seed_ * 1e4, speed_seed_ * 0.1, speed_seed_});
-    ImGui_Input("Mass", &mass_,
-                {mass_seed_ * 1e-3, mass_seed_ * 1e4, mass_seed_ * 0.1, mass_seed_});
-    ImGui_Input("Life", &lifetime_, {0.0f, 60.0f, 0.1, 1.0});
+    constexpr mjtNum kLifeDefault = 5.0;
+    ImGui_SliderLog("Size", &size_, size_seed_ * 0.1, size_seed_ * 10);
+    ImGui::BeginDisabled(size_ == size_seed_);
+    if (ImGui_ResetButton("Size")) size_ = size_seed_;
+    ImGui::EndDisabled();
+    ImGui_SliderLog("Speed", &speed_, speed_seed_ * 0.1, speed_seed_ * 10);
+    ImGui::BeginDisabled(speed_ == speed_seed_);
+    if (ImGui_ResetButton("Speed")) speed_ = speed_seed_;
+    ImGui::EndDisabled();
+    ImGui_SliderLog("Mass", &mass_, mass_seed_ * 0.1, mass_seed_ * 100);
+    ImGui::BeginDisabled(mass_ == mass_seed_);
+    if (ImGui_ResetButton("Mass")) mass_ = mass_seed_;
+    ImGui::EndDisabled();
+    ImGui_SliderLog("Life", &lifetime_, 0.5, 50.0);
+    ImGui::BeginDisabled(lifetime_ == kLifeDefault);
+    if (ImGui_ResetButton("Life")) lifetime_ = kLifeDefault;
+    ImGui::EndDisabled();
 
     int shape = type_ == mjGEOM_BOX ? 0 : 1;
     const char* names[] = {"Box", "Sphere"};

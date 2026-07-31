@@ -343,6 +343,14 @@ bool ImGui_Slider(const char* name, mjtNum* value, mjtNum min, mjtNum max) {
   return res;
 }
 
+bool ImGui_SliderLog(const char* name, mjtNum* value, mjtNum min, mjtNum max) {
+  constexpr ImGuiDataType type = sizeof(mjtNum) == sizeof(double)
+                                     ? ImGuiDataType_Double
+                                     : ImGuiDataType_Float;
+  return ImGui::SliderScalar(name, type, value, &min, &max, "%.3g",
+                             ImGuiSliderFlags_Logarithmic);
+}
+
 bool ImGui_ResetButton(const char* id, const char* icon,
                        const char* tooltip) {
   const float size = ImGui::GetFrameHeight();
