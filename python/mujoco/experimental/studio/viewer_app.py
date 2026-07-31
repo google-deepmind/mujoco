@@ -15,6 +15,7 @@
 
 import copy
 import dataclasses
+
 import mujoco
 from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import parser
@@ -355,7 +356,7 @@ class ViewerApp:
       paused = (
           self.step_control_state.get_pause_state() != sim.PauseState.UNPAUSED
       )
-      ux.stats_gui(self.model, self.data, paused, 0.0)
+      ux.info_gui(self.model, self.data, paused, 0.0)
       imgui.End()
 
     # -- Status bar -----------------------------------------------------------

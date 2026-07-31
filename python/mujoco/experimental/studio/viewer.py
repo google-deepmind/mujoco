@@ -31,6 +31,12 @@ _MJCF_PATH = flags.DEFINE_string('mjcf', None, 'Path to MJCF file.')
 _VIEWER = flags.DEFINE_enum_class(
     'viewer', vp.ViewerMode.NATIVE, vp.ViewerMode, 'Viewer mode.'
 )
+_PORT = flags.DEFINE_integer(
+    'port',
+    0,
+    'Web viewer port. 0 picks the first free port starting at 8080, so '
+    'several viewers can run side by side.',
+)
 
 
 def main(argv: list[str]) -> None:
@@ -39,6 +45,7 @@ def main(argv: list[str]) -> None:
       height=_HEIGHT.value,
       gfx=_GFX.value or '',
       viewer_mode=_VIEWER.value,
+      http_port=_PORT.value,
   )
 
   # Resolve model path, if provided.
