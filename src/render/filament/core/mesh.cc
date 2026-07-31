@@ -146,6 +146,9 @@ Mesh::~Mesh() {
   if (index_buffer_) {
     engine_->destroy(index_buffer_);
   }
+  if (wireframe_index_buffer_) {
+    engine_->destroy(wireframe_index_buffer_);
+  }
   if (vertex_buffer_) {
     engine_->destroy(vertex_buffer_);
   }
@@ -308,6 +311,55 @@ void Mesh::UpdateIndexBuffer(const mjrfMeshData& data) {
   // callback for the vertex buffer will call release_callbacks_.
   filament::backend::BufferDescriptor desc(indices, num_bytes);
   index_buffer_->setBuffer(*engine_, std::move(desc));
+
+  UpdateWireframeIndexBuffer(indices);
+}
+
+template <typename T>
+static void FillWireframeIndices(const void* src, int num_indices, T* out) {
+  const T* in = static_cast<const T*>(src);
+  for (int i = 0; i < num_indices - 2; i += 3) {
+    *out++ = in[i + 0];
+    *out++ = in[i + 1];
+    *out++ = in[i + 1];
+    *out++ = in[i + 2];
+    *out++ = in[i + 2];
+    *out++ = in[i + 0];
+  }
+}
+
+void Mesh::UpdateWireframeIndexBuffer(const void* src_indices) {
+  // Line meshes are their own wireframe. Interior edges shared between two
+  // triangles are deliberately not deduplicated so that triangle index ranges
+  // map to line index ranges by doubling; see GetWireframeIndexBuffer().
+  if (config_.primitive_type != mjMESH_PRIMITIVE_TYPE_TRIANGLES) {
+    return;
+  }
+  const int num_line_indices = 2 * config_.max_indices;
+  if (wireframe_index_buffer_ == nullptr) {
+    filament::IndexBuffer::Builder ib_builder;
+    ib_builder.indexCount(num_line_indices);
+    ib_builder.bufferType(config_.index_type == mjINDEX_TYPE_U16
+                              ? filament::IndexBuffer::IndexType::USHORT
+                              : filament::IndexBuffer::IndexType::UINT);
+    wireframe_index_buffer_ = ib_builder.build(*engine_);
+  }
+
+  const int element_size = config_.index_type == mjINDEX_TYPE_U16
+                               ? sizeof(uint16_t)
+                               : sizeof(uint32_t);
+  const int num_bytes = num_line_indices * element_size;
+  std::byte* lines = new std::byte[num_bytes];
+  shared_state_->callbacks.push_back([=]() { delete[] lines; });
+  if (config_.index_type == mjINDEX_TYPE_U16) {
+    FillWireframeIndices(src_indices, config_.max_indices,
+                         reinterpret_cast<uint16_t*>(lines));
+  } else {
+    FillWireframeIndices(src_indices, config_.max_indices,
+                         reinterpret_cast<uint32_t*>(lines));
+  }
+  filament::backend::BufferDescriptor desc(lines, num_bytes);
+  wireframe_index_buffer_->setBuffer(*engine_, std::move(desc));
 }
 
 void Mesh::UpdateBounds(const mjrfMeshData& data) {
@@ -359,6 +411,10 @@ float4* Mesh::BuildOrientationsFromNormals(int num_vertices,
 
 filament::IndexBuffer* Mesh::GetFilamentIndexBuffer() const {
   return index_buffer_;
+}
+
+filament::IndexBuffer* Mesh::GetWireframeIndexBuffer() const {
+  return wireframe_index_buffer_;
 }
 
 filament::VertexBuffer* Mesh::GetFilamentVertexBuffer() const {
