@@ -100,6 +100,8 @@ mat4 CalculateClipFromWorld(const mjrRect& viewport, const mjrCamera& cam) {
 void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
   const mjModel* model = model_objects_->GetModel();
 
+  model_lights_->Update();
+
   mjtNum hpos[3], hfwd[3];
   float headpos[3], gazedir[3];
   mjv_cameraInModel(hpos, hfwd, nullptr, scene);

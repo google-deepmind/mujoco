@@ -187,6 +187,19 @@ bool Ui(std::string_view label, T* value, UiOpts<T> opts = {}) {
     static_assert(dependent_false<T>::value, "Unsupported type");
   }
 
+  // The Drag widgets above do not enforce bounds when only one of min/max is
+  // given, and typed input (ctrl+click) bypasses Slider bounds; clamp here.
+  if constexpr (std::is_arithmetic_v<T> && !std::is_same_v<T, bool>) {
+    if (changed) {
+      if (opts.min.has_value()) {
+        *value = std::max(*value, *opts.min);
+      }
+      if (opts.max.has_value()) {
+        *value = std::min(*value, *opts.max);
+      }
+    }
+  }
+
   if (modified) {
     ImGui::PopStyleColor();
     ImGui::SetItemTooltip("RMB to revert change");
@@ -565,7 +578,7 @@ void DrawIndirectLightGui(SceneView* scene_view) {
   float intensity = 10000.0f;
   if (ibl) {
     intensity = ibl->getIntensity();
-    if (Ui("Intensity", &intensity, {.step = 1000.0f, .fstep = 10000.0f})) {
+    if (Ui("Intensity", &intensity, {.min = 0.0f, .step = 1000.0f, .fstep = 10000.0f})) {
       ibl->setIntensity(intensity);
     }
   }
@@ -586,7 +599,7 @@ void DrawLightGui(filament::LightManager& lm,
     lm.setDirection(li, direction);
   }
   float intensity = lm.getIntensity(li);
-  if (Ui("Intensity", &intensity, {.step = 1000.0f, .fstep = 10000.0f})) {
+  if (Ui("Intensity", &intensity, {.min = 0.0f, .step = 1000.0f, .fstep = 10000.0f})) {
     lm.setIntensityCandela(li, intensity);
   }
   float falloff = lm.getFalloff(li);

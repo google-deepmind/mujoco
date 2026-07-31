@@ -3429,6 +3429,15 @@ Enables or disables the light.
 
 Sets the intensity of the light, in candela.
 
+.. _mjrf_setLightShadowMapSize:
+
+`mjrf_setLightShadowMapSize <#mjrf_setLightShadowMapSize>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setLightShadowMapSize
+
+Sets the resolution of the light's shadow map, in texels.
+
 .. _mjrf_setLightColor:
 
 `mjrf_setLightColor <#mjrf_setLightColor>`__

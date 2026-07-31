@@ -281,6 +281,9 @@ void mjrf_setLightEnabled(mjrfLight* light, mjtBool enabled);
 // Sets the intensity of the light, in candela.
 void mjrf_setLightIntensity(mjrfLight* light, float intensity);
 
+// Sets the resolution of the light's shadow map, in texels.
+void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size);
+
 // Sets the RGB color of the light.
 void mjrf_setLightColor(mjrfLight* light, const float color[3]);
 

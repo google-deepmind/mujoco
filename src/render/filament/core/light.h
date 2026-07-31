@@ -51,6 +51,9 @@ class Light : public mjrfLight {
   // Sets the intensity of this light, in candela.
   void SetIntensity(float intensity);
 
+  // Sets the resolution of this light's shadow map, in texels.
+  void SetShadowMapSize(int map_size);
+
   // Returns the type of the light.
   mjtLightType GetType() const;
 

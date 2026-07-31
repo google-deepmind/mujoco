@@ -234,6 +234,10 @@ void mjrf_setLightIntensity(mjrfLight* light, float intensity) {
   mujoco::Light::downcast(light)->SetIntensity(intensity);
 }
 
+void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size) {
+  mujoco::Light::downcast(light)->SetShadowMapSize(map_size);
+}
+
 void mjrf_setLightColor(mjrfLight* light, const float color[3]) {
   mujoco::Light::downcast(light)->SetColor({color[0], color[1], color[2]});
 }

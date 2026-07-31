@@ -165,6 +165,18 @@ void Light::SetIntensity(float intensity) {
   }
 }
 
+void Light::SetShadowMapSize(int map_size) {
+  params_.shadow_map_size = map_size;
+  if (ibl_) {
+    return;
+  }
+  filament::LightManager& lm = engine_->getLightManager();
+  const filament::LightManager::Instance li = lm.getInstance(entity_);
+  filament::LightManager::ShadowOptions opts = lm.getShadowOptions(li);
+  opts.mapSize = map_size;
+  lm.setShadowOptions(li, opts);
+}
+
 void Light::Enable() {
   if (!enabled_) {
     enabled_ = true;

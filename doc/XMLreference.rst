@@ -3301,8 +3301,8 @@ Attributes may be applied or ignored depending on the lighting model being used.
 .. _body-light-bulbradius:
 
 :at:`bulbradius`: :at-val:`real, "0.02"`
-   The radius of the light source which can affect shadow softness depending on the
-   renderer. This only applies to spotlights.
+   The radius of the light-emitting surface. Larger radii produce softer shadows in renderers that
+   support soft shadows. Ignored by the classic renderer.
 
 .. _body-light-attenuation:
 

@@ -3442,6 +3442,7 @@ mjrfLight* mjrf_createLight(mjrfContext* ctx, const mjrfLightParams* params);
 void mjrf_destroyLight(mjrfLight* light);
 void mjrf_setLightEnabled(mjrfLight* light, mjtBool enabled);
 void mjrf_setLightIntensity(mjrfLight* light, float intensity);
+void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size);
 void mjrf_setLightColor(mjrfLight* light, const float color[3]);
 void mjrf_setLightTransform(mjrfLight* light, const float position[3], const float direction[3]);
 int mjrf_getLightType(const mjrfLight* light);

@@ -14,10 +14,13 @@
 
 #include "render/filament/support/model_lights.h"
 
+#include <algorithm>
 #include <memory>
+#include <numbers>
 #include <string>
 #include <utility>
 
+#include <math/TVecHelpers.h>
 #include <math/mat4.h>
 #include <math/mathfwd.h>
 #include <math/vec3.h>
@@ -74,8 +77,7 @@ static UniquePtr<mjrfTexture> CreateFallbackIndirectLightTexture(
 ModelLights::ModelLights(mjrfScene* scene, ModelObjects* model_objects)
     : scene_(scene), model_objects_(model_objects) {
   const mjModel* model = model_objects->GetModel();
-  default_shadow_map_size_ =
-      ReadElement(model, "filament.shadows.map_size", default_shadow_map_size_);
+  shadowsize_ = model->vis.quality.shadowsize;
   fallback_head_light_intensity_ =
       ReadElement(model, "filament.fallback.head_light_intensity",
                   fallback_head_light_intensity_);
@@ -97,16 +99,28 @@ ModelLights::~ModelLights() {
     mjrf_removeLightFromScene(scene_, fallback_ibl_.get());
   }
   fallback_ibl_.reset();
+  if (fallback_directional_) {
+    mjrf_removeLightFromScene(scene_, fallback_directional_.get());
+  }
+  fallback_directional_.reset();
 }
 
 void ModelLights::Prepare() {
   mjrfContext* ctx = model_objects_->GetContext();
   const mjModel* model = model_objects_->GetModel();
 
+  // Default to the shadow map resolution in mjVisual, like the classic
+  // renderer. Filament clamps shadow map sizes to 2048.
+  int default_shadow_map_size = std::min(model->vis.quality.shadowsize, 2048);
+  default_shadow_map_size =
+      ReadElement(model, "filament.shadows.map_size", default_shadow_map_size);
+
   bool has_image_based_light = false;
+  bool has_directional_light = false;
   float total_light_intensity = 0.0f;
   for (int i = 0; i < model->nlight; ++i) {
     total_light_intensity += model->light_intensity[i];
+    has_directional_light |= model->light_type[i] == mjLIGHT_DIRECTIONAL;
 
     if (model->light_type[i] == mjLIGHT_IMAGE) {
       mjrfLightParams params;
@@ -126,13 +140,42 @@ void ModelLights::Prepare() {
       params.color[2] = model->light_diffuse[2];
       params.type = (mjtLightType)model->light_type[i];
       params.cast_shadows = model->light_castshadow[i];
-      // The bulb_radius is only used by DPCF or PCSS shadows. For VSM shadows,
-      // we use light_bulbradius to control the blur width.
-      params.bulb_radius = model->light_bulbradius[i];
-      params.vsm_blur_width = model->light_bulbradius[i];
+      // light_bulbradius is the radius of the emitting surface in meters.
+      // Filament's DPCF/PCSS internally scale shadowBulbRadius from meters
+      // to light-space texels, so we pass it through in meters for all types.
+      // VSM requires a single uniform blur width for the map; we approximate
+      // this using the angular size of the bulb from the scene center.
+      const float bulb_radius = model->light_bulbradius[i];
+      const float map_size = default_shadow_map_size;
+      const float3 to_center = ReadFloat3(model->stat.center) -
+                               ReadFloat3(model->light_pos0, i);
+      const float distance = std::max(length(to_center), 1e-6f);
+      const float bulb_angle = bulb_radius / distance;
+      params.bulb_radius = bulb_radius;
+      switch (params.type) {
+        case mjLIGHT_SPOT: {
+          const float fov =
+              2.0f * model->light_cutoff[i] * std::numbers::pi / 180.0f;
+          params.vsm_blur_width = bulb_angle * map_size / fov;
+          break;
+        }
+        case mjLIGHT_POINT:
+          params.vsm_blur_width =
+              bulb_angle * map_size / (0.5f * std::numbers::pi);
+          break;
+        case mjLIGHT_DIRECTIONAL: {
+          const float coverage =
+              2.0f * model->vis.map.shadowclip * model->stat.extent;
+          params.vsm_blur_width = bulb_radius * map_size / coverage;
+          break;
+        }
+        default:
+          break;
+      }
+      params.vsm_blur_width = std::min(params.vsm_blur_width, 125.0f);
       params.range = model->light_range[i];
       params.intensity = model->light_intensity[i];
-      params.shadow_map_size = default_shadow_map_size_;
+      params.shadow_map_size = default_shadow_map_size;
       if (params.type == mjLIGHT_SPOT) {
         params.spot_cone_angle = model->light_cutoff[i];
       }
@@ -160,6 +203,23 @@ void ModelLights::Prepare() {
     auto light_obj = CreateLight(ctx, params);
     mjrf_addLightToScene(scene_, light_obj.get());
     lights_.emplace_back(std::move(light_obj));
+  }
+
+  // Workaround for an upstream filament bug, present since 1.74.0
+  // (https://github.com/google/filament/issues/10249): under the non-PCF
+  // shadow types (VSM/DPCF/PCSS), a scene where a punctual (spot/point) light
+  // casts shadows renders fully black unless a directional light is also
+  // present. Mere presence suffices: zero intensity, shadows off. Keep
+  // filament's directional slot occupied with an invisible light whenever the
+  // model has no directional light.
+  if (!has_directional_light) {
+    mjrfLightParams params;
+    mjrf_defaultLightParams(&params);
+    params.type = mjLIGHT_DIRECTIONAL;
+    params.cast_shadows = 0;
+    params.intensity = 0.0f;
+    fallback_directional_ = CreateLight(ctx, params);
+    mjrf_addLightToScene(scene_, fallback_directional_.get());
   }
 
   if (!has_image_based_light && total_light_intensity > 0.0f) {
@@ -203,7 +263,22 @@ void ModelLights::Prepare() {
   mjrf_setSceneSkybox(scene_, model_objects_->GetSkyboxTexture());
 }
 
+void ModelLights::UpdateShadowMapSize() {
+  const mjModel* model = model_objects_->GetModel();
+  if (model->vis.quality.shadowsize != shadowsize_) {
+    shadowsize_ = model->vis.quality.shadowsize;
+    const int map_size = std::min(shadowsize_, 2048);
+    for (auto& light : lights_) {
+      mjrf_setLightShadowMapSize(light.get(), map_size);
+    }
+  }
+}
+
 void ModelLights::Update(const mjData* data) {
+  UpdateShadowMapSize();
+  if (data == nullptr) {
+    return;
+  }
   const mjModel* model = model_objects_->GetModel();
   for (int i = 0; i <= model->nlight; ++i) {
     // Light with index nlight is the headlight.
