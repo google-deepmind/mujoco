@@ -5888,9 +5888,6 @@ public unsafe struct mjData_ {
   public int* efm_K_colind;
   public double* efm_K_val;
   public int* efm_dofid;
-  public int* efm_L_rownnz;
-  public int* efm_L_rowadr;
-  public int* efm_L_colind;
   public double* efm_L;
   public double* efc_b;
   public double* iefc_aref;

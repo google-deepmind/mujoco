@@ -33,7 +33,6 @@
 #include "engine/engine_util_sparse.h"
 
 
-
 //------------------------- derivatives of spatial algebra -----------------------------------------
 
 
@@ -1336,7 +1335,6 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
 }
 
 
-
 // compute res += (s1 + s2*damping) * J'*K*J * vec, for all interpolated flexes
 //   K_rot_cache: if non-NULL, use pre-cached K_rot (same layout as m->flex_stiffness)
 void mjd_flexInterp_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
@@ -1350,7 +1348,6 @@ void mjd_flexInterp_cacheKrot(const mjModel* m, mjData* d, mjtNum* K_rot_out) {
   // use s1=1, s2=0 so scale=1 and K_rot_out gets unscaled values
   mjd_flexInterp_kernel(m, d, NULL, NULL, 1, 0, NULL, K_rot_out);
 }
-
 
 
 // compute res += scale * K_bend * vec for standard (non-interp) flex bending
@@ -2039,7 +2036,6 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
   mj_freeStack(d);
   return nnz;
 }
-
 
 
 
@@ -2901,403 +2897,188 @@ void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) 
 }
 
 
-// z = P \ r with P = M everywhere except the flex block: per-step factor where present, else
-// block-Jacobi, plus the constant mj_setConst bending factor on its covered dofs
-static void effPrecond(const mjModel* m, mjData* d, mjtNum* z, const mjtNum* r,
-                       mjtNum* psr, mjtNum* psz, mjtNum* bfr, mjtNum* bfz) {
+// Build and factor the per-vertex 3x3 diagonal blocks of the flex part of (M + K), stored in
+// d->efm_L, 9 numbers per covered vertex: O(n) to build and apply, approximate where the sparse
+// factorization it replaces was exact. Both consumers use the blocks as a preconditioner: the CG
+// constraint solver (Mgrad = Mtilde \ grad) and the qacc_smooth PCG in mjd_effSolve, which
+// supplies the accuracy.
+static void effBlocks(const mjModel* m, mjData* d) {
   int nv = m->nv;
-  mju_copy(z, r, nv);
-  mj_solveLD(z, d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
 
-  // precomputed bending factor (mj_setConst): exact (M + K_bend)^-1 on covered dofs.
-  // Skipped when the per-step factor exists: it covers these rows and is applied last,
-  // so this solve would be overwritten
+  // covered dofs come in contiguous triples (the 3 slide dofs of one flex point), but the first
+  // one need not be at a multiple of 3: any joint declared before the flex shifts them. Walk the
+  // covered rows rather than striding the dof index, which would straddle point boundaries.
+  int nb = 0;
+  for (int i = 0; i < nv; ) {
+    if (d->efm_K_rownnz[i]) { nb++; i += 3; } else { i++; }
+  }
+  d->nefmdof = 0;
+  mjtNum* B = (mjtNum*) effAlloc(d, sizeof(mjtNum)*9*(nb > 0 ? nb : 1), _Alignof(mjtNum));
+  int* adr = (int*) effAlloc(d, sizeof(int)*(nb > 0 ? nb : 1), _Alignof(int));
+  int k = 0;
+  for (int i = 0; i < nv; ) {
+    if (!d->efm_K_rownnz[i]) {
+      i++;
+      continue;
+    }
+    mjtNum* Bk = B + 9*k;
+    mju_zero(Bk, 9);
+    for (int r = 0; r < 3; r++) {
+      int row = i + r;
+      for (int a = m->M_rowadr[row]; a < m->M_rowadr[row] + m->M_rownnz[row]; a++) {
+        int c = m->M_colind[a];
+        if (c >= i && c < i+3) Bk[3*r + (c-i)] += d->M[a];
+      }
+      for (int a = d->efm_K_rowadr[row]; a < d->efm_K_rowadr[row] + d->efm_K_rownnz[row]; a++) {
+        int c = d->efm_K_colind[a];
+        if (c >= i && c < i+3) Bk[3*r + (c-i)] += d->efm_K_val[a];
+      }
+    }
+    mju_cholFactor(Bk, 3, mjMINVAL);
+    adr[k++] = i;
+    i += 3;
+  }
+  d->efm_L = B;
+  d->efm_dofid = adr;
+  d->nefmdof = nb;
+  d->nefmL = 9*nb;
+}
+
+// Apply the metric preconditioner: the per-step 3x3 blocks when they exist, else the constant
+// bending factor from mj_setConst, on the dofs they cover; M^-1 on all other dofs. PCG requires
+// symmetry, so covered and uncovered dofs must not see each other: zeroing the covered entries
+// of the right-hand side before the qLD sweep keeps the uncovered rows from reading them.
+static void effBlockApply(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
+  int nv = m->nv;
   int nbd = m->nefm0dof;
-  if (nbd && !d->nefmdof) {
-    for (int i=0; i < nbd; i++) {
-      bfr[i] = r[m->efm0_dofid[i]];
+  int flg_bend = nbd && !d->nefmdof;
+  mj_markStack(d);
+  mjtNum* rhs = mjSTACKALLOC(d, nv, mjtNum);
+  mju_copy(rhs, b, nv);   // b may alias x, which the sweep below overwrites
+
+  // dofs no factor covers
+  mju_copy(x, rhs, nv);
+  for (int k = 0; k < d->nefmdof; k++) {
+    mju_zero(x + d->efm_dofid[k], 3);
+  }
+  if (flg_bend) {
+    for (int i = 0; i < nbd; i++) {
+      x[m->efm0_dofid[i]] = 0;
+    }
+  }
+  mj_solveLD(x, d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+
+  // per-step stiffness: 3x3 blocks
+  for (int k = 0; k < d->nefmdof; k++) {
+    int i = d->efm_dofid[k];
+    mju_cholSolve(x + i, d->efm_L + 9*k, rhs + i, 3);
+  }
+
+  // bending-only: exact (M + K_bend)^-1 on the dofs the constant factor covers
+  if (flg_bend) {
+    mjtNum* bfr = mjSTACKALLOC(d, nbd, mjtNum);
+    mjtNum* bfz = mjSTACKALLOC(d, nbd, mjtNum);
+    for (int i = 0; i < nbd; i++) {
+      bfr[i] = rhs[m->efm0_dofid[i]];
     }
     mju_cholSolveSparse(bfz, m->efm0_L, bfr, nbd,
                         m->efm0_L_rownnz, m->efm0_L_rowadr, m->efm0_L_colind);
-    for (int i=0; i < nbd; i++) {
-      z[m->efm0_dofid[i]] = bfz[i];
+    for (int i = 0; i < nbd; i++) {
+      x[m->efm0_dofid[i]] = bfz[i];
     }
   }
-
-  // per-step factor: exact (diag(M) + K)^-1 on its covered dofs, applied last
-  if (d->nefmdof) {
-    int n = d->nefmdof;
-    for (int i=0; i < n; i++) {
-      psr[i] = r[d->efm_dofid[i]];
-    }
-    mju_cholSolveSparse(psz, d->efm_L, psr, n,
-                        d->efm_L_rownnz, d->efm_L_rowadr, d->efm_L_colind);
-    for (int i=0; i < n; i++) {
-      z[d->efm_dofid[i]] = psz[i];
-    }
-  }
+  mj_freeStack(d);
 }
 
 
-// solve x = Mtilde \ b, where Mtilde is this step's effective metric:
-//   efm_active == 0:  Mtilde = M      one sparse LD solve, no elasticity anywhere
-//   efm_active == 2:  Mtilde = M + K  exact direct solve, blockdiag(qLD, flex factor);
-//                                     exactness conditions in mjd_effBuild
-//   efm_active == 1:  Mtilde = M + K  iterative: x0 = M \ b ignores the elasticity, then
-//                                     matrix-free PCG on the residual, preconditioned by
-//                                     effPrecond (tolerance/cap match the old post-hoc)
+// accurate solve of (M + K) x = b by PCG with the 3x3 block preconditioner, converging the
+// relative residual to opt.tolerance; used for qacc_smooth. Reaching opt.iterations means the
+// metric is too ill-conditioned for the blocks: warn (mjWARN_INERTIA, worst-residual dof) and
+// return x under-converged.
 void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
+  if (!d->efm_active) {
+    mjd_effPrec(m, d, x, b);
+    return;
+  }
+  int nv = m->nv;
+  mj_markStack(d);
+  mjtNum* r = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* z = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* p = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* Ap = mjSTACKALLOC(d, nv, mjtNum);
+  mju_copy(r, b, nv);   // before zeroing x: b may alias x
+  mju_zero(x, nv);
+  mjtNum bn = mju_dot(r, r, nv);
+  if (bn > mjMINVAL) {
+    // converge the relative residual to opt.tolerance; both sides are squared norms
+#ifdef mjUSESINGLE
+    // float cannot reach a 1e-8 relative residual (eps ~1.2e-7): without a floor every step of
+    // every covered model would run to opt.iterations and then warn.
+    mjtNum tolerance = mju_max(m->opt.tolerance, 1e-6);
+#else
+    mjtNum tolerance = m->opt.tolerance;
+#endif
+    mjtNum tol = tolerance*tolerance*bn;
+    int capped = 1;   // cleared by either exit below; still set means the cap was reached
+    effBlockApply(m, d, z, r);
+    mju_copy(p, z, nv);
+    mjtNum rz = mju_dot(r, z, nv);
+    for (int it = 0; it < m->opt.iterations; it++) {
+      mju_mulSymVecSparse(Ap, d->M, p, nv, m->M_rownnz, m->M_rowadr, m->M_colind);
+      mjd_effMulAdd(m, d, Ap, p);
+      mjtNum pAp = mju_dot(p, Ap, nv);
+      // curvature breakdown: the metric has no curvature along p, so no further progress is
+      // possible and x is the best available. Not a budget failure, so it does not warn.
+      if (pAp <= 0) { capped = 0; break; }
+      mjtNum alpha = rz/pAp;
+      mju_addToScl(x, p, alpha, nv);
+      mju_addToScl(r, Ap, -alpha, nv);
+      if (mju_dot(r, r, nv) < tol) { capped = 0; break; }
+      effBlockApply(m, d, z, r);
+      mjtNum rznew = mju_dot(r, z, nv);
+      mju_addScl(p, z, p, rznew/rz, nv);
+      rz = rznew;
+    }
+
+    // Ran out of iterations with the residual still above tolerance: the metric is too
+    // ill-conditioned for the blocks to solve within the budget. Blame the dof carrying the
+    // largest residual.
+    // mjWARN_INERTIA is the closest existing warning (reusing it avoids an ABI addition), but on
+    // its own it points the user at their inertia when the cause is the flex stiffness, so say so
+    // first. Gate on the same first-time condition mj_warning uses, or a model that fails every
+    // step would print this thousands of times a second.
+    if (capped && mju_dot(r, r, nv) >= tol) {
+      int worst = 0;
+      for (int i = 1; i < nv; i++) {
+        if (mju_abs(r[i]) > mju_abs(r[worst])) worst = i;
+      }
+      if (!d->warning[mjWARN_INERTIA].number) {
+        mju_warning("Flex stiffness is too ill-conditioned for the effective-metric block "
+                    "preconditioner: the M+K solve ran out of iterations at a relative residual "
+                    "of %.2e and qacc_smooth is under-converged. Reported as a singular inertia "
+                    "below, because M+K is the effective inertia.",
+                    mju_sqrt(mju_dot(r, r, nv)/bn));
+      }
+      mj_warning(d, mjWARN_INERTIA, worst);
+    }
+  }
+  mj_freeStack(d);
+}
+
+void mjd_effPrec(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
   int nv = m->nv;
 
-  // inactive metric: x = M \ b
-  if (!d->efm_active) {
-    if (x != b) {
-      mju_copy(x, b, nv);
-    }
-    mj_solveLD(x, d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+  // active metric: the prefactored 3x3 blocks are the preconditioner
+  if (d->efm_active) {
+    effBlockApply(m, d, x, b);
     return;
   }
 
-  // exact preconditioner: blockdiag(qLD, flex factor) is (M+K)^-1, solve directly
-  if (d->efm_active == 2) {
-    mj_markStack(d);
-    mjtNum* psr = mjSTACKALLOC(d, d->nefmdof > 0 ? d->nefmdof : 1, mjtNum);
-    mjtNum* psz = mjSTACKALLOC(d, d->nefmdof > 0 ? d->nefmdof : 1, mjtNum);
-    int nbd0 = m->nefm0dof;
-    mjtNum* bfr = mjSTACKALLOC(d, nbd0 > 0 ? nbd0 : 1, mjtNum);
-    mjtNum* bfz = mjSTACKALLOC(d, nbd0 > 0 ? nbd0 : 1, mjtNum);
-    effPrecond(m, d, x, b, psr, psz, bfr, bfz);
-    mj_freeStack(d);
-    return;
-  }
-
-  // general path: warm start from M \ b, refine below
+  // inactive metric: x = M \ b, which is exact
   if (x != b) {
     mju_copy(x, b, nv);
   }
   mj_solveLD(x, d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
-
-  mj_markStack(d);
-  mjtNum* r  = mjSTACKALLOC(d, nv, mjtNum);
-  mjtNum* z  = mjSTACKALLOC(d, nv, mjtNum);
-  mjtNum* p  = mjSTACKALLOC(d, nv, mjtNum);
-  mjtNum* Ap = mjSTACKALLOC(d, nv, mjtNum);
-  mjtNum* psr = mjSTACKALLOC(d, d->nefmdof > 0 ? d->nefmdof : 1, mjtNum);
-  mjtNum* psz = mjSTACKALLOC(d, d->nefmdof > 0 ? d->nefmdof : 1, mjtNum);
-  int nbd = m->nefm0dof;
-  mjtNum* bfr = mjSTACKALLOC(d, nbd > 0 ? nbd : 1, mjtNum);
-  mjtNum* bfz = mjSTACKALLOC(d, nbd > 0 ? nbd : 1, mjtNum);
-
-  // r = b - (M+K)*x
-  mju_mulSymVecSparse(Ap, d->M, x, nv, m->M_rownnz, m->M_rowadr, m->M_colind);
-  mjd_effMulAdd(m, d, Ap, x);
-  mju_sub(r, b, Ap, nv);
-
-  // relative tolerance on the residual
-  mjtNum tol = 1e-10 * mju_dot(b, b, nv);
-  if (mju_dot(r, r, nv) < tol) {
-    mj_freeStack(d);
-    return;
-  }
-
-  effPrecond(m, d, z, r, psr, psz, bfr, bfz);
-  mju_copy(p, z, nv);
-  mjtNum rz = mju_dot(r, z, nv);
-
-  for (int k=0; k < 50; k++) {
-    mju_mulSymVecSparse(Ap, d->M, p, nv, m->M_rownnz, m->M_rowadr, m->M_colind);
-    mjd_effMulAdd(m, d, Ap, p);
-    mjtNum pAp = mju_dot(p, Ap, nv);
-    if (pAp < mjMINVAL) {
-      break;
-    }
-    mjtNum alpha = rz/pAp;
-    mju_addToScl(x, p, alpha, nv);
-    mju_addToScl(r, Ap, -alpha, nv);
-    if (mju_dot(r, r, nv) < tol) {
-      break;
-    }
-    effPrecond(m, d, z, r, psr, psz, bfr, bfz);
-    mjtNum rznew = mju_dot(r, z, nv);
-    mju_addScl(p, z, p, rznew/rz, nv);
-    rz = rznew;
-  }
-  mj_freeStack(d);
-}
-
-
-// geometric nested-dissection ordering for the per-step factor: recursive coordinate bisection
-// with adjacency-detected separators, emitted ancestors-first (the reverse-Cholesky convention)
-typedef struct {
-  const mjtNum* pos;     // block positions                              (3 x nblk)
-  const int* B_rownnz;   // dof-level B pattern, for block adjacency
-  const int* B_rowadr;
-  const int* B_colind;
-  const int* dofid;      // block -> first dof address (3 dofs per block)
-  const int* dof2c;      // dof -> compact index (pre-permutation)
-  int* work;             // block id work array                          (nblk x 1)
-  int* stamp;            // current-range stamp per block                (nblk x 1)
-  int* side;             // bisection side per block (valid when stamped)(nblk x 1)
-  int stampctr;          // running range id
-  int* scratch;          // side-1 gather scratch                        (nblk x 1)
-  int* perm;             // output: block emission order                 (nblk x 1)
-  int nperm;             // emitted count
-} mjEffND;
-
-static void effNDOrder(mjEffND* nd, int lo, int hi) {
-  int nblk = hi - lo;
-  if (nblk <= 16) {
-    for (int i=lo; i < hi; i++) {
-      nd->perm[nd->nperm++] = nd->work[i];
-    }
-    return;
-  }
-
-  // widest axis of the range's bounding box, split at the mean coordinate
-  mjtNum bmin[3] = {mjMAXVAL, mjMAXVAL, mjMAXVAL}, bmax[3] = {-mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
-  mjtNum mean[3] = {0, 0, 0};
-  for (int i=lo; i < hi; i++) {
-    const mjtNum* p = nd->pos + 3*nd->work[i];
-    for (int x=0; x < 3; x++) {
-      bmin[x] = p[x] < bmin[x] ? p[x] : bmin[x];
-      bmax[x] = p[x] > bmax[x] ? p[x] : bmax[x];
-      mean[x] += p[x];
-    }
-  }
-  int axis = 0;
-  for (int x=1; x < 3; x++) {
-    if (bmax[x] - bmin[x] > bmax[axis] - bmin[axis]) {
-      axis = x;
-    }
-  }
-  mjtNum split = mean[axis] / nblk;
-
-  // stamp the range, assign sides
-  int id = ++nd->stampctr, n0 = 0;
-  for (int i=lo; i < hi; i++) {
-    int b = nd->work[i];
-    nd->stamp[b] = id;
-    nd->side[b] = nd->pos[3*b + axis] > split;
-    n0 += !nd->side[b];
-  }
-
-  // degenerate split (coincident positions): fall back to an arbitrary halving
-  if (n0 == 0 || n0 == nblk) {
-    for (int i=lo; i < hi; i++) {
-      nd->side[nd->work[i]] = (i - lo) >= nblk/2;
-    }
-  }
-
-  // emit the separator (side-0 blocks adjacent to side 1) first; compact A in place and
-  // side-1 blocks via the scratch list (in-place would clobber unread entries)
-  int na = 0, nb = 0;
-  for (int i=lo; i < hi; i++) {
-    int b = nd->work[i];
-    if (nd->side[b]) {
-      nd->scratch[nb++] = b;
-      continue;
-    }
-
-    // side 0: separator iff adjacent to side 1 (block adjacency via the first dof's B row)
-    int dof = nd->dofid[3*b];
-    int adr = nd->B_rowadr[dof], nnz = nd->B_rownnz[dof], sep = 0;
-    for (int k=0; k < nnz; k++) {
-      int cc = nd->dof2c[nd->B_colind[adr + k]];
-      if (cc >= 0) {
-        int nbr = cc/3;
-        if (nd->stamp[nbr] == id && nd->side[nbr]) {
-          sep = 1;
-          break;
-        }
-      }
-    }
-    if (sep) {
-      nd->perm[nd->nperm++] = b;
-    } else {
-      nd->work[lo + na++] = b;
-    }
-  }
-  for (int i=0; i < nb; i++) {
-    nd->work[lo + na + i] = nd->scratch[i];
-  }
-  effNDOrder(nd, lo, lo + na);
-  effNDOrder(nd, lo + na, lo + na + nb);
-}
-
-
-// per-step sparse factor of the flex block of (M + K): reverse-Cholesky over the covered dofs,
-// nested-dissection ordered. M enters as its diagonal there -- exact for free vertices;
-// parent-coupled vertices make this a preconditioner, refined to tolerance by mjd_effSolve.
-// Exact zeros are dropped from the off-diagonal pattern (bending couples same-coordinate dofs
-// only). The matrix is SPD by construction, so rank deficiency can only mean a degenerate
-// model (near-zero mass and stiffness on a covered dof) and is a hard error.
-static void effFactor(const mjModel* m, mjData* d) {
-  int nv = m->nv;
-  const int* B_rownnz = d->efm_K_rownnz;
-  const int* B_rowadr = d->efm_K_rowadr;
-  const int* B_colind = d->efm_K_colind;
-  const mjtNum* B_val = d->efm_K_val;
-
-  mj_markStack(d);
-
-  // compact dof map over covered rows (ascending, so compact indices stay sorted)
-  int* dof2c = mjSTACKALLOC(d, nv, int);
-  int n = 0;
-  for (int i=0; i < nv; i++) {
-    dof2c[i] = B_rownnz[i] ? n++ : -1;
-  }
-  int* dofid = mjSTACKALLOC(d, n, int);
-  for (int i=0; i < nv; i++) {
-    if (dof2c[i] >= 0) {
-      dofid[dof2c[i]] = i;
-    }
-  }
-
-  // nested-dissection reordering of the covered blocks (one block = 3 dofs of one point)
-  int nblk = n/3;
-  int* nd_perm = mjSTACKALLOC(d, nblk, int);
-  {
-    int* nd_work  = mjSTACKALLOC(d, nblk, int);
-    int* nd_stamp = mjSTACKALLOC(d, nblk, int);
-    int* nd_side  = mjSTACKALLOC(d, nblk, int);
-    int* nd_scr   = mjSTACKALLOC(d, nblk, int);
-    mjtNum* bpos  = mjSTACKALLOC(d, 3*nblk, mjtNum);
-    for (int b=0; b < nblk; b++) {
-      nd_work[b] = b;
-      nd_stamp[b] = 0;
-      mju_copy3(bpos + 3*b, d->xpos + 3*m->dof_bodyid[dofid[3*b]]);
-    }
-    mjEffND nd;
-    nd.pos = bpos;
-    nd.B_rownnz = B_rownnz;
-    nd.B_rowadr = B_rowadr;
-    nd.B_colind = B_colind;
-    nd.dofid = dofid;
-    nd.dof2c = dof2c;
-    nd.work = nd_work;
-    nd.stamp = nd_stamp;
-    nd.side = nd_side;
-    nd.stampctr = 0;
-    nd.scratch = nd_scr;
-    nd.perm = nd_perm;
-    nd.nperm = 0;
-    effNDOrder(&nd, 0, nblk);
-  }
-
-  // apply the permutation to the compact indexing; the permuted dofid persists on the arena
-  int* psdofid = EFMALLOC(int, n);
-  for (int r=0; r < nblk; r++) {
-    psdofid[3*r]   = dofid[3*nd_perm[r]];
-    psdofid[3*r+1] = dofid[3*nd_perm[r] + 1];
-    psdofid[3*r+2] = dofid[3*nd_perm[r] + 2];
-  }
-  for (int i=0; i < n; i++) {
-    dof2c[psdofid[i]] = i;
-  }
-
-  // H = diag(M) + K in compact indices: lower CSR (values, diagonal last) + upper CSR (pattern)
-  int nHl = 0, nHu = 0;
-  for (int c=0; c < n; c++) {
-    int adr = B_rowadr[psdofid[c]], nnzB = B_rownnz[psdofid[c]];
-    for (int k=0; k < nnzB; k++) {
-      int cc = dof2c[B_colind[adr + k]];
-      if (B_val[adr + k] == 0 && cc != c) {
-        continue;
-      }
-      if (cc <= c) {
-        nHl++;
-      } else {
-        nHu++;
-      }
-    }
-  }
-  int* Hl_rownnz = mjSTACKALLOC(d, n, int);
-  int* Hl_rowadr = mjSTACKALLOC(d, n, int);
-  int* Hl_colind = mjSTACKALLOC(d, nHl, int);
-  mjtNum* Hl_val  = mjSTACKALLOC(d, nHl, mjtNum);
-  int* Hu_rownnz = mjSTACKALLOC(d, n, int);
-  int* Hu_rowadr = mjSTACKALLOC(d, n, int);
-  int* Hu_colind = mjSTACKALLOC(d, nHu > 0 ? nHu : 1, int);
-  int maxrow = 0;
-  for (int c=0; c < n; c++) {
-    maxrow = B_rownnz[psdofid[c]] > maxrow ? B_rownnz[psdofid[c]] : maxrow;
-  }
-  int* rind = mjSTACKALLOC(d, maxrow, int);
-  mjtNum* rval = mjSTACKALLOC(d, maxrow, mjtNum);
-  int ladr = 0, uadr = 0;
-  for (int c=0; c < n; c++) {
-    int i = psdofid[c];
-    Hl_rowadr[c] = ladr;
-    Hu_rowadr[c] = uadr;
-
-    // gather the row in permuted compact indices, then sort (columns are no longer monotone)
-    int adr = B_rowadr[i], nnzB = B_rownnz[i], nr = 0;
-    for (int k=0; k < nnzB; k++) {
-      int cc = dof2c[B_colind[adr + k]];
-      if (B_val[adr + k] == 0 && cc != c) {
-        continue;
-      }
-      rind[nr] = cc;
-      rval[nr++] = B_val[adr + k];
-    }
-    for (int k=1; k < nr; k++) {
-      int ci = rind[k];
-      mjtNum vi = rval[k];
-      int j = k - 1;
-      while (j >= 0 && rind[j] > ci) {
-        rind[j+1] = rind[j];
-        rval[j+1] = rval[j];
-        j--;
-      }
-      rind[j+1] = ci;
-      rval[j+1] = vi;
-    }
-    for (int k=0; k < nr; k++) {
-      if (rind[k] < c) {
-        Hl_colind[ladr] = rind[k];
-        Hl_val[ladr++] = rval[k];
-      } else if (rind[k] == c) {
-        Hl_colind[ladr] = c;
-        Hl_val[ladr++] = rval[k] + d->M[m->M_rowadr[i] + m->M_rownnz[i] - 1];
-      } else {
-        Hu_colind[uadr++] = rind[k];
-      }
-    }
-    Hl_rownnz[c] = ladr - Hl_rowadr[c];
-    Hu_rownnz[c] = uadr - Hu_rowadr[c];
-  }
-
-  // symbolic factorization: counting phase, then filling phase
-  int* L_rownnz  = EFMALLOC(int, n);
-  int* L_rowadr  = EFMALLOC(int, n);
-  int* LT_rownnz = mjSTACKALLOC(d, n, int);
-  int* LT_rowadr = mjSTACKALLOC(d, n, int);
-  int nnz = mju_cholFactorSymbolic(NULL, L_rownnz, L_rowadr, NULL, LT_rownnz, LT_rowadr, NULL,
-                                   Hu_rownnz, Hu_rowadr, Hu_colind, n, d);
-  int* L_colind  = EFMALLOC(int, nnz);
-  int* LT_colind = mjSTACKALLOC(d, nnz, int);
-  int* LT_map    = mjSTACKALLOC(d, nnz, int);
-  mju_cholFactorSymbolic(L_colind, L_rownnz, L_rowadr, LT_colind, LT_rownnz, LT_rowadr, LT_map,
-                         Hu_rownnz, Hu_rowadr, Hu_colind, n, d);
-
-  // numeric factorization
-  mjtNum* L = EFMALLOC(mjtNum, nnz);
-  int rank = mju_cholFactorNumeric(L, n, mjMINVAL, L_rownnz, L_rowadr, L_colind,
-                                   LT_rownnz, LT_rowadr, LT_colind, LT_map,
-                                   Hl_val, Hl_rownnz, Hl_rowadr, Hl_colind, d);
-  mj_freeStack(d);
-  if (rank != n) {
-    mjERROR("effective metric factorization is rank-deficient (%d of %d): "
-            "degenerate mass or stiffness in the flex block", rank, n);
-  }
-
-  d->nefmdof      = n;
-  d->nefmL        = nnz;
-  d->efm_dofid    = psdofid;
-  d->efm_L_rownnz = L_rownnz;
-  d->efm_L_rowadr = L_rowadr;
-  d->efm_L_colind = L_colind;
-  d->efm_L        = L;
 }
 
 
@@ -3358,7 +3139,7 @@ void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
     // solve (the stiff flex block stops being iterated on). Consumers that only multiply
     // (inverse dynamics) skip it.
     if (flg_factor) {
-      effFactor(m, d);
+      effBlocks(m, d);
     }
 
   } else {
@@ -3366,36 +3147,6 @@ void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
     mju_zeroInt(d->efm_K_rowadr, nv);
   }
   d->efm_active = 1;
-
-  // preconditioner exactness (efm_active == 2): when every dof the stiffness touches sits on
-  // a simple slider body (diagonal M row, no kinematic children), M has no coupling across
-  // the covered block, so blockdiag(qLD, flex factor) is exactly (M+K)^-1 and mjd_effSolve
-  // skips the refinement. Interp flexes outside the assembled CSR act only through the
-  // matrix-free operator (no factor rows), which breaks exactness.
-  int exact = d->nefmK ? (d->nefmdof > 0) : 1;
-  for (int f=0; exact && f < m->nflex; f++) {
-    if (!krot && flexInterp_processed(m, f)) {
-      exact = 0;
-    }
-  }
-  if (exact && d->nefmK) {
-    for (int i=0; i < nv; i++) {
-      if (d->efm_K_rownnz[i] && m->body_simple[m->dof_bodyid[i]] != 2) {
-        exact = 0;
-        break;
-      }
-    }
-  } else if (exact) {
-    for (int i=0; i < m->nefm0dof; i++) {
-      if (m->body_simple[m->dof_bodyid[m->efm0_dofid[i]]] != 2) {
-        exact = 0;
-        break;
-      }
-    }
-  }
-  if (exact) {
-    d->efm_active = 2;
-  }
 
   // fill the shift with the current velocity (refreshed again in the velocity stage)
   mjd_effShift(m, d);
