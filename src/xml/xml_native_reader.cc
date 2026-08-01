@@ -258,7 +258,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             "margin", "stiffness", "damping", "rgba", "user"},
         {"general", "?", "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange",
             "actrange", "gear", "damping", "armature", "cranklength", "user", "group", "nsample",
-            "interp", "delay", "actdim", "input", "dyntype", "gaintype", "biastype", "dynprm", "gainprm",
+            "interp", "delay", "actdim", "input", "velrange", "ffrange", "dyntype", "gaintype", "biastype", "dynprm", "gainprm",
             "biasprm", "actearly"},
         {"motor", "?", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "damping", "armature", "cranklength", "user", "group", "nsample", "interp", "delay"},
@@ -270,6 +270,12 @@ std::vector<const char*> MJCF[nMJCF] = {
         {"intvelocity", "?", "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange",
              "actrange", "inheritrange", "gear", "damping", "armature", "cranklength", "user", "group",
             "nsample", "interp", "delay", "kp", "kv", "dampratio"},
+        {"orientation", "?", "forcelimited", "ctrlrange", "forcerange", "user", "group",
+            "nsample", "interp", "delay", "kp", "kv", "dampratio", "input"},
+        {"pid", "?", "ctrllimited", "forcelimited", "ctrlrange", "posrange", "velrange", "ffrange",
+            "forcerange", "inheritrange", "gear", "damping", "armature", "cranklength", "user",
+            "group", "nsample", "interp", "delay", "kp", "kv", "dampratio", "ki", "imax", "slewmax",
+            "input"},
         {"damper", "?", "forcelimited", "ctrlrange", "forcerange",
             "gear", "damping", "armature", "cranklength", "user", "group", "nsample", "interp", "delay", "kv"},
         {"cylinder", "?", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
@@ -476,7 +482,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange", "actrange",
             "lengthrange", "gear", "damping", "armature", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
-            "body", "actdim", "input", "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm",
+            "body", "actdim", "input", "velrange", "ffrange", "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm",
             "actearly"},
         {"motor", "*", "name", "class", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
@@ -502,6 +508,12 @@ std::vector<const char*> MJCF[nMJCF] = {
             "forcelimited", "ctrlrange", "forcerange", "user",
             "joint", "site", "refsite",
             "kp", "kv", "dampratio", "input"},
+        {"pid", "*", "name", "class", "group", "nsample", "interp", "delay",
+            "ctrllimited", "forcelimited", "ctrlrange", "posrange", "velrange", "ffrange",
+            "forcerange", "inheritrange", "lengthrange", "gear", "damping", "armature",
+            "cranklength", "user",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
+            "kp", "kv", "dampratio", "ki", "imax", "slewmax", "input"},
         {"damper", "*", "name", "class", "group", "nsample", "interp", "delay",
             "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "damping", "armature", "cranklength", "user",
@@ -822,7 +834,7 @@ const mjMap mark_map[mark_sz] = {
 
 
 // dyn type
-const int dyn_sz = 7;
+const int dyn_sz = 8;
 const mjMap dyn_map[dyn_sz] = {
   {"none",          mjDYN_NONE},
   {"integrator",    mjDYN_INTEGRATOR},
@@ -830,6 +842,7 @@ const mjMap dyn_map[dyn_sz] = {
   {"filterexact",   mjDYN_FILTEREXACT},
   {"muscle",        mjDYN_MUSCLE},
   {"dcmotor",       mjDYN_DCMOTOR},
+  {"pid",           mjDYN_PID},
   {"user",          mjDYN_USER}
 };
 
@@ -844,23 +857,59 @@ const mjMap dcmotorinput_map[dcmotorinput_sz] = {
 
 
 // gain type
-const int gain_sz = 6;
+const int gain_sz = 7;
 const mjMap gain_map[gain_sz] = {
   {"fixed",         mjGAIN_FIXED},
   {"affine",        mjGAIN_AFFINE},
   {"muscle",        mjGAIN_MUSCLE},
   {"dcmotor",       mjGAIN_DCMOTOR},
   {"so3",           mjGAIN_SO3},
+  {"pid",           mjGAIN_PID},
   {"user",          mjGAIN_USER}
 };
 
 
 // so3 input chart
-const int input_sz = 2;
-const mjMap input_map[input_sz] = {
+const int inputchart_sz = 2;
+const mjMap inputchart_map[inputchart_sz] = {
   {"expmap",        mjCHART_EXPMAP},
   {"quat",          mjCHART_QUAT}
 };
+
+
+// servo-family input tokens
+const int inputbit_sz = 3;
+const mjMap inputbit_map[inputbit_sz] = {
+  {"pos",           mjINPUT_POS},
+  {"vel",           mjINPUT_VEL},
+  {"ff",            mjINPUT_FF}
+};
+
+
+// read the "input" attribute: so3 chart keyword, or servo input token list
+static bool ReadInputSpec(tinyxml2::XMLElement* elem, int* ctrlspec) {
+  std::string text;
+  if (!mjXUtil::ReadAttrTxt(elem, "input", text)) {
+    return false;
+  }
+
+  // so3 chart keyword
+  int chart = mjXUtil::FindKey(inputchart_map, inputchart_sz, text);
+  if (chart >= 0) {
+    *ctrlspec = chart;
+    return true;
+  }
+
+  // servo input tokens
+  int bits[inputbit_sz];
+  int nbit = mjXUtil::MapValues(elem, "input", bits, inputbit_map, inputbit_sz);
+  int spec = 0;
+  for (int k=0; k < nbit; k++) {
+    spec |= bits[k];
+  }
+  *ctrlspec = spec;
+  return true;
+}
 
 
 // bias type
@@ -2528,9 +2577,9 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
     ReadAttr(elem, "gainprm", mjNGAIN, actuator->gainprm, text, false, false);
     ReadAttr(elem, "biasprm", mjNBIAS, actuator->biasprm, text, false, false);
     ReadAttrInt(elem, "actdim", &actuator->actdim);
-    if (MapValue(elem, "input", &n, input_map, input_sz)) {
-      actuator->ctrlspec = n;
-    }
+    ReadInputSpec(elem, &actuator->ctrlspec);
+    ReadAttr(elem, "velrange", 2, actuator->velrange, text);
+    ReadAttr(elem, "ffrange", 2, actuator->ffrange, text);
   }
 
   // direct drive motor
@@ -2593,12 +2642,51 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
     }
 
     // input chart: expmap (default) or quat
-    int n;
-    if (MapValue(elem, "input", &n, input_map, input_sz)) {
-      actuator->ctrlspec = n;
-    }
+    ReadInputSpec(elem, &actuator->ctrlspec);
 
     err = mjs_setToOrientation(actuator, kp, kv, dampratio, actuator->ctrlspec);
+  }
+
+  // PID servo: inputs are position and velocity setpoints
+  else if (type == "pid") {
+    // kp: default inherited via -biasprm[1]
+    double kp = -actuator->biasprm[1];
+    ReadAttr(elem, "kp", 1, &kp, text);
+
+    double kv_data;
+    double *kv = &kv_data;
+    if (!ReadAttr(elem, "kv", 1, kv, text)) {
+      kv = nullptr;
+    }
+
+    double dampratio_data;
+    double *dampratio = &dampratio_data;
+    if (!ReadAttr(elem, "dampratio", 1, dampratio, text)) {
+      dampratio = nullptr;
+    }
+
+    // controller parameters: ki (gainprm[0]), imax (dynprm[0]), slewmax (dynprm[1]); inherited
+    double ki = actuator->gainprm[0] * (actuator->dyntype == mjDYN_PID);
+    ReadAttr(elem, "ki", 1, &ki, text);
+    double imax = actuator->dynprm[0] * (actuator->dyntype == mjDYN_PID);
+    ReadAttr(elem, "imax", 1, &imax, text);
+    double slewmax = actuator->dynprm[1] * (actuator->dyntype == mjDYN_PID);
+    ReadAttr(elem, "slewmax", 1, &slewmax, text);
+
+    // input subset selection
+    ReadInputSpec(elem, &actuator->ctrlspec);
+
+    // per-input ranges; posrange is an alias of ctrlrange (input 0)
+    ReadAttr(elem, "posrange", 2, actuator->ctrlrange, text);
+    ReadAttr(elem, "velrange", 2, actuator->velrange, text);
+    ReadAttr(elem, "ffrange", 2, actuator->ffrange, text);
+
+    // handle inheritrange
+    double inheritrange = actuator->inheritrange;
+    ReadAttr(elem, "inheritrange", 1, &inheritrange, text);
+
+    err = mjs_setToPID(actuator, kp, kv, dampratio, &ki, &imax, &slewmax, inheritrange,
+                      actuator->ctrlspec);
   }
 
   // velocity servo
@@ -3168,6 +3256,7 @@ void mjXReader::Default(XMLElement* section, const mjsDefault* def, const mjVFS*
              name == "damper"      ||
              name == "intvelocity" ||
              name == "orientation" ||
+             name == "pid"         ||
              name == "cylinder"    ||
              name == "muscle"      ||
              name == "adhesion"    ||

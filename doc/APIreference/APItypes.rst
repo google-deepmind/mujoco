@@ -357,6 +357,16 @@ Orientation input charts of so3 actuators. These values are used in ``m->actuato
 .. mujoco-include:: mjtCtrlChart
 
 
+.. _mjtCtrlInput:
+
+mjtCtrlInput
+~~~~~~~~~~~~
+
+Input bitflags of servo-family (pd, dcmotor) actuators. These values are used in ``m->actuator_ctrlspec``.
+
+.. mujoco-include:: mjtCtrlInput
+
+
 .. _mjtObj:
 
 mjtObj

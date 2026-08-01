@@ -2379,6 +2379,12 @@
                :ref:`input<actuator-general-input>`
 
             .. grid-item::
+               :ref:`velrange<actuator-general-velrange>`
+
+            .. grid-item::
+               :ref:`ffrange<actuator-general-ffrange>`
+
+            .. grid-item::
                :ref:`dyntype<actuator-general-dyntype>`
 
             .. grid-item::
@@ -2791,6 +2797,114 @@
 
             .. grid-item::
                :ref:`input<actuator-orientation-input>`
+
+
+      .. dropdown:: :ref:`pid<actuator-pid>` |*|
+
+         .. grid:: 2 3 4 4
+            :gutter: 0
+
+            .. grid-item::
+               :ref:`name<actuator-pid-name>`
+
+            .. grid-item::
+               :ref:`class<actuator-pid-class>`
+
+            .. grid-item::
+               :ref:`group<actuator-pid-group>`
+
+            .. grid-item::
+               :ref:`nsample<actuator-pid-nsample>`
+
+            .. grid-item::
+               :ref:`interp<actuator-pid-interp>`
+
+            .. grid-item::
+               :ref:`delay<actuator-pid-delay>`
+
+            .. grid-item::
+               :ref:`ctrllimited<actuator-pid-ctrllimited>`
+
+            .. grid-item::
+               :ref:`forcelimited<actuator-pid-forcelimited>`
+
+            .. grid-item::
+               :ref:`ctrlrange<actuator-pid-ctrlrange>`
+
+            .. grid-item::
+               :ref:`posrange<actuator-pid-posrange>`
+
+            .. grid-item::
+               :ref:`velrange<actuator-pid-velrange>`
+
+            .. grid-item::
+               :ref:`ffrange<actuator-pid-ffrange>`
+
+            .. grid-item::
+               :ref:`forcerange<actuator-pid-forcerange>`
+
+            .. grid-item::
+               :ref:`inheritrange<actuator-pid-inheritrange>`
+
+            .. grid-item::
+               :ref:`lengthrange<actuator-pid-lengthrange>`
+
+            .. grid-item::
+               :ref:`gear<actuator-pid-gear>`
+
+            .. grid-item::
+               :ref:`damping<actuator-pid-damping>`
+
+            .. grid-item::
+               :ref:`armature<actuator-pid-armature>`
+
+            .. grid-item::
+               :ref:`cranklength<actuator-pid-cranklength>`
+
+            .. grid-item::
+               :ref:`user<actuator-pid-user>`
+
+            .. grid-item::
+               :ref:`joint<actuator-pid-joint>`
+
+            .. grid-item::
+               :ref:`jointinparent<actuator-pid-jointinparent>`
+
+            .. grid-item::
+               :ref:`tendon<actuator-pid-tendon>`
+
+            .. grid-item::
+               :ref:`slidersite<actuator-pid-slidersite>`
+
+            .. grid-item::
+               :ref:`cranksite<actuator-pid-cranksite>`
+
+            .. grid-item::
+               :ref:`site<actuator-pid-site>`
+
+            .. grid-item::
+               :ref:`refsite<actuator-pid-refsite>`
+
+            .. grid-item::
+               :ref:`kp<actuator-pid-kp>`
+
+            .. grid-item::
+               :ref:`kv<actuator-pid-kv>`
+
+            .. grid-item::
+               :ref:`dampratio<actuator-pid-dampratio>`
+
+            .. grid-item::
+               :ref:`ki<actuator-pid-ki>`
+
+            .. grid-item::
+               :ref:`imax<actuator-pid-imax>`
+
+            .. grid-item::
+               :ref:`slewmax<actuator-pid-slewmax>`
+
+            .. grid-item::
+               :ref:`input<actuator-pid-input>`
 
 
       .. dropdown:: :ref:`damper<actuator-damper>` |*|
@@ -5928,6 +6042,12 @@
                :ref:`input<default-general-input>`
 
             .. grid-item::
+               :ref:`velrange<default-general-velrange>`
+
+            .. grid-item::
+               :ref:`ffrange<default-general-ffrange>`
+
+            .. grid-item::
                :ref:`dyntype<default-general-dyntype>`
 
             .. grid-item::
@@ -6163,6 +6283,126 @@
 
             .. grid-item::
                :ref:`dampratio<default-intvelocity-dampratio>`
+
+
+      .. dropdown:: :ref:`orientation<default-orientation>` :octicon:`dot`
+
+         .. grid:: 2 3 4 4
+            :gutter: 0
+
+            .. grid-item::
+               :ref:`forcelimited<default-orientation-forcelimited>`
+
+            .. grid-item::
+               :ref:`ctrlrange<default-orientation-ctrlrange>`
+
+            .. grid-item::
+               :ref:`forcerange<default-orientation-forcerange>`
+
+            .. grid-item::
+               :ref:`user<default-orientation-user>`
+
+            .. grid-item::
+               :ref:`group<default-orientation-group>`
+
+            .. grid-item::
+               :ref:`nsample<default-orientation-nsample>`
+
+            .. grid-item::
+               :ref:`interp<default-orientation-interp>`
+
+            .. grid-item::
+               :ref:`delay<default-orientation-delay>`
+
+            .. grid-item::
+               :ref:`kp<default-orientation-kp>`
+
+            .. grid-item::
+               :ref:`kv<default-orientation-kv>`
+
+            .. grid-item::
+               :ref:`dampratio<default-orientation-dampratio>`
+
+            .. grid-item::
+               :ref:`input<default-orientation-input>`
+
+
+      .. dropdown:: :ref:`pid<default-pid>` :octicon:`dot`
+
+         .. grid:: 2 3 4 4
+            :gutter: 0
+
+            .. grid-item::
+               :ref:`ctrllimited<default-pid-ctrllimited>`
+
+            .. grid-item::
+               :ref:`forcelimited<default-pid-forcelimited>`
+
+            .. grid-item::
+               :ref:`ctrlrange<default-pid-ctrlrange>`
+
+            .. grid-item::
+               :ref:`posrange<default-pid-posrange>`
+
+            .. grid-item::
+               :ref:`velrange<default-pid-velrange>`
+
+            .. grid-item::
+               :ref:`ffrange<default-pid-ffrange>`
+
+            .. grid-item::
+               :ref:`forcerange<default-pid-forcerange>`
+
+            .. grid-item::
+               :ref:`inheritrange<default-pid-inheritrange>`
+
+            .. grid-item::
+               :ref:`gear<default-pid-gear>`
+
+            .. grid-item::
+               :ref:`damping<default-pid-damping>`
+
+            .. grid-item::
+               :ref:`armature<default-pid-armature>`
+
+            .. grid-item::
+               :ref:`cranklength<default-pid-cranklength>`
+
+            .. grid-item::
+               :ref:`user<default-pid-user>`
+
+            .. grid-item::
+               :ref:`group<default-pid-group>`
+
+            .. grid-item::
+               :ref:`nsample<default-pid-nsample>`
+
+            .. grid-item::
+               :ref:`interp<default-pid-interp>`
+
+            .. grid-item::
+               :ref:`delay<default-pid-delay>`
+
+            .. grid-item::
+               :ref:`kp<default-pid-kp>`
+
+            .. grid-item::
+               :ref:`kv<default-pid-kv>`
+
+            .. grid-item::
+               :ref:`dampratio<default-pid-dampratio>`
+
+            .. grid-item::
+               :ref:`ki<default-pid-ki>`
+
+            .. grid-item::
+               :ref:`imax<default-pid-imax>`
+
+            .. grid-item::
+               :ref:`slewmax<default-pid-slewmax>`
+
+            .. grid-item::
+               :ref:`input<default-pid-input>`
 
 
       .. dropdown:: :ref:`damper<default-damper>` :octicon:`dot`

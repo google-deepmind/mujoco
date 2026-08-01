@@ -1816,6 +1816,8 @@ class mjCActuator_ : public mjCBase {
   int outadr_;                                      // address of first force output
   int outnum_;                                      // number of force outputs, from trntype
   bool so3_;                                        // compiles to an SO3 transmission
+  double ctrlranges_[4][2];                         // resolved per-input control ranges
+  mjtByte ctrllimiteds_[4];                         // resolved per-input limited flags
   std::map<std::string, std::vector<mjtNum>> act_;  // act at the previous step
   std::map<std::string, mjtNum> ctrl_;              // ctrl at the previous step
 

@@ -225,6 +225,16 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
 }
 
 
+// unpack servo-family inputs from control block in canonical order [pos, vel, ff]
+// absent input: setpoint 0
+static void unpackServoInputs(const mjtNum* u, int spec, mjtNum out[3]) {
+  int adr = 0;
+  out[0] = (spec & mjINPUT_POS) ? u[adr++] : 0;
+  out[1] = (spec & mjINPUT_VEL) ? u[adr++] : 0;
+  out[2] = (spec & mjINPUT_FF)  ? u[adr]   : 0;
+}
+
+
 // helper for DC motor: computes control voltage from PID state
 static mjtNum dcmotorVoltage(mjtNum ctrl, mjtNum length, mjtNum velocity,
                              mjtNum x_I, const mjtNum* gainprm) {
@@ -285,10 +295,15 @@ static void expmap2Quat(mjtNum quat[4], const mjtNum v[3]) {
 static mjtNum wrapPeriod(const mjModel* m, int i) {
   // servo shape: fixed gain, affine bias, matching kp, setpoint input
   mjtDyn dyntype = m->actuator_dyntype[i];
-  if (m->actuator_gaintype[i] != mjGAIN_FIXED  ||
-      m->actuator_biastype[i] != mjBIAS_AFFINE ||
-      m->actuator_gainprm[mjNGAIN*i] != -m->actuator_biasprm[mjNBIAS*i+1] ||
-      (dyntype != mjDYN_NONE && dyntype != mjDYN_INTEGRATOR)) {
+  int servo = m->actuator_gaintype[i] == mjGAIN_FIXED  &&
+              m->actuator_biastype[i] == mjBIAS_AFFINE &&
+              m->actuator_gainprm[mjNGAIN*i] == -m->actuator_biasprm[mjNBIAS*i+1] &&
+              (dyntype == mjDYN_NONE || dyntype == mjDYN_INTEGRATOR);
+
+  // PID shape: kp and kv are single-sourced in the affine bias
+  int pid = m->actuator_gaintype[i] == mjGAIN_PID;
+
+  if (!servo && !pid) {
     return 0;
   }
 
@@ -315,6 +330,20 @@ static mjtNum wrapPeriod(const mjModel* m, int i) {
 static mjtNum wrapSetpoint(mjtNum u, mjtNum length, mjtNum period) {
   mjtNum err = u - length;
   return u - period * mju_round(err / period);
+}
+
+
+// slew-rate-limit setpoint u given previous effective setpoint u_prev, write act_dot
+// period > 0: wrap u to the representative nearest u_prev before limiting
+static mjtNum slewLimit(mjtNum u, mjtNum u_prev, mjtNum slew_s, mjtNum dt,
+                        mjtNum period, mjtNum* act_dot) {
+  if (period > 0) {
+    u = wrapSetpoint(u, u_prev, period);
+  }
+  mjtNum slew = slew_s * dt;
+  mjtNum u_eff = mju_clip(u, u_prev - slew, u_prev + slew);
+  *act_dot = (u_eff - u_prev) / dt;
+  return u_eff;
 }
 
 
@@ -418,6 +447,42 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     case mjDYN_MUSCLE:              // muscle model: dynprm = (tau_act, tau_deact)
       d->act_dot[act_last] = mju_muscleDynamics(ctrl[uadr], d->act[act_last], dynprm);
       break;
+
+    case mjDYN_PID: {               // PID controller states, slot order: slew, integral
+      int adr = act_first;
+      mjtNum period = wrapPeriod(m, i);
+
+      // slew rate limiting of the position setpoint
+      mjtNum slew_s = dynprm[1];
+      if (slew_s > 0) {
+        ctrl[uadr] = slewLimit(ctrl[uadr], d->act[adr], slew_s, m->opt.timestep,
+                               period, d->act_dot + adr);
+        adr++;
+      }
+
+      // integral of the position error
+      if (m->actuator_gainprm[mjNGAIN*i] > 0) {
+        mjtNum err = ctrl[uadr] - d->actuator_length[oadr];
+
+        // rotational transmission: error on the circle
+        if (period > 0) {
+          err -= period*mju_round(err/period);
+        }
+
+        // anti-windup: stop accumulating beyond imax
+        mjtNum imax = dynprm[0];
+        if (imax > 0) {
+          mjtNum z = d->act[adr];
+          if (z >= imax) {
+            err = mju_min(err, 0);
+          } else if (z <= -imax) {
+            err = mju_max(err, 0);
+          }
+        }
+        d->act_dot[adr] = err;
+      }
+      break;
+    }
 
     case mjDYN_DCMOTOR: {           // DC motor: up to 5 optional states
       const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
@@ -630,6 +695,10 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       gain = gainprm[0];
       break;
 
+    case mjGAIN_PID:                // PID servo: input side handled below, state side in bias
+      gain = 0;
+      break;
+
     case mjGAIN_AFFINE:             // affine: prm = [const, kp, kv]
       gain = gainprm[0] + gainprm[1]*d->actuator_length[oadr] +
              gainprm[2]*d->actuator_velocity[oadr];
@@ -693,7 +762,36 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
     // DC motor without current state: use ctrl even if other activations exist
     int dcmotor_no_current = (gaintype == mjGAIN_DCMOTOR && dynprm[0] <= 0);
-    if (actnum == 0 || dcmotor_no_current) {
+
+    // PID servo: force = kp*(qref - l) + kv*(vref - l_dot) [+ ff] [+ ki*z]
+    // input-side terms computed here; state-side terms added by the affine bias below
+    if (gaintype == mjGAIN_PID) {
+      const mjtNum* prm = m->actuator_biasprm + mjNBIAS*i;
+
+      // unpack present inputs in canonical order [pos, vel, ff]; absent input: setpoint 0
+      mjtNum u3[3];
+      unpackServoInputs(ctrl + uadr, m->actuator_ctrlspec[i], u3);
+      mjtNum qref = u3[0], vref = u3[1], ff = u3[2];
+
+      // position setpoint: representative nearest the length on rotational transmissions
+      mjtNum period = wrapPeriod(m, i);
+      if (period > 0) {
+        qref = wrapSetpoint(qref, d->actuator_length[oadr], period);
+      }
+
+      // kp and kv are single-sourced in the affine bias parameters
+      force[oadr] = -prm[1]*qref - prm[2]*vref + ff;
+
+      // integral state (last slot): force += ki * z
+      if (actnum && gainprm[0] > 0) {
+        int act_adr = m->actuator_actadr[i] + actnum - 1;
+        mjtNum z = m->actuator_actearly[i]
+                       ? mj_nextActivation(m, d, i, act_adr, d->act_dot[act_adr])
+                       : d->act[act_adr];
+        force[oadr] += gainprm[0]*z;
+      }
+    }
+    else if (actnum == 0 || dcmotor_no_current) {
       mjtNum input = ctrl[uadr];
 
       // rotational setpoint: use representative nearest the length (local, no state change)

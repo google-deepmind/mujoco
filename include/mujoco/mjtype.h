@@ -247,6 +247,7 @@ typedef enum mjtDyn {             // type of actuator dynamics
   mjDYN_FILTEREXACT,              // linear filter: da/dt = (u-a) / tau, with exact integration
   mjDYN_MUSCLE,                   // piecewise linear filter with two time constants
   mjDYN_DCMOTOR,                  // DC motor electrical dynamics
+  mjDYN_PID,                      // PID controller states: slew, integral
   mjDYN_USER                      // user-defined dynamics type
 } mjtDyn;
 
@@ -257,6 +258,7 @@ typedef enum mjtGain {            // type of actuator gain
   mjGAIN_MUSCLE,                  // muscle FLV curve computed by mju_muscleGain()
   mjGAIN_DCMOTOR,                 // DC motor gain: K or K/R
   mjGAIN_SO3,                     // geodesic servo on an SO3 transmission: force = kp * log(error)
+  mjGAIN_PID,                     // PID controller: position and velocity setpoint inputs
   mjGAIN_USER                     // user-defined gain type
 } mjtGain;
 
@@ -275,6 +277,13 @@ typedef enum mjtCtrlChart {       // so3 input signature (actuator_ctrlspec): or
   mjCHART_EXPMAP      = 1,        // exponential-map orientation target: 3 controls
   mjCHART_QUAT        = 2         // quaternion orientation target: 4 controls
 } mjtCtrlChart;
+
+
+typedef enum mjtCtrlInput {       // servo input signature (actuator_ctrlspec): present-input bits
+  mjINPUT_POS         = 1,        // position setpoint input
+  mjINPUT_VEL         = 2,        // velocity setpoint input
+  mjINPUT_FF          = 4         // feedforward input
+} mjtCtrlInput;
 
 
 typedef enum mjtObj {             // type of MujoCo object

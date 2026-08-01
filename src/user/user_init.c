@@ -342,6 +342,8 @@ void mjs_defaultActuator(mjsActuator* actuator) {
   actuator->dynprm[0] = 1;
   actuator->actdim = -1;
   actuator->ctrlspec = 0;
+  actuator->velrange[0] = actuator->velrange[1] = 0;
+  actuator->ffrange[0] = actuator->ffrange[1] = 0;
 
   // transmission
   actuator->trntype = mjTRN_UNDEFINED;

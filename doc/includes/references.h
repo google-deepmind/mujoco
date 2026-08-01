@@ -2244,6 +2244,8 @@ typedef struct mjsActuator_ {      // actuator specification
   double dynprm[mjNDYN];           // dynamics parameters
   int actdim;                      // number of activation variables
   int ctrlspec;                    // input signature, scoped by gaintype; 0: type default
+  double velrange[2];              // range of the velocity-setpoint input (pid)
+  double ffrange[2];               // range of the feedforward input (pid)
   mjtBool actearly;                // apply next activations to qfrc
 
   // transmission
@@ -2513,6 +2515,7 @@ typedef enum mjtDyn {             // type of actuator dynamics
   mjDYN_FILTEREXACT,              // linear filter: da/dt = (u-a) / tau, with exact integration
   mjDYN_MUSCLE,                   // piecewise linear filter with two time constants
   mjDYN_DCMOTOR,                  // DC motor electrical dynamics
+  mjDYN_PID,                      // PID controller states: slew, integral
   mjDYN_USER                      // user-defined dynamics type
 } mjtDyn;
 typedef enum mjtGain {            // type of actuator gain
@@ -2521,6 +2524,7 @@ typedef enum mjtGain {            // type of actuator gain
   mjGAIN_MUSCLE,                  // muscle FLV curve computed by mju_muscleGain()
   mjGAIN_DCMOTOR,                 // DC motor gain: K or K/R
   mjGAIN_SO3,                     // geodesic servo on an SO3 transmission: force = kp * log(error)
+  mjGAIN_PID,                     // PID controller: position and velocity setpoint inputs
   mjGAIN_USER                     // user-defined gain type
 } mjtGain;
 typedef enum mjtBias {            // type of actuator bias
@@ -2535,6 +2539,11 @@ typedef enum mjtCtrlChart {       // so3 input signature (actuator_ctrlspec): or
   mjCHART_EXPMAP      = 1,        // exponential-map orientation target: 3 controls
   mjCHART_QUAT        = 2         // quaternion orientation target: 4 controls
 } mjtCtrlChart;
+typedef enum mjtCtrlInput {       // servo input signature (actuator_ctrlspec): present-input bits
+  mjINPUT_POS         = 1,        // position setpoint input
+  mjINPUT_VEL         = 2,        // velocity setpoint input
+  mjINPUT_FF          = 4         // feedforward input
+} mjtCtrlInput;
 typedef enum mjtObj {             // type of MujoCo object
   mjOBJ_UNKNOWN       = 0,        // unknown object type
   mjOBJ_BODY,                     // body
@@ -3989,6 +3998,9 @@ const char* mjs_setToIntVelocity(mjsActuator* actuator, double kp, double kv[1],
 const char* mjs_setToVelocity(mjsActuator* actuator, double kv);
 const char* mjs_setToOrientation(mjsActuator* actuator, double kp, double kv[1],
                                  double dampratio[1], int ctrlspec);
+const char* mjs_setToPID(mjsActuator* actuator, double kp, double kv[1], double dampratio[1],
+                         double ki[1], double imax[1], double slewmax[1], double inheritrange,
+                         int ctrlspec);
 const char* mjs_setToDamper(mjsActuator* actuator, double kv);
 const char* mjs_setToCylinder(mjsActuator* actuator, double timeconst,
                               double bias, double area, double diameter);

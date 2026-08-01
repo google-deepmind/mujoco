@@ -297,5 +297,20 @@ const char* mj_actuatorInputName(const mjModel* m, int id, int input) {
     return m->actuator_ctrlspec[id] == mjCHART_QUAT ? quat[input] : expmap[input];
   }
 
+  // servo family: input names are the present members of [pos, vel, ff]
+  if (m->actuator_gaintype[id] == mjGAIN_PID) {
+    static const char* servo[3] = {"pos", "vel", "ff"};
+    static const int bits[3] = {mjINPUT_POS, mjINPUT_VEL, mjINPUT_FF};
+    int spec = m->actuator_ctrlspec[id];
+    for (int k=0; k < 3; k++) {
+      if (spec & bits[k]) {
+        if (input == 0) {
+          return servo[k];
+        }
+        input--;
+      }
+    }
+  }
+
   return NULL;
 }

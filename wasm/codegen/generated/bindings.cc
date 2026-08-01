@@ -2923,6 +2923,15 @@ std::string mjs_setToOrientation_wrapper(MjsActuator& actuator, double kp, const
   return std::string(mjs_setToOrientation(actuator.get(), kp, kv_.data(), dampratio_.data(), ctrlspec));
 }
 
+std::string mjs_setToPID_wrapper(MjsActuator& actuator, double kp, const val& kv, const val& dampratio, const val& ki, const val& imax, const val& slewmax, double inheritrange, int ctrlspec) {
+  UNPACK_VALUE(double, kv);
+  UNPACK_VALUE(double, dampratio);
+  UNPACK_VALUE(double, ki);
+  UNPACK_VALUE(double, imax);
+  UNPACK_VALUE(double, slewmax);
+  return std::string(mjs_setToPID(actuator.get(), kp, kv_.data(), dampratio_.data(), ki_.data(), imax_.data(), slewmax_.data(), inheritrange, ctrlspec));
+}
+
 std::string mjs_setToPosition_wrapper(MjsActuator& actuator, double kp, const val& kv, const val& dampratio, const val& timeconst, double inheritrange) {
   UNPACK_VALUE(double, kv);
   UNPACK_VALUE(double, dampratio);
@@ -3981,6 +3990,10 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   enum_<mjtCtrlChart>("mjtCtrlChart")
     .value("mjCHART_EXPMAP", mjCHART_EXPMAP)
     .value("mjCHART_QUAT", mjCHART_QUAT);
+  enum_<mjtCtrlInput>("mjtCtrlInput")
+    .value("mjINPUT_POS", mjINPUT_POS)
+    .value("mjINPUT_VEL", mjINPUT_VEL)
+    .value("mjINPUT_FF", mjINPUT_FF);
   enum_<mjtDataType>("mjtDataType")
     .value("mjDATATYPE_REAL", mjDATATYPE_REAL)
     .value("mjDATATYPE_POSITIVE", mjDATATYPE_POSITIVE)
@@ -4018,6 +4031,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjDYN_FILTEREXACT", mjDYN_FILTEREXACT)
     .value("mjDYN_MUSCLE", mjDYN_MUSCLE)
     .value("mjDYN_DCMOTOR", mjDYN_DCMOTOR)
+    .value("mjDYN_PID", mjDYN_PID)
     .value("mjDYN_USER", mjDYN_USER);
   enum_<mjtEnableBit>("mjtEnableBit")
     .value("mjENBL_OVERRIDE", mjENBL_OVERRIDE)
@@ -4082,6 +4096,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjGAIN_MUSCLE", mjGAIN_MUSCLE)
     .value("mjGAIN_DCMOTOR", mjGAIN_DCMOTOR)
     .value("mjGAIN_SO3", mjGAIN_SO3)
+    .value("mjGAIN_PID", mjGAIN_PID)
     .value("mjGAIN_USER", mjGAIN_USER);
   enum_<mjtGeom>("mjtGeom")
     .value("mjGEOM_PLANE", mjGEOM_PLANE)
@@ -5612,6 +5627,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("dynprm", &MjsActuator::dynprm)
     .property("dyntype", &MjsActuator::dyntype, &MjsActuator::set_dyntype, reference())
     .property("element", &MjsActuator::element, reference())
+    .property("ffrange", &MjsActuator::ffrange)
     .property("forcelimited", &MjsActuator::forcelimited, &MjsActuator::set_forcelimited, reference())
     .property("forcerange", &MjsActuator::forcerange)
     .property("gainprm", &MjsActuator::gainprm)
@@ -5628,7 +5644,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("slidersite", &MjsActuator::slidersite, &MjsActuator::set_slidersite, reference())
     .property("target", &MjsActuator::target, &MjsActuator::set_target, reference())
     .property("trntype", &MjsActuator::trntype, &MjsActuator::set_trntype, reference())
-    .property("userdata", &MjsActuator::userdata, reference());
+    .property("userdata", &MjsActuator::userdata, reference())
+    .property("velrange", &MjsActuator::velrange);
   emscripten::class_<MjsAuthored>("MjsAuthored")
     .property("disableactuator", &MjsAuthored::disableactuator, &MjsAuthored::set_disableactuator, reference())
     .property("disableflags", &MjsAuthored::disableflags, &MjsAuthored::set_disableflags, reference())
@@ -6510,6 +6527,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_setToMotor", &mjs_setToMotor_wrapper);
   function("mjs_setToMuscle", &mjs_setToMuscle_wrapper);
   function("mjs_setToOrientation", &mjs_setToOrientation_wrapper);
+  function("mjs_setToPID", &mjs_setToPID_wrapper);
   function("mjs_setToPosition", &mjs_setToPosition_wrapper);
   function("mjs_setToVelocity", &mjs_setToVelocity_wrapper);
   function("mjs_wrapGeom", &mjs_wrapGeom_wrapper);

@@ -7214,10 +7214,67 @@ void mjCActuator::Compile(void) {
     so3_ = true;
   }
 
-  // input signature selection is so3-only
-  if (ctrlspec && gaintype != mjGAIN_SO3) {
-    throw mjCError(this, "input is only available for so3 actuators, actuator '%s' (id = %d)",
+  // PID servo: validate and resolve input block
+  if (gaintype == mjGAIN_PID) {
+    if (biastype != mjBIAS_AFFINE) {
+      throw mjCError(this, "pid requires biastype 'affine' in actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+    if (dyntype != mjDYN_NONE && dyntype != mjDYN_PID) {
+      throw mjCError(this, "pid requires dyntype 'none' or 'pid' in actuator '%s' "
+                     "(id = %d)", name.c_str(), id);
+    }
+    if (dyntype == mjDYN_NONE && gainprm[0]) {
+      throw mjCError(this, "ki (gainprm[0]) requires dyntype 'pid' in actuator '%s' "
+                     "(id = %d)", name.c_str(), id);
+    }
+    if (trntype == mjTRN_BODY) {
+      throw mjCError(this, "pid cannot use body transmission, actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+
+    // controller states, slot order [slew, integral]: gated on slewmax (dynprm[1]) and ki
+    if (dyntype == mjDYN_PID) {
+      if (dynprm[0] < 0) {
+        throw mjCError(this, "imax (dynprm[0]) must be non-negative in actuator '%s' (id = %d)",
+                       name.c_str(), id);
+      }
+      if (dynprm[1] < 0) {
+        throw mjCError(this, "slewmax (dynprm[1]) must be non-negative in actuator '%s' (id = %d)",
+                       name.c_str(), id);
+      }
+      int nslot = (dynprm[1] > 0) + (gainprm[0] > 0);
+      if (actdim > 0 && actdim != nslot) {
+        throw mjCError(this, "pid controller states require matching actdim in actuator '%s' "
+                       "(id = %d)", name.c_str(), id);
+      }
+      actdim = nslot;
+    }
+
+    // input block: any subset of [pos, vel, ff], default [pos, vel]
+    ctrlspec_ = ctrlspec ? ctrlspec : (mjINPUT_POS | mjINPUT_VEL);
+    if (ctrlspec_ & ~(mjINPUT_POS | mjINPUT_VEL | mjINPUT_FF)) {
+      throw mjCError(this, "pid inputs are a subset of [pos, vel, ff] in actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+    if (dyntype == mjDYN_PID && !(ctrlspec_ & mjINPUT_POS)) {
+      throw mjCError(this, "pid controller states require the pos input in actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+    ctrlnum_ = !!(ctrlspec_ & mjINPUT_POS) + !!(ctrlspec_ & mjINPUT_VEL) +
+               !!(ctrlspec_ & mjINPUT_FF);
+  }
+
+  // pid dynamics are pid-only
+  if (dyntype == mjDYN_PID && gaintype != mjGAIN_PID) {
+    throw mjCError(this, "dyntype 'pid' requires gaintype 'pid', actuator '%s' (id = %d)",
                    name.c_str(), id);
+  }
+
+  // input signature selection is so3- or pid-only
+  if (ctrlspec && gaintype != mjGAIN_SO3 && gaintype != mjGAIN_PID) {
+    throw mjCError(this, "input is only available for so3 and pid actuators, actuator '%s' "
+                   "(id = %d)", name.c_str(), id);
   }
 
   // check damping/armature only valid for joint and tendon transmission
@@ -7242,12 +7299,13 @@ void mjCActuator::Compile(void) {
   }
 
   // handle inheritrange
-  if (gaintype == mjGAIN_FIXED && biastype == mjBIAS_AFFINE &&
-      gainprm[0] == -biasprm[1] && inheritrange > 0) {
+  if (((gaintype == mjGAIN_FIXED && gainprm[0] == -biasprm[1]) || gaintype == mjGAIN_PID) &&
+      biastype == mjBIAS_AFFINE && inheritrange > 0) {
     // semantic of actuator is the same as transmission, inheritrange is applicable
     double* range;
-    if (dyntype == mjDYN_NONE || dyntype == mjDYN_FILTEREXACT) {
-      // position actuator
+    if (dyntype == mjDYN_NONE || dyntype == mjDYN_FILTEREXACT ||
+        dyntype == mjDYN_PID) {
+      // position or pd actuator: range applies to the position input
       range = ctrlrange;
     } else if (dyntype == mjDYN_INTEGRATOR) {
       // intvelocity actuator
@@ -7396,6 +7454,28 @@ void mjCActuator::Compile(void) {
   // single-precision floats can represent all integers up to 2^24 exactly
   if (nsample > 16777216) {
     throw mjCError(this, "at most 2^24 samples in history buffer, got %d", nullptr, nsample);
+  }
+
+  // resolve per-input control ranges: broadcast ctrlrange, pd overrides vel and ff
+  for (int j=0; j < ctrlnum_ && j < 4; j++) {
+    ctrllimiteds_[j] = (mjtByte)is_ctrllimited();
+    ctrlranges_[j][0] = ctrlrange[0];
+    ctrlranges_[j][1] = ctrlrange[1];
+  }
+  if (gaintype == mjGAIN_PID) {
+    // present inputs pack in canonical order [pos, vel, ff]; pos keeps the ctrlrange broadcast
+    int j = ctrlspec_ & mjINPUT_POS ? 1 : 0;
+    if (ctrlspec_ & mjINPUT_VEL) {
+      ctrllimiteds_[j] = velrange[0] < velrange[1];
+      ctrlranges_[j][0] = velrange[0];
+      ctrlranges_[j][1] = velrange[1];
+      j++;
+    }
+    if (ctrlspec_ & mjINPUT_FF) {
+      ctrllimiteds_[j] = ffrange[0] < ffrange[1];
+      ctrlranges_[j][0] = ffrange[0];
+      ctrlranges_[j][1] = ffrange[1];
+    }
   }
 }
 

@@ -497,6 +497,8 @@
     XVEC( double,        dynprm,        mjNDYN    ) \
     X   ( int,           actdim,        1         ) \
     X   ( int,           ctrlspec,      1         ) \
+    XVEC( double,        velrange,      2         ) \
+    XVEC( double,        ffrange,       2         ) \
     X   ( mjtBool,       actearly,      1         ) \
     X   ( mjtTrn,        trntype,       1         ) \
     XVEC( double,        gear,          6         ) \

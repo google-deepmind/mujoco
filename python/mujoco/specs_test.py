@@ -1596,6 +1596,15 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_SO3)
     self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_NONE)
 
+    actuator.set_to_pid(kp=2.0, kv=3.0, ki=0.5, imax=1.5, slewmax=4.0)
+    self.assertEqual(actuator.biasprm[1], -2)
+    self.assertEqual(actuator.biasprm[2], -3)
+    self.assertEqual(actuator.gainprm[0], 0.5)
+    self.assertEqual(actuator.dynprm[0], 1.5)
+    self.assertEqual(actuator.dynprm[1], 4.0)
+    self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_PID)
+    self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_PID)
+
     actuator.set_to_velocity(kv=5.0)
     self.assertEqual(actuator.gainprm[0], 5)
     self.assertEqual(actuator.biasprm[2], -5)

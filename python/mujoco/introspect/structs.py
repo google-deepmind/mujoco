@@ -9648,6 +9648,22 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='input signature, scoped by gaintype; 0: type default',
              ),
              StructFieldDecl(
+                 name='velrange',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(2,),
+                 ),
+                 doc='range of the velocity-setpoint input (pid)',
+             ),
+             StructFieldDecl(
+                 name='ffrange',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(2,),
+                 ),
+                 doc='range of the feedforward input (pid)',
+             ),
+             StructFieldDecl(
                  name='actearly',
                  type=ValueType(name='mjtBool'),
                  doc='apply next activations to qfrc',

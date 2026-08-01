@@ -18,7 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <functional>
 #include <map>
 #include <memory>
@@ -508,6 +508,41 @@ TEST_F(MujocoTest, SetToOrientation) {
 
   // kv and dampratio are mutually exclusive
   err = mjs_setToOrientation(actuator, 5.0, &kv, &dampratio, 0);
+  EXPECT_STREQ(err, "kv and dampratio cannot both be defined");
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetToPID) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  // stateless PID with kv, default input signature
+  double kv = 3.0;
+  const char* err = mjs_setToPID(actuator, 5.0, &kv, nullptr, nullptr, nullptr,
+                                 nullptr, 0, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->gaintype, mjGAIN_PID);
+  EXPECT_EQ(actuator->biastype, mjBIAS_AFFINE);
+  EXPECT_EQ(actuator->dyntype, mjDYN_NONE);
+  EXPECT_EQ(actuator->biasprm[1], -5.0);
+  EXPECT_EQ(actuator->biasprm[2], -3.0);
+  EXPECT_EQ(actuator->gainprm[0], 0.0);
+
+  // integral action with anti-windup, pos-only signature
+  double ki = 0.5, imax = 2.0, dampratio = 1.0;
+  err = mjs_setToPID(actuator, 5.0, nullptr, &dampratio, &ki, &imax, nullptr, 0,
+                     mjINPUT_POS);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->dyntype, mjDYN_PID);
+  EXPECT_EQ(actuator->gainprm[0], 0.5);
+  EXPECT_EQ(actuator->dynprm[0], 2.0);
+  EXPECT_EQ(actuator->biasprm[2], 1.0);
+  EXPECT_EQ(actuator->ctrlspec, mjINPUT_POS);
+
+  // kv and dampratio are mutually exclusive
+  err = mjs_setToPID(actuator, 5.0, &kv, &dampratio, nullptr, nullptr, nullptr,
+                     0, 0);
   EXPECT_STREQ(err, "kv and dampratio cannot both be defined");
 
   mj_deleteSpec(spec);

@@ -1138,8 +1138,9 @@ static void set0(mjModel* m, mjData* d) {
     mjtNum* biasprm = m->actuator_biasprm + i*mjNBIAS;
     mjtNum* gainprm = m->actuator_gainprm + i*mjNGAIN;
 
-    // not a position-like actuator: skip
-    if (gainprm[0] != -biasprm[1]) {
+    // not a position-like actuator: skip (PID single-sources kp in biasprm[1])
+    int is_pid = m->actuator_gaintype[i] == mjGAIN_PID;
+    if (!is_pid && gainprm[0] != -biasprm[1]) {
       continue;
     }
 
@@ -1165,7 +1166,8 @@ static void set0(mjModel* m, mjData* d) {
     }
 
     // damping = dampratio * 2 * sqrt(kp * mass)
-    mjtNum damping = biasprm[2] * 2 * mju_sqrt(gainprm[0] * mass);
+    mjtNum kp = is_pid ? -biasprm[1] : gainprm[0];
+    mjtNum damping = biasprm[2] * 2 * mju_sqrt(kp * mass);
 
     // set biasprm[2] to negative damping
     biasprm[2] = -damping;

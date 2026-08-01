@@ -725,6 +725,8 @@ typedef struct mjsActuator_ {      // actuator specification
   double dynprm[mjNDYN];           // dynamics parameters
   int actdim;                      // number of activation variables
   int ctrlspec;                    // input signature, scoped by gaintype; 0: type default
+  double velrange[2];              // range of the velocity-setpoint input (pid)
+  double ffrange[2];               // range of the feedforward input (pid)
   mjtBool actearly;                // apply next activations to qfrc
 
   // transmission

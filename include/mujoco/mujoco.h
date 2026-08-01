@@ -1760,6 +1760,11 @@ MJAPI const char* mjs_setToVelocity(mjsActuator* actuator, double kv);
 MJAPI const char* mjs_setToOrientation(mjsActuator* actuator, double kp, double kv[1],
                                        double dampratio[1], int ctrlspec);
 
+// Set actuator to PID controller.
+MJAPI const char* mjs_setToPID(mjsActuator* actuator, double kp, double kv[1], double dampratio[1],
+                               double ki[1], double imax[1], double slewmax[1], double inheritrange,
+                               int ctrlspec);
+
 // Set actuator to activate damper; return error if any.
 MJAPI const char* mjs_setToDamper(mjsActuator* actuator, double kv);
 

@@ -17,6 +17,7 @@
 #include "src/engine/engine_core_smooth.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -597,7 +598,7 @@ TEST_F(CoreSmoothTest, RefsiteConservesMomentum) {
   ASSERT_THAT(model, NotNull());
   mjData* data = mj_makeData(model);
 
-  // this test asserts tight momentum conservation: solve exactly, no early termination
+  // assert tight momentum conservation: solve exactly, no early termination
   model->opt.tolerance = 0;
 
   data->ctrl[0] = 1;
@@ -1376,6 +1377,362 @@ TEST_F(CoreSmoothTest, SO3QuatSetpointRequiresStateless) {
   MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
   EXPECT_THAT(model.get(), IsNull());
   EXPECT_THAT(error, HasSubstr("dyntype"));
+}
+
+// PID servo with vref = 0 reproduces the position servo exactly.
+TEST_F(CoreSmoothTest, PidMatchesPositionServo) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast">
+      <flag contact="disable"/>
+    </option>
+    <worldbody>
+      <!-- identical overlapping bodies (contacts disabled): world-frame
+           arithmetic is bit-identical, so the trajectories must be too -->
+      <body pos="0 0 .2">
+        <joint name="h_position" axis="0 1 0"/>
+        <geom type="capsule" size=".02" fromto="0 0 0 .2 0 0"/>
+      </body>
+      <body pos="0 0 .2">
+        <joint name="h_pd" axis="0 1 0"/>
+        <geom type="capsule" size=".02" fromto="0 0 0 .2 0 0"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position name="servo" joint="h_position" kp="10" dampratio="1"/>
+      <pid name="pid" joint="h_pd" kp="10" dampratio="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  // layout: 2 actuators, 1+2 controls, 1+1 outputs
+  EXPECT_EQ(model->nactuator, 2);
+  EXPECT_EQ(model->nu, 3);
+  EXPECT_EQ(model->nout, 2);
+  int pid = mj_name2id(model.get(), mjOBJ_ACTUATOR, "pid");
+  int uadr = model->actuator_ctrladr[pid];
+  EXPECT_EQ(model->actuator_ctrlnum[pid], 2);
+
+  mjData* data = mj_makeData(model.get());
+  int j_servo = mj_name2id(model.get(), mjOBJ_JOINT, "h_position");
+  int j_pd = mj_name2id(model.get(), mjOBJ_JOINT, "h_pd");
+
+  // ramp the position target on both, v* = 0 on the pid
+  while (data->time < 3) {
+    mjtNum target = 0.8 * data->time;
+    data->ctrl[0] = target;
+    data->ctrl[uadr] = target;
+    data->ctrl[uadr+1] = 0;
+    mj_step(model.get(), data);
+    ASSERT_EQ(data->warning[mjWARN_BADQACC].number, 0) << "diverged";
+    ASSERT_EQ(data->qpos[model->jnt_qposadr[j_servo]],
+              data->qpos[model->jnt_qposadr[j_pd]])
+        << "trajectories diverge at time " << data->time;
+  }
+
+  mj_deleteData(data);
+}
+
+// Constant velocity setpoint produces steady motion at the commanded rate.
+TEST_F(CoreSmoothTest, PidVelocitySetpoint) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast">
+      <flag contact="disable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide" axis="1 0 0"/>
+        <geom type="box" size=".05 .05 .05"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <pid name="pid" joint="slide" kp="0" kv="10"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  mjData* data = mj_makeData(model.get());
+
+  data->ctrl[1] = 0.7;  // v*
+  while (data->time < 3) {
+    mj_step(model.get(), data);
+    ASSERT_EQ(data->warning[mjWARN_BADQACC].number, 0) << "diverged";
+  }
+  EXPECT_NEAR(data->qvel[0], 0.7, MjTol(1e-6, 2e-6));
+
+  mj_deleteData(data);
+}
+
+// The feedforward input adds directly to the actuator force.
+TEST_F(CoreSmoothTest, PidFeedforward) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide" axis="1 0 0"/>
+        <geom type="box" size=".05 .05 .05"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <pid name="pid" joint="slide" kp="1" kv="1" input="pos vel ff"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  EXPECT_EQ(model->nu, 3);
+  EXPECT_EQ(model->nout, 1);
+
+  mjData* data = mj_makeData(model.get());
+  data->ctrl[2] = 1.25;  // ff, with zero position/velocity error
+  mj_forward(model.get(), data);
+  EXPECT_EQ(data->actuator_force[0], 1.25);
+
+  mj_deleteData(data);
+}
+
+// Input subsets: present inputs pack in canonical order, absent setpoints are
+// zero, making single-input PIDs match the corresponding SISO servos.
+TEST_F(CoreSmoothTest, PidInputSubsets) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="j1" type="slide" axis="1 0 0"/>
+        <geom type="box" size=".05 .05 .05"/>
+      </body>
+      <body>
+        <joint name="j2" type="slide" axis="1 0 0"/>
+        <geom type="box" size=".05 .05 .05"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <pid joint="j1" kp="7" input="pos"/>
+      <position joint="j1" kp="7"/>
+      <pid joint="j2" kv="3" input="vel"/>
+      <velocity joint="j2" kv="3"/>
+      <pid joint="j2" kp="5" kv="2" input="pos ff"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  mjModel* m = model.get();
+
+  // layout: subsets shrink the control blocks
+  EXPECT_EQ(m->nactuator, 5);
+  EXPECT_EQ(m->nout, 5);
+  EXPECT_EQ(m->nu, 6);
+  int expected_ctrlnum[5] = {1, 1, 1, 1, 2};
+  for (int i=0; i < 5; i++) {
+    EXPECT_EQ(m->actuator_ctrlnum[i], expected_ctrlnum[i]) << "actuator " << i;
+  }
+
+  mjData* data = mj_makeData(m);
+  data->qpos[0] = 0.2;
+  data->qpos[1] = -0.3;
+  data->qvel[0] = 0.5;
+  data->qvel[1] = -0.4;
+  data->ctrl[0] = data->ctrl[1] = 0.6;   // pos-only pid and position servo
+  data->ctrl[2] = data->ctrl[3] = -0.8;  // vel-only pid and velocity servo
+  data->ctrl[4] = 0.3;                   // pos of the [pos, ff] pid
+  data->ctrl[5] = 0.9;                   // ff  of the [pos, ff] pid
+  mj_forward(m, data);
+
+  // single-input PIDs match the SISO servos
+  EXPECT_DOUBLE_EQ(data->actuator_force[0], data->actuator_force[1]);
+  EXPECT_DOUBLE_EQ(data->actuator_force[2], data->actuator_force[3]);
+
+  // [pos, ff]: kp*(qref - l) - kv*ldot + ff (absent velocity setpoint is zero)
+  mjtNum expected = 5*(0.3 - data->qpos[1]) - 2*data->qvel[1] + 0.9;
+  EXPECT_MJTNUM_EQ(data->actuator_force[4], expected);
+
+  // input names skip absent inputs
+  EXPECT_STREQ(mj_actuatorInputName(m, 4, 0), "pos");
+  EXPECT_STREQ(mj_actuatorInputName(m, 4, 1), "ff");
+
+  mj_deleteData(data);
+}
+
+// Integral action eliminates the steady-state error of a weak P servo under
+// gravity; the integral state is clamped by imax.
+TEST_F(CoreSmoothTest, PidIntegralAction) {
+  static constexpr char xml_fmt[] = R"(
+  <mujoco>
+    <option integrator="implicitfast">
+      <flag contact="disable"/>
+    </option>
+    <worldbody>
+      <body pos="0 0 .5">
+        <joint name="hinge" axis="0 1 0"/>
+        <geom type="capsule" size=".02" fromto="0 0 0 .2 0 0"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <pid name="pid" joint="hinge" kp="1" dampratio="1" ki="%s" imax="2"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  char xml[2048];
+
+  // P-only: gravity induces a steady-state error at target q* = 0
+  snprintf(xml, sizeof(xml), xml_fmt, "0");
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  EXPECT_EQ(model->na, 0);
+  mjData* data = mj_makeData(model.get());
+  while (data->time < 10) {
+    mj_step(model.get(), data);
+    ASSERT_EQ(data->warning[mjWARN_BADQACC].number, 0) << "diverged";
+  }
+  mjtNum p_error = mju_abs(data->qpos[0]);
+  EXPECT_GT(p_error, 0.05);
+  mj_deleteData(data);
+
+  // with integral action: error is eliminated, integral state is bounded
+  snprintf(xml, sizeof(xml), xml_fmt, "2");
+  model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  EXPECT_EQ(model->na, 1);
+  data = mj_makeData(model.get());
+  while (data->time < 20) {
+    mj_step(model.get(), data);
+    ASSERT_LE(mju_abs(data->act[0]), 2 + 1e-10)
+        << "integral state exceeds imax";
+  }
+  EXPECT_LT(mju_abs(data->qpos[0]), 1e-3);
+  mj_deleteData(data);
+}
+
+// slewmax limits the effective setpoint rate through an activation state.
+TEST_F(CoreSmoothTest, PidSlewRateLimit) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide" axis="1 0 0"/>
+        <geom type="box" size=".1 .1 .1" mass="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <pid name="servo" joint="slide" kp="200" kv="30" slewmax="0.5"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  EXPECT_EQ(model->actuator_actnum[0], 1);  // slew state
+  mjData* data = mj_makeData(model.get());
+
+  // step the setpoint to 1: the effective setpoint (act) ramps at slewmax
+  data->ctrl[0] = 1.0;
+  mjtNum t_ramp = 1.0 / 0.5;  // setpoint distance / slewmax
+  while (data->time < t_ramp - 0.1) {
+    mj_step(model.get(), data);
+    EXPECT_LE(data->act[0], 0.5 * data->time + 1e-9) << "slew exceeded";
+  }
+  while (data->time < 3 * t_ramp) {
+    mj_step(model.get(), data);
+  }
+
+  // the effective setpoint reached the command, and the joint tracked it
+  EXPECT_NEAR(data->act[0], 1.0, 1e-6);
+  EXPECT_NEAR(data->qpos[0], 1.0, 0.01);
+
+  mj_deleteData(data);
+}
+
+// PID on a rotational transmission: the position setpoint wraps, winding
+// targets are tracked smoothly through pi.
+TEST_F(CoreSmoothTest, PidTracksWindingTarget) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast">
+      <flag contact="disable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <joint name="ball" type="ball"/>
+        <geom type="box" size=".05 .07 .03"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <pid name="rz" joint="ball" gear="0 0 1" kp="1" dampratio="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  mjData* data = mj_makeData(model.get());
+
+  const mjtNum rate = 0.5;
+  while (data->time < 2*mjPI / rate) {
+    data->ctrl[0] = rate * data->time;
+    data->ctrl[1] = rate;  // matched velocity setpoint
+    mj_step(model.get(), data);
+    mjtNum err = data->ctrl[0] - data->actuator_length[0];
+    err -= 2*mjPI * mju_round(err / (2*mjPI));
+    ASSERT_LT(mju_abs(err), 0.5) << "tracking lost at time " << data->time;
+  }
+
+  mj_deleteData(data);
+}
+
+// PID parameters compose through defaults classes; the model round-trips.
+TEST_F(CoreSmoothTest, PidDefaultsAndRoundtrip) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="arm">
+        <pid kp="7" ki="3" imax="1.5" velrange="-2 2" input="pos vel ff"/>
+      </default>
+    </default>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide" axis="1 0 0"/>
+        <geom type="box" size=".05 .05 .05"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <pid name="pid" joint="slide" class="arm"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  // inherited: kp, ki, imax, input, velrange
+  EXPECT_EQ(model->nu, 3);
+  EXPECT_EQ(model->na, 1);
+  EXPECT_EQ(model->actuator_gainprm[0], 3);   // ki
+  EXPECT_EQ(model->actuator_biasprm[1], -7);  // -kp
+  EXPECT_EQ(model->actuator_dynprm[0], 1.5);  // imax
+  EXPECT_EQ(model->actuator_dyntype[0], mjDYN_PID);
+  EXPECT_EQ(model->actuator_ctrlrange[2], -2);  // velrange lo, input 1
+  EXPECT_EQ(model->actuator_ctrlrange[3], 2);
+  EXPECT_TRUE(model->actuator_ctrllimited[1]);
+
+  // round-trip preserves everything
+  std::string saved = SaveAndReadXml(model.get());
+  MjModelPtr model2 = LoadModelFromString(saved.c_str(), error, sizeof(error));
+  ASSERT_THAT(model2.get(), NotNull()) << error;
+  EXPECT_EQ(model2->nu, 3);
+  EXPECT_EQ(model2->na, 1);
+  EXPECT_EQ(model2->actuator_gainprm[0], 3);
+  EXPECT_EQ(model2->actuator_ctrlrange[2], -2);
 }
 
 static const char* const kInertiaPath = "engine/testdata/inertia.xml";

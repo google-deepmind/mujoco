@@ -5315,6 +5315,15 @@ Set actuator to velocity servo; return error if any.
 
 Set actuator to orientation servo.
 
+.. _mjs_setToPID:
+
+`mjs_setToPID <#mjs_setToPID>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setToPID
+
+Set actuator to PID controller.
+
 .. _mjs_setToDamper:
 
 `mjs_setToDamper <#mjs_setToDamper>`__

@@ -6025,6 +6025,12 @@ struct MjsActuator {
   void set_ctrlspec(int value) {
     ptr_->ctrlspec = value;
   }
+  emscripten::val velrange() const {
+    return emscripten::val(emscripten::typed_memory_view(2, ptr_->velrange));
+  }
+  emscripten::val ffrange() const {
+    return emscripten::val(emscripten::typed_memory_view(2, ptr_->ffrange));
+  }
   mjtBool actearly() const {
     return ptr_->actearly;
   }

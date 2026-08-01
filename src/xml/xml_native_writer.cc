@@ -899,7 +899,20 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* actuator, mjCDe
   // non-plugins: write actuator parameters
   else {
     WriteAttrKey(elem, "gaintype", gain_map, gain_sz, actuator->gaintype, def->Actuator().gaintype);
-    WriteAttrKey(elem, "input", input_map, input_sz, actuator->ctrlspec, def->Actuator().ctrlspec);
+    if (actuator->gaintype == mjGAIN_SO3) {
+      WriteAttrKey(elem, "input", inputchart_map, inputchart_sz, actuator->ctrlspec,
+                   def->Actuator().ctrlspec);
+    } else if (actuator->ctrlspec != def->Actuator().ctrlspec) {
+      std::string tokens;
+      for (int k=0; k < inputbit_sz; k++) {
+        if (actuator->ctrlspec & inputbit_map[k].value) {
+          tokens += std::string(tokens.empty() ? "" : " ") + inputbit_map[k].key;
+        }
+      }
+      WriteAttrTxt(elem, "input", tokens);
+    }
+    WriteAttr(elem, "velrange", 2, actuator->velrange, def->Actuator().velrange);
+    WriteAttr(elem, "ffrange", 2, actuator->ffrange, def->Actuator().ffrange);
     WriteAttrKey(elem, "biastype", bias_map, bias_sz, actuator->biastype, def->Actuator().biastype);
     WriteAttr(elem, "gainprm", mjNGAIN, actuator->gainprm, def->Actuator().gainprm, true);
     WriteAttr(elem, "biasprm", mjNBIAS, actuator->biasprm, def->Actuator().biasprm, true);

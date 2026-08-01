@@ -5664,25 +5664,27 @@ specify them independently.
 
 .. _actuator-general-dyntype:
 
-:at:`dyntype`: :at-val:`[none, integrator, filter, filterexact, muscle, user], "none"`
+:at:`dyntype`: :at-val:`[none, integrator, filter, filterexact, pid, muscle, user], "none"`
    Activation dynamics type for the actuator. The available dynamics types were already described in the :ref:`Actuation
    model <geActuation>` section. Repeating that description in somewhat different notation (corresponding to the mjModel
    and mjData fields involved) we have:
 
-   =========== ======================================
-   Keyword     Description
-   =========== ======================================
-   none        No internal state
-   integrator  act_dot = ctrl
-   filter      act_dot = (ctrl - act) / dynprm[0]
-   filterexact Like filter but with exact integration
-   muscle      act_dot = mju_muscleDynamics(...)
-   user        act_dot = mjcb_act_dyn(...)
-   =========== ======================================
+   ============= ======================================
+   Keyword       Description
+   ============= ======================================
+   none          No internal state
+   integrator    act_dot = ctrl
+   filter        act_dot = (ctrl - act) / dynprm[0]
+   filterexact   Like filter but with exact integration
+   pid           act_dot = position error; see :ref:`pid<actuator-pid>`
+   dcmotor       DC motor electrical dynamics, see :ref:`dcmotor<actuator-dcmotor>`
+   muscle        act_dot = mju_muscleDynamics(...)
+   user          act_dot = mjcb_act_dyn(...)
+   ============= ======================================
 
 .. _actuator-general-gaintype:
 
-:at:`gaintype`: :at-val:`[fixed, affine, muscle, so3, user], "fixed"`
+:at:`gaintype`: :at-val:`[fixed, affine, muscle, pid, so3, user], "fixed"`
    The gain and bias together determine the output of the force generation mechanism, which is currently assumed to be
    affine. As already explained in :ref:`Actuation model <geActuation>`, the general formula is:
    scalar_force = gain_term \* (act or ctrl) + bias_term.
@@ -5695,6 +5697,7 @@ specify them independently.
    fixed   gain_term = gainprm[0]
    affine  gain_term = gain_prm[0] + gain_prm[1]*length + gain_prm[2]*velocity
    muscle  gain_term = mju_muscleGain(...)
+   pid     PID controller with setpoint inputs, see :ref:`pid<actuator-pid>`
    so3     geodesic orientation servo, computed jointly over 3 force outputs, see :ref:`orientation<actuator-orientation>`
    user    gain_term = mjcb_act_gain(...)
    ======= ===============================
@@ -5739,12 +5742,23 @@ specify them independently.
    so the user can enter as many parameters as needed. These defaults are not compatible with muscle actuators; see
    :ref:`muscle <actuator-muscle>` below.
 
+.. _actuator-general-velrange:
+
+:at:`velrange`: :at-val:`real(2), "0 0"`
+   Range of the velocity-setpoint input of a :ref:`pid<actuator-pid>` actuator.
+
+.. _actuator-general-ffrange:
+
+:at:`ffrange`: :at-val:`real(2), "0 0"`
+   Range of the feedforward input of a :ref:`pid<actuator-pid>` actuator.
+
 .. _actuator-general-input:
 
 :at:`input`: :at-val:`string, optional`
    Input signature of the actuator: which controls make up its control block, recorded in
-   ``mjModel.actuator_ctrlspec``. Available for gaintype "so3", where it selects the orientation chart: "expmap"
-   (3 controls, the default) or "quat" (4 controls); see :ref:`orientation/input<actuator-orientation-input>`.
+   ``mjModel.actuator_ctrlspec``. For gaintype "so3" it selects the orientation chart: "expmap" (3 controls, the
+   default) or "quat" (4 controls); see :ref:`orientation/input<actuator-orientation-input>`. For gaintype "pid" it is
+   a token list selecting the input subset; see :ref:`pid/input<actuator-pid-input>`.
 
 .. _actuator-general-actearly:
 
@@ -5954,6 +5968,146 @@ This element has one custom attribute in addition to the common attributes:
    :ref:`position<actuator-position>` attribute and in the :ref:`default class<default-position-inheritrange>`,
    saved XMLs always convert it to explicit :at:`ctrlrange` at the actuator.
 
+.. _actuator-pid:
+
+:el-prefix:`actuator/` |-| **pid** |*|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates a PID controller with position and velocity setpoint inputs on a single force output, with optional
+integral action and feedforward. With the default input signature ``[pos, vel]`` the force is
+:math:`k_p (u_{pos} - l) + k_v (u_{vel} - v)` where :math:`l, v` are the actuator length and velocity; with a zero
+velocity setpoint this is identical to :ref:`position<actuator-position>`. The input signature is any subset of
+``[pos, vel, ff]``, selected by :ref:`input<actuator-pid-input>`: an absent setpoint input is fixed at zero, and the
+``ff`` input adds a feedforward force. Integral action is enabled by :ref:`ki<actuator-pid-ki>`: the position error is integrated in
+:ref:`act<siPhysicsState>` and contributes :math:`k_i \cdot act` to the force, with anti-windup clamping by
+:ref:`imax<actuator-pid-imax>`.
+:ref:`slewmax<actuator-pid-slewmax>` limits the rate of change of the effective position setpoint. Each of these
+features, when enabled, adds one activation state, in the order [slew, integral]. The underlying
+:ref:`general<actuator-general>` attributes are set as follows:
+
+========= ===================== ========= =========
+Attribute Setting               Attribute Setting
+========= ===================== ========= =========
+dyntype   none or pid dynprm    imax 0 0
+gaintype  pid                   gainprm   ki 0 0
+biastype  affine                biasprm   0 -kp -kv
+========= ===================== ========= =========
+
+This element has custom attributes in addition to the common attributes:
+
+.. _actuator-pid-name:
+
+.. _actuator-pid-class:
+
+.. _actuator-pid-group:
+
+.. _actuator-pid-nsample:
+
+.. _actuator-pid-interp:
+
+.. _actuator-pid-delay:
+
+.. _actuator-pid-ctrllimited:
+
+.. _actuator-pid-forcelimited:
+
+.. _actuator-pid-ctrlrange:
+
+.. _actuator-pid-forcerange:
+
+.. _actuator-pid-lengthrange:
+
+.. _actuator-pid-gear:
+
+.. _actuator-pid-damping:
+
+.. _actuator-pid-armature:
+
+.. _actuator-pid-cranklength:
+
+.. _actuator-pid-user:
+
+.. _actuator-pid-joint:
+
+.. _actuator-pid-jointinparent:
+
+.. _actuator-pid-tendon:
+
+.. _actuator-pid-slidersite:
+
+.. _actuator-pid-cranksite:
+
+.. _actuator-pid-site:
+
+.. _actuator-pid-refsite:
+
+.. _actuator-pid-kp:
+
+:at:`kp`: :at-val:`real, "1"`
+   Position feedback gain.
+
+.. _actuator-pid-kv:
+
+:at:`kv`: :at-val:`real, "0"`
+   Velocity feedback gain: applied to the velocity error when the ``vel`` input is present, and as pure damping
+   otherwise. When using this attribute, it is recommended to use the implicitfast or implicit
+   :ref:`integrators<geIntegration>`.
+
+.. _actuator-pid-dampratio:
+
+:at:`dampratio`: :at-val:`real, "0"`
+   Damping applied by the actuator, using damping ratio units, as for
+   :ref:`position/dampratio<actuator-position-dampratio>`. This attribute is exclusive with :at:`kv`.
+
+.. _actuator-pid-ki:
+
+:at:`ki`: :at-val:`real, "0"`
+   Integral gain. A nonzero value enables integral action: the position error is integrated in
+   :ref:`act<siPhysicsState>` (:ref:`dyntype<actuator-general-dyntype>` "pid") and contributes :math:`k_i \cdot act`
+   to the force.
+   Requires the ``pos`` input.
+
+.. _actuator-pid-imax:
+
+:at:`imax`: :at-val:`real, "0"`
+   Anti-windup limit on the integral state: accumulation stops beyond ±\ :at:`imax`. The default value 0 means
+   "unclamped".
+
+.. _actuator-pid-slewmax:
+
+:at:`slewmax`: :at-val:`real, "0"`
+   Maximum rate of change of the effective position setpoint. When positive, the commanded setpoint is rate-limited
+   through an activation state holding the effective setpoint, as for the
+   :ref:`dcmotor controller<actuator-dcmotor-controller>`. The default value 0 means "unlimited".
+
+.. _actuator-pid-input:
+
+:at:`input`: :at-val:`string, "pos vel"`
+   Input signature: a space-separated subset of the tokens "pos", "vel" and "ff", packed in this canonical order.
+   Absent setpoint inputs are fixed at zero, so the control vector contains no inert entries.
+
+.. _actuator-pid-posrange:
+
+:at:`posrange`: :at-val:`real(2), "0 0"`
+   Range of the position-setpoint input; an alias of :ref:`ctrlrange<actuator-general-ctrlrange>` (the first
+   input).
+
+.. _actuator-pid-velrange:
+
+:at:`velrange`: :at-val:`real(2), "0 0"`
+   Range of the velocity-setpoint input.
+
+.. _actuator-pid-ffrange:
+
+:at:`ffrange`: :at-val:`real(2), "0 0"`
+   Range of the feedforward input.
+
+.. _actuator-pid-inheritrange:
+
+:at:`inheritrange`: :at-val:`real, "0"`
+   Identical to :ref:`position/inheritrange<actuator-position-inheritrange>`, setting :at:`posrange` from the
+   transmission target's :at:`range`.
+
 .. _actuator-orientation:
 
 :el-prefix:`actuator/` |-| **orientation** |*|
@@ -5976,7 +6130,7 @@ preserving its direction; the lower bound must be 0.
 :ref:`Actuator sensors<sensor-actuatorpos>` report one value per force output. The integrator variant, which
 stores the orientation setpoint in :ref:`act<siPhysicsState>`, is available via :ref:`general<actuator-general>` with
 :ref:`dyntype<actuator-general-dyntype>` "integrator" and is expmap-only. The video on the right shows this `example
-model <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sensor/actuation/orientation.xml>`__.
+model <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/orientation.xml>`__.
 The underlying :el:`general` attributes are set as follows:
 
 ========= ======= ========= =========
@@ -6056,9 +6210,8 @@ This element has custom attributes in addition to the common attributes:
 :el-prefix:`actuator/` |-| **velocity** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element creates a velocity servo. Note that in order to create a PD controller, one has to define two actuators: a
-position servo and a velocity servo. This is because MuJoCo actuators are SISO while a PD controller takes two control
-inputs (reference position and reference velocity).
+This element creates a velocity servo. Note that a PD controller with both position and velocity setpoint inputs is
+provided by the :ref:`pid<actuator-pid>` actuator.
 When using this actuator, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
 The underlying :el:`general` attributes are set as follows:
 
@@ -6802,7 +6955,7 @@ Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 
 .. _actuator-plugin-dyntype:
 
-:at:`dyntype`: :at-val:`[none, integrator, filter, filterexact, muscle, user], "none"`
+:at:`dyntype`: :at-val:`[none, integrator, filter, filterexact, pid, muscle, user], "none"`
    Activation dynamics type for the actuator. The available dynamics types were already described in the :ref:`Actuation
    model <geActuation>` section. If :ref:`dyntype<actuator-general-dyntype>` is not "none", an activation variable will
    be added to the actuator. This variable will be added after any activation state computed by the plugin (see
@@ -10020,6 +10173,10 @@ if omitted.
 
 .. _default-general-biasprm:
 
+.. _default-general-velrange:
+
+.. _default-general-ffrange:
+
 .. _default-general-input:
 
 .. _default-general-actearly:
@@ -10197,6 +10354,95 @@ refsite, tendon, slidersite, cranksite.
 
 All :ref:`intvelocity <actuator-intvelocity>` attributes are available here except: name, class, joint, jointinparent,
 site, refsite, tendon, slidersite, cranksite.
+
+
+.. _default-pid:
+
+.. _default-pid-ctrllimited:
+
+.. _default-pid-forcelimited:
+
+.. _default-pid-ctrlrange:
+
+.. _default-pid-posrange:
+
+.. _default-pid-velrange:
+
+.. _default-pid-ffrange:
+
+.. _default-pid-forcerange:
+
+.. _default-pid-inheritrange:
+
+.. _default-pid-gear:
+
+.. _default-pid-damping:
+
+.. _default-pid-armature:
+
+.. _default-pid-cranklength:
+
+.. _default-pid-user:
+
+.. _default-pid-group:
+
+.. _default-pid-nsample:
+
+.. _default-pid-interp:
+
+.. _default-pid-delay:
+
+.. _default-pid-kp:
+
+.. _default-pid-kv:
+
+.. _default-pid-dampratio:
+
+.. _default-pid-ki:
+
+.. _default-pid-imax:
+
+.. _default-pid-slewmax:
+
+.. _default-pid-input:
+
+:el-prefix:`default/` |-| **pid** |?|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+All :ref:`pid <actuator-pid>` attributes are available here except: name, class, joint, jointinparent,
+site, refsite, tendon, slidersite, cranksite.
+
+
+.. _default-orientation:
+
+.. _default-orientation-forcelimited:
+
+.. _default-orientation-ctrlrange:
+
+.. _default-orientation-forcerange:
+
+.. _default-orientation-user:
+
+.. _default-orientation-group:
+
+.. _default-orientation-nsample:
+
+.. _default-orientation-interp:
+
+.. _default-orientation-delay:
+
+.. _default-orientation-kp:
+
+.. _default-orientation-kv:
+
+.. _default-orientation-dampratio:
+
+.. _default-orientation-input:
+
+:el-prefix:`default/` |-| **orientation** |?|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+All :ref:`orientation <actuator-orientation>` attributes are available here except: name, class, joint, site, refsite.
 
 
 .. _default-damper:

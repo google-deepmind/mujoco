@@ -4066,10 +4066,10 @@ void mjCModel::CopyObjects(mjModel* m) {
     mjuu_copyvec(m->actuator_user+nuser_actuator*i, pac->get_userdata().data(), nuser_actuator);
 
     // per-input arrays, at the actuator's ctrl block
-    for (int j = m->actuator_ctrladr[i];
-         j < m->actuator_ctrladr[i] + m->actuator_ctrlnum[i]; j++) {
-      m->actuator_ctrllimited[j] = (mjtBool)pac->is_ctrllimited();
-      mjuu_copyvec(m->actuator_ctrlrange + 2 * j, pac->ctrlrange, 2);
+    for (int k = 0; k < m->actuator_ctrlnum[i]; k++) {
+      int j = m->actuator_ctrladr[i] + k;
+      m->actuator_ctrllimited[j] = (mjtBool)pac->ctrllimiteds_[k];
+      mjuu_copyvec(m->actuator_ctrlrange + 2 * j, pac->ctrlranges_[k], 2);
     }
 
     // per-output arrays, at the actuator's output block
