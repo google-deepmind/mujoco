@@ -47,6 +47,12 @@ Models
   Unlike the poncho models, which are bending-only, this model exercises the 2D
   :ref:`stretch<flex-elasticity-elastic2d>` elasticity of a flex.
 
+Bug fixes
+^^^^^^^^^
+
+- Fixed a bug in the box-box collider where near-degenerate face clipping could generate contacts with spuriously
+  large penetration depth between nearly touching thin boxes with positive margin, causing resting stacks to explode.
+
 Version 3.11.0 (July 27, 2026)
 ------------------------------
 

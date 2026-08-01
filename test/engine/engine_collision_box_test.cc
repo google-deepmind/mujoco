@@ -290,5 +290,172 @@ TEST_F(MjCollisionBoxTest, BoxBoxContactDistance) {
   }
 }
 
+TEST_F(MjCollisionBoxTest, ThinBoxNoSpuriousDeepContact) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="box" size="0.047 0.032 0.00035" margin="1e-5" mass="2e-3"/>
+      </body>
+      <body>
+        <freejoint/>
+        <geom type="box" size="0.047 0.032 0.00035" margin="1e-5" mass="2e-3"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qpos="2.8218257713084481e-05 -0.013292121195706197 0.029256072037790268
+                 0.84130787082244052 0.54054898504499482 0.0015299333749655413
+                 0.0023495878161510389
+                 -5.3521944872628108e-05 0.01427117523229726 0.029254416229696868
+                 0.8413227886432264 -0.54053283716888822 0.00024615852936852315
+                 -0.00039580009650069315"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // thin boxes meeting edge-to-face, separated by ~15um, within the margin
+  mj_resetDataKeyframe(model.get(), data.get(), 0);
+  mj_forward(model.get(), data.get());
+  mjtNum gap = mj_geomDistance(model.get(), data.get(), 0, 1, 0.1, nullptr);
+  EXPECT_GT(gap, 0);
+
+  // separated boxes: all margin-admitted contacts must have positive distance
+  ASSERT_GT(data->ncon, 0);
+  for (int i = 0; i < data->ncon; i++) {
+    EXPECT_GT(data->contact[i].dist, 0);
+  }
+
+  // same, calling the collider directly (margin is the sum of geom margins)
+  mjPreContact precon[mjMAXCONPAIR];
+  int num = mjc_BoxBox(model.get(), data.get(), precon, 0, 1, 2e-5);
+  for (int i = 0; i < num; i++) {
+    EXPECT_GT(precon[i].dist, 0);
+  }
+
+  // push box 2 into box 1 along the normal: the deep contact is still reported
+  mju_addToScl3(data->qpos + 7, data->contact[0].frame, -1e-4);
+  mj_forward(model.get(), data.get());
+  gap = mj_geomDistance(model.get(), data.get(), 0, 1, 0.1, nullptr);
+  EXPECT_LT(gap, 0);
+  ASSERT_GT(data->ncon, 0);
+  mjtNum deepest = data->contact[0].dist;
+  for (int i = 1; i < data->ncon; i++) {
+    deepest = mju_min(deepest, data->contact[i].dist);
+  }
+  EXPECT_THAT(deepest, MjNear(gap, 1e-8, 1e-6));
+}
+
+TEST_F(MjCollisionBoxTest, ThinBoxShallowPenetration) {
+  // thin boxes with zero margin, penetrating by ~100um: the deepest contact reaches the
+  // separating-axis bound up to rounding, and must not be dropped by the depth filter;
+  // the pose is written directly into mjData since the exact bits matter
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="box" size="0.1 0.1 0.1"/>
+      <geom type="box" size="0.1 0.1 0.1"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_kinematics(model.get(), data.get());
+
+  const mjtNum size1[3] = {0.00044359468518251132, 0.0019427705390657074,
+                           0.00056716790015765711};
+  const mjtNum size2[3] = {0.00062288175555326323, 0.0010906336314477707,
+                           0.00030803275652456415};
+  const mjtNum pos2[3] = {-0.0011513383735175778, -0.0013813387665010076,
+                          -0.00043818094448460645};
+  const mjtNum quat1[4] = {0.28720146798163904, -0.083561810000907483,
+                           -0.51853459717827233, 0.80103346511099693};
+  const mjtNum quat2[4] = {0.51588977358544519, 0.63445106644895233,
+                           0.50962161111201376, -0.26761053656263345};
+  mju_copy3(model->geom_size, size1);
+  mju_copy3(model->geom_size + 3, size2);
+  mju_zero3(data->geom_xpos);
+  mju_copy3(data->geom_xpos + 3, pos2);
+  mju_quat2Mat(data->geom_xmat, quat1);
+  mju_quat2Mat(data->geom_xmat + 9, quat2);
+
+  mjtNum gap = mj_geomDistance(model.get(), data.get(), 0, 1, 0.1, nullptr);
+  EXPECT_LT(gap, 0);
+
+  mjPreContact precon[mjMAXCONPAIR];
+  int num = mjc_BoxBox(model.get(), data.get(), precon, 0, 1, 0);
+  ASSERT_GT(num, 0);
+  mjtNum deepest = precon[0].dist;
+  for (int i = 1; i < num; i++) {
+    deepest = mju_min(deepest, precon[i].dist);
+  }
+  EXPECT_THAT(deepest, MjNear(gap, 1e-8, 1e-6));
+}
+
+TEST_F(MjCollisionBoxTest, EdgeContactAtDepthBound) {
+  // edge-edge contacts whose depth equals the separating-axis bound up to rounding: the
+  // depth filter's slack must cover single-precision rounding or the whole manifold is
+  // rejected; the pose is written directly into mjData since the exact bits matter
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="box" size="0.1 0.1 0.1"/>
+      <geom type="box" size="0.1 0.1 0.1"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_kinematics(model.get(), data.get());
+
+  struct Config {
+    mjtNum size1[3], size2[3], pos2[3], quat1[4], quat2[4];
+  };
+  const Config configs[2] = {
+      {{0.018352361395955086, 0.038452208042144775, 0.047704100608825684},
+       {0.026817722246050835, 0.0014398059574887156, 0.0082265362143516541},
+       {-0.026325162500143051, 0.030753342434763908, 0.02338058315217495},
+       {-0.90091776847839355, -0.42279955744743347, 0.097014322876930237,
+        -0.013262901455163956},
+       {0.23919239640235901, 0.056073460727930069, 0.91227829456329346,
+        0.32770577073097229}},
+      {{0.044790275394916534, 0.0057221869938075542, 0.0049537895247340202},
+       {0.026496950536966324, 0.019804427400231361, 0.0057344711385667324},
+       {0.0094044031575322151, 0.020275400951504707, -0.017358051612973213},
+       {0.040385473519563675, 0.75189536809921265, -0.55430221557617188,
+        0.35464280843734741},
+       {-0.6716417670249939, 0.085770353674888611, 0.69683432579040527,
+        -0.23656430840492249}}};
+
+  for (const Config& config : configs) {
+    mju_copy3(model->geom_size, config.size1);
+    mju_copy3(model->geom_size + 3, config.size2);
+    mju_zero3(data->geom_xpos);
+    mju_copy3(data->geom_xpos + 3, config.pos2);
+    mju_quat2Mat(data->geom_xmat, config.quat1);
+    mju_quat2Mat(data->geom_xmat + 9, config.quat2);
+
+    mjtNum gap = mj_geomDistance(model.get(), data.get(), 0, 1, 0.1, nullptr);
+    EXPECT_LT(gap, 0);
+
+    mjPreContact precon[mjMAXCONPAIR];
+    int num = mjc_BoxBox(model.get(), data.get(), precon, 0, 1, 0);
+    ASSERT_GT(num, 0);
+    mjtNum deepest = precon[0].dist;
+    for (int i = 1; i < num; i++) {
+      deepest = mju_min(deepest, precon[i].dist);
+    }
+    EXPECT_THAT(deepest, MjNear(gap, 1e-8, 1e-6));
+  }
+}
+
 }  // namespace
 }  // namespace mujoco
