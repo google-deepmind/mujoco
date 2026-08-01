@@ -23,7 +23,17 @@ Initialize an empty VFS, :ref:`mj_deleteVFS` must be called to deallocate the VF
 Add file to VFS. The directory argument is optional and can be NULL or empty. Returns 0 on success,
 2 on name collision, or -1 when an internal error occurs.
 
+VFS first attempts to match a full path. If this fails, it falls back to a case-insensitive match on
+the basename. For example, an entry named ``assets/Cube.OBJ`` can be found as ``cube.obj``.
+
 *Nullable:* ``directory``
+
+.. _mj_addBufferVFS:
+
+Add file to VFS from buffer; return 0: success, 2: repeated name, -1: failed to load.
+
+VFS first attempts to match a full path. If this fails, it falls back to a case-insensitive match on
+the basename. For example, an entry named ``assets/Cube.OBJ`` can be found as ``cube.obj``.
 
 .. _Assetcache:
 
