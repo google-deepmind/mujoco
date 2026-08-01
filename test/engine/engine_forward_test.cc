@@ -1726,6 +1726,76 @@ TEST_F(DCMotorTest, LuGreViscousFriction) {
               MjTol(1e-12, 1e-5));
 }
 
+// the LuGre bristle must integrate the velocity of its own transmission:
+// placing a multi-output (SO3) actuator before the DC motor, so that the
+// motor's actuator id and output address diverge, must not change the
+// bristle dynamics
+TEST_F(DCMotorTest, LuGreBristleVelocityOrderInvariance) {
+  static constexpr char xml_dc_first[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+      <body pos="3 0 0">
+        <joint name="ball" type="ball"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor name="dc" joint="hinge" motorconst="0.05" resistance="2.0"
+               lugre="100 0.5 0.5 0.8 0.5"/>
+      <orientation name="so3" joint="ball" kp="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  static constexpr char xml_so3_first[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+      <body pos="3 0 0">
+        <joint name="ball" type="ball"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <orientation name="so3" joint="ball" kp="1"/>
+      <dcmotor name="dc" joint="hinge" motorconst="0.05" resistance="2.0"
+               lugre="100 0.5 0.5 0.8 0.5"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+
+  // reference: DC motor first, actuator id == output address
+  MjModelPtr model = LoadModelFromString(xml_dc_first, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  int dc = mj_name2id(model.get(), mjOBJ_ACTUATOR, "dc");
+  data->qvel[model->jnt_dofadr[mj_name2id(model.get(), mjOBJ_JOINT, "hinge")]] = 1;
+  mj_step(model.get(), data.get());
+  double z_dc_first = data->act[model->actuator_actadr[dc]];
+
+  // reordered: the SO3 actuator has 3 outputs, so the DC motor now has
+  // actuator id 1 but output address 3
+  model = LoadModelFromString(xml_so3_first, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  data = MakeData(model);
+  dc = mj_name2id(model.get(), mjOBJ_ACTUATOR, "dc");
+  ASSERT_EQ(model->actuator_outadr[dc], 3);
+  data->qvel[model->jnt_dofadr[mj_name2id(model.get(), mjOBJ_JOINT, "hinge")]] = 1;
+  mj_step(model.get(), data.get());
+  double z_so3_first = data->act[model->actuator_actadr[dc]];
+
+  // the bristle state saw the same spinning hinge in both models
+  EXPECT_NE(z_dc_first, 0);
+  EXPECT_MJTNUM_EQ(z_so3_first, z_dc_first);
+}
+
 TEST_F(DCMotorTest, ThermalRiseAndFall) {
   static constexpr char xml[] = R"(
   <mujoco>

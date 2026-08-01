@@ -735,7 +735,7 @@ mjtNum mj_nextActivation(const mjModel* m, const mjData* d,
       mjtNum F_S = biasprm[4];    // static friction
       mjtNum v_S = biasprm[5];    // Stribeck velocity
       mjtNum sigma0 = dynprm[5];  // bristle stiffness
-      mjtNum velocity = d->actuator_velocity[actuator_id];
+      mjtNum velocity = d->actuator_velocity[m->actuator_outadr[actuator_id]];
       mjtNum g = mj_lugreStribeck(velocity, F_C, F_S, v_S);
 
       // ZOH exact ZOH integration: z(h) = exp(ah)*z(0) + ((exp(ah)-1)/a)*v
