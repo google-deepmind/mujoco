@@ -398,6 +398,71 @@ TEST_F(MjCollisionBoxTest, ThinBoxShallowPenetration) {
   EXPECT_THAT(deepest, MjNear(gap, 1e-8, 1e-6));
 }
 
+TEST_F(MjCollisionBoxTest, ThinBoxTunneledPenetration) {
+  // thin boxes penetrating deeper than their smallest half-dim: the
+  // midpoint-convention contact position lands outside both boxes, and the
+  // outside-box filter must not delete the entire manifold; the pose is written
+  // directly into mjData since the exact bits matter; one face contact and one
+  // edge-edge contact
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="box" size="0.1 0.1 0.1"/>
+      <geom type="box" size="0.1 0.1 0.1"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_kinematics(model.get(), data.get());
+
+  struct Config {
+    mjtNum size1[3], size2[3], margin, pos2[3], quat1[4], quat2[4];
+  };
+  const Config configs[2] = {
+      // face contact
+      {{0.10375412296887962, 0.0014208822825842824, 0.029838770510023913},
+       {0.0047738704827163959, 0.0007140947854610601, 0.0045937794963772805},
+       1e-5,
+       {0.027189909560778446, 0.003935055006556199, -0.0055232476077228749},
+       {-0.18064681165220281, -0.38732117424997786, 0.11417869384387985,
+        0.89683457966874658},
+       {-0.29829616465597159, 0.84519552206173276, 0.23968520782082428,
+        -0.37311516826607399}},
+      // edge-edge contact
+      {{0.034760484829104925, 0.00071213467312592935, 0.0059314873303977222},
+       {0.013576183806600434, 0.0082162263322061238, 0.0011680617239575811},
+       1e-4,
+       {0.0044392420645136049, -0.0041767483250730571, 0.00078140511512282684},
+       {0.58664366826657666, 0.39991671184222333, 0.24085697266687636,
+        -0.66174296278070577},
+       {-0.35168496783547554, 0.48328103093900215, 0.12063144050164629,
+        -0.79259395915916098}}};
+
+  for (const Config& config : configs) {
+    mju_copy3(model->geom_size, config.size1);
+    mju_copy3(model->geom_size + 3, config.size2);
+    mju_zero3(data->geom_xpos);
+    mju_copy3(data->geom_xpos + 3, config.pos2);
+    mju_quat2Mat(data->geom_xmat, config.quat1);
+    mju_quat2Mat(data->geom_xmat + 9, config.quat2);
+
+    mjtNum gap = mj_geomDistance(model.get(), data.get(), 0, 1, 0.1, nullptr);
+    EXPECT_LT(gap, 0);
+
+    mjPreContact precon[mjMAXCONPAIR];
+    int num = mjc_BoxBox(model.get(), data.get(), precon, 0, 1, config.margin);
+    ASSERT_GT(num, 0);
+    mjtNum deepest = precon[0].dist;
+    for (int i = 1; i < num; i++) {
+      deepest = mju_min(deepest, precon[i].dist);
+    }
+    EXPECT_THAT(deepest, MjNear(gap, 1e-8, 1e-6));
+  }
+}
+
 TEST_F(MjCollisionBoxTest, EdgeContactAtDepthBound) {
   // edge-edge contacts whose depth equals the separating-axis bound up to rounding: the
   // depth filter's slack must cover single-precision rounding or the whole manifold is

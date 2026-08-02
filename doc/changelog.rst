@@ -52,6 +52,8 @@ Bug fixes
 
 - Fixed a bug in the box-box collider where near-degenerate face clipping could generate contacts with spuriously
   large penetration depth between nearly touching thin boxes with positive margin, causing resting stacks to explode.
+- Fixed a bug in the box-box collider where penetrations deeper than a box's smallest half-size could produce no
+  contacts, letting boxes tunnel through thin boxes. Fixes :issue:`1800`.
 
 Version 3.11.0 (July 27, 2026)
 ------------------------------

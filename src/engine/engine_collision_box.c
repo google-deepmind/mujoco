@@ -1389,6 +1389,7 @@ int mjc_BoxBox(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, m
   const mjtNum* size2 = m->geom_size + 3 * g2;
 
   // find bad: contacts outside one of the boxes
+  int nbad = 0;
   for (int i=0; i < num; i++) {
     // box sizes with margin
     mjtNum sz1[3] = {size1[0] + margin, size1[1] + margin, size1[2] + margin};
@@ -1404,6 +1405,18 @@ int mjc_BoxBox(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, m
     // mark as bad if outside one box and not inside the other box
     if ((out1 == 1 && out2 != -1) || (out2 == 1 && out1 != -1)) {
       dupe[i] = -1;
+      nbad++;
+    }
+  }
+
+  // deep penetration can strand the midpoint-convention position outside both boxes; if
+  // that removed every contact, restore the penetrating ones: an empty manifold for
+  // overlapping boxes lets them pass through each other
+  if (nbad && nbad == num) {
+    for (int i=0; i < num; i++) {
+      if (tmp[i].dist < 0) {
+        dupe[i] = 0;
+      }
     }
   }
 
