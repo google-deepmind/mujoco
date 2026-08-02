@@ -2024,7 +2024,7 @@ TEST_F(XMLReaderTest, CameraInvalidFovyAndSensorsize) {
   std::array<char, 1024> error;
   MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m.get(), IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("either 'fovy' or 'sensorsize'"));
+  EXPECT_THAT(error.data(), HasSubstr("at most one of 'fovy', 'sensorsize'"));
   EXPECT_THAT(error.data(), HasSubstr("line 6"));
 }
 
@@ -2081,8 +2081,8 @@ TEST_F(XMLReaderTest, InvalidInertialOrientation) {
   ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(
       error.data(),
-      HasSubstr(
-          "fullinertia and inertial orientation cannot both be specified"));
+      HasSubstr("at most one of 'fullinertia', 'quat', 'axisangle', "
+                "'xyaxes', 'zaxis', 'euler' can be specified"));
 }
 
 TEST_F(XMLReaderTest, ReadShellParameter) {
@@ -2137,7 +2137,7 @@ TEST_F(XMLReaderTest, BuiltinAndFile) {
   MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(),
-              HasSubstr("builtin mesh cannot be used with user vertex data"));
+              HasSubstr("at most one of 'builtin', 'vertex' can be specified"));
 }
 
 TEST_F(XMLReaderTest, MakePlateNoParameters) {
@@ -2422,7 +2422,9 @@ TEST_F(RelativeFrameSensorParsingTest, RefNameButNoType) {
   )";
   std::array<char, 1024> error;
   LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(error.data(), HasSubstr("but reftype is missing"));
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr("attributes 'reftype', 'refname' must be specified together"));
   EXPECT_THAT(error.data(), HasSubstr("line 8"));
 }
 
@@ -2440,7 +2442,9 @@ TEST_F(RelativeFrameSensorParsingTest, RefTypeButNoName) {
   )";
   std::array<char, 1024> error;
   LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(error.data(), HasSubstr("attribute missing: 'refname'"));
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr("attributes 'reftype', 'refname' must be specified together"));
   EXPECT_THAT(error.data(), HasSubstr("line 8"));
 }
 
@@ -3563,7 +3567,9 @@ TEST_F(SensorParseTest, UserObjTypeNoName) {
   std::array<char, 1024> error;
   MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model.get(), IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("objtype 'site' given but"));
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr("attributes 'objtype', 'objname' must be specified together"));
   EXPECT_THAT(error.data(), HasSubstr("line 4"));
 }
 
@@ -3578,7 +3584,9 @@ TEST_F(SensorParseTest, UserObjNameNoType) {
   std::array<char, 1024> error;
   MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model.get(), IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("objname 'kevin' given but"));
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr("attributes 'objtype', 'objname' must be specified together"));
   EXPECT_THAT(error.data(), HasSubstr("line 4"));
 }
 

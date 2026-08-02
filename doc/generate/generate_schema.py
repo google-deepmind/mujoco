@@ -113,18 +113,18 @@ def generate_dropdown(
 
 
 def generate() -> str:
-  """Generates XMLschema.rst by parsing xml_native_reader.cc.
+  """Generates XMLschema.rst by parsing mjcf_table.inc.
 
-  The schema is defined in xml_native_reader.cc as a nested structure called
-  MJCF[nMJCF]. This function parses that structure and generates nested
-  dropdown directives with list-tables for attributes.
+  The schema is defined in mjcf_table.inc (generated from mjcf.schema) as a
+  nested structure called MJCF[]. This function parses that structure and
+  generates nested dropdown directives with list-tables for attributes.
 
   Returns:
     RST content with nested dropdown directives for the MJCF schema.
   """
   script_dir = os.path.dirname(os.path.abspath(__file__))
   repo_root = os.path.dirname(os.path.dirname(script_dir))
-  filepath = os.path.join(repo_root, 'src', 'xml', 'xml_native_reader.cc')
+  filepath = os.path.join(repo_root, 'src', 'xml', 'mjcf_table.inc')
   xmlfile = os.path.join(repo_root, 'doc', 'XMLreference.rst')
 
   # Collect all link targets from XMLreference.rst for validation.
@@ -159,7 +159,7 @@ def generate() -> str:
 
       # Skip to the MJCF schema definition in the C++ source.
       for line in file:
-        if 'std::vector<const char*> MJCF[nMJCF] = {' in line.strip():
+        if 'std::vector<const char*> MJCF[] = {' in line.strip():
           break
 
       # Parse the schema structure.
@@ -224,7 +224,8 @@ def generate() -> str:
             parent[level + 1] = element[0]
           element = []
 
-  return output
+  # single newline at end of file
+  return output.rstrip('\n') + '\n'
 
 
 def main() -> int:

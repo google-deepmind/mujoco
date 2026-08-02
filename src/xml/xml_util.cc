@@ -333,10 +333,19 @@ XMLElement* NextSiblingElement(XMLElement* e, const char* name) {
 }
 
 // constructor
-mjXSchema::mjXSchema(std::vector<const char*> schema[], unsigned nrow) {
+mjXSchema::mjXSchema(std::vector<const char*> schema[], unsigned nrow,
+                     const mjXConstraintDef* constraints, int nconstraint,
+                     int first_row) {
   // set name and type
   name_ = schema[0][0];
   type_ = schema[0][1][0];
+
+  // adopt the presence constraints declared for this row
+  for (int i = 0; i < nconstraint; i++) {
+    if (constraints[i].row == first_row) {
+      constraints_.push_back(&constraints[i]);
+    }
+  }
 
   // set attributes
   int nattr = schema[0].size() - 2;
@@ -370,12 +379,109 @@ mjXSchema::mjXSchema(std::vector<const char*> schema[], unsigned nrow) {
       }
 
       // add child element
-      subschema_.emplace_back(schema+start, end-start+1);
+      subschema_.emplace_back(schema+start, end-start+1, constraints,
+                              nconstraint, first_row+start);
 
       // proceed with next subelement
       start = end+1;
     }
   }
+}
+
+
+
+// quoted list of constraint bundles: 'a' or ('a', 'b'), comma-joined
+static std::string BundleList(const std::vector<std::vector<std::string>>& bundles) {
+  std::string out;
+  for (size_t i = 0; i < bundles.size(); i++) {
+    if (i) {
+      out += ", ";
+    }
+    if (bundles[i].size() == 1) {
+      out += "'" + bundles[i][0] + "'";
+    } else {
+      out += '(';
+      for (size_t j = 0; j < bundles[i].size(); j++) {
+        out += (j ? ", '" : "'") + bundles[i][j] + "'";
+      }
+      out += ')';
+    }
+  }
+  return out;
+}
+
+
+
+// enforce the presence constraints declared for this element
+XMLElement* mjXSchema::CheckConstraints(XMLElement* elem) {
+  for (const mjXConstraintDef* con : constraints_) {
+    // split the spec into bundles of attribute names
+    std::vector<std::vector<std::string>> bundles(1);
+    std::string token;
+    for (const char* c = con->spec;; c++) {
+      if (*c == ' ' || *c == '|' || *c == '\0') {
+        if (!token.empty()) {
+          bundles.back().push_back(token);
+          token.clear();
+        }
+        if (*c == '|') {
+          bundles.emplace_back();
+        }
+        if (*c == '\0') {
+          break;
+        }
+      } else {
+        token += *c;
+      }
+    }
+
+    // per-bundle presence: any member present / all members present
+    int n_any = 0, n_all = 0, n_attr = 0, n_present = 0;
+    for (const auto& bundle : bundles) {
+      bool any = false, all = true;
+      for (const std::string& attr : bundle) {
+        bool present = elem->Attribute(attr.c_str()) != nullptr;
+        any |= present;
+        all &= present;
+        n_attr++;
+        n_present += present;
+      }
+      n_any += any;
+      n_all += all;
+    }
+
+    switch (con->kind) {
+      case 'e':  // at most one bundle may be present
+        if (n_any > 1) {
+          error = "at most one of " + BundleList(bundles) +
+                  " can be specified";
+          return elem;
+        }
+        break;
+      case 't':  // all listed attributes appear together or not at all
+        if (n_present != 0 && n_present != n_attr) {
+          error = "attributes " + BundleList(bundles) +
+                  " must be specified together";
+          return elem;
+        }
+        break;
+      case 'r':  // first attribute requires the second
+        if (n_any && elem->Attribute(bundles[0][0].c_str()) &&
+            !elem->Attribute(bundles[1][0].c_str())) {
+          error = "attribute '" + bundles[0][0] + "' requires attribute '" +
+                  bundles[1][0] + "'";
+          return elem;
+        }
+        break;
+      case 'o':  // at least one bundle must be complete
+        if (n_all == 0) {
+          error = "one of " + BundleList(bundles) + " must be specified";
+          return elem;
+        }
+        break;
+    }
+  }
+  return nullptr;
 }
 
 
@@ -523,6 +629,11 @@ XMLElement* mjXSchema::Check(XMLElement* elem, int level) {
       error = "unrecognized attribute: '" + std::string(attribute->Name()) + "'";
       return elem;
     }
+  }
+
+  // check presence constraints
+  if ((bad = CheckConstraints(elem))) {
+    return bad;
   }
 
   // handle recursion

@@ -698,9 +698,9 @@ TEST_F(SensorTest, BadContact) {
       {"geom1='sphere1' geom2='sphere2' num='-3'",
        "'num' must be positive in sensor"},
       {"geom1='sphere1' geom2='sphere2' site='site'",
-       "at most one of (geom1, body1, subtree1, site) can be specified"},
+       "at most one of 'geom1', 'body1', 'subtree1', 'site' can be specified"},
       {"geom2='sphere1' body2='body'",
-       "at most one of (geom2, body2, subtree2) can be specified"},
+       "at most one of 'geom2', 'body2', 'subtree2' can be specified"},
   };
 
   for (const auto& test : test_cases) {

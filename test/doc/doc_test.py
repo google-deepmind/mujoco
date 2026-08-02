@@ -24,7 +24,9 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
 sys.path.insert(0, os.path.join(_REPO_ROOT, 'doc', 'generate'))
 import generate_api_header
 import generate_functions
+import generate_mjcf_table
 import generate_schema
+import mjcf_schema
 
 # Functions in headers that are intentionally not in functions.rst.
 _FUNCTIONS_TO_SKIP = set()
@@ -81,6 +83,14 @@ class DocTest(googletest.TestCase):
       if source != file.read():
         self.fail("The file 'references.h' needs to be updated.")
 
+  def test_mjcf_table(self):
+    """Checks that mjcf_table.inc matches the schema-generated output."""
+    table_file = os.path.join(_REPO_ROOT, 'src', 'xml', 'mjcf_table.inc')
+    source = generate_mjcf_table.generate()
+    with open(table_file, 'r', encoding='utf-8') as file:
+      if source != file.read():
+        self.fail("The file 'mjcf_table.inc' needs to be updated.")
+
   def test_schema(self):
     """Checks that XMLschema.rst matches the generated output."""
     schema_file = os.path.join(_REPO_ROOT, 'doc', 'XMLschema.rst')
@@ -91,7 +101,9 @@ class DocTest(googletest.TestCase):
 
   def test_functions(self):
     """Checks that functions.rst matches the generated output."""
-    functions_file = os.path.join(_REPO_ROOT, 'doc', 'APIreference', 'functions.rst')
+    functions_file = os.path.join(
+        _REPO_ROOT, 'doc', 'APIreference', 'functions.rst'
+    )
     source = generate_functions.generate()
     with open(functions_file, 'r', encoding='utf-8') as file:
       if source != file.read():
@@ -100,7 +112,9 @@ class DocTest(googletest.TestCase):
   def test_all_functions_included(self):
     """Checks that every public C function has an entry in functions.rst."""
 
-    functions_file = os.path.join(_REPO_ROOT, 'doc', 'APIreference', 'functions.rst')
+    functions_file = os.path.join(
+        _REPO_ROOT, 'doc', 'APIreference', 'functions.rst'
+    )
     with open(functions_file, 'r', encoding='utf-8') as file:
       content = file.read()
 
@@ -125,7 +139,9 @@ class DocTest(googletest.TestCase):
   def test_all_types_included(self):
     """Checks that every public struct and enum has an entry in APItypes.rst."""
 
-    types_file = os.path.join(_REPO_ROOT, 'doc', 'APIreference', 'APItypes.rst')
+    types_file = os.path.join(
+        _REPO_ROOT, 'doc', 'APIreference', 'APItypes.rst'
+    )
     with open(types_file, 'r', encoding='utf-8') as file:
       content = file.read()
 
@@ -150,6 +166,30 @@ class DocTest(googletest.TestCase):
     if errors:
       msg = 'APItypes.rst mismatches:\n' + '\n'.join(errors)
       self.fail(msg)
+
+  def test_element_constraints_diamond_inheritance(self):
+    con = mjcf_schema.Constraint(
+        kind='exclusive', bundles=(('a',), ('b',)), doc=None, line=1)
+    common_group = mjcf_schema.Group(
+        name='common', variant=False, members=[con], doc=None, line=1)
+    group1 = mjcf_schema.Group(
+        name='group1', variant=False,
+        members=[mjcf_schema.Use(group='common', line=1)], doc=None, line=1)
+    group2 = mjcf_schema.Group(
+        name='group2', variant=False,
+        members=[mjcf_schema.Use(group='common', line=1)], doc=None, line=1)
+    elem = mjcf_schema.Element(
+        name='elem', spec=None, facets={},
+        members=[mjcf_schema.Use(group='group1', line=1),
+                 mjcf_schema.Use(group='group2', line=1)],
+        doc=None, line=1)
+    schema = mjcf_schema.Schema(
+        enums={},
+        groups={'common': common_group, 'group1': group1, 'group2': group2},
+        elements={'elem': elem},
+        path='<test>')
+    cons = generate_mjcf_table._element_constraints(schema, elem)
+    self.assertEqual(len(cons), 1)  # pylint: disable=g-generic-assert
 
 
 if __name__ == '__main__':
