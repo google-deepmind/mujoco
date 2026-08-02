@@ -17,4 +17,7 @@ if(Python3_FOUND)
   add_test(NAME doc_test
            COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/doc_test.py
            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+  add_test(NAME mjcf_schema_test
+           COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/mjcf_schema_test.py
+           WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 endif()
