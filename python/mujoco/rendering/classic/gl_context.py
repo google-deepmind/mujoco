@@ -41,7 +41,13 @@ if _MUJOCO_GL not in ('disable', 'disabled', 'off', 'false', '0'):
     from mujoco.egl import GLContext as _GLContext
     GLContext = _GLContext
   elif _SYSTEM == 'Darwin':
-    from mujoco.cgl import GLContext as _GLContext
+    if _MUJOCO_GL == 'glfw':
+      from mujoco.glfw import GLContext as _GLContext
+    else:
+      try:
+        from mujoco.cgl import GLContext as _GLContext
+      except Exception:  # CGLSetCurrentContext may be absent on newer macOS
+        from mujoco.glfw import GLContext as _GLContext
     GLContext = _GLContext
   else:
     from mujoco.glfw import GLContext as _GLContext
