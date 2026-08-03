@@ -877,11 +877,15 @@ void ParseUsdPhysicsScene(mjSpec* spec,
 
 void ParseUsdPhysicsMassAPIForBody(mjsBody* body,
                                    const pxr::UsdPhysicsMassAPI& mass_api) {
+  bool has_mass = false;
+  bool has_diagonal_inertia = false;
+
   auto mass_attr = mass_api.GetMassAttr();
   if (mass_attr.HasAuthoredValue()) {
     float mass;
     mass_attr.Get(&mass);
     body->mass = mass;
+    has_mass = true;
   }
 
   auto com_attr = mass_api.GetCenterOfMassAttr();
@@ -903,6 +907,11 @@ void ParseUsdPhysicsMassAPIForBody(mjsBody* body,
     pxr::GfVec3f diag_inertia;
     diag_inertia_attr.Get(&diag_inertia);
     SetDoubleArrFromGfVec3d(body->inertia, diag_inertia);
+    has_diagonal_inertia = true;
+  }
+
+  if (has_mass && has_diagonal_inertia) {
+    body->explicitinertial = true;
   }
 }
 
@@ -921,6 +930,21 @@ void ParseUsdPhysicsMassAPIForGeom(mjsGeom* geom,
     density_attr.Get(&density);
     geom->density = density;
   }
+}
+
+bool HasAuthoredMassOrDensity(const pxr::UsdPhysicsMassAPI& mass_api) {
+  return mass_api.GetMassAttr().HasAuthoredValue() ||
+         mass_api.GetDensityAttr().HasAuthoredValue();
+}
+
+bool IsMasslessMjcImageable(const pxr::UsdPrim& prim) {
+  if (!prim.HasAPI<pxr::MjcPhysicsImageableAPI>()) {
+    return false;
+  }
+  if (!prim.HasAPI<pxr::UsdPhysicsMassAPI>()) {
+    return true;
+  }
+  return !HasAuthoredMassOrDensity(pxr::UsdPhysicsMassAPI(prim));
 }
 
 void ParseMjcPhysicsCollisionAPI(
@@ -1883,6 +1907,17 @@ void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
     if (material) {
       mjs_setString(geom->material, mjs_getName(material->element)->c_str());
     }
+  }
+
+  if (IsMasslessMjcImageable(gprim)) {
+    // MjcImageableAPI marks MuJoCo visual-only geoms. If they do not carry
+    // explicit mass or density, keep them from inheriting MuJoCo's default
+    // geom density and affecting inferred body inertias.
+    geom->density = 0;
+  }
+
+  if (gprim.HasAPI<pxr::UsdPhysicsMassAPI>()) {
+    ParseUsdPhysicsMassAPIForGeom(geom, pxr::UsdPhysicsMassAPI(gprim));
   }
 
   if (gprim.HasAPI<pxr::MjcPhysicsImageableAPI>()) {
