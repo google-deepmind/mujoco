@@ -551,9 +551,11 @@ TEST_F(EnginePluginTest, SaveXml) {
   int actuator_end = expected_xml.find(actuator_close) + actuator_close.size();
   ASSERT_NE(actuator_end, std::string::npos);
   ASSERT_LE(actuator_start, actuator_end);
+  // saved attributes follow schema order; dynprm round-trips as written
   auto expected_actuator_section = absl::StrReplaceAll(
       expected_xml.substr(actuator_start, actuator_end - actuator_start),
-      {{"dynprm=\"0.9\"", "dynprm=\"0.9 0 0 0 0 0 0 0 0 0\""}});
+      {{"actdim=\"4\" dyntype=\"filter\" dynprm=\"0.9\"",
+        "dyntype=\"filter\" dynprm=\"0.9\" actdim=\"4\""}});
 
   EXPECT_THAT(saved_xml, HasSubstr(expected_extension_section));
   EXPECT_THAT(saved_xml, HasSubstr(expected_sensor_section));

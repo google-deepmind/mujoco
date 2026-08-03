@@ -5,6 +5,15 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+
+- The MJCF grammar is now defined in a single source of truth schema file,
+  `src/xml/mjcf.schema <https://github.com/google-deepmind/mujoco/tree/main/src/xml/mjcf.schema>`__. The parser's
+  grammar table, presence constraints, keyword maps, typed attribute bindings and save policies are generated from it
+  and gated by tests, as are the schema's enum keywords and declared defaults against the C headers and
+  default-constructors.
+
 Actuation
 ^^^^^^^^^
 - Added the :ref:`pid<actuator-pid>` actuator: a PID controller with real position and velocity setpoint inputs,

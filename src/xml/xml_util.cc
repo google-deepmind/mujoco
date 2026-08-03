@@ -1270,6 +1270,10 @@ void mjXUtil::WriteAttrKey(XMLElement* elem, std::string name,
 // write attribute- space-separated keywords
 void mjXUtil::WriteAttrKeys(XMLElement* elem, std::string name, const mjMap* map,
                             int mapsz, int* data, int ndata, int def) {
+  if (ndata <= 0) {
+    return;
+  }
+
   // skip default
   if (ndata == 1 && data[0] == def) {
     return;

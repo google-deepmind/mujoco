@@ -324,7 +324,7 @@ TEST_F(XMLWriterTest, KeepsJointLimitedFalseIfAutoLimits) {
   MjModelPtr model = LoadModelFromString(xml);
   ASSERT_THAT(model.get(), NotNull());
   std::string saved_xml = SaveAndReadXml(model.get());
-  EXPECT_THAT(saved_xml, HasSubstr("limited=\"false\" range=\"-1 1\""));
+  EXPECT_THAT(saved_xml, HasSubstr("range=\"-1 1\" limited=\"false\""));
 }
 
 TEST_F(XMLWriterTest, DoesNotKeepInferredTendonLimited) {
@@ -537,7 +537,7 @@ TEST_F(XMLWriterTest, KeepsCtrllimitedFalse) {
   MjModelPtr model = LoadModelFromString(xml);
   ASSERT_THAT(model.get(), NotNull());
   std::string saved_xml = SaveAndReadXml(model.get());
-  EXPECT_THAT(saved_xml, HasSubstr("ctrllimited=\"false\" ctrlrange=\"-1 1\""));
+  EXPECT_THAT(saved_xml, HasSubstr("ctrlrange=\"-1 1\" ctrllimited=\"false\""));
 }
 
 TEST_F(XMLWriterTest, DoesNotKeepInferredForcelimited) {
@@ -702,8 +702,8 @@ TEST_F(XMLWriterTest, WritesActuatorDefaults) {
   ASSERT_THAT(model.get(), NotNull());
   std::string saved_xml = SaveAndReadXml(model.get());
   EXPECT_THAT(saved_xml, Not(HasSubstr("mass")));
-  EXPECT_THAT(saved_xml, HasSubstr(
-      "<general biastype=\"affine\" gainprm=\"3\""));
+  EXPECT_THAT(saved_xml,
+              HasSubstr("<general biastype=\"affine\" gainprm=\"3\""));
 }
 
 TEST_F(XMLWriterTest, WritesFrameDefaults) {
@@ -763,7 +763,7 @@ TEST_F(XMLWriterTest, WritesFrameDefaults) {
           </frame>
         </frame>
       </frame>
-      <light pos="0 0 1" dir="0 0 -1"/>
+      <light pos="0 0 1"/>
     </body>
     <frame name="f1">
       <geom size="0.5" quat="0.906308 0 0 0.422618"/>
@@ -930,8 +930,8 @@ TEST_F(XMLWriterTest, WritesSkin) {
   EXPECT_THAT(model->nskin, 1);
 
   char error[1024];
-  MjModelPtr mtemp = LoadModelFromString(SaveAndReadXml(model.get()),
-                                       error, sizeof(error));
+  MjModelPtr mtemp =
+      LoadModelFromString(SaveAndReadXml(model.get()), error, sizeof(error));
   ASSERT_THAT(mtemp.get(), NotNull()) << error;
   EXPECT_THAT(mtemp->nskin, 1);
 }
@@ -950,7 +950,7 @@ TEST_F(XMLWriterTest, WritesHfield) {
   // load model
   MjModelPtr model = LoadModelFromString(xml);
   ASSERT_THAT(model.get(), NotNull());
-  int size = model->hfield_nrow[0]*model->hfield_ncol[0];
+  int size = model->hfield_nrow[0] * model->hfield_ncol[0];
   EXPECT_EQ(size, 6);
 
   // check that the data is normalized and in row-major, bottom-to-top order
@@ -1256,9 +1256,7 @@ class XMLWriterLocaleTest : public MujocoTest {
     }
   }
 
-  void TearDown() override {
-    std::setlocale(LC_ALL, old_locale_.c_str());
-  }
+  void TearDown() override { std::setlocale(LC_ALL, old_locale_.c_str()); }
 
  private:
   std::string old_locale_;
@@ -1303,7 +1301,6 @@ TEST_F(XMLWriterTest, NonRGBTextures) {
 
   mj_deleteModel(model);
 }
-
 
 // ---------------- test CopyBack functionality (decompiler) ------------------
 using DecompilerTest = MujocoTest;
@@ -1469,7 +1466,8 @@ TEST_F(XMLWriterTest, ExpandAttach) {
   mj_addBufferVFS(vfs.get(), "b.xml", xml_child, sizeof(xml_child));
 
   std::array<char, 1024> er;
-  MjModelPtr m = LoadModelFromString(xml_parent, er.data(), er.size(), vfs.get());
+  MjModelPtr m =
+      LoadModelFromString(xml_parent, er.data(), er.size(), vfs.get());
   ASSERT_THAT(m.get(), NotNull()) << er.data();
 
   std::string saved_xml = SaveAndReadXml(m.get());
@@ -1624,6 +1622,20 @@ TEST_F(XMLWriterTest, BodySimpleRoundtrip) {
 
   // nC should increase when simple is disabled
   EXPECT_GT(model->nC, model_auto->nC);
+}
+
+TEST_F(XMLWriterTest, EmptyFlagsAttribute) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <camera name="cam" output=""/>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  std::string saved_xml = SaveAndReadXml(model.get());
+  EXPECT_THAT(saved_xml, Not(HasSubstr("output=")));
 }
 
 }  // namespace

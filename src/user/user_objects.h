@@ -1138,6 +1138,7 @@ class mjCMesh_ : public mjCBase {
 
 class mjCMesh: public mjCMesh_, private mjsMesh {
   friend class mjCModel;
+  friend class mjXWriter;
 
  public:
   explicit mjCMesh(mjCModel* = nullptr, mjCDef* = nullptr);

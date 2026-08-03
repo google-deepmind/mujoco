@@ -20,7 +20,6 @@ import math
 import os
 import textwrap
 import typing
-import warnings
 import zipfile  # pylint: disable=unused-import
 
 from absl import flags
@@ -61,7 +60,7 @@ class SpecsTest(absltest.TestCase):
     </mujoco>
     """
     spec = mujoco.MjSpec.from_string(xml)
-    model = spec.compile()
+    spec.compile()
     self.assertGreater(spec.timer[mujoco.mjtCTimer.mjCTIMER_TOTAL], 0)
     self.assertGreater(spec.timer[mujoco.mjtCTimer.mjCTIMER_ASSETS], 0)
     self.assertGreater(spec.timer[mujoco.mjtCTimer.mjCTIMER_TEXTURE], 0)
@@ -152,7 +151,7 @@ class SpecsTest(absltest.TestCase):
 
           <worldbody>
             <body name="baz" pos="1 2 3" quat="0 1 0 0">
-              <site name="sitename" pos="0 0 0" type="box" user="1 2 3 4 5 6"/>
+              <site name="sitename" type="box" user="1 2 3 4 5 6"/>
             </body>
           </worldbody>
         </mujoco>
