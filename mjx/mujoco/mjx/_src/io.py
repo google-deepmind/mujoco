@@ -878,7 +878,7 @@ def make_data(
       worlds. Since the number of worlds is **not** pre-defined in JAX, we use the
       `naccdmax` argument to set the upper bound for the number of contacts
       across all worlds, rather than the `nccdmax` argument from MuJoCo Warp.
-    njmax: maximum number of constraints to allocate for warp across all worlds
+    njmax: maximum number of constraints to allocate per world
     nvmax: capacity for compacted active DOFs per world
     keepalive_refs: optional dict to store references to underlying MuJoCo
       objects, preventing them from being garbage collected. Required for CPP
@@ -1237,7 +1237,7 @@ def put_data(
       worlds. Since the number of worlds is **not** pre-defined in JAX, we use the
       `naccdmax` argument to set the upper bound for the number of contacts
       across all worlds, rather than the `nccdmax` argument from MuJoCo Warp.
-    njmax: maximum number of constraints to allocate for warp
+    njmax: maximum number of constraints per world
     nvmax: capacity for compacted active DOFs per world
     dummy_arg_for_batching: dummy argument to use for batching in cpp
       implementation
