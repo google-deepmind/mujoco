@@ -1947,20 +1947,24 @@ void mjCMesh::MakeGraph(const double* dvert) {
     }
 
     // replace global ids with local ids in edge data
-    for (int i=0; i < numvert+3*numface; i++) {
-      if (edge_localid[i] >= 0) {
-        // search vert_globalid for match
-        int adr;
-        for (adr=0; adr < numvert; adr++) {
-          if (vert_globalid[adr] == edge_localid[i]) {
-            edge_localid[i] = adr;
-            break;
-          }
-        }
+    else {
+      // invert vert_globalid: point id -> hull vertex index, -1 if not on hull.
+      // every vert_globalid entry was range-checked above, so the index is safe.
+      std::vector<int> hullid(nvert(), -1);
+      for (int adr=0; adr < numvert; adr++) {
+        hullid[vert_globalid[adr]] = adr;
+      }
 
-        // make sure we found a match: SHOULD NOT OCCUR
-        if (adr >= numvert) {
-          mju_error("Vertex id not found in convex hull");
+      for (int i=0; i < numvert+3*numface; i++) {
+        if (edge_localid[i] >= 0) {
+          int adr = hullid[edge_localid[i]];
+
+          // make sure we found a match: SHOULD NOT OCCUR
+          if (adr < 0) {
+            mju_error("Vertex id not found in convex hull");
+          }
+
+          edge_localid[i] = adr;
         }
       }
     }
