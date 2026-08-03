@@ -90,6 +90,32 @@ Engine
    :align: right
    :width: 35%
 
+- Added :ref:`geom/adhesion<body-geom-adhesion>` and :ref:`pair/adhesion<contact-pair-adhesion>`: an adhesive force
+  associated with a contact, useful for modeling sticky materials. Contacts can pull with up to the given force before
+  breaking, and the friction budget becomes :math:`\mu(f_N + \text{adhesion})`. Combined with :ref:`gap<body-geom-gap>`,
+  adhesive contacts apply "adhesion at a distance", useful for modeling magnets. Resting penetration is unaffected by
+  adhesion. :ref:`mj_contactForce` reports the net interface force, whose normal component can now be negative.
+- Replaced midpoint integration of free bodies with :ref:`gyroscopic derivatives<geFreeBody>` in the ``implicitfast``
+  :ref:`integrator<geIntegrators>`: the bias-force derivative of every standalone free body is applied via a local
+  unsymmetric solve of its decoupled block, making ``implicitfast`` identical to ``implicit`` for such bodies.
+  Unlike midpoint integration, which required vacuum and no constraints, this applies in all environments (contacts,
+  fluid, constraints), and is compatible with discrete-time inverse dynamics. Spinning free bodies no
+  longer gain energy, but tumbling motion is now mildly damped; models requiring long-horizon energy conservation of
+  tumbling bodies in vacuum should use ``RK4``. The :ref:`invdiscrete<option-flag-invdiscrete>` flag no longer has any
+  effect on forward dynamics.
+- Added :ref:`body/simple<body-simple>` attribute ("false"/"auto") to disable the *simple body* mass matrix
+  optimization. This is useful for domain randomization, where model parameters may change post-compilation.
+- :ref:`mj_setConst` now recomputes the ``mjModel.{body,geom,site}_sameframe`` flags, to account for changes in
+  body/geom/site frames after compilation.
+- Added support for :ref:`multiccd <coMultiCCD>` with arbitrarily large meshes.
+- Added ``flg_gravcomp`` and ``flg_surfacevel`` boolean flags to ``mjModel``. These flags replace the fast-path checks
+  as originally guarded by ``ngravcomp``. Since the engine uses these integers as flags (zero vs. non-zero), the new
+  flags are honest boolean properties, writeable from the Python bindings at runtime. The field ``ngravcomp`` is
+  deprecated and will be removed in a future release.
+- Replaced quadratic scratch in DFS flood-fill island discovery with a linear-memory Union-Find (disjoint set).
+  Contribution by :github:user:`teerthsharma`.
+- Replaced quadratic flexcomp unused-point reindexing with an equivalent linear prefix scan.
+  Contribution by :github:user:`teerthsharma`.
 2. :commit:`a264d0bc` Added :ref:`geom/adhesion<body-geom-adhesion>` and :ref:`pair/adhesion<contact-pair-adhesion>`: an
    adhesive force associated with a contact, useful for modeling sticky materials. Contacts can pull with up to the
    given force before breaking, and the friction budget becomes :math:`\mu(f_N + \text{adhesion})`. Combined with

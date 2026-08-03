@@ -27,6 +27,7 @@
 namespace mujoco {
 namespace {
 
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
@@ -853,6 +854,55 @@ TEST_F(UserFlexTest, TrilinearUnusedVertices_Crash) {
   std::array<char, 1024> error;
   MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(m.get(), testing::NotNull()) << error.data();
+}
+
+TEST_F(UserFlexTest, UnusedInterleavedVerticesPreserveDataAndPins) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="direct" dim="3"
+              point="9 9 9  0 0 0  8 8 8  1 0 0
+                     7 7 7  0 1 0  6 6 6  0 0 1  5 5 5"
+              element="1 3 5 7"
+              texcoord="0 0  1 10  2 20  3 30
+                        4 40  5 50  6 60  7 70  8 80">
+      <contact selfcollide="none"/>
+      <edge equality="true"/>
+      <pin id="5"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+
+  ASSERT_EQ(m->nflex, 1);
+  EXPECT_EQ(m->nflexvert, 4);
+  EXPECT_EQ(m->nflextexcoord, 4);
+  EXPECT_THAT(std::vector<int>(m->flex_elem, m->flex_elem + 4),
+              ElementsAre(0, 2, 1, 3));
+  EXPECT_THAT(std::vector<float>(m->flex_texcoord, m->flex_texcoord + 8),
+              ElementsAre(1, 10, 3, 30, 5, 50, 7, 70));
+
+  int body0 = mj_name2id(m.get(), mjOBJ_BODY, "test_0");
+  int body1 = mj_name2id(m.get(), mjOBJ_BODY, "test_1");
+  int body3 = mj_name2id(m.get(), mjOBJ_BODY, "test_3");
+  ASSERT_GT(body0, 0);
+  ASSERT_GT(body1, 0);
+  ASSERT_GT(body3, 0);
+  EXPECT_EQ(mj_name2id(m.get(), mjOBJ_BODY, "test_2"), -1);
+  EXPECT_THAT(std::vector<int>(m->flex_vertbodyid, m->flex_vertbodyid + 4),
+              ElementsAre(body0, body1, 0, body3));
+
+  EXPECT_THAT(std::vector<mjtNum>(m->body_pos + 3 * body0, m->body_pos + 3 * body0 + 3),
+              ElementsAre(0, 0, 0));
+  EXPECT_THAT(std::vector<mjtNum>(m->body_pos + 3 * body1, m->body_pos + 3 * body1 + 3),
+              ElementsAre(1, 0, 0));
+  EXPECT_THAT(std::vector<mjtNum>(m->body_pos + 3 * body3, m->body_pos + 3 * body3 + 3),
+              ElementsAre(0, 0, 1));
+  EXPECT_THAT(std::vector<mjtNum>(m->flex_vert, m->flex_vert + 12),
+              ElementsAre(0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0));
 }
 
 TEST_F(UserFlexTest, MeshNodePinning) {
