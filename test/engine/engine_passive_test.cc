@@ -1094,6 +1094,93 @@ TEST_F(ElasticityTest, TrilinearParentBodyRotation) {
 }
 
 
+// A dim=2 flexcomp with bending elasticity inside a parent body with a
+// non-identity quaternion. The implicit metric assembles the bending
+// stiffness from world-space vertex positions, but the vertex bodies' slide
+// dofs live in the (rotated) parent frame. Without the R^T (.) R change
+// of basis the metric stops being the Jacobian of the passive force,
+// which shows up as a loss of rotational invariance and, at stiffnesses
+// the unrotated model handles comfortably, as divergence.
+TEST_F(ElasticityTest, BendParentBodyRotation) {
+  static constexpr char rotated_xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="implicitfast"
+            timestep="0.001" solver="CG"/>
+    <worldbody>
+      <body name="base" pos="0 0 0" quat="0.7071 0.7071 0 0">
+        <flexcomp type="grid" count="5 5 1" spacing=".05 .05 .05"
+                  dim="2" radius=".001" mass=".01" name="sheet">
+          <elasticity young="1e5" poisson="0" thickness="1e-2"
+                      elastic2d="bend"/>
+          <contact selfcollide="none" internal="false"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char nonrotated_xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="implicitfast"
+            timestep="0.001" solver="CG"/>
+    <worldbody>
+      <body name="base" pos="0 0 0">
+        <flexcomp type="grid" count="5 5 1" spacing=".05 .05 .05"
+                  dim="2" radius=".001" mass=".01" name="sheet">
+          <elasticity young="1e5" poisson="0" thickness="1e-2"
+                      elastic2d="bend"/>
+          <contact selfcollide="none" internal="false"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+
+  MjModelPtr m_rot = LoadModelFromString(rotated_xml, error, sizeof(error));
+  ASSERT_THAT(m_rot.get(), NotNull()) << error;
+  MjDataPtr d_rot = MakeData(m_rot);
+
+  MjModelPtr m_non = LoadModelFromString(nonrotated_xml, error, sizeof(error));
+  ASSERT_THAT(m_non.get(), NotNull()) << error;
+  MjDataPtr d_non = MakeData(m_non);
+
+  // lift one corner out of plane: that bends at first order but stretches only
+  // at second, so the bending force is not swamped. As in the stretch case the
+  // displacement is applied in the parent frame, so the response must not
+  // depend on the parent's orientation
+  d_rot->qpos[2] = 1e-2;
+  d_non->qpos[2] = 1e-2;
+
+  mj_forward(m_rot.get(), d_rot.get());
+  mj_forward(m_non.get(), d_non.get());
+
+  EXPECT_LT(d_non->qfrc_passive[2], -1e-6)
+      << "expected a restoring force on the lifted dof";
+
+  const mjtNum tol = MjTol(1e-12, 1e-5);
+  for (int i = 0; i < m_rot->nv; i++) {
+    EXPECT_NEAR(d_rot->qfrc_passive[i], d_non->qfrc_passive[i], tol)
+        << "rotated/non-rotated qfrc mismatch at dof " << i;
+  }
+
+  // qacc exercises the metric itself, so this also covers mjd_flexBend_mul
+  for (int i = 0; i < m_rot->nv; i++) {
+    EXPECT_NEAR(d_rot->qacc[i], d_non->qacc[i], MjTol(1e-9, 1e-3))
+        << "rotated/non-rotated qacc mismatch at dof " << i;
+  }
+
+  // and the rotated model must integrate stably
+  for (int step = 0; step < 200; step++) {
+    mj_step(m_rot.get(), d_rot.get());
+    for (int i = 0; i < m_rot->nv; i++) {
+      ASSERT_TRUE(std::isfinite(d_rot->qacc[i]))
+          << "NaN/Inf in qacc at dof " << i << " at step " << step;
+    }
+    if (HasFatalFailure()) return;
+  }
+}
+
 // A dim=2 flexcomp with stretch elasticity inside a parent body with a
 // non-identity quaternion. The implicit metric assembles the stretch
 // stiffness from world-space edge vectors, but the vertex bodies' slide

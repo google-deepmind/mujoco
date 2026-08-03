@@ -532,10 +532,16 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
     // which is what the pin constrains).
     for (int i = 0; i < 4; i++) {
       if (!isfree[i]) continue;
-      int body_dofadr = m->body_dofadr[bodyid[v[i]]];
+      int bi = bodyid[v[i]];
+      int body_dofadr = m->body_dofadr[bi];
+      // spring/damper are world-space; the slide dofs are in the body frame, so rotate before
+      // accumulating (mj_flexPassiveStretch reaches the same frame through mj_applyFT).
+      mjtNum sl[3], dl[3];
+      mji_mulMatTVec3(sl, d->xmat + 9*bi, spring + 3*i);
+      mji_mulMatTVec3(dl, d->xmat + 9*bi, damper + 3*i);
       for (int x = 0; x < 3; x++) {
-        if (enbl_spring) d->qfrc_spring[body_dofadr+x] -= spring[3*i+x];
-        if (enbl_damper) d->qfrc_damper[body_dofadr+x] -= damper[3*i+x] * m->flex_damping[f];
+        if (enbl_spring) d->qfrc_spring[body_dofadr+x] -= sl[x];
+        if (enbl_damper) d->qfrc_damper[body_dofadr+x] -= dl[x] * m->flex_damping[f];
       }
     }
   }

@@ -1387,16 +1387,37 @@ void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* ve
         continue;
       }
 
-      // apply 4x4 bending stencil, coordinate-wise
+      // apply 4x4 bending stencil, coordinate-wise. Pinned vertices (zero-dof bodies) contribute
+      // nothing, as in mjd_flexStretch_mul: they have no dof to write a row into and none to read a
+      // displacement from, and body_dofadr is negative there, so an unguarded index runs off both
+      // res and vec.
+      // The stencil is built from WORLD-space vertex positions while the slide dofs live in each
+      // vertex body's own (possibly rotated) frame, so the operator is sandwiched with R (dof ->
+      // world) and R^T (world -> dof), as mjd_flexStretch_mul does. Without it the operator is not
+      // the Jacobian of mj_flexPassiveBend's force whenever a flex parent is rotated.
       for (int i = 0; i < 4; i++) {
-        int dof_i = m->body_dofadr[bodyid[v[i]]];
-        for (int x = 0; x < 3; x++) {
-          mjtNum val = 0;
-          for (int j = 0; j < 4; j++) {
-            int dof_j = m->body_dofadr[bodyid[v[j]]];
-            val += b[17*e + 4*i + j] * vec[dof_j + x];
+        int bi = bodyid[v[i]];
+        if (!m->body_dofnum[bi]) {
+          continue;
+        }
+        mjtNum vw[3] = {0, 0, 0};
+        for (int j = 0; j < 4; j++) {
+          int bj = bodyid[v[j]];
+          if (!m->body_dofnum[bj]) {
+            continue;
           }
-          res[dof_i + x] += scale * val;
+          mjtNum wj[3];
+          mji_mulMatVec3(wj, d->xmat + 9*bj, vec + m->body_dofadr[bj]);
+          mjtNum q = b[17*e + 4*i + j];
+          for (int x = 0; x < 3; x++) {
+            vw[x] += q * wj[x];
+          }
+        }
+        mjtNum vl[3];
+        mji_mulMatTVec3(vl, d->xmat + 9*bi, vw);
+        int dof_i = m->body_dofadr[bi];
+        for (int x = 0; x < 3; x++) {
+          res[dof_i + x] += scale * vl[x];
         }
       }
     }

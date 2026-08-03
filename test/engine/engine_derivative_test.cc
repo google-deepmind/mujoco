@@ -1842,6 +1842,86 @@ static void stretchK_dense(mjModel* m, mjData* d, mjtNum* K, int nv,
   }
 }
 
+// The same frame mismatch seen through the derivative: mjd_flexBend_mul is the
+// Jacobian of the bending force only if operator and force agree on the frame.
+// An unrotated flex cannot catch it, because the stencil is one scalar per
+// vertex pair applied coordinate-wise and so commutes with a rotation shared by
+// every vertex. The pin also covers the zero-dof vertex path, where body_dofadr
+// is negative and an unguarded stencil indexes out of bounds.
+TEST_F(DerivativeTest, FlexBendDerivativesRotated) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option integrator="implicitfast" solver="CG"/>
+    <worldbody>
+      <body name="turned" euler="90 35 20">
+        <flexcomp name="rot" type="grid" count="3 3 1" spacing="0.1 0.1 0.1"
+                  radius=".01" dim="2" mass="1">
+          <pin id="0"/>
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="1e4" poisson="0.3" thickness="0.01"
+                      elastic2d="bend" damping="0"/>
+        </flexcomp>
+      </body>
+      <flexcomp name="flat" type="grid" count="3 3 1" spacing="0.1 0.1 0.1"
+                radius=".01" dim="2" mass="1" pos="1 0 0">
+        <pin id="0"/>
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e4" poisson="0.3" thickness="0.01"
+                    elastic2d="bend" damping="0"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  int nv = model->nv;
+  ASSERT_EQ(model->nq, nv);  // all slide dofs
+  ASSERT_EQ(model->nflex, 2);
+  MjDataPtr data = MakeData(model);
+
+  // deform both flexes out of plane so the bending stencil carries real force
+  for (int i = 0; i < nv; i++) {
+    data->qpos[i] += 2e-3 * (mju_Halton(i, 2) - 0.5);
+  }
+  mj_forward(model.get(), data.get());
+
+  std::vector<mjtNum> vec(nv), res(nv, 0);
+  for (int i = 0; i < nv; i++) {
+    vec[i] = mju_Halton(i, 3) - 0.5;
+  }
+  mjd_flexBend_mul(model.get(), data.get(), res.data(), vec.data(), 1, 0);
+
+  mjtNum eps = MjTol(1e-7, 1e-4);
+  mjData* perturbed = mj_copyData(NULL, model.get(), data.get());
+  mju_addToScl(perturbed->qpos, vec.data(), eps, nv);
+  mj_forward(model.get(), perturbed);
+
+  // check each flex on its own: the unrotated one is the control that isolates
+  // the rotation
+  for (int f = 0; f < model->nflex; f++) {
+    SCOPED_TRACE(model->names + model->name_flexadr[f]);
+    mjtNum max_err = 0, scale = 0;
+    for (int k = 0; k < model->flex_vertnum[f]; k++) {
+      int body = model->flex_vertbodyid[model->flex_vertadr[f] + k];
+      int adr = model->body_dofadr[body];
+      for (int x = 0; x < model->body_dofnum[body]; x++) {
+        mjtNum fd = -(perturbed->qfrc_passive[adr+x] -
+                      data->qfrc_passive[adr+x]) / eps;
+        max_err = mju_max(max_err, mju_abs(res[adr+x] - fd));
+        scale = mju_max(scale, mju_abs(fd));
+      }
+    }
+    // bending is linear in position, so the difference is exact up to roundoff
+    EXPECT_GT(scale, 1e-3)
+        << "test should exercise nontrivial bending stiffness";
+    EXPECT_LT(max_err, MjTol(1e-4, 1e-2) * scale)
+        << "mjd_flexBend_mul is not the Jacobian of the flex bending force";
+  }
+  mj_deleteData(perturbed);
+}
+
 // verify mjd_flexStretch_mul (Gauss-Newton Hessian of the standard-flex
 // stretch force) against finite differences of qfrc_passive, plus symmetry,
 // positive semi-definiteness and (s1, s2) scale linearity. The model covers
