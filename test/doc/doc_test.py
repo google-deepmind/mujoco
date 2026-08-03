@@ -23,8 +23,11 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
 sys.path.insert(0, os.path.join(_REPO_ROOT, 'doc', 'generate'))
 import generate_api_header
+import generate_default_table
 import generate_functions
+import generate_mjcf_map
 import generate_mjcf_table
+import generate_read_table
 import generate_schema
 import mjcf_schema
 
@@ -90,6 +93,86 @@ class DocTest(googletest.TestCase):
     with open(table_file, 'r', encoding='utf-8') as file:
       if source != file.read():
         self.fail("The file 'mjcf_table.inc' needs to be updated.")
+
+  def test_default_table(self):
+    """Checks that mjcf_default_table.inc matches the schema-generated output."""
+    table_file = os.path.join(_REPO_ROOT, 'src', 'xml',
+                              'mjcf_default_table.inc')
+    source = generate_default_table.generate()
+    with open(table_file, 'r', encoding='utf-8') as file:
+      if source != file.read():
+        self.fail("The file 'mjcf_default_table.inc' needs to be updated.")
+
+  def test_mjcf_map(self):
+    """Checks that mjcf_map.h matches the schema-generated output."""
+    map_file = os.path.join(_REPO_ROOT, 'src', 'xml', 'mjcf_map.h')
+    source = generate_mjcf_map.generate()
+    with open(map_file, 'r', encoding='utf-8') as file:
+      if source != file.read():
+        self.fail("The file 'mjcf_map.h' needs to be updated.")
+
+  def test_read_table(self):
+    """Checks that mjcf_read_table.inc matches the schema-generated output."""
+    table_file = os.path.join(_REPO_ROOT, 'src', 'xml', 'mjcf_read_table.inc')
+    source = generate_read_table.generate()
+    with open(table_file, 'r', encoding='utf-8') as file:
+      if source != file.read():
+        self.fail("The file 'mjcf_read_table.inc' needs to be updated.")
+
+  def test_schema_enum_coverage(self):
+    """Checks schema enums against the C enums they bind.
+
+    Every schema constant must be a member of the bound C enum, and every C
+    member must be a schema keyword, a count sentinel (mjN*), or a documented
+    exemption -- so adding a C enum member without updating the schema fails
+    here.
+    """
+    # C members deliberately not exposed as XML keywords
+    exempt = {
+        'bodysleep': {  # resolved states of 'auto', not settable
+            'mjSLEEP_AUTO_ALLOWED', 'mjSLEEP_AUTO_NEVER'},
+        'geomtype': {   # rendering-only types and the missing-geom sentinel
+            'mjGEOM_ARROW', 'mjGEOM_ARROW1', 'mjGEOM_ARROW2', 'mjGEOM_LINE',
+            'mjGEOM_LINEBOX', 'mjGEOM_FLEX', 'mjGEOM_SKIN', 'mjGEOM_LABEL',
+            'mjGEOM_TRIANGLE', 'mjGEOM_NONE'},
+        'texrole': {    # not settable from XML
+            'mjTEXROLE_USER'},
+    }
+    # deliberately partial: keywords are a documented subset of the C enum
+    partial = {'frameobj'}
+
+    enums_c = {}
+    for name in ('mjtype.h', 'mjspec.h'):
+      path = os.path.join(_REPO_ROOT, 'include', 'mujoco', name)
+      with open(path, 'r', encoding='utf-8') as file:
+        content = file.read()
+      for m in re.finditer(r'typedef enum (mjt\w+)\s*\{(.*?)\}\s*\1;',
+                           content, re.S):
+        enums_c[m.group(1)] = re.findall(r'^\s*(mj[A-Z]\w+)', m.group(2),
+                                         re.M)
+
+    schema_path = os.path.join(_REPO_ROOT, 'src', 'xml', 'mjcf.schema')
+    schema = mjcf_schema.parse_file(schema_path)
+    errors = []
+    for name, enum in schema.enums.items():
+      if not enum.ctype:
+        continue
+      if enum.ctype not in enums_c:
+        errors.append(f'  {name}: C enum {enum.ctype} not found in headers')
+        continue
+      members = set(enums_c[enum.ctype])
+      constants = {value for _, value in enum.items}
+      for bad in sorted(constants - members):
+        errors.append(f'  {name}: {bad} is not a member of {enum.ctype}')
+      if name in partial:
+        continue
+      uncovered = {m for m in members - constants
+                   if not re.match(r'mjN[A-Z]', m)} - exempt.get(name, set())
+      for miss in sorted(uncovered):
+        errors.append(f'  {name}: {enum.ctype} member {miss} has no keyword '
+                      '(add it to the schema or to the exemptions here)')
+    if errors:
+      self.fail('schema enum coverage:\n' + '\n'.join(errors))
 
   def test_schema(self):
     """Checks that XMLschema.rst matches the generated output."""

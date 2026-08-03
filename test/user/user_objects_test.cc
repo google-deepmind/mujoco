@@ -554,7 +554,7 @@ TEST_F(RelativeFrameSensorParsingTest, BadRefType) {
   )";
   std::array<char, 1024> error;
   LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(error.data(), HasSubstr("reference frame object must be"));
+  EXPECT_THAT(error.data(), HasSubstr("invalid keyword: 'light'"));
   EXPECT_THAT(error.data(), HasSubstr("line 8"));
 }
 

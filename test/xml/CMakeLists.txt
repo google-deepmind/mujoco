@@ -19,6 +19,8 @@ mujoco_test(
   ADDITIONAL_LINK_LIBRARIES compare_model
 )
 
+mujoco_test(schema_defaults_test)
+
 mujoco_test(xml_utils_test)
 
 mujoco_test(

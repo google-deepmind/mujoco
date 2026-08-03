@@ -392,7 +392,7 @@ void mjXWriter::OneJoint(XMLElement* elem, const mjCJoint* joint, mjCDef* def,
 
   // defaults and regular
   if (joint->type != def->Joint().type) {
-    WriteAttrTxt(elem, "type", FindValue(joint_map, joint_sz, joint->type));
+    WriteAttrTxt(elem, "type", FindValue(jointtype_map, jointtype_sz, joint->type));
   }
   WriteAttrInt(elem, "group", joint->group, def->Joint().group);
   WriteAttr(elem, "ref", 1, &joint->ref, &zero);
@@ -410,11 +410,11 @@ void mjXWriter::OneJoint(XMLElement* elem, const mjCJoint* joint, mjCDef* def,
     WriteAttr(elem, "stiffness", nstiff, joint->stiffness, def->Joint().stiffness);
   }
   if (joint->type != mjJNT_FREE) {
-    WriteAttrKey(elem, "limited", TFAuto_map, 3, joint->limited, def->Joint().limited);
+    WriteAttrKey(elem, "limited", FalseTrueAuto_map, 3, joint->limited, def->Joint().limited);
   }
   WriteAttr(elem, "range", 2, joint->range, def->Joint().range);
   if (joint->type != mjJNT_FREE && joint->type != mjJNT_BALL) {
-    WriteAttrKey(elem, "actuatorfrclimited", TFAuto_map, 3, joint->actfrclimited,
+    WriteAttrKey(elem, "actuatorfrclimited", FalseTrueAuto_map, 3, joint->actfrclimited,
                 def->Joint().actfrclimited);
   }
   WriteAttrKey(elem, "actuatorgravcomp", bool_map, 2, joint->actgravcomp, def->Joint().actgravcomp);
@@ -485,7 +485,7 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
   }
 
   // defaults and regular
-  WriteAttrKey(elem, "type", geom_map, mjNGEOMTYPES, geom->type, def->Geom().type);
+  WriteAttrKey(elem, "type", geomtype_map, mjNGEOMTYPES, geom->type, def->Geom().type);
   WriteAttrInt(elem, "contype", geom->contype, def->Geom().contype);
   WriteAttrInt(elem, "conaffinity", geom->conaffinity, def->Geom().conaffinity);
   WriteAttrInt(elem, "condim", geom->condim, def->Geom().condim);
@@ -500,10 +500,10 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
   WriteAttr(elem, "surfacevel", 6, geom->surfacevel, def->Geom().surfacevel, true);
   WriteAttr(elem, "adhesion", 1, &geom->adhesion, &def->Geom().adhesion);
   WriteAttrKey(elem, "fluidshape",
-               fluid_map, 2, geom->fluid_ellipsoid, def->Geom().fluid_ellipsoid);
+               fluidshape_map, 2, geom->fluid_ellipsoid, def->Geom().fluid_ellipsoid);
   WriteAttr(elem, "fluidcoef", 5, geom->fluid_coefs, def->Geom().fluid_coefs);
   if (geom->type != mjGEOM_MESH) {
-    WriteAttrKey(elem, "shellinertia", meshtype_map, 2, geom->typeinertia,
+    WriteAttrKey(elem, "shellinertia", bool_map, 2, geom->typeinertia,
                  def->Geom().typeinertia);
   }
   if (mjuu_defined(geom->mass)) {
@@ -558,7 +558,7 @@ void mjXWriter::OneSite(XMLElement* elem, const mjCSite* site, mjCDef* def, stri
 
   // defaults and regular
   WriteAttrInt(elem, "group", site->group, def->Site().group);
-  WriteAttrKey(elem, "type", geom_map, mjNGEOMTYPES, site->type, def->Site().type);
+  WriteAttrKey(elem, "type", geomtype_map, mjNGEOMTYPES, site->type, def->Site().type);
   if (site->get_material() != def->Site().get_material()) {
     WriteAttrTxt(elem, "material", site->get_material());
   }
@@ -772,8 +772,8 @@ void mjXWriter::OneTendon(XMLElement* elem, const mjCTendon* tendon, mjCDef* def
             true);
   WriteAttr(elem, "solimpfriction", mjNIMP, tendon->solimp_friction, def->Tendon().solimp_friction,
             true);
-  WriteAttrKey(elem, "limited", TFAuto_map, 3, tendon->limited, def->Tendon().limited);
-  WriteAttrKey(elem, "actuatorfrclimited", TFAuto_map, 3, tendon->actfrclimited, def->Tendon().actfrclimited);
+  WriteAttrKey(elem, "limited", FalseTrueAuto_map, 3, tendon->limited, def->Tendon().limited);
+  WriteAttrKey(elem, "actuatorfrclimited", FalseTrueAuto_map, 3, tendon->actfrclimited, def->Tendon().actfrclimited);
   WriteAttr(elem, "range", 2, tendon->range, def->Tendon().range);
   WriteAttr(elem, "actuatorfrcrange", 2, tendon->actfrcrange, def->Tendon().actfrcrange);
   WriteAttr(elem, "margin", 1, &tendon->margin, &def->Tendon().margin);
@@ -863,11 +863,11 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* actuator, mjCDe
   WriteAttrInt(elem, "nsample", actuator->nsample, def->Actuator().nsample);
   WriteAttrKey(elem, "interp", interp_map, interp_sz, actuator->interp, def->Actuator().interp);
   WriteAttr(elem, "delay", 1, &actuator->delay, &def->Actuator().delay);
-  WriteAttrKey(elem, "ctrllimited", TFAuto_map, 3, actuator->ctrllimited, def->Actuator().ctrllimited);
+  WriteAttrKey(elem, "ctrllimited", FalseTrueAuto_map, 3, actuator->ctrllimited, def->Actuator().ctrllimited);
   WriteAttr(elem, "ctrlrange", 2, actuator->ctrlrange, def->Actuator().ctrlrange);
-  WriteAttrKey(elem, "forcelimited", TFAuto_map, 3, actuator->forcelimited, def->Actuator().forcelimited);
+  WriteAttrKey(elem, "forcelimited", FalseTrueAuto_map, 3, actuator->forcelimited, def->Actuator().forcelimited);
   WriteAttr(elem, "forcerange", 2, actuator->forcerange, def->Actuator().forcerange);
-  WriteAttrKey(elem, "actlimited", TFAuto_map, 3, actuator->actlimited, def->Actuator().actlimited);
+  WriteAttrKey(elem, "actlimited", FalseTrueAuto_map, 3, actuator->actlimited, def->Actuator().actlimited);
   WriteAttr(elem, "actrange", 2, actuator->actrange, def->Actuator().actrange);
   WriteAttr(elem, "lengthrange", 2, actuator->lengthrange, def->Actuator().lengthrange);
   WriteAttr(elem, "gear", 6, actuator->gear, def->Actuator().gear);
@@ -1086,7 +1086,7 @@ void mjXWriter::Option(XMLElement* root) {
                model->option.integrator, opt.integrator);
   WriteAttrKey(section, "cone", cone_map, cone_sz,
                model->option.cone, opt.cone);
-  WriteAttrKey(section, "jacobian", jac_map, jac_sz,
+  WriteAttrKey(section, "jacobian", jacobian_map, jacobian_sz,
                model->option.jacobian, opt.jacobian);
   WriteAttrKey(section, "solver", solver_map, solver_sz,
                model->option.solver, opt.solver);
@@ -1743,7 +1743,7 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
     }
 
     // simple optimization
-    WriteAttrKey(elem, "simple", FAuto_map, 2, body->simple, 1);
+    WriteAttrKey(elem, "simple", FalseAuto_map, 2, body->simple, 1);
 
     // userdata
     WriteVector(elem, "user", body->get_userdata());

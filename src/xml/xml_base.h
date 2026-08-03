@@ -24,75 +24,8 @@
 #include "tinyxml2.h"
 
 
-// keyword maps (defined in implementation files)
-extern const int joint_sz;
-extern const int bodysleep_sz;
-extern const int projection_sz;
-extern const int camlight_sz;
-extern const int lighttype_sz;
-extern const int integrator_sz;
-extern const int collision_sz;
-extern const int cone_sz;
-extern const int jac_sz;
-extern const int solver_sz;
-extern const int equality_sz;
-extern const int texture_sz;
-extern const int colorspace_sz;
-extern const int builtin_sz;
-extern const int mark_sz;
-extern const int dyn_sz;
-extern const int inputchart_sz;
-extern const int inputbit_sz;
-extern const int gain_sz;
-extern const int bias_sz;
-extern const int interp_sz;
-extern const int stage_sz;
-extern const int datatype_sz;
-extern const int camout_sz;
-extern const int reduce_sz;
-extern const int conflict_sz;
-extern const mjMap angle_map[];
-extern const mjMap enable_map[];
-extern const mjMap bool_map[];
-extern const mjMap fluid_map[];
-extern const mjMap TFAuto_map[];
-extern const mjMap FAuto_map[];
-extern const mjMap joint_map[];
-extern const mjMap bodysleep_map[];
-extern const mjMap geom_map[];
-extern const mjMap projection_map[];
-extern const mjMap camlight_map[];
-extern const mjMap lighttype_map[];
-extern const mjMap integrator_map[];
-extern const mjMap collision_map[];
-extern const mjMap impedance_map[];
-extern const mjMap reference_map[];
-extern const mjMap cone_map[];
-extern const mjMap jac_map[];
-extern const mjMap solver_map[];
-extern const mjMap equality_map[];
-extern const mjMap texture_map[];
-extern const mjMap colorspace_map[];
-extern const mjMap texrole_map[];
-extern const mjMap builtin_map[];
-extern const mjMap mark_map[];
-extern const mjMap dyn_map[];
-extern const mjMap inputchart_map[];
-extern const mjMap inputbit_map[];
-extern const mjMap gain_map[];
-extern const mjMap bias_map[];
-extern const mjMap interp_map[];
-extern const mjMap stage_map[];
-extern const mjMap datatype_map[];
-extern const mjMap condata_map[];
-extern const mjMap raydata_map[];
-extern const mjMap camout_map[];
-extern const mjMap reduce_map[];
-extern const mjMap meshtype_map[];
-extern const mjMap meshinertia_map[];
-extern const mjMap flexself_map[];
-extern const mjMap elastic2d_map[];
-extern const mjMap conflict_map[];
+// keyword maps, one per schema enum, generated into mjcf_map.h
+#include "xml/mjcf_map.h"  // IWYU pragma: export
 
 //---------------------------------- Base XML class ------------------------------------------------
 
@@ -117,6 +50,40 @@ class mjXBase : public mjXUtil {
 
  protected:
   mjSpec* spec;                    // internally-allocated model
+};
+
+// typed attribute row for table-driven reading/writing; per-element row arrays are
+// generated from mjcf.schema into mjcf_read_table.inc
+struct mjXAttr {
+  enum Kind {
+    kName,       // element name, set via mjs_setName
+    kString,     // mjString* field, set via mjs_setString
+    kStringVec,  // mjStringVec* field: space-separated names
+    kInt,        // int field
+    kDouble,     // double field, scalar or vector
+    kNum,        // mjtNum field, scalar or vector
+    kFloat,      // float field, scalar or vector
+    kEnum,       // int-sized enum field, keyword mapped through `map`
+    kFlags,      // int field ORing several keywords through `map`
+    kEnumByte,   // mjtByte enum field, keyword mapped through `map`
+    kBool,       // mjtBool field, keywords true/false
+    kConst,      // int-sized field set to `value`: what the tag implies
+    kDoubleVec,  // mjDoubleVec* field, set via mjs_setDouble
+    kFloatVec,   // mjFloatVec* field, set via mjs_setFloat
+    kIntVec,     // mjIntVec* field, set via mjs_setInt
+    kChars,      // char[len] field: text copied in place, length-checked
+  };
+  const char* attr;   // XML attribute name
+  Kind kind;
+  int len;            // number of values (1 = scalar); numeric kinds only
+  bool exact;         // exactly len values, else up to len
+  bool required;
+  bool nodefault;     // not read in default classes
+  bool handwrite;     // custom save policy (writing=custom): OneX() remnant
+  int offset;         // byte offset of the bound field; -1 for kName
+  const mjMap* map;   // keyword map; kEnum only
+  int mapsz;          // keyword map size; kEnum only
+  int value;          // constant the field takes; kConst only
 };
 
 #endif  // MUJOCO_SRC_XML_XML_BASE_H_
