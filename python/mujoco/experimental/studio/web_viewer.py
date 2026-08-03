@@ -70,60 +70,35 @@ def _find_assets_dir() -> str:
   return ''
 
 
-def _lan_ips() -> tuple[str | None, str | None]:
-  """Returns this machine's outbound-interface (IPv6, IPv4) addresses.
-
-  These are the addresses other machines on the same network can reach the
-  viewer at. A None entry means that family has no shareable address.
-  """
-
-  def probe(
-      family: int | socket.AddressFamily, dest: tuple[str, int]
-  ) -> str | None:
-    try:
-      with socket.socket(family, socket.SOCK_DGRAM) as s:
-        s.connect(dest)
-        return s.getsockname()[0]
-    except OSError:
-      return None
-
-  ipv6 = probe(socket.AF_INET6, ('2001:4860:4860::8888', 80))  # pytype: disable=wrong-arg-types
-  if ipv6 and ipv6.startswith(('fe80', '::1')):
-    ipv6 = None
-  ipv4 = probe(socket.AF_INET, ('8.8.8.8', 80))  # pytype: disable=wrong-arg-types
-  if ipv4 and ipv4.startswith('127.'):
-    ipv4 = None
-  return ipv6, ipv4
-
-
 def _print_url_banner(host: str, port: int) -> None:
   """Prints a prominent boxed banner with the URLs browsers can use."""
-  rows = [('local', f'http://localhost:{port}')]
+  rows = []
   if host in ('::', '0.0.0.0'):
-    # Shareable with other machines on the same network. Both families are
-    # always listed: a visitor may only be reachable over one of them, and an
-    # explicit "(unavailable)" beats a silently missing row. IPv6 literals must
-    # be bracketed in URLs.
-    ipv6, ipv4 = _lan_ips()
-    rows.append((
-        'network (IPv6)',
-        f'http://[{ipv6}]:{port}' if ipv6 else '(unavailable)',
-    ))
-    rows.append(
-        ('network (IPv4)', f'http://{ipv4}:{port}' if ipv4 else '(unavailable)')
-    )
+    fqdn = socket.getfqdn()
+    rows.append(('Remote:', f'http://{fqdn}:{port}/'))
+  rows.append(('Local:', f'http://localhost:{port}/'))
 
   label_width = max(len(label) for label, _ in rows)
-  lines = ['MuJoCo Web Viewer running at:', '']
-  lines += [f'  {label.ljust(label_width)}  {url}' for label, url in rows]
-  lines += ['', 'Ctrl+C to quit']
+  lines_plain = ['MuJoCo Web Viewer running at:', '']
+  lines_plain += [f'  {label.ljust(label_width)}  {url}' for label, url in rows]
+  lines_plain += ['', 'Ctrl+C to quit']
 
-  width = max(len(line) for line in lines)
-  banner = [
-      '+' + '-' * (width + 2) + '+',
-      *(f'| {line.ljust(width)} |' for line in lines),
-      '+' + '-' * (width + 2) + '+',
+  width = max(len(line) for line in lines_plain)
+
+  def _hyperlink(url: str) -> str:
+    return f'\033]8;;{url}\033\\{url}\033]8;;\033\\'
+
+  lines_formatted = ['MuJoCo Web Viewer running at:', '']
+  lines_formatted += [
+      f'  {label.ljust(label_width)}  {_hyperlink(url)}' for label, url in rows
   ]
+  lines_formatted += ['', 'Ctrl+C to quit']
+
+  banner = ['+' + '-' * (width + 2) + '+']
+  for plain, formatted in zip(lines_plain, lines_formatted):
+    padding = ' ' * (width - len(plain))
+    banner.append(f'| {formatted}{padding} |')
+  banner.append('+' + '-' * (width + 2) + '+')
   print('\n'.join(banner), flush=True)
 
 

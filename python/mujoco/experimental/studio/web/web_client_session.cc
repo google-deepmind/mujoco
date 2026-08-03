@@ -122,6 +122,7 @@ void Session::CloseSocket() {
 void Session::Connect(const std::string& url) {
   // Drop any lingering socket first so a reconnect cannot leak the old one.
   CloseSocket();
+
   EmscriptenWebSocketCreateAttributes attr;
   emscripten_websocket_init_create_attributes(&attr);
   attr.url = url.c_str();

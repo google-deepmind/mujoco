@@ -187,7 +187,8 @@ limitations under the License.
         // The session id tells the server which page is dropping; it only
         // accepts drops from the controller.
         const sid = (window.Module && Module.sessionId) || "";
-        const ws = new WebSocket(proto + location.host + "/drop?sid=" + encodeURIComponent(sid));
+        const dropUrl = proto + location.host + "/drop?sid=" + encodeURIComponent(sid);
+        const ws = new WebSocket(dropUrl);
         ws.binaryType = "arraybuffer";
         ws.onopen = () => {
           for (const frame of frames) ws.send(frame);

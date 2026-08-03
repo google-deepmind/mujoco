@@ -72,6 +72,7 @@ void RemoteUi::Connect(const std::string& url) {
     Network::Disconnect(socket_);
     socket_ = nullptr;
   }
+
   // The port argument is unused when a full URL is passed.
   LOG(Info, "Connecting to WebSocket at %s", url.c_str());
   socket_ = Network::Connect(url.c_str(), 0);
