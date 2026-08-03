@@ -1727,10 +1727,12 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
     return;
   }
 
-  // no pruning needed
-  for (int i = 0; i < 3*npolygon; i += 3) {
-    copy3(status->x2 + i, polygon + i);
-    sub3(status->x1 + i, status->x2 + i, dir);
+  // no pruning needed (cap to max contacts)
+  int maxcon = sizeof(status->x2) / (3*sizeof(status->x2[0]));
+  npolygon = (npolygon < maxcon) ? npolygon : maxcon;
+  for (int i = 0; i < npolygon; i++) {
+    copy3(status->x2 + 3*i, polygon + 3*i);
+    sub3(status->x1 + 3*i, status->x2 + 3*i, dir);
   }
   status->nx = npolygon;
 }
