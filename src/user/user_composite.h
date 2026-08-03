@@ -70,18 +70,18 @@ class mjCComposite {
   void MakeCableBonesSubgrid(mjCModel* model, mjsSkin* skin);
 
   // common properties
-  std::string prefix;             // name prefix
-  mjtCompType type;               // composite type
-  int count[3];                   // geom count in each dimension
-  double offset[3];               // position offset
-  double quat[4];                 // quaternion offset
+  std::string prefix;     // name prefix
+  mjtCompType type;       // composite type
+  int         count[3];   // geom count in each dimension
+  double      offset[3];  // position offset
+  double      quat[4];    // quaternion offset
 
   // currently used only for cable
-  std::string initial;            // root boundary type
-  std::vector<float> uservert;    // user-specified vertex positions
-  double size[3];                 // rope size (meaning depends on the shape)
-  mjtCompShape curve[3];          // geometric shape
-  mjsFrame* frame;                // frame where the composite is defined
+  std::string        initial;   // root boundary type
+  std::vector<float> uservert;  // user-specified vertex positions
+  double             size[3];   // rope size (meaning depends on the shape)
+  mjtCompShape       curve[3];  // geometric shape
+  mjsFrame*          frame;     // frame where the composite is defined
 
   // body names used in the skin
   std::vector<std::string> username;
@@ -89,36 +89,37 @@ class mjCComposite {
   // plugin support
   std::string plugin_name;
   std::string plugin_instance_name;
-  mjsPlugin plugin;
+  mjsPlugin   plugin;
 
   // skin
-  bool skin;                      // generate skin
-  bool skintexcoord;              // generate texture coordinates
-  std::string skinmaterial;       // skin material
-  float skinrgba[4];              // skin rgba
-  float skininflate;              // inflate skin
-  int skinsubgrid;                // number of skin subgrid points; 0: none (2D only)
-  int skingroup;                  // skin group of the composite object
+  bool        skin;          // generate skin
+  bool        skintexcoord;  // generate texture coordinates
+  std::string skinmaterial;  // skin material
+  float       skinrgba[4];   // skin rgba
+  float       skininflate;   // inflate skin
+  int         skinsubgrid;   // number of skin subgrid points; 0: none (2D only)
+  int         skingroup;     // skin group of the composite object
 
   // element options
-  bool add[mjNCOMPKINDS];                                          // add element
-  mjCDef def[mjNCOMPKINDS];                                        // default geom, site, tendon
-  std::unordered_map<mjtCompKind, std::vector<mjCDef> > defjoint;  // default joints
+  bool   add[mjNCOMPKINDS];                                       // add element
+  mjCDef def[mjNCOMPKINDS];                                       // default geom, site, tendon
+  std::unordered_map<mjtCompKind, std::vector<mjCDef>> defjoint;  // default joints
 
   // computed internally
-  int dim;                        // dimensionality
+  int dim;  // dimensionality
 
  private:
-  mjsBody* AddCableBody(mjCModel* model, mjsBody* body, int ix, double normal[3], double prev_quat[4]);
+  mjsBody* AddCableBody(
+      mjCModel* model, mjsBody* body, int ix, double normal[3], double prev_quat[4]);
 
   // temporary skin vectors
-  void CopyIntoSkin(mjsSkin* skin);
-  std::vector<int> face;
-  std::vector<float> vert;
-  std::vector<float> bindpos;
-  std::vector<float> bindquat;
-  std::vector<float> texcoord;
-  std::vector<std::vector<int>> vertid;
+  void                            CopyIntoSkin(mjsSkin* skin);
+  std::vector<int>                face;
+  std::vector<float>              vert;
+  std::vector<float>              bindpos;
+  std::vector<float>              bindquat;
+  std::vector<float>              texcoord;
+  std::vector<std::vector<int>>   vertid;
   std::vector<std::vector<float>> vertweight;
 };
 

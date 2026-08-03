@@ -72,12 +72,12 @@ class ThreadPool {
   constinit static thread_local int worker_id_;
 
   // ----- members ----- //
-  std::vector<std::thread> threads_;
-  std::mutex m_;
-  std::condition_variable cv_in_;
-  std::condition_variable cv_ext_;
+  std::vector<std::thread>          threads_;
+  std::mutex                        m_;
+  std::condition_variable           cv_in_;
+  std::condition_variable           cv_ext_;
   std::queue<std::function<void()>> queue_;
-  std::uint64_t ctr_;
+  std::uint64_t                     ctr_;
 };
 
 }  // namespace mujoco::user

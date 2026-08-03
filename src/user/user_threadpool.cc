@@ -35,14 +35,10 @@ ThreadPool::ThreadPool(int num_threads) : ctr_(0) {
 ThreadPool::~ThreadPool() {
   {
     std::unique_lock<std::mutex> lock(m_);
-    for (int i = 0; i < threads_.size(); i++) {
-      queue_.push(nullptr);
-    }
+    for (int i = 0; i < threads_.size(); i++) { queue_.push(nullptr); }
     cv_in_.notify_all();
   }
-  for (auto& thread : threads_) {
-    thread.join();
-  }
+  for (auto& thread : threads_) { thread.join(); }
 }
 
 // ThreadPool scheduler
