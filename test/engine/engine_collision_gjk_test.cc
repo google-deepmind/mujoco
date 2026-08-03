@@ -1397,7 +1397,7 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD15) {
   mjtNum dist;
   int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 4);
 
-  ASSERT_EQ(ncons, sizeof(mjtNum) == 8 ? 4 : 0);
+  ASSERT_EQ(ncons, 4);
 }
 
 TEST_F(MjGjkTest, SmallBoxMesh) {

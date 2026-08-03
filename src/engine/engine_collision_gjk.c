@@ -677,6 +677,7 @@ static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3],
       lambda[0] = lambda_2d[0];
       lambda[1] = lambda_2d[1];
       lambda[2] = lambda_2d[2];
+      lambda[3] = 0;
     }
   }
 }
