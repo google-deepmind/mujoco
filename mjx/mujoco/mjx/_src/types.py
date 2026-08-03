@@ -1215,4 +1215,3 @@ def tree_path_to_attr_str(path: jax.tree_util.KeyPath) -> str:
   assert all(isinstance(p, jax.tree_util.GetAttrKey) for p in path)
   path = [p for p in path if p.name != '_impl']
   return '__'.join(p.name for p in path)
-
