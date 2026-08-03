@@ -1922,6 +1922,74 @@ TEST_F(DerivativeTest, FlexBendDerivativesRotated) {
   mj_deleteData(perturbed);
 }
 
+// K_stretch must be the full Hessian of the stretch force, not just its Gauss-Newton part: the
+// geometric (stress-proportional) term is what makes it the Jacobian at finite strain. Uniformly
+// dilating the mesh puts every edge in tension, so the tensile clamp is inactive and the operator
+// is exact -- with only the Gauss-Newton term the finite-difference error is a large fraction of
+// the force. FlexStretchDerivatives covers the near-rest limit, where the two agree anyway.
+TEST_F(DerivativeTest, FlexStretchDerivativesTensile) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option integrator="implicit"/>
+    <worldbody>
+      <flexcomp name="cloth" type="grid" count="4 4 1" spacing="0.1 0.1 0.1"
+                radius=".01" dim="2" mass="1" pos="0 0 1">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e4" poisson="0.3" thickness="0.01"
+                    elastic2d="stretch" damping="0"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  int nv = model->nv;
+  ASSERT_EQ(model->nq, nv);  // all slide dofs
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  // dilate about the flex centroid: every edge stretches by 5%, so every Me is strictly positive
+  mjtNum centroid[3] = {0, 0, 0};
+  int nvert = model->flex_vertnum[0];
+  for (int v = 0; v < nvert; v++) {
+    mju_addTo3(centroid, data->flexvert_xpos + 3*v);
+  }
+  mju_scl3(centroid, centroid, 1.0/nvert);
+  for (int v = 0; v < nvert; v++) {
+    int body = model->flex_vertbodyid[model->flex_vertadr[0] + v];
+    int adr = model->body_dofadr[body];
+    for (int x = 0; x < 3; x++) {
+      data->qpos[adr+x] += 0.05*(data->flexvert_xpos[3*v+x] - centroid[x]);
+    }
+  }
+  mj_forward(model.get(), data.get());
+
+  std::vector<mjtNum> vec(nv), res(nv, 0);
+  for (int i = 0; i < nv; i++) {
+    vec[i] = mju_Halton(i, 2) - 0.5;
+  }
+  mjd_flexStretch_mul(model.get(), data.get(), res.data(), vec.data(), 1, 0);
+
+  mjtNum eps = MjTol(1e-7, 1e-4);
+  mjData* perturbed = mj_copyData(NULL, model.get(), data.get());
+  mju_addToScl(perturbed->qpos, vec.data(), eps, nv);
+  mj_forward(model.get(), perturbed);
+
+  mjtNum max_err = 0, scale = 0;
+  for (int i = 0; i < nv; ++i) {
+    mjtNum fd = -(perturbed->qfrc_passive[i] - data->qfrc_passive[i]) / eps;
+    max_err = mju_max(max_err, mju_abs(res[i] - fd));
+    scale = mju_max(scale, mju_abs(fd));
+  }
+  mj_deleteData(perturbed);
+
+  EXPECT_GT(scale, 1e-3) << "test should exercise nontrivial stretch stiffness";
+  EXPECT_LT(max_err, MjTol(1e-4, 1e-3) * scale)
+      << "mjd_flexStretch_mul is not the Jacobian of the flex stretch force";
+}
+
 // verify mjd_flexStretch_mul (Gauss-Newton Hessian of the standard-flex
 // stretch force) against finite differences of qfrc_passive, plus symmetry,
 // positive semi-definiteness and (s1, s2) scale linearity. The model covers
@@ -1956,9 +2024,9 @@ TEST_F(DerivativeTest, FlexStretchDerivatives) {
 
   MjDataPtr data = MakeData(model);
 
-  // deform both flexes deterministically. Keep the strain small: the operator
-  // is the Gauss-Newton Hessian, exact to O(strain) (the geometric term is
-  // dropped, see FlexInterpDerivativesDeformed for the analogous property).
+  // deform both flexes deterministically, at small strain. FlexStretchDerivativesTensile
+  // covers finite strain, where the geometric term of K_stretch is what carries the accuracy;
+  // the solid (dim=3) flex below has no such term, so the tolerance stays loose here.
   for (int i = 0; i < nv; i++) {
     data->qpos[i] += 5e-4 * (mju_Halton(i, 2) - 0.5);
   }
@@ -1979,9 +2047,8 @@ TEST_F(DerivativeTest, FlexStretchDerivatives) {
     mj_forward(model.get(), data_perturbed);
 
     // qfrc_passive = -dV/dq  =>  -(qfrc_new - qfrc)/eps ~= K * vec.
-    // Compare max error against the force scale: the operator omits the
-    // geometric (stress-proportional) term, so the residual is O(strain) of
-    // the overall scale and individual near-zero entries are not meaningful.
+    // Compare max error against the force scale rather than entrywise: individual near-zero
+    // entries are not meaningful, and the dim=3 flex still carries a Gauss-Newton residual.
     mjtNum max_err = 0, scale = 0;
     for (int i = 0; i < nv; ++i) {
       mjtNum fd =

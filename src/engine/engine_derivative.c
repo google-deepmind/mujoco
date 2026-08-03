@@ -1432,10 +1432,13 @@ static const int stretch_edges[2][6][2] = {
   {{0, 1}, {1, 2}, {2, 0}, {2, 3}, {0, 3}, {1, 3}}};
 
 // compute res += (s1 + s2*flex_damping) * K_stretch * vec for standard (non-interp) flex
-// stretch, where K_stretch is the Gauss-Newton Hessian of the passive stretch force in
-// mj_flexPassiveStretch: with elongation e_a = L_a^2 - L0_a^2 and force
-// f = -sum_ab M_ab e_a grad(e_b)/2, the GN Hessian is K = 2 sum_ab M_ab (s_a d_a)(s_b d_b)^T,
-// d_a the current edge vector. Pinned vertices (zero-dof bodies) contribute nothing.
+// stretch, where K_stretch is the Hessian of the passive stretch force in mj_flexPassiveStretch:
+// with elongation e_a = L_a^2 - L0_a^2 and force f = -sum_ab M_ab e_a grad(e_b)/2,
+//   K = 2 sum_ab M_ab (s_a d_a)(s_b d_b)^T  +  sum_a Me_a (Laplacian_a (x) I3),
+// d_a the current edge vector and Me_a = sum_b M_ab e_b the edge tension. The first (Gauss-Newton)
+// term alone is not the Jacobian of the force: without the second (geometric) term the operator is
+// only first-order correct, which shows up directly as finite-difference error against
+// -d(qfrc_passive)/dq. Pinned vertices (zero-dof bodies) contribute nothing.
 void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                          mjtNum s1, mjtNum s2) {
   for (int f = 0; f < m->nflex; f++) {
@@ -1461,13 +1464,16 @@ void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum*
     const mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
     const int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
     const mjtNum* k = m->flex_stiffness + stiffnessadr;
+    const int* edgeelem = m->flex_elemedge + m->flex_elemedgeadr[f];
+    const mjtNum* deformed = d->flexedge_length + m->flex_edgeadr[f];
+    const mjtNum* reference = m->flexedge_length0 + m->flex_edgeadr[f];
     int elemnum = m->flex_elemnum[f];
 
     for (int t = 0; t < elemnum; t++) {
       const int* vert = elem + (dim+1)*t;
 
       // current edge vectors and g_a = d_a . (vec_{a0} - vec_{a1}), zero on pinned vertices
-      mjtNum dvec[6][3];
+      mjtNum dvec[6][3], dw[6][3];
       mjtNum g[6];
       for (int e = 0; e < nedge; e++) {
         int v0 = vert[edge[e][0]], v1 = vert[edge[e][1]];
@@ -1487,7 +1493,8 @@ void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum*
         }
         for (int x = 0; x < 3; x++) {
           dvec[e][x] = xpos[3*v0+x] - xpos[3*v1+x];
-          g[e] += dvec[e][x]*(w0[x] - w1[x]);
+          dw[e][x] = w0[x] - w1[x];
+          g[e] += dvec[e][x]*dw[e][x];
         }
       }
 
@@ -1502,7 +1509,24 @@ void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum*
         }
       }
 
-      // scatter: res_{b0/b1} +/-= 2*scale*(sum_a M_ba g_a) * d_b
+      // Edge tension for the geometric term, keeping only its TENSILE part. The geometric block is
+      // Me_a*[[I,-I],[-I,I]] over the edge's two vertices, which is PSD iff Me_a >= 0; a compressed
+      // edge would make K indefinite, and its consumers (the CG constraint solver and the PCG in
+      // mjd_effSolve) both require SPD. The clamp is structural, so no eigendecomposition is
+      // needed. mj_flexPassiveStretch keeps the full Me_a: the force is unchanged, only the
+      // operator is projected.
+      mjtNum Me[6];
+      for (int e = 0; e < nedge; e++) {
+        Me[e] = 0;
+        for (int a = 0; a < nedge; a++) {
+          int idx = edgeelem[t*nedge + a];
+          Me[e] += metric[nedge*e + a]*(deformed[idx]*deformed[idx] -
+                                        reference[idx]*reference[idx]);
+        }
+        Me[e] = mju_max(Me[e], 0);
+      }
+
+      // scatter: res_{b0/b1} +/-= 2*scale*(sum_a M_ba g_a) * d_b + scale*Me_b * (vec_b0 - vec_b1)
       for (int e = 0; e < nedge; e++) {
         mjtNum coef = 0;
         for (int a = 0; a < nedge; a++) {
@@ -1512,7 +1536,7 @@ void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum*
         int b0 = bodyid[vert[edge[e][0]]], b1 = bodyid[vert[edge[e][1]]];
         mjtNum rw[3], rl[3];
         for (int x = 0; x < 3; x++) {
-          rw[x] = coef*dvec[e][x];
+          rw[x] = coef*dvec[e][x] + scale*Me[e]*dw[e][x];
         }
         if (m->body_dofnum[b0]) {   // world -> dof frame
           mji_mulMatTVec3(rl, d->xmat + 9*b0, rw);
@@ -1940,6 +1964,9 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
       const int* elem = m->flex_elem + m->flex_elemdataadr[f];
       const mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
       const mjtNum* kk = m->flex_stiffness + m->flex_stiffnessadr[f];
+      const int* eelem = m->flex_elemedge + m->flex_elemedgeadr[f];
+      const mjtNum* elen = d->flexedge_length + m->flex_edgeadr[f];
+      const mjtNum* elen0 = m->flexedge_length0 + m->flex_edgeadr[f];
       for (int t = 0; t < m->flex_elemnum[f]; t++) {
         const int* vert = elem + (dim+1)*t;
 
@@ -1962,7 +1989,19 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
           }
         }
 
+        // tensile edge tension for the geometric term (see the clamp note in mjd_flexStretch_mul)
+        mjtNum Me[6];
+        for (int e1 = 0; e1 < nedge; e1++) {
+          Me[e1] = 0;
+          for (int e2 = 0; e2 < nedge; e2++) {
+            int idx = eelem[t*nedge + e2];
+            Me[e1] += metric[nedge*e1 + e2]*(elen[idx]*elen[idx] - elen0[idx]*elen0[idx]);
+          }
+          Me[e1] = mju_max(Me[e1], 0);
+        }
+
         // per vertex pair: block += 2*scale * sum_ab M_ab s_a,vi s_b,vj d_a d_b^T
+        //                         + scale * (sum_a Me_a s_a,vi s_a,vj) * I3
         for (int i = 0; i < nvrt; i++) {
           int si = vslot[m->flex_vertadr[f] + vert[i]];
           if (si < 0) continue;
@@ -1984,6 +2023,19 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
                 }
               }
             }
+            // geometric term: a multiple of I3, so the frame sandwich below leaves it unchanged
+            mjtNum geo = 0;
+            for (int a = 0; a < nedge; a++) {
+              mjtNum sa = (i == edget[a][0]) ? 1 : ((i == edget[a][1]) ? -1 : 0);
+              mjtNum sb = (j == edget[a][0]) ? 1 : ((j == edget[a][1]) ? -1 : 0);
+              if (!sa || !sb) continue;
+              geo += Me[a]*sa*sb;
+            }
+            geo *= scale;
+            blk[0] += geo;
+            blk[4] += geo;
+            blk[8] += geo;
+
             // blk is world-space but the destination dofs are the vertex bodies' own (possibly
             // rotated) slide axes: blk_dof = R_bi^T * blk_world * R_bj, matching the force path
             int bi = m->flex_vertbodyid[m->flex_vertadr[f] + vert[i]];
