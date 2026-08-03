@@ -16,7 +16,7 @@
 
 The schema declares attribute defaults, but the defaults that act live in
 the C default-constructors (mjs_default*, mj_defaultOption, ...). This
-emits src/xml/mjcf_default_table.inc: one row per defaulted attribute,
+emits src/xml/generated/mjcf_default_table.inc: one row per defaulted attribute,
 binding the declared values to the field they describe, consumed by
 SchemaDefaultsTest, which compares every row against a freshly-constructed
 spec -- so a schema default that disagrees with the C defaults is a test
@@ -24,7 +24,7 @@ failure, not documentation drift. Checked in and gated by
 test/doc/doc_test.py.
 """
 
-import os
+import os  # pylint: disable=unused-import
 import sys
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -83,7 +83,7 @@ struct mjXDefaultTable {
 '''
 
 
-def _values(schema, attr, ctype):
+def _values(schema, attr):
   """(ndecl, [C value expressions]) for an attribute's declared default."""
   default = attr.default
   if attr.type == 'enum':
@@ -125,7 +125,7 @@ def collect(schema, structs):
                          f'field {field} ({ctype})')
       kind = KIND_BY_CTYPE.get(ctype, 2)  # other mjt enums are int-sized
       length = dim if dim is not None else '1'
-      ndecl, values = _values(schema, attr, ctype)
+      ndecl, values = _values(schema, attr)
       if ndecl > 8:
         raise ValueError(f'{element.name}.{attr.name}: {ndecl} default '
                          'values exceed the row capacity')
@@ -143,6 +143,7 @@ def collect(schema, structs):
 
 
 def generate() -> str:
+  """Generates the mjcf_default_table.inc content as a string."""
   schema = mjcf_schema.parse_file(SCHEMA_PATH)
   structs = generate_read_table.parse_spec_structs(
       generate_read_table.SPEC_H_PATH, generate_read_table.MODEL_H_PATH)

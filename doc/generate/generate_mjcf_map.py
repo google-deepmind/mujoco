@@ -14,14 +14,14 @@
 # ==============================================================================
 """Generates the keyword-map header from src/xml/mjcf.schema.
 
-Emits src/xml/mjcf_map.h: one mjMap array and size constant per schema
+Emits src/xml/generated/mjcf_map.h: one mjMap array and size constant per schema
 enum, as C++17 inline variables, so the reader, the writer and the
 generated tables share one definition with no extern declarations to
 maintain. It is checked in and gated by test/doc/doc_test.py, which
 regenerates it from the schema and diffs.
 """
 
-import os
+import os  # pylint: disable=unused-import
 import sys
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -29,7 +29,7 @@ sys.path.insert(0, _SCRIPT_DIR)
 import mjcf_schema
 _REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
 SCHEMA_PATH = os.path.join(_REPO_ROOT, 'src', 'xml', 'mjcf.schema')
-_GUARD = 'MUJOCO_SRC_XML_MJCF_MAP_H_'
+_GUARD = 'MUJOCO_SRC_XML_GENERATED_MJCF_MAP_H_'
 
 _INCLUDES = '''\
 #include <mujoco/mjspec.h>
@@ -83,6 +83,7 @@ _FOOTER = '''\
 
 
 def generate() -> str:
+  """Generates the mjcf_map.h content as a string."""
   schema = mjcf_schema.parse_file(SCHEMA_PATH)
   out = []
   for enum in schema.enums.values():

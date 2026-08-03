@@ -165,13 +165,13 @@ static void UpdateString(string& psuffix, int count, int i) {
 
 
 //---------------------------------- MJCF schema ---------------------------------------------------
-#include "mjcf_table.inc"
+#include "xml/generated/mjcf_table.inc"
 
 //---------------------------------- class mjXReader implementation --------------------------------
 
 // typed attribute rows, generated from mjcf.schema; the keyword maps the
 // rows reference are generated into mjcf_map.h
-#include "mjcf_read_table.inc"
+#include "xml/generated/mjcf_read_table.inc"
 
 
 mjXReader::mjXReader()

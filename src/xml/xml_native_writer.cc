@@ -39,7 +39,7 @@
 #include "tinyxml2.h"
 
 // typed attribute rows, generated from mjcf.schema; shared with the reader
-#include "mjcf_read_table.inc"
+#include "xml/generated/mjcf_read_table.inc"
 
 namespace {
 

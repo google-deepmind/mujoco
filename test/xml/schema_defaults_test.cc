@@ -24,7 +24,7 @@
 #include <mujoco/mjspec.h>
 #include "test/fixture.h"
 
-#include "src/xml/mjcf_default_table.inc"
+#include "src/xml/generated/mjcf_default_table.inc"
 
 namespace mujoco {
 namespace {

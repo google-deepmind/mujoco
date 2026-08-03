@@ -25,7 +25,7 @@
 
 
 // keyword maps, one per schema enum, generated into mjcf_map.h
-#include "xml/mjcf_map.h"  // IWYU pragma: export
+#include "xml/generated/mjcf_map.h"  // IWYU pragma: export
 
 //---------------------------------- Base XML class ------------------------------------------------
 

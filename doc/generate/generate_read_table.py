@@ -14,9 +14,9 @@
 # ==============================================================================
 """Generates keyword maps and typed attribute-read rows from mjcf.schema.
 
-Emits src/xml/mjcf_read_table.inc: per-element mjXAttr row arrays consumed by
-mjXReader::ReadAttrTable, plus the kSensorDispatch tag table and shared group
-arrays.
+Emits src/xml/generated/mjcf_read_table.inc: per-element mjXAttr row arrays
+consumed by mjXReader::ReadAttrTable, plus the kSensorDispatch tag table and
+shared group arrays.
 
 Which elements get rows is determined automatically: every schema element with
 a bound spec struct and at least one table-drivable attribute is included,
@@ -29,7 +29,7 @@ compile errors, and the field's C type (parsed from mjspec.h) selects the row
 kind, so mjtNum vs double is decided by the struct, not by the schema.
 """
 
-import os
+import os  # pylint: disable=unused-import
 import re
 import sys
 

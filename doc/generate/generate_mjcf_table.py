@@ -14,7 +14,7 @@
 # ==============================================================================
 """Generates the MJCF[] grammar table from src/xml/mjcf.schema.
 
-The table (src/xml/mjcf_table.inc) is the element tree consumed by the
+The table (src/xml/generated/mjcf_table.inc) is the element tree consumed by the
 mjXSchema validator: rows of {name, cardinality, attributes...} with
 {"<"}/{">"} nesting markers. It is checked in and gated by
 test/doc/doc_test.py, which regenerates it from the schema and diffs.

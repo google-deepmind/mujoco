@@ -19,8 +19,8 @@
 // the generated tables. Inline variables: including this header is all a
 // translation unit needs.
 
-#ifndef MUJOCO_SRC_XML_MJCF_MAP_H_
-#define MUJOCO_SRC_XML_MJCF_MAP_H_
+#ifndef MUJOCO_SRC_XML_GENERATED_MJCF_MAP_H_
+#define MUJOCO_SRC_XML_GENERATED_MJCF_MAP_H_
 
 #include <mujoco/mjspec.h>
 #include <mujoco/mjtype.h>
@@ -486,4 +486,4 @@ inline constexpr mjMap flexeq_map[] = {
 inline constexpr int flexeq_sz = 4;
 // clang-format on
 
-#endif  // MUJOCO_SRC_XML_MJCF_MAP_H_
+#endif  // MUJOCO_SRC_XML_GENERATED_MJCF_MAP_H_

@@ -124,7 +124,7 @@ def generate() -> str:
   """
   script_dir = os.path.dirname(os.path.abspath(__file__))
   repo_root = os.path.dirname(os.path.dirname(script_dir))
-  filepath = os.path.join(repo_root, 'src', 'xml', 'mjcf_table.inc')
+  filepath = os.path.join(repo_root, 'src', 'xml', 'generated', 'mjcf_table.inc')
   xmlfile = os.path.join(repo_root, 'doc', 'XMLreference.rst')
 
   # Collect all link targets from XMLreference.rst for validation.

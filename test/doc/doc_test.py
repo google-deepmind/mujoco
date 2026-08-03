@@ -88,7 +88,8 @@ class DocTest(googletest.TestCase):
 
   def test_mjcf_table(self):
     """Checks that mjcf_table.inc matches the schema-generated output."""
-    table_file = os.path.join(_REPO_ROOT, 'src', 'xml', 'mjcf_table.inc')
+    table_file = os.path.join(_REPO_ROOT, 'src', 'xml', 'generated',
+                              'mjcf_table.inc')
     source = generate_mjcf_table.generate()
     with open(table_file, 'r', encoding='utf-8') as file:
       if source != file.read():
@@ -96,7 +97,7 @@ class DocTest(googletest.TestCase):
 
   def test_default_table(self):
     """Checks that mjcf_default_table.inc matches the schema-generated output."""
-    table_file = os.path.join(_REPO_ROOT, 'src', 'xml',
+    table_file = os.path.join(_REPO_ROOT, 'src', 'xml', 'generated',
                               'mjcf_default_table.inc')
     source = generate_default_table.generate()
     with open(table_file, 'r', encoding='utf-8') as file:
@@ -105,7 +106,8 @@ class DocTest(googletest.TestCase):
 
   def test_mjcf_map(self):
     """Checks that mjcf_map.h matches the schema-generated output."""
-    map_file = os.path.join(_REPO_ROOT, 'src', 'xml', 'mjcf_map.h')
+    map_file = os.path.join(_REPO_ROOT, 'src', 'xml', 'generated',
+                            'mjcf_map.h')
     source = generate_mjcf_map.generate()
     with open(map_file, 'r', encoding='utf-8') as file:
       if source != file.read():
@@ -113,7 +115,8 @@ class DocTest(googletest.TestCase):
 
   def test_read_table(self):
     """Checks that mjcf_read_table.inc matches the schema-generated output."""
-    table_file = os.path.join(_REPO_ROOT, 'src', 'xml', 'mjcf_read_table.inc')
+    table_file = os.path.join(_REPO_ROOT, 'src', 'xml', 'generated',
+                              'mjcf_read_table.inc')
     source = generate_read_table.generate()
     with open(table_file, 'r', encoding='utf-8') as file:
       if source != file.read():
