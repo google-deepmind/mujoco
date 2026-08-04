@@ -1185,8 +1185,9 @@ TEST_P(StrainConstraintRotatedTest, ResidualIsZero) {
   for (int i = 0; i < d->ne; i++) {
     max_pos = mju_max(max_pos, mju_abs(d->efc_pos[i]));
   }
-  EXPECT_LT(max_pos, 1e-6) << "Strain constraint residual should be ~0"
-                           << " (max_pos=" << max_pos << ")";
+  EXPECT_LT(max_pos, MjTol(1e-6, 1e-5))
+      << "Strain constraint residual should be ~0"
+      << " (max_pos=" << max_pos << ")";
 
   // Verify stability
   for (int i = 0; i < 200; i++) {
