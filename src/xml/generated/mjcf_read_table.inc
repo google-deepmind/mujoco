@@ -480,6 +480,7 @@ inline constexpr mjXAttr kFlexAttrs[] = {
   {"texcoord", mjXAttr::kFloatVec, 1, true, false, false, false, (int)offsetof(mjsFlex, texcoord)},
   {"elemtexcoord", mjXAttr::kIntVec, 1, true, false, false, false, (int)offsetof(mjsFlex, elemtexcoord)},
   {"node", mjXAttr::kStringVec, 1, true, false, false, false, (int)offsetof(mjsFlex, nodebody)},
+  {"nodecoord", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsFlex, node)},
 };
 inline constexpr int kFlexAttrsN = sizeof(kFlexAttrs) / sizeof(kFlexAttrs[0]);
 

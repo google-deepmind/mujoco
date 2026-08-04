@@ -4389,6 +4389,13 @@ cases, the user will specify a :el:`flexcomp` which will then automatically cons
    An array of MuJoCo body names (separated by white space) to which each node belongs. The number of body names
    should equal the number of nodes (nnode). See the flexcomp :ref:`dof<body-flexcomp-dof>` attribute for more details.
 
+.. _deformable-flex-nodecoord:
+
+:at:`nodecoord`: :at-val:`real(3*nnode), optional`
+   The local coordinates of the nodes within the corresponding body frames. If this attribute is omitted, all
+   coordinates are (0,0,0) or in other words, the nodes coincide with the centers of the body frames. Nonzero
+   coordinates are required when several nodes share a body, for example nodes pinned to a parent body.
+
 .. _deformable-flex-cellcount:
 
 :at:`cellcount`: :at-val:`int(3), optional`

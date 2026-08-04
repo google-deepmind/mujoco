@@ -936,6 +936,35 @@ TEST_F(XMLWriterTest, WritesSkin) {
   EXPECT_THAT(mtemp->nskin, 1);
 }
 
+TEST_F(XMLWriterTest, WritesPinnedFlexNodes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent">
+        <flexcomp name="soft" type="box" count="3 3 3" spacing=".03 .01 .01" mass=".5" dof="trilinear">
+          <contact selfcollide="none" internal="false"/>
+          <edge equality="true"/>
+          <pin id="4 5 6 7"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+
+  // pinned nodes have no body of their own: their coordinates in the parent
+  // body frame must be saved or the interpolation grid degenerates on reload
+  std::string saved_xml = SaveAndReadXml(model.get());
+  EXPECT_THAT(saved_xml, HasSubstr("nodecoord"));
+
+  char error[1024];
+  MjModelPtr mtemp = LoadModelFromString(saved_xml, error, sizeof(error));
+  ASSERT_THAT(mtemp.get(), NotNull()) << error;
+  EXPECT_EQ(SaveAndReadXml(mtemp.get()), saved_xml);
+}
+
 TEST_F(XMLWriterTest, WritesHfield) {
   static constexpr char xml[] = R"(
   <mujoco>

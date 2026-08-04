@@ -61,6 +61,10 @@ Models
 Bug fixes
 ^^^^^^^^^
 
+- Fixed a bug where models with pinned interpolated flex nodes (e.g. a :ref:`flexcomp<body-flexcomp>` with
+  :at:`dof` "trilinear" and pinned vertices) could not be reloaded after saving: node coordinates within their body
+  frames were not saved, degenerating the interpolation grid. They are now saved in the new flex
+  :ref:`nodecoord<deformable-flex-nodecoord>` attribute.
 - Fixed a bug in the box-box collider where near-degenerate face clipping could generate contacts with spuriously
   large penetration depth between nearly touching thin boxes with positive margin, causing resting stacks to explode.
 - Fixed a bug in the box-box collider where penetrations deeper than a box's smallest half-size could produce no

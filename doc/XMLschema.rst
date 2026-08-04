@@ -1695,6 +1695,9 @@
                :ref:`node<deformable-flex-node>`
 
             .. grid-item::
+               :ref:`nodecoord<deformable-flex-nodecoord>`
+
+            .. grid-item::
                :ref:`cellcount<deformable-flex-cellcount>`
 
             .. grid-item::

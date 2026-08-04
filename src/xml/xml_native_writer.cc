@@ -175,6 +175,9 @@ void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* flex) {
     text = VectorToString(flex->get_nodebody());
     WriteAttrTxt(elem, "node", text);
   }
+  if (!flex->get_node().empty()) {
+    WriteVector(elem, "nodecoord", flex->get_node());
+  }
 
   // contact subelement
   XMLElement* cont = InsertEnd(elem, "contact");

@@ -2389,6 +2389,11 @@
         <xs:documentation>space-separated body names</xs:documentation>
       </xs:annotation>
     </xs:attribute>
+    <xs:attribute name="nodecoord" type="doublelist">
+      <xs:annotation>
+        <xs:documentation>node positions within body frames</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
     <xs:attribute name="cellcount" type="int3" default="1 1 1">
       <xs:annotation>
         <xs:documentation>seeded before reading</xs:documentation>

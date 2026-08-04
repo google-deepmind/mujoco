@@ -1299,6 +1299,7 @@ element flex : mjsFlex {
   texcoord           : float[]
   elemtexcoord       : int[]
   node               : string (field=nodebody)             # space-separated body names
+  nodecoord          : double[] (field=node)               # node positions within body frames
   cellcount          : int[3] = {1, 1, 1} (reading=custom)  # seeded before reading
   dof                : enum<fdof> (reading=custom)        # lowers to interpolation order
   child flexcomp_contact ?
