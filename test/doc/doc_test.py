@@ -29,6 +29,7 @@ import generate_mjcf_map
 import generate_mjcf_table
 import generate_read_table
 import generate_schema
+import generate_xsd
 import mjcf_schema
 
 # Functions in headers that are intentionally not in functions.rst.
@@ -126,6 +127,14 @@ class DocTest(googletest.TestCase):
         self,
         'src/xml/generated/mjcf_read_table.inc',
         generate_read_table.generate(),
+    )
+
+  def test_xsd(self):
+    """Checks that mjcf.xsd matches the schema-generated output."""
+    _check_up_to_date(
+        self,
+        'src/xml/generated/mjcf.xsd',
+        generate_xsd.generate(),
     )
 
   def test_read_table_consumed(self):
