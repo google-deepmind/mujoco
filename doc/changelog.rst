@@ -14,7 +14,8 @@ General
   and gated by tests, as are the schema's enum keywords and declared defaults against the C headers and
   default-constructors.
 - An XSD schema derived from the main schema is provided in
-  `model/mjcf.xsd <https://github.com/google-deepmind/mujoco/tree/main/src/xml/generated/mjcf.xsd>`__.
+  `src/xml/generated/mjcf.xsd <https://github.com/google-deepmind/mujoco/tree/main/src/xml/generated/mjcf.xsd>`__.
+  See :ref:`XSD schema<CXSD>` for how to use it for editor support.
 
 Actuation
 ^^^^^^^^^
