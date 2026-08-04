@@ -32,6 +32,10 @@
 
 #define MUJOCO_PLUGIN_DIR "mujoco_plugin"
 
+#ifndef MUJOCO_ADDITIONAL_PLUGIN_DIRS
+  #define MUJOCO_ADDITIONAL_PLUGIN_DIRS ""
+#endif
+
 extern "C" {
 #if defined(_WIN32) || defined(__CYGWIN__)
   #include <windows.h>
@@ -159,7 +163,7 @@ std::string getExecutableDir() {
 
 
 
-// scan for libraries in the plugin directory to load additional plugins
+// scan for libraries in the plugin directories to load additional plugins
 void scanPluginLibraries() {
   // check and print plugins that are linked directly into the executable
   int nplugin = mjp_pluginCount();
@@ -186,14 +190,32 @@ void scanPluginLibraries() {
     return;
   }
 
-  const std::string plugin_dir = getExecutableDir() + sep + MUJOCO_PLUGIN_DIR;
-  mj_loadAllPluginLibraries(
-      plugin_dir.c_str(), +[](const char* filename, int first, int count) {
-        std::printf("Plugins registered by library '%s':\n", filename);
-        for (int i = first; i < first + count; ++i) {
-          std::printf("    %s\n", mjp_getPluginAtSlot(i)->name);
-        }
-      });
+  const auto load_plugin_libraries = [](const std::string& plugin_dir) {
+    mj_loadAllPluginLibraries(
+        plugin_dir.c_str(), +[](const char* filename, int first, int count) {
+          std::printf("Plugins registered by library '%s':\n", filename);
+          for (int i = first; i < first + count; ++i) {
+            std::printf("    %s\n", mjp_getPluginAtSlot(i)->name);
+          }
+        });
+  };
+
+  load_plugin_libraries(executable_dir + sep + MUJOCO_PLUGIN_DIR);
+
+  // Additional directories are configured as a semicolon-separated CMake list.
+  const std::string additional_plugin_dirs = MUJOCO_ADDITIONAL_PLUGIN_DIRS;
+  std::size_t begin = 0;
+  while (begin < additional_plugin_dirs.size()) {
+    const std::size_t end = additional_plugin_dirs.find(';', begin);
+    const std::string plugin_dir = additional_plugin_dirs.substr(begin, end - begin);
+    if (!plugin_dir.empty()) {
+      load_plugin_libraries(plugin_dir);
+    }
+    if (end == std::string::npos) {
+      break;
+    }
+    begin = end + 1;
+  }
 }
 
 

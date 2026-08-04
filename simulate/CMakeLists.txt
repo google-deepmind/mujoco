@@ -43,6 +43,27 @@ endif()
 
 option(SIMULATE_BUILD_EXECUTABLE "Build the simulate executable binary." ON)
 option(SIMULATE_GLFW_DYNAMIC_SYMBOLS "Whether to resolve GLFW symbols dynamically." OFF)
+set(SIMULATE_ADDITIONAL_PLUGIN_DIRS "" CACHE STRING
+    "Additional plugin directories to scan when starting simulate."
+)
+
+# Adds compile-time-authorized plugin lookup directories to an executable.
+function(simulate_add_plugin_directories target)
+  set(plugin_dirs "")
+  foreach(plugin_dir IN LISTS ARGN)
+    # Use forward slashes so paths are valid C++ string literals on Windows too.
+    string(REPLACE "\\" "/" plugin_dir "${plugin_dir}")
+    list(APPEND plugin_dirs "${plugin_dir}")
+  endforeach()
+
+  if(plugin_dirs)
+    list(JOIN plugin_dirs ";" plugin_dirs)
+    string(REPLACE ";" "\\;" plugin_dirs "${plugin_dirs}")
+    target_compile_definitions(
+      ${target} PRIVATE "MUJOCO_ADDITIONAL_PLUGIN_DIRS=\"${plugin_dirs}\""
+    )
+  endif()
+endfunction()
 
 # Check if we are building as standalone project.
 set(SIMULATE_STANDALONE OFF)
@@ -162,6 +183,7 @@ if(SIMULATE_BUILD_EXECUTABLE)
 
   add_executable(simulate main.cc array_safety.h ${SIMULATE_RESOURCE_FILES})
   target_compile_options(simulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
+  simulate_add_plugin_directories(simulate ${SIMULATE_ADDITIONAL_PLUGIN_DIRS})
   if(WIN32)
     add_custom_command(
       TARGET simulate
