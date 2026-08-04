@@ -89,6 +89,42 @@ will appear in the reference documentation as
       <p style="display: none"></p>
 
 
+.. _CXSD:
+
+XSD schema
+~~~~~~~~~~
+
+The schema is also emitted as an `XML Schema <https://www.w3.org/TR/xmlschema-1/>`__ (XSD) document, generated from the
+same source of truth and checked in as
+`src/xml/generated/mjcf.xsd <https://github.com/google-deepmind/mujoco/blob/main/src/xml/generated/mjcf.xsd>`__.
+Editors use it to complete elements, attributes and keywords, and to report ill-formed values as you type:
+
+.. image:: images/XMLreference/xsd_editor.png
+   :width: 100%
+   :align: center
+   :class: only-light
+
+.. image:: images/XMLreference/xsd_editor_dark.png
+   :width: 100%
+   :align: center
+   :class: only-dark
+
+To enable this, reference the schema in the root element of the model:
+
+.. code-block:: xml
+
+   <mujoco xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/google-deepmind/mujoco/refs/heads/main/src/xml/generated/mjcf.xsd">
+
+This requires the Red Hat
+`XML extension <https://marketplace.visualstudio.com/items?itemName=redhat.vscode-xml>`__ in VS Code, or the same
+extension from `Open VSX <https://open-vsx.org/extension/redhat/vscode-xml>`__ in forks such as Cursor and VSCodium.
+
+The XSD is not a specification of model validity: it never rejects a model that MuJoCo accepts, but does accept models
+that the compiler rejects. Constraints that XSD 1.0 cannot express -- child cardinality and presence constraints
+between attributes -- are carried as annotations.
+
+
 .. _Reference:
 
 MJCF Reference

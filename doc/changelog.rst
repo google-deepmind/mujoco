@@ -26,6 +26,14 @@ Samples
   Supports both the Filament and classic OpenGL backends, with command-line options for camera, resolution, keyframe,
   simulation steps, geom/site groups, visualization and rendering flags, labels, and frames.
 
+Documentation
+^^^^^^^^^^^^^
+
+- Added a :ref:`XSD schema<CXSD>` section to the XML reference, documenting the
+  `src/xml/generated/mjcf.xsd <https://github.com/google-deepmind/mujoco/tree/main/src/xml/generated/mjcf.xsd>`__
+  schema: how to reference it from a model for editor completion and diagnostics, and the caveat that it is
+  deliberately permissive.
+
 Version 3.12.0 (August 20, 2026)
 --------------------------------
 
