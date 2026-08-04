@@ -13,12 +13,12 @@
 // limitations under the License.
 
 #include <cctype>
-#include <chrono>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <string>
 #include <string_view>
 
 #include <mujoco/mujoco.h>
@@ -128,9 +128,10 @@ int main(int argc, char** argv) {
     }
     m = mj_compile(spec, &vfs);
     if (!m) {
-      auto err_msg = mjs_getError(spec);
+      // copy the message before mj_deleteSpec frees the memory it points into
+      std::string err_msg = mjs_getError(spec);
       mj_deleteSpec(spec);
-      return finish(err_msg, EXIT_FAILURE, nullptr, &vfs);
+      return finish(err_msg.c_str(), EXIT_FAILURE, nullptr, &vfs);
     }
 
     if (argc == 2) {
@@ -143,9 +144,9 @@ int main(int argc, char** argv) {
   // check error
   if (!m) {
     if (spec) {
-      auto err_msg = mjs_getError(spec);
+      std::string err_msg = mjs_getError(spec);
       mj_deleteSpec(spec);
-      return finish(err_msg, EXIT_FAILURE, nullptr, &vfs);
+      return finish(err_msg.c_str(), EXIT_FAILURE, nullptr, &vfs);
     } else {
       return finish("Could not load model", EXIT_FAILURE, nullptr, &vfs);
     }
