@@ -18,6 +18,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <string_view>
 
@@ -32,6 +33,8 @@ static constexpr char kHelp[] =
     "   if outfile is empty, compilation will be "
     "timed twice to measure the impact of caching\n\n"
     " Example: compile model.xml [model.mjb]\n";
+
+static constexpr char kPluginDirName[] = "mujoco_plugin";
 
 // deallocate and print message
 int finish(const char* msg = 0, int exitcode = EXIT_SUCCESS, mjModel* m = 0,
@@ -66,6 +69,29 @@ bool HasExtension(std::string_view filename, std::string_view ext) {
   return true;
 }
 
+void LoadPluginLibrariesInDir(const std::filesystem::path& directory) {
+  std::error_code error;
+  if (std::filesystem::is_directory(directory, error)) {
+    mj_loadAllPluginLibraries(directory.string().c_str(), nullptr);
+  }
+}
+
+// Load plugin libraries from directories used by local builds and installs.
+void LoadPluginLibraries(const char* executable) {
+  std::error_code error;
+  std::filesystem::path executable_path(executable ? executable : "");
+  if (!executable_path.empty() && executable_path.has_parent_path()) {
+    std::filesystem::path executable_dir =
+        std::filesystem::weakly_canonical(executable_path, error).parent_path();
+    if (!error) {
+      LoadPluginLibrariesInDir(executable_dir / kPluginDirName);
+    }
+  }
+
+  LoadPluginLibrariesInDir(std::filesystem::current_path(error) /
+                           kPluginDirName);
+}
+
 // main function
 int main(int argc, char** argv) {
 
@@ -79,6 +105,8 @@ int main(int argc, char** argv) {
   }
 
   const bool is_mjb = HasExtension(argv[1], ".mjb");
+
+  LoadPluginLibraries(argv[0]);
 
   if (is_mjb && argc == 3 && HasExtension(argv[2], ".xml")) {
     return finish("Illegal combination: cannot save binary model to XML",
