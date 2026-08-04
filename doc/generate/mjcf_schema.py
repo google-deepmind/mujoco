@@ -212,8 +212,6 @@ class Schema:
   """Top-level parsed representation of an MJCF schema."""
   enums: dict[str, Enum]
   groups: dict[str, Group]
-  enums: dict[str, Enum]
-  groups: dict[str, Group]
   elements: dict[str, Element]
   path: str
 

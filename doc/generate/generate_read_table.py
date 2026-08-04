@@ -21,8 +21,9 @@ shared group arrays.
 Which elements get rows is determined automatically: every schema element with
 a bound spec struct and at least one table-drivable attribute is included,
 unless it appears in NOT_TABLE_DRIVEN (elements whose OneX() readers have
-custom logic). A coverage check in doc_test verifies that every eligible
-element is accounted for.
+custom logic). A coverage check in doc_test verifies that every emitted row
+array is consumed by the reader or writer, and that NOT_TABLE_DRIVEN names
+only elements that exist in the schema.
 
 Field offsets are emitted as offsetof() expressions, so binding mistakes are
 compile errors, and the field's C type (parsed from mjspec.h) selects the row
@@ -154,19 +155,15 @@ _HEADER = '''\
 '''
 
 
+def array_name(element_name):
+  """Return the row-array name emitted for an element."""
+  return f'k{element_name.capitalize()}Attrs'
+
+
 def _has_table_attrs(schema, element):
   """Check if the element has at least one non-custom table-drivable attr."""
-  for member in element.members:
-    if isinstance(member, mjcf_schema.Attr) and 'reading' not in member.facets:
-      return True
-    if isinstance(member, mjcf_schema.Use):
-      group = schema.groups.get(member.group)
-      if group:
-        for gm in group.members:
-          if (isinstance(gm, mjcf_schema.Attr)
-              and 'reading' not in gm.facets):
-            return True
-  return False
+  return any('reading' not in attr.facets
+             for attr in schema.expanded_attrs(element))
 
 
 def table_driven_elements(schema):
@@ -188,23 +185,6 @@ def table_driven_elements(schema):
       continue
     result.append(name)
   return result
-
-
-def uncovered_elements(schema):
-  """Return element names eligible for table-driving but not accounted for.
-
-  An element is "eligible" if it has a bound spec struct and at least one
-  table-drivable attribute. Every eligible element should be either
-  auto-included by table_driven_elements() or listed in NOT_TABLE_DRIVEN.
-  This function returns any that fall through the cracks — used by doc_test.
-
-  Args:
-    schema: Parsed schema object.
-  """
-  eligible = {name for name, el in schema.elements.items()
-              if el.spec and _has_table_attrs(schema, el)}
-  auto = set(table_driven_elements(schema))
-  return eligible - auto - NOT_TABLE_DRIVEN
 
 
 def parse_spec_structs(*paths):
@@ -399,7 +379,7 @@ def generate():
   out = [_HEADER]
   for name in migrated:
     struct, rows = rows_for(schema, structs, name)
-    array = f'k{name.capitalize()}Attrs'
+    array = array_name(name)
     out.append(f'// {name} ({struct})')
     out.append(f'inline constexpr mjXAttr {array}[] = {{')
     for row in rows:
@@ -413,7 +393,7 @@ def generate():
              ' int n; };')
   out.append('inline constexpr mjXSensorEntry kSensorDispatch[] = {')
   for name in SENSOR_DISPATCH:
-    array = f'k{name.capitalize()}Attrs'
+    array = array_name(name)
     tag = schema.elements[name].xml_name()
     out.append(f'  {{"{tag}", {array}, {array}N}},')
   out.append('};')

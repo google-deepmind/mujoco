@@ -130,7 +130,12 @@ def generate() -> str:
         constraints.append(f"  {{{row_index}, '{KIND_CHAR[con.kind]}', "
                            f'"{spec}"}},')
 
-    children = [c for c in element.children() if c.name != element.name]
+    # self-recursion is implied by card R; alias elements (worldbody, frame,
+    # replicate) have no rows -- mjXSchema::NameMatch admits their tags
+    # against the body row
+    children = [c for c in element.children()
+                if c.name != element.name
+                and 'alias' not in schema.elements[c.name].facets]
     if project:
       # plugin configuration is not settable per-class
       children = [c for c in children if c.name != 'plugin']

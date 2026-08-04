@@ -964,6 +964,8 @@ element body : mjsBody {
   simple             : enum<FalseAuto> = auto
   user               : double[] (field=userdata)
   child body R    # recursive
+  child frame R
+  child replicate *
   child inertial ?
   child joint *
   child freejoint *
@@ -1150,7 +1152,7 @@ element composite_joint (xml=joint) {
   armature           : double
   solreffix          : double[1..mjNREF]
   solimpfix          : double[1..mjNIMP]
-  type               : enum<comp> (required)
+  type               : enum<jointtype>
   axis               : double[3]
   limited            : enum<FalseTrueAuto>
   range              : double[2]
@@ -1172,7 +1174,7 @@ element composite_skin (xml=skin) {
 }
 
 element composite_geom (xml=geom) {
-  type               : enum<comp> (required)
+  type               : enum<geomtype>
   contype            : int
   conaffinity        : int
   condim             : int
@@ -2133,10 +2135,10 @@ element sensor_plugin : mjsSensor (xml=plugin) {
   plugin             : string
   instance           : ref<instance>
   cutoff             : double
-  objtype            : string (required)
-  objname            : string (required)
+  objtype            : string    # objtype/objname, reftype/refname: pairwise
+  objname            : string    # co-occurrence enforced by the reader
   reftype            : string
-  refname            : string (required)
+  refname            : string
   user               : double[]
   child config *
 }
@@ -2153,7 +2155,7 @@ element custom {
 element numeric : mjsNumeric {
   name               : id<numeric> (required)
   size               : int
-  data               : string (required)
+  data               : string
 }
 
 element text : mjsText {
@@ -2193,11 +2195,23 @@ element key : mjsKey {
 
 #---------------------- worldbody, frame, replicate (body aliases) ---------------------------------
 
+# The runtime validator admits the full body surface for all three aliases
+# (mjXSchema::NameMatch); the reader enforces the restrictions. The child
+# lists below record the compilable surface, for artifact emitters.
+
+# a restricted body: no attributes, no inertial or joints
 element worldbody (alias=body) {
   child body *
   child frame *
   child replicate *
-  # body children are admitted through the alias (all except inertial)
+  child geom *
+  child attach *
+  child site *
+  child camera *
+  child light *
+  child plugin *
+  child composite *
+  child flexcomp *
 }
 
 element frame : mjsFrame (alias=body) {
@@ -2205,17 +2219,42 @@ element frame : mjsFrame (alias=body) {
   childclass  : ref<default>
   pos         : double[3]
   use orientation
-  # body children are admitted through the alias
+  child body R
+  child frame R
+  child replicate *
+  child inertial ?
+  child joint *
+  child freejoint *
+  child geom *
+  child attach *
+  child site *
+  child camera *
+  child light *
+  child plugin *
+  child composite *
+  child flexcomp *
 }
 
-# read into the replicate expansion: hand-written
+# read into the replicate expansion: hand-written.
+# no freejoint or flexcomp children: the replicate expansion rejects them
 element replicate (alias=body) {
   count       : int (required)
   offset      : double[3]
   euler       : double[3]
   sep         : string
   childclass  : ref<default>
-  # body children are admitted through the alias
+  child body *
+  child frame *
+  child replicate R
+  child inertial ?
+  child joint *
+  child geom *
+  child attach *
+  child site *
+  child camera *
+  child light *
+  child plugin *
+  child composite *
 }
 
 
