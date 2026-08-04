@@ -670,7 +670,9 @@ def _make_data_jax(
   efc_address = constraint.make_efc_address(m, dim, efc_type)
 
   float_ = jp.zeros(1, float).dtype
-  int_ = np.int32
+  # let jax pick the tendon wrap int precision, for interop with
+  # jax_enable_x64 (smooth.tendon emits these fields with the canonical int)
+  int_ = jp.zeros(1, int).dtype
   contact = _make_data_contact_jax(dim, efc_address)
 
   if m.opt.cone == types.ConeType.ELLIPTIC and np.any(contact.dim == 1):
@@ -679,12 +681,12 @@ def _make_data_jax(
     )
 
   zero_impl_fields = {
-      'solver_niter': (int_,),
+      'solver_niter': (np.int32,),
       'cinert': (m.nbody, 10, float_),
-      'ten_wrapadr': (m.ntendon, np.int32),
-      'ten_wrapnum': (m.ntendon, np.int32),
+      'ten_wrapadr': (m.ntendon, int_),
+      'ten_wrapnum': (m.ntendon, int_),
       'ten_J': (m.ntendon, m.nv, float_),
-      'wrap_obj': (m.nwrap, 2, np.int32),
+      'wrap_obj': (m.nwrap, 2, int_),
       'wrap_xpos': (m.nwrap, 6, float_),
       'actuator_moment': (m.nu, m.nv, float_),
       'crb': (m.nbody, 10, float_),
@@ -920,6 +922,11 @@ def _put_contact(
   """Converts mujoco.structs._MjContactList into mjx.Contact."""
   fields = {f.name: getattr(c, f.name) for f in types.Contact.fields()}
   fields['frame'] = fields['frame'].reshape((-1, 3, 3))
+  # let jax pick contact.geom int precision, for interop with
+  # jax_enable_x64 (matches _make_data_contact_jax)
+  int_ = jp.zeros(1, int).dtype
+  for fname in ('geom1', 'geom2', 'geom'):
+    fields[fname] = fields[fname].astype(int_)
   # reorder contacts so that their condims match those specified in dim.
   # if we have fewer Contacts for a condim range, pad the range with zeros
 
@@ -991,6 +998,12 @@ def _put_data_jax(
   }
   # MJX does not support islanding, so only transfer the first solver_niter
   impl_fields['solver_niter'] = impl_fields['solver_niter'][0]
+
+  # let jax pick the tendon wrap int precision, for interop with
+  # jax_enable_x64 (matches _make_data_jax and smooth.tendon)
+  int_ = jp.zeros(1, int).dtype
+  for fname in ('ten_wrapadr', 'ten_wrapnum', 'wrap_obj'):
+    impl_fields[fname] = impl_fields[fname].astype(int_)
 
   # convert sparse actuator_moment to dense matrix
   moment = np.zeros((m.nu, m.nv))
