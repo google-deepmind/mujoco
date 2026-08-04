@@ -45,7 +45,7 @@ int LaunchStudio(int argc, char** argv, LauncherConfig config) {
       wayland_display) {
     if (config.gfx_mode.empty()) {
       config.gfx_mode = "opengl_headless";
-    } else if (config.gfx_mode == "classic" || config.gfx_mode == "opengl") {
+    } else if (config.gfx_mode == "opengl") {
       mju_error(
           "Wayland does not support '%s' graphics mode. "
           "Restart with a different graphics mode, or login using X11.",
