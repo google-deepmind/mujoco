@@ -278,12 +278,16 @@ void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]) {
 
 
 // extract 3D rotation from an arbitrary 3x3 matrix
+#ifdef mjUSESINGLE
+static const mjtNum rotEPS = 1e-6f;
+#else
 static const mjtNum rotEPS = 1e-9;
+#endif
 int mju_mat2Rot(mjtNum quat[4], const mjtNum mat[9]) {
-  // Müller, Matthias, Jan Bender, Nuttapong Chentanez, and Miles Macklin. "A
-  // robust method to extract the rotational part of deformations." In
-  // Proceedings of the 9th International Conference on Motion in Games, pp.
-  // 55-60. 2016.
+  // Müller, Matthias, Jan Bender, Nuttapong Chentanez, and Miles Macklin.
+  // "A robust method to extract the rotational part of deformations."
+  // In Proceedings of the 9th International Conference on Motion in Games,
+  // pp. 55-60. 2016.
 
   int iter;
   mjtNum col1_mat[3] = {mat[0], mat[3], mat[6]};
