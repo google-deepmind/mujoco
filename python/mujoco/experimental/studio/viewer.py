@@ -14,7 +14,7 @@
 """Interactive Studio GUI viewer for MuJoCo."""
 
 from absl import app as _app
-from absl import flags
+from absl import flags as _flags
 from mujoco.experimental.studio import launch_passive
 from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import parser
@@ -24,19 +24,15 @@ from mujoco.experimental.studio import viewer_protocol
 
 vp = viewer_protocol
 
-_GFX = flags.DEFINE_enum('gfx', None, vp.GFX_MODES, 'Graphics mode.')
-_WIDTH = flags.DEFINE_integer('width', 1200, 'Width of output window.')
-_HEIGHT = flags.DEFINE_integer('height', 800, 'Height of output window.')
-_MJCF_PATH = flags.DEFINE_string('mjcf', None, 'Path to MJCF file.')
-_VIEWER = flags.DEFINE_enum_class(
-    'viewer', vp.ViewerMode.NATIVE, vp.ViewerMode, 'Viewer mode.'
+_MODEL = _flags.DEFINE_string('model', None, 'Path to model file.')
+_GFX = _flags.DEFINE_enum(
+    'gfx', None, vp.GFX_MODES, 'Graphics mode ("web" launches Web Viewer).'
 )
-_PORT = flags.DEFINE_integer(
-    'port',
-    0,
-    'Web viewer port. 0 picks the first free port starting at 8080, so '
-    'several viewers can run side by side.',
+_PORT = _flags.DEFINE_integer(
+    'port', 0, 'Web Viewer port (0 picks first free port >= 8080).'
 )
+_WIDTH = _flags.DEFINE_integer('width', 1200, 'Width of the output image.')
+_HEIGHT = _flags.DEFINE_integer('height', 800, 'Height of the output image')
 
 
 def main(argv: list[str]) -> None:
@@ -44,12 +40,11 @@ def main(argv: list[str]) -> None:
       width=_WIDTH.value,
       height=_HEIGHT.value,
       gfx=_GFX.value or '',
-      viewer_mode=_VIEWER.value,
       http_port=_PORT.value,
   )
 
   # Resolve model path, if provided.
-  model_path = _MJCF_PATH.value or (
+  model_path = _MODEL.value or (
       argv[1] if len(argv) > 1 and not argv[1].startswith('--') else None
   )
 

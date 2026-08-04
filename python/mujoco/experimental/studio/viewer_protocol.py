@@ -33,15 +33,9 @@ GFX_MODES = (
     'opengl_software',
     'vulkan',
     'vulkan_software',
+    'web',
     'webgl',
 )
-
-
-class ViewerMode(enum.StrEnum):
-  """Determines where the viewer is rendered."""
-
-  NATIVE = 'native'
-  WEB = 'web'
 
 
 # -----------------------------------------------------------------------------
@@ -56,11 +50,8 @@ class ViewerConfig:
   title: str = ''
   width: int = 1200
   height: int = 800
-  gfx: str = ''
-  viewer_mode: ViewerMode = ViewerMode.NATIVE
-  # Web viewer only: public port. 0 picks the first free port starting at 8080,
-  # so several viewers can run side by side.
-  http_port: int = 0
+  gfx: str = ''  # Graphics mode ('web' launches Web Viewer).
+  http_port: int = 0  # Web Viewer port (0 picks first free port >= 8080).
 
 
 # Legacy message types kept for backward compatibility.

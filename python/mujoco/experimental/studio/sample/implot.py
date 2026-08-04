@@ -17,7 +17,7 @@ This script runs a Studio viewer and adds an 'Inspect Body' window using ImGui
 and ImPlot bindings to visualize selected body data. The example demonstrates
 how responsive UI layout rules are easily implemented.
 
-Provide an MJCF model file via the first command-line argument to launch.
+Provide a model file via the --model flag or positional argument to launch.
 """
 
 import math
@@ -40,12 +40,15 @@ from mujoco.experimental.implot import implot
 
 vp = viewer_protocol
 
-_GFX = _flags.DEFINE_enum('gfx', None, vp.GFX_MODES, 'Graphics mode.')
+_MODEL = _flags.DEFINE_string('model', None, 'Path to model file.')
+_GFX = _flags.DEFINE_enum(
+    'gfx', None, vp.GFX_MODES, 'Graphics mode ("web" launches Web Viewer).'
+)
+_PORT = _flags.DEFINE_integer(
+    'port', 0, 'Web Viewer port (0 picks first free port >= 8080).'
+)
 _WIDTH = _flags.DEFINE_integer('width', 1200, 'Width of the output image.')
 _HEIGHT = _flags.DEFINE_integer('height', 800, 'Height of the output image')
-_VIEWER = _flags.DEFINE_enum_class(
-    'viewer', vp.ViewerMode.NATIVE, vp.ViewerMode, 'Viewer mode.'
-)
 
 
 _N_HISTORY = 100
@@ -211,12 +214,15 @@ class BodyInspector:
 
 
 def main(argv: list[str]) -> None:
-  if len(argv) < 2:
-    print('Usage: implot <model_path.xml>')
+  model_path = _MODEL.value or (
+      argv[1] if len(argv) > 1 and not argv[1].startswith('--') else None
+  )
+  if not model_path:
+    print('Usage: implot --model=<model_path.xml>')
     sys.exit(1)
 
-  if (data := parser.parse(argv[1])) is None:
-    print(f'Error loading model from {argv[1]!r}')
+  if (data := parser.parse(model_path)) is None:
+    print(f'Error loading model from {model_path!r}')
     sys.exit(1)
   model = data.model
 
@@ -227,7 +233,7 @@ def main(argv: list[str]) -> None:
       width=_WIDTH.value,
       height=_HEIGHT.value,
       gfx=_GFX.value or '',
-      viewer_mode=_VIEWER.value,
+      http_port=_PORT.value,
   )
 
   with launch_passive.launch_passive(

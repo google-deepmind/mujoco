@@ -16,37 +16,38 @@
 import os
 import sys
 
-from absl import app
-from absl import flags
+from absl import app as _app
+from absl import flags as _flags
 import mujoco
 from mujoco.experimental.studio import parser
 from mujoco.experimental.studio import renderer
 from mujoco.experimental.studio import viewer_protocol
 from PIL import Image
 
-_MODEL = flags.DEFINE_string('model', '', 'Model file to load.')
-_OUTPUT = flags.DEFINE_string('output', '', 'Output file to save.')
-_GFX = flags.DEFINE_enum(
+_MODEL = _flags.DEFINE_string('model', None, 'Path to model file.')
+_OUTPUT = _flags.DEFINE_string('output', '', 'Output file to save.')
+_GFX = _flags.DEFINE_enum(
     'gfx', None, viewer_protocol.GFX_MODES, 'Rendering graphics mode.'
 )
-_WIDTH = flags.DEFINE_integer('width', 320, 'Width of the output image.')
-_HEIGHT = flags.DEFINE_integer('height', 240, 'Height of the output image.')
-_STEPS = flags.DEFINE_integer('steps', 1, 'Number of steps before render.')
+_WIDTH = _flags.DEFINE_integer('width', 320, 'Width of the output image.')
+_HEIGHT = _flags.DEFINE_integer('height', 240, 'Height of the output image.')
+_STEPS = _flags.DEFINE_integer('steps', 1, 'Number of steps before render.')
 
 
-def main(argv):
-  if len(argv) > 1:
-    raise app.UsageError('Too many command-line arguments.')
-  if not _MODEL.value:
-    raise ValueError('`model` flag is required.')
+def main(argv: list[str]) -> None:
+  model_path = _MODEL.value or (
+      argv[1] if len(argv) > 1 and not argv[1].startswith('--') else None
+  )
+  if not model_path:
+    raise _app.UsageError('Please provide a model path argument or --model flag.')
   if not _OUTPUT.value:
-    raise ValueError('`output flag is required.')
+    raise _app.UsageError('`output` flag is required.')
 
   try:
-    data = parser.parse(_MODEL.value)
+    data = parser.parse(model_path)
     model = data.model
   except Exception as ex:  # pylint: disable=broad-except
-    print(f'Error loading model from `{_MODEL.value}`: {ex}')
+    print(f'Error loading model from `{model_path}`: {ex}')
     sys.exit(-1)
 
   for _ in range(_STEPS.value):
@@ -73,4 +74,4 @@ def main(argv):
 
 
 if __name__ == '__main__':
-  app.run(main)
+  _app.run(main)

@@ -74,7 +74,7 @@ GraphicsMode GraphicsModeFromString(std::string_view str,
     return GraphicsMode::FilamentVulkan;
   } else if (str == "vulkan_software") {
     return GraphicsMode::FilamentVulkanSoftware;
-  } else if (str == "webgl") {
+  } else if (str == "web" || str == "webgl") {
     return GraphicsMode::FilamentWebGl;
   } else if (str == "opengl_headless") {
     return GraphicsMode::FilamentOpenGlHeadless;

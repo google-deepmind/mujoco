@@ -38,12 +38,15 @@ from mujoco.experimental.dear_imgui import dear_imgui as imgui
 
 vp = viewer_protocol
 
-_GFX = _flags.DEFINE_enum('gfx', None, vp.GFX_MODES, 'Graphics mode.')
+_MODEL = _flags.DEFINE_string('model', None, 'Path to model file.')
+_GFX = _flags.DEFINE_enum(
+    'gfx', None, vp.GFX_MODES, 'Graphics mode ("web" launches Web Viewer).'
+)
+_PORT = _flags.DEFINE_integer(
+    'port', 0, 'Web Viewer port (0 picks first free port >= 8080).'
+)
 _WIDTH = _flags.DEFINE_integer('width', 1200, 'Width of the output image.')
 _HEIGHT = _flags.DEFINE_integer('height', 800, 'Height of the output image')
-_VIEWER = _flags.DEFINE_enum_class(
-    'viewer', vp.ViewerMode.NATIVE, vp.ViewerMode, 'Viewer mode.'
-)
 
 
 class GhostRenderer:
@@ -155,15 +158,18 @@ class GhostRenderer:
 
 
 def main(argv: list[str]) -> None:
-  if len(argv) != 2:
-    raise _app.UsageError('Please provide exactly one MJCF path argument.')
+  model_path = _MODEL.value or (
+      argv[1] if len(argv) > 1 and not argv[1].startswith('--') else None
+  )
+  if not model_path:
+    raise _app.UsageError('Please provide a model path argument or --model flag.')
 
   data = None
   try:
-    if (data := parser.parse(argv[1])) is None:
+    if (data := parser.parse(model_path)) is None:
       raise ValueError('parser returned None')
   except Exception as ex:  # pylint: disable=broad-except
-    print(f'Failed to load model from {argv[1]!r}: {ex}')
+    print(f'Failed to load model from {model_path!r}: {ex}')
     sys.exit(1)
   model = data.model
 
@@ -172,7 +178,7 @@ def main(argv: list[str]) -> None:
       width=_WIDTH.value,
       height=_HEIGHT.value,
       gfx=_GFX.value or '',
-      viewer_mode=_VIEWER.value,
+      http_port=_PORT.value,
   )
 
   ghost_renderer = GhostRenderer()
