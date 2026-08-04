@@ -135,8 +135,8 @@ TEST_F(MujocoTest, SaveXmlShortString) {
   std::array<char, 10> out;
   EXPECT_THAT(mj_saveXMLString(spec, out.data(), out.size(), error.data(),
                                error.size()),
-              273);
-  EXPECT_STREQ(error.data(), "Output string too short, should be at least 274");
+              223);
+  EXPECT_STREQ(error.data(), "Output string too short, should be at least 224");
 
   mj_deleteSpec(spec);
   mj_deleteModel(model);

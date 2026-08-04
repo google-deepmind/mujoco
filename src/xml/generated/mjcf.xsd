@@ -625,6 +625,16 @@
     <xs:list itemType="xs:float"/>
   </xs:simpleType>
 
+  <xs:simpleType name="int1to3">
+    <xs:restriction>
+      <xs:simpleType>
+        <xs:list itemType="xs:int"/>
+      </xs:simpleType>
+      <xs:minLength value="1"/>
+      <xs:maxLength value="3"/>
+    </xs:restriction>
+  </xs:simpleType>
+
   <xs:simpleType name="int2">
     <xs:restriction>
       <xs:simpleType>
@@ -682,10 +692,10 @@
       <xs:element name="lengthrange" type="lengthrange"/>
       <xs:element name="include" type="include"/>
     </xs:choice>
-    <xs:attribute name="autolimits" type="kw_bool"/>
+    <xs:attribute name="autolimits" type="kw_bool" default="true"/>
     <xs:attribute name="boundmass" type="xs:double"/>
     <xs:attribute name="boundinertia" type="xs:double"/>
-    <xs:attribute name="settotalmass" type="xs:double"/>
+    <xs:attribute name="settotalmass" type="xs:double" default="-1"/>
     <xs:attribute name="balanceinertia" type="kw_bool"/>
     <xs:attribute name="strippath" type="kw_bool">
       <xs:annotation>
@@ -697,7 +707,7 @@
         <xs:documentation>deprecation error</xs:documentation>
       </xs:annotation>
     </xs:attribute>
-    <xs:attribute name="angle" type="kw_angle"/>
+    <xs:attribute name="angle" type="kw_angle" default="degree"/>
     <xs:attribute name="fitaabb" type="kw_bool"/>
     <xs:attribute name="eulerseq">
       <xs:simpleType>
@@ -709,10 +719,10 @@
     <xs:attribute name="meshdir" type="xs:string"/>
     <xs:attribute name="texturedir" type="xs:string"/>
     <xs:attribute name="discardvisual" type="kw_bool"/>
-    <xs:attribute name="usethread" type="kw_bool"/>
+    <xs:attribute name="usethread" type="kw_bool" default="true"/>
     <xs:attribute name="fusestatic" type="kw_bool"/>
-    <xs:attribute name="inertiafromgeom" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="inertiagrouprange" type="int2"/>
+    <xs:attribute name="inertiafromgeom" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="inertiagrouprange" type="int2" default="0 5"/>
     <xs:attribute name="saveinertial" type="kw_bool"/>
     <xs:attribute name="assetdir" type="xs:string">
       <xs:annotation>
@@ -744,8 +754,8 @@
     <xs:attribute name="density" type="xs:double"/>
     <xs:attribute name="viscosity" type="xs:double"/>
     <xs:attribute name="o_margin" type="xs:double"/>
-    <xs:attribute name="o_solref" type="double1to2"/>
-    <xs:attribute name="o_solimp" type="double1to5"/>
+    <xs:attribute name="o_solref" type="double1to2" default="0.02 1"/>
+    <xs:attribute name="o_solimp" type="double1to5" default="0.9 0.95 0.001 0.5 2"/>
     <xs:attribute name="o_friction" type="double1to5" default="1 1 0.005 0.0001 0.0001"/>
     <xs:attribute name="integrator" type="kw_integrator" default="Euler"/>
     <xs:attribute name="cone" type="kw_cone" default="pyramidal"/>
@@ -774,17 +784,17 @@
         <xs:documentation>suffixed byte count</xs:documentation>
       </xs:annotation>
     </xs:attribute>
-    <xs:attribute name="njmax" type="xs:int">
+    <xs:attribute name="njmax" type="xs:int" default="-1">
       <xs:annotation>
         <xs:documentation>range/exclusivity checks</xs:documentation>
       </xs:annotation>
     </xs:attribute>
-    <xs:attribute name="nconmax" type="xs:int">
+    <xs:attribute name="nconmax" type="xs:int" default="-1">
       <xs:annotation>
         <xs:documentation>range check</xs:documentation>
       </xs:annotation>
     </xs:attribute>
-    <xs:attribute name="nstack" type="xs:int">
+    <xs:attribute name="nstack" type="xs:int" default="-1">
       <xs:annotation>
         <xs:documentation>range/exclusivity checks</xs:documentation>
       </xs:annotation>
@@ -803,56 +813,56 @@
         </xs:restriction>
       </xs:simpleType>
     </xs:attribute>
-    <xs:attribute name="nuser_body">
+    <xs:attribute name="nuser_body" default="-1">
       <xs:simpleType>
         <xs:restriction base="xs:int">
           <xs:minInclusive value="-1"/>
         </xs:restriction>
       </xs:simpleType>
     </xs:attribute>
-    <xs:attribute name="nuser_jnt">
+    <xs:attribute name="nuser_jnt" default="-1">
       <xs:simpleType>
         <xs:restriction base="xs:int">
           <xs:minInclusive value="-1"/>
         </xs:restriction>
       </xs:simpleType>
     </xs:attribute>
-    <xs:attribute name="nuser_geom">
+    <xs:attribute name="nuser_geom" default="-1">
       <xs:simpleType>
         <xs:restriction base="xs:int">
           <xs:minInclusive value="-1"/>
         </xs:restriction>
       </xs:simpleType>
     </xs:attribute>
-    <xs:attribute name="nuser_site">
+    <xs:attribute name="nuser_site" default="-1">
       <xs:simpleType>
         <xs:restriction base="xs:int">
           <xs:minInclusive value="-1"/>
         </xs:restriction>
       </xs:simpleType>
     </xs:attribute>
-    <xs:attribute name="nuser_cam">
+    <xs:attribute name="nuser_cam" default="-1">
       <xs:simpleType>
         <xs:restriction base="xs:int">
           <xs:minInclusive value="-1"/>
         </xs:restriction>
       </xs:simpleType>
     </xs:attribute>
-    <xs:attribute name="nuser_tendon">
+    <xs:attribute name="nuser_tendon" default="-1">
       <xs:simpleType>
         <xs:restriction base="xs:int">
           <xs:minInclusive value="-1"/>
         </xs:restriction>
       </xs:simpleType>
     </xs:attribute>
-    <xs:attribute name="nuser_actuator">
+    <xs:attribute name="nuser_actuator" default="-1">
       <xs:simpleType>
         <xs:restriction base="xs:int">
           <xs:minInclusive value="-1"/>
         </xs:restriction>
       </xs:simpleType>
     </xs:attribute>
-    <xs:attribute name="nuser_sensor">
+    <xs:attribute name="nuser_sensor" default="-1">
       <xs:simpleType>
         <xs:restriction base="xs:int">
           <xs:minInclusive value="-1"/>
@@ -1123,16 +1133,16 @@
   </xs:complexType>
 
   <xs:complexType name="lengthrange">
-    <xs:attribute name="mode" type="kw_lrmode"/>
-    <xs:attribute name="useexisting" type="kw_bool"/>
+    <xs:attribute name="mode" type="kw_lrmode" default="muscle"/>
+    <xs:attribute name="useexisting" type="kw_bool" default="true"/>
     <xs:attribute name="uselimit" type="kw_bool"/>
-    <xs:attribute name="accel" type="xs:double"/>
+    <xs:attribute name="accel" type="xs:double" default="20"/>
     <xs:attribute name="maxforce" type="xs:double"/>
-    <xs:attribute name="timeconst" type="xs:double"/>
-    <xs:attribute name="timestep" type="xs:double"/>
-    <xs:attribute name="inttotal" type="xs:double"/>
-    <xs:attribute name="interval" type="xs:double"/>
-    <xs:attribute name="tolrange" type="xs:double"/>
+    <xs:attribute name="timeconst" type="xs:double" default="1"/>
+    <xs:attribute name="timestep" type="xs:double" default="0.01"/>
+    <xs:attribute name="inttotal" type="xs:double" default="10"/>
+    <xs:attribute name="interval" type="xs:double" default="2"/>
+    <xs:attribute name="tolrange" type="xs:double" default="0.05"/>
   </xs:complexType>
 
   <xs:complexType name="flag">
@@ -1244,31 +1254,31 @@
   </xs:complexType>
 
   <xs:complexType name="rgba">
-    <xs:attribute name="fog" type="float4"/>
-    <xs:attribute name="haze" type="float4"/>
-    <xs:attribute name="force" type="float4"/>
-    <xs:attribute name="inertia" type="float4"/>
-    <xs:attribute name="joint" type="float4"/>
-    <xs:attribute name="actuator" type="float4"/>
-    <xs:attribute name="actuatornegative" type="float4"/>
-    <xs:attribute name="actuatorpositive" type="float4"/>
-    <xs:attribute name="com" type="float4"/>
-    <xs:attribute name="camera" type="float4"/>
-    <xs:attribute name="light" type="float4"/>
-    <xs:attribute name="selectpoint" type="float4"/>
-    <xs:attribute name="connect" type="float4"/>
-    <xs:attribute name="contactpoint" type="float4"/>
-    <xs:attribute name="contactforce" type="float4"/>
-    <xs:attribute name="contactfriction" type="float4"/>
-    <xs:attribute name="contacttorque" type="float4"/>
-    <xs:attribute name="contactgap" type="float4"/>
-    <xs:attribute name="rangefinder" type="float4"/>
-    <xs:attribute name="constraint" type="float4"/>
-    <xs:attribute name="slidercrank" type="float4"/>
-    <xs:attribute name="crankbroken" type="float4"/>
-    <xs:attribute name="frustum" type="float4"/>
-    <xs:attribute name="bv" type="float4"/>
-    <xs:attribute name="bvactive" type="float4"/>
+    <xs:attribute name="fog" type="float4" default="0 0 0 1"/>
+    <xs:attribute name="haze" type="float4" default="1 1 1 1"/>
+    <xs:attribute name="force" type="float4" default="1 0.5 0.5 1"/>
+    <xs:attribute name="inertia" type="float4" default="0.8 0.2 0.2 0.6"/>
+    <xs:attribute name="joint" type="float4" default="0.2 0.6 0.8 1"/>
+    <xs:attribute name="actuator" type="float4" default="0.2 0.25 0.2 1"/>
+    <xs:attribute name="actuatornegative" type="float4" default="0.2 0.6 0.9 1"/>
+    <xs:attribute name="actuatorpositive" type="float4" default="0.9 0.4 0.2 1"/>
+    <xs:attribute name="com" type="float4" default="0.9 0.9 0.9 1"/>
+    <xs:attribute name="camera" type="float4" default="0.6 0.9 0.6 1"/>
+    <xs:attribute name="light" type="float4" default="0.6 0.6 0.9 1"/>
+    <xs:attribute name="selectpoint" type="float4" default="0.9 0.9 0.1 1"/>
+    <xs:attribute name="connect" type="float4" default="0.2 0.2 0.8 1"/>
+    <xs:attribute name="contactpoint" type="float4" default="0.9 0.6 0.2 1"/>
+    <xs:attribute name="contactforce" type="float4" default="0.7 0.9 0.9 1"/>
+    <xs:attribute name="contactfriction" type="float4" default="0.9 0.8 0.4 1"/>
+    <xs:attribute name="contacttorque" type="float4" default="0.9 0.7 0.9 1"/>
+    <xs:attribute name="contactgap" type="float4" default="0.5 0.8 0.9 1"/>
+    <xs:attribute name="rangefinder" type="float4" default="1 1 0.1 1"/>
+    <xs:attribute name="constraint" type="float4" default="0.9 0 0 1"/>
+    <xs:attribute name="slidercrank" type="float4" default="0.5 0.3 0.8 1"/>
+    <xs:attribute name="crankbroken" type="float4" default="0.9 0 0 1"/>
+    <xs:attribute name="frustum" type="float4" default="1 1 0 0.2"/>
+    <xs:attribute name="bv" type="float4" default="0 1 0 0.5"/>
+    <xs:attribute name="bvactive" type="float4" default="1 0 0 0.5"/>
   </xs:complexType>
 
   <xs:complexType name="default_mesh">
@@ -1320,20 +1330,20 @@
         <xs:documentation>compile directive: saved as stiffness/damping</xs:documentation>
       </xs:annotation>
     </xs:attribute>
-    <xs:attribute name="limited" type="kw_FalseTrueAuto">
+    <xs:attribute name="limited" type="kw_FalseTrueAuto" default="auto">
       <xs:annotation>
         <xs:documentation>saved unless free</xs:documentation>
       </xs:annotation>
     </xs:attribute>
-    <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto">
+    <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto" default="auto">
       <xs:annotation>
         <xs:documentation>saved for slide/hinge</xs:documentation>
       </xs:annotation>
     </xs:attribute>
-    <xs:attribute name="solreflimit" type="double1to2"/>
-    <xs:attribute name="solimplimit" type="double1to5"/>
-    <xs:attribute name="solreffriction" type="double1to2"/>
-    <xs:attribute name="solimpfriction" type="double1to5"/>
+    <xs:attribute name="solreflimit" type="double1to2" default="0.02 1"/>
+    <xs:attribute name="solimplimit" type="double1to5" default="0.9 0.95 0.001 0.5 2"/>
+    <xs:attribute name="solreffriction" type="double1to2" default="0.02 1"/>
+    <xs:attribute name="solimpfriction" type="double1to5" default="0.9 0.95 0.001 0.5 2"/>
     <xs:attribute name="stiffness" type="double1to3">
       <xs:annotation>
         <xs:documentation>spring polynomial, 1+mjNPOLY coefficients</xs:documentation>
@@ -1414,7 +1424,7 @@
     </xs:attribute>
     <xs:attribute name="rgba" type="float4" default="0.5 0.5 0.5 1"/>
     <xs:attribute name="fluidshape" type="kw_fluidshape"/>
-    <xs:attribute name="fluidcoef" type="double1to5"/>
+    <xs:attribute name="fluidcoef" type="double1to5" default="0.5 0.25 1.5 1 1"/>
     <xs:attribute name="user" type="doublelist"/>
   </xs:complexType>
 
@@ -1511,7 +1521,7 @@
 
   <xs:complexType name="default_tendon">
     <xs:attribute name="group" type="xs:int"/>
-    <xs:attribute name="limited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="limited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="range" type="double2"/>
     <xs:attribute name="solreflimit" type="double1to2"/>
     <xs:attribute name="solimplimit" type="double1to5"/>
@@ -1522,9 +1532,9 @@
     <xs:attribute name="width" type="xs:double"/>
     <xs:attribute name="material" type="xs:string"/>
     <xs:attribute name="margin" type="xs:double"/>
-    <xs:attribute name="stiffness" type="xs:double"/>
-    <xs:attribute name="damping" type="xs:double"/>
-    <xs:attribute name="rgba" type="double4"/>
+    <xs:attribute name="stiffness" type="double1to3"/>
+    <xs:attribute name="damping" type="double1to3"/>
+    <xs:attribute name="rgba" type="float4"/>
     <xs:attribute name="user" type="doublelist"/>
   </xs:complexType>
 
@@ -1535,9 +1545,9 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="actlimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="actlimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="actrange" type="double2"/>
     <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
@@ -1588,8 +1598,8 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
     <xs:attribute name="damping" type="double1to3">
@@ -1612,8 +1622,8 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="inheritrange" type="xs:double"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
@@ -1641,8 +1651,8 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
     <xs:attribute name="damping" type="double1to3">
@@ -1666,9 +1676,9 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="actlimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="actlimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="actrange" type="double2"/>
     <xs:attribute name="inheritrange" type="xs:double"/>
@@ -1696,7 +1706,7 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="kp" type="xs:double"/>
     <xs:attribute name="kv" type="xs:double"/>
@@ -1711,8 +1721,8 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="posrange" type="double2">
       <xs:annotation>
         <xs:documentation>alias: the position-setpoint range</xs:documentation>
@@ -1750,7 +1760,7 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
     <xs:attribute name="damping" type="double1to3">
@@ -1774,8 +1784,8 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
     <xs:attribute name="damping" type="double1to3">
@@ -1802,8 +1812,8 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
     <xs:attribute name="damping" type="double1to3">
@@ -1817,7 +1827,7 @@
         <xs:documentation>slidercrank-only, validated</xs:documentation>
       </xs:annotation>
     </xs:attribute>
-    <xs:attribute name="timeconst" type="xs:double"/>
+    <xs:attribute name="timeconst" type="double2"/>
     <xs:attribute name="range" type="double2"/>
     <xs:attribute name="force" type="xs:double"/>
     <xs:attribute name="scale" type="xs:double"/>
@@ -1835,7 +1845,7 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="gain" type="xs:double"/>
   </xs:complexType>
@@ -1847,7 +1857,7 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
     <xs:attribute name="damping" type="double1to3">
       <xs:annotation>
@@ -2175,7 +2185,7 @@
     </xs:attribute>
     <xs:attribute name="rgba" type="float4" default="0.5 0.5 0.5 1"/>
     <xs:attribute name="fluidshape" type="kw_fluidshape"/>
-    <xs:attribute name="fluidcoef" type="double1to5"/>
+    <xs:attribute name="fluidcoef" type="double1to5" default="0.5 0.25 1.5 1 1"/>
     <xs:attribute name="user" type="doublelist"/>
   </xs:complexType>
 
@@ -2298,7 +2308,7 @@
     </xs:choice>
     <xs:attribute name="prefix" type="xs:string"/>
     <xs:attribute name="type" type="kw_comp" use="required"/>
-    <xs:attribute name="count" type="double1to3"/>
+    <xs:attribute name="count" type="int1to3"/>
     <xs:attribute name="offset" type="double3"/>
     <xs:attribute name="vertex" type="doublelist"/>
     <xs:attribute name="initial" type="xs:string"/>
@@ -2324,8 +2334,8 @@
     <xs:attribute name="group" type="xs:int"/>
     <xs:attribute name="dim" type="xs:int"/>
     <xs:attribute name="dof" type="kw_fdof"/>
-    <xs:attribute name="count" type="double3"/>
-    <xs:attribute name="cellcount" type="double3"/>
+    <xs:attribute name="count" type="int3"/>
+    <xs:attribute name="cellcount" type="int3"/>
     <xs:attribute name="spacing" type="double3"/>
     <xs:attribute name="radius" type="xs:double"/>
     <xs:attribute name="rigid" type="kw_bool"/>
@@ -2337,7 +2347,7 @@
     <xs:attribute name="element" type="doublelist"/>
     <xs:attribute name="texcoord" type="doublelist"/>
     <xs:attribute name="material" type="xs:string"/>
-    <xs:attribute name="rgba" type="double4"/>
+    <xs:attribute name="rgba" type="float4"/>
     <xs:attribute name="flatskin" type="kw_bool"/>
     <xs:attribute name="pos" type="double3"/>
     <xs:attribute name="quat" type="double4"/>
@@ -2360,10 +2370,10 @@
     </xs:choice>
     <xs:attribute name="name" type="xs:string"/>
     <xs:attribute name="group" type="xs:int"/>
-    <xs:attribute name="dim" type="xs:int"/>
-    <xs:attribute name="radius" type="xs:double"/>
+    <xs:attribute name="dim" type="xs:int" default="2"/>
+    <xs:attribute name="radius" type="xs:double" default="0.005"/>
     <xs:attribute name="material" type="xs:string"/>
-    <xs:attribute name="rgba" type="float4"/>
+    <xs:attribute name="rgba" type="float4" default="0.5 0.5 0.5 1"/>
     <xs:attribute name="flatskin" type="kw_bool"/>
     <xs:attribute name="body" type="xs:string" use="required">
       <xs:annotation>
@@ -2379,9 +2389,9 @@
         <xs:documentation>space-separated body names</xs:documentation>
       </xs:annotation>
     </xs:attribute>
-    <xs:attribute name="cellcount" type="int3">
+    <xs:attribute name="cellcount" type="int3" default="1 1 1">
       <xs:annotation>
-        <xs:documentation>seeded to {1,1,1} before reading</xs:documentation>
+        <xs:documentation>seeded before reading</xs:documentation>
       </xs:annotation>
     </xs:attribute>
     <xs:attribute name="dof" type="kw_fdof">
@@ -2425,14 +2435,14 @@
     <xs:attribute name="name" type="xs:string"/>
     <xs:attribute name="class" type="xs:string"/>
     <xs:attribute name="group" type="xs:int"/>
-    <xs:attribute name="limited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="limited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto"/>
     <xs:attribute name="range" type="double2"/>
     <xs:attribute name="actuatorfrcrange" type="double2"/>
-    <xs:attribute name="solreflimit" type="double1to2"/>
-    <xs:attribute name="solimplimit" type="double1to5"/>
-    <xs:attribute name="solreffriction" type="double1to2"/>
-    <xs:attribute name="solimpfriction" type="double1to5"/>
+    <xs:attribute name="solreflimit" type="double1to2" default="0.02 1"/>
+    <xs:attribute name="solimplimit" type="double1to5" default="0.9 0.95 0.001 0.5 2"/>
+    <xs:attribute name="solreffriction" type="double1to2" default="0.02 1"/>
+    <xs:attribute name="solimpfriction" type="double1to5" default="0.9 0.95 0.001 0.5 2"/>
     <xs:attribute name="frictionloss" type="xs:double"/>
     <xs:attribute name="springlength" type="double1to2" default="-1 -1">
       <xs:annotation>
@@ -2468,14 +2478,14 @@
     <xs:attribute name="name" type="xs:string"/>
     <xs:attribute name="class" type="xs:string"/>
     <xs:attribute name="group" type="xs:int"/>
-    <xs:attribute name="limited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="limited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto"/>
     <xs:attribute name="range" type="double2"/>
     <xs:attribute name="actuatorfrcrange" type="double2"/>
-    <xs:attribute name="solreflimit" type="double1to2"/>
-    <xs:attribute name="solimplimit" type="double1to5"/>
-    <xs:attribute name="solreffriction" type="double1to2"/>
-    <xs:attribute name="solimpfriction" type="double1to5"/>
+    <xs:attribute name="solreflimit" type="double1to2" default="0.02 1"/>
+    <xs:attribute name="solimplimit" type="double1to5" default="0.9 0.95 0.001 0.5 2"/>
+    <xs:attribute name="solreffriction" type="double1to2" default="0.02 1"/>
+    <xs:attribute name="solimpfriction" type="double1to5" default="0.9 0.95 0.001 0.5 2"/>
     <xs:attribute name="frictionloss" type="xs:double"/>
     <xs:attribute name="springlength" type="double1to2" default="-1 -1">
       <xs:annotation>
@@ -2594,9 +2604,9 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="actlimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="actlimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="actrange" type="double2"/>
     <xs:attribute name="lengthrange" type="double2"/>
@@ -2662,8 +2672,8 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="lengthrange" type="double2"/>
     <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
@@ -2696,8 +2706,8 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="inheritrange" type="xs:double"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="lengthrange" type="double2"/>
@@ -2735,8 +2745,8 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="lengthrange" type="double2"/>
     <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
@@ -2770,9 +2780,9 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="actlimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="actlimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="actrange" type="double2"/>
     <xs:attribute name="inheritrange" type="xs:double"/>
@@ -2810,7 +2820,7 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="joint" type="xs:string"/>
     <xs:attribute name="site" type="xs:string"/>
@@ -2830,8 +2840,8 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="posrange" type="double2">
       <xs:annotation>
         <xs:documentation>alias: the position-setpoint range</xs:documentation>
@@ -2879,7 +2889,7 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="lengthrange" type="double2"/>
     <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
@@ -2913,8 +2923,8 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="lengthrange" type="double2"/>
     <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
@@ -2951,8 +2961,8 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="lengthrange" type="double2"/>
     <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
@@ -2972,7 +2982,7 @@
     <xs:attribute name="tendon" type="xs:string"/>
     <xs:attribute name="slidersite" type="xs:string"/>
     <xs:attribute name="cranksite" type="xs:string"/>
-    <xs:attribute name="timeconst" type="xs:double"/>
+    <xs:attribute name="timeconst" type="double2"/>
     <xs:attribute name="tausmooth" type="xs:double"/>
     <xs:attribute name="range" type="double2"/>
     <xs:attribute name="force" type="xs:double"/>
@@ -2993,7 +3003,7 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="body" type="xs:string"/>
     <xs:attribute name="gain" type="xs:double"/>
@@ -3008,7 +3018,7 @@
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="ctrlrange" type="double2"/>
     <xs:attribute name="user" type="doublelist"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="lengthrange" type="double2"/>
     <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
     <xs:attribute name="damping" type="double1to3">
@@ -3059,9 +3069,9 @@
     <xs:attribute name="user" type="doublelist"/>
     <xs:attribute name="plugin" type="xs:string"/>
     <xs:attribute name="instance" type="xs:string"/>
-    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto"/>
-    <xs:attribute name="actlimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="actlimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="forcerange" type="double2"/>
     <xs:attribute name="actrange" type="double2"/>
     <xs:attribute name="lengthrange" type="double2"/>
@@ -3845,8 +3855,8 @@
     <xs:attribute name="body" type="xs:string" use="required"/>
     <xs:attribute name="bindpos" type="double3"/>
     <xs:attribute name="bindquat" type="double4"/>
-    <xs:attribute name="vertid" type="doublelist"/>
-    <xs:attribute name="vertweight" type="doublelist"/>
+    <xs:attribute name="vertid" type="intlist"/>
+    <xs:attribute name="vertweight" type="floatlist"/>
   </xs:complexType>
 
   <xs:complexType name="layer">
@@ -3860,7 +3870,7 @@
       <xs:documentation>constraint: at most one of: fullinertia, quat, axisangle, xyaxes, zaxis, euler</xs:documentation>
     </xs:annotation>
     <xs:attribute name="pos" type="double3" use="required"/>
-    <xs:attribute name="quat" type="double4"/>
+    <xs:attribute name="quat" type="double4" default="1 0 0 0"/>
     <xs:attribute name="mass" type="xs:double" use="required"/>
     <xs:attribute name="diaginertia" type="double3"/>
     <xs:attribute name="axisangle" type="double4"/>
@@ -3890,20 +3900,20 @@
         <xs:documentation>compile directive: saved as stiffness/damping</xs:documentation>
       </xs:annotation>
     </xs:attribute>
-    <xs:attribute name="limited" type="kw_FalseTrueAuto">
+    <xs:attribute name="limited" type="kw_FalseTrueAuto" default="auto">
       <xs:annotation>
         <xs:documentation>saved unless free</xs:documentation>
       </xs:annotation>
     </xs:attribute>
-    <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto">
+    <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto" default="auto">
       <xs:annotation>
         <xs:documentation>saved for slide/hinge</xs:documentation>
       </xs:annotation>
     </xs:attribute>
-    <xs:attribute name="solreflimit" type="double1to2"/>
-    <xs:attribute name="solimplimit" type="double1to5"/>
-    <xs:attribute name="solreffriction" type="double1to2"/>
-    <xs:attribute name="solimpfriction" type="double1to5"/>
+    <xs:attribute name="solreflimit" type="double1to2" default="0.02 1"/>
+    <xs:attribute name="solimplimit" type="double1to5" default="0.9 0.95 0.001 0.5 2"/>
+    <xs:attribute name="solreffriction" type="double1to2" default="0.02 1"/>
+    <xs:attribute name="solimpfriction" type="double1to5" default="0.9 0.95 0.001 0.5 2"/>
     <xs:attribute name="stiffness" type="double1to3">
       <xs:annotation>
         <xs:documentation>spring polynomial, 1+mjNPOLY coefficients</xs:documentation>
@@ -3946,7 +3956,7 @@
     <xs:attribute name="solimpfix" type="double1to5"/>
     <xs:attribute name="type" type="kw_jointtype"/>
     <xs:attribute name="axis" type="double3"/>
-    <xs:attribute name="limited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="limited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="range" type="double2"/>
     <xs:attribute name="margin" type="xs:double"/>
     <xs:attribute name="solreflimit" type="double1to2"/>
@@ -3960,7 +3970,7 @@
     <xs:attribute name="texcoord" type="kw_bool"/>
     <xs:attribute name="material" type="xs:string"/>
     <xs:attribute name="group" type="xs:int"/>
-    <xs:attribute name="rgba" type="double4"/>
+    <xs:attribute name="rgba" type="float4"/>
     <xs:attribute name="inflate" type="xs:double"/>
     <xs:attribute name="subgrid" type="xs:int"/>
   </xs:complexType>
@@ -3974,7 +3984,7 @@
     <xs:attribute name="priority" type="xs:int"/>
     <xs:attribute name="size" type="double1to3"/>
     <xs:attribute name="material" type="xs:string"/>
-    <xs:attribute name="rgba" type="double4"/>
+    <xs:attribute name="rgba" type="float4"/>
     <xs:attribute name="friction" type="double1to3"/>
     <xs:attribute name="mass" type="xs:double"/>
     <xs:attribute name="density" type="xs:double"/>
@@ -3991,7 +4001,7 @@
     <xs:attribute name="group" type="xs:int"/>
     <xs:attribute name="size" type="double1to3"/>
     <xs:attribute name="material" type="xs:string"/>
-    <xs:attribute name="rgba" type="double4"/>
+    <xs:attribute name="rgba" type="float4"/>
   </xs:complexType>
 
   <xs:complexType name="flexcomp_edge">
@@ -4006,24 +4016,24 @@
     <xs:attribute name="young" type="xs:double"/>
     <xs:attribute name="poisson" type="xs:double"/>
     <xs:attribute name="damping" type="xs:double"/>
-    <xs:attribute name="thickness" type="xs:double"/>
+    <xs:attribute name="thickness" type="xs:double" default="-1"/>
     <xs:attribute name="elastic2d" type="kw_elastic2d"/>
   </xs:complexType>
 
   <xs:complexType name="flexcomp_contact">
-    <xs:attribute name="contype" type="xs:int"/>
-    <xs:attribute name="conaffinity" type="xs:int"/>
-    <xs:attribute name="condim" type="xs:int"/>
+    <xs:attribute name="contype" type="xs:int" default="1"/>
+    <xs:attribute name="conaffinity" type="xs:int" default="1"/>
+    <xs:attribute name="condim" type="xs:int" default="3"/>
     <xs:attribute name="priority" type="xs:int"/>
-    <xs:attribute name="friction" type="double1to3"/>
-    <xs:attribute name="solmix" type="xs:double"/>
-    <xs:attribute name="solref" type="double1to2"/>
-    <xs:attribute name="solimp" type="double1to5"/>
+    <xs:attribute name="friction" type="double1to3" default="1 0.005 0.0001"/>
+    <xs:attribute name="solmix" type="xs:double" default="1"/>
+    <xs:attribute name="solref" type="double1to2" default="0.02 1"/>
+    <xs:attribute name="solimp" type="double1to5" default="0.9 0.95 0.001 0.5 2"/>
     <xs:attribute name="margin" type="xs:double"/>
     <xs:attribute name="gap" type="xs:double"/>
     <xs:attribute name="internal" type="kw_bool"/>
-    <xs:attribute name="selfcollide" type="kw_flexself"/>
-    <xs:attribute name="activelayers" type="xs:int"/>
+    <xs:attribute name="selfcollide" type="kw_flexself" default="auto"/>
+    <xs:attribute name="activelayers" type="xs:int" default="1"/>
     <xs:attribute name="passive" type="kw_bool"/>
   </xs:complexType>
 

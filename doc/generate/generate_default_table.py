@@ -57,12 +57,14 @@ _HEADER = '''\
 // doc/generate/generate_default_table.py; test/doc/doc_test.py checks
 // freshness.
 //
-// One row per schema attribute with a declared default, binding the declared
-// values to the bound field. SchemaDefaultsTest compares every row against a
-// freshly-constructed spec: the schema's defaults must agree with the C
-// default-constructors. Rows are {attr, offset, kind, len, ndecl, values};
-// values beyond ndecl are expected to be zero; kind: 0=double 1=float 2=int
-// 3=byte 4=mjtNum.
+// One row per bound numeric schema attribute -- total coverage, whether or
+// not a default is declared. SchemaDefaultsTest compares every row against a
+// freshly-constructed spec: declared values must match the C
+// default-constructors, values beyond ndecl must be zero, and rows marked
+// unset must hold the mjNAN sentinel. A nonzero constructor default with no
+// schema declaration is therefore a test failure: the schema cannot silently
+// under-declare. Rows are {attr, offset, kind, len, ndecl, unset, values};
+// kind: 0=double 1=float 2=int 3=byte 4=mjtNum.
 
 // clang-format off
 struct mjXDefaultEntry {
@@ -71,6 +73,7 @@ struct mjXDefaultEntry {
   int kind;
   int len;
   int ndecl;
+  int unset;
   double value[8];
 };
 
@@ -95,8 +98,28 @@ def _values(schema, attr):
   return len(values), [repr(v) for v in values]
 
 
+# fields whose constructor default is the mjNAN "unset" sentinel, not a value;
+# the schema deliberately declares no default and the test asserts the NaN
+UNSET_SENTINELS = {
+    ('mjsBody', 'ipos'), ('mjsBody', 'fullinertia'),
+    ('mjsGeom', 'mass'), ('mjsGeom', 'fromto'),
+    ('mjsSite', 'fromto'),
+    ('mjStatistic', 'meaninertia'), ('mjStatistic', 'meanmass'),
+    ('mjStatistic', 'meansize'), ('mjStatistic', 'extent'),
+    ('mjStatistic', 'center'),
+}
+
+
 def collect(schema, structs):
-  """struct key -> list of row tuples, deduplicated across elements."""
+  """struct key -> list of row tuples, deduplicated across elements.
+
+  Emits a row for every bound numeric attribute. An attribute with a declared
+  default contributes its values; an undeclared one contributes an all-zero
+  expectation (or the unset flag for UNSET_SENTINELS), so the test enforces
+  that every nonzero constructor default is declared in the schema. A declared
+  row replaces an undeclared row for the same field; two declared rows must
+  agree.
+  """
   tables = {}
   seen = {}
   for element in schema.elements.values():
@@ -109,35 +132,51 @@ def collect(schema, structs):
       continue
     prefix = f'{sub}.' if sub else ''
     for attr in schema.expanded_attrs(element):
-      if attr.default is None or attr.type in ('string', 'file', 'chars',
-                                               'ref', 'id', 'flags'):
+      if attr.type in ('string', 'file', 'chars', 'ref', 'id', 'flags'):
         continue
       field = attr.facets.get('field', attr.name)
       entry = fields.get(field)
       if entry is None:
-        if 'reading' in attr.facets:
+        if 'reading' in attr.facets or attr.default is None:
           continue  # custom lowering with no direct binding
         raise ValueError(f'{element.name}.{attr.name}: no field '
                          f'{element.spec}.{field}')
       ctype, dim = entry
       if ctype not in KIND_BY_CTYPE and not ctype.startswith('mjt'):
+        if attr.default is None:
+          continue  # not a numeric field: nothing to compare
         raise ValueError(f'{element.name}.{attr.name}: default bound to '
                          f'field {field} ({ctype})')
+      if ctype.endswith('*'):
+        continue  # vector pointers have no in-place default
       kind = KIND_BY_CTYPE.get(ctype, 2)  # other mjt enums are int-sized
       length = dim if dim is not None else '1'
-      ndecl, values = _values(schema, attr)
+      unset = 1 if (key, field) in UNSET_SENTINELS else 0
+      if attr.default is None:
+        ndecl, values = 0, []
+      else:
+        if unset:
+          raise ValueError(f'{element.name}.{attr.name}: declared default '
+                           'on an unset-sentinel field')
+        ndecl, values = _values(schema, attr)
       if ndecl > 8:
         raise ValueError(f'{element.name}.{attr.name}: {ndecl} default '
                          'values exceed the row capacity')
       row = (attr.name, f'(int)offsetof({element.spec}, {prefix}{field})',
-             kind, str(length), ndecl, values)
+             kind, str(length), ndecl, unset, values)
       prior = seen.get((key, field))
       if prior is not None:
-        if prior != (ndecl, values):
+        prior_row, prior_declared = prior
+        declared = attr.default is not None
+        if declared and prior_declared and prior_row[4:] != row[4:]:
           raise ValueError(f'{element.name}.{attr.name}: conflicting '
                            f'defaults for {key}.{field}')
+        if not declared or prior_declared:
+          continue  # keep the existing (declared or equivalent) row
+        tables[key][tables[key].index(prior_row)] = row
+        seen[(key, field)] = (row, True)
         continue
-      seen[(key, field)] = (ndecl, values)
+      seen[(key, field)] = (row, attr.default is not None)
       tables.setdefault(key, []).append(row)
   return tables
 
@@ -152,9 +191,9 @@ def generate() -> str:
   for key in sorted(tables):
     array = 'kDefaults_' + key.replace('.', '_')
     out.append(f'static const mjXDefaultEntry {array}[] = {{')
-    for attr, offset, kind, length, ndecl, values in tables[key]:
-      vals = ', '.join(values)
-      out.append(f'  {{"{attr}", {offset}, {kind}, {length}, {ndecl}, '
+    for attr, offset, kind, length, ndecl, unset, values in tables[key]:
+      vals = ', '.join(values) if values else '0'
+      out.append(f'  {{"{attr}", {offset}, {kind}, {length}, {ndecl}, {unset}, '
                  f'{{{vals}}}}},')
     out.append('};')
     out.append('')

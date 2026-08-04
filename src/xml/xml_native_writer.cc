@@ -359,17 +359,17 @@ void mjXWriter::OneJoint(XMLElement* elem, const mjCJoint* joint, mjCDef* def,
     if (classname != joint->classname && joint->classname != "main") {
       WriteAttrTxt(elem, "class", joint->classname);
     }
-    if (joint->type != mjJNT_FREE) {
-      WriteAttr(elem, "pos", 3, joint->pos);
-    }
-    if (joint->type != mjJNT_FREE && joint->type != mjJNT_BALL) {
-      WriteAttr(elem, "axis", 3, joint->axis);
-    }
   }
 
   // defaults and regular
   WriteAttrTable(elem, static_cast<const mjsJoint*>(joint), &def->Joint().spec,
                  kJointAttrs, kJointAttrsN);
+  if (joint->type != mjJNT_FREE) {
+    WriteAttr(elem, "pos", 3, joint->pos, def->Joint().spec.pos);
+  }
+  if (joint->type != mjJNT_FREE && joint->type != mjJNT_BALL) {
+    WriteAttr(elem, "axis", 3, joint->axis, def->Joint().spec.axis);
+  }
   if (joint->type != mjJNT_FREE) {
     WriteAttrKey(elem, "limited", FalseTrueAuto_map, 3, joint->limited, def->Joint().limited);
   }
@@ -676,25 +676,33 @@ void mjXWriter::OneEquality(XMLElement* elem, const mjCEquality* equality, mjCDe
         if (equality->objtype == mjOBJ_BODY) {
           WriteAttrTxt(elem, "body1", mjs_getString(equality->name1));
           WriteAttrTxt(elem, "body2", mjs_getString(equality->name2));
-          WriteAttr(elem, "anchor", 3, equality->data);
-          WriteAttr(elem, "relpose", 7, equality->data+3);
+          // unlike connect, weld's body semantic does not require anchor,
+          // and the reader zeroes it when absent: zeros is the default,
+          // not the constructor's union payload
+          double zero3[3] = {0, 0, 0};
+          WriteAttr(elem, "anchor", 3, equality->data, zero3);
+          WriteAttr(elem, "relpose", 7, equality->data+3,
+                    def->Equality().spec.data+3);
         } else {
           WriteAttrTxt(elem, "site1", mjs_getString(equality->name1));
           WriteAttrTxt(elem, "site2", mjs_getString(equality->name2));
         }
-        WriteAttr(elem, "torquescale", 1, equality->data+10);
+        WriteAttr(elem, "torquescale", 1, equality->data+10,
+                  def->Equality().spec.data+10);
         break;
 
       case mjEQ_JOINT:
         WriteAttrTxt(elem, "joint1", mjs_getString(equality->name1));
         WriteAttrTxt(elem, "joint2", mjs_getString(equality->name2));
-        WriteAttr(elem, "polycoef", 5, equality->data);
+        WriteAttr(elem, "polycoef", 5, equality->data,
+                  def->Equality().spec.data);
         break;
 
       case mjEQ_TENDON:
         WriteAttrTxt(elem, "tendon1", mjs_getString(equality->name1));
         WriteAttrTxt(elem, "tendon2", mjs_getString(equality->name2));
-        WriteAttr(elem, "polycoef", 5, equality->data);
+        WriteAttr(elem, "polycoef", 5, equality->data,
+                  def->Equality().spec.data);
         break;
 
       case mjEQ_FLEX:
@@ -704,7 +712,7 @@ void mjXWriter::OneEquality(XMLElement* elem, const mjCEquality* equality, mjCDe
 
       case mjEQ_FLEXSTRAIN:
         WriteAttrTxt(elem, "flex", mjs_getString(equality->name1));
-        WriteAttr(elem, "cell", 3, equality->data);
+        WriteAttr(elem, "cell", 3, equality->data, def->Equality().spec.data);
         break;
 
       default:

@@ -13,9 +13,13 @@
 // limitations under the License.
 
 // Checks that the attribute defaults declared in mjcf.schema agree with the
-// C default-constructors: every generated row is compared against a
-// freshly-constructed spec element.
+// C default-constructors: every bound numeric attribute is compared against a
+// freshly-constructed spec element. Coverage is total, so a nonzero
+// constructor default that the schema does not declare is a failure: the
+// schema cannot silently under-declare. Fields whose constructor value is
+// the mjNAN "unset" sentinel are marked in the table and asserted NaN.
 
+#include <cmath>
 #include <map>
 #include <string>
 
@@ -40,6 +44,14 @@ TEST_F(SchemaDefaultsTest, DeclaredDefaultsMatchConstructors) {
   std::map<std::string, const void*> objects = {
       {"mjOption", &spec->option},
       {"mjVisual", &spec->visual},
+      {"mjStatistic", &spec->stat},
+      {"mjSpec", spec},
+      {"mjLROpt", &spec->compiler.LRopt},
+      {"mjsCompiler", &spec->compiler},
+      {"mjsFlex", mjs_addFlex(spec)},
+      {"mjsHField", mjs_addHField(spec)},
+      {"mjsKey", mjs_addKey(spec)},
+      {"mjsNumeric", mjs_addNumeric(spec)},
       {"mjsBody", body},
       {"mjsFrame", mjs_addFrame(body, nullptr)},
       {"mjsJoint", mjs_addJoint(body, nullptr)},
@@ -69,6 +81,16 @@ TEST_F(SchemaDefaultsTest, DeclaredDefaultsMatchConstructors) {
       for (int j = 0; j < entry.len; j++) {
         double expected = j < entry.ndecl ? entry.value[j] : 0;
         double actual = 0;
+        if (entry.unset && j == 0) {
+          // the constructor holds the mjNAN "unset" sentinel in the first
+          // slot (the rest are zeros), deliberately undeclared in the schema
+          double v = entry.kind == 4
+                         ? (double)reinterpret_cast<const mjtNum*>(field)[j]
+                         : reinterpret_cast<const double*>(field)[j];
+          EXPECT_TRUE(std::isnan(v))
+              << table.structname << "." << entry.attr << "[" << j << "]";
+          continue;
+        }
         switch (entry.kind) {
           case 0:  // double
             actual = reinterpret_cast<const double*>(field)[j];

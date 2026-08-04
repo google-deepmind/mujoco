@@ -1638,5 +1638,86 @@ TEST_F(XMLWriterTest, EmptyFlagsAttribute) {
   EXPECT_THAT(saved_xml, Not(HasSubstr("output=")));
 }
 
+TEST_F(XMLWriterTest, OmitsDefaultJointPosAxis) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b">
+        <joint name="j" type="hinge"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  std::string saved_xml = SaveAndReadXml(model.get());
+  EXPECT_THAT(saved_xml, Not(HasSubstr("pos=\"0 0 0\"")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("axis=")));
+}
+
+TEST_F(XMLWriterTest, KeepsAuthoredJointPosAxis) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b">
+        <joint name="j" type="hinge" pos="0 0 0.5" axis="1 0 0"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  std::string saved_xml = SaveAndReadXml(model.get());
+  EXPECT_THAT(saved_xml, HasSubstr("pos=\"0 0 0.5\""));
+  EXPECT_THAT(saved_xml, HasSubstr("axis=\"1 0 0\""));
+}
+
+TEST_F(XMLWriterTest, OmitsDefaultEqualityData) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b1"><joint name="j1" type="hinge"/><geom size=".1"/></body>
+      <body name="b2"><joint name="j2" type="hinge"/><geom size=".1"/></body>
+    </worldbody>
+    <equality>
+      <weld body1="b1" body2="b2"/>
+      <joint joint1="j1" joint2="j2"/>
+    </equality>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  std::string saved_xml = SaveAndReadXml(model.get());
+  EXPECT_THAT(saved_xml, Not(HasSubstr("anchor=")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("torquescale=")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("polycoef=")));
+  // relpose is legitimately saved: the compiler resolves the zero-quat
+  // "compute current pose" sentinel into the actual relative pose
+  EXPECT_THAT(saved_xml, HasSubstr("relpose=\"0 0 0 1 0 0 0\""));
+}
+
+TEST_F(XMLWriterTest, WritesDefaultClassJointPosAxis) {
+  // pos and axis set in a default class used to be lost when saving
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <joint pos="1 2 3" axis="0 1 0"/>
+    </default>
+    <worldbody>
+      <body name="b">
+        <joint name="j" type="hinge"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  std::string saved_xml = SaveAndReadXml(model.get());
+  EXPECT_THAT(saved_xml, HasSubstr("<joint pos=\"1 2 3\" axis=\"0 1 0\"/>"));
+}
+
 }  // namespace
 }  // namespace mujoco
