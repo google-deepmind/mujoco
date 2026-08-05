@@ -17,6 +17,7 @@
 import dataclasses
 import functools
 import inspect
+import threading
 import typing
 from typing import Any, Callable, Optional, Sequence, Tuple, Union
 
@@ -28,6 +29,15 @@ from mujoco.mjx.third_party.warp._src.jax import ffi as warp_ffi
 
 from mujoco.mjx._src.types import tree_path_to_attr_str
 from mujoco.mjx.warp import types as mjx_warp_types
+
+
+# ``warp_ffi.jax_callable`` keys its registry by wrapper function and
+# configuration. Cache generated wrappers here by the original shim and MJX's
+# flattened call structure so equivalent retraces reuse the same Warp entry.
+_JAX_CALLABLE_VARIADIC_TUPLE_REGISTRY: dict[
+    tuple[Any, ...], Callable[..., Any]
+] = {}
+_JAX_CALLABLE_VARIADIC_TUPLE_REGISTRY_LOCK = threading.Lock()
 
 
 def flatten_signature(signature: inspect.Signature, args: Tuple[Any, ...]):
@@ -109,38 +119,94 @@ def jax_callable_variadic_tuple(
 ):
   """Wraps a JAX callable to support variadic tuples and dataclasses."""
 
+  # Snapshot mapping and name-set options into stable cache-key forms. Warp
+  # consumes them by argument name, so caller ordering does not distinguish
+  # callable configurations.
+  hashable_output_dims = (
+      None if output_dims is None else tuple(sorted(output_dims.items()))
+  )
+  hashable_in_out_argnames = (
+      tuple(sorted(in_out_argnames)) if in_out_argnames else None
+  )
+  hashable_stage_in_argnames = (
+      tuple(sorted(stage_in_argnames)) if stage_in_argnames else None
+  )
+  hashable_stage_out_argnames = (
+      tuple(sorted(stage_out_argnames)) if stage_out_argnames else None
+  )
+
   def callable_wrapper(*args, **kwargs):
-    def func_wrapper(*flat_args, **kwargs):
-      num_inputs = in_tree.num_leaves
-      flat_inputs = flat_args[:num_inputs]
-      output_buffers = flat_args[num_inputs:]
-      unflat_args = jax.tree.unflatten(in_tree, flat_inputs)
-      return func(*unflat_args, *output_buffers, **kwargs)
-
     # Provide a flattened signature for the Warp callable machinery.
+    flat_args, in_tree = jax.tree.flatten(args)
     new_signature = flatten_signature(inspect.signature(func), args)
-    func_wrapper.__signature__ = new_signature  # pyrefly: ignore[missing-attribute]
-    func_wrapper.__annotations__ = {
-        p.name: p.annotation
-        for p in new_signature.parameters.values()
-        if p.annotation is not inspect.Parameter.empty
-    }
-    if new_signature.return_annotation is not inspect.Signature.empty:
-      func_wrapper.__annotations__['return'] = new_signature.return_annotation
-
-    my_callable = warp_ffi.jax_callable(
-        func_wrapper,
-        num_outputs=num_outputs,
-        graph_mode=graph_mode,
-        vmap_method=vmap_method,
-        output_dims=output_dims,
-        in_out_argnames=in_out_argnames,
-        stage_in_argnames=stage_in_argnames,
-        stage_out_argnames=stage_out_argnames,
-        has_side_effect=has_side_effect,
+    # Cache the wrapper's structural ABI, not per-call leaves. The flattened
+    # signature defines Warp's arguments and the PyTree defines reconstruction.
+    # Leaf arrays and tracers are forwarded on every invocation; keying on them
+    # would prevent equivalent retraces from reusing the same FFI target.
+    callable_cache_key = (
+        func,
+        new_signature,
+        in_tree,
+        num_outputs,
+        graph_mode,
+        vmap_method,
+        hashable_output_dims,
+        hashable_in_out_argnames,
+        hashable_stage_in_argnames,
+        hashable_stage_out_argnames,
+        has_side_effect,
     )
 
-    flat_args, in_tree = jax.tree.flatten(args)
+    # Serialize construction so concurrent traces cannot register duplicate
+    # Warp callbacks for the same structural key.
+    with _JAX_CALLABLE_VARIADIC_TUPLE_REGISTRY_LOCK:
+      my_callable = _JAX_CALLABLE_VARIADIC_TUPLE_REGISTRY.get(
+          callable_cache_key
+      )
+      if my_callable is None:
+
+        # Restore the original PyTree inputs; Warp appends output buffers.
+        def func_wrapper(*flat_args, **kwargs):
+          num_inputs = in_tree.num_leaves
+          flat_inputs = flat_args[:num_inputs]
+          output_buffers = flat_args[num_inputs:]
+          unflat_args = jax.tree.unflatten(in_tree, flat_inputs)
+          return func(*unflat_args, *output_buffers, **kwargs)
+
+        # Warp derives the FFI ABI from this synthetic signature and
+        # annotations.
+        func_wrapper.__signature__ = (  # pyrefly: ignore[missing-attribute]
+            new_signature
+        )
+        func_wrapper.__annotations__ = {
+            p.name: p.annotation
+            for p in new_signature.parameters.values()
+            if p.annotation is not inspect.Parameter.empty
+        }
+        if new_signature.return_annotation is not inspect.Signature.empty:
+          func_wrapper.__annotations__['return'] = (
+              new_signature.return_annotation
+          )
+
+        # Constructing the callable registers its FFI target.
+        my_callable = warp_ffi.jax_callable(
+            func_wrapper,
+            num_outputs=num_outputs,
+            graph_mode=graph_mode,
+            vmap_method=vmap_method,
+            output_dims=(
+                None
+                if hashable_output_dims is None
+                else dict(hashable_output_dims)
+            ),
+            in_out_argnames=hashable_in_out_argnames,
+            stage_in_argnames=hashable_stage_in_argnames,
+            stage_out_argnames=hashable_stage_out_argnames,
+            has_side_effect=has_side_effect,
+        )
+        _JAX_CALLABLE_VARIADIC_TUPLE_REGISTRY[callable_cache_key] = my_callable
+
+    # Invocation may re-enter JAX or Warp and needs no registry serialization.
     return my_callable(*flat_args, **kwargs)
 
   return callable_wrapper
