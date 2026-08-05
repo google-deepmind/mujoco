@@ -17,6 +17,8 @@ set(MUJOCO_ENGINE_SRCS
     engine_callback.c
     engine_callback.h
     engine_collision_box.c
+    engine_collision_continuous.c
+    engine_collision_continuous.h
     engine_collision_convex.c
     engine_collision_convex.h
     engine_collision_driver.c
