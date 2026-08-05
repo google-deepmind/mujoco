@@ -4203,6 +4203,15 @@ void mjCModel::CopyObjects(mjModel* m) {
     mjuu_copyvec(m->key_ctrl+i*nu, keys_[i]->ctrl_.data(), nu);
   }
 
+  // copy environment layers; layer_height[nlayer-1] is unused
+  for (int i=0; i < m->nlayer; i++) {
+    m->layer_height[i] = (mjtNum)layers_[i].height;
+    m->layer_density[i] = (mjtNum)layers_[i].density;
+    m->layer_viscosity[i] = (mjtNum)layers_[i].viscosity;
+    mjuu_copyvec(m->layer_gravity+3*i, layers_[i].gravity, 3);
+    mjuu_copyvec(m->layer_wind+3*i, layers_[i].wind, 3);
+  }
+
   // save qpos0 in user model (to recognize changed key_qpos in write)
   qpos0.resize(nq);
   body_pos0.resize(3*nbody);
@@ -5365,6 +5374,14 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     }
   }
 
+  // environment layers must be given in strictly ascending height order
+  for (int i=1; i < layers_.size(); i++) {
+    if (layers_[i].height <= layers_[i-1].height) {
+      throw mjCError(0, "layer heights must be strictly ascending: layer %d is not above layer %d",
+                     nullptr, i, i-1);
+    }
+  }
+
   // create low-level model
   mj_makeModel(&m,
                nq, nv, nu, nactuator, nout, na,
@@ -5377,7 +5394,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
                nskintexvert, nskinface, nskinbone, nskinbonevert, nhfield, nhfielddata, ntex,
                ntexdata, nmat, npair, nexclude, neq, ntendon, nJten, nwrap, nsensor, nnumeric,
                nnumericdata, ntext, ntextdata, ntuple, ntupledata, nkey, nmocap, nplugin,
-               npluginattr, nuser_body, nuser_jnt, nuser_geom, nuser_site, nuser_cam,
+               npluginattr, (mjtSize)layers_.size(),
+               nuser_body, nuser_jnt, nuser_geom, nuser_site, nuser_cam,
                nuser_tendon, nuser_actuator, nuser_sensor, nnames, npaths);
   if (!m) {
     throw mjCError(0, "could not create mjModel");

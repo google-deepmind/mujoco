@@ -1735,6 +1735,15 @@ MJAPI mjsKey* mjs_addKey(mjSpec* s);
 // Add plugin.
 MJAPI mjsPlugin* mjs_addPlugin(mjSpec* s);
 
+// Add environment layer, initialized from the global medium.
+MJAPI mjsLayer* mjs_addLayer(mjSpec* s);
+
+// Get environment layer by index; NULL if out of range. Use to iterate.
+MJAPI mjsLayer* mjs_getLayer(const mjSpec* s, int i);
+
+// Delete all environment layers; invalidates all mjsLayer pointers.
+MJAPI void mjs_deleteLayers(mjSpec* s);
+
 // Add default.
 // Nullable: parent
 MJAPI mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* parent);

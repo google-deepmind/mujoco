@@ -234,6 +234,7 @@
     X( nmocap )             \
     X( nplugin )            \
     X( npluginattr )        \
+    X( nlayer )             \
     X( nuser_body )         \
     X( nuser_jnt )          \
     X( nuser_geom )         \
@@ -793,6 +794,11 @@
     X   ( mjtNum,  key_mpos,              nkey,          MJ_M(nmocap)*3       ) \
     X   ( mjtNum,  key_mquat,             nkey,          MJ_M(nmocap)*4       ) \
     X   ( mjtNum,  key_ctrl,              nkey,          MJ_M(nu)             ) \
+    X   ( mjtNum,  layer_height,          nlayer,        1                    ) \
+    X   ( mjtNum,  layer_gravity,         nlayer,        3                    ) \
+    X   ( mjtNum,  layer_density,         nlayer,        1                    ) \
+    X   ( mjtNum,  layer_viscosity,       nlayer,        1                    ) \
+    X   ( mjtNum,  layer_wind,            nlayer,        3                    ) \
     X   ( int,     name_bodyadr,          nbody,         1                    ) \
     X   ( int,     name_jntadr,           njnt,          1                    ) \
     X   ( int,     name_geomadr,          ngeom,         1                    ) \

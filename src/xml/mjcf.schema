@@ -596,6 +596,17 @@ element option : mjOption {
   sdf_initpoints     : int = 40
   actuatorgroupdisable : int[] (reading=custom)   # bits of disableactuator
   child flag ?
+  child option_layer *
+}
+
+# environment layer: a medium slab bounded above by height, stratified along +z.
+# read and saved by hand (mjXReader::Option / mjXWriter::Option), no spec binding
+element option_layer (xml=layer) {
+  height             : double                    # upper boundary of the layer
+  gravity            : double[3]                 # gravity in this layer
+  density            : double                    # medium density in this layer
+  viscosity          : double                    # medium viscosity in this layer
+  wind               : double[3]                 # wind in this layer
 }
 
 element flag {

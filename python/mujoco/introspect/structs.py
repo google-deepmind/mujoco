@@ -1304,6 +1304,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of chars in all plugin config attributes',
              ),
              StructFieldDecl(
+                 name='nlayer',
+                 type=ValueType(name='mjtSize'),
+                 doc='number of environment layers (0: single medium)',
+             ),
+             StructFieldDecl(
                  name='nuser_body',
                  type=ValueType(name='mjtSize'),
                  doc='number of mjtNums in body_user',
@@ -5027,6 +5032,46 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='key control',
                  array_extent=('nkey', 'nu'),
+             ),
+             StructFieldDecl(
+                 name='layer_height',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='layer upper boundary, last unused',
+                 array_extent=('nlayer',),
+             ),
+             StructFieldDecl(
+                 name='layer_gravity',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='layer gravity',
+                 array_extent=('nlayer', 3),
+             ),
+             StructFieldDecl(
+                 name='layer_density',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='layer fluid density',
+                 array_extent=('nlayer',),
+             ),
+             StructFieldDecl(
+                 name='layer_viscosity',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='layer fluid viscosity',
+                 array_extent=('nlayer',),
+             ),
+             StructFieldDecl(
+                 name='layer_wind',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='layer wind',
+                 array_extent=('nlayer', 3),
              ),
              StructFieldDecl(
                  name='name_bodyadr',
@@ -10112,6 +10157,44 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjString'),
                  ),
                  doc='message appended to compiler errors',
+             ),
+         ),
+     )),
+    ('mjsLayer',
+     StructDecl(
+         name='mjsLayer',
+         declname='struct mjsLayer_',
+         fields=(
+             StructFieldDecl(
+                 name='height',
+                 type=ValueType(name='double'),
+                 doc='upper boundary along +z (top layer: unused)',
+             ),
+             StructFieldDecl(
+                 name='gravity',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(3,),
+                 ),
+                 doc='gravitational acceleration',
+             ),
+             StructFieldDecl(
+                 name='density',
+                 type=ValueType(name='double'),
+                 doc='medium density',
+             ),
+             StructFieldDecl(
+                 name='viscosity',
+                 type=ValueType(name='double'),
+                 doc='medium viscosity',
+             ),
+             StructFieldDecl(
+                 name='wind',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(3,),
+                 ),
+                 doc='wind velocity',
              ),
          ),
      )),

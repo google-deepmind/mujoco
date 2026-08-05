@@ -4188,6 +4188,12 @@ struct MjModel {
   void set_npluginattr(int value) {
     ptr_->npluginattr = static_cast<mjtSize>(value);
   }
+  int nlayer() const {
+    return static_cast<int>(ptr_->nlayer);
+  }
+  void set_nlayer(int value) {
+    ptr_->nlayer = static_cast<mjtSize>(value);
+  }
   int nuser_body() const {
     return static_cast<int>(ptr_->nuser_body);
   }
@@ -5690,6 +5696,21 @@ struct MjModel {
   }
   emscripten::val key_ctrl() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nkey * ptr_->nu, ptr_->key_ctrl));
+  }
+  emscripten::val layer_height() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nlayer, ptr_->layer_height));
+  }
+  emscripten::val layer_gravity() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nlayer * 3, ptr_->layer_gravity));
+  }
+  emscripten::val layer_density() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nlayer, ptr_->layer_density));
+  }
+  emscripten::val layer_viscosity() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nlayer, ptr_->layer_viscosity));
+  }
+  emscripten::val layer_wind() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nlayer * 3, ptr_->layer_wind));
   }
   emscripten::val name_bodyadr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nbody, ptr_->name_bodyadr));

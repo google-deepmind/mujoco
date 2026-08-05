@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <deque>
 #include <functional>
 #include <limits>
 #include <map>
@@ -38,6 +39,7 @@
 #include "user/user_api.h"
 #include "user/user_composite.h"
 #include "user/user_flexcomp.h"
+#include "user/user_model.h"
 #include "user/user_util.h"
 #include "xml/xml_base.h"
 #include "xml/xml_util.h"
@@ -423,6 +425,23 @@ void mjXReader::Option(XMLElement* section, mjSpec* s, mjOption* opt) {
     READENBL("sleep",       mjENBL_SLEEP)
     READENBL("diagexact",   mjENBL_DIAGEXACT)
 #undef READENBL
+  }
+
+  // read layer sub-elements; unspecified attributes fall back to the global medium
+  std::deque<mjsLayer>& layers = static_cast<mjCModel*>(s->element)->layers_;
+  for (XMLElement* layer = FirstChildElement(section, "layer"); layer;
+       layer = NextSiblingElement(layer, "layer")) {
+    mjsLayer info;
+    info.height = ReadAttrNum<double>(layer, "height", /*required=*/true).value();
+    info.density = ReadAttrNum<double>(layer, "density").value_or(opt->density);
+    info.viscosity = ReadAttrNum<double>(layer, "viscosity").value_or(opt->viscosity);
+    auto gravity = ReadAttrArr<double, 3>(layer, "gravity");
+    auto wind = ReadAttrArr<double, 3>(layer, "wind");
+    for (int i=0; i < 3; i++) {
+      info.gravity[i] = gravity ? (*gravity)[i] : opt->gravity[i];
+      info.wind[i] = wind ? (*wind)[i] : opt->wind[i];
+    }
+    layers.push_back(info);
   }
 }
 

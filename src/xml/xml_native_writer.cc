@@ -1050,6 +1050,25 @@ void mjXWriter::Option(XMLElement* root) {
 #undef WRITEENBL
   }
 
+  // write layers; the global medium is the comparison object, as in the reader
+  if (!model->layers_.empty()) {
+    mjsLayer def;
+    def.density = model->option.density;
+    def.viscosity = model->option.viscosity;
+    for (int i = 0; i < 3; i++) {
+      def.gravity[i] = model->option.gravity[i];
+      def.wind[i] = model->option.wind[i];
+    }
+    for (const mjsLayer& layer : model->layers_) {
+      XMLElement* sub = InsertEnd(section, "layer");
+      WriteAttr(sub, "height", 1, &layer.height);
+      WriteAttr(sub, "gravity", 3, layer.gravity, def.gravity);
+      WriteAttr(sub, "density", 1, &layer.density, &def.density);
+      WriteAttr(sub, "viscosity", 1, &layer.viscosity, &def.viscosity);
+      WriteAttr(sub, "wind", 3, layer.wind, def.wind);
+    }
+  }
+
   // remove entire section if no attributes or elements
   if (!section->FirstAttribute() && !section->FirstChildElement()) {
     root->DeleteChild(section);

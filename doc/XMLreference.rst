@@ -706,6 +706,43 @@ from its default.
    constraint quality, particularly in models with highly anisotropic body inertias or bodies operating far from the
    initial configuration ``qpos0``.
 
+.. _option-layer:
+
+:el-prefix:`option/` |-| **layer** |*|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element defines one layer of a stratified environment: a slab of medium bounded above by :at:`height`, whose
+attributes replace the corresponding global attributes of :ref:`option<option>` for bodies inside the slab. Layers must
+be listed in strictly ascending order of :at:`height`; a repeated or out-of-order height is a compile error. The first
+layer is unbounded below and the last layer is unbounded above, so the :at:`height` of the last layer is ignored. If no
+layer element is present the model has a single medium, given by the attributes of :ref:`option<option>`, and the
+simulation is unchanged.
+
+.. _option-layer-height:
+
+:at:`height`: :at-val:`real, required`
+   Upper boundary of this layer along the global +z axis. Ignored for the last layer.
+
+.. _option-layer-gravity:
+
+:at:`gravity`: :at-val:`real(3), optional`
+   Gravitational acceleration inside this layer. Defaults to :ref:`gravity<option-gravity>`.
+
+.. _option-layer-density:
+
+:at:`density`: :at-val:`real, optional`
+   Density of the medium inside this layer. Defaults to :ref:`density<option-density>`.
+
+.. _option-layer-viscosity:
+
+:at:`viscosity`: :at-val:`real, optional`
+   Viscosity of the medium inside this layer. Defaults to :ref:`viscosity<option-viscosity>`.
+
+.. _option-layer-wind:
+
+:at:`wind`: :at-val:`real(3), optional`
+   Velocity of the medium inside this layer. Defaults to :ref:`wind<option-wind>`.
+
 .. _compiler:
 
 **compiler** |*|

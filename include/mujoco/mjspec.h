@@ -831,6 +831,18 @@ typedef struct mjsKey_ {           // keyframe specification
 } mjsKey;
 
 
+// one environment layer: a medium slab bounded above by height, along +z.
+// layers are unnamed global option data rather than model elements: they have
+// no mjtObj type, no name and no id, hence no mjsElement.
+typedef struct mjsLayer_ {         // environment layer specification
+  double height;                   // upper boundary along +z (top layer: unused)
+  double gravity[3];               // gravitational acceleration
+  double density;                  // medium density
+  double viscosity;                // medium viscosity
+  double wind[3];                  // wind velocity
+} mjsLayer;
+
+
 typedef struct mjsDefault_ {       // default specification
   mjsElement* element;             // element type
   mjsJoint* joint;                 // joint defaults

@@ -2008,6 +2008,16 @@ Keyframe specification.
 .. mujoco-include:: mjsKey
 
 
+.. _mjsLayer:
+
+mjsLayer
+~~~~~~~~
+
+Environment layer specification.
+
+.. mujoco-include:: mjsLayer
+
+
 .. _mjsDefault:
 
 mjsDefault

@@ -645,6 +645,7 @@ typedef struct mjModel_ {
   mjtSize nmocap;                 // number of mocap bodies
   mjtSize nplugin;                // number of plugin instances
   mjtSize npluginattr;            // number of chars in all plugin config attributes
+  mjtSize nlayer;                 // number of environment layers (0: single medium)
   mjtSize nuser_body;             // number of mjtNums in body_user
   mjtSize nuser_jnt;              // number of mjtNums in jnt_user
   mjtSize nuser_geom;             // number of mjtNums in geom_user
@@ -1196,6 +1197,13 @@ typedef struct mjModel_ {
   mjtNum*   key_mpos;             // key mocap position                       (nkey x nmocap*3)
   mjtNum*   key_mquat;            // key mocap quaternion                     (nkey x nmocap*4)
   mjtNum*   key_ctrl;             // key control                              (nkey x nu)
+
+  // environment layers, ascending along +z; layer i spans [height[i-1], height[i])
+  mjtNum*   layer_height;         // layer upper boundary, last unused        (nlayer x 1)
+  mjtNum*   layer_gravity;        // layer gravity                            (nlayer x 3)
+  mjtNum*   layer_density;        // layer fluid density                      (nlayer x 1)
+  mjtNum*   layer_viscosity;      // layer fluid viscosity                    (nlayer x 1)
+  mjtNum*   layer_wind;           // layer wind                               (nlayer x 3)
 
   // names
   int*      name_bodyadr;         // body name pointers                       (nbody x 1)
@@ -2340,6 +2348,13 @@ typedef struct mjsKey_ {           // keyframe specification
   mjDoubleVec* ctrl;               // ctrl
   mjString* info;                  // message appended to compiler errors
 } mjsKey;
+typedef struct mjsLayer_ {         // environment layer specification
+  double height;                   // upper boundary along +z (top layer: unused)
+  double gravity[3];               // gravitational acceleration
+  double density;                  // medium density
+  double viscosity;                // medium viscosity
+  double wind[3];                  // wind velocity
+} mjsLayer;
 typedef struct mjsDefault_ {       // default specification
   mjsElement* element;             // element type
   mjsJoint* joint;                 // joint defaults
@@ -3993,6 +4008,9 @@ mjsText* mjs_addText(mjSpec* s);
 mjsTuple* mjs_addTuple(mjSpec* s);
 mjsKey* mjs_addKey(mjSpec* s);
 mjsPlugin* mjs_addPlugin(mjSpec* s);
+mjsLayer* mjs_addLayer(mjSpec* s);
+mjsLayer* mjs_getLayer(const mjSpec* s, int i);
+void mjs_deleteLayers(mjSpec* s);
 mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* parent);
 const char* mjs_setToMotor(mjsActuator* actuator);
 const char* mjs_setToPosition(mjsActuator* actuator, double kp, double kv[1],

@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdio>
+#include <deque>
 #include <functional>
 #include <string>
 #include <type_traits>
@@ -25,6 +26,7 @@
 #include <mujoco/mjspec.h>
 #include <mujoco/mujoco.h>
 #include "user/user_api.h"
+#include "user/user_model.h"
 
 namespace mujoco {
 namespace {
@@ -185,6 +187,44 @@ struct Resolver {
         ops.push_back([&pval, vals]() {
           for (int i = 0; i < N; i++) pval[i] = vals[i];
         });
+        warnings.push_back(p + ", adopting child value");
+      } else {
+        warnings.push_back(p + ", keeping parent value");
+      }
+      return;
+    }
+
+    // both authored: dispatch by mode
+    switch (mode) {
+      case mjCONFLICT_WARNING:
+        warnings.push_back(prefix() + ", keeping parent value");
+        break;
+      case mjCONFLICT_MERGE:
+      case mjCONFLICT_ERROR:
+        errs.push_back(prefix());
+        break;
+    }
+  }
+
+  // resolve the environment layer stack, treated as one unmergeable global:
+  // two stratifications with different boundaries cannot be combined, so the
+  // stack is carried or rejected whole. same policy as the array fields above
+  void operator()(const char* name, std::deque<mjsLayer>& pval,
+                  const std::deque<mjsLayer>& cval) {
+    // a layer stack is authored iff it is non-empty; there is no default stack
+    if (cval.empty()) return;
+
+    // "FIELD: parent has N layers, child has M layers"
+    auto prefix = [&]() {
+      return std::string(name) + ": parent has " + std::to_string(pval.size()) +
+             " layers, child has " + std::to_string(cval.size()) + " layers";
+    };
+
+    // only child authored: adopt or keep
+    if (pval.empty()) {
+      std::string p = prefix();
+      if (mode == mjCONFLICT_MERGE) {
+        ops.push_back([&pval, cval]() { pval = cval; });
         warnings.push_back(p + ", adopting child value");
       } else {
         warnings.push_back(p + ", keeping parent value");
@@ -389,6 +429,17 @@ void VisitConflicts(mjSpec* parent, const mjSpec* child, Resolver& r) {
     kMergeMax);
   r("nuser_sensor", ps.nuser_sensor, cs.nuser_sensor, ds.nuser_sensor,
     kMergeMax);
+
+  // ==== environment layers ====
+  // layers live on mjCModel rather than mjSpec, but they are global medium
+  // data, so they are resolved here with the same policy as option.gravity /
+  // option.wind: the parent's stack wins under 'warning', the attach fails
+  // under 'merge' and 'error' when both specs declare layers, and a child
+  // stack is adopted only under 'merge' when the parent declares none. layers
+  // are never merged element-wise, because two stratifications with different
+  // boundaries have no common refinement.
+  r("layers", static_cast<mjCModel*>(parent->element)->Layers(),
+    static_cast<const mjCModel*>(child->element)->Layers());
 }
 
 // compose subject line for conflict messages
