@@ -20,6 +20,7 @@
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"
+#include "engine/engine_environment.h"
 #include "engine/engine_inline.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_passive.h"
@@ -2585,9 +2586,14 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
 
     // map from CoM-centered to local body-centered 6D velocity
     mj_objectVelocity(m, d, mjOBJ_GEOM, geomid, lvel, 1);
+
+    // sample at the same point as mj_ellipsoidFluidModel, or this stops being its derivative
+    mjEnv env;
+    mj_envSample(m, d->geom_xpos+3*geomid, &env);
+
     // compute wind in local coordinates
     mju_zero(wind, 6);
-    mju_copy3(wind+3, m->opt.wind);
+    mju_copy3(wind+3, env.wind);
     mju_transformSpatial(lwind, wind, 0,
                          d->geom_xpos + 3*geomid,  // Frame of ref's origin.
                          d->subtree_com + 3*m->body_rootid[bodyid],
@@ -2611,20 +2617,20 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
 
     mjtNum B[36], D[9];
     mju_zero(B, 36);
-    mjd_magnus_force(B, lvel, m->opt.density, semiaxes, magnus_lift_coef);
+    mjd_magnus_force(B, lvel, env.density, semiaxes, magnus_lift_coef);
 
-    mjd_kutta_lift(D, lvel, m->opt.density, semiaxes, kutta_lift_coef);
+    mjd_kutta_lift(D, lvel, env.density, semiaxes, kutta_lift_coef);
     addToQuadrant(B, D, 1, 1);
 
-    mjd_viscous_drag(D, lvel, m->opt.density, m->opt.viscosity, semiaxes,
+    mjd_viscous_drag(D, lvel, env.density, env.viscosity, semiaxes,
                      blunt_drag_coef, slender_drag_coef);
     addToQuadrant(B, D, 1, 1);
 
-    mjd_viscous_torque(D, lvel, m->opt.density, m->opt.viscosity, semiaxes,
+    mjd_viscous_torque(D, lvel, env.density, env.viscosity, semiaxes,
                        slender_drag_coef, ang_drag_coef);
     addToQuadrant(B, D, 0, 0);
 
-    mjd_addedMassForces(B, lvel, m->opt.density, virtual_mass, virtual_inertia);
+    mjd_addedMassForces(B, lvel, env.density, virtual_mass, virtual_inertia);
 
     // make B symmetric if integrator is IMPLICITFAST, except for standalone free bodies
     if (m->opt.integrator == mjINT_IMPLICITFAST && !mj_isFreeBody(m, bodyid)) {
@@ -2666,9 +2672,13 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
   // map from CoM-centered to local body-centered 6D velocity
   mj_objectVelocity(m, d, mjOBJ_BODY, i, lvel, 1);
 
+  // sample at the same point as mj_inertiaBoxFluidModel, or this stops being its derivative
+  mjEnv env;
+  mj_envSample(m, d->xipos+3*i, &env);
+
   // compute wind in local coordinates
   mju_zero(wind, 6);
-  mju_copy3(wind+3, m->opt.wind);
+  mju_copy3(wind+3, env.wind);
   mju_transformSpatial(lwind, wind, 0, d->xipos+3*i,
                        d->subtree_com+3*m->body_rootid[i], d->ximat+9*i);
 
@@ -2710,12 +2720,12 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
   mju_copy(J+3*nnz, tmp, 3*nnz);
 
   // add viscous force and torque
-  if (m->opt.viscosity > 0) {
+  if (env.viscosity > 0) {
     // diameter of sphere approximation
     mjtNum diam = (box[0] + box[1] + box[2])/3.0;
 
-    // mju_scl3(lfrc, lvel, -mjPI*diam*diam*diam*m->opt.viscosity)
-    B = -mjPI*diam*diam*diam*m->opt.viscosity;
+    // mju_scl3(lfrc, lvel, -mjPI*diam*diam*diam*env.viscosity)
+    B = -mjPI*diam*diam*diam*env.viscosity;
     for (int j=0; j < 3; j++) {
       if (mj_isSparse(m)) {
         addJTBJSparse(m, d, J, &B, 1, j, rownnz, rowadr, colind);
@@ -2724,8 +2734,8 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
       }
     }
 
-    // mju_scl3(lfrc+3, lvel+3, -3.0*mjPI*diam*m->opt.viscosity);
-    B = -3.0*mjPI*diam*m->opt.viscosity;
+    // mju_scl3(lfrc+3, lvel+3, -3.0*mjPI*diam*env.viscosity);
+    B = -3.0*mjPI*diam*env.viscosity;
     for (int j=0; j < 3; j++) {
       if (mj_isSparse(m)) {
         addJTBJSparse(m, d, J, &B, 1, 3+j, rownnz, rowadr, colind);
@@ -2736,10 +2746,10 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
   }
 
   // add lift and drag force and torque
-  if (m->opt.density > 0) {
-    // lfrc[0] -= m->opt.density*box[0]*(box[1]*box[1]*box[1]*box[1]+box[2]*box[2]*box[2]*box[2])*
+  if (env.density > 0) {
+    // lfrc[0] -= env.density*box[0]*(box[1]*box[1]*box[1]*box[1]+box[2]*box[2]*box[2]*box[2])*
     //            mju_abs(lvel[0])*lvel[0]/64.0;
-    B = -m->opt.density*box[0]*(box[1]*box[1]*box[1]*box[1]+box[2]*box[2]*box[2]*box[2])*
+    B = -env.density*box[0]*(box[1]*box[1]*box[1]*box[1]+box[2]*box[2]*box[2]*box[2])*
         2*mju_abs(lvel[0])/64.0;
     if (mj_isSparse(m)) {
       addJTBJSparse(m, d, J, &B, 1, 0, rownnz, rowadr, colind);
@@ -2747,9 +2757,9 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
       addJTBJ(m, d, J, &B, 1);
     }
 
-    // lfrc[1] -= m->opt.density*box[1]*(box[0]*box[0]*box[0]*box[0]+box[2]*box[2]*box[2]*box[2])*
+    // lfrc[1] -= env.density*box[1]*(box[0]*box[0]*box[0]*box[0]+box[2]*box[2]*box[2]*box[2])*
     //            mju_abs(lvel[1])*lvel[1]/64.0;
-    B = -m->opt.density*box[1]*(box[0]*box[0]*box[0]*box[0]+box[2]*box[2]*box[2]*box[2])*
+    B = -env.density*box[1]*(box[0]*box[0]*box[0]*box[0]+box[2]*box[2]*box[2]*box[2])*
         2*mju_abs(lvel[1])/64.0;
     if (mj_isSparse(m)) {
       addJTBJSparse(m, d, J, &B, 1, 1, rownnz, rowadr, colind);
@@ -2757,9 +2767,9 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
       addJTBJ(m, d, J+nv, &B, 1);
     }
 
-    // lfrc[2] -= m->opt.density*box[2]*(box[0]*box[0]*box[0]*box[0]+box[1]*box[1]*box[1]*box[1])*
+    // lfrc[2] -= env.density*box[2]*(box[0]*box[0]*box[0]*box[0]+box[1]*box[1]*box[1]*box[1])*
     //            mju_abs(lvel[2])*lvel[2]/64.0;
-    B = -m->opt.density*box[2]*(box[0]*box[0]*box[0]*box[0]+box[1]*box[1]*box[1]*box[1])*
+    B = -env.density*box[2]*(box[0]*box[0]*box[0]*box[0]+box[1]*box[1]*box[1]*box[1])*
         2*mju_abs(lvel[2])/64.0;
     if (mj_isSparse(m)) {
       addJTBJSparse(m, d, J, &B, 1, 2, rownnz, rowadr, colind);
@@ -2767,24 +2777,24 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
       addJTBJ(m, d, J+2*nv, &B, 1);
     }
 
-    // lfrc[3] -= 0.5*m->opt.density*box[1]*box[2]*mju_abs(lvel[3])*lvel[3];
-    B = -0.5*m->opt.density*box[1]*box[2]*2*mju_abs(lvel[3]);
+    // lfrc[3] -= 0.5*env.density*box[1]*box[2]*mju_abs(lvel[3])*lvel[3];
+    B = -0.5*env.density*box[1]*box[2]*2*mju_abs(lvel[3]);
     if (mj_isSparse(m)) {
       addJTBJSparse(m, d, J, &B, 1, 3, rownnz, rowadr, colind);
     } else {
       addJTBJ(m, d, J+3*nv, &B, 1);
     }
 
-    // lfrc[4] -= 0.5*m->opt.density*box[0]*box[2]*mju_abs(lvel[4])*lvel[4];
-    B = -0.5*m->opt.density*box[0]*box[2]*2*mju_abs(lvel[4]);
+    // lfrc[4] -= 0.5*env.density*box[0]*box[2]*mju_abs(lvel[4])*lvel[4];
+    B = -0.5*env.density*box[0]*box[2]*2*mju_abs(lvel[4]);
     if (mj_isSparse(m)) {
       addJTBJSparse(m, d, J, &B, 1, 4, rownnz, rowadr, colind);
     } else {
       addJTBJ(m, d, J+4*nv, &B, 1);
     }
 
-    // lfrc[5] -= 0.5*m->opt.density*box[0]*box[1]*mju_abs(lvel[5])*lvel[5];
-    B = -0.5*m->opt.density*box[0]*box[1]*2*mju_abs(lvel[5]);
+    // lfrc[5] -= 0.5*env.density*box[0]*box[1]*mju_abs(lvel[5])*lvel[5];
+    B = -0.5*env.density*box[0]*box[1]*2*mju_abs(lvel[5]);
     if (mj_isSparse(m)) {
       addJTBJSparse(m, d, J, &B, 1, 5, rownnz, rowadr, colind);
     } else {
@@ -2808,8 +2818,9 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
   int nbody = sleep_filter ? d->nbody_awake : m->nbody;
 
-  // fluid drag model, either body-level (inertia box) or geom-level (ellipsoid)
-  if (m->opt.viscosity > 0 || m->opt.density > 0) {
+  // fluid drag model, either body-level (inertia box) or geom-level (ellipsoid).
+  // same test as mj_fluid, so the derivative covers exactly the bodies the force does
+  if (mj_hasFluid(m)) {
     for (int b=0; b < nbody; b++) {
       int i = sleep_filter ? d->body_awake_ind[b] : b;
 

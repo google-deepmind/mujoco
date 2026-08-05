@@ -36,6 +36,9 @@ int mj_adhesion(const mjModel* m, mjData* d);
 
 //------------------------- fluid models -----------------------------------------------------------
 
+// true if the model has fluid in the single medium or in any layer
+int mj_hasFluid(const mjModel* m);
+
 // fluid forces based on inertia-box approximation
 void mj_inertiaBoxFluidModel(const mjModel* m, mjData* d, int i);
 

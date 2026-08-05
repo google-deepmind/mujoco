@@ -28,6 +28,8 @@ mujoco_test(engine_core_util_test)
 
 mujoco_test(engine_derivative_test)
 
+mujoco_test(engine_environment_test)
+
 mujoco_test(engine_forward_test)
 
 mujoco_test(engine_inverse_test)
