@@ -1387,6 +1387,7 @@ public unsafe struct mjModel_ {
   public int* mesh_texcoordadr;
   public int* mesh_texcoordnum;
   public int* mesh_graphadr;
+  public int* mesh_extrema;
   public float* mesh_vert;
   public float* mesh_normal;
   public float* mesh_texcoord;

@@ -407,7 +407,24 @@ static void mjc_hillclimbSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[
   mulMatTVec3(local_dir, mat, dir);
 
   int prev = -1;
-  int imax = obj->meshindex >= 0 ? obj->meshindex : 0;
+  int imax;
+
+  // map continuous direction to discrete 3x3x3 grid (-1, 0, 1) indices
+  int cx = (local_dir[0] > 0.4) - (local_dir[0] < -0.4) + 1;
+  int cy = (local_dir[1] > 0.4) - (local_dir[1] < -0.4) + 1;
+  int cz = (local_dir[2] > 0.4) - (local_dir[2] < -0.4) + 1;
+  int grid_idx = obj->data.mesh.extrema[cx*9 + cy*3 + cz];
+
+  if (obj->meshindex >= 0) {
+    // warm start: pick the better of cached vertex vs grid seed
+    mjtNum cached_dot = dot3f(local_dir, verts + 3*vert_globalid[obj->meshindex]);
+    mjtNum seed_dot = dot3f(local_dir, verts + 3*vert_globalid[grid_idx]);
+    imax = (seed_dot > cached_dot) ? grid_idx : obj->meshindex;
+  } else {
+    // cold start: use grid seed
+    imax = grid_idx;
+  }
+
   mjtNum max = dot3f(local_dir, verts + 3*vert_globalid[imax]);
 
   // hillclimb until no change
@@ -734,9 +751,11 @@ void mjc_initCCDObj(mjCCDObj* obj, const mjModel* m, const mjData* d, int g, mjt
       polyadr = m->mesh_polyadr[m->geom_dataid[g]];
       if (graphadr < 0 || m->mesh_vertnum[m->geom_dataid[g]] < mjMESH_HILLCLIMB_MIN) {
         obj->data.mesh.graph = NULL;
+        obj->data.mesh.extrema = NULL;
         obj->support = mjc_meshSupport;
       } else {
         obj->data.mesh.graph = m->mesh_graph + graphadr;
+        obj->data.mesh.extrema = m->mesh_extrema + 27 * m->geom_dataid[g];
         obj->support = mjc_hillclimbSupport;
       }
       obj->data.mesh.vert = m->mesh_vert + 3*vertadr;

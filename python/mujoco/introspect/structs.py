@@ -3453,6 +3453,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nmesh',),
              ),
              StructFieldDecl(
+                 name='mesh_extrema',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='extremum vertices in 3x3x3 directions',
+                 array_extent=('nmesh', 27),
+             ),
+             StructFieldDecl(
                  name='mesh_vert',
                  type=PointerType(
                      inner_type=ValueType(name='float'),

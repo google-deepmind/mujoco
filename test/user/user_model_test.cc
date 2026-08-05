@@ -350,6 +350,57 @@ TEST_F(UserModelTest, ConvexHullForCollisionMeshes) {
   EXPECT_NE(model->mesh_graphadr[with_hull_conaffinity_id], -1);
 }
 
+TEST_F(UserModelTest, MeshExtremaValidIndices) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="test_mesh" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+            face="0 2 1  0 1 3  0 3 2  1 2 3"/>
+    </asset>
+    <worldbody>
+      <geom name="test_geom" type="mesh" mesh="test_mesh"/>
+    </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+
+  int mesh_id = mj_name2id(model.get(), mjOBJ_MESH, "test_mesh");
+  EXPECT_NE(mesh_id, -1);
+  EXPECT_NE(model->mesh_graphadr[mesh_id], -1);
+
+  const float* verts = model->mesh_vert + 3 * model->mesh_vertadr[mesh_id];
+  const int* graph = model->mesh_graph + model->mesh_graphadr[mesh_id];
+  const int* vert_globalid = graph + 2 + graph[0];
+
+  int k = 0;
+  for (int cx = -1; cx <= 1; cx++) {
+    for (int cy = -1; cy <= 1; cy++) {
+      for (int cz = -1; cz <= 1; cz++) {
+        int v_idx = model->mesh_extrema[mesh_id * 27 + k];
+        EXPECT_GE(v_idx, 0);
+        EXPECT_LT(v_idx, graph[0]);
+
+        int global_id = vert_globalid[v_idx];
+        float max_dot = verts[3 * global_id + 0] * cx +
+                        verts[3 * global_id + 1] * cy +
+                        verts[3 * global_id + 2] * cz;
+
+        // verify no other vertex yields a strictly greater dot product.
+        for (int i = 0; i < graph[0]; i++) {
+          int other_gid = vert_globalid[i];
+          float dot = verts[3 * other_gid + 0] * cx +
+                      verts[3 * other_gid + 1] * cy +
+                      verts[3 * other_gid + 2] * cz;
+          EXPECT_LE(dot, max_dot);
+        }
+        k++;
+      }
+    }
+  }
+}
+
 TEST_F(UserModelTest, ConvexHullForPairCollisionMeshes) {
   static constexpr char xml[] = R"(
   <mujoco>

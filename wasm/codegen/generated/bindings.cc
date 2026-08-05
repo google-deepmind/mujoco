@@ -5122,6 +5122,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("mat_texuniform", &MjModel::mat_texuniform)
     .property("mesh_bvhadr", &MjModel::mesh_bvhadr)
     .property("mesh_bvhnum", &MjModel::mesh_bvhnum)
+    .property("mesh_extrema", &MjModel::mesh_extrema)
     .property("mesh_face", &MjModel::mesh_face)
     .property("mesh_faceadr", &MjModel::mesh_faceadr)
     .property("mesh_facenormal", &MjModel::mesh_facenormal)

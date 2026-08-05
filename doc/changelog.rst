@@ -34,6 +34,7 @@ Actuation
 Engine
 ^^^^^^
 
+- Optimized large-mesh convex collision detection with up to 2x speedup in certain cases.
 - Replaced the per-step sparse Cholesky factorization of the flex block of the implicit effective metric M + K with
   its prefactored per-vertex 3x3 diagonal blocks. The blocks precondition the CG constraint solver and drive an
   iterative solve for ``qacc_smooth``, which now converges on :ref:`tolerance<option-tolerance>` rather than a fixed

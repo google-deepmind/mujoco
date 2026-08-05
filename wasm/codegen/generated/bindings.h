@@ -5100,6 +5100,9 @@ struct MjModel {
   emscripten::val mesh_graphadr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nmesh, ptr_->mesh_graphadr));
   }
+  emscripten::val mesh_extrema() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nmesh * 27, ptr_->mesh_extrema));
+  }
   emscripten::val mesh_vert() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nmeshvert * 3, ptr_->mesh_vert));
   }

@@ -62,7 +62,8 @@ struct _mjCCDObj {
       const int* polyvertnum;
       const int* polyvert;
       const mjtNum* polynormal;
-      const int*graph;
+      const int* graph;
+      const int* extrema;
     } mesh;
 
     // hfield prism data
