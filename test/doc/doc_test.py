@@ -24,6 +24,7 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
 sys.path.insert(0, os.path.join(_REPO_ROOT, 'doc', 'generate'))
 import generate_api_header
 import generate_default_table
+import generate_dmcontrol
 import generate_functions
 import generate_mjcf_map
 import generate_mjcf_table
@@ -135,6 +136,14 @@ class DocTest(googletest.TestCase):
         self,
         'src/xml/generated/mjcf.xsd',
         generate_xsd.generate(),
+    )
+
+  def test_dmcontrol_schema(self):
+    """Checks that dmcontrol_schema.xml matches the schema-generated output."""
+    _check_up_to_date(
+        self,
+        'src/xml/generated/dmcontrol_schema.xml',
+        generate_dmcontrol.generate(),
     )
 
   def test_read_table_consumed(self):
