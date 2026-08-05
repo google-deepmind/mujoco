@@ -526,6 +526,8 @@ class ModelWriter {
             {MjcPhysicsTokens->mjcOptionDensity, spec_->option.density},
             {MjcPhysicsTokens->mjcOptionViscosity, spec_->option.viscosity},
             {MjcPhysicsTokens->mjcOptionO_margin, spec_->option.o_margin},
+            {MjcPhysicsTokens->mjcOptionSleep_tolerance,
+             spec_->option.sleep_tolerance},
         };
     for (const auto &[token, value] : option_double_attributes) {
       WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Double,
@@ -666,7 +668,8 @@ class ModelWriter {
         {MjcPhysicsTokens->mjcFlagFwdinv, mjENBL_FWDINV},
         {MjcPhysicsTokens->mjcFlagEnergy, mjENBL_ENERGY},
         {MjcPhysicsTokens->mjcFlagOverride, mjENBL_OVERRIDE},
-        {MjcPhysicsTokens->mjcFlagInvdiscrete, mjENBL_INVDISCRETE}};
+        {MjcPhysicsTokens->mjcFlagInvdiscrete, mjENBL_INVDISCRETE},
+        {MjcPhysicsTokens->mjcFlagSleep, mjENBL_SLEEP}};
     for (const auto &[token, flag] : enable_flags) {
       create_flag_attr(token, flag, true);
     }
@@ -2311,6 +2314,22 @@ class ModelWriter {
 
     ApplyApiSchema(layer_, body_spec,
                    pxr::UsdPhysicsTokens->PhysicsRigidBodyAPI);
+    ApplyApiSchema(layer_, body_spec, MjcPhysicsTokens->MjcBodyAPI);
+
+    pxr::TfToken sleep_token = MjcPhysicsTokens->auto_;
+    if (body->sleep == mjSLEEP_NEVER) {
+      sleep_token = MjcPhysicsTokens->never;
+    } else if (body->sleep == mjSLEEP_ALLOWED) {
+      sleep_token = MjcPhysicsTokens->allowed;
+    } else if (body->sleep == mjSLEEP_INIT) {
+      sleep_token = MjcPhysicsTokens->init;
+    }
+    WriteUniformAttribute(body_spec, pxr::SdfValueTypeNames->Token,
+                          MjcPhysicsTokens->mjcSleep, sleep_token);
+
+    WriteUniformAttribute(body_spec, pxr::SdfValueTypeNames->Double,
+                          MjcPhysicsTokens->mjcGravcomp,
+                          static_cast<double>(model_->body_gravcomp[body_id]));
 
     // Create classes if necessary
     mjsDefault *spec_default = mjs_getDefault(body->element);

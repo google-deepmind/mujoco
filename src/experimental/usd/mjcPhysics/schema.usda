@@ -322,6 +322,14 @@ class "MjcSceneAPI"
         doc = """List of actuator groups to disable."""
     )
 
+    uniform double mjc:option:sleep_tolerance = 0.001 (
+        customData = {
+            string apiName = "SleepTolerance"
+        }
+        displayName = "Sleep Tolerance"
+        doc = """Tolerance threshold for sleeping bodies."""
+    )
+
     uniform bool mjc:flag:constraint = True (
         customData = {
             string apiName = "ConstraintFlag"
@@ -516,6 +524,14 @@ class "MjcSceneAPI"
         doc = """Enables the discovery of constraint islands."""
     )
 
+    uniform bool mjc:flag:sleep = False (
+        customData = {
+            string apiName = "SleepFlag"
+        }
+        displayName = "Body Sleeping Toggle"
+        doc = """Enables body sleeping."""
+    )
+
     uniform bool mjc:compiler:autoLimits = True (
         customData = {
             string apiName = "AutoLimits"
@@ -633,6 +649,34 @@ class "MjcSceneAPI"
         }
         displayName = "Save Inertial"
         doc = """If True, the compiler will save explicit inertial clauses for all bodies."""
+    )
+}
+
+class "MjcBodyAPI"
+(
+    customData = {
+        string className = "BodyAPI"
+    }
+    doc = """API describing attributes for rigid bodies in MuJoCo."""
+
+    inherits = </APISchemaBase>
+)
+{
+    uniform token mjc:sleep = "auto" (
+        allowedTokens = ["auto", "never", "allowed", "init"]
+        customData = {
+            string apiName = "Sleep"
+        }
+        displayName = "Sleep"
+        doc = """Sleep policy for the body."""
+    )
+
+    uniform double mjc:gravcomp = 0.0 (
+        customData = {
+            string apiName = "GravComp"
+        }
+        displayName = "Gravity Compensation"
+        doc = """Gravity compensation coefficient for the body."""
     )
 }
 

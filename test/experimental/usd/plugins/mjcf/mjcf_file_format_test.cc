@@ -19,6 +19,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/experimental/usd/mjcPhysics/actuator.h>
+#include <mujoco/experimental/usd/mjcPhysics/bodyAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/collisionAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/imageableAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/jointAPI.h>
@@ -88,6 +89,7 @@ PXR_NAMESPACE_CLOSE_SCOPE
 namespace mujoco {
 namespace usd {
 
+using pxr::MjcPhysicsBodyAPI;
 using pxr::MjcPhysicsSiteAPI;
 using pxr::MjcPhysicsTokens;
 using pxr::SdfPath;
@@ -309,6 +311,33 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMaterialPBRSeparate) {
   ExpectAttributeEqual(
       stage, "/mesh_test/Materials/material_pbr_separate/metallic.inputs:file",
       pxr::SdfAssetPath("textures/metallic.png"));
+}
+
+TEST_F(MjcfSdfFileFormatPluginTest, TestSleepAndGravcomp) {
+  static constexpr char kXml[] = R"(
+    <mujoco model="sleep_gravcomp_test">
+      <option sleep_tolerance="0.005">
+        <flag sleep="enable"/>
+      </option>
+      <worldbody>
+        <body name="test_body" sleep="allowed" gravcomp="1.5">
+          <freejoint/>
+          <geom type="sphere" size="0.1"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  )";
+
+  auto stage = OpenStage(kXml);
+  EXPECT_PRIM_VALID(stage, "/sleep_gravcomp_test/PhysicsScene");
+  EXPECT_PRIM_VALID(stage, "/sleep_gravcomp_test/test_body");
+
+  ExpectAttributeEqual(stage, "/sleep_gravcomp_test/PhysicsScene.mjc:option:sleep_tolerance", 0.005);
+  ExpectAttributeEqual(stage, "/sleep_gravcomp_test/PhysicsScene.mjc:flag:sleep", true);
+
+  EXPECT_TRUE(stage->GetPrimAtPath(SdfPath("/sleep_gravcomp_test/test_body")).HasAPI<pxr::MjcPhysicsBodyAPI>());
+  ExpectAttributeEqual(stage, "/sleep_gravcomp_test/test_body.mjc:sleep", pxr::MjcPhysicsTokens->allowed);
+  ExpectAttributeEqual(stage, "/sleep_gravcomp_test/test_body.mjc:gravcomp", 1.5);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestGeomRgba) {

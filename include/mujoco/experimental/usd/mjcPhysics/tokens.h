@@ -60,6 +60,10 @@ struct MjcPhysicsTokensType {
   /// Possible value for MjcPhysicsActuator::GetMjcBiasTypeAttr(), Possible
   /// value for MjcPhysicsActuator::GetMjcGainTypeAttr()
   const TfToken affine;
+  /// \brief "allowed"
+  ///
+  /// Possible value for MjcPhysicsBodyAPI::GetMjcSleepAttr()
+  const TfToken allowed;
   /// \brief "auto"
   ///
   /// Fallback value for MjcPhysicsSceneAPI::GetInertiaFromGeomAttr(), Fallback
@@ -137,6 +141,10 @@ struct MjcPhysicsTokensType {
   /// Possible value for MjcPhysicsSceneAPI::GetIntegratorAttr(),  This token
   /// represents the implicitfast numerical integrator.
   const TfToken implicitfast;
+  /// \brief "init"
+  ///
+  /// Possible value for MjcPhysicsBodyAPI::GetMjcSleepAttr()
+  const TfToken init;
   /// \brief "integrator"
   ///
   /// Possible value for MjcPhysicsActuator::GetMjcDynTypeAttr()
@@ -397,6 +405,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsSceneAPI
   const TfToken mjcFlagSensor;
+  /// \brief "mjc:flag:sleep"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcFlagSleep;
   /// \brief "mjc:flag:spring"
   ///
   /// MjcPhysicsSceneAPI
@@ -437,6 +449,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsActuator
   const TfToken mjcGear;
+  /// \brief "mjc:gravcomp"
+  ///
+  /// MjcPhysicsBodyAPI
+  const TfToken mjcGravcomp;
   /// \brief "mjc:group"
   ///
   /// MjcPhysicsSiteAPI, MjcPhysicsImageableAPI, MjcPhysicsCollisionAPI,
@@ -562,6 +578,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsSceneAPI
   const TfToken mjcOptionSdf_iterations;
+  /// \brief "mjc:option:sleep_tolerance"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcOptionSleep_tolerance;
   /// \brief "mjc:option:solver"
   ///
   /// MjcPhysicsSceneAPI
@@ -650,6 +670,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsTendon
   const TfToken mjcSideSitesIndices;
+  /// \brief "mjc:sleep"
+  ///
+  /// MjcPhysicsBodyAPI
+  const TfToken mjcSleep;
   /// \brief "mjc:sliderSite"
   ///
   /// MjcPhysicsActuator
@@ -724,6 +748,10 @@ struct MjcPhysicsTokensType {
   /// value for MjcPhysicsActuator::GetMjcDynTypeAttr(), Possible value for
   /// MjcPhysicsActuator::GetMjcGainTypeAttr()
   const TfToken muscle;
+  /// \brief "never"
+  ///
+  /// Possible value for MjcPhysicsBodyAPI::GetMjcSleepAttr()
+  const TfToken never;
   /// \brief "newton"
   ///
   /// Fallback value for MjcPhysicsSceneAPI::GetSolverAttr(),  This token
@@ -786,6 +814,10 @@ struct MjcPhysicsTokensType {
   ///
   /// Schema identifier and family for MjcPhysicsActuator
   const TfToken MjcActuator;
+  /// \brief "MjcBodyAPI"
+  ///
+  /// Schema identifier and family for MjcPhysicsBodyAPI
+  const TfToken MjcBodyAPI;
   /// \brief "MjcCollisionAPI"
   ///
   /// Schema identifier and family for MjcPhysicsCollisionAPI

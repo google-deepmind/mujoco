@@ -161,6 +161,10 @@ class "MjcSceneAPI" (
         displayName = "Sensor Computations Toggle"
         doc = "Enables all computations related to sensors."
     )
+    uniform bool mjc:flag:sleep = 0 (
+        displayName = "Body Sleeping Toggle"
+        doc = "Enables body sleeping."
+    )
     uniform bool mjc:flag:spring = 1 (
         displayName = "Spring Forces Toggle"
         doc = "Enables the simulation of joint and tendon springs."
@@ -268,6 +272,10 @@ class "MjcSceneAPI" (
         displayName = "Solver"
         doc = "Constraint solver algorithm to be used."
     )
+    uniform double mjc:option:sleep_tolerance = 0.001 (
+        displayName = "Sleep Tolerance"
+        doc = "Tolerance threshold for sleeping bodies."
+    )
     uniform double mjc:option:timestep = 0.002 (
         displayName = "Timestep"
         doc = """DEPRECATED: Use newton:timeStepsPerSecond instead.
@@ -286,6 +294,21 @@ class "MjcSceneAPI" (
     uniform double3 mjc:option:wind = (0, 0, 0) (
         displayName = "Wind Velocity"
         doc = "Velocity vector of medium (i.e. wind)."
+    )
+}
+
+class "MjcBodyAPI" (
+    doc = "API describing attributes for rigid bodies in MuJoCo."
+)
+{
+    uniform double mjc:gravcomp = 0 (
+        displayName = "Gravity Compensation"
+        doc = "Gravity compensation coefficient for the body."
+    )
+    uniform token mjc:sleep = "auto" (
+        allowedTokens = ["auto", "never", "allowed", "init"]
+        displayName = "Sleep"
+        doc = "Sleep policy for the body."
     )
 }
 

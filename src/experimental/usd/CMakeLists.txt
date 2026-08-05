@@ -126,6 +126,7 @@ target_include_directories(${MJCF_PLUGIN_TARGET_NAME} PRIVATE
 add_library(${MJC_PHYSICS_PLUGIN_TARGET_NAME} SHARED)
 target_sources(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PRIVATE
   mjcPhysics/actuator.cpp
+  mjcPhysics/bodyAPI.cpp
   mjcPhysics/collisionAPI.cpp
   mjcPhysics/equalityAPI.cpp
   mjcPhysics/equalityConnectAPI.cpp
