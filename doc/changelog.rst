@@ -34,6 +34,13 @@ Actuation
 Engine
 ^^^^^^
 
+- Added continuous-collision infrastructure for deformables (``engine_collision_continuous``): differentiable
+  vertex-triangle, edge-edge and vertex-geom distance kernels with closest-point barycentrics, swept-volume contact
+  candidate generation over the flex bounding-volume hierarchy, per-pair gap evaluation with the gradient's vertex
+  weights, and a conservative advancement that bounds each pair's time of impact. Engine-internal with no consumer in
+  this change: the discrete pipeline generates contact points at a configuration, this module prices gaps along
+  trajectories, and it is the groundwork for continuous-contact (IPC-style) solvers for flex.
+
 - Replaced the per-step sparse Cholesky factorization of the flex block of the implicit effective metric M + K with
   its prefactored per-vertex 3x3 diagonal blocks. The blocks precondition the CG constraint solver and drive an
   iterative solve for ``qacc_smooth``, which now converges on :ref:`tolerance<option-tolerance>` rather than a fixed
