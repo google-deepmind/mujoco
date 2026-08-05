@@ -30,6 +30,8 @@ typedef struct mjResource_ {
   mjVFS* vfs;                                   // pointer to the VFS
   char timestamp[512];                          // timestamp of the resource
   const struct mjpResourceProvider* provider;   // pointer to the provider
+  const char* args;  // resource arguments/hints, URI query format key=val&...
+                     // (optional)
 } mjResource;
 
 // callback for opening a resource, returns zero on failure.

@@ -30,6 +30,8 @@ Actuation
 
    - :ref:`mjsActuator` gained ``velrange`` and ``ffrange`` fields, changing its size and layout. The :ref:`mjtGain`
      and :ref:`mjtDyn` enums gained ``pid`` members, shifting the values of ``mjGAIN_USER`` and ``mjDYN_USER``.
+   - :ref:`mjResource` gained an ``args`` field (changing its size and layout), used to hold optional extra encoding and
+     decoding arguments formatted as URI query parameters (separated by ``&``).
 
 Engine
 ^^^^^^

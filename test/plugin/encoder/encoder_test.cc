@@ -130,5 +130,29 @@ TEST_F(EncoderPluginTest, EncodeModel) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(EncoderPluginTest, EncodeWithResourceArgs) {
+  mjSpec* spec = mj_makeSpec();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, testing::NotNull());
+
+  const mjpEncoder* found = mjp_findEncoder("output.fakeformat", nullptr);
+  ASSERT_THAT(found, testing::NotNull());
+
+  mjResource resource = {};
+  resource.name = const_cast<char*>("output.fakeformat");
+  resource.args = "format=binary&compression=9";
+
+  int result = found->encode(spec, model, nullptr, &resource);
+  EXPECT_GT(result, 0);
+
+  auto* output = static_cast<FakeEncoderOutput*>(resource.data);
+  ASSERT_THAT(output, testing::NotNull());
+  EXPECT_STREQ(resource.args, "format=binary&compression=9");
+
+  found->close_resource(&resource);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 }  // namespace
 }  // namespace mujoco
