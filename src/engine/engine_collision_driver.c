@@ -599,15 +599,15 @@ void mj_collision(const mjModel* m, mjData* d) {
   resetArena(d);
   mj_clearEfc(d);
 
-  // reset the visualization flags
-  if (m->vis.global.bvactive) {
-    memset(d->bvh_active, 0, m->nbvh);
-  }
-
   // return if disabled
   if (mjDISABLED(mjDSBL_CONSTRAINT) || mjDISABLED(mjDSBL_CONTACT) || nbodyflex < 2) {
     TM_END1(mjTIMER_POS_COLLISION);
     return;
+  }
+
+  // reset the visualization flags
+  if (m->vis.global.bvactive) {
+    memset(d->bvh_active, 0, m->nbvh);
   }
 
   mj_markStack(d);

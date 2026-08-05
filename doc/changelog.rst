@@ -47,6 +47,9 @@ Engine
      of the effective-metric Cholesky factor, which no longer exists; ``mjData.efm_L`` now holds dense 3x3 blocks,
      9 numbers per covered vertex. ``mjData.efm_active`` no longer takes the value 2: nothing selects a solve path on
      preconditioner exactness, so it is now a plain 0/1 flag.
+   - Changed the default value of :ref:`bvactive<visual-global-bvactive>` from "true" to "false". This avoids
+     unnecessarily clearing bounding volume hierarchy visualization flags at every simulation step, which can be a
+     bottleneck for models with large meshes.
 
 Models
 ^^^^^^

@@ -122,7 +122,7 @@ static const mjXDefaultEntry kDefaults_mjVisual_global[] = {
   {"offheight", (int)offsetof(mjVisual, global.offheight), 2, 1, 1, 0, {480.0}},
   {"realtime", (int)offsetof(mjVisual, global.realtime), 1, 1, 1, 0, {1.0}},
   {"ellipsoidinertia", (int)offsetof(mjVisual, global.ellipsoidinertia), 2, 1, 1, 0, {0}},
-  {"bvactive", (int)offsetof(mjVisual, global.bvactive), 2, 1, 1, 0, {1}},
+  {"bvactive", (int)offsetof(mjVisual, global.bvactive), 2, 1, 1, 0, {0}},
 };
 
 static const mjXDefaultEntry kDefaults_mjVisual_headlight[] = {

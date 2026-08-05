@@ -1193,7 +1193,7 @@
       </xs:simpleType>
     </xs:attribute>
     <xs:attribute name="ellipsoidinertia" type="kw_bool" default="false"/>
-    <xs:attribute name="bvactive" type="kw_bool" default="true"/>
+    <xs:attribute name="bvactive" type="kw_bool" default="false"/>
   </xs:complexType>
 
   <xs:complexType name="quality">

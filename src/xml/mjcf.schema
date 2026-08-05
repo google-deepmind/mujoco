@@ -687,7 +687,7 @@ element global : mjVisual (field=global) {
   offheight          : int = 480
   realtime           : float = 1 (positive)
   ellipsoidinertia   : bool = false
-  bvactive           : bool = true
+  bvactive           : bool = false
 }
 
 element quality : mjVisual (field=quality) {

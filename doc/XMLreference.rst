@@ -9321,10 +9321,10 @@ is effectively a miscellaneous subsection.
 
 .. _visual-global-bvactive:
 
-:at:`bvactive`: :at-val:`[false, true], "true"`
+:at:`bvactive`: :at-val:`[false, true], "false"`
    This attribute specifies whether collision and raycasting code should mark elements of Bounding Volume Hierarchies
-   as intersecting, for the purpose of visualization. Setting this attribute to "false" can speed up simulation for
-   models with high-resolution meshes.
+   as intersecting, for the purpose of visualization. Setting this attribute to "true" can slow down simulation for
+   models with high-resolution meshes, due to the O(N) cost of clearing visualization flags at each step.
 
 .. _visual-quality:
 
