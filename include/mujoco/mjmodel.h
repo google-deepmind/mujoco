@@ -532,6 +532,7 @@ typedef struct mjModel_ {
   mjtNum*   light_dir0;           // global direction in qpos0                (nlight x 3)
   float*    light_attenuation;    // OpenGL attenuation (quadratic model)     (nlight x 3)
   float*    light_cutoff;         // OpenGL cutoff                            (nlight x 1)
+  float*    light_softness;       // spotlight edge softness                  (nlight x 1)
   float*    light_exponent;       // OpenGL exponent                          (nlight x 1)
   float*    light_ambient;        // ambient rgb (alpha=1)                    (nlight x 3)
   float*    light_diffuse;        // diffuse rgb (alpha=1)                    (nlight x 3)

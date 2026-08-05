@@ -4594,6 +4594,11 @@ void mjCLight::Compile(void) {
     throw mjCError(this, "zero direction in light");
   }
 
+  // check softness range
+  if (softness < 0 || softness > 1) {
+    throw mjCError(this, "light softness must be in [0, 1]");
+  }
+
   // get targetbodyid and texid
   ResolveReferences(model);
 }

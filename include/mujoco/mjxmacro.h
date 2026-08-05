@@ -439,6 +439,7 @@
     X   ( mjtNum,  light_dir0,            nlight,        3                    ) \
     X   ( float,   light_attenuation,     nlight,        3                    ) \
     X   ( float,   light_cutoff,          nlight,        1                    ) \
+    X   ( float,   light_softness,        nlight,        1                    ) \
     X   ( float,   light_exponent,        nlight,        1                    ) \
     X   ( float,   light_ambient,         nlight,        3                    ) \
     X   ( float,   light_diffuse,         nlight,        3                    ) \

@@ -85,6 +85,7 @@ void mjrf_defaultLightParams(mjrfLightParams* params) {
   params->cast_shadows = true;
   params->range = 10.0f;
   params->spot_cone_angle = 180.f;
+  params->spot_softness = 0.0f;
   params->bulb_radius = 0.0f;
   params->shadow_map_size = 2048;
   params->vsm_blur_width = 0.0f;

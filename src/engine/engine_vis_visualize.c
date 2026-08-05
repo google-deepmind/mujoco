@@ -2986,6 +2986,7 @@ void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn) {
         f2f(thislight->attenuation, m->light_attenuation+3*i, 3);
         thislight->exponent = m->light_exponent[i];
         thislight->cutoff = m->light_cutoff[i];
+        thislight->softness = m->light_softness[i];
       }
 
       // copy colors

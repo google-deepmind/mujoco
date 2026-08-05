@@ -860,6 +860,7 @@ typedef struct mjModel_ {
   mjtNum*   light_dir0;           // global direction in qpos0                (nlight x 3)
   float*    light_attenuation;    // OpenGL attenuation (quadratic model)     (nlight x 3)
   float*    light_cutoff;         // OpenGL cutoff                            (nlight x 1)
+  float*    light_softness;       // spotlight edge softness                  (nlight x 1)
   float*    light_exponent;       // OpenGL exponent                          (nlight x 1)
   float*    light_ambient;        // ambient rgb (alpha=1)                    (nlight x 3)
   float*    light_diffuse;        // diffuse rgb (alpha=1)                    (nlight x 3)
@@ -1606,6 +1607,7 @@ typedef struct mjrfLightParams_ {
   mjtBool cast_shadows;            // if true, cast shadows
   float range;                     // effective range of light, in meters
   float spot_cone_angle;           // spot light cone angle, in degrees
+  float spot_softness;             // spot light edge softness, fraction of cone angle in [0, 1]
   int shadow_map_size;             // size of shadow map texture, 0 to use default size
   float bulb_radius;               // bulb radius, used for soft shadows
   float vsm_blur_width;            // variance shadow map blur width
@@ -1999,6 +2001,7 @@ typedef struct mjsLight_ {         // light specification
   float range;                     // range of effectiveness
   float attenuation[3];            // OpenGL attenuation (quadratic model)
   float cutoff;                    // OpenGL cutoff
+  float softness;                  // spotlight edge softness
   float exponent;                  // OpenGL exponent
   float ambient[3];                // ambient color
   float diffuse[3];                // diffuse color
@@ -3291,6 +3294,7 @@ typedef struct mjvLight_ {        // OpenGL light
   float    bulbradius;            // bulb radius for soft shadows
   float    intensity;             // intensity, in candelas
   float    range;                 // range of effectiveness
+  float    softness;              // spotlight edge softness
 } mjvLight;
 typedef struct mjvOption_ {          // abstract visualization options
   int      label;                    // what objects to label (mjtLabel)

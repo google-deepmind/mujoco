@@ -2033,6 +2033,12 @@ struct MjvLight {
   void set_range(float value) {
     ptr_->range = value;
   }
+  float softness() const {
+    return ptr_->softness;
+  }
+  void set_softness(float value) {
+    ptr_->softness = value;
+  }
 
  private:
   mjvLight* ptr_;
@@ -2918,6 +2924,12 @@ struct MjsLight {
   }
   void set_cutoff(float value) {
     ptr_->cutoff = value;
+  }
+  float softness() const {
+    return ptr_->softness;
+  }
+  void set_softness(float value) {
+    ptr_->softness = value;
   }
   float exponent() const {
     return ptr_->exponent;
@@ -4784,6 +4796,9 @@ struct MjModel {
   }
   emscripten::val light_cutoff() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nlight, ptr_->light_cutoff));
+  }
+  emscripten::val light_softness() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nlight, ptr_->light_softness));
   }
   emscripten::val light_exponent() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nlight, ptr_->light_exponent));

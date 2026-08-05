@@ -1164,6 +1164,9 @@
                :ref:`cutoff<body-light-cutoff>`
 
             .. grid-item::
+               :ref:`softness<body-light-softness>`
+
+            .. grid-item::
                :ref:`exponent<body-light-exponent>`
 
             .. grid-item::
@@ -5872,6 +5875,9 @@
 
             .. grid-item::
                :ref:`cutoff<default-light-cutoff>`
+
+            .. grid-item::
+               :ref:`softness<default-light-softness>`
 
             .. grid-item::
                :ref:`exponent<default-light-exponent>`

@@ -178,6 +178,7 @@ void ModelLights::Prepare() {
       params.shadow_map_size = default_shadow_map_size;
       if (params.type == mjLIGHT_SPOT) {
         params.spot_cone_angle = model->light_cutoff[i];
+        params.spot_softness = model->light_softness[i];
       }
 
       auto light_obj = CreateLight(ctx, params);

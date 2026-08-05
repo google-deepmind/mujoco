@@ -2645,6 +2645,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nlight',),
              ),
              StructFieldDecl(
+                 name='light_softness',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='spotlight edge softness',
+                 array_extent=('nlight',),
+             ),
+             StructFieldDecl(
                  name='light_exponent',
                  type=PointerType(
                      inner_type=ValueType(name='float'),
@@ -8412,6 +8420,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='OpenGL cutoff',
              ),
              StructFieldDecl(
+                 name='softness',
+                 type=ValueType(name='float'),
+                 doc='spotlight edge softness',
+             ),
+             StructFieldDecl(
                  name='exponent',
                  type=ValueType(name='float'),
                  doc='OpenGL exponent',
@@ -10632,6 +10645,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='range',
                  type=ValueType(name='float'),
                  doc='range of effectiveness',
+             ),
+             StructFieldDecl(
+                 name='softness',
+                 type=ValueType(name='float'),
+                 doc='spotlight edge softness',
              ),
          ),
      )),

@@ -1286,6 +1286,7 @@ public unsafe struct mjModel_ {
   public double* light_dir0;
   public float* light_attenuation;
   public float* light_cutoff;
+  public float* light_softness;
   public float* light_exponent;
   public float* light_ambient;
   public float* light_diffuse;
@@ -6030,6 +6031,7 @@ public unsafe struct mjvLight_ {
   public float bulbradius;
   public float intensity;
   public float range;
+  public float softness;
 }
 
 [StructLayout(LayoutKind.Sequential)]

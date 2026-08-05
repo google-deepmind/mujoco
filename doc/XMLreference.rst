@@ -3307,18 +3307,30 @@ Attributes may be applied or ignored depending on the lighting model being used.
 .. _body-light-attenuation:
 
 :at:`attenuation`: :at-val:`real(3), "1 0 0"`
-   These are the constant, linear and quadratic attenuation coefficients for Phong lighting.
-   The default corresponds to no attenuation.
+   These are the constant, linear and quadratic attenuation coefficients, used by the default Phong lighting model.
+   The default corresponds to no attenuation. Physically-based lighting models instead attenuate with the inverse
+   square of distance, scaled by :ref:`intensity<body-light-intensity>` and limited by :ref:`range<body-light-range>`.
 
 .. _body-light-cutoff:
 
 :at:`cutoff`: :at-val:`real, "45"`
-   Cutoff angle for spotlights, always in degrees regardless of the global angle setting.
+   Cutoff angle for spotlights, always in degrees regardless of the global angle setting. The falloff of intensity
+   inside the cone is controlled by :ref:`softness<body-light-softness>` for physically-based lighting models and by
+   :ref:`exponent<body-light-exponent>` for the default Phong lighting model.
+
+.. _body-light-softness:
+
+:at:`softness`: :at-val:`real, "0"`
+   Edge softness for spotlights, as a fraction of the :ref:`cutoff<body-light-cutoff>` angle in [0, 1], used by
+   physically-based lighting models. The light delivers its full :ref:`intensity<body-light-intensity>` inside the
+   cone, falling to zero over the outer softness fraction of the cone angle; the default corresponds to a sharp-edged
+   cone. This is unused by the default Phong lighting model, which uses :ref:`exponent<body-light-exponent>`.
 
 .. _body-light-exponent:
 
 :at:`exponent`: :at-val:`real, "10"`
-   Exponent for spotlights. This setting controls the softness of the spotlight cutoff.
+   Exponent for spotlights, used by the default Phong lighting model. This setting controls the softness of the
+   spotlight cutoff. Physically-based lighting models use :ref:`softness<body-light-softness>` instead.
 
 .. _body-composite:
 
@@ -10034,6 +10046,8 @@ if omitted.
 .. _default-light-attenuation:
 
 .. _default-light-cutoff:
+
+.. _default-light-softness:
 
 .. _default-light-exponent:
 

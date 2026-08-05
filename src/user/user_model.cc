@@ -3163,6 +3163,7 @@ void mjCModel::CopyTree(mjModel* m) {
       m->light_range[lid] = pl->range;
       mjuu_copyvec(m->light_attenuation+3*lid, pl->attenuation, 3);
       m->light_cutoff[lid] = pl->cutoff;
+      m->light_softness[lid] = pl->softness;
       m->light_exponent[lid] = pl->exponent;
       mjuu_copyvec(m->light_ambient+3*lid, pl->ambient, 3);
       mjuu_copyvec(m->light_diffuse+3*lid, pl->diffuse, 3);

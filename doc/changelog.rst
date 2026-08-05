@@ -13,8 +13,6 @@ General
   grammar table, presence constraints, keyword maps, typed attribute bindings and save policies are generated from it
   and gated by tests, as are the schema's enum keywords and declared defaults against the C headers and
   default-constructors.
-- An XSD schema derived from the main schema is provided in
-  `model/mjcf.xsd <https://github.com/google-deepmind/mujoco/tree/main/src/xml/generated/mjcf.xsd>`__.
 
 Actuation
 ^^^^^^^^^
@@ -57,6 +55,21 @@ Models
   held open by pinning the ring of vertices around its mouth, catching the standard humanoid dropped in from above.
   Unlike the poncho models, which are bending-only, this model exercises the 2D
   :ref:`stretch<flex-elasticity-elastic2d>` elasticity of a flex.
+
+Rendering
+^^^^^^^^^
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - Added :ref:`light/softness<body-light-softness>`: edge softness for spotlights under physically-based lighting
+     models, given as the fraction of the cone over which intensity falls to zero. The default of 0 is a sharp-edged
+     cone which delivers the full :ref:`intensity<body-light-intensity>` everywhere inside it, so that illuminance
+     follows :math:`E = I/d^2` independent of the :ref:`cutoff<body-light-cutoff>` angle. Previously the filament
+     renderer treated the entire cone as penumbra, dimming spotlights well below their rated intensity, increasingly
+     so for narrow cutoffs.
+
+     **Migration:** Set :at:`softness` to 1 to reproduce the previous appearance of existing models.
 
 Bug fixes
 ^^^^^^^^^

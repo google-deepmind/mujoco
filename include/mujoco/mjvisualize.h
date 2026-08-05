@@ -277,6 +277,7 @@ typedef struct mjvLight_ {        // OpenGL light
   float    bulbradius;            // bulb radius for soft shadows
   float    intensity;             // intensity, in candelas
   float    range;                 // range of effectiveness
+  float    softness;              // spotlight edge softness
 } mjvLight;
 
 

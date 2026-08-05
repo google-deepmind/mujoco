@@ -22,7 +22,8 @@
   </asset>
 
   <worldbody>
-    <light pos="1.5 -.5 2" dir="-.6 .2 -.75" diffuse=".7 .7 .7" intensity="200000"/>
+    <light pos="1.5 -.5 2" dir="-.6 .2 -.75" diffuse=".7 .7 .7" intensity="200000"
+           softness="1"/>
     <light type="image" texture="ibl" intensity="10000"/>
     <geom name="floor" type="plane" size="2 2 .01" rgba=".7 .75 .7 1"/>
 

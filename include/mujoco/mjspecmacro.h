@@ -258,6 +258,7 @@
     X   ( float,        range,       1 ) \
     XVEC( float,        attenuation, 3 ) \
     X   ( float,        cutoff,      1 ) \
+    X   ( float,        softness,    1 ) \
     X   ( float,        exponent,    1 ) \
     XVEC( float,        ambient,     3 ) \
     XVEC( float,        diffuse,     3 ) \

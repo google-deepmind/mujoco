@@ -1117,6 +1117,7 @@ element light : mjsLight {
   range              : float = 10
   attenuation        : float[3] = {1, 0, 0}
   cutoff             : float = 45
+  softness           : float = 0
   exponent           : float = 10
   ambient            : float[3]
   diffuse            : float[3] = {0.7, 0.7, 0.7}

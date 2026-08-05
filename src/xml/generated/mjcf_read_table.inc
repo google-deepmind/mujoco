@@ -426,6 +426,7 @@ inline constexpr mjXAttr kLightAttrs[] = {
   {"range", mjXAttr::kFloat, 1, true, false, false, false, (int)offsetof(mjsLight, range)},
   {"attenuation", mjXAttr::kFloat, 3, true, false, false, false, (int)offsetof(mjsLight, attenuation)},
   {"cutoff", mjXAttr::kFloat, 1, true, false, false, false, (int)offsetof(mjsLight, cutoff)},
+  {"softness", mjXAttr::kFloat, 1, true, false, false, false, (int)offsetof(mjsLight, softness)},
   {"exponent", mjXAttr::kFloat, 1, true, false, false, false, (int)offsetof(mjsLight, exponent)},
   {"ambient", mjXAttr::kFloat, 3, true, false, false, false, (int)offsetof(mjsLight, ambient)},
   {"diffuse", mjXAttr::kFloat, 3, true, false, false, false, (int)offsetof(mjsLight, diffuse)},

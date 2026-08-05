@@ -5102,6 +5102,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("light_pos0", &MjModel::light_pos0)
     .property("light_poscom0", &MjModel::light_poscom0)
     .property("light_range", &MjModel::light_range)
+    .property("light_softness", &MjModel::light_softness)
     .property("light_specular", &MjModel::light_specular)
     .property("light_targetbodyid", &MjModel::light_targetbodyid)
     .property("light_texid", &MjModel::light_texid)
@@ -5893,6 +5894,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("mode", &MjsLight::mode, &MjsLight::set_mode, reference())
     .property("pos", &MjsLight::pos)
     .property("range", &MjsLight::range, &MjsLight::set_range, reference())
+    .property("softness", &MjsLight::softness, &MjsLight::set_softness, reference())
     .property("specular", &MjsLight::specular)
     .property("targetbody", &MjsLight::targetbody, &MjsLight::set_targetbody, reference())
     .property("texture", &MjsLight::texture, &MjsLight::set_texture, reference())
@@ -6170,6 +6172,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("intensity", &MjvLight::intensity, &MjvLight::set_intensity, reference())
     .property("pos", &MjvLight::pos)
     .property("range", &MjvLight::range, &MjvLight::set_range, reference())
+    .property("softness", &MjvLight::softness, &MjvLight::set_softness, reference())
     .property("specular", &MjvLight::specular)
     .property("texid", &MjvLight::texid, &MjvLight::set_texid, reference())
     .property("type", &MjvLight::type, &MjvLight::set_type, reference());
