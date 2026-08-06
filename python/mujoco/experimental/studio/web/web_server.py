@@ -16,7 +16,7 @@
 This server runs in a child process with one asyncio loop on a single public
 port:
 
-  * Plain HTTP GET   serves static files (index.html, WASM, assets), /model.mjb.
+  * Plain HTTP GET   serves static files (index.html, WASM, assets), /model.
   * WebSocket /ui    serves the bridge to the headless NetImgui client, which
                      connects over loopback TCP (see headless_ui.cc).
   * WebSocket /state serves the latest-wins state payload broadcast at ~60Hz
@@ -40,6 +40,7 @@ import asyncio
 import ctypes
 import datetime
 import enum
+import json
 import logging
 import multiprocessing
 import multiprocessing.queues
@@ -50,6 +51,7 @@ import socket
 import struct
 import sys
 import threading
+import urllib.parse
 from typing import Any, Awaitable, Callable, Optional, cast
 
 from websockets.asyncio.server import serve
@@ -123,7 +125,7 @@ _NETIMGUI_CMD_VERSION_SIZE = 120
 # reconnects within ~1s in the normal case; this only bounds the pathological
 # one where it never appears (e.g., the headless UI failed to start), so a stuck
 # controller cannot lock every other browser out forever.
-_UI_TCP_WAIT_SEC = 15.0
+_UI_TCP_WAIT_SEC = 30.0
 
 # Content types for the static files the HTTP handler serves.
 _CONTENT_TYPES = {
@@ -446,7 +448,7 @@ def _run_server(
 
   def _serve_http(path: str) -> Response:
     """Builds the HTTP response for a non-WebSocket GET request."""
-    if path == "/model.mjb":
+    if path == "/model":
       if not mjb_data:
         return Response(404, "Not Found", Headers(), b"no model\n")
       # The model changes on hot-swap; never serve a cached copy.
@@ -947,9 +949,44 @@ def _run_server(
         connection: ServerConnection, request: Request
     ) -> Optional[Response]:
       del connection
-      path = request.path.split("?")[0]
+
+      # Split path and query string.
+      if "?" in request.path:
+        path, query_string = request.path.split("?", 1)
+      else:
+        path, query_string = request.path, ""
       if path in ("/ui", "/state", "/drop"):
         return None  # Proceed with the WebSocket handshake.
+
+      # Chunked model endpoint: the client fetches /model in parallel chunks
+      #
+      #   GET /model?total_bytes                 -> {"total_bytes": <n>}
+      #   GET /model?offset_bytes=X&size_bytes=Y -> bytes [X, X+Y)
+      #
+      # Full model endpoint: the client fetches /model in a single request
+      #
+      #   GET /model  -> full model bytes
+      if path == "/model" and mjb_data and query_string:
+        params = urllib.parse.parse_qs(query_string)
+        if "total_bytes" in params or query_string == "total_bytes":
+          body = json.dumps({"total_bytes": len(mjb_data)}).encode()
+          headers = _http_headers(
+              "application/json", len(body), cacheable=False
+          )
+          return Response(200, "OK", headers, body)
+        try:
+          offset = int(params.get("offset_bytes", [0])[0])
+          size = int(params.get("size_bytes", [0])[0])
+        except (ValueError, TypeError):
+          return Response(400, "Bad Request", Headers(), b"bad params\n")
+        if size <= 0 or offset < 0 or offset >= len(mjb_data):
+          return Response(400, "Bad Request", Headers(), b"bad range\n")
+        chunk = mjb_data[offset : min(offset + size, len(mjb_data))]
+        headers = _http_headers(
+            "application/octet-stream", len(chunk), cacheable=False
+        )
+        return Response(200, "OK", headers, chunk)
+
       return _serve_http(path)
 
     def process_response(
@@ -1089,7 +1126,10 @@ def _run_server(
         process_request=process_request,
         process_response=process_response,
         compression=None,
-        close_timeout=1.0,
+        ping_interval=None,
+        ping_timeout=None,
+        open_timeout=None,
+        close_timeout=None,
         # Big enough for model files uploaded via /drop.
         max_size=2**26,
     )
@@ -1097,7 +1137,7 @@ def _run_server(
     tcp_port = tcp_sock.getsockname()[1]
     logger.debug(
         "[Http] Serving on http://%s:%d "
-        "(/, /model.mjb, /ui, /state; NetImgui TCP on 127.0.0.1:%d)",
+        "(/, /model, /ui, /state; NetImgui TCP on 127.0.0.1:%d)",
         http_host,
         http_port,
         tcp_port,
@@ -1147,7 +1187,7 @@ class WebServer:
       http_sock: The listening socket for HTTP and WebSocket traffic.
       tcp_sock: The listening socket for NetImgui traffic.
       static_files_dir: The directory containing the static files to serve.
-      mjb_data: The model data to serve from /model.mjb.
+      mjb_data: The model data to serve from /model.
       max_payload_size: The maximum size of the state payload.
       drop_queue: The queue to put dropped files onto.
       controller_sid_shared: The shared value containing the controller's

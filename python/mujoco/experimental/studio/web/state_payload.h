@@ -20,7 +20,7 @@
 //
 // The arguments come from the Python process:
 //
-//   * model       : fetched once over HTTP as /model.mjb; its runtime-mutable
+//   * model       : fetched once over HTTP as /model; its runtime-mutable
 //                   parts (opt/vis/stat) are re-sent in the render state block.
 //   * data        : streamed as the physics state vector (mjSTATE_INTEGRATION);
 //                   the browser recomputes the rest via mj_setState/mj_forward.
@@ -64,7 +64,7 @@ struct StatePayloadHeader {
   uint16_t version = kStatePayloadVersion;
   uint16_t nblocks = 0;
   // CRC32 of the model's MJB bytes. When this changes, the browser must
-  // refetch /model.mjb before applying any further state.
+  // refetch /model before applying any further state.
   uint32_t model_crc32 = 0;
 };
 static_assert(sizeof(StatePayloadHeader) == 12);

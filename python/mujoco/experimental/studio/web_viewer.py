@@ -174,7 +174,7 @@ class WebViewer(viewer_protocol.Viewer):
       extra_geoms: List of extra geoms. Internal list is created if None.
       host: Public interface the server binds to. The default "::" accepts both
         IPv6 and IPv4 connections (IPv4-only where IPv6 is unavailable).
-      http_port: The single public port: page, WASM, /model.mjb, and the /ui and
+      http_port: The single public port: page, WASM, /model, and the /ui and
         /state WebSocket paths. None falls back to config.http_port; 0 picks the
         first free port starting at 8080, so several viewers can run side by
         side.
@@ -256,13 +256,13 @@ class WebViewer(viewer_protocol.Viewer):
     """Starts (or restarts) the web server, serving the current model."""
     self._stop_servers()
 
-    # Serialize the compiled model to MJB bytes (served as /model.mjb).
+    # Serialize the compiled model to MJB bytes (served as /model).
     buffer = np.empty(mujoco.mj_sizeModel(self.model), np.uint8)
     mujoco.mj_saveModel(self.model, None, buffer)
     mjb_data = buffer.tobytes()
 
     # Identity of the served model, included in every state payload. When it
-    # changes, the browser refetches /model.mjb by reloading the page.
+    # changes, the browser refetches /model by reloading the page.
     self._model_crc32 = zlib.crc32(mjb_data)
 
     state_sig = int(mujoco.mjtState.mjSTATE_INTEGRATION)

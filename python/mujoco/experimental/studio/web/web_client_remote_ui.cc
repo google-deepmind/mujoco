@@ -241,14 +241,26 @@ void RemoteUi::ReceiveAndProcessCommands(int frame) {
   VLOG(2, "Frame %d: processed %d commands", frame, cmds_this_frame);
 }
 
-void RemoteUi::FlushPendingTextures() {
+void RemoteUi::UpdateTextures() {
+  // Clear cached GPU texture IDs so all textures are re-uploaded.
+  for (auto& [tex_id, local_tex] : texture_map_) {
+    local_tex = 0;
+  }
+
+  // Reset the ImGui font atlas so it gets re-created on the new context.
+  if (ImGui::GetCurrentContext() && ImGui::GetIO().Fonts &&
+      ImGui::GetIO().Fonts->TexData) {
+    ImGui::GetIO().Fonts->TexData->SetStatus(ImTextureStatus_WantCreate);
+  }
+
+  // Re-upload all CPU-buffered textures (font atlas, streamed UI images).
   for (auto& [tex_id, entry] : texture_cpu_) {
     uintptr_t& local_tex = texture_map_[tex_id];
     if (local_tex == 0 && !entry.pixels.empty()) {
       local_tex = callbacks_.UploadTexture(
           local_tex, reinterpret_cast<const std::byte*>(entry.pixels.data()),
           entry.width, entry.height);
-      LOG(Info, "FlushPendingTextures: uploaded tex_id=%lu -> filament=%lu",
+      LOG(Info, "UpdateTextures: uploaded tex_id=%lu -> filament=%lu",
           static_cast<unsigned long>(tex_id),
           static_cast<unsigned long>(local_tex));
     }
@@ -370,7 +382,7 @@ void RemoteUi::ProcessCmdTexture(CmdTexture* cmd_texture) {
 
   // Upload the full CPU-side texture to the GPU if the context is ready.
   // If it isn't yet (model still loading), the texture stays in texture_cpu_
-  // and will be flushed by FlushPendingTextures() later.
+  // and will be flushed by UpdateTextures() later.
   if (callbacks_.GpuReady()) {
     local_tex = callbacks_.UploadTexture(
         local_tex, reinterpret_cast<const std::byte*>(entry.pixels.data()),

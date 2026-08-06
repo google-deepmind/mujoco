@@ -28,6 +28,7 @@
 
 #include <emscripten/websocket.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -65,6 +66,10 @@ struct SessionView {
   uint64_t sim_bytes_per_sec = 0;
   bool have_remote_frame = false;
   int camera_mode = 0;  // [SpectatorCamMode].
+  bool is_downloading = true;
+  size_t bytes_downloaded = 0;
+  size_t total_bytes = 0;
+  int retry_count = 0;
 };
 
 // User intent reported by the role window. Session implements this; the
@@ -115,6 +120,8 @@ class Session : public SessionActions {
     virtual bool ReadyForPayload() = 0;
     // Applies a parsed payload to the application.
     virtual void OnPayload(const StatePayloadView& view) = 0;
+    // Server swapped models; fetch and load the new one in-place.
+    virtual void OnModelChanged() = 0;
     // Role transition: claim the controller slot.
     virtual void ConnectRemoteUi() = 0;
     // Role transition: drop the stream when spectating
@@ -138,10 +145,6 @@ class Session : public SessionActions {
 
   // True only while the WebSocket is actually open.
   bool Connected() const { return connected_; }
-
-  // True once a payload with a new model has scheduled a page reload; all
-  // traffic is dropped from then on.
-  bool ReloadPending() const { return reload_pending_; }
 
   // The close code from the server deliberately ending this connection (codes
   // 4000-4999, e.g. kWsCloseSessionFull), else 0. Such conditions are transient
@@ -221,11 +224,10 @@ class Session : public SessionActions {
   EMSCRIPTEN_WEBSOCKET_T socket_ = 0;
   bool connected_ = false;
 
-  // CRC32 of the model this page loaded. When the payload's crc changes, the
-  // Python side has swapped models so reload the page; this refetches
-  // /model.mjb and reconnects everything.
+  // CRC32 of the model this page loaded. When the payload's CRC changes, the
+  // Python side has swapped models so we trigger an in-place reload that
+  // refetches /model and reinitializes the scene.
   std::optional<uint32_t> model_crc32_;
-  bool reload_pending_ = false;
 
   int server_close_code_ = 0;
 

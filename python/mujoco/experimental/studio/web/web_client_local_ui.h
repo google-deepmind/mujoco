@@ -34,7 +34,7 @@ class DisconnectNotice {
  public:
   // seconds_since_last_payload is negative before the first payload.
   void Draw(int server_close_code, double seconds_since_last_payload,
-            bool reload_pending);
+            bool is_downloading);
 
  private:
   // How long the state stream (~60Hz while the Python side is alive) may go
