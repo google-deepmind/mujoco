@@ -1591,6 +1591,19 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 
 
 // return 1 if any flex needs implicit stiffness treatment (interp or bending)
+// a flex whose contacts are handled passively wants the effective metric in its own right: the
+// contact stiffness is a passive term like any other, and it is the only stiffness such a flex may
+// have. Gating it on the flex's ELASTICITY would let an unrelated modelling choice decide whether
+// contact is implicit.
+static mjtBool flex_has_passive_contact(const mjModel* m) {
+  for (int f=0; f < m->nflex; f++) {
+    if (!m->flex_rigid[f] && m->flex_passive[f]) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static mjtBool flex_has_implicit_stiffness(const mjModel* m) {
   for (int f=0; f < m->nflex; f++) {
     if (m->flex_rigid[f]) {
@@ -1634,7 +1647,7 @@ int mj_flexCG(const mjModel* m) {
   return m->opt.solver == mjSOL_CG &&
          (m->opt.integrator == mjINT_IMPLICIT || m->opt.integrator == mjINT_IMPLICITFAST) &&
          m->opt.cone != mjCONE_ELLIPTIC && !mjENABLED(mjENBL_SLEEP) &&
-         flex_has_implicit_stiffness(m);
+         (flex_has_implicit_stiffness(m) || flex_has_passive_contact(m));
 }
 
 
@@ -1775,6 +1788,15 @@ void mj_implicit(const mjModel* m, mjData* d) {
 // forward dynamics with skip; skipstage is mjtStage
 void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
   TM_START;
+
+  // Passive flex contact is stiff by construction (see mjd_flexContactStiffness: omega^2 scaled by
+  // the participating mass), which is only stable because its Hessian is carried in the effective
+  // metric. Integrated explicitly it diverges immediately, so say so rather than let the model
+  // explode: the feature requires an integrator whose constraint solve runs in that metric.
+  if (flex_has_passive_contact(m) && !mj_flexCG(m)) {
+    mjERROR("passive flex contact requires the effective metric: use integrator=\"implicit\" or "
+            "\"implicitfast\" with solver=\"CG\", pyramidal cones and sleep disabled");
+  }
 
   // position-dependent
   if (skipstage < mjSTAGE_POS) {

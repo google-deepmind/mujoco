@@ -3630,6 +3630,68 @@ TEST_F(ActuatorDampingTest, DampingVsKvGearScaling) {
 }
 
 // flex sheet dropping on a plane should not gain energy from implicit bending
+// Passive flex contact is applied at a stiffness far beyond what an explicit force could hold at
+// this timestep -- roughly 50x the 4*m/h^2 limit -- because its curvature is carried by the
+// effective metric. Both the curvature and the shift -h*K*v are needed: with the curvature alone
+// the contact is stiff but undamped and rings itself apart, so this settles at the drop's
+// free-fall speed only when both are present. Self-collision is on, which the undamped form could
+// not survive at all.
+TEST_F(ImplicitIntegratorTest, PassiveFlexContactIsImplicit) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="implicitfast" solver="CG" iterations="400"/>
+    <worldbody>
+      <flexcomp name="lower" type="grid" dim="2" count="9 9 1" spacing=".04 .04 1"
+                radius=".004" mass=".3" pos="0 0 .2">
+        <contact selfcollide="auto" passive="true"/>
+        <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="both" damping="1e-4"/>
+        <pin id="0 8 72 80"/>
+      </flexcomp>
+      <flexcomp name="upper" type="grid" dim="2" count="5 5 1" spacing=".04 .04 1"
+                radius=".004" mass=".1" pos="0 0 .27">
+        <contact selfcollide="auto" passive="true"/>
+        <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="both" damping="1e-4"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  const mjModel* model = m.get();
+  mjData* data = d.get();
+
+  // The upper sheet drops onto the lower one, which sags between its pinned corners, so the fall is
+  // a couple of decimetres and the physical peak speed is a little over 2 m/s. The bound only has
+  // to separate that from an energy-injecting contact, which is not a close call: with the metric
+  // carrying the contact curvature but not the matching shift, this same scene reaches 143 m/s.
+  mjtNum vmax = 0;
+  for (int i = 0; i < 1000; i++) {
+    mj_step(model, data);
+    for (int j = 0; j < model->nv; j++) {
+      vmax = mju_max(vmax, mju_abs(data->qvel[j]));
+    }
+    ASSERT_FALSE(data->warning[mjWARN_BADQACC].number) << "diverged at step " << i;
+  }
+  EXPECT_LT(vmax, 4.0) << "peak speed " << vmax;
+
+  // and the upper sheet has not passed through the lower one. The lower sheet is pinned only at
+  // its corners and sags into a bowl with the upper sheet resting in the bottom of it, so neither
+  // an absolute height nor a comparison of means says anything; what must hold is that the upper
+  // sheet never gets below the lowest point of the lower one.
+  mjtNum lo[2] = {1e30, 1e30};
+  for (int k = 0; k < 2; k++) {
+    int f = mj_name2id(model, mjOBJ_FLEX, k ? "upper" : "lower");
+    for (int i = 0; i < model->flex_vertnum[f]; i++) {
+      lo[k] = mju_min(lo[k], data->flexvert_xpos[3*(model->flex_vertadr[f] + i) + 2]);
+    }
+  }
+  EXPECT_GT(lo[1], lo[0] - 0.01) << "upper sheet passed through: lowest z " << lo[1]
+                                 << " against the lower sheet's " << lo[0];
+
+}
+
 TEST_F(ImplicitIntegratorTest, FlexContactEnergy) {
   static constexpr char xml[] = R"(
   <mujoco>

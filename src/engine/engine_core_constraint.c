@@ -2549,11 +2549,26 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
   for (int i=0; i < ncon; i++) {
     mjContact* con = d->contact + i;
 
-    // skip if passive
-    if ((con->flex[0] > -1 && m->flex_passive[con->flex[0]]) ||
-        (con->flex[1] > -1 && m->flex_passive[con->flex[1]])) {
-      con->efc_address = -1;
-      con->exclude = 4;
+    // Passive handling covers flex-flex contact, self-collision included, and contact between a
+    // flex and STATIC geometry. What those have in common is that every dof the contact touches is
+    // a flex vertex carried by the effective metric -- a static geom has none -- so the Hessian
+    // k*J^T*J is assembled in full rather than truncated. A flex against a MOVING body keeps the
+    // constraint path: its dofs would be dropped from the Hessian, and the passive force is a
+    // normal penalty with no friction cone, which is the wrong trade where a gripper closes on
+    // cloth. A contact is passive if either flex asks for it.
+    {
+      int f0 = con->flex[0], f1 = con->flex[1];
+      int wants = (f0 > -1 && m->flex_passive[f0]) || (f1 > -1 && m->flex_passive[f1]);
+      int ok = (f0 > -1 && f1 > -1);   // flex-flex, or a flex with itself
+      for (int s = 0; s < 2 && !ok; s++) {
+        if (con->flex[s] < 0 && con->geom[s] > -1) {
+          ok = (m->body_weldid[m->geom_bodyid[con->geom[s]]] == 0);   // welded to the world
+        }
+      }
+      if (wants && ok) {
+        con->efc_address = -1;
+        con->exclude = 4;
+      }
     }
 
     // skip if excluded

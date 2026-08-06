@@ -46,6 +46,17 @@ Engine
 .. admonition:: Breaking API changes
    :class: attention
 
+   - Contacts of a flex with :ref:`passive<flexcomp-contact-passive>` collisions are now integrated implicitly:
+     their stiffness is carried by the effective metric M + K rather than applied as an explicit spring, and so can
+     be far stiffer than the timestep would otherwise permit -- at a 2 ms timestep, roughly 50x what an explicit
+     force of the same step could hold. Being a penalty force it still does not guarantee non-penetration. A model
+     using passive collisions changes in three ways and should be re-checked: the feature now requires an integrator
+     whose constraint solve runs in that metric (:at:`implicit` or :at:`implicitfast` with the CG solver, pyramidal
+     cones and sleep disabled) and is rejected with an error otherwise; passive handling now covers contact of such a
+     flex with another flex, with itself, and with static geometry, while contact with a moving body returns to the
+     constraint solver and gains friction; and the stiffness is no longer a fixed 1e4 but a natural frequency scaled
+     by the participating vertex mass, which is considerably stiffer for typical models.
+
    - Removed ``mjData.efm_L_rownnz``, ``mjData.efm_L_rowadr`` and ``mjData.efm_L_colind``. They described the sparsity
      of the effective-metric Cholesky factor, which no longer exists; ``mjData.efm_L`` now holds dense 3x3 blocks,
      9 numbers per covered vertex. ``mjData.efm_active`` no longer takes the value 2: nothing selects a solve path on
@@ -56,6 +67,10 @@ Engine
 
 Models
 ^^^^^^
+
+- Added `drape <https://github.com/google-deepmind/mujoco/blob/main/model/flex/drape.xml>`__ example model: three
+  cloths draped over a sphere, demonstrating :ref:`passive<flex-contact-passive>` collisions. It replaces the
+  ``sphere_passive`` model, which has been removed.
 
 - Added `bag <https://github.com/google-deepmind/mujoco/blob/main/model/flex/bag.xml>`__ example model: a cloth bag,
   held open by pinning the ring of vertices around its mouth, catching the standard humanoid dropped in from above.

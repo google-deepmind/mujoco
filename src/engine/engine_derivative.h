@@ -77,9 +77,18 @@ MJAPI void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const m
 // dof-level CSR; phase 1 (colind==NULL) fills rownnz/rowadr and returns total nnz, phase 2
 // fills colind/val. Interp flexes are assembled iff Krot (mjd_flexInterp_cacheKrot cache) is
 // non-NULL and the centered fast path applies (check mjd_flexInterpAssemblable first).
+// Stiffness of a passive flex contact: omega^2 scaled by the smallest nonzero participating mass.
+// The force (mj_contactPassive) and the Hessian (mjd_flexStiff_assemble) MUST use this same value,
+// or the linearization the metric carries does not match the force being applied.
+// res += scale * K_contact * vec (the shift counterpart of the contact stiffness in the metric)
+MJAPI void mjd_flexContact_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                               mjtNum scale);
+
+MJAPI mjtNum mjd_flexContactStiffness(const mjModel* m, const mjData* d, const mjContact* con);
+
 MJAPI int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr,
                                  int* colind, mjtNum* val, mjtNum s1, mjtNum s2,
-                                 int flg_bend, int flg_stretch, const mjtNum* Krot);
+                                 int flg_bend, int flg_stretch, int flg_contact, const mjtNum* Krot);
 
 // can all interp flexes be assembled to dof-level CSR? (centered fast path everywhere)
 MJAPI mjtBool mjd_flexInterpAssemblable(const mjModel* m);
