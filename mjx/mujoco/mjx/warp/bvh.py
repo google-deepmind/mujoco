@@ -118,7 +118,9 @@ def _refit_bvh_jax_impl(
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames=set([]),
-      stage_in_argnames=set(['geom_size', 'geom_xmat', 'geom_xpos']),
+      stage_in_argnames=set(
+          ['flexvert_xpos', 'geom_size', 'geom_xmat', 'geom_xpos']
+      ),
       stage_out_argnames=set([]),
       graph_mode=m.opt._impl.graph_mode,
       has_side_effect=True,

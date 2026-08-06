@@ -50,7 +50,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.util_misc import poly_potential
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
-wp.set_module_options({"enable_backward": False})
+wp.set_module_options({"enable_backward": False, "default_grid_stride": False})
 
 
 @wp.func
@@ -2140,7 +2140,7 @@ def _transform_spatial(vec: wp.spatial_vector, dif: wp.vec3) -> wp.vec3:
   return wp.spatial_bottom(vec) - wp.cross(dif, wp.spatial_top(vec))
 
 
-@wp.kernel
+@wp.kernel(grid_stride=True)
 def _preprocess_tactile_contacts(
   # Model:
   body_weldid: wp.array[int],
@@ -2468,7 +2468,7 @@ def _contact_match(
 
 @cache_kernel
 def _contact_sort(maxmatch: int):
-  @wp.kernel(module="unique", enable_backward=False)
+  @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def contact_sort(
     # Model:
     sensor_intprm: wp.array2d[int],
@@ -2969,7 +2969,7 @@ def energy_pos(m: Model, d: Data):
 
 @cache_kernel
 def _energy_vel_kinetic(nv: int):
-  @wp.kernel(module="unique", enable_backward=False)
+  @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def energy_vel_kinetic(
     # Data in:
     qvel_in: wp.array2d[float],

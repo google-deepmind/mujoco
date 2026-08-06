@@ -26,6 +26,7 @@ from etils import epath
 from mujoco.mjx._src import types as mjx_types
 from mujoco.mjx.codegen import file
 from mujoco.mjx.codegen import trace
+from mujoco.mjx.warp import types as mjxw_types
 import jax
 from mujoco.mjx.third_party import mujoco_warp  # pylint: disable=unused-import
 
@@ -79,17 +80,16 @@ def _clean_type(type_: str):
       'BlockDim',
       'vec_pluginattr',
   )
-  m = re.match(r'array\((.*)\)', type_)
-  if m:  # match custom mujoco_warp array annotation types
-    args_str = m.group(1)
-    args = [a.strip() for a in args_str.split(',')]
+  # Match and convert custom mujoco_warp array annotations (e.g. within tuple[...]).
+  def _tuple_array(m):
+    args = [a.strip() for a in m.group(1).split(',')]
     ndim, dtype = len(args) - 1, args[-1]
-
     dims = {1: '', 2: '2d', 3: '3d', 4: '4d'}
     if ndim not in dims:
       raise ValueError(f'Unsupported array ndim: {ndim} for type: {dtype}')
+    return f'wp.array{dims[ndim]}[{dtype}]'
 
-    type_ = f'wp.array{dims[ndim]}[{dtype}]'
+  type_ = re.sub(r'array\((.*?)\)', _tuple_array, type_)
 
   for t in types_to_prefix:
     type_ = re.sub(rf'\b{t}\b', f'mjwp_types.{t}', type_)
@@ -123,31 +123,28 @@ def _get_stage_fields(
       return False
     return cls.__annotations__.get(field) is jax.Array
 
-  ModelWarp = getattr(mjx_types, 'ModelWarp', None)
-  OptionWarp = getattr(mjx_types, 'OptionWarp', None)
+  ModelWarp = getattr(mjxw_types, 'ModelWarp', None)
+  OptionWarp = getattr(mjxw_types, 'OptionWarp', None)
+  DataWarp = getattr(mjxw_types, 'DataWarp', None)
 
   # stage_in: Model/ModelWarp jax.Array input fields
   for field in field_usage.model_fields:
-    if is_jax_array(mjx_types.Model, field):
-      stage_in.append(field)
-    elif is_jax_array(ModelWarp, field):
+    if is_jax_array(mjx_types.Model, field) or is_jax_array(ModelWarp, field):
       stage_in.append(field)
     # stage_in: Option/OptionWarp jax.Array input fields
     elif field.startswith('opt__'):
       sub_field = field.split('opt__')[-1]
-      if is_jax_array(mjx_types.Option, sub_field):
-        stage_in.append(field)
-      elif is_jax_array(OptionWarp, sub_field):
+      if is_jax_array(mjx_types.Option, sub_field) or is_jax_array(OptionWarp, sub_field):
         stage_in.append(field)
 
-  # stage_in: Data jax.Array input fields
+  # stage_in: Data/DataWarp jax.Array input fields
   for field in field_usage.data_fields:
-    if is_jax_array(mjx_types.Data, field):
+    if is_jax_array(mjx_types.Data, field) or is_jax_array(DataWarp, field):
       stage_in.append(field)
 
-  # stage_out: Data jax.Array output fields
+  # stage_out: Data/DataWarp jax.Array output fields
   for field in field_usage.data_out_fields:
-    if is_jax_array(mjx_types.Data, field):
+    if is_jax_array(mjx_types.Data, field) or is_jax_array(DataWarp, field):
       stage_out.append(field)
 
   return sorted(stage_in), sorted(stage_out)

@@ -26,11 +26,11 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import State
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec5
-from mujoco.mjx.third_party.mujoco_warp._src.types import vec10f
+from mujoco.mjx.third_party.mujoco_warp._src.types import vec10
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
-wp.set_module_options({"enable_backward": False})
+wp.set_module_options({"enable_backward": False, "default_grid_stride": False})
 
 
 # TODO(team): kernel analyzer array slice?
@@ -39,7 +39,7 @@ def next_act(
   # Model:
   opt_timestep: float,  # kernel_analyzer: ignore
   actuator_dyntype: int,  # kernel_analyzer: ignore
-  actuator_dynprm: vec10f,  # kernel_analyzer: ignore
+  actuator_dynprm: vec10,  # kernel_analyzer: ignore
   actuator_actrange: wp.vec2,  # kernel_analyzer: ignore
   # Data In:
   act_in: float,  # kernel_analyzer: ignore
@@ -67,7 +67,7 @@ def next_act(
 @wp.func
 def mat33_to_quat_polar(F: wp.mat33) -> wp.quat:
   cell_quat = wp.quat(0.0, 0.0, 0.0, 1.0)
-  for _iter in range(10):
+  for _iter in range(50):
     rot = wp.quat_to_matrix(cell_quat)
     rot_t = wp.transpose(rot)
     col1_rot = rot_t[0]
@@ -129,35 +129,12 @@ def compute_interp_cell_quat(
 
           node_pos = flexnode_xpos_in[worldid, nstart + gidx]
 
-          if order == 1:
-            dphi_x = float(-1) if li == 0 else float(1)
-            dphi_y = float(-1) if lj == 0 else float(1)
-            dphi_z = float(-1) if lk == 0 else float(1)
-            phi_x = float(0.5)
-            phi_y = float(0.5)
-            phi_z = float(0.5)
-          else:
-            if li == 0:
-              dphi_x = -1.0
-            elif li == 1:
-              dphi_x = 0.0
-            else:
-              dphi_x = 1.0
-            if lj == 0:
-              dphi_y = -1.0
-            elif lj == 1:
-              dphi_y = 0.0
-            else:
-              dphi_y = 1.0
-            if lk == 0:
-              dphi_z = -1.0
-            elif lk == 1:
-              dphi_z = 0.0
-            else:
-              dphi_z = 1.0
-            phi_x = 0.5 if li == 0 or li == 2 else 1.0
-            phi_y = 0.5 if lj == 0 or lj == 2 else 1.0
-            phi_z = 0.5 if lk == 0 or lk == 2 else 1.0
+          dphi_x = float(-1) if li == 0 else float(1)
+          dphi_y = float(-1) if lj == 0 else float(1)
+          dphi_z = float(-1) if lk == 0 else float(1)
+          phi_x = float(0.5)
+          phi_y = float(0.5)
+          phi_z = float(0.5)
 
           grad_x = dphi_x * phi_y * phi_z
           grad_y = phi_x * dphi_y * phi_z
@@ -175,7 +152,7 @@ def compute_interp_cell_quat(
 
 @cache_kernel
 def mul_m_kernel(check_skip: bool):
-  @wp.kernel(module="unique")
+  @wp.kernel(module="unique", grid_stride=False)
   def _mul_m(
     # Model:
     M_mulm_rowadr: wp.array[int],
@@ -212,7 +189,7 @@ def mul_m_kernel(check_skip: bool):
 
 @cache_kernel
 def mul_m_dense(nv: int, check_skip: bool):
-  @wp.kernel(module="unique")
+  @wp.kernel(module="unique", grid_stride=False)
   def _mul_m_dense(
     # Data in:
     M_in: wp.array3d[float],  # kernel_analyzer: ignore
@@ -550,7 +527,7 @@ def jac_dof(
 
 @cache_kernel
 def _make_jac_kernel(has_jacp: bool, has_jacr: bool):
-  @wp.kernel(module="unique", enable_backward=False)
+  @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def _jac(
     # Model:
     body_parentid: wp.array[int],
@@ -702,7 +679,7 @@ def get_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
   if sig >= (1 << State.NSTATE):
     raise ValueError(f"invalid state signature {sig} >= 2^mjNSTATE")
 
-  @wp.kernel(module="unique", enable_backward=False)
+  @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def _get_state(
     # Model:
     nq: int,
@@ -857,7 +834,7 @@ def set_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
   if sig >= (1 << State.NSTATE):
     raise ValueError(f"invalid state signature {sig} >= 2^mjNSTATE")
 
-  @wp.kernel(module="unique", enable_backward=False)
+  @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def _set_state(
     # Model:
     nq: int,
@@ -1083,3 +1060,221 @@ def select_top4_weights(
     )
 
   return selected_b, selected_W
+
+
+@wp.func
+def get_face_metadata(
+  # In:
+  cellnum_x: int,
+  cellnum_y: int,
+  cellnum_z: int,
+  face_elem_idx: int,
+  order_abs: int,
+) -> Tuple[int, int, int, int, int, int]:
+  size01 = cellnum_y * cellnum_z
+  size23 = cellnum_x * cellnum_z
+  size45 = cellnum_x * cellnum_y
+
+  face_id = 0
+  within_face = 0
+
+  if face_elem_idx < size01:
+    face_id = 0
+    within_face = face_elem_idx
+  elif face_elem_idx < 2 * size01:
+    face_id = 1
+    within_face = face_elem_idx - size01
+  elif face_elem_idx < 2 * size01 + size23:
+    face_id = 2
+    within_face = face_elem_idx - 2 * size01
+  elif face_elem_idx < 2 * size01 + 2 * size23:
+    face_id = 3
+    within_face = face_elem_idx - 2 * size01 - size23
+  elif face_elem_idx < 2 * size01 + 2 * size23 + size45:
+    face_id = 4
+    within_face = face_elem_idx - 2 * size01 - 2 * size23
+  else:
+    face_id = 5
+    within_face = face_elem_idx - 2 * size01 - 2 * size23 - size45
+
+  normal_axis = face_id // 2
+
+  c1 = 0
+  if face_id == 0 or face_id == 1:
+    c1 = cellnum_z
+  elif face_id == 2 or face_id == 3:
+    c1 = cellnum_x
+  else:
+    c1 = cellnum_y
+
+  fixed_dim = 0
+  if normal_axis == 0:
+    fixed_dim = cellnum_x
+  elif normal_axis == 1:
+    fixed_dim = cellnum_y
+  else:
+    fixed_dim = cellnum_z
+  g_fixed = (face_id % 2) * fixed_dim * order_abs
+
+  q0 = within_face // c1
+  q1 = within_face % c1
+
+  ny_g = cellnum_y * order_abs + 1
+  nz_g = cellnum_z * order_abs + 1
+
+  return normal_axis, g_fixed, q0, q1, ny_g, nz_g
+
+
+@wp.func
+def gather_face_node_index_fast(
+  # In:
+  normal_axis: int,
+  g_fixed: int,
+  q0: int,
+  q1: int,
+  ny_g: int,
+  nz_g: int,
+  local_idx: int,
+  order_abs: int,
+) -> int:
+  l0 = local_idx // (order_abs + 1)
+  l1 = local_idx % (order_abs + 1)
+
+  g = wp.vec3i(0, 0, 0)
+  if normal_axis == 0:
+    g = wp.vec3i(g_fixed, q0 * order_abs + l0, q1 * order_abs + l1)
+  elif normal_axis == 1:
+    g = wp.vec3i(q1 * order_abs + l1, g_fixed, q0 * order_abs + l0)
+  else:
+    g = wp.vec3i(q0 * order_abs + l0, q1 * order_abs + l1, g_fixed)
+
+  return g[0] * ny_g * nz_g + g[1] * nz_g + g[2]
+
+
+@wp.func
+def gather_face_node_index(
+  # In:
+  cellnum_x: int,
+  cellnum_y: int,
+  cellnum_z: int,
+  face_elem_idx: int,
+  local_idx: int,
+  order_abs: int,
+) -> int:
+  normal_axis, g_fixed, q0, q1, ny_g, nz_g = get_face_metadata(cellnum_x, cellnum_y, cellnum_z, face_elem_idx, order_abs)
+  return gather_face_node_index_fast(normal_axis, g_fixed, q0, q1, ny_g, nz_g, local_idx, order_abs)
+
+
+@wp.func
+def compute_interp_face_quat(
+  # Data in:
+  flexnode_xpos_in: wp.array2d[wp.vec3],
+  # In:
+  cellnum_x: int,
+  cellnum_y: int,
+  cellnum_z: int,
+  face_elem_idx: int,
+  nstart: int,
+  order_abs: int,
+  worldid: int,
+) -> wp.quat:
+  normal_axis, g_fixed, q0, q1, ny_g, nz_g = get_face_metadata(
+    cellnum_x,
+    cellnum_y,
+    cellnum_z,
+    face_elem_idx,
+    order_abs,
+  )
+
+  t1 = wp.vec3(0.0)
+  t2 = wp.vec3(0.0)
+
+  npc = (order_abs + 1) * (order_abs + 1)
+
+  for local_idx in range(9):
+    if local_idx < npc:
+      gidx = gather_face_node_index_fast(
+        normal_axis,
+        g_fixed,
+        q0,
+        q1,
+        ny_g,
+        nz_g,
+        local_idx,
+        order_abs,
+      )
+      node_pos = flexnode_xpos_in[worldid, nstart + gidx]
+
+      l0 = local_idx // (order_abs + 1)
+      l1 = local_idx % (order_abs + 1)
+
+      dphi0 = -1.0 + 2.0 * float(l0)
+      dphi1 = -1.0 + 2.0 * float(l1)
+      phi0 = 0.5
+      phi1 = 0.5
+
+      grad0 = dphi0 * phi1
+      grad1 = phi0 * dphi1
+
+      t1 += node_pos * grad0
+      t2 += node_pos * grad1
+
+  normal = wp.cross(t1, t2)
+
+  F = wp.mat33(0.0)
+  if normal_axis == 0:
+    F = wp.mat33(
+      normal[0],
+      t1[0],
+      t2[0],
+      normal[1],
+      t1[1],
+      t2[1],
+      normal[2],
+      t1[2],
+      t2[2],
+    )
+  elif normal_axis == 1:
+    F = wp.mat33(
+      t2[0],
+      normal[0],
+      t1[0],
+      t2[1],
+      normal[1],
+      t1[1],
+      t2[2],
+      normal[2],
+      t1[2],
+    )
+  else:
+    F = wp.mat33(
+      t1[0],
+      t2[0],
+      normal[0],
+      t1[1],
+      t2[1],
+      normal[1],
+      t1[2],
+      t2[2],
+      normal[2],
+    )
+
+  return mat33_to_quat_polar(F)
+
+
+@wp.func
+def flex_phi(s: float, i: int, order: int) -> float:
+  return 1.0 - s if i == 0 else s
+
+
+@wp.func
+def flex_dphi(s: float, i: int, order: int) -> float:
+  return -1.0 if i == 0 else 1.0
+
+
+@wp.func
+def dphi2D(s0: float, l0: int, s1: float, l1: int, order: int, direction: int) -> float:
+  if direction == 0:
+    return flex_dphi(s0, l0, order) * flex_phi(s1, l1, order)
+  else:
+    return flex_phi(s0, l0, order) * flex_dphi(s1, l1, order)

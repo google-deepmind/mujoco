@@ -13,77 +13,18 @@
 # limitations under the License.
 # ==============================================================================
 
-from typing import Any, Tuple
+from typing import Tuple
 
 import warp as wp
 
-MJ_MINVAL = 1e-15
-MJ_MAXVAL = 1e10
-
+from mujoco.mjx.third_party.mujoco_warp._src.math import closest_segment_point
+from mujoco.mjx.third_party.mujoco_warp._src.math import closest_segment_to_segment_points
+from mujoco.mjx.third_party.mujoco_warp._src.math import normalize_with_norm
+from mujoco.mjx.third_party.mujoco_warp._src.math import safe_div
+from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
+from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 
 wp.set_module_options({"enable_backward": False})
-
-
-@wp.func
-def safe_div(x: Any, y: Any) -> Any:
-  return x / wp.where(y != 0.0, y, MJ_MINVAL)
-
-
-@wp.func
-def normalize_with_norm(x: Any):
-  norm = wp.length(x)
-  if norm == 0.0:
-    return x, 0.0
-  return x / norm, norm
-
-
-@wp.func
-def closest_segment_point(a: wp.vec3, b: wp.vec3, pt: wp.vec3) -> wp.vec3:
-  """Returns the closest point on the a-b line segment to a point pt."""
-  ab = b - a
-  t = wp.dot(pt - a, ab) / (wp.dot(ab, ab) + 1e-6)
-  return a + wp.clamp(t, 0.0, 1.0) * ab
-
-
-@wp.func
-def closest_segment_point_and_dist(a: wp.vec3, b: wp.vec3, pt: wp.vec3) -> Tuple[wp.vec3, float]:
-  """Returns closest point on the line segment and the distance squared."""
-  closest = closest_segment_point(a, b, pt)
-  dist = wp.dot((pt - closest), (pt - closest))
-  return closest, dist
-
-
-@wp.func
-def closest_segment_to_segment_points(a0: wp.vec3, a1: wp.vec3, b0: wp.vec3, b1: wp.vec3) -> Tuple[wp.vec3, wp.vec3]:
-  """Returns closest points between two line segments."""
-  dir_a, len_a = normalize_with_norm(a1 - a0)
-  dir_b, len_b = normalize_with_norm(b1 - b0)
-
-  half_len_a = len_a * 0.5
-  half_len_b = len_b * 0.5
-  a_mid = a0 + dir_a * half_len_a
-  b_mid = b0 + dir_b * half_len_b
-
-  trans = a_mid - b_mid
-
-  dira_dot_dirb = wp.dot(dir_a, dir_b)
-  dira_dot_trans = wp.dot(dir_a, trans)
-  dirb_dot_trans = wp.dot(dir_b, trans)
-  denom = 1.0 - dira_dot_dirb * dira_dot_dirb
-
-  orig_t_a = (-dira_dot_trans + dira_dot_dirb * dirb_dot_trans) / (denom + 1e-6)
-  orig_t_b = dirb_dot_trans + orig_t_a * dira_dot_dirb
-  t_a = wp.clamp(orig_t_a, -half_len_a, half_len_a)
-  t_b = wp.clamp(orig_t_b, -half_len_b, half_len_b)
-
-  best_a = a_mid + dir_a * t_a
-  best_b = b_mid + dir_b * t_b
-
-  new_a, d1 = closest_segment_point_and_dist(a0, a1, best_b)
-  new_b, d2 = closest_segment_point_and_dist(b0, b1, best_a)
-  if d1 < d2:
-    return new_a, best_b
-  return best_a, new_b
 
 
 class vec8f(wp.types.vector(length=8, dtype=wp.float32)):

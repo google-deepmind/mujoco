@@ -15,8 +15,8 @@
 """Static AST tracing to find MuJoCo Model and Data field usages."""
 
 import ast
+import builtins
 import dataclasses
-import functools
 import importlib
 import importlib.util
 import os
@@ -25,6 +25,8 @@ from typing import Dict, Optional, Sequence, Set, Tuple
 from absl import logging
 from etils import epath
 from mujoco.mjx.codegen import file
+
+_BUILTIN_NAMES = set(dir(builtins))
 
 
 def _get_imported_module_names(fpath: epath.Path) -> Sequence[Tuple[str, str]]:
@@ -81,7 +83,7 @@ class FieldInfo:
 
 
 class _FunctionFieldUsageVisitor(ast.NodeVisitor):
-  """AST visitor to find attribute usages on 'm' and 'd' variables."""
+  """AST visitor to find Model and Data field usages."""
 
   def __init__(
       self,
@@ -103,24 +105,28 @@ class _FunctionFieldUsageVisitor(ast.NodeVisitor):
     self.generic_visit(node)
 
   def add_field_usage(self, node: ast.Attribute, is_output: bool):
-    """Adds field to the appropriate set."""
+    """Adds field to the appropriate set based on mjwarp_field_info."""
     attr_parts = []
     curr_node = node
     while isinstance(curr_node, ast.Attribute):
       attr_parts.append(curr_node.attr)
       curr_node = curr_node.value
 
-    if isinstance(curr_node, ast.Name):
-      attr_parts.reverse()
-      full_attribute_str = '__'.join(attr_parts)
-      in_field_info = full_attribute_str in self._mjwarp_field_info
-      if in_field_info:
-        if curr_node.id == 'm':
-          self.model_fields.add(full_attribute_str)
-        if curr_node.id == 'd':
-          self.data_fields.add(full_attribute_str)
-        if curr_node.id == 'd' and is_output:
-          self.data_out_fields.add(full_attribute_str)
+    if not isinstance(curr_node, ast.Name):
+      return
+    attr_parts.reverse()
+    full_attribute_str = '__'.join(attr_parts)
+    field_info = self._mjwarp_field_info.get(full_attribute_str)
+    if field_info is None:
+      return
+    # Classify by field_info.param_source; field names are guaranteed unique
+    # across Model and Data hierarchies by get_mjwarp_field_info.
+    if field_info.param_source == 'Model':
+      self.model_fields.add(full_attribute_str)
+    elif field_info.param_source == 'Data':
+      self.data_fields.add(full_attribute_str)
+      if is_output:
+        self.data_out_fields.add(full_attribute_str)
 
   def visit_Attribute(self, node: ast.Attribute):
     self.add_field_usage(node, self._in_outputs_context)
@@ -160,13 +166,14 @@ class _FunctionFieldUsageVisitor(ast.NodeVisitor):
     """Visit a function call node and recursively find all attribute usages."""
     if isinstance(node.func, ast.Name):
       called_fn_name = node.func.id
-      key = (hash(self._current_fpath), called_fn_name)
-      if key not in self._visited_fns:
-        self._visited_fns.add(key)  # pyrefly: ignore[bad-argument-type]
-        next_fpath = self._module_fpaths.get(
-            called_fn_name, self._current_fpath
-        )
-        self.recurse_trace(next_fpath, called_fn_name)
+      if called_fn_name not in _BUILTIN_NAMES:
+        key = (self._current_fpath, called_fn_name)
+        if key not in self._visited_fns:
+          self._visited_fns.add(key)
+          next_fpath = self._module_fpaths.get(
+              called_fn_name, self._current_fpath
+          )
+          self.recurse_trace(next_fpath, called_fn_name)
     elif isinstance(node.func, ast.Attribute):
       parts = []
       current = node.func
@@ -198,10 +205,10 @@ class _FunctionFieldUsageVisitor(ast.NodeVisitor):
             self.add_field_usage(arg, is_output=True)
 
       called_fn_name = '.'.join(parts[1:])
-      key = (hash(self._current_fpath), called_fn_name)
+      key = (self._current_fpath, called_fn_name)
       next_fpath = self._module_fpaths.get(parts[0])
       if next_fpath and key not in self._visited_fns:
-        self._visited_fns.add(key)  # pyrefly: ignore[bad-argument-type]
+        self._visited_fns.add(key)
         self.recurse_trace(next_fpath, called_fn_name)
 
     self.generic_visit(node)
@@ -238,27 +245,6 @@ def trace_function(
   if not target_fn_node:
     raise ValueError(f'Function "{fn}" not found in "{fpath}".')
 
-  args_node = target_fn_node.args
-  args_tuple = tuple(
-      map(functools.partial(ast.get_source_segment, src), args_node.args)
-  )
-  check_args_tuple = (
-      ('m: Model', 'd: Data'),
-      ('m: types.Model', 'd: types.Data'),
-      ('m', 'd'),
-      ('m: Model',),
-      ('m: types.Model',),
-      ('m',),
-  )
-  if (
-      args_tuple[:2] not in check_args_tuple
-      and args_tuple[:1] not in check_args_tuple
-  ):
-    raise ValueError(
-        f'Function "{fn}" in "{fpath}" must have arguments in'
-        f' {check_args_tuple}  got {args_tuple}.'
-    )
-
   if visited_fns is None:
     visited_fns = set()
 
@@ -266,12 +252,22 @@ def trace_function(
   for body in target_fn_node.body:
     visitor.visit(body)
 
+  # Warn if tracing found no Model/Data field accesses.
+  if not visitor.model_fields and not visitor.data_fields:
+    logging.warning(
+        'Function "%s" in "%s" does not access any Model or Data fields.',
+        fn,
+        fpath,
+    )
+
+  # Detect RenderContext parameter independent of argument position.
   render_context_in_caller = False
-  if len(target_fn_node.args.args) > 2:
-    third_param = target_fn_node.args.args[2]
-    if third_param.annotation:
-      annotation_str = ast.unparse(third_param.annotation)
-      render_context_in_caller = 'RenderContext' in annotation_str
+  for param in target_fn_node.args.args:
+    if param.annotation:
+      annotation_str = ast.unparse(param.annotation)
+      if 'RenderContext' in annotation_str:
+        render_context_in_caller = True
+        break
 
   logging.info(
       'End trace function "%s". Output fields: %s, RenderContext: %s',
@@ -285,7 +281,9 @@ def trace_function(
   )
 
 
-def get_mjwarp_field_info(src: str, get_cls_type_annotations) -> Dict[str, FieldInfo]:
+def get_mjwarp_field_info(
+    src: str, get_cls_type_annotations
+) -> Dict[str, FieldInfo]:
   """Return field info for mujoco_warp/_src/types.py."""
   dataclass_map = {
       'opt': 'Option',
@@ -293,33 +291,49 @@ def get_mjwarp_field_info(src: str, get_cls_type_annotations) -> Dict[str, Field
       'efc': 'Constraint',
       'contact': 'Contact',
   }
-  field_info = {}
   type_classes = get_cls_type_annotations(src)
-  for field, typ in type_classes['Model'].items():
-    if field == 'callback':
-      continue
-    if field in field_info:
-      raise AssertionError(f'Field {field} is duplicated in Model.')
-    if field in dataclass_map:
-      for sfield, styp in type_classes[dataclass_map[field]].items():
-        field_name = field + '__' + sfield
-        field_info[field_name] = FieldInfo('Model', styp, (1, field_name))
-    else:
-      field_info[field] = FieldInfo('Model', typ, (0, field))
 
-  for field, typ in type_classes['Data'].items():
-    if field in field_info:
-      raise AssertionError(f'Field {field} is duplicated.')
-    if field in dataclass_map:
-      for sfield, styp in type_classes[dataclass_map[field]].items():
-        field_name = field + '__' + sfield
-        field_info[field_name] = FieldInfo('Data', styp, (3, field_name))
-    else:
-      field_info[field] = FieldInfo('Data', typ, (2, field))
-  return field_info
+  def get_fields(cls_name, base_order, sub_order):
+    fields = {}
+    for field, typ in type_classes[cls_name].items():
+      if field == 'callback':
+        continue
+      if field in dataclass_map:
+        for sfield, styp in type_classes[dataclass_map[field]].items():
+          name = f'{field}__{sfield}'
+          fields[name] = FieldInfo(cls_name, styp, (sub_order, name))
+      else:
+        fields[field] = FieldInfo(cls_name, typ, (base_order, field))
+    return fields
+
+  model_fields = get_fields('Model', 0, 1)
+  data_fields = get_fields('Data', 2, 3)
+
+  # Field names must be uniquely named across Model and Data hierarchies because
+  # _FunctionFieldUsageVisitor.add_field_usage attributes AST attribute accesses
+  # to Model or Data based solely on the field name lookup in mjwarp_field_info
+  # (via field_info.param_source) rather than inspecting base variable names.
+  #
+  # Nested sub-dataclasses (Option, Statistic in Model; Constraint, Contact in
+  # Data) are flattened with container prefixes (e.g. 'opt__timestep',
+  # 'contact__pos'). This prefixing prevents collisions between sub-dataclasses
+  # that share generic field names (such as 'pos' or 'type' in Contact and
+  # Constraint). The collision check below guarantees that no direct or
+  # flattened sub-dataclass field name is shared between Model and Data.
+  #
+  # These classified fields (model_fields, data_fields, data_out_fields) are
+  # then used in generate_warp_shim to build the FFI shim argument signatures.
+  if collisions := model_fields.keys() & data_fields.keys():
+    raise ValueError(
+        f'Field name collisions in MuJoCo Warp types: {collisions}'
+    )
+
+  return {**model_fields, **data_fields}
 
 
-def get_mjx_warp_field_info(src: str, get_cls_type_annotations) -> Dict[str, FieldInfo]:
+def get_mjx_warp_field_info(
+    src: str, get_cls_type_annotations
+) -> Dict[str, FieldInfo]:
   """Return field info for mjx/warp/types.py."""
   field_info = {}
   type_classes = get_cls_type_annotations(src)

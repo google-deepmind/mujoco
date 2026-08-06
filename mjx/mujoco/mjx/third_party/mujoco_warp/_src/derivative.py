@@ -29,10 +29,9 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import GainType
 from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec10
-from mujoco.mjx.third_party.mujoco_warp._src.types import vec10f
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
-wp.set_module_options({"enable_backward": False})
+wp.set_module_options({"enable_backward": False, "default_grid_stride": False})
 
 
 @wp.kernel
@@ -44,14 +43,14 @@ def _qderiv_actuator_passive_vel(
   actuator_biastype: wp.array[int],
   actuator_actadr: wp.array[int],
   actuator_actnum: wp.array[int],
-  actuator_forcelimited: wp.array[bool],
+  actuator_dynprm: wp.array2d[vec10],
+  actuator_gainprm: wp.array2d[vec10],
+  actuator_biasprm: wp.array2d[vec10],
   actuator_actlimited: wp.array[bool],
-  actuator_dynprm: wp.array2d[vec10f],
-  actuator_gainprm: wp.array2d[vec10f],
-  actuator_biasprm: wp.array2d[vec10f],
-  actuator_actearly: wp.array[bool],
-  actuator_forcerange: wp.array2d[wp.vec2],
   actuator_actrange: wp.array2d[wp.vec2],
+  actuator_actearly: wp.array[bool],
+  actuator_forcelimited: wp.array[bool],
+  actuator_forcerange: wp.array2d[wp.vec2],
   # Data in:
   act_in: wp.array2d[float],
   ctrl_in: wp.array2d[float],
@@ -1141,14 +1140,14 @@ def deriv_smooth_vel(m: Model, d: Data, out: wp.array2d[float]):
           m.actuator_biastype,
           m.actuator_actadr,
           m.actuator_actnum,
-          m.actuator_forcelimited,
-          m.actuator_actlimited,
           m.actuator_dynprm,
           m.actuator_gainprm,
           m.actuator_biasprm,
-          m.actuator_actearly,
-          m.actuator_forcerange,
+          m.actuator_actlimited,
           m.actuator_actrange,
+          m.actuator_actearly,
+          m.actuator_forcelimited,
+          m.actuator_forcerange,
           d.act,
           d.ctrl,
           d.act_dot,

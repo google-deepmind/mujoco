@@ -43,7 +43,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import OverflowType
 from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType
-from mujoco.mjx.third_party.mujoco_warp._src.types import vec10f
+from mujoco.mjx.third_party.mujoco_warp._src.types import vec10
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
@@ -138,10 +138,10 @@ def _next_activation(
   actuator_dyntype: wp.array[int],
   actuator_actadr: wp.array[int],
   actuator_actnum: wp.array[int],
+  actuator_dynprm: wp.array2d[vec10],
+  actuator_gainprm: wp.array2d[vec10],
+  actuator_biasprm: wp.array2d[vec10],
   actuator_actlimited: wp.array[bool],
-  actuator_dynprm: wp.array2d[vec10f],
-  actuator_gainprm: wp.array2d[vec10f],
-  actuator_biasprm: wp.array2d[vec10f],
   actuator_actrange: wp.array2d[wp.vec2],
   # Data in:
   act_in: wp.array2d[float],
@@ -286,10 +286,10 @@ def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None)
       m.actuator_dyntype,
       m.actuator_actadr,
       m.actuator_actnum,
-      m.actuator_actlimited,
       m.actuator_dynprm,
       m.actuator_gainprm,
       m.actuator_biasprm,
+      m.actuator_actlimited,
       m.actuator_actrange,
       d.act,
       d.act_dot,
@@ -451,10 +451,10 @@ def _rk_perturb_state(
         m.actuator_dyntype,
         m.actuator_actadr,
         m.actuator_actnum,
-        m.actuator_actlimited,
         m.actuator_dynprm,
         m.actuator_gainprm,
         m.actuator_biasprm,
+        m.actuator_actlimited,
         m.actuator_actrange,
         act_t0,
         d.act_dot,
@@ -613,13 +613,12 @@ def implicit(m: Model, d: Data):
 
 
 @event_scope
-def fwd_position(m: Model, d: Data, factorize: bool = True):
-  """Position-dependent computations.
+def fwd_kinematics(m: Model, d: Data):
+  """Kinematics-dependent computations.
 
   Args:
     m: The model containing kinematic and dynamic information.
     d: The data object containing the current state and output arrays.
-    factorize: Flag to factorize interia matrix.
   """
   smooth.kinematics(m, d)
   smooth.com_pos(m, d)
@@ -628,10 +627,23 @@ def fwd_position(m: Model, d: Data, factorize: bool = True):
   smooth.tendon(m, d)
 
   sleep_enabled = bool(m.opt.enableflags & EnableBit.SLEEP) and not bool(m.opt.disableflags & DisableBit.ISLAND)
-
   if sleep_enabled and m.ntendon > 0:
     sleep.wake_tendon(m, d)
     sleep.update_sleep_trees(m, d)
+
+
+@event_scope
+def fwd_position(m: Model, d: Data, factorize: bool = True):
+  """Position-dependent computations.
+
+  Args:
+    m: The model containing kinematic and dynamic information.
+    d: The data object containing the current state and output arrays.
+    factorize: Flag to factorize inertia matrix.
+  """
+  fwd_kinematics(m, d)
+
+  sleep_enabled = bool(m.opt.enableflags & EnableBit.SLEEP) and not bool(m.opt.disableflags & DisableBit.ISLAND)
 
   smooth.crb(m, d)
   smooth.tendon_armature(m, d)
@@ -751,16 +763,16 @@ def _actuator_force(
   actuator_biastype: wp.array[int],
   actuator_actadr: wp.array[int],
   actuator_actnum: wp.array[int],
-  actuator_ctrllimited: wp.array[bool],
-  actuator_forcelimited: wp.array[bool],
+  actuator_dynprm: wp.array2d[vec10],
+  actuator_gainprm: wp.array2d[vec10],
+  actuator_biasprm: wp.array2d[vec10],
   actuator_actlimited: wp.array[bool],
-  actuator_dynprm: wp.array2d[vec10f],
-  actuator_gainprm: wp.array2d[vec10f],
-  actuator_biasprm: wp.array2d[vec10f],
-  actuator_actearly: wp.array[bool],
-  actuator_ctrlrange: wp.array2d[wp.vec2],
-  actuator_forcerange: wp.array2d[wp.vec2],
   actuator_actrange: wp.array2d[wp.vec2],
+  actuator_actearly: wp.array[bool],
+  actuator_forcelimited: wp.array[bool],
+  actuator_forcerange: wp.array2d[wp.vec2],
+  actuator_ctrllimited: wp.array[bool],
+  actuator_ctrlrange: wp.array2d[wp.vec2],
   actuator_acc0: wp.array2d[float],
   actuator_lengthrange: wp.array2d[wp.vec2],
   # Data in:
@@ -819,6 +831,7 @@ def _actuator_force(
         adr += 1
 
       # integral
+      x_I = 0.0
       if slots[1] >= 0:
         x_I = act_in[worldid, adr]
         input_mode = int(gainprm[8])
@@ -1163,16 +1176,16 @@ def fwd_actuation(m: Model, d: Data):
       m.actuator_biastype,
       m.actuator_actadr,
       m.actuator_actnum,
-      m.actuator_ctrllimited,
-      m.actuator_forcelimited,
-      m.actuator_actlimited,
       m.actuator_dynprm,
       m.actuator_gainprm,
       m.actuator_biasprm,
-      m.actuator_actearly,
-      m.actuator_ctrlrange,
-      m.actuator_forcerange,
+      m.actuator_actlimited,
       m.actuator_actrange,
+      m.actuator_actearly,
+      m.actuator_forcelimited,
+      m.actuator_forcerange,
+      m.actuator_ctrllimited,
+      m.actuator_ctrlrange,
       m.actuator_acc0,
       m.actuator_lengthrange,
       d.act,
@@ -1311,6 +1324,20 @@ def fwd_acceleration(m: Model, d: Data, factorize: bool = False):
     smooth.solve_m(m, d, d.qacc_smooth, d.qfrc_smooth)
 
 
+def _energy_pos(m: Model, d: Data):
+  if m.opt.enableflags & EnableBit.ENERGY:
+    if m.sensor_e_potential == 0:  # not computed by sensor
+      sensor.energy_pos(m, d)
+  else:
+    d.energy.zero_()
+
+
+def _energy_vel(m: Model, d: Data):
+  if m.opt.enableflags & EnableBit.ENERGY:
+    if m.sensor_e_kinetic == 0:  # not computed by sensor
+      sensor.energy_vel(m, d)
+
+
 @event_scope
 def forward(m: Model, d: Data):
   """Forward dynamics."""
@@ -1319,23 +1346,14 @@ def forward(m: Model, d: Data):
     sleep.wake(m, d)
     sleep.update_sleep(m, d)
 
-  energy = m.opt.enableflags & EnableBit.ENERGY
-
   fwd_position(m, d, factorize=False)
   d.sensordata.zero_()
   sensor.sensor_pos(m, d)
-  if energy:
-    if m.sensor_e_potential == 0:  # not computed by sensor
-      sensor.energy_pos(m, d)
-  else:
-    d.energy.zero_()
+  _energy_pos(m, d)
 
   fwd_velocity(m, d)
   sensor.sensor_vel(m, d)
-
-  if energy:
-    if m.sensor_e_kinetic == 0:  # not computed by sensor
-      sensor.energy_vel(m, d)
+  _energy_vel(m, d)
 
   if not (m.opt.disableflags & DisableBit.ACTUATION):
     if m.callback.control:
@@ -1365,23 +1383,16 @@ def step(m: Model, d: Data):
 @event_scope
 def step1(m: Model, d: Data):
   """Advance simulation in two phases: before input is set by user."""
-  energy = m.opt.enableflags & EnableBit.ENERGY
   fwd_position(m, d)
   d.sensordata.zero_()
   sensor.sensor_pos(m, d)
 
-  if energy:
-    if m.sensor_e_potential == 0:  # not computed by sensor
-      sensor.energy_pos(m, d)
-  else:
-    d.energy.zero_()
+  _energy_pos(m, d)
 
   fwd_velocity(m, d)
   sensor.sensor_vel(m, d)
 
-  if energy:
-    if m.sensor_e_kinetic == 0:  # not computed by sensor
-      sensor.energy_vel(m, d)
+  _energy_vel(m, d)
 
   if not (m.opt.disableflags & DisableBit.ACTUATION):
     if m.callback.control:

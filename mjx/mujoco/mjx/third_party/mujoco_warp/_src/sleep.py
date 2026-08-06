@@ -23,7 +23,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import SleepState
 from mujoco.mjx.third_party.mujoco_warp._src.types import WrapType
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
-wp.set_module_options({"enable_backward": False})
+wp.set_module_options({"enable_backward": False, "default_grid_stride": False})
 
 # tree_asleep value for fully awake tree
 K_AWAKE_VAL = -(1 + types.MJ_MINAWAKE)
@@ -244,6 +244,9 @@ def _wake_tree(
   tree_asleep_out: wp.array2d[int],
 ) -> int:
   """Wakes tree treeid and its associated cycle, returning number of woke trees."""
+  if treeid < 0 or treeid >= ntree:
+    return 0
+
   asleep_val = tree_asleep_out[worldid, treeid]
   if asleep_val < 0:
     if wakeval < asleep_val:

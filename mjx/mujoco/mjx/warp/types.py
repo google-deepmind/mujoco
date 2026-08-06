@@ -53,12 +53,14 @@ class TileSet:
   Attributes:
     adr: address of each tile in the set
     size: size of all the tiles in this set
-    elemid: flat per-block gather indices into CSR M for tile_load_indexed
-      (absent -> nC sentinel)
+    elemid: flat CSR gather indices for tiled blocks; empty selects the
+      native-layout scalar path
   """
   adr: np.ndarray
   size: int
-  elemid: typing.Optional[np.ndarray] = None
+  elemid: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.array([], dtype=np.int32)
+  )
 
   def __eq__(self, other) -> bool:
     if self.__class__ is not other.__class__:
@@ -99,6 +101,7 @@ class BlockDim:
     cholesky_factorize_solve: block-dense Cholesky factorize+solve block
       dimension (smooth)
     cholesky_solve: Cholesky solve block dimension (smooth)
+    small_cholesky: scalar small-block Cholesky block dimension (smooth)
     solve_LD_sparse_fused: solve LD sparse fused block dimension (smooth)
     update_gradient_cholesky: update gradient Cholesky block dimension (solver)
     update_gradient_cholesky_blocked: update gradient Cholesky blocked block
@@ -125,6 +128,7 @@ class BlockDim:
   cholesky_factorize: int = 32
   cholesky_factorize_solve: int = 32
   cholesky_solve: int = 64
+  small_cholesky: int = 64
   solve_LD_sparse_fused: int = 128
   update_gradient_cholesky: int = 64
   update_gradient_cholesky_blocked: int = 32
@@ -210,6 +214,7 @@ class ModelWarp(PyTreeNode):
   eq_jnt_adr: np.ndarray
   eq_ten_adr: np.ndarray
   eq_wld_adr: np.ndarray
+  flex_bend_interp_map: np.ndarray
   flex_bending: np.ndarray
   flex_bendingadr: np.ndarray
   flex_cell_map: np.ndarray
@@ -236,6 +241,9 @@ class ModelWarp(PyTreeNode):
   flex_evpairadr: np.ndarray
   flex_evpairflexid: np.ndarray
   flex_evpairnum: np.ndarray
+  flex_face: np.ndarray
+  flex_face_map: np.ndarray
+  flex_faceadr: np.ndarray
   flex_friction: np.ndarray
   flex_gap: np.ndarray
   flex_internal: np.ndarray
@@ -277,7 +285,6 @@ class ModelWarp(PyTreeNode):
   is_sparse: bool
   jnt_limited_ball_adr: np.ndarray
   jnt_limited_slide_hinge_adr: np.ndarray
-  jtcj_max_pairs: int
   light_bodyid: np.ndarray
   light_targetbodyid: np.ndarray
   mapD2M: np.ndarray
@@ -301,12 +308,14 @@ class ModelWarp(PyTreeNode):
   nacttrnbody: int
   nbranch: int
   neq_flexstrain: int
+  nflexbend_interp: int
   nflexbending: int
   nflexedge: int
   nflexelem: int
   nflexelemdata: int
   nflexelemedge: int
   nflexevpair: int
+  nflexface: int
   nflexintcell: int
   nflexnode: int
   nflexshelldata: int
@@ -338,13 +347,7 @@ class ModelWarp(PyTreeNode):
   qLD_all_updates: np.ndarray
   qLD_block_adr: np.ndarray
   qLD_block_total: int
-  qLD_dof_dense: np.ndarray
-  qLD_dof_simple: np.ndarray
-  qLD_has_dense: bool
-  qLD_has_simple: bool
-  qLD_has_sparse: bool
   qLD_level_offsets: np.ndarray
-  qLD_simple_dofs: np.ndarray
   qLD_updates: Tuple[np.ndarray, ...]
   rangefinder_sensor_adr: np.ndarray
   sensor_acc_adr: np.ndarray
@@ -460,6 +463,8 @@ class DataWarp(PyTreeNode):
   efc__vel: jax.Array
   efc_islandid: jax.Array
   energy: jax.Array
+  face_quat: jax.Array
+  face_xpos: jax.Array
   flex_aabb_max: jax.Array
   flex_aabb_min: jax.Array
   flexedge_J: jax.Array
@@ -523,9 +528,6 @@ class DataWarp(PyTreeNode):
   wrap_xpos: jax.Array
   shape = property(lambda self: self.cacc.shape)
 DATA_NON_VMAP = {
-    'cJ',
-    'cM',
-    'cMa',
     'cdof_tri_col',
     'cdof_tri_row',
     'cls_tol',
@@ -546,15 +548,7 @@ DATA_NON_VMAP = {
     'contact__type',
     'contact__vert',
     'contact__worldid',
-    'cqLD',
-    'cqacc',
-    'cqacc_smooth',
-    'cqacc_warmstart',
-    'cqfrc_constraint',
-    'cqfrc_smooth',
-    'crhs',
     'ctol',
-    'cx',
     'naccdmax',
     'nacon',
     'naconmax',
@@ -673,6 +667,8 @@ _NDIM = {
         'efc_islandid': 2,
         'energy': 2,
         'eq_active': 2,
+        'face_quat': 3,
+        'face_xpos': 4,
         'flex_aabb_max': 3,
         'flex_aabb_min': 3,
         'flexedge_J': 2,
@@ -826,6 +822,7 @@ _NDIM = {
         'block_dim__ray': 0,
         'block_dim__render': 0,
         'block_dim__segmented_sort': 0,
+        'block_dim__small_cholesky': 0,
         'block_dim__solve_LD_sparse_fused': 0,
         'block_dim__solve_beta_accumulate': 0,
         'block_dim__solve_init_search_cg': 0,
@@ -860,6 +857,7 @@ _NDIM = {
         'body_pos': 3,
         'body_quat': 3,
         'body_rootid': 1,
+        'body_simple': 1,
         'body_subtreemass': 2,
         'body_tree': -1,
         'body_treeid': 1,
@@ -908,6 +906,7 @@ _NDIM = {
         'eq_type': 1,
         'eq_wld_adr': 1,
         'exclude_signature': 1,
+        'flex_bend_interp_map': 2,
         'flex_bending': 1,
         'flex_bendingadr': 1,
         'flex_cell_map': 2,
@@ -934,6 +933,9 @@ _NDIM = {
         'flex_evpairadr': 1,
         'flex_evpairflexid': 1,
         'flex_evpairnum': 1,
+        'flex_face': 2,
+        'flex_face_map': 2,
+        'flex_faceadr': 1,
         'flex_friction': 2,
         'flex_gap': 1,
         'flex_internal': 1,
@@ -1026,7 +1028,6 @@ _NDIM = {
         'jnt_stiffness': 2,
         'jnt_stiffnesspoly': 3,
         'jnt_type': 1,
-        'jtcj_max_pairs': 0,
         'light_active': 2,
         'light_ambient': 3,
         'light_attenuation': 3,
@@ -1094,12 +1095,14 @@ _NDIM = {
         'neq_flexstrain': 0,
         'nexclude': 0,
         'nflex': 0,
+        'nflexbend_interp': 0,
         'nflexbending': 0,
         'nflexedge': 0,
         'nflexelem': 0,
         'nflexelemdata': 0,
         'nflexelemedge': 0,
         'nflexevpair': 0,
+        'nflexface': 0,
         'nflexintcell': 0,
         'nflexnode': 0,
         'nflexshelldata': 0,
@@ -1191,13 +1194,7 @@ _NDIM = {
         'qLD_all_updates': 2,
         'qLD_block_adr': 1,
         'qLD_block_total': 0,
-        'qLD_dof_dense': 1,
-        'qLD_dof_simple': 1,
-        'qLD_has_dense': 0,
-        'qLD_has_simple': 0,
-        'qLD_has_sparse': 0,
         'qLD_level_offsets': 1,
-        'qLD_simple_dofs': 1,
         'qLD_updates': -1,
         'qpos0': 2,
         'qpos_spring': 2,
@@ -1323,9 +1320,9 @@ _BATCH_DIM = {
         'actuator_velocity': True,
         'body_awake': True,
         'body_awake_ind': True,
-        'cJ': False,
-        'cM': False,
-        'cMa': False,
+        'cJ': True,
+        'cM': True,
+        'cMa': True,
         'cacc': True,
         'cam_xmat': True,
         'cam_xpos': True,
@@ -1355,18 +1352,18 @@ _BATCH_DIM = {
         'contact__type': False,
         'contact__vert': False,
         'contact__worldid': False,
-        'cqLD': False,
-        'cqacc': False,
-        'cqacc_smooth': False,
-        'cqacc_warmstart': False,
-        'cqfrc_constraint': False,
-        'cqfrc_smooth': False,
+        'cqLD': True,
+        'cqacc': True,
+        'cqacc_smooth': True,
+        'cqacc_warmstart': True,
+        'cqfrc_constraint': True,
+        'cqfrc_smooth': True,
         'crb': True,
-        'crhs': False,
+        'crhs': True,
         'ctol': False,
         'ctrl': True,
         'cvel': True,
-        'cx': False,
+        'cx': True,
         'dof_awake_ind': True,
         'dof_cdof': True,
         'dof_island': True,
@@ -1394,6 +1391,8 @@ _BATCH_DIM = {
         'efc_islandid': True,
         'energy': True,
         'eq_active': True,
+        'face_quat': True,
+        'face_xpos': True,
         'flex_aabb_max': True,
         'flex_aabb_min': True,
         'flexedge_J': True,
@@ -1547,6 +1546,7 @@ _BATCH_DIM = {
         'block_dim__ray': False,
         'block_dim__render': False,
         'block_dim__segmented_sort': False,
+        'block_dim__small_cholesky': False,
         'block_dim__solve_LD_sparse_fused': False,
         'block_dim__solve_beta_accumulate': False,
         'block_dim__solve_init_search_cg': False,
@@ -1581,6 +1581,7 @@ _BATCH_DIM = {
         'body_pos': True,
         'body_quat': True,
         'body_rootid': False,
+        'body_simple': False,
         'body_subtreemass': True,
         'body_tree': False,
         'body_treeid': False,
@@ -1629,6 +1630,7 @@ _BATCH_DIM = {
         'eq_type': False,
         'eq_wld_adr': False,
         'exclude_signature': False,
+        'flex_bend_interp_map': False,
         'flex_bending': False,
         'flex_bendingadr': False,
         'flex_cell_map': False,
@@ -1655,6 +1657,9 @@ _BATCH_DIM = {
         'flex_evpairadr': False,
         'flex_evpairflexid': False,
         'flex_evpairnum': False,
+        'flex_face': False,
+        'flex_face_map': False,
+        'flex_faceadr': False,
         'flex_friction': False,
         'flex_gap': False,
         'flex_internal': False,
@@ -1747,7 +1752,6 @@ _BATCH_DIM = {
         'jnt_stiffness': True,
         'jnt_stiffnesspoly': True,
         'jnt_type': False,
-        'jtcj_max_pairs': False,
         'light_active': True,
         'light_ambient': True,
         'light_attenuation': True,
@@ -1815,12 +1819,14 @@ _BATCH_DIM = {
         'neq_flexstrain': False,
         'nexclude': False,
         'nflex': False,
+        'nflexbend_interp': False,
         'nflexbending': False,
         'nflexedge': False,
         'nflexelem': False,
         'nflexelemdata': False,
         'nflexelemedge': False,
         'nflexevpair': False,
+        'nflexface': False,
         'nflexintcell': False,
         'nflexnode': False,
         'nflexshelldata': False,
@@ -1912,13 +1918,7 @@ _BATCH_DIM = {
         'qLD_all_updates': False,
         'qLD_block_adr': False,
         'qLD_block_total': False,
-        'qLD_dof_dense': False,
-        'qLD_dof_simple': False,
-        'qLD_has_dense': False,
-        'qLD_has_simple': False,
-        'qLD_has_sparse': False,
         'qLD_level_offsets': False,
-        'qLD_simple_dofs': False,
         'qLD_updates': False,
         'qpos0': True,
         'qpos_spring': True,

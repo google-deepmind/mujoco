@@ -20,6 +20,7 @@ import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src.collision_core import Geom
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
+from mujoco.mjx.third_party.mujoco_warp._src.types import OverflowType
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat43
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat63
 
@@ -67,6 +68,8 @@ class GJKResult:
   simplex2: mat43
   simplex_index1: wp.vec4i
   simplex_index2: wp.vec4i
+  index1: int
+  index2: int
 
 
 @wp.struct
@@ -170,6 +173,7 @@ def support(geom: Geom, geomtype: int, dir: wp.vec3) -> SupportPoint:
       edge_localid = geom.graphadr + 2 + 2 * numvert
       prev = int(-1)
       imax = wp.where(geom.index > -1, geom.index, 0)
+      max_dist = wp.dot(local_dir, geom.vert[geom.vertadr + geom.graph[vert_globalid + imax]])
 
       # hillclimb until no change
       while imax != prev:
@@ -270,11 +274,6 @@ def _linear_combine(n: int, scl: wp.vec4, mat: mat43) -> wp.vec3:
   if n == 3:
     return scl[0] * mat[0] + scl[1] * mat[1] + scl[2] * mat[2]
   return scl[0] * mat[0] + scl[1] * mat[1] + scl[2] * mat[2] + scl[3] * mat[3]
-
-
-@wp.func
-def _almost_equal(v1: wp.vec3, v2: wp.vec3) -> bool:
-  return wp.abs(v1[0] - v2[0]) < MINVAL and wp.abs(v1[1] - v2[1]) < MINVAL and wp.abs(v1[2] - v2[2]) < MINVAL
 
 
 @wp.func
@@ -593,6 +592,45 @@ def _S1D(s1: wp.vec3, s2: wp.vec3) -> wp.vec2:
 
 
 @wp.func
+def _gjk_support(
+  # In:
+  geom1: Geom,
+  geom2: Geom,
+  geomtype1: int,
+  geomtype2: int,
+  x_k: wp.vec3,
+  x_norm: float,
+  simplex: mat43,
+  n: int,
+  is_discrete: bool,
+) -> Tuple[SupportPoint, SupportPoint]:
+  dir_neg = x_k / x_norm
+
+  # tuning for discrete geoms when direction is noisy
+  if is_discrete and x_norm < 1e-4:
+    if n == 2:
+      edge = simplex[1] - simplex[0]
+      edge_norm2 = wp.dot(edge, edge)
+      if edge_norm2 > MINVAL2:
+        proj = wp.dot(dir_neg, edge) / edge_norm2
+        dir_neg = dir_neg - proj * edge
+        dir_norm = wp.length(dir_neg)
+        if dir_norm > MINVAL:
+          dir_neg = dir_neg / dir_norm
+    elif n == 3:
+      e1 = simplex[1] - simplex[0]
+      e2 = simplex[2] - simplex[0]
+      normal = wp.cross(e1, e2)
+      normal_norm = wp.length(normal)
+      if normal_norm > MINVAL:
+        dir_neg = wp.sign(wp.dot(dir_neg, normal)) * normal / normal_norm
+
+  sp1 = support(geom1, geomtype1, -dir_neg)
+  sp2 = support(geom2, geomtype2, dir_neg)
+  return sp1, sp2
+
+
+@wp.func
 def gjk(
   # In:
   tolerance: float,
@@ -614,33 +652,34 @@ def gjk(
   simplex_index1 = wp.vec4i()
   simplex_index2 = wp.vec4i()
   n = int(0)
-  lmbda = wp.vec4()  # barycentric coordinates
-  tol2 = tolerance * tolerance
-  epsilon = wp.where(is_discrete, 0.0, 0.5 * tol2)
+  lmbda = wp.vec4(1.0, 0.0, 0.0, 0.0)  # barycentric coordinates
+
+  # for discrete geoms GJK is guaranteed to converge in a finite number of iterations
+  # so we can ignore tolerance
+  # TODO(kbayes): look into relative tolerances based off of xnorm
+  epsilon = wp.where(is_discrete, 0.0, 0.5 * tolerance * tolerance)
+  min_norm = wp.where(is_discrete, MINVAL, tolerance)
+  min_tol = wp.where(is_discrete, MINVAL, tolerance)
 
   # set initial guess
   x_k = x1_0 - x2_0
-  xnorm2_old = FLOAT_MAX
+  xnorm2 = wp.dot(x_k, x_k)
+  xnorm = wp.sqrt(xnorm2)
+  xnorm_prev = float(0.0)
 
   for _ in range(gjk_iterations):
-    xnorm2 = wp.dot(x_k, x_k)
-    # TODO(kbayes): determine new constant here
-    if xnorm2 < tol2 or wp.abs(xnorm2_old - xnorm2) < tol2:
+    if xnorm < min_norm or wp.abs(xnorm_prev - xnorm) < min_tol:
       break
-    xnorm2_old = xnorm2
-    dir_neg = x_k / wp.sqrt(xnorm2)
 
-    # compute kth support point in geom1
-    sp = support(geom1, geomtype1, -dir_neg)
-    simplex1[n] = sp.point
-    geom1.index = sp.cached_index
-    simplex_index1[n] = sp.vertex_index
+    # compute the support point with direction tuning
+    sp1, sp2 = _gjk_support(geom1, geom2, geomtype1, geomtype2, x_k, xnorm, simplex, n, is_discrete)
+    simplex1[n] = sp1.point
+    geom1.index = sp1.cached_index
+    simplex_index1[n] = sp1.vertex_index
 
-    # compute kth support point in geom2
-    sp = support(geom2, geomtype2, dir_neg)
-    simplex2[n] = sp.point
-    geom2.index = sp.cached_index
-    simplex_index2[n] = sp.vertex_index
+    simplex2[n] = sp2.point
+    geom2.index = sp2.cached_index
+    simplex_index2[n] = sp2.vertex_index
 
     # compute the kth support point
     simplex[n] = simplex1[n] - simplex2[n]
@@ -655,6 +694,8 @@ def gjk(
         result = GJKResult()
         result.dim = 0
         result.dist = FLOAT_MAX
+        result.index1 = geom1.index
+        result.index2 = geom2.index
         return result
     elif cutoff < FLOAT_MAX:
       vs = wp.dot(x_k, simplex[n])
@@ -662,6 +703,8 @@ def gjk(
         result = GJKResult()
         result.dim = 0
         result.dist = FLOAT_MAX
+        result.index1 = geom1.index
+        result.index2 = geom2.index
         return result
 
     # run the distance subalgorithm to compute the barycentric coordinates
@@ -686,19 +729,16 @@ def gjk(
     if n < 1:
       break
 
-    # get the next iteration of x_k
-    x_next = _linear_combine(n, lmbda, simplex)
-
-    # x_k has converged to minimum
-    if _almost_equal(x_next, x_k):
-      break
-
-    # copy next iteration into x_k
-    x_k = x_next
-
     # we have a tetrahedron containing the origin so return early
     if n == 4:
+      xnorm = 0.0
       break
+
+    # get the next iteration of x_k
+    x_k = _linear_combine(n, lmbda, simplex)
+    xnorm_prev = xnorm
+    xnorm2 = wp.dot(x_k, x_k)
+    xnorm = wp.sqrt(xnorm2)
 
   result = GJKResult()
 
@@ -707,7 +747,7 @@ def gjk(
   # are the witness points
   result.x1 = wp.where(n == 0, x1_0, _linear_combine(n, lmbda, simplex1))
   result.x2 = wp.where(n == 0, x2_0, _linear_combine(n, lmbda, simplex2))
-  result.dist = wp.norm_l2(x_k)
+  result.dist = xnorm
 
   result.dim = n
   result.simplex1 = simplex1
@@ -715,6 +755,8 @@ def gjk(
   result.simplex_index1 = simplex_index1
   result.simplex_index2 = simplex_index2
   result.simplex = simplex
+  result.index1 = geom1.index
+  result.index2 = geom2.index
   return result
 
 
@@ -1182,26 +1224,48 @@ def _polytope4(
   pt.vert_index[6] = simplex_index1[3]
   pt.vert_index[7] = simplex_index2[3]
 
+  dist = wp.vec4()
+  idx = int(0)
+
   # if the origin is on a face, replace the 3-simplex with a 2-simplex
-  if _attach_face(pt, 0, 0, 1, 2) < MIN_DIST4:
+  dist[0] = _attach_face(pt, 0, 0, 1, 2)
+  if dist[0] < MIN_DIST4:
     pt.status = -1
     return pt, _replace_simplex3(pt, 0, 1, 2)
 
-  if _attach_face(pt, 1, 0, 3, 1) < MIN_DIST4:
+  dist[1] = _attach_face(pt, 1, 0, 3, 1)
+  if dist[1] < MIN_DIST4:
     pt.status = -1
     return pt, _replace_simplex3(pt, 0, 3, 1)
+  idx = wp.where(dist[0] < dist[1], 0, 1)
 
-  if _attach_face(pt, 2, 0, 2, 3) < MIN_DIST4:
+  dist[2] = _attach_face(pt, 2, 0, 2, 3)
+  if dist[2] < MIN_DIST4:
     pt.status = -1
     return pt, _replace_simplex3(pt, 0, 2, 3)
+  idx = wp.where(dist[2] < dist[idx], 2, idx)
 
-  if _attach_face(pt, 3, 3, 2, 1) < MIN_DIST4:
+  dist[3] = _attach_face(pt, 3, 3, 2, 1)
+  if dist[3] < MIN_DIST4:
     pt.status = -1
     return pt, _replace_simplex3(pt, 3, 2, 1)
+  idx = wp.where(dist[3] < dist[idx], 3, idx)
 
   if not _test_tetra(simplex[0], simplex[1], simplex[2], simplex[3]):
-    pt.status = 12
-    return pt, GJKResult()
+    if dist[idx] > MINVAL:
+      pt.status = 12
+      return pt, GJKResult()
+
+    # fallback to closest face
+    pt.status = -1
+    if idx == 0:
+      return pt, _replace_simplex3(pt, 0, 1, 2)
+    elif idx == 1:
+      return pt, _replace_simplex3(pt, 0, 3, 1)
+    elif idx == 2:
+      return pt, _replace_simplex3(pt, 0, 2, 3)
+    else:
+      return pt, _replace_simplex3(pt, 3, 2, 1)
 
   # set polytope counts
   pt.nvert = 4
@@ -1251,6 +1315,10 @@ def _epa(
   geomtype1: int,
   geomtype2: int,
   is_discrete: bool,
+  warn_overflow: bool,
+  worldid: int,
+  # Data out:
+  overflow_out: wp.array[int],
 ) -> Tuple[float, wp.vec3, wp.vec3, int]:
   """Recover penetration data from two geoms in contact given an initial polytope."""
   upper = FLOAT_MAX
@@ -1320,7 +1388,9 @@ def _epa(
     pt.nhorizon = _add_edge(pt, face[1], face[2])
     pt.nhorizon = _add_edge(pt, face[2], face[0])
     if pt.nhorizon == -1:
-      wp.printf("Warning: EPA horizon = %d isn't large enough.\n", pt.horizon.shape[0])
+      if warn_overflow:
+        wp.printf("Warning: EPA horizon = %d isn't large enough.\n", pt.horizon.shape[0])
+      wp.atomic_or(overflow_out, worldid, OverflowType.EPA_HORIZON)
       idx = -1
       break
 
@@ -1337,7 +1407,9 @@ def _epa(
         pt.nhorizon = _add_edge(pt, face[1], face[2])
         pt.nhorizon = _add_edge(pt, face[2], face[0])
         if pt.nhorizon == -1:
-          wp.printf("Warning: EPA horizon = %d isn't large enough.\n", pt.horizon.shape[0])
+          if warn_overflow:
+            wp.printf("Warning: EPA horizon = %d isn't large enough.\n", pt.horizon.shape[0])
+          wp.atomic_or(overflow_out, worldid, OverflowType.EPA_HORIZON)
           idx = -1
           break
 
@@ -2302,6 +2374,8 @@ def gjk_phase(
   if size1 + size2 > 0.0:
     cutoff += full_margin1 + full_margin2
     result = gjk(tolerance, gjk_iterations, geom1, geom2, x_1, x_2, geomtype1, geomtype2, cutoff, is_discrete)
+    geom1.index = result.index1
+    geom2.index = result.index2
 
     # shallow penetration, inflate contact
     if result.dist > tolerance:
@@ -2318,6 +2392,8 @@ def gjk_phase(
     cutoff -= full_margin1 + full_margin2
 
   result = gjk(tolerance, gjk_iterations, geom1, geom2, x_1, x_2, geomtype1, geomtype2, cutoff, is_discrete)
+  geom1.index = result.index1
+  geom2.index = result.index2
 
   # no penetration depth to recover
   if result.dist > tolerance or result.dim < 2:
@@ -2342,6 +2418,10 @@ def epa_phase(
   face_pr: wp.array[wp.vec3],
   face_norm2: wp.array[float],
   horizon: wp.array[int],
+  warn_overflow: bool,
+  worldid: int,
+  # Data out:
+  overflow_out: wp.array[int],
 ) -> Tuple[float, int, wp.vec3, wp.vec3, int]:
   """Run EPA given GJK result. Returns (dist, ncontact, x1, x2, multiccd_idx)."""
   pt = Polytope()
@@ -2413,7 +2493,9 @@ def epa_phase(
     return result.dist, 1, result.x1, result.x2, -1
 
   is_discrete = _discrete_geoms(geomtype1, geomtype2) and (geom1.margin == 0.0 and geom2.margin == 0.0)
-  dist, x1, x2, idx = _epa(tolerance, epa_iterations, pt, geom1, geom2, geomtype1, geomtype2, is_discrete)
+  dist, x1, x2, idx = _epa(
+    tolerance, epa_iterations, pt, geom1, geom2, geomtype1, geomtype2, is_discrete, warn_overflow, worldid, overflow_out
+  )
   if idx == -1:
     return FLOAT_MAX, 0, wp.vec3(), wp.vec3(), -1
 
@@ -2447,6 +2529,10 @@ def ccd(
   face_pr: wp.array[wp.vec3],
   face_norm2: wp.array[float],
   horizon: wp.array[int],
+  warn_overflow: bool,
+  worldid: int,
+  # Data out:
+  overflow_out: wp.array[int],
 ) -> Tuple[float, int, wp.vec3, wp.vec3, int]:
   """General convex collision detection via GJK/EPA."""
   needs_epa, dist, ncontact, x1, x2, result, geom1, geom2 = gjk_phase(
@@ -2468,4 +2554,7 @@ def ccd(
     face_pr,
     face_norm2,
     horizon,
+    warn_overflow,
+    worldid,
+    overflow_out,
   )

@@ -22,6 +22,8 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import ObjType
 from mujoco.mjx.third_party.mujoco_warp._src.types import OverflowType
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
+wp.set_module_options({"default_grid_stride": False})
+
 
 @wp.kernel
 def _tree_edges(

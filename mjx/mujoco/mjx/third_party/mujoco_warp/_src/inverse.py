@@ -29,7 +29,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import EnableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 
-wp.set_module_options({"enable_backward": False})
+wp.set_module_options({"enable_backward": False, "default_grid_stride": False})
 
 
 @wp.kernel
@@ -119,12 +119,27 @@ def discrete_acc(m: Model, d: Data, qacc: wp.array2d[float]):
   smooth.solve_m(m, d, qacc, qfrc)
 
 
+@wp.kernel
+def _zero_qfrc_constraint_nefc(nefc_in: wp.array[int], qfrc_constraint_out: wp.array2d[float]):
+  worldid, dofid = wp.tid()
+  if nefc_in[worldid] == 0:
+    qfrc_constraint_out[worldid, dofid] = 0.0
+
+
 def inv_constraint(m: Model, d: Data):
   """Inverse constraint solver."""
   # no constraints
   if d.njmax == 0:
     d.qfrc_constraint.zero_()
     return
+
+  if m.is_sparse:
+    wp.launch(
+      _zero_qfrc_constraint_nefc,
+      dim=(d.nworld, m.nv),
+      inputs=[d.nefc],
+      outputs=[d.qfrc_constraint],
+    )
 
   ctx = solver.create_inverse_context(m, d)
   solver.init_context(m, d, ctx, grad=False)

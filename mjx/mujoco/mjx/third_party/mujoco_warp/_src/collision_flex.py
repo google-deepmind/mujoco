@@ -36,7 +36,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import OverflowType
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec5
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
-wp.set_module_options({"enable_backward": False})
+wp.set_module_options({"enable_backward": False, "default_grid_stride": False})
 
 
 @wp.func
@@ -796,6 +796,7 @@ def _collide_mesh_triangle(
   epa_horizon: wp.array[int],
   tolerance: float,
   ccd_iterations: int,
+  warn_overflow: bool,
   # Data out:
   overflow_out: wp.array[int],
   # Out:
@@ -861,6 +862,9 @@ def _collide_mesh_triangle(
       epa_pr,
       epa_norm2,
       epa_horizon,
+      warn_overflow,
+      worldid,
+      overflow_out,
     )
 
     if ncontact > 0 and dist < margin + tri_radius:
@@ -1285,7 +1289,7 @@ def _plane_vertex(
   return True, dist, contact_pos, nrm_out
 
 
-@wp.kernel(module="unique", enable_backward=False)
+@wp.kernel(module="unique", enable_backward=False, grid_stride=False)
 def _flex_internal_collisions_detect(
   # Model:
   nflex: int,
@@ -1394,7 +1398,7 @@ def _flex_internal_collisions_detect(
     )
 
 
-@wp.kernel(module="unique", enable_backward=False)
+@wp.kernel(module="unique", enable_backward=False, grid_stride=False)
 def _flex_tet_internal_collisions_detect(
   # Model:
   nflex: int,
@@ -1840,6 +1844,7 @@ def _flex_selfcollision_narrowphase(
   # Model:
   nflex: int,
   opt_ccd_tolerance: wp.array[float],
+  opt_warn_overflow: bool,
   flex_dim: wp.array[int],
   flex_vertadr: wp.array[int],
   flex_elemadr: wp.array[int],
@@ -2015,6 +2020,9 @@ def _flex_selfcollision_narrowphase(
       epa_pr_out[pairid],
       epa_norm2_out[pairid],
       epa_horizon_out[pairid],
+      opt_warn_overflow,
+      worldid,
+      overflow_out,
     )
 
     phys_dist = dist
@@ -2055,11 +2063,12 @@ def _flex_selfcollision_narrowphase(
       )
 
 
-@wp.kernel(module="unique", enable_backward=False)
+@wp.kernel(module="unique", enable_backward=False, grid_stride=False)
 def _flex_active_element_collisions_detect(
   # Model:
   nflex: int,
   opt_ccd_tolerance: wp.array[float],
+  opt_warn_overflow: bool,
   flex_selfcollide: wp.array[int],
   flex_dim: wp.array[int],
   flex_vertadr: wp.array[int],
@@ -2234,6 +2243,9 @@ def _flex_active_element_collisions_detect(
         epa_pr_out[unique_thread_id],
         epa_norm2_out[unique_thread_id],
         epa_horizon_out[unique_thread_id],
+        opt_warn_overflow,
+        worldid,
+        overflow_out,
       )
 
       phys_dist = dist
@@ -2445,6 +2457,7 @@ def _flex_narrowphase_unified(
         epa_horizon[ccdid],
         tolerance,
         ccd_iterations,
+        opt_warn_overflow,
         overflow_out,
         cand_dist_out,
         cand_pos_out,
@@ -2507,6 +2520,9 @@ def _flex_narrowphase_unified(
           epa_pr[ccdid],
           epa_norm2[ccdid],
           epa_horizon[ccdid],
+          opt_warn_overflow,
+          worldid,
+          overflow_out,
         )
 
         if ncontact > 0 and dist < margin + tri_radius:
@@ -3650,6 +3666,7 @@ def flex_collision(m: Model, d: Data, ctx):
         inputs=[
           m.nflex,
           m.opt.ccd_tolerance,
+          m.opt.warn_overflow,
           m.flex_dim,
           m.flex_vertadr,
           m.flex_elemadr,
@@ -3716,6 +3733,7 @@ def flex_collision(m: Model, d: Data, ctx):
         inputs=[
           m.nflex,
           m.opt.ccd_tolerance,
+          m.opt.warn_overflow,
           m.flex_selfcollide,
           m.flex_dim,
           m.flex_vertadr,
