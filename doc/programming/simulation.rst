@@ -1300,6 +1300,8 @@ criteria:
 - It comes into contact with an awake tree. Waking due to contact leads to collision detection being run *twice*, but
   only on the timestep when it occurs. This is required in order to detect contacts inside the island and between the
   island and the world, which were skipped in the first run when it was deemed asleep.
+- It comes into contact with a :ref:`mocap body<CMocap>`, or is connected to one by an active equality constraint.
+  Mocap bodies count as awake, since the user can move them at any time.
 - It is connected to an awake tree by an active equality constraint or limited tendon.
 - It is connected by an equality constraint to a sleeping tree in a different island. For this to occur, the equality
   must have been disabled when both trees were put to sleep.

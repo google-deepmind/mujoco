@@ -100,8 +100,9 @@ TEST_F(UserModelTest, WeldRootID) {
 
   EXPECT_THAT(AsVector(model->body_rootid, model->nbody),
               ElementsAre(0, 1, 1, 3, 3, 5, 5, 7, 7, 9, 9));
+  // mocap bodies (7, 9) are their own weld roots, inherited by static children (8)
   EXPECT_THAT(AsVector(model->body_weldid, model->nbody),
-              ElementsAre(0, 1, 2, 3, 3, 0, 0, 0, 0, 0, 10));
+              ElementsAre(0, 1, 2, 3, 3, 0, 0, 7, 7, 9, 10));
 }
 
 TEST_F(UserModelTest, RepeatedNames) {

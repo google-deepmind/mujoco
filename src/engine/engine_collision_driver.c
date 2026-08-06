@@ -285,11 +285,16 @@ static int mj_filterSphere(const mjModel* m, mjData* d, int g1, int g2, mjtNum m
 
 
 // filter body pair; 1: discard, 0: proceed
-static int filterBodyPair(int weldbody1, int weldparent1, int asleep1,
-                          int weldbody2, int weldparent2, int asleep2,
+static int filterBodyPair(int weldbody1, int weldparent1, int asleep1, int dofnum1,
+                          int weldbody2, int weldparent2, int asleep2, int dofnum2,
                           int dsbl_filterparent) {
   // same weldbody check
   if (weldbody1 == weldbody2) {
+    return 1;
+  }
+
+  // both dof-less: no forces can act, skip
+  if (dofnum1 == 0 && dofnum2 == 0) {
     return 1;
   }
 
@@ -298,7 +303,7 @@ static int filterBodyPair(int weldbody1, int weldparent1, int asleep1,
     return 1;
   }
 
-  // asleep and static check
+  // asleep and world-static check (mocap has weldbody != 0, still triggers wake)
   if ((asleep1 && !weldbody2) || (asleep2 && !weldbody1)) {
     return 1;
   }
@@ -1024,8 +1029,8 @@ static void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
   int nstack = 1;
   stack[0].node1 = stack[0].node2 = 0;
 
-  // for body:flex, if body has planes, call mj_collidePlaneFlex directly
-  if (isbody1 && !isbody2 && m->body_weldid[bf1] == 0) {
+  // for body:flex, if dof-less body has planes, call mj_collidePlaneFlex directly
+  if (isbody1 && !isbody2 && m->body_dofnum[m->body_weldid[bf1]] == 0) {
     for (int i=m->body_geomadr[bf1]; i < m->body_geomadr[bf1]+m->body_geomnum[bf1]; i++) {
       if (m->geom_type[i] == mjGEOM_PLANE) {
         mj_collidePlaneFlex(m, d, i, f2);
@@ -1075,7 +1080,6 @@ static void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
                             d->geom_xpos + 3*nodeid1, d->geom_xmat + 9*nodeid1,
                             d->geom_xpos + 3*nodeid2, d->geom_xmat + 9*nodeid2,
                             margin + gap, NULL, NULL, &initialize)) {
-
             if (filterCollisionPair(m, d, nodeid1, nodeid2, -1, merged, startadr, pairadr)) {
               int n1 = nodeid1, n2 = nodeid2;
               if (m->geom_type[n1] > m->geom_type[n2]) {
@@ -1579,9 +1583,13 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
       continue;
     }
 
-    // b1 is world body with geoms, or world-welded body with plane
+    // b1 is world body with geoms, or dof-less body with plane (static or mocap)
     if ((b1 == 0 && m->body_geomnum[b1] > 0) ||
-        (m->body_weldid[b1] == 0 && hasPlane(m, b1))) {
+        (m->body_dofnum[m->body_weldid[b1]] == 0 && hasPlane(m, b1))) {
+      int weld1 = m->body_weldid[b1];
+      int parent_weld1 = m->body_weldid[m->body_parentid[weld1]];
+      int dofnum1 = m->body_dofnum[weld1];
+
       // add b1:b2 pairs that are not welded together
       for (int b2=0; b2 < nbody; b2++) {
         // cannot collide
@@ -1589,11 +1597,13 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
           continue;
         }
 
-        // welded together
         int weld2 = m->body_weldid[b2];
         int parent_weld2 = m->body_weldid[m->body_parentid[weld2]];
         int asleep2 = sleep_filter ? d->body_awake[b2] == mjS_ASLEEP : 0;
-        if (filterBodyPair(0, 0, 1, weld2, parent_weld2, asleep2, dsbl_filterparent)) {
+        int dofnum2 = m->body_dofnum[weld2];
+        if (filterBodyPair(weld1, parent_weld1, 0, dofnum1,
+                           weld2, parent_weld2, asleep2, dofnum2,
+                           dsbl_filterparent)) {
           continue;
         }
 
@@ -1684,15 +1694,16 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
 
       // body pair: prune based on sleep filter and weld filter
       if (bf1 < nbody && bf2 < nbody) {
-        int asleep1 = sleep_filter ? d->body_awake[bf1] == mjS_ASLEEP : 0;
-        int asleep2 = sleep_filter ? d->body_awake[bf2] == mjS_ASLEEP : 0;
         int weld1 = m->body_weldid[bf1];
         int weld2 = m->body_weldid[bf2];
         int parent_weld1 = m->body_weldid[m->body_parentid[weld1]];
         int parent_weld2 = m->body_weldid[m->body_parentid[weld2]];
-
-        if (filterBodyPair(weld1, parent_weld1, asleep1,
-                           weld2, parent_weld2, asleep2,
+        int asleep1 = sleep_filter ? d->body_awake[bf1] == mjS_ASLEEP : 0;
+        int asleep2 = sleep_filter ? d->body_awake[bf2] == mjS_ASLEEP : 0;
+        int dofnum1 = m->body_dofnum[weld1];
+        int dofnum2 = m->body_dofnum[weld2];
+        if (filterBodyPair(weld1, parent_weld1, asleep1, dofnum1,
+                           weld2, parent_weld2, asleep2, dofnum2,
                            dsbl_filterparent)) {
           continue;
         }

@@ -1544,6 +1544,13 @@ virtual objects cannot push on your physical hand, so your hand (and thereby the
 violate the simulated physics. But at the same time we want the resulting simulation to be reasonable. How do we do
 this?
 
+Mocap bodies and their dof-less descendants form their own *weld group*, rooted at the mocap body
+(``mjModel.body_weldid`` equals the mocap body's own id rather than 0, the world). This has several consequences:
+children of mocap bodies receive the standard parent-child collision exclusion; mocap bodies do not generate contacts
+with static geometry or with each other; and when :ref:`sleeping<Sleeping>` is enabled, mocap bodies count as awake —
+contact with a mocap body, or an active equality constraint connecting to one, wakes sleeping objects, so dragging a
+mocap body through a pile of sleeping objects behaves as expected.
+
 The first step is to define a mocap body in the MJCF model, and implement code that reads the data stream at runtime and
 sets :ref:`mjData.mocap_pos <siMocap>` and :ref:`mjData.mocap_quat <siMocap>` to the position and orientation received
 from the motion capture system. The :ref:`simulate.cc <saSimulate>` code sample uses the mouse as a motion capture

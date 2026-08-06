@@ -53,6 +53,12 @@ Engine
    - Changed the default value of :ref:`bvactive<visual-global-bvactive>` from "true" to "false". This avoids
      unnecessarily clearing bounding volume hierarchy visualization flags at every simulation step, which can be a
      bottleneck for models with large meshes.
+   - Mocap bodies and their dof-less descendants are now the root of their own weld group: ``mjModel.body_weldid`` of a
+     mocap body equals its own id rather than 0. Consequences: dragging a mocap body into sleeping objects now wakes
+     them; children of mocap bodies receive standard :ref:`parent-child collision filtering<SurprisingCollisions>`;
+     mocap bodies no longer count as static geometry for ray casting, and contact-matching sensors aggregate their
+     contacts under the mocap body rather than the world; and geom pairs where neither body can move no longer generate
+     contacts.
 
 Models
 ^^^^^^

@@ -4508,8 +4508,8 @@ void mjCModel::FuseReindex(mjCBody* body) {
   // set parentid and weldid of children
   for (int i=0; i < body->bodies.size(); i++) {
     body->bodies[i]->parent = body;
-    body->bodies[i]->weldid = (!body->bodies[i]->joints.empty() ?
-                               body->bodies[i]->id : body->weldid);
+    bool weld_root = !body->bodies[i]->joints.empty() || body->bodies[i]->spec.mocap;
+    body->bodies[i]->weldid = (weld_root ? body->bodies[i]->id : body->weldid);
   }
 
   makelistid(joints_, body->joints);

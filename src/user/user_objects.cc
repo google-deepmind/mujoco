@@ -2689,7 +2689,8 @@ void mjCBody::Compile(void) {
 
   // set parentid and weldid of children
   for (int i=0; i < bodies.size(); i++) {
-    bodies[i]->weldid = (!bodies[i]->joints.empty() ? bodies[i]->id : weldid);
+    bool weld_root = !bodies[i]->joints.empty() || bodies[i]->spec.mocap;
+    bodies[i]->weldid = (weld_root ? bodies[i]->id : weldid);
   }
 
   // check and process orientation alternatives for body
@@ -3962,9 +3963,15 @@ void mjCGeom::Compile(void) {
     throw mjCError(this, "hfield geom '%s' (id = %d) must have valid hfieldid", name.c_str(), id);
   }
 
-  // plane only allowed in static bodies
+  // plane only allowed in bodies with no dofs (static, including mocap)
   if (type == mjGEOM_PLANE && body->weldid != 0) {
-    throw mjCError(this, "plane only allowed in static bodies");
+    const mjCBody* weld = body;
+    while (weld->id != weld->weldid) {
+      weld = weld->parent;
+    }
+    if (!weld->spec.mocap) {
+      throw mjCError(this, "plane only allowed in static bodies");
+    }
   }
 
   // check if can collide

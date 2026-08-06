@@ -1497,7 +1497,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='top ancestor with no dofs to this body',
+                 doc='top dof-less ancestor; mocap: own root',
                  array_extent=('nbody',),
              ),
              StructFieldDecl(

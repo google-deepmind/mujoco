@@ -64,8 +64,8 @@ static float GetPlaneTileSize(const mjModel* model, int matid,
 }
 
 static mjtCatBit GetBodyCategory(const mjModel* m, int bodyid) {
-  if (m->body_weldid[bodyid] == 0 &&
-      m->body_mocapid[m->body_rootid[bodyid]] == -1) {
+  // mocap subtrees are their own weld, hence not static
+  if (m->body_weldid[bodyid] == 0) {
     return mjCAT_STATIC;
   } else {
     return mjCAT_DYNAMIC;

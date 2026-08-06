@@ -905,8 +905,8 @@ static void set0(mjModel* m, mjData* d) {
   // compute body_invweight0
   m->body_invweight0[0] = m->body_invweight0[1] = 0.0;
   for (int i=1; i < m->nbody; i++) {
-    // static bodies: zero invweight0
-    if (m->body_weldid[i] == 0) {
+    // bodies with no dofs (static and mocap): zero invweight0
+    if (m->body_dofnum[m->body_weldid[i]] == 0) {
       m->body_invweight0[2*i] = m->body_invweight0[2*i+1] = 0;
     }
 

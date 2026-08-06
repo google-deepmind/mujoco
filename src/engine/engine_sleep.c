@@ -333,8 +333,13 @@ int mj_wakeCollision(const mjModel* m, mjData* d) {
     int tree1 = m->body_treeid[b1];
     int tree2 = m->body_treeid[b2];
 
-    // contact with static body, nothing to do
+    // contact with a dof-less body: wake if it is marked awake (mocap), otherwise nothing to do
     if (tree1 < 0 || tree2 < 0) {
+      int tree = tree1 < 0 ? tree2 : tree1;
+      int b = tree1 < 0 ? b1 : b2;
+      if (tree >= 0 && !d->tree_awake[tree] && d->body_awake[b] == mjS_AWAKE) {
+        nwoke += mj_wakeIsland(d->tree_asleep, ntree, tree, kAwake, "mocap contact with", d->time);
+      }
       continue;
     }
 
@@ -408,22 +413,27 @@ int mj_wakeEquality(const mjModel* m, mjData* d) {
     int id1 = m->eq_obj1id[i];
     int id2 = m->eq_obj2id[i];
     int tree1, tree2;
+    int body1 = -1, body2 = -1;
 
     switch (eqtype) {
     case mjEQ_CONNECT:
     case mjEQ_WELD:
       if (m->eq_objtype[i] == mjOBJ_BODY) {
-        tree1 = m->body_treeid[id1];
-        tree2 = m->body_treeid[id2];
+        body1 = id1;
+        body2 = id2;
       } else {
-        tree1 = m->body_treeid[m->site_bodyid[id1]];
-        tree2 = m->body_treeid[m->site_bodyid[id2]];
+        body1 = m->site_bodyid[id1];
+        body2 = m->site_bodyid[id2];
       }
+      tree1 = m->body_treeid[body1];
+      tree2 = m->body_treeid[body2];
       break;
 
     case mjEQ_JOINT:
-      tree1 = id1 >= 0 ? m->body_treeid[m->jnt_bodyid[id1]] : -1;
-      tree2 = id2 >= 0 ? m->body_treeid[m->jnt_bodyid[id2]] : -1;
+      body1 = id1 >= 0 ? m->jnt_bodyid[id1] : -1;
+      body2 = id2 >= 0 ? m->jnt_bodyid[id2] : -1;
+      tree1 = body1 >= 0 ? m->body_treeid[body1] : -1;
+      tree2 = body2 >= 0 ? m->body_treeid[body2] : -1;
       break;
 
     case mjEQ_TENDON:
@@ -475,9 +485,11 @@ int mj_wakeEquality(const mjModel* m, mjData* d) {
       continue;
     }
 
-    // get sleep state
-    mjtSleepState s1 = tree1 >= 0 ? d->tree_awake[tree1] : mjS_STATIC;
-    mjtSleepState s2 = tree2 >= 0 ? d->tree_awake[tree2] : mjS_STATIC;
+    // get sleep state; dof-less bodies marked awake (mocap) count as awake
+    mjtSleepState s1 = tree1 >= 0 ? (mjtSleepState)d->tree_awake[tree1]
+                                  : (body1 >= 0 ? (mjtSleepState)d->body_awake[body1] : mjS_STATIC);
+    mjtSleepState s2 = tree2 >= 0 ? (mjtSleepState)d->tree_awake[tree2]
+                                  : (body2 >= 0 ? (mjtSleepState)d->body_awake[body2] : mjS_STATIC);
 
     // neither is asleep, nothing to do
     if (s1 != mjS_ASLEEP && s2 != mjS_ASLEEP) {

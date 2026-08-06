@@ -59,8 +59,8 @@ int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2, int flg_skipcomm
   b1 = m->body_weldid[b1];
   b2 = m->body_weldid[b2];
 
-  // neither body is movable: empty chain
-  if (b1 == 0 && b2 == 0) {
+  // neither weld root has dofs: empty chain
+  if (m->body_dofnum[b1] == 0 && m->body_dofnum[b2] == 0) {
     return 0;
   }
 
@@ -143,8 +143,8 @@ int mj_bodyChain(const mjModel* m, int body, int* chain) {
     // skip fixed bodies
     body = m->body_weldid[body];
 
-    // not movable: empty chain
-    if (body == 0) {
+    // weld root has no dofs: empty chain
+    if (m->body_dofnum[body] == 0) {
       return 0;
     }
 
@@ -190,8 +190,8 @@ void mj_jac(const mjModel* m, const mjData* d,
   // skip fixed bodies
   body = m->body_weldid[body];
 
-  // no movable body found: nothing to do
-  if (!body) {
+  // weld root has no dofs: nothing to do
+  if (m->body_dofnum[body] == 0) {
     return;
   }
 
@@ -319,8 +319,8 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
   // skip fixed bodies
   body = m->body_weldid[body];
 
-  // no movable body found: nothing to do
-  if (!body) {
+  // weld root has no dofs: nothing to do
+  if (m->body_dofnum[body] == 0) {
     return;
   }
 
@@ -622,8 +622,8 @@ void mj_jacDot(const mjModel* m, const mjData* d,
   // skip fixed bodies
   body = m->body_weldid[body];
 
-  // no movable body found: nothing to do
-  if (!body) {
+  // weld root has no dofs: nothing to do
+  if (m->body_dofnum[body] == 0) {
     return;
   }
 
@@ -695,8 +695,8 @@ void mj_jacDotSparse(const mjModel* m, const mjData* d,
   // skip fixed bodies
   body = m->body_weldid[body];
 
-  // no movable body found: nothing to do
-  if (!body) {
+  // weld root has no dofs: nothing to do
+  if (m->body_dofnum[body] == 0) {
     return;
   }
 
@@ -877,8 +877,8 @@ void mj_objectVelocity(const mjModel* m, const mjData* d,
     mjERROR("invalid object type %d", objtype);
   }
 
-  // static body: quick return
-  if (m->body_weldid[bodyid] == 0) {
+  // dof-less body (static or mocap): quick return
+  if (m->body_dofnum[m->body_weldid[bodyid]] == 0) {
     mju_zero(res, 6);
     return;
   }
@@ -951,8 +951,8 @@ void mj_objectAcceleration(const mjModel* m, const mjData* d,
     mjERROR("invalid object type %d", objtype);
   }
 
-  // static body: quick return
-  if (m->body_weldid[bodyid] == 0) {
+  // dof-less body (static or mocap): quick return
+  if (m->body_dofnum[m->body_weldid[bodyid]] == 0) {
     mju_zero(res, 6);
     return;
   }

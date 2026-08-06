@@ -1666,8 +1666,11 @@ Filtering
    3. The two geoms cannot belong to the same body. Furthermore, they cannot belong to a parent and a child body, unless
       the parent is the world body. The motivation is to avoid permanent contacts within bodies and joints. Note that if
       several bodies are welded together in the sense that there are no joints between them, they are treated as a
-      single body for the purposes of this test. The parent-filter test can be disabled by the user, while the same-body
-      test cannot be disabled.
+      single body for the purposes of this test. :ref:`Mocap bodies<CMocap>` and their dof-less descendants form their
+      own weld group, distinct from the world weld, so the parent-child exclusion applies to children of mocap bodies as
+      usual. Additionally, geom pairs where neither body can move (both weld groups have no degrees of freedom) are
+      skipped, so mocap bodies do not generate contacts with static geometry or with each other. The parent-filter test
+      can be disabled by the user, while the same-body test cannot be disabled.
    4. The two geoms must be "compatible" in the following sense. Each geom has integer parameters ``contype`` and
       ``conaffinity``. The boolean expression below must be true for the test to pass:
 

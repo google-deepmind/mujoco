@@ -698,7 +698,7 @@ typedef struct mjModel_ {
   // bodies
   int*      body_parentid;        // id of body's parent                      (nbody x 1)
   int*      body_rootid;          // ancestor that is direct child of world   (nbody x 1)
-  int*      body_weldid;          // top ancestor with no dofs to this body   (nbody x 1)
+  int*      body_weldid;          // top dof-less ancestor; mocap: own root   (nbody x 1)
   int*      body_mocapid;         // id of mocap data; -1: none               (nbody x 1)
   int*      body_jntnum;          // number of joints for this body           (nbody x 1)
   int*      body_jntadr;          // start addr of joints; -1: no joints      (nbody x 1)

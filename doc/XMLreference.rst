@@ -2090,7 +2090,10 @@ defined. Its body name is automatically defined as "world".
    time step. The size of these arrays is adjusted by the compiler so as to match the number of mocap bodies in the
    model. This mechanism can be used to stream motion capture data into the simulation. Mocap bodies can also be moved
    via mouse perturbations in the interactive visualizer, even in dynamic simulation mode. This can be useful for
-   creating props with adjustable position and orientation.
+   creating props with adjustable position and orientation. Mocap bodies are the weld root of their own kinematic
+   subtree rather than being welded to the world: their children receive standard parent-child collision filtering,
+   they do not generate contacts with static geometry, and contact with a mocap body wakes
+   :ref:`sleeping<Sleeping>` bodies. See :ref:`mocap bodies<CMocap>` for more details.
 
 .. _body-pos:
 
