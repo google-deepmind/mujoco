@@ -37,6 +37,8 @@
 namespace mujoco {
 
 enum LayerMask : uint8_t {
+  // Filament's Skybox occupies layer 0 by default; renderables use the rest.
+  kLayerMask_Skybox = 0x01 << 0,
   kLayerMask_Object = 0x01 << 1,
   kLayerMask_Decor = 0x01 << 2,
   kLayerMask_Outline = 0x01 << 3,

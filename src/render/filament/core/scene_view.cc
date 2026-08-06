@@ -152,7 +152,7 @@ SceneView::SceneView(ObjectManager* object_mgr, MaterialManager* material_mgr,
   reflect_view_->setShadowingEnabled(false);
   reflect_view_->setPostProcessingEnabled(false);
   reflect_view_->setFrontFaceWindingInverted(true);
-  reflect_view_->setVisibleLayers(0xff, kLayerMask_Object);
+  reflect_view_->setVisibleLayers(0xff, kLayerMask_Object | kLayerMask_Skybox);
   reflect_view_->setMultiSampleAntiAliasingOptions({.enabled = false});
 
   // Rotate the fog to align with mujoco's +Z up space.
