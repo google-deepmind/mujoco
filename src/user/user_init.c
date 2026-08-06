@@ -204,6 +204,7 @@ void mjs_defaultLight(mjsLight* light) {
   light->active = 1;
   light->attenuation[0] = 1;
   light->cutoff = 45;
+  light->softness = 0.2;
   light->exponent = 10;
   light->diffuse[0] = light->diffuse[1] = light->diffuse[2] = 0.7;
   light->specular[0] = light->specular[1] = light->specular[2] = 0.3;

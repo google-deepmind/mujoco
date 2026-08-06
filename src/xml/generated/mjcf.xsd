@@ -1495,7 +1495,7 @@
     <xs:attribute name="range" type="xs:float" default="10"/>
     <xs:attribute name="attenuation" type="float3" default="1 0 0"/>
     <xs:attribute name="cutoff" type="xs:float" default="45"/>
-    <xs:attribute name="softness" type="xs:float" default="0"/>
+    <xs:attribute name="softness" type="xs:float" default="0.2"/>
     <xs:attribute name="exponent" type="xs:float" default="10"/>
     <xs:attribute name="ambient" type="float3"/>
     <xs:attribute name="diffuse" type="float3" default="0.7 0.7 0.7"/>
@@ -2274,7 +2274,7 @@
     <xs:attribute name="range" type="xs:float" default="10"/>
     <xs:attribute name="attenuation" type="float3" default="1 0 0"/>
     <xs:attribute name="cutoff" type="xs:float" default="45"/>
-    <xs:attribute name="softness" type="xs:float" default="0"/>
+    <xs:attribute name="softness" type="xs:float" default="0.2"/>
     <xs:attribute name="exponent" type="xs:float" default="10"/>
     <xs:attribute name="ambient" type="float3"/>
     <xs:attribute name="diffuse" type="float3" default="0.7 0.7 0.7"/>

@@ -397,7 +397,7 @@
                 <attribute name="range" type="float" default="10"/>
                 <attribute name="attenuation" type="array" array_type="float" array_size="3" default="1 0 0"/>
                 <attribute name="cutoff" type="float" default="45"/>
-                <attribute name="softness" type="float" default="0"/>
+                <attribute name="softness" type="float" default="0.2"/>
                 <attribute name="exponent" type="float" default="10"/>
                 <attribute name="ambient" type="array" array_type="float" array_size="3"/>
                 <attribute name="diffuse" type="array" array_type="float" array_size="3" default="0.7 0.7 0.7"/>
@@ -793,7 +793,7 @@
             <attribute name="range" type="float" default="10"/>
             <attribute name="attenuation" type="array" array_type="float" array_size="3" default="1 0 0"/>
             <attribute name="cutoff" type="float" default="45"/>
-            <attribute name="softness" type="float" default="0"/>
+            <attribute name="softness" type="float" default="0.2"/>
             <attribute name="exponent" type="float" default="10"/>
             <attribute name="ambient" type="array" array_type="float" array_size="3"/>
             <attribute name="diffuse" type="array" array_type="float" array_size="3" default="0.7 0.7 0.7"/>
@@ -1378,7 +1378,7 @@
                 <attribute name="range" type="float" default="10"/>
                 <attribute name="attenuation" type="array" array_type="float" array_size="3" default="1 0 0"/>
                 <attribute name="cutoff" type="float" default="45"/>
-                <attribute name="softness" type="float" default="0"/>
+                <attribute name="softness" type="float" default="0.2"/>
                 <attribute name="exponent" type="float" default="10"/>
                 <attribute name="ambient" type="array" array_type="float" array_size="3"/>
                 <attribute name="diffuse" type="array" array_type="float" array_size="3" default="0.7 0.7 0.7"/>
@@ -1700,7 +1700,7 @@
             <attribute name="range" type="float" default="10"/>
             <attribute name="attenuation" type="array" array_type="float" array_size="3" default="1 0 0"/>
             <attribute name="cutoff" type="float" default="45"/>
-            <attribute name="softness" type="float" default="0"/>
+            <attribute name="softness" type="float" default="0.2"/>
             <attribute name="exponent" type="float" default="10"/>
             <attribute name="ambient" type="array" array_type="float" array_size="3"/>
             <attribute name="diffuse" type="array" array_type="float" array_size="3" default="0.7 0.7 0.7"/>

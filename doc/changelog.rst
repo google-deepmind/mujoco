@@ -75,7 +75,7 @@ Rendering
    :class: attention
 
    - Added :ref:`light/softness<body-light-softness>`: edge softness for spotlights under physically-based lighting
-     models, given as the fraction of the cone over which intensity falls to zero. The default of 0 is a sharp-edged
+     models, given as the fraction of the cone over which intensity falls to zero. The default of 0.2 is a semi-soft
      cone which delivers the full :ref:`intensity<body-light-intensity>` everywhere inside it, so that illuminance
      follows :math:`E = I/d^2` independent of the :ref:`cutoff<body-light-cutoff>` angle. Previously the filament
      renderer treated the entire cone as penumbra, dimming spotlights well below their rated intensity, increasingly

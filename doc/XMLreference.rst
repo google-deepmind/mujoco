@@ -3323,7 +3323,7 @@ Attributes may be applied or ignored depending on the lighting model being used.
 
 .. _body-light-softness:
 
-:at:`softness`: :at-val:`real, "0"`
+:at:`softness`: :at-val:`real, "0.2"`
    Edge softness for spotlights, as a fraction of the :ref:`cutoff<body-light-cutoff>` angle in [0, 1], used by
    physically-based lighting models. The light delivers its full :ref:`intensity<body-light-intensity>` inside the
    cone, falling to zero over the outer softness fraction of the cone angle; the default corresponds to a sharp-edged

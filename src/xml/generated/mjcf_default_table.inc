@@ -394,7 +394,7 @@ static const mjXDefaultEntry kDefaults_mjsLight[] = {
   {"range", (int)offsetof(mjsLight, range), 1, 1, 1, 0, {10.0}},
   {"attenuation", (int)offsetof(mjsLight, attenuation), 1, 3, 3, 0, {1.0, 0.0, 0.0}},
   {"cutoff", (int)offsetof(mjsLight, cutoff), 1, 1, 1, 0, {45.0}},
-  {"softness", (int)offsetof(mjsLight, softness), 1, 1, 1, 0, {0.0}},
+  {"softness", (int)offsetof(mjsLight, softness), 1, 1, 1, 0, {0.2}},
   {"exponent", (int)offsetof(mjsLight, exponent), 1, 1, 1, 0, {10.0}},
   {"ambient", (int)offsetof(mjsLight, ambient), 1, 3, 0, 0, {0}},
   {"diffuse", (int)offsetof(mjsLight, diffuse), 1, 3, 3, 0, {0.7, 0.7, 0.7}},
