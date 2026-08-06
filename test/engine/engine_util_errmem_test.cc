@@ -14,7 +14,11 @@
 
 // Tests for engine/engine_util_errmem.c.
 
+#ifdef __QNXNTO__
+#include <setjmp.h>
+#else
 #include <csetjmp>
+#endif
 #include <cstdio>
 #include <cstring>
 #include <string>

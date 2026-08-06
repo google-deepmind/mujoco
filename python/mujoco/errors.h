@@ -16,7 +16,11 @@
 #define MUJOCO_PYTHON_ERRORS_H_
 
 #include <array>
+#ifdef __QNXNTO__
+#include <setjmp.h>
+#else
 #include <csetjmp>
+#endif
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>

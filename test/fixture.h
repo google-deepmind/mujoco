@@ -15,7 +15,11 @@
 #ifndef MUJOCO_TEST_FIXTURE_H_
 #define MUJOCO_TEST_FIXTURE_H_
 
+#ifdef __QNXNTO__
+#include <setjmp.h>
+#else
 #include <csetjmp>
+#endif
 #include <cstdio>   // IWYU pragma: keep
 #include <cstdlib>  // IWYU pragma: keep
 #include <cstring>
