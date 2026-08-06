@@ -604,7 +604,6 @@ TEST_F(MjGjkTest, BoxBoxTouching) {
 
   ASSERT_EQ(ncons, 0);
   EXPECT_EQ(status.epa_status, -1);
-
 }
 
 TEST_F(MjGjkTest, BoxBoxMultiCCD) {
@@ -1100,7 +1099,6 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD10) {
   int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 8);
 
   ASSERT_EQ(ncons, 4);
-
 }
 
 TEST_F(MjGjkTest, BoxBoxMultiCCD11) {
@@ -1220,7 +1218,6 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD12) {
   int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 8);
 
   ASSERT_EQ(ncons, 4);
-
 }
 
 TEST_F(MjGjkTest, BoxBoxMultiCCD13) {
@@ -1959,11 +1956,8 @@ TEST_F(MjGjkTest, BoxBoxLarge) {
   int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
   int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
 
-  mjtNum* xmat = data->geom_xmat;
-  mjtNum* xpos = data->geom_xpos;
-
-  xpos = data->geom_xpos + 3;
-  xmat = data->geom_xmat + 9;
+  mjtNum* xpos = data->geom_xpos + 3;
+  mjtNum* xmat = data->geom_xmat + 9;
 
   xpos[0] = -0.000000000043537;
   xpos[1] = -0.000000000012973;
@@ -2129,6 +2123,59 @@ TEST_F(MjGjkTest, BoxEdgeFlipped) {
   EXPECT_NEAR(status.x2[0], 1.30000, kTolerance);
   EXPECT_NEAR(status.x2[1], -0.052973, kTolerance);
   EXPECT_NEAR(status.x2[2], 0.700000, kTolerance);
+}
+
+TEST_F(MjGjkTest, ThinBoxGrazing) {
+  // thin boxes separated by +7.6933e-7, below the ccd_tolerance of 1e-6
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="box" size="0.015108062742470629 0.00020768330936692047 0.00033708479398415232"/>
+      <geom name="geom2" type="box" size="0.0022889234034685867 0.00039019141130537644 0.00066943745945985227"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  mjtNum* xpos = data->geom_xpos;
+  mjtNum* xmat = data->geom_xmat;
+
+  xmat[0] =  0.41747699392674587;
+  xmat[1] =  0.7445704580736479;
+  xmat[2] = -0.5208913442416622;
+  xmat[3] =  0.735898261710082;
+  xmat[4] = -0.6133129289446175;
+  xmat[5] = -0.28688150794614425;
+  xmat[6] = -0.5330728917830726;
+  xmat[7] = -0.263556605216739;
+  xmat[8] = -0.8039721437292835;
+
+  xpos = data->geom_xpos + 3;
+  xmat = data->geom_xmat + 9;
+
+  xpos[0] = -0.0045224108719272319;
+  xpos[1] = -0.0099558526994404459;
+  xpos[2] = 0.00749543399075938;
+
+  xmat[0] = -0.11330328891322261;
+  xmat[1] =  0.6014637637569688;
+  xmat[2] = -0.7908246996703808;
+  xmat[3] =  0.9557435215667675;
+  xmat[4] =  0.2834865022971088;
+  xmat[5] =  0.07867479900517776;
+  xmat[6] =  0.2715081687621951;
+  xmat[7] = -0.7469114699230777;
+  xmat[8] = -0.6069650487406557;
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+  mjtNum dist = mj_geomDistance(model.get(), data.get(), g1, g2, 1, nullptr);
+
+  // below ccd_tolerance, but still positive distance
+  EXPECT_GE(dist, 0);
+  EXPECT_LE(dist, model->opt.ccd_tolerance);
 }
 
 }  // namespace

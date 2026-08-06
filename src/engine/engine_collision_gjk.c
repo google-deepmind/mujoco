@@ -203,6 +203,7 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum lambda[4];                        // barycentric coordinates for x_k
   mjtNum cutoff2 = status->dist_cutoff * status->dist_cutoff;
   mjtNum tol2 = status->tolerance * status->tolerance;
+  status->separated = 0;
 
   // if both geoms are discrete, finite convergence is guaranteed; set tolerance to 0
   mjtNum epsilon = discreteGeoms(obj1, obj2) ? 0 : 0.5 * tol2;
@@ -236,6 +237,7 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
     // if geom distance isn't requested, return early
     if (!get_dist) {
       if (dot3(x_k, s_k) > 0) {
+        status->separated = 1;
         status->gjk_iterations = k;
         status->nsimplex = 0;
         status->nx = 0;
@@ -245,6 +247,7 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
     } else if (status->dist_cutoff < mjMAX_LIMIT) {
       mjtNum vs = dot3(x_k, s_k);
       if (vs > 0 && (vs * vs) >= cutoff2 * (x_norm * x_norm)) {
+        status->separated = 1;
         status->gjk_iterations = k;
         status->nsimplex = 0;
         status->nx = 0;
@@ -260,6 +263,7 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
       int ret = gjkIntersect(status, obj1, obj2);
       if (ret != -1) {
         status->nx = 0;
+        status->separated = ret == 0;
         status->dist = ret > 0 ? 0 : mjMAX_LIMIT;
         return;
       }
@@ -285,13 +289,8 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
       status->nsimplex = 0;
       status->nx = 0;
       status->dist = mjMAX_LIMIT;
+      status->separated = 1;
       return;
-    }
-
-    // we have a tetrahedron containing the origin so return early
-    if (n == 4) {
-      x_norm = 0;
-      break;
     }
 
     // get the next iteration of x_k, save previous x_norm
@@ -299,6 +298,11 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
             simplex[2].vert, simplex[3].vert);
     x_norm_prev = x_norm;
     x_norm = norm3(x_k);
+
+    // we should have a tetrahedron containing the origin so return early
+    if (n == 4) {
+      break;
+    }
   }
 
   // compute the approximate witness points
@@ -307,6 +311,18 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
             simplex[3].vert1);
     lincomb(x2_k, lambda, n, simplex[0].vert2, simplex[1].vert2, simplex[2].vert2,
             simplex[3].vert2);
+  }
+
+  // GJK exited early; do a final separation check
+  Vertex tmp;
+  gjkSupport(&tmp, obj1, obj2, x_k, x_norm);
+  if (dot3(x_k, tmp.vert) > 0) {
+    status->separated = 1;
+  }
+
+  // tetrahedron containing the origin
+  if (n == 4 && status->separated == 0) {
+    x_norm = 0;
   }
 
   status->nx = 1;
@@ -2371,7 +2387,8 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     return status->dist;
   }
 
-  if (status->dist <= config->tolerance && status->nsimplex > 1 && config->buffer) {
+  if (status->dist <= config->tolerance && status->nsimplex > 1
+      && config->buffer && !status->separated) {
     status->dist = 0;  // assume touching
     Polytope pt;
     pt.nfaces = pt.nmap = pt.nverts = pt.horizon.nedges = 0;
