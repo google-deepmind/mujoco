@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <mujoco/experimental/platform/hal/renderer.h>
+#include <mujoco/experimental/platform/hal/filament_renderer.h>
 
 #include <cstddef>
 #include <memory>
@@ -32,7 +32,7 @@ namespace mujoco::python {
 
 class Renderer {
  public:
-  using RendererImpl = mujoco::platform::Renderer;
+  using RendererImpl = mujoco::platform::FilamentRenderer;
   using GraphicsMode = mujoco::platform::GraphicsMode;
 
   Renderer(const std::string& graphics_mode_str) {

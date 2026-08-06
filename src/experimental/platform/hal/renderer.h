@@ -15,117 +15,51 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_HAL_RENDERER_H_
 #define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_HAL_RENDERER_H_
 
-#include <chrono>
 #include <cstddef>
-#include <memory>
-#include <ratio>
 #include <span>
 
-#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/compat/scene_bridge.h"
-#include "experimental/platform/hal/graphics_mode.h"
-#include "experimental/platform/ux/imgui_bridge.h"
-#include "render/filament/mjrfilament_cpp.h"
 
 namespace mujoco::platform {
 
 // Renders the mujoco simulation and the imgui state.
-//
-// The Renderer is built around a specific backend configuration
-// (see renderer_backend.h).
-//
-// Currently we support two rendering engines: the Classic MuJoCo OpenGL
-// renderer and a Filament-based renderer.
-//
-// The Classic renderer is implemented using the OpenGL 2.0 fixed function
-// pipeline. It assumes that the caller has correctly initialized the OpenGL
-// context (e.g. using EGL).
-//
-// The Filament renderer is a modern physically-based renderer that supports
-// OpenGL 3.0, Vulkan, and WebGL (as well as other graphics libraries). Unlike
-// the Classic renderer, the Filament engine itself will manage its graphics
-// context. If rendering to a window surface (e.g. x11), it requires a pointer
-// to the native window to do so.
-//
-// For OpenGL, two different Filament configurations are available: normal and
-// headless. Normal rendering assumes that we will be rendering to an x11
-// window and therefore will use a x11-based context. Headless assumes that we
-// will be rendering to a texture and will use an EGL context. Vulkan and WebGL
-// have no need for such a distinction.
 class Renderer {
  public:
-  using Clock = std::chrono::steady_clock;
-  using TimePoint = std::chrono::time_point<Clock>;
-  using Seconds = std::chrono::duration<double>;
-  using Milliseconds = std::chrono::duration<double, std::milli>;
-
-  Renderer(void* native_window, GraphicsMode gfx_mode);
-  ~Renderer();
+  Renderer() = default;
+  virtual ~Renderer() = default;
 
   Renderer(const Renderer&) = delete;
   Renderer& operator=(const Renderer&) = delete;
 
   // Initializes the renderer with the given mjModel.
-  void Init(const mjModel* model);
+  virtual void Init(const mjModel* model) = 0;
 
   // Renders the simulation and ux state. Renders into `pixels` if provided,
   // otherwise renders to the `native_window` provided at construction.
-  void Render(const mjModel* model, mjData* data, const mjvPerturb* perturb,
-              mjvCamera* camera, const mjvOption* vis_option, int width,
-              int height, std::span<std::byte> pixels = {},
-              std::span<mjvGeom> extra_geoms = {});
+  virtual void Render(const mjModel* model, mjData* data,
+                      const mjvPerturb* perturb, mjvCamera* camera,
+                      const mjvOption* vis_option, int width, int height,
+                      std::span<std::byte> pixels = {},
+                      std::span<mjvGeom> extra_geoms = {}) = 0;
 
   // Populates the given output buffer with RGB888 pixel data. The size of the
   // output buffer must be at least width * height * 3.
-  void RenderToTexture(const mjModel* model, mjData* data, mjvCamera* camera,
-                       int width, int height, std::byte* output);
+  virtual void RenderToTexture(const mjModel* model, mjData* data,
+                               mjvCamera* camera, int width, int height,
+                               std::byte* output) = 0;
 
   // Uploads an image to the backend for GUI rendering, returning the texture
   // ID for the texture. The ID can be used in subsequent calls to update the
   // texture data. A nullptr pixels argument will free the texture if it exists.
   // A texture ID of 0 will create a new texture.
-  int UploadImage(int texture_id, const std::byte* pixels, int width,
-                  int height, int bpp);
+  virtual int UploadImage(int texture_id, const std::byte* pixels, int width,
+                          int height, int bpp) = 0;
 
   // Rendering flags.
-  mjtByte* GetRenderFlags() { return scene_.flags; }
+  virtual mjtByte* GetRenderFlags() = 0;
 
   // Returns the current frame rate.
-  double GetFps();
-
- private:
-  // Resets the renderer; no rendering will occur until Init() is called again.
-  void Deinit();
-
-  void UpdateFps();
-
-  void DoRender(int width, int height);
-  void DoSetBuffer(int framebuffer);
-  void DoReadPixels(int width, int height, unsigned char* rgb);
-
-  void* native_window_ = nullptr;
-  GraphicsMode gfx_ = GraphicsMode::FilamentVulkan;
-
-  // State used by the classic renderer.
-  std::shared_ptr<void> graphics_api_context_ = nullptr;
-  mjrContext render_context_;
-
-  // State used by the filament renderer.
-  UniquePtr<mjrfContext> filament_context_{nullptr, nullptr};
-  UniquePtr<mjrfScene> main_scene_{nullptr, nullptr};
-  UniquePtr<mjrfScene> ux_scene_{nullptr, nullptr};
-  std::unique_ptr<SceneBridge> scene_bridge_;
-  std::unique_ptr<ImguiBridge> imgui_bridge_;
-
-  // Common state.
-  int framebuffer_mode_ = 0;
-  mjvScene scene_;
-  bool initialized_ = false;
-  mjtNum last_update_time_ = -1;
-  int frames_ = 0;
-  TimePoint last_fps_update_;
-  double fps_ = 0;
+  virtual double GetFps() = 0;
 };
 
 }  // namespace mujoco::platform

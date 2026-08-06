@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "experimental/platform/hal/renderer.h"
+#include "experimental/platform/hal/filament_renderer.h"
 
 #include <cstddef>
 #include <memory>
@@ -50,7 +50,7 @@ class RendererTest : public ::testing::Test {
 };
 
 TEST_F(RendererTest, OpengGlSoftware) {
-  Renderer renderer(nullptr, GraphicsMode::FilamentOpenGlSoftware);
+  FilamentRenderer renderer(nullptr, GraphicsMode::FilamentOpenGlSoftware);
   renderer.Init(holder_->model());
 
   gl::DriverType driver_type = gl::GetLoadedDriverType();
@@ -69,7 +69,7 @@ TEST_F(RendererTest, OpengGlSoftware) {
 }
 
 TEST_F(RendererTest, OpengGlHeadless) {
-  Renderer renderer(nullptr, GraphicsMode::FilamentOpenGlHeadless);
+  FilamentRenderer renderer(nullptr, GraphicsMode::FilamentOpenGlHeadless);
   renderer.Init(holder_->model());
 
   gl::DriverType driver_type = gl::GetLoadedDriverType();
@@ -92,7 +92,7 @@ TEST_F(RendererTest, OpengGlHeadless) {
 }
 
 TEST_F(RendererTest, VulkanSoftware) {
-  Renderer renderer(nullptr, GraphicsMode::FilamentVulkanSoftware);
+  FilamentRenderer renderer(nullptr, GraphicsMode::FilamentVulkanSoftware);
   renderer.Init(holder_->model());
 
   std::vector<std::byte> pixels(width_ * height_ * 3);
@@ -108,7 +108,7 @@ TEST_F(RendererTest, VulkanSoftware) {
 }
 
 TEST_F(RendererTest, VulkanHeadless) {
-  Renderer renderer(nullptr, GraphicsMode::FilamentVulkan);
+  FilamentRenderer renderer(nullptr, GraphicsMode::FilamentVulkan);
   renderer.Init(holder_->model());
 
   std::vector<std::byte> pixels(width_ * height_ * 3);

@@ -36,6 +36,8 @@
 #include <imgui.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
+#include "experimental/platform/hal/classic_renderer.h"
+#include "experimental/platform/hal/filament_renderer.h"
 #include "experimental/platform/hal/graphics_mode.h"
 #include "experimental/platform/hal/renderer.h"
 #include "experimental/platform/hal/window.h"
@@ -119,8 +121,14 @@ void App::SwitchGraphicsMode(int width, int height,
   window_config.gfx_mode = gfx_mode_;
   window_ = std::make_unique<platform::Window>(app_title_, width, height,
                                                window_config);
-  renderer_ = std::make_unique<platform::Renderer>(
-      window_->GetNativeWindowHandle(), gfx_mode_);
+  if (platform::IsClassic(gfx_mode_)) {
+    renderer_ = std::make_unique<platform::ClassicRenderer>(
+        window_->GetNativeWindowHandle(), gfx_mode_);
+
+  } else {
+    renderer_ = std::make_unique<platform::FilamentRenderer>(
+        window_->GetNativeWindowHandle(), gfx_mode_);
+  }
 
   // TODO: Figure out why this breaks on some platforms.
   // LoadSettings();

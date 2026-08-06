@@ -43,7 +43,7 @@
 #include <imgui.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
-#include "experimental/platform/hal/renderer.h"
+#include "experimental/platform/hal/filament_renderer.h"
 #include "experimental/platform/hal/window.h"
 #include "experimental/platform/sim/model_holder.h"
 #include "experimental/platform/ux/interaction.h"
@@ -757,7 +757,7 @@ void StartApp() {
                                                             1400, 720, config);
   ImPlot::CreateContext();  // Needed if the server app uses ImPlot.
 
-  g_app.renderer = new mujoco::platform::Renderer(
+  g_app.renderer = new mujoco::platform::FilamentRenderer(
       g_app.window->GetNativeWindowHandle(), config.gfx_mode);
 
   // Initialize an empty dummy scene so Filament and ImGui are ready to render

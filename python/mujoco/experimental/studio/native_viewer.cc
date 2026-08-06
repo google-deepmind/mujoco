@@ -26,8 +26,8 @@
 #include <imgui.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
+#include <mujoco/experimental/platform/hal/filament_renderer.h>
 #include <mujoco/experimental/platform/hal/graphics_mode.h>
-#include <mujoco/experimental/platform/hal/renderer.h>
 #include <mujoco/experimental/platform/hal/window.h>
 #include <mujoco/experimental/platform/sys_utils.h>
 #include "structs.h"
@@ -119,7 +119,7 @@ class Viewer {
                                                          width, height, config);
     ImPlot::CreateContext();
 
-    renderer_ = std::make_unique<mujoco::platform::Renderer>(
+    renderer_ = std::make_unique<mujoco::platform::FilamentRenderer>(
         window_->GetNativeWindowHandle(), config.gfx_mode);
   }
 
