@@ -18,11 +18,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
-#ifdef __QNXNTO__
-#include <setjmp.h>
-#else
 #include <csetjmp>
-#endif
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
