@@ -172,6 +172,8 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // SHELLINERTIA
   // --------------------------------------------------------------------- //
+  /// DEPRECATED: Use NewtonMassAPI's newton:massModel = "shell" instead.
+  ///
   /// Enables handling of the inertia assuming mass is concentrated on the
   /// surface.
   ///

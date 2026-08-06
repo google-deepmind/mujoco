@@ -207,7 +207,7 @@ function(install_newton_usd_plugin install_base_dir)
   FetchContent_Declare(
     newton-usd-schemas
     GIT_REPOSITORY https://github.com/newton-physics/newton-usd-schemas.git
-    GIT_TAG v0.1.0rc3
+    GIT_TAG v0.4.0
     GIT_SHALLOW TRUE
     UPDATE_DISCONNECTED TRUE
   )

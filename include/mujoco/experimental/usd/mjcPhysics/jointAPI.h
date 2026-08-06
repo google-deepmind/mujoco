@@ -546,6 +546,8 @@ class MjcPhysicsJointAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // MJCARMATURE
   // --------------------------------------------------------------------- //
+  /// DEPRECATED: Use newton:armature instead.
+  ///
   /// Additional inertia associated with movement of the joint that is not due
   /// to body mass. This added inertia is usually due to a rotor (a.k.a
   /// armature) spinning faster than the joint itself due to a geared
@@ -577,6 +579,8 @@ class MjcPhysicsJointAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // MJCDAMPING
   // --------------------------------------------------------------------- //
+  /// DEPRECATED: Use newton:damping instead.
+  ///
   /// Damping applied to all degrees of freedom created by this joint. Unlike
   /// friction loss which is computed by the constraint solver, damping is
   /// simply a force linear in velocity. It is included in the passive forces.
@@ -606,6 +610,8 @@ class MjcPhysicsJointAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // MJCFRICTIONLOSS
   // --------------------------------------------------------------------- //
+  /// DEPRECATED: Use newton:friction instead.
+  ///
   /// Friction loss due to dry friction. This value is the same for all degrees
   /// of freedom created by this joint. Semantically friction loss does not make
   /// sense for free joints, but the compiler allows it. To enable friction

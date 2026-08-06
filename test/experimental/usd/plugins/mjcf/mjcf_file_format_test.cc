@@ -1501,7 +1501,10 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsCollisionAPI) {
   EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(stage, "/test/body/box.mjc:gap");
   ExpectAttributeEqual(stage, "/test/body/box.newton:contactMargin", 0.8f);
   ExpectAttributeEqual(stage, "/test/body/box.newton:contactGap", 0.9f);
-  ExpectAttributeEqual(stage, "/test/body/box.mjc:shellinertia", true);
+  EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(stage,
+                                         "/test/body/box.mjc:shellinertia");
+  ExpectAttributeEqual(stage, "/test/body/box.newton:massModel",
+                       pxr::TfToken("shell"));
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsMeshCollisionAPI) {
@@ -1849,10 +1852,19 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsJointAPI) {
   ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:margin", 1.8);
   ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:ref", 1.9);
   ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:springref", 2.0);
-  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:armature", 2.1);
-  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:damping", 2.2);
-  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:frictionloss",
-                       2.3);
+  EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(
+      stage, "/test/parent/child/my_joint.mjc:armature");
+  EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(
+      stage, "/test/parent/child/my_joint.mjc:damping");
+  EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(
+      stage, "/test/parent/child/my_joint.mjc:frictionloss");
+
+  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.newton:armature",
+                       2.1f);
+  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.newton:damping",
+                       2.2f);
+  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.newton:friction",
+                       2.3f);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsFloatingAndFixedBaseBody) {

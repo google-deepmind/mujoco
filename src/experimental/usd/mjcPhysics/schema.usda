@@ -643,6 +643,7 @@ class "MjcSiteAPI"
     }
     doc = """API describing a MuJoCo site."""
 
+    prepend apiSchemas = ["NewtonSiteAPI"]
     inherits = </APISchemaBase>
 )
 {
@@ -698,7 +699,9 @@ class "MjcCollisionAPI"
             string apiName = "ShellInertia"
         }
         displayName = "Shell Inertia"
-        doc = """Enables handling of the inertia assuming mass is concentrated on the surface."""
+        doc = """DEPRECATED: Use NewtonMassAPI's newton:massModel = "shell" instead.
+
+        Enables handling of the inertia assuming mass is concentrated on the surface."""
     )
 
     uniform int mjc:priority = 0 (
@@ -779,7 +782,9 @@ class "MjcMeshCollisionAPI"
             string apiName = "Inertia"
         }
         displayName = "Inertia"
-        doc = """Controls how a mesh is used when mass and inertia are inferred from geometry."""
+        doc = """DEPRECATED: Use NewtonMassAPI's newton:massModel or UsdPhysics's physics:approximation instead.
+
+        Controls how a mesh is used when mass and inertia are inferred from geometry."""
     )
 
     uniform int mjc:maxhullvert = -1 (
@@ -968,6 +973,7 @@ class "MjcJointAPI"
     }
     doc = """API describing a MuJoCo joint."""
 
+    prepend apiSchemas = ["NewtonJointAPI"]
     inherits = </APISchemaBase>
 )
 {
@@ -1033,15 +1039,21 @@ class "MjcJointAPI"
     )
 
     uniform double mjc:armature = 0 (
-        doc = "Additional inertia associated with movement of the joint that is not due to body mass. This added inertia is usually due to a rotor (a.k.a armature) spinning faster than the joint itself due to a geared transmission. The value applies to all degrees of freedom created by this joint. Besides increasing the realism of joints with geared transmission, positive armature significantly improves simulation stability, even for small values, and is a recommended possible fix when encountering stability issues."
+        doc = """DEPRECATED: Use newton:armature instead.
+
+        Additional inertia associated with movement of the joint that is not due to body mass. This added inertia is usually due to a rotor (a.k.a armature) spinning faster than the joint itself due to a geared transmission. The value applies to all degrees of freedom created by this joint. Besides increasing the realism of joints with geared transmission, positive armature significantly improves simulation stability, even for small values, and is a recommended possible fix when encountering stability issues."""
     )
 
     uniform double mjc:damping = 0 (
-        doc = "Damping applied to all degrees of freedom created by this joint. Unlike friction loss which is computed by the constraint solver, damping is simply a force linear in velocity. It is included in the passive forces. Despite this simplicity, larger damping values can make numerical integrators unstable, which is why our Euler integrator handles damping implicitly. See Integration in the Computation chapter."
+        doc = """DEPRECATED: Use newton:damping instead.
+
+        Damping applied to all degrees of freedom created by this joint. Unlike friction loss which is computed by the constraint solver, damping is simply a force linear in velocity. It is included in the passive forces. Despite this simplicity, larger damping values can make numerical integrators unstable, which is why our Euler integrator handles damping implicitly. See Integration in the Computation chapter."""
     )
 
     uniform double mjc:frictionloss = 0 (
-        doc = "Friction loss due to dry friction. This value is the same for all degrees of freedom created by this joint. Semantically friction loss does not make sense for free joints, but the compiler allows it. To enable friction loss, set this attribute to a positive value."
+        doc = """DEPRECATED: Use newton:friction instead.
+
+        Friction loss due to dry friction. This value is the same for all degrees of freedom created by this joint. Semantically friction loss does not make sense for free joints, but the compiler allows it. To enable friction loss, set this attribute to a positive value."""
     )
 }
 

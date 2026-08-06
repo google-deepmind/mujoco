@@ -107,6 +107,24 @@ Bug fixes
   stretch force itself is unchanged. This affects the implicit integrators and the implicit effective metric, so
   flexes using ``elastic2d="stretch"`` integrate slightly differently. Bending-only flexes are unaffected.
 
+OpenUSD
+^^^^^^^
+
+- Upgraded Newton USD schemas support to version 0.4.0:
+  - ``NewtonJointAPI`` (``newton:armature``, ``newton:damping``, ``newton:friction``) deprecates the ``MjcJointAPI``
+    equivalent ``mjc:armature``, ``mjc:damping``, and ``mjc:frictionloss`` attributes.
+  - ``NewtonMassAPI`` (``newton:massModel``, ``newton:inertia``) deprecates the ``MjcCollisionAPI``
+    equivalent ``mjc:shellinertia`` and ``MjcMeshCollisionAPI`` ``mjc:inertia`` attributes. This completes the
+    deprecation of all ``MjcMeshCollisionAPI`` attributes, slating it for removal in a future release.
+  - Added support for ``NewtonSiteAPI`` to declare sites, ``MjcSiteAPI`` auto applies this schema, but remains
+    as an extension for the ``mjc:group`` attribute.
+  - Added support for ``NewtonMaterialAPI`` (``newton:contactAdhesion``, ``newton:torsionalFriction``,
+    ``newton:rollingFriction``). This deprecates ``MjcMaterialAPI`` which will be removed in a future release.
+  - Added support for ``NewtonMimicAPI`` (``newton:mimicJoint``, ``newton:mimicCoef0``, ``newton:mimicCoef1``) as a
+    base for ``MjcEqualityJointAPI``, this deprecates the ``mjc:coef0`` and ``mjc:coef1`` attributes and the
+    ``mjc:target`` relationship.
+  - Added support for ``NewtonArticulationRootAPI`` (``newton:jointsAddMobility``).
+
 Version 3.11.0 (July 27, 2026)
 ------------------------------
 

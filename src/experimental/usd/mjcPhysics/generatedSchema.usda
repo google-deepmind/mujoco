@@ -290,6 +290,7 @@ class "MjcSceneAPI" (
 }
 
 class "MjcSiteAPI" (
+    apiSchemas = ["NewtonSiteAPI"]
     doc = "API describing a MuJoCo site."
 )
 {
@@ -340,7 +341,9 @@ class "MjcCollisionAPI" (
     )
     uniform bool mjc:shellinertia = 0 (
         displayName = "Shell Inertia"
-        doc = "Enables handling of the inertia assuming mass is concentrated on the surface."
+        doc = """DEPRECATED: Use NewtonMassAPI's newton:massModel = \"shell\" instead.
+
+        Enables handling of the inertia assuming mass is concentrated on the surface."""
     )
     uniform double[] mjc:solimp = [0.9, 0.95, 0.001, 0.5, 2] (
         displayName = "SolImp"
@@ -364,7 +367,9 @@ class "MjcMeshCollisionAPI" (
     uniform token mjc:inertia = "legacy" (
         allowedTokens = ["legacy", "convex", "exact", "shell"]
         displayName = "Inertia"
-        doc = "Controls how a mesh is used when mass and inertia are inferred from geometry."
+        doc = """DEPRECATED: Use NewtonMassAPI's newton:massModel or UsdPhysics's physics:approximation instead.
+
+        Controls how a mesh is used when mass and inertia are inferred from geometry."""
     )
     uniform int mjc:maxhullvert = -1 (
         displayName = "Maximum Hull Vertices"
@@ -493,6 +498,7 @@ class MjcKeyframe "MjcKeyframe" (
 }
 
 class "MjcJointAPI" (
+    apiSchemas = ["NewtonJointAPI"]
     doc = "API describing a MuJoCo joint."
 )
 {
@@ -510,13 +516,19 @@ class "MjcJointAPI" (
         doc = "If this flag is enabled, gravity compensation applied to this joint is added to actuator forces (mjData.qfrc_actuator) rather than passive forces (mjData.qfrc_passive). Notionally, this means that gravity compensation is the result of a control system rather than natural buoyancy. In practice, enabling this flag is useful when joint-level actuator force clamping is used. In this case, the total actuation force applied on a joint, including gravity compensation, is guaranteed to not exceed the specified limits. See Force limits and actuatorfrcrange for more details on this type of force limit."
     )
     uniform double mjc:armature = 0 (
-        doc = "Additional inertia associated with movement of the joint that is not due to body mass. This added inertia is usually due to a rotor (a.k.a armature) spinning faster than the joint itself due to a geared transmission. The value applies to all degrees of freedom created by this joint. Besides increasing the realism of joints with geared transmission, positive armature significantly improves simulation stability, even for small values, and is a recommended possible fix when encountering stability issues."
+        doc = """DEPRECATED: Use newton:armature instead.
+
+        Additional inertia associated with movement of the joint that is not due to body mass. This added inertia is usually due to a rotor (a.k.a armature) spinning faster than the joint itself due to a geared transmission. The value applies to all degrees of freedom created by this joint. Besides increasing the realism of joints with geared transmission, positive armature significantly improves simulation stability, even for small values, and is a recommended possible fix when encountering stability issues."""
     )
     uniform double mjc:damping = 0 (
-        doc = "Damping applied to all degrees of freedom created by this joint. Unlike friction loss which is computed by the constraint solver, damping is simply a force linear in velocity. It is included in the passive forces. Despite this simplicity, larger damping values can make numerical integrators unstable, which is why our Euler integrator handles damping implicitly. See Integration in the Computation chapter."
+        doc = """DEPRECATED: Use newton:damping instead.
+
+        Damping applied to all degrees of freedom created by this joint. Unlike friction loss which is computed by the constraint solver, damping is simply a force linear in velocity. It is included in the passive forces. Despite this simplicity, larger damping values can make numerical integrators unstable, which is why our Euler integrator handles damping implicitly. See Integration in the Computation chapter."""
     )
     uniform double mjc:frictionloss = 0 (
-        doc = "Friction loss due to dry friction. This value is the same for all degrees of freedom created by this joint. Semantically friction loss does not make sense for free joints, but the compiler allows it. To enable friction loss, set this attribute to a positive value."
+        doc = """DEPRECATED: Use newton:friction instead.
+
+        Friction loss due to dry friction. This value is the same for all degrees of freedom created by this joint. Semantically friction loss does not make sense for free joints, but the compiler allows it. To enable friction loss, set this attribute to a positive value."""
     )
     uniform int mjc:group = 0 (
         displayName = "Group"

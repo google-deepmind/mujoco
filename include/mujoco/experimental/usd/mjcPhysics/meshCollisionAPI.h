@@ -153,6 +153,9 @@ class MjcPhysicsMeshCollisionAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // INERTIA
   // --------------------------------------------------------------------- //
+  /// DEPRECATED: Use NewtonMassAPI's newton:massModel or UsdPhysics's
+  /// physics:approximation instead.
+  ///
   /// Controls how a mesh is used when mass and inertia are inferred from
   /// geometry.
   ///
