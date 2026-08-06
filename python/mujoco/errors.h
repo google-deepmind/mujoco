@@ -16,11 +16,7 @@
 #define MUJOCO_PYTHON_ERRORS_H_
 
 #include <array>
-#ifdef __QNXNTO__
-#include <setjmp.h>
-#else
 #include <csetjmp>
-#endif
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
@@ -32,7 +28,9 @@
 #include "util/crossplatform.h"
 #include "util/func_wrap.h"
 #include <pybind11/pybind11.h>
-
+#ifdef __QNXNTO__
+#define setjmp(env) sigsetjmp(env, 1)
+#endif
 // When building for Linux and statically linking against a "hermetic" libc++abi
 // (i.e. where libc++/libc++abi symbols all have "hidden" visibility), exception
 // types do not propagate correctly across shared library boundaries.
