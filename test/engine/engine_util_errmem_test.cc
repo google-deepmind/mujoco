@@ -14,11 +14,7 @@
 
 // Tests for engine/engine_util_errmem.c.
 
-#ifdef __QNXNTO__
-#include <setjmp.h>
-#else
 #include <csetjmp>
-#endif
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -28,7 +24,9 @@
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_crossplatform.h"  // IWYU pragma: keep
 #include "src/engine/engine_util_errmem.h"
-
+#ifdef __QNXNTO__
+#define setjmp(env) sigsetjmp(env, 1)
+#endif
 extern "C" {
 MJAPI mjfLogHandler _mjPRIVATE_setTlsLogHandler(mjfLogHandler handler);
 }

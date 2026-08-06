@@ -19,9 +19,7 @@
 #include <chrono>
 #include <cmath>
 #ifdef __QNXNTO__
-#include <setjmp.h>
-#else
-#include <csetjmp>
+#define setjmp(env) sigsetjmp(env, 1)
 #endif
 #include <cstdint>
 #include <cstdio>
