@@ -786,6 +786,8 @@ def _make_data_warp(
 
   impl_fields = {}
   for k in mjxw.types.DataWarp.__annotations__.keys():
+    if k == '_jax_token':  # custom token to force sequential calls in JAX
+      continue
     field = _get_nested_attr(dw, k, split='__')
     field = _wp_to_np_type(field)
     if mjxw.types._BATCH_DIM['Data'][k]:  # pylint: disable=protected-access
@@ -1195,6 +1197,8 @@ def _put_data_warp(
 
   impl_fields = {}
   for k in mjxw.types.DataWarp.__annotations__.keys():
+    if k == '_jax_token':  # custom token to force sequential calls in JAX
+      continue
     field = _get_nested_attr(dw, k, split='__')
     field = _wp_to_np_type(field)
     if mjxw.types._BATCH_DIM['Data'][k]:  # pylint: disable=protected-access

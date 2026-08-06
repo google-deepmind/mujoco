@@ -154,7 +154,7 @@ def benchmark(
 
   def render_fn(mx, d, rc):
     d = mjx.refit_bvh(mx, d, rc)
-    pixels, _ = mjx.render(mx, d, rc)
+    pixels, _, d = mjx.render(mx, d, rc)
     return render_util.get_rgb(rc, 0, pixels), d
 
   @jax_jit

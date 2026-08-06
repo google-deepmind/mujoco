@@ -204,7 +204,11 @@ def _build_new_class_body_ast(
     new_body_nodes.append(ast.Expr(value=ast.Constant(value=docstring)))
 
   if sort_keys:
-    maybe_sorted_keys = sorted(list(keys))
+    non_default_keys = sorted(
+        [k for k in keys if not defaults or k not in defaults]
+    )
+    default_keys = sorted([k for k in keys if defaults and k in defaults])
+    maybe_sorted_keys = non_default_keys + default_keys
   else:
     maybe_sorted_keys = list(keys)
 
@@ -213,9 +217,14 @@ def _build_new_class_body_ast(
 
     value_node = None
     if defaults and key in defaults:
-      value_node = ast.Constant(value=defaults[key])
+      val = defaults[key]
+      value_node = val if isinstance(val, ast.AST) else ast.Constant(value=val)
 
-    if value_node and value_node.value is None:
+    if (
+        value_node
+        and isinstance(value_node, ast.Constant)
+        and value_node.value is None
+    ):
       annotation_node = _ast_parse_type(
           f'typing.Optional[{ast.unparse(annotation_node)}]'
       )
@@ -402,6 +411,7 @@ def write_core_cls(
     flatten_fields: bool = False,
     set_diff: bool = True,
     extra_annotations: dict[str, type] | None = None,
+    defaults: Optional[Dict[str, Any]] = None,
 ):
   """Writes a core API class (e.g. Model/Data/Option/Statistic)."""
   cls = _CLS_MAP[cls_name]
@@ -442,6 +452,7 @@ def write_core_cls(
       keys,  # pyrefly: ignore[bad-argument-type]
       cls_name,
       annotations,
+      defaults=defaults,
       shape_property=shape_property,
   )
 
@@ -513,6 +524,9 @@ def write_ndim_annotations(target_fpath: epath.Path):
       ndim = _to_jax_ndim(name, type_)
       ndim_annotations[cls_name][name] = ndim
 
+  # custom token to force sequential calls in JAX
+  ndim_annotations['Data']['_jax_token'] = 1
+
   with target_fpath.open('a') as f:
     f.write('\n_NDIM = ' + _to_py_string(ndim_annotations))
 
@@ -528,6 +542,9 @@ def write_nworld_leading_dim(target_fpath: epath.Path):
         continue
       # Same batch check as mujoco_warp._src.io._mark_batched.
       batched[cls_name][name] = _is_batched_field(type_) is True
+
+  # custom token to force sequential calls in JAX
+  batched['Data']['_jax_token'] = True
 
   with target_fpath.open('a') as f:
     f.write('\n_BATCH_DIM = ' + _to_py_string(batched))
@@ -551,7 +568,19 @@ def main(argv):
       extra_annotations={'graph_mode': GraphMode},
   )
   write_core_cls('Model', target_fpath, mjx_types_fpath)
-  write_core_cls('Data', target_fpath, mjx_types_fpath, flatten_fields=True)
+  token_default = ast.parse(
+      'dataclasses.field(default_factory=lambda: jax.numpy.zeros((),'
+      ' dtype=jax.numpy.int32))',
+      mode='eval',
+  ).body
+  write_core_cls(
+      'Data',
+      target_fpath,
+      mjx_types_fpath,
+      flatten_fields=True,
+      extra_annotations={'_jax_token': wp.array(dtype=int)},
+      defaults={'_jax_token': token_default},
+  )
   write_register_vmappable(target_fpath)
   write_ndim_annotations(target_fpath)
   write_nworld_leading_dim(target_fpath)

@@ -83,7 +83,7 @@ class RenderIntegrationTest(parameterized.TestCase):
     self._maybe_skip()
     mx, dx_batch, rc = _setup(batch_size)
 
-    rgb_packed, depth_packed, seg_packed = jax.jit(
+    rgb_packed, depth_packed, seg_packed, dx_batch = jax.jit(
         mjx.render_with_segmentation
     )(mx, dx_batch, rc.pytree())
 
@@ -105,7 +105,7 @@ class RenderIntegrationTest(parameterized.TestCase):
     self._maybe_skip()
     mx, dx_batch, rc = _setup(batch_size)
 
-    rgb_packed, depth_packed, seg_packed = jax.jit(
+    rgb_packed, depth_packed, seg_packed, dx_batch = jax.jit(
         mjx.render_with_segmentation
     )(mx, dx_batch, rc.pytree())
 

@@ -267,7 +267,7 @@ volume hierarchy (BVH) and executing the raycaster:
         d = mjx.refit_bvh(mx, d, rc_pytree)
 
         # 2. Render all configured cameras
-        pixels, _ = mjx.render(mx, d, rc_pytree)
+        pixels, _, d = mjx.render(mx, d, rc_pytree)
 
         # 3. Extract the RGB tensor for the first camera (index 0)
         rgb = get_rgb(rc_pytree, 0, pixels)
@@ -275,6 +275,12 @@ volume hierarchy (BVH) and executing the raycaster:
         return rgb, d
 
     rgb, d = render_fn(mx, d, rc.pytree())
+
+.. NOTE::
+   :func:`~mujoco.mjx.refit_bvh` and :func:`~mujoco.mjx.render` update an internal execution token
+   (``d._impl._jax_token``) within :class:`~mujoco.mjx.Data`. Passing ``d`` sequentially through
+   ``refit_bvh`` and ``render`` creates an explicit data dependency, preventing XLA from reordering BVH
+   updates and raycasting passes across iterations or unrolled loops.
 
 .. WARNING::
    The batch dimension ``nworld`` is fixed when the render context is created via

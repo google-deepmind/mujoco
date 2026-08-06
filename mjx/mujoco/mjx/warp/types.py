@@ -526,6 +526,9 @@ class DataWarp(PyTreeNode):
   tree_island: jax.Array
   wrap_obj: jax.Array
   wrap_xpos: jax.Array
+  _jax_token: jax.Array = dataclasses.field(
+      default_factory=lambda: jax.numpy.zeros((), dtype=jax.numpy.int32)
+  )
   shape = property(lambda self: self.cacc.shape)
 DATA_NON_VMAP = {
     'cdof_tri_col',
@@ -588,6 +591,7 @@ batching.register_vmappable(DataWarp, int, int, _to_elt, _from_elt, None)
 _NDIM = {
     'Data': {
         'M': 2,
+        '_jax_token': 1,
         'act': 2,
         'act_dot': 2,
         'actuator_force': 2,
@@ -1312,6 +1316,7 @@ _NDIM = {
 _BATCH_DIM = {
     'Data': {
         'M': True,
+        '_jax_token': True,
         'act': True,
         'act_dot': True,
         'actuator_force': True,

@@ -90,6 +90,19 @@ Rendering
 
      **Migration:** Set :at:`softness` to 1 to reproduce the previous appearance of existing models.
 
+MJX
+^^^
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - :func:`mjx.render` and :func:`mjx.render_with_segmentation` now return the updated :class:`mjx.Data` as the last
+     element in their return tuple (i.e. ``(rgb, depth, d)`` and ``(rgb, depth, seg, d)``). This ensures JAX/XLA
+     strictly enforces causal scheduling between sequential ``refit_bvh`` and ``render`` calls.
+
+     **Migration:** Update unpacking calls from ``pixels, depth = mjx.render(mx, d, rc)`` to
+     ``pixels, depth, d = mjx.render(mx, d, rc)``.
+
 Bug fixes
 ^^^^^^^^^
 

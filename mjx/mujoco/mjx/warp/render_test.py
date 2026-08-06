@@ -105,10 +105,12 @@ class RenderTest(parameterized.TestCase):
     mx, dx_batch, rc = _get_model_data_rc(xml, batch_size)
 
     dx_batch = jax.jit(mjx.refit_bvh)(mx, dx_batch, rc.pytree())
-    out_batch = jax.jit(mjx.render)(mx, dx_batch, rc.pytree())
+    rgb_arr, depth_arr, dx_batch = jax.jit(mjx.render)(
+        mx, dx_batch, rc.pytree()
+    )
 
-    rgb = np.asarray(out_batch[0])
-    depth = np.asarray(out_batch[1])
+    rgb = np.asarray(rgb_arr)
+    depth = np.asarray(depth_arr)
 
     self.assertGreater(np.count_nonzero(rgb), 0)
     self.assertGreater(np.count_nonzero(depth), 0)
@@ -148,7 +150,9 @@ class RenderTest(parameterized.TestCase):
     dx_2d = jax.tree.map(_reshape_batched, dx_batch)
 
     out_batch = jax.vmap(inner, in_axes=(None, 0, None))(mx, dx_2d, rc.pytree())
-    out_batch = jax.tree.map(lambda x: x.reshape(-1, *x.shape[2:]), out_batch)
+    out_batch = jax.tree.map(
+        lambda x: x.reshape(-1, *x.shape[2:]) if x.size > 0 else x, out_batch
+    )
     rgb = np.asarray(out_batch[0])
     depth = np.asarray(out_batch[1])
 
@@ -169,11 +173,13 @@ class RenderTest(parameterized.TestCase):
     mx, dx_batch, rc = _get_model_data_rc(xml, batch_size, render_seg=True)
 
     dx_batch = jax.jit(mjx.refit_bvh)(mx, dx_batch, rc.pytree())
-    out_batch = jax.jit(mjx.render_with_segmentation)(mx, dx_batch, rc.pytree())
+    rgb_arr, depth_arr, seg_arr, dx_batch = jax.jit(
+        mjx.render_with_segmentation
+    )(mx, dx_batch, rc.pytree())
 
-    rgb = np.asarray(out_batch[0])
-    depth = np.asarray(out_batch[1])
-    seg = np.asarray(out_batch[2])
+    rgb = np.asarray(rgb_arr)
+    depth = np.asarray(depth_arr)
+    seg = np.asarray(seg_arr)
 
     self.assertGreater(np.count_nonzero(rgb), 0)
     self.assertGreater(np.count_nonzero(depth), 0)
@@ -181,7 +187,7 @@ class RenderTest(parameterized.TestCase):
     self.assertGreater(np.unique(seg[..., 0]).shape[0], 1)
 
     unpacked_seg = jax.vmap(mjx.get_segmentation, in_axes=(None, None, 0))(
-        rc.pytree(), 0, out_batch[2]
+        rc.pytree(), 0, seg_arr
     )
     unpacked_seg = np.asarray(unpacked_seg)
     width, height = rc._default.cam_res.numpy()[
@@ -248,7 +254,9 @@ class RenderTest(parameterized.TestCase):
     dx_2d = jax.tree.map(_reshape_batched, dx_batch)
 
     out_batch = jax.vmap(inner, in_axes=(None, 0, None))(mx, dx_2d, rc.pytree())
-    out_batch = jax.tree.map(lambda x: x.reshape(-1, *x.shape[2:]), out_batch)
+    out_batch = jax.tree.map(
+        lambda x: x.reshape(-1, *x.shape[2:]) if x.size > 0 else x, out_batch
+    )
     rgb = np.asarray(out_batch[0])
     depth = np.asarray(out_batch[1])
     seg = np.asarray(out_batch[2])
@@ -257,6 +265,93 @@ class RenderTest(parameterized.TestCase):
     np.testing.assert_array_equal(depth, ref_depth)
     np.testing.assert_array_equal(seg, ref_seg)
     self.assertTrue(np.any(seg[..., 0] != -1))
+
+  def test_sliding_box_poses(self):
+    """Tests that refit_bvh executes before render for multiple poses in a single JIT."""
+    self._maybe_skip()
+    xml = """\
+    <mujoco>
+      <option gravity="0 0 0"/>
+      <asset>
+        <material name="mat" rgba="1 1 1 1"/>
+      </asset>
+      <worldbody>
+        <camera pos="0 0 1" resolution="64 64"
+          sensorsize="0.036 0.036" focal="0.012 0.012"/>
+        <geom type="plane" size="2 2 0.1" material="mat"/>
+        <body pos="0 0 0.1" mocap="true">
+          <geom type="box" size="0.1 0.1 0.1" material="mat"/>
+        </body>
+        <body pos="0 0 5">
+          <joint type="free"/>
+          <geom type="sphere" size="0.01" group="3"
+            contype="0" conaffinity="0"/>
+        </body>
+      </worldbody>
+    </mujoco>
+    """
+    m = mujoco.MjModel.from_xml_string(xml)
+    mx = mjx.put_model(m, impl='warp')
+    dx = mjx.put_data(m, mujoco.MjData(m), impl='warp')
+    rc = mjx.create_render_context(
+        mjm=m, nworld=1, cam_res=(64, 64), render_rgb=True, render_depth=True
+    )
+
+    x_positions = (-0.8, -0.4, 0.0, 0.4, 0.8)
+
+    def step_and_render(d, x_pos):
+      mocap_pos = d.mocap_pos.at[0, 0].set(x_pos)
+      d = forward.forward(mx, d.replace(mocap_pos=mocap_pos))
+      d = mjx.refit_bvh(mx, d, rc.pytree())
+      _, depth, d = mjx.render(mx, d, rc.pytree())
+      return d, depth
+
+    # 1. Step-by-step execution.
+    ref_depths = []
+    d_curr = dx
+    for x in x_positions:
+      d_curr, depth = jax.jit(step_and_render)(d_curr, x)
+      ref_depths.append(np.asarray(depth))
+
+    # 2. Multi-step rollout in a single compiled jax.jit via jax.lax.scan.
+    def rollout_scan(d0):
+      def scan_fn(d, x):
+        d, depth = step_and_render(d, x)
+        return d, depth
+
+      _, scan_depths = jax.lax.scan(
+          scan_fn, d0, np.array(x_positions, dtype=np.float32)
+      )
+      return scan_depths
+
+    scanned_depths = [np.asarray(d) for d in jax.jit(rollout_scan)(dx)]
+
+    # 3. Explicitly unrolled sequence in a single compiled jax.jit.
+    def rollout_unroll(d0):
+      depths = []
+      d = d0
+      for x in x_positions:
+        mocap_pos = d.mocap_pos.at[0, 0].set(x)
+        d = forward.forward(mx, d.replace(mocap_pos=mocap_pos))
+        d = mjx.refit_bvh(mx, d, rc.pytree())
+        _, depth, d = mjx.render(mx, d, rc.pytree())
+        depths.append(depth)
+      return depths
+
+    unrolled_depths = [np.asarray(d) for d in jax.jit(rollout_unroll)(dx)]
+
+    # Assert exact equality across all frames for both scan and unroll.
+    for i, (want, scan_got, unroll_got) in enumerate(
+        zip(ref_depths, scanned_depths, unrolled_depths)
+    ):
+      np.testing.assert_array_equal(
+          scan_got, want, err_msg=f'Scan mismatch at frame {i}'
+      )
+      np.testing.assert_array_equal(
+          unroll_got, want, err_msg=f'Unroll mismatch at frame {i}'
+      )
+
+    del rc
 
 
 class RenderContextGarbageCollectionTest(absltest.TestCase):

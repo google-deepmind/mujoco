@@ -249,20 +249,26 @@ def _warp_function(
       render_context_args.append('rgb: wp.array2d[wp.uint32],')
       render_context_args.append('depth: wp.array2d[wp.float32],')
       render_context_args.append('seg: wp.array2d[wp.vec2i],')
+      render_context_args.append('output_token: wp.array[int],')
       fn_assignments.append('  render_context.rgb_data = rgb')
       fn_assignments.append('  render_context.depth_data = depth')
       fn_assignments.append('  render_context.seg_data = seg')
+      fn_assignments.append('  output_token.zero_()')
     else:
-      fn_assignments.append('  dummy.zero_()')
+      fn_assignments.append('  output_token.zero_()')
+
+  token_args = []
+  if field_usage.render_context_in_caller:
+    token_args.append('_jax_token: wp.array[int],')  # pyrefly: ignore[bad-argument-type]
 
   fn_call = f'mjwarp.{fn_name}(_m, _d{render_context_call_arg})'
-  fn_args_raw = fn_args_model + fn_args_data + render_context_args
+  fn_args_raw = fn_args_model + fn_args_data + token_args + render_context_args
 
-  # create a dummy output if there are no output fields
-  needs_dummy_output = not field_usage.data_out_fields
-  if needs_dummy_output and fn_name != 'render':
-    fn_args_raw.append('# Dummy output')  # pyrefly: ignore[bad-argument-type]
-    fn_args_raw.append('dummy: wp.array[int],')  # pyrefly: ignore[bad-argument-type]
+  # create an output token if there are no output fields
+  needs_output_token = not field_usage.data_out_fields
+  if needs_output_token and fn_name != 'render':
+    fn_args_raw.append('# Output token')  # pyrefly: ignore[bad-argument-type]
+    fn_args_raw.append('output_token: wp.array[int],')  # pyrefly: ignore[bad-argument-type]
 
   return fn_args_raw, fn_assignments, fn_call
 
@@ -292,7 +298,7 @@ def _jax_shim_fn(
         jax_args.append('d.qpos.shape[0]')
       continue
 
-    if arg in ('rc_id', 'dummy'):
+    if arg in ('rc_id', 'output_token', '_jax_token'):
       continue
 
     if arg in ('rgb', 'depth', 'seg') and fn_name == 'render':
@@ -344,28 +350,31 @@ def _jax_shim_fn(
       jax_args.append(arg_jax)
 
   if field_usage.render_context_in_caller:
+    jax_args.append('d._impl._jax_token')
     jax_args.append('ctx.key')
 
-  # If there are no Warp array outputs, we need a dummy output for JAX FFI.
-  needs_dummy_output = not any(
+  # If there are no Warp array outputs, we need an output token for JAX FFI.
+  needs_output_token = not any(
       'array' in mjwarp_field_info[f].expected_type
       for f in field_usage.data_out_fields
   )
-  if needs_dummy_output and fn_name != 'render':
+  if needs_output_token and fn_name != 'render':
     num_outputs = 1
+    output_dims = ["'output_token': (d.qpos.shape[0],)"]
     if field_usage.render_context_in_caller:
-      output_dims = ["'dummy': (render_ctx.nworld,)"]
-    else:
-      output_dims = ["'dummy': (d.qpos.shape[0],)"]
+      tree_replace = ['"_impl._jax_token": out[0]']
     has_side_effect = True
 
   if fn_name == 'render':
+    num_outputs = 4
     output_dims = [
         "'rgb': render_ctx.rgb_data_shape",
         "'depth': render_ctx.depth_data_shape",
         "'seg': render_ctx.seg_data_shape",
+        "'output_token': (d.qpos.shape[0],)",
     ]
     tree_replace = []
+    has_side_effect = True
 
   render_ctx_param = (
       'ctx: RenderContextPytree' if field_usage.render_context_in_caller else ''
@@ -495,7 +504,8 @@ def _{fn_name}_jax_impl({','.join(fn_args)}):
         '@functools.partial(ffi.marshal_custom_vmap, tree_map_output=True)'
     )
     vmap_return_stmt = (
-        f'out = {fn_name}({fn_call_str})\n  return out, [True, True, True]'
+        f'out = {fn_name}({fn_call_str})\n  return out, [True, True, True,'
+        ' is_batched[1]._impl._jax_token]'
     )
 
   src += f"""
