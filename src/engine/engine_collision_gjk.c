@@ -43,7 +43,7 @@
   #define mjMINDIST3 mjMINVAL2
   #define mjMINDIST4 mjMINVAL2
   #define mjMINEPATOL mjMINVAL
-#endif
+#endif  // mjUSESINGLE
 
 // align memory size on 8-byte boundary; needed for single precision
 static inline size_t align8(size_t size) {
@@ -129,13 +129,6 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
 
 // -------------------------------- inlined  3D vector utils --------------------------------------
 
-// v1 == v2 up to 1e-15
-static inline int equal3(const mjtNum v1[3], const mjtNum v2[3]) {
-  return mju_abs(v1[0] - v2[0]) < mjMINVAL &&
-         mju_abs(v1[1] - v2[1]) < mjMINVAL &&
-         mju_abs(v1[2] - v2[2]) < mjMINVAL;
-}
-
 // res = v1 + v2
 static inline void add3(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3]) {
   res[0] = v1[0] + v2[0], res[1] = v1[1] + v2[1], res[2] = v1[2] + v2[2];
@@ -214,19 +207,18 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   // if both geoms are discrete, finite convergence is guaranteed; set tolerance to 0
   mjtNum epsilon = discreteGeoms(obj1, obj2) ? 0 : 0.5 * tol2;
 
-  // tolerance on squared norm of x_k
-  mjtNum min_norm2 = discreteGeoms(obj1, obj2) ? mjMINVAL2 : tol2;
-  mjtNum x_norm;
+  // tolerance on norm of x_k
+  mjtNum min_norm = discreteGeoms(obj1, obj2) ? mjMINVAL : status->tolerance;
 
   // set initial guess
   sub3(x_k, x1_k, x2_k);
+  mjtNum x_norm = norm3(x_k), x_norm_prev = 0;  // set to 0 for no-op on first iteration
 
   for (; k < kmax; k++) {
-    // in tolerance for geoms to be in contact
-    if ((x_norm = dot3(x_k, x_k)) < min_norm2) {
+    // in tolerance for geoms to be in contact, or x_norm has stagnated
+    if (x_norm < min_norm || mju_abs(x_norm_prev - x_norm) < mjMINVAL) {
       break;
     }
-    x_norm = mju_sqrt(x_norm);
 
     // compute the kth support point
     gjkSupport(simplex + n, obj1, obj2, x_k, x_norm);
@@ -251,8 +243,8 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
         return;
       }
     } else if (status->dist_cutoff < mjMAX_LIMIT) {
-      mjtNum vs = dot3(x_k, s_k), vv = dot3(x_k, x_k);
-      if (dot3(x_k, s_k) > 0 && (vs*vs / vv) >= cutoff2) {
+      mjtNum vs = dot3(x_k, s_k);
+      if (vs > 0 && (vs * vs) >= cutoff2 * (x_norm * x_norm)) {
         status->gjk_iterations = k;
         status->nsimplex = 0;
         status->nx = 0;
@@ -296,24 +288,17 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
       return;
     }
 
-    // get the next iteration of x_k
-    mjtNum x_next[3];
-    lincomb(x_next, lambda, n, simplex[0].vert, simplex[1].vert,
-            simplex[2].vert, simplex[3].vert);
-
-    // x_k has converged to minimum
-    if (equal3(x_next, x_k)) {
-      break;
-    }
-
-    // copy next iteration into x_k
-    copy3(x_k, x_next);
-
     // we have a tetrahedron containing the origin so return early
     if (n == 4) {
       x_norm = 0;
       break;
     }
+
+    // get the next iteration of x_k, save previous x_norm
+    lincomb(x_k, lambda, n, simplex[0].vert, simplex[1].vert,
+            simplex[2].vert, simplex[3].vert);
+    x_norm_prev = x_norm;
+    x_norm = norm3(x_k);
   }
 
   // compute the approximate witness points
