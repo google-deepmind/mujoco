@@ -17,7 +17,11 @@
 #include <chrono>
 #include <climits>
 #include <cmath>
+#ifdef __QNXNTO__
+#include <setjmp.h>
+#else
 #include <csetjmp>
+#endif
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
@@ -31,9 +35,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#ifdef __QNXNTO__
-#define setjmp(env) sigsetjmp(env, 1)
-#endif
+
 #include <mujoco/mjspec.h>
 #include "user/user_api.h"
 
