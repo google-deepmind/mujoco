@@ -34,7 +34,13 @@ namespace Mujoco {
       Settings.FromMjcf(mjcf);
       var rangeValues = mjcf.GetFloatArrayAttribute("range", defaultValue: new float[] { 0, 0 });
       // rangeValues[0] is always 0 for ball joints.
+
       RangeUpper = rangeValues[1];
+
+      if (!MjSceneImportSettings.AnglesInDegrees){
+                RangeUpper *= Mathf.Rad2Deg;
+      }
+ 
     }
 
     protected override XmlElement OnGenerateMjcf(XmlDocument doc) {
