@@ -425,7 +425,7 @@ the other objects in the simulation, so the number of contacts will be small for
 Texture
 ^^^^^^^
 
-Textures can be loaded from PNG files or synthesized by the compiler based on user-defined procedural parameters.
+Textures can be loaded from PNG or KTX files or synthesized by the compiler based on user-defined procedural parameters.
 There is also the option to leave the texture empty at model creation time and change it later at runtime -- so as to
 render video in a MuJoCo simulation, or create other dynamic effects. The visualizer supports two types of texture
 mapping: 2D and cube. 2D mapping is useful for planes and height fields. Cube mapping is useful for "shrink-wrapping"

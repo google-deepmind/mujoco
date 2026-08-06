@@ -1494,8 +1494,6 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
                unsigned int& w, unsigned int& h, bool& is_srgb);
   void LoadKTX(mjResource* resource, std::vector<std::byte>& image,
                unsigned int& w, unsigned int& h, bool& is_srgb);
-  void LoadCustom(mjResource* resource, std::vector<std::byte>& image,
-                  unsigned int& w, unsigned int& h, bool& is_srgb);
 
   bool clear_data_;  // if true, data_ is empty and should be filled by Compile
 };

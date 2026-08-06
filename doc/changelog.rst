@@ -14,6 +14,13 @@ General
   and gated by tests, as are the schema's enum keywords and declared defaults against the C headers and
   default-constructors.
 
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - Removed the custom binary texture format (``image/vnd.mujoco.texture``) and the automatic fallback to custom
+     textures when loading files with unrecognized extensions. Textures can now only be loaded from PNG (``image/png``)
+     and KTX (``image/ktx``) files.
+
 Actuation
 ^^^^^^^^^
 - Added the :ref:`pid<actuator-pid>` actuator: a PID controller with real position and velocity setpoint inputs,

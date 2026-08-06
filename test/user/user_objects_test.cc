@@ -126,34 +126,6 @@ TEST_F(VfsTest, TexturePngWithVFS) {
   mj_deleteVFS(vfs.get());
 }
 
-TEST_F(VfsTest, TextureCustomWithVFS) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-    <asset>
-      <texture name="texture" file="unknown_file" type="2d"/>
-      <material name="material" texture="texture"/>
-    </asset>
-
-    <worldbody>
-      <geom type="plane" material="material" size="4 4 4"/>
-    </worldbody>
-  </mujoco>
-  )";
-
-  char error[1024];
-  size_t error_sz = 1024;
-
-  // load VFS on the heap
-  auto vfs = std::make_unique<mjVFS>();
-  mj_defaultVFS(vfs.get());
-
-  // should fallback to OS filesystem
-  MjModelPtr model = LoadModelFromString(xml, error, error_sz, vfs.get());
-  EXPECT_THAT(model.get(), IsNull());
-  EXPECT_THAT(error, HasSubstr("Error opening file"));
-  mj_deleteVFS(vfs.get());
-}
-
 // ------------------------ test content_type attribute ------------------------
 
 using ContentTypeTest = MujocoTest;
@@ -247,35 +219,6 @@ TEST_F(ContentTypeTest, TexturePngWithContentType) {
   <mujoco>
     <asset>
       <texture name="texture" content_type="image/png" file="some_file" type="2d"/>
-      <material name="material" texture="texture"/>
-    </asset>
-
-    <worldbody>
-      <geom type="plane" material="material" size="4 4 4"/>
-    </worldbody>
-  </mujoco>
-  )";
-
-  char error[1024];
-  size_t error_sz = 1024;
-
-  // load VFS on the heap
-  auto vfs = std::make_unique<mjVFS>();
-  mj_defaultVFS(vfs.get());
-
-  // should try loading the file
-  MjModelPtr model = LoadModelFromString(xml, error, error_sz, vfs.get());
-  EXPECT_THAT(model.get(), IsNull());
-  EXPECT_THAT(error, HasSubstr("Error opening file"));
-  mj_deleteVFS(vfs.get());
-}
-
-TEST_F(ContentTypeTest, TextureCustomWithContentType) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-    <asset>
-      <texture name="texture" content_type="image/vnd.mujoco.texture"
-              file="some_file" type="2d"/>
       <material name="material" texture="texture"/>
     </asset>
 
