@@ -325,8 +325,8 @@ def _reload(
 
 def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
   """Physics loop for the GUI, to be run in a separate thread."""
-  m: mujoco.MjModel = None
-  d: mujoco.MjData = None
+  m: mujoco.MjModel = None  # pyrefly: ignore[bad-assignment]
+  d: mujoco.MjData = None  # pyrefly: ignore[bad-assignment]
   ctrl_noise = np.array([])
   reload = True
 

@@ -22,10 +22,12 @@ from typing import Any, Callable, Optional, Sequence, Tuple, Union
 
 import jax
 from jax import numpy as jp
-from mujoco.mjx.warp import types as mjx_warp_types
 import numpy as np
 import warp as wp
-from mujoco.mjx.third_party.warp._src.jax_experimental import ffi
+from mujoco.mjx.third_party.warp._src.jax import ffi as warp_ffi
+
+from mujoco.mjx._src.types import tree_path_to_attr_str
+from mujoco.mjx.warp import types as mjx_warp_types
 
 
 def flatten_signature(signature: inspect.Signature, args: Tuple[Any, ...]):
@@ -97,7 +99,7 @@ def flatten_signature(signature: inspect.Signature, args: Tuple[Any, ...]):
 def jax_callable_variadic_tuple(
     func: Callable,  # pylint: disable=g-bare-generic
     num_outputs: int = 1,
-    graph_mode: ffi.GraphMode = ffi.GraphMode.WARP,
+    graph_mode: warp_ffi.JaxCallableGraphMode = warp_ffi.JaxCallableGraphMode.WARP,
     vmap_method: Optional[str] = None,
     output_dims: Optional[dict[str, tuple[int, ...]]] = None,
     in_out_argnames: Optional[Sequence[str]] = None,
@@ -117,7 +119,7 @@ def jax_callable_variadic_tuple(
 
     # Provide a flattened signature for the Warp callable machinery.
     new_signature = flatten_signature(inspect.signature(func), args)
-    func_wrapper.__signature__ = new_signature
+    func_wrapper.__signature__ = new_signature  # pyrefly: ignore[missing-attribute]
     func_wrapper.__annotations__ = {
         p.name: p.annotation
         for p in new_signature.parameters.values()
@@ -126,7 +128,7 @@ def jax_callable_variadic_tuple(
     if new_signature.return_annotation is not inspect.Signature.empty:
       func_wrapper.__annotations__['return'] = new_signature.return_annotation
 
-    my_callable = ffi.jax_callable(
+    my_callable = warp_ffi.jax_callable(
         func_wrapper,
         num_outputs=num_outputs,
         graph_mode=graph_mode,
@@ -167,20 +169,6 @@ def _format_arg(arg: Any, name: str, annotation: Any, verbose: bool):
         f'Arg ndim {arg.ndim} does not match expected ndim {expected_ndim}.'
     )
 
-  # Add stride 0 to first axis in case the underlying argument should be
-  # batched.
-  # NB: the outer marshalling does an "expand_dims" on Model fields.
-  is_batch_field = mjx_warp_types._BATCH_DIM['Model'].get(name, False)  # pylint: disable=protected-access
-  if arg.shape[0] == 1 and is_batch_field:
-    old_strides = arg.strides
-    arg.strides = (0,) + arg.strides[1:]
-    if verbose:
-      print(
-          f'Leading batch dim of 1, adding stride: {name} {old_strides} =>'
-          f' {arg.strides}'
-      )
-    return arg
-
   if verbose:
     print(f'Did nothing: {name}: {arg.shape}')
   return arg
@@ -199,29 +187,12 @@ def format_args_for_warp(func, verbose=False):
   return wrapper
 
 
-def _tree_path_to_attr_str(path: jax.tree_util.KeyPath) -> str:
-  """Converts a tree path to a dataclass attribute string."""
-  if not isinstance(path, tuple):
-    raise NotImplementedError(
-        f'Parsing for jax tree path {path} not implemented.'
-    )
-
-  if any(isinstance(p, jax.tree_util.SequenceKey) for p in path):
-    # get the path up to the first sequence key, we assume variadic sequences
-    is_seq_key = [isinstance(p, jax.tree_util.SequenceKey) for p in path]
-    path = path[: is_seq_key.index(True)]
-
-  assert all(isinstance(p, jax.tree_util.GetAttrKey) for p in path)
-  path = [p for p in path if p.name != '_impl']
-  return '__'.join(p.name for p in path)
-
-
 def _get_mapping_from_tree_path(
     path: jax.tree_util.KeyPath,
     mapping: dict[str, int],
 ) -> Optional[int]:
   """Gets the mapped value from a tree path."""
-  attr = _tree_path_to_attr_str(path)
+  attr = tree_path_to_attr_str(path)
   # None if the MJX public field is not present in the MJX-Warp mapping.
   return mapping.get(attr)
 
@@ -234,7 +205,7 @@ def _expand_dim_from_path(
   if ndim is None or ndim < 0:
     return leaf
   if ndim > leaf.ndim:
-    leaf = jp.expand_dims(leaf, axis=np.arange(ndim - leaf.ndim))
+    leaf = jp.expand_dims(leaf, axis=np.arange(ndim - leaf.ndim))  # pyrefly: ignore[bad-argument-type]
   if ndim != leaf.ndim:
     raise AssertionError(
         f'Leaf node ndim ({leaf.ndim}) and expected ndim ({ndim}) do not match'
@@ -250,7 +221,7 @@ def _squeeze_dim(leaf_expanded: Any, leaf: Any) -> Any:
         f' ndim {leaf.ndim}'
     )
   if leaf_expanded.ndim > leaf.ndim:
-    return jp.squeeze(leaf_expanded, np.arange(leaf_expanded.ndim - leaf.ndim))
+    return jp.squeeze(leaf_expanded, np.arange(leaf_expanded.ndim - leaf.ndim))  # pyrefly: ignore[bad-argument-type]
   return leaf_expanded
 
 
@@ -317,7 +288,7 @@ def _maybe_broadcast_to(
   """Broadcasts fields that are used in MuJoCo Warp."""
   ndim = _get_mapping_from_tree_path(path, mjx_warp_types._NDIM[cls_str])
   needs_batch_dim = _get_mapping_from_tree_path(
-      path, mjx_warp_types._BATCH_DIM[cls_str]  # pylint: disable=protected-access
+      path, mjx_warp_types._BATCH_DIM[cls_str]  # pylint: disable=protected-access  # pyrefly: ignore[bad-argument-type]
   )
   needs_batch_dim = bool(needs_batch_dim) and (ndim is not None and ndim > 0)
   if needs_batch_dim and not is_batched:
@@ -334,31 +305,41 @@ def _check_leading_dim(
 ):
   """Asserts that the batch dimension of a leaf node matches the expected batch dimension."""
   has_batch_dim = _get_mapping_from_tree_path(
-      path, mjx_warp_types._BATCH_DIM['Data']
+      path, mjx_warp_types._BATCH_DIM['Data']  # pyrefly: ignore[bad-argument-type]
   )
-  attr = _tree_path_to_attr_str(path)
+  attr = tree_path_to_attr_str(path)
   if has_batch_dim and leaf.shape[0] != expected_batch_dim:
     raise ValueError(
         f'Leaf node batch size ({leaf.shape[0]}) and expected batch size'
         f' ({expected_batch_dim}) do not match for field {attr}.'
+        ' If you are trying to merge Data objects (e.g. for resets),'
+        ' use Data.where instead of jax.tree.map.'
     )
   if (
       not has_batch_dim
       and attr.startswith('contact__')
       and leaf.shape[0] != expected_naconmax
+      and leaf.shape[0]
+      != 0  # Allow empty arrays (shape[0] == 0) for unused contact fields (e.g., flex).
   ):
     raise ValueError(
         f'Leaf node leading dim ({leaf.shape[0]}) does not match naconmax'
         f' ({expected_naconmax}) for field {attr}.'
+        ' If you are trying to merge Data objects (e.g. for resets),'
+        ' use Data.where instead of jax.tree.map.'
     )
   if (
       not has_batch_dim
       and attr.startswith('efc__')
       and leaf.shape[0] != expected_njmax
+      and leaf.shape[0]
+      != 0  # Allow empty arrays (shape[0] == 0) for unused constraint fields (e.g., islands).
   ):
     raise ValueError(
         f'Leaf node leading dim ({leaf.shape[0]}) does not match njmax'
         f' ({expected_njmax}) for field {attr}.'
+        ' If you are trying to merge Data objects (e.g. for resets),'
+        ' use Data.where instead of jax.tree.map.'
     )
 
 
@@ -415,7 +396,7 @@ def marshal_custom_vmap(
     out_batched = jax.tree.map_with_path(
         # NB: if a field is not in MuJoCo Warp, we let JAX do its magic.
         lambda path, x: _get_mapping_from_tree_path(
-            path, mjx_warp_types._BATCH_DIM['Data']  # pylint: disable=protected-access
+            path, mjx_warp_types._BATCH_DIM['Data']  # pylint: disable=protected-access  # pyrefly: ignore[bad-argument-type]
         )
         or x,
         out_batched,

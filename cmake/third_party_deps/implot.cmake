@@ -13,7 +13,7 @@
 # limitations under the License.
 
 set(MUJOCO_DEP_VERSION_implot
-    0d4d87c3e005349c1aeb7ceacfd20a67f23c42b8
+    ec7306ceb99d19ff193eb30dc74fa3598f5e7dc6
     CACHE STRING "Tag/version of `implot` to be fetched."
 )
 mark_as_advanced(MUJOCO_DEP_VERSION_implot)

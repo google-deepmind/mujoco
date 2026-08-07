@@ -17,7 +17,6 @@
 
 #include <benchmark/benchmark.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjthread.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
 
@@ -29,6 +28,9 @@ static const int kNumWarmupSteps = 500;
 
 // number of steps to benchmark (before resetting state)
 static const int kBatchSize = 50;
+
+// number of threads to test
+static const int kNumThreads = 6;
 
 void BM_StepHumanoid200(benchmark::State& state) {
   int nthread = state.range(0);
@@ -43,10 +45,8 @@ void BM_StepHumanoid200(benchmark::State& state) {
   model->opt.disableflags &= ~mjDSBL_ISLAND;  // enable islands
 
   mjData* data = mj_makeData(model);
-  mjThreadPool* threadpool = nullptr;
-  if (nthread > 1) {
-    threadpool = mju_threadPoolCreate(nthread);
-    mju_bindThreadPool(data, threadpool);
+  if (nthread) {
+    mju_threadpool(data, nthread);
   }
 
   // warm-up rollout to get a steady state
@@ -73,9 +73,6 @@ void BM_StepHumanoid200(benchmark::State& state) {
   state.SetLabel(label);
   state.SetItemsProcessed(state.iterations());
   mj_deleteData(data);
-  if (threadpool) {
-    mju_threadPoolDestroy(threadpool);
-  }
 }
 
 void BM_Step22Humanoids(benchmark::State& state) {
@@ -90,10 +87,8 @@ void BM_Step22Humanoids(benchmark::State& state) {
   model->opt.disableflags &= ~mjDSBL_ISLAND;  // enable islands
 
   mjData* data = mj_makeData(model);
-  mjThreadPool* threadpool = nullptr;
-  if (nthread > 1) {
-    threadpool = mju_threadPoolCreate(nthread);
-    mju_bindThreadPool(data, threadpool);
+  if (nthread) {
+    mju_threadpool(data, nthread);
   }
 
   // warm-up rollout to get a steady state
@@ -123,12 +118,9 @@ void BM_Step22Humanoids(benchmark::State& state) {
   state.SetLabel(label);
   state.SetItemsProcessed(state.iterations());
   mj_deleteData(data);
-  if (threadpool) {
-    mju_threadPoolDestroy(threadpool);
-  }
 }
 
-BENCHMARK(BM_StepHumanoid200)->Arg(1)->Arg(6);
-BENCHMARK(BM_Step22Humanoids)->Arg(1)->Arg(6);
+BENCHMARK(BM_StepHumanoid200)->Arg(0)->Arg(kNumThreads);
+BENCHMARK(BM_Step22Humanoids)->Arg(0)->Arg(kNumThreads);
 }  // namespace
 }  // namespace mujoco

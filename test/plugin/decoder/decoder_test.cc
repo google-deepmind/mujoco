@@ -16,6 +16,10 @@
 
 #include <string.h>
 
+#include <cstdlib>
+#include <cstring>
+#include <string_view>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
@@ -115,6 +119,46 @@ TEST_F(DecoderPluginTest, CanDecode) {
   EXPECT_EQ(model->nbody, 2);  // world + included body
   EXPECT_EQ(model->ngeom, 1);
   mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(DecoderPluginTest, DecodeWithResourceArgs) {
+  static auto decode_args_fn =
+      +[](mjResource* resource, const mjVFS* vfs) -> mjSpec* {
+    mjSpec* s = MakeSimpleSpec();
+    if (resource && resource->args) {
+      std::string_view args_view(resource->args);
+      size_t pos = args_view.find("size=");
+      if (pos != std::string_view::npos) {
+        mjsElement* elem = mjs_firstElement(s, mjOBJ_GEOM);
+        mjsGeom* geom = mjs_asGeom(elem);
+        if (geom) {
+          geom->size[0] = std::atof(args_view.data() + pos + 5);
+        }
+      }
+    }
+    return s;
+  };
+
+  mjpDecoder decoder;
+  mjp_defaultDecoder(&decoder);
+  decoder.content_type = "model/argsformat";
+  decoder.extension = ".argsformat";
+  decoder.can_decode = +[](const mjResource* r) -> int { return 1; };
+  decoder.decode = decode_args_fn;
+  mjp_registerDecoder(&decoder);
+
+  mjResource resource;
+  std::memset(&resource, 0, sizeof(resource));
+  resource.name = const_cast<char*>("test.argsformat");
+  resource.args = "size=42.0&foo=bar";
+
+  mjSpec* spec = mju_decodeResource(&resource, "model/argsformat", nullptr);
+  ASSERT_THAT(spec, testing::NotNull());
+  mjsElement* elem = mjs_firstElement(spec, mjOBJ_GEOM);
+  mjsGeom* geom = mjs_asGeom(elem);
+  ASSERT_THAT(geom, testing::NotNull());
+  EXPECT_DOUBLE_EQ(geom->size[0], 42.0);
   mj_deleteSpec(spec);
 }
 

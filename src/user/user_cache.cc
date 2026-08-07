@@ -29,13 +29,12 @@
 // makes a copy for user (strip unnecessary items)
 mjCAsset mjCAsset::Copy(const mjCAsset& other) {
   mjCAsset asset;
-  asset.id_ = other.Id();
+  asset.id_        = other.Id();
   asset.timestamp_ = other.Timestamp();
-  asset.data_ = other.data_;
-  asset.size_ = other.size_;
+  asset.data_      = other.data_;
+  asset.size_      = other.size_;
   return asset;
 }
-
 
 
 // sets the total maximum size of the cache in bytes
@@ -48,44 +47,36 @@ void mjCCache::SetCapacity(std::size_t size) {
 }
 
 
-
 // returns the corresponding timestamp, if the given asset is stored in the cache
 const std::string* mjCCache::HasAsset(const std::string& id) {
   std::lock_guard<std::mutex> lock(mutex_);
-  auto it = lookup_.find(id);
-  if (it == lookup_.end()) {
-    return nullptr;
-  }
+  auto                        it = lookup_.find(id);
+  if (it == lookup_.end()) { return nullptr; }
 
   return &(it->second.Timestamp());
 }
 
 
-
 // inserts an asset into the cache, if asset is already in the cache, its data
 // is updated only if the timestamps disagree
-bool mjCCache::Insert(const std::string& modelname, const std::string& id, const mjResource *resource,
-                      std::shared_ptr<const void> data, std::size_t size) {
+bool mjCCache::Insert(const std::string&          modelname,
+                      const std::string&          id,
+                      const mjResource*           resource,
+                      std::shared_ptr<const void> data,
+                      std::size_t                 size) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   // check if asset is too large to fit in the cache
-  if ((size_ + size > capacity_) &&
-      lookup_.find(id) == lookup_.end()) {
-    return false;
-  }
+  if ((size_ + size > capacity_) && lookup_.find(id) == lookup_.end()) { return false; }
   mjCAsset asset(modelname, id, resource, data, size);
   auto [it, inserted] = lookup_.insert({id, asset});
   mjCAsset* asset_ptr = &(it->second);
 
   if (!inserted) {
-    if (size_ - asset_ptr->BytesCount() + size > capacity_) {
-      return false;
-    }
+    if (size_ - asset_ptr->BytesCount() + size > capacity_) { return false; }
     models_[modelname].insert(asset_ptr);  // add it for the model
     asset_ptr->AddReference(modelname);
-    if (it->second.Timestamp() == asset.Timestamp()) {
-      return true;
-    }
+    if (it->second.Timestamp() == asset.Timestamp()) { return true; }
     asset_ptr->SetTimestamp(asset.Timestamp());
     size_ = size_ - asset_ptr->BytesCount() + size;
     asset_ptr->ReplaceData(asset);
@@ -101,19 +92,14 @@ bool mjCCache::Insert(const std::string& modelname, const std::string& id, const
 }
 
 
-
 // populate data from the cache into the given function, return true if data was
 // copied
 bool mjCCache::PopulateData(const std::string& id, const mjResource* resource, mjCDataFunc fn) {
   std::lock_guard<std::mutex> lock(mutex_);
-  auto it = lookup_.find(id);
-  if (it == lookup_.end()) {
-    return false;
-  }
+  auto                        it = lookup_.find(id);
+  if (it == lookup_.end()) { return false; }
 
-  if (mju_isModifiedResource(resource, it->second.Timestamp().c_str())) {
-    return false;
-  }
+  if (mju_isModifiedResource(resource, it->second.Timestamp().c_str())) { return false; }
 
   mjCAsset* asset = &(it->second);
 
@@ -126,30 +112,23 @@ bool mjCCache::PopulateData(const std::string& id, const mjResource* resource, m
 }
 
 
-
 // removes model from the cache along with assets referencing only this model
 void mjCCache::RemoveModel(const std::string& filename) {
   std::lock_guard<std::mutex> lock(mutex_);
   for (mjCAsset* asset : models_[filename]) {
     asset->RemoveReference(filename);
-    if (!asset->HasReferences()) {
-      Delete(asset, filename);
-    }
+    if (!asset->HasReferences()) { Delete(asset, filename); }
   }
   models_.erase(filename);
 }
-
 
 
 // Wipes out all internal data for the given model
 void mjCCache::Reset(const std::string& filename) {
   std::lock_guard<std::mutex> lock(mutex_);
-  for (auto asset : models_[filename]) {
-    Delete(asset, filename);
-  }
+  for (auto asset : models_[filename]) { Delete(asset, filename); }
   models_.erase(filename);
 }
-
 
 
 // Wipes out all internal data
@@ -158,10 +137,9 @@ void mjCCache::Reset() {
   entries_.clear();
   lookup_.clear();
   models_.clear();
-  size_ = 0;
+  size_       = 0;
   insert_num_ = 0;
 }
-
 
 
 std::size_t mjCCache::Capacity() const {
@@ -170,35 +148,27 @@ std::size_t mjCCache::Capacity() const {
 }
 
 
-
 std::size_t mjCCache::Size() const {
   std::lock_guard<std::mutex> lock(mutex_);
   return size_;
 }
 
 
-
 // Deletes a single asset
 void mjCCache::DeleteAsset(const std::string& id) {
   std::lock_guard<std::mutex> lock(mutex_);
-  auto it = lookup_.find(id);
-  if (it != lookup_.end()) {
-    Delete(&(it->second));
-  }
+  auto                        it = lookup_.find(id);
+  if (it != lookup_.end()) { Delete(&(it->second)); }
 }
-
 
 
 // Deletes a single asset (internal)
 void mjCCache::Delete(mjCAsset* asset) {
   size_ -= asset->BytesCount();
   entries_.erase(asset);
-  for (auto& reference : asset->References()) {
-    models_[reference].erase(asset);
-  }
+  for (auto& reference : asset->References()) { models_[reference].erase(asset); }
   lookup_.erase(asset->Id());
 }
-
 
 
 // Deletes a single asset (internal)
@@ -207,18 +177,13 @@ void mjCCache::Delete(mjCAsset* asset, const std::string& skip) {
   entries_.erase(asset);
 
   for (auto& reference : asset->References()) {
-    if (reference != skip) {
-      models_[reference].erase(asset);
-    }
+    if (reference != skip) { models_[reference].erase(asset); }
   }
   lookup_.erase(asset->Id());
 }
 
 
-
 // trims out data to meet memory requirements
 void mjCCache::Trim() {
-  while (size_ > capacity_) {
-    Delete(*entries_.begin());
-  }
+  while (size_ > capacity_) { Delete(*entries_.begin()); }
 }

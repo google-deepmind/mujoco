@@ -18,92 +18,278 @@ from functools import lru_cache
 import warp as wp
 
 
+@wp.func
+def solve_search_sums(grad: float, solution: float):
+  return wp.vec2(solution * solution, grad * solution)
+
+
 @lru_cache(maxsize=None)
-def create_blocked_cholesky_func(block_size: int):
+def _create_newton_decrement_func(matrix_size_static: int, vector_size_static: int):
   @wp.func
-  def blocked_cholesky_func(
+  def newton_decrement_func(
+    # In:
+    solution_tile: wp.tile[float, matrix_size_static, 1],
+    b: wp.array2d[float],
+    # Out:
+    search_out: wp.array2d[float],
+  ):
+    grad_tile = wp.tile_load(b, shape=(vector_size_static, 1), offset=(0, 0), bounds_check=False)
+    active_solution = wp.tile_view(solution_tile, shape=(vector_size_static, 1), offset=(0, 0))
+    wp.tile_store(search_out, wp.tile_map(wp.mul, active_solution, -1.0), bounds_check=False)
+    return wp.tile_reduce(wp.add, wp.tile_map(solve_search_sums, grad_tile, active_solution))[0]
+
+  return newton_decrement_func
+
+
+@lru_cache(maxsize=None)
+def create_blocked_cholesky_factorize_solve_func(block_size: int, matrix_size_static: int):
+  @wp.func
+  def blocked_cholesky_factorize_solve_func(
     # In:
     A: wp.array2d[float],
-    matrix_size: int,
-    # Out:
-    L: wp.array2d[float],
-  ):
-    """Computes the Cholesky factorization of a symmetric positive definite matrix A in blocks.
-
-    It returns a lower-triangular matrix L such that A = L L^T.
-    """
-    # Process the matrix in blocks along its leading dimension.
-    for k in range(0, matrix_size, block_size):
-      end = k + block_size
-
-      # Load current diagonal block A[k:end, k:end]
-      # and update with contributions from previously computed blocks.
-      A_kk_tile = wp.tile_load(A, shape=(block_size, block_size), offset=(k, k), storage="shared")
-
-      for j in range(0, k, block_size):
-        L_block = wp.tile_load(L, shape=(block_size, block_size), offset=(k, j), storage="shared")
-        wp.tile_matmul(L_block, wp.tile_transpose(L_block), A_kk_tile, alpha=-1.0)
-
-      # Compute the Cholesky factorization for the block
-      wp.tile_cholesky_inplace(A_kk_tile)
-      wp.tile_store(L, A_kk_tile, offset=(k, k))
-
-      # Process the blocks below the current block
-      for i in range(end, matrix_size, block_size):
-        A_ik_tile = wp.tile_load(A, shape=(block_size, block_size), offset=(i, k), storage="shared")
-
-        for j in range(0, k, block_size):
-          L_tile = wp.tile_load(L, shape=(block_size, block_size), offset=(i, j), storage="shared")
-          L_2_tile = wp.tile_load(L, shape=(block_size, block_size), offset=(k, j), storage="shared")
-          wp.tile_matmul(L_tile, wp.tile_transpose(L_2_tile), A_ik_tile, alpha=-1.0)
-
-        wp.tile_lower_solve_inplace(A_kk_tile, wp.tile_transpose(A_ik_tile))
-        wp.tile_store(L, A_ik_tile, offset=(i, k))
-
-  return blocked_cholesky_func
-
-
-@lru_cache(maxsize=None)
-def create_blocked_cholesky_solve_func(block_size: int, matrix_size_static: int):
-  @wp.func
-  def blocked_cholesky_solve_func(
-    # In:
-    L: wp.array2d[float],
     b: wp.array2d[float],
     matrix_size: int,
     # Out:
+    U: wp.array2d[float],
     x: wp.array2d[float],
   ):
-    """Block Cholesky factorization and solve.
-
-    Solves A x = b given the Cholesky factor L (A = L L^T) using blocked forward and backward
-    substitution.
-    """
+    """Block Cholesky factorization and solve while keeping the forward RHS live."""
     rhs_tile = wp.tile_load(b, shape=(matrix_size_static, 1), offset=(0, 0), storage="shared", bounds_check=False)
 
-    # Forward substitution: solve L y = b
-    for i in range(0, matrix_size, block_size):
-      rhs_view = wp.tile_view(rhs_tile, shape=(block_size, 1), offset=(i, 0))
-      for j in range(0, i, block_size):
-        L_block = wp.tile_load(L, shape=(block_size, block_size), offset=(i, j), storage="shared")
+    for k in range(0, matrix_size, block_size):
+      end = k + block_size
+      rhs_view = wp.tile_view(rhs_tile, shape=(block_size, 1), offset=(k, 0))
+
+      A_kk_tile = wp.tile_load(
+        A, shape=(block_size, block_size), offset=(k, k), storage="shared", bounds_check=False, aligned=True
+      )
+
+      for j in range(0, k, block_size):
+        U_block = wp.tile_load(
+          U, shape=(block_size, block_size), offset=(j, k), storage="shared", bounds_check=False, aligned=True
+        )
+        wp.tile_matmul(wp.tile_transpose(U_block), U_block, A_kk_tile, alpha=-1.0)
+
         y_block = wp.tile_view(rhs_tile, shape=(block_size, 1), offset=(j, 0))
-        wp.tile_matmul(L_block, y_block, rhs_view, alpha=-1.0)
+        wp.tile_matmul(wp.tile_transpose(U_block), y_block, rhs_view, alpha=-1.0)
 
-      L_tile = wp.tile_load(L, shape=(block_size, block_size), offset=(i, i), storage="shared")
-      wp.tile_lower_solve_inplace(L_tile, rhs_view)
+      wp.tile_cholesky_inplace(A_kk_tile, fill_mode="upper")
+      wp.tile_store(U, A_kk_tile, offset=(k, k), bounds_check=False, aligned=True)
 
-    # Backward substitution: solve L^T x = y
+      wp.tile_lower_solve_inplace(wp.tile_transpose(A_kk_tile), rhs_view)
+
+      for i in range(end, matrix_size, block_size):
+        A_ki_tile = wp.tile_load(
+          A, shape=(block_size, block_size), offset=(k, i), storage="shared", bounds_check=False, aligned=True
+        )
+
+        for j in range(0, k, block_size):
+          U_jk_tile = wp.tile_load(
+            U, shape=(block_size, block_size), offset=(j, k), storage="shared", bounds_check=False, aligned=True
+          )
+          U_ji_tile = wp.tile_load(
+            U, shape=(block_size, block_size), offset=(j, i), storage="shared", bounds_check=False, aligned=True
+          )
+          wp.tile_matmul(wp.tile_transpose(U_jk_tile), U_ji_tile, A_ki_tile, alpha=-1.0)
+
+        wp.tile_lower_solve_inplace(wp.tile_transpose(A_kk_tile), A_ki_tile)
+        wp.tile_store(U, A_ki_tile, offset=(k, i), bounds_check=False, aligned=True)
+
     for i in range(matrix_size - block_size, -1, -block_size):
       i_end = i + block_size
       tmp_tile = wp.tile_view(rhs_tile, shape=(block_size, 1), offset=(i, 0))
       for j in range(i_end, matrix_size, block_size):
-        L_tile = wp.tile_load(L, shape=(block_size, block_size), offset=(j, i), storage="shared")
+        U_tile = wp.tile_load(
+          U, shape=(block_size, block_size), offset=(i, j), storage="shared", bounds_check=False, aligned=True
+        )
         x_tile = wp.tile_view(rhs_tile, shape=(block_size, 1), offset=(j, 0))
-        wp.tile_matmul(wp.tile_transpose(L_tile), x_tile, tmp_tile, alpha=-1.0)
-      L_tile = wp.tile_load(L, shape=(block_size, block_size), offset=(i, i), storage="shared")
+        wp.tile_matmul(U_tile, x_tile, tmp_tile, alpha=-1.0)
 
-      wp.tile_upper_solve_inplace(wp.tile_transpose(L_tile), tmp_tile)
+      U_tile = wp.tile_load(
+        U, shape=(block_size, block_size), offset=(i, i), storage="shared", bounds_check=False, aligned=True
+      )
+      wp.tile_upper_solve_inplace(U_tile, tmp_tile)
 
     wp.tile_store(x, rhs_tile, offset=(0, 0), bounds_check=False)
 
+  return blocked_cholesky_factorize_solve_func
+
+
+@lru_cache(maxsize=None)
+def _create_blocked_cholesky_augmented_factorize_solve_func(
+  block_size: int,
+  matrix_size_static: int,
+  with_newton_decrement: bool,
+  vector_size_static: int,
+):
+  WITH_NEWTON_DECREMENT = with_newton_decrement
+  border_size = block_size - 1
+
+  @wp.func
+  def blocked_cholesky_augmented_factorize_solve_func(
+    # In:
+    A: wp.array2d[float],
+    b: wp.array2d[float],
+    matrix_size: int,
+    # Out:
+    U_out: wp.array2d[float],
+    result_out: wp.array2d[float],
+  ):
+    """Factor A with b as an augmented border and reuse it as the forward solution."""
+    rhs_tile = wp.tile_zeros(shape=(matrix_size_static, 1), dtype=float, storage="shared")
+
+    for k in range(0, matrix_size, block_size):
+      end = k + block_size
+      input_rhs = wp.tile_load(b, shape=(block_size, 1), offset=(k, 0), storage="shared", bounds_check=False)
+      A_kk_tile = wp.tile_load(
+        A, shape=(block_size, block_size), offset=(k, k), storage="shared", bounds_check=False, aligned=True
+      )
+      input_diagonal_rhs = wp.tile_view(input_rhs, shape=(border_size, 1), offset=(0, 0))
+      if end == matrix_size:
+        wp.tile_assign(A_kk_tile, input_diagonal_rhs, offset=(0, border_size))
+        # Keep the augmented rank-one correction below float32 precision.
+        A_kk_tile[border_size, border_size] = 1.0e30
+
+      for j in range(0, k, block_size):
+        U_block = wp.tile_load(
+          U_out, shape=(block_size, block_size), offset=(j, k), storage="shared", bounds_check=False, aligned=True
+        )
+        wp.tile_matmul(wp.tile_transpose(U_block), U_block, A_kk_tile, alpha=-1.0)
+
+      wp.tile_cholesky_inplace(A_kk_tile, fill_mode="upper")
+      diagonal_border = wp.tile_view(A_kk_tile, shape=(border_size, 1), offset=(0, border_size))
+      if end == matrix_size:
+        wp.tile_assign(rhs_tile, diagonal_border, offset=(k, 0))
+      wp.tile_store(U_out, A_kk_tile, offset=(k, k), bounds_check=False, aligned=True)
+
+      for i in range(end, matrix_size, block_size):
+        A_ki_tile = wp.tile_load(
+          A, shape=(block_size, block_size), offset=(k, i), storage="shared", bounds_check=False, aligned=True
+        )
+        if i + block_size == matrix_size:
+          wp.tile_assign(A_ki_tile, input_rhs, offset=(0, border_size))
+
+        for j in range(0, k, block_size):
+          U_jk_tile = wp.tile_load(
+            U_out, shape=(block_size, block_size), offset=(j, k), storage="shared", bounds_check=False, aligned=True
+          )
+          U_ji_tile = wp.tile_load(
+            U_out, shape=(block_size, block_size), offset=(j, i), storage="shared", bounds_check=False, aligned=True
+          )
+          wp.tile_matmul(wp.tile_transpose(U_jk_tile), U_ji_tile, A_ki_tile, alpha=-1.0)
+
+        wp.tile_lower_solve_inplace(wp.tile_transpose(A_kk_tile), A_ki_tile)
+        panel_border = wp.tile_view(A_ki_tile, shape=(block_size, 1), offset=(0, border_size))
+        if i + block_size == matrix_size:
+          wp.tile_assign(rhs_tile, panel_border, offset=(k, 0))
+        wp.tile_store(U_out, A_ki_tile, offset=(k, i), bounds_check=False, aligned=True)
+
+    for i in range(matrix_size - block_size, -1, -block_size):
+      i_end = i + block_size
+      tmp_tile = wp.tile_view(rhs_tile, shape=(block_size, 1), offset=(i, 0))
+      for j in range(i_end, matrix_size, block_size):
+        U_tile = wp.tile_load(
+          U_out, shape=(block_size, block_size), offset=(i, j), storage="shared", bounds_check=False, aligned=True
+        )
+        x_tile = wp.tile_view(rhs_tile, shape=(block_size, 1), offset=(j, 0))
+        wp.tile_matmul(U_tile, x_tile, tmp_tile, alpha=-1.0)
+
+      U_tile = wp.tile_load(
+        U_out, shape=(block_size, block_size), offset=(i, i), storage="shared", bounds_check=False, aligned=True
+      )
+      wp.tile_upper_solve_inplace(U_tile, tmp_tile)
+
+    sums = wp.vec2(0.0)
+    if wp.static(WITH_NEWTON_DECREMENT):
+      sums = wp.static(_create_newton_decrement_func(matrix_size_static, vector_size_static))(rhs_tile, b, result_out)
+    else:
+      wp.tile_store(result_out, rhs_tile, offset=(0, 0), bounds_check=False)
+
+    return sums
+
+  return blocked_cholesky_augmented_factorize_solve_func
+
+
+@lru_cache(maxsize=None)
+def _create_blocked_cholesky_solve_func(
+  block_size: int,
+  matrix_size_static: int,
+  with_newton_decrement: bool,
+  vector_size_static: int,
+):
+  WITH_NEWTON_DECREMENT = with_newton_decrement
+
+  @wp.func
+  def blocked_cholesky_solve_func(
+    # In:
+    U: wp.array2d[float],
+    b: wp.array2d[float],
+    matrix_size: int,
+    # Out:
+    result_out: wp.array2d[float],
+  ):
+    """Block Cholesky solve.
+
+    Solves A x = b given the Cholesky factor U (A = U^T U) using blocked forward and backward
+    substitution.
+    """
+    rhs_tile = wp.tile_load(b, shape=(matrix_size_static, 1), offset=(0, 0), storage="shared", bounds_check=False)
+
+    # Forward substitution: solve U^T y = b
+    for i in range(0, matrix_size, block_size):
+      rhs_view = wp.tile_view(rhs_tile, shape=(block_size, 1), offset=(i, 0))
+      for j in range(0, i, block_size):
+        U_block = wp.tile_load(
+          U, shape=(block_size, block_size), offset=(j, i), storage="shared", bounds_check=False, aligned=True
+        )
+        y_block = wp.tile_view(rhs_tile, shape=(block_size, 1), offset=(j, 0))
+        wp.tile_matmul(wp.tile_transpose(U_block), y_block, rhs_view, alpha=-1.0)
+
+      U_tile = wp.tile_load(
+        U, shape=(block_size, block_size), offset=(i, i), storage="shared", bounds_check=False, aligned=True
+      )
+      wp.tile_lower_solve_inplace(wp.tile_transpose(U_tile), rhs_view)
+
+    # Backward substitution: solve U x = y
+    for i in range(matrix_size - block_size, -1, -block_size):
+      i_end = i + block_size
+      tmp_tile = wp.tile_view(rhs_tile, shape=(block_size, 1), offset=(i, 0))
+      for j in range(i_end, matrix_size, block_size):
+        U_tile = wp.tile_load(
+          U, shape=(block_size, block_size), offset=(i, j), storage="shared", bounds_check=False, aligned=True
+        )
+        x_tile = wp.tile_view(rhs_tile, shape=(block_size, 1), offset=(j, 0))
+        wp.tile_matmul(U_tile, x_tile, tmp_tile, alpha=-1.0)
+      U_tile = wp.tile_load(
+        U, shape=(block_size, block_size), offset=(i, i), storage="shared", bounds_check=False, aligned=True
+      )
+
+      wp.tile_upper_solve_inplace(U_tile, tmp_tile)
+
+    sums = wp.vec2(0.0)
+    if wp.static(WITH_NEWTON_DECREMENT):
+      sums = wp.static(_create_newton_decrement_func(matrix_size_static, vector_size_static))(rhs_tile, b, result_out)
+    else:
+      wp.tile_store(result_out, rhs_tile, offset=(0, 0), bounds_check=False)
+
+    return sums
+
   return blocked_cholesky_solve_func
+
+
+def create_blocked_cholesky_augmented_factorize_solve_func(block_size: int, matrix_size_static: int):
+  return _create_blocked_cholesky_augmented_factorize_solve_func(block_size, matrix_size_static, False, 0)
+
+
+def create_blocked_cholesky_augmented_factorize_solve_newton_func(
+  block_size: int, matrix_size_static: int, vector_size_static: int
+):
+  return _create_blocked_cholesky_augmented_factorize_solve_func(block_size, matrix_size_static, True, vector_size_static)
+
+
+def create_blocked_cholesky_solve_func(block_size: int, matrix_size_static: int):
+  return _create_blocked_cholesky_solve_func(block_size, matrix_size_static, False, 0)
+
+
+def create_blocked_cholesky_solve_newton_func(block_size: int, matrix_size_static: int, vector_size_static: int):
+  return _create_blocked_cholesky_solve_func(block_size, matrix_size_static, True, vector_size_static)

@@ -16,7 +16,7 @@
 #define MUJOCO_MUJOCO_H_
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 3009000
+#define mjVERSION_HEADER 3011001
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -31,7 +31,6 @@
 #include <mujoco/mjrender.h>
 #include <mujoco/mjsan.h>
 #include <mujoco/mjspec.h>
-#include <mujoco/mjthread.h>
 #include <mujoco/mjtype.h>
 #include <mujoco/mjui.h>
 #include <mujoco/mjvisualize.h>
@@ -42,11 +41,13 @@
 extern "C" {
 #endif
 
-// user error and memory handlers
-MJAPI extern void  (*mju_user_error)(const char*);
-MJAPI extern void  (*mju_user_warning)(const char*);
+// user memory handlers
 MJAPI extern void* (*mju_user_malloc)(size_t);
 MJAPI extern void  (*mju_user_free)(void*);
+
+// legacy error/warning handlers (deprecated: prefer mju_setLogHandler)
+MJAPI extern void  (*mju_user_error)(const char*);
+MJAPI extern void  (*mju_user_warning)(const char*);
 
 
 // callbacks extending computation pipeline
@@ -72,6 +73,7 @@ MJAPI extern const char* mjLABELSTRING[mjNLABEL];
 MJAPI extern const char* mjFRAMESTRING[mjNFRAME];
 MJAPI extern const char* mjVISSTRING[mjNVISFLAG][3];
 MJAPI extern const char* mjRNDSTRING[mjNRNDFLAG][3];
+MJAPI extern const char* mjTOPICSTRING[mjNTOPIC];
 
 
 //---------------------------------- Virtual file system -------------------------------------------
@@ -145,9 +147,9 @@ MJAPI mjSpec* mj_parse(const char* filename, const char* content_type,
 // Encode spec/model to a file using a registered encoder.
 // Returns the number of bytes written on success, -1 on failure.
 // Nullable: m, vfs, error
-MJAPI int mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
-                    const char* content_type, const mjVFS* vfs, char* error,
-                    int error_sz);
+MJAPI mjtSize mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
+                        const char* content_type, const mjVFS* vfs, char* error,
+                        int error_sz);
 
 // Compile spec to model.
 // Nullable: vfs
@@ -253,6 +255,9 @@ MJAPI mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src);
 // Copy mjData, skip large arrays not required for visualization.
 MJAPI mjData* mjv_copyData(mjData* dest, const mjModel* m, const mjData* src);
 
+// Reset ctrl to neutral values: zero, except quaternion inputs which reset to the identity.
+MJAPI void mj_resetCtrl(const mjModel* m, mjData* d);
+
 // Reset data to defaults.
 MJAPI void mj_resetData(const mjModel* m, mjData* d);
 
@@ -262,7 +267,7 @@ MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_va
 // Reset data. If 0 <= key < nkey, set fields from specified keyframe.
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
-#ifndef ADDRESS_SANITIZER  // Stack management functions declared in mjsan.h if ASAN is active.
+#ifndef mjUSEASAN  // Stack management functions declared in mjsan.h if ASAN is active.
 
 // Mark a new frame on the mjData stack.
 MJAPI void mj_markStack(mjData* d);
@@ -599,8 +604,12 @@ MJAPI int mj_name2id(const mjModel* m, int type, const char* name);
 // Get name of object with the specified mjtObj type and id; return NULL if name not found.
 MJAPI const char* mj_id2name(const mjModel* m, int type, int id);
 
-// Convert sparse inertia matrix M into full (i.e. dense) matrix.
-MJAPI void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M);
+// Get name of actuator input, determined by the actuator type and input signature;
+// return NULL if the actuator type defines no input names.
+MJAPI const char* mj_actuatorInputName(const mjModel* m, int id, int input);
+
+// Convert sparse inertia matrix into full (i.e. dense) matrix.
+MJAPI void mj_fullM(const mjModel* m, const mjData* d, mjtNum* dst);
 
 // Multiply vector by inertia matrix.
 MJAPI void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
@@ -755,8 +764,7 @@ MJAPI mjtNum mjv_frustumHeight(const mjvScene* scn);
 MJAPI void mjv_alignToCamera(mjtNum res[3], const mjtNum vec[3], const mjtNum forward[3]);
 
 // Move camera with mouse; action is mjtMouse.
-MJAPI void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
-                          const mjvScene* scn, mjvCamera* cam);
+MJAPI void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy, mjvCamera* cam);
 
 // Move perturb object with mouse; action is mjtMouse.
 MJAPI void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx,
@@ -779,6 +787,10 @@ MJAPI void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* 
 
 // Return the average of two OpenGL cameras.
 MJAPI mjvGLCamera mjv_averageCamera(const mjvGLCamera* cam1, const mjvGLCamera* cam2);
+
+// Converts a mjvCamera to a mjvGLCamera.
+MJAPI mjvGLCamera mjv_camera2GLCamera(const mjModel* model, const mjData* data,
+                                      const mjvCamera* mjv_camera);
 
 // Select geom, flex or skin with mouse; return bodyid; -1: none selected.
 // Nullable: geomid, flexid, skinid
@@ -852,6 +864,12 @@ MJAPI void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2],  cons
 
 // Set default mjrContext.
 MJAPI void mjr_defaultContext(mjrContext* con);
+
+// Set default mjrRendererInfo.
+MJAPI void mjr_defaultRendererInfo(mjrRendererInfo* info);
+
+// Get active renderer information.
+MJAPI void mjr_getRendererInfo(mjrRendererInfo* info);
 
 // Allocate resources in custom OpenGL context; fontscale is mjtFontScale.
 MJAPI void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale);
@@ -973,23 +991,27 @@ MJAPI void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con);
 // Main error function; does not return to caller.
 MJAPI void mju_error(const char* msg, ...) mjPRINTFLIKE(1, 2);
 
-// Deprecated: use mju_error.
-MJAPI void mju_error_i(const char* msg, int i);
-
-// Deprecated: use mju_error.
-MJAPI void mju_error_s(const char* msg, const char* text);
-
 // Main warning function; returns to caller.
 MJAPI void mju_warning(const char* msg, ...) mjPRINTFLIKE(1, 2);
 
-// Deprecated: use mju_warning.
-MJAPI void mju_warning_i(const char* msg, int i);
-
-// Deprecated: use mju_warning.
-MJAPI void mju_warning_s(const char* msg, const char* text);
-
 // Clear user error and memory handlers.
 MJAPI void mju_clearHandlers(void);
+
+// Set the active log handler; return the previous handler.
+// If handler is NULL, restore the default handler.
+MJAPI mjfLogHandler mju_setLogHandler(mjfLogHandler handler);
+
+// Get default handler configuration.
+MJAPI mjLogConfig mju_getLogConfig(void);
+
+// Set default handler configuration.
+MJAPI void mju_setLogConfig(mjLogConfig config);
+
+// Log an info message with optional topic filtering.
+MJAPI void mju_info(int topic, const char* msg, ...) mjPRINTFLIKE(2, 3);
+
+// Dispatch a structured log message to the active handler.
+MJAPI void mju_message(const mjLogMessage* msg);
 
 // Allocate memory; byte-align on 64; pad size to multiple of 64.
 MJAPI void* mju_malloc(size_t size);
@@ -1009,9 +1031,14 @@ MJAPI const char* mjs_getError(mjSpec* s);
 // Get compiler timing diagnostics from spec, returns pointer to array of size mjNCTIMER.
 MJAPI const double* mjs_getTimer(mjSpec* s);
 
-// Return 1 if compiler error is a warning.
+// Return 1 if compiler error is a warning. Deprecated: use mjs_numWarnings(s) > 0.
 MJAPI int mjs_isWarning(mjSpec* s);
 
+// Get number of warnings accumulated in the spec.
+MJAPI int mjs_numWarnings(const mjSpec* spec);
+
+// Get the i-th warning message (returns nullptr if index out of bounds).
+MJAPI const char* mjs_getWarning(const mjSpec* spec, int index);
 
 //---------------------------------- Standard math -------------------------------------------------
 
@@ -1472,10 +1499,10 @@ MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg
 //     DsDq: (nv x nsensordata)
 //     DsDv: (nv x nsensordata)
 //     DsDa: (nv x nsensordata)
-//     DmDq: (nv x nM)
+//     DmDq: (nv x nC)
 //   single-letter shortcuts:
 //     inputs: q=qpos, v=qvel, a=qacc
-//     outputs: f=qfrc_inverse, s=sensordata, m=qM
+//     outputs: f=qfrc_inverse, s=sensordata, m=M
 //   notes:
 //     optionally computes mass matrix Jacobian DmDq
 //     flg_actuation specifies whether to subtract qfrc_actuator from qfrc_inverse
@@ -1577,6 +1604,11 @@ MJAPI void mju_closeResource(mjResource* resource);
 // return negative value if error.
 MJAPI int mju_readResource(mjResource* resource, const void** buffer);
 
+// Write resource data via its resource provider, return bytes written or -1 on error.
+// Nullable: vfs, error
+MJAPI mjtSize mju_writeResource(const char* name, const void* buffer, mjtSize nbytes,
+                                const mjVFS* vfs, char* error, size_t nerror);
+
 // For a resource with a name partitioned as {dir}{filename}, get the dir and ndir pointers.
 MJAPI void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir);
 
@@ -1593,23 +1625,8 @@ MJAPI mjSpec* mju_decodeResource(mjResource* resource, const char* content_type,
 
 //---------------------------------- Threads -------------------------------------------------------
 
-// Create a thread pool with the specified number of threads running.
-MJAPI mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);
-
-// Adds a thread pool to mjData and configures it for multi-threaded use.
-MJAPI void mju_bindThreadPool(mjData* d, void* thread_pool);
-
-// Enqueue a task in a thread pool.
-MJAPI void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task);
-
-// Destroy a thread pool.
-MJAPI void mju_threadPoolDestroy(mjThreadPool* thread_pool);
-
-// Initialize an mjTask.
-MJAPI void mju_defaultTask(mjTask* task);
-
-// Wait for a task to complete.
-MJAPI void mju_taskJoin(mjTask* task);
+// Create a thread pool with nthread worker threads.
+MJAPI void mju_threadpool(mjData* d, int nthread);
 
 
 //---------------------------------- Attachment ----------------------------------------------------
@@ -1666,6 +1683,15 @@ MJAPI mjsSensor* mjs_addSensor(mjSpec* s);
 
 // Add flex.
 MJAPI mjsFlex* mjs_addFlex(mjSpec* s);
+
+// Add flexcomp: create flex with auto-generated bodies/joints, return flex spec.
+// Nullable: type, dof, count, cellcount, spacing, scale, pos, quat, origin, file, vfs
+MJAPI mjsFlex* mjs_makeFlex(mjsBody* body, const char* name, const char* type, int dim,
+                            const char* dof, const int count[3], const int cellcount[3],
+                            const double spacing[3], const double scale[3], double radius,
+                            double mass, double inertiabox, int equality, int rigid, int flatskin,
+                            int elastic2d, const double pos[3], const double quat[4],
+                            const double origin[3], const char* file, const mjVFS* vfs);
 
 // Add contact pair.
 // Nullable: def
@@ -1729,6 +1755,15 @@ MJAPI const char* mjs_setToIntVelocity(mjsActuator* actuator, double kp, double 
 
 // Set actuator to velocity servo; return error if any.
 MJAPI const char* mjs_setToVelocity(mjsActuator* actuator, double kv);
+
+// Set actuator to orientation servo.
+MJAPI const char* mjs_setToOrientation(mjsActuator* actuator, double kp, double kv[1],
+                                       double dampratio[1], int ctrlspec);
+
+// Set actuator to PID controller.
+MJAPI const char* mjs_setToPID(mjsActuator* actuator, double kp, double kv[1], double dampratio[1],
+                               double ki[1], double imax[1], double slewmax[1], double inheritrange,
+                               int ctrlspec);
 
 // Set actuator to activate damper; return error if any.
 MJAPI const char* mjs_setToDamper(mjsActuator* actuator, double kv);

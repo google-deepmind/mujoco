@@ -26,6 +26,7 @@
 #include "engine/engine_collision_gjk.h"
 #include "engine/engine_collision_primitive.h"
 #include "engine/engine_collision_sdf.h"
+#include "engine/engine_thread.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_util.h"
 #include "engine/engine_inline.h"
@@ -177,11 +178,9 @@ static inline mjtNum getGap(const mjModel* m, int g1, int g2, int ipair) {
 // move arena pointer back to the end of the contact array
 static inline void resetArena(mjData* d) {
   d->parena = d->ncon * sizeof(mjContact);
-#ifdef ADDRESS_SANITIZER
-  if (!d->threadpool) {
+#ifdef mjUSEASAN
     ASAN_POISON_MEMORY_REGION(
       (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
-  }
 #endif
 }
 
@@ -286,11 +285,16 @@ static int mj_filterSphere(const mjModel* m, mjData* d, int g1, int g2, mjtNum m
 
 
 // filter body pair; 1: discard, 0: proceed
-static int filterBodyPair(int weldbody1, int weldparent1, int asleep1,
-                          int weldbody2, int weldparent2, int asleep2,
+static int filterBodyPair(int weldbody1, int weldparent1, int asleep1, int dofnum1,
+                          int weldbody2, int weldparent2, int asleep2, int dofnum2,
                           int dsbl_filterparent) {
   // same weldbody check
   if (weldbody1 == weldbody2) {
+    return 1;
+  }
+
+  // both dof-less: no forces can act, skip
+  if (dofnum1 == 0 && dofnum2 == 0) {
     return 1;
   }
 
@@ -299,7 +303,7 @@ static int filterBodyPair(int weldbody1, int weldparent1, int asleep1,
     return 1;
   }
 
-  // asleep and static check
+  // asleep and world-static check (mocap has weldbody != 0, still triggers wake)
   if ((asleep1 && !weldbody2) || (asleep2 && !weldbody1)) {
     return 1;
   }
@@ -351,15 +355,56 @@ int mj_isElemActive(const mjModel* m, int f, int e) {
 
 //----------------------------- collision detection entry point ------------------------------------
 
+// internal structure for storing pairs meant for narrowphase collision detection
+typedef struct {
+  // type of collision pair
+  enum {
+    mjCPAIR_GEOM_GEOM = 0,  // mjCOLLISIONFUNC[type1][type2]
+    mjCPAIR_GEOM_FLEX,      // mj_collidePlaneFlex, mj_collideSdfFlex
+    mjCPAIR_GEOM_ELEM,      // mj_collideGeomElem
+    mjCPAIR_ELEM_VERT,      // mj_collideElemVert
+    mjCPAIR_ELEM_ELEM,      // mj_collideElems
+  } type;
+  int conpos;
+  union {
+    struct { int g1, g2, ipair; } geom_geom;
+    struct { int g, f; } geom_flex;
+    struct { int g, f, e; } geom_elem;
+    struct { int f, e, v; } elem_vert;
+    struct { int f1, e1, f2, e2; } elem_elem;
+  };
+} mjcPair;
+
+
+// initialize a default collision pair
+static inline void defaultPair(mjcPair* pair, int type) {
+  pair->type = type;
+  // clear all fields in the union
+  pair->elem_elem.f1 = -1;
+  pair->elem_elem.e1 = -1;
+  pair->elem_elem.f2 = -1;
+  pair->elem_elem.e2 = -1;
+}
+
+
 // binary search between two bodyflex trees
-void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
-                    int merged, int startadr, int pairadr);
+static void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
+                           int merged, int startadr, int pairadr);
 
 // compute contacts for a batch of collision pairs contained in a buffer of
 // stride 3 ints (g1, g2, ipair)
 // if buffer is NULL, results are read from arena starting at parena
-void mj_narrowphase(const mjModel* m, mjData* d, const int* buffer, int npair, size_t parena);
+static void mj_narrowphase(const mjModel* m, mjData* d, const mjcPair* buffer, int npair,
+                           size_t parena);
 
+// test a plane geom and a flex for collision, add to contact list
+static void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f);
+
+// test an SDF geom and a flex for collision, add to contact list
+static void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f);
+
+// test for internal flex collisions, add to contact list
+static void mj_collideFlexInternal(const mjModel* m, mjData* d, int f);
 
 // compare contact pairs by their geom/elem/vert IDs
 static inline int contactcompare(const mjContact* c1, const mjContact* c2, void* context) {
@@ -471,21 +516,30 @@ static void filterFlexContacts(mjData* d, int ncon_before) {
 
 
 // push a candidate collision pair onto the arena
-static void pushPairArena(const mjModel* m, mjData* d, int g1, int g2, int ipair) {
+static void pushPairArena(mjData* d, mjcPair* pair) {
   // allocate geom pair on the arena
-  int* pair = (int*) mj_arenaAllocByte(d, 3 * sizeof(int), _Alignof(int));
+  mjcPair* new_pair = (mjcPair*) mj_arenaAllocByte(d, sizeof(mjcPair), _Alignof(mjcPair));
   if (!pair) {
     mjERROR("arena too small to allocate geom pair");
   }
+  *new_pair = *pair;
+}
 
+
+// push a geom-geom collision pair onto the arena
+static void pushGeomGeom(const mjModel* m, mjData* d, int g1, int g2, int ipair) {
   if (m->geom_type[g1] > m->geom_type[g2]) {
-    pair[0] = g2;
-    pair[1] = g1;
-  } else {
-    pair[0] = g1;
-    pair[1] = g2;
+    int tmp = g1;
+    g1 = g2;
+    g2 = tmp;
   }
-  pair[2] = ipair;
+
+  mjcPair pair;
+  defaultPair(&pair, mjCPAIR_GEOM_GEOM);
+  pair.geom_geom.g1 = g1;
+  pair.geom_geom.g2 = g2;
+  pair.geom_geom.ipair = ipair;
+  pushPairArena(d, &pair);
 }
 
 
@@ -550,14 +604,15 @@ void mj_collision(const mjModel* m, mjData* d) {
   resetArena(d);
   mj_clearEfc(d);
 
+  // return if disabled
+  if (mjDISABLED(mjDSBL_CONSTRAINT) || mjDISABLED(mjDSBL_CONTACT) || nbodyflex < 2) {
+    TM_END1(mjTIMER_POS_COLLISION);
+    return;
+  }
+
   // reset the visualization flags
   if (m->vis.global.bvactive) {
     memset(d->bvh_active, 0, m->nbvh);
-  }
-
-  // return if disabled
-  if (mjDISABLED(mjDSBL_CONSTRAINT) || mjDISABLED(mjDSBL_CONTACT) || nbodyflex < 2) {
-    return;
   }
 
   mj_markStack(d);
@@ -601,7 +656,7 @@ void mj_collision(const mjModel* m, mjData* d) {
       merged = (m->pair_signature[pairadr] == signature);
       g1 = m->pair_geom1[pairadr], g2 = m->pair_geom2[pairadr];
       if (filterCollisionPair(m, d, g1, g2, pairadr, 0, 0, 0)) {
-        pushPairArena(m, d, g1, g2, pairadr);
+        pushGeomGeom(m, d, g1, g2, pairadr);
         ngeompair++;
       }
     }
@@ -636,7 +691,7 @@ void mj_collision(const mjModel* m, mjData* d) {
     // process bodyflex pair: two single-geom bodies
     if (isbody1 && isbody2 && m->body_geomnum[bf1] == 1 && m->body_geomnum[bf2] == 1) {
       if (filterCollisionPair(m, d, geomadr1, geomadr2, -1, merged, startadr, pairadr)) {
-        pushPairArena(m, d, geomadr1, geomadr2, -1);
+        pushGeomGeom(m, d, geomadr1, geomadr2, -1);
         ngeompair++;
       }
     }
@@ -682,7 +737,7 @@ void mj_collision(const mjModel* m, mjData* d) {
         for (g1=geomadr1; g1 < geomadr_end1; g1++) {
           for (g2=geomadr2; g2 < geomadr_end2; g2++) {
             if (filterCollisionPair(m, d, g1, g2, -1, merged, startadr, pairadr)) {
-              pushPairArena(m, d, g1, g2, -1);
+              pushGeomGeom(m, d, g1, g2, -1);
               ngeompair++;
             }
           }
@@ -765,7 +820,7 @@ void mj_collision(const mjModel* m, mjData* d) {
   for (; pairadr < npair; pairadr++) {
     g1 = m->pair_geom1[pairadr], g2 = m->pair_geom2[pairadr];
     if (filterCollisionPair(m, d, g1, g2, pairadr, 0, 0, 0)) {
-      pushPairArena(m, d, g1, g2, pairadr);
+      pushGeomGeom(m, d, g1, g2, pairadr);
       ngeompair++;
     }
   }
@@ -937,8 +992,9 @@ int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
 }
 
 
-void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
-                    int merged, int startadr, int pairadr) {
+// binary search between two bodyflex trees
+static void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
+                           int merged, int startadr, int pairadr) {
   int nbody = m->nbody, nbvhstatic = m->nbvhstatic;
   mjtBool isbody1 = (bf1 < nbody);
   mjtBool isbody2 = (bf2 < nbody);
@@ -973,8 +1029,8 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
   int nstack = 1;
   stack[0].node1 = stack[0].node2 = 0;
 
-  // for body:flex, if body has planes, call mj_collidePlaneFlex directly
-  if (isbody1 && !isbody2 && m->body_weldid[bf1] == 0) {
+  // for body:flex, if dof-less body has planes, call mj_collidePlaneFlex directly
+  if (isbody1 && !isbody2 && m->body_dofnum[m->body_weldid[bf1]] == 0) {
     for (int i=m->body_geomadr[bf1]; i < m->body_geomadr[bf1]+m->body_geomnum[bf1]; i++) {
       if (m->geom_type[i] == mjGEOM_PLANE) {
         mj_collidePlaneFlex(m, d, i, f2);
@@ -1024,15 +1080,17 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
                             d->geom_xpos + 3*nodeid1, d->geom_xmat + 9*nodeid1,
                             d->geom_xpos + 3*nodeid2, d->geom_xmat + 9*nodeid2,
                             margin + gap, NULL, NULL, &initialize)) {
-
             if (filterCollisionPair(m, d, nodeid1, nodeid2, -1, merged, startadr, pairadr)) {
               int n1 = nodeid1, n2 = nodeid2;
               if (m->geom_type[n1] > m->geom_type[n2]) {
                 n1 = nodeid2;
                 n2 = nodeid1;
               }
-              int pair[3] = {n1, n2, -1};
-              mj_narrowphase(m, d, pair, 1, 0);
+              mjcPair pair;
+              defaultPair(&pair, mjCPAIR_GEOM_GEOM);
+              pair.geom_geom.g1 = n1;
+              pair.geom_geom.g2 = n2;
+              mj_narrowphase(m, d, &pair, 1, 0);
             }
             if (mark_active) {
               d->bvh_active[node1 + bvhadr1] = true;
@@ -1525,9 +1583,13 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
       continue;
     }
 
-    // b1 is world body with geoms, or world-welded body with plane
+    // b1 is world body with geoms, or dof-less body with plane (static or mocap)
     if ((b1 == 0 && m->body_geomnum[b1] > 0) ||
-        (m->body_weldid[b1] == 0 && hasPlane(m, b1))) {
+        (m->body_dofnum[m->body_weldid[b1]] == 0 && hasPlane(m, b1))) {
+      int weld1 = m->body_weldid[b1];
+      int parent_weld1 = m->body_weldid[m->body_parentid[weld1]];
+      int dofnum1 = m->body_dofnum[weld1];
+
       // add b1:b2 pairs that are not welded together
       for (int b2=0; b2 < nbody; b2++) {
         // cannot collide
@@ -1535,11 +1597,13 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
           continue;
         }
 
-        // welded together
         int weld2 = m->body_weldid[b2];
         int parent_weld2 = m->body_weldid[m->body_parentid[weld2]];
         int asleep2 = sleep_filter ? d->body_awake[b2] == mjS_ASLEEP : 0;
-        if (filterBodyPair(0, 0, 1, weld2, parent_weld2, asleep2, dsbl_filterparent)) {
+        int dofnum2 = m->body_dofnum[weld2];
+        if (filterBodyPair(weld1, parent_weld1, 0, dofnum1,
+                           weld2, parent_weld2, asleep2, dofnum2,
+                           dsbl_filterparent)) {
           continue;
         }
 
@@ -1630,15 +1694,16 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
 
       // body pair: prune based on sleep filter and weld filter
       if (bf1 < nbody && bf2 < nbody) {
-        int asleep1 = sleep_filter ? d->body_awake[bf1] == mjS_ASLEEP : 0;
-        int asleep2 = sleep_filter ? d->body_awake[bf2] == mjS_ASLEEP : 0;
         int weld1 = m->body_weldid[bf1];
         int weld2 = m->body_weldid[bf2];
         int parent_weld1 = m->body_weldid[m->body_parentid[weld1]];
         int parent_weld2 = m->body_weldid[m->body_parentid[weld2]];
-
-        if (filterBodyPair(weld1, parent_weld1, asleep1,
-                           weld2, parent_weld2, asleep2,
+        int asleep1 = sleep_filter ? d->body_awake[bf1] == mjS_ASLEEP : 0;
+        int asleep2 = sleep_filter ? d->body_awake[bf2] == mjS_ASLEEP : 0;
+        int dofnum1 = m->body_dofnum[weld1];
+        int dofnum2 = m->body_dofnum[weld2];
+        if (filterBodyPair(weld1, parent_weld1, asleep1, dofnum1,
+                           weld2, parent_weld2, asleep2, dofnum2,
                            dsbl_filterparent)) {
           continue;
         }
@@ -1671,10 +1736,10 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
 
 //----------------------------- narrow-phase collision detection -----------------------------------
 
-// compute contact condim, solref, solimp, friction
+// compute contact condim, solref, solimp, friction, adhesion
 static void mj_contactParam(const mjModel* m, int* condim,
                             mjtNum* solref, mjtNum* solimp, mjtNum* friction,
-                            int g1, int g2, int f1, int f2) {
+                            mjtNum* adhesion, int g1, int g2, int f1, int f2) {
   mjtNum fri[3];
 
   // get parameters from geom1 or flex1
@@ -1684,6 +1749,7 @@ static void mj_contactParam(const mjModel* m, int* condim,
   const mjtNum* solref1 =   (f1 < 0) ? m->geom_solref+g1*mjNREF : m->flex_solref+f1*mjNREF;
   const mjtNum* solimp1 =   (f1 < 0) ? m->geom_solimp+g1*mjNIMP : m->flex_solimp+f1*mjNIMP;
   const mjtNum* friction1 = (f1 < 0) ? m->geom_friction+g1*3    : m->flex_friction+f1*3;
+  mjtNum adhesion1 =        (f1 < 0) ? m->geom_adhesion[g1]     : 0;
 
   // get parameters from geom2 or flex2
   int priority2 =           (f2 < 0) ? m->geom_priority[g2]     : m->flex_priority[f2];
@@ -1692,6 +1758,10 @@ static void mj_contactParam(const mjModel* m, int* condim,
   const mjtNum* solref2 =   (f2 < 0) ? m->geom_solref+g2*mjNREF : m->flex_solref+f2*mjNREF;
   const mjtNum* solimp2 =   (f2 < 0) ? m->geom_solimp+g2*mjNIMP : m->flex_solimp+f2*mjNIMP;
   const mjtNum* friction2 = (f2 < 0) ? m->geom_friction+g2*3    : m->flex_friction+f2*3;
+  mjtNum adhesion2 =        (f2 < 0) ? m->geom_adhesion[g2]     : 0;
+
+  // adhesion: each surface contributes its own attraction
+  *adhesion = adhesion1 + adhesion2;
 
   // different priority: copy from item with higher priority
   if (priority1 > priority2) {
@@ -1699,12 +1769,14 @@ static void mj_contactParam(const mjModel* m, int* condim,
     mju_copy(solref, solref1, mjNREF);
     mju_copy(solimp, solimp1, mjNIMP);
     mju_copy(fri, friction1, 3);
+    *adhesion = adhesion1;
   }
   else if (priority1 < priority2) {
     *condim = condim2;
     mju_copy(solref, solref2, mjNREF);
     mju_copy(solimp, solimp2, mjNIMP);
     mju_copy(fri, friction2, 3);
+    *adhesion = adhesion2;
   }
 
   // same priority
@@ -1767,17 +1839,27 @@ static void mj_contactParam(const mjModel* m, int* condim,
 static void mj_setContact(const mjModel* m, mjContact* con,
                           int condim, mjtNum includemargin,
                           const mjtNum* solref, const mjtNum* solreffriction,
-                          const mjtNum* solimp, const mjtNum* friction) {
+                          const mjtNum* solimp, const mjtNum* friction,
+                          mjtNum adhesion) {
   // set parameters
   con->dim = condim;
   con->includemargin = includemargin;
+  con->adhesion = adhesion;
   mj_assignRef(m, con->solref, solref);
   mj_assignRef(m, con->solreffriction, solreffriction);
   mj_assignImp(m, con->solimp, solimp);
   mj_assignFriction(m, con->friction, friction);
 
-  // exclude in gap
-  con->exclude = (con->dist >= includemargin);
+  // exclude in gap; adhesive contacts remain active in the gap, producing
+  // rows with positive violation whose reference acceleration pulls (tether)
+  con->exclude = (con->dist >= includemargin) && !adhesion;
+
+  // in-gap adhesive contacts have no surface contact and therefore no
+  // friction: reduce to normal-only rows (with tangential rows present, fast
+  // slip would recruit normal force and brake tangential motion at a distance)
+  if (adhesion && con->dist >= includemargin) {
+    con->dim = 1;
+  }
 
   // complete frame
   mju_makeFrame(con->frame);
@@ -1814,78 +1896,125 @@ static void mj_makeCapsule(const mjModel* m, mjData* d, int f, const int vid[2],
 }
 
 
+// struct holding extra data for a flex precontact
+typedef struct {
+  int elem[2];
+  int vert[2];
+} mjPreFlex;
+
+// struct for collision task
+typedef struct {
+  mjPreContact* conbuffer;    // pre-contact buffer returned by collision functions
+  mjPreFlex* flexbuffer;      // pre-flex buffer returned by collision functions
+  int* nconbuffer;            // contact count for each collision pair
+  char* epabuffer;            // buffer for nativeccd
+  int ccd_size;               // size of nativeccd buffer
+  const mjcPair* pairbuffer;  // collision pairs
+  int npair;                  // number of collision pairs
+  int chunksize;              // number of pairs to process per task
+  int maxcon;                 // maximum number of contacts (size of conbuffer)
+} mjContactArg;
+
+
+static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id, int idx) {
+  mjContactArg* conargs = (mjContactArg*)arg;
+  mjPreContact* conbuffer = conargs->conbuffer;
+  char* epabuffer = conargs->epabuffer;
+  int chunksize = conargs->chunksize;
+  int globalidx = chunksize * idx;
+  const mjcPair* pair = conargs->pairbuffer + globalidx;
+  int* ncon = conargs->nconbuffer + chunksize * idx;
+
+  int npair = conargs->npair;
+  int n = mjMIN(chunksize, npair - globalidx);
+
+  mjc_setCCDBuffer(epabuffer + thread_id * conargs->ccd_size);
+  for (int i = 0; i < n; i++) {
+    int g1 = pair[i].geom_geom.g1;
+    int g2 = pair[i].geom_geom.g2;
+    int ipair = pair[i].geom_geom.ipair;
+    int conpos = pair[i].conpos;
+
+    mjfCollision collision_func = mjCOLLISIONFUNC[m->geom_type[g1]][m->geom_type[g2]];
+    mjtNum margin = getMargin(m, g1, g2, ipair);
+    mjtNum gap = getGap(m, g1, g2, ipair);
+    ncon[i] = collision_func(m, d, conbuffer + conpos, g1, g2, margin + gap);
+
+    // SHOULD NOT OCCUR
+    int expected_max = (globalidx + i + 1 < npair ? pair[i+1].conpos : conargs->maxcon) - conpos;
+    if (ncon[i] > expected_max) {
+      mjERROR("collision function returned %d contacts for geom pair (%d, %d), "
+              "expected at most %d from mj_maxContact", ncon[i], g1, g2, expected_max);
+    }
+  }
+  mjc_setCCDBuffer(NULL);
+}
+
+
 // compute contacts for a batch of collision pairs contained in a buffer of
 // stride 3 ints (g1, g2, ipair)
 // if buffer is NULL, results are read from arena starting at parena
-void mj_narrowphase(const mjModel* m, mjData* d, const int* buffer, int npair, size_t parena) {
-  int ccd_size = mjc_ccdSize(m->opt.ccd_iterations);
+static void mj_narrowphase(const mjModel* m, mjData* d, const mjcPair* buffer, int npair,
+                           size_t parena) {
+  int nthread = mju_numThread(d);
+  int npolygonmax = mjDISABLED(mjDSBL_MULTICCD) ? 0 : m->npolygonmax;
+  int nmeshdegmax = mjDISABLED(mjDSBL_MULTICCD) ? 0 : m->nmeshdegmax;
+  int ccd_size = mjc_ccdSize(npolygonmax, nmeshdegmax, m->opt.ccd_iterations);
   mjtNum margin, gap;
+
+  // try to balance load of 5 chunks per thread (chunksize should be divisible by 16)
+  int chunksize = npair / mjMAX(1, 5 * nthread);
+  chunksize = mjMAX(16, (chunksize + 15) & ~15);  // round up to next 16
+  int nchunk = (npair + chunksize - 1) / chunksize;
 
   // set buffer and arena pointer
   if (!buffer) {
-    buffer = (const int*) ((char*) d->arena + parena);
+    buffer = (const mjcPair*) ((char*) d->arena + parena);
   } else {
     parena = d->parena;
   }
 
   mj_markStack(d);
 
-  // buffer store how many contacts are generated for each pair
-  int* nconbuffer = mj_stackAllocInt(d, npair);
-
-  // buffer for pair data (g1, g2, ipair, index into conbuffer)
-  int* pairbuffer = mj_stackAllocInt(d, 4 * npair);
+  // buffer for pair data
+  mjcPair* pairbuffer = mjSTACKALLOC(d, npair, mjcPair);
   int maxcon = 0;
   for (int i = 0; i < npair; i++) {
-    int g1 = buffer[3*i + 0];
-    int g2 = buffer[3*i + 1];
-    int ipair = buffer[3*i + 2];
+    int g1 = buffer[i].geom_geom.g1;
+    int g2 = buffer[i].geom_geom.g2;
+    int ipair = buffer[i].geom_geom.ipair;
 
-    pairbuffer[4*i + 0] = g1;
-    pairbuffer[4*i + 1] = g2;
-    pairbuffer[4*i + 2] = ipair;
-    pairbuffer[4*i + 3] = maxcon;
+    pairbuffer[i] = buffer[i];
+    pairbuffer[i].conpos = maxcon;
     margin = getMargin(m, g1, g2, ipair);
     gap = getGap(m, g1, g2, ipair);
     maxcon += mj_maxContact(m, g1, g2, margin + gap > 0);
   }
 
-  // buffer for precontact data
-  mjPreContact* conbuffer = mjSTACKALLOC(d, maxcon, mjPreContact);
-
   // buffer data has been copied to metadata on the stack;
   // reclaim arena space so contacts can overwrite the buffer region
   d->parena = parena;
 
-  // set buffer for nativeccd
-  mj_markStack(d);
-  mjc_setCCDBuffer(mj_stackAllocByte(d, ccd_size, sizeof(mjtNum)));
+  mjContactArg arg;
+  arg.ccd_size = ccd_size;
+  arg.pairbuffer = pairbuffer;
+  arg.nconbuffer = mjSTACKALLOC(d, npair, int);
+  arg.conbuffer = mjSTACKALLOC(d, maxcon, mjPreContact);
+  arg.npair = npair;
+  arg.chunksize = chunksize;
+  arg.maxcon = maxcon;
 
-  for (int i = 0; i < npair; i++) {
-    int g1 = pairbuffer[4*i + 0];
-    int g2 = pairbuffer[4*i + 1];
-    int ipair = pairbuffer[4*i + 2];
-    int idx = pairbuffer[4*i + 3];
-    mjfCollision collision_func = mjCOLLISIONFUNC[m->geom_type[g1]][m->geom_type[g2]];
-    margin = getMargin(m, g1, g2, ipair);
-    gap = getGap(m, g1, g2, ipair);
-    nconbuffer[i] = collision_func(m, d, conbuffer + idx, g1, g2, margin + gap);
-
-    // SHOULD NOT OCCUR
-    int expected_max = (i + 1 < npair ? pairbuffer[4*(i+1) + 3] : maxcon) - idx;
-    if (nconbuffer[i] > expected_max) {
-      mjERROR("collision function returned %d contacts for geom pair (%d, %d), "
-              "expected at most %d from mj_maxContact", nconbuffer[i], g1, g2, expected_max);
-    }
+  // dispatch narrowphase to threads with local stack allocation for EPA
+  {
+    mj_markStack(d);
+    arg.epabuffer = mj_stackAllocByte(d, ccd_size * nthread, sizeof(mjtNum));
+    mju_dispatch(m, d, collisionTask, &arg, nchunk);
+    mj_freeStack(d);
   }
-
-  // set nativeccd buffer back to NULL
-  mjc_setCCDBuffer(NULL);
-  mj_freeStack(d);
 
   int ncon = 0;
   for (int i = 0; i < npair; i++) {
-    ncon += nconbuffer[i];
+    ncon += arg.nconbuffer[i];
   }
 
   if (ncon == 0) {
@@ -1906,29 +2035,30 @@ void mj_narrowphase(const mjModel* m, mjData* d, const int* buffer, int npair, s
   // fill in contact data
   int conpos = 0;
   for (int i = 0; i < npair; i++) {
-    if (!(ncon = nconbuffer[i]))
+    if (!(ncon = arg.nconbuffer[i]))
       continue;
 
     int condim;
-    mjtNum friction[5], solref[mjNREF], solimp[mjNIMP];
+    mjtNum friction[5], solref[mjNREF], solimp[mjNIMP], adhesion;
     mjtNum solreffriction[mjNREF] = {0};
-    int g1 = pairbuffer[4*i + 0];
-    int g2 = pairbuffer[4*i + 1];
-    int ipair = pairbuffer[4*i + 2];
+    int g1 = pairbuffer[i].geom_geom.g1;
+    int g2 = pairbuffer[i].geom_geom.g2;
+    int ipair = pairbuffer[i].geom_geom.ipair;
 
     if (ipair >= 0) {
       condim = m->pair_dim[ipair];
       mju_copy(solref, m->pair_solref+mjNREF*ipair, mjNREF);
       mju_copy(solimp, m->pair_solimp+mjNIMP*ipair, mjNIMP);
       mju_copy(friction, m->pair_friction+5*ipair, 5);
+      adhesion = m->pair_adhesion[ipair];
       if (m->pair_solreffriction[mjNREF*ipair] || m->pair_solreffriction[mjNREF*ipair + 1]) {
         mju_copy(solreffriction, m->pair_solreffriction+mjNREF*ipair, mjNREF);
       }
     } else {
-      mj_contactParam(m, &condim, solref, solimp, friction, g1, g2, -1, -1);
+      mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, g1, g2, -1, -1);
     }
 
-    mjPreContact* bc = conbuffer + pairbuffer[4*i + 3];
+    mjPreContact* bc = arg.conbuffer + pairbuffer[i].conpos;
     margin = getMargin(m, g1, g2, ipair);
     for (int j=0; j < ncon; j++) {
       mjContact* c = con + conpos + j;
@@ -1944,7 +2074,7 @@ void mj_narrowphase(const mjModel* m, mjData* d, const int* buffer, int npair, s
       c->elem[1] = -1;
       c->vert[0] = -1;
       c->vert[1] = -1;
-      mj_setContact(m, c, condim, margin, solref, solreffriction, solimp, friction);
+      mj_setContact(m, c, condim, margin, solref, solreffriction, solimp, friction, adhesion);
     }
     conpos += ncon;
   }
@@ -1953,7 +2083,7 @@ void mj_narrowphase(const mjModel* m, mjData* d, const int* buffer, int npair, s
 
 
 // test a plane geom and a flex for collision, add to contact list
-void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f) {
+static void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f) {
   mjContact con;
   mjtNum radius = m->flex_radius[f];
   mjtNum* pos = d->geom_xpos + 3*g;
@@ -1965,9 +2095,9 @@ void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f) {
   int condim;
   int flex_vertnum = m->flex_vertnum[f];
   mjtNum gap = m->geom_gap[g] + m->flex_gap[f];
-  mjtNum solref[mjNREF], solimp[mjNIMP], friction[5];
+  mjtNum solref[mjNREF], solimp[mjNIMP], friction[5], adhesion;
   mjtNum solreffriction[mjNREF] = {0};
-  mj_contactParam(m, &condim, solref, solimp, friction, g, -1, -1, f);
+  mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, g, -1, -1, f);
 
   // collide all flex vertices with plane
   for (int i=0; i < flex_vertnum; i++) {
@@ -1999,7 +2129,7 @@ void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f) {
     con.vert[1] = i;
 
     // set remaining contact parameters
-    mj_setContact(m, &con, condim, margin, solref, solreffriction, solimp, friction);
+    mj_setContact(m, &con, condim, margin, solref, solreffriction, solimp, friction, adhesion);
 
     // add to mjData, abort if too many contacts
     if (mj_addContact(m, d, &con)) {
@@ -2010,7 +2140,7 @@ void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f) {
 
 
 // test an SDF geom and a flex for collision, add to contact list
-void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f) {
+static void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f) {
   // only support dim==2 (triangular elements)
   if (m->flex_dim[f] != 2) {
     return;
@@ -2020,35 +2150,43 @@ void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f) {
   mjtNum margin = mj_assignMargin(m, m->geom_margin[g] + m->flex_margin[f]);
   mjtNum gap = m->geom_gap[g] + m->flex_gap[f];
   int condim;
-  mjtNum solref[mjNREF], solimp[mjNIMP], friction[5];
+  mjtNum solref[mjNREF], solimp[mjNIMP], friction[5], adhesion;
   mjtNum solreffriction[mjNREF] = {0};
-  mj_contactParam(m, &condim, solref, solimp, friction, g, -1, -1, f);
+  mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, g, -1, -1, f);
 
   // allocate temporary contact array on stack (zero-initialized)
   mj_markStack(d);
-  mjContact* con = mjSTACKALLOC(d, mjMAXCONPAIR, mjContact);
-  memset(con, 0, mjMAXCONPAIR * sizeof(mjContact));
+  mjPreContact* precon = mjSTACKALLOC(d, mjMAXCONPAIR, mjPreContact);
+  int* elem = mjSTACKALLOC(d, mjMAXCONPAIR, int);
 
   // call batched flex-SDF collision
-  int num = mjc_FlexSDF(m, d, con, g, f, margin + gap);
+  int num = mjc_FlexSDF(m, d, precon, elem, g, f, margin + gap);
 
   // add contacts to mjData
+  mjContact con;
+  memset(&con, 0, sizeof(mjContact));
   for (int i = 0; i < num; i++) {
+    // copy properties from mjPreContact to mjContact
+    con.dist = precon[i].dist;
+    mju_copy3(con.pos, precon[i].pos);
+    mju_copy3(con.frame, precon[i].normal);
+    mju_copy3(con.frame + 3, precon[i].tangent);
+
     // set contact ids
-    con[i].geom[0] = g;
-    con[i].geom[1] = -1;
-    con[i].flex[0] = -1;
-    con[i].flex[1] = f;
-    con[i].elem[0] = -1;
-    // con[i].elem[1] already set by mjc_FlexSDF with actual element index
-    con[i].vert[0] = -1;
-    con[i].vert[1] = -1;
+    con.geom[0] = g;
+    con.geom[1] = -1;
+    con.flex[0] = -1;
+    con.flex[1] = f;
+    con.elem[0] = -1;
+    con.elem[1] = elem[i];
+    con.vert[0] = -1;
+    con.vert[1] = -1;
 
     // set remaining contact parameters
-    mj_setContact(m, con + i, condim, margin, solref, solreffriction, solimp, friction);
+    mj_setContact(m, &con, condim, margin, solref, solreffriction, solimp, friction, adhesion);
 
     // add to mjData, abort if too many contacts
-    if (mj_addContact(m, d, con + i)) {
+    if (mj_addContact(m, d, &con)) {
       mj_freeStack(d);
       return;
     }
@@ -2059,7 +2197,7 @@ void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f) {
 
 
 // test single triangle plane : vertex
-static int planeVertex(mjContact* con, const mjtNum* pos, mjtNum rad,
+static int planeVertex(mjPreContact* con, const mjtNum* pos, mjtNum rad,
                        int t0, int t1, int t2, int v) {
   // make t0 the origin
   mjtNum e1[3], e2[3], ev[3];
@@ -2080,17 +2218,16 @@ static int planeVertex(mjContact* con, const mjtNum* pos, mjtNum rad,
 
   // construct contact
   con->dist = -dst-2*rad;
-  mju_scl3(con->frame, nrm, -1);
-  mju_zero3(con->frame+3);
+  mju_scl3(con->normal, nrm, -1);
+  mju_zero3(con->tangent);
   mju_addScl3(con->pos, pos+3*v, nrm, -0.5*dst);
-  con->vert[1] = v;
   return 1;
 }
 
 
 // test for internal flex collisions, add to contact list
 // ignore margin to avoid permament self-collision
-void mj_collideFlexInternal(const mjModel* m, mjData* d, int f) {
+static void mj_collideFlexInternal(const mjModel* m, mjData* d, int f) {
   int flex_evpairnum = m->flex_evpairnum[f];
 
   // predefined element-vertex
@@ -2114,38 +2251,59 @@ void mj_collideFlexInternal(const mjModel* m, mjData* d, int f) {
   int condim;
   int flex_elemnum = m->flex_elemnum[f];
   mjtNum radius = m->flex_radius[f];
-  mjtNum solref[mjNREF], solimp[mjNIMP], friction[5];
+  mjtNum solref[mjNREF], solimp[mjNIMP], friction[5], adhesion;
   mjtNum solreffriction[mjNREF] = {0};
-  mj_contactParam(m, &condim, solref, solimp, friction, -1, -1, f, f);
+  mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, -1, -1, f, f);
   condim = 1;
 
   // process all elements
   const mjtNum* vertxpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
   for (int e=0; e < flex_elemnum; e++) {
+    mjPreContact precon;
     const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*4;
     con.elem[0] = e;
 
     // face (0,1,2)
-    if (planeVertex(&con, vertxpos, radius, edata[0], edata[1], edata[2], edata[3])) {
-      mj_setContact(m, &con, condim, 0, solref, solreffriction, solimp, friction);
+    if (planeVertex(&precon, vertxpos, radius, edata[0], edata[1], edata[2], edata[3])) {
+      con.vert[1] = edata[3];
+      con.dist = precon.dist;
+      mju_copy3(con.pos, precon.pos);
+      mju_copy3(con.frame, precon.normal);
+      mju_copy3(con.frame + 3, precon.tangent);
+      mj_setContact(m, &con, condim, 0, solref, solreffriction, solimp, friction, adhesion);
       if (mj_addContact(m, d, &con)) return;
     }
 
     // face (0,2,3)
-    if (planeVertex(&con, vertxpos, radius, edata[0], edata[2], edata[3], edata[1])) {
-      mj_setContact(m, &con, condim, 0, solref, solreffriction, solimp, friction);
+    if (planeVertex(&precon, vertxpos, radius, edata[0], edata[2], edata[3], edata[1])) {
+      con.vert[1] = edata[1];
+      con.dist = precon.dist;
+      mju_copy3(con.pos, precon.pos);
+      mju_copy3(con.frame, precon.normal);
+      mju_copy3(con.frame + 3, precon.tangent);
+      mj_setContact(m, &con, condim, 0, solref, solreffriction, solimp, friction, adhesion);
       if (mj_addContact(m, d, &con)) return;
     }
 
     // face (0,3,1)
-    if (planeVertex(&con, vertxpos, radius, edata[0], edata[3], edata[1], edata[2])) {
-      mj_setContact(m, &con, condim, 0, solref, solreffriction, solimp, friction);
+    if (planeVertex(&precon, vertxpos, radius, edata[0], edata[3], edata[1], edata[2])) {
+      con.vert[1] = edata[2];
+      con.dist = precon.dist;
+      mju_copy3(con.pos, precon.pos);
+      mju_copy3(con.frame, precon.normal);
+      mju_copy3(con.frame + 3, precon.tangent);
+      mj_setContact(m, &con, condim, 0, solref, solreffriction, solimp, friction, adhesion);
       if (mj_addContact(m, d, &con)) return;
     }
 
     // face (1,3,2)
-    if (planeVertex(&con, vertxpos, radius, edata[1], edata[3], edata[2], edata[0])) {
-      mj_setContact(m, &con, condim, 0, solref, solreffriction, solimp, friction);
+    if (planeVertex(&precon, vertxpos, radius, edata[1], edata[3], edata[2], edata[0])) {
+      con.vert[1] = edata[0];
+      con.dist = precon.dist;
+      mju_copy3(con.pos, precon.pos);
+      mju_copy3(con.frame, precon.normal);
+      mju_copy3(con.frame + 3, precon.tangent);
+      mj_setContact(m, &con, condim, 0, solref, solreffriction, solimp, friction, adhesion);
       if (mj_addContact(m, d, &con)) return;
     }
   }
@@ -2236,13 +2394,9 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
     }
   }
 
-  // allocate mjContact[mjMAXCONPAIR] on the arena
-  mjContact* con =
-    (mjContact*) mj_arenaAllocByte(d, sizeof(mjContact) * mjMAXCONPAIR, _Alignof(mjContact));
-  if (!con) {
-    mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
-    return;
-  }
+  // allocate mjPreContact[mjMAXCONPAIR] on the stack
+  mj_markStack(d);
+  mjPreContact* precon = mjSTACKALLOC(d, mjMAXCONPAIR, mjPreContact);
 
   // sphere/capsule/box : capsule
   if (dim == 1 && (type == mjGEOM_SPHERE || type == mjGEOM_CAPSULE || type == mjGEOM_BOX)) {
@@ -2252,7 +2406,6 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
                    pos, mat, size);
 
     // call raw primitive for corresponding geom type
-    mjPreContact precon[2];
     switch (type) {
       case mjGEOM_SPHERE:
         num = mjraw_SphereCapsule(precon, margin + gap, d->geom_xpos+3*g, d->geom_xmat+9*g,
@@ -2269,29 +2422,17 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
       default:
         num = 0;
     }
-
-    for (int i=0; i < num; i++) {
-      con[i].dist = precon[i].dist;
-      mju_copy3(con[i].pos, precon[i].pos);
-      mju_copy3(con[i].frame + 0, precon[i].normal);
-      mju_copy3(con[i].frame + 3, precon[i].tangent);
-
-      // reverse contact normals, since box geom is second
-      if (type == mjGEOM_BOX) {
-        mju_scl3(con[i].frame, con[i].frame, -1);
-      }
-    }
   }
 
   // heightfield : elem
   else if (type == mjGEOM_HFIELD) {
-    num = mjc_HFieldElem(m, d, con, g, f, e, margin + gap);
+    num = mjc_HFieldElem(m, d, precon, g, f, e, margin + gap);
   }
 
   // sphere : triangle
   else if (type == mjGEOM_SPHERE && dim == 2) {
     const mjtNum* vertxpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
-    num = mjraw_SphereTriangle(con, margin + gap,
+    num = mjraw_SphereTriangle(precon, margin + gap,
                                d->geom_xpos+3*g, m->geom_size[3*g],
                                vertxpos + 3*edata[0], vertxpos + 3*edata[1],
                                vertxpos + 3*edata[2], m->flex_radius[f]);
@@ -2300,7 +2441,7 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
   // box : triangle
   else if (type == mjGEOM_BOX && dim == 2) {
     const mjtNum* vertxpos = d->flexvert_xpos + 3 * m->flex_vertadr[f];
-    num = mjraw_BoxTriangle(con, margin + gap, d->geom_xpos + 3 * g,
+    num = mjraw_BoxTriangle(precon, margin + gap, d->geom_xpos + 3 * g,
                             d->geom_xmat + 9 * g, m->geom_size + 3 * g,
                             vertxpos + 3 * edata[0], vertxpos + 3 * edata[1],
                             vertxpos + 3 * edata[2], m->flex_radius[f]);
@@ -2310,27 +2451,36 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
   else if (type == mjGEOM_CAPSULE && dim == 2) {
     const mjtNum* vertxpos = d->flexvert_xpos + 3 * m->flex_vertadr[f];
     num = mjraw_CapsuleTriangle(
-        con, margin + gap, d->geom_xpos + 3 * g, d->geom_xmat + 9 * g,
+        precon, margin + gap, d->geom_xpos + 3 * g, d->geom_xmat + 9 * g,
         m->geom_size + 3 * g, vertxpos + 3 * edata[0], vertxpos + 3 * edata[1],
         vertxpos + 3 * edata[2], m->flex_radius[f]);
   }
 
   // general geom : elem
   else {
-    num = mjc_ConvexElem(m, d, con, g, -1, -1, -1, f, e, margin + gap);
+    num = mjc_ConvexElem(m, d, precon, g, -1, -1, -1, f, e, margin + gap);
   }
 
   // check contacts
   if (!num) {
-    resetArena(d);
+    mj_freeStack(d);
     return;
   }
 
   // get contact parameters
   int condim;
-  mjtNum friction[5], solref[mjNREF], solimp[mjNIMP];
+  mjtNum friction[5], solref[mjNREF], solimp[mjNIMP], adhesion;
   mjtNum solreffriction[mjNREF] = {0};
-  mj_contactParam(m, &condim, solref, solimp, friction, g, -1, -1, f);
+  mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, g, -1, -1, f);
+
+  // allocate mjContact[num] on the arena
+  mjContact* con =
+    (mjContact*) mj_arenaAllocByte(d, sizeof(mjContact) * num, _Alignof(mjContact));
+  if (!con) {
+    mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
+    mj_freeStack(d);
+    return;
+  }
 
   // add contacts
   for (int i=0; i < num; i++) {
@@ -2344,15 +2494,23 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
     con[i].vert[0] = -1;
     con[i].vert[1] = -1;
 
+    con[i].dist = precon[i].dist;
+    mju_copy3(con[i].pos, precon[i].pos);
+    mju_copy3(con[i].frame + 0, precon[i].normal);
+    mju_copy3(con[i].frame + 3, precon[i].tangent);
+
+    // reverse contact normals, since box geom is second
+    if (dim == 1 && type == mjGEOM_BOX) {
+      mju_scl3(con[i].frame, con[i].frame, -1);
+    }
+
     // set remaining contact parameters
-    mj_setContact(m, con + i, condim, margin, solref, solreffriction, solimp, friction);
+    mj_setContact(m, con + i, condim, margin, solref, solreffriction, solimp, friction, adhesion);
   }
 
   // add to ncon
   d->ncon += num;
-
-  // move arena pointer back to the end of the contact array
-  resetArena(d);
+  mj_freeStack(d);
 }
 
 
@@ -2389,13 +2547,9 @@ void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2
     }
   }
 
-  // allocate mjContact[mjMAXCONPAIR] on the arena
-  mjContact* con =
-    (mjContact*) mj_arenaAllocByte(d, sizeof(mjContact) * mjMAXCONPAIR, _Alignof(mjContact));
-  if (!con) {
-    mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
-    return;
-  }
+  // allocate mjPreContact[mjMAXCONPAIR] on the stack
+  mj_markStack(d);
+  mjPreContact* precon = mjSTACKALLOC(d, mjMAXCONPAIR, mjPreContact);
 
   // capsule : capsule
   if (dim1 == 1 && dim2 == 1) {
@@ -2408,32 +2562,32 @@ void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2
                    pos2, mat2, size2);
 
     // raw primitive
-    mjPreContact precon[mjMAXCONPAIR];
     num = mjraw_CapsuleCapsule(precon, margin + gap, pos1, mat1, size1, pos2, mat2, size2);
-    for (int i=0; i < num; i++) {
-      con[i].dist = precon[i].dist;
-      mju_copy3(con[i].pos, precon[i].pos);
-      mju_copy3(con[i].frame + 0, precon[i].normal);
-      mju_copy3(con[i].frame + 3, precon[i].tangent);
-    }
   }
 
   // general convex collision
   else {
-    num = mjc_ConvexElem(m, d, con, -1, f1, e1, -1, f2, e2, margin + gap);
+    num = mjc_ConvexElem(m, d, precon, -1, f1, e1, -1, f2, e2, margin + gap);
   }
 
   // check contacts
   if (!num) {
-    resetArena(d);
+    mj_freeStack(d);
     return;
   }
 
   // get contact parameters
   int condim;
-  mjtNum friction[5], solref[mjNREF], solimp[mjNIMP];
+  mjtNum friction[5], solref[mjNREF], solimp[mjNIMP], adhesion;
   mjtNum solreffriction[mjNREF] = {0};
-  mj_contactParam(m, &condim, solref, solimp, friction, -1, -1, f1, f2);
+  mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, -1, -1, f1, f2);
+
+  mjContact* con = (mjContact*) mj_arenaAllocByte(d, sizeof(mjContact) * num, _Alignof(mjContact));
+  if (!con) {
+    mj_freeStack(d);
+    mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
+    return;
+  }
 
   // add contacts
   for (int i=0; i < num; i++) {
@@ -2447,15 +2601,18 @@ void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2
     con[i].vert[0] = -1;
     con[i].vert[1] = -1;
 
+    con[i].dist = precon[i].dist;
+    mju_copy3(con[i].pos, precon[i].pos);
+    mju_copy3(con[i].frame + 0, precon[i].normal);
+    mju_copy3(con[i].frame + 3, precon[i].tangent);
+
     // set remaining contact parameters
-    mj_setContact(m, con + i, condim, margin, solref, solreffriction, solimp, friction);
+    mj_setContact(m, con + i, condim, margin, solref, solreffriction, solimp, friction, adhesion);
   }
 
   // add to ncon
   d->ncon += num;
-
-  // move arena pointer back to the end of the contact array
-  resetArena(d);
+  mj_freeStack(d);
 }
 
 
@@ -2478,51 +2635,53 @@ void mj_collideElemVert(const mjModel* m, mjData* d, int f, int e, int v) {
   if (aabb[1]+aabb[4] < vert[1]-rbound) return;
   if (aabb[2]+aabb[5] < vert[2]-rbound) return;
 
-  // allocate mjContact[mjMAXCONPAIR] on the arena
-  mjContact* con =
-    (mjContact*) mj_arenaAllocByte(d, sizeof(mjContact) * mjMAXCONPAIR, _Alignof(mjContact));
-  if (!con) {
-    mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
-    return;
-  }
+  // allocate mjPreContact[mjMAXCONPAIR] on the stack
+  mj_markStack(d);
+  mjPreContact* precon = mjSTACKALLOC(d, mjMAXCONPAIR, mjPreContact);
 
   // sphere : capsule
   if (dim == 1) {
     mjtNum pos[3], mat[9], size[2];
     mjtNum I[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
     mj_makeCapsule(m, d, f, edata, pos, mat, size);
-    mjPreContact precon;
-    num = mjraw_SphereCapsule(&precon, 0, vert, I, &radius, pos, mat, size);
-    con->dist = precon.dist;
-    mju_copy3(con->pos, precon.pos);
-    mju_copy3(con->frame + 0, precon.normal);
-    mju_copy3(con->frame + 3, precon.tangent);
+    num = mjraw_SphereCapsule(precon, 0, vert, I, &radius, pos, mat, size);
   }
 
   // sphere : triangle
   else if (dim == 2) {
     const mjtNum* vertxpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
-    num = mjraw_SphereTriangle(con, 0, vert, radius,
+    num = mjraw_SphereTriangle(precon, 0, vert, radius,
                                vertxpos + 3*edata[0], vertxpos + 3*edata[1],
                                vertxpos + 3*edata[2], radius);
   }
 
   // sphere : tetrahdron
   else {
-    num = mjc_ConvexElem(m, d, con, -1, f, -1, v, f, e, 0);
+    num = mjc_ConvexElem(m, d, precon, -1, f, -1, v, f, e, 0);
   }
 
   // check contacts
   if (!num) {
-    resetArena(d);
+    mj_freeStack(d);
     return;
   }
 
   // get contact parameters
   int condim;
-  mjtNum friction[5], solref[mjNREF], solimp[mjNIMP];
+  mjtNum friction[5], solref[mjNREF], solimp[mjNIMP], adhesion;
   mjtNum solreffriction[mjNREF] = {0};
-  mj_contactParam(m, &condim, solref, solimp, friction, -1, -1, f, f);
+  mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, -1, -1, f, f);
+
+
+  // allocate mjContact[num] on the arena
+  mjContact* con =
+    (mjContact*) mj_arenaAllocByte(d, sizeof(mjContact) * num, _Alignof(mjContact));
+  if (!con) {
+    mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
+    mj_freeStack(d);
+    return;
+  }
+
 
   // add contacts
   for (int i=0; i < num; i++) {
@@ -2536,13 +2695,17 @@ void mj_collideElemVert(const mjModel* m, mjData* d, int f, int e, int v) {
     con[i].vert[0] = v;
     con[i].vert[1] = -1;
 
+    con[i].dist = precon[i].dist;
+    mju_copy3(con[i].pos, precon[i].pos);
+    mju_copy3(con[i].frame + 0, precon[i].normal);
+    mju_copy3(con[i].frame + 3, precon[i].tangent);
+
     // set remaining contact parameters
-    mj_setContact(m, con + i, condim, 0, solref, solreffriction, solimp, friction);
+    mj_setContact(m, con + i, condim, 0, solref, solreffriction, solimp, friction, adhesion);
   }
 
   // add to ncon
   d->ncon += num;
 
-  // move arena pointer back to the end of the contact array
-  resetArena(d);
+  mj_freeStack(d);
 }

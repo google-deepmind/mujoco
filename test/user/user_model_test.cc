@@ -26,6 +26,7 @@
 #include <absl/strings/str_format.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
+#include "test/compare_model.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -94,15 +95,14 @@ TEST_F(UserModelTest, WeldRootID) {
    )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(model, NotNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), NotNull());
 
   EXPECT_THAT(AsVector(model->body_rootid, model->nbody),
               ElementsAre(0, 1, 1, 3, 3, 5, 5, 7, 7, 9, 9));
+  // mocap bodies (7, 9) are their own weld roots, inherited by static children (8)
   EXPECT_THAT(AsVector(model->body_weldid, model->nbody),
-              ElementsAre(0, 1, 2, 3, 3, 0, 0, 0, 0, 0, 10));
-
-  mj_deleteModel(model);
+              ElementsAre(0, 1, 2, 3, 3, 0, 0, 7, 7, 9, 10));
 }
 
 TEST_F(UserModelTest, RepeatedNames) {
@@ -118,8 +118,8 @@ TEST_F(UserModelTest, RepeatedNames) {
     </mujoco>)";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("repeated name 'geom1' in geom"));
 }
 
@@ -142,8 +142,8 @@ TEST_F(UserModelTest, SameFrame) {
     </mujoco>)";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
   EXPECT_EQ(model->geom_sameframe[0], mjSAMEFRAME_NONE);
   EXPECT_EQ(model->geom_sameframe[1], mjSAMEFRAME_BODY);
   EXPECT_EQ(model->geom_sameframe[2], mjSAMEFRAME_INERTIA);
@@ -151,27 +151,24 @@ TEST_F(UserModelTest, SameFrame) {
   EXPECT_EQ(model->geom_sameframe[4], mjSAMEFRAME_INERTIAROT);
 
   // make data, get geom_xpos
-  mjData* data = mj_makeData(model);
-  mj_kinematics(model, data);
-  auto geom_xpos = AsVector(data->geom_xpos, model->ngeom*3);
-  auto geom_xmat = AsVector(data->geom_xmat, model->ngeom*9);
+  MjDataPtr data = MakeData(model);
+  mj_kinematics(model.get(), data.get());
+  auto geom_xpos = AsVector(data->geom_xpos, model->ngeom * 3);
+  auto geom_xmat = AsVector(data->geom_xmat, model->ngeom * 9);
 
   // set all geom_sameframe to 0, call kinematics again
   for (int i = 0; i < model->ngeom; i++) {
     model->geom_sameframe[i] = mjSAMEFRAME_NONE;
   }
-  mj_resetData(model, data);
-  mj_kinematics(model, data);
-  auto geom_xpos2 = AsVector(data->geom_xpos, model->ngeom*3);
-  auto geom_xmat2 = AsVector(data->geom_xmat, model->ngeom*9);
+  mj_resetData(model.get(), data.get());
+  mj_kinematics(model.get(), data.get());
+  auto geom_xpos2 = AsVector(data->geom_xpos, model->ngeom * 3);
+  auto geom_xmat2 = AsVector(data->geom_xmat, model->ngeom * 9);
 
   // expect them to be equal
   constexpr double eps = 1e-6;
   EXPECT_THAT(geom_xpos, Pointwise(MjNear(eps, eps), geom_xpos2));
   EXPECT_THAT(geom_xmat, Pointwise(MjNear(eps, eps), geom_xmat2));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(UserModelTest, ActuatorSparsity) {
@@ -193,9 +190,8 @@ TEST_F(UserModelTest, ActuatorSparsity) {
     </actuator>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
+  MjModelPtr m = LoadModelFromString(xml);
   ASSERT_EQ(m->nJmom, 2);
-  mj_deleteModel(m);
 }
 
 TEST_F(UserModelTest, FixedTendonSparsity) {
@@ -225,8 +221,8 @@ TEST_F(UserModelTest, FixedTendonSparsity) {
     </tendon>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
-  ASSERT_THAT(m, NotNull());
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_THAT(m.get(), NotNull());
 
   EXPECT_EQ(m->nJten, 3);
   EXPECT_EQ(m->ten_J_rownnz[0], 3);
@@ -236,8 +232,6 @@ TEST_F(UserModelTest, FixedTendonSparsity) {
   int rowadr = m->ten_J_rowadr[0];
   int* colind = m->ten_J_colind + rowadr;
   EXPECT_THAT(std::vector<int>(colind, colind + 3), ElementsAre(0, 1, 2));
-
-  mj_deleteModel(m);
 }
 
 TEST_F(UserModelTest, NestedZeroMassBodiesOK) {
@@ -258,9 +252,8 @@ TEST_F(UserModelTest, NestedZeroMassBodiesOK) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mj_deleteModel(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 }
 
 TEST_F(UserModelTest, NestedZeroMassBodiesWithJointOK) {
@@ -285,9 +278,8 @@ TEST_F(UserModelTest, NestedZeroMassBodiesWithJointOK) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mj_deleteModel(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 }
 
 TEST_F(UserModelTest, NestedZeroMassBodiesFail) {
@@ -308,14 +300,13 @@ TEST_F(UserModelTest, NestedZeroMassBodiesFail) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(
       error,
       HasSubstr(
           "mass and inertia of moving bodies must be larger than mjMINVAL"));
   EXPECT_THAT(error, HasSubstr("Element name 'bad'"));
-  mj_deleteModel(model);
 }
 
 TEST_F(UserModelTest, ConvexHullForCollisionMeshes) {
@@ -337,14 +328,14 @@ TEST_F(UserModelTest, ConvexHullForCollisionMeshes) {
   </mujoco>)";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
 
-  int no_hull_id = mj_name2id(model, mjOBJ_MESH, "mesh_no_hull");
+  int no_hull_id = mj_name2id(model.get(), mjOBJ_MESH, "mesh_no_hull");
   int with_hull_contype_id =
-      mj_name2id(model, mjOBJ_MESH, "mesh_with_hull_contype");
+      mj_name2id(model.get(), mjOBJ_MESH, "mesh_with_hull_contype");
   int with_hull_conaffinity_id =
-      mj_name2id(model, mjOBJ_MESH, "mesh_with_hull_conaffinity");
+      mj_name2id(model.get(), mjOBJ_MESH, "mesh_with_hull_conaffinity");
 
   EXPECT_NE(no_hull_id, -1);
   EXPECT_NE(with_hull_contype_id, -1);
@@ -358,8 +349,57 @@ TEST_F(UserModelTest, ConvexHullForCollisionMeshes) {
 
   // mesh_with_hull_conaffinity should have a convex hull.
   EXPECT_NE(model->mesh_graphadr[with_hull_conaffinity_id], -1);
+}
 
-  mj_deleteModel(model);
+TEST_F(UserModelTest, MeshExtremaValidIndices) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="test_mesh" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+            face="0 2 1  0 1 3  0 3 2  1 2 3"/>
+    </asset>
+    <worldbody>
+      <geom name="test_geom" type="mesh" mesh="test_mesh"/>
+    </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+
+  int mesh_id = mj_name2id(model.get(), mjOBJ_MESH, "test_mesh");
+  EXPECT_NE(mesh_id, -1);
+  EXPECT_NE(model->mesh_graphadr[mesh_id], -1);
+
+  const float* verts = model->mesh_vert + 3 * model->mesh_vertadr[mesh_id];
+  const int* graph = model->mesh_graph + model->mesh_graphadr[mesh_id];
+  const int* vert_globalid = graph + 2 + graph[0];
+
+  int k = 0;
+  for (int cx = -1; cx <= 1; cx++) {
+    for (int cy = -1; cy <= 1; cy++) {
+      for (int cz = -1; cz <= 1; cz++) {
+        int v_idx = model->mesh_extrema[mesh_id * 27 + k];
+        EXPECT_GE(v_idx, 0);
+        EXPECT_LT(v_idx, graph[0]);
+
+        int global_id = vert_globalid[v_idx];
+        float max_dot = verts[3 * global_id + 0] * cx +
+                        verts[3 * global_id + 1] * cy +
+                        verts[3 * global_id + 2] * cz;
+
+        // verify no other vertex yields a strictly greater dot product.
+        for (int i = 0; i < graph[0]; i++) {
+          int other_gid = vert_globalid[i];
+          float dot = verts[3 * other_gid + 0] * cx +
+                      verts[3 * other_gid + 1] * cy +
+                      verts[3 * other_gid + 2] * cz;
+          EXPECT_LE(dot, max_dot);
+        }
+        k++;
+      }
+    }
+  }
 }
 
 TEST_F(UserModelTest, ConvexHullForPairCollisionMeshes) {
@@ -379,17 +419,15 @@ TEST_F(UserModelTest, ConvexHullForPairCollisionMeshes) {
   </mujoco>)";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
 
-  int mesh_in_pair_id = mj_name2id(model, mjOBJ_MESH, "mesh");
+  int mesh_in_pair_id = mj_name2id(model.get(), mjOBJ_MESH, "mesh");
 
   EXPECT_NE(mesh_in_pair_id, -1);
 
   // mesh_in_pair should have a convex hull because it is in a collision pair.
   EXPECT_NE(model->mesh_graphadr[mesh_in_pair_id], -1);
-
-  mj_deleteModel(model);
 }
 
 // ------------- test automatic inference of nuser_xxx -------------------------
@@ -405,11 +443,10 @@ TEST_F(UserDataTest, AutoNUserBody) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
+  MjModelPtr m = LoadModelFromString(xml);
   ASSERT_EQ(m->nuser_body, 3);
   EXPECT_THAT(GetRow(m->body_user, m->nuser_body, 1), ElementsAre(1, 2, 3));
   EXPECT_THAT(GetRow(m->body_user, m->nuser_body, 2), ElementsAre(2, 3, 0));
-  mj_deleteModel(m);
 }
 
 TEST_F(UserDataTest, AutoNUserJoint) {
@@ -424,11 +461,10 @@ TEST_F(UserDataTest, AutoNUserJoint) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
+  MjModelPtr m = LoadModelFromString(xml);
   ASSERT_EQ(m->nuser_jnt, 3);
   EXPECT_THAT(GetRow(m->jnt_user, m->nuser_jnt, 0), ElementsAre(1, 2, 3));
   EXPECT_THAT(GetRow(m->jnt_user, m->nuser_jnt, 1), ElementsAre(2, 3, 0));
-  mj_deleteModel(m);
 }
 
 TEST_F(UserDataTest, AutoNUserGeom) {
@@ -440,11 +476,10 @@ TEST_F(UserDataTest, AutoNUserGeom) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
+  MjModelPtr m = LoadModelFromString(xml);
   ASSERT_EQ(m->nuser_geom, 3);
   EXPECT_THAT(GetRow(m->geom_user, m->nuser_geom, 0), ElementsAre(1, 2, 3));
   EXPECT_THAT(GetRow(m->geom_user, m->nuser_geom, 1), ElementsAre(2, 3, 0));
-  mj_deleteModel(m);
 }
 
 TEST_F(UserDataTest, AutoNUserSite) {
@@ -456,11 +491,10 @@ TEST_F(UserDataTest, AutoNUserSite) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
+  MjModelPtr m = LoadModelFromString(xml);
   ASSERT_EQ(m->nuser_site, 3);
   EXPECT_THAT(GetRow(m->site_user, m->nuser_site, 0), ElementsAre(1, 2, 3));
   EXPECT_THAT(GetRow(m->site_user, m->nuser_site, 1), ElementsAre(2, 3, 0));
-  mj_deleteModel(m);
 }
 
 TEST_F(UserDataTest, AutoNUserCamera) {
@@ -472,11 +506,10 @@ TEST_F(UserDataTest, AutoNUserCamera) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
+  MjModelPtr m = LoadModelFromString(xml);
   ASSERT_EQ(m->nuser_cam, 3);
   EXPECT_THAT(GetRow(m->cam_user, m->nuser_cam, 0), ElementsAre(1, 2, 3));
   EXPECT_THAT(GetRow(m->cam_user, m->nuser_cam, 1), ElementsAre(2, 3, 0));
-  mj_deleteModel(m);
 }
 
 TEST_F(UserDataTest, AutoNUserTendon) {
@@ -498,11 +531,10 @@ TEST_F(UserDataTest, AutoNUserTendon) {
     </tendon>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
+  MjModelPtr m = LoadModelFromString(xml);
   ASSERT_EQ(m->nuser_tendon, 3);
   EXPECT_THAT(GetRow(m->tendon_user, m->nuser_tendon, 0), ElementsAre(1, 2, 3));
   EXPECT_THAT(GetRow(m->tendon_user, m->nuser_tendon, 1), ElementsAre(2, 3, 0));
-  mj_deleteModel(m);
 }
 
 TEST_F(UserDataTest, AutoNUserActuator) {
@@ -520,13 +552,12 @@ TEST_F(UserDataTest, AutoNUserActuator) {
     </actuator>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
+  MjModelPtr m = LoadModelFromString(xml);
   ASSERT_EQ(m->nuser_actuator, 3);
   EXPECT_THAT(GetRow(m->actuator_user, m->nuser_actuator, 0),
               ElementsAre(1, 2, 3));
   EXPECT_THAT(GetRow(m->actuator_user, m->nuser_actuator, 1),
               ElementsAre(2, 3, 0));
-  mj_deleteModel(m);
 }
 
 TEST_F(UserDataTest, AutoNUserSensor) {
@@ -541,11 +572,10 @@ TEST_F(UserDataTest, AutoNUserSensor) {
     </sensor>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
+  MjModelPtr m = LoadModelFromString(xml);
   ASSERT_EQ(m->nuser_sensor, 3);
   EXPECT_THAT(GetRow(m->sensor_user, m->nuser_sensor, 0), ElementsAre(1, 2, 3));
   EXPECT_THAT(GetRow(m->sensor_user, m->nuser_sensor, 1), ElementsAre(2, 3, 0));
-  mj_deleteModel(m);
 }
 
 // ------------- test duplicate names ------------------------------------------
@@ -583,10 +613,10 @@ TEST_F(FuseStaticTest, FuseStaticEquivalent) {
   std::string fuse = absl::StrFormat(xml_template, "true");
   std::string no_fuse = absl::StrFormat(xml_template, "false");
 
-  mjModel* m_fuse = LoadModelFromString(fuse.c_str());
-  mjModel* m_no_fuse = LoadModelFromString(no_fuse.c_str());
-  ASSERT_THAT(m_fuse, NotNull());
-  ASSERT_THAT(m_no_fuse, NotNull());
+  MjModelPtr m_fuse = LoadModelFromString(fuse.c_str());
+  MjModelPtr m_no_fuse = LoadModelFromString(no_fuse.c_str());
+  ASSERT_THAT(m_fuse.get(), NotNull());
+  ASSERT_THAT(m_no_fuse.get(), NotNull());
 
   EXPECT_EQ(m_fuse->nbody, 2) << "Expecting a world body and one other body";
   EXPECT_EQ(m_no_fuse->nbody, 3) << "Expecting a world body and two others";
@@ -599,20 +629,16 @@ TEST_F(FuseStaticTest, FuseStaticEquivalent) {
   EXPECT_EQ(m_no_fuse->body_bvhnum[2], 3);
   EXPECT_EQ(m_fuse->body_bvhnum[1], 3);
 
-  mjData* d_fuse = mj_makeData(m_fuse);
-  mjData* d_no_fuse = mj_makeData(m_no_fuse);
+  MjDataPtr d_fuse = MakeData(m_fuse);
+  MjDataPtr d_no_fuse = MakeData(m_no_fuse);
 
-  mj_step(m_fuse, d_fuse);
-  mj_step(m_no_fuse, d_no_fuse);
+  mj_step(m_fuse.get(), d_fuse.get());
+  mj_step(m_no_fuse.get(), d_no_fuse.get());
 
-  EXPECT_NEAR(d_fuse->qvel[0], d_no_fuse->qvel[0], MjTol(2e-17, 1e-8))
+  EXPECT_NEAR(d_fuse.get()->qvel[0], d_no_fuse.get()->qvel[0],
+              MjTol(2e-17, 1e-8))
       << "Velocity should be the same after 1 step";
-  EXPECT_NE(d_fuse->qvel[0], 0);
-
-  mj_deleteData(d_fuse);
-  mj_deleteData(d_no_fuse);
-  mj_deleteModel(m_fuse);
-  mj_deleteModel(m_no_fuse);
+  EXPECT_NE(d_fuse.get()->qvel[0], 0);
 }
 
 TEST_F(FuseStaticTest, FuseStaticActuatorReferencedBody) {
@@ -641,10 +667,9 @@ TEST_F(FuseStaticTest, FuseStaticActuatorReferencedBody) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml_template, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml_template, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
   EXPECT_EQ(m->nbody, 3) << "Expecting a world body and two others";
-  mj_deleteModel(m);
 }
 
 TEST_F(FuseStaticTest, FuseStaticLightReferencedBody) {
@@ -670,10 +695,9 @@ TEST_F(FuseStaticTest, FuseStaticLightReferencedBody) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml_template, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml_template, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
   EXPECT_EQ(m->nbody, 3) << "Expecting a world body and two others";
-  mj_deleteModel(m);
 }
 
 TEST_F(FuseStaticTest, FuseStaticForceSensorReferencedBody) {
@@ -703,10 +727,9 @@ TEST_F(FuseStaticTest, FuseStaticForceSensorReferencedBody) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml_template, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml_template, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
   EXPECT_EQ(m->nbody, 3) << "Expecting a world body and two others";
-  mj_deleteModel(m);
 }
 
 TEST_F(FuseStaticTest, FuseStaticCameraInBody) {
@@ -726,11 +749,10 @@ TEST_F(FuseStaticTest, FuseStaticCameraInBody) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
   EXPECT_EQ(m->nbody, 2) << "Static body should be fused";
   EXPECT_EQ(m->ncam, 1);
-  mj_deleteModel(m);
 }
 
 TEST_F(FuseStaticTest, FuseStaticLightInBody) {
@@ -749,11 +771,10 @@ TEST_F(FuseStaticTest, FuseStaticLightInBody) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
   EXPECT_EQ(m->nbody, 2) << "Static body should be fused";
   EXPECT_EQ(m->nlight, 1);
-  mj_deleteModel(m);
 }
 
 // ------------- test discardvisual --------------------------------------------
@@ -788,13 +809,12 @@ TEST_F(DiscardVisualTest, DiscardVisualKeepsInertia) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(model, NotNull()) << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), NotNull()) << error.data();
   EXPECT_THAT(model->nmesh, 1);
   EXPECT_THAT(model->body_inertia[3], model->body_inertia[6]);
   EXPECT_THAT(model->body_inertia[4], model->body_inertia[7]);
   EXPECT_THAT(model->body_inertia[5], model->body_inertia[8]);
-  mj_deleteModel(model);
 }
 
 TEST_F(DiscardVisualTest, DiscardVisualEquivalent) {
@@ -817,8 +837,8 @@ TEST_F(DiscardVisualTest, DiscardVisualEquivalent) {
   EXPECT_THAT(model1->nq, model2->nq);
   EXPECT_THAT(model1->nmat, 0);
   EXPECT_THAT(model1->ntex, 0);
-  EXPECT_THAT(model2->ngeom-model1->ngeom, 3);
-  EXPECT_THAT(model2->nmesh-model1->nmesh, 2);
+  EXPECT_THAT(model2->ngeom - model1->ngeom, 3);
+  EXPECT_THAT(model2->nmesh - model1->nmesh, 2);
   EXPECT_THAT(model1->npair, model2->npair);
   EXPECT_THAT(model1->nsensor, model2->nsensor);
   EXPECT_THAT(model1->nwrap, model2->nwrap);
@@ -850,8 +870,8 @@ TEST_F(DiscardVisualTest, DiscardVisualEquivalent) {
     EXPECT_STREQ(model1->names + adr1, model2->names + adr2);
   }
 
-  mjData *d1 = mj_makeData(model1);
-  mjData *d2 = mj_makeData(model2);
+  mjData* d1 = mj_makeData(model1);
+  mjData* d2 = mj_makeData(model2);
   for (int i = 0; i < 100; i++) {
     mj_step(model1, d1);
     mj_step(model2, d2);
@@ -876,8 +896,7 @@ TEST_F(LengthRangeTest, LengthRangeThreading) {
   size_t error_sz = 1024;
   std::string field = "";
 
-  static const char* const kLengthrangePath =
-      "user/testdata/lengthrange.xml";
+  static const char* const kLengthrangePath = "user/testdata/lengthrange.xml";
 
   const std::string xml_path1 = GetTestDataFilePath(kLengthrangePath);
   mjSpec* spec = mj_parseXML(xml_path1.c_str(), 0, error, error_sz);
@@ -902,6 +921,43 @@ TEST_F(LengthRangeTest, LengthRangeThreading) {
 
   mj_deleteModel(model1);
   mj_deleteModel(model2);
+  mj_deleteSpec(spec);
+}
+
+
+TEST_F(MujocoTest, ResolvePluginMissingInstanceThrowsError) {
+  // Instance name="my_pid_config" dos not match actuator plugin's instance="pid_config",
+  // this should throw an appropriate error
+  static constexpr char xml_mismatch[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.pid">
+        <instance name="my_pid_config" />
+      </plugin>
+    </extension>
+    <worldbody>
+      <body name="block" pos="0 0 0.5">
+        <joint name="slide_z" type="slide" axis="0 0 1" />
+        <geom type="box" size="0.1 0.1 0.1" mass="1.0" rgba="0 0.7 0 1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <plugin name="pid_actuator" joint="slide_z" plugin="mujoco.pid" instance="pid_config" />
+    </actuator>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error_buffer;
+  mjSpec* spec = mj_parseXMLString(xml_mismatch, 0, error_buffer.data(), error_buffer.size());
+  ASSERT_THAT(spec, NotNull()) << error_buffer.data();
+
+  mjModel* model = mj_compile(spec, nullptr);
+  EXPECT_THAT(model, IsNull());
+
+  std::string error_msg = mjs_getError(spec);
+  EXPECT_THAT(error_msg, HasSubstr("unrecognized name 'pid_config' for plugin instance"));
+
+  if (model) mj_deleteModel(model);
   mj_deleteSpec(spec);
 }
 
@@ -1021,20 +1077,17 @@ TEST_F(MujocoTest, NestedMeshDir) {
                   sizeof(cube));
 
   std::array<char, 1024> error;
-  mjModel* child_model = LoadModelFromString(child_xml, error.data(),
-                                             error.size(), vfs.get());
-  EXPECT_THAT(child_model, NotNull()) << error.data();
-  mj_deleteModel(child_model);
+  MjModelPtr child_model =
+      LoadModelFromString(child_xml, error.data(), error.size(), vfs.get());
+  EXPECT_THAT(child_model.get(), NotNull()) << error.data();
 
-  mjModel* parent_model = LoadModelFromString(parent_xml, error.data(),
-                                              error.size(), vfs.get());
-  EXPECT_THAT(parent_model, NotNull()) << error.data();
-  mj_deleteModel(parent_model);
+  MjModelPtr parent_model =
+      LoadModelFromString(parent_xml, error.data(), error.size(), vfs.get());
+  EXPECT_THAT(parent_model.get(), NotNull()) << error.data();
 
-  mjModel* grandparent_model = LoadModelFromString(
+  MjModelPtr grandparent_model = LoadModelFromString(
       grandparent_xml, error.data(), error.size(), vfs.get());
-  EXPECT_THAT(grandparent_model, NotNull()) << error.data();
-  mj_deleteModel(grandparent_model);
+  EXPECT_THAT(grandparent_model.get(), NotNull()) << error.data();
 
   mj_deleteVFS(vfs.get());
 }
@@ -1086,8 +1139,8 @@ TEST_F(DelayBufferTest, ActuatorDelayBufferSizes) {
     </actuator>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
-  ASSERT_THAT(m, NotNull());
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_THAT(m.get(), NotNull());
   ASSERT_EQ(m->nu, 3);
 
   // nhistory = (2+2*3) + (2+2*10) = 8 + 22 = 30
@@ -1100,8 +1153,6 @@ TEST_F(DelayBufferTest, ActuatorDelayBufferSizes) {
   EXPECT_EQ(m->actuator_historyadr[0], -1);
   EXPECT_EQ(m->actuator_historyadr[1], 0);
   EXPECT_EQ(m->actuator_historyadr[2], 8);
-
-  mj_deleteModel(m);
 }
 
 }  // namespace

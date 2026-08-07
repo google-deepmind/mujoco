@@ -27,6 +27,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include <mujoco/mujoco.h>
 #include "experimental/platform/hal/graphics_mode.h"
@@ -108,8 +109,9 @@ EM_ASYNC_JS(int, FetchUrl,
               }
             });
 
-// Cache for data fetched via HTTP/HTTPS. Stores the downloaded bytes keyed by
-// the resource name (URL) so that read() can return a pointer to the data.
+// Cache for data fetched via HTTP/HTTPS. Stores downloaded (or pre-primed)
+// bytes keyed by the resource URL so that the resource provider's read()
+// can return a pointer into stable storage.
 class FetchCache {
  public:
   static FetchCache& Instance() {
@@ -117,50 +119,72 @@ class FetchCache {
     return instance;
   }
 
-  // Fetches the URL and stores the result. Returns the size (>0) on success.
+  // Returns the size of the entry for `url`, fetching it over the network
+  // if necessary. Entries that have been pre-populated via Prime() are
+  // returned without touching the network. Returns 0 on fetch failure.
   int Fetch(const char* url) {
-    char* data = nullptr;
+    if (auto it = entries_.find(url); it != entries_.end()) {
+      return static_cast<int>(it->second.size());
+    }
+    char* buf = nullptr;
     std::int32_t size = 0;
-    if (!FetchUrl(url, &data, &size)) {
+    if (!FetchUrl(url, &buf, &size)) {
       return 0;
     }
-    entries_[url] = Entry{UniquePtrWasm<char[]>(data), size};
-    return size;
+    // FetchUrl hands us a malloc'd buffer; take ownership of the bytes via
+    // a std::string and release the original allocation.
+    std::string bytes(buf, size);
+    std::free(buf);
+    return static_cast<int>(entries_.emplace(url, std::move(bytes))
+                                .first->second.size());
   }
 
-  // Returns pointer and size for a previously fetched URL.
-  int Read(const char* url, const void** buffer) {
+  // Pre-populates the cache so a subsequent Fetch() of the same URL hits
+  // memory instead of the network. First writer wins.
+  void Prime(std::string url, std::string bytes) {
+    entries_.try_emplace(std::move(url), std::move(bytes));
+  }
+
+  // Hands back a pointer into the cached bytes for the given URL.
+  // Returns -1 if the URL has not been fetched or primed.
+  int Read(const char* url, const void** buffer) const {
     auto it = entries_.find(url);
-    if (it == entries_.end()) {
-      return -1;
-    }
-    *buffer = it->second.data.get();
-    return it->second.size;
+    if (it == entries_.end()) return -1;
+    *buffer = it->second.data();
+    return static_cast<int>(it->second.size());
   }
 
-  // Frees the data for a URL.
   void Close(const char* url) { entries_.erase(url); }
 
  private:
-  struct FreeDeleter {
-    void operator()(void* p) const { std::free(p); }
-  };
-  template <typename T>
-  using UniquePtrWasm = std::unique_ptr<T, FreeDeleter>;
-
-  struct Entry {
-    UniquePtrWasm<char[]> data;
-    int size;
-  };
-  std::unordered_map<std::string, Entry> entries_;
+  std::unordered_map<std::string, std::string> entries_;
 };
 
 // ---------------------------------------------------------------------------
 
-// Javascript-facing function to register an asset.
+// Javascript-facing function to register a build-time asset (font, IBL,
+// .filamat material) that is fetched via the static AssetRegistry rather
+// than over HTTP.
 void RegisterAsset(std::string filename, std::string contents) {
   AssetRegistry::Instance().RegisterAsset(std::move(filename),
                                           std::move(contents));
+}
+
+// Javascript-facing function to pre-populate the HTTP/HTTPS fetch cache.
+// Used by the JS-side parallel prefetcher to feed already-downloaded asset
+// bytes to MuJoCo's compiler before LoadUrl is invoked, sidestepping the
+// otherwise strictly-serial EM_ASYNC_JS fetch chain.
+void PrimeFetchCache(std::string url, std::string bytes) {
+  FetchCache::Instance().Prime(std::move(url), std::move(bytes));
+}
+
+// Javascript-facing wrapper around mju_getXMLDependencies. Returns the
+// list of resource URLs that the given root XML transitively references
+// (meshes, textures, includes, ...), per MuJoCo's compiler rules.
+std::vector<std::string> GetXMLDependencies(const std::string& root_url) {
+  mjStringVec deps;
+  mju_getXMLDependencies(root_url.c_str(), &deps);
+  return deps;
 }
 
 // Javascript-facing function to initialize the app.
@@ -305,7 +329,11 @@ void Deinit() {
 }
 
 EMSCRIPTEN_BINDINGS(studio_bindings) {
+  // Matches the C-level `mjStringVec` typedef in mjspec.h.
+  emscripten::register_vector<std::string>("mjStringVec");
   emscripten::function("registerAsset", &RegisterAsset);
+  emscripten::function("primeFetchCache", &PrimeFetchCache);
+  emscripten::function("getXMLDependencies", &GetXMLDependencies);
   emscripten::function("init", &Init);
   emscripten::function("loadFile", &LoadFile);
   emscripten::function("loadUrl", &LoadUrl);

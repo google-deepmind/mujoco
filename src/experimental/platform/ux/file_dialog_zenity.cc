@@ -55,8 +55,7 @@ static DialogResult RunZenity(std::vector<std::string>& args) {
                       .path = std::string(buffer)};
 }
 
-static void UpdateArgs(std::vector<std::string>& args,
-                       std::string_view path,
+static void UpdateArgs(std::vector<std::string>& args, std::string_view path,
                        std::span<std::string_view> filters = {}) {
   if (!path.empty() && path.front() != 0) {
     args.push_back("--filename=" + std::string(path.data()));

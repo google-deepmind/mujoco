@@ -21,6 +21,7 @@
 #include <mujoco/mujoco.h>
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "engine/engine_vis_interact.h"
 #include "engine/engine_vis_visualize.h"
 
 namespace mujoco::platform {
@@ -376,36 +377,8 @@ static PickResult PickFlex(const mjModel* m, const mjData* d,
     }
 
     result.dist = test_dist;
-    if (m->flex_interp[i]) {
-      const mjtNum* coord = m->flex_vert0 + 3 * (m->flex_vertadr[i] + vertid);
-      mjtNum w = 0;
-      int nodeid = -1;
-      int nstart = m->flex_nodeadr[i];
-      int nend = nstart + m->flex_nodenum[i];
-      for (int j = nstart; j < nend; j++) {
-        if (mju_evalBasis(coord, j - nstart, m->flex_interp[i]) > w) {
-          w = mju_evalBasis(coord, j - nstart, m->flex_interp[i]);
-          nodeid = j;
-        }
-      }
-      if (nodeid < 0) {
-        mjERROR("flex %d: node closest to vertex %d not found", i, vertid);
-      }
-      result.body = m->flex_nodebodyid[m->flex_nodeadr[i] + nodeid];
-
-      if (m->flex_centered[i]) {
-        mju_copy3(result.point, d->xpos + 3 * result.body);
-      } else {
-        mju_mulMatVec3(result.point, d->xmat + 9 * result.body,
-                       m->flex_node + 3 * nodeid);
-        mju_addTo3(result.point, d->xpos + 3 * result.body);
-      }
-    } else {
-      result.body = m->flex_vertbodyid[m->flex_vertadr[i] + vertid];
-      mju_copy3(result.point,
-                d->flexvert_xpos + 3 * (m->flex_vertadr[i] + vertid));
-    }
     result.flex = i;
+    result.body = mjv_flexBodyId(m, d, i, vertid, result.point);
   }
   return result;
 }

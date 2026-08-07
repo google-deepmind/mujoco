@@ -29,7 +29,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import EnableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 
-wp.set_module_options({"enable_backward": False})
+wp.set_module_options({"enable_backward": False, "default_grid_stride": False})
 
 
 @wp.kernel
@@ -95,9 +95,9 @@ def discrete_acc(m: Model, d: Data, qacc: wp.array2d[float]):
 
     # TODO(team): qacc = d.qacc if (m.dof_damping == 0.0).all()
 
-    # set qfrc = (d.qM + m.opt.timestep * diag(m.dof_damping)) * d.qacc
+    # set qfrc = (d.M + m.opt.timestep * diag(m.dof_damping)) * d.qacc
 
-    # d.qM @ d.qacc
+    # d.M @ d.qacc
     support.mul_m(m, d, qfrc, d.qacc)
 
     # qfrc += m.opt.timestep * damp_deriv * d.qacc
@@ -108,18 +108,22 @@ def discrete_acc(m: Model, d: Data, qacc: wp.array2d[float]):
       outputs=[qfrc],
     )
   elif m.opt.integrator == IntegratorType.IMPLICITFAST:
-    if m.is_sparse:
-      qDeriv = wp.empty((d.nworld, 1, m.nM), dtype=float)
-    else:
-      qDeriv = wp.empty((d.nworld, m.nv, m.nv), dtype=float)
+    qDeriv = wp.empty((d.nworld, m.nC), dtype=float)
     derivative.deriv_smooth_vel(m, d, qDeriv)
     mul_m(m, d, qfrc, d.qacc, M=qDeriv)
-    smooth.factor_solve_i(m, d, d.qM, d.qLD, d.qLDiagInv, qacc, qfrc)
+    smooth.factor_solve_i(m, d, d.M, d.qLD, d.qLDiagInv, qacc, qfrc)
   else:
     raise NotImplementedError(f"integrator {m.opt.integrator} not implemented.")
 
-  # solve for qacc: qfrc = d.qM @ d.qacc
+  # solve for qacc: qfrc = d.M @ d.qacc
   smooth.solve_m(m, d, qacc, qfrc)
+
+
+@wp.kernel
+def _zero_qfrc_constraint_nefc(nefc_in: wp.array[int], qfrc_constraint_out: wp.array2d[float]):
+  worldid, dofid = wp.tid()
+  if nefc_in[worldid] == 0:
+    qfrc_constraint_out[worldid, dofid] = 0.0
 
 
 def inv_constraint(m: Model, d: Data):
@@ -128,6 +132,14 @@ def inv_constraint(m: Model, d: Data):
   if d.njmax == 0:
     d.qfrc_constraint.zero_()
     return
+
+  if m.is_sparse:
+    wp.launch(
+      _zero_qfrc_constraint_nefc,
+      dim=(d.nworld, m.nv),
+      inputs=[d.nefc],
+      outputs=[d.qfrc_constraint],
+    )
 
   ctx = solver.create_inverse_context(m, d)
   solver.init_context(m, d, ctx, grad=False)

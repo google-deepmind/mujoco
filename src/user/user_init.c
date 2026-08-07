@@ -82,6 +82,9 @@ void mjs_defaultBody(mjsBody* body) {
   body->ipos[0] = mjNAN;
   body->iquat[0] = 1;
   body->fullinertia[0] = mjNAN;
+
+  // simple optimization: auto
+  body->simple = 1;
 }
 
 
@@ -201,6 +204,7 @@ void mjs_defaultLight(mjsLight* light) {
   light->active = 1;
   light->attenuation[0] = 1;
   light->cutoff = 45;
+  light->softness = 0.2;
   light->exponent = 10;
   light->diffuse[0] = light->diffuse[1] = light->diffuse[2] = 0.7;
   light->specular[0] = light->specular[1] = light->specular[2] = 0.3;
@@ -272,7 +276,7 @@ void mjs_defaultTexture(mjsTexture* texture) {
   texture->gridsize[0] = texture->gridsize[1] = 1;
   texture->nchannel = 3;
   char defaultlayout[sizeof(texture->gridlayout)] = "............";
-  strncpy(texture->gridlayout, defaultlayout, sizeof(texture->gridlayout));
+  memcpy(texture->gridlayout, defaultlayout, sizeof(texture->gridlayout));
 }
 
 
@@ -338,6 +342,9 @@ void mjs_defaultActuator(mjsActuator* actuator) {
   actuator->dyntype = mjDYN_NONE;
   actuator->dynprm[0] = 1;
   actuator->actdim = -1;
+  actuator->ctrlspec = 0;
+  actuator->velrange[0] = actuator->velrange[1] = 0;
+  actuator->ffrange[0] = actuator->ffrange[1] = 0;
 
   // transmission
   actuator->trntype = mjTRN_UNDEFINED;

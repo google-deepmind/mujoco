@@ -59,8 +59,8 @@ int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2, int flg_skipcomm
   b1 = m->body_weldid[b1];
   b2 = m->body_weldid[b2];
 
-  // neither body is movable: empty chain
-  if (b1 == 0 && b2 == 0) {
+  // neither weld root has dofs: empty chain
+  if (m->body_dofnum[b1] == 0 && m->body_dofnum[b2] == 0) {
     return 0;
   }
 
@@ -143,8 +143,8 @@ int mj_bodyChain(const mjModel* m, int body, int* chain) {
     // skip fixed bodies
     body = m->body_weldid[body];
 
-    // not movable: empty chain
-    if (body == 0) {
+    // weld root has no dofs: empty chain
+    if (m->body_dofnum[body] == 0) {
       return 0;
     }
 
@@ -190,8 +190,8 @@ void mj_jac(const mjModel* m, const mjData* d,
   // skip fixed bodies
   body = m->body_weldid[body];
 
-  // no movable body found: nothing to do
-  if (!body) {
+  // weld root has no dofs: nothing to do
+  if (m->body_dofnum[body] == 0) {
     return;
   }
 
@@ -319,8 +319,8 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
   // skip fixed bodies
   body = m->body_weldid[body];
 
-  // no movable body found: nothing to do
-  if (!body) {
+  // weld root has no dofs: nothing to do
+  if (m->body_dofnum[body] == 0) {
     return;
   }
 
@@ -517,30 +517,29 @@ int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
 // dense or sparse weighted sum of multiple body Jacobians at same point
 int mj_jacSum(const mjModel* m, mjData* d, int* chain,
               int n, const int* body, const mjtNum* weight,
-              const mjtNum point[3], mjtNum* jac, int flg_rot) {
+              const mjtNum point[3], mjtNum* jacp, mjtNum* jacr, int flg_rot) {
   int nv = m->nv, NV;
-  mjtNum* jacp = jac;
-  mjtNum* jacr = flg_rot ? jac + 3*nv : NULL;
 
   mj_markStack(d);
   mjtNum* jtmp = mjSTACKALLOC(d, flg_rot ? 6*nv : 3*nv, mjtNum);
-  mjtNum* jp = jtmp;
-  mjtNum* jr = flg_rot ? jtmp + 3*nv : NULL;
 
   // sparse
   if (mj_isSparse(m)) {
+    // the sparse merge produces one packed [jacp; jacr] block; split into the outputs at the end
+    mjtNum* jac = mjSTACKALLOC(d, flg_rot ? 6*nv : 3*nv, mjtNum);
     mjtNum* buf = mjSTACKALLOC(d, flg_rot ? 6*nv : 3*nv, mjtNum);
     int* buf_ind = mjSTACKALLOC(d, nv, int);
     int* bodychain = mjSTACKALLOC(d, nv, int);
 
-    // set first
+    // set first (rotational rows packed right after the translational rows, at offset 3*NV)
     NV = mj_bodyChain(m, body[0], chain);
     if (NV) {
       // get Jacobian
+      mjtNum* jr = flg_rot ? jac + 3*NV : NULL;
       if (m->body_simple[body[0]]) {
-        mj_jacSparseSimple(m, d, jacp, jacr, point, body[0], 1, NV, 0);
+        mj_jacSparseSimple(m, d, jac, jr, point, body[0], 1, NV, 0);
       } else {
-        mj_jacSparse(m, d, jacp, jacr, point, body[0], NV, chain, /*flg_skipcommon=*/0);
+        mj_jacSparse(m, d, jac, jr, point, body[0], NV, chain, /*flg_skipcommon=*/0);
       }
 
       // apply weight
@@ -554,28 +553,43 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
       if (!bodyNV) {
         continue;
       }
+      mjtNum* jr = flg_rot ? jtmp + 3*bodyNV : NULL;
       if (m->body_simple[body[i]]) {
-        mj_jacSparseSimple(m, d, jp, jr, point, body[i], 1, bodyNV, 0);
+        mj_jacSparseSimple(m, d, jtmp, jr, point, body[i], 1, bodyNV, 0);
       } else {
-        mj_jacSparse(m, d, jp, jr, point, body[i], bodyNV, bodychain, /*flg_skipcommon=*/0);
+        mj_jacSparse(m, d, jtmp, jr, point, body[i], bodyNV, bodychain, /*flg_skipcommon=*/0);
       }
 
       // combine sparse matrices
       NV = mju_addToSparseMat(jac, jtmp, nv, flg_rot ? 6 : 3, weight[i],
                               NV, bodyNV, chain, bodychain, buf, buf_ind);
     }
+
+    // split the packed block into the separate output buffers (each NV-packed)
+    mju_copy(jacp, jac, 3*NV);
+    if (flg_rot) {
+      mju_copy(jacr, jac + 3*NV, 3*NV);
+    }
   }
 
   // dense
   else {
+    mjtNum* jr = flg_rot ? jtmp + 3*nv : NULL;
+
     // set first
-    mj_jac(m, d, jacp, jacr, point, body[0]);
-    mju_scl(jac, jac, weight[0], flg_rot ? 6*nv : 3*nv);
+    mj_jac(m, d, jacp, flg_rot ? jacr : NULL, point, body[0]);
+    mju_scl(jacp, jacp, weight[0], 3*nv);
+    if (flg_rot) {
+      mju_scl(jacr, jacr, weight[0], 3*nv);
+    }
 
     // accumulate remaining
     for (int i=1; i < n; i++) {
-      mj_jac(m, d, jp, jr, point, body[i]);
-      mju_addToScl(jac, jtmp, weight[i], flg_rot ? 6*nv : 3*nv);
+      mj_jac(m, d, jtmp, jr, point, body[i]);
+      mju_addToScl(jacp, jtmp, weight[i], 3*nv);
+      if (flg_rot) {
+        mju_addToScl(jacr, jr, weight[i], 3*nv);
+      }
     }
 
     NV = nv;
@@ -608,8 +622,8 @@ void mj_jacDot(const mjModel* m, const mjData* d,
   // skip fixed bodies
   body = m->body_weldid[body];
 
-  // no movable body found: nothing to do
-  if (!body) {
+  // weld root has no dofs: nothing to do
+  if (m->body_dofnum[body] == 0) {
     return;
   }
 
@@ -681,8 +695,8 @@ void mj_jacDotSparse(const mjModel* m, const mjData* d,
   // skip fixed bodies
   body = m->body_weldid[body];
 
-  // no movable body found: nothing to do
-  if (!body) {
+  // weld root has no dofs: nothing to do
+  if (m->body_dofnum[body] == 0) {
     return;
   }
 
@@ -863,14 +877,31 @@ void mj_objectVelocity(const mjModel* m, const mjData* d,
     mjERROR("invalid object type %d", objtype);
   }
 
-  // static body: quick return
-  if (m->body_weldid[bodyid] == 0) {
+  // dof-less body (static or mocap): quick return
+  if (m->body_dofnum[m->body_weldid[bodyid]] == 0) {
     mju_zero(res, 6);
     return;
   }
 
   // transform velocity
   mju_transformSpatial(res, d->cvel+6*bodyid, 0, pos, d->subtree_com+3*m->body_rootid[bodyid], rot);
+}
+
+
+// compute material surface velocity of a geom at a point, in the world frame
+void mj_geomSurfaceVelocity(const mjModel* m, const mjData* d, int geomid,
+                            const mjtNum point[3], mjtNum linear[3], mjtNum angular[3]) {
+  const mjtNum* sv = m->geom_surfacevel + 6*geomid;
+
+  // rotate local linear and angular surface velocities to the world frame
+  mji_mulMatVec3(linear, d->geom_xmat + 9*geomid, sv);
+  mji_mulMatVec3(angular, d->geom_xmat + 9*geomid, sv + 3);
+
+  // add angular velocity contribution (w x r) at the query point
+  mjtNum arm[3], wxr[3];
+  mji_sub3(arm, point, d->geom_xpos + 3*geomid);
+  mji_cross(wxr, angular, arm);
+  mji_addTo3(linear, wxr);
 }
 
 
@@ -920,8 +951,8 @@ void mj_objectAcceleration(const mjModel* m, const mjData* d,
     mjERROR("invalid object type %d", objtype);
   }
 
-  // static body: quick return
-  if (m->body_weldid[bodyid] == 0) {
+  // dof-less body (static or mocap): quick return
+  if (m->body_dofnum[m->body_weldid[bodyid]] == 0) {
     mju_zero(res, 6);
     return;
   }
@@ -1020,6 +1051,23 @@ void mju_flexGatherState(const mjModel* m, const mjData* d, int f, mjtNum* xpos,
       mju_addTo3(vel + 3*i, cross);
     }
   }
+
+  // shell mode: reconstruct interior node positions and velocities via TFI
+  int interp = m->flex_interp[f];
+  if (interp < 0) {
+    int order = -interp;
+    int cx = m->flex_cellnum[3*f+0];
+    int cy = m->flex_cellnum[3*f+1];
+    int cz = m->flex_cellnum[3*f+2];
+    int nx_g = cx * order + 1;
+    int ny_g = cy * order + 1;
+    int nz_g = cz * order + 1;
+
+    mju_shellTrackInterior(xpos, nx_g, ny_g, nz_g);
+    if (vel) {
+      mju_shellTrackInterior(vel, nx_g, ny_g, nz_g);
+    }
+  }
 }
 
 
@@ -1040,6 +1088,9 @@ void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]
     } else {
       mju_copy(result, d->efc_force + con->efc_address, con->dim);
     }
+
+    // report the net interface force: the solver's cone force minus the adhesive pull
+    result[0] -= con->adhesion;
   }
 }
 
@@ -1082,7 +1133,7 @@ mjtNum mj_actuatorDamping(const mjModel* m, mjtObj type, int id, mjtNum poly[mjN
 
   // single actuator contributes damping
   if (actuatorid >= 0) {
-    mjtNum gear2 = m->actuator_gear[6*actuatorid] * m->actuator_gear[6*actuatorid];
+    mjtNum gear2 = m->actuator_gear[6*m->actuator_outadr[actuatorid]] * m->actuator_gear[6*m->actuator_outadr[actuatorid]];
     damping = m->actuator_damping[actuatorid] * gear2;
     for (int k = 0; k < mjNPOLY; k++) {
       poly[k] += m->actuator_dampingpoly[mjNPOLY*actuatorid+k] * gear2;
@@ -1091,7 +1142,7 @@ mjtNum mj_actuatorDamping(const mjModel* m, mjtObj type, int id, mjtNum poly[mjN
 
   // actuatorid < -1: scan all actuators for contributions
   else {
-    for (int k = 0; k < m->nu; k++) {
+    for (int k = 0; k < m->nactuator; k++) {
       // skip actuators that don't actuate the given joint/tendon
       if (m->actuator_trnid[2*k] != id) {
         continue;
@@ -1106,7 +1157,7 @@ mjtNum mj_actuatorDamping(const mjModel* m, mjtObj type, int id, mjtNum poly[mjN
       }
 
       // accumulate damping contribution
-      mjtNum gear2 = m->actuator_gear[6*k] * m->actuator_gear[6*k];
+      mjtNum gear2 = m->actuator_gear[6*m->actuator_outadr[k]] * m->actuator_gear[6*m->actuator_outadr[k]];
       damping += m->actuator_damping[k] * gear2;
       for (int j = 0; j < mjNPOLY; j++) {
         poly[j] += m->actuator_dampingpoly[mjNPOLY*k+j] * gear2;
@@ -1137,13 +1188,13 @@ mjtNum mj_actuatorArmature(const mjModel* m, mjtObj type, int id) {
 
   // single actuator contributes armature
   if (actuatorid >= 0) {
-    mjtNum gear2 = m->actuator_gear[6*actuatorid] * m->actuator_gear[6*actuatorid];
+    mjtNum gear2 = m->actuator_gear[6*m->actuator_outadr[actuatorid]] * m->actuator_gear[6*m->actuator_outadr[actuatorid]];
     armature = m->actuator_armature[actuatorid] * gear2;
   }
 
   // actuatorid < -1: scan all actuators for contributions
   else {
-    for (int k = 0; k < m->nu; k++) {
+    for (int k = 0; k < m->nactuator; k++) {
       // skip actuators that don't actuate the given joint/tendon
       if (m->actuator_trnid[2*k] != id) {
         continue;
@@ -1158,7 +1209,7 @@ mjtNum mj_actuatorArmature(const mjModel* m, mjtObj type, int id) {
       }
 
       // accumulate armature contribution
-      mjtNum gear2 = m->actuator_gear[6*k] * m->actuator_gear[6*k];
+      mjtNum gear2 = m->actuator_gear[6*m->actuator_outadr[k]] * m->actuator_gear[6*m->actuator_outadr[k]];
       armature += m->actuator_armature[k] * gear2;
     }
   }

@@ -53,41 +53,80 @@ mjSpec* Decode(mjResource* resource, const mjVFS* vfs) {
   std::vector<int> userfacetexcoord;
 
   if (!obj_reader.GetShapes().empty()) {
-    const auto& obj_mesh = obj_reader.GetShapes()[0].mesh;
+    const auto& obj_shape = obj_reader.GetShapes()[0];
+    if (!obj_shape.mesh.indices.empty()) {
+      const auto& obj_mesh = obj_shape.mesh;
 
-    std::vector<tinyobj::index_t> face_indices;
-    for (size_t face = 0, idx = 0; idx < obj_mesh.indices.size();) {
-      int nfacevert = obj_mesh.num_face_vertices[face];
-      if (nfacevert < 3 || nfacevert > 4) {
-        mju_warning(
-            "obj_decoder: only tri or quad meshes are supported (file '%s')",
-            resource->name);
-        mj_deleteSpec(spec);
-        return nullptr;
+      size_t num_face_indices = 0;
+      for (size_t face = 0; face < obj_mesh.num_face_vertices.size(); ++face) {
+        int nfacevert = obj_mesh.num_face_vertices[face];
+        if (nfacevert == 3) {
+          num_face_indices += 3;
+        } else if (nfacevert == 4) {
+          num_face_indices += 6;
+        }
       }
 
-      face_indices.push_back(obj_mesh.indices[idx]);
-      face_indices.push_back(obj_mesh.indices[idx + 1]);
-      face_indices.push_back(obj_mesh.indices[idx + 2]);
-
-      if (nfacevert == 4) {
-        face_indices.push_back(obj_mesh.indices[idx]);
-        face_indices.push_back(obj_mesh.indices[idx + 2]);
-        face_indices.push_back(obj_mesh.indices[idx + 3]);
-      }
-      idx += nfacevert;
-      ++face;
-    }
-
-    for (const auto& mesh_index : face_indices) {
-      userface.push_back(mesh_index.vertex_index);
-
+      std::vector<tinyobj::index_t> face_indices;
+      face_indices.reserve(num_face_indices);
+      userface.reserve(num_face_indices);
       if (!usernormal.empty()) {
-        userfacenormal.push_back(mesh_index.normal_index);
+        userfacenormal.reserve(num_face_indices);
+      }
+      if (!usertexcoord.empty()) {
+        userfacetexcoord.reserve(num_face_indices);
       }
 
-      if (!usertexcoord.empty()) {
-        userfacetexcoord.push_back(mesh_index.texcoord_index);
+      for (size_t face = 0, idx = 0; idx < obj_mesh.indices.size();) {
+        int nfacevert = obj_mesh.num_face_vertices[face];
+        if (nfacevert < 3 || nfacevert > 4) {
+          mju_warning(
+              "obj_decoder: only tri or quad meshes are supported (file '%s')",
+              resource->name);
+          mj_deleteSpec(spec);
+          return nullptr;
+        }
+
+        face_indices.push_back(obj_mesh.indices[idx]);
+        face_indices.push_back(obj_mesh.indices[idx + 1]);
+        face_indices.push_back(obj_mesh.indices[idx + 2]);
+
+        if (nfacevert == 4) {
+          face_indices.push_back(obj_mesh.indices[idx]);
+          face_indices.push_back(obj_mesh.indices[idx + 2]);
+          face_indices.push_back(obj_mesh.indices[idx + 3]);
+        }
+        idx += nfacevert;
+        ++face;
+      }
+
+      for (const auto& mesh_index : face_indices) {
+        userface.push_back(mesh_index.vertex_index);
+
+        if (!usernormal.empty()) {
+          userfacenormal.push_back(mesh_index.normal_index);
+        }
+
+        if (!usertexcoord.empty()) {
+          userfacetexcoord.push_back(mesh_index.texcoord_index);
+        }
+      }
+    } else if (!obj_shape.lines.indices.empty()) {
+      // encode line segments as degenerate triangles (i1, i2, i2) in userface,
+      // since mjsMesh has no native edge field; decoded back by flexcomp
+      const auto& obj_lines = obj_shape.lines;
+      userface.reserve(3 * (obj_lines.indices.size() - obj_lines.num_line_vertices.size()));
+      size_t idx = 0;
+      for (size_t l = 0; l < obj_lines.num_line_vertices.size(); l++) {
+        int nlinevert = obj_lines.num_line_vertices[l];
+        for (int v = 0; v < nlinevert - 1; v++) {
+          int i1 = obj_lines.indices[idx + v].vertex_index;
+          int i2 = obj_lines.indices[idx + v + 1].vertex_index;
+          userface.push_back(i1);
+          userface.push_back(i2);
+          userface.push_back(i2);
+        }
+        idx += nlinevert;
       }
     }
   }
@@ -101,8 +140,10 @@ mjSpec* Decode(mjResource* resource, const mjVFS* vfs) {
   mjs_setFloat(mesh->usernormal, usernormal.data(), usernormal.size());
   mjs_setFloat(mesh->usertexcoord, usertexcoord.data(), usertexcoord.size());
   mjs_setInt(mesh->userface, userface.data(), userface.size());
-  mjs_setInt(mesh->userfacenormal, userfacenormal.data(), userfacenormal.size());
-  mjs_setInt(mesh->userfacetexcoord, userfacetexcoord.data(), userfacetexcoord.size());
+  mjs_setInt(mesh->userfacenormal, userfacenormal.data(),
+             userfacenormal.size());
+  mjs_setInt(mesh->userfacetexcoord, userfacetexcoord.data(),
+             userfacetexcoord.size());
 
   return spec;
 }

@@ -470,6 +470,62 @@ or content type:
    </asset>
 
 
+.. _exEncoder:
+
+Encoders
+~~~~~~~~
+
+Encoder plugins extend asset serialization and model saving capabilities beyond native formats (XML, MJB, TXT).
+Encoders are :ref:`registered <mjPLUGIN_LIB_INIT>` similarly to other MuJoCo plugins.
+
+MuJoCo ships with a built-in Zip encoder for ``.mjz`` archives (``src/xml/mjz/mjz_encoder.cc``).
+
+.. _exEncoderInterface:
+
+Encoder interface
+^^^^^^^^^^^^^^^^^
+
+An encoder is described by the :ref:`mjpEncoder` struct, which has the following fields:
+
+``content_type``
+  A MIME-like content type string identifying the output format (e.g. ``"application/zip"``). When :ref:`mj_encode` is
+  called with an explicit ``content_type`` argument, this string is used to find the appropriate encoder.
+
+``extension``
+  A file extension string (including the dot) used for format matching when no content type is specified. Multiple
+  extensions can be separated by pipes (`|`) such as ``.mjz|.zip``.
+
+``encode``
+  A callback of type :ref:`mjfEncode` that performs the actual serialization. It receives an :ref:`mjSpec`, an
+  optional compiled :ref:`mjModel`, an optional :ref:`mjVFS`, and an output :ref:`mjResource`. Returns the number of
+  bytes written on success, or -1 on failure.
+
+``close_resource``
+  An optional callback that frees any memory allocated inside ``mjResource.data`` by the ``encode`` callback.
+
+.. _exEncoderRegistration:
+
+Registration
+^^^^^^^^^^^^
+
+Encoders must be registered before they can be used via :ref:`mj_encode`. Registration is performed via
+:ref:`mjp_registerEncoder`. The :ref:`mjp_defaultEncoder` function initializes an :ref:`mjpEncoder` struct with default
+values. The :ref:`mjPLUGIN_LIB_INIT` macro defines the initialization function that registers the encoder when the
+plugin library is loaded.
+
+.. code-block:: C
+
+   mjPLUGIN_LIB_INIT(my_format_encoder) {
+     mjpEncoder encoder;
+     mjp_defaultEncoder(&encoder);
+     encoder.content_type = "application/x-myformat";
+     encoder.extension = ".myf";
+     encoder.encode = MyEncode;
+     encoder.close_resource = MyCloseResource;
+     mjp_registerEncoder(&encoder);
+   }
+
+
 .. _exProvider:
 
 Resource providers

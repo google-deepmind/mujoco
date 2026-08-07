@@ -1305,7 +1305,7 @@ describe('MuJoCo WASM Bindings', () => {
 
     const nv = model!.nv;
     const nsensordata = model!.nsensordata;
-    const nM = model!.nM;
+    const nC = model!.nC;
 
     const dfDq = new mujoco.DoubleBuffer(nv * nv);
     const dfDv = new mujoco.DoubleBuffer(nv * nv);
@@ -1313,7 +1313,7 @@ describe('MuJoCo WASM Bindings', () => {
     const dsDq = new mujoco.DoubleBuffer(nv * nsensordata);
     const dsDv = new mujoco.DoubleBuffer(nv * nsensordata);
     const dsDa = new mujoco.DoubleBuffer(nv * nsensordata);
-    const dmDq = new mujoco.DoubleBuffer(nv * nM);
+    const dmDq = new mujoco.DoubleBuffer(nv * nC);
 
     try {
       mujoco.mjd_inverseFD(
@@ -1800,6 +1800,36 @@ describe('MuJoCo WASM Bindings', () => {
       model.delete();
       data.delete();
       unlinkXMLFile(tempXmlFilename);
+    }
+  });
+
+  it('should compile a spec and emit warnings', () => {
+    const xml = `
+    <mujoco>
+      <worldbody>
+        <flexcomp name="test" type="grid" count="4 4 1" spacing=".2 .2 .2"
+                  dim="2" radius=".1"/>
+      </worldbody>
+    </mujoco>`;
+    let spec = null;
+    let model = null;
+    const warnSpy = spyOn(console, 'warn');
+    try {
+      spec = mujoco.parseXMLString(xml);
+      expect(spec).not.toBeNull();
+
+      model = mujoco.mj_compile(spec);
+      expect(model).not.toBeNull();
+      expect(warnSpy).toHaveBeenCalled();
+      const warningCall = warnSpy.calls.mostRecent();
+      expect(warningCall.args[0]).toContain("no equality constraints or passive forces");
+    } finally {
+      if (spec) {
+        spec.delete();
+      }
+      if (model) {
+        model.delete();
+      }
     }
   });
 

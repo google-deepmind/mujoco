@@ -69,6 +69,7 @@ extlinks = {
         'issue #%s',
     ),
     'pr': ('https://github.com/google-deepmind/mujoco/pull/%s', 'PR #%s'),
+    'commit': ('https://github.com/google-deepmind/mujoco/commit/%s', '%s'),
 }
 
 # MuJoCo Warp documentation

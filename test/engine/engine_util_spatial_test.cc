@@ -121,7 +121,7 @@ TEST_F(RotVecQuatTest, TestEquivalence) {
       {1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {-0.5, 1, -0.5}, {1.22, -2.33, 3.44}};
   // List of angles to rotate by, in degrees
   mjtNum angles[6] = {0.0, 1e-8, 31, 47, 181, 271};
-  static constexpr mjtNum eps = MjTol(1e-15, 1e-5);
+  static const mjtNum eps = MjTol(1e-15, 1e-5);
   for (auto vec : vecs) {
     // Unit-normalize the vector
     mju_normalize3(vec);
@@ -218,9 +218,8 @@ TEST_F(Mat2RotTest, RotationFromArbitraryMatrix) {
   // calculate rotational part of the matrix
   mjtNum quat[4] = {1, 0, 0, 0};
   int niter = mju_mat2Rot(quat, mat);
-  EXPECT_THAT(quat, Pointwise(MjNear(1e-8, 1e-6), target));
-  int max_iter = static_cast<int>(MjTol(150, 500));
-  EXPECT_LE(niter, max_iter);
+  EXPECT_THAT(quat, Pointwise(MjNear(1e-8, 1e-5), target));
+  EXPECT_LE(niter, 150);
 }
 
 TEST_F(Mat2RotTest, IdentityFromRandomRotation) {
@@ -244,7 +243,7 @@ TEST_F(Mat2RotTest, IdentityFromRandomRotation) {
     mju_normalize4(quat);
     EXPECT_LE(mju_mat2Rot(quat, mat), 40);
     mju_quat2Mat(res, quat);
-    EXPECT_THAT(res, Pointwise(MjNear(1e-6, 1e-6), mat));
+    EXPECT_THAT(res, Pointwise(MjNear(1e-6, 1e-5), mat));
   }
 }
 

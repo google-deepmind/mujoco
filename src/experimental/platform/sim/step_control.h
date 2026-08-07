@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_SIM_STEP_CONTROL_H_
 
 #include <chrono>
+#include <functional>
 #include <string>
 
 #include <mujoco/mujoco.h>
@@ -24,6 +25,7 @@ namespace mujoco::platform {
 
 using Seconds = std::chrono::duration<double>;
 using Clock = std::chrono::steady_clock;
+using StepFn = std::function<void(mjModel*, mjData*)>;
 
 // State and logic for physics synchronization and stepping.
 class StepControl {
@@ -36,9 +38,6 @@ class StepControl {
     // Simulation was not stepped because it is paused.
     kPaused,
 
-    // Simulation is viscously paused (stepping with zero gravity, high
-    // viscosity, and no spring forces).
-    kViscousPaused,
 
     // Simulation diverged with autoreset enabled.
     kAutoReset,
@@ -67,7 +66,11 @@ class StepControl {
   void GetNoiseParameters(float& noise_scale, float& noise_rate) const;
   void SetNoiseParameters(float noise_scale, float noise_rate);
 
-  enum class PauseState { kUnpaused, kNormalPaused, kViscousPaused };
+  // Callbacks that will be invoked before/after each call to mj_step.
+  void SetPreStepCallback(StepFn step_fn);
+  void SetPostStepCallback(StepFn step_fn);
+
+  enum class PauseState { kUnpaused, kNormalPaused };
 
   // Sets the pause state of the simulation.
   void SetPauseState(PauseState state);
@@ -118,6 +121,10 @@ class StepControl {
   // which has the effect of making the constraint solver eventually converge
   // while the simulation is paused.
   bool pause_update_ = false;
+
+  // Callbacks that can be invoked before/after physics is stepped.
+  StepFn pre_step_ = nullptr;
+  StepFn post_step_ = nullptr;
 };
 
 }  // namespace mujoco::platform

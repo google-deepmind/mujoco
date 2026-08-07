@@ -46,7 +46,7 @@ class SimProfiler {
   std::vector<float> dim_dof_;
   std::vector<float> dim_body_;
   std::vector<float> dim_constraint_;
-  std::vector<float> dim_sqrt_nnz_;
+  std::vector<float> dim_nnz_;
   std::vector<float> dim_contact_;
   std::vector<float> dim_iteration_;
 };

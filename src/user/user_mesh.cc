@@ -1292,10 +1292,11 @@ void mjCMesh::ApplyTransformations(double* dvert) {
       dvert[3*i + 2] *= scale[2];
     }
 
+    // normals are covectors: transform by the inverse scale
     for (int i = 0; i < nnormal(); i++) {
-      normal_[3*i + 0] *= scale[0];
-      normal_[3*i + 1] *= scale[1];
-      normal_[3*i + 2] *= scale[2];
+      normal_[3*i + 0] /= scale[0];
+      normal_[3*i + 1] /= scale[1];
+      normal_[3*i + 2] /= scale[2];
     }
   }
 
@@ -1546,7 +1547,7 @@ void mjCMesh::Process() {
     for (int i = 0; i < nface(); i++) {
       SetBoundingVolume(i, dvert.data());
     }
-    tree_.CreateBVH();
+    tree_.CreateBVH(model, this);
   }
   mesh_timer_[mjCTIMER_MESH_BVH] += Seconds(Clock::now() - t0).count();
 
@@ -1730,8 +1731,9 @@ void mjCMesh::MakeGraph(const double* dvert) {
 
   std::string qhopt = "qhull Qt";
   if (maxhullvert_ > -1) {
+    // qhull "Q9" picks the furthest of all furthest points across facets.
     // qhull "TA" actually means "number of vertices added after the initial simplex"
-    qhopt += " TA" + std::to_string(maxhullvert_ - 4);
+    qhopt += " Q9 TA" + std::to_string(maxhullvert_ - 4);
   }
 
   // graph not needed for small meshes
@@ -1945,20 +1947,24 @@ void mjCMesh::MakeGraph(const double* dvert) {
     }
 
     // replace global ids with local ids in edge data
-    for (int i=0; i < numvert+3*numface; i++) {
-      if (edge_localid[i] >= 0) {
-        // search vert_globalid for match
-        int adr;
-        for (adr=0; adr < numvert; adr++) {
-          if (vert_globalid[adr] == edge_localid[i]) {
-            edge_localid[i] = adr;
-            break;
-          }
-        }
+    else {
+      // invert vert_globalid: point id -> hull vertex index, -1 if not on hull.
+      // every vert_globalid entry was range-checked above, so the index is safe.
+      std::vector<int> hullid(nvert(), -1);
+      for (int adr=0; adr < numvert; adr++) {
+        hullid[vert_globalid[adr]] = adr;
+      }
 
-        // make sure we found a match: SHOULD NOT OCCUR
-        if (adr >= numvert) {
-          mju_error("Vertex id not found in convex hull");
+      for (int i=0; i < numvert+3*numface; i++) {
+        if (edge_localid[i] >= 0) {
+          int adr = hullid[edge_localid[i]];
+
+          // make sure we found a match: SHOULD NOT OCCUR
+          if (adr < 0) {
+            mju_error("Vertex id not found in convex hull");
+          }
+
+          edge_localid[i] = adr;
         }
       }
     }
@@ -4279,10 +4285,16 @@ void mjCFlex::ResolveReferences(const mjCModel* m) {
     mjCBody* pbody = static_cast<mjCBody*>(m->FindObject(mjOBJ_BODY, vertbody));
     if (pbody) {
       vertbodyid.push_back(pbody->id);
-      if (pbody->joints.size() != 3 && dim == 2 &&
+      // pinned vertices with bending are only valid for static (jointless) pin
+      // bodies: the runtime treats pin velocity as zero, which is only correct
+      // for static bodies.
+      if (!pbody->joints.empty() && pbody->joints.size() != 3 && dim == 2 &&
           (elastic2d == 1 || elastic2d == 3) && !interpolated) {
-        // TODO(quaglino): add support for pins
-        throw mjCError(this, "pins are not supported for bending");
+        throw mjCError(
+            this,
+            "pinned flex vertices with bending require a static (jointless) "
+            "pin body, body '%s' has joints",
+            vertbody.c_str());
       }
     } else {
       throw mjCError(this, "unknown body '%s' in flex", vertbody.c_str());
@@ -4698,11 +4710,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     if (spec.cellcount[0] == 0 || spec.cellcount[1] == 0 || spec.cellcount[2] == 0) {
       throw mjCError(this, "cellcount cannot be 0 in any dimension when interpolation order > 0");
     }
-    if (elastic2d && !(spec.cellcount[0] == 1 || spec.cellcount[1] == 1 || spec.cellcount[2] == 1)) {
-      throw mjCError(this,
-                     "shell trilinear flex requires at least one dimension "
-                     "with cell count equal to one (no interior nodes)");
-    }
+
     int expected_nodes = (spec.cellcount[0] * spec.order + 1) *
                          (spec.cellcount[1] * spec.order + 1) *
                          (spec.cellcount[2] * spec.order + 1);
@@ -4944,9 +4952,9 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // create shell fragments and element-vertex collision pairs
   CreateShellPair();
 
-  // recompute cell_empty from vertex/element geometry
+  // recompute cell_empty from vertex/element geometry (volume mode only)
   // (survives XML round-trips where flexcomp data is lost)
-  if (interpolated && cell_empty.empty()) {
+  if (interpolated && !elastic2d && cell_empty.empty()) {
     int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
     if (cx * cy * cz > 1) {
       ComputeCellEmpty(vertxpos.data(), elem_.data(), nvert, nelem, dim);
@@ -5454,7 +5462,7 @@ void mjCFlex::CreateBVH() {
 
   // create hierarchy
   tree.RemoveInactiveVolumes(nbvh);
-  tree.CreateBVH();
+  tree.CreateBVH(model, this);
 }
 
 

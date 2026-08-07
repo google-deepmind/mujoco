@@ -32,10 +32,10 @@ from mujoco.mjx.warp import collision_driver as wp_collision
 from mujoco.mjx.warp import forward as wp_forward
 from mujoco.mjx.warp import io
 from mujoco.mjx.warp import smooth as wp_smooth
+from mujoco.mjx.warp import types as mjxw_types
 import mujoco.mjx.third_party.mujoco_warp as mjwarp
 import numpy as np
 import warp as wp
-from mujoco.mjx.third_party.warp._src.jax_experimental import ffi as warp_ffi
 
 
 _MODELFILE = flags.DEFINE_string(
@@ -154,7 +154,7 @@ def benchmark(
 
   def render_fn(mx, d, rc):
     d = mjx.refit_bvh(mx, d, rc)
-    pixels, _ = mjx.render(mx, d, rc)
+    pixels, _, d = mjx.render(mx, d, rc)
     return render_util.get_rgb(rc, 0, pixels), d
 
   @jax_jit
@@ -280,7 +280,7 @@ def _main(_: Sequence[str]):
     m = mujoco.MjModel.from_xml_path(modelfile)
 
   benchmark_type = _BENCHMARK.value
-  graph_mode = getattr(warp_ffi.GraphMode, _GRAPH_MODE.value)
+  graph_mode = getattr(mjxw_types.GraphMode, _GRAPH_MODE.value)
 
   # Only allocate the model needed for the specific benchmark
   mx = None

@@ -59,6 +59,9 @@ from mujoco._functions import *
 from mujoco._specs import *
 from mujoco._structs import *
 
+import numpy as np
+MJTNUM_DTYPE = np.float32 if MJTNUM_BYTES == 4 else np.float64  # pylint: disable=undefined-variable
+
 try:
   from mujoco._render import *  # pytype: disable=import-error
 except ImportError:
@@ -229,8 +232,8 @@ def _bind_data(
 
 _specs.MjSpec.from_zip = from_zip
 _specs.MjSpec.to_zip = to_zip
-_structs.MjData.bind = _bind_data
-_structs.MjModel.bind = _bind_model
+_structs.MjData.bind = _bind_data  # pyrefly: ignore[bad-assignment]
+_structs.MjModel.bind = _bind_model  # pyrefly: ignore[bad-assignment]
 
 HEADERS_DIR = os.path.join(os.path.dirname(__file__), 'include/mujoco')
 PLUGINS_DIR = os.path.join(os.path.dirname(__file__), 'plugin')

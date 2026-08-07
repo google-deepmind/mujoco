@@ -93,7 +93,7 @@ the clause:
     mujoco.mjr_setBuffer(
         mujoco.mjtFramebuffer.mjFB_OFFSCREEN.value, self._mjr_context
     )
-    self._mjr_context.readDepthMap = mujoco.mjtDepthMap.mjDEPTH_ZEROFAR
+    self._mjr_context.readDepthMap = mujoco.mjtDepthMap.mjDEPTH_ZEROFAR  # pyrefly: ignore[bad-assignment]
 
     # Default render flags.
     self._depth_rendering = False
@@ -291,10 +291,10 @@ the clause:
       # Defaults to mjCAMERA_FREE, otherwise mjCAMERA_FIXED refers to a
       # camera explicitly defined in the model.
       if camera_id == -1:
-        camera.type = mujoco.mjtCamera.mjCAMERA_FREE
+        camera.type = mujoco.mjtCamera.mjCAMERA_FREE  # pyrefly: ignore[bad-assignment]
         mujoco.mjv_defaultFreeCamera(self._model, camera)
       else:
-        camera.type = mujoco.mjtCamera.mjCAMERA_FIXED
+        camera.type = mujoco.mjtCamera.mjCAMERA_FIXED  # pyrefly: ignore[bad-assignment]
 
     scene_option = scene_option or self._scene_option
     mujoco.mjv_updateScene(

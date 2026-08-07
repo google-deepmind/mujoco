@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <mujoco/mujoco.h>
+#include <string.h>
 
 // This library implements the entirety of mujoco's mjr API as fast-fail stubs.
 // You can link this library with your application (instead of standard renderer
@@ -21,6 +22,14 @@
 
 void mjr_defaultContext(mjrContext* con) {
   mju_error("mjr_defaultContext not implemented.");
+}
+void mjr_defaultRendererInfo(mjrRendererInfo* info) {
+  memset(info, 0, sizeof(mjrRendererInfo));
+  info->renderer = "noop";
+  info->backend = "";
+}
+void mjr_getRendererInfo(mjrRendererInfo* info) {
+  mjr_defaultRendererInfo(info);
 }
 void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale) {
   mju_error("mjr_makeContext not implemented.");

@@ -19,18 +19,17 @@ import dataclasses
 import enum
 import logging
 import typing
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 from absl import app
 from absl import flags
 from etils import epath
-import mujoco
 from mujoco.mjx.codegen import file
 import mujoco.mjx.third_party.mujoco_warp as mjwarp
 import numpy as np
 import warp as wp
-from mujoco.mjx.third_party.warp._src.jax_experimental import ffi
-
+from warp import JaxCallableGraphMode as GraphMode
+from warp._src.jax.ffi import FfiArg
 
 _MJX_WARP_TYPES_OUT_FPATH = flags.DEFINE_string(
     'mjx_warp_types_out_path',
@@ -45,20 +44,33 @@ _MJX_TYPES_PATH = flags.DEFINE_string(
 )
 
 _DATA_SHAPE_PROPERTY_FIELD = 'cacc'
-_DUMMY_XML = """
-  <mujoco>
-    <worldbody>
-      <body>
-        <joint type="free"/>
-        <geom pos="0 0 0" size="0.2" type="sphere"/>
-      </body>
-      <body >
-        <joint type="free"/>
-        <geom pos="0 0.3 0" size="0.11" type="sphere"/>
-      </body>
-    </worldbody>
-  </mujoco>
-"""
+
+_CLS_MAP = {
+    'Model': mjwarp.Model,
+    'Data': mjwarp.Data,
+    'Option': mjwarp.Option,
+    'Statistic': mjwarp.Statistic,
+}
+
+
+def _is_array_spec(typ) -> bool:
+  """Check if a type annotation is a Warp array spec."""
+  return isinstance(typ, wp.array) or type(typ).__name__ == '_ArrayAnnotation'
+
+
+def _is_batched_field(field_type) -> Optional[bool]:
+  """Returns whether a field annotation is batched.
+
+  Mirrors mujoco_warp._src.io._mark_batched: inspects spec_shape[0].
+
+  Returns True if batched, False if array but not batched, None if not array.
+  """
+  if not _is_array_spec(field_type):
+    return None
+  spec_shape = getattr(field_type, 'shape', ())
+  if not spec_shape:
+    return False
+  return spec_shape[0] in ('*', 'nworld')
 
 
 def _to_py_string(value, indent=0):
@@ -67,7 +79,8 @@ def _to_py_string(value, indent=0):
   next_indent_str = '  ' * (indent + 1)
   if isinstance(value, tuple):
     items = [_to_py_string(item, indent) for item in value]
-    return f'({', '.join(items)})'
+    joined_items = ', '.join(items)
+    return f'({joined_items})'
 
   if isinstance(value, type):
     if value.__module__ == 'builtins':
@@ -79,12 +92,14 @@ def _to_py_string(value, indent=0):
         f'\n{next_indent_str}{repr(k)}: {_to_py_string(v, indent + 1)}'
         for k, v in sorted(value.items(), key=lambda x: x[0])
     ]
-    return f'{{{','.join(items)}\n{indent_str}}}'
+    joined_items = ','.join(items)
+    return f'{{{joined_items}\n{indent_str}}}'
 
   if isinstance(value, set):
     items = sorted([_to_py_string(item, indent) for item in value])
     items = [f'\n{next_indent_str}{item}' for item in items]
-    return f'{{{",".join(items)}\n{indent_str}}}'
+    joined_items = ','.join(items)
+    return f'{{{joined_items}\n{indent_str}}}'
 
   return repr(value)
 
@@ -106,14 +121,13 @@ def _get_target_annotation_node(
   if annotation == np.ndarray:
     return _ast_parse_type('np.ndarray')
 
-  if (isinstance(annotation, wp.array) or
-      type(annotation).__name__ == '_ArrayAnnotation'):
+  if _is_array_spec(annotation):
     return _ast_parse_type('jax.Array')
 
   if annotation in (int, float, bool):
     return _ast_parse_type(annotation.__name__)
 
-  if annotation is ffi.GraphMode:
+  if annotation is GraphMode:
     return _ast_parse_type('GraphMode')
 
   if isinstance(annotation, type) and issubclass(annotation, enum.Enum):
@@ -133,10 +147,7 @@ def _get_target_annotation_node(
     type_ = typing.get_args(annotation)[0].__name__
     return _ast_parse_type(f'Tuple[{type_}, ...]')
 
-  if is_tuple and (
-      isinstance(typing.get_args(annotation)[0], wp.array)
-      or type(typing.get_args(annotation)[0]).__name__ == '_ArrayAnnotation'
-  ):
+  if is_tuple and _is_array_spec(typing.get_args(annotation)[0]):
     return _ast_parse_type('Tuple[np.ndarray, ...]')
 
   if is_tuple and dataclasses.is_dataclass(typing.get_args(annotation)[0]):
@@ -177,11 +188,13 @@ def _get_annotations_recursive(
 
 
 def _build_new_class_body_ast(
-    keys: Set[str],
+    keys: typing.Iterable[str],
     cls_name: str,
     target_annotations: Dict[str, Any],
+    defaults: Optional[Dict[str, Any]] = None,
     shape_property: Optional[str] = None,
     add_docstring: bool = True,
+    sort_keys: bool = True,
 ) -> List[ast.AST]:
   """Builds the list of AST nodes for the new class body."""
   new_body_nodes: List[ast.AST] = []
@@ -190,16 +203,38 @@ def _build_new_class_body_ast(
     docstring = f'Derived fields from {cls_name}.'
     new_body_nodes.append(ast.Expr(value=ast.Constant(value=docstring)))
 
-  # Sort keys alphabetically before creating AST nodes
-  sorted_keys = sorted(list(keys))
-  for key in sorted_keys:
+  if sort_keys:
+    non_default_keys = sorted(
+        [k for k in keys if not defaults or k not in defaults]
+    )
+    default_keys = sorted([k for k in keys if defaults and k in defaults])
+    maybe_sorted_keys = non_default_keys + default_keys
+  else:
+    maybe_sorted_keys = list(keys)
+
+  for key in maybe_sorted_keys:
     annotation_node = _get_target_annotation_node(key, target_annotations)
+
+    value_node = None
+    if defaults and key in defaults:
+      val = defaults[key]
+      value_node = val if isinstance(val, ast.AST) else ast.Constant(value=val)
+
+    if (
+        value_node
+        and isinstance(value_node, ast.Constant)
+        and value_node.value is None
+    ):
+      annotation_node = _ast_parse_type(
+          f'typing.Optional[{ast.unparse(annotation_node)}]'
+      )
 
     new_body_nodes.append(
         ast.AnnAssign(
             target=ast.Name(id=key, ctx=ast.Store()),
             annotation=annotation_node,
-            simple=1,  # No value assignment
+            value=value_node,
+            simple=1,
         )
     )
 
@@ -270,7 +305,8 @@ if typing.TYPE_CHECKING:
     pass
 else:
   try:
-    from warp._src.jax_experimental.ffi import GraphMode
+    from mujoco.mjx.third_party.warp._src.jax import ffi as warp_ffi
+    GraphMode = warp_ffi.JaxCallableGraphMode
     from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
     Callback = mjwp_types.Callback
   except ImportError:
@@ -294,16 +330,47 @@ _FLATTEN_UNFLATTEN = """
     return cls(*children)
 """
 
+_NESTED_DATACLASS_MANUAL_METHODS = {
+    'TileSet': """
+  def __eq__(self, other) -> bool:
+    if self.__class__ is not other.__class__:
+      return NotImplemented
+    return self.size == other.size and np.array_equal(
+        np.asarray(self.adr), np.asarray(other.adr)
+    )
+
+  def __hash__(self) -> int:
+    adr = np.asarray(self.adr)
+    return hash((self.size, adr.dtype.str, adr.shape, adr.tobytes()))
+""",
+}
+
 
 def write_nested_dataclass(target_fpath: epath.Path, cls: Any):
+  fields = dataclasses.fields(cls)
+  keys = [f.name for f in fields]
+  defaults = {
+      f.name: f.default
+      for f in fields
+      if f.default is not dataclasses.MISSING
+  }
+
   new_class_body = _build_new_class_body_ast(
-      set(cls.__annotations__.keys()),
+      keys,
       cls.__name__,
       dict(cls.__annotations__),
+      defaults=defaults,
       add_docstring=False,
+      sort_keys=False,
   )
   cls_str = '\n'.join(['  ' + ast.unparse(node) for node in new_class_body])
   cls_str = cls_str.replace('jax.Array', 'np.ndarray')
+  if cls.__name__ == 'TileSet':
+    cls_str = cls_str.replace(
+        'elemid: np.ndarray',
+        'elemid: np.ndarray = dataclasses.field(default_factory=lambda: np.array([], dtype=np.int32))'
+    )
+  manual_methods = _NESTED_DATACLASS_MANUAL_METHODS.get(cls.__name__, '')
   with target_fpath.open('a') as f:
     f.write(f'''
 @dataclasses.dataclass(frozen=True)
@@ -311,38 +378,30 @@ def write_nested_dataclass(target_fpath: epath.Path, cls: Any):
 class {cls.__name__}:
   """{cls.__doc__}"""
 {cls_str}
-{_FLATTEN_UNFLATTEN}
+{manual_methods}{_FLATTEN_UNFLATTEN}
 ''')
 
 
 def _get_meta_fields(cls_name: str) -> Set[str]:
-  """Returns the set of fields that should be meta-fields in the pytree."""
-  m = mujoco.MjModel.from_xml_string(_DUMMY_XML)
-  d = mujoco.MjData(m)
-  mujoco.mj_step(m, d)
+  """Returns the set of fields that should be meta-fields in the pytree.
 
+  Meta-fields are array fields that are not batched.
+  """
+  cls = _CLS_MAP[cls_name]
+  annotations = _get_annotations_recursive(dict(cls.__annotations__))
+
+  # Non-batched array fields (same check as mujoco_warp._src.io._mark_batched).
+  meta_fields = {
+      name
+      for name, type_ in annotations.items()
+      if _is_batched_field(type_) is False
+  }
+
+  # Data meta-fields exclude non-vmap fields (scalars and non-nworld arrays).
   if cls_name == 'Data':
-    with wp.ScopedDevice('cpu'):
-      dw = mjwarp.put_data(m, d, nworld=113, naconmax=1113, njmax=1113)
-    cond_fn = lambda x: x.shape[0] not in {113, 1113}
-    dw_meta = _get_fields_with_cond(dw, cond_fn)
-    data_non_vmap = _get_non_vmap_data_fields()
-    return {k for k in dw_meta if k not in data_non_vmap}
+    return meta_fields - _get_non_vmap_data_fields()
 
-  with wp.ScopedDevice('cpu'):
-    mw = mjwarp.put_model(m)
-  cond_fn = lambda x: not hasattr(x, '_is_batched')
-  mw_meta = _get_fields_with_cond(mw, cond_fn)
-  if cls_name == 'Model':
-    return mw_meta
-
-  if cls_name == 'Option':
-    return {k[len('opt__') :] for k in mw_meta if k.startswith('opt')}
-
-  if cls_name == 'Statistic':
-    return {k[len('stat__') :] for k in mw_meta if k.startswith('stat')}
-
-  raise NotImplementedError(f'Unhandled class name {cls_name}.')
+  return meta_fields
 
 
 def write_core_cls(
@@ -352,14 +411,10 @@ def write_core_cls(
     flatten_fields: bool = False,
     set_diff: bool = True,
     extra_annotations: dict[str, type] | None = None,
+    defaults: Optional[Dict[str, Any]] = None,
 ):
   """Writes a core API class (e.g. Model/Data/Option/Statistic)."""
-  cls = {
-      'Model': mjwarp.Model,
-      'Data': mjwarp.Data,
-      'Option': mjwarp.Option,
-      'Statistic': mjwarp.Statistic,
-  }[cls_name]
+  cls = _CLS_MAP[cls_name]
 
   annotations = dict(cls.__annotations__)  # pytype: disable=attribute-error
   if flatten_fields:
@@ -369,7 +424,7 @@ def write_core_cls(
   for k, v in annotations.items():
     if k not in meta_fields:
       continue
-    if isinstance(v, wp.array) or type(v).__name__ == '_ArrayAnnotation':
+    if _is_array_spec(v):
       annotations[k] = np.ndarray
 
   warp_keys = annotations.keys()
@@ -394,9 +449,10 @@ def write_core_cls(
     shape_property = _DATA_SHAPE_PROPERTY_FIELD
 
   new_class_body = _build_new_class_body_ast(
-      keys,
+      keys,  # pyrefly: ignore[bad-argument-type]
       cls_name,
       annotations,
+      defaults=defaults,
       shape_property=shape_property,
   )
 
@@ -408,43 +464,14 @@ def write_core_cls(
   )
 
 
-def _get_fields_with_cond(
-    d: Any,
-    cond_fn: Callable[[Any], bool],
-    s: Optional[Set[str]] = None,
-    prefix: str = '',
-    not_in: bool = False,
-    add_static: bool = False,
-) -> Set[str]:
-  """Recursively finds fields given a condition on the leading dimensions."""
-  if s is None:
-    s = set()
-  for f in dataclasses.fields(d):
-    attr = getattr(d, f.name)
-    if dataclasses.is_dataclass(f.type):
-      s = _get_fields_with_cond(attr, cond_fn, s, f.name + '__', not_in)
-      continue
-    if f.type in (int, float, bool) and add_static:
-      s.add(prefix + f.name)
-      continue
-    if not (isinstance(f.type, wp.array) or
-            type(f.type).__name__ == '_ArrayAnnotation'):
-      continue
-    if cond_fn(attr):
-      s.add(prefix + f.name)
-  return s
-
-
 def _get_non_vmap_data_fields() -> Set[str]:
-  """Returns the fields that are not be vmapped but are still jax.Array."""
-  m = mujoco.MjModel.from_xml_string(_DUMMY_XML)
-  d = mujoco.MjData(m)
-  mujoco.mj_step(m, d)
-
-  dw = mjwarp.put_data(m, d, nworld=113, naconmax=1113, njmax=1113)
-  cond_fn = lambda x: x.shape[0] not in {113}
-  non_vmap = _get_fields_with_cond(dw, cond_fn, add_static=True)
-  return non_vmap
+  """Returns Data fields that should not be vmapped."""
+  annotations = _get_annotations_recursive(dict(mjwarp.Data.__annotations__))
+  return {
+      name
+      for name, type_ in annotations.items()
+      if type_ in (int, float, bool) or _is_batched_field(type_) is False
+  }
 
 
 def write_register_vmappable(target_fpath: epath.Path):
@@ -467,8 +494,7 @@ batching.register_vmappable(DataWarp, int, int, _to_elt, _from_elt, None)
 
 def _is_ffi_compatible(wp_type: Any) -> bool:
   """Returns True if the type is an array, scalar, or variadic tuple."""
-  if (isinstance(wp_type, wp.array) or
-      type(wp_type).__name__ == '_ArrayAnnotation'):
+  if _is_array_spec(wp_type):
     return True
   if wp_type in wp._src.types.value_types:
     return True
@@ -482,21 +508,24 @@ def _to_jax_ndim(name: str, wp_type: Any) -> int:
     if typing.get_args(wp_type)[1] != ...:
       raise NotImplementedError('Only variadic tuples are supported.')
     return -1  # signals that dim should be untouched in downstream code.
-  ffi_arg = ffi.FfiArg(name, wp_type)
+  ffi_arg = FfiArg(name, wp_type)
   return ffi_arg.jax_ndim
 
 
 def write_ndim_annotations(target_fpath: epath.Path):
   """Writes a dictionary of ndim for every warp field."""
   ndim_annotations = {}
-  for cls in [mjwarp.Model, mjwarp.Data, mjwarp.Option, mjwarp.Statistic]:
-    ndim_annotations[cls.__name__] = {}
+  for cls_name, cls in _CLS_MAP.items():
+    ndim_annotations[cls_name] = {}
     annotations = _get_annotations_recursive(cls.__annotations__)
     for name, type_ in annotations.items():
       if not _is_ffi_compatible(type_):
         continue
       ndim = _to_jax_ndim(name, type_)
-      ndim_annotations[cls.__name__][name] = ndim
+      ndim_annotations[cls_name][name] = ndim
+
+  # custom token to force sequential calls in JAX
+  ndim_annotations['Data']['_jax_token'] = 1
 
   with target_fpath.open('a') as f:
     f.write('\n_NDIM = ' + _to_py_string(ndim_annotations))
@@ -504,36 +533,18 @@ def write_ndim_annotations(target_fpath: epath.Path):
 
 def write_nworld_leading_dim(target_fpath: epath.Path):
   """Writes a dictionary of which MJW fields are batched."""
-  # TODO(btaba): check that batch fields have MJX jax.Array annotations, and
-  # that non-batch fields have np.ndarray annotations. Fail early.
-
-  m = mujoco.MjModel.from_xml_string(_DUMMY_XML)
-  d = mujoco.MjData(m)
-
   batched = {}
-  for cls in [mjwarp.Model, mjwarp.Data, mjwarp.Option, mjwarp.Statistic]:
-    batched[cls.__name__] = {}
-
-    if cls.__name__ == 'Data':
-      with wp.ScopedDevice('cpu'):
-        dw = mjwarp.put_data(m, d, nworld=113, naconmax=1113, njmax=1113)
-      cond_fn = lambda x: x.shape[0] == 113
-      batched_fields = _get_fields_with_cond(dw, cond_fn)
-    else:
-      with wp.ScopedDevice('cpu'):
-        obj = mjwarp.put_model(m)
-      if cls.__name__ == 'Option':
-        obj = obj.opt
-      elif cls.__name__ == 'Statistic':
-        obj = obj.stat
-      cond_fn = lambda x: hasattr(x, '_is_batched')
-      batched_fields = _get_fields_with_cond(obj, cond_fn)
-
+  for cls_name, cls in _CLS_MAP.items():
+    batched[cls_name] = {}
     all_annotations = _get_annotations_recursive(cls.__annotations__)
     for name, type_ in all_annotations.items():
       if not _is_ffi_compatible(type_):
         continue
-      batched[cls.__name__][name] = name in batched_fields
+      # Same batch check as mujoco_warp._src.io._mark_batched.
+      batched[cls_name][name] = _is_batched_field(type_) is True
+
+  # custom token to force sequential calls in JAX
+  batched['Data']['_jax_token'] = True
 
   with target_fpath.open('a') as f:
     f.write('\n_BATCH_DIM = ' + _to_py_string(batched))
@@ -554,10 +565,22 @@ def main(argv):
   write_core_cls('Statistic', target_fpath, mjx_types_fpath, set_diff=False)
   write_core_cls(
       'Option', target_fpath, mjx_types_fpath,
-      extra_annotations={'graph_mode': ffi.GraphMode},
+      extra_annotations={'graph_mode': GraphMode},
   )
   write_core_cls('Model', target_fpath, mjx_types_fpath)
-  write_core_cls('Data', target_fpath, mjx_types_fpath, flatten_fields=True)
+  token_default = ast.parse(
+      'dataclasses.field(default_factory=lambda: jax.numpy.zeros((),'
+      ' dtype=jax.numpy.int32))',
+      mode='eval',
+  ).body
+  write_core_cls(
+      'Data',
+      target_fpath,
+      mjx_types_fpath,
+      flatten_fields=True,
+      extra_annotations={'_jax_token': wp.array(dtype=int)},
+      defaults={'_jax_token': token_default},
+  )
   write_register_vmappable(target_fpath)
   write_ndim_annotations(target_fpath)
   write_nworld_leading_dim(target_fpath)

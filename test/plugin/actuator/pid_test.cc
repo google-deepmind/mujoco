@@ -65,23 +65,21 @@ TEST_F(PidTest, PGain) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
   EXPECT_EQ(m->plugin_statenum[0], 0)
       << "Plugin should have no state variables";
   EXPECT_EQ(m->actuator_actnum[0], 0)
       << "Plugin should have no activation variables";
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   // apply the same ctrl to both actuators and see if the same qpos results
   d->ctrl[0] = 1.0;
   d->ctrl[1] = 1.0;
 
-  mj_step(m, d);
+  mj_step(m.get(), d.get());
 
   EXPECT_EQ(d->actuator_force[0], d->actuator_force[1]);
   EXPECT_EQ(d->qfrc_actuator[0], d->qfrc_actuator[1]);
@@ -120,24 +118,22 @@ TEST_F(PidTest, PGainWithFilterExact) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
   EXPECT_EQ(m->plugin_statenum[0], 0)
       << "Plugin should have no state variables";
   EXPECT_EQ(m->actuator_actnum[0], 1)
       << "Plugin should have one activation variable";
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   // apply the same ctrl to both actuators and see if the same qpos results
   d->ctrl[0] = 1.0;
   d->ctrl[1] = 1.0;
 
   for (int i = 0; i < 2; i++) {
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
 
     EXPECT_EQ(d->actuator_force[0], d->actuator_force[1]);
     EXPECT_EQ(d->qfrc_actuator[0], d->qfrc_actuator[1]);
@@ -178,27 +174,25 @@ TEST_F(PidTest, SlewMaxRate) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
   // having a slew rate means that there should be one extra state variable
   // for the plugin.
   EXPECT_EQ(m->actuator_actnum[0], 1);
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   // going from ctrl=0.0 to ctrl=1.0 immediately should be equivalent to slowly
   // incrementing the setpoint
   d->ctrl[0] = d->ctrl[1] = 0.0;
-  mj_step(m, d);
+  mj_step(m.get(), d.get());
 
   mjtNum max_slew_rate = 0.75;
   for (int i = 0; i < 2; i++) {
     d->ctrl[0] = 1.0;
     d->ctrl[1] = d->time * max_slew_rate;
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
 
     EXPECT_EQ(d->actuator_force[0], d->actuator_force[1])
         << "actuator_force mismatch at step " << i;
@@ -246,9 +240,8 @@ TEST_F(PidTest, IntegratedVelocitySlewMaxRate) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
   // having a slew rate means that there should be one extra state variable
   // for the plugin.
@@ -256,22 +249,20 @@ TEST_F(PidTest, IntegratedVelocitySlewMaxRate) {
   // The integrated-velocity controller should have one activation variable too.
   ASSERT_EQ(m->actuator_actnum[1], 1);
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   // going from ctrl=0.0 to ctrl=1.0 immediately should be equivalent to using
   // an integrated-velocity controller, with actearly = true
   d->ctrl[0] = d->ctrl[1] = 0.0;
-  mj_step(m, d);
+  mj_step(m.get(), d.get());
 
   mjtNum max_slew_rate = 0.75;
   for (int i = 0; i < 2; i++) {
     d->ctrl[0] = 1.0;
     d->ctrl[1] = max_slew_rate;
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
 
-    EXPECT_EQ(d->act[0], d->act[1])
-        << "act mismatch at step " << i;
+    EXPECT_EQ(d->act[0], d->act[1]) << "act mismatch at step " << i;
     EXPECT_EQ(d->actuator_force[0], d->actuator_force[1])
         << "actuator_force mismatch at step " << i;
     EXPECT_EQ(d->qfrc_actuator[0], d->qfrc_actuator[1])
@@ -308,16 +299,14 @@ TEST_F(PidTest, SlewMaxRateUsesFirstCtrl) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   // When starting with ctrl = 1.0, there shouldn't be a slew rate restriction
   d->ctrl[0] = 1.0;
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
   EXPECT_EQ(d->actuator_force[0], 4.0);
 }
 
@@ -374,17 +363,15 @@ TEST_F(PidTest, ITerm) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
   // only the actuators with an I term should have state.
   EXPECT_EQ(m->actuator_actnum[0], 0);
   EXPECT_EQ(m->actuator_actnum[1], 1);
   EXPECT_EQ(m->actuator_actnum[2], 1);
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   // when applying a constant 1.0 control for a while:
   // - the PD controller should settle to 1.0 - m*g / kp
@@ -392,7 +379,7 @@ TEST_F(PidTest, ITerm) {
   // - the clamped PID controller should reach 1.0 - (m*g - imax) / kp
   d->ctrl[0] = d->ctrl[1] = d->ctrl[2] = 1.0;
   for (int i = 0; i < 10000; i++) {
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
   }
 
   EXPECT_THAT(d->qpos[0], MjNear(1.0 - 10 / 40.0, 1e-5, 1e-5));
@@ -423,28 +410,26 @@ TEST_F(PidTest, FiniteDifferencing) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
   // actuators with an I term and max slew rate should have 2 activation
   // variables.
   ASSERT_EQ(m->actuator_actnum[0], 2);
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   d->ctrl[0] = 1.0;
-  mj_step(m, d);
+  mj_step(m.get(), d.get());
   EXPECT_NE(d->act[0], 0);
   mjtNum state_before_finite_differencing = d->act[0];
 
-  std::vector<mjtNum> A((2*m->nv+m->na) * (2*m->nv+m->na), 0);
-  std::vector<mjtNum> B((2*m->nv+m->na) * m->nu, 0);
-  std::vector<mjtNum> C((m->nsensordata) * (2*m->nv+m->na), 0);
+  std::vector<mjtNum> A((2 * m->nv + m->na) * (2 * m->nv + m->na), 0);
+  std::vector<mjtNum> B((2 * m->nv + m->na) * m->nu, 0);
+  std::vector<mjtNum> C((m->nsensordata) * (2 * m->nv + m->na), 0);
   std::vector<mjtNum> D((m->nsensordata) * m->nu, 0);
-  mjd_transitionFD(m, d, /*eps=*/1e-3, /*flg_centered=*/true, A.data(),
-                   B.data(), C.data(), D.data());
+  mjd_transitionFD(m.get(), d.get(), /*eps=*/1e-3, /*flg_centered=*/true,
+                   A.data(), B.data(), C.data(), D.data());
 
   EXPECT_EQ(d->act[0], state_before_finite_differencing)
       << "mjd_transitionFD should not change actuator plugin state.";
@@ -481,25 +466,23 @@ TEST_F(PidTest, CtrlClamp) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   // when applying a constant 1.0 control for a while, control should be clamped
   // to 0.75, and the body should reach that point.
   d->ctrl[0] = 1.0;
   for (int i = 0; i < 10000; i++) {
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
   }
   EXPECT_THAT(d->qpos[0], MjNear(0.75, 1e-5, 1e-5));
 
   // when applying 0, it should be clamped to 0.25
   d->ctrl[0] = 0.0;
   for (int i = 0; i < 10000; i++) {
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
   }
   EXPECT_THAT(d->qpos[0], MjNear(0.25, 1e-5, 1e-5));
 }
@@ -544,23 +527,21 @@ TEST_F(PidTest, CopyData) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
-  mjData* d1 = mj_makeData(m);
-  absl::Cleanup d1_deleter = [d1] { mj_deleteData(d1); };
+  MjDataPtr d1 = MakeData(m);
 
   d1->ctrl[0] = d1->ctrl[1] = -1.0;
 
   for (int i = 0; i < 3; i++) {
-    mj_step(m, d1);
+    mj_step(m.get(), d1.get());
   }
-  mjData* d2 = mj_copyData(nullptr, m, d1);
+  mjData* d2 = mj_copyData(nullptr, m.get(), d1.get());
   absl::Cleanup d2_deleter = [d2] { mj_deleteData(d2); };
 
-  mj_step(m, d1);
-  mj_step(m, d2);
+  mj_step(m.get(), d1.get());
+  mj_step(m.get(), d2);
 
   EXPECT_EQ(d1->qpos[0], d2->qpos[0]);
   EXPECT_EQ(d1->qpos[1], d2->qpos[1]);
@@ -599,17 +580,15 @@ TEST_F(PidTest, MultipleActuatorsSamePlugin) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
   // having a slew rate means that there should be one extra state variable
   // for the plugin.
   EXPECT_EQ(m->actuator_actnum[0], 1);
   EXPECT_EQ(m->actuator_actnum[1], 1);
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   // Set different ctrls for the two actuators, and check that they're
   // independent.
@@ -617,7 +596,7 @@ TEST_F(PidTest, MultipleActuatorsSamePlugin) {
   d->ctrl[1] = -1.0;
 
   for (int i = 0; i < 2; i++) {
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
 
     EXPECT_EQ(d->actuator_force[0], -d->actuator_force[1])
         << "actuator_force mismatch at step " << i;
@@ -649,8 +628,8 @@ TEST_F(PidTest, InvalidClamp) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  EXPECT_THAT(m, IsNull());
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  EXPECT_THAT(m.get(), IsNull());
 
   EXPECT_THAT(std::string_view(error), HasSubstr("plugin"));
   EXPECT_THAT(std::string_view(error), HasSubstr("imax"));
@@ -680,8 +659,8 @@ TEST_F(PidTest, InvalidSlew) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, IsNull());
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), IsNull());
 
   EXPECT_THAT(std::string_view(error), HasSubstr("plugin"));
   EXPECT_THAT(std::string_view(error), HasSubstr("slewmax"));
@@ -717,24 +696,25 @@ TEST_F(PidTest, WrongActdim) {
   {
     std::string no_actdim =
         absl::StrReplaceAll(kBaseXml, {{"PLACEHOLDER", ""}});
-    mjModel* m = LoadModelFromString(no_actdim, error, sizeof(error));
-    EXPECT_THAT(m, IsNull());
+    MjModelPtr m = LoadModelFromString(no_actdim, error, sizeof(error));
+    EXPECT_THAT(m.get(), IsNull());
     EXPECT_THAT(std::string_view(error), HasSubstr("actdim=\"1\""));
   }
 
   {
     std::string big_actdim =
         absl::StrReplaceAll(kBaseXml, {{"PLACEHOLDER", "actdim=\"2\""}});
-    mjModel* m = LoadModelFromString(big_actdim, error, sizeof(error));
-    EXPECT_THAT(m, IsNull());
+    MjModelPtr m = LoadModelFromString(big_actdim, error, sizeof(error));
+    EXPECT_THAT(m.get(), IsNull());
     EXPECT_THAT(std::string_view(error), HasSubstr("actdim=\"1\""));
   }
 
   {
     std::string dyntype_integrator = absl::StrReplaceAll(
         kBaseXml, {{"PLACEHOLDER", "dyntype=\"integrator\" actdim=\"1\""}});
-    mjModel* m = LoadModelFromString(dyntype_integrator, error, sizeof(error));
-    EXPECT_THAT(m, IsNull());
+    MjModelPtr m =
+        LoadModelFromString(dyntype_integrator, error, sizeof(error));
+    EXPECT_THAT(m.get(), IsNull());
     EXPECT_THAT(std::string_view(error), HasSubstr("actdim=\"2\""));
   }
 }
@@ -769,9 +749,8 @@ TEST_F(PidTest, Keyframe) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
   // having a slew rate means that there should be one extra state variable
   // for the plugin.
@@ -780,10 +759,9 @@ TEST_F(PidTest, Keyframe) {
   ASSERT_EQ(m->nkey, 1);
   EXPECT_EQ(m->key_act[0], 1.0);
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
-  mj_resetDataKeyframe(m, d, 0);
+  mj_resetDataKeyframe(m.get(), d.get(), 0);
   EXPECT_EQ(d->act[0], 1.0);
 }
 }  // namespace

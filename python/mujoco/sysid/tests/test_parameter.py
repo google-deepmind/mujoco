@@ -146,3 +146,38 @@ def test_frozen_param_excluded():
   np.testing.assert_array_equal(params["free"].value, [1.5])
   # Frozen param unchanged.
   np.testing.assert_array_equal(params["frozen"].value, [5.0])
+
+
+def test_move_off_bound():
+  """At-bound (or essentially at-bound) values shift inward; interior is untouched."""
+  # At lower bound, at upper bound, essentially-at-lower, interior, vector mixed,
+  # custom fraction, and degenerate (zero-range) bounds.
+  cases = [
+      (0.0, 0.0, 20.0, 0.05, 1.0),    # at lower -> 0.05 * 20
+      (1e-8, 0.0, 20.0, 0.05, 1.0),   # essentially at lower
+      (20.0, 0.0, 20.0, 0.05, 19.0),  # at upper -> 20 - 0.05 * 20
+      (5.0, 0.0, 20.0, 0.05, 5.0),    # interior unchanged
+      (0.0, 0.0, 100.0, 0.1, 10.0),   # custom fraction
+      (3.0, 3.0, 3.0, 0.05, 3.0),     # zero-range bound, pinned
+  ]
+  for nominal, lo, hi, fraction, expected in cases:
+    p = parameter.Parameter("d", nominal, lo, hi)
+    p.move_off_bound(fraction=fraction)
+    np.testing.assert_allclose(p.value, [expected])
+
+  # Vector parameter: only at-bound components are shifted.
+  p = parameter.Parameter(
+      "v", [0.0, 5.0, 10.0], [0.0, 0.0, 0.0], [10.0, 10.0, 10.0]
+  )
+  p.move_off_bound()
+  np.testing.assert_allclose(p.value, [0.5, 5.0, 9.5])
+
+
+def test_move_off_bounds_dict_skips_frozen_and_returns_self():
+  """ParameterDict shifts free params, leaves frozen alone, returns self."""
+  pdict = parameter.ParameterDict()
+  pdict.add(parameter.Parameter("free", 0.0, 0.0, 1.0))
+  pdict.add(parameter.Parameter("frozen", 0.0, 0.0, 1.0, frozen=True))
+  assert pdict.move_off_bounds() is pdict
+  np.testing.assert_allclose(pdict["free"].value, [0.05])
+  np.testing.assert_allclose(pdict["frozen"].value, [0.0])

@@ -34,8 +34,8 @@ struct FakeEncoderOutput {
   char resource_name[512];
 };
 
-int FakeEncode(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
-               mjResource* resource) {
+mjtSize FakeEncode(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
+                   mjResource* resource) {
   auto* output = new FakeEncoderOutput;
   output->nbody = m->nbody;
   output->ngeom = m->ngeom;
@@ -43,12 +43,12 @@ int FakeEncode(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
   std::snprintf(output->resource_name, sizeof(output->resource_name), "%s",
                 resource->name);
   resource->data = output;
-  return sizeof(FakeEncoderOutput);
+  return static_cast<mjtSize>(sizeof(FakeEncoderOutput));
 }
 
 void CloseResource(mjResource* resource) {
   delete static_cast<FakeEncoderOutput*>(resource->data);
-  delete resource;
+  resource->data = nullptr;
 }
 
 mjpEncoder FakeEncoder() {
@@ -125,7 +125,31 @@ TEST_F(EncoderPluginTest, EncodeModel) {
   EXPECT_EQ(output->njnt, 0);
   EXPECT_STREQ(output->resource_name, "output.fakeformat");
 
-  delete output;
+  found->close_resource(&resource);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(EncoderPluginTest, EncodeWithResourceArgs) {
+  mjSpec* spec = mj_makeSpec();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, testing::NotNull());
+
+  const mjpEncoder* found = mjp_findEncoder("output.fakeformat", nullptr);
+  ASSERT_THAT(found, testing::NotNull());
+
+  mjResource resource = {};
+  resource.name = const_cast<char*>("output.fakeformat");
+  resource.args = "format=binary&compression=9";
+
+  int result = found->encode(spec, model, nullptr, &resource);
+  EXPECT_GT(result, 0);
+
+  auto* output = static_cast<FakeEncoderOutput*>(resource.data);
+  ASSERT_THAT(output, testing::NotNull());
+  EXPECT_STREQ(resource.args, "format=binary&compression=9");
+
+  found->close_resource(&resource);
   mj_deleteModel(model);
   mj_deleteSpec(spec);
 }

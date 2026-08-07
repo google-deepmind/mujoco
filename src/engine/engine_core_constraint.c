@@ -137,7 +137,7 @@ static int arenaAllocEfc(const mjModel* m, mjData* d) {
   d->parena = d->ncon * sizeof(mjContact);
 
   // poison remaining memory
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   ASAN_POISON_MEMORY_REGION(
     (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
 #endif
@@ -277,9 +277,17 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
     mju_addToScl3(coord, m->flex_vert0 + 3*v[i], mju_abs(vweight[i]));
   }
 
-  int order = m->flex_interp[f];
-  order = order < 0 ? -order : order;
+  int interp = m->flex_interp[f];
+  int order = interp < 0 ? -interp : interp;
   int npc = (order+1)*(order+1)*(order+1);  // number of nodes per cell
+
+  // grid dimensions for shell mode
+  int nx = 0, ny = 0, nz = 0;
+  if (interp < 0) {
+    nx = m->flex_cellnum[3*f+0] * order + 1;
+    ny = m->flex_cellnum[3*f+1] * order + 1;
+    nz = m->flex_cellnum[3*f+2] * order + 1;
+  }
 
   // cell lookup: get local coords and node indices
   mjtNum local[3];
@@ -290,14 +298,89 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
   int nstart = m->flex_nodeadr[f];
   int nb = 0;
 
-  for (int j = 0; j < npc; j++) {
-    mjtNum w = mju_evalBasis(local, j, order);
-    if (w < 1e-5) {
-      continue;
-    }
-    if (bweight) bweight[nb] = sign * w;
-    body[nb++] = m->flex_nodebodyid[nstart + nodeindices[j]];
+  if (!m->flex_nodebodyid) {
+    return 0;
   }
+
+  if (npc > 27) {
+    for (int j = 0; j < npc; j++) {
+      mjtNum w = mju_evalBasis(local, j, order);
+      if (w < 1e-5) {
+        continue;
+      }
+
+      int idx = nodeindices[j];
+
+      // shell mode: map interior nodes to boundary
+      if (interp < 0) {
+        int k_idx = idx % nz;
+        int rest = idx / nz;
+        int j_idx = rest % ny;
+        int i_idx = rest / ny;
+
+        if (i_idx > 0 && i_idx < nx-1 && j_idx > 0 && j_idx < ny-1 && k_idx > 0 && k_idx < nz-1) {
+          mju_shellTFIWeights(nx, ny, nz, i_idx, j_idx, k_idx, sign * w, &nb, body, bweight, m->flex_nodebodyid, nstart);
+          continue;
+        }
+      }
+
+      // add node, check for duplicates (especially needed when combining with TFI)
+      int b = m->flex_nodebodyid[nstart + idx];
+      int found = 0;
+      for (int k = 0; k < nb; k++) {
+        if (body[k] == b) {
+          if (bweight) bweight[k] += sign * w;
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        if (bweight) bweight[nb] = sign * w;
+        body[nb++] = b;
+      }
+    }
+  } else {
+    mjtNum basis[27];
+    mju_evalBasisArray(basis, local, order);
+
+    for (int j = 0; j < npc; j++) {
+      mjtNum w = basis[j];
+      if (w < 1e-5) {
+        continue;
+      }
+
+      int idx = nodeindices[j];
+
+      // shell mode: map interior nodes to boundary
+      if (interp < 0) {
+        int k_idx = idx % nz;
+        int rest = idx / nz;
+        int j_idx = rest % ny;
+        int i_idx = rest / ny;
+
+        if (i_idx > 0 && i_idx < nx-1 && j_idx > 0 && j_idx < ny-1 && k_idx > 0 && k_idx < nz-1) {
+          mju_shellTFIWeights(nx, ny, nz, i_idx, j_idx, k_idx, sign * w, &nb, body, bweight, m->flex_nodebodyid, nstart);
+          continue;
+        }
+      }
+
+      // add node, check for duplicates (especially needed when combining with TFI)
+      int b = m->flex_nodebodyid[nstart + idx];
+      int found = 0;
+      for (int k = 0; k < nb; k++) {
+        if (body[k] == b) {
+          if (bweight) bweight[k] += sign * w;
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        if (bweight) bweight[nb] = sign * w;
+        body[nb++] = b;
+      }
+    }
+  }
+
 
   return nb;
 }
@@ -307,7 +390,7 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
 int mj_addContact(const mjModel* m, mjData* d, const mjContact* con) {
   // move arena pointer back to the end of the existing contact array and invalidate efc_ arrays
   d->parena = d->ncon * sizeof(mjContact);
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   ASAN_POISON_MEMORY_REGION(
     (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
 #endif
@@ -1450,8 +1533,8 @@ static int mj_instantiateLimit(const mjModel* m, mjData* d, int count_only, int*
 
 // compute Jacobian for contact, return number of DOFs affected
 int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int dim,
-                       mjtNum* jac, mjtNum* jacdif, mjtNum* jacdifp,
-                       mjtNum* jacdifr, mjtNum* jac1p, mjtNum* jac2p,
+                       mjtNum* jacdifp, mjtNum* jacdifr,
+                       mjtNum* jac1p, mjtNum* jac2p,
                        mjtNum* jac1r, mjtNum* jac2r, int* chain) {
   // special case: single body on each side
   if ((con->geom[0] >= 0 || (con->vert[0] >= 0 && m->flex_interp[con->flex[0]] == 0)) &&
@@ -1525,7 +1608,7 @@ int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int di
     }
 
     // combine weighted Jacobians
-    return mj_jacSum(m, d, chain, nb, bid, bweight, con->pos, jacdif, dim > 3);
+    return mj_jacSum(m, d, chain, nb, bid, bweight, con->pos, jacdifp, jacdifr, dim > 3);
   }
 }
 
@@ -1535,7 +1618,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
   int ispyramid = mj_isPyramidal(m), issparse = mj_isSparse(m), ncon = d->ncon;
   int dim, NV, nv = m->nv, *chain = NULL;
   mjContact* con;
-  mjtNum cpos[6], cmargin[6], *jac, *jacdif, *jacdifp, *jacdifr, *jac1p, *jac2p, *jac1r, *jac2r;
+  mjtNum cpos[6], cmargin[6], *jac, *jacdifp, *jacdifr, *jac1p, *jac2p, *jac1r, *jac2r;
 
   if (mjDISABLED(mjDSBL_CONTACT) || ncon == 0 || nv == 0) {
     return;
@@ -1545,9 +1628,8 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
 
   // allocate Jacobian
   jac = mjSTACKALLOC(d, 6*nv, mjtNum);
-  jacdif = mjSTACKALLOC(d, 6*nv, mjtNum);
-  jacdifp = jacdif;
-  jacdifr = jacdif + 3*nv;
+  jacdifp = mjSTACKALLOC(d, 3*nv, mjtNum);
+  jacdifr = mjSTACKALLOC(d, 3*nv, mjtNum);
   jac1p = mjSTACKALLOC(d, 3*nv, mjtNum);
   jac2p = mjSTACKALLOC(d, 3*nv, mjtNum);
   jac1r = mjSTACKALLOC(d, 3*nv, mjtNum);
@@ -1566,7 +1648,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
     con = d->contact + i;
     dim = con->dim;
     con->efc_address = d->nefc;
-    NV = mj_contactJacobian(m, d, con, dim, jac, jacdif, jacdifp, jacdifr,
+    NV = mj_contactJacobian(m, d, con, dim, jacdifp, jacdifr,
                             jac1p, jac2p, jac1r, jac2r, chain);
 
     // skip contact if no DOFs affected
@@ -1637,7 +1719,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
 void mj_diagApprox(const mjModel* m, mjData* d) {
   int id, dim, b1, b2, f, weldcnt = 0;
   int nefc = d->nefc;
-  mjtNum tran, rot, fri, *dA = d->efc_diagApprox;
+  mjtNum tran, rot, fri, *dA = d->efc_diagA;
   mjContact* con = NULL;
 
   // loop over all constraints, compute approximate inverse inertia
@@ -2065,7 +2147,7 @@ static void getimpedance(const mjtNum* solimp, mjtNum pos, mjtNum margin,
 }
 
 
-// compute efc_R, efc_D, efc_KBIP, adjust efc_diagApprox
+// compute efc_R, efc_D, efc_KBIP, adjust efc_diagA
 void mj_makeImpedance(const mjModel* m, mjData* d) {
   int dim, nefc = d->nefc;
   mjtNum *R = d->efc_R, *KBIP = d->efc_KBIP;
@@ -2085,7 +2167,7 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
     // set R and KBIP for all constraint dimensions
     for (int j=0; j < dim; j++) {
       // R = (1-imp)/imp * diagApprox
-      R[i+j] = mju_max(mjMINVAL, (1-imp)*d->efc_diagApprox[i+j]/imp);
+      R[i+j] = mju_max(mjMINVAL, (1-imp)*d->efc_diagA[i+j]/imp);
 
       // constraint type
       int tp = d->efc_type[i+j];
@@ -2176,9 +2258,9 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
     d->efc_D[i] = 1 / R[i];
   }
 
-  // adjust diagApprox so that R = (1-imp)/imp * diagApprox
+  // adjust diagA so that R = (1-imp)/imp * diagA
   for (int i=0; i < nefc; i++) {
-    d->efc_diagApprox[i] = R[i] * KBIP[4*i+2] / (1-KBIP[4*i+2]);
+    d->efc_diagA[i] = R[i] * KBIP[4*i+2] / (1-KBIP[4*i+2]);
   }
 }
 
@@ -2467,11 +2549,22 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
   for (int i=0; i < ncon; i++) {
     mjContact* con = d->contact + i;
 
-    // skip if passive
-    if ((con->flex[0] > -1 && m->flex_passive[con->flex[0]]) ||
-        (con->flex[1] > -1 && m->flex_passive[con->flex[1]])) {
-      con->efc_address = -1;
-      con->exclude = 4;
+    // Passive path: flex-flex (including self-collision) and flex-vs-static-geometry, where every
+    // dof is a metric-carried flex vertex so the Hessian is assembled in full. Flex-vs-moving-body
+    // stays on the constraint solver. Passive if either flex asks for it.
+    {
+      int f0 = con->flex[0], f1 = con->flex[1];
+      int wants = (f0 > -1 && m->flex_passive[f0]) || (f1 > -1 && m->flex_passive[f1]);
+      int ok = (f0 > -1 && f1 > -1);   // flex-flex, or a flex with itself
+      for (int s = 0; s < 2 && !ok; s++) {
+        if (con->flex[s] < 0 && con->geom[s] > -1) {
+          ok = (m->body_weldid[m->geom_bodyid[con->geom[s]]] == 0);   // welded to the world
+        }
+      }
+      if (wants && ok) {
+        con->efc_address = -1;
+        con->exclude = 4;
+      }
     }
 
     // skip if excluded
@@ -2816,12 +2909,12 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
   // compute diagApprox
   mj_diagApprox(m, d);
 
-  // compute KBIP, D, R, adjust diagApprox
+  // compute KBIP, D, R, adjust diagA
   mj_makeImpedance(m, d);
 }
 
 
-// compute Y = J*M^{-1/2}; if flg_diagexact, overwrite efc_diagApprox with ||Y_i||^2
+// compute Y = J*M^{-1/2}; if flg_diagexact, overwrite efc_diagA with ||Y_i||^2
 static void mj_makeY(const mjModel* m, mjData* d, int flg_diagexact) {
   int nefc = d->nefc, nv = m->nv;
 
@@ -2874,12 +2967,12 @@ static void mj_makeY(const mjModel* m, mjData* d, int flg_diagexact) {
                      d->efc_Y_colind, nefc,
                      d->qLD, m->M_rownnz, m->M_rowadr, m->M_colind, sqrtInvD);
 
-    // overwrite diagApprox with exact diagonal: diagApprox[i] = ||Y_i||^2
+    // overwrite diagA with exact diagonal: diagA[i] = ||Y_i||^2
     if (flg_diagexact) {
       for (int i=0; i < nefc; i++) {
         int adr = d->efc_Y_rowadr[i];
         int nnz = d->efc_Y_rownnz[i];
-        d->efc_diagApprox[i] = mju_dot(d->efc_Y+adr, d->efc_Y+adr, nnz);
+        d->efc_diagA[i] = mju_dot(d->efc_Y+adr, d->efc_Y+adr, nnz);
       }
     }
   }
@@ -2900,10 +2993,10 @@ static void mj_makeY(const mjModel* m, mjData* d, int flg_diagexact) {
     // Y = backsubM2(J')'
     mj_solveM2(m, d, d->efc_Y, d->efc_J, sqrtInvD, nefc);
 
-    // overwrite diagApprox with exact diagonal: diagApprox[i] = ||Y_i||^2
+    // overwrite diagA with exact diagonal: diagA[i] = ||Y_i||^2
     if (flg_diagexact) {
       for (int i=0; i < nefc; i++) {
-        d->efc_diagApprox[i] = mju_dot(d->efc_Y+i*nv, d->efc_Y+i*nv, nv);
+        d->efc_diagA[i] = mju_dot(d->efc_Y+i*nv, d->efc_Y+i*nv, nv);
       }
     }
   }
@@ -3009,7 +3102,7 @@ static void mj_makeAR(const mjModel* m, mjData* d) {
 }
 
 
-// compute efc_Y, optionally efc_diagApprox, optionally efc_AR
+// compute efc_Y, optionally efc_diagA, optionally efc_AR
 void mj_projectConstraint(const mjModel* m, mjData* d) {
   int nefc = d->nefc;
 
@@ -3044,6 +3137,110 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 }
 
 
+// add relative surface velocity of contacting geoms to contact rows of efc_vel
+static void mj_addSurfaceVel(const mjModel* m, mjData* d) {
+  // no surface velocity on any geom: quick return
+  if (!m->flg_surfacevel) {
+    return;
+  }
+
+  int ispyramid = mj_isPyramidal(m);
+  int ncon = d->ncon;
+
+  // loop over contacts, add surface velocity to efc_vel
+  for (int i=0; i < ncon; i++) {
+    // get contact, skip excluded
+    const mjContact* con = d->contact + i;
+    if (con->efc_address < 0) { continue; }
+
+    // relative surface velocity in world frame: geom2 minus geom1, linear and angular
+    mjtNum svel[3] = {0, 0, 0}, sang[3] = {0, 0, 0};
+    int active = 0;
+    for (int side=0; side < 2; side++) {
+      int g = con->geom[side];
+      if (g < 0) {
+        // TODO(team): support flex
+        continue;
+      }
+      const mjtNum* sv = m->geom_surfacevel + 6*g;
+
+      // skip geom with no surface velocity
+      if (!sv[0] && !sv[1] && !sv[2] && !sv[3] && !sv[4] && !sv[5]) {
+        continue;
+      }
+      active = 1;
+
+      // rotate to world frame, add angular contribution at contact point
+      mjtNum sgn = side ? 1 : -1;
+      mjtNum vw[3], ww[3];
+      mj_geomSurfaceVelocity(m, d, g, con->pos, vw, ww);
+      mju_addToScl3(svel, vw, sgn);
+      mju_addToScl3(sang, ww, sgn);
+    }
+    if (!active) {
+      continue;
+    }
+
+    // rotate to contact frame: (normal, tangent1, tangent2, spin, roll1, roll2)
+    mjtNum cs[6];
+    mju_mulMatVec3(cs, con->frame, svel);
+    mju_mulMatVec3(cs + 3, con->frame, sang);
+
+    // surface velocity acts in the tangent plane and torsional direction only
+    cs[0] = 0;  // no normal push
+    cs[4] = 0;  // no rolling drive
+    cs[5] = 0;  // no rolling drive
+
+    // add to contact rows
+    int adr = con->efc_address, dim = con->dim;
+    if (dim == 1 || !ispyramid) {
+      for (int j=0; j < dim; j++) {
+        d->efc_vel[adr + j] += cs[j];
+      }
+    } else {
+      for (int k=1; k < dim; k++) {
+        mjtNum mu = con->friction[k-1];
+        d->efc_vel[adr + 2*(k-1)]     += cs[0] + mu*cs[k];
+        d->efc_vel[adr + 2*(k-1) + 1] += cs[0] - mu*cs[k];
+      }
+    }
+  }
+}
+
+
+
+// bias aref of adhesive contact rows: makes the compression branch of the net
+// force-penetration curve independent of adhesion (exact translated-cone semantics)
+static void mj_adhesionRef(const mjModel* m, mjData* d) {
+  // no adhesion on any geom or pair: quick return
+  if (!m->flg_adhesion) {
+    return;
+  }
+
+  int ispyramid = mj_isPyramidal(m), ncon = d->ncon;
+
+  for (int i=0; i < ncon; i++) {
+    const mjContact* con = d->contact + i;
+    if (!con->adhesion || con->efc_address < 0) {
+      continue;
+    }
+
+    int adr = con->efc_address, dim = con->dim;
+    if (dim == 1 || !ispyramid) {
+      // normal row
+      d->efc_aref[adr] += d->efc_R[adr] * con->adhesion;
+    } else {
+      // pyramid rows: the normal decomposes equally over the 2*(dim-1) edges
+      mjtNum edge = con->adhesion / (2*(dim-1));
+      for (int j=0; j < 2*(dim-1); j++) {
+        d->efc_aref[adr+j] += d->efc_R[adr+j] * edge;
+      }
+    }
+  }
+}
+
+
+
 // compute efc_vel, efc_aref
 void mj_referenceConstraint(const mjModel* m, mjData* d) {
   int nefc = d->nefc;
@@ -3052,11 +3249,17 @@ void mj_referenceConstraint(const mjModel* m, mjData* d) {
   // compute efc_vel
   mj_mulJacVec(m, d, d->efc_vel, d->qvel);
 
+  // add relative surface velocity to contact rows
+  mj_addSurfaceVel(m, d);
+
   // compute aref = -B*vel - K*I*(pos-margin)
   for (int i=0; i < nefc; i++) {
     d->efc_aref[i] = -KBIP[4*i+1]*d->efc_vel[i]
                      -KBIP[4*i]*KBIP[4*i+2]*(d->efc_pos[i]-d->efc_margin[i]);
   }
+
+  // bias adhesive contact rows
+  mj_adhesionRef(m, d);
 
   // subtract Jdot*v correction for connect/weld equality constraints
   if (d->ne > 0) {

@@ -152,10 +152,6 @@ describe('Enums', () => {
     expect(mujoco.mjtSDFType).toBeDefined();
   });
 
-  it('mjtTaskStatus should exist', () => {
-    expect(mujoco.mjtTaskStatus).toBeDefined();
-  });
-
   it('mjtState should exist', () => {
     expect(mujoco.mjtState).toBeDefined();
   });

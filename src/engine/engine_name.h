@@ -34,6 +34,9 @@ MJAPI int mj_name2id(const mjModel* m, int type, const char* name);
 
 // get name of object with the specified mjtObj type and id, returns NULL if name not found
 MJAPI const char* mj_id2name(const mjModel* m, int type, int id);
+
+// get name of actuator input; NULL if the actuator type defines no input names
+MJAPI const char* mj_actuatorInputName(const mjModel* m, int id, int input);
 #ifdef __cplusplus
 }
 #endif

@@ -24,7 +24,6 @@
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include <mujoco/mujoco.h>
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -160,7 +159,8 @@ TEST_F(UserUtilTest, StringToVectorInvalidNumber) {
 }
 
 TEST_F(UserUtilTest, StringToVectorNan) {
-  mju_user_warning = nullptr;
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings();
   auto v = StringToVector<double>("1 2 nan 3.21");
   EXPECT_THAT(v[2], IsNan());
   EXPECT_EQ(v[3], 3.21);

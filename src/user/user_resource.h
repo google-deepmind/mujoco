@@ -38,6 +38,9 @@ MJAPI void mju_closeResource(mjResource* resource);
 // return negative value if error
 MJAPI int mju_readResource(mjResource* resource, const void** buffer);
 
+MJAPI mjtSize mju_writeResource(const char* name, const void* buffer, mjtSize nbytes,
+                                const mjVFS* vfs, char* error, size_t nerror);
+
 // set for a resource with a name partitioned as {dir}{filename}, the dir and ndir pointers
 MJAPI void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir);
 

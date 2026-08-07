@@ -28,6 +28,13 @@ import numpy as np
 )
 class MuJoCoRendererTest(parameterized.TestCase):
 
+  def test_renderer_info_binding(self):
+    info = mujoco.MjrRendererInfo()
+    mujoco.mjr_getRendererInfo(info)
+
+    self.assertIn(info.renderer, ('classic', 'filament', 'noop'))
+    self.assertIn(info.backend, ('', 'opengl', 'vulkan', 'unknown'))
+
   def test_renderer_unknown_camera_name(self):
     xml = """
 <mujoco>

@@ -40,13 +40,15 @@ typedef enum mjtCatBit_ {         // bitflags for mjvGeom category
 
 typedef enum mjtMouse_ {          // mouse interaction mode
   mjMOUSE_NONE        = 0,        // no action
-  mjMOUSE_ROTATE_V,               // rotate, vertical plane
-  mjMOUSE_ROTATE_H,               // rotate, horizontal plane
-  mjMOUSE_MOVE_V,                 // move, vertical plane
-  mjMOUSE_MOVE_H,                 // move, horizontal plane
-  mjMOUSE_ZOOM,                   // zoom
-  mjMOUSE_MOVE_V_REL,             // move, vertical plane, relative to target
-  mjMOUSE_MOVE_H_REL,             // move, horizontal plane, relative to target
+  mjMOUSE_ROTATE_V,               // rotate (orbit) vertically
+  mjMOUSE_ROTATE_H,               // rotate (orbit) horizontally
+  mjMOUSE_MOVE_V,                 // move along vertical plane
+  mjMOUSE_MOVE_H,                 // move along horizontal plane
+  mjMOUSE_ZOOM,                   // zoom (towards/away from lookat point)
+  mjMOUSE_MOVE_V_REL,             // move (truck, pedestal), vertical plane rel. to target
+  mjMOUSE_MOVE_H_REL,             // move (truck, dolly), horizontal plane rel. to target
+  mjMOUSE_TURN_V,                 // turn (tilt) vertically
+  mjMOUSE_TURN_H,                 // turn (pan) horizontally
 } mjtMouse;
 
 
@@ -164,7 +166,7 @@ typedef enum mjtStereo_ {         // type of stereo rendering
 
 //---------------------------------- mjvPerturb ----------------------------------------------------
 
-struct mjvPerturb_ {              // object selection and perturbation
+typedef struct mjvPerturb_ {      // object selection and perturbation
   int      select;                // selected body id; non-positive: none
   int      flexselect;            // selected flex id; negative: none
   int      skinselect;            // selected skin id; negative: none
@@ -176,13 +178,12 @@ struct mjvPerturb_ {              // object selection and perturbation
   mjtNum   localpos[3];           // selection point in object coordinates
   mjtNum   localmass;             // spatial inertia at selection point
   mjtNum   scale;                 // relative mouse motion-to-space scaling (set by initPerturb)
-};
-typedef struct mjvPerturb_ mjvPerturb;
+} mjvPerturb;
 
 
 //---------------------------------- mjvCamera -----------------------------------------------------
 
-struct mjvCamera_ {               // abstract camera
+typedef struct mjvCamera_ {       // abstract camera
   // type and ids
   int      type;                  // camera type (mjtCamera)
   int      fixedcamid;            // fixed camera id
@@ -196,13 +197,12 @@ struct mjvCamera_ {               // abstract camera
 
   // orthographic / perspective
   int      orthographic;          // 0: perspective; 1: orthographic
-};
-typedef struct mjvCamera_ mjvCamera;
+} mjvCamera;
 
 
 //---------------------------------- mjvGLCamera ---------------------------------------------------
 
-struct mjvGLCamera_ {             // OpenGL camera
+typedef struct mjvGLCamera_ {     // OpenGL camera
   // camera frame
   float    pos[3];                // position
   float    forward[3];            // forward direction
@@ -218,13 +218,12 @@ struct mjvGLCamera_ {             // OpenGL camera
 
   // orthographic / perspective
   int      orthographic;          // 0: perspective; 1: orthographic
-};
-typedef struct mjvGLCamera_ mjvGLCamera;
+} mjvGLCamera;
 
 
 //---------------------------------- mjvGeom -------------------------------------------------------
 
-struct mjvGeom_ {                 // abstract geom
+typedef struct mjvGeom_ {         // abstract geom
   // type info
   int      type;                  // geom type (mjtGeom)
   int      dataid;                // mesh, hfield or plane id; -1: none; mesh: 2*id or 2*id+1 (hull)
@@ -232,6 +231,8 @@ struct mjvGeom_ {                 // abstract geom
   int      objid;                 // mujoco object id; -1 for decor
   int      category;              // visual category
   int      matid;                 // material id; -1: no textured material
+  int      texid;                 // texture id; -1: none
+  int      texuniform;            // uniform cube mapping
   int      texcoord;              // mesh or flex geom has texture coordinates
   int      segid;                 // segmentation id; -1: not shown
 
@@ -246,6 +247,7 @@ struct mjvGeom_ {                 // abstract geom
   float    specular;              // specular coef
   float    shininess;             // shininess coef
   float    reflectance;           // reflectance coef
+  float    texrepeat[2];          // texture repetition for 2d mapping
 
   char     label[100];            // text label
 
@@ -253,13 +255,12 @@ struct mjvGeom_ {                 // abstract geom
   float    camdist;               // distance to camera (used by sorter)
   float    modelrbound;           // geom rbound from model, 0 if not model geom
   mjtByte  transparent;           // treat geom as transparent
-};
-typedef struct mjvGeom_ mjvGeom;
+} mjvGeom;
 
 
 //---------------------------------- mjvLight ------------------------------------------------------
 
-struct mjvLight_ {                // OpenGL light
+typedef struct mjvLight_ {        // OpenGL light
   int      id;                    // light id, -1 for headlight
   float    pos[3];                // position rel. to body frame
   float    dir[3];                // direction rel. to body frame
@@ -276,13 +277,13 @@ struct mjvLight_ {                // OpenGL light
   float    bulbradius;            // bulb radius for soft shadows
   float    intensity;             // intensity, in candelas
   float    range;                 // range of effectiveness
-};
-typedef struct mjvLight_ mjvLight;
+  float    softness;              // spotlight edge softness
+} mjvLight;
 
 
 //---------------------------------- mjvOption -----------------------------------------------------
 
-struct mjvOption_ {                  // abstract visualization options
+typedef struct mjvOption_ {          // abstract visualization options
   int      label;                    // what objects to label (mjtLabel)
   int      frame;                    // which frame to show (mjtFrame)
   mjtByte  geomgroup[mjNGROUP];      // geom visualization by group
@@ -295,13 +296,12 @@ struct mjvOption_ {                  // abstract visualization options
   mjtByte  flags[mjNVISFLAG];        // visualization flags (indexed by mjtVisFlag)
   int      bvh_depth;                // depth of the bounding volume hierarchy to be visualized
   int      flex_layer;               // element layer to be visualized for 3D flex
-};
-typedef struct mjvOption_ mjvOption;
+} mjvOption;
 
 
 //---------------------------------- mjvScene ------------------------------------------------------
 
-struct mjvScene_ {                // abstract scene passed to OpenGL renderer
+typedef struct mjvScene_ {        // abstract scene passed to OpenGL renderer
   // abstract geoms
   int      maxgeom;               // size of allocated geom buffer
   int      ngeom;                 // number of geoms currently in buffer
@@ -358,13 +358,12 @@ struct mjvScene_ {                // abstract scene passed to OpenGL renderer
 
   // geom buffer status
   int      status;                // 0: ok, 1: geoms exhausted, warning issued
-};
-typedef struct mjvScene_ mjvScene;
+} mjvScene;
 
 
 //---------------------------------- mjvFigure -----------------------------------------------------
 
-struct mjvFigure_ {               // abstract 2D figure passed to OpenGL renderer
+typedef struct mjvFigure_ {       // abstract 2D figure passed to OpenGL renderer
   // enable flags
   int     flg_legend;             // show legend
   int     flg_ticklabel[2];       // show grid tick labels (x,y)
@@ -409,7 +408,6 @@ struct mjvFigure_ {               // abstract 2D figure passed to OpenGL rendere
   int     yaxispixel[2];          // range of y-axis in pixels
   float   xaxisdata[2];           // range of x-axis in data units
   float   yaxisdata[2];           // range of y-axis in data units
-};
-typedef struct mjvFigure_ mjvFigure;
+} mjvFigure;
 
 #endif  // MUJOCO_MJVISUALIZE_H_

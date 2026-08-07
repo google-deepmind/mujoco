@@ -166,30 +166,33 @@ There are several entities called "model" in MuJoCo. The user defines the model 
 The software can then create multiple instances of the same model in different media (file or memory) and on different
 levels of description (high or low). All combinations are possible as shown in the following table:
 
-+------------+---------------------------+----------------------------+
-|            | High level                | Low level                  |
-+============+===========================+============================+
-| **File**   | MJCF/URDF (XML)           | MJB (binary)               |
-+------------+---------------------------+----------------------------+
-| **Memory** | :ref:`mjSpec` (C struct)  | :ref:`mjModel` (C struct)  |
-+------------+---------------------------+----------------------------+
++------------+-------------------------------------+----------------------------+
+|            | High level                          | Low level                  |
++============+=====================================+============================+
+| **File**   | MJCF/URDF (XML), MJZ (Zip archive)  | MJB (binary)               |
++------------+-------------------------------------+----------------------------+
+| **Memory** | :ref:`mjSpec` (C struct)            | :ref:`mjModel` (C struct)  |
++------------+-------------------------------------+----------------------------+
 
 All runtime computations are performed with :ref:`mjModel` which is too complex to create manually. This is why we have
 two levels of modeling. The high level exists for user convenience: its sole purpose is to be compiled into a low level
 model on which computations can be performed. The resulting :ref:`mjModel` can be loaded and saved into a binary file
 (MJB), however those are version-specific and cannot be decompiled, thus models should always be maintained as XML
-files.
+files or packaged into MJZ archives.
 
 The :ref:`mjSpec` C struct is in one-to-one correspondence with the MJCF file format. The XML loader interprets the MJCF
 or URDF file, creates the corresponding :ref:`mjSpec` and compiles it to :ref:`mjModel`. The user can create
-:ref:`mjSpec` programmatically and then save it to MJCF or compile it. Procedural model creation and editing is
+:ref:`mjSpec` programmatically and then save it to MJCF/MJZ or compile it. Procedural model creation and editing is
 described in the :doc:`Model Editing <programming/modeledit>` chapter.
 
 The following diagram shows the different paths to obtaining an :ref:`mjModel`:
 
 -  (text editor) → MJCF/URDF file → (MuJoCo parser → mjSpec → compiler) → mjModel
+-  MJZ archive → (MJZ decoder → mjSpec → compiler) → mjModel
 -  (user code) → mjSpec → (MuJoCo compiler) → mjModel
 -  MJB file → (model loader) → mjModel
+
+Models and specs can also be serialized or packaged back to disk using :ref:`mj_encode`.
 
 .. _Examples:
 
@@ -422,7 +425,7 @@ the other objects in the simulation, so the number of contacts will be small for
 Texture
 ^^^^^^^
 
-Textures can be loaded from PNG files or synthesized by the compiler based on user-defined procedural parameters.
+Textures can be loaded from PNG or KTX files or synthesized by the compiler based on user-defined procedural parameters.
 There is also the option to leave the texture empty at model creation time and change it later at runtime -- so as to
 render video in a MuJoCo simulation, or create other dynamic effects. The visualizer supports two types of texture
 mapping: 2D and cube. 2D mapping is useful for planes and height fields. Cube mapping is useful for "shrink-wrapping"
@@ -801,13 +804,17 @@ section, prevents objects from falling through the floor or moving through walls
 the following situation:
 
 The user comments out the root joint of a floating-base model, perhaps in order to prevent it from falling; now that the
-base body is counted as static, new collisions appear that were not there before and the user is confused. There are two
-easy ways to avoid this problem:
+base body is counted as static, new collisions appear that were not there before and the user is confused. There are
+three easy ways to avoid this problem:
 
-1. Don't remove the root joint. Perhaps it is enough to :ref:`disable gravity<option-flag>` and possibly add some
+1. Make the newly static body a :ref:`mocap body<body-mocap>`. Mocap bodies are the root of their own body group for
+   the purposes of collision filtering, rather than being welded to the world, so the parent-child exclusion applies to
+   their children as usual. As a bonus, the body can be moved around interactively.
+
+2. Don't remove the root joint. Perhaps it is enough to :ref:`disable gravity<option-flag>` and possibly add some
    :ref:`fluid viscosity<option>` in order to prevent your model from moving around too much.
 
-2. Use :ref:`collision filtering<Collision>` to explicitly disable the unwanted collisions, either by setting the
+3. Use :ref:`collision filtering<Collision>` to explicitly disable the unwanted collisions, either by setting the
    relevant :at:`contype` and :at:`conaffinity` attributes, or by using a contact :ref:`exclude <contact-exclude>`
    directive.
 

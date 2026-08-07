@@ -56,7 +56,7 @@ macro(mujoco_test name)
   set_target_properties(${name} PROPERTIES BUILD_RPATH ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
   # gtest_discover_tests is recommended over gtest_add_tests, but has issues on Windows.
   # It also requires a GoogleTest binary, so we fall back for custom MAIN_TARGET (e.g. benchmarks).
-  if(WIN32 OR _ARGS_MAIN_TARGET)
+  if(WIN32 OR APPLE OR _ARGS_MAIN_TARGET)
     gtest_add_tests(
       TARGET ${name}
       SOURCES ${name}.cc
@@ -104,9 +104,17 @@ target_link_libraries(
 )
 target_include_directories(fixture PRIVATE ${mujoco_SOURCE_DIR}/include gmock)
 
+add_library(compare_model STATIC compare_model.h compare_model.cc)
+target_include_directories(compare_model PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_compile_definitions(compare_model PUBLIC MJSTATIC)
+target_link_libraries(compare_model PUBLIC mujoco::mujoco)
+target_include_directories(compare_model PRIVATE ${mujoco_SOURCE_DIR}/include)
+
 mujoco_test(fixture_test)
 
 mujoco_test(header_test)
+
+mujoco_test(mjspecmacro_test)
 
 mujoco_test(pipeline_test)
 
@@ -118,4 +126,4 @@ add_subdirectory(xml)
 add_subdirectory(plugin/elasticity)
 add_subdirectory(plugin/actuator)
 add_subdirectory(experimental)
-
+add_subdirectory(doc)

@@ -26,8 +26,15 @@
   #endif
 #endif
 
+// Define mjUSEASAN if ADDRESS_SANITIZER is active and we are not on MSVC.
+// MSVC asan (/fsanitize=address defines ADDRESS_SANITIZER via EnableASAN) cannot use the GCC/clang
+// attribute+asm instrumentation below, so we exclude it.
+#if defined(ADDRESS_SANITIZER) && !defined(_MSC_VER)
+  #define mjUSEASAN
+#endif
+
 // Include asan interface header, or provide stubs for poison/unpoison macros when not using asan.
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   #include <sanitizer/asan_interface.h>
 #elif defined(_MSC_VER)
   #define ASAN_POISON_MEMORY_REGION(addr, size)
@@ -42,7 +49,7 @@
 // into mark/free into the same function, this instrumentation requires that the compiler retains
 // separate mark/free calls for each original callee. The memory-clobbered asm blocks act as a
 // barrier to prevent mark/free calls from being combined under optimization.
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -64,6 +71,6 @@ static inline void mj_freeStack(mjData* d) __attribute__((always_inline)) {
 #ifdef __cplusplus
 }
 #endif  // __cplusplus
-#endif  // ADDRESS_SANITIZER
+#endif  // mjUSEASAN
 
 #endif  // MUJOCO_INCLUDE_MJSAN_H_

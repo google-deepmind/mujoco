@@ -16,7 +16,7 @@
 <mujoco model="Trilinear">
   <include file="scene.xml"/>
 
-  <option solver="CG" tolerance="1e-6" timestep=".0005" integrator="implicitfast"/>
+  <option solver="CG" tolerance="1e-6" timestep=".0005" integrator="Euler"/>
 
   <size memory="100M"/>
 

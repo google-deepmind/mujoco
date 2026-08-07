@@ -22,22 +22,22 @@ Parser
 Compiler
    The compiler is written in C++. It takes an mjCModel C++ object constructed by the parser, and converts it into an
    mjModel C structure used at runtime.
+Thread
+   The threading framework is written in C++ and exposed in C. It provides a thread pool interface
+   to process tasks asynchronously. To enable use in MuJoCo, call ``mju_threadpool``.
+Rendering
+   There are two rendering libraries provided by MuJoCo. The :ref:`classic rendering<OpenGLrendering>` library is
+   written in C and uses OpenGL 1.5. It provides a simple and efficient way to visualize MuJoCo models. The
+   :ref:`filament rendering<FilamentRendering>` library is written in C++ and uses the externally-devloped Filament
+   rendering engine. It provides more modern and feature-rich real-time rendering capabilities.
 Abstract visualizer
    The abstract visualizer is written in C. It generates a list of abstract geometric entities representing the
-   simulation state, with all information needed for actual rendering. It also provides abstract mouse hooks for camera
-   and perturbation control.
-OpenGL renderer
-   The renderer is written in C and is based on fixed-function OpenGL. It does not have all the features of
-   state-of-the-art rendering engines (and can be replaced with such an engine if desired) but nevertheless it provides
-   efficient and informative 3D rendering.
-Thread
-   The threading framework is written in C++ and exposed in C. It provides a :ref:`mjThreadPool<mjThreadPool>` interface
-   to process tasks asynchronously. To enable use in MuJoCo, create a thread pool and assign it to the
-   ``mjData.threadpool`` field.
+   simulation state, with all information needed for rendering with the Classic renderer. It also provides abstract
+   mouse hooks for camera and perturbation control.
 UI framework
-   The UI framework is written in C. UI elements are rendered in OpenGL. It has its own event
-   mechanism and abstract hooks for keyboard and mouse input. The code samples use it with GLFW, but it can also be used
-   with other window libraries.
+   The UI framework is written in C and is designed to work with the :ref:`classic OpenGL renderer<OpenGLrendering>`.
+   UI elements are rendered in OpenGL. It has its own event mechanism and abstract hooks for keyboard and mouse input.
+   The code samples use it with GLFW, but it can also be used with other window libraries.
 
 .. _inStart:
 
@@ -151,7 +151,7 @@ links below, to make this documentation self-contained.
 
 `mujoco.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`__
    This is the main header file and must be included in all programs using MuJoCo. It defines all API functions and
-   global variables, and includes all other header files except mjxmacro.h.
+   global variables, and includes all other header files except mjxmacro.h and mjspecmacro.h.
 `mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__
    Defines the C structure :ref:`mjModel` which is the runtime representation of the
    model being simulated.
@@ -162,6 +162,8 @@ links below, to make this documentation self-contained.
    Defines the primitive types and structures needed by the abstract visualizer.
 `mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`__
    Defines the primitive types and structures needed by the OpenGL renderer.
+`mjrfilament.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrfilament.h>`__
+   Defines the primitive types and structures needed by the filament renderer.
 `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`__
    Defines the primitive types and structures needed by the UI framework.
 `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`__
@@ -171,14 +173,16 @@ links below, to make this documentation self-contained.
    Defines enums and structs used for :doc:`procedural model editing <modeledit>`.
 `mjplugin.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`__
    Defines data structures required by :ref:`engine plugins<exPlugin>`.
-`mjthread.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjthread.h>`__
-   Defines data structures and functions required by :ref:`thread<Thread>`.
 `mjmacro.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmacro.h>`__
    Defines C macros that are useful in user code.
 `mjxmacro.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`__
    This file is optional and is not included by mujoco.h. It defines :ref:`X Macros <tyXMacro>` that can
    automate the mapping of mjModel and mjData into scripting languages, as well as other operations that require
    accessing all fields of mjModel and mjData.
+`mjspecmacro.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspecmacro.h>`__
+   This file is optional and is not included by mujoco.h. It defines :ref:`X Macros <tyXMacro>` that can
+   automate the mapping of mjSpec and its element structs into scripting languages, as well as other operations that require
+   accessing all fields of mjSpec during procedural model editing.
 `mjexport.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjexport.h>`__
    Macros used for exporting public symbols from the MuJoCo library. This header should not be used directly by client
    code.
@@ -233,14 +237,16 @@ to which the symbol belongs. First we list the prefixes corresponding to type de
    Primitive type, for example :ref:`mjtNum` and :ref:`mjtGeom`. Most types in this family are enums.
 ``mjf``
    Callback function type, for example :ref:`mjfGeneric`.
+``mjs``
+   Data structure related to :doc:`procedural model editing <modeledit>`, for example :ref:`mjsJoint`.
 ``mjv``
    Data structure related to abstract visualization, for example :ref:`mjvCamera`.
+``mjrf``
+   Data structure related to filament rendering, for example :ref:`mjrfContext`.
 ``mjr``
    Data structure related to OpenGL rendering, for example :ref:`mjrContext`.
 ``mjui``
    Data structure related to UI framework, for example :ref:`mjuiSection`.
-``mjs``
-   Data structure related to :doc:`procedural model editing <modeledit>`, for example :ref:`mjsJoint`.
 
 Next we list the prefixes corresponding to function definitions. Note that function prefixes always end with underscore.
 
@@ -253,6 +259,8 @@ Next we list the prefixes corresponding to function definitions. Note that funct
    in the sense that they do not have mjModel and mjData pointers as their arguments.
 ``mjv_``
    Function related to abstract visualization, for example :ref:`mjv_updateScene`.
+``mjrf_``
+   Function related to filament rendering, for example :ref:`mjrf_render`.
 ``mjr_``
    Function related to OpenGL rendering, for example :ref:`mjr_render`.
 ``mjui_``
@@ -264,23 +272,6 @@ Next we list the prefixes corresponding to function definitions. Note that funct
    Functions for computing derivatives, for example :ref:`mjd_transitionFD`.
 ``mjs_``
    Functions for :doc:`procedural model editing <modeledit>`, for example :ref:`mjs_addJoint`.
-
-.. _inOpenGL:
-
-Using OpenGL
-~~~~~~~~~~~~
-
-The use of MuJoCo's native OpenGL renderer will be explained in :ref:`Rendering`. For rendering, MuJoCo uses OpenGL 1.5
-in the compatibility profile with the ``ARB_framebuffer_object`` and ``ARB_vertex_buffer_object`` extensions. OpenGL
-symbols are loaded via `GLAD <https://github.com/Dav1dde/glad>`_ the first time the :ref:`mjr_makeContext` function
-is called. This means that the MuJoCo library itself does not have an explicit dependency on OpenGL and can be used
-on systems without OpenGL support, as long as ``mjr_`` functions are not called.
-
-Applications that use MuJoCo's built-in rendering functionalities are responsible for linking against an appropriate
-OpenGL context creation library and for ensuring that there is an OpenGL context that is made current on the running
-thread. On Windows and macOS, there is a canonical OpenGL library provided by the operating system. On Linux, MuJoCo
-currently supports GLX for rendering to an X11 window, OSMesa for headless software rendering, and EGL for hardware
-accelerated headless rendering.
 
 .. toctree::
     :hidden:

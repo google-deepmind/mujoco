@@ -89,13 +89,10 @@ class SmoothTest(absltest.TestCase):
     # crb
     dx = jax.jit(mjx.crb)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx._impl, 'crb')
-    _assert_attr_eq(d, dx._impl, 'qM')
+    _assert_attr_eq(d, dx._impl, 'M')
     # factor_m
     dx = jax.jit(mjx.factor_m)(mx, mjx.put_data(m, d))
-    qLDLegacy = np.zeros(mx.nM)  # pylint:disable=invalid-name
-    for i in range(m.nC):
-      qLDLegacy[m.mapM2M[i]] = d.qLD[i]
-    _assert_eq(qLDLegacy, dx._impl.qLD, 'qLD')
+    _assert_attr_eq(d, dx._impl, 'qLD')
     _assert_attr_eq(d, dx._impl, 'qLDiagInv')
     # com_vel
     dx = jax.jit(mjx.com_vel)(mx, mjx.put_data(m, d))
@@ -430,18 +427,18 @@ class TendonTest(parameterized.TestCase):
     dx = mjx.put_data(m, d)
 
     dx = dx.tree_replace(
-        {'_impl.qM': jp.zeros((m.nv, m.nv)), 'qfrc_bias': jp.zeros(m.nv)}
+        {'_impl.M': jp.zeros((m.nv, m.nv)), 'qfrc_bias': jp.zeros(m.nv)}
     )
 
     dx = mjx.crb(mx, dx)
     dx = mjx.tendon_armature(mx, dx)
 
     if jacobian == JacobianType.DENSE:
-      qM = np.zeros((m.nv, m.nv))  # pylint: disable=invalid-name
-      mujoco.mju_sym2dense(qM, d.M, m.M_rownnz, m.M_rowadr, m.M_colind)
+      M = np.zeros((m.nv, m.nv))  # pylint: disable=invalid-name
+      mujoco.mju_sym2dense(M, d.M, m.M_rownnz, m.M_rowadr, m.M_colind)
     else:
-      qM = d.qM  # pylint: disable=invalid-name
-    _assert_eq(dx._impl.qM, qM, 'qM')
+      M = d.M  # pylint: disable=invalid-name
+    _assert_eq(dx._impl.M, M, 'M')
 
     dx = mjx.rne(mx, dx)
     dx = mjx.tendon_bias(mx, dx)

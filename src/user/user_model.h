@@ -84,7 +84,9 @@ class mjCModel_ : public mjsElement {
   // sizes computed by Compile
   mjtSize nq;              // number of generalized coordinates = dim(qpos)
   mjtSize nv;              // number of degrees of freedom = dim(qvel)
-  mjtSize nu;              // number of actuators/controls
+  mjtSize nu;              // number of scalar controls = dim(ctrl)
+  mjtSize nactuator;       // number of actuators
+  mjtSize nout;            // number of force outputs = dim(actuator_force)
   mjtSize na;              // number of activation variables
   mjtSize ntree;           // number of trees
   mjtSize nbvh;            // number of total boundary volume hierarchies
@@ -98,6 +100,8 @@ class mjCModel_ : public mjsElement {
   mjtSize nflexelemdata;   // number of element vertex ids in all flexes
   mjtSize nflexstiffness;  // number of stiffness parameters in all flexes
   mjtSize nflexbending;    // number of bending parameters in all flexes
+  mjtSize nefm0dof;        // number of dofs covered by the bending factor
+  mjtSize nefm0L;          // number of non-zeros in the bending factor
   mjtSize nflexelemedge;   // number of element edges in all flexes
   mjtSize nflexshelldata;  // number of shell fragment vertex ids in all flexes
   mjtSize nflexevpair;     // number of element-vertex pairs in all flexes
@@ -249,6 +253,25 @@ class mjCModel : public mjCModel_, private mjSpec {
   bool IsCompiled() const;                                          // is model already compiled
   const mjCError& GetError() const;                                 // get reference of error object
   void SetError(const mjCError& error) { errInfo = error; }         // set value of error object
+  void AddWarning(std::string msg,  // add warning to vector
+                  const mjCBase* obj = nullptr);
+  void AddGroupedWarning(const std::string& subject,  // add grouped warning
+                         const std::string& body);
+  const std::vector<std::string>& GetWarnings()
+      const {  // get accumulated warnings
+    return warnings_;
+  }
+  void ClearWarnings() {
+    warnings_.clear();
+    num_attach_warnings_ = 0;
+  }  // clear all warnings
+  void ClearCompileWarnings() {
+    warnings_.resize(num_attach_warnings_);
+  }                                  // clear compile warnings
+  void SetAttachWarningBoundary() {  // snapshot attach warning count
+    num_attach_warnings_ = warnings_.size();
+  }
+
   mjCBody* GetWorld();                                              // pointer to world body
   mjCDef* FindDefault(const std::string& name) const;               // find defaults class name
   mjCDef* AddDefault(std::string name, mjCDef* parent = nullptr);   // add defaults class to array
@@ -488,10 +511,15 @@ class mjCModel : public mjCModel_, private mjSpec {
   // expand all keyframes in the model
   void ExpandAllKeyframes();
 
-  mjListKeyMap ids;   // map from object names to ids
-  mjCError errInfo;   // last error info
+  mjListKeyMap ids;  // map from object names to ids
+  mjCError errInfo;  // last error info
+  std::vector<std::string>
+      warnings_;  // chronological list of non-fatal warnings
+  int num_attach_warnings_ =
+      0;  // boundary: [0, n) are attach, [n, size) are compile
+  bool compiling_ = false;              // true during Compile()
   std::vector<mjKeyInfo> key_pending_;  // attached keyframes
-  bool deepcopy_;     // copy objects when attaching
+  bool deepcopy_;                       // copy objects when attaching
   bool attached_ = false;  // true if model is attached to a parent model
   std::unordered_map<const mjsCompiler*, mjSpec*> compiler2spec_;  // map from compiler to spec
   std::vector<mjCBase*> detached_;  // list of detached objects

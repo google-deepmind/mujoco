@@ -26,6 +26,10 @@
     <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance=".2"/>
   </asset>
 
+  <visual>
+    <global bvactive="true"/>
+  </visual>
+
   <default>
     <site rgba=".5 .5 .5 .5"/>
     <joint armature="1" damping="10"/>

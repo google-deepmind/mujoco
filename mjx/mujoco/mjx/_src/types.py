@@ -105,10 +105,10 @@ class JointType(enum.IntEnum):
     HINGE: rotation angle (rad) around body-fixed axis  (1,)
   """
 
-  FREE = mujoco.mjtJoint.mjJNT_FREE
-  BALL = mujoco.mjtJoint.mjJNT_BALL
-  SLIDE = mujoco.mjtJoint.mjJNT_SLIDE
-  HINGE = mujoco.mjtJoint.mjJNT_HINGE
+  FREE = mujoco.mjtJoint.mjJNT_FREE  # pyrefly: ignore[bad-assignment]
+  BALL = mujoco.mjtJoint.mjJNT_BALL  # pyrefly: ignore[bad-assignment]
+  SLIDE = mujoco.mjtJoint.mjJNT_SLIDE  # pyrefly: ignore[bad-assignment]
+  HINGE = mujoco.mjtJoint.mjJNT_HINGE  # pyrefly: ignore[bad-assignment]
 
   def dof_width(self) -> int:
     return {0: 6, 1: 3, 2: 1, 3: 1}[self.value]
@@ -126,9 +126,9 @@ class IntegratorType(enum.IntEnum):
     IMPLICITFAST: implicit in velocity, no rne derivative
   """
 
-  EULER = mujoco.mjtIntegrator.mjINT_EULER
-  RK4 = mujoco.mjtIntegrator.mjINT_RK4
-  IMPLICITFAST = mujoco.mjtIntegrator.mjINT_IMPLICITFAST
+  EULER = mujoco.mjtIntegrator.mjINT_EULER  # pyrefly: ignore[bad-assignment]
+  RK4 = mujoco.mjtIntegrator.mjINT_RK4  # pyrefly: ignore[bad-assignment]
+  IMPLICITFAST = mujoco.mjtIntegrator.mjINT_IMPLICITFAST  # pyrefly: ignore[bad-assignment]
   # unsupported: IMPLICIT
 
 
@@ -147,14 +147,14 @@ class GeomType(enum.IntEnum):
     SDF: signed distance field
   """
 
-  PLANE = mujoco.mjtGeom.mjGEOM_PLANE
-  HFIELD = mujoco.mjtGeom.mjGEOM_HFIELD
-  SPHERE = mujoco.mjtGeom.mjGEOM_SPHERE
-  CAPSULE = mujoco.mjtGeom.mjGEOM_CAPSULE
-  ELLIPSOID = mujoco.mjtGeom.mjGEOM_ELLIPSOID
-  CYLINDER = mujoco.mjtGeom.mjGEOM_CYLINDER
-  BOX = mujoco.mjtGeom.mjGEOM_BOX
-  MESH = mujoco.mjtGeom.mjGEOM_MESH
+  PLANE = mujoco.mjtGeom.mjGEOM_PLANE  # pyrefly: ignore[bad-assignment]
+  HFIELD = mujoco.mjtGeom.mjGEOM_HFIELD  # pyrefly: ignore[bad-assignment]
+  SPHERE = mujoco.mjtGeom.mjGEOM_SPHERE  # pyrefly: ignore[bad-assignment]
+  CAPSULE = mujoco.mjtGeom.mjGEOM_CAPSULE  # pyrefly: ignore[bad-assignment]
+  ELLIPSOID = mujoco.mjtGeom.mjGEOM_ELLIPSOID  # pyrefly: ignore[bad-assignment]
+  CYLINDER = mujoco.mjtGeom.mjGEOM_CYLINDER  # pyrefly: ignore[bad-assignment]
+  BOX = mujoco.mjtGeom.mjGEOM_BOX  # pyrefly: ignore[bad-assignment]
+  MESH = mujoco.mjtGeom.mjGEOM_MESH  # pyrefly: ignore[bad-assignment]
   # unsupported: NGEOMTYPES, ARROW*, LINE, SKIN, LABEL, NONE
 
 
@@ -184,8 +184,8 @@ class ConeType(enum.IntEnum):
     ELLIPTIC: elliptic
   """
 
-  PYRAMIDAL = mujoco.mjtCone.mjCONE_PYRAMIDAL
-  ELLIPTIC = mujoco.mjtCone.mjCONE_ELLIPTIC
+  PYRAMIDAL = mujoco.mjtCone.mjCONE_PYRAMIDAL  # pyrefly: ignore[bad-assignment]
+  ELLIPTIC = mujoco.mjtCone.mjCONE_ELLIPTIC  # pyrefly: ignore[bad-assignment]
 
 
 class JacobianType(enum.IntEnum):
@@ -197,9 +197,9 @@ class JacobianType(enum.IntEnum):
     AUTO: sparse if nv>60 and device is TPU, dense otherwise
   """
 
-  DENSE = mujoco.mjtJacobian.mjJAC_DENSE
-  SPARSE = mujoco.mjtJacobian.mjJAC_SPARSE
-  AUTO = mujoco.mjtJacobian.mjJAC_AUTO
+  DENSE = mujoco.mjtJacobian.mjJAC_DENSE  # pyrefly: ignore[bad-assignment]
+  SPARSE = mujoco.mjtJacobian.mjJAC_SPARSE  # pyrefly: ignore[bad-assignment]
+  AUTO = mujoco.mjtJacobian.mjJAC_AUTO  # pyrefly: ignore[bad-assignment]
 
 
 class SolverType(enum.IntEnum):
@@ -211,8 +211,8 @@ class SolverType(enum.IntEnum):
   """
 
   # unsupported: PGS
-  CG = mujoco.mjtSolver.mjSOL_CG
-  NEWTON = mujoco.mjtSolver.mjSOL_NEWTON
+  CG = mujoco.mjtSolver.mjSOL_CG  # pyrefly: ignore[bad-assignment]
+  NEWTON = mujoco.mjtSolver.mjSOL_NEWTON  # pyrefly: ignore[bad-assignment]
 
 
 class EqType(enum.IntEnum):
@@ -225,10 +225,10 @@ class EqType(enum.IntEnum):
     TENDON: couple the lengths of two tendons with cubic
   """
 
-  CONNECT = mujoco.mjtEq.mjEQ_CONNECT
-  WELD = mujoco.mjtEq.mjEQ_WELD
-  JOINT = mujoco.mjtEq.mjEQ_JOINT
-  TENDON = mujoco.mjtEq.mjEQ_TENDON
+  CONNECT = mujoco.mjtEq.mjEQ_CONNECT  # pyrefly: ignore[bad-assignment]
+  WELD = mujoco.mjtEq.mjEQ_WELD  # pyrefly: ignore[bad-assignment]
+  JOINT = mujoco.mjtEq.mjEQ_JOINT  # pyrefly: ignore[bad-assignment]
+  TENDON = mujoco.mjtEq.mjEQ_TENDON  # pyrefly: ignore[bad-assignment]
   # unsupported: DISTANCE
 
 
@@ -243,11 +243,11 @@ class WrapType(enum.IntEnum):
     CYLINDER: wrap around (infinite) cylinder
   """
 
-  JOINT = mujoco.mjtWrap.mjWRAP_JOINT
-  PULLEY = mujoco.mjtWrap.mjWRAP_PULLEY
-  SITE = mujoco.mjtWrap.mjWRAP_SITE
-  SPHERE = mujoco.mjtWrap.mjWRAP_SPHERE
-  CYLINDER = mujoco.mjtWrap.mjWRAP_CYLINDER
+  JOINT = mujoco.mjtWrap.mjWRAP_JOINT  # pyrefly: ignore[bad-assignment]
+  PULLEY = mujoco.mjtWrap.mjWRAP_PULLEY  # pyrefly: ignore[bad-assignment]
+  SITE = mujoco.mjtWrap.mjWRAP_SITE  # pyrefly: ignore[bad-assignment]
+  SPHERE = mujoco.mjtWrap.mjWRAP_SPHERE  # pyrefly: ignore[bad-assignment]
+  CYLINDER = mujoco.mjtWrap.mjWRAP_CYLINDER  # pyrefly: ignore[bad-assignment]
 
 
 class TrnType(enum.IntEnum):
@@ -260,10 +260,10 @@ class TrnType(enum.IntEnum):
     SITE: force on site
   """
 
-  JOINT = mujoco.mjtTrn.mjTRN_JOINT
-  JOINTINPARENT = mujoco.mjtTrn.mjTRN_JOINTINPARENT
-  SITE = mujoco.mjtTrn.mjTRN_SITE
-  TENDON = mujoco.mjtTrn.mjTRN_TENDON
+  JOINT = mujoco.mjtTrn.mjTRN_JOINT  # pyrefly: ignore[bad-assignment]
+  JOINTINPARENT = mujoco.mjtTrn.mjTRN_JOINTINPARENT  # pyrefly: ignore[bad-assignment]
+  SITE = mujoco.mjtTrn.mjTRN_SITE  # pyrefly: ignore[bad-assignment]
+  TENDON = mujoco.mjtTrn.mjTRN_TENDON  # pyrefly: ignore[bad-assignment]
   # unsupported: SLIDERCRANK, BODY
 
 
@@ -278,11 +278,11 @@ class DynType(enum.IntEnum):
     MUSCLE: piece-wise linear filter with two time constants
   """
 
-  NONE = mujoco.mjtDyn.mjDYN_NONE
-  INTEGRATOR = mujoco.mjtDyn.mjDYN_INTEGRATOR
-  FILTER = mujoco.mjtDyn.mjDYN_FILTER
-  FILTEREXACT = mujoco.mjtDyn.mjDYN_FILTEREXACT
-  MUSCLE = mujoco.mjtDyn.mjDYN_MUSCLE
+  NONE = mujoco.mjtDyn.mjDYN_NONE  # pyrefly: ignore[bad-assignment]
+  INTEGRATOR = mujoco.mjtDyn.mjDYN_INTEGRATOR  # pyrefly: ignore[bad-assignment]
+  FILTER = mujoco.mjtDyn.mjDYN_FILTER  # pyrefly: ignore[bad-assignment]
+  FILTEREXACT = mujoco.mjtDyn.mjDYN_FILTEREXACT  # pyrefly: ignore[bad-assignment]
+  MUSCLE = mujoco.mjtDyn.mjDYN_MUSCLE  # pyrefly: ignore[bad-assignment]
   # unsupported: USER
 
 
@@ -295,9 +295,9 @@ class GainType(enum.IntEnum):
     MUSCLE: muscle FLV curve computed by muscle_gain
   """
 
-  FIXED = mujoco.mjtGain.mjGAIN_FIXED
-  AFFINE = mujoco.mjtGain.mjGAIN_AFFINE
-  MUSCLE = mujoco.mjtGain.mjGAIN_MUSCLE
+  FIXED = mujoco.mjtGain.mjGAIN_FIXED  # pyrefly: ignore[bad-assignment]
+  AFFINE = mujoco.mjtGain.mjGAIN_AFFINE  # pyrefly: ignore[bad-assignment]
+  MUSCLE = mujoco.mjtGain.mjGAIN_MUSCLE  # pyrefly: ignore[bad-assignment]
   # unsupported: USER
 
 
@@ -310,9 +310,9 @@ class BiasType(enum.IntEnum):
     MUSCLE: muscle passive force computed by muscle_bias
   """
 
-  NONE = mujoco.mjtBias.mjBIAS_NONE
-  AFFINE = mujoco.mjtBias.mjBIAS_AFFINE
-  MUSCLE = mujoco.mjtBias.mjBIAS_MUSCLE
+  NONE = mujoco.mjtBias.mjBIAS_NONE  # pyrefly: ignore[bad-assignment]
+  AFFINE = mujoco.mjtBias.mjBIAS_AFFINE  # pyrefly: ignore[bad-assignment]
+  MUSCLE = mujoco.mjtBias.mjBIAS_MUSCLE  # pyrefly: ignore[bad-assignment]
   # unsupported: USER
 
 
@@ -327,14 +327,14 @@ class ConstraintType(enum.IntEnum):
     CONTACT_PYRAMIDAL: frictional contact, pyramidal friction cone
   """
 
-  EQUALITY = mujoco.mjtConstraint.mjCNSTR_EQUALITY
-  FRICTION_DOF = mujoco.mjtConstraint.mjCNSTR_FRICTION_DOF
-  FRICTION_TENDON = mujoco.mjtConstraint.mjCNSTR_FRICTION_TENDON
-  LIMIT_JOINT = mujoco.mjtConstraint.mjCNSTR_LIMIT_JOINT
-  LIMIT_TENDON = mujoco.mjtConstraint.mjCNSTR_LIMIT_TENDON
-  CONTACT_FRICTIONLESS = mujoco.mjtConstraint.mjCNSTR_CONTACT_FRICTIONLESS
-  CONTACT_PYRAMIDAL = mujoco.mjtConstraint.mjCNSTR_CONTACT_PYRAMIDAL
-  CONTACT_ELLIPTIC = mujoco.mjtConstraint.mjCNSTR_CONTACT_ELLIPTIC
+  EQUALITY = mujoco.mjtConstraint.mjCNSTR_EQUALITY  # pyrefly: ignore[bad-assignment]
+  FRICTION_DOF = mujoco.mjtConstraint.mjCNSTR_FRICTION_DOF  # pyrefly: ignore[bad-assignment]
+  FRICTION_TENDON = mujoco.mjtConstraint.mjCNSTR_FRICTION_TENDON  # pyrefly: ignore[bad-assignment]
+  LIMIT_JOINT = mujoco.mjtConstraint.mjCNSTR_LIMIT_JOINT  # pyrefly: ignore[bad-assignment]
+  LIMIT_TENDON = mujoco.mjtConstraint.mjCNSTR_LIMIT_TENDON  # pyrefly: ignore[bad-assignment]
+  CONTACT_FRICTIONLESS = mujoco.mjtConstraint.mjCNSTR_CONTACT_FRICTIONLESS  # pyrefly: ignore[bad-assignment]
+  CONTACT_PYRAMIDAL = mujoco.mjtConstraint.mjCNSTR_CONTACT_PYRAMIDAL  # pyrefly: ignore[bad-assignment]
+  CONTACT_ELLIPTIC = mujoco.mjtConstraint.mjCNSTR_CONTACT_ELLIPTIC  # pyrefly: ignore[bad-assignment]
 
 
 class CamLightType(enum.IntEnum):
@@ -348,11 +348,11 @@ class CamLightType(enum.IntEnum):
     TARGETBODYCOM: pos fixed in body, rot tracks target subtree com
   """
 
-  FIXED = mujoco.mjtCamLight.mjCAMLIGHT_FIXED
-  TRACK = mujoco.mjtCamLight.mjCAMLIGHT_TRACK
-  TRACKCOM = mujoco.mjtCamLight.mjCAMLIGHT_TRACKCOM
-  TARGETBODY = mujoco.mjtCamLight.mjCAMLIGHT_TARGETBODY
-  TARGETBODYCOM = mujoco.mjtCamLight.mjCAMLIGHT_TARGETBODYCOM
+  FIXED = mujoco.mjtCamLight.mjCAMLIGHT_FIXED  # pyrefly: ignore[bad-assignment]
+  TRACK = mujoco.mjtCamLight.mjCAMLIGHT_TRACK  # pyrefly: ignore[bad-assignment]
+  TRACKCOM = mujoco.mjtCamLight.mjCAMLIGHT_TRACKCOM  # pyrefly: ignore[bad-assignment]
+  TARGETBODY = mujoco.mjtCamLight.mjCAMLIGHT_TARGETBODY  # pyrefly: ignore[bad-assignment]
+  TARGETBODYCOM = mujoco.mjtCamLight.mjCAMLIGHT_TARGETBODYCOM  # pyrefly: ignore[bad-assignment]
 
 
 class SensorType(enum.IntEnum):
@@ -641,6 +641,8 @@ class Model(PyTreeNode):
   nJmom: int  # pylint:disable=invalid-name
   nJten: int  # pylint:disable=invalid-name
   ngravcomp: int
+  flg_gravcomp: bool
+  flg_surfacevel: bool
   nuserdata: int
   nsensordata: int
   npluginstate: int
@@ -696,6 +698,9 @@ class Model(PyTreeNode):
   dof_treeid: np.ndarray
   dof_Madr: np.ndarray  # pylint:disable=invalid-name
   dof_simplenum: np.ndarray
+  M_rowadr: np.ndarray  # pylint:disable=invalid-name
+  M_rownnz: np.ndarray  # pylint:disable=invalid-name
+  M_colind: np.ndarray  # pylint:disable=invalid-name
   dof_solref: jax.Array
   dof_solimp: jax.Array
   dof_frictionloss: jax.Array
@@ -747,6 +752,7 @@ class Model(PyTreeNode):
   cam_intrinsic: jax.Array
   light_mode: np.ndarray
   light_type: jax.Array
+  light_active: jax.Array
   light_castshadow: jax.Array
   light_pos: jax.Array
   light_dir: jax.Array
@@ -754,6 +760,11 @@ class Model(PyTreeNode):
   light_pos0: jax.Array
   light_dir0: jax.Array
   light_cutoff: jax.Array
+  light_ambient: jax.Array
+  light_attenuation: jax.Array
+  light_diffuse: jax.Array
+  light_exponent: jax.Array
+  light_specular: jax.Array
   mesh_vertadr: np.ndarray
   mesh_vertnum: np.ndarray
   mesh_faceadr: np.ndarray
@@ -794,6 +805,9 @@ class Model(PyTreeNode):
   tex_data: np.ndarray
   mat_rgba: jax.Array
   mat_texid: jax.Array
+  mat_emission: jax.Array
+  mat_specular: jax.Array
+  mat_shininess: jax.Array
   pair_dim: np.ndarray
   pair_geom1: np.ndarray
   pair_geom2: np.ndarray
@@ -987,7 +1001,6 @@ class DataJAX(PyTreeNode):
   wrap_xpos: jax.Array
   actuator_moment: jax.Array
   crb: jax.Array
-  qM: jax.Array  # pylint:disable=invalid-name
   M: jax.Array  # pylint:disable=invalid-name
   qLD: jax.Array  # pylint:disable=invalid-name
   qLDiagInv: jax.Array  # pylint:disable=invalid-name
@@ -1144,21 +1157,62 @@ class Data(PyTreeNode):
     return val
 
   def __getitem__(self, key):
-    def get_name_from_path(path: jax.tree_util.KeyPath) -> str:
-      if any(isinstance(p, jax.tree_util.SequenceKey) for p in path):
-        is_seq_key = [isinstance(p, jax.tree_util.SequenceKey) for p in path]
-        path = path[: is_seq_key.index(True)]
-      assert all(isinstance(p, jax.tree_util.GetAttrKey) for p in path)
-      path = [p for p in path if p.name != '_impl']
-      attr = '__'.join(p.name for p in path)
-      return attr
-
     if self.impl == Impl.WARP:
       return jax.tree.map_with_path(
           lambda path, x, k=key: x[k]
-          if get_name_from_path(path) not in mjxw_types.DATA_NON_VMAP
+          if tree_path_to_attr_str(path) not in mjxw_types.DATA_NON_VMAP
           else x,
           self,
       )
 
     return jax.tree.map(lambda x: x[key], self)
+
+  def where(self, done: jax.Array, other: 'Data') -> 'Data':
+    """Selectively merge self and other based on done.
+
+    Args:
+      done: Boolean array (or scalar inside vmap) indicating reset status.
+      other: Data object to select when done is True.
+
+    Returns:
+      Merged Data object.
+    """
+    if self.impl != Impl.JAX and self.impl != Impl.WARP:
+      raise NotImplementedError(
+          'where is only supported for JAX and WARP implementations.'
+      )
+
+    if self.impl == Impl.JAX:
+      return jax.tree.map(
+          lambda x, y: jax.numpy.where(done, x, y), other, self
+      )
+
+    # Warp impl:
+    def merge_leaf(path, r_val, s_val):
+      field_name = tree_path_to_attr_str(path)
+      is_batched = mjxw_types._BATCH_DIM['Data'].get(field_name, True)
+
+      if is_batched:
+        return jax.numpy.where(done, r_val, s_val)
+      else:
+        return s_val
+
+    return jax.tree_util.tree_map_with_path(merge_leaf, other, self)
+
+
+def tree_path_to_attr_str(path: jax.tree_util.KeyPath) -> str:
+  """Converts a tree path to a dataclass attribute string."""
+  if not isinstance(path, tuple):
+    raise NotImplementedError(
+        f'Parsing for jax tree path {path} not implemented.'
+    )
+
+  if any(isinstance(p, jax.tree_util.SequenceKey) for p in path):
+    # get the path up to the first sequence key, we assume variadic sequences
+    is_seq_key = [isinstance(p, jax.tree_util.SequenceKey) for p in path]
+    path = path[: is_seq_key.index(True)]
+
+  assert all(isinstance(p, jax.tree_util.GetAttrKey) for p in path)
+  path = [p for p in path if p.name != '_impl']
+  return '__'.join(p.name for p in path)
+

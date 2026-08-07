@@ -44,7 +44,7 @@ class mjXReader : public mjXBase {
 
   // XML sections embedded in all formats
   static void Compiler(tinyxml2::XMLElement* section, mjSpec* s);    // compiler section
-  static void Option(tinyxml2::XMLElement* section, mjOption* opt);  // option section
+  static void Option(tinyxml2::XMLElement* section, mjSpec* s, mjOption* opt);  // option section
   static void Size(tinyxml2::XMLElement* section, mjSpec* s);        // size section
 
  private:
@@ -65,6 +65,17 @@ class mjXReader : public mjXBase {
   void Actuator(tinyxml2::XMLElement* section);                        // actuator section
   void Sensor(tinyxml2::XMLElement* section);                          // sensor section
   void Keyframe(tinyxml2::XMLElement* section);                        // keyframe section
+
+  // table-driven attribute reading: the mechanical attributes of an element,
+  // driven by its generated mjXAttr rows (see mjcf_read_table.inc). The
+  // static core handles everything except element names; the member wrapper
+  // adds kName handling and defaults-context awareness.
+  void ReadAttrTable(tinyxml2::XMLElement* elem, void* obj, mjsElement* el,
+                     const struct mjXAttr* rows, int nrow);
+  static void ReadAttrTableCore(tinyxml2::XMLElement* elem, void* obj,
+                                const struct mjXAttr* rows, int nrow,
+                                bool skipnodefault,
+                                const void* authored = nullptr);
 
   // single element parsers, used in defaults and main body
   void OneFlex(tinyxml2::XMLElement* elem, mjsFlex* pflex);
@@ -101,8 +112,10 @@ class mjXReader : public mjXBase {
   mujoco::user::FilePath texturedir_;
 };
 
-// MJCF schema
-#define nMJCF 248
-extern std::vector<const char*> MJCF[nMJCF];
+// MJCF schema table, generated from mjcf.schema into mjcf_table.inc
+extern const int nMJCF;
+extern std::vector<const char*> MJCF[];
+extern const mjXConstraintDef MJCF_constraints[];
+extern const int nMJCF_constraints;
 
 #endif  // MUJOCO_SRC_XML_XML_NATIVE_READER_H_

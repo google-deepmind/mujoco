@@ -153,6 +153,7 @@ class Simulate {
     std::optional<std::string> save_mjb;
     std::optional<std::string> print_model;
     std::optional<std::string> print_data;
+    bool update_threadpool;
     bool reset;
     bool align;
     bool copy_key;
@@ -171,6 +172,7 @@ class Simulate {
     bool ui_update_joint;
     bool ui_update_ctrl;
     bool ui_update_equality;
+    bool ui_update_logging;
     bool ui_remake_ctrl;
   } pending_ = {};
 
@@ -204,6 +206,10 @@ class Simulate {
 
   // simulation
   int run = 1;
+
+
+  // number of workers in threadpool
+  int nthread = 0;
 
   // atomics for cross-thread messages
   std::atomic_int exitrequest = 0;
@@ -251,6 +257,12 @@ class Simulate {
   int disable[mjNDISABLE] = {0};
   int enable[mjNENABLE] = {0};
   int enableactuator[mjNGROUP] = {0};
+
+  // logging: need sync
+  mjtByte log_console = 0;
+  mjtByte log_file = 0;
+  mjtByte log_topics[mjNTOPIC] = {0};
+  mjTimerStat timer_prev_[mjNTIMER] = {};
 
   // rendering: need sync
   int camera = 0;
@@ -320,9 +332,10 @@ class Simulate {
 
 
   // simulation section of UI
-  const mjuiDef def_simulation[14] = {
+  const mjuiDef def_simulation[15] = {
     {mjITEM_SECTION,   "Simulation",    mjPRESERVE, nullptr,     "AS"},
     {mjITEM_RADIO,     "",              5, &this->run,           "Pause\nRun"},
+    {mjITEM_SLIDERINT, "Num threads",   5, &this->nthread,       "0 10"},
     {mjITEM_BUTTON,    "Reset",         2, nullptr,              " #259"},
     {mjITEM_BUTTON,    "Reload",        5, nullptr,              "CL"},
     {mjITEM_BUTTON,    "Align",         2, nullptr,              "CA"},

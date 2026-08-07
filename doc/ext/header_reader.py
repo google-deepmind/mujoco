@@ -115,7 +115,9 @@ def read(lines: List[str]) -> Dict[str, ApiDefinition]:
         if stripped_functions:
           s.code = f'{s.code}{line}'
         else:
-          s.code = f'{s.code}{line[6:]}'
+          decl = line.replace('MJAPI ', '')
+          decl = decl[6:] if decl.startswith(' ' * 6) else decl
+          s.code = f'{s.code}{decl}'
         s.token = token
         s.start('FUNCTION')
         if _is_function_end(line):
@@ -142,7 +144,9 @@ def read(lines: List[str]) -> Dict[str, ApiDefinition]:
       if stripped_functions:
         s.code = f'{s.code}{line}'
       else:
-        s.code = f'{s.code}{line[6:]}'
+        decl = line.replace('MJAPI ', '')
+        decl = decl[6:] if decl.startswith(' ' * 6) else decl
+        s.code = f'{s.code}{decl}'
       if _is_function_end(line):
         api[s.token] = s.export_definition()
         s.end()
@@ -176,6 +180,12 @@ def read(lines: List[str]) -> Dict[str, ApiDefinition]:
         s.start('STRUCT')
         s.code = f'{s.code}{line}'
 
+      match = _STRUCT_END_REGEX_1.search(line)
+      if match is not None:
+        s.token = match.group('token')
+        api[s.token] = s.export_definition()
+        s.end()
+
       if line.startswith('//'):
         s.doc = f'{s.doc}{line[3:]}'
         s.start('DOC')
@@ -185,7 +195,9 @@ def read(lines: List[str]) -> Dict[str, ApiDefinition]:
         if stripped_functions:
           s.code = f'{s.code}{line}'
         else:
-          s.code = f'{s.code}{line[6:]}'
+          decl = line.replace('MJAPI ', '')
+          decl = decl[6:] if decl.startswith(' ' * 6) else decl
+          s.code = f'{s.code}{decl}'
         s.token = token
         s.start('FUNCTION')
         if _is_function_end(line):
@@ -203,7 +215,13 @@ def _find_section(line) -> Optional[str]:
 
 
 def _find_function_start(line, stripped) -> Optional[str]:
-  if (line.startswith('MJAPI') and 'extern' not in line) or stripped:
+  if (
+      'extern' not in line
+      and 'typedef' not in line
+      and '#define' not in line
+      and '_DEBUG_' not in line
+      and not line.startswith('//')
+  ) or stripped:
     match = _FUNCTION_REGEX.search(line)
     if match is not None:
       return match.group('token')

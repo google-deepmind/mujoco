@@ -34,7 +34,7 @@ extern "C" {
 // mjData arena allocate
 MJAPI void* mj_arenaAllocByte(mjData* d, size_t bytes, size_t alignment);
 
-#ifndef ADDRESS_SANITIZER
+#ifndef mjUSEASAN
 
 // mjData mark stack frame
 MJAPI void mj_markStack(mjData* d);
@@ -48,9 +48,6 @@ void mj__markStack(mjData* d) __attribute__((noinline));
 void mj__freeStack(mjData* d) __attribute__((noinline));
 
 #endif  // ADDRESS_SANITIZER
-
-// returns the number of bytes available on the stack
-MJAPI size_t mj_stackBytesAvailable(mjData* d);
 
 // allocate bytes on the stack
 MJAPI void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment);

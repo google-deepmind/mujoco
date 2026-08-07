@@ -154,28 +154,3 @@ def check_toolkit_driver():
         """,
         stacklevel=2,
       )
-
-
-class scoped_mathdx_gemm_disabled:
-  """Temporarily disable Warp MathDx GEMM kernels within this scope."""
-
-  def __init__(self, disable: bool = True):
-    self._disable = disable
-    self._config = None
-    self._prev = None
-
-  def __enter__(self):
-    if not self._disable:
-      return self
-    config = getattr(wp, "config", None)
-    if config is None or not hasattr(config, "enable_mathdx_gemm"):
-      return self
-    self._config = config
-    self._prev = config.enable_mathdx_gemm
-    self._config.enable_mathdx_gemm = False
-    return self
-
-  def __exit__(self, exc_type, exc, tb):
-    if self._config is not None:
-      self._config.enable_mathdx_gemm = self._prev
-    return False

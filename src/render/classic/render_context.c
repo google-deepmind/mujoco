@@ -55,6 +55,29 @@ void mjr_defaultContext(mjrContext* con) {
   memset(con, 0, sizeof(mjrContext));
 }
 
+static int context_count = 0;
+
+static int contextHasResources(const mjrContext* con) {
+  return con->ntexture || con->offColor || con->offDepthStencil || con->offFBO ||
+         con->shadowTex || con->shadowFBO || con->rangePlane || con->rangeMesh ||
+         con->rangeHField || con->rangeBuiltin || con->rangeFont || con->nskin;
+}
+
+// set default mjrRendererInfo
+void mjr_defaultRendererInfo(mjrRendererInfo* info) {
+  memset(info, 0, sizeof(mjrRendererInfo));
+  info->renderer = "classic";
+  info->backend = "";
+}
+
+// get active renderer information
+void mjr_getRendererInfo(mjrRendererInfo* info) {
+  mjr_defaultRendererInfo(info);
+  if (context_count > 0) {
+    info->backend = "opengl";
+  }
+}
+
 
 
 // allocate lists
@@ -1365,6 +1388,16 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
   int w = m->tex_width[texid];
   float plane[4];
 
+  // the classic renderer only uploads 3- (RGB) or 4-channel (RGBA) textures. KTX
+  // and other encoded textures are single-channel blobs for the Filament renderer
+  // (see LoadKTX); skip them with a warning instead of aborting (issue #3343).
+  if (m->tex_nchannel[texid] != 3 && m->tex_nchannel[texid] != 4) {
+    mju_warning("texture %d: classic renderer can't upload %d-channel data, "
+                "skipping (KTX/encoded textures need the Filament renderer)",
+                texid, m->tex_nchannel[texid]);
+    return;
+  }
+
   // 2D texture
   if (m->tex_type[texid] == mjTEXTURE_2D) {
     // OpenGL settings
@@ -1390,11 +1423,9 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
     if (m->tex_nchannel[texid] == 3) {
       type = GL_RGB;
       internaltype = (m->tex_colorspace[texid] == mjCOLORSPACE_SRGB) ? GL_SRGB8_EXT : GL_RGB;
-    } else if (m->tex_nchannel[texid] == 4) {
+    } else {  // 4 channels, guaranteed by the channel check at the top of the function
       type = GL_RGBA;
       internaltype = (m->tex_colorspace[texid] == mjCOLORSPACE_SRGB) ? GL_SRGB8_ALPHA8_EXT : GL_RGBA;
-    } else {
-      mju_error("Number of channels not supported: %d", m->tex_nchannel[texid]);
     }
 
     glTexImage2D(GL_TEXTURE_2D, 0, internaltype, m->tex_width[texid],
@@ -1608,6 +1639,7 @@ void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
     // try to bind window (bind offscreen if no window)
     mjr_setBuffer(mjFB_WINDOW, con);
 
+    context_count++;
     return;
   }
 
@@ -1667,6 +1699,7 @@ void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
 
   // set default depth mapping for mjr_readPixels
   con->readDepthMap = mjDEPTH_ZERONEAR;
+  context_count++;
 }
 
 
@@ -1811,6 +1844,8 @@ void mjr_addAux(int index, int width, int height, int samples, mjrContext* con) 
 
 // free resources in custom OpenGL context
 void mjr_freeContext(mjrContext* con) {
+  int had_resources = contextHasResources(con);
+
   // save flags
   int glInitialized = con->glInitialized;
   int windowAvailable = con->windowAvailable;
@@ -1867,6 +1902,10 @@ void mjr_freeContext(mjrContext* con) {
   con->windowSamples = windowSamples;
   con->windowStereo = windowStereo;
   con->windowDoublebuffer = windowDoublebuffer;
+
+  if (had_resources && context_count > 0) {
+    context_count--;
+  }
 }
 
 

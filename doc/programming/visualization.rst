@@ -3,6 +3,13 @@
 Visualization
 -------------
 
+.. admonition:: MuJoCo Studio
+   :class: note
+
+   We are actively developing a new visualizer platform called
+   `MuJoCo Studio <https://github.com/google-deepmind/mujoco/blob/main/src/experimental/studio>`__. We will update this
+   section once it becomes more established.
+
 MuJoCo has a native 3D visualizer. Its use is illustrated in the :ref:`simulate.cc <saSimulate>` code sample and in
 the simpler :ref:`basic.cc <saBasic>` code sample. While it is not a full-featured rendering engine, it is a
 convenient, efficient and reasonably good-looking visualizer that facilitates research and development. It renders not
@@ -303,6 +310,23 @@ OpenGL Rendering
 This stage takes the mjvScene data structure populated in the abstract visualization stage, and renders it. It also
 provides basic 2D drawing and framebuffer access, so that most applications would not need to call OpenGL directly.
 
+.. _reOpenGL:
+
+Using OpenGL
+'''''''''''''
+
+MuJoCo uses OpenGL 1.5 in the compatibility profile with the ``ARB_framebuffer_object`` and ``ARB_vertex_buffer_object``
+extensions. OpenGL symbols are loaded via `GLAD <https://github.com/Dav1dde/glad>`_ the first time the
+:ref:`mjr_makeContext` function is called. This means that the MuJoCo library itself does not have an explicit
+dependency on OpenGL and can be used on systems without OpenGL support, as long as ``mjr_`` functions are not called.
+
+Applications that use MuJoCo's built-in rendering functionalities are responsible for linking against an appropriate
+OpenGL context creation library and for ensuring that there is an OpenGL context that is made current on the running
+thread. On Windows and macOS, there is a canonical OpenGL library provided by the operating system. On Linux, MuJoCo
+currently supports GLX for rendering to an X11 window, OSMesa for headless software rendering, and EGL for hardware
+accelerated headless rendering.
+
+
 .. _reContext:
 
 Context and GPU resources
@@ -462,3 +486,21 @@ We also provide the functions :ref:`mjr_finish` and :ref:`mjr_getError` for expl
 for OpenGL error checking. They simply call glFinish and glGetError internally. This together with the basic 2d
 drawing functions above is meant to provide enough functionality so that most users will not need to write OpenGL
 code. Of course we cannot achieve this in all cases, short of providing wrappers for all of OpenGL.
+
+
+.. _FilamentRendering:
+
+Filament Rendering
+~~~~~~~~~~~~~~~~~~
+
+MuJoCo also provides a `Filament <https://github.com/google/filament>`_ based renderer for 3D visualization of its
+simulations.
+
+Filament is a real-time physically based rendering (PBR) engine developed by Google. It is designed to be as small as
+possible and as efficient as possible, while still providing high-quality results. It works across all major platforms
+(Linux, Windows, macOS, Android, iOS, Web) and supports OpenGL, Vulkan, and Metal.
+
+MuJoCo's current integration with the Filament renderer is done by setting `MUJOCO_USE_FILAMENT` to 1 in the CMake Build
+configuration. This effectively replaces the OpenGL-based `mjr` function implementations with Filament-based ones. It
+also makes the underlying Filament `mjrf` :ref:`types <tyFilamentRenderStructure>` and
+:ref:`functions <FilamentRenderingApi>` available for use.

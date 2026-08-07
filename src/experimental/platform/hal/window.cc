@@ -32,6 +32,7 @@
 #include <imgui.h>
 #include <mujoco/mujoco.h>
 #include "experimental/platform/hal/graphics_mode.h"
+#include "experimental/platform/ux/fonts.h"
 #include "user/user_resource.h"
 
 // Because X11/Xlib.h defines Status.
@@ -63,28 +64,7 @@ static void InitImGui(SDL_Window* window, float content_scale,
   style.FontScaleDpi = content_scale;
 
   if (load_fonts) {
-    mjResource* font = nullptr;
-    int size = 0;
-    void* data = nullptr;
-
-    ImFontConfig main_cfg;
-    main_cfg.FontDataOwnedByAtlas = false;
-    font =
-        mju_openResource("", "font:OpenSans-Regular.ttf", nullptr, nullptr, 0);
-    size = mju_readResource(font, const_cast<const void**>(&data));
-    io.Fonts->AddFontFromMemoryTTF(data, size, 20.f, &main_cfg);
-
-    ImFontConfig icon_cfg;
-    icon_cfg.FontDataOwnedByAtlas = false;
-    icon_cfg.MergeMode = true;
-    font = mju_openResource("", "font:fontawesome-webfont.ttf", nullptr,
-                            nullptr, 0);
-    size = mju_readResource(font, const_cast<const void**>(&data));
-    constexpr ImWchar icon_ranges[] = {0xf000, 0xf3ff, 0x000};
-    io.Fonts->AddFontFromMemoryTTF(data, size, 14.f, &icon_cfg, icon_ranges);
-
-    // Note: we purposefully do not "close" the font resources as ImGui may
-    // need them again to resize fonts.
+    AddStudioFonts(LoadFontResource);
   }
 }
 
@@ -220,6 +200,8 @@ Window::Status Window::NewFrame() {
         int drawable_height = height_;
         SDL_GL_GetDrawableSize(sdl_window_, &drawable_width, &drawable_height);
         scale_ = (float)drawable_width / (float)width_;
+      } else if (event.window.event == SDL_WINDOWEVENT_CLOSE) {
+        should_exit_ = true;
       }
     } else if (event.type == SDL_DROPFILE) {
       drop_file_ = event.drop.file;

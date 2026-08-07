@@ -222,34 +222,46 @@ void mjCopyError(char* dst, const char* src, int maxlen) {
 }
 
 void mju_getXMLDependencies(const char* filename, mjStringVec* dependencies) {
-  // load XML file or parse string
-  tinyxml2::XMLDocument doc;
-  doc.LoadFile(filename);
-
-  // error checking
-  if (doc.Error()) {
-    mju_error("Problem reading XML file '%s': %s", filename, doc.ErrorStr());
+  // Open through the resource provider so the function works against any
+  // registered backend (OS file system, VFS, HTTP, "github:", ...) rather
+  // than only the OS file system.
+  mjResource* resource = mju_openResource("", filename, nullptr, nullptr, 0);
+  if (resource == nullptr) {
+    mju_error("Could not open '%s'", filename);
   }
 
-  // get top-level element
-  tinyxml2::XMLElement *root = doc.RootElement();
-  if (!root) {
-    mju_error("XML root element not found");
-  }
-  std::unordered_set<std::string> files = {filename};
-
-  std::optional<FilePath> model_dir = std::nullopt;
-  mjResource *resource = mju_openResource("", filename, nullptr,
-                                          nullptr, 0);
-  if (resource != nullptr) {
-    const char* dir;
-    int ndir;
-    mju_getResourceDir(resource, &dir, &ndir);
-    model_dir = FilePath(std::string(dir, ndir));
+  // Read the XML bytes from the resource.
+  const void* buffer = nullptr;
+  int size = mju_readResource(resource, &buffer);
+  if (size < 0 || !size) {
     mju_closeResource(resource);
+    mju_error("Could not read '%s'", filename);
   }
-  // Get file references from include and model tags.
-  AccumulateFiles(files, root, model_dir.value());
+
+  // Capture the model directory while the resource is still open.
+  const char* dir = nullptr;
+  int ndir = 0;
+  mju_getResourceDir(resource, &dir, &ndir);
+  FilePath model_dir(std::string(dir, ndir));
+
+  // Parse from buffer and close (the parsed DOM is independent of the
+  // resource buffer once Parse returns).
+  tinyxml2::XMLDocument doc;
+  tinyxml2::XMLError err =
+      doc.Parse(static_cast<const char*>(buffer), static_cast<size_t>(size));
+  mju_closeResource(resource);
+
+  if (err != tinyxml2::XML_SUCCESS) {
+    mju_error("Problem reading XML file '%s': %s", filename,
+              doc.ErrorStr() ? doc.ErrorStr() : "");
+  }
+  tinyxml2::XMLElement* root = doc.RootElement();
+  if (!root) {
+    mju_error("XML root element not found in '%s'", filename);
+  }
+
+  std::unordered_set<std::string> files = {filename};
+  AccumulateFiles(files, root, model_dir);
 
   *dependencies = {files.begin(), files.end()};
 }
@@ -321,10 +333,19 @@ XMLElement* NextSiblingElement(XMLElement* e, const char* name) {
 }
 
 // constructor
-mjXSchema::mjXSchema(std::vector<const char*> schema[], unsigned nrow) {
+mjXSchema::mjXSchema(std::vector<const char*> schema[], unsigned nrow,
+                     const mjXConstraintDef* constraints, int nconstraint,
+                     int first_row) {
   // set name and type
   name_ = schema[0][0];
   type_ = schema[0][1][0];
+
+  // adopt the presence constraints declared for this row
+  for (int i = 0; i < nconstraint; i++) {
+    if (constraints[i].row == first_row) {
+      constraints_.push_back(&constraints[i]);
+    }
+  }
 
   // set attributes
   int nattr = schema[0].size() - 2;
@@ -358,12 +379,109 @@ mjXSchema::mjXSchema(std::vector<const char*> schema[], unsigned nrow) {
       }
 
       // add child element
-      subschema_.emplace_back(schema+start, end-start+1);
+      subschema_.emplace_back(schema+start, end-start+1, constraints,
+                              nconstraint, first_row+start);
 
       // proceed with next subelement
       start = end+1;
     }
   }
+}
+
+
+
+// quoted list of constraint bundles: 'a' or ('a', 'b'), comma-joined
+static std::string BundleList(const std::vector<std::vector<std::string>>& bundles) {
+  std::string out;
+  for (size_t i = 0; i < bundles.size(); i++) {
+    if (i) {
+      out += ", ";
+    }
+    if (bundles[i].size() == 1) {
+      out += "'" + bundles[i][0] + "'";
+    } else {
+      out += '(';
+      for (size_t j = 0; j < bundles[i].size(); j++) {
+        out += (j ? ", '" : "'") + bundles[i][j] + "'";
+      }
+      out += ')';
+    }
+  }
+  return out;
+}
+
+
+
+// enforce the presence constraints declared for this element
+XMLElement* mjXSchema::CheckConstraints(XMLElement* elem) {
+  for (const mjXConstraintDef* con : constraints_) {
+    // split the spec into bundles of attribute names
+    std::vector<std::vector<std::string>> bundles(1);
+    std::string token;
+    for (const char* c = con->spec;; c++) {
+      if (*c == ' ' || *c == '|' || *c == '\0') {
+        if (!token.empty()) {
+          bundles.back().push_back(token);
+          token.clear();
+        }
+        if (*c == '|') {
+          bundles.emplace_back();
+        }
+        if (*c == '\0') {
+          break;
+        }
+      } else {
+        token += *c;
+      }
+    }
+
+    // per-bundle presence: any member present / all members present
+    int n_any = 0, n_all = 0, n_attr = 0, n_present = 0;
+    for (const auto& bundle : bundles) {
+      bool any = false, all = true;
+      for (const std::string& attr : bundle) {
+        bool present = elem->Attribute(attr.c_str()) != nullptr;
+        any |= present;
+        all &= present;
+        n_attr++;
+        n_present += present;
+      }
+      n_any += any;
+      n_all += all;
+    }
+
+    switch (con->kind) {
+      case 'e':  // at most one bundle may be present
+        if (n_any > 1) {
+          error = "at most one of " + BundleList(bundles) +
+                  " can be specified";
+          return elem;
+        }
+        break;
+      case 't':  // all listed attributes appear together or not at all
+        if (n_present != 0 && n_present != n_attr) {
+          error = "attributes " + BundleList(bundles) +
+                  " must be specified together";
+          return elem;
+        }
+        break;
+      case 'r':  // first attribute requires the second
+        if (n_any && elem->Attribute(bundles[0][0].c_str()) &&
+            !elem->Attribute(bundles[1][0].c_str())) {
+          error = "attribute '" + bundles[0][0] + "' requires attribute '" +
+                  bundles[1][0] + "'";
+          return elem;
+        }
+        break;
+      case 'o':  // at least one bundle must be complete
+        if (n_all == 0) {
+          error = "one of " + BundleList(bundles) + " must be specified";
+          return elem;
+        }
+        break;
+    }
+  }
+  return nullptr;
 }
 
 
@@ -511,6 +629,11 @@ XMLElement* mjXSchema::Check(XMLElement* elem, int level) {
       error = "unrecognized attribute: '" + std::string(attribute->Name()) + "'";
       return elem;
     }
+  }
+
+  // check presence constraints
+  if ((bad = CheckConstraints(elem))) {
+    return bad;
   }
 
   // handle recursion
@@ -833,14 +956,15 @@ template int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, int len,
 //  throw error if identically zero
 int mjXUtil::ReadQuat(XMLElement* elem, const char* attr, double* data, std::string& text,
                       bool required) {
-  ReadAttr(elem, attr, /*len=*/4, data, text, required, /*exact=*/true);
+  int n = ReadAttr(elem, attr, /*len=*/4, data, text, required, /*exact=*/true);
+  if (n == 0) return 0;
 
   // check for 0 quaternion
   if (data[0] == 0 && data[1] == 0 && data[2] == 0 && data[3] == 0) {
     throw mjXError(elem, "zero quaternion is not allowed");
   }
 
-  return 4;
+  return n;
 }
 
 // read DOUBLE array into C++ vector, return number read
@@ -1146,6 +1270,10 @@ void mjXUtil::WriteAttrKey(XMLElement* elem, std::string name,
 // write attribute- space-separated keywords
 void mjXUtil::WriteAttrKeys(XMLElement* elem, std::string name, const mjMap* map,
                             int mapsz, int* data, int ndata, int def) {
+  if (ndata <= 0) {
+    return;
+  }
+
   // skip default
   if (ndata == 1 && data[0] == def) {
     return;
@@ -1153,7 +1281,8 @@ void mjXUtil::WriteAttrKeys(XMLElement* elem, std::string name, const mjMap* map
 
   std::string text = FindValue(map, mapsz, data[0]);
   for (int i = 1; i < ndata; ++i) {
-    text += " " + FindValue(map, mapsz, data[i]);
+    text += " ";
+    text += FindValue(map, mapsz, data[i]);
   }
 
   WriteAttrTxt(elem, name, text);

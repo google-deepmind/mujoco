@@ -139,6 +139,22 @@ class Parameter:
       rng = np.random.default_rng()
     return rng.uniform(self.min_value.flatten(), self.max_value.flatten())
 
+  def move_off_bound(
+      self, fraction: float = 0.05, at_bound_tol: float = 1e-3
+  ) -> None:
+    """Shift values within ``at_bound_tol * (hi - lo)`` of a bound to
+    ``lo + fraction*(hi-lo)`` (or symmetric for the upper bound). Interior
+    components are unchanged."""
+    lo, hi = self.get_bounds()
+    rng = hi - lo
+    safe_rng = np.where(rng > 0, rng, 1.0)
+    v = self.as_vector().copy()
+    at_lo = (v - lo) <= at_bound_tol * safe_rng
+    at_hi = (hi - v) <= at_bound_tol * safe_rng
+    v = np.where(at_lo, lo + fraction * rng, v)
+    v = np.where(at_hi, hi - fraction * rng, v)
+    self.update_from_vector(v)
+
   def __str__(self) -> str:
     """Return a string representation of the parameter."""
     if self.size == 1:
@@ -292,6 +308,17 @@ class ParameterDict:
         size = param.size
         param.update_from_vector(vector[start : start + size])
         start += size
+
+  def move_off_bounds(
+      self, fraction: float = 0.05, at_bound_tol: float = 1e-3
+  ) -> Self:
+    """Call :meth:`Parameter.move_off_bound` on every non-frozen parameter,
+    returning ``self`` so calls can be chained before
+    :func:`optimize`."""
+    for param in self.parameters.values():
+      if not param.frozen:
+        param.move_off_bound(fraction=fraction, at_bound_tol=at_bound_tol)
+    return self
 
   def save_to_disk(self, path: str | pathlib.Path) -> None:
     """Save the parameter dictionary to disk (schema and data).

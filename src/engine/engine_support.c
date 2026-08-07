@@ -43,8 +43,8 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 3009000
-#define mjVERSIONSTRING "3.9.0"
+ #define mjVERSION 3011001
+#define mjVERSIONSTRING "3.11.1"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -99,6 +99,14 @@ const char* mjTIMERSTRING[mjNTIMER]= {
   "pos_project",
   "col_broadphase",
   "col_narrowphase"
+};
+
+
+// names of log topics (index i corresponds to topic i+1)
+const char* mjTOPICSTRING[mjNTOPIC] = {
+  "Step timing",
+  "Compile timing",
+  "Sleep/wake"
 };
 
 
@@ -367,19 +375,8 @@ void mj_setKeyframe(mjModel* m, const mjData* d, int k) {
 //-------------------------- inertia functions -----------------------------------------------------
 
 // convert sparse inertia matrix M into full matrix
-void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M) {
-  int adr = 0, nv = m->nv;
-  mju_zero(dst, nv*nv);
-
-  for (int i=0; i < nv; i++) {
-    int j = i;
-    while (j >= 0) {
-      dst[i*nv+j] = M[adr];
-      dst[j*nv+i] = M[adr];
-      j = m->dof_parentid[j];
-      adr++;
-    }
-  }
+void mj_fullM(const mjModel* m, const mjData* d, mjtNum* dst) {
+  mju_sym2dense(dst, d->M, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind);
 }
 
 
@@ -528,9 +525,11 @@ static mjtNum mj_geomDistanceCCD(const mjModel* m, mjData* d, int g1, int g2,
   // set config
   config.max_iterations = m->opt.ccd_iterations;
   config.tolerance = m->opt.ccd_tolerance;
+  config.npolygonmax = 0;
+  config.nmeshdegmax = 0;
   config.max_contacts = 1;        // want contacts
   config.dist_cutoff = distmax;   // want geom distances
-  config.buffer = mj_stackAllocByte(d, mjc_ccdSize(config.max_iterations), sizeof(mjtNum));
+  config.buffer = mj_stackAllocByte(d, mjc_ccdSize(0, 0, config.max_iterations), sizeof(mjtNum));
 
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, 0);
@@ -736,7 +735,7 @@ mjtNum mj_nextActivation(const mjModel* m, const mjData* d,
       mjtNum F_S = biasprm[4];    // static friction
       mjtNum v_S = biasprm[5];    // Stribeck velocity
       mjtNum sigma0 = dynprm[5];  // bristle stiffness
-      mjtNum velocity = d->actuator_velocity[actuator_id];
+      mjtNum velocity = d->actuator_velocity[m->actuator_outadr[actuator_id]];
       mjtNum g = mj_lugreStribeck(velocity, F_C, F_S, v_S);
 
       // ZOH exact ZOH integration: z(h) = exp(ah)*z(0) + ((exp(ah)-1)/a)*v
@@ -886,7 +885,7 @@ void mju_camIntrinsics(const mjModel* m, int camid,
 // read delayed ctrl value for actuator at given time
 mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int interp) {
   // validate actuator id
-  if (id < 0 || id >= m->nu) {
+  if (id < 0 || id >= m->nactuator) {
     mjERROR("invalid actuator id %d", id);
     return 0;
   }
@@ -894,7 +893,7 @@ mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int i
   // no delay: return current ctrl value
   int nsample = m->actuator_history[2*id];
   if (nsample == 0) {
-    return d->ctrl[id];
+    return d->ctrl[m->actuator_ctrladr[id]];
   }
 
   // resolve interpolation order: use model's interp if argument is -1
@@ -939,7 +938,7 @@ const mjtNum* mj_readSensor(const mjModel* m, const mjData* d, int id, mjtNum ti
 void mj_initCtrlHistory(const mjModel* m, mjData* d, int id,
                         const mjtNum* times, const mjtNum* values) {
   // validate actuator id
-  if (id < 0 || id >= m->nu) {
+  if (id < 0 || id >= m->nactuator) {
     mjERROR("invalid actuator id %d", id);
     return;
   }

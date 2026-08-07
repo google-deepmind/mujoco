@@ -153,6 +153,9 @@ class MjcPhysicsMeshCollisionAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // INERTIA
   // --------------------------------------------------------------------- //
+  /// DEPRECATED: Use NewtonMassAPI's newton:massModel or UsdPhysics's
+  /// physics:approximation instead.
+  ///
   /// Controls how a mesh is used when mass and inertia are inferred from
   /// geometry.
   ///
@@ -179,6 +182,8 @@ class MjcPhysicsMeshCollisionAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // MAXHULLVERT
   // --------------------------------------------------------------------- //
+  /// DEPRECATED: Use newton:maxHullVertices instead.
+  ///
   /// Sets an upper limit on the number of vertices in the meshes convex hull.
   /// The default value of -1 means unlimited.
   ///

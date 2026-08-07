@@ -14,14 +14,16 @@
 
 // Tests for sdf collisions.
 
+#include "src/engine/engine_collision_sdf.h"
+
 #include <cstdio>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
-#include "src/engine/engine_collision_sdf.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -48,22 +50,24 @@ static constexpr char kSdfModel[] = R"(
 
 TEST_F(SdfTest, SdfPrimitive) {
   char error[1024];
-  mjModel* model = LoadModelFromString(kSdfModel, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(kSdfModel, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
   ASSERT_THAT(data, NotNull());
   ASSERT_THAT(model->ngeom, kgeoms);
 
   mjSDF sdf;
   const mjpPlugin* null_plugin = NULL;
-  mjtNum gradient[3], dist[kgeoms][kpoints] = {
-    {0, 0, 0, 0, 1, 1},  // plane
-    {-1, 0, 0, mju_sqrt(2)-1, mju_sqrt(2)-1, mju_sqrt(3)-1},  // sphere
-    {(mjtNum)-.1, (mjtNum).9, (mjtNum).9,
-     mju_sqrt(2)-(mjtNum).1, (mjtNum).9, mju_sqrt(2)-(mjtNum).1},  // capsule
-    {-1, 0, 0, mju_sqrt(2)-1, 0, mju_sqrt(2)-1},  // cylinder
-    {-mju_sqrt(3), 0, 0, 0, 0, 0},  // box
-  };
+  mjtNum gradient[3],
+      dist[kgeoms][kpoints] = {
+          {0, 0, 0, 0, 1, 1},  // plane
+          {-1, 0, 0, mju_sqrt(2) - 1, mju_sqrt(2) - 1,
+           mju_sqrt(3) - 1},  // sphere
+          {(mjtNum)-.1, (mjtNum).9, (mjtNum).9, mju_sqrt(2) - (mjtNum).1,
+           (mjtNum).9, mju_sqrt(2) - (mjtNum).1},           // capsule
+          {-1, 0, 0, mju_sqrt(2) - 1, 0, mju_sqrt(2) - 1},  // cylinder
+          {-mju_sqrt(3), 0, 0, 0, 0, 0},                    // box
+      };
   mjtNum points[kpoints][3] = {{0, 0, 0}, {1, 0, 0}, {0, 1, 0},
                                {1, 1, 0}, {0, 1, 1}, {1, 1, 1}};
 
@@ -71,16 +75,13 @@ TEST_F(SdfTest, SdfPrimitive) {
     sdf.plugin = &null_plugin;
     sdf.id = &i;
     sdf.type = mjSDFTYPE_SINGLE;
-    sdf.geomtype = (mjtGeom*)(model->geom_type+i);
+    sdf.geomtype = (mjtGeom*)(model->geom_type + i);
     for (int j = 0; j < kpoints; j++) {
-      EXPECT_NEAR(mjc_distance(model, data, &sdf, points[j]), dist[i][j],
-                  MjTol(1e-9, 5e-7));
-      mjc_gradient(model, data, &sdf, gradient, points[j]);
+      EXPECT_NEAR(mjc_distance(model.get(), data.get(), &sdf, points[j]),
+                  dist[i][j], MjTol(1e-9, 5e-7));
+      mjc_gradient(model.get(), data.get(), &sdf, gradient, points[j]);
     }
   }
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 static constexpr char kFlexSdfModel[] = R"(
@@ -118,9 +119,9 @@ static constexpr char kFlexSdfModel[] = R"(
 
 TEST_F(SdfTest, FlexSdfCollision) {
   char error[1024];
-  mjModel* model = LoadModelFromString(kFlexSdfModel, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(kFlexSdfModel, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
   ASSERT_THAT(data, NotNull());
 
   // check there is at least one flex
@@ -128,7 +129,7 @@ TEST_F(SdfTest, FlexSdfCollision) {
 
   // simulate for a few steps to let flex fall onto torus
   for (int i = 0; i < 100; i++) {
-    mj_step(model, data);
+    mj_step(model.get(), data.get());
   }
 
   // should have contacts between flex and SDF
@@ -143,11 +144,7 @@ TEST_F(SdfTest, FlexSdfCollision) {
     }
   }
   EXPECT_TRUE(has_flex_contact) << "Expected at least one flex contact";
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 }  // namespace
 }  // namespace mujoco
-

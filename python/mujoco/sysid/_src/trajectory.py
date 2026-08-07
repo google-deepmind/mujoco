@@ -102,18 +102,19 @@ class SystemTrajectory:
     if self.state is not None:
       save_dict["state_times"] = self.state.times
       save_dict["state_data"] = self.state.data
-      save_dict["state_signal_mapping"] = np.array(
-          self.state.signal_mapping, dtype=object
-      )
+      if self.state.signal_mapping:
+        save_dict["state_signal_mapping"] = np.asarray(
+            timeseries.encode_signal_mapping(self.state.signal_mapping)
+        )
 
     if self.control.signal_mapping:
-      save_dict["control_signal_mapping"] = np.array(
-          self.control.signal_mapping, dtype=object
+      save_dict["control_signal_mapping"] = np.asarray(
+          timeseries.encode_signal_mapping(self.control.signal_mapping)
       )
 
     if self.sensordata.signal_mapping:
-      save_dict["sensordata_signal_mapping"] = np.array(
-          self.sensordata.signal_mapping, dtype=object
+      save_dict["sensordata_signal_mapping"] = np.asarray(
+          timeseries.encode_signal_mapping(self.sensordata.signal_mapping)
       )
 
     np.savez(path, **save_dict)  # type: ignore
@@ -126,7 +127,7 @@ class SystemTrajectory:
       allow_missing_sensors: bool = False,
   ) -> SystemTrajectory:
     """Load a trajectory from a compressed NumPy archive."""
-    with np.load(path, allow_pickle=True) as npz:
+    with np.load(path, allow_pickle=False) as npz:
       control_times = npz["control_times"]
       control_data = npz["control_data"]
       sensordata_times = npz["sensordata_times"]
@@ -137,15 +138,21 @@ class SystemTrajectory:
 
       control_signal_mapping = None
       if "control_signal_mapping" in npz:
-        control_signal_mapping = npz["control_signal_mapping"].item()
+        control_signal_mapping = timeseries.decode_signal_mapping(
+            str(npz["control_signal_mapping"])
+        )
 
       sensordata_signal_mapping = None
       if "sensordata_signal_mapping" in npz:
-        sensordata_signal_mapping = npz["sensordata_signal_mapping"].item()
+        sensordata_signal_mapping = timeseries.decode_signal_mapping(
+            str(npz["sensordata_signal_mapping"])
+        )
 
       state_signal_mapping = None
       if "state_signal_mapping" in npz:
-        state_signal_mapping = npz["state_signal_mapping"].item()
+        state_signal_mapping = timeseries.decode_signal_mapping(
+            str(npz["state_signal_mapping"])
+        )
 
     predicted_rollout = cls(
         model=model,

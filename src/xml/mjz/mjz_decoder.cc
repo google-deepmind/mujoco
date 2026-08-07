@@ -61,7 +61,8 @@ class ZipArchiveProvider : public mjpResourceProvider {
  public:
   ZipArchiveProvider(std::string name, const void* buffer, int nbuffer,
                      char* error, int error_sz)
-      : name_(std::move(name)), buffer_((char*)buffer, (char*)buffer + nbuffer) {
+      : name_(std::filesystem::path(name).generic_string()),
+        buffer_((char*)buffer, (char*)buffer + nbuffer) {
     mjp_defaultResourceProvider(this);
 
     std::memset(&archive_, 0, sizeof(archive_));
@@ -86,17 +87,33 @@ class ZipArchiveProvider : public mjpResourceProvider {
       files_[stat.m_filename] = FileInfo{i, size, {}};
     }
 
-    // Look for the root XML model in the archive. First look for an XML file
-    // with the same name as the archive itself. Failing that, look for an XML
-    // file within a subdirectory with the same name as the archive.
+    // Look for the root XML model in the archive. We try the following
+    // locations:
+    // 1. [archive_name].xml
+    // 2. [archive_name]/[archive_name].xml
+    // 3. model.xml
+    // 4. [archive_name]/model.xml
     const std::filesystem::path path(name_);
-    root_model_ = (path / path.stem()).string() + ".xml";
-    if (!Contains(root_model_)) {
-      root_model_ = (path / path.stem() / path.stem()).string() + ".xml";
-      if (!Contains(root_model_)) {
-        SetError(error, error_sz, "Zip error: no root XML file found.");
-        return;
+    const std::string stem = path.stem().string();
+    std::vector<std::string> candidates = {
+        (path / stem).generic_string() + ".xml",
+        (path / stem / stem).generic_string() + ".xml",
+        (path / "model").generic_string() + ".xml",
+        (path / stem / "model").generic_string() + ".xml",
+    };
+
+    bool found = false;
+    for (const auto& candidate : candidates) {
+      if (Contains(candidate)) {
+        root_model_ = candidate;
+        found = true;
+        break;
       }
+    }
+
+    if (!found) {
+      SetError(error, error_sz, "Zip error: no root XML file found.");
+      return;
     }
 
     // Setup mjpResourceProvider callbacks.
@@ -110,12 +127,14 @@ class ZipArchiveProvider : public mjpResourceProvider {
     };
     open = [](mjResource* resource) {
       ZipArchiveProvider* self = (ZipArchiveProvider*)resource->provider;
-      const bool found = self->Contains(resource->name);
+      auto path = std::filesystem::path(resource->name).lexically_normal();
+      const bool found = self->Contains(path.generic_string());
       return found ? 1 : 0;
     };
     read = [](mjResource* resource, const void** buffer) {
       ZipArchiveProvider* self = (ZipArchiveProvider*)resource->provider;
-      std::span<char> bytes = self->Read(resource->name);
+      auto path = std::filesystem::path(resource->name).lexically_normal();
+      std::span<char> bytes = self->Read(path.generic_string());
       *buffer = bytes.data();
       return static_cast<int>(bytes.size());
     };
@@ -138,6 +157,11 @@ class ZipArchiveProvider : public mjpResourceProvider {
 
   // Returns true if the archive contains a file with the given name/path.
   bool Contains(std::string_view name) const {
+    // Lexically normalized path might strip the archive path.
+    // a/b.mjz/../../../c.xml -> ../c.xml
+    if (!name.starts_with(name_)) {
+      return false;
+    }
     const std::string_view filename = name.substr(name_.size() + 1);
     return files_.find(filename.data()) != files_.end();
   }
@@ -224,9 +248,14 @@ mjPLUGIN_LIB_INIT(mjz_decoder) {
     if (size <= 0) {
       return nullptr;
     }
-    char error[1024];
-    return ParseZipBuffer(buffer, size, resource->name, const_cast<mjVFS*>(vfs),
-                          error, sizeof(error));
+    char error[1024] = "";
+    mjSpec* spec = ParseZipBuffer(buffer, size, resource->name,
+                                  const_cast<mjVFS*>(vfs), error,
+                                  sizeof(error));
+    if (!spec && error[0]) {
+      mju_warning("%s", error);
+    }
+    return spec;
   };
   mjp_registerDecoder(&decoder);
 }

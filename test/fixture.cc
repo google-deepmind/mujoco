@@ -21,12 +21,9 @@
 #include <cstring>
 #include <filesystem>  // NOLINT
 #include <fstream>
-#include <limits>
 #include <sstream>
 #include <string>
 #include <string_view>
-
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -35,44 +32,120 @@
 #include <absl/base/attributes.h>
 #include <absl/base/const_init.h>
 #include <absl/base/thread_annotations.h>
+#include <absl/strings/match.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
 #include <absl/synchronization/mutex.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "src/xml/xml_global.h"
 
 namespace mujoco {
+namespace {
+using ::testing::_;
+using ::testing::Not;
+using ::testing::Return;
+using ::testing::Truly;
+
+// Returns true if the warning matches a known benign warning to ignore.
+bool IsBenignWarning(const std::string& msg) {
+  static const char* const kBenignWarnings[] = {
+      "is not rigid and has no equality constraints",
+      "Attach conflict",
+  };
+  for (const char* warning : kBenignWarnings) {
+    if (absl::StrContains(msg, warning)) {
+      return true;
+    }
+  }
+  return false;
+}
+}  // namespace
+
+thread_local MockWarningHandler* MockWarningHandler::active_handler = nullptr;
+
+// Registers this handler as the active one.
+MockWarningHandler::MockWarningHandler() {
+  prev_ = active_handler;
+  active_handler = this;
+
+  // By default, ignore matches in the benign warnings list
+  ON_CALL(*this, Warn(Truly(IsBenignWarning)))
+      .WillByDefault([](const std::string&) {});
+
+  // Fail on all other warnings
+  ON_CALL(*this, Warn(Not(Truly(IsBenignWarning))))
+      .WillByDefault([](const std::string& msg) {
+        ADD_FAILURE() << "mju_user_warning: " << msg;
+      });
+}
+
+// Restores the previously active warning handler.
+MockWarningHandler::~MockWarningHandler() { active_handler = prev_; }
+
+// Configures the mock warning handler to ignore all warnings (if empty) or
+// expect at least one warning containing substring (if non-empty).
+void MockWarningHandler::ExpectWarnings(std::string_view substring) {
+  if (substring.empty()) {
+    EXPECT_CALL(*this, Warn(_)).WillRepeatedly(Return());
+  } else {
+    EXPECT_CALL(*this, Warn(::testing::HasSubstr(std::string(substring))))
+        .Times(::testing::AtLeast(1))
+        .WillRepeatedly(Return());
+  }
+}
+
+// Returns the active warning handler.
+MockWarningHandler* MockWarningHandler::GetActive() { return active_handler; }
+
 namespace {
 
 using ::testing::NotNull;
 
 ABSL_CONST_INIT static absl::Mutex handlers_mutex(absl::kConstInit);
 static int guard_count ABSL_GUARDED_BY(handlers_mutex) = 0;
+static mjfLogHandler prev_log_handler ABSL_GUARDED_BY(handlers_mutex) = nullptr;
 
-void default_mj_error_handler(const char* msg) {
-  FAIL() << "mju_user_error: " << msg;
-}
+void default_mj_log_handler(const mjLogMessage* msg) {
+  std::string subject = msg->subject;
+  if (msg->func) {
+    subject = absl::StrCat(msg->func, ": ", msg->subject);
+  }
 
-void default_mj_warning_handler(const char* msg) {
-  ADD_FAILURE() << "mju_user_warning: " << msg;
+  if (msg->level == mjLOG_ERROR) {
+    // legacy fallback: some tests still install mju_user_error to intercept
+    // errors with longjmp-based capture
+    if (mju_user_error) {
+      mju_user_error(subject.c_str());
+    } else {
+      FAIL() << "mju_user_error: " << subject;
+    }
+  } else if (msg->level == mjLOG_WARNING) {
+    std::string full_msg = subject;
+    if (msg->body) {
+      absl::StrAppend(&full_msg, "\n", msg->body);
+    }
+    if (auto* handler = MockWarningHandler::GetActive()) {
+      handler->Warn(full_msg);
+    } else {
+      ADD_FAILURE() << "Unexpected warning: " << full_msg;
+    }
+  }
 }
 }  // namespace
 
 MujocoErrorTestGuard::MujocoErrorTestGuard() {
   absl::MutexLock lock(handlers_mutex);
   if (++guard_count == 1) {
-    mju_user_error = default_mj_error_handler;
-    mju_user_warning = default_mj_warning_handler;
+    prev_log_handler = mju_setLogHandler(default_mj_log_handler);
   }
 }
 
 MujocoErrorTestGuard::~MujocoErrorTestGuard() {
   absl::MutexLock lock(handlers_mutex);
   if (--guard_count == 0) {
-    mju_user_error = nullptr;
-    mju_user_warning = nullptr;
+    mju_setLogHandler(prev_log_handler);
+    prev_log_handler = nullptr;
   }
 }
 
@@ -84,7 +157,7 @@ const std::string GetModelPath(std::string_view path) {  // NOLINT
   return absl::StrCat("../model/", path);
 }
 
-mjModel* LoadModelFromString(std::string_view xml, char* error,
+MjModelPtr LoadModelFromString(std::string_view xml, char* error,
                              int error_size, mjVFS* vfs) {
   if (error) {
     error[0] = '\0';
@@ -100,13 +173,35 @@ mjModel* LoadModelFromString(std::string_view xml, char* error,
   if (spec) {
     model = mj_compile(spec, vfs);
 
-    if (error && (!model || mjs_isWarning(spec))) {
-      strncpy(error, mjs_getError(spec), error_size);
-      error[error_size - 1] = '\0';
+    if (error) {
+      if (!model) {
+        strncpy(error, mjs_getError(spec), error_size);
+        error[error_size - 1] = '\0';
+      } else {
+        int num_warnings = mjs_numWarnings(spec);
+        if (num_warnings > 0) {
+          std::string all_warnings;
+          for (int i = 0; i < num_warnings; ++i) {
+            if (!all_warnings.empty()) {
+              all_warnings += '\n';
+            }
+            all_warnings += mjs_getWarning(spec, i);
+          }
+          strncpy(error, all_warnings.c_str(), error_size);
+          error[error_size - 1] = '\0';
+        } else {
+          error[0] = '\0';
+        }
+      }
     }
   }
+
   SetGlobalXmlSpec(spec);
-  return model;
+  return MjModelPtr(model);
+}
+
+MjDataPtr MakeData(const MjModelPtr& model) {
+  return MjDataPtr(mj_makeData(model.get()));
 }
 
 static void AssertModelNotNull(mjModel* model,
@@ -192,110 +287,6 @@ std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
   return ctrl;
 }
 
-template <typename T>
-auto Compare(T val1, T val2);
-
-auto Compare(char val1, char val2) {
-  return val1 != val2;
-}
-
-auto Compare(unsigned char val1, unsigned char val2) {
-  return val1 != val2;
-}
-
-auto Compare(bool val1, bool val2) {
-  return val1 != val2;
-}
-
-auto Compare(mjtSize val1, mjtSize val2) {
-  return val1 > val2 ? val1 - val2 : val2 - val1;
-}
-
-// The maximum spacing between a normalised floating point number x and an
-// adjacent normalised number is 2 epsilon |x|; a factor 10 is added accounting
-// for losses during non-idempotent operations such as vector normalizations.
-template <typename T>
-auto Compare(T val1, T val2) {
-  using ReturnType =
-      std::conditional_t<std::is_same_v<T, float>, float, double>;
-  ReturnType error;
-  if (std::abs(val1) <= 1 || std::abs(val2) <= 1) {
-      // Absolute precision for small numbers
-      error = std::abs(val1-val2);
-  } else {
-    // Relative precision for larger numbers
-    ReturnType magnitude = std::abs(val1) + std::abs(val2);
-    error = std::abs(val1/magnitude - val2/magnitude) / magnitude;
-  }
-  ReturnType safety_factor = 200;
-  return error < safety_factor * std::numeric_limits<ReturnType>::epsilon()
-             ? 0
-             : error;
-}
-
-mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
-                    std::string& field) {
-  mjtNum dif, maxdif = 0.0;
-
-  // define symbols corresponding to number of columns
-  // (needed in MJMODEL_POINTERS)
-  MJMODEL_POINTERS_PREAMBLE(m1);
-
-// compare ints, exclude nbuffer because it hides the actual difference
-#define X(name)                                           \
-  if constexpr (std::string_view(#name) != "nbuffer") {   \
-    if (m1->name != m2->name) {                           \
-      maxdif = std::abs((long)m1->name - (long)m2->name); \
-      field = #name;                                      \
-    }                                                     \
-  }
-  MJMODEL_SIZES
-#undef X
-  if (maxdif > 0) return maxdif;
-
-  // compare arrays, apart from bvh-related ones (which includes flex_vert0), as
-  // those are sensitive to numerical differences when meshes are perfectly
-  // symmetric.  Also skip flex fields derived from node local positions and
-  // cell geometry that are not fully serialized to XML.
-#define X(type, name, nr, nc)                                         \
-  if (strncmp(#name, "bvh_", 4) &&                                    \
-      strncmp(#name, "flex_vert", 9) &&                               \
-      strncmp(#name, "mesh_poly", 9) &&                               \
-      strcmp(#name, "flex_centered") &&                               \
-      strcmp(#name, "flex_size") &&                                   \
-      strcmp(#name, "flexedge_length0") &&                            \
-      strcmp(#name, "flexedge_invweight0") &&                         \
-      strncmp(#name, "flex_node", 9)) {                               \
-    for (int r = 0; r < m1->nr; r++) {                                \
-      for (int c = 0; c < nc; c++) {                                  \
-        dif = Compare(m1->name[r * nc + c], m2->name[r * nc + c]);    \
-        if (dif > maxdif) {                                           \
-          maxdif = dif;                                               \
-          field = #name;                                              \
-          field += " row: " + std::to_string(r);                      \
-          field += " col: " + std::to_string(c);                      \
-        }                                                             \
-      }                                                               \
-    }                                                                 \
-  }  // NOLINT
-  MJMODEL_POINTERS
-#undef X
-
-  // compare fields in mjOption
-  #define X(type, name, n)                                         \
-    dif = Compare(m1->opt.name, m2->opt.name);                     \
-    if (dif > maxdif) {maxdif = dif; field = #name;}
-  #define XVEC(type, name, n)                                    \
-    for (int c=0; c < n; c++) {                                  \
-      dif = Compare(m1->opt.name[c], m2->opt.name[c]);           \
-      if (dif > maxdif) {maxdif = dif; field = #name;} }
-    MJOPTION_FIELDS
-  #undef XVEC
-  #undef X
-
-  // Return largest difference and field name
-  return maxdif;
-}
 
 MockFilesystem::MockFilesystem(std::string unit_test_name) {
   prefix_ = absl::StrCat("MjMock.", unit_test_name);

@@ -19,6 +19,17 @@
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_misc.h"
 
+// rounding slack for the edge-edge depth bound: relative, and absolute times the sum of
+// half-sizes; wide enough to cover rounding between two computations of the same overlap,
+// orders of magnitude below the box-scale depths of spurious clipping artifacts
+#ifdef mjUSESINGLE
+  #define mjDEPTHSLACKREL 1e-4f
+  #define mjDEPTHSLACKABS 1e-5f
+#else
+  #define mjDEPTHSLACKREL 1e-6
+  #define mjDEPTHSLACKABS 1e-12
+#endif
+
 // hard-clamp vector to range [-limit(i), +limit(i)]
 static void mju_clampVec(mjtNum* vec, const mjtNum* limit, int n) {
   for (int i = 0; i < n; i++) {
@@ -616,6 +627,7 @@ int _boxbox(const mjModel* M, const mjData* D, mjPreContact* con, int g1, int g2
          depth[mjMAXCONPAIR], pts[6][3], ppts2[4][2], pu[4][3], axi[3][3];
   mjtNum linesu[4][6], lines[4][6], clnorm[3], rnorm[3];
   mjtNum penetration, c1, c2, c3, a, b, c, d, lx, ly, hz, l, x, y, u, v, llx, lly, innorm, margin2;
+  mjtNum maxdepth;
 
   int i0, i1, i2;
   mjtNum f0, f1, f2;
@@ -1328,19 +1340,31 @@ edgeedge:
   mji_zero3(con[0].tangent);
 
 
-  for (i = 0; i < n; i++) {
-    con[i].dist = depth[i];
+  // no contact can be deeper than the support overlap along the separating axis: clipping
+  // against a grazing face can synthesize spurious points with arbitrarily large depth;
+  // the slack covers rounding error so the deepest legitimate point is never rejected
+  maxdepth = mju_max(0, penetration);
+  maxdepth += margin + mjDEPTHSLACKREL * maxdepth +
+              mjDEPTHSLACKABS * (size1[0] + size1[1] + size1[2] +
+                                 size2[0] + size2[1] + size2[2]);
+
+  for (i = 0, m = 0; i < n; i++) {
+    if (depth[i] < -maxdepth)
+      continue;
+
+    con[m].dist = depth[i];
     points[i][2] += hz;
 
     mji_mulMatVec3(tmp2, r, points[i]);
 
-    mji_add3(con[i].pos, tmp2, pos1);
+    mji_add3(con[m].pos, tmp2, pos1);
 
-    mji_copy3(con[i].normal, con[0].normal);
-    mji_zero3(con[i].tangent);
+    mji_copy3(con[m].normal, con[0].normal);
+    mji_zero3(con[m].tangent);
+    m++;
   }
 
-  return n;
+  return m;
 
 #undef rotaxis
 #undef rotmatx
@@ -1365,6 +1389,7 @@ int mjc_BoxBox(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, m
   const mjtNum* size2 = m->geom_size + 3 * g2;
 
   // find bad: contacts outside one of the boxes
+  int nbad = 0;
   for (int i=0; i < num; i++) {
     // box sizes with margin
     mjtNum sz1[3] = {size1[0] + margin, size1[1] + margin, size1[2] + margin};
@@ -1380,6 +1405,18 @@ int mjc_BoxBox(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, m
     // mark as bad if outside one box and not inside the other box
     if ((out1 == 1 && out2 != -1) || (out2 == 1 && out1 != -1)) {
       dupe[i] = -1;
+      nbad++;
+    }
+  }
+
+  // deep penetration can strand the midpoint-convention position outside both boxes; if
+  // that removed every contact, restore the penetrating ones: an empty manifold for
+  // overlapping boxes lets them pass through each other
+  if (nbad && nbad == num) {
+    for (int i=0; i < num; i++) {
+      if (tmp[i].dist < 0) {
+        dupe[i] = 0;
+      }
     }
   }
 
@@ -1402,13 +1439,15 @@ int mjc_BoxBox(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, m
   }
 
   // consolidate good
-  int i = 0;
+  int ncon = 0;
   for (int j=0; j < num; j++) {
     if (dupe[j] == 0) {
-      con[i] = tmp[j];
-      i++;
+      con[ncon++] = tmp[j];
+      if (ncon >= 8) {
+        break;
+      }
     }
   }
 
-  return i;
+  return ncon;
 }

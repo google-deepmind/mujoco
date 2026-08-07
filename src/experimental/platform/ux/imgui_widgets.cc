@@ -15,6 +15,7 @@
 #include "experimental/platform/ux/imgui_widgets.h"
 
 #include <algorithm>
+#include <cfloat>
 #include <cstdint>
 #include <cstring>
 #include <sstream>
@@ -65,7 +66,7 @@ KeyValues ReadIniSection(const std::string& contents,
 
 ImGui_DataPtrTable::ImGui_DataPtrTable(float w1, float w2) {
   ImGui::BeginTable("##PropertiesTable", 2, ImGuiTableFlags_RowBg);
-  const float width = ImGui::GetContentRegionAvail().x;
+  const float width = GetStableAvailWidth();
   ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, width * w1);
   ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, width * w2);
   ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(3.0f, 0.0f));
@@ -224,6 +225,12 @@ void ImGui_SpecElementTable::operator()(const char* label, mjtByte& val,
   Input(val, ref);
 }
 
+void ImGui_SpecElementTable::operator()(const char* label, bool& val,
+                                        const bool& ref, const char* tooltip) {
+  Label(label, tooltip);
+  Input(val, ref);
+}
+
 void ImGui_SpecElementTable::operator()(const char* label, mjtSize& val,
                                         const mjtSize& ref,
                                         const char* tooltip) {
@@ -336,6 +343,26 @@ bool ImGui_Slider(const char* name, mjtNum* value, mjtNum min, mjtNum max) {
   return res;
 }
 
+bool ImGui_SliderLog(const char* name, mjtNum* value, mjtNum min, mjtNum max) {
+  constexpr ImGuiDataType type = sizeof(mjtNum) == sizeof(double)
+                                     ? ImGuiDataType_Double
+                                     : ImGuiDataType_Float;
+  return ImGui::SliderScalar(name, type, value, &min, &max, "%.3g",
+                             ImGuiSliderFlags_Logarithmic);
+}
+
+bool ImGui_ResetButton(const char* id, const char* icon,
+                       const char* tooltip) {
+  const float size = ImGui::GetFrameHeight();
+  ImGui::SameLine();
+  ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - size);
+  ImGui::PushID(id);
+  const bool clicked = ImGui::SmallButton(icon);
+  ImGui::PopID();
+  ImGui::SetItemTooltip("%s", tooltip);
+  return clicked;
+}
+
 bool ImGui_BeginHSplit(const char* id, float* height, bool* open) {
   const ImVec2 region = ImGui::GetContentRegionAvail();
   if (*height < 0) {
@@ -384,6 +411,23 @@ void ImGui_EndHSplit(bool open) {
 
 void MaybeSaveToClipboard(const std::string& contents) {
   ImGui::SetClipboardText(contents.c_str());
+}
+
+float GetExpectedLabelWidth() {
+  static float expected_label_width = 0;
+  if (expected_label_width == 0) {
+    int longest = 0;
+    const char* longest_label = "";
+    for (int i = 0; i < mjNVISFLAG; ++i) {
+      int length = static_cast<int>(std::strlen(mjVISSTRING[i][0]));
+      if (length > longest) {
+        longest_label = mjVISSTRING[i][0];
+        longest = length;
+      }
+    }
+    expected_label_width = ImGui::CalcTextSize(longest_label).x + 16;
+  }
+  return expected_label_width;
 }
 
 ImPlotFlags ImPlot_SetupPlotFlags(ImVec2 plot_size) {
@@ -484,6 +528,107 @@ void DrawTextAt(const char* text, float x, float y, float z) {
   draw_list->AddText(pos, IM_COL32_WHITE, text);
   ImGui::EndChild();
   ImGui::End();
+}
+namespace {
+
+void SetNextWindowPosInside(OverlayPos pos, ImVec4 rect) {
+  // compute anchor point and pivot from position enum
+  ImVec2 anchor, pivot;
+  float x = rect.x, y = rect.y, w = rect.z, h = rect.w;
+  float scale = ImGui::GetWindowDpiScale();
+  float margin = 8.0f * scale;
+  switch (pos) {
+    case OverlayPos::kTopLeft:
+      anchor = {x + margin, y + margin};
+      pivot = {0.0f, 0.0f};
+      break;
+    case OverlayPos::kTop:
+      anchor = {x + w * 0.5f, y + margin};
+      pivot = {0.5f, 0.0f};
+      break;
+    case OverlayPos::kTopRight:
+      anchor = {x + w - margin, y + margin};
+      pivot = {1.0f, 0.0f};
+      break;
+    case OverlayPos::kBottomLeft:
+      anchor = {x + margin, y + h - margin};
+      pivot = {0.0f, 1.0f};
+      break;
+    case OverlayPos::kBottom:
+      anchor = {x + w * 0.5f, y + h - margin};
+      pivot = {0.5f, 1.0f};
+      break;
+    case OverlayPos::kBottomRight:
+      anchor = {x + w - margin, y + h - margin};
+      pivot = {1.0f, 1.0f};
+      break;
+  }
+
+  ImGui::SetNextWindowPos(anchor, ImGuiCond_Always, pivot);
+}
+
+}  // namespace
+
+bool BeginOverlay(const char* id, OverlayPos pos, ImVec4 rect, float min_width,
+                  float alpha) {
+  SetNextWindowPosInside(pos, rect);
+
+  if (min_width > 0.0f) {
+    ImGui::SetNextWindowSizeConstraints(ImVec2(min_width, -1.0f),
+                                        ImVec2(FLT_MAX, -1.0f));
+  }
+
+  constexpr ImGuiWindowFlags kFlags =
+      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+      ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
+      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings;
+
+  ImGui::PushStyleVar(ImGuiStyleVar_Alpha, alpha);
+  return ImGui::Begin(id, nullptr, kFlags);
+}
+
+void EndOverlay() {
+  ImGui::End();
+  ImGui::PopStyleVar();
+}
+
+void TextOverlay(const char* id, OverlayPos pos, ImVec4 workspace_rect,
+                 const char* text, ImVec4 color, float font_scale, float alpha,
+                 float min_width) {
+  float scale = ImGui::GetWindowDpiScale();
+  float padding = 30.0f * scale;
+  float max_width = std::max(0.0f, workspace_rect.z - 20.0f);
+  float text_width = ImGui::CalcTextSize(text).x * font_scale;
+  float min_target = std::min(min_width * scale, max_width);
+  float target = 0.0f;
+  if (text_width + padding > max_width || min_width > 0.0f) {
+    target = std::clamp(text_width + padding, min_target, max_width);
+  }
+
+  if (BeginOverlay(id, pos, workspace_rect, target, alpha)) {
+    if (font_scale != 1.0f) {
+      ImGui::SetWindowFontScale(font_scale);
+    }
+    bool has_color =
+        color.x != 0 || color.y != 0 || color.z != 0 || color.w != 0;
+    if (has_color) {
+      ImGui::PushStyleColor(ImGuiCol_Text, color);
+    }
+    if (text_width + padding > max_width) {
+      ImGui::PushTextWrapPos(max_width - padding);
+      ImGui::TextUnformatted(text);
+      ImGui::PopTextWrapPos();
+    } else {
+      ImGui::TextUnformatted(text);
+    }
+    if (has_color) {
+      ImGui::PopStyleColor();
+    }
+    if (font_scale != 1.0f) {
+      ImGui::SetWindowFontScale(1.0f);
+    }
+  }
+  EndOverlay();
 }
 
 }  // namespace mujoco::platform

@@ -60,7 +60,7 @@ class SpecsTest(absltest.TestCase):
     </mujoco>
     """
     spec = mujoco.MjSpec.from_string(xml)
-    model = spec.compile()
+    spec.compile()
     self.assertGreater(spec.timer[mujoco.mjtCTimer.mjCTIMER_TOTAL], 0)
     self.assertGreater(spec.timer[mujoco.mjtCTimer.mjCTIMER_ASSETS], 0)
     self.assertGreater(spec.timer[mujoco.mjtCTimer.mjCTIMER_TEXTURE], 0)
@@ -151,7 +151,7 @@ class SpecsTest(absltest.TestCase):
 
           <worldbody>
             <body name="baz" pos="1 2 3" quat="0 1 0 0">
-              <site name="sitename" pos="0 0 0" type="box" user="1 2 3 4 5 6"/>
+              <site name="sitename" type="box" user="1 2 3 4 5 6"/>
             </body>
           </worldbody>
         </mujoco>
@@ -595,6 +595,18 @@ class SpecsTest(absltest.TestCase):
         + f"Element name 'MyGeom', id 0, geom added on line {added_on_line}"
     )
     with self.assertRaisesRegex(ValueError, expected_error):
+      spec.compile()
+
+  def test_compile_warnings(self):
+    xml = """
+    <mujoco>
+      <worldbody>
+        <flexcomp name="my_flex" type="grid" count="3 3 1" spacing=".05 .05 .05" radius=".01" dim="2"/>
+      </worldbody>
+    </mujoco>
+    """
+    spec = mujoco.MjSpec.from_string(xml)
+    with self.assertWarnsRegex(UserWarning, 'is not rigid'):
       spec.compile()
 
   def test_recompile(self):
@@ -1148,7 +1160,7 @@ class SpecsTest(absltest.TestCase):
 
     spec = mujoco.MjSpec()
     material = spec.add_material(name='mat')
-    texture = spec.add_texture(
+    spec.add_texture(
         name='tex', builtin=mujoco.mjtBuiltin.mjBUILTIN_FLAT, width=2, height=2
     )
 
@@ -1575,6 +1587,23 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_AFFINE)
     self.assertEqual(actuator.inheritrange, True)
 
+    actuator.set_to_orientation(kp=2.0, dampratio=1.0)
+    self.assertEqual(actuator.gainprm[0], 2)
+    self.assertEqual(actuator.biasprm[1], -2)
+    self.assertEqual(actuator.biasprm[2], 1)
+    self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_SO3)
+    self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_SO3)
+    self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_NONE)
+
+    actuator.set_to_pid(kp=2.0, kv=3.0, ki=0.5, imax=1.5, slewmax=4.0)
+    self.assertEqual(actuator.biasprm[1], -2)
+    self.assertEqual(actuator.biasprm[2], -3)
+    self.assertEqual(actuator.gainprm[0], 0.5)
+    self.assertEqual(actuator.dynprm[0], 1.5)
+    self.assertEqual(actuator.dynprm[1], 4.0)
+    self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_PID)
+    self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_PID)
+
     actuator.set_to_velocity(kv=5.0)
     self.assertEqual(actuator.gainprm[0], 5)
     self.assertEqual(actuator.biasprm[2], -5)
@@ -1601,6 +1630,38 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_DCMOTOR)
     self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_DCMOTOR)
     self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_DCMOTOR)
+
+    actuator = spec.add_actuator()
+    actuator.set_to_muscle(tausmooth=0.1)
+    self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_MUSCLE)
+    self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_MUSCLE)
+    self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_MUSCLE)
+    self.assertEqual(actuator.dynprm[2], 0.1)
+
+    actuator.set_to_muscle(
+        timeconst=[0.02, 0.05],
+        tausmooth=0.2,
+        range=[0.8, 1.2],
+        force=5.0,
+        scale=250.0,
+        lmin=0.6,
+        lmax=1.7,
+        vmax=1.8,
+        fpmax=1.4,
+        fvmax=1.5,
+    )
+    self.assertEqual(actuator.dynprm[0], 0.02)
+    self.assertEqual(actuator.dynprm[1], 0.05)
+    self.assertEqual(actuator.dynprm[2], 0.2)
+    self.assertEqual(actuator.gainprm[0], 0.8)
+    self.assertEqual(actuator.gainprm[1], 1.2)
+    self.assertEqual(actuator.gainprm[2], 5.0)
+    self.assertEqual(actuator.gainprm[3], 250.0)
+    self.assertEqual(actuator.gainprm[4], 0.6)
+    self.assertEqual(actuator.gainprm[5], 1.7)
+    self.assertEqual(actuator.gainprm[6], 1.8)
+    self.assertEqual(actuator.gainprm[7], 1.4)
+    self.assertEqual(actuator.gainprm[8], 1.5)
 
   def test_bad_contact_sensor(self):
     test_cases = [
@@ -1751,7 +1812,9 @@ class SpecsTest(absltest.TestCase):
     sidesite = body.add_site(name='sidesite', pos=[2, 0, -5])
     site4 = body.add_site(name='site4', pos=[0, 1, -6])
 
-    sphere = spec.worldbody.add_geom(name='sphere', size=[.2, 0, 0], pos=[0, 0, -2])
+    sphere = spec.worldbody.add_geom(
+        name='sphere', size=[0.2, 0, 0], pos=[0, 0, -2]
+    )
 
     cylinder = spec.worldbody.add_geom(
         name='cylinder',
@@ -2031,6 +2094,271 @@ class SpecsTest(absltest.TestCase):
     filename = os.path.join(self.create_tempdir().full_path, 'output.unknown')
     with self.assertRaises(mujoco.FatalError):
       spec.encode(filename, model)
+
+  def test_make_flex_grid(self):
+    # Create a spec with a flexcomp grid.
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body(name='flex_body')
+    flex = body.make_flex(
+        name='test_flex',
+        type='grid',
+        dim=3,
+        count=[4, 4, 4],
+        spacing=[0.05, 0.05, 0.05],
+        mass=0.5,
+        equality=1,
+    )
+    self.assertIsNotNone(flex)
+    model = spec.compile()
+    self.assertIsNotNone(model)
+    self.assertGreater(model.nflex, 0)
+
+    # Verify elastic2d is forwarded to Make() and produces shell-mode
+    # strain constraints (equality=3 + elastic2d=2 triggers shell path).
+    spec2 = mujoco.MjSpec()
+    body2 = spec2.worldbody.add_body(name='shell_body')
+    flex2 = body2.make_flex(
+        name='shell_flex',
+        type='grid',
+        dim=3,
+        count=[3, 3, 3],
+        spacing=[0.1, 0.1, 0.1],
+        dof='trilinear',
+        cellcount=[2, 2, 1],
+        mass=0.5,
+        equality=3,  # strain
+        elastic2d=2,  # bend
+    )
+    flex2.young = 1e3
+    flex2.thickness = 0.01
+    flex2.selfcollide = mujoco.mjtFlexSelf.mjFLEXSELF_NONE
+    self.assertIsNotNone(flex2)
+    model2 = spec2.compile()
+    self.assertIsNotNone(model2)
+    # Shell mode creates face-based constraints; verify they exist.
+    self.assertGreater(model2.neq, 0)
+
+  def test_make_flex_defaults(self):
+    # Create a spec with minimal flexcomp args (defaults).
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body(name='flex_body')
+    flex = body.make_flex(name='default_flex', equality=1)
+    self.assertIsNotNone(flex)
+    model = spec.compile()
+    self.assertIsNotNone(model)
+
+  def test_make_flex_with_pos_quat(self):
+    # Create a spec with flexcomp that has a pose.
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body(name='flex_body')
+    flex = body.make_flex(
+        name='posed_flex',
+        type='grid',
+        dim=2,
+        count=[3, 3, 1],
+        spacing=[0.1, 0.1, 0.1],
+        pos=[1.0, 2.0, 3.0],
+        quat=[1.0, 0.0, 0.0, 0.0],
+        equality=1,
+    )
+    self.assertIsNotNone(flex)
+    model = spec.compile()
+    self.assertIsNotNone(model)
+
+  def test_authored_struct(self):
+    spec = mujoco.MjSpec()
+    # authored struct should be accessible with correct fields
+    self.assertEqual(spec.authored.option, 0)
+    self.assertEqual(spec.authored.disableflags, 0)
+    self.assertEqual(spec.authored.enableflags, 0)
+    self.assertEqual(spec.authored.disableactuator, 0)
+    self.assertEqual(spec.authored.visual_global, 0)
+    self.assertEqual(spec.authored.visual_quality, 0)
+    self.assertEqual(spec.authored.visual_headlight, 0)
+    self.assertEqual(spec.authored.visual_map, 0)
+    self.assertEqual(spec.authored.visual_scale, 0)
+    self.assertEqual(spec.authored.visual_rgba, 0)
+    # compiler authored should be zero
+    self.assertEqual(spec.compiler.authored, 0)
+
+  def test_authored_flags_from_xml(self):
+    spec = mujoco.MjSpec.from_string("""
+    <mujoco>
+      <option timestep="0.01">
+        <flag constraint="disable" energy="enable"/>
+      </option>
+      <compiler boundmass="1"/>
+      <visual>
+        <global fovy="60"/>
+        <quality shadowsize="1024"/>
+      </visual>
+      <worldbody/>
+    </mujoco>
+    """)
+    # disable/enable flags should be tracked
+    self.assertNotEqual(
+        spec.authored.disableflags & mujoco.mjtDisableBit.mjDSBL_CONSTRAINT, 0)
+    self.assertEqual(
+        spec.authored.disableflags & mujoco.mjtDisableBit.mjDSBL_CONTACT, 0)
+    self.assertNotEqual(
+        spec.authored.enableflags & mujoco.mjtEnableBit.mjENBL_ENERGY, 0)
+    self.assertEqual(
+        spec.authored.enableflags & mujoco.mjtEnableBit.mjENBL_OVERRIDE, 0)
+
+    # option authored bitmask should be nonzero (timestep was authored)
+    self.assertNotEqual(spec.authored.option, 0)
+
+    # compiler authored bitmask should be nonzero (boundmass was authored)
+    self.assertNotEqual(spec.compiler.authored, 0)
+
+    # visual authored bitmask should be nonzero (fovy, shadowsize were authored)
+    self.assertNotEqual(spec.authored.visual_global, 0)
+    self.assertNotEqual(spec.authored.visual_quality, 0)
+
+    # visual sections that were not authored should be zero
+    self.assertEqual(spec.authored.visual_headlight, 0)
+    self.assertEqual(spec.authored.visual_map, 0)
+    self.assertEqual(spec.authored.visual_scale, 0)
+    self.assertEqual(spec.authored.visual_rgba, 0)
+
+  def test_authored_defaults_zero(self):
+    spec = mujoco.MjSpec.from_string("""
+    <mujoco>
+      <worldbody/>
+    </mujoco>
+    """)
+    # nothing authored in an empty model
+    self.assertEqual(spec.authored.option, 0)
+    self.assertEqual(spec.authored.disableflags, 0)
+    self.assertEqual(spec.authored.enableflags, 0)
+    self.assertEqual(spec.compiler.authored, 0)
+    self.assertEqual(spec.authored.visual_global, 0)
+    self.assertEqual(spec.authored.visual_quality, 0)
+    self.assertEqual(spec.authored.visual_map, 0)
+
+  def test_attach_conflict_merge_procedural(self):
+    # Procedural attach with merge mode: min/max fields are merged.
+    parent = mujoco.MjSpec()
+    parent.compiler.conflict = mujoco.mjtConflict.mjCONFLICT_MERGE
+    parent.option.timestep = 0.005
+    parent.option.iterations = 150
+    parent.worldbody.add_geom().size[0] = 1
+
+    child = mujoco.MjSpec()
+    child.option.timestep = 0.001  # smaller -> wins (min-merge)
+    child.option.iterations = 200  # larger -> wins (max-merge)
+    child_body = child.worldbody.add_body()
+    child_body.add_geom().size[0] = 1
+
+    frame = parent.worldbody.add_frame()
+    frame.attach_body(child_body, prefix='child_')
+
+    # merged values are applied immediately at attach time
+    self.assertEqual(parent.option.timestep, 0.001)
+    self.assertEqual(parent.option.iterations, 200)
+
+    # compile succeeds with the merged values
+    model = parent.compile()
+    self.assertIsNotNone(model)
+    self.assertEqual(model.opt.timestep, 0.001)
+    self.assertEqual(model.opt.iterations, 200)
+
+  def test_attach_conflict_error_procedural(self):
+    # Procedural attach with unmergeable conflict: raises ValueError,
+    # parent spec is unchanged.
+    parent = mujoco.MjSpec()
+    parent.compiler.conflict = mujoco.mjtConflict.mjCONFLICT_MERGE
+    parent.option.timestep = 0.005
+    parent.option.integrator = mujoco.mjtIntegrator.mjINT_RK4
+
+    child = mujoco.MjSpec()
+    child.option.timestep = 0.001
+    child.option.integrator = mujoco.mjtIntegrator.mjINT_IMPLICIT
+    child_body = child.worldbody.add_body()
+    child_body.add_geom().size[0] = 1
+
+    frame = parent.worldbody.add_frame()
+
+    with self.assertRaisesRegex(ValueError, 'integrator'):
+      frame.attach_body(child_body, prefix='child_')
+
+    # parent spec should be unchanged (two-pass guarantee)
+    self.assertEqual(parent.option.timestep, 0.005)
+    self.assertEqual(parent.option.integrator, mujoco.mjtIntegrator.mjINT_RK4)
+
+  def test_attach_conflict_merge_xml(self):
+    # XML-based attach with merge mode: child timestep wins (min).
+    parent_xml = textwrap.dedent("""\
+      <mujoco>
+        <compiler conflict="merge"/>
+        <option timestep="0.005" iterations="50"/>
+        <asset>
+          <model name="child" file="child.xml"/>
+        </asset>
+        <worldbody>
+          <body name="parent_body">
+            <geom size="1"/>
+            <attach model="child" body="child_body" prefix="child/"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+
+    child_xml = textwrap.dedent("""\
+      <mujoco>
+        <option timestep="0.001" iterations="150"/>
+        <worldbody>
+          <body name="child_body">
+            <geom size="1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+
+    spec = mujoco.MjSpec.from_string(
+        parent_xml,
+        include={'child.xml': child_xml.encode()},
+    )
+    model = spec.compile()
+    self.assertIsNotNone(model)
+    self.assertEqual(model.opt.timestep, 0.001)  # min
+    self.assertEqual(model.opt.iterations, 150)  # max
+
+  def test_attach_conflict_error_xml(self):
+    # XML-based attach with error mode: any conflict raises ValueError.
+    parent_xml = textwrap.dedent("""\
+      <mujoco>
+        <compiler conflict="error"/>
+        <option timestep="0.005"/>
+        <asset>
+          <model name="child" file="child.xml"/>
+        </asset>
+        <worldbody>
+          <body name="parent_body">
+            <geom size="1"/>
+            <attach model="child" body="child_body" prefix="child/"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+
+    child_xml = textwrap.dedent("""\
+      <mujoco>
+        <option timestep="0.001"/>
+        <worldbody>
+          <body name="child_body">
+            <geom size="1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+
+    with self.assertRaisesRegex(ValueError, 'timestep'):
+      mujoco.MjSpec.from_string(
+          parent_xml,
+          include={'child.xml': child_xml.encode()},
+      )
+
 
 if __name__ == '__main__':
   absltest.main()

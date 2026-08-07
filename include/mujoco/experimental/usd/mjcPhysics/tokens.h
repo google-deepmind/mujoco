@@ -656,7 +656,7 @@ struct MjcPhysicsTokensType {
   const TfToken mjcSliderSite;
   /// \brief "mjc:solimp"
   ///
-  /// MjcPhysicsCollisionAPI, MjcPhysicsEqualityAPI
+  /// MjcPhysicsCollisionAPI, MjcPhysicsEqualityAPI, MjcPhysicsEqualityJointAPI
   const TfToken mjcSolimp;
   /// \brief "mjc:solimpfriction"
   ///
@@ -672,7 +672,7 @@ struct MjcPhysicsTokensType {
   const TfToken mjcSolmix;
   /// \brief "mjc:solref"
   ///
-  /// MjcPhysicsCollisionAPI, MjcPhysicsEqualityAPI
+  /// MjcPhysicsCollisionAPI, MjcPhysicsEqualityAPI, MjcPhysicsEqualityJointAPI
   const TfToken mjcSolref;
   /// \brief "mjc:solreffriction"
   ///
@@ -700,7 +700,7 @@ struct MjcPhysicsTokensType {
   const TfToken mjcStiffness;
   /// \brief "mjc:target"
   ///
-  /// MjcPhysicsActuator, MjcPhysicsEqualityAPI
+  /// MjcPhysicsActuator, MjcPhysicsEqualityAPI, MjcPhysicsEqualityJointAPI
   const TfToken mjcTarget;
   /// \brief "mjc:torqueScale"
   ///

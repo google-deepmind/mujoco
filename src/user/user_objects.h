@@ -83,7 +83,6 @@ class [[nodiscard]] mjCError {
            int pos2 = 0);
 
   char message[500];              // error message
-  bool warning;                   // is this a warning instead of error
 };
 
 // alternative specifications of frame orientation
@@ -172,7 +171,7 @@ struct mjCBoundingVolumeHierarchy_ {
 class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
  public:
   // make bounding volume hierarchy
-  void CreateBVH();
+  void CreateBVH(mjCModel* model, const mjCBase* owner);
   void Set(double ipos_element[3], double iquat_element[4]);
   void AllocateBoundingVolumes(int nleaf);
   void RemoveInactiveVolumes(int nmax);
@@ -210,7 +209,8 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
   };
   void Make(std::vector<BVElement>& elements);
   int MakeBVH(std::vector<BVElement>::iterator elements_begin,
-              std::vector<BVElement>::iterator elements_end, int lev = 0);
+              std::vector<BVElement>::iterator elements_end, int lev,
+              mjCModel* model, const mjCBase* owner);
 };
 
 
@@ -1043,6 +1043,7 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
   const std::vector<float>& get_texcoord() const { return texcoord_; }
   const std::vector<int>& get_elemtexcoord() const { return elemtexcoord_; }
   const std::vector<std::string>& get_nodebody() const { return nodebody_; }
+  const std::vector<double>& get_node() const { return node_; }
 
   bool HasTexcoord() const;               // texcoord not null
   void DelTexcoord();                     // delete texcoord
@@ -1138,6 +1139,7 @@ class mjCMesh_ : public mjCBase {
 
 class mjCMesh: public mjCMesh_, private mjsMesh {
   friend class mjCModel;
+  friend class mjXWriter;
 
  public:
   explicit mjCMesh(mjCModel* = nullptr, mjCDef* = nullptr);
@@ -1492,8 +1494,6 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
                unsigned int& w, unsigned int& h, bool& is_srgb);
   void LoadKTX(mjResource* resource, std::vector<std::byte>& image,
                unsigned int& w, unsigned int& h, bool& is_srgb);
-  void LoadCustom(mjResource* resource, std::vector<std::byte>& image,
-                  unsigned int& w, unsigned int& h, bool& is_srgb);
 
   bool clear_data_;  // if true, data_ is empty and should be filled by Compile
 };
@@ -1810,6 +1810,14 @@ class mjCActuator_ : public mjCBase {
   // variable used for temporarily storing the state of the actuator
   int actadr_;                                      // address of dof in data->act
   int actdim_;                                      // number of dofs in data->act
+  int ctrladr_;                                     // address of first control in data->ctrl
+  int ctrlnum_;                                     // number of controls
+  int ctrlspec_;                                    // resolved input signature, scoped by gaintype
+  int outadr_;                                      // address of first force output
+  int outnum_;                                      // number of force outputs, from trntype
+  bool so3_;                                        // compiles to an SO3 transmission
+  double ctrlranges_[4][2];                         // resolved per-input control ranges
+  mjtByte ctrllimiteds_[4];                         // resolved per-input limited flags
   std::map<std::string, std::vector<mjtNum>> act_;  // act at the previous step
   std::map<std::string, mjtNum> ctrl_;              // ctrl at the previous step
 
@@ -1829,6 +1837,7 @@ class mjCActuator_ : public mjCBase {
 class mjCActuator : public mjCActuator_, private mjsActuator {
   friend class mjCDef;
   friend class mjCModel;
+  friend class mjCSensor;
   friend class mjXWriter;
 
  public:

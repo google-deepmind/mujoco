@@ -108,8 +108,16 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang
   endif()
 endif()
 
-if(NOT CMAKE_INTERPROCEDURAL_OPTIMIZATION AND (CMAKE_BUILD_TYPE AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug"))
-  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+# Provide a user-facing option to control Link-Time Optimization (LTO/IPO).
+# When ON (the default), LTO is enabled for non-Debug builds unless the caller
+# has already set CMAKE_INTERPROCEDURAL_OPTIMIZATION explicitly.
+# Users can disable LTO entirely with -DMUJOCO_ENABLE_LTO=OFF.
+option(MUJOCO_ENABLE_LTO "Enable Link-Time Optimization (LTO) for non-Debug builds." ON)
+
+if(MUJOCO_ENABLE_LTO)
+  if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION AND (CMAKE_BUILD_TYPE AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug"))
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+  endif()
 endif()
 
 include(MujocoHarden)

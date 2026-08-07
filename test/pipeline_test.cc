@@ -42,7 +42,7 @@ TEST_F(PipelineTest, SparseDenseEquivalent) {
   ASSERT_THAT(model, NotNull())  << error;
   mjData* data = mj_makeData(model);
 
-  constexpr mjtNum tol = MjTol(1e-11, 1e-4);
+  const mjtNum tol = MjTol(1e-11, 1e-4);
 
   const char* sname[4] = {"NEWTON", "PGS", "CG", "NOSLIP"};
   mjtSolver solver[4] = {mjSOL_NEWTON, mjSOL_PGS, mjSOL_CG, mjSOL_NEWTON};

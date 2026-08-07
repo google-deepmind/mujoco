@@ -38,12 +38,11 @@
 #include <utility>
 #include <vector>
 
-#include "lodepng.h"
-#include "cc/array_safety.h"
-#include "engine/engine_passive.h"
-#include "engine/engine_support.h"
+#include "lodepng.h"  // NOLINT
 #include <mujoco/mjspec.h>
 #include <mujoco/mujoco.h>
+#include "cc/array_safety.h"
+#include "engine/engine_passive.h"
 #include "user/user_api.h"
 #include "user/user_cache.h"
 #include "user/user_model.h"
@@ -197,7 +196,6 @@ mjCError::mjCError(const mjCBase* obj, const char* msg, const char* str, int pos
   char temp[600];
 
   // init
-  warning = false;
   if (obj || msg) {
     mju::sprintf_arr(message, "Error");
   } else {
@@ -396,12 +394,12 @@ mjCBoundingVolumeHierarchy::AddBoundingVolume(const int* id, int contype, int co
 
 
 // create bounding volume hierarchy
-void mjCBoundingVolumeHierarchy::CreateBVH() {
+void mjCBoundingVolumeHierarchy::CreateBVH(mjCModel* model,
+                                           const mjCBase* owner) {
   std::vector<BVElement> elements;
   Make(elements);
-  MakeBVH(elements.begin(), elements.end());
+  MakeBVH(elements.begin(), elements.end(), 0, model, owner);
 }
-
 
 void mjCBoundingVolumeHierarchy::Make(std::vector<BVElement>& elements) {
   // precompute the positions of each element in the hierarchy's axes, and drop
@@ -424,8 +422,9 @@ void mjCBoundingVolumeHierarchy::Make(std::vector<BVElement>& elements) {
 
 // compute bounding volume hierarchy
 int mjCBoundingVolumeHierarchy::MakeBVH(
-  std::vector<BVElement>::iterator elements_begin,
-  std::vector<BVElement>::iterator elements_end, int lev) {
+    std::vector<BVElement>::iterator elements_begin,
+    std::vector<BVElement>::iterator elements_end, int lev, mjCModel* model,
+    const mjCBase* owner) {
   int nelements = elements_end - elements_begin;
   if (nelements == 0) {
     return -1;
@@ -525,11 +524,13 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
 
   // recursive calls
   if (m > 0) {
-    child_[2*index + 0] = MakeBVH(elements_begin, elements_begin + m, lev + 1);
+    child_[2 * index + 0] =
+        MakeBVH(elements_begin, elements_begin + m, lev + 1, model, owner);
   }
 
   if (m != nelements) {
-    child_[2*index + 1] = MakeBVH(elements_begin + m, elements_end, lev + 1);
+    child_[2 * index + 1] =
+        MakeBVH(elements_begin + m, elements_end, lev + 1, model, owner);
   }
 
   // SHOULD NOT OCCUR
@@ -539,13 +540,11 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
   }
 
   if (lev > mjMAXTREEDEPTH) {
-    mju_warning("max tree depth exceeded in body=%s", name_.c_str());
+    model->AddWarning("max tree depth exceeded", owner);
   }
 
   return index;
 }
-
-
 
 //------------------------- class mjCOctree implementation --------------------------------------------
 
@@ -2544,9 +2543,9 @@ void mjCBody::AccumulateInertia(const mjsBody* other, mjsBody* result) {
   // body_ipose = body_pose * body_ipose
   double other_ipos[3];
   double other_iquat[4];
-  mjuu_copyvec(other_ipos, other->ipos, 3);
-  mjuu_copyvec(other_iquat, other->iquat, 4);
-  mjuu_frameaccum(other_ipos, other_iquat, other->pos, other->quat);
+  mjuu_copyvec(other_ipos, other->pos, 3);
+  mjuu_copyvec(other_iquat, other->quat, 4);
+  mjuu_frameaccum(other_ipos, other_iquat, other->ipos, other->iquat);
 
   // organize data
   double mass[2] = {
@@ -2631,7 +2630,7 @@ void mjCBody::ComputeBVH() {
     tree.AddBoundingVolume(&geom->id, geom->contype, geom->conaffinity,
                            geom->pos, geom->quat, geom->aabb);
   }
-  tree.CreateBVH();
+  tree.CreateBVH(model, this);
 }
 
 
@@ -2690,7 +2689,8 @@ void mjCBody::Compile(void) {
 
   // set parentid and weldid of children
   for (int i=0; i < bodies.size(); i++) {
-    bodies[i]->weldid = (!bodies[i]->joints.empty() ? bodies[i]->id : weldid);
+    bool weld_root = !bodies[i]->joints.empty() || bodies[i]->spec.mocap;
+    bodies[i]->weldid = (weld_root ? bodies[i]->id : weldid);
   }
 
   // check and process orientation alternatives for body
@@ -2781,7 +2781,7 @@ void mjCBody::Compile(void) {
   for (int i=0; i < geoms.size(); i++) {
     contype |= geoms[i]->contype;
     conaffinity |= geoms[i]->conaffinity;
-    margin = std::max(margin, geoms[i]->margin);
+    margin = std::max(margin, geoms[i]->margin + geoms[i]->gap);
   }
 
   // check conditions for free-joint alignment
@@ -3871,7 +3871,7 @@ void mjCGeom::SetFluidCoefs(void) {
 
 // compute bounding box
 void mjCGeom::ComputeAABB(void) {
-  double aamm[6]; // axis-aligned bounding box in (min, max) format
+  double aamm[6];  // axis-aligned bounding box in (min, max) format
   switch (type) {
     case mjGEOM_HFIELD:
       aamm[0] = -hfield->size[0];
@@ -3963,9 +3963,15 @@ void mjCGeom::Compile(void) {
     throw mjCError(this, "hfield geom '%s' (id = %d) must have valid hfieldid", name.c_str(), id);
   }
 
-  // plane only allowed in static bodies
+  // plane only allowed in bodies with no dofs (static, including mocap)
   if (type == mjGEOM_PLANE && body->weldid != 0) {
-    throw mjCError(this, "plane only allowed in static bodies");
+    const mjCBody* weld = body;
+    while (weld->id != weld->weldid) {
+      weld = weld->parent;
+    }
+    if (!weld->spec.mocap) {
+      throw mjCError(this, "plane only allowed in static bodies");
+    }
   }
 
   // check if can collide
@@ -4052,6 +4058,24 @@ void mjCGeom::Compile(void) {
 
     // accumulate mesh frame into geom frame
     mjuu_frameaccum(pos, quat, meshpos, pmesh->GetQuatPtr());
+
+    // re-express surfacevel in the compiled geom frame, which absorbed the mesh frame
+    if (surfacevel[0] || surfacevel[1] || surfacevel[2] ||
+        surfacevel[3] || surfacevel[4] || surfacevel[5]) {
+      // angular origin moves to meshpos: linear part gains omega x meshpos
+      double wxp[3];
+      mjuu_crossvec(wxp, surfacevel+3, meshpos);
+      mjuu_addtovec(surfacevel, wxp, 3);
+
+      // rotate both parts by the inverse mesh orientation
+      const double* mq = pmesh->GetQuatPtr();
+      double invq[4] = {mq[0], -mq[1], -mq[2], -mq[3]};
+      double tmp[3];
+      mjuu_rotVecQuat(tmp, surfacevel, invq);
+      mjuu_copyvec(surfacevel, tmp, 3);
+      mjuu_rotVecQuat(tmp, surfacevel+3, invq);
+      mjuu_copyvec(surfacevel+3, tmp, 3);
+    }
   }
 
   // check size parameters
@@ -4575,6 +4599,11 @@ void mjCLight::Compile(void) {
   // normalize direction, make sure it is not zero
   if (mjuu_normvec(dir, 3) < mjEPS) {
     throw mjCError(this, "zero direction in light");
+  }
+
+  // check softness range
+  if (softness < 0 || softness > 1) {
+    throw mjCError(this, "light softness must be in [0, 1]");
   }
 
   // get targetbodyid and texid
@@ -5264,43 +5293,6 @@ void mjCTexture::LoadKTX(mjResource* resource, std::vector<std::byte>& image,
 }
 
 // load custom file
-void mjCTexture::LoadCustom(mjResource* resource, std::vector<std::byte>& image,
-                            unsigned int& w, unsigned int& h, bool& is_srgb) {
-  const void* buffer = 0;
-  int buffer_sz = mju_readResource(resource, &buffer);
-
-  // still not found
-  if (buffer_sz < 0) {
-    throw mjCError(this, "could not read texture file '%s'", resource->name);
-  } else if (!buffer_sz) {
-    throw mjCError(this, "texture file is empty: '%s'", resource->name);
-  }
-
-
-  // read dimensions
-  int* pint = (int*)buffer;
-  w = pint[0];
-  h = pint[1];
-
-  // assume linear color space
-  is_srgb = false;
-
-  // check dimensions
-  if (w < 1 || h < 1) {
-    throw mjCError(this, "Non-PNG texture, assuming custom binary file format,\n"
-                         "non-positive texture dimensions in file '%s'", resource->name);
-  }
-
-  // check buffer size
-  if (buffer_sz != 2*sizeof(int) + w*h*3*sizeof(char)) {
-    throw mjCError(this, "Non-PNG texture, assuming custom binary file format,\n"
-                         "unexpected file size in file '%s'", resource->name);
-  }
-
-  // allocate and copy
-  image.resize(w*h*3);
-  memcpy(image.data(), (void*)(pint+2), w*h*3*sizeof(char));
-}
 
 void mjCTexture::FlipIfNeeded(std::vector<std::byte>& image, unsigned int w,
                               unsigned int h) {
@@ -5369,12 +5361,7 @@ void mjCTexture::LoadFlip(std::string filename, const mjVFS* vfs,
 
   std::string asset_type = GetAssetContentType(filename, content_type_);
 
-  // fallback to custom
-  if (asset_type.empty()) {
-    asset_type = "image/vnd.mujoco.texture";
-  }
-
-  if (asset_type != "image/png" && asset_type != "image/ktx" && asset_type != "image/vnd.mujoco.texture") {
+  if (asset_type != "image/png" && asset_type != "image/ktx") {
     throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
   }
 
@@ -5394,8 +5381,6 @@ void mjCTexture::LoadFlip(std::string filename, const mjVFS* vfs,
         throw mjCError(this, "cannot flip KTX textures");
       }
       LoadKTX(resource, image, w, h, is_srgb);
-    } else {
-      LoadCustom(resource, image, w, h, is_srgb);
     }
   } catch(mjCError err) {
     mju_closeResource(resource);
@@ -6434,8 +6419,9 @@ void mjCTendon::CopyFromSpec() {
   material_ = spec_material_;
   userdata_ = spec_userdata_;
 
-  // clear precompiled
+  // propagate model pointer to wraps and clear precompiled
   for (int i=0; i < path.size(); i++) {
+    path[i]->model = model;
     if (path[i]->Type() == mjWRAP_CYLINDER) {
       path[i]->spec.type = mjWRAP_SPHERE;
     }
@@ -6909,6 +6895,14 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   // no previous state when an actuator is created
   actadr_ = -1;
   actdim_ = -1;
+
+  // input and output blocks, set by mjCModel; all actuator types are currently 1x1
+  ctrladr_ = -1;
+  ctrlnum_ = 1;
+  ctrlspec_ = 0;
+  outadr_ = -1;
+  outnum_ = 1;
+  so3_ = false;
 }
 
 
@@ -7099,6 +7093,12 @@ void mjCActuator::ResolveReferences(const mjCModel* m) {
 void mjCActuator::Compile(void) {
   CopyFromSpec();
 
+  // reset input/output block widths, resolved below
+  ctrlnum_ = 1;
+  ctrlspec_ = 0;
+  outnum_ = 1;
+  so3_ = false;
+
   // resize userdata
   if (userdata_.size() > model->nuser_actuator) {
     throw mjCError(this, "user has more values than nuser_actuator in actuator '%s' (id = %d)",
@@ -7114,6 +7114,136 @@ void mjCActuator::Compile(void) {
 
   // find transmission target in object arrays
   ResolveReferences(model);
+
+  // SO3 geodesic servo: validate and resolve the SO3 transmission
+  if (gaintype == mjGAIN_SO3 || biastype == mjBIAS_SO3) {
+    if (gaintype != mjGAIN_SO3 || biastype != mjBIAS_SO3) {
+      throw mjCError(this, "gaintype and biastype must both be 'so3' in actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+    if (dyntype != mjDYN_NONE && dyntype != mjDYN_INTEGRATOR) {
+      throw mjCError(this, "so3 requires dyntype 'none' or 'integrator' in actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+    if (gainprm[0] != -biasprm[1]) {
+      throw mjCError(this, "so3 requires gainprm[0] == -biasprm[1] in actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+    if (trntype == mjTRN_SITE) {
+      if (refsite_.empty()) {
+        throw mjCError(this, "so3 site transmission requires refsite in actuator '%s' (id = %d)",
+                       name.c_str(), id);
+      }
+    } else if (trntype == mjTRN_JOINT) {
+      if (((mjCJoint*)ptarget)->spec.type != mjJNT_BALL) {
+        throw mjCError(this, "so3 joint transmission requires a ball joint in actuator '%s' "
+                       "(id = %d)", name.c_str(), id);
+      }
+    } else {
+      throw mjCError(this, "so3 requires site or ball joint transmission in actuator '%s' "
+                     "(id = %d)", name.c_str(), id);
+    }
+
+    // integrator variant: activation is the 3D orientation setpoint
+    if (dyntype == mjDYN_INTEGRATOR) {
+      if (actdim > 0 && actdim != 3) {
+        throw mjCError(this, "so3 integrator requires actdim 3 in actuator '%s' (id = %d)",
+                       name.c_str(), id);
+      }
+      actdim = 3;
+
+      // the act setpoint is re-anchored to a bounded representative at integration time
+      if (actlimited == mjLIMITED_TRUE && actrange[0] == 0 && actrange[1] == 0) {
+        actlimited = mjLIMITED_FALSE;
+      }
+    }
+
+    // input chart: expmap (3 controls, default) or quat (4 controls)
+    ctrlspec_ = ctrlspec ? ctrlspec : mjCHART_EXPMAP;
+    if (ctrlspec_ == mjCHART_QUAT) {
+      if (dyntype != mjDYN_NONE) {
+        throw mjCError(this, "so3 quat input requires dyntype 'none' in actuator '%s' (id = %d)",
+                       name.c_str(), id);
+      }
+    } else if (ctrlspec_ != mjCHART_EXPMAP) {
+      throw mjCError(this, "so3 input must be expmap or quat in actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+
+    // force is clamped on the norm of the output torque: lower bound must be 0
+    if (is_forcelimited() && forcerange[0] != 0) {
+      throw mjCError(this, "so3 forcerange bounds the force norm, lower bound must be 0 in "
+                     "actuator '%s' (id = %d)", name.c_str(), id);
+    }
+
+    // input and output blocks
+    ctrlnum_ = ctrlspec_ == mjCHART_QUAT ? 4 : 3;
+    outnum_ = 3;
+    so3_ = true;
+  }
+
+  // PID servo: validate and resolve input block
+  if (gaintype == mjGAIN_PID) {
+    if (biastype != mjBIAS_AFFINE) {
+      throw mjCError(this, "pid requires biastype 'affine' in actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+    if (dyntype != mjDYN_NONE && dyntype != mjDYN_PID) {
+      throw mjCError(this, "pid requires dyntype 'none' or 'pid' in actuator '%s' "
+                     "(id = %d)", name.c_str(), id);
+    }
+    if (dyntype == mjDYN_NONE && gainprm[0]) {
+      throw mjCError(this, "ki (gainprm[0]) requires dyntype 'pid' in actuator '%s' "
+                     "(id = %d)", name.c_str(), id);
+    }
+    if (trntype == mjTRN_BODY) {
+      throw mjCError(this, "pid cannot use body transmission, actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+
+    // controller states, slot order [slew, integral]: gated on slewmax (dynprm[1]) and ki
+    if (dyntype == mjDYN_PID) {
+      if (dynprm[0] < 0) {
+        throw mjCError(this, "imax (dynprm[0]) must be non-negative in actuator '%s' (id = %d)",
+                       name.c_str(), id);
+      }
+      if (dynprm[1] < 0) {
+        throw mjCError(this, "slewmax (dynprm[1]) must be non-negative in actuator '%s' (id = %d)",
+                       name.c_str(), id);
+      }
+      int nslot = (dynprm[1] > 0) + (gainprm[0] > 0);
+      if (actdim > 0 && actdim != nslot) {
+        throw mjCError(this, "pid controller states require matching actdim in actuator '%s' "
+                       "(id = %d)", name.c_str(), id);
+      }
+      actdim = nslot;
+    }
+
+    // input block: any subset of [pos, vel, ff], default [pos, vel]
+    ctrlspec_ = ctrlspec ? ctrlspec : (mjINPUT_POS | mjINPUT_VEL);
+    if (ctrlspec_ & ~(mjINPUT_POS | mjINPUT_VEL | mjINPUT_FF)) {
+      throw mjCError(this, "pid inputs are a subset of [pos, vel, ff] in actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+    if (dyntype == mjDYN_PID && !(ctrlspec_ & mjINPUT_POS)) {
+      throw mjCError(this, "pid controller states require the pos input in actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+    ctrlnum_ = !!(ctrlspec_ & mjINPUT_POS) + !!(ctrlspec_ & mjINPUT_VEL) +
+               !!(ctrlspec_ & mjINPUT_FF);
+  }
+
+  // pid dynamics are pid-only
+  if (dyntype == mjDYN_PID && gaintype != mjGAIN_PID) {
+    throw mjCError(this, "dyntype 'pid' requires gaintype 'pid', actuator '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+
+  // input signature selection is so3- or pid-only
+  if (ctrlspec && gaintype != mjGAIN_SO3 && gaintype != mjGAIN_PID) {
+    throw mjCError(this, "input is only available for so3 and pid actuators, actuator '%s' "
+                   "(id = %d)", name.c_str(), id);
+  }
 
   // check damping/armature only valid for joint and tendon transmission
   bool has_damping = false;
@@ -7137,12 +7267,13 @@ void mjCActuator::Compile(void) {
   }
 
   // handle inheritrange
-  if (gaintype == mjGAIN_FIXED && biastype == mjBIAS_AFFINE &&
-      gainprm[0] == -biasprm[1] && inheritrange > 0) {
+  if (((gaintype == mjGAIN_FIXED && gainprm[0] == -biasprm[1]) || gaintype == mjGAIN_PID) &&
+      biastype == mjBIAS_AFFINE && inheritrange > 0) {
     // semantic of actuator is the same as transmission, inheritrange is applicable
     double* range;
-    if (dyntype == mjDYN_NONE || dyntype == mjDYN_FILTEREXACT) {
-      // position actuator
+    if (dyntype == mjDYN_NONE || dyntype == mjDYN_FILTEREXACT ||
+        dyntype == mjDYN_PID) {
+      // position or pd actuator: range applies to the position input
       range = ctrlrange;
     } else if (dyntype == mjDYN_INTEGRATOR) {
       // intvelocity actuator
@@ -7210,7 +7341,7 @@ void mjCActuator::Compile(void) {
 
   // check and set actdim
   if (!plugin.active) {
-    if (actdim > 1 && dyntype != mjDYN_USER && dyntype != mjDYN_DCMOTOR) {
+    if (actdim > 1 && dyntype != mjDYN_USER && dyntype != mjDYN_DCMOTOR && !so3_) {
       throw mjCError(this, "actdim > 1 is only allowed for dyntype 'user' and 'dcmotor'");
     }
     if (actdim == 1 && dyntype == mjDYN_NONE) {
@@ -7291,6 +7422,28 @@ void mjCActuator::Compile(void) {
   // single-precision floats can represent all integers up to 2^24 exactly
   if (nsample > 16777216) {
     throw mjCError(this, "at most 2^24 samples in history buffer, got %d", nullptr, nsample);
+  }
+
+  // resolve per-input control ranges: broadcast ctrlrange, pd overrides vel and ff
+  for (int j=0; j < ctrlnum_ && j < 4; j++) {
+    ctrllimiteds_[j] = (mjtByte)is_ctrllimited();
+    ctrlranges_[j][0] = ctrlrange[0];
+    ctrlranges_[j][1] = ctrlrange[1];
+  }
+  if (gaintype == mjGAIN_PID) {
+    // present inputs pack in canonical order [pos, vel, ff]; pos keeps the ctrlrange broadcast
+    int j = ctrlspec_ & mjINPUT_POS ? 1 : 0;
+    if (ctrlspec_ & mjINPUT_VEL) {
+      ctrllimiteds_[j] = velrange[0] < velrange[1];
+      ctrlranges_[j][0] = velrange[0];
+      ctrlranges_[j][1] = velrange[1];
+      j++;
+    }
+    if (ctrlspec_ & mjINPUT_FF) {
+      ctrllimiteds_[j] = ffrange[0] < ffrange[1];
+      ctrlranges_[j][0] = ffrange[0];
+      ctrlranges_[j][1] = ffrange[1];
+    }
   }
 }
 
@@ -7945,6 +8098,11 @@ void mjCSensor::Compile(void) {
   }
 
   dim = mjs_sensorDim(this);
+
+  // actuator sensors report one value per force output
+  if (type == mjSENS_ACTUATORPOS || type == mjSENS_ACTUATORVEL || type == mjSENS_ACTUATORFRC) {
+    dim = ((mjCActuator*)obj)->outnum_;
+  }
 
   // check cutoff for incompatible data types
   if (cutoff > 0 && (datatype == mjDATATYPE_QUATERNION ||

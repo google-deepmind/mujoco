@@ -62,11 +62,12 @@ public const bool THIRD_PARTY_MUJOCO_MJRENDER_H_ = true;
 public const int mjNAUX = 10;
 public const int mjMAXTEXTURE = 1000;
 public const int mjMAXMATERIAL = 1000;
+public const bool THIRD_PARTY_MUJOCO_MJRFILAMENT_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJSAN_H_ = true;
 public const bool ADDRESS_SANITIZER = true;
+public const bool mjUSEASAN = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJSPEC_H_ = true;
-public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTHREAD_H_ = true;
-public const int mjMAXTHREAD = 128;
+public const bool THIRD_PARTY_MUJOCO_MJSPECMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTYPE_H_ = true;
 public const double mjMINVAL = 1e-15;
 public const bool THIRD_PARTY_MUJOCO_MJUI_H_ = true;
@@ -116,7 +117,7 @@ public const int mjMAXLINEPNT = 1001;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 3009000;
+public const int mjVERSION_HEADER = 3011001;
 
 
 // ------------------------------------Enums------------------------------------
@@ -265,6 +266,7 @@ public enum mjtTrn : int{
   mjTRN_TENDON = 3,
   mjTRN_SITE = 4,
   mjTRN_BODY = 5,
+  mjTRN_SO3 = 6,
   mjTRN_UNDEFINED = 1000,
 }
 public enum mjtDyn : int{
@@ -274,21 +276,34 @@ public enum mjtDyn : int{
   mjDYN_FILTEREXACT = 3,
   mjDYN_MUSCLE = 4,
   mjDYN_DCMOTOR = 5,
-  mjDYN_USER = 6,
+  mjDYN_PID = 6,
+  mjDYN_USER = 7,
 }
 public enum mjtGain : int{
   mjGAIN_FIXED = 0,
   mjGAIN_AFFINE = 1,
   mjGAIN_MUSCLE = 2,
   mjGAIN_DCMOTOR = 3,
-  mjGAIN_USER = 4,
+  mjGAIN_SO3 = 4,
+  mjGAIN_PID = 5,
+  mjGAIN_USER = 6,
 }
 public enum mjtBias : int{
   mjBIAS_NONE = 0,
   mjBIAS_AFFINE = 1,
   mjBIAS_MUSCLE = 2,
   mjBIAS_DCMOTOR = 3,
-  mjBIAS_USER = 4,
+  mjBIAS_SO3 = 4,
+  mjBIAS_USER = 5,
+}
+public enum mjtCtrlChart : int{
+  mjCHART_EXPMAP = 1,
+  mjCHART_QUAT = 2,
+}
+public enum mjtCtrlInput : int{
+  mjINPUT_POS = 1,
+  mjINPUT_VEL = 2,
+  mjINPUT_FF = 4,
 }
 public enum mjtObj : int{
   mjOBJ_UNKNOWN = 0,
@@ -517,10 +532,18 @@ public enum mjtSleepState : int{
   mjS_ASLEEP = 0,
   mjS_AWAKE = 1,
 }
-public enum mjtTaskStatus : int{
-  mjTASK_NEW = 0,
-  mjTASK_QUEUED = 1,
-  mjTASK_COMPLETED = 2,
+public enum mjtLogLevel : int{
+  mjLOG_DEBUG = 0,
+  mjLOG_INFO = 1,
+  mjLOG_WARNING = 2,
+  mjLOG_ERROR = 3,
+}
+public enum mjtLogTopic : int{
+  mjTOPIC_NONE = 0,
+  mjTOPIC_TIME_STP = 1,
+  mjTOPIC_TIME_CMP = 2,
+  mjTOPIC_SLEEP = 3,
+  mjNTOPIC = 3,
 }
 public enum mjtGeomInertia : int{
   mjINERTIA_VOLUME = 0,
@@ -576,6 +599,11 @@ public enum mjtOrientation : int{
   mjORIENTATION_ZAXIS = 3,
   mjORIENTATION_EULER = 4,
 }
+public enum mjtConflict : int{
+  mjCONFLICT_WARNING = 0,
+  mjCONFLICT_MERGE = 1,
+  mjCONFLICT_ERROR = 2,
+}
 public enum mjtCTimer : int{
   mjCTIMER_TOTAL = 0,
   mjCTIMER_ASSETS = 1,
@@ -603,6 +631,8 @@ public enum mjtMouse : int{
   mjMOUSE_ZOOM = 5,
   mjMOUSE_MOVE_V_REL = 6,
   mjMOUSE_MOVE_H_REL = 7,
+  mjMOUSE_TURN_V = 8,
+  mjMOUSE_TURN_H = 9,
 }
 public enum mjtPertBit : int{
   mjPERT_TRANSLATE = 1,
@@ -735,6 +765,36 @@ public enum mjtFont : int{
   mjFONT_SHADOW = 1,
   mjFONT_BIG = 2,
 }
+public enum mjrPixelFormat : int{
+  mjPIXEL_FORMAT_UNKNOWN = 0,
+  mjPIXEL_FORMAT_R8 = 1,
+  mjPIXEL_FORMAT_RGB8 = 2,
+  mjPIXEL_FORMAT_RGBA8 = 3,
+  mjPIXEL_FORMAT_R32F = 4,
+  mjPIXEL_FORMAT_DEPTH32F = 5,
+  mjPIXEL_FORMAT_KTX = 6,
+}
+public enum mjrVertexAttributeUsage : int{
+  mjVERTEX_ATTRIBUTE_USAGE_POSITION = 0,
+  mjVERTEX_ATTRIBUTE_USAGE_NORMAL = 1,
+  mjVERTEX_ATTRIBUTE_USAGE_TANGENTS = 2,
+  mjVERTEX_ATTRIBUTE_USAGE_UV = 3,
+  mjVERTEX_ATTRIBUTE_USAGE_COLOR = 4,
+}
+public enum mjrVertexAttributeType : int{
+  mjVERTEX_ATTRIBUTE_TYPE_FLOAT2 = 0,
+  mjVERTEX_ATTRIBUTE_TYPE_FLOAT3 = 1,
+  mjVERTEX_ATTRIBUTE_TYPE_FLOAT4 = 2,
+  mjVERTEX_ATTRIBUTE_TYPE_UBYTE4 = 3,
+}
+public enum mjrIndexType : int{
+  mjINDEX_TYPE_U16 = 0,
+  mjINDEX_TYPE_U32 = 1,
+}
+public enum mjrMeshPrimitiveType : int{
+  mjMESH_PRIMITIVE_TYPE_TRIANGLES = 0,
+  mjMESH_PRIMITIVE_TYPE_LINES = 1,
+}
 public enum mjtButton : int{
   mjBUTTON_NONE = 0,
   mjBUTTON_LEFT = 1,
@@ -778,6 +838,26 @@ public enum mjtSection : int{
 }
 
 // -------------------------------struct declarations---------------------------
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjLogMessage_ {
+  public int level;
+  public int topic;
+  public fixed char subject[1024];
+  public char* body;
+  public char* func;
+  public char* file;
+  public int line;
+  public byte timestamp;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjLogConfig_ {
+  public byte logto_console;
+  public byte logto_file;
+  public fixed char logfile[1024];
+  public int topics;
+}
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct mjLROpt_ {
@@ -956,6 +1036,8 @@ public unsafe struct mjModel_ {
   public UInt64 nq;
   public UInt64 nv;
   public UInt64 nu;
+  public UInt64 nactuator;
+  public UInt64 nout;
   public UInt64 na;
   public UInt64 nbody;
   public UInt64 nbvh;
@@ -980,6 +1062,8 @@ public unsafe struct mjModel_ {
   public UInt64 nflexelemdata;
   public UInt64 nflexstiffness;
   public UInt64 nflexbending;
+  public UInt64 nefm0dof;
+  public UInt64 nefm0L;
   public UInt64 nflexelemedge;
   public UInt64 nflexshelldata;
   public UInt64 nflexevpair;
@@ -1039,12 +1123,17 @@ public unsafe struct mjModel_ {
   public UInt64 nemax;
   public UInt64 njmax;
   public UInt64 nconmax;
+  public UInt64 npolygonmax;
+  public UInt64 nmeshdegmax;
   public UInt64 nuserdata;
   public UInt64 nsensordata;
   public UInt64 npluginstate;
   public UInt64 nhistory;
   public UInt64 narena;
   public UInt64 nbuffer;
+  public byte flg_gravcomp;
+  public byte flg_surfacevel;
+  public byte flg_adhesion;
   public mjOption_ opt;
   public mjVisual_ vis;
   public mjStatistic_ stat;
@@ -1149,6 +1238,8 @@ public unsafe struct mjModel_ {
   public double* geom_friction;
   public double* geom_margin;
   public double* geom_gap;
+  public double* geom_surfacevel;
+  public double* geom_adhesion;
   public double* geom_fluid;
   public double* geom_user;
   public float* geom_rgba;
@@ -1195,6 +1286,7 @@ public unsafe struct mjModel_ {
   public double* light_dir0;
   public float* light_attenuation;
   public float* light_cutoff;
+  public float* light_softness;
   public float* light_exponent;
   public float* light_ambient;
   public float* light_diffuse;
@@ -1259,6 +1351,11 @@ public unsafe struct mjModel_ {
   public double* flex_size;
   public double* flex_stiffness;
   public double* flex_bending;
+  public int* efm0_dofid;
+  public int* efm0_L_rownnz;
+  public int* efm0_L_rowadr;
+  public int* efm0_L_colind;
+  public double* efm0_L;
   public double* flex_damping;
   public double* flex_edgestiffness;
   public double* flex_edgedamping;
@@ -1290,6 +1387,7 @@ public unsafe struct mjModel_ {
   public int* mesh_texcoordadr;
   public int* mesh_texcoordnum;
   public int* mesh_graphadr;
+  public int* mesh_extrema;
   public float* mesh_vert;
   public float* mesh_normal;
   public float* mesh_texcoord;
@@ -1365,6 +1463,7 @@ public unsafe struct mjModel_ {
   public double* pair_solimp;
   public double* pair_margin;
   public double* pair_gap;
+  public double* pair_adhesion;
   public double* pair_friction;
   public int* exclude_signature;
   public int* eq_type;
@@ -1413,33 +1512,38 @@ public unsafe struct mjModel_ {
   public int* actuator_dyntype;
   public int* actuator_gaintype;
   public int* actuator_biastype;
-  public int* actuator_trnid;
-  public double* actuator_damping;
-  public double* actuator_dampingpoly;
-  public double* actuator_armature;
+  public int* actuator_ctrladr;
+  public int* actuator_ctrlnum;
+  public int* actuator_ctrlspec;
+  public int* actuator_outadr;
+  public int* actuator_outnum;
   public int* actuator_actadr;
   public int* actuator_actnum;
-  public int* actuator_group;
-  public int* actuator_history;
-  public int* actuator_historyadr;
-  public double* actuator_delay;
-  public byte* actuator_ctrllimited;
-  public byte* actuator_forcelimited;
-  public byte* actuator_actlimited;
+  public int* actuator_trnid;
+  public double* actuator_cranklength;
   public double* actuator_dynprm;
   public double* actuator_gainprm;
   public double* actuator_biasprm;
-  public byte* actuator_actearly;
-  public double* actuator_ctrlrange;
-  public double* actuator_forcerange;
+  public byte* actuator_actlimited;
   public double* actuator_actrange;
+  public byte* actuator_actearly;
+  public int* actuator_history;
+  public int* actuator_historyadr;
+  public double* actuator_delay;
+  public double* actuator_damping;
+  public double* actuator_dampingpoly;
+  public double* actuator_armature;
+  public int* actuator_group;
+  public double* actuator_user;
+  public int* actuator_plugin;
+  public byte* actuator_forcelimited;
+  public double* actuator_forcerange;
+  public byte* actuator_ctrllimited;
+  public double* actuator_ctrlrange;
   public double* actuator_gear;
-  public double* actuator_cranklength;
   public double* actuator_acc0;
   public double* actuator_length0;
   public double* actuator_lengthrange;
-  public double* actuator_user;
-  public int* actuator_plugin;
   public int* sensor_type;
   public int* sensor_datatype;
   public int* sensor_needstage;
@@ -1541,6 +1645,7 @@ public unsafe struct mjContact_ {
   public fixed double solref[2];
   public fixed double solreffriction[2];
   public fixed double solimp[5];
+  public double adhesion;
   public double mu;
   public fixed double H[36];
   public int dim;
@@ -1585,135 +1690,9 @@ public unsafe struct mjData_ {
   public UIntPtr pstack;
   public UIntPtr pbase;
   public UIntPtr parena;
+  public UIntPtr threadpool;
+  public byte threadlock;
   public UInt64 maxuse_stack;
-  public UInt64 maxuse_threadstack0;
-  public UInt64 maxuse_threadstack1;
-  public UInt64 maxuse_threadstack2;
-  public UInt64 maxuse_threadstack3;
-  public UInt64 maxuse_threadstack4;
-  public UInt64 maxuse_threadstack5;
-  public UInt64 maxuse_threadstack6;
-  public UInt64 maxuse_threadstack7;
-  public UInt64 maxuse_threadstack8;
-  public UInt64 maxuse_threadstack9;
-  public UInt64 maxuse_threadstack10;
-  public UInt64 maxuse_threadstack11;
-  public UInt64 maxuse_threadstack12;
-  public UInt64 maxuse_threadstack13;
-  public UInt64 maxuse_threadstack14;
-  public UInt64 maxuse_threadstack15;
-  public UInt64 maxuse_threadstack16;
-  public UInt64 maxuse_threadstack17;
-  public UInt64 maxuse_threadstack18;
-  public UInt64 maxuse_threadstack19;
-  public UInt64 maxuse_threadstack20;
-  public UInt64 maxuse_threadstack21;
-  public UInt64 maxuse_threadstack22;
-  public UInt64 maxuse_threadstack23;
-  public UInt64 maxuse_threadstack24;
-  public UInt64 maxuse_threadstack25;
-  public UInt64 maxuse_threadstack26;
-  public UInt64 maxuse_threadstack27;
-  public UInt64 maxuse_threadstack28;
-  public UInt64 maxuse_threadstack29;
-  public UInt64 maxuse_threadstack30;
-  public UInt64 maxuse_threadstack31;
-  public UInt64 maxuse_threadstack32;
-  public UInt64 maxuse_threadstack33;
-  public UInt64 maxuse_threadstack34;
-  public UInt64 maxuse_threadstack35;
-  public UInt64 maxuse_threadstack36;
-  public UInt64 maxuse_threadstack37;
-  public UInt64 maxuse_threadstack38;
-  public UInt64 maxuse_threadstack39;
-  public UInt64 maxuse_threadstack40;
-  public UInt64 maxuse_threadstack41;
-  public UInt64 maxuse_threadstack42;
-  public UInt64 maxuse_threadstack43;
-  public UInt64 maxuse_threadstack44;
-  public UInt64 maxuse_threadstack45;
-  public UInt64 maxuse_threadstack46;
-  public UInt64 maxuse_threadstack47;
-  public UInt64 maxuse_threadstack48;
-  public UInt64 maxuse_threadstack49;
-  public UInt64 maxuse_threadstack50;
-  public UInt64 maxuse_threadstack51;
-  public UInt64 maxuse_threadstack52;
-  public UInt64 maxuse_threadstack53;
-  public UInt64 maxuse_threadstack54;
-  public UInt64 maxuse_threadstack55;
-  public UInt64 maxuse_threadstack56;
-  public UInt64 maxuse_threadstack57;
-  public UInt64 maxuse_threadstack58;
-  public UInt64 maxuse_threadstack59;
-  public UInt64 maxuse_threadstack60;
-  public UInt64 maxuse_threadstack61;
-  public UInt64 maxuse_threadstack62;
-  public UInt64 maxuse_threadstack63;
-  public UInt64 maxuse_threadstack64;
-  public UInt64 maxuse_threadstack65;
-  public UInt64 maxuse_threadstack66;
-  public UInt64 maxuse_threadstack67;
-  public UInt64 maxuse_threadstack68;
-  public UInt64 maxuse_threadstack69;
-  public UInt64 maxuse_threadstack70;
-  public UInt64 maxuse_threadstack71;
-  public UInt64 maxuse_threadstack72;
-  public UInt64 maxuse_threadstack73;
-  public UInt64 maxuse_threadstack74;
-  public UInt64 maxuse_threadstack75;
-  public UInt64 maxuse_threadstack76;
-  public UInt64 maxuse_threadstack77;
-  public UInt64 maxuse_threadstack78;
-  public UInt64 maxuse_threadstack79;
-  public UInt64 maxuse_threadstack80;
-  public UInt64 maxuse_threadstack81;
-  public UInt64 maxuse_threadstack82;
-  public UInt64 maxuse_threadstack83;
-  public UInt64 maxuse_threadstack84;
-  public UInt64 maxuse_threadstack85;
-  public UInt64 maxuse_threadstack86;
-  public UInt64 maxuse_threadstack87;
-  public UInt64 maxuse_threadstack88;
-  public UInt64 maxuse_threadstack89;
-  public UInt64 maxuse_threadstack90;
-  public UInt64 maxuse_threadstack91;
-  public UInt64 maxuse_threadstack92;
-  public UInt64 maxuse_threadstack93;
-  public UInt64 maxuse_threadstack94;
-  public UInt64 maxuse_threadstack95;
-  public UInt64 maxuse_threadstack96;
-  public UInt64 maxuse_threadstack97;
-  public UInt64 maxuse_threadstack98;
-  public UInt64 maxuse_threadstack99;
-  public UInt64 maxuse_threadstack100;
-  public UInt64 maxuse_threadstack101;
-  public UInt64 maxuse_threadstack102;
-  public UInt64 maxuse_threadstack103;
-  public UInt64 maxuse_threadstack104;
-  public UInt64 maxuse_threadstack105;
-  public UInt64 maxuse_threadstack106;
-  public UInt64 maxuse_threadstack107;
-  public UInt64 maxuse_threadstack108;
-  public UInt64 maxuse_threadstack109;
-  public UInt64 maxuse_threadstack110;
-  public UInt64 maxuse_threadstack111;
-  public UInt64 maxuse_threadstack112;
-  public UInt64 maxuse_threadstack113;
-  public UInt64 maxuse_threadstack114;
-  public UInt64 maxuse_threadstack115;
-  public UInt64 maxuse_threadstack116;
-  public UInt64 maxuse_threadstack117;
-  public UInt64 maxuse_threadstack118;
-  public UInt64 maxuse_threadstack119;
-  public UInt64 maxuse_threadstack120;
-  public UInt64 maxuse_threadstack121;
-  public UInt64 maxuse_threadstack122;
-  public UInt64 maxuse_threadstack123;
-  public UInt64 maxuse_threadstack124;
-  public UInt64 maxuse_threadstack125;
-  public UInt64 maxuse_threadstack126;
-  public UInt64 maxuse_threadstack127;
   public UInt64 maxuse_arena;
   public int maxuse_con;
   public int maxuse_efc;
@@ -5748,6 +5727,10 @@ public unsafe struct mjData_ {
   public int nl;
   public int nefc;
   public int nJ;
+  public int efm_active;
+  public int nefmK;
+  public int nefmdof;
+  public int nefmL;
   public int nY;
   public int nA;
   public int nisland;
@@ -5803,6 +5786,7 @@ public unsafe struct mjData_ {
   public double* cinert;
   public double* flexvert_xpos;
   public double* flexelem_aabb;
+  public double* flexelem_krot;
   public double* flexedge_J;
   public double* flexedge_length;
   public double* flexvert_J;
@@ -5820,7 +5804,6 @@ public unsafe struct mjData_ {
   public int* moment_colind;
   public double* actuator_moment;
   public double* crb;
-  public double* qM;
   public double* M;
   public double* qLD;
   public double* qLDiagInv;
@@ -5840,6 +5823,7 @@ public unsafe struct mjData_ {
   public double* qfrc_damper;
   public double* qfrc_gravcomp;
   public double* qfrc_fluid;
+  public double* qfrc_adhesion;
   public double* qfrc_passive;
   public double* subtree_linvel;
   public double* subtree_angmom;
@@ -5867,7 +5851,7 @@ public unsafe struct mjData_ {
   public double* efc_pos;
   public double* efc_margin;
   public double* efc_frictionloss;
-  public double* efc_diagApprox;
+  public double* efc_diagA;
   public double* efc_KBIP;
   public double* efc_D;
   public double* efc_R;
@@ -5884,12 +5868,6 @@ public unsafe struct mjData_ {
   public int* map_idof2dof;
   public double* ifrc_smooth;
   public double* iacc_smooth;
-  public int* iM_rownnz;
-  public int* iM_rowadr;
-  public int* iM_colind;
-  public double* iM;
-  public double* iLD;
-  public double* iLDiagInv;
   public double* iacc;
   public int* efc_island;
   public int* island_ne;
@@ -5900,11 +5878,6 @@ public unsafe struct mjData_ {
   public int* map_iefc2efc;
   public int* iefc_type;
   public int* iefc_id;
-  public int* iefc_J_rownnz;
-  public int* iefc_J_rowadr;
-  public int* iefc_J_rowsuper;
-  public int* iefc_J_colind;
-  public double* iefc_J;
   public double* iefc_frictionloss;
   public double* iefc_D;
   public double* iefc_R;
@@ -5918,6 +5891,13 @@ public unsafe struct mjData_ {
   public double* efc_AR;
   public double* efc_vel;
   public double* efc_aref;
+  public double* efm_c;
+  public int* efm_K_rownnz;
+  public int* efm_K_rowadr;
+  public int* efm_K_colind;
+  public double* efm_K_val;
+  public int* efm_dofid;
+  public double* efm_L;
   public double* efc_b;
   public double* iefc_aref;
   public int* iefc_state;
@@ -5925,7 +5905,6 @@ public unsafe struct mjData_ {
   public int* efc_state;
   public double* efc_force;
   public double* ifrc_constraint;
-  public UIntPtr threadpool;
   public UInt64 signature;
 }
 
@@ -5942,13 +5921,29 @@ public unsafe struct mjsCompiler_ {
   public byte discardvisual;
   public byte usethread;
   public byte fusestatic;
-  public int inertiafromgeom;
+  public mjtInertiaFromGeom inertiafromgeom;
   public fixed int inertiagrouprange[2];
   public byte saveinertial;
-  public int alignfree;
+  public byte alignfree;
+  public mjtConflict conflict;
   public mjLROpt_ LRopt;
   public void* meshdir;
   public void* texturedir;
+  public UInt64 authored;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjsAuthored_ {
+  public UInt64 option;
+  public int disableflags;
+  public int enableflags;
+  public int disableactuator;
+  public UInt64 visual_global;
+  public UInt64 visual_quality;
+  public UInt64 visual_headlight;
+  public UInt64 visual_map;
+  public UInt64 visual_scale;
+  public UInt64 visual_rgba;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -6000,6 +5995,8 @@ public unsafe struct mjvGeom_ {
   public int objid;
   public int category;
   public int matid;
+  public int texid;
+  public int texuniform;
   public int texcoord;
   public int segid;
   public fixed float size[3];
@@ -6010,6 +6007,7 @@ public unsafe struct mjvGeom_ {
   public float specular;
   public float shininess;
   public float reflectance;
+  public fixed float texrepeat[2];
   public fixed char label[100];
   public float camdist;
   public float modelrbound;
@@ -6034,6 +6032,7 @@ public unsafe struct mjvLight_ {
   public float bulbradius;
   public float intensity;
   public float range;
+  public float softness;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -6238,6 +6237,18 @@ public unsafe struct mjrRect_ {
   public int bottom;
   public int width;
   public int height;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjrRendererInfo_ {
+  public char* renderer;
+  public char* backend;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjrVertexAttribute_ {
+  public int usage;
+  public int type;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -6742,7 +6753,7 @@ public static unsafe extern void mj_clearCache(mjCache_* cache);
 public static unsafe extern mjModel_* mj_loadXML([MarshalAs(UnmanagedType.LPStr)]string filename, void* vfs, StringBuilder error, int error_sz);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mj_encode(void* s, mjModel_* m, [MarshalAs(UnmanagedType.LPStr)]string filename, [MarshalAs(UnmanagedType.LPStr)]string content_type, void* vfs, StringBuilder error, int error_sz);
+public static unsafe extern UInt64 mj_encode(void* s, mjModel_* m, [MarshalAs(UnmanagedType.LPStr)]string filename, [MarshalAs(UnmanagedType.LPStr)]string content_type, void* vfs, StringBuilder error, int error_sz);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mj_saveLastXML([MarshalAs(UnmanagedType.LPStr)]string filename, mjModel_* m, StringBuilder error, int error_sz);
@@ -6812,6 +6823,9 @@ public static unsafe extern mjData_* mj_copyData(mjData_* dest, mjModel_* m, mjD
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern mjData_* mjv_copyData(mjData_* dest, mjModel_* m, mjData_* src);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_resetCtrl(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_resetData(mjModel_* m, mjData_* d);
@@ -7090,7 +7104,10 @@ public static unsafe extern int mj_name2id(mjModel_* m, int type, [MarshalAs(Unm
 public static unsafe extern IntPtr mj_id2name(mjModel_* m, int type, int id);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_fullM(mjModel_* m, double* dst, double* M);
+public static unsafe extern IntPtr mj_actuatorInputName(mjModel_* m, int id, int input);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_fullM(mjModel_* m, mjData_* d, double* dst);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_mulM(mjModel_* m, mjData_* d, double* res, double* vec);
@@ -7195,7 +7212,7 @@ public static unsafe extern double mjv_frustumHeight(mjvScene_* scn);
 public static unsafe extern void mjv_alignToCamera(double* res, double* vec, double* forward);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mjv_moveCamera(mjModel_* m, int action, double reldx, double reldy, mjvScene_* scn, mjvCamera_* cam);
+public static unsafe extern void mjv_moveCamera(mjModel_* m, int action, double reldx, double reldy, mjvCamera_* cam);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_movePerturb(mjModel_* m, mjData_* d, int action, double reldx, double reldy, mjvScene_* scn, mjvPerturb_* pert);
@@ -7214,6 +7231,9 @@ public static unsafe extern void mjv_applyPerturbForce(mjModel_* m, mjData_* d, 
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern mjvGLCamera_ mjv_averageCamera(mjvGLCamera_* cam1, mjvGLCamera_* cam2);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern mjvGLCamera_ mjv_camera2GLCamera(mjModel_* model, mjData_* data, mjvCamera_* mjv_camera);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mjv_select(mjModel_* m, mjData_* d, mjvOption_* vopt, double aspectratio, double relx, double rely, mjvScene_* scn, double* selpnt, int* geomid, int* flexid, int* skinid);
@@ -7265,6 +7285,12 @@ public static unsafe extern void mjv_cameraFrustum(float* zver, float* zhor, flo
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjr_defaultContext(mjrContext_* con);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjr_defaultRendererInfo(mjrRendererInfo_* info);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjr_getRendererInfo(mjrRendererInfo_* info);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjr_makeContext(mjModel_* m, mjrContext_* con, int fontscale);
@@ -7369,22 +7395,25 @@ public static unsafe extern void mjui_render(mjUI_* ui, mjuiState_* state, mjrCo
 public static unsafe extern void mju_error([MarshalAs(UnmanagedType.LPStr)]string msg);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_error_i([MarshalAs(UnmanagedType.LPStr)]string msg, int i);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_error_s([MarshalAs(UnmanagedType.LPStr)]string msg, [MarshalAs(UnmanagedType.LPStr)]string text);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_warning([MarshalAs(UnmanagedType.LPStr)]string msg);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_warning_i([MarshalAs(UnmanagedType.LPStr)]string msg, int i);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_warning_s([MarshalAs(UnmanagedType.LPStr)]string msg, [MarshalAs(UnmanagedType.LPStr)]string text);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_clearHandlers();
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern IntPtr mju_setLogHandler(IntPtr handler);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern mjLogConfig_ mju_getLogConfig();
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_setLogConfig(mjLogConfig_ config);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_info(int topic, [MarshalAs(UnmanagedType.LPStr)]string msg);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_message(mjLogMessage_* msg);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void* mju_malloc(UIntPtr size);
@@ -7724,8 +7753,5 @@ public static unsafe extern void mjd_subQuat(double* qa, double* qb, double* Da,
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjd_quatIntegrate(double* vel, double scale, double* Dquat, double* Dvel, double* Dscale);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_bindThreadPool(mjData_* d, void* thread_pool);
 }
 }

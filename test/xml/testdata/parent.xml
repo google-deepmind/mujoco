@@ -3,9 +3,23 @@
     <model name="other" file="child.xml"/>
   </asset>
   <worldbody>
+    <!-- attach body to body -->
     <body name="parent">
-      <geom name="geom" size="2"/>
-      <attach model="other" body="body" prefix="other"/>
+      <geom name="geom" size="1" pos="0 0 2"/>
+      <attach model="other" body="body" prefix="other1"/>
     </body>
+
+    <!-- attach frame to body (world) -->
+    <attach model="other" frame="frame" prefix="other2"/>
+
+    <!-- attach frame to frame -->
+    <frame name="top" pos="0 0 4">
+      <attach model="other" frame="frame" prefix="other3"/>
+    </frame>
+
+    <!-- attach body to frame -->
+    <frame name="bottom-right" pos="2 0 -1">
+      <attach model="other" body="body" prefix="other4"/>
+    </frame>
   </worldbody>
 </mujoco>

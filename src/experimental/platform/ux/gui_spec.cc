@@ -20,6 +20,7 @@
 #include <imgui.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
+#include "experimental/platform/ux/gui.h"
 #include "experimental/platform/ux/imgui_widgets.h"
 #include "experimental/platform/ux/spec_editor.h"
 
@@ -143,7 +144,7 @@ static void BodyChildrenGui(const char* heading, mjtObj type,
 
   constexpr ImGuiTreeNodeFlags tree_flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DrawLinesFull;
-  if (ImGui::TreeNodeEx(heading, tree_flags)) {
+  if (SectionHeader(heading, tree_flags, 0.55f)) {
     while (iter) {
       mjsElement* next = mjs_nextChild(body, iter, 0);
       SelectableElement(iter, element, editor);
@@ -163,7 +164,7 @@ static void ElementListGui(const char* heading, mjtObj type,
 
   constexpr ImGuiTreeNodeFlags tree_flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
-  if (ImGui::TreeNodeEx(heading, tree_flags)) {
+  if (SectionHeader(heading, tree_flags, 0.55f)) {
     while (iter) {
       mjsElement* next = mjs_nextElement(spec, iter);
       SelectableElement(iter, element, editor);
@@ -187,7 +188,7 @@ static void BodyTreeGuiRecursive(mjsElement** element, mjsBody* body,
     flags |= ImGuiTreeNodeFlags_Selected;
   }
 
-  const bool tree_open = ImGui::TreeNodeEx(label.c_str(), flags);
+  const bool tree_open = SectionHeader(label.c_str(), flags, 0.55f);
   if (ImGui::IsItemClicked()) {
     *element = body->element;
   }
@@ -223,7 +224,7 @@ void SpecTreeGui(mjsElement** element, mjSpec* spec, SpecEditor* editor) {
   style.Var(ImGuiStyleVar_FramePadding, ImVec2(4, 0));
   style.Color(ImGuiCol_Border, ImGuiCol_WindowBg);
 
-  if (ImGui::TreeNodeEx("Body Tree", flags)) {
+  if (SectionHeader("Body Tree", flags, 0.65f)) {
     mjsElement* root = mjs_firstElement(spec, mjOBJ_BODY);
     if (root) {
       mjsBody* body = mjs_asBody(root);
@@ -241,7 +242,7 @@ void SpecTreeGui(mjsElement** element, mjSpec* spec, SpecEditor* editor) {
   ImGui::PushID("$spec$");
 
   // Non-tree elements.
-  if (ImGui::TreeNodeEx("Elements", flags)) {
+  if (SectionHeader("Elements", flags, 0.65f)) {
     list("Actuators", mjOBJ_ACTUATOR);
     list("Sensors", mjOBJ_SENSOR);
     list("Flexes", mjOBJ_FLEX);
@@ -258,7 +259,7 @@ void SpecTreeGui(mjsElement** element, mjSpec* spec, SpecEditor* editor) {
   }
 
   // Assets.
-  if (ImGui::TreeNodeEx("Assets", flags)) {
+  if (SectionHeader("Assets", flags, 0.65f)) {
     list("Meshes", mjOBJ_MESH);
     list("Height Fields", mjOBJ_HFIELD);
     list("Skins", mjOBJ_SKIN);
@@ -278,8 +279,9 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
   // if editor, assert that element == editor->GetActiveElement();
   mjsElement* ref_element = editor ? editor->GetRefElement() : element;
 
-  #define FIELD(NAME, TIP) table(#NAME, elem->NAME, ref->NAME, TIP);
-  #define QFIELD(NAME, ALT, TIP) table(#NAME, #ALT, elem->NAME, ref->NAME, elem->ALT, ref->ALT, TIP);
+#define FIELD(NAME, TIP) table(#NAME, elem->NAME, ref->NAME, TIP);
+#define QFIELD(NAME, ALT, TIP) \
+  table(#NAME, #ALT, elem->NAME, ref->NAME, elem->ALT, ref->ALT, TIP);
 
   ImGui_SpecElementTable table(editor == nullptr);
   switch (element->elemtype) {
@@ -296,7 +298,8 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(fullinertia, "non-axis-aligned inertia matrix");
       FIELD(mocap, "is this a mocap body");
       FIELD(gravcomp, "gravity compensation");
-      FIELD(explicitinertial, "whether to save the body with explicit inertial clause");
+      FIELD(explicitinertial,
+            "whether to save the body with explicit inertial clause");
       FIELD(sleep, "sleep policy");
       FIELD(info, "message appended to compiler errors");
       break;
@@ -346,7 +349,8 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(slidersite, "site defining cylinder, for slider-crank");
       FIELD(cranklength, "crank length, for slider-crank");
       FIELD(lengthrange, "transmission length range");
-      FIELD(inheritrange, "automatic range setting for position and intvelocity");
+      FIELD(inheritrange,
+            "automatic range setting for position and intvelocity");
       FIELD(ctrllimited, "are control limits defined (mjtLimited)");
       FIELD(ctrlrange, "control range");
       FIELD(forcelimited, "are force limits defined (mjtLimited)");
@@ -548,7 +552,8 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(poisson, "Poisson's ratio");
       FIELD(damping, "Rayleigh's damping");
       FIELD(thickness, "thickness (2D only)");
-      FIELD(elastic2d, "2D passive forces; 0: none, 1: bending, 2: stretching, 3: both");
+      FIELD(elastic2d,
+            "2D passive forces; 0: none, 1: bending, 2: stretching, 3: both");
       FIELD(info, "message appended to compiler errors");
       break;
     }
@@ -704,7 +709,7 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       break;
   }
 
-  #undef FIELD
+#undef FIELD
 
   if (editor && table.WasModified()) {
     editor->CommitChanges(element);

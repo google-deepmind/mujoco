@@ -49,10 +49,25 @@ class [[nodiscard]] mjXError {
 };
 
 
+// presence constraint over an element's attributes, generated from the
+// schema into the grammar table's companion array. spec holds attribute
+// bundles, space-joined within a bundle and '|'-separated between them;
+// kind: e=exclusive (at most one bundle present), t=together (all or
+// none), r=requires (first needs second), o=oneof (at least one bundle
+// complete).
+struct mjXConstraintDef {
+  int row;             // index of the element's row in the grammar table
+  char kind;
+  const char* spec;
+};
+
+
 // Custom XML file validation
 class mjXSchema {
  public:
-  mjXSchema(std::vector<const char*> schema[], unsigned nrow);
+  mjXSchema(std::vector<const char*> schema[], unsigned nrow,
+            const mjXConstraintDef* constraints = nullptr,
+            int nconstraint = 0, int first_row = 0);
 
   std::string GetError();                         // return error
   void Print(std::stringstream& str, int level) const;      // print schema
@@ -66,6 +81,9 @@ class mjXSchema {
   char type_;                         // element type: '?', '!', '*', 'R'
   std::set<std::string> attr_;        // allowed attributes
   std::vector<mjXSchema> subschema_;  // allowed child elements
+
+  std::vector<const mjXConstraintDef*> constraints_;  // constraints here
+  tinyxml2::XMLElement* CheckConstraints(tinyxml2::XMLElement* elem);
 
   int refcnt_ = 0;                    // refcount used for validation
   std::string error;                  // error from constructor or Check
@@ -178,6 +196,17 @@ class mjXUtil {
   // find attribute, translate key, return int value
   static bool MapValue(tinyxml2::XMLElement* elem, const char* attr, int* data,
                        const mjMap* map, int mapSz, bool required = false);
+
+  template <typename T>
+  static bool MapValue(tinyxml2::XMLElement* elem, const char* attr, T* data,
+                       const mjMap* map, int mapSz, bool required = false) {
+    int value;
+    if (MapValue(elem, attr, &value, map, mapSz, required)) {
+      *data = static_cast<T>(value);
+      return true;
+    }
+    return false;
+  }
 
   // find attribute, translate unique space-separated keys to data, return number of keys found
   static int MapValues(tinyxml2::XMLElement* elem, const char* attr, int* data,

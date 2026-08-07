@@ -132,6 +132,20 @@ Since JAX and Warp diverge in their implementations of contact buffers, contacts
 For more details and examples of using MJX-Warp in the wild, see the announcement in MuJoCo Playground
 `here <https://github.com/google-deepmind/mujoco_playground/discussions/197>`__.
 
+Batched ``Data`` updates
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+With MJX-JAX it is possible to reset a subset of environments in a batch with
+`jax.tree.map(jax.numpy.where, done, reset_data, data)`. However, this approach does not work out-of-the-box for
+MJX-Warp due to internal implementation details.
+
+To support batched ``Data`` updates for both implementations, MJX provides a unified `where` method on `Data` objects:
+
+.. code-block:: python
+
+   data = data.where(done, reset_data)
+
+
 .. _MjxWarpGraphModes:
 
 Graph Modes
@@ -253,7 +267,7 @@ volume hierarchy (BVH) and executing the raycaster:
         d = mjx.refit_bvh(mx, d, rc_pytree)
 
         # 2. Render all configured cameras
-        pixels, _ = mjx.render(mx, d, rc_pytree)
+        pixels, _, d = mjx.render(mx, d, rc_pytree)
 
         # 3. Extract the RGB tensor for the first camera (index 0)
         rgb = get_rgb(rc_pytree, 0, pixels)
@@ -261,6 +275,12 @@ volume hierarchy (BVH) and executing the raycaster:
         return rgb, d
 
     rgb, d = render_fn(mx, d, rc.pytree())
+
+.. NOTE::
+   :func:`~mujoco.mjx.refit_bvh` and :func:`~mujoco.mjx.render` update an internal execution token
+   (``d._impl._jax_token``) within :class:`~mujoco.mjx.Data`. Passing ``d`` sequentially through
+   ``refit_bvh`` and ``render`` creates an explicit data dependency, preventing XLA from reordering BVH
+   updates and raycasting passes across iterations or unrolled loops.
 
 .. WARNING::
    The batch dimension ``nworld`` is fixed when the render context is created via
@@ -473,7 +493,7 @@ The following table compares feature support between MJX-Warp and MJX-JAX compar
      - All
      - ``CONNECT``, ``WELD``, ``JOINT``, ``TENDON``
    * - :ref:`Integrator <mjtIntegrator>`
-     - All except ``IMPLICIT``
+     - All except ``IMPLICITFAST`` midpoint integrator feature
      - ``EULER``, ``RK4``, ``IMPLICITFAST`` (``IMPLICITFAST`` not supported with :doc:`fluid drag <computation/fluid>`)
    * - :ref:`Cone <mjtCone>`
      - All
@@ -503,8 +523,8 @@ The following table compares feature support between MJX-Warp and MJX-JAX compar
      - Sparse and Dense
      - Sparse and Dense
    * - Jacobian format
-     - ``DENSE`` only
      - ``DENSE`` and ``SPARSE``
+     - ``DENSE`` only
    * - Lights
      - ✓
      - Positions and directions

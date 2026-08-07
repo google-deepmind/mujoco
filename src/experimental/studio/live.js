@@ -21,6 +21,93 @@ function hideLoading() {
   loadingOverlay.style.display = 'none';
 }
 
+// ---------------------------------------------------------------------------
+// Parallel asset prefetcher.
+//
+// MuJoCo's XML compiler synchronously opens each referenced asset via
+// mjpResourceProvider. In WASM that becomes a chain of ASYNCIFY-suspended
+// fetch() calls, strictly serial, one RTT per asset. For Menagerie models
+// that's ~80 round trips and ~10 s of avoidable wall time on a cold cache.
+//
+// To sidestep this we let MuJoCo itself enumerate the dependencies (via
+// mju_getXMLDependencies, exposed to JS as Module.getXMLDependencies), then
+// fetch them all in parallel and feed the bytes into the WASM-side
+// FetchCache via Module.primeFetchCache. When Module.loadUrl subsequently
+// runs, every resource the compiler opens is already in memory.
+//
+// Discovery rules live in src/xml/xml_util.cc; the JS only has to know
+// the scheme rewrites used by the resource providers in emscripten.cc.
+// ---------------------------------------------------------------------------
+
+// MuJoCo Live custom URL schemes that the C++ resource providers rewrite
+// before fetching. JS must do the same so primed cache keys match what
+// the providers eventually request.
+function resolveScheme(url) {
+  if (url.startsWith('github:')) {
+    return 'https://raw.githubusercontent.com/' + url.slice('github:'.length);
+  }
+  return url;
+}
+
+async function prefetchModelAssets(rootUrl, onProgress) {
+  // Only prefetch when the root URL is one we know how to fetch from
+  // Javascript. Other resource-provider-backed schemes (e.g., uploaded files
+  // via the drag-and-drop path) skip the prefetcher entirely and let
+  // Module.loadUrl handle take the existing slow path.
+  if (!/^(https?:|github:)/.test(rootUrl)) {
+    return { files: 0, bytes: 0, errors: 0 };
+  }
+
+  const primed = new Set();   // URLs we've already pushed into FetchCache
+  const stats = { files: 0, bytes: 0, errors: 0 };
+
+  // Fetch + prime, dedup against `primed`. Returns true on success.
+  async function fetchAndPrime(httpUrl) {
+    if (primed.has(httpUrl)) return true;
+    primed.add(httpUrl);
+    try {
+      const resp = await fetch(httpUrl);
+      if (!resp.ok) {
+        console.warn('[prefetch] HTTP', resp.status, httpUrl);
+        stats.errors++;
+        return false;
+      }
+      const bytes = new Uint8Array(await resp.arrayBuffer());
+      Module.primeFetchCache(httpUrl, bytes);
+      stats.files++;
+      stats.bytes += bytes.length;
+      onProgress?.(stats);
+      return true;
+    } catch (err) {
+      console.warn('[prefetch]', httpUrl, err);
+      stats.errors++;
+      return false;
+    }
+  }
+
+  // Step 1: fetch the root XML so mju_getXMLDependencies (which reads it
+  // through the resource provider) hits cache instead of the network.
+  // Also gives the loading screen an immediate progress tick.
+  const rootHttp = resolveScheme(rootUrl);
+  if (!await fetchAndPrime(rootHttp)) {
+    throw new Error(`could not fetch root model ${rootHttp}`);
+  }
+
+  // Step 2: ask MuJoCo for the transitive dependency list. The call is
+  // async because reading recursively included XMLs may suspend on
+  // ASYNCIFY fetches; those XMLs end up in FetchCache as a side effect.
+  // The result is an embind mjStringVec we copy out and release.
+  const depsVec = await Module.getXMLDependencies(rootUrl);
+  const deps = [];
+  for (let i = 0; i < depsVec.size(); ++i) deps.push(depsVec.get(i));
+  depsVec.delete();
+
+  // Step 3: fetch every dependency in parallel, deduped against URLs
+  // already primed in step 1 (and earlier deps within this batch).
+  await Promise.all(deps.map((depUrl) => fetchAndPrime(resolveScheme(depUrl))));
+  return stats;
+}
+
 var Module = {
   preRun: [],
   postRun: [],
@@ -55,7 +142,8 @@ var Module = {
     const assetsToPrefetch = [
       "assets/fontawesome-webfont.ttf",
       "assets/ibl.ktx",
-      "assets/OpenSans-Regular.ttf",
+      "assets/AtkinsonHyperlegibleNext[wght].ttf",
+      "assets/AtkinsonHyperlegibleMono-Regular.ttf",
       "assets/pbr.filamat",
       "assets/pbr_transparent.filamat",
       "assets/pbr_packed.filamat",
@@ -72,7 +160,10 @@ var Module = {
       "assets/phong_cube_fade.filamat",
       "assets/phong_cube.filamat",
       "assets/phong_cube_reflect.filamat",
-      "assets/unlit_decor.filamat",
+      "assets/outline_composite.filamat",
+      "assets/outline_flatten.filamat",
+      "assets/outline_jumpflood.filamat",
+      "assets/decor.filamat",
       "assets/unlit_depth.filamat",
       "assets/unlit_segmentation.filamat",
       "assets/unlit_ui.filamat"
@@ -98,8 +189,7 @@ var Module = {
     Promise.all(assetPromises)
       .then(() => {
         try {
-          const prefersDark = !(window.matchMedia &&
-              window.matchMedia('(prefers-color-scheme: light)').matches);
+          const prefersDark = true;
           Module.init("MuJoCo Live", prefersDark);
 
           // Check for a ?model= URL parameter and load from URL.
@@ -111,13 +201,25 @@ var Module = {
             // loop until the load completes, otherwise renderFrame will
             // hit "Cannot have multiple async operations in flight".
             showLoading();
+            // Surface prefetch progress on the loading screen.
+            const dlEl = document.getElementById('loadingDownload');
+            const dlFileEl = document.getElementById('loadingDownloadFile');
+            if (dlEl) dlEl.style.display = 'block';
+            const onProgress = (s) => {
+              if (dlFileEl) {
+                dlFileEl.textContent =
+                    `${s.files} files · ${(s.bytes/1024/1024).toFixed(1)} MB`;
+              }
+            };
             requestAnimationFrame(() => {
               requestAnimationFrame(async () => {
                 try {
+                  await prefetchModelAssets(modelUrl, onProgress);
                   await Module.loadUrl(modelUrl);
                 } catch (error) {
                   console.error('Failed to load model from URL:', error);
                 } finally {
+                  if (dlEl) dlEl.style.display = 'none';
                   hideLoading();
                   requestAnimationFrame(Module.animate);
                 }

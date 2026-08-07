@@ -37,7 +37,7 @@
 
 namespace mujoco::python {
 namespace {
-PYBIND11_MODULE(_functions, pymodule) {
+PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
   namespace py = ::pybind11;
   namespace traits = python_traits;
 
@@ -166,6 +166,7 @@ PYBIND11_MODULE(_functions, pymodule) {
         InterceptMjErrors(::mj_copyData)(dest, m, src);
       });
   Def<traits::mj_resetData>(pymodule);
+  Def<traits::mj_resetCtrl>(pymodule);
   Def<traits::mj_resetDataDebug>(pymodule);
   Def<traits::mj_resetDataKeyframe>(pymodule);
   // Skipped: mj_stackAllocByte (doesn't make sense in Python)
@@ -589,17 +590,15 @@ PYBIND11_MODULE(_functions, pymodule) {
       });
   Def<traits::mj_name2id>(pymodule);
   Def<traits::mj_id2name>(pymodule);
+  Def<traits::mj_actuatorInputName>(pymodule);
   Def<traits::mj_fullM>(
       pymodule,
-      [](const raw::MjModel* m, Eigen::Ref<EigenArrayXX> dst,
-         Eigen::Ref<const EigenVectorX> M) {
-        if (M.size() != m->nM) {
-          throw py::type_error("M should be of size nM");
-        }
+      [](const raw::MjModel* m, const raw::MjData* d,
+         Eigen::Ref<EigenArrayXX> dst) {
         if (dst.cols() != m->nv || dst.rows() != m->nv) {
           throw py::type_error("dst should be of shape (nv, nv)");
         }
-        return ::mj_fullM(m, dst.data(), M.data());
+        return ::mj_fullM(m, d, dst.data());
       });
   Def<traits::mj_mulM>(
       pymodule,
@@ -724,6 +723,9 @@ PYBIND11_MODULE(_functions, pymodule) {
       });
   Def<traits::mj_version>(pymodule);
   Def<traits::mj_versionString>(pymodule);
+
+  // Thread pool
+  Def<traits::mju_threadpool>(pymodule);
 
   // Ray collision
   Def<traits::mj_multiRay>(
@@ -852,6 +854,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjv_applyPerturbPose>(pymodule);
   Def<traits::mjv_applyPerturbForce>(pymodule);
   // Skipped: mjv_averageCamera (defined in structs.cc due to the return type)
+  // Skipped: mjv_camera2GLCamera (defined in structs.cc due to the return type)
   Def<traits::mjv_select>(pymodule);
 
   // Visualization
@@ -1640,8 +1643,8 @@ PYBIND11_MODULE(_functions, pymodule) {
           throw py::type_error("DsDa should be of shape (nv, nsensordata)");
         }
         if (DmDq.has_value() &&
-            (DmDq->rows() != m->nv || DmDq->cols() != m->nM)) {
-          throw py::type_error("DmDq should be of shape (nv, nM)");
+            (DmDq->rows() != m->nv || DmDq->cols() != m->nC)) {
+          throw py::type_error("DmDq should be of shape (nv, nC)");
         }
         return InterceptMjErrors(::mjd_inverseFD)(
             m, d, eps, flg_actuation,
@@ -1696,6 +1699,8 @@ PYBIND11_MODULE(_functions, pymodule) {
 #define X(type, name, nr, nc) data->name = nullptr;
           MJDATA_ARENA_POINTERS_SOLVER
           MJDATA_ARENA_POINTERS_DUAL
+          MJDATA_ARENA_POINTERS_ISLAND
+          MJDATA_ARENA_POINTERS_EFM
 #undef X
         };
 
@@ -1743,6 +1748,74 @@ PYBIND11_MODULE(_functions, pymodule) {
 #define MJ_M(x) x
       },
       py::arg("d"), py::arg("ncon"), py::arg("nefc"), py::arg("nJ") = -1,
+      py::call_guard<py::gil_scoped_release>());
+
+  pymodule.def(
+      "_realloc_island",
+      [](MjDataWrapper& d, int nisland, int nidof) {
+        raw::MjData* data = d.get();
+
+        size_t parena_start = data->parena;
+        // Find island block start in arena to reclaim memory on re-allocation.
+        char* min_ptr = nullptr;
+#define X(type, name, nr, nc)                                                   \
+        if (data->name &&                                                       \
+            (!min_ptr || reinterpret_cast<char*>(data->name) < min_ptr)) {      \
+          min_ptr = reinterpret_cast<char*>(data->name);                        \
+        }
+        MJDATA_ARENA_POINTERS_ISLAND
+#undef X
+        if (min_ptr && data->arena) {
+          parena_start = min_ptr - static_cast<char*>(data->arena);
+        }
+
+        auto cleanup = [](raw::MjData* data, size_t target_parena) {
+#define X(type, name, nr, nc) data->name = nullptr;
+          MJDATA_ARENA_POINTERS_ISLAND
+#undef X
+          data->nisland = 0;
+          data->nidof = 0;
+          data->parena = target_parena;
+#ifdef ADDRESS_SANITIZER
+          ASAN_POISON_MEMORY_REGION(
+              static_cast<char*>(data->arena) + target_parena,
+              data->narena - data->pstack - target_parena);
+#endif
+        };
+
+        cleanup(data, parena_start);
+
+        char error_msg[128];
+        error_msg[0] = '\0';
+        const char* error_msg_fmt =
+            "Insufficient arena memory, currently allocated memory=\"%s\". "
+            "Increase using <size memory=\"X\"/>.";
+
+        data->nisland = nisland;
+        data->nidof = nidof;
+
+#undef MJ_M
+#define MJ_M(x) d.model().get()->x
+#undef MJ_D
+#define MJ_D(x) data->x
+#define X(type, name, nr, nc)                                                   \
+        data->name = static_cast<type*>(InterceptMjErrors(::mj_arenaAllocByte)( \
+            data, sizeof(type) * (nr) * (nc), alignof(type)));                  \
+        if (!data->name) {                                                      \
+          cleanup(data, parena_start);                                          \
+          std::snprintf(error_msg, sizeof(error_msg), error_msg_fmt,            \
+                        mju_writeNumBytes(data->narena));                       \
+          throw FatalError(error_msg);                                          \
+        }
+
+        MJDATA_ARENA_POINTERS_ISLAND
+#undef X
+#undef MJ_D
+#define MJ_D(x) x
+#undef MJ_M
+#define MJ_M(x) x
+      },
+      py::arg("d"), py::arg("nisland"), py::arg("nidof"),
       py::call_guard<py::gil_scoped_release>());
 }  // PYBIND11_MODULE NOLINT(readability/fn_size)
 }  // namespace

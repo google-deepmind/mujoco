@@ -30,8 +30,13 @@
 #include "user/user_util.h"
 #include "user/user_vfs.h"
 
-mjResource* mju_openResource(const char* dir, const char* name,
-                             const mjVFS* vfs, char* error, size_t nerror) {
+static mjResource* openResourceInternal(const char* dir, const char* name,
+                                        const mjVFS* vfs, char* error,
+                                        size_t nerror) {
+  if (error && nerror > 0) {
+    error[0] = '\0';
+  }
+
   // TODO: Update API to use non-const pointer. Unfortunately, while this is
   // ABI stable, it will cause compiler errors in user code that is const
   // correct.
@@ -52,18 +57,19 @@ mjResource* mju_openResource(const char* dir, const char* name,
     non_const_vfs = local_vfs;
   }
 
-  mjResource* resource =
-      mujoco::user::VFS::Upcast(non_const_vfs)->Open(dir ? dir : "", name);
+  mjResource* resource = mujoco::user::VFS::Upcast(non_const_vfs)
+                             ->Open(dir ? dir : "", name, error, nerror);
 
-  if (error) {
-    if (resource) {
-      error[0] = '\0';
-    } else {
-      std::snprintf(error, nerror, "Error opening file '%s'", name);
-    }
+  if (error && nerror > 0 && !resource && error[0] == '\0') {
+    std::snprintf(error, nerror, "Error opening file '%s'", name);
   }
 
   return resource;
+}
+
+mjResource* mju_openResource(const char* dir, const char* name,
+                             const mjVFS* vfs, char* error, size_t nerror) {
+  return openResourceInternal(dir, name, vfs, error, nerror);
 }
 
 void mju_closeResource(mjResource* resource) {
@@ -77,6 +83,46 @@ int mju_readResource(mjResource* resource, const void** buffer) {
     return mujoco::user::VFS::Upcast(resource->vfs)->Read(resource, buffer);
   }
   return -1;  // default (error reading bytes)
+}
+
+mjtSize mju_writeResource(const char* name, const void* buffer, mjtSize nbytes,
+                          const mjVFS* vfs, char* error, size_t nerror) {
+  if (error && nerror > 0) {
+    error[0] = '\0';
+  }
+
+  if (!name) {
+    if (error && nerror > 0) {
+      std::snprintf(error, nerror, "Resource name is NULL");
+    }
+    return -1;
+  }
+
+  mjResource resource = {};
+  resource.name = const_cast<char*>(name);
+
+  mjVFS* non_const_vfs = const_cast<mjVFS*>(vfs);
+  bool local_vfs_created = false;
+  if (non_const_vfs == nullptr) {
+    non_const_vfs = (mjVFS*)mju_malloc(sizeof(mjVFS));
+    mj_defaultVFS(non_const_vfs);
+    local_vfs_created = true;
+  }
+
+  resource.vfs = non_const_vfs;
+
+  mjtSize written = mujoco::user::VFS::Upcast(non_const_vfs)->Write(&resource, buffer, nbytes);
+
+  if (local_vfs_created) {
+    mj_deleteVFS(non_const_vfs);
+    mju_free(non_const_vfs);
+  }
+
+  if (written < 0 && error && nerror > 0 && error[0] == '\0') {
+    std::snprintf(error, nerror, "Error writing resource '%s'", name);
+  }
+
+  return written;
 }
 
 void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir) {

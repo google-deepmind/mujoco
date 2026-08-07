@@ -1,0 +1,98 @@
+<mujoco model="Luggage carousel">
+  <visual>
+    <headlight diffuse=".7 .7 .7" ambient=".25 .25 .25"/>
+    <quality shadowsize="8192"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1=".35 .5 .65" rgb2=".05 .05 .1" width="32" height="512"/>
+    <texture name="floor" type="2d" builtin="checker" rgb1=".18 .2 .22" rgb2=".24 .27 .3" width="300" height="300"/>
+    <material name="floor" texture="floor" texrepeat="12 12" reflectance=".1"/>
+    <material name="belt" rgba=".3 .45 .7 1"/>
+    <material name="island" rgba=".6 .3 .15 1"/>
+    <mesh name="ring" builtin="supertorus" params="64 .2 .4 1" scale="1.7 1.7 .9"/>
+    <material name="rail" rgba=".55 .55 .58 1"/>
+    <mesh name="bag1" builtin="supersphere" params="32 .3 .4"  scale=".2 .13 .085"/>
+    <mesh name="bag2" builtin="supersphere" params="32 .55 .5" scale=".17 .12 .075"/>
+    <mesh name="bag3" builtin="supersphere" params="32 .25 .3" scale=".19 .14 .1"/>
+    <mesh name="bag4" builtin="supersphere" params="32 .6 .45" scale=".15 .1 .065"/>
+    <mesh name="bag5" builtin="supersphere" params="32 .4 .6"  scale=".16 .11 .07"/>
+    <mesh name="bag6" builtin="supersphere" params="32 .35 .35" scale=".18 .12 .08"/>
+  </asset>
+
+  <worldbody>
+    <light pos="2 -4 5" dir="-.3 .5 -.8" diffuse=".6 .6 .6" intensity="3000000" range="20"/>
+    <light pos="-3 2 4" dir=".5 -.3 -.7" diffuse=".4 .4 .4" intensity="2000000" range="20"/>
+    <light pos="-1 -4.4 4" dir=".05 .05 -1" diffuse=".6 .55 .45" intensity="2500000" range="25" cutoff="30"/>
+    <light pos="0 -2.6 4.5" dir="0 .12 -1" diffuse=".6 .55 .45" intensity="2500000" range="25" cutoff="30"/>
+    <!-- hero downlight over the carousel: tight cone, cool white -->
+    <light pos="0 0 5.2" dir="0 0 -1" diffuse=".55 .6 .68" intensity="4000000" range="25" cutoff="26"/>
+    <!-- high ambience: dim blue night-wash point light, no shadows, lifts the
+         pitch black between the pools without flattening them -->
+    <light type="point" pos="1 0 7.5" diffuse=".25 .3 .4" intensity="600000" range="40" castshadow="false"/>
+    <geom name="floor" type="plane" size="8 8 .1" material="floor"/>
+
+    <!-- carousel ring: square-profile supertorus, surface spinning about +z -->
+    <geom name="carousel" type="mesh" mesh="ring" pos="0 0 .24" material="belt" surfacevel="0 0 0  0 0 .4" friction=".1" priority="1"/>
+
+    <!-- center island: dome closing the ring hole, only the top 45-degree cap shows -->
+    <geom name="island" type="sphere" size="1.85" pos="0 0 -0.7314" material="island"/>
+
+    <!-- guardrail: capsule ring centered on the top-outer corner of the torus,
+         so about three quarters of the tube sticks out -->
+    <replicate count="36" euler="0 0 10">
+      <geom type="capsule" size="0.1" fromto="2.0322 -0.1778 0.42 2.0322 0.1778 0.42" material="rail"/>
+    </replicate>
+
+    <!-- three-belt cascade, one conveyor definition (origin at belt center).
+         C2 (low, knee height) holds the definition and runs toward the carousel;
+         C1 (top, where bags start) and C3 (incline) are attached copies. -->
+    <frame pos="0 -4.2 .29" euler="0 0 90">
+      <frame name="conveyor">
+        <geom name="belt" type="box" size=".74 .3 .06" material="belt" surfacevel=".7 0 0  0 0 0"/>
+        <geom name="belt_rail1" type="box" size=".74 .02 .1" pos="0 -.33 .04" material="rail"/>
+        <geom name="belt_rail2" type="box" size=".74 .02 .1" pos="0 .33 .04" material="rail"/>
+        <geom name="belt_roller1" type="cylinder" size=".06 .3" pos="-.74 0 0" euler="90 0 0" material="belt" surfacevel="0 0 0  0 0 -11.667"/>
+        <geom name="belt_roller2" type="cylinder" size=".06 .3" pos=".74 0 0" euler="90 0 0" material="belt" surfacevel="0 0 0  0 0 -11.667"/>
+      </frame>
+    </frame>
+
+    <!-- C1: top conveyor, perpendicular, discharging onto C2's upstream end -->
+    <frame pos="-1.19 -4.355 .84">
+      <attach frame="conveyor" prefix="top_"/>
+    </frame>
+
+    <!-- C3: incline continuing C2, tilted 20 degrees, discharging over the ring -->
+    <frame pos="0 -2.6 0.5950" euler="0 0 90">
+      <frame euler="0 -24.34 0">
+        <attach frame="conveyor" prefix="up_"/>
+      </frame>
+    </frame>
+
+    <!-- bags, distributed along the cascade as if mid-operation -->
+    <body name="bag1" pos="0 -2.37 .88" euler="24.34 0 0">
+      <freejoint/>
+      <geom type="mesh" mesh="bag1" mass="4" rgba=".65 .2 .15 1"/>
+    </body>
+    <body name="bag2" pos="0 -3.6 .44" euler="0 0 -20">
+      <freejoint/>
+      <geom type="mesh" mesh="bag2" mass="3" rgba=".2 .45 .45 1"/>
+    </body>
+    <body name="bag3" pos="-1.6 -4.355 1.01" euler="0 0 75">
+      <freejoint/>
+      <geom type="mesh" mesh="bag3" mass="4.5" rgba=".4 .3 .2 1"/>
+    </body>
+    <body name="bag4" pos="-.75 -4.355 .97" euler="0 0 -10">
+      <freejoint/>
+      <geom type="mesh" mesh="bag4" mass="2.5" rgba=".25 .25 .3 1"/>
+    </body>
+    <body name="bag5" pos="-1.15 -4.31 .98" euler="0 0 40">
+      <freejoint/>
+      <geom type="mesh" mesh="bag5" mass="2.8" rgba=".6 .5 .2 1"/>
+    </body>
+    <body name="bag6" pos="0 -4.7 .44" euler="0 0 55">
+      <freejoint/>
+      <geom type="mesh" mesh="bag6" mass="3.5" rgba=".4 .25 .45 1"/>
+    </body>
+  </worldbody>
+</mujoco>

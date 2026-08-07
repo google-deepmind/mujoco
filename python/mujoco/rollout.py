@@ -180,7 +180,7 @@ class Rollout:
       model = [model]  # Use a length 1 list to simplify code below
 
     if not isinstance(data, list):
-      data = [data]  # Use a length 1 list to simplify code below
+      data = [data]  # Use a length 1 list to simplify code below  # pyrefly: ignore[bad-assignment]
 
     # infer nstep, check for incompatibilities
     nstep = _infer_dimension(
@@ -219,9 +219,9 @@ class Rollout:
 
     # allocate output if not provided
     if state is None:
-      state = np.empty((nbatch, nstep, nstate))
+      state = np.empty((nbatch, nstep, nstate), dtype=mujoco.MJTNUM_DTYPE)
     if sensordata is None:
-      sensordata = np.empty((nbatch, nstep, nsensordata))
+      sensordata = np.empty((nbatch, nstep, nsensordata), dtype=mujoco.MJTNUM_DTYPE)
 
     # call rollout
     self.rollout_.rollout(
@@ -310,9 +310,9 @@ def rollout(
     ValueError: bad shapes or sizes.
   """  # fmt: skip
   if not isinstance(data, list):
-    data = [data]  # Use a length 1 list to simplify code below
+    data = [data]  # Use a length 1 list to simplify code below  # pyrefly: ignore[bad-assignment]
 
-  nthread = len(data) if len(data) > 1 else 0
+  nthread = len(data) if len(data) > 1 else 0  # pyrefly: ignore[bad-argument-type]
 
   # Use a persistent thread pool if requested
   if persistent_pool:
@@ -376,7 +376,7 @@ def _ensure_2d(arg):
   if arg is None:
     return None
   else:
-    return np.ascontiguousarray(np.atleast_2d(arg), dtype=np.float64)
+    return np.ascontiguousarray(np.atleast_2d(arg), dtype=mujoco.MJTNUM_DTYPE)
 
 
 def _ensure_3d(arg):
@@ -390,7 +390,7 @@ def _ensure_3d(arg):
       arg = arg[np.newaxis, np.newaxis, ...]
     elif arg.ndim == 2:
       arg = arg[np.newaxis, ...]
-    return np.ascontiguousarray(arg, dtype=np.float64)
+    return np.ascontiguousarray(arg, dtype=mujoco.MJTNUM_DTYPE)
 
 
 def _infer_dimension(dim, value, **kwargs):

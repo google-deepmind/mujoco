@@ -20,4 +20,5 @@ mujoco_test(
 
 mujoco_test(
   mjz_encoder_test
+  ADDITIONAL_LINK_LIBRARIES compare_model
 )

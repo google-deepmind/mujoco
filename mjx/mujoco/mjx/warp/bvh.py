@@ -48,6 +48,7 @@ _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
 
+
 @ffi.format_args_for_warp
 def _refit_bvh_shim(
     # Model
@@ -72,10 +73,11 @@ def _refit_bvh_shim(
     flexvert_xpos: wp.array2d[wp.vec3],
     geom_xmat: wp.array2d[wp.mat33],
     geom_xpos: wp.array2d[wp.vec3],
+    _jax_token: wp.array[int],
     # Registry
     rc_id: int,
-    # Dummy output
-    dummy: wp.array[int],
+    # Output token
+    output_token: wp.array[int],
 ):
   _m.stat = _s
   _m.opt = _o
@@ -103,7 +105,7 @@ def _refit_bvh_shim(
   _d.geom_xpos = geom_xpos
   _d.nworld = nworld
   render_context = _MJX_RENDER_CONTEXT_BUFFERS[(rc_id, wp.get_device().ordinal)]
-  dummy.zero_()
+  output_token.zero_()
   mjwarp.refit_bvh(_m, _d, render_context)
 
 
@@ -111,14 +113,16 @@ def _refit_bvh_jax_impl(
     m: types.Model, d: types.Data, ctx: RenderContextPytree
 ):
   render_ctx = _MJX_RENDER_CONTEXT_BUFFERS[(ctx.key, None)]
-  output_dims = {'dummy': (render_ctx.nworld,)}
+  output_dims = {'output_token': (d.qpos.shape[0],)}
   jf = ffi.jax_callable_variadic_tuple(
       _refit_bvh_shim,
       num_outputs=1,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames=set([]),
-      stage_in_argnames=set(['geom_size', 'geom_xmat', 'geom_xpos']),
+      stage_in_argnames=set(
+          ['flexvert_xpos', 'geom_size', 'geom_xmat', 'geom_xpos']
+      ),
       stage_out_argnames=set([]),
       graph_mode=m.opt._impl.graph_mode,
       has_side_effect=True,
@@ -144,9 +148,10 @@ def _refit_bvh_jax_impl(
       d._impl.flexvert_xpos,
       d.geom_xmat,
       d.geom_xpos,
+      d._impl._jax_token,
       ctx.key,
   )
-  d = d.tree_replace({})
+  d = d.tree_replace({'_impl._jax_token': out[0]})
   return d
 
 

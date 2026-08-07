@@ -145,7 +145,7 @@ def passive(m: Model, d: Data) -> Data:
   qfrc_passive = _spring_damper(m, d)
   qfrc_gravcomp = jp.zeros(m.nv)
 
-  if m.ngravcomp and not m.opt.disableflags & DisableBit.GRAVITY:
+  if m.flg_gravcomp and not m.opt.disableflags & DisableBit.GRAVITY:
     qfrc_gravcomp = _gravcomp(m, d)
     # add gravcomp unless added via actuators
     qfrc_passive += qfrc_gravcomp * (1 - m.jnt_actgravcomp[m.dof_jntid])

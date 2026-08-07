@@ -20,15 +20,15 @@
 #include <vector>
 
 #include <imgui.h>
-#include "experimental/filament/render_context_filament.h"
-#include "experimental/filament/render_context_filament_cpp.h"
+#include <mujoco/mjrfilament.h>
+#include "render/filament/mjrfilament_cpp.h"
 
 namespace mujoco {
 
 // Creates and manages a SceneView using data read from ImGui.
 class ImguiBridge {
  public:
-  explicit ImguiBridge(mjrfContext* ctx);
+  explicit ImguiBridge(mjrfContext* ctx, mjrfScene* scene);
   ~ImguiBridge();
 
   // Prepares the Renderables using data from the current ImGui state. This
@@ -36,8 +36,7 @@ class ImguiBridge {
   // synced.
   void Update();
 
-  // Returns the managed UX scene.
-  mjrScene* GetScene() const;
+  // Returns the camera used for rendering the UX scene.
   mjrCamera GetCamera(int width, int height) const;
 
   // Uploads texture to be used with ImGui's Image and ImageButton functions.
@@ -55,13 +54,13 @@ class ImguiBridge {
   void CreateTexture(ImTextureData* data);
   void UpdateTexture(ImTextureData* data);
   void DestroyTexture(ImTextureData* data);
-  mjrTexture* GetTexture(uintptr_t tex_id) const;
+  mjrfTexture* GetTexture(uintptr_t tex_id) const;
 
   mjrfContext* ctx_ = nullptr;
-  UniquePtr<mjrScene> scene_{nullptr, nullptr};
-  std::vector<UniquePtr<mjrRenderable>> renderables_;
-  std::vector<UniquePtr<mjrMesh>> meshes_;
-  std::unordered_map<uintptr_t, UniquePtr<mjrTexture>> textures_;
+  mjrfScene* scene_ = nullptr;
+  std::vector<UniquePtr<mjrfRenderable>> renderables_;
+  std::vector<UniquePtr<mjrfMesh>> meshes_;
+  std::unordered_map<uintptr_t, UniquePtr<mjrfTexture>> textures_;
   uintptr_t next_tex_id_ = 1;
 };
 

@@ -153,9 +153,9 @@ static void mixcolor(float rgba[4], const float ref[4], int flg1, int flg2) {
 }
 
 
-// a body is static if it is welded to the world and is not a mocap body or descendant thereof
+// a body is static if it is welded to the world (mocap subtrees are their own weld)
 static int bodycategory(const mjModel* m, int bodyid) {
-  if (m->body_weldid[bodyid] == 0 && m->body_mocapid[m->body_rootid[bodyid]] == -1) {
+  if (m->body_weldid[bodyid] == 0) {
     return mjCAT_STATIC;
   } else {
     return mjCAT_DYNAMIC;
@@ -241,6 +241,10 @@ static void setMaterial(const mjModel* m, mjvGeom* geom, int matid, const float*
   // set texture
   if (flags[mjVIS_TEXTURE] && matid >= 0) {
     geom->matid = matid;
+    geom->texid = m->mat_texid[matid*mjNTEXROLE + mjTEXROLE_RGB];
+    geom->texuniform = m->mat_texuniform[matid];
+    geom->texrepeat[0] = m->mat_texrepeat[2*matid];
+    geom->texrepeat[1] = m->mat_texrepeat[2*matid+1];
   }
 
   // scale alpha for dynamic geoms only
@@ -379,6 +383,10 @@ void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
   // set defaults that cannot be assigned via this function
   geom->dataid       = -1;
   geom->matid        = -1;
+  geom->texid        = -1;
+  geom->texuniform   = 0;
+  geom->texrepeat[0] = 0;
+  geom->texrepeat[1] = 0;
   geom->texcoord     = 0;
   geom->emission     = 0;
   geom->specular     = 0.5;
@@ -469,13 +477,23 @@ void mjv_cameraFrame(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3], mjtNum 
         right[2] = 0;
       }
       if (headpos) {
-        mju_addScl3(headpos, cam->lookat, forward, -cam->distance);
+        if (cam->type == mjCAMERA_TRACKING && cam->trackbodyid >= 0) {
+          if (!d) {
+            mjERROR("data pointer is NULL");
+          }
+          mju_addScl3(headpos, d->subtree_com + 3*cam->trackbodyid, forward, -cam->distance);
+        } else {
+          mju_addScl3(headpos, cam->lookat, forward, -cam->distance);
+        }
       }
       break;
     }
 
     case mjCAMERA_FIXED: {
       const int cid = cam->fixedcamid;
+      if (!d) {
+        mjERROR("data pointer is NULL");
+      }
       const mjtNum* mat = d->cam_xmat + 9*cid;
       if (forward) {
         forward[0] = -mat[2];
@@ -656,7 +674,49 @@ static void addContactGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
         mjSNPRINTF(thisgeom->label, "%s | %s", contactlabel[0], contactlabel[1]);
       }
 
+      float contactrgba[4];
+      f2f(contactrgba, thisgeom->rgba, 4);
       releaseGeom(&thisgeom, scn);
+
+      // surface velocity: one arrow per moving surface, pointing along the
+      // tangential material velocity at the contact point
+      const mjtNum kVelocityMap = 0.5;  // units of time: arrow length = velocity * kVelocityMap
+      for (int side=0; side < 2; side++) {
+        int g = con->geom[side];
+        if (g < 0) {
+          // TODO(team): support flex
+          continue;
+        }
+        const mjtNum* sv = m->geom_surfacevel + 6*g;
+        if (!sv[0] && !sv[1] && !sv[2] && !sv[3] && !sv[4] && !sv[5]) {
+          continue;
+        }
+
+        // material velocity at the contact point, world frame
+        mjtNum vw[3], ww[3];
+        mj_geomSurfaceVelocity(m, d, g, con->pos, vw, ww);
+
+        // project out the normal component: only the tangential part acts
+        mjtNum vn = mju_dot3(vw, con->frame);
+        mju_addToScl3(vw, con->frame, -vn);
+        if (mju_norm3(vw) < mjMINVAL) {
+          continue;
+        }
+
+        // anchor slightly off the contact point on the owning geom's side
+        mjtNum from[3], to[3];
+        mjtNum offset = (side ? 1 : -1) * 0.5 * m->vis.scale.forcewidth * scl;
+        mju_addScl3(from, con->pos, con->frame, offset);
+        mju_addScl3(to, from, vw, kVelocityMap);
+
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
+          return;
+        }
+        mjv_connector(thisgeom, mjGEOM_ARROW, m->vis.scale.forcewidth * scl, from, to);
+        f2f(thisgeom->rgba, contactrgba, 4);
+        releaseGeom(&thisgeom, scn);
+      }
     }
 
     // mat = contact frame rotation matrix (normal along x)
@@ -1083,6 +1143,61 @@ static void addSiteGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 }
 
 
+int mjv_isCatenary(const mjModel* m, const mjData* d, int i, mjtNum* length) {
+  int has_stiffness = m->tendon_stiffness[i] ||
+                      !mju_isZero(m->tendon_stiffnesspoly+mjNPOLY*i, mjNPOLY);
+
+  // tendon has a deadband spring
+  int limitedspring =
+    has_stiffness                         &&    // positive stiffness
+    m->tendon_lengthspring[2*i] == 0      &&    // range lower-bound is 0
+    m->tendon_lengthspring[2*i+1] > 0;          // range upper-bound is positive
+
+  // tendon has a simple length constraint, but is currently not limited
+  mjtNum ten_length = d->ten_length[i];
+  mjtNum lower = m->tendon_range[2*i];
+  mjtNum upper = m->tendon_range[2*i + 1];
+  int limitedconstraint =
+    !has_stiffness                        &&    // zero stiffness
+    m->tendon_limited[i] == 1             &&    // limited length range
+    lower == 0                            &&    // range lower-bound is 0
+    ten_length < upper;                         // current length is smaller than upper bound
+
+  int has_damping = m->tendon_damping[i] || !mju_isZero(m->tendon_dampingpoly+mjNPOLY*i, mjNPOLY);
+
+  // conditions for drawing a catenary
+  int draw_catenary =
+    !mjDISABLED(mjDSBL_GRAVITY)           &&    // gravity enabled
+    mju_norm3(m->opt.gravity) > mjMINVAL  &&    // gravity strictly nonzero
+    m->tendon_num[i] == 2                 &&    // only two sites on the tendon
+    (limitedspring != limitedconstraint)  &&    // either spring or constraint length limits
+    !has_damping                          &&    // no damping
+    m->tendon_frictionloss[i] == 0;             // no frictionloss
+
+  // no actuator
+  if (draw_catenary) {
+    for (int j=0; j < m->nactuator; j++) {
+      if (m->actuator_trntype[j] == mjTRN_TENDON && m->actuator_trnid[2*j] == i) {
+        draw_catenary = 0;
+        break;
+      }
+    }
+  }
+
+  if (draw_catenary) {
+    // length of the tendon
+    if (limitedconstraint) {
+      *length = m->tendon_range[2*i+1];
+    } else {
+      *length = m->tendon_lengthspring[2*i+1];
+    }
+  }
+
+  return draw_catenary;
+}
+
+
+
 static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, int catmask,
                                   mjvScene* scn) {
   const int category = mjCAT_DYNAMIC;
@@ -1098,45 +1213,8 @@ static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* 
       continue;
     }
 
-    int has_stiffness = m->tendon_stiffness[i] ||
-                        !mju_isZero(m->tendon_stiffnesspoly+mjNPOLY*i, mjNPOLY);
-
-    // tendon has a deadband spring
-    int limitedspring =
-      has_stiffness                         &&    // positive stiffness
-      m->tendon_lengthspring[2*i] == 0      &&    // range lower-bound is 0
-      m->tendon_lengthspring[2*i+1] > 0;          // range upper-bound is positive
-
-    // tendon has a simple length constraint, but is currently not limited
-    mjtNum ten_length = d->ten_length[i];
-    mjtNum lower = m->tendon_range[2*i];
-    mjtNum upper = m->tendon_range[2*i + 1];
-    int limitedconstraint =
-      !has_stiffness                        &&    // zero stiffness
-      m->tendon_limited[i] == 1             &&    // limited length range
-      lower == 0                            &&    // range lower-bound is 0
-      ten_length < upper;                         // current length is smaller than upper bound
-
-    int has_damping = m->tendon_damping[i] || !mju_isZero(m->tendon_dampingpoly+mjNPOLY*i, mjNPOLY);
-
-    // conditions for drawing a catenary
-    int draw_catenary =
-      !mjDISABLED(mjDSBL_GRAVITY)           &&    // gravity enabled
-      mju_norm3(m->opt.gravity) > mjMINVAL  &&    // gravity strictly nonzero
-      m->tendon_num[i] == 2                 &&    // only two sites on the tendon
-      (limitedspring != limitedconstraint)  &&    // either spring or constraint length limits
-      !has_damping                          &&    // no damping
-      m->tendon_frictionloss[i] == 0;             // no frictionloss
-
-    // no actuator
-    if (draw_catenary) {
-      for (int j=0; j < m->nu; j++) {
-        if (m->actuator_trntype[j] == mjTRN_TENDON && m->actuator_trnid[2*j] == i) {
-          draw_catenary = 0;
-          break;
-        }
-      }
-    }
+    mjtNum length;
+    int draw_catenary = mjv_isCatenary(m, d, i, &length);
 
     // conditions not met: draw straight lines
     if (!draw_catenary) {
@@ -1213,14 +1291,6 @@ static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* 
       mju_copy3(x0, d->wrap_xpos + 3*d->ten_wrapadr[i]);
       mju_copy3(x1, d->wrap_xpos + 3*d->ten_wrapadr[i] + 3);
 
-      // length of the tendon
-      mjtNum length;
-      if (limitedconstraint) {
-        length = m->tendon_range[2*i+1];
-      } else {
-        length = m->tendon_lengthspring[2*i+1];
-      }
-
       // get number of points along catenary path (capped at 100)
       int ncatenary = mjMIN(m->vis.quality.numslices + 1, 100);
       mjtNum catenary[300];
@@ -1261,7 +1331,7 @@ static void addSliderCrankGeoms(const mjModel* m, mjData* d, const mjvOption* vo
   }
 
   const float scl = m->stat.meansize;
-  for (int i=0; i < m->nu; i++) {
+  for (int i=0; i < m->nactuator; i++) {
     if (m->actuator_trntype[i] == mjTRN_SLIDERCRANK) {
       // get data
       int j = m->actuator_trnid[2*i];                 // crank
@@ -1496,6 +1566,8 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
     int NY = cy * order + 1;
     int NZ = cz * order + 1;
 
+    int shell_mode = m->flex_interp[f] < 0;
+
     for (int i=0; i < NX; i++) {
       for (int j=0; j < NY; j++) {
         for (int k=0; k < NZ; k++) {
@@ -1506,36 +1578,58 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
             continue;
           }
 
+          // shell mode: skip interior nodes entirely
+          int is_boundary = (i == 0 || i == NX-1 ||
+                             j == 0 || j == NY-1 ||
+                             k == 0 || k == NZ-1);
+          if (shell_mode && !is_boundary) {
+            continue;
+          }
+
           int offset  = 3*n0;
           int offset1 = 3*((i+1)*NY*NZ + j*NZ + k);
           int offset2 = 3*(i*NY*NZ + (j+1)*NZ + k);
           int offset3 = 3*(i*NY*NZ + j*NZ + (k+1));
-          if (i < NX-1 && m->body_jntnum[bodyid[(i+1)*NY*NZ + j*NZ + k]] > 0) {
-            mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
-            if (!thisgeom) {
-              return;
-            }
 
-            mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset1);
-            releaseGeom(&thisgeom, scn);
+          // edge along i: draw if neighbor is also on boundary (shell) or has joints
+          if (i < NX-1 && m->body_jntnum[bodyid[(i+1)*NY*NZ + j*NZ + k]] > 0) {
+            int nb_boundary = ((i+1) == 0 || (i+1) == NX-1 ||
+                               j == 0 || j == NY-1 ||
+                               k == 0 || k == NZ-1);
+            if (!shell_mode || nb_boundary) {
+              mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+              if (!thisgeom) {
+                return;
+              }
+              mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset1);
+              releaseGeom(&thisgeom, scn);
+            }
           }
           if (j < NY-1 && m->body_jntnum[bodyid[i*NY*NZ + (j+1)*NZ + k]] > 0) {
-            mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
-            if (!thisgeom) {
-              return;
+            int nb_boundary = (i == 0 || i == NX-1 ||
+                               (j+1) == 0 || (j+1) == NY-1 ||
+                               k == 0 || k == NZ-1);
+            if (!shell_mode || nb_boundary) {
+              mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+              if (!thisgeom) {
+                return;
+              }
+              mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset2);
+              releaseGeom(&thisgeom, scn);
             }
-
-            mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset2);
-            releaseGeom(&thisgeom, scn);
           }
           if (k < NZ-1 && m->body_jntnum[bodyid[i*NY*NZ + j*NZ + (k+1)]] > 0) {
-            mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
-            if (!thisgeom) {
-              return;
+            int nb_boundary = (i == 0 || i == NX-1 ||
+                               j == 0 || j == NY-1 ||
+                               (k+1) == 0 || (k+1) == NZ-1);
+            if (!shell_mode || nb_boundary) {
+              mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+              if (!thisgeom) {
+                return;
+              }
+              mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset3);
+              releaseGeom(&thisgeom, scn);
             }
-
-            mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset3);
-            releaseGeom(&thisgeom, scn);
           }
         }
       }
@@ -1856,7 +1950,7 @@ static void addPerturbGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     mjtNum mat[9];
     mju_quat2Mat(mat, pert->refquat);
     mju_addTo3(pos, d->xipos+3*pert->select);
-    mjv_initGeom(thisgeom, mjGEOM_BOX, sz, pos, mat, rgba);
+    mjv_initGeom(thisgeom, mjGEOM_LINEBOX, sz, pos, mat, rgba);
 
     releaseGeom(&thisgeom, scn);
   }
@@ -2043,7 +2137,7 @@ static void addActuatorGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   }
 
   const float scl = m->stat.meansize;
-  for (int i=0; i < m->nu; i++) {
+  for (int i=0; i < m->nactuator; i++) {
     if (!vopt->actuatorgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->actuator_group[i]))]) {
       continue;
     }
@@ -2054,9 +2148,9 @@ static void addActuatorGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     // determine extended range
     mjtNum rng[3] = {-1, 0, +1};
     mjtNum rmin = -1, rmax = 1, act = 0;
-    if (m->actuator_ctrllimited[i]) {
-      rmin = m->actuator_ctrlrange[2*i];
-      rmax = m->actuator_ctrlrange[2*i+1];
+    if (m->actuator_ctrllimited[m->actuator_ctrladr[i]]) {
+      rmin = m->actuator_ctrlrange[2*m->actuator_ctrladr[i]];
+      rmax = m->actuator_ctrlrange[2*m->actuator_ctrladr[i]+1];
     } else if (vopt->flags[mjVIS_ACTIVATION] && m->actuator_actlimited[i]) {
       rmin = m->actuator_actrange[2*i];
       rmax = m->actuator_actrange[2*i+1];
@@ -2087,7 +2181,7 @@ static void addActuatorGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     if (vopt->flags[mjVIS_ACTIVATION] && m->actuator_dyntype[i]) {
       act = mju_clip(d->act[m->actuator_actadr[i] + m->actuator_actnum[i] - 1], rng[0], rng[2]);
     } else {
-      act = mju_clip(d->ctrl[i], rng[0], rng[2]);
+      act = mju_clip(d->ctrl[m->actuator_ctrladr[i]], rng[0], rng[2]);
     }
 
     // compute interpolants
@@ -2892,6 +2986,7 @@ void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn) {
         f2f(thislight->attenuation, m->light_attenuation+3*i, 3);
         thislight->exponent = m->light_exponent[i];
         thislight->cutoff = m->light_cutoff[i];
+        thislight->softness = m->light_softness[i];
       }
 
       // copy colors

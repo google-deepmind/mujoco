@@ -28,6 +28,9 @@ extern "C" {
 // all passive forces
 MJAPI void mj_passive(const mjModel* m, mjData* d);
 
+// adhesion forces: constant attraction along the normals of adhesive contacts
+int mj_adhesion(const mjModel* m, mjData* d);
+
 
 
 

@@ -101,7 +101,7 @@ MJAPI int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
 // dense or sparse weighted sum of multiple body Jacobians at same point
 int mj_jacSum(const mjModel* m, mjData* d, int* chain,
               int n, const int* body, const mjtNum* weight,
-              const mjtNum point[3], mjtNum* jac, int flg_rot);
+              const mjtNum point[3], mjtNum* jacp, mjtNum* jacr, int flg_rot);
 
 // compute 3/6-by-nv Jacobian time derivative of global point attached to given body
 MJAPI void mj_jacDot(const mjModel* m, const mjData* d,
@@ -116,6 +116,10 @@ MJAPI void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body);
 // compute object 6D velocity in object-centered frame, world/local orientation
 MJAPI void mj_objectVelocity(const mjModel* m, const mjData* d,
                              int objtype, int objid, mjtNum res[6], int flg_local);
+
+// compute material surface velocity of a geom at a point, in world frame
+void mj_geomSurfaceVelocity(const mjModel* m, const mjData* d, int geomid,
+                            const mjtNum point[3], mjtNum linear[3], mjtNum angular[3]);
 
 // compute object 6D acceleration in object-centered frame, world/local orientation
 MJAPI void mj_objectAcceleration(const mjModel* m, const mjData* d,
