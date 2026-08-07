@@ -439,7 +439,9 @@ static mjtNum ipc_metricCost(const mjModel* m, mjData* d, const mjtNum* xt, cons
   ipc_trialQacc(m, d, da, xt, xold, npt, fidx, dofadr, pbody, qdt, na_artic, atid, aoff, N, h);
   mju_subFrom(da, d->qacc_smooth, nv);  // a - a*
   mju_zero(Kda, nv);
-  mjd_effMulAdd(m, d, Kda, da);  // K*(a-a*): the metric operator applies K, not M
+  // flg_contact=0: the AL merit accounts for contact separately, so including it here would
+  // double-count it in the line-search energy
+  mjd_effMulAdd(m, d, Kda, da, /*flg_contact=*/0);  // K*(a-a*): applies K, not M
   mjtNum E = 0.5 * h * h * mju_dot(da, Kda, nv);
   mj_freeStack(d);
   return E;

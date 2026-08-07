@@ -223,9 +223,6 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
 
   mjd_effShift(m, d);
 
-  // the metric has absorbed the passive contact stiffness (CSR + shift); clear the publication so
-  // the solve's matrix-free path does not apply it a second time
-  d->efm_contact = 0;
 
   TM_END(mjTIMER_VELOCITY);
 }

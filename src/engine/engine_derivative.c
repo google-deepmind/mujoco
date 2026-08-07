@@ -14,6 +14,7 @@
 
 #include "engine/engine_derivative.h"
 
+
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
@@ -1695,20 +1696,6 @@ mjtBool mjd_flexStiff_any(const mjModel* m, int flg_interp) {
 // A flex participates if it has elasticity OR passive contacts: the contact stiffness may be the
 // only stiffness, so vertex slots must exist either way.
 
-// participating metric slots of published pair c (skips dofs the metric does not carry)
-static int pairSlots(const mjExtraStiff* es, int c, const int* dof2slot, int* out, int* idx) {
-  int n = 0;
-  for (int p = 0; p < es->npt[c]; p++) {
-    int s = dof2slot[es->base[mjNEXTRAPT*c + p]];
-    if (s >= 0) {
-      out[n] = s;
-      idx[n] = p;
-      n++;
-    }
-  }
-  return n;
-}
-
 static mjtBool flexMetric_participates(const mjModel* m, int f, int flg_bend, int flg_stretch,
                                        int flg_contact);
 
@@ -1924,27 +1911,7 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
     }
   }
 
-  // dof -> metric slot, shared by the three contact passes below
-  const mjExtraStiff* es = flg_contact ? extraStiff(d) : NULL;
-  int* dof2slot = mjSTACKALLOC(d, m->nv, int);
-  for (int i = 0; i < m->nv; i++) {
-    dof2slot[i] = -1;
-  }
-  for (int s = 0; s < nvert; s++) {
-    for (int k = 0; k < 3; k++) {
-      dof2slot[vdof[s] + k] = s;
-    }
-  }
 
-  // published contacts (counting): each pair makes its vertices mutual neighbours in the CSR.
-  if (es) {
-    for (int c = 0; c < es->npair; c++) {
-      int cs[mjNEXTRAPT], ix[mjNEXTRAPT], ncs = pairSlots(es, c, dof2slot, cs, ix);
-      for (int a = 0; a < ncs; a++) {
-        ncand[cs[a]] += ncs;
-      }
-    }
-  }
 
   // gather candidate neighbor lists (vertex slots, with duplicates)
   int* cadr = mjSTACKALLOC(d, nvert + 1, int);
@@ -2011,17 +1978,7 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
     }
   }
 
-  // published contacts (filling)
-  if (es) {
-    for (int c = 0; c < es->npair; c++) {
-      int cs[mjNEXTRAPT], ix[mjNEXTRAPT], ncs = pairSlots(es, c, dof2slot, cs, ix);
-      for (int a = 0; a < ncs; a++) {
-        for (int b = 0; b < ncs; b++) {
-          cand[cadr[cs[a]] + ncand[cs[a]]++] = cs[b];
-        }
-      }
-    }
-  }
+
 
   // per vertex: sort by neighbor dofadr, unique -> neighbor lists
   int* nadr = mjSTACKALLOC(d, nvert + 1, int);
@@ -2284,31 +2241,6 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
       })
     }
   }
-  // published contacts (values): assemble the D*w*w^T blocks. D and w already carry the metric's
-  // units (see mjExtraStiff), so no s1 here -- the producer folded it in.
-  if (es) {
-    for (int c = 0; c < es->npair; c++) {
-      int cs[mjNEXTRAPT], ix[mjNEXTRAPT], ncs = pairSlots(es, c, dof2slot, cs, ix);
-      const mjtNum* wp = es->w + 3*mjNEXTRAPT*c;
-      mjtNum Dc = es->D[c];
-      for (int a = 0; a < ncs; a++) {
-        for (int b = 0; b < ncs; b++) {
-          int pos;
-          FLEXSTIFF_BLOCK(cs[a], cs[b], pos);
-          if (pos < 0) {
-            continue;
-          }
-          for (int r = 0; r < 3; r++) {
-            for (int cc = 0; cc < 3; cc++) {
-              val[rowadr[vdof[cs[a]] + r] + 3*pos + cc] +=
-                  Dc * wp[3*ix[a] + r] * wp[3*ix[b] + cc];
-            }
-          }
-        }
-      }
-    }
-  }
-
   #undef FLEXSTIFF_BLOCK
   #undef FLEXINTERP_WALK
 
@@ -3280,8 +3212,15 @@ void mj_extraStiffMulAdd(const mjData* d, mjtNum* res, const mjtNum* vec) {
   }
 }
 
-void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) {
+void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                   int flg_contact) {
   mjtNum h = m->opt.timestep;
+  if (!d->efm_active) {
+    if (flg_contact) {
+      mj_extraStiffMulAdd(d, res, vec);
+    }
+    return;   // no metric: the stencil fallbacks below do not apply
+  }
   if (d->nefmK) {
     int nv = m->nv;
     for (int i=0; i < nv; i++) {
@@ -3302,6 +3241,11 @@ void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) 
   }
   if (!d->nefmK || !mjd_flexInterpAssemblable(m)) {
     mjd_flexInterp_mul(m, d, res, vec, -(h*h), -h, d->flexelem_krot);
+  }
+  if (flg_contact) {
+    // contact is a sum of rank-1 terms, so applying it matrix-free (one dot, one scatter per pair)
+    // costs O(npt) where folding it into the CSR would cost O(npt^2) to store and to apply
+    mj_extraStiffMulAdd(d, res, vec);
   }
 }
 
@@ -3346,11 +3290,14 @@ static void effBlocks(const mjModel* m, mjData* d) {
       i++;
       continue;
     }
-    mjtNum* Bk = B + 9*k;
-    effBlockRaw(m, d, i, Bk);
-    mju_cholFactor(Bk, 3, mjMINVAL);
     adr[k++] = i;
     i += 3;
+  }
+
+  for (int b = 0; b < nb; b++) {
+    mjtNum* Bk = B + 9*b;
+    effBlockRaw(m, d, adr[b], Bk);
+    mju_cholFactor(Bk, 3, mjMINVAL);
   }
   d->efm_L = B;
   d->efm_dofid = adr;
@@ -3440,7 +3387,7 @@ void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
     mjtNum rz = mju_dot(r, z, nv);
     for (int it = 0; it < m->opt.iterations; it++) {
       mju_mulSymVecSparse(Ap, d->M, p, nv, m->M_rownnz, m->M_rowadr, m->M_colind);
-      mjd_effMulAdd(m, d, Ap, p);
+      mjd_effMulAdd(m, d, Ap, p, /*flg_contact=*/1);
       mjtNum pAp = mju_dot(p, Ap, nv);
       // curvature breakdown: the metric has no curvature along p, so no further progress is
       // possible and x is the best available. Not a budget failure, so it does not warn.

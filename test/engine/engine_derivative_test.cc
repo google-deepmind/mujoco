@@ -2265,7 +2265,7 @@ TEST_F(DerivativeTest, EffSolve) {
     }
     mjd_effSolve(m, d, x.data(), b.data());
     mju_mulSymVecSparse(r.data(), d->M, x.data(), nv, m->M_rownnz, m->M_rowadr, m->M_colind);
-    mjd_effMulAdd(m, d, r.data(), x.data());
+    mjd_effMulAdd(m, d, r.data(), x.data(), /*flg_contact=*/1);
     mju_subFrom(r.data(), b.data(), nv);
     return mju_norm(r.data(), nv) / mju_norm(b.data(), nv);
   };
