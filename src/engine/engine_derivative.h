@@ -156,7 +156,11 @@ MJAPI int mjd_effPrecContact(const mjModel* m, mjData* d, mjtNum* L,
                              const mjtNum* J, const int* J_rownnz, const int* J_rowadr,
                              const int* J_colind);
 
-MJAPI void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
+// res += (K + contact)*vec, the metric's non-inertial part. flg_contact selects whether the
+// published contact stiffness is included: the linear solves want it, an energy evaluation that
+// accounts for contact separately does not.
+MJAPI void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                         int flg_contact);
 
 // solve (M + B) x = b by PCG preconditioned with mjd_effPrec, to opt.tolerance on the relative
 // residual; x = M^-1 b when the metric is inactive. Warns (mjWARN_INERTIA) if the iteration cap

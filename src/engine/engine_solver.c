@@ -1902,11 +1902,8 @@ static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_ite
   // compute Mv = Mtilde * v
   mju_mulSymVecSparse(ctx->Mv, ctx->M, ctx->search, nv,
                       ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
-  if (ctx->flg_flex) {
-    mjd_effMulAdd(ctx->fm, ctx->fd, ctx->Mv, ctx->search);
-  }
-  if (ctx->island < 0) {
-    mj_extraStiffMulAdd(ctx->fd, ctx->Mv, ctx->search);   // contact curvature rides with the metric
+  if (ctx->flg_flex || ctx->island < 0) {
+    mjd_effMulAdd(ctx->fm, ctx->fd, ctx->Mv, ctx->search, /*flg_contact=*/ctx->island < 0);
   }
 
   // compute Jv = J * search  (dense or sparse)
@@ -2392,11 +2389,8 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
   // compute Ma = Mtilde * qacc
   mju_mulSymVecSparse(ctx.Ma, ctx.M, ctx.qacc, nv,
                       ctx.M_rownnz, ctx.M_rowadr, ctx.M_colind);
-  if (ctx.flg_flex) {
-    mjd_effMulAdd(m, d, ctx.Ma, ctx.qacc);
-  }
-  if (island < 0) {
-    mj_extraStiffMulAdd(d, ctx.Ma, ctx.qacc);
+  if (ctx.flg_flex || island < 0) {
+    mjd_effMulAdd(m, d, ctx.Ma, ctx.qacc, /*flg_contact=*/island < 0);
   }
 
 
