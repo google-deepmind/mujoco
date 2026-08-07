@@ -49,6 +49,11 @@ Engine
   iterative solve for ``qacc_smooth``, which now converges on :ref:`tolerance<option-tolerance>` rather than a fixed
   threshold. Flexes with :ref:`elastic2d<flex-elasticity-elastic2d>` stretch stiffness step roughly twice as fast;
   bending-only flexes keep the exact constant factor and are unchanged.
+- Added the ``ipc`` :ref:`integrator<option-integrator>`, a prototype variational integrator for penetration-free flex
+  contact. Each step minimizes an incremental potential subject to linearized contact constraints, using a barrier-free
+  augmented Lagrangian whose subproblems are ordinary MuJoCo constraint solves. Every committed position update is
+  verified intersection-free by continuous collision detection, so flex contact cannot tunnel. Supported for dim-2
+  flexes with edge-equality elasticity; FEM elasticity is rejected on entry to the integrator.
 
 .. admonition:: Breaking API changes
    :class: attention
@@ -74,6 +79,8 @@ Engine
      mocap bodies no longer count as static geometry for ray casting, and contact-matching sensors aggregate their
      contacts under the mocap body rather than the world; and geom pairs where neither body can move no longer generate
      contacts.
+   - :ref:`mjData` gained the ``flexvert_lambda`` and ``flexvert_conage`` fields (per-flex-vertex contact multipliers
+     and contact age, used by the ``ipc`` integrator), changing its size and layout.
 
 Models
 ^^^^^^

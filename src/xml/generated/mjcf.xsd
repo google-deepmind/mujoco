@@ -137,6 +137,7 @@
       <xs:enumeration value="RK4"/>
       <xs:enumeration value="implicit"/>
       <xs:enumeration value="implicitfast"/>
+      <xs:enumeration value="ipc"/>
     </xs:restriction>
   </xs:simpleType>
 

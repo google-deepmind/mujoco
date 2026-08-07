@@ -84,6 +84,10 @@ MJAPI void mjd_flexContact_mul(const mjModel* m, mjData* d, mjtNum* res, const m
 
 MJAPI mjtNum mjd_flexContactStiffness(const mjModel* m, const mjData* d, const mjContact* con);
 
+// build the passive flex contact pair list and publish it in d->efm_contact (position stage, after
+// mj_makeConstraint has marked the passive contacts and before the metric is sized against them)
+MJAPI void mjd_flexContactPairs(const mjModel* m, mjData* d);
+
 MJAPI int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr,
                                  int* colind, mjtNum* val, mjtNum s1, mjtNum s2,
                                  int flg_bend, int flg_stretch, int flg_contact, const mjtNum* Krot);
@@ -102,6 +106,56 @@ MJAPI void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor)
 MJAPI void mjd_effShift(const mjModel* m, mjData* d);
 
 // res += B*vec (the stiffness part of the metric; caller supplies the M part)
+// Contact expressed as a FORCE plus a STIFFNESS, in the one form every consumer of the metric
+// reads. Pair c couples npt[c] participating vertices, each occupying one contiguous dof triple
+// starting at base[]; w[] is that vertex's weight vector. The pair costs
+//   0.5*D[c]*(sum_p w_p . x[base_p] - ref[c])^2
+// split into the two pieces the solvers consume: a constant force D[c]*ref[c]*w_p summed into f,
+// and a stiffness D[c]*w_p w_q^T.
+//
+// CONVENTION: D and w are in the metric's units -- D*w w^T is the contribution to the EFFECTIVE
+// stiffness h^2*K, not to K. Producers scale accordingly (passive flex contact folds the h^2 into
+// D; the IPC integrator carries it as D=k/h^2 with w=h^2*J, which is the same product). Get this
+// wrong and the contact is off by h^2 with no test failing loudly.
+//
+// Consumers, and the ordering that keeps them from double-counting: a producer publishing BEFORE
+// mjd_effBuild is folded into the metric CSR and read by mjd_effShift, then cleared -- that is the
+// passive flex contact path. A producer publishing DURING the solve is applied matrix-free by
+// mj_extraStiffMulAdd -- that is the IPC integrator. Never both for one pair.
+// max participating vertices in one pair: the IPC integrator's primitives are point-triangle (1+3)
+// and edge-edge (2+2), but a passive contact between two surface ELEMENTS reaches 6. Silently
+// exceeding this would drop a pair's tail vertices from base/w.
+#define mjNEXTRAPT 8
+
+typedef struct mjExtraStiff_ {
+  int npair;             // number of contact pairs
+  const int* npt;        // (npair)              participating vertices per pair, <= mjNEXTRAPT
+  const int* base;       // (npair*mjNEXTRAPT)   first dof of each participating vertex
+  const mjtNum* w;       // (npair*mjNEXTRAPT*3) weight vector per participating vertex
+  const mjtNum* D;       // (npair)              stiffness
+  const mjtNum* f;       // (nv)                 constant force D*ref*w, summed over pairs
+} mjExtraStiff;
+
+// The producer publishes its pair list by pointing d->efm_contact at it for the duration of the
+// solve and clearing it afterwards. It lives in mjData rather than in a file-static because two
+// threads stepping two mjData share one mjModel but must not share a contact set.
+
+// res += (sum_c D_c J_c^T J_c) * vec, for d's contact stiffness (no-op if none)
+MJAPI void mj_extraStiffMulAdd(const mjData* d, mjtNum* res, const mjtNum* vec);
+
+// number of published contact pairs (0 if none): lets mj_fwdConstraint solve when nefc==0
+MJAPI int mj_extraPrimalRows(const mjData* d);
+
+// Fold the registered contact stiffness and the efc rows into the metric preconditioner blocks,
+// writing the contact-folded factor to L (9*nefmdof). The efc side is passed as a view because it
+// lives in the solver's working state; everything else is metric state. Returns 0 if there is
+// nothing covered to fold into, in which case L is untouched and the caller should use the shared
+// blocks.
+MJAPI int mjd_effPrecContact(const mjModel* m, mjData* d, mjtNum* L,
+                             int nefc, const int* efc_state, const mjtNum* efc_D, int is_sparse,
+                             const mjtNum* J, const int* J_rownnz, const int* J_rowadr,
+                             const int* J_colind);
+
 MJAPI void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
 
 // solve (M + B) x = b by PCG preconditioned with mjd_effPrec, to opt.tolerance on the relative
@@ -112,6 +166,13 @@ MJAPI void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b)
 // apply the metric preconditioner: x ~= (M + B)^-1 b, a cheap fixed linear operator, NOT a solve.
 // Exact only when the metric is inactive (x = M^-1 b); otherwise approximate by construction.
 MJAPI void mjd_effPrec(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);
+
+// build+factor the metric blocks with an extra per-covered-vertex 3x3 term folded in (9*nefmdof)
+MJAPI void mjd_effPrecFold(const mjModel* m, mjData* d, const mjtNum* Badd, mjtNum* L);
+
+// apply the metric preconditioner using caller-supplied factored blocks
+MJAPI void mjd_effPrecBlocks(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b,
+                             const mjtNum* L);
 
 
 #ifdef __cplusplus

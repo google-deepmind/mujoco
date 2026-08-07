@@ -4139,7 +4139,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjINT_EULER", mjINT_EULER)
     .value("mjINT_RK4", mjINT_RK4)
     .value("mjINT_IMPLICIT", mjINT_IMPLICIT)
-    .value("mjINT_IMPLICITFAST", mjINT_IMPLICITFAST);
+    .value("mjINT_IMPLICITFAST", mjINT_IMPLICITFAST)
+    .value("mjINT_IPC", mjINT_IPC);
   enum_<mjtItem>("mjtItem")
     .value("mjITEM_END", mjITEM_END)
     .value("mjITEM_SECTION", mjITEM_SECTION)
@@ -4632,6 +4633,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("efm_L", &MjData::efm_L)
     .property("efm_active", &MjData::efm_active, &MjData::set_efm_active, reference())
     .property("efm_c", &MjData::efm_c)
+    .property("efm_contact", &MjData::efm_contact, &MjData::set_efm_contact, reference())
     .property("efm_dofid", &MjData::efm_dofid)
     .property("energy", &MjData::energy)
     .property("eq_active", &MjData::eq_active)
@@ -4641,6 +4643,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flexelem_aabb", &MjData::flexelem_aabb)
     .property("flexelem_krot", &MjData::flexelem_krot)
     .property("flexvert_J", &MjData::flexvert_J)
+    .property("flexvert_conage", &MjData::flexvert_conage)
+    .property("flexvert_lambda", &MjData::flexvert_lambda)
     .property("flexvert_length", &MjData::flexvert_length)
     .property("flexvert_xpos", &MjData::flexvert_xpos)
     .property("flg_energypos", &MjData::flg_energypos, &MjData::set_flg_energypos, reference())

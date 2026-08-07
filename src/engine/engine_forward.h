@@ -46,8 +46,19 @@ MJAPI void mj_forward(const mjModel* m, mjData* d);
 // forward dynamics with skip; skipstage is mjtStage
 MJAPI void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor);
 
+// forward constraint solve pinned to matrix-free CG over the monolithic (non-island) problem,
+// for the IPC integrator inner AL subproblem (see engine_forward.c)
+void mj_fwdConstraintCG(const mjModel* m, mjData* d);
+
 
 //-------------------------------- integrators -----------------------------------------------------
+
+// shared tail of every integrator: history buffers, activations, sleep, velocity/position
+// integration, time, plugin states, qacc warmstart save (see engine_forward.c for the arguments).
+// A position-level integrator that commits qpos/qvel itself passes zero qacc/qvel to skip the
+// integration stages and still get the rest.
+void mj_advance(const mjModel* m, mjData* d,
+                const mjtNum* act_dot, const mjtNum* qacc, const mjtNum* qvel);
 
 // Runge Kutta explicit order-N integrator
 MJAPI void mj_RungeKutta(const mjModel* m, mjData* d, int N);

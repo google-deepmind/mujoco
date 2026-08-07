@@ -1645,42 +1645,36 @@ static mjtBool flexPassiveContact_any(const mjModel* m) {
 // res += scale * K_contact * vec, where K_contact = sum_c k_c * J_c^T J_c over passive flex
 // contacts. Any class that contributes to K must also contribute to the shift -h*K*v (see
 // mjd_effShift), otherwise the contact is stiff but undamped.
+// the contact stiffness published for this solve (see mjExtraStiff), NULL if none
+static const mjExtraStiff* extraStiff(const mjData* d) {
+  return (const mjExtraStiff*)d->efm_contact;
+}
+
+
 void mjd_flexContact_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                          mjtNum scale) {
-  if (!d->ncon) {
+  const mjExtraStiff* es = extraStiff(d);
+  if (!es) {
     return;
   }
-  int nv = m->nv;
-  mj_markStack(d);
-  mjtNum* jacdif = mjSTACKALLOC(d, 3*nv, mjtNum);
-  mjtNum* jac1 = mjSTACKALLOC(d, 3*nv, mjtNum);
-  mjtNum* jac2 = mjSTACKALLOC(d, 3*nv, mjtNum);
-  mjtNum* jacn = mjSTACKALLOC(d, 3*nv, mjtNum);
-  int* chain = mjSTACKALLOC(d, nv, int);
-  for (int i = 0; i < d->ncon; i++) {
-    const mjContact* con = d->contact + i;
-    if (con->exclude != 4) {
-      continue;
+  // callers ask for scale*K_contact; D carries the metric's h^2 (see mjExtraStiff), so divide it
+  // back out to land on K rather than h^2*K
+  mjtNum ih2 = 1 / (m->opt.timestep * m->opt.timestep);
+  for (int c = 0; c < es->npair; c++) {
+    const int* bp = es->base + mjNEXTRAPT*c;
+    const mjtNum* wp = es->w + 3*mjNEXTRAPT*c;
+    int n = es->npt[c];
+    mjtNum wv = 0;
+    for (int p = 0; p < n; p++) {
+      const mjtNum* v = vec + bp[p];
+      wv += wp[3*p]*v[0] + wp[3*p+1]*v[1] + wp[3*p+2]*v[2];
     }
-    mjtNum k = mjd_flexContactStiffness(m, d, con);
-    if (k <= 0) {
-      continue;
-    }
-    int NV = mj_contactJacobian(m, d, con, con->dim, jacdif, NULL, jac1, jac2, NULL, NULL, chain);
-    if (!NV) {
-      continue;
-    }
-    mju_mulMatMat(jacn, con->frame, jacdif, con->dim > 1 ? 3 : 1, 3, NV);
-    mjtNum Jv = 0;
-    for (int a = 0; a < NV; a++) {
-      Jv += jacn[a] * vec[chain[a]];
-    }
-    mjtNum s = scale * k * Jv;
-    for (int a = 0; a < NV; a++) {
-      res[chain[a]] += s * jacn[a];
+    mjtNum s = scale * es->D[c] * ih2 * wv;
+    for (int p = 0; p < n; p++) {
+      mjtNum* r = res + bp[p];
+      r[0] += s*wp[3*p]; r[1] += s*wp[3*p+1]; r[2] += s*wp[3*p+2];
     }
   }
-  mj_freeStack(d);
 }
 
 mjtBool mjd_flexStiff_any(const mjModel* m, int flg_interp) {
@@ -1700,6 +1694,21 @@ mjtBool mjd_flexStiff_any(const mjModel* m, int flg_interp) {
 // does this standard flex contribute implicit stiffness under the given term flags?
 // A flex participates if it has elasticity OR passive contacts: the contact stiffness may be the
 // only stiffness, so vertex slots must exist either way.
+
+// participating metric slots of published pair c (skips dofs the metric does not carry)
+static int pairSlots(const mjExtraStiff* es, int c, const int* dof2slot, int* out, int* idx) {
+  int n = 0;
+  for (int p = 0; p < es->npt[c]; p++) {
+    int s = dof2slot[es->base[mjNEXTRAPT*c + p]];
+    if (s >= 0) {
+      out[n] = s;
+      idx[n] = p;
+      n++;
+    }
+  }
+  return n;
+}
+
 static mjtBool flexMetric_participates(const mjModel* m, int f, int flg_bend, int flg_stretch,
                                        int flg_contact);
 
@@ -1751,8 +1760,9 @@ mjtNum mjd_flexContactStiffness(const mjModel* m, const mjData* d, const mjConta
 
 // The flex vertex slots a passive contact couples: the vertex itself for a vertex side, the
 // element's vertices for an element side. Duplicates dropped, and slots outside the metric skipped.
-static int contactFlexSlots(const mjModel* m, const mjContact* con, const int* vslot,
-                            int* out, int cap) {
+// participating flex vertices of a contact, as GLOBAL vertex ids (deduplicated). The slot- and
+// dof-level views both derive from this, so the two contact producers enumerate identically.
+static int contactFlexVerts(const mjModel* m, const mjContact* con, int* out, int cap) {
   int n = 0;
   for (int side = 0; side < 2; side++) {
     int f = con->flex[side];
@@ -1770,21 +1780,18 @@ static int contactFlexSlots(const mjModel* m, const mjContact* con, const int* v
       }
     }
     for (int j = 0; j < ngv; j++) {
-      int s = vslot[gv[j]];
-      if (s < 0) {
-        continue;
-      }
       int dup = 0;
       for (int q = 0; q < n; q++) {
-        if (out[q] == s) { dup = 1; break; }
+        if (out[q] == gv[j]) { dup = 1; break; }
       }
       if (!dup && n < cap) {
-        out[n++] = s;
+        out[n++] = gv[j];
       }
     }
   }
   return n;
 }
+
 
 static mjtBool flexMetric_participates(const mjModel* m, int f, int flg_bend, int flg_stretch,
                                        int flg_contact) {
@@ -1917,14 +1924,22 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
     }
   }
 
-  // passive contacts (counting): each contact makes its vertices mutual neighbours in the CSR.
-  if (flg_contact) {
-    for (int i = 0; i < d->ncon; i++) {
-      const mjContact* con = d->contact + i;
-      if (con->exclude != 4) {
-        continue;
-      }
-      int cs[8], ncs = contactFlexSlots(m, con, vslot, cs, 8);
+  // dof -> metric slot, shared by the three contact passes below
+  const mjExtraStiff* es = flg_contact ? extraStiff(d) : NULL;
+  int* dof2slot = mjSTACKALLOC(d, m->nv, int);
+  for (int i = 0; i < m->nv; i++) {
+    dof2slot[i] = -1;
+  }
+  for (int s = 0; s < nvert; s++) {
+    for (int k = 0; k < 3; k++) {
+      dof2slot[vdof[s] + k] = s;
+    }
+  }
+
+  // published contacts (counting): each pair makes its vertices mutual neighbours in the CSR.
+  if (es) {
+    for (int c = 0; c < es->npair; c++) {
+      int cs[mjNEXTRAPT], ix[mjNEXTRAPT], ncs = pairSlots(es, c, dof2slot, cs, ix);
       for (int a = 0; a < ncs; a++) {
         ncand[cs[a]] += ncs;
       }
@@ -1996,14 +2011,10 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
     }
   }
 
-  // passive contacts (filling)
-  if (flg_contact) {
-    for (int i = 0; i < d->ncon; i++) {
-      const mjContact* con = d->contact + i;
-      if (con->exclude != 4) {
-        continue;
-      }
-      int cs[8], ncs = contactFlexSlots(m, con, vslot, cs, 8);
+  // published contacts (filling)
+  if (es) {
+    for (int c = 0; c < es->npair; c++) {
+      int cs[mjNEXTRAPT], ix[mjNEXTRAPT], ncs = pairSlots(es, c, dof2slot, cs, ix);
       for (int a = 0; a < ncs; a++) {
         for (int b = 0; b < ncs; b++) {
           cand[cadr[cs[a]] + ncand[cs[a]]++] = cs[b];
@@ -2273,52 +2284,13 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
       })
     }
   }
-  // passive contacts (values): assemble k*J^T*J blocks, where J is the contact-normal Jacobian.
-  // All participants are metric-carried flex vertices, so the block is assembled in full.
-  if (flg_contact && d->ncon) {
-    int* dof2slot = mjSTACKALLOC(d, nv, int);
-    mjtNum* jacdif = mjSTACKALLOC(d, 3*nv, mjtNum);
-    mjtNum* jac1 = mjSTACKALLOC(d, 3*nv, mjtNum);
-    mjtNum* jac2 = mjSTACKALLOC(d, 3*nv, mjtNum);
-    mjtNum* jacn = mjSTACKALLOC(d, 3*nv, mjtNum);
-    int* chain = mjSTACKALLOC(d, nv, int);
-    mjtNum* w = mjSTACKALLOC(d, 3*(nvert > 0 ? nvert : 1), mjtNum);
-    for (int i = 0; i < nv; i++) {
-      dof2slot[i] = -1;
-    }
-    for (int s = 0; s < nvert; s++) {
-      for (int k = 0; k < 3; k++) {
-        dof2slot[vdof[s] + k] = s;
-      }
-    }
-    for (int i = 0; i < d->ncon; i++) {
-      const mjContact* con = d->contact + i;
-      if (con->exclude != 4) {
-        continue;
-      }
-      int cs[8], ncs = contactFlexSlots(m, con, vslot, cs, 8);
-      if (ncs < 1) {
-        continue;
-      }
-      mjtNum k = mjd_flexContactStiffness(m, d, con);
-      if (k <= 0) {
-        continue;
-      }
-      int NV = mj_contactJacobian(m, d, con, con->dim, jacdif, NULL, jac1, jac2, NULL, NULL, chain);
-      if (NV == 0) {
-        continue;
-      }
-      // rotate into the contact frame and keep the normal row
-      mju_mulMatMat(jacn, con->frame, jacdif, con->dim > 1 ? 3 : 1, 3, NV);
-      for (int a = 0; a < ncs; a++) {
-        mju_zero(w + 3*cs[a], 3);
-      }
-      for (int a = 0; a < NV; a++) {
-        int s = dof2slot[chain[a]];
-        if (s >= 0) {
-          w[3*s + (chain[a] - vdof[s])] = jacn[a];
-        }
-      }
+  // published contacts (values): assemble the D*w*w^T blocks. D and w already carry the metric's
+  // units (see mjExtraStiff), so no s1 here -- the producer folded it in.
+  if (es) {
+    for (int c = 0; c < es->npair; c++) {
+      int cs[mjNEXTRAPT], ix[mjNEXTRAPT], ncs = pairSlots(es, c, dof2slot, cs, ix);
+      const mjtNum* wp = es->w + 3*mjNEXTRAPT*c;
+      mjtNum Dc = es->D[c];
       for (int a = 0; a < ncs; a++) {
         for (int b = 0; b < ncs; b++) {
           int pos;
@@ -2327,8 +2299,9 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
             continue;
           }
           for (int r = 0; r < 3; r++) {
-            for (int c = 0; c < 3; c++) {
-              val[rowadr[vdof[cs[a]] + r] + 3*pos + c] += s1 * k * w[3*cs[a] + r] * w[3*cs[b] + c];
+            for (int cc = 0; cc < 3; cc++) {
+              val[rowadr[vdof[cs[a]] + r] + 3*pos + cc] +=
+                  Dc * wp[3*ix[a] + r] * wp[3*ix[b] + cc];
             }
           }
         }
@@ -3177,6 +3150,136 @@ static void* effAlloc(mjData* d, size_t bytes, size_t align) {
 
 // res += B*vec. The STRETCH (and, when assemblable, bending and interp) part is applied from the
 // per-step assembled CSR; terms not in the CSR fall back to the matrix-free stencil operators.
+// [IPC prototype] contact stiffness, the block-structured alternative to the penalty rows above.
+
+// number of registered contact pairs (0 if none): lets mj_fwdConstraint run the solver even
+// when nefc==0 (pure-flex: native contacts dropped, contact carried by the stiffness)
+int mj_extraPrimalRows(const mjData* d) {
+  const mjExtraStiff* e = extraStiff(d);
+  return e ? e->npair : 0;   // either representation keeps the solver running
+}
+
+// Fold contact curvature into the metric preconditioner blocks.
+// Mtilde = M + K carries inertia and flex elasticity but NO contact, while under IPC contact is the
+// stiffest coupling in the system, so CG preconditioned by Mtilde alone needs thousands of
+// iterations and returns a direction large enough that CCD caps the step to nothing. Both contact
+// families are folded in: the registered contact stiffness (flex-flex AL) and the ordinary efc rows
+// (the articulated body's own contacts), each contributing D*J^T*J. Only the per-vertex 3x3
+// diagonal survives into the blocks -- the same Gauss-Newton contact term the reference solver's
+// block-Jacobi carries. Off-diagonal (vertex-vertex) coupling is dropped, as it is for the elastic
+// part. Note the efc side is what CGBlockBuild does for metric-free models; that path excludes
+// metric-active ones, so under IPC nothing was folding it in.
+int mjd_effPrecContact(const mjModel* m, mjData* d, mjtNum* L,
+                       int nefc, const int* efc_state, const mjtNum* efc_D, int is_sparse,
+                       const mjtNum* J, const int* J_rownnz, const int* J_rowadr,
+                       const int* J_colind) {
+  const mjExtraStiff* es = extraStiff(d);
+  if (!d->nefmdof) {
+    return 0;   // nothing covered: caller falls back to the shared blocks
+  }
+  mj_markStack(d);
+  int nv = m->nv;
+  mjtNum* Badd = mjSTACKALLOC(d, 9*d->nefmdof, mjtNum);
+  int* blk = mjSTACKALLOC(d, nv, int);
+  mju_zero(Badd, 9*d->nefmdof);
+  for (int i=0; i < nv; i++) {
+    blk[i] = -1;
+  }
+  for (int k=0; k < d->nefmdof; k++) {
+    for (int c=0; c < 3; c++) {
+      blk[d->efm_dofid[k] + c] = k;
+    }
+  }
+
+  // contact stiffness: the same diagonal blocks, from the block representation. A pair's coupling
+  // between DIFFERENT vertices is off-diagonal and cannot be represented here; only its self-terms
+  // D*w_p*w_p^T land in the block. Whichever representation of contact is registered, the
+  // preconditioner must see it -- dropping this made the fold diverge from the rows on models
+  // where the metric is live.
+  for (int c=0; es && c < es->npair; c++) {
+    int n = es->npt[c];
+    for (int q=0; q < n; q++) {
+      int b = es->base[mjNEXTRAPT*c + q], k = blk[b];
+      if (k < 0) {
+        continue;
+      }
+      const mjtNum* w = es->w + 3*mjNEXTRAPT*c + 3*q;
+      for (int a=0; a < 3; a++) {
+        for (int bb=0; bb < 3; bb++) {
+          Badd[9*k + 3*a + bb] += es->D[c] * w[a] * w[bb];
+        }
+      }
+    }
+  }
+
+  // efc rows: same diagonal blocks of J'*D*J, over the rows currently in the quadratic zone
+  for (int r=0; r < nefc; r++) {
+    if (efc_state[r] != mjCNSTRSTATE_QUADRATIC || !efc_D[r]) {
+      continue;
+    }
+    mjtNum D = efc_D[r];
+    if (is_sparse) {
+      int adr = J_rowadr[r], nnz = J_rownnz[r];
+      for (int a=0; a < nnz; a++) {
+        int ia = J_colind[adr+a], k = blk[ia];
+        if (k < 0) {
+          continue;
+        }
+        int base = d->efm_dofid[k];
+        for (int b=0; b < nnz; b++) {
+          int ib = J_colind[adr+b];
+          if (blk[ib] != k) {
+            continue;
+          }
+          Badd[9*k + 3*(ia-base) + (ib-base)] += D * J[adr+a] * J[adr+b];
+        }
+      }
+    } else {
+      const mjtNum* Jr = J + (size_t)r*nv;
+      for (int k=0; k < d->nefmdof; k++) {
+        int base = d->efm_dofid[k];
+        for (int a=0; a < 3; a++) {
+          if (!Jr[base+a]) {
+            continue;
+          }
+          for (int b=0; b < 3; b++) {
+            Badd[9*k + 3*a + b] += D * Jr[base+a] * Jr[base+b];
+          }
+        }
+      }
+    }
+  }
+
+  mjd_effPrecFold(m, d, Badd, L);
+  mj_freeStack(d);
+  return 1;
+}
+
+// res += (sum_c D_c J_c^T J_c) * vec. One dot and one axpy per participating vertex, over
+// contiguous dof triples: s = sum_p w_p . vec[base_p] is the pair's scalar residual rate, and the
+// reaction D*s*w_p goes back to the same triples.
+void mj_extraStiffMulAdd(const mjData* d, mjtNum* res, const mjtNum* vec) {
+  const mjExtraStiff* e = extraStiff(d);
+  if (!e) {
+    return;
+  }
+  for (int c=0; c < e->npair; c++) {
+    int n = e->npt[c];
+    const int* base = e->base + mjNEXTRAPT*c;
+    const mjtNum* w = e->w + 3*mjNEXTRAPT*c;
+    mjtNum s = 0;
+    for (int p=0; p < n; p++) {
+      const mjtNum* v = vec + base[p];
+      s += w[3*p]*v[0] + w[3*p+1]*v[1] + w[3*p+2]*v[2];
+    }
+    mjtNum Ds = e->D[c] * s;
+    for (int p=0; p < n; p++) {
+      mjtNum* r = res + base[p];
+      r[0] += Ds*w[3*p]; r[1] += Ds*w[3*p+1]; r[2] += Ds*w[3*p+2];
+    }
+  }
+}
+
 void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) {
   mjtNum h = m->opt.timestep;
   if (d->nefmK) {
@@ -3208,6 +3311,22 @@ void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) 
 // factorization it replaces was exact. Both consumers use the blocks as a preconditioner: the CG
 // constraint solver (Mgrad = Mtilde \ grad) and the qacc_smooth PCG in mjd_effSolve, which
 // supplies the accuracy.
+// the unfactored 3x3 diagonal block of (M + K) for the covered dof triple starting at row i
+static void effBlockRaw(const mjModel* m, const mjData* d, int i, mjtNum* Bk) {
+  mju_zero(Bk, 9);
+  for (int r = 0; r < 3; r++) {
+    int row = i + r;
+    for (int a = m->M_rowadr[row]; a < m->M_rowadr[row] + m->M_rownnz[row]; a++) {
+      int c = m->M_colind[a];
+      if (c >= i && c < i+3) Bk[3*r + (c-i)] += d->M[a];
+    }
+    for (int a = d->efm_K_rowadr[row]; a < d->efm_K_rowadr[row] + d->efm_K_rownnz[row]; a++) {
+      int c = d->efm_K_colind[a];
+      if (c >= i && c < i+3) Bk[3*r + (c-i)] += d->efm_K_val[a];
+    }
+  }
+}
+
 static void effBlocks(const mjModel* m, mjData* d) {
   int nv = m->nv;
 
@@ -3228,18 +3347,7 @@ static void effBlocks(const mjModel* m, mjData* d) {
       continue;
     }
     mjtNum* Bk = B + 9*k;
-    mju_zero(Bk, 9);
-    for (int r = 0; r < 3; r++) {
-      int row = i + r;
-      for (int a = m->M_rowadr[row]; a < m->M_rowadr[row] + m->M_rownnz[row]; a++) {
-        int c = m->M_colind[a];
-        if (c >= i && c < i+3) Bk[3*r + (c-i)] += d->M[a];
-      }
-      for (int a = d->efm_K_rowadr[row]; a < d->efm_K_rowadr[row] + d->efm_K_rownnz[row]; a++) {
-        int c = d->efm_K_colind[a];
-        if (c >= i && c < i+3) Bk[3*r + (c-i)] += d->efm_K_val[a];
-      }
-    }
+    effBlockRaw(m, d, i, Bk);
     mju_cholFactor(Bk, 3, mjMINVAL);
     adr[k++] = i;
     i += 3;
@@ -3254,7 +3362,8 @@ static void effBlocks(const mjModel* m, mjData* d) {
 // bending factor from mj_setConst, on the dofs they cover; M^-1 on all other dofs. PCG requires
 // symmetry, so covered and uncovered dofs must not see each other: zeroing the covered entries
 // of the right-hand side before the qLD sweep keeps the uncovered rows from reading them.
-static void effBlockApply(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
+static void effBlockApply(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b,
+                          const mjtNum* L) {
   int nv = m->nv;
   int nbd = m->nefm0dof;
   int flg_bend = nbd && !d->nefmdof;
@@ -3277,7 +3386,7 @@ static void effBlockApply(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* 
   // per-step stiffness: 3x3 blocks
   for (int k = 0; k < d->nefmdof; k++) {
     int i = d->efm_dofid[k];
-    mju_cholSolve(x + i, d->efm_L + 9*k, rhs + i, 3);
+    mju_cholSolve(x + i, L + 9*k, rhs + i, 3);
   }
 
   // bending-only: exact (M + K_bend)^-1 on the dofs the constant factor covers
@@ -3326,7 +3435,7 @@ void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
 #endif
     mjtNum tol = tolerance*tolerance*bn;
     int capped = 1;   // cleared by either exit below; still set means the cap was reached
-    effBlockApply(m, d, z, r);
+    effBlockApply(m, d, z, r, d->efm_L);
     mju_copy(p, z, nv);
     mjtNum rz = mju_dot(r, z, nv);
     for (int it = 0; it < m->opt.iterations; it++) {
@@ -3340,7 +3449,7 @@ void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
       mju_addToScl(x, p, alpha, nv);
       mju_addToScl(r, Ap, -alpha, nv);
       if (mju_dot(r, r, nv) < tol) { capped = 0; break; }
-      effBlockApply(m, d, z, r);
+      effBlockApply(m, d, z, r, d->efm_L);
       mjtNum rznew = mju_dot(r, z, nv);
       mju_addScl(p, z, p, rznew/rz, nv);
       rz = rznew;
@@ -3371,12 +3480,38 @@ void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
   mj_freeStack(d);
 }
 
+// Build and factor the metric blocks with an extra per-covered-vertex 3x3 term folded in, into
+// caller-supplied L (9*d->nefmdof). Badd is 9*d->nefmdof in d->efm_dofid order, row-major and
+// symmetric; NULL reproduces d->efm_L. Lets a consumer precondition against M + K + its own
+// curvature without disturbing the blocks the metric shares with mjd_effSolve.
+void mjd_effPrecFold(const mjModel* m, mjData* d, const mjtNum* Badd, mjtNum* L) {
+  for (int k = 0; k < d->nefmdof; k++) {
+    mjtNum* Bk = L + 9*k;
+    effBlockRaw(m, d, d->efm_dofid[k], Bk);
+    if (Badd) {
+      mju_addTo(Bk, Badd + 9*k, 9);
+    }
+    mju_cholFactor(Bk, 3, mjMINVAL);
+  }
+}
+
+
+// mjd_effPrec against caller-supplied factored blocks instead of the shared d->efm_L
+void mjd_effPrecBlocks(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b, const mjtNum* L) {
+  if (d->efm_active) {
+    effBlockApply(m, d, x, b, L);
+    return;
+  }
+  mjd_effPrec(m, d, x, b);
+}
+
+
 void mjd_effPrec(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
   int nv = m->nv;
 
   // active metric: the prefactored 3x3 blocks are the preconditioner
   if (d->efm_active) {
-    effBlockApply(m, d, x, b);
+    effBlockApply(m, d, x, b, d->efm_L);
     return;
   }
 
@@ -3406,6 +3541,109 @@ void mjd_effShift(const mjModel* m, mjData* d) {
 // build the per-step implicit effective metric on the arena, or deactivate it. The gate
 // decision (mj_flexCG) is the caller's: the metric module has no dependency on the solver
 // configuration beyond what it is told here.
+// Build the passive flex contact pair list and publish it for this step. The metric CSR is sized
+// against it (mjd_flexStiff_assemble) and the shift reads it (mjd_effShift); it is cleared at the
+// end of the velocity stage so the solve's matrix-free path does not apply it a second time.
+//
+// D carries the h^2 the assembler used to apply as s1, per the mjExtraStiff convention: D*w*w^T is
+// the contribution to the effective stiffness, not to K. f stays zero -- the passive force is
+// applied by mj_contactPassive, not folded in here.
+void mjd_flexContactPairs(const mjModel* m, mjData* d) {
+  d->efm_contact = 0;
+  if (!d->ncon || !flexPassiveContact_any(m)) {
+    return;
+  }
+  int npair = 0;
+  for (int i = 0; i < d->ncon; i++) {
+    if (d->contact[i].exclude == 4) {
+      npair++;
+    }
+  }
+  if (!npair) {
+    return;
+  }
+
+  int nv = m->nv;
+  mjtNum h = m->opt.timestep;
+  mjExtraStiff* es = EFMALLOC(mjExtraStiff, 1);
+  int* npt   = EFMALLOC(int, npair);
+  int* base  = EFMALLOC(int, mjNEXTRAPT*npair);
+  mjtNum* w  = EFMALLOC(mjtNum, 3*mjNEXTRAPT*npair);
+  mjtNum* D  = EFMALLOC(mjtNum, npair);
+  mjtNum* f  = EFMALLOC(mjtNum, nv);
+  mju_zero(w, 3*mjNEXTRAPT*npair);
+  mju_zero(f, nv);
+
+  mj_markStack(d);
+  mjtNum* jacdif = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jac1   = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jac2   = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jacn   = mjSTACKALLOC(d, 3*nv, mjtNum);
+  int* chain     = mjSTACKALLOC(d, nv, int);
+
+  int np = 0;
+  for (int i = 0; i < d->ncon; i++) {
+    const mjContact* con = d->contact + i;
+    if (con->exclude != 4) {
+      continue;
+    }
+    mjtNum k = mjd_flexContactStiffness(m, d, con);
+    if (k <= 0) {
+      continue;
+    }
+    int gv[mjNEXTRAPT], ngv = contactFlexVerts(m, con, gv, mjNEXTRAPT);
+    if (!ngv) {
+      continue;
+    }
+    int NV = mj_contactJacobian(m, d, con, con->dim, jacdif, NULL, jac1, jac2, NULL, NULL, chain);
+    if (!NV) {
+      continue;
+    }
+    mju_mulMatMat(jacn, con->frame, jacdif, con->dim > 1 ? 3 : 1, 3, NV);
+
+    // keep the vertices that carry dofs; a pinned vertex has none and drops out
+    int* bp = base + mjNEXTRAPT*np;
+    mjtNum* wp = w + 3*mjNEXTRAPT*np;
+    int n = 0;
+    for (int q = 0; q < ngv; q++) {
+      int bid = m->flex_vertbodyid[gv[q]];
+      if (m->body_dofnum[bid] != 3) {
+        continue;
+      }
+      bp[n++] = m->body_dofadr[bid];
+    }
+    if (!n) {
+      continue;
+    }
+    // scatter the contact-normal Jacobian row onto those dof triples
+    for (int a = 0; a < NV; a++) {
+      int dof = chain[a];
+      for (int q = 0; q < n; q++) {
+        if (dof >= bp[q] && dof < bp[q] + 3) {
+          wp[3*q + (dof - bp[q])] = jacn[a];
+          break;
+        }
+      }
+    }
+    npt[np] = n;
+    D[np] = h*h*k;
+    np++;
+  }
+  mj_freeStack(d);
+
+  if (!np) {
+    return;
+  }
+  es->npair = np;
+  es->npt = npt;
+  es->base = base;
+  es->w = w;
+  es->D = D;
+  es->f = f;
+  d->efm_contact = (uintptr_t)es;
+}
+
+
 void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
   int nv = m->nv;
   d->efm_active = 0;

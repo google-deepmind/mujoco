@@ -170,6 +170,7 @@ enum integrator : mjtIntegrator {
   RK4            = mjINT_RK4
   implicit       = mjINT_IMPLICIT
   implicitfast   = mjINT_IMPLICITFAST
+  ipc            = mjINT_IPC
 }
 
 enum cone : mjtCone {
