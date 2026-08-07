@@ -194,7 +194,7 @@ bool GlobalTable<mjpPlugin>::CopyObject(mjpPlugin& dst, const mjpPlugin& src, Er
 
   // check and copy plugin attributes
   std::unique_ptr<std::unique_ptr<char[]>[]> attributes_list;
-  if (src.nattribute) {
+  if (src.nattribute && src.nattribute <= kMaxAttributes) {
     attributes_list.reset(new(std::nothrow) std::unique_ptr<char[]>[src.nattribute]);
     if (!attributes_list) {
       std::snprintf(err, sizeof(err), "failed to allocate memory for plugin attribute list");
