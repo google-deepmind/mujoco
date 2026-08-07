@@ -66,7 +66,7 @@
         <attribute name="o_solref" type="array" array_type="float" array_size="2" default="0.02 1"/>
         <attribute name="o_solimp" type="array" array_type="float" array_size="5" default="0.9 0.95 0.001 0.5 2"/>
         <attribute name="o_friction" type="array" array_type="float" array_size="5" default="1 1 0.005 0.0001 0.0001"/>
-        <attribute name="integrator" type="keyword" valid_values="Euler RK4 implicit implicitfast" default="Euler"/>
+        <attribute name="integrator" type="keyword" valid_values="Euler RK4 implicit implicitfast ipc" default="Euler"/>
         <attribute name="cone" type="keyword" valid_values="pyramidal elliptic" default="pyramidal"/>
         <attribute name="jacobian" type="keyword" valid_values="dense sparse auto" default="auto"/>
         <attribute name="solver" type="keyword" valid_values="PGS CG Newton" default="Newton"/>

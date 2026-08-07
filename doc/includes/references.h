@@ -85,6 +85,9 @@ typedef struct mjData_ {
   // arena pointer
   size_t  parena;            // first available byte in arena
 
+  // contact stiffness for the current solve (mjExtraStiff*), 0 if none
+  uintptr_t efm_contact;
+
   // threading
   uintptr_t threadpool;      // thread pool pointer
   mjtBool threadlock;        // disable stack freeing during threaded execution
@@ -212,6 +215,11 @@ typedef struct mjData_ {
   mjtNum* flexvert_length;   // flex vertex lengths                              (nflexvert x 2)
   mjtNum* bvh_aabb_dyn;      // global bounding box (center, size)               (nbvhdynamic x 6)
 
+  // computed by mj_IPC (integrator=ipc): recoverable from qpos/qvel, but carried across steps so
+  // the augmented-Lagrangian contact solve resumes from the previous multipliers
+  mjtNum* flexvert_lambda;   // flex contact multiplier                          (nflexvert x 1)
+  int*    flexvert_conage;   // flex contact age: <0 loaded, >0 steps since      (nflexvert x 1)
+
   // computed by mj_fwdPosition/mj_tendon
   int*    ten_wrapadr;       // start address of tendon's path                   (ntendon x 1)
   int*    ten_wrapnum;       // number of wrap points in path                    (ntendon x 1)
@@ -292,7 +300,8 @@ typedef struct mjData_ {
   mjtNum* qacc_smooth;       // unconstrained acceleration                       (nv x 1)
 
   // computed by mj_fwdConstraint/mj_inverse
-  mjtNum* qfrc_constraint;   // constraint force                                 (nv x 1)
+  mjtNum* qfrc_constraint;   // constraint force; under the IPC integrator
+                             // this includes flex contact with no efc row       (nv x 1)
 
   // computed by mj_inverse
   mjtNum* qfrc_inverse;      // net external force; should equal:
@@ -2469,7 +2478,8 @@ typedef enum mjtIntegrator {      // integrator mode
   mjINT_EULER         = 0,        // semi-implicit Euler
   mjINT_RK4,                      // 4th-order Runge Kutta
   mjINT_IMPLICIT,                 // implicit in velocity
-  mjINT_IMPLICITFAST              // implicit in velocity, no rne derivative
+  mjINT_IMPLICITFAST,             // implicit in velocity, no rne derivative
+  mjINT_IPC                       // IPC-style variational integrator (flex prototype)
 } mjtIntegrator;
 typedef enum mjtCone {            // type of friction cone
   mjCONE_PYRAMIDAL     = 0,       // pyramidal
