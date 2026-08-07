@@ -32,14 +32,6 @@ Actuation
   by :ref:`input<actuator-pid-input>`; absent setpoint inputs are fixed at zero, so the control vector contains no
   inert entries.
 
-.. admonition:: Breaking ABI changes
-   :class: caution
-
-   - :ref:`mjsActuator` gained ``velrange`` and ``ffrange`` fields, changing its size and layout. The :ref:`mjtGain`
-     and :ref:`mjtDyn` enums gained ``pid`` members, shifting the values of ``mjGAIN_USER`` and ``mjDYN_USER``.
-   - :ref:`mjResource` gained an ``args`` field (changing its size and layout), used to hold optional extra encoding and
-     decoding arguments formatted as URI query parameters (separated by ``&``).
-
 Engine
 ^^^^^^
 
@@ -136,6 +128,7 @@ OpenUSD
 ^^^^^^^
 
 - Upgraded Newton USD schemas support to version 0.4.0:
+
   - ``NewtonJointAPI`` (``newton:armature``, ``newton:damping``, ``newton:friction``) deprecates the ``MjcJointAPI``
     equivalent ``mjc:armature``, ``mjc:damping``, and ``mjc:frictionloss`` attributes.
   - ``NewtonMassAPI`` (``newton:massModel``, ``newton:inertia``) deprecates the ``MjcCollisionAPI``
@@ -149,6 +142,14 @@ OpenUSD
     base for ``MjcEqualityJointAPI``, this deprecates the ``mjc:coef0`` and ``mjc:coef1`` attributes and the
     ``mjc:target`` relationship.
   - Added support for ``NewtonArticulationRootAPI`` (``newton:jointsAddMobility``).
+
+.. admonition:: Breaking ABI changes
+   :class: caution
+
+   - :ref:`mjsActuator` gained ``velrange`` and ``ffrange`` fields, changing its size and layout. The :ref:`mjtGain`
+     and :ref:`mjtDyn` enums gained ``pid`` members, shifting the values of ``mjGAIN_USER`` and ``mjDYN_USER``.
+   - :ref:`mjResource` gained an ``args`` field (changing its size and layout), used to hold optional extra encoding and
+     decoding arguments formatted as URI query parameters (separated by ``&``).
 
 Version 3.11.0 (July 27, 2026)
 ------------------------------
