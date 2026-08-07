@@ -2153,13 +2153,13 @@ TEST_F(DerivativeTest, FlexStiffAssemble) {
   std::vector<int> rownnz(nv), rowadr(nv);
   int nnz = mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(),
                                    rowadr.data(), NULL, NULL, s1, s2,
-                                   /*flg_bend=*/1, /*flg_stretch=*/1, NULL);
+                                   /*flg_bend=*/1, /*flg_stretch=*/1, /*flg_contact=*/0, NULL);
   ASSERT_GT(nnz, 0);
   std::vector<int> colind(nnz);
   std::vector<mjtNum> val(nnz);
   mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(), rowadr.data(),
                          colind.data(), val.data(), s1, s2, /*flg_bend=*/1,
-                         /*flg_stretch=*/1, NULL);
+                         /*flg_stretch=*/1, /*flg_contact=*/0, NULL);
 
   // compare CSR apply vs operators on test vectors
   for (int trial = 0; trial < 3; trial++) {
@@ -2220,13 +2220,13 @@ TEST_F(DerivativeTest, FlexStiffAssembleInterp) {
   mjtNum s1 = 4e-6, s2 = 2e-3;
   std::vector<int> rownnz(nv), rowadr(nv);
   int nnz = mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(), rowadr.data(),
-                                   NULL, NULL, s1, s2, /*flg_bend=*/0, /*flg_stretch=*/0,
+                                   NULL, NULL, s1, s2, /*flg_bend=*/0, /*flg_stretch=*/0, /*flg_contact=*/0,
                                    krot.data());
   ASSERT_GT(nnz, 0);
   std::vector<int> colind(nnz);
   std::vector<mjtNum> val(nnz);
   mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(), rowadr.data(),
-                         colind.data(), val.data(), s1, s2, /*flg_bend=*/0, /*flg_stretch=*/0,
+                         colind.data(), val.data(), s1, s2, /*flg_bend=*/0, /*flg_stretch=*/0, /*flg_contact=*/0,
                          krot.data());
 
   // compare CSR apply vs the operator called with negated scales (its convention)

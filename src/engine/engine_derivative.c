@@ -17,6 +17,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
+#include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"
@@ -1630,6 +1631,58 @@ mjtBool mjd_flexInterpAssemblable(const mjModel* m) {
 // does ANY flex contribute assemblable implicit stiffness? (cheap existence check for the
 // solver gate: stretch stiffness on a standard flex, or -- when Krot will be supplied -- an
 // operator-processed interp flex)
+// does any flex use the passive contact path? Distinct from elasticity: an empty CSR is valid for
+// elastic models (matrix-free operators) but means "nothing" for a contact-only flex.
+static mjtBool flexPassiveContact_any(const mjModel* m) {
+  for (int f = 0; f < m->nflex; f++) {
+    if (!m->flex_interp[f] && !m->flex_rigid[f] && m->flex_dim[f] >= 2 && m->flex_passive[f]) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+// res += scale * K_contact * vec, where K_contact = sum_c k_c * J_c^T J_c over passive flex
+// contacts. Any class that contributes to K must also contribute to the shift -h*K*v (see
+// mjd_effShift), otherwise the contact is stiff but undamped.
+void mjd_flexContact_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                         mjtNum scale) {
+  if (!d->ncon) {
+    return;
+  }
+  int nv = m->nv;
+  mj_markStack(d);
+  mjtNum* jacdif = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jac1 = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jac2 = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jacn = mjSTACKALLOC(d, 3*nv, mjtNum);
+  int* chain = mjSTACKALLOC(d, nv, int);
+  for (int i = 0; i < d->ncon; i++) {
+    const mjContact* con = d->contact + i;
+    if (con->exclude != 4) {
+      continue;
+    }
+    mjtNum k = mjd_flexContactStiffness(m, d, con);
+    if (k <= 0) {
+      continue;
+    }
+    int NV = mj_contactJacobian(m, d, con, con->dim, jacdif, NULL, jac1, jac2, NULL, NULL, chain);
+    if (!NV) {
+      continue;
+    }
+    mju_mulMatMat(jacn, con->frame, jacdif, con->dim > 1 ? 3 : 1, 3, NV);
+    mjtNum Jv = 0;
+    for (int a = 0; a < NV; a++) {
+      Jv += jacn[a] * vec[chain[a]];
+    }
+    mjtNum s = scale * k * Jv;
+    for (int a = 0; a < NV; a++) {
+      res[chain[a]] += s * jacn[a];
+    }
+  }
+  mj_freeStack(d);
+}
+
 mjtBool mjd_flexStiff_any(const mjModel* m, int flg_interp) {
   for (int f = 0; f < m->nflex; f++) {
     if (flg_interp && flexInterp_processed(m, f)) {
@@ -1645,6 +1698,11 @@ mjtBool mjd_flexStiff_any(const mjModel* m, int flg_interp) {
 
 
 // does this standard flex contribute implicit stiffness under the given term flags?
+// A flex participates if it has elasticity OR passive contacts: the contact stiffness may be the
+// only stiffness, so vertex slots must exist either way.
+static mjtBool flexMetric_participates(const mjModel* m, int f, int flg_bend, int flg_stretch,
+                                       int flg_contact);
+
 static mjtBool flexStiff_active(const mjModel* m, int f, int flg_bend, int flg_stretch) {
   if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] < 2) {
     return 0;
@@ -1653,6 +1711,88 @@ static mjtBool flexStiff_active(const mjModel* m, int f, int flg_bend, int flg_s
   int stretch = flg_stretch && m->flex_stiffnessadr[f] >= 0 &&
                 m->flex_stiffness[m->flex_stiffnessadr[f]] != 0;
   return bend || stretch;
+}
+
+// Passive contact stiffness: k = omega^2 * m_min, a natural frequency scaled by the smallest
+// nonzero participating mass (pinned vertices carry mass 0 and are skipped).
+#define mjFLEXCONTACT_OMEGA2 5e7
+
+mjtNum mjd_flexContactStiffness(const mjModel* m, const mjData* d, const mjContact* con) {
+  mjtNum mmin = 0;
+  for (int side = 0; side < 2; side++) {
+    int f = con->flex[side];
+    if (f < 0) {
+      continue;
+    }
+    int gv[8], ngv = 0;
+    if (con->vert[side] >= 0) {
+      gv[ngv++] = m->flex_vertadr[f] + con->vert[side];
+    } else if (con->elem[side] >= 0) {
+      int nvrt = m->flex_dim[f] + 1;
+      const int* e = m->flex_elem + m->flex_elemdataadr[f] + nvrt*con->elem[side];
+      for (int j = 0; j < nvrt && ngv < 8; j++) {
+        gv[ngv++] = m->flex_vertadr[f] + e[j];
+      }
+    }
+    for (int j = 0; j < ngv; j++) {
+      int b = m->flex_vertbodyid[gv[j]];
+      if (m->body_dofnum[b] != 3) {
+        continue;
+      }
+      int da = m->body_dofadr[b];
+      mjtNum mv = d->M[m->M_rowadr[da] + m->M_rownnz[da] - 1];   // diagonal: the point mass
+      if (mv > 0 && (mmin == 0 || mv < mmin)) {
+        mmin = mv;
+      }
+    }
+  }
+  return mjFLEXCONTACT_OMEGA2 * mmin;   // 0 if every participant is massless: no stiffness, no NaN
+}
+
+// The flex vertex slots a passive contact couples: the vertex itself for a vertex side, the
+// element's vertices for an element side. Duplicates dropped, and slots outside the metric skipped.
+static int contactFlexSlots(const mjModel* m, const mjContact* con, const int* vslot,
+                            int* out, int cap) {
+  int n = 0;
+  for (int side = 0; side < 2; side++) {
+    int f = con->flex[side];
+    if (f < 0) {
+      continue;
+    }
+    int gv[8], ngv = 0;
+    if (con->vert[side] >= 0) {
+      gv[ngv++] = m->flex_vertadr[f] + con->vert[side];
+    } else if (con->elem[side] >= 0) {
+      int nvrt = m->flex_dim[f] + 1;
+      const int* e = m->flex_elem + m->flex_elemdataadr[f] + nvrt*con->elem[side];
+      for (int j = 0; j < nvrt && ngv < 8; j++) {
+        gv[ngv++] = m->flex_vertadr[f] + e[j];
+      }
+    }
+    for (int j = 0; j < ngv; j++) {
+      int s = vslot[gv[j]];
+      if (s < 0) {
+        continue;
+      }
+      int dup = 0;
+      for (int q = 0; q < n; q++) {
+        if (out[q] == s) { dup = 1; break; }
+      }
+      if (!dup && n < cap) {
+        out[n++] = s;
+      }
+    }
+  }
+  return n;
+}
+
+static mjtBool flexMetric_participates(const mjModel* m, int f, int flg_bend, int flg_stretch,
+                                       int flg_contact) {
+  if (flexStiff_active(m, f, flg_bend, flg_stretch)) {
+    return 1;
+  }
+  return flg_contact && m->flex_passive[f] && !m->flex_rigid[f] && !m->flex_interp[f] &&
+         m->flex_dim[f] >= 2;
 }
 
 
@@ -1669,7 +1809,7 @@ static mjtBool flexStiff_active(const mjModel* m, int f, int flg_bend, int flg_s
 // so one CSR replaces all three matrix-free operators uniformly.
 int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr,
                            int* colind, mjtNum* val, mjtNum s1, mjtNum s2,
-                           int flg_bend, int flg_stretch, const mjtNum* Krot) {
+                           int flg_bend, int flg_stretch, int flg_contact, const mjtNum* Krot) {
   int nv = m->nv;
   mj_markStack(d);
 
@@ -1680,7 +1820,7 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
     vslot[i] = -1;
   }
   for (int f = 0; f < m->nflex; f++) {
-    if (!flexStiff_active(m, f, flg_bend, flg_stretch)) {
+    if (!flexMetric_participates(m, f, flg_bend, flg_stretch, flg_contact)) {
       continue;
     }
     for (int lv = 0; lv < m->flex_vertnum[f]; lv++) {
@@ -1777,6 +1917,20 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
     }
   }
 
+  // passive contacts (counting): each contact makes its vertices mutual neighbours in the CSR.
+  if (flg_contact) {
+    for (int i = 0; i < d->ncon; i++) {
+      const mjContact* con = d->contact + i;
+      if (con->exclude != 4) {
+        continue;
+      }
+      int cs[8], ncs = contactFlexSlots(m, con, vslot, cs, 8);
+      for (int a = 0; a < ncs; a++) {
+        ncand[cs[a]] += ncs;
+      }
+    }
+  }
+
   // gather candidate neighbor lists (vertex slots, with duplicates)
   int* cadr = mjSTACKALLOC(d, nvert + 1, int);
   cadr[0] = 0;
@@ -1839,6 +1993,22 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
           }
         }
       })
+    }
+  }
+
+  // passive contacts (filling)
+  if (flg_contact) {
+    for (int i = 0; i < d->ncon; i++) {
+      const mjContact* con = d->contact + i;
+      if (con->exclude != 4) {
+        continue;
+      }
+      int cs[8], ncs = contactFlexSlots(m, con, vslot, cs, 8);
+      for (int a = 0; a < ncs; a++) {
+        for (int b = 0; b < ncs; b++) {
+          cand[cadr[cs[a]] + ncand[cs[a]]++] = cs[b];
+        }
+      }
     }
   }
 
@@ -2103,6 +2273,69 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
       })
     }
   }
+  // passive contacts (values): assemble k*J^T*J blocks, where J is the contact-normal Jacobian.
+  // All participants are metric-carried flex vertices, so the block is assembled in full.
+  if (flg_contact && d->ncon) {
+    int* dof2slot = mjSTACKALLOC(d, nv, int);
+    mjtNum* jacdif = mjSTACKALLOC(d, 3*nv, mjtNum);
+    mjtNum* jac1 = mjSTACKALLOC(d, 3*nv, mjtNum);
+    mjtNum* jac2 = mjSTACKALLOC(d, 3*nv, mjtNum);
+    mjtNum* jacn = mjSTACKALLOC(d, 3*nv, mjtNum);
+    int* chain = mjSTACKALLOC(d, nv, int);
+    mjtNum* w = mjSTACKALLOC(d, 3*(nvert > 0 ? nvert : 1), mjtNum);
+    for (int i = 0; i < nv; i++) {
+      dof2slot[i] = -1;
+    }
+    for (int s = 0; s < nvert; s++) {
+      for (int k = 0; k < 3; k++) {
+        dof2slot[vdof[s] + k] = s;
+      }
+    }
+    for (int i = 0; i < d->ncon; i++) {
+      const mjContact* con = d->contact + i;
+      if (con->exclude != 4) {
+        continue;
+      }
+      int cs[8], ncs = contactFlexSlots(m, con, vslot, cs, 8);
+      if (ncs < 1) {
+        continue;
+      }
+      mjtNum k = mjd_flexContactStiffness(m, d, con);
+      if (k <= 0) {
+        continue;
+      }
+      int NV = mj_contactJacobian(m, d, con, con->dim, jacdif, NULL, jac1, jac2, NULL, NULL, chain);
+      if (NV == 0) {
+        continue;
+      }
+      // rotate into the contact frame and keep the normal row
+      mju_mulMatMat(jacn, con->frame, jacdif, con->dim > 1 ? 3 : 1, 3, NV);
+      for (int a = 0; a < ncs; a++) {
+        mju_zero(w + 3*cs[a], 3);
+      }
+      for (int a = 0; a < NV; a++) {
+        int s = dof2slot[chain[a]];
+        if (s >= 0) {
+          w[3*s + (chain[a] - vdof[s])] = jacn[a];
+        }
+      }
+      for (int a = 0; a < ncs; a++) {
+        for (int b = 0; b < ncs; b++) {
+          int pos;
+          FLEXSTIFF_BLOCK(cs[a], cs[b], pos);
+          if (pos < 0) {
+            continue;
+          }
+          for (int r = 0; r < 3; r++) {
+            for (int c = 0; c < 3; c++) {
+              val[rowadr[vdof[cs[a]] + r] + 3*pos + c] += s1 * k * w[3*cs[a] + r] * w[3*cs[b] + c];
+            }
+          }
+        }
+      }
+    }
+  }
+
   #undef FLEXSTIFF_BLOCK
   #undef FLEXINTERP_WALK
 
@@ -3166,6 +3399,7 @@ void mjd_effShift(const mjModel* m, mjData* d) {
   mjd_flexInterp_mul(m, d, d->efm_c, d->qvel, h, 0, d->flexelem_krot);
   mjd_flexBend_mul(m, d, d->efm_c, d->qvel, -h, 0);
   mjd_flexStretch_mul(m, d, d->efm_c, d->qvel, -h, 0);
+  mjd_flexContact_mul(m, d, d->efm_c, d->qvel, -h);
 }
 
 
@@ -3197,16 +3431,17 @@ void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
   const mjtNum* krot = mjd_flexInterpAssemblable(m) ? d->flexelem_krot : NULL;
   d->efm_K_rownnz = EFMALLOC(int, nv);
   d->efm_K_rowadr = EFMALLOC(int, nv);
-  if (mjd_flexStiff_any(m, krot != NULL)) {
+  if (mjd_flexStiff_any(m, krot != NULL) || flexPassiveContact_any(m)) {
     d->nefmK = mjd_flexStiff_assemble(m, d, d->efm_K_rownnz, d->efm_K_rowadr,
-                                      NULL, NULL, h*h, h, /*bend*/ 1, /*stretch*/ 1, krot);
+                                      NULL, NULL, h*h, h, /*bend*/ 1, /*stretch*/ 1,
+                                      /*contact*/ 1, krot);
   }
   if (d->nefmK) {
     d->efm_K_colind = EFMALLOC(int, d->nefmK);
     d->efm_K_val    = EFMALLOC(mjtNum, d->nefmK);
     mjd_flexStiff_assemble(m, d, d->efm_K_rownnz, d->efm_K_rowadr,
                            d->efm_K_colind, d->efm_K_val, h*h, h,
-                           /*bend*/ 1, /*stretch*/ 1, krot);
+                           /*bend*/ 1, /*stretch*/ 1, /*contact*/ 1, krot);
     // per-step factor of the flex block of (M + K): the stiffness is constant during the
     // step, so one factorization here turns every preconditioner application into a direct
     // solve (the stiff flex block stops being iterated on). Consumers that only multiply
@@ -3219,6 +3454,7 @@ void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
     mju_zeroInt(d->efm_K_rownnz, nv);
     mju_zeroInt(d->efm_K_rowadr, nv);
   }
+
   d->efm_active = 1;
 
   // fill the shift with the current velocity (refreshed again in the velocity stage)

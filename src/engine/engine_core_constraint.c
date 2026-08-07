@@ -2549,11 +2549,22 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
   for (int i=0; i < ncon; i++) {
     mjContact* con = d->contact + i;
 
-    // skip if passive
-    if ((con->flex[0] > -1 && m->flex_passive[con->flex[0]]) ||
-        (con->flex[1] > -1 && m->flex_passive[con->flex[1]])) {
-      con->efc_address = -1;
-      con->exclude = 4;
+    // Passive path: flex-flex (including self-collision) and flex-vs-static-geometry, where every
+    // dof is a metric-carried flex vertex so the Hessian is assembled in full. Flex-vs-moving-body
+    // stays on the constraint solver. Passive if either flex asks for it.
+    {
+      int f0 = con->flex[0], f1 = con->flex[1];
+      int wants = (f0 > -1 && m->flex_passive[f0]) || (f1 > -1 && m->flex_passive[f1]);
+      int ok = (f0 > -1 && f1 > -1);   // flex-flex, or a flex with itself
+      for (int s = 0; s < 2 && !ok; s++) {
+        if (con->flex[s] < 0 && con->geom[s] > -1) {
+          ok = (m->body_weldid[m->geom_bodyid[con->geom[s]]] == 0);   // welded to the world
+        }
+      }
+      if (wants && ok) {
+        con->efc_address = -1;
+        con->exclude = 4;
+      }
     }
 
     // skip if excluded

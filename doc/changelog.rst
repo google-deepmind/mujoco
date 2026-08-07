@@ -53,6 +53,14 @@ Engine
 .. admonition:: Breaking API changes
    :class: attention
 
+   - Contacts of a flex with :ref:`passive<flexcomp-contact-passive>` collisions are now integrated implicitly:
+     their stiffness is carried by the effective metric rather than applied as an explicit spring, and can be far
+     stiffer than the timestep would otherwise permit. Models using passive collisions should be re-checked: the
+     feature now requires :at:`implicit` or :at:`implicitfast` with the CG solver, pyramidal cones and sleep
+     disabled; passive handling covers flex-flex, self-, and static-geometry contact, while contact with a moving
+     body stays on the constraint solver; and the stiffness is now a mass-scaled natural frequency rather than a
+     fixed 1e4.
+
    - Removed ``mjData.efm_L_rownnz``, ``mjData.efm_L_rowadr`` and ``mjData.efm_L_colind``. They described the sparsity
      of the effective-metric Cholesky factor, which no longer exists; ``mjData.efm_L`` now holds dense 3x3 blocks,
      9 numbers per covered vertex. ``mjData.efm_active`` no longer takes the value 2: nothing selects a solve path on
@@ -69,6 +77,10 @@ Engine
 
 Models
 ^^^^^^
+
+- Added `drape <https://github.com/google-deepmind/mujoco/blob/main/model/flex/drape.xml>`__ example model: three
+  cloths draped over a sphere, demonstrating :ref:`passive<flex-contact-passive>` collisions. It replaces the
+  ``sphere_passive`` model, which has been removed.
 
 - Added `bag <https://github.com/google-deepmind/mujoco/blob/main/model/flex/bag.xml>`__ example model: a cloth bag,
   held open by pinning the ring of vertices around its mouth, catching the standard humanoid dropped in from above.

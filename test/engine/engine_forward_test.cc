@@ -3630,6 +3630,59 @@ TEST_F(ActuatorDampingTest, DampingVsKvGearScaling) {
 }
 
 // flex sheet dropping on a plane should not gain energy from implicit bending
+// Passive flex contact stiffness is far beyond the explicit limit (~50x) because its curvature is
+// carried by the metric. Both curvature and shift are needed; without the shift it rings apart.
+TEST_F(ImplicitIntegratorTest, PassiveFlexContactIsImplicit) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="implicitfast" solver="CG" iterations="400"/>
+    <worldbody>
+      <flexcomp name="lower" type="grid" dim="2" count="9 9 1" spacing=".04 .04 1"
+                radius=".004" mass=".3" pos="0 0 .2">
+        <contact selfcollide="auto" passive="true"/>
+        <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="both" damping="1e-4"/>
+        <pin id="0 8 72 80"/>
+      </flexcomp>
+      <flexcomp name="upper" type="grid" dim="2" count="5 5 1" spacing=".04 .04 1"
+                radius=".004" mass=".1" pos="0 0 .27">
+        <contact selfcollide="auto" passive="true"/>
+        <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="both" damping="1e-4"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  const mjModel* model = m.get();
+  mjData* data = d.get();
+
+  // Physical peak speed is ~2 m/s; without the shift this scene reaches 143 m/s.
+  mjtNum vmax = 0;
+  for (int i = 0; i < 1000; i++) {
+    mj_step(model, data);
+    for (int j = 0; j < model->nv; j++) {
+      vmax = mju_max(vmax, mju_abs(data->qvel[j]));
+    }
+    ASSERT_FALSE(data->warning[mjWARN_BADQACC].number) << "diverged at step " << i;
+  }
+  EXPECT_LT(vmax, 4.0) << "peak speed " << vmax;
+
+  // Upper sheet must not pass through the lower one: check that its lowest vertex stays above
+  // the lower sheet's lowest point.
+  mjtNum lo[2] = {1e30, 1e30};
+  for (int k = 0; k < 2; k++) {
+    int f = mj_name2id(model, mjOBJ_FLEX, k ? "upper" : "lower");
+    for (int i = 0; i < model->flex_vertnum[f]; i++) {
+      lo[k] = mju_min(lo[k], data->flexvert_xpos[3*(model->flex_vertadr[f] + i) + 2]);
+    }
+  }
+  EXPECT_GT(lo[1], lo[0] - 0.01) << "upper sheet passed through: lowest z " << lo[1]
+                                 << " against the lower sheet's " << lo[0];
+
+}
+
 TEST_F(ImplicitIntegratorTest, FlexContactEnergy) {
   static constexpr char xml[] = R"(
   <mujoco>
