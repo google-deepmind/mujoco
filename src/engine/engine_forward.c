@@ -29,6 +29,7 @@
 #include "engine/engine_core_util.h"
 #include "engine/engine_derivative.h"
 #include "engine/engine_inverse.h"
+#include "engine/engine_ipc.h"
 #include "engine/engine_island.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
@@ -171,6 +172,7 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
   // implicit effective metric Mtilde = M + K: build (or deactivate) for this step. Arena
   // lifetime and skip semantics mirror the constraint data: built once per position stage,
   // value-refreshed in the velocity stage, consumed downstream.
+  mjd_flexContactPairs(m, d);
   mjd_effBuild(m, d, mj_flexCG(m), /*flg_factor=*/1);
 
   TM_END1(mjTIMER_POSITION);
@@ -220,6 +222,7 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
   mj_tendonBias(m, d, d->qfrc_bias);
 
   mjd_effShift(m, d);
+
 
   TM_END(mjTIMER_VELOCITY);
 }
@@ -1148,16 +1151,17 @@ static void solveIslandTask(const mjModel* m, mjData* d, void* arg, int thread_i
 
 
 // compute efc_b, efc_force, qfrc_constraint; update qacc
-void mj_fwdConstraint(const mjModel* m, mjData* d) {
+static void fwdConstraint(const mjModel* m, mjData* d, mjtSolver solver, int flg_island) {
   TM_START;
   int nv = m->nv, nefc = d->nefc, nisland = d->nisland, nidof;
 
   // always clear qfrc_constraint
   mju_zero(d->qfrc_constraint, nv);
 
-  // no constraints: copy unconstrained acc, clear forces, return
-  // (with the effective metric active, qacc_smooth is already the implicit answer)
-  if (!nefc) {
+  // no constraints AND no registered contact pairs: copy unconstrained acc, clear forces,
+  // return (with the effective metric active, qacc_smooth is already the implicit answer).
+  // Flex-flex contact (engine_ipc) still needs the primal solve when nefc==0.
+  if (!nefc && !mj_extraPrimalRows(d)) {
     mju_copy(d->qacc, d->qacc_smooth, nv);
     mju_zeroInt(d->solver_niter, mjNISLAND);
     TM_END(mjTIMER_CONSTRAINT);
@@ -1167,11 +1171,6 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   // compute efc_b = J*qacc_smooth - aref
   mj_mulJacVec(m, d, d->efc_b, d->qacc_smooth);
   mju_subFrom(d->efc_b, d->efc_aref, nefc);
-
-  // check for invalid solver type
-  if (m->opt.solver != mjSOL_PGS && m->opt.solver != mjSOL_CG && m->opt.solver != mjSOL_NEWTON) {
-    mjERROR("unknown solver type %d", m->opt.solver);
-  }
 
   // warmstart solver
   warmstart(m, d);
@@ -1187,11 +1186,11 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   // island's dofs, gather/scatter its island-local vectors around the covered-compact
   // factor solves (the factors themselves need no change), and enable the metric path
   // (flg_flex) for the flex-containing island alone.
-  int islands_supported = !mjDISABLED(mjDSBL_ISLAND) && nisland > 0 && !mj_flexCG(m);
+  int islands_supported = flg_island && nisland > 0 && !mj_flexCG(m);
 
   // run solver over constraint islands
   if (islands_supported) {
-    switch ((mjtSolver) m->opt.solver) {
+    switch ((mjtSolver) solver) {
     case mjSOL_PGS:
       mju_dispatch(m, d, solveIslandTask, NULL, nisland);
       break;
@@ -1226,7 +1225,7 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 
   // run solver over all constraints (monolithic)
   else {
-    switch ((mjtSolver) m->opt.solver) {
+    switch ((mjtSolver) solver) {
     case mjSOL_PGS:                     // PGS
       mj_solPGS(m, d, m->opt.iterations);
       break;
@@ -1247,11 +1246,35 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   }
 
   // dual solvers: map efc_force to joint space (always monolithic)
-  if (m->opt.solver == mjSOL_PGS || m->opt.noslip_iterations > 0) {
+  if (solver == mjSOL_PGS || m->opt.noslip_iterations > 0) {
     mj_dualFinish(m, d);
   }
 
   TM_END(mjTIMER_CONSTRAINT);
+}
+
+// forward constraint solve, using the model's own solver and island policy
+void mj_fwdConstraint(const mjModel* m, mjData* d) {
+  // Validate the model's solver setting here rather than inside fwdConstraint: this checks user
+  // input, mj_fwdConstraintCG pins a valid solver by construction, and mjERROR is prefixed with
+  // __func__ so the message stays attributed to the function callers actually invoke. The nefc
+  // condition mirrors fwdConstraint's early-out, so the check still fires exactly when it did
+  // before -- a model with no constraints and no injected rows returns without validating.
+  if ((d->nefc || mj_extraPrimalRows(d)) && m->opt.solver != mjSOL_PGS &&
+      m->opt.solver != mjSOL_CG && m->opt.solver != mjSOL_NEWTON) {
+    mjERROR("unknown solver type %d", m->opt.solver);
+  }
+  fwdConstraint(m, d, (mjtSolver)m->opt.solver, !mjDISABLED(mjDSBL_ISLAND));
+}
+
+
+// forward constraint solve pinned to matrix-free CG over the monolithic (non-island) problem.
+// For the IPC integrator's inner AL subproblem: contact enters as a force and a stiffness on the
+// shared primal path, which CG consumes directly and without a factorization to go rank-deficient,
+// and the effective-metric operators have no island-local form.
+// Exists so engine_ipc does not have to mutate m->opt to express the choice.
+void mj_fwdConstraintCG(const mjModel* m, mjData* d) {
+  fwdConstraint(m, d, mjSOL_CG, 0);
 }
 
 
@@ -1261,8 +1284,8 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 //   act_dot: activation derivatives
 //   qacc:    acceleration used to update d->qvel (d->qvel += h*qacc)
 //   qvel:    optional velocity used for position integration; if NULL, use d->qvel
-static void mj_advance(const mjModel* m, mjData* d,
-                       const mjtNum* act_dot, const mjtNum* qacc, const mjtNum* qvel) {
+void mj_advance(const mjModel* m, mjData* d,
+                const mjtNum* act_dot, const mjtNum* qacc, const mjtNum* qvel) {
   int nactuator = m->nactuator, nsensor = m->nsensor;
 
   // advance history buffers
@@ -1641,8 +1664,11 @@ static mjtBool flex_has_implicit_stiffness(const mjModel* m) {
 // constraint islanding). solver="Newton" keeps its exact-factorization semantics untouched.
 // Models outside the gate integrate flex elasticity explicitly.
 int mj_flexCG(const mjModel* m) {
-  return m->opt.solver == mjSOL_CG &&
-         (m->opt.integrator == mjINT_IMPLICIT || m->opt.integrator == mjINT_IMPLICITFAST) &&
+  // mj_IPC pins its inner solve to CG over the monolithic problem regardless of the model's own
+  // solver (mj_fwdConstraintCG), so the metric's CG requirement holds there by construction.
+  return (m->opt.integrator == mjINT_IPC || m->opt.solver == mjSOL_CG) &&
+         (m->opt.integrator == mjINT_IMPLICIT || m->opt.integrator == mjINT_IMPLICITFAST ||
+          m->opt.integrator == mjINT_IPC) &&
          m->opt.cone != mjCONE_ELLIPTIC && !mjENABLED(mjENBL_SLEEP) &&
          (flex_has_implicit_stiffness(m) || flex_has_passive_contact(m));
 }
@@ -1782,6 +1808,19 @@ void mj_implicit(const mjModel* m, mjData* d) {
 
 //-------------------------- top-level API ---------------------------------------------------------
 
+// The flex IPC integrator builds and owns its own constraint set: mj_IPC re-runs mj_collision,
+// mj_makeConstraint and mj_referenceConstraint itself, so anything the forward pipeline solves here
+// is discarded immediately -- on a sizeable flex model that wasted solve dominates the step.
+// Pure-rigid IPC drives its penalty from the NATIVE contact set, so it needs the normal forward.
+static int ipcSkipConstraint(const mjModel* m) {
+  if ((mjtIntegrator)m->opt.integrator != mjINT_IPC) return 0;
+  for (int i = 0; i < m->nflex; i++) {
+    if (m->flex_dim[i] == 2) return 1;
+  }
+  return 0;
+}
+
+
 // forward dynamics with skip; skipstage is mjtStage
 void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
   TM_START;
@@ -1829,7 +1868,13 @@ void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) 
 
   mj_fwdActuation(m, d);
   mj_fwdAcceleration(m, d);
-  mj_fwdConstraint(m, d);
+  if (ipcSkipConstraint(m)) {
+    // mj_IPC owns the constraint solve; leave qacc at the free-flight acceleration
+    mju_copy(d->qacc, d->qacc_smooth, m->nv);
+    mju_zeroInt(d->solver_niter, mjNISLAND);
+  } else {
+    mj_fwdConstraint(m, d);
+  }
   if (!skipsensor) {
     d->flg_rnepost = 0;  // clear flag for lazy evaluation
     mj_sensorAcc(m, d);
@@ -1852,6 +1897,11 @@ void mj_step(const mjModel* m, mjData* d) {
   // common to all integrators
   mj_checkPos(m, d);
   mj_checkVel(m, d);
+  // The FLEX IPC predictor runs without the constraint stage (see ipcSkipConstraint): qacc_smooth
+  // is the free-flight acceleration (passive spring/damper forces kept), the shared linearization
+  // center of the inner QP and the merit. Edge-equality rows and native contacts are rebuilt inside
+  // mj_IPC, which owns them; flex-flex contact is registered there as a stiffness. The RIGID
+  // IPC path drives its penalty from the NATIVE contact set, so it runs the normal forward.
   mj_forward(m, d);
   mj_checkAcc(m, d);
 
@@ -1873,6 +1923,10 @@ void mj_step(const mjModel* m, mjData* d) {
   case mjINT_IMPLICIT:
   case mjINT_IMPLICITFAST:
     mj_implicit(m, d);
+    break;
+
+  case mjINT_IPC:
+    mj_IPC(m, d);
     break;
 
   default:

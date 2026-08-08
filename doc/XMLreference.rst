@@ -389,11 +389,12 @@ adjust it properly through the XML.
 
 .. _option-integrator:
 
-:at:`integrator`: :at-val:`[Euler, RK4, implicit, implicitfast], "Euler"`
+:at:`integrator`: :at-val:`[Euler, RK4, implicit, implicitfast, ipc], "Euler"`
    This attribute selects the numerical :ref:`integrator <geIntegration>` to be used. Currently the available
    integrators are the semi-implicit Euler method, the fixed-step 4-th order Runge Kutta method, the
-   Implicit-in-velocity Euler method, and :at:`implicitfast`, which drops the Coriolis and centrifugal terms. See
-   :ref:`Numerical Integration<geIntegration>` for more details.
+   Implicit-in-velocity Euler method, :at:`implicitfast`, which drops the Coriolis and centrifugal terms, and
+   :at:`ipc`, a prototype variational integrator giving penetration-free contact for dim-2 flexes with edge-equality
+   elasticity. See :ref:`Numerical Integration<geIntegration>` for more details.
 
 .. _option-cone:
 

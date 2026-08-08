@@ -35,6 +35,8 @@
 #include "engine/engine_util_sparse.h"
 
 
+
+
 //---------------------------------- utility functions ---------------------------------------------
 
 // save solver statistics
@@ -1074,7 +1076,8 @@ typedef struct {
   // objective/gradient/linesearch formulas below operate in the Mtilde metric unchanged
   int flg_flex;           // effective metric active for this solve
   const mjModel* fm;      // model, for the metric calls
-  mjData* fd;             // data, for the metric calls
+  mjData* fd;             // data, for the metric calls and the contact stiffness
+  mjtNum* epL;            // metric blocks with the injected contact curvature folded in, or NULL
 
   // globals
   mjtNum cost;            // constraint + Gauss cost
@@ -1222,6 +1225,11 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
   } else {
     nNum += 4*nv;                      // CG arrays
   }
+  // metric blocks re-folded with contact curvature: the CG preconditioner
+  // (see FoldContactIntoMetricBlocks)
+  if (d->efm_active && ctx->island < 0 && !is_elliptic && mj_extraPrimalRows(d)) {
+    nNum += 9*d->nefmdof;
+  }
 
   // add island matrix sizes
   if (ctx->island >= 0) {
@@ -1317,6 +1325,9 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
     ctx->graddif  = numblock;  numblock += nv;
     ctx->Mgraddif = numblock;  numblock += nv;
   }
+  if (d->efm_active && ctx->island < 0 && !is_elliptic && mj_extraPrimalRows(d)) {
+    ctx->epL = numblock;  numblock += 9*d->nefmdof;
+  }
 
   // carve int block
   ctx->oldstate = intblock;  intblock += nefc;
@@ -1355,10 +1366,10 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
   // implicit effective metric (built in mj_fwdPosition): route Ma/Mv/Mgrad through the
   // metric operators and shift the smooth force, so the stock objective/gradient/linesearch
   // formulas operate in the Mtilde = M+K metric
+  ctx->fm = m;
+  ctx->fd = d;
   if (ctx->island < 0 && !is_elliptic && !flg_Newton && d->efm_active) {
     ctx->flg_flex = 1;
-    ctx->fm = m;
-    ctx->fd = d;
     mjtNum* qfrc_eff = mjSTACKALLOC(d, nv, mjtNum);
     mju_add(qfrc_eff, ctx->qfrc_smooth, d->efm_c, nv);
     ctx->qfrc_smooth = qfrc_eff;
@@ -1400,6 +1411,7 @@ static void PrimalUpdateConstraint(mjPrimalContext* ctx, int flg_HessianCone) {
 
   ctx->quadGauss[0] = Gauss;
   ctx->cost += Gauss;
+
 }
 
 
@@ -1413,6 +1425,17 @@ static void PrimalUpdateGrad(mjPrimalContext* ctx) {
 
 
 // update Mgrad;  Newton: Mgrad = H \ grad,  CG: Mgrad = M \ grad
+
+// the metric preconditioner, against the contact-folded blocks where they were built
+static void PrimalMetricPrecond(mjPrimalContext* ctx, mjtNum* x, const mjtNum* b) {
+  if (ctx->epL) {
+    mjd_effPrecBlocks(ctx->fm, ctx->fd, x, b, ctx->epL);
+  } else {
+    mjd_effPrec(ctx->fm, ctx->fd, x, b);
+  }
+}
+
+
 static void PrimalUpdateMgrad(mjPrimalContext* ctx, int flg_Newton) {
   int nv = ctx->nv;
 
@@ -1426,9 +1449,9 @@ static void PrimalUpdateMgrad(mjPrimalContext* ctx, int flg_Newton) {
     }
   }
 
-  // CG: Mgrad = Mtilde \ grad
+  // CG: Mgrad = Mtilde \ grad, against the contact-folded blocks where they were built
   else if (ctx->flg_flex) {
-    mjd_effPrec(ctx->fm, ctx->fd, ctx->Mgrad, ctx->grad);
+    PrimalMetricPrecond(ctx, ctx->Mgrad, ctx->grad);
   }
 
   // CG: Mgrad = M \ grad
@@ -1803,6 +1826,7 @@ static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
     }
   }
 
+
   // add total quadratic (quadTotal[0] contains only shifted residuals)
   cost += alpha*alpha*quadTotal[2] + alpha*quadTotal[1] + quadTotal[0];
   deriv[0] += 2*alpha*quadTotal[2] + quadTotal[1];
@@ -1878,8 +1902,8 @@ static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_ite
   // compute Mv = Mtilde * v
   mju_mulSymVecSparse(ctx->Mv, ctx->M, ctx->search, nv,
                       ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
-  if (ctx->flg_flex) {
-    mjd_effMulAdd(ctx->fm, ctx->fd, ctx->Mv, ctx->search);
+  if (ctx->flg_flex || ctx->island < 0) {
+    mjd_effMulAdd(ctx->fm, ctx->fd, ctx->Mv, ctx->search, /*flg_contact=*/ctx->island < 0);
   }
 
   // compute Jv = J * search  (dense or sparse)
@@ -2342,6 +2366,12 @@ static void HessianIncremental(mjData* d, mjPrimalContext* ctx, const int* oldst
 
 // driver
 static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, int flg_Newton) {
+  // [IPC] the registered contact stiffness rides with the metric operator, which only the CG path
+  // applies; the Newton Hessian does not include it, so force CG whenever contact is registered
+  // (engine_ipc requires mjSOL_CG anyway -- this guards direct callers).
+  if (mj_extraPrimalRows(d) && island < 0) {
+    flg_Newton = 0;
+  }
   int iter = 0;
   mjtNum alpha, beta;
   mjPrimalContext ctx;
@@ -2359,8 +2389,8 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
   // compute Ma = Mtilde * qacc
   mju_mulSymVecSparse(ctx.Ma, ctx.M, ctx.qacc, nv,
                       ctx.M_rownnz, ctx.M_rowadr, ctx.M_colind);
-  if (ctx.flg_flex) {
-    mjd_effMulAdd(m, d, ctx.Ma, ctx.qacc);
+  if (ctx.flg_flex || island < 0) {
+    mjd_effMulAdd(m, d, ctx.Ma, ctx.qacc, /*flg_contact=*/island < 0);
   }
 
 
@@ -2390,6 +2420,18 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
     scale = 1 / island_inertia;
   }
   ctx.scale = scale;
+
+  // fold the injected contact curvature into the metric preconditioner blocks
+  // contact curvature into the preconditioner blocks; the metric owns the fold, the solver owns
+  // the gate and the efc view it needs
+  if (ctx.epL && ctx.flg_flex && island < 0) {
+    if (!mjd_effPrecContact(m, d, ctx.epL, ctx.nefc, ctx.efc_state, ctx.efc_D, ctx.is_sparse,
+                            ctx.J, ctx.J_rownnz, ctx.J_rowadr, ctx.J_colind)) {
+      ctx.epL = NULL;
+    }
+  } else {
+    ctx.epL = NULL;
+  }
 
   // Mgrad = M \ grad: the CG preconditioned gradient, also the convergence certificate
   PrimalUpdateMgrad(&ctx, /*flg_Newton=*/0);
