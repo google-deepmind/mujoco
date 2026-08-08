@@ -178,6 +178,9 @@ TEST_F(MjcPhysicsSceneTest, TestDefaults) {
   EXPECT_ENABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(OverrideFlag,
                                                    mjENBL_OVERRIDE);
   EXPECT_ENABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(EnergyFlag, mjENBL_ENERGY);
+  EXPECT_ENABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(SleepFlag, mjENBL_SLEEP);
+  EXPECT_REAL_USD_FALLBACK_EQ_MODEL_DEFAULT(OptionSleep_tolerance,
+                                            sleep_tolerance);
   EXPECT_ENABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(FwdinvFlag, mjENBL_FWDINV);
   EXPECT_ENABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(InvDiscreteFlag,
                                                    mjENBL_INVDISCRETE);

@@ -32,6 +32,11 @@ Key attributes include:
 -   **mjc:flag**: Attributes in this namespace map to the ``<option/flag>`` element.
 -   **mjc:compiler**: Attributes in this namespace map to the ``<compiler>`` element.
 
+MjcBodyAPI
+^^^^^^^^^^
+
+This API class is applied to rigid body prims alongside `UsdPhysicsRigidBodyAPI <https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html>`__, adding extra attributes such as ``mjc:sleep`` (sleep policy) and ``mjc:gravcomp`` (gravity compensation).
+
 MjcSiteAPI
 ^^^^^^^^^^
 
