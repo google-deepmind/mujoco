@@ -1149,6 +1149,7 @@ std::vector<MjContact> MjData::contact() const {
 
 MjvScene::MjvScene() {
   owned_ = true;
+  model = nullptr;
   ptr_ = new mjvScene;
   mjv_defaultScene(ptr_);
   mjv_makeScene(nullptr, ptr_, 0);
@@ -1178,6 +1179,9 @@ void MjvScene::set(mjvScene* ptr) { ptr_ = ptr; }
 
 // Taken from the python mujoco bindings code for MjvScene Wrapper
 int MjvScene::GetSumFlexFaces() const {
+  if (!model) {
+    return 0;
+  }
   int nflexface = 0;
   int flexfacenum = 0;
   for (int f = 0; f < model->nflex; f++) {

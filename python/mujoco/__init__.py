@@ -18,12 +18,18 @@ import ctypes
 import ctypes.util
 import os
 import platform
+import re
 import subprocess
 from typing import Any, IO, Union, Sequence
 from typing_extensions import TypeAlias
 import warnings
 import zipfile
 
+# Matches <include file="..."/> so from_zip can keep included XMLs.
+_INCLUDE_FILE_RE = re.compile(
+    br"""<\s*include\b[^>]*\bfile\s*=\s*["']([^"']+)["']""",
+    re.IGNORECASE,
+)
 # Extend the path to enable multiple directories to contribute to the same
 # package. Without this line, the `mujoco-mjx` package would not be able to
 # be discovered by import. For more information, see: https://packaging.python.org/guides/packaging-namespace-packages/#pkgutil-style-namespace-packages
@@ -133,32 +139,65 @@ def from_zip(file: Union[str, IO[bytes]]) -> _specs.MjSpec:
     An MjSpec object.
   """
   assets = {}
-  xml_string = None
+  xml_files = {}
   if isinstance(file, str):
     file = open(file, 'rb')
   if not zipfile.is_zipfile(file):
     raise ValueError(f'File {file} is not a zip file.')
   with zipfile.ZipFile(file, 'r') as zip_file:
-    xml_dir = None
     for zip_info in zip_file.infolist():
-      if not zip_info.filename.endswith(os.path.sep):
-        with zip_file.open(zip_info.filename) as f:
-          if zip_info.filename.endswith('.xml'):
-            xml_string = f.read()
-            xml_dir = os.path.dirname(zip_info.filename)
-          else:
-            assets[zip_info.filename] = f.read()
+      if zip_info.filename.endswith(os.path.sep):
+        continue
+      with zip_file.open(zip_info.filename) as f:
+        contents = f.read()
+      if zip_info.filename.endswith('.xml'):
+        xml_files[zip_info.filename] = contents
+      else:
+        assets[zip_info.filename] = contents
 
-  if not xml_string:
+  if not xml_files:
     raise ValueError('No XML file found in zip file.')
+
+  # Prefer an XML that is not itself referenced by another archive member via
+  # <include file="..."/>. Remaining XML members are passed as includes.
+  referenced = set()
+  for path, contents in xml_files.items():
+    base_dir = os.path.dirname(path)
+    for match in _INCLUDE_FILE_RE.finditer(contents):
+      ref = match.group(1).decode('utf-8')
+      joined = (
+          os.path.normpath(os.path.join(base_dir, ref))
+          if base_dir
+          else os.path.normpath(ref)
+      )
+      referenced.add(joined)
+      referenced.add(ref)
+      referenced.add(os.path.basename(ref))
+
+  candidates = [
+      path
+      for path in xml_files
+      if path not in referenced and os.path.basename(path) not in referenced
+  ]
+  if not candidates:
+    candidates = list(xml_files.keys())
+  root_path = sorted(candidates, key=lambda path: (path.count('/'), path))[0]
+  xml_string = xml_files.pop(root_path)
+  xml_dir = os.path.dirname(root_path)
+
+  include = {}
+  for path, contents in xml_files.items():
+    include[os.path.relpath(path, xml_dir) if xml_dir else path] = contents
 
   relative_assets = {}
   for key, value in assets.items():
-    new_key = os.path.relpath(key, xml_dir)
-    relative_assets[new_key] = value
-  assets = relative_assets
+    relative_assets[os.path.relpath(key, xml_dir) if xml_dir else key] = value
 
-  return _specs.MjSpec.from_string(xml_string, assets=assets)
+  return _specs.MjSpec.from_string(
+      xml_string,
+      include=include or None,
+      assets=relative_assets or None,
+  )
 
 
 class _MjBindModel:

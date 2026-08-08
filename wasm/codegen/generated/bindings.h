@@ -7471,10 +7471,18 @@ struct MjvScene {
         emscripten::typed_memory_view(ptr_->nflex, ptr_->flexfaceused));
   }
   emscripten::val flexedge() const {
+    if (!model) {
+      return emscripten::val(
+          emscripten::typed_memory_view(0, static_cast<int*>(nullptr)));
+    }
     return emscripten::val(
         emscripten::typed_memory_view(2 * model->nflexedge, ptr_->flexedge));
   }
   emscripten::val flexvert() const {
+    if (!model) {
+      return emscripten::val(
+          emscripten::typed_memory_view(0, static_cast<float*>(nullptr)));
+    }
     return emscripten::val(
         emscripten::typed_memory_view(3 * model->nflexvert, ptr_->flexvert));
   }
@@ -7491,22 +7499,42 @@ struct MjvScene {
         emscripten::typed_memory_view(ptr_->nskin, ptr_->skinvertnum));
   }
   emscripten::val skinvert() const {
+    if (!model) {
+      return emscripten::val(
+          emscripten::typed_memory_view(0, static_cast<float*>(nullptr)));
+    }
     return emscripten::val(
         emscripten::typed_memory_view(3 * model->nskinvert, ptr_->skinvert));
   }
   emscripten::val skinnormal() const {
+    if (!model) {
+      return emscripten::val(
+          emscripten::typed_memory_view(0, static_cast<float*>(nullptr)));
+    }
     return emscripten::val(
         emscripten::typed_memory_view(3 * model->nskinvert, ptr_->skinnormal));
   }
   emscripten::val flexface() const {
+    if (!model) {
+      return emscripten::val(
+          emscripten::typed_memory_view(0, static_cast<float*>(nullptr)));
+    }
     return emscripten::val(emscripten::typed_memory_view(
         9 * MjvScene::GetSumFlexFaces(), ptr_->flexface));
   }
   emscripten::val flexnormal() const {
+    if (!model) {
+      return emscripten::val(
+          emscripten::typed_memory_view(0, static_cast<float*>(nullptr)));
+    }
     return emscripten::val(emscripten::typed_memory_view(
         9 * MjvScene::GetSumFlexFaces(), ptr_->flexnormal));
   }
   emscripten::val flextexcoord() const {
+    if (!model) {
+      return emscripten::val(
+          emscripten::typed_memory_view(0, static_cast<float*>(nullptr)));
+    }
     return emscripten::val(emscripten::typed_memory_view(
         6 * MjvScene::GetSumFlexFaces(), ptr_->flextexcoord));
   }
@@ -7633,14 +7661,22 @@ struct MjvScene {
   bool owned_ = false;
 
  public:
-  mjModel* model;
+  mjModel* model = nullptr;
   std::vector<MjvLight> lights;
   std::vector<MjvGLCamera> camera;
 };
 
 struct MjVFS {
   MjVFS() : ptr_(new mjVFS) { mj_defaultVFS(ptr_); }
-  ~MjVFS() { mj_deleteVFS(ptr_); }
+  ~MjVFS() {
+    if (ptr_) {
+      mj_deleteVFS(ptr_);
+      delete ptr_;
+      ptr_ = nullptr;
+    }
+  }
+  MjVFS(const MjVFS&) = delete;
+  MjVFS& operator=(const MjVFS&) = delete;
   void AddBuffer(const std::string& name, const emscripten::val& buffer) {
     std::vector<uint8_t> vec = emscripten::vecFromJSArray<uint8_t>(buffer);
     int result = mj_addBufferVFS(ptr_, name.c_str(), vec.data(), vec.size());
