@@ -89,8 +89,12 @@ def fwd_velocity(m: Model, d: Data) -> Data:
   if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
     raise ValueError('fwd_velocity requires JAX backend implementation.')
 
+  actuator_velocity = d._impl.actuator_moment @ d.qvel
+  if m.opt.disableflags & DisableBit.ACTUATION:
+    # Match native mj_fwdVelocity: zero actuator velocity when actuation is off.
+    actuator_velocity = jp.zeros((m.nu,))
   d = d.tree_replace({  # pyrefly: ignore[bad-assignment]
-      '_impl.actuator_velocity': d._impl.actuator_moment @ d.qvel,
+      '_impl.actuator_velocity': actuator_velocity,
       '_impl.ten_velocity': d._impl.ten_J @ d.qvel,
   })
   d = smooth.com_vel(m, d)
@@ -106,9 +110,11 @@ def fwd_actuation(m: Model, d: Data) -> Data:
   if not isinstance(d._impl, DataJAX):
     raise ValueError('fwd_actuation requires JAX backend implementation.')
   if not m.nu or m.opt.disableflags & DisableBit.ACTUATION:
+    # Match native mj_fwdActuation: clear actuator_force as well as qfrc.
     return d.replace(
         act_dot=jp.zeros((m.na,)),
         qfrc_actuator=jp.zeros((m.nv,)),
+        actuator_force=jp.zeros((m.nu,)),
     )
 
   ctrl = d.ctrl
@@ -446,7 +452,11 @@ def forward(m: Model, d: Data) -> Data:
   d = fwd_acceleration(m, d)
 
   if d._impl.efc_J.size == 0:
+    # No constraints: qacc equals unconstrained acceleration, but
+    # acceleration-stage sensors (actuatorfrc, touch, frameacc, ...) must still
+    # run — matching native mj_forward.
     d = d.replace(qacc=d.qacc_smooth)
+    d = sensor.sensor_acc(m, d)
     return d
 
   d = named_scope(solver.solve)(m, d)

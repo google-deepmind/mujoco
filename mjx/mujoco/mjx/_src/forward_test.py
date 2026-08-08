@@ -177,6 +177,66 @@ class ForwardTest(absltest.TestCase):
 
     np.testing.assert_allclose(dx.qvel, 1 + m.opt.timestep)
 
+  def test_constraint_free_actuatorfrc_sensor(self):
+    """Acceleration-stage sensors must run even when efc_J is empty."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <worldbody>
+          <body>
+            <joint name="j"/>
+            <geom size=".1" contype="0" conaffinity="0"/>
+          </body>
+        </worldbody>
+        <actuator><motor name="m" joint="j"/></actuator>
+        <sensor><actuatorfrc actuator="m"/></sensor>
+      </mujoco>
+    """)
+    d = mujoco.MjData(m)
+    d.ctrl[0] = 2.0
+    mujoco.mj_forward(m, d)
+
+    mx = mjx.put_model(m)
+    dx = mjx.make_data(mx).replace(ctrl=jp.array([2.0]))
+    dx = jax.jit(mjx.forward)(mx, dx)
+
+    self.assertEqual(dx._impl.efc_J.size, 0)
+    _assert_eq(d.sensordata, dx.sensordata, 'sensordata')
+
+  def test_disable_actuation_zeros_actuator_velocity(self):
+    """mjDSBL_ACTUATION must zero actuator_velocity and actuator_force."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <option><flag actuation="disable"/></option>
+        <worldbody>
+          <body>
+            <joint name="j"/>
+            <geom size=".1"/>
+          </body>
+        </worldbody>
+        <actuator><motor name="m" joint="j"/></actuator>
+        <sensor>
+          <actuatorvel actuator="m"/>
+          <actuatorfrc actuator="m"/>
+        </sensor>
+      </mujoco>
+    """)
+    d = mujoco.MjData(m)
+    d.qvel[0] = 1.0
+    d.ctrl[0] = 3.0
+    mujoco.mj_forward(m, d)
+
+    mx = mjx.put_model(m)
+    dx = mjx.make_data(mx).replace(
+        qvel=jp.array([1.0]), ctrl=jp.array([3.0])
+    )
+    dx = jax.jit(mjx.forward)(mx, dx)
+
+    _assert_eq(
+        d.actuator_velocity, dx._impl.actuator_velocity, 'actuator_velocity'
+    )
+    _assert_eq(d.actuator_force, dx.actuator_force, 'actuator_force')
+    _assert_eq(d.sensordata, dx.sensordata, 'sensordata')
+
   def test_where(self):
     m = mujoco.MjModel.from_xml_string("""
         <mujoco>

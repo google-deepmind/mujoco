@@ -19,6 +19,7 @@ import jax
 import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import test_util
+from jax import numpy as jp
 import numpy as np
 
 # tolerance for difference between MuJoCo and MJX passive calculations - mostly
@@ -81,6 +82,28 @@ class PassiveTest(absltest.TestCase):
     )
     dx = jax.jit(mjx.passive)(mx, mjx.put_data(m, d))
     np.testing.assert_allclose(dx.qfrc_passive, 0)
+
+  def test_disable_spring_keeps_damper(self):
+    """Disabling only springs must leave damping forces intact."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <option><flag spring="disable"/></option>
+        <worldbody>
+          <body>
+            <joint name="j" damping="2"/>
+            <geom size=".1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+    d = mujoco.MjData(m)
+    d.qvel[0] = 1.0
+    mujoco.mj_forward(m, d)
+
+    mx = mjx.put_model(m)
+    dx = jax.jit(mjx.forward)(mx, mjx.make_data(mx).replace(qvel=jp.array([1.0])))
+
+    _assert_eq(d.qfrc_passive, dx.qfrc_passive, 'qfrc_passive')
 
 
 if __name__ == '__main__':
