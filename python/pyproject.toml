@@ -54,6 +54,8 @@ mujoco = [
     "libmujoco.*.dylib",
     "libmujoco*.so.*",
     "mujoco.dll",
+    "assets/*.filamat",
+    "assets/*.ktx",
     "include/mujoco/*.h",
     "testdata/*.xml",
     "testdata/*.msh",
