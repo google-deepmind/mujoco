@@ -24,6 +24,7 @@
 #include "engine/engine_core_util.h"
 #include "engine/engine_derivative.h"
 #include "engine/engine_crossplatform.h"
+#include "engine/engine_environment.h"
 #include "engine/engine_inline.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"
@@ -867,10 +868,28 @@ static int mj_gravcomp(const mjModel* m, mjData* d) {
 }
 
 
+// true if the model has fluid anywhere: in the single medium or in any layer.
+// the whole-model early-outs must ask this and not mjOption alone, because a
+// layered model draws density and viscosity from layer_density/layer_viscosity
+// and commonly leaves the mjOption values at 0.  nlayer == 0 skips the loop, so
+// this is bit-identical to the old mjOption-only test for every legacy model.
+int mj_hasFluid(const mjModel* m) {
+  if (m->opt.viscosity || m->opt.density) {
+    return 1;
+  }
+  for (mjtSize i=0; i < m->nlayer; i++) {
+    if (m->layer_viscosity[i] || m->layer_density[i]) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+
 // fluid forces
 static int mj_fluid(const mjModel* m, mjData* d) {
   // no fluid forces: early return
-  if (!m->opt.viscosity && !m->opt.density) {
+  if (!mj_hasFluid(m)) {
     return 0;
   }
 
@@ -1164,9 +1183,14 @@ void mj_inertiaBoxFluidModel(const mjModel* m, mjData* d, int i) {
   // map from CoM-centered to local body-centered 6D velocity
   mj_objectVelocity(m, d, mjOBJ_BODY, i, lvel, 1);
 
+  // sample the environment at the point the force is applied to; mjd_inertiaBoxFluid
+  // must use this same point or the derivative stops matching the force
+  mjEnv env;
+  mj_envSample(m, d->xipos+3*i, &env);
+
   // compute wind in local coordinates
   mju_zero(wind, 6);
-  mji_copy3(wind+3, m->opt.wind);
+  mji_copy3(wind+3, env.wind);
   mju_transformSpatial(lwind, wind, 0, d->xipos+3*i,
                        d->subtree_com+3*m->body_rootid[i], d->ximat+9*i);
 
@@ -1175,30 +1199,30 @@ void mj_inertiaBoxFluidModel(const mjModel* m, mjData* d, int i) {
   mju_zero(lfrc, 6);
 
   // set viscous force and torque
-  if (m->opt.viscosity > 0) {
+  if (env.viscosity > 0) {
     // diameter of sphere approximation
     diam = (box[0] + box[1] + box[2])/3.0;
 
     // angular viscosity
-    mji_scl3(lfrc, lvel, -mjPI*diam*diam*diam*m->opt.viscosity);
+    mji_scl3(lfrc, lvel, -mjPI*diam*diam*diam*env.viscosity);
 
     // linear viscosity
-    mji_scl3(lfrc+3, lvel+3, -3.0*mjPI*diam*m->opt.viscosity);
+    mji_scl3(lfrc+3, lvel+3, -3.0*mjPI*diam*env.viscosity);
   }
 
   // add lift and drag force and torque
-  if (m->opt.density > 0) {
+  if (env.density > 0) {
     // force
-    lfrc[3] -= 0.5*m->opt.density*box[1]*box[2]*mju_abs(lvel[3])*lvel[3];
-    lfrc[4] -= 0.5*m->opt.density*box[0]*box[2]*mju_abs(lvel[4])*lvel[4];
-    lfrc[5] -= 0.5*m->opt.density*box[0]*box[1]*mju_abs(lvel[5])*lvel[5];
+    lfrc[3] -= 0.5*env.density*box[1]*box[2]*mju_abs(lvel[3])*lvel[3];
+    lfrc[4] -= 0.5*env.density*box[0]*box[2]*mju_abs(lvel[4])*lvel[4];
+    lfrc[5] -= 0.5*env.density*box[0]*box[1]*mju_abs(lvel[5])*lvel[5];
 
     // torque
-    lfrc[0] -= m->opt.density*box[0]*(box[1]*box[1]*box[1]*box[1]+box[2]*box[2]*box[2]*box[2])*
+    lfrc[0] -= env.density*box[0]*(box[1]*box[1]*box[1]*box[1]+box[2]*box[2]*box[2]*box[2])*
                mju_abs(lvel[0])*lvel[0]/64.0;
-    lfrc[1] -= m->opt.density*box[1]*(box[0]*box[0]*box[0]*box[0]+box[2]*box[2]*box[2]*box[2])*
+    lfrc[1] -= env.density*box[1]*(box[0]*box[0]*box[0]*box[0]+box[2]*box[2]*box[2]*box[2])*
                mju_abs(lvel[1])*lvel[1]/64.0;
-    lfrc[2] -= m->opt.density*box[2]*(box[0]*box[0]*box[0]*box[0]+box[1]*box[1]*box[1]*box[1])*
+    lfrc[2] -= env.density*box[2]*(box[0]*box[0]*box[0]*box[0]+box[1]*box[1]*box[1]*box[1])*
                mju_abs(lvel[2])*lvel[2]/64.0;
   }
   // rotate to global orientation: lfrc -> bfrc
@@ -1236,9 +1260,14 @@ void mj_ellipsoidFluidModel(const mjModel* m, mjData* d, int bodyid) {
     // map from CoM-centered to local body-centered 6D velocity
     mj_objectVelocity(m, d, mjOBJ_GEOM, geomid, lvel, 1);
 
+    // sample the environment at the point the force is applied to; mjd_ellipsoidFluid
+    // must use this same point or the derivative stops matching the force
+    mjEnv env;
+    mj_envSample(m, d->geom_xpos+3*geomid, &env);
+
     // compute wind in local coordinates
     mju_zero(wind, 6);
-    mji_copy3(wind+3, m->opt.wind);
+    mji_copy3(wind+3, env.wind);
     mju_transformSpatial(lwind, wind, 0,
                          d->geom_xpos + 3*geomid,  // Frame of ref's origin.
                          d->subtree_com + 3*m->body_rootid[bodyid],
@@ -1251,10 +1280,10 @@ void mj_ellipsoidFluidModel(const mjModel* m, mjData* d, int bodyid) {
     mju_zero(lfrc, 6);
 
     // added-mass forces and torques
-    mj_addedMassForces(lvel, NULL, m->opt.density, virtual_mass, virtual_inertia, lfrc);
+    mj_addedMassForces(lvel, NULL, env.density, virtual_mass, virtual_inertia, lfrc);
 
     // lift force orthogonal to lvel from Kutta-Joukowski theorem
-    mj_viscousForces(lvel, m->opt.density, m->opt.viscosity, semiaxes, magnus_lift_coef,
+    mj_viscousForces(lvel, env.density, env.viscosity, semiaxes, magnus_lift_coef,
                      kutta_lift_coef, blunt_drag_coef, slender_drag_coef, ang_drag_coef, lfrc);
 
     // scale by geom_interaction_coef (1.0 by default)

@@ -240,7 +240,8 @@ void mj_makeModel(mjModel** dest,
     mjtSize nmat, mjtSize npair, mjtSize nexclude, mjtSize neq, mjtSize ntendon, mjtSize nJten,
     mjtSize nwrap, mjtSize nsensor, mjtSize nnumeric, mjtSize nnumericdata, mjtSize ntext,
     mjtSize ntextdata, mjtSize ntuple, mjtSize ntupledata, mjtSize nkey, mjtSize nmocap,
-    mjtSize nplugin, mjtSize npluginattr, mjtSize nuser_body, mjtSize nuser_jnt, mjtSize nuser_geom,
+    mjtSize nplugin, mjtSize npluginattr, mjtSize nlayer,
+    mjtSize nuser_body, mjtSize nuser_jnt, mjtSize nuser_geom,
     mjtSize nuser_site, mjtSize nuser_cam, mjtSize nuser_tendon, mjtSize nuser_actuator,
     mjtSize nuser_sensor, mjtSize nnames, mjtSize npaths) {
   intptr_t offset = 0;
@@ -370,6 +371,7 @@ void mj_makeModel(mjModel** dest,
   m->nmocap = nmocap;
   m->nplugin = nplugin;
   m->npluginattr = npluginattr;
+  m->nlayer = nlayer;
   m->nuser_body = nuser_body;
   m->nuser_jnt = nuser_jnt;
   m->nuser_geom = nuser_geom;
@@ -447,6 +449,7 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
         src->ntexdata, src->nmat, src->npair, src->nexclude, src->neq, src->ntendon, src->nJten,
         src->nwrap, src->nsensor, src->nnumeric, src->nnumericdata, src->ntext, src->ntextdata,
         src->ntuple, src->ntupledata, src->nkey, src->nmocap, src->nplugin, src->npluginattr,
+        src->nlayer,
         src->nuser_body, src->nuser_jnt, src->nuser_geom, src->nuser_site, src->nuser_cam,
         src->nuser_tendon, src->nuser_actuator, src->nuser_sensor, src->nnames, src->npaths);
   }
@@ -621,7 +624,7 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
                sizes[63], sizes[64], sizes[65], sizes[66], sizes[67], sizes[68], sizes[69],
                sizes[70], sizes[71], sizes[72], sizes[73], sizes[74], sizes[75], sizes[76],
                sizes[77], sizes[78], sizes[79], sizes[80], sizes[81],
-               sizes[82], sizes[83]);
+               sizes[82], sizes[83], sizes[84]);
 
   // mj_makeModel may fail if the input buffer has invalid sizes
   if (!m) {

@@ -17,6 +17,7 @@
 
 #include <array>
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <map>
 #include <sstream>
@@ -149,6 +150,10 @@ class mjCModel_ : public mjsElement {
   std::vector<mjtNum> qpos0;
   std::vector<mjtNum> body_pos0;
   std::vector<mjtNum> body_quat0;
+
+  // environment layers, required to be strictly ascending in height (empty: single medium)
+  // deque, not vector: mjs_addLayer hands out pointers that must survive later adds
+  std::deque<mjsLayer> layers_;
 
   // variable-size attributes
   std::string comment_;           // comment at top of XML
@@ -315,6 +320,8 @@ class mjCModel : public mjCModel_, private mjSpec {
   const std::vector<mjCPlugin*>& Plugins() const { return plugins_; }
   const std::vector<mjCBody*>& Bodies() const { return bodies_; }
   const std::vector<mjCGeom*>& Geoms() const { return geoms_; }
+  std::deque<mjsLayer>& Layers() { return layers_; }
+  const std::deque<mjsLayer>& Layers() const { return layers_; }
 
   // resolve plugin instance, create a new one if needed
   void ResolvePlugin(mjCBase* obj, const std::string& plugin_name,

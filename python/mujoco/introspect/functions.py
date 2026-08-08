@@ -10842,6 +10842,56 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Add plugin.',
      )),
+    ('mjs_addLayer',
+     FunctionDecl(
+         name='mjs_addLayer',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsLayer'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+         ),
+         doc='Add environment layer, initialized from the global medium.',
+     )),
+    ('mjs_getLayer',
+     FunctionDecl(
+         name='mjs_getLayer',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsLayer'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='i',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Get environment layer by index; NULL if out of range. Use to iterate.',
+     )),
+    ('mjs_deleteLayers',
+     FunctionDecl(
+         name='mjs_deleteLayers',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+         ),
+         doc='Delete all environment layers; invalidates all mjsLayer pointers.',
+     )),
     ('mjs_addDefault',
      FunctionDecl(
          name='mjs_addDefault',

@@ -63,7 +63,8 @@ void mj_makeModel(mjModel** dest,
     mjtSize nmat, mjtSize npair, mjtSize nexclude, mjtSize neq, mjtSize ntendon, mjtSize nJten,
     mjtSize nwrap, mjtSize nsensor, mjtSize nnumeric, mjtSize nnumericdata, mjtSize ntext,
     mjtSize ntextdata, mjtSize ntuple, mjtSize ntupledata, mjtSize nkey, mjtSize nmocap,
-    mjtSize nplugin, mjtSize npluginattr, mjtSize nuser_body, mjtSize nuser_jnt, mjtSize nuser_geom,
+    mjtSize nplugin, mjtSize npluginattr, mjtSize nlayer,
+    mjtSize nuser_body, mjtSize nuser_jnt, mjtSize nuser_geom,
     mjtSize nuser_site, mjtSize nuser_cam, mjtSize nuser_tendon, mjtSize nuser_actuator,
     mjtSize nuser_sensor, mjtSize nnames, mjtSize npaths);
 

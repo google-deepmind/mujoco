@@ -59,6 +59,7 @@ using MjsNumeric = ::mjsNumeric;
 using MjsText = ::mjsText;
 using MjsTuple = ::mjsTuple;
 using MjsKey = ::mjsKey;
+using MjsLayer = ::mjsLayer;
 using MjsDefault = ::mjsDefault;
 using MjsCompiler = ::mjsCompiler;
 using MjsAuthored = ::mjsAuthored;

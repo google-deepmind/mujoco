@@ -735,10 +735,11 @@
 
   <xs:complexType name="option">
     <xs:annotation>
-      <xs:documentation>children, with cardinality the XSD cannot enforce (? at most one, ! exactly one, * any number, R recursive): flag (?)</xs:documentation>
+      <xs:documentation>children, with cardinality the XSD cannot enforce (? at most one, ! exactly one, * any number, R recursive): flag (?), option_layer (*)</xs:documentation>
     </xs:annotation>
     <xs:choice minOccurs="0" maxOccurs="unbounded">
       <xs:element name="flag" type="flag"/>
+      <xs:element name="layer" type="option_layer"/>
       <xs:element name="include" type="include"/>
     </xs:choice>
     <xs:attribute name="timestep" type="xs:double" default="0.002"/>
@@ -1172,6 +1173,34 @@
     <xs:attribute name="invdiscrete" type="kw_enable" default="disable"/>
     <xs:attribute name="sleep" type="kw_enable" default="disable"/>
     <xs:attribute name="diagexact" type="kw_enable" default="disable"/>
+  </xs:complexType>
+
+  <xs:complexType name="option_layer">
+    <xs:attribute name="height" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>upper boundary of the layer</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="gravity" type="double3">
+      <xs:annotation>
+        <xs:documentation>gravity in this layer</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="density" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>medium density in this layer</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="viscosity" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>medium viscosity in this layer</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="wind" type="double3">
+      <xs:annotation>
+        <xs:documentation>wind in this layer</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
   </xs:complexType>
 
   <xs:complexType name="global">
