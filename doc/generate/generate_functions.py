@@ -156,7 +156,8 @@ def generate() -> str:
 {doc}
 
 """.lstrip())
-  return rst_str
+  # exactly one trailing newline, so the generated file satisfies end-of-file-fixer
+  return rst_str.rstrip('\n') + '\n'
 
 
 def main() -> None:

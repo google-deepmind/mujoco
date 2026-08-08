@@ -21,6 +21,8 @@ mujoco_test(
 
 mujoco_test(schema_defaults_test)
 
+mujoco_test(xml_layer_test)
+
 mujoco_test(xml_utils_test)
 
 mujoco_test(

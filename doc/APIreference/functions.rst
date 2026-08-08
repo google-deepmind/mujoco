@@ -5255,6 +5255,33 @@ Add keyframe.
 
 Add plugin.
 
+.. _mjs_addLayer:
+
+`mjs_addLayer <#mjs_addLayer>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addLayer
+
+Add environment layer, initialized from the global medium.
+
+.. _mjs_getLayer:
+
+`mjs_getLayer <#mjs_getLayer>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getLayer
+
+Get environment layer by index; NULL if out of range. Use to iterate.
+
+.. _mjs_deleteLayers:
+
+`mjs_deleteLayers <#mjs_deleteLayers>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_deleteLayers
+
+Delete all environment layers; invalidates all mjsLayer pointers.
+
 .. _mjs_addDefault:
 
 `mjs_addDefault <#mjs_addDefault>`__
@@ -6345,4 +6372,3 @@ Safely cast an element as mjsMaterial, or return NULL if the element is not an m
 .. mujoco-include:: mjs_asPlugin
 
 Safely cast an element as mjsPlugin, or return NULL if the element is not an mjsPlugin.
-

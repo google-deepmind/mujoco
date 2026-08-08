@@ -1240,6 +1240,39 @@ mjsPlugin* mjs_addPlugin(mjSpec* s) {
 
 
 
+// add environment layer to model, initialized from the global medium
+mjsLayer* mjs_addLayer(mjSpec* s) {
+  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+  mjsLayer layer;
+  layer.height = 0;
+  layer.density = s->option.density;
+  layer.viscosity = s->option.viscosity;
+  mjuu_copyvec(layer.gravity, s->option.gravity, 3);
+  mjuu_copyvec(layer.wind, s->option.wind, 3);
+  modelC->Layers().push_back(layer);
+  return &modelC->Layers().back();
+}
+
+
+
+// get environment layer by index, NULL if out of range
+mjsLayer* mjs_getLayer(const mjSpec* s, int i) {
+  const mjCModel* modelC = static_cast<const mjCModel*>(s->element);
+  if (i < 0 || i >= (int)modelC->Layers().size()) {
+    return nullptr;
+  }
+  return const_cast<mjsLayer*>(&modelC->Layers()[i]);
+}
+
+
+
+// delete all environment layers
+void mjs_deleteLayers(mjSpec* s) {
+  static_cast<mjCModel*>(s->element)->Layers().clear();
+}
+
+
+
 // add default to model
 mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* parent) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);

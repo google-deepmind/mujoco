@@ -189,6 +189,27 @@
                :ref:`diagexact<option-flag-diagexact>`
 
 
+      .. dropdown:: :ref:`layer<option-layer>` |*|
+
+         .. grid:: 2 3 4 4
+            :gutter: 0
+
+            .. grid-item::
+               :ref:`height<option-layer-height>`
+
+            .. grid-item::
+               :ref:`gravity<option-layer-gravity>`
+
+            .. grid-item::
+               :ref:`density<option-layer-density>`
+
+            .. grid-item::
+               :ref:`viscosity<option-layer-viscosity>`
+
+            .. grid-item::
+               :ref:`wind<option-layer-wind>`
+
+
    .. dropdown:: :ref:`compiler<compiler>` |*|
 
       .. grid:: 2 3 4 4

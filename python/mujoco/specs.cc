@@ -251,6 +251,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
   py::class_<raw::MjsFlex> mjsFlex(m, "MjsFlex");
   py::class_<raw::MjsHField> mjsHField(m, "MjsHField");
   py::class_<raw::MjsKey> mjsKey(m, "MjsKey");
+  py::class_<raw::MjsLayer> mjsLayer(m, "MjsLayer");
   py::class_<raw::MjsNumeric> mjsNumeric(m, "MjsNumeric");
   py::class_<raw::MjsPair> mjsPair(m, "MjsPair");
   py::class_<raw::MjsExclude> mjsExclude(m, "MjsExclude");
@@ -1812,6 +1813,72 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
     if (mjs_delete(self.ptr, obj.element) != 0) {
       throw pybind11::value_error(mjs_getError(self.ptr));
     }
+  });
+
+  // ============================= MJSLAYER ====================================
+  // layers are unnamed global medium data, not elements: they have no
+  // delete-by-element path, so the whole stack is cleared at once
+  mjSpec.def(
+      "add_layer",
+      [](MjSpec& self, std::optional<double>& height,
+         std::optional<std::vector<double>>& gravity,
+         std::optional<double>& density, std::optional<double>& viscosity,
+         std::optional<std::vector<double>>& wind) -> raw::MjsLayer* {
+        auto set_array = [](double* des,
+                            const std::optional<std::vector<double>>& array,
+                            const char* name) {
+          if (!array.has_value()) {
+            return;
+          }
+          if (array->size() != 3) {
+            throw pybind11::value_error(std::string(name) +
+                                        " should be a list/array of size 3.");
+          }
+          int idx = 0;
+          for (auto val : array.value()) {
+            des[idx++] = val;
+          }
+        };
+        raw::MjsLayer* out = mjs_addLayer(self.ptr);
+        if (height.has_value()) out->height = *height;
+        if (density.has_value()) out->density = *density;
+        if (viscosity.has_value()) out->viscosity = *viscosity;
+        set_array(out->gravity, gravity, "gravity");
+        set_array(out->wind, wind, "wind");
+        return out;
+      },
+      py::arg("height") = py::none(), py::arg("gravity") = py::none(),
+      py::arg("density") = py::none(), py::arg("viscosity") = py::none(),
+      py::arg("wind") = py::none(),
+      R"mydelimiter(
+      Add environment layer to spec.
+
+      Args:
+        height: float
+        gravity: list[float]
+        density: float
+        viscosity: float
+        wind: list[float]
+      )mydelimiter",
+      py::return_value_policy::reference_internal);
+
+  mjSpec.def_property_readonly(
+      "layers",
+      [](MjSpec& self) -> py::list {
+        py::list list;
+        for (int i = 0;; i++) {
+          raw::MjsLayer* layer = mjs_getLayer(self.ptr, i);
+          if (!layer) {
+            break;
+          }
+          list.append(layer);
+        }
+        return list;
+      },
+      py::return_value_policy::reference_internal);
+
+  mjSpec.def("delete_layers", [](MjSpec& self) {
+    mjs_deleteLayers(self.ptr);
   });
 
   // ============================= MJSTEXT =====================================

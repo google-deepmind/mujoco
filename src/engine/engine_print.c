@@ -1155,6 +1155,32 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 
 #undef X
 
+  // environment layers
+  for (int i=0; i < m->nlayer; i++) {
+    fprintf(fp, "\nLAYER %d:\n", i);
+    if (i < m->nlayer-1) {
+      fprintf(fp, "  " NAME_FORMAT, "height");
+      fprintf(fp, float_format, m->layer_height[i]);
+      fprintf(fp, "\n");
+    }
+    fprintf(fp, "  " NAME_FORMAT, "gravity");
+    for (int j=0; j < 3; j++) {
+      fprintf(fp, float_format, m->layer_gravity[3*i+j]);
+      fprintf(fp, " ");
+    }
+    fprintf(fp, "\n  " NAME_FORMAT, "density");
+    fprintf(fp, float_format, m->layer_density[i]);
+    fprintf(fp, "\n  " NAME_FORMAT, "viscosity");
+    fprintf(fp, float_format, m->layer_viscosity[i]);
+    fprintf(fp, "\n  " NAME_FORMAT, "wind");
+    for (int j=0; j < 3; j++) {
+      fprintf(fp, float_format, m->layer_wind[3*i+j]);
+      fprintf(fp, " ");
+    }
+    fprintf(fp, "\n");
+  }
+  if (m->nlayer) fprintf(fp, "\n");
+
   // B sparse structure
   mj_printSparsity("B: body-dof matrix", m->nbody, m->nv, m->B_rowadr, NULL, m->B_rownnz, NULL,
                    m->B_colind, fp);
