@@ -259,12 +259,16 @@ else()
   set(_BUILD_TESTS_WAS_DEFINED FALSE)
 endif()
 set(BUILD_TESTS OFF)
-fetchpackage(
-  PACKAGE_NAME  miniz
-  GIT_REPO      https://github.com/richgel999/miniz.git
-  GIT_TAG       ${MUJOCO_DEP_VERSION_miniz}
-  TARGETS       miniz
-)
+if(CMAKE_SYSTEM_NAME STREQUAL "QNX")
+  find_package(miniz CONFIG REQUIRED)
+else()
+  fetchpackage(
+    PACKAGE_NAME  miniz
+    GIT_REPO      https://github.com/richgel999/miniz.git
+    GIT_TAG       ${MUJOCO_DEP_VERSION_miniz}
+    TARGETS       miniz
+  )
+endif()
 if(_BUILD_TESTS_WAS_DEFINED)
   set(BUILD_TESTS "${_OLD_BUILD_TESTS}")
 else()

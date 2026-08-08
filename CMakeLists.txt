@@ -165,10 +165,13 @@ add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)
 add_subdirectory(src/xml/mjz)
-if(NOT EMSCRIPTEN AND NOT MUJOCO_USE_FILAMENT_MJR_COMPAT)
+if(NOT EMSCRIPTEN
+   AND NOT MUJOCO_USE_FILAMENT_MJR_COMPAT
+   AND NOT CMAKE_SYSTEM_NAME STREQUAL "QNX")
   add_subdirectory(src/render/classic)
   add_subdirectory(src/ui)
 endif()
+
 add_subdirectory(src/render/noop)
 
 if(MUJOCO_USE_FILAMENT)
