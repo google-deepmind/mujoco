@@ -103,6 +103,8 @@ set(MATERIAL_FILES
     pbr_transparent.mat
     pbr_packed.mat
     pbr_packed_transparent.mat
+    pbr_reflect.mat
+    pbr_packed_reflect.mat
     phong_2d_fade.mat
     phong_2d.mat
     phong_2d_reflect.mat
