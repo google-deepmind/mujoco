@@ -117,7 +117,7 @@ class GhostRenderer:
     self._viewer.extra_geoms.clear()
     if self._last_time is None or data.time < self._last_time:
       self._history.clear()
-    if not self._history or data.time > self._last_time:
+    if not self._history or data.time > self._last_time:  # pyrefly: ignore[unsupported-operation]
       self._history.append((
           data.time,
           data.geom_xpos.copy(),
@@ -129,7 +129,7 @@ class GhostRenderer:
     while len(self._history) > 1 and self._history[1][0] <= target_time:
       self._history.popleft()
 
-    _, xpos, xmat = self._history[0]
+    _, xpos, xmat = self._history[0]  # pyrefly: ignore[bad-assignment]
     if len(xpos) != model.ngeom or len(xmat) != model.ngeom:
       return
 

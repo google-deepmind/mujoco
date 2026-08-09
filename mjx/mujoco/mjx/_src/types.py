@@ -395,40 +395,40 @@ class SensorType(enum.IntEnum):
     FRAMEANGACC: 3D angular acceleration
   """
 
-  MAGNETOMETER = mujoco.mjtSensor.mjSENS_MAGNETOMETER
-  CAMPROJECTION = mujoco.mjtSensor.mjSENS_CAMPROJECTION
-  RANGEFINDER = mujoco.mjtSensor.mjSENS_RANGEFINDER
-  JOINTPOS = mujoco.mjtSensor.mjSENS_JOINTPOS
-  TENDONPOS = mujoco.mjtSensor.mjSENS_TENDONPOS
-  ACTUATORPOS = mujoco.mjtSensor.mjSENS_ACTUATORPOS
-  BALLQUAT = mujoco.mjtSensor.mjSENS_BALLQUAT
-  FRAMEPOS = mujoco.mjtSensor.mjSENS_FRAMEPOS
-  FRAMEXAXIS = mujoco.mjtSensor.mjSENS_FRAMEXAXIS
-  FRAMEYAXIS = mujoco.mjtSensor.mjSENS_FRAMEYAXIS
-  FRAMEZAXIS = mujoco.mjtSensor.mjSENS_FRAMEZAXIS
-  FRAMEQUAT = mujoco.mjtSensor.mjSENS_FRAMEQUAT
-  SUBTREECOM = mujoco.mjtSensor.mjSENS_SUBTREECOM
-  CLOCK = mujoco.mjtSensor.mjSENS_CLOCK
-  VELOCIMETER = mujoco.mjtSensor.mjSENS_VELOCIMETER
-  GYRO = mujoco.mjtSensor.mjSENS_GYRO
-  JOINTVEL = mujoco.mjtSensor.mjSENS_JOINTVEL
-  TENDONVEL = mujoco.mjtSensor.mjSENS_TENDONVEL
-  ACTUATORVEL = mujoco.mjtSensor.mjSENS_ACTUATORVEL
-  BALLANGVEL = mujoco.mjtSensor.mjSENS_BALLANGVEL
-  FRAMELINVEL = mujoco.mjtSensor.mjSENS_FRAMELINVEL
-  FRAMEANGVEL = mujoco.mjtSensor.mjSENS_FRAMEANGVEL
-  SUBTREELINVEL = mujoco.mjtSensor.mjSENS_SUBTREELINVEL
-  SUBTREEANGMOM = mujoco.mjtSensor.mjSENS_SUBTREEANGMOM
-  TOUCH = mujoco.mjtSensor.mjSENS_TOUCH
-  CONTACT = mujoco.mjtSensor.mjSENS_CONTACT
-  ACCELEROMETER = mujoco.mjtSensor.mjSENS_ACCELEROMETER
-  FORCE = mujoco.mjtSensor.mjSENS_FORCE
-  TORQUE = mujoco.mjtSensor.mjSENS_TORQUE
-  ACTUATORFRC = mujoco.mjtSensor.mjSENS_ACTUATORFRC
-  JOINTACTFRC = mujoco.mjtSensor.mjSENS_JOINTACTFRC
-  TENDONACTFRC = mujoco.mjtSensor.mjSENS_TENDONACTFRC
-  FRAMELINACC = mujoco.mjtSensor.mjSENS_FRAMELINACC
-  FRAMEANGACC = mujoco.mjtSensor.mjSENS_FRAMEANGACC
+  MAGNETOMETER = mujoco.mjtSensor.mjSENS_MAGNETOMETER  # pyrefly: ignore[bad-assignment]
+  CAMPROJECTION = mujoco.mjtSensor.mjSENS_CAMPROJECTION  # pyrefly: ignore[bad-assignment]
+  RANGEFINDER = mujoco.mjtSensor.mjSENS_RANGEFINDER  # pyrefly: ignore[bad-assignment]
+  JOINTPOS = mujoco.mjtSensor.mjSENS_JOINTPOS  # pyrefly: ignore[bad-assignment]
+  TENDONPOS = mujoco.mjtSensor.mjSENS_TENDONPOS  # pyrefly: ignore[bad-assignment]
+  ACTUATORPOS = mujoco.mjtSensor.mjSENS_ACTUATORPOS  # pyrefly: ignore[bad-assignment]
+  BALLQUAT = mujoco.mjtSensor.mjSENS_BALLQUAT  # pyrefly: ignore[bad-assignment]
+  FRAMEPOS = mujoco.mjtSensor.mjSENS_FRAMEPOS  # pyrefly: ignore[bad-assignment]
+  FRAMEXAXIS = mujoco.mjtSensor.mjSENS_FRAMEXAXIS  # pyrefly: ignore[bad-assignment]
+  FRAMEYAXIS = mujoco.mjtSensor.mjSENS_FRAMEYAXIS  # pyrefly: ignore[bad-assignment]
+  FRAMEZAXIS = mujoco.mjtSensor.mjSENS_FRAMEZAXIS  # pyrefly: ignore[bad-assignment]
+  FRAMEQUAT = mujoco.mjtSensor.mjSENS_FRAMEQUAT  # pyrefly: ignore[bad-assignment]
+  SUBTREECOM = mujoco.mjtSensor.mjSENS_SUBTREECOM  # pyrefly: ignore[bad-assignment]
+  CLOCK = mujoco.mjtSensor.mjSENS_CLOCK  # pyrefly: ignore[bad-assignment]
+  VELOCIMETER = mujoco.mjtSensor.mjSENS_VELOCIMETER  # pyrefly: ignore[bad-assignment]
+  GYRO = mujoco.mjtSensor.mjSENS_GYRO  # pyrefly: ignore[bad-assignment]
+  JOINTVEL = mujoco.mjtSensor.mjSENS_JOINTVEL  # pyrefly: ignore[bad-assignment]
+  TENDONVEL = mujoco.mjtSensor.mjSENS_TENDONVEL  # pyrefly: ignore[bad-assignment]
+  ACTUATORVEL = mujoco.mjtSensor.mjSENS_ACTUATORVEL  # pyrefly: ignore[bad-assignment]
+  BALLANGVEL = mujoco.mjtSensor.mjSENS_BALLANGVEL  # pyrefly: ignore[bad-assignment]
+  FRAMELINVEL = mujoco.mjtSensor.mjSENS_FRAMELINVEL  # pyrefly: ignore[bad-assignment]
+  FRAMEANGVEL = mujoco.mjtSensor.mjSENS_FRAMEANGVEL  # pyrefly: ignore[bad-assignment]
+  SUBTREELINVEL = mujoco.mjtSensor.mjSENS_SUBTREELINVEL  # pyrefly: ignore[bad-assignment]
+  SUBTREEANGMOM = mujoco.mjtSensor.mjSENS_SUBTREEANGMOM  # pyrefly: ignore[bad-assignment]
+  TOUCH = mujoco.mjtSensor.mjSENS_TOUCH  # pyrefly: ignore[bad-assignment]
+  CONTACT = mujoco.mjtSensor.mjSENS_CONTACT  # pyrefly: ignore[bad-assignment]
+  ACCELEROMETER = mujoco.mjtSensor.mjSENS_ACCELEROMETER  # pyrefly: ignore[bad-assignment]
+  FORCE = mujoco.mjtSensor.mjSENS_FORCE  # pyrefly: ignore[bad-assignment]
+  TORQUE = mujoco.mjtSensor.mjSENS_TORQUE  # pyrefly: ignore[bad-assignment]
+  ACTUATORFRC = mujoco.mjtSensor.mjSENS_ACTUATORFRC  # pyrefly: ignore[bad-assignment]
+  JOINTACTFRC = mujoco.mjtSensor.mjSENS_JOINTACTFRC  # pyrefly: ignore[bad-assignment]
+  TENDONACTFRC = mujoco.mjtSensor.mjSENS_TENDONACTFRC  # pyrefly: ignore[bad-assignment]
+  FRAMELINACC = mujoco.mjtSensor.mjSENS_FRAMELINACC  # pyrefly: ignore[bad-assignment]
+  FRAMEANGACC = mujoco.mjtSensor.mjSENS_FRAMEANGACC  # pyrefly: ignore[bad-assignment]
 
 
 class ObjType(PyTreeNode):
@@ -1213,6 +1213,6 @@ def tree_path_to_attr_str(path: jax.tree_util.KeyPath) -> str:
     path = path[: is_seq_key.index(True)]
 
   assert all(isinstance(p, jax.tree_util.GetAttrKey) for p in path)
-  path = [p for p in path if p.name != '_impl']
+  path = [p for p in path if p.name != '_impl']  # pyrefly: ignore[bad-assignment]
   return '__'.join(p.name for p in path)
 

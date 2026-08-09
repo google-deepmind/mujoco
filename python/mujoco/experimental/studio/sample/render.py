@@ -70,7 +70,7 @@ def main(argv: list[str]) -> None:
     print(f'Error saving image to `{_OUTPUT.value}`: {ex}')
     sys.exit(-3)
 
-  return 0
+  return 0  # pyrefly: ignore[bad-return]
 
 
 if __name__ == '__main__':

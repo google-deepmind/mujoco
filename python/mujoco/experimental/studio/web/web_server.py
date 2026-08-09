@@ -792,7 +792,7 @@ def _run_server(
       try:
         # Handshake: browser CmdVersion -> client; client CmdVersion -> browser.
         browser_version = await ws.recv()
-        my_writer.write(browser_version)
+        my_writer.write(browser_version)  # pyrefly: ignore[bad-argument-type]
         await my_writer.drain()
         server_version = await my_reader.readexactly(_NETIMGUI_CMD_VERSION_SIZE)
         await ws.send(server_version)
@@ -869,10 +869,10 @@ def _run_server(
           gen_before = generation.value
           if gen_before & 1:
             continue
-          (used,) = struct.unpack("<I", bytes(shm_array[:4]))
+          (used,) = struct.unpack("<I", bytes(shm_array[:4]))  # pyrefly: ignore[unsupported-operation]
           if used == 0 or used > shm_capacity:
             return None
-          data = bytes(shm_array[4 : 4 + used])
+          data = bytes(shm_array[4 : 4 + used])  # pyrefly: ignore[unsupported-operation]
           if generation.value == gen_before:
             return gen_before, data
         return None

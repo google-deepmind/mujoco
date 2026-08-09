@@ -134,7 +134,7 @@ def _get_target_annotation_node(
     return _ast_parse_type('int')
 
   if dataclasses.is_dataclass(annotation):
-    return _ast_parse_type(annotation.__name__)
+    return _ast_parse_type(annotation.__name__)  # pyrefly: ignore[missing-attribute]
 
   is_tuple = typing.get_origin(annotation) == tuple
   if is_tuple and typing.get_args(annotation)[1] != ...:
@@ -230,7 +230,7 @@ def _build_new_class_body_ast(
       )
 
     new_body_nodes.append(
-        ast.AnnAssign(
+        ast.AnnAssign(  # pyrefly: ignore[no-matching-overload]
             target=ast.Name(id=key, ctx=ast.Store()),
             annotation=annotation_node,
             value=value_node,
