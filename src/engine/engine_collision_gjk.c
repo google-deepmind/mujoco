@@ -159,6 +159,11 @@ static inline void scl3(mjtNum res[3], const mjtNum v[3], mjtNum s) {
   res[0] = s*v[0], res[1] = s*v[1], res[2] = s*v[2];
 }
 
+// res = v1 + s*v2
+static inline void addScl3(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3], mjtNum s) {
+  res[0] = v1[0] + s*v2[0], res[1] = v1[1] + s*v2[1], res[2] = v1[2] + s*v2[2];
+}
+
 // cross product: res = v1 x v2
 static inline void cross3(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3]) {
   res[0] = v1[1]*v2[2] - v1[2]*v2[1];
@@ -1618,6 +1623,17 @@ static mjtNum planeIntersect(mjtNum res[3], const mjtNum pn[3], mjtNum pd,
 }
 
 
+// compute witness points on face (given by point p and normal n) from clipped vertex
+static inline void witnessOnFace(mjtNum w1[3], mjtNum w2[3], const mjtNum v[3],
+                                 const mjtNum* p, const mjtNum n[3], const mjtNum dir[3]) {
+  mjtNum d[3];
+  sub3(d, v, p);
+  mjtNum g = mju_abs(dot3(d, n));
+  addScl3(w1, v, dir, -g);
+  copy3(w2, v);
+}
+
+
 // clip a polygon against another polygon
 static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
                         const mjtNum* face2, int nface2, const mjtNum n[3],
@@ -1697,8 +1713,7 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
     mjtNum* rect[4];
     polygonQuad(rect, polygon, npolygon);
     for (int i = 0; i < 4; i++) {
-      copy3(status->x2 + 3*i, rect[i]);
-      sub3(status->x1 + 3*i, status->x2 + 3*i, dir);
+      witnessOnFace(status->x1 + 3*i, status->x2 + 3*i, rect[i], face1, n, dir);
     }
     return;
   }
@@ -1720,10 +1735,8 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
         }
       }
     }
-    copy3(status->x2, polygon + 3*best1);
-    sub3(status->x1, status->x2, dir);
-    copy3(status->x2 + 3, polygon + 3*best2);
-    sub3(status->x1 + 3, status->x2 + 3, dir);
+    witnessOnFace(status->x1, status->x2, polygon + 3*best1, face1, n, dir);
+    witnessOnFace(status->x1 + 3, status->x2 + 3, polygon + 3*best2, face1, n, dir);
     status->nx = 2;
     return;
   }
@@ -1732,8 +1745,7 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
   int maxcon = sizeof(status->x2) / (3*sizeof(status->x2[0]));
   npolygon = (npolygon < maxcon) ? npolygon : maxcon;
   for (int i = 0; i < npolygon; i++) {
-    copy3(status->x2 + 3*i, polygon + 3*i);
-    sub3(status->x1 + 3*i, status->x2 + 3*i, dir);
+    witnessOnFace(status->x1 + 3*i, status->x2 + 3*i, polygon + 3*i, face1, n, dir);
   }
   status->nx = npolygon;
 }
@@ -2228,15 +2240,13 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
     }
   }
 
-  // TODO(kylebayes): this approximates the contact direction, by scaling the face normal by the
-  // single contact direction's magnitude. This is effective, but polygonClip should compute
-  // this for each contact point.
-  mjtNum approx_dir[3];
+  // normal direction for witness recovery
+  mjtNum wit_dir[3];
 
   // face1 is an edge; clip face1 against face2
   if (edgecon1) {
-    scl3(approx_dir, n2 + 3*j, -norm3(dir));
-    polygonClip(status, face2, nface2, face1, nface1, n2 + 3*j, approx_dir, polygon, npolygonmax);
+    scl3(wit_dir, n2 + 3*j, -1.0);
+    polygonClip(status, face2, nface2, face1, nface1, n2 + 3*j, wit_dir, polygon, npolygonmax);
     // x1 and x2 must be flipped as we flipped the faces in polygonClip
     int nx = status->nx;
     for (int k = 0; k < nx; k++) {
@@ -2250,14 +2260,14 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
 
   // face2 is an edge; clip face2 against face1
   if (edgecon2) {
-    scl3(approx_dir, n1 + 3*j, -norm3(dir));
-    polygonClip(status, face1, nface1, face2, nface2, n1 + 3*j, approx_dir, polygon, npolygonmax);
+    scl3(wit_dir, n1 + 3*j, -1.0);
+    polygonClip(status, face1, nface1, face2, nface2, n1 + 3*j, wit_dir, polygon, npolygonmax);
     return;
   }
 
   // face-face collision
-  scl3(approx_dir, n2 + 3*j, norm3(dir));
-  polygonClip(status, face1, nface1, face2, nface2, n1 + 3*i, approx_dir, polygon, npolygonmax);
+  copy3(wit_dir, n2 + 3*j);
+  polygonClip(status, face1, nface1, face2, nface2, n1 + 3*i, wit_dir, polygon, npolygonmax);
 }
 
 
