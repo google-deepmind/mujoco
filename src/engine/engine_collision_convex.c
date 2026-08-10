@@ -1591,8 +1591,7 @@ int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f,
   mjtNum xmin, xmax, ymin, ymax, zmin, zmax;
   int dr[2], cnt, rmin, rmax, cmin, cmax;
   mjCCDObj obj1;
-  obj1.center = mjc_center;
-  obj1.support = mjc_prism_support;
+  mjc_initCCDObj(&obj1, m, d, g, 0);
 
   // get hfield info
   int hid = m->geom_dataid[g];
