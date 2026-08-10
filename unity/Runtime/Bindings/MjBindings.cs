@@ -58,6 +58,7 @@ public const int mjNSOLVER = 200;
 public const int mjNISLAND = 20;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJPLUGIN_H_ = true;
 public const bool mjEXTERNC = true;
+public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJPROFILE_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MJRENDER_H_ = true;
 public const int mjNAUX = 10;
 public const int mjMAXTEXTURE = 1000;
