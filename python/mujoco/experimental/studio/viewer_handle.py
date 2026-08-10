@@ -16,8 +16,8 @@
 from typing import Any, Callable
 import mujoco
 from mujoco.experimental.studio import endpoints
-from mujoco.experimental.studio import handler_registry
 from mujoco.experimental.studio import messages
+from mujoco.experimental.studio import plugin_registry
 from mujoco.experimental.studio import sim as _sim
 import numpy as np
 
@@ -32,13 +32,13 @@ ShutdownFn = Callable[[float], None]
 
 
 class ViewerHandle:
-  """A handle for interacting with a running Studio application from the sim."""
+  """A handle for interacting with a running viewer application from the sim."""
 
   def __init__(
       self,
       sim_endpoint: endpoints.SimEndpoint,
       *,
-      handlers: list[Any] | None = None,
+      plugins: list[Any] | None = None,
       is_alive_fn: IsAliveFn | None = None,
       shutdown_fn: ShutdownFn | None = None,
   ) -> None:
@@ -46,8 +46,8 @@ class ViewerHandle:
 
     Args:
       sim_endpoint: The endpoint to use for communication with the viewer.
-      handlers: Optional list of handler instances for sim-side processing,
-        which are classes with methods decorated with ``@handler``.
+      plugins: Optional list of plugin instances for sim-side processing, which
+        are classes with methods decorated with ``@handler``.
       is_alive_fn: Optional liveness check; without one the viewer is assumed to
         be running until ``close()`` is called.
       shutdown_fn: Optional launcher-owned shutdown hook, called by ``close()``.
@@ -61,10 +61,10 @@ class ViewerHandle:
     self.data: mujoco.MjData | None = None
     self.step_control: _sim.StepControl | None = None
 
-    # Instantiate handlers from user handlers + framework defaults.
-    all_handlers: list[Any] = list(handlers or [])
-    all_handlers.append(self)
-    self._handlers = handler_registry.HandlerRegistry(all_handlers)
+    # Instantiate handlers from user plugins + framework defaults.
+    all_plugins: list[Any] = list(plugins or [])
+    all_plugins.append(self)
+    self._plugins = plugin_registry.PluginRegistry(all_plugins)
 
   def close(self) -> None:
     """Signals the viewer to exit and waits for it to shut down."""
@@ -128,11 +128,11 @@ class ViewerHandle:
 
     # Process incoming events from the viewer.
     for event in self._sim_endpoint.get_viewer_events():
-      self._handlers.dispatch(event)
+      self._plugins.dispatch(event)
 
     # Process incoming snapshots from the viewer.
     for snapshot in self._sim_endpoint.get_viewer_snapshots():
-      self._handlers.dispatch(snapshot)
+      self._plugins.dispatch(snapshot)
 
     model, data, step_control = self.model, self.data, self.step_control
 

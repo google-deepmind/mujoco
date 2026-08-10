@@ -162,7 +162,9 @@ def main(argv: list[str]) -> None:
       argv[1] if len(argv) > 1 and not argv[1].startswith('--') else None
   )
   if not model_path:
-    raise _app.UsageError('Please provide a model path argument or --model flag.')
+    raise _app.UsageError(
+        'Please provide a model path argument or --model flag.'
+    )
 
   data = None
   try:
@@ -185,7 +187,7 @@ def main(argv: list[str]) -> None:
 
   with launch_passive.launch_passive(
       config,
-      viewer_handlers=[ghost_renderer],
+      viewer_plugins=[ghost_renderer],
   ) as handle:
     handle.send_to_viewer(messages.ModelEvent(model=model))
 

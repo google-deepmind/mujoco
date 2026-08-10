@@ -13,12 +13,15 @@
 # limitations under the License.
 """Simulation-agnostic web viewer for MuJoCo models.
 
+See the documentation for viewer_app.py for more details on the architecture
+separating the viewer and simulation.
+
 The WebViewer streams UI and simulation state to a browser:
 
   * The ImGui UI is built into a headless ImGui context and streamed to the
     browser with the NetImgui protocol through a WebSocket-to-TCP proxy.
     Input captured in the browser flows back over the same connection and is
-    injected into the headless context, so all viewer-side handlers work
+    injected into the headless context, so all viewer-side plugins work
     unmodified.
   * Physics state and render function state are streamed to the browser over
     a WebSocket with latest-wins semantics. Note that Message types are only
@@ -149,7 +152,7 @@ class WebViewer(viewer_protocol.Viewer):
       *,
       model: mujoco.MjModel | None = None,
       model_path: str = '',
-      handlers: list[Any] | None = None,
+      plugins: list[Any] | None = None,
       camera: mujoco.MjvCamera | None = None,
       vis_options: mujoco.MjvOption | None = None,
       perturb: mujoco.MjvPerturb | None = None,
@@ -166,7 +169,7 @@ class WebViewer(viewer_protocol.Viewer):
       endpoint: The viewer endpoint for communication with the sim side.
       model: Optional initial MjModel. Forwarded to the base Viewer.
       model_path: Optional path to the model file.
-      handlers: Optional list of handler instances.
+      plugins: Optional list of plugin instances.
       camera: Camera parameters. Internal object is created if None.
       vis_options: Visualization options. Internal object is created if None.
       perturb: Perturbation parameters. Internal object is created if None.
@@ -187,7 +190,7 @@ class WebViewer(viewer_protocol.Viewer):
         endpoint,
         model=model,
         model_path=model_path,
-        handlers=handlers,
+        plugins=plugins,
         camera=camera,
         vis_options=vis_options,
         perturb=perturb,
@@ -294,7 +297,7 @@ class WebViewer(viewer_protocol.Viewer):
   def _on_model(self, event: messages.ModelEvent) -> bool:
     """Loads the new model, then restarts the servers to serve it.
 
-    The handler registry discovers handlers by name, so this override replaces
+    The plugin registry discovers handlers by name, so this override replaces
     the base Viewer's _on_model and must call it explicitly to load the model
     before the servers serialize it. The browser reconnects to the new state
     server, notices the changed model identity in the payload, and reloads

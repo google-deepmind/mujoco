@@ -55,7 +55,7 @@ def main(argv: list[str]) -> None:
 
   with launch_passive.launch_passive(
       config,
-      viewer_handlers=[viewer_app.ViewerApp()],
+      viewer_plugins=[viewer_app.ViewerApp()],
   ) as handle:
     # Send the model to the viewer, if we have a model.
     if model is not None:

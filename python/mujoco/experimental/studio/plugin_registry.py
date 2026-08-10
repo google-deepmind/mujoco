@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Internal handler registration, metadata stamping, and runtime dispatching."""
+"""Plugin registry, handler discovery, and runtime dispatching."""
 
 import collections
 from typing import Any, Callable
@@ -19,30 +19,30 @@ from mujoco.experimental.studio import messages
 
 
 def _discover_handlers(
-    handler_obj: Any,
+    plugin: Any,
 ) -> list[tuple[messages._HandlerInfo, Callable[..., Any]]]:
   """Scan an object for methods marked with handler decorators."""
   handlers = []
-  for name in dir(type(handler_obj)):
-    unbound = getattr(type(handler_obj), name, None)
+  for name in dir(type(plugin)):
+    unbound = getattr(type(plugin), name, None)
     if unbound is None:
       continue
     info = getattr(unbound, messages._HANDLER_INFO_ATTR, None)  # pylint: disable=protected-access
     if info is None:
       continue
-    bound = getattr(handler_obj, name)
+    bound = getattr(plugin, name)
     handlers.append((info, bound))
   return handlers
 
 
-class HandlerRegistry:
-  """Runtime registry of discovered handlers from handler instances."""
+class PluginRegistry:
+  """Runtime registry of discovered handlers from plugin instances."""
 
-  def __init__(self, handlers: list[Any] | None = None) -> None:
+  def __init__(self, plugins: list[Any] | None = None) -> None:
     self.handlers: dict[
         type[messages.Message], list[tuple[int, Callable[..., Any]]]
     ] = collections.defaultdict(list)
-    for obj in handlers or []:
+    for obj in plugins or []:
       for info, bound_method in _discover_handlers(obj):
         self.handlers[info.message_type].append((info.priority, bound_method))
 

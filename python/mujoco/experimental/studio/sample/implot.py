@@ -238,7 +238,7 @@ def main(argv: list[str]) -> None:
 
   with launch_passive.launch_passive(
       config,
-      viewer_handlers=[viewer_app.ViewerApp(), BodyInspector()],
+      viewer_plugins=[viewer_app.ViewerApp(), BodyInspector()],
   ) as handle:
     handle.send_to_viewer(messages.ModelEvent(model=model))
 
