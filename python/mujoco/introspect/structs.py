@@ -5643,6 +5643,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='first available byte in arena',
              ),
              StructFieldDecl(
+                 name='efm_contact',
+                 type=ValueType(name='uintptr_t'),
+                 doc='contact stiffness for the current solve (mjExtraStiff*), 0 if none',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
                  name='threadpool',
                  type=ValueType(name='uintptr_t'),
                  doc='thread pool pointer',

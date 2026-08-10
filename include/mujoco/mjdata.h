@@ -109,6 +109,9 @@ typedef struct mjData_ {
   // arena pointer
   size_t  parena;            // first available byte in arena
 
+  // contact stiffness for the current solve (mjEffContact*), 0 if none
+  uintptr_t efm_contact;
+
   // threading
   uintptr_t threadpool;      // thread pool pointer
   mjtBool threadlock;        // disable stack freeing during threaded execution

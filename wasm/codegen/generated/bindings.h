@@ -6698,6 +6698,12 @@ struct MjData {
   void set_parena(size_t value) {
     ptr_->parena = value;
   }
+  uintptr_t efm_contact() const {
+    return ptr_->efm_contact;
+  }
+  void set_efm_contact(uintptr_t value) {
+    ptr_->efm_contact = value;
+  }
   uintptr_t threadpool() const {
     return ptr_->threadpool;
   }
