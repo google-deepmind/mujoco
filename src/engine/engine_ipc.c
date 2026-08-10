@@ -88,11 +88,28 @@
 // -> FROZEN) and the dual-ascent step lam-=craw*mu was 1250x too small (-> SLOW). mu =
 // IPC_MU_SCALE*mass restores mu/inertia = 200, consistent with the dashpot in the same block (cde =
 // IPC_CDAMP_FLEX*mass*ih2, also force-form). REPLACES scalar kappa.
+// The reviewed collision module carries geometry only (mjcFlexPair); the AL linearization and
+// multiplier state ride in this solver-side pair. Its LEADING members mirror mjcFlexPair's layout
+// exactly, so a pair is passed to the mjc_* API by cast rather than by copy.
+#define IPC_DELTACAP 0.001  // 1 mm standoff cap
+#define IPC_GHAT (3 * IPC_DELTACAP)  // 3 mm detection/hold band
+typedef struct {
+  mjcFlexPairType type;        // == mjcFlexPair.type
+  int idx[4];                  // == mjcFlexPair.idx
+  int gi;                      // == mjcFlexPair.g
+  mjtNum lam;                  // AL multiplier
+  mjtNum ld0, ln[3], lcw[4];   // per-outer linearization at xfree
+  int liv[4], lniv;
+  int cnt;                     // active-set state machine
+  mjtNum s;                    // materialized AL slack
+} ipcCon;
+#define IPC_PAIR(con) ((const mjcFlexPair*)(con))
+
 static mjtNum ipc_muPair(const ipcCon* con, const mjtNum* mass, mjtNum ih2) {
   (void)ih2;  // force-form mu has no explicit h factor (the h^2 cancelled against the IP-form
               // objective)
   int vv[4], nvv;
-  mjc_conVerts(con, vv, &nvv);
+  nvv = mjc_pairVerts(vv, IPC_PAIR(con));
   // min over NONZERO masses: MuJoCo flex verts pinned to a rigid attachment carry mass 0 (their
   // inertia is in the rigid body); a plain min hits those -> mu=0 -> lam/mu = 0/0 = NaN. The
   // reference solver's flex verts all have mass; MuJoCo guard.
@@ -110,7 +127,7 @@ static mjtNum ipc_muPair(const ipcCon* con, const mjtNum* mass, mjtNum ih2) {
 static inline int ipc_cntExp(int cnt) { return cnt >= 0 ? cnt : (-cnt - 6 > 0 ? -cnt - 6 : 0); }
 
 // stable per-pair hash for the persistent cnt store: contact type + sorted vertex/feature indices.
-static unsigned long ipc_pairHash(const ipcCon* con) {
+static unsigned long ipc_pairHash(const mjcFlexPair* con) {
   int id[4];
   for (int k=0; k < 4; k++)
     id[k] = con->idx[k];
@@ -121,7 +138,7 @@ static unsigned long ipc_pairHash(const ipcCon* con) {
         id[j] = id[j + 1];
         id[j + 1] = t;
       }
-  unsigned long hh = (unsigned long)con->type * 1000003ul + (unsigned long)(con->gi + 1);
+  unsigned long hh = (unsigned long)con->type * 1000003ul + (unsigned long)(con->g + 1);
   for (int k=0; k < 4; k++)
     hh = hh * 1000003ul + (unsigned long)(id[k] + 1);
   return hh;
@@ -152,8 +169,8 @@ static void ipc_updateSlack(ipcCon* cand, int ncand, const mjtNum* x, const mjtN
   for (int c=0; c < ncand; c++) {
     ipcCon* con = &cand[c];
     mjtNum mu = ipc_muPair(con, mass, ih2);
-    mjtNum craw = con->ld0 - mjc_off(mjc_conGhat(
-                                 con, rad, ghat));  // c_raw(x) = (ld0-delta) + d_grad.(x-xfree)
+    mjtNum craw = con->ld0 - mjc_standoff(mjc_pairBand(IPC_PAIR(
+                                 con), rad, ghat), IPC_DELTACAP);  // c_raw(x) = (ld0-delta) + d_grad.(x-xfree)
     for (int p=0; p < con->lniv; p++) {
       int v = con->liv[p];
       for (int k=0; k < 3; k++)
@@ -189,7 +206,7 @@ static void ipc_updateSlack(ipcCon* cand, int ncand, const mjtNum* x, const mjtN
 // pair age = min over its flex vertices; 0 when none of them carries an age
 static int ipc_conAge(const ipcCon* con, const int* age, const int* pt2vg) {
   int vv[4], nvv, a = INT_MAX;
-  mjc_conVerts(con, vv, &nvv);
+  nvv = mjc_pairVerts(vv, IPC_PAIR(con));
   for (int q=0; q < nvv; q++) {
     int g = age[pt2vg[vv[q]]];
     if (g < a) a = g;
@@ -204,7 +221,7 @@ static void ipc_ageStep(int* age, const ipcCon* aset, int naset, const int* pt2v
   for (int c=0; c < naset; c++) {
     if (aset[c].lam <= 0) continue;
     int vv[4], nvv;
-    mjc_conVerts(&aset[c], vv, &nvv);
+    nvv = mjc_pairVerts(vv, IPC_PAIR(&aset[c]));
     for (int q=0; q < nvv; q++) loaded[vv[q]] = 1;
   }
   for (int i=0; i < npt; i++) {
@@ -231,8 +248,8 @@ static void ipc_flexLamUpdate(const mjModel* m, const mjData* d, const mjtNum* x
     ipcCon* con = &cand[c];
     mjtNum mu = ipc_muPair(con, mass, ih2);
     mjtNum lam0 = con->lam;  // lambda BEFORE this update (the dual update reads pre-update)
-    mjtNum craw = con->ld0 - mjc_off(mjc_conGhat(
-                                 con, rad, ghat));  // c_raw(x) (un-baked: == baked_d + s + lam/mu)
+    mjtNum craw = con->ld0 - mjc_standoff(mjc_pairBand(IPC_PAIR(
+                                 con), rad, ghat), IPC_DELTACAP);  // c_raw(x) (un-baked: == baked_d + s + lam/mu)
     for (int p=0; p < con->lniv; p++) {
       int v = con->liv[p];
       for (int k=0; k < 3; k++)
@@ -251,7 +268,7 @@ static void ipc_flexLamUpdate(const mjModel* m, const mjData* d, const mjtNum* x
   for (int c=0; c < ncand; c++) {
     if (cand[c].lam <= 0) continue;
     int vv[4], nvv;
-    mjc_conVerts(&cand[c], vv, &nvv);
+    nvv = mjc_pairVerts(vv, IPC_PAIR(&cand[c]));
     for (int q=0; q < nvv; q++)
       if (cand[c].lam > pal[pt2vg[vv[q]]]) pal[pt2vg[vv[q]]] = cand[c].lam;
   }
@@ -270,7 +287,7 @@ static void ipc_flexLamUpdate(const mjModel* m, const mjData* d, const mjtNum* x
 // The merged set is written back into aset/*naset. The new merged set's fields (ld0/ln/.../s) are
 // refreshed by the next iter's linearize_constraints + update_slack, so only type/idx/gi/lam/cnt
 // need to be carried here.
-static void ipc_mergeActiveSet(mjData* d, ipcCon* aset, int* naset, const ipcCon* cand, int ncand,
+static void ipc_mergeActiveSet(mjData* d, ipcCon* aset, int* naset, const mjcFlexPair* cand, int ncand,
                                const int* cadmit, ipcCon* amerge, const mjtNum* pal,
                                const int* conage, const int* pt2vg, int candmax) {
   // dedup hash over the merged set: open addressing keyed by pairHash (key 0 = empty slot; a true
@@ -296,7 +313,7 @@ static void ipc_mergeActiveSet(mjData* d, ipcCon* aset, int* naset, const ipcCon
     // culls approaching pairs before they develop any force, and the geometry passes through. The
     // never-engaged group still ages out on its own counter so it cannot accumulate.
     if ((aset[c].lam <= 0 && aset[c].cnt < 0) || aset[c].cnt > IPC_ASET_AGE) continue;
-    unsigned long key = ipc_pairHash(&aset[c]), h = key & mask;
+    unsigned long key = ipc_pairHash(IPC_PAIR(&aset[c])), h = key & mask;
     while (mkey[h] != 0) {
       if (mkey[h] == key) break;
       h = (h + 1) & mask;
@@ -309,15 +326,18 @@ static void ipc_mergeActiveSet(mjData* d, ipcCon* aset, int* naset, const ipcCon
   // 2) add new admitted broad-phase candidates not already present
   for (int c=0; c < ncand; c++) {
     if (!cadmit[c] || nm >= candmax) continue;
-    unsigned long key = ipc_pairHash(&cand[c]), h = key & mask;
+    unsigned long key = ipc_pairHash(IPC_PAIR(&cand[c])), h = key & mask;
     while (mkey[h] != 0) {
       if (mkey[h] == key) break;
       h = (h + 1) & mask;
     }
     if (mkey[h] == key) continue;  // dedup: pair already in the merged set
-    ipcCon con = cand[c];
+    ipcCon con = {0};
+    con.type = cand[c].type;
+    for (int q=0; q < 4; q++) con.idx[q] = cand[c].idx[q];
+    con.gi = cand[c].g;
     int vv[4], nvv;
-    mjc_conVerts(&con, vv, &nvv);  // warm-start lam from the per-point binding multiplier
+    nvv = mjc_pairVerts(vv, IPC_PAIR(&con));  // warm-start lam from the per-point binding multiplier
     mjtNum s = 0;
     for (int q=0; q < nvv; q++)
       if (pal[pt2vg[vv[q]]] > s) s = pal[pt2vg[vv[q]]];
@@ -355,7 +375,7 @@ static mjtNum ipc_energy(const mjModel* m, const mjData* d, int nfv, const mjtNu
     // the injected row's gradient. d = c_raw - s - lam/mu, scale = pow(IPC_DECAY, cnt-exp)*mu_pair. Keep
     // mj's dashpot energy.
     mjtNum mu = ipc_muPair(&acon[c], mass, ih2);
-    mjtNum craw = acon[c].ld0 - mjc_off(mjc_conGhat(&acon[c], rad, ghat));
+    mjtNum craw = acon[c].ld0 - mjc_standoff(mjc_pairBand(IPC_PAIR(&acon[c]), rad, ghat), IPC_DELTACAP);
     for (int p=0; p < acon[c].lniv; p++) {
       int v = acon[c].liv[p];
       for (int k=0; k < 3; k++)
@@ -660,7 +680,8 @@ void mj_IPC(const mjModel* m, mjData* d) {
   // edge-equality efc rows.
   int candmax = npt * 192 + 8192;  // capacity of the per-step candidate list (sized for the
                                    // geom-feature-heavy bag-in-bin contact: ~160k at npt~1100)
-  ipcCon* cand = (ipcCon*)mj_stackAllocByte(d, (candmax) * sizeof(ipcCon), sizeof(mjtNum));
+  mjcFlexPair* cand = (mjcFlexPair*)mj_stackAllocByte(d, (candmax) * sizeof(mjcFlexPair),
+                                                      sizeof(mjtNum));
   mjtNum* cgap =
       mj_stackAllocNum(d, candmax);  // per-candidate gap at x (try->ccd/E0)
   // FLEX persistent active set (the persistent active-set manager): maintained ACROSS outer
@@ -809,17 +830,8 @@ void mj_IPC(const mjModel* m, mjData* d) {
     mju_warning("IPC: candidate list full at %d pairs; contacts were dropped, so geometry there "
                 "can pass through. Time = %.4f", ncand, d->time);
   }
-  for (int c=0; c < ncand;
-       c++) {  // AL: warm-start each candidate's lam from d->flexvert_lambda + cnt from the store
-    int vv[4], nvv;
-    mjc_conVerts(&cand[c], vv, &nvv);  // (binding = max over its free-point participants)
-    mjtNum s = 0;
-    for (int q=0; q < nvv; q++)
-      if (d->flexvert_lambda[pt2vg[vv[q]]] > s) s = d->flexvert_lambda[pt2vg[vv[q]]];
-    cand[c].lam = s;
-    cand[c].cnt = ipc_conAge(&cand[c], d->flexvert_conage, pt2vg);
-    cand[c].s = 0;
-  }
+  // AL warm-start (lam from d->flexvert_lambda, cnt from the store) now happens on the ASET
+  // entries at the seed below: the candidate array is geometry-only after the module split.
   // warm start: with no candidate contacts within thresh, the predictor x~ is collision-free (the
   // thresh margin covers the step displacement), so it is a far better feasible initial guess than
   // xold and Newton converges in ~1 iteration instead of ~2 -- halving the cost of contact-free
@@ -834,7 +846,7 @@ void mj_IPC(const mjModel* m, mjData* d) {
     if (cand[c].type >= 2) continue;
     mjtNum nn[3], cw[4];
     int iv[4], nidx;
-    cgap[c] = mjc_conGap(&cand[c], m, d, x, gv, ge, rad, nn, iv, cw, &nidx, thresh);
+    cgap[c] = mjc_pairGap(IPC_PAIR(&cand[c]), m, d, x, gv, ge, rad, nn, iv, cw, &nidx, thresh);
   }
   // FLEX: SEED the persistent active set from the iter-0 broad-phase. addCand already pruned
   // cand to closing-or-distance-active pairs (per-pair closing-bound prune), so every iter-0
@@ -843,7 +855,19 @@ void mj_IPC(const mjModel* m, mjData* d) {
   // CCD-toi merge then maintain it (bounded, not holdall).
   naset = (ncand < candmax) ? ncand : candmax;
   for (int c=0; c < naset; c++) {
-    aset[c] = cand[c];
+    ipcCon* a0 = &aset[c];
+    memset(a0, 0, sizeof(ipcCon));
+    a0->type = cand[c].type;
+    for (int q=0; q < 4; q++) a0->idx[q] = cand[c].idx[q];
+    a0->gi = cand[c].g;
+    {  // AL warm-start: lam = max binding multiplier over participants, cnt from the age store
+      int vv[4], nvv = mjc_pairVerts(vv, IPC_PAIR(a0));
+      mjtNum s = 0;
+      for (int q=0; q < nvv; q++)
+        if (d->flexvert_lambda[pt2vg[vv[q]]] > s) s = d->flexvert_lambda[pt2vg[vv[q]]];
+      a0->lam = s;
+      a0->cnt = ipc_conAge(a0, d->flexvert_conage, pt2vg);
+    }
   }
   for (int i=0; i < 3 * nstate; i++)
     xfree[i] = xold[i];  // intersection-free output path (paper x[k]), from feasible xold
@@ -871,7 +895,7 @@ void mj_IPC(const mjModel* m, mjData* d) {
     int wn = naset;
     // N1 linearize_constraints (at xfree, Eq.10): ld0/ln/lcw/liv this iter -> c(x) is linear in x.
     for (int c=0; c < wn; c++)
-      wcon[c].ld0 = mjc_conGap(&wcon[c], m, d, xfree, gv, ge, rad, wcon[c].ln, wcon[c].liv,
+      wcon[c].ld0 = mjc_pairGap(IPC_PAIR(&wcon[c]), m, d, xfree, gv, ge, rad, wcon[c].ln, wcon[c].liv,
                                wcon[c].lcw, &wcon[c].lniv, ghat);
     // x PERSISTS across outer iters (libuipc/paper warm-start) -- NOT reset to xfree. The old
     // restart-from-xfree was a contact-set-explosion NaN firewall that ALSO prevented the primal
@@ -940,7 +964,7 @@ void mj_IPC(const mjModel* m, mjData* d) {
           mjtNum D = mu;
           for (int e=0; e < cexp; e++)
             D *= IPC_DECAY;  // scale = mu*DECAY^cnt (the GN stiffness)
-          mjtNum delta = mjc_off(mjc_conGhat(con, rad, ghat));
+          mjtNum delta = mjc_standoff(mjc_pairBand(IPC_PAIR(con), rad, ghat), IPC_DELTACAP);
           mjtNum refc = -(con->ld0 - delta) + con->s + con->lam / mu;
           int np = 0;
           // This reference is EXACT: r(qacc(x)) = dd(x) algebraically (the h*Rqv terms cancel per
@@ -1177,13 +1201,13 @@ void mj_IPC(const mjModel* m, mjData* d) {
     for (int c=0; c < ncand; c++) {
       mjtNum nn[3], cw[4];
       int idv[4], ni;  // gaps at xfree (for CCD + admission)
-      cgap[c] = mjc_conGap(&cand[c], m, d, xfree, gv, ge, rad, nn, idv, cw, &ni, ghat);
+      cgap[c] = mjc_pairGap(IPC_PAIR(&cand[c]), m, d, xfree, gv, ge, rad, nn, idv, cw, &ni, ghat);
     }
     // N8d CCD time-of-impact filter(1.0): CCD over the trajectory candidates -> the advance alpha.
     // appr[c] flags each candidate whose full step closes its gap into the active zone (== its
     // individual CCD time-of-impact < 1).
     mjtNum ac =
-        mjc_advance(m, d, xfree, dx, gv, ge, rad, nfv, fidx, cand, ncand, cgap, pt2flex, appr);
+        mjc_advance(m, d, xfree, dx, gv, ge, rad, nfv, fidx, cand, ncand, cgap, pt2flex, appr, NULL);
     // N8e update_active_set: MERGE the admitted broad-phase candidates into the persistent set
     // (keep existing with abs(cnt)<=25, add new with toi<1-1e-6, dedup). Admit a candidate iff it
     // is closing this step (appr) OR already distance-active (gap<=0): both are the CCD
