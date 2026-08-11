@@ -3043,7 +3043,8 @@ void mjCModel::CopyTree(mjModel* m) {
       m->geom_conaffinity[gid] = pg->conaffinity;
       m->geom_condim[gid] = pg->condim;
       m->geom_bodyid[gid] = pg->body->id;
-      if (pg->mesh) {
+      // a primitive fitted to a mesh keeps pg->mesh, but must not reference it in mjModel
+      if (pg->mesh && (pg->type == mjGEOM_MESH || pg->type == mjGEOM_SDF)) {
         m->geom_dataid[gid] = pg->mesh->id;
       } else if (pg->hfield) {
         m->geom_dataid[gid] = pg->hfield->id;

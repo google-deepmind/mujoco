@@ -76,5 +76,32 @@ TEST_F(MjcConvexTest, CylinderBox) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjcConvexTest, PlaneFittedEllipsoid) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="blob"
+        vertex="0 0 .3  .2 0 0  0 .2 0  -.2 0 0  0 -.2 0  0 0 -.3"
+        face="0 1 2  0 2 3  0 3 4  0 4 1  5 2 1  5 3 2  5 4 3  5 1 4"/>
+    </asset>
+    <worldbody>
+      <geom type="plane" size="5 5 .1"/>
+      <body pos="0 0 .1">
+        <freejoint/>
+        <geom type="ellipsoid" mesh="blob"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // plane vs ellipsoid is a single contact, whether or not it was mesh-fitted
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->ncon, 1);
+}
+
 }  // namespace
 }  // namespace mujoco
