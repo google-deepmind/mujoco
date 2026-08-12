@@ -118,7 +118,9 @@ def apply_delay(
   )
   ts_sensor_delayed = ts_sensor.resample(ts.times - delay.value)
 
-  ts_delayed = timeseries.TimeSeries(ts.times, ts.data, ts.signal_mapping)
+  ts_delayed = timeseries.TimeSeries(
+      ts.times, ts.data.copy(), ts.signal_mapping
+  )
   ts_delayed.data[:, indices] = ts_sensor_delayed.data
 
   return ts_delayed

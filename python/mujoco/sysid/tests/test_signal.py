@@ -159,6 +159,24 @@ def test_apply_bias(arm_model):
 
 
 # ===========================================================================
+# signal_modifier: apply_delay
+# ===========================================================================
+
+
+def test_apply_delay_does_not_modify_input(arm_model):
+  """Delaying a sensor leaves the input timeseries unchanged."""
+  ts = _make_arm_sensor_ts(arm_model)
+  data = ts.data.copy()
+  delay = parameter.Parameter("delay", 0.1, 0.0, 0.2)
+
+  result = signal_modifier.apply_delay(ts, "joint1_pos", delay)
+
+  np.testing.assert_array_equal(ts.data, data)
+  idx = ts.get_indices("joint1_pos")[1]
+  assert not np.array_equal(result.data[:, idx], data[:, idx])
+
+
+# ===========================================================================
 # signal_modifier: apply_delayed_ts_window
 # ===========================================================================
 
