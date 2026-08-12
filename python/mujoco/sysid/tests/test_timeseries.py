@@ -200,6 +200,19 @@ def test_resample_with_target_dt(scalar_ts):
     scalar_ts.resample()
 
 
+def test_remove_from_beginning_with_nonzero_start():
+  """Removal duration is measured relative to the first timestamp."""
+  ts = TimeSeries(
+      times=np.array([10.0, 11.0, 12.0, 13.0]),
+      data=np.array([0.0, 1.0, 2.0, 3.0]),
+  )
+
+  result = ts.remove_from_beginning(2.0)
+
+  np.testing.assert_array_equal(result.times, [0.0, 1.0])
+  np.testing.assert_array_equal(result.data, [2.0, 3.0])
+
+
 # ---------------------------------------------------------------------------
 # TimeSeries factory method tests
 # ---------------------------------------------------------------------------

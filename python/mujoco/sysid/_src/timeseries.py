@@ -746,11 +746,11 @@ class TimeSeries:
     """
     if time_to_remove_s < 0:
       raise ValueError("time_to_remove_s must be non-negative")
-    if time_to_remove_s > self.times[-1]:
+    if time_to_remove_s > self.times[-1] - self.times[0]:
       raise ValueError(
           "time_to_remove_s is greater than the duration of the time series"
       )
-    idx = np.searchsorted(self.times, time_to_remove_s)
+    idx = np.searchsorted(self.times, self.times[0] + time_to_remove_s)
     times_shifted = self.times[idx:] - self.times[idx]
     return TimeSeries(
         times=times_shifted,
