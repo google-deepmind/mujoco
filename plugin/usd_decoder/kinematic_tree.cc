@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "kinematic_tree.h"
+#include "third_party/mujoco/plugin/usd_decoder/newton_tokens.h"
 
 #include <map>
 #include <memory>
@@ -25,9 +26,9 @@
 #include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/tendon.h>
 #include <mujoco/mujoco.h>
-#include "third_party/mujoco/plugin/usd_decoder/newton_tokens.h"
 #include <pxr/usd/sdf/path.h>
 #include <pxr/usd/usd/common.h>
+#include <pxr/usd/usd/primFlags.h>
 #include <pxr/usd/usd/primRange.h>
 #include <pxr/usd/usdGeom/gprim.h>
 #include <pxr/usd/usdGeom/xformCache.h>

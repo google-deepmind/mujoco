@@ -18,8 +18,8 @@
 #include <vector>
 
 #include <mujoco/experimental/usd/utils.h>
-#include "experimental/usd/plugins/mjcf/mujoco_to_usd.h"
 #include <mujoco/mujoco.h>
+#include "experimental/usd/plugins/mjcf/mujoco_to_usd.h"
 #include <pxr/usd/sdf/path.h>
 #include <pxr/usd/usd/common.h>
 #include <pxr/usd/usd/stage.h>

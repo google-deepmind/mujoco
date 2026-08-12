@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <array>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>

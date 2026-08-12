@@ -50,7 +50,6 @@
 #include <pxr/base/vt/types.h>
 #include <pxr/base/vt/value.h>
 #include <pxr/usd/kind/registry.h>
-#include <pxr/usd/sdf/abstractData.h>
 #include <pxr/usd/sdf/assetPath.h>
 #include <pxr/usd/sdf/declareHandles.h>
 #include <pxr/usd/sdf/path.h>
