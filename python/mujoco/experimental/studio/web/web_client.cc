@@ -715,9 +715,30 @@ class AssetRegistry {
 };
 
 // Exposed to JS (see EMSCRIPTEN_BINDINGS): the page calls this once per asset.
-void RegisterAsset(std::string filename, std::string contents) {
-  AssetRegistry::Instance().RegisterAsset(std::move(filename),
-                                          std::move(contents));
+void RegisterAsset(std::string filename, emscripten::val contents) {
+  std::string data;
+  if (contents.typeOf().as<std::string>() == "string") {
+    data = contents.as<std::string>();
+  } else if (contents.instanceof(emscripten::val::global("Uint8Array")) ||
+             contents.hasOwnProperty("length")) {
+    size_t len = contents["length"].as<size_t>();
+    data.resize(len);
+    if (len > 0) {
+      emscripten::val memory_view =
+          emscripten::val(emscripten::typed_memory_view(len, data.data()));
+      memory_view.call<void>("set", contents);
+    }
+  } else if (contents.instanceof(emscripten::val::global("ArrayBuffer"))) {
+    emscripten::val u8 = emscripten::val::global("Uint8Array").new_(contents);
+    size_t len = u8["length"].as<size_t>();
+    data.resize(len);
+    if (len > 0) {
+      emscripten::val memory_view =
+          emscripten::val(emscripten::typed_memory_view(len, data.data()));
+      memory_view.call<void>("set", u8);
+    }
+  }
+  AssetRegistry::Instance().RegisterAsset(std::move(filename), std::move(data));
 }
 
 // Registers resource providers so that "filament:" and "font:" asset requests

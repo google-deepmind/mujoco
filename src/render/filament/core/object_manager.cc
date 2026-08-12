@@ -42,8 +42,19 @@ static filament::Material* LoadMaterial(filament::Engine* engine,
   const std::string path = ResolveFilamentAssetPath(std::string(filename));
   mjResource* resource =
       mju_openResource("", path.c_str(), nullptr, nullptr, 0);
+  if (!resource) {
+    mju_error("Failed to open filament asset '%.*s' at '%s'",
+              static_cast<int>(filename.size()), filename.data(), path.c_str());
+    return nullptr;
+  }
   void* payload = nullptr;
   int size = mju_readResource(resource, const_cast<const void**>(&payload));
+  if (size <= 0 || !payload) {
+    mju_error("Failed to read filament asset '%.*s' (size=%d)",
+              static_cast<int>(filename.size()), filename.data(), size);
+    mju_closeResource(resource);
+    return nullptr;
+  }
   filament::Material::Builder material_builder;
   material_builder.package(payload, size);
   filament::Material* material = material_builder.build(*engine);

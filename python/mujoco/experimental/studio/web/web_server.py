@@ -479,8 +479,12 @@ def _run_server(
     content_type = _CONTENT_TYPES.get(
         os.path.splitext(full)[1], "application/octet-stream"
     )
+    cacheable = not rel.endswith("index.html")
     return Response(
-        200, "OK", _http_headers(content_type, len(body), cacheable=True), body
+        200,
+        "OK",
+        _http_headers(content_type, len(body), cacheable=cacheable),
+        body,
     )
 
   async def main_loop() -> None:
