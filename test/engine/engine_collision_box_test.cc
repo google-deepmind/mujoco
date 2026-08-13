@@ -522,5 +522,39 @@ TEST_F(MjCollisionBoxTest, EdgeContactAtDepthBound) {
   }
 }
 
+TEST_F(MjCollisionBoxTest, NoPhantomDeepContact) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body><freejoint/><geom type="box" size="75 35.5 22.5" mass="0.25"/></body>
+      <body><freejoint/><geom type="box" size="75 35.5 22.5" mass="0.25"/></body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  const mjtNum pose1[7] = {
+      862.4672361088551, 444.5974448882937, -87.50001574938747,
+      0.70870472649706, 2.2005940043163968e-13,
+      -1.8342950101702237e-13, 0.7055052165935622};
+  const mjtNum pose2[7] = {
+      862.4009654665109, 594.9219226097865, -87.50002095390447,
+      0.7054546906050059, -7.947440490083151e-08,
+      -3.301086291725321e-08, 0.7087550207958939};
+  mju_copy(data->qpos, pose1, 7);
+  mju_copy(data->qpos + 7, pose2, 7);
+  mj_forward(model.get(), data.get());
+
+  EXPECT_LT(mj_geomDistance(model.get(), data.get(), 0, 1, 1, nullptr), 0);
+  mjPreContact precon[mjMAXCONPAIR];
+  int num = mjc_BoxBox(model.get(), data.get(), precon, 0, 1, 0);
+  for (int i = 0; i < num; i++) {
+    EXPECT_GT(precon[i].dist, -0.1);
+  }
+}
+
 }  // namespace
 }  // namespace mujoco
