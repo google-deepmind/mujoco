@@ -259,6 +259,7 @@ def prepare_sensor_weights(
     sensor_weights: Mapping[str, float] | np.ndarray,
     n_sensors: int,
     model: mujoco.MjModel,
+    signal_mapping: timeseries.SignalMappingType | None = None,
 ) -> np.ndarray:
   """Prepare sensor weights array from a dict or numpy array.
 
@@ -266,6 +267,14 @@ def prepare_sensor_weights(
     sensor_weights: Mapping from sensor name to weight, or a flat array.
     n_sensors: Total number of sensor columns.
     model: MuJoCo model for resolving sensor names to indices.
+    signal_mapping: Optional mapping from sensor names to their data columns.
+      If provided, every weighted sensor must be present and map to an
+      ``MjSensor`` signal.
+
+  Raises:
+    ValueError: If the weights array has the wrong shape, or a weighted sensor
+      is missing from ``signal_mapping`` or does not map to an ``MjSensor``
+      signal.
   """
   if isinstance(sensor_weights, np.ndarray):
     if sensor_weights.ndim != 1 or sensor_weights.shape[0] != n_sensors:
@@ -276,9 +285,16 @@ def prepare_sensor_weights(
     return sensor_weights
   else:
     weights = np.ones(n_sensors)
-    ids = get_sensor_indices(model, list(sensor_weights.keys()))
-    for i, w in zip(ids, sensor_weights.values(), strict=True):
-      weights[i] = w
+    for name, weight in sensor_weights.items():
+      if signal_mapping is None:
+        indices = get_sensor_indices(model, name)
+      else:
+        if name not in signal_mapping:
+          raise ValueError(f"Sensor not found in signal_mapping: {name}")
+        signal_type, indices = signal_mapping[name]
+        if signal_type != timeseries.SignalType.MjSensor:
+          raise ValueError(f"Weighted signal must be an MjSensor: {name}")
+      weights[indices] = weight
     return weights
 
 
@@ -287,6 +303,7 @@ def weighted_diff(
     measured_data: np.ndarray,
     model: mujoco.MjModel | None = None,
     sensor_weights: Mapping[str, float] | np.ndarray | None = None,
+    signal_mapping: timeseries.SignalMappingType | None = None,
 ) -> np.ndarray:
   """Compute the weighted difference between measured and predicted data.
 
@@ -300,16 +317,25 @@ def weighted_diff(
       is not None.
     sensor_weights: An optional dict mapping sensor name to weight. Unspecified
       sensors are assumed to have a weight of 1.
+    signal_mapping: Optional mapping from sensor names to their data columns.
+      If provided, every name in ``sensor_weights`` must be present and map to
+      an ``MjSensor`` signal.
 
   Returns:
     A numpy array of the weighted difference.
+
+  Raises:
+    ValueError: If sensor weights require a model, have the wrong shape, or
+      refer to a missing or non-sensor entry in ``signal_mapping``.
   """
   res = measured_data - predicted_data
   if sensor_weights is None:
     return res
   if model is None:
     raise ValueError("model is required if sensor_weights is provided")
-  return res * prepare_sensor_weights(sensor_weights, res.shape[-1], model)
+  return res * prepare_sensor_weights(
+      sensor_weights, res.shape[-1], model, signal_mapping
+  )
 
 
 def normalize_residual(

@@ -14,6 +14,7 @@
 # ==============================================================================
 """Tests for signal_modifier and SignalTransform."""
 
+import mujoco
 from mujoco.sysid._src import parameter
 from mujoco.sysid._src import signal_modifier
 from mujoco.sysid._src import timeseries
@@ -201,6 +202,106 @@ def test_weighted_diff_with_weights(arm_model):
   np.testing.assert_allclose(result[:, idx], 0.5)
   other = [i for i in range(n) if i not in idx]
   np.testing.assert_allclose(result[:, other], 1.0)
+
+
+def test_weighted_diff_weights_all_sensor_components():
+  """A sensor's weight applies to each component of its output."""
+  model = mujoco.MjModel.from_xml_string("""
+    <mujoco>
+      <worldbody>
+        <body>
+          <freejoint/>
+          <geom type="sphere" size="1"/>
+          <site name="site"/>
+        </body>
+      </worldbody>
+      <sensor>
+        <clock name="time"/>
+        <framepos name="position" objtype="site" objname="site"/>
+      </sensor>
+    </mujoco>
+  """)
+  predicted = np.zeros((1, model.nsensordata))
+  measured = np.ones((1, model.nsensordata))
+
+  result = signal_modifier.weighted_diff(
+      predicted, measured, model, {"position": 0.5}
+  )
+
+  np.testing.assert_array_equal(result, [[1.0, 0.5, 0.5, 0.5]])
+
+
+@pytest.mark.parametrize(
+    ("names", "expected"),
+    [
+        (["position"], [[0.5, 0.5, 0.5]]),
+        (["position", "time"], [[0.5, 0.5, 0.5, 1.0]]),
+    ],
+)
+def test_weighted_diff_uses_observation_layout(names, expected):
+  """Weights follow compact and reordered observation columns."""
+  model = mujoco.MjModel.from_xml_string("""
+    <mujoco>
+      <worldbody>
+        <body>
+          <freejoint/>
+          <geom type="sphere" size="1"/>
+          <site name="site"/>
+        </body>
+      </worldbody>
+      <sensor>
+        <clock name="time"/>
+        <framepos name="position" objtype="site" objname="site"/>
+      </sensor>
+    </mujoco>
+  """)
+  measured = np.ones((1, len(expected[0])))
+  observations = timeseries.TimeSeries.from_names(
+      np.array([0.0]), measured, model, names
+  )
+
+  result = signal_modifier.weighted_diff(
+      np.zeros_like(measured),
+      measured,
+      model,
+      {"position": 0.5},
+      observations.signal_mapping,
+  )
+
+  np.testing.assert_array_equal(result, expected)
+
+
+def test_weighted_diff_rejects_weight_missing_from_observation_layout(
+    arm_model,
+):
+  mapping = timeseries.TimeSeries.compute_all_sensor_mapping(arm_model)
+  del mapping["joint1_pos"]
+
+  with pytest.raises(
+      ValueError, match="Sensor not found in signal_mapping: joint1_pos"
+  ):
+    signal_modifier.weighted_diff(
+        np.zeros((1, arm_model.nsensordata)),
+        np.ones((1, arm_model.nsensordata)),
+        arm_model,
+        {"joint1_pos": 0.5},
+        mapping,
+    )
+
+
+def test_weighted_diff_rejects_non_sensor_mapping(arm_model):
+  mapping = {"joint1_pos": (timeseries.SignalType.CustomObs, np.array([0]))}
+
+  with pytest.raises(
+      ValueError, match="Weighted signal must be an MjSensor: joint1_pos"
+  ):
+    signal_modifier.weighted_diff(
+        np.zeros((1, 1)),
+        np.ones((1, 1)),
+        arm_model,
+        {"joint1_pos": 0.5},
+        mapping,
+    )
 
 
 def test_normalize_residual():

@@ -335,6 +335,7 @@ def model_residual(
           measured_data=measured_sensordata.data,
           model=model,
           sensor_weights=sensor_weights,
+          signal_mapping=measured_sensordata.signal_mapping,
       )
       res = signal_modifier.normalize_residual(res, measured_sensordata.data)
 

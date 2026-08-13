@@ -279,6 +279,7 @@ class SignalTransform:
         measured_data=sensordata_measured.data,
         model=model,
         sensor_weights=weights,
+        signal_mapping=sensordata_measured.signal_mapping,
     )
 
     # 6. Normalize.
