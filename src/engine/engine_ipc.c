@@ -927,12 +927,13 @@ void mj_IPC(const mjModel* m, mjData* d) {
       // flex-static, no lniv filter) as extra-primal rows; native efc keeps the EDGES (equality)
       // but we DROP its contact rows (nefc -> ne+nf+nl) so they don't double-count our injection.
       // Then the converged qacc -> world x, and N8 + the next outer's re-linearize run normally on
-      // it. pure-flex: inject ALL barrier contacts + drop native. pure-rigid: keep native. MIXED:
-      // inject only flex-flex/self, keep native (rigid + flex-humanoid). MuJoCo's converged qacc is
+      // it. Barrier contacts are injected whether or not the model also has rigid bodies: they
+      // stay in the active set and under conservative advancement either way, so a pair whose row
+      // is withheld ascends its multiplier against a force that never reaches the solve.
+      // pure-rigid: keep native. MuJoCo's converged qacc is
       // used as the search DIRECTION for the shared N7 monotone-energy line search (below) -- a
       // converged step is big and needs the line search to stay stable.
       {
-        int mixed = (na_artic > 0 && nfv > 0);
         int cap = 2 * nacon + 1;  // contact stiffness + dashpot pairs
         // NESTED frame: these arrays are sized by the live contact count and rebuilt every outer
         // iteration, so they must be released per iteration. Held in the outer frame instead they
@@ -953,12 +954,6 @@ void mj_IPC(const mjModel* m, mjData* d) {
         mjtNum h2 = 1.0 / ih2;
         for (int c=0; c < nacon; c++) {  // pure-flex: ALL barrier contacts (the flex CCD
           ipcCon* con = &wcon[c];  // tracks all -> all injected); mixed: only flex-flex/self
-          if (mixed) {
-            int othr = (con->type == 0)
-                           ? con->idx[1]
-                           : con->idx[2];  // mixed: inject only flex-flex/self contacts
-            if (!(con->type <= 1 && con->idx[0] < nfv && othr < nfv)) continue;
-          }
           mjtNum mu = ipc_muPair(con, mass, ih2);
           int cexp = ipc_cntExp(con->cnt);
           mjtNum D = mu;
