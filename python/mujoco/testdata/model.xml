@@ -1,0 +1,178 @@
+<mujoco>
+  <option jacobian="dense" density="1.225" viscosity="1.8e-5" wind="0 0 1">
+    <flag fwdinv="enable" energy="enable" island="enable"/>
+  </option>
+
+  <asset>
+    <mesh name="icosahedron" scale=".05 .05 .05"
+          vertex="0         1       1.618
+                  0        -1       1.618
+                  0         1      -1.618
+                  0        -1      -1.618
+                  1         1.618   0
+                 -1         1.618   0
+                  1        -1.618   0
+                 -1        -1.618   0
+                  1.618     0       1
+                  1.618     0      -1
+                 -1.618     0       1
+                 -1.618     0      -1"/>
+    <hfield name="hfield" nrow="3" ncol="3" size=".2 .2 .03 .03"
+            elevation="1 0 1
+                       0 1 0
+                       1 0 1"/>
+    <texture builtin="gradient" height="100" rgb1="1 1 1" rgb2="0 0 0" type="skybox" width="100"/>
+    <texture name="grid" type="cube" builtin="checker" width="32" height="32" rgb1=".1 .2 .3" rgb2="1 1 1"/>
+    <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance=".2"/>
+  </asset>
+
+  <default>
+    <site rgba=".5 .5 .5 .5"/>
+    <joint armature="1" damping="10"/>
+    <general ctrllimited="true" ctrlrange="-1 1"/>
+    <default class="hip0">
+      <joint springref="30" stiffness="60"/>
+    </default>
+    <default class="hip1">
+      <joint limited="true" range="-60 60" stiffness="10"/>
+    </default>
+    <default class="wheel">
+      <joint damping=".1" armature=".1"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light pos="0 0 3"/>
+    <geom name="floor" type="plane" size="4 4 .1"/>
+    <geom type="hfield" hfield="hfield" pos="-.4 .6 .05" rgba="0 0 1 1"/>
+    <body name="head" pos="0 0 .7" gravcomp="0.5">
+      <geom type="ellipsoid" size=".2 .2 .4" density="200" material="grid"/>
+      <site name="head" pos="0 0 .4" size=".1 .1 .05" type="box"/>
+      <site name="anchor0" pos="0 .2 0"/>
+      <site name="rf" pos="0 0 -0.41" zaxis="0 0 -1"/>
+      <freejoint/>
+      <body euler="0 0 0" pos=".2 0 -.2">
+        <joint name="hipz_0" class="hip1" axis="0 0 1"/>
+        <joint name="hipy_0" class="hip0" axis="0 1 0"/>
+        <geom type="capsule" size=".05" rgba="1 0 0 1" fromto="0 0 0 .3 0 0"/>
+        <body pos=".3 0 0">
+          <site name="knee"/>
+          <geom type="capsule" size=".05" rgba="1 0 0 1" fromto="0 0 0 .1 0 -.3"/>
+          <body pos=".1 0 -.3">
+            <joint name="wheel_0" type="ball" class="wheel"/>
+            <site name="wheel_0" type="box" size=".1 .1 .1"/>
+            <geom name="wheel_0" size=".1 .2 .1"  rgba="0 1 0 1" type="ellipsoid"/>
+          </body>
+        </body>
+      </body>
+      <body euler="0 0 120" pos="-.15 .2 -.2">
+        <joint name="hipz_1" class="hip1" axis="0 0 1"/>
+        <joint name="hipy_1" class="hip0" axis="0 1 0"/>
+        <geom type="box" size=".05" rgba="1 0 0 1" fromto="0 0 0 .3 0 0"/>
+        <geom type="box" size=".05" rgba="1 0 0 1" fromto=".3 0 0 .4 0 -.3"/>
+        <body pos=".45 0 -.3">
+          <joint name="wheel_1" axis="1 0 0" class="wheel"/>
+          <geom size=".1"  rgba="0 1 0 1" type="cylinder" fromto="0 0 0 .03 0 0"/>
+          <site name="wheel_1" type="box" size=".02 .11 .11" pos=".015 0 0"/>
+        </body>
+      </body>
+      <body euler="0 0 240" pos="-.15 -.2 -.2">
+        <joint name="hipz_2" class="hip1" axis="0 0 1"/>
+        <joint name="hipy_2" class="hip0" axis="0 1 0"/>
+        <geom type="capsule" size=".05" rgba="1 0 0 1" fromto="0 0 0 .3 0 0"/>
+        <geom type="capsule" size=".05" rgba="1 0 0 1" fromto=".3 0 0 .4 0 -.3"/>
+        <body pos=".45 0 -.3">
+          <joint name="wheel_2" axis="1 0 0" class="wheel"/>
+          <geom size=".1"  rgba="0 1 0 1" type="cylinder" fromto="0 0 0 .03 0 0"/>
+          <site name="wheel_2" size=".13"  rgba="0 0 0 0.1" type="cylinder" fromto="-.01 0 0 .04 0 0"/>
+        </body>
+      </body>
+    </body>
+    <body pos="-.33 0 1">
+      <joint name="slider" type="slide" axis="0 0 1" limited="true" range="-.2 .5"/>
+      <joint type="hinge" axis="0 1 0"/>
+      <geom type="mesh" mesh="icosahedron" size=".1" rgba="0 0 1 1"/>
+    </body>
+    <body name="cylinder" pos="-.5 .3 .7">
+      <freejoint/>
+      <geom name="wrapping" type="cylinder" size=".04" fromto="-.1 -.2 0 .1 .4 0"/>
+      <site name="cylinder"/>
+    </body>
+    <site name="sidesite" pos="-.5 .4 1"/>
+    <body pos="-.3 .6 .8">
+      <freejoint/>
+      <geom type="box" size=".05 .05 .05" rgba="0 0 1 1"/>
+      <site name="anchor1" pos=".05 .05 .05"/>
+    </body>
+    <body pos="-.6 .4 .8">
+      <freejoint/>
+      <geom type="box" size=".05 .05 .05" rgba="0 0 1 1"/>
+      <site name="anchor2" pos=".05 .05 .05"/>
+    </body>
+    <body name="tumbling" pos="-.2 .3 1">
+      <freejoint/>
+      <geom type="box" size=".025 .01 0.0001" pos=".025 0 0" euler="20 0 0" mass="1e-4" fluidshape="ellipsoid"/>
+      <geom type="box" size=".025 .01 0.0001" pos="-.025 0 0" euler="-19 0 0" mass="1e-4" fluidshape="ellipsoid"/>
+    </body>
+  </worldbody>
+
+  <equality>
+    <weld body1="world" body2="cylinder"/>
+  </equality>
+
+  <tendon>
+    <spatial name="spatial" limited="true" range="0 .7" rgba="1 0 1 1">
+      <site site="anchor0"/>
+      <site site="anchor1"/>
+      <geom geom="wrapping" sidesite="sidesite"/>
+      <site site="anchor2"/>
+    </spatial>
+    <fixed name="fixed">
+      <joint joint="hipy_0" coef="1"/>
+      <joint joint="hipy_1" coef="1"/>
+    </fixed>
+  </tendon>
+
+  <actuator>
+    <motor tendon="fixed" gear="100"/>
+    <motor tendon="spatial" gear="10"/>
+    <motor joint="hipy_2" gear="100"/>
+    <position joint="hipz_1" kp="100"/>
+    <position joint="hipz_2" kp="100"/>
+    <velocity joint="wheel_2" kv="1"/>
+    <intvelocity joint="hipz_0" kp="100" actrange="-1 1"/>
+    <general site="wheel_0" gear="0 0 0 0 10 0" dyntype="filter" dynprm="1"/>
+    <general joint="wheel_1" biastype="affine" dyntype="integrator" dynprm="1" biasprm="0 -1"/>
+    <general joint="hipy_1" actearly="true" dyntype="filterexact" dynprm="0.9" gear="12.1" />
+  </actuator>
+
+  <sensor>
+    <framepos objtype="site" objname="wheel_0" reftype="site" refname="wheel_2"/>
+    <rangefinder site="rf"/>
+    <gyro site="wheel_2"/>
+    <touch site="wheel_1"/>
+    <force site="knee"/>
+    <torque site="knee"/>
+    <force site="cylinder"/>
+    <torque site="cylinder"/>
+    <jointlimitfrc joint="slider"/>
+    <accelerometer site="head"/>
+    <subtreeangmom body="head"/>
+  </sensor>
+
+  <keyframe>
+    <key name="start"
+         time="0.128"
+         qpos="0.0133625 -0.013799 0.659429 0.999776 0.019159 0.00902704 0.000572574 -0.00776575 0.0983289 0.999861 -0.00869796 -0.0141805 0.000912197 0.00700633 0.0930296 0.00637469 -0.00313231 0.119692 0.0051478 -0.0469067 0 -0.500224 0.300659 0.69913 1 -0.000367766 -0.000265698 -0.000109715 -0.319851 0.525628 0.702735 0.29858 0.698263 -0.0490604 -0.648746 -0.579432 0.4206 0.749601 0.900145 -0.208463 0.346664 -0.161576 -0.200033 0.300084 0.976421 0.878429 -0.00171382 0.00127086 -0.477867"
+         qvel="0.508861 -0.243772 -0.327162 0.549686 1.13746 0.0282475 -0.0865243 1.06414 -0.239958 -0.532111 -0.00133789 -0.0654491 0.533148 -0.253161 0.122149 0.824764 0.723529 -0.674175 0 -0.00154509 -0.00568917 0.00479921 0.00541817 0.00115895 0.00317796 -0.160161 -0.599488 -1.38103 14.9789 -1.05454 -13.9252 -0.31223 -0.0102486 -0.405851 5.43992 -4.71514 0.114928 -0.00123758 0.000187845 -0.244109 -0.190199 0.0697975 -16.3286"/>
+  </keyframe>
+
+  <custom>
+    <numeric name="numeric" data="1 2 3"/>
+    <text name="text" data="abc"/>
+    <tuple name="tuple">
+      <element objtype="body" objname="cylinder" prm="1"/>
+      <element objtype="joint" objname="hipz_0" prm="2"/>
+    </tuple>
+  </custom>
+</mujoco>

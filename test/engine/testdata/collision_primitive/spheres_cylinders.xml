@@ -1,0 +1,87 @@
+<mujoco>
+  <statistic extent="1.5" meansize=".05"/>
+
+  <option solver="CG" tolerance="1e-6"/>
+
+  <size memory="5M"/>
+
+  <visual>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <map stiffness="700" shadowscale="0.5" fogstart="10" fogend="15" zfar="40" haze="0.3"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="512"/>
+    <texture name="texplane" type="2d" builtin="checker" rgb1=".2 .3 .4" rgb2=".1 0.15 0.2"
+      width="512" height="512" mark="cross" markrgb=".8 .8 .8"/>
+    <material name="matplane" reflectance="0.3" texture="texplane" texrepeat="1 1" texuniform="true"/>
+  </asset>
+
+  <default>
+    <geom solref=".005 1"/>
+    <default class="wall">
+      <geom type="plane" size=".5 .5 .05"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light directional="true" diffuse=".4 .4 .4" specular="0.1 0.1 0.1" pos="0 0 5.0" dir="0 0 -1" castshadow="false"/>
+    <light directional="true" diffuse=".6 .6 .6" specular="0.2 0.2 0.2" pos="0 0 4" dir="0 0 -1"/>
+
+    <geom name="ground" type="plane" size="0 0 1" pos="0 0 0" quat="1 0 0 0" material="matplane" condim="1"/>
+
+    <body mocap="true" pos="-.1 .05 0" zaxis=".5 0 1">
+      <geom type="capsule" size=".1 .1" group="1" condim="1"/>
+    </body>
+
+    <geom name="+x" class="wall" zaxis="1 0 0"  pos="-.5 0 -.25"/>
+    <geom name="-x" class="wall" zaxis="-1 0 0" pos=".5 0 -.25"/>
+    <geom name="+y" class="wall" zaxis="0 1 0"  pos="0 -.5 -.25"/>
+    <geom name="-y" class="wall" zaxis="0 -1 0" pos="0 .5 -.25"/>
+
+    <replicate count="3" offset=".2 0 0">
+      <replicate count="3" offset="0 .2 0">
+        <replicate count="2" offset="0 0 .2">
+          <body pos="-.2 -.2 1">
+            <freejoint/>
+            <geom type="sphere" size=".09" rgba=".8 .2 .1 1" condim="3"/>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
+
+    <replicate count="3" offset=".2 0 0" prefix="A">
+      <replicate count="3" offset="0 .2 0">
+        <replicate count="2" offset="0 0 .2">
+          <body pos="-.2 -.2 1.6">
+            <freejoint/>
+            <geom type="cylinder" size=".09 .02" rgba=".8 .2 .1 1" condim="3"/>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
+
+    <replicate count="3" offset=".2 0 0" prefix="B">
+      <replicate count="3" offset="0 .2 0">
+        <replicate count="2" offset="0 0 .2">
+          <body pos="-.2 -.2 2.2">
+            <freejoint/>
+            <geom type="cylinder" size=".02 .09" rgba=".8 .2 .1 1" condim="3"/>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
+
+    <replicate count="3" offset=".2 0 0" prefix="C">
+      <replicate count="3" offset="0 .2 0">
+        <replicate count="2" offset="0 0 .2">
+          <body pos="-.2 -.2 2.8">
+            <freejoint/>
+            <geom type="sphere" size=".06" rgba=".8 .2 .1 1" condim="3"/>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
+
+  </worldbody>
+</mujoco>

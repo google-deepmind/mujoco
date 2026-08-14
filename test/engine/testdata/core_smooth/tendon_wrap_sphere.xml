@@ -1,0 +1,56 @@
+<mujoco>
+  <default>
+    <site size=".015" rgba="1 0 0 1"/>
+  </default>
+
+  <worldbody>
+    <light pos="0 0 3"/>
+    <geom type="plane" size="2 2 .1"/>
+
+    <site name="0a" pos="0 0 1"/>
+    <geom name="0g" size=".1" pos="0 0 0.5"/>
+    <body pos="0 0 .1">
+      <freejoint/>
+      <geom size=".05"/>
+      <site name="0b" pos="0 0 .05"/>
+    </body>
+
+    <site name="1a" pos=".4 0 1"/>
+    <geom name="1g" size=".1" pos=".4 0 0.5"/>
+    <site name="1s" pos=".52 0 .5"/>
+    <body pos=".4 0 .1">
+      <freejoint/>
+      <geom size=".05"/>
+      <site name="1b" pos="0 0 .05"/>
+    </body>
+
+    <site name="2a" pos="-.4 0 1"/>
+    <geom name="2g" size=".1" pos="-.4 0 0.5"/>
+    <site name="2s" pos="-.49 0 .5"/>
+    <body pos="-.4 0 .1">
+      <freejoint/>
+      <geom size=".05"/>
+      <site name="2b" pos="0 0 .05"/>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <spatial range="0 0.8">
+      <site site="0a"/>
+      <geom geom="0g"/>
+      <site site="0b"/>
+    </spatial>
+
+    <spatial range="0 0.8">
+      <site site="1a"/>
+      <geom geom="1g" sidesite="1s"/>
+      <site site="1b"/>
+    </spatial>
+
+    <spatial range="0 0.8">
+      <site site="2a"/>
+      <geom geom="2g" sidesite="2s"/>
+      <site site="2b"/>
+    </spatial>
+  </tendon>
+</mujoco>

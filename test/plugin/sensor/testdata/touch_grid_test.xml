@@ -1,0 +1,50 @@
+<mujoco model="touchtest">
+  <extension>
+    <plugin plugin="mujoco.sensor.touch_grid"/>
+  </extension>
+
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".1 .2 .3" rgb2=".2 .3 .4" width="300" height="300" mark="edge" markrgb=".2 .3 .4"/>
+    <material name="grid" texture="grid" texrepeat="3 1" texuniform="true"/>
+  </asset>
+
+  <visual>
+      <headlight ambient=".7 .7 .7" diffuse=".2 .2 .2" specular="0.1 0.1 0.1"/>
+      <map znear="0.01"/>
+  </visual>
+
+  <default>
+    <geom friction="0.4"/>
+  </default>
+
+  <statistic center="0 0 1" extent="1" meansize=".1"/>
+
+  <option gravity="0 0 -10"/>
+
+  <worldbody>
+    <body name="dummy2">
+      <geom name="floor" pos="0 0 0" type="plane" size="1 1 .01" material="grid"/>
+    </body>
+
+    <body name="dummy1">
+      <site name="touch" pos="0 0 10" group="3"/>
+    </body>
+
+    <body name="box" pos="0 0 .1">
+      <freejoint/>
+      <geom type="box" size=".1 .1 .1" mass="0.1"/>
+    </body>
+
+    <light pos="0 0 5"/>
+
+  </worldbody>
+
+  <sensor>
+    <plugin name="touch" plugin="mujoco.sensor.touch_grid" objtype="site" objname="touch">
+      <config key="size" value="6 2"/>
+      <config key="fov" value="5.71 5.71"/>
+      <config key="gamma" value="0"/>
+      <config key="nchannel" value="3"/>
+    </plugin>
+  </sensor>
+</mujoco>

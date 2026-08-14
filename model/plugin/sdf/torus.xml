@@ -1,0 +1,54 @@
+
+<mujoco>
+  <extension>
+    <plugin plugin="mujoco.sdf.torus">
+      <instance name="torus">
+        <config key="radius1" value="0.35"/>
+        <config key="radius2" value="0.15"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <asset>
+    <mesh name="torus">
+      <plugin instance="torus"/>
+    </mesh>
+  </asset>
+
+  <option sdf_iterations="10" sdf_initpoints="40"/>
+
+  <include file="scene.xml"/>
+
+  <default>
+    <geom solref="0.01 1" solimp=".95 .99 .0001" friction="0.1"/>
+  </default>
+
+  <worldbody>
+    <body pos="-1 0 3.8">
+      <freejoint/>
+      <geom type="sdf" mesh="torus" rgba=".2 .2 .8 1">
+        <plugin instance="torus"/>
+      </geom>
+    </body>
+    <body pos="-1 0 3.4">
+      <freejoint/>
+      <geom type="sdf" mesh="torus" rgba=".2 .8 .2 1">
+        <plugin instance="torus"/>
+      </geom>
+    </body>
+    <body pos="-1 0 3">
+      <freejoint/>
+      <geom type="sdf" mesh="torus" rgba=".8 .2 .2 1">
+        <plugin instance="torus"/>
+      </geom>
+    </body>
+    <body pos="0 0 2">
+      <geom type="cylinder" size=".1" fromto="1 0 -1 -1 0 1"/>
+    </body>
+    <body pos="0 0 2">
+      <geom type="cylinder" size=".5" fromto="1.2 0 -1.2 1 0 -1"/>
+    </body>
+    <light name="left" pos="-2 0 7" cutoff="80"/>
+    <light name="right" pos="2 0 7" cutoff="80"/>
+  </worldbody>
+</mujoco>

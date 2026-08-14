@@ -1,0 +1,10 @@
+<mujoco>
+  <visual>
+    <global ellipsoidinertia="true"/>
+  </visual>
+  <worldbody>
+    <body pos="0 0 .3">
+      <geom type="capsule" size=".01" fromto="0 0 0 .2 0 0"/>
+    </body>
+  </worldbody>
+</mujoco>

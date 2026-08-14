@@ -1,0 +1,13 @@
+<mujoco>
+  <worldbody>
+    <light pos="0 0 2"/>
+    <geom type="plane" size="1 1 0.1"/>
+
+    <body mocap="true">
+      <geom size=".1"/>
+      <body pos="0 0 .05">
+        <geom size=".1" pos="0 0 .1"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

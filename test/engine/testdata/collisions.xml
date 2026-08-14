@@ -1,0 +1,36 @@
+<mujoco model="collisions">
+  <worldbody>
+    <body name="box">
+      <geom name="box" type="box" size="1 1 1"/>
+    </body>
+    <body pos="1.2 1.2 0.0">
+      <!-- collides with box -->
+      <joint/>
+      <geom name="sphere_collides" type="sphere" size="1"/>
+    </body>
+    <body pos="-0.9 -0.9 0.0">
+      <!-- collides with box, and is a predefined pair -->
+      <joint/>
+      <geom name="sphere_predefined" type="sphere"  size="0.1"/>
+    </body>
+    <body pos="1.8 -1.8 0.0" >
+      <!-- doesn't collide with box, but requires narrowphase checking -->
+      <joint/>
+      <geom name="sphere_narrowphase" type="sphere" size="1"/>
+    </body>
+    <body pos="-2.1 -2.1 0.0">
+      <!-- doesn't collide with box, and can be eliminated in broadphase -->
+      <joint/>
+      <geom name="sphere_broadphase" type="sphere" size="1"/>
+    </body>
+    <body name="sphere_excluded">
+      <!-- collides with box, but is excluded -->
+      <joint/>
+      <geom name="sphere_excluded" type="sphere" pos="0.0 0.0 0.0" size="0.2"/>
+    </body>
+  </worldbody>
+  <contact>
+    <exclude body1="box" body2="sphere_excluded"/>
+    <pair geom1="box" geom2="sphere_predefined"/>
+  </contact>
+</mujoco>

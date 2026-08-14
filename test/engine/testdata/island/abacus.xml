@@ -1,0 +1,35 @@
+<mujoco>
+  <option gravity="1 0 0">
+    <flag island="enable"/>
+  </option>
+
+  <default>
+    <joint type="slide" axis="1 0 0" damping="10"/>
+    <geom size=".1"/>
+  </default>
+
+  <worldbody>
+    <body>
+      <geom type="box" size=".05 .1 .1"/>
+    </body>
+    <body pos=".25 0 0">
+      <joint/>
+      <geom/>
+    </body>
+    <body pos=".5 0 0">
+      <joint/>
+      <geom/>
+    </body>
+    <body pos=".75 0 0">
+      <joint/>
+      <geom/>
+    </body>
+    <body pos="1 0 0">
+      <joint/>
+      <geom/>
+    </body>
+    <body pos="1.25 0 0">
+      <geom type="box" size=".05 .1 .1"/>
+    </body>
+  </worldbody>
+</mujoco>

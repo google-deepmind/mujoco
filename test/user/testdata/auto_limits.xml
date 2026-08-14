@@ -1,0 +1,48 @@
+<mujoco>
+  <compiler autolimits="true" />
+  <default>
+    <joint armature="0.1"/>
+    <default class="limited_false">
+      <joint limited="false"/>
+    </default>
+    <default class="limited_true">
+      <joint limited="true"/>
+      <default class="limited_auto">
+        <joint limited="auto"/>
+      </default>
+    </default>
+    <default class="range_defined">
+      <joint range="-1.57 1.57"/>
+    </default>
+  </default>
+  <!--
+    `user` attributes of the joints below indicate the expected state of the associated
+    jnt_limited property in the compiled model.
+  -->
+  <worldbody>
+    <body>
+      <joint user="0"/>
+      <joint user="1" range="0 1"/>
+      <joint user="0" range="0 1" limited="false"/>
+      <joint user="1" range="0 1" limited="true"/>
+      <joint user="0" range="0 1" class="limited_false"/>
+      <joint user="1" range="0 1" class="limited_true"/>
+      <geom size="1"/>
+    </body>
+    <!-- adding another body since bodies are allowed a maximum of 6 DoFs -->
+    <body>
+      <joint user="1" range="0 1" class="limited_false" limited="true"/>
+      <joint user="0" range="0 1" class="limited_true" limited="false"/>
+      <joint user="1" class="range_defined"/>
+      <joint user="1" range="0 1" class="limited_auto"/>
+      <joint user="1" range="0 1" limited="auto"/>
+      <joint user="0" limited="auto"/>
+      <geom size="1"/>
+    </body>
+    <body>
+      <!-- free joints should remain unlimited even if a (meaningless) range is defined -->
+      <joint user="0" type="free" class="range_defined"/>
+      <geom size="1"/>
+    </body>
+  </worldbody>
+</mujoco>

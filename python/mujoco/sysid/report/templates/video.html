@@ -1,0 +1,11 @@
+<div style="text-align: center; margin: 20px 0;">
+    <video src="{{ video_filepath }}" width="{{ width }}" height="{{ height }}" {{ controls }} {{ autoplay }} {{ muted
+        }} {{ loop }} preload="metadata" style="max-width: 100%; height: auto;">
+        Your browser does not support the video tag.
+        <a href="{{ video_filepath }}" target="_blank">Download the video here.</a>
+    </video>
+    {% if caption %}
+    <p style="margin-top: 10px; font-size: 0.9em; color: var(--text-muted);" class="video-caption">{{ caption | safe }}
+    </p>
+    {% endif %}
+</div>

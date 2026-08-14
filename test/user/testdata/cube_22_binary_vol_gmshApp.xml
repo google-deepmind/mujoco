@@ -1,0 +1,26 @@
+<mujoco model="gmsh">
+  <option timestep="0.01" integrator="implicitfast" solver="CG"/>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="512" height="512"/>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+    <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance=".2"/>
+  </asset>
+
+  <visual>
+    <headlight diffuse="0.9 0.9 0.9" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <map force="0.1" zfar="30"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <quality shadowsize="4096"/>
+    <global offwidth="800" offheight="800"/>
+  </visual>
+
+  <worldbody>
+    <geom name="floor" size="1 1 .05" type="plane" material="grid" condim="3"/>
+    <light directional="false" diffuse=".2 .2 .2" specular="0 0 0" pos="0 0 5" dir="0 0 -1"/>
+    <flexcomp name="shark" type="gmsh" dim="3" rgba=".8 .2 .2 1" radius="0.001" pos="0 0 0.3"
+              mass="10" scale="1 1 1" file="cube_22_binary_vol_gmshApp.msh">
+      <edge equality="true"/>
+    </flexcomp>
+  </worldbody>
+</mujoco>

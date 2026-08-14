@@ -1,0 +1,43 @@
+<mujoco>
+  <default>
+    <geom type="box" size=".1 .2 .3"/>
+  </default>
+
+  <worldbody>
+    <frame euler="0 0 30">
+      <geom pos=".5 0 0" euler="0 0 20"/>
+    </frame>
+
+    <frame quat="0 1 0 0">
+      <geom quat="0 -1 0 0"/>
+    </frame>
+
+    <body pos="0 .5 0">
+      <frame quat="0 1 0 0">
+        <geom/>
+      </frame>
+    </body>
+
+    <frame euler="0 0 30">
+      <frame euler="0 0 20">
+        <geom/>
+      </frame>
+    </frame>
+
+    <body>
+      <frame pos="0 1 0">
+        <geom pos="0 1 0"/>
+        <body pos="1 0 0">
+          <geom pos="0 0 1"/>
+        </body>
+      </frame>
+    </body>
+
+    <body>
+      <geom/>
+      <frame euler="90 0 0">
+        <joint type="hinge" axis="0 0 1"/>
+      </frame>
+    </body>
+  </worldbody>
+</mujoco>

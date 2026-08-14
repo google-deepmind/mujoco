@@ -1,0 +1,23 @@
+<mujoco>
+  <asset>
+    <mesh file="cube.obj"/>
+    <mesh name="inline_cube" inertia="convex"
+        vertex="
+          -.5 -.5 -.5
+          .5 -.5 -.5
+          .5  .5 -.5
+          -.5  .5 -.5
+          -.5 -.5  .5
+          .5 -.5  .5
+          .5  .5  .5
+          -.5  .5  .5"/>
+  </asset>
+  <worldbody>
+    <body>
+      <geom type="mesh" mesh="cube" density="1"/>
+    </body>
+    <body>
+      <geom type="mesh" mesh="inline_cube" density="1"/>
+    </body>
+  </worldbody>
+</mujoco>

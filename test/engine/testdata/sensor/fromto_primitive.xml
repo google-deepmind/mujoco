@@ -1,0 +1,71 @@
+<mujoco model="Primitive collisions">
+  <asset>
+    <mesh name="halfbox" scale=".2 .3 .1"
+          vertex="0 0 0  1 0 0  0 1 0  1 1 0
+                  0 0 1  1 0 1  0 1 1 "/>
+  </asset>
+
+
+  <default>
+    <geom rgba=".2 .2 .6 1"/>
+  </default>
+
+  <worldbody>
+    <light pos=".5 0 3"/>
+    <light pos="-.5 0 3"/>
+    <geom name="plane" type="plane" size="2 2 .01" rgba="0.5 0.5 0.5 1"/>
+
+    <body pos=".2 0 .6">
+      <freejoint/>
+      <geom name="sphere" type="sphere" size=".15"/>
+    </body>
+
+    <body pos="0 0 .3">
+      <freejoint/>
+      <geom name="capsule1" type="capsule" size=".1 .1"/>
+    </body>
+
+    <body pos="-.2 0 .4" euler="90 0 0">
+      <freejoint/>
+      <geom name="capsule2" type="capsule" size=".05 .1"/>
+    </body>
+
+    <body pos=".4 0 .3">
+      <freejoint/>
+      <geom name="cylinder" type="cylinder" size=".1 .15"/>
+    </body>
+
+    <body pos="-.5 0 .3">
+      <freejoint/>
+      <geom name="box1" type="box" size=".2 .15 .1"/>
+    </body>
+
+    <body pos="-.5 0 .6">
+      <freejoint/>
+      <geom name="box2" type="box" size=".1 .05 .1"/>
+    </body>
+
+    <body pos="-.5 -.6 .3">
+      <freejoint/>
+      <geom name="mesh" type="mesh" mesh="halfbox"/>
+    </body>
+
+  </worldbody>
+
+  <sensor>
+    <fromto geom1="plane" geom2="sphere" cutoff="1"/>
+    <fromto geom1="plane" geom2="capsule1" cutoff="1"/>
+    <fromto geom1="plane" geom2="box1" cutoff="1"/>
+    <fromto geom1="plane" geom2="cylinder" cutoff="1"/>
+    <fromto geom1="plane" geom2="mesh" cutoff="1"/>
+
+    <fromto geom1="capsule2" geom2="capsule1" cutoff="1"/>
+    <fromto geom1="capsule1" geom2="sphere" cutoff="1"/>
+
+    <fromto geom1="sphere" geom2="cylinder" cutoff="1"/>
+
+    <fromto geom1="box1" geom2="sphere" cutoff="1"/>
+    <fromto geom1="box2" geom2="capsule2" cutoff="1"/>
+    <fromto geom1="box1" geom2="box2" cutoff="1"/>
+  </sensor>
+</mujoco>

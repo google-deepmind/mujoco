@@ -1,0 +1,15 @@
+<mujoco>
+  <statistic meansize=".5"/>
+  <worldbody>
+    <site name="0"/>
+    <light pos="0 0 1"/>
+    <body name="1" pos="-.5 -.3 0">
+      <freejoint/>
+      <geom type="box" size=".5 .3 .02" pos="0 0 -.07"/>
+    </body>
+  </worldbody>
+
+  <equality>
+    <weld body1="1" anchor="0 0 0" solimp="0 0.96 0.01" torquescale="0.2"/>
+  </equality>
+</mujoco>

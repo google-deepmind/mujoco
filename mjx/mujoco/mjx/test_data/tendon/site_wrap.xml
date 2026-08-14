@@ -1,0 +1,54 @@
+<mujoco model="site_wrap">
+  <option>
+    <flag contact="disable" gravity="disable"/>
+  </option>
+  <worldbody>
+    <light pos="0 0 10"/>
+    <body>
+      <joint name="joint0" type="hinge" axis="0 1 0"/>
+      <geom type="capsule" size="0.05 0.5" fromto="0 0 0 0.5 0 0"/>
+      <site name="site0" pos="0.25 0 0.1" size="0.025"/>
+      <geom name="sphere0" type="sphere" pos="0.5 0 0.125" size="0.085"/>
+      <body pos="0.5 0 0">
+        <joint name="joint1" type="hinge" axis="0 1 0"/>
+        <geom type="capsule" size="0.05 0.5" fromto="0 0 0 0.5 0 0"/>
+        <site name="site1" pos="0.25 0 0.1" size="0.025"/>
+        <geom name="sphere1" type="sphere" pos="0.5 0 0.125" size="0.085"/>
+        <body pos="0.5 0 0">
+          <joint name="joint2" type="hinge" axis="0 1 0"/>
+          <geom type="capsule" size="0.05 0.5" fromto="0 0 0 0.5 0 0"/>
+          <site name="site2" pos="0.25 0 0.1" size="0.025"/>
+          <geom name="cylinder2" type="cylinder" contype="0" conaffinity="0" pos="0.5 0 0.25" euler="90 0 0" size="0.085 0.1"/>
+          <body pos="0.5 0 0">
+            <joint name="joint3" type="hinge" axis="0 1 0"/>
+            <geom type="capsule" size="0.05 0.5" fromto="0 0 0 0.5 0 0"/>
+            <site name="site3" pos="0.25 0 0.1" size="0.025"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <spatial width="0.0125">
+      <site site="site0"/>
+      <geom geom="sphere0"/>
+      <site site="site1"/>
+      <geom geom="sphere1"/>
+      <site site="site2"/>
+      <geom geom="cylinder2"/>
+      <site site="site3"/>
+    </spatial>
+    <spatial width="0.0125">
+      <site site="site2"/>
+      <site site="site3"/>
+    </spatial>
+    <spatial width="0.0125">
+      <site site="site0"/>
+      <geom geom="sphere0"/>
+      <site site="site2"/>
+      <geom geom="cylinder2"/>
+      <site site="site3"/>
+    </spatial>
+  </tendon>
+</mujoco>

@@ -1,0 +1,25 @@
+<mujoco model='test'>
+  <asset>
+    <mesh file="stanford_bunny.obj"/>
+  </asset>
+
+  <worldbody>
+    <geom type="plane" size=".5 .5 .05"/>
+    <body name="bunny1" pos="0 0 .4" euler="90 0 0">
+      <freejoint/>
+      <geom type="mesh" mesh="stanford_bunny" contype="0" conaffinity="0"/>
+      <flexcomp type="mesh" file="stanford_bunny.obj"
+          rgba="0 .7 .7 1" name="bunny1" mass="5" rigid="true">
+          <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001" selfcollide="none"/>
+      </flexcomp>
+    </body>
+    <body name="bunny2" pos="0 0 .2" euler="90 0 0">
+      <freejoint/>
+      <geom type="mesh" mesh="stanford_bunny" contype="0" conaffinity="0"/>
+      <flexcomp type="mesh" file="stanford_bunny.obj"
+          rgba="0 .7 .7 1" name="bunny2" mass="5" rigid="true">
+          <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001" selfcollide="none"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+</mujoco>

@@ -1,0 +1,69 @@
+<mujoco model="Newton's Cradle">
+  <option timestep="1e-4"/>
+
+  <visual>
+    <global realtime="0.2"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="64" height="64"/>
+    <texture name="texplane" type="2d" builtin="checker" rgb1=".2 .3 .4" rgb2=".1 0.15 0.2" width="512" height="512" mark="cross" markrgb=".8 .8 .8"/>
+    <material name="matplane" reflectance="0.5" texture="texplane" texrepeat="3 3" texuniform="true"/>
+  </asset>
+
+  <default>
+    <geom friction=".5" solref="-1e8 -0" solimp="0 .01 1e-3"/>
+    <tendon limited="true" range="0 0.146" width="0.001" solreflimit="1e-3 1" rgba="0 0 .7 1"/>
+    <default class="steel ball">
+      <geom size=".02" rgba=".7 .7 0 1" density="8000" friction=".4" solref="-1e8 -0" solimp="0 .01 1e-3"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light pos=".5 0 1" dir="-1 0 -2"/>
+    <light pos="-.5 0 1" dir="1 0 -2"/>
+    <geom type="plane" size="4 4 .1" material="matplane"/>
+
+    <replicate count="5" offset="-.04 0 0">
+      <site name="a" pos="0 -.04 .2"/>
+      <site name="c" pos="0 .04 .2"/>
+      <body name="equilibrium" pos="0 0 .04">
+        <freejoint/>
+        <geom class="steel ball"/>
+        <site name="b" pos="0 -.008 .018"/>
+        <site name="d" pos="0 .008 .018"/>
+      </body>
+    </replicate>
+
+    <replicate count="2" offset=".04 0 0">
+      <site name="e" pos=".04 -.04 .2"/>
+      <site name="g" pos=".04 .04 .2"/>
+      <body name="perturbed" pos=".12 0 .061" euler="0 -34 0">
+        <freejoint/>
+        <geom class="steel ball"/>
+        <site name="f" pos="0 -.008 .018"/>
+        <site name="h" pos="0 .008 .018"/>
+      </body>
+    </replicate>
+  </worldbody>
+
+  <tendon>
+    <spatial>
+      <site site="a"/>
+      <site site="b"/>
+    </spatial>
+    <spatial>
+      <site site="c"/>
+      <site site="d"/>
+    </spatial>
+    <spatial>
+      <site site="e"/>
+      <site site="f"/>
+    </spatial>
+    <spatial>
+      <site site="g"/>
+      <site site="h"/>
+    </spatial>
+  </tendon>
+
+</mujoco>

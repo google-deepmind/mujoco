@@ -1,0 +1,29 @@
+<!-- This file is a playground for understanding different rotations.
+     Currently, two examples are given:
+     - A rotation in the xy plane about a ball joint located in the corner of a box.
+     - A rotation in the xy plane about a free joing located in the center of a box.
+-->
+
+<mujoco>
+  <option density="1000">
+    <flag gravity="disable"/>
+  </option>
+
+  <worldbody>
+    <geom type="plane" size="10 10 .1" rgba="1 1 1 1"/>
+    <light pos="0 0 20"/>
+    <body name="body_ball" pos="0 0 .5">
+      <geom type="box" size=".5 .5 .1" pos="0 0 0"/>
+      <joint name="ball" pos=".5 .5 0" axis="0 0 1" type="ball"/>
+    </body>
+    <body name="body_free" pos="3 0 .5">
+      <freejoint name="free"/>
+      <geom type="box" size=".5 .5 .1" pos="0 0 0"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <general name="ball" joint="ball" dyntype="integrator" gear="0 0 1" ctrllimited="true" ctrlrange="-100 100"/>
+    <general name="free" joint="free" dyntype="integrator" gear="0 0 0 0 0 1" ctrllimited="true" ctrlrange="-100 100"/>
+  </actuator>
+</mujoco>

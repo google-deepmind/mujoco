@@ -1,0 +1,108 @@
+<mujoco>
+  <option gravity="-4 4 -10">
+    <flag multiccd="enable"/>
+  </option>
+
+  <visual>
+    <quality shadowsize="8192"/>
+    <scale forcewidth="0.01" contactwidth="0.05" contactheight="0.05"/>
+    <map force="0.1"/>
+  </visual>
+
+  <size memory="100M"/>
+
+  <asset>
+    <mesh name="box" vertex="-1 -1 -1 1 -1 -1 1 1 -1 1 1 1 1 -1 1 -1 1 -1 -1 1 1 -1 -1 1"
+          scale=".05 .05 .05"/>
+  </asset>
+
+  <default>
+    <geom friction="0.4"/>
+    <default class="mesh_box">
+      <geom type="mesh" mesh="box"/>
+    </default>
+    <default class="primitive_box">
+      <geom type="box" size=".05 .05 .05" friction=".1"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light pos="1 -1 1" dir="-1 1 -1"/>
+    <geom type="box" size=".5 .5 .1" pos="-.4 .4 -.1" rgba=".5 .5 .8 1"/>
+    <geom type="box" size=".5 .1 .5" pos="-.4 .8 .4" rgba=".5 .5 .8 1"/>
+    <geom type="box" size=".1 .5 .5" pos="-.8 .4 .4" rgba=".5 .5 .8 1"/>
+    <body pos="-.4 .4 .1">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+    <body pos="-.5 .4 .1">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+    <body pos="-.6 .4 .1">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+    <body pos="-.4 .5 .1">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+    <body pos="-.5 .5 .1">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+    <body pos="-.6 .5 .1">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+    <body pos="-.4 .6 .1">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+    <body pos="-.5 .6 .1">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+    <body pos="-.6 .6 .1">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+
+    <body pos="-.4 .4 .2">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+    <body pos="-.5 .4 .2">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+    <body pos="-.6 .4 .2">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+    <body pos="-.4 .5 .2">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+    <body pos="-.5 .5 .2">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+    <body pos="-.6 .5 .2">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+    <body pos="-.4 .6 .2">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+    <body pos="-.5 .6 .2">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+    <body pos="-.6 .6 .2">
+      <freejoint/>
+      <geom class="mesh_box"/>
+    </body>
+  </worldbody>
+</mujoco>

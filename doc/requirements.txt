@@ -1,0 +1,18 @@
+Sphinx==7.4.7
+furo==2024.8.6
+sphinxcontrib-bibtex==2.6.3
+sphinxcontrib-katex==0.9.4
+sphinxcontrib-youtube==1.2.0
+sphinx-copybutton==0.5.2
+sphinx-design==0.6.1
+sphinx-favicon==1.0.1
+sphinx-reredirects==0.1.1
+sphinx-toolbox==3.8.2
+nbsphinx==0.9.1
+pandoc==1.1.0
+pygments==2.20.0
+jq==1.8.0
+Jinja2==3.1.6
+wheel==0.46.2
+# see https://github.com/aws/aws-sam-cli/issues/3661 regarding markupsafe
+markupsafe==2.0.1

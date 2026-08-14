@@ -1,0 +1,2288 @@
+# Copyright 2026 DeepMind Technologies Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+#
+# MJCF schema -- the single source of truth for the MJCF modeling language
+#
+#
+# --------------------- Syntax reference -----------------------------------------------------------
+#
+#   enum name : mjtType { key = C_CONST }  XML keyword set, with C bindings
+#   group name { ... }                     reusable attribute block, spliced with 'use'
+#   group name variant { ... }             ...whose attributes are mutually exclusive
+#
+#   element name : mjsStruct (facets) {    element, bound to its mjSpec struct
+#     use groupname                        splice a group's attributes here
+#     attr : type = default (facets)       # trailing comment = doc string
+#     child name card
+#   }
+#
+#   attribute types
+#     double, float, int                   numbers (C type as in mjSpec)
+#     bool                                 keywords "true" / "false"
+#     double[4]                            exactly 4 space-separated values
+#     double[1..3]                         1 to 3 values  ([1..mjN*]: symbolic bound)
+#     double[]                             any number of values
+#     string, file                         text; file resolves against asset dirs/VFS
+#     chars[3], chars[1..12]               fixed char array; arity counts characters
+#     enum<name>                           one keyword of the named enum  ([]: list)
+#     flags<name>                          several keywords, combined bitwise
+#     id<ns>                               declares this element's name into namespace ns
+#     ref<ns>                              holds the name of an object in namespace ns
+#                                          e.g. body declares   name   : id<body>
+#                                          camera refers with   target : ref<body>
+#
+#   attribute facets
+#     required                             attribute must be present
+#     nodefault                            not settable in <default> classes
+#     field=name                           bound C field, when it differs from the attr
+#     pattern="regex"                      constrained string (e.g. eulerseq)
+#     min= / max= / positive               numeric range constraints
+#     reading=custom                       hand-written read semantics; no typed binding
+#                                          is generated, so saving is also hand-written
+#     writing=custom                       binding read-driven; hand-written save policy
+#
+#   element facets
+#     xml=tag                              XML tag, when it differs from the declaration
+#                                          name (same tag, different element by context)
+#     alias=body                           tag validated against body's grammar row
+#                                          (worldbody, frame, replicate): NameMatch()
+#
+#   child cardinality
+#     ?  optional, at most one             !  required, exactly one
+#     *  any number                        R  any number, recursive
+#
+#   presence constraints (single-line, over attributes; a+b is a bundle,
+#   complete when all its attributes appear)
+#     exclusive a b+c                      at most one bundle may be present
+#     together a b                         appear together or not at all
+#     requires a b                         if a appears, b must appear
+#     oneof a b+c                          at least one complete bundle
+#
+# Declaration order is semantic: it sets attribute order in generated tables
+# and in saved XML.
+
+
+#---------------------- enums ----------------------------------------------------------------------
+
+enum coordinate {
+  local    = 0
+  global   = 1
+}
+
+enum angle {
+  radian   = 0
+  degree   = 1
+}
+
+enum fluidshape {
+  none        = 0
+  ellipsoid   = 1
+}
+
+enum enable {
+  disable   = 0
+  enable    = 1
+}
+
+enum FalseTrueAuto {
+  false   = 0
+  true    = 1
+  auto    = 2
+}
+
+enum FalseAuto {
+  false   = 0
+  auto    = 1
+}
+
+enum bodysleep : mjtSleepPolicy {
+  auto      = mjSLEEP_AUTO
+  never     = mjSLEEP_NEVER
+  allowed   = mjSLEEP_ALLOWED
+  init      = mjSLEEP_INIT
+}
+
+enum jointtype : mjtJoint {
+  free    = mjJNT_FREE
+  ball    = mjJNT_BALL
+  slide   = mjJNT_SLIDE
+  hinge   = mjJNT_HINGE
+}
+
+enum geomtype : mjtGeom {
+  plane       = mjGEOM_PLANE
+  hfield      = mjGEOM_HFIELD
+  sphere      = mjGEOM_SPHERE
+  capsule     = mjGEOM_CAPSULE
+  ellipsoid   = mjGEOM_ELLIPSOID
+  cylinder    = mjGEOM_CYLINDER
+  box         = mjGEOM_BOX
+  mesh        = mjGEOM_MESH
+  sdf         = mjGEOM_SDF
+}
+
+enum projection : mjtProjection {
+  perspective    = mjPROJ_PERSPECTIVE
+  orthographic   = mjPROJ_ORTHOGRAPHIC
+}
+
+enum camlight : mjtCamLight {
+  fixed           = mjCAMLIGHT_FIXED
+  track           = mjCAMLIGHT_TRACK
+  trackcom        = mjCAMLIGHT_TRACKCOM
+  targetbody      = mjCAMLIGHT_TARGETBODY
+  targetbodycom   = mjCAMLIGHT_TARGETBODYCOM
+}
+
+enum lighttype : mjtLightType {
+  spot          = mjLIGHT_SPOT
+  directional   = mjLIGHT_DIRECTIONAL
+  point         = mjLIGHT_POINT
+  image         = mjLIGHT_IMAGE
+}
+
+enum texrole : mjtTextureRole {
+  rgb         = mjTEXROLE_RGB
+  occlusion   = mjTEXROLE_OCCLUSION
+  roughness   = mjTEXROLE_ROUGHNESS
+  metallic    = mjTEXROLE_METALLIC
+  normal      = mjTEXROLE_NORMAL
+  opacity     = mjTEXROLE_OPACITY
+  emissive    = mjTEXROLE_EMISSIVE
+  rgba        = mjTEXROLE_RGBA
+  orm         = mjTEXROLE_ORM
+}
+
+enum integrator : mjtIntegrator {
+  Euler          = mjINT_EULER
+  RK4            = mjINT_RK4
+  implicit       = mjINT_IMPLICIT
+  implicitfast   = mjINT_IMPLICITFAST
+}
+
+enum cone : mjtCone {
+  pyramidal   = mjCONE_PYRAMIDAL
+  elliptic    = mjCONE_ELLIPTIC
+}
+
+enum jacobian : mjtJacobian {
+  dense    = mjJAC_DENSE
+  sparse   = mjJAC_SPARSE
+  auto     = mjJAC_AUTO
+}
+
+enum solver : mjtSolver {
+  PGS      = mjSOL_PGS
+  CG       = mjSOL_CG
+  Newton   = mjSOL_NEWTON
+}
+
+enum equality : mjtEq {
+  connect      = mjEQ_CONNECT
+  weld         = mjEQ_WELD
+  joint        = mjEQ_JOINT
+  tendon       = mjEQ_TENDON
+  flex         = mjEQ_FLEX
+  flexvert     = mjEQ_FLEXVERT
+  flexstrain   = mjEQ_FLEXSTRAIN
+  distance     = mjEQ_DISTANCE
+}
+
+enum texture : mjtTexture {
+  "2d"     = mjTEXTURE_2D
+  cube     = mjTEXTURE_CUBE
+  skybox   = mjTEXTURE_SKYBOX
+}
+
+enum colorspace : mjtColorSpace {
+  auto     = mjCOLORSPACE_AUTO
+  linear   = mjCOLORSPACE_LINEAR
+  sRGB     = mjCOLORSPACE_SRGB
+}
+
+enum builtin : mjtBuiltin {
+  none       = mjBUILTIN_NONE
+  gradient   = mjBUILTIN_GRADIENT
+  checker    = mjBUILTIN_CHECKER
+  flat       = mjBUILTIN_FLAT
+}
+
+enum mark : mjtMark {
+  none     = mjMARK_NONE
+  edge     = mjMARK_EDGE
+  cross    = mjMARK_CROSS
+  random   = mjMARK_RANDOM
+}
+
+enum dyn : mjtDyn {
+  none          = mjDYN_NONE
+  integrator    = mjDYN_INTEGRATOR
+  filter        = mjDYN_FILTER
+  filterexact   = mjDYN_FILTEREXACT
+  muscle        = mjDYN_MUSCLE
+  dcmotor       = mjDYN_DCMOTOR
+  pid           = mjDYN_PID
+  user          = mjDYN_USER
+}
+
+enum dcmotorinput {
+  voltage    = 0
+  position   = 1
+  velocity   = 2
+}
+
+enum gain : mjtGain {
+  fixed     = mjGAIN_FIXED
+  affine    = mjGAIN_AFFINE
+  muscle    = mjGAIN_MUSCLE
+  dcmotor   = mjGAIN_DCMOTOR
+  so3       = mjGAIN_SO3
+  pid       = mjGAIN_PID
+  user      = mjGAIN_USER
+}
+
+enum inputchart : mjtCtrlChart {
+  expmap   = mjCHART_EXPMAP
+  quat     = mjCHART_QUAT
+}
+
+enum inputbit : mjtCtrlInput {   # bitflags: keywords combine bitwise
+  pos   = mjINPUT_POS
+  vel   = mjINPUT_VEL
+  ff    = mjINPUT_FF
+}
+
+enum bias : mjtBias {
+  none      = mjBIAS_NONE
+  affine    = mjBIAS_AFFINE
+  muscle    = mjBIAS_MUSCLE
+  dcmotor   = mjBIAS_DCMOTOR
+  so3       = mjBIAS_SO3
+  user      = mjBIAS_USER
+}
+
+enum interp {
+  zoh      = 0
+  linear   = 1
+  cubic    = 2
+}
+
+enum stage : mjtStage {
+  none   = mjSTAGE_NONE
+  pos    = mjSTAGE_POS
+  vel    = mjSTAGE_VEL
+  acc    = mjSTAGE_ACC
+}
+
+enum datatype : mjtDataType {
+  real         = mjDATATYPE_REAL
+  positive     = mjDATATYPE_POSITIVE
+  axis         = mjDATATYPE_AXIS
+  quaternion   = mjDATATYPE_QUATERNION
+}
+
+enum frameobj : mjtObj {   # object kinds with a spatial frame
+  body    = mjOBJ_BODY
+  xbody   = mjOBJ_XBODY
+  geom    = mjOBJ_GEOM
+  site    = mjOBJ_SITE
+  camera  = mjOBJ_CAMERA
+}
+
+enum condata : mjtConDataField {   # bitflags: keywords combine bitwise
+  found     = mjCONDATA_FOUND
+  force     = mjCONDATA_FORCE
+  torque    = mjCONDATA_TORQUE
+  dist      = mjCONDATA_DIST
+  pos       = mjCONDATA_POS
+  normal    = mjCONDATA_NORMAL
+  tangent   = mjCONDATA_TANGENT
+}
+
+enum raydata : mjtRayDataField {   # bitflags: keywords combine bitwise
+  dist     = mjRAYDATA_DIST
+  dir      = mjRAYDATA_DIR
+  origin   = mjRAYDATA_ORIGIN
+  point    = mjRAYDATA_POINT
+  normal   = mjRAYDATA_NORMAL
+  depth    = mjRAYDATA_DEPTH
+}
+
+enum camout : mjtCamOutBit {       # bitflags: keywords combine bitwise
+  rgb            = mjCAMOUT_RGB
+  depth          = mjCAMOUT_DEPTH
+  distance       = mjCAMOUT_DIST
+  normal         = mjCAMOUT_NORMAL
+  segmentation   = mjCAMOUT_SEG
+}
+
+enum reduce {
+  none       = 0
+  mindist    = 1
+  maxforce   = 2
+  netforce   = 3
+}
+
+enum conflict : mjtConflict {
+  warning   = mjCONFLICT_WARNING
+  merge     = mjCONFLICT_MERGE
+  error     = mjCONFLICT_ERROR
+}
+
+enum lrmode : mjtLRMode {
+  none         = mjLRMODE_NONE
+  muscle       = mjLRMODE_MUSCLE
+  muscleuser   = mjLRMODE_MUSCLEUSER
+  all          = mjLRMODE_ALL
+}
+
+enum comp {
+  particle   = mjCOMPTYPE_PARTICLE
+  grid       = mjCOMPTYPE_GRID
+  rope       = mjCOMPTYPE_ROPE
+  loop       = mjCOMPTYPE_LOOP
+  cable      = mjCOMPTYPE_CABLE
+  cloth      = mjCOMPTYPE_CLOTH
+}
+
+enum jkind {   # vestigial: composite pruning left a single kind
+  main   = mjCOMPKIND_JOINT
+}
+
+enum shape {
+  s        = mjCOMPSHAPE_LINE
+  "cos(s)" = mjCOMPSHAPE_COS
+  "sin(s)" = mjCOMPSHAPE_SIN
+  "0"      = mjCOMPSHAPE_ZERO
+}
+
+enum meshinertia : mjtMeshInertia {
+  convex   = mjMESH_INERTIA_CONVEX
+  legacy   = mjMESH_INERTIA_LEGACY
+  exact    = mjMESH_INERTIA_EXACT
+  shell    = mjMESH_INERTIA_SHELL
+}
+
+enum meshbuiltin : mjtMeshBuiltin {
+  none          = mjMESH_BUILTIN_NONE
+  sphere        = mjMESH_BUILTIN_SPHERE
+  hemisphere    = mjMESH_BUILTIN_HEMISPHERE
+  cone          = mjMESH_BUILTIN_CONE
+  supertorus    = mjMESH_BUILTIN_SUPERTORUS
+  supersphere   = mjMESH_BUILTIN_SUPERSPHERE
+  wedge         = mjMESH_BUILTIN_WEDGE
+  plate         = mjMESH_BUILTIN_PLATE
+}
+
+enum fcomp {
+  grid        = mjFCOMPTYPE_GRID
+  box         = mjFCOMPTYPE_BOX
+  cylinder    = mjFCOMPTYPE_CYLINDER
+  ellipsoid   = mjFCOMPTYPE_ELLIPSOID
+  square      = mjFCOMPTYPE_SQUARE
+  disc        = mjFCOMPTYPE_DISC
+  circle      = mjFCOMPTYPE_CIRCLE
+  mesh        = mjFCOMPTYPE_MESH
+  gmsh        = mjFCOMPTYPE_GMSH
+  direct      = mjFCOMPTYPE_DIRECT
+}
+
+enum fdof {
+  full        = mjFCOMPDOF_FULL
+  radial      = mjFCOMPDOF_RADIAL
+  trilinear   = mjFCOMPDOF_TRILINEAR
+  quadratic   = mjFCOMPDOF_QUADRATIC
+  "2d"        = mjFCOMPDOF_2D
+}
+
+enum flexself : mjtFlexSelf {
+  none     = mjFLEXSELF_NONE
+  narrow   = mjFLEXSELF_NARROW
+  bvh      = mjFLEXSELF_BVH
+  sap      = mjFLEXSELF_SAP
+  auto     = mjFLEXSELF_AUTO
+}
+
+enum elastic2d {
+  none      = 0
+  bend      = 1
+  stretch   = 2
+  both      = 3
+}
+
+enum flexeq {
+  false    = 0
+  true     = 1
+  vert     = 2
+  strain   = 3
+}
+
+
+#---------------------- groups ---------------------------------------------------------------------
+
+group orientation variant {
+  quat               : double[4] = {1, 0, 0, 0}
+  axisangle          : double[4]
+  xyaxes             : double[6]
+  zaxis              : double[3]
+  euler              : double[3]
+}
+
+group actuator_base {
+  name               : id<actuator>
+  class              : ref<default>
+  group              : int
+  nsample            : int
+  interp             : enum<interp>
+  delay              : double
+  ctrlrange          : double[2]
+  user               : double[] (field=userdata)
+}
+
+group actuator_dynamics {
+  lengthrange        : double[2] (nodefault)
+  gear               : double[1..6] = {1, 0, 0, 0, 0, 0}
+  damping            : double[1..3]      # damper polynomial, 1+mjNPOLY coefficients
+  armature           : double
+  cranklength        : double (reading=custom)  # slidercrank-only, validated
+}
+
+group transmission {
+  joint              : ref<joint> (nodefault)
+  jointinparent      : string (nodefault)
+  tendon             : ref<tendon> (nodefault)
+  slidersite         : ref<site> (nodefault)
+  cranksite          : ref<site> (nodefault)
+  site               : ref<site> (nodefault)
+  refsite            : ref<site> (nodefault)
+}
+
+group sensor_base {
+  name               : id<sensor>
+  nsample            : int
+  interp             : enum<interp>
+  delay              : double
+  interval           : double[1..2]
+  cutoff             : double
+  noise              : double
+  user               : double[] (field=userdata)
+}
+
+group frame_object {       # the object whose frame is measured
+  objtype            : enum<frameobj> (required)
+  objname            : string (required)
+}
+
+group frame_reference {    # frame of reference; world if absent
+  reftype            : enum<frameobj>
+  refname            : string
+  together reftype refname
+}
+
+group equality_base {
+  name               : id<equality>
+  class              : ref<default>
+  active             : bool = true
+  solref             : double[1..mjNREF] = {0.02, 1}
+  solimp             : double[1..mjNIMP] = {0.9, 0.95, 0.001, 0.5, 2}
+}
+
+
+#---------------------- mujoco ---------------------------------------------------------------------
+
+element mujoco {
+  model              : ref<model>
+  child compiler *
+  child option *
+  child size *
+  child statistic *
+  child visual *
+  child default R
+  child extension *
+  child asset *
+  child body R
+  child deformable *
+  child contact *
+  child tendon *
+  child equality *
+  child actuator *
+  child sensor *
+  child custom *
+  child keyframe *
+}
+
+
+#---------------------- compiler -------------------------------------------------------------------
+
+element compiler : mjsCompiler {
+  autolimits         : bool = true
+  boundmass          : double
+  boundinertia       : double
+  settotalmass       : double = -1
+  balanceinertia     : bool
+  strippath          : bool (reading=custom)      # stored on the spec
+  coordinate         : enum<coordinate> (reading=custom)  # deprecation error
+  angle              : enum<angle> = degree (field=degree)
+  fitaabb            : bool
+  eulerseq           : chars[3] (pattern="[xyzXYZ]{3}")
+  meshdir            : string
+  texturedir         : string
+  discardvisual      : bool
+  usethread          : bool = true
+  fusestatic         : bool
+  inertiafromgeom    : enum<FalseTrueAuto> = auto
+  inertiagrouprange  : int[2] = {0, 5}
+  saveinertial       : bool
+  assetdir           : string (reading=custom)    # fans out to mesh/texturedir
+  alignfree          : bool
+  conflict           : enum<conflict>
+  child lengthrange ?
+}
+
+element lengthrange : mjLROpt {
+  mode               : enum<lrmode> = muscle
+  useexisting        : bool = true
+  uselimit           : bool
+  accel              : double = 20
+  maxforce           : double
+  timeconst          : double = 1
+  timestep           : double = 0.01
+  inttotal           : double = 10
+  interval           : double = 2
+  tolrange           : double = 0.05
+}
+
+
+#---------------------- option ---------------------------------------------------------------------
+
+element option : mjOption {
+  timestep           : double = 0.002
+  impratio           : double = 1
+  tolerance          : double = 1e-08
+  ls_tolerance       : double = 0.01
+  noslip_tolerance   : double = 1e-06
+  ccd_tolerance      : double = 1e-06
+  sleep_tolerance    : double = 0.001
+  gravity            : double[3] = {0, 0, -9.81}
+  wind               : double[3] = {0, 0, 0}
+  magnetic           : double[3] = {0, -0.5, 0}
+  density            : double
+  viscosity          : double
+  o_margin           : double
+  o_solref           : double[1..mjNREF] = {0.02, 1}
+  o_solimp           : double[1..mjNIMP] = {0.9, 0.95, 0.001, 0.5, 2}
+  o_friction         : double[1..5] = {1, 1, 0.005, 0.0001, 0.0001}
+  integrator         : enum<integrator> = Euler
+  cone               : enum<cone> = pyramidal
+  jacobian           : enum<jacobian> = auto
+  solver             : enum<solver> = Newton
+  iterations         : int = 100
+  ls_iterations      : int = 50
+  noslip_iterations  : int
+  ccd_iterations     : int = 35
+  sdf_iterations     : int = 10
+  sdf_initpoints     : int = 40
+  actuatorgroupdisable : int[] (reading=custom)   # bits of disableactuator
+  child flag ?
+}
+
+element flag {
+  # disable family: a bit in mjOption.disableflags, default enable (bit unset)
+  constraint         : enum<enable> = enable
+  equality           : enum<enable> = enable
+  frictionloss       : enum<enable> = enable
+  limit              : enum<enable> = enable
+  contact            : enum<enable> = enable
+  spring             : enum<enable> = enable
+  damper             : enum<enable> = enable
+  gravity            : enum<enable> = enable
+  clampctrl          : enum<enable> = enable
+  warmstart          : enum<enable> = enable
+  filterparent       : enum<enable> = enable
+  actuation          : enum<enable> = enable
+  refsafe            : enum<enable> = enable
+  sensor             : enum<enable> = enable
+  midphase           : enum<enable> = enable
+  eulerdamp          : enum<enable> = enable
+  autoreset          : enum<enable> = enable
+  nativeccd          : enum<enable> = enable
+  island             : enum<enable> = enable
+  multiccd           : enum<enable> = enable
+  # enable family: a bit in mjOption.enableflags, default disable (bit unset)
+  override           : enum<enable> = disable
+  energy             : enum<enable> = disable
+  fwdinv             : enum<enable> = disable
+  invdiscrete        : enum<enable> = disable
+  sleep              : enum<enable> = disable
+  diagexact          : enum<enable> = disable
+}
+
+
+#---------------------- size -----------------------------------------------------------------------
+
+element size : mjSpec {
+  memory             : string (reading=custom)    # suffixed byte count
+  njmax              : int = -1 (reading=custom)  # range/exclusivity checks
+  nconmax            : int = -1 (reading=custom)  # range check
+  nstack             : int = -1 (reading=custom)  # range/exclusivity checks
+  nuserdata          : int (min=-1)
+  nkey               : int (min=-1)
+  nuser_body         : int = -1 (min=-1)
+  nuser_jnt          : int = -1 (min=-1)
+  nuser_geom         : int = -1 (min=-1)
+  nuser_site         : int = -1 (min=-1)
+  nuser_cam          : int = -1 (min=-1)
+  nuser_tendon       : int = -1 (min=-1)
+  nuser_actuator     : int = -1 (min=-1)
+  nuser_sensor       : int = -1 (min=-1)
+  exclusive memory nstack
+  exclusive memory njmax
+}
+
+
+#---------------------- statistic ------------------------------------------------------------------
+
+element statistic : mjStatistic {
+  meaninertia        : double
+  meanmass           : double
+  meansize           : double
+  extent             : double (positive)  # when defined
+  center             : double[3]
+}
+
+
+#---------------------- visual ---------------------------------------------------------------------
+
+element visual {
+  child global ?
+  child quality ?
+  child headlight ?
+  child map ?
+  child scale ?
+  child rgba ?
+}
+
+element global : mjVisual (field=global) {
+  cameraid           : int = -1
+  orthographic       : bool = false
+  fovy               : float = 45
+  ipd                : float = 0.068
+  azimuth            : float = 90
+  elevation          : float = -45
+  linewidth          : float = 1
+  glow               : float = 0.3
+  offwidth           : int = 640
+  offheight          : int = 480
+  realtime           : float = 1 (positive)
+  ellipsoidinertia   : bool = false
+  bvactive           : bool = false
+}
+
+element quality : mjVisual (field=quality) {
+  shadowsize         : int = 4096
+  offsamples         : int = 4
+  numslices          : int = 28
+  numstacks          : int = 16
+  numquads           : int = 4
+}
+
+element headlight : mjVisual (field=headlight) {
+  ambient            : float[3] = {0.1, 0.1, 0.1}
+  diffuse            : float[3] = {0.4, 0.4, 0.4}
+  specular           : float[3] = {0.5, 0.5, 0.5}
+  active             : int = 1
+}
+
+element map : mjVisual (field=map) {
+  stiffness          : float = 100
+  stiffnessrot       : float = 500
+  force              : float = 0.005
+  torque             : float = 0.1
+  alpha              : float = 0.3
+  fogstart           : float = 3
+  fogend             : float = 10
+  znear              : float = 0.01 (positive)
+  zfar               : float = 50
+  haze               : float = 0.3
+  shadowclip         : float = 1
+  shadowscale        : float = 0.6
+  actuatortendon     : float = 2
+}
+
+element scale : mjVisual (field=scale) {
+  forcewidth         : float = 0.1
+  contactwidth       : float = 0.3
+  contactheight      : float = 0.1
+  connect            : float = 0.2
+  com                : float = 0.4
+  camera             : float = 0.3
+  light              : float = 0.3
+  selectpoint        : float = 0.2
+  jointlength        : float = 1
+  jointwidth         : float = 0.1
+  actuatorlength     : float = 0.7
+  actuatorwidth      : float = 0.2
+  framelength        : float = 1
+  framewidth         : float = 0.1
+  constraint         : float = 0.1
+  slidercrank        : float = 0.2
+  frustum            : float = 10
+}
+
+element rgba : mjVisual (field=rgba) {
+  fog                : float[4] = {0, 0, 0, 1}
+  haze               : float[4] = {1, 1, 1, 1}
+  force              : float[4] = {1, 0.5, 0.5, 1}
+  inertia            : float[4] = {0.8, 0.2, 0.2, 0.6}
+  joint              : float[4] = {0.2, 0.6, 0.8, 1}
+  actuator           : float[4] = {0.2, 0.25, 0.2, 1}
+  actuatornegative   : float[4] = {0.2, 0.6, 0.9, 1}
+  actuatorpositive   : float[4] = {0.9, 0.4, 0.2, 1}
+  com                : float[4] = {0.9, 0.9, 0.9, 1}
+  camera             : float[4] = {0.6, 0.9, 0.6, 1}
+  light              : float[4] = {0.6, 0.6, 0.9, 1}
+  selectpoint        : float[4] = {0.9, 0.9, 0.1, 1}
+  connect            : float[4] = {0.2, 0.2, 0.8, 1}
+  contactpoint       : float[4] = {0.9, 0.6, 0.2, 1}
+  contactforce       : float[4] = {0.7, 0.9, 0.9, 1}
+  contactfriction    : float[4] = {0.9, 0.8, 0.4, 1}
+  contacttorque      : float[4] = {0.9, 0.7, 0.9, 1}
+  contactgap         : float[4] = {0.5, 0.8, 0.9, 1}
+  rangefinder        : float[4] = {1, 1, 0.1, 1}
+  constraint         : float[4] = {0.9, 0, 0, 1}
+  slidercrank        : float[4] = {0.5, 0.3, 0.8, 1}
+  crankbroken        : float[4] = {0.9, 0, 0, 1}
+  frustum            : float[4] = {1, 1, 0, 0.2}
+  bv                 : float[4] = {0, 1, 0, 0.5}
+  bvactive           : float[4] = {1, 0, 0, 0.5}
+}
+
+
+#---------------------- default --------------------------------------------------------------------
+
+element default {
+  class              : id<default>
+  child default R    # recursive
+  # children below are projections of the primary decls:
+  # reduced rows = attrs minus name/class minus (nodefault)
+  child mesh ?
+  child material ?
+  child joint ?
+  child geom ?
+  child site ?
+  child camera ?
+  child light ?
+  child pair ?
+  child default_equality ?
+  child default_tendon ?
+  child general ?
+  child motor ?
+  child position ?
+  child velocity ?
+  child intvelocity ?
+  child orientation ?
+  child pid ?
+  child damper ?
+  child cylinder ?
+  child muscle ?
+  child adhesion ?
+  child dcmotor ?
+}
+
+element layer {
+  texture            : ref<texture>
+  role               : string (required)
+}
+
+
+#---------------------- extension ------------------------------------------------------------------
+
+element extension {
+  child extension_plugin *
+}
+
+element extension_plugin (xml=plugin) {
+  plugin             : string
+  child instance *
+}
+
+element instance {
+  name               : id<instance> (required)
+  child config *
+}
+
+element config {
+  key                : string (required)
+  value              : string
+}
+
+
+#---------------------- asset ----------------------------------------------------------------------
+
+element asset {
+  child mesh *
+  child hfield *
+  child skin *
+  child texture *
+  child material *
+  child model *
+}
+
+element mesh : mjsMesh {
+  name               : id<mesh>
+  class              : ref<default>
+  content_type       : string (nodefault)
+  file               : file (nodefault)
+  vertex             : float[] (nodefault, field=uservert)
+  normal             : float[] (nodefault, field=usernormal)
+  texcoord           : float[] (nodefault, field=usertexcoord)
+  face               : int[] (nodefault, field=userface)
+  refpos             : double[3] (nodefault)
+  refquat            : double[4] = {1, 0, 0, 0} (nodefault)
+  scale              : double[3] = {1, 1, 1}
+  smoothnormal       : bool (nodefault)
+  maxhullvert        : int = -1 (reading=custom)
+  inertia            : enum<meshinertia> = legacy
+  builtin            : enum<meshbuiltin> (nodefault, reading=custom)
+  params             : double[] (nodefault, reading=custom)
+  material           : ref<material> (nodefault)
+  exclusive builtin file
+  exclusive builtin vertex
+  child plugin *
+}
+
+element plugin : mjsPlugin {
+  plugin             : string
+  instance           : ref<instance>
+  child config *
+}
+
+element hfield : mjsHField {
+  name               : id<hfield>
+  content_type       : string
+  file               : file
+  nrow               : int
+  ncol               : int
+  size               : double[4] (required)
+  elevation          : double[] (reading=custom)  # flipped and zero-filled
+}
+
+element skin : mjsSkin {
+  name               : id<skin>
+  file               : file
+  material           : ref<material>
+  rgba               : float[4] = {0.5, 0.5, 0.5, 1}
+  inflate            : float
+  vertex             : float[] (field=vert)
+  texcoord           : float[]
+  face               : int[]
+  group              : int (min=0, max=5, reading=custom)
+  child bone *
+}
+
+element bone {
+  body               : ref<body> (required)
+  bindpos            : double[3]
+  bindquat           : double[4]
+  vertid             : int[]
+  vertweight         : float[]
+}
+
+element texture : mjsTexture {
+  name               : id<texture>
+  type               : enum<texture> = cube
+  colorspace         : enum<colorspace> = auto
+  content_type       : string
+  file               : file
+  gridsize           : int[2] = {1, 1}
+  gridlayout         : chars[1..12]  # length must equal the gridsize product
+  fileright          : file
+  fileleft           : file
+  fileup             : file
+  filedown           : file
+  filefront          : file
+  fileback           : file
+  builtin            : enum<builtin>
+  rgb1               : double[3] = {0.8, 0.8, 0.8}
+  rgb2               : double[3] = {0.5, 0.5, 0.5}
+  mark               : enum<mark>
+  markrgb            : double[3]
+  random             : double = 0.01
+  width              : int
+  height             : int
+  hflip              : bool
+  vflip              : bool
+  nchannel           : int = 3
+}
+
+element material : mjsMaterial {
+  name               : id<material>
+  class              : ref<default>
+  texture            : ref<texture> (reading=custom)
+  texrepeat          : float[2] = {1, 1}
+  texuniform         : bool
+  emission           : float
+  specular           : float = 0.5
+  shininess          : float = 0.5
+  reflectance        : float
+  metallic           : float = -1
+  roughness          : float = -1
+  rgba               : float[4] = {1, 1, 1, 1}
+  child layer *
+}
+
+# read via mj_parse of the sub-model file: hand-written
+element model {
+  name               : id<model>
+  file               : file
+  content_type       : string
+}
+
+
+#---------------------- body -----------------------------------------------------------------------
+
+element body : mjsBody {
+  name               : id<body>
+  childclass         : ref<default>
+  pos                : double[3] = {0, 0, 0}
+  use orientation
+  mocap              : bool
+  gravcomp           : double
+  sleep              : enum<bodysleep>
+  simple             : enum<FalseAuto> = auto
+  user               : double[] (field=userdata)
+  child body R    # recursive
+  child frame R
+  child replicate *
+  child inertial ?
+  child joint *
+  child freejoint *
+  child geom *
+  child attach *
+  child site *
+  child camera *
+  child light *
+  child plugin *
+  child composite *
+  child flexcomp *
+}
+
+element inertial : mjsBody {   # projects into the parent body's i-frame
+  pos                : double[3] (required, field=ipos)
+  quat               : double[4] = {1, 0, 0, 0} (reading=custom, field=iquat)
+  mass               : double (required)
+  diaginertia        : double[3] (field=inertia)
+  axisangle          : double[4] (reading=custom)
+  xyaxes             : double[6] (reading=custom)
+  zaxis              : double[3] (reading=custom)
+  euler              : double[3] (reading=custom)
+  fullinertia        : double[6] (reading=custom)
+  exclusive fullinertia quat axisangle xyaxes zaxis euler
+}
+
+element joint : mjsJoint {
+  name               : id<joint>
+  class              : ref<default>
+  type               : enum<jointtype> = hinge
+  group              : int
+  pos                : double[3] (writing=custom)             # saved unless free
+  axis               : double[3] = {0, 0, 1} (writing=custom)  # saved for slide/hinge
+  springdamper       : double[2] (writing=custom)  # compile directive: saved as stiffness/damping
+  limited            : enum<FalseTrueAuto> = auto (writing=custom)  # saved unless free
+  actuatorfrclimited : enum<FalseTrueAuto> = auto (field=actfrclimited, writing=custom)  # saved for slide/hinge
+  solreflimit        : double[1..mjNREF] = {0.02, 1} (field=solref_limit)
+  solimplimit        : double[1..mjNIMP] = {0.9, 0.95, 0.001, 0.5, 2} (field=solimp_limit)
+  solreffriction     : double[1..mjNREF] = {0.02, 1} (field=solref_friction)
+  solimpfriction     : double[1..mjNIMP] = {0.9, 0.95, 0.001, 0.5, 2} (field=solimp_friction)
+  stiffness          : double[1..3]      # spring polynomial, 1+mjNPOLY coefficients
+  range              : double[2]
+  actuatorfrcrange   : double[2] (field=actfrcrange)
+  actuatorgravcomp   : bool (field=actgravcomp)
+  margin             : double
+  ref                : double
+  springref          : double
+  armature           : double
+  damping            : double[1..3]      # damper polynomial, 1+mjNPOLY coefficients
+  frictionloss       : double
+  user               : double[] (field=userdata)
+}
+
+element freejoint {
+  name               : id<joint>
+  group              : int
+  align              : enum<FalseTrueAuto>
+}
+
+element geom : mjsGeom {
+  name               : id<geom>
+  class              : ref<default>
+  type               : enum<geomtype> = sphere
+  contype            : int = 1
+  conaffinity        : int = 1
+  condim             : int = 3
+  group              : int
+  priority           : int
+  size               : double[1..3] (writing=custom)  # saved length is type-dependent
+  material           : ref<material>
+  friction           : double[1..3] = {1, 0.005, 0.0001}
+  mass               : double (writing=custom)         # mass/density: one is saved
+  density            : double = 1000 (writing=custom)
+  shellinertia       : bool (field=typeinertia, writing=custom)  # saved unless mesh
+  solmix             : double = 1
+  solref             : double[1..mjNREF] = {0.02, 1}
+  solimp             : double[1..mjNIMP] = {0.9, 0.95, 0.001, 0.5, 2}
+  margin             : double
+  gap                : double
+  surfacevel         : double[1..6]
+  adhesion           : double
+  fromto             : double[6] (writing=custom)  # compile directive: saved as pos/quat/size
+  pos                : double[3] = {0, 0, 0} (writing=custom)  # saved in the mesh-corrected frame
+  use orientation
+  hfield             : ref<hfield> (field=hfieldname)
+  mesh               : ref<mesh> (field=meshname)
+  fitscale           : double = 1 (writing=custom)  # compile directive: not saved
+  rgba               : float[4] = {0.5, 0.5, 0.5, 1}
+  fluidshape         : enum<fluidshape> (field=fluid_ellipsoid, reading=custom)
+  fluidcoef          : double[1..5] = {0.5, 0.25, 1.5, 1, 1} (field=fluid_coefs)
+  user               : double[] (field=userdata)
+  child plugin *
+}
+
+element attach {
+  model              : ref<model>
+  body               : ref<body>
+  frame              : ref<frame>
+  prefix             : string (required)
+  exclusive body frame
+}
+
+element site : mjsSite {
+  name               : id<site>
+  class              : ref<default>
+  type               : enum<geomtype> = sphere
+  group              : int
+  pos                : double[3] = {0, 0, 0}
+  use orientation
+  material           : ref<material>
+  size               : double[1..3] = {0.005, 0.005, 0.005} (writing=custom)  # saved length is type-dependent
+  fromto             : double[6] (writing=custom)  # compile directive: saved as pos/quat/size
+  rgba               : float[4] = {0.5, 0.5, 0.5, 1}
+  user               : double[] (field=userdata)
+}
+
+element camera : mjsCamera {
+  name               : id<camera>
+  class              : ref<default>
+  projection         : enum<projection> (field=proj)
+  fovy               : double = 45 (writing=custom)  # fovy or the intrinsics family is saved
+  ipd                : double = 0.068
+  resolution         : int[2] = {1, 1}
+  output             : flags<camout>
+  pos                : double[3] = {0, 0, 0}
+  use orientation
+  mode               : enum<camlight> = fixed
+  target             : ref<body> (nodefault, field=targetbody)
+  focal              : float[2] (field=focal_length, writing=custom)
+  focalpixel         : float[2] (field=focal_pixel, writing=custom)
+  principal          : float[2] (field=principal_length, writing=custom)
+  principalpixel     : float[2] (field=principal_pixel, writing=custom)
+  sensorsize         : float[2] (field=sensor_size, writing=custom)
+  user               : double[] (field=userdata)
+  exclusive fovy sensorsize
+}
+
+element light : mjsLight {
+  name               : id<light>
+  class              : ref<default>
+  directional        : bool (reading=custom)
+  type               : enum<lighttype> (reading=custom)
+  castshadow         : bool = true
+  active             : bool = true
+  pos                : double[3] = {0, 0, 0}
+  dir                : double[3] = {0, 0, -1}
+  bulbradius         : float = 0.02
+  intensity          : float
+  range              : float = 10
+  attenuation        : float[3] = {1, 0, 0}
+  cutoff             : float = 45
+  softness           : float = 0.2
+  exponent           : float = 10
+  ambient            : float[3]
+  diffuse            : float[3] = {0.7, 0.7, 0.7}
+  specular           : float[3] = {0.3, 0.3, 0.3}
+  mode               : enum<camlight> = fixed
+  target             : ref<body> (nodefault, field=targetbody)
+  texture            : ref<texture> (nodefault)
+  exclusive directional type
+}
+
+element composite {
+  prefix             : string
+  type               : enum<comp> (required)
+  count              : int[1..3]
+  offset             : double[3]
+  vertex             : double[]
+  initial            : string
+  curve              : string
+  size               : double[1..3]
+  quat               : double[4]
+  child composite_joint *
+  child composite_skin ?
+  child composite_geom ?
+  child composite_site ?
+  child plugin *
+}
+
+element composite_joint (xml=joint) {
+  kind               : enum<jkind> (required)
+  group              : int
+  stiffness          : double
+  damping            : double
+  armature           : double
+  solreffix          : double[1..mjNREF]
+  solimpfix          : double[1..mjNIMP]
+  type               : enum<jointtype>
+  axis               : double[3]
+  limited            : enum<FalseTrueAuto> = auto
+  range              : double[2]
+  margin             : double
+  solreflimit        : double[1..mjNREF]
+  solimplimit        : double[1..mjNIMP]
+  frictionloss       : double
+  solreffriction     : double[1..mjNREF]
+  solimpfriction     : double[1..mjNIMP]
+}
+
+element composite_skin (xml=skin) {
+  texcoord           : bool
+  material           : ref<material>
+  group              : int
+  rgba               : float[4]
+  inflate            : double
+  subgrid            : int
+}
+
+element composite_geom (xml=geom) {
+  type               : enum<geomtype>
+  contype            : int
+  conaffinity        : int
+  condim             : int
+  group              : int
+  priority           : int
+  size               : double[1..3]
+  material           : ref<material>
+  rgba               : float[4]
+  friction           : double[1..3]
+  mass               : double
+  density            : double
+  solmix             : double
+  solref             : double[1..mjNREF]
+  solimp             : double[1..mjNIMP]
+  margin             : double
+  gap                : double
+  surfacevel         : double[1..6]
+  adhesion           : double
+}
+
+element composite_site (xml=site) {
+  group              : int
+  size               : double[1..3]
+  material           : ref<material>
+  rgba               : float[4]
+}
+
+element flexcomp {
+  name               : id<flex> (required)
+  type               : enum<fcomp>
+  group              : int
+  dim                : int
+  dof                : enum<fdof>
+  count              : int[3]
+  cellcount          : int[3]
+  spacing            : double[3]
+  radius             : double
+  rigid              : bool
+  mass               : double
+  inertiabox         : double
+  scale              : double[3]
+  file               : file
+  point              : double[]
+  element            : double[]
+  texcoord           : double[]
+  material           : ref<material>
+  rgba               : float[4]
+  flatskin           : bool
+  pos                : double[3]
+  quat               : double[4]
+  axisangle          : double[4]
+  xyaxes             : double[6]
+  zaxis              : double[3]
+  euler              : double[3]
+  origin             : double[3]
+  child flexcomp_edge ?
+  child elasticity ?
+  child flexcomp_contact ?
+  child pin *
+  child plugin *
+}
+
+element flexcomp_edge (xml=edge) {
+  equality           : enum<flexeq>
+  solref             : double[1..mjNREF]
+  solimp             : double[1..mjNIMP]
+  stiffness          : double
+  damping            : double
+}
+
+element elasticity : mjsFlex {
+  young              : double
+  poisson            : double
+  damping            : double
+  thickness          : double = -1
+  elastic2d          : enum<elastic2d>
+}
+
+element flexcomp_contact : mjsFlex (xml=contact) {
+  contype            : int = 1
+  conaffinity        : int = 1
+  condim             : int = 3
+  priority           : int
+  friction           : double[1..3] = {1, 0.005, 0.0001}
+  solmix             : double = 1
+  solref             : double[1..mjNREF] = {0.02, 1}
+  solimp             : double[1..mjNIMP] = {0.9, 0.95, 0.001, 0.5, 2}
+  margin             : double
+  gap                : double
+  internal           : bool
+  selfcollide        : enum<flexself> = auto
+  activelayers       : int = 1
+  passive            : bool
+}
+
+element pin {
+  id                 : double[]
+  range              : double[]
+  grid               : double[]
+  gridrange          : double[]
+}
+
+
+#---------------------- deformable -----------------------------------------------------------------
+
+element deformable {
+  child flex *
+  child skin *
+}
+
+element flex : mjsFlex {
+  name               : id<flex>
+  group              : int
+  dim                : int = 2
+  radius             : double = 0.005
+  material           : ref<material>
+  rgba               : float[4] = {0.5, 0.5, 0.5, 1}
+  flatskin           : bool
+  body               : string (required, field=vertbody)   # space-separated body names
+  vertex             : double[] (field=vert)
+  element            : int[] (required, field=elem)
+  texcoord           : float[]
+  elemtexcoord       : int[]
+  node               : string (field=nodebody)             # space-separated body names
+  nodecoord          : double[] (field=node)               # node positions within body frames
+  cellcount          : int[3] = {1, 1, 1} (reading=custom)  # seeded before reading
+  dof                : enum<fdof> (reading=custom)        # lowers to interpolation order
+  child flexcomp_contact ?
+  child flex_edge ?
+  child elasticity ?
+}
+
+element flex_edge : mjsFlex (xml=edge) {
+  stiffness          : double (field=edgestiffness)
+  damping            : double (field=edgedamping)
+}
+
+
+#---------------------- contact --------------------------------------------------------------------
+
+element contact {
+  child pair *
+  child exclude *
+}
+
+element pair : mjsPair {
+  name               : id<pair>
+  class              : ref<default>
+  geom1              : ref<geom> (nodefault, field=geomname1)
+  geom2              : ref<geom> (nodefault, field=geomname2)
+  condim             : int = 3
+  friction           : double[1..5] = {1, 1, 0.005, 0.0001, 0.0001}
+  solref             : double[1..mjNREF] = {0.02, 1}
+  solreffriction     : double[1..mjNREF]
+  solimp             : double[1..mjNIMP] = {0.9, 0.95, 0.001, 0.5, 2}
+  gap                : double
+  margin             : double
+  adhesion           : double
+}
+
+element exclude : mjsExclude {
+  name               : id<exclude>
+  body1              : ref<body> (required, field=bodyname1)
+  body2              : ref<body> (required, field=bodyname2)
+}
+
+
+#---------------------- tendon ---------------------------------------------------------------------
+
+element tendon {
+  child spatial *
+  child fixed *
+}
+
+element spatial : mjsTendon {
+  name               : id<tendon>
+  class              : ref<default>
+  group              : int
+  limited            : enum<FalseTrueAuto> = auto
+  actuatorfrclimited : enum<FalseTrueAuto> (field=actfrclimited)
+  range              : double[2]
+  actuatorfrcrange   : double[2] (field=actfrcrange)
+  solreflimit        : double[1..mjNREF] = {0.02, 1} (field=solref_limit)
+  solimplimit        : double[1..mjNIMP] = {0.9, 0.95, 0.001, 0.5, 2} (field=solimp_limit)
+  solreffriction     : double[1..mjNREF] = {0.02, 1} (field=solref_friction)
+  solimpfriction     : double[1..mjNIMP] = {0.9, 0.95, 0.001, 0.5, 2} (field=solimp_friction)
+  frictionloss       : double
+  springlength       : double[1..2] = {-1, -1} (reading=custom)   # one value: copied to both
+  width              : double = 0.003
+  material           : ref<material>
+  margin             : double
+  stiffness          : double[1..3]      # spring polynomial, 1+mjNPOLY coefficients
+  damping            : double[1..3]      # damper polynomial, 1+mjNPOLY coefficients
+  armature           : double
+  rgba               : float[4] = {0.5, 0.5, 0.5, 1}
+  user               : double[] (field=userdata)
+  child spatial_site *
+  child spatial_geom *
+  child pulley *
+}
+
+# read via the mjs_wrapSite constructor: attributes are arguments
+element spatial_site (xml=site) {
+  site               : ref<site> (required)
+}
+
+# read via the mjs_wrapGeom constructor: attributes are arguments
+element spatial_geom (xml=geom) {
+  geom               : ref<geom> (required)
+  sidesite           : ref<site>
+}
+
+# read via the mjs_wrapPulley constructor: attributes are arguments
+element pulley {
+  divisor            : double
+}
+
+element fixed : mjsTendon {
+  name               : id<tendon>
+  class              : ref<default>
+  group              : int
+  limited            : enum<FalseTrueAuto> = auto
+  actuatorfrclimited : enum<FalseTrueAuto> (field=actfrclimited)
+  range              : double[2]
+  actuatorfrcrange   : double[2] (field=actfrcrange)
+  solreflimit        : double[1..mjNREF] = {0.02, 1} (field=solref_limit)
+  solimplimit        : double[1..mjNIMP] = {0.9, 0.95, 0.001, 0.5, 2} (field=solimp_limit)
+  solreffriction     : double[1..mjNREF] = {0.02, 1} (field=solref_friction)
+  solimpfriction     : double[1..mjNIMP] = {0.9, 0.95, 0.001, 0.5, 2} (field=solimp_friction)
+  frictionloss       : double
+  springlength       : double[1..2] = {-1, -1} (reading=custom)   # one value: copied to both
+  margin             : double
+  stiffness          : double[1..3]      # spring polynomial, 1+mjNPOLY coefficients
+  damping            : double[1..3]      # damper polynomial, 1+mjNPOLY coefficients
+  armature           : double
+  user               : double[] (field=userdata)
+  child fixed_joint *
+}
+
+# read via the mjs_wrapJoint constructor: attributes are arguments
+element fixed_joint (xml=joint) {
+  joint              : ref<joint> (required)
+  coef               : double
+}
+
+
+#---------------------- equality -------------------------------------------------------------------
+
+element equality : mjsEquality {
+  child connect *
+  child weld *
+  child equality_joint *
+  child equality_tendon *
+  child equality_flex *
+  child flexvert *
+  child flexstrain *
+}
+
+element connect : mjsEquality {
+  use equality_base
+  exclusive site1+site2 body1+body2+anchor   # site and body semantics cannot mix
+  oneof site1+site2 body1+anchor
+  together site1 site2
+  body1              : ref<body>
+  body2              : ref<body>
+  anchor             : double[3]
+  site1              : ref<site>
+  site2              : ref<site>
+}
+
+element weld : mjsEquality {
+  use equality_base
+  exclusive site1+site2 body1+body2+anchor+relpose
+  oneof site1+site2 body1
+  together site1 site2
+  body1              : ref<body>
+  body2              : ref<body>
+  relpose            : double[7]
+  anchor             : double[3]
+  site1              : ref<site>
+  site2              : ref<site>
+  torquescale        : double
+}
+
+element equality_joint : mjsEquality (xml=joint) {
+  use equality_base
+  joint1             : ref<joint> (required)
+  joint2             : ref<joint>
+  polycoef           : double[1..5]
+}
+
+element equality_tendon : mjsEquality (xml=tendon) {
+  use equality_base
+  tendon1            : ref<tendon> (required)
+  tendon2            : ref<tendon>
+  polycoef           : double[1..5]
+}
+
+element equality_flex : mjsEquality (xml=flex) {
+  use equality_base
+  flex               : ref<flex> (required)
+}
+
+element flexvert : mjsEquality {
+  use equality_base
+  flex               : ref<flex> (required)
+}
+
+element flexstrain : mjsEquality {
+  use equality_base
+  flex               : ref<flex> (required)
+  cell               : double[3]
+}
+
+
+#---------------------- actuator -------------------------------------------------------------------
+
+element actuator : mjsActuator {
+  child general *
+  child motor *
+  child position *
+  child velocity *
+  child intvelocity *
+  child orientation *
+  child pid *
+  child damper *
+  child cylinder *
+  child muscle *
+  child adhesion *
+  child dcmotor *
+  child actuator_plugin *
+}
+
+element general : mjsActuator {
+  use actuator_base
+  ctrllimited        : enum<FalseTrueAuto> = auto
+  forcelimited       : enum<FalseTrueAuto> = auto
+  actlimited         : enum<FalseTrueAuto> = auto
+  forcerange         : double[2]
+  actrange           : double[2]
+  use actuator_dynamics
+  use transmission
+  body               : ref<body> (nodefault, reading=custom)  # transmission target
+  actdim             : int = -1 (writing=custom)  # saved default depends on dyntype
+  input              : enum<inputchart> (reading=custom)  # so3 chart keyword, or servo token subset
+  velrange           : double[2]
+  ffrange            : double[2]
+  dyntype            : enum<dyn> = none
+  gaintype           : enum<gain> = fixed (writing=custom)  # gain/bias family is not
+  biastype           : enum<bias> = none (writing=custom)   # saved for plugin actuators
+  dynprm             : double[1..mjNDYN] = {1}
+  gainprm            : double[1..mjNGAIN] = {1} (writing=custom)
+  biasprm            : double[1..mjNBIAS] (writing=custom)
+  actearly           : bool
+}
+
+element motor : mjsActuator {
+  use actuator_base
+  ctrllimited        : enum<FalseTrueAuto> = auto
+  forcelimited       : enum<FalseTrueAuto> = auto
+  forcerange         : double[2]
+  use actuator_dynamics
+  use transmission
+}
+
+element position : mjsActuator {
+  use actuator_base
+  ctrllimited        : enum<FalseTrueAuto> = auto
+  forcelimited       : enum<FalseTrueAuto> = auto
+  inheritrange       : double
+  forcerange         : double[2]
+  use actuator_dynamics
+  use transmission
+  kp                 : double
+  kv                 : double
+  dampratio          : double
+  timeconst          : double
+}
+
+element velocity : mjsActuator {
+  use actuator_base
+  ctrllimited        : enum<FalseTrueAuto> = auto
+  forcelimited       : enum<FalseTrueAuto> = auto
+  forcerange         : double[2]
+  use actuator_dynamics
+  use transmission
+  kv                 : double
+}
+
+element intvelocity : mjsActuator {
+  use actuator_base
+  ctrllimited        : enum<FalseTrueAuto> = auto
+  forcelimited       : enum<FalseTrueAuto> = auto
+  actlimited         : enum<FalseTrueAuto> = auto
+  forcerange         : double[2]
+  actrange           : double[2]
+  inheritrange       : double
+  use actuator_dynamics
+  use transmission
+  kp                 : double
+  kv                 : double
+  dampratio          : double
+}
+
+element orientation : mjsActuator {
+  use actuator_base
+  forcelimited       : enum<FalseTrueAuto> = auto
+  forcerange         : double[2]
+  joint              : ref<joint> (nodefault)
+  site               : ref<site> (nodefault)
+  refsite            : ref<site> (nodefault)
+  kp                 : double
+  kv                 : double
+  dampratio          : double
+  input              : enum<inputchart>
+}
+
+element pid : mjsActuator {
+  use actuator_base
+  ctrllimited        : enum<FalseTrueAuto> = auto
+  forcelimited       : enum<FalseTrueAuto> = auto
+  posrange           : double[2] (field=ctrlrange)  # alias: the position-setpoint range
+  velrange           : double[2]
+  ffrange            : double[2]
+  forcerange         : double[2]
+  inheritrange       : double
+  use actuator_dynamics
+  use transmission
+  kp                 : double
+  kv                 : double
+  dampratio          : double
+  ki                 : double
+  imax               : double
+  slewmax            : double
+  input              : flags<inputbit>
+}
+
+element damper : mjsActuator {
+  use actuator_base
+  forcelimited       : enum<FalseTrueAuto> = auto
+  forcerange         : double[2]
+  use actuator_dynamics
+  use transmission
+  kv                 : double
+}
+
+element cylinder : mjsActuator {
+  use actuator_base
+  ctrllimited        : enum<FalseTrueAuto> = auto
+  forcelimited       : enum<FalseTrueAuto> = auto
+  forcerange         : double[2]
+  use actuator_dynamics
+  use transmission
+  timeconst          : double
+  area               : double
+  diameter           : double
+  bias               : double[3]
+}
+
+element muscle : mjsActuator {
+  use actuator_base
+  ctrllimited        : enum<FalseTrueAuto> = auto
+  forcelimited       : enum<FalseTrueAuto> = auto
+  forcerange         : double[2]
+  use actuator_dynamics
+  joint              : ref<joint> (nodefault)
+  jointinparent      : string (nodefault)
+  tendon             : ref<tendon> (nodefault)
+  slidersite         : ref<site> (nodefault)
+  cranksite          : ref<site> (nodefault)
+  timeconst          : double[2]
+  tausmooth          : double (nodefault)
+  range              : double[2]
+  force              : double
+  scale              : double
+  lmin               : double
+  lmax               : double
+  vmax               : double
+  fpmax              : double
+  fvmax              : double
+}
+
+element adhesion : mjsActuator {
+  use actuator_base
+  forcelimited       : enum<FalseTrueAuto> = auto
+  forcerange         : double[2]
+  body               : ref<body> (nodefault)
+  gain               : double
+}
+
+element dcmotor : mjsActuator {
+  use actuator_base
+  ctrllimited        : enum<FalseTrueAuto> = auto
+  use actuator_dynamics
+  use transmission
+  motorconst         : double[1..2]
+  resistance         : double
+  nominal            : double[1..3]
+  saturation         : double[1..3]
+  inductance         : double[1..2]
+  cogging            : double[1..3]
+  controller         : double[1..6]
+  thermal            : double[1..6]
+  lugre              : double[1..5]
+  input              : enum<dcmotorinput>
+}
+
+element actuator_plugin : mjsActuator (xml=plugin) {
+  use actuator_base
+  plugin             : string
+  instance           : ref<instance>
+  ctrllimited        : enum<FalseTrueAuto> = auto
+  forcelimited       : enum<FalseTrueAuto> = auto
+  actlimited         : enum<FalseTrueAuto> = auto
+  forcerange         : double[2]
+  actrange           : double[2]
+  use actuator_dynamics
+  joint              : ref<joint>
+  jointinparent      : string
+  site               : ref<site>
+  actdim             : int = -1
+  dyntype            : enum<dyn> = none
+  dynprm             : double[1..mjNDYN] = {1}
+  tendon             : ref<tendon>
+  cranksite          : ref<site>
+  slidersite         : ref<site>
+  actearly           : bool
+  child config *
+}
+
+
+#---------------------- sensor ---------------------------------------------------------------------
+
+element sensor : mjsSensor {
+  child touch *
+  child accelerometer *
+  child velocimeter *
+  child gyro *
+  child force *
+  child torque *
+  child magnetometer *
+  child camprojection *
+  child rangefinder *
+  child jointpos *
+  child jointvel *
+  child tendonpos *
+  child tendonvel *
+  child actuatorpos *
+  child actuatorvel *
+  child actuatorfrc *
+  child jointactuatorfrc *
+  child tendonactuatorfrc *
+  child ballquat *
+  child ballangvel *
+  child jointlimitpos *
+  child jointlimitvel *
+  child jointlimitfrc *
+  child tendonlimitpos *
+  child tendonlimitvel *
+  child tendonlimitfrc *
+  child framepos *
+  child framequat *
+  child framexaxis *
+  child frameyaxis *
+  child framezaxis *
+  child framelinvel *
+  child frameangvel *
+  child framelinacc *
+  child frameangacc *
+  child subtreecom *
+  child subtreelinvel *
+  child subtreeangmom *
+  child insidesite *
+  child distance *
+  child normal *
+  child fromto *
+  child sensor_contact *
+  child e_potential *
+  child e_kinetic *
+  child clock *
+  child tactile *
+  child user *
+  child sensor_plugin *
+}
+
+element touch : mjsSensor {
+  set type         = mjSENS_TOUCH
+  set objtype      = mjOBJ_SITE
+  use sensor_base
+  site               : ref<site> (required, field=objname)
+}
+
+element accelerometer : mjsSensor {
+  set type         = mjSENS_ACCELEROMETER
+  set objtype      = mjOBJ_SITE
+  use sensor_base
+  site               : ref<site> (required, field=objname)
+}
+
+element velocimeter : mjsSensor {
+  set type         = mjSENS_VELOCIMETER
+  set objtype      = mjOBJ_SITE
+  use sensor_base
+  site               : ref<site> (required, field=objname)
+}
+
+element gyro : mjsSensor {
+  set type         = mjSENS_GYRO
+  set objtype      = mjOBJ_SITE
+  use sensor_base
+  site               : ref<site> (required, field=objname)
+}
+
+element force : mjsSensor {
+  set type         = mjSENS_FORCE
+  set objtype      = mjOBJ_SITE
+  use sensor_base
+  site               : ref<site> (required, field=objname)
+}
+
+element torque : mjsSensor {
+  set type         = mjSENS_TORQUE
+  set objtype      = mjOBJ_SITE
+  use sensor_base
+  site               : ref<site> (required, field=objname)
+}
+
+element magnetometer : mjsSensor {
+  set type         = mjSENS_MAGNETOMETER
+  set objtype      = mjOBJ_SITE
+  use sensor_base
+  site               : ref<site> (required, field=objname)
+}
+
+element camprojection : mjsSensor {
+  set type         = mjSENS_CAMPROJECTION
+  set objtype      = mjOBJ_SITE
+  set reftype      = mjOBJ_CAMERA
+  use sensor_base
+  site               : ref<site> (required, field=objname)
+  camera             : ref<camera> (required, field=refname)
+}
+
+element rangefinder : mjsSensor {
+  use sensor_base
+  site               : ref<site>
+  camera             : ref<camera>
+  data               : flags<raydata> (reading=custom)  # ordering-checked
+  exclusive site camera
+  oneof site camera
+}
+
+element jointpos : mjsSensor {
+  set type         = mjSENS_JOINTPOS
+  set objtype      = mjOBJ_JOINT
+  use sensor_base
+  joint              : ref<joint> (required, field=objname)
+}
+
+element jointvel : mjsSensor {
+  set type         = mjSENS_JOINTVEL
+  set objtype      = mjOBJ_JOINT
+  use sensor_base
+  joint              : ref<joint> (required, field=objname)
+}
+
+element tendonpos : mjsSensor {
+  set type         = mjSENS_TENDONPOS
+  set objtype      = mjOBJ_TENDON
+  use sensor_base
+  tendon             : ref<tendon> (required, field=objname)
+}
+
+element tendonvel : mjsSensor {
+  set type         = mjSENS_TENDONVEL
+  set objtype      = mjOBJ_TENDON
+  use sensor_base
+  tendon             : ref<tendon> (required, field=objname)
+}
+
+element actuatorpos : mjsSensor {
+  set type         = mjSENS_ACTUATORPOS
+  set objtype      = mjOBJ_ACTUATOR
+  use sensor_base
+  actuator           : ref<actuator> (required, field=objname)
+}
+
+element actuatorvel : mjsSensor {
+  set type         = mjSENS_ACTUATORVEL
+  set objtype      = mjOBJ_ACTUATOR
+  use sensor_base
+  actuator           : ref<actuator> (required, field=objname)
+}
+
+element actuatorfrc : mjsSensor {
+  set type         = mjSENS_ACTUATORFRC
+  set objtype      = mjOBJ_ACTUATOR
+  use sensor_base
+  actuator           : ref<actuator> (required, field=objname)
+}
+
+element jointactuatorfrc : mjsSensor {
+  set type         = mjSENS_JOINTACTFRC
+  set objtype      = mjOBJ_JOINT
+  use sensor_base
+  joint              : ref<joint> (required, field=objname)
+}
+
+element tendonactuatorfrc : mjsSensor {
+  set type         = mjSENS_TENDONACTFRC
+  set objtype      = mjOBJ_TENDON
+  use sensor_base
+  tendon             : ref<tendon> (required, field=objname)
+}
+
+element ballquat : mjsSensor {
+  set type         = mjSENS_BALLQUAT
+  set objtype      = mjOBJ_JOINT
+  use sensor_base
+  joint              : ref<joint> (required, field=objname)
+}
+
+element ballangvel : mjsSensor {
+  set type         = mjSENS_BALLANGVEL
+  set objtype      = mjOBJ_JOINT
+  use sensor_base
+  joint              : ref<joint> (required, field=objname)
+}
+
+element jointlimitpos : mjsSensor {
+  set type         = mjSENS_JOINTLIMITPOS
+  set objtype      = mjOBJ_JOINT
+  use sensor_base
+  joint              : ref<joint> (required, field=objname)
+}
+
+element jointlimitvel : mjsSensor {
+  set type         = mjSENS_JOINTLIMITVEL
+  set objtype      = mjOBJ_JOINT
+  use sensor_base
+  joint              : ref<joint> (required, field=objname)
+}
+
+element jointlimitfrc : mjsSensor {
+  set type         = mjSENS_JOINTLIMITFRC
+  set objtype      = mjOBJ_JOINT
+  use sensor_base
+  joint              : ref<joint> (required, field=objname)
+}
+
+element tendonlimitpos : mjsSensor {
+  set type         = mjSENS_TENDONLIMITPOS
+  set objtype      = mjOBJ_TENDON
+  use sensor_base
+  tendon             : ref<tendon> (required, field=objname)
+}
+
+element tendonlimitvel : mjsSensor {
+  set type         = mjSENS_TENDONLIMITVEL
+  set objtype      = mjOBJ_TENDON
+  use sensor_base
+  tendon             : ref<tendon> (required, field=objname)
+}
+
+element tendonlimitfrc : mjsSensor {
+  set type         = mjSENS_TENDONLIMITFRC
+  set objtype      = mjOBJ_TENDON
+  use sensor_base
+  tendon             : ref<tendon> (required, field=objname)
+}
+
+element framepos : mjsSensor {
+  set type         = mjSENS_FRAMEPOS
+  use sensor_base
+  use frame_object
+  use frame_reference
+}
+
+element framequat : mjsSensor {
+  set type         = mjSENS_FRAMEQUAT
+  use sensor_base
+  use frame_object
+  use frame_reference
+}
+
+element framexaxis : mjsSensor {
+  set type         = mjSENS_FRAMEXAXIS
+  use sensor_base
+  use frame_object
+  use frame_reference
+}
+
+element frameyaxis : mjsSensor {
+  set type         = mjSENS_FRAMEYAXIS
+  use sensor_base
+  use frame_object
+  use frame_reference
+}
+
+element framezaxis : mjsSensor {
+  set type         = mjSENS_FRAMEZAXIS
+  use sensor_base
+  use frame_object
+  use frame_reference
+}
+
+element framelinvel : mjsSensor {
+  set type         = mjSENS_FRAMELINVEL
+  use sensor_base
+  use frame_object
+  use frame_reference
+}
+
+element frameangvel : mjsSensor {
+  set type         = mjSENS_FRAMEANGVEL
+  use sensor_base
+  use frame_object
+  use frame_reference
+}
+
+element framelinacc : mjsSensor {
+  set type         = mjSENS_FRAMELINACC
+  use sensor_base
+  use frame_object
+}
+
+element frameangacc : mjsSensor {
+  set type         = mjSENS_FRAMEANGACC
+  use sensor_base
+  use frame_object
+}
+
+element subtreecom : mjsSensor {
+  set type         = mjSENS_SUBTREECOM
+  set objtype      = mjOBJ_BODY
+  use sensor_base
+  body               : ref<body> (required, field=objname)
+}
+
+element subtreelinvel : mjsSensor {
+  set type         = mjSENS_SUBTREELINVEL
+  set objtype      = mjOBJ_BODY
+  use sensor_base
+  body               : ref<body> (required, field=objname)
+}
+
+element subtreeangmom : mjsSensor {
+  set type         = mjSENS_SUBTREEANGMOM
+  set objtype      = mjOBJ_BODY
+  use sensor_base
+  body               : ref<body> (required, field=objname)
+}
+
+element insidesite : mjsSensor {
+  set type         = mjSENS_INSIDESITE
+  set reftype      = mjOBJ_SITE
+  use sensor_base
+  site               : ref<site> (required, field=refname)
+  objtype            : enum<frameobj> (required)
+  objname            : string (required)
+}
+
+element distance : mjsSensor {
+  use sensor_base
+  exclusive geom1 body1
+  oneof geom1 body1
+  exclusive geom2 body2
+  oneof geom2 body2
+  geom1              : ref<geom>
+  geom2              : ref<geom>
+  body1              : ref<body>
+  body2              : ref<body>
+}
+
+element normal : mjsSensor {
+  use sensor_base
+  exclusive geom1 body1
+  oneof geom1 body1
+  exclusive geom2 body2
+  oneof geom2 body2
+  geom1              : ref<geom>
+  geom2              : ref<geom>
+  body1              : ref<body>
+  body2              : ref<body>
+}
+
+element fromto : mjsSensor {
+  use sensor_base
+  exclusive geom1 body1
+  oneof geom1 body1
+  exclusive geom2 body2
+  oneof geom2 body2
+  geom1              : ref<geom>
+  geom2              : ref<geom>
+  body1              : ref<body>
+  body2              : ref<body>
+}
+
+element sensor_contact : mjsSensor (xml=contact) {
+  use sensor_base
+  geom1              : ref<geom>
+  geom2              : ref<geom>
+  body1              : ref<body>
+  body2              : ref<body>
+  subtree1           : ref<body>
+  subtree2           : ref<body>
+  site               : ref<site>
+  num                : int
+  data               : flags<condata> (reading=custom)
+  reduce             : enum<reduce>
+  exclusive geom1 body1 subtree1 site
+  exclusive geom2 body2 subtree2
+}
+
+element e_potential : mjsSensor {
+  set type         = mjSENS_E_POTENTIAL
+  set objtype      = mjOBJ_UNKNOWN
+  use sensor_base
+}
+
+element e_kinetic : mjsSensor {
+  set type         = mjSENS_E_KINETIC
+  set objtype      = mjOBJ_UNKNOWN
+  use sensor_base
+}
+
+element clock : mjsSensor {
+  set type         = mjSENS_CLOCK
+  set objtype      = mjOBJ_UNKNOWN
+  use sensor_base
+}
+
+element tactile : mjsSensor {
+  name               : id<sensor>
+  geom               : ref<geom> (required)
+  mesh               : ref<mesh> (required)
+  nsample            : int
+  interp             : enum<interp>
+  delay              : double
+  interval           : double[1..2]
+  user               : double[]
+}
+
+element user : mjsSensor {
+  name               : id<sensor>
+  objtype            : string
+  objname            : string
+  together objtype objname
+  datatype           : enum<datatype> = real
+  needstage          : enum<stage> = acc
+  dim                : int
+  cutoff             : double
+  noise              : double
+  user               : double[]
+}
+
+element sensor_plugin : mjsSensor (xml=plugin) {
+  name               : id<sensor>
+  plugin             : string
+  instance           : ref<instance>
+  cutoff             : double
+  objtype            : string    # objtype/objname, reftype/refname: pairwise
+  objname            : string    # co-occurrence enforced by the reader
+  reftype            : string
+  refname            : string
+  user               : double[]
+  child config *
+}
+
+
+#---------------------- custom ---------------------------------------------------------------------
+
+element custom {
+  child numeric *
+  child text *
+  child tuple *
+}
+
+element numeric : mjsNumeric {
+  name               : id<numeric> (required)
+  size               : int
+  data               : string
+}
+
+element text : mjsText {
+  name               : id<text> (required)
+  data               : string (required)
+}
+
+element tuple : mjsTuple {
+  name               : id<tuple> (required)
+  child element *
+}
+
+element element {
+  objtype            : string (required)
+  objname            : string (required)
+  prm                : double
+}
+
+
+#---------------------- keyframe -------------------------------------------------------------------
+
+element keyframe {
+  child key *
+}
+
+element key : mjsKey {
+  name               : id<key> (reading=custom)   # set even when absent
+  time               : double
+  qpos               : double[]
+  qvel               : double[]
+  act                : double[]
+  mpos               : double[]
+  mquat              : double[]
+  ctrl               : double[]
+}
+
+
+#---------------------- worldbody, frame, replicate (body aliases) ---------------------------------
+
+# The runtime validator admits the full body surface for all three aliases
+# (mjXSchema::NameMatch); the reader enforces the restrictions. The child
+# lists below record the compilable surface, for artifact emitters.
+
+# a restricted body: no attributes, no inertial or joints
+element worldbody (alias=body) {
+  child body *
+  child frame *
+  child replicate *
+  child geom *
+  child attach *
+  child site *
+  child camera *
+  child light *
+  child plugin *
+  child composite *
+  child flexcomp *
+}
+
+element frame : mjsFrame (alias=body) {
+  name        : id<frame>
+  childclass  : ref<default>
+  pos         : double[3]
+  use orientation
+  child body R
+  child frame R
+  child replicate *
+  child inertial ?
+  child joint *
+  child freejoint *
+  child geom *
+  child attach *
+  child site *
+  child camera *
+  child light *
+  child plugin *
+  child composite *
+  child flexcomp *
+}
+
+# read into the replicate expansion: hand-written.
+# no freejoint or flexcomp children: the replicate expansion rejects them
+element replicate (alias=body) {
+  count       : int (required)
+  offset      : double[3]
+  euler       : double[3]
+  sep         : string
+  childclass  : ref<default>
+  child body *
+  child frame *
+  child replicate R
+  child inertial ?
+  child joint *
+  child geom *
+  child attach *
+  child site *
+  child camera *
+  child light *
+  child plugin *
+  child composite *
+}
+
+
+#---------------------- default-context elements ---------------------------------------------------
+
+element default_equality (xml=equality) {
+  active             : bool
+  solref             : double[1..mjNREF]
+  solimp             : double[1..mjNIMP]
+}
+
+element default_tendon (xml=tendon) {
+  group              : int
+  limited            : enum<FalseTrueAuto> = auto
+  range              : double[2]
+  solreflimit        : double[1..mjNREF]
+  solimplimit        : double[1..mjNIMP]
+  solreffriction     : double[1..mjNREF]
+  solimpfriction     : double[1..mjNIMP]
+  frictionloss       : double
+  springlength       : double[1..2]
+  width              : double
+  material           : ref<material>
+  margin             : double
+  stiffness          : double[1..3]
+  damping            : double[1..3]
+  rgba               : float[4]
+  user               : double[]
+}

@@ -1,0 +1,39 @@
+<mujoco>
+  <!--  linear dynamical system with fixed, anaylticaly computable derivatives  -->
+  <default>
+    <joint axis="1 0 0" damping=".01" stiffness=".1"/>
+    <geom type="box" size=".05 .05 .05"/>
+  </default>
+
+  <option>
+    <flag gravity="disable"/>
+  </option>
+
+  <worldbody>
+    <light pos="0 0 1"/>
+    <body>
+      <joint name="joint0"/>
+      <geom/>
+      <body pos=".15 0 0">
+        <joint name="joint1"/>
+        <site name="accelerometer" pos="0 0 -1"/>
+        <geom/>
+        <body pos=".15 0 0">
+          <joint/>
+          <geom/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <motor joint="joint0" ctrllimited="true" ctrlrange="-1 1"/>
+    <motor joint="joint1" ctrllimited="true" ctrlrange="-1 1"/>
+  </actuator>
+
+  <sensor>
+    <jointvel joint="joint1"/>
+    <jointpos joint="joint0"/>
+    <accelerometer site="accelerometer"/>
+  </sensor>
+</mujoco>

@@ -1,0 +1,13 @@
+<mujoco>
+  <worldbody>
+    <site name="1"/>
+    <site name="2" pos="1 0 0"/>
+  </worldbody>
+
+  <tendon>
+    <spatial limited="true" range="0.99 1.01" margin="0.1">
+      <site site="1"/>
+      <site site="2"/>
+    </spatial>
+  </tendon>
+</mujoco>

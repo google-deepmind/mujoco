@@ -1,0 +1,160 @@
+<!-- For validating dynamics of joints:
+
+* free, ball, slide, hinge joints
+* stacked joints (e.g. hinge + slide, ball + slide, etc)
+* n-link kinematic chains
+* limits, armature, damping
+-->
+<mujoco model="pendula">
+  <compiler autolimits="true"/>
+
+  <option timestep="0.02">
+    <flag contact="disable" />
+  </option>
+
+  <default>
+    <geom type="box" pos=".1 .2 .3" size=".1 .2 .3"/>
+    <joint damping="0.25" stiffness="0.1"/>
+  </default>
+
+  <worldbody>
+    <site name="origin"/>
+    <camera pos="0 1.5 0.8" xyaxes="-1 0 0 0 -0.2 .8"/>
+    <camera mode="targetbodycom" pos="1 -1 2"/>
+    <camera mode="targetbodycom" target="body" pos="0 -1 2"/>
+    <camera mode="targetbody" target="body" pos="0 -1 -2"/>
+
+    <!-- a single free body -->
+    <body pos="0 0 0">
+      <camera mode="fixed" pos="0 0.1 0.1" euler="2.7 0 0"/>
+      <camera pos="-3 0 1" xyaxes="0 -1 0 1 0 2" mode="trackcom"/>
+      <camera pos="-3 0 1" xyaxes="0 -1 0 1 0 2" mode="track"/>
+      <freejoint/>
+      <geom/>
+    </body>
+
+    <!-- a single ball joint with a limit -->
+    <body name="body" pos="0.5 0 0">
+      <joint name="joint1" type="ball" range="0 35"/>
+      <site name="s1" pos="1.3 0 0"/>
+      <geom/>
+    </body>
+
+    <!-- a single slide joint with a limit -->
+    <body pos="1.0 0 0">
+      <joint name="joint2" type="slide" axis="0.1 0.2 0.3" range="-1 1"/>
+      <site name="s2"/>
+      <geom/>
+    </body>
+
+    <!-- a single hinge joint with a limit -->
+    <body pos="1.5 0 0">
+      <joint name="joint3" type="hinge" axis="0.1 0.2 0.3" range="-35 50"/>
+      <site name="s3" quat="1 0 1 0"/>
+      <geom/>
+    </body>
+
+    <!-- stacked joint: hinge + slide -->
+    <body pos="2.0 0 0">
+      <joint name="joint4" type="hinge" axis="0.1 0.2 0.3"/>
+      <joint name="joint5" type="slide" axis="0.4 0.5 0.6" range="0 1"/>
+      <geom/>
+    </body>
+
+    <!-- stacked joint: slide + ball -->
+    <body pos="2.5 0 0">
+      <joint name="joint6" type="slide" axis="0.4 0.5 0.6" range="0 1"/>
+      <joint type="ball"/>
+      <geom/>
+    </body>
+
+    <!-- triple pendulum of hinges -->
+    <body pos="3.0 0 0">
+      <joint name="joint7" axis="0.1 0.2 0.3" type="hinge"/>
+      <geom/>
+      <body pos="0 0 -0.8">
+        <joint name="joint8" axis="0.4 0.5 0.6" type="hinge" armature="0.02" range="-20 20"/>
+        <geom/>
+        <body pos="0 -0.7 0">
+          <joint name="joint9" axis="0.7 0.8 0.9" type="hinge" damping="0.75" range="-30 30"/>
+          <site name="s4" pos="0 1.5 0" quat="1 0 1 0"/>
+          <geom/>
+        </body>
+      </body>
+    </body>
+
+    <!-- cherry pendulum: two bodies attached to same parent body -->
+    <body pos="3.5 0 0">
+      <joint name="joint10" type="ball" damping="0.5" />
+      <geom/>
+      <body pos="0 0 -0.8">
+        <joint name="joint11" axis="0.4 0.5 0.6" type="hinge" armature="0.02" range="-20 20"/>
+        <geom/>
+      </body>
+      <body pos="0 -0.7 0">
+        <joint name="joint12" axis="0.7 0.8 0.9" type="hinge" damping="0.75" range="-30 30"/>
+        <geom/>
+      </body>
+    </body>
+
+    <!-- falling pendulum -->
+    <body pos="4.0 0 0">
+      <freejoint name="freejoint"/>
+      <geom/>
+      <body pos="0 0 -0.8">
+        <joint name="joint13" axis="0.4 0.5 0.6" type="slide" armature="0.02" range="-0.4 0.6"/>
+        <geom/>
+        <body pos="0 -0.7 0">
+          <joint name="joint14" axis="0.7 0.8 0.9" type="hinge" damping="0.75" range="-30 30"/>
+          <geom/>
+        </body>
+      </body>
+    </body>
+
+    <!-- triple pendulum of hinges with gravcomp -->
+    <body pos="3.0 0 0" gravcomp="1">
+      <joint name="joint15" axis="0.1 0.2 0.3" type="hinge"/>
+      <geom/>
+      <body pos="0 0 -0.8" gravcomp="2">
+        <joint name="joint16" axis="0.4 0.5 0.6" type="hinge" armature="0.02" range="-20 20"/>
+        <geom/>
+        <body pos="0 -0.7 0" gravcomp="3">
+          <joint name="joint17" axis="0.7 0.8 0.9" type="hinge" damping="0.75" range="-30 30" actuatorgravcomp="true"/>
+          <geom/>
+        </body>
+      </body>
+    </body>
+
+    <body mocap="true">
+      <geom type="sphere" size="0.05"/>
+    </body>
+    <body mocap="true" pos="1.0 2.0 0.5" quat="1 0 1 0">
+      <geom type="sphere" size="0.05"/>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <fixed name="tendon_1" limited="true" range="-0.3 0.1" stiffness=".1" damping=".2">
+      <joint joint="joint2" coef=".1"/>
+      <joint joint="joint3" coef="-.2"/>
+    </fixed>
+    <fixed name="tendon_2" limited="true" range="-0.3 2" springlength="0 0.05" stiffness=".3" damping=".4">
+      <joint joint="joint4" coef=".3"/>
+      <joint joint="joint5" coef="-.4"/>
+    </fixed>
+  </tendon>
+
+  <actuator>
+    <motor gear="250 0 0" joint="joint1" name="act1"/>
+    <motor gear="0 275 0" joint="joint1" name="act2"/>
+    <motor gear="0 0 300" joint="joint1" name="act3"/>
+    <motor gear="275" joint="joint2" name="act4"/>
+    <motor gear="275" joint="joint3" name="act5"/>
+    <motor gear="150" joint="joint15" name="act6"/>
+    <motor gear="150" joint="joint16" name="act7"/>
+    <motor gear="150" joint="joint17" name="act8"/>
+    <position tendon="tendon_2" kp="100"/>
+    <motor gear="2 3 4" jointinparent="joint1"/>
+    <motor gear="5 6 7 8 9 10" jointinparent="freejoint"/>
+  </actuator>
+</mujoco>

@@ -1,0 +1,499 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400;1,500;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inconsolata:wdth,wght@110,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono&display=swap');
+
+/* Font used for ``inline code``, should match body sans-serif. */
+code {
+  font-family: 'DM Mono', monospace;
+}
+
+/* Disable scroll on anchor. */
+html {
+  scroll-behavior: auto;
+}
+
+body {
+  font-family: 'DM Sans', 'Helvetica Neue', 'Arial', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--body-color);
+}
+
+/* Make the search bar query text readable in dark theme. */
+body[data-theme="dark"] {
+  --color-sidebar-search-foreground: white;
+}
+@media (prefers-color-scheme: dark) {
+  body[data-theme="auto"] {
+    --color-sidebar-search-foreground: white;
+  }
+}
+
+/* Make table shadows visible in dark theme. */
+body[data-theme="dark"] table.docutils:not(.mjcf-attributes) {
+  box-shadow: 0 0.2rem 0.5rem rgba(255, 255, 255, 0.15);
+}
+@media (prefers-color-scheme: dark) {
+  body[data-theme="auto"] table.docutils:not(.mjcf-attributes) {
+    box-shadow: 0 0.2rem 0.5rem rgba(255, 255, 255, 0.15);
+  }
+}
+
+.caption-small {
+  font-size: 85%;
+}
+
+.table-small {
+  font-size: 93%;
+}
+
+.small-centered {
+  font-size: 93%;
+}
+
+.table-pairwise {
+  font-size: 85%;
+}
+
+.pairwise-toggles {
+  display: flex;
+  align-items: center;
+  gap: 1.5em;
+  margin-bottom: 0.75em;
+}
+
+.pairwise-toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.pairwise-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+
+.pairwise-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.pairwise-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 20px;
+}
+
+.pairwise-slider:before {
+  content: "";
+  position: absolute;
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.pairwise-switch input:checked + .pairwise-slider {
+  background-color: var(--secondary-header-color, #123693);
+}
+
+.pairwise-switch input:checked + .pairwise-slider:before {
+  transform: translateX(16px);
+}
+
+.multiccd-off,
+.multiccd-native,
+.multiccd-legacy {
+  display: none;
+  margin: 0;
+}
+
+.multiccd-off {
+  display: inline;
+}
+
+.multiccd-enabled .multiccd-off {
+  display: none;
+}
+
+.multiccd-enabled.nativeccd-enabled:not(.margin-enabled) .multiccd-native {
+  display: inline;
+}
+
+.multiccd-enabled:not(.nativeccd-enabled) .multiccd-legacy,
+.multiccd-enabled.nativeccd-enabled.margin-enabled .multiccd-legacy {
+  display: inline;
+}
+
+.margin-show {
+  display: none;
+}
+
+.margin-enabled .margin-hide {
+  display: none;
+}
+
+.margin-enabled .margin-show {
+  display: inline;
+}
+
+
+.small-centered td, .small-centered th,
+.table-pairwise td, .table-pairwise th {
+  text-align: center !important;
+  vertical-align: middle !important;
+  border: 2px solid var(--color-table-border) !important;
+}
+
+.sidebar-brand-text {
+  display: none;
+}
+
+h1 {
+  font-size: 300%;
+  font-family: 'DM Sans', 'Helvetica Neue', 'Arial', sans-serif;
+  font-weight: 600;
+  color: var(--primary-header-color);
+  margin-top: 1em;
+}
+
+h2,h3,h4,h5,h6,legend {
+  font-family: 'DM Sans', 'Helvetica Neue', 'Arial', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-weight: 700;
+  color: var(--secondary-header-color);
+}
+
+h2 {
+  margin-top: 1.2em;
+  margin-bottom: 0.75em;
+}
+
+h3 {
+  margin-top: 0.75em;
+  margin-bottom: 0.5em;
+}
+
+h4 {
+  margin-top: 0.5em;
+  margin-bottom: 0.25em;
+}
+
+/* Paragraph margins don't apply to table cell contents. */
+.rst-content table.docutils td>p {
+  margin-top: 0;
+}
+
+/* Set padding of in-line highlighted text. */
+.rst-content div[class^=highlight] pre {
+  padding: 6px;
+}
+
+.rst-content code, .rst-content tt {
+  font-size: 90%;
+  padding: inherit;
+  border: inherit;
+}
+
+.rst-content table.align-default {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+ul.simple {
+  list-style: disc;
+  margin-left: 24px;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+ul.simple li {
+  list-style: disc;
+}
+
+ol {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+/* Change background color of the nav bars. */
+.wy-side-nav-search,
+.wy-nav-top,
+.wy-nav-side {
+  background-color: var(--wy-nav-side-background-color);
+}
+
+/* Make text wrap in table cells. */
+.wy-table-responsive table td,
+.wy-table-responsive table th {
+  white-space: normal;
+}
+
+html.writer-html5 .rst-content table.docutils td>p,
+html.writer-html5 .rst-content table.docutils th>p {
+  line-height: normal;
+}
+
+.wy-menu-vertical li.toctree-l1>a {
+  font-size: 115%;
+}
+
+.wy-menu-vertical li.toctree-l1.current>a {
+  font-weight: 700;
+}
+
+/* Change color of TOC text. */
+.wy-menu-vertical a,
+.wy-menu-vertical li.current a,
+.wy-menu-vertical li.current a:hover,
+.wy-menu-vertical li>a span.toctree-expand,
+.wy-menu-vertical li>a:hover span.toctree-expand,
+.wy-menu-vertical li.current>a span.toctree-expand,
+.wy-menu-vertical li.current>a:hover span.toctree-expand,
+.wy-menu-vertical li.toctree-l2 a span.toctree-expand,
+.wy-menu-vertical li.toctree-l3 a span.toctree-expand,
+.wy-menu-vertical li.toctree-l4 a span.toctree-expand,
+.wy-menu-vertical li.toctree-l5 a span.toctree-expand,
+.wy-menu-vertical li.toctree-l6 a span.toctree-expand,
+.wy-menu-vertical li.toctree-l7 a span.toctree-expand,
+.wy-menu-vertical li.toctree-l8 a span.toctree-expand,
+.wy-menu-vertical li.toctree-l9 a span.toctree-expand,
+.wy-menu-vertical li.toctree-l10 a span.toctree-expand,
+.wy-menu-vertical li.toctree-l2 a:hover span.toctree-expand,
+.wy-menu-vertical li.toctree-l3 a:hover span.toctree-expand,
+.wy-menu-vertical li.toctree-l4 a:hover span.toctree-expand,
+.wy-menu-vertical li.toctree-l5 a:hover span.toctree-expand,
+.wy-menu-vertical li.toctree-l6 a:hover span.toctree-expand,
+.wy-menu-vertical li.toctree-l7 a:hover span.toctree-expand,
+.wy-menu-vertical li.toctree-l8 a:hover span.toctree-expand,
+.wy-menu-vertical li.toctree-l9 a:hover span.toctree-expand,
+.wy-menu-vertical li.toctree-l10 a:hover span.toctree-expand {
+  color: var(--wy-menu-vertical-color);
+}
+
+/* Change color of TOC background. */
+.wy-menu-vertical li a:hover,
+.wy-menu-vertical li.current,
+.wy-menu-vertical li.current>a,
+.wy-menu-vertical li.current a:hover,
+.wy-menu-vertical li.toctree-l1.current>a,
+.wy-menu-vertical li.toctree-l2.current>a,
+.wy-menu-vertical li.toctree-l2.current li.toctree-l3>a,
+.wy-menu-vertical li.toctree-l3.current li.toctree-l4>a,
+.wy-menu-vertical li.toctree-l4.current li.toctree-l5>a,
+.wy-menu-vertical li.toctree-l5.current li.toctree-l6>a,
+.wy-menu-vertical li.toctree-l6.current li.toctree-l7>a,
+.wy-menu-vertical li.toctree-l7.current li.toctree-l8>a,
+.wy-menu-vertical li.toctree-l8.current li.toctree-l9>a,
+.wy-menu-vertical li.toctree-l9.current li.toctree-l10>a {
+  background-color: var(--wy-menu-vertical-background-color);
+  border: none;
+}
+
+/* Table with top-aligned cell contents. */
+table.aligntop > tbody {
+  vertical-align: top;
+}
+
+
+/* Alternate row colors. */
+table.docutils:not(.mjcf-attributes):not(.no-stripes) > tbody > tr.row-odd {
+  background-color: var(--row-odd-background-color);
+}
+
+/* Disable alternating colors for tables with .no-stripes class */
+table.docutils.no-stripes > tbody > tr {
+  background-color: transparent !important;
+}
+
+/* MJCF attributes table. */
+table.mjcf-attributes {
+  border-style: none;
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 0.2em;
+  width: 100%;
+  box-shadow: none;
+}
+
+table.mjcf-attributes tbody tr td,
+table.mjcf-attributes tbody tr:nth-child(2n-1) td {
+  border-style: none;
+  padding: 0 0 0 0;
+  width: 25%;
+}
+
+table.mjcf-attributes tbody tr td p {
+  margin: 0;
+}
+
+.table-wrapper.mjcf-attributes {
+  margin: 0.5em;
+  padding: 0;
+}
+
+table td > div.wy-table-responsive {
+  margin-bottom: 0;
+}
+
+[role="main"] .table-wrapper.container {
+  margin-top: 0;
+  margin-bottom: 0;
+  padding: .2rem .2rem .2rem;
+}
+
+/* Remove vertical spacing before/after code blocks. */
+div[class*=" highlight-"], div[class^=highlight-] {
+  margin: 0;
+}
+
+/* MJCF element names. */
+.el {
+  font-weight: bold;
+}
+
+/* MJCF attribute names. */
+.at {
+  color: var(--at-color);
+}
+
+dt .at {
+  font-weight: 600;
+}
+
+/* MJCF attribute value specs. */
+.at-val {
+  color: var(--at-val-color);
+  font-weight: normal;
+}
+
+/* Hide the prefix for XML element names, but only in toctree */
+.toctree-l1 .el-prefix {
+  display: none;
+}
+
+/* Better Furo Admonition Alignment */
+.admonition {
+    padding: 0.5rem 1rem !important; /* Standardize body padding */
+}
+
+/* Align the title text perfectly with the body text */
+.admonition .admonition-title {
+    display: flex;
+    align-items: center;
+    margin-left: -0.25rem; /* Pulls the title slightly left to balance the icon */
+    padding-bottom: 0.25rem;
+}
+
+/* Align admonition bullets with section-level bullets */
+.admonition ul {
+    padding-left: 0.1em;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+/* (Optional) Drop the background color for a cleaner look */
+body {
+    --color-admonition-background: transparent;
+}
+
+/* Reduce top and bottom margins around displayed KaTeX equations */
+.katex-display {
+  margin-top: 0.3em;
+  margin-bottom: 0.3em;
+}
+
+/* Adjust margins around code blocks */
+.highlight pre {
+  margin-top: -0.3em;
+  margin-bottom: -0.3em;
+  margin-left: -0.5em;
+  margin-right: -0.5em;
+}
+
+details summary {
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   Schema display styling (.schema-small)
+   Used in: XMLreference.rst (dropdowns + grids)
+   ========================================================================== */
+
+/* Base: smaller font for compact display */
+.schema-small {
+  font-size: 93%;
+}
+
+/* Dropdown styling: compact margins and padding */
+.schema-small details.sd-dropdown {
+  margin-bottom: 0.15em !important;
+  margin-top: 0 !important;
+}
+
+.schema-small .sd-card-header,
+.schema-small .sd-card-body {
+  padding: 0.25em 0.5em !important;
+}
+
+.schema-small .sd-summary-text {
+  font-size: 0.9em;
+  margin: 0 !important;
+}
+
+/* Dropdown hierarchy: left border visualization */
+.schema-small .sd-dropdown,
+.schema-small > .sd-dropdown,
+.schema-small details.sd-dropdown {
+  border-left: 2px solid #5671cf;
+}
+
+body[data-theme="dark"] .schema-small .sd-dropdown,
+body[data-theme="dark"] .schema-small > .sd-dropdown,
+body[data-theme="dark"] .schema-small details.sd-dropdown {
+  border-left-color: #7b93e8;
+}
+
+@media (prefers-color-scheme: dark) {
+  body[data-theme="auto"] .schema-small .sd-dropdown,
+  body[data-theme="auto"] .schema-small > .sd-dropdown,
+  body[data-theme="auto"] .schema-small details.sd-dropdown {
+    border-left-color: #7b93e8;
+  }
+}
+
+/* Link styling: prevent visited color change */
+.schema-small a:visited {
+  color: var(--color-brand-primary) !important;
+}
+
+/* Grid styling: compact rows for attribute lists */
+.schema-small .sd-row {
+  row-gap: 0 !important;
+  --sd-gutter-x: 0.5rem !important;
+  --sd-gutter-y: 0 !important;
+}
+
+.schema-small .sd-col,
+.schema-small [class*="sd-col-"] {
+  padding-top: 0 !important;
+  padding-bottom: 0.1em !important;
+}
+
+.schema-small .sd-container-fluid {
+  padding: 0 !important;
+}
+
+/* Remove paragraph margin inside grid items */
+.schema-small .sd-container-fluid .sd-col p,
+.admonition .sd-container-fluid .sd-col p {
+  margin-bottom: 0 !important;
+}

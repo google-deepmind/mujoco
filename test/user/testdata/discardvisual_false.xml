@@ -1,0 +1,73 @@
+<mujoco>
+  <compiler discardvisual="false"/>
+
+  <asset>
+    <texture name="discarded_skybox" type="skybox" builtin="gradient"
+             rgb1=".3 .5 .7" rgb2="0 0 0" width="32" height="512"/>
+
+    <texture name="discarded" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+    <material name="discarded" texture="discarded" texrepeat="1 1" texuniform="true" reflectance=".2"/>
+
+    <mesh name="kept" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+    <mesh name="discarded0" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+    <mesh name="discarded1" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+  </asset>
+
+  <worldbody>
+    <geom name="kept_floor" size="0 0 .05" type="plane" material="discarded"/>
+
+    <body pos="0 0 -.5">
+      <freejoint/>
+      <geom name="discarded0" type="mesh" mesh="discarded0" contype="0" conaffinity="0"/>
+    </body>
+
+    <site name="tendon0" pos=".1 0 1.5"/>
+    <geom name="kept_tendon" size="0.2" contype="0" conaffinity="0" pos="0 0 1"/>
+    <body pos=".1 0 -.5">
+      <site name="tendon1" pos="0 0 1"/>
+      <freejoint/>
+      <geom name="discarded1" type="mesh" mesh="kept" contype="0" conaffinity="0"/>
+    </body>
+
+    <body pos=".2 0 -.5">
+      <geom name="kept0" type="mesh" mesh="kept"/>
+    </body>
+
+    <body pos=".3 0 -.5">
+      <freejoint/>
+      <geom name="kept1" type="mesh" mesh="kept"/>
+    </body>
+
+    <body pos=".4 0 -.5">
+      <geom name="discarded2" type="mesh" mesh="kept" contype="0" conaffinity="0"/>
+    </body>
+
+    <geom name="kept_sensor" size="0.2" contype="0" conaffinity="0"/>
+
+    <geom name="kept_pair" size="0.2" contype="0" conaffinity="0" pos=".3 0 .4"/>
+
+    <geom name="kept_tuple" size="0.2" contype="0" conaffinity="0"/>
+  </worldbody>
+
+  <contact>
+    <pair geom1="kept1" geom2="kept_pair"/>
+  </contact>
+
+  <tendon>
+    <spatial range="0 1">
+      <site site="tendon0"/>
+      <geom geom="kept_tendon"/>
+      <site site="tendon1"/>
+    </spatial>
+  </tendon>
+
+  <sensor>
+    <framepos objtype="geom" objname="kept_sensor"/>
+  </sensor>
+
+  <custom>
+    <tuple name="tuple">
+      <element objtype="geom" objname="kept_tuple"/>
+    </tuple>
+  </custom>
+</mujoco>

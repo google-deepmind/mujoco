@@ -1,0 +1,18 @@
+<mujoco>
+  <default>
+    <geom rgba=".5 .5 .5 .5"/>
+  </default>
+
+  <worldbody>
+    <body>
+      <geom name="1" size="1"/>
+    </body>
+    <body>
+      <geom name="2" size="1" pos="1.5 0 0"/>
+    </body>
+  </worldbody>
+
+  <contact>
+    <pair geom1="1" geom2="2"/>
+  </contact>
+</mujoco>

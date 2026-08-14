@@ -1,0 +1,42 @@
+<mujoco>
+  <compiler fitaabb="false"/>
+
+  <asset>
+    <mesh file="stanford_bunny.obj" inertia="exact"/>
+  </asset>
+
+  <worldbody>
+    <body euler="90 0 0">
+      <geom type="mesh" mesh="stanford_bunny"/>
+    </body>
+    <body euler="90 0 0" pos=".25 0 0">
+      <geom type="mesh" mesh="stanford_bunny"/>
+    </body>
+    <body euler="90 0 0" pos=".5 0 0">
+      <geom type="mesh" mesh="stanford_bunny"/>
+    </body>
+    <body euler="90 0 0" pos=".75 0 0">
+      <geom type="mesh" mesh="stanford_bunny"/>
+    </body>
+    <body euler="90 0 0" pos="1 0 0">
+      <geom type="mesh" mesh="stanford_bunny"/>
+    </body>
+    <body euler="90 0 0">
+      <geom name="bunny_sphere" type="sphere" mesh="stanford_bunny" rgba="1 0 1 1"/>
+    </body>
+    <body euler="90 0 0" pos=".25 0 0">
+      <geom name="bunny_capsule" type="capsule" mesh="stanford_bunny" rgba="1 0 1 1"/>
+    </body>
+    <body euler="90 0 0" pos=".5 0 0">
+      <geom name="bunny_ellipsoid" type="ellipsoid" mesh="stanford_bunny" rgba="1 0 1 1"/>
+    </body>
+    <body euler="90 0 0" pos=".75 0 0">
+      <geom name="bunny_cylinder" type="cylinder" mesh="stanford_bunny" rgba="1 0 1 1"/>
+    </body>
+    <body euler="90 0 0" pos="1 0 0">
+      <geom name="bunny_box" type="box" mesh="stanford_bunny" rgba="1 0 1 1"/>
+    </body>
+    <light name="left" pos="0 0 1"/>
+    <light name="right" pos="1 0 1"/>
+  </worldbody>
+</mujoco>

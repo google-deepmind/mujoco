@@ -1,0 +1,50 @@
+
+<mujoco>
+  <extension>
+    <plugin plugin="mujoco.sdf.bowl">
+      <instance name="bowl">
+        <config key="height" value="0.4"/>
+        <config key="radius" value="1.0"/>
+        <config key="thickness" value="0.02"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <asset>
+    <mesh name="bowl">
+      <plugin instance="bowl"/>
+    </mesh>
+  </asset>
+
+  <option sdf_iterations="5" sdf_initpoints="20"/>
+
+  <default>
+    <geom solref="0.01 1" solimp=".95 .99 .0001" condim="1"/>
+  </default>
+
+  <statistic meansize=".1"/>
+
+  <include file="scene.xml"/>
+
+  <worldbody>
+    <light name="left" pos="0 0 4"/>
+    <light name="right" pos="-1 -1 2" dir="1 1 -2"/>
+    <body euler="45 -15 0" pos="0 0 1">
+      <geom type="sdf" name="bowl" mesh="bowl" rgba=".2 .8 .8 1">
+        <plugin instance="bowl"/>
+      </geom>
+    </body>
+    <body pos=".6 -.4 2.5">
+      <freejoint/>
+      <geom type="sphere" size=".15" rgba=".8 .17 .15 1"/>
+    </body>
+    <body pos="0 -.4 2.5">
+      <freejoint/>
+      <geom type="sphere" size=".15" rgba=".8 .17 .15 1"/>
+    </body>
+    <body pos=".3 -.4 2.5">
+      <freejoint/>
+      <geom type="sphere" size=".15" rgba=".8 .17 .15 1"/>
+    </body>
+  </worldbody>
+</mujoco>

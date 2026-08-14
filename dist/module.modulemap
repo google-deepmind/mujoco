@@ -1,0 +1,6 @@
+framework module mujoco {
+  umbrella header "mujoco.h"
+
+  export *
+  module * { export * }
+}

@@ -1,0 +1,68 @@
+
+<mujoco>
+  <extension>
+    <plugin plugin="mujoco.sdf.torus">
+      <instance name="torus">
+        <config key="radius1" value="0.35"/>
+        <config key="radius2" value="0.15"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <asset>
+    <mesh name="torus">
+      <plugin instance="torus"/>
+    </mesh>
+  </asset>
+
+  <option sdf_iterations="10" sdf_initpoints="20"/>
+
+  <include file="scene.xml"/>
+
+  <default>
+    <geom solref="0.01 1" solimp=".95 .99 .0001"/>
+  </default>
+
+  <worldbody>
+    <body pos="0 0 .175">
+      <freejoint/>
+      <geom type="sdf" mesh="torus" rgba=".8 .2 .2 1">
+        <plugin instance="torus"/>
+      </geom>
+    </body>
+    <body pos=".1 .1 1.2">
+      <freejoint/>
+      <geom type="sdf" mesh="torus" rgba=".8 .2 .2 1">
+        <plugin instance="torus"/>
+      </geom>
+    </body>
+    <body pos=".1 .1 2.6">
+      <freejoint/>
+      <geom type="sdf" mesh="torus" rgba=".8 .2 .2 1">
+        <plugin instance="torus"/>
+      </geom>
+    </body>
+    <body pos="-.1 .2 2">
+      <freejoint/>
+      <geom type="sphere" size="0.3"/>
+    </body>
+    <body pos=".3 -.1 2" euler="0 0 45">
+      <freejoint/>
+      <geom type="ellipsoid" size=".4 .2 .2"/>
+    </body>
+    <body pos="-.1 .1 .5">
+      <freejoint/>
+      <geom type="capsule" size=".1" fromto="-.2 -.2 .1 .2 .2 .1"/>
+    </body>
+    <body pos=".2 -.2 .3">
+      <freejoint/>
+      <geom type="cylinder" size=".1" fromto="-.2 -.2 .1 .2 .2 .1"/>
+    </body>
+    <body pos=".1 .1 3.5">
+      <freejoint/>
+      <geom type="box" size=".2 .2 .2"/>
+    </body>
+    <light name="left" pos="0 0 1"/>
+    <light name="right" pos="1 0 1"/>
+  </worldbody>
+</mujoco>

@@ -1,0 +1,23 @@
+<mujoco>
+  <option integrator="implicitfast" viscosity="2" sleep_tolerance="0.1">
+    <flag sleep="enable"/>
+  </option>
+
+  <worldbody>
+    <geom type="plane" size="5 5 .01"/>
+
+    <!-- constrained flex on the floor, will go to sleep quickly -->
+    <body name="flex_body" pos="0 0 0.01">
+      <flexcomp name="f1" type="grid" dim="1" count="3 1 1"
+                spacing=".05 .05 .05" radius=".01" mass="1">
+        <edge equality="true" solref="0.15 0.2"/>
+      </flexcomp>
+    </body>
+
+    <!-- ball that will collide with the flex -->
+    <body name="ball" pos="0 0.01 0.5">
+      <freejoint/>
+      <geom type="sphere" size=".05"/>
+    </body>
+  </worldbody>
+</mujoco>

@@ -1,0 +1,23 @@
+  <mujoco>
+    <default>
+      <site rgba="1 0 0 1" size="0.03"/>
+    </default>
+    <worldbody>
+      <light pos="0 0 3"/>
+      <body pos="1.1 0 1">
+        <geom type="box" size=".1 .6 .375"/>
+        <site name="frontorigin" pos="-.1  .6  .375"/>
+        <site name="frontcenter" pos="-.1 0 0"/>
+      </body>
+      <body pos="0 0 0">
+        <joint axis="0 0 1" range="-180 180" limited="false"/>
+        <geom type="cylinder" size=".2 .05" pos="0 0 0.9"/>
+        <camera pos="0 0 1" xyaxes="0 -1 0 0 0 1" fovy="41.11209"
+                resolution="1920 1200" name="fixedcamera"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <camprojection site="frontorigin" camera="fixedcamera"/>
+      <camprojection site="frontcenter" camera="fixedcamera"/>
+    </sensor>
+  </mujoco>

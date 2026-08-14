@@ -1,0 +1,18 @@
+<mujoco>
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+    <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance=".2"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 -1 5" dir="1 1 -10"/>
+    <light pos="1.5 -1 5" dir="-1 1 -10"/>
+    <camera name="front" pos=".75 -5 1.5" xyaxes="1 0 0 0 .3 1"/>
+
+    <geom type="plane" material="grid" size="0 0 .1" pos="0 0 -.1"/>
+    <geom type="capsule" size="0.1" fromto="0 0 0 0 0 1"/>
+    <geom type="box" size="0.1" fromto=".5 0 0 .5 0 1"/>
+    <geom type="cylinder" size="0.1" fromto="1 0 0 1 0 1"/>
+    <geom type="ellipsoid" size="0.1" fromto="1.5 0 0 1.5 0 1"/>
+  </worldbody>
+</mujoco>

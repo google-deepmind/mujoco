@@ -1,0 +1,13 @@
+<mujoco>
+  <compiler assetdir="textured_torus"/>
+  <asset>
+    <mesh name="torus" file="textured_torus.obj"/>
+    <mesh name="flipped_torus" file="textured_torus.obj" scale="-1 1 1"/>
+    <texture file="carpet.png" type="2d"/>
+    <material name="carpet" texture="carpet"/>
+  </asset>
+  <worldbody>
+    <geom type="mesh" mesh="torus" material="carpet"/>
+    <geom type="mesh" mesh="flipped_torus" material="carpet" pos="0 0 1"/>
+  </worldbody>
+</mujoco>

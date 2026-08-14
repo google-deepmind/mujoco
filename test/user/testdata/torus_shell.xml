@@ -1,0 +1,8 @@
+<mujoco>
+  <asset>
+    <mesh file="torus.obj" inertia="shell"/>
+  </asset>
+  <worldbody>
+    <geom type="mesh" mesh="torus"/>
+  </worldbody>
+</mujoco>

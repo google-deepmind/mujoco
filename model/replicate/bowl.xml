@@ -1,0 +1,46 @@
+<mujoco model="Bowl">
+  <statistic meansize=".05"/>
+
+  <worldbody>
+    <light pos=".1 0 .6"/>
+    <light pos="-.1 0 .6"/>
+    <geom type="plane" size="1 1 .01"/>
+
+    <body pos="-.1 0 .04" euler="20 10 0">
+      <freejoint/>
+      <geom type="cylinder" size="0.03 0.002" rgba=".8 0 0 1"/>
+      <replicate count="20" euler="0 0 18">
+        <frame pos="-.025 0 .03" euler="0 15 0">
+          <replicate count="6" euler="0 15 0">
+            <geom type="box" size=".0044 .009 .002" pos="0 0 -.03" rgba=".8 0 0 1"/>
+          </replicate>
+        </frame>
+      </replicate>
+    </body>
+
+    <body pos="0 0 .02" euler="20 20 0">
+      <freejoint/>
+      <geom type="cylinder" size="0.01 0.0015" rgba="0 .8 0 1"/>
+      <replicate count="20" euler="0 0 18">
+        <frame pos="-.005 0 .03" euler="0 15 0">
+          <replicate count="6" euler="0 15 0">
+            <geom type="box" size=".0044 .006 .0015" pos="0 0 -.03" rgba="0 .8 0 1"/>
+          </replicate>
+        </frame>
+      </replicate>
+    </body>
+
+    <body pos=".09 0 .04" euler="30 30 0">
+      <freejoint/>
+      <geom type="cylinder" size="0.03 0.002" rgba="0 0 .8 1"/>
+      <replicate count="20" euler="0 0 18">
+        <frame pos="-.025 0 .03" euler="0 15 0">
+          <replicate count="4" euler="0 15 0">
+            <geom type="box" size=".0044 .009 .002" pos="0 0 -.03" rgba="0 0 .8 1"/>
+          </replicate>
+        </frame>
+      </replicate>
+    </body>
+
+  </worldbody>
+</mujoco>

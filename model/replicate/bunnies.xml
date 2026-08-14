@@ -1,0 +1,25 @@
+<mujoco model="Bunnies">
+
+  <include file="container.xml"/>
+
+  <size memory="1G"/>
+
+  <option solver="CG" tolerance="1e-6" timestep=".01"/>
+
+  <asset>
+    <mesh file="bunny.obj"/>
+  </asset>
+
+  <worldbody>
+    <replicate count="5" offset=".17 0 0">
+      <replicate count="5" offset="0 .17 0">
+        <replicate count="5" offset="0 0 .17">
+          <body pos="-0.35 -0.35 0.65">
+            <freejoint/>
+            <geom type="mesh" mesh="bunny" rgba="0.8 0.2 0.1 1"/>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
+  </worldbody>
+</mujoco>

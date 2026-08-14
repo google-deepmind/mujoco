@@ -1,0 +1,43 @@
+<mujoco>
+  <visual>
+    <global elevation="-20"/>
+    <headlight ambient=".3 .3 .3" diffuse=".9 .9 .9"/>
+  </visual>
+
+  <default>
+    <geom rgba="0.8 0.6 .4 1"/>
+  </default>
+
+  <worldbody>
+    <body name="link1">
+      <!-- inertia of link1 is 1.0 -->
+      <joint name="link1" axis="0 -1 0"/>
+      <geom type="capsule" size=".02" fromto="0 0 0 1 0 0" mass="0"/>
+      <geom type="sphere" size=".1" mass="1" pos="1 0 0"/>
+    </body>
+    <body name="motor1">
+      <!-- inertia of motor1 is 1/12 * m * (0.2^2 + 0.2^2) = 0.2
+           see https://en.wikipedia.org/wiki/List_of_moments_of_inertia -->
+      <joint name="motor1" axis="0 -1 0"/>
+      <geom type="box" size=".1 .1 .1" mass="30" contype="0" conaffinity="0" rgba=".6 .4 .8 1"/>
+    </body>
+
+    <body name="link2" pos="1.5 0 0">
+      <!-- armature from reflected inertia of motor1 is 0.2 * 3^2 = 1.8 -->
+      <joint name="link2" armature="1.8" axis="0 -1 0"/>
+      <geom type="capsule" size=".02" fromto="0 0 0 1 0 0" mass="0"/>
+      <geom type="sphere" size=".1" mass="1" pos="1 0 0"/>
+    </body>
+  </worldbody>
+
+  <equality>
+    <!-- gear ratio between motor1 and link1 is 3:1 -->
+    <joint joint1="motor1" joint2="link1" polycoef="0 3"/>
+  </equality>
+
+  <actuator>
+    <position name="link1" joint="motor1" kp=".3" ctrlrange="-5 5"/>
+    <!-- actuators are made equivalent by setting link2 gear to link1 gear ratio -->
+    <position name="link2" joint="link2"  kp=".3" ctrlrange="-5 5" gear="3"/>
+  </actuator>
+</mujoco>

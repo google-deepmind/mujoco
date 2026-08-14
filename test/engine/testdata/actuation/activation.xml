@@ -1,0 +1,47 @@
+<mujoco>
+  <compiler autolimits="true"/>
+  <option density="1000"/>
+
+  <worldbody>
+    <geom type="plane" size="10 10 .1" rgba="1 1 1 1"/>
+    <light pos="0 0 20"/>
+    <site name="anchor_tendon" pos="0 0 9" size="0.03" rgba="0 0 1 1"/>
+    <body name="body_hinge" pos="5 0 3">
+      <geom type="box" size="1.5 .1 .1" pos="0 0 2.0"/>
+      <joint name="hinge" type="hinge" pos="0 0 2.0" axis="0 1 0" range="-25 5"/>
+    </body>
+    <body name="body_tendon" pos="0 0 5">
+      <freejoint/>
+      <geom type="box" size=".5 .5 .5"/>
+      <site name="box_tendon" pos=".5 .5 .5" rgba="0 0 1 1" size="0.03"/>
+    </body>
+    <body name="body_slider" pos="5 -2 2">
+      <geom type="box" size=".5 .5 .5"/>
+      <joint name="slider" type="slide" pos=".5 0 0" axis="1 0 0" range="-25 5"/>
+    </body>
+    <body name="body_site" pos="2 2 .5">
+      <freejoint/>
+      <geom type="box" size=".5 .5 .5"/>
+      <site name="box_site" pos="0 0 .5" rgba="0 0 1 1" size="0.1"/>
+    </body>
+    <body name="body_stateless" pos="5 2 2">
+      <geom type="box" size=".5 .5 .5"/>
+      <joint name="stateless" type="slide" pos=".5 0 0" axis="1 0 0" range="-25 5"/>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <spatial name="tendon" limited="true" range="0 4" damping="100"  width="0.03">
+      <site site="anchor_tendon"/>
+      <site site="box_tendon"/>
+    </spatial>
+  </tendon>
+
+  <actuator>
+    <general name="stateless" joint="stateless" ctrllimited="true" ctrlrange="-20 20"/>
+    <general name="hinge" joint="hinge" dyntype="integrator" ctrllimited="true" ctrlrange="-20 20"/>
+    <muscle name="tendon" tendon="tendon" ctrllimited="true" ctrlrange="0 2"/>
+    <general name="slider" joint="slider" dyntype="integrator" ctrllimited="true" ctrlrange="-20 20"/>
+    <general name="site" site="box_site" dyntype="integrator" gear="0 0 1 0 0 0" ctrllimited="true" ctrlrange="0 10000"/>
+  </actuator>
+</mujoco>

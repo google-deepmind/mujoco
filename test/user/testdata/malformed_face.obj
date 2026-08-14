@@ -1,0 +1,9 @@
+v 0 0 0
+v 1 0 0
+v 0 1 0
+v 0 0 1
+f 3 1 4
+f 1 2 4
+f 2 3 4
+# malformed face
+f 1 2 3

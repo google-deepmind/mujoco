@@ -1,0 +1,24 @@
+<mujoco>
+  <option>
+    <flag multiccd="enable"/>
+  </option>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" width="512" height="512"
+             rgb1="1 1 1" rgb2="1 1 1"/>
+    <mesh name="domino" vertex="-1 -1 -1 1 -1 -1 1 1 -1 1 1 1 1 -1 1 -1 1 -1 -1 1 1 -1 -1 1"
+          scale=".15 1 3"/>
+  </asset>
+
+  <worldbody>
+    <geom type="box" size="5 5 .1" pos="0 0 -.1"/>
+    <body pos="-2 0 2.99" euler="0 10 0">
+      <freejoint/>
+      <geom type="mesh" name="domino1" mesh="domino" rgba=".1 .1 .1 1"/>
+    </body>
+    <body pos="2 0 2.99" euler="0 -10 0">
+      <freejoint/>
+      <geom type="mesh" name="domino2" mesh="domino" rgba=".1 .1 .1 1"/>
+    </body>
+  </worldbody>
+</mujoco>

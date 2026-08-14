@@ -1,0 +1,11 @@
+<mujoco>
+  <compiler/>
+  <asset>
+    <mesh file="cube.obj" name="hollow_cube" inertia="shell"/>
+  </asset>
+  <worldbody>
+    <body>
+      <geom type="mesh" mesh="hollow_cube" density="1"/>
+    </body>
+  </worldbody>
+</mujoco>

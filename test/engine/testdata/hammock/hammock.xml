@@ -1,0 +1,62 @@
+<!-- Copyright 2021 DeepMind Technologies Limited
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+<mujoco model="Hammock">
+<!-- Degree of Freedom: 312
+     Actuators: 21
+     Equality constraints: 178
+     Tendons: 178
+
+     Simple humanoid on a hammock, implemented as a 2D grid composite, pinned at the corners.
+-->
+
+  <option timestep="0.001" solver="CG" iterations="30" tolerance="1e-6"/>
+
+  <size memory="20M"/>
+
+  <visual>
+    <map force="0.1" zfar="30"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <quality shadowsize="2048"/>
+    <global offwidth="800" offheight="800"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="512"/>
+    <texture name="plane" type="2d" builtin="checker" rgb1=".2 .3 .4" rgb2=".1 0.15 0.2"
+             width="512" height="512" mark="cross" markrgb=".8 .8 .8"/>
+    <texture name="hammock" type="2d" builtin="checker" rgb1=".1 .5 .1" rgb2=".5 .1 .1"
+             width="512" height="512" mark="edge" markrgb=".8 .8 .8"/>
+    <material name="plane" reflectance="0.3" texture="plane" texrepeat="1 1" texuniform="true"/>
+    <material name="hammock" texture="hammock"/>
+    <model name="humanoid" file="humanoid_body.xml"/>
+  </asset>
+
+  <worldbody>
+    <geom name="floor" pos="0 0 -1" size="0 0 .25" type="plane" material="plane" condim="3"/>
+    <light directional="true" diffuse=".2 .2 .2" specular="0 0 0" pos="0 0 5" dir="0 0 -1" castshadow="false"/>
+    <light directional="false" diffuse=".8 .8 .8" specular="0.3 0.3 0.3" pos="0 0 4" dir="0 0 -1"/>
+    <flexcomp name="hammock" type="grid" count="11 9 1" spacing="0.2 0.2 0.2" material="hammock"
+              radius="0.04" dim="2">
+      <pin id="0 8 90 98"/>
+      <edge equality="true" damping="10" solimp=".95 .99"/>
+      <contact selfcollide="none" internal="false" solimp=".99 .999 .00001"/>
+    </flexcomp>
+    <frame euler="0 180 0" pos="-.4 -.2 2">
+      <attach model="humanoid" body="torso" prefix="humanoid_"/>
+    </frame>
+  </worldbody>
+
+</mujoco>

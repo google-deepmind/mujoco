@@ -1,0 +1,237 @@
+// Copyright 2021 DeepMind Technologies Limited
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef MUJOCO_MJRENDER_H_
+#define MUJOCO_MJRENDER_H_
+
+#include <mujoco/mjtype.h>
+#include <mujoco/mjvisualize.h>
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+#define mjNAUX          10        // number of auxiliary buffers
+#define mjMAXTEXTURE    1000      // maximum number of textures
+#define mjMAXMATERIAL   1000      // maximum number of materials with textures
+
+//---------------------------------- primitive types (mjt) -----------------------------------------
+
+typedef enum mjtGridPos_ {        // grid position for overlay
+  mjGRID_TOPLEFT      = 0,        // top left
+  mjGRID_TOPRIGHT,                // top right
+  mjGRID_BOTTOMLEFT,              // bottom left
+  mjGRID_BOTTOMRIGHT,             // bottom right
+  mjGRID_TOP,                     // top center
+  mjGRID_BOTTOM,                  // bottom center
+  mjGRID_LEFT,                    // left center
+  mjGRID_RIGHT                    // right center
+} mjtGridPos;
+
+
+typedef enum mjtFramebuffer_ {    // OpenGL framebuffer option
+  mjFB_WINDOW         = 0,        // default/window buffer
+  mjFB_OFFSCREEN                  // offscreen buffer
+} mjtFramebuffer;
+
+
+typedef enum mjtDepthMap_ {       // depth mapping for `mjr_readPixels`
+  mjDEPTH_ZERONEAR    = 0,        // standard depth map; 0: znear, 1: zfar
+  mjDEPTH_ZEROFAR     = 1         // reversed depth map; 1: znear, 0: zfar
+} mjtDepthMap;
+
+
+typedef enum mjtFontScale_ {      // font scale, used at context creation
+  mjFONTSCALE_50      = 50,       // 50% scale, suitable for low-res rendering
+  mjFONTSCALE_100     = 100,      // normal scale, suitable in the absence of DPI scaling
+  mjFONTSCALE_150     = 150,      // 150% scale
+  mjFONTSCALE_200     = 200,      // 200% scale
+  mjFONTSCALE_250     = 250,      // 250% scale
+  mjFONTSCALE_300     = 300       // 300% scale
+} mjtFontScale;
+
+
+typedef enum mjtFont_ {           // font type, used at each text operation
+  mjFONT_NORMAL       = 0,        // normal font
+  mjFONT_SHADOW,                  // normal font with shadow (for higher contrast)
+  mjFONT_BIG                      // big font (for user alerts)
+} mjtFont;
+
+
+typedef enum mjrPixelFormat_ {    // pixel format for textures
+  mjPIXEL_FORMAT_UNKNOWN = 0,     // unknown/unspecified
+  mjPIXEL_FORMAT_R8,              // 1 channel, 8 bit
+  mjPIXEL_FORMAT_RGB8,            // 3 channels, 8 bits per channel
+  mjPIXEL_FORMAT_RGBA8,           // 4 channels, 8 bits per channel
+  mjPIXEL_FORMAT_R32F,            // 1 channel, 32 bit float
+  mjPIXEL_FORMAT_DEPTH32F,        // 1 channel, 32 bit float, for depth buffers
+  mjPIXEL_FORMAT_KTX,             // ktx compressed data
+} mjrPixelFormat;
+
+
+typedef enum mjrVertexAttributeUsage_ {   // usage/purpose of a vertex attribute
+  mjVERTEX_ATTRIBUTE_USAGE_POSITION = 0,  // vertex position
+  mjVERTEX_ATTRIBUTE_USAGE_NORMAL,        // vertex normal
+  mjVERTEX_ATTRIBUTE_USAGE_TANGENTS,      // vertex tangents
+  mjVERTEX_ATTRIBUTE_USAGE_UV,            // vertex texture coordinates
+  mjVERTEX_ATTRIBUTE_USAGE_COLOR,         // vertex color
+} mjrVertexAttributeUsage;
+
+
+typedef enum mjrVertexAttributeType_ {  // data format of a vertex attribute
+  mjVERTEX_ATTRIBUTE_TYPE_FLOAT2 = 0,   // 2D 32-bit float vector
+  mjVERTEX_ATTRIBUTE_TYPE_FLOAT3,       // 3D 32-bit float vector
+  mjVERTEX_ATTRIBUTE_TYPE_FLOAT4,       // 4D 32-bit float vector
+  mjVERTEX_ATTRIBUTE_TYPE_UBYTE4,       // 4D unsigned 8-bit byte vector
+} mjrVertexAttributeType;
+
+
+typedef enum mjrIndexType_ {  // data type of index buffer data
+  mjINDEX_TYPE_U16 = 0,       // 16-bit unsigned integer
+  mjINDEX_TYPE_U32,           // 32-bit unsigned integer
+} mjrIndexType;
+
+
+typedef enum mjrMeshPrimitiveType_ {    // type of mesh primitive
+  mjMESH_PRIMITIVE_TYPE_TRIANGLES = 0,  // triangles
+  mjMESH_PRIMITIVE_TYPE_LINES,          // lines
+} mjrMeshPrimitiveType;
+
+
+typedef struct mjrRect_ {         // OpenGL rectangle
+  int left;                       // left (usually 0)
+  int bottom;                     // bottom (usually 0)
+  int width;                      // width (usually buffer width)
+  int height;                     // height (usually buffer height)
+} mjrRect;
+
+
+typedef struct mjrRendererInfo_ {  // active renderer identity
+  const char* renderer;            // renderer family: classic, filament, noop
+  const char* backend;             // graphics backend: opengl, vulkan; empty if uninitialized
+} mjrRendererInfo;
+
+
+typedef struct mjrVertexAttribute_ {  // vertex attribute format specification
+  int usage;                          // position, normal, etc [mjrVertexAttributeUsage]
+  int type;                           // float3, ubyte4, etc. [mjrVertexAttributeType]
+} mjrVertexAttribute;
+
+
+// alias non-rendering types into mjr namespace
+typedef mjtTexture mjrSamplerType;
+typedef mjtColorSpace mjrColorSpace;
+typedef mjtLightType mjrLightType;
+typedef mjvGLCamera mjrCamera;
+
+
+//---------------------------------- mjrContext ----------------------------------------------------
+
+typedef struct mjrContext_ {        // custom OpenGL context
+  // parameters copied from mjVisual
+  float lineWidth;                  // line width for wireframe rendering
+  float shadowClip;                 // clipping radius for directional lights
+  float shadowScale;                // fraction of light cutoff for spot lights
+  float fogStart;                   // fog start = stat.extent * vis.map.fogstart
+  float fogEnd;                     // fog end = stat.extent * vis.map.fogend
+  float fogRGBA[4];                 // fog rgba
+  int shadowSize;                   // size of shadow map texture
+  int offWidth;                     // width of offscreen buffer
+  int offHeight;                    // height of offscreen buffer
+  int offSamples;                   // number of offscreen buffer multisamples
+
+  // parameters specified at creation
+  int fontScale;                    // font scale
+  int auxWidth[mjNAUX];             // auxiliary buffer width
+  int auxHeight[mjNAUX];            // auxiliary buffer height
+  int auxSamples[mjNAUX];           // auxiliary buffer multisamples
+
+  // offscreen rendering objects
+  unsigned int offFBO;              // offscreen framebuffer object
+  unsigned int offFBO_r;            // offscreen framebuffer for resolving multisamples
+  unsigned int offColor;            // offscreen color buffer
+  unsigned int offColor_r;          // offscreen color buffer for resolving multisamples
+  unsigned int offDepthStencil;     // offscreen depth and stencil buffer
+  unsigned int offDepthStencil_r;   // offscreen depth and stencil buffer for multisamples
+
+  // shadow rendering objects
+  unsigned int shadowFBO;           // shadow map framebuffer object
+  unsigned int shadowTex;           // shadow map texture
+
+  // auxiliary buffers
+  unsigned int auxFBO[mjNAUX];      // auxiliary framebuffer object
+  unsigned int auxFBO_r[mjNAUX];    // auxiliary framebuffer object for resolving
+  unsigned int auxColor[mjNAUX];    // auxiliary color buffer
+  unsigned int auxColor_r[mjNAUX];  // auxiliary color buffer for resolving
+
+  // materials with textures
+  int mat_texid[mjMAXMATERIAL*mjNTEXROLE]; // material texture ids (-1: no texture)
+  int mat_texuniform[mjMAXMATERIAL];       // uniform cube mapping
+  float mat_texrepeat[mjMAXMATERIAL*2];    // texture repetition for 2d mapping
+
+  // texture objects and info
+  int ntexture;                            // number of allocated textures
+  int textureType[mjMAXTEXTURE];           // type of texture (mjtTexture) (ntexture)
+  unsigned int texture[mjMAXTEXTURE];      // texture names
+
+  // displaylist starting positions
+  unsigned int basePlane;           // all planes from model
+  unsigned int baseMesh;            // all meshes from model
+  unsigned int baseHField;          // all height fields from model
+  unsigned int baseBuiltin;         // all builtin geoms, with quality from model
+  unsigned int baseFontNormal;      // normal font
+  unsigned int baseFontShadow;      // shadow font
+  unsigned int baseFontBig;         // big font
+
+  // displaylist ranges
+  int rangePlane;                   // all planes from model
+  int rangeMesh;                    // all meshes from model
+  int rangeHField;                  // all hfields from model
+  int rangeBuiltin;                 // all builtin geoms, with quality from model
+  int rangeFont;                    // all characters in font
+
+  // skin VBOs
+  int nskin;                        // number of skins
+  unsigned int* skinvertVBO;        // skin vertex position VBOs (nskin)
+  unsigned int* skinnormalVBO;      // skin vertex normal VBOs (nskin)
+  unsigned int* skintexcoordVBO;    // skin vertex texture coordinate VBOs (nskin)
+  unsigned int* skinfaceVBO;        // skin face index VBOs (nskin)
+
+  // character info
+  int charWidth[127];               // character widths: normal and shadow
+  int charWidthBig[127];            // character widths: big
+  int charHeight;                   // character heights: normal and shadow
+  int charHeightBig;                // character heights: big
+
+  // capabilities
+  int glInitialized;                // is OpenGL initialized
+  int windowAvailable;              // is default/window framebuffer available
+  int windowSamples;                // number of samples for default/window framebuffer
+  int windowStereo;                 // is stereo available for default/window framebuffer
+  int windowDoublebuffer;           // is default/window framebuffer double buffered
+
+  // framebuffer
+  int currentBuffer;                // currently active framebuffer: mjFB_WINDOW or mjFB_OFFSCREEN
+
+  // pixel output format
+  int readPixelFormat;              // default color pixel format for mjr_readPixels
+
+  // depth output format
+  int readDepthMap;                 // depth mapping: mjDEPTH_ZERONEAR or mjDEPTH_ZEROFAR
+} mjrContext;
+
+#if defined(__cplusplus)
+}
+#endif
+#endif  // MUJOCO_MJRENDER_H_

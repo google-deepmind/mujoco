@@ -1,0 +1,40 @@
+<mujoco>
+  <size memory="200M"/>
+
+  <option timestep="1e-2">
+    <flag sleep="enable"/>
+  </option>
+
+  <worldbody>
+    <replicate offset="0 0 2.5" count="7">
+      <replicate offset="4 0 0" count="7">
+        <replicate offset="0 2 0" count="7">
+          <frame>
+            <geom size=".4"/>
+            <frame pos="-.4 0 0">
+              <geom type="cylinder" size="0.1" fromto="0 0 0 0 0 1"/>
+            </frame>
+          </frame>
+
+          <geom type="box" size="0.1" fromto=".6 0 0 .6 0 1"/>
+
+          <frame pos="1 0 0">
+            <geom type="capsule" size="0.1" fromto="0 0 0 0 0 1"/>
+            <frame pos="0 0 1">
+              <geom type="capsule" size="0.1" fromto="0 0 0 0 0 1"/>
+            </frame>
+          </frame>
+
+          <geom type="box" size="0.1" fromto="1.4 0 0 1.4 0 1"/>
+
+          <frame pos="2 0 0">
+            <geom type="box" size=".2 .2 .2"/>
+            <frame pos=".2 0 0">
+              <geom type="cylinder" size="0.1" fromto="0 0 0 0 0 1"/>
+            </frame>
+          </frame>
+        </replicate>
+      </replicate>
+    </replicate>
+  </worldbody>
+</mujoco>

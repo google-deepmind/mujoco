@@ -1,0 +1,55 @@
+<mujoco model="fixed_site">
+  <worldbody>
+    <body>
+      <joint name="joint0" type="hinge" axis="0 1 0"/>
+      <geom type="capsule" size="0.05 0.5" fromto="0 0 0 0.5 0 0"/>
+      <site name="site0" pos="0.25 0 0.1" size="0.025"/>
+      <body pos="0.5 0 0">
+        <joint name="joint1" type="hinge" axis="0 1 0"/>
+        <geom type="capsule" size="0.05 0.5" fromto="0 0 0 0.5 0 0"/>
+        <site name="site1" pos="0.25 0 0.1" size="0.025"/>
+        <body pos="0.5 0 0">
+          <joint name="joint2" type="hinge" axis="0 1 0"/>
+          <geom type="capsule" size="0.05 0.5" fromto="0 0 0 0.5 0 0"/>
+          <site name="site2" pos="0.25 0 0.1" size="0.025"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <tendon>
+    <spatial name="spatial0" width="0.0125">
+      <site site="site0"/>
+      <site site="site1"/>
+      <site site="site2"/>
+    </spatial>
+    <spatial name="spatial1" width="0.0125" actuatorfrclimited="true" actuatorfrcrange="-1 1">
+      <site site="site1"/>
+      <site site="site2"/>
+    </spatial>
+    <fixed name="fixed0" actuatorfrclimited="true" actuatorfrcrange="-10 10">
+      <joint joint="joint0" coef=".1"/>
+      <joint joint="joint1" coef=".2"/>
+      <joint joint="joint2" coef=".3"/>
+    </fixed>
+    <fixed name="fixed1" actuatorfrclimited="true" actuatorfrcrange="0 1">
+      <joint joint="joint0" coef=".1"/>
+      <joint joint="joint2" coef=".3"/>
+    </fixed>
+  </tendon>
+  <actuator>
+    <motor tendon="spatial0"/>
+    <motor tendon="spatial0"/>
+    <motor tendon="spatial0"/>
+    <motor tendon="spatial1"/>
+    <motor tendon="spatial1"/>
+    <motor tendon="fixed0"/>
+    <motor tendon="fixed1"/>
+    <motor tendon="fixed1"/>
+  </actuator>
+  <sensor>
+    <tendonactuatorfrc tendon="spatial0"/>
+    <tendonactuatorfrc tendon="spatial1"/>
+    <tendonactuatorfrc tendon="fixed0"/>
+    <tendonactuatorfrc tendon="fixed1"/>
+  </sensor>
+</mujoco>

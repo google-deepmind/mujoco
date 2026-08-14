@@ -1,0 +1,71 @@
+<!-- Copyright 2024 DeepMind Technologies Limited
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+<mujoco model="Gripper">
+  <include file="scene.xml"/>
+
+  <option cone="elliptic" impratio="10" integrator="implicitfast"/>
+
+  <worldbody>
+    <body name="hand" pos="0 0 .37">
+      <joint name="lift" type="slide" range="0 1"/>
+      <geom type="box" size=".2 .1 .05" rgba=".2 .2 .2 1"/>
+      <body name="right_gripper">
+        <joint name="right" type="slide" axis="-1 0 0"/>
+        <geom type="box" size=".02 .1 .15" pos=".18 0 -.2" rgba=".2 .2 .2 1"/>
+        <flexcomp type="mesh" file="cap.obj" pos=".16 0 -.25" dim="3" euler="0 -90 0"
+                  origin="0 0 0" radius=".001" rgba="0 .7 .7 1" mass=".5" name="left">
+          <edge equality="true" solimp="0.95 0.99 0.001 0.5 2"/>
+          <contact selfcollide="none" internal="false" contype="2" conaffinity="2"/>
+          <pin id="0 2 3 4 5 6 7 9 11 13 15 17 19 41 45 46 50 53 57 58 61 176 177 179 180 184 185
+                   187 188 192 193 195 196 200 201 203 204 208 209 211 212 214 215 216 217"/>
+        </flexcomp>
+      </body>
+      <body name="left_gripper">
+        <joint name="left" type="slide" axis="1 0 0"/>
+        <geom type="box" size=".02 .1 .15" pos="-.18 0 -.2" rgba=".2 .2 .2 1"/>
+        <flexcomp type="mesh" file="cap.obj" pos="-.16 0 -.25" dim="3" euler="0 90 0"
+                  origin="0 0 0" radius=".001" rgba="0 .7 .7 1" mass=".5" name="right">
+          <edge equality="true" solimp="0.95 0.99 0.001 0.5 2"/>
+          <contact selfcollide="none" internal="false" contype="2" conaffinity="2"/>
+          <pin id="0 2 3 4 5 6 7 9 11 13 15 17 19 41 45 46 50 53 57 58 61 176 177 179 180 184 185
+                   187 188 192 193 195 196 200 201 203 204 208 209 211 212 214 215 216 217"/>
+        </flexcomp>
+      </body>
+    </body>
+    <body>
+      <freejoint/>
+      <geom type="box" size=".05 .1 .1" pos="0 0 .1" rgba=".5 .5 0 1" priority="1"
+            contype="2" condim="6"/>
+    </body>
+  </worldbody>
+
+  <equality>
+    <joint joint1="right" joint2="left"/>
+  </equality>
+
+  <tendon>
+    <fixed name="grasp">
+      <joint joint="right" coef="1"/>
+      <joint joint="left" coef="1"/>
+    </fixed>
+  </tendon>
+
+  <actuator>
+    <position name="lift" joint="lift" kp="600" dampratio="1" ctrlrange="0 1"/>
+    <position name="grasp" tendon="grasp" kp="200" dampratio="1" ctrlrange="0 1"/>
+  </actuator>
+
+</mujoco>

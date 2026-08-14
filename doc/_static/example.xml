@@ -1,0 +1,41 @@
+<mujoco model="example">
+  <default>
+    <geom rgba=".8 .6 .4 1"/>
+  </default>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="1 1 1" rgb2=".6 .8 1" width="256" height="256"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 1 1" dir="0 -1 -1" diffuse="1 1 1"/>
+    <body pos="0 0 1">
+      <joint type="ball"/>
+      <geom type="capsule" size="0.06" fromto="0 0 0  0 0 -.4"/>
+      <body pos="0 0 -0.4">
+        <joint axis="0 1 0"/>
+        <joint axis="1 0 0"/>
+        <geom type="capsule" size="0.04" fromto="0 0 0  .3 0 0"/>
+        <body pos=".3 0 0">
+          <joint axis="0 1 0"/>
+          <joint axis="0 0 1"/>
+          <geom pos=".1 0 0" size="0.1 0.08 0.02" type="ellipsoid"/>
+          <site name="end1" pos="0.2 0 0" size="0.01"/>
+        </body>
+      </body>
+    </body>
+
+    <body pos="0.3 0 0.1">
+      <joint type="free"/>
+      <geom size="0.07 0.1" type="cylinder"/>
+      <site name="end2" pos="0 0 0.1" size="0.01"/>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <spatial limited="true" range="0 0.6" width="0.005">
+      <site site="end1"/>
+      <site site="end2"/>
+    </spatial>
+  </tendon>
+</mujoco>

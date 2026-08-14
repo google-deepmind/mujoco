@@ -1,0 +1,11 @@
+<mujoco>
+  <!-- This model leads to duplicate contacts from mjc_BoxBox -->
+
+  <worldbody>
+    <geom type="box" size="1 1 1"/>
+    <body pos="0 0 2">
+      <freejoint/>
+      <geom type="box" size="1 1 1"/>
+    </body>
+  </worldbody>
+</mujoco>

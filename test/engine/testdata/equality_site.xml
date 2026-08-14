@@ -1,0 +1,48 @@
+<mujoco model="Connect and Weld defined with sites">
+  <option viscosity="1">
+    <flag contact="disable"/>
+  </option>
+
+  <visual>
+    <scale framewidth="0.05" framelength="0.4"/>
+  </visual>
+
+  <default>
+    <default class="free">
+      <geom type="box" size=".2" fromto=".2 .2 0 .2 .2 -2" rgba=".4 .7 .6 1"/>
+    </default>
+    <site rgba=".0 .7 0 1"/>
+  </default>
+
+  <worldbody>
+    <geom pos="0 0 -2" type="plane" size="10 10 .01"/>
+    <light pos="0 0 20"/>
+
+    <site name="a1" pos="-2 0 0" euler="-90 0 0"/>
+    <body pos="-2 1 0">
+      <freejoint/>
+      <geom class="free"/>
+      <site name="a2"/>
+    </body>
+
+    <site name="b1" euler="-90 0 0"/>
+    <body pos="0 1 0">
+      <freejoint/>
+      <geom class="free"/>
+      <site name="b2"/>
+    </body>
+
+    <site name="c1" pos="2 0 0" euler="-90 0 0"/>
+    <body pos="2 1 0">
+      <freejoint/>
+      <geom class="free"/>
+      <site name="c2"/>
+    </body>
+  </worldbody>
+
+  <equality>
+    <connect name="connect" site1="a1" site2="a2"/>
+    <weld    name="weak weld" site1="b1" site2="b2" torquescale="0.2"/>
+    <weld    name="weld" site1="c1" site2="c2"/>
+  </equality>
+</mujoco>

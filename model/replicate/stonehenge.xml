@@ -1,0 +1,40 @@
+<mujoco model="Stonehenge">
+  <statistic meansize="1"/>
+  <worldbody>
+    <light directional="true" pos="-50 -20 10" dir="5 2 -1" diffuse="1 1 1"/>
+    <geom type="plane" size="30 30 .1" rgba="0 1 0 1"/>
+    <geom type="plane" pos="38 0 5" size="10 30 .1" euler="0 -30 0" rgba="0 .8 0 1"/>
+
+    <body name="wrecking ball" pos="45 0 16">
+      <freejoint/>
+      <geom size="5.5"/>
+    </body>
+
+    <replicate count="30" euler="0 0 12">
+      <body pos="0 -15 2">
+        <freejoint/>
+        <geom type="box" size="1 .5 2"/>
+      </body>
+      <body pos="1.5 -15 4.4" euler="0 0 6">
+        <freejoint/>
+        <geom type="box" size="1.5 .5 .4"/>
+      </body>
+    </replicate>
+
+    <replicate count="5" euler="0 0 45">
+      <body pos="-1.2 -10 3">
+        <freejoint/>
+        <geom type="box" size=".9 .5 3"/>
+      </body>
+      <body pos="1.2 -10 3">
+        <freejoint/>
+        <geom type="box" size=".9 .5 3"/>
+      </body>
+      <body pos="0 -10 6.4">
+        <freejoint/>
+        <geom type="box" size="2.4 .5 .4"/>
+      </body>
+    </replicate>
+
+  </worldbody>
+</mujoco>

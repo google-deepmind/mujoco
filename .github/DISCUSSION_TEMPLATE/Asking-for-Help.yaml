@@ -1,0 +1,68 @@
+body:
+  - type: textarea
+    attributes:
+      label: Intro
+      description: Who are you, what do you use MuJoCo for?
+      value: |
+        Hi!
+
+        I am a ([graduate / undergrad] student / professor / researcher) at XYZ, I use MuJoCo for my research on ABC.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: My setup
+      description: MuJoCo / MJX version, API (C or Python), architecture, OS + version.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: My question
+      description: What you are trying to do, what problem have you encountered?
+  - type: textarea
+    attributes:
+      label: Minimal model and/or code that explain my question
+      description: Please include a loadable MJCF, not a partial snippet. If your model requires binary assets to load, attach a zip file.
+      value: |
+        If you encountered the issue in a complex model, please simplify it as much as possible (while still reproducing the issue).
+
+        Model:
+        <details>
+        <summary>minimal XML</summary>
+
+        ```XML
+
+        <mujoco>
+          <worldbody>
+            <light pos="0 0 1"/>
+            <geom type="sphere" size="1" rgba="1 0 0 1"/>
+          </worldbody>
+        </mujoco>
+
+        ```
+        </details>
+
+        Code:
+        ```python
+        import mujoco
+        import mediapy as media
+        model = mujoco.MjModel.from_xml_string(xml)
+        data = mujoco.MjData(model)
+
+        with mujoco.Renderer(model) as renderer:
+          mujoco.mj_forward(model, data)
+          renderer.update_scene(data)
+
+          media.show_image(renderer.render())
+        ```
+    validations:
+      required: false
+  - type: checkboxes
+    attributes:
+      label: Confirmations
+      options:
+        - label: I searched the [latest documentation](https://mujoco.readthedocs.io/en/latest/overview.html) thoroughly before posting.
+          required: true
+        - label: I searched previous [Issues](https://github.com/google-deepmind/mujoco/issues) and [Discussions](https://github.com/google-deepmind/mujoco/discussions), I am certain this has not been raised before.
+          required: true
+

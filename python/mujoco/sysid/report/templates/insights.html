@@ -1,0 +1,90 @@
+<div class="insights-container">
+    {% for insight in insights %}
+    <div class="insight-card insight-{{ insight.type }}">
+        <div class="insight-icon">
+            {% if insight.type == 'warning' %}
+            ⚠️
+            {% elif insight.type == 'success' %}
+            ✅
+            {% else %}
+            ℹ️
+            {% endif %}
+        </div>
+        <div class="insight-content">
+            <span class="insight-message">
+                <strong>{{ insight.title }}:</strong> {{ insight.message | safe }}
+            </span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<style>
+    .insights-container {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        /* Reduced gap */
+    }
+
+    .insight-card {
+        display: flex;
+        align-items: center;
+        /* Center Vertically */
+        padding: 0.25rem 0.5rem;
+        /* Smaller padding */
+        border-radius: 0.25rem;
+        border: 1px solid transparent;
+        background-color: var(--bg-color);
+        font-size: 0.9rem;
+        /* Smaller font */
+        min-height: 1.5rem;
+        /* Ensure roughly one line height */
+    }
+
+    .insight-icon {
+        font-size: 1rem;
+        margin-right: 0.5rem;
+        flex-shrink: 0;
+        line-height: 1;
+    }
+
+    .insight-content {
+        flex-grow: 1;
+        display: flex;
+        align-items: center;
+    }
+
+    .insight-message {
+        margin: 0;
+        color: var(--text-color);
+        /* Use standard text color */
+        white-space: nowrap;
+        /* Keep on one line if possible, or truncate? User said 'could just be one lines height' */
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Allow wrapping if very long but keeping compact verticality */
+    .insight-message {
+        white-space: normal;
+    }
+
+
+    /* Types */
+    .insight-warning {
+        background-color: rgba(255, 193, 7, 0.1);
+        border-color: rgba(255, 193, 7, 0.4);
+    }
+
+    [data-theme="dark"] .insight-warning {
+        background-color: rgba(255, 193, 7, 0.05);
+        /* slightly lighter in dark mode */
+    }
+
+
+    .insight-success {
+        background-color: rgba(25, 135, 84, 0.1);
+        border-color: rgba(25, 135, 84, 0.4);
+    }
+</style>

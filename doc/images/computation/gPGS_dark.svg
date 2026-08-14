@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 454.98 171.24">
+  <defs>
+    <style>
+      .cls-1 {
+        font-family: ArialMT, Arial;
+        font-size: 12px;
+      }
+
+      .cls-1, .cls-2, .cls-3 {
+        fill: #fff;
+      }
+
+      .cls-1, .cls-4 {
+        isolation: isolate;
+      }
+
+      .cls-5 {
+        stroke-dasharray: 0 0 4 4;
+      }
+
+      .cls-5, .cls-2, .cls-6, .cls-7, .cls-3, .cls-8 {
+        stroke: #dce0df;
+      }
+
+      .cls-5, .cls-6, .cls-7, .cls-9, .cls-8, .cls-10 {
+        fill: none;
+      }
+
+      .cls-11 {
+        fill: #0c0c0c;
+      }
+
+      .cls-11, .cls-10 {
+        stroke: #666;
+      }
+
+      .cls-6 {
+        stroke-dasharray: 0 5;
+      }
+
+      .cls-7 {
+        stroke-dasharray: 0 0 5 5;
+      }
+
+      .cls-3 {
+        stroke-miterlimit: 4;
+        stroke-width: 1px;
+      }
+
+      .cls-9 {
+        stroke: #fff;
+        stroke-width: 3px;
+      }
+
+      .cls-12 {
+        fill: #dce0df;
+        stroke-width: 0px;
+      }
+    </style>
+  </defs>
+  <line class="cls-10" x1="68" y1="151.26" x2="133.33" y2="67.93"/>
+  <line class="cls-10" x1="68" y1="151.26" x2="2.67" y2="67.93"/>
+  <circle class="cls-3" cx="122.67" cy="118.59" r="2.67"/>
+  <g class="cls-4">
+    <text class="cls-1" transform="translate(0 45.93)"><tspan x="0" y="0">cone</tspan></text>
+    <text class="cls-1" transform="translate(0 60.33)"><tspan x="0" y="0">constraint</tspan></text>
+  </g>
+  <g class="cls-4">
+    <text class="cls-1" transform="translate(133.33 134.6)"><tspan x="0" y="0">unconstrained</tspan></text>
+    <text class="cls-1" transform="translate(133.33 149)"><tspan x="0" y="0">minimum</tspan></text>
+  </g>
+  <line class="cls-7" x1="122.67" y1="118.6" x2="122.67" y2="81.54"/>
+  <line class="cls-6" x1="125.33" y1="118.6" x2="93.61" y2="118.6"/>
+  <line class="cls-9" x1="93.14" y1="119.2" x2="122.67" y2="81.54"/>
+  <g>
+    <line class="cls-8" x1="104" y1="53.93" x2="104" y2="88.93"/>
+    <path class="cls-12" d="M104,88.17l2.7-1.64.06.09-1.75,4.4c-.33,1.54-.67,3.07-1,4.61-.34-1.54-.67-3.07-1-4.61l-1.75-4.4v-.09l2.74,1.64Z"/>
+  </g>
+  <g class="cls-4">
+    <text class="cls-1" transform="translate(85.81 35.63)"><tspan x="0" y="0">continuum of</tspan></text>
+    <text class="cls-1" transform="translate(85.81 50.03)"><tspan x="0" y="0">PGS local minima</tspan></text>
+  </g>
+  <line class="cls-10" x1="387.29" y1="170.93" x2="452.62" y2="87.6"/>
+  <line class="cls-10" x1="387.29" y1="170.93" x2="321.96" y2="87.6"/>
+  <path class="cls-11" d="M454.48,77.71c0,19.83-30.19,35.9-67.44,35.9s-67.42-16.08-67.42-35.9,30.2-35.9,67.45-35.9,67.41,16.06,67.41,35.9Z"/>
+  <path class="cls-2" d="M417.85,70.44c0,1.03-.83,1.86-1.86,1.86s-1.86-.83-1.86-1.86.83-1.86,1.86-1.86h0c1.02,0,1.85.82,1.86,1.84,0,0,0,.01,0,.02Z"/>
+  <g class="cls-4">
+    <text class="cls-1" transform="translate(402.51 10.3)"><tspan x="0" y="0">search</tspan></text>
+    <text class="cls-1" transform="translate(402.51 24.7)"><tspan x="0" y="0">ray</tspan></text>
+  </g>
+  <g class="cls-4">
+    <text class="cls-1" transform="translate(297.84 33.33)"><tspan x="0" y="0">search</tspan></text>
+    <text class="cls-1" transform="translate(297.84 47.73)"><tspan x="0" y="0">ellipsoid</tspan></text>
+  </g>
+  <g>
+    <line class="cls-8" x1="416.79" y1="68.24" x2="429.11" y2="25.33"/>
+    <path class="cls-12" d="M428.9,26.07l-3.05.83v-.1l2.89-3.75,2.25-4.15-.3,4.71.47,4.71-.07.08-2.19-2.33Z"/>
+  </g>
+  <line class="cls-5" x1="403.95" y1="112.94" x2="416.79" y2="68.24"/>
+  <line class="cls-8" x1="387.29" y1="170.93" x2="403.95" y2="112.94"/>
+</svg>

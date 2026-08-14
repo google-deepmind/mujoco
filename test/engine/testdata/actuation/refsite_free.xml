@@ -1,0 +1,62 @@
+<mujoco>
+
+  <compiler angle="radian"/>
+
+  <option timestep="0.0001" integrator="RK4">
+    <flag gravity="disable" contact="disable"/>
+  </option>
+
+  <size memory="1M"/>
+
+  <statistic meansize="0.193896" extent="1" center="0 0 0.3"/>
+
+  <default>
+    <joint actuatorfrcrange="-18 18"/>
+    <default class="cartesian">
+      <general biastype="affine" dynprm="0.189824" gainprm="51.073" biasprm="0 -51.073 -1.03446"/>
+    </default>
+  </default>
+
+  <asset>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="200" height="200"/>
+    <material name="groundplane"  texture="groundplane" texuniform="true" texrepeat="2 2" reflectance="0.2"/>
+  </asset>
+
+  <worldbody>
+    <geom size="0 0 0.1" type="plane" material="groundplane"/>
+    <light pos="0 0 1.5" dir="0 0 -1"/>
+    <body pos="0 0 0.6">
+      <joint type="free"/>
+
+      <body name="base">
+        <geom size="0.0606401 0.116554 0.163268" pos="-0.00170944 -0.000675197 0.00191671" quat="-0.000920387 0.70756 -0.000583555 0.706653" type="box"/>
+        <site name="base_frame"/>
+        <body pos="0.171671 -0.0907507 -9.8e-06" quat="0.5 -0.5 0.5 -0.5">
+          <joint axis="0 0 1" range="-1.0472 1.0472" armature="0.0109013" damping="0.0239" frictionloss="0.1334"/>
+          <geom size="0.0324681 0.0432267 0.0500827" pos="-0.00997157 -1.75508e-05 0.0591165" quat="0.99973 -0.0108474 -0.0205183 -0.000825809" type="box"/>
+          <body pos="0.03085 0 0.065" quat="0 -0.707107 0 -0.707107">
+            <joint axis="0 0 1" range="-1.54706 3.02902" armature="0.0109013" damping="0.0239" frictionloss="0.1334"/>
+            <geom size="0.0230114 0.044369 0.0456418" pos="0.00023322 7.40609e-05 0.0232897" quat="0.646671 -0.288993 -0.645777 -0.285081" type="box"/>
+            <geom size="0.0165189 0.0320859 0.136968" pos="-0.0789385 0.0134066 0.0697267" quat="0.0465854 -0.70695 -0.00148786 0.705726" type="box"/>
+            <body pos="-0.19 0 0.069575" quat="0 0 -1 0">
+              <joint axis="0 0 1" range="0 2.44346" armature="0.0109013" damping="0.0239" frictionloss="0.1334"/>
+              <geom size="0.0119255 0.0121628 0.0197376" pos="-0.211513 -0.0748022 1.73156e-06" quat="0.642033 0.296302 -0.642156 0.296031" type="box"/>
+              <geom size="0.008597 0.0161382 0.11823" pos="-0.0783394 -0.0253533 -1.08631e-05" quat="0.702549 0.0808911 -0.702432 0.0804412" type="box"/>
+              <site name="foot_front_right" pos="-0.21425 -0.0779806 0" quat="0.664463 0.664463 -0.241845 -0.241845"/>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <general name="x linear" class="cartesian" site="foot_front_right" refsite="base_frame" ctrlrange="-5 5" gear="1 0 0 0 0 0"/>
+    <general name="y rotational" class="cartesian" site="foot_front_right" refsite="base_frame" ctrlrange="-5 5" gear="0 0 0 0 .1 0"/>
+  </actuator>
+
+  <sensor>
+    <subtreeangmom body="base"/>
+    <subtreelinvel body="base"/>
+  </sensor>
+</mujoco>

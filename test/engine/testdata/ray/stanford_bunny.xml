@@ -1,0 +1,15 @@
+<mujoco>
+  <asset>
+    <mesh file="stanford_bunny.obj"/>
+  </asset>
+  <worldbody>
+    <site name="lidar" type="cylinder" pos=".7 .1 0" zaxis="1 0 0" size=".02 .05"/>
+    <body mocap="true" pos="1 0 0" euler="0 90 0">
+      <geom type="mesh" mesh="stanford_bunny"/>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <rangefinder site="lidar"/>
+  </sensor>
+</mujoco>

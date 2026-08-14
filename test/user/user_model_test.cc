@@ -1,0 +1,1159 @@
+// Copyright 2021 DeepMind Technologies Limited
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Tests for user/user_model.cc.
+
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include <absl/strings/str_format.h>
+#include <mujoco/mjmodel.h>
+#include <mujoco/mujoco.h>
+#include "test/compare_model.h"
+#include "test/fixture.h"
+
+namespace mujoco {
+namespace {
+
+using ::testing::ElementsAre;
+using ::testing::HasSubstr;
+using ::testing::IsNull;
+using ::testing::NotNull;
+using ::testing::Pointwise;
+
+static std::vector<mjtNum> GetRow(const mjtNum* array, int ncolumn, int row) {
+  return std::vector<mjtNum>(array + ncolumn * row,
+                             array + ncolumn * (row + 1));
+}
+
+// ----------------------------- test mjCModel  --------------------------------
+
+using UserModelTest = MujocoTest;
+
+// clarify the semantic of body_rootid and body_weldid
+TEST_F(UserModelTest, WeldRootID) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="1">
+        <joint/>
+        <geom size="1"/>
+        <body name="2">
+          <joint/>
+          <geom size="1"/>
+        </body>
+      </body>
+
+      <body name="3">
+        <joint/>
+        <geom size="1"/>
+        <body name="4">
+          <geom size="1"/>
+        </body>
+      </body>
+
+      <body name="5">
+        <geom size="1"/>
+        <body name="6">
+          <geom size="1"/>
+        </body>
+      </body>
+
+      <body name="7" mocap="true">
+        <geom size="1"/>
+        <body name="8">
+          <geom size="1"/>
+        </body>
+      </body>
+
+      <body name="9" mocap="true">
+        <geom size="1"/>
+        <body name="10">
+          <joint/>
+          <geom size="1"/>
+        </body>
+      </body>
+     </worldbody>
+   </mujoco>
+   )";
+
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), NotNull());
+
+  EXPECT_THAT(AsVector(model->body_rootid, model->nbody),
+              ElementsAre(0, 1, 1, 3, 3, 5, 5, 7, 7, 9, 9));
+  // mocap bodies (7, 9) are their own weld roots, inherited by static children (8)
+  EXPECT_THAT(AsVector(model->body_weldid, model->nbody),
+              ElementsAre(0, 1, 2, 3, 3, 0, 0, 7, 7, 9, 10));
+}
+
+TEST_F(UserModelTest, RepeatedNames) {
+  static constexpr char xml[] = R"(
+   <mujoco>
+     <worldbody>
+       <body name="body1">
+         <joint axis="0 1 0" name="joint1"/>
+         <geom size="1" name="geom1"/>
+         <geom size="1" name="geom1"/>
+        </body>
+      </worldbody>
+    </mujoco>)";
+
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("repeated name 'geom1' in geom"));
+}
+
+TEST_F(UserModelTest, SameFrame) {
+  static constexpr char xml[] = R"(
+   <mujoco>
+     <default>
+      <geom type="box" size="1 2 3"/>
+     </default>
+
+     <worldbody>
+       <body name="body1">
+         <geom name="none"       mass="0" pos="1 1 1" euler="10 10 10"/>
+         <geom name="body"       mass="0"/>
+         <geom name="inertia"    mass="1" pos="3 2 1" euler="20 30 40"/>
+         <geom name="bodyrot"    mass="0" pos="1 1 1"/>
+         <geom name="inertiarot" mass="0" euler="20 30 40"/>
+        </body>
+      </worldbody>
+    </mujoco>)";
+
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->geom_sameframe[0], mjSAMEFRAME_NONE);
+  EXPECT_EQ(model->geom_sameframe[1], mjSAMEFRAME_BODY);
+  EXPECT_EQ(model->geom_sameframe[2], mjSAMEFRAME_INERTIA);
+  EXPECT_EQ(model->geom_sameframe[3], mjSAMEFRAME_BODYROT);
+  EXPECT_EQ(model->geom_sameframe[4], mjSAMEFRAME_INERTIAROT);
+
+  // make data, get geom_xpos
+  MjDataPtr data = MakeData(model);
+  mj_kinematics(model.get(), data.get());
+  auto geom_xpos = AsVector(data->geom_xpos, model->ngeom * 3);
+  auto geom_xmat = AsVector(data->geom_xmat, model->ngeom * 9);
+
+  // set all geom_sameframe to 0, call kinematics again
+  for (int i = 0; i < model->ngeom; i++) {
+    model->geom_sameframe[i] = mjSAMEFRAME_NONE;
+  }
+  mj_resetData(model.get(), data.get());
+  mj_kinematics(model.get(), data.get());
+  auto geom_xpos2 = AsVector(data->geom_xpos, model->ngeom * 3);
+  auto geom_xmat2 = AsVector(data->geom_xmat, model->ngeom * 9);
+
+  // expect them to be equal
+  constexpr double eps = 1e-6;
+  EXPECT_THAT(geom_xpos, Pointwise(MjNear(eps, eps), geom_xpos2));
+  EXPECT_THAT(geom_xmat, Pointwise(MjNear(eps, eps), geom_xmat2));
+}
+
+TEST_F(UserModelTest, ActuatorSparsity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="a"/>
+        <body>
+          <geom size="1"/>
+          <joint name="b"/>
+        </body>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="a"/>
+      <motor joint="b"/>
+    </actuator>
+  </mujoco>
+  )";
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_EQ(m->nJmom, 2);
+}
+
+TEST_F(UserModelTest, FixedTendonSparsity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size=".1"/>
+        <joint name="0"/>
+      </body>
+      <body pos="1 0 0">
+        <geom size=".1"/>
+        <joint name="1"/>
+      </body>
+      <body pos="2 0 0">
+        <geom size=".1"/>
+        <joint name="2"/>
+      </body>
+    </worldbody>
+
+    <tendon>
+      <fixed>
+        <joint coef="3" joint="2"/>
+        <joint coef="2" joint="1"/>
+        <joint coef="1" joint="0"/>
+      </fixed>
+    </tendon>
+  </mujoco>
+  )";
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_THAT(m.get(), NotNull());
+
+  EXPECT_EQ(m->nJten, 3);
+  EXPECT_EQ(m->ten_J_rownnz[0], 3);
+  EXPECT_EQ(m->ten_J_rowadr[0], 0);
+  EXPECT_EQ(m->wrap_type[m->tendon_adr[0]], mjWRAP_JOINT);
+
+  int rowadr = m->ten_J_rowadr[0];
+  int* colind = m->ten_J_colind + rowadr;
+  EXPECT_THAT(std::vector<int>(colind, colind + 3), ElementsAre(0, 1, 2));
+}
+
+TEST_F(UserModelTest, NestedZeroMassBodiesOK) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <body>
+          <body>
+            <body>
+              <geom size="1"/>
+            </body>
+          </body>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+}
+
+TEST_F(UserModelTest, NestedZeroMassBodiesWithJointOK) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <body>
+          <body>
+            <body>
+              <joint/>
+              <geom size="1"/>
+            </body>
+            <body>
+              <geom size="1"/>
+            </body>
+          </body>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+}
+
+TEST_F(UserModelTest, NestedZeroMassBodiesFail) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <body name="bad">
+          <freejoint/>
+          <body>
+            <body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(
+      error,
+      HasSubstr(
+          "mass and inertia of moving bodies must be larger than mjMINVAL"));
+  EXPECT_THAT(error, HasSubstr("Element name 'bad'"));
+}
+
+TEST_F(UserModelTest, ConvexHullForCollisionMeshes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh_no_hull" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+            face="0 2 1  0 1 3  0 3 2  1 2 3"/>
+      <mesh name="mesh_with_hull_contype" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+            face="0 2 1  0 1 3  0 3 2  1 2 3"/>
+      <mesh name="mesh_with_hull_conaffinity" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+            face="0 2 1  0 1 3  0 3 2  1 2 3"/>
+    </asset>
+    <worldbody>
+      <geom name="geom_no_hull" type="mesh" mesh="mesh_no_hull" contype="0" conaffinity="0"/>
+      <geom name="geom_with_hull_contype" type="mesh" mesh="mesh_with_hull_contype" contype="1"/>
+      <geom name="geom_with_hull_conaffinity" type="mesh" mesh="mesh_with_hull_conaffinity" conaffinity="1"/>
+    </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+
+  int no_hull_id = mj_name2id(model.get(), mjOBJ_MESH, "mesh_no_hull");
+  int with_hull_contype_id =
+      mj_name2id(model.get(), mjOBJ_MESH, "mesh_with_hull_contype");
+  int with_hull_conaffinity_id =
+      mj_name2id(model.get(), mjOBJ_MESH, "mesh_with_hull_conaffinity");
+
+  EXPECT_NE(no_hull_id, -1);
+  EXPECT_NE(with_hull_contype_id, -1);
+  EXPECT_NE(with_hull_conaffinity_id, -1);
+
+  // mesh_no_hull should not have a convex hull.
+  EXPECT_EQ(model->mesh_graphadr[no_hull_id], -1);
+
+  // mesh_with_hull_contype should have a convex hull.
+  EXPECT_NE(model->mesh_graphadr[with_hull_contype_id], -1);
+
+  // mesh_with_hull_conaffinity should have a convex hull.
+  EXPECT_NE(model->mesh_graphadr[with_hull_conaffinity_id], -1);
+}
+
+TEST_F(UserModelTest, MeshExtremaValidIndices) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="test_mesh" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+            face="0 2 1  0 1 3  0 3 2  1 2 3"/>
+    </asset>
+    <worldbody>
+      <geom name="test_geom" type="mesh" mesh="test_mesh"/>
+    </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+
+  int mesh_id = mj_name2id(model.get(), mjOBJ_MESH, "test_mesh");
+  EXPECT_NE(mesh_id, -1);
+  EXPECT_NE(model->mesh_graphadr[mesh_id], -1);
+
+  const float* verts = model->mesh_vert + 3 * model->mesh_vertadr[mesh_id];
+  const int* graph = model->mesh_graph + model->mesh_graphadr[mesh_id];
+  const int* vert_globalid = graph + 2 + graph[0];
+
+  int k = 0;
+  for (int cx = -1; cx <= 1; cx++) {
+    for (int cy = -1; cy <= 1; cy++) {
+      for (int cz = -1; cz <= 1; cz++) {
+        int v_idx = model->mesh_extrema[mesh_id * 27 + k];
+        EXPECT_GE(v_idx, 0);
+        EXPECT_LT(v_idx, graph[0]);
+
+        int global_id = vert_globalid[v_idx];
+        float max_dot = verts[3 * global_id + 0] * cx +
+                        verts[3 * global_id + 1] * cy +
+                        verts[3 * global_id + 2] * cz;
+
+        // verify no other vertex yields a strictly greater dot product.
+        for (int i = 0; i < graph[0]; i++) {
+          int other_gid = vert_globalid[i];
+          float dot = verts[3 * other_gid + 0] * cx +
+                      verts[3 * other_gid + 1] * cy +
+                      verts[3 * other_gid + 2] * cz;
+          EXPECT_LE(dot, max_dot);
+        }
+        k++;
+      }
+    }
+  }
+}
+
+TEST_F(UserModelTest, ConvexHullForPairCollisionMeshes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+            face="0 2 1  0 1 3  0 3 2  1 2 3"/>
+    </asset>
+    <worldbody>
+      <geom name="geom1" type="sphere" size="1"/>
+      <geom name="geom_mesh" type="mesh" mesh="mesh" contype="0" conaffinity="0"/>
+    </worldbody>
+    <contact>
+      <pair name="hello" geom1="geom1" geom2="geom_mesh"/>
+    </contact>
+  </mujoco>)";
+
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+
+  int mesh_in_pair_id = mj_name2id(model.get(), mjOBJ_MESH, "mesh");
+
+  EXPECT_NE(mesh_in_pair_id, -1);
+
+  // mesh_in_pair should have a convex hull because it is in a collision pair.
+  EXPECT_NE(model->mesh_graphadr[mesh_in_pair_id], -1);
+}
+
+// ------------- test automatic inference of nuser_xxx -------------------------
+
+using UserDataTest = MujocoTest;
+
+TEST_F(UserDataTest, AutoNUserBody) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body user="1 2 3"/>
+      <body user="2 3"/>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_EQ(m->nuser_body, 3);
+  EXPECT_THAT(GetRow(m->body_user, m->nuser_body, 1), ElementsAre(1, 2, 3));
+  EXPECT_THAT(GetRow(m->body_user, m->nuser_body, 2), ElementsAre(2, 3, 0));
+}
+
+TEST_F(UserDataTest, AutoNUserJoint) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint user="1 2 3"/>
+        <joint user="2 3"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_EQ(m->nuser_jnt, 3);
+  EXPECT_THAT(GetRow(m->jnt_user, m->nuser_jnt, 0), ElementsAre(1, 2, 3));
+  EXPECT_THAT(GetRow(m->jnt_user, m->nuser_jnt, 1), ElementsAre(2, 3, 0));
+}
+
+TEST_F(UserDataTest, AutoNUserGeom) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom size="1" user="1 2 3"/>
+      <geom size="1" user="2 3"/>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_EQ(m->nuser_geom, 3);
+  EXPECT_THAT(GetRow(m->geom_user, m->nuser_geom, 0), ElementsAre(1, 2, 3));
+  EXPECT_THAT(GetRow(m->geom_user, m->nuser_geom, 1), ElementsAre(2, 3, 0));
+}
+
+TEST_F(UserDataTest, AutoNUserSite) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site user="1 2 3"/>
+      <site user="2 3"/>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_EQ(m->nuser_site, 3);
+  EXPECT_THAT(GetRow(m->site_user, m->nuser_site, 0), ElementsAre(1, 2, 3));
+  EXPECT_THAT(GetRow(m->site_user, m->nuser_site, 1), ElementsAre(2, 3, 0));
+}
+
+TEST_F(UserDataTest, AutoNUserCamera) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <camera user="1 2 3"/>
+      <camera user="2 3"/>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_EQ(m->nuser_cam, 3);
+  EXPECT_THAT(GetRow(m->cam_user, m->nuser_cam, 0), ElementsAre(1, 2, 3));
+  EXPECT_THAT(GetRow(m->cam_user, m->nuser_cam, 1), ElementsAre(2, 3, 0));
+}
+
+TEST_F(UserDataTest, AutoNUserTendon) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="a"/>
+      <site name="b"/>
+    </worldbody>
+    <tendon>
+      <spatial user="1 2 3">
+        <site site="a"/>
+        <site site="b"/>
+      </spatial>
+      <spatial user="2 3">
+        <site site="a"/>
+        <site site="b"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_EQ(m->nuser_tendon, 3);
+  EXPECT_THAT(GetRow(m->tendon_user, m->nuser_tendon, 0), ElementsAre(1, 2, 3));
+  EXPECT_THAT(GetRow(m->tendon_user, m->nuser_tendon, 1), ElementsAre(2, 3, 0));
+}
+
+TEST_F(UserDataTest, AutoNUserActuator) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="a"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="a" user="1 2 3"/>
+      <motor joint="a" user="2 3"/>
+    </actuator>
+  </mujoco>
+  )";
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_EQ(m->nuser_actuator, 3);
+  EXPECT_THAT(GetRow(m->actuator_user, m->nuser_actuator, 0),
+              ElementsAre(1, 2, 3));
+  EXPECT_THAT(GetRow(m->actuator_user, m->nuser_actuator, 1),
+              ElementsAre(2, 3, 0));
+}
+
+TEST_F(UserDataTest, AutoNUserSensor) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="a"/>
+    </worldbody>
+    <sensor>
+      <accelerometer site="a" user="1 2 3"/>
+      <gyro site="a" user="2 3"/>
+    </sensor>
+  </mujoco>
+  )";
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_EQ(m->nuser_sensor, 3);
+  EXPECT_THAT(GetRow(m->sensor_user, m->nuser_sensor, 0), ElementsAre(1, 2, 3));
+  EXPECT_THAT(GetRow(m->sensor_user, m->nuser_sensor, 1), ElementsAre(2, 3, 0));
+}
+
+// ------------- test duplicate names ------------------------------------------
+TEST_F(UserDataTest, DuplicateNames) {
+  static const char* const kFilePath = "user/testdata/malformed_duplicated.xml";
+  const std::string xml_path = GetTestDataFilePath(kFilePath);
+
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+
+  EXPECT_THAT(m, IsNull());
+  EXPECT_STREQ(error.data(), "Error: repeated name 'cube' in mesh");
+}
+
+// ------------- test fusestatic -----------------------------------------------
+
+using FuseStaticTest = MujocoTest;
+TEST_F(FuseStaticTest, FuseStaticEquivalent) {
+  static constexpr char xml_template[] = R"(
+  <mujoco>
+    <compiler fusestatic="%s"/>
+    <worldbody>
+      <body>
+        <joint axis="1 0 0"/>
+        <geom size="0.5" pos="1 0 0" contype="0" conaffinity="0"/>
+        <body>
+          <geom size="0.5" pos="0 1 0" contype="1" conaffinity="1"/>
+          <geom size="0.5" pos="0 -2 0" contype="1" conaffinity="1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::string fuse = absl::StrFormat(xml_template, "true");
+  std::string no_fuse = absl::StrFormat(xml_template, "false");
+
+  MjModelPtr m_fuse = LoadModelFromString(fuse.c_str());
+  MjModelPtr m_no_fuse = LoadModelFromString(no_fuse.c_str());
+  ASSERT_THAT(m_fuse.get(), NotNull());
+  ASSERT_THAT(m_no_fuse.get(), NotNull());
+
+  EXPECT_EQ(m_fuse->nbody, 2) << "Expecting a world body and one other body";
+  EXPECT_EQ(m_no_fuse->nbody, 3) << "Expecting a world body and two others";
+
+  EXPECT_EQ(m_no_fuse->body_contype[2], 1);
+  EXPECT_EQ(m_no_fuse->body_conaffinity[2], 1);
+  EXPECT_EQ(m_fuse->body_contype[1], 1);
+  EXPECT_EQ(m_fuse->body_conaffinity[1], 1);
+
+  EXPECT_EQ(m_no_fuse->body_bvhnum[2], 3);
+  EXPECT_EQ(m_fuse->body_bvhnum[1], 3);
+
+  MjDataPtr d_fuse = MakeData(m_fuse);
+  MjDataPtr d_no_fuse = MakeData(m_no_fuse);
+
+  mj_step(m_fuse.get(), d_fuse.get());
+  mj_step(m_no_fuse.get(), d_no_fuse.get());
+
+  EXPECT_NEAR(d_fuse.get()->qvel[0], d_no_fuse.get()->qvel[0],
+              MjTol(2e-17, 1e-8))
+      << "Velocity should be the same after 1 step";
+  EXPECT_NE(d_fuse.get()->qvel[0], 0);
+}
+
+TEST_F(FuseStaticTest, FuseStaticActuatorReferencedBody) {
+  static constexpr char xml_template[] = R"(
+  <mujoco>
+    <compiler fusestatic="true"/>
+
+    <worldbody>
+      <body>
+        <joint axis="1 0 0"/>
+        <geom size="0.5" pos="1 0 0" contype="0" conaffinity="0"/>
+        <body name="not_referenced">
+          <geom size="0.5" pos="0 1 0" contype="1" conaffinity="1"/>
+          <geom size="0.5" pos="0 -2 0" contype="1" conaffinity="1"/>
+        </body>
+        <body name="referenced">
+          <geom size="0.5" pos="0 1 0" contype="1" conaffinity="1"/>
+          <geom size="0.5" pos="0 -2 0" contype="1" conaffinity="1"/>
+        </body>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <adhesion body="referenced" ctrlrange="0 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml_template, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  EXPECT_EQ(m->nbody, 3) << "Expecting a world body and two others";
+}
+
+TEST_F(FuseStaticTest, FuseStaticLightReferencedBody) {
+  static constexpr char xml_template[] = R"(
+  <mujoco>
+    <compiler fusestatic="true"/>
+
+    <worldbody>
+      <light mode="targetbody" target="referenced"/>
+      <body>
+        <joint axis="1 0 0"/>
+        <geom size="0.5" pos="1 0 0" contype="0" conaffinity="0"/>
+        <body name="not_referenced">
+          <geom size="0.5" pos="0 1 0" contype="1" conaffinity="1"/>
+          <geom size="0.5" pos="0 -2 0" contype="1" conaffinity="1"/>
+        </body>
+        <body name="referenced">
+          <geom size="0.5" pos="0 1 0" contype="1" conaffinity="1"/>
+          <geom size="0.5" pos="0 -2 0" contype="1" conaffinity="1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml_template, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  EXPECT_EQ(m->nbody, 3) << "Expecting a world body and two others";
+}
+
+TEST_F(FuseStaticTest, FuseStaticForceSensorReferencedBody) {
+  static constexpr char xml_template[] = R"(
+  <mujoco>
+    <compiler fusestatic="true"/>
+
+    <worldbody>
+      <body>
+        <joint axis="1 0 0"/>
+        <geom size="0.5" pos="1 0 0" contype="0" conaffinity="0"/>
+        <body name="not_referenced">
+          <geom size="0.5" pos="0 1 0" contype="1" conaffinity="1"/>
+          <geom size="0.5" pos="0 -2 0" contype="1" conaffinity="1"/>
+        </body>
+        <body name="referenced">
+          <site name="force"/>
+          <geom size="0.5" pos="0 1 0" contype="1" conaffinity="1"/>
+          <geom size="0.5" pos="0 -2 0" contype="1" conaffinity="1"/>
+        </body>
+      </body>
+    </worldbody>
+
+    <sensor>
+      <force site="force"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml_template, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  EXPECT_EQ(m->nbody, 3) << "Expecting a world body and two others";
+}
+
+TEST_F(FuseStaticTest, FuseStaticCameraInBody) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler fusestatic="true"/>
+    <worldbody>
+      <body>
+        <joint axis="1 0 0"/>
+        <geom size="0.5"/>
+        <body pos="1 0 0">
+          <site name="site1"/>
+          <camera name="cam1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  EXPECT_EQ(m->nbody, 2) << "Static body should be fused";
+  EXPECT_EQ(m->ncam, 1);
+}
+
+TEST_F(FuseStaticTest, FuseStaticLightInBody) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler fusestatic="true"/>
+    <worldbody>
+      <body>
+        <joint axis="1 0 0"/>
+        <geom size="0.5"/>
+        <body pos="1 0 0">
+          <light name="light1" dir="0 0 -1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  EXPECT_EQ(m->nbody, 2) << "Static body should be fused";
+  EXPECT_EQ(m->nlight, 1);
+}
+
+// ------------- test discardvisual --------------------------------------------
+
+using DiscardVisualTest = MujocoTest;
+TEST_F(DiscardVisualTest, DiscardVisualKeepsInertia) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler discardvisual="true"/>
+
+    <asset>
+      <mesh name="visual_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        normal="1 0 0  0 1 0  0 0 1  0.707 0 0.707"
+        face="0 2 1  0 3 2" />
+
+      <mesh name="collision_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        normal="1 0 0  0 1 0  0 0 1  0.707 0 0.707"
+        face="0 2 1  0 3 2" />
+    </asset>
+
+    <worldbody>
+      <body>
+        <geom type="mesh" mesh="visual_mesh" contype="0" conaffinity="0"/>
+      </body>
+      <body>
+        <geom type="mesh" mesh="collision_mesh"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_THAT(model->nmesh, 1);
+  EXPECT_THAT(model->body_inertia[3], model->body_inertia[6]);
+  EXPECT_THAT(model->body_inertia[4], model->body_inertia[7]);
+  EXPECT_THAT(model->body_inertia[5], model->body_inertia[8]);
+}
+
+TEST_F(DiscardVisualTest, DiscardVisualEquivalent) {
+  char error[1024];
+  size_t error_sz = 1024;
+
+  static const char* const kDiscardvisualPath =
+      "user/testdata/discardvisual.xml";
+  static const char* const kDiscardvisualFalsePath =
+      "user/testdata/discardvisual_false.xml";
+
+  const std::string xml_path1 = GetTestDataFilePath(kDiscardvisualPath);
+  mjModel* model1 = mj_loadXML(xml_path1.c_str(), 0, error, error_sz);
+  EXPECT_THAT(model1, NotNull()) << error;
+
+  const std::string xml_path2 = GetTestDataFilePath(kDiscardvisualFalsePath);
+  mjModel* model2 = mj_loadXML(xml_path2.c_str(), 0, error, error_sz);
+  EXPECT_THAT(model2, NotNull()) << error;
+
+  EXPECT_THAT(model1->nq, model2->nq);
+  EXPECT_THAT(model1->nmat, 0);
+  EXPECT_THAT(model1->ntex, 0);
+  EXPECT_THAT(model2->ngeom - model1->ngeom, 3);
+  EXPECT_THAT(model2->nmesh - model1->nmesh, 2);
+  EXPECT_THAT(model1->npair, model2->npair);
+  EXPECT_THAT(model1->nsensor, model2->nsensor);
+  EXPECT_THAT(model1->nwrap, model2->nwrap);
+
+  for (int i = 0; i < model1->ngeom; i++) {
+    std::string name = std::string(model1->names + model1->name_geomadr[i]);
+    EXPECT_NE(name.find("kept"), std::string::npos);
+    EXPECT_EQ(name.find("discard"), std::string::npos);
+  }
+
+  for (int i = 0; i < model1->npair; i++) {
+    int adr1 = model1->name_geomadr[model1->pair_geom1[i]];
+    int adr2 = model2->name_geomadr[model2->pair_geom1[i]];
+    EXPECT_STREQ(model1->names + adr1, model2->names + adr2);
+    adr1 = model1->name_geomadr[model1->pair_geom2[i]];
+    adr2 = model2->name_geomadr[model2->pair_geom2[i]];
+    EXPECT_STREQ(model1->names + adr1, model2->names + adr2);
+  }
+
+  for (int i = 0; i < model1->nsensor; i++) {
+    int adr1 = model1->name_geomadr[model1->sensor_objid[i]];
+    int adr2 = model2->name_geomadr[model2->sensor_objid[i]];
+    EXPECT_STREQ(model1->names + adr1, model2->names + adr2);
+  }
+
+  for (int i = 0; i < model1->nwrap; i++) {
+    int adr1 = model1->name_geomadr[model1->wrap_objid[i]];
+    int adr2 = model2->name_geomadr[model2->wrap_objid[i]];
+    EXPECT_STREQ(model1->names + adr1, model2->names + adr2);
+  }
+
+  mjData* d1 = mj_makeData(model1);
+  mjData* d2 = mj_makeData(model2);
+  for (int i = 0; i < 100; i++) {
+    mj_step(model1, d1);
+    mj_step(model2, d2);
+  }
+
+  for (int i = 0; i < model1->nq; i++) {
+    EXPECT_THAT(d1->qpos[i], d2->qpos[i]);
+  }
+
+  mj_deleteModel(model1);
+  mj_deleteModel(model2);
+  mj_deleteData(d1);
+  mj_deleteData(d2);
+}
+
+// ------------- test lengthrange ----------------------------------------------
+
+using LengthRangeTest = MujocoTest;
+
+TEST_F(LengthRangeTest, LengthRangeThreading) {
+  char error[1024];
+  size_t error_sz = 1024;
+  std::string field = "";
+
+  static const char* const kLengthrangePath = "user/testdata/lengthrange.xml";
+
+  const std::string xml_path1 = GetTestDataFilePath(kLengthrangePath);
+  mjSpec* spec = mj_parseXML(xml_path1.c_str(), 0, error, error_sz);
+  EXPECT_THAT(spec, NotNull()) << error;
+  mjModel* model1 = mj_compile(spec, 0);
+  EXPECT_THAT(model1, NotNull()) << error;
+
+  // model is such that the lengthrange for first actuator is [1, sqrt(5)]
+  EXPECT_NEAR(model1->actuator_lengthrange[0], 1.0, 1e-3);
+  EXPECT_NEAR(model1->actuator_lengthrange[1], std::sqrt(5.0), 1e-3);
+
+  // recompile without threads
+  ASSERT_EQ(spec->compiler.usethread, 1);
+  spec->compiler.usethread = 0;
+  mjModel* model2 = mj_compile(spec, 0);
+  EXPECT_THAT(model2, NotNull()) << error;
+
+  // expect threaded and unthreaded models to be identical
+  EXPECT_LE(CompareModel(model1, model2, field), 0)
+      << "Threaded and unthreaded lengthrange models are different!\n"
+      << "Different field: " << field << '\n';
+
+  mj_deleteModel(model1);
+  mj_deleteModel(model2);
+  mj_deleteSpec(spec);
+}
+
+
+TEST_F(MujocoTest, ResolvePluginMissingInstanceThrowsError) {
+  // Instance name="my_pid_config" dos not match actuator plugin's instance="pid_config",
+  // this should throw an appropriate error
+  static constexpr char xml_mismatch[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.pid">
+        <instance name="my_pid_config" />
+      </plugin>
+    </extension>
+    <worldbody>
+      <body name="block" pos="0 0 0.5">
+        <joint name="slide_z" type="slide" axis="0 0 1" />
+        <geom type="box" size="0.1 0.1 0.1" mass="1.0" rgba="0 0.7 0 1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <plugin name="pid_actuator" joint="slide_z" plugin="mujoco.pid" instance="pid_config" />
+    </actuator>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error_buffer;
+  mjSpec* spec = mj_parseXMLString(xml_mismatch, 0, error_buffer.data(), error_buffer.size());
+  ASSERT_THAT(spec, NotNull()) << error_buffer.data();
+
+  mjModel* model = mj_compile(spec, nullptr);
+  EXPECT_THAT(model, IsNull());
+
+  std::string error_msg = mjs_getError(spec);
+  EXPECT_THAT(error_msg, HasSubstr("unrecognized name 'pid_config' for plugin instance"));
+
+  if (model) mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// ----------------------------- test modeldir  --------------------------------
+
+TEST_F(MujocoTest, Modeldir) {
+  static constexpr char cube[] = R"(
+  v -1 -1  1
+  v  1 -1  1
+  v -1  1  1
+  v  1  1  1
+  v -1  1 -1
+  v  1  1 -1
+  v -1 -1 -1
+  v  1 -1 -1)";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "meshdir/cube.obj", cube, sizeof(cube));
+
+  // child with the asset
+  mjSpec* child = mj_makeSpec();
+  mjsMesh* mesh = mjs_addMesh(child, 0);
+  mjsFrame* frame = mjs_addFrame(mjs_findBody(child, "world"), 0);
+  mjsGeom* geom = mjs_addGeom(mjs_findBody(child, "world"), 0);
+  mjs_setString(child->compiler.meshdir, "meshdir");
+  mjs_setString(mesh->file, "cube.obj");
+  mjs_setName(mesh->element, "cube");
+  mjs_setString(geom->meshname, "cube");
+  mjs_setFrame(geom->element, frame);
+  geom->type = mjGEOM_MESH;
+
+  // parent attaching the child
+  mjSpec* spec = mj_makeSpec();
+  mjs_setDeepCopy(spec, true);
+  mjs_setString(spec->compiler.meshdir, "asset");
+  mjs_attach(mjs_findBody(spec, "world")->element, frame->element, "_", "");
+  mjModel* model = mj_compile(spec, vfs.get());
+  EXPECT_THAT(model, NotNull());
+
+  mj_deleteSpec(child);
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
+  mj_deleteVFS(vfs.get());
+}
+
+TEST_F(MujocoTest, NestedMeshDir) {
+  static constexpr char cube[] = R"(
+  v -1 -1  1
+  v  1 -1  1
+  v -1  1  1
+  v  1  1  1
+  v -1  1 -1
+  v  1  1 -1
+  v -1 -1 -1
+  v  1 -1 -1)";
+
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <compiler meshdir="child_meshdir"/>
+
+    <asset>
+      <mesh name="m" file="child_mesh.obj"/>
+    </asset>
+
+    <worldbody>
+      <body name="child">
+        <geom type="mesh" mesh="m"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <compiler meshdir="parent_meshdir"/>
+
+    <asset>
+      <mesh name="m" file="parent_mesh.obj"/>
+      <model name="child" file="child.xml"/>
+    </asset>
+
+    <worldbody>
+      <body name="parent">
+        <geom type="mesh" mesh="m"/>
+        <attach model="child" body="child" prefix="child_"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char grandparent_xml[] = R"(
+  <mujoco>
+    <compiler meshdir="grandparent_meshdir"/>
+
+    <asset>
+      <mesh name="m" file="grandparent_mesh.obj"/>
+      <model name="parent" file="parent.xml"/>
+    </asset>
+
+    <worldbody>
+      <geom type="mesh" mesh="m"/>
+      <attach model="parent" body="parent" prefix="parent_"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "child_meshdir/child_mesh.obj", cube,
+                  sizeof(cube));
+  mj_addBufferVFS(vfs.get(), "child.xml", child_xml, sizeof(child_xml));
+  mj_addBufferVFS(vfs.get(), "parent_meshdir/parent_mesh.obj", cube,
+                  sizeof(cube));
+  mj_addBufferVFS(vfs.get(), "parent.xml", parent_xml, sizeof(parent_xml));
+  mj_addBufferVFS(vfs.get(), "grandparent_meshdir/grandparent_mesh.obj", cube,
+                  sizeof(cube));
+
+  std::array<char, 1024> error;
+  MjModelPtr child_model =
+      LoadModelFromString(child_xml, error.data(), error.size(), vfs.get());
+  EXPECT_THAT(child_model.get(), NotNull()) << error.data();
+
+  MjModelPtr parent_model =
+      LoadModelFromString(parent_xml, error.data(), error.size(), vfs.get());
+  EXPECT_THAT(parent_model.get(), NotNull()) << error.data();
+
+  MjModelPtr grandparent_model = LoadModelFromString(
+      grandparent_xml, error.data(), error.size(), vfs.get());
+  EXPECT_THAT(grandparent_model.get(), NotNull()) << error.data();
+
+  mj_deleteVFS(vfs.get());
+}
+
+TEST_F(MujocoTest, ConvertSpringdamper) {
+  static constexpr char xml[] = R"(
+    <mujoco>
+    <worldbody>
+      <body>
+        <joint axis="0 1 0" springdamper="1 1"/>
+        <geom size="0.2 0.2 0.2" type="box"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> err;
+  mjSpec* spec = mj_parseXMLString(xml, 0, err.data(), err.size());
+  ASSERT_THAT(spec, NotNull()) << err.data();
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << err.data();
+  std::array<char, 1024> str;
+  mj_saveXMLString(spec, str.data(), str.size(), err.data(), err.size());
+  EXPECT_THAT(str.data(), HasSubstr("damping"));
+  EXPECT_THAT(str.data(), HasSubstr("stiffness"));
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// ------------- test history buffer computation -------------------------------
+
+using DelayBufferTest = MujocoTest;
+
+TEST_F(DelayBufferTest, ActuatorDelayBufferSizes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="1"/>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt1"/>
+        <joint name="jnt2"/>
+        <joint name="jnt3"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt1"/>
+      <motor joint="jnt2" delay="3" nsample="3"/>
+      <motor joint="jnt3" delay="10" nsample="10"/>
+    </actuator>
+  </mujoco>
+  )";
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_THAT(m.get(), NotNull());
+  ASSERT_EQ(m->nu, 3);
+
+  // nhistory = (2+2*3) + (2+2*10) = 8 + 22 = 30
+  EXPECT_EQ(m->nhistory, 30);
+
+  // verify per-actuator delay and addresses
+  EXPECT_EQ(m->actuator_history[0], 0);
+  EXPECT_EQ(m->actuator_history[2], 3);
+  EXPECT_EQ(m->actuator_history[4], 10);
+  EXPECT_EQ(m->actuator_historyadr[0], -1);
+  EXPECT_EQ(m->actuator_historyadr[1], 0);
+  EXPECT_EQ(m->actuator_historyadr[2], 8);
+}
+
+}  // namespace
+}  // namespace mujoco

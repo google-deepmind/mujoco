@@ -1,0 +1,3 @@
+include LICENSE *.md
+recursive-include mujoco *.h *.cc *.cc.inc *.mm CMakeLists.txt *.cmake
+recursive-include mujoco/mjpython mjpython.* Info.plist

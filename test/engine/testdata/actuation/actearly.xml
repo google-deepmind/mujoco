@@ -1,0 +1,48 @@
+<mujoco>
+  <compiler autolimits="true"/>
+
+  <option density="1000" timestep="0.05" integrator="implicitfast" />
+
+  <default>
+    <geom type="sphere" size="0.1" rgba="1 1 1 1"/>
+    <joint type="slide" axis="0 0 1"/>
+    <general ctrlrange="-1 1"/>
+    <default class="filter">
+      <general dyntype="filter" gear="100"/>
+    </default>
+    <default class="filterexact">
+      <general dyntype="filterexact" gear="100"/>
+    </default>
+    <default class="integrator">
+      <general dyntype="integrator" actrange="0 2" gear="100"/>
+      <default class="integrator_actearly">
+        <general actearly="true"/>
+      </default>
+    </default>
+  </default>
+
+  <worldbody>
+    <geom type="plane" size="10 10 .1" rgba="1 1 1 1"/>
+    <light pos="0 0 20"/>
+
+    <body pos="-0.3  0 0.1"><joint name="filter_actearly"/><geom/></body>
+    <body pos="-0.1 0 0.1"><joint name="filter"/><geom/></body>
+
+    <body pos="0.1  0 0.1"><joint name="filterexact_actearly"/><geom/></body>
+    <body pos="0.3 0 0.1"><joint name="filterexact"/><geom/></body>
+
+    <body pos=" 0.5 0 0.1"><joint name="integrator_actearly"/><geom/></body>
+    <body pos=" 0.7 0 0.1"><joint name="integrator"/><geom/></body>
+  </worldbody>
+
+  <actuator>
+    <general class="filter" name="filter_actearly" joint="filter_actearly" actearly="true"/>
+    <general class="filter" name="filter" joint="filter" actearly="false"/>
+
+    <general class="filterexact" name="filterexact_actearly" joint="filterexact_actearly" actearly="true"/>
+    <general class="filterexact" name="filterexact" joint="filterexact" actearly="false"/>
+
+    <general class="integrator_actearly" name="integrator_actearly" joint="integrator_actearly"/>
+    <general class="integrator" name="integrator" joint="integrator" actearly="false"/>
+  </actuator>
+</mujoco>

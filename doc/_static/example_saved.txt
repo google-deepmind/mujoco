@@ -1,0 +1,662 @@
+MuJoCo version 2.3.3
+model name     example
+
+nq                    15
+nv                    13
+nbody                 5
+nbvh                  4
+njnt                  6
+ngeom                 4
+nsite                 2
+nlight                1
+ntex                  1
+ntexdata              1179648
+ntendon               1
+nwrap                 2
+nnames                41
+nnames_map            40
+nM                    49
+nD                    85
+nB                    40
+njmax                 -1
+nconmax               -1
+nstack                1835008
+nbuffer               1191840
+
+timestep              0.002
+apirate               1e+02
+impratio              1
+tolerance             1e-08
+noslip_tolerance      1e-06
+mpr_tolerance         1e-06
+density               0
+viscosity             0
+o_margin              0
+integrator            0
+collision             0
+cone                  0
+jacobian              2
+solver                2
+iterations            100
+noslip_iterations     0
+mpr_iterations        50
+disableflags          0
+enableflags           0
+gravity               0         0        -9.8
+wind                  0         0         0
+magnetic              0        -0.5       0
+o_solref              0.02      1
+o_solimp              0.9       0.95      0.001     0.5       2
+
+totalmass             11
+
+meaninertia           0.86
+meanmass              2.7
+meansize              0.17
+extent                1.1
+center                0.12     0        0.52
+
+qpos0                 1         0         0         0         0         0         0         0         0.3       0         0.1       1         0         0         0
+
+qpos_spring           1         0         0         0         0         0         0         0         0.3       0         0.1       1         0         0         0
+
+
+BODY 0:
+  name                  world
+  body_parentid         0
+  body_rootid           0
+  body_weldid           0
+  body_mocapid          -1
+  body_jntnum           0
+  body_jntadr           -1
+  body_dofnum           0
+  body_dofadr           -1
+  body_geomnum          0
+  body_geomadr          -1
+  body_simple           1
+  body_sameframe        1
+  body_pos              0         0         0
+  body_quat             1         0         0         0
+  body_ipos             0         0         0
+  body_iquat            1         0         0         0
+  body_mass             0
+  body_subtreemass      11
+  body_inertia          0         0         0
+  body_invweight0       0         0
+  body_gravcomp         0
+  body_plugin           -1
+  body_bvhadr           -1
+  body_bvhnum           0
+
+BODY 1:
+  name
+  body_parentid         0
+  body_rootid           1
+  body_weldid           1
+  body_mocapid          -1
+  body_jntnum           1
+  body_jntadr           0
+  body_dofnum           3
+  body_dofadr           0
+  body_geomnum          1
+  body_geomadr          0
+  body_simple           0
+  body_sameframe        0
+  body_pos              0         0         1
+  body_quat             1         0         0         0
+  body_ipos             0         0        -0.2
+  body_iquat            1         0         0         0
+  body_mass             5.4
+  body_subtreemass      7.9
+  body_inertia          0.11      0.11      0.0094
+  body_invweight0       0.048     6.9
+  body_gravcomp         0
+  body_plugin           -1
+  body_bvhadr           0
+  body_bvhnum           1
+
+BODY 2:
+  name
+  body_parentid         1
+  body_rootid           1
+  body_weldid           2
+  body_mocapid          -1
+  body_jntnum           2
+  body_jntadr           1
+  body_dofnum           2
+  body_dofadr           3
+  body_geomnum          1
+  body_geomadr          1
+  body_simple           0
+  body_sameframe        0
+  body_pos              0         0        -0.4
+  body_quat             1         0         0         0
+  body_ipos             0.15      0         0
+  body_iquat            0.71      0        -0.71      0
+  body_mass             1.8
+  body_subtreemass      2.4
+  body_inertia          0.019     0.019     0.0014
+  body_invweight0       0.29      1.6e+02
+  body_gravcomp         0
+  body_plugin           -1
+  body_bvhadr           1
+  body_bvhnum           1
+
+BODY 3:
+  name
+  body_parentid         2
+  body_rootid           1
+  body_weldid           3
+  body_mocapid          -1
+  body_jntnum           2
+  body_jntadr           3
+  body_dofnum           2
+  body_dofadr           5
+  body_geomnum          1
+  body_geomadr          2
+  body_simple           0
+  body_sameframe        0
+  body_pos              0.3       0         0
+  body_quat             1         0         0         0
+  body_ipos             0.1       0         0
+  body_iquat            1         0         0         0
+  body_mass             0.67
+  body_subtreemass      0.67
+  body_inertia          0.00091   0.0014    0.0022
+  body_invweight0       0.9       2.7e+02
+  body_gravcomp         0
+  body_plugin           -1
+  body_bvhadr           2
+  body_bvhnum           1
+
+BODY 4:
+  name
+  body_parentid         0
+  body_rootid           4
+  body_weldid           4
+  body_mocapid          -1
+  body_jntnum           1
+  body_jntadr           5
+  body_dofnum           6
+  body_dofadr           7
+  body_geomnum          1
+  body_geomadr          3
+  body_simple           1
+  body_sameframe        1
+  body_pos              0.3       0         0.1
+  body_quat             1         0         0         0
+  body_ipos             0         0         0
+  body_iquat            1         0         0         0
+  body_mass             3.1
+  body_subtreemass      3.1
+  body_inertia          0.014     0.014     0.0075
+  body_invweight0       0.32      92
+  body_gravcomp         0
+  body_plugin           -1
+  body_bvhadr           3
+  body_bvhnum           1
+
+
+JOINT 0:
+  name
+  jnt_type              1
+  jnt_qposadr           0
+  jnt_dofadr            0
+  jnt_bodyid            1
+  jnt_group             0
+  jnt_limited           0
+  jnt_solref            0.02      1
+  jnt_solimp            0.9       0.95      0.001     0.5       2
+  jnt_pos               0         0         0
+  jnt_axis              0         0         1
+  jnt_stiffness         0
+  jnt_range             0         0
+  jnt_margin            0
+
+JOINT 1:
+  name
+  jnt_type              3
+  jnt_qposadr           4
+  jnt_dofadr            3
+  jnt_bodyid            2
+  jnt_group             0
+  jnt_limited           0
+  jnt_solref            0.02      1
+  jnt_solimp            0.9       0.95      0.001     0.5       2
+  jnt_pos               0         0         0
+  jnt_axis              0         1         0
+  jnt_stiffness         0
+  jnt_range             0         0
+  jnt_margin            0
+
+JOINT 2:
+  name
+  jnt_type              3
+  jnt_qposadr           5
+  jnt_dofadr            4
+  jnt_bodyid            2
+  jnt_group             0
+  jnt_limited           0
+  jnt_solref            0.02      1
+  jnt_solimp            0.9       0.95      0.001     0.5       2
+  jnt_pos               0         0         0
+  jnt_axis              1         0         0
+  jnt_stiffness         0
+  jnt_range             0         0
+  jnt_margin            0
+
+JOINT 3:
+  name
+  jnt_type              3
+  jnt_qposadr           6
+  jnt_dofadr            5
+  jnt_bodyid            3
+  jnt_group             0
+  jnt_limited           0
+  jnt_solref            0.02      1
+  jnt_solimp            0.9       0.95      0.001     0.5       2
+  jnt_pos               0         0         0
+  jnt_axis              0         1         0
+  jnt_stiffness         0
+  jnt_range             0         0
+  jnt_margin            0
+
+JOINT 4:
+  name
+  jnt_type              3
+  jnt_qposadr           7
+  jnt_dofadr            6
+  jnt_bodyid            3
+  jnt_group             0
+  jnt_limited           0
+  jnt_solref            0.02      1
+  jnt_solimp            0.9       0.95      0.001     0.5       2
+  jnt_pos               0         0         0
+  jnt_axis              0         0         1
+  jnt_stiffness         0
+  jnt_range             0         0
+  jnt_margin            0
+
+JOINT 5:
+  name
+  jnt_type              0
+  jnt_qposadr           8
+  jnt_dofadr            7
+  jnt_bodyid            4
+  jnt_group             0
+  jnt_limited           0
+  jnt_solref            0.02      1
+  jnt_solimp            0.9       0.95      0.001     0.5       2
+  jnt_pos               0         0         0
+  jnt_axis              0         0         1
+  jnt_stiffness         0
+  jnt_range             0         0
+  jnt_margin            0
+
+
+DOF 0:
+  dof_bodyid            1
+  dof_jntid             0
+  dof_parentid          -1
+  dof_Madr              0
+  dof_simplenum         0
+  dof_solref            0.02      1
+  dof_solimp            0.9       0.95      0.001     0.5       2
+  dof_frictionloss      0
+  dof_armature          0
+  dof_damping           0
+  dof_invweight0        6.9
+  dof_M0                0.72
+
+DOF 1:
+  dof_bodyid            1
+  dof_jntid             0
+  dof_parentid          0
+  dof_Madr              1
+  dof_simplenum         0
+  dof_solref            0.02      1
+  dof_solimp            0.9       0.95      0.001     0.5       2
+  dof_frictionloss      0
+  dof_armature          0
+  dof_damping           0
+  dof_invweight0        6.9
+  dof_M0                0.89
+
+DOF 2:
+  dof_bodyid            1
+  dof_jntid             0
+  dof_parentid          1
+  dof_Madr              3
+  dof_simplenum         0
+  dof_solref            0.02      1
+  dof_solimp            0.9       0.95      0.001     0.5       2
+  dof_frictionloss      0
+  dof_armature          0
+  dof_damping           0
+  dof_invweight0        6.9
+  dof_M0                0.18
+
+DOF 3:
+  dof_bodyid            2
+  dof_jntid             1
+  dof_parentid          2
+  dof_Madr              6
+  dof_simplenum         0
+  dof_solref            0.02      1
+  dof_solimp            0.9       0.95      0.001     0.5       2
+  dof_frictionloss      0
+  dof_armature          0
+  dof_damping           0
+  dof_invweight0        16
+  dof_M0                0.17
+
+DOF 4:
+  dof_bodyid            2
+  dof_jntid             2
+  dof_parentid          3
+  dof_Madr              10
+  dof_simplenum         0
+  dof_solref            0.02      1
+  dof_solimp            0.9       0.95      0.001     0.5       2
+  dof_frictionloss      0
+  dof_armature          0
+  dof_damping           0
+  dof_invweight0        4.4e+02
+  dof_M0                0.0023
+
+DOF 5:
+  dof_bodyid            3
+  dof_jntid             3
+  dof_parentid          4
+  dof_Madr              15
+  dof_simplenum         0
+  dof_solref            0.02      1
+  dof_solimp            0.9       0.95      0.001     0.5       2
+  dof_frictionloss      0
+  dof_armature          0
+  dof_damping           0
+  dof_invweight0        3e+02
+  dof_M0                0.0081
+
+DOF 6:
+  dof_bodyid            3
+  dof_jntid             4
+  dof_parentid          5
+  dof_Madr              21
+  dof_simplenum         0
+  dof_solref            0.02      1
+  dof_solimp            0.9       0.95      0.001     0.5       2
+  dof_frictionloss      0
+  dof_armature          0
+  dof_damping           0
+  dof_invweight0        2.5e+02
+  dof_M0                0.0089
+
+DOF 7:
+  dof_bodyid            4
+  dof_jntid             5
+  dof_parentid          -1
+  dof_Madr              28
+  dof_simplenum         6
+  dof_solref            0.02      1
+  dof_solimp            0.9       0.95      0.001     0.5       2
+  dof_frictionloss      0
+  dof_armature          0
+  dof_damping           0
+  dof_invweight0        0.32
+  dof_M0                3.1
+
+DOF 8:
+  dof_bodyid            4
+  dof_jntid             5
+  dof_parentid          7
+  dof_Madr              29
+  dof_simplenum         5
+  dof_solref            0.02      1
+  dof_solimp            0.9       0.95      0.001     0.5       2
+  dof_frictionloss      0
+  dof_armature          0
+  dof_damping           0
+  dof_invweight0        0.32
+  dof_M0                3.1
+
+DOF 9:
+  dof_bodyid            4
+  dof_jntid             5
+  dof_parentid          8
+  dof_Madr              31
+  dof_simplenum         4
+  dof_solref            0.02      1
+  dof_solimp            0.9       0.95      0.001     0.5       2
+  dof_frictionloss      0
+  dof_armature          0
+  dof_damping           0
+  dof_invweight0        0.32
+  dof_M0                3.1
+
+DOF 10:
+  dof_bodyid            4
+  dof_jntid             5
+  dof_parentid          9
+  dof_Madr              34
+  dof_simplenum         3
+  dof_solref            0.02      1
+  dof_solimp            0.9       0.95      0.001     0.5       2
+  dof_frictionloss      0
+  dof_armature          0
+  dof_damping           0
+  dof_invweight0        92
+  dof_M0                0.014
+
+DOF 11:
+  dof_bodyid            4
+  dof_jntid             5
+  dof_parentid          10
+  dof_Madr              38
+  dof_simplenum         2
+  dof_solref            0.02      1
+  dof_solimp            0.9       0.95      0.001     0.5       2
+  dof_frictionloss      0
+  dof_armature          0
+  dof_damping           0
+  dof_invweight0        92
+  dof_M0                0.014
+
+DOF 12:
+  dof_bodyid            4
+  dof_jntid             5
+  dof_parentid          11
+  dof_Madr              43
+  dof_simplenum         1
+  dof_solref            0.02      1
+  dof_solimp            0.9       0.95      0.001     0.5       2
+  dof_frictionloss      0
+  dof_armature          0
+  dof_damping           0
+  dof_invweight0        92
+  dof_M0                0.0075
+
+
+GEOM 0:
+  name
+  geom_type             3
+  geom_contype          1
+  geom_conaffinity      1
+  geom_condim           3
+  geom_bodyid           1
+  geom_dataid           -1
+  geom_matid            -1
+  geom_group            0
+  geom_priority         0
+  geom_sameframe        2
+  geom_solmix           1
+  geom_solref           0.02      1
+  geom_solimp           0.9       0.95      0.001     0.5       2
+  geom_size             0.06      0.2       0
+  geom_aabb             0         0         0         0.06      0.06      0.26
+  geom_rbound           0.26
+  geom_pos              0         0        -0.2
+  geom_quat             1         0         0         0
+  geom_friction         1         0.005     0.0001
+  geom_margin           0
+  geom_gap              0
+  geom_fluid            0         0         0         0         0         0         0         0         0         0         0         0
+  geom_rgba             0.8       0.6       0.4       1
+
+GEOM 1:
+  name
+  geom_type             3
+  geom_contype          1
+  geom_conaffinity      1
+  geom_condim           3
+  geom_bodyid           2
+  geom_dataid           -1
+  geom_matid            -1
+  geom_group            0
+  geom_priority         0
+  geom_sameframe        2
+  geom_solmix           1
+  geom_solref           0.02      1
+  geom_solimp           0.9       0.95      0.001     0.5       2
+  geom_size             0.04      0.15      0
+  geom_aabb             0         0         0         0.04      0.04      0.19
+  geom_rbound           0.19
+  geom_pos              0.15      0         0
+  geom_quat             0.71      0        -0.71      0
+  geom_friction         1         0.005     0.0001
+  geom_margin           0
+  geom_gap              0
+  geom_fluid            0         0         0         0         0         0         0         0         0         0         0         0
+  geom_rgba             0.8       0.6       0.4       1
+
+GEOM 2:
+  name
+  geom_type             4
+  geom_contype          1
+  geom_conaffinity      1
+  geom_condim           3
+  geom_bodyid           3
+  geom_dataid           -1
+  geom_matid            -1
+  geom_group            0
+  geom_priority         0
+  geom_sameframe        2
+  geom_solmix           1
+  geom_solref           0.02      1
+  geom_solimp           0.9       0.95      0.001     0.5       2
+  geom_size             0.1       0.08      0.02
+  geom_aabb             0         0         0         0.1       0.08      0.02
+  geom_rbound           0.1
+  geom_pos              0.1       0         0
+  geom_quat             1         0         0         0
+  geom_friction         1         0.005     0.0001
+  geom_margin           0
+  geom_gap              0
+  geom_fluid            0         0         0         0         0         0         0         0         0         0         0         0
+  geom_rgba             0.8       0.6       0.4       1
+
+GEOM 3:
+  name
+  geom_type             5
+  geom_contype          1
+  geom_conaffinity      1
+  geom_condim           3
+  geom_bodyid           4
+  geom_dataid           -1
+  geom_matid            -1
+  geom_group            0
+  geom_priority         0
+  geom_sameframe        1
+  geom_solmix           1
+  geom_solref           0.02      1
+  geom_solimp           0.9       0.95      0.001     0.5       2
+  geom_size             0.07      0.1       0
+  geom_aabb             0         0         0         0.07      0.07      0.1
+  geom_rbound           0.12
+  geom_pos              0         0         0
+  geom_quat             1         0         0         0
+  geom_friction         1         0.005     0.0001
+  geom_margin           0
+  geom_gap              0
+  geom_fluid            0         0         0         0         0         0         0         0         0         0         0         0
+  geom_rgba             0.8       0.6       0.4       1
+
+
+SITE 0:
+  name                  end1
+  site_type             2
+  site_bodyid           3
+  site_matid            -1
+  site_group            0
+  site_sameframe        0
+  site_size             0.01      0.005     0.005
+  site_pos              0.2       0         0
+  site_quat             1         0         0         0
+  site_rgba             0.5       0.5       0.5       1
+
+SITE 1:
+  name                  end2
+  site_type             2
+  site_bodyid           4
+  site_matid            -1
+  site_group            0
+  site_sameframe        0
+  site_size             0.01      0.005     0.005
+  site_pos              0         0         0.1
+  site_quat             1         0         0         0
+  site_rgba             0.5       0.5       0.5       1
+
+
+LIGHT 0:
+  name
+  light_mode            0
+  light_bodyid          0
+  light_targetbodyid    -1
+  light_directional     0
+  light_castshadow      1
+  light_active          1
+  light_pos             0         1         1
+  light_dir             0        -0.71     -0.71
+  light_poscom0        -0.13      1         0.44
+  light_pos0            0         1         1
+  light_dir0            0        -0.71     -0.71
+  light_attenuation     1         0         0
+  light_cutoff          45
+  light_exponent        10
+  light_ambient         0         0         0
+  light_diffuse         1         1         1
+  light_specular        0.3       0.3       0.3
+
+
+TEXTURE 0:
+  name
+  tex_type              2
+  tex_height            1536
+  tex_width             256
+  tex_adr               0
+
+
+TENDON 0:
+  name
+  tendon_adr            0
+  tendon_num            2
+  tendon_matid          -1
+  tendon_group          0
+  tendon_limited        1
+  tendon_width          0.005
+  tendon_solref_lim     0.02      1
+  tendon_solimp_lim     0.9       0.95      0.001     0.5       2
+  tendon_solref_fri     0.02      1
+  tendon_solimp_fri     0.9       0.95      0.001     0.5       2
+  tendon_range          0         0.6
+  tendon_margin         0
+  tendon_stiffness      0
+  tendon_damping        0
+  tendon_frictionloss   0
+  tendon_lengthspring   0.45      0.45
+  tendon_length0        0.45
+  tendon_invweight0     4.9
+  tendon_rgba           0.5       0.5       0.5       1
+  path
+    3 0  0
+    3 1  0

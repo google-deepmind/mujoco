@@ -1,0 +1,37 @@
+<!-- Copyright 2021 DeepMind Technologies Limited
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+<mujoco model="2-link 1-muscle arm">
+  <worldbody>
+    <body>
+      <geom type="capsule" size="0.01" fromto="0 0 0 1 0 0"/>
+      <site name="s0" pos="0 0 0.01"/>
+      <joint type="slide" axis="1 0 0"/>
+      <body pos="1 0 0">
+        <geom type="capsule" size="0.01" fromto="0 0 0 1 0 0"/>
+        <site name="s1" pos="1 0 0.01"/>
+      </body>
+    </body>
+  </worldbody>
+  <tendon>
+    <spatial name="tendon" width="0.01">
+      <site site="s0"/>
+      <site site="s1"/>
+    </spatial>
+  </tendon>
+  <actuator>
+    <muscle tendon="tendon" lengthrange="0 2" force="1" ctrllimited="true" ctrlrange="0 1"/>
+  </actuator>
+</mujoco>

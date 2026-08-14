@@ -1,0 +1,71 @@
+<mujoco>
+  <compiler autolimits="true"/>
+  <!--
+  Adding a high fluid viscosity and using implicit integration for extra stabillity.
+  Extra stabillity is required because the abstract "arm" model is not very realistic.
+  -->
+  <option viscosity="10" integrator="implicit">
+    <flag contact="disable"/>
+  </option>
+
+  <statistic meansize=".05"/>
+
+  <default>
+    <default class="translation">
+      <position kp="100" dampratio="1" ctrlrange="-.25 .25"/>
+    </default>
+    <default class="rotation">
+      <!--
+      Note that the rotational control range is purposefully limited to (-pi/2, pi/2) to avoid the
+      documented instabillity near pi, which is due to taking quaternion differences.
+      Increase this range to pi or bigger in order to see the instabillity.
+      See here for more details https://mujoco.readthedocs.io/en/latest/XMLreference.html#actuator
+      -->
+      <position kp=".5" dampratio="1" ctrlrange="-1.571 1.571"/>
+    </default>
+    <!--
+    Clamping the total actuator torque at the joints means that the motion produced by the Cartesian
+    commands is achievable by individual joint actuators with the specified torque limits.
+    See https://mujoco.readthedocs.io/en/latest//modeling.html#actuator-force-clamping
+    -->
+    <joint armature="1e-3" damping="1e-3" stiffness="1e-2" actuatorfrcrange="-1 1" actuatorgravcomp="true"/>
+    <site type="box" size=".012 .012 .012" rgba=".7 .7 .8 1"/>
+  </default>
+
+  <worldbody>
+    <light pos="0 0 2"/>
+    <geom type="box" size=".25 .25 .01" pos="0 0 -.01"/>
+    <site name="reference" pos="0 0 .25"/>
+    <body name="arm" pos="-.25 .25 0" gravcomp="1">
+      <joint axis="1 0 0"/>
+      <joint axis="0 1 0"/>
+      <geom type="box" size=".01" fromto="0 0 0 0 0 .25"/>
+      <body pos="0 0 .25" gravcomp="1">
+        <joint axis="0 1 0"/>
+        <joint axis="0 0 1"/>
+        <geom type="box" size=".01" fromto="0 0 0 .25 0 0"/>
+        <body pos=".25 0 0" gravcomp="1">
+          <joint axis="1 0 0"/>
+          <joint axis="0 0 1"/>
+          <geom type="box" size=".01" fromto="0 0 0 0 -.2 0"/>
+          <body pos="0 -.2 0" gravcomp="1">
+            <joint axis="1 0 0"/>
+            <joint axis="0 0 1"/>
+            <joint axis="0 1 0"/>
+            <geom type="box" size=".01" fromto="0 0 0 0 -.05 0"/>
+            <site name="end_effector" pos="0 -.05 0"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position name="x"  site="end_effector" refsite="reference" gear="1 0 0 0 0 0" class="translation"/>
+    <position name="y"  site="end_effector" refsite="reference" gear="0 1 0 0 0 0" class="translation"/>
+    <position name="z"  site="end_effector" refsite="reference" gear="0 0 1 0 0 0" class="translation"/>
+    <position name="rx" site="end_effector" refsite="reference" gear="0 0 0 1 0 0" class="rotation"/>
+    <position name="ry" site="end_effector" refsite="reference" gear="0 0 0 0 1 0" class="rotation"/>
+    <position name="rz" site="end_effector" refsite="reference" gear="0 0 0 0 0 1" class="rotation"/>
+  </actuator>
+</mujoco>

@@ -1,0 +1,81 @@
+<!--
+  test model for constraint islanding:
+- 7 equalities (1:joint, 6:connect)
+- 1 limit
+- 2 friction constraints
+- 1 unconstrained dof
+- 4 islands, 2 with non-contiguous dofs
+-->
+
+<mujoco>
+  <option>
+    <flag island="enable"/>
+  </option>
+
+  <default>
+    <geom size=".1"/>
+  </default>
+
+  <visual>
+    <headlight diffuse=".9 .9 .9"/>
+  </visual>
+
+  <worldbody>
+
+    <body>
+      <joint type="slide" axis="0 0 1" range="0 1" limited="true"/>
+      <geom/>
+    </body>
+
+    <body pos=".25 0 0">
+      <joint type="slide" axis="1 0 0"/>
+      <geom/>
+    </body>
+
+    <body pos="0 0 0.25">
+      <joint type="slide" axis="0 0 1"/>
+      <geom/>
+      <body pos="0 -.15 0">
+        <joint name="hinge1" axis="0 1 0"/>
+        <geom type="capsule" size="0.03" fromto="0 0 0 -.2 0 0"/>
+        <body pos="-.2 0 0">
+          <joint axis="0 1 0"/>
+          <geom type="capsule" size="0.03" fromto="0 0 0 -.2 0 0"/>
+        </body>
+      </body>
+    </body>
+
+    <body pos=".5 0 0">
+      <joint type="slide" axis="0 0 1" frictionloss="15"/>
+      <geom type="box" size=".08 .08 .02" euler="0 10 0"/>
+    </body>
+
+    <body pos="-.5 0 0">
+      <joint axis="0 1 0" frictionloss=".01"/>
+      <geom type="capsule" size="0.03" fromto="0 0 0 -.2 0 0"/>
+    </body>
+
+    <body pos="0 0 .5">
+      <joint name="hinge2" axis="0 1 0"/>
+      <geom type="box" size=".08 .02 .08"/>
+    </body>
+
+    <body pos=".5 0 .1">
+      <freejoint/>
+      <geom type="box" size=".03 .03 .03" pos="0.01 0.01 0.01"/>
+    </body>
+
+    <site name="0" pos="-.45 -.05 .35"/>
+    <body pos="-.5 0 .3" name="connect">
+      <freejoint/>
+      <geom type="box" size=".05 .05 .05"/>
+      <site name="1" pos=".05 -.05 .05"/>
+    </body>
+  </worldbody>
+
+  <equality>
+    <joint joint1="hinge1" joint2="hinge2"/>
+    <connect body1="connect" body2="world" anchor="-.05 -.05 .05"/>
+    <connect site1="0" site2="1"/>
+  </equality>
+</mujoco>

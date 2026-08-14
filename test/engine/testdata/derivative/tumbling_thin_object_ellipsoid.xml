@@ -1,0 +1,13 @@
+<mujoco>
+  <option density="1.225" viscosity="1.8e-5" wind="0 0 1" integrator="implicit"/>
+
+  <worldbody>
+    <light pos="0 0 1"/>
+    <geom type="plane" size="1 1 .01" pos="0 0 -1"/>
+    <body>
+      <freejoint/>
+      <geom type="box" size=".025 .01 0.0001" pos=".025 0 0" euler="20 0 0" mass="1e-4" fluidshape="ellipsoid"/>
+      <geom type="box" size=".025 .01 0.0001" pos="-.025 0 0" euler="-19 0 0" mass="1e-4" fluidshape="ellipsoid"/>
+    </body>
+  </worldbody>
+</mujoco>

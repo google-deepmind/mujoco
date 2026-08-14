@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>MuJoCo</string>
+    <key>CFBundleIdentifier</key>
+    <string>org.mujoco.framework</string>
+    <key>CFBundleVersion</key>
+    <string>${PROJECT_VERSION}</string>
+    <key>CFBundleGetInfoString</key>
+    <string>${PROJECT_VERSION}</string>
+    <key>CFBundleExecutable</key>
+    <string>libmujoco.dylib</string>
+    <key>CFBundlePackageType</key>
+    <string>FMWK</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright 2021 DeepMind Technologies Limited.</string>
+    <key>MDItemKeywords</key>
+    <string>MuJoCo, physics engine, physics simulator, physics, MJ</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleSupportedPlatforms</key>
+    <array>
+        <string>MacOSX</string>
+    </array>
+</dict>
+</plist>

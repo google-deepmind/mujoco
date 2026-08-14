@@ -1,0 +1,4 @@
+---
+# disable clang-format for public headers
+DisableFormat: true
+...

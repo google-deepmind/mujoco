@@ -1,0 +1,10 @@
+<mujoco model="child_b">
+  <asset>
+    <mesh name="m" file="mesh.obj"/>
+  </asset>
+  <worldbody>
+    <body name="body">
+      <geom type="mesh" mesh="m"/>
+    </body>
+  </worldbody>
+</mujoco>

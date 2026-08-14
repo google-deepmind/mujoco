@@ -1,0 +1,177 @@
+<mujoco>
+  <default>
+    <default class="wall">
+      <geom type="plane" size=".5 .5 .05"/>
+    </default>
+    <default class="plank">
+      <geom type="box" size=".02 .02 .4" euler="-45 0 0"/>
+      <default class="joist">
+        <geom euler="0 90 0" rgba=".5 .5 .7 1"/>
+      </default>
+    </default>
+  </default>
+​
+  <statistic extent="1.5" meansize=".05"/>
+​
+  <visual>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <quality shadowsize="4096"/>
+    <map stiffness="700" shadowscale="0.5" fogstart="10" fogend="15" zfar="40" haze="0.3"/>
+  </visual>
+​
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="512"/>
+    <texture name="texplane" type="2d" builtin="checker" rgb1=".2 .3 .4" rgb2=".1 0.15 0.2"
+      width="512" height="512" mark="cross" markrgb=".8 .8 .8"/>
+    <material name="matplane" reflectance="0.3" texture="texplane" texrepeat="1 1" texuniform="true"/>
+  </asset>
+​
+  <worldbody>
+    <light directional="true" diffuse=".4 .4 .4" specular="0.1 0.1 0.1" pos="0 0 5.0" dir="0 0 -1" castshadow="false"/>
+    <light directional="true" diffuse=".6 .6 .6" specular="0.2 0.2 0.2" pos="0 0 4" dir="0 0 -1"/>
+​
+    <geom name="ground" type="plane" size="0 0 1" pos="0 0 0" quat="1 0 0 0" material="matplane" condim="1"/>
+    <geom name="+x" class="wall" zaxis="1 0 0"  pos="-.5 0 -.25"/>
+    <geom name="-x" class="wall" zaxis="-1 0 0" pos=".5 0 -.25"/>
+    <geom name="+y" class="wall" zaxis="0 1 0"  pos="0 -.5 -.25"/>
+    <geom name="-y" class="wall" zaxis="0 -1 0" pos="0 .5 -.25"/>
+​
+    <body pos="-.4 -.4 .4">
+      <freejoint/>
+      <geom class="plank" pos="0 .25 0"/>
+      <geom class="plank" pos=".05 .25 0"/>
+      <geom class="plank" pos=".10 .25 0"/>
+      <geom class="plank" pos=".15 .25 0"/>
+      <geom class="plank" pos=".20 .25 0"/>
+      <geom class="plank" pos=".25 .25 0"/>
+      <geom class="plank" pos=".30 .25 0"/>
+      <geom class="plank" pos=".35 .25 0"/>
+      <geom class="plank" pos=".40 .25 0"/>
+      <geom class="plank" pos=".45 .25 0"/>
+      <geom class="plank" pos=".50 .25 0"/>
+      <geom class="plank" pos=".55 .25 0"/>
+      <geom class="plank" pos=".60 .25 0"/>
+      <geom class="plank" pos=".65 .25 0"/>
+      <geom class="plank" pos=".70 .25 0"/>
+      <geom class="plank" pos=".75 .25 0"/>
+      <geom class="plank" pos=".80 .25 0"/>
+      <geom class="joist" pos=".40 .09 -.2"/>
+      <geom class="joist" pos=".40 .49 .2"/>
+    </body>
+​
+    <body pos="-.4 -.4 .5">
+      <freejoint/>
+      <geom class="plank" pos="0 .25 0"/>
+      <geom class="plank" pos=".05 .25 0"/>
+      <geom class="plank" pos=".10 .25 0"/>
+      <geom class="plank" pos=".15 .25 0"/>
+      <geom class="plank" pos=".20 .25 0"/>
+      <geom class="plank" pos=".25 .25 0"/>
+      <geom class="plank" pos=".30 .25 0"/>
+      <geom class="plank" pos=".35 .25 0"/>
+      <geom class="plank" pos=".40 .25 0"/>
+      <geom class="plank" pos=".45 .25 0"/>
+      <geom class="plank" pos=".50 .25 0"/>
+      <geom class="plank" pos=".55 .25 0"/>
+      <geom class="plank" pos=".60 .25 0"/>
+      <geom class="plank" pos=".65 .25 0"/>
+      <geom class="plank" pos=".70 .25 0"/>
+      <geom class="plank" pos=".75 .25 0"/>
+      <geom class="plank" pos=".80 .25 0"/>
+      <geom class="joist" pos=".40 .09 -.2"/>
+      <geom class="joist" pos=".40 .49 .2"/>
+    </body>
+​
+    <body pos="-.4 -.4 .6">
+      <freejoint/>
+      <geom class="plank" pos="0 .25 0"/>
+      <geom class="plank" pos=".05 .25 0"/>
+      <geom class="plank" pos=".10 .25 0"/>
+      <geom class="plank" pos=".15 .25 0"/>
+      <geom class="plank" pos=".20 .25 0"/>
+      <geom class="plank" pos=".25 .25 0"/>
+      <geom class="plank" pos=".30 .25 0"/>
+      <geom class="plank" pos=".35 .25 0"/>
+      <geom class="plank" pos=".40 .25 0"/>
+      <geom class="plank" pos=".45 .25 0"/>
+      <geom class="plank" pos=".50 .25 0"/>
+      <geom class="plank" pos=".55 .25 0"/>
+      <geom class="plank" pos=".60 .25 0"/>
+      <geom class="plank" pos=".65 .25 0"/>
+      <geom class="plank" pos=".70 .25 0"/>
+      <geom class="plank" pos=".75 .25 0"/>
+      <geom class="plank" pos=".80 .25 0"/>
+      <geom class="joist" pos=".40 .09 -.2"/>
+      <geom class="joist" pos=".40 .49 .2"/>
+    </body>
+​
+    <body pos="-.4 -.4 .7">
+      <freejoint/>
+      <geom class="plank" pos="0 .25 0"/>
+      <geom class="plank" pos=".05 .25 0"/>
+      <geom class="plank" pos=".10 .25 0"/>
+      <geom class="plank" pos=".15 .25 0"/>
+      <geom class="plank" pos=".20 .25 0"/>
+      <geom class="plank" pos=".25 .25 0"/>
+      <geom class="plank" pos=".30 .25 0"/>
+      <geom class="plank" pos=".35 .25 0"/>
+      <geom class="plank" pos=".40 .25 0"/>
+      <geom class="plank" pos=".45 .25 0"/>
+      <geom class="plank" pos=".50 .25 0"/>
+      <geom class="plank" pos=".55 .25 0"/>
+      <geom class="plank" pos=".60 .25 0"/>
+      <geom class="plank" pos=".65 .25 0"/>
+      <geom class="plank" pos=".70 .25 0"/>
+      <geom class="plank" pos=".75 .25 0"/>
+      <geom class="plank" pos=".80 .25 0"/>
+      <geom class="joist" pos=".40 .09 -.2"/>
+      <geom class="joist" pos=".40 .49 .2"/>
+    </body>
+​
+    <body pos="-.4 -.4 .8">
+      <freejoint/>
+      <geom class="plank" pos="0 .25 0"/>
+      <geom class="plank" pos=".05 .25 0"/>
+      <geom class="plank" pos=".10 .25 0"/>
+      <geom class="plank" pos=".15 .25 0"/>
+      <geom class="plank" pos=".20 .25 0"/>
+      <geom class="plank" pos=".25 .25 0"/>
+      <geom class="plank" pos=".30 .25 0"/>
+      <geom class="plank" pos=".35 .25 0"/>
+      <geom class="plank" pos=".40 .25 0"/>
+      <geom class="plank" pos=".45 .25 0"/>
+      <geom class="plank" pos=".50 .25 0"/>
+      <geom class="plank" pos=".55 .25 0"/>
+      <geom class="plank" pos=".60 .25 0"/>
+      <geom class="plank" pos=".65 .25 0"/>
+      <geom class="plank" pos=".70 .25 0"/>
+      <geom class="plank" pos=".75 .25 0"/>
+      <geom class="plank" pos=".80 .25 0"/>
+      <geom class="joist" pos=".40 .09 -.2"/>
+      <geom class="joist" pos=".40 .49 .2"/>
+    </body>
+​
+    <body pos="-.4 -.4 .9">
+      <freejoint/>
+      <geom class="plank" pos="0 .25 0"/>
+      <geom class="plank" pos=".05 .25 0"/>
+      <geom class="plank" pos=".10 .25 0"/>
+      <geom class="plank" pos=".15 .25 0"/>
+      <geom class="plank" pos=".20 .25 0"/>
+      <geom class="plank" pos=".25 .25 0"/>
+      <geom class="plank" pos=".30 .25 0"/>
+      <geom class="plank" pos=".35 .25 0"/>
+      <geom class="plank" pos=".40 .25 0"/>
+      <geom class="plank" pos=".45 .25 0"/>
+      <geom class="plank" pos=".50 .25 0"/>
+      <geom class="plank" pos=".55 .25 0"/>
+      <geom class="plank" pos=".60 .25 0"/>
+      <geom class="plank" pos=".65 .25 0"/>
+      <geom class="plank" pos=".70 .25 0"/>
+      <geom class="plank" pos=".75 .25 0"/>
+      <geom class="plank" pos=".80 .25 0"/>
+      <geom class="joist" pos=".40 .09 -.2"/>
+      <geom class="joist" pos=".40 .49 .2"/>
+    </body>
+  </worldbody>
+</mujoco>

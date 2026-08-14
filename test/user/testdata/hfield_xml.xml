@@ -1,0 +1,22 @@
+<mujoco>
+  <asset>
+    <hfield name="J" size="0.9 1.1 .2 .1" nrow="12" ncol="10" elevation="
+            0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 1 1 0 0
+            0 0 0 0 0 0 1 1 0 0
+            0 0 0 0 0 0 1 1 0 0
+            0 0 0 0 0 0 1 1 0 0
+            0 0 0 0 0 0 1 1 0 0
+            0 0 1 1 0 0 1 1 0 0
+            0 0 1 1 1 1 1 1 0 0
+            0 0 1 1 1 1 1 0 0 0
+            0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 1"/>
+    <geom type="hfield" hfield="J"/>
+  </worldbody>
+</mujoco>

@@ -1,0 +1,21 @@
+{% extends "!layout.html" %}
+{% block htmltitle %}
+  <link rel=“preconnect” href=“https://fonts.googleapis.com“ crossorigin>
+  <link rel=“preconnect” href=“https://fonts.gstatic.com” crossorigin>
+  {{ super() }}
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+  {# Override home link to point to MuJoCo homepage.
+     Ideally this would be done as part of the theme rather than in JS.
+   #}
+  <script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+        let homeLink = document.querySelector('a.icon');
+        {# Be extra safe and don't break the page if theme changes and querySelector can't match. #}
+        if (homeLink) {
+          homeLink.href="https://mujoco.org";
+        }
+    });
+  </script>
+{% endblock %}

@@ -1,0 +1,21 @@
+<!-- tests a box on a plane with quadratic frictionloss constraints -->
+<mujoco>
+  <option iterations="10" ls_iterations="6"/>
+  <asset>
+      <texture builtin="gradient" height="100" rgb1="1 1 1" rgb2="0 0 0" type="skybox" width="100"/>
+      <texture builtin="checker" height="100" name="texplane" rgb1="0 0 0" rgb2="0.8 0.8 0.8" type="2d" width="100"/>
+      <material name="MatPlane" reflectance="0.5" shininess="1" specular="1" texrepeat="200 200" texture="texplane"/>
+  </asset>
+  <worldbody>
+    <light cutoff="100" diffuse="1 1 1" dir="-0 0 -1.3" directional="true" exponent="1" pos="0 0 1.3" specular=".1 .1 .1"/>
+    <geom conaffinity="1" condim="3" material="MatPlane" name="floor" pos="0 0 0" size="40 40 40" type="plane"/>
+    <camera pos="-0.323 -4.170 2.949" xyaxes="1.000 -0.024 -0.000 0.010 0.427 0.904"/>
+    <body name="peg" pos="0.0 0.0 0.02" euler="30 0 0">
+      <joint type="free" stiffness="0" damping="0" frictionloss="0.005" armature="0"/>
+      <geom mass="0.044" condim="6" friction="1 0.05 0.001" pos="0 0 0" size="0.048 0.01 0.01" type="box" name="red_peg" rgba="1 0 0 1"/>
+    </body>
+  </worldbody>
+  <keyframe>
+    <key name="home" qpos='0.00382621 -0.000816274 0.011149 0.992081 0.0959616 0.00580468 0.08083'/>
+  </keyframe>
+</mujoco>

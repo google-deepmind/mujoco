@@ -1,0 +1,29 @@
+<mujoco>
+  <default>
+    <mesh scale="10 10 10" inertia="exact"/>
+  </default>
+  <asset>
+    <mesh file="cube_cup.obj"/>
+    <mesh file="cube_cup_quad.obj"/>
+    <mesh file="cube_cup_hi.obj"/>
+  </asset>
+  <worldbody>
+    <light directional="true" diffuse=".6 .6 .6" specular="0.2 0.2 0.2" pos="0 0 4" dir="0 0 -1"/>
+    <body pos="-1.5 0 1">
+      <geom type="mesh" mesh="cube_cup" density="2"/>
+    </body>
+    <body pos="0 0 1">
+      <geom type="mesh" mesh="cube_cup_quad" density="2"/>
+    </body>
+    <body pos="1.5 0 1">
+      <geom type="mesh" mesh="cube_cup_hi" density="2"/>
+    </body>
+    <body pos="3 0 1">
+      <geom type="box" pos="0 0 0.05" size=".5 .5 .05" density="2"/>
+      <geom type="box" pos="-.45 0 .55" size=".05 .5 .45" density="2"/>
+      <geom type="box" pos=" .45 0 .55" size=".05 .5 .45" density="2"/>
+      <geom type="box" pos="0 -.45 .55" size=".4 .05 .45" density="2"/>
+      <geom type="box" pos="0 .45 .55" size=".4 .05 .45" density="2"/>
+    </body>
+  </worldbody>
+</mujoco>

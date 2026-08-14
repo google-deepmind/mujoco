@@ -1,0 +1,20 @@
+<mujoco>
+  <default>
+    <geom size=".8 .9"/>
+    <!-- These are arbitrary, the capsule-related `MjCGeomTest` instances pass for any values. -->
+  </default>
+
+  <worldbody>
+    <body pos="-2 0 0" name="sphere">
+      <geom type="sphere"/>
+    </body>
+
+    <body name="cylinder">
+      <geom type="cylinder"/>
+    </body>
+
+    <body pos="2 0 0" name="capsule">
+      <geom type="capsule"/>
+    </body>
+  </worldbody>
+</mujoco>

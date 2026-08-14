@@ -1,0 +1,157 @@
+<mujoco>
+  <default>
+    <geom contype='1' conaffinity='1' condim='3' friction='.1 .1' solimp='.95 .98 .0005' solref='0.02 1.1' density='1'/>
+    <joint type='hinge' armature='0' damping='0'
+      solimpfriction='.95 .95 0' solreffriction='.02 1' solimplimit='0 .99 .01' solreflimit='.02 1'/>
+    <site rgba='.5 .5 .5 .3'/>
+    <general ctrllimited='true' ctrlrange='-0.84 0.84' forcelimited='true'/>
+    <default class='big_joint'>
+      <joint frictionloss='.01' armature='1' damping='0.01' range='-3.141592653589793 9.42477796076938' limited='false'/>
+      <velocity kv='20' forcerange='-3.15 3.15'/>
+    </default>
+    <default class='little_joint'>
+      <joint frictionloss='.01' armature='1' damping='0.01' range='-3.141592653589793 9.42477796076938' limited='false'/>
+      <velocity kv='20' forcerange='-3.15 3.15'/>
+    </default>
+    <default class='finger'>
+      <joint frictionloss='0.1' armature='.1' axis='0 0 1' limited='true' range='0.15 1.2' damping='.1'/>
+      <velocity kv='10' ctrlrange='-0.84 0.84' gear='1' forcerange='-1.5 1.5'/>
+    </default>
+    <default class='fingertip'>
+      <geom type='box' pos='0.065 -0.022 0' size='0.02 .005 .011' rgba='1 0 0 1'
+            quat='1 0 0 -0.235' condim='4'/>
+      <site type='ellipsoid' pos='0.065 -0.022 0' size='0.02 .005 .011'
+            quat='1 0 0 -0.235'/>
+    </default>
+
+    <default class='base'>
+      <geom type='capsule' size='0.0350512 0.0555543' pos='-0.000132925 -0.000516418 0.0820911' quat='0.6951 -0.00714564 0.00738544 0.71884'/>
+    </default>
+    <default class='link_1'>
+      <geom type='capsule' size='0.031417 0.0668352' pos='-3.49946e-05 0.010651 -0.0670012' quat='0.704277 0.0627825 -0.0628 0.70435'/>
+    </default>
+    <default class='link_2'>
+      <geom type='capsule' size='0.0251592 0.240341' pos='0.205004 7.5835e-05 -0.0202812' quat='2.23957e-06 0.707108 5.30416e-06 0.707106'/>
+    </default>
+    <default class='link_3'>
+      <geom type='capsule' size='0.0255647 0.120643' pos='0.0843942 7.48907e-06 -0.0177123' quat='-4.64475e-05 0.692702 -4.11814e-05 0.721224'/>
+    </default>
+    <default class='link_4'>
+      <geom type='capsule' size='0.0257405 0.0289568' pos='0.0101659 -4.64261e-05 -0.0369867' quat='0.965925 1.43712e-05 -0.258823 3.85082e-06'/>
+    </default>
+    <default class='link_5'>
+      <geom type='capsule' size='0.0257405 0.0289568' pos='0.0101659 -4.64261e-05 -0.0369867' quat='0.965925 1.43712e-05 -0.258823 3.85082e-06'/>
+    </default>
+    <default class='link_6'>
+      <geom type='capsule' size='0.0368731 0.0322296' pos='0.00628384 -2.92087e-05 -0.0608681' quat='0.708562 -0.0338601 -0.0358744 0.703923'/>
+    </default>
+    <default class='finger_knuckle'>
+      <geom type='capsule' size='0.0108231 0.0145116' pos='0.0190913 -0.0112192 1.10387e-06' quat='0.475811 -0.475815 0.523071 -0.523068'/>
+    </default>
+
+
+  </default>
+
+  <worldbody>
+    <body name='b_base' pos='0 0 0.005'>
+      <site type='sphere' size='.01' name='basesite' pos='0 0 0' rgba='1 0 0 1'/>
+      <inertial pos='-0.000132925 -0.000516418 0.0820911' quat='0.6951 -0.00714556 0.00738537 0.71884' mass='0.00718278' diaginertia='0.00157301 0.00157269 0.00058831'/>
+      <geom name='base' class='base' rgba='0 0.4470 0.7410 1'/>
+      <body name='b_1' pos='0 0 0.1535' quat='0 -1 0 0'>
+        <inertial pos='-3.49946e-005 0.010651 -0.0670012' quat='0.704277 0.0627825 -0.0628 0.70435' mass='0.00644357' diaginertia='0.00172311 0.00163259 0.00042883'/>
+        <joint name='joint_1' class='big_joint' axis='0 0 1'/>
+        <geom name='link_1' class='link_1' rgba='0.8500 0.3250 0.0980 1'/>
+        <geom name='ring_1' contype='0' conaffinity='0' type='cylinder' size='0.044 0.011' pos='0 0 0' rgba='0.7 0.7 0.72 1'/>
+        <body name='b_2' pos='0 0 -0.1185' quat='-0.7071067811865475 0.7071067811865475 0.7071067811865475 0.7071067811865475'>
+          <inertial pos='0.205004 7.5835e-005 -0.0202812' quat='2.24027e-006 0.707108 5.30493e-006 0.707106' mass='0.011691' diaginertia='0.0253426 0.0250512 0.000536357'/>
+          <joint name='joint_2' class='big_joint' axis='0 0 1'/>
+          <geom name='link_2' class='link_2' rgba='0.9290 0.6940 0.1250 1'/>
+          <geom name='ring_2' contype='0' conaffinity='0' type='cylinder' size='0.044 0.011' pos='0 0 0' euler='0 0 0' rgba='0.7 0.7 0.72 1'/>
+          <body name='b_3' pos='0.41 0 0' quat='0 0 1 0'>
+            <inertial pos='0.0843942 7.48909e-006 -0.0177123' quat='-4.64469e-005 0.692702 -4.11798e-005 0.721224' mass='0.00673417' diaginertia='0.00420255 0.00409328 0.000303584'/>
+            <joint name='joint_3' class='big_joint' axis='0 0 1' range='0.6131110819452792 5.673924357222234' limited='true'/>
+            <geom name='link_3' class='link_3' rgba='0.4940 0.1840 0.5560 1'/>
+            <geom name='ring_3' contype='0' conaffinity='0' type='cylinder' size='0.044 0.011' pos='0 0 0' euler='0 0 0' rgba='0.7 0.7 0.72 1'/>
+            <body name='b_4' pos='0.207 0 -0.01125' quat='-0.7071067811865475 0 0.7071067811865475 0'>
+              <inertial pos='0.0101659 -4.64261e-005 -0.0369867' quat='0.965925 1.91737e-005 -0.258823 -1.40769e-005' mass='0.00221423' diaginertia='0.0001816 0.000174586 9.79319e-005'/>
+              <joint name='joint_4' class='little_joint' axis='0 0 1'/>
+              <geom name='link_4' class='link_4' rgba='0.4660 0.6740 0.1880 1'/>
+              <geom name='ring_4' contype='0' conaffinity='0' type='cylinder' size='0.035 0.009' pos='0 0 0' euler='0 0 0' rgba='0.7 0.7 0.7 1'/>
+              <body name='b_5' pos='0.037 0 -0.06408' quat='0 0.5 0 -0.8660254037844386'>
+                <inertial pos='0.0101659 -4.64261e-005 -0.0369867' quat='0.965925 1.91737e-005 -0.258823 -1.40769e-005' mass='0.00221423' diaginertia='0.0001816 0.000174586 9.79319e-005'/>
+                <joint name='joint_5' class='little_joint' axis='0 0 1'/>
+                <geom name='ring_5' contype='0' conaffinity='0' type='cylinder' size='0.035 0.009' pos='0 0 0' euler='0 0 0' rgba='0.7 0.7 0.72 1'/>
+                <geom name='link_5' class='link_5' rgba='0.3010 0.7450 0.9330 1'/>
+                <body name='b_hand' pos='0.037 0 -0.06408' quat='0 -0.5 0 0.8660254037844386'>
+                  <camera name='cam_hand' pos='0 .015 -.13' fovy='135'/>
+                  <site type='sphere' size='.01' name='wristsite' pos='0 0 0' rgba='1 0 0 1'/>
+                  <site type='sphere' size='.01' name='gripsite' pos='0 0 -.16' rgba='.5 .5 .5 .3'/>
+                  <site type='sphere' size='.01' name='pinchsite' pos='0 0.015 -0.195' rgba='.5 .5 .5 .3'/>
+                  <inertial pos='0.00628384 -2.92087e-005 -0.0608681' quat='0.708562 -0.0338601 -0.0358744 0.703923' mass='0.00547172' diaginertia='0.000759818 0.000676099 0.0004995'/>
+                  <joint name='joint_6' class='little_joint' axis='0 0 1'/>
+                  <geom name='link_6' class='link_6' rgba='0.6350 0.0780 0.1840 1'/>
+                  <geom name='ring_hand' contype='0' conaffinity='0' type='cylinder' size='0.035 0.009' pos='0 0 0' euler='0 0 0' rgba='0.7 0.7 0.72 1'/>
+
+                  <body name = 'b_palm'  pos='0.005 0 -0.11' euler='0 0 0'>
+                    <geom type='cylinder' contype='0' conaffinity='7'  size='.0275 0.01' friction='1 1' rgba='0.7 0.7 0.7 1' name='palm'/>
+                  </body>
+
+                  <body name='b_finger_1' childclass='finger' pos='-0.029 .003 -0.1145' quat='-0.414818 -0.329751 -0.663854 0.52772'>
+                    <inertial pos='0.0485761 -0.000715511 0' quat='0.507589 0.507348 0.492543 0.492294' mass='0.000379077' diaginertia='4.00708e-005 4.00527e-005 2.156e-006'/>
+                    <joint name='joint_finger_1'/>
+                    <geom name='finger_knuckle_1' class='finger_knuckle' rgba='0 0.4470 0.7410 1'/>
+                    <geom class='fingertip' name='finger_tip_1' rgba='0 0.4470 0.7410 1'/>
+                    <site class='fingertip' name='fingertip1'/>
+                  </body>
+                  <body name='b_finger_2' childclass='finger' pos='0.0295 0.0216 -0.115' quat='0.561254 -0.620653 0.321748 0.443014'>
+                    <inertial pos='0.0485761 -0.000715511 0' quat='0.507589 0.507348 0.492543 0.492294' mass='0.000379077' diaginertia='4.00708e-005 4.00527e-005 2.156e-006'/>
+                    <joint name='joint_finger_2'/>
+                    <geom name='finger_knuckle_2' class='finger_knuckle' rgba='0.9290 0.6940 0.1250 1'/>
+                    <geom class='fingertip' name='finger_tip_2' rgba='0.9290 0.6940 0.1250 1'/>
+                    <site class='fingertip' name='fingertip2'/>
+                  </body>
+                  <body name='b_finger_3' childclass='finger' pos='0.0295 -0.0216 -0.1145' quat='0.625248 -0.567602 0.434845 0.312735'>
+                    <inertial pos='0.0485761 -0.000715511 0' quat='0.507589 0.507348 0.492543 0.492294' mass='0.000379077' diaginertia='4.00708e-005 4.00527e-005 2.156e-006'/>
+                    <joint name='joint_finger_3'/>
+                    <geom name='finger_knuckle_3' class='finger_knuckle' rgba='0.8500 0.3250 0.0980 1'/>
+                    <geom class='fingertip' name='finger_tip_3' rgba='0.8500 0.3250 0.0980 1'/>
+                    <site class='fingertip' name='fingertip3'/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <contact>
+    <exclude body1='b_base' body2='b_1'/>
+    <exclude body1='b_finger_1' body2='b_finger_2'/>
+    <exclude body1='b_finger_1' body2='b_finger_3'/>
+    <exclude body1='b_finger_2' body2='b_finger_3'/>
+  </contact>
+
+  <sensor>
+    <touch name="fingertip1" site='fingertip1'/>
+    <touch name="fingertip2" site='fingertip2'/>
+    <touch name="fingertip3" site='fingertip3'/>
+    <force name="wristforce" site='wristsite'/>
+    <torque name="wristtorque" site='wristsite'/>
+    <force name="baseforce" site='basesite'/>
+    <torque name="basetorque" site='basesite'/>
+  </sensor>
+
+  <actuator>
+    <velocity joint='joint_1'        class='big_joint'/>
+    <velocity joint='joint_2'        class='big_joint'/>
+    <velocity joint='joint_3'        class='big_joint'/>
+    <velocity joint='joint_4'        class='little_joint'/>
+    <velocity joint='joint_5'        class='little_joint'/>
+    <velocity joint='joint_6'        class='little_joint'/>
+    <velocity joint='joint_finger_1' class='finger'/>
+    <velocity joint='joint_finger_2' class='finger'/>
+    <velocity joint='joint_finger_3' class='finger'/>
+  </actuator>
+</mujoco>

@@ -1,0 +1,74 @@
+#usda 1.0
+(
+    endTimeCode = 1
+    framesPerSecond = 24
+    metersPerUnit = 1
+    startTimeCode = 1
+    timeCodesPerSecond = 24
+    upAxis = "Y"
+)
+
+def Xform "World"
+{
+    def Xform "Axle" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsArticulationRootAPI"]
+    )
+    {
+        matrix4d xformOp:transform:set_initial_pos = ( (1, 0, 0, 0), (0, 0.9999197811020019, -0.012666150201413267, 0), (0, 0.012666150201413267, 0.9999197811020019, 0), (0, 0.012296309694647789, 0.970723032951355, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform:set_initial_pos"]
+
+        def Xform "Rod" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI"]
+        )
+        {
+            matrix4d xformOp:transform:set_initial_rod_pos = ( (1, 0, 0, 0), (0, 0.3255001489278845, 0.9455419890453967, 0), (0, -0.9455419890453967, 0.3255001489278845, 0), (0, 0.47277099452269833, -0.1627500744639423, 1) )
+            uniform token[] xformOpOrder = ["xformOp:transform:set_initial_rod_pos"]
+
+            def Cylinder "Geometry" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                token axis = "Z"
+                float3[] extent = [(-0.01, -0.01, -0.5), (0.01, 0.01, 0.5)]
+                double height = 1
+                double radius = 0.01
+                matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, -0.03546595561524429, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def PhysicsRevoluteJoint "HingeJoint" {
+                rel physics:body0 = </World/Axle>
+                rel physics:body1 = </World/Axle/Rod>
+                point3f physics:localPos0 = (0, 0, 0)
+                point3f physics:localPos1 = (0, 0, 0.5)
+                quatf physics:localRot0 = (0, 1, 0, 0)
+                quatf physics:localRot1 = (0, 1, 0, 0)
+            }
+        }
+
+        def Cylinder "Geometry" (
+            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        )
+        {
+            token axis = "Z"
+            float3[] extent = [(-0.01, -0.01, -0.1), (0.01, 0.01, 0.1)]
+            double height = 0.2
+            double radius = 0.01
+            matrix4d xformOp:transform = ( (0, 0, -1, 0), (0, 1, -0, 0), (1, 0, -0, 0), (0, 0, -0, 1) )
+            uniform token[] xformOpOrder = ["xformOp:transform"]
+        }
+
+        def PhysicsFixedJoint "FixedJoint"
+        {
+            rel physics:body0 = None
+            rel physics:body1 = </World/Axle>
+        }
+    }
+
+    def Scope "Actuators" {
+      def MjcActuator "HingeActuator" {
+        rel mjc:target = </World/Axle/Rod/HingeJoint>
+      }
+    }
+}
+

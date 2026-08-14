@@ -1,0 +1,16 @@
+<mujoco model="no_tendon">
+  <worldbody>
+    <body>
+      <joint type="hinge" axis="0 1 0"/>
+      <geom type="capsule" size="0.05 0.5" fromto="0 0 0 0.5 0 0"/>
+      <body pos="0.5 0 0">
+        <joint type="hinge" axis="0 1 0"/>
+        <geom type="capsule" size="0.05 0.5" fromto="0 0 0 0.5 0 0"/>
+        <body pos="0.5 0 0">
+          <joint type="hinge" axis="0 1 0"/>
+          <geom type="capsule" size="0.05 0.5" fromto="0 0 0 0.5 0 0"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>
