@@ -50,19 +50,6 @@ void xtof(float* dst, const T* src, int n) {
   }
 }
 
-// Returns the tile size for infinite plane texture alignment.
-// This is duplicated from engine_vis_visualize.c (re-center infinite plane)
-// to ensure UV scaling matches the re-centering increments.
-static float GetPlaneTileSize(const mjModel* model, int matid,
-                              float texrepeat) {
-  if (matid >= 0 && texrepeat > 0) {
-    return 2.0f / texrepeat;
-  } else {
-    const float zfar = model->vis.map.zfar * model->stat.extent;
-    return 2.1f * zfar / (mjMAXPLANEGRID - 2);
-  }
-}
-
 static mjtCatBit GetBodyCategory(const mjModel* m, int bodyid) {
   // mocap subtrees are their own weld, hence not static
   if (m->body_weldid[bodyid] == 0) {
@@ -745,12 +732,16 @@ mjrfMaterial ModelRenderables::GetDefaultMaterial(mjtObj obj_type,
   mjtGeom geom_type = mjGEOM_NONE;
   const float* rgba = nullptr;
   const mjtNum* size = nullptr;
+  const mjtNum* pos = nullptr;
+  const mjtNum* quat = nullptr;
 
   switch (obj_type) {
     case mjOBJ_GEOM:
       geom_type = (mjtGeom)model->geom_type[obj_index];
       rgba = model->geom_rgba + (4 * obj_index);
       size = model->geom_size + (3 * obj_index);
+      pos = model->geom_pos + (3 * obj_index);
+      quat = model->geom_quat + (4 * obj_index);
       matid = model->geom_matid[obj_index];
       break;
     case mjOBJ_SITE:
@@ -873,35 +864,49 @@ mjrfMaterial ModelRenderables::GetDefaultMaterial(mjtObj obj_type,
         }
       }
 
-      if (tex_uniform) {
-        if (fsize[0] > 0) {
-          material.uv_scale[0] *= fsize[0];
-        }
-        if (fsize[1] > 0) {
-          material.uv_scale[1] *= fsize[1];
-        }
-      }
       const bool is_infinite_plane =
           geom_type == mjGEOM_PLANE && (fsize[0] <= 0 || fsize[1] <= 0);
       if (is_infinite_plane) {
-        // Infinite planes are scaled to match the tile size used by
-        // re-centering in engine_vis_visualize.c.
+        // With infinite planes, we want to use the UvOffset to account for
+        // the plane's position in world space due to re-centering.
+        //
+        // Infinite planes will use world-space UVs, with a tile size of 1x1
+        // world units by default (texrepeat=(1, 1)).
+        //
+        // The shader computes: uv = uv0 * UvScale + UvOffset
+        // We want:             uv = dot(worldPos, planeAxis) * texFrequency
+        //
+        // Since worldPos = rotation * (objectPos * planeScale) + geomPos:
+        //
+        // dot(worldPos, axisK) = objectPos.k * planeScale + dot(geomPos, axisK)
+        //
+        // Meaning:
+        //   UvScale  = planeScale * texrepeat
+        //   UvOffset = dot(geomPos, planeAxis) * texrepeat
         const float plane_scale = static_cast<float>(mjMAXPLANEGRID) / 2.0f;
-        const float tile_size_x = GetPlaneTileSize(model, matid, tex_repeat[0]);
-        const float tile_size_y = GetPlaneTileSize(model, matid, tex_repeat[1]);
-        material.uv_scale[0] = 2.0f * plane_scale / tile_size_x;
-        material.uv_scale[1] = 2.0f * plane_scale / tile_size_y;
-      }
 
-      // We want to do the equivalent of:
-      //   mjr_setf4(splane, 0.5 * scl.x,  0, 0, -0.5);
-      //   mjr_setf4(tplane, 0, -0.5 * scl.y, 0, -0.5);
-      //   glTexGenfv(GL_S, GL_OBJECT_PLANE, splane);
-      //   glTexGenfv(GL_T, GL_OBJECT_PLANE, tplane);
-      material.uv_scale[0] = 0.5f * material.uv_scale[0];
-      material.uv_scale[1] = -0.5f * material.uv_scale[1];
-      material.uv_offset[0] = -0.5f;
-      material.uv_offset[1] = -0.5f;
+        float dot_pos_axis_x = 0.0f;
+        float dot_pos_axis_y = 0.0f;
+        if (pos && quat) {
+          mjtNum mat[9];
+          mju_quat2Mat(mat, quat);
+          dot_pos_axis_x = pos[0] * mat[0] + pos[1] * mat[3] + pos[2] * mat[6];
+          dot_pos_axis_y = pos[0] * mat[1] + pos[1] * mat[4] + pos[2] * mat[7];
+        }
+
+        material.uv_scale[0] *= plane_scale;
+        material.uv_scale[1] *= plane_scale;
+        // The vertex UVs in PlaneBuilder are u0 = 0.5*x + 0.5, v0 = -0.5*y + 0.5.
+        // To keep the world-space texture coordinate u = 0.5*worldX*texrepeat - 0.5
+        // independent of the snapped geomPos, uv_offset must compensate by 0.5*dot_pos.
+        material.uv_offset[0] =
+            (0.5f * dot_pos_axis_x - 0.5f * plane_scale) * tex_repeat[0] - 0.5f;
+        material.uv_offset[1] =
+            (-0.5f * dot_pos_axis_y - 0.5f * plane_scale) * tex_repeat[1] - 0.5f;
+      } else if (tex_uniform) {
+        material.uv_scale[0] *= (fsize[0] ? fsize[0] : 1.0f);
+        material.uv_scale[1] *= (fsize[1] ? fsize[1] : 1.0f);
+      }
     } else {
       // For cube maps, if `tex_uniform` is true, then scale the texture so that
       // it covers a 1x1 area of world space rather than the area of the object.

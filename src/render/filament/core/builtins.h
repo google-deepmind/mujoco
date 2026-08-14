@@ -36,7 +36,8 @@ class Builtins {
   const Mesh* Sphere();
   const Mesh* Cone();
   const Mesh* Disk();
-  const Mesh* Dome();
+  const Mesh* DomeTop();
+  const Mesh* DomeBottom();
   const Mesh* Tube();
 
  private:
@@ -48,7 +49,8 @@ class Builtins {
   std::unique_ptr<Mesh> sphere_;
   std::unique_ptr<Mesh> cone_;
   std::unique_ptr<Mesh> disk_;
-  std::unique_ptr<Mesh> dome_;
+  std::unique_ptr<Mesh> dome_top_;
+  std::unique_ptr<Mesh> dome_bottom_;
   std::unique_ptr<Mesh> tube_;
 };
 

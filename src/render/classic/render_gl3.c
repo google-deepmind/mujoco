@@ -58,6 +58,21 @@ enum {
 };
 
 
+// check if geom type is a builtin shape with explicit UVs
+static int isBuiltinWithUV(int type) {
+  return (type == mjGEOM_PLANE ||
+          type == mjGEOM_SPHERE ||
+          type == mjGEOM_ELLIPSOID ||
+          type == mjGEOM_BOX ||
+          type == mjGEOM_CYLINDER ||
+          type == mjGEOM_CAPSULE ||
+          type == mjGEOM_ARROW ||
+          type == mjGEOM_ARROW1 ||
+          type == mjGEOM_ARROW2 ||
+          type == mjGEOM_TRIANGLE);
+}
+
+
 // enable/disable texture mapping
 static void settexture(int type, int state, const mjrContext* con, const mjvGeom* geom) {
   float plane[4], scl[2];
@@ -102,18 +117,44 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
   }
 
   // explicit texture coordinates
-  else if (type == mjtexREGULAR && geom->texcoord) {
+  else if (type == mjtexREGULAR && geom &&
+           (geom->texcoord || (texid >= 0 && con->textureType[texid] == mjTEXTURE_2D && isBuiltinWithUV(geom->type)))) {
     // enable
     if (state && texid >= 0) {
       glActiveTexture(GL_TEXTURE0);
       glEnable(GL_TEXTURE_2D);
       glBindTexture(GL_TEXTURE_2D, con->texture[texid]);
+
+      // determine scaling
+      scl[0] = texrepeat[0] > 0 ? texrepeat[0] : 1.0f;
+      scl[1] = texrepeat[1] > 0 ? texrepeat[1] : 1.0f;
+
+      // uniform: repeat relative to spatial units rather than object
+      if (texuniform) {
+        if (geom->size[0] > 0) {
+          scl[0] = scl[0] * geom->size[0];
+        }
+        if (geom->size[1] > 0) {
+          scl[1] = scl[1] * geom->size[1];
+        }
+      }
+
+      glMatrixMode(GL_TEXTURE);
+      glLoadIdentity();
+      if (geom->type == mjGEOM_PLANE && (geom->size[0] <= 0 || geom->size[1] <= 0)) {
+        glTranslatef(-0.5f, -0.5f, 0.0f);
+      }
+      glScalef(scl[0], scl[1], 1.0f);
+      glMatrixMode(GL_MODELVIEW);
     }
 
     // disable
     else {
       glActiveTexture(GL_TEXTURE0);
       glDisable(GL_TEXTURE_2D);
+      glMatrixMode(GL_TEXTURE);
+      glLoadIdentity();
+      glMatrixMode(GL_MODELVIEW);
     }
   }
 
@@ -458,8 +499,11 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     glDisable(GL_CULL_FACE);
     glBegin(GL_TRIANGLES);
     glNormal3f(0, 0, 1);
+    glTexCoord2f(0, 1);
     glVertex3f(0, 0, 0);
+    glTexCoord2f(1, 1);
     glVertex3f(size[0], 0, 0);
+    glTexCoord2f(0, 0);
     glVertex3f(0, size[1], 0);
     glEnd();
     if (scn->flags[mjRND_CULL_FACE]) {
