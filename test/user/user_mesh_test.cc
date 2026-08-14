@@ -960,6 +960,22 @@ TEST_F(MjCMeshTest, ExactConcaveInertia) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjCMeshTest, UnreferencedConvexInertiaMesh) {
+  static constexpr char xml[] = R"(
+    <mujoco>
+      <asset>
+        <mesh name="orphan" inertia="convex"
+              vertex="0 0 1  1 0 0  0 1 0  -1 0 0  0 -1 0"
+              face="0 1 2  0 2 3  0 3 4  0 4 1  1 4 3  1 3 2"/>
+      </asset>
+    </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  EXPECT_EQ(model->nmesh, 1);
+}
+
 TEST_F(MjCMeshTest, ExactConvexInertia) {
   const std::string xml_path = GetTestDataFilePath(kConvexInertiaPath);
   std::array<char, 1024> error;
