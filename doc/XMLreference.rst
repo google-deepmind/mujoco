@@ -6942,6 +6942,9 @@ This element has the following custom attributes in addition to the common attri
    :at-val:`stiffness` = 0 (the default). Adds one activation variable for bristle deflection. Note that the
    viscous damping coefficient :math:`\sigma_2` is not part of the :at:`lugre` attribute and should be
    added to the standard actuator :ref:`damping<actuator-general-damping>` attribute.
+   The :at-val:`damping` sub-value :math:`\sigma_1`, the coefficient of the bristle micro-damper, must be finite
+   and non-negative. A negative value turns this term into anti-damping near zero bristle deflection. Invalid
+   values produce a compile error.
    (see `tech note <_static/dcmotor.pdf>`__, Sections 1.4 and 2.4)
 
 .. _actuator-dcmotor-input:
