@@ -826,7 +826,9 @@ int mjc_BoxBox(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, m
     axis[i2] = rot[3*i1+j];
     mju_normalize3(axis);
     if (mju_dot3(axis, pos21) < 0) {
-      mji_scl3(axis, axis, -1);
+      axis[0] = -axis[0];
+      axis[1] = -axis[1];
+      axis[2] = -axis[2];
     }
 
     // supporting edges: the box1 edge runs along e_i at a corner selected by the axis
@@ -909,9 +911,7 @@ int mjc_BoxBox(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, m
 
     // contact at the midpoint of the witness pair: for penetrating edges this is inside both
     // boxes; in the margin band it is midway between the two surfaces
-    mjtNum mid[3];
-    mji_add3(mid, w1, w2);
-    mji_scl3(mid, mid, 0.5);
+    mjtNum mid[3] = {0.5*(w1[0] + w2[0]), 0.5*(w1[1] + w2[1]), 0.5*(w1[2] + w2[2])};
 
     con[0].dist = dist;
     mji_mulMatVec3(tmp, mat1, mid);
@@ -988,7 +988,6 @@ int mjc_BoxBox(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, m
   nvert = clipHalfPlane(nvert, &cur, &spare, 0, -1, sizeref[ax]);
   nvert = clipHalfPlane(nvert, &cur, &spare, 1, 1, sizeref[ay]);
   nvert = clipHalfPlane(nvert, &cur, &spare, 1, -1, sizeref[ay]);
-  const mjtNum (*clipped)[3] = cur;
 
   // accept vertices within the margin band, dropping near-duplicates produced by clipping
   // at polygon corners; duplicate radius is relative to the reference face scale
@@ -996,20 +995,20 @@ int mjc_BoxBox(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, m
   int naccept = 0;
   mjtNum dupe2 = mjBOXBOX_DUPEPS*(sizeref[ax]*sizeref[ax] + sizeref[ay]*sizeref[ay]);
   for (int k = 0; k < nvert; k++) {
-    if (clipped[k][2] > margin) {
+    if (cur[k][2] > margin) {
       continue;
     }
     int dupe = 0;
     for (int q = 0; q < naccept; q++) {
-      mjtNum dx = accepted[q][0] - clipped[k][0];
-      mjtNum dy = accepted[q][1] - clipped[k][1];
+      mjtNum dx = accepted[q][0] - cur[k][0];
+      mjtNum dy = accepted[q][1] - cur[k][1];
       if (dx*dx + dy*dy < dupe2) {
         dupe = 1;
         break;
       }
     }
     if (!dupe) {
-      mji_copy3(accepted[naccept++], clipped[k]);
+      mji_copy3(accepted[naccept++], cur[k]);
     }
   }
   if (naccept == 0) {
