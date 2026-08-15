@@ -227,6 +227,7 @@ public enum mjtIntegrator : int{
   mjINT_RK4 = 1,
   mjINT_IMPLICIT = 2,
   mjINT_IMPLICITFAST = 3,
+  mjINT_IPC = 4,
 }
 public enum mjtCone : int{
   mjCONE_PYRAMIDAL = 0,
@@ -1691,6 +1692,7 @@ public unsafe struct mjData_ {
   public UIntPtr pstack;
   public UIntPtr pbase;
   public UIntPtr parena;
+  public UIntPtr efm_contact;
   public UIntPtr threadpool;
   public byte threadlock;
   public UInt64 maxuse_stack;
@@ -5793,6 +5795,8 @@ public unsafe struct mjData_ {
   public double* flexvert_J;
   public double* flexvert_length;
   public double* bvh_aabb_dyn;
+  public double* flexvert_lambda;
+  public int* flexvert_conage;
   public int* ten_wrapadr;
   public int* ten_wrapnum;
   public double* ten_J;

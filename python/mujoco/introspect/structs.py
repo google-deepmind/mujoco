@@ -5643,6 +5643,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='first available byte in arena',
              ),
              StructFieldDecl(
+                 name='efm_contact',
+                 type=ValueType(name='uintptr_t'),
+                 doc='contact stiffness for the current solve (mjExtraStiff*), 0 if none',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
                  name='threadpool',
                  type=ValueType(name='uintptr_t'),
                  doc='thread pool pointer',
@@ -6218,6 +6223,22 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nbvhdynamic', 6),
              ),
              StructFieldDecl(
+                 name='flexvert_lambda',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='flex contact multiplier',
+                 array_extent=('nflexvert',),
+             ),
+             StructFieldDecl(
+                 name='flexvert_conage',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='flex contact age: <0 loaded, >0 steps since',
+                 array_extent=('nflexvert',),
+             ),
+             StructFieldDecl(
                  name='ten_wrapadr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -6566,7 +6587,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='constraint force',
+                 doc='constraint force; under the IPC integrator this includes flex contact with no efc row',  # pylint: disable=line-too-long
                  array_extent=('nv',),
              ),
              StructFieldDecl(

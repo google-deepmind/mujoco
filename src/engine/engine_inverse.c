@@ -174,6 +174,9 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
       mju_mulMatVec(qfrc+adr, A, qacc+adr, 6, 6);
     }
     break;
+
+  case mjINT_IPC:
+    mjERROR("discrete inverse dynamics is not supported by the IPC integrator");
   }
 
   // solve for qacc: qfrc = M * qacc
@@ -271,7 +274,7 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
   // implicit effective metric (built in mj_invPosition): the forward dynamics solved
   // (M+K)*qacc = qfrc + c + J'*f, so the discrete-consistent inverse adds K*qacc - c
   if (d->efm_active) {
-    mjd_effMulAdd(m, d, Ma, d->qacc);
+    mjd_effMulAdd(m, d, Ma, d->qacc, /*flg_contact=*/1);
     mju_subFrom(Ma, d->efm_c, nv);
   }
 

@@ -500,7 +500,7 @@ mjtNum mjc_pairGap(const mjcFlexPair* pair, const mjModel* m, const mjData* d, c
       idv[0] = v;
       cw[0] = 1;
       *nidx = 1;
-      return dd - radii[v];
+      return dd;  // MIDSURFACE distance: radii NOT subtracted (delta unchanged; see header)
     }
     case mjcGEOM_CORNER_TRI: {  // static geom corner gv[idx0] vs flex triangle A,B,C
       const mjtNum* corner = &gv[3 * pair->idx[0]];
@@ -514,7 +514,7 @@ mjtNum mjc_pairGap(const mjcFlexPair* pair, const mjModel* m, const mjData* d, c
       cw[1] = -w[1];
       cw[2] = -w[2];
       *nidx = 3;
-      return dd - radii[A];  // flex triangle radius
+      return dd;  // MIDSURFACE distance: radii NOT subtracted (delta unchanged; see header)
     }
     case mjcGEOM_EDGE_EDGE: {  // static geom edge ge[idx0] vs flex edge a,b
       const mjtNum* eg = &ge[6 * pair->idx[0]];
@@ -526,7 +526,7 @@ mjtNum mjc_pairGap(const mjcFlexPair* pair, const mjModel* m, const mjData* d, c
       cw[0] = -(1 - st[1]);
       cw[1] = -st[1];
       *nidx = 2;
-      return dd - radii[a];  // flex edge radius
+      return dd;  // MIDSURFACE distance: radii NOT subtracted (delta unchanged; see header)
     }
     default:
       mju_error("mjc_pairGap: unknown pair type %d", pair->type);
@@ -604,14 +604,13 @@ static mjtNum conGapAdv(const mjcFlexPair* con, const mjModel* m, const mjData* 
     case mjcFLEX_VERT_GEOM: {
       mjtNum nn[3];
       return mjc_GeomDist(m, con->g, d->geom_xpos + 3 * con->g, d->geom_xmat + 9 * con->g, P[0],
-                          nn, 1e30) -
-             radii[con->idx[0]];
+                          nn, 1e30);  // midsurface, matching mjc_pairGap
     }
     case mjcGEOM_CORNER_TRI:
-      return mjc_PtTri(&gv[3 * con->idx[0]], P[0], P[1], P[2], cp, w) - radii[con->idx[1]];
+      return mjc_PtTri(&gv[3 * con->idx[0]], P[0], P[1], P[2], cp, w);  // midsurface, matching mjc_pairGap
     case mjcGEOM_EDGE_EDGE: {
       const mjtNum* eg = &ge[6 * con->idx[0]];
-      return mjc_SegSeg(eg, eg + 3, P[0], P[1], c1, c2, st) - radii[con->idx[1]];
+      return mjc_SegSeg(eg, eg + 3, P[0], P[1], c1, c2, st);  // midsurface, matching mjc_pairGap
     }
     default:
       mju_error("conGapAdv: unknown pair type %d", con->type);
@@ -709,17 +708,23 @@ mjtNum mjc_advance(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
   return alpha;
 }
 
-// the radii sum a flex-flex midsurface gap reads ABOVE the old skin gap. Used ONLY to keep the
-// broad-phase detection band at its pre-midsurface reach; types 2/3/4 still subtract their radius
-// inside mjc_pairGap, so they contribute nothing here.
+// the radii a midsurface gap reads ABOVE the old skin gap. Used ONLY to keep the broad-phase
+// detection band at its pre-midsurface reach; every pair type measures at the flex midsurface,
+// so each flex participant contributes its radius (geoms have none: their surface is the surface).
 static mjtNum bandOffset(const mjcFlexPair* con, const mjtNum* radii) {
   switch (con->type) {
     case mjcFLEX_VERT_TRI:
       return radii[con->idx[0]] + radii[con->idx[1]];  // vertex + triangle flex radius
     case mjcFLEX_EDGE_EDGE:
       return radii[con->idx[0]] + radii[con->idx[2]];  // both edges (flex) radii
+    case mjcFLEX_VERT_GEOM:
+      return radii[con->idx[0]];  // flex vertex radius
+    case mjcGEOM_CORNER_TRI:
+      return radii[con->idx[1]];  // flex triangle radius
+    case mjcGEOM_EDGE_EDGE:
+      return radii[con->idx[1]];  // flex edge radius
     default:
-      return 0.0;  // geom side: mjc_pairGap already subtracted the flex radius for types 2/3/4
+      return 0.0;
   }
 }
 

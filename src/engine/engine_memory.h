@@ -74,6 +74,13 @@ static inline void mj_clearEfc(mjData* d) {
   d->nefc = 0;
   d->nisland = 0;
   d->nJ = d->nY = d->nA = 0;
+  // MJDATA_ARENA_POINTERS covers the effective-metric block, so the loop above nulled
+  // efm_c/efm_K_*/efm_L. Clear the metric's own state with them: leaving efm_active set alongside
+  // null pointers is a trap, since every consumer gates on efm_active and then dereferences.
+  d->efm_active = 0;
+  d->nefmK = 0;
+  d->nefmdof = 0;
+  d->nefmL = 0;
   d->contact = (mjContact*) d->arena;
 
   // if any contacts are allocated, clear their efc_address

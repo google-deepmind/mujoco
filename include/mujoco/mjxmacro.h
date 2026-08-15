@@ -885,6 +885,8 @@
     X   ( mjtNum,    flexvert_J,        nJfv,        2           ) \
     X   ( mjtNum,    flexvert_length,   nflexvert,   2           ) \
     X   ( mjtNum,    bvh_aabb_dyn,      nbvhdynamic, 6           ) \
+    X   ( mjtNum,    flexvert_lambda,   nflexvert,   1           ) \
+    X   ( int,       flexvert_conage,   nflexvert,   1           ) \
     X   ( int,       ten_wrapadr,       ntendon,     1           ) \
     X   ( int,       ten_wrapnum,       ntendon,     1           ) \
     X   ( mjtNum,    ten_J,             nJten,       1           ) \
@@ -1036,6 +1038,7 @@
     X( size_t,    pstack             ) \
     X( size_t,    pbase              ) \
     X( size_t,    parena             ) \
+    X( uintptr_t, efm_contact        ) \
     X( uintptr_t, threadpool         ) \
     X( size_t,    maxuse_stack       ) \
     X( size_t,    maxuse_arena       ) \
