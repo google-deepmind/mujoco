@@ -41,6 +41,7 @@ Engine
   iterative solve for ``qacc_smooth``, which now converges on :ref:`tolerance<option-tolerance>` rather than a fixed
   threshold. Flexes with :ref:`elastic2d<flex-elasticity-elastic2d>` stretch stiffness step roughly twice as fast;
   bending-only flexes keep the exact constant factor and are unchanged.
+- Rewrote cleaner box-box SAT collider.
 
 .. admonition:: Breaking API changes
    :class: attention
