@@ -737,12 +737,10 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       // stateless: gain = K/R, force = K/R * ctrl (condition below)
       gain = (dynprm[0] > 0) ? K : K / mju_max(mjMINVAL, R);
 
-      // controller: compute voltage, override ctrl[uadr] for force computation
-      if ((int)gainprm[8] > 0) {
-        mjtNum x_I = (slots.integral >= 0) ? d->act[adr + slots.integral] : 0;
-        ctrl[uadr] = dcmotorVoltage(ctrl[uadr], d->actuator_length[oadr],
-                                    d->actuator_velocity[oadr], x_I, gainprm);
-      }
+      // compute effective voltage, override ctrl[uadr] for force computation
+      mjtNum x_I = (slots.integral >= 0) ? d->act[adr + slots.integral] : 0;
+      ctrl[uadr] = dcmotorVoltage(ctrl[uadr], d->actuator_length[oadr],
+                                  d->actuator_velocity[oadr], x_I, gainprm);
       break;
     }
 
