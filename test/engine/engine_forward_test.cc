@@ -2288,8 +2288,8 @@ TEST_F(DCMotorTest, CurrentRateLimit) {
   EXPECT_NEAR(data->act_dot[adr], -dimax, MjTol(1e-12, 1e-5));
 }
 
-TEST_F(DCMotorTest, VoltageLimit) {
-  // verifies that saturation:voltage clamps voltage
+TEST_F(DCMotorTest, PositionInputVoltageLimit) {
+  // verifies that controller:Vmax clamps the voltage computed by the controller
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -2321,6 +2321,75 @@ TEST_F(DCMotorTest, VoltageLimit) {
   mj_forward(model.get(), data.get());
 
   EXPECT_NEAR(data->actuator_force[0], -0.25, MjTol(1e-12, 1e-5));
+}
+
+TEST_F(DCMotorTest, VoltageInputVoltageLimit) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               input="voltage" controller="0 0 0 0 0 10.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // Vmax = 10, K/R = 0.025, so the force is limited to +/-0.25.
+  data->ctrl[0] = 20.0;
+  mj_forward(model.get(), data.get());
+  EXPECT_NEAR(data->actuator_force[0], 0.25, MjTol(1e-12, 1e-5));
+
+  // Inputs inside the voltage limit are unchanged.
+  data->ctrl[0] = 5.0;
+  mj_forward(model.get(), data.get());
+  EXPECT_NEAR(data->actuator_force[0], 0.125, MjTol(1e-12, 1e-5));
+
+  data->ctrl[0] = -20.0;
+  mj_forward(model.get(), data.get());
+  EXPECT_NEAR(data->actuator_force[0], -0.25, MjTol(1e-12, 1e-5));
+}
+
+TEST_F(DCMotorTest, VoltageInputVoltageLimitWithThermalState) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               input="voltage" controller="0 0 0 0 0 10.0"
+               thermal="0.1 0.1 0 0 25 25"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // The thermal model adds state but current remains algebraic.
+  ASSERT_EQ(model->actuator_actnum[0], 1);
+  int adr = model->actuator_actadr[0];
+  data->act[adr] = 0;
+  data->ctrl[0] = 20.0;
+  mj_forward(model.get(), data.get());
+
+  // Both force and heating must use Vmax=10: i=V/R=5, force=K*i=0.25,
+  // and T_dot=(R*i^2)/C=(2*25)/0.1=500.
+  EXPECT_NEAR(data->actuator_force[0], 0.25, MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(data->act_dot[adr], 500.0, MjTol(1e-12, 1e-5));
 }
 
 TEST_F(DCMotorTest, IntegralClamp) {
