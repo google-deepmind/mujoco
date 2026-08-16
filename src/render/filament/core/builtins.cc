@@ -76,17 +76,24 @@ class BuiltinBuilder {
     config.max_indices = builder->indices_.size();
     config.index_type = mjINDEX_TYPE_U16;
     config.primitive_type = builder->primitive_type_;
-    config.num_attributes = 2;
+    config.num_attributes = builder->texcoords_.empty() ? 2 : 3;
     config.attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
     config.attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
     config.attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_TANGENTS;
     config.attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT4;
+    if (!builder->texcoords_.empty()) {
+      config.attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
+      config.attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
+    }
 
     mjrfMeshData data;
     mjrf_defaultMeshData(&data);
     data.num_vertices = builder->positions_.size();
     data.vertices[0] = builder->positions_.data();
     data.vertices[1] = builder->orientations_.data();
+    if (!builder->texcoords_.empty()) {
+      data.vertices[2] = builder->texcoords_.data();
+    }
     data.num_indices = builder->indices_.size();
     data.indices = builder->indices_.data();
     data.bounds_min[0] = builder->bounds_min_.x;
@@ -114,6 +121,7 @@ class BuiltinBuilder {
   int primitive_type_ = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
   std::vector<float3> positions_;
   std::vector<float4> orientations_;
+  std::vector<float2> texcoords_;
   std::vector<uint16_t> indices_;
   float3 bounds_min_ = {0, 0, 0};
   float3 bounds_max_ = {0, 0, 0};
@@ -143,6 +151,7 @@ class PlaneBuilder : public BuiltinBuilder {
   explicit PlaneBuilder(int num_quads_per_axis) {
     const int num_vertices = NumVerticesPerSide(num_quads_per_axis);
     positions_.reserve(num_vertices);
+    texcoords_.reserve(num_vertices);
 
     const float delta = 2.0f / num_quads_per_axis;
     for (int x = 0; x <= num_quads_per_axis; ++x) {
@@ -150,6 +159,7 @@ class PlaneBuilder : public BuiltinBuilder {
         const float dx = delta * static_cast<float>(x);
         const float dy = delta * static_cast<float>(y);
         positions_.emplace_back(dx - 1.0f, dy - 1.0f, 0);
+        texcoords_.emplace_back(0.5f * dx, 1.0f - (0.5f * dy));
       }
     }
 
@@ -180,6 +190,11 @@ class TriangleBuilder : public BuiltinBuilder {
     positions_.emplace_back(1, 0, 0);
     positions_.emplace_back(0, 1, 0);
 
+    texcoords_.reserve(3);
+    texcoords_.emplace_back(0, 1);
+    texcoords_.emplace_back(1, 1);
+    texcoords_.emplace_back(0, 0);
+
     orientations_.resize(positions_.size(), CalculateOrientation({0, 0, 1}));
 
     indices_.reserve(3);
@@ -187,7 +202,7 @@ class TriangleBuilder : public BuiltinBuilder {
     indices_.emplace_back(1);
     indices_.emplace_back(2);
 
-    SetBounds({-1, -1, -0.001}, {1, 1, 0.001});
+    SetBounds({0, 0, -0.001}, {1, 1, 0.001});
   }
 };
 
@@ -255,6 +270,7 @@ class BoxBuilder : public BuiltinBuilder {
 
     positions_.reserve(num_vertices);
     orientations_.reserve(num_vertices);
+    texcoords_.reserve(num_vertices);
     indices_.reserve(num_indices);
 
     GenerateVerticesForSide({0, 1, 0},
@@ -302,6 +318,9 @@ class BoxBuilder : public BuiltinBuilder {
         const float3 position = pt_gen({dx, dy});
         positions_.push_back(position);
         orientations_.push_back(orientation);
+        const float u = static_cast<float>(x) / num_quads_per_axis_;
+        const float v = 1.0f - (static_cast<float>(y) / num_quads_per_axis_);
+        texcoords_.emplace_back(u, v);
       }
     }
   }
@@ -313,20 +332,26 @@ class BoxBuilder : public BuiltinBuilder {
 class TubeBuilder : public BuiltinBuilder {
  public:
   TubeBuilder(int num_stacks, int num_slices) {
-    const int num_vertices = num_slices * (num_stacks + 1);
+    const int verts_per_ring = num_slices + 1;
+    const int num_vertices = verts_per_ring * (num_stacks + 1);
     positions_.reserve(num_vertices);
     orientations_.reserve(num_vertices);
+    texcoords_.reserve(num_vertices);
 
     const float delta_angle = 2.f * std::numbers::pi / (float)num_slices;
     const float delta_stack = 2.f / static_cast<float>(num_stacks);
-    for (int i = 0; i < num_slices; ++i) {
-      const float angle = static_cast<float>(i) * delta_angle;
+    for (int i = 0; i <= num_slices; ++i) {
+      const int geo_i = i % num_slices;
+      const float angle = static_cast<float>(geo_i) * delta_angle;
       const float2 pt{std::cos(angle), std::sin(angle)};
       const float4 orientation = CalculateOrientation({pt.x, pt.y, 0});
+      const float u = static_cast<float>(i) / num_slices;
       for (int j = 0; j <= num_stacks; ++j) {
         const float z = -1.0f + (static_cast<float>(j) * delta_stack);
         positions_.emplace_back(pt.x, pt.y, z);
         orientations_.push_back(orientation);
+        const float v = 1.0f - ((static_cast<float>(j) * delta_stack) / 2.0f);
+        texcoords_.emplace_back(u, v);
       }
     }
 
@@ -337,10 +362,11 @@ class TubeBuilder : public BuiltinBuilder {
     for (int i = 0; i < num_slices; ++i) {
       for (int j = 0; j < num_stacks; ++j) {
         const int base_idx = (i * num_vertices_in_spine) + j;
+        const int next_base_idx = ((i + 1) * num_vertices_in_spine) + j;
         const int i0 = base_idx + 0;
         const int i1 = base_idx + 1;
-        const int i2 = (base_idx + num_stacks + 2) % num_vertices;
-        const int i3 = (base_idx + num_stacks + 1) % num_vertices;
+        const int i2 = next_base_idx + 1;
+        const int i3 = next_base_idx + 0;
         AppendQuadIndices(indices_, i0, i3, i2, i1);
       }
     }
@@ -357,8 +383,9 @@ class ConeBuilder : public BuiltinBuilder {
         ((num_stacks - 1) * num_slices * kNumVerticesPerQuad);
     positions_.reserve(num_vertices);
     orientations_.reserve(num_vertices);
+    texcoords_.reserve(num_vertices);
 
-    // pole: use triangles
+    // Pole: use triangles
     const float delta_angle =
         2.0 * std::numbers::pi / static_cast<float>(num_slices);
     const float delta_radius = 1.0f / static_cast<float>(num_stacks);
@@ -367,14 +394,20 @@ class ConeBuilder : public BuiltinBuilder {
       const float angle1 = (j + 0) * delta_angle;
       const float angle2 = (j + 1) * delta_angle;
 
-      AppendVert(angle1, delta_radius);
-      AppendVert(angle2, delta_radius);
+      const float u1 = static_cast<float>(j) / num_slices;
+      const float u2 = static_cast<float>(j + 1) / num_slices;
+      const float v1 = delta_radius;
+      const float u_mid = (u1 + u2) / 2.f;
+
+      AppendVert(angle1, delta_radius, u1, v1);
+      AppendVert(angle2, delta_radius, u2, v1);
 
       positions_.emplace_back(0, 0, 1);
       orientations_.emplace_back(CalculateOrientation({0, 0, 1}));
+      texcoords_.emplace_back(u_mid, 0.f);
     }
 
-    // the rest: use quads
+    // The rest: use quads
     for (int i = 1; i < num_stacks; ++i) {
       const float radius1 = delta_radius * (i + 0);
       const float radius2 = delta_radius * (i + 1);
@@ -382,10 +415,14 @@ class ConeBuilder : public BuiltinBuilder {
       for (int j = 0; j < num_slices; ++j) {
         const float angle1 = (j + 0) * delta_angle;
         const float angle2 = (j + 1) * delta_angle;
-        AppendVert(angle1, radius2);
-        AppendVert(angle2, radius2);
-        AppendVert(angle2, radius1);
-        AppendVert(angle1, radius1);
+        const float u1 = static_cast<float>(j) / num_slices;
+        const float u2 = static_cast<float>(j + 1) / num_slices;
+        const float v1 = radius1;
+        const float v2 = radius2;
+        AppendVert(angle1, radius2, u1, v2);
+        AppendVert(angle2, radius2, u2, v2);
+        AppendVert(angle2, radius1, u2, v1);
+        AppendVert(angle1, radius1, u1, v1);
       }
     }
 
@@ -413,7 +450,7 @@ class ConeBuilder : public BuiltinBuilder {
   }
 
  private:
-  void AppendVert(float theta, float radius) {
+  void AppendVert(float theta, float radius, float u, float v) {
     static constexpr float kNormalScale = 0.70710678118f;
     const float cz = std::cos(theta);
     const float sz = std::sin(theta);
@@ -421,6 +458,7 @@ class ConeBuilder : public BuiltinBuilder {
     const float3 n{cz * kNormalScale, sz * kNormalScale, kNormalScale};
     positions_.push_back(pt);
     orientations_.push_back(CalculateOrientation(n));
+    texcoords_.emplace_back(u, v);
   }
 };
 
@@ -429,15 +467,18 @@ class DiskBuilder : public BuiltinBuilder {
   explicit DiskBuilder(int num_slices) {
     const int num_vertices = num_slices + 1;
     positions_.reserve(num_vertices);
+    texcoords_.reserve(num_vertices);
     const float delta_angle =
         2.0 * std::numbers::pi / static_cast<float>(num_slices);
 
     positions_.push_back({0, 0, 0});
+    texcoords_.emplace_back(0.5f, 0.5f);
     for (int i = 0; i < num_slices; ++i) {
       const float angle = static_cast<float>(i) * delta_angle;
       const float x = std::cos(angle);
       const float y = std::sin(angle);
       positions_.push_back({x, y, 0});
+      texcoords_.emplace_back(0.5f + 0.5f * x, 0.5f + 0.5f * y);
     }
 
     orientations_.resize(positions_.size(), CalculateOrientation({0, 0, 1}));
@@ -458,178 +499,195 @@ class DiskBuilder : public BuiltinBuilder {
 class SphereBuilder : public BuiltinBuilder {
  public:
   SphereBuilder(int num_stacks, int num_slices) {
-    static constexpr uint16_t kNorthPoleIndex = 0;
-    static constexpr uint16_t kSouthPoleIndex = 1;
+    // To avoid a UV seam artifact, each latitude ring has num_slices+1
+    // vertices: the last vertex is a geometric duplicate of the first but
+    // with u=1.0 instead of u=0.0. This prevents the GPU from interpolating
+    // backwards from u≈0.97 to u=0.0 across the last quad.
+    //
+    // Each polar triangle also gets its own pole vertex with u set to the
+    // midpoint of the two ring vertices, avoiding the degenerate atan2 at
+    // the pole.
 
-    const int num_vertices = (num_stacks * num_slices) + 2;  // +2 for poles
+    const int verts_per_ring = num_slices + 1;  // extra vertex for u=1 seam
+    const int ring_verts = num_stacks * verts_per_ring;
+    const int pole_verts = 2 * num_slices;  // one pole vert per polar triangle
+    const int num_vertices = ring_verts + pole_verts;
     positions_.reserve(num_vertices);
     orientations_.reserve(num_vertices);
+    texcoords_.reserve(num_vertices);
 
     const float lat_angle_delta =
         std::numbers::pi / static_cast<float>(num_stacks + 1);
     const float lon_angle_delta =
         2.0 * std::numbers::pi / static_cast<float>(num_slices);
 
-    // Add the north and south poles.
-    AppendVert(0, 0, 1);
-    AppendVert(0, 0, -1);
-
-    // Vertices by latitude.
+    // Latitude ring vertices (with seam column).
     for (int lat = 0; lat < num_stacks; ++lat) {
-      // +1 because we handle the north pole (which would be at a lat angle of
-      // 0-degrees) explicitly.
       const float lat_angle = static_cast<float>(lat + 1) * lat_angle_delta;
       const float cos_lat_angle = std::cos(lat_angle);
       const float sin_lat_angle = std::sin(lat_angle);
       const float z = cos_lat_angle;
+      const float v = lat_angle / std::numbers::pi_v<float>;
 
-      for (int lon = 0; lon < num_slices; ++lon) {
-        const float lon_angle = static_cast<float>(lon) * lon_angle_delta;
+      for (int lon = 0; lon <= num_slices; ++lon) {
+        const float u = static_cast<float>(lon) / num_slices;
+        // Wrap the geometry back to lon=0 for the seam column.
+        const int geo_lon = lon % num_slices;
+        const float lon_angle = static_cast<float>(geo_lon) * lon_angle_delta;
 
-        const float cos_lon_angle = std::cos(lon_angle);
-        const float sin_lon_angle = std::sin(lon_angle);
-
-        const float x = sin_lat_angle * cos_lon_angle;
-        const float y = sin_lat_angle * sin_lon_angle;
-        AppendVert(x, y, z);
+        const float x = sin_lat_angle * std::cos(lon_angle);
+        const float y = sin_lat_angle * std::sin(lon_angle);
+        AppendVert(x, y, z, u, v);
       }
     }
 
+    // Per-face pole vertices. Each polar triangle gets a unique pole vertex
+    // with u set to the midpoint of the two adjacent ring vertices.
+    const int north_pole_start = ring_verts;
+    for (int lon = 0; lon < num_slices; ++lon) {
+      const float u = (static_cast<float>(lon) + 0.5f) / num_slices;
+      AppendVert(0, 0, 1, u, 0.0f);
+    }
+    const int south_pole_start = north_pole_start + num_slices;
+    for (int lon = 0; lon < num_slices; ++lon) {
+      const float u = (static_cast<float>(lon) + 0.5f) / num_slices;
+      AppendVert(0, 0, -1, u, 1.0f);
+    }
+
+    // Indices.
     const size_t num_tris_polar_cap = num_slices;
     const size_t num_quads_body = num_slices * (num_stacks - 1);
     const int num_indices = (2 * num_tris_polar_cap * kNumIndicesPerTriangle) +
                             (num_quads_body * kNumIndicesPerQuad);
     indices_.reserve(num_indices);
 
-    // The first two vertices are the poles, so the first vertex in the first
-    // row starts at index 2.
-    uint16_t row_start = kSouthPoleIndex + 1;
-
-    // North polar cap.
+    // North polar cap — each triangle uses its own pole vertex.
+    const uint16_t first_ring_start = 0;
     for (int lon = 0; lon < num_slices; ++lon) {
-      const int next = lon < (num_slices - 1) ? lon + 1 : 0;
-      indices_.push_back(kNorthPoleIndex);
-      indices_.push_back(row_start + lon);
-      indices_.push_back(row_start + next);
+      indices_.push_back(north_pole_start + lon);
+      indices_.push_back(first_ring_start + lon);
+      indices_.push_back(first_ring_start + lon + 1);
     }
 
-    // Latitudinal triangle strips.
+    // Latitudinal quad strips — no index wrapping needed thanks to seam column.
     for (int lat = 0; lat < num_stacks - 1; lat++) {
-      const uint16_t north_start = row_start;
-      const uint16_t south_start = row_start + num_slices;
+      const uint16_t north_start = lat * verts_per_ring;
+      const uint16_t south_start = (lat + 1) * verts_per_ring;
       for (int lon = 0; lon < num_slices; ++lon) {
-        // The offset to the index that is adjacent to the current index.
-        const int adjacent = lon < (num_slices - 1) ? lon + 1 : 0;
-
-        const int i0 = (north_start + lon);
-        const int i1 = (south_start + lon);
-        const int i2 = (south_start + adjacent);
-        const int i3 = (north_start + adjacent);
+        const int i0 = north_start + lon;
+        const int i1 = south_start + lon;
+        const int i2 = south_start + lon + 1;
+        const int i3 = north_start + lon + 1;
         AppendQuadIndices(indices_, i0, i1, i2, i3);
       }
-      row_start += num_slices;
     }
 
     // South polar cap.
+    const uint16_t last_ring_start = (num_stacks - 1) * verts_per_ring;
     for (int lon = 0; lon < num_slices; ++lon) {
-      const int adjacent = lon < (num_slices - 1) ? lon + 1 : 0;
-      indices_.push_back(kSouthPoleIndex);
-      indices_.push_back(row_start + adjacent);
-      indices_.push_back(row_start + lon);
+      indices_.push_back(south_pole_start + lon);
+      indices_.push_back(last_ring_start + lon + 1);
+      indices_.push_back(last_ring_start + lon);
     }
 
     SetBounds({-1, -1, -1}, {1, 1, 1});
   }
 
  private:
-  void AppendVert(float x, float y, float z) {
+  void AppendVert(float x, float y, float z, float u, float v) {
     const float3 pt{x, y, z};
     positions_.push_back(pt);
     orientations_.push_back(CalculateOrientation(pt));
+    texcoords_.emplace_back(u, v);
   }
 };
 
 class DomeBuilder : public BuiltinBuilder {
  public:
-  DomeBuilder(int num_stacks, int num_slices) {
-    static constexpr uint16_t kPoleIndex = 0;
+  DomeBuilder(int num_stacks, int num_slices, bool flip_u = false,
+              bool flip_v = false) {
+    // Same seam-fix strategy as SphereBuilder: extra vertex per ring at u=1.0
+    // and per-face pole vertices.
 
-    const int num_vertices = (num_stacks * num_slices) + 1;  // +1 for poles
+    const int verts_per_ring = num_slices + 1;
+    const int ring_verts = num_stacks * verts_per_ring;
+    const int pole_verts = num_slices;  // one pole vert per polar triangle
+    const int num_vertices = ring_verts + pole_verts;
     positions_.reserve(num_vertices);
     orientations_.reserve(num_vertices);
+    texcoords_.reserve(num_vertices);
 
     const float lat_angle_delta =
         0.5 * std::numbers::pi / static_cast<float>(num_stacks);
     const float lon_angle_delta =
         2.0 * std::numbers::pi / static_cast<float>(num_slices);
 
-    // Add the pole.
-    AppendVert(0, 0, 1);
-
-    // Vertices by latitude.
+    // Latitude ring vertices (with seam column).
     for (int lat = 0; lat < num_stacks; ++lat) {
-      // +1 because we handle the north pole (which would be at a lat angle of
-      // 0-degrees) explicitly.
       const float lat_angle = static_cast<float>(lat + 1) * lat_angle_delta;
       const float cos_lat_angle = std::cos(lat_angle);
       const float sin_lat_angle = std::sin(lat_angle);
       const float z = cos_lat_angle;
+      const float v_val = 1.0f - (2.0f * lat_angle / std::numbers::pi_v<float>);
+      const float v = flip_v ? 1.0f - v_val : v_val;
 
-      for (int lon = 0; lon < num_slices; ++lon) {
-        const float lon_angle = static_cast<float>(lon) * lon_angle_delta;
-        const float cos_lon_angle = std::cos(lon_angle);
-        const float sin_lon_angle = std::sin(lon_angle);
+      for (int lon = 0; lon <= num_slices; ++lon) {
+        const float u_val = static_cast<float>(lon) / num_slices;
+        const float u = flip_u ? 1.0f - u_val : u_val;
+        const int geo_lon = lon % num_slices;
+        const float lon_angle = static_cast<float>(geo_lon) * lon_angle_delta;
 
-        const float x = sin_lat_angle * cos_lon_angle;
-        const float y = sin_lat_angle * sin_lon_angle;
-        AppendVert(x, y, z);
+        const float x = sin_lat_angle * std::cos(lon_angle);
+        const float y = sin_lat_angle * std::sin(lon_angle);
+        AppendVert(x, y, z, u, v);
       }
     }
 
+    // Per-face pole vertices.
+    const int pole_start = ring_verts;
+    for (int lon = 0; lon < num_slices; ++lon) {
+      const float u_val = (static_cast<float>(lon) + 0.5f) / num_slices;
+      const float u = flip_u ? 1.0f - u_val : u_val;
+      AppendVert(0, 0, 1, u, flip_v ? 0.0f : 1.0f);
+    }
+
+    // Indices.
     const size_t num_tris_polar_cap = num_slices;
     const size_t num_quads_body = num_slices * (num_stacks - 1);
     const int num_indices = (num_tris_polar_cap * kNumIndicesPerTriangle) +
                             (num_quads_body * kNumIndicesPerQuad);
     indices_.reserve(num_indices);
 
-    // The first vertex is the poles, so the first vertex in the first row
-    // starts at index 1.
-    uint16_t row_start = kPoleIndex + 1;
-
-    // North polar cap.
+    // Polar cap — each triangle uses its own pole vertex.
+    const uint16_t first_ring_start = 0;
     for (int lon = 0; lon < num_slices; ++lon) {
-      const int next = lon < (num_slices - 1) ? lon + 1 : 0;
-      indices_.push_back(kPoleIndex);
-      indices_.push_back(row_start + lon);
-      indices_.push_back(row_start + next);
+      indices_.push_back(pole_start + lon);
+      indices_.push_back(first_ring_start + lon);
+      indices_.push_back(first_ring_start + lon + 1);
     }
 
-    // Latitudinal quad strips.  The first "stack" was handled above, so we
-    // only need to iterate over N-1 stacks.
+    // Latitudinal quad strips.
     for (int lat = 0; lat < num_stacks - 1; lat++) {
-      const int north_start = row_start;
-      const int south_start = row_start + num_slices;
+      const uint16_t north_start = lat * verts_per_ring;
+      const uint16_t south_start = (lat + 1) * verts_per_ring;
       for (int lon = 0; lon < num_slices; ++lon) {
-        // The offset to the index that is adjacent to the current index.
-        const int adjacent = lon < (num_slices - 1) ? lon + 1 : 0;
-
-        const int i0 = (north_start + lon);
-        const int i1 = (south_start + lon);
-        const int i2 = (south_start + adjacent);
-        const int i3 = (north_start + adjacent);
+        const int i0 = north_start + lon;
+        const int i1 = south_start + lon;
+        const int i2 = south_start + lon + 1;
+        const int i3 = north_start + lon + 1;
         AppendQuadIndices(indices_, i0, i1, i2, i3);
       }
-      row_start += num_slices;
     }
 
     SetBounds({-1, -1, 0}, {1, 1, 1});
   }
 
  private:
-  void AppendVert(float x, float y, float z) {
+  void AppendVert(float x, float y, float z, float u, float v) {
     const float3 pt{x, y, z};
     positions_.push_back(pt);
     orientations_.push_back(CalculateOrientation(pt));
+    texcoords_.emplace_back(u, v);
   }
 };
 
@@ -643,7 +701,10 @@ Builtins::Builtins(filament::Engine* engine, int nstack, int nslice,
   sphere_ = BuiltinBuilder::Create<SphereBuilder>(engine, nstack, nslice);
   tube_ = BuiltinBuilder::Create<TubeBuilder>(engine, nstack, nslice);
   disk_ = BuiltinBuilder::Create<DiskBuilder>(engine, nslice);
-  dome_ = BuiltinBuilder::Create<DomeBuilder>(engine, nstack, nslice);
+  dome_top_ =
+      BuiltinBuilder::Create<DomeBuilder>(engine, nstack, nslice, false, true);
+  dome_bottom_ =
+      BuiltinBuilder::Create<DomeBuilder>(engine, nstack, nslice, true, false);
   cone_ = BuiltinBuilder::Create<ConeBuilder>(engine, nstack, nslice);
 }
 
@@ -655,7 +716,8 @@ const Mesh* Builtins::Box() { return box_.get(); }
 const Mesh* Builtins::Sphere() { return sphere_.get(); }
 const Mesh* Builtins::Cone() { return cone_.get(); }
 const Mesh* Builtins::Disk() { return disk_.get(); }
-const Mesh* Builtins::Dome() { return dome_.get(); }
+const Mesh* Builtins::DomeTop() { return dome_top_.get(); }
+const Mesh* Builtins::DomeBottom() { return dome_bottom_.get(); }
 const Mesh* Builtins::Tube() { return tube_.get(); }
 
 }  // namespace mujoco

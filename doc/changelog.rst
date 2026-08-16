@@ -41,6 +41,7 @@ Engine
   iterative solve for ``qacc_smooth``, which now converges on :ref:`tolerance<option-tolerance>` rather than a fixed
   threshold. Flexes with :ref:`elastic2d<flex-elasticity-elastic2d>` stretch stiffness step roughly twice as fast;
   bending-only flexes keep the exact constant factor and are unchanged.
+- Rewrote cleaner box-box SAT collider.
 
 .. admonition:: Breaking API changes
    :class: attention
@@ -85,6 +86,21 @@ Rendering
 .. admonition:: Breaking API changes
    :class: attention
 
+   .. image:: https://www.gstatic.com/mujoco/doc/images/changelog/primitives_textured.gif
+      :align: right
+      :width: 40%
+
+   - Added explicit texture coordinates to built-in geometries (Plane, Box, Sphere, Ellipsoid, Capsule,
+     Cylinder) in both the Classic renderer and Filament. 2D textures applied to primitive shapes will look different
+     as textures are mapped using canonical UV parameterizations rather than projecting onto the :math:`x,y` plane.
+
+     For finite planes, textures are now anchored to the bottom-left corner instead of the center. This will cause the
+     most common visual breakage, as common procedural checker textures will be phase shifted. Infinite planes continue
+     to be anchored at the origin with no visual changes.
+
+     .. image:: images/changelog/plane_uv_tiling.png
+        :align: center
+        :width: 70%
    - Added :ref:`light/softness<body-light-softness>`: edge softness for spotlights under physically-based lighting
      models, given as the fraction of the cone over which intensity falls to zero. The default of 0.2 is a semi-soft
      cone which delivers the full :ref:`intensity<body-light-intensity>` everywhere inside it, so that illuminance

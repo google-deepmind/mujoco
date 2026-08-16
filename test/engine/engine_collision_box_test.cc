@@ -14,6 +14,7 @@
 
 // Tests for engine/engine_collision_box.c.
 
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -22,8 +23,10 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_collision_convex.h"
+#include "src/engine/engine_collision_driver.h"
 #include "src/engine/engine_collision_primitive.h"
 #include "src/engine/engine_util_misc.h"
+#include "test/engine/boxbox_legacy.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -351,9 +354,10 @@ TEST_F(MjCollisionBoxTest, ThinBoxNoSpuriousDeepContact) {
 }
 
 TEST_F(MjCollisionBoxTest, ThinBoxShallowPenetration) {
-  // thin boxes with zero margin, penetrating by ~100um: the deepest contact reaches the
-  // separating-axis bound up to rounding, and must not be dropped by the depth filter;
-  // the pose is written directly into mjData since the exact bits matter
+  // thin boxes with zero margin, penetrating by ~100um: the deepest contact
+  // reaches the separating-axis bound up to rounding, and must not be dropped
+  // by the depth filter; the pose is written directly into mjData since the
+  // exact bits matter
   constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -464,9 +468,10 @@ TEST_F(MjCollisionBoxTest, ThinBoxTunneledPenetration) {
 }
 
 TEST_F(MjCollisionBoxTest, EdgeContactAtDepthBound) {
-  // edge-edge contacts whose depth equals the separating-axis bound up to rounding: the
-  // depth filter's slack must cover single-precision rounding or the whole manifold is
-  // rejected; the pose is written directly into mjData since the exact bits matter
+  // edge-edge contacts whose depth equals the separating-axis bound up to
+  // rounding: the depth filter's slack must cover single-precision rounding or
+  // the whole manifold is rejected; the pose is written directly into mjData
+  // since the exact bits matter
   constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -518,7 +523,307 @@ TEST_F(MjCollisionBoxTest, EdgeContactAtDepthBound) {
     for (int i = 1; i < num; i++) {
       deepest = mju_min(deepest, precon[i].dist);
     }
-    EXPECT_THAT(deepest, MjNear(gap, 1e-8, 1e-6));
+    // the collider prefers a face manifold when an edge axis is within five
+    // percent of it (resting-stack stability), so the deepest contact may
+    // legitimately deviate from the exact minimum by that fraction; the bug
+    // this test pins was three orders of magnitude
+    EXPECT_NEAR(deepest, gap, 0.06 * mju_abs(gap) + MjTol(1e-8, 1e-6));
+  }
+}
+
+// ------------------ differential tests against the pre-rewrite collider ------
+//
+// These measure the two properties the rewrite was written for, against the
+// implementation it replaced (boxbox_legacy.h). Both are consequences of the
+// same defect: in the nearly face-aligned regime the old collider let a
+// cross-product axis built from cancellation noise win the separating-axis
+// search, so the manifold it emitted changed shape from one step to the next,
+// and the solver's warm start never converged.
+
+// resting stacks live at relative angles of microradians; the manifold must not
+// depend on where in that regime the pair happens to sit
+TEST_F(MjCollisionBoxTest, NearAlignedManifoldIsExact) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="box" size=".05 .05 .05"/>
+      <geom type="box" size=".05 .05 .05"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // one box resting on the other, overlapping by 10 um, tilted about a generic
+  // axis by angles spanning the regime where the edge-cross axes degenerate
+  // into noise
+  mjtNum axis[3] = {1, 0.5, 3};
+  mju_normalize3(axis);
+
+  struct Result {
+    int smallest =
+        mjMAXCONPAIR;  // smallest manifold seen while the faces still overlap
+    mjtNum worst_tilt =
+        0;  // largest deviation of a contact normal from the face normal
+  };
+  Result New, Legacy;
+
+  const mjtNum identity[4] = {1, 0, 0, 0};
+  for (int decade = -9; decade <= -2; decade++) {
+    mjtNum angle = mju_pow(10, decade);
+
+    // in this range the mutual rotation is resolvable in both precisions, and
+    // still small enough that the faces overlap almost completely: the clipped
+    // polygon is an octagon
+    bool octagon = decade >= -6 && decade <= -4;
+    mjtNum quat[4];
+    mju_axisAngle2Quat(quat, axis, angle);
+    mju_zero3(data->geom_xpos);
+    mju_quat2Mat(data->geom_xmat, identity);
+    mju_quat2Mat(data->geom_xmat + 9, quat);
+    data->geom_xpos[3] = 0;
+    data->geom_xpos[4] = 0;
+    data->geom_xpos[5] = 0.1 - 1e-5;
+
+    mjPreContact con[mjMAXCONPAIR];
+    for (int legacy = 0; legacy < 2; legacy++) {
+      int n = legacy ? mjc_BoxBoxLegacy(model.get(), data.get(), con, 0, 1, 0)
+                     : mjc_BoxBox(model.get(), data.get(), con, 0, 1, 0);
+      Result& r = legacy ? Legacy : New;
+      ASSERT_GT(n, 0) << (legacy ? "legacy" : "new") << " angle=" << angle;
+      if (octagon) r.smallest = mjMIN(r.smallest, n);
+      for (int i = 0; i < n; i++) {
+        // the true contact normal here is the shared face normal, +/- z
+        r.worst_tilt = mju_max(r.worst_tilt, 1 - mju_abs(con[i].normal[2]));
+      }
+    }
+  }
+
+  // the contact patch is the whole clipped incident face -- here an octagon,
+  // since the two squares are mutually rotated. Reducing it to a four-point
+  // subset is what an earlier draft of this collider did, and it costs two to
+  // three orders of magnitude of residual motion on stacks of plates, so the
+  // full polygon is pinned here.
+  EXPECT_EQ(New.smallest, 8);
+
+  // the contact normal is the face normal, exactly, at every angle in the
+  // regime where the edge-cross axes are rounding noise; the collider this
+  // replaced drifts off it
+  EXPECT_LE(New.worst_tilt, MjTol(1e-15, 1e-6));
+  EXPECT_LT(New.worst_tilt, Legacy.worst_tilt);
+}
+
+// a pair whose overlap is comparable to the rounding error of its own support
+// evaluation: the separating-axis test must err toward contact, or the boxes
+// pass through each other
+TEST_F(MjCollisionBoxTest, ShallowOverlapSurvivesRounding) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="box" size="0.1 0.1 0.1"/>
+      <geom type="box" size="0.1 0.1 0.1"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_kinematics(model.get(), data.get());
+
+  // found by randomized search against an exact separating-axis reference
+  // evaluated in double: these two boxes overlap by 7.1e-8 of their scale,
+  // which the collider reported as separated under mjUSESINGLE while the exact
+  // comparison had no rounding slack. The pose is written straight into mjData
+  // because the exact bits matter.
+  const mjtNum size1[3] = {0.076610468327999115, 0.21989625692367554,
+                           0.0005179486470296979};
+  const mjtNum size2[3] = {0.02934698574244976, 0.00031350101926364005,
+                           0.1565844863653183};
+  const mjtNum pos2[3] = {0.1099575087428093, 0.067433357238769531,
+                          -0.27263233065605164};
+  const mjtNum quat1[4] = {-0.59937000274658203, 0.082370907068252563,
+                           -0.38643673062324524, 0.6961590051651001};
+  const mjtNum quat2[4] = {0.051869582384824753, -0.75536203384399414,
+                           0.60438132286071777, 0.24791309237480164};
+
+  mju_copy3(model->geom_size, size1);
+  mju_copy3(model->geom_size + 3, size2);
+  mju_zero3(data->geom_xpos);
+  mju_copy3(data->geom_xpos + 3, pos2);
+  mju_quat2Mat(data->geom_xmat, quat1);
+  mju_quat2Mat(data->geom_xmat + 9, quat2);
+
+  mjPreContact precon[mjMAXCONPAIR];
+  EXPECT_GT(mjc_BoxBox(model.get(), data.get(), precon, 0, 1, 0), 0);
+}
+
+// the dynamic consequence: a tall aligned stack. The old collider loses it.
+TEST_F(MjCollisionBoxTest, AlignedTowerStands) {
+  static constexpr int kNumBoxes = 20;
+  std::string xml = R"(
+  <mujoco>
+    <option timestep=".002"/>
+    <worldbody>
+      <geom type="plane" size="5 5 .1"/>
+  )";
+  // 1 mm gaps: the stack settles onto itself, and it is the settling impacts
+  // that expose a manifold which changes shape from step to step
+  for (int i = 0; i < kNumBoxes; i++) {
+    xml += "<body pos='0 0 " +
+           std::to_string(0.05 + 0.1 * i + 0.001 * (i + 1)) +
+           "'><freejoint/><geom type='box' size='.05 .05 .05'/></body>\n";
+  }
+  xml += "</worldbody></mujoco>";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  // settled speed and number of boxes that lost most of their height, per
+  // collider
+  mjtNum speed[2];
+  int fallen[2];
+  for (int legacy = 0; legacy < 2; legacy++) {
+    mjCOLLISIONFUNC[mjGEOM_BOX][mjGEOM_BOX] =
+        legacy ? mjc_BoxBoxLegacy : mjc_BoxBox;
+    MjDataPtr data = MakeData(model);
+    speed[legacy] = 0;
+    fallen[legacy] = 0;
+    for (int step = 0; step < 1500; step++) {  // 3 seconds
+      mj_step(model.get(), data.get());
+      if (step > 1000) {  // measure once the stack has settled
+        for (int i = 0; i < model->nv; i++) {
+          speed[legacy] = mju_max(speed[legacy], mju_abs(data->qvel[i]));
+        }
+      }
+    }
+    for (int b = 1; b < model->nbody; b++) {
+      if (data->xipos[3 * b + 2] < 0.5 * model->body_pos[3 * b + 2])
+        fallen[legacy]++;
+    }
+  }
+  mjCOLLISIONFUNC[mjGEOM_BOX][mjGEOM_BOX] = mjc_BoxBox;
+
+  // the rewrite brings the tower to rest, every box still stacked
+  EXPECT_EQ(fallen[0], 0);
+  EXPECT_LT(speed[0], MjTol(1e-6, 1e-2));
+
+  // the collider it replaced leaves it permanently agitated: the residual
+  // motion is orders of magnitude larger, and given a few more seconds the
+  // tower falls over
+  EXPECT_LT(speed[0], 1e-3 * speed[1]);
+}
+
+TEST_F(MjCollisionBoxTest, ConcentricAndContainedBoxes) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="box" size="1 1 1"/>
+      <geom type="box" size="0.2 0.2 0.2"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_kinematics(model.get(), data.get());
+
+  mjPreContact precon[mjMAXCONPAIR];
+
+  // 1. Concentric identical boxes: size [1, 1, 1] for both
+  mju_copy3(model->geom_size + 3, model->geom_size);
+  mju_zero3(data->geom_xpos);
+  mju_zero3(data->geom_xpos + 3);
+  int num = mjc_BoxBox(model.get(), data.get(), precon, 0, 1, 0);
+  EXPECT_GT(num, 0);
+  EXPECT_LE(num, 8);
+  for (int i = 0; i < num; i++) {
+    EXPECT_NEAR(precon[i].dist, -2.0, MjTol(1e-8, 1e-6));
+  }
+
+  // 2. Smaller box contained inside larger box, moved through each face
+  const mjtNum small_size[3] = {0.2, 0.2, 0.2};
+  mju_copy3(model->geom_size + 3, small_size);
+  for (int axis = 0; axis < 3; axis++) {
+    for (mjtNum dir : {-1.0, 1.0}) {
+      for (mjtNum offset : {0.5, 0.79, 0.8, 0.81, 1.2, 1.3}) {
+        mju_zero3(data->geom_xpos + 3);
+        data->geom_xpos[3 + axis] = dir * offset;
+        num = mjc_BoxBox(model.get(), data.get(), precon, 0, 1, 0.05);
+
+        // penetration/gap along that axis
+        mjtNum expected_dist = offset - 1.0 - 0.2;
+        if (expected_dist > 0.05) {
+          EXPECT_EQ(num, 0);
+        } else {
+          EXPECT_GT(num, 0);
+          for (int i = 0; i < num; i++) {
+            EXPECT_NEAR(precon[i].dist, expected_dist, MjTol(1e-7, 1e-5));
+            EXPECT_NEAR(precon[i].normal[axis], dir, MjTol(1e-7, 1e-5));
+          }
+        }
+      }
+    }
+  }
+}
+
+TEST_F(MjCollisionBoxTest, CanonicalFaceAndEdgeAlignments) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="box" size="0.1 0.1 0.1"/>
+      <geom type="box" size="0.1 0.1 0.1"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_kinematics(model.get(), data.get());
+
+  mjPreContact precon[mjMAXCONPAIR];
+
+  // 1. Exact 45-degree edge resting on horizontal face
+  mjtNum quat_45[4];
+  mjtNum y_axis[3] = {0, 1, 0};
+  mju_axisAngle2Quat(quat_45, y_axis, mjPI / 4.0);
+  mju_zero3(data->geom_xpos);
+  // corner/edge of tilted box touches top face of lower box
+  // lower top face is at z = 0.1; lowest edge of upper box is at -sqrt(2)*0.1
+  mjtNum diag = 0.1 * std::sqrt(2.0);
+  data->geom_xpos[3] = 0;
+  data->geom_xpos[4] = 0;
+  data->geom_xpos[5] = 0.1 + diag - 0.005;  // 5mm penetration
+  mju_quat2Mat(data->geom_xmat, quat_45);   // identity for 0, quat_45 for 1
+  mju_zero(data->geom_xmat, 9);
+  data->geom_xmat[0] = data->geom_xmat[4] = data->geom_xmat[8] = 1.0;
+  mju_quat2Mat(data->geom_xmat + 9, quat_45);
+
+  int num = mjc_BoxBox(model.get(), data.get(), precon, 0, 1, 0);
+  // edge-on-face contact generates contacts along the supporting edge
+  EXPECT_GT(num, 0);
+  for (int i = 0; i < num; i++) {
+    EXPECT_NEAR(precon[i].dist, -0.005, MjTol(1e-6, 1e-4));
+    EXPECT_NEAR(precon[i].normal[2], 1.0, MjTol(1e-6, 1e-4));
+  }
+
+  // 2. Perpendicular edges crossing (90 degrees around z)
+  mjtNum quat_90[4];
+  mjtNum z_axis[3] = {0, 0, 1};
+  mju_axisAngle2Quat(quat_90, z_axis, mjPI / 2.0);
+  mju_quat2Mat(data->geom_xmat + 9, quat_90);
+  data->geom_xpos[5] = 0.2 - 0.002;  // 2mm penetration, centered
+  num = mjc_BoxBox(model.get(), data.get(), precon, 0, 1, 0);
+  EXPECT_GE(num, 4);  // overlapping polygons produce a 4 to 8 vertex patch
+  EXPECT_LE(num, 8);
+  for (int i = 0; i < num; i++) {
+    EXPECT_NEAR(precon[i].dist, -0.002, MjTol(1e-7, 1e-5));
+    EXPECT_NEAR(precon[i].normal[2], 1.0, MjTol(1e-7, 1e-5));
   }
 }
 

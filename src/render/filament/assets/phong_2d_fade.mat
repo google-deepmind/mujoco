@@ -39,7 +39,11 @@ vertex {
 
 fragment {
   void material(inout MaterialInputs material) {
-    vec2 uv = variable_vertex_pos.xy * materialParams.UvScale.xy + materialParams.UvOffset.xy;
+    // Convert centered object-space positions [-1, 1] to standard [0, 1] UVs:
+    //   * 0.5 scales [-1, 1] to [-0.5, 0.5]
+    //   * -0.5 on Y flips the vertical axis (top of geom = V=0)
+    //   * - vec2(0.5, 0.5) offsets origin to match OpenGL glTexGen conventions
+    vec2 uv = variable_vertex_pos.xy * vec2(0.5, -0.5) * materialParams.UvScale.xy - vec2(0.5, 0.5) + materialParams.UvOffset.xy;
 
     prepareMaterial(material);
     material.baseColor     = materialParams.BaseColorFactor;

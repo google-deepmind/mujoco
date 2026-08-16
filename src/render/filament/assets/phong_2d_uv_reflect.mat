@@ -23,7 +23,9 @@ material {
         { type : float, name : EmissiveFactor },
         { type : float, name : Reflectance },
         { type : sampler2d, name : BaseColor },
-        { type : sampler2d, name : Reflection }
+        { type : sampler2d, name : Reflection },
+        { type : float3, name : UvScale },
+        { type : float3, name : UvOffset }
     ],
     requires : [
         uv0
@@ -32,7 +34,7 @@ material {
 
 fragment {
   void material(inout MaterialInputs material) {
-    vec2 uv = getUV0();
+    vec2 uv = getUV0() * materialParams.UvScale.xy + materialParams.UvOffset.xy;
     vec2 screen_uv = gl_FragCoord.xy * getResolution().zw;
 
     prepareMaterial(material);

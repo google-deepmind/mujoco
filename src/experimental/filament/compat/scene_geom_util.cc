@@ -28,19 +28,6 @@
 
 namespace mujoco {
 
-// Returns the tile size for infinite plane texture alignment.
-// This is duplicated from engine_vis_visualize.c (re-center infinite plane)
-// to ensure UV scaling matches the re-centering increments.
-static float GetPlaneTileSize(const mjModel* model, int matid,
-                              float texrepeat) {
-  if (matid >= 0 && texrepeat > 0) {
-    return 2.0f / texrepeat;
-  } else {
-    const float zfar = model->vis.map.zfar * model->stat.extent;
-    return 2.1f * zfar / (mjMAXPLANEGRID - 2);
-  }
-}
-
 static void PrepareGeomMeshes(mjrfRenderable* renderable, const mjvGeom& geom,
                               ModelObjects* model_objs,
                               SceneObjects* scene_objs) {
@@ -230,37 +217,31 @@ static void UpdateGeomMaterial(mjrfRenderable* renderable, const mjvGeom& geom,
         }
       }
 
-      if (tex_uniform) {
-        if (geom.size[0] > 0) {
-          material.uv_scale[0] *= geom.size[0];
-        }
-        if (geom.size[1] > 0) {
-          material.uv_scale[1] *= geom.size[1];
-        }
-      }
       const bool is_infinite_plane =
           geom.type == mjGEOM_PLANE && (geom.size[0] <= 0 || geom.size[1] <= 0);
       if (is_infinite_plane) {
-        // Infinite planes are scaled to match the tile size used by
-        // re-centering in engine_vis_visualize.c.
         const float plane_scale = static_cast<float>(mjMAXPLANEGRID) / 2.0f;
-        const float tile_size_x =
-            GetPlaneTileSize(model, geom.matid, tex_repeat[0]);
-        const float tile_size_y =
-            GetPlaneTileSize(model, geom.matid, tex_repeat[1]);
-        material.uv_scale[0] = 2.0f * plane_scale / tile_size_x;
-        material.uv_scale[1] = 2.0f * plane_scale / tile_size_y;
-      }
 
-      // We want to do the equivalent of:
-      //   mjr_setf4(splane, 0.5 * scl.x,  0, 0, -0.5);
-      //   mjr_setf4(tplane, 0, -0.5 * scl.y, 0, -0.5);
-      //   glTexGenfv(GL_S, GL_OBJECT_PLANE, splane);
-      //   glTexGenfv(GL_T, GL_OBJECT_PLANE, tplane);
-      material.uv_scale[0] = 0.5f * material.uv_scale[0];
-      material.uv_scale[1] = -0.5f * material.uv_scale[1];
-      material.uv_offset[0] = -0.5f;
-      material.uv_offset[1] = -0.5f;
+        const float dot_pos_axis_x = geom.pos[0] * geom.mat[0] +
+                                     geom.pos[1] * geom.mat[3] +
+                                     geom.pos[2] * geom.mat[6];
+        const float dot_pos_axis_y = geom.pos[0] * geom.mat[1] +
+                                     geom.pos[1] * geom.mat[4] +
+                                     geom.pos[2] * geom.mat[7];
+
+        material.uv_scale[0] *= plane_scale;
+        material.uv_scale[1] *= plane_scale;
+        // The vertex UVs in PlaneBuilder are u0 = 0.5*x + 0.5, v0 = -0.5*y + 0.5.
+        // To keep the world-space texture coordinate u = 0.5*worldX*texrepeat - 0.5
+        // independent of the snapped geomPos, uv_offset must compensate by 0.5*dot_pos.
+        material.uv_offset[0] =
+            (0.5f * dot_pos_axis_x - 0.5f * plane_scale) * tex_repeat[0] - 0.5f;
+        material.uv_offset[1] =
+            (-0.5f * dot_pos_axis_y - 0.5f * plane_scale) * tex_repeat[1] - 0.5f;
+      } else if (tex_uniform) {
+        material.uv_scale[0] *= (geom.size[0] ? geom.size[0] : 1.0f);
+        material.uv_scale[1] *= (geom.size[1] ? geom.size[1] : 1.0f);
+      }
     } else {
       // For cube maps, if `tex_uniform` is true, then scale the texture so that
       // it covers a 1x1 area of world space rather than the area of the object.
