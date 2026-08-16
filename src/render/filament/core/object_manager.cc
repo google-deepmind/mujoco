@@ -73,8 +73,6 @@ ObjectManager::ObjectManager(filament::Engine* engine) : engine_(engine) {
       LoadMaterial(engine, "pbr_packed_reflect.filamat");
   materials_[kPhong2d] = LoadMaterial(engine, "phong_2d.filamat");
   materials_[kPhong2dFade] = LoadMaterial(engine, "phong_2d_fade.filamat");
-  materials_[kPhong2dReflect] =
-      LoadMaterial(engine, "phong_2d_reflect.filamat");
   materials_[kPhong2dUv] = LoadMaterial(engine, "phong_2d_uv.filamat");
   materials_[kPhong2dUvFade] = LoadMaterial(engine, "phong_2d_uv_fade.filamat");
   materials_[kPhong2dUvReflect] =

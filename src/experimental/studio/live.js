@@ -151,7 +151,6 @@ var Module = {
       "assets/pbr_packed_transparent.filamat",
       "assets/phong_2d_fade.filamat",
       "assets/phong_2d.filamat",
-      "assets/phong_2d_reflect.filamat",
       "assets/phong_2d_uv_fade.filamat",
       "assets/phong_2d_uv.filamat",
       "assets/phong_2d_uv_reflect.filamat",
