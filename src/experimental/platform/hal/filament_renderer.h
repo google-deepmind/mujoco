@@ -21,11 +21,14 @@
 
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/compat/scene_bridge.h"
 #include "experimental/platform/hal/graphics_mode.h"
 #include "experimental/platform/hal/renderer.h"
 #include "experimental/platform/ux/imgui_bridge.h"
 #include "render/filament/mjrfilament_cpp.h"
+#include "render/filament/support/model_decorations.h"
+#include "render/filament/support/model_lights.h"
+#include "render/filament/support/model_objects.h"
+#include "render/filament/support/model_renderables.h"
 
 namespace mujoco::platform {
 
@@ -69,7 +72,7 @@ class FilamentRenderer : public Renderer {
                   int height, int bpp) override;
 
   // Rendering flags.
-  mjtByte* GetRenderFlags() override { return scene_.flags; }
+  mjtByte* GetRenderFlags() override { return render_flags_; }
 
   // Returns the current frame rate.
   double GetFps() override;
@@ -78,20 +81,24 @@ class FilamentRenderer : public Renderer {
   // Resets the renderer; no rendering will occur until Init() is called again.
   void Deinit();
 
-  void UpdateFps();
-
-  void DoRender(int width, int height);
-  void DoReadPixels(int width, int height, unsigned char* rgb);
+  void BuildMainRenderRequest(mjrfRenderRequest* request,
+                              const mjrRect& viewport, const mjrCamera& camera);
+  void BuildUxRenderRequest(mjrfRenderRequest* request,
+                            const mjrRect& viewport);
 
   void* native_window_ = nullptr;
   GraphicsMode gfx_ = GraphicsMode::FilamentVulkan;
   UniquePtr<mjrfContext> filament_context_{nullptr, nullptr};
   UniquePtr<mjrfScene> main_scene_{nullptr, nullptr};
   UniquePtr<mjrfScene> ux_scene_{nullptr, nullptr};
-  std::unique_ptr<SceneBridge> scene_bridge_;
+  UniquePtr<mjrfRenderTarget> render_target_{nullptr, nullptr};
   std::unique_ptr<ImguiBridge> imgui_bridge_;
+  std::unique_ptr<ModelObjects> model_objects_;
+  std::unique_ptr<ModelLights> model_lights_;
+  std::unique_ptr<ModelRenderables> model_renderables_;
+  std::unique_ptr<ModelDecorations> model_decorations_;
+  mjtByte render_flags_[mjNRNDFLAG];
   int framebuffer_mode_ = 0;
-  mjvScene scene_;
   double fps_ = 0;
 };
 
