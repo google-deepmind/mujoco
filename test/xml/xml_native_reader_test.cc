@@ -3149,7 +3149,7 @@ TEST_F(ActuatorParseTest, DCMotorInheritedDefaults) {
   <mujoco>
     <default>
       <dcmotor motorconst="1.0" resistance="1.0" controller="2.0 0.5 0.1 10.0 5.0 12.0"
-      saturation="0 0 0" inductance="0 0.01" input="velocity"/>
+      saturation="0 0 0" inductance="0 0.01" input="pos vel"/>
     </default>
     <worldbody>
       <body>
@@ -3182,8 +3182,9 @@ TEST_F(ActuatorParseTest, DCMotorInheritedDefaults) {
   // check Vmax in gainprm[7]
   EXPECT_MJTNUM_EQ(model->actuator_gainprm[7], 12.0);
 
-  // check input mode in gainprm[8]
-  EXPECT_MJTNUM_EQ(model->actuator_gainprm[8], 2.0);
+  // check setpoint input block (gainprm[8] is retired)
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[8], 0.0);
+  EXPECT_EQ(model->actuator_ctrlnum[0], 2);
 
   // check inductance (te) in dynprm[0]
   EXPECT_MJTNUM_EQ(model->actuator_dynprm[0], 0.01);
@@ -3199,7 +3200,7 @@ TEST_F(ActuatorParseTest, DCMotorControllerFull) {
       </body>
     </worldbody>
     <actuator>
-      <dcmotor joint="jnt" motorconst="0.05" resistance="2.0"
+      <dcmotor joint="jnt" motorconst="0.05" resistance="2.0" input="pos vel"
                controller="1.0 2.0 3.0 4.0 5.0 6.0"/>
     </actuator>
   </mujoco>

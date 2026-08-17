@@ -54,6 +54,32 @@ TEST_F(XMLWriterTest, EmptyModel) {
   EXPECT_THAT(saved_xml, Not(HasSubstr("default")));
 }
 
+TEST_F(XMLWriterTest, KeepsDCMotorNoInputs) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="jnt"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt" motorconst="0.05" resistance="2.0" input="none"/>
+    </actuator>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  std::string saved_xml = SaveAndReadXml(model.get());
+  EXPECT_THAT(saved_xml, HasSubstr("input=\"none\""));
+
+  // reload: the empty input block survives the round trip
+  MjModelPtr model2 = LoadModelFromString(saved_xml.c_str());
+  ASSERT_THAT(model2.get(), NotNull());
+  EXPECT_EQ(model2->nu, 0);
+  EXPECT_EQ(model2->actuator_ctrlnum[0], 0);
+}
+
 TEST_F(XMLWriterTest, SavesMemory) {
   {
     static constexpr char xml[] = R"(

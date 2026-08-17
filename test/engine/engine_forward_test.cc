@@ -67,6 +67,8 @@ using ::testing::Pointwise;
 
 using ::testing::_;
 using ::testing::Gt;
+using ::testing::HasSubstr;
+using ::testing::IsNull;
 using ::testing::Ne;
 using ::testing::NotNull;
 
@@ -1452,63 +1454,58 @@ TEST_F(ActuatorTest, DampRatioTendon) {
 
 using DCMotorTest = MujocoTest;
 
-TEST_F(DCMotorTest, IntVelocityEquivalence) {
+// A stateless dcmotor with setpoint inputs matches <pid> exactly, for any
+// motor constant and resistance: the torque-space controller commands
+// kp*(qref - l) + kd*(vref - ldot) and the tau->V map compensates back-EMF.
+TEST_F(DCMotorTest, SetpointMatchesPid) {
   static constexpr char xml[] = R"(
   <mujoco>
-    <option integrator="implicit"/>
+    <option timestep="0.001" integrator="implicitfast">
+      <flag contact="disable" gravity="disable"/>
+    </option>
     <worldbody>
-      <body pos="0 0 0">
+      <body>
         <joint name="slide1" type="slide" axis="1 0 0"/>
-        <geom size=".1"/>
+        <geom size="0.1" mass="1"/>
       </body>
-      <body pos="0 1 0">
+      <body>
         <joint name="slide2" type="slide" axis="1 0 0"/>
-        <geom size=".1"/>
+        <geom size="0.1" mass="1"/>
       </body>
     </worldbody>
     <actuator>
-      <!--
-        Equivalence mapping:
-        intvelocity force: F = kp * \int(ctrl - v) - kv * v
-        dcmotor force:     F = (V*K - K^2*v) / R
-        where V = ki * \int(ctrl - v)     (since kp=0, kd=0)
-
-        Setting K=1, R=0.2, ki=2 yields:
-        F = (2 * \int(ctrl - v) - v) / 0.2
-          = 10 * \int(ctrl - v) - 5 * v
-
-        This perfectly matches intvelocity with kp=10, kv=5.
-      -->
-      <intvelocity name="intvel" joint="slide1" kp="10" kv="5" actrange="-0.01 0.01"/>
-      <dcmotor name="dcmotor" joint="slide2" motorconst="1" resistance="0.2" input="velocity" controller="0 2 0 0 0.01"/>
+      <pid name="pid" joint="slide1" kp="10" kv="5"/>
+      <dcmotor name="dcmotor" joint="slide2" motorconst="0.05" resistance="2.0"
+               input="pos vel" controller="10 0 5"/>
     </actuator>
   </mujoco>
   )";
   char error[1024];
   MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(model.get(), NotNull()) << error;
+
+  // both actuators own [pos, vel] blocks
+  ASSERT_EQ(model->nu, 4);
   MjDataPtr data = MakeData(model);
 
-  // Apply a time-varying velocity command
+  // time-varying position and velocity commands, identical for both
   while (data->time < 1.0) {
-    data->ctrl[0] = mju_sin(20 * data->time);
-    data->ctrl[1] = mju_sin(20 * data->time);
+    mjtNum qref = mju_sin(5 * data->time);
+    mjtNum vref = mju_cos(3 * data->time);
+    data->ctrl[0] = data->ctrl[2] = qref;
+    data->ctrl[1] = data->ctrl[3] = vref;
     mj_step(model.get(), data.get());
 
-    // Both actuators should integrate identical states
-    EXPECT_MJTNUM_EQ(data->act[0], data->act[1]);
+    EXPECT_NEAR(data->qpos[0], data->qpos[1], MjTol(1e-14, 1e-6));
+    EXPECT_NEAR(data->qvel[0], data->qvel[1], MjTol(1e-14, 1e-6));
 
-    // Both bodies should move identically
-    EXPECT_NEAR(data->qpos[0], data->qpos[1], MjTol(1e-14, 1e-7));
-    EXPECT_NEAR(data->qvel[0], data->qvel[1], MjTol(1e-14, 1e-7));
-    EXPECT_NEAR(data->qacc[0], data->qacc[1], MjTol(1e-14, 1e-6));
-
-    // Both actuators should produce identical force
+    // recompute forces at the post-step state before comparing: identical, the
+    // tau->V map cancels back-EMF so there is no extra damping to account for
+    mj_forward(model.get(), data.get());
     EXPECT_NEAR(data->actuator_force[0], data->actuator_force[1],
-                MjTol(1e-14, 1e-6));
+                MjTol(1e-13, 1e-5));
   }
 }
-
 TEST_F(DCMotorTest, StatelessSteadyState) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -1527,6 +1524,9 @@ TEST_F(DCMotorTest, StatelessSteadyState) {
   MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(model.get(), NotNull()) << error;
   MjDataPtr data = MakeData(model);
+
+  // the dcmotor ff input is the terminal voltage, named accordingly
+  EXPECT_STREQ(mj_actuatorInputName(model.get(), 0, 0), "voltage");
 
   double K = 0.05;
   double R = 2.0;
@@ -1776,7 +1776,8 @@ TEST_F(DCMotorTest, LuGreBristleVelocityOrderInvariance) {
   ASSERT_THAT(model.get(), NotNull()) << error;
   MjDataPtr data = MakeData(model);
   int dc = mj_name2id(model.get(), mjOBJ_ACTUATOR, "dc");
-  data->qvel[model->jnt_dofadr[mj_name2id(model.get(), mjOBJ_JOINT, "hinge")]] = 1;
+  data->qvel[model->jnt_dofadr[mj_name2id(model.get(), mjOBJ_JOINT, "hinge")]] =
+      1;
   mj_step(model.get(), data.get());
   double z_dc_first = data->act[model->actuator_actadr[dc]];
 
@@ -1787,13 +1788,142 @@ TEST_F(DCMotorTest, LuGreBristleVelocityOrderInvariance) {
   data = MakeData(model);
   dc = mj_name2id(model.get(), mjOBJ_ACTUATOR, "dc");
   ASSERT_EQ(model->actuator_outadr[dc], 3);
-  data->qvel[model->jnt_dofadr[mj_name2id(model.get(), mjOBJ_JOINT, "hinge")]] = 1;
+  data->qvel[model->jnt_dofadr[mj_name2id(model.get(), mjOBJ_JOINT, "hinge")]] =
+      1;
   mj_step(model.get(), data.get());
   double z_so3_first = data->act[model->actuator_actadr[dc]];
 
   // the bristle state saw the same spinning hinge in both models
   EXPECT_NE(z_dc_first, 0);
   EXPECT_MJTNUM_EQ(z_so3_first, z_dc_first);
+}
+
+// A dcmotor with input="none" has no controls and acts as a passive device:
+// LuGre friction, cogging and back-EMF braking with the terminals shorted.
+TEST_F(DCMotorTest, PassiveNoInputs) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0" input="none"
+               damping="0.01" lugre="100 1 0.5 0.7 10"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // no controls at all, one actuator, one bristle state
+  EXPECT_EQ(model->nu, 0);
+  EXPECT_EQ(model->nactuator, 1);
+  EXPECT_EQ(model->actuator_ctrlnum[0], 0);
+  ASSERT_EQ(model->actuator_actnum[0], 1);
+
+  // same force as a voltage-commanded motor with u = 0: shorted terminals
+  double sigma1 = 1;
+  double K = 0.05, R = 2.0;
+  double omega = 2.0;
+  data->qvel[0] = omega;
+  mj_forward(model.get(), data.get());
+
+  double electrical_force = K / R * (0 - K * omega);
+  double z = data->act[model->actuator_actadr[0]];
+  double z_dot = data->act_dot[model->actuator_actadr[0]];
+  double lugre_force = 100 * z + sigma1 * z_dot;
+  EXPECT_NEAR(data->actuator_force[0], electrical_force - lugre_force,
+              MjTol(1e-12, 1e-5));
+
+  // the model steps with an empty ctrl vector: friction brakes the joint
+  for (int i = 0; i < 100; i++) {
+    mj_step(model.get(), data.get());
+  }
+  EXPECT_GT(data->act[model->actuator_actadr[0]], 0);
+  EXPECT_LT(data->qvel[0], omega);
+}
+
+// input="none" validation: dcmotor-only, incompatible with slew and ki.
+TEST_F(DCMotorTest, NoInputsCompileErrors) {
+  char error[1024];
+
+  // pid does not accept input="none"
+  static constexpr char pid_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <pid joint="joint" kp="1" input="none"/>
+    </actuator>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(pid_xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("subset"));
+
+  // slew rate limiting requires an input
+  static constexpr char slew_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0" input="none"
+               controller="0 0 0 4.0 0 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  model = LoadModelFromString(slew_xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("slew"));
+
+  // the "voltage" keyword is dcmotor-only
+  static constexpr char voltage_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <pid joint="joint" kp="1" input="voltage"/>
+    </actuator>
+  </mujoco>
+  )";
+  model = LoadModelFromString(voltage_xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), IsNull());
+
+  // integral gain requires the pos input
+  static constexpr char ki_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0" input="vel ff"
+               controller="0 2.0 0 0 0 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  model = LoadModelFromString(ki_xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("pos input"));
 }
 
 TEST_F(DCMotorTest, ThermalRiseAndFall) {
@@ -1928,7 +2058,7 @@ TEST_F(DCMotorTest, ThermalAffectsForceWithController) {
     </worldbody>
     <actuator>
       <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
-               input="position" controller="1.0 1.0 0 5.0 0"
+               input="pos vel" controller="1.0 1.0 0 5.0 0"
                thermal="0.1 0.1 0 0.004 25 25"/>
     </actuator>
   </mujoco>
@@ -1943,7 +2073,7 @@ TEST_F(DCMotorTest, ThermalAffectsForceWithController) {
   int adr = model->actuator_actadr[0];
   int temp_adr = adr + 2;  // temperature is slot 2
 
-  double K = 0.05, R = 2.0, alpha = 0.004;
+  double R = 2.0, alpha = 0.004;
   double dT = 50;
   data->act[adr] = 1.0;      // slew state = ctrl: no rate-limiting applied
   data->act[adr + 1] = 0.0;  // integral state x_I = 0
@@ -1952,11 +2082,11 @@ TEST_F(DCMotorTest, ThermalAffectsForceWithController) {
   mj_forward(model.get(), data.get());
 
   // u_eff = ctrl = 1.0 (no slew applied since act[slew] == ctrl)
-  // V = kp*(u_eff - length) + ki*x_I - kd*omega = 1.0*1.0 + 1.0*0.0 - 0*0 = 1.0
-  // R(T) = 2.0 * (1 + 0.004 * 50) = 2.4
-  // stateless (no te): force = K/R(T) * V = 0.05/2.4 * 1.0
+  // torque command tau = kp*(u_eff - length) = 1.0; the tau->V map uses the
+  // nameplate resistance, so the hot motor under-delivers by R/R(T):
+  // V = R/K * tau = 40, force = K/R(T) * V = (R/R(T)) * tau
   double R_hot = R * (1 + alpha * dT);
-  EXPECT_NEAR(data->actuator_force[0], K / R_hot * 1.0, MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(data->actuator_force[0], R / R_hot * 1.0, MjTol(1e-12, 1e-5));
 }
 
 TEST_F(DCMotorTest, StatelessPositionMode) {
@@ -1970,7 +2100,7 @@ TEST_F(DCMotorTest, StatelessPositionMode) {
       </body>
     </worldbody>
     <actuator>
-      <dcmotor joint="joint" input="position" controller="2.0 0 0.5 0 0"
+      <dcmotor joint="joint" input="pos vel" controller="2.0 0 0.5 0 0"
                motorconst="0.05" resistance="2.0"/>
     </actuator>
   </mujoco>
@@ -1980,21 +2110,23 @@ TEST_F(DCMotorTest, StatelessPositionMode) {
   ASSERT_THAT(model.get(), NotNull()) << error;
   MjDataPtr data = MakeData(model);
 
+  // setpoint inputs are named
+  EXPECT_STREQ(mj_actuatorInputName(model.get(), 0, 0), "pos");
+  EXPECT_STREQ(mj_actuatorInputName(model.get(), 0, 1), "vel");
+
   // Position target 5.0, current pos 0.0, current vel 0.0
   data->ctrl[0] = 5.0;
   mj_forward(model.get(), data.get());
 
-  // V = Kp * (u - theta) = 2.0 * 5.0 = 10.0
-  // force = K / R * V + bias = (0.05 / 2.0) * 10.0 + 0 = 0.25
-  EXPECT_NEAR(data->actuator_force[0], 0.25, MjTol(1e-12, 1e-5));
+  // torque-space controller with back-EMF compensation: force = kp*(qref - l)
+  // force = 2.0 * 5.0 = 10.0, exactly
+  EXPECT_NEAR(data->actuator_force[0], 10.0, MjTol(1e-12, 1e-5));
 
   // Velocity penalty
   data->qvel[0] = 2.0;
   mj_forward(model.get(), data.get());
-  // V = 10.0 - Kd * omega = 10.0 - (0.5 * 2.0) = 9.0
-  // bias = - K^2 / R * omega = -0.0025 / 2.0 * 2.0 = -0.0025
-  // force = K / R * V + bias = 0.225 - 0.0025 = 0.2225
-  EXPECT_NEAR(data->actuator_force[0], 0.2225, MjTol(1e-12, 1e-5));
+  // force = kp*(qref - l) - kd*omega = 10.0 - 0.5*2.0 = 9.0: no back-EMF droop
+  EXPECT_NEAR(data->actuator_force[0], 9.0, MjTol(1e-12, 1e-5));
 }
 
 TEST_F(DCMotorTest, StatelessVelocityMode) {
@@ -2008,7 +2140,7 @@ TEST_F(DCMotorTest, StatelessVelocityMode) {
       </body>
     </worldbody>
     <actuator>
-      <dcmotor joint="joint" input="velocity" controller="3.0 0 0 0 0"
+      <dcmotor joint="joint" input="pos vel" controller="0 0 3.0 0 0"
                motorconst="0.05" resistance="2.0"/>
     </actuator>
   </mujoco>
@@ -2018,15 +2150,13 @@ TEST_F(DCMotorTest, StatelessVelocityMode) {
   ASSERT_THAT(model.get(), NotNull()) << error;
   MjDataPtr data = MakeData(model);
 
-  // Velocity target 4.0, current vel 1.0
-  data->ctrl[0] = 4.0;
+  // Velocity target 4.0 (second input), current vel 1.0
+  data->ctrl[1] = 4.0;
   data->qvel[0] = 1.0;
   mj_forward(model.get(), data.get());
 
-  // V = Kp * (u - omega) = 3.0 * (4.0 - 1.0) = 9.0
-  // bias = - K^2 / R * omega = -0.0025 / 2.0 * 1.0 = -0.00125
-  // force = K / R * V + bias = (0.05 / 2.0) * 9.0 - 0.00125 = 0.22375
-  EXPECT_NEAR(data->actuator_force[0], 0.22375, MjTol(1e-12, 1e-5));
+  // force = kd * (vref - omega) = 3.0 * (4.0 - 1.0) = 9.0, exactly
+  EXPECT_NEAR(data->actuator_force[0], 9.0, MjTol(1e-12, 1e-5));
 }
 
 TEST_F(DCMotorTest, StatefulPositionMode) {
@@ -2040,7 +2170,7 @@ TEST_F(DCMotorTest, StatefulPositionMode) {
       </body>
     </worldbody>
     <actuator>
-      <dcmotor joint="joint" input="position" controller="2.0 0.5 0.1 10.0 5.0"
+      <dcmotor joint="joint" input="pos vel" controller="2.0 0.5 0.1 10.0 5.0"
                motorconst="0.05" resistance="2.0"/>
     </actuator>
   </mujoco>
@@ -2072,11 +2202,9 @@ TEST_F(DCMotorTest, StatefulPositionMode) {
   // PI error: error = u_eff - length = 1.01 - 0.0 = 1.01
   EXPECT_NEAR(data->act_dot[adr + 1], 1.01, MjTol(1e-12, 1e-5));
 
-  // V = Kp(u_eff - length) + Ki * x_I - Kd * omega
-  // V = 2.0 * 1.01 + 0.5 * 2.0 - 0.1 * 0.5 = 2.97
-  // bias = - K^2/R * omega = -(0.05)^2 / 2.0 * 0.5 = -0.000625
-  // force = K/R * V + bias = 0.025 * 2.97 - 0.000625 = 0.073625
-  EXPECT_NEAR(data->actuator_force[0], 0.073625, MjTol(1e-12, 1e-5));
+  // force = kp * (u_eff - length) + ki * x_I - kd * omega
+  //       = 2.0 * 1.01 + 0.5 * 2.0 - 0.1 * 0.5 = 2.97, exactly
+  EXPECT_NEAR(data->actuator_force[0], 2.97, MjTol(1e-12, 1e-5));
 }
 
 TEST_F(DCMotorTest, StatefulPositionWithCurrentMode) {
@@ -2090,7 +2218,7 @@ TEST_F(DCMotorTest, StatefulPositionWithCurrentMode) {
       </body>
     </worldbody>
     <actuator>
-      <dcmotor joint="joint" input="position" controller="2.0 0.5 0.1 10.0 5.0"
+      <dcmotor joint="joint" input="pos vel" controller="2.0 0.5 0.1 10.0 5.0"
                motorconst="0.05" resistance="2.0" inductance="1.0"/>
     </actuator>
   </mujoco>
@@ -2122,16 +2250,16 @@ TEST_F(DCMotorTest, StatefulPositionWithCurrentMode) {
   // PI error: error = u_eff - length = 1.01
   EXPECT_NEAR(data->act_dot[adr + 1], 1.01, MjTol(1e-12, 1e-5));
 
-  // Voltage computation:
-  // V = Kp(u_eff - length) + Ki * x_I - Kd * omega
-  // V = 2.0 * 1.01 + 0.5 * 2.0 - 0.1 * 0.5 = 2.97
+  // torque command: tau = kp * (u_eff - length) + ki * x_I - kd * omega
+  //                      = 2.0 * 1.01 + 0.5 * 2.0 - 0.1 * 0.5 = 2.97
+  // tau->V map with back-EMF compensation:
+  // V = R/K * tau + K * omega = 2.0/0.05 * 2.97 + 0.05 * 0.5 = 118.825
 
   // Current filter:
   // t_e = L / R = 1.0 / 2.0 = 0.5
   // di/dt = (V/R - K/R * omega - i) / t_e
-  // di/dt = (2.97/2.0 - 0.05/2.0 * 0.5 - 0.5) / 0.5
-  // di/dt = (1.485 - 0.0125 - 0.5) / 0.5 = 0.9725 / 0.5 = 1.945
-  EXPECT_NEAR(data->act_dot[adr + 2], 1.945, MjTol(1e-12, 1e-5));
+  // di/dt = (118.825/2.0 - 0.05/2.0 * 0.5 - 0.5) / 0.5 = 117.8
+  EXPECT_NEAR(data->act_dot[adr + 2], 117.8, MjTol(1e-12, 1e-4));
 
   // Force is K * next_activation (actearly is always on for DC motors)
   // Inline mj_nextActivation for te = 0.5
@@ -2152,7 +2280,7 @@ TEST_F(DCMotorTest, StatefulVelocityMode) {
       </body>
     </worldbody>
     <actuator>
-      <dcmotor joint="joint" input="velocity" controller="3.0 1.0 0 0 2.0"
+      <dcmotor joint="joint" input="pos vel" controller="3.0 1.0 0 0 2.0"
                motorconst="0.05" resistance="2.0"/>
     </actuator>
   </mujoco>
@@ -2169,28 +2297,23 @@ TEST_F(DCMotorTest, StatefulVelocityMode) {
   double x_I = 2.0;  // Exactly at Imax limit (Imax = 2.0)
   data->act[adr] = x_I;
 
-  // target vel 4.0, current vel 1.0
+  // position target 4.0, current pos 0, current vel 1.0 (kd = 0)
   data->ctrl[0] = 4.0;
   data->qvel[0] = 1.0;
   mj_forward(model.get(), data.get());
 
-  // integrate command directly: error = target = 4.0
-  // since x_I == Imax (2.0) and error (4.0) > 0, act_dot should be clamped to 0
+  // error = 4.0; since x_I == Imax (2.0) and error > 0, act_dot clamps to 0
   EXPECT_NEAR(data->act_dot[adr], 0.0, MjTol(1e-12, 1e-5));
 
-  // V = Kp * (u_eff - omega) + Ki * (x_I - length)
-  // V = 3.0 * (4.0 - 1.0) + 1.0 * (2.0 - 0.0) = 9.0 + 2.0 = 11.0
-  // bias = - K^2/R * omega = -(0.05)^2 / 2.0 * 1.0 = -0.00125
-  // force = K/R * V + bias = 0.025 * 11.0 - 0.00125 = 0.275 - 0.00125 = 0.27375
-  EXPECT_NEAR(data->actuator_force[0], 0.27375, MjTol(1e-12, 1e-5));
+  // force = kp * (qref - l) + ki * x_I = 3.0 * (4.0 - 0.0) + 1.0 * 2.0 = 14.0
+  EXPECT_NEAR(data->actuator_force[0], 14.0, MjTol(1e-12, 1e-5));
 
   // repeat with non-zero joint position
   data->qpos[0] = 1.5;
   mj_forward(model.get(), data.get());
 
-  // V = 3.0 * (4.0 - 1.0) + 1.0 * (2.0 - 1.5) = 9.0 + 0.5 = 9.5
-  // force = K/R * V + bias = 0.025 * 9.5 - 0.00125 = 0.2375 - 0.00125 = 0.23625
-  EXPECT_NEAR(data->actuator_force[0], 0.23625, MjTol(1e-12, 1e-5));
+  // force = 3.0 * (4.0 - 1.5) + 1.0 * 2.0 = 9.5
+  EXPECT_NEAR(data->actuator_force[0], 9.5, MjTol(1e-12, 1e-5));
 }
 
 TEST_F(DCMotorTest, CurrentPlusThermal) {
@@ -2300,7 +2423,7 @@ TEST_F(DCMotorTest, VoltageLimit) {
     </worldbody>
     <actuator>
       <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
-               input="position" controller="1 0 0 0 0 10.0"/>
+               input="pos vel" controller="1 0 0 0 0 10.0"/>
     </actuator>
   </mujoco>
   )";
@@ -2335,7 +2458,7 @@ TEST_F(DCMotorTest, IntegralClamp) {
       </body>
     </worldbody>
     <actuator>
-      <dcmotor joint="joint" input="position" controller="2.0 0.5 0 0 5.0"
+      <dcmotor joint="joint" input="pos vel" controller="2.0 0.5 0 0 5.0"
                motorconst="0.05" resistance="2.0"/>
     </actuator>
   </mujoco>
@@ -3121,9 +3244,8 @@ TEST_F(ForwardTest, FlexParentCoupling) {
     if (diff > max_diff) max_diff = diff;
   }
 
-  // tolerance rebaselined 2e-5 -> 5e-5 for the in-solver implicit flex treatment: implicit
-  // and explicit flex damping legitimately differ at O(h*damping*K/M) in this comparison, and
-  // the in-solver form lands at ~3e-5 where the old post-hoc operator landed just under 2e-5
+  // implicit and explicit flex damping legitimately differ at
+  // O(h*damping*K/M) in this comparison
   EXPECT_LT(max_diff, MjTol(5e-5, 1.5e-2))
       << "Implicit integrator should match Euler at small timestep";
 }
@@ -3849,10 +3971,10 @@ TEST_F(ImplicitIntegratorTest, InterpStretchEnergy) {
       << ", initial=" << initial_energy;
 }
 
-}  // namespace
-// with the implicit effective metric active, inverse dynamics must recover the applied force
-// (zero here): the forward solve is (M+B)*qacc = qfrc_smooth + c + J'*f and the inverse adds
-// the same B*qacc - c terms. This is the fwd/inv consistency fence for the flex-CG dispatch.
+// with the implicit effective metric active, inverse dynamics must recover the
+// applied force (zero here): the forward solve is (M+B)*qacc = qfrc_smooth + c
+// + J'*f and the inverse adds the same B*qacc - c terms. This is the fwd/inv
+// consistency fence for the flex-CG dispatch.
 TEST_F(ForwardTest, GatedFlexInverseConsistency) {
   static const char* const kXml = R"(
   <mujoco>
@@ -3886,10 +4008,12 @@ TEST_F(ForwardTest, GatedFlexInverseConsistency) {
   mj_forward(model.get(), data.get());
   mj_inverse(model.get(), data.get());
 
-  // no applied forces: the inverse must return ~zero, at the scale of the passive forces
+  // no applied forces: the inverse must return ~zero, at the scale of the
+  // passive forces
   mjtNum scale = 1 + mju_norm(data->qfrc_passive, nv);
   EXPECT_LT(mju_norm(data->qfrc_inverse, nv), 1e-6 * scale);
 }
 
+}  // namespace
 
 }  // namespace mujoco

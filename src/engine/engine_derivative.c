@@ -2433,11 +2433,16 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
       const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
       mjtNum te = dynprm[0];
 
-      // controller velocity derivative: dV/dω
-      int input_mode = (int)gainprm[8];
+      // controller velocity derivative dV/dw: torque-space kd through the tau->V map,
+      // plus the back-EMF compensation K, which cancels the -K^2/R back-EMF bias term so
+      // the net damping of an unclipped torque-mode motor is -kd; Vmax clipping is ignored
+      // here, matching the treatment of the other saturations
       mjtNum dVdw = 0;
-      if (input_mode == 1) dVdw = -gainprm[6];       // position: -kd
-      else if (input_mode == 2) dVdw = -gainprm[4];   // velocity: -kp
+      if (m->actuator_ctrlspec[i] & (mjINPUT_POS | mjINPUT_VEL | mjINPUT_FF)) {
+        mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+        mjtNum K = gainprm[1];  // K > 0 on this path, enforced by the compiler
+        dVdw = -gainprm[6]*R/K + K;
+      }
 
       if (te > 0) {
         // stateful current with actearly: d(K*next_act)/dω

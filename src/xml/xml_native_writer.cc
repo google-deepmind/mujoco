@@ -838,13 +838,17 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* actuator, mjCDe
       WriteAttrKey(elem, "input", inputchart_map, inputchart_sz, actuator->ctrlspec,
                    def->Actuator().ctrlspec);
     } else if (actuator->ctrlspec != def->Actuator().ctrlspec) {
-      std::string tokens;
-      for (int k=0; k < inputbit_sz; k++) {
-        if (actuator->ctrlspec & inputbit_map[k].value) {
-          tokens += std::string(tokens.empty() ? "" : " ") + inputbit_map[k].key;
+      if (actuator->ctrlspec == mjINPUT_NONE) {
+        WriteAttrTxt(elem, "input", "none");
+      } else {
+        std::string tokens;
+        for (int k=0; k < inputbit_sz; k++) {
+          if (actuator->ctrlspec & inputbit_map[k].value) {
+            tokens += std::string(tokens.empty() ? "" : " ") + inputbit_map[k].key;
+          }
         }
+        WriteAttrTxt(elem, "input", tokens);
       }
-      WriteAttrTxt(elem, "input", tokens);
     }
     WriteAttrKey(elem, "biastype", bias_map, bias_sz, actuator->biastype, def->Actuator().biastype);
     WriteAttr(elem, "gainprm", mjNGAIN, actuator->gainprm, def->Actuator().gainprm, true);

@@ -31,6 +31,28 @@ Actuation
   identical to :ref:`position<actuator-position>`. The input signature is any subset of ``[pos, vel, ff]``, selected
   by :ref:`input<actuator-pid-input>`; absent setpoint inputs are fixed at zero, so the control vector contains no
   inert entries.
+- The :ref:`dcmotor<actuator-dcmotor>` on-board controller is redesigned: the
+  :ref:`input<actuator-dcmotor-input>` attribute selects any subset of ``[pos, vel, ff, voltage]``, where ``pos``
+  and ``vel`` are setpoints for the controller, ``ff`` is a torque feedforward, and ``voltage`` is the raw terminal
+  voltage (the default, a plain voltage-commanded motor). Controller gains are in torque space, as for
+  :ref:`pid<actuator-pid>`, and the drive voltage compensates back-EMF as in a current-controlled driver: commanded
+  torque is delivered exactly until a limit is reached. The keyword ``input="none"`` selects the empty signature:
+  the actuator has no control inputs and is purely passive, so friction, cogging and back-EMF braking can be used
+  as passive joint forces.
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - The mode-flag semantics of :ref:`dcmotor/input<actuator-dcmotor-input>` ("voltage", "position", "velocity",
+     selecting the interpretation of a single control) are replaced by input signatures, and the controller gains
+     changed from voltage space to torque space. The old velocity mode's integral term (integrated-velocity
+     tracking) is retired without replacement; the integrator always accumulates position error.
+
+     **Migration:** Voltage-commanded motors (the default) are unchanged. Replace ``input="position"`` with
+     ``input="pos"`` and ``input="velocity"`` with ``input="vel"``, and multiply the controller gains by
+     :math:`K/R` (torque per volt). The motor's back-EMF damping, previously felt in addition to the controller's
+     damping, is now compensated: to preserve behavior when the velocity setpoint is zero, add :math:`K^2/R` to the
+     converted :at-val:`kd`.
 
 Engine
 ^^^^^^

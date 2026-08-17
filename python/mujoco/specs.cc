@@ -1639,11 +1639,11 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
          std::array<double, 3> nominal, std::array<double, 3> saturation,
          std::array<double, 2> inductance, std::array<double, 3> cogging,
          std::array<double, 6> controller, std::array<double, 6> thermal,
-         std::array<double, 5> lugre, int input_mode) {
+         std::array<double, 5> lugre, int ctrlspec) {
         std::string err = mjs_setToDCMotor(
             self, motorconst.data(), resistance, nominal.data(),
             saturation.data(), inductance.data(), cogging.data(),
-            controller.data(), thermal.data(), lugre.data(), input_mode);
+            controller.data(), thermal.data(), lugre.data(), ctrlspec);
         if (!err.empty()) {
           throw pybind11::value_error(err);
         }
@@ -1656,7 +1656,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
       py::arg("controller") = std::array<double, 6>{0, 0, 0, 0, 0, 0},
       py::arg("thermal") = std::array<double, 6>{0, 0, 0, 0, 0, 0},
       py::arg("lugre") = std::array<double, 5>{0, 0, 0, 0, 0},
-      py::arg("input_mode") = 0);
+      py::arg("ctrlspec") = 0);
 
   // ============================= MJSTENDONPATH ===============================
   // helper struct for tendon path indexing

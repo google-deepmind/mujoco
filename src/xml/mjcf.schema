@@ -237,10 +237,8 @@ enum dyn : mjtDyn {
   user          = mjDYN_USER
 }
 
-enum dcmotorinput {
-  voltage    = 0
-  position   = 1
-  velocity   = 2
+enum inputkeyword : mjtCtrlInput {   # whole-attribute keyword: the empty signature
+  none       = mjINPUT_NONE
 }
 
 enum gain : mjtGain {
@@ -258,10 +256,11 @@ enum inputchart : mjtCtrlChart {
   quat     = mjCHART_QUAT
 }
 
-enum inputbit : mjtCtrlInput {   # bitflags: keywords combine bitwise
-  pos   = mjINPUT_POS
-  vel   = mjINPUT_VEL
-  ff    = mjINPUT_FF
+enum inputbit : mjtCtrlInput {   # bitflags: tokens combine bitwise, canonical order enforced
+  pos      = mjINPUT_POS
+  vel      = mjINPUT_VEL
+  ff       = mjINPUT_FF
+  voltage  = mjINPUT_VOLTAGE
 }
 
 enum bias : mjtBias {
@@ -1680,7 +1679,7 @@ element dcmotor : mjsActuator {
   controller         : double[1..6]
   thermal            : double[1..6]
   lugre              : double[1..5]
-  input              : enum<dcmotorinput>
+  input              : flags<inputbit> (reading=custom)  # token subset, or the none keyword
 }
 
 element actuator_plugin : mjsActuator (xml=plugin) {

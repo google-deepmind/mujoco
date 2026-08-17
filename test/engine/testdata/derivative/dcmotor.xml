@@ -34,11 +34,11 @@
     <!-- DC motor back-EMF stateless damping -->
     <dcmotor name="dc_bias" joint="slide1" motorconst="2.0" resistance="0.5"/>
 
-    <!-- DC motor velocity controller damping -->
-    <dcmotor name="dc_vel" joint="slide2" motorconst="1.0" resistance="1.0" input="velocity" controller="0 5"/>
+    <!-- DC motor velocity setpoint (kd) damping -->
+    <dcmotor name="dc_vel" joint="slide2" motorconst="1.0" resistance="1.0" input="pos vel" controller="0 0 5"/>
 
     <!-- DC motor position controller damping -->
-    <dcmotor name="dc_pos" joint="slide3" motorconst="1.0" resistance="1.0" input="position" controller="10 0 5"/>
+    <dcmotor name="dc_pos" joint="slide3" motorconst="1.0" resistance="1.0" input="pos vel" controller="10 0 5"/>
 
     <!-- DC motor with LuGre friction (sigma1 micro-damping) -->
     <dcmotor name="dc_lugre" joint="joint4" motorconst="0.05" resistance="2.0"
@@ -51,11 +51,11 @@
     <!-- Stateful current, position mode (controller + back-EMF through act_dot) -->
     <dcmotor name="dc_stateful_pos" joint="slide6"
              motorconst="1.0" resistance="1.0" inductance="0 0.001"
-             input="position" controller="10 0 5"/>
+             input="pos vel" controller="10 0 5"/>
 
     <!-- Stateful current, velocity mode -->
     <dcmotor name="dc_stateful_vel" joint="slide7"
              motorconst="1.0" resistance="1.0" inductance="0 0.001"
-             input="velocity" controller="5 0"/>
+             input="pos vel" controller="0 0 5"/>
   </actuator>
 </mujoco>

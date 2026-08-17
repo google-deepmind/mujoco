@@ -243,13 +243,11 @@ inline constexpr mjMap dyn_map[] = {
 };
 inline constexpr int dyn_sz = 8;
 
-// enum dcmotorinput
-inline constexpr mjMap dcmotorinput_map[] = {
-  {"voltage",   0},
-  {"position",  1},
-  {"velocity",  2},
+// enum inputkeyword
+inline constexpr mjMap inputkeyword_map[] = {
+  {"none",  mjINPUT_NONE},
 };
-inline constexpr int dcmotorinput_sz = 3;
+inline constexpr int inputkeyword_sz = 1;
 
 // enum gain
 inline constexpr mjMap gain_map[] = {
@@ -272,11 +270,12 @@ inline constexpr int inputchart_sz = 2;
 
 // enum inputbit
 inline constexpr mjMap inputbit_map[] = {
-  {"pos",  mjINPUT_POS},
-  {"vel",  mjINPUT_VEL},
-  {"ff",   mjINPUT_FF},
+  {"pos",      mjINPUT_POS},
+  {"vel",      mjINPUT_VEL},
+  {"ff",       mjINPUT_FF},
+  {"voltage",  mjINPUT_VOLTAGE},
 };
-inline constexpr int inputbit_sz = 3;
+inline constexpr int inputbit_sz = 4;
 
 // enum bias
 inline constexpr mjMap bias_map[] = {
