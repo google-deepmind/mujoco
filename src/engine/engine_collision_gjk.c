@@ -246,7 +246,7 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
         status->gjk_iterations = k;
         status->nsimplex = 0;
         status->nx = 0;
-        status->dist = mjMAX_LIMIT;
+        status->dist[0] = mjMAX_LIMIT;
         return;
       }
     } else if (status->dist_cutoff < mjMAX_LIMIT) {
@@ -256,7 +256,7 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
         status->gjk_iterations = k;
         status->nsimplex = 0;
         status->nx = 0;
-        status->dist = mjMAX_LIMIT;
+        status->dist[0] = mjMAX_LIMIT;
         return;
       }
     }
@@ -269,7 +269,7 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
       if (ret != -1) {
         status->nx = 0;
         status->separated = ret == 0;
-        status->dist = ret > 0 ? 0 : mjMAX_LIMIT;
+        status->dist[0] = ret > 0 ? 0 : mjMAX_LIMIT;
         return;
       }
       k = status->gjk_iterations;
@@ -293,7 +293,7 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
       status->gjk_iterations = k;
       status->nsimplex = 0;
       status->nx = 0;
-      status->dist = mjMAX_LIMIT;
+      status->dist[0] = mjMAX_LIMIT;
       status->separated = 1;
       return;
     }
@@ -333,7 +333,7 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   status->nx = 1;
   status->gjk_iterations = k;
   status->nsimplex = n;
-  status->dist = x_norm;
+  status->dist[0] = x_norm;
 }
 
 
@@ -1135,7 +1135,7 @@ static int polytope3(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj
   // TODO(kylebayes): It's possible for GJK to return a 2-simplex with the origin not contained in
   // it but within tolerance from it. In that case the hexahedron could possibly be constructed
   // that doesn't contain the origin, but nonetheless there is penetration depth.
-  if (status->dist > 10*mjMINVAL && !testTetra(v1, v2, v3, v4) && !testTetra(v1, v2, v3, v5)) {
+  if (status->dist[0] > 10*mjMINVAL && !testTetra(v1, v2, v3, v4) && !testTetra(v1, v2, v3, v5)) {
     return mjEPA_P3_MISSING_ORIGIN;
   }
 
@@ -1500,11 +1500,11 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
 
   status->epa_iterations = k;
   if (face) {
-    status->dist = epaWitness(pt, face, status->x1, status->x2);
+    status->dist[0] = epaWitness(pt, face, status->x1, status->x2);
     status->nx = 1;
   } else {
     status->nx = 0;
-    status->dist = 0;
+    status->dist[0] = 0;
   }
   return face;
 }
@@ -1713,6 +1713,7 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
     mjtNum* rect[4];
     polygonQuad(rect, polygon, npolygon);
     for (int i = 0; i < 4; i++) {
+      status->dist[i] = status->dist[0];
       witnessOnFace(status->x1 + 3*i, status->x2 + 3*i, rect[i], face1, n, dir);
     }
     return;
@@ -1737,6 +1738,7 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
     }
     witnessOnFace(status->x1, status->x2, polygon + 3*best1, face1, n, dir);
     witnessOnFace(status->x1 + 3, status->x2 + 3, polygon + 3*best2, face1, n, dir);
+    status->dist[1] = status->dist[0];
     status->nx = 2;
     return;
   }
@@ -1745,6 +1747,7 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
   int maxcon = sizeof(status->x2) / (3*sizeof(status->x2[0]));
   npolygon = (npolygon < maxcon) ? npolygon : maxcon;
   for (int i = 0; i < npolygon; i++) {
+    status->dist[i] = status->dist[0];
     witnessOnFace(status->x1 + 3*i, status->x2 + 3*i, polygon + 3*i, face1, n, dir);
   }
   status->nx = npolygon;
@@ -2287,7 +2290,7 @@ static inline void inflate(mjCCDStatus* status, mjtNum margin1, mjtNum margin2) 
     status->x2[1] -= margin2 * n[1];
     status->x2[2] -= margin2 * n[2];
   }
-  status->dist -= (margin1 + margin2);
+  status->dist[0] -= (margin1 + margin2);
 }
 
 
@@ -2370,18 +2373,18 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     obj2->support = support2;
 
     // shallow penetration, inflate contact
-    if (status->dist > status->tolerance) {
+    if (status->dist[0] > status->tolerance) {
       inflate(status, full_margin1, full_margin2);
-      if (status->dist > status->dist_cutoff) {
-        status->dist = mjMAX_LIMIT;
+      if (status->dist[0] > status->dist_cutoff) {
+        status->dist[0] = mjMAX_LIMIT;
       }
-      return status->dist;
+      return status->dist[0];
     }
 
     // contact not needed
     if (!config->max_contacts) {
       status->nx = 0;
-      status->dist = 0;
+      status->dist[0] = 0;
       return 0;
     }
 
@@ -2394,12 +2397,12 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
 
   // penetration recovery for contacts not needed
   if (!config->max_contacts) {
-    return status->dist;
+    return status->dist[0];
   }
 
-  if (status->dist <= config->tolerance && status->nsimplex > 1
+  if (status->dist[0] <= config->tolerance && status->nsimplex > 1
       && config->buffer && !status->separated) {
-    status->dist = 0;  // assume touching
+    status->dist[0] = 0;  // assume touching
     Polytope pt;
     pt.nfaces = pt.nmap = pt.nverts = pt.horizon.nedges = 0;
 
@@ -2436,7 +2439,13 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
       }
     }
   }
-  return status->dist;
+  mjtNum min_dist = status->dist[0];
+  for (int i = 1; i < status->nx; i++) {
+    if (status->dist[i] < min_dist) {
+      min_dist = status->dist[i];
+    }
+  }
+  return min_dist;
 }
 
 #undef EPA_VERT_EXPAND
