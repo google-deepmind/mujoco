@@ -36,7 +36,7 @@ class ObjectLauncher {
     using platform::ImGui_ResetButton;
     using platform::ImGui_SliderLog;
 
-    constexpr mjtNum kLifeDefault = 5.0;
+    constexpr mjtNum kLifeDefault = 2.0;
     ImGui_SliderLog("Size", &size_, size_seed_ * 0.1, size_seed_ * 10);
     ImGui::BeginDisabled(size_ == size_seed_);
     if (ImGui_ResetButton("Size")) size_ = size_seed_;
@@ -81,28 +81,44 @@ class ObjectLauncher {
 
   void OnModelLoaded(const mjModel* model) {
     if (!model) return;
-    Seed(model->stat.meansize, &size_, &size_seed_);
-    Seed(model->stat.meanmass, &mass_, &mass_seed_);
+    // Geometric mean of two length estimates -- the mean geom size, and the
+    // length implied by the mean mass at density 1000 -- so a bad meansize or
+    // meanmass only half-poisons the seed (they agree for a consistent model).
+    const mjtNum len_size = model->stat.meansize;
+    const mjtNum len_mass = std::cbrt(model->stat.meanmass / 1000.0);
+    mjtNum len = mju_sqrt(len_size * len_mass);
+    if (!(len > 0)) len = len_size > 0 ? len_size : len_mass;
+    const mjtNum size = 0.5 * len;
+    Seed(size, &size_, &size_seed_);
+    // Mass giving the default box (volume (2*size)^3) density 1000, MuJoCo's
+    // default geom density. Units are unspecified, so 1000 is just a convention.
+    const mjtNum box_volume = 8.0 * size * size * size;
+    Seed(1000.0 * box_volume, &mass_, &mass_seed_);
     const mjtNum gravity = mju_norm3(model->opt.gravity);
     const mjtNum g = gravity > mjMINVAL ? gravity : 9.81;
     // Ballistic scale: the launch arc spans a few model extents.
-    Seed(1.5 * mju_sqrt(model->stat.extent * g), &speed_, &speed_seed_);
+    Seed(3.0 * mju_sqrt(model->stat.extent * g), &speed_, &speed_seed_);
   }
 
   bool UpdateSpecPreCompile(mjSpec* spec, const mjModel* model,
                             const mjData* data, const mjvCamera* camera) {
-    // Remove expired objects.
+    // Objects live on [creation_time, expiration]: drop them when the lifetime
+    // elapses, or when the sim rewinds before launch (so a reset clears them).
     auto it = std::remove_if(
         objects_.begin(), objects_.end(), [&](const ObjectInfo& o) {
-          const bool expired =
-              o.body_id >= 0 && o.expiration != 0 && o.expiration < data->time;
-          if (expired) {
+          if (o.body_id < 0) {
+            return false;  // not yet compiled into the model
+          }
+          const bool expired = o.expiration != 0 && o.expiration < data->time;
+          const bool rewound = data->time < o.creation_time;
+          const bool remove = expired || rewound;
+          if (remove) {
             mjsBody* body = mjs_findBody(spec, o.name.c_str());
             if (body) {
               mjs_delete(spec, body->element);
             }
           }
-          return expired;
+          return remove;
         });
     if (it != objects_.end()) {
       objects_.erase(it, objects_.end());
@@ -123,7 +139,7 @@ class ObjectLauncher {
 
     ObjectInfo& object = objects_.emplace_back();
     object.name = "projectile" + std::to_string(counter_++);
-    ;
+    object.creation_time = data->time;
     object.expiration = data->time + lifetime_;
 
     mjtNum pos[3];
@@ -193,6 +209,7 @@ class ObjectLauncher {
   struct ObjectInfo {
     std::string name;
     int body_id = -1;
+    mjtNum creation_time = 0;
     mjtNum expiration = 0;
     bool launched = false;
   };
@@ -203,7 +220,7 @@ class ObjectLauncher {
   mjtNum size_ = 0.1;
   mjtNum speed_ = 10.0;
   mjtNum mass_ = 10.0;
-  mjtNum lifetime_ = 5.0;
+  mjtNum lifetime_ = 2.0;
   mjtNum size_seed_ = 0.1;
   mjtNum speed_seed_ = 10.0;
   mjtNum mass_seed_ = 10.0;
