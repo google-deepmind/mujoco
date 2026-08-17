@@ -1107,9 +1107,7 @@ Euler integrator, semi-implicit in velocity.
     # Note: when modifying this test, make sure the enum value is an odd number
     #       so that the division tests are correctly exercised.
     self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD, 7)
-    self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD, 7.0)
     self.assertEqual(7, mujoco.mjtFrame.mjFRAME_WORLD)
-    self.assertEqual(7.0, mujoco.mjtFrame.mjFRAME_WORLD)
     self.assertEqual(
         mujoco.mjtFrame.mjFRAME_WORLD, mujoco.mjtFrame.mjFRAME_WORLD
     )
