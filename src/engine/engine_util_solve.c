@@ -43,7 +43,8 @@ int mju_cholFactor(mjtNum* mat, int n, mjtNum mindiag) {
     }
 
     // correct diagonal values below threshold
-    if (tmp < mindiag) {
+    int deficient = tmp < mindiag;
+    if (deficient) {
       tmp = mindiag;
       rank--;
     }
@@ -52,9 +53,16 @@ int mju_cholFactor(mjtNum* mat, int n, mjtNum mindiag) {
     mat[j*(n+1)] = mju_sqrt(tmp);
 
     // process off-diagonal entries
-    tmp = 1/mat[j*(n+1)];
-    for (int i=j+1; i < n; i++) {
-      mat[i*n+j] = (mat[i*n+j] - mju_dot(mat+i*n, mat+j*n, j)) * tmp;
+    if (deficient) {
+      // clear off-diagonals if deficient
+      for (int i=j+1; i < n; i++) {
+        mat[i*n+j] = 0;
+      }
+    } else {
+      tmp = 1/mat[j*(n+1)];
+      for (int i=j+1; i < n; i++) {
+        mat[i*n+j] = (mat[i*n+j] - mju_dot(mat+i*n, mat+j*n, j)) * tmp;
+      }
     }
   }
 

@@ -621,5 +621,60 @@ TEST_F(SolverTest, ZeroToleranceDisablesTermination) {
   mj_deleteModel(model);
 }
 
+// With condim 6 and the default friction (1, 0.005, 0.0001) the local
+// elliptic-cone Hessian spans the friction ratios squared, a condition number
+// around 1e9, which exhausts the single-precision mantissa. Newton factorizes
+// it per contact and folds the factor into the full Hessian with rank-1
+// updates, so a Cholesky that responds to a vanishing pivot by clamping the
+// diagonal and then dividing the rest of the column by it -- scaling that
+// column by 1/sqrt(mindiag) -- injects enormous coupling where there is no
+// curvature. This pose reached rank 4 of 6 one step before qacc went to NaN.
+TEST_F(SolverTest, EllipticConeHessianSurvivesFrictionRatios) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <geom condim="6"/>
+    </default>
+    <worldbody>
+      <geom name="floor" type="plane" size=".5 1 .01"/>
+      <body name="b1" pos="0 0 .4" euler="5 4 3">
+        <freejoint/>
+        <geom type="box" pos="0 0 .06" size=".15 .15 .03"/>
+        <geom type="box" pos="-.05 0 .005" size=".04 .04 .025" euler="1 1 1"/>
+        <geom size=".05" pos=".1 -.1 .04"/>
+      </body>
+      <body name="b2" pos="0 0 .2">
+        <joint type="ball" springdamper="0.1 1"/>
+        <geom type="box" size=".2 .2 .05"/>
+        <geom size=".05" pos=".1 .1 .05"/>
+        <geom type="box" size=".05 .05 .01" pos=".1 -.1 .06" euler="2 2 2"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  model->opt.cone = mjCONE_ELLIPTIC;
+  model->opt.solver = mjSOL_NEWTON;
+
+  // both factorizations reach the same pivot, at different steps
+  for (mjtJacobian jacobian : {mjJAC_DENSE, mjJAC_SPARSE}) {
+    model->opt.jacobian = jacobian;
+    MjDataPtr data = MakeData(model);
+
+    // bounded by step count, not by data->time: a divergence resets mjData and
+    // rewinds the clock, so a time-based loop would never terminate
+    for (int step = 0; step < 200; step++) {
+      mj_step(model.get(), data.get());
+      for (int i = 0; i < mjNWARNING; i++) {
+        ASSERT_EQ(data->warning[i].number, 0)
+            << "warning " << i << " at step " << step << ", jacobian "
+            << jacobian;
+      }
+    }
+  }
+}
+
 }  // namespace
 }  // namespace mujoco
