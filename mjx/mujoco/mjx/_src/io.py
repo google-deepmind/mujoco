@@ -358,8 +358,8 @@ def _put_model_jax(
       t1, t2 = mujoco.mjtGeom(t1), mujoco.mjtGeom(t2)
       raise NotImplementedError(f'({t1}, {t2}) collisions not implemented.')
     # margin/gap not supported for meshes and height fields
-    no_margin = {mujoco.mjtGeom.mjGEOM_MESH, mujoco.mjtGeom.mjGEOM_HFIELD}
-    if no_margin.intersection({t1, t2}):
+    no_margin = {int(mujoco.mjtGeom.mjGEOM_MESH), int(mujoco.mjtGeom.mjGEOM_HFIELD)}
+    if no_margin.intersection({int(t1), int(t2)}):
       if ip != -1:
         margin = m.pair_margin[ip]
       else:
@@ -368,7 +368,7 @@ def _put_model_jax(
         t1, t2 = mujoco.mjtGeom(t1), mujoco.mjtGeom(t2)
         raise NotImplementedError(f'({t1}, {t2}) margin/gap not implemented.')
     for t, g in [(t1, g1), (t2, g2)]:
-      if t == mujoco.mjtGeom.mjGEOM_MESH:
+      if int(t) == int(mujoco.mjtGeom.mjGEOM_MESH):
         mesh_geomid.add(g)
 
   for enum_field, enum_type, mj_type in (

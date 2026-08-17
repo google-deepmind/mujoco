@@ -230,7 +230,7 @@ def _geom_groups(
 
     key = FunctionKey(types, data_ids, condim)
 
-    if types[0] == mujoco.mjtGeom.mjGEOM_HFIELD:
+    if int(types[0]) == int(mujoco.mjtGeom.mjGEOM_HFIELD):
       # add static grid bounds to the grouping key for hfield collisions
       geom_rbound_hfield = (
           m._impl.geom_rbound_hfield if isinstance(m, Model) else m.geom_rbound  # pytype: disable=attribute-error
