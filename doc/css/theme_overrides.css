@@ -393,8 +393,11 @@ dt .at {
     padding-bottom: 0.25rem;
 }
 
-/* Align admonition bullets with section-level bullets */
-.admonition ul {
+/* Align admonition bullets with section-level bullets. The margin is set here
+   rather than inherited from ul.simple, which docutils drops from any list
+   holding a multi-paragraph item. */
+.admonition > ul {
+    margin-left: 24px;
     padding-left: 0.1em;
     margin-top: 0;
     margin-bottom: 0;
