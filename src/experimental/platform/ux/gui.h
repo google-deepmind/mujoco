@@ -73,9 +73,9 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar = true, bool show_status_bar = f
 // logarithmically spaced real-time slow-down coefficients (percent)
 // clang-format off
 static constexpr std::array<const char*, 31> kPercentRealTime = {
-"100.0 ", " 80.0 ", " 66.0 ", " 50.0 ", " 40.0 ", " 33.0 ", " 25.0 ", " 20.0 ", " 16.0 ", " 13.0 ",
-" 10.0 ", "  8.0 ", "  6.6 ", "  5.0 ", "  4.0 ", "  3.3 ", "  2.5 ", "  2.0 ", "  1.6 ", "  1.3 ",
-"  1.0 ", "  0.8 ", "  0.7 ", "  0.5 ", "  0.4 ", "  0.33", "  0.25", "  0.2 ", "  0.16", "  0.13",
+"100.0 ", " 80.0 ", " 63.0 ", " 50.0 ", " 40.0 ", " 32.0 ", " 25.0 ", " 20.0 ", " 16.0 ", " 13.0 ",
+" 10.0 ", "  8.0 ", "  6.3 ", "  5.0 ", "  4.0 ", "  3.2 ", "  2.5 ", "  2.0 ", "  1.6 ", "  1.3 ",
+"  1.0 ", "  0.8 ", "  0.63", "  0.5 ", "  0.4 ", "  0.32", "  0.25", "  0.2 ", "  0.16", "  0.13",
 "  0.1 ",
 };
 // clang-format on

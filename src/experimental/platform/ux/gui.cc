@@ -1007,16 +1007,16 @@ void PhysicsGui(mjModel* model, float min_width) {
   ImGui::Combo("Solver", &opt.solver, opts3, IM_ARRAYSIZE(opts3));
 
   if (SectionHeader("Algorithmic Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui_Input("Timestep", &opt.timestep, {0, 1, 0.01, 0.1});
+    ImGui_LogStepper("Timestep", &opt.timestep, {0, 1});
     ImGui_Input("Iterations", &opt.iterations, {0, 1000, 1, 10});
-    ImGui_Input("Tolerance", &opt.tolerance, {0, 1, 1e-7, 1e-6});
+    ImGui_LogStepper("Tolerance", &opt.tolerance, {.min = 0.0, .max = 1.0, .zero_below = 1e-10});
     ImGui_Input("LS Iter", &opt.ls_iterations, {0, 100, 1, 0.1});
-    ImGui_Input("LS Tol", &opt.ls_tolerance, {0, 0.1, 0.01, 0.1});
+    ImGui_LogStepper("LS Tol", &opt.ls_tolerance, {.min = 0.0, .max = 0.1, .zero_below = 1e-4});
     ImGui_Input("Noslip Iter", &opt.noslip_iterations, {0, 1000, 1, 100});
-    ImGui_Input("Noslip Tol", &opt.noslip_tolerance, {0, 1, 0.01, 0.1});
+    ImGui_LogStepper("Noslip Tol", &opt.noslip_tolerance, {.min = 0.0, .max = 1.0, .zero_below = 1e-8});
     ImGui_Input("CCD Iter", &opt.ccd_iterations, {0, 1000, 1, 100});
-    ImGui_Input("CCD Tol", &opt.ccd_tolerance, {0, 1, 0.01, 0.1});
-    ImGui_Input("Sleep Tol", &opt.sleep_tolerance, {0, 1, 0.01, 0.1});
+    ImGui_LogStepper("CCD Tol", &opt.ccd_tolerance, {.min = 0.0, .max = 1.0, .zero_below = 1e-8});
+    ImGui_LogStepper("Sleep Tol", &opt.sleep_tolerance, {.min = 0.0, .max = 1.0, .zero_below = 1e-6});
     ImGui_Input("SDF Iter", &opt.sdf_iterations, {1, 20, 1, 10});
     ImGui_Input("SDF Init", &opt.sdf_initpoints, {1, 100, 1, 10});
     ImGui::TreePop();
@@ -1052,7 +1052,7 @@ void PhysicsGui(mjModel* model, float min_width) {
     ImGui_InputN("Magnetic", opt.magnetic, 3);
     ImGui_Input("Density", &opt.density, {.min = 0.0});
     ImGui_Input("Viscosity", &opt.viscosity, {.min = 0.0});
-    ImGui_Input("Imp Ratio", &opt.impratio, {.min = 0.0});
+    ImGui_LogStepper("Imp Ratio", &opt.impratio, {.min = 0.0});
     ImGui::TreePop();
   };
 
