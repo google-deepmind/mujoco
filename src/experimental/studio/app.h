@@ -164,13 +164,6 @@ class App {
     int state_sig = 0;
     std::vector<mjtNum> state;
 
-    // Timeline: simulation time recorded at history index 0 (the head).
-    double sim_head_time_ = 0.0;
-    float timeline_lh_width = 0.0f;
-    float timeline_rh_width = 0.0f;
-    bool scrubber_active = false;
-    float scrubber_grab_offset = 0.0f;
-
     // Picture-in-Picture.
     std::vector<platform::PipState> pips;
 
@@ -230,7 +223,6 @@ class App {
 
   void MainMenuGui();
   void ToolBarGui();
-  void TimelineScrubberGui();
   void StatusBarGui();
   void HelpGui();
   void FileDialogGui();
@@ -269,6 +261,7 @@ class App {
   platform::StepControl step_control_;
   platform::SimProfiler profiler_;
   platform::SimHistory sim_history_;
+  platform::SimulationTimelineState timeline_;
   platform::SpecEditor spec_editor_;
   std::vector<std::string> search_paths_;
   std::vector<std::byte> pixels_;

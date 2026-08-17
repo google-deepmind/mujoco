@@ -24,11 +24,13 @@
 // mjvOption, etc. But, some functions take additional arguments as needed.
 
 #include <array>
+#include <functional>
 #include <string>
 #include <vector>
 
 #include <imgui.h>
 #include <mujoco/mujoco.h>
+#include "experimental/platform/sim/sim_history.h"
 #include "experimental/platform/sim/sim_profiler.h"
 #include "experimental/platform/sim/step_control.h"
 
@@ -88,6 +90,51 @@ void StepControlGui(StepControl* step_control, int& speed_index);
 // Sets the simulation speed index and updates the StepControl object.
 void SetSpeedIndex(StepControl* step_control, int& speed_index,
                    int request_idx);
+
+// Loads history frame `index` into `data`, pausing the simulation. A no-op if
+// the requested frame is empty.
+void LoadHistoryFrame(SimHistory& history, StepControl& step_control,
+                      const mjModel* model, mjData* data, int index);
+
+// Persistent state of the timeline scrubber: the time at the head of history,
+// the (monotonically-growing) label box widths, and the current drag.
+struct SimulationTimelineState {
+  double sim_head_time = 0.0;
+  float lh_width = 0.0f;
+  float rh_width = 0.0f;
+  bool scrubber_active = false;
+  float scrubber_grab_offset = 0.0f;
+};
+
+// The timeline scrubber row: a spine with a draggable knob that scrubs through
+// the simulation history. Used by the Simulation panel and the toolbar.
+void TimelineScrubberGui(const mjModel* model, mjData* data,
+                         StepControl& step_control, SimHistory& history,
+                         SimulationTimelineState& timeline);
+
+// Everything the Simulation panel reads or drives. All pointers are owned by
+// the caller and edited in place; the callbacks perform application actions the
+// panel cannot do on its own.
+struct SimulationGuiContext {
+  mjModel* model = nullptr;  // non-const: saving a keyframe writes to the model
+  mjData* data = nullptr;
+  StepControl* step_control = nullptr;
+  SimHistory* history = nullptr;
+  SimulationTimelineState* timeline = nullptr;
+  int* speed_index = nullptr;
+  int* key_idx = nullptr;
+  int* nthread = nullptr;
+  bool* update_threadpool = nullptr;
+  std::function<void()> reset;   // reset the physics state
+  std::function<void()> reload;  // reload the model
+  std::function<void()> align;   // recenter the camera on the model
+};
+
+// The Simulation panel: reset / reload / align, a pause-run toggle, the speed
+// slider, the history scrubber, keyframe controls and the thread count. This is
+// a reusable view over the platform simulation objects; it holds no application
+// state of its own.
+void SimulationGui(const SimulationGuiContext& ctx);
 
 // UX for selecting the GUI theme.
 bool ThemeSelectGui(GuiTheme* theme, const ImVec2& size = ImVec2(0, 0));
