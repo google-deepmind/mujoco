@@ -295,16 +295,16 @@ def sensor_vel(m: Model, d: Data) -> Data:
 
   # position and orientation by object type
   objtype_data = {
-      ObjType.UNKNOWN: (
+      int(ObjType.UNKNOWN): (
           np.zeros((1, 3)),
           np.expand_dims(np.eye(3), axis=0),
           np.arange(1),
       ),  # world
-      ObjType.BODY: (d.xipos, d.ximat, np.arange(m.nbody)),
-      ObjType.XBODY: (d.xpos, d.xmat, np.arange(m.nbody)),
-      ObjType.GEOM: (d.geom_xpos, d.geom_xmat, m.geom_bodyid),
-      ObjType.SITE: (d.site_xpos, d.site_xmat, m.site_bodyid),
-      ObjType.CAMERA: (d.cam_xpos, d.cam_xmat, m.cam_bodyid),
+      int(ObjType.BODY): (d.xipos, d.ximat, np.arange(m.nbody)),
+      int(ObjType.XBODY): (d.xpos, d.xmat, np.arange(m.nbody)),
+      int(ObjType.GEOM): (d.geom_xpos, d.geom_xmat, m.geom_bodyid),
+      int(ObjType.SITE): (d.site_xpos, d.site_xmat, m.site_bodyid),
+      int(ObjType.CAMERA): (d.cam_xpos, d.cam_xmat, m.cam_bodyid),
   }
 
   stage_vel = m.sensor_needstage == mujoco.mjtStage.mjSTAGE_VEL
@@ -359,14 +359,14 @@ def sensor_vel(m: Model, d: Data) -> Data:
         refidt = refid[idxt]
         cutofft = cutoff[idxt]
 
-        xpos, _, _ = objtype_data[ot]
-        xposref, xmatref, _ = objtype_data[rt]
+        xpos, _, _ = objtype_data[int(ot)]
+        xposref, xmatref, _ = objtype_data[int(rt)]
         xpos = xpos[objidt]
         xposref = xposref[refidt]
         xmatref = xmatref[refidt]
 
         def _cvel_offset(otype, oid):
-          pos, _, bodyid = objtype_data[otype]
+          pos, _, bodyid = objtype_data[int(otype)]
           pos = pos[oid]
           bodyid = bodyid[oid]
           return d.cvel[bodyid], pos - d.subtree_com[m.body_rootid[bodyid]]
