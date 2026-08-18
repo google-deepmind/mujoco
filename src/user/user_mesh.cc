@@ -318,6 +318,9 @@ void mjCMesh::CopyFromSpec() {
   texcoord_ = spec_texcoord_;
   facetexcoord_ = spec_facetexcoord_;
   maxhullvert_ = spec.maxhullvert;
+  if (inertia == mjMESH_INERTIA_CONVEX) {
+    needhull_ = true;
+  }
   plugin.active = spec.plugin.active;
   plugin.element = spec.plugin.element;
   plugin.plugin_name = spec.plugin.plugin_name;
