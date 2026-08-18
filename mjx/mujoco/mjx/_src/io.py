@@ -568,7 +568,11 @@ def put_model(
     return _put_model_jax(m, device)
   elif impl == types.Impl.WARP:
     _check_warp_installed()
-    graph_mode = graph_mode or getattr(mjxw.types.GraphMode, 'WARP')
+    if graph_mode is None:
+      if device.platform == 'cpu':
+        graph_mode = getattr(mjxw.types.GraphMode, 'JAX')
+      else:
+        graph_mode = getattr(mjxw.types.GraphMode, 'WARP')
     return _put_model_warp(m, graph_mode, device, batch_sizes=batch_sizes)
   elif impl == types.Impl.CPP:
     return _put_model_cpp(m, device, keepalive_refs=keepalive_refs)
