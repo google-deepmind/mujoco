@@ -277,7 +277,7 @@ def _lex(text: str, path: str) -> tuple[list[_Token], dict[int, str]]:
     elif kind == 'punct':
       tokens.append(_Token(value, value, line))
     elif kind != 'ws':
-      tokens.append(_Token(kind, value, line))
+      tokens.append(_Token(kind, value, line))  # pyrefly: ignore[bad-argument-type]
     pos = match.end()
   tokens.append(_Token('eof', '', line))
   return tokens, comments
@@ -686,7 +686,7 @@ def _validate_attr(schema: Schema, attr: Attr, namespaces: set[str]):
         numeric and isinstance(attr.facets[facet], (int, float))):
       err(f'facet {facet!r} requires a numeric attribute and value')
   if 'min' in attr.facets and 'max' in attr.facets:
-    if attr.facets['min'] > attr.facets['max']:
+    if attr.facets['min'] > attr.facets['max']:  # pyrefly: ignore[unsupported-operation]
       err("facet 'min' cannot be greater than 'max'")
   if attr.facets.get('positive') and not numeric:
     err("facet 'positive' requires a numeric attribute")
@@ -699,7 +699,7 @@ def _validate_attr(schema: Schema, attr: Attr, namespaces: set[str]):
   if attr.type == 'enum':
     if not isinstance(attr.default, str):
       err(f'default for enum attribute {attr.name!r} must be a keyword')
-    keywords = schema.enums[attr.target].keywords()
+    keywords = schema.enums[attr.target].keywords()  # pyrefly: ignore[bad-index]
     if attr.default not in keywords:
       err(f'default {attr.default!r} is not a keyword of enum '
           f'{attr.target!r}')
