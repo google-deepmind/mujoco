@@ -1,0 +1,17 @@
+<mujoco>
+  <asset>
+    <model name="tendon_model" file="ten_armature_0.xml"/>
+    <model name="equivalent_model" file="ten_armature_0_equiv.xml"/>
+  </asset>
+
+  <option integrator="RK4">
+    <flag energy="enable"/>
+  </option>
+
+  <worldbody>
+    <attach model="tendon_model" prefix="t_"/>
+    <frame pos="2.2 0 0">
+      <attach model="equivalent_model" prefix="e_"/>
+    </frame>
+  </worldbody>
+</mujoco>

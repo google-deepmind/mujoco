@@ -72,7 +72,7 @@ How to submit a good enhancement suggestion:
 
 ### Contributing code
 
-- Except for small and straightforward bugfixes, please get in touch with us
+- Except for small and straightforward bug fixes, please get in touch with us
 before you start working on a contribution so that we can help and possibly
 guide you. Coordinating up front makes it much easier to avoid frustration later
 on.
@@ -105,10 +105,14 @@ achieve multiple things.
 
 - Respond to reviewers. Please be responsive to any questions and comments.
 
+- If you are not concerned with having your contribution attributed to you via
+  Git authorship, please let us know in the PR. It is significantly easier
+  for us to directly incorporate changes rather than going through the
+  full pull request import process. This will get your changes merged more
+  quickly.
+
 Once you have met all the requirements, your code will be merged.
 Thanks for improving MuJoCo!
-
-
 
 ### Community guidelines
 

@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "gil.h"
 #include "indexers.h"
 #include "raw.h"
 #include "util/crossplatform.h"
@@ -184,7 +185,7 @@ MjModelIndexer::MjModelIndexer(raw::MjModel* m, py::handle owner)
       name_to_id_(*m),
       id_to_name_(*m)
 #define XGROUP(MjModelFieldGroupedViews, field, nfield, FIELD_XMACROS) \
-  , field##_(m->nfield, std::nullopt)
+  , field##_(m->nfield)
       MJMODEL_VIEW_GROUPS
 #undef XGROUP
 {}
@@ -194,6 +195,7 @@ MjModelIndexer::MjModelIndexer(raw::MjModel* m, py::handle owner)
     if (i >= field##_.size() || i < 0) {                               \
       throw py::index_error(IndexErrorMessage(i, field##_.size()));    \
     }                                                                  \
+    MutexLockIfGilDisabled lock(lazy_init_mutex_);                     \
     auto& indexer = field##_[i];                                       \
     if (!indexer.has_value()) {                                        \
       const std::string& name = id_to_name_.field[i];                  \
@@ -224,7 +226,7 @@ MjDataIndexer::MjDataIndexer(raw::MjData* d, const raw::MjModel* m,
       name_to_id_(*m),
       id_to_name_(*m)
 #define XGROUP(MjDataGroupedViews, field, nfield, FIELD_XMACROS) \
-  , field##_(m->nfield, std::nullopt)
+  , field##_(m->nfield)
       MJDATA_VIEW_GROUPS
 #undef XGROUP
 {}
@@ -234,6 +236,7 @@ MjDataIndexer::MjDataIndexer(raw::MjData* d, const raw::MjModel* m,
     if (i >= field##_.size() || i < 0) {                            \
       throw py::index_error(IndexErrorMessage(i, field##_.size())); \
     }                                                               \
+    MutexLockIfGilDisabled lock(lazy_init_mutex_);                  \
     auto& indexer = field##_[i];                                    \
     if (!indexer.has_value()) {                                     \
       const std::string& name = id_to_name_.field[i];               \
@@ -261,7 +264,7 @@ MJDATA_VIEW_GROUPS
     if constexpr (std::string_view(#dim) == std::string_view("1")) { \
       return {};                                                     \
     } else {                                                         \
-      return {n};                                                    \
+      return {(int)n};                                               \
     }                                                                \
   }()                                                                \
   MUJOCO_DIAG_UNIGNORE_UNUSED_LAMBDA_CAPTURE
@@ -270,6 +273,7 @@ MJDATA_VIEW_GROUPS
 #define MJ_M(n) m_->n
 #define X(type, prefix, var, dim0, dim1)                            \
   py::array_t<type> XGROUP::var() {                                 \
+    MutexLockIfGilDisabled lock(lazy_init_mutex_);                  \
     if (!var##_.has_value()) {                                      \
       var##_.emplace(MakeArray<&raw::MjModel::dim0>(                \
           m_->prefix##var, index_, MAKE_SHAPE(dim1), *m_, owner_)); \
@@ -361,6 +365,7 @@ MJMODEL_KEYFRAME
 #define MJ_M(n) m_->n
 #define X(type, prefix, var, dim0, dim1)                            \
   py::array_t<type> XGROUP::var() {                               \
+    MutexLockIfGilDisabled lock(lazy_init_mutex_);                  \
     if (!var##_.has_value()) {                                      \
       var##_.emplace(MakeArray<&raw::MjModel::dim0>(              \
           d_->prefix##var, index_, MAKE_SHAPE(dim1), *m_, owner_)); \

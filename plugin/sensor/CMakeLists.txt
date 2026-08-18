@@ -18,7 +18,7 @@ set(MUJOCO_SENSOR_INCLUDE
 )
 
 set(MUJOCO_SENSOR_SRCS
-    sensor.cc
+    register.cc
     touch_grid.h
     touch_grid.cc
 )

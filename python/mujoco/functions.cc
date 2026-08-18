@@ -16,6 +16,7 @@
 
 #include <array>
 #include <cstdint>
+#include <cstdio>
 #include <memory>
 #include <string>
 #include <optional>
@@ -29,13 +30,14 @@
 #include "private.h"
 #include "raw.h"
 #include "structs.h"
+#include "util/func_wrap.h"
 #include <pybind11/eigen.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
 namespace mujoco::python {
 namespace {
-PYBIND11_MODULE(_functions, pymodule) {
+PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
   namespace py = ::pybind11;
   namespace traits = python_traits;
 
@@ -51,6 +53,27 @@ PYBIND11_MODULE(_functions, pymodule) {
 
   // Virtual file system
   // Skipped entire section
+
+  // Asset cache
+  Def<traits::mj_getCacheSize>(pymodule, [](void* cache) {
+        return mj_getCacheSize(static_cast<mjCache*>(cache));
+      });
+
+  Def<traits::mj_getCacheCapacity>(pymodule, [](void* cache) {
+        return mj_getCacheCapacity(static_cast<mjCache*>(cache));
+      });
+
+  Def<traits::mj_setCacheCapacity>(pymodule, [](void* cache, std::size_t size) {
+        return mj_setCacheCapacity(static_cast<mjCache*>(cache), size);
+      });
+
+  Def<traits::mj_getCache>(pymodule, []() {
+        return static_cast<void*>(mj_getCache());
+      });
+
+  Def<traits::mj_clearCache>(pymodule, [](void* cache) {
+        return mj_clearCache(static_cast<mjCache*>(cache));
+      });
 
   // Parse and compile
   // Skipped: mj_loadXML (have MjModel.from_xml_string)
@@ -68,7 +91,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   DEF_WITH_OMITTED_PY_ARGS(traits::mj_printSchema,
                            "filename", "buffer", "buffer_sz")(
       pymodule, [](bool flg_html, bool flg_pad) {
-        constexpr int kBufferSize = 40000;
+        constexpr int kBufferSize = 60000;
         auto buffer = std::unique_ptr<char[]>(new char[kBufferSize]);
         const int out_length = InterceptMjErrors(::mj_printSchema)(
             nullptr, buffer.get(), kBufferSize, flg_html, flg_pad);
@@ -76,6 +99,14 @@ PYBIND11_MODULE(_functions, pymodule) {
           throw UnexpectedError("output buffer too small");
         }
         return std::string(buffer.get(), out_length);
+      });
+
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_getXMLDependencies,
+                           "dependencies")(
+      pymodule, [](const char* filename){
+        mjStringVec dependencies;
+        InterceptMjErrors(::mju_getXMLDependencies)(filename, &dependencies);
+        return dependencies;
       });
 
   // Main simulation
@@ -129,8 +160,13 @@ PYBIND11_MODULE(_functions, pymodule) {
   // Skipped: mj_deleteModel (have MjModel.__del__)
   Def<traits::mj_sizeModel>(pymodule);
   // Skipped: mj_makeData (have MjData.__init__)
-  // Skipped: mj_copyData (have MjData.__copy__, memory managed by MjData)
+  DEF_WITH_OMITTED_PY_ARGS(traits::mj_copyData)(
+      pymodule,
+      [](raw::MjData* dest, const raw::MjModel* m, const raw::MjData* src) {
+        InterceptMjErrors(::mj_copyData)(dest, m, src);
+      });
   Def<traits::mj_resetData>(pymodule);
+  Def<traits::mj_resetCtrl>(pymodule);
   Def<traits::mj_resetDataDebug>(pymodule);
   Def<traits::mj_resetDataKeyframe>(pymodule);
   // Skipped: mj_stackAllocByte (doesn't make sense in Python)
@@ -153,6 +189,8 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_printModel>(pymodule);
   Def<traits::mj_printFormattedData>(pymodule);
   Def<traits::mj_printData>(pymodule);
+  Def<traits::mj_printFormattedScene>(pymodule);
+  Def<traits::mj_printScene>(pymodule);
   DEF_WITH_OMITTED_PY_ARGS(traits::mju_printMat, "nr", "nc")(
       pymodule,
       [](Eigen::Ref<const EigenArrayXX> mat) {
@@ -182,6 +220,7 @@ PYBIND11_MODULE(_functions, pymodule) {
       });
 
   // Components
+  Def<traits::mj_fwdKinematics>(pymodule);
   Def<traits::mj_fwdPosition>(pymodule);
   Def<traits::mj_fwdVelocity>(pymodule);
   Def<traits::mj_fwdActuation>(pymodule);
@@ -211,6 +250,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_tendon>(pymodule);
   Def<traits::mj_transmission>(pymodule);
   Def<traits::mj_crb>(pymodule);
+  Def<traits::mj_makeM>(pymodule);
   Def<traits::mj_factorM>(pymodule);
   DEF_WITH_OMITTED_PY_ARGS(traits::mj_solveM, "n")(
       pymodule,
@@ -232,27 +272,24 @@ PYBIND11_MODULE(_functions, pymodule) {
             m, d, x.data(), y.data(), y.rows());
       });
   DEF_WITH_OMITTED_PY_ARGS(traits::mj_solveM2, "n")(
-      pymodule,
-      [](const raw::MjModel* m, raw::MjData* d, Eigen::Ref<EigenArrayXX> x,
-         Eigen::Ref<const EigenArrayXX> y, Eigen::Ref<const EigenArrayXX> sqrtInvD) {
+      pymodule, [](const raw::MjModel* m, raw::MjData* d,
+                   Eigen::Ref<EigenArrayXX> x, Eigen::Ref<const EigenArrayXX> y,
+                   Eigen::Ref<const EigenArrayXX> sqrtInvD) {
         if (x.rows() != y.rows()) {
           throw py::type_error(
               "the first dimension of x and y should be of the same size");
         }
         if (x.cols() != m->nv) {
-          throw py::type_error(
-              "the last dimension of x should be of size nv");
+          throw py::type_error("the last dimension of x should be of size nv");
         }
         if (y.cols() != m->nv) {
-          throw py::type_error(
-              "the last dimension of y should be of size nv");
+          throw py::type_error("the last dimension of y should be of size nv");
         }
         if (sqrtInvD.size() != m->nv) {
-          throw py::type_error(
-              "the size of sqrtInvD should be nv");
+          throw py::type_error("the size of sqrtInvD should be nv");
         }
-        return InterceptMjErrors(::mj_solveM2)(
-            m, d, x.data(), y.data(), sqrtInvD.data(), y.rows());
+        return InterceptMjErrors(::mj_solveM2)(m, d, x.data(), y.data(),
+                                               sqrtInvD.data(), y.rows());
       });
   Def<traits::mj_comVel>(pymodule);
   Def<traits::mj_passive>(pymodule);
@@ -268,6 +305,7 @@ PYBIND11_MODULE(_functions, pymodule) {
             m, d, flg_acc, result.data());
       });
   Def<traits::mj_rnePostConstraint>(pymodule);
+  Def<traits::mj_maxContact>(pymodule);
   Def<traits::mj_collision>(pymodule);
   Def<traits::mj_makeConstraint>(pymodule);
   Def<traits::mj_island>(pymodule);
@@ -291,20 +329,89 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_getState>(
       pymodule,
       [](const raw::MjModel* m, const raw::MjData* d,
-         Eigen::Ref<EigenVectorX> state, unsigned int spec) {
-        if (state.size() != mj_stateSize(m, spec)) {
-          throw py::type_error("state size should equal mj_stateSize(m, spec)");
+         Eigen::Ref<EigenVectorX> state, unsigned int sig) {
+        if (state.size() != mj_stateSize(m, sig)) {
+          throw py::type_error("state size should equal mj_stateSize(m, sig)");
         }
-        return InterceptMjErrors(::mj_getState)(m, d, state.data(), spec);
+        return InterceptMjErrors(::mj_getState)(m, d, state.data(), sig);
+      });
+  Def<traits::mj_extractState>(
+    pymodule,
+    [](const raw::MjModel* m,
+       Eigen::Ref<const EigenVectorX> src, unsigned int srcsig,
+       Eigen::Ref<EigenVectorX> dst, unsigned int dstsig) {
+        if (src.size() != mj_stateSize(m, srcsig)) {
+          throw py::type_error("src size should equal mj_stateSize(m, srcsig)");
+        }
+        if (dst.size() != mj_stateSize(m, dstsig)) {
+          throw py::type_error("dst size should equal mj_stateSize(m, dstsig)");
+        }
+        return InterceptMjErrors(::mj_extractState)(m, src.data(), srcsig,
+                                                    dst.data(), dstsig);
       });
   Def<traits::mj_setState>(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d,
-         const Eigen::Ref<EigenVectorX> state, unsigned int spec) {
-        if (state.size() != mj_stateSize(m, spec)) {
-          throw py::type_error("state size should equal mj_stateSize(m, spec)");
+         Eigen::Ref<const EigenVectorX> state, unsigned int sig) {
+        if (state.size() != mj_stateSize(m, sig)) {
+          throw py::type_error("state size should equal mj_stateSize(m, sig)");
         }
-        return InterceptMjErrors(::mj_setState)(m, d, state.data(), spec);
+        return InterceptMjErrors(::mj_setState)(m, d, state.data(), sig);
+      });
+  Def<traits::mj_copyState>(pymodule);
+  Def<traits::mj_readCtrl>(pymodule);
+  Def<traits::mj_readSensor>(
+      pymodule,
+      [](const raw::MjModel* m, const raw::MjData* d, int id, mjtNum time,
+         Eigen::Ref<EigenVectorX> result, int order) {
+        int dim = m->sensor_dim[id];
+        if (result.size() != dim) {
+          throw py::type_error("result should have length sensor_dim[id]");
+        }
+        const mjtNum* ptr = InterceptMjErrors(::mj_readSensor)(
+            m, d, id, time, result.data(), order);
+        if (ptr && ptr != result.data()) {
+          for (int i = 0; i < dim; ++i) {
+            result[i] = ptr[i];
+          }
+        }
+        return result;
+      });
+  Def<traits::mj_initCtrlHistory>(
+      pymodule,
+      [](const raw::MjModel* m, raw::MjData* d, int id,
+         std::optional<Eigen::Ref<const EigenVectorX>> times,
+         Eigen::Ref<const EigenVectorX> values) {
+        int nhistory = m->actuator_history[2*id];
+        if (times.has_value() && times->size() != nhistory) {
+          throw py::type_error(
+              "times should have length actuator_history[2*id]");
+        }
+        if (values.size() != nhistory) {
+          throw py::type_error(
+              "values should have length actuator_history[2*id]");
+        }
+        return InterceptMjErrors(::mj_initCtrlHistory)(
+            m, d, id,
+            times.has_value() ? times->data() : nullptr, values.data());
+      });
+  Def<traits::mj_initSensorHistory>(
+      pymodule, [](const raw::MjModel* m, raw::MjData* d, int id,
+                   std::optional<Eigen::Ref<const EigenVectorX>> times,
+                   Eigen::Ref<const EigenArrayXX> values, mjtNum phase) {
+        int nhistory = m->sensor_history[2 * id];
+        int dim = m->sensor_dim[id];
+        if (times.has_value() && times->size() != nhistory) {
+          throw py::type_error("times should have length sensor_history[2*id]");
+        }
+        if (values.rows() != nhistory || values.cols() != dim) {
+          throw py::type_error(
+              "values should have shape (sensor_history[2*id], "
+              "sensor_dim[id])");
+        }
+        return InterceptMjErrors(::mj_initSensorHistory)(
+            m, d, id, times.has_value() ? times->data() : nullptr,
+            values.data(), phase);
       });
   Def<traits::mj_setKeyframe>(pymodule);
   Def<traits::mj_addContact>(pymodule);
@@ -483,17 +590,15 @@ PYBIND11_MODULE(_functions, pymodule) {
       });
   Def<traits::mj_name2id>(pymodule);
   Def<traits::mj_id2name>(pymodule);
+  Def<traits::mj_actuatorInputName>(pymodule);
   Def<traits::mj_fullM>(
       pymodule,
-      [](const raw::MjModel* m, Eigen::Ref<EigenArrayXX> dst,
-         Eigen::Ref<const EigenVectorX> M) {
-        if (M.size() != m->nM) {
-          throw py::type_error("M should be of size nM");
-        }
+      [](const raw::MjModel* m, const raw::MjData* d,
+         Eigen::Ref<EigenArrayXX> dst) {
         if (dst.cols() != m->nv || dst.rows() != m->nv) {
           throw py::type_error("dst should be of shape (nv, nv)");
         }
-        return ::mj_fullM(m, dst.data(), M.data());
+        return ::mj_fullM(m, d, dst.data());
       });
   Def<traits::mj_mulM>(
       pymodule,
@@ -558,7 +663,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_contactForce>(pymodule);
   Def<traits::mj_geomDistance>(
       pymodule,
-      [](const raw::MjModel* m, const raw::MjData* d,
+      [](const raw::MjModel* m, raw::MjData* d,
          int geom1, int geom2, mjtNum distmax,
          std::optional<Eigen::Ref<EigenArrayXX>> fromto) {
         if (fromto.has_value() && fromto->size() != 6) {
@@ -619,6 +724,9 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_version>(pymodule);
   Def<traits::mj_versionString>(pymodule);
 
+  // Thread pool
+  Def<traits::mju_threadpool>(pymodule);
+
   // Ray collision
   Def<traits::mj_multiRay>(
       pymodule,
@@ -626,34 +734,107 @@ PYBIND11_MODULE(_functions, pymodule) {
          Eigen::Ref<const EigenVectorX> vec,
          std::optional<Eigen::Ref<const Eigen::Vector<mjtByte, mjNGROUP>>>
              geomgroup,
-         mjtByte flg_static, int bodyexclude, Eigen::Ref<EigenVectorI> geomid,
-         Eigen::Ref<EigenVectorX> dist, int nray, mjtNum cutoff) {
+         mjtBool flg_static, int bodyexclude, Eigen::Ref<EigenVectorI> geomid,
+         Eigen::Ref<EigenVectorX> dist,
+         std::optional<Eigen::Ref<EigenVectorX>> normal,
+         int nray, mjtNum cutoff) {
         if (dist.size() != nray || geomid.size() != nray) {
           throw py::type_error("dist and geomid should be of size nray");
         }
         if (vec.size() != 3 * nray) {
           throw py::type_error("vec should be of size 3*nray");
         }
+        if (normal.has_value() && normal->size() != 3 * nray) {
+          throw py::type_error("normal should be of size 3*nray");
+        }
         InterceptMjErrors(::mj_multiRay)(
             m, d, &(*pnt)[0], vec.data(),
             geomgroup.has_value() ? geomgroup->data() : nullptr, flg_static,
-            bodyexclude, geomid.data(), dist.data(), nray, cutoff);
+            bodyexclude, geomid.data(), dist.data(),
+            normal.has_value() ? normal->data() : nullptr, nray, cutoff);
       });
-  Def<traits::mj_ray>(
-      pymodule,
-      [](const raw::MjModel* m, const raw::MjData* d, const mjtNum(*pnt)[3],
-         const mjtNum(*vec)[3],
-         std::optional<Eigen::Ref<const Eigen::Vector<mjtByte, mjNGROUP>>>
-             geomgroup,
-         mjtByte flg_static, int bodyexclude, int(*geomid)[1]) {
-        return mj_ray(m, d, &(*pnt)[0], &(*vec)[0],
-                      geomgroup.has_value() ? geomgroup->data() : nullptr,
-                      flg_static, bodyexclude, &(*geomid)[0]);
-      });
-  Def<traits::mj_rayHfield>(pymodule);
-  Def<traits::mj_rayMesh>(pymodule);
-  Def<traits::mju_rayGeom>(pymodule);
-  Def<traits::mju_rayFlex>(pymodule);
+  pymodule.def(
+      "mj_ray",
+      util::UnwrapArgs(
+          [](const raw::MjModel* m, const raw::MjData* d, const mjtNum(*pnt)[3],
+             const mjtNum(*vec)[3],
+             std::optional<Eigen::Ref<const Eigen::Vector<mjtByte, mjNGROUP>>>
+                 geomgroup,
+             mjtBool flg_static, int bodyexclude,
+             std::optional<Eigen::Ref<Eigen::Vector<int, 1>>> geomid,
+             std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 3>>> normal) {
+            return mj_ray(m, d, &(*pnt)[0], &(*vec)[0],
+                          geomgroup.has_value() ? geomgroup->data() : nullptr,
+                          flg_static, bodyexclude,
+                          geomid.has_value() ? geomid->data() : nullptr,
+                          normal.has_value() ? normal->data() : nullptr);
+          }),
+      py::arg("m"), py::arg("d"), py::arg("pnt"), py::arg("vec"),
+      py::arg("geomgroup"), py::arg("flg_static"), py::arg("bodyexclude"),
+      py::arg("geomid"), py::arg("normal") = std::nullopt,
+      py::doc(traits::mj_ray::doc),
+      py::call_guard<py::gil_scoped_release>());
+  pymodule.def(
+      "mj_rayHfield",
+      util::UnwrapArgs(
+          [](const raw::MjModel* m, const raw::MjData* d, int geomid,
+             const mjtNum(*pnt)[3], const mjtNum(*vec)[3],
+             std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 3>>> normal) {
+            return mj_rayHfield(m, d, geomid, &(*pnt)[0], &(*vec)[0],
+                                normal.has_value() ? normal->data() : nullptr);
+          }),
+      py::arg("m"), py::arg("d"), py::arg("geomid"), py::arg("pnt"),
+      py::arg("vec"), py::arg("normal") = std::nullopt,
+      py::doc(traits::mj_rayHfield::doc),
+      py::call_guard<py::gil_scoped_release>());
+  pymodule.def(
+      "mj_rayMesh",
+      util::UnwrapArgs(
+          [](const raw::MjModel* m, const raw::MjData* d, int geomid,
+             const mjtNum(*pnt)[3], const mjtNum(*vec)[3],
+             std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 3>>> normal) {
+            return mj_rayMesh(m, d, geomid, &(*pnt)[0], &(*vec)[0],
+                              normal.has_value() ? normal->data() : nullptr);
+          }),
+      py::arg("m"), py::arg("d"), py::arg("geomid"), py::arg("pnt"),
+      py::arg("vec"), py::arg("normal") = std::nullopt,
+      py::doc(traits::mj_rayMesh::doc),
+      py::call_guard<py::gil_scoped_release>());
+  pymodule.def(
+      "mju_rayGeom",
+      util::UnwrapArgs(
+          [](const mjtNum(*pos)[3], const mjtNum(*mat)[9],
+             const mjtNum(*size)[3], const mjtNum(*pnt)[3],
+             const mjtNum(*vec)[3], int geomtype,
+             std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 3>>> normal) {
+            return mju_rayGeom(&(*pos)[0], &(*mat)[0], &(*size)[0], &(*pnt)[0],
+                               &(*vec)[0], geomtype,
+                               normal.has_value() ? normal->data() : nullptr);
+          }),
+      py::arg("pos"), py::arg("mat"), py::arg("size"), py::arg("pnt"),
+      py::arg("vec"), py::arg("geomtype"), py::arg("normal") = std::nullopt,
+      py::doc(traits::mju_rayGeom::doc),
+      py::call_guard<py::gil_scoped_release>());
+  pymodule.def(
+      "mj_rayFlex",
+      util::UnwrapArgs(
+          [](const raw::MjModel* m, const raw::MjData* d, int flex_layer,
+             mjtBool flg_vert, mjtBool flg_edge, mjtBool flg_face,
+             mjtBool flg_skin, int flexid, const mjtNum(*pnt)[3],
+             const mjtNum(*vec)[3],
+             std::optional<Eigen::Ref<Eigen::Vector<int, 1>>> vertid,
+             std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 3>>> normal) {
+            return mj_rayFlex(m, d, flex_layer, flg_vert, flg_edge, flg_face,
+                              flg_skin, flexid, &(*pnt)[0], &(*vec)[0],
+                              vertid.has_value() ? vertid->data() : nullptr,
+                              normal.has_value() ? normal->data() : nullptr);
+          }),
+      py::arg("m"), py::arg("d"), py::arg("flex_layer"), py::arg("flg_vert"),
+      py::arg("flg_edge"), py::arg("flg_face"), py::arg("flg_skin"),
+      py::arg("flexid"), py::arg("pnt"), py::arg("vec"),
+      py::arg("vertid") = std::nullopt, py::arg("normal") = std::nullopt,
+      py::doc(traits::mj_rayFlex::doc),
+      py::call_guard<py::gil_scoped_release>());
   Def<traits::mju_raySkin>(pymodule);
 
   // Interaction
@@ -673,6 +854,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjv_applyPerturbPose>(pymodule);
   Def<traits::mjv_applyPerturbForce>(pymodule);
   // Skipped: mjv_averageCamera (defined in structs.cc due to the return type)
+  // Skipped: mjv_camera2GLCamera (defined in structs.cc due to the return type)
   Def<traits::mjv_select>(pymodule);
 
   // Visualization
@@ -696,6 +878,8 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjv_makeLights>(pymodule);
   Def<traits::mjv_updateCamera>(pymodule);
   Def<traits::mjv_updateSkin>(pymodule);
+  Def<traits::mjv_cameraFrame>(pymodule);
+  Def<traits::mjv_cameraFrustum>(pymodule);
 
   // UI framework
   // Skipped: entire section (can add this if there's demand)
@@ -1060,6 +1244,37 @@ PYBIND11_MODULE(_functions, pymodule) {
                                   colind.data());
       });
 
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_sym2dense, "n")(
+      pymodule,
+      [](Eigen::Ref<EigenArrayXX> res,
+         Eigen::Ref<const EigenVectorX> mat,
+         Eigen::Ref<const EigenVectorI> rownnz,
+         Eigen::Ref<const EigenVectorI> rowadr,
+         Eigen::Ref<const EigenVectorI> colind) {
+        if (res.rows() != res.cols()) {
+          throw py::type_error("res should be a square matrix");
+        }
+        if (res.rows() != rownnz.size()) {
+          throw py::type_error("#rows in res should equal size of rownnz");
+        }
+        if (res.rows() != rowadr.size()) {
+          throw py::type_error("#rows in res should equal size of rowadr");
+        }
+        if (res.rows() > 0) {
+          int nnz = rowadr.array().tail(1)[0] + rownnz.array().tail(1)[0];
+          if (mat.size() < nnz) {
+            throw py::type_error("mat size is too small for the given sparse "
+                                 "structure");
+          }
+          if (colind.size() < nnz) {
+            throw py::type_error("colind size is too small for the given "
+                                 "sparse structure");
+          }
+        }
+        return ::mju_sym2dense(res.data(), mat.data(), res.rows(),
+                               rownnz.data(), rowadr.data(), colind.data());
+      });
+
   // Quaternions
   Def<traits::mju_rotVecQuat>(pymodule);
   Def<traits::mju_negQuat>(pymodule);
@@ -1158,7 +1373,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mju_band2Dense>(
       pymodule,
       [](Eigen::Ref<EigenArrayXX> res, Eigen::Ref<const EigenVectorX> mat,
-         int ntotal, int nband, int ndense, mjtByte flg_sym) {
+         int ntotal, int nband, int ndense, mjtBool flg_sym) {
         int nMat = (ntotal - ndense) * nband + ndense * ntotal;
         if (mat.size() != nMat) {
           throw py::type_error(
@@ -1194,7 +1409,7 @@ PYBIND11_MODULE(_functions, pymodule) {
       pymodule,
       [](Eigen::Ref<EigenVectorX> res, Eigen::Ref<const EigenArrayXX> mat,
          Eigen::Ref<const EigenArrayXX> vec, int ntotal, int nband, int ndense,
-         int nVec, mjtByte flg_sym) {
+         int nVec, mjtBool flg_sym) {
         int nMat = (ntotal - ndense) * nband + ndense * ntotal;
         if (mat.size() != nMat) {
           throw py::type_error(
@@ -1364,7 +1579,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjd_transitionFD>(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d,
-         mjtNum eps, mjtByte flg_centered,
+         mjtNum eps, mjtBool flg_centered,
          std::optional<Eigen::Ref<EigenArrayXX>> A,
          std::optional<Eigen::Ref<EigenArrayXX>> B,
          std::optional<Eigen::Ref<EigenArrayXX>> C,
@@ -1395,7 +1610,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjd_inverseFD>(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d,
-         mjtNum eps, mjtByte flg_actuation,
+         mjtNum eps, mjtBool flg_actuation,
          std::optional<Eigen::Ref<EigenArrayXX>> DfDq,
          std::optional<Eigen::Ref<EigenArrayXX>> DfDv,
          std::optional<Eigen::Ref<EigenArrayXX>> DfDa,
@@ -1428,8 +1643,8 @@ PYBIND11_MODULE(_functions, pymodule) {
           throw py::type_error("DsDa should be of shape (nv, nsensordata)");
         }
         if (DmDq.has_value() &&
-            (DmDq->rows() != m->nv || DmDq->cols() != m->nM)) {
-          throw py::type_error("DmDq should be of shape (nv, nM)");
+            (DmDq->rows() != m->nv || DmDq->cols() != m->nC)) {
+          throw py::type_error("DmDq should be of shape (nv, nC)");
         }
         return InterceptMjErrors(::mjd_inverseFD)(
             m, d, eps, flg_actuation,
@@ -1467,10 +1682,10 @@ PYBIND11_MODULE(_functions, pymodule) {
 
   pymodule.def(
       "_realloc_con_efc",
-      [](MjDataWrapper& d, int ncon, int nefc) {
+      [](MjDataWrapper& d, int ncon, int nefc, int nJ) {
         raw::MjData* data = d.get();
 
-        auto cleanup = [](raw::MjData* data) {
+        auto cleanup = [](raw::MjData* data, int nJ) {
 #ifdef ADDRESS_SANITIZER
         ASAN_POISON_MEMORY_REGION(
             static_cast<char*>(data->arena),
@@ -1479,22 +1694,33 @@ PYBIND11_MODULE(_functions, pymodule) {
           data->parena = 0;
           data->ncon = 0;
           data->nefc = 0;
+          if (nJ > -1) data->nJ = 0;
           data->contact = static_cast<raw::MjContact*>(data->arena);
 #define X(type, name, nr, nc) data->name = nullptr;
           MJDATA_ARENA_POINTERS_SOLVER
           MJDATA_ARENA_POINTERS_DUAL
+          MJDATA_ARENA_POINTERS_ISLAND
+          MJDATA_ARENA_POINTERS_EFM
 #undef X
         };
 
-        cleanup(data);
+        char error_msg[128];
+        error_msg[0] = '\0';
+        const char* error_msg_fmt =
+            "Insufficient arena memory, currently allocated memory=\"%s\". "
+            "Increase using <size memory=\"X\"/>.";
+        cleanup(data, nJ);
         data->ncon = ncon;
         data->nefc = nefc;
+        if (nJ > -1) data->nJ = nJ;
         data->contact =
             static_cast<raw::MjContact*>(InterceptMjErrors(::mj_arenaAllocByte)(
                 data, ncon * sizeof(raw::MjContact), alignof(raw::MjContact)));
         if (!data->contact) {
-          cleanup(data);
-          throw FatalError("insufficient arena memory available");
+          cleanup(data, nJ);
+          std::snprintf(error_msg, sizeof(error_msg), error_msg_fmt,
+                        mju_writeNumBytes(data->narena));
+          throw FatalError(error_msg);
         }
 
 #undef MJ_M
@@ -1505,8 +1731,10 @@ PYBIND11_MODULE(_functions, pymodule) {
   data->name = static_cast<type*>(InterceptMjErrors(::mj_arenaAllocByte)( \
       data, sizeof(type) * (nr) * (nc), alignof(type)));                  \
   if (!data->name) {                                                      \
-    cleanup(data);                                                        \
-    throw FatalError("insufficient arena memory available");              \
+    cleanup(data, nJ);                                                    \
+    std::snprintf(error_msg, sizeof(error_msg), error_msg_fmt,            \
+                  mju_writeNumBytes(data->narena));                       \
+    throw FatalError(error_msg);                                          \
   }
 
         MJDATA_ARENA_POINTERS_SOLVER
@@ -1519,7 +1747,75 @@ PYBIND11_MODULE(_functions, pymodule) {
 #undef MJ_M
 #define MJ_M(x) x
       },
-      py::arg("d"), py::arg("ncon"), py::arg("nefc"),
+      py::arg("d"), py::arg("ncon"), py::arg("nefc"), py::arg("nJ") = -1,
+      py::call_guard<py::gil_scoped_release>());
+
+  pymodule.def(
+      "_realloc_island",
+      [](MjDataWrapper& d, int nisland, int nidof) {
+        raw::MjData* data = d.get();
+
+        size_t parena_start = data->parena;
+        // Find island block start in arena to reclaim memory on re-allocation.
+        char* min_ptr = nullptr;
+#define X(type, name, nr, nc)                                                   \
+        if (data->name &&                                                       \
+            (!min_ptr || reinterpret_cast<char*>(data->name) < min_ptr)) {      \
+          min_ptr = reinterpret_cast<char*>(data->name);                        \
+        }
+        MJDATA_ARENA_POINTERS_ISLAND
+#undef X
+        if (min_ptr && data->arena) {
+          parena_start = min_ptr - static_cast<char*>(data->arena);
+        }
+
+        auto cleanup = [](raw::MjData* data, size_t target_parena) {
+#define X(type, name, nr, nc) data->name = nullptr;
+          MJDATA_ARENA_POINTERS_ISLAND
+#undef X
+          data->nisland = 0;
+          data->nidof = 0;
+          data->parena = target_parena;
+#ifdef ADDRESS_SANITIZER
+          ASAN_POISON_MEMORY_REGION(
+              static_cast<char*>(data->arena) + target_parena,
+              data->narena - data->pstack - target_parena);
+#endif
+        };
+
+        cleanup(data, parena_start);
+
+        char error_msg[128];
+        error_msg[0] = '\0';
+        const char* error_msg_fmt =
+            "Insufficient arena memory, currently allocated memory=\"%s\". "
+            "Increase using <size memory=\"X\"/>.";
+
+        data->nisland = nisland;
+        data->nidof = nidof;
+
+#undef MJ_M
+#define MJ_M(x) d.model().get()->x
+#undef MJ_D
+#define MJ_D(x) data->x
+#define X(type, name, nr, nc)                                                   \
+        data->name = static_cast<type*>(InterceptMjErrors(::mj_arenaAllocByte)( \
+            data, sizeof(type) * (nr) * (nc), alignof(type)));                  \
+        if (!data->name) {                                                      \
+          cleanup(data, parena_start);                                          \
+          std::snprintf(error_msg, sizeof(error_msg), error_msg_fmt,            \
+                        mju_writeNumBytes(data->narena));                       \
+          throw FatalError(error_msg);                                          \
+        }
+
+        MJDATA_ARENA_POINTERS_ISLAND
+#undef X
+#undef MJ_D
+#define MJ_D(x) x
+#undef MJ_M
+#define MJ_M(x) x
+      },
+      py::arg("d"), py::arg("nisland"), py::arg("nidof"),
       py::call_guard<py::gil_scoped_release>());
 }  // PYBIND11_MODULE NOLINT(readability/fn_size)
 }  // namespace

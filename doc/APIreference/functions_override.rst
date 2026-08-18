@@ -23,6 +23,13 @@ Initialize an empty VFS, :ref:`mj_deleteVFS` must be called to deallocate the VF
 Add file to VFS. The directory argument is optional and can be NULL or empty. Returns 0 on success,
 2 on name collision, or -1 when an internal error occurs.
 
+*Nullable:* ``directory``
+
+.. _Assetcache:
+
+The asset cache is a mechanism for caching assets (e.g. textures, meshes, etc.) to avoid repeated slow recompilation.
+The following methods provide way to control the capacity of the cache or to disable it altogether.
+
 .. _Parseandcompile:
 
 The key function here is :ref:`mj_loadXML`. It invokes the built-in parser and compiler, and either returns a pointer to
@@ -40,21 +47,40 @@ If compilation fails, :ref:`mj_compile` returns ``NULL``; the error can be read 
 Recompile spec to model, preserving the state. Like :ref:`mj_compile`, this function compiles an :ref:`mjSpec` to an
 :ref:`mjModel`, with two differences. First, rather than returning an entirely new model, it will
 reallocate existing :ref:`mjModel` and :ref:`mjData` instances in-place. Second, it will preserve the
-:ref:`integration state<geIntegrationState>`, as given in the provided :ref:`mjData` instance, while accounting for
+:ref:`integration state<siIntegrationState>`, as given in the provided :ref:`mjData` instance, while accounting for
 newly added or removed degrees of freedom. This allows the user to continue simulation with the same model and data
 struct pointers while editing the model programmatically.
 
 :ref:`mj_recompile` returns 0 if compilation succeed. In the case of failure, the given :ref:`mjModel` and :ref:`mjData`
 instances will be deleted; as in :ref:`mj_compile`, the compilation error can be read with :ref:`mjs_getError`.
 
+.. _mj_saveLastXML:
+
+Update XML data structures with info from low-level model created with :ref:`mj_loadXML`, save as MJCF.
+If error is not NULL, it must have size error_sz.
+
+Note that this function only saves models that have been loaded with :ref:`mj_loadXML`, the legacy loading mechanism.
+See the :ref:`model editing<meOverview>` chapter to understand the difference between the old and new model loading and
+saving mechanisms.
+
 .. _mj_saveXMLString:
 
 Save spec to XML string, return 0 on success, -1 on failure. If the length of the output buffer is too small, returns
-the required size. XML saving requires that the spec first be compiled.
+the required size. XML saving automatically compiles the spec before saving.
 
 .. _mj_saveXML:
 
 Save spec to XML file, return 0 on success, -1 otherwise. XML saving requires that the spec first be compiled.
+
+.. _mj_encode:
+
+Encode :ref:`mjSpec` or :ref:`mjModel` to a file. The output format is determined by the file extension
+(case insensitive) or ``content_type``. Returns the number of bytes written on success, -1 on failure.
+
+For detailed documentation, supported output formats (``.xml``, ``.mjb``, ``.txt``, ``.mjz``), and custom encoder
+plugins, see :ref:`Model Encoding & Saving <meSaving>`.
+
+*Nullable:* ``s``, ``m``, ``vfs``, ``error``
 
 .. _Mainsimulation:
 
@@ -104,8 +130,14 @@ Integrates the simulation state using an implicit-in-velocity integrator (either
 
 .. _Subcomponents:
 
-These are sub-components of the simulation pipeline, called internally from the components above. It is very unlikely
-that the user will need to call them.
+These are sub-components of the simulation pipeline, called internally from the components above.
+
+.. _mj_makeM:
+
+Compute the composite rigid body inertia with :ref:`mj_crb`, add terms due
+to :ref:`tendon armature<tendon-spatial-armature>`. The joint-space inertia matrix is stored in both ``mjData.qM`` and
+``mjData.M``. These arrays represent the same quantity using different layouts (parent-based and compressed sparse row,
+respectively).
 
 .. _mj_factorM:
 
@@ -147,12 +179,14 @@ This function is triggered automatically if the following sensors are present in
 It is also triggered for :ref:`user sensors<sensor-user>` of :ref:`stage<sensor-user-needstage>` "acc".
 
 The computed force arrays ``cfrc_int`` and ``cfrc_ext`` currently suffer from a know bug, they do not take into account
-the effect of spatial tendons, see :github:issue:`832`.
+the effect of spatial tendons, see :issue:`832`.
 
 .. _mj_constraintUpdate:
 
 Compute ``efc_state``, ``efc_force``, ``qfrc_constraint``, and (optionally) cone Hessians.
 If ``cost`` is not ``NULL``, set ``*cost = s(jar)`` where ``jar = Jac*qacc - aref``.
+
+*Nullable:* ``cost``
 
 .. _Support:
 
@@ -162,18 +196,92 @@ computations, and are documented in more detail below.
 
 .. _mj_stateSize:
 
-Returns the number of :ref:`mjtNum` |-| s required for a given state specification. The bits of the integer ``spec``
+Returns the number of :ref:`mjtNum` |-| s required for a given state signature. The bits of the integer ``sig``
 correspond to element fields of :ref:`mjtState`.
 
 .. _mj_getState:
 
-Copy concatenated state components specified by ``spec`` from ``d`` into ``state``. The bits of the integer
-``spec`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``spec`` is invalid.
+Copy concatenated state components specified by ``sig`` from ``d`` into ``state``. The bits of the integer
+``sig`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``sig`` is invalid.
+
+.. _mj_extractState:
+
+Extract into ``dst`` the subset of components specified by ``dstsig`` from a state ``src`` previously obtained via
+:ref:`mj_getState` with components specified by ``srcsig``. Fails with :ref:`mju_error` if the bits set in ``dstsig``
+is not a subset of the bits set in ``srcsig``.
 
 .. _mj_setState:
 
-Copy concatenated state components specified by ``spec`` from  ``state`` into ``d``. The bits of the integer
-``spec`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``spec`` is invalid.
+Copy concatenated state components specified by ``sig`` from  ``state`` into ``d``. The bits of the integer
+``sig`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``sig`` is invalid.
+
+.. _mj_readCtrl:
+
+Read the control value for an actuator at a given time, taking delays into account. If no history buffer exists, return
+``mjData.ctrl[id]``. If a history buffer exists (:ref:`nsample<actuator-general-nsample>` > 0), read from the delay
+buffer at ``time - actuator_delay[id]`` using the requested interpolation order:
+
+- ``interp = 0``: Zero-order hold (piecewise constant)
+- ``interp = 1``: Piecewise Linear
+- ``interp = 2``: Cubic Spline (Catmull-Rom)
+- ``interp = -1``: Use the actuator's :ref:`interp<actuator-general-interp>` value.
+
+Constant extrapolation is used outside of buffer bounds.
+
+Note that the subtraction of the delay changes the semantic of the ``time`` argument from "time at which values were
+pushed into the delay buffer" to "time at which values come out of the delay buffer". See :ref:`Delays<CDelay>` for
+details.
+
+.. _mj_readSensor:
+
+Read a sensor value at a given time, taking delays into account. If no history buffer exists, return a pointer to the
+sensor's slice of ``mjData.sensordata``. If a history buffer exists (:ref:`nsample<sensor-nsample>` > 0), read from the
+history buffer at ``time - sensor_delay[id]``. Note that the subtraction of the delay changes the semantic of the
+``time`` argument from "time at which values were pushed into the delay buffer" to "time at which values come out of the
+delay buffer". See :ref:`Delays<CDelay>` for details.
+
+**Return value semantics:**
+
+- If no history buffer exists (:ref:`nsample<sensor-nsample>` = 0), returns a pointer to the sensor's slice of
+  ``mjData.sensordata``.
+- If a history buffer exists (:ref:`nsample<sensor-nsample>` > 0) and the requested time matches a stored sample
+  (always true for ``interp = 0``), returns a pointer to the data in the history buffer.
+- If interpolation is required (``interp = 1 or 2``), returns ``NULL`` and writes the interpolated result to
+  ``result`` (must be of size ``dim``).
+
+**Interpolation:**
+
+- ``interp = 0``: Zero-order hold (piecewise constant)
+- ``interp = 1``: Piecewise Linear
+- ``interp = 2``: Cubic Spline (Catmull-Rom)
+- ``interp = -1``: Use the value in :ref:`interp<sensor-interp>`
+
+Constant extrapolation is used outside of buffer bounds.
+
+
+**Usage:**
+
+.. code-block:: C
+
+   // read sensor 0 of data size `dim` at time t
+   mjtNum result[dim];
+   const mjtNum* ptr = mj_readSensor(m, d, 0, t, result, /* interp = */ 1);
+   const mjtNum* data = ptr ? ptr : result;
+
+.. _mj_initCtrlHistory:
+
+Initialize the history buffer for an actuator with custom values. The ``times`` array specifies the timestamps for each
+sample (must be length :ref:`nsample<actuator-general-nsample>`), and ``values`` specifies the control values. If
+``times`` is ``NULL``, the existing timestamps in the buffer are used, and only the values are updated.
+See :ref:`Delays<CDelay>` for details.
+
+.. _mj_initSensorHistory:
+
+Initialize the history buffer for a sensor with custom values. The ``times`` array specifies the timestamps for each
+sample (must be length :ref:`nsample<sensor-nsample>`), and ``values`` specifies the sensor values (must be of size
+``nsample * dim``). If ``times`` is ``NULL``, the existing timestamps in the buffer are used.
+The ``phase`` argument sets the user slot, which stores the last computation time for interval sensors.
+See :ref:`Delays<CDelay>` for details.
 
 .. _mj_mulJacVec:
 
@@ -197,10 +305,14 @@ center-of-mass but aligned with the world frame. The minimal :ref:`pipeline stag
 computations to be consistent with the current generalized positions ``mjData.qpos`` are :ref:`mj_kinematics` followed
 by :ref:`mj_comPos`.
 
+*Nullable:* ``jacp``, ``jacr``
+
 .. _mj_jacBody:
 
 This and the remaining variants of the Jacobian function call mj_jac internally, with the center of the body, geom or
 site. They are just shortcuts; the same can be achieved by calling mj_jac directly.
+
+*Nullable:* ``jacp``, ``jacr``
 
 .. _mj_jacDot:
 
@@ -209,6 +321,8 @@ The minimal :ref:`pipeline stages<piStages>` required for computation to be
 consistent with the current generalized positions and velocities ``mjData.{qpos, qvel}`` are
 :ref:`mj_kinematics`, :ref:`mj_comPos`, :ref:`mj_comVel` (in that order).
 
+*Nullable:* ``jacp``, ``jacr``
+
 .. _mj_angmomMat:
 
 This function computes the ``3 x nv`` angular momentum matrix :math:`H(q)`, providing the linear mapping from
@@ -216,29 +330,31 @@ generalized velocities to subtree angular momentum. More precisely if :math:`h` 
 body index ``body`` in ``mjData.subtree_angmom`` (reported by the :ref:`subtreeangmom<sensor-subtreeangmom>` sensor)
 and :math:`\dot q` is the generalized velocity ``mjData.qvel``, then :math:`h = H \dot q`.
 
+.. _mj_name2id:
+
+Get id of object with the specified :ref:`mjtObj` type and name, returns -1 if id not found.
+
+.. _mj_id2name:
+
+Get name of object with the specified :ref:`mjtObj` type and id, returns ``NULL`` if name not found.
+
 .. _mj_geomDistance:
 
 Returns the smallest signed distance between two geoms and optionally the segment from ``geom1`` to ``geom2``.
 Returned distances are bounded from above by ``distmax``. |br| If no collision of distance smaller than ``distmax`` is
 found, the function will return ``distmax`` and ``fromto``, if given, will be set to (0, 0, 0, 0, 0, 0).
 
-.. admonition:: Positive ``distmax`` values
+*Nullable:* ``fromto``
+
+.. admonition:: different (correct) behavior under `nativeccd`
    :class: note
 
-   .. TODO: b/339596989 - Improve mjc_Convex.
-
-   For some colliders, a large, positive ``distmax`` will result in an accurate measurement. However, for collision
-   pairs which use the general ``mjc_Convex`` collider, the result will be approximate and likely inaccurate.
-   This is considered a bug to be fixed in a future release.
-   In order to determine whether a geom pair uses ``mjc_Convex``, inspect the table at the top of
-   `engine_collision_driver.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__.
+   As explained in :ref:`Collision Detection<coDistance>`, distances are inaccurate when using the
+   :ref:`legacy CCD pipeline<coCCD>`, and its use is discouraged.
 
 .. _mj_mulM:
 
-This function multiplies the joint-space inertia matrix stored in mjData.qM by a vector. qM has a custom sparse format
-that the user should not attempt to manipulate directly. Alternatively one can convert qM to a dense matrix with
-mj_fullM and then user regular matrix-vector multiplication, but this is slower because it no longer benefits from
-sparsity.
+This function multiplies the joint-space inertia matrix stored in ``mjData.M`` by a vector.
 
 .. _mj_applyFT:
 
@@ -279,16 +395,18 @@ rays from a single point.
 
 .. _mj_ray:
 
-Intersect ray ``(pnt+x*vec, x >= 0)`` with visible geoms, except geoms in bodyexclude.
+Intersect ray ``pnt+x*vec, x >= 0`` with geoms.
 
-Return geomid and distance (x) to nearest surface, or -1 if no intersection.
+- Return distance ``x`` to nearest surface, or -1 if no intersection.
+- If ``geomid`` is not NULL, write the id of the intersected geom or -1 if not intersection.
+- If ``normal`` is not NULL, write the surface normal at the intersection point. The normal always points **out of the
+  geometry**, regardless of the ray's direction (i.e., including rays hitting the surface from the inside).
+- Exclude geoms in body with id ``bodyexclude``, use -1 to include all bodies.
+- ``geomgroup`` is an array of length :ref:`mjNGROUP<glNumericVisualization>`, where 1 means the group should be included. Pass
+  NULL to skip geom group exclusion.
+- If ``flg_static`` is 0, static geoms will be excluded.
 
-geomgroup is an array of length mjNGROUP, where 1 means the group should be included. Pass geomgroup=NULL to skip
-group exclusion.
-
-If flg_static is 0, static geoms will be excluded.
-
-bodyexclude=-1 can be used to indicate that all bodies are included.
+*Nullable:* ``geomgroup``, ``geomid``, ``normal``
 
 .. _Interaction:
 
@@ -309,6 +427,11 @@ The functions in this section implement abstract visualization. The results are 
 also be used by users wishing to implement their own renderer, or hook up MuJoCo to advanced rendering tools such as
 Unity or Unreal Engine. See :ref:`simulate<saSimulate>` for illustration of how to use these functions.
 
+.. _FilamentRenderingApi:
+
+Rendering functions using the Filament rendering engine. These functions are prefixed with ``mjrf``. See
+:ref:`Filament Rendering<tyFilamentRenderStructure>` for an overview of the core types and their uses.
+
 .. _OpenGLrendering:
 
 These functions expose the OpenGL renderer. See :ref:`simulate<saSimulate>` for an illustration
@@ -325,7 +448,7 @@ each corresponding to one item. The last (unused) item has its type set to -1, t
 after the end of the last used section. There is also another version of this function
 (:ref:`mjui_addToSection<mjui_addToSection>`) which adds items to a specified section instead of adding them at the end
 of the UI. Keep in mind that there is a maximum preallocated number of sections and items per section, given by
-:ref:`mjMAXUISECT<glNumeric>` and :ref:`mjMAXUIITEM<glNumeric>`. Exceeding these maxima results in low-level errors.
+:ref:`mjMAXUISECT<glNumericUI>` and :ref:`mjMAXUIITEM<glNumericUI>`. Exceeding these maxima results in low-level errors.
 
 .. _mjui_update:
 
@@ -354,6 +477,102 @@ time, while :ref:`mjui_update` is called only when changes in the UI take place.
 
 
 .. _Errorandmemory:
+
+.. _mju_error:
+
+Main error function. The error message is dispatched to the active log handler (see :ref:`mju_setLogHandler`).
+Errors are always fatal: if the handler returns, the process is terminated with ``exit(EXIT_FAILURE)``. Handlers
+wishing to recover must ``longjmp`` or otherwise transfer control before returning.
+
+.. _mju_warning:
+
+Main warning function; returns to caller. The warning message is dispatched to the active log handler.
+
+.. _mju_clearHandlers:
+
+Clear all user handlers and restore defaults. Resets the legacy error/warning/memory callbacks to ``NULL``, restores
+the default log handler, and resets the log configuration to its defaults (console and file output enabled, all info
+topics disabled).
+
+.. _mju_setLogHandler:
+
+Set the active global log handler. Returns the previous handler (which is never ``NULL``), intended for save/restore
+or callback chaining. If ``handler`` is ``NULL``, the default handler is restored. The handler receives all errors,
+warnings and informational messages as a structured :ref:`mjLogMessage`. See :ref:`siLogHandler` for usage examples.
+
+.. _mju_getLogConfig:
+
+Get the current default handler configuration. See :ref:`mjLogConfig`.
+
+.. _mju_setLogConfig:
+
+Set the default handler configuration. Controls console output, file output, and info topic filtering.
+See :ref:`mjLogConfig`.
+
+Example usage (disabling file output):
+
+.. code-block:: C
+
+   mjLogConfig config = mju_getLogConfig();
+   config.logto_file = false;
+   mju_setLogConfig(config);
+
+.. _mju_info:
+
+Log an informational message with optional topic filtering. The ``topic`` argument is a :ref:`mjtLogTopic` value.
+Topic 0 (``mjTOPIC_NONE``) always passes through. Other topics must be enabled in the default handler configuration
+via :ref:`mju_setLogConfig`. Note that topic filtering is implemented in the default handler; custom handlers
+receive all info messages regardless.
+
+.. _mju_message:
+
+Dispatch a structured :ref:`mjLogMessage` to the active log handler. This is the primary entry point for emitting
+log messages with full control over all fields. The convenience functions :ref:`mju_error`, :ref:`mju_warning`, and
+:ref:`mju_info` are thin wrappers that populate an ``mjLogMessage`` and call this function.
+
+The ``subject`` field is a one-line summary (up to 1024 bytes, inline in the struct). The ``body`` field is an
+optional ``const char*`` pointer to multi-line detail text, owned by the caller. When ``body`` is ``NULL``, only the
+subject line is printed.
+
+The default handler formats the output as follows:
+
+.. code-block:: text
+
+   LEVEL FUNC (FILE:LINE) TIME: SUBJECT
+   BODY
+
+where:
+
+- ``LEVEL`` is ``ERROR``, ``WARNING``, ``INFO``, or ``DEBUG``.
+- ``FUNC`` is present when the ``func`` field is set.
+- ``(FILE:LINE)`` is present when the ``file`` and ``line`` fields are set.
+- ``TIME`` is present when the ``timestamp`` field is set or file logging is active.
+- ``SUBJECT`` is the contents of the ``subject`` field.
+- ``BODY`` follows on the next line(s), printed raw without indentation or separators, only if non-NULL.
+
+The default handler appends a trailing blank line after ``ERROR``, ``WARNING``, and ``INFO`` messages for visual
+separation. ``DEBUG`` messages are printed compactly without a trailing blank line.
+
+Example usage:
+
+.. code-block:: C
+
+   mjLogMessage msg = {
+     .level = mjLOG_INFO,
+     .timestamp = true,
+     .body = "  height:     0.001 m\n  velocity:   0.000 m/s\n  bounces:    47",
+   };
+   snprintf(msg.subject, sizeof(msg.subject), "The ball has come to rest");
+   mju_message(&msg);
+
+This produces:
+
+.. code-block:: text
+
+   INFO Mon Jun  9 15:04:05 2026: The ball has come to rest
+     height:     0.001 m
+     velocity:   0.000 m/s
+     bounces:    47
 
 .. _Standardmath:
 
@@ -591,7 +810,7 @@ outputs of derivative functions are the trailing rather than leading arguments.
 
 Compute finite-differenced discrete-time transition matrices.
 
-Letting :math:`x, u` denote the current :ref:`state<gePhysicsState>` and :ref:`control<geInput>`
+Letting :math:`x, u` denote the current :ref:`state<siPhysicsState>` and :ref:`control<siInput>`
 vector in an mjData instance, and letting :math:`y, s` denote the next state and sensor
 values, the top-level :ref:`mj_step` function computes :math:`(x,u) \rightarrow (y,s)`
 :ref:`mjd_transitionFD` computes the four associated Jacobians using finite-differencing.
@@ -631,12 +850,13 @@ These matrices and their dimensions are:
       termination. Of course, this means that :ref:`solver iterations<option-iterations>` should be small, to not tread
       water at the minimum. This method and the one described above can and should be combined.
 
+*Nullable:* ``A``, ``B``, ``D``, ``C``
 
 .. _mjd_inverseFD:
 
 Finite differenced continuous-time inverse-dynamics Jacobians.
 
-Letting :math:`x, a` denote the current :ref:`state<gePhysicsState>` and acceleration vectors in an mjData instance, and
+Letting :math:`x, a` denote the current :ref:`state<siPhysicsState>` and acceleration vectors in an mjData instance, and
 letting :math:`f, s` denote the forces computed by the inverse dynamics (``qfrc_inverse``), the function
 :ref:`mj_inverse` computes :math:`(x,a) \rightarrow (f,s)`. :ref:`mjd_inverseFD` computes seven associated Jacobians
 using finite-differencing. These matrices and their dimensions are:
@@ -652,7 +872,7 @@ using finite-differencing. These matrices and their dimensions are:
    ``DsDq``, :math:`\partial s / \partial q`, ``nv x nsensordata``
    ``DsDv``, :math:`\partial s / \partial v`, ``nv x nsensordata``
    ``DsDa``, :math:`\partial s / \partial a`, ``nv x nsensordata``
-   ``DmDq``, :math:`\partial M / \partial q`, ``nv x nM``
+   ``DmDq``, :math:`\partial M / \partial q`, ``nv x nC``
 
 - All outputs are optional (can be NULL).
 - All outputs are transposed relative to Control Theory convention (i.e., column major).
@@ -670,9 +890,13 @@ using finite-differencing. These matrices and their dimensions are:
    - The Runge-Kutta 4th-order integrator (``mjINT_RK4``) is not supported.
    - The noslip solver is not supported.
 
+*Nullable:* ``DfDq``, ``DfDv``, ``DfDa``, ``DsDq``, ``DsDv``, ``DsDa``, ``DmDq``
+
 .. _mjd_subQuat:
 
 Derivatives of :ref:`mju_subQuat` (quaternion difference).
+
+*Nullable:* ``Da``, ``Db``
 
 .. _mjd_quatIntegrate:
 
@@ -695,3 +919,10 @@ to the inputs. Below, :math:`\bar q` denotes the pre-modified quaternion:
 
 Note that derivatives depend only on :math:`h` and :math:`v` (in fact, on :math:`s = h v`).
 All outputs are optional.
+
+*Nullable:* ``Dquat``, ``Dvel``, ``Dscale``
+
+.. _Resources:
+
+Resources are the interface between :ref:`resource providers <exProvider>` and MuJoCo model compilation code.
+These functions provide the means to query the resource provider and obtain resources.

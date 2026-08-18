@@ -30,7 +30,7 @@ option(MUJOCO_SIMULATE_USE_SYSTEM_MUJOCO "Use installed MuJoCo version." OFF)
 option(MUJOCO_SIMULATE_USE_SYSTEM_GLFW "Use installed GLFW version." OFF)
 
 set(MUJOCO_DEP_VERSION_glfw3
-    7482de6071d21db77a7236155da44c172a7f6c9e # 3.3.8
+    7b6aead9fb88b3623e3b3725ebb42670cbe4c579 # 3.4
     CACHE STRING "Version of `glfw` to be fetched."
 )
 mark_as_advanced(MUJOCO_DEP_VERSION_glfw3)
@@ -98,7 +98,7 @@ if(MUJOCO_EXTRAS_STATIC_GLFW)
   unset(BUILD_SHARED_LIBS_OLD)
 endif()
 
-if(NOT SIMULATE_STANDALONE)
+if(NOT SIMULATE_STANDALONE AND NOT MUJOCO_SIMULATE_USE_SYSTEM_GLFW)
   target_compile_options(glfw PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
   target_link_options(glfw PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 endif()

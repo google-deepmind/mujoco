@@ -1,0 +1,13 @@
+<mujoco>
+    <asset>
+      <mesh name="cube" file="cube.stl" scale=".05 .05 .05"/>
+      <skin name="skin" file="cube.skn"/>
+    </asset>
+
+    <worldbody>
+      <body name="box">
+        <geom type="box" mesh="cube"/>
+      </body>
+
+    </worldbody>
+</mujoco>

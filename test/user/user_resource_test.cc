@@ -14,20 +14,24 @@
 
 // Tests for user/user_resource.cc
 
+#include "src/user/user_resource.h"
+
 #include <array>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include "src/cc/array_safety.h"
+#include <absl/strings/str_format.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_plugin.h"
 #include "src/engine/engine_util_misc.h"
-#include "src/user/user_resource.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -49,8 +53,9 @@ int open_str(mjResource* resource) {
     return 0;
   }
 
-  resource->data = mju_malloc(100*sizeof(char));
-  std::strcpy((char*) resource->data, "Hello World");
+  const std::size_t kBufferSize = 100;
+  resource->data = mju_malloc(kBufferSize * sizeof(char));
+  absl::SNPrintF((char*) resource->data, kBufferSize, "Hello World");
   return 1;
 }
 
@@ -68,11 +73,15 @@ void close_nop(mjResource* resource) {
 
 void close_str(mjResource* resource) {
   mju_free(resource->data);
+  resource->data = nullptr;
 }
 
 TEST_F(ResourceTest, RegisterProviderSuccess) {
   mjpResourceProvider provider = {
-    "my-prefix.123+45", open_nop, read_nop, close_nop
+      .prefix = "my-prefix.123+45",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   int count1 = mjp_resourceProviderCount();
@@ -85,16 +94,24 @@ TEST_F(ResourceTest, RegisterProviderSuccess) {
 
 TEST_F(ResourceTest, RegisterProviderMultipleSuccess) {
   mjpResourceProvider provider = {
-    "my-prefix.123+44", open_nop, read_nop, close_nop
+      .prefix = "my-prefix.123+44",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   mjpResourceProvider provider2 = {
-    "my-prefix.123+46", open_nop, read_nop, close_nop
+      .prefix = "my-prefix.123+46",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
-
   mjpResourceProvider provider3 = {
-    "my-prefix.123+41", open_nop, read_nop, close_nop
+      .prefix = "my-prefix.123+41",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   int count1 = mjp_resourceProviderCount();
@@ -111,87 +128,74 @@ TEST_F(ResourceTest, RegisterProviderMultipleSuccess) {
 
 TEST_F(ResourceTest, RegisterProviderMissingCallbacks) {
   mjpResourceProvider provider = {
-    "myprefix"
+      .prefix = "myprefix",
   };
 
-  // install warning handler
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings("callback");
 
   int i = mjp_registerResourceProvider(&provider);
-
-  // warning message related to missing callbacks
-  EXPECT_THAT(warning, HasSubstr("callback"));
   EXPECT_LT(i, 1);
 }
 
 TEST_F(ResourceTest, RegisterProviderMissingPrefix) {
   mjpResourceProvider provider = {
-    "", open_nop, read_nop, close_nop
+      .prefix = "",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
-  // install warning handler
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings("prefix");
 
   int i = mjp_registerResourceProvider(&provider);
-
-  // warning message related to missing prefix
-  EXPECT_THAT(warning, HasSubstr("prefix"));
   EXPECT_LT(i, 1);
 }
 
 TEST_F(ResourceTest, RegisterProviderInvalidPrefix1) {
   mjpResourceProvider provider = {
-    "1invalid", open_nop, read_nop, close_nop
+      .prefix = "1invalid",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
-  // install warning handler
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings("prefix");
 
   int i = mjp_registerResourceProvider(&provider);
-
-  // warning message related to missing prefix
-  EXPECT_THAT(warning, HasSubstr("prefix"));
   EXPECT_LT(i, 1);
 }
 
 TEST_F(ResourceTest, RegisterProviderInvalidPrefix2) {
   mjpResourceProvider provider = {
-    "invalid:", open_nop, read_nop, close_nop
+      .prefix = "invalid:",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
-  // install warning handler
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings("prefix");
 
   int i = mjp_registerResourceProvider(&provider);
-
-  // warning message related to missing prefix
-  EXPECT_THAT(warning, HasSubstr("prefix"));
   EXPECT_LT(i, 1);
 }
 
 TEST_F(ResourceTest, RegisterProviderSame) {
   mjpResourceProvider provider = {
-    "prefix", open_nop, read_nop, close_nop
+      .prefix = "prefix",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   mjpResourceProvider provider2 = {
-    "prefix", open_nop, read_nop, close_nop
+      .prefix = "prefix",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   int i1 = mjp_registerResourceProvider(&provider);
@@ -206,11 +210,17 @@ TEST_F(ResourceTest, RegisterProviderSame) {
 
 TEST_F(ResourceTest, RegisterProviderSameCase) {
   mjpResourceProvider provider = {
-    "prefix", open_nop, read_nop, close_nop
+      .prefix = "prefix",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   mjpResourceProvider provider2 = {
-    "PREFIX", open_nop, read_nop, close_nop
+      .prefix = "PREFIX",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   int i1 = mjp_registerResourceProvider(&provider);
@@ -225,7 +235,10 @@ TEST_F(ResourceTest, RegisterProviderSameCase) {
 
 TEST_F(ResourceTest, GeneralTest) {
   mjpResourceProvider provider = {
-    "str", open_str, read_str, close_str
+      .prefix = "str",
+      .open = open_str,
+      .read = read_str,
+      .close = close_str,
   };
 
   // register resource provider
@@ -246,7 +259,10 @@ TEST_F(ResourceTest, GeneralTest) {
 
 TEST_F(ResourceTest, GeneralFailureTest) {
   mjpResourceProvider provider = {
-    "str", open_str, read_str, close_str
+      .prefix = "str",
+      .open = open_str,
+      .read = read_str,
+      .close = close_str,
   };
 
   // register resource provider
@@ -260,25 +276,23 @@ TEST_F(ResourceTest, GeneralFailureTest) {
                                           error.data(), error.size());
   ASSERT_THAT(resource, IsNull());
 
-  EXPECT_THAT(error.data(), HasSubstr("could not open"));
+  EXPECT_THAT(error.data(), HasSubstr("Error opening file"));
 }
 
 TEST_F(ResourceTest, NameWithValidPrefix) {
   mjpResourceProvider provider = {
-    "nop", open_nop, read_nop, close_nop
+      .prefix = "nop",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   // register resource provider
   int i = mjp_registerResourceProvider(&provider);
   EXPECT_GT(i, 0);
 
-
-  // install warning handler
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings();
 
   // open resource
   mjResource* resource = mju_openResource("", "nop:found", nullptr, nullptr, 0);
@@ -288,20 +302,18 @@ TEST_F(ResourceTest, NameWithValidPrefix) {
 
 TEST_F(ResourceTest, NameWithUpperCasePrefix) {
   mjpResourceProvider provider = {
-    "nop", open_nop, read_nop, close_nop,
+      .prefix = "nop",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   // register resource provider
   int i = mjp_registerResourceProvider(&provider);
   EXPECT_GT(i, 0);
 
-
-  // install warning handler
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings();
 
   // open resource
   mjResource* resource = mju_openResource("", "NOP:found", nullptr, nullptr, 0);
@@ -311,24 +323,94 @@ TEST_F(ResourceTest, NameWithUpperCasePrefix) {
 
 TEST_F(ResourceTest, NameWithInvalidPrefix) {
   mjpResourceProvider provider = {
-    "nop", open_nop, read_nop, close_nop
+      .prefix = "nop",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   // register resource provider
   int i = mjp_registerResourceProvider(&provider);
   EXPECT_GT(i, 0);
 
-
-  // install warning handler
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings();
 
   // open resource
   mjResource* resource = mju_openResource("", "nopfound", nullptr, nullptr, 0);
   ASSERT_THAT(resource, IsNull());
+}
+
+TEST_F(ResourceTest, GetResourceDir) {
+  const std::vector<std::pair<std::string, std::string>> cases = {
+    { "foo/bar/baz", "foo/bar/" },
+    { "foo/bar/", "foo/bar/" },
+    { "foo/bar", "foo/" },
+    { "/foo/bar", "/foo/" },
+    { "/foo", "/" },
+    { "/", "/" },
+    { "", "" },
+  };
+
+  const char* dir = nullptr;
+  int ndir = 0;
+
+  mjpResourceProvider provider;
+  provider.prefix = "provider";
+
+  for (const auto& [name, expected] : cases) {
+    mjResource resource;
+    resource.provider = nullptr;
+    resource.name = const_cast<char*>(name.c_str());
+    mju_getResourceDir(&resource, &dir, &ndir);
+    EXPECT_THAT(std::string(dir, ndir), expected);
+  }
+}
+
+TEST_F(ResourceTest, GetResourceDirProvider) {
+  const std::vector<std::pair<std::string, std::string>> cases = {
+    { "provider:/foo/bar", "provider:/foo/" },
+    { "provider:/foo/", "provider:/foo/" },
+    { "provider:foo/", "provider:foo/" },
+    { "provider:foo", "provider:" },
+    { "provider:/", "provider:/" },
+  };
+
+  const char* dir = nullptr;
+  int ndir = 0;
+
+  mjpResourceProvider provider;
+  provider.prefix = "provider";
+
+  for (const auto& [name, expected] : cases) {
+    mjResource resource;
+    resource.provider = &provider;
+    resource.name = const_cast<char*>(name.c_str());
+    mju_getResourceDir(&resource, &dir, &ndir);
+    EXPECT_THAT(std::string(dir, ndir), expected);
+  }
+}
+
+TEST_F(ResourceTest, GetResourceDirNullResource) {
+  const char* dir = nullptr;
+  int ndir = 0;
+
+  mju_getResourceDir(nullptr, &dir, &ndir);
+  EXPECT_THAT(dir, IsNull());
+  EXPECT_EQ(ndir, 0);
+}
+
+TEST_F(ResourceTest, GetResourceDirNullName) {
+  const char* dir = nullptr;
+  int ndir = 0;
+
+  mjResource resource;
+  resource.name = nullptr;
+  resource.provider = nullptr;
+
+  mju_getResourceDir(nullptr, &dir, &ndir);
+  EXPECT_THAT(dir, IsNull());
+  EXPECT_EQ(ndir, 0);
 }
 
 TEST_F(ResourceTest, OSFilesystemTimestamps) {
@@ -359,6 +441,107 @@ TEST_F(ResourceTest, OSFilesystemTimestamps) {
   EXPECT_EQ(mju_isModifiedResource(resource, test_timestamp.data()), 1);
 
   mju_closeResource(resource);
+}
+
+// ===================== Write Resource Tests =====================
+
+struct WriteBuffer {
+  std::vector<uint8_t> data;
+};
+
+// static storage for the last written buffer (for round-trip testing)
+static std::vector<uint8_t> last_written;
+
+mjtSize write_capture(mjResource* resource, const void* buffer, mjtSize nbytes) {
+  last_written.clear();
+  const uint8_t* bytes = static_cast<const uint8_t*>(buffer);
+  last_written.insert(last_written.end(), bytes, bytes + nbytes);
+  return nbytes;
+}
+
+// open callback for reading back captured data
+int open_read_capture(mjResource* resource) { return 1; }
+
+int read_capture(mjResource* resource, const void** buffer) {
+  *buffer = last_written.data();
+  return static_cast<int>(last_written.size());
+}
+
+void close_read_capture(mjResource* resource) {}
+
+TEST_F(ResourceTest, WriteResourceWithProvider) {
+  // Register a provider with write callbacks
+  mjpResourceProvider provider = {
+      .prefix = "wrtest",
+      .open = open_read_capture,
+      .read = read_capture,
+      .close = close_read_capture,
+      .write = write_capture,
+  };
+
+  mjp_registerResourceProvider(&provider);
+
+  // Write some data
+  const char* data = "Hello, Resource Writer!";
+  mjtSize nbytes = static_cast<mjtSize>(std::strlen(data));
+
+  mjtSize written = mju_writeResource("wrtest:myfile.txt", data, nbytes, nullptr, nullptr, 0);
+  EXPECT_EQ(written, nbytes);
+
+  // Read it back via the same provider
+  char error[256] = {0};
+  mjResource* resource =
+      mju_openResource("", "wrtest:myfile.txt", nullptr, error, sizeof(error));
+  ASSERT_THAT(resource, NotNull());
+
+  const void* buf = nullptr;
+  int read_bytes = mju_readResource(resource, &buf);
+  EXPECT_EQ(read_bytes, nbytes);
+  EXPECT_EQ(std::memcmp(buf, data, nbytes), 0);
+
+  mju_closeResource(resource);
+}
+
+TEST_F(ResourceTest, WriteResourceDefaultPosix) {
+  // Write to a temp file using the default POSIX provider (no prefix)
+  std::string tmpfile = testing::TempDir() + "/mj_write_test.bin";
+  const char* data = "MuJoCo resource write test";
+  mjtSize nbytes = static_cast<mjtSize>(std::strlen(data));
+
+  mjtSize written = mju_writeResource(tmpfile.c_str(), data, nbytes, nullptr, nullptr, 0);
+  EXPECT_EQ(written, nbytes);
+
+  // Read it back via mju_openResource (default POSIX provider)
+  char error[256] = {0};
+  mjResource* resource =
+      mju_openResource("", tmpfile.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(resource, NotNull());
+
+  const void* buf = nullptr;
+  int read_bytes = mju_readResource(resource, &buf);
+  EXPECT_EQ(read_bytes, nbytes);
+  EXPECT_EQ(std::memcmp(buf, data, nbytes), 0);
+
+  mju_closeResource(resource);
+
+  // Clean up
+  std::remove(tmpfile.c_str());
+}
+
+TEST_F(ResourceTest, WriteResourceNoWriteCallback) {
+  // Register a read-only provider (no write callback)
+  mjpResourceProvider provider = {
+      .prefix = "rdonly",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
+  };
+
+  mjp_registerResourceProvider(&provider);
+
+  const char* data = "data";
+  mjtSize written = mju_writeResource("rdonly:somefile", data, 4, nullptr, nullptr, 0);
+  EXPECT_EQ(written, -1);
 }
 
 }  // namespace

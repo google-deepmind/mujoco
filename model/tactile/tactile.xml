@@ -1,0 +1,66 @@
+<mujoco model="touchtest">
+  <compiler autolimits="true"/>
+   <option sdf_initpoints="20"/>
+
+  <extension>
+    <plugin plugin="mujoco.sdf.gear">
+      <instance name="gear">
+        <config key="alpha" value="0"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".1 .2 .3" rgb2=".2 .3 .4"
+             width="300" height="300" mark="edge" markrgb=".2 .3 .4"/>
+    <material name="grid" texture="grid" texrepeat="3 1" texuniform="true"/>
+    <mesh name="gear">
+      <plugin instance="gear"/>
+    </mesh>
+    <mesh name="sphere" builtin="wedge" params="37 37 45 45 0" scale=".3 .3 .3"/>
+    <mesh name="box" builtin="plate" params="37 37" scale=".3 .5 .2"/>
+  </asset>
+
+  <visual>
+      <headlight ambient=".7 .7 .7" diffuse=".2 .2 .2" specular="0.1 0.1 0.1"/>
+      <map znear="0.01"/>
+      <scale contactwidth=".02" contactheight=".5"/>
+  </visual>
+
+  <default>
+    <geom friction="0.4" solimp="0 0.95 0.02"/>
+  </default>
+
+  <statistic center="0 0 1" extent="1" meansize=".1"/>
+
+  <worldbody>
+    <light pos="1 0 .3" dir="-1 0 -.3"/>
+    <light pos="-1 0 .3" dir="1 0 -.3"/>
+    <geom name="floor" pos="0 0 -0.01" type="plane" size="3 3 .01"/>
+
+    <geom type="sdf" name="gear" mesh="gear" rgba="0.4 0.4 0.4 1" pos="-1.3 0 0">
+      <plugin instance="gear"/>
+    </geom>
+
+    <body name="ball" pos="-1 1 1">
+      <joint name="x" type="slide" axis="1 0 0" damping="1"/>
+      <joint name="y" type="slide" axis="0 1 0" damping="1"/>
+      <joint name="z" type="slide" axis="0 0 1"/>
+      <joint name="rx" axis="1 0 0" springdamper="0.2 1"/>
+      <joint name="ry" axis="0 1 0" springdamper="0.2 1"/>
+      <geom type="sphere" size=".3" mass="0.1" rgba=".5 .5 .5 .3"/>
+      <geom name="ball" type="mesh" mesh="sphere" mass="0" contype="0" conaffinity="0" rgba=".5 .5 .5 0"/>
+    </body>
+
+    <body name="finger" pos="0 0 1">
+      <freejoint/>
+      <geom type="box" size=".3 .5 .2" mass="0.1" rgba=".5 .5 .5 .3"/>
+      <geom name="finger" type="mesh" mesh="box" mass="0" contype="0" conaffinity="0" rgba=".5 .5 .5 0"/>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <tactile geom="ball" mesh="sphere"/>
+    <tactile geom="finger" mesh="box"/>
+  </sensor>
+</mujoco>

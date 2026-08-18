@@ -17,10 +17,12 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
+from jax import numpy as jp
 import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import test_util
-from mujoco.mjx._src.types import ConeType
+from mujoco.mjx._src.types import ConeType  # pylint: disable=g-importing-member
+from mujoco.mjx._src.types import JacobianType  # pylint: disable=g-importing-member
 import numpy as np
 
 # tolerance for difference between MuJoCo and MJX smooth calculations - mostly
@@ -78,7 +80,7 @@ class SmoothTest(absltest.TestCase):
     # com_pos
     dx = jax.jit(mjx.com_pos)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'subtree_com')
-    _assert_attr_eq(d, dx, 'cinert')
+    _assert_attr_eq(d, dx._impl, 'cinert')
     _assert_attr_eq(d, dx, 'cdof')
     # camlight
     dx = jax.jit(mjx.camlight)(mx, mjx.put_data(m, d))
@@ -86,15 +88,12 @@ class SmoothTest(absltest.TestCase):
     _assert_eq(d.cam_xmat.reshape((-1, 3, 3)), dx.cam_xmat, 'cam_xmat')
     # crb
     dx = jax.jit(mjx.crb)(mx, mjx.put_data(m, d))
-    _assert_attr_eq(d, dx, 'crb')
-    _assert_attr_eq(d, dx, 'qM')
-    _assert_eq(dx._qM_sparse, np.zeros(0), '_qM_sparse')
+    _assert_attr_eq(d, dx._impl, 'crb')
+    _assert_attr_eq(d, dx._impl, 'M')
     # factor_m
     dx = jax.jit(mjx.factor_m)(mx, mjx.put_data(m, d))
-    _assert_attr_eq(d, dx, 'qLD')
-    _assert_attr_eq(d, dx, 'qLDiagInv')
-    _assert_eq(dx._qLD_sparse, np.zeros(0), '_qLD_sparse')
-    _assert_eq(dx._qLDiagInv_sparse, np.zeros(0), '_qLDiagInv_sparse')
+    _assert_attr_eq(d, dx._impl, 'qLD')
+    _assert_attr_eq(d, dx._impl, 'qLDiagInv')
     # com_vel
     dx = jax.jit(mjx.com_vel)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'cvel')
@@ -102,6 +101,13 @@ class SmoothTest(absltest.TestCase):
     # rne
     dx = jax.jit(mjx.rne)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'qfrc_bias')
+    # rne (flg_acc=True)
+    qfrc_bias = np.zeros(m.nv)
+    mujoco.mj_rne(m, d, 1, qfrc_bias)
+    dx = jax.jit(mjx.rne, static_argnums=(2,))(
+        mx, mjx.put_data(m, d), flg_acc=True
+    )
+    _assert_eq(dx.qfrc_bias, qfrc_bias, 'qfrc_bias')
 
     # set dense jacobian for tendon:
     m.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE
@@ -112,7 +118,15 @@ class SmoothTest(absltest.TestCase):
     mujoco.mj_forward(m, d)
     # tendon
     dx = jax.jit(mjx.tendon)(mx, mjx.put_data(m, d))
-    _assert_attr_eq(d, dx, 'ten_J')
+    ten_J = np.zeros((m.ntendon, m.nv))
+    mujoco.mju_sparse2dense(
+        ten_J,
+        d.ten_J,
+        m.ten_J_rownnz,
+        m.ten_J_rowadr,
+        m.ten_J_colind,
+    )
+    _assert_eq(ten_J, dx._impl.ten_J, 'ten_J')
     _assert_attr_eq(d, dx, 'ten_length')
     # transmission
     dx = jax.jit(mjx.transmission)(mx, dx)
@@ -127,7 +141,7 @@ class SmoothTest(absltest.TestCase):
         d.moment_rowadr,
         d.moment_colind,
     )
-    _assert_eq(moment, dx.actuator_moment, 'actuator_moment')
+    _assert_eq(moment, dx._impl.actuator_moment, 'actuator_moment')
 
   def test_disable_gravity(self):
     m = mujoco.MjModel.from_xml_string("""
@@ -198,7 +212,7 @@ class SmoothTest(absltest.TestCase):
         d.moment_rowadr,
         d.moment_colind,
     )
-    _assert_eq(moment, dx.actuator_moment, 'actuator_moment')
+    _assert_eq(moment, dx._impl.actuator_moment, 'actuator_moment')
 
   def test_subtree_vel(self):
     """Tests MJX subtree_vel function matches MuJoCo mj_subtreeVel."""
@@ -216,26 +230,103 @@ class SmoothTest(absltest.TestCase):
     mujoco.mj_subtreeVel(m, d)
     dx = jax.jit(mjx.subtree_vel)(mx, dx)
 
-    _assert_attr_eq(d, dx, 'subtree_linvel')
-    _assert_attr_eq(d, dx, 'subtree_angmom')
+    _assert_attr_eq(d, dx._impl, 'subtree_linvel')
+    _assert_attr_eq(d, dx._impl, 'subtree_angmom')
 
 
 class RnePostConstraintTest(parameterized.TestCase):
+  _CONNECT_SITE = """
+    <equality>
+      <connect site1="site1" site2="site2"/>
+    </equality>
+    """
+  _CONNECT_BODY = """
+    <equality>
+      <connect body1="body1" body2="body2" anchor="1 2 3"/>
+    </equality>
+    """
+  _WELD_SITE = """
+    <equality>
+      <weld site1="site1" site2="site2"/>
+    </equality>
+    """
+  _WELD_BODY = """
+    <equality>
+      <weld body1="body1" body2="body2"/>
+    </equality>
+    """
+  _CONNECT_SITE_WELD_SITE = """
+    <equality>
+      <connect site1="site1" site2="site2"/>
+      <weld site1="site1" site2="site2"/>
+    </equality>
+    """
+  _WELD_SITE_CONNECT_SITE = """
+    <equality>
+      <weld site1="site1" site2="site2"/>
+      <connect site1="site1" site2="site2"/>
+    </equality>
+    """
+  _WELD_SITE_CONNECT_SITE_WELD_BODY = """
+    <equality>
+      <weld site1="site1" site2="site2"/>
+      <connect site1="site1" site2="site2"/>
+      <weld body1="body1" body2="body2"/>
+    </equality>
+    """
+  _CONNECT_SITE_WELD_SITE_WELD_BODY = """
+    <equality>
+      <connect site1="site1" site2="site2"/>
+      <weld site1="site1" site2="site2"/>
+      <weld body1="body1" body2="body2"/>
+    </equality>
+    """
+  _CONNECT_SITE_CONNECT_BODY_CONNECT_WELD = """
+    <equality>
+      <connect site1="site1" site2="site2"/>
+      <connect body1="body1" body2="body2" anchor="1 2 3"/>
+      <weld body1="body1" body2="body2"/>
+    </equality>
+    """
 
-  @parameterized.parameters(ConeType)
-  def test_rnepostconstraint(self, cone_type):
+  @parameterized.parameters(
+      ('', ConeType.PYRAMIDAL, None),
+      ('', ConeType.ELLIPTIC, None),
+      (_CONNECT_SITE, ConeType.PYRAMIDAL, None),
+      (_CONNECT_BODY, ConeType.PYRAMIDAL, None),
+      (_WELD_SITE, ConeType.PYRAMIDAL, None),
+      (_WELD_BODY, ConeType.PYRAMIDAL, None),
+      (_CONNECT_SITE_WELD_SITE, ConeType.PYRAMIDAL, None),
+      (
+          _WELD_SITE_CONNECT_SITE,
+          ConeType.PYRAMIDAL,
+          np.array([6, 7, 8, 0, 1, 2, 3, 4, 5]),
+      ),
+      (
+          _WELD_SITE_CONNECT_SITE_WELD_BODY,
+          ConeType.PYRAMIDAL,
+          np.array([6, 7, 8, 0, 1, 2, 3, 4, 5]),
+      ),
+      (_CONNECT_SITE_WELD_SITE_WELD_BODY, ConeType.PYRAMIDAL, None),
+      (_CONNECT_SITE_CONNECT_BODY_CONNECT_WELD, ConeType.PYRAMIDAL, None),
+  )
+  def test_rnepostconstraint(self, equality, cone_type, efc_map):
     """Tests MJX rne_postconstraint function to match MuJoCo mj_rnePostConstraint."""
 
-    m = mujoco.MjModel.from_xml_string("""
+    m = mujoco.MjModel.from_xml_string(f"""
         <mujoco>
           <worldbody>
             <geom name="floor" size="10 10 .05" type="plane"/>
-            <body pos="0 0 1">
+            <site name="site1"/>
+            <body name="body1">
+            </body>
+            <body pos="0 0 1" name="body2">
               <joint type="ball" damping="1"/>
               <geom type="capsule" size="0.1 0.5" fromto="0 0 0 0.5 0 0" condim="1"/>
               <body pos="0.5 0 0">
                 <joint type="ball" damping="1"/>
                 <geom type="capsule" size="0.1 0.5" fromto="0 0 0 0.5 0 0"  condim="3"/>
+                <site name="site2"/>
               </body>
             </body>
             <body pos="0 1 1">
@@ -247,6 +338,7 @@ class RnePostConstraintTest(parameterized.TestCase):
               </body>
             </body>
           </worldbody>
+          {equality}
           <keyframe>
             <key qpos='0.424577 0.450592 0.451703 -0.642391 0.729379 0.545151 0.407756 0.0674697 0.424577 1.450592 0.451703 -0.642391 0.729379 0.545151 0.407756 0.0674697'/>
           </keyframe>
@@ -264,13 +356,18 @@ class RnePostConstraintTest(parameterized.TestCase):
     mx = mjx.put_model(m)
     dx = mjx.put_data(m, d)
 
+    if efc_map is not None:
+      efc_force = d.efc_force.copy()
+      efc_force[: len(efc_map)] = d.efc_force[efc_map]
+      dx = dx.tree_replace({'_impl.efc_force': jp.array(efc_force)})
+
     # rne postconstraint
     mujoco.mj_rnePostConstraint(m, d)
     dx = jax.jit(mjx.rne_postconstraint)(mx, dx)
 
-    _assert_eq(d.cacc, dx.cacc, 'cacc')
-    _assert_eq(d.cfrc_ext, dx.cfrc_ext, 'cfrc_ext')
-    _assert_eq(d.cfrc_int, dx.cfrc_int, 'cfrc_int')
+    _assert_eq(d.cacc, dx._impl.cacc, 'cacc')
+    _assert_eq(d.cfrc_ext, dx._impl.cfrc_ext, 'cfrc_ext')
+    _assert_eq(d.cfrc_int, dx._impl.cfrc_int, 'cfrc_int')
 
 
 class TendonTest(parameterized.TestCase):
@@ -303,11 +400,49 @@ class TendonTest(parameterized.TestCase):
     dx = jax.jit(mjx.forward)(mx, dx)
 
     _assert_eq(d.ten_length, dx.ten_length, 'ten_length')
-    _assert_eq(d.ten_J, dx.ten_J, 'ten_J')
-    _assert_eq(d.ten_wrapnum, dx.ten_wrapnum, 'ten_wrapnum')
-    _assert_eq(d.ten_wrapadr, dx.ten_wrapadr, 'ten_wrapadr')
-    _assert_eq(d.wrap_obj, dx.wrap_obj, 'wrap_obj')
-    _assert_eq(d.wrap_xpos, dx.wrap_xpos, 'wrap_xpos')
+    ten_J = np.zeros((m.ntendon, m.nv))
+    mujoco.mju_sparse2dense(
+        ten_J,
+        d.ten_J,
+        m.ten_J_rownnz,
+        m.ten_J_rowadr,
+        m.ten_J_colind,
+    )
+    _assert_eq(ten_J, dx._impl.ten_J, 'ten_J')
+    _assert_eq(d.ten_wrapnum, dx._impl.ten_wrapnum, 'ten_wrapnum')
+    _assert_eq(d.ten_wrapadr, dx._impl.ten_wrapadr, 'ten_wrapadr')
+    _assert_eq(d.wrap_obj, dx._impl.wrap_obj, 'wrap_obj')
+    _assert_eq(d.wrap_xpos, dx._impl.wrap_xpos, 'wrap_xpos')
+
+  @parameterized.parameters(JacobianType.DENSE, JacobianType.SPARSE)
+  def test_tendon_armature(self, jacobian):
+    """Tests MJX tendon armature matches MuJoCo."""
+    m = test_util.load_test_file('tendon/armature.xml')
+    m.opt.jacobian = jacobian
+    d = mujoco.MjData(m)
+    mujoco.mj_resetDataKeyframe(m, d, 0)
+    mujoco.mj_forward(m, d)
+
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    dx = dx.tree_replace(
+        {'_impl.M': jp.zeros((m.nv, m.nv)), 'qfrc_bias': jp.zeros(m.nv)}
+    )
+
+    dx = mjx.crb(mx, dx)
+    dx = mjx.tendon_armature(mx, dx)
+
+    if jacobian == JacobianType.DENSE:
+      M = np.zeros((m.nv, m.nv))  # pylint: disable=invalid-name
+      mujoco.mju_sym2dense(M, d.M, m.M_rownnz, m.M_rowadr, m.M_colind)
+    else:
+      M = d.M  # pylint: disable=invalid-name
+    _assert_eq(dx._impl.M, M, 'M')
+
+    dx = mjx.rne(mx, dx)
+    dx = mjx.tendon_bias(mx, dx)
+    _assert_eq(dx.qfrc_bias, d.qfrc_bias, 'qfrc_bias')
 
 
 if __name__ == '__main__':

@@ -22,7 +22,7 @@
   </worldbody>
 
   <tendon>
-    <spatial limited="true" range="0 .5" rgba="0 .1 1 1" width=".005">
+    <spatial limited="true" range="0 .5" width=".005">
       <site site="hook"/>
       <site site="corner"/>
     </spatial>

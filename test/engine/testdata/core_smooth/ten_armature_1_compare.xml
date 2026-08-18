@@ -1,0 +1,26 @@
+<mujoco>
+  <visual>
+    <global elevation="-20"/>
+    <headlight ambient=".3 .3 .3" diffuse=".8 .8 .8"/>
+  </visual>
+
+  <asset>
+    <model name="tendon_model" file="ten_armature_1.xml"/>
+    <model name="equivalent_model" file="ten_armature_1_equiv.xml"/>
+  </asset>
+
+  <visual>
+    <global elevation="0"/>
+  </visual>
+
+  <option integrator="RK4" timestep="0.0001">
+    <flag contact="disable" gravity="disable" energy="enable"/>
+  </option>
+
+  <worldbody>
+    <attach model="tendon_model" prefix="t_"/>
+    <frame pos="-1.2 0 0">
+      <attach model="equivalent_model" prefix="e_"/>
+    </frame>
+  </worldbody>
+</mujoco>

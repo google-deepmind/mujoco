@@ -19,6 +19,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_core_smooth.h"
+#include "src/engine/engine_util_misc.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -29,7 +30,7 @@ static const int kNumBenchmarkSteps = 50;
 
 // ----------------------------- benchmark ------------------------------------
 
-static void BM_factorI(benchmark::State& state, bool legacy, bool coil) {
+static void BM_factorI(benchmark::State& state, bool coil) {
   static mjModel* m;
   if (coil) {
     m = LoadModelFromPath("plugin/elasticity/coil.xml");
@@ -43,23 +44,16 @@ static void BM_factorI(benchmark::State& state, bool legacy, bool coil) {
   // allocate inputs and outputs
   mj_markStack(d);
 
-  // CSR matrices
-  mjtNum* Ms = mj_stackAllocNum(d, m->nC);
-  mjtNum* LDs = mj_stackAllocNum(d, m->nC);
-  for (int i=0; i < m->nC; i++) {
-    Ms[i] = d->qM[d->mapM2C[i]];
-  }
+  // M: mass matrix in CSR format
+  mjtNum* M = mj_stackAllocNum(d, m->nC);
+  mju_copy(M, d->M, m->nC);
 
   // benchmark
   while (state.KeepRunningBatch(kNumBenchmarkSteps)) {
     for (int i=0; i < kNumBenchmarkSteps; i++) {
-      if (legacy) {
-        mj_factorI(m, d, d->qM, d->qLD, d->qLDiagInv);
-      } else {
-        mju_copy(LDs, Ms, m->nC);
-        mj_factorIs(LDs, d->qLDiagInv, m->nv,
-                    d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
-      }
+      mju_copy(d->qLD, M, m->nC);
+      mj_factorI(d->qLD, d->qLDiagInv, m->nv,
+                 m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
     }
   }
 
@@ -71,30 +65,16 @@ static void BM_factorI(benchmark::State& state, bool legacy, bool coil) {
 }
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
-BM_factorI_COIL_LEGACY(benchmark::State& state) {
-  MujocoErrorTestGuard guard;
-  BM_factorI(state, /*legacy=*/true, /*coil=*/true);
-}
-BENCHMARK(BM_factorI_COIL_LEGACY);
-
-void ABSL_ATTRIBUTE_NO_TAIL_CALL
 BM_factorI_COIL_CSR(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_factorI(state, /*legacy=*/false, /*coil=*/true);
+  BM_factorI(state, /*coil=*/true);
 }
 BENCHMARK(BM_factorI_COIL_CSR);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
-BM_factorI_H100_LEGACY(benchmark::State& state) {
-  MujocoErrorTestGuard guard;
-  BM_factorI(state, /*legacy=*/true, /*coil=*/false);
-}
-BENCHMARK(BM_factorI_H100_LEGACY);
-
-void ABSL_ATTRIBUTE_NO_TAIL_CALL
 BM_factorI_H100_CSR(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_factorI(state, /*legacy=*/false, /*coil=*/false);
+  BM_factorI(state, /*coil=*/false);
 }
 BENCHMARK(BM_factorI_H100_CSR);
 

@@ -153,28 +153,36 @@ public class MjImporterWithAssets : MjcfImporter {
     var assetReferenceName = MjEngineTool.Sanitize(unsanitizedAssetReferenceName);
     var sourceFilePath = Path.Combine(_sourceMeshesDir, fileName);
 
-    if (Path.GetExtension(sourceFilePath) == ".obj") {
-      throw new NotImplementedException("OBJ mesh file loading is not yet implemented. " +
-                                        "Please convert to binary STL. " +
+    if (Path.GetExtension(sourceFilePath) != ".obj" && Path.GetExtension(sourceFilePath) != ".stl") {
+      throw new NotImplementedException("Type of mesh file not yet supported. " +
+                                        "Please convert to binary STL or OBJ. " +
                                         $"Attempted to load: {sourceFilePath}");
     }
 
-    var targetFilePath = Path.Combine(_targetMeshesDir, assetReferenceName + ".stl");
+    var targetFilePath =
+        Path.Combine(_targetMeshesDir, assetReferenceName + Path.GetExtension(sourceFilePath));
     if (File.Exists(targetFilePath)) {
       File.Delete(targetFilePath);
     }
     var scale = MjEngineTool.UnityVector3(
         parentNode.GetVector3Attribute("scale", defaultValue: Vector3.one));
     CopyMeshAndRescale(sourceFilePath, targetFilePath, scale);
-    var assetPath = Path.Combine(_targetAssetDir, assetReferenceName + ".stl");
+    var assetPath = Path.Combine(_targetAssetDir, assetReferenceName + Path.GetExtension(sourceFilePath));
     // This asset path should be available because the MuJoCo compiler guarantees element names
     // are unique, but check for completeness (and in case sanitizing the name broke uniqueness):
     if (AssetDatabase.LoadMainAssetAtPath(assetPath) != null) {
       throw new Exception(
         $"Trying to import mesh {unsanitizedAssetReferenceName} but {assetPath} already exists.");
     }
+
     AssetDatabase.ImportAsset(assetPath);
-    var copiedMesh = AssetDatabase.LoadMainAssetAtPath(assetPath) as Mesh;
+    ModelImporter importer = AssetImporter.GetAtPath(assetPath) as ModelImporter;
+    if (importer != null && !importer.isReadable) {
+      importer.isReadable = true;
+      importer.SaveAndReimport();
+    }
+
+    var copiedMesh = AssetDatabase.LoadAssetAtPath<Mesh>(assetPath);
     if (copiedMesh == null) {
       throw new Exception($"Mesh {assetPath} was not imported.");
     }
@@ -186,9 +194,16 @@ public class MjImporterWithAssets : MjcfImporter {
   private void CopyMeshAndRescale(
       string sourceFilePath, string targetFilePath, Vector3 scale) {
     var originalMeshBytes = File.ReadAllBytes(sourceFilePath);
-    var mesh = StlMeshParser.ParseBinary(originalMeshBytes, scale);
-    var rescaledMeshBytes = StlMeshParser.SerializeBinary(mesh);
-    File.WriteAllBytes(targetFilePath, rescaledMeshBytes);
+    if (Path.GetExtension(sourceFilePath) == ".stl") {
+      var mesh = StlMeshParser.ParseBinary(originalMeshBytes, scale);
+      var rescaledMeshBytes = StlMeshParser.SerializeBinary(mesh);
+      File.WriteAllBytes(targetFilePath, rescaledMeshBytes);
+    } else if (Path.GetExtension(sourceFilePath) == ".obj") {
+      ObjMeshImportUtility.CopyAndScaleOBJFile(sourceFilePath, targetFilePath, scale);
+    } else {
+      throw new NotImplementedException($"Extension {Path.GetExtension(sourceFilePath)} " +
+                                        $"not yet supported for MuJoCo mesh asset.");
+    }
   }
 
   private void ParseMaterial(XmlElement parentNode) {
@@ -276,8 +291,8 @@ public class MjImporterWithAssets : MjcfImporter {
         // If geom is nameless, use a random number.
         var name =
           MjEngineTool.Sanitize(parentNode.GetStringAttribute(
-              "name", defaultValue: $"{UnityEngine.Random.Range(0, 1000000)}"));
-        var assetPath = Path.Combine(_targetAssetDir, name + ".mat");
+            "name", defaultValue: $"{UnityEngine.Random.Range(0, 1000000)}"));
+        var assetPath = Path.Combine(_targetAssetDir, name+".mat");
         if (AssetDatabase.LoadMainAssetAtPath(assetPath) != null) {
           throw new Exception(
             $"Creating a material asset for the geom {name}, but {assetPath} already exists.");
@@ -289,6 +304,7 @@ public class MjImporterWithAssets : MjcfImporter {
         material = DefaultMujocoMaterial;
       }
     }
+    if (parentNode.GetFloatAttribute("group") > 2) renderer.enabled = false;
     renderer.sharedMaterial = material;
   }
 }

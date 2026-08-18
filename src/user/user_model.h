@@ -16,8 +16,10 @@
 #define MUJOCO_SRC_USER_USER_MODEL_H_
 
 #include <array>
+#include <cstdint>
 #include <functional>
 #include <map>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -27,8 +29,8 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
-#include <mujoco/mjtnum.h>
 #include <mujoco/mjspec.h>
+#include <mujoco/mjtype.h>
 #include "user/user_objects.h"
 
 typedef std::map<std::string, int, std::less<> > mjKeyMap;
@@ -52,74 +54,89 @@ class mjCModel_ : public mjsElement {
   std::string suffix;
 
  protected:
-  bool compiled;      // already compiled flag
+  bool compiled;     // already compiled flag
 
   // sizes set from object list lengths
-  int nbody;     // number of bodies
-  int njnt;      // number of joints
-  int ngeom;     // number of geoms
-  int nsite;     // number of sites
-  int ncam;      // number of cameras
-  int nlight;    // number of lights
-  int nflex;     // number of flexes
-  int nmesh;     // number of meshes
-  int nskin;     // number of skins
-  int nhfield;   // number of height fields
-  int ntex;      // number of textures
-  int nmat;      // number of materials
-  int npair;     // number of geom pairs in pair array
-  int nexclude;  // number of excluded body pairs
-  int neq;       // number of equality constraints
-  int ntendon;   // number of tendons
-  int nsensor;   // number of sensors
-  int nnumeric;  // number of numeric fields
-  int ntext;     // number of text fields
-  int ntuple;    // number of tuple fields
-  int nmocap;    // number of mocap bodies
-  int nplugin;   // number of plugin instances
+  mjtSize nbody;     // number of bodies
+  mjtSize njnt;      // number of joints
+  mjtSize ngeom;     // number of geoms
+  mjtSize nsite;     // number of sites
+  mjtSize ncam;      // number of cameras
+  mjtSize nlight;    // number of lights
+  mjtSize nflex;     // number of flexes
+  mjtSize nmesh;     // number of meshes
+  mjtSize nskin;     // number of skins
+  mjtSize nhfield;   // number of height fields
+  mjtSize ntex;      // number of textures
+  mjtSize nmat;      // number of materials
+  mjtSize npair;     // number of geom pairs in pair array
+  mjtSize nexclude;  // number of excluded body pairs
+  mjtSize neq;       // number of equality constraints
+  mjtSize ntendon;   // number of tendons
+  mjtSize nJten;     // number of non-zeros in sparse ten_J matrix
+  mjtSize nsensor;   // number of sensors
+  mjtSize nnumeric;  // number of numeric fields
+  mjtSize ntext;     // number of text fields
+  mjtSize ntuple;    // number of tuple fields
+  mjtSize nmocap;    // number of mocap bodies
+  mjtSize nplugin;   // number of plugin instances
 
   // sizes computed by Compile
-  int nq;              // number of generalized coordinates = dim(qpos)
-  int nv;              // number of degrees of freedom = dim(qvel)
-  int nu;              // number of actuators/controls
-  int na;              // number of activation variables
-  int nbvh;            // number of total boundary volume hierarchies
-  int nbvhstatic;      // number of static boundary volume hierarchies
-  int nbvhdynamic;     // number of dynamic boundary volume hierarchies
-  int nflexnode;       // number of nodes in all flexes
-  int nflexvert;       // number of vertices in all flexes
-  int nflexedge;       // number of edges in all flexes
-  int nflexelem;       // number of elements in all flexes
-  int nflexelemdata;   // number of element vertex ids in all flexes
-  int nflexelemedge;   // number of element edges in all flexes
-  int nflexshelldata;  // number of shell fragment vertex ids in all flexes
-  int nflexevpair;     // number of element-vertex pairs in all flexes
-  int nflextexcoord;   // number of vertex texture coordinates in all flexes
-  int nmeshvert;       // number of vertices in all meshes
-  int nmeshnormal;     // number of normals in all meshes
-  int nmeshtexcoord;   // number of texture coordinates in all meshes
-  int nmeshface;       // number of triangular faces in all meshes
-  int nmeshgraph;      // number of shorts in mesh auxiliary data
-  int nskinvert;       // number of vertices in all skins
-  int nskintexvert;    // number of vertices with texcoord in all skins
-  int nskinface;       // number of faces in all skins
-  int nskinbone;       // number of bones in all skins
-  int nskinbonevert;   // number of vertices in all skins
-  int nhfielddata;     // number of data points in all hfields
-  int ntexdata;        // number of texture bytes
-  int nwrap;           // number of wrap objects in all tendon paths
-  int nsensordata;     // number of mjtNums in sensor data vector
-  int nnumericdata;    // number of mjtNums in all custom fields
-  int ntextdata;       // number of chars in all text fields, including 0
-  int ntupledata;      // number of objects in all tuple fields
-  int npluginattr;     // number of chars in all plugin config attributes
-  int nnames;          // number of chars in all names
-  int npaths;          // number of chars in all paths
-  int nM;              // number of non-zeros in sparse inertia matrix
-  int nB;              // number of non-zeros in sparse body-dof matrix
-  int nC;              // number of non-zeros in reduced sparse dof-dof matrix
-  int nD;              // number of non-zeros in sparse dof-dof matrix
-  int nJmom;           // number of non-zeros in sparse actuator_moment matrix
+  mjtSize nq;              // number of generalized coordinates = dim(qpos)
+  mjtSize nv;              // number of degrees of freedom = dim(qvel)
+  mjtSize nu;              // number of scalar controls = dim(ctrl)
+  mjtSize nactuator;       // number of actuators
+  mjtSize nout;            // number of force outputs = dim(actuator_force)
+  mjtSize na;              // number of activation variables
+  mjtSize ntree;           // number of trees
+  mjtSize nbvh;            // number of total boundary volume hierarchies
+  mjtSize nbvhstatic;      // number of static boundary volume hierarchies
+  mjtSize nbvhdynamic;     // number of dynamic boundary volume hierarchies
+  mjtSize noct;            // number of total octree cells
+  mjtSize nflexnode;       // number of nodes in all flexes
+  mjtSize nflexvert;       // number of vertices in all flexes
+  mjtSize nflexedge;       // number of edges in all flexes
+  mjtSize nflexelem;       // number of elements in all flexes
+  mjtSize nflexelemdata;   // number of element vertex ids in all flexes
+  mjtSize nflexstiffness;  // number of stiffness parameters in all flexes
+  mjtSize nflexbending;    // number of bending parameters in all flexes
+  mjtSize nefm0dof;        // number of dofs covered by the bending factor
+  mjtSize nefm0L;          // number of non-zeros in the bending factor
+  mjtSize nflexelemedge;   // number of element edges in all flexes
+  mjtSize nflexshelldata;  // number of shell fragment vertex ids in all flexes
+  mjtSize nflexevpair;     // number of element-vertex pairs in all flexes
+  mjtSize nflextexcoord;   // number of vertex texture coordinates in all flexes
+  mjtSize nJfe;            // number of non-zeros in sparse flex edge constraint Jacobian
+  mjtSize nJfv;            // number of non-zeros in sparse flex vertex constraint Jacobian
+  mjtSize nmeshvert;       // number of vertices in all meshes
+  mjtSize nmeshnormal;     // number of normals in all meshes
+  mjtSize nmeshtexcoord;   // number of texture coordinates in all meshes
+  mjtSize nmeshface;       // number of triangular faces in all meshes
+  mjtSize nmeshpoly;       // number of polygon faces in all meshes
+  mjtSize nmeshgraph;      // number of ints in mesh auxiliary data
+  mjtSize nmeshpolyvert;   // number of vertices in all polygon faces
+  mjtSize nmeshpolymap;    // number of polygons in vertex map
+  mjtSize nskinvert;       // number of vertices in all skins
+  mjtSize nskintexvert;    // number of vertices with texcoord in all skins
+  mjtSize nskinface;       // number of faces in all skins
+  mjtSize nskinbone;       // number of bones in all skins
+  mjtSize nskinbonevert;   // number of vertices in all skins
+  mjtSize nhfielddata;     // number of data points in all hfields
+  mjtSize ntexdata;        // number of texture bytes
+  mjtSize nwrap;           // number of wrap objects in all tendon paths
+  mjtSize nsensordata;     // number of mjtNums in sensor data vector
+  mjtSize nhistory;        // number of mjtNums in history buffer
+  mjtSize nnumericdata;    // number of mjtNums in all custom fields
+  mjtSize ntextdata;       // number of chars in all text fields, including 0
+  mjtSize ntupledata;      // number of objects in all tuple fields
+  mjtSize npluginattr;     // number of chars in all plugin config attributes
+  mjtSize nnames;          // number of chars in all names
+  mjtSize npaths;          // number of chars in all paths
+  mjtSize nM;              // number of non-zeros in sparse inertia matrix
+  mjtSize nB;              // number of non-zeros in sparse body-dof matrix
+  mjtSize nC;              // number of non-zeros in reduced sparse dof-dof matrix
+  mjtSize nD;              // number of non-zeros in sparse dof-dof matrix
+  mjtSize nJmom;           // number of non-zeros in sparse actuator_moment matrix
 
   // statistics, as computed by mj_setConst
   double meaninertia_auto;  // mean diagonal inertia, as computed by mj_setConst
@@ -142,8 +159,6 @@ class mjCModel_ : public mjsElement {
   std::string spec_comment_;
   std::string spec_modelfiledir_;
   std::string spec_modelname_;
-  std::string spec_meshdir_;
-  std::string spec_texturedir_;
 };
 
 // mjCModel contains everything needed to generate the low-level model.
@@ -180,12 +195,14 @@ class mjCModel : public mjCModel_, private mjSpec {
   void CopyFromSpec();  // copy spec to private attributes
   void PointToLocal();
 
-  mjCModel& operator=(const mjCModel& other);  // copy other into this, if they are not the same
-  mjCModel& operator+=(const mjCModel& other);  // add other into this, even if they are the same
-  mjCModel& operator-=(const mjCBody& subtree);  // remove subtree and all references from model
-  mjCModel_& operator+=(mjCDef& subtree);  // add default tree to this model
+  mjCModel& operator=(const mjCModel& other);     // copy other into this, if they are not the same
+  mjCModel& operator+=(const mjCModel& other);    // add other into this, even if they are the same
+  mjCModel& operator-=(const mjCBody& subtree);   // remove subtree and all references from model
+  mjCModel& operator+=(mjCDef& subtree);          // add default tree to this model
+  mjCModel& operator-=(const mjCDef& subtree);    // remove default tree from this model
 
   mjSpec spec;
+  double timer[mjNCTIMER] = {0};                  // compiler timers
 
   mjModel* Compile(const mjVFS* vfs = nullptr, mjModel** m = nullptr);  // construct mjModel
   bool CopyBack(const mjModel*);                 // DECOMPILER: copy numeric back
@@ -210,7 +227,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCTuple* AddTuple();
   mjCKey* AddKey();
   mjCPlugin* AddPlugin();
-  void AppendSpec(mjSpec* spec);
+
+  // append spec to this model, optionally map compiler options to the appended spec
+  void AppendSpec(mjSpec* spec, const mjsCompiler* compiler = nullptr);
 
   // delete elements marked as discard=true
   template <class T> void Delete(std::vector<T*>& elements,
@@ -220,28 +239,51 @@ class mjCModel : public mjCModel_, private mjSpec {
   template <class T> void DeleteAll(std::vector<T*>& elements);
 
   // delete object from the corresponding list
-  void DeleteElement(mjsElement* el);
+  void operator-=(mjsElement* el);
 
-  // detach subtree from model
-  void Detach(mjCBody* subtree);
+  // delete default and all descendants
+  void RemoveDefault(mjCDef* def);
 
   // API for access to model elements (outside tree)
   int NumObjects(mjtObj type);              // number of objects in specified list
   mjCBase* GetObject(mjtObj type, int id);  // pointer to specified object
-  mjsElement* NextObject(mjsElement* object, mjtObj type = mjOBJ_UNKNOWN);  // next object of specified type
+  mjsElement* NextObject(const mjsElement* object, mjtObj type = mjOBJ_UNKNOWN) const;  // next object of specified type
 
   // API for access to other variables
   bool IsCompiled() const;                                          // is model already compiled
   const mjCError& GetError() const;                                 // get reference of error object
   void SetError(const mjCError& error) { errInfo = error; }         // set value of error object
+  void AddWarning(std::string msg,  // add warning to vector
+                  const mjCBase* obj = nullptr);
+  void AddGroupedWarning(const std::string& subject,  // add grouped warning
+                         const std::string& body);
+  const std::vector<std::string>& GetWarnings()
+      const {  // get accumulated warnings
+    return warnings_;
+  }
+  void ClearWarnings() {
+    warnings_.clear();
+    num_attach_warnings_ = 0;
+  }  // clear all warnings
+  void ClearCompileWarnings() {
+    warnings_.resize(num_attach_warnings_);
+  }                                  // clear compile warnings
+  void SetAttachWarningBoundary() {  // snapshot attach warning count
+    num_attach_warnings_ = warnings_.size();
+  }
+
   mjCBody* GetWorld();                                              // pointer to world body
-  mjCDef* FindDefault(std::string name);                            // find defaults class name
+  mjCDef* FindDefault(const std::string& name) const;               // find defaults class name
   mjCDef* AddDefault(std::string name, mjCDef* parent = nullptr);   // add defaults class to array
   mjCBase* FindObject(mjtObj type, std::string name) const;         // find object given type and name
   mjCBase* FindTree(mjCBody* body, mjtObj type, std::string name);  // find tree object given name
   mjSpec* FindSpec(std::string name) const;                         // find spec given name
   mjSpec* FindSpec(const mjsCompiler* compiler_) const;             // find spec given mjsCompiler
   void ActivatePlugin(const mjpPlugin* plugin, int slot);           // activate plugin
+
+  // find asset given name checking both name and filename
+  template <class T>
+  mjCBase* FindAsset(std::string_view name, const std::vector<T*>& list) const;
 
   // accessors
   std::string get_meshdir() const { return meshdir_; }
@@ -282,9 +324,6 @@ class mjCModel : public mjCModel_, private mjSpec {
   // clear objects allocated by Compile
   void Clear();
 
-  // multi-threaded mesh compilation
-  void CompileMeshes(const mjVFS* vfs);
-
   // delete material from object
   template <class T> void DeleteMaterial(std::vector<T*>& list,
                                          std::string_view name = "");
@@ -308,37 +347,63 @@ class mjCModel : public mjCModel_, private mjSpec {
   // map from default class name to default class pointer
   std::unordered_map<std::string, mjCDef*> def_map;
 
-  // get the spec from which this model was created
-  mjSpec* GetSourceSpec() const;
-
   // set deepcopy flag
   void SetDeepCopy(bool deepcopy) { deepcopy_ = deepcopy; }
 
+  // set attached flag
+  void SetAttached(bool deepcopy) { attached_ |= !deepcopy; }
+
+  // check if model is attached
+  bool IsAttached() const { return attached_; }
+
+  // check for repeated names in list
+  void CheckRepeat(mjtObj type);
+
+  // increment and decrement reference count
+  void AddRef() { ++refcount; }
+  int GetRef() const { return refcount; }
+  void Release() {
+    if (--refcount == 0) {
+      delete this;
+    }
+  }
+
  private:
+  int refcount = 1;
+
   // settings for each defaults class
   std::vector<mjCDef*> defaults_;
-
-  // spec from which this model was created in copy constructor
-  mjSpec* source_spec_;
 
   // list of active plugins
   std::vector<std::pair<const mjpPlugin*, int>> active_plugins_;
 
+  // make lists of bodies and children
+  void MakeTreeLists(mjCBody* body = nullptr);
+
   // compile phases
   void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
-  void MakeLists(mjCBody* body);        // make lists of bodies, geoms, joints, sites
+  void CompileMeshesAndTextures(const mjVFS* vfs);
+
   void SetNuser();                      // set nuser fields
   void IndexAssets(bool discard);       // convert asset names into indices
   void CheckEmptyNames();               // check empty names
   void SetSizes();                      // compute sizes
+  void ComputeSparseSizes();            // compute nM, nD, nB, nC
   void AutoSpringDamper(mjModel*);      // automatic stiffness and damping computation
   void LengthRange(mjModel*, mjData*);  // compute actuator lengthrange
   void CopyNames(mjModel*);             // copy names, compute name addresses
   void CopyPaths(mjModel*);             // copy paths, compute path addresses
   void CopyObjects(mjModel*);           // copy objects outside kinematic tree
   void CopyTree(mjModel*);              // copy objects inside kinematic tree
+  void FinalizeSimple(mjModel* m);      // finalize simple bodies/dofs including tendon information
   void CopyPlugins(mjModel*);           // copy plugin data
+  int CountTendonDofs(const mjModel* m, // compute number of dofs for a given tendon
+                      int id);
   int CountNJmom(const mjModel* m);     // compute number of non-zeros in actuator_moment matrix
+  int CountNJten(const mjModel* m);     // compute number of non-zeros in ten_J matrix
+
+  // remove plugins that are not referenced by any object
+  void RemovePlugins();
 
   // objects created here
   std::vector<mjCFlex*>     flexes_;      // list of flexes
@@ -399,6 +464,10 @@ class mjCModel : public mjCModel_, private mjSpec {
   // populate objects ids
   void ProcessLists(bool checkrepeat = true);
 
+  // process list of objects
+  template <class T> void ProcessList_(mjListKeyMap& ids, std::vector<T*>& list,
+                                       mjtObj type, bool checkrepeat = true);
+
   // reset lists of kinematic tree
   void ResetTreeLists();
 
@@ -408,22 +477,51 @@ class mjCModel : public mjCModel_, private mjSpec {
   // convert pending keyframes info to actual keyframes
   void ResolveKeyframes(const mjModel* m);
 
-  // resize a keyframe, filling in missing values
-  void ResizeKeyframe(mjCKey* key, const mjtNum* qpos0_, const mjtNum* bpos, const mjtNum* bquat);
+  // expand a keyframe, filling in missing values
+  void ExpandKeyframe(mjCKey* key, const mjtNum* qpos0_, const mjtNum* bpos, const mjtNum* bquat);
 
   // compute qpos0
   void ComputeReference();
 
-  // return true if all bodies have valid mass and inertia
-  bool CheckBodiesMassInertia(std::vector<mjCBody*> bodies);
-
   // return true if body has valid mass and inertia
   bool CheckBodyMassInertia(mjCBody* body);
 
+  // Mark plugin instances mentioned in the list
+  template <class T>
+  void MarkPluginInstance(std::unordered_map<std::string, bool>& instances,
+                          const std::vector<T*>& list);
 
-  mjListKeyMap ids;   // map from object names to ids
-  mjCError errInfo;   // last error info
+  // print the tree of a body
+  void PrintTree(std::stringstream& tree, const mjCBody* body, int depth = 0);
+
+  // generate a signature for the model
+  uint64_t Signature();
+
+  // reassign children of a body to a new parent
+  template <class T>
+  void ReassignChild(std::vector<T*>& dest, std::vector<T*>& list, mjCBody* parent, mjCBody* body);
+
+  // resolve references in a list of objects
+  template <class T>
+  void ResolveReferences(std::vector<T*>& list, mjCBody* body = nullptr);
+
+  // delete all plugins created by the subtree
+  void DeleteSubtreePlugin(mjCBody* subtree);
+
+  // expand all keyframes in the model
+  void ExpandAllKeyframes();
+
+  mjListKeyMap ids;  // map from object names to ids
+  mjCError errInfo;  // last error info
+  std::vector<std::string>
+      warnings_;  // chronological list of non-fatal warnings
+  int num_attach_warnings_ =
+      0;  // boundary: [0, n) are attach, [n, size) are compile
+  bool compiling_ = false;              // true during Compile()
   std::vector<mjKeyInfo> key_pending_;  // attached keyframes
-  bool deepcopy_;     // copy objects when attaching
+  bool deepcopy_;                       // copy objects when attaching
+  bool attached_ = false;  // true if model is attached to a parent model
+  std::unordered_map<const mjsCompiler*, mjSpec*> compiler2spec_;  // map from compiler to spec
+  std::vector<mjCBase*> detached_;  // list of detached objects
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_

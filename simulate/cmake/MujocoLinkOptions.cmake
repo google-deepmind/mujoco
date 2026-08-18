@@ -18,20 +18,17 @@ include(CheckCSourceCompiles)
 # linker.
 function(get_mujoco_extra_link_options OUTPUT_VAR)
   if(MSVC)
-    set(EXTRA_LINK_OPTIONS /OPT:REF /OPT:ICF=5)
+    set(EXTRA_LINK_OPTIONS /OPT:REF /OPT:ICF=5 /STACK:16777216)
   else()
     set(EXTRA_LINK_OPTIONS)
 
     if(WIN32)
       set(CMAKE_REQUIRED_FLAGS "-fuse-ld=lld-link")
-      check_c_source_compiles("int main() {}" SUPPORTS_LLD)
-      if(SUPPORTS_LLD)
-        set(EXTRA_LINK_OPTIONS
-            ${EXTRA_LINK_OPTIONS}
-            -fuse-ld=lld-link
-            -Wl,/OPT:REF
-            -Wl,/OPT:ICF
-        )
+      check_c_source_compiles("int main() {}" SUPPORTS_LLD_LINK)
+      if(SUPPORTS_LLD_LINK)
+        set(EXTRA_LINK_OPTIONS ${EXTRA_LINK_OPTIONS} -fuse-ld=lld-link -Wl,/STACK:16777216 -Wl,/OPT:REF -Wl,/OPT:ICF)
+      else()
+        set(EXTRA_LINK_OPTIONS ${EXTRA_LINK_OPTIONS} -Wl,--stack,16777216)
       endif()
     else()
       set(CMAKE_REQUIRED_FLAGS "-fuse-ld=lld")
@@ -46,12 +43,12 @@ function(get_mujoco_extra_link_options OUTPUT_VAR)
         endif()
       endif()
 
-      set(CMAKE_REQUIRED_FLAGS ${EXTRA_LINK_OPTIONS} "-Wl,--gc-sections")
+      set(CMAKE_REQUIRED_FLAGS "${EXTRA_LINK_OPTIONS} -Wl,--gc-sections")
       check_c_source_compiles("int main() {}" SUPPORTS_GC_SECTIONS)
       if(SUPPORTS_GC_SECTIONS)
         set(EXTRA_LINK_OPTIONS ${EXTRA_LINK_OPTIONS} -Wl,--gc-sections)
       else()
-        set(CMAKE_REQUIRED_FLAGS ${EXTRA_LINK_OPTIONS} "-Wl,-dead_strip")
+        set(CMAKE_REQUIRED_FLAGS "${EXTRA_LINK_OPTIONS} -Wl,-dead_strip")
         check_c_source_compiles("int main() {}" SUPPORTS_DEAD_STRIP)
         if(SUPPORTS_DEAD_STRIP)
           set(EXTRA_LINK_OPTIONS ${EXTRA_LINK_OPTIONS} -Wl,-dead_strip)

@@ -16,6 +16,7 @@
 
 import dataclasses
 from typing import Dict, Optional, Tuple
+import warnings
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -60,7 +61,6 @@ def _collide(
     mujoco.mj_resetDataKeyframe(m, d, keyframe)
   dx = mjx.put_data(m, d)
 
-  m.opt.enableflags |= mujoco.mjtEnableBit.mjENBL_NATIVECCD
   mujoco.mj_step(m, d)
   collision_jit_fn = jax.jit(mjx.collision)
   kinematics_jit_fn = jax.jit(mjx.kinematics)
@@ -120,7 +120,7 @@ class SphereCollisionTest(parameterized.TestCase):
   def test_sphere(self, name, mjcf):
     d, dx = _collide(mjcf)
     for field in dataclasses.fields(Contact):
-      _assert_attr_eq(dx.contact, d.contact, field.name, name, 1e-5)
+      _assert_attr_eq(dx._impl.contact, d.contact, field.name, name, 1e-5)
 
   _SPHERE_CONVEX = """
     <mujoco>
@@ -144,7 +144,7 @@ class SphereCollisionTest(parameterized.TestCase):
     )
     d, dx = _collide(xml)
     self.assertEmpty(d.contact.dist)
-    self.assertGreater(dx.contact.dist, 0)
+    self.assertGreater(dx._impl.contact.dist, 0)
 
     # face contact
     xml = self._SPHERE_CONVEX.replace(
@@ -152,38 +152,38 @@ class SphereCollisionTest(parameterized.TestCase):
     )
     d, dx = _collide(xml)
     for field in dataclasses.fields(Contact):
-      _assert_attr_eq(dx.contact, d.contact, field.name, 'face', 1e-4)
+      _assert_attr_eq(dx._impl.contact, d.contact, field.name, 'face', 1e-4)
 
     # deep face contact
     xml = self._SPHERE_CONVEX.replace(
         '<body pos="0.52 0 0.52">', '<body pos="0.48 0 0.47">'
     )
     d, dx = _collide(xml)
-    self.assertTrue((dx.contact.dist < 0).all())
+    self.assertTrue((dx._impl.contact.dist < 0).all())
     self.assertTrue((d.contact.dist < 0).all())
-    np.testing.assert_allclose(dx.contact.dist, [-0.07], atol=1e-5)
-    np.testing.assert_array_almost_equal(dx.contact.pos, d.contact.pos)
+    np.testing.assert_allclose(dx._impl.contact.dist, [-0.07], atol=1e-5)
+    np.testing.assert_array_almost_equal(dx._impl.contact.pos, d.contact.pos)
     np.testing.assert_array_almost_equal(
-        dx.contact.frame, d.contact.frame.reshape((-1, 3, 3))
+        dx._impl.contact.frame, d.contact.frame.reshape((-1, 3, 3))
     )
 
   def test_sphere_convex_edge(self):
     # edge contact
     d, dx = _collide(self._SPHERE_CONVEX)
     for field in dataclasses.fields(Contact):
-      _assert_attr_eq(dx.contact, d.contact, field.name, 'edge', 1e-4)
+      _assert_attr_eq(dx._impl.contact, d.contact, field.name, 'edge', 1e-4)
 
     # deep edge penetration
     xml = self._SPHERE_CONVEX.replace(
         '<body pos="0.52 0 0.52">', '<body pos="0.49 0 0.49">'
     )
     d, dx = _collide(xml)
-    self.assertTrue((dx.contact.dist < 0).all())
+    self.assertTrue((dx._impl.contact.dist < 0).all())
     self.assertTrue((d.contact.dist < 0).all())
-    np.testing.assert_allclose(dx.contact.dist, [-0.06], atol=1e-5)
-    np.testing.assert_array_almost_equal(dx.contact.pos, d.contact.pos)
+    np.testing.assert_allclose(dx._impl.contact.dist, [-0.06], atol=1e-5)
+    np.testing.assert_array_almost_equal(dx._impl.contact.pos, d.contact.pos)
     np.testing.assert_array_almost_equal(
-        dx.contact.frame, d.contact.frame.reshape((-1, 3, 3))
+        dx._impl.contact.frame, d.contact.frame.reshape((-1, 3, 3))
     )
 
     # vertex contact
@@ -192,7 +192,7 @@ class SphereCollisionTest(parameterized.TestCase):
     )
     d, dx = _collide(xml)
     for field in dataclasses.fields(Contact):
-      _assert_attr_eq(dx.contact, d.contact, field.name, 'vertex', 1e-4)
+      _assert_attr_eq(dx._impl.contact, d.contact, field.name, 'vertex', 1e-4)
 
     # sphere center on vertex
     xml = self._SPHERE_CONVEX.replace(
@@ -200,7 +200,9 @@ class SphereCollisionTest(parameterized.TestCase):
     )
     d, dx = _collide(xml)
     for field in dataclasses.fields(Contact):
-      _assert_attr_eq(dx.contact, d.contact, field.name, 'vertex_center', 1e-4)
+      _assert_attr_eq(
+          dx._impl.contact, d.contact, field.name, 'vertex_center', 1e-4
+      )
 
 
 class EllipsoidCollisionTest(parameterized.TestCase):
@@ -220,14 +222,15 @@ class EllipsoidCollisionTest(parameterized.TestCase):
   def test_plane_ellipsoid(self):
     """Tests ellipsoid plane contact."""
     d, dx = _collide(self._ELLIPSOID_PLANE)
-    self.assertLess(dx.contact.dist[0], 0)
+    self.assertLess(dx._impl.contact.dist[0], 0)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(
-          dx.contact, d.contact, field.name, 'ellipsoid-plane', 1e-5
+          dx._impl.contact, d.contact, field.name, 'ellipsoid-plane', 1e-5
       )
 
   _ELLIPSOID_ELLIPSOID = """
     <mujoco>
+      <option ccd_iterations="50"/>
       <worldbody>
         <body>
           <geom size=".15 .03 .05" type="ellipsoid"/>
@@ -243,10 +246,10 @@ class EllipsoidCollisionTest(parameterized.TestCase):
   def test_ellipsoid_ellipsoid(self):
     """Tests ellipsoid ellipsoid contact."""
     d, dx = _collide(self._ELLIPSOID_ELLIPSOID)
-    self.assertLess(dx.contact.dist[0], 0)
+    self.assertLess(dx._impl.contact.dist[0], 0)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(
-          dx.contact, d.contact, field.name, 'ellipsoid-ellipsoid', 1e-2
+          dx._impl.contact, d.contact, field.name, 'ellipsoid-ellipsoid', 1e-2
       )
 
   _ELLIPSOID_SPHERE = """
@@ -267,10 +270,10 @@ class EllipsoidCollisionTest(parameterized.TestCase):
     """Tests ellipsoid capsule contact."""
     d, dx = _collide(self._ELLIPSOID_SPHERE)
     d.contact.pos[0][2] = 0.03  # MJX finds the point on the surface
-    self.assertLess(dx.contact.dist[0], 0)
+    self.assertLess(dx._impl.contact.dist[0], 0)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(
-          dx.contact, d.contact, field.name, 'ellipsoid-sphere', 1e-4
+          dx._impl.contact, d.contact, field.name, 'ellipsoid-sphere', 1e-4
       )
 
   _ELLIPSOID_CAPSULE = """
@@ -290,10 +293,10 @@ class EllipsoidCollisionTest(parameterized.TestCase):
   def test_capsule_ellipsoid(self):
     """Tests ellipsoid capsule contact."""
     d, dx = _collide(self._ELLIPSOID_CAPSULE)
-    self.assertLess(dx.contact.dist[0], 0)
+    self.assertLess(dx._impl.contact.dist[0], 0)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(
-          dx.contact, d.contact, field.name, 'ellipsoid-capsule', 1e-5
+          dx._impl.contact, d.contact, field.name, 'ellipsoid-capsule', 1e-5
       )
 
   _ELLIPSOID_CYLINDER = """
@@ -314,10 +317,10 @@ class EllipsoidCollisionTest(parameterized.TestCase):
     """Tests ellipsoid cylinder contact."""
     d, dx = _collide(self._ELLIPSOID_CYLINDER)
     d.contact.pos[0][2] = 0.04  # MJX finds the deepest point on the surface
-    self.assertLess(dx.contact.dist[0], 0)
+    self.assertLess(dx._impl.contact.dist[0], 0)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(
-          dx.contact, d.contact, field.name, 'ellipsoid-cylinder', 1e-4
+          dx._impl.contact, d.contact, field.name, 'ellipsoid-cylinder', 1e-4
       )
 
 
@@ -358,7 +361,7 @@ class CapsuleCollisionTest(parameterized.TestCase):
   def test_capsule(self, name, mjcf):
     d, dx = _collide(mjcf)
     for field in dataclasses.fields(Contact):
-      _assert_attr_eq(dx.contact, d.contact, field.name, name, 1e-4)
+      _assert_attr_eq(dx._impl.contact, d.contact, field.name, name, 1e-4)
 
   _PARALLEL_CAP = """
     <mujoco>
@@ -379,14 +382,14 @@ class CapsuleCollisionTest(parameterized.TestCase):
     """Tests that two parallel capsules are colliding at the midpoint."""
     _, dx = _collide(self._PARALLEL_CAP)
 
-    np.testing.assert_allclose(dx.contact.dist, -0.05)
+    np.testing.assert_allclose(dx._impl.contact.dist, -0.05)
     np.testing.assert_allclose(
-        dx.contact.pos[0],
+        dx._impl.contact.pos[0],
         np.array([0.0, 0.1, (0.15 + 0.2) / 2.0]),
         atol=1e-5,
     )
     np.testing.assert_allclose(
-        dx.contact.frame[0, 0, :], np.array([0, 0.0, -1.0]), atol=1e-5
+        dx._impl.contact.frame[0, 0, :], np.array([0, 0.0, -1.0]), atol=1e-5
     )
 
   _CAP_BOX = """
@@ -409,30 +412,32 @@ class CapsuleCollisionTest(parameterized.TestCase):
     d, dx = _collide(self._CAP_BOX)
 
     # sort positions for comparison
-    idx = np.lexsort((dx.contact.pos[:, 0], dx.contact.pos[:, 1]))
-    dx = dx.tree_replace({'contact.pos': dx.contact.pos[idx]})
+    idx = np.lexsort((dx._impl.contact.pos[:, 0], dx._impl.contact.pos[:, 1]))
+    dx = dx.tree_replace({'_impl.contact.pos': dx._impl.contact.pos[idx]})
     idx = np.lexsort((d.contact.pos[:, 0], d.contact.pos[:, 1]))
     d.contact.pos[:] = d.contact.pos[idx]
     d.contact.frame[:] = d.contact.frame[idx]
     d.contact.dist[:] = d.contact.dist[idx]
 
     for field in dataclasses.fields(Contact):
-      _assert_attr_eq(dx.contact, d.contact, field.name, 'capsule_convex', 1e-4)
+      _assert_attr_eq(
+          dx._impl.contact, d.contact, field.name, 'capsule_convex', 1e-4
+      )
 
   def test_capsule_convex_face_deep(self):
     """Tests deep face penetration."""
     xml = self._CAP_BOX.replace('<body pos="0 0 0.54">', '<body pos="0 0 0.4">')
 
     _, dx = _collide(xml)
-    self.assertTrue((dx.contact.dist < 0).all())
+    self.assertTrue((dx._impl.contact.dist < 0).all())
     np.testing.assert_array_almost_equal(
-        dx.contact.pos, np.array([[0.5, 0, 0.425], [-0.4, 0, 0.425]])
+        dx._impl.contact.pos, np.array([[0.5, 0, 0.425], [-0.4, 0, 0.425]])
     )
     np.testing.assert_array_almost_equal(
-        dx.contact.dist, np.array([-0.15, -0.15])
+        dx._impl.contact.dist, np.array([-0.15, -0.15])
     )
     np.testing.assert_array_almost_equal(
-        dx.contact.frame[:, 0], np.array([[0, 0, -1]] * 2)
+        dx._impl.contact.frame[:, 0], np.array([[0, 0, -1]] * 2)
     )
 
   _CAP_EDGE_BOX = """
@@ -454,11 +459,11 @@ class CapsuleCollisionTest(parameterized.TestCase):
     """Tests edge contact."""
     d, dx = _collide(self._CAP_EDGE_BOX)
 
-    c = dx.contact
+    c = dx._impl.contact
     self.assertEqual(c.pos.shape[0], 2)
     self.assertGreater(c.dist[1], 0)
     # extract the contact point with penetration
-    c = jax.tree_util.tree_map(lambda x: x[:1], dx.contact)
+    c = jax.tree_util.tree_map(lambda x: x[:1], dx._impl.contact)
     c = c.replace(dim=c.dim[:1], efc_address=c.efc_address[:1])
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(c, d.contact, field.name, 'capsule_convex_edge', 1e-4)
@@ -470,13 +475,17 @@ class CapsuleCollisionTest(parameterized.TestCase):
     )
     _, dx = _collide(xml)
 
-    np.testing.assert_array_equal(dx.contact.dist < 0, np.array([True, False]))
-    np.testing.assert_array_almost_equal(dx.contact.dist[0], np.array([-0.13]))
-    np.testing.assert_array_almost_equal(
-        dx.contact.pos[0], np.array([0.5, 0, 0.435]), decimal=3
+    np.testing.assert_array_equal(
+        dx._impl.contact.dist < 0, np.array([True, False])
     )
     np.testing.assert_array_almost_equal(
-        dx.contact.frame[0, 0], np.array([0, 0, -1]), decimal=3
+        dx._impl.contact.dist[0], np.array([-0.13])
+    )
+    np.testing.assert_array_almost_equal(
+        dx._impl.contact.pos[0], np.array([0.5, 0, 0.435]), decimal=3
+    )
+    np.testing.assert_array_almost_equal(
+        dx._impl.contact.frame[0, 0], np.array([0, 0, -1]), decimal=3
     )
 
   def test_capsule_convex_edge_shallow_tip(self):
@@ -490,16 +499,16 @@ class CapsuleCollisionTest(parameterized.TestCase):
     xml = xml.replace('<body pos="0.5 0 0.55"', '<body pos="0.58 0 0.55"')
     d, dx = _collide(xml)
 
-    c = dx.contact
+    c = dx._impl.contact
     self.assertEqual(c.pos.shape[0], 2)
     self.assertGreater(c.dist[1], 0)
     # extract the contact point with penetration
-    c = jax.tree_util.tree_map(lambda x: x[:1], dx.contact)
+    c = jax.tree_util.tree_map(lambda x: x[:1], dx._impl.contact)
     c = c.replace(dim=c.dim[:1], efc_address=c.efc_address[:1])
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(c, d.contact, field.name, 'edge_shallow_tip1', 1e-4)
     np.testing.assert_array_almost_equal(
-        dx.contact.frame[0][0, :3], np.array([-0.43952, 0.0, -0.898233])
+        dx._impl.contact.frame[0][0, :3], np.array([-0.43952, 0.0, -0.898233])
     )
 
     # the capsule sphere is outside the edge voronoi region, so there is a
@@ -511,16 +520,16 @@ class CapsuleCollisionTest(parameterized.TestCase):
     xml = xml.replace('<body pos="0.5 0 0.55"', '<body pos="0.5 0 0.52"')
     d, dx = _collide(xml)
 
-    c = dx.contact
+    c = dx._impl.contact
     self.assertEqual(c.pos.shape[0], 2)
     self.assertGreater(c.dist[1], 0)
     # extract the contact point with penetration
-    c = jax.tree_util.tree_map(lambda x: x[:1], dx.contact)
+    c = jax.tree_util.tree_map(lambda x: x[:1], dx._impl.contact)
     c = c.replace(dim=c.dim[:1], efc_address=c.efc_address[:1])
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(c, d.contact, field.name, 'edge_shallow_tip2', 1e-4)
     np.testing.assert_array_almost_equal(
-        dx.contact.frame[0][0, :3], np.array([0.0, 0.0, -1.0])
+        dx._impl.contact.frame[0][0, :3], np.array([0.0, 0.0, -1.0])
     )
 
 
@@ -543,17 +552,17 @@ class CylinderTest(absltest.TestCase):
     d, dx = _collide(self._CYLINDER_PLANE)
 
     # cylinder is lying flat
-    np.testing.assert_array_less(dx.contact.dist[:2], 0)
-    np.testing.assert_array_less(-dx.contact.dist[2:], 0)
+    np.testing.assert_array_less(dx._impl.contact.dist[:2], 0)
+    np.testing.assert_array_less(-dx._impl.contact.dist[2:], 0)
 
     # sort position for comparison
-    idx = np.lexsort((dx.contact.pos[:, 0], dx.contact.pos[:, 1]))
-    dx = dx.tree_replace({'contact.pos': dx.contact.pos[idx]})
+    idx = np.lexsort((dx._impl.contact.pos[:, 0], dx._impl.contact.pos[:, 1]))
+    dx = dx.tree_replace({'_impl.contact.pos': dx._impl.contact.pos[idx]})
     idx = np.lexsort((d.contact.pos[:, 0], d.contact.pos[:, 1]))
     d.contact.pos[:] = d.contact.pos[idx]
 
     # extract the contact points with penetration
-    c = jax.tree_util.tree_map(lambda x: x[:2], dx.contact)
+    c = jax.tree_util.tree_map(lambda x: x[:2], dx._impl.contact)
     c = c.replace(dim=c.dim[:2], efc_address=c.efc_address[:2])
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(c, d.contact, field.name, 'cylinder_plane', 1e-5)
@@ -565,9 +574,11 @@ class CylinderTest(absltest.TestCase):
     xml = xml.replace('pos="0 0 0.04"', 'pos="0 0 0.095"')
     d, dx = _collide(xml)
 
-    np.testing.assert_array_less(dx.contact.dist, 0)
+    np.testing.assert_array_less(dx._impl.contact.dist, 0)
     for field in dataclasses.fields(Contact):
-      _assert_attr_eq(dx.contact, d.contact, field.name, 'cylinder_plane', 1e-5)
+      _assert_attr_eq(
+          dx._impl.contact, d.contact, field.name, 'cylinder_plane', 1e-5
+      )
 
   _SPHERE_CYLINDER = """
     <mujoco>
@@ -587,10 +598,10 @@ class CylinderTest(absltest.TestCase):
     """Tests sphere cylinder contact."""
     d, dx = _collide(self._SPHERE_CYLINDER)
     d.contact.pos[0][2] = 0.05  # MJX finds the deepest point on the surface
-    self.assertLess(dx.contact.dist[0], 0)
+    self.assertLess(dx._impl.contact.dist[0], 0)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(
-          dx.contact, d.contact, field.name, 'sphere-cylinder', 1e-4
+          dx._impl.contact, d.contact, field.name, 'sphere-cylinder', 1e-4
       )
 
 
@@ -613,11 +624,11 @@ class ConvexTest(absltest.TestCase):
     """Tests box collision with a plane."""
     d, dx = _collide(self._BOX_PLANE)
 
-    np.testing.assert_array_less(dx.contact.dist[:2], 0)
-    np.testing.assert_array_less(-dx.contact.dist[2:], 0)
+    np.testing.assert_array_less(dx._impl.contact.dist[:2], 0)
+    np.testing.assert_array_less(-dx._impl.contact.dist[2:], 0)
     # extract the contact points with penetration
     c = jax.tree_util.tree_map(
-        lambda x: jp.take(x, jp.array([0, 1]), axis=0), dx.contact
+        lambda x: jp.take(x, jp.array([0, 1]), axis=0), dx._impl.contact
     )
     c = c.replace(dim=c.dim[[0, 1]], efc_address=c.efc_address[[0, 1]])
     for field in dataclasses.fields(Contact):
@@ -639,16 +650,18 @@ class ConvexTest(absltest.TestCase):
     """Tests box collision with a plane."""
     d, dx = _collide(self._FLAT_BOX_PLANE)
 
-    np.testing.assert_array_less(dx.contact.dist, 0)
+    np.testing.assert_array_less(dx._impl.contact.dist, 0)
 
     # sort positions for comparison
-    idx = np.lexsort((dx.contact.pos[:, 0], dx.contact.pos[:, 1]))
-    dx = dx.tree_replace({'contact.pos': dx.contact.pos[idx]})
+    idx = np.lexsort((dx._impl.contact.pos[:, 0], dx._impl.contact.pos[:, 1]))
+    dx = dx.tree_replace({'_impl.contact.pos': dx._impl.contact.pos[idx]})
     idx = np.lexsort((d.contact.pos[:, 0], d.contact.pos[:, 1]))
     d.contact.pos[:] = d.contact.pos[idx]
 
     for field in dataclasses.fields(Contact):
-      _assert_attr_eq(dx.contact, d.contact, field.name, 'flat_box_plane', 1e-5)
+      _assert_attr_eq(
+          dx._impl.contact, d.contact, field.name, 'flat_box_plane', 1e-5
+      )
 
   _BOX_BOX = """
     <mujoco>
@@ -670,7 +683,7 @@ class ConvexTest(absltest.TestCase):
   def test_box_box(self):
     """Tests a face contact for a box-box collision."""
     d, dx = _collide(self._BOX_BOX, keyframe=0)
-    c = dx.contact
+    c = dx._impl.contact
 
     self.assertEqual(c.pos.shape[0], 4)
     np.testing.assert_array_less(c.dist, 0)
@@ -679,7 +692,7 @@ class ConvexTest(absltest.TestCase):
         c.frame[:, 0, :], np.array([[0.0, 0.0, 1.0]] * 4), decimal=2
     )
     np.testing.assert_array_almost_equal(
-        c.frame.reshape((-1, 9)), d.contact.frame[:4, :]
+        c.frame.reshape((-1, 9)), d.contact.frame[:4, :], decimal=2
     )
 
   _BOX_BOX_EDGE = """
@@ -702,10 +715,10 @@ class ConvexTest(absltest.TestCase):
     d, dx = _collide(self._BOX_BOX_EDGE)
 
     # Only one contact point.
-    np.testing.assert_array_less(dx.contact.dist[:1], 0)
-    np.testing.assert_array_less(-dx.contact.dist[1:], 0)
+    np.testing.assert_array_less(dx._impl.contact.dist[:1], 0)
+    np.testing.assert_array_less(-dx._impl.contact.dist[1:], 0)
     # extract the contact point with penetration
-    c = jax.tree_util.tree_map(lambda x: x[:1], dx.contact)
+    c = jax.tree_util.tree_map(lambda x: x[:1], dx._impl.contact)
     c = c.replace(dim=c.dim[:1], efc_address=c.efc_address[:1])
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(c, d.contact, field.name, 'box_box_edge', 1e-2)
@@ -737,7 +750,7 @@ class ConvexTest(absltest.TestCase):
         ).read_bytes(),
     }
     _, dx = _collide(self._CONVEX_CONVEX, assets=assets)
-    c = dx.contact
+    c = dx._impl.contact
 
     # Only one contact point for an edge contact.
     self.assertLess(c.dist[0], 0)
@@ -767,7 +780,7 @@ class ConvexTest(absltest.TestCase):
   def test_convex_convex_edge(self):
     """Tests convex-convex collisions with edge contact via _sat_gaussmap."""
     _, dx = _collide(self._CONVEX_CONVEX_THIN)
-    c = dx.contact
+    c = dx._impl.contact
 
     # Only one contact point for an edge contact.
     self.assertLess(c.dist[0], 0)
@@ -782,8 +795,22 @@ class ConvexTest(absltest.TestCase):
             'pos="0.0 2.0 0.35"', 'pos="0.0 2.0 0"'
         )
     )
-    c = dx.contact
+    c = dx._impl.contact
     self.assertTrue((c.dist > 0).all())
+
+  def test_no_overflow_warning_f32(self):
+    """Tests box-box and convex-convex don't overflow finfo.max in float32."""
+    directory = epath.resource_path('mujoco.mjx')
+    assets = {
+        'meshes/dodecahedron.stl': (
+            directory / 'test_data' / 'meshes/dodecahedron.stl'
+        ).read_bytes(),
+    }
+    with warnings.catch_warnings():  # Regression test for #3368
+      warnings.simplefilter('error', RuntimeWarning)
+      jax.clear_caches()  # force a re-trace so the cast (and warning) re-runs
+      _collide(self._BOX_BOX, keyframe=0)
+      _collide(self._CONVEX_CONVEX, assets=assets)
 
 
 class HFieldTest(absltest.TestCase):
@@ -838,8 +865,8 @@ class HFieldTest(absltest.TestCase):
 
     # check that all geoms are colliding with the hfield
     for geom_id in [1, 2, 3]:
-      mask = (dx.contact.geom == np.array([0, geom_id])).all(axis=1)
-      c = jax.tree_util.tree_map(lambda x, m=mask: x[m], dx.contact)
+      mask = (dx._impl.contact.geom == np.array([0, geom_id])).all(axis=1)
+      c = jax.tree_util.tree_map(lambda x, m=mask: x[m], dx._impl.contact)
       self.assertTrue((c.dist < 0).any())
       self.assertTrue((c.dist > -1e-3).any())
       # all contact normals are roughly pointing in the right direction
@@ -851,7 +878,7 @@ class HFieldTest(absltest.TestCase):
     for p in positions:
       xml = self._HFIELD.replace('<body pos="0 0', f'<body pos="{p}')
       _, dx = _collide(xml)
-      self.assertTrue((dx.contact.dist >= 0).all())
+      self.assertTrue((dx._impl.contact.dist >= 0).all())
 
   def test_hfield_deep(self):
     """Tests that objects with deep penetration do not get stuck."""
@@ -869,8 +896,8 @@ class HFieldTest(absltest.TestCase):
 
     # check that all geoms are colliding with the hfield
     for geom_id in [1, 2, 3]:
-      mask = (dx.contact.geom == np.array([0, geom_id])).all(axis=1)
-      c = jax.tree_util.tree_map(lambda x, m=mask: x[m], dx.contact)
+      mask = (dx._impl.contact.geom == np.array([0, geom_id])).all(axis=1)
+      c = jax.tree_util.tree_map(lambda x, m=mask: x[m], dx._impl.contact)
       # all contact normals are in the top half-face of the hfield
       self.assertTrue((c.frame[:, 0].dot(np.array([0, 0, 1])) > 0.7).all())
 
@@ -893,8 +920,8 @@ class BodyPairFilterTest(absltest.TestCase):
   def test_filter_self_collision(self):
     """Tests that self collisions get filtered."""
     d, dx = _collide(self._SELF_COLLISION)
-    self.assertEqual(dx.contact.pos.shape[0], d.contact.pos.shape[0])
-    self.assertEqual(dx.contact.pos.shape[0], 0)
+    self.assertEqual(dx._impl.contact.pos.shape[0], d.contact.pos.shape[0])
+    self.assertEqual(dx._impl.contact.pos.shape[0], 0)
 
   _PARENT_CHILD = """
     <mujoco>
@@ -924,8 +951,8 @@ class BodyPairFilterTest(absltest.TestCase):
     dx = kinematics_jit_fn(mx, dx)
     dx = collision_jit_fn(mx, dx)
 
-    self.assertEqual(dx.contact.pos.shape[0], d.contact.pos.shape[0])
-    self.assertEqual(dx.contact.pos.shape[0], 0)
+    self.assertEqual(dx._impl.contact.pos.shape[0], d.contact.pos.shape[0])
+    self.assertEqual(dx._impl.contact.pos.shape[0], 0)
 
   def test_disable_filter_parent_child(self):
     """Tests that filterparent flag disables parent-child filtering."""
@@ -942,8 +969,8 @@ class BodyPairFilterTest(absltest.TestCase):
     dx = collision_jit_fn(mx, dx)
 
     # one collision between parent-child spheres
-    self.assertEqual(dx.contact.pos.shape[0], d.contact.pos.shape[0])
-    self.assertEqual(dx.contact.pos.shape[0], 1)
+    self.assertEqual(dx._impl.contact.pos.shape[0], d.contact.pos.shape[0])
+    self.assertEqual(dx._impl.contact.pos.shape[0], 1)
 
 
 class DimTest(parameterized.TestCase):
@@ -1028,8 +1055,8 @@ class TopKContactTest(absltest.TestCase):
     dx_all = collision_jit_fn(mx_all, dx)
     dx_top_k = collision_jit_fn(mx_top_k, dx)
 
-    self.assertEqual(dx_all.contact.dist.shape, (3,))
-    self.assertEqual(dx_top_k.contact.dist.shape, (2,))
+    self.assertEqual(dx_all._impl.contact.dist.shape, (3,))
+    self.assertEqual(dx_top_k._impl.contact.dist.shape, (2,))
 
   _CAPSULES_MAX_PAIR = """
     <mujoco>
@@ -1074,9 +1101,9 @@ class TopKContactTest(absltest.TestCase):
     dx_all = collision_jit_fn(mx_all, dx)
     dx_top_k = collision_jit_fn(mx_top_k, dx)
 
-    self.assertEqual(dx_all.contact.dist.shape, (6,))
-    self.assertEqual(dx_top_k.contact.dist.shape, (2,))
-    self.assertTrue((dx_top_k.contact.dist < 0).all())
+    self.assertEqual(dx_all._impl.contact.dist.shape, (6,))
+    self.assertEqual(dx_top_k._impl.contact.dist.shape, (2,))
+    self.assertTrue((dx_top_k._impl.contact.dist < 0).all())
 
 
 if __name__ == '__main__':

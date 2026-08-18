@@ -30,7 +30,6 @@ namespace {
 static const char* const kDefaultModel = "testdata/model.xml";
 
 using ::testing::Pointwise;
-using ::testing::DoubleNear;
 using ::testing::NotNull;
 using PipelineTest = MujocoTest;
 
@@ -43,25 +42,44 @@ TEST_F(PipelineTest, SparseDenseEquivalent) {
   ASSERT_THAT(model, NotNull())  << error;
   mjData* data = mj_makeData(model);
 
-  mjtNum tol = 1e-11;
+  const mjtNum tol = MjTol(1e-11, 1e-4);
 
-  for (mjtSolver solver : {mjSOL_NEWTON, mjSOL_PGS, mjSOL_CG}) {
-    model->opt.solver = solver;
+  const char* sname[4] = {"NEWTON", "PGS", "CG", "NOSLIP"};
+  mjtSolver solver[4] = {mjSOL_NEWTON, mjSOL_PGS, mjSOL_CG, mjSOL_NEWTON};
 
-    // set dense jacobian, call mj_forward, save accelerations
+#ifdef mjUSESINGLE
+  // CG and NOSLIP sparse-dense equivalence breaks at float32 precision.
+  int nsolvers = 2;
+#else
+  int nsolvers = 4;
+#endif
+
+  for (int i = 0; i < nsolvers; i++) {
+    model->opt.solver = solver[i];
+    if (i == 3) {
+      model->opt.noslip_iterations = 2;
+    }
+
+    // set dense jacobian, call mj_step, save qacc and new qpos
     model->opt.jacobian = mjJAC_DENSE;
     mj_resetDataKeyframe(model, data, 0);
-    mj_forward(model, data);
+    mj_step(model, data);
     std::vector<mjtNum> qacc_dense = AsVector(data->qacc, model->nv);
+    std::vector<mjtNum> qpos_dense = AsVector(data->qpos, model->nq);
 
-    // set sparse jacobian, call mj_forward, save accelerations
+    // set sparse jacobian, call mj_step, save qacc and new qpos
     model->opt.jacobian = mjJAC_SPARSE;
     mj_resetDataKeyframe(model, data, 0);
-    mj_forward(model, data);
+    mj_step(model, data);
     std::vector<mjtNum> qacc_sparse = AsVector(data->qacc, model->nv);
+    std::vector<mjtNum> qpos_sparse = AsVector(data->qpos, model->nq);
 
     // expect accelerations to be insignificantly different
-    EXPECT_THAT(qacc_dense, Pointwise(DoubleNear(tol), qacc_sparse));
+    EXPECT_THAT(qacc_dense, Pointwise(MjNear(tol, tol), qacc_sparse))
+        << "failed qacc equivalence for solver=" << sname[i];
+    // expect positions to be insignificantly different
+    EXPECT_THAT(qpos_dense, Pointwise(MjNear(tol, tol), qpos_sparse))
+        << "failed qpos equivalence for solver=" << sname[i];
   }
 
   mj_deleteData(data);

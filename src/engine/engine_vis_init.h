@@ -15,7 +15,6 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_VIS_INIT_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_VIS_INIT_H_
 
-#include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>

@@ -17,7 +17,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
-#include <mujoco/mjmodel.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,9 +34,29 @@ MJAPI int mju_cholUpdate(mjtNum* mat, mjtNum* x, int n, int flg_plus);
 
 // sparse reverse-order Cholesky decomposition: mat = L'*L; return 'rank'
 //  mat must be lower-triangular, have preallocated space for fill-in
-int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
-                         int* rownnz, const int* rowadr, int* colind,
-                         mjData* d);
+MJAPI int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
+                               int* rownnz, const int* rowadr, int* colind, mjData* d);
+
+// symbolic reverse-Cholesky: compute both L (CSR) and LT (CSC) structures
+//   if L_colind is NULL, perform counting logic (fill rownnz/rowadr arrays and return total nnz)
+//   if L_colind is not NULL, assume rownnz/rowadr are precomputed and fill colind/map arrays
+//   reads pattern from upper triangle
+//   d may be NULL: scratch is then heap-allocated
+//   based on ldl_symbolic from 'Algorithm 8xx: a concise sparse Cholesky factorization package'
+MJAPI int mju_cholFactorSymbolic(int* L_colind, int* L_rownnz, int* L_rowadr,
+                                 int* LT_colind, int* LT_rownnz, int* LT_rowadr, int* LT_map,
+                                 const int* rownnz, const int* rowadr, const int* colind,
+                                 int n, mjData* d);
+
+// numeric reverse-Cholesky: compute L values given fixed sparsity pattern, returns rank
+//  L_colind must already contain the correct sparsity pattern (from mju_cholFactorSymbolic)
+//  LT_map[k] gives index in L for LT_colind[k]
+MJAPI int mju_cholFactorNumeric(mjtNum* L, int n, mjtNum mindiag,
+                                const int* L_rownnz, const int* L_rowadr, const int* L_colind,
+                                const int* LT_rownnz, const int* LT_rowadr, const int* LT_colind,
+                                const int* LT_map, const mjtNum* H,
+                                const int* H_rownnz, const int* H_rowadr, const int* H_colind,
+                                mjData* d);
 
 // sparse reverse-order Cholesky solve
 void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n,
@@ -44,9 +64,9 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 
 // sparse reverse-order Cholesky rank-one update: L'*L +/i x*x'; return rank
 //  x is sparse, change in sparsity pattern of mat is not allowed
-int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
-                         const int* rownnz, const int* rowadr, const int* colind,
-                         int x_nnz, int* x_ind, mjData* d);
+MJAPI int mju_cholUpdateSparse(mjtNum* mat, const mjtNum* x, int n, int flg_plus,
+                               const int* rownnz, const int* rowadr, const int* colind,
+                               int x_nnz, const int* x_ind, mjData* d);
 
 // band-dense Cholesky decomposition
 //  returns minimum value in the factorized diagonal, or 0 if rank-deficient
@@ -63,26 +83,46 @@ MJAPI void mju_cholSolveBand(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 
 // convert banded matrix to dense matrix, fill upper triangle if flg_sym>0
 MJAPI void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense,
-                          mjtByte flg_sym);
+                          mjtBool flg_sym);
 
 // convert dense matrix to banded matrix
 MJAPI void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense);
 
 // multiply band-diagonal matrix with vector, include upper triangle if flg_sym>0
 MJAPI void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                             int ntotal, int nband, int ndense, int nvec, mjtByte flg_sym);
+                             int ntotal, int nband, int ndense, int nvec, mjtBool flg_sym);
 
 // address of diagonal element i in band-dense matrix representation
 MJAPI int mju_bandDiag(int i, int ntotal, int nband, int ndense);
 
-// sparse reverse-order LU factorization, no fill-in (assuming tree topology)
+// dense LU factorization with partial pivoting
+//   factorizes n x n row-major matrix A in-place into L and U
+//   L has unit diagonal (not stored), U has explicit diagonal
+//   pivot stores row permutation: row i of original = row pivot[i] of result
+//   return 1 if successful, 0 if singular (diagonal element < mjMINVAL)
+MJAPI int mju_factorLU(mjtNum* A, int n, int* pivot);
+
+// solve A*x = b given LU factorization of A, LU and pivot are output of mju_factorLU
+MJAPI void mju_solveLU(mjtNum* x, const mjtNum* LU, const mjtNum* b, const int* pivot, int n);
+
+// 6x6 specialization of mju_factorLU (identical results, allows full unrolling)
+MJAPI int mju_factorLU6(mjtNum A[36], int pivot[6]);
+
+// solve A*x = b given 6x6 LU factorization from mju_factorLU6
+MJAPI void mju_solveLU6(mjtNum x[6], const mjtNum LU[36], const mjtNum b[6], const int pivot[6]);
+
+// sparse reverse-order LU factorization, assume tree topology (only dofs in index, if given)
 //  LU = L + U; original = (U+I) * L; scratch is size n
 void mju_factorLUSparse(mjtNum *LU, int n, int* scratch,
-                        const int *rownnz, const int *rowadr, const int *colind);
+                        const int *rownnz, const int *rowadr, const int *colind, const int *index);
 
-// solve mat*res=vec given LU factorization of mat
+// solve mat*res=vec given LU factorization of mat (only dofs in index, if given)
 void mju_solveLUSparse(mjtNum *res, const mjtNum *LU, const mjtNum* vec, int n,
-                       const int *rownnz, const int *rowadr, const int* diag, const int *colind);
+                       const int *rownnz, const int *rowadr, const int* diag, const int *colind,
+                       const int *index);
+
+// solve 3x3 linear system A*x = b using Gaussian elimination
+void mju_solve3(mjtNum x[3], const mjtNum A[9], const mjtNum b[3]);
 
 // eigenvalue decomposition of symmetric 3x3 matrix
 MJAPI int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);

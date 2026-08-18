@@ -5,11 +5,28 @@
 #
 # We set CMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF here to reduce build time.
 # It is highly recommended that this is set to ON for production builds.
+#
+# Build speed notes:
+#   * The compiler matrix lives in build_matrix.json. Pull requests build the
+#     representative "core" subset; pushes to main run the full compiler sweep.
+#     (See generate_matrix() in build_steps.sh.)
+#   * Studio/Filament and WASM are NOT built in the main matrix - they are covered
+#     by the dedicated `studio` and `wasm` jobs below. WASM in particular is built
+#     with emcc, which ignores the host compiler, so building it per-compiler added
+#     no coverage.
+#   * ccache is used to wrap the compiler. PR branches fall back to main's cache, so
+#     the expensive (and pinned) Filament build is restored rather than recompiled.
+
+# TODO(matijak): Consider switching Windows to Ninja builds only, this configures slightly faster
+# and brings Windows in line with other OSes. Also we wouldn't need to specify the --config option
+# in the build step because Ninja doesn't support multiple configurations (unlike MSBuild).
 
 name: build
 
 on:
   push:
+    branches:
+      - main
     paths-ignore:
       - "doc/**"
       - "**/README.md"
@@ -18,253 +35,180 @@ on:
       - "doc/**"
       - "**/README.md"
 
+# Limit the default GITHUB_TOKEN to read-only. No job here writes via the token:
+# checkout reads the repo; ccache/cache and upload-artifact use their own backend
+# tokens; the chat notification uses a secret webhook.
+permissions:
+  contents: read
+
 jobs:
+  # Compute the build matrix based on the event: PRs get the "core" representative
+  # compiler set, pushes to main get the full sweep.
+  setup:
+    name: "setup (compute matrix)"
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.generate.outputs.matrix }}
+    steps:
+    - uses: actions/checkout@v6
+    - name: Generate build matrix
+      id: generate
+      env:
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+      run: bash ./.github/workflows/build_steps.sh generate_matrix
+
   mujoco:
+    needs: setup
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-22.04
-            additional_label: "-gcc-12"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_C_COMPILER:STRING=gcc-12
-              -DCMAKE_CXX_COMPILER:STRING=g++-12
-              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
-            tmpdir: "/tmp"
-          - os: ubuntu-22.04
-            additional_label: "-gcc-11"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_C_COMPILER:STRING=gcc-11
-              -DCMAKE_CXX_COMPILER:STRING=g++-11
-              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
-            tmpdir: "/tmp"
-          - os: ubuntu-22.04
-            additional_label: "-gcc-10"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_C_COMPILER:STRING=gcc-10
-              -DCMAKE_CXX_COMPILER:STRING=g++-10
-              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
-            tmpdir: "/tmp"
-          - os: ubuntu-22.04
-            additional_label: "-gcc-9"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_C_COMPILER:STRING=gcc-9
-              -DCMAKE_CXX_COMPILER:STRING=g++-9
-              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
-            tmpdir: "/tmp"
-          - os: ubuntu-22.04
-            additional_label: "-clang-14"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_C_COMPILER:STRING=clang-14
-              -DCMAKE_CXX_COMPILER:STRING=clang++-14
-              -DMUJOCO_HARDEN:BOOL=ON
-            tmpdir: "/tmp"
-          - os: ubuntu-22.04
-            additional_label: "-clang-13"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_C_COMPILER:STRING=clang-13
-              -DCMAKE_CXX_COMPILER:STRING=clang++-13
-              -DMUJOCO_HARDEN:BOOL=ON
-            tmpdir: "/tmp"
-          - os: ubuntu-20.04
-            additional_label: "-clang-12"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_C_COMPILER:STRING=clang-12
-              -DCMAKE_CXX_COMPILER:STRING=clang++-12
-              -DMUJOCO_HARDEN:BOOL=ON
-            tmpdir: "/tmp"
-          - os: ubuntu-20.04
-            additional_label: "-clang-11"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_C_COMPILER:STRING=clang-11
-              -DCMAKE_CXX_COMPILER:STRING=clang++-11
-              -DMUJOCO_HARDEN:BOOL=ON
-            tmpdir: "/tmp"
-          - os: ubuntu-20.04
-            additional_label: "-clang-10"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_C_COMPILER:STRING=clang-10
-              -DCMAKE_CXX_COMPILER:STRING=clang++-10
-              -DMUJOCO_HARDEN:BOOL=ON
-            tmpdir: "/tmp"
-          - os: macos-13
-            cmake_args: >-
-              -G Ninja
-              -DMUJOCO_HARDEN:BOOL=ON
-            tmpdir: "/tmp"
-          - os: windows-2022
-            cmake_args: >-
-              -DCMAKE_SYSTEM_VERSION="10.0.22621.0"
-            cmake_build_args: "-- -m"
-            tmpdir: "C:/Temp"
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
 
-    name: "${{ matrix.os }}${{ matrix.additional_label }}"
+    name: "${{ matrix.label }}"
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
+
     - name: Prepare Linux
       if: ${{ runner.os == 'Linux' }}
-      run: >
-        sudo apt-get update && sudo apt-get install
-        libgl1-mesa-dev
-        libxinerama-dev
-        libxcursor-dev
-        libxrandr-dev
-        libxi-dev
-        ninja-build
+      run: bash ./.github/workflows/build_steps.sh prepare_linux
+
     - name: Prepare macOS
       if: ${{ runner.os == 'macOS' }}
       run: brew install ninja
-    - uses: actions/setup-python@v4
+
+    - uses: actions/setup-python@v6
       with:
         python-version: "3.11"
+
+    # uv makes the dependency install much faster, with a cross-run cache. POSIX
+    # only: Windows stays on pip (it is not a Python-setup bottleneck, and this
+    # keeps the venv activate fixup path untouched there).
+    - name: Install uv
+      if: ${{ runner.os != 'Windows' }}
+      uses: astral-sh/setup-uv@v8.2.0
+      with:
+        enable-cache: true
+        cache-dependency-glob: "python/build_requirements*.txt"
+
     - name: Prepare Python
       shell: bash
-      run: |
-        repo="${PWD}"
-        cd ${{ matrix.tmpdir }}
-        python -m venv venv
-        if [[ $RUNNER_OS == "Windows" ]]; then
-        mkdir venv/bin
-        fixpath="$(s="$(cat venv/Scripts/activate | grep VIRTUAL_ENV=)"; echo "${s:13:-1}")"
-        sed -i "s#$(printf "%q" "${fixpath}")#$(cygpath "${fixpath}")#g" venv/Scripts/activate
-        ln -s ../Scripts/activate venv/bin/activate
-        fi
-        source venv/bin/activate
-        python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements.txt"
-        python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements_usd.txt"
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+      run: bash ./.github/workflows/build_steps.sh prepare_python
+
+    # ccache dramatically speeds up warm rebuilds. The key is the matrix label so
+    # each compiler gets its own cache; the action's restore-keys let PR branches
+    # fall back to main's cache. ccache on Windows/MSVC is finicky and Windows
+    # isn't the bottleneck, so we skip it there.
+    - name: Setup ccache
+      if: ${{ runner.os != 'Windows' }}
+      uses: hendrikmuhs/ccache-action@v1.2.23
+      with:
+        key: ${{ matrix.label }}
+        max-size: "1.5G"
+
     - name: Configure MuJoCo
-      run: >
-        mkdir build &&
-        cd build &&
-        cmake ..
-        -DCMAKE_BUILD_TYPE:STRING=Release
-        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
-        -DCMAKE_INSTALL_PREFIX:STRING=${{ matrix.tmpdir }}/mujoco_install
-        -DMUJOCO_BUILD_EXAMPLES:BOOL=OFF
-        ${{ matrix.cmake_args }}
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+        CMAKE_ARGS: ${{ matrix.cmake_args }}
+      run: bash ./.github/workflows/build_steps.sh configure_mujoco
+
+    - name: Upload CMake Configure Log
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: cmake-configure-log-${{ matrix.label }}
+        path: build/CMakeFiles/CMakeConfigureLog.yaml
+        retention-days: 5
+
     - name: Build MuJoCo
       working-directory: build
-      run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
-    - name: Copy in the correct VC runtime DLLs (workaround for actions/runner-images#10004)
-      if: ${{ runner.os == 'Windows' }}
-      working-directory: build
-      shell: powershell
-      run: |
-        Copy-Item (Join-Path `
-          ((Get-ChildItem -Directory `
-              -Path "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Redist\MSVC\14.*" |
-            Sort -Descending | Select-Object -First 1).FullName
-          ) 'x64\Microsoft.VC143.CRT\*.dll') "bin\Release"
+      env:
+        CMAKE_BUILD_ARGS: ${{ matrix.cmake_build_args }}
+      run: bash ../.github/workflows/build_steps.sh build_mujoco
+
     - name: Test MuJoCo
       working-directory: build
-      run: ctest -C Release --output-on-failure .
+      run: bash ../.github/workflows/build_steps.sh test_mujoco
+
     - name: Install MuJoCo
       working-directory: build
-      run: cmake --install .
+      run: bash ../.github/workflows/build_steps.sh install_mujoco
+
     - name: Copy plugins (POSIX)
       if: ${{ runner.os != 'Windows' }}
       working-directory: build
-      run: mkdir -p ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp lib/libactuator.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp lib/libelasticity.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp lib/libsensor.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp lib/libsdf.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+      run: bash ../.github/workflows/build_steps.sh copy_plugins_posix
+
     - name: Copy plugins (Windows)
       if: ${{ runner.os == 'Windows' }}
       working-directory: build
-      run: mkdir -p ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp bin/Release/actuator.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp bin/Release/elasticity.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp bin/Release/sensor.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+      run: bash ../.github/workflows/build_steps.sh copy_plugins_window
+
     - name: Configure samples
       working-directory: sample
-      run: >
-        mkdir build &&
-        cd build &&
-        cmake ..
-        -DCMAKE_BUILD_TYPE:STRING=Release
-        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
-        -Dmujoco_ROOT:STRING=${{ matrix.tmpdir }}/mujoco_install
-        ${{ matrix.cmake_args }}
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+        CMAKE_ARGS: ${{ matrix.cmake_args }}
+      run: bash ../.github/workflows/build_steps.sh configure_samples
+
     - name: Build samples
       working-directory: sample/build
       run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
+
     - name: Configure simulate
       working-directory: simulate
-      run: >
-        mkdir build &&
-        cd build &&
-        cmake ..
-        -DCMAKE_BUILD_TYPE:STRING=Release
-        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
-        -Dmujoco_ROOT:STRING=${{ matrix.tmpdir }}/mujoco_install
-        ${{ matrix.cmake_args }}
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+        CMAKE_ARGS: ${{ matrix.cmake_args }}
+      run: bash ../.github/workflows/build_steps.sh configure_simulate
+
     - name: Build simulate
       working-directory: simulate/build
-      run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
+      env:
+        CMAKE_BUILD_ARGS: ${{ matrix.cmake_build_args }}
+      run: bash ../../.github/workflows/build_steps.sh build_simulate
+
     - name: Make Python sdist
       shell: bash
       working-directory: python
-      run: >
-        source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        ./make_sdist.sh
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+      run: bash ../.github/workflows/build_steps.sh make_python_sdist
+
     - name: Build Python bindings
       if: ${{ runner.os != 'Windows' }}
       shell: bash
       working-directory: python/dist
-      run: >
-        source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        MUJOCO_PATH="${{ matrix.tmpdir }}/mujoco_install"
-        MUJOCO_PLUGIN_PATH="${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin"
-        MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${{ matrix.cmake_args }}"
-        pip wheel -v --no-deps mujoco-*.tar.gz
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+        CMAKE_ARGS: ${{ matrix.cmake_args }}
+      run: bash ../../.github/workflows/build_steps.sh build_python_bindings
+
     - name: Install Python bindings
       if: ${{ runner.os != 'Windows' }}
       shell: bash
       working-directory: python/dist
-      run: >
-        source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        pip install --no-index mujoco-*.whl
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+      run: bash ../../.github/workflows/build_steps.sh install_python_bindings
+
     - name: Test Python bindings
       if: ${{ runner.os != 'Windows' }}
       shell: bash
       env:
         MUJOCO_GL: disable
-      run: >
-        source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        pytest -v --pyargs mujoco
-    - name: Package MJX
-      if: ${{ runner.os != 'Windows' }}
-      shell: bash
-      working-directory: mjx
-      run:
-        source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        python -m build .
-    - name: Install MJX
-      if: ${{ runner.os != 'Windows' }}
-      shell: bash
-      working-directory: mjx
-      run:
-        source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        pip install --require-hashes -r requirements.txt &&
-        pip install --no-index dist/mujoco_mjx-*.whl
-    - name: Test MJX
-      if: ${{ runner.os != 'Windows' }}
-      shell: bash
-      run:
-        source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        pytest -n auto -v -k 'not IntegrationTest' --pyargs mujoco.mjx
+        TMPDIR: ${{ matrix.tmpdir }}
+      run: bash ./.github/workflows/build_steps.sh test_python_bindings
+
+    # MJX (mujoco.mjx) is covered by the dedicated `mjx` job below; it is
+    # compiler-independent so it does not need to run in every matrix job.
+
     - name: Notify team chat
       shell: bash
       env:
@@ -273,27 +217,231 @@ jobs:
         CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
         CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
         CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        CHATMSG_JOB_ID: ${{ matrix.os }}${{ matrix.additional_label }}
-      if: ${{ failure() && github.event_name == 'push' && env.GCHAT_API_URL != '' }}
-      run: |
-        CHATMSG="$(cat <<-'EOF' | python3
-        import json
-        import os
-        env = lambda x: os.getenv(x, '')
-        data = dict(
-            result=env('JOB_URL'),
-            job=env('CHATMSG_JOB_ID'),
-            commit=env('GITHUB_SHA')[:6],
-            name=env('CHATMSG_AUTHOR_NAME').replace('```', ''),
-            email=env('CHATMSG_AUTHOR_EMAIL'),
-            msg=env('CHATMSG_COMMIT_MESSAGE').replace('```', '')
-        )
-        text = '<{result}|*FAILURE*>: job `{job}` commit `{commit}`\n```Author: {name}<{email}>\n\n{msg}```'.format(**data)
-        print(json.dumps({'text' : text}))
-        EOF
-        )" &&
+        CHATMSG_JOB_ID: ${{ matrix.label }}
+      if: failure() && github.ref_name == 'main' && github.event_name == 'push' && env.GCHAT_API_URL != ''
+      run: bash ./.github/workflows/build_steps.sh notify_team_chat
 
-        curl "$GCHAT_API_URL&threadKey=$GITHUB_SHA&messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD" \
-        -X POST \
-        -H "Content-Type: application/json" \
-        --data-raw "${CHATMSG}"
+  # This job quickly determines if MuJoCo Studio is broken. It is the only place
+  # Filament is compiled in CI, so ccache here is what keeps the long pole short.
+  studio:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            label: "ubuntu-24.04-clang-18-studio"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=clang-18
+              -DCMAKE_CXX_COMPILER:STRING=clang++-18
+              -DMUJOCO_HARDEN:BOOL=ON
+          # gcc canary: Filament is compiler-dependent and historically finicky on
+          # gcc, so keep one gcc Studio build even though the matrix no longer does.
+          - os: ubuntu-24.04
+            label: "ubuntu-24.04-gcc-14-studio"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=gcc-14
+              -DCMAKE_CXX_COMPILER:STRING=g++-14
+              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
+          - os: windows-2025
+            label: "windows-2025-ninja-studio"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_SYSTEM_VERSION=10.0.26100.0
+          - os: macos-15
+            label: "macos-15-arm64-studio"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_CXX_FLAGS="-Wno-error=deprecated-declarations"
+              -DMUJOCO_HARDEN:BOOL=ON
+
+    name: "${{ matrix.label }}"
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Prepare Windows (setup MSVC)
+      if: ${{ runner.os == 'Windows' }}
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Prepare Linux
+      if: ${{ runner.os == 'Linux' }}
+      run: bash ./.github/workflows/build_steps.sh prepare_linux
+
+    # Key the cache on the Filament pin: hashing cmake/third_party_deps/filament.cmake
+    # captures BOTH the pinned commit hash and the FILAMENT_* build flags, so bumping
+    # either starts a fresh cache namespace instead of restoring stale artifacts.
+    # (Correctness does not depend on this: ccache is content-addressed on the full
+    # compiler invocation, so changing any build flag forces a recompile regardless.)
+    - name: Setup ccache
+      if: ${{ runner.os != 'Windows' }}
+      uses: hendrikmuhs/ccache-action@v1.2.23
+      with:
+        key: ${{ matrix.label }}-filament-${{ hashFiles('cmake/third_party_deps/filament.cmake') }}
+        restore-keys: ${{ matrix.label }}-filament-
+        max-size: "2.0G"
+
+    - name: Configure Studio
+      env:
+        CMAKE_ARGS: ${{ matrix.cmake_args }}
+      run: bash ./.github/workflows/build_steps.sh configure_studio
+
+    - name: Build Studio
+      run: bash ./.github/workflows/build_steps.sh build_studio
+
+    - name: Notify team chat
+      shell: bash
+      env:
+        GCHAT_API_URL: ${{ secrets.GCHAT_API }}
+        JOB_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
+        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
+        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        CHATMSG_JOB_ID: ${{ matrix.label }}
+      if: failure() && github.ref_name == 'main' && github.event_name == 'push' && env.GCHAT_API_URL != ''
+      run: bash ./.github/workflows/build_steps.sh notify_team_chat
+
+
+  # This job quickly determines if WASM bindings are broken.
+  wasm:
+    name: "ubuntu-24.04-clang-18-wasm"
+    runs-on: ubuntu-24.04
+    env:
+      label: "ubuntu-24.04-clang-18-wasm"
+      cmake_args: >-
+        -G Ninja
+        -DCMAKE_C_COMPILER:STRING=clang-18
+        -DCMAKE_CXX_COMPILER:STRING=clang++-18
+        -DMUJOCO_HARDEN:BOOL=ON
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Setup Node.js for WASM bindings
+      uses: actions/setup-node@v6
+      with:
+        node-version: '24.x'
+
+    - name: Prepare Linux
+      if: ${{ runner.os == 'Linux' }}
+      run: bash ./.github/workflows/build_steps.sh prepare_linux
+
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1.2.23
+      with:
+        key: ${{ env.label }}
+        max-size: "1.5G"
+
+    # For convenience run multiple build_steps functions in a single step.
+    - name: Prepare, Build and Test WASM bindings
+      env:
+        CMAKE_ARGS: ${{ env.cmake_args }}
+      run: |
+        bash ./.github/workflows/build_steps.sh npm_ci
+        bash ./.github/workflows/build_steps.sh setup_emsdk
+        bash ./.github/workflows/build_steps.sh build_test_wasm
+
+    - name: Notify team chat
+      shell: bash
+      env:
+        GCHAT_API_URL: ${{ secrets.GCHAT_API }}
+        JOB_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
+        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
+        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        CHATMSG_JOB_ID: ${{ env.label }}
+      if: failure() && github.ref_name == 'main' && github.event_name == 'push' && env.GCHAT_API_URL != ''
+      run: bash ./.github/workflows/build_steps.sh notify_team_chat
+
+
+  # MJX (mujoco.mjx) is pure JAX/XLA and compiler-independent: it imports the
+  # mujoco Python package only as a reference, so its tests run once here instead
+  # of in every matrix job. MuJoCo is built WITHOUT the C++ test suite (MJX does
+  # not need it) to keep the build lean.
+  mjx:
+    name: "ubuntu-24.04-clang-18-mjx"
+    runs-on: ubuntu-24.04
+    env:
+      TMPDIR: "/tmp"
+      CMAKE_ARGS: >-
+        -G Ninja
+        -DCMAKE_C_COMPILER:STRING=clang-18
+        -DCMAKE_CXX_COMPILER:STRING=clang++-18
+        -DMUJOCO_HARDEN:BOOL=ON
+        -DMUJOCO_BUILD_TESTS:BOOL=OFF
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Prepare Linux
+      run: bash ./.github/workflows/build_steps.sh prepare_linux
+
+    - uses: actions/setup-python@v6
+      with:
+        python-version: "3.11"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v8.2.0
+      with:
+        enable-cache: true
+        cache-dependency-glob: "python/build_requirements*.txt"
+
+    - name: Prepare Python
+      run: bash ./.github/workflows/build_steps.sh prepare_python
+
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1.2.23
+      with:
+        key: ubuntu-24.04-clang-18-mjx
+        max-size: "1.0G"
+
+    - name: Configure MuJoCo
+      run: bash ./.github/workflows/build_steps.sh configure_mujoco
+
+    - name: Build MuJoCo
+      working-directory: build
+      run: bash ../.github/workflows/build_steps.sh build_mujoco
+
+    - name: Install MuJoCo
+      working-directory: build
+      run: bash ../.github/workflows/build_steps.sh install_mujoco
+
+    - name: Copy plugins
+      working-directory: build
+      run: bash ../.github/workflows/build_steps.sh copy_plugins_posix
+
+    - name: Make Python sdist
+      working-directory: python
+      run: bash ../.github/workflows/build_steps.sh make_python_sdist
+
+    - name: Build Python bindings
+      working-directory: python/dist
+      run: bash ../../.github/workflows/build_steps.sh build_python_bindings
+
+    - name: Install Python bindings
+      working-directory: python/dist
+      run: bash ../../.github/workflows/build_steps.sh install_python_bindings
+
+    - name: Package MJX
+      working-directory: mjx
+      run: bash ../.github/workflows/build_steps.sh package_mjx
+
+    - name: Install MJX
+      working-directory: mjx
+      run: bash ../.github/workflows/build_steps.sh install_mjx
+
+    - name: Test MJX
+      working-directory: mjx
+      run: bash ../.github/workflows/build_steps.sh test_mjx
+
+    - name: Notify team chat
+      shell: bash
+      env:
+        GCHAT_API_URL: ${{ secrets.GCHAT_API }}
+        JOB_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
+        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
+        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        CHATMSG_JOB_ID: "ubuntu-24.04-clang-18-mjx"
+      if: failure() && github.ref_name == 'main' && github.event_name == 'push' && env.GCHAT_API_URL != ''
+      run: bash ./.github/workflows/build_steps.sh notify_team_chat

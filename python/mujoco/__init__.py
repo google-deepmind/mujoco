@@ -56,11 +56,26 @@ from mujoco._constants import *
 from mujoco._enums import *
 from mujoco._errors import *
 from mujoco._functions import *
-from mujoco._render import *
 from mujoco._specs import *
 from mujoco._structs import *
-from mujoco.gl_context import *
-from mujoco.renderer import Renderer
+
+import numpy as np
+MJTNUM_DTYPE = np.float32 if MJTNUM_BYTES == 4 else np.float64  # pylint: disable=undefined-variable
+
+try:
+  from mujoco._render import *  # pytype: disable=import-error
+except ImportError:
+  pass
+
+try:
+  from mujoco.rendering.classic.renderer import Renderer  # pytype: disable=import-error
+except ImportError:
+  pass
+
+try:
+  from mujoco.rendering.classic.gl_context import *  # pytype: disable=import-error
+except ImportError:
+  pass
 
 MjStruct: TypeAlias = Union[
     _specs.MjsBody,
@@ -91,7 +106,7 @@ MjStruct: TypeAlias = Union[
 
 
 def to_zip(spec: _specs.MjSpec, file: Union[str, IO[bytes]]) -> None:
-  """Converts a spec to a zip file.
+  """Converts an MjSpec to a zip file.
 
   Args:
     spec: The mjSpec to save to a file.
@@ -105,30 +120,79 @@ def to_zip(spec: _specs.MjSpec, file: Union[str, IO[bytes]]) -> None:
     file = open(file, 'wb')
   with zipfile.ZipFile(file, 'w') as zip_file:
     for filename, contents in files_to_zip.items():
-      zip_info = zipfile.ZipInfo(os.path.join(spec.modelname, filename))
+      zip_info = zipfile.ZipInfo(filename)
       zip_file.writestr(zip_info, contents)
 
 
+def from_zip(file: Union[str, IO[bytes]]) -> _specs.MjSpec:
+  """Reads a zip file and returns an MjSpec.
+
+  Args:
+    file: The path to the file to read from or the file object to read from.
+  Returns:
+    An MjSpec object.
+  """
+  assets = {}
+  xml_string = None
+  if isinstance(file, str):
+    file = open(file, 'rb')
+  if not zipfile.is_zipfile(file):
+    raise ValueError(f'File {file} is not a zip file.')
+  with zipfile.ZipFile(file, 'r') as zip_file:
+    xml_dir = None
+    for zip_info in zip_file.infolist():
+      if not zip_info.filename.endswith(os.path.sep):
+        with zip_file.open(zip_info.filename) as f:
+          if zip_info.filename.endswith('.xml'):
+            xml_string = f.read()
+            xml_dir = os.path.dirname(zip_info.filename)
+          else:
+            assets[zip_info.filename] = f.read()
+
+  if not xml_string:
+    raise ValueError('No XML file found in zip file.')
+
+  relative_assets = {}
+  for key, value in assets.items():
+    new_key = os.path.relpath(key, xml_dir)
+    relative_assets[new_key] = value
+  assets = relative_assets
+
+  return _specs.MjSpec.from_string(xml_string, assets=assets)
+
+
 class _MjBindModel:
+  """Wrapper for MjModel that allows binding multiple specs."""
+
   def __init__(self, elements: Sequence[Any]):
-    self.elements = elements
+    object.__setattr__(self, 'elements', elements)
 
   def __getattr__(self, key: str):
     items = []
     for e in self.elements:
       items.extend(getattr(e, key))
     return items
+
+  def __setattr__(self, key: str, value: Any):
+    raise AttributeError(f'Cannot set {key} on MjModel.')
 
 
 class _MjBindData:
+  """Wrapper for MjData that allows binding multiple specs."""
+
   def __init__(self, elements: Sequence[Any]):
-    self.elements = elements
+    object.__setattr__(self, 'elements', elements)
 
   def __getattr__(self, key: str):
     items = []
     for e in self.elements:
       items.extend(getattr(e, key))
     return items
+
+  def __setattr__(self, key: str, value: Any):
+    value_it = iter(value)
+    for element in self.elements:
+      setattr(element, key, next(value_it))
 
 
 def _bind_model(
@@ -166,10 +230,10 @@ def _bind_data(
   else:
     return data.bind_scalar(specs)
 
-
+_specs.MjSpec.from_zip = from_zip
 _specs.MjSpec.to_zip = to_zip
-_structs.MjData.bind = _bind_data
-_structs.MjModel.bind = _bind_model
+_structs.MjData.bind = _bind_data  # pyrefly: ignore[bad-assignment]
+_structs.MjModel.bind = _bind_model  # pyrefly: ignore[bad-assignment]
 
 HEADERS_DIR = os.path.join(os.path.dirname(__file__), 'include/mujoco')
 PLUGINS_DIR = os.path.join(os.path.dirname(__file__), 'plugin')

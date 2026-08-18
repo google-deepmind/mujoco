@@ -21,7 +21,7 @@
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjspec.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 
 // this is a C-API
@@ -66,23 +66,15 @@ MJAPI int mjs_activatePlugin(mjSpec* s, const char* name);
 // Turn deep copy on or off attach. Returns 0 on success.
 MJAPI int mjs_setDeepCopy(mjSpec* s, int deepcopy);
 
+// Copy real-valued arrays from model to spec, returns 1 on success.
+MJAPI int mj_copyBack(mjSpec* s, const mjModel* m);
+
 
 //---------------------------------- Attachment ----------------------------------------------------
 
-// Attach child body to a parent frame, return the attached body if success or NULL otherwise.
-MJAPI mjsBody* mjs_attachBody(mjsFrame* parent, const mjsBody* child,
-                              const char* prefix, const char* suffix);
-
-// Attach child frame to a parent body, return the attached frame if success or NULL otherwise.
-MJAPI mjsFrame* mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
-                                const char* prefix, const char* suffix);
-
-// Attach child body to a parent site, return the attached body if success or NULL otherwise.
-MJAPI mjsBody* mjs_attachToSite(mjsSite* parent, const mjsBody* child,
-                                const char* prefix, const char* suffix);
-
-// Detach body from mjSpec, remove all references and delete the body, return 0 on success.
-MJAPI int mjs_detachBody(mjSpec* s, mjsBody* b);
+// Attach child to a parent, return the attached element if success or NULL otherwise.
+MJAPI mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
+                             const char* prefix, const char* suffix);
 
 
 //---------------------------------- Add tree elements ---------------------------------------------
@@ -111,8 +103,8 @@ MJAPI mjsLight* mjs_addLight(mjsBody* body, const mjsDefault* def);
 // Add frame to body.
 MJAPI mjsFrame* mjs_addFrame(mjsBody* body, mjsFrame* parentframe);
 
-// Delete object corresponding to the given element, return 0 on success.
-MJAPI int mjs_delete(mjsElement* element);
+// Remove object corresponding to the given element, return 0 on success.
+MJAPI int mjs_delete(mjSpec* s, mjsElement* element);
 
 
 //---------------------------------- Add non-tree elements -----------------------------------------
@@ -125,6 +117,14 @@ MJAPI mjsSensor* mjs_addSensor(mjSpec* s);
 
 // Add flex.
 MJAPI mjsFlex* mjs_addFlex(mjSpec* s);
+
+// Add flexcomp: create flex with auto-generated bodies/joints, return flex spec.
+MJAPI mjsFlex* mjs_makeFlex(mjsBody* body, const char* name, const char* type, int dim,
+                            const char* dof, const int count[3], const int cellcount[3],
+                            const double spacing[3], const double scale[3], double radius,
+                            double mass, double inertiabox, int equality, int rigid, int flatskin,
+                            int elastic2d, const double pos[3], const double quat[4],
+                            const double origin[3], const char* file, const mjVFS* vfs);
 
 // Add contact pair.
 MJAPI mjsPair* mjs_addPair(mjSpec* s, const mjsDefault* def);
@@ -169,6 +169,53 @@ MJAPI mjsPlugin* mjs_addPlugin(mjSpec* s);
 MJAPI mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* parent);
 
 
+//---------------------------------- Set actuator parameters ---------------------------------------
+
+// Set actuator to motor, return error on failure.
+MJAPI const char* mjs_setToMotor(mjsActuator* actuator);
+
+// Set actuator to position, return error on failure.
+MJAPI const char* mjs_setToPosition(mjsActuator* actuator, double kp, double kv[1],
+                                    double dampratio[1], double timeconst[1], double inheritrange);
+
+// Set actuator to integrated velocity, return error on failure.
+MJAPI const char* mjs_setToIntVelocity(mjsActuator* actuator, double kp, double kv[1],
+                                       double dampratio[1], double timeconst[1], double inheritrange);
+
+// Set actuator to velocity, return error on failure.
+MJAPI const char* mjs_setToVelocity(mjsActuator* actuator, double kv);
+
+// Set to orientation actuator.
+MJAPI const char* mjs_setToOrientation(mjsActuator* actuator, double kp, double kv[1],
+                                       double dampratio[1], int ctrlspec);
+
+// Set to PID actuator.
+MJAPI const char* mjs_setToPID(mjsActuator* actuator, double kp, double kv[1], double dampratio[1],
+                               double ki[1], double imax[1], double slewmax[1], double inheritrange,
+                               int ctrlspec);
+
+// Set actuator to damper, return error on failure.
+MJAPI const char* mjs_setToDamper(mjsActuator* actuator, double kv);
+
+// Set actuator to cylinder actuator, return error on failure.
+MJAPI const char* mjs_setToCylinder(mjsActuator* actuator, double timeconst,
+                                    double bias, double area, double diameter);
+
+// Set actuator to muscle, return error on failure.
+MJAPI const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], double tausmooth,
+                                  double range[2], double force, double scale, double lmin,
+                                  double lmax, double vmax, double fpmax, double fvmax);
+
+// Set actuator to adhesion, return error on failure.
+MJAPI const char* mjs_setToAdhesion(mjsActuator* actuator, double gain);
+
+// Set actuator to DC motor, return error on failure.
+MJAPI const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double resistance,
+                                   double nominal[3], double saturation[3], double inductance[2],
+                                   double cogging[3], double controller[6], double thermal[6],
+                                   double lugre[5], int ctrlspec);
+
+
 //---------------------------------- Add assets ----------------------------------------------------
 
 // Add mesh.
@@ -186,57 +233,78 @@ MJAPI mjsTexture* mjs_addTexture(mjSpec* s);
 // Add material.
 MJAPI mjsMaterial* mjs_addMaterial(mjSpec* s, const mjsDefault* def);
 
+// Sets the vertices and normals of a mesh.
+MJAPI int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int nparams);
 
 //---------------------------------- Find/get utilities --------------------------------------------
 
 // Get spec from body.
-MJAPI mjSpec* mjs_getSpec(mjsElement* element);
+MJAPI mjSpec* mjs_getSpec(const mjsElement* element);
+
+// get spec that originally defined an element
+// contrary to mjs_getSpec, this does not change after attachment
+MJAPI mjSpec* mjs_getOriginSpec(const mjsElement* element);
 
 // Find spec (model asset) by name.
-MJAPI mjSpec* mjs_findSpec(mjSpec* spec, const char* name);
+MJAPI mjSpec* mjs_findSpec(const mjSpec* spec, const char* name);
 
 // Find body in spec by name.
-MJAPI mjsBody* mjs_findBody(mjSpec* s, const char* name);
+MJAPI mjsBody* mjs_findBody(const mjSpec* s, const char* name);
 
 // Find element in spec by name.
-MJAPI mjsElement* mjs_findElement(mjSpec* s, mjtObj type, const char* name);
+MJAPI mjsElement* mjs_findElement(const mjSpec* s, mjtObj type, const char* name);
 
 // Find child body by name.
-MJAPI mjsBody* mjs_findChild(mjsBody* body, const char* name);
+MJAPI mjsBody* mjs_findChild(const mjsBody* body, const char* name);
 
 // Get parent body.
-MJAPI mjsBody* mjs_getParent(mjsElement* element);
+MJAPI mjsBody* mjs_getParent(const mjsElement* element);
+
+// Get parent frame.
+MJAPI mjsFrame* mjs_getFrame(const mjsElement* element);
 
 // Find frame by name.
-MJAPI mjsFrame* mjs_findFrame(mjSpec* s, const char* name);
+MJAPI mjsFrame* mjs_findFrame(const mjSpec* s, const char* name);
 
 // Get default corresponding to an element.
-MJAPI mjsDefault* mjs_getDefault(mjsElement* element);
+MJAPI mjsDefault* mjs_getDefault(const mjsElement* element);
 
 // Find default in model by class name.
-MJAPI const mjsDefault* mjs_findDefault(mjSpec* s, const char* classname);
+MJAPI mjsDefault* mjs_findDefault(const mjSpec* s, const char* classname);
 
 // Get global default from model.
-MJAPI mjsDefault* mjs_getSpecDefault(mjSpec* s);
+MJAPI mjsDefault* mjs_getSpecDefault(const mjSpec* s);
 
 // Get element id.
-MJAPI int mjs_getId(mjsElement* element);
+MJAPI int mjs_getId(const mjsElement* element);
 
 
 //---------------------------------- Tree traversal ------------------------------------------------
 
 // Return body's first child of given type. If recurse is nonzero, also search the body's subtree.
-MJAPI mjsElement* mjs_firstChild(mjsBody* body, mjtObj type, int recurse);
+MJAPI mjsElement* mjs_firstChild(const mjsBody* body, mjtObj type, int recurse);
 
 // Return body's next child of the same type; return NULL if child is last.
 // If recurse is nonzero, also search the body's subtree.
-MJAPI mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child, int recurse);
+MJAPI mjsElement* mjs_nextChild(const mjsBody* body, const mjsElement* child, int recurse);
 
 // Return spec's first element of selected type.
-MJAPI mjsElement* mjs_firstElement(mjSpec* s, mjtObj type);
+MJAPI mjsElement* mjs_firstElement(const mjSpec* s, mjtObj type);
 
 // Return spec's next element; return NULL if element is last.
-MJAPI mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element);
+MJAPI mjsElement* mjs_nextElement(const mjSpec* s, const mjsElement* element);
+
+// Get wrapped element in tendon path.
+MJAPI mjsElement* mjs_getWrapTarget(const mjsWrap* wrap);
+
+// Get wrapped element in tendon path.
+MJAPI mjsSite* mjs_getWrapSideSite(const mjsWrap* wrap);
+
+// Get divisor of mjsWrap wrapping a puller.
+MJAPI double mjs_getWrapDivisor(const mjsWrap* wrap);
+
+// Get coefficient of mjsWrap wrapping a joint.
+MJAPI double mjs_getWrapCoef(const mjsWrap* wrap);
 
 // Safely cast an element as mjsBody, or return NULL if the element is not an mjsBody.
 MJAPI mjsBody* mjs_asBody(mjsElement* element);
@@ -313,6 +381,9 @@ MJAPI mjsPlugin* mjs_asPlugin(mjsElement* element);
 
 //---------------------------------- Attribute setters ---------------------------------------------
 
+// Set element's name, return 0 on success.
+MJAPI int mjs_setName(mjsElement* element, const char* name);
+
 // Copy buffer.
 MJAPI void mjs_setBuffer(mjByteVec* dest, const void* array, int size);
 
@@ -323,7 +394,7 @@ MJAPI void mjs_setString(mjString* dest, const char* text);
 MJAPI void mjs_setStringVec(mjStringVec* dest, const char* text);
 
 // Set entry in string vector.
-MJAPI mjtByte mjs_setInStringVec(mjStringVec* dest, int i, const char* text);
+MJAPI mjtBool mjs_setInStringVec(mjStringVec* dest, int i, const char* text);
 
 // Append text entry to string vector.
 MJAPI void mjs_appendString(mjStringVec* dest, const char* text);
@@ -349,20 +420,37 @@ MJAPI void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes);
 
 //---------------------------------- Attribute getters ---------------------------------------------
 
+// Get element's name.
+MJAPI mjString* mjs_getName(mjsElement* element);
+
 // Get string contents.
 MJAPI const char* mjs_getString(const mjString* source);
 
 // Get double array contents and optionally its size.
 MJAPI const double* mjs_getDouble(const mjDoubleVec* source, int* size);
 
+// Get number of elements a tendon wraps.
+MJAPI int mjs_getWrapNum(const mjsTendon* tendonspec);
+
+MJAPI mjsWrap* mjs_getWrap(const mjsTendon* tendonspec, int i);
+
+// Get plugin attributes.
+MJAPI const void* mjs_getPluginAttributes(const mjsPlugin* plugin);
+
 
 //---------------------------------- Other utilities -----------------------------------------------
+
+// Return 1 if a field was authored or mutated relative to its inherited default, 0 otherwise.
+MJAPI int mjs_isAuthored(const void* elem_ptr, const void* field_ptr);
+
+// Record explicit authoring of an element's field.
+MJAPI void mjs_setAuthored(const void* elem_ptr, const void* field_ptr, int authored);
 
 // Set element's default.
 MJAPI void mjs_setDefault(mjsElement* element, const mjsDefault* def);
 
-// Set element's enlcosing frame.
-MJAPI void mjs_setFrame(mjsElement* dest, mjsFrame* frame);
+// Set element's enclosing frame, return 0 on success.
+MJAPI int mjs_setFrame(mjsElement* dest, mjsFrame* frame);
 
 // Resolve alternative orientations to quat, return error if any.
 MJAPI const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
@@ -371,6 +459,22 @@ MJAPI const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const c
 // Transform body into a frame.
 MJAPI mjsFrame* mjs_bodyToFrame(mjsBody** body);
 
+// Set user payload.
+MJAPI void mjs_setUserValue(mjsElement* element, const char* key, const void* data);
+
+// Set user payload.
+MJAPI void mjs_setUserValueWithCleanup(mjsElement* element, const char* key,
+                                       const void* data,
+                                       void (*cleanup)(const void*));
+
+// Return user payload or NULL if none found.
+MJAPI const void* mjs_getUserValue(mjsElement* element, const char* key);
+
+// Delete user payload.
+MJAPI void mjs_deleteUserValue(mjsElement* element, const char* key);
+
+// Return sensor dimension.
+MJAPI int mjs_sensorDim(const mjsSensor* sensor);
 
 //---------------------------------- Initialization  -----------------------------------------------
 
@@ -452,13 +556,20 @@ MJAPI void mjs_defaultPlugin(mjsPlugin* plugin);
 
 //---------------------------------- Compiler cache ------------------------------------------------
 
-typedef struct mjCache_* mjCache;
+// Get the capacity of the asset cache in bytes.
+MJAPI size_t mj_getCacheCapacity(const mjCache* cache);
 
-// Set the size of the cache in bytes.
-MJAPI void mj_setCacheSize(mjCache cache, size_t size);
+// Set the capacity of the asset cache in bytes (0 to disable); returns the new capacity.
+MJAPI size_t mj_setCacheCapacity(mjCache* cache, size_t size);
 
-// Get internal global cache context.
-MJAPI mjCache mj_globalCache(void);
+// Get the current size of the asset cache in bytes.
+MJAPI size_t mj_getCacheSize(const mjCache* cache);
+
+// Clear the asset cache.
+MJAPI void mj_clearCache(mjCache* cache);
+
+// Get the internal asset cache used by the compiler.
+MJAPI mjCache* mj_getCache(void);
 
 #ifdef __cplusplus
 }  // extern "C"

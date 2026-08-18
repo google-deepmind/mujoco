@@ -51,6 +51,8 @@ endif()
 
 include(MujocoLinkOptions)
 get_mujoco_extra_link_options(EXTRA_LINK_OPTIONS)
+list(FILTER EXTRA_LINK_OPTIONS EXCLUDE REGEX "STACK")
+list(FILTER EXTRA_LINK_OPTIONS EXCLUDE REGEX "stack")
 add_link_options(${EXTRA_LINK_OPTIONS})
 
 include(MujocoMacOS)
@@ -65,6 +67,19 @@ add_compile_options("${MUJOCO_HARDEN_COMPILE_OPTIONS}")
 add_link_options("${MUJOCO_HARDEN_LINK_OPTIONS}")
 
 find_package(Python3 COMPONENTS Interpreter Development)
+
+# Detect free-threaded Python and enable Py_GIL_DISABLED.
+# This is needed because we have some STATIC libraries that do not automatically
+# get the Py_GIL_DISABLED macro definition through pybind11.
+execute_process(
+  COMMAND ${Python3_EXECUTABLE} -c "import sysconfig; print(sysconfig.get_config_var('Py_GIL_DISABLED') or 0)"
+  OUTPUT_VARIABLE PYTHON_GIL_DISABLED
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+if(PYTHON_GIL_DISABLED EQUAL "1")
+  message(STATUS "Free-threaded Python detected, enabling Py_GIL_DISABLED")
+  add_compile_definitions(Py_GIL_DISABLED)
+endif()
 
 include(FindOrFetch)
 
@@ -84,15 +99,16 @@ if(NOT TARGET mujoco)
     if(MUJOCO_FRAMEWORK)
       message("MuJoCo framework is at ${MUJOCO_FRAMEWORK}/mujoco.framework")
       set(MUJOCO_LIBRARY
-          ${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/libmujoco.3.2.8.dylib
+          ${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/libmujoco.3.12.0.dylib
       )
       target_compile_options(mujoco INTERFACE -F${MUJOCO_FRAMEWORK})
+      set(MUJOCO_INCLUDE "${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/Headers")
     endif()
   endif()
 
   if(NOT MUJOCO_FRAMEWORK)
     find_library(
-      MUJOCO_LIBRARY mujoco mujoco.3.2.8 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED
+      MUJOCO_LIBRARY mujoco mujoco.3.12.0 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED
     )
     find_path(MUJOCO_INCLUDE mujoco/mujoco.h HINTS ${MUJOCO_INCLUDE_DIR} REQUIRED)
     message("MuJoCo is at ${MUJOCO_LIBRARY}")
@@ -128,6 +144,104 @@ if(NOT TARGET mujoco)
   add_library(mujoco::mujoco ALIAS mujoco)
 endif()
 
+# =================== MUJOCO PLATFORM STATIC LIBRARY ==========================
+if(NOT TARGET mujoco::platform)
+  set(MUJOCO_PLATFORM_HINTS ${MUJOCO_LIBRARY_DIR})
+  if(MUJOCO_FRAMEWORK)
+    list(APPEND MUJOCO_PLATFORM_HINTS "${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A")
+  endif()
+  find_library(
+    MUJOCO_PLATFORM_LIBRARY mujoco_platform HINTS ${MUJOCO_PLATFORM_HINTS}
+  )
+  if(MUJOCO_PLATFORM_LIBRARY)
+    message(STATUS "Found mujoco_platform library at ${MUJOCO_PLATFORM_LIBRARY}")
+    add_library(mujoco_platform STATIC IMPORTED GLOBAL)
+    set_target_properties(mujoco_platform PROPERTIES IMPORTED_LOCATION "${MUJOCO_PLATFORM_LIBRARY}")
+    add_library(mujoco::platform ALIAS mujoco_platform)
+
+    set(PLATFORM_INCLUDES "${MUJOCO_INCLUDE}" "${MUJOCO_INCLUDE}/mujoco" "${MUJOCO_INCLUDE}/SDL2")
+    set_target_properties(mujoco_platform PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${PLATFORM_INCLUDES}"
+    )
+    target_compile_features(mujoco_platform INTERFACE cxx_std_20)
+
+    set(PLATFORM_DEPS)
+    set(dep_libs
+      mujoco_filament
+      dear_imgui
+      dear_imgui_stdlib
+      implot
+      filament
+      backend
+      glfw3
+      image
+      ktxreader
+      utils
+      math
+      bluegl
+      bluevk
+      filabridge
+      filaflat
+      filamat
+      matlang
+      shaders
+      smol-v
+      glslang
+      SPIRV
+      SPIRV-Tools
+      SPIRV-Tools-opt
+      basis_encoder
+      basis_transcoder
+      zstd
+      webp
+      sharpyuv
+      z
+    )
+
+   set(platform_system_libs)
+    if(WIN32)
+      list(APPEND dep_libs SDL2-static)
+      set(platform_system_libs winmm setupapi version imm32 opengl32)
+    else()
+      list(APPEND dep_libs SDL2)
+      if(UNIX AND NOT APPLE)
+        set(platform_system_libs pthread dl rt)
+      elseif(APPLE)
+        set(platform_system_libs
+          "-framework Cocoa"
+          "-framework IOKit"
+          "-framework Carbon"
+          "-framework ForceFeedback"
+          "-framework CoreVideo"
+          "-framework CoreAudio"
+          "-framework AudioToolbox"
+          "-framework Metal"
+          "-framework GameController"
+          "-framework CoreHaptics"
+          "-framework AVFoundation"
+          "-framework QuartzCore"
+        )
+      endif()
+    endif()
+
+    foreach(dep_lib IN LISTS dep_libs)
+      find_library(DEP_PATH_${dep_lib} ${dep_lib} HINTS ${MUJOCO_PLATFORM_HINTS})
+      if(DEP_PATH_${dep_lib})
+        add_library(mujoco::dep::${dep_lib} STATIC IMPORTED GLOBAL)
+        set_target_properties(mujoco::dep::${dep_lib} PROPERTIES
+          IMPORTED_LOCATION "${DEP_PATH_${dep_lib}}"
+          INTERFACE_INCLUDE_DIRECTORIES "${MUJOCO_INCLUDE}"
+        )
+        list(APPEND PLATFORM_DEPS mujoco::dep::${dep_lib})
+      endif()
+    endforeach()
+
+    list(APPEND PLATFORM_DEPS ${platform_system_libs})
+
+    set_target_properties(mujoco_platform PROPERTIES INTERFACE_LINK_LIBRARIES "${PLATFORM_DEPS}")
+  endif()
+endif()
+
 # ==================== ABSEIL ==================================================
 set(MUJOCO_PYTHON_ABSL_TARGETS absl::core_headers absl::flat_hash_map absl::span)
 findorfetch(
@@ -140,7 +254,7 @@ findorfetch(
   GIT_REPO
   https://github.com/abseil/abseil-cpp
   GIT_TAG
-  4447c7562e3bc702ade25105912dce503f0c4010 # LTS 20240722.0
+  5650e9cf76d3be4318d5fa3af38ee483ddfd5e4a # LTS 20260526.0
   TARGETS
   ${MUJOCO_PYTHON_ABSL_TARGETS}
   EXCLUDE_FROM_ALL
@@ -173,7 +287,7 @@ findorfetch(
   GIT_REPO
   https://gitlab.com/libeigen/eigen
   GIT_TAG
-  7f2377859377da6f22152015c28b12c04752af77
+  ea13a98decd497a8c5588fb5de71b57bcf10d864
   TARGETS
   Eigen3::Eigen
   EXCLUDE_FROM_ALL
@@ -191,7 +305,7 @@ findorfetch(
   GIT_REPO
   https://github.com/pybind/pybind11
   GIT_TAG
-  a2e59f0e7065404b44dfe92a28aca47ba1378dc4 # v2.13.6
+  97bf890db679505a14dfe547a5e77bb2bd05dc90 # v3.1.0
   TARGETS
   pybind11::pybind11_headers
   EXCLUDE_FROM_ALL
@@ -215,7 +329,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/enum_traits.h)
 else()
   add_custom_command(
     OUTPUT enum_traits.h
-    COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${mujoco_SOURCE_DIR}/mujoco ${Python3_EXECUTABLE}
+    COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${mujoco_SOURCE_DIR}/mujoco/python/mujoco ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/codegen/generate_enum_traits.py > enum_traits.h
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/codegen/generate_enum_traits.py
   )
@@ -233,7 +347,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/function_traits.h)
 else()
   add_custom_command(
     OUTPUT function_traits.h
-    COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${mujoco_SOURCE_DIR}/mujoco ${Python3_EXECUTABLE}
+    COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${mujoco_SOURCE_DIR}/mujoco/python/mujoco ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/codegen/generate_function_traits.py > function_traits.h
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/codegen/generate_function_traits.py
   )
@@ -269,6 +383,7 @@ target_sources(
             structs.h
 )
 set_target_properties(structs_header PROPERTIES PUBLIC_HEADER structs.h)
+target_include_directories(structs_header INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(
   structs_header
   INTERFACE absl::flat_hash_map
@@ -277,6 +392,25 @@ target_link_libraries(
             mujoco
             raw
 )
+
+add_library(structs_wrappers STATIC
+  structs_wrappers.cc
+  serialization.h
+  indexers.cc
+)
+target_include_directories(structs_wrappers PRIVATE ${Python3_INCLUDE_DIRS})
+target_link_libraries(
+  structs_wrappers
+  PRIVATE absl::flat_hash_map
+          absl::span
+          crossplatform
+          mujoco
+          raw
+          structs_header
+          pybind11::headers
+          Eigen3::Eigen
+)
+
 
 add_library(functions_header INTERFACE)
 target_sources(functions_header INTERFACE functions.h)
@@ -403,12 +537,17 @@ target_link_libraries(
           func_wrap
           function_traits
           structs_header
+          structs_wrappers
 )
+
+if(APPLE)
+  set_target_properties(_structs PROPERTIES INTERPROCEDURAL_OPTIMIZATION FALSE)
+endif()
 
 if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/specs.cc.inc)
   add_custom_command(
     OUTPUT specs.cc.inc
-    COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${mujoco_SOURCE_DIR}/mujoco ${Python3_EXECUTABLE}
+    COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${mujoco_SOURCE_DIR}/mujoco/python ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/codegen/generate_spec_bindings.py > specs.cc.inc
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/codegen/generate_spec_bindings.py
   )
@@ -417,6 +556,8 @@ endif()
 mujoco_pybind11_module(
   _specs
   specs.cc
+  specs_wrapper.h
+  specs_wrapper.cc
   specs.cc.inc
 )
 target_link_libraries(
@@ -432,11 +573,14 @@ mujoco_pybind11_module(_simulate simulate.cc)
 target_link_libraries(
   _simulate
   PRIVATE mujoco
-          mujoco::libsimulate
+          mujoco::libmujoco_simulate
+          glfw
           errors_header
           raw
           structs_header
 )
+
+add_subdirectory(experimental/studio)
 
 set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:_callbacks>"
@@ -451,6 +595,12 @@ set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:_structs>"
     "$<TARGET_FILE:mujoco>"
 )
+
+if(MUJOCO_STUDIO_TARGETS)
+  foreach(target IN LISTS MUJOCO_STUDIO_TARGETS)
+    list(APPEND LIBRARIES_FOR_WHEEL "$<TARGET_FILE:${target}>")
+  endforeach()
+endif()
 
 if(APPLE)
   add_executable(mjpython mjpython/mjpython.mm)
@@ -487,6 +637,9 @@ if(MUJOCO_PYTHON_MAKE_WHEEL)
     _structs
     mujoco
   )
+  if(MUJOCO_STUDIO_TARGETS)
+    add_dependencies(wheel ${MUJOCO_STUDIO_TARGETS})
+  endif()
   if(APPLE)
     add_dependencies(wheel mjpython)
   endif()

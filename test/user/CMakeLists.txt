@@ -12,23 +12,45 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-mujoco_test(user_model_test ADDITIONAL_LINK_LIBRARIES absl::str_format)
+mujoco_test(
+  user_model_test
+  ADDITIONAL_LINK_LIBRARIES absl::str_format compare_model
+  PROPERTIES
+  ENVIRONMENT
+  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:actuator>"
+)
 
 mujoco_test(user_objects_test)
 
 mujoco_test(
   user_api_test
+  ADDITIONAL_LINK_LIBRARIES compare_model
   PROPERTIES
   ENVIRONMENT
   "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
 )
 
-mujoco_test(user_flex_test)
+mujoco_test(
+  user_recompile_test
+  ADDITIONAL_LINK_LIBRARIES compare_model
+  PROPERTIES
+  ENVIRONMENT
+  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
+)
 
-mujoco_test(user_mesh_test ADDITIONAL_LINK_LIBRARIES absl::str_format)
+mujoco_test(
+  user_flex_test
+)
+
+mujoco_test(
+  user_mesh_test
+  ADDITIONAL_LINK_LIBRARIES absl::str_format
+)
 
 mujoco_test(user_composite_test)
 
 mujoco_test(user_resource_test)
 
 mujoco_test(user_vfs_test)
+
+mujoco_test(user_util_test)

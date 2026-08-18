@@ -28,7 +28,7 @@
 
 #include <mujoco/mjplugin.h>
 
-typedef std::function<void(const void*)> mjCDataFunc;
+typedef std::function<bool(const void*)> mjCDataFunc;
 typedef void (*mjCDeallocFunc)(const void*);
 
 // A class container for a thread-safe asset cache
@@ -38,40 +38,39 @@ typedef void (*mjCDeallocFunc)(const void*);
 // asset).
 class mjCAsset {
   friend class mjCCache;
+
  public:
-  mjCAsset(std::string modelname, const mjResource* resource,
-           std::shared_ptr<const void> data, std::size_t size) :
-             id_(resource->name), timestamp_(resource->timestamp),
-             size_(size), data_(std::move(data)) {
+  mjCAsset(std::string                 modelname,
+           std::string                 id,
+           const mjResource*           resource,
+           std::shared_ptr<const void> data,
+           std::size_t                 size)
+      : id_(id), timestamp_(resource->timestamp), size_(size), data_(std::move(data)) {
     AddReference(modelname);
   }
 
   // move and copy constructors
-  mjCAsset(mjCAsset&& other) = default;
-  mjCAsset& operator=(mjCAsset&& other) = default;
-  mjCAsset(const mjCAsset& other) = default;
+  mjCAsset(mjCAsset&& other)                 = default;
+  mjCAsset& operator=(mjCAsset&& other)      = default;
+  mjCAsset(const mjCAsset& other)            = default;
   mjCAsset& operator=(const mjCAsset& other) = default;
 
   const std::string& Timestamp() const { return timestamp_; }
   const std::string& Id() const { return id_; }
-  std::size_t InsertNum() const { return insert_num_; }
-  std::size_t AccessCount() const { return access_count_; }
+  std::size_t        InsertNum() const { return insert_num_; }
+  std::size_t        AccessCount() const { return access_count_; }
 
-  // pass data in the cache to the given function
-  void PopulateData(mjCDataFunc fn) const {
-    fn(data_.get());
-  }
+  // pass data in the cache to the given function, return true if data was copied
+  bool PopulateData(mjCDataFunc fn) const { return fn(data_.get()); }
 
  private:
   mjCAsset() = default;
 
   // helpers for managing models referencing this asset
   void AddReference(std::string xml_file) { references_.insert(xml_file); }
-  void RemoveReference(const std::string& xml_file) {
-    references_.erase(xml_file);
-  }
+  void RemoveReference(const std::string& xml_file) { references_.erase(xml_file); }
 
-  void ReplaceData(const mjCAsset& other)  {
+  void ReplaceData(const mjCAsset& other) {
     data_ = other.data_;
     size_ = other.size_;
   }
@@ -88,18 +87,16 @@ class mjCAsset {
   void SetTimestamp(std::string timestamp) { timestamp_ = timestamp; }
 
   // accessors
-  std::size_t BytesCount() const { return size_; }
-  const void* Data() const {
-    return data_.get();
-  }
+  std::size_t                  BytesCount() const { return size_; }
+  const void*                  Data() const { return data_.get(); }
   const std::set<std::string>& References() const { return references_; }
 
-  std::string id_;                    // unique id associated with asset
-  std::string timestamp_;             // opaque timestamp of asset
-  std::size_t insert_num_;            // number when asset was inserted
-  std::size_t access_count_ = 0;      // incremented when getting 0th block
-  std::size_t size_ = 0;              // how many bytes taken up by the asset
-  std::shared_ptr<const void> data_;  // actual data of the asset
+  std::string                 id_;                // unique id associated with asset
+  std::string                 timestamp_;         // opaque timestamp of asset
+  std::size_t                 insert_num_;        // number when asset was inserted
+  std::size_t                 access_count_ = 0;  // incremented when getting 0th block
+  std::size_t                 size_         = 0;  // how many bytes taken up by the asset
+  std::shared_ptr<const void> data_;              // actual data of the asset
 
   // list of models referencing this asset
   std::set<std::string> references_;
@@ -107,9 +104,7 @@ class mjCAsset {
 
 struct mjCAssetCompare {
   bool operator()(const mjCAsset* e1, const mjCAsset* e2) const {
-    if (e1->AccessCount() != e2->AccessCount()) {
-      return e1->AccessCount() < e2->AccessCount();
-    }
+    if (e1->AccessCount() != e2->AccessCount()) { return e1->AccessCount() < e2->AccessCount(); }
     return e1->InsertNum() < e2->InsertNum();
   }
 };
@@ -117,18 +112,18 @@ struct mjCAssetCompare {
 // the class container for a thread-safe asset cache
 class mjCCache {
  public:
-  explicit mjCCache(std::size_t size)  :  max_size_(size) {}
+  explicit mjCCache(std::size_t size) : capacity_(size) {}
 
   // move only
-  mjCCache(mjCCache&& other) = delete;
-  mjCCache& operator=(mjCCache&& other) = delete;
-  mjCCache(const mjCCache& other) = delete;
+  mjCCache(mjCCache&& other)                 = delete;
+  mjCCache& operator=(mjCCache&& other)      = delete;
+  mjCCache(const mjCCache& other)            = delete;
   mjCCache& operator=(const mjCCache& other) = delete;
 
-  // sets the total maximum size of the cache in bytes
+  // sets the capacity of the cache in bytes
   // low-priority cached assets will be dropped to make the new memory
   // requirement
-  void SetMaxSize(std::size_t size);
+  void SetCapacity(std::size_t size);
 
   // returns the corresponding timestamp, if the given asset is stored in
   // the cache
@@ -136,11 +131,14 @@ class mjCCache {
 
   // inserts an asset into the cache, if asset is already in the cache, its data
   // is updated only if the timestamps disagree
-  bool Insert(const std::string& modelname, const mjResource *resource,
-              std::shared_ptr<const void> data, std::size_t size);
+  bool Insert(const std::string&          modelname,
+              const std::string&          id,
+              const mjResource*           resource,
+              std::shared_ptr<const void> data,
+              std::size_t                 size);
 
   // populate data from the cache into the given function
-  bool PopulateData(const mjResource* resource, mjCDataFunc fn);
+  bool PopulateData(const std::string& id, const mjResource* resource, mjCDataFunc fn);
 
   // deletes the asset from the cache with the given id
   void DeleteAsset(const std::string& id);
@@ -156,7 +154,7 @@ class mjCCache {
   void Reset();
 
   // accessors
-  std::size_t MaxSize() const;
+  std::size_t Capacity() const;
   std::size_t Size() const;
 
  private:
@@ -168,9 +166,9 @@ class mjCCache {
   // engine/engine_plugin.cc as some of these methods don't need to be fully
   // locked.
   mutable std::mutex mutex_;
-  std::size_t insert_num_ = 0;  // a running counter of assets being inserted
-  std::size_t size_ = 0;        // current size of the cache in bytes
-  std::size_t max_size_ = 0;    // max size of the cache in bytes
+  std::size_t        insert_num_ = 0;  // a running counter of assets being inserted
+  std::size_t        size_       = 0;  // current size of the cache in bytes
+  std::size_t        capacity_   = 0;  // capacity of the cache in bytes
 
   // internal constant look up table for assets
   std::unordered_map<std::string, mjCAsset> lookup_;

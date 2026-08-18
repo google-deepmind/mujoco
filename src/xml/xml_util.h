@@ -24,10 +24,9 @@
 #include <vector>
 #include <sstream>
 
-#include "tinyxml2.h"
-
 #include <mujoco/mujoco.h>
 #include "user/user_util.h"
+#include "tinyxml2.h"
 
 // error string copy
 void mjCopyError(char* dst, const char* src, int maxlen);
@@ -50,14 +49,25 @@ class [[nodiscard]] mjXError {
 };
 
 
-// max number of attribute fields in schema (plus 3)
-#define mjXATTRNUM 36
+// presence constraint over an element's attributes, generated from the
+// schema into the grammar table's companion array. spec holds attribute
+// bundles, space-joined within a bundle and '|'-separated between them;
+// kind: e=exclusive (at most one bundle present), t=together (all or
+// none), r=requires (first needs second), o=oneof (at least one bundle
+// complete).
+struct mjXConstraintDef {
+  int row;             // index of the element's row in the grammar table
+  char kind;
+  const char* spec;
+};
 
 
 // Custom XML file validation
 class mjXSchema {
  public:
-  mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow);
+  mjXSchema(std::vector<const char*> schema[], unsigned nrow,
+            const mjXConstraintDef* constraints = nullptr,
+            int nconstraint = 0, int first_row = 0);
 
   std::string GetError();                         // return error
   void Print(std::stringstream& str, int level) const;      // print schema
@@ -71,6 +81,9 @@ class mjXSchema {
   char type_;                         // element type: '?', '!', '*', 'R'
   std::set<std::string> attr_;        // allowed attributes
   std::vector<mjXSchema> subschema_;  // allowed child elements
+
+  std::vector<const mjXConstraintDef*> constraints_;  // constraints here
+  tinyxml2::XMLElement* CheckConstraints(tinyxml2::XMLElement* elem);
 
   int refcnt_ = 0;                    // refcount used for validation
   std::string error;                  // error from constructor or Check
@@ -184,6 +197,21 @@ class mjXUtil {
   static bool MapValue(tinyxml2::XMLElement* elem, const char* attr, int* data,
                        const mjMap* map, int mapSz, bool required = false);
 
+  template <typename T>
+  static bool MapValue(tinyxml2::XMLElement* elem, const char* attr, T* data,
+                       const mjMap* map, int mapSz, bool required = false) {
+    int value;
+    if (MapValue(elem, attr, &value, map, mapSz, required)) {
+      *data = static_cast<T>(value);
+      return true;
+    }
+    return false;
+  }
+
+  // find attribute, translate unique space-separated keys to data, return number of keys found
+  static int MapValues(tinyxml2::XMLElement* elem, const char* attr, int* data,
+                       const mjMap* map, int mapSz, bool required = false);
+
   // write attribute- any type
   template<typename T>
   static void WriteAttr(tinyxml2::XMLElement* elem, std::string name, int n, const T* data,
@@ -204,6 +232,10 @@ class mjXUtil {
   // write attribute- keyword
   static void WriteAttrKey(tinyxml2::XMLElement* elem, std::string name,
                            const mjMap* map, int mapsz, int data, int def = -12345);
+
+  // write attribute- space-separated keywords
+  static void WriteAttrKeys(XMLElement* elem, std::string name, const mjMap* map,
+                            int mapsz, int* data, int ndata, int def = -12345);
 
  private:
   template<typename T>

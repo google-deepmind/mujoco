@@ -58,6 +58,13 @@ class SolverTest(parameterized.TestCase):
     m.opt.solver = solver_
     m.opt.cone = cone
     m.opt.iterations = iterations
+
+    # with islanding on, MuJoCo CG converges *much* faster,
+    # too fast for the low-iteration comparison to be meaningful,
+    # so we disable islanding at low iteration count
+    if iterations < 5:
+      m.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_ISLAND
+
     d = mujoco.MjData(m)
 
     def cost(qacc):
@@ -74,21 +81,17 @@ class SolverTest(parameterized.TestCase):
 
       # compare costs
       mj_cost = cost(d.qacc)
-      ctx = solver._Context.create(mjx.put_model(m), mjx.put_data(m, d))
+      ctx = solver.Context.create(mjx.put_model(m), mjx.put_data(m, d))
       mjx_cost = ctx.cost - ctx.gauss
       _assert_eq(mj_cost, mjx_cost, 'cost')
 
-      # mj_forward overwrites qacc_warmstart, so let's restore it to what it was
-      # before the step so that MJX does not have a trivial solution
-      warmstart = d.qacc_warmstart.copy()
       mujoco.mj_forward(m, d)
-      d.qacc_warmstart = warmstart
       dx = jax.jit(mjx.solve)(mjx.put_model(m), mjx.put_data(m, d))
 
       # MJX finds very similar solutions with the newton solver
       if solver_ == mujoco.mjtSolver.mjSOL_NEWTON:
-        nnz = dx.efc_J.any(axis=1)
-        _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
+        nnz = dx._impl.efc_J.any(axis=1)
+        _assert_eq(d.efc_force, dx._impl.efc_force[nnz], 'efc_force')
         _assert_attr_eq(d, dx, 'qfrc_constraint')
         _assert_attr_eq(d, dx, 'qacc')
 
@@ -108,9 +111,9 @@ class SolverTest(parameterized.TestCase):
     mujoco.mj_forward(m, d)
     mx = mjx.put_model(m)
     dx = jax.jit(mjx.solve)(mx, mjx.put_data(m, d))
-    nnz = dx.efc_J.any(axis=1)
+    nnz = dx._impl.efc_J.any(axis=1)
     # even without warmstart, newton converges quickly
-    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force', tol=2e-4)
+    _assert_eq(d.efc_force, dx._impl.efc_force[nnz], 'efc_force', tol=2e-4)
 
   def test_sparse(self):
     """Test solver works with sparse mass matrices."""
@@ -120,18 +123,14 @@ class SolverTest(parameterized.TestCase):
     # significant constraint forces keyframe 2
     mujoco.mj_resetDataKeyframe(m, d, 2)
 
-    # mj_forward overwrites qacc_warmstart, so let's restore it to what it was
-    # at the beginning of the step so that MJX does not have a trivial solution
-    warmstart = d.qacc_warmstart.copy()
     mujoco.mj_forward(m, d)
-    d.qacc_warmstart = warmstart
 
     dx = jax.jit(mjx.solve)(mjx.put_model(m), mjx.put_data(m, d))
 
     _assert_attr_eq(d, dx, 'qacc')
     _assert_attr_eq(d, dx, 'qfrc_constraint')
-    nnz = dx.efc_J.any(axis=1)
-    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
+    nnz = dx._impl.efc_J.any(axis=1)
+    _assert_eq(d.efc_force, dx._impl.efc_force[nnz], 'efc_force')
 
   def test_quad_frictionloss(self):
     """Test a case with quadratic frictionloss constraints."""
@@ -144,8 +143,8 @@ class SolverTest(parameterized.TestCase):
 
     _assert_attr_eq(d, dx, 'qacc')
     _assert_attr_eq(d, dx, 'qfrc_constraint')
-    nnz = dx.efc_J.any(axis=1)
-    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
+    nnz = dx._impl.efc_J.any(axis=1)
+    _assert_eq(d.efc_force, dx._impl.efc_force[nnz], 'efc_force')
 
   # TODO(taylorhowell): condim=1 with ConeType.ELLIPTIC
   @parameterized.product(condim=(3, 4, 6), cone=tuple(ConeType))

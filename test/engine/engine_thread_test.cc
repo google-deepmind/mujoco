@@ -22,10 +22,9 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjthread.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
-#include "src/thread/thread_pool.h"
+#include "src/engine/engine_thread.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -61,8 +60,7 @@ TEST_F(ThreadTest, SingleAndMultiThreadedMatch) {
   mj_setState(model_threaded, data_threaded, initial_state.data(), spec);
 
   // bind a threadpool to the data_threaded
-  mjThreadPool* threadpool = mju_threadPoolCreate(10);
-  mju_bindThreadPool(data_threaded, threadpool);
+  mju_threadpool(data_threaded, 10);
 
   for (int i = 0; i < 10; ++i) {
     mj_step(model, data);
@@ -71,7 +69,6 @@ TEST_F(ThreadTest, SingleAndMultiThreadedMatch) {
 
   // compare the mjData's.
   {
-    MJDATA_POINTERS_PREAMBLE((model))
     #define X(type, name, nr, nc)                                     \
         EXPECT_EQ(std::memcmp(data->name, data_threaded->name,        \
                               sizeof(type)*(model->nr)*(nc)),         \
@@ -84,7 +81,6 @@ TEST_F(ThreadTest, SingleAndMultiThreadedMatch) {
   mj_deleteModel(model);
   mj_deleteData(data_threaded);
   mj_deleteModel(model_threaded);
-  mju_threadPoolDestroy(threadpool);
 }
 
 TEST_F(ThreadTest, IslandSingleAndMultiThreadedMatch) {
@@ -93,12 +89,12 @@ TEST_F(ThreadTest, IslandSingleAndMultiThreadedMatch) {
   mjModel* model =
       mj_loadXML(model_path.c_str(), nullptr, error.data(), error.size());
   model->opt.solver = mjSOL_CG;             // use CG solver
-  model->opt.enableflags |= mjENBL_ISLAND;  // enable islands
+  model->opt.disableflags &= ~mjDSBL_ISLAND;  // enable islands
 
   mjModel* model_threaded =
       mj_loadXML(model_path.c_str(), nullptr, error.data(), error.size());
   model_threaded->opt.solver = mjSOL_CG;             // use CG solver
-  model_threaded->opt.enableflags |= mjENBL_ISLAND;  // enable islands
+  model_threaded->opt.disableflags &= ~mjDSBL_ISLAND;  // enable islands
 
   mjData* data = mj_makeData(model);
   mjData* data_threaded = mj_makeData(model_threaded);
@@ -117,8 +113,7 @@ TEST_F(ThreadTest, IslandSingleAndMultiThreadedMatch) {
   mj_setState(model_threaded, data_threaded, initial_state.data(), spec);
 
   // bind a threadpool to the data_threaded
-  mjThreadPool* threadpool = mju_threadPoolCreate(10);
-  mju_bindThreadPool(data_threaded, threadpool);
+  mju_threadpool(data_threaded, 10);
 
   for (int i = 0; i < 10; ++i) {
     mj_step(model, data);
@@ -127,7 +122,6 @@ TEST_F(ThreadTest, IslandSingleAndMultiThreadedMatch) {
 
   // compare the mjData's.
   {
-    MJDATA_POINTERS_PREAMBLE((model))
     #define X(type, name, nr, nc)                                     \
         EXPECT_EQ(std::memcmp(data->name, data_threaded->name,        \
                               sizeof(type)*(model->nr)*(nc)),         \
@@ -140,7 +134,6 @@ TEST_F(ThreadTest, IslandSingleAndMultiThreadedMatch) {
   mj_deleteModel(model);
   mj_deleteData(data_threaded);
   mj_deleteModel(model_threaded);
-  mju_threadPoolDestroy(threadpool);
 }
 
 }  // namespace

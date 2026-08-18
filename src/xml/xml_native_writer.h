@@ -29,7 +29,7 @@ class mjXWriter : public mjXBase {
  public:
   mjXWriter();                                        // constructor
   virtual ~mjXWriter() = default;                     // destructor
-  void SetModel(const mjSpec* _spec, const mjModel* m = nullptr);
+  void SetModel(mjSpec* _spec, const mjModel* m = nullptr);
 
   // write XML document to string
   std::string Write(char *error, std::size_t error_sz);
@@ -61,6 +61,16 @@ class mjXWriter : public mjXBase {
 
   // body/world section
   void Body(tinyxml2::XMLElement* elem, mjCBody* body, mjCFrame* frame, std::string_view childclass = "");
+
+  // table-driven attribute writing: the mechanical attributes of an element,
+  // driven by the same generated mjXAttr rows the reader uses. obj and def
+  // are the element's bound spec struct and its class-default counterpart;
+  // each bound field is compared against the default at the same offset, so
+  // attributes equal to their default are skipped. Strings, files and
+  // custom-read attributes remain in the OneX() remnants.
+  template <typename T>
+  void WriteAttrTable(tinyxml2::XMLElement* elem, const T* obj, const T* def,
+                      const struct mjXAttr* rows, int nrow);
 
   // single element writers, used in defaults and main body
   void OneFlex(tinyxml2::XMLElement* elem, const mjCFlex* pflex);

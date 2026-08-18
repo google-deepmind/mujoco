@@ -22,221 +22,17 @@
 #include <gtest/gtest.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
-#include "plugin/elasticity/shell.h"
 
 namespace mujoco {
 namespace {
 
-using ElasticityTest = PluginTest;
-
-// -------------------------------- flex ------------------------------------
-TEST_F(ElasticityTest, FlexCompatibility) {
-  static constexpr char flex_xml[] = R"(
-  <mujoco>
-    <worldbody>
-      <body name="parent">
-        <flexcomp name="soft" type="grid" count="3 3 3"
-                  radius="0.01" dim="3"mass="1">
-            <pin id="2"/>
-            <elasticity young="5e4" poisson="0.2"/>
-        </flexcomp>
-      </body>
-    </worldbody>
-  </mujoco>
-  )";
-
-  char error[1024] = {0};
-  mjModel* m = LoadModelFromString(flex_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
-
-  mjData* d = mj_makeData(m);
-  mj_deleteData(d);
-  mj_deleteModel(m);
-}
-
-// -------------------------------- shell -----------------------------------
-TEST_F(ElasticityTest, ElasticEnergyShell) {
-  static constexpr char cantilever_xml[] = R"(
-  <mujoco>
-  <extension>
-    <plugin plugin="mujoco.elasticity.shell"/>
-  </extension>
-
-  <worldbody>
-    <flexcomp type="grid" count="8 8 1" spacing="1 1 1"
-              radius=".025" name="test" dim="2">
-      <plugin plugin="mujoco.elasticity.shell">
-        <config key="poisson" value="0"/>
-        <config key="young" value="2"/>
-        <config key="thickness" value="1"/>
-      </plugin>
-    </flexcomp>
-  </worldbody>
-  </mujoco>
-  )";
-
-  char error[1024] = {0};
-  mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
-  mjData* d = mj_makeData(m);
-  auto* shell = reinterpret_cast<plugin::elasticity::Shell*>(d->plugin_data[0]);
-
-  // check that a plane is in the kernel of the energy
-  for (mjtNum scale = 1; scale < 4; scale++) {
-    for (int e = 0; e < shell->ne; e++) {
-      int* v = shell->flaps[e].vertices;
-      if (v[3]== -1) {
-        continue;
-      }
-      mjtNum energy = 0;
-      mjtNum volume = 1./2.;
-      for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-          for (int x = 0; x < 3; x++) {
-            mjtNum elongation1 = scale * shell->position[3*v[i]+x];
-            mjtNum elongation2 = scale * shell->position[3*v[j]+x];
-            energy += shell->bending[16*e+4*i+j] * elongation1 * elongation2;
-          }
-        }
-      }
-      EXPECT_NEAR(
-        4*energy/volume, 0, std::numeric_limits<float>::epsilon());
-    }
-  }
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
-}
-
-// -------------------------------- membrane -----------------------------------
-TEST_F(PluginTest, ElasticEnergyMembrane) {
-  static constexpr char cantilever_xml[] = R"(
-  <mujoco>
-  <worldbody>
-    <flexcomp type="grid" count="8 8 1" spacing="1 1 1"
-              radius=".025" name="test" dim="2">
-      <elasticity young="2" poisson="0" thickness="1"/>
-      <edge equality="false"/>
-    </flexcomp>
-  </worldbody>
-  </mujoco>
-  )";
-
-  char error[1024] = {0};
-  mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
-  mjData* d = mj_makeData(m);
-
-  mj_kinematics(m, d);
-  mj_flex(m, d);
-  mjtNum* metric = m->flex_stiffness + 21 * m->flex_elemadr[0];
-
-  // check that if the entire geometry is rescaled by a factor "scale", then
-  // trace(strain^2) = 2*scale^2
-
-  for (mjtNum scale = 1; scale < 4; scale++) {
-    for (int t = 0; t < m->flex_elemnum[0]; t++) {
-      mjtNum energy = 0;
-      mjtNum volume = 1./2.;
-      int idx = 0;
-      for (int e1 = 0; e1 < 3; e1++) {
-        for (int e2 = e1; e2 < 3; e2++) {
-          int idx1 = m->flex_elemedge[3*t+e1 + m->flex_elemedgeadr[0]];
-          int idx2 = m->flex_elemedge[3*t+e2 + m->flex_elemedgeadr[0]];
-          mjtNum elong1 =
-              scale * m->flexedge_length0[idx1] * m->flexedge_length0[idx1];
-          mjtNum elong2 =
-              scale * m->flexedge_length0[idx2] * m->flexedge_length0[idx2];
-          energy += metric[21*t+idx++] * elong1 * elong2 * (e1 == e2 ? 1. : 2.);
-        }
-      }
-      EXPECT_NEAR(
-        4*energy/volume, 2*scale*scale, std::numeric_limits<float>::epsilon());
-    }
-  }
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
-}
-
-TEST_F(ElasticityTest, InvalidThickness) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-  <extension>
-    <plugin plugin="mujoco.elasticity.shell"/>
-  </extension>
-
-  <worldbody>
-    <flexcomp type="grid" count="2 2 1" spacing="1 1 1"
-              radius=".025" name="test" dim="2">
-      <plugin plugin="mujoco.elasticity.shell">
-        <config key="thickness" value="hello"/>
-      </plugin>
-      <edge equality="false"/>
-    </flexcomp>
-  </worldbody>
-  </mujoco>
-  )";
-
-  char error[1024] = {0};
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::IsNull());
-  EXPECT_THAT(error, ::testing::HasSubstr("Invalid parameter"));
-}
-
-// -------------------------------- solid -----------------------------------
-TEST_F(ElasticityTest, ElasticEnergySolid) {
-  static constexpr char cantilever_xml[] = R"(
-  <mujoco>
-  <worldbody>
-    <flexcomp type="grid" count="8 8 8" spacing="1 1 1"
-              radius=".025" name="test" dim="3">
-      <elasticity young="2" poisson="0"/>
-      <edge equality="false"/>
-    </flexcomp>
-  </worldbody>
-  </mujoco>
-  )";
-
-  char error[1024] = {0};
-  mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
-  mjData* d = mj_makeData(m);
-
-  mj_kinematics(m, d);
-  mj_flex(m, d);
-  mjtNum* metric = m->flex_stiffness + 21 * m->flex_elemadr[0];
-
-  // check that if the entire geometry is rescaled by a factor "scale", then
-  // trace(strain^2) = 3*scale^2
-
-  for (mjtNum scale = 1; scale < 4; scale++) {
-    for (int t = 0; t < m->flex_elemnum[0]; t++) {
-      mjtNum energy = 0;
-      mjtNum volume = 1./6.;
-      int idx = 0;
-      for (int e1 = 0; e1 < 6; e1++) {
-        for (int e2 = e1; e2 < 6; e2++) {
-          int idx1 = m->flex_elemedge[6*t+e1 + m->flex_elemedgeadr[0]];
-          int idx2 = m->flex_elemedge[6*t+e2 + m->flex_elemedgeadr[0]];
-          mjtNum elong1 =
-              scale * m->flexedge_length0[idx1] * m->flexedge_length0[idx1];
-          mjtNum elong2 =
-              scale * m->flexedge_length0[idx2] * m->flexedge_length0[idx2];
-          energy += metric[21*t+idx++] * elong1 * elong2 * (e1 == e2 ? 1. : 2.);
-        }
-      }
-      EXPECT_NEAR(
-        energy/volume, 3*scale*scale, std::numeric_limits<float>::epsilon());
-    }
-  }
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
-}
+using ElasticityTest = MujocoTest;
 
 // -------------------------------- cable -----------------------------------
 TEST_F(ElasticityTest, CantileverIntoCircle) {
+#ifdef mjUSESINGLE
+  GTEST_SKIP() << "Cable simulation with extreme stiffness diverges in float32";
+#endif
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
     <option gravity="0 0 0"/>
@@ -269,25 +65,24 @@ TEST_F(ElasticityTest, CantileverIntoCircle) {
 
   char error[1024] = {0};
 
-  mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(cantilever_xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
+  MjDataPtr d = MakeData(m);
 
-  // see Oliver Weeger, Sai-Kit Yeung, Martin L. Dunn, "Isogeometric collocation methods for Cosserat rods and rod
-  // structures", section 7.1 (DOI: j.cma.2016.05.009), the torque for achieving an angle phi is phi * E * Iy.
+  // see Oliver Weeger, Sai-Kit Yeung, Martin L. Dunn, "Isogeometric collocation
+  // methods for Cosserat rods and rod structures", section 7.1 (DOI:
+  // j.cma.2016.05.009), the torque for achieving an angle phi is phi * E * Iy.
   mjtNum Iy = mjPI * pow(0.005, 4) / 4;
   mjtNum torque = 2 * mjPI * 1e9 * Iy;
-  for (int i=0; i < 1300; i++) {
+  for (int i = 0; i < 1300; i++) {
     if (i < 300) {
       d->ctrl[0] += torque / 300;
     }
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
   }
   EXPECT_NEAR(d->sensordata[0], 0, std::numeric_limits<float>::epsilon());
   EXPECT_NEAR(d->sensordata[1], 0, std::numeric_limits<float>::epsilon());
   EXPECT_NEAR(d->sensordata[2], 1, std::numeric_limits<float>::epsilon());
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(ElasticityTest, InvalidTxtAttribute) {
@@ -309,8 +104,8 @@ TEST_F(ElasticityTest, InvalidTxtAttribute) {
 
   char error[1024] = {0};
 
-  mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::IsNull());
+  MjModelPtr m = LoadModelFromString(cantilever_xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::IsNull());
 }
 
 TEST_F(ElasticityTest, InvalidMixedAttribute) {
@@ -332,8 +127,8 @@ TEST_F(ElasticityTest, InvalidMixedAttribute) {
 
   char error[1024] = {0};
 
-  mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::IsNull());
+  MjModelPtr m = LoadModelFromString(cantilever_xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::IsNull());
 }
 
 TEST_F(ElasticityTest, ValidAttributes) {
@@ -355,9 +150,8 @@ TEST_F(ElasticityTest, ValidAttributes) {
 
   char error[1024] = {0};
 
-  mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
-  mj_deleteModel(m);
+  MjModelPtr m = LoadModelFromString(cantilever_xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
 }
 
 }  // namespace

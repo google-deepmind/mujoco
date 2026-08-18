@@ -32,10 +32,14 @@ you are simulating multiple models in parallel, they use the same set of callbac
 mju_user_error
 ~~~~~~~~~~~~~~
 
-This is called from within the main error function :ref:`mju_error`. When installed, this function overrides the default
-error processing. Once it prints error messages (or whatever else the user wants to do), it must **exit** the program.
-MuJoCo is written with the assumption that mju_error will not return. If it does, the behavior of the software is
-undefined.
+.. deprecated::
+   Use :ref:`mju_setLogHandler` instead. See :ref:`siLogHandler`.
+
+Called by the default log handler when a fatal error occurs. If installed, this function overrides the default error
+processing. It may ``longjmp`` out or return. MuJoCo is written with the assumption that error handlers will not
+return; if they do, the behavior of the software is undefined.
+
+If a custom log handler is installed via :ref:`mju_setLogHandler`, this callback is not consulted.
 
 .. code-block:: C
 
@@ -47,8 +51,11 @@ undefined.
 mju_user_warning
 ~~~~~~~~~~~~~~~~
 
-This is called from within the main warning function :ref:`mju_warning`. It is similar to the error handler, but instead
-it must return without exiting the program.
+.. deprecated::
+   Use :ref:`mju_setLogHandler` instead. See :ref:`siLogHandler`.
+
+Called by the default log handler when a warning occurs. If a custom log handler is installed via
+:ref:`mju_setLogHandler`, this callback is not consulted.
 
 .. code-block:: C
 
@@ -185,9 +192,9 @@ mjcb_time
 ~~~~~~~~~
 
 Installing this callback enables the built-in profiler, and keeps timing statistics in ``mjData.timer``. The return type
-is mjtNum, while the time units are up to the user. :ref:`simulate.cc <saSimulate>` assumes the unit is 1 millisecond.
-In order to be useful, the callback should use high-resolution timers with at least microsecond precision. This is
-because the computations being timed are very fast.
+is mjtNum, while the time units are up to the user. Both :ref:`simulate.cc <saSimulate>` and the ``mjTOPIC_TIME_STP``
+informational :ref:`topic <mjtLogTopic>` assume the unit is 1 millisecond. In order to be useful, the callback should
+use high-resolution timers with at least microsecond precision.
 
 .. code-block:: C
 
@@ -368,10 +375,41 @@ Numeric constants
 ^^^^^^^^^^^^^^^^^
 
 Many integer constants were already documented in the primitive types above. In addition, the header files define
-several other constants documented here. Unless indicated otherwise, each entry in the table below is defined in
-`mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_. Note that some extended key
-codes are defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_ which are not
-shown in the table below. Their names are in the format ``mjKEY_XXX``. They correspond to GLFW key codes.
+several other constants documented here. Note that some extended key codes are defined in
+`mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_ which are not shown below. Their
+names are in the format ``mjKEY_XXX``. They correspond to GLFW key codes.
+
+
+.. _glNumericVersion:
+
+Version
+~~~~~~~
+
+Defined in `mujoco.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`_.
+
+.. list-table::
+   :widths: 2 1 8
+   :header-rows: 1
+
+   * - symbol
+     - value
+     - description
+   * - ``mjVERSION_HEADER``
+     - 3012000
+     - The version of the MuJoCo headers. This is an integer calculated from the version string "S.M.P"
+       using the formula ``(S * 1e6) + (M * 1e3) + P``. For example, version 4.2.1 is represented as 4002001.
+       The API function :ref:`mj_version` returns a number with the same meaning
+       but for the compiled library. See
+       `VERSIONING.md <https://github.com/google-deepmind/mujoco/blob/main/VERSIONING.md>`__ for details.
+
+
+.. _glNumericEngine:
+
+Engine constants
+~~~~~~~~~~~~~~~~
+
+Defined in `mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_ unless
+indicated otherwise.
 
 .. list-table::
    :widths: 2 1 8
@@ -384,6 +422,7 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - 1E-15
      - The minimal value allowed in any denominator, and in general any mathematical operation where 0 is not allowed.
        In almost all cases, MuJoCo silently clamps smaller values to mjMINVAL.
+       Defined in `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`_.
    * - ``mjPI``
      - :math:`\pi`
      - The value of :math:`\pi`. This is used in various trigonometric functions, and also for conversion from degrees
@@ -414,13 +453,36 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - 50
      - The maximum depth of each body and mesh bounding volume hierarchy. If this large limit is exceeded, a warning
        is raised and ray casting may not be possible. For a balanced hierarchy, this implies 1E15 bounding volumes.
+   * - ``mjMAXFLEXNODES``
+     - 27
+     - The maximum number of nodes in a trilinear flex element.
+   * - ``mjMINAWAKE``
+     - 10
+     - The minimum number of timesteps that must pass after a tree is awoken, before it is allowed to go back to sleep.
+
+
+.. _glNumericSizes:
+
+Array sizes
+~~~~~~~~~~~
+
+Defined in `mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_. These constants
+correspond to array sizes which we have not fully settled. There may be reasons to increase them in the future, so as to
+accommodate extra parameters needed for more elaborate computations. This is why we maintain them as symbolic constants
+that can be easily changed, as opposed to the array size for representing quaternions for example -- which has no reason
+to change.
+
+.. list-table::
+   :widths: 2 1 8
+   :header-rows: 1
+
+   * - symbol
+     - value
+     - description
    * - ``mjNEQDATA``
      - 11
      - The maximal number of real-valued parameters used to define each equality constraint. Determines the size of
-       ``mjModel.eq_data``. This and the next five constants correspond to array sizes which we have not fully settled.
-       There may be reasons to increase them in the future, so as to accommodate extra parameters needed for more
-       elaborate computations. This is why we maintain them as symbolic constants that can be easily changed, as opposed
-       to the array size for representing quaternions for example -- which has no reason to change.
+       ``mjModel.eq_data``.
    * - ``mjNDYN``
      - 10
      - The maximal number of real-valued parameters used to define the activation dynamics of each actuator.
@@ -433,6 +495,11 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - 10
      - The maximal number of real-valued parameters used to define the bias of each actuator.
        Determines the size of ``mjModel.actuator_biasprm``.
+   * - ``mjNPOLY``
+     - 2
+     - The number of nonlinear polynomial coefficients for joint and tendon stiffness and damping.
+       Determines the size of ``mjModel.{jnt,tendon}_{stiffness,damping}poly``. See
+       :ref:`polynomial forces<gePolynomial>`.
    * - ``mjNFLUID``
      - 12
      - The number of per-geom fluid interaction parameters required by the ellipsoidal model.
@@ -444,84 +511,118 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - 5
      - The maximal number of real-valued parameters used to define the impedance of each scalar constraint.
        Determines the size of all ``mjModel.XXX_solimp`` fields.
+   * - ``mjNSENS``
+     - 3
+     - The number of sensor parameters.
+       Determines the size of ``mjModel.sensor_intprm``.
    * - ``mjNSOLVER``
      - 200
      - The number of iterations where solver statistics can be stored in ``mjData.solver``. This array is used
        to store diagnostic information about each iteration of the constraint solver.
-       The actual number of iterations is given by ``mjData.solver_iter``.
+       The actual number of iterations is given by ``mjData.solver_niter``.
    * - ``mjNISLAND``
      - 20
      - The number of islands for which solver statistics can be stored in ``mjData.solver``. This array is
        used to store diagnostic information about each iteration of the constraint solver.
        The actual number of islands for which the solver was run is given by ``mjData.nsolver_island``.
+
+
+.. _glNumericVisualization:
+
+Visualization
+~~~~~~~~~~~~~
+
+Defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
+
+.. list-table::
+   :widths: 2 1 8
+   :header-rows: 1
+
+   * - symbol
+     - value
+     - description
    * - ``mjNGROUP``
      - 6
      - The number of geom, site, joint, tendon and actuator groups whose rendering can be enabled and disabled via
        :ref:`mjvOption`.
-       Defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
+   * - ``mjMAXLIGHT``
+     - 100
+     - The maximum number of lights in a scene.
    * - ``mjMAXOVERLAY``
      - 500
      - The maximal number of characters in overlay text for rendering.
-       Defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
    * - ``mjMAXLINE``
      - 100
      - The maximal number of lines per 2D figure (:ref:`mjvFigure`).
-       Defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
    * - ``mjMAXLINEPNT``
-     - 1000
+     - 1001
      - The maximal number of points in each line in a 2D figure. Note that the buffer ``mjvFigure.linepnt`` has length
        ``2*mjMAXLINEPNT`` because each point has X and Y coordinates.
-       Defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
    * - ``mjMAXPLANEGRID``
      - 200
      - The maximal number of grid lines in each dimension for rendering planes.
-       Defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
+
+
+.. _glNumericRendering:
+
+Rendering
+~~~~~~~~~
+
+Defined in `mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
+
+.. list-table::
+   :widths: 2 1 8
+   :header-rows: 1
+
+   * - symbol
+     - value
+     - description
    * - ``mjNAUX``
      - 10
      - Number of auxiliary buffers that can be allocated in mjrContext.
-       Defined in `mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
    * - ``mjMAXTEXTURE``
      - 1000
      - Maximum number of textures allowed.
-       Defined in `mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
-   * - ``mjMAXTHREAD``
-     - 128
-     - Maximum number OS threads that can be used in a thread pool.
-       Defined in `mjthread.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjthread.h>`_.
+   * - ``mjMAXMATERIAL``
+     - 1000
+     - Maximum number of materials with textures.
+
+
+.. _glNumericUI:
+
+UI constants
+~~~~~~~~~~~~
+
+Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+
+.. list-table::
+   :widths: 2 1 8
+   :header-rows: 1
+
+   * - symbol
+     - value
+     - description
    * - ``mjMAXUISECT``
      - 10
      - Maximum number of UI sections.
-       Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjMAXUIITEM``
      - 200
      - Maximum number of items per UI section.
-       Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjMAXUITEXT``
-     - 500
+     - 300
      - Maximum number of characters in UI fields 'edittext' and 'other'.
-       Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjMAXUINAME``
      - 40
      - Maximum number of characters in any UI name.
-       Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjMAXUIMULTI``
-     - 20
+     - 35
      - Maximum number of radio and select items in UI group.
-       Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjMAXUIEDIT``
-     - 5
+     - 7
      - Maximum number of elements in UI edit list.
-       Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjMAXUIRECT``
-     - 15
+     - 25
      - Maximum number of UI rectangles.
-       Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
-   * - ``mjVERSION_HEADER``
-     - 328
-     - The version of the MuJoCo headers; changes with every release. This is an integer equal to 100x the software
-       version, so 210 corresponds to version 2.1. Defined in  mujoco.h. The API function :ref:`mj_version` returns a
-       number with the same meaning but for the compiled library.
-
 
 .. _Macros:
 
@@ -593,17 +694,13 @@ mjPLUGIN_LIB_INIT
 
 .. code-block:: C
 
-   #define mjPLUGIN_LIB_INIT                                                                 \
-     static void _mjplugin_dllmain(void);                                                    \
-     mjEXTERNC int __stdcall mjDLLMAIN(void* hinst, unsigned long reason, void* reserved) {  \
-       if (reason == 1) {                                                                    \
-         _mjplugin_dllmain();                                                                \
-       }                                                                                     \
-       return 1;                                                                             \
-     }                                                                                       \
-     static void _mjplugin_dllmain(void)
+   #define mjPLUGIN_LIB_INIT(n)                                      \
+        static void _mj_init_##n(void) __attribute__((constructor)); \
+        static void _mj_init_##n(void)
 
-Register a plugin as a dynamic library. See :ref:`plugin registration<exRegistration>` for more details.
+Register a plugin before `main()` is called. This macro takes a unique identifier `n` as an argument that is used to avoid
+name collisions between different plugin initialization functions. See :ref:`plugin registration<exRegistration>` for
+more details.
 
 
 .. _tyXMacro:
@@ -612,7 +709,8 @@ X Macros
 ^^^^^^^^
 
 The X Macros are not needed in most user projects. They are used internally to allocate the model, and are also
-available for users who know how to use this programming technique. See the header file `mjxmacro.h
-<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`_ for the actual definitions. They are
+available for users who know how to use this programming technique. See the header files `mjxmacro.h
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`_ and `mjspecmacro.h
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspecmacro.h>`_ for the actual definitions. They are
 particularly useful in writing MuJoCo wrappers for scripting languages, where dynamic structures matching the MuJoCo
 data structures need to be constructed programmatically.

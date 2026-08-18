@@ -16,13 +16,13 @@
 <mujoco model="Trilinear flex spheres">
   <include file="scene.xml"/>
 
-  <option solver="CG" tolerance="1e-6" timestep="1e-3" integrator="implicitfast"/>
+  <option solver="CG" tolerance="1e-6" timestep="1e-3" integrator="Euler"/>
 
   <size memory="10M"/>
 
   <visual>
     <map stiffness="100"/>
-    <!-- The trilinear bounding box is visualized by turning on "Flex Tree" (mjVIS_FLEXBVH).
+    <!-- The trilinear bounding box is visualized by turning on "Flex Tree" (mjVIS_MESHBVH).
          In order to make the visualization clearer,
          we make the regular collision BVH visualization invisible: -->
     <rgba bv="0 0 0 0" bvactive="0 0 0 0"/>

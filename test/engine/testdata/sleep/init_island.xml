@@ -1,0 +1,26 @@
+<mujoco>
+  <custom>
+    <numeric name="duration" data="2.0"/>
+  </custom>
+
+  <option>
+    <flag sleep="enable"/>
+  </option>
+
+  <worldbody>
+    <light pos="0 -1 3"/>
+    <geom type="plane" size="1 1 .01"/>
+
+    <replicate count="3" offset="0 0 .18" euler="0 0 20">
+      <body pos="0 0 .08" sleep="init">
+        <freejoint/>
+        <geom type="box" size=".1 .1 .1"/>
+      </body>
+    </replicate>
+
+    <body pos="0 0 1.2" euler="10 20 30">
+      <freejoint/>
+      <geom type="box" size=".1 .1 .1"/>
+    </body>
+  </worldbody>
+</mujoco>

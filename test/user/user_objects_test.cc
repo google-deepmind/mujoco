@@ -24,17 +24,16 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
 
-constexpr double kInertiaTol = 1e-6;
+const double kInertiaTol = MjTol(1e-6, 1e-6);
 
 using std::string;
-using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
@@ -66,10 +65,9 @@ TEST_F(VfsTest, HFieldPngWithVFS) {
   mj_defaultVFS(vfs.get());
 
   // should fallback to OS filesystem
-  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
-  EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error,
-              HasSubstr("Error opening file"));
+  MjModelPtr model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -94,10 +92,9 @@ TEST_F(VfsTest, HFieldCustomWithVFS) {
   mj_defaultVFS(vfs.get());
 
   // should fallback to OS filesystem
-  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
-  EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error,
-              HasSubstr("Error opening file"));
+  MjModelPtr model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -123,39 +120,9 @@ TEST_F(VfsTest, TexturePngWithVFS) {
   mj_defaultVFS(vfs.get());
 
   // should fallback to OS filesystem
-  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
-  EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error,
-              HasSubstr("Error opening file"));
-  mj_deleteVFS(vfs.get());
-}
-
-TEST_F(VfsTest, TextureCustomWithVFS) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-    <asset>
-      <texture name="texture" file="unknown_file" type="2d"/>
-      <material name="material" texture="texture"/>
-    </asset>
-
-    <worldbody>
-      <geom type="plane" material="material" size="4 4 4"/>
-    </worldbody>
-  </mujoco>
-  )";
-
-  char error[1024];
-  size_t error_sz = 1024;
-
-  // load VFS on the heap
-  auto vfs = std::make_unique<mjVFS>();
-  mj_defaultVFS(vfs.get());
-
-  // should fallback to OS filesystem
-  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
-  EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error,
-              HasSubstr("Error opening file"));
+  MjModelPtr model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -185,10 +152,9 @@ TEST_F(ContentTypeTest, HFieldPngWithContentType) {
   mj_defaultVFS(vfs.get());
 
   // should try loading the file
-  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
-  EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error,
-              HasSubstr("Error opening file"));
+  MjModelPtr model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -214,10 +180,9 @@ TEST_F(ContentTypeTest, HFieldCustomWithContentType) {
   mj_defaultVFS(vfs.get());
 
   // should try loading the file
-  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
-  EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error,
-              HasSubstr("Error opening file"));
+  MjModelPtr model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -243,8 +208,8 @@ TEST_F(ContentTypeTest, HFieldWithContentTypeError) {
   mj_defaultVFS(vfs.get());
 
   // should try loading the file
-  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
-  EXPECT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model.get(), IsNull());
   EXPECT_THAT(error, HasSubstr("unsupported content type: 'image/jpeg'"));
   mj_deleteVFS(vfs.get());
 }
@@ -271,40 +236,9 @@ TEST_F(ContentTypeTest, TexturePngWithContentType) {
   mj_defaultVFS(vfs.get());
 
   // should try loading the file
-  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
-  EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error,
-              HasSubstr("Error opening file"));
-  mj_deleteVFS(vfs.get());
-}
-
-TEST_F(ContentTypeTest, TextureCustomWithContentType) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-    <asset>
-      <texture name="texture" content_type="image/vnd.mujoco.texture"
-              file="some_file" type="2d"/>
-      <material name="material" texture="texture"/>
-    </asset>
-
-    <worldbody>
-      <geom type="plane" material="material" size="4 4 4"/>
-    </worldbody>
-  </mujoco>
-  )";
-
-  char error[1024];
-  size_t error_sz = 1024;
-
-  // load VFS on the heap
-  auto vfs = std::make_unique<mjVFS>();
-  mj_defaultVFS(vfs.get());
-
-  // should try loading the file
-  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
-  EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error,
-              HasSubstr("Error opening file"));
+  MjModelPtr model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -331,8 +265,8 @@ TEST_F(ContentTypeTest, TextureWithContentTypeError) {
   mj_defaultVFS(vfs.get());
 
   // should try loading the file
-  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
-  EXPECT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model.get(), IsNull());
   EXPECT_THAT(error, HasSubstr("unsupported content type: 'image/jpeg'"));
   mj_deleteVFS(vfs.get());
 }
@@ -354,21 +288,19 @@ TEST_F(ContentTypeTest, TextureLoadPng) {
 
   // tiny RGB 2 x 3 PNG file
   static constexpr unsigned char tiny[] = {
-    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
-    0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x02,
-    0x08, 0x02, 0x00, 0x00, 0x00, 0x12, 0x16, 0xf1, 0x4d, 0x00, 0x00, 0x00,
-    0x1c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63, 0x78, 0xc1, 0xc0, 0xc0,
-    0xc0, 0xf0, 0xbf, 0xb8, 0xb8, 0x98, 0x81, 0xe1, 0x3f, 0xc3, 0xff, 0xff,
-    0xff, 0xc5, 0xc4, 0xc4, 0x00, 0x46, 0xd7, 0x07, 0x7f, 0xd2, 0x52, 0xa1,
-    0x41, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60,
-    0x82
-  };
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00,
+      0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00,
+      0x00, 0x02, 0x08, 0x02, 0x00, 0x00, 0x00, 0x12, 0x16, 0xf1, 0x4d,
+      0x00, 0x00, 0x00, 0x1c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63,
+      0x78, 0xc1, 0xc0, 0xc0, 0xc0, 0xf0, 0xbf, 0xb8, 0xb8, 0x98, 0x81,
+      0xe1, 0x3f, 0xc3, 0xff, 0xff, 0xff, 0xc5, 0xc4, 0xc4, 0x00, 0x46,
+      0xd7, 0x07, 0x7f, 0xd2, 0x52, 0xa1, 0x41, 0x00, 0x00, 0x00, 0x00,
+      0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82};
 
   size_t tiny_sz = sizeof(tiny);
 
   char error[1024];
   size_t error_sz = 1024;
-
 
   // load VFS on the heap
   auto vfs = std::make_unique<mjVFS>();
@@ -376,10 +308,8 @@ TEST_F(ContentTypeTest, TextureLoadPng) {
   mj_addBufferVFS(vfs.get(), filename, tiny, tiny_sz);
 
   // loading the file should be successful
-  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
-  EXPECT_THAT(model, NotNull());
-
-  mj_deleteModel(model);
+  MjModelPtr model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model.get(), NotNull());
   mj_deleteVFS(vfs.get());
 }
 
@@ -394,15 +324,15 @@ TEST_F(KeyframeTest, CheckValues) {
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
   ASSERT_THAT(model, NotNull());
   EXPECT_EQ(model->nkey, 7);
-  EXPECT_EQ(model->key_time[0 * 1], 0.1);
-  EXPECT_EQ(model->key_qpos[1 * model->nq], 0.2);
-  EXPECT_EQ(model->key_qvel[2 * model->nv], 0.3);
-  EXPECT_EQ(model->key_act[3 * model->na], 0.4);
-  EXPECT_THAT(AsVector(model->key_ctrl + 4*model->nu, model->nu),
+  EXPECT_MJTNUM_EQ(model->key_time[0 * 1], 0.1);
+  EXPECT_MJTNUM_EQ(model->key_qpos[1 * model->nq], 0.2);
+  EXPECT_MJTNUM_EQ(model->key_qvel[2 * model->nv], 0.3);
+  EXPECT_MJTNUM_EQ(model->key_act[3 * model->na], 0.4);
+  EXPECT_THAT(AsVector(model->key_ctrl + 4 * model->nu, model->nu),
               ElementsAre(0.5, 0.6));
-  EXPECT_THAT(AsVector(model->key_mpos + 3*model->nmocap*5, 3),
+  EXPECT_THAT(AsVector(model->key_mpos + 3 * model->nmocap * 5, 3),
               ElementsAre(.1, .2, .3));
-  EXPECT_THAT(AsVector(model->key_mquat + 4*model->nmocap*6, 4),
+  EXPECT_THAT(AsVector(model->key_mquat + 4 * model->nmocap * 6, 4),
               ElementsAre(.5, .5, .5, .5));
   mj_deleteModel(model);
 }
@@ -414,20 +344,20 @@ TEST_F(KeyframeTest, ResetDataKeyframe) {
   mjData* data = mj_makeData(model);
 
   mj_resetDataKeyframe(model, data, 0);
-  EXPECT_EQ(data->time, 0.1);
+  EXPECT_MJTNUM_EQ(data->time, 0.1);
 
   mj_resetDataKeyframe(model, data, 1);
-  EXPECT_EQ(data->qpos[0], 0.2);
+  EXPECT_MJTNUM_EQ(data->qpos[0], 0.2);
 
   mj_resetDataKeyframe(model, data, 2);
-  EXPECT_EQ(data->qvel[0], 0.3);
+  EXPECT_MJTNUM_EQ(data->qvel[0], 0.3);
 
   mj_resetDataKeyframe(model, data, 3);
-  EXPECT_EQ(data->act[0], 0.4);
+  EXPECT_MJTNUM_EQ(data->act[0], 0.4);
 
   mj_resetDataKeyframe(model, data, 4);
-  EXPECT_EQ(data->ctrl[0], 0.5);
-  EXPECT_EQ(data->ctrl[1], 0.6);
+  EXPECT_MJTNUM_EQ(data->ctrl[0], 0.5);
+  EXPECT_MJTNUM_EQ(data->ctrl[1], 0.6);
 
   mj_resetDataKeyframe(model, data, 5);
   EXPECT_THAT(AsVector(data->mocap_pos, 3), ElementsAre(.1, .2, .3));
@@ -471,9 +401,9 @@ TEST_F(KeyframeTest, BadSize) {
   )";
   char error[1024];
   size_t error_sz = 1024;
-  mjModel* model = LoadModelFromString(xml, error, error_sz);
-  EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("invalid qpos size, expected length 0"));
+  MjModelPtr model = LoadModelFromString(xml, error, error_sz);
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("invalid qpos size, expected 0, got 1"));
 }
 
 // ------------- test relative frame sensor compilation-------------------------
@@ -491,9 +421,8 @@ TEST_F(RelativeFrameSensorParsingTest, RefTypeNotRequired) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
-  ASSERT_THAT(model, NotNull());
-  mj_deleteModel(model);
+  MjModelPtr model = LoadModelFromString(xml, 0, 0);
+  ASSERT_THAT(model.get(), NotNull());
 }
 
 TEST_F(RelativeFrameSensorParsingTest, ReferenceBodyFound) {
@@ -509,11 +438,10 @@ TEST_F(RelativeFrameSensorParsingTest, ReferenceBodyFound) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
-  ASSERT_THAT(model, NotNull());
+  MjModelPtr model = LoadModelFromString(xml, 0, 0);
+  ASSERT_THAT(model.get(), NotNull());
   ASSERT_EQ(model->sensor_reftype[0], mjOBJ_XBODY);
   ASSERT_EQ(model->sensor_refid[0], 1);
-  mj_deleteModel(model);
 }
 
 TEST_F(RelativeFrameSensorParsingTest, MissingRefname) {
@@ -569,7 +497,7 @@ TEST_F(RelativeFrameSensorParsingTest, BadRefType) {
   )";
   std::array<char, 1024> error;
   LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(error.data(), HasSubstr("reference frame object must be"));
+  EXPECT_THAT(error.data(), HasSubstr("invalid keyword: 'light'"));
   EXPECT_THAT(error.data(), HasSubstr("line 8"));
 }
 
@@ -585,8 +513,8 @@ TEST_F(RelativeFrameSensorParsingTest, BadObjName) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(),
               HasSubstr("unrecognized name 'alessio' of sensorized object"));
   EXPECT_THAT(error.data(), HasSubstr("name 'tom'"));
@@ -605,11 +533,9 @@ TEST_F(RelativeFrameSensorParsingTest, BadObjRefName) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(
-      error.data(),
-      HasSubstr("unrecognized name 'alessio' of object"));
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("unrecognized name 'alessio' of object"));
   EXPECT_THAT(error.data(), HasSubstr("name 'tom'"));
   EXPECT_THAT(error.data(), HasSubstr("line 7"));
 }
@@ -626,15 +552,74 @@ TEST_F(SensorTest, OjbtypeParsedButNotRequired) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
-  ASSERT_THAT(model, NotNull());
+  MjModelPtr model = LoadModelFromString(xml, 0, 0);
+  ASSERT_THAT(model.get(), NotNull());
   EXPECT_EQ(model->sensor_datatype[0], mjDATATYPE_AXIS);
   EXPECT_EQ(model->sensor_objtype[0], mjOBJ_UNKNOWN);
   EXPECT_EQ(model->sensor_dim[0], 3);
   EXPECT_EQ(model->sensor_datatype[1], mjDATATYPE_REAL);
   EXPECT_EQ(model->sensor_objtype[1], mjOBJ_BODY);
   EXPECT_EQ(model->sensor_objid[1], 0);
-  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, NegativeIntervalError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="j"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos joint="j" interval="-1"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("negative interval"));
+}
+
+TEST_F(SensorTest, PositivePhaseError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="j"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos joint="j" interval="0.1 0.05"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("positive phase"));
+}
+
+TEST_F(SensorTest, DelayWithoutHistoryError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="j"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos joint="j" delay="0.1"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("delay > 0 without a history buffer"));
 }
 
 // ------------- test capsule inertias -----------------------------------------
@@ -644,8 +629,8 @@ static const char* const kCapsuleInertiaPath =
 
 using MjCGeomTest = MujocoTest;
 
-static constexpr int kSphereBodyId = 1, kCylinderBodyId = 2,
-                     kCapsuleBodyId = 3, kCapsuleGeomId = 2;
+static constexpr int kSphereBodyId = 1, kCylinderBodyId = 2, kCapsuleBodyId = 3,
+                     kCapsuleGeomId = 2;
 
 TEST_F(MjCGeomTest, CapsuleMass) {
   const string xml_path = GetTestDataFilePath(kCapsuleInertiaPath);
@@ -663,9 +648,9 @@ TEST_F(MjCGeomTest, CapsuleInertiaZ) {
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
   // z-inertia of capsule should equal sphere + cylinder z-inertia.
   mjtNum sphere_cylinder_z_inertia =
-      model->body_inertia[3*kSphereBodyId + 2] +
-      model->body_inertia[3*kCylinderBodyId + 2];
-  mjtNum capsule_z_inertia = model->body_inertia[3*kCapsuleBodyId + 2];
+      model->body_inertia[3 * kSphereBodyId + 2] +
+      model->body_inertia[3 * kCylinderBodyId + 2];
+  mjtNum capsule_z_inertia = model->body_inertia[3 * kCapsuleBodyId + 2];
   EXPECT_DOUBLE_EQ(sphere_cylinder_z_inertia, capsule_z_inertia);
   mj_deleteModel(model);
 }
@@ -675,32 +660,36 @@ TEST_F(MjCGeomTest, CapsuleInertiaX) {
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
 
   // The CoM of a solid hemisphere is 3/8*radius away from from the disk.
-  mjtNum hs_com = model->geom_size[3*kCapsuleGeomId] * 3 / 8;
+  mjtNum hs_com = model->geom_size[3 * kCapsuleGeomId] * 3 / 8;
 
   // The mass of the two hemispherical end-caps is just the mass of the sphere.
   mjtNum sphere_mass = model->body_mass[1];
 
   // x-inertia of capsule should equal sphere + cylinder x-inertias, with
   // corrections from shifting the hemispheres using parallel axis theorem.
-  mjtNum sphere_cylinder_x_inertia = model->body_inertia[3*kSphereBodyId] +
-                                     model->body_inertia[3*kCylinderBodyId];
+  mjtNum sphere_cylinder_x_inertia = model->body_inertia[3 * kSphereBodyId] +
+                                     model->body_inertia[3 * kCylinderBodyId];
 
   // Parallel axis-theorem #1: translate the hemispheres in to the origin.
   mjtNum translate_in = hs_com;
-  sphere_cylinder_x_inertia -= sphere_mass * translate_in*translate_in;
+  sphere_cylinder_x_inertia -= sphere_mass * translate_in * translate_in;
 
   // Parallel axis-theorem #2: translate the hemispheres out to the end caps.
-  mjtNum cylinder_half_length = model->geom_size[3*kCapsuleGeomId + 1];
+  mjtNum cylinder_half_length = model->geom_size[3 * kCapsuleGeomId + 1];
   mjtNum translate_out = cylinder_half_length + hs_com;
-  sphere_cylinder_x_inertia += sphere_mass * translate_out*translate_out;
+  sphere_cylinder_x_inertia += sphere_mass * translate_out * translate_out;
 
   // Compare native capsule inertia and computed inertia.
-  mjtNum capsule_x_inertia = model->body_inertia[3*kCapsuleBodyId];
+  mjtNum capsule_x_inertia = model->body_inertia[3 * kCapsuleBodyId];
   EXPECT_DOUBLE_EQ(sphere_cylinder_x_inertia, capsule_x_inertia);
   mj_deleteModel(model);
 }
 
 TEST_F(MjCGeomTest, ShellInertiaSphere) {
+  if constexpr (sizeof(mjtNum) == sizeof(float)) {
+    GTEST_SKIP() << "ShellInertia tests use radii differences of ~1e-8, which "
+                    "vanish in float32 precision";
+  }
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -721,8 +710,8 @@ TEST_F(MjCGeomTest, ShellInertiaSphere) {
   </mujoco>
   )";
   std::array<char, 1000> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
 
   // radius
   mjtNum r = 1.5;
@@ -744,7 +733,7 @@ TEST_F(MjCGeomTest, ShellInertiaSphere) {
 
   mjtNum mass3 = m->body_mass[3];
   mjtNum mass4 = m->body_mass[4];
-  EXPECT_FLOAT_EQ(mass4 - mass3, m->body_mass[2]);
+  EXPECT_MJTNUM_EQ(mass4 - mass3, m->body_mass[2]);
 
   // compute approximate shell inertia by subtracting inertias of massive bodies
   // with small radius difference
@@ -755,11 +744,13 @@ TEST_F(MjCGeomTest, ShellInertiaSphere) {
   EXPECT_NEAR(shell_inertia[0], m->body_inertia[6], kInertiaTol);
   EXPECT_NEAR(shell_inertia[1], m->body_inertia[7], kInertiaTol);
   EXPECT_NEAR(shell_inertia[2], m->body_inertia[8], kInertiaTol);
-
-  mj_deleteModel(m);
 }
 
 TEST_F(MjCGeomTest, ShellInertiaCapsule) {
+  if constexpr (sizeof(mjtNum) == sizeof(float)) {
+    GTEST_SKIP() << "ShellInertia tests use radii differences of ~1e-8, which "
+                    "vanish in float32 precision";
+  }
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -780,8 +771,8 @@ TEST_F(MjCGeomTest, ShellInertiaCapsule) {
   </mujoco>
   )";
   std::array<char, 1000> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
 
   // dimensions
   mjtNum r = 0.1;
@@ -836,11 +827,13 @@ TEST_F(MjCGeomTest, ShellInertiaCapsule) {
   EXPECT_NEAR(shell_inertia[0], m->body_inertia[6], kInertiaTol);
   EXPECT_NEAR(shell_inertia[1], m->body_inertia[7], kInertiaTol);
   EXPECT_NEAR(shell_inertia[2], m->body_inertia[8], kInertiaTol);
-
-  mj_deleteModel(m);
 }
 
 TEST_F(MjCGeomTest, ShellInertiaCylinder) {
+  if constexpr (sizeof(mjtNum) == sizeof(float)) {
+    GTEST_SKIP() << "ShellInertia tests use radii differences of ~1e-8, which "
+                    "vanish in float32 precision";
+  }
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -861,8 +854,8 @@ TEST_F(MjCGeomTest, ShellInertiaCylinder) {
   </mujoco>
   )";
   std::array<char, 1000> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
 
   // dimensions
   mjtNum r = 0.1;
@@ -911,11 +904,13 @@ TEST_F(MjCGeomTest, ShellInertiaCylinder) {
   EXPECT_NEAR(shell_inertia[0], m->body_inertia[6], kInertiaTol);
   EXPECT_NEAR(shell_inertia[1], m->body_inertia[7], kInertiaTol);
   EXPECT_NEAR(shell_inertia[2], m->body_inertia[8], kInertiaTol);
-
-  mj_deleteModel(m);
 }
 
 TEST_F(MjCGeomTest, ShellInertiaEllipsoid) {
+  if constexpr (sizeof(mjtNum) == sizeof(float)) {
+    GTEST_SKIP() << "ShellInertia tests use radii differences of ~1e-8, which "
+                    "vanish in float32 precision";
+  }
   // test special case of ellipsoid with dimensions: a = b = c
   // TODO(taylorhowell): add test for ellipsoid with dimensions: a != b != c
   static constexpr char xml[] = R"(
@@ -938,8 +933,8 @@ TEST_F(MjCGeomTest, ShellInertiaEllipsoid) {
   </mujoco>
   )";
   std::array<char, 1000> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
 
   // dimensions
   mjtNum r = 0.1;
@@ -974,11 +969,13 @@ TEST_F(MjCGeomTest, ShellInertiaEllipsoid) {
   EXPECT_NEAR(shell_inertia[0], m->body_inertia[6], 10 * kInertiaTol);
   EXPECT_NEAR(shell_inertia[1], m->body_inertia[7], 10 * kInertiaTol);
   EXPECT_NEAR(shell_inertia[2], m->body_inertia[8], 10 * kInertiaTol);
-
-  mj_deleteModel(m);
 }
 
 TEST_F(MjCGeomTest, ShellInertiaBox) {
+  if constexpr (sizeof(mjtNum) == sizeof(float)) {
+    GTEST_SKIP() << "ShellInertia tests use radii differences of ~1e-8, which "
+                    "vanish in float32 precision";
+  }
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -999,8 +996,8 @@ TEST_F(MjCGeomTest, ShellInertiaBox) {
   </mujoco>
   )";
   std::array<char, 1000> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
 
   // dimensions
   mjtNum dx = 0.1;
@@ -1070,8 +1067,6 @@ TEST_F(MjCGeomTest, ShellInertiaBox) {
   EXPECT_NEAR(shell_inertia[0], m->body_inertia[6], kInertiaTol);
   EXPECT_NEAR(shell_inertia[1], m->body_inertia[7], kInertiaTol);
   EXPECT_NEAR(shell_inertia[2], m->body_inertia[8], kInertiaTol);
-
-  mj_deleteModel(m);
 }
 
 // ------------- test inertiagrouprange ----------------------------------------
@@ -1087,9 +1082,8 @@ TEST_F(MjCGeomTest, IgnoreGeomOutsideInertiagrouprange) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml, nullptr, 0);
+  MjModelPtr m = LoadModelFromString(xml, nullptr, 0);
   EXPECT_THAT(m->body_mass[1], 0);
-  mj_deleteModel(m);
 }
 
 TEST_F(MjCGeomTest, IgnoreBadGeomOutsideInertiagrouprange) {
@@ -1108,9 +1102,8 @@ TEST_F(MjCGeomTest, IgnoreBadGeomOutsideInertiagrouprange) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml, nullptr, 0);
+  MjModelPtr m = LoadModelFromString(xml, nullptr, 0);
   EXPECT_THAT(m->body_mass[1], 0);
-  mj_deleteModel(m);
 }
 
 // ------------- test invalid size values --------------------------------------
@@ -1118,7 +1111,7 @@ TEST_F(MjCGeomTest, IgnoreBadGeomOutsideInertiagrouprange) {
 TEST_F(MjCGeomTest, NanSize) {
   // even if the caller ignores warnings, models shouldn't compile with NaN
   // geom sizes
-  mju_user_warning = nullptr;
+  mock_warning_handler.ExpectWarnings();
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -1129,8 +1122,8 @@ TEST_F(MjCGeomTest, NanSize) {
   </mujoco>
   )";
   std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, testing::IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), testing::IsNull());
   ASSERT_THAT(error.data(), HasSubstr("nan"));
   EXPECT_THAT(error.data(), HasSubstr("line 5"));
 }
@@ -1154,11 +1147,10 @@ TEST_F(MjCGeomTest, BadMeshZeroMassDensityDoesntError) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
   EXPECT_EQ(model->body_mass[1], 0);
   EXPECT_EQ(model->body_mass[2], 0);
-  mj_deleteModel(model);
 }
 
 // ------------- test joints --------------------------------------------------
@@ -1172,8 +1164,8 @@ TEST_F(MjCJointTest, AlignFree) {
   mjSpec* s = mj_parseXML(xml_path.c_str(), nullptr, err.data(), err.size());
   ASSERT_THAT(s, NotNull()) << err.data();
   s->compiler.alignfree = 1;  // auto-aligned free joint
-  mjModel* m = mj_compile(s, nullptr);
-  ASSERT_THAT(m, NotNull());
+  MjModelPtr m(mj_compile(s, nullptr));
+  ASSERT_THAT(m.get(), NotNull());
 
   // with alignfree the body has sameframe and simple and all dof are simple
   EXPECT_EQ(m->body_sameframe[1], 1);
@@ -1182,73 +1174,117 @@ TEST_F(MjCJointTest, AlignFree) {
 
   // make unaligned model
   s->compiler.alignfree = 0;  // unaligned free joint
-  mjModel* m_u = mj_compile(s, nullptr);
-  ASSERT_THAT(m_u, NotNull());
+  MjModelPtr m_u(mj_compile(s, nullptr));
+  ASSERT_THAT(m_u.get(), NotNull());
 
   // no sameframe or simple
   EXPECT_EQ(m_u->body_sameframe[1], 0);
   EXPECT_EQ(m_u->body_simple[1], 0);
 
   // make datas for both models
-  mjData* d = mj_makeData(m);
-  mjData* d_u = mj_makeData(m_u);
+  MjDataPtr d = MakeData(m);
+  MjDataPtr d_u = MakeData(m_u);
 
   // call mj_forward
-  mj_forward(m, d);
-  mj_forward(m_u, d_u);
+  mj_forward(m.get(), d.get());
+  mj_forward(m_u.get(), d_u.get());
 
   // expect x-frames (sensors) to match to very high precision
-  double eps = 1e-10;
-  EXPECT_THAT(AsVector(d->sensordata, m->nsensordata),
-      Pointwise(DoubleNear(eps), AsVector(d_u->sensordata, m->nsensordata)));
+  double eps = MjTol(1e-10, 1e-6);
+  EXPECT_THAT(
+      AsVector(d->sensordata, m->nsensordata),
+      Pointwise(MjNear(eps, eps), AsVector(d_u->sensordata, m->nsensordata)));
 
   // no frame sensors for lights, test separately
   EXPECT_THAT(AsVector(d->light_xpos, 3),
-      Pointwise(DoubleNear(eps), AsVector(d_u->light_xpos, 3)));
+              Pointwise(MjNear(eps, eps), AsVector(d_u->light_xpos, 3)));
   EXPECT_THAT(AsVector(d->light_xdir, 3),
-      Pointwise(DoubleNear(eps), AsVector(d_u->light_xdir, 3)));
+              Pointwise(MjNear(eps, eps), AsVector(d_u->light_xdir, 3)));
 
   // reduce timestep to 0.1ms and use RK4, simulate for 1 second
   m->opt.timestep = m_u->opt.timestep = 1e-4;
   m->opt.integrator = m_u->opt.integrator = mjINT_RK4;
   while (d->time < 1) {
-    mj_step(m, d);
-    mj_step(m_u, d_u);
+    mj_step(m.get(), d.get());
+    mj_step(m_u.get(), d_u.get());
   }
 
   // expect qpos to be significantly different, since the semantics are changed
-  mj_markStack(d);
+  mj_markStack(d.get());
   int nq = m->nq;
-  mjtNum* dqpos = mj_stackAllocNum(d, nq);
+  mjtNum* dqpos = mj_stackAllocNum(d.get(), nq);
   mju_sub(dqpos, d->qpos, d_u->qpos, nq);
   EXPECT_GT(mju_norm(dqpos, nq), 1.0);
-  mj_freeStack(d);
-
+  mj_freeStack(d.get());
 
   // expect x-frames to match to reasonable precision
-  eps = 1e-5;
-  EXPECT_THAT(AsVector(d->sensordata, m->nsensordata),
-      Pointwise(DoubleNear(eps), AsVector(d_u->sensordata, m->nsensordata)));
+  eps = MjTol(1e-5, 1e-2);
+  EXPECT_THAT(
+      AsVector(d->sensordata, m->nsensordata),
+      Pointwise(MjNear(eps, eps), AsVector(d_u->sensordata, m->nsensordata)));
   EXPECT_THAT(AsVector(d->light_xpos, 3),
-      Pointwise(DoubleNear(eps), AsVector(d_u->light_xpos, 3)));
+              Pointwise(MjNear(eps, eps), AsVector(d_u->light_xpos, 3)));
   EXPECT_THAT(AsVector(d->light_xdir, 3),
-      Pointwise(DoubleNear(eps), AsVector(d_u->light_xdir, 3)));
+              Pointwise(MjNear(eps, eps), AsVector(d_u->light_xdir, 3)));
 
-  mj_deleteData(d_u);
-  mj_deleteData(d);
-  mj_deleteModel(m_u);
-  mj_deleteModel(m);
   mj_deleteSpec(s);
 }
 
+TEST_F(MjCJointTest, BodySimpleFalse) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="B1">
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  constexpr char xml_nosimple[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="B1" simple="false">
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+
+  // compile default model: body should be simple
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  int b = mj_name2id(m.get(), mjOBJ_BODY, "B1");
+  EXPECT_GT(m->body_simple[b], 0);
+  EXPECT_GT(m->dof_simplenum[0], 0);
+
+  // compile with simple="false": body should not be simple
+  MjModelPtr m_ns = LoadModelFromString(xml_nosimple, error, sizeof(error));
+  ASSERT_THAT(m_ns.get(), NotNull()) << error;
+  EXPECT_EQ(m_ns->body_simple[b], 0);
+  EXPECT_EQ(m_ns->dof_simplenum[0], 0);
+
+  // forward kinematics should produce identical results
+  MjDataPtr d = MakeData(m);
+  MjDataPtr d_ns = MakeData(m_ns);
+  d->qpos[0] = d_ns->qpos[0] = 0.5;
+  mj_forward(m.get(), d.get());
+  mj_forward(m_ns.get(), d_ns.get());
+  EXPECT_THAT(d_ns->xpos[3*b+0], MjNear(d->xpos[3*b+0], 1e-10, 1e-6));
+  EXPECT_THAT(d_ns->xpos[3*b+1], MjNear(d->xpos[3*b+1], 1e-10, 1e-6));
+  EXPECT_THAT(d_ns->xpos[3*b+2], MjNear(d->xpos[3*b+2], 1e-10, 1e-6));
+}
 
 // ------------- test height fields --------------------------------------------
 
 using MjCHFieldTest = MujocoTest;
 
 TEST_F(MjCHFieldTest, PngMap) {
-  const string xml_path =
-      GetTestDataFilePath("user/testdata/hfield_png.xml");
+  const string xml_path = GetTestDataFilePath("user/testdata/hfield_png.xml");
   std::array<char, 1024> error;
   mjModel* model =
       mj_loadXML(xml_path.c_str(), nullptr, error.data(), error.size());
@@ -1284,10 +1320,8 @@ TEST_F(MjCTextureTest, TexturesLoad) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
-
-  mj_deleteModel(m);
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
 }
 
 // ------------- test quaternion normalization----------------------------------
@@ -1307,12 +1341,15 @@ TEST_F(QuatNorm, QuatNotNormalized) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(AsVector(m->body_quat+4, 4), ElementsAre(1./5, 2./5, 2./5, 4./5));
-  EXPECT_THAT(AsVector(m->geom_quat, 4), ElementsAre(1./5, 2./5, 2./5, 4./5));
-  EXPECT_THAT(AsVector(m->site_quat, 4), ElementsAre(1./5, 2./5, 2./5, 4./5));
-  EXPECT_THAT(AsVector(m->cam_quat, 4), ElementsAre(1./5, 2./5, 2./5, 4./5));
-  mj_deleteModel(m);
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(AsVector(m->body_quat + 4, 4),
+              ElementsAre(1. / 5, 2. / 5, 2. / 5, 4. / 5));
+  EXPECT_THAT(AsVector(m->geom_quat, 4),
+              ElementsAre(1. / 5, 2. / 5, 2. / 5, 4. / 5));
+  EXPECT_THAT(AsVector(m->site_quat, 4),
+              ElementsAre(1. / 5, 2. / 5, 2. / 5, 4. / 5));
+  EXPECT_THAT(AsVector(m->cam_quat, 4),
+              ElementsAre(1. / 5, 2. / 5, 2. / 5, 4. / 5));
 }
 
 // ------------- test camera specifications ------------------------------------
@@ -1331,11 +1368,10 @@ TEST_F(CameraSpecTest, FovyLimits) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, IsNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull()) << error.data();
   EXPECT_THAT(error.data(), HasSubstr("fovy too large"));
   EXPECT_THAT(error.data(), HasSubstr("line 6"));
-  mj_deleteModel(m);
 }
 
 TEST_F(CameraSpecTest, DuplicatedFocalIgnorePixel) {
@@ -1354,11 +1390,10 @@ TEST_F(CameraSpecTest, DuplicatedFocalIgnorePixel) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), NotNull()) << error.data();
   EXPECT_NEAR(m->cam_intrinsic[0], 5e-4, 1e-6);  // focal length in meters (x)
   EXPECT_NEAR(m->cam_intrinsic[1], 5e-4, 1e-6);  // focal length in meters (y)
-  mj_deleteModel(m);
 }
 
 TEST_F(CameraSpecTest, FovyFromResolution) {
@@ -1377,14 +1412,13 @@ TEST_F(CameraSpecTest, FovyFromResolution) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), NotNull()) << error.data();
   EXPECT_NEAR(m->cam_fovy[0], 41.112, 1e-3);
   EXPECT_NEAR(m->cam_intrinsic[0], 8e-3, 1e-6);  // focal length in meters (x)
   EXPECT_NEAR(m->cam_intrinsic[1], 8e-3, 1e-6);  // focal length in meters (y)
   EXPECT_EQ(m->cam_intrinsic[2], 0);  // principal point in meters (x)
   EXPECT_EQ(m->cam_intrinsic[3], 0);  // principal point in meters (y)
-  mj_deleteModel(m);
 }
 
 TEST_F(CameraSpecTest, FovyFromResolutionPixel) {
@@ -1403,14 +1437,13 @@ TEST_F(CameraSpecTest, FovyFromResolutionPixel) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), NotNull()) << error.data();
   EXPECT_NEAR(m->cam_fovy[0], 41.112, 1e-3);
   EXPECT_NEAR(m->cam_intrinsic[0], 8e-3, 1e-6);  // focal length in meters (x)
   EXPECT_NEAR(m->cam_intrinsic[1], 8e-3, 1e-6);  // focal length in meters (y)
   EXPECT_EQ(m->cam_intrinsic[2], 0);  // principal point in meters (x)
   EXPECT_EQ(m->cam_intrinsic[3], 0);  // principal point in meters (y)
-  mj_deleteModel(m);
 }
 
 TEST_F(CameraSpecTest, ParentTargetingNull) {
@@ -1423,18 +1456,14 @@ TEST_F(CameraSpecTest, ParentTargetingNull) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(model, NotNull()) << error.data();
-  mjData* data = mj_makeData(model);
-  mj_forward(model, data);
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), NotNull()) << error.data();
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
   // orientation can't be decided so we get an arbitrary but valid xmat
   // (camera pointed towards the negative x-axis)
   EXPECT_THAT(AsVector(data->cam_xmat, 9),
-              ElementsAre(0, 0, 1,
-                          1, 0, 0,
-                          0, 1, 0));
-  mj_deleteData(data);
-  mj_deleteModel(model);
+              ElementsAre(0, 0, 1, 1, 0, 0, 0, 1, 0));
 }
 
 TEST_F(CameraSpecTest, ParentTargeting) {
@@ -1447,16 +1476,14 @@ TEST_F(CameraSpecTest, ParentTargeting) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(model, NotNull()) << error.data();
-  mjData* data = mj_makeData(model);
-  mj_forward(model, data);
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), NotNull()) << error.data();
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
   // expect negative z-axis to point from camera to world
   EXPECT_FLOAT_EQ(data->cam_xmat[2], mju_sqrt(0.5));
   EXPECT_FLOAT_EQ(data->cam_xmat[5], mju_sqrt(0.5));
   EXPECT_FLOAT_EQ(data->cam_xmat[8], 0);
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // ------------- test actuator order -------------------------------------------
@@ -1492,10 +1519,10 @@ TEST_F(ActuatorTest, ActuatorOrderDoesntMatter) {
     </actuator>
   </mujoco>
   )";
-  mjModel* model1 = LoadModelFromString(xml1, nullptr, 0);
-  mjData* data1 = mj_makeData(model1);
-  mjModel* model2 = LoadModelFromString(xml2, nullptr, 0);
-  mjData* data2 = mj_makeData(model2);
+  MjModelPtr model1 = LoadModelFromString(xml1, nullptr, 0);
+  MjDataPtr data1 = MakeData(model1);
+  MjModelPtr model2 = LoadModelFromString(xml2, nullptr, 0);
+  MjDataPtr data2 = MakeData(model2);
 
   // check activation indexing
   EXPECT_EQ(model1->actuator_actadr[0], 0);
@@ -1507,23 +1534,18 @@ TEST_F(ActuatorTest, ActuatorOrderDoesntMatter) {
   while (data1->time < 1) {
     data1->ctrl[0] = data1->time;
     data1->ctrl[1] = -data1->time;
-    mj_step(model1, data1);
+    mj_step(model1.get(), data1.get());
   }
   while (data2->time < 1) {
     data2->ctrl[0] = -data2->time;
     data2->ctrl[1] = data2->time;
-    mj_step(model2, data2);
+    mj_step(model2.get(), data2.get());
   }
 
   // expect states to match exactly
   EXPECT_EQ(data1->qpos[0], data2->qpos[0]);
   EXPECT_EQ(data1->qvel[0], data2->qvel[0]);
   EXPECT_EQ(data1->act[0], data2->act[0]);
-
-  mj_deleteData(data2);
-  mj_deleteModel(model2);
-  mj_deleteData(data1);
-  mj_deleteModel(model1);
 }
 
 // ------------- test inheritrange attribute ----------------------------------
@@ -1546,8 +1568,8 @@ TEST_F(InheritrangeTest, ErrorIfTargetMissingRange) {
 
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("target 'jnt' has no range defined"));
 }
 
@@ -1567,14 +1589,11 @@ TEST_F(InheritrangeTest, WorksForDegrees) {
 
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << error.data();
-  EXPECT_DOUBLE_EQ(model->actuator_ctrlrange[0], mjPI/2);
-  EXPECT_DOUBLE_EQ(model->actuator_ctrlrange[1], mjPI);
-
-  mj_deleteModel(model);
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_MJTNUM_EQ(model->actuator_ctrlrange[0], mjPI / 2);
+  EXPECT_MJTNUM_EQ(model->actuator_ctrlrange[1], mjPI);
 }
-
 
 // ------------- test actlimited and actrange fields ---------------------------
 
@@ -1594,12 +1613,10 @@ TEST_F(ActRangeTest, ActRangeParsed) {
     </actuator>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml, nullptr, 0);
+  MjModelPtr m = LoadModelFromString(xml, nullptr, 0);
   EXPECT_EQ(m->actuator_actlimited[0], 1);
   EXPECT_EQ(m->actuator_actrange[0], -1);
   EXPECT_EQ(m->actuator_actrange[1], 1.5);
-
-  mj_deleteModel(m);
 }
 
 TEST_F(ActRangeTest, ActRangeBad) {
@@ -1617,8 +1634,8 @@ TEST_F(ActRangeTest, ActRangeBad) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid actrange"));
   EXPECT_THAT(error.data(), HasSubstr("line 10"));
 }
@@ -1638,8 +1655,8 @@ TEST_F(ActRangeTest, ActRangeUndefined) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid actrange"));
   EXPECT_THAT(error.data(), HasSubstr("line 10"));
 }
@@ -1659,8 +1676,8 @@ TEST_F(ActRangeTest, ActRangeNoDyntype) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(),
               HasSubstr("actrange specified but dyntype is 'none'"));
 }
@@ -1688,7 +1705,7 @@ TEST_F(ActRangeTest, ActRangeDefaultsPropagate) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
 
   // first actuator
   EXPECT_THAT(model->actuator_actlimited[0], 1);
@@ -1699,8 +1716,6 @@ TEST_F(ActRangeTest, ActRangeDefaultsPropagate) {
   EXPECT_THAT(model->actuator_actlimited[1], 0);
   EXPECT_THAT(model->actuator_actrange[2], 2);
   EXPECT_THAT(model->actuator_actrange[3], 3);
-
-  mj_deleteModel(model);
 }
 
 // ---------------------------- test actdim ------------------------------------
@@ -1722,9 +1737,9 @@ TEST_F(ActDimTest, BiggerThanOneOnlyForUser) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
 
-  ASSERT_THAT(model, IsNull());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(),
               HasSubstr("actdim > 1 is only allowed for dyntype 'user'"));
 }
@@ -1744,9 +1759,9 @@ TEST_F(ActDimTest, NonzeroNotAllowedInStateless) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
 
-  ASSERT_THAT(model, IsNull());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid actdim 1 in stateless"));
   EXPECT_THAT(error.data(), HasSubstr("line 10"));
 }
@@ -1766,9 +1781,9 @@ TEST_F(ActDimTest, ZeroNotAllowedInStateful) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
 
-  ASSERT_THAT(model, IsNull());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid actdim 0 in stateful"));
   EXPECT_THAT(error.data(), HasSubstr("line 10"));
 }
@@ -1787,8 +1802,8 @@ TEST_F(UserDataTest, NBodyTooSmall) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_body"));
   EXPECT_THAT(error.data(), HasSubstr("line 5"));
 }
@@ -1806,8 +1821,8 @@ TEST_F(UserDataTest, NJointTooSmall) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_jnt"));
   EXPECT_THAT(error.data(), HasSubstr("line 7"));
 }
@@ -1822,8 +1837,8 @@ TEST_F(UserDataTest, NGeomTooSmall) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_geom"));
   EXPECT_THAT(error.data(), HasSubstr("line 5"));
 }
@@ -1838,8 +1853,8 @@ TEST_F(UserDataTest, NSiteTooSmall) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_site"));
   EXPECT_THAT(error.data(), HasSubstr("line 5"));
 }
@@ -1854,8 +1869,8 @@ TEST_F(UserDataTest, NCameraTooSmall) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_cam"));
   EXPECT_THAT(error.data(), HasSubstr("line 5"));
 }
@@ -1877,8 +1892,8 @@ TEST_F(UserDataTest, NTendonTooSmall) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_tendon"));
   EXPECT_THAT(error.data(), HasSubstr("line 9"));
 }
@@ -1899,8 +1914,8 @@ TEST_F(UserDataTest, NActuatorTooSmall) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_actuator"));
   EXPECT_THAT(error.data(), HasSubstr("line 11"));
 }
@@ -1918,8 +1933,8 @@ TEST_F(UserDataTest, NSensorTooSmall) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_sensor"));
   EXPECT_THAT(error.data(), HasSubstr("line 8"));
 }
@@ -1938,8 +1953,8 @@ TEST_F(LimitedTest, JointLimited) {
   ASSERT_THAT(model, NotNull()) << err.data();
 
   // see `user/testdata/auto_limits.xml` for expected values
-  for (int i=0; i < model->njnt; i++) {
-    EXPECT_EQ(model->jnt_limited[i], (mjtByte)model->jnt_user[i])
+  for (int i = 0; i < model->njnt; i++) {
+    EXPECT_EQ(model->jnt_limited[i], (mjtBool)model->jnt_user[i])
         << i << " " << (int)model->jnt_limited[i] << " "
         << (int)model->jnt_user[i];
   }
@@ -1961,8 +1976,8 @@ TEST_F(LimitedTest, ErrorIfLimitedMissingOnJoint) {
 
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("limited"));
   EXPECT_THAT(error.data(), HasSubstr("line 6"));
 }
@@ -1981,11 +1996,10 @@ TEST_F(LimitedTest, ExplicitLimitedFalseIsOk) {
 
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << error.data();
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
 
   EXPECT_EQ(model->jnt_limited[0], 0);
-  mj_deleteModel(model);
 }
 
 TEST_F(LimitedTest, ErrorIfLimitedMissingOnTendon) {
@@ -2010,8 +2024,8 @@ TEST_F(LimitedTest, ErrorIfLimitedMissingOnTendon) {
 
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("limited"));
   EXPECT_THAT(error.data(), HasSubstr("tendon"));
   EXPECT_THAT(error.data(), HasSubstr("line 13"));
@@ -2034,8 +2048,8 @@ TEST_F(LimitedTest, ErrorIfForceLimitedMissingOnActuator) {
 
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("forcelimited"));
   EXPECT_THAT(error.data(), HasSubstr("forcerange"));
   EXPECT_THAT(error.data(), HasSubstr("actuator"));
@@ -2064,10 +2078,55 @@ TEST_F(TendonTest, SiteBetweenPulleyNotAllowed) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("needs a neighbor that is not a pulley"));
   EXPECT_THAT(error.data(), HasSubstr("line 9"));
+}
+
+TEST_F(TendonTest, ActuatorForceRangeNotAllowed) {
+  std::string xml = R"(
+  <mujoco>
+    <worldbody>
+      <site name="site0"/>
+      <site name="site1"/>
+    </worldbody>
+    <tendon>
+      <spatial name="spatial" actuatorfrclimited="true" actuatorfrcrange="{}">
+        <site site="site0"/>
+        <site site="site1"/>
+      </spatial>
+    </tendon>
+    <actuator>
+      <motor tendon="spatial"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  std::string str_replace = "{}";
+  size_t rng_ind = xml.find(str_replace);
+
+  std::string xml0 = xml;
+  std::string range0 = "-2 -1";
+  xml0.replace(rng_ind, str_replace.length(), range0);
+  MjModelPtr m0 = LoadModelFromString(xml0.c_str(), error.data(), error.size());
+  EXPECT_THAT(m0.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid actuatorfrcrange in tendon"));
+
+  std::string xml1 = xml;
+  std::string range1 = "1 2";
+  xml1.replace(rng_ind, str_replace.length(), range1);
+  MjModelPtr m1 = LoadModelFromString(xml1.c_str(), error.data(), error.size());
+  EXPECT_THAT(m1.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid actuatorfrcrange in tendon"));
+
+  std::string xml2 = xml;
+  std::string range2 = "1 0";
+  xml2.replace(rng_ind, str_replace.length(), range2);
+  MjModelPtr m2 = LoadModelFromString(xml2.c_str(), error.data(), error.size());
+  EXPECT_THAT(m2.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid actuatorfrcrange in tendon"));
 }
 
 // ------------- tests for tendon springrange ----------------------------------
@@ -2095,11 +2154,10 @@ TEST_F(SpringrangeTest, DefaultsPropagate) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << error.data();
-  EXPECT_EQ(model->tendon_lengthspring[0], .2);
-  EXPECT_EQ(model->tendon_lengthspring[1], .5);
-  mj_deleteModel(model);
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_MJTNUM_EQ(model->tendon_lengthspring[0], .2);
+  EXPECT_MJTNUM_EQ(model->tendon_lengthspring[1], .5);
 }
 
 TEST_F(SpringrangeTest, InvalidRange) {
@@ -2119,8 +2177,8 @@ TEST_F(SpringrangeTest, InvalidRange) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid springlength in tendon"));
   EXPECT_THAT(error.data(), HasSubstr("line 9"));
 }
@@ -2168,10 +2226,10 @@ TEST_F(UserObjectsTest, Frame) {
     </worldbody>
   </mujoco>
   )";
-  constexpr mjtNum eps = 1e-14;
+  const mjtNum eps = MjTol(1e-14, 1e-5);
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, testing::NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), testing::NotNull()) << error.data();
   EXPECT_EQ(m->nbody, 5);
 
   // geom quat transformed to euler = 0 0 50
@@ -2187,7 +2245,7 @@ TEST_F(UserObjectsTest, Frame) {
   EXPECT_NEAR(m->geom_quat[7], .5, eps);
 
   // geom pos transformed from 0 1 0 to 0 2 0
-  EXPECT_EQ(m->geom_pos[ 9], 0);
+  EXPECT_EQ(m->geom_pos[9], 0);
   EXPECT_EQ(m->geom_pos[10], 2);
   EXPECT_EQ(m->geom_pos[11], 0);
 
@@ -2202,12 +2260,12 @@ TEST_F(UserObjectsTest, Frame) {
   EXPECT_EQ(m->geom_pos[14], 1);
 
   // joint axis transformed to 0 -1 0
-  EXPECT_NEAR(m->jnt_axis[0],  0, eps);
+  EXPECT_NEAR(m->jnt_axis[0], 0, eps);
   EXPECT_NEAR(m->jnt_axis[1], -1, eps);
-  EXPECT_NEAR(m->jnt_axis[2],  0, eps);
+  EXPECT_NEAR(m->jnt_axis[2], 0, eps);
 
-  mjData* d = mj_makeData(m);
-  mj_kinematics(m, d);
+  MjDataPtr d = MakeData(m);
+  mj_kinematics(m.get(), d.get());
 
   // body and frame equivalence geom 2 vs 6
   EXPECT_NEAR(d->geom_xpos[6], d->geom_xpos[18], eps);
@@ -2217,9 +2275,6 @@ TEST_F(UserObjectsTest, Frame) {
   EXPECT_NEAR(d->geom_xmat[19], d->geom_xmat[55], eps);
   EXPECT_NEAR(d->geom_xmat[20], d->geom_xmat[56], eps);
   EXPECT_NEAR(d->geom_xmat[21], d->geom_xmat[57], eps);
-
-  mj_deleteModel(m);
-  mj_deleteData(d);
 }
 
 TEST_F(UserObjectsTest, FrameTransformsLight) {
@@ -2233,11 +2288,11 @@ TEST_F(UserObjectsTest, FrameTransformsLight) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), NotNull()) << error.data();
   EXPECT_EQ(m->nlight, 1);
 
-  constexpr mjtNum eps = 1e-14;
+  const mjtNum eps = MjTol(1e-14, 1e-5);
   EXPECT_NEAR(m->light_pos[0], -mju_sqrt(.5), eps);
   EXPECT_NEAR(m->light_pos[1], 0, eps);
   EXPECT_NEAR(m->light_pos[2], 1 + mju_sqrt(.5), eps);
@@ -2245,10 +2300,29 @@ TEST_F(UserObjectsTest, FrameTransformsLight) {
   EXPECT_NEAR(m->light_dir[0], 0, eps);
   EXPECT_NEAR(m->light_dir[1], 0, eps);
   EXPECT_NEAR(m->light_dir[2], -1, eps);
-
-  mj_deleteModel(m);
 }
 
+TEST_F(ContentTypeTest, ImageLightsReferenceTexture) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="texture" type="cube" builtin="flat" mark="cross" width="8"
+       rgb1="0.8 0.6 0.4" rgb2="0.8 0.6 0.4" markrgb="1 1 1"/>
+    </asset>
+
+    <worldbody>
+      <light type="image" texture="texture"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), NotNull());
+  EXPECT_EQ(m->ntex, 1);
+  EXPECT_EQ(m->nlight, 1);
+  EXPECT_THAT(m->light_texid[0], 0);
+}
 
 // ------------- test bvh ------------------------------------------------------
 TEST_F(UserObjectsTest, RobustBVH) {
@@ -2283,19 +2357,16 @@ TEST_F(UserObjectsTest, RobustBVH) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* m1 = LoadModelFromString(xml1, error.data(), error.size());
-  EXPECT_THAT(m1, NotNull()) << error.data();
+  MjModelPtr m1 = LoadModelFromString(xml1, error.data(), error.size());
+  EXPECT_THAT(m1.get(), NotNull()) << error.data();
 
-  mjModel* m2 = LoadModelFromString(xml2, error.data(), error.size());
-  EXPECT_THAT(m2, NotNull()) << error.data();
+  MjModelPtr m2 = LoadModelFromString(xml2, error.data(), error.size());
+  EXPECT_THAT(m2.get(), NotNull()) << error.data();
 
   EXPECT_EQ(m1->nbvh, m2->nbvh);
   for (int i = 0; i < m1->nbvh; i++) {
     EXPECT_EQ(m1->bvh_nodeid[i], m2->bvh_nodeid[i]);
   }
-
-  mj_deleteModel(m1);
-  mj_deleteModel(m2);
 }
 
 // ------------- test equality compilation -------------------------------------
@@ -2322,34 +2393,34 @@ TEST_F(UserObjectsTest, BadConnect) {
   // good model using body semantic
   string xml = base.replace(pos, len, "<connect body1='1' anchor='0 0 1'/>");
   char error[1024];
-  mjModel* m = LoadModelFromString(xml.c_str(), error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
+  MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
   EXPECT_THAT(AsVector(m->eq_data, 6), ElementsAre(0, 0, 1, 0, 0, 2));
-  mj_deleteModel(m);
 
   // good model using site semantic
   xml = base.replace(pos, len, "<connect site1='0' site2='1'/>");
   m = LoadModelFromString(xml.c_str(), error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
+  ASSERT_THAT(m.get(), NotNull()) << error;
   EXPECT_THAT(AsVector(m->eq_data, 6), ElementsAre(0, 0, 0, 0, 0, 0));
-  mj_deleteModel(m);
 
-  char error_missing[] = "either both body1 and anchor must be defined,"
-      " or both site1 and site2 must be defined\nElement 'connect', line 12";
+  char error_missing[] =
+      "one of ('site1', 'site2'), ('body1', 'anchor') must be specified"
+      "\nElement 'connect', line 12";
 
   // bad model (missing anchor)
   xml = base.replace(pos, len, "<connect body1='1'/>");
   m = LoadModelFromString(xml.c_str(), error, sizeof(error));
-  ASSERT_THAT(m, IsNull());
+  ASSERT_THAT(m.get(), IsNull());
   EXPECT_THAT(error, HasSubstr(error_missing));
 
-  char error_mixed[] = "body and site semantics cannot be mixed"
-      "\nElement 'connect', line 12";
+  char error_mixed[] =
+      "at most one of ('site1', 'site2'), ('body1', 'body2', 'anchor')"
+      " can be specified\nElement 'connect', line 12";
 
   // bad model (mixing body and site)
   xml = base.replace(pos, len, "<connect body1='1' site1='1'/>");
   m = LoadModelFromString(xml.c_str(), error, sizeof(error));
-  ASSERT_THAT(m, IsNull());
+  ASSERT_THAT(m.get(), IsNull());
   EXPECT_THAT(error, HasSubstr(error_mixed));
 
   // load spec with no constraints
@@ -2364,16 +2435,15 @@ TEST_F(UserObjectsTest, BadConnect) {
   mjs_setString(equality->name2, "1");
 
   // expect compilation to fail
-  m = mj_compile(s, nullptr);
-  ASSERT_THAT(m, IsNull());
+  m.reset(mj_compile(s, nullptr));
+  ASSERT_THAT(m.get(), IsNull());
   EXPECT_THAT(mjs_getError(s),
               HasSubstr("connect constraint supports only sites and bodies"));
 
   // set objtype, expect compilation to succeed
   equality->objtype = mjOBJ_SITE;
-  m = mj_compile(s, nullptr);
-  ASSERT_THAT(m, NotNull()) << mjs_getError(s);
-  mj_deleteModel(m);
+  m.reset(mj_compile(s, nullptr));
+  ASSERT_THAT(m.get(), NotNull()) << mjs_getError(s);
   mj_deleteSpec(s);
 }
 
@@ -2400,62 +2470,60 @@ TEST_F(UserObjectsTest, BadWeld) {
   string xml = base.replace(pos, len,
                             "<weld body1='1' anchor='0 0 1' torquescale='2'/>");
   char error[1024];
-  mjModel* m = LoadModelFromString(xml.c_str(), error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
+  MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
   EXPECT_THAT(AsVector(m->eq_data, 10),
               ElementsAre(0, 0, 1, 0, 0, 0, 1, 0, 0, 0));
-  mj_deleteModel(m);
 
   // good model using site semantic
   xml = base.replace(pos, len, "<weld site1='0' site2='1' torquescale='2'/>");
   m = LoadModelFromString(xml.c_str(), error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
+  ASSERT_THAT(m.get(), NotNull()) << error;
   EXPECT_THAT(AsVector(m->eq_data, 10),
               ElementsAre(0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
-  mj_deleteModel(m);
 
   char error_mixed[] =
-      "body and site semantics cannot be mixed"
-      "\nElement 'weld', line 12";
+      "at most one of ('site1', 'site2'), ('body1', 'body2', 'anchor', "
+      "'relpose') can be specified\nElement 'weld', line 12";
 
   // bad model (mixing body and site)
   xml = base.replace(pos, len, "<weld body1='1' site1='1'/>");
   m = LoadModelFromString(xml.c_str(), error, sizeof(error));
-  ASSERT_THAT(m, IsNull());
+  ASSERT_THAT(m.get(), IsNull());
   EXPECT_THAT(error, HasSubstr(error_mixed));
 
   // bad model (mixing site and anchor)
   xml = base.replace(pos, len, "<weld anchor='0 0 1' site1='1'/>");
   m = LoadModelFromString(xml.c_str(), error, sizeof(error));
-  ASSERT_THAT(m, IsNull());
+  ASSERT_THAT(m.get(), IsNull());
   EXPECT_THAT(error, HasSubstr(error_mixed));
 
   // bad model (mixing site and relpose)
   xml = base.replace(pos, len, "<weld relpose='0 0 0 1 0 0 0' site1='1'/>");
   m = LoadModelFromString(xml.c_str(), error, sizeof(error));
-  ASSERT_THAT(m, IsNull());
+  ASSERT_THAT(m.get(), IsNull());
   EXPECT_THAT(error, HasSubstr(error_mixed));
 
   // bad model (body and site semantics are valid, but both are specified)
   xml = base.replace(pos, len, "<weld body1='1' site1='1' site2='1'/>");
   m = LoadModelFromString(xml.c_str(), error, sizeof(error));
-  ASSERT_THAT(m, IsNull());
+  ASSERT_THAT(m.get(), IsNull());
   EXPECT_THAT(error, HasSubstr(error_mixed));
 
   char error_underspecified[] =
-      "either body1 must be defined and optionally {body2, anchor, "
-      "relpose}, or site1 and site2 must be defined\nElement 'weld', line 12";
+      "one of ('site1', 'site2'), 'body1' must be specified"
+      "\nElement 'weld', line 12";
 
   // bad model (underspecified body semantics)
   xml = base.replace(pos, len, "<weld anchor='0 0 1'/>");
   m = LoadModelFromString(xml.c_str(), error, sizeof(error));
-  ASSERT_THAT(m, IsNull());
+  ASSERT_THAT(m.get(), IsNull());
   EXPECT_THAT(error, HasSubstr(error_underspecified));
 
   // bad model (underspecified site semantics)
   xml = base.replace(pos, len, "<weld site2='1'/>");
   m = LoadModelFromString(xml.c_str(), error, sizeof(error));
-  ASSERT_THAT(m, IsNull());
+  ASSERT_THAT(m.get(), IsNull());
   EXPECT_THAT(error, HasSubstr(error_underspecified));
 
   // load spec with no constraints
@@ -2470,16 +2538,15 @@ TEST_F(UserObjectsTest, BadWeld) {
   mjs_setString(equality->name2, "1");
 
   // expect compilation to fail
-  m = mj_compile(s, nullptr);
-  ASSERT_THAT(m, IsNull());
+  m.reset(mj_compile(s, nullptr));
+  ASSERT_THAT(m.get(), IsNull());
   EXPECT_THAT(mjs_getError(s),
               HasSubstr("weld constraint supports only sites and bodies"));
 
   // set objtype, expect compilation to succeed
   equality->objtype = mjOBJ_SITE;
-  m = mj_compile(s, nullptr);
-  ASSERT_THAT(m, NotNull()) << mjs_getError(s);
-  mj_deleteModel(m);
+  m.reset(mj_compile(s, nullptr));
+  ASSERT_THAT(m.get(), NotNull()) << mjs_getError(s);
   mj_deleteSpec(s);
 }
 
@@ -2499,21 +2566,21 @@ TEST_F(UserObjectsTest, Inertial) {
   )";
 
   char error[1024];
-  mjModel* m = LoadModelFromString(xml.c_str(), error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
+  MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
   EXPECT_EQ(m->body_mass[1], 1);
-  EXPECT_THAT(AsVector(m->body_ipos+3, 3), ElementsAre(2, 3, 4));
-  EXPECT_THAT(AsVector(m->body_inertia+3, 3), ElementsAre(4, 5, 6));
+  EXPECT_THAT(AsVector(m->body_ipos + 3, 3), ElementsAre(2, 3, 4));
+  EXPECT_THAT(AsVector(m->body_inertia + 3, 3), ElementsAre(4, 5, 6));
 
   mjtNum quat[4];
   const mjtNum euler[3] = {3, 4, 5};
   mju_euler2Quat(quat, euler, "xyz");
-  EXPECT_EQ(AsVector(m->body_iquat+4, 4), AsVector(quat, 4));
+  EXPECT_THAT(AsVector(m->body_iquat + 4, 4),
+              Pointwise(MjNear(1e-8, 1e-6), AsVector(quat, 4)));
 
   EXPECT_EQ(m->body_mass[2], 2);
-  EXPECT_THAT(AsVector(m->body_ipos+6, 3), ElementsAre(1, 2, 3));
-  EXPECT_THAT(AsVector(m->body_inertia+6, 3), ElementsAre(4, 3, 2));
-  mj_deleteModel(m);
+  EXPECT_THAT(AsVector(m->body_ipos + 6, 3), ElementsAre(1, 2, 3));
+  EXPECT_THAT(AsVector(m->body_inertia + 6, 3), ElementsAre(4, 3, 2));
 
   string bad_xml1 = R"(
   <mujoco>
@@ -2525,7 +2592,7 @@ TEST_F(UserObjectsTest, Inertial) {
   </mujoco>
   )";
   m = LoadModelFromString(bad_xml1.c_str(), error, sizeof(error));
-  ASSERT_THAT(m, IsNull());
+  ASSERT_THAT(m.get(), IsNull());
   EXPECT_THAT(error, HasSubstr("fullinertia and diagonal inertia cannot both"));
 
   string bad_xml2 = R"(
@@ -2538,8 +2605,242 @@ TEST_F(UserObjectsTest, Inertial) {
   </mujoco>
   )";
   m = LoadModelFromString(bad_xml2.c_str(), error, sizeof(error));
-  ASSERT_THAT(m, IsNull());
-  EXPECT_THAT(error, HasSubstr("fullinertia and inertial orientation cannot"));
+  ASSERT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("at most one of 'fullinertia', 'quat'"));
+}
+
+// Merged COM must be correct when a fused-static child has a non-identity
+// inertial-frame orientation (e.g. from a degenerate diaginertia).
+TEST_F(UserObjectsTest, FuseStaticWithRotatedInertial) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler fusestatic="true"/>
+    <worldbody>
+      <body name="parent">
+        <freejoint/>
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+        <body name="child" pos="1 0 0">
+          <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5"
+                    mass="1" diaginertia="0.01 0.01 0.02"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  // Child fuses into parent; only world + parent remain.
+  EXPECT_EQ(m->nbody, 2);
+  EXPECT_EQ(m->body_mass[1], 2);
+  // Mass-weighted COM in parent frame: (1*(0,0,0) + 1*(1,0,0)) / 2.
+  const mjtNum expected_com[3] = {0.5, 0, 0};
+  EXPECT_THAT(AsVector(m->body_ipos + 3, 3),
+              Pointwise(MjNear(1e-8, 1e-6), AsVector(expected_com, 3)));
+}
+
+TEST_F(UserObjectsTest, ZeroMass) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <body>
+          <geom mass="0" size="0.01"/>
+          <geom mass="0" size="0.01"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), NotNull()) << error;
+}
+
+// ------------- test Octree SDF computation -----------------------------------
+
+using OctreeSDFTest = MujocoTest;
+
+TEST_F(OctreeSDFTest, SphereSDF) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="sphere" builtin="supersphere" params="16 1 1"/>
+    </asset>
+    <worldbody>
+      <geom name="sdf_sphere" type="sdf" mesh="sphere"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  MjDataPtr data = MakeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  EXPECT_GT(model->nmesh, 0);
+  EXPECT_EQ(model->geom_type[0], mjGEOM_SDF);
+
+  int geom_id = 0;
+  int mesh_id = model->geom_dataid[geom_id];
+  mjSDF sdf;
+  const mjpPlugin* null_plugin = nullptr;
+  sdf.plugin = &null_plugin;
+  sdf.id = &mesh_id;
+  sdf.type = mjSDFTYPE_SINGLE;
+  sdf.geomtype = (mjtGeom*)(model->geom_type + geom_id);
+
+  // Analytic SDF for unit sphere: distance = |p| - 1
+  auto analyticSdf = [](const mjtNum* p) -> double {
+    return mju_sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]) - 1.0;
+  };
+
+  int sign_errors = 0;
+  int total_points = 0;
+  double sum_sq_error = 0.0;
+
+  // Test grid of points
+  for (double x = -2.0; x <= 2.0; x += 0.5) {
+    for (double y = -2.0; y <= 2.0; y += 0.5) {
+      for (double z = -2.0; z <= 2.0; z += 0.5) {
+        mjtNum p[3] = {(mjtNum)x, (mjtNum)y, (mjtNum)z};
+        double sdf_dist = mjc_distance(model.get(), data.get(), &sdf, p);
+        double gt_dist = analyticSdf(p);
+
+        if ((sdf_dist < 0) != (gt_dist < 0)) {
+          sign_errors++;
+        }
+
+        double error = sdf_dist - gt_dist;
+        sum_sq_error += error * error;
+        total_points++;
+      }
+    }
+  }
+
+  double rmse = mju_sqrt(sum_sq_error / total_points);
+
+  EXPECT_LT(sign_errors, total_points / 200)
+      << "No more than 0.5% of points should have sign errors";
+  EXPECT_LT(rmse, 0.11) << "RMSE should be less than 0.11";
+}
+
+TEST_F(OctreeSDFTest, TorusSDF) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="torus" builtin="supertorus" params="16 0.3 1 1"/>
+    </asset>
+    <worldbody>
+      <geom name="sdf_torus" type="sdf" mesh="torus"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  MjDataPtr data = MakeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  EXPECT_GT(model->nmesh, 0);
+  EXPECT_EQ(model->geom_type[0], mjGEOM_SDF);
+
+  int geom_id = 0;
+  int mesh_id = model->geom_dataid[geom_id];
+  mjSDF sdf;
+  const mjpPlugin* null_plugin = nullptr;
+  sdf.plugin = &null_plugin;
+  sdf.id = &mesh_id;
+  sdf.type = mjSDFTYPE_SINGLE;
+  sdf.geomtype = (mjtGeom*)(model->geom_type + geom_id);
+
+  // Analytic SDF for torus: distance = |p_proj| - r, where p_proj is
+  // projection of p onto circle of radius R, and r is minor radius.
+  // R=1, r=0.3
+  auto analyticSdf = [](const mjtNum* p) -> double {
+    double xy = mju_sqrt(p[0] * p[0] + p[1] * p[1]);
+    double vec[2] = {xy - 1.0, p[2]};
+    return mju_sqrt(vec[0] * vec[0] + vec[1] * vec[1]) - 0.3;
+  };
+
+  int sign_errors = 0;
+  int total_points = 0;
+  double sum_sq_error = 0.0;
+
+  // Test grid of points
+  for (mjtNum x = -2.0; x <= 2.0; x += 0.5) {
+    for (mjtNum y = -2.0; y <= 2.0; y += 0.5) {
+      for (mjtNum z = -2.0; z <= 2.0; z += 0.5) {
+        mjtNum p[3] = {x, y, z};
+        double sdf_dist = mjc_distance(model.get(), data.get(), &sdf, p);
+        double gt_dist = analyticSdf(p);
+
+        if ((sdf_dist < 0) != (gt_dist < 0)) {
+          sign_errors++;
+        }
+
+        double error = sdf_dist - gt_dist;
+        sum_sq_error += error * error;
+        total_points++;
+      }
+    }
+  }
+
+  double rmse = mju_sqrt(sum_sq_error / total_points);
+
+  EXPECT_LT(sign_errors, total_points / 20)
+      << "No more than 5% of points should have sign errors";
+  EXPECT_LT(rmse, 0.52) << "RMSE should be close to 0.516";
+}
+
+// ------------- test actuator damping/armature validation ---------------------
+
+using ActuatorTransmissionTest = MujocoTest;
+
+TEST_F(ActuatorTransmissionTest, DampingRejectsSiteTransmission) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint type="slide"/>
+        <geom size="1"/>
+        <site name="s"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general site="s" damping="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("damping requires joint or tendon"));
+}
+
+TEST_F(ActuatorTransmissionTest, ArmatureRejectsSiteTransmission) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint type="slide"/>
+        <geom size="1"/>
+        <site name="s"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general site="s" armature="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("armature requires joint or tendon"));
 }
 
 }  // namespace

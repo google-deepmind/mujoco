@@ -37,6 +37,9 @@ _STRUCT_END_REGEX_2 = re.compile(r'^}\s+(?P<token>mj\w+);')
 # Precompiled regex for matching a C enum ending.
 _ENUM_END_REGEX = re.compile(r'^}\s+(?P<token>mj\w+);')
 
+# Precompiled regex for matching a C type with a nullable annotation.
+_NULLABLE_REGEX = re.compile(r'(?P<leading_space>\s*)Nullable:\s*(?P<args>.*)')
+
 
 @dataclasses.dataclass
 class ApiDefinition:
@@ -68,7 +71,7 @@ class ApiState:
     return self._state
 
   def export_definition(self):
-    return ApiDefinition(self.token, self._state, self.code, self._start,
+    return ApiDefinition(self.token, self._state, self.code, self._start,  # pyrefly: ignore[bad-argument-type]
                          self._end, self.section, self.doc)
 
   def start(self, state):
@@ -112,7 +115,9 @@ def read(lines: List[str]) -> Dict[str, ApiDefinition]:
         if stripped_functions:
           s.code = f'{s.code}{line}'
         else:
-          s.code = f'{s.code}{line[6:]}'
+          decl = line.replace('MJAPI ', '')
+          decl = decl[6:] if decl.startswith(' ' * 6) else decl
+          s.code = f'{s.code}{decl}'
         s.token = token
         s.start('FUNCTION')
         if _is_function_end(line):
@@ -120,14 +125,28 @@ def read(lines: List[str]) -> Dict[str, ApiDefinition]:
           s.end()
         continue
       elif line.startswith('//'):
-        s.doc = f'{s.doc}{line[3:]}'
+        if len(line) > 3 and line[3].isupper():
+          s.doc += '\n'
+        comment = line[3:]
+        match = re.match(_NULLABLE_REGEX, comment)
+        if match:
+          groups = match.groupdict()
+          args = [
+              f'``{arg.strip()}``'
+              for arg in groups['args'].split(',')
+              if arg.strip()
+          ]
+          comment = f'{groups["leading_space"]}*Nullable:* {", ".join(args)}'
+        s.doc = f'{s.doc}{comment}'
       else:
         s.end()
     if s.state == 'FUNCTION':
       if stripped_functions:
         s.code = f'{s.code}{line}'
       else:
-        s.code = f'{s.code}{line[6:]}'
+        decl = line.replace('MJAPI ', '')
+        decl = decl[6:] if decl.startswith(' ' * 6) else decl
+        s.code = f'{s.code}{decl}'
       if _is_function_end(line):
         api[s.token] = s.export_definition()
         s.end()
@@ -161,6 +180,12 @@ def read(lines: List[str]) -> Dict[str, ApiDefinition]:
         s.start('STRUCT')
         s.code = f'{s.code}{line}'
 
+      match = _STRUCT_END_REGEX_1.search(line)
+      if match is not None:
+        s.token = match.group('token')
+        api[s.token] = s.export_definition()
+        s.end()
+
       if line.startswith('//'):
         s.doc = f'{s.doc}{line[3:]}'
         s.start('DOC')
@@ -170,7 +195,9 @@ def read(lines: List[str]) -> Dict[str, ApiDefinition]:
         if stripped_functions:
           s.code = f'{s.code}{line}'
         else:
-          s.code = f'{s.code}{line[6:]}'
+          decl = line.replace('MJAPI ', '')
+          decl = decl[6:] if decl.startswith(' ' * 6) else decl
+          s.code = f'{s.code}{decl}'
         s.token = token
         s.start('FUNCTION')
         if _is_function_end(line):
@@ -188,7 +215,13 @@ def _find_section(line) -> Optional[str]:
 
 
 def _find_function_start(line, stripped) -> Optional[str]:
-  if (line.startswith('MJAPI') and 'extern' not in line) or stripped:
+  if (
+      'extern' not in line
+      and 'typedef' not in line
+      and '#define' not in line
+      and '_DEBUG_' not in line
+      and not line.startswith('//')
+  ) or stripped:
     match = _FUNCTION_REGEX.search(line)
     if match is not None:
       return match.group('token')

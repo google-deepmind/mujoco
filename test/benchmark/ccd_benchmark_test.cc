@@ -15,14 +15,17 @@
 // A benchmark for parsing and compiling models from XML.
 
 #include <cstddef>
-#include <vector>
 #include <string>
+#include <vector>
 
 #include <benchmark/benchmark.h>
 #include <absl/base/attributes.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
+
+#include "src/engine/engine_collision_convex.h"
+#include "src/engine/engine_collision_primitive.h"
 
 namespace mujoco {
 namespace {
@@ -33,8 +36,13 @@ static const int kNumWarmupSteps = 1000;
 // number of steps to benchmark (before resetting state)
 static const int kBatchSize = 50;
 
+// number of threads to test
+static const int kNumThreads = 9;
+
 static const char kBoxMeshPath[] =
     "../test/engine/testdata/collision_convex/perf/boxmesh.xml";
+static const char kBoxBoxPath[] =
+    "../test/engine/testdata/collision_convex/perf/box.xml";
 static const char kEllipsoidPath[] =
   "../test/engine/testdata/collision_convex/perf/ellipsoid.xml";
 static const char kMixedPath[] =
@@ -42,11 +50,10 @@ static const char kMixedPath[] =
 
 class TestHarness {
  public:
-  TestHarness(const char* xml_path, std::string label, int enable_flags = 0) {
+  TestHarness(const char* xml_path, std::string label) {
     // Fail test if there are any mujoco errors
     MujocoErrorTestGuard guard;
     model_ = LoadModelFromPath(xml_path);
-    model_->opt.enableflags |= enable_flags;
     data_ = mj_makeData(model_);
     for (int i=0; i < kNumWarmupSteps; i++) {
       mj_step(model_, data_);
@@ -57,11 +64,16 @@ class TestHarness {
     int size = mj_stateSize(model_, spec_);
     initial_state_.resize(size);
     mj_getState(model_, data_, initial_state_.data(), spec_);
-    label_ = label;
+    name_ = label;
   }
 
   void Reset() {
     mj_setState(model_, data_, initial_state_.data(), spec_);
+  }
+
+  void SetThreads(int nthread) {
+    mju_threadpool(data_, nthread);
+    nthread_ = nthread;
   }
 
   void RunBenchmark(benchmark::State& state) {
@@ -76,7 +88,9 @@ class TestHarness {
       }
     }
 
-    state.SetLabel(label_);
+    std::string label = name_ + " " + std::to_string(nthread_ + 1) +
+                        " thread(s)";
+    state.SetLabel(label);
     state.SetItemsProcessed(ncon);  // report number of contacts per second
   }
 
@@ -86,7 +100,8 @@ class TestHarness {
   }
 
  private:
-  std::string label_;
+  std::string name_;
+  int nthread_ = 0;
   int spec_;
   mjModel* model_;
   mjData* data_;
@@ -98,48 +113,47 @@ class TestHarness {
 // separately in CPU profiles (and don't get replaced with raw calls to
 // run_parse_benchmark).
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL
-    BM_BoxMesh_NativeCCD(benchmark::State& state) {
-  static TestHarness harness(kBoxMeshPath, "boxmesh.xml (nativeccd)",
-                             mjENBL_NATIVECCD);
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_BoxMesh(benchmark::State& state) {
+  int nthread = state.range(0);
+  static TestHarness harness(kBoxMeshPath, "boxmesh.xml");
+  harness.SetThreads(nthread);
   harness.RunBenchmark(state);
 }
-BENCHMARK(BM_BoxMesh_NativeCCD);
+BENCHMARK(BM_BoxMesh)->Arg(0)->Arg(kNumThreads);
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL
-    BM_BoxMesh_LibCCD(benchmark::State& state) {
-  static TestHarness harness(kBoxMeshPath, "boxmesh.xml (libccd)");
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_BoxBox(benchmark::State& state) {
+  int nthread = state.range(0);
+  static TestHarness harness(kBoxBoxPath, "box.xml (BoxBox)");
+  harness.SetThreads(nthread);
   harness.RunBenchmark(state);
 }
-BENCHMARK(BM_BoxMesh_LibCCD);
+BENCHMARK(BM_BoxBox)->Arg(0)->Arg(kNumThreads);
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL
-    BM_Ellipsoid_NativeCCD(benchmark::State& state) {
-  static TestHarness harness(kEllipsoidPath, "ellipsoid.xml (nativeccd)",
-                             mjENBL_NATIVECCD);
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_BoxBoxConvex(benchmark::State& state) {
+  int nthread = state.range(0);
+  mjCOLLISIONFUNC[mjGEOM_BOX][mjGEOM_BOX] = mjc_Convex;
+  static TestHarness harness(kBoxBoxPath, "box.xml (NativeCCD)");
+  harness.SetThreads(nthread);
   harness.RunBenchmark(state);
+  mjCOLLISIONFUNC[mjGEOM_BOX][mjGEOM_BOX] = mjc_BoxBox;
 }
-BENCHMARK(BM_Ellipsoid_NativeCCD);
+BENCHMARK(BM_BoxBoxConvex)->Arg(0)->Arg(kNumThreads);
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL
-    BM_Ellipsoid_LibCCD(benchmark::State& state) {
-  static TestHarness harness(kEllipsoidPath, "ellipsoid.xml (libccd)");
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_Ellipsoid(benchmark::State& state) {
+  int nthread = state.range(0);
+  static TestHarness harness(kEllipsoidPath, "ellipsoid.xml");
+  harness.SetThreads(nthread);
   harness.RunBenchmark(state);
 }
-BENCHMARK(BM_Ellipsoid_LibCCD);
+BENCHMARK(BM_Ellipsoid)->Arg(0)->Arg(kNumThreads);
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_Mixed_NativeCCD(benchmark::State& state) {
-  static TestHarness harness(kMixedPath, "mixed.xml (nativeccd)",
-                             mjENBL_NATIVECCD);
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_Mixed(benchmark::State& state) {
+  int nthread = state.range(0);
+  static TestHarness harness(kMixedPath, "mixed.xml");
+  harness.SetThreads(nthread);
   harness.RunBenchmark(state);
 }
-BENCHMARK(BM_Mixed_NativeCCD);
-
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_Mixed_LibCCD(benchmark::State& state) {
-  static TestHarness harness(kMixedPath, "mixed.xml (libccd)");
-  harness.RunBenchmark(state);
-}
-BENCHMARK(BM_Mixed_LibCCD);
+BENCHMARK(BM_Mixed)->Arg(0)->Arg(kNumThreads);
 
 }  // namespace
 }  // namespace mujoco

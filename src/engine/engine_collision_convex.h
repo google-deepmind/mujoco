@@ -26,15 +26,7 @@
 #include <mujoco/mjexport.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
-
-#define mjGETINFO_HFIELD \
-    const mjtNum* pos1  = d->geom_xpos + 3*g1; \
-    const mjtNum* mat1  = d->geom_xmat + 9*g1; \
-    const mjtNum* size1 = m->geom_size + 3*g1; \
-          mjtNum* pos2  = d->geom_xpos + 3*g2; \
-          mjtNum* mat2  = d->geom_xmat + 9*g2;
-// mjc_ConvexHField modifies and then restores pos2 and mat2
+#include <mujoco/mjtype.h>
 
 // minimum number of vertices to use hill-climbing in mesh support
 #define mjMESH_HILLCLIMB_MIN 10
@@ -45,10 +37,11 @@ extern "C" {
 
 // internal object type for convex collision detection
 struct _mjCCDObj {
-  const mjModel* model;
-  const mjData* data;
   int geom;
   int geom_type;
+  mjtNum size[4];
+  mjtNum pos[3];
+  mjtNum mat[9];
   int vertindex;
   int meshindex;
   int flex;
@@ -56,9 +49,45 @@ struct _mjCCDObj {
   int vert;
   mjtNum margin;
   mjtNum rotate[4];
+  union {
+    // mesh data from mjModel
+    struct {
+      int nvert;
+      int mesh_polynum;
+      const float* vert;
+      const int* mpolymapadr;
+      const int* mpolymapnum;
+      const int* polymap;
+      const int* polyvertadr;
+      const int* polyvertnum;
+      const int* polyvert;
+      const mjtNum* polynormal;
+      const int* graph;
+      const int* extrema;
+    } mesh;
+
+    // hfield prism data
+    struct {
+      mjtNum prism[6][3];
+      const float* hfield_data;
+      int hfield_nrow;
+      int hfield_ncol;
+    } hfield;
+
+    // flex data from mjModel and mjData
+    struct {
+      const int* elem;
+      const int* dim;
+      const mjtNum* aabb;
+      const int* elemadr;
+      const int* elemdataadr;
+      const mjtNum* vert_xpos;
+      const int* vertadr;
+      const mjtNum* xradius;
+    } flex;
+  } data;
   void (*center)(mjtNum res[3], const struct _mjCCDObj* obj);
   void (*support)(mjtNum res[3], struct _mjCCDObj* obj, const mjtNum dir[3]);
-  mjtNum prism[6][3];  // for hfield
 };
 typedef struct _mjCCDObj mjCCDObj;
 
@@ -81,23 +110,23 @@ void mjc_pointSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]);
 void mjc_lineSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]);
 
 // pairwise geom collision functions using ccd
-int mjc_PlaneConvex   (const mjModel* m, const mjData* d,
-                       mjContact* con, int g1, int g2, mjtNum margin);
-int mjc_ConvexHField  (const mjModel* m, const mjData* d,
-                       mjContact* con, int g1, int g2, mjtNum margin);
-int mjc_Convex        (const mjModel* m, const mjData* d,
-                       mjContact* con, int g1, int g2, mjtNum margin);
+int mjc_PlaneConvex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin);
+int mjc_ConvexHField(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin);
+MJAPI int mjc_Convex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin);
 
 // geom-elem or elem-elem or vert-elem collision function using ccd
-int mjc_ConvexElem    (const mjModel* m, const mjData* d, mjContact* con,
-                       int g1, int f1, int e1, int v1, int f2, int e2, mjtNum margin);
+int mjc_ConvexElem(const mjModel* m, mjData* d, mjPreContact* con, int g1, int f1, int e1, int v1,
+                   int f2, int e2, mjtNum margin);
 
 // heightfield-elem collision function using ccd
-int mjc_HFieldElem    (const mjModel* m, const mjData* d, mjContact* con,
-                       int g, int f, int e, mjtNum margin);
+int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f, int e,
+                   mjtNum margin);
 
 // fix contact frame normal
-void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2);
+void mjc_fixNormal(const mjModel* m, const mjData* d, mjPreContact* con, int g1, int g2);
+
+// set CCD internal buffer
+void mjc_setCCDBuffer(void* buffer);
 
 #ifdef __cplusplus
 }

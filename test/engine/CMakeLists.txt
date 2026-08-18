@@ -12,7 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-mujoco_test(engine_collision_box_test)
+# the pre-rewrite box-box collider, linked only into the box-box tests so the rewrite is
+# measured against it rather than asserted to be better; see boxbox_legacy.h
+add_library(boxbox_legacy STATIC boxbox_legacy.h boxbox_legacy.c)
+target_include_directories(boxbox_legacy PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+target_include_directories(boxbox_legacy PRIVATE ${mujoco_SOURCE_DIR}/include)
+target_compile_definitions(boxbox_legacy PUBLIC MJSTATIC)
+target_link_libraries(boxbox_legacy PUBLIC mujoco::mujoco)
+
+mujoco_test(engine_collision_box_test ADDITIONAL_LINK_LIBRARIES ccd boxbox_legacy)
+
+mujoco_test(engine_collision_box_fuzz_test ADDITIONAL_LINK_LIBRARIES ccd)
+
+mujoco_test(engine_collision_continuous_test)
 
 mujoco_test(engine_collision_convex_test)
 
@@ -23,6 +35,8 @@ mujoco_test(engine_collision_gjk_test ADDITIONAL_LINK_LIBRARIES ccd)
 mujoco_test(engine_core_constraint_test)
 
 mujoco_test(engine_core_smooth_test ADDITIONAL_LINK_LIBRARIES absl::span)
+
+mujoco_test(engine_core_util_test)
 
 mujoco_test(engine_derivative_test)
 
@@ -47,9 +61,17 @@ mujoco_test(engine_passive_test)
 
 mujoco_test(engine_print_test)
 
-mujoco_test(engine_ray_test)
+mujoco_test(
+  engine_ray_test
+  PROPERTIES
+  ENVIRONMENT
+  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:sdf_plugin>")
 
 mujoco_test(engine_sensor_test)
+
+mujoco_test(engine_setconst_test)
+
+mujoco_test(engine_sleep_test)
 
 mujoco_test(engine_solver_test)
 
@@ -63,15 +85,12 @@ mujoco_test(engine_util_blas_test)
 
 mujoco_test(engine_util_errmem_test)
 
+mujoco_test(engine_util_misc_test)
+
 mujoco_test(engine_util_solve_test)
 
-mujoco_test(engine_util_spatial_test)
+mujoco_test(engine_util_sparse_test)
 
-mujoco_test(
-  engine_vis_state_test
-  PROPERTIES
-  ENVIRONMENT
-  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
-)
+mujoco_test(engine_util_spatial_test)
 
 mujoco_test(engine_vis_visualize_test)

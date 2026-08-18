@@ -14,12 +14,11 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <gtest/gtest.h>
 #include "src/xml/xml_native_reader.h"
-#include "src/xml/xml_util.h"
 #include "test/fixture.h"
-#include <absl/strings/numbers.h>
 #include <absl/strings/str_format.h>
 
 namespace mujoco {
@@ -29,7 +28,7 @@ namespace {
 using XMLSchemaTest = MujocoTest;
 
 static std::optional<std::string> IsValidSchemaFormat(
-    const char* schema[][mjXATTRNUM], unsigned nrow) {
+    std::vector<const char*> schema[], unsigned nrow) {
   if (schema[0][0][0] == '<' || schema[0][0][0] == '>') {
     return "expected element, found bracket";
   }
@@ -43,8 +42,8 @@ static std::optional<std::string> IsValidSchemaFormat(
 
     // detect element
     if (schema[i][0][0] != '<' && schema[i][0][0] != '>') {
-      // first 3 pointers required
-      if (!schema[i][1] || !schema[i][2]) {
+      // first 2 pointers required
+      if (!schema[i][1]) {
         return absl::StrFormat("expected element, found null pointers"
                                "in row %d, element %s", i, schema[i][0]);
       }
@@ -56,19 +55,9 @@ static std::optional<std::string> IsValidSchemaFormat(
                                i, schema[i][0]);
       }
 
-      // number of attributes
-      int nattr = 0;
-      if (!absl::SimpleAtoi(schema[i][2], &nattr)) {
-        return absl::StrFormat("unparseable number of attributes in"
-                               " row %d, element %s", i, schema[i][0]);
-      } else if (nattr < 0 || nattr > mjXATTRNUM - 3) {
-        return absl::StrFormat("invalid number of attributes in"
-                               " row %d, element %s", i, schema[i][0]);
-      }
-
       // attribute pointers
-      for (int j = 0; j < nattr; j++) {
-        if (!schema[i][3 + j]) {
+      for (int j = 0; j < schema[i].size() - 2; j++) {
+        if (!schema[i][2 + j]) {
           return absl::StrFormat("null attribute %d in"
                                  " row %d, element %s", j, i, schema[i][0]);
         }

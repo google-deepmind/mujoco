@@ -1,0 +1,8 @@
+<mujoco>
+  <include file="grandchild.xml"/>
+  <worldbody>
+    <body name="child_body" pos="1 0 0">
+      <geom type="sphere" size="0.05"/>
+    </body>
+  </worldbody>
+</mujoco>

@@ -38,6 +38,9 @@ MJAPI void mju_closeResource(mjResource* resource);
 // return negative value if error
 MJAPI int mju_readResource(mjResource* resource, const void** buffer);
 
+MJAPI mjtSize mju_writeResource(const char* name, const void* buffer, mjtSize nbytes,
+                                const mjVFS* vfs, char* error, size_t nerror);
+
 // set for a resource with a name partitioned as {dir}{filename}, the dir and ndir pointers
 MJAPI void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir);
 
@@ -45,6 +48,11 @@ MJAPI void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir)
 // return > 0 if the resource is younger than the given timestamp
 // return < 0 if the resource is older than the given timestamp
 MJAPI int mju_isModifiedResource(const mjResource* resource, const char* timestamp);
+
+// given a resource, find its decoder and return the decoded spec
+// the caller takes ownership of the spec and is responsible for cleaning it up
+MJAPI mjSpec* mju_decodeResource(mjResource* resource, const char* content_type,
+                                 const mjVFS* vfs);
 
 #ifdef __cplusplus
 }

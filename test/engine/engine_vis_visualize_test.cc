@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cstring>
 #include <string>
 
 #include <gmock/gmock.h>
@@ -25,56 +24,127 @@ namespace mujoco {
 namespace {
 
 using ::testing::NotNull;
-using MjvSceneTest = MujocoTest;
-
-constexpr int kMaxGeom = 10000;
 
 static const char* const kModelPath = "testdata/model.xml";
 
-TEST_F(MjvSceneTest, UpdateScene) {
-  for (const char* path : {kModelPath}) {
-    const std::string xml_path = GetTestDataFilePath(path);
-    mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-    ASSERT_THAT(model, NotNull()) << "Failed to load model from " << path;
-    mjData* data = mj_makeData(model);
+class MjvSceneTest : public MujocoTest {
+ protected:
+  static constexpr int kMaxGeom = 10000;
 
-    while (data->time < .2) {
-      mj_step(model, data);
-    }
+  void InitSceneObjects(mjModel* model, int maxgeom = kMaxGeom) {
+    mjv_defaultScene(&scn_);
+    mjv_makeScene(model, &scn_, maxgeom);
+    mjv_defaultOption(&opt_);
+    mjv_defaultPerturb(&pert_);
+    mjv_defaultFreeCamera(model, &cam_);
 
-    mjvScene scn;
-    mjv_defaultScene(&scn);
-    mjv_makeScene(model, &scn, kMaxGeom);
-
-    mjvOption opt;
-    mjv_defaultOption(&opt);
-
-    mjvPerturb pert;
-    mjv_defaultPerturb(&pert);
-
-    mjvCamera cam;
-    mjv_defaultFreeCamera(model, &cam);
-
-    // Enable all flags to exercise all code paths
+    // enable flags to exercise additional code paths
     for (int i = 0; i < mjNVISFLAG; ++i) {
-      opt.flags[i] = 1;
+      opt_.flags[i] = 1;
     }
-
-    mjv_updateScene(model, data, &opt, &pert, &cam, mjCAT_ALL, &scn);
-    EXPECT_GT(scn.ngeom, 0);
-    if (model->nskin) EXPECT_GT(scn.nskin, 0);
-    EXPECT_GT(scn.nlight, 0);
-
-    mjv_updateScene(model, data, &opt, &pert, &cam, mjCAT_ALL, &scn);
-
-    // call mj_copyData to expose any memory leaks mjv_updateScene.
-    mjData* data_copy = mj_copyData(nullptr, model, data);
-
-    mjv_freeScene(&scn);
-    mj_deleteData(data_copy);
-    mj_deleteData(data);
-    mj_deleteModel(model);
   }
+
+  void FreeSceneObjects() { mjv_freeScene(&scn_); }
+
+  mjvScene scn_;
+  mjvOption opt_;
+  mjvPerturb pert_;
+  mjvCamera cam_;
+};
+
+TEST_F(MjvSceneTest, UpdateScene) {
+  const std::string xml_path = GetTestDataFilePath(kModelPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  ASSERT_THAT(model, NotNull()) << "Failed to load model from " << kModelPath;
+
+  InitSceneObjects(model);
+
+  mjData* data = mj_makeData(model);
+  while (data->time < .2) {
+    mj_step(model, data);
+  }
+
+  mjv_updateScene(model, data, &opt_, &pert_, &cam_, mjCAT_ALL, &scn_);
+  EXPECT_EQ(scn_.status, 0);
+  EXPECT_GT(scn_.ngeom, 0);
+  EXPECT_GT(scn_.nlight, 0);
+  if (model->nskin) EXPECT_GT(scn_.nskin, 0);
+  if (model->nflex) EXPECT_GT(scn_.nflex, 0);
+
+  mjv_updateScene(model, data, &opt_, &pert_, &cam_, mjCAT_ALL, &scn_);
+
+  // call mj_copyData to expose any memory leaks in mjv_updateScene
+  mjData* data_copy = mj_copyData(nullptr, model, data);
+
+  mj_deleteData(data_copy);
+  mj_deleteData(data);
+  FreeSceneObjects();
+  mj_deleteModel(model);
+}
+
+TEST_F(MjvSceneTest, UpdateSceneGeomsExhausted) {
+  const std::string xml_path = GetTestDataFilePath(kModelPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  ASSERT_THAT(model, NotNull()) << "Failed to load model from " << kModelPath;
+
+  const int maxgeoms = 1;
+  InitSceneObjects(model, maxgeoms);
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  // clear handlers to avoid test failure; we are explicitly expecting a warning
+  mju_clearHandlers();
+  mjv_updateScene(model, data, &opt_, &pert_, &cam_, mjCAT_ALL, &scn_);
+  EXPECT_EQ(scn_.status, 1);
+  EXPECT_EQ(scn_.ngeom, maxgeoms);
+  mj_deleteData(data);
+  FreeSceneObjects();
+  mj_deleteModel(model);
+}
+
+TEST_F(MjvSceneTest, PrincipalPointFrustumSign) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <camera name="cam" pos="0 0 1" zaxis="0 0 1"
+              sensorsize="0.01 0.01" focal="0.01 0.01"
+              principal="0 0.002"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  InitSceneObjects(model.get());
+
+  // point camera at the fixed cam
+  cam_.type = mjCAMERA_FIXED;
+  cam_.fixedcamid = 0;
+  mjv_updateCamera(model.get(), data.get(), &cam_, &scn_);
+
+  float top = scn_.camera[0].frustum_top;
+  float bottom = scn_.camera[0].frustum_bottom;
+
+  // with cy > 0 the principal point is above center, so the frustum should
+  // extend further downward than upward: |bottom| > top
+  EXPECT_GT(-bottom, top);
+
+  // verify exact values against the pinhole model
+  float znear = model->vis.map.znear * model->stat.extent;
+  float cy = model->cam_intrinsic[3];
+  float fy = model->cam_intrinsic[1];
+  float sh = model->cam_sensorsize[1];
+  float half = znear / fy * (sh / 2);
+  float offset = znear / fy * cy;
+
+  EXPECT_FLOAT_EQ(top, half - offset);
+  EXPECT_FLOAT_EQ(bottom, -(half + offset));
+
+  FreeSceneObjects();
 }
 
 }  // namespace

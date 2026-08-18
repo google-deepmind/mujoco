@@ -26,7 +26,7 @@ Tutorial notebook
 
 A MuJoCo tutorial using the Python bindings is available here: |mjcolab|
 
-.. |mjcolab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |mjcolab| image:: https://colab.research.google.com/assets/colab-badge.png
              :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/tutorial.ipynb
 
 .. _PyInstallation:
@@ -50,25 +50,17 @@ Interactive viewer
 
 An interactive GUI viewer is provided as part of the Python package in the ``mujoco.viewer`` module. It is based on the
 same codebase as the :ref:`simulate<saSimulate>` application that ships with the MuJoCo binary releases. Three distinct
-use cases are supported:
-
-.. _PyViewerApp:
-
-Standalone app
---------------
-
-- ``python -m mujoco.viewer`` launches an empty visualization session, where a model can be loaded by drag-and-drop.
-- ``python -m mujoco.viewer --mjcf=/path/to/some/mjcf.xml`` launches a visualization session for the specified
-  model file.
+use cases are supported: :ref:`managed viewer<PyViewerManaged>`, :ref:`standalone app<PyViewerApp>`, and :ref:`passive
+viewer<PyViewerPassive>`.
 
 .. _PyViewerManaged:
 
 Managed viewer
 --------------
 
-Called from a Python program/script, through the function ``viewer.launch``. This function *blocks user code* to
-support precise timing of the physics loop. This mode should be used if user code is implemented as
-:ref:`engine plugins<exPlugin>` or :ref:`physics callbacks<glPhysics>`, and is called by MuJoCo during :ref:`mj_step`.
+The ``viewer.launch`` function launches the interactive viewer and *blocks user code* which is useful to support precise
+timing of the physics loop. This mode should be used if user code is implemented as :ref:`engine
+plugins<exPlugin>` or :ref:`physics callbacks<glPhysics>`, and is called by MuJoCo during :ref:`mj_step`.
 
 - ``viewer.launch()`` launches an empty visualization session, where a model can be loaded by drag-and-drop.
 - ``viewer.launch(model)`` launches a visualization session for the given ``mjModel`` where the visualizer
@@ -76,21 +68,33 @@ support precise timing of the physics loop. This mode should be used if user cod
 - ``viewer.launch(model, data)`` is the same as above, except that the visualizer operates directly on the given
   ``mjData`` instance -- upon exit the ``data`` object will have been modified.
 
+.. _PyViewerApp:
+
+Standalone app
+--------------
+
+The ``mujoco.viewer`` Python package uses the ``if __name__ == '__main__'`` mechanism to allow the :ref:`managed
+viewer<PyViewerManaged>` to be called directly from the command line as a standalone app:
+
+- ``python -m mujoco.viewer`` launches an empty visualization session, where a model can be loaded by drag-and-drop.
+- ``python -m mujoco.viewer --mjcf=/path/to/some/mjcf.xml`` launches a visualization session for the specified
+  model file.
+
 .. _PyViewerPassive:
 
 Passive viewer
 --------------
 
-By calling ``viewer.launch_passive(model, data)``. This function *does not block*, allowing user code to continue
-execution. In this mode, the user's script is responsible for timing and advancing the physics state, and mouse-drag
-perturbations will not work unless the user explicitly synchronizes incoming events.
+The ``viewer.launch_passive`` function launches the interactive viewer in a way which *does not block*, allowing user
+code to continue execution. In this mode, the user's script is responsible for timing and advancing the physics state,
+and mouse-drag perturbations will not work unless the user explicitly synchronizes incoming events.
 
 .. warning::
-  On MacOS, ``launch_passive`` requires that the user script is executed via a special ``mjpython`` launcher.
-  The ``mjpython`` command is installed as part of the ``mujoco`` package, and can be used as a drop-in replacement
-  for the usual ``python`` command and supports an identical set of command line flags and arguments. For example,
-  a script can be executed via ``mjpython my_script.py``, and an IPython shell can be launched via
-  ``mjpython -m IPython``.
+  On MacOS, ``launch_passive`` requires that the user script is executed via a special ``mjpython`` launcher, this is
+  needed to circumvent a platform limitation which requires the main thread to be one that does the rendering. The
+  ``mjpython`` command is installed as part of the ``mujoco`` package, and can be used as a drop-in replacement for the
+  usual ``python`` command and supports an identical set of command line flags and arguments. For example, a script can
+  be executed via ``mjpython my_script.py``, and an IPython shell can be launched via ``mjpython -m IPython``.
 
 The ``launch_passive`` function returns a handle which can be used to interact with the viewer. It has the following
 attributes:
@@ -103,10 +107,14 @@ attributes:
   state. These include the ``mjModel`` and ``mjData`` instance passed to ``launch_passive``, and also the ``cam``,
   ``opt``, and ``pert`` properties of the viewer handle.
 
-- ``sync()``: synchronizes state between ``mjModel``, ``mjData``, and GUI user inputs since the previous call to
-  ``sync``. In order to allow user scripts to make arbitrary modifications to ``mjModel`` and ``mjData`` without
-  needing to hold the viewer lock, the passive viewer does not access or modify these structs outside of ``sync``
-  calls.
+- ``sync(state_only=False)``: synchronizes between the user's ``mjModel``, ``mjData`` and the GUI. In order to allow
+  user scripts to make arbitrary modifications to ``mjModel`` and ``mjData`` without needing to hold the viewer lock,
+  the passive viewer does not access or modify these structs outside of ``sync`` calls. If the ``state_only`` argument
+  is ``True``, instead of syncing everything, only the ``mjData`` fields corresponding to
+  :ref:`mjSTATE_INTEGRATION<mjtState>` are synced, followed by a call to :ref:`mj_forward`. The latter option is much
+  faster, but would not pick up arbitrary changes as in the default case. Changes made via the GUI are picked up in
+  either case but changing e.g., ``mjModel.geom_rgba`` via code will be picked up when ``state_only=False`` but not when
+  ``state_only=True``.
 
   User scripts must call ``sync`` in order for the viewer to reflect physics state changes. The ``sync`` function
   also transfers user inputs from the GUI back into ``mjOption`` (inside ``mjModel``) and ``mjData``, including
@@ -243,7 +251,9 @@ access to the raw memory used by MuJoCo without copying or buffering. This means
 :ref:`mj_step`) change the content of fields *in place*. The user is therefore advised to create copies where required.
 For example, when logging the position of a body, one could write
 ``positions.append(data.body('my_body').xpos.copy())``. Without the ``.copy()``, the list would contain identical
-elements, all pointing to the most recent value.
+elements, all pointing to the most recent value. The same applies to NumPy slices. For example if a local
+variable ``qpos_slice = data.qpos[3:8]`` is created and then :ref:`mj_step` is called, the values in ``qpos_slice``
+will have been changed.
 
 In order to conform to `PEP 8 <https://peps.python.org/pep-0008/>`__
 naming guidelines, struct names begin with a capital letter, for example ``mjData`` becomes ``mujoco.MjData`` in Python.
@@ -259,11 +269,13 @@ initialized with ``mjv_makeScene(model, [the new mjvScene instance], 10)`` in C.
 used, the corresponding deallocation function ``mj_freeFoo/mj_deleteFoo`` is automatically called when the Python
 object is deleted. The user does not need to manually free resources.
 
-The ``mujoco.MjModel`` class does not a have Python constructor. Instead, we provide three static factory functions
+The ``mujoco.MjModel`` class does not have a Python constructor. Instead, we provide three static factory functions
 that create a new :ref:`mjModel` instance: ``mujoco.MjModel.from_xml_string``, ``mujoco.MjModel.from_xml_path``, and
 ``mujoco.MjModel.from_binary_path``. The first function accepts a model XML as a string, while the latter two
 functions accept the path to either an XML or MJB model file. All three functions optionally accept a Python
 dictionary which is converted into a MuJoCo :ref:`Virtualfilesystem` for use during model compilation.
+
+
 
 .. _PyFunctions:
 
@@ -504,16 +516,64 @@ The ``MjSpec`` object wraps the :ref:`mjSpec` struct and can be constructed in t
 
 Note the ``from_string()`` and ``from_file()`` methods can only be called at construction time.
 
+.. _PyVFS:
+
 Assets
 ^^^^^^
 
-All three methods take in an optional argument called ``assets`` which is used to resolve asset references in the XML.
-This argument is a dictionary that maps asset name (string) to asset data (bytes), as demonstrated below:
+MuJoCo optionally uses a :ref:`Virtual File System <Virtualfilesystem>` (VFS) to load assets (like meshes and textures)
+from memory. Some :ref:`decoders<exDecoder>` may also choose to leverage the VFS as a way to load assets on
+demand, such as when addressing files in an archive format. This requires the same VFS to be used when parsing and
+compiling a spec (and all attached specs) into a model.
+
+The Python bindings provide the ``mujoco.MjVfs`` as a wrapper around the :ref:`mjVFS` C struct.
+
+``MjVfs`` supports the context manager protocol, which ensures that resources are properly freed when leaving the block:
+
+.. code-block:: python
+
+   with mujoco.MjVfs() as vfs:
+       vfs["model.xml"] = b"<mujoco/>"
+       spec = mujoco.MjSpec.from_string("model.xml", vfs=vfs)
+       spec.compile(vfs=vfs)
+
+You can also create an instance directly and call ``close()`` when done:
+
+.. code-block:: python
+
+   vfs = mujoco.MjVfs()
+   vfs["model.xml"] = some_xml_string.encode("utf-8")
+   spec = mujoco.MjSpec.from_file("model.xml", vfs=vfs)
+   spec.compile(vfs=vfs)
+   vfs.close()
+
+The ``MjVfs`` object supports dictionary-like operations to manage buffers:
+
+- ``vfs["name"] = data``: Adds a buffer to the VFS. ``data`` must be of type ``bytes``.
+- ``del vfs["name"]``: Deletes a file from the VFS.
+- ``"name" in vfs``: Checks if a file exists in the VFS.
+
+The static factory functions ``mujoco.MjModel.from_xml_string``, ``mujoco.MjModel.from_xml_path``,
+``mujoco.MjSpec.from_string`` and ``mujoco.MjSpec.from_file`` accept an optional ``vfs`` argument. Additionally, the
+``spec.compile()`` function also accepts an optional ``vfs`` argument.
+
+.. warning::
+   The previous way of passing assets via a dictionary mapping asset names to bytes is **deprecated** and will be
+   removed in the next release. You cannot specify both the ``assets`` dictionary and the ``vfs`` argument at the same
+   time. ``MjVfs`` should be used as a drop-in replacement.
+
+For reference, the deprecated ``assets`` dictionary approach looked like this:
 
 .. code-block:: python
 
   assets = {'image.png': b'image_data'}
   spec = mujoco.MjSpec.from_string(xml_referencing_image_png, assets=assets)
+  model = spec.compile()
+
+  # Or
+
+  spec = mujoco.MjSpec.from_string(xml_referencing_image_png)
+  spec.assets = {'image.png': b'image_data'}
   model = spec.compile()
 
 Save to XML
@@ -537,6 +597,26 @@ Compiled ``MjSpec`` objects can be saved to XML string with the ``to_xml()`` met
      </worldbody>
    </mujoco>
 
+Alternatively, specs or compiled models can be serialized to a file using ``encode()``:
+
+.. code-block:: python
+
+   # Save spec directly to an MJCF XML file
+   spec.encode('model.xml')
+
+   # Save XML from a compiled model; copies modified model values back to spec prior to saving
+   spec.encode('model.xml', model=model)
+
+   # Save compiled model to binary MJB format (serializes mjModel only, not spec)
+   spec.encode('model.mjb', model=model)
+
+   # Package spec and all referenced external assets (meshes, textures) into an MJZ zip archive
+   spec.encode('robot.mjz', model=model)
+
+The ``encode()`` method accepts the target filename, an optional compiled ``model`` (:ref:`MjModel`), an optional
+``vfs`` (:ref:`MjVFS`), and an optional ``content_type``. The target format is automatically determined by the file
+extension (``.xml``, ``.mjb``, ``.txt``, ``.mjz``) or content type.
+
 Attachment
 ----------
 
@@ -550,13 +630,13 @@ It is possible to combine multiple specs by using attachments. The following opt
     the reference to a frame, which is the attached worldbody transformed into a frame. The site must belong to the
     child spec. Prefix and suffix can also be specified as keyword arguments.
 -   Attach a child spec to a frame in the parent spec: ``parent_spec.attach(child_spec, frame=frame_name_or_obj)``,
-    returns the reference to a frame, which is the attached worldbody transformed into a frame. The frame must belong to
-    the child spec. Prefix and suffix can also be specified as keyword arguments.
+    returns the reference to a frame, which is the attached worldbody transformed into a frame. The frame must
+    belong to the child spec. Prefix and suffix can also be specified as keyword arguments.
 
 The default behavior of attaching is to not copy, so all the child references (except for the worldbody) are still valid
 in the parent and therefore modifying the child will modify the parent. This is not true for the attach
 :ref:`attach<body-attach>` and :ref:`replicate<replicate>` meta-elements in MJCF, which create deep copies while
-attaching. However, it is possible to override the default behavior by setting ``spec.copy_during_attaching`` to
+attaching. However, it is possible to override the default behavior by setting ``spec.copy_during_attach`` to
 ``True``. In this case, the child spec is copied and the references to the child will not point to the parent.
 
 .. code-block:: python
@@ -580,6 +660,8 @@ attaching. However, it is possible to override the default behavior by setting `
    worldframe_in_site = parent.attach(child, site=site, prefix='child-')
    worldframe_in_frame = parent.attach(child, frame=frame, prefix='child-')
 
+.. _PyEditConvenience:
+
 Convenience methods
 -------------------
 
@@ -598,6 +680,13 @@ Lists of all elements in a spec can be accessed using named properties, using th
 ``geoms``, ``joints``, ``lights``, ``cameras``, ``bodies``, ``frames``, ``materials``, ``meshes``, ``pairs``,
 ``equalities``, ``tendons``, ``actuators``, ``skins``, ``textures``, ``texts``, ``tuples``, ``flexes``, ``hfields``,
 ``keys``, ``numerics``, ``excludes``, ``sensors``, ``plugins``.
+
+Element removal
+^^^^^^^^^^^^^^^
+The method ``delete()`` removes the corresponding element from the spec, e.g. ``spec.delete(spec.geom('my_geom'))`` will
+remove the geom named "my_geom" and all of the elements that reference it. For elements that can have children (bodies
+and defaults), ``delete`` also removes all of their children. When deleting body subtrees, all elements which reference
+elements in the subtree, will also be removed.
 
 Tree traversal
 ^^^^^^^^^^^^^^
@@ -618,8 +707,38 @@ Parent:
   The parent body of a given element -- including bodies and frames -- can be accessed via the ``parent`` property.
   For example, the parent of a site can be accessed via ``site.parent``.
 
-Relationship to ``PyMJCF``
---------------------------
+Serialization
+^^^^^^^^^^^^^
+The ``MjSpec`` object can be serialized with all of its assets using the function ``spec.to_zip(file)``, where ``file``
+can be either a path to a file or a file object. In order to load the spec from a zip file, use ``spec =
+MjSpec.from_zip(file)``, where ``file`` is a path to a zip file or a zip file object.
+
+Mesh creation
+^^^^^^^^^^^^^
+The :ref:`mjsMesh` object includes convenience methods for model creation with named attributes, corresponding to the
+:ref:`mesh/builtin<asset-mesh-builtin>` semantics. See `specs_test.py
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/specs_test.py>`__.
+
+.. code-block:: python
+
+   mesh = spec.add_mesh(name='prism')
+   mesh.make_cone(nedge=5, radius=1)
+
+Texture editing
+^^^^^^^^^^^^^^^
+The :ref:`mjsTexture` buffer option stores the texture bytes in the ``data`` attribute. This attribute can be read and
+modified, for example:
+
+.. code-block:: python
+
+  texture = spec.add_texture(name='texture', height=1, width=3, nchannel=3)
+  texture.data = bytes([255, 0, 0, 0, 255, 0, 0, 0, 255])  # Assign red, green and blue pixels.
+  texture.data[1] = 255  # Change the first pixel to yellow.
+
+.. _PyMJCF:
+
+Relationship to ``PyMJCF`` and ``bind``
+---------------------------------------
 
 `dm_control <https://github.com/google-deepmind/dm_control/tree/main>`__'s
 `PyMJCF <https://github.com/google-deepmind/dm_control/blob/main/dm_control/mjcf/README.md>`__ module provides similar
@@ -635,15 +754,17 @@ includes a reimplementation of the ``PyMJCF`` example in the ``dm_control``
 
 ``PyMJCF`` provides a notion of "binding", giving access to :ref:`mjModel` and :ref:`mjData` values via a helper class.
 In the native API, the helper class is not needed, so it is possible to directly bind an ``mjs`` object to
-:ref:`mjModel` and :ref:`mjData`. This requires the objects to have a non-empty name. For example, say we have multiple
-geoms containing the string "torso" in their name. We want to get their Cartesian positions in the XY plane from
-``mjData``. This can be done as follows:
+:ref:`mjModel` and :ref:`mjData`. For example, say we have multiple geoms containing the string "torso" in their name.
+We want to get their Cartesian positions in the XY plane from ``mjData``. This can be done as follows:
 
 .. code-block:: python
 
    torsos = [data.bind(geom) for geom in spec.geoms if 'torso' in geom.name]
    pos_x = [torso.xpos[0] for torso in torsos]
    pos_y = [torso.xpos[1] for torso in torsos]
+
+Using the ``bind`` method requires the :ref:`mjModel` and :ref:`mjData` to be compiled from the :`ref:`mjSpec`. If
+objects are added or removed from the :ref:`mjSpec` since the last compilation, an error is raised.
 
 Notes
 -----
@@ -664,26 +785,33 @@ Building from source
 
 1. Make sure you have CMake and a C++17 compiler installed.
 
-2. Download the `latest binary release <https://github.com/google-deepmind/mujoco/releases>`__
-   from GitHub. On macOS, the download corresponds to a DMG file which you can mount by
-   double-clicking or running ``hdiutil attach <dmg_file>``.
-
-3. Clone the entire ``mujoco`` repository from GitHub and ``cd`` into the python
-   directory:
+2. Clone the entire ``mujoco`` repository from GitHub.
 
    .. code-block:: shell
 
-      git clone https://github.com/google-deepmind/mujoco.git
+     git clone https://github.com/google-deepmind/mujoco.git
+
+3. Install MuJoCo. Either download the
+   `latest binary release <https://github.com/google-deepmind/mujoco/releases>`__
+   from GitHub (On macOS, the download corresponds to a DMG file which you can
+   mount by double-clicking or running ``hdiutil attach <dmg_file>``),
+   or *build* and *install* it from source as per the instructions in
+   :ref:`inBuild`.
+
+4. ``cd`` into the python directory of the cloned MuJoCo codebase:
+
+   .. code-block:: shell
+
       cd mujoco/python
 
-4. Create a virtual environment:
+5. Create a virtual environment:
 
    .. code-block:: shell
 
       python3 -m venv /tmp/mujoco
       source /tmp/mujoco/bin/activate
 
-5. Generate a `source distribution <https://packaging.python.org/en/latest/glossary/#term-Source-Distribution-or-sdist>`__
+6. Generate a `source distribution <https://packaging.python.org/en/latest/glossary/#term-Source-Distribution-or-sdist>`__
    tarball with the ``make_sdist.sh`` script.
 
    .. code-block:: shell
@@ -696,10 +824,13 @@ Building from source
    completion, the script will create a ``dist`` directory with a
    ``mujoco-x.y.z.tar.gz`` file (where ``x.y.z`` is the version number).
 
-6. Use the generated source distribution to build and install the bindings.
-   You'll need to specify the path to the MuJoCo library you downloaded earlier
-   in the ``MUJOCO_PATH`` environment variable, and the path to the MuJoCo
-   plugin directory in the ``MUJOCO_PLUGIN_PATH`` environment variable.
+7. Use the generated source distribution to build and install the bindings.
+   You'll need to specify the path to the MuJoCo library you downloaded
+   or built and installed earlier in the ``MUJOCO_PATH`` environment
+   variable, and the path to the MuJoCo plugin directory in the
+   ``MUJOCO_PLUGIN_PATH`` environment variable. You can point the
+   ``MUJOCO_PLUGIN_PATH`` environment variable to the ``plugin``
+   folder of the MuJoCo codebase you cloned.
 
    .. note::
       For macOS, the files need to be extracted from the DMG.
@@ -712,7 +843,7 @@ Building from source
 
       cd dist
       MUJOCO_PATH=/PATH/TO/MUJOCO \
-      MUJOCO_PLUGIN_PATH=/PATH/TO/MUJOCO_PLUGIN \
+      MUJOCO_PLUGIN_PATH=/PATH/TO/MUJOCO/PLUGIN \
       pip install mujoco-x.y.z.tar.gz
 
 The Python bindings should now be installed! To check that they've been
@@ -736,15 +867,24 @@ The ``mujoco`` package contains two sub-modules: ``mujoco.rollout`` and ``mujoco
 
 rollout
 -------
-
-``mujoco.rollout`` and ``mujoco.rollout.Rollout`` shows how to add additional C/C++ functionality, exposed as a Python
+``mujoco.rollout`` and ``mujoco.rollout.Rollout`` show how to add additional C/C++ functionality, exposed as a Python
 module via pybind11. It is implemented in `rollout.cc
 <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.cc>`__ and wrapped in `rollout.py
-<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.py>`__. The module performs a common
-functionality where tight loops implemented outside of Python are beneficial: rolling out a trajectory (i.e., calling
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.py>`__. The module addresses a common
+use-case where tight loops implemented outside of Python are beneficial: rolling out a trajectory (i.e., calling
 :ref:`mj_step` in a loop), given an initial state and sequence of controls, and returning subsequent states and sensor
 values. The rollouts are run in parallel with an internally managed thread pool if multiple MjData instances (one per
-thread) are passed as an argument. The basic usage form is
+thread) are passed as an argument. This notebook shows how to use ``rollout`` |rollout_colab|, along with some
+benchmarks e.g., the figure below.
+
+.. |rollout_colab| image:: https://colab.research.google.com/assets/colab-badge.png
+                   :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/rollout.ipynb
+
+.. image:: images/python/rollout.png
+   :align: right
+   :width: 97%
+
+The basic usage form is
 
 .. code-block:: python
 
@@ -755,9 +895,9 @@ thread) are passed as an argument. The basic usage form is
 - ``data`` is either a single instance of MjData or a sequence of compatible MjDatas of length ``nthread``.
 - ``initial_state`` is an ``nbatch x nstate`` array, with ``nbatch`` initial states of size ``nstate``, where
   ``nstate = mj_stateSize(model, mjtState.mjSTATE_FULLPHYSICS)`` is the size of the
-  :ref:`full physics state<geFullPhysics>`.
+  :ref:`full physics state<siFullPhysics>`.
 - ``control`` is a ``nbatch x nstep x ncontrol`` array of controls. Controls are by default the ``mjModel.nu`` standard
-  actuators, but any combination of :ref:`user input<geInput>` arrays can be specified by passing an optional
+  actuators, but any combination of :ref:`user input<siInput>` arrays can be specified by passing an optional
   ``control_spec`` bitflag.
 
 If a rollout diverges, the current state and sensor values are used to fill the remainder of the trajectory.
@@ -809,7 +949,7 @@ This module contains optimization-related utilities.
 The ``minimize.least_squares()`` function implements a nonlinear Least Squares optimizer solving sequential
 Quadratic Programs with :ref:`mju_boxQP`. It is documented in the associated notebook: |lscolab|
 
-.. |lscolab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |lscolab| image:: https://colab.research.google.com/assets/colab-badge.png
              :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/least_squares.ipynb
 
 .. _PyUSDexport:
@@ -852,8 +992,7 @@ custom cameras and lights. The constructor arguments of a ``USDExporter`` instan
 - ``model``: An MjModel instance. The USD exporter reads relevant information from the model including details about
   cameras, lights, textures, and object geometries.
 
-- ``max_geom``: Maximum number of geoms in a scene, required when instatiating the internal .
-  `mjvScene <https://mujoco.readthedocs.io/en/stable/APIreference/APItypes.html#mjvscene>`__.
+- ``max_geom``: Maximum number of geoms in a scene, required when instantiating the internal :ref:`mjvScene`.
 
 - ``output_directory``: Name of the directory under which the exported USD file and all relevant
   assets are stored. When saving a scene/trajectory as a USD file, the exporter creates the following directory
@@ -1013,8 +1152,8 @@ non-exhaustive list of specific mujoco-py features:
 ``sim.get_state()``, ``sim.set_state(state)``, ``sim.get_flattened_state()``, ``sim.set_state_from_flattened(state)``
    The MuJoCo library’s computation is deterministic given a specific input, as explained in the :ref:`Programming
    section <Simulation>`. mujoco-py implements methods for getting and setting some of the relevant fields (and
-   similarly ``dm_control.Physics`` offers methods that correspond to the flattened case). ``mujoco`` do not offer such
-   abstraction, and the user is expected to get/set the values of the relevant fields explicitly.
+   similarly ``dm_control.Physics`` offers methods that correspond to the flattened case). This functionality is
+   described in the :ref:`State and Control<siStateControl>` section.
 
 ``sim.model.get_joint_qvel_addr(joint_name)``
    This is a convenience method in mujoco-py that returns a list of contiguous indices corresponding to this joint. The
@@ -1032,5 +1171,5 @@ non-exhaustive list of specific mujoco-py features:
    This is the one context in which the MuJoCo library (and therefore also ``mujoco``) is stateful: it holds a copy in
    memory of the last XML that was compiled, which is used in :ref:`mujoco.mj_saveLastXML(fname) <mj_saveLastXML>`. Note
    that mujoco-py’s implementation has a convenient extra feature, whereby the pose (as determined by ``sim.data``’s
-   state) is transformed to a keyframe that’s added to the model before saving.  This extra feature is not currently
+   state) is transformed to a keyframe that’s added to the model before saving. This extra feature is not currently
    available in ``mujoco``.

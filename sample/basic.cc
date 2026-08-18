@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include <GLFW/glfw3.h>
@@ -88,14 +89,14 @@ void mouse_move(GLFWwindow* window, double xpos, double ypos) {
   }
 
   // move camera
-  mjv_moveCamera(m, action, dx/height, dy/height, &scn, &cam);
+  mjv_moveCamera(m, action, dx/height, dy/height, &cam);
 }
 
 
 // scroll callback
 void scroll(GLFWwindow* window, double xoffset, double yoffset) {
   // emulate vertical mouse motion = 5% of window height
-  mjv_moveCamera(m, mjMOUSE_ZOOM, 0, -0.05*yoffset, &scn, &cam);
+  mjv_moveCamera(m, mjMOUSE_ZOOM, 0, -0.05*yoffset, &cam);
 }
 
 
@@ -104,7 +105,7 @@ int main(int argc, const char** argv) {
   // check command-line arguments
   if (argc!=2) {
     std::printf(" USAGE:  basic modelfile\n");
-    return 0;
+    return EXIT_FAILURE;
   }
 
   // load and compile model
@@ -186,5 +187,5 @@ int main(int argc, const char** argv) {
   glfwTerminate();
 #endif
 
-  return 1;
+  return EXIT_SUCCESS;
 }

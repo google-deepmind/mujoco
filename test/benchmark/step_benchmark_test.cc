@@ -73,14 +73,14 @@ static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepFlagPlugin(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  static mjModel* model = LoadModelFromPath("plugin/elasticity/flag_flex.xml");
+  static mjModel* model = LoadModelFromPath("flex/flag.xml");
   run_step_benchmark(model, state);
 }
 BENCHMARK(BM_StepFlagPlugin);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepParticle(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  static mjModel* model = LoadModelFromPath("composite/particle.xml");
+  static mjModel* model = LoadModelFromPath("replicate/particle.xml");
   run_step_benchmark(model, state);
 }
 BENCHMARK(BM_StepParticle);

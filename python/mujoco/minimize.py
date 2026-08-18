@@ -36,6 +36,7 @@ class Status(enum.Enum):
   NO_IMPROVEMENT = enum.auto()
   MAX_ITER = enum.auto()
   DX_TOL = enum.auto()
+  G_TOL = enum.auto()
 
 
 _STATUS_MESSAGE = {
@@ -43,6 +44,7 @@ _STATUS_MESSAGE = {
     Status.NO_IMPROVEMENT: 'insufficient reduction.',
     Status.MAX_ITER: 'maximum iterations reached.',
     Status.DX_TOL: 'norm(dx) < tol.',
+    Status.G_TOL: 'norm(gradient) < tol.',
 }
 
 
@@ -57,6 +59,7 @@ class IterLog:
     regularizer: Value of the regularizer used for this iteration.
     residual: Optional value of the residual at the candidate.
     jacobian: Optional value of the Jacobian at the candidate.
+    grad: Optional value of the gradient at the candidate.
     step: Optional change in decision variable during this iteration.
   """
 
@@ -66,6 +69,7 @@ class IterLog:
   regularizer: np.float64
   residual: Optional[np.ndarray] = None
   jacobian: Optional[np.ndarray] = None
+  grad: Optional[np.ndarray] = None
   step: Optional[np.ndarray] = None
 
 
@@ -141,16 +145,18 @@ def least_squares(
     bounds: Optional[Sequence[np.ndarray]] = None,
     jacobian: Optional[Callable[[np.ndarray, np.ndarray], np.ndarray]] = None,
     norm: Norm = Quadratic(),
-    eps: float = 1e-6,
+    eps: float = np.finfo(np.float64).eps ** 0.5,
     mu_min: float = 1e-6,
     mu_max: float = 1e8,
-    mu_factor: float = 10.0**0.1,
-    tol: float = 1e-6,
+    mu_factor: float = 10.0 ** 0.1,
+    xtol: float = 1e-8,
+    gtol: float = 1e-8,
     max_iter: int = 100,
     verbose: Union[Verbosity, int] = Verbosity.ITER,
     output: Optional[TextIO] = None,
     iter_callback: Optional[Callable[[List[IterLog]], None]] = None,
     check_derivatives: bool = False,
+    x_scale: Optional[Union[float, np.ndarray, str]] = None,
 ) -> Tuple[np.ndarray, List[IterLog]]:
   """Nonlinear Least Squares minimization with box bounds.
 
@@ -166,12 +172,19 @@ def least_squares(
     mu_min: Minimum value of the regularizer.
     mu_max: Maximum value of the regularizer.
     mu_factor: Factor for increasing or decreasing the regularizer.
-    tol: Termination tolerance on the step size.
+    xtol: Termination tolerance on relative step size.
+    gtol: Termination tolerance on gradient norm.
     max_iter: Maximum number of iterations.
     verbose: Verbosity level.
     output: Optional file or StringIO to which to print messages.
     iter_callback: Optional iteration callback, takes trace argument.
     check_derivatives: Compare user-defined Jacobian and norm against fin-diff.
+    x_scale: Per-parameter scaling (matches scipy's x_scale). Setting
+      x_scale=D solves the problem in the change of variables z = x / D
+      and un-scales the result. None (default) or 1.0 is no scaling.
+      'jac' sets D_i = 1 / ||J(:, i)|| at each iteration. An array of
+      shape (n,) (or a positive scalar) is used as D directly. Note
+      that mu, mu_min and mu_max then act on the scaled subproblem.
 
   Returns:
     x: best solution found
@@ -196,6 +209,24 @@ def least_squares(
   eps = np.float64(eps)
   mu = np.float64(0.0)  # Optimistically start with no regularization.
   n_reduc = 0  # Number of sequential mu reductions.
+
+  # Resolve x_scale -> D of shape (n, 1). For 'jac', D is refreshed each iter;
+  # None means no scaling (D = 1).
+  adaptive_scale = isinstance(x_scale, str)
+  if adaptive_scale and x_scale != 'jac':
+    raise ValueError(
+        f"x_scale must be None, 'jac', a positive scalar, or array, got "
+        f'{x_scale!r}.'
+    )
+  if x_scale is None or adaptive_scale:
+    D = np.ones((n, 1))
+  else:
+    D = np.asarray(x_scale, dtype=np.float64)
+    if D.shape not in ((), (n,)):
+      raise ValueError(f'x_scale array must have shape ({n},), got {D.shape}.')
+    if not np.all(np.isfinite(D)) or np.any(D <= 0):
+      raise ValueError('x_scale must be positive and finite.')
+    D = (np.ones(n) * D).reshape(n, 1)
 
   # Initialize logging.
   trace = []
@@ -278,12 +309,34 @@ def least_squares(
     if i == 0 and check_derivatives and not isinstance(norm, Quadratic):
       check_norm(r, norm, eps, output)
 
-    # Get gradient, Gauss-Newton Hessian.
-    grad, hess = norm.grad_hess(r, jac)
+    # Refresh D for adaptive ('jac') scaling: column-norm preconditioner.
+    if adaptive_scale:
+      col_norms = np.linalg.norm(jac, axis=0)
+      D = (1.0 / np.maximum(col_norms, eps)).reshape(n, 1)
 
-    # Bounds relative to x
-    dlower = None if bounds is None else bounds[0] - x
-    dupper = None if bounds is None else bounds[1] - x
+    # Gradient/Hessian in scaled coords (jac * D.T scales columns).
+    grad, hess = norm.grad_hess(r, jac * D.T)
+
+    # Get free (unclamped) gradient.
+    if bounds is None:
+      grad_free = grad
+    else:
+      clamped_lower = (x == bounds[0]) & (grad > 0)
+      clamped_upper = (x == bounds[1]) & (grad < 0)
+      clamped = clamped_lower | clamped_upper
+      grad_free = grad[~clamped]
+
+    # Check termination condition on gradient norm.
+    g_norm = np.linalg.norm(grad_free)
+    if g_norm <= gtol:
+      status = Status.G_TOL
+      if g_norm == 0:
+        print('Zero gradient norm: exact minimum found?', file=output)
+      break
+
+    # Bounds relative to x, expressed in scaled coords (dz = dx / D).
+    dlower = None if bounds is None else (bounds[0] - x) / D
+    dupper = None if bounds is None else (bounds[1] - x) / D
 
     # Find reduction satisfying Armijo's rule.
     armijo = -1
@@ -306,8 +359,8 @@ def least_squares(
       if status != Status.MAX_ITER:
         break
 
-      # New candidate, residual.
-      xnew = x + dx
+      # New candidate (D * dx is the x-space step).
+      xnew = x + D * dx
       t_start = time.time()
       rnew = residual(xnew)
       t_res += time.time() - t_start
@@ -339,8 +392,9 @@ def least_squares(
     else:
       reduction_ratio = reduction / expected_reduction
 
-    # Iteration message.
-    dx_norm = np.linalg.norm(dx)
+    # Iteration message. Step printed in x-space (D * dx).
+    step = D * dx
+    dx_norm = np.linalg.norm(step)
     if verbose >= Verbosity.ITER.value:
       logmu = np.log10(mu) if mu > 0 else -np.inf
       message = (
@@ -351,19 +405,23 @@ def least_squares(
       print(message, file=output)
 
     # Append log to trace, call iter_callback.
-    log = IterLog(candidate=x, objective=y, reduction=reduction, regularizer=mu)
+    log = IterLog(candidate=x, objective=y, reduction=reduction, regularizer=mu)  # pyrefly: ignore[bad-argument-type]
     if verbose >= Verbosity.FULLITER.value:
-      log = dataclasses.replace(log, residual=r, jacobian=jac, step=dx)
+      log = dataclasses.replace(
+          log, residual=r, jacobian=jac, grad=grad / D, step=step
+      )
     trace.append(log)
     if iter_callback is not None:
       iter_callback(trace)
 
-    # Check for success.
-    if dx_norm < tol:
+    # Check termination condition on step norm.
+    if dx_norm < xtol * (xtol + np.linalg.norm(x)):
+      x = xnew
+      r = rnew
       status = Status.DX_TOL
       break
 
-    # Modify regularizer like in (Bazaraa, Sherali, and Shetty)
+    # Modify regularizer like in (Fletcher, 1971)
     if reduction_ratio > 0.75:
       mu, n_reduc = decrease_mu(mu, n_reduc)
     elif reduction_ratio < 0.25:
@@ -376,8 +434,25 @@ def least_squares(
   # Append final log to trace, call iter_callback.
   # Note: unlike other iter logs, values are computed at the end point.
   yfinal = norm.value(r)
-  red = np.float64(0.0)  # No reduction sice we didn't take a step.
+  red = np.float64(0.0)  # No reduction since we didn't take a step.
   log = IterLog(candidate=x, objective=yfinal, reduction=red, regularizer=mu)
+
+  # If full verbosity requested, compute values at the final point.
+  if verbose >= Verbosity.FULLITER.value:
+    # Get Jacobian jac.
+    t_start = time.time()
+    if jacobian is None:
+      jac, n_res = jacobian_fd(residual, x, r, eps, n_res, bounds)
+      t_res += time.time() - t_start
+    else:
+      jac = jacobian(x, r)
+      t_jac += time.time() - t_start
+      n_jac += 1
+
+    # Get gradient, add to log.
+    grad, _ = norm.grad_hess(r, jac)
+    log = dataclasses.replace(log, residual=r, jacobian=jac, grad=grad)
+
   trace.append(log)
   if iter_callback is not None:
     iter_callback(trace)
@@ -430,13 +505,15 @@ def jacobian_fd(
   """
   n = x.size
   if bounds is None:
-    eps_vec = eps * np.ones(n)
+    eps_vec = eps * np.ones((n, 1))
   else:
-    mid = 0.5 * (bounds[1] - bounds[0])
-    eps_vec = np.where(x > mid, -eps, eps).flatten()
-  xh = x + np.diag(eps_vec)
+    mid = 0.5 * bounds[0] + 0.5 * bounds[1]
+    eps_vec = np.where(x > mid, -eps, eps)
+  eps_vec *= np.maximum(1.0, np.abs(x))
+  eps_vec = (eps_vec + x) - x
+  xh = x + np.diag(eps_vec.flatten())
   rh = residual(xh)
-  jac = (rh - r) / eps_vec
+  jac = (rh - r) / eps_vec.T
   return jac, n_res + n
 
 

@@ -1,0 +1,28 @@
+<mujoco>
+  <option integrator="RK4">
+    <flag energy="enable"/>
+  </option>
+
+  <default>
+    <geom rgba="0.8 0.6 .4 1"/>
+    <site rgba="0.4 0.8 .6 .5"/>
+  </default>
+
+  <worldbody>
+    <site name="decoration" type="cylinder" zaxis="0 -1 0" size="1 .02" pos="0 .1 0"/>
+    <site name="world"/>
+    <body pos="1 0 0">
+      <joint name="x" type="slide" axis="1 0 0"/>
+      <joint name="z" type="slide" axis="0 0 1"/>
+      <geom name="query" type="sphere" size=".1" mass="1"/>
+      <site name="body"/>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <spatial width=".01" rgba=".2 .2 1 1" springlength=".5" stiffness="100" armature="5">
+      <site site="world"/>
+      <site site="body"/>
+    </spatial>
+  </tendon>
+</mujoco>

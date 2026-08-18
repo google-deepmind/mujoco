@@ -1,0 +1,20 @@
+{% if objective_plot_html %}
+<h3>Objective Function</h3>
+<div>
+    {{ objective_plot_html | safe }}
+</div>
+{% endif %}
+{% if candidate_heatmap_html %}
+<h3>Parameter Candidate Heatmap</h3>
+<div>
+    {{ candidate_heatmap_html | safe }}
+</div>
+{% endif %}
+{% if candidate_plots_html %}
+<h3>Parameter Candidates</h3>
+{% for plot_html in candidate_plots_html %}
+<div>
+    {{ plot_html | safe }}
+</div>
+{% endfor %}
+{% endif %}

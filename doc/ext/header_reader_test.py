@@ -87,7 +87,7 @@ class MuJoCoApiGeneratorTest(parameterized.TestCase):
 
   def test_multi_line_doc(self):
     self.assertEqual(_API['mj_other_function'].doc,
-                     'My other function\nThis one has multiple lines\n')
+                     'My other function\n\nThis one has multiple lines\n')
 
   def test_multi_line_function(self):
     self.assertEqual(_API['mj_other_function'].start, 9)

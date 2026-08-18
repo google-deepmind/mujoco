@@ -17,7 +17,7 @@
 
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,15 +50,113 @@ MJAPI mjtNum mju_muscleDynamicsTimescale(mjtNum dctrl, mjtNum tau_act, mjtNum ta
 // muscle activation dynamics, prm = (tau_act, tau_deact, smoothing_width)
 MJAPI mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]);
 
+// LuGre Stribeck function: g(v) = F_C + (F_S - F_C) * exp(-(v/v_S)^2)
+mjtNum mj_lugreStribeck(mjtNum velocity, mjtNum F_C, mjtNum F_S, mjtNum v_S);
+
+// DC motor activation slot indices (-1 = slot not active)
+typedef struct {
+  int slew;         // slew rate state
+  int integral;     // integral state
+  int temperature;  // temperature state
+  int bristle;      // LuGre bristle state
+  int current;      // current state
+  int num_slots;    // number of DC motor states
+} mjDCMotorSlots;
+
+// compute activation slot indices for a DC motor actuator
+// dynprm = actuator_dynprm row, gainprm = actuator_gainprm row
+mjDCMotorSlots mj_dcmotorSlots(const mjtNum* dynprm, const mjtNum* gainprm);
+
 // all 3 semi-axes of a geom
-MJAPI void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]);
+MJAPI void mju_geomSemiAxes(mjtNum semiaxes[3], const mjtNum size[3], mjtGeom type);
+
+// return 1 if point is inside a primitive geom, 0 otherwise
+int mju_insideGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3], mjtGeom type,
+                   const mjtNum point[3]);
+
+// compute ray origin and direction for pixel (col, row) in camera image
+// directions are normalized so ray functions return actual 3D distance
+void mju_camPixelRay(mjtNum origin[3], mjtNum direction[3],
+                     const mjtNum cam_xpos[3], const mjtNum cam_xmat[9],
+                     int col, int row, mjtNum fx, mjtNum fy, mjtNum cx, mjtNum cy,
+                     int projection, mjtNum ortho_extent);
 
 // ----------------------------- Flex interpolation ------------------------------------------------
 
 // evaluate the deformation gradient at p using the nodal dof values
 MJAPI void mju_defGradient(mjtNum res[9], const mjtNum p[3], const mjtNum* dof, int order);
 
-// ----------------------------- Base64 -----------------------------------------------------------
+// evaluate the basis function at x for the i-th node
+MJAPI mjtNum mju_evalBasis(const mjtNum x[3], int i, int order);
+
+// evaluate the basis functions at x for all nodes in the cell
+MJAPI void mju_evalBasisArray(mjtNum* basis, const mjtNum x[3], int order);
+
+// map global parametric coord to cell-local coord and build node indices
+MJAPI int mju_cellLookup(const mjtNum coord[3], const int cellnum[3], int order, mjtNum local[3],
+                         int* nodeindices);
+
+// interpolate a function at x with given interpolation coefficients and order n
+MJAPI void mju_interpolate3D(mjtNum res[3], const mjtNum x[3], const mjtNum* coeff, int order,
+                             const int* nodeindices);
+
+// gather cell-local quantities and optionally compute rotation
+MJAPI void mju_flexGatherCellState(int order, int cy, int cz, int ci, int cj, int ck,
+                                   const mjtNum* xpos_g, const mjtNum* vel_g,
+                                   const mjtNum* xpos0_g, mjtNum* xpos_c, mjtNum* vel_c,
+                                   mjtNum* xpos0_c, int* nodeindices, mjtNum* quat);
+
+// gather face-element-local quantities and optionally compute rotation (shell mode)
+MJAPI void mju_flexGatherFaceState(int order, int cx, int cy, int cz,
+                                   int face_elem_idx,
+                                   const mjtNum* xpos_g, const mjtNum* vel_g,
+                                   const mjtNum* xpos0_g,
+                                   mjtNum* xpos_f, mjtNum* vel_f, mjtNum* xpos0_f,
+                                   int* nodeindices, mjtNum* quat);
+
+// compute corotational rotation from 2D deformation gradient on a flat face
+MJAPI void mju_flexInterpRotation2D(int order, const mjtNum* xpos_f, int npe,
+                                    int axis0, int axis1, int normal_axis,
+                                    const mjtNum local[2], mjtNum* quat);
+
+// compute unnormalized surface normal and tangent vectors at a parametric point
+// on a 2D face element; normal = t1 x t2 (unnormalized)
+MJAPI void mju_flexFaceNormal2D(mjtNum normal[3], mjtNum t1[3], mjtNum t2[3],
+                                int order, const mjtNum* xpos_f,
+                                const mjtNum local[2]);
+
+
+// 1D shape function: order 1 (linear) or 2 (quadratic), node index i
+static inline mjtNum mju_flexPhi(mjtNum s, int i, int order) {
+  if (order == 1) return i == 0 ? 1 - s : s;
+  switch (i) {
+    case 0: return 2*s*s - 3*s + 1;
+    case 1: return 4*(s - s*s);
+    case 2: return 2*s*s - s;
+    default: return 0;
+  }
+}
+
+// 1D shape function gradient
+static inline mjtNum mju_flexDphi(mjtNum s, int i, int order) {
+  if (order == 1) return i == 0 ? -1 : 1;
+  switch (i) {
+    case 0: return 4*s - 3;
+    case 1: return 4*(1 - 2*s);
+    case 2: return 4*s - 1;
+    default: return 0;
+  }
+}
+// reconstruct interior node positions from boundary nodes via Transfinite Interpolation
+MJAPI void mju_shellTrackInterior(mjtNum* nodexpos, int nx, int ny, int nz);
+
+// compute TFI weights for an interior node (i,j,k) and distribute to boundary nodes
+MJAPI void mju_shellTFIWeights(int nx, int ny, int nz, int i, int j, int k,
+                               mjtNum w, int* nb, int* body, mjtNum* bweight,
+                               const int* nodebodyid, int nstart);
+
+
+// ----------------------------- Base64 ------------------------------------------------------------
 
 // encode data as Base64 into buf (including padding and null char)
 // returns number of chars written in buf: 4 * [(ndata + 2) / 3] + 1
@@ -72,7 +170,31 @@ MJAPI size_t mju_isValidBase64(const char* s);
 // returns number of bytes decoded (upper limit of 3 * (strlen(s) / 4))
 MJAPI size_t mju_decodeBase64(uint8_t* buf, const char* s);
 
-//------------------------------ miscellaneous ----------------------------------------------------
+//------------------------------ history buffers ---------------------------------------------------
+
+// buffer layout: [user(1), cursor(1), times(n), values(n*dim)]
+// - user: 1 mjtNum reserved for user data (ignored by these functions)
+// - cursor: 1 mjtNum for circular buffer index (integer stored as mjtNum)
+// - times: n timestamps, contiguous at buf[2..n+1]
+// - values: n*dim values, contiguous at buf[n+2..n+2+n*dim-1]
+// total buffer size: 2 + n*(1 + dim)
+
+// initialize history buffer with given times and values; times must be strictly increasing
+// values is size n x dim
+MJAPI void mju_historyInit(mjtNum* buf, int n, int dim, const mjtNum* times,
+                           const mjtNum* values, mjtNum user);
+
+// find insertion slot for sample at time t, maintaining sorted order
+// returns pointer to value slot (size dim) where caller should write
+MJAPI mjtNum* mju_historyInsert(mjtNum* buf, int n, int dim, mjtNum t);
+
+// read vector value at time t; interp: 0=zero-order-hold, 1=linear, 2=cubic spline
+// returns pointer to sample in buffer on exact match (res untouched)
+// returns NULL and writes interpolated result to res otherwise
+MJAPI const mjtNum* mju_historyRead(const mjtNum* buf, int n, int dim,
+                                    mjtNum* res, mjtNum t, int interp);
+
+//------------------------------ miscellaneous -----------------------------------------------------
 
 // convert contact force to pyramid representation
 MJAPI void mju_encodePyramid(mjtNum* pyramid, const mjtNum* force,
@@ -129,17 +251,20 @@ MJAPI const char* mju_warningText(int warning, size_t info);
 // return 1 if nan or abs(x)>mjMAXVAL, 0 otherwise
 MJAPI int mju_isBad(mjtNum x);
 
-// return 1 if all elements are 0
-MJAPI int mju_isZero(mjtNum* vec, int n);
+// return 1 if all elements are numerically 0 (-0.0 treated as zero)
+MJAPI int mju_isZero(const mjtNum* vec, int n);
+
+// return 1 if all elements are 0x00, faster than mju_isZero
+MJAPI int mju_isZeroByte(const unsigned char* vec, int n);
 
 // set integer vector to 0
 MJAPI void mju_zeroInt(int* res, int n);
 
-// set size_t vector to 0
-MJAPI void mju_zeroSizeT(size_t* res, size_t n);
-
 // copy int vector vec into res
 MJAPI void mju_copyInt(int* res, const int* vec, int n);
+
+// fill int vector with val
+void mju_fillInt(int* res, int val, int n);
 
 // standard normal random number generator (optional second number)
 MJAPI mjtNum mju_standardNormal(mjtNum* num2);
@@ -156,6 +281,33 @@ MJAPI void mju_d2n(mjtNum* res, const double* vec, int n);
 // convert from mjtNum to double
 MJAPI void mju_n2d(double* res, const mjtNum* vec, int n);
 
+// gather mjtNums: res[i] = vec[ind[i]], or copy if ind is NULL
+MJAPI void mju_gather(mjtNum* res, const mjtNum* vec, const int* ind, int n);
+
+// gather mjtNums, set to 0 at negative indices
+MJAPI void mju_gatherMasked(mjtNum* res, const mjtNum* vec, const int* ind, int n);
+
+// scatter mjtNums: res[ind[i]] = vec[i], or copy if ind is NULL
+MJAPI void mju_scatter(mjtNum* res, const mjtNum* vec, const int* ind, int n);
+
+// gather integers
+MJAPI void mju_gatherInt(int* res, const int* vec, const int* ind, int n);
+
+// scatter integers
+MJAPI void mju_scatterInt(int* res, const int* vec, const int* ind, int n);
+
+// build gather indices mapping src to res, assumes pattern(res) \subseteq pattern(src)
+MJAPI void mju_sparseMap(int* map, int nr,
+                         const int* res_rowadr, const int* res_rownnz, const int* res_colind,
+                         const int* src_rowadr, const int* src_rownnz, const int* src_colind);
+
+// build masked-gather map to copy a lower-triangular src into symmetric res
+//  `cursor` is a preallocated buffer of size `nr`
+MJAPI void mju_lower2SymMap(int* map, int nr,
+                            const int* res_rowadr, const int* res_rownnz, const int* res_colind,
+                            const int* src_rowadr, const int* src_rownnz, const int* src_colind,
+                            int* cursor);
+
 // insertion sort, increasing order
 MJAPI void mju_insertionSort(mjtNum* list, int n);
 
@@ -167,6 +319,17 @@ MJAPI mjtNum mju_Halton(int index, int base);
 
 // call strncpy, then set dst[n-1] = 0
 MJAPI char* mju_strncpy(char *dst, const char *src, int n);
+
+// polynomial force coefficient: force = -mju_polyForce(...) * x
+//   flg_odd=0: linear + poly[0]*x   + poly[1]*x^2 + ...
+//   flg_odd=1: linear + poly[0]*|x| + poly[1]*x^2 + ...
+MJAPI mjtNum mju_polyForce(mjtNum linear, const mjtNum* poly, mjtNum x, int n, int flg_odd);
+
+// derivative of (mju_polyForce * x) w.r.t. x
+MJAPI mjtNum mjd_xPolyForce(mjtNum linear, const mjtNum* poly, mjtNum x, int n, int flg_odd);
+
+// potential energy: integral from 0 to x of mju_polyForce * t dt
+MJAPI mjtNum mju_polyPotential(mjtNum linear, const mjtNum* poly, mjtNum x, int n, int flg_odd);
 
 // sigmoid function over 0<=x<=1 using quintic polynomial
 MJAPI mjtNum mju_sigmoid(mjtNum x);

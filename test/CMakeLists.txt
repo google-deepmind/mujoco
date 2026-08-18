@@ -42,6 +42,7 @@ macro(mujoco_test name)
   )
 
   add_executable(${name} ${name}.cc)
+  target_link_options(${name} PRIVATE ${EXTRA_LINK_OPTIONS})
   target_link_libraries(${name} mujoco fixture gmock)
   if(_ARGS_MAIN_TARGET)
     target_link_libraries(${name} ${_ARGS_MAIN_TARGET})
@@ -53,20 +54,36 @@ macro(mujoco_test name)
   endif()
   target_include_directories(${name} PRIVATE ${MUJOCO_TEST_INCLUDE})
   set_target_properties(${name} PROPERTIES BUILD_RPATH ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
-  # gtest_discover_tests is recommended over gtest_add_tests, but has some issues in Windows.
-  gtest_add_tests(
-    TARGET ${name}
-    SOURCES ${name}.cc
-    WORKING_DIRECTORY ${MUJOCO_TEST_WORKING_DIR}
-    TEST_LIST testList
-  )
-  if(WIN32)
-    set_tests_properties(
-      ${testList} PROPERTIES ENVIRONMENT "PATH=$<TARGET_FILE_DIR:mujoco>;$ENV{PATH}"
+  # gtest_discover_tests is recommended over gtest_add_tests, but has issues on Windows.
+  # It also requires a GoogleTest binary, so we fall back for custom MAIN_TARGET (e.g. benchmarks).
+  if(WIN32 OR APPLE OR _ARGS_MAIN_TARGET)
+    gtest_add_tests(
+      TARGET ${name}
+      SOURCES ${name}.cc
+      WORKING_DIRECTORY ${MUJOCO_TEST_WORKING_DIR}
+      TEST_LIST testList
     )
-  endif()
-  if(_ARGS_PROPERTIES)
-    set_tests_properties(${testList} PROPERTIES ${_ARGS_PROPERTIES})
+    if(WIN32)
+      set_tests_properties(
+        ${testList} PROPERTIES ENVIRONMENT "PATH=$<TARGET_FILE_DIR:mujoco>;$ENV{PATH}"
+      )
+    endif()
+    if(_ARGS_PROPERTIES)
+      set_tests_properties(${testList} PROPERTIES ${_ARGS_PROPERTIES})
+    endif()
+  else()
+    if(_ARGS_PROPERTIES)
+      gtest_discover_tests(
+        ${name}
+        WORKING_DIRECTORY ${MUJOCO_TEST_WORKING_DIR}
+        PROPERTIES ${_ARGS_PROPERTIES}
+      )
+    else()
+      gtest_discover_tests(
+        ${name}
+        WORKING_DIRECTORY ${MUJOCO_TEST_WORKING_DIR}
+      )
+    endif()
   endif()
 
 endmacro()
@@ -87,9 +104,17 @@ target_link_libraries(
 )
 target_include_directories(fixture PRIVATE ${mujoco_SOURCE_DIR}/include gmock)
 
+add_library(compare_model STATIC compare_model.h compare_model.cc)
+target_include_directories(compare_model PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_compile_definitions(compare_model PUBLIC MJSTATIC)
+target_link_libraries(compare_model PUBLIC mujoco::mujoco)
+target_include_directories(compare_model PRIVATE ${mujoco_SOURCE_DIR}/include)
+
 mujoco_test(fixture_test)
 
 mujoco_test(header_test)
+
+mujoco_test(mjspecmacro_test)
 
 mujoco_test(pipeline_test)
 
@@ -100,3 +125,5 @@ add_subdirectory(user)
 add_subdirectory(xml)
 add_subdirectory(plugin/elasticity)
 add_subdirectory(plugin/actuator)
+add_subdirectory(experimental)
+add_subdirectory(doc)

@@ -60,8 +60,7 @@ def main(argv):
   # @executable_path-relative paths now and add them to
   # DYLD_FALLBACK_LIBRARY_PATH.
   libpython_dir = os.path.dirname(libpython_path)
-  dyld_fallback_paths = (
-      os.environ.get('DYLD_FALLBACK_LIBRARY_PATH', '').split(':'))
+  dyld_fallback_paths = []
   pattern = re.compile(r'@executable_path/(.+) \(offset \d+\)\Z')
   otool_out = subprocess.run(
       ['otool', '-l', libpython_path],
@@ -75,7 +74,20 @@ def main(argv):
       if new_path not in dyld_fallback_paths:
         dyld_fallback_paths.insert(0, new_path)
 
-  os.environ['DYLD_FALLBACK_LIBRARY_PATH'] = ':'.join(dyld_fallback_paths)
+  # According to `man dyld`, the default value for DYLD_FALLBACK_LIBRARY_PATH
+  # changed in late 2023. In newer binaries, if DYLD_FALLBACK_LIBRARY_PATH is
+  # not set, dyld will use /usr/local/lib and /usr/lib as fallback. If it is
+  # set, these locations will not be used as lookup paths unless explicitly
+  # added.
+  if dyld_fallback_paths:
+    if 'DYLD_FALLBACK_LIBRARY_PATH' in os.environ:
+      old_paths = os.environ['DYLD_FALLBACK_LIBRARY_PATH']
+      # Empty string splits to [''] but we don't want to append ''.
+      if old_paths:
+        dyld_fallback_paths.extend(old_paths.split(':'))
+    else:
+      dyld_fallback_paths.extend(('/usr/local/lib', '/usr/lib'))
+    os.environ['DYLD_FALLBACK_LIBRARY_PATH'] = ':'.join(dyld_fallback_paths)
 
   # argv[0] is currently the path to this script.
   # Replace it with sys.executable to preserve e.g. virtualenv path.

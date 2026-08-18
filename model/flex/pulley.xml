@@ -22,6 +22,12 @@
 
   <statistic center="0 -.3 1" extent="2.5"/>
 
+  <asset>
+    <texture name="texcyl" type="2d" builtin="checker" rgb1=".3 .3 .3" rgb2=".15 0.15 0.15"
+      width="512" height="512" mark="cross" markrgb=".22 .22 .22"/>
+    <material name="matcyl" reflectance="0.3" texture="texcyl" texrepeat="3 3" texuniform="true"/>
+  </asset>
+
   <worldbody>
     <flexcomp name="cable" type="circle" count="40 1 1" spacing=".15 1 1" dim="1"
               radius="0.02" pos="0 0 1" rgba="1 0 0 1">
@@ -30,12 +36,12 @@
     <body name="left" pos="-.7 0 1">
       <joint name="expand_left" type="slide" axis="-1 0 0" range="0 2" damping="20"/>
       <joint name="rotate" type="hinge" axis="0 0 1"/>
-      <geom type="cylinder" size=".2 .2" density="1"/>
+      <geom type="cylinder" size=".2 .2" density="1" material="matcyl"/>
     </body>
     <body name="right" pos=".7 0 1">
       <joint name="expand_right" type="slide" axis="1 0 0" range="0 2" damping="20"/>
       <joint type="hinge" axis="0 0 1"/>
-      <geom type="cylinder" size=".2 .2" density="1"/>
+      <geom type="cylinder" size=".2 .2" density="1" material="matcyl"/>
     </body>
   </worldbody>
 

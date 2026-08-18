@@ -30,6 +30,6 @@ mjSpec* ParseSpecFromString(std::string_view xml, const mjVFS* vfs = nullptr,
                             char* error = nullptr, int nerror = 0);
 
 // Main writer function
-std::string WriteXML(const mjModel* m, const mjSpec* spec, char* error, int nerror);
+std::string WriteXML(const mjModel* m, mjSpec* spec, char* error, int nerror);
 
 #endif  // MUJOCO_SRC_XML_XML_H_

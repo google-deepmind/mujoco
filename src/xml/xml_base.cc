@@ -44,8 +44,8 @@ mjXBase::mjXBase() {
 
 
 // set model field
-void mjXBase::SetModel(const mjSpec* _model, const mjModel* m) {
-  spec = (mjSpec*)_model;
+void mjXBase::SetModel(mjSpec* _model, const mjModel* m) {
+  spec = _model;
 }
 
 
