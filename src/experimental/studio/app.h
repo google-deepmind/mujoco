@@ -35,6 +35,7 @@
 #include "experimental/platform/sim/step_control.h"
 #include "experimental/platform/ux/gui.h"
 #include "experimental/platform/ux/gui_spec.h"
+#include "experimental/platform/ux/imgui_widgets.h"
 #include "experimental/platform/ux/interaction.h"
 #include "experimental/platform/ux/picture_gui.h"
 #include "experimental/platform/ux/spec_editor.h"
@@ -208,6 +209,7 @@ class App {
 
   void LoadSettings();
   void SaveSettings();
+  void ApplyWindowStateStorage();
 
   void LoadHistory(int offset);
 
@@ -240,6 +242,10 @@ class App {
 
   std::string app_title_;
   std::string ini_path_;
+  // Window state storage (e.g. collapsing header open/closed state), keyed
+  // "<window name>/<id>", which ImGui does not serialize. Entries stay
+  // pending until their window is first created.
+  platform::KeyValues window_state_storage_;
   std::string model_name_;  // Used if model_kind_ is kModelFromBuffer.
   std::string model_path_;
   std::string load_error_;
