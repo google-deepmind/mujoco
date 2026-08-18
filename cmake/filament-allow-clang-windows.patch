@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 18f692b0..d871d95c 100644
+index 016e5ec5d..d2a6aae37 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -11,12 +11,7 @@ cmake_minimum_required(VERSION 3.22.1)
@@ -16,7 +16,7 @@ index 18f692b0..d871d95c 100644
  
  # ==================================================================================================
  # Toolchain configuration
-@@ -258,57 +253,59 @@ if (WIN32)
+@@ -264,57 +259,59 @@ if (WIN32)
      # __declspec(dllexport) in front of each functions).
      set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
  
@@ -126,7 +126,7 @@ index 18f692b0..d871d95c 100644
      endif()
  
      if (MSVC)
-@@ -355,7 +352,7 @@ endif()
+@@ -361,7 +358,7 @@ endif()
  # Detect use of the clang-cl.exe frontend, which does not support all of clangs normal options
  if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
      if ("${CMAKE_CXX_SIMULATE_ID}" STREQUAL "MSVC")
@@ -135,7 +135,7 @@ index 18f692b0..d871d95c 100644
      endif()
  endif()
  
-@@ -387,7 +384,7 @@ if (APPLE AND NOT IOS)
+@@ -393,7 +390,7 @@ if (APPLE AND NOT IOS)
  endif()
  
  set(CXX_STANDARD "-std=c++20")
@@ -144,7 +144,7 @@ index 18f692b0..d871d95c 100644
      set(CXX_STANDARD "/std:c++20")
  endif()
  
-@@ -781,9 +778,14 @@ function(combine_static_libs TARGET OUTPUT DEPS)
+@@ -787,9 +784,14 @@ function(combine_static_libs TARGET OUTPUT DEPS)
      endforeach()
  
      if (WIN32)
@@ -161,10 +161,10 @@ index 18f692b0..d871d95c 100644
              COMMENT "Combining ${target} dependencies into single shared library"
              VERBATIM
 diff --git a/filament/CMakeLists.txt b/filament/CMakeLists.txt
-index 3a34ba4b..2bdf5a04 100644
+index c334d0a9f..9f8004e3d 100644
 --- a/filament/CMakeLists.txt
 +++ b/filament/CMakeLists.txt
-@@ -797,6 +797,9 @@ else()
+@@ -808,6 +808,9 @@ else()
              -Wover-aligned
              -Werror
      )
@@ -175,7 +175,7 @@ index 3a34ba4b..2bdf5a04 100644
  
  target_compile_options(${TARGET} PRIVATE
 diff --git a/filament/backend/CMakeLists.txt b/filament/backend/CMakeLists.txt
-index 78c05dd2..4f8c0bf3 100644
+index 78c05dd22..4f8c0bf3d 100644
 --- a/filament/backend/CMakeLists.txt
 +++ b/filament/backend/CMakeLists.txt
 @@ -525,6 +525,10 @@ else()
@@ -190,7 +190,7 @@ index 78c05dd2..4f8c0bf3 100644
      # Turn on Automatic Reference Counting.
      target_compile_options(${TARGET} PRIVATE "-fobjc-arc")
 diff --git a/filament/backend/src/CommandStream.cpp b/filament/backend/src/CommandStream.cpp
-index 7146800f..d7973ffd 100644
+index 7146800f6..d7973ffd4 100644
 --- a/filament/backend/src/CommandStream.cpp
 +++ b/filament/backend/src/CommandStream.cpp
 @@ -57,7 +57,7 @@ static void printParameterPack(io::ostream& out, const FIRST& first, const REMAI
@@ -203,7 +203,7 @@ index 7146800f..d7973ffd 100644
      auto pos = command.rfind(startPattern);
      auto end = command.rfind('(');
 diff --git a/filament/backend/src/opengl/platforms/PlatformWGL.cpp b/filament/backend/src/opengl/platforms/PlatformWGL.cpp
-index 31843028..8664ea3c 100644
+index 318430289..8664ea3cf 100644
 --- a/filament/backend/src/opengl/platforms/PlatformWGL.cpp
 +++ b/filament/backend/src/opengl/platforms/PlatformWGL.cpp
 @@ -251,7 +251,7 @@ Platform::SwapChain* PlatformWGL::createSwapChain(uint32_t width, uint32_t heigh
@@ -216,7 +216,7 @@ index 31843028..8664ea3c 100644
      width = rect.right - rect.left;
      height = rect.bottom - rect.top;
 diff --git a/libs/ibl/src/CubemapIBL.cpp b/libs/ibl/src/CubemapIBL.cpp
-index 60f83174..1deb0185 100644
+index 60f83174d..1deb01857 100644
 --- a/libs/ibl/src/CubemapIBL.cpp
 +++ b/libs/ibl/src/CubemapIBL.cpp
 @@ -56,7 +56,7 @@ static float3 hemisphereImportanceSampleDggx(float2 u, float a) { // pdf = D(a)
@@ -301,7 +301,7 @@ index 60f83174..1deb0185 100644
      const float3 V(std::sqrt(1 - NoV * NoV), 0, NoV);
      for (size_t i = 0; i < numSamples; i++) {
 diff --git a/libs/ibl/src/CubemapSH.cpp b/libs/ibl/src/CubemapSH.cpp
-index 5d22cb80..f8adccc7 100644
+index 5d22cb804..f8adccc71 100644
 --- a/libs/ibl/src/CubemapSH.cpp
 +++ b/libs/ibl/src/CubemapSH.cpp
 @@ -685,7 +685,7 @@ void CubemapSH::renderPreScaledSH3Bands(JobSystem& js,
@@ -332,7 +332,7 @@ index 5d22cb80..f8adccc7 100644
          const char* d = nullptr;
          float c = 0;
 diff --git a/libs/imageio/src/ImageEncoder.cpp b/libs/imageio/src/ImageEncoder.cpp
-index 9f83c6c6..6593581e 100644
+index 9f83c6c62..6593581e3 100644
 --- a/libs/imageio/src/ImageEncoder.cpp
 +++ b/libs/imageio/src/ImageEncoder.cpp
 @@ -867,39 +867,39 @@ const uint32_t DDS_FOURCC_DX10 = 0x30315844; // "DX10"
@@ -400,7 +400,7 @@ index 9f83c6c6..6593581e 100644
  #pragma pack(pop)
  
 diff --git a/libs/utils/include/utils/StructureOfArrays.h b/libs/utils/include/utils/StructureOfArrays.h
-index 7ee9da70..956aa8ec 100644
+index 7ee9da70b..956aa8ec0 100644
 --- a/libs/utils/include/utils/StructureOfArrays.h
 +++ b/libs/utils/include/utils/StructureOfArrays.h
 @@ -742,7 +742,7 @@ typename StructureOfArraysBase<Allocator, Elements...>::IteratorValueRef&
@@ -440,7 +440,7 @@ index 7ee9da70..956aa8ec 100644
      return *this;
  }
 diff --git a/libs/utils/include/utils/compiler.h b/libs/utils/include/utils/compiler.h
-index ff73d43f..2b7824ec 100644
+index f678e36e7..3f1b94cf3 100644
 --- a/libs/utils/include/utils/compiler.h
 +++ b/libs/utils/include/utils/compiler.h
 @@ -228,7 +228,7 @@
@@ -453,7 +453,7 @@ index ff73d43f..2b7824ec 100644
  #else
  #define UTILS_THREAD_ANNOTATION_ATTRIBUTE(x)
 diff --git a/libs/utils/src/CallStack.cpp b/libs/utils/src/CallStack.cpp
-index 798fd642..be5f15d4 100644
+index 644df0c97..dda872816 100644
 --- a/libs/utils/src/CallStack.cpp
 +++ b/libs/utils/src/CallStack.cpp
 @@ -92,7 +92,7 @@ void CallStack::update(size_t ignore) noexcept {
@@ -465,17 +465,17 @@ index 798fd642..be5f15d4 100644
      // reset the object
      ssize_t size = 0;
  
-@@ -140,7 +140,7 @@ CString CallStack::demangleTypeName(const char* mangled) {
- 
+@@ -141,7 +141,7 @@ CString CallStack::demangleTypeName(const char* mangled) {
  // ------------------------------------------------------------------------------------------------
  
--io::ostream& operator<<(io::ostream& stream, CallStack const& UTILS_UNUSED callstack) {
-+io::ostream& operator<<(io::ostream& stream, UTILS_UNUSED CallStack const& callstack) {
+ template <typename Stream>
+-Stream& printCallStack(Stream& stream, CallStack const& UTILS_UNUSED callstack) {
++Stream& printCallStack(Stream& stream, UTILS_UNUSED CallStack const& callstack) {
  #if HAS_EXECINFO
      size_t const size = callstack.getFrameCount();
      char buf[1024];
 diff --git a/third_party/getopt/src/getopt.c b/third_party/getopt/src/getopt.c
-index cf2984af..1dacef63 100644
+index cf2984af0..1dacef630 100644
 --- a/third_party/getopt/src/getopt.c
 +++ b/third_party/getopt/src/getopt.c
 @@ -1,5 +1,6 @@
@@ -486,7 +486,7 @@ index cf2984af..1dacef63 100644
  #include <unistd.h>
  #endif
 diff --git a/third_party/spirv-cross/CMakeLists.txt b/third_party/spirv-cross/CMakeLists.txt
-index 8e5129c8..76191108 100644
+index 8e5129c8b..761911083 100644
 --- a/third_party/spirv-cross/CMakeLists.txt
 +++ b/third_party/spirv-cross/CMakeLists.txt
 @@ -20,7 +20,11 @@
@@ -503,7 +503,7 @@ index 8e5129c8..76191108 100644
  
  # Avoid a warning if parent project sets VERSION in project().
 diff --git a/third_party/spirv-cross/tnt/CMakeLists.txt b/third_party/spirv-cross/tnt/CMakeLists.txt
-index 4cb9bdcc..086bec67 100644
+index 4cb9bdccb..086bec67a 100644
 --- a/third_party/spirv-cross/tnt/CMakeLists.txt
 +++ b/third_party/spirv-cross/tnt/CMakeLists.txt
 @@ -37,7 +37,11 @@ endif()
@@ -520,7 +520,7 @@ index 4cb9bdcc..086bec67 100644
  
    if(SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS)
 diff --git a/tools/cmgen/src/cmgen.cpp b/tools/cmgen/src/cmgen.cpp
-index 722e5737..288be3ce 100644
+index 722e5737c..288be3ce9 100644
 --- a/tools/cmgen/src/cmgen.cpp
 +++ b/tools/cmgen/src/cmgen.cpp
 @@ -131,7 +131,7 @@ static void outputSh(std::ostream& out, const std::unique_ptr<filament::math::fl
