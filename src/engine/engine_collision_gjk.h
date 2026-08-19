@@ -31,16 +31,16 @@ extern "C" {
 // numerical limits
 #ifdef mjUSESINGLE
   #define mjMAX_LIMIT FLT_MAX
-  // tolerance for normal alignment of two faces (cosine of 1.6e-3)
-  #define mjFACE_TOL 0.99999872f
-  // tolerance for edge-face alignment (sine of 1.6e-3)
-  #define mjEDGE_TOL 0.00159999931f
+  // tolerance for normal alignment of two faces (~5.1 deg)
+  #define mjFACE_TOL 0.996f
+  // tolerance for edge-face alignment (~5.1 deg)
+  #define mjEDGE_TOL 0.0888f
 #else
   #define mjMAX_LIMIT DBL_MAX
-  // tolerance for normal alignment of two faces (cosine of 1.6e-3)
-  #define mjFACE_TOL 0.99999872
-  // tolerance for edge-face alignment (sine of 1.6e-3)
-  #define mjEDGE_TOL 0.00159999931
+  // tolerance for normal alignment of two faces (~5.1 deg)
+  #define mjFACE_TOL 0.996
+  // tolerance for edge-face alignment (~5.1 deg)
+  #define mjEDGE_TOL 0.0888
 #endif
 
 

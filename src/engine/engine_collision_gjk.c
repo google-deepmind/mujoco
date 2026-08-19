@@ -1606,31 +1606,14 @@ static int halfspace(const mjtNum a[3], const mjtNum n[3], const mjtNum p[3]) {
 }
 
 
-// compute the intersection of a plane with a line segment (a, b)
-static mjtNum planeIntersect(mjtNum res[3], const mjtNum pn[3], mjtNum pd,
-                             const mjtNum a[3], const mjtNum b[3]) {
-  mjtNum ab[3];
-  sub3(ab, b, a);
-  mjtNum temp = dot3(pn, ab);
-  if (temp == 0.0) return mjMAX_LIMIT;  // parallel; no intersection
-  mjtNum t = (pd - dot3(pn, a)) / temp;
-  if (t >= 0.0 && t <= 1.0) {
-    res[0] = a[0] + t*ab[0];
-    res[1] = a[1] + t*ab[1];
-    res[2] = a[2] + t*ab[2];
-  }
-  return t;
-}
-
-
 // compute witness points on face (given by point p and normal n) from clipped vertex
-static inline void witnessOnFace(mjtNum w1[3], mjtNum w2[3], const mjtNum v[3],
-                                 const mjtNum* p, const mjtNum n[3], const mjtNum dir[3]) {
-  mjtNum d[3];
-  sub3(d, v, p);
-  mjtNum g = mju_abs(dot3(d, n));
-  addScl3(w1, v, dir, -g);
+static inline mjtNum witnessOnFace(mjtNum w1[3], mjtNum w2[3], const mjtNum v[3],
+                                   const mjtNum* p, const mjtNum n[3], const mjtNum dir[3]) {
+  mjtNum d[3] = {v[0] - p[0], v[1] - p[1], v[2] - p[2]};
+  mjtNum dist = dot3(d, n);
+  addScl3(w1, v, dir, -mju_abs(dist));
   copy3(w2, v);
+  return dist;
 }
 
 
@@ -1642,7 +1625,7 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
   if (nface1 < 3) {
     return;
   }
-
+  mjtNum* dist = status->dist;
   mjtNum* polygon = buffer;
   mjtNum* clipped = polygon + 6 * npolygonmax;
   mjtNum* pn = clipped + 6 * npolygonmax;
@@ -1667,6 +1650,7 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
       // get edge PQ of the polygon
       mjtNum *P = polygon + 3*i;
       mjtNum *Q = (i < npolygon - 1) ? polygon + 3*(i+1) : polygon;
+      mjtNum PQ[3] = {Q[0] - P[0], Q[1] - P[1], Q[2] - P[2]};
 
       // determine if P and Q are in the halfspace of the clipping edge
       int inside1 = halfspace(face1 + e, pn + e, P);
@@ -1684,9 +1668,12 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
       }
 
       // add new vertex to clipped polygon where PQ intersects the clipping edge
-      mjtNum t = planeIntersect(clipped + 3*nclipped++, pn + e, pd[e/3], P, Q);
-      if (t < 0.0 || t > 1.0) {
-        nclipped--;  // no intersection in PQ
+      mjtNum tmp = dot3(pn + e, PQ);
+      if (tmp != 0.0) {
+        mjtNum t = (pd[e/3] - dot3(pn + e, P)) / tmp;
+        if (t >= 0.0 && t <= 1.0) {
+          addScl3(clipped + 3*nclipped++, P, PQ, t);
+        }
       }
 
       // add Q as PQ is now back inside the clipping edge
@@ -1703,6 +1690,20 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
     nclipped = 0;
   }
 
+  // prune out vertices with positive distance from the face
+  int m = npolygon;
+  npolygon = 0;
+  for (int i = 0; i < m; i++) {
+    mjtNum diff[3];
+    sub3(diff, polygon + 3*i, face1);
+    if (dot3(diff, n) <= 0) {
+      if (npolygon != i) {
+        copy3(polygon + 3*npolygon, polygon + 3*i);
+      }
+      npolygon++;
+    }
+  }
+
   if (npolygon < 1) {
     return;
   }
@@ -1713,8 +1714,7 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
     mjtNum* rect[4];
     polygonQuad(rect, polygon, npolygon);
     for (int i = 0; i < 4; i++) {
-      status->dist[i] = status->dist[0];
-      witnessOnFace(status->x1 + 3*i, status->x2 + 3*i, rect[i], face1, n, dir);
+      dist[i] = witnessOnFace(status->x1 + 3*i, status->x2 + 3*i, rect[i], face1, n, dir);
     }
     return;
   }
@@ -1736,9 +1736,8 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
         }
       }
     }
-    witnessOnFace(status->x1, status->x2, polygon + 3*best1, face1, n, dir);
-    witnessOnFace(status->x1 + 3, status->x2 + 3, polygon + 3*best2, face1, n, dir);
-    status->dist[1] = status->dist[0];
+    dist[0] = witnessOnFace(status->x1, status->x2, polygon + 3*best1, face1, n, dir);
+    dist[1] = witnessOnFace(status->x1 + 3, status->x2 + 3, polygon + 3*best2, face1, n, dir);
     status->nx = 2;
     return;
   }
@@ -1747,8 +1746,7 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
   int maxcon = sizeof(status->x2) / (3*sizeof(status->x2[0]));
   npolygon = (npolygon < maxcon) ? npolygon : maxcon;
   for (int i = 0; i < npolygon; i++) {
-    status->dist[i] = status->dist[0];
-    witnessOnFace(status->x1 + 3*i, status->x2 + 3*i, polygon + 3*i, face1, n, dir);
+    dist[i] = witnessOnFace(status->x1 + 3*i, status->x2 + 3*i, polygon + 3*i, face1, n, dir);
   }
   status->nx = npolygon;
 }
