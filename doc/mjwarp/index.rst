@@ -40,12 +40,10 @@ The MuJoCo ecosystem offers multiple options for batched simulation.
   can be achieved with hardware that has fast cores and large thread counts, but overall performance of applications
   requiring frequent host<>device transfers (e.g., reinforcement learning with simulation on CPU and learning on GPU)
   may be bottlenecked by transfer overhead.
-- **mjx.step**: `jax.vmap` and `jax.pmap` enable multi-threaded and multi-device simulation with JAX on CPUs, GPUs, or
+- :ref:`mjx.step <MjxFunctions>`: `jax.vmap` and `jax.pmap` enable multi-threaded and multi-device simulation with JAX on CPUs, GPUs, or
   TPUs.
-- :func:`mujoco_warp.step <mujoco_warp.step>`: Python API for multi-threaded and multi-device simulation with CUDA via
-  Warp on NVIDIA GPUs. Improved scaling for contact-rich scenes compared to the MJX JAX implementation.
-
-.. TODO(robotics-simulation): add link to mjx.step
+- :func:`mujoco_warp.step <mujoco_warp.step>`: Python API for high throughput simulation targeting NVIDIA GPUs. Scales
+  better than MJX on nearly every workload, in particular complex simulation scenes. Works well with PyTorch.
 .. TODO(robotics-simulation): add step/time comparison plot
 
 Low latency
@@ -63,7 +61,10 @@ teleoperation).
 Complex scenes
 --------------
 
-MJWarp scales better than MJX for scenes with many geoms or degrees of freedom, but not as well as MuJoCo.
+MJWarp scales better than MJX for scenes with many geoms or degrees of freedom, but not as well as MuJoCo for single
+large kinematic trees. MJWarp can scale to scenes with hundreds of degrees of freedom as long as
+:ref:`sleeping <Sleeping>` is enabled and the scene can be partitioned into independent islands with dormant bodies.
+Improving performance for single connected mechanisms beyond ~60 DoFs remains an active priority.
 
 .. TODO(robotic-simulation): add graph for ngeom and nv scaling
 
@@ -340,10 +341,11 @@ Memory allocated inline, including for CCD and the constraint solver, can also b
   - ``PLANE<>MESH``: 4 versus 3
   - ``HFieldCCD``: 4 versus ``mjMAXCONPAIR``
 
-.. admonition:: Sparsity
-  :class: note
-
-  Sparse Jacobians can enable significant memory savings.
+Sparse Jacobians (e.g., ``efc.J``, ``ten_J``, ``flexedge_J``, and ``actuator_moment``) store only potentially non-zero entries,
+reducing memory and skipping zero arithmetic. For high-DoF scenes (:math:`n_v > 60`), sparsity
+enables simulations that are unsupported in dense mode. For example, in the Aloha clutter benchmark
+(:math:`n_v = 136`, 2048 worlds, ``njmax = 384``), the sparse representation of ``efc.J`` and its column indices
+``efc.J_colind`` requires ~84 MB combined (~42 MB each) compared to ~408 MB for dense ``efc.J``, a +4x reduction in memory.
 
 The :func:`mjw.make_data <mujoco_warp.make_data>` or :func:`mjw.put_data <mujoco_warp.put_data>` argument
 ``nccdmax`` / ``naccdmax`` can be set to a value less than `nconmax`_ / `naconmax`_ in order to reduce the memory
