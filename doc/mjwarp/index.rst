@@ -40,12 +40,10 @@ The MuJoCo ecosystem offers multiple options for batched simulation.
   can be achieved with hardware that has fast cores and large thread counts, but overall performance of applications
   requiring frequent host<>device transfers (e.g., reinforcement learning with simulation on CPU and learning on GPU)
   may be bottlenecked by transfer overhead.
-- **mjx.step**: `jax.vmap` and `jax.pmap` enable multi-threaded and multi-device simulation with JAX on CPUs, GPUs, or
+- :ref:`mjx.step <MjxFunctions>`: `jax.vmap` and `jax.pmap` enable multi-threaded and multi-device simulation with JAX on CPUs, GPUs, or
   TPUs.
-- :func:`mujoco_warp.step <mujoco_warp.step>`: Python API for multi-threaded and multi-device simulation with CUDA via
-  Warp on NVIDIA GPUs. Improved scaling for contact-rich scenes compared to the MJX JAX implementation.
-
-.. TODO(robotics-simulation): add link to mjx.step
+- :func:`mujoco_warp.step <mujoco_warp.step>`: Python API for high throughput simulation targeting NVIDIA GPUs. Scales
+  better than MJX on nearly every workload, in particular complex simulation scenes. Works well with PyTorch.
 .. TODO(robotics-simulation): add step/time comparison plot
 
 Low latency
@@ -63,13 +61,10 @@ teleoperation).
 Complex scenes
 --------------
 
-MJWarp scales better than MJX for scenes with many geoms or degrees of freedom, but not as well as MuJoCo. There may be
-significant performance degradation in MJWarp for scenes beyond 60 degrees of freedom (DoFs). Supporting these larger scenes
-is a high priority and progress is tracked in GitHub issues for: sparse Jacobians
-`#88 <https://github.com/google-deepmind/mujoco_warp/issues/88>`__, block Cholesky factorization and solve
-`#320 <https://github.com/google-deepmind/mujoco_warp/issues/320>`__, constraint islands
-`#886 <https://github.com/google-deepmind/mujoco_warp/issues/886>`__, and sleeping islands
-`#887 <https://github.com/google-deepmind/mujoco_warp/issues/887>`__.
+MJWarp scales better than MJX for scenes with many geoms or degrees of freedom, but not as well as MuJoCo for single
+large kinematic trees. MJWarp can scale to scenes with hundreds of degrees of freedom as long as
+:ref:`sleeping <Sleeping>` is enabled and the scene can be partitioned into independent islands with dormant bodies.
+Improving performance for single connected mechanisms beyond ~60 DoFs remains an active priority.
 
 .. TODO(robotic-simulation): add graph for ngeom and nv scaling
 
@@ -346,11 +341,11 @@ Memory allocated inline, including for CCD and the constraint solver, can also b
   - ``PLANE<>MESH``: 4 versus 3
   - ``HFieldCCD``: 4 versus ``mjMAXCONPAIR``
 
-.. admonition:: Sparsity
-  :class: note
-
-  Sparse Jacobians can enable significant memory savings. Updates for this feature are tracked in GitHub issue
-  `#88 <https://github.com/google-deepmind/mujoco_warp/issues/88>`__.
+Sparse Jacobians (e.g., ``efc.J``, ``ten_J``, ``flexedge_J``, and ``actuator_moment``) store only potentially non-zero entries,
+reducing memory and skipping zero arithmetic. For high-DoF scenes (:math:`n_v > 60`), sparsity
+enables simulations that are unsupported in dense mode. For example, in the Aloha clutter benchmark
+(:math:`n_v = 136`, 2048 worlds, ``njmax = 384``), the sparse representation of ``efc.J`` and its column indices
+``efc.J_colind`` requires ~84 MB combined (~42 MB each) compared to ~408 MB for dense ``efc.J``, a +4x reduction in memory.
 
 The :func:`mjw.make_data <mujoco_warp.make_data>` or :func:`mjw.put_data <mujoco_warp.put_data>` argument
 ``nccdmax`` / ``naccdmax`` can be set to a value less than `nconmax`_ / `naconmax`_ in order to reduce the memory
@@ -465,38 +460,15 @@ Batched :class:`Model <mujoco_warp.Model>` Fields
 
 To enable batched simulation with different model parameter values, many :class:`mjw.Model <mujoco_warp.Model>` fields
 have a leading batch dimension. By default, the leading dimension is 1 (i.e., ``field.shape[0] == 1``) and the same
-value(s) will be applied to all worlds. It is possible to override one of these fields with a ``wp.array`` that has a
-leading dimension greater than one. This field will be indexed with a modulo operation of the world id and batch
+value(s) will be applied to all worlds. It is possible to set batch sizes per field
+
+.. code-block:: python
+
+  m = mjw.put_model(mjm, batch_sizes={"dof_damping": 2})
+  m.dof_damping.assign(np.array([[0.1], [0.2]], dtype=float))
+
+and then override the default values. Batched fields will be indexed with a modulo operation of the world id and batch
 dimension: ``field[worldid % field.shape[0]]``.
-
-.. admonition:: Graph capture
-  :class: warning
-
-  The field array should be overridden prior to
-  :ref:`graph capture <mjwGC>` (i.e., ``wp.ScopedCapture``)
-  since the update will not be applied to an existing graph.
-
-.. code-block:: python
-
-   # override shape and values
-   m.dof_damping = wp.array([[0.1], [0.2]], dtype=float)
-
-   with wp.ScopedCapture() as capture:
-     mjw.step(m, d)
-
-It is possible to override the field shape and set the field values after graph capture
-
-.. code-block:: python
-
-   # override shape
-   m.dof_damping = wp.empty((2, 1), dtype=float)
-
-   with wp.ScopedCapture() as capture:
-     mjw.step(m, d)
-
-   # set batched values
-   dof_damping = wp.array([[0.1], [0.2]], dtype=float)
-   wp.copy(m.dof_damping, dof_damping)  # m.dof = dof_damping will not update the captured graph
 
 Modifying fields
 ----------------
@@ -1006,12 +978,6 @@ running its main collision pipeline.
 
 :ref:`Contact sensors<sensor-contact>` will report the correct information for contacts affecting the physics.
 
-**Why are Jacobians always dense?**
-
-Sparse Jacobians are not currently implemented and ``Data`` fields: ``ten_J``, ``actuator_moment``, ``flexedge_J``, and
-``efc.J`` are always represented as dense matrices. Support for sparse Jacobians is tracked in GitHub issue
-`#88 <https://github.com/google-deepmind/mujoco_warp/issues/88>`__.
-
 **Why do some arrays have different shapes compared to mjModel or mjData?**
 
 By default for batched simulation, many :class:`mjw.Data <mujoco_warp.Data>` fields having a leading batch dimension of
@@ -1019,7 +985,7 @@ size ``Data.nworld``. Some :class:`mjw.Model <mujoco_warp.Model>` fields having 
 ``1``, indicating that this
 :ref:`field can be overridden with an array of batched parameters for domain randomization <mjwBatch>`.
 
-Additionally, certain fields including ``Model.qM``, ``Data.efc.J``, and ``Data.efc.D`` are padded to enable fast
+Additionally, certain fields including ``Model.M``, ``Data.efc.J``, and ``Data.efc.D`` are padded to enable fast
 loading on GPU.
 
 **Why are numerical results from MJWarp and MuJoCo different?**
@@ -1029,21 +995,6 @@ default double representation for :ref:`mjtNum`. Solver settings, including iter
 friction values may be sensitive to differences in floating point representation.
 
 If you encounter unexpected results, including NaNs, please open a GitHub issue.
-
-**Why is inertia matrix qM sparsity not consistent with MuJoCo / MJX?**
-
-.. admonition:: ``mjtJacobian`` semantics
-   :class: note
-
-   - MuJoCo's inertia matrix is always sparse and :ref:`mjtJacobian` affects constraint Jacobians and related quantities
-   - MJWarp's (and MJX's) constraint Jacobian is always dense and :ref:`mjtJacobian` is repurposed to affect the inertia
-     matrix that can be represented as dense or sparse
-
-The automatic sparsity threshold utilized by MJWarp for ``AUTO`` is optimized for GPU and set to ``nv > 32``,
-unlike MuJoCo and MJX which use ``nv >= 60``. Dense ``DENSE`` and sparse ``SPARSE`` settings are consistent with MuJoCo
-and MJX.
-
-This feature is likely to change in the future.
 
 **How to fix simulation runtime warnings?**
 
@@ -1070,10 +1021,8 @@ Compilation
 **How can compilation time be improved?**
 
 Limit the number of unique colliders that require the general convex collision pipeline. These colliders are listed as
-``_CONVEX_COLLISION_PAIRS`` in
-`collision_convex.py <https://github.com/google-deepmind/mujoco_warp/blob/main/mujoco_warp/_src/collision_convex.py>`__.
-Improvements to the compilation time for the pipeline are tracked in this
-`GitHub issue <https://github.com/google-deepmind/mujoco_warp/issues/813>`__.
+``CONVEX`` in ``MJ_COLLISION_TABLE`` in
+`collision_driver.py <https://github.com/google-deepmind/mujoco_warp/blob/e357e88b6b47166d325b564c805d9ecbae659a64/mujoco_warp/_src/collision_driver.py#L45>`__.
 
 **Why are the physics not working as expected after upgrading MJWarp?**
 
@@ -1106,11 +1055,10 @@ acceleration with ``qacc_warmstart``. In contrast, MuJoCo performs a comparison 
 Inertia matrix factorization
 ----------------------------
 
-When using dense computation, MJWarp's factorization of the inertia matrix ``qLD`` is computed with Warp's ``L'L``
-Cholesky factorization
-`wp.tile_cholesky <https://nvidia.github.io/warp/language_reference/_generated/warp._src.lang.tile_cholesky.html>`__
-and the result is not expected to match MuJoCo's corresponding field because a different reverse-mode ``L'DL`` routine
-:ref:`mj_factorM` is utilized.
+MJWarp performs a per-tree factorization of the inertia matrix that is stored in ``qLD`` where the size of the tree
+determines if Warp's ``U'U`` Cholesky factorization
+`wp.tile_cholesky <https://nvidia.github.io/warp/language_reference/_generated/warp._src.lang.tile_cholesky.html>`__,
+MuJoCo's sparse reverse-mode ``L'DL`` routine, or a simple diagonal inverse rountine is employed.
 
 Options
 -------
