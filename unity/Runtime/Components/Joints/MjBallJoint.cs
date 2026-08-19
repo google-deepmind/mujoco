@@ -40,7 +40,7 @@ namespace Mujoco {
       if (!MjSceneImportSettings.AnglesInDegrees){
                 RangeUpper *= Mathf.Rad2Deg;
       }
- 
+
     }
 
     protected override XmlElement OnGenerateMjcf(XmlDocument doc) {
