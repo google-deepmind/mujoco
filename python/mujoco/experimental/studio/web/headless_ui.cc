@@ -190,6 +190,19 @@ class HeadlessUi {
         return false;
       }
 
+      // Limit frame rate to 60 FPS (~16.6 ms per frame). Unlike native desktop
+      // viewers whose frame loops are throttled by hardware display VSync,
+      // headless rendering has no VSync and would otherwise spin unthrottled
+      // at 1000+ FPS, starving the simulation thread of CPU cycles and GIL
+      // access. Note: this sleep occurs while GIL is released, allowing the
+      // simulation thread full uninterrupted execution.
+      const auto frame_now = std::chrono::steady_clock::now();
+      const auto elapsed = frame_now - last_frame_time_;
+      if (elapsed < kTargetFrameDuration) {
+        std::this_thread::sleep_for(kTargetFrameDuration - elapsed);
+      }
+      last_frame_time_ = std::chrono::steady_clock::now();
+
       bool new_frame_result = NetImgui::NewFrame(false);
       is_drawing_remote_ = new_frame_result;
       if (!new_frame_result) {
@@ -277,6 +290,10 @@ class HeadlessUi {
   int port_;
   ImGuiContext* context_ = nullptr;
   bool is_drawing_remote_ = false;
+  std::chrono::steady_clock::time_point last_frame_time_ =
+      std::chrono::steady_clock::now();
+  static constexpr auto kTargetFrameDuration =
+      std::chrono::duration<double>(1.0 / 60.0);
   // User texture ids start well above the ids ImGui's managed texture system
   // (font atlas) hands out, so the two can never collide in the browser's
   // texture map.

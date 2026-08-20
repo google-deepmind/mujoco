@@ -49,10 +49,15 @@ static py::bytes SerializeStatePayload(
   }
 
   std::string physics = physics_state;
-  const std::vector<std::byte> buffer = mujoco::studio::SerializeStatePayload(
-      model_crc32, physics_spec, physics.data(), physics.size(), *camera.get(),
-      *perturb.get(), *vis_options.get(), model.get()->opt, model.get()->vis,
-      model.get()->stat, render_flags, geoms.data(), geoms.size());
+  std::vector<std::byte> buffer;
+  {
+    py::gil_scoped_release no_gil;
+    buffer = mujoco::studio::SerializeStatePayload(
+        model_crc32, physics_spec, physics.data(), physics.size(),
+        *camera.get(), *perturb.get(), *vis_options.get(), model.get()->opt,
+        model.get()->vis, model.get()->stat, render_flags, geoms.data(),
+        geoms.size());
+  }
   return py::bytes(reinterpret_cast<const char*>(buffer.data()), buffer.size());
 }
 

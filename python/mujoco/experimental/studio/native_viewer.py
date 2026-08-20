@@ -123,6 +123,19 @@ class NativeViewer(viewer_protocol.Viewer):
     """Stop the viewer."""
     self.close()
 
+  def close(self) -> None:
+    """Close the viewer and explicitly destroy the renderer.
+
+    The C++ Viewer (and its FilamentRenderer) must be destroyed on the same
+    thread that created it, because Filament's FEngine::destroy() asserts
+    thread affinity.  Without this override the pybind11 prevent object would
+    be garbage-collected on the main thread, triggering a SIGABRT.
+    """
+    # Destroy the C++ viewer *before* closing the endpoint so that the
+    # FilamentRenderer destructor runs on the daemon/viewer thread.
+    self._viewer = None  # Release the C++ Viewer pybind11 prevent object.
+    super().close()
+
   def get_drop_file(self) -> str:
     """Returns the path of the file dropped into the window, or empty string."""
     return self._viewer.GetDropFile()
