@@ -58,6 +58,7 @@ public const int mjNSOLVER = 200;
 public const int mjNISLAND = 20;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJPLUGIN_H_ = true;
 public const bool mjEXTERNC = true;
+public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJPROFILE_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MJRENDER_H_ = true;
 public const int mjNAUX = 10;
 public const int mjMAXTEXTURE = 1000;
@@ -117,7 +118,7 @@ public const int mjMAXLINEPNT = 1001;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 3011001;
+public const int mjVERSION_HEADER = 3012001;
 
 
 // ------------------------------------Enums------------------------------------
@@ -304,6 +305,8 @@ public enum mjtCtrlInput : int{
   mjINPUT_POS = 1,
   mjINPUT_VEL = 2,
   mjINPUT_FF = 4,
+  mjINPUT_VOLTAGE = 8,
+  mjINPUT_NONE = 16,
 }
 public enum mjtObj : int{
   mjOBJ_UNKNOWN = 0,

@@ -14,7 +14,6 @@
 
 #include "material_parsing.h"
 
-#include <cstdio>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -29,7 +28,6 @@
 #include <pxr/usd/usdShade/input.h>
 #include <pxr/usd/usdShade/material.h>
 #include <pxr/usd/usdShade/shader.h>
-#include <pxr/usd/usdShade/types.h>
 #include <pxr/usd/usdShade/udimUtils.h>
 #include <pxr/usd/usdShade/utils.h>
 

@@ -69,7 +69,7 @@ def _get_imported_module_fpaths(fpath: epath.Path) -> Dict[str, str]:
     if not (fully_qualified_name.startswith('mujoco_warp') or
             fully_qualified_name.startswith('mujoco')):
       continue
-    fpath = _resolve_module_name_to_fpath(fully_qualified_name)
+    fpath = _resolve_module_name_to_fpath(fully_qualified_name)  # pyrefly: ignore[bad-assignment]
     if fpath:
       all_resolved_fpaths[alias] = fpath
   return all_resolved_fpaths

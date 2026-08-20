@@ -1506,7 +1506,7 @@ const char* mjs_setToAdhesion(mjsActuator* actuator, double gain) {
 const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double resistance,
                              double nominal[3], double saturation[3], double inductance[2],
                              double cogging[3], double controller[6], double thermal[6],
-                             double lugre[5], int input_mode) {
+                             double lugre[5], int ctrlspec) {
   double R      = resistance;                      // electrical resistance
   double Kt     = motorconst ? motorconst[0] : 0;  // torque constant
   double Ke     = motorconst ? motorconst[1] : 0;  // back-EMF constant
@@ -1652,7 +1652,8 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
   }
 
   // set input mode and activation dimension
-  actuator->gainprm[8] = input_mode;
+  actuator->gainprm[8] = 0;  // reserved (was input_mode)
+  actuator->ctrlspec = ctrlspec;
   actuator->actdim = actdim;
 
   // enforce actlimited = 0; homogeneous bounds are invalid across DC motor states

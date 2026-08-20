@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Non-blocking Studio launcher.
+"""Non-blocking viewer launcher.
 
-Launches the full Studio GUI in a daemon thread and returns a ``ViewerHandle``
+Launches the viewer in a daemon thread and returns a ``ViewerHandle``
 that the calling thread uses to push simulation state into the viewer.
 """
 
@@ -80,27 +80,25 @@ class _PassiveEventChannel(messages.EventChannel):
 
 def run_viewer_target(
     config: viewer_protocol.ViewerConfig,
-    viewer_endpoint: endpoints.ViewerEndpoint,
-    handlers: list[Any] | None = None,
+    endpoint: endpoints.ViewerEndpoint,
+    plugins: list[Any] | None = None,
 ) -> None:
   """Creates the appropriate viewer and runs the viewer loop.
 
   Args:
     config: Configuration specifying the viewer window settings.
-    viewer_endpoint: Endpoint for communicating with the simulation side.
-    handlers: Optional list of viewer-side handler instances, which are classes
+    endpoint: Endpoint for communicating with the simulation side.
+    plugins: Optional list of viewer-side plugin instances, which are classes
       with methods decorated with ``@handler``.
   """
   if config.gfx in ('web', 'webgl'):  # In future we may add 'webgpu' here too.
     from mujoco.experimental.studio import web_viewer  # pylint: disable=g-import-not-at-top
 
-    viewer = web_viewer.WebViewer(config, viewer_endpoint, handlers=handlers)
+    viewer = web_viewer.WebViewer(config, endpoint, plugins=plugins)
   else:
     from mujoco.experimental.studio import native_viewer  # pylint: disable=g-import-not-at-top
 
-    viewer = native_viewer.NativeViewer(
-        config, viewer_endpoint, handlers=handlers
-    )
+    viewer = native_viewer.NativeViewer(config, endpoint, plugins=plugins)
 
   viewer_protocol.run_viewer_loop(viewer)
 
@@ -108,21 +106,23 @@ def run_viewer_target(
 def launch_passive(
     config: viewer_protocol.ViewerConfig,
     *,
-    viewer_handlers: list[Any] | None = None,
-    sim_handlers: list[Any] | None = None,
+    viewer_plugins: list[Any] | None = None,
+    sim_plugins: list[Any] | None = None,
 ) -> viewer_handle.ViewerHandle:
-  """Launches the Studio GUI in a daemon thread without blocking.
+  """Launches the viewer in a daemon thread without blocking.
 
-  The viewer runs the full Studio UI (toolbar, options, inspector) on the
-  rendering thread.  The caller keeps running and pushes state via
-  ``handle.sync()``.
+  The viewer runs on the rendering thread and renders the scene along with any
+  GUI built by registered plugins (such as ``ViewerApp``). The caller keeps
+  running and pushes state via ``handle.sync()``.
 
   Args:
     config: Viewer window configuration.
-    viewer_handlers: Optional list of viewer-side handler instances, which are
+    viewer_plugins: Optional list of viewer-side plugin instances, which are
       classes with methods decorated with ``@handler``.
-    sim_handlers: Optional list of sim-side handler instances, which are classes
-      with methods decorated with ``@handler``.
+    sim_plugins: Optional list of sim-side plugin instances, which are classes
+      with methods decorated with ``@handler``. Include a stepping plugin
+      (e.g. ``step_control.StepControl()``) to advance the physics on each
+      ``sync``; without one nothing steps and the sim loop must pace itself.
 
   Returns:
     A ViewerHandle for interacting with the viewer.
@@ -136,7 +136,7 @@ def launch_passive(
 
   thread = threading.Thread(
       target=run_viewer_target,
-      args=(config, viewer_endpoint, viewer_handlers),
+      args=(config, viewer_endpoint, viewer_plugins),
       daemon=True,
   )
   thread.start()
@@ -145,6 +145,6 @@ def launch_passive(
       sim_endpoint,
       is_alive_fn=thread.is_alive,
       shutdown_fn=thread.join,
-      handlers=sim_handlers,
+      plugins=sim_plugins,
   )
   return handle

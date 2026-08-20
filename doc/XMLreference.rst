@@ -5691,7 +5691,7 @@ specify them independently.
 
 .. _actuator-general-dyntype:
 
-:at:`dyntype`: :at-val:`[none, integrator, filter, filterexact, pid, muscle, user], "none"`
+:at:`dyntype`: :at-val:`[none, integrator, filter, filterexact, pid, dcmotor, muscle, user], "none"`
    Activation dynamics type for the actuator. The available dynamics types were already described in the :ref:`Actuation
    model <geActuation>` section. Repeating that description in somewhat different notation (corresponding to the mjModel
    and mjData fields involved) we have:
@@ -5711,7 +5711,7 @@ specify them independently.
 
 .. _actuator-general-gaintype:
 
-:at:`gaintype`: :at-val:`[fixed, affine, muscle, pid, so3, user], "fixed"`
+:at:`gaintype`: :at-val:`[fixed, affine, muscle, dcmotor, pid, so3, user], "fixed"`
    The gain and bias together determine the output of the force generation mechanism, which is currently assumed to be
    affine. As already explained in :ref:`Actuation model <geActuation>`, the general formula is:
    scalar_force = gain_term \* (act or ctrl) + bias_term.
@@ -5724,6 +5724,7 @@ specify them independently.
    fixed   gain_term = gainprm[0]
    affine  gain_term = gain_prm[0] + gain_prm[1]*length + gain_prm[2]*velocity
    muscle  gain_term = mju_muscleGain(...)
+   dcmotor DC motor gain (K or K/R), see :ref:`dcmotor<actuator-dcmotor>`
    pid     PID controller with setpoint inputs, see :ref:`pid<actuator-pid>`
    so3     geodesic orientation servo, computed jointly over 3 force outputs, see :ref:`orientation<actuator-orientation>`
    user    gain_term = mjcb_act_gain(...)
@@ -5731,7 +5732,7 @@ specify them independently.
 
 .. _actuator-general-biastype:
 
-:at:`biastype`: :at-val:`[none, affine, muscle, so3, user], "none"`
+:at:`biastype`: :at-val:`[none, affine, muscle, dcmotor, so3, user], "none"`
    The keywords have the following meaning:
 
    ======= ================================================================
@@ -5740,6 +5741,7 @@ specify them independently.
    none    bias_term = 0
    affine  bias_term = biasprm[0] + biasprm[1]*length + biasprm[2]*velocity
    muscle  bias_term = mju_muscleBias(...)
+   dcmotor DC motor bias: back-EMF, cogging, LuGre friction, see :ref:`dcmotor<actuator-dcmotor>`
    so3     damping term of the geodesic orientation servo, see :ref:`orientation<actuator-orientation>`
    user    bias_term = mjcb_act_bias(...)
    ======= ================================================================
@@ -5784,8 +5786,9 @@ specify them independently.
 :at:`input`: :at-val:`string, optional`
    Input signature of the actuator: which controls make up its control block, recorded in
    ``mjModel.actuator_ctrlspec``. For gaintype "so3" it selects the orientation chart: "expmap" (3 controls, the
-   default) or "quat" (4 controls); see :ref:`orientation/input<actuator-orientation-input>`. For gaintype "pid" it is
-   a token list selecting the input subset; see :ref:`pid/input<actuator-pid-input>`.
+   default) or "quat" (4 controls); see :ref:`orientation/input<actuator-orientation-input>`. For gaintypes "pid" and
+   "dcmotor" it is a token list selecting the input subset; see :ref:`pid/input<actuator-pid-input>` and
+   :ref:`dcmotor/input<actuator-dcmotor-input>`.
 
 .. _actuator-general-actearly:
 
@@ -6806,8 +6809,11 @@ the stateless case.
 - :ref:`resistance<actuator-dcmotor-resistance>`, :ref:`motorconst<actuator-dcmotor-motorconst>` and
   :ref:`nominal<actuator-dcmotor-nominal>` are each optional, but some combination of them is required.
   See Section 2.1 of the `technical note <_static/dcmotor.pdf>`__.
-- The control :ref:`input<actuator-dcmotor-input>` semantic is either the voltage applied to the motor terminals (the
-  default), or a position or velocity target for a :ref:`PID controller<actuator-dcmotor-controller>`.
+- The control block is selected by :ref:`input<actuator-dcmotor-input>`: any subset of ``[pos, vel, ff]``, where
+  ``pos`` and ``vel`` are setpoint inputs to the on-board :ref:`PID controller<actuator-dcmotor-controller>` and
+  ``ff`` is a torque feedforward added to its output; the ``voltage`` input is the raw terminal voltage. The
+  default is the plain voltage-commanded motor. With
+  ``input="none"`` the actuator has no control inputs at all and acts as a purely passive device.
 - Optional features include electrical dynamics (:ref:`inductance<actuator-dcmotor-inductance>`),
   :ref:`cogging torque<actuator-dcmotor-cogging>`, :ref:`thermal resistance variation<actuator-dcmotor-thermal>`, and
   :ref:`LuGre<actuator-dcmotor-lugre>` friction.
@@ -6946,22 +6952,37 @@ This element has the following custom attributes in addition to the common attri
 
 .. _actuator-dcmotor-input:
 
-:at:`input`: :at-val:`[voltage, position, velocity], "voltage"`
-   Specifies the input signal semantics. In "voltage" mode, the control directly sets applied motor voltage. In
-   "position" or "velocity" modes, the :ref:`PID controller<actuator-dcmotor-controller>` uses the control as a
-   reference setpoint relative to the joint trajectory. (see `tech note <_static/dcmotor.pdf>`__, Section 2.5)
+:at:`input`: :at-val:`string, "voltage"`
+   Input signature: a space-separated subset of the tokens "pos", "vel", "ff" and "voltage", required in this
+   canonical order. The ``pos`` and ``vel`` inputs are setpoints for the on-board
+   :ref:`controller<actuator-dcmotor-controller>`, and ``ff`` is a torque feedforward added to its output, as for
+   :ref:`pid/input<actuator-pid-input>`. The ``voltage`` input is different in kind: it is the raw terminal voltage
+   of the physical device, applied downstream of the controller and its :at-val:`Vmax` clamp.
+   ``input="voltage"`` (the default) is the plain voltage-commanded motor. Absent setpoint inputs are fixed at zero.
+   The keyword "none" selects the empty signature: the actuator has no control inputs and is purely
+   passive, useful for modeling :ref:`friction<actuator-dcmotor-lugre>` and :ref:`cogging<actuator-dcmotor-cogging>`
+   as passive joint forces. The terminal voltage is zero, so back-EMF drives current through the (shorted) motor and
+   brakes the joint; setting :ref:`motorconst<actuator-dcmotor-motorconst>` to zero disables the electrical branch.
+   (see `tech note <_static/dcmotor.pdf>`__, Section 2.5)
 
 .. _actuator-dcmotor-controller:
 
 :at:`controller`: :at-val:`real(6), "0 0 0 0 0 0"`
    PID controller parameters, defined as :at:`controller` = ":at-val:`kp` :at-val:`ki` :at-val:`kd`
-   :at-val:`slewmax` :at-val:`Imax` :at-val:`Vmax`". Depending on the :at:`input` mode, the controller stabilizes
-   either position or velocity. If the :at:`input` mode is voltage, :at-val:`kp`, :at-val:`ki`, :at-val:`kd` are
-   ignored. :at-val:`Vmax` sets the maximum drive voltage :math:`v_{\max}` (Volt); in position/velocity modes it clamps
-   the controller output, in voltage mode it clamps the control signal (if :at:`ctrlrange` is also set, the tighter
-   limit wins). A value of 0 (the default) disables the respective feature. When positive, :at-val:`slewmax` limits the
-   setpoint rate-of-change, :at-val:`Imax` clamps the integrator state (anti-windup), and :at-val:`Vmax` clamps the
-   drive voltage. (see `tech note <_static/dcmotor.pdf>`__, Section 2.5)
+   :at-val:`slewmax` :at-val:`Imax` :at-val:`Vmax`". The gains are in torque space, as for
+   :ref:`pid<actuator-pid>`: the controller commands the torque
+   :math:`\tau = k_p (u_{pos} - l) + k_d (u_{vel} - \dot{l}) + k_i x_I + u_{f\!f}` over the inputs present in the
+   :ref:`input<actuator-dcmotor-input>` signature, absent setpoints being fixed at zero, and drives the voltage
+   :math:`v = (R/K)\,\tau + K \dot{l}`, the second term compensating back-EMF as in a current-controlled driver:
+   commanded torque is delivered exactly until a limit is reached. Torque-space gains from datasheet voltage-space
+   values are obtained by multiplying by :math:`K/R`. The integrator state
+   :math:`x_I` accumulates position error and requires the ``pos`` input; controller gains require a controller
+   input and a positive :ref:`motorconst<actuator-dcmotor-motorconst>`.
+   A value of 0 (the default) disables the respective feature. When positive, :at-val:`slewmax` limits the
+   rate-of-change of the first input (position setpoint in rad/s, or with signatures lacking ``pos``, velocity
+   setpoint or torque feedforward), :at-val:`Imax` clamps the integrator state (anti-windup), and :at-val:`Vmax`
+   clamps the drive voltage :math:`v_{\max}` (Volt), upstream of the raw ``voltage`` input.
+   (see `tech note <_static/dcmotor.pdf>`__, Section 2.5)
 
 .. _actuator-plugin:
 
@@ -6982,7 +7003,7 @@ Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 
 .. _actuator-plugin-dyntype:
 
-:at:`dyntype`: :at-val:`[none, integrator, filter, filterexact, pid, muscle, user], "none"`
+:at:`dyntype`: :at-val:`[none, integrator, filter, filterexact, pid, dcmotor, muscle, user], "none"`
    Activation dynamics type for the actuator. The available dynamics types were already described in the :ref:`Actuation
    model <geActuation>` section. If :ref:`dyntype<actuator-general-dyntype>` is not "none", an activation variable will
    be added to the actuator. This variable will be added after any activation state computed by the plugin (see

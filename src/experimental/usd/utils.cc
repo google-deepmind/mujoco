@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// clang-format off
 #include <cstddef>
 #include <string>
 
@@ -21,8 +22,10 @@
 #include <dlfcn.h>
 #endif
 #include <pxr/base/plug/registry.h>
+// clang-format on
 
 #include <mujoco/experimental/usd/utils.h>
+
 #include <mujoco/mujoco.h>
 #include <pxr/usd/sdf/path.h>
 

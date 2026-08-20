@@ -15,6 +15,7 @@
 // Python bindings for MuJoCo platform UX components.
 
 #include <array>
+#include <span>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -23,9 +24,11 @@
 #include <implot.h>
 #include <mujoco/mujoco.h>
 #include <mujoco/experimental/platform/helpers.h>
+#include <mujoco/experimental/platform/sim/sim_history.h>
 #include <mujoco/experimental/platform/sim/step_control.h>
 #include <mujoco/experimental/platform/ux/gui.h>
 #include <mujoco/experimental/platform/ux/interaction.h>
+#include "specs_wrapper.h"
 #include "structs.h"
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -46,6 +49,12 @@ struct UxState {
 
   // Read/edited by camera_selection_gui
   int camera_index = mujoco::platform::kTumbleCameraIdx;
+
+  // Read/edited by simulation_gui.
+  int key_idx = 0;
+  int nthread = 0;
+  bool update_threadpool = false;
+  mujoco::platform::SimulationTimelineState timeline;
 };
 
 struct RenderFlags {
@@ -72,6 +81,9 @@ PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
       .def_readwrite("state_sig", &UxState::state_sig)
       .def_readwrite("watch_field_index", &UxState::watch_field_index)
       .def_readwrite("camera_index", &UxState::camera_index)
+      .def_readwrite("key_idx", &UxState::key_idx)
+      .def_readwrite("nthread", &UxState::nthread)
+      .def_readwrite("update_threadpool", &UxState::update_threadpool)
       .def_property(
           "watch_field_name",
           [](const UxState& self) {
@@ -127,6 +139,74 @@ PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
       py::arg("step_control"), py::arg("ux_state"),
       "Render the simulation stepping control GUI. Modifies "
       "ux_state.speed_index.");
+
+  m.def(
+      "setup_history",
+      [](mujoco::platform::StepControl* step_control,
+         mujoco::platform::SimHistory* history, UxState& ux_state,
+         py::object model_obj, py::object data_obj) {
+        mjModel* model =
+            py::cast<mujoco::python::MjModelWrapper&>(model_obj).get();
+        mjData* data = py::cast<mujoco::python::MjDataWrapper&>(data_obj).get();
+        mujoco::platform::SimulationTimelineState* timeline =
+            &ux_state.timeline;
+        py::gil_scoped_release no_gil;
+        // Record every simulation step into the history buffer (in C++, so no
+        // Python is called per step). Matches the native Studio app.
+        history->Init(mj_stateSize(model, mjSTATE_INTEGRATION));
+        step_control->SetPostStepCallback(
+            [history, timeline](const mjModel* m, mjData* d) {
+              std::span<mjtNum> state = history->AddToHistory();
+              if (!state.empty()) {
+                mj_getState(m, d, state.data(), mjSTATE_INTEGRATION);
+                timeline->sim_head_time = d->time;
+              }
+            });
+        // Record the initial state and reset the scrubber.
+        std::span<mjtNum> state = history->AddToHistory();
+        if (!state.empty()) {
+          mj_getState(model, data, state.data(), mjSTATE_INTEGRATION);
+        }
+        *timeline = {};
+        timeline->sim_head_time = data->time;
+      },
+      py::arg("step_control"), py::arg("history"), py::arg("ux_state"),
+      py::arg("model"), py::arg("data"),
+      "Wire history recording: (re)initialize the buffer, install a per-step "
+      "recorder on step_control, record the current state and reset the "
+      "timeline. Call on model load and after a reset.");
+
+  m.def(
+      "simulation_gui",
+      [](py::object model_obj, py::object data_obj,
+         mujoco::platform::StepControl* step_control,
+         mujoco::platform::SimHistory* history, UxState& ux_state,
+         py::function reset, py::function reload, py::function align) {
+        mjModel* model =
+            py::cast<mujoco::python::MjModelWrapper&>(model_obj).get();
+        mjData* data = py::cast<mujoco::python::MjDataWrapper&>(data_obj).get();
+        // The GIL is held throughout: the callbacks call back into Python.
+        mujoco::platform::SimulationGuiContext ctx;
+        ctx.model = model;
+        ctx.data = data;
+        ctx.step_control = step_control;
+        ctx.history = history;
+        ctx.timeline = &ux_state.timeline;
+        ctx.speed_index = &ux_state.speed_index;
+        ctx.key_idx = &ux_state.key_idx;
+        ctx.nthread = &ux_state.nthread;
+        ctx.update_threadpool = &ux_state.update_threadpool;
+        ctx.reset = [&reset]() { reset(); };
+        ctx.reload = [&reload]() { reload(); };
+        ctx.align = [&align]() { align(); };
+        mujoco::platform::SimulationGui(ctx);
+      },
+      py::arg("model"), py::arg("data"), py::arg("step_control"),
+      py::arg("history"), py::arg("ux_state"), py::arg("reset"),
+      py::arg("reload"), py::arg("align"),
+      "Render the full Simulation panel: reset/reload/align, run/pause, speed, "
+      "the history scrubber, keyframes and thread count. The three callbacks "
+      "are invoked for the corresponding buttons.");
 
   m.def(
       "theme_select_gui",
@@ -195,11 +275,15 @@ PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
 
   m.def(
       "physics_gui",
-      [](mujoco::python::MjModelWrapper& model, float min_width) {
+      [](mujoco::python::MjModelWrapper& model,
+         mujoco::python::MjSpec* spec,
+         float min_width) {
         py::gil_scoped_release no_gil;
-        mujoco::platform::PhysicsGui(model.get(), min_width);
+        mujoco::platform::PhysicsGui(model.get(), spec ? spec->ptr : nullptr,
+                                     min_width);
       },
-      py::arg("model"), py::arg("min_width") = 150.0f,
+      py::arg("model"), py::arg("spec") = nullptr,
+      py::arg("min_width") = 150.0f,
       "Render the physics settings UI.");
 
   m.def(

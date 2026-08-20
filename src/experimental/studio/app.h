@@ -35,6 +35,7 @@
 #include "experimental/platform/sim/step_control.h"
 #include "experimental/platform/ux/gui.h"
 #include "experimental/platform/ux/gui_spec.h"
+#include "experimental/platform/ux/imgui_widgets.h"
 #include "experimental/platform/ux/interaction.h"
 #include "experimental/platform/ux/picture_gui.h"
 #include "experimental/platform/ux/spec_editor.h"
@@ -164,13 +165,6 @@ class App {
     int state_sig = 0;
     std::vector<mjtNum> state;
 
-    // Timeline: simulation time recorded at history index 0 (the head).
-    double sim_head_time_ = 0.0;
-    float timeline_lh_width = 0.0f;
-    float timeline_rh_width = 0.0f;
-    bool scrubber_active = false;
-    float scrubber_grab_offset = 0.0f;
-
     // Picture-in-Picture.
     std::vector<platform::PipState> pips;
 
@@ -215,6 +209,7 @@ class App {
 
   void LoadSettings();
   void SaveSettings();
+  void ApplyWindowStateStorage();
 
   void LoadHistory(int offset);
 
@@ -230,7 +225,6 @@ class App {
 
   void MainMenuGui();
   void ToolBarGui();
-  void TimelineScrubberGui();
   void StatusBarGui();
   void HelpGui();
   void FileDialogGui();
@@ -248,6 +242,10 @@ class App {
 
   std::string app_title_;
   std::string ini_path_;
+  // Window state storage (e.g. collapsing header open/closed state), keyed
+  // "<window name>/<id>", which ImGui does not serialize. Entries stay
+  // pending until their window is first created.
+  platform::KeyValues window_state_storage_;
   std::string model_name_;  // Used if model_kind_ is kModelFromBuffer.
   std::string model_path_;
   std::string load_error_;
@@ -269,6 +267,7 @@ class App {
   platform::StepControl step_control_;
   platform::SimProfiler profiler_;
   platform::SimHistory sim_history_;
+  platform::SimulationTimelineState timeline_;
   platform::SpecEditor spec_editor_;
   std::vector<std::string> search_paths_;
   std::vector<std::byte> pixels_;

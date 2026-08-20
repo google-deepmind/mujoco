@@ -53,7 +53,7 @@ def _call_render(
     token = token_array.reshape(
         d._impl._jax_token.shape  # pytype: disable=attribute-error
     )
-    d = d.tree_replace({'_impl._jax_token': token})
+    d = d.tree_replace({'_impl._jax_token': token})  # pyrefly: ignore[bad-assignment]
     return rgb, depth, seg, d
 
   raise NotImplementedError('render only implemented for MuJoCo Warp.')

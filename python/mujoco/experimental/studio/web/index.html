@@ -214,19 +214,20 @@ limitations under the License.
           }
           return prefix + path;
         },
-        onRuntimeInitialized: () => {
+        onRuntimeInitialized: async () => {
           const assetsToPrefetch = [
             "AtkinsonHyperlegibleNext[wght].ttf",
             "AtkinsonHyperlegibleMono-Regular.ttf",
             "fontawesome-webfont.ttf",
             "ibl.ktx",
             "pbr.filamat",
+            "pbr_reflect.filamat",
+            "pbr_packed_reflect.filamat",
             "pbr_transparent.filamat",
             "pbr_packed.filamat",
             "pbr_packed_transparent.filamat",
             "phong_2d.filamat",
             "phong_2d_fade.filamat",
-            "phong_2d_reflect.filamat",
             "phong_2d_uv.filamat",
             "phong_2d_uv_fade.filamat",
             "phong_2d_uv_reflect.filamat",
@@ -245,28 +246,55 @@ limitations under the License.
             "unlit_ui.filamat",
           ];
 
-          const assetPromises = assetsToPrefetch.map(async (filename) => {
-            for (let attempt = 0; attempt < 3; attempt++) {
-              try {
-                if (attempt > 0) {
-                  await new Promise((r) => setTimeout(r, 500 * attempt));
+          const PARALLEL = 4;
+          const failedAssets = [];
+          let nextIndex = 0;
+
+          async function prefetchWorker() {
+            while (nextIndex < assetsToPrefetch.length) {
+              const filename = assetsToPrefetch[nextIndex++];
+              let loaded = false;
+              for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                  if (attempt > 0) {
+                    await new Promise((r) => setTimeout(r, 500 * attempt));
+                  }
+                  const response = await fetch("assets/" + filename);
+                  if (!response.ok) continue;
+                  const buffer = await response.arrayBuffer();
+                  Module.registerAsset(filename, new Uint8Array(buffer));
+                  loaded = true;
+                  break;
+                } catch (error) {
+                  console.warn(`Attempt ${attempt + 1} failed for ${filename}:`, error);
                 }
-                const response = await fetch("assets/" + filename);
-                if (!response.ok) continue;
-                const buffer = await response.arrayBuffer();
-                Module.registerAsset(filename, new Uint8Array(buffer));
-                return;
-              } catch (error) {
-                console.warn(`Attempt ${attempt + 1} failed for ${filename}:`, error);
+              }
+              if (!loaded) {
+                console.error(`Error prefetching asset ${filename} after 3 attempts`);
+                failedAssets.push(filename);
               }
             }
-            console.error(`Error prefetching asset ${filename} after 3 attempts`);
-          });
+          }
 
-          Promise.all(assetPromises).then(() => {
-            Module.startApp();
-            reloadModel();
-          });
+          const workers = [];
+          for (let i = 0; i < Math.min(PARALLEL, assetsToPrefetch.length); i++) {
+            workers.push(prefetchWorker());
+          }
+          await Promise.all(workers);
+
+          if (failedAssets.length > 0) {
+            const msg = `Failed to load required assets (${failedAssets.join(", ")}). Please check server runfiles or connection and reload.`;
+            console.error(msg);
+            const errDiv = document.createElement("div");
+            errDiv.style.cssText =
+              "position:absolute;top:20px;left:20px;right:20px;padding:16px;background:#7a1a1a;color:#fff;font-family:sans-serif;font-size:14px;border-radius:8px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.5);";
+            errDiv.textContent = msg;
+            document.body.appendChild(errDiv);
+            return;
+          }
+
+          Module.startApp();
+          reloadModel();
         },
       };
       // Set only the CSS size; SDL owns canvas.width/height. Use whole

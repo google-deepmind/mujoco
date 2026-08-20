@@ -7233,16 +7233,49 @@ void mjCActuator::Compile(void) {
                !!(ctrlspec_ & mjINPUT_FF);
   }
 
+  // DC motor: resolve input block (default: raw voltage command)
+  if (gaintype == mjGAIN_DCMOTOR) {
+    ctrlspec_ = ctrlspec ? ctrlspec : mjINPUT_VOLTAGE;
+    if (ctrlspec_ != mjINPUT_NONE &&
+        (ctrlspec_ & ~(mjINPUT_POS | mjINPUT_VEL | mjINPUT_FF | mjINPUT_VOLTAGE))) {
+      throw mjCError(this, "dcmotor inputs are 'none' or a subset of [pos, vel, ff, voltage] in "
+                     "actuator '%s' (id = %d)", name.c_str(), id);
+    }
+
+    // controller inputs engage the torque-space controller, which divides by the motor constant
+    int controller = ctrlspec_ == mjINPUT_NONE ?
+                     0 : ctrlspec_ & (mjINPUT_POS | mjINPUT_VEL | mjINPUT_FF);
+    if (controller && gainprm[1] <= 0) {
+      throw mjCError(this, "dcmotor controller inputs require a positive motor constant in "
+                     "actuator '%s' (id = %d)", name.c_str(), id);
+    }
+    if (!controller && (gainprm[4] || gainprm[5] || gainprm[6])) {
+      throw mjCError(this, "dcmotor controller gains require a controller input [pos, vel, ff] "
+                     "in actuator '%s' (id = %d)", name.c_str(), id);
+    }
+    if (gainprm[5] > 0 && !(ctrlspec_ & mjINPUT_POS)) {
+      throw mjCError(this, "dcmotor integral gain requires the pos input in actuator '%s' "
+                     "(id = %d)", name.c_str(), id);
+    }
+    ctrlnum_ = !!(ctrlspec_ & mjINPUT_POS) + !!(ctrlspec_ & mjINPUT_VEL) +
+               !!(ctrlspec_ & mjINPUT_FF) + !!(ctrlspec_ & mjINPUT_VOLTAGE);
+    if (!controller && dynprm[7] > 0) {
+      throw mjCError(this, "dcmotor slew rate limiting requires a controller input [pos, vel, "
+                     "ff] in actuator '%s' (id = %d)", name.c_str(), id);
+    }
+  }
+
   // pid dynamics are pid-only
   if (dyntype == mjDYN_PID && gaintype != mjGAIN_PID) {
     throw mjCError(this, "dyntype 'pid' requires gaintype 'pid', actuator '%s' (id = %d)",
                    name.c_str(), id);
   }
 
-  // input signature selection is so3- or pid-only
-  if (ctrlspec && gaintype != mjGAIN_SO3 && gaintype != mjGAIN_PID) {
-    throw mjCError(this, "input is only available for so3 and pid actuators, actuator '%s' "
-                   "(id = %d)", name.c_str(), id);
+  // input signature selection is so3-, pid- or dcmotor-only
+  if (ctrlspec && gaintype != mjGAIN_SO3 && gaintype != mjGAIN_PID &&
+      gaintype != mjGAIN_DCMOTOR) {
+    throw mjCError(this, "input is only available for so3, pid and dcmotor actuators, "
+                   "actuator '%s' (id = %d)", name.c_str(), id);
   }
 
   // check damping/armature only valid for joint and tendon transmission
@@ -7273,7 +7306,7 @@ void mjCActuator::Compile(void) {
     double* range;
     if (dyntype == mjDYN_NONE || dyntype == mjDYN_FILTEREXACT ||
         dyntype == mjDYN_PID) {
-      // position or pd actuator: range applies to the position input
+      // position or pid actuator: range applies to the position input
       range = ctrlrange;
     } else if (dyntype == mjDYN_INTEGRATOR) {
       // intvelocity actuator
@@ -7417,6 +7450,10 @@ void mjCActuator::Compile(void) {
   if (delay > 0 && nsample <= 0) {
     throw mjCError(this, "setting delay > 0 without a history buffer");
   }
+  if ((delay > 0 || nsample > 0) && ctrlnum_ == 0) {
+    throw mjCError(this, "history and delay require an input in actuator '%s' (id = %d)",
+                   name.c_str(), id);
+  }
 
   // nsample is limited to 2^24 because the cursor is stored as an mjtNum, which may be a float
   // single-precision floats can represent all integers up to 2^24 exactly
@@ -7424,7 +7461,7 @@ void mjCActuator::Compile(void) {
     throw mjCError(this, "at most 2^24 samples in history buffer, got %d", nullptr, nsample);
   }
 
-  // resolve per-input control ranges: broadcast ctrlrange, pd overrides vel and ff
+  // resolve per-input control ranges: broadcast ctrlrange, pid overrides vel and ff
   for (int j=0; j < ctrlnum_ && j < 4; j++) {
     ctrllimiteds_[j] = (mjtByte)is_ctrllimited();
     ctrlranges_[j][0] = ctrlrange[0];

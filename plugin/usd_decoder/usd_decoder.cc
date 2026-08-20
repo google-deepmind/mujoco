@@ -41,6 +41,7 @@
 #include <mujoco/mujoco.h>
 #include "kinematic_tree.h"
 #include "material_parsing.h"
+#include "third_party/mujoco/plugin/usd_decoder/newton_tokens.h"
 #include <pxr/base/gf/declare.h>
 #include <pxr/base/gf/matrix4d.h>
 #include <pxr/base/gf/matrix4f.h>
@@ -54,7 +55,6 @@
 #include <pxr/usd/usd/common.h>
 #include <pxr/usd/usd/prim.h>
 #include <pxr/usd/usd/primFlags.h>
-#include <pxr/usd/usd/primRange.h>
 #include <pxr/usd/usd/stage.h>
 #include <pxr/usd/usdGeom/capsule.h>
 #include <pxr/usd/usdGeom/cube.h>
@@ -80,9 +80,7 @@
 #include <pxr/usd/usdPhysics/rigidBodyAPI.h>
 #include <pxr/usd/usdPhysics/scene.h>
 #include <pxr/usd/usdPhysics/sphericalJoint.h>
-#include <pxr/usd/usdPhysics/tokens.h>
 #include <pxr/usd/usdShade/material.h>
-#include "third_party/mujoco/plugin/usd_decoder/newton_tokens.h"
 #include <pxr/usd/usdShade/materialBindingAPI.h>
 
 using pxr::MjcPhysicsTokens;

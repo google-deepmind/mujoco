@@ -24,11 +24,13 @@
 // mjvOption, etc. But, some functions take additional arguments as needed.
 
 #include <array>
+#include <functional>
 #include <string>
 #include <vector>
 
 #include <imgui.h>
 #include <mujoco/mujoco.h>
+#include "experimental/platform/sim/sim_history.h"
 #include "experimental/platform/sim/sim_profiler.h"
 #include "experimental/platform/sim/step_control.h"
 
@@ -73,9 +75,9 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar = true, bool show_status_bar = f
 // logarithmically spaced real-time slow-down coefficients (percent)
 // clang-format off
 static constexpr std::array<const char*, 31> kPercentRealTime = {
-"100.0 ", " 80.0 ", " 66.0 ", " 50.0 ", " 40.0 ", " 33.0 ", " 25.0 ", " 20.0 ", " 16.0 ", " 13.0 ",
-" 10.0 ", "  8.0 ", "  6.6 ", "  5.0 ", "  4.0 ", "  3.3 ", "  2.5 ", "  2.0 ", "  1.6 ", "  1.3 ",
-"  1.0 ", "  0.8 ", "  0.7 ", "  0.5 ", "  0.4 ", "  0.33", "  0.25", "  0.2 ", "  0.16", "  0.13",
+"100.0 ", " 80.0 ", " 63.0 ", " 50.0 ", " 40.0 ", " 32.0 ", " 25.0 ", " 20.0 ", " 16.0 ", " 13.0 ",
+" 10.0 ", "  8.0 ", "  6.3 ", "  5.0 ", "  4.0 ", "  3.2 ", "  2.5 ", "  2.0 ", "  1.6 ", "  1.3 ",
+"  1.0 ", "  0.8 ", "  0.63", "  0.5 ", "  0.4 ", "  0.32", "  0.25", "  0.2 ", "  0.16", "  0.13",
 "  0.1 ",
 };
 // clang-format on
@@ -88,6 +90,51 @@ void StepControlGui(StepControl* step_control, int& speed_index);
 // Sets the simulation speed index and updates the StepControl object.
 void SetSpeedIndex(StepControl* step_control, int& speed_index,
                    int request_idx);
+
+// Loads history frame `index` into `data`, pausing the simulation. A no-op if
+// the requested frame is empty.
+void LoadHistoryFrame(SimHistory& history, StepControl& step_control,
+                      const mjModel* model, mjData* data, int index);
+
+// Persistent state of the timeline scrubber: the time at the head of history,
+// the (monotonically-growing) label box widths, and the current drag.
+struct SimulationTimelineState {
+  double sim_head_time = 0.0;
+  float lh_width = 0.0f;
+  float rh_width = 0.0f;
+  bool scrubber_active = false;
+  float scrubber_grab_offset = 0.0f;
+};
+
+// The timeline scrubber row: a spine with a draggable knob that scrubs through
+// the simulation history. Used by the Simulation panel and the toolbar.
+void TimelineScrubberGui(const mjModel* model, mjData* data,
+                         StepControl& step_control, SimHistory& history,
+                         SimulationTimelineState& timeline);
+
+// Everything the Simulation panel reads or drives. All pointers are owned by
+// the caller and edited in place; the callbacks perform application actions the
+// panel cannot do on its own.
+struct SimulationGuiContext {
+  mjModel* model = nullptr;  // non-const: saving a keyframe writes to the model
+  mjData* data = nullptr;
+  StepControl* step_control = nullptr;
+  SimHistory* history = nullptr;
+  SimulationTimelineState* timeline = nullptr;
+  int* speed_index = nullptr;
+  int* key_idx = nullptr;
+  int* nthread = nullptr;
+  bool* update_threadpool = nullptr;
+  std::function<void()> reset;   // reset the physics state
+  std::function<void()> reload;  // reload the model
+  std::function<void()> align;   // recenter the camera on the model
+};
+
+// The Simulation panel: reset / reload / align, a pause-run toggle, the speed
+// slider, the history scrubber, keyframe controls and the thread count. This is
+// a reusable view over the platform simulation objects; it holds no application
+// state of its own.
+void SimulationGui(const SimulationGuiContext& ctx);
 
 // UX for selecting the GUI theme.
 bool ThemeSelectGui(GuiTheme* theme, const ImVec2& size = ImVec2(0, 0));
@@ -107,8 +154,9 @@ bool CameraSelectionGui(const mjModel* model, mjData* data, mjvCamera& camera,
                         int& index);
 
 // UX for controlling the physics simulation parameters (e.g. integrator,
-// solver, etc.) in mjModel.
-void PhysicsGui(mjModel* model, float min_width);
+// solver, etc.) in mjOption.
+void PhysicsGui(mjModel* model, mjSpec* spec = nullptr,
+                float min_width = 150.0f);
 
 // UX for enabling/disabling visualization groups in mjvOption.
 void GroupsGui(const mjModel* model, mjvOption* vis_options, float min_width);

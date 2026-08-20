@@ -9,8 +9,6 @@ import numpy as np
 
 import warp as wp
 
-_wp_module_name_ = "warp.jax.xla_ffi"
-
 _xla_data_type_to_constructor = None
 _XLA_DATA_TYPE_TO_CONSTRUCTOR_LOCK = threading.Lock()
 

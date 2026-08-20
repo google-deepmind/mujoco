@@ -13,8 +13,8 @@
 # limitations under the License.
 """Python web server for the MuJoCo Web Viewer.
 
-This server runs in a child process with one asyncio loop on a single public
-port:
+This server runs on a background daemon thread with one asyncio loop on a single
+public port:
 
   * Plain HTTP GET   serves static files (index.html, WASM, assets), /model.
   * WebSocket /ui    serves the bridge to the headless NetImgui client, which
@@ -37,27 +37,24 @@ _WS_CLOSE_SESSION_FULL.
 """
 
 import asyncio
-import ctypes
 import datetime
 import enum
 import json
 import logging
-import multiprocessing
-import multiprocessing.queues
-import multiprocessing.sharedctypes
 import os
-import signal
+import queue
 import socket
 import struct
 import sys
 import threading
 import urllib.parse
-from typing import Any, Awaitable, Callable, Optional, cast
+from typing import Any, Awaitable, Callable, cast
 
 from websockets.asyncio.server import serve
 from websockets.asyncio.server import ServerConnection
 from websockets.datastructures import Headers
 from websockets.exceptions import ConnectionClosed
+from websockets.exceptions import InvalidHandshake
 from websockets.frames import CloseCode
 from websockets.http11 import Request
 from websockets.http11 import Response
@@ -98,10 +95,6 @@ _STATE_ACK_TIMEOUT_SEC = 2.0
 # A control grant must arrive within this window, else it moves down the queue.
 _GRANT_EXPIRY_SEC = 5.0
 
-# After a model-change restart, the controller slot stays reserved for the page
-# that was controlling until it has had time to reload and reconnect; unclaimed,
-# the slot then opens to everyone.
-_RESTART_RESERVE_SEC = 10.0
 
 # A controller whose tab stops running (hidden or closed without a clean
 # disconnect) is released once someone is waiting for control. Detected by
@@ -201,8 +194,7 @@ class _HandshakeNoiseFilter(logging.Filter):
   Handshake failure are produced by two routine cases:
 
   1. browsers speculatively open spare connections and close them unused
-  2. a page reload races the model-change server restart, tearing connections
-     down mid-handshake.
+  2. a page reload on model change tears connections down mid-handshake.
 
   The websockets library logs each as an opening-handshake failure as at ERROR
   level with a full traceback. Raising the log level would hide real handshake
@@ -215,8 +207,8 @@ class _HandshakeNoiseFilter(logging.Filter):
     exc = record.exc_info[1] if record.exc_info else None
     if exc is None:
       return True
-    if isinstance(exc, (ConnectionClosed, EOFError, OSError)):
-      return False  # The connection died; nothing wrong with the request.
+    if isinstance(exc, (ConnectionClosed, InvalidHandshake, EOFError, OSError)):
+      return False  # The connection died or sent non-WS HTTP; nothing wrong.
     return "did not receive a valid HTTP request" not in str(exc)
 
 
@@ -249,9 +241,8 @@ _configure_logging()
 def bind_public_socket(host: str, port: int = 0) -> socket.socket:
   """Binds (but does not listen on) the public HTTP listening socket.
 
-  The socket is bound in the viewer process and inherited by each server child,
-  so the port stays stable across server restarts (model changes) and bind
-  conflicts surface here, synchronously, instead of inside the child.
+  The socket is bound in the viewer thread up front so that bind conflicts
+  surface here, synchronously, rather than inside the server thread.
 
   Args:
     host: Interface to bind. "::" (the default) binds a dual-stack socket that
@@ -328,32 +319,8 @@ def _session_id(ws: ServerConnection) -> str:
   return f"anon-{id(ws)}"
 
 
-def _terminate_process(
-    proc: multiprocessing.process.BaseProcess, timeout: float = 2.0
-) -> None:
-  """Terminates a server process, escalating to SIGKILL if it hangs.
 
-  A wedged child that outlives stop() keeps its sockets alive, which prevents
-  the C++ NetImgui client from ever noticing the disconnect and reconnecting to
-  the replacement server.
-
-  Args:
-    proc: The process to terminate.
-    timeout: The timeout for each termination step.
-  """
-  # Grace period first: the child normally exits on its own (lifeline EOF),
-  # and signalling a process mid-exit makes it print noise on stderr.
-  proc.join(timeout=timeout)
-  if proc.is_alive():
-    proc.terminate()
-    proc.join(timeout=timeout)
-  if proc.is_alive():
-    logger.warning("[Http] Process %s ignored SIGTERM; killing.", proc.pid)
-    proc.kill()
-    proc.join(timeout=timeout)
-
-
-def _find_static_files_dir() -> Optional[str]:
+def _find_static_files_dir() -> str | None:
   """Locate the web viewer static files.
 
   The `dist` directory next to this file is populated by the Emscripten build
@@ -379,56 +346,25 @@ def _find_static_files_dir() -> Optional[str]:
 
 
 def _run_cancellable(main_loop_func: Callable[[], Awaitable[None]]) -> None:
-  """Runs an asyncio loop with SIGINT/SIGTERM structured task cancellation."""
-
-  async def _wrapped() -> None:
-    loop = asyncio.get_running_loop()
-    main_task = asyncio.current_task()
-
-    def _cancel() -> None:
-      if main_task:
-        main_task.cancel()
-
-    loop.add_signal_handler(signal.SIGINT, _cancel)
-    loop.add_signal_handler(signal.SIGTERM, _cancel)
-    try:
-      await main_loop_func()
-    except asyncio.CancelledError:
-      pass
-    finally:
-      # Detach the handlers (and asyncio's signal wakeup pipe) before the loop
-      # closes: a signal landing afterwards would try to write to the closed
-      # pipe and print "Exception ignored ... BrokenPipeError".
-      loop.remove_signal_handler(signal.SIGINT)
-      loop.remove_signal_handler(signal.SIGTERM)
-
+  """Runs an asyncio loop, logging unexpected errors."""
   try:
-    asyncio.run(_wrapped())
+    asyncio.run(main_loop_func())
+  except asyncio.CancelledError:
+    pass
   except Exception as e:  # pylint: disable=broad-exception-caught
     func_name = getattr(main_loop_func, "__name__", "main_loop_func")
     logger.error("[%s] Unexpected error: %s", func_name, e)
 
 
 def _run_server(
-    http_sock: socket.socket,
-    tcp_sock: socket.socket,
-    lifeline_r: int,
-    lifeline_w: int,
-    static_dir: Optional[str],
-    mjb_data: Optional[bytes],
-    shm_array: Optional[ctypes.Array],
-    shm_capacity: int,
-    generation: multiprocessing.sharedctypes.Synchronized,
-    drop_queue: Optional[multiprocessing.queues.Queue[Any]],
-    controller_sid_shared: Optional[Any],
+    server: 'WebServer',
+    stop_event: threading.Event,
 ) -> None:
-  """The server process: HTTP + /ui + /state on one port, one event loop."""
+  """The server thread: HTTP + /ui + /state on one port, one event loop."""
 
-  # Close the inherited write end of the lifeline pipe: the read end must see
-  # EOF the moment the parent (the only writer) goes away — for ANY reason,
-  # including SIGKILL, which no signal handler or getppid poll can cover.
-  os.close(lifeline_w)
-
+  http_sock = server.http_sock
+  tcp_sock = server.tcp_sock
+  static_dir = server.static_files_dir
   static_root = os.path.realpath(static_dir) if static_dir else None
 
   def _http_headers(
@@ -449,6 +385,7 @@ def _run_server(
   def _serve_http(path: str) -> Response:
     """Builds the HTTP response for a non-WebSocket GET request."""
     if path == "/model":
+      mjb_data = server.mjb_data  # Snapshot to prevent race with update_model().
       if not mjb_data:
         return Response(404, "Not Found", Headers(), b"no model\n")
       # The model changes on hot-swap; never serve a cached copy.
@@ -479,8 +416,12 @@ def _run_server(
     content_type = _CONTENT_TYPES.get(
         os.path.splitext(full)[1], "application/octet-stream"
     )
+    cacheable = not rel.endswith("index.html")
     return Response(
-        200, "OK", _http_headers(content_type, len(body), cacheable=True), body
+        200,
+        "OK",
+        _http_headers(content_type, len(body), cacheable=cacheable),
+        body,
     )
 
   async def main_loop() -> None:
@@ -493,13 +434,13 @@ def _run_server(
     # The browser controlling the UI (single slot) and all browsers receiving
     # the state broadcast (controller + spectators), keyed by session id.
     active_ui_ws = None
-    controller_sid: Optional[str] = None
+    controller_sid: str | None = None
     state_clients: dict[str, ServerConnection] = {}
 
     # Control handoff: spectators queue for the controller slot; when it frees,
     # the head of the queue is granted a short exclusive claim window.
     control_queue: list[str] = []
-    pending_grant_sid: Optional[str] = None
+    pending_grant_sid: str | None = None
     broadcast_roster: Any = None
     grant_next: Any = None
 
@@ -514,44 +455,6 @@ def _run_server(
     last_heartbeat: dict[str, float] = {}
     last_controller_input = [0.0]
     loop_time = asyncio.get_event_loop().time
-
-    def remember_controller(sid: str) -> None:
-      """Records the controlling page's sid in viewer-owned shared memory.
-
-      Written on every claim (never cleared: teardown paths must not wipe it) so
-      that the next server, after a model-change restart, can reserve the slot
-      for the page that was controlling.
-      """
-      if controller_sid_shared is not None:
-        controller_sid_shared.value = sid.encode("utf-8", "replace")[:63]
-
-    # Reserve the controller slot for the previous controller across a restart.
-    # Session ids survive page reloads (sessionStorage, see web_client.cc), so
-    # the reloaded controller page claims /ui with the same sid; other pages are
-    # rejected until then via pending_grant_sid.
-    if controller_sid_shared is not None and controller_sid_shared.value:
-      pending_grant_sid = controller_sid_shared.value.decode("utf-8")
-      logger.debug(
-          "[Session] Controller slot reserved for the previous controller"
-      )
-
-      async def expire_restart_reserve(reserved: str) -> None:
-        nonlocal pending_grant_sid, grant_next, broadcast_roster
-        # grant_next/broadcast_roster are defined below; by the time this timer
-        # fires they exist.
-        await asyncio.sleep(_RESTART_RESERVE_SEC)
-        if pending_grant_sid == reserved and active_ui_ws is None:
-          logger.debug("[Session] Restart reservation expired; slot open")
-          pending_grant_sid = None
-          if grant_next and broadcast_roster:
-            await grant_next()
-            await broadcast_roster()
-
-      reserve_task = asyncio.create_task(
-          expire_restart_reserve(pending_grant_sid)
-      )
-      background_tasks.add(reserve_task)
-      reserve_task.add_done_callback(background_tasks.discard)
 
     async def broadcast_roster() -> None:
       """Sends every browser the counts, its role and its queue position."""
@@ -735,7 +638,6 @@ def _run_server(
         control_queue.remove(sid)
       active_ui_ws = ws
       controller_sid = sid
-      remember_controller(sid)
       last_controller_input[0] = loop_time()
       await broadcast_roster()
 
@@ -792,7 +694,7 @@ def _run_server(
       try:
         # Handshake: browser CmdVersion -> client; client CmdVersion -> browser.
         browser_version = await ws.recv()
-        my_writer.write(browser_version)
+        my_writer.write(browser_version)  # pyrefly: ignore[bad-argument-type]
         await my_writer.drain()
         server_version = await my_reader.readexactly(_NETIMGUI_CMD_VERSION_SIZE)
         await ws.send(server_version)
@@ -858,24 +760,20 @@ def _run_server(
       logger.info("[StateWS] Browser connected (%d total)", len(state_clients))
       await broadcast_roster()
 
-      def read_state() -> Optional[tuple[int, bytes]]:
-        # Seqlock read against update_state()'s memmove: an even generation
-        # unchanged across the copy means the buffer held still, so the
-        # payload is a single complete frame. An odd generation (write in
-        # flight) or a changed generation is a torn read; a few retries cover
-        # the microsecond-wide memmove, and skipping the tick is harmless
-        # under latest-wins. Returns the (generation, payload) actually read.
-        for _ in range(8):
-          gen_before = generation.value
-          if gen_before & 1:
-            continue
-          (used,) = struct.unpack("<I", bytes(shm_array[:4]))
-          if used == 0 or used > shm_capacity:
-            return None
-          data = bytes(shm_array[4 : 4 + used])
-          if generation.value == gen_before:
-            return gen_before, data
-        return None
+      def read_state() -> tuple[int, bytes] | None:
+        """Reads the latest state payload from the server instance.
+
+        In the thread model, the viewer thread writes server._state_payload and
+        bumps server._state_generation (via WebServer.update_state()) under
+        server._state_lock; this side just grabs a snapshot.  Returns
+        (generation, payload) or None.
+        """
+        with server._state_lock:
+          gen = server._state_generation
+          data = server._state_payload
+        if data is None:
+          return None
+        return gen, data
 
       # See _STATE_ACK_MESSAGE: one payload in flight at a time, so the latest
       # wins read below always ships the freshest state a slow link can carry
@@ -888,7 +786,9 @@ def _run_server(
         last_gen = 0
         while True:
           await asyncio.sleep(1.0 / 60.0)
-          if generation.value == last_gen:
+          # _state_generation is bumped by WebServer.update_state() on the
+          # viewer thread.
+          if server._state_generation == last_gen:
             continue
           try:
             await asyncio.wait_for(
@@ -947,7 +847,7 @@ def _run_server(
 
     def process_request(
         connection: ServerConnection, request: Request
-    ) -> Optional[Response]:
+    ) -> Response | None:
       del connection
 
       # Split path and query string.
@@ -956,6 +856,24 @@ def _run_server(
       else:
         path, query_string = request.path, ""
       if path in ("/ui", "/state", "/drop"):
+        # Plain HTTP requests to a WebSocket path (e.g. browser speculative probe
+        # or proxy without Upgrade header) get a clean 426 Upgrade Required
+        # instead of triggering websockets' opening-handshake exception log.
+        connection_opts = [
+            opt.strip().lower()
+            for val in request.headers.get_all("Connection")
+            for opt in val.split(",")
+        ]
+        if "upgrade" not in connection_opts:
+          headers = Headers()
+          headers["Upgrade"] = "websocket"
+          headers["Connection"] = "Upgrade"
+          return Response(
+              426,
+              "Upgrade Required",
+              headers,
+              b"WebSocket upgrade required\n",
+          )
         return None  # Proceed with the WebSocket handshake.
 
       # Chunked model endpoint: the client fetches /model in parallel chunks
@@ -966,6 +884,7 @@ def _run_server(
       # Full model endpoint: the client fetches /model in a single request
       #
       #   GET /model  -> full model bytes
+      mjb_data = server.mjb_data  # Snapshot to prevent race with update_model().
       if path == "/model" and mjb_data and query_string:
         params = urllib.parse.parse_qs(query_string)
         if "total_bytes" in params or query_string == "total_bytes":
@@ -991,7 +910,7 @@ def _run_server(
 
     def process_response(
         connection: ServerConnection, request: Request, response: Response
-    ) -> Optional[Response]:
+    ) -> Response | None:
       """Adds cross-origin headers to the WebSocket upgrade (101) response.
 
       The page serves Cross-Origin-Opener-Policy: same-origin and
@@ -1070,10 +989,10 @@ def _run_server(
               " connection closed); discarding.",
               len(files),
           )
-      elif files and drop_queue is not None:
+      elif files and server.drop_queue is not None:
         total = sum(len(data) for data in files.values())
         logger.info("[Drop] Received %d file(s), %d bytes", len(files), total)
-        drop_queue.put(files)
+        server.drop_queue.put(files)
 
       await ws.close()
 
@@ -1092,29 +1011,22 @@ def _run_server(
       else:
         await ws.close(CloseCode.POLICY_VIOLATION, "unknown endpoint")
 
-    # Block until the lifeline pipe hits EOF, which happens exactly when the
-    # viewer process is gone (clean stop() close, crash, or SIGKILL). An
-    # orphaned server would otherwise keep serving a stale model and fight any
-    # replacement server for browsers.
-    async def watch_lifeline() -> None:
-      # A dedicated daemon thread rather than run_in_executor: executor threads
-      # are non-daemonic and are joined at interpreter exit, so a blocked
-      # os.read would keep this process alive for as long as the viewer holds
-      # the lifeline open — e.g. when the viewer is still tearing down after
-      # Ctrl+C hit both processes.
+    # Block until the stop event is set by WebServer.stop(). The server thread
+    # is a daemon, so it also dies if the process exits for any reason.
+    async def watch_stop() -> None:
       loop = asyncio.get_running_loop()
-      eof = asyncio.Event()
+      stopped = asyncio.Event()
 
-      def wait_for_eof() -> None:
+      def poll() -> None:
+        stop_event.wait()
         try:
-          os.read(lifeline_r, 1)
-          loop.call_soon_threadsafe(eof.set)
-        except (OSError, RuntimeError):
-          pass  # fd or loop already closed, so the process is exiting anyway.
+          loop.call_soon_threadsafe(stopped.set)
+        except RuntimeError:
+          pass  # Loop already closed.
 
-      threading.Thread(target=wait_for_eof, daemon=True).start()
-      await eof.wait()
-      logger.debug("[Http] Viewer process exited; shutting down.")
+      threading.Thread(target=poll, daemon=True).start()
+      await stopped.wait()
+      logger.debug("[Http] Stop event received; shutting down.")
 
     tcp_server = await asyncio.start_server(handle_tcp_client, sock=tcp_sock)
 
@@ -1145,7 +1057,7 @@ def _run_server(
 
     enforcer = asyncio.create_task(enforce_activity())
     try:
-      await watch_lifeline()
+      await watch_stop()
     finally:
       enforcer.cancel()
       # Close listeners explicitly to prevent hanging on open client sockets.
@@ -1160,9 +1072,11 @@ class WebServer:
 
   Serves the browser page, WASM, and model over HTTP; bridges the NetImgui UI
   stream at /ui; and broadcasts the state payload at /state on a single public
-  port from a child process. State payloads are handed over through shared
-  memory with latest-wins semantics: update_state() may be called at any rate
-  from the viewer thread; browsers only ever see the newest payload.
+  port from a background daemon thread.  State payloads are handed over through
+  a lock-protected reference with latest-wins semantics: update_state() may be
+  called at any rate from the viewer thread; browsers only ever see the newest
+  payload.  The server thread is started once and persists.  When the model
+  changes, update_model() swaps the bytes served at /model, without any restart.
 
   Run the simulation with the web viewer, then visit the printed URL.
   """
@@ -1171,122 +1085,69 @@ class WebServer:
       self,
       http_sock: socket.socket,
       tcp_sock: socket.socket,
-      static_files_dir: Optional[str] = None,
-      mjb_data: Optional[bytes] = None,
-      max_payload_size: int = 0,
-      drop_queue: Optional[multiprocessing.queues.Queue[Any]] = None,
-      controller_sid_shared: Optional[Any] = None,
+      static_files_dir: str | None = None,
+      mjb_data: bytes | None = None,
+      drop_queue: queue.Queue[Any] | None = None,
   ) -> None:
     """Initializes the server around pre-bound listening sockets.
 
     The sockets are bound by the viewer (see bind_public_socket /
-    bind_loopback_socket) and shared with the server child, so ports stay
-    stable across restarts and bind failures can't occur here.
+    bind_loopback_socket) and shared with the server thread, so bind failures
+    can't occur here.
 
     Args:
       http_sock: The listening socket for HTTP and WebSocket traffic.
       tcp_sock: The listening socket for NetImgui traffic.
       static_files_dir: The directory containing the static files to serve.
       mjb_data: The model data to serve from /model.
-      max_payload_size: The maximum size of the state payload.
       drop_queue: The queue to put dropped files onto.
-      controller_sid_shared: The shared value containing the controller's
-        session id.
     """
     self.http_sock = http_sock
     self.tcp_sock = tcp_sock
     self.static_files_dir = static_files_dir or _find_static_files_dir()
     self.mjb_data = mjb_data
 
-    # Owned by the viewer (it outlives server restarts); dropped-file bytes
-    # travel from the server child back to the viewer process through it.
+    # Dropped-file bytes travel from the server thread back to the viewer thread
+    # through this queue.
     self.drop_queue = drop_queue
 
-    # Also viewer-owned: the controlling page's session id, so a fresh
-    # server can reserve the controller slot for the page that was
-    # controlling before a model-change restart.
-    self.controller_sid_shared = controller_sid_shared
-    self._process = None
-    self._lifeline_w = None
+    # State payload: the viewer thread writes, the server thread reads.
+    self._state_lock = threading.Lock()
+    self._state_payload: bytes | None = None
+    self._state_generation: int = 0
 
-    # Shared memory for zero-copy payload transfer to the server process:
-    # [u32 length][payload bytes], so payloads can vary in size up to
-    # max_payload_size (see state_payload.max_state_payload_size).
-    self._shm_capacity = max_payload_size
-    self._shm_array = (
-        multiprocessing.RawArray(ctypes.c_char, 4 + self._shm_capacity)
-        if self._shm_capacity > 0
-        else None
-    )
-    self._generation = multiprocessing.Value("Q", 0)  # uint64 counter
+    self._stop_event = threading.Event()
+    self._thread: threading.Thread | None = None
 
   def update_state(self, payload: bytes) -> None:
     """Publishes the latest state payload. Called from the viewer thread."""
-    if self._shm_array is None:
-      return
+    with self._state_lock:
+      self._state_payload = payload
+      self._state_generation += 1
 
-    if len(payload) > self._shm_capacity:
-      logger.error(
-          "[StateWS] Payload of %d bytes exceeds capacity %d; dropping.",
-          len(payload),
-          self._shm_capacity,
-      )
-      return
-
-    # Seqlock: bump the generation to odd before writing and back to even after,
-    # so a reader that copies the buffer while this memmove is in flight can
-    # detect the torn read (see send_payloads) and retry. Without it a reader
-    # could splice two frames and ship an invalid physics block.
-    with self._generation.get_lock():
-      self._generation.value += 1
-    ctypes.memmove(
-        self._shm_array,
-        struct.pack("<I", len(payload)) + payload,
-        4 + len(payload),
-    )
-    with self._generation.get_lock():
-      self._generation.value += 1
+  def update_model(self, mjb_data: bytes) -> None:
+    """Swaps the model bytes served at /model. No server restart needed."""
+    self.mjb_data = mjb_data
 
   def start(self) -> None:
-    """Starts the server in a background process."""
+    """Starts the server on a background daemon thread."""
     if not self.static_files_dir:
       logger.warning("[Http] WARNING: Could not find web viewer static files.")
       return
 
     logger.debug("[Http] Serving web viewer from: %s", self.static_files_dir)
 
-    # Lifeline pipe: the child holds the read end and exits on EOF, which
-    # happens when this process closes the write end (stop()) or dies for any
-    # reason at all, preventing orphaned servers.
-    lifeline_r, self._lifeline_w = os.pipe()
-
-    # Sockets and pipe fds must be inherited, so fork explicitly (the default
-    # start method is fork on Linux today, but is changing upstream).
-    self._process = multiprocessing.get_context("fork").Process(
+    self._stop_event.clear()
+    self._thread = threading.Thread(
         target=_run_server,
-        args=(
-            self.http_sock,
-            self.tcp_sock,
-            lifeline_r,
-            self._lifeline_w,
-            self.static_files_dir,
-            self.mjb_data,
-            self._shm_array,
-            self._shm_capacity,
-            self._generation,
-            self.drop_queue,
-            self.controller_sid_shared,
-        ),
+        args=(self, self._stop_event),
         daemon=True,
     )
-    self._process.start()
-    os.close(lifeline_r)
+    self._thread.start()
 
   def stop(self) -> None:
-    """Stops the server, escalating to SIGKILL if it hangs."""
-    if self._lifeline_w is not None:
-      os.close(self._lifeline_w)  # EOF on the child's lifeline: clean exit.
-      self._lifeline_w = None
-    if self._process:
-      _terminate_process(self._process)
-      self._process = None
+    """Stops the server thread."""
+    self._stop_event.set()
+    if self._thread is not None:
+      self._thread.join(timeout=5.0)
+      self._thread = None

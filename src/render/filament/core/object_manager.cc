@@ -42,8 +42,19 @@ static filament::Material* LoadMaterial(filament::Engine* engine,
   const std::string path = ResolveFilamentAssetPath(std::string(filename));
   mjResource* resource =
       mju_openResource("", path.c_str(), nullptr, nullptr, 0);
+  if (!resource) {
+    mju_error("Failed to open filament asset '%.*s' at '%s'",
+              static_cast<int>(filename.size()), filename.data(), path.c_str());
+    return nullptr;
+  }
   void* payload = nullptr;
   int size = mju_readResource(resource, const_cast<const void**>(&payload));
+  if (size <= 0 || !payload) {
+    mju_error("Failed to read filament asset '%.*s' (size=%d)",
+              static_cast<int>(filename.size()), filename.data(), size);
+    mju_closeResource(resource);
+    return nullptr;
+  }
   filament::Material::Builder material_builder;
   material_builder.package(payload, size);
   filament::Material* material = material_builder.build(*engine);
@@ -57,10 +68,11 @@ ObjectManager::ObjectManager(filament::Engine* engine) : engine_(engine) {
   materials_[kPbrTransparent] = LoadMaterial(engine, "pbr_transparent.filamat");
   materials_[kPbrPackedTransparent] =
       LoadMaterial(engine, "pbr_packed_transparent.filamat");
+  materials_[kPbrReflect] = LoadMaterial(engine, "pbr_reflect.filamat");
+  materials_[kPbrPackedReflect] =
+      LoadMaterial(engine, "pbr_packed_reflect.filamat");
   materials_[kPhong2d] = LoadMaterial(engine, "phong_2d.filamat");
   materials_[kPhong2dFade] = LoadMaterial(engine, "phong_2d_fade.filamat");
-  materials_[kPhong2dReflect] =
-      LoadMaterial(engine, "phong_2d_reflect.filamat");
   materials_[kPhong2dUv] = LoadMaterial(engine, "phong_2d_uv.filamat");
   materials_[kPhong2dUvFade] = LoadMaterial(engine, "phong_2d_uv_fade.filamat");
   materials_[kPhong2dUvReflect] =

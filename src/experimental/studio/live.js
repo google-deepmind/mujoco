@@ -138,19 +138,19 @@ var Module = {
   totalDependencies: 0,
   monitorRunDependencies(left) { },
   onRuntimeInitialized: () => {
-    // Define assets to prefetch, relative to the WASM directory.
     const assetsToPrefetch = [
       "assets/fontawesome-webfont.ttf",
       "assets/ibl.ktx",
       "assets/AtkinsonHyperlegibleNext[wght].ttf",
       "assets/AtkinsonHyperlegibleMono-Regular.ttf",
       "assets/pbr.filamat",
+      "assets/pbr_reflect.filamat",
+      "assets/pbr_packed_reflect.filamat",
       "assets/pbr_transparent.filamat",
       "assets/pbr_packed.filamat",
       "assets/pbr_packed_transparent.filamat",
       "assets/phong_2d_fade.filamat",
       "assets/phong_2d.filamat",
-      "assets/phong_2d_reflect.filamat",
       "assets/phong_2d_uv_fade.filamat",
       "assets/phong_2d_uv.filamat",
       "assets/phong_2d_uv_reflect.filamat",

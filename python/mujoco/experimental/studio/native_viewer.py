@@ -13,9 +13,8 @@
 # limitations under the License.
 """Simulation-agnostic native viewer for MuJoCo models.
 
-See the documentation for studio_app.py for more details on the architecture
-separating the viewer and simulation. See the sample/ folder for examples of how
-to use these classes.
+See the documentation for viewer_app.py for more details on the architecture
+separating the viewer and simulation.
 """
 
 from typing import Any
@@ -40,7 +39,7 @@ class NativeViewer(viewer_protocol.Viewer):
       *,
       model: mujoco.MjModel | None = None,
       model_path: str = '',
-      handlers: list[Any] | None = None,
+      plugins: list[Any] | None = None,
       camera: mujoco.MjvCamera | None = None,
       vis_options: mujoco.MjvOption | None = None,
       perturb: mujoco.MjvPerturb | None = None,
@@ -54,7 +53,7 @@ class NativeViewer(viewer_protocol.Viewer):
       endpoint: The viewer endpoint for communication with the sim side.
       model: Optional initial MjModel. Forwarded to the base Viewer.
       model_path: Optional path to the model file.
-      handlers: Optional list of handler instances.
+      plugins: Optional list of plugin instances.
       camera: Camera parameters. Internal object is created if None.
       vis_options: Visualization options. Internal object is created if None.
       perturb: Perturbation parameters. Internal object is created if None.
@@ -66,7 +65,7 @@ class NativeViewer(viewer_protocol.Viewer):
         endpoint,
         model=model,
         model_path=model_path,
-        handlers=handlers,
+        plugins=plugins,
         camera=camera,
         vis_options=vis_options,
         perturb=perturb,
@@ -123,6 +122,19 @@ class NativeViewer(viewer_protocol.Viewer):
   def stop(self) -> None:
     """Stop the viewer."""
     self.close()
+
+  def close(self) -> None:
+    """Close the viewer and explicitly destroy the renderer.
+
+    The C++ Viewer (and its FilamentRenderer) must be destroyed on the same
+    thread that created it, because Filament's FEngine::destroy() asserts
+    thread affinity.  Without this override the pybind11 prevent object would
+    be garbage-collected on the main thread, triggering a SIGABRT.
+    """
+    # Destroy the C++ viewer *before* closing the endpoint so that the
+    # FilamentRenderer destructor runs on the daemon/viewer thread.
+    self._viewer = None  # Release the C++ Viewer pybind11 prevent object.
+    super().close()
 
   def get_drop_file(self) -> str:
     """Returns the path of the file dropped into the window, or empty string."""

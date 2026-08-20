@@ -15,7 +15,6 @@
 material {
     name : phong_2d_uv_reflect,
     shadingModel : specularGlossiness,
-    postLightingBlending : add,
     flipUV : false,
     parameters : [
         { type : float4, name : BaseColorFactor },
@@ -24,7 +23,9 @@ material {
         { type : float, name : EmissiveFactor },
         { type : float, name : Reflectance },
         { type : sampler2d, name : BaseColor },
-        { type : sampler2d, name : Reflection }
+        { type : sampler2d, name : Reflection },
+        { type : float3, name : UvScale },
+        { type : float3, name : UvOffset }
     ],
     requires : [
         uv0
@@ -33,7 +34,7 @@ material {
 
 fragment {
   void material(inout MaterialInputs material) {
-    vec2 uv = getUV0();
+    vec2 uv = getUV0() * materialParams.UvScale.xy + materialParams.UvOffset.xy;
     vec2 screen_uv = gl_FragCoord.xy * getResolution().zw;
 
     prepareMaterial(material);
@@ -44,12 +45,8 @@ fragment {
     material.emissive      = vec4(
         materialParams.BaseColorFactor.rgb * materialParams.EmissiveFactor, 0.0);
 
-    // The reflection is radiance arriving from the mirror direction, so it is
-    // weighted by the Fresnel term and added after lighting. Reflectance is
-    // the reflectivity at normal incidence; grazing angles approach a mirror.
+    // Apply reflection.
     vec4 reflection = texture(materialParams_Reflection, screen_uv);
-    float f0 = materialParams.Reflectance;
-    float fresnel = f0 + (1.0 - f0) * pow(1.0 - getNdotV(), 5.0);
-    material.postLightingColor = vec4(reflection.rgb * fresnel, 0.0);
+    material.baseColor.rgb = mix(material.baseColor.rgb, reflection.rgb, materialParams.Reflectance);
   }
 }

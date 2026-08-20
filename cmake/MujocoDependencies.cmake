@@ -53,7 +53,7 @@ set(MUJOCO_DEP_VERSION_abseil
 )
 
 set(MUJOCO_DEP_VERSION_gtest
-    52eb8108c5bdec04579160ae17225d66034bd723 # v1.17.0
+    063de7e9578f82b369302001269680b4b1553359 # v1.18.0
     CACHE STRING "Version of `gtest` to be fetched."
 )
 

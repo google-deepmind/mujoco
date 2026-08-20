@@ -17,6 +17,7 @@
 #include <tuple>
 
 #include <mujoco/mujoco.h>
+#include <mujoco/experimental/platform/sim/sim_history.h>
 #include <mujoco/experimental/platform/sim/step_control.h>
 #include "structs.h"
 #include <pybind11/pybind11.h>
@@ -82,4 +83,19 @@ PYBIND11_MODULE(sim, m, pybind11::mod_gil_not_used()) {
       .def("set_noise_parameters", &StepControl::SetNoiseParameters,
            py::arg("noise_scale"), py::arg("noise_rate"),
            "Sets the noise parameters.");
+
+  using SimHistory = mujoco::platform::SimHistory;
+  constexpr int max_history = 2048;
+  constexpr int max_bytes = 128 * 1024 * 1024;  // 128 MiB
+  py::class_<SimHistory>(m, "SimHistory")
+      .def(py::init<>())
+      .def("init", &SimHistory::Init, py::arg("state_size"),
+           py::arg("max_history") = max_history,
+           py::arg("max_bytes") = max_bytes,
+           "Clears and initializes the history buffer to hold `state_size` "
+           "mjtNum states.")
+      .def("get_index", &SimHistory::GetIndex,
+           "Returns the current history offset (0 is the most recent state).")
+      .def("size", &SimHistory::Size,
+           "Returns the number of recorded states.");
 }

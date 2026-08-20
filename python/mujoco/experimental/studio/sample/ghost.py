@@ -27,7 +27,7 @@ import mujoco
 from mujoco.experimental.studio import launch_passive
 from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import parser
-from mujoco.experimental.studio import sim
+from mujoco.experimental.studio import step_control
 from mujoco.experimental.studio import studio_app_events
 from mujoco.experimental.studio import ux
 from mujoco.experimental.studio import viewer_protocol
@@ -117,7 +117,7 @@ class GhostRenderer:
     self._viewer.extra_geoms.clear()
     if self._last_time is None or data.time < self._last_time:
       self._history.clear()
-    if not self._history or data.time > self._last_time:
+    if not self._history or data.time > self._last_time:  # pyrefly: ignore[unsupported-operation]
       self._history.append((
           data.time,
           data.geom_xpos.copy(),
@@ -129,7 +129,7 @@ class GhostRenderer:
     while len(self._history) > 1 and self._history[1][0] <= target_time:
       self._history.popleft()
 
-    _, xpos, xmat = self._history[0]
+    _, xpos, xmat = self._history[0]  # pyrefly: ignore[bad-assignment]
     if len(xpos) != model.ngeom or len(xmat) != model.ngeom:
       return
 
@@ -162,7 +162,9 @@ def main(argv: list[str]) -> None:
       argv[1] if len(argv) > 1 and not argv[1].startswith('--') else None
   )
   if not model_path:
-    raise _app.UsageError('Please provide a model path argument or --model flag.')
+    raise _app.UsageError(
+        'Please provide a model path argument or --model flag.'
+    )
 
   data = None
   try:
@@ -185,15 +187,14 @@ def main(argv: list[str]) -> None:
 
   with launch_passive.launch_passive(
       config,
-      viewer_handlers=[ghost_renderer],
+      viewer_plugins=[ghost_renderer],
+      sim_plugins=[step_control.StepControl()],
   ) as handle:
     handle.send_to_viewer(messages.ModelEvent(model=model))
 
-    step_control = sim.StepControl()
     try:
       while handle.is_running():
-        step_control.advance(model, data)
-        model, data, step_control = handle.sync(model, data, step_control)
+        model, data = handle.sync(model, data)
     except KeyboardInterrupt:
       # Ctrl+C is the documented way to quit; exit cleanly, no traceback.
       print('\nShutting down.', flush=True)

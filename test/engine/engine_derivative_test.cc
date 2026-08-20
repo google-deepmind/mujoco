@@ -1414,7 +1414,7 @@ TEST_F(DerivativeTest, DCMotorStatefulDerivative) {
     </worldbody>
     <actuator>
       <dcmotor name="dc" joint="j" motorconst="2.0" resistance="0.5"
-               inductance="0 0.001" input="position" controller="10 0 5"/>
+               inductance="0 0.001" input="pos vel" controller="10 0 5"/>
     </actuator>
   </mujoco>
   )";
@@ -1437,10 +1437,10 @@ TEST_F(DerivativeTest, DCMotorStatefulDerivative) {
   // extract diagonal of qDeriv
   mjtNum qDeriv_diag = d->qDeriv[m->D_rowadr[0] + m->D_rownnz[0] - 1];
 
-  // expected: K*(dVdw - K)*(1 - exp(-h/te))/R
-  // with K=2, R=0.5, te=0.001, h=0.002, kd=5, dVdw=-5
-  mjtNum K = 2.0, R = 0.5, te = 0.001, h = 0.002, kd = 5.0;
-  mjtNum expected = K * (-kd - K) * (1 - mju_exp(-h / te)) / R;
+  // expected: K*(dVdw - K)*(1 - exp(-h/te))/R with the torque-space map
+  // dVdw = -kd*R/K + K, so the expression reduces to -kd*(1 - exp(-h/te))
+  mjtNum te = 0.001, h = 0.002, kd = 5.0;
+  mjtNum expected = -kd * (1 - mju_exp(-h / te));
   EXPECT_NEAR(qDeriv_diag, expected, 1e-10)
       << "stateful DC motor derivative should match analytical formula";
 }
@@ -1459,7 +1459,7 @@ TEST_F(DerivativeTest, DCMotorStatefulConvergesToStateless) {
     </worldbody>
     <actuator>
       <dcmotor name="dc" joint="j" motorconst="1.0" resistance="1.0"
-               input="position" controller="10 0 5"/>
+               input="pos vel" controller="10 0 5"/>
     </actuator>
   </mujoco>
   )";
@@ -1476,7 +1476,7 @@ TEST_F(DerivativeTest, DCMotorStatefulConvergesToStateless) {
     </worldbody>
     <actuator>
       <dcmotor name="dc" joint="j" motorconst="1.0" resistance="1.0"
-               inductance="0 1e-8" input="position" controller="10 0 5"/>
+               inductance="0 1e-8" input="pos vel" controller="10 0 5"/>
     </actuator>
   </mujoco>
   )";

@@ -61,22 +61,22 @@ def sensor_pos(m: Model, d: Data) -> Data:
 
   # position and orientation by object type
   objtype_data = {
-      ObjType.UNKNOWN: (
+      int(ObjType.UNKNOWN): (
           np.zeros((1, 3)),
           np.expand_dims(np.eye(3), axis=0),
       ),  # world
-      ObjType.BODY: (d.xipos, d.ximat),
-      ObjType.XBODY: (d.xpos, d.xmat),
-      ObjType.GEOM: (d.geom_xpos, d.geom_xmat),
-      ObjType.SITE: (d.site_xpos, d.site_xmat),
-      ObjType.CAMERA: (d.cam_xpos, d.cam_xmat),
+      int(ObjType.BODY): (d.xipos, d.ximat),
+      int(ObjType.XBODY): (d.xpos, d.xmat),
+      int(ObjType.GEOM): (d.geom_xpos, d.geom_xmat),
+      int(ObjType.SITE): (d.site_xpos, d.site_xmat),
+      int(ObjType.CAMERA): (d.cam_xpos, d.cam_xmat),
   }
 
   # frame axis indexing
   frame_axis = {
-      SensorType.FRAMEXAXIS: 0,
-      SensorType.FRAMEYAXIS: 1,
-      SensorType.FRAMEZAXIS: 2,
+      int(SensorType.FRAMEXAXIS): 0,
+      int(SensorType.FRAMEYAXIS): 1,
+      int(SensorType.FRAMEZAXIS): 2,
   }
 
   stage_pos = m.sensor_needstage == mujoco.mjtStage.mjSTAGE_POS
@@ -190,8 +190,8 @@ def sensor_pos(m: Model, d: Data) -> Data:
       for ot, rt in set(zip(objtype, reftype)):
         idxt = (objtype == ot) & (reftype == rt)
         refidt = refid[idxt]
-        xpos, _ = objtype_data[ot]
-        xpos_ref, xmat_ref = objtype_data[rt]
+        xpos, _ = objtype_data[int(ot)]
+        xpos_ref, xmat_ref = objtype_data[int(rt)]
         xpos = xpos[objid[idxt]]
         xpos_ref = xpos_ref[refidt]
         xmat_ref = xmat_ref[refidt]
@@ -211,8 +211,8 @@ def sensor_pos(m: Model, d: Data) -> Data:
       for ot, rt in set(zip(objtype, reftype)):
         idxt = (objtype == ot) & (reftype == rt)
         refidt = refid[idxt]
-        _, xmat = objtype_data[ot]
-        _, xmat_ref = objtype_data[rt]
+        _, xmat = objtype_data[int(ot)]
+        _, xmat_ref = objtype_data[int(rt)]
         xmat = xmat[objid[idxt]]
         xmat_ref = xmat_ref[refidt]
         cutofft = cutoff[idxt]
@@ -224,6 +224,7 @@ def sensor_pos(m: Model, d: Data) -> Data:
     elif sensor_type == SensorType.FRAMEQUAT:
 
       def _quat(otype, oid):
+        otype = int(otype)
         if otype == ObjType.XBODY:
           return d.xquat[oid]
         elif otype == ObjType.BODY:
@@ -294,16 +295,16 @@ def sensor_vel(m: Model, d: Data) -> Data:
 
   # position and orientation by object type
   objtype_data = {
-      ObjType.UNKNOWN: (
+      int(ObjType.UNKNOWN): (
           np.zeros((1, 3)),
           np.expand_dims(np.eye(3), axis=0),
           np.arange(1),
       ),  # world
-      ObjType.BODY: (d.xipos, d.ximat, np.arange(m.nbody)),
-      ObjType.XBODY: (d.xpos, d.xmat, np.arange(m.nbody)),
-      ObjType.GEOM: (d.geom_xpos, d.geom_xmat, m.geom_bodyid),
-      ObjType.SITE: (d.site_xpos, d.site_xmat, m.site_bodyid),
-      ObjType.CAMERA: (d.cam_xpos, d.cam_xmat, m.cam_bodyid),
+      int(ObjType.BODY): (d.xipos, d.ximat, np.arange(m.nbody)),
+      int(ObjType.XBODY): (d.xpos, d.xmat, np.arange(m.nbody)),
+      int(ObjType.GEOM): (d.geom_xpos, d.geom_xmat, m.geom_bodyid),
+      int(ObjType.SITE): (d.site_xpos, d.site_xmat, m.site_bodyid),
+      int(ObjType.CAMERA): (d.cam_xpos, d.cam_xmat, m.cam_bodyid),
   }
 
   stage_vel = m.sensor_needstage == mujoco.mjtStage.mjSTAGE_VEL
@@ -358,14 +359,14 @@ def sensor_vel(m: Model, d: Data) -> Data:
         refidt = refid[idxt]
         cutofft = cutoff[idxt]
 
-        xpos, _, _ = objtype_data[ot]
-        xposref, xmatref, _ = objtype_data[rt]
+        xpos, _, _ = objtype_data[int(ot)]
+        xposref, xmatref, _ = objtype_data[int(rt)]
         xpos = xpos[objidt]
         xposref = xposref[refidt]
         xmatref = xmatref[refidt]
 
         def _cvel_offset(otype, oid):
-          pos, _, bodyid = objtype_data[otype]
+          pos, _, bodyid = objtype_data[int(otype)]
           pos = pos[oid]
           bodyid = bodyid[oid]
           return d.cvel[bodyid], pos - d.subtree_com[m.body_rootid[bodyid]]
@@ -435,23 +436,23 @@ def sensor_acc(m: Model, d: Data) -> Data:
 
   # position and bodyid by object type
   objtype_data = {
-      ObjType.UNKNOWN: (np.zeros((1, 3)), np.arange(1)),
-      ObjType.BODY: (d.xipos, np.arange(m.nbody)),
-      ObjType.XBODY: (d.xpos, np.arange(m.nbody)),
-      ObjType.GEOM: (d.geom_xpos, m.geom_bodyid),
-      ObjType.SITE: (d.site_xpos, m.site_bodyid),
-      ObjType.CAMERA: (d.cam_xpos, m.cam_bodyid),
+      int(ObjType.UNKNOWN): (np.zeros((1, 3)), np.arange(1)),
+      int(ObjType.BODY): (d.xipos, np.arange(m.nbody)),
+      int(ObjType.XBODY): (d.xpos, np.arange(m.nbody)),
+      int(ObjType.GEOM): (d.geom_xpos, m.geom_bodyid),
+      int(ObjType.SITE): (d.site_xpos, m.site_bodyid),
+      int(ObjType.CAMERA): (d.cam_xpos, m.cam_bodyid),
   }
 
   stage_acc = m.sensor_needstage == mujoco.mjtStage.mjSTAGE_ACC
-  sensor_types = set(m.sensor_type[stage_acc])
+  sensor_types = {int(st) for st in set(m.sensor_type[stage_acc])}
 
   if sensor_types & {
-      SensorType.ACCELEROMETER,
-      SensorType.FORCE,
-      SensorType.TORQUE,
-      SensorType.FRAMELINACC,
-      SensorType.FRAMEANGACC,
+      int(SensorType.ACCELEROMETER),
+      int(SensorType.FORCE),
+      int(SensorType.TORQUE),
+      int(SensorType.FRAMELINACC),
+      int(SensorType.FRAMEANGACC),
   }:
     d = smooth.rne_postconstraint(m, d)
 
@@ -459,14 +460,14 @@ def sensor_acc(m: Model, d: Data) -> Data:
   contact_maxforce = (contact_intprm[:, 1] == 2).any()
   contact_dataforce = (contact_intprm[:, 0] & (1 << 1)).any()
   contact_datatorque = (contact_intprm[:, 0] & (1 << 2)).any()
-  if (m.sensor_type[stage_acc] == SensorType.TOUCH).any() | (
-      (m.sensor_type[stage_acc] == SensorType.CONTACT).any()
+  if (m.sensor_type[stage_acc] == int(SensorType.TOUCH)).any() | (
+      (m.sensor_type[stage_acc] == int(SensorType.CONTACT)).any()
       and (contact_maxforce | contact_dataforce | contact_datatorque)
   ):
     # compute contact forces
     contact_force = []
     condim_ids = []
-    for dim in set(d._impl.contact.dim):
+    for dim in set(d._impl.contact.dim):  # pyrefly: ignore[missing-attribute]
       force, condim_id = support.contact_force_dim(m, d, dim)
       contact_force.append(force)
       condim_ids.append(condim_id)
@@ -485,7 +486,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
 
     if sensor_type == SensorType.TOUCH:
       # get bodies of contact geoms
-      conbody = jp.array(m.geom_bodyid)[d._impl.contact.geom]
+      conbody = jp.array(m.geom_bodyid)[d._impl.contact.geom]  # pyrefly: ignore[missing-attribute]
 
       # get site information
       site_bodyid = m.site_bodyid[objid]
@@ -495,14 +496,14 @@ def sensor_acc(m: Model, d: Data) -> Data:
       site_type = m.site_type[objid]
       conbody0 = site_bodyid[:, None] == conbody[:, 0]
       conbody1 = site_bodyid[:, None] == conbody[:, 1]
-      contacts = (d._impl.contact.efc_address >= 0)[None] & (
+      contacts = (d._impl.contact.efc_address >= 0)[None] & (  # pyrefly: ignore[missing-attribute]
           conbody0 | conbody1
       )
 
       # compute conray, flip if second body
       conray = jax.vmap(
           lambda frame, force: math.normalize(frame[0] * force[0])
-      )(d._impl.contact.frame, contact_force)  # pyrefly: ignore[unbound-name]
+      )(d._impl.contact.frame, contact_force)  # pyrefly: ignore[missing-attribute, unbound-name]
       conray = jp.where(conbody1[..., None], -conray, conray)
 
       # compute distance, mapping over sites and contacts
@@ -524,7 +525,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
             site_xpos[dist_id_site],
             site_xmat[dist_id_site],
             st,
-            d._impl.contact.pos,
+            d._impl.contact.pos,  # pyrefly: ignore[missing-attribute]
             conray[dist_id_site],
         )
         dist.append(jp.where(jp.isinf(dist_site), 0, dist_site))
@@ -535,11 +536,11 @@ def sensor_acc(m: Model, d: Data) -> Data:
       sensor = jp.dot((dist > 0) & contacts, contact_force[:, 0])
     elif sensor_type == SensorType.CONTACT:
       # maximum number of contacts
-      ncon = d._impl.ncon
+      ncon = d._impl.ncon  # pyrefly: ignore[missing-attribute]
 
       # active contacts
-      dist = d._impl.contact.dist
-      pos = dist - d._impl.contact.includemargin
+      dist = d._impl.contact.dist  # pyrefly: ignore[missing-attribute]
+      pos = dist - d._impl.contact.includemargin  # pyrefly: ignore[missing-attribute]
       is_contact = pos < 0
 
       # reduction criteria
@@ -607,8 +608,8 @@ def sensor_acc(m: Model, d: Data) -> Data:
         elif objtype == ObjType.GEOM or reftype == ObjType.GEOM:
           sensorid1 = objid[idx_ds]
           sensorid2 = refid[idx_ds]
-          geomid0 = d._impl.contact.geom[:, 0]
-          geomid1 = d._impl.contact.geom[:, 1]
+          geomid0 = d._impl.contact.geom[:, 0]  # pyrefly: ignore[missing-attribute]
+          geomid1 = d._impl.contact.geom[:, 1]  # pyrefly: ignore[missing-attribute]
 
           # match sensor ids and contact geom ids
           geom0id1 = geomid0 == sensorid1[:, None]
@@ -671,13 +672,13 @@ def sensor_acc(m: Model, d: Data) -> Data:
           slot.append(dist[cid, None])
 
         if dataspec & (1 << 4):  # pos
-          slot.append(d._impl.contact.pos[cid])
+          slot.append(d._impl.contact.pos[cid])  # pyrefly: ignore[missing-attribute]
 
         if dataspec & (1 << 5):  # normal
-          slot.append(flip[:, 2, None] * d._impl.contact.frame[cid, 0])
+          slot.append(flip[:, 2, None] * d._impl.contact.frame[cid, 0])  # pyrefly: ignore[missing-attribute]
 
         if dataspec & (1 << 6):  # tangent
-          slot.append(flip[:, 2, None] * d._impl.contact.frame[cid, 1])
+          slot.append(flip[:, 2, None] * d._impl.contact.frame[cid, 1])  # pyrefly: ignore[missing-attribute]
 
         found = jp.tile(jp.arange(num), nsensor) < jp.repeat(nfound, num)
         sensors.append((found[:, None] * jp.hstack(slot)).reshape(-1))
@@ -741,7 +742,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
       for ot in set(objtype):
         idxt = objtype == ot
         objidt = objid[idxt]
-        pos, bodyid = objtype_data[ot]
+        pos, bodyid = objtype_data[int(ot)]
         pos = pos[objidt]
         bodyid = bodyid[objidt]
         cacc = d._impl.cacc[bodyid]  # pyrefly: ignore[missing-attribute]

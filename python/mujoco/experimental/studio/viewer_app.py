@@ -11,7 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Viewer component of Studio."""
+"""Python implementation of the default Studio Viewer application UI.
+
+The class can be used as a plugin to run the full Studio Viewer application in
+Python.
+
+Architecture:
+  ViewerApp provides the full default UI/UX as a viewer-side plugin. This class
+  is viewer-agnostic and as such does not own camera, vis_options, or perturb
+  objects (these are provided by the viewer).
+
+  Viewer classes (NativeViewer and WebViewer) own the renderer, camera,
+  vis_options, and local deep-copied model/data used for rendering. The sim side
+  owns the physical simulation and pushes state snapshots to the viewer via
+  ViewerHandle.sync().
+"""
 
 import copy
 import dataclasses
@@ -26,14 +40,15 @@ from mujoco.experimental.studio import viewer_protocol
 from mujoco.experimental.studio import viewer_utils
 
 from mujoco.experimental.dear_imgui import dear_imgui as imgui
+import numpy as np
 
 
 @dataclasses.dataclass(frozen=True)
 class ViewerAppInitEvent(messages.Event):
   """Lifecycle event dispatched once when the ViewerApp is initialised.
 
-  Handlers that need access to the ViewerApp should handle this event
-  and cache the reference.
+  Plugins that need access to the ViewerApp should handle this event and cache
+  the reference.
   """
 
   viewer_app: 'ViewerApp'
@@ -326,10 +341,30 @@ class ViewerApp:
       ux.noise_gui(self.step_control_state)
       imgui.TreePop()
     if imgui.TreeNodeEx('Joints', node_flags):
+      # The GUI edits the viewer's local data.qpos; forward any change to the
+      # sim, else the next incoming StateSnapshot reverts it.
+      qpos_before = self.data.qpos.copy()
       ux.joints_gui(self.model, self.data, self.viewer.vis_options)
+      if not np.array_equal(qpos_before, self.data.qpos):
+        viewer_utils.send_state(
+            self.viewer,
+            self.model,
+            self.data,
+            int(mujoco.mjtState.mjSTATE_QPOS),
+        )
       imgui.TreePop()
     if imgui.TreeNodeEx('Controls', node_flags):
+      # The GUI edits the viewer's local data.ctrl; forward any change to the
+      # sim, else the next incoming StateSnapshot reverts it.
+      ctrl_before = self.data.ctrl.copy()
       ux.controls_gui(self.model, self.data, self.viewer.vis_options)
+      if not np.array_equal(ctrl_before, self.data.ctrl):
+        viewer_utils.send_state(
+            self.viewer,
+            self.model,
+            self.data,
+            int(mujoco.mjtState.mjSTATE_CTRL),
+        )
       imgui.TreePop()
     if imgui.TreeNodeEx(
         'Sensors', node_flags | int(imgui.TreeNodeFlags.DefaultOpen)
