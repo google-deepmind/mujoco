@@ -32,7 +32,7 @@
 extern "C" {
 #endif
 
-#define mjNAN NAN                  // used to mark undefined fields
+#define mjNAN NAN  // used to mark undefined fields
 
 //---------------------------------- Top-level spec manipulation -----------------------------------
 
@@ -73,8 +73,10 @@ MJAPI int mj_copyBack(mjSpec* s, const mjModel* m);
 //---------------------------------- Attachment ----------------------------------------------------
 
 // Attach child to a parent, return the attached element if success or NULL otherwise.
-MJAPI mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
-                             const char* prefix, const char* suffix);
+MJAPI mjsElement* mjs_attach(mjsElement*       parent,
+                             const mjsElement* child,
+                             const char*       prefix,
+                             const char*       suffix);
 
 
 //---------------------------------- Add tree elements ---------------------------------------------
@@ -119,12 +121,27 @@ MJAPI mjsSensor* mjs_addSensor(mjSpec* s);
 MJAPI mjsFlex* mjs_addFlex(mjSpec* s);
 
 // Add flexcomp: create flex with auto-generated bodies/joints, return flex spec.
-MJAPI mjsFlex* mjs_makeFlex(mjsBody* body, const char* name, const char* type, int dim,
-                            const char* dof, const int count[3], const int cellcount[3],
-                            const double spacing[3], const double scale[3], double radius,
-                            double mass, double inertiabox, int equality, int rigid, int flatskin,
-                            int elastic2d, const double pos[3], const double quat[4],
-                            const double origin[3], const char* file, const mjVFS* vfs);
+MJAPI mjsFlex* mjs_makeFlex(mjsBody*     body,
+                            const char*  name,
+                            const char*  type,
+                            int          dim,
+                            const char*  dof,
+                            const int    count[3],
+                            const int    cellcount[3],
+                            const double spacing[3],
+                            const double scale[3],
+                            double       radius,
+                            double       mass,
+                            double       inertiabox,
+                            int          equality,
+                            int          rigid,
+                            int          flatskin,
+                            int          elastic2d,
+                            const double pos[3],
+                            const double quat[4],
+                            const double origin[3],
+                            const char*  file,
+                            const mjVFS* vfs);
 
 // Add contact pair.
 MJAPI mjsPair* mjs_addPair(mjSpec* s, const mjsDefault* def);
@@ -175,45 +192,74 @@ MJAPI mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefa
 MJAPI const char* mjs_setToMotor(mjsActuator* actuator);
 
 // Set actuator to position, return error on failure.
-MJAPI const char* mjs_setToPosition(mjsActuator* actuator, double kp, double kv[1],
-                                    double dampratio[1], double timeconst[1], double inheritrange);
+MJAPI const char* mjs_setToPosition(mjsActuator* actuator,
+                                    double       kp,
+                                    double       kv[1],
+                                    double       dampratio[1],
+                                    double       timeconst[1],
+                                    double       inheritrange);
 
 // Set actuator to integrated velocity, return error on failure.
-MJAPI const char* mjs_setToIntVelocity(mjsActuator* actuator, double kp, double kv[1],
-                                       double dampratio[1], double timeconst[1], double inheritrange);
+MJAPI const char* mjs_setToIntVelocity(mjsActuator* actuator,
+                                       double       kp,
+                                       double       kv[1],
+                                       double       dampratio[1],
+                                       double       timeconst[1],
+                                       double       inheritrange);
 
 // Set actuator to velocity, return error on failure.
 MJAPI const char* mjs_setToVelocity(mjsActuator* actuator, double kv);
 
 // Set to orientation actuator.
-MJAPI const char* mjs_setToOrientation(mjsActuator* actuator, double kp, double kv[1],
-                                       double dampratio[1], int ctrlspec);
+MJAPI const char* mjs_setToOrientation(
+    mjsActuator* actuator, double kp, double kv[1], double dampratio[1], int ctrlspec);
 
 // Set to PID actuator.
-MJAPI const char* mjs_setToPID(mjsActuator* actuator, double kp, double kv[1], double dampratio[1],
-                               double ki[1], double imax[1], double slewmax[1], double inheritrange,
-                               int ctrlspec);
+MJAPI const char* mjs_setToPID(mjsActuator* actuator,
+                               double       kp,
+                               double       kv[1],
+                               double       dampratio[1],
+                               double       ki[1],
+                               double       imax[1],
+                               double       slewmax[1],
+                               double       inheritrange,
+                               int          ctrlspec);
 
 // Set actuator to damper, return error on failure.
 MJAPI const char* mjs_setToDamper(mjsActuator* actuator, double kv);
 
 // Set actuator to cylinder actuator, return error on failure.
-MJAPI const char* mjs_setToCylinder(mjsActuator* actuator, double timeconst,
-                                    double bias, double area, double diameter);
+MJAPI const char* mjs_setToCylinder(
+    mjsActuator* actuator, double timeconst, double bias, double area, double diameter);
 
 // Set actuator to muscle, return error on failure.
-MJAPI const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], double tausmooth,
-                                  double range[2], double force, double scale, double lmin,
-                                  double lmax, double vmax, double fpmax, double fvmax);
+MJAPI const char* mjs_setToMuscle(mjsActuator* actuator,
+                                  double       timeconst[2],
+                                  double       tausmooth,
+                                  double       range[2],
+                                  double       force,
+                                  double       scale,
+                                  double       lmin,
+                                  double       lmax,
+                                  double       vmax,
+                                  double       fpmax,
+                                  double       fvmax);
 
 // Set actuator to adhesion, return error on failure.
 MJAPI const char* mjs_setToAdhesion(mjsActuator* actuator, double gain);
 
 // Set actuator to DC motor, return error on failure.
-MJAPI const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double resistance,
-                                   double nominal[3], double saturation[3], double inductance[2],
-                                   double cogging[3], double controller[6], double thermal[6],
-                                   double lugre[5], int input_mode);
+MJAPI const char* mjs_setToDCMotor(mjsActuator* actuator,
+                                   double       motorconst[2],
+                                   double       resistance,
+                                   double       nominal[3],
+                                   double       saturation[3],
+                                   double       inductance[2],
+                                   double       cogging[3],
+                                   double       controller[6],
+                                   double       thermal[6],
+                                   double       lugre[5],
+                                   int          ctrlspec);
 
 
 //---------------------------------- Add assets ----------------------------------------------------
@@ -453,7 +499,9 @@ MJAPI void mjs_setDefault(mjsElement* element, const mjsDefault* def);
 MJAPI int mjs_setFrame(mjsElement* dest, mjsFrame* frame);
 
 // Resolve alternative orientations to quat, return error if any.
-MJAPI const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
+MJAPI const char* mjs_resolveOrientation(double                quat[4],
+                                         mjtByte               degree,
+                                         const char*           sequence,
                                          const mjsOrientation* orientation);
 
 // Transform body into a frame.
@@ -463,7 +511,8 @@ MJAPI mjsFrame* mjs_bodyToFrame(mjsBody** body);
 MJAPI void mjs_setUserValue(mjsElement* element, const char* key, const void* data);
 
 // Set user payload.
-MJAPI void mjs_setUserValueWithCleanup(mjsElement* element, const char* key,
+MJAPI void mjs_setUserValueWithCleanup(mjsElement* element,
+                                       const char* key,
                                        const void* data,
                                        void (*cleanup)(const void*));
 

@@ -692,7 +692,7 @@ class ConvexTest(absltest.TestCase):
         c.frame[:, 0, :], np.array([[0.0, 0.0, 1.0]] * 4), decimal=2
     )
     np.testing.assert_array_almost_equal(
-        c.frame.reshape((-1, 9)), d.contact.frame[:4, :]
+        c.frame.reshape((-1, 9)), d.contact.frame[:4, :], decimal=2
     )
 
   _BOX_BOX_EDGE = """

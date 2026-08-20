@@ -71,7 +71,7 @@ class ApiState:
     return self._state
 
   def export_definition(self):
-    return ApiDefinition(self.token, self._state, self.code, self._start,
+    return ApiDefinition(self.token, self._state, self.code, self._start,  # pyrefly: ignore[bad-argument-type]
                          self._end, self.section, self.doc)
 
   def start(self, state):

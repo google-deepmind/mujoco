@@ -68,7 +68,7 @@ def process_file(filepath):
     print(f'Error: Could not find {filepath}', file=sys.stderr)
     return
 
-  new_content = re.sub(r'array\(([^)]+)\)', replace_array_calls, content)
+  new_content = re.sub(r'(?<!\.)\barray\(([^)]+)\)', replace_array_calls, content)
 
   with open(filepath, 'w') as f:
     f.write(new_content)

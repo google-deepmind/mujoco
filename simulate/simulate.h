@@ -239,9 +239,9 @@ class Simulate {
   float measured_slowdown = 1.0;
   // logarithmically spaced real-time slow-down coefficients (percent)
   static constexpr float percentRealTime[] = {
-      100, 80, 66,  50,  40, 33,  25,  20, 16,  13,
-      10,  8,  6.6, 5.0, 4,  3.3, 2.5, 2,  1.6, 1.3,
-      1,  .8, .66, .5,  .4, .33, .25, .2, .16, .13,
+      100, 80, 63,  50,  40, 32,  25,  20, 16,  13,
+      10,  8,  6.3, 5.0, 4,  3.2, 2.5, 2,  1.6, 1.3,
+      1,  .8, .63, .5,  .4, .32, .25, .2, .16, .13,
      .1
   };
 

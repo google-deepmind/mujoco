@@ -195,10 +195,10 @@ MaterialManager::MaterialType MaterialManager::GetMaterialType(
       return ObjectManager::kPhong2dUv;
     }
   } else {
+    // Reached only by a mesh without texture coordinates. Meshes are not planar
+    // reflectors, so reflectance has no reflect variant here.
     if (material.color[3] < 1.0f) {
       return ObjectManager::kPhong2dFade;
-    } else if (material.reflectance > 0) {
-      return ObjectManager::kPhong2dReflect;
     } else {
       return ObjectManager::kPhong2d;
     }

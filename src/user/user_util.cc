@@ -236,9 +236,9 @@ void mjuu_mulvecmat(double* res, const double* vec, const double* mat) {
                    mat[3] * vec[0] + mat[4] * vec[1] + mat[5] * vec[2],
                    mat[6] * vec[0] + mat[7] * vec[1] + mat[8] * vec[2]};
 
-  res[0]        = tmp[0];
-  res[1]        = tmp[1];
-  res[2]        = tmp[2];
+  res[0] = tmp[0];
+  res[1] = tmp[1];
+  res[2] = tmp[2];
 }
 
 
@@ -248,9 +248,9 @@ void mjuu_mulvecmatT(double* res, const double* vec, const double* mat) {
                    mat[1] * vec[0] + mat[4] * vec[1] + mat[7] * vec[2],
                    mat[2] * vec[0] + mat[5] * vec[1] + mat[8] * vec[2]};
 
-  res[0]        = tmp[0];
-  res[1]        = tmp[1];
-  res[2]        = tmp[2];
+  res[0] = tmp[0];
+  res[1] = tmp[1];
+  res[2] = tmp[2];
 }
 
 // clang-format off

@@ -358,8 +358,8 @@ def _put_model_jax(
       t1, t2 = mujoco.mjtGeom(t1), mujoco.mjtGeom(t2)
       raise NotImplementedError(f'({t1}, {t2}) collisions not implemented.')
     # margin/gap not supported for meshes and height fields
-    no_margin = {mujoco.mjtGeom.mjGEOM_MESH, mujoco.mjtGeom.mjGEOM_HFIELD}
-    if no_margin.intersection({t1, t2}):
+    no_margin = {int(mujoco.mjtGeom.mjGEOM_MESH), int(mujoco.mjtGeom.mjGEOM_HFIELD)}
+    if no_margin.intersection({int(t1), int(t2)}):
       if ip != -1:
         margin = m.pair_margin[ip]
       else:
@@ -368,7 +368,7 @@ def _put_model_jax(
         t1, t2 = mujoco.mjtGeom(t1), mujoco.mjtGeom(t2)
         raise NotImplementedError(f'({t1}, {t2}) margin/gap not implemented.')
     for t, g in [(t1, g1), (t2, g2)]:
-      if t == mujoco.mjtGeom.mjGEOM_MESH:
+      if int(t) == int(mujoco.mjtGeom.mjGEOM_MESH):
         mesh_geomid.add(g)
 
   for enum_field, enum_type, mj_type in (
@@ -568,7 +568,11 @@ def put_model(
     return _put_model_jax(m, device)
   elif impl == types.Impl.WARP:
     _check_warp_installed()
-    graph_mode = graph_mode or getattr(mjxw.types.GraphMode, 'WARP')
+    if graph_mode is None:
+      if device.platform == 'cpu':
+        graph_mode = getattr(mjxw.types.GraphMode, 'JAX')
+      else:
+        graph_mode = getattr(mjxw.types.GraphMode, 'WARP')
     return _put_model_warp(m, graph_mode, device, batch_sizes=batch_sizes)
   elif impl == types.Impl.CPP:
     return _put_model_cpp(m, device, keepalive_refs=keepalive_refs)
