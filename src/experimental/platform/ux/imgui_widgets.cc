@@ -365,11 +365,11 @@ bool ImGui_ResetButton(const char* id, const char* icon,
 
 bool ImGui_BeginHSplit(const char* id, float* height, bool* open) {
   const ImVec2 region = ImGui::GetContentRegionAvail();
-  if (*height < 0) {
+  if (*height < 0 && region.y > 0) {
     *height = region.y / 2;
   }
   // If the split is closed, use the full region height.
-  const float h = *open ? *height : region.y;
+  const float h = *open ? std::max(0.0f, *height) : region.y;
   return ImGui::BeginChild(id, ImVec2(0, h), 0);
 }
 
