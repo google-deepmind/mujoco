@@ -206,7 +206,6 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum* x2_k = status->x2;               // the kth approximation point for obj2
   mjtNum x_k[3];                           // the kth approximation point in Minkowski difference
   mjtNum lambda[4];                        // barycentric coordinates for x_k
-  mjtNum cutoff2 = status->dist_cutoff * status->dist_cutoff;
   mjtNum tol2 = status->tolerance * status->tolerance;
   status->separated = 0;
 
@@ -232,16 +231,16 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
 
     // stopping criteria using the Frank-Wolfe duality gap given by
     //  |f(x_k) - f(x_min)|^2 <= < grad f(x_k), (x_k - s_k) >
-    mjtNum diff[3];
-    sub3(diff, x_k, s_k);
+    mjtNum diff[3] = {x_k[0] - s_k[0], x_k[1] - s_k[1], x_k[2] - s_k[2]};
     if (dot3(x_k, diff) < epsilon) {
       break;
     }
 
-    // if the hyperplane separates the Minkowski difference and origin, the objects don't collide
-    // if geom distance isn't requested, return early
+    // the lower bound on distance between the two geoms is (lower / x_norm)
+    // if lower > 0, then the geoms are separated
+    mjtNum lower = dot3(x_k, s_k);
     if (!get_dist) {
-      if (dot3(x_k, s_k) > 0) {
+      if (lower > 0) {
         status->separated = 1;
         status->gjk_iterations = k;
         status->nsimplex = 0;
@@ -250,8 +249,7 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
         return;
       }
     } else if (status->dist_cutoff < mjMAX_LIMIT) {
-      mjtNum vs = dot3(x_k, s_k);
-      if (vs > 0 && (vs * vs) >= cutoff2 * (x_norm * x_norm)) {
+      if (lower > 0 && lower >= status->dist_cutoff * x_norm) {
         status->separated = 1;
         status->gjk_iterations = k;
         status->nsimplex = 0;
@@ -325,15 +323,12 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
     status->separated = 1;
   }
 
-  // tetrahedron containing the origin
-  if (n == 4 && status->separated == 0) {
-    x_norm = 0;
-  }
-
   status->nx = 1;
   status->gjk_iterations = k;
   status->nsimplex = n;
-  status->dist[0] = x_norm;
+
+  // if 3-simplex and not separated, then the origin is contained in the simplex
+  status->dist[0] = (n == 4 && !status->separated) ? 0 : x_norm;
 }
 
 
