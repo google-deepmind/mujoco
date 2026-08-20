@@ -40,6 +40,7 @@ from mujoco.experimental.studio import viewer_protocol
 from mujoco.experimental.studio import viewer_utils
 
 from mujoco.experimental.dear_imgui import dear_imgui as imgui
+import numpy as np
 
 
 @dataclasses.dataclass(frozen=True)
@@ -340,10 +341,30 @@ class ViewerApp:
       ux.noise_gui(self.step_control_state)
       imgui.TreePop()
     if imgui.TreeNodeEx('Joints', node_flags):
+      # The GUI edits the viewer's local data.qpos; forward any change to the
+      # sim, else the next incoming StateSnapshot reverts it.
+      qpos_before = self.data.qpos.copy()
       ux.joints_gui(self.model, self.data, self.viewer.vis_options)
+      if not np.array_equal(qpos_before, self.data.qpos):
+        viewer_utils.send_state(
+            self.viewer,
+            self.model,
+            self.data,
+            int(mujoco.mjtState.mjSTATE_QPOS),
+        )
       imgui.TreePop()
     if imgui.TreeNodeEx('Controls', node_flags):
+      # The GUI edits the viewer's local data.ctrl; forward any change to the
+      # sim, else the next incoming StateSnapshot reverts it.
+      ctrl_before = self.data.ctrl.copy()
       ux.controls_gui(self.model, self.data, self.viewer.vis_options)
+      if not np.array_equal(ctrl_before, self.data.ctrl):
+        viewer_utils.send_state(
+            self.viewer,
+            self.model,
+            self.data,
+            int(mujoco.mjtState.mjSTATE_CTRL),
+        )
       imgui.TreePop()
     if imgui.TreeNodeEx(
         'Sensors', node_flags | int(imgui.TreeNodeFlags.DefaultOpen)

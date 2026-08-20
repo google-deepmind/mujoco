@@ -27,7 +27,7 @@ import mujoco
 from mujoco.experimental.studio import launch_passive
 from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import parser
-from mujoco.experimental.studio import sim
+from mujoco.experimental.studio import step_control
 from mujoco.experimental.studio import studio_app_events
 from mujoco.experimental.studio import ux
 from mujoco.experimental.studio import viewer_protocol
@@ -188,14 +188,13 @@ def main(argv: list[str]) -> None:
   with launch_passive.launch_passive(
       config,
       viewer_plugins=[ghost_renderer],
+      sim_plugins=[step_control.StepControl()],
   ) as handle:
     handle.send_to_viewer(messages.ModelEvent(model=model))
 
-    step_control = sim.StepControl()
     try:
       while handle.is_running():
-        step_control.advance(model, data)
-        model, data, step_control = handle.sync(model, data, step_control)
+        model, data = handle.sync(model, data)
     except KeyboardInterrupt:
       # Ctrl+C is the documented way to quit; exit cleanly, no traceback.
       print('\nShutting down.', flush=True)
