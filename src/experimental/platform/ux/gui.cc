@@ -1486,7 +1486,11 @@ void WatchGui(const mjModel* model, const mjData* data, char* field_name,
   ImGui::PopItemWidth();
 }
 
-void PhysicsGui(mjModel* model, float min_width) {
+void PhysicsGui(mjModel* model, mjSpec* spec, float min_width) {
+  if (!model && !spec) {
+    return;
+  }
+
   const float available_width =
       GetStableAvailWidth() - ImGui::GetTreeNodeToLabelSpacing();
   const int num_cols = std::clamp(
@@ -1495,7 +1499,7 @@ void PhysicsGui(mjModel* model, float min_width) {
   const float item_width = ImGui::GetWindowWidth() * .6f;
   ImGui::PushItemWidth(item_width);
 
-  auto& opt = model->opt;
+  auto& opt = spec ? spec->option : model->opt;
 
   const char* opts0[] = {"Euler", "RK4", "implicit", "implicitfast"};
   ImGui::Combo("Integrator", &opt.integrator, opts0, IM_ARRAYSIZE(opts0));
@@ -1602,6 +1606,10 @@ void PhysicsGui(mjModel* model, float min_width) {
   }
 
   ImGui::PopItemWidth();
+
+  if (spec && model) {
+    model->opt = spec->option;
+  }
 }
 
 void VisualizationGui(mjModel* model, mjvOption* vis_options, mjvCamera* camera,

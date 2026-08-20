@@ -1282,7 +1282,7 @@ void App::ModelOptionsGui() {
 
   ImGui::BeginChild("PhysicsGui", {0, 0}, child_flags);
   if (platform::SectionHeader("Physics", node_flags, 0.65f)) {
-    platform::PhysicsGui(model(), min_width);
+    platform::PhysicsGui(model(), spec(), min_width);
     ImGui::TreePop();
   }
   ImGui::EndChild();

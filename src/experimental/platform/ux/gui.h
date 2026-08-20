@@ -154,8 +154,9 @@ bool CameraSelectionGui(const mjModel* model, mjData* data, mjvCamera& camera,
                         int& index);
 
 // UX for controlling the physics simulation parameters (e.g. integrator,
-// solver, etc.) in mjModel.
-void PhysicsGui(mjModel* model, float min_width);
+// solver, etc.) in mjOption.
+void PhysicsGui(mjModel* model, mjSpec* spec = nullptr,
+                float min_width = 150.0f);
 
 // UX for enabling/disabling visualization groups in mjvOption.
 void GroupsGui(const mjModel* model, mjvOption* vis_options, float min_width);

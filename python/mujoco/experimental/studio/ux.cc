@@ -28,6 +28,7 @@
 #include <mujoco/experimental/platform/sim/step_control.h>
 #include <mujoco/experimental/platform/ux/gui.h>
 #include <mujoco/experimental/platform/ux/interaction.h>
+#include "specs_wrapper.h"
 #include "structs.h"
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -274,11 +275,15 @@ PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
 
   m.def(
       "physics_gui",
-      [](mujoco::python::MjModelWrapper& model, float min_width) {
+      [](mujoco::python::MjModelWrapper& model,
+         mujoco::python::MjSpec* spec,
+         float min_width) {
         py::gil_scoped_release no_gil;
-        mujoco::platform::PhysicsGui(model.get(), min_width);
+        mujoco::platform::PhysicsGui(model.get(), spec ? spec->ptr : nullptr,
+                                     min_width);
       },
-      py::arg("model"), py::arg("min_width") = 150.0f,
+      py::arg("model"), py::arg("spec") = nullptr,
+      py::arg("min_width") = 150.0f,
       "Render the physics settings UI.");
 
   m.def(
