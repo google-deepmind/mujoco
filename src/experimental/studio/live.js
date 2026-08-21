@@ -93,18 +93,29 @@ async function prefetchModelAssets(rootUrl, onProgress) {
     throw new Error(`could not fetch root model ${rootHttp}`);
   }
 
-  // Step 2: ask MuJoCo for the transitive dependency list. The call is
-  // async because reading recursively included XMLs may suspend on
-  // ASYNCIFY fetches; those XMLs end up in FetchCache as a side effect.
-  // The result is an embind mjStringVec we copy out and release.
-  const depsVec = await Module.getXMLDependencies(rootUrl);
-  const deps = [];
-  for (let i = 0; i < depsVec.size(); ++i) deps.push(depsVec.get(i));
-  depsVec.delete();
-
-  // Step 3: fetch every dependency in parallel, deduped against URLs
-  // already primed in step 1 (and earlier deps within this batch).
-  await Promise.all(deps.map((depUrl) => fetchAndPrime(resolveScheme(depUrl))));
+  // Step 2: ask MuJoCo for the transitive dependency list.
+  // When rootUrl points to a plain MJCF XML, mju_getXMLDependencies parses the
+  // XML text to find external dependencies (meshes, textures, includes) so they
+  // can be pre-fetched in parallel.
+  // If rootUrl is a binary archive (.mjz, .zip, or an extensionless HTTP asset),
+  // getXMLDependencies cannot parse the binary payload as XML and may throw or
+  // fail. Since binary archives are completely self-contained, no external URL
+  // prefetching is needed, and we safely catch the error and continue.
+  try {
+    const depsVec = await Module.getXMLDependencies(rootUrl);
+    if (depsVec) {
+      const deps = [];
+      for (let i = 0; i < depsVec.size(); ++i) deps.push(depsVec.get(i));
+      depsVec.delete();
+      // Step 3: fetch every dependency in parallel, deduped against URLs
+      // already primed in step 1 (and earlier deps within this batch).
+      await Promise.all(deps.map((depUrl) => fetchAndPrime(resolveScheme(depUrl))));
+    }
+  } catch (e) {
+    // Binary archives (.mjz, .zip) have self-contained dependencies and do not
+    // require XML dependency prefetching.
+    console.log('[prefetch] Self-contained archive or non-XML root model:', rootUrl);
+  }
   return stats;
 }
 

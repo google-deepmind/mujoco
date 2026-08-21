@@ -69,23 +69,22 @@ class AssetRegistry {
 // ---------------------------------------------------------------------------
 
 // Fetches a URL using the JS fetch API. Returns a malloc'd buffer and its size.
-// The caller is responsible for freeing the buffer. Returns 0 on failure.
+// Also extracts the filename from the Content-Disposition header if present.
+// The caller is responsible for freeing out_data and out_filename.
 EM_ASYNC_JS(int, FetchUrl,
-            (const char* url, char** out_data, std::int32_t* out_size), {
+            (const char* url, char** out_data, std::int32_t* out_size,
+             char** out_filename),
+            {
               const urlStr = UTF8ToString(url);
-              const filename = urlStr.split('/').pop() || urlStr;
-              const dlEl = document.getElementById('loadingDownload');
-              const dlFileEl = document.getElementById('loadingDownloadFile');
+              const dlEl = document.getElementById("loadingDownload");
+              const dlFileEl = document.getElementById("loadingDownloadFile");
               if (dlEl) {
-                dlEl.style.display = 'block';
-              }
-              if (dlFileEl) {
-                dlFileEl.textContent = filename + '\u2026';
+                dlEl.style.display = "block";
               }
               try {
                 const response = await fetch(urlStr);
                 if (!response.ok) {
-                  console.error('Fetch failed: ' + response.status + ' ' +
+                  console.error("Fetch failed: " + response.status + " " +
                                 urlStr);
                   return 0;
                 }
@@ -93,21 +92,58 @@ EM_ASYNC_JS(int, FetchUrl,
                 const bytes = new Uint8Array(buffer);
                 const ptr = _malloc(bytes.length);
                 HEAPU8.set(bytes, ptr);
-                setValue(out_data, ptr, '*');
-                setValue(out_size, bytes.length, 'i32');
+                setValue(out_data, ptr, "*");
+                setValue(out_size, bytes.length, "i32");
+
+                // Extract filename from Content-Disposition header if present.
+                const cd = response.headers.get("content-disposition") || "";
+                let filename = "";
+                const cdParts = cd.split(";");
+                for (let i = 0; i < cdParts.length; ++i) {
+                  const part = cdParts[i].trim();
+                  if (part.toLowerCase().startsWith("filename=")) {
+                    let fn = part.substring(9).trim();
+                    if (fn.startsWith("\"") && fn.endsWith("\"")) {
+                      fn = fn.substring(1, fn.length - 1);
+                    }
+                    filename = fn;
+                    break;
+                  }
+                }
+                if (out_filename && filename) {
+                  const fnLen = lengthBytesUTF8(filename) + 1;
+                  const fnPtr = _malloc(fnLen);
+                  stringToUTF8(filename, fnPtr, fnLen);
+                  setValue(out_filename, fnPtr, "*");
+                } else if (out_filename) {
+                  setValue(out_filename, 0, "*");
+                }
+
+                if (dlFileEl) {
+                  dlFileEl.textContent =
+                      (filename || urlStr.split("/").pop() || urlStr) +
+                      "\u2026";
+                }
                 return 1;
               } catch (e) {
-                console.error('Fetch error:', e);
+                console.error("Fetch error:", e);
                 return 0;
               } finally {
                 if (dlEl) {
-                  dlEl.style.display = 'none';
+                  dlEl.style.display = "none";
                 }
                 if (dlFileEl) {
                   dlFileEl.textContent = "";
                 }
               }
             });
+
+// Cache entry for data fetched via HTTP/HTTPS.
+struct FetchEntry {
+  std::string url;
+  std::string data;
+  std::string filename;
+};
 
 // Cache for data fetched via HTTP/HTTPS. Stores downloaded (or pre-primed)
 // bytes keyed by the resource URL so that the resource provider's read()
@@ -124,25 +160,43 @@ class FetchCache {
   // returned without touching the network. Returns 0 on fetch failure.
   int Fetch(const char* url) {
     if (auto it = entries_.find(url); it != entries_.end()) {
-      return static_cast<int>(it->second.size());
+      return static_cast<int>(it->second.data.size());
     }
     char* buf = nullptr;
     std::int32_t size = 0;
-    if (!FetchUrl(url, &buf, &size)) {
+    char* filename_str = nullptr;
+    if (!FetchUrl(url, &buf, &size, &filename_str)) {
       return 0;
     }
-    // FetchUrl hands us a malloc'd buffer; take ownership of the bytes via
-    // a std::string and release the original allocation.
-    std::string bytes(buf, size);
+    std::string data(buf, size);
     std::free(buf);
-    return static_cast<int>(entries_.emplace(url, std::move(bytes))
-                                .first->second.size());
+
+    std::string filename = filename_str ? filename_str : "";
+    if (filename_str) std::free(filename_str);
+
+    FetchEntry entry{url, std::move(data), std::move(filename)};
+    return static_cast<int>(
+        entries_.emplace(url, std::move(entry)).first->second.data.size());
+  }
+
+  const FetchEntry* GetEntry(const char* url) const {
+    auto it = entries_.find(url);
+    if (it == entries_.end()) return nullptr;
+    return &it->second;
   }
 
   // Pre-populates the cache so a subsequent Fetch() of the same URL hits
   // memory instead of the network. First writer wins.
   void Prime(std::string url, std::string bytes) {
-    entries_.try_emplace(std::move(url), std::move(bytes));
+    Prime(std::move(url), std::move(bytes), "");
+  }
+
+  void Prime(std::string url, std::string bytes, std::string filename) {
+    std::string url_copy = url;
+    entries_.try_emplace(
+        std::move(url),
+        FetchEntry{std::move(url_copy), std::move(bytes),
+                   std::move(filename)});
   }
 
   // Hands back a pointer into the cached bytes for the given URL.
@@ -150,14 +204,14 @@ class FetchCache {
   int Read(const char* url, const void** buffer) const {
     auto it = entries_.find(url);
     if (it == entries_.end()) return -1;
-    *buffer = it->second.data();
-    return static_cast<int>(it->second.size());
+    *buffer = it->second.data.data();
+    return static_cast<int>(it->second.data.size());
   }
 
   void Close(const char* url) { entries_.erase(url); }
 
  private:
-  std::unordered_map<std::string, std::string> entries_;
+  std::unordered_map<std::string, FetchEntry> entries_;
 };
 
 // ---------------------------------------------------------------------------
@@ -221,13 +275,58 @@ void Init(const std::string& title, bool dark_theme) {
   mjp_defaultResourceProvider(&http_provider);
 
   http_provider.open = [](mjResource* resource) {
-    return FetchCache::Instance().Fetch(resource->name);
+    int size = FetchCache::Instance().Fetch(resource->name);
+    if (size <= 0) return 0;
+    const FetchEntry* entry = FetchCache::Instance().GetEntry(resource->name);
+    if (entry) {
+      // Store the FetchEntry pointer in resource->data for fast access in
+      // read() and to recover the original URL in close().
+      resource->data = const_cast<void*>(static_cast<const void*>(entry));
+
+      // If the HTTP response provided a filename (e.g. from the
+      // Content-Disposition header set during asset publication), update
+      // resource->name while qualifying it with the URL path so downstream
+      // decoders (such as mjz_decoder) can identify the file extension and
+      // mount each resource under a unique VFS path without colliding even if
+      // multiple distinct HTTP resources share identical filenames.
+      if (!entry->filename.empty()) {
+        std::string base_url = entry->url;
+        auto qpos = base_url.find('?');
+        if (qpos != std::string::npos) {
+          base_url = base_url.substr(0, qpos);
+        }
+        if (!base_url.ends_with(entry->filename) &&
+            !base_url.ends_with("/" + entry->filename)) {
+          if (!base_url.empty() && base_url.back() != '/') {
+            base_url += '/';
+          }
+          base_url += entry->filename;
+        }
+        delete[] resource->name;
+        resource->name = new char[base_url.size() + 1];
+        std::memcpy(resource->name, base_url.c_str(), base_url.size() + 1);
+      }
+    }
+    return size;
   };
   http_provider.read = [](mjResource* resource, const void** buffer) {
+    if (resource->data) {
+      const FetchEntry* entry = static_cast<const FetchEntry*>(resource->data);
+      *buffer = entry->data.data();
+      return static_cast<int>(entry->data.size());
+    }
     return FetchCache::Instance().Read(resource->name, buffer);
   };
   http_provider.close = [](mjResource* resource) {
-    FetchCache::Instance().Close(resource->name);
+    if (resource->data) {
+      const FetchEntry* entry = static_cast<const FetchEntry*>(resource->data);
+      std::string url = entry->url;
+      // Reset resource->data so VFS cleanup does not report an un-cleared data
+      // pointer.
+      resource->data = nullptr;
+      // Release cached download memory once the resource is closed by MuJoCo.
+      FetchCache::Instance().Close(url.c_str());
+    }
   };
 
   http_provider.prefix = "http";
@@ -246,19 +345,45 @@ void Init(const std::string& title, bool dark_theme) {
     // Strip the "github:" prefix and prepend the raw.githubusercontent URL.
     std::string url =
         "https://raw.githubusercontent.com/" + name.substr(strlen("github:"));
-    return FetchCache::Instance().Fetch(url.c_str());
+    int size = FetchCache::Instance().Fetch(url.c_str());
+    if (size <= 0) return 0;
+    const FetchEntry* entry = FetchCache::Instance().GetEntry(url.c_str());
+    if (entry) {
+      resource->data = const_cast<void*>(static_cast<const void*>(entry));
+      if (!entry->filename.empty()) {
+        std::string base_url = url;
+        if (!base_url.ends_with(entry->filename) &&
+            !base_url.ends_with("/" + entry->filename)) {
+          if (!base_url.empty() && base_url.back() != '/') {
+            base_url += '/';
+          }
+          base_url += entry->filename;
+        }
+        delete[] resource->name;
+        resource->name = new char[base_url.size() + 1];
+        std::memcpy(resource->name, base_url.c_str(), base_url.size() + 1);
+      }
+    }
+    return size;
   };
   github_provider.read = [](mjResource* resource, const void** buffer) {
+    if (resource->data) {
+      const FetchEntry* entry = static_cast<const FetchEntry*>(resource->data);
+      *buffer = entry->data.data();
+      return static_cast<int>(entry->data.size());
+    }
     std::string name(resource->name);
     std::string url =
         "https://raw.githubusercontent.com/" + name.substr(strlen("github:"));
     return FetchCache::Instance().Read(url.c_str(), buffer);
   };
   github_provider.close = [](mjResource* resource) {
-    std::string name(resource->name);
-    std::string url =
-        "https://raw.githubusercontent.com/" + name.substr(strlen("github:"));
-    FetchCache::Instance().Close(url.c_str());
+    if (resource->data) {
+      const FetchEntry* entry = static_cast<const FetchEntry*>(resource->data);
+      std::string url = entry->url;
+      resource->data = nullptr;
+      FetchCache::Instance().Close(url.c_str());
+    }
   };
 
   github_provider.prefix = "github";
