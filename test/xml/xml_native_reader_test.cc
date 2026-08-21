@@ -3266,6 +3266,128 @@ TEST_F(ActuatorParseTest, DCMotorLuGreInheritedDefaults) {
   EXPECT_MJTNUM_EQ(model->actuator_damping[0], 0.01);
 }
 
+TEST_F(ActuatorParseTest, DCMotorLuGreNegativeDampingError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt" motorconst="0.05" resistance="2.0"
+               lugre="100 -50 0.5 0.7 10"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("LuGre damping must be non-negative"));
+}
+
+TEST_F(ActuatorParseTest, DCMotorLuGreNonFiniteDampingError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt" motorconst="0.05" resistance="2.0"
+               lugre="100 nan 0.5 0.7 10"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings("XML contains a 'NaN'");
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("LuGre damping must be finite"));
+}
+
+// a negative damping reaching the actuator through a default class must also be
+// rejected. Note that lugre is a 5-vector read as a whole, so a default class
+// cannot be partially overridden: the actuator below inherits all five values.
+TEST_F(ActuatorParseTest, DCMotorLuGreNegativeDampingInheritedError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <dcmotor motorconst="0.05" resistance="2.0" lugre="100 -50 0.5 0.7 10"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("LuGre damping must be non-negative"));
+}
+
+// writing dynprm directly on a <general dyntype="dcmotor"> bypasses the
+// mjs_setToDCMotor parameter mapping, so the compiler must check it too
+TEST_F(ActuatorParseTest, DCMotorLuGreNegativeDampingRawDynprmError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="jnt" dyntype="dcmotor" gaintype="dcmotor"
+               biastype="dcmotor" actearly="true" actdim="1"
+               dynprm="0 0 0 0 0 100 -50 0 0 0"
+               gainprm="1 0.05 2 0 0 0 0 0 0 0"
+               biasprm="0 0.05 2 0.5 0.7 10 0 0 0 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("LuGre damping must be non-negative"));
+}
+
+TEST_F(ActuatorParseTest, DCMotorLuGreNonFiniteDampingRawDynprmError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="jnt" dyntype="dcmotor" gaintype="dcmotor"
+               biastype="dcmotor" actearly="true" actdim="1"
+               dynprm="0 0 0 0 0 100 nan 0 0 0"
+               gainprm="1 0.05 2 0 0 0 0 0 0 0"
+               biasprm="0 0 0 0.5 0.7 10 0 0 0 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings("XML contains a 'NaN'");
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("LuGre damping must be finite"));
+}
+
 TEST_F(ActuatorParseTest, DCMotorActdimStateless) {
   static constexpr char xml[] = R"(
   <mujoco>

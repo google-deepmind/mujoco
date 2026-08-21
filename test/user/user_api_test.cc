@@ -20,6 +20,7 @@
 #include <cstring>
 #include <filesystem>  // NOLINT
 #include <functional>
+#include <limits>
 #include <map>
 #include <memory>
 #include <string>
@@ -479,6 +480,55 @@ TEST_F(MujocoTest, SetToDCMotorLuGre) {
   EXPECT_EQ(actuator->biasprm[3], 0.5);   // coulomb
   EXPECT_EQ(actuator->biasprm[4], 0.7);   // static
   EXPECT_EQ(actuator->biasprm[5], 10.0);  // stribeck
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetToDCMotorLuGreDampingValidation) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  double motorconst[2] = {0.05, 0.05};
+  double resistance = 2.0;
+  double lugre[5] = {100.0, -50.0, 0.5, 0.7, 10.0};
+
+  // sentinel: dynprm[6] is 0 by default, so without it "left untouched" and
+  // "written as 0" would be indistinguishable below
+  actuator->dynprm[6] = 7.0;
+
+  const char* err =
+      mjs_setToDCMotor(actuator, motorconst, resistance, nullptr, nullptr,
+                       nullptr, nullptr, nullptr, nullptr, lugre, 0);
+  EXPECT_THAT(err, HasSubstr("LuGre damping must be non-negative"));
+  EXPECT_EQ(actuator->dynprm[6], 7.0);  // rejected before being written
+
+  // sigma1 remains a physical damping coefficient when LuGre is disabled
+  lugre[0] = 0.0;
+  err = mjs_setToDCMotor(actuator, motorconst, resistance, nullptr, nullptr,
+                         nullptr, nullptr, nullptr, nullptr, lugre, 0);
+  EXPECT_THAT(err, HasSubstr("LuGre damping must be non-negative"));
+  EXPECT_EQ(actuator->dynprm[6], 7.0);
+  lugre[0] = 100.0;
+
+  lugre[1] = std::numeric_limits<double>::quiet_NaN();
+  err = mjs_setToDCMotor(actuator, motorconst, resistance, nullptr, nullptr,
+                         nullptr, nullptr, nullptr, nullptr, lugre, 0);
+  EXPECT_THAT(err, HasSubstr("LuGre damping must be finite"));
+  EXPECT_EQ(actuator->dynprm[6], 7.0);
+
+  lugre[1] = std::numeric_limits<double>::infinity();
+  err = mjs_setToDCMotor(actuator, motorconst, resistance, nullptr, nullptr,
+                         nullptr, nullptr, nullptr, nullptr, lugre, 0);
+  EXPECT_THAT(err, HasSubstr("LuGre damping must be finite"));
+  EXPECT_EQ(actuator->dynprm[6], 7.0);
+
+  // zero is a valid configuration without bristle micro-damping
+  lugre[1] = 0.0;
+  err = mjs_setToDCMotor(actuator, motorconst, resistance, nullptr, nullptr,
+                         nullptr, nullptr, nullptr, nullptr, lugre, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->dynprm[5], 100.0);  // stiffness written: block did run
+  EXPECT_EQ(actuator->dynprm[6], 0.0);    // sentinel overwritten with zero
 
   mj_deleteSpec(spec);
 }

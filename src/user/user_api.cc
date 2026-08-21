@@ -1618,6 +1618,8 @@ const char* mjs_setToDCMotor(mjsActuator* actuator,
   }
 
   // lugre: {stiffness, damping, coulomb, static, stribeck}
+  if (lugre && !std::isfinite(lugre[1])) return "DC motor: LuGre damping must be finite";
+  if (lugre && lugre[1] < 0) return "DC motor: LuGre damping must be non-negative";
   if (lugre && lugre[0] > 0) {
     actuator->dynprm[5]  = lugre[0];  // stiffness -> sigma0
     actuator->dynprm[6]  = lugre[1];  // damping   -> sigma1

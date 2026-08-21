@@ -7396,6 +7396,19 @@ void mjCActuator::Compile(void) {
                    name.c_str(), id);
   }
 
+  // validate LuGre bristle damping sigma1
+  if (dyntype == mjDYN_DCMOTOR) {
+    if (!std::isfinite(dynprm[6])) {
+      throw mjCError(this, "LuGre damping must be finite in DC motor actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+    if (dynprm[6] < 0) {
+      throw mjCError(this,
+                     "LuGre damping must be non-negative in DC motor actuator '%s' (id = %d)",
+                     name.c_str(), id);
+    }
+  }
+
   // check muscle parameters
   for (int i=0; i < 2; i++) {
     // select gain or bias
