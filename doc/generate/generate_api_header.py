@@ -41,6 +41,10 @@ _HEADER_FILES = [
     'include/mujoco/mjxmacro.h',
     'include/mujoco/mujoco.h',
 ]
+_SOURCE_FILES = [
+    'src/engine/engine_support.c',
+    'src/engine/engine_vis_init.c',
+]
 
 
 def generate_reference_header(
@@ -67,7 +71,15 @@ def generate_reference_header(
 // NOLINTBEGIN\n\n""".lstrip()
 
   for value in api.values():
-    if value.c_type != 'FUNCTION':
+    if value.c_type not in ('FUNCTION', 'ARRAY'):
+      source = f'{source}{value.code}'
+
+  source = f"""{source}
+//----------------------------- STRING CONSTANTS -------------------------------
+"""
+
+  for value in api.values():
+    if value.c_type == 'ARRAY':
       source = f'{source}{value.code}'
 
   source = f"""{source}
@@ -82,7 +94,7 @@ def generate_reference_header(
 
 
 def read_headers() -> Dict[str, header_reader.ApiDefinition]:
-  """Reads API header files and generates a mapping between C tokens and C header definitions."""
+  """Reads API header and source files and generates a mapping between C tokens and C definitions."""
 
   api = {}
 
@@ -90,6 +102,11 @@ def read_headers() -> Dict[str, header_reader.ApiDefinition]:
     filepath = os.path.join(_REPO_ROOT, header)
     with open(filepath, 'r', encoding='utf-8') as file:
       api.update(header_reader.read(file.readlines()))
+
+  for source in _SOURCE_FILES:
+    filepath = os.path.join(_REPO_ROOT, source)
+    with open(filepath, 'r', encoding='utf-8') as file:
+      api.update(header_reader.read(file.readlines(), parse_functions=False))
   return api
 
 
@@ -97,7 +114,9 @@ def main() -> None:
   if len(sys.argv) > 1:
     sys.exit('Too many command-line arguments.')
 
-  sys.stdout.buffer.write(generate_reference_header(read_headers()).encode('utf-8'))
+  sys.stdout.buffer.write(
+      generate_reference_header(read_headers()).encode('utf-8')
+  )
 
 
 if __name__ == '__main__':
