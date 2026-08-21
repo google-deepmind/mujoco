@@ -962,4 +962,3 @@ TEST_F(MujocoTest, AttachConflictWarningZFarDefaultMessage) {
 
 }  // namespace
 }  // namespace mujoco
-

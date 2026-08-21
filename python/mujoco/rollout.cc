@@ -360,4 +360,3 @@ PYBIND11_MODULE(_rollout, pymodule, pybind11::mod_gil_not_used()) {
 }  // namespace
 
 }  // namespace mujoco::python
-
