@@ -1,0 +1,38 @@
+<mujoco model="lighting">
+  <asset>
+    <texture name="floor_tex" type="2d" builtin="checker" width="512" height="512"
+             rgb1="0.20 0.20 0.22" rgb2="0.28 0.28 0.30"/>
+
+    <material name="floor" texture="floor_tex" texrepeat="8 8" texuniform="true"
+              reflectance="0.3" roughness="0.4" metallic="0.1"/>
+    <material name="wall"   rgba="0.55 0.55 0.58 1" roughness="0.85" metallic="0.0"/>
+    <material name="chrome" rgba="0.95 0.95 0.95 1" roughness="0.10" metallic="0.95"/>
+    <material name="rubber" rgba="0.18 0.18 0.18 1" roughness="0.85" metallic="0.0"/>
+  </asset>
+
+  <custom>
+    <numeric name="filament.shadows.type" data="1"/>
+  </custom>
+
+  <worldbody>
+    <camera name="default" pos="0 -2.8 1.2" xyaxes="1 0 0  0 0.30 1"/>
+
+    <light pos="0 0 6" dir="0 0 -1" castshadow="true" directional="true" diffuse="0.5 0.6 0.85" intensity="3000"/>
+
+    <light type="point" pos="-1.6 0 0.6" diffuse="1.0 0.30 0.30" intensity="120000" range="6" castshadow="true" bulbradius="50"/>
+    <light type="point" pos=" 0.0 0.6 0.6" diffuse="0.30 1.0 0.40" intensity="120000" range="6" castshadow="true" bulbradius="50"/>
+    <light type="point" pos=" 1.6 0 0.6" diffuse="0.30 0.55 1.0" intensity="120000" range="6" castshadow="true" bulbradius="50"/>
+
+    <light type="spot" pos="-2.5 -2.5 2.5" dir="0.6 0.6 -0.55" diffuse="1.0 0.85 0.55" intensity="220000" range="8" castshadow="true" cutoff="22" bulbradius="100"/>
+
+    <geom name="ground" type="plane" size="6 6 0.05" material="floor"/>
+    <geom name="wall" type="box" pos="0 1.6 1.0" size="3 0.05 1.0" material="wall"/>
+    <geom type="sphere" size="0.32" pos="0 0.2 0.32" material="chrome"/>
+    <geom type="cylinder" size="0.14 0.30" pos="-0.8 -0.2 0.30" material="rubber"/>
+    <geom type="cylinder" size="0.14 0.30" pos=" 0.8 -0.2 0.30" material="rubber"/>
+    <geom type="box" size="0.18 0.18 0.18" pos="-1.6 0.6 0.18" material="rubber"/>
+    <geom type="box" size="0.18 0.18 0.18" pos=" 1.6 0.6 0.18" material="rubber"/>
+
+  </worldbody>
+
+</mujoco>

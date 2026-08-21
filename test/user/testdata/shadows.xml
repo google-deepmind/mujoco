@@ -1,0 +1,39 @@
+<mujoco model="shadows">
+  <asset>
+    <texture name="floor_tex" type="2d" builtin="checker" width="512" height="512"
+             rgb1="0.20 0.20 0.22" rgb2="0.28 0.28 0.30"/>
+    <material name="floor" texture="floor_tex" texrepeat="8 8" texuniform="true"
+              reflectance="0.3" roughness="0.4" metallic="0.1"/>
+    <material name="default" rgba="0.18 0.18 0.18 1" roughness="0.85" metallic="0.0"/>
+  </asset>
+
+  <custom>
+    <numeric name="filament.shadows.type" data="1"/>
+  </custom>
+
+  <worldbody>
+    <camera name="default" pos="-2.047 0.554 1.700" xyaxes="-0.016 -1.000 0.000 0.632 -0.010 0.775"/>
+
+    <geom name="ground" type="plane" size="6 6 0.05" material="floor"/>
+
+    <light type="spot"  pos="-1.0 0 0.8" dir="0 0 -1" diffuse="0.8 0.5 0.5" cutoff="50" intensity="50000" bulbradius="0" softness="0.05"/>
+    <geom type="sphere" pos="-1.0 0 0.4" size="0.16" material="default"/>
+
+    <light type="spot"  pos=" 0.0 0 0.8" dir="0 0 -1" diffuse="0.5 0.8 0.5" cutoff="50" intensity="50000" bulbradius="25" softness="0.35"/>
+    <geom type="sphere" pos=" 0.0 0 0.4" size="0.16" material="default"/>
+
+    <light type="spot"  pos=" 1.0 0 0.8" dir="0 0 -1" diffuse="0.5 0.5 0.8" cutoff="50" intensity="50000" bulbradius="50" softness="0.75"/>
+    <geom type="sphere" pos=" 1.0 0 0.4" size="0.16" material="default"/>
+
+    <light type="spot"  pos="-1.0 1 0.8" dir="0 0 -1" diffuse="0.8 0.8 0.5" cutoff="50" intensity="50000" bulbradius="125" softness="0.05"/>
+    <geom type="sphere" pos="-1.0 1 0.4" size="0.16" material="default"/>
+
+    <light type="spot"  pos=" 0.0 1 0.8" dir="0 0 -1" diffuse="0.5 0.8 0.8" cutoff="50" intensity="50000" bulbradius="100" softness="0.35"/>
+    <geom type="sphere" pos=" 0.0 1 0.4" size="0.16" material="default"/>
+
+    <light type="spot"  pos=" 1.0 1 0.8" dir="0 0 -1" diffuse="0.8 0.5 0.8" cutoff="50" intensity="50000" bulbradius="75" softness="0.75"/>
+    <geom type="sphere" pos=" 1.0 1 0.4" size="0.16" material="default"/>
+
+  </worldbody>
+
+</mujoco>
