@@ -19,6 +19,7 @@
 #include <cmath>
 #include <csetjmp>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <functional>
@@ -3098,18 +3099,30 @@ void mjCSkin::LoadSKN(mjResource* resource) {
   if (buffer_sz < 16) { throw mjCError(this, "missing header in SKN file '%s'", resource->name); }
 
   // get sizes from header
-  int nvert     = ((int*)buffer)[0];
-  int ntexcoord = ((int*)buffer)[1];
-  int nface     = ((int*)buffer)[2];
-  int nbone     = ((int*)buffer)[3];
+  int nvert = 0, ntexcoord = 0, nface = 0, nbone = 0;
+  ReadFromBuffer(&nvert, buffer);
+  ReadFromBuffer(&ntexcoord, buffer + sizeof(nvert));
+  ReadFromBuffer(&nface, buffer + sizeof(nvert) + sizeof(ntexcoord));
+  ReadFromBuffer(&nbone, buffer + sizeof(nvert) + sizeof(ntexcoord) + sizeof(nface));
 
   // negative sizes not allowed
   if (nvert < 0 || ntexcoord < 0 || nface < 0 || nbone < 0) {
     throw mjCError(this, "negative size in header of SKN file '%s'", resource->name);
   }
 
-  // make sure we have data for vert, texcoord, face
-  if (buffer_sz < 16 + 12 * nvert + 8 * ntexcoord + 12 * nface) {
+  if (nvert >= INT_MAX / sizeof(decltype(vert_)::value_type) / 3 ||
+      ntexcoord >= INT_MAX / sizeof(decltype(texcoord_)::value_type) / 2 ||
+      nface >= INT_MAX / sizeof(decltype(face_)::value_type) / 3 ||
+      nbone >= INT_MAX / 18) {
+    throw mjCError(this, "too large sizes in SKN file '%s'", resource->name);
+  }
+
+  // make sure we have data for vert, texcoord, face, and bone headers
+  if ((int64_t)buffer_sz <
+      16LL + 3LL * nvert * sizeof(decltype(vert_)::value_type) +
+             2LL * ntexcoord * sizeof(decltype(texcoord_)::value_type) +
+             3LL * nface * sizeof(decltype(face_)::value_type) +
+             18LL * nbone * sizeof(decltype(face_)::value_type)) {
     throw mjCError(this, "insufficient data in SKN file '%s'", resource->name);
   }
 
@@ -3120,26 +3133,27 @@ void mjCSkin::LoadSKN(mjResource* resource) {
   // copy vert
   if (nvert) {
     vert_.resize(3 * nvert);
-    memcpy(vert_.data(), pdata + cnt, 3 * nvert * sizeof(float));
+    memcpy(vert_.data(), pdata + cnt, 3 * nvert * sizeof(decltype(vert_)::value_type));
     cnt += 3 * nvert;
   }
 
   // copy texcoord
   if (ntexcoord) {
     texcoord_.resize(2 * ntexcoord);
-    memcpy(texcoord_.data(), pdata + cnt, 2 * ntexcoord * sizeof(float));
+    memcpy(texcoord_.data(), pdata + cnt, 2 * ntexcoord * sizeof(decltype(texcoord_)::value_type));
     cnt += 2 * ntexcoord;
   }
 
   // copy face
   if (nface) {
     face_.resize(3 * nface);
-    memcpy(face_.data(), pdata + cnt, 3 * nface * sizeof(int));
+    memcpy(face_.data(), pdata + cnt, 3 * nface * sizeof(decltype(face_)::value_type));
     cnt += 3 * nface;
   }
 
   // allocate bone arrays
   bodyname_.clear();
+  bodyname_.reserve(nbone);
   bindpos_.resize(3 * nbone);
   bindquat_.resize(4 * nbone);
   vertid_.resize(nbone);
@@ -3160,15 +3174,16 @@ void mjCSkin::LoadSKN(mjResource* resource) {
     bodyname_.push_back(txt);
 
     // read bindpos
-    memcpy(bindpos_.data() + 3 * i, pdata + cnt, 3 * sizeof(float));
+    memcpy(bindpos_.data() + 3 * i, pdata + cnt, 3 * sizeof(decltype(bindpos_)::value_type));
     cnt += 3;
 
     // read bind quat
-    memcpy(bindquat_.data() + 4 * i, pdata + cnt, 4 * sizeof(float));
+    memcpy(bindquat_.data() + 4 * i, pdata + cnt, 4 * sizeof(decltype(bindquat_)::value_type));
     cnt += 4;
 
     // read vertex count
-    int vcount  = *(int*)(pdata + cnt);
+    int vcount = 0;
+    ReadFromBuffer(&vcount, reinterpret_cast<const char*>(pdata + cnt));
     cnt        += 1;
 
     // check for negative
@@ -3180,18 +3195,19 @@ void mjCSkin::LoadSKN(mjResource* resource) {
     }
 
     // check size
-    if (buffer_sz / 4 - 4 - cnt < 2 * vcount) {
+    int rem = buffer_sz / 4 - 4 - cnt;
+    if (rem / 2 < vcount) {
       throw mjCError(this, "insufficient vertex data in SKN file '%s', bone %d", resource->name, i);
     }
 
     // read vertid
     vertid_[i].resize(vcount);
-    memcpy(vertid_[i].data(), (int*)(pdata + cnt), vcount * sizeof(int));
+    memcpy(vertid_[i].data(), (int*)(pdata + cnt), vcount * sizeof(decltype(vertid_)::value_type::value_type));
     cnt += vcount;
 
     // read vertweight
     vertweight_[i].resize(vcount);
-    memcpy(vertweight_[i].data(), (int*)(pdata + cnt), vcount * sizeof(int));
+    memcpy(vertweight_[i].data(), (float*)(pdata + cnt), vcount * sizeof(decltype(vertweight_)::value_type::value_type));
     cnt += vcount;
   }
 
