@@ -61,7 +61,6 @@ mjSpec* mj_makeSpec() {
 }
 
 
-
 // copy model
 mjSpec* mj_copySpec(const mjSpec* s) {
   mjCModel* modelC = nullptr;
@@ -75,9 +74,9 @@ mjSpec* mj_copySpec(const mjSpec* s) {
 }
 
 // parse file into spec
-mjSpec* mj_parse(const char* filename, const char* content_type,
-                 const mjVFS* vfs, char* error, int error_sz) {
-  mjVFS local_vfs;
+mjSpec* mj_parse(
+    const char* filename, const char* content_type, const mjVFS* vfs, char* error, int error_sz) {
+  mjVFS                 local_vfs;
   mujoco::user::Cleanup cleanup;
 
   // early exit for existing XML workflow
@@ -92,7 +91,7 @@ mjSpec* mj_parse(const char* filename, const char* content_type,
   // of this function.
   if (vfs == nullptr) {
     mj_defaultVFS(&local_vfs);
-    cleanup += [&local_vfs](){ mj_deleteVFS(&local_vfs); };
+    cleanup += [&local_vfs]() { mj_deleteVFS(&local_vfs); };
 
     vfs = &local_vfs;
   }
@@ -104,10 +103,12 @@ mjSpec* mj_parse(const char* filename, const char* content_type,
   // For example, USD may use identifiers to assets that are strictly in memory
   // or that are fetched on a need-be basis via URI.
   if (resource) {
-    cleanup += [resource](){ mju_closeResource(resource); };
+    cleanup += [resource]() { mju_closeResource(resource); };
   } else {
-    resource = (mjResource*) mju_malloc(sizeof(mjResource));
-    cleanup += [resource](){ if (resource) mju_free(resource); };
+    resource  = (mjResource*)mju_malloc(sizeof(mjResource));
+    cleanup  += [resource]() {
+      if (resource) mju_free(resource);
+    };
 
     if (resource == nullptr) {
       if (error) {
@@ -121,10 +122,12 @@ mjSpec* mj_parse(const char* filename, const char* content_type,
     memset(resource, 0, sizeof(mjResource));
 
     // make space for filename
-    std::string fullname = filename;
-    std::size_t n = fullname.size();
-    resource->name = (char*) mju_malloc(sizeof(char) * (n + 1));
-    cleanup += [resource](){ if (resource) mju_free(resource->name); };
+    std::string fullname  = filename;
+    std::size_t n         = fullname.size();
+    resource->name        = (char*)mju_malloc(sizeof(char) * (n + 1));
+    cleanup              += [resource]() {
+      if (resource) mju_free(resource->name);
+    };
 
     if (resource->name == nullptr) {
       if (error) {
@@ -156,18 +159,15 @@ mjSpec* mj_parse(const char* filename, const char* content_type,
 // reflects the actual compiled model.
 //
 // Returns file size in bytes on success, -1 on failure.
-static mjtSize encode_xml(const mjSpec* s, const mjModel* m, const char* filename,
-                          char* error, int error_sz) {
+static mjtSize encode_xml(
+    const mjSpec* s, const mjModel* m, const char* filename, char* error, int error_sz) {
   if (s) {
     // Save directly from the spec
-    if (mj_saveXML(s, filename, error, error_sz) < 0) {
-      return -1;
-    }
+    if (mj_saveXML(s, filename, error, error_sz) < 0) { return -1; }
   } else {
     if (!m) {
       if (error) {
-        strncpy(error, "model is required for XML encoding when spec is null",
-                error_sz);
+        strncpy(error, "model is required for XML encoding when spec is null", error_sz);
         error[error_sz - 1] = '\0';
       }
       return -1;
@@ -176,9 +176,7 @@ static mjtSize encode_xml(const mjSpec* s, const mjModel* m, const char* filenam
     // from the mjModel into the last compiled spec and write that out
     // to disk. If there was no last compiled spec, such as when loading from
     // MJB, this will return fail and we return -1.
-    if (!mj_saveLastXML(filename, m, error, error_sz)) {
-      return -1;
-    }
+    if (!mj_saveLastXML(filename, m, error, error_sz)) { return -1; }
   }
   return static_cast<mjtSize>(std::filesystem::file_size(filename));
 }
@@ -201,8 +199,7 @@ static mjtSize encode_mjb(const mjModel* m, const char* filename, char* error, i
 // Encode model as human-readable TXT (via mj_printModel).
 // Requires a compiled model; spec-only encoding is not supported.
 // Returns file size in bytes on success, -1 on failure.
-static mjtSize encode_txt(const mjModel* m, const char* filename, char* error,
-                          int error_sz) {
+static mjtSize encode_txt(const mjModel* m, const char* filename, char* error, int error_sz) {
   if (!m) {
     if (error) {
       strncpy(error, "model is required for TXT encoding", error_sz);
@@ -215,27 +212,28 @@ static mjtSize encode_txt(const mjModel* m, const char* filename, char* error,
 }
 
 // encode spec/model to file
-mjtSize mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
-                  const char* content_type, const mjVFS* vfs, char* error,
-                  int error_sz) {
+mjtSize mj_encode(const mjSpec*  s,
+                  const mjModel* m,
+                  const char*    filename,
+                  const char*    content_type,
+                  const mjVFS*   vfs,
+                  char*          error,
+                  int            error_sz) {
   // special case handling
   // TODO(shaves) write encoder/decoder paths for MJCF, TXT, MJB
-  auto filepath = mujoco::user::FilePath(filename);
-  std::string ext = filepath.Ext();
-  std::transform(ext.begin(), ext.end(), ext.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
+  auto        filepath = mujoco::user::FilePath(filename);
+  std::string ext      = filepath.Ext();
+  std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) {
+    return std::tolower(c);
+  });
 
-  if (ext == ".xml" ||
-      (content_type && std::strcmp(content_type, "text/xml") == 0)) {
+  if (ext == ".xml" || (content_type && std::strcmp(content_type, "text/xml") == 0)) {
     return encode_xml(s, m, filename, error, error_sz);
   }
 
-  if (ext == ".mjb") {
-    return encode_mjb(m, filename, error, error_sz);
-  }
+  if (ext == ".mjb") { return encode_mjb(m, filename, error, error_sz); }
 
-  if (ext == ".txt" ||
-      (content_type && std::strcmp(content_type, "text/plain") == 0)) {
+  if (ext == ".txt" || (content_type && std::strcmp(content_type, "text/plain") == 0)) {
     return encode_txt(m, filename, error, error_sz);
   }
 
@@ -278,7 +276,9 @@ mjtSize mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
 // helper function to log compile time diagnostics
 static void LogCompileTime(const double* t) {
   std::string body(1024, '\0');
-  int n = std::snprintf(body.data(), body.size(),
+
+  int n = std::snprintf(body.data(),
+                        body.size(),
                         "  total:     %8.1f   (wall clock)\n"
                         "  assets:    %8.1f   -\n"
                         "    load:    %8.1f     (CPU time)\n"
@@ -299,53 +299,54 @@ static void LogCompileTime(const double* t) {
                         1e3 * t[mjCTIMER_MESH_OCTREE],
                         1e3 * t[mjCTIMER_TEXTURE],
                         1e3 * (t[mjCTIMER_TOTAL] - t[mjCTIMER_ASSETS]));
-  if (n > 0 && n < body.size()) {
-    body.resize(n);
-  }
+  if (n > 0 && n < body.size()) { body.resize(n); }
 
   // send log message
-  mjLogMessage msg = {.level = mjLOG_INFO,
-                      .topic = mjTOPIC_TIME_CMP,
+  mjLogMessage msg = {.level   = mjLOG_INFO,
+                      .topic   = mjTOPIC_TIME_CMP,
                       .subject = "compile time (ms)",
-                      .body = body.c_str()};
+                      .body    = body.c_str()};
   mju_message(&msg);
 }
 
 // compile model
 mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjModel* m = modelC->Compile(vfs);
+  mjModel*  m      = modelC->Compile(vfs);
 
   // log compile time if model was compiled successfully
-  if (m) {
-    LogCompileTime(modelC->timer);
-  }
+  if (m) { LogCompileTime(modelC->timer); }
 
   return m;
 }
 
 
-
 // recompile spec to model, preserving the state, return 0 on success
 [[nodiscard]] int mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+  mjCModel*   modelC     = static_cast<mjCModel*>(s->element);
   std::string state_name = "state";
-  mjtNum time = 0;
+  mjtNum      time       = 0;
   try {
     if (d) {
       time = d->time;
       modelC->SaveState(state_name, d->qpos, d->qvel, d->act, d->ctrl, d->mocap_pos, d->mocap_quat);
     }
     if (!modelC->Compile(vfs, &m)) {
-      if (d) {
-        mj_deleteData(d);
-      }
+      if (d) { mj_deleteData(d); }
       return -1;
     };
     if (d) {
       modelC->MakeData(m, &d);
-      modelC->RestoreState(state_name, m->qpos0, m->body_pos, m->body_quat, d->qpos, d->qvel,
-                           d->act, d->ctrl, d->mocap_pos, d->mocap_quat);
+      modelC->RestoreState(state_name,
+                           m->qpos0,
+                           m->body_pos,
+                           m->body_quat,
+                           d->qpos,
+                           d->qvel,
+                           d->act,
+                           d->ctrl,
+                           d->mocap_pos,
+                           d->mocap_quat);
       d->time = time;
     }
   } catch (mjCError& e) {
@@ -360,21 +361,20 @@ mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
 static void SetFrame(mjsBody* body, mjtObj objtype, mjsFrame* frame) {
   mjsElement* el = mjs_firstChild(body, objtype, 0);
   while (el) {
-    if (frame->element != el && mjs_getFrame(el) == nullptr) {
-      mjs_setFrame(el, frame);
-    }
+    if (frame->element != el && mjs_getFrame(el) == nullptr) { mjs_setFrame(el, frame); }
     el = mjs_nextChild(body, el, 0);
   }
 }
 
 
-
 // attach body to a frame of the parent
-static mjsElement* attachBody(mjCFrame* parent, const mjCBody* child,
-                              const char* prefix, const char* suffix) {
+static mjsElement* attachBody(mjCFrame*      parent,
+                              const mjCBody* child,
+                              const char*    prefix,
+                              const char*    suffix) {
   mjCBody* mutable_child = const_cast<mjCBody*>(child);
-  mutable_child->prefix = prefix;
-  mutable_child->suffix = suffix;
+  mutable_child->prefix  = prefix;
+  mutable_child->suffix  = suffix;
   try {
     *parent += *mutable_child;
   } catch (mjCError& e) {
@@ -382,18 +382,19 @@ static mjsElement* attachBody(mjCFrame* parent, const mjCBody* child,
     return nullptr;
   }
   mjsBody* attached_body = parent->last_attached;
-  parent->last_attached = nullptr;
+  parent->last_attached  = nullptr;
   return attached_body->element;
 }
 
 
-
 // attach frame to a parent body
-static mjsElement* attachFrame(mjCBody* parent, const mjCFrame* child,
-                               const char* prefix, const char* suffix) {
+static mjsElement* attachFrame(mjCBody*        parent,
+                               const mjCFrame* child,
+                               const char*     prefix,
+                               const char*     suffix) {
   mjCFrame* mutable_child = const_cast<mjCFrame*>(child);
-  mutable_child->prefix = prefix;
-  mutable_child->suffix = suffix;
+  mutable_child->prefix   = prefix;
+  mutable_child->suffix   = suffix;
   try {
     *parent += *mutable_child;
   } catch (mjCError& e) {
@@ -401,57 +402,65 @@ static mjsElement* attachFrame(mjCBody* parent, const mjCFrame* child,
     return nullptr;
   }
   mjsFrame* attached_frame = parent->last_attached;
-  parent->last_attached = nullptr;
+  parent->last_attached    = nullptr;
   return attached_frame->element;
 }
 
 
-
 // attach child body to a parent site
-static mjsElement* attachToSite(mjCSite* parent, const mjCBody* child,
-                                const char* prefix, const char* suffix) {
-  mjSpec* spec = mjs_getSpec(parent->spec.element);
-  mjCBody* body = parent->Body();
+static mjsElement* attachToSite(mjCSite*       parent,
+                                const mjCBody* child,
+                                const char*    prefix,
+                                const char*    suffix) {
+  mjSpec*   spec  = mjs_getSpec(parent->spec.element);
+  mjCBody*  body  = parent->Body();
   mjCFrame* frame = body->AddFrame(parent->frame);
   frame->SetParent(body);
-  frame->spec.pos[0] = parent->spec.pos[0];
-  frame->spec.pos[1] = parent->spec.pos[1];
-  frame->spec.pos[2] = parent->spec.pos[2];
+  frame->spec.pos[0]  = parent->spec.pos[0];
+  frame->spec.pos[1]  = parent->spec.pos[1];
+  frame->spec.pos[2]  = parent->spec.pos[2];
   frame->spec.quat[0] = parent->spec.quat[0];
   frame->spec.quat[1] = parent->spec.quat[1];
   frame->spec.quat[2] = parent->spec.quat[2];
   frame->spec.quat[3] = parent->spec.quat[3];
-  mjs_resolveOrientation(frame->spec.quat, spec->compiler.degree,
-                         spec->compiler.eulerseq, &parent->spec.alt);
+  mjs_resolveOrientation(frame->spec.quat,
+                         spec->compiler.degree,
+                         spec->compiler.eulerseq,
+                         &parent->spec.alt);
   return attachBody(frame, child, prefix, suffix);
 }
 
 
-
 // attach child frame to a parent site
-static mjsElement* attachFrameToSite(mjCSite* parent, const mjCFrame* child,
-                                     const char* prefix, const char* suffix) {
-  mjSpec* spec = mjs_getSpec(parent->spec.element);
-  mjCBody* body = parent->Body();
+static mjsElement* attachFrameToSite(mjCSite*        parent,
+                                     const mjCFrame* child,
+                                     const char*     prefix,
+                                     const char*     suffix) {
+  mjSpec*   spec  = mjs_getSpec(parent->spec.element);
+  mjCBody*  body  = parent->Body();
   mjCFrame* frame = body->AddFrame(parent->frame);
   frame->SetParent(body);
-  frame->spec.pos[0] = parent->spec.pos[0];
-  frame->spec.pos[1] = parent->spec.pos[1];
-  frame->spec.pos[2] = parent->spec.pos[2];
+  frame->spec.pos[0]  = parent->spec.pos[0];
+  frame->spec.pos[1]  = parent->spec.pos[1];
+  frame->spec.pos[2]  = parent->spec.pos[2];
   frame->spec.quat[0] = parent->spec.quat[0];
   frame->spec.quat[1] = parent->spec.quat[1];
   frame->spec.quat[2] = parent->spec.quat[2];
   frame->spec.quat[3] = parent->spec.quat[3];
-  mjs_resolveOrientation(frame->spec.quat, spec->compiler.degree,
-                         spec->compiler.eulerseq, &parent->spec.alt);
+  mjs_resolveOrientation(frame->spec.quat,
+                         spec->compiler.degree,
+                         spec->compiler.eulerseq,
+                         &parent->spec.alt);
 
   mjsElement* attached_frame = attachFrame(body, child, prefix, suffix);
   mjs_setFrame(attached_frame, &frame->spec);
   return attached_frame;
 }
 
-mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
-                       const char* prefix, const char* suffix) {
+mjsElement* mjs_attach(mjsElement*       parent,
+                       const mjsElement* child,
+                       const char*       prefix,
+                       const char*       suffix) {
   if (!parent) {
     mju_error("parent element is null");
     return nullptr;
@@ -460,7 +469,7 @@ mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
     mju_error("child element is null");
     return nullptr;
   }
-  mjCModel* model = static_cast<mjCModel*>(mjs_getSpec(parent)->element);
+  mjCModel*     model      = static_cast<mjCModel*>(mjs_getSpec(parent)->element);
   const mjSpec* child_spec = nullptr;
   if (child->elemtype == mjOBJ_MODEL) {
     child_spec = &(static_cast<const mjCModel*>(child)->spec);
@@ -471,24 +480,24 @@ mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
   // handle global attribute conflicts
   if (child_spec && child_spec != &model->spec) {
     std::string error_msg, warning_subject, warning_body;
-    bool success = mujoco::ResolveConflicts(
-        &model->spec, child_spec,
-        static_cast<mjtConflict>(model->spec.compiler.conflict), &error_msg,
-        &warning_subject, &warning_body);
+    bool success = mujoco::ResolveConflicts(&model->spec,
+                                            child_spec,
+                                            static_cast<mjtConflict>(model->spec.compiler.conflict),
+                                            &error_msg,
+                                            &warning_subject,
+                                            &warning_body);
 
     if (!success) {
       model->SetError(mjCError(0, "%s", error_msg.c_str()));
       return nullptr;
     }
 
-    if (!warning_body.empty()) {
-      model->AddGroupedWarning(warning_subject, warning_body);
-    }
+    if (!warning_body.empty()) { model->AddGroupedWarning(warning_subject, warning_body); }
   }
 
   if (child->elemtype == mjOBJ_MODEL) {
     mjCModel* child_model = static_cast<mjCModel*>((mjsElement*)child);
-    mjsBody* worldbody = mjs_findBody(&child_model->spec, "world");
+    mjsBody*  worldbody   = mjs_findBody(&child_model->spec, "world");
     if (!worldbody) {
       model->SetError(mjCError(0, "Child does not have a world body."));
       return nullptr;
@@ -508,20 +517,21 @@ mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
     case mjOBJ_FRAME:
       if (child->elemtype == mjOBJ_BODY) {
         result = attachBody(static_cast<mjCFrame*>(parent),
-                            static_cast<const mjCBody*>(child), prefix, suffix);
+                            static_cast<const mjCBody*>(child),
+                            prefix,
+                            suffix);
       } else if (child->elemtype == mjOBJ_FRAME) {
         mjsBody* parent_body = mjs_getParent(parent);
         if (!parent_body) {
           model->SetError(mjCError(0, "Frame does not have a parent body."));
           return nullptr;
         }
-        mjCFrame* frame = static_cast<mjCFrame*>(parent);
-        mjsElement* attached_frame =
-            attachFrame(static_cast<mjCBody*>(parent_body->element),
-                        static_cast<const mjCFrame*>(child), prefix, suffix);
-        if (mjs_setFrame(attached_frame, &frame->spec)) {
-          return nullptr;
-        }
+        mjCFrame*   frame          = static_cast<mjCFrame*>(parent);
+        mjsElement* attached_frame = attachFrame(static_cast<mjCBody*>(parent_body->element),
+                                                 static_cast<const mjCFrame*>(child),
+                                                 prefix,
+                                                 suffix);
+        if (mjs_setFrame(attached_frame, &frame->spec)) { return nullptr; }
         result = attached_frame;
       } else {
         model->SetError(mjCError(0, "child element is not a body or frame"));
@@ -530,9 +540,10 @@ mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
       break;
     case mjOBJ_BODY:
       if (child->elemtype == mjOBJ_FRAME) {
-        result =
-            attachFrame(static_cast<mjCBody*>(parent),
-                        static_cast<const mjCFrame*>(child), prefix, suffix);
+        result = attachFrame(static_cast<mjCBody*>(parent),
+                             static_cast<const mjCFrame*>(child),
+                             prefix,
+                             suffix);
       } else {
         model->SetError(mjCError(0, "child element is not a frame"));
         return nullptr;
@@ -540,12 +551,14 @@ mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
       break;
     case mjOBJ_SITE:
       if (child->elemtype == mjOBJ_BODY) {
-        result =
-            attachToSite(static_cast<mjCSite*>(parent),
-                         static_cast<const mjCBody*>(child), prefix, suffix);
+        result = attachToSite(static_cast<mjCSite*>(parent),
+                              static_cast<const mjCBody*>(child),
+                              prefix,
+                              suffix);
       } else if (child->elemtype == mjOBJ_FRAME) {
         result = attachFrameToSite(static_cast<mjCSite*>(parent),
-                                   static_cast<const mjCFrame*>(child), prefix,
+                                   static_cast<const mjCFrame*>(child),
+                                   prefix,
                                    suffix);
       } else {
         model->SetError(mjCError(0, "child element is not a body or frame"));
@@ -558,12 +571,9 @@ mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
   }
 
   // mark all warnings accumulated so far as attach-phase
-  if (result) {
-    model->SetAttachWarningBoundary();
-  }
+  if (result) { model->SetAttachWarningBoundary(); }
   return result;
 }
-
 
 
 // get error message from model
@@ -577,12 +587,9 @@ const char* mjs_getError(mjSpec* s) {
 }
 
 
-
 // get compiler timers from model
 const double* mjs_getTimer(mjSpec* s) {
-  if (!s) {
-    return nullptr;
-  }
+  if (!s) { return nullptr; }
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   return modelC->timer;
 }
@@ -590,32 +597,23 @@ const double* mjs_getTimer(mjSpec* s) {
 // check if model has warnings (but no error)
 // TODO(tassa): delete this function
 int mjs_isWarning(mjSpec* s) {
-  if (!s) {
-    return 0;
-  }
+  if (!s) { return 0; }
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  return modelC->GetError().message[0] == '\0' &&
-         !modelC->GetWarnings().empty();
+  return modelC->GetError().message[0] == '\0' && !modelC->GetWarnings().empty();
 }
 
 // get number of warnings
 int mjs_numWarnings(const mjSpec* spec) {
-  if (!spec) {
-    return 0;
-  }
+  if (!spec) { return 0; }
   const mjCModel* modelC = static_cast<const mjCModel*>(spec->element);
   return static_cast<int>(modelC->GetWarnings().size());
 }
 
 // get the i-th warning message
 const char* mjs_getWarning(const mjSpec* spec, int index) {
-  if (!spec) {
-    return nullptr;
-  }
+  if (!spec) { return nullptr; }
   const mjCModel* modelC = static_cast<const mjCModel*>(spec->element);
-  if (index < 0 || index >= static_cast<int>(modelC->GetWarnings().size())) {
-    return nullptr;
-  }
+  if (index < 0 || index >= static_cast<int>(modelC->GetWarnings().size())) { return nullptr; }
   return modelC->GetWarnings()[index].c_str();
 }
 
@@ -628,7 +626,6 @@ void mj_deleteSpec(mjSpec* s) {
 }
 
 
-
 // add spec (model asset) to spec
 void mjs_addSpec(mjSpec* s, mjSpec* child) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
@@ -636,19 +633,15 @@ void mjs_addSpec(mjSpec* s, mjSpec* child) {
 }
 
 
-
 // activate plugin
 int mjs_activatePlugin(mjSpec* s, const char* name) {
-  int plugin_slot = -1;
-  const mjpPlugin* plugin = mjp_getPlugin(name, &plugin_slot);
-  if (!plugin) {
-    return -1;
-  }
+  int              plugin_slot = -1;
+  const mjpPlugin* plugin      = mjp_getPlugin(name, &plugin_slot);
+  if (!plugin) { return -1; }
   mjCModel* model = static_cast<mjCModel*>(s->element);
   model->ActivatePlugin(plugin, plugin_slot);
   return 0;
 }
-
 
 
 // set deep copy flag
@@ -659,13 +652,11 @@ int mjs_setDeepCopy(mjSpec* s, int deepcopy) {
 }
 
 
-
 // copy real-valued arrays from model to spec, returns 1 on success
 int mj_copyBack(mjSpec* s, const mjModel* m) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
   return model->CopyBack(m);
 }
-
 
 
 // remove body from mjSpec, return 0 on success
@@ -681,8 +672,8 @@ int mjs_delete(mjSpec* s, mjsElement* element) {
   }
   try {
     if (element->elemtype == mjOBJ_DEFAULT) {
-      mjCDef* def = static_cast<mjCDef*>(element);
-      *model -= *def;
+      mjCDef* def  = static_cast<mjCDef*>(element);
+      *model      -= *def;
     } else {
       *model -= element;
     }
@@ -694,86 +685,78 @@ int mjs_delete(mjSpec* s, mjsElement* element) {
 }
 
 
-
 // add child body to body, return child spec
 mjsBody* mjs_addBody(mjsBody* bodyspec, const mjsDefault* defspec) {
-  mjCDef* def = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+  mjCDef*  def  = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
   mjCBody* body = static_cast<mjCBody*>(bodyspec->element)->AddBody(def);
   return &body->spec;
 }
 
 
-
 // add site to body, return site spec
 mjsSite* mjs_addSite(mjsBody* bodyspec, const mjsDefault* defspec) {
-  mjCDef* def = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+  mjCDef*  def  = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
   mjCBody* body = static_cast<mjCBody*>(bodyspec->element);
   mjCSite* site = body->AddSite(def);
   return &site->spec;
 }
 
 
-
 // add joint to body
 mjsJoint* mjs_addJoint(mjsBody* bodyspec, const mjsDefault* defspec) {
-  mjCDef* def = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
-  mjCBody* body = static_cast<mjCBody*>(bodyspec->element);
+  mjCDef*   def   = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+  mjCBody*  body  = static_cast<mjCBody*>(bodyspec->element);
   mjCJoint* joint = body->AddJoint(def);
   return &joint->spec;
 }
 
 
-
 // add free joint to body
 mjsJoint* mjs_addFreeJoint(mjsBody* bodyspec) {
-  mjCBody* body = static_cast<mjCBody*>(bodyspec->element);
+  mjCBody*  body  = static_cast<mjCBody*>(bodyspec->element);
   mjCJoint* joint = body->AddFreeJoint();
   return &joint->spec;
 }
 
 
-
 // add geom to body
 mjsGeom* mjs_addGeom(mjsBody* bodyspec, const mjsDefault* defspec) {
-  mjCDef* def = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+  mjCDef*  def  = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
   mjCBody* body = static_cast<mjCBody*>(bodyspec->element);
   mjCGeom* geom = body->AddGeom(def);
   return &geom->spec;
 }
 
 
-
 // add camera to body
 mjsCamera* mjs_addCamera(mjsBody* bodyspec, const mjsDefault* defspec) {
-  mjCDef* def = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
-  mjCBody* body = static_cast<mjCBody*>(bodyspec->element);
+  mjCDef*    def    = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+  mjCBody*   body   = static_cast<mjCBody*>(bodyspec->element);
   mjCCamera* camera = body->AddCamera(def);
   return &camera->spec;
 }
 
 
-
 // add light to body
 mjsLight* mjs_addLight(mjsBody* bodyspec, const mjsDefault* defspec) {
-  mjCDef* def = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
-  mjCBody* body = static_cast<mjCBody*>(bodyspec->element);
+  mjCDef*   def   = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+  mjCBody*  body  = static_cast<mjCBody*>(bodyspec->element);
   mjCLight* light = body->AddLight(def);
   return &light->spec;
 }
 
 
-
 // add flex to model
 mjsFlex* mjs_addFlex(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCFlex* flex = modelC->AddFlex();
+  mjCFlex*  flex   = modelC->AddFlex();
   return &flex->spec;
 }
 
 
-
 // helper: convert type string to mjtFcompType
 static mjtFcompType FlexcompTypeFromStr(const char* type) {
+  // clang-format off
   if (!type || !strcmp(type, "grid"))    return mjFCOMPTYPE_GRID;
   if (!strcmp(type, "box"))              return mjFCOMPTYPE_BOX;
   if (!strcmp(type, "cylinder"))         return mjFCOMPTYPE_CYLINDER;
@@ -785,26 +768,44 @@ static mjtFcompType FlexcompTypeFromStr(const char* type) {
   if (!strcmp(type, "gmsh"))             return mjFCOMPTYPE_GMSH;
   if (!strcmp(type, "direct"))           return mjFCOMPTYPE_DIRECT;
   return mjFCOMPTYPE_GRID;  // default
+  // clang-format on
 }
 
 // helper: convert dof string to mjtDof
 static mjtDof FlexcompDofFromStr(const char* dof) {
+  // clang-format off
   if (!dof || !strcmp(dof, "full"))      return mjFCOMPDOF_FULL;
   if (!strcmp(dof, "radial"))            return mjFCOMPDOF_RADIAL;
   if (!strcmp(dof, "trilinear"))         return mjFCOMPDOF_TRILINEAR;
   if (!strcmp(dof, "quadratic"))         return mjFCOMPDOF_QUADRATIC;
   if (!strcmp(dof, "2d"))                return mjFCOMPDOF_2D;
   return mjFCOMPDOF_FULL;  // default
+  // clang-format on
 }
 
 
 // add flexcomp: create flex with auto-generated bodies/joints
-mjsFlex* mjs_makeFlex(mjsBody* body, const char* name, const char* type, int dim,
-                            const char* dof, const int count[3], const int cellcount[3],
-                            const double spacing[3], const double scale[3], double radius,
-                            double mass, double inertiabox, int equality, int rigid, int flatskin,
-                            int elastic2d, const double pos[3], const double quat[4],
-                            const double origin[3], const char* file, const mjVFS* vfs) {
+mjsFlex* mjs_makeFlex(mjsBody*     body,
+                      const char*  name,
+                      const char*  type,
+                      int          dim,
+                      const char*  dof,
+                      const int    count[3],
+                      const int    cellcount[3],
+                      const double spacing[3],
+                      const double scale[3],
+                      double       radius,
+                      double       mass,
+                      double       inertiabox,
+                      int          equality,
+                      int          rigid,
+                      int          flatskin,
+                      int          elastic2d,
+                      const double pos[3],
+                      const double quat[4],
+                      const double origin[3],
+                      const char*  file,
+                      const mjVFS* vfs) {
   if (!body || !name) {
     mju_error("mjs_makeFlex: body and name must not be null");
     return nullptr;
@@ -814,8 +815,8 @@ mjsFlex* mjs_makeFlex(mjsBody* body, const char* name, const char* type, int dim
 
   // create temporary flexcomp with defaults
   mjCFlexcomp fcomp;
-  fcomp.name = name;
-  fcomp.type = FlexcompTypeFromStr(type);
+  fcomp.name    = name;
+  fcomp.type    = FlexcompTypeFromStr(type);
   fcomp.doftype = FlexcompDofFromStr(dof);
 
   // topology
@@ -846,13 +847,14 @@ mjsFlex* mjs_makeFlex(mjsBody* body, const char* name, const char* type, int dim
   }
 
   // physics
-  fcomp.def.spec.flex->dim = dim;
+  fcomp.def.spec.flex->dim    = dim;
   fcomp.def.spec.flex->radius = radius;
   if (mass > 0) fcomp.mass = mass;
   if (inertiabox > 0) fcomp.inertiabox = inertiabox;
   fcomp.equality = equality;
-  fcomp.rigid = rigid;
-  fcomp.def.spec.flex->flatskin = flatskin;
+  fcomp.rigid    = rigid;
+
+  fcomp.def.spec.flex->flatskin  = flatskin;
   fcomp.def.spec.flex->elastic2d = elastic2d;
 
   // pose
@@ -869,9 +871,7 @@ mjsFlex* mjs_makeFlex(mjsBody* body, const char* name, const char* type, int dim
   }
 
   // file
-  if (file) {
-    fcomp.file = file;
-  }
+  if (file) { fcomp.file = file; }
 
   // call Make
   char error[500] = "";
@@ -886,70 +886,62 @@ mjsFlex* mjs_makeFlex(mjsBody* body, const char* name, const char* type, int dim
 }
 
 
-
 // add frame to body
 mjsFrame* mjs_addFrame(mjsBody* bodyspec, mjsFrame* parentframe) {
   mjCFrame* parentframeC = 0;
-  if (parentframe) {
-    parentframeC = static_cast<mjCFrame*>(parentframe->element);
-  }
-  mjCBody* body = static_cast<mjCBody*>(bodyspec->element);
+  if (parentframe) { parentframeC = static_cast<mjCFrame*>(parentframe->element); }
+  mjCBody*  body   = static_cast<mjCBody*>(bodyspec->element);
   mjCFrame* frameC = body->AddFrame(parentframeC);
   frameC->SetParent(body);
   return &frameC->spec;
 }
 
 
-
 // add mesh to model
 mjsMesh* mjs_addMesh(mjSpec* s, const mjsDefault* defspec) {
-  mjCDef* def = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+  mjCDef*   def    = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCMesh* mesh = modelC->AddMesh(def);
+  mjCMesh*  mesh   = modelC->AddMesh(def);
   return &mesh->spec;
 }
 
 
-
 // add height field to model
 mjsHField* mjs_addHField(mjSpec* s) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+  mjCModel*  modelC      = static_cast<mjCModel*>(s->element);
   mjCHField* heightField = modelC->AddHField();
   return &heightField->spec;
 }
 
 
-
 // add skin to model
 mjsSkin* mjs_addSkin(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCSkin* skin = modelC->AddSkin();
+  mjCSkin*  skin   = modelC->AddSkin();
   return &skin->spec;
 }
 
 
-
 // add texture to model
 mjsTexture* mjs_addTexture(mjSpec* s) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+  mjCModel*   modelC  = static_cast<mjCModel*>(s->element);
   mjCTexture* texture = modelC->AddTexture();
   return &texture->spec;
 }
 
 
-
 // add material to model
 mjsMaterial* mjs_addMaterial(mjSpec* s, const mjsDefault* defspec) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCDef* def = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+  mjCModel*    modelC   = static_cast<mjCModel*>(s->element);
+  mjCDef*      def      = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
   mjCMaterial* material = modelC->AddMaterial(def);
   return &material->spec;
 }
 
 // Sets the vertices and normals of a mesh.
 int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int nparams) {
-  mjCMesh* meshC = static_cast<mjCMesh*>(mesh->element);
-  mjCModel* m = meshC->model;
+  mjCMesh*  meshC = static_cast<mjCMesh*>(mesh->element);
+  mjCModel* m     = meshC->model;
   switch (builtin) {
     case mjMESH_BUILTIN_HEMISPHERE: {
       if (nparams != 1) {
@@ -1045,10 +1037,10 @@ int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int npar
         m->SetError(mjCError(0, "Wedge builtin mesh types require 5 parameters"));
         return -1;
       }
-      int resolution[2] = {static_cast<int>(params[0]),
-                           static_cast<int>(params[1])};
+      int resolution[2] = {static_cast<int>(params[0]), static_cast<int>(params[1])};
+
       double fov[2] = {params[2], params[3]};
-      double gamma = params[4];
+      double gamma  = params[4];
       if (fov[0] <= 0 || fov[0] > 180) {
         m->SetError(mjCError(0, "fov[0] must be a float between (0, 180] degrees"));
         return -1;
@@ -1074,8 +1066,7 @@ int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int npar
         m->SetError(mjCError(0, "Plate builtin mesh type requires 2 parameters"));
         return -1;
       }
-      int resolution[2] = {static_cast<int>(params[0]),
-                           static_cast<int>(params[1])};
+      int resolution[2] = {static_cast<int>(params[0]), static_cast<int>(params[1])};
       if (resolution[0] <= 0 || resolution[1] <= 0) {
         m->SetError(mjCError(0, "Horizontal and vertical resolutions must be positive"));
         return -1;
@@ -1103,40 +1094,36 @@ int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int npar
 // add pair to model
 mjsPair* mjs_addPair(mjSpec* s, const mjsDefault* defspec) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCDef* def = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
-  mjCPair* pair = modelC->AddPair(def);
+  mjCDef*   def    = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+  mjCPair*  pair   = modelC->AddPair(def);
   return &pair->spec;
 }
 
 
-
 // add pair exclusion to model
 mjsExclude* mjs_addExclude(mjSpec* s) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+  mjCModel*    modelC   = static_cast<mjCModel*>(s->element);
   mjCBodyPair* bodypair = modelC->AddExclude();
   return &bodypair->spec;
 }
 
 
-
 // add equality to model
 mjsEquality* mjs_addEquality(mjSpec* s, const mjsDefault* defspec) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCDef* def = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+  mjCModel*    modelC   = static_cast<mjCModel*>(s->element);
+  mjCDef*      def      = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
   mjCEquality* equality = modelC->AddEquality(def);
   return &equality->spec;
 }
 
 
-
 // add tendon to model
 mjsTendon* mjs_addTendon(mjSpec* s, const mjsDefault* defspec) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCDef* def = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+  mjCModel*  modelC = static_cast<mjCModel*>(s->element);
+  mjCDef*    def    = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
   mjCTendon* tendon = modelC->AddTendon(def);
   return &tendon->spec;
 }
-
 
 
 // wrap site using tendon
@@ -1147,14 +1134,12 @@ mjsWrap* mjs_wrapSite(mjsTendon* tendonspec, const char* name) {
 }
 
 
-
 // wrap geom using tendon
 mjsWrap* mjs_wrapGeom(mjsTendon* tendonspec, const char* name, const char* sidesite) {
   mjCTendon* tendon = static_cast<mjCTendon*>(tendonspec->element);
   tendon->WrapGeom(name, sidesite);
   return &tendon->path.back()->spec;
 }
-
 
 
 // wrap joint using tendon
@@ -1165,7 +1150,6 @@ mjsWrap* mjs_wrapJoint(mjsTendon* tendonspec, const char* name, double coef) {
 }
 
 
-
 // wrap pulley using tendon
 mjsWrap* mjs_wrapPulley(mjsTendon* tendonspec, double divisor) {
   mjCTendon* tendon = static_cast<mjCTendon*>(tendonspec->element);
@@ -1174,78 +1158,70 @@ mjsWrap* mjs_wrapPulley(mjsTendon* tendonspec, double divisor) {
 }
 
 
-
 // add actuator to model
 mjsActuator* mjs_addActuator(mjSpec* s, const mjsDefault* defspec) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCDef* def = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+  mjCModel*    modelC   = static_cast<mjCModel*>(s->element);
+  mjCDef*      def      = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
   mjCActuator* actuator = modelC->AddActuator(def);
   return &actuator->spec;
 }
 
 
-
 // add sensor to model
 mjsSensor* mjs_addSensor(mjSpec* s) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+  mjCModel*  modelC = static_cast<mjCModel*>(s->element);
   mjCSensor* sensor = modelC->AddSensor();
   return &sensor->spec;
 }
 
 
-
 // add numeric to model
 mjsNumeric* mjs_addNumeric(mjSpec* s) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+  mjCModel*   modelC  = static_cast<mjCModel*>(s->element);
   mjCNumeric* numeric = modelC->AddNumeric();
   return &numeric->spec;
 }
 
 
-
 // add text to model
 mjsText* mjs_addText(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCText* text = modelC->AddText();
+  mjCText*  text   = modelC->AddText();
   return &text->spec;
 }
-
 
 
 // add tuple to model
 mjsTuple* mjs_addTuple(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCTuple* tuple = modelC->AddTuple();
+  mjCTuple* tuple  = modelC->AddTuple();
   return &tuple->spec;
 }
-
 
 
 // add keyframe to model
 mjsKey* mjs_addKey(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCKey* key = modelC->AddKey();
+  mjCKey*   key    = modelC->AddKey();
   return &key->spec;
 }
 
 
-
 // add plugin to model
 mjsPlugin* mjs_addPlugin(mjSpec* s) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCPlugin* plugin = modelC->AddPlugin();
+  mjCModel*  modelC    = static_cast<mjCModel*>(s->element);
+  mjCPlugin* plugin    = modelC->AddPlugin();
   plugin->spec.element = static_cast<mjsElement*>(plugin);
   return &plugin->spec;
 }
 
 
-
 // add default to model
 mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* parent) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCDef* parentC = parent ? static_cast<mjCDef*>(parent->element) :
-                             static_cast<mjCModel*>(s->element)->Default();
-  mjCDef* def = modelC->AddDefault(classname, parentC);
+  mjCModel* modelC  = static_cast<mjCModel*>(s->element);
+  mjCDef*   parentC = parent ? static_cast<mjCDef*>(parent->element)
+                             : static_cast<mjCModel*>(s->element)->Default();
+  mjCDef*   def     = modelC->AddDefault(classname, parentC);
   if (def) {
     return &def->spec;
   } else {
@@ -1254,31 +1230,31 @@ mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* p
 }
 
 
-
 // set actuator to motor
 const char* mjs_setToMotor(mjsActuator* actuator) {
   // unit gain
   actuator->gainprm[0] = 1;
 
   // implied parameters
-  actuator->dyntype = mjDYN_NONE;
+  actuator->dyntype  = mjDYN_NONE;
   actuator->gaintype = mjGAIN_FIXED;
   actuator->biastype = mjBIAS_NONE;
   return "";
 }
 
 
-
 // set to position actuator
-const char* mjs_setToPosition(mjsActuator* actuator, double kp, double kv[1],
-                              double dampratio[1], double timeconst[1], double inheritrange) {
+const char* mjs_setToPosition(mjsActuator* actuator,
+                              double       kp,
+                              double       kv[1],
+                              double       dampratio[1],
+                              double       timeconst[1],
+                              double       inheritrange) {
   actuator->gainprm[0] = kp;
   actuator->biasprm[1] = -kp;
 
   // set biasprm[2]; negative: regular damping, positive: dampratio
-  if (dampratio && kv) {
-    return "kv and dampratio cannot both be defined";
-  }
+  if (dampratio && kv) { return "kv and dampratio cannot both be defined"; }
 
   if (kv) {
     if (*kv < 0) return "kv cannot be negative";
@@ -1291,7 +1267,7 @@ const char* mjs_setToPosition(mjsActuator* actuator, double kp, double kv[1],
   if (timeconst) {
     if (*timeconst < 0) return "timeconst cannot be negative";
     actuator->dynprm[0] = *timeconst;
-    actuator->dyntype = *timeconst == 0 ? mjDYN_NONE : mjDYN_FILTEREXACT;
+    actuator->dyntype   = *timeconst == 0 ? mjDYN_NONE : mjDYN_FILTEREXACT;
   }
   actuator->inheritrange = inheritrange;
 
@@ -1307,10 +1283,13 @@ const char* mjs_setToPosition(mjsActuator* actuator, double kp, double kv[1],
 }
 
 
-
 // Set to integrated velocity actuator.
-const char* mjs_setToIntVelocity(mjsActuator* actuator, double kp, double kv[1],
-                                 double dampratio[1], double timeconst[1], double inheritrange) {
+const char* mjs_setToIntVelocity(mjsActuator* actuator,
+                                 double       kp,
+                                 double       kv[1],
+                                 double       dampratio[1],
+                                 double       timeconst[1],
+                                 double       inheritrange) {
   mjs_setToPosition(actuator, kp, kv, dampratio, timeconst, inheritrange);
   actuator->dyntype = mjDYN_INTEGRATOR;
 
@@ -1323,13 +1302,10 @@ const char* mjs_setToIntVelocity(mjsActuator* actuator, double kp, double kv[1],
 }
 
 
-
 // Set to orientation actuator.
-const char* mjs_setToOrientation(mjsActuator* actuator, double kp, double kv[1],
-                                 double dampratio[1], int ctrlspec) {
-  if (kv && dampratio) {
-    return "kv and dampratio cannot both be defined";
-  }
+const char* mjs_setToOrientation(
+    mjsActuator* actuator, double kp, double kv[1], double dampratio[1], int ctrlspec) {
+  if (kv && dampratio) { return "kv and dampratio cannot both be defined"; }
   actuator->gainprm[0] = kp;
   actuator->biasprm[1] = -kp;
   if (kv) {
@@ -1343,18 +1319,22 @@ const char* mjs_setToOrientation(mjsActuator* actuator, double kp, double kv[1],
   actuator->ctrlspec = ctrlspec;
   actuator->gaintype = mjGAIN_SO3;
   actuator->biastype = mjBIAS_SO3;
-  actuator->dyntype = mjDYN_NONE;
+  actuator->dyntype  = mjDYN_NONE;
   return "";
 }
 
 
 // Set to PID actuator.
-const char* mjs_setToPID(mjsActuator* actuator, double kp, double kv[1], double dampratio[1],
-                         double ki[1], double imax[1], double slewmax[1], double inheritrange,
-                         int ctrlspec) {
-  if (kv && dampratio) {
-    return "kv and dampratio cannot both be defined";
-  }
+const char* mjs_setToPID(mjsActuator* actuator,
+                         double       kp,
+                         double       kv[1],
+                         double       dampratio[1],
+                         double       ki[1],
+                         double       imax[1],
+                         double       slewmax[1],
+                         double       inheritrange,
+                         int          ctrlspec) {
+  if (kv && dampratio) { return "kv and dampratio cannot both be defined"; }
   actuator->biasprm[1] = -kp;
   if (kv) {
     if (*kv < 0) return "kv cannot be negative";
@@ -1366,15 +1346,13 @@ const char* mjs_setToPID(mjsActuator* actuator, double kp, double kv[1], double 
   }
 
   // controller states: ki in gainprm[0], imax in dynprm[0], slewmax in dynprm[1]
-  double ki_value = ki ? *ki : 0;
+  double ki_value   = ki ? *ki : 0;
   double slew_value = slewmax ? *slewmax : 0;
   if (slew_value < 0) return "slewmax cannot be negative";
   actuator->gainprm[0] = ki_value;
-  actuator->dynprm[1] = slew_value;
-  actuator->dyntype = (ki_value || slew_value) ? mjDYN_PID : mjDYN_NONE;
-  if (ki_value && imax) {
-    actuator->dynprm[0] = *imax;
-  }
+  actuator->dynprm[1]  = slew_value;
+  actuator->dyntype    = (ki_value || slew_value) ? mjDYN_PID : mjDYN_NONE;
+  if (ki_value && imax) { actuator->dynprm[0] = *imax; }
 
   actuator->inheritrange = inheritrange;
   if (inheritrange > 0) {
@@ -1390,32 +1368,28 @@ const char* mjs_setToPID(mjsActuator* actuator, double kp, double kv[1], double 
 }
 
 
-
 // Set to velocity actuator.
 const char* mjs_setToVelocity(mjsActuator* actuator, double kv) {
   mjuu_zerovec(actuator->biasprm, mjNBIAS);
   actuator->gainprm[0] = kv;
   actuator->biasprm[2] = -kv;
-  actuator->dyntype = mjDYN_NONE;
-  actuator->gaintype = mjGAIN_FIXED;
-  actuator->biastype = mjBIAS_AFFINE;
+  actuator->dyntype    = mjDYN_NONE;
+  actuator->gaintype   = mjGAIN_FIXED;
+  actuator->biastype   = mjBIAS_AFFINE;
   return "";
 }
-
 
 
 // Set to damper actuator.
 const char* mjs_setToDamper(mjsActuator* actuator, double kv) {
   mjuu_zerovec(actuator->gainprm, mjNGAIN);
-  actuator->gainprm[2] = -kv;
+  actuator->gainprm[2]  = -kv;
   actuator->ctrllimited = mjLIMITED_TRUE;
-  actuator->dyntype = mjDYN_NONE;
-  actuator->gaintype = mjGAIN_AFFINE;
-  actuator->biastype = mjBIAS_NONE;
+  actuator->dyntype     = mjDYN_NONE;
+  actuator->gaintype    = mjGAIN_AFFINE;
+  actuator->biastype    = mjBIAS_NONE;
 
-  if (kv < 0) {
-    return "damping coefficient cannot be negative";
-  }
+  if (kv < 0) { return "damping coefficient cannot be negative"; }
   if (actuator->ctrlrange[0] < 0 || actuator->ctrlrange[1] < 0) {
     return "damper control range cannot be negative";
   }
@@ -1423,28 +1397,32 @@ const char* mjs_setToDamper(mjsActuator* actuator, double kv) {
 }
 
 
-
 // Set to cylinder actuator.
-const char* mjs_setToCylinder(mjsActuator* actuator, double timeconst, double bias,
-                       double area, double diameter) {
-  actuator->dynprm[0] = timeconst;
+const char* mjs_setToCylinder(
+    mjsActuator* actuator, double timeconst, double bias, double area, double diameter) {
+  actuator->dynprm[0]  = timeconst;
   actuator->biasprm[0] = bias;
   actuator->gainprm[0] = area;
-  if (diameter >= 0) {
-    actuator->gainprm[0] = mjPI / 4 * diameter*diameter;
-  }
-  actuator->dyntype = mjDYN_FILTER;
+  if (diameter >= 0) { actuator->gainprm[0] = mjPI / 4 * diameter * diameter; }
+  actuator->dyntype  = mjDYN_FILTER;
   actuator->gaintype = mjGAIN_FIXED;
   actuator->biastype = mjBIAS_AFFINE;
   return "";
 }
 
 
-
 // Set to muscle actuator.
-const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], double tausmooth,
-                            double range[2], double force, double scale, double lmin,
-                            double lmax, double vmax, double fpmax, double fvmax) {
+const char* mjs_setToMuscle(mjsActuator* actuator,
+                            double       timeconst[2],
+                            double       tausmooth,
+                            double       range[2],
+                            double       force,
+                            double       scale,
+                            double       lmin,
+                            double       lmax,
+                            double       vmax,
+                            double       fpmax,
+                            double       fvmax) {
   // set muscle defaults if same as global defaults
   if (actuator->dynprm[0] == 1) actuator->dynprm[0] = 0.01;    // tau act
   if (actuator->dynprm[1] == 0) actuator->dynprm[1] = 0.04;    // tau deact
@@ -1458,8 +1436,7 @@ const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], double t
   if (actuator->gainprm[7] == 0) actuator->gainprm[7] = 1.3;   // fpmax
   if (actuator->gainprm[8] == 0) actuator->gainprm[8] = 1.2;   // fvmax
 
-  if (tausmooth < 0)
-    return "muscle tausmooth cannot be negative";
+  if (tausmooth < 0) { return "muscle tausmooth cannot be negative"; }
 
   actuator->dynprm[2] = tausmooth;
   if (timeconst[0] >= 0) actuator->dynprm[0] = timeconst[0];
@@ -1475,38 +1452,40 @@ const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], double t
   if (fvmax >= 0) actuator->gainprm[8] = fvmax;
 
   // biasprm = gainprm
-  for (int n=0; n < 9; n++) {
-    actuator->biasprm[n] = actuator->gainprm[n];
-  }
+  for (int n = 0; n < 9; n++) { actuator->biasprm[n] = actuator->gainprm[n]; }
 
-  actuator->dyntype = mjDYN_MUSCLE;
+  actuator->dyntype  = mjDYN_MUSCLE;
   actuator->gaintype = mjGAIN_MUSCLE;
   actuator->biastype = mjBIAS_MUSCLE;
   return "";
 }
 
 
-
 // Set to adhesion actuator.
 const char* mjs_setToAdhesion(mjsActuator* actuator, double gain) {
-  actuator->gainprm[0] = gain;
+  actuator->gainprm[0]  = gain;
   actuator->ctrllimited = mjLIMITED_TRUE;
-  actuator->gaintype = mjGAIN_FIXED;
-  actuator->biastype = mjBIAS_NONE;
+  actuator->gaintype    = mjGAIN_FIXED;
+  actuator->biastype    = mjBIAS_NONE;
 
-  if (gain < 0)
-    return "adhesion gain cannot be negative";
+  if (gain < 0) return "adhesion gain cannot be negative";
   if (actuator->ctrlrange[0] < 0 || actuator->ctrlrange[1] < 0)
     return "adhesion control range cannot be negative";
   return "";
 }
 
 
-
-const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double resistance,
-                             double nominal[3], double saturation[3], double inductance[2],
-                             double cogging[3], double controller[6], double thermal[6],
-                             double lugre[5], int ctrlspec) {
+const char* mjs_setToDCMotor(mjsActuator* actuator,
+                             double       motorconst[2],
+                             double       resistance,
+                             double       nominal[3],
+                             double       saturation[3],
+                             double       inductance[2],
+                             double       cogging[3],
+                             double       controller[6],
+                             double       thermal[6],
+                             double       lugre[5],
+                             int          ctrlspec) {
   double R      = resistance;                      // electrical resistance
   double Kt     = motorconst ? motorconst[0] : 0;  // torque constant
   double Ke     = motorconst ? motorconst[1] : 0;  // back-EMF constant
@@ -1521,14 +1500,14 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
 
     if (B > 0 && R > 0) {
       // R known: solve quadratic Ke^2*omega0 - Ke*vn + R*B*omega0 = 0
-      double disc = vn*vn - 4*R*B*omega0*omega0;
-      Ke = disc > 0 ? (vn + sqrt(disc)) / (2*omega0) : vn / omega0;
+      double disc = vn * vn - 4 * R * B * omega0 * omega0;
+      Ke          = disc > 0 ? (vn + sqrt(disc)) / (2 * omega0) : vn / omega0;
     } else if (B > 0 && tau0 > 0) {
       // R from nominal (tau0 = Ke*vn/R, so R = Ke*vn/tau0)
       // substituting into omega0 = vn*Ke/(Ke^2 + R*B):
       //   omega0 = vn/(Ke + vn*B/tau0)  =>  Ke = vn/omega0 - vn*B/tau0
-      double Ke_exact = vn / omega0 - vn*B / tau0;
-      Ke = Ke_exact > 0 ? Ke_exact : vn / omega0;
+      double Ke_exact = vn / omega0 - vn * B / tau0;
+      Ke              = Ke_exact > 0 ? Ke_exact : vn / omega0;
     } else {
       // B = 0 or insufficient data for B-correction: omega0 = vn*Ke/Ke^2 = vn/Ke
       Ke = vn / omega0;
@@ -1536,19 +1515,16 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
   }
 
   // resolve effective motor constant K from [Kt, Ke]
-  double K = (Kt > 0 && Ke > 0) ? sqrt(Kt * Ke) :
-             (Kt > 0)           ? Kt : Ke;
+  double K = (Kt > 0 && Ke > 0) ? sqrt(Kt * Ke) : (Kt > 0) ? Kt : Ke;
 
   // derive R from nominal: tau0 = K*vn/R
-  if (R == 0 && vn > 0 && tau0 > 0 && K > 0) {
-    R = K * vn / tau0;
-  }
+  if (R == 0 && vn > 0 && tau0 > 0 && K > 0) { R = K * vn / tau0; }
 
   if (K <= 0) return "DC motor: motor constant K must be positive";
   if (R <= 0) return "DC motor: resistance R must be positive";
 
   // set types
-  actuator->dyntype = mjDYN_DCMOTOR;
+  actuator->dyntype  = mjDYN_DCMOTOR;
   actuator->gaintype = mjGAIN_DCMOTOR;
   actuator->biastype = mjBIAS_DCMOTOR;
 
@@ -1578,7 +1554,7 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
     }
     actuator->forcerange[0] = -tau_max;
     actuator->forcerange[1] = tau_max;
-    actuator->forcelimited = mjLIMITED_TRUE;
+    actuator->forcelimited  = mjLIMITED_TRUE;
   }
 
   // saturation: [tau_max, i_max, (di/dt)_max]
@@ -1596,12 +1572,12 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
 
   // inductance: [L, te]
   if (inductance && inductance[0] < 0) return "DC motor: inductance must be non-negative";
-  if (inductance && inductance[1] < 0) return "DC motor: electrical time constant must be non-negative";
-  double te = (inductance && inductance[0] > 0) ? inductance[0] / R : (inductance ? inductance[1] : 0);
+  if (inductance && inductance[1] < 0)
+    return "DC motor: electrical time constant must be non-negative";
+  double te =
+      (inductance && inductance[0] > 0) ? inductance[0] / R : (inductance ? inductance[1] : 0);
   actuator->dynprm[0] = te;
-  if (te > 0) {
-    actdim++;
-  }
+  if (te > 0) { actdim++; }
 
   // controller states: slew rate limiting
   if (controller && controller[3] > 0) {  // slewmax
@@ -1615,12 +1591,12 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
 
   // thermal -> temperature activation
   if (thermal && (thermal[0] > 0 || thermal[1] > 0 || thermal[2] > 0)) {
-    double RT    = thermal[0];   // thermal resistance
-    double C     = thermal[1];   // thermal capacitance
-    double tth   = thermal[2];   // thermal time constant
-    double alpha = thermal[3];   // temperature coefficient
-    double T0    = thermal[4];   // reference temperature
-    double Ta    = thermal[5];   // ambient temperature
+    double RT    = thermal[0];  // thermal resistance
+    double C     = thermal[1];  // thermal capacitance
+    double tth   = thermal[2];  // thermal time constant
+    double alpha = thermal[3];  // temperature coefficient
+    double T0    = thermal[4];  // reference temperature
+    double Ta    = thermal[5];  // ambient temperature
 
     if (tth > 0 && RT > 0 && C == 0) {
       C = tth / RT;
@@ -1643,18 +1619,18 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
 
   // lugre: {stiffness, damping, coulomb, static, stribeck}
   if (lugre && lugre[0] > 0) {
-    actuator->dynprm[5] = lugre[0];    // stiffness -> sigma0
-    actuator->dynprm[6] = lugre[1];    // damping   -> sigma1
-    actuator->biasprm[3] = lugre[2];   // coulomb   -> tau_c
-    actuator->biasprm[4] = lugre[3];   // static    -> tau_s
-    actuator->biasprm[5] = lugre[4];   // stribeck  -> omega_s
+    actuator->dynprm[5]  = lugre[0];  // stiffness -> sigma0
+    actuator->dynprm[6]  = lugre[1];  // damping   -> sigma1
+    actuator->biasprm[3] = lugre[2];  // coulomb   -> tau_c
+    actuator->biasprm[4] = lugre[3];  // static    -> tau_s
+    actuator->biasprm[5] = lugre[4];  // stribeck  -> omega_s
     actdim++;
   }
 
   // set input mode and activation dimension
   actuator->gainprm[8] = 0;  // reserved (was input_mode)
-  actuator->ctrlspec = ctrlspec;
-  actuator->actdim = actdim;
+  actuator->ctrlspec   = ctrlspec;
+  actuator->actdim     = actdim;
 
   // enforce actlimited = 0; homogeneous bounds are invalid across DC motor states
   actuator->actlimited = mjLIMITED_FALSE;
@@ -1666,28 +1642,24 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
 }
 
 
-
 // get spec from body
 mjSpec* mjs_getSpec(const mjsElement* element) {
   return &(static_cast<const mjCBase*>(element)->model->spec);
 }
 
 
-
 // get spec that originally defined an element
 // contrary to mjs_getSpec, this does not change after attachment
 mjSpec* mjs_getOriginSpec(const mjsElement* element) {
-  const mjCModel* model = static_cast<const mjCBase*>(element)->model;
+  const mjCModel*    model    = static_cast<const mjCBase*>(element)->model;
   const mjsCompiler* compiler = static_cast<const mjCBase*>(element)->compiler;
   return model->FindSpec(compiler);
 }
 
 
-
 mjsCompiler* mjs_getCompiler(const mjsElement* element) {
   return static_cast<const mjCBase*>(element)->compiler;
 }
-
 
 
 // find spec (model asset) by name
@@ -1697,33 +1669,29 @@ mjSpec* mjs_findSpec(const mjSpec* s, const char* name) {
 }
 
 
-
 // get default
 mjsDefault* mjs_getDefault(const mjsElement* element) {
-  const mjCModel* model = static_cast<const mjCBase*>(element)->model;
-  std::string classname = static_cast<const mjCBase*>(element)->classname;
-  auto it = model->def_map.find(classname);
+  const mjCModel* model     = static_cast<const mjCBase*>(element)->model;
+  std::string     classname = static_cast<const mjCBase*>(element)->classname;
+  auto            it        = model->def_map.find(classname);
   return (it != model->def_map.end()) ? &it->second->spec : nullptr;
 }
-
 
 
 // Find default with given name in model.
 mjsDefault* mjs_findDefault(const mjSpec* s, const char* classname) {
   const mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCDef* cdef = modelC->FindDefault(classname);
+  mjCDef*         cdef   = modelC->FindDefault(classname);
   return cdef ? &cdef->spec : nullptr;
 }
-
 
 
 // get default[0] from model
 mjsDefault* mjs_getSpecDefault(const mjSpec* s) {
   const mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCDef* def = modelC->Default();
+  mjCDef*         def    = modelC->Default();
   return def ? &def->spec : nullptr;
 }
-
 
 
 // find body in model by name
@@ -1731,7 +1699,6 @@ mjsBody* mjs_findBody(const mjSpec* s, const char* name) {
   mjsElement* body = mjs_findElement(s, mjOBJ_BODY, name);
   return body ? &(static_cast<mjCBody*>(body)->spec) : nullptr;
 }
-
 
 
 // find element in spec by name
@@ -1750,23 +1717,21 @@ mjsElement* mjs_findElement(const mjSpec* s, mjtObj type, const char* name) {
     case mjOBJ_FRAME:
       return model->FindTree(model->GetWorld(), type, std::string(name));  // recursive search
     case mjOBJ_TEXTURE:
-      return model->FindAsset(std::string(name), model->Textures());  // check filename too
+      return model->FindAsset(std::string(name), model->Textures());       // check filename too
     case mjOBJ_MESH:
-      return model->FindAsset(std::string(name), model->Meshes());  // check filename too
+      return model->FindAsset(std::string(name), model->Meshes());         // check filename too
     default:
-      return model->FindObject(type, std::string(name));  // always available
+      return model->FindObject(type, std::string(name));                   // always available
   }
 }
 
 
-
 // find child of a body by name
 mjsBody* mjs_findChild(const mjsBody* bodyspec, const char* name) {
-  const mjCBody* body = static_cast<mjCBody*>(bodyspec->element);
-  mjCBase* child = body->FindObject(mjOBJ_BODY, std::string(name));
+  const mjCBody* body  = static_cast<mjCBody*>(bodyspec->element);
+  mjCBase*       child = body->FindObject(mjOBJ_BODY, std::string(name));
   return child ? &(static_cast<mjCBody*>(child)->spec) : nullptr;
 }
-
 
 
 // get parent body
@@ -1792,7 +1757,6 @@ mjsBody* mjs_getParent(const mjsElement* element) {
 }
 
 
-
 // get parent frame
 mjsFrame* mjs_getFrame(const mjsElement* element) {
   const mjCBase* base = static_cast<const mjCBase*>(element);
@@ -1811,7 +1775,6 @@ mjsFrame* mjs_getFrame(const mjsElement* element) {
 }
 
 
-
 // find frame by name
 mjsFrame* mjs_findFrame(const mjSpec* s, const char* name) {
   mjsElement* frame = mjs_findElement(s, mjOBJ_FRAME, name);
@@ -1819,14 +1782,11 @@ mjsFrame* mjs_findFrame(const mjSpec* s, const char* name) {
 }
 
 
-
 // set frame
 int mjs_setFrame(mjsElement* dest, mjsFrame* frame) {
-  if (!frame || !dest) {
-    return -1;
-  }
+  if (!frame || !dest) { return -1; }
   mjCFrame* frameC = static_cast<mjCFrame*>(frame->element);
-  mjCBase* baseC = static_cast<mjCBase*>(dest);
+  mjCBase*  baseC  = static_cast<mjCBase*>(dest);
   try {
     baseC->SetFrame(frameC);
     return 0;
@@ -1837,21 +1797,21 @@ int mjs_setFrame(mjsElement* dest, mjsFrame* frame) {
 }
 
 
-
 // Resolve alternative orientations.
-const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
+const char* mjs_resolveOrientation(double                quat[4],
+                                   mjtByte               degree,
+                                   const char*           sequence,
                                    const mjsOrientation* orientation) {
   return ResolveOrientation(quat, degree, sequence, *orientation);
 }
 
 
-
 // Transform body into a frame.
 mjsFrame* mjs_bodyToFrame(mjsBody** body) {
-  mjCBody* bodyC = static_cast<mjCBody*>((*body)->element);
-  mjCFrame* frameC = bodyC->ToFrame();
-  *bodyC->model -= (*body)->element;
-  *body = nullptr;
+  mjCBody*  bodyC   = static_cast<mjCBody*>((*body)->element);
+  mjCFrame* frameC  = bodyC->ToFrame();
+  *bodyC->model    -= (*body)->element;
+  *body             = nullptr;
   return &frameC->spec;
 }
 
@@ -1860,7 +1820,8 @@ void mjs_setUserValue(mjsElement* element, const char* key, const void* data) {
 }
 
 // set user payload
-void mjs_setUserValueWithCleanup(mjsElement* element, const char* key,
+void mjs_setUserValueWithCleanup(mjsElement* element,
+                                 const char* key,
                                  const void* data,
                                  void (*cleanup)(const void*)) {
   mjCBase* baseC = static_cast<mjCBase*>(element);
@@ -1874,7 +1835,6 @@ const void* mjs_getUserValue(mjsElement* element, const char* key) {
 }
 
 
-
 // delete user payload
 void mjs_deleteUserValue(mjsElement* element, const char* key) {
   mjCBase* baseC = static_cast<mjCBase*>(element);
@@ -1882,111 +1842,103 @@ void mjs_deleteUserValue(mjsElement* element, const char* key) {
 }
 
 
-
 // return sensor dimension
 int mjs_sensorDim(const mjsSensor* sensor) {
   switch (sensor->type) {
-  case mjSENS_TOUCH:
-  case mjSENS_JOINTPOS:
-  case mjSENS_JOINTVEL:
-  case mjSENS_TENDONPOS:
-  case mjSENS_TENDONVEL:
-  case mjSENS_ACTUATORPOS:
-  case mjSENS_ACTUATORVEL:
-  case mjSENS_ACTUATORFRC:
-  case mjSENS_JOINTACTFRC:
-  case mjSENS_TENDONACTFRC:
-  case mjSENS_JOINTLIMITPOS:
-  case mjSENS_JOINTLIMITVEL:
-  case mjSENS_JOINTLIMITFRC:
-  case mjSENS_TENDONLIMITPOS:
-  case mjSENS_TENDONLIMITVEL:
-  case mjSENS_TENDONLIMITFRC:
-  case mjSENS_GEOMDIST:
-  case mjSENS_INSIDESITE:
-  case mjSENS_E_POTENTIAL:
-  case mjSENS_E_KINETIC:
-  case mjSENS_CLOCK:
-    return 1;
+    case mjSENS_TOUCH:
+    case mjSENS_JOINTPOS:
+    case mjSENS_JOINTVEL:
+    case mjSENS_TENDONPOS:
+    case mjSENS_TENDONVEL:
+    case mjSENS_ACTUATORPOS:
+    case mjSENS_ACTUATORVEL:
+    case mjSENS_ACTUATORFRC:
+    case mjSENS_JOINTACTFRC:
+    case mjSENS_TENDONACTFRC:
+    case mjSENS_JOINTLIMITPOS:
+    case mjSENS_JOINTLIMITVEL:
+    case mjSENS_JOINTLIMITFRC:
+    case mjSENS_TENDONLIMITPOS:
+    case mjSENS_TENDONLIMITVEL:
+    case mjSENS_TENDONLIMITFRC:
+    case mjSENS_GEOMDIST:
+    case mjSENS_INSIDESITE:
+    case mjSENS_E_POTENTIAL:
+    case mjSENS_E_KINETIC:
+    case mjSENS_CLOCK:
+      return 1;
 
-  case mjSENS_CAMPROJECTION:
-    return 2;
+    case mjSENS_CAMPROJECTION:
+      return 2;
 
-  case mjSENS_ACCELEROMETER:
-  case mjSENS_VELOCIMETER:
-  case mjSENS_GYRO:
-  case mjSENS_FORCE:
-  case mjSENS_TORQUE:
-  case mjSENS_MAGNETOMETER:
-  case mjSENS_BALLANGVEL:
-  case mjSENS_FRAMEPOS:
-  case mjSENS_FRAMEXAXIS:
-  case mjSENS_FRAMEYAXIS:
-  case mjSENS_FRAMEZAXIS:
-  case mjSENS_FRAMELINVEL:
-  case mjSENS_FRAMEANGVEL:
-  case mjSENS_FRAMELINACC:
-  case mjSENS_FRAMEANGACC:
-  case mjSENS_SUBTREECOM:
-  case mjSENS_SUBTREELINVEL:
-  case mjSENS_SUBTREEANGMOM:
-  case mjSENS_GEOMNORMAL:
-    return 3;
+    case mjSENS_ACCELEROMETER:
+    case mjSENS_VELOCIMETER:
+    case mjSENS_GYRO:
+    case mjSENS_FORCE:
+    case mjSENS_TORQUE:
+    case mjSENS_MAGNETOMETER:
+    case mjSENS_BALLANGVEL:
+    case mjSENS_FRAMEPOS:
+    case mjSENS_FRAMEXAXIS:
+    case mjSENS_FRAMEYAXIS:
+    case mjSENS_FRAMEZAXIS:
+    case mjSENS_FRAMELINVEL:
+    case mjSENS_FRAMEANGVEL:
+    case mjSENS_FRAMELINACC:
+    case mjSENS_FRAMEANGACC:
+    case mjSENS_SUBTREECOM:
+    case mjSENS_SUBTREELINVEL:
+    case mjSENS_SUBTREEANGMOM:
+    case mjSENS_GEOMNORMAL:
+      return 3;
 
-  case mjSENS_GEOMFROMTO:
-    return 6;
+    case mjSENS_GEOMFROMTO:
+      return 6;
 
-  case mjSENS_BALLQUAT:
-  case mjSENS_FRAMEQUAT:
-    return 4;
+    case mjSENS_BALLQUAT:
+    case mjSENS_FRAMEQUAT:
+      return 4;
 
-  case mjSENS_CONTACT:
-    return sensor->intprm[2] * mju_condataSize(sensor->intprm[0]);
+    case mjSENS_CONTACT:
+      return sensor->intprm[2] * mju_condataSize(sensor->intprm[0]);
 
-  case mjSENS_TACTILE:
-    return 3 * static_cast<const mjCMesh*>(
-                   static_cast<mjCSensor*>(sensor->element)->get_obj())
-                   ->nvert();
+    case mjSENS_TACTILE:
+      return 3 * static_cast<const mjCMesh*>(static_cast<mjCSensor*>(sensor->element)->get_obj())
+                     ->nvert();
 
-  case mjSENS_RANGEFINDER:
-    {
-      int size = mju_raydataSize(sensor->intprm[0]);
+    case mjSENS_RANGEFINDER: {
+      int size     = mju_raydataSize(sensor->intprm[0]);
       int num_rays = 1;
       if (sensor->objtype == mjOBJ_CAMERA) {
-        const mjCCamera* camera = static_cast<const mjCCamera*>(
-            static_cast<mjCSensor*>(sensor->element)->get_obj());
+        const mjCCamera* camera =
+            static_cast<const mjCCamera*>(static_cast<mjCSensor*>(sensor->element)->get_obj());
         num_rays = camera->spec.resolution[0] * camera->spec.resolution[1];
       }
       return size * num_rays;
     }
 
-  case mjSENS_USER:
-    return sensor->dim;
+    case mjSENS_USER:
+      return sensor->dim;
 
-  case mjSENS_PLUGIN:
-    return 0;  // to be filled in by plugin
+    case mjSENS_PLUGIN:
+      return 0;  // to be filled in by plugin
   }
   return -1;
 }
 
 
-
 // get id
 int mjs_getId(const mjsElement* element) {
-  if (!element) {
-    return -1;
-  }
+  if (!element) { return -1; }
   return static_cast<const mjCBase*>(element)->id;
 }
 
 
-
 // set default
 void mjs_setDefault(mjsElement* element, const mjsDefault* defspec) {
-  mjCBase* baseC = static_cast<mjCBase*>(element);
+  mjCBase* baseC   = static_cast<mjCBase*>(element);
   baseC->classname = static_cast<mjCDef*>(defspec->element)->name;
 }
-
 
 
 // return first child of selected type
@@ -2001,18 +1953,16 @@ mjsElement* mjs_firstChild(const mjsBody* body, mjtObj type, int recurse) {
 }
 
 
-
 // return body's next child; return NULL if child is last
 mjsElement* mjs_nextChild(const mjsBody* body, const mjsElement* child, int recurse) {
   const mjCBody* bodyC = static_cast<const mjCBody*>(body->element);
   try {
     return bodyC->NextChild(child, child->elemtype, recurse);
-  } catch(mjCError& e) {
+  } catch (mjCError& e) {
     bodyC->model->SetError(e);
     return nullptr;
   }
 }
-
 
 
 // return spec's first element of selected type
@@ -2022,7 +1972,6 @@ mjsElement* mjs_firstElement(const mjSpec* s, mjtObj type) {
 }
 
 
-
 // return spec's next element; return NULL if element is last
 mjsElement* mjs_nextElement(const mjSpec* s, const mjsElement* element) {
   const mjCModel* modelC = static_cast<mjCModel*>(s->element);
@@ -2030,10 +1979,9 @@ mjsElement* mjs_nextElement(const mjSpec* s, const mjsElement* element) {
 }
 
 
-
 mjsElement* mjs_getWrapTarget(const mjsWrap* wrap) {
   const mjCWrap* cwrap = static_cast<const mjCWrap*>(wrap->element);
-  mjtObj type = mjOBJ_UNKNOWN;
+  mjtObj         type  = mjOBJ_UNKNOWN;
   switch (cwrap->Type()) {
     case mjWRAP_SPHERE:
     case mjWRAP_CYLINDER:
@@ -2056,26 +2004,24 @@ mjsElement* mjs_getWrapTarget(const mjsWrap* wrap) {
 }
 
 
-
 mjsSite* mjs_getWrapSideSite(const mjsWrap* wrap) {
   const mjCWrap* cwrap = static_cast<const mjCWrap*>(wrap->element);
   // only sphere and cylinder (geoms) have side sites
-  if ((cwrap->Type() != mjWRAP_SPHERE &&
-      cwrap->Type() != mjWRAP_CYLINDER) ||
+  if ((cwrap->Type() != mjWRAP_SPHERE && cwrap->Type() != mjWRAP_CYLINDER) ||
       cwrap->sidesite.empty()) {
     return nullptr;
   }
 
   const mjSpec* spec = mjs_getSpec(wrap->element);
-  mjsElement* site = mjs_findElement(spec, mjOBJ_SITE, cwrap->sidesite.c_str());
+  mjsElement*   site = mjs_findElement(spec, mjOBJ_SITE, cwrap->sidesite.c_str());
   if (site == nullptr) {
     mju_warning("Could not find side site %s for wrap %s in spec",
-                cwrap->sidesite.c_str(), cwrap->name.c_str());
+                cwrap->sidesite.c_str(),
+                cwrap->name.c_str());
     return nullptr;
   }
   return mjs_asSite(site);
 }
-
 
 
 double mjs_getWrapDivisor(const mjsWrap* wrap) {
@@ -2088,7 +2034,6 @@ double mjs_getWrapDivisor(const mjsWrap* wrap) {
 }
 
 
-
 double mjs_getWrapCoef(const mjsWrap* wrap) {
   const mjCWrap* cwrap = static_cast<const mjCWrap*>(wrap->element);
   if (cwrap->Type() != mjWRAP_JOINT) {
@@ -2097,7 +2042,6 @@ double mjs_getWrapCoef(const mjsWrap* wrap) {
   }
   return cwrap->prm;
 }
-
 
 
 // return body given mjsElement
@@ -2109,7 +2053,6 @@ mjsBody* mjs_asBody(mjsElement* element) {
 }
 
 
-
 // return geom given mjsElement
 mjsGeom* mjs_asGeom(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_GEOM) {
@@ -2117,7 +2060,6 @@ mjsGeom* mjs_asGeom(mjsElement* element) {
   }
   return nullptr;
 }
-
 
 
 // return joint given mjsElement
@@ -2129,7 +2071,6 @@ mjsJoint* mjs_asJoint(mjsElement* element) {
 }
 
 
-
 // Return site given mjsElement
 mjsSite* mjs_asSite(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_SITE) {
@@ -2137,7 +2078,6 @@ mjsSite* mjs_asSite(mjsElement* element) {
   }
   return nullptr;
 }
-
 
 
 // return camera given mjsElement
@@ -2149,7 +2089,6 @@ mjsCamera* mjs_asCamera(mjsElement* element) {
 }
 
 
-
 // return light given mjsElement
 mjsLight* mjs_asLight(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_LIGHT) {
@@ -2157,7 +2096,6 @@ mjsLight* mjs_asLight(mjsElement* element) {
   }
   return nullptr;
 }
-
 
 
 // return frame given mjsElement
@@ -2169,7 +2107,6 @@ mjsFrame* mjs_asFrame(mjsElement* element) {
 }
 
 
-
 // return actuator given mjsElement
 mjsActuator* mjs_asActuator(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_ACTUATOR) {
@@ -2177,7 +2114,6 @@ mjsActuator* mjs_asActuator(mjsElement* element) {
   }
   return nullptr;
 }
-
 
 
 // return sensor given mjsElement
@@ -2189,7 +2125,6 @@ mjsSensor* mjs_asSensor(mjsElement* element) {
 }
 
 
-
 // return flex given mjsElement
 mjsFlex* mjs_asFlex(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_FLEX) {
@@ -2197,7 +2132,6 @@ mjsFlex* mjs_asFlex(mjsElement* element) {
   }
   return nullptr;
 }
-
 
 
 // return pair given mjsElement
@@ -2209,7 +2143,6 @@ mjsPair* mjs_asPair(mjsElement* element) {
 }
 
 
-
 // return equality given mjsElement
 mjsEquality* mjs_asEquality(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_EQUALITY) {
@@ -2217,7 +2150,6 @@ mjsEquality* mjs_asEquality(mjsElement* element) {
   }
   return nullptr;
 }
-
 
 
 // return exclude given mjsElement
@@ -2229,7 +2161,6 @@ mjsExclude* mjs_asExclude(mjsElement* element) {
 }
 
 
-
 // return tendon given mjsElement
 mjsTendon* mjs_asTendon(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_TENDON) {
@@ -2237,7 +2168,6 @@ mjsTendon* mjs_asTendon(mjsElement* element) {
   }
   return nullptr;
 }
-
 
 
 // return numeric given mjsElement
@@ -2249,7 +2179,6 @@ mjsNumeric* mjs_asNumeric(mjsElement* element) {
 }
 
 
-
 // return text given mjsElement
 mjsText* mjs_asText(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_TEXT) {
@@ -2257,7 +2186,6 @@ mjsText* mjs_asText(mjsElement* element) {
   }
   return nullptr;
 }
-
 
 
 // return tuple given mjsElement
@@ -2269,15 +2197,11 @@ mjsTuple* mjs_asTuple(mjsElement* element) {
 }
 
 
-
 // return key given mjsElement
 mjsKey* mjs_asKey(mjsElement* element) {
-  if (element && element->elemtype == mjOBJ_KEY) {
-    return &(static_cast<mjCKey*>(element)->spec);
-  }
+  if (element && element->elemtype == mjOBJ_KEY) { return &(static_cast<mjCKey*>(element)->spec); }
   return nullptr;
 }
-
 
 
 // return mesh given mjsElement
@@ -2289,7 +2213,6 @@ mjsMesh* mjs_asMesh(mjsElement* element) {
 }
 
 
-
 // return hfield given mjsElement
 mjsHField* mjs_asHField(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_HFIELD) {
@@ -2297,7 +2220,6 @@ mjsHField* mjs_asHField(mjsElement* element) {
   }
   return nullptr;
 }
-
 
 
 // return skin given mjsElement
@@ -2309,7 +2231,6 @@ mjsSkin* mjs_asSkin(mjsElement* element) {
 }
 
 
-
 // return texture given mjsElement
 mjsTexture* mjs_asTexture(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_TEXTURE) {
@@ -2317,7 +2238,6 @@ mjsTexture* mjs_asTexture(mjsElement* element) {
   }
   return nullptr;
 }
-
 
 
 // return material given mjsElement
@@ -2329,7 +2249,6 @@ mjsMaterial* mjs_asMaterial(mjsElement* element) {
 }
 
 
-
 // return plugin given mjsElement
 mjsPlugin* mjs_asPlugin(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_PLUGIN) {
@@ -2339,16 +2258,15 @@ mjsPlugin* mjs_asPlugin(mjsElement* element) {
 }
 
 
-
 // set element name
 int mjs_setName(mjsElement* element, const char* name) {
   if (element->elemtype == mjOBJ_DEFAULT) {
     mjCDef* def = static_cast<mjCDef*>(element);
-    def->name = std::string(name);
+    def->name   = std::string(name);
     return 0;
   }
   mjCBase* baseC = static_cast<mjCBase*>(element);
-  baseC->name = std::string(name);
+  baseC->name    = std::string(name);
   try {
     baseC->model->CheckRepeat(element->elemtype);
   } catch (mjCError& e) {
@@ -2357,7 +2275,6 @@ int mjs_setName(mjsElement* element, const char* name) {
   }
   return 0;
 }
-
 
 
 // copy buffer to destination buffer
@@ -2369,13 +2286,11 @@ void mjs_setBuffer(mjByteVec* dest, const void* array, int size) {
 }
 
 
-
 // set string
 void mjs_setString(mjString* dest, const char* text) {
   std::string* str = static_cast<std::string*>(dest);
-  *str = std::string(text);
+  *str             = std::string(text);
 }
-
 
 
 // Set specific entry in destination string vector.
@@ -2389,13 +2304,11 @@ mjtBool mjs_setInStringVec(mjStringVec* dest, int i, const char* text) {
 }
 
 
-
 // split text and copy into string array
 void mjs_setStringVec(mjStringVec* dest, const char* text) {
   std::vector<std::string>* v = static_cast<std::vector<std::string>*>(dest);
-  *v = StringToVector<std::string>(text);
+  *v                          = StringToVector<std::string>(text);
 }
-
 
 
 // add text entry to destination string vector
@@ -2407,11 +2320,8 @@ void mjs_appendString(mjStringVec* dest, const char* text) {
 // copy int array to vector
 void mjs_setInt(mjIntVec* dest, const int* array, int size) {
   dest->assign(size, 0.0);
-  for (int i = 0; i < size; ++i) {
-    (*dest)[i] = array[i];
-  }
+  for (int i = 0; i < size; ++i) { (*dest)[i] = array[i]; }
 }
-
 
 
 // append int array to vector of arrays
@@ -2420,16 +2330,11 @@ void mjs_appendIntVec(mjIntVecVec* dest, const int* array, int size) {
 }
 
 
-
 // copy float array to vector
 void mjs_setFloat(mjFloatVec* dest, const float* array, int size) {
   dest->assign(size, 0.0);
-  for (int i = 0; i < size; ++i) {
-    (*dest)[i] = array[i];
-  }
+  for (int i = 0; i < size; ++i) { (*dest)[i] = array[i]; }
 }
-
-
 
 
 // append float array to vector of arrays
@@ -2438,25 +2343,18 @@ void mjs_appendFloatVec(mjFloatVecVec* dest, const float* array, int size) {
 }
 
 
-
 // copy double array to vector
 void mjs_setDouble(mjDoubleVec* dest, const double* array, int size) {
   dest->assign(size, 0.0);
-  for (int i = 0; i < size; ++i) {
-    (*dest)[i] = array[i];
-  }
+  for (int i = 0; i < size; ++i) { (*dest)[i] = array[i]; }
 }
-
 
 
 // get name
 mjString* mjs_getName(mjsElement* element) {
-  if (element->elemtype == mjOBJ_DEFAULT) {
-    return &(static_cast<mjCDef*>(element)->name);
-  }
+  if (element->elemtype == mjOBJ_DEFAULT) { return &(static_cast<mjCDef*>(element)->name); }
   return &(static_cast<mjCBase*>(element)->name);
 }
-
 
 
 // get string
@@ -2465,12 +2363,9 @@ const char* mjs_getString(const mjString* source) {
 }
 
 
-
 // get double array
 const double* mjs_getDouble(const mjDoubleVec* source, int* size) {
-  if (size) {
-    *size = source->size();
-  }
+  if (size) { *size = source->size(); }
   return source->data();
 }
 
@@ -2491,10 +2386,9 @@ mjsWrap* mjs_getWrap(const mjsTendon* tendonspec, int i) {
 void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes) {
   mjCPlugin* pluginC = static_cast<mjCPlugin*>(plugin->element);
   std::map<std::string, std::string, std::less<> >* config_attribs =
-    reinterpret_cast<std::map<std::string, std::string, std::less<> >*>(attributes);
+      reinterpret_cast<std::map<std::string, std::string, std::less<> >*>(attributes);
   pluginC->config_attribs = std::move(*config_attribs);
 }
-
 
 
 // get plugin attributes
@@ -2504,16 +2398,13 @@ const void* mjs_getPluginAttributes(const mjsPlugin* plugin) {
 }
 
 
-
 // -------------------------- GLOBAL ASSET CACHE -------------------------------
 
 // get the capacity of the asset cache in bytes
 size_t mj_getCacheCapacity(const mjCache* cache) {
   if (cache) {
     const mjCCache* ccache = reinterpret_cast<const mjCCache*>(cache->impl_);
-    if (ccache) {
-      return ccache->Capacity();
-    }
+    if (ccache) { return ccache->Capacity(); }
   }
   return 0;
 }
@@ -2536,9 +2427,7 @@ size_t mj_setCacheCapacity(mjCache* cache, size_t size) {
 size_t mj_getCacheSize(const mjCache* cache) {
   if (cache) {
     const mjCCache* ccache = reinterpret_cast<const mjCCache*>(cache->impl_);
-    if (ccache) {
-      return ccache->Size();
-    }
+    if (ccache) { return ccache->Size(); }
   }
   return 0;
 }
@@ -2548,9 +2437,7 @@ size_t mj_getCacheSize(const mjCache* cache) {
 void mj_clearCache(mjCache* cache) {
   if (cache) {
     mjCCache* ccache = reinterpret_cast<mjCCache*>(cache->impl_);
-    if (ccache) {
-      ccache->Reset();
-    }
+    if (ccache) { ccache->Reset(); }
   }
 }
 
@@ -2562,7 +2449,7 @@ mjCache* mj_getCache() {
     // allocated on the heap
     if constexpr (kGlobalCacheSize != 0) {
       static mjCCache* cache = new (std::nothrow) mjCCache(kGlobalCacheSize);
-      c.impl_ = cache->Capacity() > 0 ? cache : nullptr;
+      c.impl_                = cache->Capacity() > 0 ? cache : nullptr;
     }
     return c;
   }();
@@ -2579,6 +2466,7 @@ int mjs_isAuthored(const void* elem_ptr, const void* field_ptr) {
   // model-level sub-structs (compiler, option, visual)
   if (el->elemtype == mjOBJ_MODEL) {
     const mjCModel* cel = static_cast<const mjCModel*>(el);
+
     int idx = 0;
 
 #define CHECK_FIELD(FIELD_PATH, AUTHORED_MASK)                               \
@@ -2603,21 +2491,21 @@ int mjs_isAuthored(const void* elem_ptr, const void* field_ptr) {
 #undef X
 #undef XVEC
 
-#define X(type, name, dim) \
+#define X(type, name, dim)                                                    \
   CHECK_FIELD(cel->spec.visual.global.name, cel->spec.authored.visual_global)
     idx = 0;
     MJVISUAL_GLOBAL_FIELDS
 #undef X
 
-#define X(type, name, dim) \
+#define X(type, name, dim)                                                      \
   CHECK_FIELD(cel->spec.visual.quality.name, cel->spec.authored.visual_quality)
     idx = 0;
     MJVISUAL_QUALITY_FIELDS
 #undef X
 
-#define X(type, name, dim) \
+#define X(type, name, dim)                                                          \
   CHECK_FIELD(cel->spec.visual.headlight.name, cel->spec.authored.visual_headlight)
-#define XVEC(type, name, dim) \
+#define XVEC(type, name, dim)                                                           \
   CHECK_FIELD_VEC(cel->spec.visual.headlight.name, cel->spec.authored.visual_headlight)
     idx = 0;
     MJVISUAL_HEADLIGHT_FIELDS
@@ -2634,7 +2522,7 @@ int mjs_isAuthored(const void* elem_ptr, const void* field_ptr) {
     MJVISUAL_SCALE_FIELDS
 #undef X
 
-#define XVEC(type, name, dim) \
+#define XVEC(type, name, dim)                                                 \
   CHECK_FIELD_VEC(cel->spec.visual.rgba.name, cel->spec.authored.visual_rgba)
     idx = 0;
     MJVISUAL_RGBA_FIELDS
@@ -2646,7 +2534,6 @@ int mjs_isAuthored(const void* elem_ptr, const void* field_ptr) {
 
   return 0;
 }
-
 
 
 // record explicit authoring of an element's field
@@ -2678,7 +2565,7 @@ void mjs_setAuthored(const void* elem_ptr, const void* field_ptr, int authored) 
   // model-level sub-structs (compiler, option, visual)
   if (el->elemtype == mjOBJ_MODEL) {
     mjCModel* cel = static_cast<mjCModel*>(el);
-    int idx = 0;
+    int       idx = 0;
 
 #define X(type, name, dim) SET_FIELD(cel->spec.compiler.name, cel->spec.compiler.authored)
 #define XVEC(type, name, dim) SET_FIELD_VEC(cel->spec.compiler.name, cel->spec.compiler.authored)
@@ -2699,15 +2586,15 @@ void mjs_setAuthored(const void* elem_ptr, const void* field_ptr, int authored) 
     MJVISUAL_GLOBAL_FIELDS
 #undef X
 
-#define X(type, name, dim) \
+#define X(type, name, dim)                                                    \
   SET_FIELD(cel->spec.visual.quality.name, cel->spec.authored.visual_quality)
     idx = 0;
     MJVISUAL_QUALITY_FIELDS
 #undef X
 
-#define X(type, name, dim) \
+#define X(type, name, dim)                                                        \
   SET_FIELD(cel->spec.visual.headlight.name, cel->spec.authored.visual_headlight)
-#define XVEC(type, name, dim) \
+#define XVEC(type, name, dim)                                                         \
   SET_FIELD_VEC(cel->spec.visual.headlight.name, cel->spec.authored.visual_headlight)
     idx = 0;
     MJVISUAL_HEADLIGHT_FIELDS
@@ -2724,7 +2611,7 @@ void mjs_setAuthored(const void* elem_ptr, const void* field_ptr, int authored) 
     MJVISUAL_SCALE_FIELDS
 #undef X
 
-#define XVEC(type, name, dim) \
+#define XVEC(type, name, dim)                                               \
   SET_FIELD_VEC(cel->spec.visual.rgba.name, cel->spec.authored.visual_rgba)
     idx = 0;
     MJVISUAL_RGBA_FIELDS
