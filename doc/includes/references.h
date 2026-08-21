@@ -1601,6 +1601,7 @@ typedef struct mjrfMeshData_ {
   void* user_data;              // user data for release callback
 } mjrfMeshData;
 typedef struct mjrfSceneParams_ {
+  char unused;  // ensure min size of 1 for C/C++ compatibility
 } mjrfSceneParams;
 typedef struct mjrfLightParams_ {
   int type;                        // type of light (e.g. spot, point, image, etc.) [mjrLightType]
