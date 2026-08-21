@@ -154,7 +154,6 @@ void SimProfiler::CpuTimeGraph(ImVec2 plot_size) {
   ImPlotFlags flags =
       ImPlot_SetupPlotFlags(plot_size) | ImPlotFlags_NoMouseText;
   if (ImPlot::BeginPlot("CPU microseconds (avg) vs frame", plot_size, flags)) {
-    ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 2.0f);
     ImPlot_SetupTimeAxis(plot_size, "");
     ImPlot_SetupValueAxis(plot_size, "", "%.0f");
     float max_val = 0.f;
@@ -167,23 +166,23 @@ void SimProfiler::CpuTimeGraph(ImVec2 plot_size) {
     ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, rounded_max, ImPlotCond_Always);
     ImPlot::SetupLegend(ImPlotLocation_NorthEast);
     ImPlot::SetupFinish();
+    ImPlotSpec spec(ImPlotProp_LineWeight, 2.0f);
 
     ImPlot::PlotLine(GetLegendLabel("total", cpu_total_).c_str(),
                      cpu_total_.data(), cpu_total_.size(), 1,
-                     -(int)cpu_total_.size());
+                     -(int)cpu_total_.size(), spec);
     ImPlot::PlotLine(GetLegendLabel("prepare", cpu_prepare_).c_str(),
                      cpu_prepare_.data(), cpu_prepare_.size(), 1,
-                     -(int)cpu_prepare_.size());
+                     -(int)cpu_prepare_.size(), spec);
     ImPlot::PlotLine(GetLegendLabel("solve", cpu_solve_).c_str(),
                      cpu_solve_.data(), cpu_solve_.size(), 1,
-                     -(int)cpu_solve_.size());
+                     -(int)cpu_solve_.size(), spec);
     ImPlot::PlotLine(GetLegendLabel("collision", cpu_collision_).c_str(),
                      cpu_collision_.data(), cpu_collision_.size(), 1,
-                     -(int)cpu_collision_.size());
+                     -(int)cpu_collision_.size(), spec);
     ImPlot::PlotLine(GetLegendLabel("other", cpu_other_).c_str(),
                      cpu_other_.data(), cpu_other_.size(), 1,
-                     -(int)cpu_other_.size());
-    ImPlot::PopStyleVar();
+                     -(int)cpu_other_.size(), spec);
     ImPlot::EndPlot();
   }
 }
@@ -195,7 +194,6 @@ void SimProfiler::DimensionsGraph(ImVec2 plot_size) {
   ImPlotFlags flags =
       ImPlot_SetupPlotFlags(plot_size) | ImPlotFlags_NoMouseText;
   if (ImPlot::BeginPlot("Dimensions: current vs frame", plot_size, flags)) {
-    ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 2.0f);
     ImPlot_SetupTimeAxis(plot_size, "");
     ImPlot_SetupValueAxis(plot_size, "", "%.0f");
     ImPlot::SetupAxisScale(ImAxis_Y1, ImPlotScale_Log10);
@@ -211,6 +209,7 @@ void SimProfiler::DimensionsGraph(ImVec2 plot_size) {
     ImPlot::SetupAxisLimits(ImAxis_Y1, 1.0, y_max, ImPlotCond_Always);
     ImPlot::SetupLegend(ImPlotLocation_NorthEast);
     ImPlot::SetupFinish();
+    ImPlotSpec spec(ImPlotProp_LineWeight, 2.0f);
 
     const int count = static_cast<int>(dim_dof_.size());
     struct GetterData {
@@ -227,25 +226,24 @@ void SimProfiler::DimensionsGraph(ImVec2 plot_size) {
 
     GetterData nnz_data{&dim_nnz_, count};
     ImPlot::PlotLineG(GetDimensionLabel("nnz", dim_nnz_.back()).c_str(),
-                      getter, &nnz_data, count);
+                      getter, &nnz_data, count, spec);
     GetterData constraint_data{&dim_constraint_, count};
     ImPlot::PlotLineG(
         GetDimensionLabel("constraint", dim_constraint_.back()).c_str(),
-        getter, &constraint_data, count);
+        getter, &constraint_data, count, spec);
     GetterData dof_data{&dim_dof_, count};
     ImPlot::PlotLineG(GetDimensionLabel("dof", dim_dof_.back()).c_str(),
-                      getter, &dof_data, count);
+                      getter, &dof_data, count, spec);
     GetterData contact_data{&dim_contact_, count};
     ImPlot::PlotLineG(GetDimensionLabel("contact", dim_contact_.back()).c_str(),
-                      getter, &contact_data, count);
+                      getter, &contact_data, count, spec);
     GetterData body_data{&dim_body_, count};
     ImPlot::PlotLineG(GetDimensionLabel("body", dim_body_.back()).c_str(),
-                      getter, &body_data, count);
+                      getter, &body_data, count, spec);
     GetterData iteration_data{&dim_iteration_, count};
     ImPlot::PlotLineG(
         GetDimensionLabel("iteration", dim_iteration_.back()).c_str(),
-        getter, &iteration_data, count);
-    ImPlot::PopStyleVar();
+        getter, &iteration_data, count, spec);
     ImPlot::EndPlot();
   }
 }
