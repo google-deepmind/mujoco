@@ -153,6 +153,11 @@ class StepEvent(Event):
 
 
 @dataclasses.dataclass(frozen=True)
+class SingleStepEvent(Event):
+  """Sent from viewer to sim when the user requests a single simulation step."""
+
+
+@dataclasses.dataclass(frozen=True)
 class ResetEvent(Event):
   """An event requesting to reset the simulation."""
 
