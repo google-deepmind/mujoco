@@ -2446,6 +2446,41 @@ TEST_F(DCMotorTest, VoltageLimit) {
   EXPECT_NEAR(data->actuator_force[0], -0.25, MjTol(1e-12, 1e-5));
 }
 
+TEST_F(DCMotorTest, VmaxVoltageInput) {
+  // verifies that controller Vmax clamps raw voltage input
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               input="voltage" controller="0 0 0 0 0 10.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // Vmax = 10.0, ctrl = 20.0
+  // force = K/R * Vmax = 0.05 / 2.0 * 10.0 = 0.25
+  data->ctrl[0] = 20.0;
+  mj_forward(model.get(), data.get());
+
+  EXPECT_NEAR(data->actuator_force[0], 0.25, MjTol(1e-12, 1e-5));
+
+  // negative drive
+  data->ctrl[0] = -20.0;
+  mj_forward(model.get(), data.get());
+
+  EXPECT_NEAR(data->actuator_force[0], -0.25, MjTol(1e-12, 1e-5));
+}
+
 TEST_F(DCMotorTest, IntegralClamp) {
   // verifies that controller Imax clamps integral state
   static constexpr char xml[] = R"(
