@@ -295,12 +295,29 @@ def _generate_field_data(
         array_size_str = parse_array_extent(extent, w, f.name)
 
       builder = code_builder.CodeBuilder()
-      with builder.function(f"emscripten::val {f.name}() const"):
-        builder.line(
-            "return"
-            f" emscripten::val(emscripten::typed_memory_view({array_size_str},"
-            f" {ptr_field_expr}));"
-        )
+      if inner_type_name == "mjtSize":
+        # A typed_memory_view over `mjtSize` (int64_t / size_t) would surface as
+        # a BigInt64Array in JS, whose elements cannot be mixed with JS numbers.
+        # The WASM heap is 32-bit addressed so values always fit an int; return an
+        # Int32Array copy, consistent with scalar mjtSize field handling above.
+        with builder.function(f"emscripten::val {f.name}() const"):
+          builder.line(f"int size = {array_size_str};")
+          builder.line(
+              "emscripten::val result ="
+              ' emscripten::val::global("Int32Array").new_(size);'
+          )
+          with builder.block("for (int i = 0; i < size; ++i)"):
+            builder.line(
+                f"result.set(i, static_cast<int>({ptr_field_expr}[i]));"
+            )
+          builder.line("return result;")
+      else:
+        with builder.function(f"emscripten::val {f.name}() const"):
+          builder.line(
+              "return"
+              f" emscripten::val(emscripten::typed_memory_view({array_size_str},"
+              f" {ptr_field_expr}));"
+          )
       return WrappedFieldData(
           declaration=builder.to_string(),
           typename=_get_field_struct_type(f, s),  # pyrefly: ignore[bad-argument-type]
