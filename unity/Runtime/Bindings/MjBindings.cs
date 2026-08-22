@@ -1693,6 +1693,7 @@ public unsafe struct mjData_ {
   public UIntPtr pstack;
   public UIntPtr pbase;
   public UIntPtr parena;
+  public UIntPtr efm_contact;
   public UIntPtr threadpool;
   public byte threadlock;
   public UInt64 maxuse_stack;

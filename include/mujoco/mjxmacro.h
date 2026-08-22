@@ -1036,6 +1036,7 @@
     X( size_t,    pstack             ) \
     X( size_t,    pbase              ) \
     X( size_t,    parena             ) \
+    X( uintptr_t, efm_contact        ) \
     X( uintptr_t, threadpool         ) \
     X( size_t,    maxuse_stack       ) \
     X( size_t,    maxuse_arena       ) \

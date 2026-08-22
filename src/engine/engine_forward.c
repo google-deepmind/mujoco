@@ -171,6 +171,7 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
   // implicit effective metric Mtilde = M + K: build (or deactivate) for this step. Arena
   // lifetime and skip semantics mirror the constraint data: built once per position stage,
   // value-refreshed in the velocity stage, consumed downstream.
+  mjd_flexContactPairs(m, d);
   mjd_effBuild(m, d, mj_flexCG(m), /*flg_factor=*/1);
 
   TM_END1(mjTIMER_POSITION);
@@ -1152,9 +1153,9 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   // always clear qfrc_constraint
   mju_zero(d->qfrc_constraint, nv);
 
-  // no constraints: copy unconstrained acc, clear forces, return
-  // (with the effective metric active, qacc_smooth is already the implicit answer)
-  if (!nefc) {
+  // no constraints AND no published contact pairs: copy unconstrained acc, clear forces,
+  // return (with the effective metric active, qacc_smooth is already the implicit answer).
+  if (!nefc && !mjd_effContactCount(d)) {
     mju_copy(d->qacc, d->qacc_smooth, nv);
     mju_zeroInt(d->solver_niter, mjNISLAND);
     TM_END(mjTIMER_CONSTRAINT);

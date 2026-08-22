@@ -4634,6 +4634,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("efm_L", &MjData::efm_L)
     .property("efm_active", &MjData::efm_active, &MjData::set_efm_active)
     .property("efm_c", &MjData::efm_c)
+    .property("efm_contact", &MjData::efm_contact, &MjData::set_efm_contact, reference())
     .property("efm_dofid", &MjData::efm_dofid)
     .property("energy", &MjData::energy)
     .property("eq_active", &MjData::eq_active)
