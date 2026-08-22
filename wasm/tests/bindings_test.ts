@@ -1640,6 +1640,11 @@ describe('MuJoCo WASM Bindings', () => {
       expect(model).toBeDefined();
       expect(model!.tex_height).toEqual(new Int32Array([512]));
       expect(model!.tex_width).toEqual(new Int32Array([512]));
+      // tex_adr is mjtSize* (int64_t); must surface as Int32Array, not
+      // BigInt64Array, so that arithmetic like tex_adr[0] * 3 works without
+      // "can't convert BigInt to number" (fixes #3496).
+      expect(model!.tex_adr).toEqual(new Int32Array([0]));
+      expect(() => model!.tex_adr[0] * 3).not.toThrow();
     } finally {
       model?.delete();
       unlinkXMLFile(texFilename);
