@@ -14,10 +14,6 @@
 
 # Build configuration for third party libraries used in MuJoCo.
 
-set(MUJOCO_DEP_VERSION_lodepng
-    17d08dd26cac4d63f43af217ebd70318bfb8189c
-    CACHE STRING "Version of `lodepng` to be fetched."
-)
 set(MUJOCO_DEP_VERSION_tinyxml2
     e6caeae85799003f4ca74ff26ee16a789bc2af48
     CACHE STRING "Version of `tinyxml2` to be fetched."
@@ -62,7 +58,6 @@ set(MUJOCO_DEP_VERSION_benchmark
     CACHE STRING "Version of `benchmark` to be fetched."
 )
 
-mark_as_advanced(MUJOCO_DEP_VERSION_lodepng)
 mark_as_advanced(MUJOCO_DEP_VERSION_MarchingCubeCpp)
 mark_as_advanced(MUJOCO_DEP_VERSION_tinyxml2)
 mark_as_advanced(MUJOCO_DEP_VERSION_tinyobjloader)
@@ -88,29 +83,7 @@ set(BUILD_SHARED_LIBS
     CACHE INTERNAL "Build SHARED libraries"
 )
 
-if(NOT TARGET lodepng)
-  FetchContent_Declare(
-    lodepng
-    GIT_REPOSITORY https://github.com/lvandeve/lodepng.git
-    GIT_TAG ${MUJOCO_DEP_VERSION_lodepng}
-  )
-
-  FetchContent_GetProperties(lodepng)
-  if(NOT lodepng_POPULATED)
-    FetchContent_Populate(lodepng)
-    # This is not a CMake project.
-    set(LODEPNG_SRCS ${lodepng_SOURCE_DIR}/lodepng.cpp)
-    set(LODEPNG_HEADERS ${lodepng_SOURCE_DIR}/lodepng.h)
-    add_library(lodepng STATIC ${LODEPNG_HEADERS} ${LODEPNG_SRCS})
-    target_compile_options(lodepng PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
-    target_link_options(lodepng PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
-    if(NOT EMSCRIPTEN)
-      target_include_directories(lodepng PUBLIC ${lodepng_SOURCE_DIR})
-    else()
-      target_include_directories(lodepng PUBLIC  $<BUILD_INTERFACE:${lodepng_SOURCE_DIR}> $<INSTALL_INTERFACE:include>)
-    endif()
-  endif()
-endif()
+include(third_party_deps/lodepng)
 
 if(NOT TARGET marchingcubecpp)
   FetchContent_Declare(
