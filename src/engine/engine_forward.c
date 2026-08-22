@@ -257,16 +257,12 @@ static mjtNum dcmotorVoltage(const mjtNum* u, int spec, mjtNum length, mjtNum ve
     mjtNum R = gainprm[0];
     mjtNum K = gainprm[1];
     voltage = R/K * torque + K*velocity;
-
-    // driver supply limit
-    mjtNum Vmax = gainprm[7];
-    if (Vmax > 0) voltage = mju_clip(voltage, -Vmax, Vmax);
   }
 
-  // raw terminal voltage input
+  // add raw terminal voltage input
   voltage += u4[3];
 
-  // driver supply limit on total terminal voltage
+  // driver supply limit: clamp total terminal voltage to [-Vmax, Vmax]
   mjtNum Vmax = gainprm[7];
   if (Vmax > 0) voltage = mju_clip(voltage, -Vmax, Vmax);
 
