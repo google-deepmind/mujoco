@@ -1640,6 +1640,7 @@ describe('MuJoCo WASM Bindings', () => {
       expect(model).toBeDefined();
       expect(model!.tex_height).toEqual(new Int32Array([512]));
       expect(model!.tex_width).toEqual(new Int32Array([512]));
+      expect(model!.tex_adr).toEqual(new Int32Array([0]));
     } finally {
       model?.delete();
       unlinkXMLFile(texFilename);
