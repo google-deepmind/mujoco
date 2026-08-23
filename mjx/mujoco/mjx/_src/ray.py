@@ -239,7 +239,7 @@ def ray(
     flg_static: bool = True,
     bodyexclude: Sequence[int] | int = -1,
 ) -> Tuple[jax.Array, jax.Array]:
-  """Returns the geom id and distance at which a ray intersects with a geom.
+  """Returns the distance and geom id at which a ray intersects with a geom.
 
   Args:
     m: MJX model
@@ -289,7 +289,7 @@ def ray(
     dists, ids = dists + [dist], ids + [id_]
 
   if not ids:
-    return jp.array(-1), jp.array(-1.0)
+    return jp.array(-1.0), jp.array(-1)
 
   dists = jp.concatenate(dists)
   ids = jp.concatenate(ids)

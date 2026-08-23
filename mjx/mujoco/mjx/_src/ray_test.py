@@ -48,6 +48,36 @@ class RayTest(parameterized.TestCase):
     _assert_eq(geomid, -1, 'geom_id')
     _assert_eq(dist, -1, 'dist')
 
+  def test_ray_no_geom_return_contract(self):
+    """ray()'s empty-filter early return keeps the (dist: float, id: int) contract."""
+    m = test_util.load_test_file('ray.xml')
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    mx, dx = mjx.put_model(m), mjx.put_data(m, d)
+
+    pnt, vec = jp.array([2, 1, 3.0]), jp.array([0.1, 0.2, -1.0])
+    vec /= jp.linalg.norm(vec)
+
+    # An all-zero geomgroup filters out every geom, so `ids` is empty and ray()
+    # takes its `if not ids:` early-return path (rather than the main path).
+    ray_fn = jax.jit(mjx.ray, static_argnums=(4,))
+    dist_empty, geomid_empty = ray_fn(mx, dx, pnt, vec, (0, 0, 0, 0, 0, 0))
+
+    # The same pnt/vec hits the plane, exercising the main return path.
+    dist_hit, geomid_hit = jax.jit(mjx.ray)(mx, dx, pnt, vec)
+
+    # Both output slots use the -1 sentinel when there is no intersection.
+    _assert_eq(dist_empty, -1, 'dist')
+    _assert_eq(geomid_empty, -1, 'geom_id')
+
+    # Contract: distance is floating and geom id is integer, and the early
+    # return must agree with the main return on dtypes. Before the fix the early
+    # return is (int dist, float id) -- order and dtype swapped -- so this fails.
+    self.assertTrue(jp.issubdtype(dist_empty.dtype, jp.floating))
+    self.assertTrue(jp.issubdtype(geomid_empty.dtype, jp.integer))
+    self.assertEqual(dist_empty.dtype, dist_hit.dtype)
+    self.assertEqual(geomid_empty.dtype, geomid_hit.dtype)
+
   def test_ray_plane(self):
     """Tests MJX ray<>plane matches MuJoCo."""
     m = test_util.load_test_file('ray.xml')
