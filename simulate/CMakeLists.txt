@@ -39,6 +39,9 @@ endif()
 
 option(SIMULATE_BUILD_EXECUTABLE "Build the simulate executable binary." ON)
 option(SIMULATE_GLFW_DYNAMIC_SYMBOLS "Whether to resolve GLFW symbols dynamically." OFF)
+set(SIMULATE_ADDITIONAL_PLUGIN_DIR "" CACHE PATH
+    "Additional directory scanned by the simulate executable for plugin libraries."
+)
 
 # Check if we are building as standalone project.
 set(SIMULATE_STANDALONE OFF)
@@ -140,6 +143,11 @@ if(SIMULATE_BUILD_EXECUTABLE)
 
   add_executable(simulate main.cc array_safety.h ${SIMULATE_RESOURCE_FILES})
   target_compile_options(simulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
+  if(SIMULATE_ADDITIONAL_PLUGIN_DIR)
+    target_compile_definitions(
+      simulate PRIVATE MUJOCO_ADDITIONAL_PLUGIN_DIR="${SIMULATE_ADDITIONAL_PLUGIN_DIR}"
+    )
+  endif()
   if(WIN32)
     add_custom_command(
       TARGET simulate
