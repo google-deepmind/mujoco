@@ -107,5 +107,19 @@ public class MjHingeJointTests {
     Assert.That(element.GetVector3Attribute("axis", Vector3.zero),
                 Is.EqualTo(MjEngineTool.MjVector3Up).Using(_comparer));
   }
+
+  [Test]
+  public void ParsingReferenceConvertsRadiansToDegrees() {
+    var previous = MjSceneImportSettings.AnglesInDegrees;
+    MjSceneImportSettings.AnglesInDegrees = false;
+    try {
+      var jointElement = (XmlElement)_doc.AppendChild(_doc.CreateElement("joint"));
+      jointElement.SetAttribute("ref", "1.57079632679");
+      _joint.ParseMjcf(jointElement);
+      Assert.That(_joint.Configuration, Is.EqualTo(90.0f).Within(1e-3f));
+    } finally {
+      MjSceneImportSettings.AnglesInDegrees = previous;
+    }
+  }
 }
 }
