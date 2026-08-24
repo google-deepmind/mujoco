@@ -1832,6 +1832,9 @@ void ParseMjcPhysicsJointAPI(mjsJoint* mj_joint,
   } else if (newton_damping_authored) {
     float damping;
     newton_damping_attr.Get(&damping);
+    if (mj_joint->type == mjJNT_HINGE || mj_joint->type == mjJNT_BALL) {
+      damping *= 180.0 / std::numbers::pi;
+    }
     mj_joint->damping[0] = damping;
   }
 
@@ -2168,6 +2171,9 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     if (newton_coef0 && newton_coef0.HasAuthoredValue()) {
       float val;
       newton_coef0.Get(&val);
+      if (prim.IsA<pxr::UsdPhysicsRevoluteJoint>()) {
+        val *= std::numbers::pi / 180.0;
+      }
       eq->data[0] = val;
     } else {
       eq_joint_api.GetCoef0Attr().Get(&eq->data[0]);
