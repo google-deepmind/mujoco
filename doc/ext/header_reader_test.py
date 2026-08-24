@@ -48,6 +48,12 @@ typedef struct mjStruct2_ {
 
 MJAPI void mj_no_doc(int a, void* b);
 
+// My array
+const char* mjTESTSTRING[mjNTEST] = {
+  "Value1",
+  "Value2"
+};
+
 //------------ MJAPI FUNCTIONS --------------
 
 void mj_stripped(int a, int b,
@@ -97,8 +103,29 @@ class MuJoCoApiGeneratorTest(parameterized.TestCase):
     self.assertEqual(_API['mj_no_doc'].start, 28)
     self.assertEqual(_API['mj_no_doc'].end, 28)
 
+  def test_array_line_numbers(self):
+    self.assertEqual(_API['mjTESTSTRING'].start, 31)
+    self.assertEqual(_API['mjTESTSTRING'].end, 34)
+
+  def test_array_code(self):
+    self.assertEqual(
+        _API['mjTESTSTRING'].code,
+        'const char* mjTESTSTRING[mjNTEST] = {\n  "Value1",\n  "Value2"\n};\n',
+    )
+
+  def test_array_doc(self):
+    self.assertEqual(_API['mjTESTSTRING'].doc, 'My array\n')
+
   def test_stripped_functions(self):
-    self.assertEqual(_API['mj_stripped'].start, 32)
+    self.assertEqual(_API['mj_stripped'].start, 38)
+
+  def test_parse_functions_false(self):
+    api_no_fn = header_reader.read(
+        [f'{line}\n' for line in _EXAMPLE.split('\n')], parse_functions=False
+    )
+    self.assertNotIn('mj_function', api_no_fn)
+    self.assertIn('mjTESTSTRING', api_no_fn)
+    self.assertIn('mjEnum', api_no_fn)
 
 
 if __name__ == '__main__':

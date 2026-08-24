@@ -1122,9 +1122,11 @@ def _polytope3(
 
   # get normals in both directions
   n = wp.cross(simplex[1] - simplex[0], simplex[2] - simplex[0])
-  if wp.norm_l2(n) < MINVAL:
+  norm = wp.norm_l2(n)
+  if norm < MINVAL:
     pt.status = 2
     return pt
+  n = n / norm
 
   pt.vert[0] = simplex1[0]
   pt.vert[1] = simplex2[0]

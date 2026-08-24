@@ -19,6 +19,19 @@ from mujoco.experimental.studio import viewer_protocol
 import numpy as np
 
 
+def send_state(
+    viewer: viewer_protocol.Viewer,
+    model: mujoco.MjModel,
+    data: mujoco.MjData,
+    state_sig: int,
+) -> None:
+  """Sends the selected components of the viewer's state to the sim thread."""
+  size = mujoco.mj_stateSize(model, state_sig)
+  state = np.empty(size, np.float64)
+  mujoco.mj_getState(model, data, state, state_sig)
+  viewer.send_to_sim(messages.StateEvent(state=state, state_sig=state_sig))
+
+
 def apply_perturb(
     viewer: viewer_protocol.Viewer,
     model: mujoco.MjModel | None,

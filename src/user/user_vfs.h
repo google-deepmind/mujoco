@@ -54,26 +54,25 @@ class VFS {
   explicit VFS(mjVFS* vfs);
   ~VFS();
 
-  VFS(const VFS&) = delete;
+  VFS(const VFS&)            = delete;
   VFS& operator=(const VFS&) = delete;
 
   // Status codes for VFS operations. Values are based on the mj_VFS APIs.
   enum Status {
-    kSuccess = 0,
-    kFailedToLoad = -1,
-    kFailedToRead = -1,
-    kNotFound = -1,
-    kRepeatedName = 2,
-    kInvalidVfs = -1,
-    kInvalidResource = -1,
+    kSuccess                 = 0,
+    kFailedToLoad            = -1,
+    kFailedToRead            = -1,
+    kNotFound                = -1,
+    kRepeatedName            = 2,
+    kInvalidVfs              = -1,
+    kInvalidResource         = -1,
     kInvalidResourceProvider = -1,
   };
 
   // Opens a mjResource for the given path, or nullptr on error. If successful,
   // will invoke the 'open' callback for the mjpResourceProvider associated with
   // the path/dir.
-  mjResource* Open(const char* dir, const char* name, char* error = nullptr,
-                   size_t nerror = 0);
+  mjResource* Open(const char* dir, const char* name, char* error = nullptr, size_t nerror = 0);
 
   // Sets `buffer` to the contents of the resource and returns the number of
   // bytes of the content. This is done by invoking the 'read' callback for the
@@ -111,13 +110,12 @@ class VFS {
   void SetToSelfDestruct(std::function<void()> destructor);
 
   // Converts the public C-API pointer to the internal C++ class.
-  static VFS* Upcast(mjVFS* vfs);
+  static VFS*       Upcast(mjVFS* vfs);
   static const VFS* Upcast(const mjVFS* vfs);
 
  private:
   using ResourcePtr = std::unique_ptr<mjResource, void (*)(mjResource*)>;
-  ResourcePtr CreateResource(std::string_view name,
-                             const mjpResourceProvider* provider);
+  ResourcePtr CreateResource(std::string_view name, const mjpResourceProvider* provider);
 
   // Returns a mounted mjResource* that matches the given path. If no explicitly
   // mounted mjResource* is found, returns a "default" mounting that uses the
@@ -129,13 +127,13 @@ class VFS {
   // that `this` will be invalidated after this call.
   void MaybeSelfDestruct();
 
-  mjVFS wrapped_vfs_;
-  std::mutex mutex_;  // Protects open_resources_ and mounts_.
+  mjVFS                                        wrapped_vfs_;
+  std::mutex                                   mutex_;  // Protects open_resources_ and mounts_.
   std::unordered_map<mjResource*, ResourcePtr> open_resources_;
   std::unordered_map<std::string, ResourcePtr> mounts_;
-  mjResource default_mount_;
-  mjpResourceProvider default_provider_;
-  std::function<void()> destructor_;
+  mjResource                                   default_mount_;
+  mjpResourceProvider                          default_provider_;
+  std::function<void()>                        destructor_;
 };
 
 }  // namespace mujoco::user

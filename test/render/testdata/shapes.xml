@@ -31,7 +31,14 @@
                        1 0 1"/>
 
   </asset>
+
+  <custom>
+    <numeric name="filament.fallback.environment_light_intensity" data="10000"/>
+  </custom>
+
   <worldbody>
+    <camera name="default" pos="-0.678 -14.872 20.335" xyaxes="1.000 -0.000 0.000 0.000 0.851 0.525"/>
+
     <geom name="ground" type="plane" size="14 8 0.1" pos="0 0 -1" material="floor"/>
 
     <geom type="box"       rgba="0.3 0.6 0.9 1.0" size="1 1 1" pos="-11 0 0"/>

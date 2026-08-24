@@ -223,11 +223,12 @@
     </xs:restriction>
   </xs:simpleType>
 
-  <xs:simpleType name="kw_dcmotorinput">
+  <xs:simpleType name="kw_inputkeyword">
+    <xs:annotation>
+      <xs:documentation>whole-attribute keyword: the empty signature</xs:documentation>
+    </xs:annotation>
     <xs:restriction base="xs:string">
-      <xs:enumeration value="voltage"/>
-      <xs:enumeration value="position"/>
-      <xs:enumeration value="velocity"/>
+      <xs:enumeration value="none"/>
     </xs:restriction>
   </xs:simpleType>
 
@@ -252,12 +253,13 @@
 
   <xs:simpleType name="kw_inputbit">
     <xs:annotation>
-      <xs:documentation>bitflags: keywords combine bitwise</xs:documentation>
+      <xs:documentation>bitflags: tokens combine bitwise, canonical order enforced</xs:documentation>
     </xs:annotation>
     <xs:restriction base="xs:string">
       <xs:enumeration value="pos"/>
       <xs:enumeration value="vel"/>
       <xs:enumeration value="ff"/>
+      <xs:enumeration value="voltage"/>
     </xs:restriction>
   </xs:simpleType>
   <xs:simpleType name="kwlist_inputbit">
@@ -1880,7 +1882,11 @@
     <xs:attribute name="controller" type="double1to6"/>
     <xs:attribute name="thermal" type="double1to6"/>
     <xs:attribute name="lugre" type="double1to5"/>
-    <xs:attribute name="input" type="kw_dcmotorinput"/>
+    <xs:attribute name="input" type="kwlist_inputbit">
+      <xs:annotation>
+        <xs:documentation>token subset, or the none keyword</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
   </xs:complexType>
 
   <xs:complexType name="extension_plugin">
@@ -3055,7 +3061,11 @@
     <xs:attribute name="controller" type="double1to6"/>
     <xs:attribute name="thermal" type="double1to6"/>
     <xs:attribute name="lugre" type="double1to5"/>
-    <xs:attribute name="input" type="kw_dcmotorinput"/>
+    <xs:attribute name="input" type="kwlist_inputbit">
+      <xs:annotation>
+        <xs:documentation>token subset, or the none keyword</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
   </xs:complexType>
 
   <xs:complexType name="actuator_plugin">

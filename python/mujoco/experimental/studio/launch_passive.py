@@ -120,7 +120,9 @@ def launch_passive(
     viewer_plugins: Optional list of viewer-side plugin instances, which are
       classes with methods decorated with ``@handler``.
     sim_plugins: Optional list of sim-side plugin instances, which are classes
-      with methods decorated with ``@handler``.
+      with methods decorated with ``@handler``. Include a stepping plugin
+      (e.g. ``step_control.StepControl()``) to advance the physics on each
+      ``sync``; without one nothing steps and the sim loop must pace itself.
 
   Returns:
     A ViewerHandle for interacting with the viewer.

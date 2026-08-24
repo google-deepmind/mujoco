@@ -587,6 +587,8 @@ mjtLogTopic
 Topic identifiers for informational messages. Used with :ref:`mju_info` for topic-based filtering.
 Topic 0 (``mjTOPIC_NONE``) always passes through the default handler's filter. Other topics must be enabled in
 the :ref:`mjLogConfig` bitmask. Since topics are 1-indexed, the bitmask for topic ``t`` is ``(1 << (t - 1))``.
+The number of filterable topics is given by ``mjNTOPIC``, which is also the length of the string array
+:ref:`mjTOPICSTRING`.
 
 .. mujoco-include:: mjtLogTopic
 
@@ -649,6 +651,7 @@ mjtLabel
 ~~~~~~~~
 
 These are the abstract visualization elements that can have text labels. Used in ``mjvOption.label``.
+The corresponding string array is :ref:`mjLABELSTRING`.
 
 .. mujoco-include:: mjtLabel
 
@@ -659,6 +662,7 @@ mjtFrame
 ~~~~~~~~
 
 These are the MuJoCo objects whose spatial frames can be rendered. Used in ``mjvOption.frame``.
+The corresponding string array is :ref:`mjFRAMESTRING`.
 
 .. mujoco-include:: mjtFrame
 
@@ -669,7 +673,7 @@ mjtVisFlag
 ~~~~~~~~~~
 
 These are indices in the array ``mjvOption.flags``, whose elements enable/disable the visualization of the
-corresponding model or decoration element.
+corresponding model or decoration element. The corresponding string array is :ref:`mjVISSTRING`.
 
 .. mujoco-include:: mjtVisFlag
 
@@ -680,6 +684,7 @@ mjtRndFlag
 ~~~~~~~~~~
 
 These are indices in the array ``mjvScene.flags``, whose elements enable/disable OpenGL rendering effects.
+The corresponding string array is :ref:`mjRNDSTRING`.
 
 .. mujoco-include:: mjtRndFlag
 

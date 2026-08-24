@@ -208,15 +208,6 @@ static void UpdateGeomMaterial(mjrfRenderable* renderable, const mjvGeom& geom,
       material.uv_scale[0] = tex_repeat[0];
       material.uv_scale[1] = tex_repeat[1];
 
-      if (geom.dataid >= 0 && geom.type != mjGEOM_PLANE) {
-        if (geom.size[0] > mjMINVAL) {
-          material.uv_scale[0] /= geom.size[0];
-        }
-        if (geom.size[1] > mjMINVAL) {
-          material.uv_scale[1] /= geom.size[1];
-        }
-      }
-
       const bool is_infinite_plane =
           geom.type == mjGEOM_PLANE && (geom.size[0] <= 0 || geom.size[1] <= 0);
       if (is_infinite_plane) {

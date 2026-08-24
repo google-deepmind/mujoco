@@ -227,42 +227,44 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
 
 // unpack servo-family inputs from control block in canonical order [pos, vel, ff]
 // absent input: setpoint 0
-static void unpackServoInputs(const mjtNum* u, int spec, mjtNum out[3]) {
+static void unpackServoInputs(const mjtNum* u, int spec, mjtNum out[4]) {
   int adr = 0;
-  out[0] = (spec & mjINPUT_POS) ? u[adr++] : 0;
-  out[1] = (spec & mjINPUT_VEL) ? u[adr++] : 0;
-  out[2] = (spec & mjINPUT_FF)  ? u[adr]   : 0;
+  out[0] = (spec & mjINPUT_POS)     ? u[adr++] : 0;
+  out[1] = (spec & mjINPUT_VEL)     ? u[adr++] : 0;
+  out[2] = (spec & mjINPUT_FF)      ? u[adr++] : 0;
+  out[3] = (spec & mjINPUT_VOLTAGE) ? u[adr]   : 0;
 }
 
 
 // helper for DC motor: computes control voltage from PID state
-static mjtNum dcmotorVoltage(mjtNum ctrl, mjtNum length, mjtNum velocity,
+static mjtNum dcmotorVoltage(const mjtNum* u, int spec, mjtNum length, mjtNum velocity,
                              mjtNum x_I, const mjtNum* gainprm) {
-  int input_mode = (int)gainprm[8];
-  mjtNum Vmax = gainprm[7];
-  mjtNum voltage;
+  mjtNum voltage = 0;
 
-  // get voltage
-  if (input_mode > 0) {
+  // unpack present inputs in canonical order [pos, vel, ff, voltage]; absent input: 0
+  mjtNum u4[4];
+  unpackServoInputs(u, spec, u4);
+
+  // on-board controller: torque-space PID + torque feedforward
+  if (spec & (mjINPUT_POS | mjINPUT_VEL | mjINPUT_FF)) {
     mjtNum kp = gainprm[4];  // proportional gain
     mjtNum ki = gainprm[5];  // integral gain
     mjtNum kd = gainprm[6];  // derivative gain
+    mjtNum torque = kp*(u4[0] - length) + kd*(u4[1] - velocity) + ki*x_I + u4[2];
 
-    if (input_mode == 1) {
-      // position mode
-      voltage = kp * (ctrl - length) + ki * x_I - kd * velocity;
-    } else {
-      // velocity mode
-      voltage = kp * (ctrl - velocity) + ki * (x_I - length);
-    }
-  } else {
-    voltage = ctrl;
+    // torque mode is current control: V = R/K * torque + K * velocity, the second
+    // term compensating back-EMF; the compiler requires K > 0 on this path
+    mjtNum R = gainprm[0];
+    mjtNum K = gainprm[1];
+    voltage = R/K * torque + K*velocity;
+
+    // driver supply limit
+    mjtNum Vmax = gainprm[7];
+    if (Vmax > 0) voltage = mju_clip(voltage, -Vmax, Vmax);
   }
 
-  // clip voltage
-  if (Vmax > 0) voltage = mju_clip(voltage, -Vmax, Vmax);
-
-  return voltage;
+  // raw terminal voltage input: downstream of the controller, unclamped
+  return voltage + u4[3];
 }
 
 
@@ -504,26 +506,17 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       // controller state: slew rate limiting
       mjtNum slew_s = dynprm[7];  // slew rate limit
       if (slew_s > 0) {
-        mjtNum u_prev = d->act[adr];
-        mjtNum slew = slew_s * m->opt.timestep;
-        mjtNum u_eff = mju_clip(ctrl[uadr], u_prev - slew, u_prev + slew);
-        d->act_dot[adr] = (u_eff - u_prev) / m->opt.timestep;
-        ctrl[uadr] = u_eff;
+        ctrl[uadr] = slewLimit(ctrl[uadr], d->act[adr], slew_s, m->opt.timestep,
+                               0, d->act_dot + adr);
         adr++;
       }
 
-      // controller state: integral state
+      // controller state: integral of the position error (setpoint mode only)
       mjtNum x_I = 0;
       if (ki > 0) {
         x_I = d->act[adr];
-        int input_mode = (int)gainprm[8];
         mjtNum Imax = dynprm[8];   // integral clamp
-        mjtNum act_dot = ctrl[uadr];  // default raw accumulator for voltage and velocity modes
-
-        // position mode
-        if (input_mode == 1) {
-          act_dot = ctrl[uadr] - d->actuator_length[oadr];
-        }
+        mjtNum act_dot = ctrl[uadr] - d->actuator_length[oadr];
 
         // clamp act_dot based on integral state
         if (Imax > 0) {
@@ -538,7 +531,8 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       }
 
       // compute physical voltage to feed into current and temperature equations
-      mjtNum V = dcmotorVoltage(ctrl[uadr], d->actuator_length[oadr], velocity, x_I, gainprm);
+      mjtNum V = dcmotorVoltage(ctrl + uadr, m->actuator_ctrlspec[i],
+                                d->actuator_length[oadr], velocity, x_I, gainprm);
 
       // temperature: dT/dt = (R*i^2 - T/RT) / C, where T = delta above ambient
       mjtNum RT = dynprm[2];  // thermal resistance
@@ -737,10 +731,14 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       // stateless: gain = K/R, force = K/R * ctrl (condition below)
       gain = (dynprm[0] > 0) ? K : K / mju_max(mjMINVAL, R);
 
-      // compute effective voltage, override ctrl[uadr] for force computation
-      mjtNum x_I = (slots.integral >= 0) ? d->act[adr + slots.integral] : 0;
-      ctrl[uadr] = dcmotorVoltage(ctrl[uadr], d->actuator_length[oadr],
-                                  d->actuator_velocity[oadr], x_I, gainprm);
+      // controller: compute voltage, override ctrl[uadr] for force computation
+      // (pure raw-voltage motor reads ctrl directly; empty block reads as 0 below)
+      if (m->actuator_ctrlspec[i] != mjINPUT_VOLTAGE && m->actuator_ctrlnum[i] > 0) {
+        mjtNum x_I = (slots.integral >= 0) ? d->act[adr + slots.integral] : 0;
+        ctrl[uadr] = dcmotorVoltage(ctrl + uadr, m->actuator_ctrlspec[i],
+                                    d->actuator_length[oadr],
+                                    d->actuator_velocity[oadr], x_I, gainprm);
+      }
       break;
     }
 
@@ -767,9 +765,9 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       const mjtNum* prm = m->actuator_biasprm + mjNBIAS*i;
 
       // unpack present inputs in canonical order [pos, vel, ff]; absent input: setpoint 0
-      mjtNum u3[3];
-      unpackServoInputs(ctrl + uadr, m->actuator_ctrlspec[i], u3);
-      mjtNum qref = u3[0], vref = u3[1], ff = u3[2];
+      mjtNum u4[4];
+      unpackServoInputs(ctrl + uadr, m->actuator_ctrlspec[i], u4);
+      mjtNum qref = u4[0], vref = u4[1], ff = u4[2];
 
       // position setpoint: representative nearest the length on rotational transmissions
       mjtNum period = wrapPeriod(m, i);
@@ -790,7 +788,8 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       }
     }
     else if (actnum == 0 || dcmotor_no_current) {
-      mjtNum input = ctrl[uadr];
+      // empty input block (passive dcmotor): input is 0
+      mjtNum input = m->actuator_ctrlnum[i] ? ctrl[uadr] : 0;
 
       // rotational setpoint: use representative nearest the length (local, no state change)
       mjtNum period = wrapPeriod(m, i);

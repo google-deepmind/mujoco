@@ -110,6 +110,54 @@ class StateSnapshot(Snapshot):
 
 
 @dataclasses.dataclass(frozen=True)
+class StateEvent(Event):
+  """A reliable event that transports a MuJoCo state.
+
+  The receiver applies the state with mj_setState using state_sig. Unlike
+  StateSnapshot, events are never dropped and different state edits do not
+  overwrite each other, so this is the right carrier for state edits such as GUI
+  joint/control slider changes and perturbation forces.
+  """
+
+  state: np.ndarray
+  state_sig: int
+
+
+@dataclasses.dataclass(frozen=True)
+class PerturbEvent(StateEvent):
+  """Carries perturbation forces from the viewer to the simulation.
+
+  A StateEvent subclass: generic StateEvent handlers receive it via MRO
+  dispatch, while perturbation-specific handlers can subscribe to this type
+  directly.
+  """
+
+
+@dataclasses.dataclass(frozen=True)
+class StepEvent(Event):
+  """Lifecycle event dispatched by every ViewerHandle.sync on the sim side.
+
+  Handlers for this event advance the simulation, e.g. the default StepControl
+  plugin steps CPU physics with real-time pacing; a custom plugin can step
+  differently (e.g. on the GPU). Dispatched locally to sim-side plugins after
+  incoming viewer messages are processed and before the state broadcast; never
+  crosses a channel.
+
+  Attributes:
+    model: The sim-side model to step.
+    data: The sim-side data to step.
+  """
+
+  model: mujoco.MjModel
+  data: mujoco.MjData
+
+
+@dataclasses.dataclass(frozen=True)
+class SingleStepEvent(Event):
+  """Sent from viewer to sim when the user requests a single simulation step."""
+
+
+@dataclasses.dataclass(frozen=True)
 class ResetEvent(Event):
   """An event requesting to reset the simulation."""
 
@@ -142,14 +190,6 @@ class MjOptionSnapshot(Snapshot):
   """A snapshot sending mjOption state from viewer to sim each frame."""
 
   opt: mujoco.MjOption
-
-
-@dataclasses.dataclass(frozen=True)
-class PerturbEvent(Event):
-  """Carries perturbation forces from the viewer to the simulation."""
-
-  state: np.ndarray
-  state_sig: int
 
 
 @dataclasses.dataclass(frozen=True)
@@ -201,7 +241,7 @@ def handler(
   """Decorator to mark a class method as a message handler.
 
   The class method must accept exactly two arguments: self and a message event.
-  e.g., ``@handler`` or ``@handler(priority=...)``.
+  e.g., @handler or @handler(priority=...).
 
   Args:
     fn: The method to stamp with handler metadata.

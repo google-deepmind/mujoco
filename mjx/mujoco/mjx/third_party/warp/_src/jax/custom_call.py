@@ -10,8 +10,6 @@ from mujoco.mjx.third_party.warp._src.jax import get_jax_device
 from warp._src.logger import log_warning
 from warp._src.types import array_t, matches_array_class, strides_from_shape
 
-_wp_module_name_ = "warp.jax.custom_call"
-
 _jax_warp_p = None
 
 # Holder for the custom callback to keep it alive.

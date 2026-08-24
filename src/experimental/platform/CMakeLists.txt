@@ -65,6 +65,7 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         ux/plugin.h
         ux/spec_editor.cc
         ux/spec_editor.h
+        ux/well_tempered.h
 )
 
 if(NOT WIN32)

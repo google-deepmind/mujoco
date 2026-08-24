@@ -101,6 +101,7 @@ class StudioApp:
     self.model_path = model_path
     self.step_control = sim.StepControl()
     self.ux_state = ux.UxState()
+    self._setup_history()
     self.status = f'Loaded: {os.path.basename(model_path)!r}'
 
     return model, data
@@ -117,6 +118,8 @@ class StudioApp:
 
     self.step_control = sim.StepControl()
     self.ux_state = ux.UxState()
+    self.sim_history = sim.SimHistory()
+    self._setup_history()
     self.theme = ux.GuiTheme.LIGHT
     self.show_info = False
     self.show_solver = False
@@ -209,6 +212,27 @@ class StudioApp:
     """Reset the physics."""
     mujoco.mj_resetData(self.model, self.data)
     mujoco.mj_forward(self.model, self.data)
+    self._setup_history()
+
+  def _setup_history(self) -> None:
+    """(Re)initialize simulation history recording for the current model."""
+    ux.setup_history(
+        self.step_control, self.sim_history, self.ux_state, self.model,
+        self.data,
+    )
+
+  def reload_model(self) -> None:
+    """Reload the current model from its file."""
+    if self.model_path:
+      self.load_model_from_file(self.model_path)
+
+  def align_camera(self, camera: mujoco.MjvCamera) -> None:
+    """Recenter the camera on the model's home camera, else the free camera."""
+    cam_id = self.model.vis.global_.cameraid
+    if 0 <= cam_id < self.model.ncam:
+      self.ux_state.camera_index = ux.set_camera(self.model, camera, cam_id)
+    else:
+      mujoco.mjv_defaultFreeCamera(self.model, camera)
 
   def apply_perturb(self, perturb: mujoco.MjvPerturb) -> None:
     """Apply perturbation the model."""
@@ -236,6 +260,10 @@ class StudioApp:
         called instead of ``step_control.advance``.  The function receives
         ``(model, data)`` and should step the simulation in-place.
     """
+    if self.ux_state.update_threadpool:
+      mujoco.mju_threadpool(self.data, self.ux_state.nthread)
+      self.ux_state.update_threadpool = False
+
     self.apply_perturb(perturb)
 
     if step_fn is not None:
@@ -389,6 +417,17 @@ class StudioApp:
     )
 
     imgui.Begin('Options')
+    # The Simulation panel draws its own collapsible section header.
+    ux.simulation_gui(
+        self.model,
+        self.data,
+        self.step_control,
+        self.sim_history,
+        self.ux_state,
+        self.reset_physics,
+        self.reload_model,
+        lambda: self.align_camera(camera),
+    )
     if imgui.TreeNodeEx('Physics Settings', node_flags):
       ux.physics_gui(self.model)
       imgui.TreePop()

@@ -257,7 +257,8 @@ mjCOLLISIONFUNC
 Table of pairwise collision functions indexed by geom types. Only the upper-right triangle is used. The user can replace
 these function pointers with custom routines, replacing MuJoCo's collision mechanism. If a given entry is NULL, the
 corresponding pair of geom types cannot be collided. Note that these functions apply only to near-phase collisions. The
-broadphase mechanism is built-in and cannot be modified.
+broadphase mechanism is built-in and cannot be modified. See the :ref:`Pair-wise colliders <coPairwise>` table for details
+on the built-in collision functions for each pair of geom types.
 
 .. code-block:: C
 
@@ -281,9 +282,7 @@ mjDISABLESTRING
 
 Names of the disable bits defined by :ref:`mjtDisableBit`.
 
-.. code-block:: C
-
-   extern const char* mjDISABLESTRING[mjNDISABLE];
+.. mujoco-include:: mjDISABLESTRING
 
 
 .. _mjENABLESTRING:
@@ -293,9 +292,7 @@ mjENABLESTRING
 
 Names of the enable bits defined by :ref:`mjtEnableBit`.
 
-.. code-block:: C
-
-   extern const char* mjENABLESTRING[mjNENABLE];
+.. mujoco-include:: mjENABLESTRING
 
 
 .. _mjTIMERSTRING:
@@ -305,9 +302,17 @@ mjTIMERSTRING
 
 Names of the mjData timers defined by :ref:`mjtTimer`.
 
-.. code-block:: C
+.. mujoco-include:: mjTIMERSTRING
 
-   extern const char* mjTIMERSTRING[mjNTIMER];
+
+.. _mjTOPICSTRING:
+
+mjTOPICSTRING
+~~~~~~~~~~~~~
+
+Names of the diagnostic log topics defined by :ref:`mjtLogTopic`.
+
+.. mujoco-include:: mjTOPICSTRING
 
 
 .. _mjLABELSTRING:
@@ -317,9 +322,7 @@ mjLABELSTRING
 
 Names of the visual labeling modes defined by :ref:`mjtLabel`.
 
-.. code-block:: C
-
-   extern const char* mjLABELSTRING[mjNLABEL];
+.. mujoco-include:: mjLABELSTRING
 
 
 .. _mjFRAMESTRING:
@@ -329,9 +332,7 @@ mjFRAMESTRING
 
 Names of the frame visualization modes defined by :ref:`mjtFrame`.
 
-.. code-block:: C
-
-   extern const char* mjFRAMESTRING[mjNFRAME];
+.. mujoco-include:: mjFRAMESTRING
 
 
 .. _mjVISSTRING:
@@ -340,19 +341,15 @@ mjVISSTRING
 ~~~~~~~~~~~
 
 Descriptions of the abstract visualization flags defined by :ref:`mjtVisFlag`. For each flag there are three strings,
-
 with the following meaning:
 
 [0]: flag name;
 
-[1]: the string "0" or "1" indicating if the flag is on or off by default, as set by
-:ref:`mjv_defaultOption`;
+[1]: the string "0" or "1" indicating if the flag is on or off by default, as set by :ref:`mjv_defaultOption`;
 
-[2]: one-character string with a suggested keyboard shortcut, used in :ref:`simulate.cc <saSimulate>`.
+[2]: one-character string with a suggested keyboard shortcut, used in interactive viewers.
 
-.. code-block:: C
-
-   extern const char* mjVISSTRING[mjNVISFLAG][3];
+.. mujoco-include:: mjVISSTRING
 
 
 .. _mjRNDSTRING:
@@ -363,9 +360,7 @@ mjRNDSTRING
 Descriptions of the OpenGL rendering flags defined by :ref:`mjtRndFlag`. The three strings for each flag have the same
 format as above, except the defaults here are set by :ref:`mjv_makeScene`.
 
-.. code-block:: C
-
-   extern const char* mjRNDSTRING[mjNRNDFLAG][3];
+.. mujoco-include:: mjRNDSTRING
 
 
 
@@ -395,7 +390,7 @@ Defined in `mujoco.h <https://github.com/google-deepmind/mujoco/blob/main/includ
      - value
      - description
    * - ``mjVERSION_HEADER``
-     - 3011001
+     - 3012001
      - The version of the MuJoCo headers. This is an integer calculated from the version string "S.M.P"
        using the formula ``(S * 1e6) + (M * 1e3) + P``. For example, version 4.2.1 is represented as 4002001.
        The API function :ref:`mj_version` returns a number with the same meaning

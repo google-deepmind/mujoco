@@ -11314,7 +11314,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  nullable=True,
              ),
              FunctionParameterDecl(
-                 name='input_mode',
+                 name='ctrlspec',
                  type=ValueType(name='int'),
              ),
          ),

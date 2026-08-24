@@ -18,6 +18,8 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <string>
@@ -975,6 +977,22 @@ TEST_F(MjCMeshTest, ExactConvexInertia) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjCMeshTest, UnreferencedConvexInertiaMesh) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="orphan" inertia="convex"
+            vertex="0 0 1   1 0 0   0 1 0   -1 0 0   0 -1 0"
+            face="0 1 2   0 2 3   0 3 4   0 4 1   1 4 3   1 3 2"/>
+    </asset>
+    <worldbody/>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), NotNull()) << error.data();
+}
+
 TEST_F(MjCMeshTest, ExactShellInertia) {
   const std::string xml_path = GetTestDataFilePath(kShellInertiaPath);
   std::array<char, 1024> error;
@@ -1466,6 +1484,110 @@ TEST_F(MjCMeshTest, LoadSkin) {
   EXPECT_THAT(m2, NotNull());
   mj_deleteModel(m2);
   mj_deleteSpec(spec);
+}
+
+TEST_F(MjCMeshTest, LoadSKNMalformed) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <skin name="skin" file="test.skn"/>
+    </asset>
+    <worldbody>
+      <body name="body">
+        <geom type="box" size="1 1 1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // Test 1: Integer overflow in ntexcoord (b/511889379)
+  {
+    uint32_t evil_skn[7] = {1, 0x20000000, 0, 0, 0, 0, 0};
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    mj_addBufferVFS(&vfs, "test.skn", evil_skn, sizeof(evil_skn));
+
+    std::array<char, 1024> error;
+    MjModelPtr model =
+        LoadModelFromString(xml, error.data(), error.size(), &vfs);
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(error.data(),
+                HasSubstr("too large sizes in SKN file 'test.skn'"));
+    mj_deleteVFS(&vfs);
+  }
+
+  // Test 2: Integer overflow in nvert
+  {
+    uint32_t evil_skn[4] = {0x20000000, 0, 0, 0};
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    mj_addBufferVFS(&vfs, "test.skn", evil_skn, sizeof(evil_skn));
+
+    std::array<char, 1024> error;
+    MjModelPtr model =
+        LoadModelFromString(xml, error.data(), error.size(), &vfs);
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(error.data(),
+                HasSubstr("too large sizes in SKN file 'test.skn'"));
+    mj_deleteVFS(&vfs);
+  }
+
+  // Test 3: Insufficient data in buffer
+  {
+    uint32_t evil_skn[7] = {10, 0, 0, 0, 0, 0, 0};
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    mj_addBufferVFS(&vfs, "test.skn", evil_skn, sizeof(evil_skn));
+
+    std::array<char, 1024> error;
+    MjModelPtr model =
+        LoadModelFromString(xml, error.data(), error.size(), &vfs);
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(error.data(),
+                HasSubstr("insufficient data in SKN file 'test.skn'"));
+    mj_deleteVFS(&vfs);
+  }
+
+  // Test 4: Negative size in header
+  {
+    int evil_skn[4] = {-1, 0, 0, 0};
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    mj_addBufferVFS(&vfs, "test.skn", evil_skn, sizeof(evil_skn));
+
+    std::array<char, 1024> error;
+    MjModelPtr model =
+        LoadModelFromString(xml, error.data(), error.size(), &vfs);
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(error.data(),
+                HasSubstr("negative size in header of SKN file 'test.skn'"));
+    mj_deleteVFS(&vfs);
+  }
+
+  // Test 5: Integer overflow in bone vertex count (vcount)
+  {
+    // Header: nvert=0, ntexcoord=0, nface=0, nbone=1 (16 bytes)
+    // Bone: name[40] (40B), bindpos[3] (12B), bindquat[4] (16B), vcount=0x40000000 (4B)
+    // Total size = 16 + 72 = 88 bytes
+    std::vector<uint8_t> evil_skn(88, 0);
+    uint32_t header[4] = {0, 0, 0, 1};
+    std::memcpy(evil_skn.data(), header, sizeof(header));
+    uint32_t vcount = 0x40000000;
+    std::memcpy(evil_skn.data() + 16 + 40 + 12 + 16, &vcount, sizeof(vcount));
+
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    mj_addBufferVFS(&vfs, "test.skn", evil_skn.data(), evil_skn.size());
+
+    std::array<char, 1024> error;
+    MjModelPtr model =
+        LoadModelFromString(xml, error.data(), error.size(), &vfs);
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(
+        error.data(),
+        HasSubstr("insufficient vertex data in SKN file 'test.skn', bone 0"));
+    mj_deleteVFS(&vfs);
+  }
 }
 
 // ------------- test octree ---------------------------------------------------

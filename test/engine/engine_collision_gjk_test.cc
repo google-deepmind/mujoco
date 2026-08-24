@@ -881,10 +881,10 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD6) {
   mjtNum dist;
   int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 1000);
 
-  ASSERT_EQ(ncons, 5);
+  ASSERT_EQ(ncons, 2);
   EXPECT_THAT(dist, MjNear(-0.00009843, kTolerance, 1e-4));
 
-  EXPECT_THAT(dir[0], MjNear(-0.0008879, kTolerance, 1e-4));
+  EXPECT_THAT(dir[0], MjNear(-0.0008879, kTolerance, 2e-4));
   EXPECT_THAT(dir[1], MjNear(-0.0004601, kTolerance, 1e-3));
   EXPECT_NEAR(dir[2], 0.9999994, kTolerance);
 }
@@ -945,7 +945,7 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD7) {
   mjtNum dist;
   int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 1000);
 
-  ASSERT_EQ(ncons, 8);
+  ASSERT_EQ(ncons, 5);
 }
 
 TEST_F(MjGjkTest, BoxBoxMultiCCD8) {
@@ -1336,7 +1336,7 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD14) {
   std::vector<mjtNum> dir, pos;
   mjtNum dist;
   int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 8);
-  ASSERT_EQ(ncons, 4);
+  ASSERT_EQ(ncons, 2);
 }
 
 TEST_F(MjGjkTest, BoxBoxMultiCCD15) {
@@ -1817,7 +1817,7 @@ TEST_F(MjGjkTest, MeshEdge2) {
   mjtNum dist;
   int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 4);
 
-  ASSERT_EQ(ncons, 2);
+  ASSERT_EQ(ncons, 4);
 }
 
 TEST_F(MjGjkTest, EllipsoidEllipsoidPenetrating) {

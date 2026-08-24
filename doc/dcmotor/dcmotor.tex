@@ -543,6 +543,7 @@ where $t_T = R_T C$ is the thermal time constant. This produces exponential rise
 
 \begin{figure}[ht]
 \centering
+\resizebox{\columnwidth}{!}{%
 \begin{tikzpicture}
 \pgfmathsetmacro{\Tss}{1.0}
 \pgfmathsetmacro{\ttau}{1.0}
@@ -568,7 +569,7 @@ where $t_T = R_T C$ is the thermal time constant. This produces exponential rise
 \node[font=\scriptsize, anchor=south] at (axis cs:\xmax*0.5, \Tss)
   {$T_{ss} = T_a + R_T P$};
 \end{axis}
-\end{tikzpicture}
+\end{tikzpicture}}%
 \caption{Temperature rise under constant power dissipation $P$.
   At $t = t_T$, it reaches $(1-1/e) \approx 63\%$ of its steady-state value.}
 \label{fig:thermal_response}
@@ -810,7 +811,7 @@ Attribute & Size & Description \\
 \texttt{damping}    & 3 & Viscous damping coefficients \\
 \texttt{armature}   & 1 & Armature inertia \\
 \midrule
-\texttt{input}      & keyword & Mode (voltage/position/velocity) \\
+\texttt{input}      & string & Input block: subset of \texttt{pos vel ff voltage}, or \texttt{none} \\
 \texttt{controller} & 6 & Gains, slew, and voltage saturation ($k_p, k_i, k_d, s, I_{\max}, v_{\max}$) \\
 \bottomrule
 \end{tabular}
@@ -1066,25 +1067,26 @@ Many actuators embed an on-board controller computing drive voltage from positio
 
 \begin{table}[H]
 \centering
-\small
-\begin{tabular}{@{}lll@{}}
+\footnotesize
+\begin{tabular}{@{}llp{4.2cm}@{}}
 \toprule
 Attribute & Type & Description \\
 \midrule
-\texttt{input} & keyword & \texttt{voltage}, \texttt{position}, \texttt{velocity} \\
-\texttt{controller} & vector & Gains (mode-dependent) \\
+\texttt{input} & string & subset of \texttt{pos vel ff voltage}, in canonical order; \texttt{none} (passive) \\
+\texttt{controller} & vector & Gains, slew, and voltage saturation ($k_p, k_i, k_d, s, I_{\max}, v_{\max}$) \\
 \bottomrule
 \end{tabular}
 \caption{Controller attributes. Default \texttt{input} is \texttt{voltage}.}
 \label{tab:controller_attributes}
 \end{table}
 
-\noindent Unlike the motor parameters in Table~\ref{tab:datasheet}, controller gains are user-specified firmware settings with units that vary by manufacturer. MuJoCo uses direct {\em voltage-space} units (e.g., $k_p$ in V/rad). Torque-space (N$\cdot$m/rad) gains can be converted by multiplying by $R/K$, though empirical calibration is often necessary due to unknown internal units on real hardware.
+\noindent Unlike the motor parameters in Table~\ref{tab:datasheet}, controller gains are user-specified firmware settings. MuJoCo uses {\em torque-space} units (e.g., $k_p$ in N$\cdot$m/rad), matching the \texttt{pid} actuator. Voltage-space datasheet gains (V/rad) convert by multiplying by $K/R$, though empirical calibration is often necessary due to unknown internal units on real hardware.
 
 The controller computes a target voltage $v$ from the \texttt{ctrl} command. All motor physics --- cogging, saturation, friction, etc. --- apply identically downstream of $v$. The \texttt{input} attribute selects the controller:
 
 \begin{figure}[H]
 \centering
+\resizebox{\columnwidth}{!}{%
 \begin{tikzpicture}[
   block/.style={draw, rounded corners=2pt, minimum height=1.6em,
                 font=\scriptsize, fill=blue!5},
@@ -1093,20 +1095,20 @@ The controller computes a target voltage $v$ from the \texttt{ctrl} command. All
   every node/.style={inner sep=2pt},
 ]
 % ctrl input
-\node[font=\small] (ctrl) at (0, 3.5) {Input $u = {}$\texttt{ctrl}};
+\node[font=\small] (ctrl) at (0, 3.8) {\texttt{ctrl} $=$ Input block $(\theta^*, \dot\theta^*, \tau_{f\!f}, v_{\text{raw}})$ \; (present members only)};
 
-% Mode selector box
-\node[block, minimum width=5.5cm, minimum height=6.5em, align=center]
+% Controller box
+\node[block, minimum width=7.2cm, minimum height=6.5em, align=center]
   (sel) at (0, 1.8) {};
 \node[font=\footnotesize\bfseries, anchor=north] at (0, 2.7)
-  {Controller mode};
+  {Controller};
 \node[mode] at (0, 1.45) {$\begin{aligned}
-  \texttt{voltage:}\quad v &= u \\[2pt]
-  \texttt{position:}\quad v &= k_p(u\!-\!\theta) + k_i x_I - k_d\dot\theta \\[2pt]
-  \texttt{velocity:}\quad v &= k_p(u\!-\!\dot\theta) + k_i(x_I\!-\!\theta)
+  \tau &= k_p(\theta^*\!-\!\theta) + k_d(\dot\theta^*\!-\!\dot\theta) + k_i x_I + \tau_{f\!f} \\[2pt]
+  v &= \text{clip}(\tfrac{R}{K}\tau + K\dot\theta,\, \pm v_{\max}) + v_{\text{raw}} \\[2pt]
+  &\phantom{=}\ \text{absent inputs are zero;}\quad \text{\texttt{input=\textquotedbl none\textquotedbl:}}\ v = 0
 \end{aligned}$};
 
-% arrow ctrl to mode
+% arrow ctrl to controller
 \draw[arr] (ctrl.south) -- (sel.north);
 
 % Motor block
@@ -1121,101 +1123,52 @@ The controller computes a target voltage $v$ from the \texttt{ctrl} command. All
 \node[font=\small] (tau) at (0, -1.8) {Torque $\tau$};
 \draw[arr] (motor.south) -- (tau.north);
 
-\end{tikzpicture}
-\caption{Controller pipeline. The \texttt{input} attribute selects how $v$ is derived from \texttt{ctrl}; motor physics is identical downstream.}
+\end{tikzpicture}}%
+\caption{Controller pipeline. The \texttt{input} attribute selects which members of the control block are present; motor physics is identical downstream.}
 \label{fig:controller_pipeline}
 \end{figure}
 
-%  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-\subsubsection{Position Mode}
-\label{sec:position_mode}
+\subsubsection{Setpoint Mode}
+\label{sec:setpoint_mode}
 
-When \texttt{input="position"}, the user command $u = {}$\texttt{ctrl} is a target position, yielding voltage:
-\begin{equation}
-  v = k_p \, (u - \theta) + k_i \, x_I - k_d \, \dot\theta
-  \label{eq:position_mode}
-\end{equation}
-where $\theta$ is the actuator length, $\dot\theta \equiv \omega$ is the actuator velocity, $x_I$ is the integral of position error, and $k_p$, $k_i$, $k_d$ are the proportional, integral, and derivative gains.
+When \texttt{input="pos vel ff"} (or subset thereof), the actuator owns a
+block of controls $u = (\theta^*, \dot\theta^*, \tau_{f\!f})$: a position setpoint, a velocity
+setpoint and a torque feedforward. Any subset may be selected, and the \texttt{dcmotor}'s \texttt{actuator\_ctrlnum} is variable.
+An absent input corresponds to a setpoint frozen at
+zero. The controller commands a torque and converts it to drive voltage:
+\begin{align}
+  \tau &= k_p \, (\theta^* - \theta) + k_d \, (\dot\theta^* - \dot\theta)
+      + k_i \, x_I \; + \, \tau_{f\!f}
+  \label{eq:setpoint_mode} \\
+  v &= \frac{R}{K} \, \tau + K \dot\theta
+  \label{eq:torque_to_voltage}
+\end{align}
+where the second term of \eqref{eq:torque_to_voltage} compensates back-EMF, as the
+current loop of a real torque-mode driver does: commanded torque is delivered {\em
+exactly} until a limit binds, and the torque-speed envelope emerges from voltage
+saturation (\S\ref{sec:voltage_saturation}). The map uses the nameplate $R$; thermal
+resistance growth (\S\ref{sec:resistance_temperature}) is not compensated. The
+integrator state accumulates the position error, $\dot x_I = \theta^* - \theta$,
+subject to anti-windup (\S\ref{sec:anti_windup}). When $k_i = 0$, no integral state
+is added and the controller reduces to PD; when $k_p = k_i = 0$, it is a pure
+velocity servo. The back-EMF compensation also cancels the motor's $-K^2/R$ damping
+bias, so the net physical damping delivered by an unclipped torque-mode motor is
+$-k_d$, matching \texttt{pid}. The separate \texttt{voltage} input is the raw
+terminal voltage, added downstream of the controller and its saturation.
 
-\noindent The signs in~\eqref{eq:position_mode} follow MuJoCo convention: $k_p > 0$ drives toward the target, $k_d > 0$ provides damping (opposing velocity), and $k_i > 0$ reduces steady-state error.
+\subsubsection{Passive Operation}
+\label{sec:passive}
 
-\paragraph{Integral state.} When $k_i > 0$, one additional activation state $x_I$ is allocated, governed by:
-\begin{equation*}
-  \dot{x}_I = u - \theta
-  \label{eq:position_integral}
-\end{equation*}
-When $k_i = 0$, no integral state is added and the controller reduces to PD.
-
-\paragraph{Effective torque.} Substituting~\eqref{eq:position_mode} into the stateless torque equation~\eqref{eq:torque_speed}:
-\begin{equation*}
-  \tau = \frac{K}{R} v - \frac{K^2}{R}\dot\theta
-    = \underbrace{\frac{K k_p}{R}}_{\text{stiffness}} (u - \theta)
-    + \frac{K k_i}{R} x_I
-    - \underbrace{\frac{K(K + k_d)}{R}}_{\text{damping}} \dot\theta
-  \label{eq:position_torque}
-\end{equation*}
-Note that the motor's back-EMF term $K^2\dot\theta/R$ contributes {\em additional damping} beyond the controller $k_d$ term. Even with $k_d\!=\!0$, the motor provides natural damping $K^2/R$. The computed $v$ is subject to voltage saturation (\S\ref{sec:voltage_saturation}).
-
-\begin{table}[H]
-\centering
-\small
-\begin{tabular}{@{}lll@{}}
-\toprule
-Attribute & Symbol & Units \\
-\midrule
-\atKP{} & $k_p$ & V/rad \\
-\atKI{} & $k_i$ & V/(rad$\cdot$s) \\
-\atKD{} & $k_d$ & V$\cdot$s/rad \\
-\bottomrule
-\end{tabular}
-\caption{Position mode controller gains.}
-\label{tab:position_params}
-\end{table}
-
-%  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-\subsubsection{Velocity Mode}
-\label{sec:velocity_mode}
-
-When \texttt{input="velocity"}, the user command $u = {}$\texttt{ctrl} is a target velocity, and $k_p$, $k_i$ are the proportional and integral gains.
-\begin{equation}
-  v = k_p \, (u - \dot\theta) + k_i \, (x_I - \theta)
-  \label{eq:velocity_mode}
-\end{equation}
-
-\paragraph{Integral state.} When $k_i > 0$, one additional activation state $x_I$ is allocated, governed by the integrator:
-\begin{equation*}
-  \dot{x}_I = u
-  \label{eq:velocity_integral}
-\end{equation*}
-The term $k_i(x_I - \theta)$ then tracks a target position $x_I$ advancing at the commanded velocity $u$. This matches MuJoCo's \texttt{intvelocity} actuator behavior.
-
-When $k_i = 0$, no integral state is added and the controller provides pure velocity feedback. The computed $v$ is subject to voltage saturation (\S\ref{sec:voltage_saturation}).
-
-\paragraph{Effective torque.} Substituting~\eqref{eq:velocity_mode} into~\eqref{eq:torque_speed}:
-\begin{equation*}
-  \tau = \underbrace{\frac{K k_i}{R}}_{\text{stiffness}} (x_I - \theta)
-    - \underbrace{\frac{K(K + k_p)}{R}}_{\text{damping}} \dot\theta
-    + \frac{K k_p}{R} u
-  \label{eq:velocity_torque}
-\end{equation*}
-Note the role swap compared to position mode: $k_i$ provides stiffness (position tracking to $x_I$) while $k_p$ adds damping alongside the motor's natural back-EMF damping $K^2/R$.
-
-\begin{table}[H]
-\centering
-\small
-\begin{tabular}{@{}lll@{}}
-\toprule
-Attribute & Symbol & Units \\
-\midrule
-\atKP{} & $k_p$ & V$\cdot$s/rad \\
-\atKI{} & $k_i$ & V/rad \\
-\bottomrule
-\end{tabular}
-\caption{Velocity mode controller gains.}
-\label{tab:velocity_params}
-\end{table}
-
-\pagebreak
+\texttt{input="none"} selects the {\em empty} input block: the actuator owns no
+controls at all and acts as a purely passive device. The terminal voltage is
+identically zero, so the motor operates with shorted terminals: back-EMF drives
+current through $R$ and brakes the joint (dynamic braking), while cogging
+\eqref{eq:cogging} and LuGre friction (\S\ref{sec:lugre}) act as passive joint
+forces. Setting \texttt{motorconst} to zero decouples the electrical branch,
+leaving pure friction and cogging. This exists because MuJoCo associates auxiliary
+dynamic states (such as the LuGre bristle) with actuators, not joints: a passive
+\texttt{dcmotor} is the idiomatic way to attach these passive phenomena to a joint.
+Controller gains, slew rate limiting and integral gain require a controller input and are rejected.
 
 %  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 \subsubsection{Setpoint Slew Rate}
@@ -1229,7 +1182,7 @@ where $u_{\text{prev}}$ is the previous effective setpoint and $\Delta t$ is the
 
 \paragraph{State variable.} When $s > 0$, one activation state $u_{\text{prev}}$ is allocated, and updated each step to $u$ (post-clamping).
 
-\paragraph{Units.} The slew rate $s$ has mode-dependent units: rad/s for position mode (limiting setpoint velocity), rad/s\textsuperscript{2} for velocity mode (limiting setpoint acceleration), and V/s for voltage mode.
+\paragraph{Units.} The slew rate $s$ limits the first controller input, with corresponding units: position setpoint (rad/s), velocity setpoint (rad/s$^2$), or torque feedforward (N$\cdot$m/s). The raw \texttt{voltage} input is never rate-limited; \texttt{slewmax} requires a controller input.
 
 %  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 \subsubsection{Anti-windup}
@@ -1245,12 +1198,12 @@ This prevents controller windup even when drive signals are saturated.
 \subsubsection{Voltage Saturation}
 \label{sec:voltage_saturation}
 
-In \texttt{position} and \texttt{velocity} modes, the computed voltage $v$ can be arbitrarily large (proportional to the error). Real motor drivers are limited by their supply voltage. When \atVMAX{} is set ($v_{\max} > 0$), a voltage clamp is applied before the motor equations:
+With setpoint inputs, the computed voltage $v$ can be arbitrarily large (proportional to the error). Real motor drivers are limited by their supply voltage. When \atVMAX{} is set ($v_{\max} > 0$), a voltage clamp is applied before the motor equations:
 \begin{equation*}
   v \leftarrow \text{clip}(v, \pm v_{\max})
   \label{eq:vlimit}
 \end{equation*}
-This differs from \texttt{ctrlrange} (clamping user command $u$) and \texttt{forcerange} (clamping output torque). In position and velocity modes, \texttt{ctrlrange} limits the setpoint while \atVMAX{} limits the drive signal. In voltage mode ($v = u$), both clamp the voltage; if both are set, the tighter limit wins.
+This differs from \texttt{ctrlrange} (clamping user commands $u$) and \texttt{forcerange} (clamping output torque). The clamp applies to the controller output only: the raw \texttt{voltage} input is added downstream, unclamped (use \texttt{ctrlrange} to bound it). Because the torque-to-voltage map \eqref{eq:torque_to_voltage} compensates back-EMF, the achievable torque under \atVMAX{} shrinks with speed: the torque-speed envelope of \S\ref{sec:electromagnetics}.
 
 \begin{table}[H]
 \centering
@@ -1259,11 +1212,11 @@ This differs from \texttt{ctrlrange} (clamping user command $u$) and \texttt{for
 \toprule
 Attribute & Symbol & Units \\
 \midrule
-\atKP{} & $k_p$ & mode-dependent \\
-\atKI{} & $k_i$ & mode-dependent \\
-\atKD{} & $k_d$ & V$\cdot$s/rad \\
+\atKP{} & $k_p$ & N$\cdot$m/rad \\
+\atKI{} & $k_i$ & N$\cdot$m/(rad$\cdot$s) \\
+\atKD{} & $k_d$ & N$\cdot$m$\cdot$s/rad \\
 \atSLEW{} & $s$ & ctrl-units/s \\
-\atIMAXINT{} & $I_{\max}$ & mode-dependent \\
+\atIMAXINT{} & $I_{\max}$ & rad$\cdot$s \\
 \atVMAX{} & $v_{\max}$ & Volt \\
 \bottomrule
 \end{tabular}
@@ -1272,6 +1225,8 @@ Attribute & Symbol & Units \\
 \end{table}
 
 % ---------------------------------------------------------------------------
+\vfill\newpage
+
 %  Low-Level Semantics
 % ---------------------------------------------------------------------------
 \subsection{Low-Level Semantics}
@@ -1294,7 +1249,7 @@ Array & Index & Symbol & Description \\
 & 5 & $k_i$ & Controller integral gain \\
 & 6 & $k_d$ & Controller derivative gain \\
 & 7 & $v_{\max}$ & Voltage saturation (V) \\
-& 8 & --- & Input mode (0:\ $v$, 1:\ $\theta$, 2:\ $\dot\theta$) \\
+& 8 & --- & Reserved \\
 \midrule
 \texttt{dynprm} & 0 & $t_e$ & Electrical time constant (s) \\
 & 1 & $(di{/}dt)_{\max}$ & Current rate limit (A/s) \\
@@ -1323,6 +1278,8 @@ Array & Index & Symbol & Description \\
 \texttt{armature} & 0 & $J_r$ & Actuator armature \\
 \midrule
 \texttt{gear} & 0 & $N$ & Gear ratio \\
+\midrule
+\texttt{ctrlspec} & 0 & --- & Input signature (\texttt{mjtCtrlInput} bitmask) \\
 \bottomrule
 \end{tabular}
 \caption{\texttt{mjModel} array semantics for the \texttt{dcmotor} actuator.}

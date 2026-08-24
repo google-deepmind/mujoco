@@ -48,7 +48,6 @@ class ObjectManager {
     kPbrPackedReflect,
     kPhong2d,
     kPhong2dFade,
-    kPhong2dReflect,
     kPhong2dUv,
     kPhong2dUvFade,
     kPhong2dUvReflect,

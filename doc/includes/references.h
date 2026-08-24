@@ -1601,6 +1601,7 @@ typedef struct mjrfMeshData_ {
   void* user_data;              // user data for release callback
 } mjrfMeshData;
 typedef struct mjrfSceneParams_ {
+  char unused;  // ensure min size of 1 for C/C++ compatibility
 } mjrfSceneParams;
 typedef struct mjrfLightParams_ {
   int type;                        // type of light (e.g. spot, point, image, etc.) [mjrLightType]
@@ -2548,7 +2549,9 @@ typedef enum mjtCtrlChart {       // so3 input signature (actuator_ctrlspec): or
 typedef enum mjtCtrlInput {       // servo input signature (actuator_ctrlspec): present-input bits
   mjINPUT_POS         = 1,        // position setpoint input
   mjINPUT_VEL         = 2,        // velocity setpoint input
-  mjINPUT_FF          = 4         // feedforward input
+  mjINPUT_FF          = 4,        // feedforward input, in the actuator's output space
+  mjINPUT_VOLTAGE     = 8,        // raw terminal voltage input (dcmotor)
+  mjINPUT_NONE        = 16        // explicitly no inputs: purely passive (dcmotor)
 } mjtCtrlInput;
 typedef enum mjtObj {             // type of MujoCo object
   mjOBJ_UNKNOWN       = 0,        // unknown object type
@@ -3418,6 +3421,135 @@ typedef struct mjvFigure_ {       // abstract 2D figure passed to OpenGL rendere
   float   yaxisdata[2];           // range of y-axis in data units
 } mjvFigure;
 
+//----------------------------- STRING CONSTANTS -------------------------------
+const char* mjDISABLESTRING[mjNDISABLE] = {
+  "Constraint",
+  "Equality",
+  "Frictionloss",
+  "Limit",
+  "Contact",
+  "Spring",
+  "Damper",
+  "Gravity",
+  "Clampctrl",
+  "Warmstart",
+  "Filterparent",
+  "Actuation",
+  "Refsafe",
+  "Sensor",
+  "Midphase",
+  "Eulerdamp",
+  "AutoReset",
+  "NativeCCD",
+  "Island",
+  "MultiCCD"
+};
+const char* mjENABLESTRING[mjNENABLE] = {
+  "Override",
+  "Energy",
+  "Fwdinv",
+  "InvDiscrete",
+  "Sleep",
+  "DiagExact"
+};
+const char* mjTIMERSTRING[mjNTIMER]= {
+  "step",
+  "forward",
+  "inverse",
+  "position",
+  "velocity",
+  "actuation",
+  "constraint",
+  "advance",
+  "pos_kinematics",
+  "pos_inertia",
+  "pos_collision",
+  "pos_make",
+  "pos_project",
+  "col_broadphase",
+  "col_narrowphase"
+};
+const char* mjTOPICSTRING[mjNTOPIC] = {
+  "Step timing",
+  "Compile timing",
+  "Sleep/wake"
+};
+const char* mjLABELSTRING[mjNLABEL] = {
+  "None",
+  "Body",
+  "Joint",
+  "Geom",
+  "Site",
+  "Camera",
+  "Light",
+  "Tendon",
+  "Actuator",
+  "Constraint",
+  "Flex",
+  "Skin",
+  "Selection",
+  "SelPoint",
+  "Contact",
+  "ContactForce",
+  "Island"
+};
+const char* mjFRAMESTRING[mjNFRAME] = {
+  "None",
+  "Body",
+  "Geom",
+  "Site",
+  "Camera",
+  "Light",
+  "Contact",
+  "World"
+};
+const char* mjVISSTRING[mjNVISFLAG][3] = {
+  {"Convex Hull",     "0", "H"},
+  {"Texture",         "1", "X"},
+  {"Joint",           "0", "J"},
+  {"Camera",          "0", "Q"},
+  {"Actuator",        "0", "U"},
+  {"Activation",      "0", ","},
+  {"Light",           "0", "Z"},
+  {"Tendon",          "1", "V"},
+  {"Range Finder",    "1", "Y"},
+  {"Equality",        "0", "E"},
+  {"Inertia",         "0", "I"},
+  {"Scale Inertia",   "0", "'"},
+  {"Perturb Force",   "0", "B"},
+  {"Perturb Object",  "1", "O"},
+  {"Contact Point",   "0", "C"},
+  {"Island",          "0", "N"},
+  {"Contact Force",   "0", "F"},
+  {"Contact Split",   "0", "P"},
+  {"Transparent",     "0", "T"},
+  {"Auto Connect",    "0", "A"},
+  {"Center of Mass",  "0", "M"},
+  {"Select Point",    "0", ""},
+  {"Static Body",     "1", "D"},
+  {"Skin",            "1", ";"},
+  {"Flex Vert",       "0", ""},
+  {"Flex Edge",       "1", ""},
+  {"Flex Face",       "0", ""},
+  {"Flex Skin",       "1", ""},
+  {"Body Tree",       "0", "`"},
+  {"Mesh Tree",       "0", "\\"},
+  {"SDF iters",       "0", ""}
+};
+const char* mjRNDSTRING[mjNRNDFLAG][3] = {
+  {"Shadow",      "1", "S"},
+  {"Wireframe",   "0", "W"},
+  {"Reflection",  "1", "R"},
+  {"Additive",    "0", "L"},
+  {"Skybox",      "1", "K"},
+  {"Fog",         "0", "G"},
+  {"Haze",        "1", "/"},
+  {"Depth",       "0", ""},
+  {"Segment",     "0", ","},
+  {"Id Color",    "0", ""},
+  {"Cull Face",   "1", ""}
+};
+
 //----------------------------- MJAPI FUNCTIONS --------------------------------
 void mjrf_defaultContextConfig(mjrfContextConfig* config);
 mjrfContext* mjrf_createContext(const mjrfContextConfig* config);
@@ -4018,7 +4150,7 @@ const char* mjs_setToAdhesion(mjsActuator* actuator, double gain);
 const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double resistance,
                              double nominal[3], double saturation[3], double inductance[2],
                              double cogging[3], double controller[6], double thermal[6],
-                             double lugre[5], int input_mode);
+                             double lugre[5], int ctrlspec);
 mjsMesh* mjs_addMesh(mjSpec* s, const mjsDefault* def);
 mjsHField* mjs_addHField(mjSpec* s);
 mjsSkin* mjs_addSkin(mjSpec* s);

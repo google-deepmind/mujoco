@@ -85,7 +85,7 @@ static inline int _libccd_wrapper(const mjModel* m, mjCCDObj* obj1, mjCCDObj* ob
 
 // find penetration info between two geoms; returns number of collisions found
 static int mjc_penetration(const mjModel* m, mjData* d, mjCCDObj* obj1, mjCCDObj* obj2,
-                           mjPreContact* con, int ncon, mjtNum margin) {
+                           mjPreContact* con, int nconmax, mjtNum margin) {
   if (mjDISABLED(mjDSBL_NATIVECCD)) {
     return _libccd_wrapper(m, obj1, obj2, con, margin);
   }
@@ -94,13 +94,12 @@ static int mjc_penetration(const mjModel* m, mjData* d, mjCCDObj* obj1, mjCCDObj
   mjCCDConfig config;
   mjCCDStatus status;
   mjtNum dist;
-  int nwitness = 0;
   void* buffer = ccd_buffer;
 
   // set config
   config.max_iterations = m->opt.ccd_iterations;
   config.tolerance = m->opt.ccd_tolerance;
-  config.max_contacts = ncon;
+  config.max_contacts = nconmax;
   config.dist_cutoff = 0;  // no geom distances needed
   config.npolygonmax = m->npolygonmax;
   config.nmeshdegmax = m->nmeshdegmax;
@@ -114,22 +113,23 @@ static int mjc_penetration(const mjModel* m, mjData* d, mjCCDObj* obj1, mjCCDObj
                                                      config.max_iterations), sizeof(mjtNum));
   }
 
+  int ncon = 0;
   if ((dist = mjc_ccd(&config, &status, obj1, obj2)) < 0) {
-    nwitness = status.nx;
+    int nwitness = status.nx;
     for (int i = 0; i < nwitness; i++) {
-      con[i].dist = margin + dist;
-      con[i].pos[0] = 0.5*(status.x1[3*i + 0] + status.x2[3*i + 0]);
-      con[i].pos[1] = 0.5*(status.x1[3*i + 1] + status.x2[3*i + 1]);
-      con[i].pos[2] = 0.5*(status.x1[3*i + 2] + status.x2[3*i + 2]);
+      con[i].dist = margin + status.dist[i];
+      mji_add3(con[i].pos, status.x1 + 3*i, status.x2 + 3*i);
+      mju_scl3(con[i].pos, con[i].pos, 0.5);
       mji_sub3(con[i].normal, status.x1 + 3*i, status.x2 + 3*i);
       mju_normalize3(con[i].normal);
       mji_zero3(con[i].tangent);
     }
+    ncon = nwitness;
   }
   if (!buffer) {
     mj_freeStack(d);
   }
-  return nwitness;
+  return ncon;
 }
 
 

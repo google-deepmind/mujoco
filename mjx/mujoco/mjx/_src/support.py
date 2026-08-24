@@ -219,7 +219,7 @@ def local_to_global(
 
 def _getnum(m: Union[Model, mujoco.MjModel], obj: mujoco._enums.mjtObj) -> int:
   """Gets the number of objects for the given object type."""
-  return {
+  counts = {
       mujoco.mjtObj.mjOBJ_BODY: m.nbody,
       mujoco.mjtObj.mjOBJ_JOINT: m.njnt,
       mujoco.mjtObj.mjOBJ_GEOM: m.ngeom,
@@ -236,14 +236,15 @@ def _getnum(m: Union[Model, mujoco.MjModel], obj: mujoco._enums.mjtObj) -> int:
       mujoco.mjtObj.mjOBJ_TUPLE: m.ntuple,
       mujoco.mjtObj.mjOBJ_KEY: m.nkey,
       mujoco.mjtObj.mjOBJ_FLEX: m.nflex,
-  }.get(obj, 0)
+  }
+  return {int(k): v for k, v in counts.items()}.get(int(obj), 0)
 
 
 def _getadr(
     m: Union[Model, mujoco.MjModel], obj: mujoco._enums.mjtObj
 ) -> np.ndarray:
   """Gets the name addresses for the given object type."""
-  return {
+  adrs = {
       mujoco.mjtObj.mjOBJ_BODY: m.name_bodyadr,
       mujoco.mjtObj.mjOBJ_JOINT: m.name_jntadr,
       mujoco.mjtObj.mjOBJ_GEOM: m.name_geomadr,
@@ -260,7 +261,8 @@ def _getadr(
       mujoco.mjtObj.mjOBJ_TUPLE: m.name_tupleadr,
       mujoco.mjtObj.mjOBJ_KEY: m.name_keyadr,
       mujoco.mjtObj.mjOBJ_FLEX: m.name_flexadr,
-  }[obj]
+  }
+  return {int(k): v for k, v in adrs.items()}[int(obj)]
 
 
 def id2name(

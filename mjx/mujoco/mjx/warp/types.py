@@ -214,6 +214,7 @@ class ModelWarp(PyTreeNode):
   eq_jnt_adr: np.ndarray
   eq_ten_adr: np.ndarray
   eq_wld_adr: np.ndarray
+  flex_activelayers: np.ndarray
   flex_bend_interp_map: np.ndarray
   flex_bending: np.ndarray
   flex_bendingadr: np.ndarray
@@ -236,17 +237,13 @@ class ModelWarp(PyTreeNode):
   flex_elemedge: np.ndarray
   flex_elemedgeadr: np.ndarray
   flex_elemflexid: np.ndarray
+  flex_elemlayer: np.ndarray
   flex_elemnum: np.ndarray
-  flex_evpair: np.ndarray
-  flex_evpairadr: np.ndarray
-  flex_evpairflexid: np.ndarray
-  flex_evpairnum: np.ndarray
   flex_face: np.ndarray
   flex_face_map: np.ndarray
   flex_faceadr: np.ndarray
   flex_friction: np.ndarray
   flex_gap: np.ndarray
-  flex_internal: np.ndarray
   flex_margin: np.ndarray
   flex_node: np.ndarray
   flex_priority: np.ndarray
@@ -277,6 +274,7 @@ class ModelWarp(PyTreeNode):
   flexvert_geom_pair_filtered: np.ndarray
   geom_pair_type_count: Tuple[int, ...]
   geom_plugin_index: np.ndarray
+  geom_surfacevel: jax.Array
   has_3d_flex: bool
   has_ellipsoid_geom: bool
   has_flex_selfcollide: bool
@@ -314,7 +312,6 @@ class ModelWarp(PyTreeNode):
   nflexelem: int
   nflexelemdata: int
   nflexelemedge: int
-  nflexevpair: int
   nflexface: int
   nflexintcell: int
   nflexnode: int
@@ -322,11 +319,11 @@ class ModelWarp(PyTreeNode):
   nflexstiffness: int
   nflexvert: int
   nmaxcondim: int
-  nmaxmeshdeg: int
-  nmaxpolygon: int
   nmaxpyramid: int
+  nmeshdegmax: int
   noct: int
   nplugin: int
+  npolygonmax: int
   nrangefinder: int
   nsensorcollision: int
   nsensorcontact: int
@@ -910,6 +907,7 @@ _NDIM = {
         'eq_type': 1,
         'eq_wld_adr': 1,
         'exclude_signature': 1,
+        'flex_activelayers': 1,
         'flex_bend_interp_map': 2,
         'flex_bending': 1,
         'flex_bendingadr': 1,
@@ -932,17 +930,13 @@ _NDIM = {
         'flex_elemedge': 1,
         'flex_elemedgeadr': 1,
         'flex_elemflexid': 1,
+        'flex_elemlayer': 1,
         'flex_elemnum': 1,
-        'flex_evpair': 2,
-        'flex_evpairadr': 1,
-        'flex_evpairflexid': 1,
-        'flex_evpairnum': 1,
         'flex_face': 2,
         'flex_face_map': 2,
         'flex_faceadr': 1,
         'flex_friction': 2,
         'flex_gap': 1,
-        'flex_internal': 1,
         'flex_interp': 1,
         'flex_margin': 1,
         'flex_node': 2,
@@ -979,6 +973,7 @@ _NDIM = {
         'flexstrain_J_rowadr': 1,
         'flexstrain_J_rownnz': 1,
         'flexvert_geom_pair_filtered': 2,
+        'flg_surfacevel': 0,
         'geom_aabb': 4,
         'geom_bodyid': 1,
         'geom_conaffinity': 1,
@@ -1002,6 +997,7 @@ _NDIM = {
         'geom_solimp': 3,
         'geom_solmix': 2,
         'geom_solref': 3,
+        'geom_surfacevel': 3,
         'geom_type': 1,
         'has_3d_flex': 0,
         'has_ellipsoid_geom': 0,
@@ -1032,6 +1028,13 @@ _NDIM = {
         'jnt_stiffness': 2,
         'jnt_stiffnesspoly': 3,
         'jnt_type': 1,
+        'key_act': 2,
+        'key_ctrl': 2,
+        'key_mpos': 3,
+        'key_mquat': 3,
+        'key_qpos': 2,
+        'key_qvel': 2,
+        'key_time': 1,
         'light_active': 2,
         'light_ambient': 3,
         'light_attenuation': 3,
@@ -1105,7 +1108,6 @@ _NDIM = {
         'nflexelem': 0,
         'nflexelemdata': 0,
         'nflexelemedge': 0,
-        'nflexevpair': 0,
         'nflexface': 0,
         'nflexintcell': 0,
         'nflexnode': 0,
@@ -1117,13 +1119,13 @@ _NDIM = {
         'nhfielddata': 0,
         'nhistory': 0,
         'njnt': 0,
+        'nkey': 0,
         'nlight': 0,
         'nmat': 0,
         'nmaxcondim': 0,
-        'nmaxmeshdeg': 0,
-        'nmaxpolygon': 0,
         'nmaxpyramid': 0,
         'nmesh': 0,
+        'nmeshdegmax': 0,
         'nmeshface': 0,
         'nmeshgraph': 0,
         'nmeshnormal': 0,
@@ -1135,6 +1137,7 @@ _NDIM = {
         'noct': 0,
         'npair': 0,
         'nplugin': 0,
+        'npolygonmax': 0,
         'nq': 0,
         'nrangefinder': 0,
         'nsensor': 0,
@@ -1635,6 +1638,7 @@ _BATCH_DIM = {
         'eq_type': False,
         'eq_wld_adr': False,
         'exclude_signature': False,
+        'flex_activelayers': False,
         'flex_bend_interp_map': False,
         'flex_bending': False,
         'flex_bendingadr': False,
@@ -1657,17 +1661,13 @@ _BATCH_DIM = {
         'flex_elemedge': False,
         'flex_elemedgeadr': False,
         'flex_elemflexid': False,
+        'flex_elemlayer': False,
         'flex_elemnum': False,
-        'flex_evpair': False,
-        'flex_evpairadr': False,
-        'flex_evpairflexid': False,
-        'flex_evpairnum': False,
         'flex_face': False,
         'flex_face_map': False,
         'flex_faceadr': False,
         'flex_friction': False,
         'flex_gap': False,
-        'flex_internal': False,
         'flex_interp': False,
         'flex_margin': False,
         'flex_node': False,
@@ -1704,6 +1704,7 @@ _BATCH_DIM = {
         'flexstrain_J_rowadr': False,
         'flexstrain_J_rownnz': False,
         'flexvert_geom_pair_filtered': False,
+        'flg_surfacevel': False,
         'geom_aabb': True,
         'geom_bodyid': False,
         'geom_conaffinity': False,
@@ -1727,6 +1728,7 @@ _BATCH_DIM = {
         'geom_solimp': True,
         'geom_solmix': True,
         'geom_solref': True,
+        'geom_surfacevel': True,
         'geom_type': False,
         'has_3d_flex': False,
         'has_ellipsoid_geom': False,
@@ -1757,6 +1759,13 @@ _BATCH_DIM = {
         'jnt_stiffness': True,
         'jnt_stiffnesspoly': True,
         'jnt_type': False,
+        'key_act': False,
+        'key_ctrl': False,
+        'key_mpos': False,
+        'key_mquat': False,
+        'key_qpos': False,
+        'key_qvel': False,
+        'key_time': False,
         'light_active': True,
         'light_ambient': True,
         'light_attenuation': True,
@@ -1830,7 +1839,6 @@ _BATCH_DIM = {
         'nflexelem': False,
         'nflexelemdata': False,
         'nflexelemedge': False,
-        'nflexevpair': False,
         'nflexface': False,
         'nflexintcell': False,
         'nflexnode': False,
@@ -1842,13 +1850,13 @@ _BATCH_DIM = {
         'nhfielddata': False,
         'nhistory': False,
         'njnt': False,
+        'nkey': False,
         'nlight': False,
         'nmat': False,
         'nmaxcondim': False,
-        'nmaxmeshdeg': False,
-        'nmaxpolygon': False,
         'nmaxpyramid': False,
         'nmesh': False,
+        'nmeshdegmax': False,
         'nmeshface': False,
         'nmeshgraph': False,
         'nmeshnormal': False,
@@ -1860,6 +1868,7 @@ _BATCH_DIM = {
         'noct': False,
         'npair': False,
         'nplugin': False,
+        'npolygonmax': False,
         'nq': False,
         'nrangefinder': False,
         'nsensor': False,

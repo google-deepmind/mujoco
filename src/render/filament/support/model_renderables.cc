@@ -854,16 +854,6 @@ mjrfMaterial ModelRenderables::GetDefaultMaterial(mjtObj obj_type,
       material.uv_scale[0] = tex_repeat[0];
       material.uv_scale[1] = tex_repeat[1];
 
-      if (geom_type == mjGEOM_MESH || geom_type == mjGEOM_HFIELD ||
-          geom_type == mjGEOM_SDF) {
-        if (fsize[0] > mjMINVAL) {
-          material.uv_scale[0] /= fsize[0];
-        }
-        if (fsize[1] > mjMINVAL) {
-          material.uv_scale[1] /= fsize[1];
-        }
-      }
-
       const bool is_infinite_plane =
           geom_type == mjGEOM_PLANE && (fsize[0] <= 0 || fsize[1] <= 0);
       if (is_infinite_plane) {

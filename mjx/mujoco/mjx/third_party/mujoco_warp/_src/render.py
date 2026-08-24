@@ -19,6 +19,7 @@ from typing import Tuple
 import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src import math
+from mujoco.mjx.third_party.mujoco_warp._src.bvh import SPLAT_MIN_RESPONSE
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_box
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_capsule
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_cylinder
@@ -40,6 +41,117 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import RenderContext
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
 wp.set_module_options({"enable_backward": False, "default_grid_stride": False})
+
+# Limit each BVH traversal pass so splat compositing uses bounded local storage.
+_MAX_SPLAT_HITS = 32
+# Stop compositing once remaining light cannot affect an 8-bit output pixel.
+_MIN_SPLAT_TRANSMITTANCE = 0.005
+# Cull splats whose alpha contribution rounds to zero in the 8-bit framebuffer.
+_MIN_SPLAT_ALPHA = 1.0 / 255.0
+
+
+@wp.func
+def ray_splat(
+  # In:
+  position: wp.vec3,
+  rotation: wp.quat,
+  scale: wp.vec3,
+  opacity: float,
+  pnt: wp.vec3,
+  vec: wp.vec3,
+  min_distance: float,
+  max_distance: float,
+) -> Tuple[float, float]:
+  """Returns the distance and alpha at which a ray intersects a splat."""
+  inverse_rotation = math.quat_inv(rotation)
+  lpnt = wp.cw_div(math.rot_vec_quat(pnt - position, inverse_rotation), scale)
+  lvec = wp.cw_div(math.rot_vec_quat(vec, inverse_rotation), scale)
+
+  distance = -wp.dot(lpnt, lvec) / wp.dot(lvec, lvec)
+  if distance <= min_distance or distance >= max_distance:
+    return -1.0, 0.0
+
+  delta = lpnt + lvec * distance
+  response = wp.exp(-0.5 * wp.dot(delta, delta))
+  alpha = wp.min(response * opacity, 1.0)
+  if alpha < wp.static(SPLAT_MIN_RESPONSE) or alpha < wp.static(_MIN_SPLAT_ALPHA):
+    return -1.0, 0.0
+  return distance, alpha
+
+
+@wp.func
+def shade_splats(
+  # In:
+  splat_position: wp.array[wp.vec3],
+  splat_rotation: wp.array[wp.quat],
+  splat_scale: wp.array[wp.vec3],
+  splat_rgba: wp.array[wp.vec4],
+  bvh_id: wp.uint64,
+  group_root: int,
+  ray_origin: wp.vec3,
+  ray_direction: wp.vec3,
+  max_distance: float,
+) -> tuple[wp.vec3, float, float]:
+  min_distance = float(0.0)
+  transmittance = float(1.0)
+  color = wp.vec3(0.0)
+  depth = float(-1.0)
+
+  hit_distances = wp.vector(MJ_MAXVAL, length=_MAX_SPLAT_HITS, dtype=float)
+  hit_indices = wp.vector(-1, length=_MAX_SPLAT_HITS, dtype=int)
+  hit_alphas = wp.vector(0.0, length=_MAX_SPLAT_HITS, dtype=float)
+
+  while transmittance > wp.static(_MIN_SPLAT_TRANSMITTANCE):
+    num_hits = int(0)
+    for i in range(wp.static(_MAX_SPLAT_HITS)):
+      hit_distances[i] = max_distance
+      hit_indices[i] = -1
+      hit_alphas[i] = 0.0
+
+    index = int(0)
+    query = wp.bvh_query_ray(bvh_id, ray_origin, ray_direction, group_root)
+    while wp.bvh_query_next(query, index, hit_distances[_MAX_SPLAT_HITS - 1]):
+      distance, alpha = ray_splat(
+        splat_position[index],
+        splat_rotation[index],
+        splat_scale[index],
+        splat_rgba[index][3],
+        ray_origin,
+        ray_direction,
+        min_distance,
+        max_distance,
+      )
+      if distance > 0.0:
+        if num_hits < wp.static(_MAX_SPLAT_HITS):
+          num_hits += 1
+        for i in range(num_hits):
+          if distance < hit_distances[i]:
+            for j in range(num_hits - 1, i, -1):
+              hit_distances[j] = hit_distances[j - 1]
+              hit_indices[j] = hit_indices[j - 1]
+              hit_alphas[j] = hit_alphas[j - 1]
+            hit_distances[i] = distance
+            hit_indices[i] = index
+            hit_alphas[i] = alpha
+            break
+
+    if num_hits == 0:
+      break
+
+    for i in range(num_hits):
+      index = hit_indices[i]
+      alpha = hit_alphas[i]
+      color += wp.vec3(splat_rgba[index][0], splat_rgba[index][1], splat_rgba[index][2]) * alpha * transmittance
+      transmittance *= 1.0 - alpha
+      if depth < 0.0 and transmittance < wp.static(_MIN_SPLAT_TRANSMITTANCE):
+        depth = hit_distances[i]
+
+    if num_hits < wp.static(_MAX_SPLAT_HITS):
+      break
+    min_distance = hit_distances[_MAX_SPLAT_HITS - 1] + 1.0e-6
+
+  return color, transmittance, depth
+
 
 # Default value for mat_shininess in MuJoCo is 0.5
 # With an 8 bit image format, the maximum value is 255.0
@@ -552,6 +664,7 @@ def render(m: Model, d: Data, rc: RenderContext):
     rc: The render context on device.
   """
   rc.seg_data.fill_(wp.vec2i(-1, -1))
+  has_splats = rc.splat_count > 0
 
   # Specialize the ray-cast helpers to the geom types present in the scene so the
   # compiler eliminates intersection branches for absent types.
@@ -634,6 +747,12 @@ def render(m: Model, d: Data, rc: RenderContext):
     skybox_tex_id: wp.array[int],
     skybox_face_width: wp.array[int],
     textures: wp.array[wp.Texture2D],
+    splat_position: wp.array[wp.vec3],
+    splat_rotation: wp.array[wp.quat],
+    splat_scale: wp.array[wp.vec3],
+    splat_rgba: wp.array[wp.vec4],
+    splat_bvh_id: wp.uint64,
+    splat_group_root: wp.array[int],
     # Out:
     rgb_out: wp.array2d[wp.uint32],
     depth_out: wp.array2d[float],
@@ -712,6 +831,22 @@ def render(m: Model, d: Data, rc: RenderContext):
       wp.static(rc_static["enable_backface_culling"]),
     )
 
+    splat_color = wp.vec3(0.0)
+    splat_transmittance = float(1.0)
+    splat_depth = float(-1.0)
+    if wp.static(has_splats):
+      splat_color, splat_transmittance, splat_depth = shade_splats(
+        splat_position,
+        splat_rotation,
+        splat_scale,
+        splat_rgba,
+        splat_bvh_id,
+        splat_group_root[worldid],
+        ray_origin_world,
+        ray_dir_world,
+        dist,
+      )
+
     if render_seg[camid] and geom_id != -1:
       if geom_id == -2:
         seg_out[worldid, seg_adr[camid] + rayid_local] = wp.vec2i(mesh_id, int(ObjType.FLEX))
@@ -721,7 +856,11 @@ def render(m: Model, d: Data, rc: RenderContext):
     # Early Out
     if geom_id == -1:
       if render_depth[camid]:
-        depth_out[worldid, depth_adr[camid] + rayid_local] = 0.0
+        depth = 0.0
+        if wp.static(has_splats):
+          if splat_depth > 0.0:
+            depth = splat_depth * -ray_dir_local_cam[2]
+        depth_out[worldid, depth_adr[camid] + rayid_local] = depth
       if wp.static(rc_static["render_skybox"]) and render_rgb[camid]:
         skybox_id = skybox_tex_id[worldid % skybox_tex_id.shape[0]]
         skybox_color = sample_skybox(
@@ -729,6 +868,8 @@ def render(m: Model, d: Data, rc: RenderContext):
           1.0 / float(skybox_face_width[worldid % skybox_face_width.shape[0]]),
           ray_dir_world,
         )
+        if wp.static(has_splats):
+          skybox_color = splat_color + skybox_color * splat_transmittance
         rgb_out[worldid, rgb_adr[camid] + rayid_local] = pack_rgba_to_uint32(
           skybox_color[0] * 255.0,
           skybox_color[1] * 255.0,
@@ -736,7 +877,19 @@ def render(m: Model, d: Data, rc: RenderContext):
           255.0,
         )
       elif render_rgb[camid]:
-        rgb_out[worldid, rgb_adr[camid] + rayid_local] = wp.static(rc_static["background_color"])
+        if wp.static(has_splats):
+          packed = wp.static(rc_static["background_color"])
+          background = wp.vec3(
+            float((packed >> wp.uint32(16)) & wp.uint32(0xFF)),
+            float((packed >> wp.uint32(8)) & wp.uint32(0xFF)),
+            float(packed & wp.uint32(0xFF)),
+          ) * wp.static(1.0 / 255.0)
+          pixel_color = splat_color + background * splat_transmittance
+          rgb_out[worldid, rgb_adr[camid] + rayid_local] = pack_rgba_to_uint32(
+            pixel_color[0] * 255.0, pixel_color[1] * 255.0, pixel_color[2] * 255.0, 255.0
+          )
+        else:
+          rgb_out[worldid, rgb_adr[camid] + rayid_local] = wp.static(rc_static["background_color"])
       return
 
     if render_depth[camid]:
@@ -744,7 +897,11 @@ def render(m: Model, d: Data, rc: RenderContext):
       # In camera-local coordinates, the optical axis is -Z. The Z-component of the
       # normalized ray direction is negative, so -ray_dir_local_cam[2] gives cos(θ)
       # between the ray and the optical axis.
-      depth_out[worldid, depth_adr[camid] + rayid_local] = dist * (-ray_dir_local_cam[2])
+      depth = dist
+      if wp.static(has_splats):
+        if splat_depth > 0.0:
+          depth = splat_depth
+      depth_out[worldid, depth_adr[camid] + rayid_local] = depth * -ray_dir_local_cam[2]
 
     if not render_rgb[camid]:
       return
@@ -924,6 +1081,8 @@ def render(m: Model, d: Data, rc: RenderContext):
 
     hit_color = wp.min(result, wp.vec3(1.0, 1.0, 1.0))
     hit_color = wp.max(hit_color, wp.vec3(0.0, 0.0, 0.0))
+    if wp.static(has_splats):
+      hit_color = splat_color + hit_color * splat_transmittance
 
     rgb_out[worldid, rgb_adr[camid] + rayid_local] = pack_rgba_to_uint32(
       hit_color[0] * 255.0,
@@ -1000,6 +1159,12 @@ def render(m: Model, d: Data, rc: RenderContext):
       rc.skybox_tex_id,
       rc.skybox_face_width,
       rc.textures,
+      rc.splat_position,
+      rc.splat_rotation,
+      rc.splat_scale,
+      rc.splat_rgba,
+      rc.splat_bvh_id,
+      rc.splat_group_root,
     ],
     outputs=[
       rc.rgb_data,

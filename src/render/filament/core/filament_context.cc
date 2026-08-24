@@ -76,6 +76,8 @@ FilamentContext::FilamentContext(const mjrfContextConfig* config)
 
   object_manager_ = std::make_unique<ObjectManager>(engine_);
   material_manager_ = std::make_unique<MaterialManager>(object_manager_.get());
+
+  SetClearColor({0.0, 0.0, 0.0, 1.0});
 }
 
 FilamentContext::~FilamentContext() {

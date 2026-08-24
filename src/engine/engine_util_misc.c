@@ -23,7 +23,7 @@
 #include <string.h>
 
 #include <mujoco/mjmacro.h>
-#include <mujoco/mjmodel.h>
+#include <mujoco/mjtype.h>
 #include "engine/engine_array_safety.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"

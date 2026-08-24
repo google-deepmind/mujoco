@@ -223,6 +223,7 @@ void mjrf_setMeshData(mjrfMesh* mesh, const mjrfMeshData* data);
 
 // Parameters for creating a scene (mjrfScene).
 typedef struct mjrfSceneParams_ {
+  char unused;  // ensure min size of 1 for C/C++ compatibility
 } mjrfSceneParams;
 
 // Initializes the mjrfSceneParams to default values.

@@ -16,7 +16,7 @@
 #define MUJOCO_MUJOCO_H_
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 3011001
+#define mjVERSION_HEADER 3012001
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -1785,7 +1785,7 @@ MJAPI const char* mjs_setToAdhesion(mjsActuator* actuator, double gain);
 MJAPI const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double resistance,
                                    double nominal[3], double saturation[3], double inductance[2],
                                    double cogging[3], double controller[6], double thermal[6],
-                                   double lugre[5], int input_mode);
+                                   double lugre[5], int ctrlspec);
 
 
 //---------------------------------- Assets --------------------------------------------------------

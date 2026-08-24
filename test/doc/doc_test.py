@@ -219,7 +219,9 @@ class DocTest(googletest.TestCase):
         },
     }
     # deliberately partial: keywords are a documented subset of the C enum
-    partial = {'frameobj'}
+    # (inputbit: combinable tokens exclude the whole-attribute keyword
+    # mjINPUT_NONE; inputkeyword: the whole-attribute keyword excludes the tokens)
+    partial = {'frameobj', 'inputbit', 'inputkeyword'}
 
     enums_c = {}
     for name in ('mjtype.h', 'mjspec.h'):

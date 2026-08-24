@@ -142,6 +142,7 @@
 
   <worldbody>
     <light type="image" texture="ibl" intensity="10000"/>
+    <camera name="default" pos="2.033 -2.172 1.187" xyaxes="0.726 0.688 0.000 -0.291 0.307 0.906"/>
     <geom name="ground" type="plane" size="2 2 0.1" material="floor"/>
     <body name="pbr_grid" pos="0 0 0">
       <geom name="sphere_m0_r0" type="sphere" size="0.1" pos="-1.12 -1.12 0.1" material="pbr_m0.0_r0.0"/>

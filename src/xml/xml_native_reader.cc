@@ -1149,7 +1149,8 @@ void mjXReader::OneTendon(XMLElement* elem, mjsTendon* tendon) {
 
 
 
-// read the "input" attribute: so3 chart keyword, or servo input token list
+// read the "input" attribute: so3 chart keyword, the "none" keyword (empty signature),
+// or a servo input token list, required to be in canonical order [pos, vel, ff, voltage]
 static bool ReadInputSpec(tinyxml2::XMLElement* elem, int* ctrlspec) {
   std::string text;
   if (!mjXUtil::ReadAttrTxt(elem, "input", text)) {
@@ -1163,11 +1164,21 @@ static bool ReadInputSpec(tinyxml2::XMLElement* elem, int* ctrlspec) {
     return true;
   }
 
-  // servo input tokens
+  // empty-signature keyword
+  int keyword = mjXUtil::FindKey(inputkeyword_map, inputkeyword_sz, text);
+  if (keyword >= 0) {
+    *ctrlspec = keyword;
+    return true;
+  }
+
+  // servo input tokens; strictly ascending bits = canonical order, no duplicates
   int bits[inputbit_sz];
   int nbit = mjXUtil::MapValues(elem, "input", bits, inputbit_map, inputbit_sz);
   int spec = 0;
   for (int k=0; k < nbit; k++) {
+    if (bits[k] <= (k ? bits[k-1] : 0)) {
+      throw mjXError(elem, "inputs must be listed in canonical order [pos, vel, ff, voltage]");
+    }
     spec |= bits[k];
   }
   *ctrlspec = spec;
@@ -1235,7 +1246,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
   // explicit attributes
   string err;
   if (type == "general") {
-    // so3 chart keyword or servo token subset
+    // so3 chart keyword or servo token subset; dcmotor accepts the voltage keyword
     ReadInputSpec(elem, &actuator->ctrlspec);
   }
 
@@ -1431,7 +1442,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
                        inherited ? actuator->biasprm[3] : 0,
                        inherited ? actuator->biasprm[4] : 0,
                        inherited ? actuator->biasprm[5] : 0};
-    int input_mode = inherited ? (int)actuator->gainprm[8] : 0;
+    int ctrlspec = inherited ? actuator->ctrlspec : 0;
     ReadAttr(elem, "motorconst", 2, motorconst, text, false, false);
     ReadAttr(elem, "resistance", 1, &resistance, text);
     ReadAttr(elem, "nominal", 3, nominal, text, false, false);
@@ -1441,12 +1452,10 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
     ReadAttr(elem, "controller", 6, controller, text, false, false);
     ReadAttr(elem, "thermal", 6, thermal, text, false, false);
     ReadAttr(elem, "lugre", 5, lugre, text, false, false);
-    if (MapValue(elem, "input", &input_mode, dcmotorinput_map, dcmotorinput_sz)) {
-      // successfully parsed
-    }
+    ReadInputSpec(elem, &ctrlspec);
     err = mjs_setToDCMotor(actuator, motorconst, resistance,
                            nominal, saturation, inductance,
-                           cogging, controller, thermal, lugre, input_mode);
+                           cogging, controller, thermal, lugre, ctrlspec);
   }
 
   else if (type == "plugin") {
