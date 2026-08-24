@@ -257,14 +257,14 @@ static mjtNum dcmotorVoltage(const mjtNum* u, int spec, mjtNum length, mjtNum ve
     mjtNum R = gainprm[0];
     mjtNum K = gainprm[1];
     voltage = R/K * torque + K*velocity;
-
-    // driver supply limit
-    mjtNum Vmax = gainprm[7];
-    if (Vmax > 0) voltage = mju_clip(voltage, -Vmax, Vmax);
   }
 
-  // raw terminal voltage input: downstream of the controller, unclamped
-  return voltage + u4[3];
+  // add raw terminal voltage input, then apply the driver supply limit
+  voltage += u4[3];
+  mjtNum Vmax = gainprm[7];
+  if (Vmax > 0) voltage = mju_clip(voltage, -Vmax, Vmax);
+
+  return voltage;
 }
 
 
@@ -731,9 +731,9 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       // stateless: gain = K/R, force = K/R * ctrl (condition below)
       gain = (dynprm[0] > 0) ? K : K / mju_max(mjMINVAL, R);
 
-      // controller: compute voltage, override ctrl[uadr] for force computation
-      // (pure raw-voltage motor reads ctrl directly; empty block reads as 0 below)
-      if (m->actuator_ctrlspec[i] != mjINPUT_VOLTAGE && m->actuator_ctrlnum[i] > 0) {
+      // compute terminal voltage, override ctrl[uadr] for force computation
+      // (empty block reads as 0 below)
+      if (m->actuator_ctrlnum[i] > 0) {
         mjtNum x_I = (slots.integral >= 0) ? d->act[adr + slots.integral] : 0;
         ctrl[uadr] = dcmotorVoltage(ctrl + uadr, m->actuator_ctrlspec[i],
                                     d->actuator_length[oadr],

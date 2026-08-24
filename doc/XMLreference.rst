@@ -6957,7 +6957,7 @@ This element has the following custom attributes in addition to the common attri
    canonical order. The ``pos`` and ``vel`` inputs are setpoints for the on-board
    :ref:`controller<actuator-dcmotor-controller>`, and ``ff`` is a torque feedforward added to its output, as for
    :ref:`pid/input<actuator-pid-input>`. The ``voltage`` input is different in kind: it is the raw terminal voltage
-   of the physical device, applied downstream of the controller and its :at-val:`Vmax` clamp.
+   of the physical device, added to the controller output before the :at-val:`Vmax` clamp.
    ``input="voltage"`` (the default) is the plain voltage-commanded motor. Absent setpoint inputs are fixed at zero.
    The keyword "none" selects the empty signature: the actuator has no control inputs and is purely
    passive, useful for modeling :ref:`friction<actuator-dcmotor-lugre>` and :ref:`cogging<actuator-dcmotor-cogging>`
@@ -6981,7 +6981,7 @@ This element has the following custom attributes in addition to the common attri
    A value of 0 (the default) disables the respective feature. When positive, :at-val:`slewmax` limits the
    rate-of-change of the first input (position setpoint in rad/s, or with signatures lacking ``pos``, velocity
    setpoint or torque feedforward), :at-val:`Imax` clamps the integrator state (anti-windup), and :at-val:`Vmax`
-   clamps the drive voltage :math:`v_{\max}` (Volt), upstream of the raw ``voltage`` input.
+   clamps the total drive voltage :math:`v_{\max}` (Volt), including the raw ``voltage`` input.
    (see `tech note <_static/dcmotor.pdf>`__, Section 2.5)
 
 .. _actuator-plugin:

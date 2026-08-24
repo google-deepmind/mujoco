@@ -1104,7 +1104,7 @@ The controller computes a target voltage $v$ from the \texttt{ctrl} command. All
   {Controller};
 \node[mode] at (0, 1.45) {$\begin{aligned}
   \tau &= k_p(\theta^*\!-\!\theta) + k_d(\dot\theta^*\!-\!\dot\theta) + k_i x_I + \tau_{f\!f} \\[2pt]
-  v &= \text{clip}(\tfrac{R}{K}\tau + K\dot\theta,\, \pm v_{\max}) + v_{\text{raw}} \\[2pt]
+  v &= \text{clip}(\tfrac{R}{K}\tau + K\dot\theta + v_{\text{raw}},\, \pm v_{\max}) \\[2pt]
   &\phantom{=}\ \text{absent inputs are zero;}\quad \text{\texttt{input=\textquotedbl none\textquotedbl:}}\ v = 0
 \end{aligned}$};
 
@@ -1154,7 +1154,7 @@ is added and the controller reduces to PD; when $k_p = k_i = 0$, it is a pure
 velocity servo. The back-EMF compensation also cancels the motor's $-K^2/R$ damping
 bias, so the net physical damping delivered by an unclipped torque-mode motor is
 $-k_d$, matching \texttt{pid}. The separate \texttt{voltage} input is the raw
-terminal voltage, added downstream of the controller and its saturation.
+terminal voltage, added to the controller output before the common saturation.
 
 \subsubsection{Passive Operation}
 \label{sec:passive}
@@ -1198,12 +1198,12 @@ This prevents controller windup even when drive signals are saturated.
 \subsubsection{Voltage Saturation}
 \label{sec:voltage_saturation}
 
-With setpoint inputs, the computed voltage $v$ can be arbitrarily large (proportional to the error). Real motor drivers are limited by their supply voltage. When \atVMAX{} is set ($v_{\max} > 0$), a voltage clamp is applied before the motor equations:
+The computed controller voltage and the raw \texttt{voltage} input can exceed the physical driver's supply voltage. When \atVMAX{} is set ($v_{\max} > 0$), their sum is clamped before the motor equations:
 \begin{equation*}
   v \leftarrow \text{clip}(v, \pm v_{\max})
   \label{eq:vlimit}
 \end{equation*}
-This differs from \texttt{ctrlrange} (clamping user commands $u$) and \texttt{forcerange} (clamping output torque). The clamp applies to the controller output only: the raw \texttt{voltage} input is added downstream, unclamped (use \texttt{ctrlrange} to bound it). Because the torque-to-voltage map \eqref{eq:torque_to_voltage} compensates back-EMF, the achievable torque under \atVMAX{} shrinks with speed: the torque-speed envelope of \S\ref{sec:electromagnetics}.
+This differs from \texttt{ctrlrange} (clamping individual user commands $u$) and \texttt{forcerange} (clamping output torque). In raw voltage mode, both \texttt{ctrlrange} and \atVMAX{} bound the voltage; if both are set, the tighter limit wins. Because the torque-to-voltage map \eqref{eq:torque_to_voltage} compensates back-EMF, the achievable torque under \atVMAX{} shrinks with speed: the torque-speed envelope of \S\ref{sec:electromagnetics}.
 
 \begin{table}[H]
 \centering
