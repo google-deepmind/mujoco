@@ -76,6 +76,9 @@ namespace Mujoco {
       }
 
       Configuration = mjcf.GetFloatAttribute("ref", 0.0f);
+      if (!MjSceneImportSettings.AnglesInDegrees) {
+        Configuration *= Mathf.Rad2Deg;
+      }
 
       Settings.FromMjcf(mjcf);
     }
