@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/platform/ux/imgui_bridge.h"
+#include "render/filament/support/imgui_bridge.h"
 
 #include <algorithm>
 #include <cstddef>

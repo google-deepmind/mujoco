@@ -55,6 +55,8 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         core/types.h
         support/filament_util.h
         support/filament_util.cc
+        support/imgui_bridge.h
+        support/imgui_bridge.cc
         support/mesh_util.h
         support/mesh_util.cc
         support/model_decorations.h
