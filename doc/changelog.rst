@@ -2,6 +2,17 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+Samples
+^^^^^^^
+
+- Added :ref:`render.cc<saRender>`: a headless offscreen rendering sample that saves an image to a PNG image.
+  Supports both the Filament and classic OpenGL backends, with command-line options for camera, resolution, keyframe,
+  geom/site groups, visualization and rendering flags, labels, and frames.
+
+
 Version 3.12.0 (August 20, 2026)
 --------------------------------
 

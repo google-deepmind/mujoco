@@ -496,3 +496,102 @@ proliferation of overlapping technologies, which differ not only between platfor
 case of Linux. The addition of a couple of extra functions (such as those provided by OSMesa for example) could have
 avoided a lot of confusion. EGL is a newer standard from Khronos which aims to do this, and it is gaining popularity.
 But we cannot yet assume that all users have it installed.
+
+.. _saRender:
+
+`render <https://github.com/google-deepmind/mujoco/blob/main/sample/render.cc>`_
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This code sample renders a model configuration offscreen and saves the result directly to a PNG image file. It supports
+both the modern Filament rendering backend (:ref:`mjrf <FilamentRenderingApi>`) with physically-based rendering (PBR),
+and the classic OpenGL renderer (:ref:`mjrContext`). The rendering runs headless without creating an interactive window.
+
+.. code-block:: Shell
+
+   render model [output] [options]
+
+Where the command-line arguments and options are
+
+.. list-table::
+   :width: 95%
+   :align: left
+   :widths: 2 1 4
+   :header-rows: 1
+
+   * - Option
+     - Default
+     - Meaning
+   * - ``model``
+     - (required)
+     - path to model (positional argument)
+   * - ``output``
+     - (default)
+     - path to output image file (positional argument, default: ``<model>.png``)
+   * - ``--backend=B``
+     - ``filament``
+     - rendering backend (``filament``, ``classic``)
+   * - ``--width=N``
+     - 640
+     - image width in pixels
+   * - ``--height=N``
+     - 480
+     - image height in pixels
+   * - ``--camera=C``
+     - (free)
+     - camera name or integer index (default: free camera)
+   * - ``--lookat=X,Y,Z``
+     - (center)
+     - free camera lookat position
+   * - ``--distance=D``
+     - (fit)
+     - free camera distance
+   * - ``--azimuth=A``
+     - ``90``
+     - free camera azimuth in degrees
+   * - ``--elevation=E``
+     - ``-45``
+     - free camera elevation in degrees
+   * - ``--key=K``
+     - (none)
+     - keyframe name or integer index to load prior to rendering
+   * - ``--geomgroup=G``
+     - ``111000``
+     - 6-character string enabling/disabling geom groups 0-5 (e.g. ``111111``)
+   * - ``--sitegroup=S``
+     - ``111000``
+     - 6-character string enabling/disabling site groups 0-5
+   * - ``--label=L``
+     - (none)
+     - type of label (e.g. ``--label=geom``, ``--label=body``, ``--label=site``)
+   * - ``--frame=F``
+     - (none)
+     - type of coordinate frame (e.g. ``--frame=geom``, ``--frame=body``, ``--frame=site``)
+   * - ``--<visflag>=0|1``
+     - (default)
+     - toggle visualization flag declared in :ref:`mjVISSTRING` (e.g. ``--joint=1``, ``--contactpoint=1``)
+   * - ``--<rndflag>=0|1``
+     - (default)
+     - toggle rendering flag declared in :ref:`mjRNDSTRING` (e.g. ``--shadow=0``, ``--wireframe=1``)
+
+**Notes:**
+
+- Running ``render`` with no arguments (or with ``--help`` / ``-h``) prints the help message.
+- The non-optional ``model`` path and optional ``output`` path are positional arguments. If ``output`` is
+  omitted, the output filename is derived from the model filename with the ``.png`` extension (e.g.
+  ``humanoid.xml`` becomes ``humanoid.png``).
+- ``--backend=filament`` uses MuJoCo's Filament C API to configure a scene from the model, setting up lighting,
+  materials, and textures, and rendering via Filament's offscreen pipeline. ``--backend=classic`` uses standard OpenGL
+  offscreen rendering with an EGL context.
+- The default camera is the model's free camera looking at the center of the scene. Specifying ``--camera=name`` selects
+  a named camera defined in the model XML, while integer indices ``0, 1, ...`` select fixed cameras in order of definition.
+  When using the free camera, its viewpoint can be adjusted via ``--lookat=x,y,z``, ``--distance=d``, ``--azimuth=a``,
+  and ``--elevation=e``.
+- If a keyframe is specified via ``--key``, the model state is reset to that keyframe before evaluating kinematics and
+  rendering. If no keyframe is specified and a keyframe named ``test`` exists in the model, it is used by default.
+- Visualization and rendering flags can be individually toggled using normalized flag names from :ref:`mjVISSTRING`
+  and :ref:`mjRNDSTRING`.
+- Labels can be enabled using ``--label=L`` where ``L`` is a label type name from :ref:`mjLABELSTRING` (e.g. ``geom``,
+  ``body``, ``joint``) or an integer index.
+- Coordinate frames can be rendered using ``--frame=F`` where ``F`` is a frame type name from :ref:`mjFRAMESTRING` (e.g.
+  ``geom``, ``body``, ``site``, ``world``) or an integer index.
+

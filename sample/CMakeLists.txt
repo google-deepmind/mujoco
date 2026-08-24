@@ -113,12 +113,31 @@ target_link_libraries(
 )
 target_link_options(record PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
 
+if(MUJOCO_USE_FILAMENT)
+  add_executable(render render.cc)
+  target_compile_options(render PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(render PRIVATE -Wno-gnu-anonymous-struct -Wno-nested-anon-types)
+  endif()
+  target_link_libraries(
+    render
+    mujoco::mujoco
+    mujoco::filament
+    lodepng
+    Threads::Threads
+  )
+  target_link_options(render PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
+endif()
+
 if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
   embed_in_bundle(basic simulate)
   embed_in_bundle(compile simulate)
   embed_in_bundle(dependencies simulate)
   embed_in_bundle(record simulate)
   embed_in_bundle(testspeed simulate)
+  if(MUJOCO_USE_FILAMENT)
+    embed_in_bundle(render simulate)
+  endif()
 endif()
 
 # Do not install if macOS Bundles are created as RPATH is managed manually there.
@@ -131,13 +150,20 @@ if(_INSTALL_SAMPLES)
   include(TargetAddRpath)
 
   # Add support to RPATH for the samples.
+  set(MUJOCO_INSTALL_SAMPLES
+      basic
+      compile
+      dependencies
+      record
+      testspeed
+  )
+  if(MUJOCO_USE_FILAMENT)
+    list(APPEND MUJOCO_INSTALL_SAMPLES render)
+  endif()
+
   target_add_rpath(
     TARGETS
-    basic
-    compile
-    dependencies
-    record
-    testspeed
+    ${MUJOCO_INSTALL_SAMPLES}
     INSTALL_DIRECTORY
     "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
     LIB_DIRS
@@ -147,11 +173,7 @@ if(_INSTALL_SAMPLES)
   )
 
   install(
-    TARGETS basic
-            compile
-            dependencies
-            record
-            testspeed
+    TARGETS ${MUJOCO_INSTALL_SAMPLES}
     EXPORT ${PROJECT_NAME}
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT samples
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT samples
