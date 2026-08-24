@@ -157,8 +157,6 @@ class WebViewer(viewer_protocol.Viewer):
       perturb: mujoco.MjvPerturb | None = None,
       render_flags: ux.RenderFlags | None = None,
       extra_geoms: list[mujoco.MjvGeom] | None = None,
-      host: str = '::',
-      http_port: int | None = None,
       ui_tcp_port: int = 0,
   ) -> None:
     """Initializes the WebViewer.
@@ -174,12 +172,6 @@ class WebViewer(viewer_protocol.Viewer):
       perturb: Perturbation parameters. Internal object is created if None.
       render_flags: Render flags. Internal object is created if None.
       extra_geoms: List of extra geoms. Internal list is created if None.
-      host: Public interface the server binds to. The default "::" accepts both
-        IPv6 and IPv4 connections (IPv4-only where IPv6 is unavailable).
-      http_port: The single public port: page, WASM, /model, and the /ui and
-        /state WebSocket paths. None falls back to config.http_port; 0 picks the
-        first free port starting at 8080, so several viewers can run side by
-        side.
       ui_tcp_port: Loopback TCP port the headless NetImgui client connects to. 0
         (the default) uses an OS-assigned ephemeral port — both endpoints live
         in this process tree, so no fixed number is needed.
@@ -197,12 +189,13 @@ class WebViewer(viewer_protocol.Viewer):
         extra_geoms=extra_geoms,
     )
 
-    self._host = host
+    self._host = '::'
     # Bind both listening sockets up front, in this process: bind conflicts
     # surface here as one clear error, and the loopback port is OS-assigned so
     # viewer instances can never collide on it.
-    requested_port = config.http_port if http_port is None else http_port
-    self._http_sock = web_server.bind_public_socket(host, requested_port)
+    self._http_sock = web_server.bind_public_socket(
+        self._host, config.http_port
+    )
     self._http_port = self._http_sock.getsockname()[1]
     self._tcp_sock = web_server.bind_loopback_socket(ui_tcp_port)
     self._ui_tcp_port = self._tcp_sock.getsockname()[1]
