@@ -19,7 +19,7 @@ set(MUJOCO_PLATFORM_TARGET_NAME mujoco_platform)
 add_library(${MUJOCO_PLATFORM_TARGET_NAME} STATIC)
 
 target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
-    PUBLIC
+    PRIVATE
         helpers.cc
         helpers.h
         resources.cc
@@ -68,7 +68,7 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
 
 if(NOT WIN32)
   target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
-      PUBLIC
+      PRIVATE
           ux/object_launcher_plugin.cc
   )
 endif()
@@ -76,26 +76,26 @@ endif()
 if(APPLE)
     set_source_files_properties(hal/window_osx.mm PROPERTIES
         COMPILE_FLAGS "-x objective-c++")
-    target_sources(${MUJOCO_PLATFORM_TARGET_NAME} PUBLIC
+    target_sources(${MUJOCO_PLATFORM_TARGET_NAME} PRIVATE
         hal/window_osx.mm
         ux/file_dialog_cocoa.mm
     )
 elseif(UNIX AND NOT APPLE)
-    target_sources(${MUJOCO_PLATFORM_TARGET_NAME} PUBLIC
+    target_sources(${MUJOCO_PLATFORM_TARGET_NAME} PRIVATE
         ux/file_dialog_zenity.cc
     )
 elseif(WIN32)
-    target_sources(${MUJOCO_PLATFORM_TARGET_NAME} PUBLIC
+    target_sources(${MUJOCO_PLATFORM_TARGET_NAME} PRIVATE
         ux/file_dialog_win.cc
     )
 else()
-    target_sources(${MUJOCO_PLATFORM_TARGET_NAME} PUBLIC
+    target_sources(${MUJOCO_PLATFORM_TARGET_NAME} PRIVATE
         ux/file_dialog.cc
     )
 endif()
 
 target_include_directories(${MUJOCO_PLATFORM_TARGET_NAME}
-    PUBLIC
+    PRIVATE
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/src
 )

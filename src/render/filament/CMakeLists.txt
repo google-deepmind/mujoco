@@ -20,7 +20,7 @@ add_library(${MUJOCO_FILAMENT_TARGET_NAME} STATIC)
 target_compile_definitions(${MUJOCO_FILAMENT_TARGET_NAME} PRIVATE MJ_STATIC)
 
 target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
-    PUBLIC
+    PRIVATE
         mjrfilament.cc
         mjrfilament_cpp.h
         core/builtins.cc

@@ -20,7 +20,7 @@ add_library(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME} STATIC)
 target_compile_definitions(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME} PRIVATE MJ_STATIC)
 
 target_sources(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME}
-    PUBLIC
+    PRIVATE
         compat/scene_bridge.cc
         compat/scene_bridge.h
         compat/scene_geom_util.cc
@@ -30,13 +30,13 @@ target_sources(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME}
 )
 if(MUJOCO_USE_FILAMENT_MJR_COMPAT)
     target_sources(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME}
-        PUBLIC
+        PRIVATE
             mjr_compat.cc
     )
 endif()
 
 target_include_directories(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME}
-    PUBLIC
+    PRIVATE
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/src
 )

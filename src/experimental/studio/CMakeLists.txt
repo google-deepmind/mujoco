@@ -55,6 +55,19 @@ function(configure_studio_target TARGET_NAME)
             mujoco::platform
     )
 
+    # Self-registering plugin TUs (mjPLUGIN_LIB_INIT) have no referenced symbols,
+    # so the linker discards them when they arrive inside a static archive.
+    if(APPLE)
+        target_link_options(${TARGET_NAME} PRIVATE
+            "-Wl,-force_load,$<TARGET_FILE:mujoco_platform>")
+    elseif(NOT MSVC)
+        target_link_options(${TARGET_NAME} PRIVATE
+            "-Wl,--whole-archive" "$<TARGET_FILE:mujoco_platform>" "-Wl,--no-whole-archive")
+    else()
+        target_link_options(${TARGET_NAME} PRIVATE
+            "/WHOLEARCHIVE:$<TARGET_FILE:mujoco_platform>")
+    endif()
+
     get_target_property(IS_BUNDLE ${TARGET_NAME} MACOSX_BUNDLE)
     if(IS_BUNDLE)
         set(STUDIO_ASSETS_DIR $<TARGET_FILE_DIR:${TARGET_NAME}>/../Resources/assets)
