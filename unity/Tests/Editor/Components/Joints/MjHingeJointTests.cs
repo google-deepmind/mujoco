@@ -15,6 +15,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Xml;
 using NUnit.Framework;
 using UnityEngine;
@@ -66,6 +67,19 @@ public class MjHingeJointTests {
     _joint.RangeUpper = 10;
     _doc.AppendChild(_joint.GenerateMjcf("name", _doc));
     Assert.That(_doc.OuterXml, Does.Contain(@"range=""-20 10"""));
+  }
+
+  [Test]
+  public void GenerateReferenceUsesInvariantCulture() {
+    var previousCulture = CultureInfo.CurrentCulture;
+    CultureInfo.CurrentCulture = new CultureInfo("fr-FR");
+    try {
+      _joint.Configuration = 1.5f;
+      var element = _joint.GenerateMjcf("name", _doc);
+      Assert.That(element.GetAttribute("ref"), Is.EqualTo("1.5"));
+    } finally {
+      CultureInfo.CurrentCulture = previousCulture;
+    }
   }
 
   [Test]
