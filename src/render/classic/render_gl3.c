@@ -118,7 +118,8 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
 
   // explicit texture coordinates
   else if (type == mjtexREGULAR && geom &&
-           (geom->texcoord || (texid >= 0 && con->textureType[texid] == mjTEXTURE_2D && isBuiltinWithUV(geom->type)))) {
+           (geom->texcoord || geom->type == mjGEOM_FLEX || geom->type == mjGEOM_SKIN ||
+            (texid >= 0 && con->textureType[texid] == mjTEXTURE_2D && isBuiltinWithUV(geom->type)))) {
     // enable
     if (state && texid >= 0) {
       glActiveTexture(GL_TEXTURE0);
@@ -130,7 +131,7 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
       scl[1] = texrepeat[1] > 0 ? texrepeat[1] : 1.0f;
 
       // uniform: repeat relative to spatial units rather than object
-      if (texuniform) {
+      if (texuniform && geom->type != mjGEOM_FLEX && geom->type != mjGEOM_SKIN) {
         if (geom->size[0] > 0) {
           scl[0] = scl[0] * geom->size[0];
         }
