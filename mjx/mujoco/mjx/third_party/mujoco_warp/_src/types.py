@@ -159,6 +159,8 @@ class OverflowType(enum.IntFlag):
     CONTACT_MATCH: contact match sensor overflow
     NVMAX: nvmax overflow (islands)
     EPA_HORIZON: EPA horizon buffer overflow
+    ITERATIONS: solver iteration limit reached
+    LS_ITERATIONS: linesearch iteration limit reached
   """
 
   NEFC = 1 << 0
@@ -170,6 +172,8 @@ class OverflowType(enum.IntFlag):
   CONTACT_MATCH = 1 << 6
   NVMAX = 1 << 7
   EPA_HORIZON = 1 << 8
+  ITERATIONS = 1 << 9
+  LS_ITERATIONS = 1 << 10
 
 
 class CamLightType(enum.IntEnum):
@@ -1005,7 +1009,6 @@ class Model:
     nflexbending: number of bending parameters in all flexes
     nflexelemedge: number of element edge ids in all flexes
     nflexshelldata: number of shell fragment vertex ids in all flexes
-    nflexevpair: number of element-vertex pairs in all flexes
     nJfe: number of non-zeros in sparse flexedge Jacobian
     nmesh: number of meshes
     nmeshvert: number of vertices for all meshes
@@ -1025,9 +1028,12 @@ class Model:
     nJten: number of non-zeros in sparse tendon Jacobian
     nwrap: number of wrap objects in all tendon paths
     nsensor: number of sensors
+    nkey: number of keyframes
     nmocap: number of mocap bodies
     nplugin: number of plugin instances
     nJmom: number of non-zeros in actuator_moment
+    npolygonmax: maximum number of verts per polygon
+    nmeshdegmax: maximum number of polygons per vert
     nuserdata: number of custom user parameters
     nsensordata: number of elements in sensor data vector
     nhistory: number of history buffer entries
@@ -1115,6 +1121,7 @@ class Model:
     geom_friction: friction for (slide, spin, roll)          (*, ngeom, 3)
     geom_margin: detect contact if dist<margin               (*, ngeom,)
     geom_gap: additional contact detection buffer            (*, ngeom,)
+    geom_surfacevel: surface velocity in local frame: lin,ang(*, ngeom, 6)
     geom_fluid: fluid interaction parameters                 (ngeom, mjNFLUID)
     geom_rgba: rgba when material is omitted                 (*, ngeom, 4)
     site_type: geom type for rendering (GeomType)            (nsite,)
@@ -1162,8 +1169,8 @@ class Model:
     flex_friction: friction for (slide, spin, roll)          (nflex, 3)
     flex_margin: detect contact if dist<margin               (nflex,)
     flex_gap: include in solver if dist<margin-gap           (nflex,)
-    flex_internal: internal collision enabled                (nflex,)
     flex_selfcollide: self-collision mode                    (nflex,)
+    flex_activelayers: active element layers                 (nflex,)
     flex_dim: 1: lines, 2: triangles, 3: tetrahedra          (nflex,)
     flex_interp: interpolation order (0: vertex, 1+: nodes)  (nflex,)
     flex_cellnum: cell count per dimension                   (nflex, 3)
@@ -1181,16 +1188,14 @@ class Model:
     flex_bendingadr: first bending data address              (nflex,)
     flex_shellnum: number of shells                          (nflex,)
     flex_shelldataadr: first shell data address              (nflex,)
-    flex_evpairadr: first element-vertex pair address        (nflex,)
-    flex_evpairnum: number of element-vertex pairs           (nflex,)
     flex_nodebodyid: node body ids                           (nflexnode,)
     flex_vertbodyid: vertex body ids                         (nflexvert,)
     flex_edge: edge vertex ids (2 per edge)                  (nflexedge, 2)
     flex_edgeflap: adjacent vertex ids (dim=2 only)          (nflexedge, 2)
     flex_elem: element vertex ids (dim+1 per elem)           (nflexelemdata,)
     flex_elemedge: element edge ids                          (nflexelemedge,)
+    flex_elemlayer: element distance from surface            (nflexelem,)
     flex_shell: shell fragment vertex ids (dim per frag)     (nflexshelldata,)
-    flex_evpair: element-vertex pair indices                 (nflexevpair, 2)
     flex_vert: vertex local positions                        (nflexvert, 3)
     flex_vert0: reference vertex positions in qpos0          (nflexvert, 3)
     flex_node: node local positions                          (nflexnode, 3)
@@ -1323,6 +1328,13 @@ class Model:
     sensor_interval: sensor interval and phase               (nsensor, 2)
     plugin: globally registered plugin slot number           (nplugin,)
     plugin_attr: config attributes of geom plugin            (nplugin, _NPLUGINATTR)
+    key_time: keyframe time                                  (nkey,)
+    key_qpos: keyframe qpos                                  (nkey, nq)
+    key_qvel: keyframe qvel                                  (nkey, nv)
+    key_act: keyframe act                                    (nkey, na)
+    key_mpos: keyframe mocap pos                             (nkey, nmocap, 3)
+    key_mquat: keyframe mocap quat                           (nkey, nmocap, 4)
+    key_ctrl: keyframe ctrl                                  (nkey, nu)
     M_rownnz: number of non-zeros in each row of M           (nv,)
     M_rowadr: index of each row in M                         (nv,)
     M_colind: column indices of non-zeros in M               (nC,)
@@ -1347,13 +1359,12 @@ class Model:
     nmaxcondim: maximum condim across geoms, pairs, and flexes
     nmaxpyramid: maximum number of pyramid directions
     nflexintcell: total interp cells (non-strain) for passive forces
-    nmaxpolygon: maximum number of verts per polygon
-    nmaxmeshdeg: maximum number of polygons per vert
     is_sparse: constraint Jacobian/Hessian layout (sparse vs dense). Does not affect M, whose
       factorization is a per-block decision -- see M_tiles and m_block_layout
     qLD_block_total: packed length of the dense region per world (also the offset of the LDL region)
     qLD_block_adr: packed factor offset; Q_LD_BLOCK_* sentinel otherwise (nv,)
     has_fluid: True if wind, density, or viscosity are non-zero at put_model time
+    flg_surfacevel: whether model has non-zero surfacevel
     has_sdf_geom: whether the model contains SDF geoms
     has_flex_selfcollide: whether any flex has self-collision enabled
     has_ellipsoid_geom: whether the model contains ellipsoid geoms
@@ -1447,7 +1458,6 @@ class Model:
     flexvert_geom_pair_filtered: conaffinity-filtered vertex vs geom pairs  (*, 2)
     flex_elemflexid: maps each element index directly to its flexid         (nflexelem,)
     flex_shellflexid: maps each shell index directly to its flexid          (nflexshelldata,)
-    flex_evpairflexid: maps each element-vertex pair directly to its flexid (nflexevpair,)
     flex_vertflexid: maps each vertex index directly to its flexid          (nflexvert,)
     flex_shelladr: maps each flex to its start shell index                  (nflex,)
     flex_faceadr: maps each flex to its start face index                    (nflex,)
@@ -1462,7 +1472,7 @@ class Model:
                           local edge indices
     nflexface: number of interpolated flex shell faces
     flex_face_map: mapping of face index to flex and local element face indices
-    flex_face: global node indices of each face                              (nflexface, 9)
+    flex_face: global node indices of each face                             (nflexface, 9)
   """
 
   nq: int
@@ -1490,7 +1500,6 @@ class Model:
   nflexbending: int
   nflexelemedge: int
   nflexshelldata: int
-  nflexevpair: int
   nJfe: int
   nmesh: int
   nmeshvert: int
@@ -1510,9 +1519,12 @@ class Model:
   nJten: int
   nwrap: int
   nsensor: int
+  nkey: int
   nmocap: int
   nplugin: int
   nJmom: int
+  npolygonmax: int
+  nmeshdegmax: int
   nuserdata: int
   nsensordata: int
   nhistory: int
@@ -1599,6 +1611,7 @@ class Model:
   geom_friction: array("*", "ngeom", wp.vec3)
   geom_margin: array("*", "ngeom", float)
   geom_gap: array("*", "ngeom", float)
+  geom_surfacevel: array("*", "ngeom", vec6)
   geom_fluid: array("ngeom", 12, float)
   geom_rgba: array("*", "ngeom", wp.vec4)
   site_type: array("nsite", int)
@@ -1646,8 +1659,8 @@ class Model:
   flex_friction: array("nflex", wp.vec3)
   flex_margin: array("nflex", float)
   flex_gap: array("nflex", float)
-  flex_internal: array("nflex", int)
   flex_selfcollide: array("nflex", int)
+  flex_activelayers: array("nflex", int)
   flex_dim: array("nflex", int)
   flex_interp: array("nflex", int)
   flex_cellnum: array("nflex", wp.vec3i)
@@ -1665,16 +1678,14 @@ class Model:
   flex_bendingadr: array("nflex", int)
   flex_shellnum: array("nflex", int)
   flex_shelldataadr: array("nflex", int)
-  flex_evpairadr: array("nflex", int)
-  flex_evpairnum: array("nflex", int)
   flex_nodebodyid: array("nflexnode", int)
   flex_vertbodyid: array("nflexvert", int)
   flex_edge: array("nflexedge", wp.vec2i)
   flex_edgeflap: array("nflexedge", wp.vec2i)
   flex_elem: array("nflexelemdata", int)
   flex_elemedge: array("nflexelemedge", int)
+  flex_elemlayer: array("nflexelem", int)
   flex_shell: array("nflexshelldata", int)
-  flex_evpair: array("nflexevpair", wp.vec2i)
   flex_vert: array("nflexvert", wp.vec3)
   flex_vert0: array("nflexvert", wp.vec3)
   flex_node: array("nflexnode", wp.vec3)
@@ -1807,6 +1818,13 @@ class Model:
   sensor_interval: array("nsensor", wp.vec2)
   plugin: array("nplugin", int)
   plugin_attr: array("nplugin", vec_pluginattr)
+  key_time: array("nkey", float)
+  key_qpos: array("nkey", "nq", float)
+  key_qvel: array("nkey", "nv", float)
+  key_act: array("nkey", "na", float)
+  key_mpos: array("nkey", "nmocap", wp.vec3)
+  key_mquat: array("nkey", "nmocap", wp.quat)
+  key_ctrl: array("nkey", "nu", float)
   M_rownnz: array("nv", int)
   M_rowadr: array("nv", int)
   M_colind: array("nC", int)
@@ -1829,12 +1847,11 @@ class Model:
   nmaxcondim: int
   nmaxpyramid: int
   nflexintcell: int
-  nmaxpolygon: int
-  nmaxmeshdeg: int
   is_sparse: bool
   qLD_block_total: int
   qLD_block_adr: array("nv", int)
   has_fluid: bool
+  flg_surfacevel: bool
   has_sdf_geom: bool
   has_flex_selfcollide: bool
   has_ellipsoid_geom: bool
@@ -1922,7 +1939,6 @@ class Model:
   flexvert_geom_pair_filtered: array("nflexvert_geom_pair_filtered", wp.vec2i)
   flex_elemflexid: array("nflexelem", int)
   flex_shellflexid: array("nflexshelldata", int)
-  flex_evpairflexid: array("nflexevpair", int)
   flex_vertflexid: array("nflexvert", int)
   flex_shelladr: array("nflex", int)
   flex_faceadr: array("nflex", int)
@@ -2491,6 +2507,16 @@ class RenderContext:
       fallback are controlled by `use_ambient_lighting`.
     geom_ray_types: tuple of GeomType int values present in the scene, used to
       statically eliminate unused intersection branches in the ray-cast kernels.
+    splat_position: Splat centers in world coordinates (nsplat, 3)
+    splat_rotation: Splat rotation as (w, x, y, z) (nsplat, 4)
+    splat_scale: Splat scale as standard deviation in each dimension (nsplat, 3)
+    splat_rgba: Splat color and opacity (nsplat, 4)
+    splat_bvh: Splat BVH
+    splat_lower: Splat lower bounds
+    splat_upper: Splat upper bounds
+    splat_bvh_id: Splat BVH id
+    splat_group_root: Per-world selected splat BVH root
+    splat_count: Number of splats
   """
 
   nrender: int
@@ -2555,4 +2581,14 @@ class RenderContext:
   enable_per_light_ambient: bool
   light_attenuation_is_default: bool
   has_spot_lights: bool
+  splat_position: array("*", wp.vec3)
+  splat_rotation: array("*", wp.quat)
+  splat_scale: array("*", wp.vec3)
+  splat_rgba: array("*", wp.vec4)
+  splat_bvh: Optional[wp.Bvh]
+  splat_lower: array("*", wp.vec3)
+  splat_upper: array("*", wp.vec3)
+  splat_bvh_id: wp.uint64
+  splat_group_root: array("nworld", int)
+  splat_count: int
   geom_ray_types: tuple = ()

@@ -29,6 +29,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.block_cholesky import create_blocke
 from mujoco.mjx.third_party.mujoco_warp._src.block_cholesky import create_blocked_cholesky_solve_newton_func
 from mujoco.mjx.third_party.mujoco_warp._src.block_cholesky import solve_search_sums
 from mujoco.mjx.third_party.mujoco_warp._src.types import InverseContext
+from mujoco.mjx.third_party.mujoco_warp._src.types import OverflowType
 from mujoco.mjx.third_party.mujoco_warp._src.types import SolverContext
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
@@ -402,6 +403,25 @@ def _eval_elliptic_shifted(
 
 
 @wp.func
+def _eval_elliptic_middle(
+  # In:
+  N: float,
+  T: float,
+  D0: float,
+  mu: float,
+  ufrictionj: float,
+  is_normal: bool,
+) -> wp.vec2:
+  """Computes the elliptic-cone middle-zone (force, cost) for one row (cost 0 on tangent rows)."""
+  dm = math.safe_div(D0, mu * mu * (1.0 + mu * mu))
+  nmt = N - mu * T
+  force_normal = -dm * nmt * mu
+  if is_normal:
+    return wp.vec2(force_normal, 0.5 * dm * nmt * nmt)
+  return wp.vec2(-math.safe_div(force_normal, T) * ufrictionj, 0.0)
+
+
+@wp.func
 def _eval_constraint(
   # In:
   is_equality: bool,
@@ -447,16 +467,9 @@ def _eval_constraint(
       return wp.vec3(-D * jaref, float(types.ConstraintState.QUADRATIC.value), 0.5 * D * jaref * jaref)
     # Middle zone
     else:
-      dm = math.safe_div(D0, mu * mu * (1.0 + mu * mu))
-      nmt = N - mu * T
-      force_normal = -dm * nmt * mu
-
-      if efcid == efcid0:
-        return wp.vec3(force_normal, float(types.ConstraintState.CONE.value), 0.5 * dm * nmt * nmt)
-      else:
-        force_tangent = -math.safe_div(force_normal, T) * ufrictionj
-
-      return wp.vec3(force_tangent, float(types.ConstraintState.CONE.value), 0.0)
+      is_normal = efcid == efcid0
+      fc = _eval_elliptic_middle(N, T, D0, mu, ufrictionj, is_normal)
+      return wp.vec3(fc[0], float(types.ConstraintState.CONE.value), fc[1])
 
   if jaref >= 0.0:
     return wp.vec3(0.0, float(types.ConstraintState.SATISFIED.value), 0.0)
@@ -821,7 +834,12 @@ def _compute_efc_eval_pt_3alphas_elliptic(
 
 @cache_kernel
 def _linesearch_iterative_kernel(
-  ls_iterations: int, cone_type: types.ConeType, fuse_jv: bool, is_sparse: bool, incremental: bool
+  ls_iterations: int,
+  cone_type: types.ConeType,
+  fuse_jv: bool,
+  is_sparse: bool,
+  incremental: bool,
+  warn_overflow: bool,
 ):
   """Factory for iterative linesearch kernel.
 
@@ -831,6 +849,7 @@ def _linesearch_iterative_kernel(
     fuse_jv: Whether to compute jv = J @ search in-kernel (efficient for small nv).
     is_sparse: Use sparse matrix representation for constraint Jacobian.
     incremental: State changes are tracked: flag exhausted rays, reuse jv on unchanged search.
+    warn_overflow: Whether to print overflow warnings.
   """
   LS_ITERATIONS = ls_iterations
   IS_ELLIPTIC = cone_type == types.ConeType.ELLIPTIC
@@ -891,6 +910,7 @@ def _linesearch_iterative_kernel(
     # Data out:
     qacc_out: wp.array2d[float],
     efc_Ma_out: wp.array2d[float],
+    overflow_out: wp.array[int],
     # Out:
     ctx_Jaref_out: wp.array2d[float],
     ctx_jv_out: wp.array2d[float],
@@ -1150,6 +1170,7 @@ def _linesearch_iterative_kernel(
 
     # accept Newton step if derivative is small and cost improved
     initial_converged = wp.abs(lo_in[1]) < gtol and lo_in[0] < 0.0
+    ls_converged = initial_converged
 
     # main iterative loop - skip if already converged
     if not initial_converged:
@@ -1295,6 +1316,7 @@ def _linesearch_iterative_kernel(
         improvement = wp.where(improved, -best_delta, improvement)
 
         if ls_done:
+          ls_converged = True
           break
     else:
       alpha = lo_alpha_in
@@ -1314,6 +1336,13 @@ def _linesearch_iterative_kernel(
       ctx_alpha_out[worldid] = alpha
       if wp.static(INCREMENTAL):
         ctx_ls_exhausted_out[worldid] = wp.abs(alpha) < noise_floor
+      if not ls_converged:
+        if wp.static(warn_overflow):
+          wp.printf(
+            "linesearch iterations limit reached - please increase ls_iterations to %u\n",
+            wp.static(LS_ITERATIONS),
+          )
+        wp.atomic_or(overflow_out, worldid, wp.static(OverflowType.LS_ITERATIONS))
 
   return kernel
 
@@ -1328,7 +1357,14 @@ def _linesearch_iterative(m: types.Model, d: types.Data, ctx: SolverContext, fus
     fuse_jv: Whether jv is computed in-kernel (True) or pre-computed (False).
   """
   wp.launch_tiled(
-    _linesearch_iterative_kernel(m.opt.ls_iterations, m.opt.cone, fuse_jv, m.is_sparse, _use_incremental(m)),
+    _linesearch_iterative_kernel(
+      m.opt.ls_iterations,
+      m.opt.cone,
+      fuse_jv,
+      m.is_sparse,
+      _use_incremental(m),
+      bool(m.opt.warn_overflow),
+    ),
     dim=d.nworld,
     inputs=[
       m.nv,
@@ -1362,7 +1398,17 @@ def _linesearch_iterative(m: types.Model, d: types.Data, ctx: SolverContext, fus
       ctx.quad,
       ctx.done,
     ],
-    outputs=[d.qacc, d.efc.Ma, ctx.Jaref, ctx.jv, ctx.quad, ctx.improvement, ctx.alpha, ctx.ls_exhausted],
+    outputs=[
+      d.qacc,
+      d.efc.Ma,
+      d.overflow,
+      ctx.Jaref,
+      ctx.jv,
+      ctx.quad,
+      ctx.improvement,
+      ctx.alpha,
+      ctx.ls_exhausted,
+    ],
     block_dim=m.block_dim.linesearch_iterative,
   )
 
@@ -3012,91 +3058,6 @@ def _jtdaj_groups_per_world(nworld: int, njmax: int) -> int:
   return max(1, min(njmax, _JTDAJ_OVERSUBSCRIBE_WAVES * device_warps // nworld))
 
 
-@wp.kernel
-def _diag_precond_build(
-  # Model:
-  body_simple: wp.array[int],
-  dof_bodyid: wp.array[int],
-  M_rownnz: wp.array[int],
-  M_rowadr: wp.array[int],
-  # Data in:
-  M_in: wp.array2d[float],
-  # In:
-  ctx_done_in: wp.array[bool],
-  # Out:
-  diag_out: wp.array2d[float],
-):
-  """Initialize diagonal with M_ii + regularization for flex DOFs only."""
-  worldid, dofid = wp.tid()
-  if ctx_done_in[worldid]:
-    return
-  if body_simple[dof_bodyid[dofid]] != 2:
-    return
-  madr_ii = M_rowadr[dofid] + M_rownnz[dofid] - 1
-  diag_out[worldid, dofid] = M_in[worldid, madr_ii] + float(1.0e-12)
-
-
-@wp.kernel
-def _diag_precond_add_JTDJ(
-  # Model:
-  body_simple: wp.array[int],
-  dof_bodyid: wp.array[int],
-  # Data in:
-  nefc_in: wp.array[int],
-  efc_J_rownnz_in: wp.array2d[int],
-  efc_J_rowadr_in: wp.array2d[int],
-  efc_J_colind_in: wp.array3d[int],
-  efc_J_in: wp.array3d[float],
-  efc_D_in: wp.array2d[float],
-  # In:
-  ctx_done_in: wp.array[bool],
-  # Out:
-  diag_out: wp.array2d[float],
-):
-  """Add diagonal of J^T D J for flex DOFs only."""
-  worldid, efcid = wp.tid()
-  if ctx_done_in[worldid]:
-    return
-  if efcid >= nefc_in[worldid]:
-    return
-  D = efc_D_in[worldid, efcid]
-  if D == 0.0:
-    return
-  rownnz = efc_J_rownnz_in[worldid, efcid]
-  rowadr = efc_J_rowadr_in[worldid, efcid]
-  for i in range(rownnz):
-    col = efc_J_colind_in[worldid, 0, rowadr + i]
-    if body_simple[dof_bodyid[col]] != 2:
-      continue
-    Jval = efc_J_in[worldid, 0, rowadr + i]
-    if Jval != 0.0:
-      wp.atomic_add(diag_out, worldid, col, D * Jval * Jval)
-
-
-@wp.kernel
-def _diag_precond_apply(
-  # Model:
-  body_simple: wp.array[int],
-  dof_bodyid: wp.array[int],
-  # Data in:
-  qLDiagInv_in: wp.array2d[float],
-  # In:
-  diag_in: wp.array2d[float],
-  grad_in: wp.array2d[float],
-  ctx_done_in: wp.array[bool],
-  # Out:
-  Mgrad_out: wp.array2d[float],
-):
-  """Apply preconditioner: flex DOFs use diag(M+JTDJ), others use M diagonal."""
-  worldid, dofid = wp.tid()
-  if ctx_done_in[worldid]:
-    return
-  if body_simple[dof_bodyid[dofid]] == 2:
-    Mgrad_out[worldid, dofid] = grad_in[worldid, dofid] / diag_in[worldid, dofid]
-  else:
-    Mgrad_out[worldid, dofid] = qLDiagInv_in[worldid, dofid] * grad_in[worldid, dofid]
-
-
 def _update_gradient(m: types.Model, d: types.Data, ctx: SolverContext, compact: bool = False):
   # grad = Ma - qfrc_smooth - qfrc_constraint
   if m.opt.solver == types.SolverType.CG:
@@ -3122,15 +3083,7 @@ def _update_gradient(m: types.Model, d: types.Data, ctx: SolverContext, compact:
     )
 
   if m.opt.solver == types.SolverType.CG:
-    if m.is_sparse and m.nflex > 0:
-      wp.launch(
-        _diag_precond_apply,
-        dim=(d.nworld, m.nv),
-        inputs=[m.body_simple, m.dof_bodyid, d.qLDiagInv, ctx.diag_precond, ctx.grad, ctx.done],
-        outputs=[ctx.Mgrad],
-      )
-    else:
-      smooth.solve_m(m, d, ctx.Mgrad, ctx.grad)
+    smooth.solve_m(m, d, ctx.Mgrad, ctx.grad)
   elif m.opt.solver == types.SolverType.NEWTON:
     # h = M + (efc_J.T * efc_D * active) @ efc_J
     sc = _sparse_compact(ctx)
@@ -3445,85 +3398,103 @@ def _solve_search_update_cg_tiled(
     ctx_search_dot_out[worldid] = search_dot_sum[0]
 
 
-@wp.kernel
-def _solve_cg_finalize(
-  # Model:
-  nv: int,
-  opt_tolerance: wp.array[float],
-  opt_iterations: int,
-  stat_meaninertia: wp.array[float],
-  # In:
-  ctx_beta_num_in: wp.array[float],
-  ctx_beta_den_in: wp.array[float],
-  ctx_improvement_in: wp.array[float],
-  ctx_done_in: wp.array[bool],
-  ctx_grad_dot_in: wp.array[float],
-  # Data out:
-  solver_niter_out: wp.array[int],
-  # Out:
-  ctx_beta_out: wp.array[float],
-  nsolving_out: wp.array[int],
-  ctx_done_out: wp.array[bool],
-):
-  worldid = wp.tid()
+@cache_kernel
+def _solve_cg_finalize(warn_overflow: bool):
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    nv: int,
+    opt_tolerance: wp.array[float],
+    opt_iterations: int,
+    stat_meaninertia: wp.array[float],
+    # In:
+    ctx_beta_num_in: wp.array[float],
+    ctx_beta_den_in: wp.array[float],
+    ctx_improvement_in: wp.array[float],
+    ctx_done_in: wp.array[bool],
+    ctx_grad_dot_in: wp.array[float],
+    # Data out:
+    solver_niter_out: wp.array[int],
+    overflow_out: wp.array[int],
+    # Out:
+    ctx_beta_out: wp.array[float],
+    nsolving_out: wp.array[int],
+    ctx_done_out: wp.array[bool],
+  ):
+    worldid = wp.tid()
 
-  if ctx_done_in[worldid]:
-    return
+    if ctx_done_in[worldid]:
+      return
 
-  # 1. solve_beta_finalize
-  ctx_beta_out[worldid] = wp.max(0.0, ctx_beta_num_in[worldid] / wp.max(types.MJ_MINVAL, ctx_beta_den_in[worldid]))
+    # 1. solve_beta_finalize
+    ctx_beta_out[worldid] = wp.max(0.0, ctx_beta_num_in[worldid] / wp.max(types.MJ_MINVAL, ctx_beta_den_in[worldid]))
 
-  # 2. solve_done
-  solver_niter_out[worldid] += 1
-  tolerance = opt_tolerance[worldid % opt_tolerance.shape[0]]
-  meaninertia = stat_meaninertia[worldid % stat_meaninertia.shape[0]]
+    # 2. solve_done
+    solver_niter_out[worldid] += 1
+    tolerance = opt_tolerance[worldid % opt_tolerance.shape[0]]
+    meaninertia = stat_meaninertia[worldid % stat_meaninertia.shape[0]]
 
-  grad_dot = ctx_grad_dot_in[worldid]
+    grad_dot = ctx_grad_dot_in[worldid]
 
-  improvement = _rescale(nv, meaninertia, ctx_improvement_in[worldid])
-  gradient = _rescale(nv, meaninertia, wp.sqrt(grad_dot))
-  done = (improvement < tolerance) or (gradient < tolerance)
-  if done or solver_niter_out[worldid] == opt_iterations:
-    ctx_done_out[worldid] = True
-    wp.atomic_add(nsolving_out, 0, -1)
+    improvement = _rescale(nv, meaninertia, ctx_improvement_in[worldid])
+    gradient = _rescale(nv, meaninertia, wp.sqrt(grad_dot))
+    done = (improvement < tolerance) or (gradient < tolerance)
+    if done or solver_niter_out[worldid] == opt_iterations:
+      if not done and solver_niter_out[worldid] == opt_iterations:
+        if wp.static(warn_overflow):
+          wp.printf("solver iterations limit reached - please increase iterations to %u\n", opt_iterations)
+        overflow_out[worldid] = overflow_out[worldid] | OverflowType.ITERATIONS
+      ctx_done_out[worldid] = True
+      wp.atomic_add(nsolving_out, 0, -1)
+
+  return kernel
 
 
-@wp.kernel
-def _solve_done(
-  # Model:
-  nv: int,
-  opt_tolerance: wp.array[float],
-  opt_iterations: int,
-  stat_meaninertia: wp.array[float],
-  # In:
-  ctx_grad_dot_in: wp.array[float],
-  ctx_newton_decrement_in: wp.array[float],
-  ctx_improvement_in: wp.array[float],
-  ctx_done_in: wp.array[bool],
-  # Data out:
-  solver_niter_out: wp.array[int],
-  # Out:
-  nsolving_out: wp.array[int],
-  ctx_done_out: wp.array[bool],
-):
-  worldid = wp.tid()
+@cache_kernel
+def _solve_done(warn_overflow: bool):
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    nv: int,
+    opt_tolerance: wp.array[float],
+    opt_iterations: int,
+    stat_meaninertia: wp.array[float],
+    # In:
+    ctx_grad_dot_in: wp.array[float],
+    ctx_newton_decrement_in: wp.array[float],
+    ctx_improvement_in: wp.array[float],
+    ctx_done_in: wp.array[bool],
+    # Data out:
+    solver_niter_out: wp.array[int],
+    overflow_out: wp.array[int],
+    # Out:
+    nsolving_out: wp.array[int],
+    ctx_done_out: wp.array[bool],
+  ):
+    worldid = wp.tid()
 
-  if ctx_done_in[worldid]:
-    return
+    if ctx_done_in[worldid]:
+      return
 
-  solver_niter_out[worldid] += 1
-  tolerance = opt_tolerance[worldid % opt_tolerance.shape[0]]
-  meaninertia = stat_meaninertia[worldid % stat_meaninertia.shape[0]]
+    solver_niter_out[worldid] += 1
+    tolerance = opt_tolerance[worldid % opt_tolerance.shape[0]]
+    meaninertia = stat_meaninertia[worldid % stat_meaninertia.shape[0]]
 
-  improvement = _rescale(nv, meaninertia, ctx_improvement_in[worldid])
-  gradient = _rescale(nv, meaninertia, wp.sqrt(ctx_grad_dot_in[worldid]))
-  model_improvement = _rescale(nv, meaninertia, 0.5 * ctx_newton_decrement_in[worldid])
-  done = (improvement < tolerance) or (gradient < tolerance) or (model_improvement < tolerance)
-  if done or solver_niter_out[worldid] == opt_iterations:
-    # if the solver has converged or the maximum number of iterations has been reached then
-    # mark this world as done and remove it from the number of unconverged worlds
-    ctx_done_out[worldid] = True
-    wp.atomic_add(nsolving_out, 0, -1)
+    improvement = _rescale(nv, meaninertia, ctx_improvement_in[worldid])
+    gradient = _rescale(nv, meaninertia, wp.sqrt(ctx_grad_dot_in[worldid]))
+    model_improvement = _rescale(nv, meaninertia, 0.5 * ctx_newton_decrement_in[worldid])
+    done = (improvement < tolerance) or (gradient < tolerance) or (model_improvement < tolerance)
+    if done or solver_niter_out[worldid] == opt_iterations:
+      # if the solver has converged or the maximum number of iterations has been reached then
+      # mark this world as done and remove it from the number of unconverged worlds
+      if not done and solver_niter_out[worldid] == opt_iterations:
+        if wp.static(warn_overflow):
+          wp.printf("solver iterations limit reached - please increase iterations to %u\n", opt_iterations)
+        overflow_out[worldid] = overflow_out[worldid] | OverflowType.ITERATIONS
+      ctx_done_out[worldid] = True
+      wp.atomic_add(nsolving_out, 0, -1)
+
+  return kernel
 
 
 # The linesearch runs in ray units anchored at the last gradient rebuild, and
@@ -3601,7 +3572,7 @@ def _solver_iteration(
       block_dim=m.block_dim.solve_beta_accumulate,
     )
     wp.launch(
-      _solve_cg_finalize,
+      _solve_cg_finalize(bool(m.opt.warn_overflow)),
       dim=d.nworld,
       inputs=[
         m.nv,
@@ -3616,6 +3587,7 @@ def _solver_iteration(
       ],
       outputs=[
         d.solver_niter,
+        d.overflow,
         ctx.beta,
         nsolving,
         ctx.done,
@@ -3631,7 +3603,7 @@ def _solver_iteration(
 
   else:
     wp.launch(
-      _solve_done,
+      _solve_done(bool(m.opt.warn_overflow)),
       dim=d.nworld,
       inputs=[
         m.nv,
@@ -3643,7 +3615,7 @@ def _solver_iteration(
         ctx.improvement,
         ctx.done,
       ],
-      outputs=[d.solver_niter, nsolving, ctx.done],
+      outputs=[d.solver_niter, d.overflow, nsolving, ctx.done],
     )
 
 
@@ -3690,22 +3662,6 @@ def init_context(m: types.Model, d: types.Data, ctx: SolverContext | InverseCont
   _mul_m_compact_aware(m, d, ctx, d.efc.Ma, d.qacc, ctx.done)
 
   _update_constraint(m, d, ctx)
-
-  # Build diagonal preconditioner (once per step).
-  if m.is_sparse and m.nflex > 0:
-    ctx.diag_precond = wp.empty(shape=(d.nworld, m.nv), dtype=float)
-    wp.launch(
-      _diag_precond_build,
-      dim=(d.nworld, m.nv),
-      inputs=[m.body_simple, m.dof_bodyid, m.M_rownnz, m.M_rowadr, d.M, ctx.done],
-      outputs=[ctx.diag_precond],
-    )
-    wp.launch(
-      _diag_precond_add_JTDJ,
-      dim=(d.nworld, d.njmax),
-      inputs=[m.body_simple, m.dof_bodyid, d.nefc, d.efc.J_rownnz, d.efc.J_rowadr, d.efc.J_colind, d.efc.J, d.efc.D, ctx.done],
-      outputs=[ctx.diag_precond],
-    )
 
   if grad:
     _update_gradient(m, d, ctx, compact=compact)

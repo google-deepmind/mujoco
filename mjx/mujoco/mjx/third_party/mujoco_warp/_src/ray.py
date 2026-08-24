@@ -126,6 +126,32 @@ def _ray_quad(a: float, b: float, c: float) -> Tuple[float, wp.vec2]:
 
 
 @wp.func
+def _orthogonal_basis(vec: wp.vec3) -> Tuple[wp.vec3, wp.vec3]:
+  """Computes two orthonormal basis vectors b0, b1 perpendicular to unit vector vec.
+
+  Reference:
+    Duff et al. (2017), "Building an Orthonormal Basis, Revisited", JCGT 6(1).
+    Refines Frisvad (2012), "Building an Orthonormal Basis from a 3D Unit Vector
+    Without Normalization", JCGT 1(1), to remove the singularity without branching.
+  """
+  sign = wp.where(vec[2] >= 0.0, 1.0, -1.0)
+  a = -1.0 / (sign + vec[2])
+  b = vec[0] * vec[1] * a
+
+  b0 = wp.vec3(
+    1.0 + sign * vec[0] * vec[0] * a,
+    sign * b,
+    -sign * vec[0],
+  )
+  b1 = wp.vec3(
+    b,
+    sign + vec[1] * vec[1] * a,
+    -vec[1],
+  )
+  return b0, b1
+
+
+@wp.func
 def _ray_triangle(
   v0: wp.vec3, v1: wp.vec3, v2: wp.vec3, pnt: wp.vec3, vec: wp.vec3, b0: wp.vec3, b1: wp.vec3
 ) -> Tuple[float, wp.vec3]:
@@ -391,9 +417,6 @@ def ray_cylinder(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, pnt: wp.vec3, vec: 
   return x, normal
 
 
-_IFACE = wp.types.matrix((3, 2), dtype=int)(1, 2, 0, 2, 0, 1)
-
-
 @wp.func
 def ray_box(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, pnt: wp.vec3, vec: wp.vec3) -> Tuple[float, vec6, wp.vec3]:
   """Returns distance, per side information, and normal at which a ray intersects with a box."""
@@ -422,8 +445,8 @@ def ray_box(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, pnt: wp.vec3, vec: wp.ve
 
         # process if non-negative
         if sol >= 0.0:
-          id0 = _IFACE[i][0]
-          id1 = _IFACE[i][1]
+          id0 = 1 if i == 0 else 0
+          id1 = 1 if i == 2 else 2
 
           # intersection with face
           p0 = lpnt[id0] + sol * lvec[id0]
@@ -451,7 +474,6 @@ def ray_box(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, pnt: wp.vec3, vec: wp.ve
 @wp.func
 def ray_hfield(
   # Model:
-  geom_type: wp.array[int],
   geom_dataid: wp.array2d[int],
   hfield_size: wp.array[wp.vec4],
   hfield_nrow: wp.array[int],
@@ -466,10 +488,6 @@ def ray_hfield(
   id: int,
   worldid: int,
 ) -> Tuple[float, wp.vec3]:
-  # check geom type
-  if geom_type[id] != GeomType.HFIELD:
-    return -1.0, wp.vec3()
-
   # hfield id and dimensions
   hid = geom_dataid[worldid % geom_dataid.shape[0], id]
   nrow = hfield_nrow[hid]
@@ -491,7 +509,7 @@ def ray_hfield(
   top_pos = pos + mat_col * top_scale
 
   # init: intersection with base box
-  x, _, normal_base = ray_box(base_pos, mat, base_size, pnt, vec)
+  x, _all_base, normal_base = ray_box(base_pos, mat, base_size, pnt, vec)
 
   # check top box: done if no intersection
   top_intersect, all, normal_top = ray_box(top_pos, mat, top_size, pnt, vec)
@@ -503,19 +521,7 @@ def ray_hfield(
   lpnt, lvec = _ray_map(pos, mat, pnt, vec)
 
   # construct basis vectors of normal plane
-  b0 = wp.vec3(1.0, 1.0, 1.0)
-
-  if wp.abs(lvec[0]) >= wp.abs(lvec[1]) and wp.abs(lvec[0]) >= wp.abs(lvec[2]):
-    b0[0] = 0.0
-  elif wp.abs(lvec[1]) >= wp.abs(lvec[2]):
-    b0[1] = 0.0
-  else:
-    b0[2] = 0.0
-  b1 = b0 + lvec * -safe_div(wp.dot(lvec, b0), wp.dot(lvec, lvec))
-  b1 = wp.normalize(b1)
-
-  b0 = wp.cross(b1, lvec)
-  b0 = wp.normalize(b0)
+  b0, b1 = _orthogonal_basis(lvec)
 
   # find ray segment intersecting top box
   seg = wp.vec2(0.0, top_intersect)
@@ -644,23 +650,7 @@ def ray_mesh(
   pnt, vec = _ray_map(pos, mat, pnt, vec)
 
   # compute orthogonal basis vectors
-  if wp.abs(vec[0]) < wp.abs(vec[1]):
-    if wp.abs(vec[0]) < wp.abs(vec[2]):
-      b0 = wp.vec3(0.0, vec[2], -vec[1])
-    else:
-      b0 = wp.vec3(vec[1], -vec[0], 0.0)
-  else:
-    if wp.abs(vec[1]) < wp.abs(vec[2]):
-      b0 = wp.vec3(-vec[2], 0.0, vec[0])
-    else:
-      b0 = wp.vec3(vec[1], -vec[0], 0.0)
-
-  # normalize first vector
-  b0 = wp.normalize(b0)
-
-  # compute second vector as cross product
-  b1 = wp.cross(vec, b0)
-  b1 = wp.normalize(b1)
+  b0, b1 = _orthogonal_basis(vec)
 
   x = float(-1.0)
   normal = wp.vec3()
@@ -895,7 +885,6 @@ def _ray_geom_mesh(
       )
     elif type == GeomType.HFIELD:
       return ray_hfield(
-        geom_type,
         geom_dataid,
         hfield_size,
         hfield_nrow,
@@ -956,6 +945,9 @@ def _ray(
 
   num_threads = wp.block_dim()
 
+  ray_origin = pnt[worldid % pnt.shape[0], rayid]
+  ray_dir = vec[worldid % vec.shape[0], rayid]
+
   min_dist = float(MJ_MAXVAL)
   min_geomid = int(-1)
   min_normal = wp.vec3()
@@ -986,8 +978,8 @@ def _ray(
         geom_xpos_in,
         geom_xmat_in,
         worldid,
-        pnt[worldid, rayid],
-        vec[worldid, rayid],
+        ray_origin,
+        ray_dir,
         geomgroup,
         flg_static,
         bodyexclude[rayid],
@@ -1125,8 +1117,8 @@ def _ray_bvh(
 ):
   worldid, rayid = wp.tid()
 
-  ray_origin = pnt[worldid, rayid]
-  ray_dir = vec[worldid, rayid]
+  ray_origin = pnt[worldid % pnt.shape[0], rayid]
+  ray_dir = vec[worldid % vec.shape[0], rayid]
   body_exclude = bodyexclude[rayid]
 
   min_dist = float(MJ_MAXVAL)
@@ -1153,8 +1145,8 @@ def _ray_bvh(
       geom_xpos_in,
       geom_xmat_in,
       worldid,
-      pnt[worldid, rayid],
-      vec[worldid, rayid],
+      ray_origin,
+      ray_dir,
       geomgroup,
       flg_static,
       body_exclude,
@@ -1192,8 +1184,8 @@ def ray(
   Args:
     m: The model containing kinematic and dynamic information (device).
     d: The data object containing the current state and output arrays (device).
-    pnt: Ray origin points.
-    vec: Ray directions.
+    pnt: Ray origin points, shape (1, 1) or (nworld, 1).
+    vec: Ray directions, shape (1, 1) or (nworld, 1).
     geomgroup: Group inclusion/exclusion mask.
     flg_static: If True, allows rays to intersect with static geoms.
     bodyexclude: Ignore geoms on specified body id (-1 to disable).
@@ -1204,8 +1196,11 @@ def ray(
     Distances from ray origins to geom surfaces, IDs of intersected geoms (-1 if none),
     and normals at intersection points.
   """
-  assert pnt.shape[0] == 1
-  assert pnt.shape[0] == vec.shape[0]
+  assert pnt.shape[0] in (1, d.nworld), f"pnt.shape[0] must be 1 or d.nworld ({d.nworld}), got {pnt.shape[0]}"
+  assert pnt.shape == vec.shape, f"pnt.shape {pnt.shape} != vec.shape {vec.shape}"
+  assert pnt.shape[1] == 1, (
+    f"ray() only supports a single ray per world (shape (*, 1)), got {pnt.shape}; use rays() for multiple rays"
+  )
 
   if geomgroup is None:
     geomgroup = vec6(-1, -1, -1, -1, -1, -1)
@@ -1239,8 +1234,8 @@ def rays(
   Args:
     m: The model containing kinematic and dynamic information (device).
     d: The data object containing the current state and output arrays (device).
-    pnt: Ray origin points, shape (nworld, nray).
-    vec: Ray directions, shape (nworld, nray).
+    pnt: Ray origin points, shape (1, nray) or (nworld, nray).
+    vec: Ray directions, shape (1, nray) or (nworld, nray).
     geomgroup: Group inclusion/exclusion mask. Set all elements to -1 to ignore.
     flg_static: If True, allows rays to intersect with static geoms.
     bodyexclude: Per-ray body exclusion array of shape (nray,). Geoms on the
@@ -1253,6 +1248,12 @@ def rays(
     rc: Optional Render context containing BVH information for BVH accelerated ray
       intersections.
   """
+  assert pnt.shape[0] in (1, d.nworld), f"pnt.shape[0] must be 1 or d.nworld ({d.nworld}), got {pnt.shape[0]}"
+  assert pnt.shape == vec.shape, f"pnt.shape {pnt.shape} != vec.shape {vec.shape}"
+  assert bodyexclude.shape[0] == pnt.shape[1], f"bodyexclude length {bodyexclude.shape[0]} != nray {pnt.shape[1]}"
+  assert dist.shape == (d.nworld, pnt.shape[1]), f"dist shape {dist.shape} != {(d.nworld, pnt.shape[1])}"
+  assert geomid.shape == (d.nworld, pnt.shape[1]), f"geomid shape {geomid.shape} != {(d.nworld, pnt.shape[1])}"
+  assert normal.shape == (d.nworld, pnt.shape[1]), f"normal shape {normal.shape} != {(d.nworld, pnt.shape[1])}"
   # TODO: Investigate building rc if none and removing the non-accelerated path
   if rc is None:
     wp.launch_tiled(

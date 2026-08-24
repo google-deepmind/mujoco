@@ -46,6 +46,7 @@ _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
 
+
 @ffi.format_args_for_warp
 def _forward_shim(
     # Model
@@ -106,7 +107,6 @@ def _forward_shim(
     body_pos: wp.array2d[wp.vec3],
     body_quat: wp.array2d[wp.quat],
     body_rootid: wp.array[int],
-    body_simple: wp.array[int],
     body_subtreemass: wp.array2d[float],
     body_tree: tuple[wp.array[int], ...],
     body_treeid: wp.array[int],
@@ -150,6 +150,7 @@ def _forward_shim(
     eq_ten_adr: wp.array[int],
     eq_type: wp.array[int],
     eq_wld_adr: wp.array[int],
+    flex_activelayers: wp.array[int],
     flex_bend_interp_map: wp.array[wp.vec2i],
     flex_bending: wp.array[float],
     flex_bendingadr: wp.array[int],
@@ -172,17 +173,13 @@ def _forward_shim(
     flex_elemedge: wp.array[int],
     flex_elemedgeadr: wp.array[int],
     flex_elemflexid: wp.array[int],
+    flex_elemlayer: wp.array[int],
     flex_elemnum: wp.array[int],
-    flex_evpair: wp.array[wp.vec2i],
-    flex_evpairadr: wp.array[int],
-    flex_evpairflexid: wp.array[int],
-    flex_evpairnum: wp.array[int],
     flex_face: wp.array2d[int],
     flex_face_map: wp.array[wp.vec2i],
     flex_faceadr: wp.array[int],
     flex_friction: wp.array[wp.vec3],
     flex_gap: wp.array[float],
-    flex_internal: wp.array[int],
     flex_interp: wp.array[int],
     flex_margin: wp.array[float],
     flex_node: wp.array[wp.vec3],
@@ -216,6 +213,7 @@ def _forward_shim(
     flexstrain_J_rowadr: wp.array[int],
     flexstrain_J_rownnz: wp.array[int],
     flexvert_geom_pair_filtered: wp.array[wp.vec2i],
+    flg_surfacevel: bool,
     geom_aabb: wp.array3d[wp.vec3],
     geom_bodyid: wp.array[int],
     geom_conaffinity: wp.array[int],
@@ -239,6 +237,7 @@ def _forward_shim(
     geom_solimp: wp.array2d[mjwp_types.vec5],
     geom_solmix: wp.array2d[float],
     geom_solref: wp.array2d[wp.vec2],
+    geom_surfacevel: wp.array2d[mjwp_types.vec6],
     geom_type: wp.array[int],
     has_3d_flex: bool,
     has_ellipsoid_geom: bool,
@@ -277,7 +276,6 @@ def _forward_shim(
     light_poscom0: wp.array2d[wp.vec3],
     light_targetbodyid: wp.array[int],
     mat_rgba: wp.array2d[wp.vec4],
-    max_flex_dim: int,
     max_ten_J_rownnz: int,
     mesh_face: wp.array[wp.vec3i],
     mesh_faceadr: wp.array[int],
@@ -312,7 +310,6 @@ def _forward_shim(
     nflexbend_interp: int,
     nflexedge: int,
     nflexelem: int,
-    nflexevpair: int,
     nflexface: int,
     nflexintcell: int,
     nflexnode: int,
@@ -322,11 +319,11 @@ def _forward_shim(
     njnt: int,
     nlight: int,
     nmaxcondim: int,
-    nmaxmeshdeg: int,
-    nmaxpolygon: int,
     nmaxpyramid: int,
     nmesh: int,
+    nmeshdegmax: int,
     nmeshface: int,
+    npolygonmax: int,
     nrangefinder: int,
     nsensorcollision: int,
     nsensorcontact: int,
@@ -696,7 +693,6 @@ def _forward_shim(
   _m.body_pos = body_pos
   _m.body_quat = body_quat
   _m.body_rootid = body_rootid
-  _m.body_simple = body_simple
   _m.body_subtreemass = body_subtreemass
   _m.body_tree = body_tree
   _m.body_treeid = body_treeid
@@ -740,6 +736,7 @@ def _forward_shim(
   _m.eq_ten_adr = eq_ten_adr
   _m.eq_type = eq_type
   _m.eq_wld_adr = eq_wld_adr
+  _m.flex_activelayers = flex_activelayers
   _m.flex_bend_interp_map = flex_bend_interp_map
   _m.flex_bending = flex_bending
   _m.flex_bendingadr = flex_bendingadr
@@ -762,17 +759,13 @@ def _forward_shim(
   _m.flex_elemedge = flex_elemedge
   _m.flex_elemedgeadr = flex_elemedgeadr
   _m.flex_elemflexid = flex_elemflexid
+  _m.flex_elemlayer = flex_elemlayer
   _m.flex_elemnum = flex_elemnum
-  _m.flex_evpair = flex_evpair
-  _m.flex_evpairadr = flex_evpairadr
-  _m.flex_evpairflexid = flex_evpairflexid
-  _m.flex_evpairnum = flex_evpairnum
   _m.flex_face = flex_face
   _m.flex_face_map = flex_face_map
   _m.flex_faceadr = flex_faceadr
   _m.flex_friction = flex_friction
   _m.flex_gap = flex_gap
-  _m.flex_internal = flex_internal
   _m.flex_interp = flex_interp
   _m.flex_margin = flex_margin
   _m.flex_node = flex_node
@@ -806,6 +799,7 @@ def _forward_shim(
   _m.flexstrain_J_rowadr = flexstrain_J_rowadr
   _m.flexstrain_J_rownnz = flexstrain_J_rownnz
   _m.flexvert_geom_pair_filtered = flexvert_geom_pair_filtered
+  _m.flg_surfacevel = flg_surfacevel
   _m.geom_aabb = geom_aabb
   _m.geom_bodyid = geom_bodyid
   _m.geom_conaffinity = geom_conaffinity
@@ -829,6 +823,7 @@ def _forward_shim(
   _m.geom_solimp = geom_solimp
   _m.geom_solmix = geom_solmix
   _m.geom_solref = geom_solref
+  _m.geom_surfacevel = geom_surfacevel
   _m.geom_type = geom_type
   _m.has_3d_flex = has_3d_flex
   _m.has_ellipsoid_geom = has_ellipsoid_geom
@@ -867,7 +862,6 @@ def _forward_shim(
   _m.light_poscom0 = light_poscom0
   _m.light_targetbodyid = light_targetbodyid
   _m.mat_rgba = mat_rgba
-  _m.max_flex_dim = max_flex_dim
   _m.max_ten_J_rownnz = max_ten_J_rownnz
   _m.mesh_face = mesh_face
   _m.mesh_faceadr = mesh_faceadr
@@ -902,7 +896,6 @@ def _forward_shim(
   _m.nflexbend_interp = nflexbend_interp
   _m.nflexedge = nflexedge
   _m.nflexelem = nflexelem
-  _m.nflexevpair = nflexevpair
   _m.nflexface = nflexface
   _m.nflexintcell = nflexintcell
   _m.nflexnode = nflexnode
@@ -912,11 +905,11 @@ def _forward_shim(
   _m.njnt = njnt
   _m.nlight = nlight
   _m.nmaxcondim = nmaxcondim
-  _m.nmaxmeshdeg = nmaxmeshdeg
-  _m.nmaxpolygon = nmaxpolygon
   _m.nmaxpyramid = nmaxpyramid
   _m.nmesh = nmesh
+  _m.nmeshdegmax = nmeshdegmax
   _m.nmeshface = nmeshface
+  _m.npolygonmax = npolygonmax
   _m.nrangefinder = nrangefinder
   _m.nsensorcollision = nsensorcollision
   _m.nsensorcontact = nsensorcontact
@@ -1674,6 +1667,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'geom_solimp',
           'geom_solmix',
           'geom_solref',
+          'geom_surfacevel',
           'geom_xmat',
           'geom_xpos',
           'hfield_data',
@@ -2016,7 +2010,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.body_pos,
       m.body_quat,
       m.body_rootid,
-      m.body_simple,
       m.body_subtreemass,
       m._impl.body_tree,
       m.body_treeid,
@@ -2060,6 +2053,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.eq_ten_adr,
       m.eq_type,
       m._impl.eq_wld_adr,
+      m._impl.flex_activelayers,
       m._impl.flex_bend_interp_map,
       m._impl.flex_bending,
       m._impl.flex_bendingadr,
@@ -2082,17 +2076,13 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_elemedge,
       m._impl.flex_elemedgeadr,
       m._impl.flex_elemflexid,
+      m._impl.flex_elemlayer,
       m._impl.flex_elemnum,
-      m._impl.flex_evpair,
-      m._impl.flex_evpairadr,
-      m._impl.flex_evpairflexid,
-      m._impl.flex_evpairnum,
       m._impl.flex_face,
       m._impl.flex_face_map,
       m._impl.flex_faceadr,
       m._impl.flex_friction,
       m._impl.flex_gap,
-      m._impl.flex_internal,
       m.flex_interp,
       m._impl.flex_margin,
       m._impl.flex_node,
@@ -2126,6 +2116,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.flexstrain_J_rowadr,
       m._impl.flexstrain_J_rownnz,
       m._impl.flexvert_geom_pair_filtered,
+      m.flg_surfacevel,
       m.geom_aabb,
       m.geom_bodyid,
       m.geom_conaffinity,
@@ -2149,6 +2140,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.geom_solimp,
       m.geom_solmix,
       m.geom_solref,
+      m._impl.geom_surfacevel,
       m.geom_type,
       m._impl.has_3d_flex,
       m._impl.has_ellipsoid_geom,
@@ -2187,7 +2179,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.light_poscom0,
       m._impl.light_targetbodyid,
       m.mat_rgba,
-      m._impl.max_flex_dim,
       m._impl.max_ten_J_rownnz,
       m.mesh_face,
       m.mesh_faceadr,
@@ -2222,7 +2213,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.nflexbend_interp,
       m._impl.nflexedge,
       m._impl.nflexelem,
-      m._impl.nflexevpair,
       m._impl.nflexface,
       m._impl.nflexintcell,
       m._impl.nflexnode,
@@ -2232,11 +2222,11 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.njnt,
       m.nlight,
       m._impl.nmaxcondim,
-      m._impl.nmaxmeshdeg,
-      m._impl.nmaxpolygon,
       m._impl.nmaxpyramid,
       m.nmesh,
+      m._impl.nmeshdegmax,
       m.nmeshface,
+      m._impl.npolygonmax,
       m._impl.nrangefinder,
       m._impl.nsensorcollision,
       m._impl.nsensorcontact,
@@ -2779,7 +2769,6 @@ def _step_shim(
     body_pos: wp.array2d[wp.vec3],
     body_quat: wp.array2d[wp.quat],
     body_rootid: wp.array[int],
-    body_simple: wp.array[int],
     body_subtreemass: wp.array2d[float],
     body_tree: tuple[wp.array[int], ...],
     body_treeid: wp.array[int],
@@ -2823,6 +2812,7 @@ def _step_shim(
     eq_ten_adr: wp.array[int],
     eq_type: wp.array[int],
     eq_wld_adr: wp.array[int],
+    flex_activelayers: wp.array[int],
     flex_bend_interp_map: wp.array[wp.vec2i],
     flex_bending: wp.array[float],
     flex_bendingadr: wp.array[int],
@@ -2845,17 +2835,13 @@ def _step_shim(
     flex_elemedge: wp.array[int],
     flex_elemedgeadr: wp.array[int],
     flex_elemflexid: wp.array[int],
+    flex_elemlayer: wp.array[int],
     flex_elemnum: wp.array[int],
-    flex_evpair: wp.array[wp.vec2i],
-    flex_evpairadr: wp.array[int],
-    flex_evpairflexid: wp.array[int],
-    flex_evpairnum: wp.array[int],
     flex_face: wp.array2d[int],
     flex_face_map: wp.array[wp.vec2i],
     flex_faceadr: wp.array[int],
     flex_friction: wp.array[wp.vec3],
     flex_gap: wp.array[float],
-    flex_internal: wp.array[int],
     flex_interp: wp.array[int],
     flex_margin: wp.array[float],
     flex_node: wp.array[wp.vec3],
@@ -2889,6 +2875,7 @@ def _step_shim(
     flexstrain_J_rowadr: wp.array[int],
     flexstrain_J_rownnz: wp.array[int],
     flexvert_geom_pair_filtered: wp.array[wp.vec2i],
+    flg_surfacevel: bool,
     geom_aabb: wp.array3d[wp.vec3],
     geom_bodyid: wp.array[int],
     geom_conaffinity: wp.array[int],
@@ -2912,6 +2899,7 @@ def _step_shim(
     geom_solimp: wp.array2d[mjwp_types.vec5],
     geom_solmix: wp.array2d[float],
     geom_solref: wp.array2d[wp.vec2],
+    geom_surfacevel: wp.array2d[mjwp_types.vec6],
     geom_type: wp.array[int],
     has_3d_flex: bool,
     has_ellipsoid_geom: bool,
@@ -2951,7 +2939,6 @@ def _step_shim(
     light_targetbodyid: wp.array[int],
     mapM2D: wp.array[int],
     mat_rgba: wp.array2d[wp.vec4],
-    max_flex_dim: int,
     max_ten_J_rownnz: int,
     mesh_face: wp.array[wp.vec3i],
     mesh_faceadr: wp.array[int],
@@ -2988,7 +2975,6 @@ def _step_shim(
     nflexbend_interp: int,
     nflexedge: int,
     nflexelem: int,
-    nflexevpair: int,
     nflexface: int,
     nflexintcell: int,
     nflexnode: int,
@@ -2998,11 +2984,11 @@ def _step_shim(
     njnt: int,
     nlight: int,
     nmaxcondim: int,
-    nmaxmeshdeg: int,
-    nmaxpolygon: int,
     nmaxpyramid: int,
     nmesh: int,
+    nmeshdegmax: int,
     nmeshface: int,
+    npolygonmax: int,
     nrangefinder: int,
     nsensorcollision: int,
     nsensorcontact: int,
@@ -3385,7 +3371,6 @@ def _step_shim(
   _m.body_pos = body_pos
   _m.body_quat = body_quat
   _m.body_rootid = body_rootid
-  _m.body_simple = body_simple
   _m.body_subtreemass = body_subtreemass
   _m.body_tree = body_tree
   _m.body_treeid = body_treeid
@@ -3429,6 +3414,7 @@ def _step_shim(
   _m.eq_ten_adr = eq_ten_adr
   _m.eq_type = eq_type
   _m.eq_wld_adr = eq_wld_adr
+  _m.flex_activelayers = flex_activelayers
   _m.flex_bend_interp_map = flex_bend_interp_map
   _m.flex_bending = flex_bending
   _m.flex_bendingadr = flex_bendingadr
@@ -3451,17 +3437,13 @@ def _step_shim(
   _m.flex_elemedge = flex_elemedge
   _m.flex_elemedgeadr = flex_elemedgeadr
   _m.flex_elemflexid = flex_elemflexid
+  _m.flex_elemlayer = flex_elemlayer
   _m.flex_elemnum = flex_elemnum
-  _m.flex_evpair = flex_evpair
-  _m.flex_evpairadr = flex_evpairadr
-  _m.flex_evpairflexid = flex_evpairflexid
-  _m.flex_evpairnum = flex_evpairnum
   _m.flex_face = flex_face
   _m.flex_face_map = flex_face_map
   _m.flex_faceadr = flex_faceadr
   _m.flex_friction = flex_friction
   _m.flex_gap = flex_gap
-  _m.flex_internal = flex_internal
   _m.flex_interp = flex_interp
   _m.flex_margin = flex_margin
   _m.flex_node = flex_node
@@ -3495,6 +3477,7 @@ def _step_shim(
   _m.flexstrain_J_rowadr = flexstrain_J_rowadr
   _m.flexstrain_J_rownnz = flexstrain_J_rownnz
   _m.flexvert_geom_pair_filtered = flexvert_geom_pair_filtered
+  _m.flg_surfacevel = flg_surfacevel
   _m.geom_aabb = geom_aabb
   _m.geom_bodyid = geom_bodyid
   _m.geom_conaffinity = geom_conaffinity
@@ -3518,6 +3501,7 @@ def _step_shim(
   _m.geom_solimp = geom_solimp
   _m.geom_solmix = geom_solmix
   _m.geom_solref = geom_solref
+  _m.geom_surfacevel = geom_surfacevel
   _m.geom_type = geom_type
   _m.has_3d_flex = has_3d_flex
   _m.has_ellipsoid_geom = has_ellipsoid_geom
@@ -3557,7 +3541,6 @@ def _step_shim(
   _m.light_targetbodyid = light_targetbodyid
   _m.mapM2D = mapM2D
   _m.mat_rgba = mat_rgba
-  _m.max_flex_dim = max_flex_dim
   _m.max_ten_J_rownnz = max_ten_J_rownnz
   _m.mesh_face = mesh_face
   _m.mesh_faceadr = mesh_faceadr
@@ -3594,7 +3577,6 @@ def _step_shim(
   _m.nflexbend_interp = nflexbend_interp
   _m.nflexedge = nflexedge
   _m.nflexelem = nflexelem
-  _m.nflexevpair = nflexevpair
   _m.nflexface = nflexface
   _m.nflexintcell = nflexintcell
   _m.nflexnode = nflexnode
@@ -3604,11 +3586,11 @@ def _step_shim(
   _m.njnt = njnt
   _m.nlight = nlight
   _m.nmaxcondim = nmaxcondim
-  _m.nmaxmeshdeg = nmaxmeshdeg
-  _m.nmaxpolygon = nmaxpolygon
   _m.nmaxpyramid = nmaxpyramid
   _m.nmesh = nmesh
+  _m.nmeshdegmax = nmeshdegmax
   _m.nmeshface = nmeshface
+  _m.npolygonmax = npolygonmax
   _m.nrangefinder = nrangefinder
   _m.nsensorcollision = nsensorcollision
   _m.nsensorcontact = nsensorcontact
@@ -4381,6 +4363,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'geom_solimp',
           'geom_solmix',
           'geom_solref',
+          'geom_surfacevel',
           'geom_xmat',
           'geom_xpos',
           'hfield_data',
@@ -4738,7 +4721,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.body_pos,
       m.body_quat,
       m.body_rootid,
-      m.body_simple,
       m.body_subtreemass,
       m._impl.body_tree,
       m.body_treeid,
@@ -4782,6 +4764,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.eq_ten_adr,
       m.eq_type,
       m._impl.eq_wld_adr,
+      m._impl.flex_activelayers,
       m._impl.flex_bend_interp_map,
       m._impl.flex_bending,
       m._impl.flex_bendingadr,
@@ -4804,17 +4787,13 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_elemedge,
       m._impl.flex_elemedgeadr,
       m._impl.flex_elemflexid,
+      m._impl.flex_elemlayer,
       m._impl.flex_elemnum,
-      m._impl.flex_evpair,
-      m._impl.flex_evpairadr,
-      m._impl.flex_evpairflexid,
-      m._impl.flex_evpairnum,
       m._impl.flex_face,
       m._impl.flex_face_map,
       m._impl.flex_faceadr,
       m._impl.flex_friction,
       m._impl.flex_gap,
-      m._impl.flex_internal,
       m.flex_interp,
       m._impl.flex_margin,
       m._impl.flex_node,
@@ -4848,6 +4827,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.flexstrain_J_rowadr,
       m._impl.flexstrain_J_rownnz,
       m._impl.flexvert_geom_pair_filtered,
+      m.flg_surfacevel,
       m.geom_aabb,
       m.geom_bodyid,
       m.geom_conaffinity,
@@ -4871,6 +4851,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.geom_solimp,
       m.geom_solmix,
       m.geom_solref,
+      m._impl.geom_surfacevel,
       m.geom_type,
       m._impl.has_3d_flex,
       m._impl.has_ellipsoid_geom,
@@ -4910,7 +4891,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.light_targetbodyid,
       m._impl.mapM2D,
       m.mat_rgba,
-      m._impl.max_flex_dim,
       m._impl.max_ten_J_rownnz,
       m.mesh_face,
       m.mesh_faceadr,
@@ -4947,7 +4927,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.nflexbend_interp,
       m._impl.nflexedge,
       m._impl.nflexelem,
-      m._impl.nflexevpair,
       m._impl.nflexface,
       m._impl.nflexintcell,
       m._impl.nflexnode,
@@ -4957,11 +4936,11 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.njnt,
       m.nlight,
       m._impl.nmaxcondim,
-      m._impl.nmaxmeshdeg,
-      m._impl.nmaxpolygon,
       m._impl.nmaxpyramid,
       m.nmesh,
+      m._impl.nmeshdegmax,
       m.nmeshface,
+      m._impl.npolygonmax,
       m._impl.nrangefinder,
       m._impl.nsensorcollision,
       m._impl.nsensorcontact,

@@ -126,7 +126,7 @@ def _run_viser_viewer(mjm, mjd, step_fn):
 
 def _run_passive_viewer(mjm, mjd, step_fn):
   with mujoco.viewer.launch_passive(mjm, mjd, key_callback=key_callback) as viewer:
-    while True:
+    while viewer.is_running():
       start = time.time()
       if _VIEWER_GLOBAL_STATE["running"] or _VIEWER_GLOBAL_STATE["step_once"]:
         _VIEWER_GLOBAL_STATE["step_once"] = False

@@ -1037,7 +1037,7 @@ def ccd_kernel_builder(
     overflow_out: wp.array[int],
   ):
     tid = wp.tid()
-    for collisionid in range(tid, ncollision_in[0], grid_stride_in):
+    for collisionid in range(tid, wp.min(ncollision_in[0], naconmax_in), grid_stride_in):
       geoms = collision_pair_in[collisionid]
       g1 = geoms[0]
       g2 = geoms[1]
@@ -1182,7 +1182,7 @@ def convex_narrowphase(m: Model, d: Data, ctx: CollisionContext, collision_table
   if ncollision == 0:
     return
 
-  # compute nmaxpolygon and nmaxmeshdeg given the geom pairs for the model
+  # compute npolygonmax and nmeshdegmax given the geom pairs for the model
   nboxbox, _ = _pair_count(GeomType.BOX.value, GeomType.BOX.value)
   if (GeomType.BOX, GeomType.BOX) not in collision_table:
     nboxbox = 0
@@ -1195,14 +1195,14 @@ def convex_narrowphase(m: Model, d: Data, ctx: CollisionContext, collision_table
   use_multiccd = m.opt.disableflags & DisableBit.MULTICCD == 0
 
   # need at least 4 (square sides) if there's a box collision needing multiccd
-  nmaxpolygon = 4 if nboxbox > 0 else 0
-  nmaxmeshdeg = 3 if nboxbox > 0 else 0
+  npolygonmax = 4 if nboxbox > 0 else 0
+  nmeshdegmax = 3 if nboxbox > 0 else 0
 
   # need to allocate more memory if there's meshes
   if use_multiccd and nmeshmesh + nboxmesh > 0:
-    minval = 4 if nboxmesh else nmaxpolygon
-    nmaxpolygon = max(m.nmaxpolygon, minval)
-    nmaxmeshdeg = max(m.nmaxmeshdeg, 3)
+    minval = 4 if nboxmesh else npolygonmax
+    npolygonmax = max(m.npolygonmax, minval)
+    nmeshdegmax = max(m.nmeshdegmax, 3)
 
   # ccd collider count
   nccd = wp.zeros(len(GeomType) * (len(GeomType) + 1) // 2, dtype=int)
@@ -1309,27 +1309,27 @@ def convex_narrowphase(m: Model, d: Data, ctx: CollisionContext, collision_table
 
   # Allocate multiccd arrays only for non-heightfield collisions
   # multiccd_polygon: clipped contact surface
-  multiccd_polygon = wp.empty(shape=(d.naccdmax, 2 * nmaxpolygon), dtype=wp.vec3)
+  multiccd_polygon = wp.empty(shape=(d.naccdmax, 2 * npolygonmax), dtype=wp.vec3)
   # multiccd_clipped: clipped contact surface (intermediate)
-  multiccd_clipped = wp.empty(shape=(d.naccdmax, 2 * nmaxpolygon), dtype=wp.vec3)
+  multiccd_clipped = wp.empty(shape=(d.naccdmax, 2 * npolygonmax), dtype=wp.vec3)
   # multiccd_pnormal: plane normal of clipping polygon
-  multiccd_pnormal = wp.empty(shape=(d.naccdmax, nmaxpolygon), dtype=wp.vec3)
+  multiccd_pnormal = wp.empty(shape=(d.naccdmax, npolygonmax), dtype=wp.vec3)
   # multiccd_pdist: plane distance of clipping polygon
-  multiccd_pdist = wp.empty(shape=(d.naccdmax, nmaxpolygon), dtype=float)
+  multiccd_pdist = wp.empty(shape=(d.naccdmax, npolygonmax), dtype=float)
   # multiccd_idx1: list of normal index candidates for Geom 1
-  multiccd_idx1 = wp.empty(shape=(d.naccdmax, nmaxmeshdeg), dtype=int)
+  multiccd_idx1 = wp.empty(shape=(d.naccdmax, nmeshdegmax), dtype=int)
   # multiccd_idx2: list of normal index candidates for Geom 2
-  multiccd_idx2 = wp.empty(shape=(d.naccdmax, nmaxmeshdeg), dtype=int)
+  multiccd_idx2 = wp.empty(shape=(d.naccdmax, nmeshdegmax), dtype=int)
   # multiccd_n1: list of normal candidates for Geom 1
-  multiccd_n1 = wp.empty(shape=(d.naccdmax, nmaxmeshdeg), dtype=wp.vec3)
+  multiccd_n1 = wp.empty(shape=(d.naccdmax, nmeshdegmax), dtype=wp.vec3)
   # multiccd_n2: list of normal candidates for Geom 1
-  multiccd_n2 = wp.empty(shape=(d.naccdmax, nmaxmeshdeg), dtype=wp.vec3)
+  multiccd_n2 = wp.empty(shape=(d.naccdmax, nmeshdegmax), dtype=wp.vec3)
   # multiccd_endvert: list of edge vertices candidates
-  multiccd_endvert = wp.empty(shape=(d.naccdmax, nmaxmeshdeg), dtype=wp.vec3)
+  multiccd_endvert = wp.empty(shape=(d.naccdmax, nmeshdegmax), dtype=wp.vec3)
   # multiccd_face1: contact face
-  multiccd_face1 = wp.empty(shape=(d.naccdmax, nmaxpolygon), dtype=wp.vec3)
+  multiccd_face1 = wp.empty(shape=(d.naccdmax, npolygonmax), dtype=wp.vec3)
   # multiccd_face2: contact face
-  multiccd_face2 = wp.empty(shape=(d.naccdmax, nmaxpolygon), dtype=wp.vec3)
+  multiccd_face2 = wp.empty(shape=(d.naccdmax, npolygonmax), dtype=wp.vec3)
 
   # Launch non-heightfield collision kernels (no hfield args, 78 args total)
   for geom_pair in collision_table:
