@@ -11,6 +11,8 @@ General
 - The :ref:`.mjz <MJZArchives>` encoder now writes the root file as ``model.xml`` in the archive as this is less
   susceptible to breakage due to file renaming.
 
+- Added support for Python 3.15 (GIL and Free-Threading).
+
 Samples
 ^^^^^^^
 
