@@ -519,7 +519,7 @@ static void filterFlexContacts(mjData* d, int ncon_before) {
 static void pushPairArena(mjData* d, mjcPair* pair) {
   // allocate geom pair on the arena
   mjcPair* new_pair = (mjcPair*) mj_arenaAllocByte(d, sizeof(mjcPair), _Alignof(mjcPair));
-  if (!pair) {
+  if (!new_pair) {
     mjERROR("arena too small to allocate geom pair");
   }
   *new_pair = *pair;
