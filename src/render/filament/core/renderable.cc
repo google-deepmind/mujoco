@@ -322,9 +322,11 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
       material.orm_texture = nullptr;
     }
 
-    const bool reflective = request->draw_mode == mjDRAW_MODE_DEFAULT &&
-                            request->enable_reflections &&
-                            material.reflectance > 0.0;
+    const bool reflective =
+        request->draw_mode == mjDRAW_MODE_DEFAULT &&
+        request->enable_reflections &&
+        (geom_type_ == mjGEOM_PLANE || geom_type_ == mjGEOM_BOX) &&
+        material.reflectance > 0.0;
     if (reflective) {
       material.reflection_texture = reflection_mgr->Register(
           this, request->viewport.width, request->viewport.height);
