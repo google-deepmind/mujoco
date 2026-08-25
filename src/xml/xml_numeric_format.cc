@@ -17,7 +17,7 @@
 namespace mujoco {
 
 namespace {
-  thread_local int precision = 6;
+thread_local int precision = 6;
 }
 
 int _mjPRIVATE__get_xml_precision() {

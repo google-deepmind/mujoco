@@ -42,18 +42,16 @@ mjXBase::mjXBase() {
 }
 
 
-
 // set model field
 void mjXBase::SetModel(mjSpec* _model, const mjModel* m) {
   spec = _model;
 }
 
 
-
 // read alternative orientation specification
 int mjXBase::ReadAlternative(XMLElement* elem, mjsOrientation& alt) {
   string text;
-  int numspec = (int)(elem->Attribute("quat") != 0);
+  int    numspec = (int)(elem->Attribute("quat") != 0);
   if (ReadAttr(elem, "axisangle", 4, alt.axisangle, text)) {
     numspec++;
     alt.type = mjORIENTATION_AXISANGLE;
@@ -70,8 +68,6 @@ int mjXBase::ReadAlternative(XMLElement* elem, mjsOrientation& alt) {
     numspec++;
     alt.type = mjORIENTATION_EULER;
   }
-  if (numspec > 1) {
-    throw mjXError(elem, "multiple orientation specifiers are not allowed");
-  }
+  if (numspec > 1) { throw mjXError(elem, "multiple orientation specifiers are not allowed"); }
   return numspec;
 }

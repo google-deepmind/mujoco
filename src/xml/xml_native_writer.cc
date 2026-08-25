@@ -43,15 +43,14 @@
 
 namespace {
 
+using mujoco::user::VectorToString;
 using std::string;
 using std::string_view;
 using tinyxml2::XMLComment;
 using tinyxml2::XMLDocument;
 using tinyxml2::XMLElement;
-using mujoco::user::VectorToString;
 
 }  // namespace
-
 
 
 // custom XML indentation: 2 spaces rather than the default 4
@@ -59,16 +58,14 @@ class mj_XMLPrinter : public tinyxml2::XMLPrinter {
   using tinyxml2::XMLPrinter::XMLPrinter;
 
  public:
-    void PrintSpace( int depth ) {
-      for (int i=0; i < depth; ++i) {
-        Write( "  " );
-      }
-    }
+  void PrintSpace(int depth) {
+    for (int i = 0; i < depth; ++i) { Write("  "); }
+  }
 };
 
 
 // save XML file using custom 2-space indentation
-static string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
+static string WriteDoc(XMLDocument& doc, char* error, size_t error_sz) {
   doc.ClearError();
   mj_XMLPrinter stream(nullptr, /*compact=*/false);
   doc.Print(&stream);
@@ -79,11 +76,23 @@ static string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
   string str = string(stream.CStr());
 
   // top level sections
-  std::array<string, 17> sections = {
-    "<actuator", "<asset",      "<compiler", "<contact>",  "<custom",
-    "<default>", "<deformable", "<equality", "<extension", "<keyframe",
-    "<option",   "<sensor",     "<size",     "<statistic", "<tendon",
-    "<visual",   "<worldbody"};
+  std::array<string, 17> sections = {"<actuator",
+                                     "<asset",
+                                     "<compiler",
+                                     "<contact>",
+                                     "<custom",
+                                     "<default>",
+                                     "<deformable",
+                                     "<equality",
+                                     "<extension",
+                                     "<keyframe",
+                                     "<option",
+                                     "<sensor",
+                                     "<size",
+                                     "<statistic",
+                                     "<tendon",
+                                     "<visual",
+                                     "<worldbody"};
 
   // position of newline before first section
   size_t first_pos = string::npos;
@@ -110,9 +119,7 @@ static string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
   }
 
   // remove added newline before the first section
-  if (first_pos != string::npos) {
-    str.erase(first_pos, 1);
-  }
+  if (first_pos != string::npos) { str.erase(first_pos, 1); }
 
   return str;
 }
@@ -131,13 +138,15 @@ XMLElement* mjXWriter::InsertEnd(XMLElement* parent, const char* name) {
 
 // write flex
 void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* flex) {
-  string text;
+  string  text;
   mjCFlex defflex;
 
   // common attributes
   WriteAttrTxt(elem, "name", flex->name);
-  WriteAttrTable(elem, static_cast<const mjsFlex*>(flex),
-                 static_cast<const mjsFlex*>(&defflex), kFlexAttrs,
+  WriteAttrTable(elem,
+                 static_cast<const mjsFlex*>(flex),
+                 static_cast<const mjsFlex*>(&defflex),
+                 kFlexAttrs,
                  kFlexAttrsN);
   if (flex->get_material() != defflex.get_material()) {
     WriteAttrTxt(elem, "material", flex->get_material());
@@ -145,8 +154,10 @@ void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* flex) {
   WriteAttr(elem, "cellcount", 3, flex->spec.cellcount, defflex.spec.cellcount);
   if (flex->spec.order != defflex.spec.order) {
     string dof_str = "full";
-    if (flex->spec.order == 1) dof_str = "trilinear";
-    else if (flex->spec.order == 2) dof_str = "quadratic";
+    if (flex->spec.order == 1)
+      dof_str = "trilinear";
+    else if (flex->spec.order == 2)
+      dof_str = "quadratic";
     WriteAttrTxt(elem, "dof", dof_str);
   }
 
@@ -175,39 +186,38 @@ void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* flex) {
     text = VectorToString(flex->get_nodebody());
     WriteAttrTxt(elem, "node", text);
   }
-  if (!flex->get_node().empty()) {
-    WriteVector(elem, "nodecoord", flex->get_node());
-  }
+  if (!flex->get_node().empty()) { WriteVector(elem, "nodecoord", flex->get_node()); }
 
   // contact subelement
   XMLElement* cont = InsertEnd(elem, "contact");
-  WriteAttrTable(cont, static_cast<const mjsFlex*>(flex),
-                 static_cast<const mjsFlex*>(&defflex), kFlexcomp_contactAttrs,
+  WriteAttrTable(cont,
+                 static_cast<const mjsFlex*>(flex),
+                 static_cast<const mjsFlex*>(&defflex),
+                 kFlexcomp_contactAttrs,
                  kFlexcomp_contactAttrsN);
 
   // remove contact is no attributes
-  if (!cont->FirstAttribute()) {
-    elem->DeleteChild(cont);
-  }
+  if (!cont->FirstAttribute()) { elem->DeleteChild(cont); }
 
   // elasticity subelement
   XMLElement* elastic = InsertEnd(elem, "elasticity");
-  WriteAttrTable(elastic, static_cast<const mjsFlex*>(flex),
-                 static_cast<const mjsFlex*>(&defflex), kElasticityAttrs,
+  WriteAttrTable(elastic,
+                 static_cast<const mjsFlex*>(flex),
+                 static_cast<const mjsFlex*>(&defflex),
+                 kElasticityAttrs,
                  kElasticityAttrsN);
 
   // edge subelement
   XMLElement* edge = InsertEnd(elem, "edge");
-  WriteAttrTable(edge, static_cast<const mjsFlex*>(flex),
-                 static_cast<const mjsFlex*>(&defflex), kFlex_edgeAttrs,
+  WriteAttrTable(edge,
+                 static_cast<const mjsFlex*>(flex),
+                 static_cast<const mjsFlex*>(&defflex),
+                 kFlex_edgeAttrs,
                  kFlex_edgeAttrsN);
 
   // remove edge if no attributes
-  if (!edge->FirstAttribute()) {
-    elem->DeleteChild(edge);
-  }
+  if (!edge->FirstAttribute()) { elem->DeleteChild(edge); }
 }
-
 
 
 // write mesh
@@ -217,9 +227,7 @@ void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* mesh, mjCDef* def) {
   // regular
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", mesh->name);
-    if (mesh->classname != "main") {
-      WriteAttrTxt(elem, "class", mesh->classname);
-    }
+    if (mesh->classname != "main") { WriteAttrTxt(elem, "class", mesh->classname); }
     WriteAttrTxt(elem, "content_type", mesh->ContentType());
     WriteAttrTxt(elem, "file", mesh->File());
 
@@ -249,18 +257,20 @@ void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* mesh, mjCDef* def) {
   }
 
   // defaults and regular
-  WriteAttrTable(elem, static_cast<const mjsMesh*>(mesh), &def->Mesh().spec,
-                 kMeshAttrs, kMeshAttrsN);
+  WriteAttrTable(elem,
+                 static_cast<const mjsMesh*>(mesh),
+                 &def->Mesh().spec,
+                 kMeshAttrs,
+                 kMeshAttrsN);
   if (mesh->Material() != def->Mesh().Material()) {
     WriteAttrTxt(elem, "material", mesh->Material());
   }
 }
 
 
-
 // write skin
 void mjXWriter::OneSkin(XMLElement* elem, const mjCSkin* skin) {
-  string text;
+  string  text;
   mjCSkin defskin;
 
   // write attributes
@@ -268,8 +278,10 @@ void mjXWriter::OneSkin(XMLElement* elem, const mjCSkin* skin) {
   WriteAttrTxt(elem, "file", skin->File());
   WriteAttrTxt(elem, "material", skin->get_material());
   WriteAttrInt(elem, "group", skin->group, 0);
-  WriteAttrTable(elem, static_cast<const mjsSkin*>(skin),
-                 static_cast<const mjsSkin*>(&defskin), kSkinAttrs,
+  WriteAttrTable(elem,
+                 static_cast<const mjsSkin*>(skin),
+                 static_cast<const mjsSkin*>(&defskin),
+                 kSkinAttrs,
                  kSkinAttrsN);
 
   // write data if no file
@@ -289,14 +301,14 @@ void mjXWriter::OneSkin(XMLElement* elem, const mjCSkin* skin) {
     WriteAttrTxt(elem, "face", text);
 
     // bones
-    for (size_t i=0; i < skin->get_bodyname().size(); i++) {
+    for (size_t i = 0; i < skin->get_bodyname().size(); i++) {
       // make bone
       XMLElement* bone = InsertEnd(elem, "bone");
 
       // write attributes
       WriteAttrTxt(bone, "body", skin->get_bodyname()[i]);
-      WriteAttr(bone, "bindpos", 3, skin->get_bindpos().data()+3*i);
-      WriteAttr(bone, "bindquat", 4, skin->get_bindquat().data()+4*i);
+      WriteAttr(bone, "bindpos", 3, skin->get_bindpos().data() + 3 * i);
+      WriteAttr(bone, "bindquat", 4, skin->get_bindquat().data() + 4 * i);
 
       // write vertid
       text = VectorToString(skin->get_vertid()[i]);
@@ -310,33 +322,28 @@ void mjXWriter::OneSkin(XMLElement* elem, const mjCSkin* skin) {
 }
 
 
-
 // write material
 void mjXWriter::OneMaterial(XMLElement* elem, const mjCMaterial* material, mjCDef* def) {
   // regular
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", material->name);
-    if (material->classname != "main") {
-      WriteAttrTxt(elem, "class", material->classname);
-    }
+    if (material->classname != "main") { WriteAttrTxt(elem, "class", material->classname); }
   }
 
   // defaults and regular
   // check if we have non-rgb textures
   bool has_non_rgb = false;
-  for (int i=1; i < mjNTEXROLE; i++) {
+  for (int i = 1; i < mjNTEXROLE; i++) {
     if (!material->textures_[i].empty()) {
-      if (i != mjTEXROLE_RGB) {
-        has_non_rgb = true;
-      }
+      if (i != mjTEXROLE_RGB) { has_non_rgb = true; }
     }
   }
 
   // if we have non-rgb textures, write them as layers
   if (has_non_rgb) {
-    for (int i=1; i < mjNTEXROLE; i++) {
+    for (int i = 1; i < mjNTEXROLE; i++) {
       if (!material->textures_[i].empty()) {
-        XMLElement * child_elem = InsertEnd(elem, "layer");
+        XMLElement* child_elem = InsertEnd(elem, "layer");
         WriteAttrTxt(child_elem, "texture", material->textures_[i]);
         WriteAttrTxt(child_elem, "role", FindValue(texrole_map, 9, i));
       }
@@ -347,15 +354,19 @@ void mjXWriter::OneMaterial(XMLElement* elem, const mjCMaterial* material, mjCDe
     }
   }
 
-  WriteAttrTable(elem, static_cast<const mjsMaterial*>(material),
-                 &def->Material().spec, kMaterialAttrs, kMaterialAttrsN);
+  WriteAttrTable(elem,
+                 static_cast<const mjsMaterial*>(material),
+                 &def->Material().spec,
+                 kMaterialAttrs,
+                 kMaterialAttrsN);
 }
 
 
-
 // write joint
-void mjXWriter::OneJoint(XMLElement* elem, const mjCJoint* joint, mjCDef* def,
-                         string_view classname) {
+void mjXWriter::OneJoint(XMLElement*     elem,
+                         const mjCJoint* joint,
+                         mjCDef*         def,
+                         string_view     classname) {
   // regular
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", joint->name);
@@ -365,11 +376,12 @@ void mjXWriter::OneJoint(XMLElement* elem, const mjCJoint* joint, mjCDef* def,
   }
 
   // defaults and regular
-  WriteAttrTable(elem, static_cast<const mjsJoint*>(joint), &def->Joint().spec,
-                 kJointAttrs, kJointAttrsN);
-  if (joint->type != mjJNT_FREE) {
-    WriteAttr(elem, "pos", 3, joint->pos, def->Joint().spec.pos);
-  }
+  WriteAttrTable(elem,
+                 static_cast<const mjsJoint*>(joint),
+                 &def->Joint().spec,
+                 kJointAttrs,
+                 kJointAttrsN);
+  if (joint->type != mjJNT_FREE) { WriteAttr(elem, "pos", 3, joint->pos, def->Joint().spec.pos); }
   if (joint->type != mjJNT_FREE && joint->type != mjJNT_BALL) {
     WriteAttr(elem, "axis", 3, joint->axis, def->Joint().spec.axis);
   }
@@ -377,8 +389,12 @@ void mjXWriter::OneJoint(XMLElement* elem, const mjCJoint* joint, mjCDef* def,
     WriteAttrKey(elem, "limited", FalseTrueAuto_map, 3, joint->limited, def->Joint().limited);
   }
   if (joint->type != mjJNT_FREE && joint->type != mjJNT_BALL) {
-    WriteAttrKey(elem, "actuatorfrclimited", FalseTrueAuto_map, 3, joint->actfrclimited,
-                def->Joint().actfrclimited);
+    WriteAttrKey(elem,
+                 "actuatorfrclimited",
+                 FalseTrueAuto_map,
+                 3,
+                 joint->actfrclimited,
+                 def->Joint().actfrclimited);
   }
 
   // userdata
@@ -392,7 +408,7 @@ void mjXWriter::OneJoint(XMLElement* elem, const mjCJoint* joint, mjCDef* def,
 // write geom
 void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, string_view classname) {
   double unitq[4] = {1, 0, 0, 0};
-  double mass = 0;
+  double mass     = 0;
 
   // regular
   if (!writingdefaults) {
@@ -403,9 +419,7 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
     if (mjGEOMINFO[geom->type]) {
       WriteAttr(elem, "size", mjGEOMINFO[geom->type], geom->size, def->Geom().size);
     }
-    if (mjuu_defined(geom->mass)) {
-      mass = geom->GetVolume() * def->Geom().density;
-    }
+    if (mjuu_defined(geom->mass)) { mass = geom->GetVolume() * def->Geom().density; }
 
     // mesh geom
     if (geom->type == mjGEOM_MESH || geom->type == mjGEOM_SDF) {
@@ -418,18 +432,17 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
         double p[3], q[4];
         mjuu_copyvec(p, geom->pos, 3);
         mjuu_copyvec(q, geom->quat, 4);
-        mjuu_frameaccuminv(p, q, mesh->GetPosPtr(),
-                           mesh->GetQuatPtr());
+        mjuu_frameaccuminv(p, q, mesh->GetPosPtr(), mesh->GetQuatPtr());
 
         // write
-        WriteAttr(elem, "pos", 3, p, unitq+1);
+        WriteAttr(elem, "pos", 3, p, unitq + 1);
         WriteAttr(elem, "quat", 4, q, unitq);
       }
     }
 
     // non-mesh geom
     else {
-      WriteAttr(elem, "pos", 3, geom->pos, unitq+1);
+      WriteAttr(elem, "pos", 3, geom->pos, unitq + 1);
       WriteAttr(elem, "quat", 4, geom->quat, unitq);
     }
   } else {
@@ -437,13 +450,19 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
   }
 
   // defaults and regular
-  WriteAttrTable(elem, static_cast<const mjsGeom*>(geom), &def->Geom().spec,
-                 kGeomAttrs, kGeomAttrsN);
-  WriteAttrKey(elem, "fluidshape",
-               fluidshape_map, 2, geom->fluid_ellipsoid, def->Geom().fluid_ellipsoid);
+  WriteAttrTable(elem,
+                 static_cast<const mjsGeom*>(geom),
+                 &def->Geom().spec,
+                 kGeomAttrs,
+                 kGeomAttrsN);
+  WriteAttrKey(elem,
+               "fluidshape",
+               fluidshape_map,
+               2,
+               geom->fluid_ellipsoid,
+               def->Geom().fluid_ellipsoid);
   if (geom->type != mjGEOM_MESH) {
-    WriteAttrKey(elem, "shellinertia", bool_map, 2, geom->typeinertia,
-                 def->Geom().typeinertia);
+    WriteAttrKey(elem, "shellinertia", bool_map, 2, geom->typeinertia, def->Geom().typeinertia);
   }
   if (mjuu_defined(geom->mass)) {
     WriteAttr(elem, "mass", 1, &geom->mass_, &mass);
@@ -455,9 +474,7 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
   }
 
   // hfield and mesh attributes
-  if (geom->type == mjGEOM_HFIELD) {
-    WriteAttrTxt(elem, "hfield", geom->get_hfieldname());
-  }
+  if (geom->type == mjGEOM_HFIELD) { WriteAttrTxt(elem, "hfield", geom->get_hfieldname()); }
   if (geom->type == mjGEOM_MESH || geom->type == mjGEOM_SDF) {
     WriteAttrTxt(elem, "mesh", geom->get_meshname());
   }
@@ -470,9 +487,7 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
   }
 
   // write plugin
-  if (geom->plugin.active) {
-    OnePlugin(InsertEnd(elem, "plugin"), &geom->plugin);
-  }
+  if (geom->plugin.active) { OnePlugin(InsertEnd(elem, "plugin"), &geom->plugin); }
 }
 
 // write site
@@ -494,8 +509,11 @@ void mjXWriter::OneSite(XMLElement* elem, const mjCSite* site, mjCDef* def, stri
   }
 
   // defaults and regular
-  WriteAttrTable(elem, static_cast<const mjsSite*>(site), &def->Site().spec,
-                 kSiteAttrs, kSiteAttrsN);
+  WriteAttrTable(elem,
+                 static_cast<const mjsSite*>(site),
+                 &def->Site().spec,
+                 kSiteAttrs,
+                 kSiteAttrsN);
   if (site->get_material() != def->Site().get_material()) {
     WriteAttrTxt(elem, "material", site->get_material());
   }
@@ -509,8 +527,10 @@ void mjXWriter::OneSite(XMLElement* elem, const mjCSite* site, mjCDef* def, stri
 }
 
 // write camera
-void mjXWriter::OneCamera(XMLElement* elem, const mjCCamera* camera, mjCDef* def,
-                          string_view classname) {
+void mjXWriter::OneCamera(XMLElement*      elem,
+                          const mjCCamera* camera,
+                          mjCDef*          def,
+                          string_view      classname) {
   double unitq[4] = {1, 0, 0, 0};
 
   // regular
@@ -524,8 +544,11 @@ void mjXWriter::OneCamera(XMLElement* elem, const mjCCamera* camera, mjCDef* def
   }
 
   // defaults and regular
-  WriteAttrTable(elem, static_cast<const mjsCamera*>(camera),
-                 &def->Camera().spec, kCameraAttrs, kCameraAttrsN);
+  WriteAttrTable(elem,
+                 static_cast<const mjsCamera*>(camera),
+                 &def->Camera().spec,
+                 kCameraAttrs,
+                 kCameraAttrsN);
 
   // camera intrinsics if specified
   if (camera->sensor_size[0] > 0 && camera->sensor_size[1] > 0) {
@@ -547,8 +570,10 @@ void mjXWriter::OneCamera(XMLElement* elem, const mjCCamera* camera, mjCDef* def
 }
 
 // write light
-void mjXWriter::OneLight(XMLElement* elem, const mjCLight* light, mjCDef* def,
-                         string_view classname) {
+void mjXWriter::OneLight(XMLElement*     elem,
+                         const mjCLight* light,
+                         mjCDef*         def,
+                         string_view     classname) {
   // regular
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", light->name);
@@ -559,8 +584,11 @@ void mjXWriter::OneLight(XMLElement* elem, const mjCLight* light, mjCDef* def,
   }
 
   // defaults and regular
-  WriteAttrTable(elem, static_cast<const mjsLight*>(light), &def->Light().spec,
-                 kLightAttrs, kLightAttrsN);
+  WriteAttrTable(elem,
+                 static_cast<const mjsLight*>(light),
+                 &def->Light().spec,
+                 kLightAttrs,
+                 kLightAttrsN);
   WriteAttrKey(elem, "type", lighttype_map, lighttype_sz, light->type, def->Light().type);
   WriteAttrTxt(elem, "texture", light->get_texture());
 }
@@ -569,61 +597,84 @@ void mjXWriter::OneLight(XMLElement* elem, const mjCLight* light, mjCDef* def,
 // write the mechanical attributes of an element, driven by the same
 // generated rows the reader uses; see the declaration for the contract
 template <typename T>
-void mjXWriter::WriteAttrTable(XMLElement* elem, const T* obj, const T* def,
-                               const mjXAttr* rows, int nrow) {
+void mjXWriter::WriteAttrTable(
+    XMLElement* elem, const T* obj, const T* def, const mjXAttr* rows, int nrow) {
   const char* live = reinterpret_cast<const char*>(obj);
   const char* dflt = reinterpret_cast<const char*>(def);
   for (int i = 0; i < nrow; i++) {
     const mjXAttr& row = rows[i];
-    if (row.handwrite || (writingdefaults && row.nodefault)) {
-      continue;
-    }
+    if (row.handwrite || (writingdefaults && row.nodefault)) { continue; }
     const char* base = live + row.offset;
     // a null default object means the element has no defaults to compare
     // against: every defined value is written
     const char* dbase = dflt ? dflt + row.offset : nullptr;
-    const int dkey = dflt ? 0 : -12345;  // WriteAttrKey's write-always default
+    const int   dkey  = dflt ? 0 : -12345;  // WriteAttrKey's write-always default
     switch (row.kind) {
       case mjXAttr::kInt:
-        WriteAttr(elem, row.attr, row.len, (const int*)base, (const int*)dbase,
+        WriteAttr(elem,
+                  row.attr,
+                  row.len,
+                  (const int*)base,
+                  (const int*)dbase,
                   /*trim=*/!row.exact);
         break;
       case mjXAttr::kDouble:
-        WriteAttr(elem, row.attr, row.len, (const double*)base,
-                  (const double*)dbase, /*trim=*/!row.exact);
+        WriteAttr(elem,
+                  row.attr,
+                  row.len,
+                  (const double*)base,
+                  (const double*)dbase,
+                  /*trim=*/!row.exact);
         break;
       case mjXAttr::kNum:
-        WriteAttr(elem, row.attr, row.len, (const mjtNum*)base,
-                  (const mjtNum*)dbase, /*trim=*/!row.exact);
+        WriteAttr(elem,
+                  row.attr,
+                  row.len,
+                  (const mjtNum*)base,
+                  (const mjtNum*)dbase,
+                  /*trim=*/!row.exact);
         break;
       case mjXAttr::kFloat:
-        WriteAttr(elem, row.attr, row.len, (const float*)base,
-                  (const float*)dbase, /*trim=*/!row.exact);
+        WriteAttr(elem,
+                  row.attr,
+                  row.len,
+                  (const float*)base,
+                  (const float*)dbase,
+                  /*trim=*/!row.exact);
         break;
       case mjXAttr::kEnum:
-        WriteAttrKey(elem, row.attr, row.map, row.mapsz, *(const int*)base,
+        WriteAttrKey(elem,
+                     row.attr,
+                     row.map,
+                     row.mapsz,
+                     *(const int*)base,
                      dbase ? *(const int*)dbase : dkey);
         break;
       case mjXAttr::kEnumByte:
-        WriteAttrKey(elem, row.attr, row.map, row.mapsz, *(const mjtByte*)base,
+        WriteAttrKey(elem,
+                     row.attr,
+                     row.map,
+                     row.mapsz,
+                     *(const mjtByte*)base,
                      dbase ? *(const mjtByte*)dbase : dkey);
         break;
       case mjXAttr::kBool:
-        WriteAttrKey(elem, row.attr, bool_map, 2, *(const mjtByte*)base,
+        WriteAttrKey(elem,
+                     row.attr,
+                     bool_map,
+                     2,
+                     *(const mjtByte*)base,
                      dbase ? *(const mjtByte*)dbase : dkey);
         break;
       case mjXAttr::kFlags:
         if (!dbase || *(const int*)base != *(const int*)dbase) {
-          int value = *(const int*)base;
+          int              value = *(const int*)base;
           std::vector<int> data;
           for (int j = 0; j < row.mapsz; j++) {
-            if (value & row.map[j].value) {
-              data.push_back(row.map[j].value);
-            }
+            if (value & row.map[j].value) { data.push_back(row.map[j].value); }
           }
           if (!data.empty()) {
-            WriteAttrKeys(elem, row.attr, row.map, row.mapsz, data.data(),
-                          data.size(), 0);
+            WriteAttrKeys(elem, row.attr, row.map, row.mapsz, data.data(), data.size(), 0);
           }
         }
         break;
@@ -635,23 +686,22 @@ void mjXWriter::WriteAttrTable(XMLElement* elem, const T* obj, const T* def,
 }
 
 
-
 void mjXWriter::OnePair(XMLElement* elem, const mjCPair* pair, mjCDef* def) {
   // regular
   if (!writingdefaults) {
-    if (pair->classname != "main") {
-      WriteAttrTxt(elem, "class", pair->classname);
-    }
+    if (pair->classname != "main") { WriteAttrTxt(elem, "class", pair->classname); }
     WriteAttrTxt(elem, "geom1", pair->get_geomname1());
     WriteAttrTxt(elem, "geom2", pair->get_geomname2());
   }
 
   // defaults and regular
   WriteAttrTxt(elem, "name", pair->name);
-  WriteAttrTable(elem, static_cast<const mjsPair*>(pair), &def->Pair().spec,
-                 kPairAttrs, kPairAttrsN);
+  WriteAttrTable(elem,
+                 static_cast<const mjsPair*>(pair),
+                 &def->Pair().spec,
+                 kPairAttrs,
+                 kPairAttrsN);
 }
-
 
 
 // write equality
@@ -659,9 +709,7 @@ void mjXWriter::OneEquality(XMLElement* elem, const mjCEquality* equality, mjCDe
   // regular
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", equality->name);
-    if (equality->classname != "main") {
-      WriteAttrTxt(elem, "class", equality->classname);
-    }
+    if (equality->classname != "main") { WriteAttrTxt(elem, "class", equality->classname); }
 
     switch (equality->type) {
       case mjEQ_CONNECT:
@@ -684,28 +732,24 @@ void mjXWriter::OneEquality(XMLElement* elem, const mjCEquality* equality, mjCDe
           // not the constructor's union payload
           double zero3[3] = {0, 0, 0};
           WriteAttr(elem, "anchor", 3, equality->data, zero3);
-          WriteAttr(elem, "relpose", 7, equality->data+3,
-                    def->Equality().spec.data+3);
+          WriteAttr(elem, "relpose", 7, equality->data + 3, def->Equality().spec.data + 3);
         } else {
           WriteAttrTxt(elem, "site1", mjs_getString(equality->name1));
           WriteAttrTxt(elem, "site2", mjs_getString(equality->name2));
         }
-        WriteAttr(elem, "torquescale", 1, equality->data+10,
-                  def->Equality().spec.data+10);
+        WriteAttr(elem, "torquescale", 1, equality->data + 10, def->Equality().spec.data + 10);
         break;
 
       case mjEQ_JOINT:
         WriteAttrTxt(elem, "joint1", mjs_getString(equality->name1));
         WriteAttrTxt(elem, "joint2", mjs_getString(equality->name2));
-        WriteAttr(elem, "polycoef", 5, equality->data,
-                  def->Equality().spec.data);
+        WriteAttr(elem, "polycoef", 5, equality->data, def->Equality().spec.data);
         break;
 
       case mjEQ_TENDON:
         WriteAttrTxt(elem, "tendon1", mjs_getString(equality->name1));
         WriteAttrTxt(elem, "tendon2", mjs_getString(equality->name2));
-        WriteAttr(elem, "polycoef", 5, equality->data,
-                  def->Equality().spec.data);
+        WriteAttr(elem, "polycoef", 5, equality->data, def->Equality().spec.data);
         break;
 
       case mjEQ_FLEX:
@@ -724,11 +768,12 @@ void mjXWriter::OneEquality(XMLElement* elem, const mjCEquality* equality, mjCDe
   }
 
   // defaults and regular
-  WriteAttrTable(elem, static_cast<const mjsEquality*>(equality),
-                 &def->Equality().spec, kEqualityBaseAttrs,
+  WriteAttrTable(elem,
+                 static_cast<const mjsEquality*>(equality),
+                 &def->Equality().spec,
+                 kEqualityBaseAttrs,
                  kEqualityBaseAttrsN);
 }
-
 
 
 // write tendon
@@ -738,19 +783,23 @@ void mjXWriter::OneTendon(XMLElement* elem, const mjCTendon* tendon, mjCDef* def
   // regular
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", tendon->name);
-    if (tendon->classname != "main") {
-      WriteAttrTxt(elem, "class", tendon->classname);
-    }
+    if (tendon->classname != "main") { WriteAttrTxt(elem, "class", tendon->classname); }
   }
 
   // defaults and regular; the fixed rows are the spatial rows without the
   // appearance attributes, which is exactly the tag difference
   if (fixed) {
-    WriteAttrTable(elem, static_cast<const mjsTendon*>(tendon),
-                   &def->Tendon().spec, kFixedAttrs, kFixedAttrsN);
+    WriteAttrTable(elem,
+                   static_cast<const mjsTendon*>(tendon),
+                   &def->Tendon().spec,
+                   kFixedAttrs,
+                   kFixedAttrsN);
   } else {
-    WriteAttrTable(elem, static_cast<const mjsTendon*>(tendon),
-                   &def->Tendon().spec, kSpatialAttrs, kSpatialAttrsN);
+    WriteAttrTable(elem,
+                   static_cast<const mjsTendon*>(tendon),
+                   &def->Tendon().spec,
+                   kSpatialAttrs,
+                   kSpatialAttrsN);
   }
   if (tendon->springlength[0] != tendon->springlength[1] ||
       def->Tendon().springlength[0] != def->Tendon().springlength[1]) {
@@ -771,15 +820,12 @@ void mjXWriter::OneTendon(XMLElement* elem, const mjCTendon* tendon, mjCDef* def
 }
 
 
-
 // write actuator
 void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* actuator, mjCDef* def) {
   // regular
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", actuator->name);
-    if (actuator->classname != "main") {
-      WriteAttrTxt(elem, "class", actuator->classname);
-    }
+    if (actuator->classname != "main") { WriteAttrTxt(elem, "class", actuator->classname); }
 
     // transmission target
     switch (actuator->trntype) {
@@ -809,14 +855,17 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* actuator, mjCDe
         WriteAttrTxt(elem, "body", actuator->get_target());
         break;
 
-      default:      // SHOULD NOT OCCUR
+      default:  // SHOULD NOT OCCUR
         break;
     }
   }
 
   // defaults and regular
-  WriteAttrTable(elem, static_cast<const mjsActuator*>(actuator),
-                 &def->Actuator().spec, kGeneralAttrs, kGeneralAttrsN);
+  WriteAttrTable(elem,
+                 static_cast<const mjsActuator*>(actuator),
+                 &def->Actuator().spec,
+                 kGeneralAttrs,
+                 kGeneralAttrsN);
   WriteAttr(elem, "cranklength", 1, &actuator->cranklength, &def->Actuator().cranklength);
   // special handling of actdim which has default value of -1
   if (writingdefaults) {
@@ -835,14 +884,18 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* actuator, mjCDe
   else {
     WriteAttrKey(elem, "gaintype", gain_map, gain_sz, actuator->gaintype, def->Actuator().gaintype);
     if (actuator->gaintype == mjGAIN_SO3) {
-      WriteAttrKey(elem, "input", inputchart_map, inputchart_sz, actuator->ctrlspec,
+      WriteAttrKey(elem,
+                   "input",
+                   inputchart_map,
+                   inputchart_sz,
+                   actuator->ctrlspec,
                    def->Actuator().ctrlspec);
     } else if (actuator->ctrlspec != def->Actuator().ctrlspec) {
       if (actuator->ctrlspec == mjINPUT_NONE) {
         WriteAttrTxt(elem, "input", "none");
       } else {
         std::string tokens;
-        for (int k=0; k < inputbit_sz; k++) {
+        for (int k = 0; k < inputbit_sz; k++) {
           if (actuator->ctrlspec & inputbit_map[k].value) {
             tokens += std::string(tokens.empty() ? "" : " ") + inputbit_map[k].key;
           }
@@ -864,17 +917,16 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* actuator, mjCDe
 }
 
 
-
 // write plugin
 void mjXWriter::OnePlugin(XMLElement* elem, const mjsPlugin* plugin) {
   const string instance_name = string(mjs_getString(plugin->name));
-  const string plugin_name = string(mjs_getString(plugin->plugin_name));
+  const string plugin_name   = string(mjs_getString(plugin->plugin_name));
   if (!instance_name.empty()) {
     WriteAttrTxt(elem, "instance", instance_name);
   } else {
     WriteAttrTxt(elem, "plugin", plugin_name);
-    const mjpPlugin* pplugin = mjp_getPluginAtSlot(
-      static_cast<mjCPlugin*>(plugin->element)->plugin_slot);
+    const mjpPlugin* pplugin =
+        mjp_getPluginAtSlot(static_cast<mjCPlugin*>(plugin->element)->plugin_slot);
     const char* c = &(static_cast<mjCPlugin*>(plugin->element)->flattened_attributes[0]);
     for (int i = 0; i < pplugin->nattribute; ++i) {
       string value(c);
@@ -890,7 +942,6 @@ void mjXWriter::OnePlugin(XMLElement* elem, const mjsPlugin* plugin) {
 }
 
 
-
 //---------------------------------- class mjXWriter: top-level API --------------------------------
 
 // constructor
@@ -901,17 +952,13 @@ mjXWriter::mjXWriter(void) {
 
 // cast model
 void mjXWriter::SetModel(mjSpec* _spec, const mjModel* m) {
-  if (_spec) {
-    model = static_cast<mjCModel*>(_spec->element);
-  }
-  if (m) {
-    mj_copyBack(&model->spec, m);
-  }
+  if (_spec) { model = static_cast<mjCModel*>(_spec->element); }
+  if (m) { mj_copyBack(&model->spec, m); }
 }
 
 
 // save existing model in MJCF canonical format, must be compiled
-string mjXWriter::Write(char *error, size_t error_sz) {
+string mjXWriter::Write(char* error, size_t error_sz) {
   // check model
   if (!model || !model->IsCompiled()) {
     mjCopyError(error, "XML Write error: Only compiled model can be written", error_sz);
@@ -958,39 +1005,31 @@ string mjXWriter::Write(char *error, size_t error_sz) {
 }
 
 
-
 // compiler section
 void mjXWriter::Compiler(XMLElement* root) {
   XMLElement* section = InsertEnd(root, "compiler");
 
   // settings
   WriteAttrTxt(section, "angle", "radian");
-  if (!model->get_meshdir().empty()) {
-    WriteAttrTxt(section, "meshdir", model->get_meshdir());
-  }
+  if (!model->get_meshdir().empty()) { WriteAttrTxt(section, "meshdir", model->get_meshdir()); }
   if (!model->get_texturedir().empty()) {
     WriteAttrTxt(section, "texturedir", model->get_texturedir());
   }
-  if (!model->compiler.usethread) {
-    WriteAttrTxt(section, "usethread", "false");
-  }
+  if (!model->compiler.usethread) { WriteAttrTxt(section, "usethread", "false"); }
 
-  if (model->compiler.boundmass) {
-    WriteAttr(section, "boundmass", 1, &model->compiler.boundmass);
-  }
+  if (model->compiler.boundmass) { WriteAttr(section, "boundmass", 1, &model->compiler.boundmass); }
   if (model->compiler.boundinertia) {
     WriteAttr(section, "boundinertia", 1, &model->compiler.boundinertia);
   }
-  if (model->compiler.alignfree) {
-    WriteAttrTxt(section, "alignfree", "true");
-  }
-  if (!model->compiler.autolimits) {
-    WriteAttrTxt(section, "autolimits", "false");
-  }
-  WriteAttrKey(section, "conflict", conflict_map, conflict_sz,
-               model->compiler.conflict, mjCONFLICT_WARNING);
+  if (model->compiler.alignfree) { WriteAttrTxt(section, "alignfree", "true"); }
+  if (!model->compiler.autolimits) { WriteAttrTxt(section, "autolimits", "false"); }
+  WriteAttrKey(section,
+               "conflict",
+               conflict_map,
+               conflict_sz,
+               model->compiler.conflict,
+               mjCONFLICT_WARNING);
 }
-
 
 
 // option section
@@ -1007,9 +1046,7 @@ void mjXWriter::Option(XMLElement* root) {
   int disabled_groups[31];
   int ndisabled = 0;
   for (int i = 0; i < 31; ++i) {
-    if (model->option.disableactuator & (1 << i)) {
-      disabled_groups[ndisabled++] = i;
-    }
+    if (model->option.disableactuator & (1 << i)) { disabled_groups[ndisabled++] = i; }
   }
   WriteAttr(section, "actuatorgroupdisable", ndisabled, disabled_groups);
 
@@ -1017,9 +1054,9 @@ void mjXWriter::Option(XMLElement* root) {
   if (model->option.disableflags || model->option.enableflags) {
     XMLElement* sub = InsertEnd(section, "flag");
 
-#define WRITEDSBL(NAME, MASK) \
-    if (model->option.disableflags & MASK) \
-      WriteAttrKey(sub, NAME, enable_map, 2, 0);
+#define WRITEDSBL(NAME, MASK)                                                       \
+  if (model->option.disableflags & MASK) WriteAttrKey(sub, NAME, enable_map, 2, 0);
+    // clang-format off
     WRITEDSBL("constraint",     mjDSBL_CONSTRAINT)
     WRITEDSBL("equality",       mjDSBL_EQUALITY)
     WRITEDSBL("frictionloss",   mjDSBL_FRICTIONLOSS)
@@ -1040,26 +1077,25 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEDSBL("nativeccd",      mjDSBL_NATIVECCD)
     WRITEDSBL("island",         mjDSBL_ISLAND)
     WRITEDSBL("multiccd",       mjDSBL_MULTICCD)
+    // clang-format on
 #undef WRITEDSBL
 
-#define WRITEENBL(NAME, MASK) \
-    if (model->option.enableflags & MASK) \
-      WriteAttrKey(sub, NAME, enable_map, 2, 1);
+#define WRITEENBL(NAME, MASK)                                                      \
+  if (model->option.enableflags & MASK) WriteAttrKey(sub, NAME, enable_map, 2, 1);
+    // clang-format off
     WRITEENBL("override",       mjENBL_OVERRIDE)
     WRITEENBL("energy",         mjENBL_ENERGY)
     WRITEENBL("fwdinv",         mjENBL_FWDINV)
     WRITEENBL("invdiscrete",    mjENBL_INVDISCRETE)
     WRITEENBL("sleep",          mjENBL_SLEEP)
     WRITEENBL("diagexact",      mjENBL_DIAGEXACT)
+    // clang-format on
 #undef WRITEENBL
   }
 
   // remove entire section if no attributes or elements
-  if (!section->FirstAttribute() && !section->FirstChildElement()) {
-    root->DeleteChild(section);
-  }
+  if (!section->FirstAttribute() && !section->FirstChildElement()) { root->DeleteChild(section); }
 }
-
 
 
 // size section
@@ -1067,9 +1103,7 @@ void mjXWriter::Size(XMLElement* root) {
   XMLElement* section = InsertEnd(root, "size");
 
   // write memory
-  if (model->memory != -1) {
-    WriteAttrTxt(section, "memory", mju_writeNumBytes(model->memory));
-  }
+  if (model->memory != -1) { WriteAttrTxt(section, "memory", mju_writeNumBytes(model->memory)); }
 
   // deprecated sizes, hand-read into locals with range checks
   WriteAttrInt(section, "njmax", model->njmax, -1);
@@ -1079,13 +1113,11 @@ void mjXWriter::Size(XMLElement* root) {
   // write sizes; the spec defaults are -1 (auto), but compilation resolves
   // them to the actual counts, so the comparison object is zero-initialized
   mjSpec zerospec = {};
-  WriteAttrTable(section, static_cast<const mjSpec*>(model), &zerospec,
-                 kSizeAttrs, kSizeAttrsN);
+  WriteAttrTable(section, static_cast<const mjSpec*>(model), &zerospec, kSizeAttrs, kSizeAttrsN);
 
   // remove entire section if no attributes
   if (!section->FirstAttribute()) root->DeleteChild(section);
 }
-
 
 
 // statistic section
@@ -1094,13 +1126,15 @@ void mjXWriter::Statistic(XMLElement* root) {
 
   // statistics are unset (mjNAN) rather than defaulted: there is nothing to
   // compare against, and WriteAttr skips the undefined values by itself
-  WriteAttrTable(section, &model->stat, (const mjStatistic*)nullptr,
-                 kStatisticAttrs, kStatisticAttrsN);
+  WriteAttrTable(section,
+                 &model->stat,
+                 (const mjStatistic*)nullptr,
+                 kStatisticAttrs,
+                 kStatisticAttrsN);
 
   // remove entire section if no attributes
   if (!section->FirstAttribute()) root->DeleteChild(section);
 }
-
 
 
 // visual section
@@ -1112,28 +1146,27 @@ void mjXWriter::Visual(XMLElement* root) {
 
   // the sub-sections are projections into mjVisual: their rows carry
   // member-path offsets, so one struct pair drives them all
-  struct { const char* tag; const mjXAttr* rows; int n; } subs[] = {
-    {"global",    kGlobalAttrs,    kGlobalAttrsN},
-    {"quality",   kQualityAttrs,   kQualityAttrsN},
-    {"headlight", kHeadlightAttrs, kHeadlightAttrsN},
-    {"map",       kMapAttrs,       kMapAttrsN},
-    {"scale",     kScaleAttrs,     kScaleAttrsN},
-    {"rgba",      kRgbaAttrs,      kRgbaAttrsN},
+  struct {
+    const char*    tag;
+    const mjXAttr* rows;
+    int            n;
+  } subs[] = {
+      {"global",    kGlobalAttrs,    kGlobalAttrsN   },
+      {"quality",   kQualityAttrs,   kQualityAttrsN  },
+      {"headlight", kHeadlightAttrs, kHeadlightAttrsN},
+      {"map",       kMapAttrs,       kMapAttrsN      },
+      {"scale",     kScaleAttrs,     kScaleAttrsN    },
+      {"rgba",      kRgbaAttrs,      kRgbaAttrsN     },
   };
   for (const auto& sub : subs) {
     XMLElement* elem = InsertEnd(section, sub.tag);
     WriteAttrTable(elem, vis, &visdef, sub.rows, sub.n);
-    if (!elem->FirstAttribute()) {
-      section->DeleteChild(elem);
-    }
+    if (!elem->FirstAttribute()) { section->DeleteChild(elem); }
   }
 
   // remove entire section if no elements
-  if (!section->FirstChildElement()) {
-    root->DeleteChild(section);
-  }
+  if (!section->FirstChildElement()) { root->DeleteChild(section); }
 }
-
 
 
 // default section
@@ -1151,9 +1184,7 @@ void mjXWriter::Default(XMLElement* root, mjCDef* def) {
 
   // create section, write class name
   section = InsertEnd(root, "default");
-  if (def->name != "main") {
-    WriteAttrTxt(section, "class", def->name);
-  }
+  if (def->name != "main") { WriteAttrTxt(section, "class", def->name); }
 
   // mesh
   elem = InsertEnd(section, "mesh");
@@ -1218,24 +1249,17 @@ void mjXWriter::Default(XMLElement* root, mjCDef* def) {
   }
 
   // add children recursively
-  for (int i=0; i < (int)def->child.size(); i++) {
-    Default(section, def->child[i]);
-  }
+  for (int i = 0; i < (int)def->child.size(); i++) { Default(section, def->child[i]); }
 
   // delete parent defaults if allocated here
-  if (!def->parent) {
-    delete parent;
-  }
+  if (!def->parent) { delete parent; }
 }
-
 
 
 // extension section
 void mjXWriter::Extension(XMLElement* root) {
   // skip section if there is no required plugin
-  if (model->ActivePlugins().empty()) {
-    return;
-  }
+  if (model->ActivePlugins().empty()) { return; }
 
   // create section
   XMLElement* section = InsertEnd(root, "extension");
@@ -1245,7 +1269,7 @@ void mjXWriter::Extension(XMLElement* root) {
 
   // write all plugins
   const mjpPlugin* last_plugin = nullptr;
-  XMLElement* plugin_elem = nullptr;
+  XMLElement*      plugin_elem = nullptr;
   for (int i = 0; i < model->Plugins().size(); ++i) {
     mjCPlugin* pp = static_cast<mjCPlugin*>(model->GetObject(mjOBJ_PLUGIN, i));
 
@@ -1292,7 +1316,6 @@ void mjXWriter::Extension(XMLElement* root) {
 }
 
 
-
 // custom section
 void mjXWriter::Custom(XMLElement* root) {
   XMLElement* elem;
@@ -1303,16 +1326,15 @@ void mjXWriter::Custom(XMLElement* root) {
   int ntup = model->NumObjects(mjOBJ_TUPLE);
 
   // skip section if empty
-  if (nnum == 0 && ntxt == 0 && ntup == 0) {
-    return;
-  }
+  if (nnum == 0 && ntxt == 0 && ntup == 0) { return; }
 
   // create section
   XMLElement* section = InsertEnd(root, "custom");
 
   // write all numerics
-  for (int i=0; i < nnum; i++) {
+  for (int i = 0; i < nnum; i++) {
     mjCNumeric* numeric = (mjCNumeric*)model->GetObject(mjOBJ_NUMERIC, i);
+
     elem = InsertEnd(section, "numeric");
     WriteAttrTxt(elem, "name", numeric->name);
     WriteAttrInt(elem, "size", numeric->size);
@@ -1320,32 +1342,31 @@ void mjXWriter::Custom(XMLElement* root) {
   }
 
   // write all texts
-  for (int i=0; i < ntxt; i++) {
+  for (int i = 0; i < ntxt; i++) {
     mjCText* text = (mjCText*)model->GetObject(mjOBJ_TEXT, i);
+
     elem = InsertEnd(section, "text");
     WriteAttrTxt(elem, "name", text->name);
     WriteAttrTxt(elem, "data", text->data_.c_str());
   }
 
   // write all tuples
-  for (int i=0; i < ntup; i++) {
+  for (int i = 0; i < ntup; i++) {
     mjCTuple* tuple = (mjCTuple*)model->GetObject(mjOBJ_TUPLE, i);
+
     elem = InsertEnd(section, "tuple");
     WriteAttrTxt(elem, "name", tuple->name);
 
     // write objects in tuple
-    for (int j=0; j < (int)tuple->objtype_.size(); j++) {
+    for (int j = 0; j < (int)tuple->objtype_.size(); j++) {
       XMLElement* obj = InsertEnd(elem, "element");
       WriteAttrTxt(obj, "objtype", mju_type2Str((int)tuple->objtype_[j]));
       WriteAttrTxt(obj, "objname", tuple->objname_[j].c_str());
       double oprm = tuple->objprm_[j];
-      if (oprm != 0) {
-        WriteAttr(obj, "prm", 1, &oprm);
-      }
+      if (oprm != 0) { WriteAttr(obj, "prm", 1, &oprm); }
     }
   }
 }
-
 
 
 // asset section
@@ -1353,24 +1374,23 @@ void mjXWriter::Asset(XMLElement* root) {
   XMLElement* elem;
 
   // get sizes
-  int ntex = model->NumObjects(mjOBJ_TEXTURE);
-  int nmat = model->NumObjects(mjOBJ_MATERIAL);
-  int nmesh = model->NumObjects(mjOBJ_MESH);
+  int ntex    = model->NumObjects(mjOBJ_TEXTURE);
+  int nmat    = model->NumObjects(mjOBJ_MATERIAL);
+  int nmesh   = model->NumObjects(mjOBJ_MESH);
   int nhfield = model->NumObjects(mjOBJ_HFIELD);
 
   // return if empty
-  if (ntex == 0 && nmat == 0 && nmesh == 0 && nhfield == 0) {
-    return;
-  }
+  if (ntex == 0 && nmat == 0 && nmesh == 0 && nhfield == 0) { return; }
 
   // create section
   XMLElement* section = InsertEnd(root, "asset");
 
   // write textures
   mjCTexture deftex(0);
-  for (int i=0; i < ntex; i++) {
+  for (int i = 0; i < ntex; i++) {
     // create element
     mjCTexture* texture = (mjCTexture*)model->GetObject(mjOBJ_TEXTURE, i);
+
     elem = InsertEnd(section, "texture");
 
     // write common attributes
@@ -1391,10 +1411,15 @@ void mjXWriter::Asset(XMLElement* root) {
     }
 
     // write buffer
-    else if (texture->get_cubefiles()[0].empty() && texture->get_cubefiles()[1].empty() &&
-             texture->get_cubefiles()[2].empty() && texture->get_cubefiles()[3].empty() &&
-             texture->get_cubefiles()[4].empty() && texture->get_cubefiles()[5].empty() &&
-             texture->File().empty() && texture->gridsize[0] == 1 && texture->gridsize[1] == 1) {
+    else if (texture->get_cubefiles()[0].empty() &&
+             texture->get_cubefiles()[1].empty() &&
+             texture->get_cubefiles()[2].empty() &&
+             texture->get_cubefiles()[3].empty() &&
+             texture->get_cubefiles()[4].empty() &&
+             texture->get_cubefiles()[5].empty() &&
+             texture->File().empty() &&
+             texture->gridsize[0] == 1 &&
+             texture->gridsize[1] == 1) {
       throw mjXError(0, "no support for buffer textures.");
     }
 
@@ -1411,16 +1436,12 @@ void mjXWriter::Asset(XMLElement* root) {
       WriteAttrTxt(elem, "filedown", texture->get_cubefiles()[3]);
       WriteAttrTxt(elem, "filefront", texture->get_cubefiles()[4]);
       WriteAttrTxt(elem, "fileback", texture->get_cubefiles()[5]);
-      if (texture->hflip) {
-        WriteAttrKey(elem, "hflip", bool_map, 2, 1);
-      }
-      if (texture->vflip) {
-        WriteAttrKey(elem, "vflip", bool_map, 2, 1);
-      }
+      if (texture->hflip) { WriteAttrKey(elem, "hflip", bool_map, 2, 1); }
+      if (texture->vflip) { WriteAttrKey(elem, "vflip", bool_map, 2, 1); }
 
       // write grid
       if (texture->gridsize[0] != 1 || texture->gridsize[1] != 1) {
-        double gsize[2] = { (double)texture->gridsize[0], (double)texture->gridsize[1] };
+        double gsize[2] = {(double)texture->gridsize[0], (double)texture->gridsize[1]};
         WriteAttr(elem, "gridsize", 2, gsize);
         WriteAttrTxt(elem, "gridlayout", texture->gridlayout);
       }
@@ -1428,15 +1449,16 @@ void mjXWriter::Asset(XMLElement* root) {
   }
 
   // write materials
-  for (int i=0; i < nmat; i++) {
+  for (int i = 0; i < nmat; i++) {
     // create element and write
     mjCMaterial* material = (mjCMaterial*)model->GetObject(mjOBJ_MATERIAL, i);
+
     elem = InsertEnd(section, "material");
     OneMaterial(elem, material, model->def_map[material->classname]);
   }
 
   // write meshes
-  for (int i=0; i < nmesh; i++) {
+  for (int i = 0; i < nmesh; i++) {
     // create element and write
     mjCMesh* mesh = (mjCMesh*)model->GetObject(mjOBJ_MESH, i);
     if (mesh->Plugin().active) {
@@ -1444,16 +1466,17 @@ void mjXWriter::Asset(XMLElement* root) {
       WriteAttrTxt(elem, "name", mesh->name);
       WriteAttrTxt(elem, "file", mesh->File());
       OnePlugin(InsertEnd(elem, "plugin"), &mesh->Plugin());
-    } else{
+    } else {
       elem = InsertEnd(section, "mesh");
       OneMesh(elem, mesh, model->def_map[mesh->classname]);
     }
   }
 
   // write hfields
-  for (int i=0; i < nhfield; i++) {
+  for (int i = 0; i < nhfield; i++) {
     // create element
     mjCHField* hfield = (mjCHField*)model->GetObject(mjOBJ_HFIELD, i);
+
     elem = InsertEnd(section, "hfield");
 
     // write attributes
@@ -1469,13 +1492,11 @@ void mjXWriter::Asset(XMLElement* root) {
       WriteAttrInt(elem, "ncol", ncol);
       if (!hfield->get_userdata().empty()) {
         // copy in reverse row order, so XML string is top-to-bottom
-        std::vector<float> flipped(nrow * ncol);
+        std::vector<float>        flipped(nrow * ncol);
         const std::vector<float>& userdata = hfield->get_userdata();
         for (int i = 0; i < nrow; i++) {
           int flip = nrow - 1 - i;
-          for (int j = 0; j < ncol; j++) {
-            flipped[i * ncol + j] = userdata[flip * ncol + j];
-          }
+          for (int j = 0; j < ncol; j++) { flipped[i * ncol + j] = userdata[flip * ncol + j]; }
         }
 
         string text;
@@ -1487,11 +1508,8 @@ void mjXWriter::Asset(XMLElement* root) {
 }
 
 
-
 XMLElement* mjXWriter::OneFrame(XMLElement* elem, mjCFrame* frame) {
-  if (!frame) {
-    return elem;
-  }
+  if (!frame) { return elem; }
 
   // TODO: empty classname should not occur (but does)
   if (frame->name.empty() && (frame->classname.empty() || frame->classname == "main")) {
@@ -1500,12 +1518,9 @@ XMLElement* mjXWriter::OneFrame(XMLElement* elem, mjCFrame* frame) {
 
   XMLElement* frame_elem = InsertEnd(elem, "frame");
   WriteAttrTxt(frame_elem, "name", frame->name);
-  if (frame->classname != "main") {
-    WriteAttrTxt(frame_elem, "childclass", frame->classname);
-  }
+  if (frame->classname != "main") { WriteAttrTxt(frame_elem, "childclass", frame->classname); }
   return frame_elem;
 }
-
 
 
 // recursive body and frame writer
@@ -1524,18 +1539,12 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
     }
 
     // write pos if it's not {0, 0, 0}
-    if (body->pos[0] || body->pos[1] || body->pos[2]) {
-      WriteAttr(elem, "pos", 3, body->pos);
-    }
+    if (body->pos[0] || body->pos[1] || body->pos[2]) { WriteAttr(elem, "pos", 3, body->pos); }
     WriteAttr(elem, "quat", 4, body->quat, unitq);
-    if (body->mocap) {
-      WriteAttrKey(elem, "mocap", bool_map, 2, 1);
-    }
+    if (body->mocap) { WriteAttrKey(elem, "mocap", bool_map, 2, 1); }
 
     // gravity compensation
-    if (body->gravcomp) {
-      WriteAttr(elem, "gravcomp", 1, &body->gravcomp);
-    }
+    if (body->gravcomp) { WriteAttr(elem, "gravcomp", 1, &body->gravcomp); }
 
     // sleep policy
     if (body->sleep != mjSLEEP_AUTO &&
@@ -1563,73 +1572,66 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
 
   // joints in this frame
   for (int i = 0; i < body->joints.size(); i++) {
-    if (body->joints[i]->frame != frame) {
-      continue;
-    }
+    if (body->joints[i]->frame != frame) { continue; }
     string classname = body->joints[i]->frame && !body->joints[i]->frame->classname.empty()
                            ? body->joints[i]->frame->classname
                            : body->classname;
-    OneJoint(InsertEnd(elem, "joint"), body->joints[i],
+    OneJoint(InsertEnd(elem, "joint"),
+             body->joints[i],
              model->def_map[body->joints[i]->classname],
              classname.empty() ? childclass : classname);
   }
 
   // geoms in this frame
   for (int i = 0; i < body->geoms.size(); i++) {
-    if (body->geoms[i]->frame != frame) {
-      continue;
-    }
+    if (body->geoms[i]->frame != frame) { continue; }
     string classname = body->geoms[i]->frame && !body->geoms[i]->frame->classname.empty()
                            ? body->geoms[i]->frame->classname
                            : body->classname;
-    OneGeom(InsertEnd(elem, "geom"), body->geoms[i],
+    OneGeom(InsertEnd(elem, "geom"),
+            body->geoms[i],
             model->def_map[body->geoms[i]->classname],
             classname.empty() ? childclass : classname);
   }
 
   // sites in this frame
   for (int i = 0; i < body->sites.size(); i++) {
-    if (body->sites[i]->frame != frame) {
-      continue;
-    }
+    if (body->sites[i]->frame != frame) { continue; }
     string classname = body->sites[i]->frame && !body->sites[i]->frame->classname.empty()
                            ? body->sites[i]->frame->classname
                            : body->classname;
-    OneSite(InsertEnd(elem, "site"), body->sites[i],
+    OneSite(InsertEnd(elem, "site"),
+            body->sites[i],
             model->def_map[body->sites[i]->classname],
             classname.empty() ? childclass : classname);
   }
 
   // cameras in this frame
   for (int i = 0; i < body->cameras.size(); i++) {
-    if (body->cameras[i]->frame != frame) {
-      continue;
-    }
+    if (body->cameras[i]->frame != frame) { continue; }
     string classname = body->cameras[i]->frame && !body->cameras[i]->frame->classname.empty()
                            ? body->cameras[i]->frame->classname
                            : body->classname;
-    OneCamera(InsertEnd(elem, "camera"), body->cameras[i],
+    OneCamera(InsertEnd(elem, "camera"),
+              body->cameras[i],
               model->def_map[body->cameras[i]->classname],
               classname.empty() ? childclass : classname);
   }
 
   // lights in this frame
   for (int i = 0; i < body->lights.size(); i++) {
-    if (body->lights[i]->frame != frame) {
-      continue;
-    }
+    if (body->lights[i]->frame != frame) { continue; }
     string classname = body->lights[i]->frame && !body->lights[i]->frame->classname.empty()
                            ? body->lights[i]->frame->classname
                            : body->classname;
-    OneLight(InsertEnd(elem, "light"), body->lights[i],
+    OneLight(InsertEnd(elem, "light"),
+             body->lights[i],
              model->def_map[body->lights[i]->classname],
              classname.empty() ? childclass : classname);
   }
 
   // write plugin
-  if (body->plugin.active) {
-    OnePlugin(InsertEnd(elem, "plugin"), &body->plugin);
-  }
+  if (body->plugin.active) { OnePlugin(InsertEnd(elem, "plugin"), &body->plugin); }
 
   // write children recursively
   int i = 0, j = 0;
@@ -1638,19 +1640,17 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
 
     // write body if its frame matches the current frame, avoid access if there are no bodies
     if (bframe == frame && !body->bodies.empty()) {
-      string classname = bframe && !bframe->classname.empty()
-                             ? bframe->classname
-                             : body->classname;
-      Body(InsertEnd(elem, "body"), body->bodies[i], nullptr,
+      string classname = bframe && !bframe->classname.empty() ? bframe->classname : body->classname;
+      Body(InsertEnd(elem, "body"),
+           body->bodies[i],
+           nullptr,
            classname.empty() ? childclass : classname);
     }
 
     i++;
 
     // do not go to frames until we reach a body with a frame or we are done with bodies
-    if (!bframe && i < body->bodies.size()) {
-      continue;
-    }
+    if (!bframe && i < body->bodies.size()) { continue; }
 
     // loop over the remaining frames in the current body
     while (j < body->frames.size()) {
@@ -1658,20 +1658,16 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
 
       // write frame if its frame matches the current frame
       if (fframe->frame == frame) {
-        string classname = fframe && !fframe->classname.empty()
-                               ? fframe->classname
-                               : body->classname;
+        string classname =
+            fframe && !fframe->classname.empty() ? fframe->classname : body->classname;
         Body(OneFrame(elem, fframe), body, fframe, childclass);
       }
     }
 
     // if there are no bodies, we only want to run the loop once
-    if (body->bodies.empty()) {
-      break;
-    }
+    if (body->bodies.empty()) { break; }
   }
 }
-
 
 
 // collision section
@@ -1679,29 +1675,29 @@ void mjXWriter::Contact(XMLElement* root) {
   XMLElement* elem;
 
   // get number of pairs of each type
-  int npair = model->NumObjects(mjOBJ_PAIR);
+  int npair    = model->NumObjects(mjOBJ_PAIR);
   int nexclude = model->NumObjects(mjOBJ_EXCLUDE);
 
   // skip if section is empty
-  if (npair == 0 && nexclude == 0) {
-    return;
-  }
+  if (npair == 0 && nexclude == 0) { return; }
 
   // create section
   XMLElement* section = InsertEnd(root, "contact");
 
   // write all geom pairs
-  for (int i=0; i < npair; i++) {
+  for (int i = 0; i < npair; i++) {
     // create element and write
     mjCPair* pair = (mjCPair*)model->GetObject(mjOBJ_PAIR, i);
+
     elem = InsertEnd(section, "pair");
     OnePair(elem, pair, model->def_map[pair->classname]);
   }
 
   // write all exclude pairs
-  for (int i=0; i < nexclude; i++) {
+  for (int i = 0; i < nexclude; i++) {
     // create element
     mjCBodyPair* exclude = (mjCBodyPair*)model->GetObject(mjOBJ_EXCLUDE, i);
+
     elem = InsertEnd(section, "exclude");
 
     // write attributes
@@ -1712,27 +1708,23 @@ void mjXWriter::Contact(XMLElement* root) {
 }
 
 
-
 // constraint section
 void mjXWriter::Equality(XMLElement* root) {
   // skip section if empty
   int num;
-  if ((num=model->NumObjects(mjOBJ_EQUALITY)) == 0) {
-    return;
-  }
+  if ((num = model->NumObjects(mjOBJ_EQUALITY)) == 0) { return; }
 
   // create section
   XMLElement* section = InsertEnd(root, "equality");
 
   // write all constraints
-  for (int i=0; i < num; i++) {
+  for (int i = 0; i < num; i++) {
     mjCEquality* equality = (mjCEquality*)model->GetObject(mjOBJ_EQUALITY, i);
-    XMLElement* elem = InsertEnd(section,
-                                 FindValue(equality_map, equality_sz, equality->type).c_str());
+    XMLElement*  elem =
+        InsertEnd(section, FindValue(equality_map, equality_sz, equality->type).c_str());
     OneEquality(elem, equality, model->def_map[equality->classname]);
   }
 }
-
 
 
 // deformable section
@@ -1744,57 +1736,52 @@ void mjXWriter::Deformable(XMLElement* root) {
   int nskin = model->NumObjects(mjOBJ_SKIN);
 
   // return if empty
-  if (nflex == 0 && nskin == 0) {
-    return;
-  }
+  if (nflex == 0 && nskin == 0) { return; }
 
   // create section
   XMLElement* section = InsertEnd(root, "deformable");
 
   // write flexes
-  for (int i=0; i < nflex; i++) {
+  for (int i = 0; i < nflex; i++) {
     // create element and write
     mjCFlex* flex = (mjCFlex*)model->GetObject(mjOBJ_FLEX, i);
-    elem = InsertEnd(section, "flex");
+    elem          = InsertEnd(section, "flex");
     OneFlex(elem, flex);
   }
 
   // write skins
-  for (int i=0; i < nskin; i++) {
+  for (int i = 0; i < nskin; i++) {
     // create element and write
     mjCSkin* skin = (mjCSkin*)model->GetObject(mjOBJ_SKIN, i);
-    elem = InsertEnd(section, "skin");
+    elem          = InsertEnd(section, "skin");
     OneSkin(elem, skin);
   }
 }
-
 
 
 // tendon section
 void mjXWriter::Tendon(XMLElement* root) {
   // skip section if empty
   int num;
-  if ((num=model->NumObjects(mjOBJ_TENDON)) == 0) {
-    return;
-  }
+  if ((num = model->NumObjects(mjOBJ_TENDON)) == 0) { return; }
 
   // create section
   XMLElement* section = InsertEnd(root, "tendon");
 
   // write all tendons
-  for (int i=0; i < num; i++) {
+  for (int i = 0; i < num; i++) {
     // write tendon element and attributes
     mjCTendon* tendon = (mjCTendon*)model->GetObject(mjOBJ_TENDON, i);
-    if (!tendon->NumWraps()) {        // SHOULD NOT OCCUR
+    if (!tendon->NumWraps()) {  // SHOULD NOT OCCUR
       continue;
     }
-    XMLElement* elem = InsertEnd(section,
-                                 tendon->GetWrap(0)->Type() == mjWRAP_JOINT ? "fixed" : "spatial");
+    XMLElement* elem =
+        InsertEnd(section, tendon->GetWrap(0)->Type() == mjWRAP_JOINT ? "fixed" : "spatial");
     OneTendon(elem, tendon, model->def_map[tendon->classname]);
 
     // write wraps
     XMLElement* wrapelem;
-    for (int j=0; j < tendon->NumWraps(); j++) {
+    for (int j = 0; j < tendon->NumWraps(); j++) {
       const mjCWrap* wrap = tendon->GetWrap(j);
       switch (wrap->Type()) {
         case mjWRAP_JOINT:
@@ -1812,9 +1799,7 @@ void mjXWriter::Tendon(XMLElement* root) {
         case mjWRAP_CYLINDER:
           wrapelem = InsertEnd(elem, "geom");
           WriteAttrTxt(wrapelem, "geom", wrap->obj->name);
-          if (!wrap->sidesite.empty()) {
-            WriteAttrTxt(wrapelem, "sidesite", wrap->sidesite);
-          }
+          if (!wrap->sidesite.empty()) { WriteAttrTxt(wrapelem, "sidesite", wrap->sidesite); }
           break;
 
         case mjWRAP_PULLEY:
@@ -1830,22 +1815,19 @@ void mjXWriter::Tendon(XMLElement* root) {
 }
 
 
-
 // actuator section
 void mjXWriter::Actuator(XMLElement* root) {
   // skip section if empty
   int num;
-  if ((num=model->NumObjects(mjOBJ_ACTUATOR)) == 0) {
-    return;
-  }
+  if ((num = model->NumObjects(mjOBJ_ACTUATOR)) == 0) { return; }
 
   // create section
   XMLElement* section = InsertEnd(root, "actuator");
 
   // write all actuators
-  for (int i=0; i < num; i++) {
+  for (int i = 0; i < num; i++) {
     mjCActuator* actuator = (mjCActuator*)model->GetObject(mjOBJ_ACTUATOR, i);
-    XMLElement* elem;
+    XMLElement*  elem;
     if (actuator->plugin.active) {
       elem = InsertEnd(section, "plugin");
     } else {
@@ -1856,26 +1838,23 @@ void mjXWriter::Actuator(XMLElement* root) {
 }
 
 
-
 // sensor section
 void mjXWriter::Sensor(XMLElement* root) {
   double zero = 0;
 
   // skip section if empty
   int num;
-  if ((num=model->NumObjects(mjOBJ_SENSOR)) == 0) {
-    return;
-  }
+  if ((num = model->NumObjects(mjOBJ_SENSOR)) == 0) { return; }
 
   // create section
   XMLElement* section = InsertEnd(root, "sensor");
 
   // write all sensors
-  for (int i=0; i < num; i++) {
-    XMLElement* elem = 0;
-    mjCSensor* sensor = model->Sensors()[i];
-    string instance_name = "";
-    string plugin_name = "";
+  for (int i = 0; i < num; i++) {
+    XMLElement* elem          = 0;
+    mjCSensor*  sensor        = model->Sensors()[i];
+    string      instance_name = "";
+    string      plugin_name   = "";
 
     // write sensor type and type-specific attributes
     switch (sensor->type) {
@@ -1908,25 +1887,21 @@ void mjXWriter::Sensor(XMLElement* root) {
         elem = InsertEnd(section, "magnetometer");
         WriteAttrTxt(elem, "site", sensor->get_objname());
         break;
-      case mjSENS_RANGEFINDER:
-        {
-          elem = InsertEnd(section, "rangefinder");
-          if (sensor->objtype == mjOBJ_SITE) {
-            WriteAttrTxt(elem, "site", sensor->get_objname());
-          } else {
-            WriteAttrTxt(elem, "camera", sensor->get_objname());
-          }
-          int dataspec = sensor->intprm[0];
-          int data[mjNRAYDATA];
-          int ndata = 0;
-          for (int i=0; i < mjNRAYDATA; i++) {
-            if (dataspec & (1 << i)) {
-              data[ndata++] = i;
-            }
-          }
-          WriteAttrKeys(elem, "data", raydata_map, mjNRAYDATA, data, ndata, 0);
+      case mjSENS_RANGEFINDER: {
+        elem = InsertEnd(section, "rangefinder");
+        if (sensor->objtype == mjOBJ_SITE) {
+          WriteAttrTxt(elem, "site", sensor->get_objname());
+        } else {
+          WriteAttrTxt(elem, "camera", sensor->get_objname());
         }
-        break;
+        int dataspec = sensor->intprm[0];
+        int data[mjNRAYDATA];
+        int ndata = 0;
+        for (int i = 0; i < mjNRAYDATA; i++) {
+          if (dataspec & (1 << i)) { data[ndata++] = i; }
+        }
+        WriteAttrKeys(elem, "data", raydata_map, mjNRAYDATA, data, ndata, 0);
+      } break;
       case mjSENS_CAMPROJECTION:
         elem = InsertEnd(section, "camprojection");
         WriteAttrTxt(elem, "site", sensor->get_objname());
@@ -2111,51 +2086,59 @@ void mjXWriter::Sensor(XMLElement* root) {
         break;
       case mjSENS_GEOMDIST:
         elem = InsertEnd(section, "distance");
-        WriteAttrTxt(elem, sensor->objtype == mjOBJ_BODY ? "body1" : "geom1", sensor->get_objname());
-        WriteAttrTxt(elem, sensor->reftype == mjOBJ_BODY ? "body2" : "geom2", sensor->get_refname());
+        WriteAttrTxt(elem,
+                     sensor->objtype == mjOBJ_BODY ? "body1" : "geom1",
+                     sensor->get_objname());
+        WriteAttrTxt(elem,
+                     sensor->reftype == mjOBJ_BODY ? "body2" : "geom2",
+                     sensor->get_refname());
         break;
       case mjSENS_GEOMNORMAL:
         elem = InsertEnd(section, "normal");
-        WriteAttrTxt(elem, sensor->objtype == mjOBJ_BODY ? "body1" : "geom1", sensor->get_objname());
-        WriteAttrTxt(elem, sensor->reftype == mjOBJ_BODY ? "body2" : "geom2", sensor->get_refname());
+        WriteAttrTxt(elem,
+                     sensor->objtype == mjOBJ_BODY ? "body1" : "geom1",
+                     sensor->get_objname());
+        WriteAttrTxt(elem,
+                     sensor->reftype == mjOBJ_BODY ? "body2" : "geom2",
+                     sensor->get_refname());
         break;
       case mjSENS_GEOMFROMTO:
         elem = InsertEnd(section, "fromto");
-        WriteAttrTxt(elem, sensor->objtype == mjOBJ_BODY ? "body1" : "geom1", sensor->get_objname());
-        WriteAttrTxt(elem, sensor->reftype == mjOBJ_BODY ? "body2" : "geom2", sensor->get_refname());
+        WriteAttrTxt(elem,
+                     sensor->objtype == mjOBJ_BODY ? "body1" : "geom1",
+                     sensor->get_objname());
+        WriteAttrTxt(elem,
+                     sensor->reftype == mjOBJ_BODY ? "body2" : "geom2",
+                     sensor->get_refname());
         break;
-      case mjSENS_CONTACT:
-        {
-          elem = InsertEnd(section, "contact");
-          if (sensor->objtype == mjOBJ_BODY) {
-            WriteAttrTxt(elem, "body1", sensor->get_objname());
-          } else if (sensor->objtype == mjOBJ_XBODY) {
-            WriteAttrTxt(elem, "subtree1", sensor->get_objname());
-          } else if (sensor->objtype == mjOBJ_GEOM) {
-            WriteAttrTxt(elem, "geom1", sensor->get_objname());
-          } else if (sensor->objtype == mjOBJ_SITE) {
-            WriteAttrTxt(elem, "site", sensor->get_objname());
-          }
-          if (sensor->reftype == mjOBJ_BODY) {
-            WriteAttrTxt(elem, "body2", sensor->get_refname());
-          } else if (sensor->reftype == mjOBJ_XBODY) {
-            WriteAttrTxt(elem, "subtree2", sensor->get_refname());
-          } else if (sensor->reftype == mjOBJ_GEOM) {
-            WriteAttrTxt(elem, "geom2", sensor->get_refname());
-          }
-          int dataspec = sensor->intprm[0];
-          WriteAttrInt(elem, "num", sensor->dim / mju_condataSize(dataspec), 1);
-          int data[mjNCONDATA];
-          int ndata = 0;
-          for (int i=0; i < mjNCONDATA; i++) {
-            if (dataspec & (1 << i)) {
-              data[ndata++] = i;
-            }
-          }
-          WriteAttrKeys(elem, "data", condata_map, mjNCONDATA, data, ndata, 0);
-          WriteAttrKey(elem, "reduce", reduce_map, reduce_sz, sensor->intprm[1], 0);
+      case mjSENS_CONTACT: {
+        elem = InsertEnd(section, "contact");
+        if (sensor->objtype == mjOBJ_BODY) {
+          WriteAttrTxt(elem, "body1", sensor->get_objname());
+        } else if (sensor->objtype == mjOBJ_XBODY) {
+          WriteAttrTxt(elem, "subtree1", sensor->get_objname());
+        } else if (sensor->objtype == mjOBJ_GEOM) {
+          WriteAttrTxt(elem, "geom1", sensor->get_objname());
+        } else if (sensor->objtype == mjOBJ_SITE) {
+          WriteAttrTxt(elem, "site", sensor->get_objname());
         }
-        break;
+        if (sensor->reftype == mjOBJ_BODY) {
+          WriteAttrTxt(elem, "body2", sensor->get_refname());
+        } else if (sensor->reftype == mjOBJ_XBODY) {
+          WriteAttrTxt(elem, "subtree2", sensor->get_refname());
+        } else if (sensor->reftype == mjOBJ_GEOM) {
+          WriteAttrTxt(elem, "geom2", sensor->get_refname());
+        }
+        int dataspec = sensor->intprm[0];
+        WriteAttrInt(elem, "num", sensor->dim / mju_condataSize(dataspec), 1);
+        int data[mjNCONDATA];
+        int ndata = 0;
+        for (int i = 0; i < mjNCONDATA; i++) {
+          if (dataspec & (1 << i)) { data[ndata++] = i; }
+        }
+        WriteAttrKeys(elem, "data", condata_map, mjNCONDATA, data, ndata, 0);
+        WriteAttrKey(elem, "reduce", reduce_map, reduce_sz, sensor->intprm[1], 0);
+      } break;
       case mjSENS_TACTILE:
         elem = InsertEnd(section, "tactile");
         WriteAttrTxt(elem, "geom", sensor->get_refname());
@@ -2202,9 +2185,7 @@ void mjXWriter::Sensor(XMLElement* root) {
     // write name, noise, userdata
     WriteAttrTxt(elem, "name", sensor->name);
     WriteAttr(elem, "cutoff", 1, &sensor->cutoff, &zero);
-    if (sensor->type != mjSENS_PLUGIN) {
-      WriteAttr(elem, "noise", 1, &sensor->noise, &zero);
-    }
+    if (sensor->type != mjSENS_PLUGIN) { WriteAttr(elem, "noise", 1, &sensor->noise, &zero); }
     WriteAttrInt(elem, "nsample", sensor->nsample, 0);
     WriteAttrKey(elem, "interp", interp_map, interp_sz, sensor->interp, 0);
     WriteAttr(elem, "delay", 1, &sensor->delay, &zero);
@@ -2214,11 +2195,8 @@ void mjXWriter::Sensor(XMLElement* root) {
   }
 
   // remove section if empty
-  if (!section->FirstChildElement()) {
-    root->DeleteChild(section);
-  }
+  if (!section->FirstChildElement()) { root->DeleteChild(section); }
 }
-
 
 
 // keyframe section
@@ -2231,9 +2209,9 @@ void mjXWriter::Keyframe(XMLElement* root) {
   }
 
   // write all keyframes
-  for (int i=0; i < model->nkey; i++) {
-    XMLElement* elem = InsertEnd(section, "key");
-    bool change = false;
+  for (int i = 0; i < model->nkey; i++) {
+    XMLElement* elem   = InsertEnd(section, "key");
+    bool        change = false;
 
     mjCKey* key = model->Keys()[i];
 
@@ -2250,7 +2228,7 @@ void mjXWriter::Keyframe(XMLElement* root) {
     }
 
     // check qpos and write
-    for (int j=0; j < model->nq; j++) {
+    for (int j = 0; j < model->nq; j++) {
       if (key->qpos_[j] != model->qpos0[j]) {
         WriteAttr(elem, "qpos", model->nq, key->qpos_.data());
         change = true;
@@ -2259,7 +2237,7 @@ void mjXWriter::Keyframe(XMLElement* root) {
     }
 
     // check qvel and write
-    for (int j=0; j < model->nv; j++) {
+    for (int j = 0; j < model->nv; j++) {
       if (key->qvel_[j] != 0) {
         WriteAttr(elem, "qvel", model->nv, key->qvel_.data());
         change = true;
@@ -2268,7 +2246,7 @@ void mjXWriter::Keyframe(XMLElement* root) {
     }
 
     // check act and write
-    for (int j=0; j < model->na; j++) {
+    for (int j = 0; j < model->na; j++) {
       if (key->act_[j] != 0) {
         WriteAttr(elem, "act", model->na, key->act_.data());
         change = true;
@@ -2278,14 +2256,14 @@ void mjXWriter::Keyframe(XMLElement* root) {
 
     // check mpos and write
     if (model->nmocap) {
-      for (int j=0; j < model->nbody; j++) {
+      for (int j = 0; j < model->nbody; j++) {
         if (model->Bodies()[j]->mocap) {
           mjCBody* body = model->Bodies()[j];
-          int id = body->mocapid;
-          if (body->pos[0] != key->mpos_[3*id] ||
-              body->pos[1] != key->mpos_[3*id+1] ||
-              body->pos[2] != key->mpos_[3*id+2]) {
-            WriteAttr(elem, "mpos", 3*model->nmocap, key->mpos_.data());
+          int      id   = body->mocapid;
+          if (body->pos[0] != key->mpos_[3 * id] ||
+              body->pos[1] != key->mpos_[3 * id + 1] ||
+              body->pos[2] != key->mpos_[3 * id + 2]) {
+            WriteAttr(elem, "mpos", 3 * model->nmocap, key->mpos_.data());
             change = true;
             break;
           }
@@ -2295,15 +2273,15 @@ void mjXWriter::Keyframe(XMLElement* root) {
 
     // check mquat and write
     if (model->nmocap) {
-      for (int j=0; j < model->nbody; j++) {
+      for (int j = 0; j < model->nbody; j++) {
         if (model->Bodies()[j]->mocap) {
           mjCBody* body = model->Bodies()[j];
-          int id = body->mocapid;
-          if (body->quat[0] != key->mquat_[4*id] ||
-              body->quat[1] != key->mquat_[4*id+1] ||
-              body->quat[2] != key->mquat_[4*id+2] ||
-              body->quat[3] != key->mquat_[4*id+3]) {
-            WriteAttr(elem, "mquat", 4*model->nmocap, key->mquat_.data());
+          int      id   = body->mocapid;
+          if (body->quat[0] != key->mquat_[4 * id] ||
+              body->quat[1] != key->mquat_[4 * id + 1] ||
+              body->quat[2] != key->mquat_[4 * id + 2] ||
+              body->quat[3] != key->mquat_[4 * id + 3]) {
+            WriteAttr(elem, "mquat", 4 * model->nmocap, key->mquat_.data());
             change = true;
             break;
           }
@@ -2312,7 +2290,7 @@ void mjXWriter::Keyframe(XMLElement* root) {
     }
 
     // check ctrl and write
-    for (int j=0; j < model->nu; j++) {
+    for (int j = 0; j < model->nu; j++) {
       if (key->ctrl_[j] != 0) {
         WriteAttr(elem, "ctrl", model->nu, key->ctrl_.data());
         change = true;
@@ -2321,13 +2299,9 @@ void mjXWriter::Keyframe(XMLElement* root) {
     }
 
     // remove elem if empty
-    if (!change) {
-      section->DeleteChild(elem);
-    }
+    if (!change) { section->DeleteChild(elem); }
   }
 
   // remove section if empty
-  if (!section->FirstChildElement()) {
-    root->DeleteChild(section);
-  }
+  if (!section->FirstChildElement()) { root->DeleteChild(section); }
 }
