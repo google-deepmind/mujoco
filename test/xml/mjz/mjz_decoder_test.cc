@@ -45,6 +45,31 @@ TEST_F(MjzTest, Parse) {
   mj_deleteVFS(&vfs);
 }
 
+TEST_F(MjzTest, ParseMultipleTimesSameVFS) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  std::string filepath = GetTestDataFilePath("testdata/model.mjz");
+  char err[1000] = "";
+  mjSpec* spec1 = mj_parse(filepath.c_str(), "", &vfs, err, sizeof(err));
+  EXPECT_THAT(spec1, NotNull());
+  EXPECT_THAT(err, StrEq(""));
+
+  mjSpec* spec2 = mj_parse(filepath.c_str(), "", &vfs, err, sizeof(err));
+  EXPECT_THAT(spec2, NotNull());
+  EXPECT_THAT(err, StrEq(""));
+
+  mjModel* model1 = mj_compile(spec1, &vfs);
+  EXPECT_THAT(model1, NotNull()) << mjs_getError(spec1);
+  mjModel* model2 = mj_compile(spec2, &vfs);
+  EXPECT_THAT(model2, NotNull()) << mjs_getError(spec2);
+
+  mj_deleteModel(model1);
+  mj_deleteModel(model2);
+  mj_deleteSpec(spec1);
+  mj_deleteSpec(spec2);
+  mj_deleteVFS(&vfs);
+}
+
 TEST_F(MjzTest, InvalidPath) {
   mjVFS vfs;
   mj_defaultVFS(&vfs);

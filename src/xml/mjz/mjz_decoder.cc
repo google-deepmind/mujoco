@@ -41,6 +41,7 @@
 #include <mujoco/mujoco.h>
 #include "user/user_resource.h"
 #include "user/user_util.h"
+#include "user/user_vfs.h"
 
 static void mjPRINTFLIKE(3, 4)
     SetError(char* error, int error_sz, const char* format, ...) {
@@ -128,12 +129,19 @@ class ZipArchiveProvider : public mjpResourceProvider {
     open = [](mjResource* resource) {
       ZipArchiveProvider* self = (ZipArchiveProvider*)resource->provider;
       const std::string path = mujoco::user::FilePath(resource->name).Str();
+      if (path == self->name_) {
+        return 1;
+      }
       const bool found = self->Contains(path);
       return found ? 1 : 0;
     };
     read = [](mjResource* resource, const void** buffer) {
       ZipArchiveProvider* self = (ZipArchiveProvider*)resource->provider;
       const std::string path = mujoco::user::FilePath(resource->name).Str();
+      if (path == self->name_) {
+        *buffer = self->buffer_.data();
+        return static_cast<int>(self->buffer_.size());
+      }
       std::span<char> bytes = self->Read(path);
       *buffer = bytes.data();
       return static_cast<int>(bytes.size());
@@ -224,16 +232,21 @@ static mjSpec* ParseZipBuffer(const void* buffer, int nbuffer, const char* name,
   ZipArchiveProvider* provider =
       new ZipArchiveProvider(name, buffer, nbuffer, error, error_sz);
   if (error && error[0]) {
-    return nullptr;
-  }
-
-  const int status = mj_mountVFS(vfs, name, provider);
-  if (status != 0) {
-    SetError(error, error_sz, "Failed to mount zip archive: %s", name);
+    delete provider;
     return nullptr;
   }
 
   const std::string root = provider->GetRootModelPath();
+  const int status = mj_mountVFS(vfs, name, provider);
+  if (status == mujoco::user::VFS::kRepeatedName) {
+    // Archive is already mounted in this VFS; reuse the existing provider.
+    delete provider;
+  } else if (status != 0) {
+    delete provider;
+    SetError(error, error_sz, "Failed to mount zip archive: %s", name);
+    return nullptr;
+  }
+
   return mj_parseXML(root.c_str(), vfs, error, error_sz);
 }
 
