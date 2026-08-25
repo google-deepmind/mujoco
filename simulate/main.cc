@@ -170,6 +170,13 @@ void scanPluginLibraries() {
     }
   }
 
+  auto register_plugins = +[](const char* filename, int first, int count) {
+    std::printf("Plugins registered by library '%s':\n", filename);
+    for (int i = first; i < first + count; ++i) {
+      std::printf("    %s\n", mjp_getPluginAtSlot(i)->name);
+    }
+  };
+
   // define platform-specific strings
 #if defined(_WIN32) || defined(__CYGWIN__)
   const std::string sep = "\\";
@@ -182,18 +189,14 @@ void scanPluginLibraries() {
   // ${EXECDIR} is the directory containing the simulate binary itself
   // MUJOCO_PLUGIN_DIR is the MUJOCO_PLUGIN_DIR preprocessor macro
   const std::string executable_dir = getExecutableDir();
-  if (executable_dir.empty()) {
-    return;
+  if (!executable_dir.empty()) {
+    const std::string plugin_dir = executable_dir + sep + MUJOCO_PLUGIN_DIR;
+    mj_loadAllPluginLibraries(plugin_dir.c_str(), register_plugins);
   }
 
-  const std::string plugin_dir = getExecutableDir() + sep + MUJOCO_PLUGIN_DIR;
-  mj_loadAllPluginLibraries(
-      plugin_dir.c_str(), +[](const char* filename, int first, int count) {
-        std::printf("Plugins registered by library '%s':\n", filename);
-        for (int i = first; i < first + count; ++i) {
-          std::printf("    %s\n", mjp_getPluginAtSlot(i)->name);
-        }
-      });
+#ifdef MUJOCO_ADDITIONAL_PLUGIN_DIR
+  mj_loadAllPluginLibraries(MUJOCO_ADDITIONAL_PLUGIN_DIR, register_plugins);
+#endif
 }
 
 
