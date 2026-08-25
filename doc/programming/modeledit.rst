@@ -112,11 +112,15 @@ Root XML Discovery
 
 When decoding an ``.mjz`` archive, MuJoCo searches for the root model XML file in the following order:
 
-1. `<archive_stem>.xml` at the root of the archive (e.g. ``my_model.xml`` inside ``my_model.mjz``). This is
-   considered **best practice**.
-2. `<archive_stem>/<archive_stem>.xml` inside a top-level directory matching the archive name (e.g.
+1. ``model.xml`` at the root of the archive. This is the default format produced by the **MJZ**
+   :ref:`encoder <exEncoder>` and is the most portable option.
+2. ``<archive_stem>.xml`` at the root of the archive (e.g. ``my_model.xml`` inside ``my_model.mjz``).
+3. ``<archive_stem>/<archive_stem>.xml`` inside a top-level directory matching the archive name (e.g.
    ``my_model/my_model.xml``).
-3. `model.xml` at the root of the archive (common zipped MJCF fallback).
+4. ``<archive_stem>/model.xml`` inside a top-level directory matching the archive name (e.g. ``my_model/model.xml``).
+
+Options 2-4 exist for backwards compatibility with legacy archives and common zip packaging layouts, but are
+susceptible to failure if the archive file is renamed.
 
 VFS Requirement
 ^^^^^^^^^^^^^^^

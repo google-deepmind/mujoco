@@ -5,13 +5,18 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+
+- The :ref:`.mjz <MJZArchives>` encoder now writes the root file as ``model.xml`` in the archive as this is less
+  susceptible to breakage due to file renaming.
+
 Samples
 ^^^^^^^
 
 - Added :ref:`render.cc<saRender>`: a headless offscreen rendering sample that saves an image to a PNG image.
   Supports both the Filament and classic OpenGL backends, with command-line options for camera, resolution, keyframe,
   geom/site groups, visualization and rendering flags, labels, and frames.
-
 
 Version 3.12.0 (August 20, 2026)
 --------------------------------

@@ -312,9 +312,6 @@ mjtSize MjzEncode(const mjSpec* spec, const mjModel* model, const mjVFS* vfs,
     return -1;
   }
 
-  const fs::path archive_path(resource->name);
-  const std::string stem = archive_path.stem().string();
-
   // Collect assets and compute archive paths + XML rewrite list.
   RewriteMap xml_rewrites;
   std::unordered_map<std::string, AssetEntry> assets =
@@ -355,7 +352,7 @@ mjtSize MjzEncode(const mjSpec* spec, const mjModel* model, const mjVFS* vfs,
   }
 
   // Add XML to archive.
-  const std::string xml_name = stem + ".xml";
+  const std::string xml_name = "model.xml";
   if (!mz_zip_writer_add_mem(&zip, xml_name.c_str(), xml_str.data(),
                              xml_str.size(), MZ_DEFAULT_COMPRESSION)) {
     mju_warning("MJZ encoder: failed to add XML to archive");

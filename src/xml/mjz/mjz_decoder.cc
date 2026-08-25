@@ -89,16 +89,16 @@ class ZipArchiveProvider : public mjpResourceProvider {
 
     // Look for the root XML model in the archive. We try the following
     // locations:
-    // 1. [archive_name].xml
-    // 2. [archive_name]/[archive_name].xml
-    // 3. model.xml
+    // 1. model.xml
+    // 2. [archive_name].xml
+    // 3. [archive_name]/[archive_name].xml
     // 4. [archive_name]/model.xml
     const mujoco::user::FilePath path(name_);
     const std::string stem = path.StripExt().StripPath().Str();
     std::vector<std::string> candidates = {
+        name_ + "/model.xml",
         name_ + "/" + stem + ".xml",
         name_ + "/" + stem + "/" + stem + ".xml",
-        name_ + "/model.xml",
         name_ + "/" + stem + "/model.xml",
     };
 
