@@ -36,6 +36,9 @@ struct Glfw {
   mjGLFW_DECLARE_SYMBOL(glfwGetKey);
   mjGLFW_DECLARE_SYMBOL(glfwGetMonitorPhysicalSize);
   mjGLFW_DECLARE_SYMBOL(glfwGetMouseButton);
+#if GLFW_VERSION_MAJOR > 3 || (GLFW_VERSION_MAJOR == 3 && GLFW_VERSION_MINOR >= 4)
+  mjGLFW_DECLARE_SYMBOL(glfwGetPlatform);
+#endif
   mjGLFW_DECLARE_SYMBOL(glfwGetPrimaryMonitor);
   mjGLFW_DECLARE_SYMBOL(glfwGetTime);
   mjGLFW_DECLARE_SYMBOL(glfwGetVideoMode);

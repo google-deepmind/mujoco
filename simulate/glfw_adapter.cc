@@ -42,6 +42,14 @@ int MaybeGlfwInit() {
 GlfwAdapter& GlfwAdapterFromWindow(GLFWwindow* window) {
   return *static_cast<GlfwAdapter*>(Glfw().glfwGetWindowUserPointer(window));
 }
+
+bool WindowPositionAvailable() {
+#if GLFW_VERSION_MAJOR > 3 || (GLFW_VERSION_MAJOR == 3 && GLFW_VERSION_MINOR >= 4)
+  return Glfw().glfwGetPlatform() != GLFW_PLATFORM_WAYLAND;
+#else
+  return true;
+#endif
+}
 }  // namespace
 
 GlfwAdapter::GlfwAdapter() {
@@ -65,7 +73,9 @@ GlfwAdapter::GlfwAdapter() {
   }
 
   // save window position and size
-  Glfw().glfwGetWindowPos(window_, &window_pos_.first, &window_pos_.second);
+  if (WindowPositionAvailable()) {
+    Glfw().glfwGetWindowPos(window_, &window_pos_.first, &window_pos_.second);
+  }
   Glfw().glfwGetWindowSize(window_, &window_size_.first, &window_size_.second);
 
   // set callbacks
@@ -193,7 +203,9 @@ void GlfwAdapter::ToggleFullscreen() {
   // currently windowed: switch to full screen
   else {
     // save window data
-    Glfw().glfwGetWindowPos(window_, &window_pos_.first, &window_pos_.second);
+    if (WindowPositionAvailable()) {
+      Glfw().glfwGetWindowPos(window_, &window_pos_.first, &window_pos_.second);
+    }
     Glfw().glfwGetWindowSize(window_, &window_size_.first,
                              &window_size_.second);
 

@@ -86,6 +86,9 @@ const struct Glfw& Glfw(void* dlhandle) {
     mjGLFW_INITIALIZE_SYMBOL(glfwGetKey);
     mjGLFW_INITIALIZE_SYMBOL(glfwGetMonitorPhysicalSize);
     mjGLFW_INITIALIZE_SYMBOL(glfwGetMouseButton);
+#if GLFW_VERSION_MAJOR > 3 || (GLFW_VERSION_MAJOR == 3 && GLFW_VERSION_MINOR >= 4)
+    mjGLFW_INITIALIZE_SYMBOL(glfwGetPlatform);
+#endif
     mjGLFW_INITIALIZE_SYMBOL(glfwGetPrimaryMonitor);
     mjGLFW_INITIALIZE_SYMBOL(glfwGetTime);
     mjGLFW_INITIALIZE_SYMBOL(glfwGetVideoMode);
