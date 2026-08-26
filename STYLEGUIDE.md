@@ -9,18 +9,19 @@ possible in your code contributions.
 Most of this guide involves C/C++ code. For Python, jump to the section
 [below](#python-code). For MuJoCo C/C++, code has three main categories:
 
-1. **C code:** MuJoCo's core codebase. It consists of public headers under
-`include/` and C source files and internal headers under `src/`. This style
-guide primarily concerns itself with this category.
+1.  **C code:** MuJoCo's core codebase. It consists of public headers under
+    `include/` and C source files and internal headers under `src/`. This style
+    guide primarily concerns itself with this category.
 
-2. **Legacy C++:** Files under `src/user/` and `src/xml/`. These do not
-necessarily follow best C++ practices. We intend to gradually replace these with
-new code that follows the [Google C++
-style](https://google.github.io/styleguide/cppguide.html) over time.
+2. **C++ code:**
+    -   Source files under `src/user/` and `src/xml/` follow Google C++ style
+        with a 100-character line limit and are formatted using `clang-format`.
+    -   Test files under `test/` adhere to standard
+        [Google C++ style](https://google.github.io/styleguide/cppguide.html).
 
-3. **New code:** This includes C++ files under `test/` and `python/` and C#
-files under `unity/`. Added by DeepMind engineers, this code adheres to the
-[Google style](https://google.github.io/styleguide/).
+3.  **Python and other languages:** Python files under `python/` adhere to
+    Google Python style (see [below](#python-code)). C# files under `unity/`
+    adhere to standard C# conventions.
 
 ### General principles
 
@@ -160,7 +161,7 @@ New code should use the C99 convention. When editing an existing function,
 please move existing variable declarations into local scope. Pull requests
 helping us to complete the migration are very welcome.
 
-### [Python code](#python-code)
+### Python code
 
 For Python code, run `pyink foo.py` to adhere to Google's
 [Python style guide](https://google.github.io/styleguide/pyguide.html). For

@@ -551,8 +551,8 @@ mjsGeom* mjXURDF::Geom(XMLElement* geom_elem, mjsBody* pbody, bool collision) {
     bool     newmesh = false;
 
     // set geom type and read mesh attributes
-    pgeom->type                             = mjGEOM_MESH;
-    meshfile                                = ReadAttrStr(temp, "filename", true).value();
+    pgeom->type = mjGEOM_MESH;
+    meshfile    = ReadAttrStr(temp, "filename", true).value();
 
     std::array<double, 3> default_meshscale = {1, 1, 1};
     std::array<double, 3> meshscale =

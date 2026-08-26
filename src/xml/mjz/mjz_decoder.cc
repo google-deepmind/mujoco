@@ -43,8 +43,8 @@
 #include "user/user_util.h"
 #include "user/user_vfs.h"
 
-static void mjPRINTFLIKE(3, 4)
-    SetError(char* error, int error_sz, const char* format, ...) {
+
+static void mjPRINTFLIKE(3, 4) SetError(char* error, int error_sz, const char* format, ...) {
   if (error) {
     va_list args;
     va_start(args, format);
@@ -53,6 +53,7 @@ static void mjPRINTFLIKE(3, 4)
   }
 }
 
+
 // A mjpResourceProvider that reads files from a zip archive.
 //
 // The zip archive itself is provided as a byte buffer in the constructor. This
@@ -60,10 +61,8 @@ static void mjPRINTFLIKE(3, 4)
 // from within the archive as needed.
 class ZipArchiveProvider : public mjpResourceProvider {
  public:
-  ZipArchiveProvider(std::string name, const void* buffer, int nbuffer,
-                     char* error, int error_sz)
-      : name_(mujoco::user::FilePath(name).Str()),
-        buffer_((char*)buffer, (char*)buffer + nbuffer) {
+  ZipArchiveProvider(std::string name, const void* buffer, int nbuffer, char* error, int error_sz)
+      : name_(mujoco::user::FilePath(name).Str()), buffer_((char*)buffer, (char*)buffer + nbuffer) {
     mjp_defaultResourceProvider(this);
 
     std::memset(&archive_, 0, sizeof(archive_));
@@ -82,9 +81,7 @@ class ZipArchiveProvider : public mjpResourceProvider {
         return;
       }
       const int size = static_cast<int>(stat.m_uncomp_size);
-      if (size == 0) {
-        continue;
-      }
+      if (size == 0) { continue; }
       files_[stat.m_filename] = FileInfo{i, size, {}};
     }
 
@@ -95,8 +92,8 @@ class ZipArchiveProvider : public mjpResourceProvider {
     // 3. [archive_name]/[archive_name].xml
     // 4. [archive_name]/model.xml
     const mujoco::user::FilePath path(name_);
-    const std::string stem = path.StripExt().StripPath().Str();
-    std::vector<std::string> candidates = {
+    const std::string            stem       = path.StripExt().StripPath().Str();
+    std::vector<std::string>     candidates = {
         name_ + "/model.xml",
         name_ + "/" + stem + ".xml",
         name_ + "/" + stem + "/" + stem + ".xml",
@@ -107,7 +104,7 @@ class ZipArchiveProvider : public mjpResourceProvider {
     for (const auto& candidate : candidates) {
       if (Contains(candidate)) {
         root_model_ = candidate;
-        found = true;
+        found       = true;
         break;
       }
     }
@@ -118,9 +115,7 @@ class ZipArchiveProvider : public mjpResourceProvider {
     }
 
     // Setup mjpResourceProvider callbacks.
-    mount = [](mjResource* resource) {
-      return 0;
-    };
+    mount   = [](mjResource* resource) { return 0; };
     unmount = [](mjResource* resource) {
       ZipArchiveProvider* self = (ZipArchiveProvider*)resource->provider;
       delete self;
@@ -128,22 +123,20 @@ class ZipArchiveProvider : public mjpResourceProvider {
     };
     open = [](mjResource* resource) {
       ZipArchiveProvider* self = (ZipArchiveProvider*)resource->provider;
-      const std::string path = mujoco::user::FilePath(resource->name).Str();
-      if (path == self->name_) {
-        return 1;
-      }
+      const std::string   path = mujoco::user::FilePath(resource->name).Str();
+      if (path == self->name_) { return 1; }
       const bool found = self->Contains(path);
       return found ? 1 : 0;
     };
     read = [](mjResource* resource, const void** buffer) {
       ZipArchiveProvider* self = (ZipArchiveProvider*)resource->provider;
-      const std::string path = mujoco::user::FilePath(resource->name).Str();
+      const std::string   path = mujoco::user::FilePath(resource->name).Str();
       if (path == self->name_) {
         *buffer = self->buffer_.data();
         return static_cast<int>(self->buffer_.size());
       }
       std::span<char> bytes = self->Read(path);
-      *buffer = bytes.data();
+      *buffer               = bytes.data();
       return static_cast<int>(bytes.size());
     };
     close = [](mjResource* resource) {
@@ -151,24 +144,19 @@ class ZipArchiveProvider : public mjpResourceProvider {
     };
   }
 
-  ~ZipArchiveProvider() {
-    mz_zip_reader_end(&archive_);
-  }
+  ~ZipArchiveProvider() { mz_zip_reader_end(&archive_); }
 
-  ZipArchiveProvider(const ZipArchiveProvider&) = delete;
+  ZipArchiveProvider(const ZipArchiveProvider&)            = delete;
   ZipArchiveProvider& operator=(const ZipArchiveProvider&) = delete;
 
   // Returns the path to the root XML model in the archive.
-  std::string GetRootModelPath() const {
-    return root_model_;
-  }
+  std::string GetRootModelPath() const { return root_model_; }
 
   // Returns true if the archive contains a file with the given name/path.
   bool Contains(std::string_view name) const {
     // The searched name should be longer than the archive name, it should
     // start with the archive name and have a separator after the archive name.
-    if (name.size() <= name_.size() || !name.starts_with(name_) ||
-        name[name_.size()] != '/') {
+    if (name.size() <= name_.size() || !name.starts_with(name_) || name[name_.size()] != '/') {
       return false;
     }
 
@@ -182,12 +170,10 @@ class ZipArchiveProvider : public mjpResourceProvider {
   // cached internally so that subsequent reads for the same file do not need to
   // re-read the file from the archive.
   std::span<char> Read(const std::string& name) {
-    if (!Contains(name)) {
-      return {};
-    }
+    if (!Contains(name)) { return {}; }
     const std::string filename = name.substr(name_.size() + 1);
-    auto it = files_.find(filename);
-    FileInfo& info = it->second;
+    auto              it       = files_.find(filename);
+    FileInfo&         info     = it->second;
 
     // Lazily read and store the file contents from the archive.
     // The mutex is needed because mz_zip_archive is not thread-safe, and
@@ -195,8 +181,11 @@ class ZipArchiveProvider : public mjpResourceProvider {
     std::lock_guard<std::mutex> lock(mutex_);
     if (info.contents.empty()) {
       info.contents.resize(info.size);
-      if (!mz_zip_reader_extract_to_mem(&archive_, info.index,
-                                        info.contents.data(), info.size, 0)) {
+      if (!mz_zip_reader_extract_to_mem(&archive_,
+                                        info.index,
+                                        info.contents.data(),
+                                        info.size,
+                                        0)) {
         return {};
       }
     }
@@ -215,29 +204,27 @@ class ZipArchiveProvider : public mjpResourceProvider {
     std::vector<char> contents;
   };
 
-  std::string name_;
-  std::string root_model_;
-  mz_zip_archive archive_;
-  std::vector<char> buffer_;
+  std::string                               name_;
+  std::string                               root_model_;
+  mz_zip_archive                            archive_;
+  std::vector<char>                         buffer_;
   std::unordered_map<std::string, FileInfo> files_;
-  mutable std::mutex mutex_;
+  mutable std::mutex                        mutex_;
 };
 
-static mjSpec* ParseZipBuffer(const void* buffer, int nbuffer, const char* name,
-                              mjVFS* vfs, char* error, int error_sz) {
-  if (error) {
-    error[0] = 0;
-  }
 
-  ZipArchiveProvider* provider =
-      new ZipArchiveProvider(name, buffer, nbuffer, error, error_sz);
+static mjSpec* ParseZipBuffer(
+    const void* buffer, int nbuffer, const char* name, mjVFS* vfs, char* error, int error_sz) {
+  if (error) { error[0] = 0; }
+
+  ZipArchiveProvider* provider = new ZipArchiveProvider(name, buffer, nbuffer, error, error_sz);
   if (error && error[0]) {
     delete provider;
     return nullptr;
   }
 
-  const std::string root = provider->GetRootModelPath();
-  const int status = mj_mountVFS(vfs, name, provider);
+  const std::string root   = provider->GetRootModelPath();
+  const int         status = mj_mountVFS(vfs, name, provider);
   if (status == mujoco::user::VFS::kRepeatedName) {
     // Archive is already mounted in this VFS; reuse the existing provider.
     delete provider;
@@ -250,27 +237,23 @@ static mjSpec* ParseZipBuffer(const void* buffer, int nbuffer, const char* name,
   return mj_parseXML(root.c_str(), vfs, error, error_sz);
 }
 
+
 mjPLUGIN_LIB_INIT(mjz_decoder) {
   mjpDecoder decoder;
   decoder.content_type = "application/zip";
-  decoder.extension = ".mjz|.zip";
-  decoder.can_decode = +[](const mjResource* resource) {
+  decoder.extension    = ".mjz|.zip";
+  decoder.can_decode   = +[](const mjResource* resource) {
     const char* ext = strrchr(resource->name, '.');
     return ext ? (!strcmp(ext, ".mjz") || !strcmp(ext, ".zip")) : 0;
   };
   decoder.decode = +[](mjResource* resource, const mjVFS* vfs) -> mjSpec* {
     const char* buffer = nullptr;
-    const int size = mju_readResource(resource, (const void**)&buffer);
-    if (size <= 0) {
-      return nullptr;
-    }
-    char error[1024] = "";
-    mjSpec* spec = ParseZipBuffer(buffer, size, resource->name,
-                                  const_cast<mjVFS*>(vfs), error,
-                                  sizeof(error));
-    if (!spec && error[0]) {
-      mju_warning("%s", error);
-    }
+    const int   size   = mju_readResource(resource, (const void**)&buffer);
+    if (size <= 0) { return nullptr; }
+    char    error[1024] = "";
+    mjSpec* spec =
+        ParseZipBuffer(buffer, size, resource->name, const_cast<mjVFS*>(vfs), error, sizeof(error));
+    if (!spec && error[0]) { mju_warning("%s", error); }
     return spec;
   };
   mjp_registerDecoder(&decoder);

@@ -129,7 +129,7 @@ int mj_printSchema(const char* filename, char* buffer, int buffer_sz, int flg_ht
 mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
   std::array<char, 1024> error;
 
-  mjResource*            resource = mju_openResource("", filename, vfs, error.data(), error.size());
+  mjResource* resource = mju_openResource("", filename, vfs, error.data(), error.size());
   if (resource == nullptr) {
     mju_warning("%s", error.data());
     return nullptr;
