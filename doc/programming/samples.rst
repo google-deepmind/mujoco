@@ -554,6 +554,9 @@ Where the command-line arguments and options are
    * - ``--key=K``
      - (none)
      - keyframe name or integer index to load prior to rendering
+   * - ``--steps=N``
+     - 0
+     - number of simulation steps to advance before rendering
    * - ``--geomgroup=G``
      - ``111000``
      - 6-character string enabling/disabling geom groups 0-5 (e.g. ``111111``)
@@ -588,6 +591,8 @@ Where the command-line arguments and options are
   and ``--elevation=e``.
 - If a keyframe is specified via ``--key``, the model state is reset to that keyframe before evaluating kinematics and
   rendering. If no keyframe is specified and a keyframe named ``test`` exists in the model, it is used by default.
+- ``--steps=N`` advances the simulation by ``N`` steps (after any keyframe reset) before rendering, so a state reached by
+  simulating can be captured rather than only the initial or keyframe pose.
 - Visualization and rendering flags can be individually toggled using normalized flag names from :ref:`mjVISSTRING`
   and :ref:`mjRNDSTRING`.
 - Labels can be enabled using ``--label=L`` where ``L`` is a label type name from :ref:`mjLABELSTRING` (e.g. ``geom``,

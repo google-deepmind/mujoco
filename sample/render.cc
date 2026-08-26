@@ -71,6 +71,7 @@ static const char* help_msg =
     "  --azimuth=A           90            free camera azimuth in degrees\n"
     "  --elevation=E         -45           free camera elevation in degrees\n"
     "  --key=K               (none)        keyframe name or integer index\n"
+    "  --steps=N             0             simulation steps to advance before rendering\n"
     "  --geomgroup=G         111000        6-character string enabling/disabling geom groups 0-5\n"
     "  --sitegroup=S         111000        6-character string enabling/disabling site groups 0-5\n"
     "  --label=L             (none)        type of label (e.g. --label=geom, --label=body)\n"
@@ -91,6 +92,7 @@ struct Options {
   string key;
   string geomgroup;
   string sitegroup;
+  int steps = 0;
   int label = -1;
   int frame = -1;
 
@@ -260,6 +262,7 @@ static bool ParseFlag(string_view name, string_view val, Options& opt) {
   if (name == "azimuth")   { return ParseNum(val, opt.azimuth); }
   if (name == "elevation") { return ParseNum(val, opt.elevation); }
   if (name == "key")       { opt.key = val; return true; }
+  if (name == "steps")     { return ParseInt(val, &opt.steps, 0); }
   if (name == "geomgroup") { opt.geomgroup = val; return true; }
   if (name == "sitegroup") { opt.sitegroup = val; return true; }
   if (name == "label")     { return ParseLabel(val, &opt.label); }
@@ -605,11 +608,17 @@ int main(int argc, char** argv) {
     key_id = mj_name2id(m.get(), mjOBJ_KEY, "test");
   }
 
+  // load keyframe
   if (key_id >= 0) {
     mj_resetDataKeyframe(m.get(), d.get(), key_id);
   }
 
-  // run forward kinematics
+  // advance the simulation before rendering
+  for (int i = 0; i < opt.steps; i++) {
+    mj_step(m.get(), d.get());
+  }
+
+  // run forward dynamics
   mj_forward(m.get(), d.get());
 
   // configure camera
