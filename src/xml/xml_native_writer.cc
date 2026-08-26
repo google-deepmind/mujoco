@@ -49,6 +49,7 @@ using std::string_view;
 using tinyxml2::XMLComment;
 using tinyxml2::XMLDocument;
 using tinyxml2::XMLElement;
+using tinyxml2::XMLText;
 
 }  // namespace
 
@@ -1347,7 +1348,13 @@ void mjXWriter::Custom(XMLElement* root) {
 
     elem = InsertEnd(section, "text");
     WriteAttrTxt(elem, "name", text->name);
-    WriteAttrTxt(elem, "data", text->data_.c_str());
+    if (text->data_.find_first_of("\n\r<>&\"'") != std::string::npos) {
+      XMLText* text_node = elem->GetDocument()->NewText(text->data_.c_str());
+      text_node->SetCData(true);
+      elem->InsertEndChild(text_node);
+    } else {
+      WriteAttrTxt(elem, "data", text->data_.c_str());
+    }
   }
 
   // write all tuples

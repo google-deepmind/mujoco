@@ -3188,7 +3188,7 @@
         <element name="text" repeated="true">
           <attributes>
             <attribute name="name" type="identifier" required="true"/>
-            <attribute name="data" type="string" required="true"/>
+            <attribute name="data" type="string"/>
           </attributes>
         </element>
         <element name="tuple" repeated="true">

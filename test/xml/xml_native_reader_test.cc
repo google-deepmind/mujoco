@@ -4022,5 +4022,270 @@ TEST_F(XMLReaderTest, SelfAttachFrame) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(XMLReaderTest, CustomTextFromAttribute) {
+  static constexpr char xml[] = R"(
+    <mujoco model="custom-text-attr">
+      <custom>
+        <text name="my_text" data="attribute_value"/>
+      </custom>
+    </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+
+  int text_id = mj_name2id(m, mjOBJ_TEXT, "my_text");
+  ASSERT_GE(text_id, 0);
+  EXPECT_STREQ(m->text_data + m->text_adr[text_id], "attribute_value");
+
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(XMLReaderTest, CustomTextFromCData) {
+  static constexpr char xml[] = R"(
+    <mujoco model="custom-text-cdata">
+      <custom>
+        <text name="my_text"><![CDATA[cdata_value]]></text>
+      </custom>
+    </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+
+  int text_id = mj_name2id(m, mjOBJ_TEXT, "my_text");
+  ASSERT_GE(text_id, 0);
+  EXPECT_STREQ(m->text_data + m->text_adr[text_id], "cdata_value");
+
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(XMLReaderTest, CustomTextFromCDataTextProto) {
+  static constexpr char xml[] = R"(
+    <mujoco model="custom-text-proto">
+      <custom>
+        <text name="my_proto">
+<![CDATA[
+message {
+  field_str: "hello <world> & \"quotes\""
+  field_int: 42
+  field_float: 3.14
+}
+]]>
+        </text>
+      </custom>
+    </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+
+  int text_id = mj_name2id(m, mjOBJ_TEXT, "my_proto");
+  ASSERT_GE(text_id, 0);
+  const char* text_val = m->text_data + m->text_adr[text_id];
+  EXPECT_THAT(text_val, HasSubstr("message {"));
+  EXPECT_THAT(text_val,
+              HasSubstr("field_str: \"hello <world> & \\\"quotes\\\"\""));
+  EXPECT_THAT(text_val, HasSubstr("field_int: 42"));
+  EXPECT_THAT(text_val, HasSubstr("field_float: 3.14"));
+
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(XMLReaderTest, CustomTextRawTextIgnored) {
+  static constexpr char xml[] = R"(
+    <mujoco model="custom-text-raw">
+      <custom>
+        <text name="my_text">raw_text_value</text>
+      </custom>
+    </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  EXPECT_THAT(spec, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("text field cannot be empty"));
+}
+
+TEST_F(XMLReaderTest, CustomTextRawTextWithAttributeIgnored) {
+  static constexpr char xml[] = R"(
+    <mujoco model="custom-text-raw-attr">
+      <custom>
+        <text name="my_text" data="attr_val">raw_text_value</text>
+      </custom>
+    </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+
+  int text_id = mj_name2id(m, mjOBJ_TEXT, "my_text");
+  ASSERT_GE(text_id, 0);
+  EXPECT_STREQ(m->text_data + m->text_adr[text_id], "attr_val");
+
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(XMLReaderTest, CustomTextBothAttributeAndCDataError) {
+  static constexpr char xml[] = R"(
+    <mujoco model="custom-text-both-cdata">
+      <custom>
+        <text name="my_text" data="from_attr"><![CDATA[from_cdata]]></text>
+      </custom>
+    </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  EXPECT_THAT(spec, IsNull());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr(
+          "text field data cannot be specified as both attribute and CDATA"));
+}
+
+TEST_F(XMLReaderTest, CustomTextMultipleCDataError) {
+  static constexpr char xml[] = R"(
+    <mujoco model="custom-text-mult-cdata">
+      <custom>
+        <text name="my_text"><![CDATA[first]]><![CDATA[second]]></text>
+      </custom>
+    </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  EXPECT_THAT(spec, IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("text field cannot have multiple CDATA sections"));
+}
+
+TEST_F(XMLReaderTest, CustomTextEmptyError) {
+  static constexpr char xml1[] = R"(
+    <mujoco model="custom-text-empty-1">
+      <custom>
+        <text name="my_text"/>
+      </custom>
+    </mujoco>
+  )";
+  std::array<char, 1024> error1;
+  mjSpec* spec1 =
+      mj_parseXMLString(xml1, nullptr, error1.data(), error1.size());
+  EXPECT_THAT(spec1, IsNull());
+  EXPECT_THAT(error1.data(), HasSubstr("text field cannot be empty"));
+
+  static constexpr char xml2[] = R"(
+    <mujoco model="custom-text-empty-2">
+      <custom>
+        <text name="my_text"></text>
+      </custom>
+    </mujoco>
+  )";
+  std::array<char, 1024> error2;
+  mjSpec* spec2 =
+      mj_parseXMLString(xml2, nullptr, error2.data(), error2.size());
+  EXPECT_THAT(spec2, IsNull());
+  EXPECT_THAT(error2.data(), HasSubstr("text field cannot be empty"));
+
+  static constexpr char xml3[] = R"(
+    <mujoco model="custom-text-empty-3">
+      <custom>
+        <text name="my_text" data=""/>
+      </custom>
+    </mujoco>
+  )";
+  std::array<char, 1024> error3;
+  mjSpec* spec3 =
+      mj_parseXMLString(xml3, nullptr, error3.data(), error3.size());
+  EXPECT_THAT(spec3, IsNull());
+  EXPECT_THAT(error3.data(), HasSubstr("text field cannot be empty"));
+
+  static constexpr char xml4[] = R"(
+    <mujoco model="custom-text-empty-4">
+      <custom>
+        <text name="my_text"><![CDATA[]]></text>
+      </custom>
+    </mujoco>
+  )";
+  std::array<char, 1024> error4;
+  mjSpec* spec4 =
+      mj_parseXMLString(xml4, nullptr, error4.data(), error4.size());
+  EXPECT_THAT(spec4, IsNull());
+  EXPECT_THAT(error4.data(), HasSubstr("text field cannot be empty"));
+}
+
+TEST_F(XMLReaderTest, CustomTextSaveXmlRoundTrip) {
+  static constexpr char xml[] = R"(
+    <mujoco model="custom-text-roundtrip">
+      <custom>
+        <text name="text_attr" data="simple_value"/>
+        <text name="text_cdata">
+<![CDATA[
+message {
+  field_str: "hello <world> & \"quotes\""
+  field_int: 42
+}
+]]>
+        </text>
+      </custom>
+    </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  mjModel* m_orig = mj_compile(spec, nullptr);
+  ASSERT_THAT(m_orig, NotNull()) << mjs_getError(spec);
+
+  std::array<char, 2048> saved_xml;
+  int save_res = mj_saveXMLString(spec, saved_xml.data(), saved_xml.size(),
+                                  error.data(), error.size());
+  ASSERT_EQ(save_res, 0) << error.data();
+
+  // verify text_attr uses attribute data="..." while text_cdata uses CDATA
+  EXPECT_THAT(saved_xml.data(),
+              HasSubstr(R"(<text name="text_attr" data="simple_value"/>)"));
+  EXPECT_THAT(saved_xml.data(),
+              HasSubstr(R"(<text name="text_cdata"><![CDATA[)"));
+
+  // reload saved XML
+  mjSpec* saved_spec =
+      mj_parseXMLString(saved_xml.data(), nullptr, error.data(), error.size());
+  ASSERT_THAT(saved_spec, NotNull()) << error.data();
+
+  mjModel* m = mj_compile(saved_spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(saved_spec);
+
+  int id_attr = mj_name2id(m, mjOBJ_TEXT, "text_attr");
+  ASSERT_GE(id_attr, 0);
+  EXPECT_STREQ(m->text_data + m->text_adr[id_attr], "simple_value");
+
+  int id_cdata = mj_name2id(m, mjOBJ_TEXT, "text_cdata");
+  ASSERT_GE(id_cdata, 0);
+  const char* cdata_val = m->text_data + m->text_adr[id_cdata];
+  EXPECT_THAT(cdata_val, HasSubstr("message {"));
+  EXPECT_THAT(cdata_val,
+              HasSubstr("field_str: \"hello <world> & \\\"quotes\\\"\""));
+  EXPECT_THAT(cdata_val, HasSubstr("field_int: 42"));
+
+  mj_deleteModel(m);
+  mj_deleteModel(m_orig);
+  mj_deleteSpec(saved_spec);
+  mj_deleteSpec(spec);
+}
+
 }  // namespace
 }  // namespace mujoco

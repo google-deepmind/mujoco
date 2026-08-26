@@ -10,8 +10,14 @@ General
 
 - The :ref:`.mjz <MJZArchives>` encoder now writes the root file as ``model.xml`` in the archive as this is less
   susceptible to breakage due to file renaming.
-
 - Added support for Python 3.15 (GIL and Free-Threading).
+
+Compiler
+^^^^^^^^
+
+- Custom text fields (:ref:`custom/text<custom-text>`) in MJCF now accept their values inside a ``<![CDATA[ ... ]]>``
+  block in addition to the ``data`` attribute. When saving a model via :ref:`mj_saveXML`, custom text containing
+  newlines or XML characters is exported as CDATA.
 
 Samples
 ^^^^^^^

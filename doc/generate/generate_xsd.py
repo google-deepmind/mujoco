@@ -228,7 +228,8 @@ class _Emitter:
     """Emit the complexType for one schema element (possibly projected)."""
     element = self.schema.elements[name]
     tname = self.type_name(name, projected)
-    self.out(2, f'<xs:complexType name="{tname}">')
+    mixed = ' mixed="true"' if name == 'text' else ''
+    self.out(2, f'<xs:complexType name="{tname}"{mixed}>')
     docs = [element.doc] if not projected else []
     docs += self.constraint_docs(element)
     cards = [f'{c.name} ({c.card})' for c in element.children()]

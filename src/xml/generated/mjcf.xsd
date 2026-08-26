@@ -3821,9 +3821,9 @@
     <xs:attribute name="data" type="xs:string"/>
   </xs:complexType>
 
-  <xs:complexType name="text">
+  <xs:complexType name="text" mixed="true">
     <xs:attribute name="name" type="xs:string" use="required"/>
-    <xs:attribute name="data" type="xs:string" use="required"/>
+    <xs:attribute name="data" type="xs:string"/>
   </xs:complexType>
 
   <xs:complexType name="tuple">

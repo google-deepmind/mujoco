@@ -2161,7 +2161,7 @@ element numeric : mjsNumeric {
 
 element text : mjsText {
   name               : id<text> (required)
-  data               : string (required)
+  data               : string
 }
 
 element tuple : mjsTuple {

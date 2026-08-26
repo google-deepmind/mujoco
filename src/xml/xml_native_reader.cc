@@ -29,12 +29,12 @@
 #include <utility>
 #include <vector>
 
-#include <mujoco/mujoco.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjspec.h>
 #include <mujoco/mjtype.h>
 #include <mujoco/mjvisualize.h>
+#include <mujoco/mujoco.h>
 #include "engine/engine_util_misc.h"
-#include <mujoco/mjspec.h>
 #include "user/user_api.h"
 #include "user/user_composite.h"
 #include "user/user_flexcomp.h"
@@ -44,13 +44,12 @@
 #include "tinyxml2.h"
 
 namespace {
+using mujoco::user::FilePath;
 using std::string;
 using std::string_view;
 using std::vector;
-using mujoco::user::FilePath;
 using tinyxml2::XMLElement;
-
-
+using tinyxml2::XMLText;
 
 //---------------------------------- helper utilities ----------------------------------------------
 
@@ -2039,7 +2038,39 @@ void mjXReader::Custom(XMLElement* section) {
       if (mjs_setName(text->element, elname.c_str())) {
         throw mjXError(elem, "%s", mjs_getError(spec));
       }
-      ReadAttrTxt(elem, "data", str, true);
+      string attr_val;
+      bool has_attr = ReadAttrTxt(elem, "data", attr_val, false);
+
+      // check for CDATA block
+      const XMLText* cdata_node = nullptr;
+      for (const tinyxml2::XMLNode* child = elem->FirstChild(); child;
+           child = child->NextSibling()) {
+        if (const XMLText* text_node = child->ToText()) {
+          if (text_node->CData()) {
+            if (cdata_node) {
+              throw mjXError(elem,
+                             "text field cannot have multiple CDATA sections");
+            }
+            cdata_node = text_node;
+          }
+        }
+      }
+
+      // read CDATA
+      if (has_attr && cdata_node) {
+        throw mjXError(
+            elem,
+            "text field data cannot be specified as both attribute and CDATA");
+      }
+
+      if (has_attr) {
+        str = attr_val;
+      } else if (cdata_node && cdata_node->Value()) {
+        str = cdata_node->Value();
+      } else {
+        str.clear();
+      }
+
       if (str.empty()) {
         throw mjXError(elem, "text field cannot be empty");
       }

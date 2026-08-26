@@ -14,7 +14,7 @@ XML schema
 ~~~~~~~~~~
 
 The dropdown below summarizes the XML elements and their attributes in MJCF. All information in MJCF is entered through
-elements and attributes. Text content in elements is not used; if present, the parser ignores it.
+elements and attributes. Text content in elements is not used (except for CDATA in :ref:`custom text<custom-text>` elements); if present, the parser ignores it.
 
 .. only:: html
 
@@ -10754,8 +10754,9 @@ other custom computations.
 
 .. _custom-text-data:
 
-:at:`data`: :at-val:`string, required`
-   Custom text to be copied into mjModel.
+:at:`data`: :at-val:`string, optional`
+   Custom text to be copied into mjModel. Alternatively, the text can be provided in a
+   `CDATA section <https://www.w3.org/TR/xml/#sec-cdata-sect>`__ of the form ``<![CDATA[ ... ]]>`` in the ``<text>`` element.
 
 
 .. _custom-tuple:
