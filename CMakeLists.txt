@@ -165,15 +165,19 @@ add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)
 add_subdirectory(src/xml/mjz)
+
+add_subdirectory(src/render/noop)
+
 if(NOT EMSCRIPTEN AND NOT MUJOCO_USE_FILAMENT_MJR_COMPAT)
   add_subdirectory(src/render/classic)
   add_subdirectory(src/ui)
 endif()
-add_subdirectory(src/render/noop)
 
 if(MUJOCO_USE_FILAMENT)
   add_subdirectory(src/render/filament)
-  add_subdirectory(src/experimental/filament)
+  if(MUJOCO_USE_FILAMENT_MJR_COMPAT)
+    add_subdirectory(src/experimental/filament)
+  endif()
 endif()
 
 if(EMSCRIPTEN)

@@ -27,13 +27,8 @@ target_sources(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME}
         compat/scene_geom_util.h
         compat/scene_objects.cc
         compat/scene_objects.h
+        mjr_compat.cc
 )
-if(MUJOCO_USE_FILAMENT_MJR_COMPAT)
-    target_sources(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME}
-        PRIVATE
-            mjr_compat.cc
-    )
-endif()
 
 target_include_directories(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME}
     PRIVATE
