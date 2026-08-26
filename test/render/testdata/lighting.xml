@@ -4,7 +4,7 @@
              rgb1="0.20 0.20 0.22" rgb2="0.28 0.28 0.30"/>
 
     <material name="floor" texture="floor_tex" texrepeat="8 8" texuniform="true"
-              reflectance="0.3" roughness="0.4" metallic="0.1"/>
+              reflectance="0.3" roughness="0.2" metallic="0.1"/>
     <material name="wall"   rgba="0.55 0.55 0.58 1" roughness="0.85" metallic="0.0"/>
     <material name="chrome" rgba="0.95 0.95 0.95 1" roughness="0.10" metallic="0.95"/>
     <material name="rubber" rgba="0.18 0.18 0.18 1" roughness="0.85" metallic="0.0"/>

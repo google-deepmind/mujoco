@@ -128,6 +128,19 @@ class Renderable : public mjrfRenderable {
   }
 
  private:
+  // For each render request in a batch, we may need to render the object
+  // differently. However, we cannot change the material instance during the
+  // actual frame rendering (i.e. between beginFrame/endFrame). Instead, we can
+  // switch out the material instance entirely for each request. We keep track
+  // of which instance, as well as other render state, to use with each render
+  // request.
+  struct DrawState {
+    MaterialManager::MaterialKey material_key;
+    bool cast_shadows = true;
+    bool receive_shadows = true;
+    bool wireframe = false;
+  };
+
   // In most cases, a Renderable will be composed of a single filament Entity.
   // However, for some built-in geom types (e.g. capsules) we compose the
   // renderable out of multiple Entities.
@@ -147,19 +160,6 @@ class Renderable : public mjrfRenderable {
       return filament::math::mat4f(rotation, translation) *
              filament::math::mat4f::scaling(size);
     }
-  };
-
-  // For each render request in a batch, we may need to render the object
-  // differently. However, we cannot change the material instance during the
-  // actual frame rendering (i.e. between beginFrame/endFrame). Instead, we can
-  // switch out the material instance entirely for each request. We keep track
-  // of which instance, as well as other render state, to use with each render
-  // request.
-  struct DrawState {
-    MaterialManager::MaterialKey material_key;
-    bool cast_shadows = true;
-    bool receive_shadows = true;
-    bool wireframe = false;
   };
 
   // When composing a multi-part renderable, each Entity will have its own

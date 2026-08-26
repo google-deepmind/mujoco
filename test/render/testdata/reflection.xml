@@ -1,0 +1,74 @@
+<mujoco model="Reflection test">
+  <!-- Filament planar-reflection test bed. What to look for (and the commit that
+       fixes it):
+         - the box mirror reflects at all (needs a normalized plane normal);
+         - the reflection shows only on the mirror's front face, not as a
+           "hologram" on its back and sides (front-face gate);
+         - cast shadows appear on reflected surfaces, and a spot light's cone
+           reflects smoothly with no spurious hard line (reflect-pass shadows +
+           an un-skewed projection);
+         - the magenta box hidden BEHIND the mirror does not leak into the
+           reflection (behind-mirror clipping).
+       The reflective checker floor is the known-good plane mirror to compare the
+       box mirror against; the chiral red/yellow signpost exposes a left-right
+       flip. Render with the local render_headless tool, e.g. `<cam>` = orbit. -->
+
+  <visual>
+    <global azimuth="130" elevation="-18"/>
+    <quality shadowsize="8192"/>
+  </visual>
+
+  <asset>
+    <texture name="sky" type="skybox" builtin="gradient" rgb1=".18 .22 .30" rgb2=".55 .58 .62" width="32" height="512"/>
+    <texture name="ibl" type="cube" builtin="gradient" rgb1=".32 .35 .40" rgb2=".58 .56 .52" width="32" height="32"/>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".05 .06 .09" rgb2=".42 .45 .50" width="300" height="300"/>
+    <!-- packed occlusion(R)/roughness(G)/metallic(B): smooth copper -->
+    <texture name="orm" type="2d" builtin="flat" rgb1="1 .3 1" width="8" height="8"/>
+    <material name="floor"  texture="grid" texrepeat="3 3" texuniform="true" reflectance=".5"/>
+    <material name="mirror" rgba=".03 .03 .04 1" reflectance=".9" metallic="1" roughness=".04"/>
+    <material name="copper_mirror" rgba=".95 .64 .38 1" reflectance=".9">
+      <layer texture="orm" role="orm"/>
+    </material>
+    <material name="post"   rgba=".82 .16 .16 1"/>
+    <material name="arm"    rgba=".95 .78 .10 1"/>
+    <material name="ball"   rgba=".20 .68 .30 1"/>
+    <material name="behind" rgba=".85 .12 .78 1"/>
+  </asset>
+
+  <worldbody>
+    <light name="key" pos="1.8 0.6 3.0" dir="-0.7 -0.2 -2" cutoff="55" softness="1" range="20"
+           intensity="900000" castshadow="true" ambient=".1 .1 .12" type="spot"/>
+    <light type="image" texture="ibl" intensity="8000"/>
+
+    <camera name="default" pos="3.839 -1.853 2.230" xyaxes="0.452 0.892 0.000 -0.238 0.121 0.964"/>
+
+    <!-- checker rotated 30 deg about Z so the reflected grid makes swim/clipping obvious -->
+    <geom name="floor" type="plane" size="5 5 .01" material="floor" euler="0 0 30"/>
+
+    <!-- box MIRROR: vertical wall, thin along its normal (local +Z = world +X),
+         viewed obliquely so it reflects the scene rather than empty space -->
+    <geom name="mirror" type="box" size="1 0.85 0.02" material="mirror" pos="-1.3 -0.2 1" euler="0 90 0"/>
+
+    <!-- copper PBR mirror (normal pointing along -Y towards scene) -->
+    <geom name="copper_mirror" type="box" size="0.85 1 0.02" material="copper_mirror" pos="-0.5 1.3 0.85" euler="90 30 00"/>
+
+    <!-- chiral signpost: red post with a yellow arm pointing +X (the axis the mirror
+         flips). The arm mounts on the post's front face (offset in +Y, thinner than
+         the post) so it reads as attached without coplanar faces z-fighting. -->
+    <geom name="post" type="box" material="post" size=".05 .05 .7" pos="0 0 0.7"/>
+    <body name="arm_body" pos="0.3 0.08 1.25">
+      <joint pos="-.3 0 0" axis="0 1 0"/>
+      <geom name="arm"  type="box" material="arm"  size=".3 .04 .09" contype="0" conaffinity="0"/>
+    </body>
+
+    <!-- hovering ball: hard shadow disc on the floor + off-plane reflection -->
+    <body name="ball_body" pos="0.5 -0.7 0.7">
+      <freejoint/>
+      <geom name="ball" type="sphere" material="ball" size=".26" priority="1" solref="-1e4 0"/>
+    </body>
+
+    <!-- box hidden BEHIND the mirror (x < -1.3): unseen by the camera directly, and
+         it must not leak into the reflection either -->
+    <geom name="behind" type="box" material="behind" size=".3 .3 .4" pos="-3 3 0.4"/>
+  </worldbody>
+</mujoco>

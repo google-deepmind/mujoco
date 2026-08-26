@@ -59,14 +59,43 @@ inline filament::math::mat3f ReadMat3(const T* arr, int index = 0) {
   // clang-format on
 }
 
+// Reads a mat4 from an array buffer in the model/scene.
+template <typename T>
+inline filament::math::mat4f ReadMat4(const T* arr, int index = 0) {
+  // clang-format off
+  const T* ptr = arr + (16 * index);
+  return filament::math::mat4f(
+      ptr[0],  ptr[1],  ptr[2],  ptr[3],
+      ptr[4],  ptr[5],  ptr[6],  ptr[7],
+      ptr[8],  ptr[9],  ptr[10], ptr[11],
+      ptr[12], ptr[13], ptr[14], ptr[15]);
+  // clang-format on
+}
+
+// Writes a mat4 into an array buffer in the model/scene.
+template <typename T>
+inline void WriteMat4(T* arr, const filament::math::mat4f& mat, int index = 0) {
+  T* ptr = arr + (16 * index);
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < 4; ++j) {
+      ptr[4 * i + j] = mat[i][j];
+    }
+  }
+}
+
+// Transforms a 3D vector from MuJoCo's Z-up coordinate frame to Filament's
+// Y-up coordinate frame (equivalent to Rx(-pi/2) * v).
+inline filament::math::float3 ToFilamentFrame(
+    const filament::math::float3& v) {
+  return filament::math::float3(v.x, v.z, -v.y);
+}
+
 // Calculates a reflection matrix for a plane defined by its transform.
 filament::math::mat4 ToReflectionMatrix(const filament::math::mat4& xform);
 
-// Modifies a projection matrix so its near plane coincides with an arbitrary
-// plane defined in camera space.
-filament::math::mat4 CalculateObliqueProjection(
-    const filament::math::mat4& projection,
-    const filament::math::float4& plane);
+// Calculates the view-projection matrix for reflection screen-space mapping.
+filament::math::mat4f GetReflectionViewProjectionMatrix(
+    const mjrCamera& cam, int viewport_width, int viewport_height);
 
 // Calculates the normal of a triangle given its three vertices.
 filament::math::float3 CalculateNormal(const filament::math::float3& p1,

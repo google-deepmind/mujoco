@@ -133,30 +133,40 @@ MaterialManager::MaterialType MaterialManager::GetMaterialType(
   } else if (material.orm_texture) {
     if (material.opacity_texture) {
       return ObjectManager::kPbrPackedTransparent;
+    } else if (material.reflectance > 0) {
+      return ObjectManager::kPbrPackedReflect;
     } else {
       return ObjectManager::kPbrPacked;
     }
   } else if (material.metallic_texture) {
     if (material.opacity_texture) {
       return ObjectManager::kPbrPackedTransparent;
+    } else if (material.reflectance > 0) {
+      return ObjectManager::kPbrReflect;
     } else {
       return ObjectManager::kPbr;
     }
   } else if (material.roughness_texture) {
     if (material.color[3] < 1.0f) {
       return ObjectManager::kPbrTransparent;
+    } else if (material.reflectance > 0) {
+      return ObjectManager::kPbrReflect;
     } else {
       return ObjectManager::kPbr;
     }
   } else if (material.metallic >= 0) {
     if (material.color[3] < 1.0f) {
       return ObjectManager::kPbrTransparent;
+    } else if (material.reflectance > 0) {
+      return ObjectManager::kPbrReflect;
     } else {
       return ObjectManager::kPbr;
     }
   } else if (material.roughness >= 0) {
     if (material.color[3] < 1.0f) {
       return ObjectManager::kPbrTransparent;
+    } else if (material.reflectance > 0) {
+      return ObjectManager::kPbrReflect;
     } else {
       return ObjectManager::kPbr;
     }
@@ -300,6 +310,14 @@ void MaterialManager::UpdateMaterialInstance(
   }
   if (fmaterial->hasParameter("Reflectance")) {
     instance->setParameter("Reflectance", material.reflectance);
+  }
+  if (fmaterial->hasParameter("ReflectionNormal")) {
+    instance->setParameter("ReflectionNormal",
+                           ReadFloat3(material.reflection_normal));
+  }
+  if (fmaterial->hasParameter("ReflectionViewProj")) {
+    instance->setParameter("ReflectionViewProj",
+                           ReadMat4(material.reflection_view_proj));
   }
 
   // All textures use the same default sampler.

@@ -3,7 +3,7 @@
     <texture name="floor_tex" type="2d" builtin="checker" width="512" height="512"
              rgb1="0.20 0.20 0.22" rgb2="0.28 0.28 0.30"/>
     <material name="floor" texture="floor_tex" texrepeat="8 8" texuniform="true"
-              reflectance="0.3" roughness="0.4" metallic="0.1"/>
+              reflectance="0.3" roughness="0.1" metallic="0.1"/>
     <material name="default" rgba="0.18 0.18 0.18 1" roughness="0.85" metallic="0.0"/>
   </asset>
 

@@ -15,6 +15,7 @@
 material {
     name : phong_2d_uv_reflect,
     shadingModel : specularGlossiness,
+    postLightingBlending : add,
     flipUV : false,
     parameters : [
         { type : float4, name : BaseColorFactor },
@@ -22,6 +23,8 @@ material {
         { type : float, name : GlossinessFactor },
         { type : float, name : EmissiveFactor },
         { type : float, name : Reflectance },
+        { type : float3, name : ReflectionNormal },
+        { type : mat4, name : ReflectionViewProj },
         { type : sampler2d, name : BaseColor },
         { type : sampler2d, name : Reflection },
         { type : float3, name : UvScale },
@@ -35,7 +38,6 @@ material {
 fragment {
   void material(inout MaterialInputs material) {
     vec2 uv = getUV0() * materialParams.UvScale.xy + materialParams.UvOffset.xy;
-    vec2 screen_uv = gl_FragCoord.xy * getResolution().zw;
 
     prepareMaterial(material);
     material.baseColor     = materialParams.BaseColorFactor;
@@ -45,8 +47,22 @@ fragment {
     material.emissive      = vec4(
         materialParams.BaseColorFactor.rgb * materialParams.EmissiveFactor, 0.0);
 
-    // Apply reflection.
-    vec4 reflection = texture(materialParams_Reflection, screen_uv);
-    material.baseColor.rgb = mix(material.baseColor.rgb, reflection.rgb, materialParams.Reflectance);
+    // Planar reflection: Fresnel-weighted additive post-lighting.
+    vec4 refl_clip = materialParams.ReflectionViewProj * vec4(getUserWorldPosition(), 1.0);
+    vec2 refl_uv = refl_clip.xy / refl_clip.w * 0.5 + 0.5;
+    vec3 reflection = texture(materialParams_Reflection, refl_uv).rgb;
+    float f0 = materialParams.Reflectance;
+    float fresnel = f0 + (1.0 - f0) * pow(1.0 - getNdotV(), 5.0);
+    float front =
+        dot(materialParams.ReflectionNormal, materialParams.ReflectionNormal) < 0.5
+            ? 1.0  // planes bypass the front-face gate
+            : step(0.99, dot(getWorldGeometricNormalVector(),
+                             materialParams.ReflectionNormal));
+    // Single-bounce gate: reject secondary reflection passes.
+    vec2 refl_err = refl_uv - gl_FragCoord.xy * getResolution().zw;
+    float main_view =
+        step(length(refl_err) + 48.0 * length(fwidth(refl_err)), 0.02);
+    material.postLightingColor =
+        vec4(reflection * fresnel * front * main_view, 0.0);
   }
 }

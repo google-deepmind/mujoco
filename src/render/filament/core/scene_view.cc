@@ -18,6 +18,7 @@
 #include <memory>
 #include <span>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <filament/ColorGrading.h>
@@ -98,31 +99,22 @@ static void SetupCamera(const mjrCamera& cam,
                         cam.frustum_top, cam.frustum_near, cam.frustum_far);
 }
 
-// Sets up the `reflection_camera`'s projection matrix so that it is a
-// reflection of the `src_camera` across the plane defined by the
-// `surface_xform`. The generated projection is an oblique projection so that
-// the texture can be applied directly to the plane with screenspace uvs.
+// Sets up the `reflection_camera` as a reflection of `src_camera` across the
+// plane defined by `surface_xform`, so the reflection texture can be applied to
+// the plane with screen-space uvs.
 static void SetupReflectionCamera(const mat4& surface_xform,
                                   const filament::Camera* src_camera,
-                                  filament::Camera* reflection_camera,
-                                  float near = 0.01f, float far = 100.0f) {
+                                  filament::Camera* reflection_camera) {
   const mat4 src_model_matrix = src_camera->getModelMatrix();
-  const mat4 src_view_matrix = src_camera->getViewMatrix();
-  const mat4 src_projection = src_camera->getProjectionMatrix();
+  const mat4 src_projection = src_camera->getCullingProjectionMatrix();
 
   reflection_camera->setModelMatrix(ToReflectionMatrix(surface_xform) *
                                     src_model_matrix);
 
-  const float3 normal = surface_xform[2].xyz;
-  const float3 view_pos = (src_view_matrix * surface_xform[3]).xyz;
-  const float3 view_normal = (src_view_matrix * float4(normal, 0.0f)).xyz;
-
-  const float3 plane_normal_camera = view_normal;
-  const float plane_dist_camera = -dot(plane_normal_camera, view_pos);
-  const float4 oblique_plane(plane_normal_camera, plane_dist_camera);
-  const mat4 oblique =
-      CalculateObliqueProjection(src_projection, oblique_plane);
-  reflection_camera->setCustomProjection(oblique, near, far);
+  // Use un-skewed projection to preserve froxel lighting grid and shadow cascades.
+  reflection_camera->setCustomProjection(src_projection, src_projection,
+                                         src_camera->getNear(),
+                                         src_camera->getCullingFar());
 }
 
 SceneView::SceneView(ObjectManager* object_mgr, MaterialManager* material_mgr,
@@ -149,7 +141,7 @@ SceneView::SceneView(ObjectManager* object_mgr, MaterialManager* material_mgr,
   reflect_view_ = engine->createView();
   reflect_view_->setScene(scene_);
   reflect_view_->setCamera(reflect_camera_);
-  reflect_view_->setShadowingEnabled(false);
+  reflect_view_->setShadowingEnabled(true);
   reflect_view_->setPostProcessingEnabled(false);
   reflect_view_->setFrontFaceWindingInverted(true);
   reflect_view_->setVisibleLayers(0xff, kLayerMask_Object | kLayerMask_Skybox);
@@ -300,6 +292,27 @@ void SceneView::Render(filament::Renderer* renderer,
     // Hide reflective surface from its own reflection pass.
     std::uint8_t prev_layer_mask = renderable->SetLayerMask(kLayerMask_None);
 
+    // Hide geometry completely behind the mirror plane from the reflection pass.
+    const float3 mirror_pos = transform[3].xyz;
+    const float3 mirror_normal = normalize(transform[2].xyz);
+    std::vector<std::pair<Renderable*, std::uint8_t>> hidden_behind;
+    for (Renderable* other : renderables_) {
+      if (other == renderable) {
+        continue;
+      }
+      const mat4 other_xform(other->GetTransform());
+      const float3 center = other_xform[3].xyz;
+      // The geom's three scaled axes reach every corner, so their summed
+      // lengths conservatively bound it; only hide when the whole bound is
+      // behind the plane.
+      const float radius = length(other_xform[0].xyz) +
+                           length(other_xform[1].xyz) +
+                           length(other_xform[2].xyz);
+      if (dot(center - mirror_pos, mirror_normal) + radius < 0.0f) {
+        hidden_behind.emplace_back(other, other->SetLayerMask(kLayerMask_None));
+      }
+    }
+
     // Render the reflection to its render target.
     viewport.left = 0;
     viewport.bottom = 0;
@@ -309,7 +322,10 @@ void SceneView::Render(filament::Renderer* renderer,
     renderer->render(reflect_view_);
     reflect_view_->setRenderTarget(nullptr);
 
-    // Unhide the reflective surface.
+    // Restore the behind-mirror geometry and the reflective surface.
+    for (const auto& [other, mask] : hidden_behind) {
+      other->SetLayerMask(mask);
+    }
     renderable->SetLayerMask(prev_layer_mask);
   }
 

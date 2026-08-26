@@ -3,7 +3,7 @@
     <texture name="dark" type="2d" builtin="checker" width="512" height="512"
              rgb1="0.08 0.08 0.10" rgb2="0.12 0.12 0.14"/>
 
-    <material name="floor" texture="dark" texrepeat="6 6" texuniform="true" reflectance="0.4" metallic="0.5" roughness="0.30"/>
+    <material name="floor" texture="dark" texrepeat="6 6" texuniform="true" reflectance="0.4" metallic="0.5" roughness="0.2"/>
     <material name="wall" rgba="0.13 0.13 0.16 1" metallic="0.05" roughness="0.85"/>
     <material name="chrome" rgba="0.95 0.95 0.95 1" metallic="1.0" roughness="0.05" emission="1.0"/>
   </asset>

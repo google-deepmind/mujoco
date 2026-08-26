@@ -1641,6 +1641,8 @@ typedef struct mjrfMaterial_ {
   const mjrfTexture* orm_texture;         // occlusion/roughness/metallic texture (RGB8)
   const mjrfTexture* emissive_texture;    // emissive texture (RGB8)
   const mjrfTexture* reflection_texture;  // reflection texture, for internal use only
+  float reflection_normal[3];      // mirror normal, gates reflection to front face (internal)
+  float reflection_view_proj[16];  // main camera view-proj for reflection UV mapping (internal)
 } mjrfMaterial;
 typedef struct mjrfRenderableParams_ {
   mjtBool cast_shadows;                 // if true, casts shadows

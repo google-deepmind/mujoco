@@ -330,6 +330,22 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
     if (reflective) {
       material.reflection_texture = reflection_mgr->Register(
           this, request->viewport.width, request->viewport.height);
+      // The mirror plane normal is the geom's local +Z (transform_[2], whose
+      // scale carries the geom size -- normalize it). The reflect shader uses
+      // it to apply the reflection only on the front face, so box mirrors don't
+      // show the reflection on their back/side faces. The shader gates on
+      // getWorldGeometricNormalVector(), which is expressed in filament's Y-up
+      // frame, so rotate this normal out of mujoco's Z-up frame to match
+      const float3 refl_normal =
+          geom_type_ == mjGEOM_PLANE
+              ? float3(0.0f, 0.0f, 0.0f)
+              : ToFilamentFrame(normalize(transform_[2].xyz));
+      material.reflection_normal[0] = refl_normal.x;
+      material.reflection_normal[1] = refl_normal.y;
+      material.reflection_normal[2] = refl_normal.z;
+      const mat4f view_proj = GetReflectionViewProjectionMatrix(
+          request->camera, request->viewport.width, request->viewport.height);
+      WriteMat4(material.reflection_view_proj, view_proj);
     }
 
     const Mesh* mesh = !parts_.empty() ? parts_[0].mesh : nullptr;
