@@ -20,12 +20,23 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>  // NOLINT
+#include <fstream>
+#include <ios>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>
 #include <vector>
+
+#if defined(__APPLE__)
+  #include <mach-o/dyld.h>
+  #include <cstdint>
+#elif defined(_WIN32)
+  #include <windows.h>
+#else
+  #include <unistd.h>
+#endif
 
 #include "lodepng.h"
 #include <mujoco/mjrfilament.h>
@@ -318,7 +329,7 @@ static string DefaultOutputFilename(string_view model_path) {
 }
 
 
-//-------------------------------- filament backend ------------------------------------------------
+//-------------------------------- filament backend (label rendering) ------------------------------
 
 struct LabelItem {
   string text;
@@ -384,10 +395,94 @@ static void DrawBitmapText(vector<unsigned char>& rgb, int width, int height,
 }
 
 
+//-------------------------------- filament backend (asset resolution) -----------------------------
+
+// directory containing the running executable (assets are deployed alongside it)
+static std::string ExecutableDir() {
+  char buf[4096];
+#if defined(__APPLE__)
+  uint32_t size = sizeof(buf);
+  if (_NSGetExecutablePath(buf, &size) != 0) { return ""; }
+#elif defined(_WIN32)
+  DWORD n = GetModuleFileNameA(nullptr, buf, sizeof(buf));
+  if (n == 0 || n >= sizeof(buf)) { return ""; }
+#else
+  ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+  if (n <= 0) { return ""; }
+  buf[n] = '\0';
+#endif
+  return std::filesystem::path(buf).parent_path().string();
+}
+
+
+// resolves a "filament:name" resource to <exe_dir>/assets/name
+static std::string ResolveAsset(string_view path) {
+  string_view name = path.substr(path.find(':') + 1);
+  std::filesystem::path dir = ExecutableDir();
+  return (dir.empty() ? std::filesystem::path("assets") : dir / "assets") / name;
+}
+
+
+// reads a file lazily, holding the bytes until the resource is closed
+class FileResource {
+ public:
+  explicit FileResource(const std::string& path) : file_(path, std::ios::binary | std::ios::ate) {
+    if (file_.is_open()) {
+      size_ = file_.tellg();
+      file_.seekg(0, std::ios::beg);
+    }
+  }
+  int Size() const { return size_; }
+  int Read(const void** buffer) {
+    buffer_.resize(size_);
+    if (!file_.read(buffer_.data(), size_)) {
+      return 0;
+    }
+    *buffer = buffer_.data();
+    return size_;
+  }
+
+ private:
+  std::ifstream file_;
+  std::vector<char> buffer_;
+  int size_ = 0;
+};
+
+
+// registers a resource provider so the Filament backend can load its shaders and textures
+// (referenced as "filament:name") from the assets deployed next to the executable
+static void RegisterFilamentAssetProvider() {
+  mjpResourceProvider provider;  // NOLINT
+  mjp_defaultResourceProvider(&provider);
+  provider.open = [](mjResource* resource) {
+    FileResource* f = new FileResource(ResolveAsset(resource->name));
+    if (f->Size() == 0) {
+      delete f;
+      return 0;
+    }
+    resource->data = f;
+    return f->Size();
+  };
+  provider.read = [](mjResource* resource, const void** buffer) {
+    return static_cast<FileResource*>(resource->data)->Read(buffer);
+  };
+  provider.close = [](mjResource* resource) {
+    delete static_cast<FileResource*>(resource->data);
+    resource->data = nullptr;
+  };
+  provider.prefix = "filament";
+  mjp_registerResourceProvider(&provider);
+}
+
+
+//-------------------------------- filament backend (rendering) ------------------------------------
+
 // render scene with Filament backend
 static vector<unsigned char> RenderFilament(
     const mjModel* m, mjData* d, const mjvCamera& cam, const mjvOption& opt,
     const int rnd_flags[mjNRNDFLAG], int width, int height) {
+  RegisterFilamentAssetProvider();
+
   mjrfContextConfig context_cfg;
   mjrf_defaultContextConfig(&context_cfg);
   context_cfg.graphics_api = mjGRAPHICS_API_OPENGL;

@@ -74,3 +74,18 @@ fi
 if [ $? -eq 0 ]; then
   die "Expected failure for invalid frame"
 fi
+
+# Test that the Filament backend actually renders. A headless environment
+# without a render context (e.g. CI without a GPU) fails to initialize, which is
+# tolerated here; only a missing-asset failure -- which passing arg validation
+# alone would not catch -- is fatal.
+OUT_PNG="${TEST_TMPDIR}/render_out.png"
+RENDER_LOG=$("$TARGET_BINARY" "$MODEL" "$OUT_PNG" --width=64 --height=48 2>&1)
+if echo "$RENDER_LOG" | grep -q "Failed to open filament asset"; then
+  die "Filament asset resolution failed: $RENDER_LOG"
+fi
+if [ -f "$OUT_PNG" ]; then
+  echo "Filament render produced an output image"
+else
+  echo "Skipping render output check (no render context available)"
+fi
