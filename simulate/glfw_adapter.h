@@ -33,17 +33,17 @@ class GlfwAdapter : public PlatformUIAdapter {
   ~GlfwAdapter() override;
 
   std::pair<double, double> GetCursorPosition() const override;
-  double GetDisplayPixelsPerInch() const override;
-  std::pair<int, int> GetFramebufferSize() const override;
-  std::pair<int, int> GetWindowSize() const override;
-  bool IsGPUAccelerated() const override;
-  void PollEvents() override;
-  void SetClipboardString(const char* text) override;
-  void SetVSync(bool enabled) override;
-  void SetWindowTitle(const char* title) override;
-  bool ShouldCloseWindow() const override;
-  void SwapBuffers() override;
-  void ToggleFullscreen() override;
+  double                    GetDisplayPixelsPerInch() const override;
+  std::pair<int, int>       GetFramebufferSize() const override;
+  std::pair<int, int>       GetWindowSize() const override;
+  bool                      IsGPUAccelerated() const override;
+  void                      PollEvents() override;
+  void                      SetClipboardString(const char* text) override;
+  void                      SetVSync(bool enabled) override;
+  void                      SetWindowTitle(const char* title) override;
+  bool                      ShouldCloseWindow() const override;
+  void                      SwapBuffers() override;
+  void                      ToggleFullscreen() override;
 
   bool IsLeftMouseButtonPressed() const override;
   bool IsMiddleMouseButtonPressed() const override;
@@ -56,7 +56,7 @@ class GlfwAdapter : public PlatformUIAdapter {
   bool IsMouseButtonDownEvent(int act) const override;
   bool IsKeyDownEvent(int act) const override;
 
-  int TranslateKeyCode(int key) const override;
+  int       TranslateKeyCode(int key) const override;
   mjtButton TranslateMouseButton(int button) const override;
 
  private:

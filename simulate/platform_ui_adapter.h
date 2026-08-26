@@ -24,10 +24,10 @@ class PlatformUIAdapter {
  public:
   virtual ~PlatformUIAdapter() = default;
 
-  inline mjuiState& state() { return state_; }
+  inline mjuiState&       state() { return state_; }
   inline const mjuiState& state() const { return state_; }
 
-  inline mjrContext& mjr_context() { return con_; }
+  inline mjrContext&       mjr_context() { return con_; }
   inline const mjrContext& mjr_context() const { return con_; }
 
   inline void SetEventCallback(void (*event_callback)(mjuiState*)) {
@@ -44,31 +44,31 @@ class PlatformUIAdapter {
   virtual bool EnsureContextSize();
 
   // Pure virtual functions to be implemented by individual adapters
-  virtual std::pair<double, double> GetCursorPosition() const = 0;
-  virtual double GetDisplayPixelsPerInch() const = 0;
-  virtual std::pair<int, int> GetFramebufferSize() const = 0;
-  virtual std::pair<int, int> GetWindowSize() const = 0;
-  virtual bool IsGPUAccelerated() const = 0;
-  virtual void PollEvents() = 0;
-  virtual void SetClipboardString(const char* text) = 0;
-  virtual void SetVSync(bool enabled) = 0;
-  virtual void SetWindowTitle(const char* title) = 0;
-  virtual bool ShouldCloseWindow() const = 0;
-  virtual void SwapBuffers() = 0;
-  virtual void ToggleFullscreen() = 0;
+  virtual std::pair<double, double> GetCursorPosition() const            = 0;
+  virtual double                    GetDisplayPixelsPerInch() const      = 0;
+  virtual std::pair<int, int>       GetFramebufferSize() const           = 0;
+  virtual std::pair<int, int>       GetWindowSize() const                = 0;
+  virtual bool                      IsGPUAccelerated() const             = 0;
+  virtual void                      PollEvents()                         = 0;
+  virtual void                      SetClipboardString(const char* text) = 0;
+  virtual void                      SetVSync(bool enabled)               = 0;
+  virtual void                      SetWindowTitle(const char* title)    = 0;
+  virtual bool                      ShouldCloseWindow() const            = 0;
+  virtual void                      SwapBuffers()                        = 0;
+  virtual void                      ToggleFullscreen()                   = 0;
 
-  virtual bool IsLeftMouseButtonPressed() const = 0;
+  virtual bool IsLeftMouseButtonPressed() const   = 0;
   virtual bool IsMiddleMouseButtonPressed() const = 0;
-  virtual bool IsRightMouseButtonPressed() const = 0;
+  virtual bool IsRightMouseButtonPressed() const  = 0;
 
-  virtual bool IsAltKeyPressed() const = 0;
-  virtual bool IsCtrlKeyPressed() const = 0;
+  virtual bool IsAltKeyPressed() const   = 0;
+  virtual bool IsCtrlKeyPressed() const  = 0;
   virtual bool IsShiftKeyPressed() const = 0;
 
   virtual bool IsMouseButtonDownEvent(int act) const = 0;
-  virtual bool IsKeyDownEvent(int act) const = 0;
+  virtual bool IsKeyDownEvent(int act) const         = 0;
 
-  virtual int TranslateKeyCode(int key) const = 0;
+  virtual int       TranslateKeyCode(int key) const        = 0;
   virtual mjtButton TranslateMouseButton(int button) const = 0;
 
  protected:
@@ -76,22 +76,22 @@ class PlatformUIAdapter {
   void FreeMjrContext();
 
   // Event handlers
-  void OnFilesDrop(int count, const char** paths);
+  void         OnFilesDrop(int count, const char** paths);
   virtual void OnKey(int key, int scancode, int act);
-  void OnMouseButton(int button, int act);
-  void OnMouseMove(double x, double y);
-  void OnScroll(double xoffset, double yoffset);
-  void OnWindowRefresh();
-  void OnWindowResize(int width, int height);
+  void         OnMouseButton(int button, int act);
+  void         OnMouseMove(double x, double y);
+  void         OnScroll(double xoffset, double yoffset);
+  void         OnWindowRefresh();
+  void         OnWindowResize(int width, int height);
 
   mjuiState state_;
-  int last_key_;
+  int       last_key_;
   void (*event_callback_)(mjuiState*);
   void (*layout_callback_)(mjuiState*);
 
-  mjrContext con_;
-  const mjModel* last_model_ = nullptr;
-  int last_fontscale_ = -1;
+  mjrContext     con_;
+  const mjModel* last_model_     = nullptr;
+  int            last_fontscale_ = -1;
 
  private:
   void UpdateMjuiState();

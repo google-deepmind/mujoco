@@ -40,15 +40,15 @@ class GlfwCoreVideo {
   ~GlfwCoreVideo();
 
   void WaitForDisplayRefresh();
-  int DisplayLinkCallback();
+  int  DisplayLinkCallback();
   void UpdateDisplayLink();
 
  private:
-  GLFWwindow* window_;
+  GLFWwindow*      window_;
   CVDisplayLinkRef display_link_;
 
-  std::atomic_bool waiting_;
-  std::mutex mu_;
+  std::atomic_bool        waiting_;
+  std::mutex              mu_;
   std::condition_variable cond_;
 };
 }  // namespace mujoco
