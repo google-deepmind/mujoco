@@ -1410,6 +1410,8 @@ representations of the constraint Jacobian and related matrices.
    handle elliptic cones without approximating them. It does more work per contact, however the contact dimensionality
    is smaller, and these two factors roughly balance each other.
 
+.. _soNoSlip:
+
 **NoSlip** : post-processing pass
    This is not a standalone solver but a post-processing step, enabled by setting ``noslip_iterations`` to a positive
    value in :ref:`option <option>`. After the main solver (Newton, CG, or PGS) has converged, the NoSlip solver

@@ -859,7 +859,7 @@ two elements of ``solimp``) as well as the global ``mjModel.opt.impratio`` setti
 adjustment often requires smaller time steps to keep the simulation stable, because they make the nonlinear dynamics
 more difficult to integrate numerically. Slip is also reduced by the Newton solver which is more accurate in general.
 
-For situations where it is desirable to suppress slip completely, there is a :ref:`NoSlip <soAlgorithms>`
+For situations where stronger slip suppression is required, there is a :ref:`NoSlip <soNoSlip>`
 post-processing solver which runs after the main solver. It updates the contact forces in friction dimensions by
 disregarding constraint softness. When this option is used however, MuJoCo is no longer solving the convex optimization
 problem it was designed to solve, and the simulation may become less robust. Thus using the Newton solver with elliptic
