@@ -6981,7 +6981,8 @@ This element has the following custom attributes in addition to the common attri
    A value of 0 (the default) disables the respective feature. When positive, :at-val:`slewmax` limits the
    rate-of-change of the first input (position setpoint in rad/s, or with signatures lacking ``pos``, velocity
    setpoint or torque feedforward), :at-val:`Imax` clamps the integrator state (anti-windup), and :at-val:`Vmax`
-   clamps the drive voltage :math:`v_{\max}` (Volt), upstream of the raw ``voltage`` input.
+   clamps the controller's drive voltage :math:`v_{\max}` (Volt). It does not bound the raw ``voltage`` input,
+   which is added downstream: use :at:`ctrlrange` to limit a voltage command.
    (see `tech note <_static/dcmotor.pdf>`__, Section 2.5)
 
 .. _actuator-plugin:
