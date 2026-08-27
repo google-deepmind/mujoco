@@ -14,7 +14,7 @@ jobs:
   build-and-upload-artifacts:
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
 
     - name: Prepare Linux
       run: bash ./.github/workflows/build_steps.sh prepare_linux
@@ -43,7 +43,7 @@ jobs:
         fi
 
     - name: Upload GitHub Pages artifacts
-      uses: actions/upload-pages-artifact@v3
+      uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa  # v3
       with:
         path: dist
 
@@ -56,4 +56,4 @@ jobs:
     steps:
     - name: Deploy to GitHub Pages
       id: deployment
-      uses: actions/deploy-pages@v4
+      uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e  # v4
