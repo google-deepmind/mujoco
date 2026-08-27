@@ -2346,6 +2346,23 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
 
 
 
+// return DC motor winding resistance at the current temperature
+static mjtNum dcmotorResistance(const mjModel* m, const mjData* d, int id) {
+  const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*id;
+  const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*id;
+  mjtNum R = gainprm[0];
+  mjDCMotorSlots slots = mj_dcmotorSlots(dynprm, gainprm);
+  if (slots.temperature >= 0) {
+    mjtNum T = d->act[m->actuator_actadr[id] + slots.temperature];
+    mjtNum alpha = gainprm[2];
+    mjtNum T0 = gainprm[3];
+    mjtNum Ta = dynprm[4];
+    R *= 1 + alpha * (T + Ta - T0);
+  }
+  return mju_max(mjMINVAL, R);
+}
+
+
 // add (d qfrc_actuator / d qvel) to qDeriv
 void mjd_actuator_vel(const mjModel* m, mjData* d) {
   int nactuator = m->nactuator;
@@ -2406,7 +2423,7 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
       const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
       const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
       if (dynprm[0] <= 0) {
-        mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+        mjtNum R = dcmotorResistance(m, d, i);
         mjtNum K = gainprm[1];
         bias_vel -= K * K / R;
       }
@@ -2433,27 +2450,25 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
       const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
       mjtNum te = dynprm[0];
 
-      // controller velocity derivative dV/dw: torque-space kd through the tau->V map,
-      // plus the back-EMF compensation K, which cancels the -K^2/R back-EMF bias term so
-      // the net damping of an unclipped torque-mode motor is -kd; Vmax clipping is ignored
-      // here, matching the treatment of the other saturations
+      // controller velocity derivative dV/dw: torque-space kd through the tau->V map
+      // using nameplate resistance, plus the back-EMF compensation K
       mjtNum dVdw = 0;
       if (m->actuator_ctrlspec[i] & (mjINPUT_POS | mjINPUT_VEL | mjINPUT_FF)) {
-        mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+        mjtNum R0 = mju_max(mjMINVAL, gainprm[0]);
         mjtNum K = gainprm[1];  // K > 0 on this path, enforced by the compiler
-        dVdw = -gainprm[6]*R/K + K;
+        dVdw = -gainprm[6]*R0/K + K;
       }
 
       if (te > 0) {
         // stateful current with actearly: d(K*next_act)/dω
         // includes both back-EMF (-K) and controller (dVdw) through act_dot
-        mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+        mjtNum R = dcmotorResistance(m, d, i);
         mjtNum K = gainprm[1];
         mjtNum s = 1 - mju_exp(-m->opt.timestep / te);
         bias_vel += K * (dVdw - K) * s / R;
       } else if (dVdw != 0) {
         // stateless: controller terms only (back-EMF handled in bias block)
-        mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+        mjtNum R = dcmotorResistance(m, d, i);
         mjtNum K = gainprm[1];
         bias_vel += K * dVdw / R;
       }
