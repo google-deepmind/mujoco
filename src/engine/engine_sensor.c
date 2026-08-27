@@ -15,6 +15,7 @@
 #include "engine/engine_sensor.h"
 
 #include <stddef.h>
+#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
@@ -72,7 +73,7 @@ typedef struct mjTactileTaskArgs_ {
   int* contact_geom_ids;
   int start_taxel;
   int end_taxel;
-  mjtNum* forcesT;
+  mjtNum* sensordata;
 } mjTactileTaskArgs;
 
 
@@ -103,6 +104,9 @@ static void* tactile_taxel_batch(const mjModel* m, mjData* d, void* args) {
     // iterate over colliding geoms
     for (int g = 0; g < t->ncontact; g++) {
       int geom = t->contact_geom_ids[g];
+      if (geom == geom_id) {
+        continue;
+      }
       int body = m->geom_bodyid[geom];
 
       // set up SDF for this contact geom
@@ -157,30 +161,24 @@ static void* tactile_taxel_batch(const mjModel* m, mjData* d, void* args) {
           vel_sensor, d->cvel + 6 * parent_weld, 0, xpos,
           d->subtree_com + 3 * m->body_rootid[parent_weld], NULL);
       mju_transformSpatial(
-          vel_other, d->cvel + 6 * body, 0, d->geom_xpos + 3 * geom,
+          vel_other, d->cvel + 6 * body, 0, xpos,
           d->subtree_com + 3 * m->body_rootid[body], NULL);
       mju_sub3(vel_rel, vel_sensor+3, vel_other+3);
 
-      // get normal
-      mjtNum normal[3] = {mesh_normal[normal_stride*j + 0],
-                          mesh_normal[normal_stride*j + 1],
-                          mesh_normal[normal_stride*j + 2]};
-      mju_rotVecQuat(normal, normal, m->mesh_quat + 4 * mesh_id);
-
       // take max penetration depth (SDF distance is negative; negate for positive output)
-      t->forcesT[0*ncon + j] = mju_max(t->forcesT[0*ncon + j], -depth);
+      t->sensordata[0*ncon + j] = mju_max(t->sensordata[0*ncon + j], -depth);
 
       if (has_frame) {
+        mjtNum vel_rel_geom[3];
+        mju_mulMatTVec3(vel_rel_geom, geom_mat, vel_rel);
         mjtNum tang1[3] = {mesh_normal[normal_stride*j + 3],
                            mesh_normal[normal_stride*j + 4],
                            mesh_normal[normal_stride*j + 5]};
         mjtNum tang2[3] = {mesh_normal[normal_stride*j + 6],
                            mesh_normal[normal_stride*j + 7],
                            mesh_normal[normal_stride*j + 8]};
-        mju_rotVecQuat(tang1, tang1, m->mesh_quat + 4 * mesh_id);
-        mju_rotVecQuat(tang2, tang2, m->mesh_quat + 4 * mesh_id);
-        t->forcesT[1*ncon + j] += mju_abs(mju_dot3(vel_rel, tang1));
-        t->forcesT[2*ncon + j] += mju_abs(mju_dot3(vel_rel, tang2));
+        t->sensordata[1*ncon + j] += mju_abs(mju_dot3(vel_rel_geom, tang1));
+        t->sensordata[2*ncon + j] += mju_abs(mju_dot3(vel_rel_geom, tang2));
       }
     }
   }
@@ -1163,42 +1161,27 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
       // clear sensordata and distance matrix
       mju_zero(sensordata, m->sensor_dim[i]);
 
-      // count contacts and get contact geom ids
-      // TODO: use a more efficient C version of unordered_set
-      int* contact_geom_ids = mj_stackAllocInt(d, d->ncon);
+      // deduplicate colliding geoms using a stack-allocated byte mask
+      char* seen_geom = mjSTACKALLOC(d, m->ngeom, char);
+      memset(seen_geom, 0, m->ngeom);
+      int* contact_geom_ids = mj_stackAllocInt(d, mju_min(2 * d->ncon, m->ngeom));
       int ncontact = 0;
       for (int k = 0; k < d->ncon; k++) {
-        int body1 = (d->contact[k].geom1 >= 0)
-            ? m->body_weldid[m->geom_bodyid[d->contact[k].geom1]]
+        int g1 = d->contact[k].geom1;
+        int g2 = d->contact[k].geom2;
+        int body1 = (g1 >= 0)
+            ? m->body_weldid[m->geom_bodyid[g1]]
             : m->body_weldid[mj_flexBody(m, &d->contact[k], 0)];
-        int body2 = (d->contact[k].geom2 >= 0)
-            ? m->body_weldid[m->geom_bodyid[d->contact[k].geom2]]
+        int body2 = (g2 >= 0)
+            ? m->body_weldid[m->geom_bodyid[g2]]
             : m->body_weldid[mj_flexBody(m, &d->contact[k], 1)];
-        if (body1 == parent_weld) {
-          int add = 1;
-          for (int j = 0; j < ncontact; j++) {
-            if (contact_geom_ids[j] == d->contact[k].geom2) {
-              add = 0;
-              break;
-            }
-          }
-          if (add) {
-            contact_geom_ids[ncontact] = d->contact[k].geom2;
-            ncontact++;
-          }
+        if (body1 == parent_weld && g2 >= 0 && g2 < m->ngeom && g2 != geom_id && !seen_geom[g2]) {
+          seen_geom[g2] = 1;
+          contact_geom_ids[ncontact++] = g2;
         }
-        if (body2 == parent_weld) {
-          int add = 1;
-          for (int j = 0; j < ncontact; j++) {
-            if (contact_geom_ids[j] == d->contact[k].geom1) {
-              add = 0;
-              break;
-            }
-          }
-          if (add) {
-            contact_geom_ids[ncontact] = d->contact[k].geom1;
-            ncontact++;
-          }
+        if (body2 == parent_weld && g1 >= 0 && g1 < m->ngeom && g1 != geom_id && !seen_geom[g1]) {
+          seen_geom[g1] = 1;
+          contact_geom_ids[ncontact++] = g1;
         }
       }
 
@@ -1210,10 +1193,6 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
 
       // all of the quadrature points are contact points
       int ncon = m->mesh_vertnum[mesh_id];
-
-      // allocate contact forces and positions
-      mjtNum* forcesT = mj_stackAllocNum(d, ncon*3);
-      mju_zero(forcesT, ncon*3);
 
       // threshold for parallelization (taxel count below which sequential is faster)
       const int kTactileParallelThreshold = 1000;
@@ -1236,7 +1215,7 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
           task_args[t].contact_geom_ids = contact_geom_ids;
           task_args[t].start_taxel = t * batch_size;
           task_args[t].end_taxel = mju_min((t+1) * batch_size, ncon);
-          task_args[t].forcesT = forcesT;
+          task_args[t].sensordata = sensordata;
         }
 
         mju_dispatch(m, d, tactileTask, task_args, ntask);
@@ -1253,15 +1232,8 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
         args.contact_geom_ids = contact_geom_ids;
         args.start_taxel = 0;
         args.end_taxel = ncon;
-        args.forcesT = forcesT;
+        args.sensordata = sensordata;
         tactile_taxel_batch(m, d, &args);
-      }
-
-      // compute sensor output
-      for (int c = 0; c < nchannel; c++) {
-        if (!mju_isZero(forcesT + c*ncon, ncon)) {
-          mju_addTo(sensordata + c*ncon, forcesT + c*ncon, ncon);
-        }
       }
 
       mj_freeStack(d);
