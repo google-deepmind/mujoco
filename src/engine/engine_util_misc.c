@@ -1603,14 +1603,17 @@ void mju_decodePyramid(mjtNum* force, const mjtNum* pyramid, const mjtNum* mu, i
 
 // integrate spring-damper analytically, return pos(t)
 mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum k, mjtNum b, mjtNum t) {
-  mjtNum det, c1, c2, r1, r2, w;
+  mjtNum det, det_tol, c1, c2, r1, r2, w;
 
   // determinant of characteristic equation
   det = b*b - 4*k;
 
+  // scale tolerance with determinant terms to make regime selection invariant to time units
+  det_tol = mjMINVAL * mju_max(b*b, 4*mju_abs(k));
+
   // overdamping
   //  pos(t) = c1*exp(r1*t) + c2*exp(r2*t);  r12 = (-b +- sqrt(det))/2
-  if (det > mjMINVAL) {
+  if (det > det_tol) {
     // compute w = sqrt(det)/2
     w = mju_sqrt(det)/2;
 
@@ -1628,7 +1631,7 @@ mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum k, mjtNum b, mjtNum t) 
 
   // critical damping
   //  pos(t) = exp(-b*t/2) * (c1 + c2*t)
-  else if (det <= mjMINVAL && det >= -mjMINVAL) {
+  else if (det <= det_tol && det >= -det_tol) {
     // compute coefficients
     c1 = pos0;
     c2 = vel0 + b*c1/2;
