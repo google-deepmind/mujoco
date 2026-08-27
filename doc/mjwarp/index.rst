@@ -868,6 +868,7 @@ Key features:
 - **Mesh rendering with textures**: BVH-accelerated mesh rendering with full texture support.
 - **Heightfield rendering**: Optimized rendering for heightfields.
 - **Flex rendering**: Render :ref:`flex<deformable-flex>` objects.
+- **3D Gaussian Splatting (3DGS)**: BVH-accelerated ray tracing and alpha compositing of 3D Gaussian splats with per-world grouping and bidirectional physical occlusion.
 - **Lighting and shadows**: Dynamic lighting with configurable shadows; domain randomizable: `light_active`,
   `light_type`, `light_castshadow`, `light_xpos`, `light_xdir`.
 - **Heterogeneous multi-camera**: Multiple cameras per world and each camera can have a different resolution
@@ -898,6 +899,12 @@ rendering specific fields, and output buffers.
         enabled_geom_groups=[0, 1],   # Only render geoms in groups 0 and 1
         cam_active=[True, False],     # Selectively enable/disable cameras
         flex_render_smooth=True,      # Smooth shading for soft bodies
+        splat_position=pos,           # Optional (nsplat, 3) 3DGS centers
+        splat_rotation=rot,           # Optional (nsplat, 4) 3DGS quaternions (w, x, y, z)
+        splat_scale=scale,            # Optional (nsplat, 3) 3DGS standard deviations
+        splat_rgba=rgba,              # Optional (nsplat, 4) 3DGS RGB color and opacity
+        splat_adr=adr,                # Optional (ngroup+1,) group offsets for per-world splats
+        splat_group_id=group_id,      # Optional (nworld,) splat group index per world
     )
 
 Each :class:`mjw.RenderContext <mujoco_warp.RenderContext>` parameter can be applied globally or per camera.
@@ -943,6 +950,85 @@ Rendering can be benchmarked using `testspeed`_:
 
 For benchmark results across a variety of scenes, see the
 `released benchmarks <https://github.com/google-deepmind/mujoco_warp/pull/1113>`__.
+
+3D Gaussian Splatting (3DGS)
+----------------------------
+
+MJWarp supports rendering 3D Gaussian Splatting (3DGS) scenes composited with simulated physical MuJoCo objects. Splats are raytraced via a dedicated SAH-constructed BVH (`build_splat_bvh`) and evaluated using a single-hit planar slice approximation along each ray.
+
+Physical Occlusion
+~~~~~~~~~~~~~~~~~~
+Splats are raytraced and alpha-composited *prior* to solid MuJoCo geometry intersection. If a camera ray hits a physical body (such as a mesh, primitive, or flex), splats located behind the hit distance (`dist`) are occluded by the physical object, while splats in front of the hit distance are blended over the physical object's surface color.
+
+Loading PLY Files
+~~~~~~~~~~~~~~~~~
+Standard binary little-endian 3DGS `.ply` files can be loaded using the helper in `contrib/render.py` or prepared manually as NumPy arrays:
+
+- `splat_position`: Splat centers in world coordinates `(nsplat, 3)` (`float32`).
+- `splat_rotation`: Splat unit quaternions in MuJoCo convention `(w, x, y, z)` `(nsplat, 4)` (`float32`).
+- `splat_scale`: Splat standard deviations in each local axis `(nsplat, 3)` (`float32`), exponentiated from log-scale PLY properties.
+- `splat_rgba`: Diffuse RGB color (converted from degree-0 spherical harmonics `f_dc_0..2`) and sigmoid-activated opacity `(nsplat, 4)` (`float32`).
+
+.. code-block:: python
+
+    import mujoco_warp as mjw
+    import numpy as np
+
+    # Example defining a single splat
+    splat_pos = np.array([[0.0, 0.0, 0.5]], dtype=np.float32)
+    splat_rot = np.array([[1.0, 0.0, 0.0, 0.0]], dtype=np.float32)  # w, x, y, z
+    splat_scale = np.array([[0.1, 0.1, 0.1]], dtype=np.float32)
+    splat_rgba = np.array([[1.0, 0.2, 0.2, 0.9]], dtype=np.float32)
+
+    rc = mjw.create_render_context(
+        mjm,
+        nworld=1,
+        render_rgb=True,
+        splat_position=splat_pos,
+        splat_rotation=splat_rot,
+        splat_scale=splat_scale,
+        splat_rgba=splat_rgba,
+    )
+
+Per-World Splat Groups
+~~~~~~~~~~~~~~~~~~~~~~
+Similar to per-world meshes, MJWarp supports heterogeneous per-world 3DGS scenes. Multiple splat scenes can be concatenated into single attribute arrays with group offsets specified by `splat_adr` `(ngroup + 1,)` and assigned to each world via `splat_group_id` `(nworld,)`.
+
+.. code-block:: python
+
+    # Group 0 has 100 splats (indices 0..99), Group 1 has 250 splats (indices 100..349)
+    splat_adr = np.array([0, 100, 350], dtype=np.int32)
+    # Assign Group 0 to World 0 and Group 1 to World 1
+    splat_group_id = np.array([0, 1], dtype=np.int32)
+
+Dynamic Splat Refitting
+~~~~~~~~~~~~~~~~~~~~~~~
+If splat positions, rotations, or scales change dynamically during simulation (e.g., splats attached to moving rigid bodies), call :func:`mjw.refit_splat_bvh <mujoco_warp.refit_splat_bvh>` before rendering:
+
+.. code-block:: python
+
+    # Update splat positions on device
+    wp.copy(rc.splat_position, updated_positions)
+    mjw.refit_splat_bvh(rc)
+    mjw.render(m, d, rc)
+
+Performance & Raycasting Thresholds
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+- **BVH Response Cutoff**: Splat bounding boxes are sized to contain density responses down to `SPLAT_MIN_RESPONSE = 0.01`.
+- **Bounded Compositing**: Raycasting accumulates up to the first `_MAX_SPLAT_HITS = 32` BVH intersections per ray ordered by depth.
+- **Early Termination**: Compositing stops early once remaining ray transmittance drops below `0.005` or individual splat alpha is below 8-bit quantization (`1 / 255`).
+
+CLI Previewer & Camera Orbits
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The command-line tool `mjwarp-render` supports rendering 3DGS PLY scenes and generating camera orbit animations:
+
+.. code-block:: shell
+
+    # Render single frame with 3DGS PLY
+    mjwarp-render scene.xml --splat=my_scene.ply --width=512 --height=512
+
+    # Render a 128-frame circular camera orbit video around a target
+    mjwarp-render scene.xml --splat=my_scene.ply --orbit --orbit_center="0,0,1" --orbit_radius=4.0 --output_video=orbit.gif
 
 Notes
 -----
@@ -1408,7 +1494,9 @@ It supports:
  * Basic point lights and directional lights
  * Textures
  * Shadows
+ * 3D Gaussian Splatting (3DGS) diffuse rendering with physical occlusion
 
 It does not support:
  * Advanced lighting effects such as global illumination
  * Physically based material properties
+ * View-dependent spherical harmonics (higher degree SH > 0) for 3DGS
