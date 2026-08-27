@@ -569,6 +569,11 @@ XMLElement* mjXSchema::Check(XMLElement* elem, int level) {
   // check attributes
   const XMLAttribute* attribute = elem->FirstAttribute();
   for (; attribute != nullptr; attribute = attribute->Next()) {
+    // tolerate XML namespace machinery on the root, so models can carry
+    // xsi:noNamespaceSchemaLocation for editor completion against mjcf.xsd
+    if (level == 0 && (strchr(attribute->Name(), ':') || !strcmp(attribute->Name(), "xmlns"))) {
+      continue;
+    }
     if (attr_.find(attribute->Name()) == attr_.end()) {
       error = "unrecognized attribute: '" + string(attribute->Name()) + "'";
       return elem;
