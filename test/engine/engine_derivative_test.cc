@@ -1510,6 +1510,52 @@ TEST_F(DerivativeTest, DCMotorStatefulConvergesToStateless) {
       << "stateful derivative should converge to stateless as te -> 0";
 }
 
+// verify hot winding resistance is used for stateless and stateful derivatives
+TEST_F(DerivativeTest, DCMotorThermalDerivative) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.002"/>
+    <worldbody>
+      <body>
+        <joint name="stateless" type="slide"/>
+        <geom type="sphere" size="0.1" mass="1"/>
+      </body>
+      <body>
+        <joint name="stateful" type="slide"/>
+        <geom type="sphere" size="0.1" mass="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="stateless" motorconst="1" resistance="1"
+               thermal="1 1 0 0.004 25 25"/>
+      <dcmotor joint="stateful" motorconst="1" resistance="1"
+               inductance="0 0.01" thermal="1 1 0 0.004 25 25"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  // A 250-degree rise doubles both winding resistances.
+  d->act[m->actuator_actadr[0]] = 250;
+  d->act[m->actuator_actadr[1]] = 250;
+  d->qvel[0] = 0.5;
+  d->qvel[1] = 0.5;
+  mj_forward(m.get(), d.get());
+
+  mju_zero(d->qDeriv, m->nD);
+  mjd_smooth_vel(m.get(), d.get(), /*flg_bias=*/1);
+  vector<mjtNum> analytic = AsVector(d->qDeriv, m->nD);
+
+  mju_zero(d->qDeriv, m->nD);
+  mjd_smooth_velFD(m.get(), d.get(), MjTol(1e-7, 1e-3));
+  EXPECT_THAT(AsVector(d->qDeriv, m->nD),
+              Pointwise(MjNear(1e-7, 3e-3), analytic));
+}
+
 // Utility: Rotate flex grid
 void RotateFlexGrid(mjModel* model, mjData* data, const char* flex_name,
                     double angle) {
