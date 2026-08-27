@@ -13,9 +13,11 @@ Most of this guide involves C/C++ code. For Python, jump to the section
     `include/` and C source files and internal headers under `src/`. This style
     guide primarily concerns itself with this category.
 
-2. **C++ code:**
-    -   Source files under `src/user/` and `src/xml/` follow Google C++ style
-        with a 100-character line limit and are formatted using `clang-format`.
+2.  **C++ code:**
+
+    -   MuJoCo C++ source files are based on Google C++ style with a
+        100-character line limit and are formatted using `clang-format`
+        according to the repository's `.clang-format` configuration.
     -   Test files under `test/` adhere to standard
         [Google C++ style](https://google.github.io/styleguide/cppguide.html).
 
@@ -28,19 +30,20 @@ Most of this guide involves C/C++ code. For Python, jump to the section
 Where any aspect of coding style is not explicitly spelled out in this guide,
 the following principle is followed:
 
-| Maximise consistency with the rest of the code. |
-| --- |
+Maximise consistency with the rest of the code. |
+----------------------------------------------- |
 
 If there is a contradiction between this guide and existing code, the guide
 takes precedence. Additional principles include:
 
-- Follow the [naming conventions](https://mujoco.readthedocs.io/en/latest/programming#naming-convention).
-- Be sparing with horizontal space: Try to keep lines short, avoid line-breaks
-  where possible.
-- Be generous with vertical space: Empty lines between code blocks are good.
-- Keep names short.
-- Inline comments are part of the code, treat them as such.
-- Use American English in comments and documentation.
+-   Follow the
+    [naming conventions](https://mujoco.readthedocs.io/en/latest/programming#naming-convention).
+-   Be sparing with horizontal space: Try to keep lines short, avoid line-breaks
+    where possible.
+-   Be generous with vertical space: Empty lines between code blocks are good.
+-   Keep names short.
+-   Inline comments are part of the code, treat them as such.
+-   Use American English in comments and documentation.
 
 ### Specific rules for C code
 
@@ -69,9 +72,9 @@ MuJoCo makes generous use of short, one-line comments describing the code block
 just below them. They are considered an essential part of the code. Comments
 should be:
 
-- As succinct as possible, while maintaining clarity.
-- Preceded by an empty line, unless at the top of a block.
-- Uncapitalized and not terminated by a full-stop.
+-   As succinct as possible, while maintaining clarity.
+-   Preceded by an empty line, unless at the top of a block.
+-   Uncapitalized and not terminated by a full-stop.
 
 A helpful heuristic regarding in-code comments is that the reader should be able
 to get a sense of what is happening in a function just by reading the comments.

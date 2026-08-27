@@ -39,13 +39,13 @@ typedef std::array<mjKeyMap, mjNOBJECT>         mjListKeyMap;
 typedef struct mjKeyInfo_ {
   std::string name;
 
-  double      time;
-  bool        qpos;
-  bool        qvel;
-  bool        act;
-  bool        ctrl;
-  bool        mpos;
-  bool        mquat;
+  double time;
+  bool   qpos;
+  bool   qvel;
+  bool   act;
+  bool   ctrl;
+  bool   mpos;
+  bool   mquat;
 } mjKeyInfo;
 
 class mjCModel_ : public mjsElement {
@@ -260,7 +260,7 @@ class mjCModel : public mjCModel_, private mjSpec {
                              const mjCBase* obj = nullptr);
   void            AddGroupedWarning(const std::string& subject,         // add grouped warning
                                     const std::string& body);
-  const std::vector<std::string>& GetWarnings() const {                 // get accumulated warnings
+  const std::vector<std::string>& GetWarnings() const {  // get accumulated warnings
     return warnings_;
   }
   void ClearWarnings() {

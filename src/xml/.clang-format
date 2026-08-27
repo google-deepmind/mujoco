@@ -22,7 +22,7 @@ AllowShortFunctionsOnASingleLine: Inline
 BreakBinaryOperations: RespectPrecedence
 BinPackArguments: false
 BinPackParameters: OnePerLine
-IndentPPDirectives: None
+IndentPPDirectives: BeforeHash
 MaxEmptyLinesToKeep: 2
 SortIncludes: false
 ...

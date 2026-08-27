@@ -37,11 +37,11 @@
 
 // workaround with locale bug on some MacOS machines
 #if defined(__APPLE__) && defined(__MACH__)
-#include <xlocale.h>
-#include <locale.h>
+  #include <xlocale.h>
+  #include <locale.h>
 
-#define strtof(X, Y) strtof_l((X), (Y), _c_locale)
-#define strtod(X, Y) strtod_l((X), (Y), _c_locale)
+  #define strtof(X, Y) strtof_l((X), (Y), _c_locale)
+  #define strtod(X, Y) strtod_l((X), (Y), _c_locale)
 #endif
 
 // check if numeric variable is defined

@@ -15,12 +15,12 @@
 #include "glfw_dispatch.h"
 
 #ifdef mjGLFW_DYNAMIC_SYMBOLS
-#ifdef _MSC_VER
-#include <windows.h>
-#include <libloaderapi.h>
-#else
-#include <dlfcn.h>
-#endif
+  #ifdef _MSC_VER
+    #include <windows.h>
+    #include <libloaderapi.h>
+  #else
+    #include <dlfcn.h>
+  #endif
 #endif
 
 #include <cstdlib>  // IWYU pragma: keep
@@ -49,26 +49,26 @@ const struct Glfw& Glfw(void* dlhandle) {
 
     // load glfw dynamically
 #ifdef mjGLFW_DYNAMIC_SYMBOLS
-#ifdef _MSC_VER
+  #ifdef _MSC_VER
     if (!dlhandle) dlhandle = LoadLibraryA("glfw3.dll");
     if (!dlhandle) {
       std::cerr << "cannot obtain a shared object handle\n";
       abort();
     }
-#define mjGLFW_RESOLVE_SYMBOL(func)                               \
-  glfw.func = reinterpret_cast<decltype(glfw.func)>(              \
-      GetProcAddress(reinterpret_cast<HMODULE>(dlhandle), #func))
-#else
+    #define mjGLFW_RESOLVE_SYMBOL(func)                               \
+      glfw.func = reinterpret_cast<decltype(glfw.func)>(              \
+          GetProcAddress(reinterpret_cast<HMODULE>(dlhandle), #func))
+  #else
     if (!dlhandle) dlhandle = dlopen("nullptr", RTLD_GLOBAL | RTLD_NOW);
     if (!dlhandle) {
       std::cerr << "cannot obtain a shared object handle\n";
       abort();
     }
-#define mjGLFW_RESOLVE_SYMBOL(func)                                         \
-  glfw.func = reinterpret_cast<decltype(glfw.func)>(dlsym(dlhandle, #func))
-#endif
+    #define mjGLFW_RESOLVE_SYMBOL(func)                                         \
+      glfw.func = reinterpret_cast<decltype(glfw.func)>(dlsym(dlhandle, #func))
+  #endif
 #else
-#define mjGLFW_RESOLVE_SYMBOL(func) glfw.func = &::func
+  #define mjGLFW_RESOLVE_SYMBOL(func) glfw.func = &::func
 #endif
 
     // set pointers in dispatch table

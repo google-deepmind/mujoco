@@ -4020,7 +4020,7 @@ void mjCModel::FinalizeSimple(mjModel* m) {
   int count = 0;
   for (int i = nv - 1; i >= 0; i--) {
     if (m->body_simple[m->dof_bodyid[i]]) {
-      count++;    // increment counter
+      count++;  // increment counter
     } else {
       count = 0;  // reset
     }

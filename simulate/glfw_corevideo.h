@@ -16,7 +16,7 @@
 #define MUJOCO_SIMULATE_GLFW_COREVIDEO_H_
 
 #ifndef __APPLE__
-#error "This header only works on macOS."
+  #error "This header only works on macOS."
 #endif
 
 #include <atomic>
@@ -26,7 +26,7 @@
 #include "glfw_dispatch.h"
 
 #ifdef __OBJC__
-#import <CoreVideo/CoreVideo.h>
+  #import <CoreVideo/CoreVideo.h>
 #else
 typedef void* CVDisplayLinkRef;
 #endif

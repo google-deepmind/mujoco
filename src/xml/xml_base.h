@@ -54,22 +54,22 @@ class mjXBase : public mjXUtil {
 // generated from mjcf.schema into mjcf_read_table.inc
 struct mjXAttr {
   enum Kind {
-    kName,                 // element name, set via mjs_setName
-    kString,               // mjString* field, set via mjs_setString
-    kStringVec,            // mjStringVec* field: space-separated names
-    kInt,                  // int field
-    kDouble,               // double field, scalar or vector
-    kNum,                  // mjtNum field, scalar or vector
-    kFloat,                // float field, scalar or vector
-    kEnum,                 // int-sized enum field, keyword mapped through `map`
-    kFlags,                // int field ORing several keywords through `map`
-    kEnumByte,             // mjtByte enum field, keyword mapped through `map`
-    kBool,                 // mjtBool field, keywords true/false
-    kConst,                // int-sized field set to `value`: what the tag implies
-    kDoubleVec,            // mjDoubleVec* field, set via mjs_setDouble
-    kFloatVec,             // mjFloatVec* field, set via mjs_setFloat
-    kIntVec,               // mjIntVec* field, set via mjs_setInt
-    kChars,                // char[len] field: text copied in place, length-checked
+    kName,       // element name, set via mjs_setName
+    kString,     // mjString* field, set via mjs_setString
+    kStringVec,  // mjStringVec* field: space-separated names
+    kInt,        // int field
+    kDouble,     // double field, scalar or vector
+    kNum,        // mjtNum field, scalar or vector
+    kFloat,      // float field, scalar or vector
+    kEnum,       // int-sized enum field, keyword mapped through `map`
+    kFlags,      // int field ORing several keywords through `map`
+    kEnumByte,   // mjtByte enum field, keyword mapped through `map`
+    kBool,       // mjtBool field, keywords true/false
+    kConst,      // int-sized field set to `value`: what the tag implies
+    kDoubleVec,  // mjDoubleVec* field, set via mjs_setDouble
+    kFloatVec,   // mjFloatVec* field, set via mjs_setFloat
+    kIntVec,     // mjIntVec* field, set via mjs_setInt
+    kChars,      // char[len] field: text copied in place, length-checked
   };
   const char*  attr;       // XML attribute name
   Kind         kind;
@@ -84,4 +84,4 @@ struct mjXAttr {
   int          value;      // constant the field takes; kConst only
 };
 
-#endif                     // MUJOCO_SRC_XML_XML_BASE_H_
+#endif  // MUJOCO_SRC_XML_XML_BASE_H_

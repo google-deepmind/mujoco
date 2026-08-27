@@ -18,7 +18,7 @@
 #include <cstring>
 
 #if defined(__APPLE__) || defined(__FreeBSD__)
-#include <xlocale.h>
+  #include <xlocale.h>
 #endif
 
 #include <array>

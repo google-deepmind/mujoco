@@ -23,7 +23,7 @@
 #include "glfw_dispatch.h"
 
 #ifdef __APPLE__
-#include "glfw_corevideo.h"
+  #include "glfw_corevideo.h"
 #endif
 
 namespace mujoco {

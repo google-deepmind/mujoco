@@ -22,8 +22,8 @@
 #include "platform_ui_adapter.h"
 
 #ifdef __APPLE__
-#include <optional>
-#include "glfw_corevideo.h"
+  #include <optional>
+  #include "glfw_corevideo.h"
 #endif
 
 namespace mujoco {

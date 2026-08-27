@@ -34,13 +34,13 @@
 
 extern "C" {
 #if defined(_WIN32) || defined(__CYGWIN__)
-#include <windows.h>
+  #include <windows.h>
 #else
-#if defined(__APPLE__)
-#include <mach-o/dyld.h>
-#endif
-#include <errno.h>
-#include <unistd.h>
+  #if defined(__APPLE__)
+    #include <mach-o/dyld.h>
+  #endif
+  #include <errno.h>
+  #include <unistd.h>
 #endif
 }
 
@@ -93,7 +93,7 @@ std::string getExecutableDir() {
   }();
 #else
   constexpr char kPathSep = '/';
-#if defined(__APPLE__)
+  #if defined(__APPLE__)
   std::unique_ptr<char[]> buf(nullptr);
   {
     std::uint32_t buf_size = 0;
@@ -108,9 +108,9 @@ std::string getExecutableDir() {
     }
   }
   const char* path = buf.get();
-#else
+  #else
   const char* path = "/proc/self/exe";
-#endif
+  #endif
   std::string realpath = [&]() -> std::string {
     std::unique_ptr<char[]> realpath(nullptr);
     std::uint32_t           buf_size = 128;

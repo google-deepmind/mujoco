@@ -24,17 +24,17 @@
 #include <vector>
 
 #if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-function"
+  #pragma clang diagnostic push
+  #pragma clang diagnostic ignored "-Wunused-function"
 #elif defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-function"
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 #include <miniz.h>
 #if defined(__clang__)
-#pragma clang diagnostic pop
+  #pragma clang diagnostic pop
 #elif defined(__GNUC__)
-#pragma GCC diagnostic pop
+  #pragma GCC diagnostic pop
 #endif
 
 #include <mujoco/mjspec.h>

@@ -16,7 +16,7 @@
 
 #include <sys/stat.h>
 #if defined(_WIN32) && !defined(__MINGW32__)
-#define stat _stat
+  #define stat _stat
 #endif
 
 #include <algorithm>

@@ -1233,16 +1233,16 @@ class mjCMesh : public mjCMesh_, private mjsMesh {
   void    FitGeom(mjCGeom* geom, double center[3]);  // approximate mesh with simple geom
   bool    HasTexcoord() const;                       // texcoord not null
   void    DelTexcoord();                             // delete texcoord
-  bool    IsVisual(void) const { return visual_; }   // is geom visual
-  void    SetNotVisual(void) { visual_ = false; }    // mark mesh as not visual
+  bool    IsVisual(void) const { return visual_; }  // is geom visual
+  void    SetNotVisual(void) { visual_ = false; }  // mark mesh as not visual
 
-  void CopyVert(float* arr) const;                   // copy vert data into array
-  void CopyNormal(float* arr) const;                 // copy normal data into array
-  void CopyFace(int* arr) const;                     // copy face data into array
-  void CopyFaceNormal(int* arr) const;               // copy face normal data into array
-  void CopyFaceTexcoord(int* arr) const;             // copy face texcoord data into array
-  void CopyTexcoord(float* arr) const;               // copy texcoord data into array
-  void CopyGraph(int* arr) const;                    // copy graph data into array
+  void CopyVert(float* arr) const;                 // copy vert data into array
+  void CopyNormal(float* arr) const;               // copy normal data into array
+  void CopyFace(int* arr) const;                   // copy face data into array
+  void CopyFaceNormal(int* arr) const;             // copy face normal data into array
+  void CopyFaceTexcoord(int* arr) const;           // copy face texcoord data into array
+  void CopyTexcoord(float* arr) const;             // copy texcoord data into array
+  void CopyGraph(int* arr) const;                  // copy graph data into array
 
   // copy polygon data into array
   void CopyPolygons(int* verts, int* adr, int* num, int poly_adr) const;
