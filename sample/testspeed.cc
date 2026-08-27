@@ -34,22 +34,23 @@ const int maxthread = 512;
 
 // rollout runner state
 struct RolloutRunner {
-  mjModel* m = nullptr;
-  mjData* d[maxthread] = {nullptr};
+  mjModel* m            = nullptr;
+  mjData*  d[maxthread] = {nullptr};
 
   // per-thread statistics
-  int contacts[maxthread] = {0};
-  int constraints[maxthread] = {0};
-  mjtNum iterations[maxthread] = {0.0};
-  mjtNum simtime[maxthread] = {0.0};
+  int    contacts[maxthread]    = {0};
+  int    constraints[maxthread] = {0};
+  mjtNum iterations[maxthread]  = {0.0};
+  mjtNum simtime[maxthread]     = {0.0};
 };
 
 static RolloutRunner runner;
 
 // timer (microseconds)
 mjtNum gettm(void) {
-  using Clock = std::chrono::steady_clock;
+  using Clock        = std::chrono::steady_clock;
   using Microseconds = std::chrono::duration<mjtNum, std::micro>;
+
   static const Clock::time_point tm_start = Clock::now();
   return Microseconds(Clock::now() - tm_start).count();
 }
@@ -57,41 +58,35 @@ mjtNum gettm(void) {
 // deallocate and print message
 int finish(const char* msg = NULL, mjModel* m = NULL) {
   // deallocate model
-  if (m) {
-    mj_deleteModel(m);
-  }
+  if (m) { mj_deleteModel(m); }
 
   // print message
-  if (msg) {
-    std::printf("%s\n", msg);
-  }
+  if (msg) { std::printf("%s\n", msg); }
 
   return EXIT_SUCCESS;
 }
 
-std::vector<mjtNum> CtrlNoise(const mjModel* m, int nsteps, mjtNum noise_std, mjtNum noise_rate,
-                              int key) {
+std::vector<mjtNum> CtrlNoise(
+    const mjModel* m, int nsteps, mjtNum noise_std, mjtNum noise_rate, int key) {
   std::vector<mjtNum> ctrl;
   ctrl.reserve(nsteps * m->nu);
 
   // convert rate and scale to discrete time (Ornstein–Uhlenbeck)
-  mjtNum rate = mju_exp(-m->opt.timestep / noise_rate);
+  mjtNum rate  = mju_exp(-m->opt.timestep / noise_rate);
   mjtNum scale = noise_std * mju_sqrt(1 - rate * rate);
 
   for (int step = 0; step < nsteps; step++) {
     for (int i = 0; i < m->nu; i++) {
-      mjtNum midpoint = 0.0;
-      mjtNum halfrange = 1.0;
-      mjtNum* range = m->actuator_ctrlrange + 2 * i;
+      mjtNum  midpoint  = 0.0;
+      mjtNum  halfrange = 1.0;
+      mjtNum* range     = m->actuator_ctrlrange + 2 * i;
       if (m->actuator_ctrllimited[i]) {
-        midpoint = 0.5 * (range[1] + range[0]);
+        midpoint  = 0.5 * (range[1] + range[0]);
         halfrange = 0.5 * (range[1] - range[0]);
       }
 
       // overwrite midpoint with keyframe, if given
-      if (key >= 0) {
-        midpoint = m->key_ctrl[key * m->nu + i];
-      }
+      if (key >= 0) { midpoint = m->key_ctrl[key * m->nu + i]; }
 
       // exponential convergence to midpoint at ctrl_noise_rate
       mjtNum ctrl_ =
@@ -101,9 +96,7 @@ std::vector<mjtNum> CtrlNoise(const mjModel* m, int nsteps, mjtNum noise_std, mj
       ctrl_ += scale * halfrange * (2 * mju_Halton(step, i + 2) - 1);
 
       // clip to range if limited
-      if (m->actuator_ctrllimited[i]) {
-        ctrl_ = mju_clip(ctrl_, range[0], range[1]);
-      }
+      if (m->actuator_ctrllimited[i]) { ctrl_ = mju_clip(ctrl_, range[0], range[1]); }
 
       ctrl.push_back(ctrl_);
     }
@@ -114,9 +107,9 @@ std::vector<mjtNum> CtrlNoise(const mjModel* m, int nsteps, mjtNum noise_std, mj
 // thread function
 void simulate(int id, int nstep, mjtNum* ctrl) {
   // clear statistics
-  runner.contacts[id] = 0;
+  runner.contacts[id]    = 0;
   runner.constraints[id] = 0;
-  runner.iterations[id] = 0;
+  runner.iterations[id]  = 0;
 
   // run and time
   mjtNum start = gettm();
@@ -128,16 +121,14 @@ void simulate(int id, int nstep, mjtNum* ctrl) {
     mj_step(runner.m, runner.d[id]);
 
     // accumulate statistics
-    runner.contacts[id] += runner.d[id]->ncon;
+    runner.contacts[id]    += runner.d[id]->ncon;
     runner.constraints[id] += runner.d[id]->nefc;
-    int nisland = mjMAX(1, mjMIN(runner.d[id]->nisland, mjNISLAND));
+    int nisland             = mjMAX(1, mjMIN(runner.d[id]->nisland, mjNISLAND));
     if (nisland == 1 || nisland == 0) {
       runner.iterations[id] += runner.d[id]->solver_niter[0];
     } else {
       mjtNum niter = 0;
-      for (int j = 0; j < nisland; j++) {
-        niter += runner.d[id]->solver_niter[j];
-      }
+      for (int j = 0; j < nisland; j++) { niter += runner.d[id]->solver_niter[j]; }
       runner.iterations[id] += niter / nisland;
     }
   }
@@ -150,79 +141,78 @@ static void PrintOptions(const mjModel* m) {
   mj_defaultOption(&optd);
 
   bool header_printed = false;
-  auto print_header = [&]() {
+  auto print_header   = [&]() {
     if (!header_printed) {
       std::printf("\nPhysics options (non-default):\n");
       header_printed = true;
     }
   };
 
-#define X(type, name, size)                                                                \
-  if (std::strcmp(#name, "disableflags") != 0 && std::strcmp(#name, "enableflags") != 0 && \
-      std::strcmp(#name, "disableactuator") != 0) {                                        \
-    if (m->opt.name != optd.name) {                                                        \
-      print_header();                                                                      \
-      std::printf("  %-18s: ", #name);                                                     \
-      if (std::strcmp(#name, "integrator") == 0) {                                         \
-        const char* names[] = {"Euler", "RK4", "Implicit", "ImplicitFast"};                \
-        int val = (int)m->opt.name;                                                        \
-        if (val >= 0 && val < 4) {                                                         \
-          std::printf("%s", names[val]);                                                   \
-        } else {                                                                           \
-          std::printf("%d", val);                                                          \
-        }                                                                                  \
-      } else if (std::strcmp(#name, "cone") == 0) {                                        \
-        const char* names[] = {"Pyramidal", "Elliptic"};                                   \
-        int val = (int)m->opt.name;                                                        \
-        if (val >= 0 && val < 2) {                                                         \
-          std::printf("%s", names[val]);                                                   \
-        } else {                                                                           \
-          std::printf("%d", val);                                                          \
-        }                                                                                  \
-      } else if (std::strcmp(#name, "jacobian") == 0) {                                    \
-        const char* names[] = {"Dense", "Sparse", "Auto"};                                 \
-        int val = (int)m->opt.name;                                                        \
-        if (val >= 0 && val < 3) {                                                         \
-          std::printf("%s", names[val]);                                                   \
-        } else {                                                                           \
-          std::printf("%d", val);                                                          \
-        }                                                                                  \
-      } else if (std::strcmp(#name, "solver") == 0) {                                      \
-        const char* names[] = {"PGS", "CG", "Newton"};                                     \
-        int val = (int)m->opt.name;                                                        \
-        if (val >= 0 && val < 3) {                                                         \
-          std::printf("%s", names[val]);                                                   \
-        } else {                                                                           \
-          std::printf("%d", val);                                                          \
-        }                                                                                  \
-      } else {                                                                             \
-        if (std::strcmp(#type, "int") == 0) {                                              \
-          std::printf("%d", (int)m->opt.name);                                             \
-        } else {                                                                           \
-          std::printf("%g", (double)m->opt.name);                                          \
-        }                                                                                  \
-      }                                                                                    \
-      std::printf("\n");                                                                   \
-    }                                                                                      \
+#define X(type, name, size)                                                 \
+  if (std::strcmp(#name, "disableflags") != 0 &&                            \
+      std::strcmp(#name, "enableflags") != 0 &&                             \
+      std::strcmp(#name, "disableactuator") != 0) {                         \
+    if (m->opt.name != optd.name) {                                         \
+      print_header();                                                       \
+      std::printf("  %-18s: ", #name);                                      \
+      if (std::strcmp(#name, "integrator") == 0) {                          \
+        const char* names[] = {"Euler", "RK4", "Implicit", "ImplicitFast"}; \
+        int         val     = (int)m->opt.name;                             \
+        if (val >= 0 && val < 4) {                                          \
+          std::printf("%s", names[val]);                                    \
+        } else {                                                            \
+          std::printf("%d", val);                                           \
+        }                                                                   \
+      } else if (std::strcmp(#name, "cone") == 0) {                         \
+        const char* names[] = {"Pyramidal", "Elliptic"};                    \
+        int         val     = (int)m->opt.name;                             \
+        if (val >= 0 && val < 2) {                                          \
+          std::printf("%s", names[val]);                                    \
+        } else {                                                            \
+          std::printf("%d", val);                                           \
+        }                                                                   \
+      } else if (std::strcmp(#name, "jacobian") == 0) {                     \
+        const char* names[] = {"Dense", "Sparse", "Auto"};                  \
+        int         val     = (int)m->opt.name;                             \
+        if (val >= 0 && val < 3) {                                          \
+          std::printf("%s", names[val]);                                    \
+        } else {                                                            \
+          std::printf("%d", val);                                           \
+        }                                                                   \
+      } else if (std::strcmp(#name, "solver") == 0) {                       \
+        const char* names[] = {"PGS", "CG", "Newton"};                      \
+        int         val     = (int)m->opt.name;                             \
+        if (val >= 0 && val < 3) {                                          \
+          std::printf("%s", names[val]);                                    \
+        } else {                                                            \
+          std::printf("%d", val);                                           \
+        }                                                                   \
+      } else {                                                              \
+        if (std::strcmp(#type, "int") == 0) {                               \
+          std::printf("%d", (int)m->opt.name);                              \
+        } else {                                                            \
+          std::printf("%g", (double)m->opt.name);                           \
+        }                                                                   \
+      }                                                                     \
+      std::printf("\n");                                                    \
+    }                                                                       \
   }
 
-#define XVEC(type, name, size)                      \
-  {                                                 \
-    bool diff = false;                              \
-    for (int i = 0; i < size; ++i) {                \
-      if (m->opt.name[i] != optd.name[i]) {         \
-        diff = true;                                \
-        break;                                      \
-      }                                             \
-    }                                               \
-    if (diff) {                                     \
-      print_header();                               \
-      std::printf("  %-18s:", #name);               \
-      for (int i = 0; i < size; ++i) {              \
-        std::printf(" %g", (double)m->opt.name[i]); \
-      }                                             \
-      std::printf("\n");                            \
-    }                                               \
+#define XVEC(type, name, size)                                                       \
+  {                                                                                  \
+    bool diff = false;                                                               \
+    for (int i = 0; i < size; ++i) {                                                 \
+      if (m->opt.name[i] != optd.name[i]) {                                          \
+        diff = true;                                                                 \
+        break;                                                                       \
+      }                                                                              \
+    }                                                                                \
+    if (diff) {                                                                      \
+      print_header();                                                                \
+      std::printf("  %-18s:", #name);                                                \
+      for (int i = 0; i < size; ++i) { std::printf(" %g", (double)m->opt.name[i]); } \
+      std::printf("\n");                                                             \
+    }                                                                                \
   }
 
   // option fields
@@ -235,7 +225,7 @@ static void PrintOptions(const mjModel* m) {
   // disableflags
   for (int i = 0; i < mjNDISABLE; ++i) {
     bool current = (m->opt.disableflags & (1 << i)) != 0;
-    bool def = (optd.disableflags & (1 << i)) != 0;
+    bool def     = (optd.disableflags & (1 << i)) != 0;
     if (current != def) {
       print_header();
       std::printf("  %-18s: %s\n", mjDISABLESTRING[i], current ? "Disabled" : "Enabled");
@@ -245,7 +235,7 @@ static void PrintOptions(const mjModel* m) {
   // enableflags
   for (int i = 0; i < mjNENABLE; ++i) {
     bool current = (m->opt.enableflags & (1 << i)) != 0;
-    bool def = (optd.enableflags & (1 << i)) != 0;
+    bool def     = (optd.enableflags & (1 << i)) != 0;
     if (current != def) {
       print_header();
       std::printf("  %-18s: %s\n", mjENABLESTRING[i], current ? "Enabled" : "Disabled");
@@ -264,9 +254,7 @@ static void PrintOptions(const mjModel* m) {
         first = false;
       }
     }
-    if (first) {
-      std::printf(" none");
-    }
+    if (first) { std::printf(" none"); }
     std::printf("\n");
   }
 }
@@ -276,9 +264,7 @@ static void PrintOptions(const mjModel* m) {
 static int ParseEnum(std::string_view val, const std::vector<std::string>& names) {
   int int_val;
   auto [ptr, ec] = std::from_chars(val.data(), val.data() + val.size(), int_val);
-  if (ec == std::errc()) {
-    return int_val;
-  }
+  if (ec == std::errc()) { return int_val; }
   for (size_t i = 0; i < names.size(); ++i) {
     if (val.size() == names[i].size() &&
         std::equal(val.begin(), val.end(), names[i].begin(), [](unsigned char a, unsigned char b) {
@@ -319,15 +305,15 @@ int main(int argc, char** argv) {
   // default values
   int nstep = 10000, nthread = 0, nenginethread = 0;
   // inject small noise by default, to avoid fixed contact state
-  double noisestd = 0.01;
+  double noisestd  = 0.01;
   double noiserate = 0.1;
 
   // option override settings
-  bool set_solver = false, set_cone = false, set_jacobian = false, set_integrator = false;
-  bool set_iterations = false, set_tolerance = false, set_sleep_tolerance = false;
-  bool set_noslip_iterations = false;
-  int opt_solver = -1, opt_cone = -1, opt_jacobian = -1, opt_integrator = -1;
-  int opt_iterations = -1, opt_noslip_iterations = -1;
+  bool   set_solver = false, set_cone = false, set_jacobian = false, set_integrator = false;
+  bool   set_iterations = false, set_tolerance = false, set_sleep_tolerance = false;
+  bool   set_noslip_iterations = false;
+  int    opt_solver = -1, opt_cone = -1, opt_jacobian = -1, opt_integrator = -1;
+  int    opt_iterations = -1, opt_noslip_iterations = -1;
   double opt_tolerance = -1.0, opt_sleep_tolerance = -1.0;
 
   const char* model = nullptr;
@@ -339,9 +325,7 @@ int main(int argc, char** argv) {
         return argv[i] + prefix.size();
       }
       if (std::strcmp(argv[i], (std::string("--") + key).c_str()) == 0) {
-        if (i + 1 < argc) {
-          return argv[++i];
-        }
+        if (i + 1 < argc) { return argv[++i]; }
       }
       return nullptr;
     };
@@ -356,13 +340,9 @@ int main(int argc, char** argv) {
         return finish("Invalid --nstep argument");
       }
     } else if ((val = getarg("nthread"))) {
-      if (std::sscanf(val, "%d", &nthread) != 1) {
-        return finish("Invalid --nthread argument");
-      }
+      if (std::sscanf(val, "%d", &nthread) != 1) { return finish("Invalid --nthread argument"); }
     } else if ((val = getarg("noisestd"))) {
-      if (std::sscanf(val, "%lf", &noisestd) != 1) {
-        return finish("Invalid --noisestd argument");
-      }
+      if (std::sscanf(val, "%lf", &noisestd) != 1) { return finish("Invalid --noisestd argument"); }
     } else if ((val = getarg("noiserate"))) {
       if (std::sscanf(val, "%lf", &noiserate) != 1) {
         return finish("Invalid --noiserate argument");
@@ -373,30 +353,22 @@ int main(int argc, char** argv) {
       }
     } else if ((val = getarg("solver"))) {
       int parsed = ParseEnum(val, {"PGS", "CG", "Newton"});
-      if (parsed < 0 || parsed > 2) {
-        return finish("Invalid --solver argument");
-      }
+      if (parsed < 0 || parsed > 2) { return finish("Invalid --solver argument"); }
       opt_solver = parsed;
       set_solver = true;
     } else if ((val = getarg("cone"))) {
       int parsed = ParseEnum(val, {"Pyramidal", "Elliptic"});
-      if (parsed < 0 || parsed > 1) {
-        return finish("Invalid --cone argument");
-      }
+      if (parsed < 0 || parsed > 1) { return finish("Invalid --cone argument"); }
       opt_cone = parsed;
       set_cone = true;
     } else if ((val = getarg("jacobian"))) {
       int parsed = ParseEnum(val, {"Dense", "Sparse", "Auto"});
-      if (parsed < 0 || parsed > 2) {
-        return finish("Invalid --jacobian argument");
-      }
+      if (parsed < 0 || parsed > 2) { return finish("Invalid --jacobian argument"); }
       opt_jacobian = parsed;
       set_jacobian = true;
     } else if ((val = getarg("integrator"))) {
       int parsed = ParseEnum(val, {"Euler", "RK4", "Implicit", "ImplicitFast"});
-      if (parsed < 0 || parsed > 3) {
-        return finish("Invalid --integrator argument");
-      }
+      if (parsed < 0 || parsed > 3) { return finish("Invalid --integrator argument"); }
       opt_integrator = parsed;
       set_integrator = true;
     } else if ((val = getarg("iterations"))) {
@@ -429,9 +401,7 @@ int main(int argc, char** argv) {
   }
 
   // model file is required
-  if (!model) {
-    return finish(help_msg);
-  }
+  if (!model) { return finish(help_msg); }
 
   // clamp noisestd to [0.0, 1.0]
   noisestd = mju_clip(noisestd, 0.0, 1.0);
@@ -440,12 +410,12 @@ int main(int argc, char** argv) {
   noiserate = mju_clip(noiserate, 0.0, 1.0);
 
   // clamp nthread to [1, maxthread]
-  nthread = mjMAX(1, mjMIN(maxthread, nthread));
+  nthread       = mjMAX(1, mjMIN(maxthread, nthread));
   nenginethread = mjMAX(1, mjMIN(maxthread, nenginethread));
 
   // get filename, determine file type
   std::string filename(model);
-  bool binary = (filename.find(".mjb") != std::string::npos);  // NOLINT
+  bool        binary = (filename.find(".mjb") != std::string::npos);  // NOLINT
 
   // load model
   char error[1000] = "Could not load binary model";
@@ -454,9 +424,7 @@ int main(int argc, char** argv) {
   } else {
     runner.m = mj_loadXML(model, 0, error, 1000);
   }
-  if (!runner.m) {
-    return finish(error);
-  }
+  if (!runner.m) { return finish(error); }
 
   // apply command-line option overrides
   if (set_solver) runner.m->opt.solver = opt_solver;
@@ -473,19 +441,13 @@ int main(int argc, char** argv) {
   for (int id = 0; id < nthread; id++) {
     // make mjData(s)
     runner.d[id] = mj_makeData(runner.m);
-    if (!runner.d[id]) {
-      return finish("Could not allocate mjData", runner.m);
-    }
+    if (!runner.d[id]) { return finish("Could not allocate mjData", runner.m); }
 
     // reset to keyframe
-    if (testkey >= 0) {
-      mj_resetDataKeyframe(runner.m, runner.d[id], testkey);
-    }
+    if (testkey >= 0) { mj_resetDataKeyframe(runner.m, runner.d[id], testkey); }
 
     // make and bind threadpool
-    if (nenginethread > 1) {
-      mju_threadpool(runner.d[id], nenginethread);
-    }
+    if (nenginethread > 1) { mju_threadpool(runner.d[id], nenginethread); }
   }
 
   // install timer callback for profiling
@@ -495,7 +457,9 @@ int main(int argc, char** argv) {
   PrintOptions(runner.m);
 
   // print start
-  std::printf("\nRolling out %d steps%s at dt = %g", nstep, nthread > 1 ? " per thread" : "",
+  std::printf("\nRolling out %d steps%s at dt = %g",
+              nstep,
+              nthread > 1 ? " per thread" : "",
               runner.m->opt.timestep);
 
   // print precision
@@ -506,9 +470,7 @@ int main(int argc, char** argv) {
   }
 
   // print thread pool size
-  if (nenginethread > 1) {
-    std::printf(", using %d threads", nenginethread);
-  }
+  if (nenginethread > 1) { std::printf(", using %d threads", nenginethread); }
   std::printf("...\n");
 
   // create pseudo-random control sequence
@@ -516,13 +478,9 @@ int main(int argc, char** argv) {
 
   // run simulation, record total time
   std::thread th[maxthread];
-  double starttime = gettm();
-  for (int id = 0; id < nthread; id++) {
-    th[id] = std::thread(simulate, id, nstep, ctrl.data());
-  }
-  for (int id = 0; id < nthread; id++) {
-    th[id].join();
-  }
+  double      starttime = gettm();
+  for (int id = 0; id < nthread; id++) { th[id] = std::thread(simulate, id, nstep, ctrl.data()); }
+  for (int id = 0; id < nthread; id++) { th[id].join(); }
   double tottime = 1e-6 * (gettm() - starttime);  // total time, in seconds
 
   // all-thread summary
@@ -533,7 +491,8 @@ int main(int argc, char** argv) {
     std::printf(" Total steps per second : %.0f\n", nthread * nstep / tottime);
     std::printf(" Total realtime factor  : %.2f x\n",
                 nthread * nstep * runner.m->opt.timestep / tottime);
-    std::printf(" Total time per step    : %.1f %ss\n\n", 1e6 * tottime / (nthread * nstep),
+    std::printf(" Total time per step    : %.1f %ss\n\n",
+                1e6 * tottime / (nthread * nstep),
                 mu_str);
 
     std::printf("Details for thread 0\n\n");
@@ -541,7 +500,7 @@ int main(int argc, char** argv) {
 
   // solver names indexed by mjtSolver
   const char* solver_names[] = {"PGS", "CG", "Newton"};
-  const char* solto6[] = {"   ", "    ", ""};  // complete to 6 characters
+  const char* solto6[]       = {"   ", "    ", ""};  // complete to 6 characters
 
   // details for thread 0
   std::printf(" Simulation time      : %.2f s\n", runner.simtime[0]);
@@ -549,8 +508,10 @@ int main(int argc, char** argv) {
   std::printf(" Realtime factor      : %.2f x\n",
               nstep * runner.m->opt.timestep / runner.simtime[0]);
   std::printf(" Time per step        : %.1f %ss\n\n", 1e6 * runner.simtime[0] / nstep, mu_str);
-  std::printf(" %s iters / step  %s: %.2f\n", solver_names[runner.m->opt.solver],
-              solto6[runner.m->opt.solver], runner.iterations[0] / nstep);
+  std::printf(" %s iters / step  %s: %.2f\n",
+              solver_names[runner.m->opt.solver],
+              solto6[runner.m->opt.solver],
+              runner.iterations[0] / nstep);
   std::printf(" Contacts / step      : %.2f\n", static_cast<float>(runner.contacts[0]) / nstep);
   std::printf(" Constraints / step   : %.2f\n", static_cast<float>(runner.constraints[0]) / nstep);
   std::printf(" Degrees of freedom   : %" PRId64 "\n", runner.m->nv);
@@ -560,21 +521,19 @@ int main(int argc, char** argv) {
 
   // profiler, top-level
   printf(" Internal profiler%s, %ss per step\n", nthread > 1 ? " for thread 0" : "", mu_str);
-  int number = runner.d[0]->timer[mjTIMER_STEP].number;
-  mjtNum tstep = number ? runner.d[0]->timer[mjTIMER_STEP].duration / number : 0.0;
+  int    number     = runner.d[0]->timer[mjTIMER_STEP].number;
+  mjtNum tstep      = number ? runner.d[0]->timer[mjTIMER_STEP].duration / number : 0.0;
   mjtNum components = 0, total = 0;
   for (int i = 0; i <= mjTIMER_ADVANCE; i++) {
     if (runner.d[0]->timer[i].number > 0) {
-      int number = runner.d[0]->timer[i].number;
-      mjtNum istep = number ? runner.d[0]->timer[i].duration / number : 0.0;
+      int    number  = runner.d[0]->timer[i].number;
+      mjtNum istep   = number ? runner.d[0]->timer[i].duration / number : 0.0;
       mjtNum percent = number ? 100 * istep / tstep : 0.0;
       std::printf(" %17s : %6.1f  (%6.2f %%)\n", mjTIMERSTRING[i], istep, percent);
 
       // save step time, add up timing of components
       if (i == 0) total = istep;
-      if (i >= mjTIMER_POSITION) {
-        components += istep;
-      }
+      if (i >= mjTIMER_POSITION) { components += istep; }
     }
   }
 
@@ -587,14 +546,20 @@ int main(int argc, char** argv) {
   std::printf("\n");
 
   // mjTIMER_POSITION and its components
-  for (int i : {mjTIMER_POSITION, mjTIMER_POS_KINEMATICS, mjTIMER_POS_INERTIA,
-                mjTIMER_POS_COLLISION, mjTIMER_POS_MAKE, mjTIMER_POS_PROJECT}) {
+  for (int i : {mjTIMER_POSITION,
+                mjTIMER_POS_KINEMATICS,
+                mjTIMER_POS_INERTIA,
+                mjTIMER_POS_COLLISION,
+                mjTIMER_POS_MAKE,
+                mjTIMER_POS_PROJECT}) {
     if (runner.d[0]->timer[i].number > 0) {
       mjtNum istep = runner.d[0]->timer[i].duration / runner.d[0]->timer[i].number;
       if (i == mjTIMER_POSITION) {
         std::printf("   position total  : %6.1f  (%6.2f %%)\n", istep, 100 * istep / tstep);
       } else {
-        std::printf("     %-10s    : %6.1f  (%6.2f %%)\n", mjTIMERSTRING[i] + 4, istep,
+        std::printf("     %-10s    : %6.1f  (%6.2f %%)\n",
+                    mjTIMERSTRING[i] + 4,
+                    istep,
                     100 * istep / tstep);
       }
     }
@@ -602,8 +567,8 @@ int main(int argc, char** argv) {
     // components of mjTIMER_POS_COLLISION
     if (i == mjTIMER_POS_COLLISION) {
       for (int j : {mjTIMER_COL_BROAD, mjTIMER_COL_NARROW}) {
-        int number = runner.d[0]->timer[j].number;
-        mjtNum jstep = number ? runner.d[0]->timer[j].duration / number : 0.0;
+        int    number  = runner.d[0]->timer[j].number;
+        mjtNum jstep   = number ? runner.d[0]->timer[j].duration / number : 0.0;
         mjtNum percent = number ? 100 * jstep / tstep : 0.0;
         std::printf("       %-11s : %6.1f  (%6.2f %%)\n", mjTIMERSTRING[j] + 4, jstep, percent);
       }
@@ -611,9 +576,7 @@ int main(int argc, char** argv) {
   }
 
   // free per-thread data
-  for (int id = 0; id < nthread; id++) {
-    mj_deleteData(runner.d[id]);
-  }
+  for (int id = 0; id < nthread; id++) { mj_deleteData(runner.d[id]); }
 
   // finalize
   return finish();

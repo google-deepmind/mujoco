@@ -97,21 +97,21 @@ struct Options {
   string model_path;
   string output_path;
   string backend = "filament";
-  int width = 640;
-  int height = 480;
+  int    width   = 640;
+  int    height  = 480;
   string camera;
   string key;
   string geomgroup;
   string sitegroup;
-  int steps = 0;
-  int label = -1;
-  int frame = -1;
+  int    steps = 0;
+  int    label = -1;
+  int    frame = -1;
 
   // free camera controls
   optional<std::array<mjtNum, 3>> lookat;
-  optional<mjtNum> distance;
-  optional<mjtNum> azimuth;
-  optional<mjtNum> elevation;
+  optional<mjtNum>                distance;
+  optional<mjtNum>                azimuth;
+  optional<mjtNum>                elevation;
 
   // visual and rendering flags (-1 = default)
   int vis_flags[mjNVISFLAG];
@@ -155,7 +155,7 @@ static bool ParseBool(string_view val, int* out) {
 
 // helper: parse integer value
 static bool ParseInt(string_view val, int* out, int min_val = 1, int max_val = 100000) {
-  int v = 0;
+  int v          = 0;
   auto [ptr, ec] = std::from_chars(val.data(), val.data() + val.size(), v);
   if (ec != std::errc() || ptr != val.data() + val.size() || v < min_val || v > max_val) {
     return false;
@@ -166,22 +166,21 @@ static bool ParseInt(string_view val, int* out, int min_val = 1, int max_val = 1
 
 
 // helper: parse mjtNum value
-static bool ParseNum(string_view val, mjtNum* out,
-                     mjtNum min_val = -1e9, mjtNum max_val = 1e9) {
-  char* end = nullptr;
+static bool ParseNum(string_view val, mjtNum* out, mjtNum min_val = -1e9, mjtNum max_val = 1e9) {
+  char*  end = nullptr;
   string str(val);
   double v = std::strtod(str.c_str(), &end);
-  if (end == str.c_str() || *end != '\0' || v < min_val || v > max_val) {
-    return false;
-  }
+  if (end == str.c_str() || *end != '\0' || v < min_val || v > max_val) { return false; }
   *out = static_cast<mjtNum>(v);
   return true;
 }
 
 
 // helper: parse mjtNum value into optional
-static bool ParseNum(string_view val, optional<mjtNum>& out,
-                     mjtNum min_val = -1e9, mjtNum max_val = 1e9) {
+static bool ParseNum(string_view       val,
+                     optional<mjtNum>& out,
+                     mjtNum            min_val = -1e9,
+                     mjtNum            max_val = 1e9) {
   mjtNum v = 0;
   if (ParseNum(val, &v, min_val, max_val)) {
     out = v;
@@ -206,17 +205,15 @@ static bool ParseVec3(string_view val, optional<std::array<mjtNum, 3>>& out) {
 // helper: parse visualization and rendering flags
 static bool ParseVisOrRndFlag(string_view name, string_view val, Options& opt) {
   int bool_val = 0;
-  if (!ParseBool(val, &bool_val)) {
-    return false;
-  }
+  if (!ParseBool(val, &bool_val)) { return false; }
   string norm = NormalizeName(name);
-  for (int j=0; j<mjNVISFLAG; j++) {
+  for (int j = 0; j < mjNVISFLAG; j++) {
     if (norm == NormalizeName(mjVISSTRING[j][0])) {
       opt.vis_flags[j] = bool_val;
       return true;
     }
   }
-  for (int j=0; j<mjNRNDFLAG; j++) {
+  for (int j = 0; j < mjNRNDFLAG; j++) {
     if (norm == NormalizeName(mjRNDSTRING[j][0])) {
       opt.rnd_flags[j] = bool_val;
       return true;
@@ -234,7 +231,7 @@ static bool ParseLabel(string_view val, int* out) {
     return true;
   }
   string norm = NormalizeName(val);
-  for (int i=0; i<mjNLABEL; i++) {
+  for (int i = 0; i < mjNLABEL; i++) {
     if (norm == NormalizeName(mjLABELSTRING[i])) {
       *out = i;
       return true;
@@ -252,7 +249,7 @@ static bool ParseFrame(string_view val, int* out) {
     return true;
   }
   string norm = NormalizeName(val);
-  for (int i=0; i<mjNFRAME; i++) {
+  for (int i = 0; i < mjNFRAME; i++) {
     if (norm == NormalizeName(mjFRAMESTRING[i])) {
       *out = i;
       return true;
@@ -264,6 +261,7 @@ static bool ParseFrame(string_view val, int* out) {
 
 // helper: parse known flags
 static bool ParseFlag(string_view name, string_view val, Options& opt) {
+  // clang-format off
   if (name == "backend")   { opt.backend = val; return true; }
   if (name == "width")     { return ParseInt(val, &opt.width, 1); }
   if (name == "height")    { return ParseInt(val, &opt.height, 1); }
@@ -278,6 +276,7 @@ static bool ParseFlag(string_view name, string_view val, Options& opt) {
   if (name == "sitegroup") { opt.sitegroup = val; return true; }
   if (name == "label")     { return ParseLabel(val, &opt.label); }
   if (name == "frame")     { return ParseFrame(val, &opt.frame); }
+  // clang-format on
   return ParseVisOrRndFlag(name, val, opt);
 }
 
@@ -291,10 +290,10 @@ static bool ParseCommandLine(int& argc, char** argv, Options& opt) {
       arg.remove_prefix(2);
       string_view name;
       string_view val;
-      size_t eq = arg.find('=');
+      size_t      eq = arg.find('=');
       if (eq != string_view::npos) {
         name = arg.substr(0, eq);
-        val = arg.substr(eq + 1);
+        val  = arg.substr(eq + 1);
       } else {
         name = arg;
         if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -333,59 +332,56 @@ static string DefaultOutputFilename(string_view model_path) {
 
 struct LabelItem {
   string text;
-  int x;
-  int y;
+  int    x;
+  int    y;
 };
 
 // draw bitmap text into RGB pixel buffer (row 0 is top)
-static void DrawBitmapText(vector<unsigned char>& rgb, int width, int height,
+static void DrawBitmapText(vector<unsigned char>&   rgb,
+                           int                      width,
+                           int                      height,
                            const vector<LabelItem>& labels) {
   for (const auto& item : labels) {
     int cur_x = item.x;
     int cur_y = item.y;
     for (unsigned char ch : item.text) {
-      if (ch < 32 || ch > 126) {
-        continue;
-      }
+      if (ch < 32 || ch > 126) { continue; }
 
       int adr = 0;
       for (unsigned char c = 32; c < ch; c++) {
-        int w = font_normal150[adr+1];
-        int h = font_normal150[adr+2];
-        int w_bytes = (w - 1) / 8 + 1;
-        adr += 3 + w_bytes * h;
+        int w        = font_normal150[adr + 1];
+        int h        = font_normal150[adr + 2];
+        int w_bytes  = (w - 1) / 8 + 1;
+        adr         += 3 + w_bytes * h;
       }
 
-      int char_w = font_normal150[adr+1];
-      int char_h = font_normal150[adr+2];
+      int char_w  = font_normal150[adr + 1];
+      int char_h  = font_normal150[adr + 2];
       int w_bytes = (char_w - 1) / 8 + 1;
+
       const unsigned char* bmp_normal = font_normal150 + adr + 3;
-      const unsigned char* bmp_back = font_back150 + adr + 3;
+      const unsigned char* bmp_back   = font_back150 + adr + 3;
 
       for (int r = 0; r < char_h; r++) {
         int py = cur_y - r;
-        if (py < 0 || py >= height) {
-          continue;
-        }
+        if (py < 0 || py >= height) { continue; }
 
         for (int c = 0; c < char_w; c++) {
           int px = cur_x + c;
-          if (px < 0 || px >= width) {
-            continue;
-          }
+          if (px < 0 || px >= width) { continue; }
 
           int byte_idx = r * w_bytes + (c / 8);
           int bit_mask = 128 >> (c % 8);
 
           int pixel_idx = (py * width + px) * 3;
           if (bmp_normal[byte_idx] & bit_mask) {
-            rgb[pixel_idx] = 255;
-            rgb[pixel_idx+1] = 255;
-            rgb[pixel_idx+2] = 255;
+            rgb[pixel_idx]     = 255;
+            rgb[pixel_idx + 1] = 255;
+            rgb[pixel_idx + 2] = 255;
           } else if (bmp_back[byte_idx] & bit_mask) {
-            rgb[pixel_idx] /= 2;
-            rgb[pixel_idx+1] /= 2;
-            rgb[pixel_idx+2] /= 2;
+            rgb[pixel_idx]     /= 2;
+            rgb[pixel_idx + 1] /= 2;
+            rgb[pixel_idx + 2] /= 2;
           }
         }
       }
@@ -417,8 +413,8 @@ static std::string ExecutableDir() {
 
 // resolves a "filament:name" resource to <exe_dir>/assets/name
 static std::string ResolveAsset(string_view path) {
-  string_view name = path.substr(path.find(':') + 1);
-  std::filesystem::path dir = ExecutableDir();
+  string_view           name = path.substr(path.find(':') + 1);
+  std::filesystem::path dir  = ExecutableDir();
   return (dir.empty() ? std::filesystem::path("assets") : dir / "assets") / name;
 }
 
@@ -435,23 +431,22 @@ class FileResource {
   int Size() const { return size_; }
   int Read(const void** buffer) {
     buffer_.resize(size_);
-    if (!file_.read(buffer_.data(), size_)) {
-      return 0;
-    }
+    if (!file_.read(buffer_.data(), size_)) { return 0; }
     *buffer = buffer_.data();
     return size_;
   }
 
  private:
-  std::ifstream file_;
+  std::ifstream     file_;
   std::vector<char> buffer_;
-  int size_ = 0;
+  int               size_ = 0;
 };
 
 
 // registers a resource provider so the Filament backend can load its shaders and textures
 // (referenced as "filament:name") from the assets deployed next to the executable
 static void RegisterFilamentAssetProvider() {
+
   mjpResourceProvider provider;  // NOLINT
   mjp_defaultResourceProvider(&provider);
   provider.open = [](mjResource* resource) {
@@ -478,18 +473,20 @@ static void RegisterFilamentAssetProvider() {
 //-------------------------------- filament backend (rendering) ------------------------------------
 
 // render scene with Filament backend
-static vector<unsigned char> RenderFilament(
-    const mjModel* m, mjData* d, const mjvCamera& cam, const mjvOption& opt,
-    const int rnd_flags[mjNRNDFLAG], int width, int height) {
+static vector<unsigned char> RenderFilament(const mjModel*   m,
+                                            mjData*          d,
+                                            const mjvCamera& cam,
+                                            const mjvOption& opt,
+                                            const int        rnd_flags[mjNRNDFLAG],
+                                            int              width,
+                                            int              height) {
   RegisterFilamentAssetProvider();
 
   mjrfContextConfig context_cfg;
   mjrf_defaultContextConfig(&context_cfg);
   context_cfg.graphics_api = mjGRAPHICS_API_OPENGL;
-  auto ctx = mujoco::CreateContext(context_cfg);
-  if (!ctx) {
-    mju_error("Could not create Filament context");
-  }
+  auto ctx                 = mujoco::CreateContext(context_cfg);
+  if (!ctx) { mju_error("Could not create Filament context"); }
 
   // create and configure scene
   mjrfSceneParams scene_params;
@@ -498,14 +495,14 @@ static vector<unsigned char> RenderFilament(
   mjrf_configureSceneFromModel(scene.get(), m);
 
   // create scene components
-  auto model_objects = std::make_unique<ModelObjects>(m, ctx.get());
-  auto model_lights = std::make_unique<ModelLights>(scene.get(), model_objects.get());
+  auto model_objects     = std::make_unique<ModelObjects>(m, ctx.get());
+  auto model_lights      = std::make_unique<ModelLights>(scene.get(), model_objects.get());
   auto model_renderables = std::make_unique<ModelRenderables>(scene.get(), model_objects.get());
   auto model_decorations = std::make_unique<ModelDecorations>(ctx.get(), scene.get(), m);
 
   // 2D text label callback
   vector<LabelItem> labels;
-  auto draw_text = [&](const char* txt, float x, float y, float z) {
+  auto              draw_text = [&](const char* txt, float x, float y, float z) {
     if (z >= -1.0f && z <= 1.0f) {
       int px = static_cast<int>((x * 0.5f + 0.5f) * width);
       int py = static_cast<int>((0.5f - y * 0.5f) * height);
@@ -517,26 +514,26 @@ static vector<unsigned char> RenderFilament(
   model_renderables->SetOptions(opt);
   model_lights->Update(d);
   model_renderables->Update(d);
-  mjrRect viewport = {0, 0, width, height};
+  mjrRect   viewport = {0, 0, width, height};
   mjvCamera cam_copy = cam;
   model_decorations->Update(d, &opt, nullptr, &cam_copy, viewport, draw_text);
 
   // create render target
   mjrfRenderTargetConfig target_cfg;
   mjrf_defaultRenderTargetConfig(&target_cfg);
-  target_cfg.width = width;
-  target_cfg.height = height;
+  target_cfg.width        = width;
+  target_cfg.height       = height;
   target_cfg.color_format = mjPIXEL_FORMAT_RGB8;
   target_cfg.depth_format = mjPIXEL_FORMAT_DEPTH32F;
-  auto render_target = mujoco::CreateRenderTarget(ctx.get(), target_cfg);
+  auto render_target      = mujoco::CreateRenderTarget(ctx.get(), target_cfg);
 
   // create render request
   mjrfRenderRequest request;
   mjrf_defaultRenderRequest(&request);
-  request.scene = scene.get();
-  request.camera = mjv_camera2GLCamera(m, d, &cam);
+  request.scene    = scene.get();
+  request.camera   = mjv_camera2GLCamera(m, d, &cam);
   request.viewport = viewport;
-  request.target = render_target.get();
+  request.target   = render_target.get();
 
   // process render flags
   if (rnd_flags[mjRND_SEGMENT] > 0) {
@@ -550,22 +547,20 @@ static vector<unsigned char> RenderFilament(
   } else if (rnd_flags[mjRND_WIREFRAME] > 0) {
     request.draw_mode = mjDRAW_MODE_WIREFRAME;
   }
-  if (rnd_flags[mjRND_SHADOW] >= 0) {
-    request.enable_shadows = rnd_flags[mjRND_SHADOW];
-  }
+  if (rnd_flags[mjRND_SHADOW] >= 0) { request.enable_shadows = rnd_flags[mjRND_SHADOW]; }
   if (rnd_flags[mjRND_REFLECTION] >= 0) {
     request.enable_reflections = rnd_flags[mjRND_REFLECTION];
   }
 
   // prepare output buffer
-  vector<unsigned char> rgb(width*height*3);
+  vector<unsigned char> rgb(width * height * 3);
 
   // prepare read pixels request
   mjrfReadPixelsRequest read_request;
   mjrf_defaultReadPixelsRequest(&read_request);
-  read_request.target = render_target.get();
-  read_request.output = rgb.data();
-  read_request.num_bytes = width*height*3;
+  read_request.target    = render_target.get();
+  read_request.output    = rgb.data();
+  read_request.num_bytes = width * height * 3;
 
   // render and wait for frame
   const mjrfFrameHandle frame = mjrf_render(ctx.get(), &request, 1, &read_request, 1);
@@ -585,25 +580,27 @@ static vector<unsigned char> RenderFilament(
 //-------------------------------- classic backend -------------------------------------------------
 
 // render scene with classic OpenGL backend
-static vector<unsigned char> RenderClassic(
-    mjModel* m, mjData* d, const mjvCamera& cam, const mjvOption& opt,
-    const int rnd_flags[mjNRNDFLAG], int width, int height) {
+static vector<unsigned char> RenderClassic(mjModel*         m,
+                                           mjData*          d,
+                                           const mjvCamera& cam,
+                                           const mjvOption& opt,
+                                           const int        rnd_flags[mjNRNDFLAG],
+                                           int              width,
+                                           int              height) {
 
   // create scene
   static constexpr int kMaxGeom = 50000;
-  mjvScene scn;
+  mjvScene             scn;
   mjv_defaultScene(&scn);
   mjv_makeScene(m, &scn, kMaxGeom);
 
   // apply custom render flags
-  for (int i=0; i<mjNRNDFLAG; i++) {
-    if (rnd_flags[i] >= 0) {
-      scn.flags[i] = rnd_flags[i];
-    }
+  for (int i = 0; i < mjNRNDFLAG; i++) {
+    if (rnd_flags[i] >= 0) { scn.flags[i] = rnd_flags[i]; }
   }
 
   // update offscreen buffer size to match requested resolution
-  m->vis.global.offwidth = width;
+  m->vis.global.offwidth  = width;
   m->vis.global.offheight = height;
 
   // create and configure rendering context
@@ -619,7 +616,7 @@ static vector<unsigned char> RenderClassic(
   mjr_render(viewport, &scn, &con);
 
   // read pixels from offscreen buffer
-  vector<unsigned char> rgb(3*width*height);
+  vector<unsigned char> rgb(3 * width * height);
   mjr_readPixels(rgb.data(), nullptr, viewport, &con);
 
   // free resources
@@ -627,10 +624,10 @@ static vector<unsigned char> RenderClassic(
   mjr_freeContext(&con);
 
   // flip image vertically in-place
-  for (int r=0; r<height/2; r++) {
-    std::swap_ranges(rgb.begin() + r*3*width,
-                     rgb.begin() + (r+1)*3*width,
-                     rgb.begin() + (height-1-r)*3*width);
+  for (int r = 0; r < height / 2; r++) {
+    std::swap_ranges(rgb.begin() + r * 3 * width,
+                     rgb.begin() + (r + 1) * 3 * width,
+                     rgb.begin() + (height - 1 - r) * 3 * width);
   }
 
   // return pixels
@@ -655,9 +652,7 @@ int main(int argc, char** argv) {
   }
 
   Options opt;
-  if (!ParseCommandLine(argc, argv, opt)) {
-    return EXIT_FAILURE;
-  }
+  if (!ParseCommandLine(argc, argv, opt)) { return EXIT_FAILURE; }
 
   if (opt.model_path.empty()) {
     printf("%s", help_msg);
@@ -665,11 +660,12 @@ int main(int argc, char** argv) {
   }
 
   // determine output filename if not provided
-  string output_file = opt.output_path.empty() ? DefaultOutputFilename(opt.model_path)
-                                               : opt.output_path;
+  string output_file =
+      opt.output_path.empty() ? DefaultOutputFilename(opt.model_path) : opt.output_path;
 
   // load model
   char error[1000] = "Could not load binary model";
+
   std::unique_ptr<mjModel, decltype(&mj_deleteModel)> m(
       opt.model_path.ends_with(".mjb")
           ? mj_loadModel(opt.model_path.c_str(), nullptr)
@@ -704,14 +700,10 @@ int main(int argc, char** argv) {
   }
 
   // load keyframe
-  if (key_id >= 0) {
-    mj_resetDataKeyframe(m.get(), d.get(), key_id);
-  }
+  if (key_id >= 0) { mj_resetDataKeyframe(m.get(), d.get(), key_id); }
 
   // advance the simulation before rendering
-  for (int i = 0; i < opt.steps; i++) {
-    mj_step(m.get(), d.get());
-  }
+  for (int i = 0; i < opt.steps; i++) { mj_step(m.get(), d.get()); }
 
   // run forward dynamics
   mj_forward(m.get(), d.get());
@@ -731,16 +723,16 @@ int main(int argc, char** argv) {
       }
     }
     if (cam_id >= 0) {
-      cam.type = mjCAMERA_FIXED;
+      cam.type       = mjCAMERA_FIXED;
       cam.fixedcamid = cam_id;
     }
   }
 
   // free camera overrides
   if (cam.type == mjCAMERA_FREE) {
-    if (opt.lookat)    mju_copy3(cam.lookat, opt.lookat->data());
-    if (opt.distance)  cam.distance = *opt.distance;
-    if (opt.azimuth)   cam.azimuth = *opt.azimuth;
+    if (opt.lookat) mju_copy3(cam.lookat, opt.lookat->data());
+    if (opt.distance) cam.distance = *opt.distance;
+    if (opt.azimuth) cam.azimuth = *opt.azimuth;
     if (opt.elevation) cam.elevation = *opt.elevation;
   }
 
@@ -755,7 +747,7 @@ int main(int argc, char** argv) {
       printf("Invalid --%s argument, expected %d digits (0 or 1)\n", name, mjNGROUP);
       return false;
     }
-    for (int i=0; i<mjNGROUP; i++) group[i] = (opt_val[i] == '1');
+    for (int i = 0; i < mjNGROUP; i++) group[i] = (opt_val[i] == '1');
     return true;
   };
 
@@ -765,19 +757,13 @@ int main(int argc, char** argv) {
   }
 
   // vis flags
-  for (int i=0; i<mjNVISFLAG; i++) {
-    if (opt.vis_flags[i] >= 0) {
-      vopt.flags[i] = opt.vis_flags[i];
-    }
+  for (int i = 0; i < mjNVISFLAG; i++) {
+    if (opt.vis_flags[i] >= 0) { vopt.flags[i] = opt.vis_flags[i]; }
   }
 
   // label and frame
-  if (opt.label >= 0) {
-    vopt.label = opt.label;
-  }
-  if (opt.frame >= 0) {
-    vopt.frame = opt.frame;
-  }
+  if (opt.label >= 0) { vopt.label = opt.label; }
+  if (opt.frame >= 0) { vopt.frame = opt.frame; }
 
   // render image
   vector<unsigned char> rgb;
@@ -791,8 +777,8 @@ int main(int argc, char** argv) {
   }
 
   // encode and write PNG
-  unsigned error_code = lodepng_encode24_file(
-      output_file.c_str(), rgb.data(), opt.width, opt.height);
+  unsigned error_code =
+      lodepng_encode24_file(output_file.c_str(), rgb.data(), opt.width, opt.height);
   if (error_code) {
     printf("Error saving PNG %s: %s\n", output_file.c_str(), lodepng_error_text(error_code));
     return EXIT_FAILURE;
@@ -801,4 +787,3 @@ int main(int argc, char** argv) {
   printf("Saved %dx%d image to %s\n", opt.width, opt.height, output_file.c_str());
   return EXIT_SUCCESS;
 }
-
