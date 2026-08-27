@@ -30,8 +30,9 @@ jobs:
 
     - name: Prepare files for GitHub Pages
       run: |
-        mkdir -p dist/bin
+        mkdir -p dist/bin/ios
         cp -r build_wasm/bin/* dist/bin/
+        cp -r build_wasm_ios/bin/* dist/bin/ios/
         cp src/experimental/studio/live.html dist/index.html
         cp src/experimental/studio/live.css dist/live.css
         cp src/experimental/studio/live.js dist/live.js
