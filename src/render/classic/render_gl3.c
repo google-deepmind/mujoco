@@ -944,6 +944,10 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
                  scn->skinnormal + 3*scn->skinvertadr[i],
                  GL_STREAM_DRAW);
   }
+  // avoid leaking VBO bindings to subsequent client-array draws (e.g. flex geoms)
+  if (scn->nskin > 0) {
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+  }
 
   // determine drawbuffer; may be changed by stereo later
   if (con->currentBuffer == mjFB_WINDOW) {
