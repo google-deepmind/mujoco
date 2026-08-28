@@ -3681,5 +3681,77 @@ TEST_F(MujocoTest, MjEncodeNativeFormats) {
   mj_deleteModel(model);
   mj_deleteSpec(spec);
 }
+
+// Tests that joint ordering is preserved after attach operations
+TEST_F(MujocoTest, AttachPreservesJointOrder) {
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="slider_body">
+        <joint name="slide_joint" type="slide"/>
+        <geom type="box" size="0.1 0.1 0.1"/>
+      </body>
+      <body name="free_body" pos="1 0 0">
+        <freejoint name="free_joint"/>
+        <geom type="sphere" size="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  mjSpec* parent = mj_makeSpec();
+  mjsBody* parent_world = mjs_findBody(parent, "world");
+  mjsFrame* attach_frame = mjs_addFrame(parent_world, nullptr);
+  mjs_setName(attach_frame->element, "attach_frame");
+
+  mjSpec* child = mj_parseSpec(child_xml, nullptr, nullptr, 0);
+  ASSERT_THAT(child, NotNull());
+
+  mjsElement* attached = mjs_attach(attach_frame->element, child->element,
+                                    nullptr, nullptr);
+  ASSERT_THAT(attached, NotNull());
+
+  mjModel* model = mj_compile(parent, nullptr);
+  ASSERT_THAT(model, NotNull());
+
+  // Verify joint order: slide joint should come before free joint
+  int slide_id = mj_name2id(model, mjOBJ_JOINT, "slide_joint");
+  int free_id = mj_name2id(model, mjOBJ_JOINT, "free_joint");
+  ASSERT_GE(slide_id, 0);
+  ASSERT_GE(free_id, 0);
+  EXPECT_LT(slide_id, free_id)
+      << "Slide joint should have a lower ID than free joint";
+
+  // Export and re-import to test round-trip preservation
+  std::array<char, 1000> error;
+  char* exported_xml = mj_saveSpec(parent, error.data(), error.size());
+  ASSERT_THAT(exported_xml, NotNull());
+
+  mjSpec* reimported = mj_parseSpec(exported_xml, nullptr, error.data(),
+                                    error.size());
+  ASSERT_THAT(reimported, NotNull()) << error.data();
+
+  mjModel* reimported_model = mj_compile(reimported, error.data());
+  ASSERT_THAT(reimported_model, NotNull()) << error.data();
+
+  // Verify joint order is preserved after round-trip
+  int reimported_slide_id = mj_name2id(reimported_model, mjOBJ_JOINT,
+                                       "slide_joint");
+  int reimported_free_id = mj_name2id(reimported_model, mjOBJ_JOINT,
+                                      "free_joint");
+  ASSERT_GE(reimported_slide_id, 0);
+  ASSERT_GE(reimported_free_id, 0);
+  EXPECT_EQ(reimported_slide_id, slide_id)
+      << "Joint IDs should be the same after XML round-trip";
+  EXPECT_EQ(reimported_free_id, free_id)
+      << "Joint IDs should be the same after XML round-trip";
+
+  mju_free(exported_xml);
+  mj_deleteModel(model);
+  mj_deleteModel(reimported_model);
+  mj_deleteSpec(child);
+  mj_deleteSpec(parent);
+  mj_deleteSpec(reimported);
+}
 }  // namespace
 }  // namespace mujoco

@@ -479,6 +479,9 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   // update pointers to local elements
   PointToLocal();
 
+  // reprocess lists to ensure ordering matches compiled model after attach
+  ProcessLists(/*checkrepeat=*/false);
+
   // update signature after we updated the tree lists and we updated the pointers
   spec.element->signature = Signature();
   return *this;
