@@ -1883,6 +1883,148 @@ TEST_F(SensorTest, TactileMeshIdMismatchedValidator) {
   ASSERT_THAT(m.get(), NotNull()) << error;
 }
 
+// Test that tactile tangent channels correctly project relative velocity
+// when the tactile sensor geom is rotated relative to the world.
+TEST_F(SensorTest, TactileRotatedGeomTangents) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag multiccd="enable"/>
+    </option>
+    <asset>
+      <mesh name="sensor_mesh" builtin="wedge" params="3 3 45 45 0" scale=".2 .2 .2"/>
+    </asset>
+    <worldbody>
+      <body>
+        <geom type="box" size=".25 .25 .25"/>
+        <geom name="sensor_geom" type="mesh" mesh="sensor_mesh" euler="0 90 0"
+              mass="0" contype="0" conaffinity="0"/>
+      </body>
+      <body name="slider" pos="0 0 0">
+        <joint type="slide" axis="1 0 0"/>
+        <geom type="box" size=".3 .3 .3"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <tactile geom="sensor_geom" mesh="sensor_mesh"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  // Set sliding velocity along world X
+  d->qvel[0] = 2.0;
+
+  mj_forward(m.get(), d.get());
+
+  int ntaxel = m->mesh_vertnum[0];
+  ASSERT_EQ(ntaxel, 9);
+  ASSERT_EQ(m->nsensordata, 27);
+
+  // At least some taxels should be in contact and register penetration
+  int in_contact = 0;
+  mjtNum total_tangent_slip = 0;
+  for (int j = 0; j < ntaxel; j++) {
+    if (d->sensordata[0 * ntaxel + j] > 0) {
+      in_contact++;
+      total_tangent_slip +=
+          d->sensordata[1 * ntaxel + j] + d->sensordata[2 * ntaxel + j];
+    }
+  }
+  EXPECT_GT(in_contact, 0);
+  EXPECT_GT(total_tangent_slip, 0.0);
+}
+
+// Test that self-geom contacts do not evaluate distance against the sensor
+// itself.
+TEST_F(SensorTest, TactileSelfGeomExclusion) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="sensor_mesh" builtin="sphere" params="0"/>
+    </asset>
+    <worldbody>
+      <body>
+        <geom name="sensor_geom" type="mesh" mesh="sensor_mesh"/>
+      </body>
+    </worldbody>
+    <contact>
+      <pair geom1="sensor_geom" geom2="sensor_geom"/>
+    </contact>
+    <sensor>
+      <tactile geom="sensor_geom" mesh="sensor_mesh"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  mj_forward(m.get(), d.get());
+
+  // With self-geom exclusion, sensor readings must remain 0
+  for (int i = 0; i < m->nsensordata; i++) {
+    EXPECT_EQ(d->sensordata[i], 0.0);
+  }
+}
+
+// Test that rotating bodies in contact produce tangential velocity via surface
+// contact kinematics.
+TEST_F(SensorTest, TactileSpinningContactVelocity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag multiccd="enable"/>
+    </option>
+    <asset>
+      <mesh name="sensor_mesh" builtin="wedge" params="3 3 45 45 0" scale=".2 .2 .2"/>
+    </asset>
+    <worldbody>
+      <body>
+        <geom type="box" size=".25 .25 .25"/>
+        <geom name="sensor_geom" type="mesh" mesh="sensor_mesh"
+              mass="0" contype="0" conaffinity="0"/>
+      </body>
+      <body name="spinner" pos="0 0 0">
+        <joint type="hinge" axis="0 1 0"/>
+        <geom type="sphere" size=".5"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <tactile geom="sensor_geom" mesh="sensor_mesh"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  // Set angular velocity about Y axis (pure rotation, zero linear velocity at
+  // body origin)
+  d->qvel[0] = 10.0;
+
+  mj_forward(m.get(), d.get());
+
+  int ntaxel = m->mesh_vertnum[0];
+  ASSERT_EQ(ntaxel, 9);
+  ASSERT_EQ(m->nsensordata, 27);
+
+  mjtNum total_tangent_slip = 0;
+  for (int j = 0; j < ntaxel; j++) {
+    total_tangent_slip +=
+        d->sensordata[1 * ntaxel + j] + d->sensordata[2 * ntaxel + j];
+  }
+  EXPECT_GT(total_tangent_slip, 0.0);
+}
+
 // Test that contact and touch sensors work with Flex contacts.
 TEST_F(SensorTest, FlexContactSensors) {
   static constexpr char xml[] = R"(

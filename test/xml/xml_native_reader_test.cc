@@ -64,6 +64,32 @@ TEST_F(XMLReaderTest, UniqueElementTest) {
   EXPECT_THAT(error.data(), HasSubstr("unique element 'flag' found 2 times"));
 }
 
+TEST_F(XMLReaderTest, SchemaLocationHeaderAccepted) {
+  // XML namespace machinery is tolerated on the root element, so models can
+  // reference mjcf.xsd for editor completion; see the linked example in the
+  // XML reference intro
+  std::array<char, 1024> error;
+  const std::string path = GetTestDataFilePath("xml/testdata/schema_location.xml");
+  mjSpec* spec = mj_parseXML(path.c_str(), nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull());
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+
+  // only on the root: namespaced attributes elsewhere are still rejected
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom xsi:type="box" size="1"/>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr bad = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(bad.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("unrecognized attribute: 'xsi:type'"));
+}
+
 TEST_F(XMLReaderTest, AuthoredFromXml) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -2896,7 +2922,7 @@ TEST_F(ActuatorParseTest, IntvelocityDefaultsPropagate) {
     <worldbody>
       <body>
         <joint name="hinge1"/>
-        <joint name="hinge2"/>
+        <joint name="hinge2" axis="1 0 0"/>
         <geom type="box" size=".025 .025 .025"/>
       </body>
     </worldbody>
@@ -3744,8 +3770,8 @@ TEST_F(ActuatorParseTest, ActuatorDelayParsed) {
       <body>
         <geom size="1"/>
         <joint name="jnt1"/>
-        <joint name="jnt2"/>
-        <joint name="jnt3"/>
+        <joint name="jnt2" axis="1 0 0"/>
+        <joint name="jnt3" axis="0 1 0"/>
       </body>
     </worldbody>
     <actuator>
@@ -3782,7 +3808,7 @@ TEST_F(ActuatorParseTest, ActuatorDelayDefault) {
       <body>
         <geom size="1"/>
         <joint name="jnt1"/>
-        <joint name="jnt2"/>
+        <joint name="jnt2" axis="1 0 0"/>
       </body>
     </worldbody>
     <actuator>

@@ -276,7 +276,7 @@ TEST_F(ValidateReferencesTest, AddressRange) {
     <worldbody>
       <body>
         <joint/>
-        <joint/>
+        <joint axis="1 0 0"/>
         <geom size="1"/>
       </body>
     </worldbody>
@@ -305,7 +305,7 @@ TEST_F(ValidateReferencesTest, AddressRangeNegativeNum) {
     <worldbody>
       <body>
         <joint/>
-        <joint/>
+        <joint axis="1 0 0"/>
         <geom size="1"/>
       </body>
     </worldbody>
@@ -588,7 +588,7 @@ TEST_F(ValidateReferencesTest, EqualityConstraints) {
       </body>
       <body name="body2">
         <joint/>
-        <joint name="joint2"/>
+        <joint name="joint2" axis="1 0 0"/>
         <geom size="1"/>
         <geom size="1"/>
         <geom name="geom2" size="1"/>
@@ -656,7 +656,7 @@ TEST_F(ValidateReferencesTest, Tuples) {
       </body>
       <body name="body2">
         <joint/>
-        <joint name="joint2"/>
+        <joint name="joint2" axis="1 0 0"/>
         <geom size="1"/>
       </body>
     </worldbody>

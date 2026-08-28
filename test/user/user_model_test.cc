@@ -100,7 +100,8 @@ TEST_F(UserModelTest, WeldRootID) {
 
   EXPECT_THAT(AsVector(model->body_rootid, model->nbody),
               ElementsAre(0, 1, 1, 3, 3, 5, 5, 7, 7, 9, 9));
-  // mocap bodies (7, 9) are their own weld roots, inherited by static children (8)
+  // mocap bodies (7, 9) are their own weld roots,
+  // inherited by static children (8)
   EXPECT_THAT(AsVector(model->body_weldid, model->nbody),
               ElementsAre(0, 1, 2, 3, 3, 0, 0, 7, 7, 9, 10));
 }
@@ -456,7 +457,7 @@ TEST_F(UserDataTest, AutoNUserJoint) {
       <body>
         <geom size="1"/>
         <joint user="1 2 3"/>
-        <joint user="2 3"/>
+        <joint user="2 3" axis="1 0 0"/>
       </body>
     </worldbody>
   </mujoco>
@@ -926,8 +927,8 @@ TEST_F(LengthRangeTest, LengthRangeThreading) {
 
 
 TEST_F(MujocoTest, ResolvePluginMissingInstanceThrowsError) {
-  // Instance name="my_pid_config" dos not match actuator plugin's instance="pid_config",
-  // this should throw an appropriate error
+  // Instance name="my_pid_config" dos not match actuator plugin's
+  // instance="pid_config", this should throw an appropriate error
   static constexpr char xml_mismatch[] = R"(
   <mujoco>
     <extension>
@@ -948,14 +949,16 @@ TEST_F(MujocoTest, ResolvePluginMissingInstanceThrowsError) {
   )";
 
   std::array<char, 1024> error_buffer;
-  mjSpec* spec = mj_parseXMLString(xml_mismatch, 0, error_buffer.data(), error_buffer.size());
+  mjSpec* spec = mj_parseXMLString(xml_mismatch, 0, error_buffer.data(),
+                                   error_buffer.size());
   ASSERT_THAT(spec, NotNull()) << error_buffer.data();
 
   mjModel* model = mj_compile(spec, nullptr);
   EXPECT_THAT(model, IsNull());
 
   std::string error_msg = mjs_getError(spec);
-  EXPECT_THAT(error_msg, HasSubstr("unrecognized name 'pid_config' for plugin instance"));
+  EXPECT_THAT(error_msg,
+              HasSubstr("unrecognized name 'pid_config' for plugin instance"));
 
   if (model) mj_deleteModel(model);
   mj_deleteSpec(spec);
@@ -1128,8 +1131,8 @@ TEST_F(DelayBufferTest, ActuatorDelayBufferSizes) {
       <body>
         <geom size="1"/>
         <joint name="jnt1"/>
-        <joint name="jnt2"/>
-        <joint name="jnt3"/>
+        <joint name="jnt2" axis="1 0 0"/>
+        <joint name="jnt3" axis="0 1 0"/>
       </body>
     </worldbody>
     <actuator>
