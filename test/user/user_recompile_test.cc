@@ -87,8 +87,10 @@ TEST_P(RecompileCompareTest, RecompileCompare) {
   mjModel* m_old = mj_compile(s, nullptr);
 
   if (!m_old) {
+    std::string error_message = mjs_getError(s);
+    mj_deleteSpec(s_copy);
     mj_deleteSpec(s);
-    GTEST_SKIP() << "Failed to compile " << xml << ": " << mjs_getError(s);
+    GTEST_SKIP() << "Failed to compile " << xml << ": " << error_message;
   }
 
   mjModel* m_new = mj_compile(s, nullptr);
