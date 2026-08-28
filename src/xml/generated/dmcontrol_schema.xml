@@ -2193,7 +2193,7 @@
             <attribute name="armature" type="float"/>
             <attribute name="cranklength" type="float"/>
             <attribute name="joint" type="reference" reference_namespace="joint"/>
-            <attribute name="jointinparent" type="string"/>
+            <attribute name="jointinparent" type="reference" reference_namespace="joint"/>
             <attribute name="tendon" type="reference" reference_namespace="tendon"/>
             <attribute name="slidersite" type="reference" reference_namespace="site"/>
             <attribute name="cranksite" type="reference" reference_namespace="site"/>
@@ -2232,7 +2232,7 @@
             <attribute name="armature" type="float"/>
             <attribute name="cranklength" type="float"/>
             <attribute name="joint" type="reference" reference_namespace="joint"/>
-            <attribute name="jointinparent" type="string"/>
+            <attribute name="jointinparent" type="reference" reference_namespace="joint"/>
             <attribute name="tendon" type="reference" reference_namespace="tendon"/>
             <attribute name="slidersite" type="reference" reference_namespace="site"/>
             <attribute name="cranksite" type="reference" reference_namespace="site"/>
@@ -2260,7 +2260,7 @@
             <attribute name="armature" type="float"/>
             <attribute name="cranklength" type="float"/>
             <attribute name="joint" type="reference" reference_namespace="joint"/>
-            <attribute name="jointinparent" type="string"/>
+            <attribute name="jointinparent" type="reference" reference_namespace="joint"/>
             <attribute name="tendon" type="reference" reference_namespace="tendon"/>
             <attribute name="slidersite" type="reference" reference_namespace="site"/>
             <attribute name="cranksite" type="reference" reference_namespace="site"/>
@@ -2291,7 +2291,7 @@
             <attribute name="armature" type="float"/>
             <attribute name="cranklength" type="float"/>
             <attribute name="joint" type="reference" reference_namespace="joint"/>
-            <attribute name="jointinparent" type="string"/>
+            <attribute name="jointinparent" type="reference" reference_namespace="joint"/>
             <attribute name="tendon" type="reference" reference_namespace="tendon"/>
             <attribute name="slidersite" type="reference" reference_namespace="site"/>
             <attribute name="cranksite" type="reference" reference_namespace="site"/>
@@ -2322,7 +2322,7 @@
             <attribute name="armature" type="float"/>
             <attribute name="cranklength" type="float"/>
             <attribute name="joint" type="reference" reference_namespace="joint"/>
-            <attribute name="jointinparent" type="string"/>
+            <attribute name="jointinparent" type="reference" reference_namespace="joint"/>
             <attribute name="tendon" type="reference" reference_namespace="tendon"/>
             <attribute name="slidersite" type="reference" reference_namespace="site"/>
             <attribute name="cranksite" type="reference" reference_namespace="site"/>
@@ -2372,7 +2372,7 @@
             <attribute name="armature" type="float"/>
             <attribute name="cranklength" type="float"/>
             <attribute name="joint" type="reference" reference_namespace="joint"/>
-            <attribute name="jointinparent" type="string"/>
+            <attribute name="jointinparent" type="reference" reference_namespace="joint"/>
             <attribute name="tendon" type="reference" reference_namespace="tendon"/>
             <attribute name="slidersite" type="reference" reference_namespace="site"/>
             <attribute name="cranksite" type="reference" reference_namespace="site"/>
@@ -2400,7 +2400,7 @@
             <attribute name="armature" type="float"/>
             <attribute name="cranklength" type="float"/>
             <attribute name="joint" type="reference" reference_namespace="joint"/>
-            <attribute name="jointinparent" type="string"/>
+            <attribute name="jointinparent" type="reference" reference_namespace="joint"/>
             <attribute name="tendon" type="reference" reference_namespace="tendon"/>
             <attribute name="slidersite" type="reference" reference_namespace="site"/>
             <attribute name="cranksite" type="reference" reference_namespace="site"/>
@@ -2431,7 +2431,7 @@
             <attribute name="armature" type="float"/>
             <attribute name="cranklength" type="float"/>
             <attribute name="joint" type="reference" reference_namespace="joint"/>
-            <attribute name="jointinparent" type="string"/>
+            <attribute name="jointinparent" type="reference" reference_namespace="joint"/>
             <attribute name="tendon" type="reference" reference_namespace="tendon"/>
             <attribute name="slidersite" type="reference" reference_namespace="site"/>
             <attribute name="cranksite" type="reference" reference_namespace="site"/>
@@ -2486,7 +2486,7 @@
             <attribute name="armature" type="float"/>
             <attribute name="cranklength" type="float"/>
             <attribute name="joint" type="reference" reference_namespace="joint"/>
-            <attribute name="jointinparent" type="string"/>
+            <attribute name="jointinparent" type="reference" reference_namespace="joint"/>
             <attribute name="site" type="reference" reference_namespace="site"/>
             <attribute name="actdim" type="int" default="-1"/>
             <attribute name="dyntype" type="keyword" valid_values="none integrator filter filterexact muscle dcmotor pid user" default="none"/>
@@ -3092,6 +3092,28 @@
             <attribute name="body2" type="reference" reference_namespace="body"/>
           </attributes>
         </element>
+        <element name="contact" repeated="true" namespace="sensor">
+          <attributes>
+            <attribute name="name" type="identifier"/>
+            <attribute name="nsample" type="int"/>
+            <attribute name="interp" type="keyword" valid_values="zoh linear cubic"/>
+            <attribute name="delay" type="float"/>
+            <attribute name="interval" type="array" array_type="float" array_size="2"/>
+            <attribute name="cutoff" type="float"/>
+            <attribute name="noise" type="float"/>
+            <attribute name="user" type="array" array_type="float"/>
+            <attribute name="geom1" type="reference" reference_namespace="geom"/>
+            <attribute name="geom2" type="reference" reference_namespace="geom"/>
+            <attribute name="body1" type="reference" reference_namespace="body"/>
+            <attribute name="body2" type="reference" reference_namespace="body"/>
+            <attribute name="subtree1" type="reference" reference_namespace="body"/>
+            <attribute name="subtree2" type="reference" reference_namespace="body"/>
+            <attribute name="site" type="reference" reference_namespace="site"/>
+            <attribute name="num" type="int"/>
+            <attribute name="data" type="string"/>
+            <attribute name="reduce" type="keyword" valid_values="none mindist maxforce netforce"/>
+          </attributes>
+        </element>
         <element name="e_potential" repeated="true" namespace="sensor">
           <attributes>
             <attribute name="name" type="identifier"/>
@@ -3182,7 +3204,7 @@
           <attributes>
             <attribute name="name" type="identifier" required="true"/>
             <attribute name="size" type="int"/>
-            <attribute name="data" type="string"/>
+            <attribute name="data" type="array" array_type="float"/>
           </attributes>
         </element>
         <element name="text" repeated="true">

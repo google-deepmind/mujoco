@@ -45,11 +45,9 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
 SCHEMA_PATH = os.path.join(_REPO_ROOT, 'src', 'xml', 'mjcf.schema')
 
 # elements dm_control does not support; the surface is frozen, so new MJCF
-# elements are added here rather than emitted (sensor_contact is excluded
-# because PyMJCF cannot handle its multi-keyword data attribute)
+# elements are added here rather than emitted
 EXCLUDED_ELEMENTS = {
     'pid', 'dcmotor', 'replicate', 'frame', 'attach', 'model',
-    'sensor_contact',
 }
 # (parent element, child element) pairs excluded in that context only
 EXCLUDED_CHILDREN = {('worldbody', 'plugin')}

@@ -460,7 +460,7 @@ group actuator_dynamics {
 
 group transmission {
   joint              : ref<joint> (nodefault)
-  jointinparent      : string (nodefault)
+  jointinparent      : ref<joint> (nodefault)
   tendon             : ref<tendon> (nodefault)
   slidersite         : ref<site> (nodefault)
   cranksite          : ref<site> (nodefault)
@@ -1641,7 +1641,7 @@ element muscle : mjsActuator {
   forcerange         : double[2]
   use actuator_dynamics
   joint              : ref<joint> (nodefault)
-  jointinparent      : string (nodefault)
+  jointinparent      : ref<joint> (nodefault)
   tendon             : ref<tendon> (nodefault)
   slidersite         : ref<site> (nodefault)
   cranksite          : ref<site> (nodefault)
@@ -1693,7 +1693,7 @@ element actuator_plugin : mjsActuator (xml=plugin) {
   actrange           : double[2]
   use actuator_dynamics
   joint              : ref<joint>
-  jointinparent      : string
+  jointinparent      : ref<joint>
   site               : ref<site>
   actdim             : int = -1
   dyntype            : enum<dyn> = none
@@ -2156,7 +2156,7 @@ element custom {
 element numeric : mjsNumeric {
   name               : id<numeric> (required)
   size               : int
-  data               : string
+  data               : double[]
 }
 
 element text : mjsText {

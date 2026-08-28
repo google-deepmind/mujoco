@@ -3818,7 +3818,7 @@
   <xs:complexType name="numeric">
     <xs:attribute name="name" type="xs:string" use="required"/>
     <xs:attribute name="size" type="xs:int"/>
-    <xs:attribute name="data" type="xs:string"/>
+    <xs:attribute name="data" type="doublelist"/>
   </xs:complexType>
 
   <xs:complexType name="text" mixed="true">
