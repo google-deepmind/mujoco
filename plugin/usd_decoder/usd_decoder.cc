@@ -48,6 +48,7 @@
 #include <pxr/base/gf/vec3d.h>
 #include <pxr/base/tf/staticData.h>
 #include <pxr/base/tf/staticTokens.h>
+#include <pxr/base/tf/stringUtils.h>
 #include <pxr/base/tf/token.h>
 #include <pxr/base/vt/types.h>
 #include <pxr/usd/sdf/layer.h>
@@ -116,18 +117,6 @@ struct UsdCaches {
 
 constexpr const char* kUsdPrimPathKey = "usd_primpath";
 
-std::string StripExtension(std::string filename) {
-  const std::size_t slash = filename.find_last_of("/\\");
-  if (slash != std::string::npos) {
-    filename = filename.substr(slash + 1);
-  }
-  const std::size_t dot = filename.find_last_of('.');
-  if (dot != std::string::npos) {
-    filename.erase(dot);
-  }
-  return filename;
-}
-
 std::string GetStageModelName(const pxr::UsdStageRefPtr& stage) {
   pxr::UsdPrim default_prim = stage->GetDefaultPrim();
   if (default_prim) {
@@ -142,7 +131,8 @@ std::string GetStageModelName(const pxr::UsdStageRefPtr& stage) {
   }
 
   if (pxr::SdfLayerHandle root_layer = stage->GetRootLayer()) {
-    std::string layer_stem = StripExtension(root_layer->GetDisplayName());
+    std::string layer_stem =
+        pxr::TfStringGetBeforeSuffix(root_layer->GetDisplayName());
     if (!layer_stem.empty()) {
       return layer_stem;
     }
