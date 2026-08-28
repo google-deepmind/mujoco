@@ -51,7 +51,8 @@ if [[ "$explicit_action" == false ]]; then
     do_build=true
 fi
 
-cd "$(git rev-parse --show-toplevel)"
+GIT_ROOT="${GIT_ROOT:-$(git rev-parse --show-toplevel)}"
+cd "${GIT_ROOT}"
 
 # Configure MuJoCo Studio
 if [[ "$do_configure" == true ]]; then
@@ -62,7 +63,6 @@ if [[ "$do_configure" == true ]]; then
         "-DUSE_STATIC_LIBCXX=OFF"
         "-DBUILD_SHARED_LIB=OFF"
         "-DMUJOCO_USE_FILAMENT=ON"
-        "-DMUJOCO_USE_FILAMENT_VULKAN=OFF"
         "-DMUJOCO_BUILD_EXAMPLES=OFF"
         "-DMUJOCO_BUILD_SIMULATE=OFF"
         "-DMUJOCO_BUILD_TESTS=OFF"
@@ -98,8 +98,8 @@ if [[ "$do_build" == true ]]; then
     echo "Use the following command to run mujoco_studio"
     echo ""
     if [[ "${OS_NAME}" == "windows" ]]; then
-        echo " cd $(git rev-parse --show-toplevel)/build/bin && ./${build_type}/mujoco_studio.exe "
+        echo " cd ${GIT_ROOT}/build/bin && ./${build_type}/mujoco_studio.exe "
     else
-        echo " cd $(git rev-parse --show-toplevel)/build/bin && ./mujoco_studio "
+        echo " cd ${GIT_ROOT}/build/bin && ./mujoco_studio "
     fi
 fi

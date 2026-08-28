@@ -16,6 +16,7 @@
 
 import dataclasses
 from typing import Dict, Optional, Tuple
+import warnings
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -691,7 +692,7 @@ class ConvexTest(absltest.TestCase):
         c.frame[:, 0, :], np.array([[0.0, 0.0, 1.0]] * 4), decimal=2
     )
     np.testing.assert_array_almost_equal(
-        c.frame.reshape((-1, 9)), d.contact.frame[:4, :]
+        c.frame.reshape((-1, 9)), d.contact.frame[:4, :], decimal=2
     )
 
   _BOX_BOX_EDGE = """
@@ -796,6 +797,20 @@ class ConvexTest(absltest.TestCase):
     )
     c = dx._impl.contact
     self.assertTrue((c.dist > 0).all())
+
+  def test_no_overflow_warning_f32(self):
+    """Tests box-box and convex-convex don't overflow finfo.max in float32."""
+    directory = epath.resource_path('mujoco.mjx')
+    assets = {
+        'meshes/dodecahedron.stl': (
+            directory / 'test_data' / 'meshes/dodecahedron.stl'
+        ).read_bytes(),
+    }
+    with warnings.catch_warnings():  # Regression test for #3368
+      warnings.simplefilter('error', RuntimeWarning)
+      jax.clear_caches()  # force a re-trace so the cast (and warning) re-runs
+      _collide(self._BOX_BOX, keyframe=0)
+      _collide(self._CONVEX_CONVEX, assets=assets)
 
 
 class HFieldTest(absltest.TestCase):

@@ -21,6 +21,7 @@ from mujoco.mjx.third_party.mujoco_warp._src import sensor
 from mujoco.mjx.third_party.mujoco_warp._src import smooth
 from mujoco.mjx.third_party.mujoco_warp._src import solver
 from mujoco.mjx.third_party.mujoco_warp._src import support
+from mujoco.mjx.third_party.mujoco_warp._src import util_misc
 from mujoco.mjx.third_party.mujoco_warp._src.support import mul_m
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit
@@ -28,34 +29,42 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import EnableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 
-wp.set_module_options({"enable_backward": False})
+wp.set_module_options({"enable_backward": False, "default_grid_stride": False})
 
 
 @wp.kernel
 def _qfrc_eulerdamp(
   # Model:
-  opt_timestep: wp.array(dtype=float),
-  dof_damping: wp.array2d(dtype=float),
+  opt_timestep: wp.array[float],
+  dof_damping: wp.array2d[float],
+  dof_dampingpoly: wp.array2d[wp.vec2],
   # Data in:
-  qacc_in: wp.array2d(dtype=float),
+  qvel_in: wp.array2d[float],
+  qacc_in: wp.array2d[float],
   # Out:
-  qfrc_out: wp.array2d(dtype=float),
+  qfrc_out: wp.array2d[float],
 ):
   worldid, dofid = wp.tid()
   timestep = opt_timestep[worldid % opt_timestep.shape[0]]
-  qfrc_out[worldid, dofid] += timestep * dof_damping[worldid % dof_damping.shape[0], dofid] * qacc_in[worldid, dofid]
+
+  damping = dof_damping[worldid % dof_damping.shape[0], dofid]
+  dpoly = dof_dampingpoly[worldid % dof_dampingpoly.shape[0], dofid]
+  v = qvel_in[worldid, dofid]
+
+  damp_deriv = util_misc._poly_force_deriv(damping, dpoly, v, 1)
+  qfrc_out[worldid, dofid] += timestep * damp_deriv * qacc_in[worldid, dofid]
 
 
 @wp.kernel
 def _qfrc_inverse(
   # Data in:
-  qfrc_bias_in: wp.array2d(dtype=float),
-  qfrc_passive_in: wp.array2d(dtype=float),
-  qfrc_constraint_in: wp.array2d(dtype=float),
+  qfrc_bias_in: wp.array2d[float],
+  qfrc_passive_in: wp.array2d[float],
+  qfrc_constraint_in: wp.array2d[float],
   # In:
-  Ma: wp.array2d(dtype=float),
+  Ma: wp.array2d[float],
   # Data out:
-  qfrc_inverse_out: wp.array2d(dtype=float),
+  qfrc_inverse_out: wp.array2d[float],
 ):
   worldid, dofid = wp.tid()
 
@@ -67,7 +76,7 @@ def _qfrc_inverse(
   qfrc_inverse_out[worldid, dofid] = qfrc_inverse
 
 
-def discrete_acc(m: Model, d: Data, qacc: wp.array2d(dtype=float)):
+def discrete_acc(m: Model, d: Data, qacc: wp.array2d[float]):
   """Convert discrete-time qacc to continuous-time qacc.
 
   Args:
@@ -86,31 +95,35 @@ def discrete_acc(m: Model, d: Data, qacc: wp.array2d(dtype=float)):
 
     # TODO(team): qacc = d.qacc if (m.dof_damping == 0.0).all()
 
-    # set qfrc = (d.qM + m.opt.timestep * diag(m.dof_damping)) * d.qacc
+    # set qfrc = (d.M + m.opt.timestep * diag(m.dof_damping)) * d.qacc
 
-    # d.qM @ d.qacc
+    # d.M @ d.qacc
     support.mul_m(m, d, qfrc, d.qacc)
 
-    # qfrc += m.opt.timestep * m.dof_damping * d.qacc
+    # qfrc += m.opt.timestep * damp_deriv * d.qacc
     wp.launch(
       _qfrc_eulerdamp,
       dim=(d.nworld, m.nv),
-      inputs=[m.opt.timestep, m.dof_damping, d.qacc],
+      inputs=[m.opt.timestep, m.dof_damping, m.dof_dampingpoly, d.qvel, d.qacc],
       outputs=[qfrc],
     )
   elif m.opt.integrator == IntegratorType.IMPLICITFAST:
-    if m.opt.is_sparse:
-      qDeriv = wp.empty((d.nworld, 1, m.nM), dtype=float)
-    else:
-      qDeriv = wp.empty((d.nworld, m.nv, m.nv), dtype=float)
+    qDeriv = wp.empty((d.nworld, m.nC), dtype=float)
     derivative.deriv_smooth_vel(m, d, qDeriv)
     mul_m(m, d, qfrc, d.qacc, M=qDeriv)
-    smooth.factor_solve_i(m, d, d.qM, d.qLD, d.qLDiagInv, qacc, qfrc)
+    smooth.factor_solve_i(m, d, d.M, d.qLD, d.qLDiagInv, qacc, qfrc)
   else:
     raise NotImplementedError(f"integrator {m.opt.integrator} not implemented.")
 
-  # solve for qacc: qfrc = d.qM @ d.qacc
+  # solve for qacc: qfrc = d.M @ d.qacc
   smooth.solve_m(m, d, qacc, qfrc)
+
+
+@wp.kernel
+def _zero_qfrc_constraint_nefc(nefc_in: wp.array[int], qfrc_constraint_out: wp.array2d[float]):
+  worldid, dofid = wp.tid()
+  if nefc_in[worldid] == 0:
+    qfrc_constraint_out[worldid, dofid] = 0.0
 
 
 def inv_constraint(m: Model, d: Data):
@@ -120,10 +133,16 @@ def inv_constraint(m: Model, d: Data):
     d.qfrc_constraint.zero_()
     return
 
-  # update
-  h = wp.empty((d.nworld, 0, 0), dtype=float)  # not used
-  hfactor = wp.empty((d.nworld, 0, 0), dtype=float)  # not used
-  solver.create_context(m, d, h, hfactor, grad=False)
+  if m.is_sparse:
+    wp.launch(
+      _zero_qfrc_constraint_nefc,
+      dim=(d.nworld, m.nv),
+      inputs=[d.nefc],
+      outputs=[d.qfrc_constraint],
+    )
+
+  ctx = solver.create_inverse_context(m, d)
+  solver.init_context(m, d, ctx, grad=False)
 
 
 def inverse(m: Model, d: Data):

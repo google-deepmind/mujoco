@@ -145,7 +145,7 @@ def passive(m: Model, d: Data) -> Data:
   qfrc_passive = _spring_damper(m, d)
   qfrc_gravcomp = jp.zeros(m.nv)
 
-  if m.ngravcomp and not m.opt.disableflags & DisableBit.GRAVITY:
+  if m.flg_gravcomp and not m.opt.disableflags & DisableBit.GRAVITY:
     qfrc_gravcomp = _gravcomp(m, d)
     # add gravcomp unless added via actuators
     qfrc_passive += qfrc_gravcomp * (1 - m.jnt_actgravcomp[m.dof_jntid])
@@ -174,7 +174,7 @@ def _inertia_box_fluid_model(
 
   box = jp.repeat(inertia[None, :], 3, axis=0)
   box *= jp.ones((3, 3)) - 2 * jp.eye(3)
-  box = 6.0 * jp.clip(jp.sum(box, axis=-1), a_min=1e-12)
+  box = 6.0 * jp.clip(jp.sum(box, axis=-1), min=1e-12)
   box = jp.sqrt(box / jp.maximum(mass, 1e-12)) * (mass > 0.0)
 
   # transform to local coordinate frame

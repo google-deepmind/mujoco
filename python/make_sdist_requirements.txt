@@ -2,8 +2,9 @@ absl-py==2.1.0 \
     --hash=sha256:526a04eadab8b4ee719ce68f204172ead1027549089702d99b9059f129ff1308
 build==1.2.2.post1 \
     --hash=sha256:1d61c0887fa860c01971625baae8bdd338e517b836a2f70dd1f7aa3a6b2fc5b5
-pip==24.3.1 \
-    --hash=sha256:3790624780082365f47549d032f3770eeb2b1e8bd1f7b2e02dace1afa361b4ed
+pip==26.1 \
+    --hash=sha256:4e8486d821d814b77319acb7b9e8bf5a4ee7590a643e7cb21029f209be8573c1 \
+    --hash=sha256:81e13ebcca3ffa8cc85e4deff5c27e1ee26dea0aa7fc2f294a073ac208806ff3
 setuptools==78.1.1 \
     --hash=sha256:c3a9c4211ff4c309edb8b8c4f1cbfa7ae324c4ba9f91ff254e3d305b9fd54561 \
     --hash=sha256:fcc17fd9cd898242f6b4adfaca46137a9edef687f43e6f78469692a5e70d851d
@@ -11,15 +12,14 @@ setuptools==78.1.1 \
 # Transitive dependencies of build
 colorama==0.4.6; platform_system == 'Windows' \
     --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6
-importlib-metadata==8.5.0; python_version == '3.9' \
-    --hash=sha256:45e54197d28b7a7f1559e60b95e7c567032b602131fbd588f1497f47880aa68b
 packaging==24.2 \
     --hash=sha256:09abb1bccd265c01f4a3aa3f7a7db064b36514d2cba19a2f694fe6150451a759
 pyproject_hooks==1.2.0 \
     --hash=sha256:9e5c6bfa8dcc30091c74b0cf803c81fdd29d94f01992a7707bc97babb1141913
 tomli==2.1.0; python_version < '3.11' \
     --hash=sha256:a5c57c3d1c56f5ccdf89f6523458f60ef716e210fc47c4cfb188c5ba473e0391
-typing-extensions==4.12.2 \
-    --hash=sha256:04e5ca0351e0f3f85c6853954072df659d0d13fac324d0072316b67d7794700d
+typing-extensions==4.16.0 \
+    --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8 \
+    --hash=sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5
 zipp==3.21.0 \
     --hash=sha256:ac1bbe05fd2991f160ebce24ffbac5f6d11d83dc90891255885223d42b3cd931

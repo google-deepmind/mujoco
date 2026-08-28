@@ -28,6 +28,7 @@
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
+#include "engine/engine_vis_visualize.h"
 
 // transform pose from room to model space
 void mjv_room2model(mjtNum* modelpos, mjtNum* modelquat, const mjtNum* roompos,
@@ -247,6 +248,20 @@ mjtNum mjv_frustumHeight(const mjvScene* scn) {
 }
 
 
+static mjtNum cameraFrustumHeight(const mjModel* m, const mjvCamera* cam) {
+  float zclip[2] = {0, 0}, zver[2] = {0, 0};
+  mjv_cameraFrustum(zver, NULL, zclip, m, cam);
+  if (cam->orthographic) {
+    return (zver[1] + zver[0]);
+  } else {
+    if (zclip[0] < mjMINVAL) {
+      mjERROR("mjvScene frustum_near too small");
+    }
+    return (zver[1] + zver[0]) / zclip[0];
+  }
+}
+
+
 // rotate 3D vec in horizontal plane by angle between (0,1) and (forward_x,forward_y)
 void mjv_alignToCamera(mjtNum* res, const mjtNum* vec, const mjtNum* forward) {
   mjtNum xaxis[2], yaxis[2];
@@ -311,12 +326,12 @@ static void convert2D(mjtNum* res, int action, mjtNum dx, mjtNum dy, const mjtNu
 
 
 // move camera with mouse; action is mjtMouse
-void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
-                    const mjvScene* scn, mjvCamera* cam) {
+void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy, mjvCamera* cam) {
   mjtNum headpos[3], forward[3], up[3], right[3];
   mjtNum vec[3], dif[3], scl;
 
   // fixed camera: nothing to do
+  // note: mjv_cameraFrame, which we use below, requires mjData for non-fixed camera
   if (cam->type == mjCAMERA_FIXED) {
     return;
   }
@@ -337,18 +352,37 @@ void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
     }
 
     // get camera info and align
-    mjv_cameraInModel(headpos, forward, NULL, scn);
+    mjv_cameraFrame(headpos, forward, NULL, NULL, NULL, cam);
     convert2D(vec, action, reldx, reldy, forward);
 
     // compute scaling: rendered lookat displacement = mouse displacement
     mju_sub3(dif, cam->lookat, headpos);
-    scl = mjv_frustumHeight(scn) * mju_dot3(dif, forward);
+    scl = cameraFrustumHeight(m, cam) * mju_dot3(dif, forward);
 
     // multiply by mystery coefficient TODO: b/346130949
     if (cam->orthographic) scl *= 0.15;
 
     // move lookat point in opposite direction
     mju_addToScl3(cam->lookat, vec, -scl);
+    break;
+
+  case mjMOUSE_TURN_V:
+  case mjMOUSE_TURN_H:
+    if (cam->type == mjCAMERA_TRACKING) {
+      return;
+    }
+
+    mjv_cameraFrame(headpos, forward, NULL, NULL, NULL, cam);
+    if (action == mjMOUSE_TURN_H) {
+      cam->azimuth -= reldx * 180.0;
+    }
+    if (action == mjMOUSE_TURN_V) {
+      cam->elevation -= reldy * 180.0;
+    }
+    mjv_cameraFrame(NULL, forward, NULL, NULL, NULL, cam);
+
+    // move lookat point so that camera faces new direction
+    mju_addScl3(cam->lookat, headpos, forward, cam->distance);
     break;
 
   case mjMOUSE_ZOOM:
@@ -362,7 +396,7 @@ void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
       return;
     }
 
-    mjv_cameraInModel(headpos, forward, up, scn);
+    mjv_cameraFrame(headpos, forward, up, NULL, NULL, cam);
     mju_cross(right, forward, up);
 
     // y-axis movement moves forward/backward (ie. camera dolly) on horizontal plane or up/down
@@ -799,6 +833,84 @@ mjvGLCamera mjv_averageCamera(const mjvGLCamera* cam1, const mjvGLCamera* cam2) 
 }
 
 
+// converts a mjvCamera to a mjvGLCamera
+mjvGLCamera mjv_camera2GLCamera(const mjModel* model, const mjData* data,
+                                const mjvCamera* mjv_camera) {
+  mjvGLCamera gl_camera;
+  gl_camera.orthographic = model->vis.global.orthographic;
+  if (mjv_camera->type == mjCAMERA_FIXED) {
+    const int cid = mjv_camera->fixedcamid;
+    if (cid >= 0 &&  cid < model->ncam) {
+      gl_camera.orthographic = model->cam_projection[cid] == mjPROJ_ORTHOGRAPHIC;
+    }
+  }
+
+  mjtNum headpos[3], forward[3], up[3];
+  mjv_cameraFrame(headpos, forward, up, NULL, data, mjv_camera);
+  for (int i = 0; i < 3; i++) {
+    gl_camera.pos[i] = (float)(headpos[i]);
+    gl_camera.forward[i] = (float)forward[i];
+    gl_camera.up[i] = (float)up[i];
+  }
+
+  float zver[2], zhor[2], zclip[2];
+  mjv_cameraFrustum(zver, zhor, zclip, model, mjv_camera);
+  gl_camera.frustum_top = zver[0];
+  gl_camera.frustum_bottom = -zver[1];
+  gl_camera.frustum_center = (zhor[1] - zhor[0]) / 2;
+  gl_camera.frustum_width = (zhor[1] + zhor[0]) / 2;
+  gl_camera.frustum_near = zclip[0];
+  gl_camera.frustum_far = zclip[1];
+  return gl_camera;
+}
+
+
+// return body id, compute position of a vertex in a flex
+int mjv_flexBodyId(const mjModel* m, const mjData* d, int flexid, int vertid, mjtNum flexpnt[3]) {
+  int flexbodyid = -1;
+  if (m->flex_interp[flexid]) {
+    mjtNum* coord = m->flex_vert0 + 3*(m->flex_vertadr[flexid] + vertid);
+    int order = m->flex_interp[flexid];
+    order = order < 0 ? -order : order;
+    int npc = (order+1)*(order+1)*(order+1);
+
+    // cell lookup: get local coords and node indices
+    mjtNum loc[3];
+    int nodeindices[27];  // max npc for quadratic: 3^3 = 27
+    mju_cellLookup(coord, m->flex_cellnum+3*flexid, order, loc, nodeindices);
+
+    // find node with largest weight in this cell
+    // in shell mode, skip interior nodes (pinned to worldbody)
+    int nodeid = -1;
+    int nstart = m->flex_nodeadr[flexid];
+    mjtNum w = 0;
+    int shell_mode = m->flex_interp[flexid] < 0;
+    for (int j = 0; j < npc; j++) {
+      mjtNum ww = mju_evalBasis(loc, j, order);
+      int nid = nodeindices[j];
+      // skip interior nodes in shell mode (they map to worldbody)
+      if (shell_mode && m->body_dofnum[m->flex_nodebodyid[nstart + nid]] == 0) {
+        continue;
+      }
+      if (ww > w) {
+        w = ww;
+        nodeid = nid;
+      }
+    }
+    flexbodyid = m->flex_nodebodyid[nstart + nodeid];
+    if (m->flex_centered[flexid]) {
+      mju_copy3(flexpnt, d->xpos + 3*flexbodyid);
+    } else {
+      mju_mulMatVec3(flexpnt, d->xmat + 9*flexbodyid, m->flex_node + 3*(nstart + nodeid));
+      mju_addTo3(flexpnt, d->xpos + 3*flexbodyid);
+    }
+  } else {
+    flexbodyid = m->flex_vertbodyid[m->flex_vertadr[flexid] + vertid];
+    mju_copy3(flexpnt, d->flexvert_xpos + 3*(m->flex_vertadr[flexid] + vertid));
+  }
+  return flexbodyid;
+}
+
 // Select geom, flex or skin with mouse, return bodyid; -1: none selected.
 int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
                mjtNum aspectratio, mjtNum relx, mjtNum rely,
@@ -840,7 +952,8 @@ int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
 
   // find intersection with geoms
   *geomid = -1;
-  mjtNum geomdist = mj_ray(m, d, pos, ray, vopt->geomgroup, vopt->flags[mjVIS_STATIC], -1, geomid);
+  mjtNum geomdist = mj_ray(m, d, pos, ray,
+                           vopt->geomgroup, vopt->flags[mjVIS_STATIC], -1, geomid, NULL);
 
   // find intersection with flexes
   int flexbodyid = -1;
@@ -852,41 +965,16 @@ int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
     for (int i=0; i < m->nflex; i++) {
       // process one flex
       int vertid;
-      mjtNum newdist = mju_rayFlex(m, d, vopt->flex_layer,
-                                   vopt->flags[mjVIS_FLEXVERT], vopt->flags[mjVIS_FLEXEDGE],
-                                   vopt->flags[mjVIS_FLEXFACE], vopt->flags[mjVIS_FLEXSKIN],
-                                   i, pos, ray, &vertid);
+      mjtNum newdist =
+          mj_rayFlex(m, d, vopt->flex_layer, vopt->flags[mjVIS_FLEXVERT],
+                     vopt->flags[mjVIS_FLEXEDGE], vopt->flags[mjVIS_FLEXFACE],
+                     vopt->flags[mjVIS_FLEXSKIN], i, pos, ray, &vertid, NULL);
 
       // update if closer intersection found
       if (newdist >= 0 && (newdist < flexdist || flexdist < 0)) {
         flexdist = newdist;
-        if (m->flex_interp[i]) {
-          mjtNum* coord = m->flex_vert0 + 3*(m->flex_vertadr[i] + vertid);
-          int nodeid = -1;
-          int nstart = m->flex_nodeadr[i];
-          int nend = nstart + m->flex_nodenum[i];
-          mjtNum w = 0;
-          for (int j = nstart; j < nend; j++) {
-            if (mju_evalBasis(coord, j-nstart, m->flex_interp[i]) > w) {
-              w = mju_evalBasis(coord, j-nstart, m->flex_interp[i]);
-              nodeid = j;
-            }
-          }
-          if (nodeid < 0) {
-            mjERROR("flex %d: node closest to vertex %d not found", i, vertid);
-          }
-          flexbodyid = m->flex_nodebodyid[m->flex_nodeadr[i] + nodeid];
-          if (m->flex_centered[i]) {
-            mju_copy3(flexpnt, d->xpos + 3*flexbodyid);
-          } else {
-            mju_mulMatVec3(flexpnt, d->xmat + 9*flexbodyid, m->flex_node + 3*nodeid);
-            mju_addTo3(flexpnt, d->xpos + 3*flexbodyid);
-          }
-        } else {
-          flexbodyid = m->flex_vertbodyid[m->flex_vertadr[i] + vertid];
-          mju_copy3(flexpnt, d->flexvert_xpos + 3*(m->flex_vertadr[i] + vertid));
-        }
         *flexid = i;
+        flexbodyid = mjv_flexBodyId(m, d, *flexid, vertid, flexpnt);
       }
     }
   }

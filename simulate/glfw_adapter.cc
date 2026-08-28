@@ -23,7 +23,7 @@
 #include "glfw_dispatch.h"
 
 #ifdef __APPLE__
-#include "glfw_corevideo.h"
+  #include "glfw_corevideo.h"
 #endif
 
 namespace mujoco {
@@ -31,9 +31,7 @@ namespace {
 int MaybeGlfwInit() {
   static const int is_initialized = []() {
     auto success = Glfw().glfwInit();
-    if (success == GLFW_TRUE) {
-      std::atexit(Glfw().glfwTerminate);
-    }
+    if (success == GLFW_TRUE) { std::atexit(Glfw().glfwTerminate); }
     return success;
   }();
   return is_initialized;
@@ -45,9 +43,7 @@ GlfwAdapter& GlfwAdapterFromWindow(GLFWwindow* window) {
 }  // namespace
 
 GlfwAdapter::GlfwAdapter() {
-  if (MaybeGlfwInit() != GLFW_TRUE) {
-    mju_error("could not initialize GLFW");
-  }
+  if (MaybeGlfwInit() != GLFW_TRUE) { mju_error("could not initialize GLFW"); }
 
   // multisampling
   Glfw().glfwWindowHint(GLFW_SAMPLES, 4);
@@ -59,10 +55,10 @@ GlfwAdapter::GlfwAdapter() {
   // create window
   window_ = Glfw().glfwCreateWindow((2 * vidmode_.width) / 3,
                                     (2 * vidmode_.height) / 3,
-                                    "MuJoCo", nullptr, nullptr);
-  if (!window_) {
-    mju_error("could not create window");
-  }
+                                    "MuJoCo",
+                                    nullptr,
+                                    nullptr);
+  if (!window_) { mju_error("could not create window"); }
 
   // save window position and size
   Glfw().glfwGetWindowPos(window_, &window_pos_.first, &window_pos_.second);
@@ -71,37 +67,42 @@ GlfwAdapter::GlfwAdapter() {
   // set callbacks
   Glfw().glfwSetWindowUserPointer(window_, this);
   Glfw().glfwSetDropCallback(
-      window_, +[](GLFWwindow* window, int count, const char** paths) {
+      window_,
+      +[](GLFWwindow* window, int count, const char** paths) {
         GlfwAdapterFromWindow(window).OnFilesDrop(count, paths);
       });
   Glfw().glfwSetKeyCallback(
-      window_, +[](GLFWwindow* window, int key, int scancode, int act, int mods) {
+      window_,
+      +[](GLFWwindow* window, int key, int scancode, int act, int mods) {
         GlfwAdapterFromWindow(window).OnKey(key, scancode, act);
       });
   Glfw().glfwSetMouseButtonCallback(
-      window_, +[](GLFWwindow* window, int button, int act, int mods) {
+      window_,
+      +[](GLFWwindow* window, int button, int act, int mods) {
         GlfwAdapterFromWindow(window).OnMouseButton(button, act);
       });
   Glfw().glfwSetCursorPosCallback(
-      window_, +[](GLFWwindow* window, double x, double y) {
+      window_,
+      +[](GLFWwindow* window, double x, double y) {
         GlfwAdapterFromWindow(window).OnMouseMove(x, y);
       });
   Glfw().glfwSetScrollCallback(
-      window_, +[](GLFWwindow* window, double xoffset, double yoffset) {
+      window_,
+      +[](GLFWwindow* window, double xoffset, double yoffset) {
         GlfwAdapterFromWindow(window).OnScroll(xoffset, yoffset);
       });
   Glfw().glfwSetWindowRefreshCallback(
-      window_, +[](GLFWwindow* window) {
+      window_,
+      +[](GLFWwindow* window) {
 #ifdef __APPLE__
         auto& core_video = GlfwAdapterFromWindow(window).core_video_;
-        if (core_video.has_value()) {
-          core_video->UpdateDisplayLink();
-        }
+        if (core_video.has_value()) { core_video->UpdateDisplayLink(); }
 #endif
         GlfwAdapterFromWindow(window).OnWindowRefresh();
       });
   Glfw().glfwSetWindowSizeCallback(
-      window_, +[](GLFWwindow* window, int width, int height) {
+      window_,
+      +[](GLFWwindow* window, int width, int height) {
         GlfwAdapterFromWindow(window).OnWindowResize(width, height);
       });
 
@@ -123,8 +124,7 @@ std::pair<double, double> GlfwAdapter::GetCursorPosition() const {
 
 double GlfwAdapter::GetDisplayPixelsPerInch() const {
   int width_mm, height_mm;
-  Glfw().glfwGetMonitorPhysicalSize(
-      Glfw().glfwGetPrimaryMonitor(), &width_mm, &height_mm);
+  Glfw().glfwGetMonitorPhysicalSize(Glfw().glfwGetPrimaryMonitor(), &width_mm, &height_mm);
   return 25.4 * vidmode_.width / width_mm;
 }
 
@@ -152,7 +152,7 @@ void GlfwAdapter::SetClipboardString(const char* text) {
   Glfw().glfwSetClipboardString(window_, text);
 }
 
-void GlfwAdapter::SetVSync(bool enabled){
+void GlfwAdapter::SetVSync(bool enabled) {
 #ifdef __APPLE__
   Glfw().glfwSwapInterval(0);
   if (enabled && !core_video_.has_value()) {
@@ -175,9 +175,7 @@ bool GlfwAdapter::ShouldCloseWindow() const {
 
 void GlfwAdapter::SwapBuffers() {
 #ifdef __APPLE__
-  if (core_video_.has_value()) {
-    core_video_->WaitForDisplayRefresh();
-  }
+  if (core_video_.has_value()) { core_video_->WaitForDisplayRefresh(); }
 #endif
   Glfw().glfwSwapBuffers(window_);
 }
@@ -186,20 +184,28 @@ void GlfwAdapter::ToggleFullscreen() {
   // currently full screen: switch to windowed
   if (Glfw().glfwGetWindowMonitor(window_)) {
     // restore window from saved data
-    Glfw().glfwSetWindowMonitor(window_, nullptr, window_pos_.first, window_pos_.second,
-                                window_size_.first, window_size_.second, 0);
+    Glfw().glfwSetWindowMonitor(window_,
+                                nullptr,
+                                window_pos_.first,
+                                window_pos_.second,
+                                window_size_.first,
+                                window_size_.second,
+                                0);
   }
 
   // currently windowed: switch to full screen
   else {
     // save window data
     Glfw().glfwGetWindowPos(window_, &window_pos_.first, &window_pos_.second);
-    Glfw().glfwGetWindowSize(window_, &window_size_.first,
-                             &window_size_.second);
+    Glfw().glfwGetWindowSize(window_, &window_size_.first, &window_size_.second);
 
     // switch
-    Glfw().glfwSetWindowMonitor(window_, Glfw().glfwGetPrimaryMonitor(), 0,
-                                0, vidmode_.width, vidmode_.height,
+    Glfw().glfwSetWindowMonitor(window_,
+                                Glfw().glfwGetPrimaryMonitor(),
+                                0,
+                                0,
+                                vidmode_.width,
+                                vidmode_.height,
                                 vidmode_.refreshRate);
   }
 }
@@ -235,9 +241,13 @@ bool GlfwAdapter::IsMouseButtonDownEvent(int act) const {
   return act == GLFW_PRESS;
 }
 
-bool GlfwAdapter::IsKeyDownEvent(int act) const { return act == GLFW_PRESS; }
+bool GlfwAdapter::IsKeyDownEvent(int act) const {
+  return act == GLFW_PRESS;
+}
 
-int GlfwAdapter::TranslateKeyCode(int key) const { return key; }
+int GlfwAdapter::TranslateKeyCode(int key) const {
+  return key;
+}
 
 mjtButton GlfwAdapter::TranslateMouseButton(int button) const {
   if (button == GLFW_MOUSE_BUTTON_LEFT) {

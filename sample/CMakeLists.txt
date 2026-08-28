@@ -24,7 +24,7 @@ set(MSVC_INCREMENTAL_DEFAULT ON)
 
 project(
   mujoco_samples
-  VERSION 3.4.1
+  VERSION 3.12.1
   DESCRIPTION "MuJoCo samples binaries"
   HOMEPAGE_URL "https://mujoco.org"
 )
@@ -46,6 +46,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/../cmake")
 
 if(SAMPLE_STANDALONE)
   include(SampleOptions)
@@ -113,12 +114,41 @@ target_link_libraries(
 )
 target_link_options(record PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
 
+if(MUJOCO_USE_FILAMENT)
+  add_executable(render render.cc)
+  target_compile_options(render PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(render PRIVATE -Wno-gnu-anonymous-struct -Wno-nested-anon-types)
+  endif()
+  target_link_libraries(
+    render
+    mujoco::mujoco
+    mujoco::filament
+    lodepng
+    Threads::Threads
+  )
+  target_link_options(render PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
+
+  # Deploy Filament assets (compiled shaders, IBL) next to the binary so the
+  # Filament backend can load them at runtime.
+  add_dependencies(render mujoco_filament_assets)
+  add_custom_command(
+    TARGET render POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+      ${CMAKE_BINARY_DIR}/src/render/filament/assets
+      $<TARGET_FILE_DIR:render>/assets
+    COMMENT "Deploying Filament assets for render sample")
+endif()
+
 if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
   embed_in_bundle(basic simulate)
   embed_in_bundle(compile simulate)
   embed_in_bundle(dependencies simulate)
   embed_in_bundle(record simulate)
   embed_in_bundle(testspeed simulate)
+  if(MUJOCO_USE_FILAMENT)
+    embed_in_bundle(render simulate)
+  endif()
 endif()
 
 # Do not install if macOS Bundles are created as RPATH is managed manually there.
@@ -131,13 +161,20 @@ if(_INSTALL_SAMPLES)
   include(TargetAddRpath)
 
   # Add support to RPATH for the samples.
+  set(MUJOCO_INSTALL_SAMPLES
+      basic
+      compile
+      dependencies
+      record
+      testspeed
+  )
+  if(MUJOCO_USE_FILAMENT)
+    list(APPEND MUJOCO_INSTALL_SAMPLES render)
+  endif()
+
   target_add_rpath(
     TARGETS
-    basic
-    compile
-    dependencies
-    record
-    testspeed
+    ${MUJOCO_INSTALL_SAMPLES}
     INSTALL_DIRECTORY
     "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
     LIB_DIRS
@@ -147,11 +184,7 @@ if(_INSTALL_SAMPLES)
   )
 
   install(
-    TARGETS basic
-            compile
-            dependencies
-            record
-            testspeed
+    TARGETS ${MUJOCO_INSTALL_SAMPLES}
     EXPORT ${PROJECT_NAME}
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT samples
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT samples

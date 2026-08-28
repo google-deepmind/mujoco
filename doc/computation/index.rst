@@ -184,16 +184,16 @@ mathematical notation.
      - inertia in joint space
      - ``mjData.qM``
    * - :math:`J(q)`
-     - :math:`\nq \times \nv`
+     - :math:`\nc \times \nv`
      - constraint
        Jacobian
      - ``mjData.efc_J``
    * - :math:`r(q)`
-     - :math:`\nq`
+     - :math:`\nc`
      - constraint residual
      - ``mjData.efc_pos``
    * - :math:`f(q, v,\tau)`
-     - :math:`\nq`
+     - :math:`\nc`
      - constraint force
      - ``mjData.efc_force``
 
@@ -202,7 +202,7 @@ earlier arm model :ref:`example <Examples>` the model has :math:`\nv = 13` degre
 for each of the 4 hinge joints, and 6 for the free-floating object. They appear in the same order in all system-level
 vectors and matrices whose dimensionality is :math:`\nv`. The data corresponding to a given model element can be
 recovered via indexing operations as illustrated in the :ref:`Clarifications` section in the Overview chapter. Vectors
-and matrices with dimensionality :math:`\nq` are somewhat different because the active :ref:`constraints <Constraint>`
+and matrices with dimensionality :math:`\nc` are somewhat different because the active :ref:`constraints <Constraint>`
 change at runtime. In that case there is still a fixed enumeration order (corresponding to the order in which the model
 elements appear in ``mjModel``) but any inactive constraints are omitted.
 
@@ -262,12 +262,21 @@ detailed summary of the :ref:`simulation pipeline <Pipeline>` is given at the en
 Actuation model
 ~~~~~~~~~~~~~~~
 
-MuJoCo provides a flexible actuator model. All actuators are single-input-single-output (SISO). The input to actuator
-:math:`i` is a scalar control :math:`u_i` specified by the user. The output is a scalar force :math:`p_i` which is
-mapped to joint coordinates by a vector of moment arms determined by the transmission. An actuator can also have
-activation state :math:`w_i` with its own dynamics. The control inputs for all actuators are stored in ``mjData.ctrl``,
-the force outputs are stored in ``mjData.actuator_force``, and the activation states (if any) are stored in
-``mjData.act``.
+MuJoCo provides a flexible actuator model. Most actuators are single-input-single-output (SISO): the input to
+actuator :math:`i` is a scalar control :math:`u_i` specified by the user, and the output is a scalar force
+:math:`p_i`, which is mapped to joint coordinates by a vector of moment arms determined by the transmission. An
+actuator can also have activation state :math:`w_i` with its own dynamics. The control inputs for all actuators are
+stored in ``mjData.ctrl``, the force outputs are stored in ``mjData.actuator_force``, and the activation states (if
+any) are stored in ``mjData.act``.
+
+More generally, an actuator can have several control inputs, several force outputs, or both. For example, a servo
+which accepts both a position setpoint and a velocity setpoint has two inputs and one output. The number of inputs
+is a property of the actuator type, and the number of outputs is a property of its transmission; neither is
+specified directly by the user. Since the number of inputs and the number of outputs can vary per actuator, the model
+has three separate counts: the number of actuators ``nactuator``, the total number of controls ``nu``, and the total
+number of force outputs ``nout``. In a model where all actuators are SISO, all three are equal. Note that outputs are
+counted in actuation space, before the mapping to joint coordinates: a tendon actuator with a single force output can
+move many joints.
 
 These three components of an actuator -- transmission, activation dynamics, and force generation -- determine how the
 actuator works. The user can set them independently for maximum flexibility, or use :ref:`Actuator shortcuts
@@ -278,11 +287,13 @@ actuator works. The user can set them independently for maximum flexibility, or 
 Transmission
 ^^^^^^^^^^^^
 
-Each actuator has a scalar length :math:`l_i(q)` defined by the type of transmission and its parameters. The gradient
-:math:`\nabla l_i` is an :math:`\nv`-dimensional vector of moment arms. It determines the mapping from scalar
-actuator force to joint force. The transmission properties are determined by the MuJoCo object to which the actuator
-is attached; the possible attachment object types are :at:`joint`, :at:`tendon`, :at:`jointinparent`,
-:at:`slider-crank`, :at:`site`, and :at:`body`.
+The transmission attaches the actuator to the rest of the system. Each force output of the actuator has a scalar
+length :math:`l_k(q)`, defined by the type of transmission and its parameters, for example the
+:ref:`gear<actuator-general-gear>` vector. The gradient :math:`\nabla l_k` is an :math:`\nv`-dimensional vector of
+moment arms; it determines the mapping from the scalar output force to joint forces. The number of force outputs is
+likewise determined by the transmission; all the types listed below define a single output. The transmission
+properties are determined by the MuJoCo object to which the actuator is attached; the possible attachment object
+types are :at:`joint`, :at:`tendon`, :at:`jointinparent`, :at:`slider-crank`, :at:`site`, and :at:`body`.
 
 :at:`joint` and :at:`tendon`
    The :at:`joint` and :at:`tendon` transmission types act as expected and correspond to the actuator applying forces or
@@ -369,14 +380,10 @@ diverge for :math:`\texttt{t} < h`, while exactly-integrated filters are stable 
 Force generation
 ^^^^^^^^^^^^^^^^
 
-Each actuator generates a scalar force :math:`p_i` which is some function
-
-.. math::
-   p_i \left( u_i, w_i, l_i, \dot{l}_i \right)
-
-Similarly to activation dynamics, the force generation mechanism is actuator-specific and cannot interact with the
-other actuators in the model. Currently the force is affine in the activation state when present, and in the control
-otherwise:
+Each actuator generates a scalar force for each of its outputs, as a function of its controls, activation states,
+and lengths and velocities. Similarly to activation dynamics, force generation is actuator-specific: the inputs and
+outputs of a single actuator can interact, but different actuators cannot affect each other. For SISO actuators the
+force is affine in the activation state when present, and in the control otherwise:
 
 .. math::
    p_i = (a w_i \; \text{or} \; a u_i) + b_0 + b_1 l_i + b_2 \dot{l}_i
@@ -384,17 +391,17 @@ otherwise:
 Here :math:`a` is an actuator-specific gain parameter and :math:`b_0, b_1, b_2` are actuator-specific bias
 parameters, stored in ``mjModel.actuator_gainprm`` and ``mjModel.actuator_biasprm`` respectively. Different settings
 of the gain and bias parameters can be used to model direct force control as well as position and velocity servos -in
-which case the control/activation has the meaning of reference position or velocity. One can also compute custom gain
-and bias terms by installing the callbacks :ref:`mjcb_act_gain` and :ref:`mjcb_act_bias` and setting the gain and
-bias type to "user". Note that affine force generation makes it possible to infer the controls/activations from the
-applied force computed in inverse dynamics, using the pseudo-inverse of the matrix of moment arms. However some of
-the actuators used in the real world are not affine (especially those that have embedded low-level controllers), so
-we are considering extensions to the above model.
+which case the control/activation has the meaning of reference position or velocity. Multi-input actuator types
+define their own force laws. One can also compute custom gain and bias terms for SISO actuators by installing the
+callbacks :ref:`mjcb_act_gain` and :ref:`mjcb_act_bias` and setting the gain and bias type to "user". Note that
+affine force generation makes it possible to infer the controls/activations from the applied force computed in
+inverse dynamics, using the pseudo-inverse of the matrix of moment arms.
 
-Putting all this together, the net force in generalized coordinates contributed by all actuators is
+Putting all this together, the net force in generalized coordinates contributed by all actuators is the sum over all
+force outputs
 
 .. math::
-   \sum_i \nabla l_i(q) \; p_i \left(u_i, w_i, l_i(q), \dot{l}_i(q, v) \right)
+   \sum_k \nabla l_k(q) \; p_k
 
 This quantity is stored in ``mjData.qfrc_actuator``. It is added to the applied force vector :math:`\tau`, together
 with any user-defined forces in joint or Cartesian coordinates (which are stored in ``mjData.qfrc_applied`` and
@@ -422,6 +429,59 @@ MuJoCo can compute three types of passive forces:
   :ref:`springlength<tendon-spatial-springlength>`, :ref:`damping<tendon-spatial-damping>`.
 - Gravity compensation forces. See the body :ref:`gravcomp<body-gravcomp>` attribute for details.
 - Fluid forces exerted by the surrounding medium. See the :doc:`Fluid forces <fluid>` chapter for details.
+
+.. _gePolynomial:
+
+Polynomial forces
+^^^^^^^^^^^^^^^^^
+
+Nonlinear stiffness (:ref:`joints<body-joint-stiffness>`, :ref:`tendons<tendon-spatial-stiffness>`) and
+damping (:ref:`joints<body-joint-damping>`, :ref:`tendons<tendon-spatial-damping>`) are defined by polynomials
+:math:`f` of order :ref:`mjNPOLY + 1<glNumericSizes>`. The actual force applied to the system is :math:`-f`, meaning
+that sign-preserving functions yield a restorative (stiffness) or dissipative (damping) force.
+
+The stiffness polynomial takes the standard form (where :math:`x` is displacement):
+
+.. math::
+   f(x) = a x + b x^2 + c x^3 + \dots
+
+The damping polynomial takes the anti-symmetrized form (where :math:`v` is velocity):
+
+.. math::
+   f(v) = a v + b v |v| + c v^3 + \dots
+
+**Anti-symmetrization**
+  The damping polynomial uses anti-symmetrized even-powered monomials (e.g., :math:`v^2 \rightarrow v|v|`) so that the
+  function is odd: :math:`f(-v) = -f(v)`. This guarantees the force reverses direction with velocity. This formulation
+  is also physically motivated, as some natural forms of damping (like fluid drag) display an anti-symmetric quadratic
+  profile.
+
+  In contrast, asymmetric (or rather, non-anti-symmetric) stiffness profiles are physically common (e.g., biological
+  fascia), making the standard polynomial form and its Taylor-series convenience more appropriate.
+
+**Sign-preservation**
+  In both cases, sensible choices of coefficients often satisfy the **sign-preservation** condition
+  :math:`z \cdot f(z) \geq 0`. This condition is equivalent to requiring that the integral of :math:`f` (Potential
+  Energy for stiffness and Dissipation for damping) is globally convex with a minimum at the origin.
+
+  - For stiffness, violations of the condition create repulsive forces and/or multiple equilibria.
+  - For damping, violations create non-dissipative forces that inject mechanical energy into the system.
+
+  The sign-preservation condition is not enforced by the compiler; it is the user's responsibility to ensure it is
+  satisfied. The analytical conditions on the coefficients for orders up to 3 are:
+
+  .. math::
+     \begin{aligned}
+      \textrm{Standard:} \qquad & a \geq 0, \qquad c \geq 0, \qquad b^2 \leq 4 a c \\
+      \textrm{Anti-symmetrized:} \qquad & a \geq 0, \qquad c \geq 0, \qquad b < 0 \implies b^2 \leq 4 a c
+     \end{aligned}
+
+**mjModel fields**
+  Although MJCF accepts the coefficients as a single array (as does the :ref:`mjs layer<mjsJoint>`),
+  the linear coefficient in ``mjModel`` is stored separately from the higher-order ones.
+  For example, if :ref:`joint/stiffness<body-joint-stiffness>` = "a b c",
+  then ``jnt_stiffness[i] = a``, ``jnt_stiffnesspoly[i*mjNPOLY] = b`` and ``jnt_stiffnesspoly[i*mjNPOLY + 1] = c``.
+  A future breaking change of the C-API may unify the linear and higher-order coefficients into a single array.
 
 .. _geIntegration:
 
@@ -471,13 +531,13 @@ the *new* velocity. *Implicit* Euler means:
    \end{aligned}
 
 Comparing :eq:`eq_semimplicit` and :eq:`eq_implicit`, we see that the acceleration :math:`a_{t+h}=\dot{v}_{t+h}` on the
-right hand side of the velocity update is evaluated at the *next time step*. While evaluating the next acceleration
+right-hand side of the velocity update is evaluated at the *next time step*. While evaluating the next acceleration
 is not possible without stepping, we can use a first-order Taylor expansion to approximate this quantity, and
 take a single step of Newton's method. When the expansion is only with respect to velocity (and not position), the
 integrator is known as *implicit-in-velocity* Euler. This approach is particularly effective in systems where
 instabilities are caused by velocity-dependent forces: multi-joint pendulums, bodies tumbling through space, systems
 with lift and drag forces, and systems with substantial damping in tendons and actuators. Writing the
-acceleration as a function of velocity: :math:`a_t = a(v_t)`, the velocity update we aim to approximate is
+acceleration as a function of velocity, :math:`a_t = a(v_t)`, the velocity update we aim to approximate is
 
 .. math:: v_{t+h} = v_t + h a(v_{t+h})
 
@@ -497,7 +557,7 @@ Thus we define the derivative
        D &\equiv {\partial \over \partial v} \Big(\tau(v) - c (v) + J^T f(v)\Big)
    \end{aligned}
 
-The velocity update corresponding to Newton's method is as follows. First, we expand the right hand side to first order
+The velocity update corresponding to Newton's method is as follows. First, we expand the right-hand side to first order
 
 .. math::
    \begin{aligned}
@@ -520,6 +580,25 @@ Solving for :math:`v_{t+h}`, we obtain the implicit-in-velocity update
        \widehat{M} &\equiv M-h D
    \end{aligned}
 
+.. _geFreeBody:
+
+Gyroscopic derivatives for free bodies
+   The ``implicitfast`` integrator described :ref:`below<geIntegrators>` excludes the derivatives of centripetal,
+   Coriolis and gyroscopic forces from :math:`D`, so that :math:`\widehat M` remains symmetric and can be factorized
+   with the faster Cholesky decomposition. However integrating gyroscopic forces explicitly can lead to
+   energy gain and divergence of fast-spinning free bodies with asymmetric inertia.
+
+   Therefore for *standalone free bodies* (free joints whose body has no children), these derivatives are reinstated.
+   The rows of :math:`\widehat M` corresponding to such a body form a :math:`6\times 6` block which is decoupled from
+   the rest of the system. After the global Cholesky solve, this block is re-assembled with the exact derivative of the
+   body's bias force and re-solved with an optimized :math:`6\times 6` LU routine. For standalone free bodies,
+   ``implicitfast`` and ``implicit`` therefore compute identical updates.
+
+   **Properties.** The kinetic energy of a spinning free body is non-increasing in the absence of applied force.
+   Steady spins about principal axes are conserved almost exactly; tumbling motion is mildly damped, at a rate
+   scaling like :math:`(h|\omega|)^2` per step. Systems requiring long-horizon energy conservation of tumbling
+   bodies should use the ``RK4`` integrator.
+
 .. _geIntegrators:
 
 Integrators
@@ -531,8 +610,8 @@ All three single-step integrators in MuJoCo use the update :eq:`eq_implicit_upda
 Semi-implicit with implicit joint damping (``Euler``)
    For this method, :math:`D` only includes derivatives of joint damping. Note that in this case :math:`D` is diagonal
    and :math:`\widehat{M}` is symmetric, so :math:`L^TL` decomposition (a variant of Cholesky) can be used. This
-   factorization is stored ``mjData.qLD``. If the model has no joint damping or the
-   :ref:`eulerdamp<option-flag-eulerdamp>` disable-flag is set, implicit damping is disabled and the semi-implicit
+   factorization is stored in ``mjData.qH``. If the model has no joint damping or the
+   :ref:`eulerdamp<option-flag-eulerdamp>` disable flag is set, implicit damping is disabled and the semi-implicit
    update :eq:`eq_semimplicit` is used, rather than :eq:`eq_implicit_update`, avoiding the additional factorization of
    :math:`\widehat{M}` (*additional* because :math:`M` is already factorized for the acceleration update
    :eq:`eq_forward`).
@@ -556,15 +635,17 @@ Fast implicit-in-velocity (``implicitfast``)
    scenarios which are not common and already well-handled by the Runge-Kutta integrator (see below). Because the RNE
    derivatives are also the main source of asymmetry of :math:`D`, by dropping them and symmetrizing, we can use the
    faster :math:`L^TL` rather than :math:`LU` decomposition.
+   For standalone free bodies, the dropped :ref:`gyroscopic derivatives<geFreeBody>` are reinstated with a local
+   unsymmetric solve, preventing energy gain of spinning bodies at negligible additional cost.
 
 4th-order Runge-Kutta (``RK4``)
    One advantage of our continuous-time formulation is that we can use higher order integrators such as Runge-Kutta or
-   multistep methods. The only such integrator currently implemented is the fixed-step `4th-order Runge-Kutta method
+   multistep methods. MuJoCo implements the fixed-step `4th-order Runge-Kutta method
    <https://en.wikipedia.org/wiki/Runge–Kutta_methods#Derivation_of_the_Runge–Kutta_fourth-order_method>`__, though
    users can easily implement other integrators by calling :ref:`mj_forward` and integrating accelerations themselves.
    We have observed that for energy-conserving systems (`example <../_static/pendulum.xml>`__), RK4 is qualitatively
    better than the single-step methods, both in terms of stability and accuracy, even when the timestep is decreased by
-   a factor of 4 (so the computational effort is identical). In the presence of large velocity- dependent forces, if the
+   a factor of 4 (so the computational effort is identical). In the presence of large velocity-dependent forces, if the
    chosen single-step method integrates those forces implicitly, single-step methods can be significantly more stable
    than RK4.
 
@@ -579,20 +660,20 @@ Fast implicit-in-velocity (``implicitfast``)
     step is "just right", but that range is model-dependent.
 
    :ref:`integrator<option-integrator>`
-    Summary: The recommended integrator is ``implicitfast`` which usually has the best tradeoff of stabillity and
+    Summary: The recommended integrator is ``implicitfast`` which usually has the best tradeoff of stability and
     performance.
 
     **Euler**:
-     Use ``Euler`` for compatibillity with older models.
+     Use ``Euler`` for compatibility with older models.
     **implicitfast**:
      The ``implicitfast`` integrator has similar computational cost to ``Euler``, yet provides
      increased stability, and is therefore a strict improvement. It is the recommended integrator for most models.
     **implicit**:
-     The benefit over ``implicitfast`` is the implicit integration of Coriolis and centripetal forces, including
-     gyroscopic forces. The most common case where integrating such forces implicitly leads to noticeable improvement is
-     when free objects with asymmetric inertia are spinning quickly. `gyroscopic.xml <../_static/gyroscopic.xml>`__
-     shows an ellipsoid rolling on an inclined plane which quickly diverges with ``implicitfast`` but is stable with
-     ``implicit``.
+     The benefit over ``implicitfast`` is the implicit integration of Coriolis and centripetal forces for *coupled*
+     rotational systems such as multi-link pendula. For standalone free bodies the two integrators coincide, since
+     ``implicitfast`` applies the :ref:`gyroscopic derivatives<geFreeBody>` to such bodies. For example,
+     `gyroscopic.xml <../_static/gyroscopic.xml>`__ shows an ellipsoid rolling on an inclined plane; both
+     ``implicitfast`` and ``implicit`` handle this case well, while ``Euler`` quickly diverges.
     **RK4**:
      This integrator is best for systems which are energy conserving, or almost energy-conserving. `pendulum.xml
      <../_static/pendulum.xml>`__ shows a complicated pendulum mechanism which diverges quickly using ``Euler`` or
@@ -630,8 +711,8 @@ Constraint model
 
 MuJoCo has a very flexible constraint model, which is nevertheless handled in a uniform way by the
 :ref:`solver <Solver>` described later. Here we explain what the individual constraints are conceptually, and how they
-are laid out in the system-level vector and matrices with dimensionality :math:`\nq`. Each conceptual constraint can
-contribute one or more scalar constraints towards the total count :math:`\nq`, and each scalar constraint has a
+are laid out in the system-level vector and matrices with dimensionality :math:`\nc`. Each conceptual constraint can
+contribute one or more scalar constraints towards the total count :math:`\nc`, and each scalar constraint has a
 corresponding row in the constraint Jacobian :math:`J`. Active constraints are ordered by type in the order in which the
 types are described below, and then by model element within each type. The types are: equality, friction loss, limit,
 contact. Limits are handled as frictionless contacts by the solver and are not treated as a separate type internally. We
@@ -645,7 +726,7 @@ Equality
 MuJoCo can model equality constraints in the general form :math:`r(q) = 0` where :math:`r` can be any differentiable
 scalar or vector function of the position vector :math:`q`. It has the semantics of a residual. The solver can actually
 work with non-holonomic constraints as well, but we do not yet have such constraint types defined. Each equality
-constraint contributes :math:`\dim(r)` elements to the total constraint count :math:`\nq`. The corresponding block in
+constraint contributes :math:`\dim(r)` elements to the total constraint count :math:`\nc`. The corresponding block in
 :math:`J` is simply the Jacobian of the residual, namely :math:`\partial r / \partial q`. Note that due to the
 properties of quaternions, differentiation with respect to :math:`q` produces vectors of size :math:`\nv` rather than
 :math:`\nq`.
@@ -808,7 +889,7 @@ In addition to the above quantities which are computed online, each contact has 
 model definition.
 
 .. list-table::
-   :widths: 1 5
+   :widths: 2 6
    :header-rows: 1
 
    * - Parameter
@@ -819,15 +900,53 @@ model definition.
      - Vector of friction coefficients with dimensionality ``condim-1``. See below for semantics of the specific
        coefficients.
    * - ``margin``
-     - The distance margin used to determine if the contact should be included in the global contact array
-       ``mjData.contact``.
+     - The geometric inflation of the geom surfaces. Contacts are detected when the distance is below
+       ``margin + gap``, and contact forces are generated when the distance is below ``margin``.
    * - ``gap``
-     - For custom computations it is sometimes convenient to include contacts in ``mjData.contact`` but not generate
-       contact forces. This is what ``gap`` does: contact forces are generated only when the normal distance is below
-       (margin - gap).
+     - An additional detection buffer beyond ``margin``. Contacts with distance between ``margin`` and
+       ``margin + gap`` are included in ``mjData.contact`` as inactive contacts, but no contact forces are generated.
+       This is useful for action-at-a-distance effects, for example by :ref:`adhesion<actuator-adhesion>` actuators.
    * - ``solref`` and ``solimp``
      - :ref:`Solver <Solver>` parameters, explained later.
 
+.. _coMarginGap:
+
+margin and gap
+^^^^^^^^^^^^^^
+
+Each geom has a ``margin`` and a ``gap`` parameter, defined in the table above. The values for both parameters are
+:ref:`summed<CContact>` when considering contact between the two geoms. Together they define three regimes of contact
+detection and force generation, illustrated in the figure below.
+
+.. image:: ../images/modeling/margin_gap_light.svg
+   :width: 90%
+   :align: center
+   :class: only-light
+
+.. image:: ../images/modeling/margin_gap_dark.svg
+   :width: 90%
+   :align: center
+   :class: only-dark
+
+The distance between two geom surfaces determines which regime applies:
+
+- **No contact** (distance > ``margin + gap``): The geom surfaces, including their gap buffers, are not overlapping.
+  No contact is generated.
+
+- **Inactive contact** (``margin`` < distance ≤ ``margin + gap``): A contact is detected and included in
+  ``mjData.contact``, but no contact force is generated (``efc_address = -1``). These contacts can be used for custom
+  computations, for example by :ref:`adhesion<actuator-adhesion>` actuators.
+
+- **Active contact** (distance ≤ ``margin``): The contact is active and constraint forces are generated. The constraint
+  impedance function is applied to the quantity ``distance - margin``, which is non-positive in this regime.
+
+Negative ``margin`` values, corresponding "shrinkgage" of the geometric shape, are permitted. In this case
+``margin + gap >= 0`` must be maintained for collision detection to work correctly.
+
+.. _coCondim:
+
+condim
+^^^^^^
 The contact friction cone can be either elliptic or pyramidal. This is a global setting determined by the choice of
 constraint solver: the elliptic solvers work with elliptic cones, while the pyramidal solvers work with pyramidal cones,
 as defined later. The ``condim`` parameter determines the contact type, and has the following meaning:
@@ -839,14 +958,14 @@ as defined later. The ``condim`` parameter determines the contact type, and has 
 
 ``condim = 3`` : 3 for elliptic, 4 for pyramidal
    This is a regular frictional contact, which can generate normal force as well as a tangential friction force opposing
-   slip. An interpertation of this number is the slope of a surface above which a flat object will begin to slip
+   slip. An interpretation of this number is the slope of a surface above which a flat object will begin to slip
    under gravity.
 
 ``condim = 4`` : 4 for elliptic, 6 for pyramidal
    In addition to normal and tangential force, this contact can generate torsional friction torque opposing rotation
    around the contact normal, corresponding to a torque generated by a contacting surface patch. This is useful for
    modeling soft fingers, and can substantially improve the stability of simulated grasping. Torsional friction
-   coefficients have **units of length** which can be interperted as the diameter of the surface contact patch.
+   coefficients have **units of length** which can be interpreted as the diameter of the surface contact patch.
 
 ``condim = 6`` : 6 for elliptic, 10 for pyramidal
    This contact can oppose motion in all relative degrees of freedom between the two geoms. In particular it adds
@@ -859,6 +978,11 @@ as defined later. The ``condim`` parameter determines the contact type, and has 
 Note that condim cannot be 2 or 5. This is because the two tangential directions and the two rolling directions are
 treated as pairs. The friction coefficients within a pair can be different though, which can be used to model skating
 for example.
+
+.. _coCones:
+
+Friction cones
+^^^^^^^^^^^^^^
 
 Now we describe the friction cones and the corresponding Jacobians more formally. In this section only, let :math:`f`
 denote the vector of constraint forces for a single contact (as opposed to the system-level vector of constraint
@@ -949,34 +1073,34 @@ We will use the following notation beyond the notation introduced earlier:
      - Size
      - Description
    * - :math:`z`
-     - :math:`\nq`
+     - :math:`\nc`
      - constraint deformations
    * - :math:`\omega`
-     - :math:`\nq`
+     - :math:`\nc`
      - velocity of constraint deformations
    * - :math:`k`
-     - :math:`\nq`
+     - :math:`\nc`
      - virtual constraint stiffness
    * - :math:`b`
-     - :math:`\nq`
+     - :math:`\nc`
      - virtual constraint damping
    * - :math:`d`
-     - :math:`\nq`
+     - :math:`\nc`
      - constraint impedance
    * - :math:`A(q)`
-     - :math:`\nq \times \nq`
+     - :math:`\nc \times \nc`
      - inverse inertia in constraint space
    * - :math:`R(q)`
-     - :math:`\nq \times \nq`
+     - :math:`\nc \times \nc`
      - diagonal regularizer in constraint space
    * - :math:`\ar`
-     - :math:`\nq`
+     - :math:`\nc`
      - reference acceleration in constraint space
    * - :math:`\au(q, v, \tau)`
-     - :math:`\nq`
+     - :math:`\nc`
      - unconstrained acceleration in constraint space
    * - :math:`\ac(q, v, \dot{v})`
-     - :math:`\nq`
+     - :math:`\nc`
      - constrained acceleration in constraint space
    * - :math:`\mathcal{K}(q)`
      -
@@ -1013,7 +1137,8 @@ explain what it means and why it makes sense. That problem is
    :label: eq:primal
 
 The new players here are the diagonal regularizer :math:`R > 0` which makes the constraints soft, and the reference
-acceleration :math:`\ar` which stabilizes the constraints. The latter is similar in spirit to Baumgarte stabilization,
+acceleration :math:`\ar` which stabilizes the constraints; the latter is a spring-damper defined in the
+:ref:`Parameters <soParameters>` section below. It is similar in spirit to Baumgarte stabilization,
 but instead of adding a constraint force directly, it modifies the optimization problem whose solution is the constraint
 force. Since this problem is itself constrained, the relation between :math:`\ar` and :math:`f` is generally non-linear.
 The quantities :math:`R` and :math:`\ar` are computed from the solver :ref:`parameters <soParameters>` as described
@@ -1196,18 +1321,23 @@ when
 
 This key identity is essentially Newton's second law projected in constraint space. It is derived by moving the term
 :math:`c` in the equations of motion :eq:`eq:motion` to the right hand side, multiplying by :math:`J M^{-1}` from the
-left, adding :math:`\dot{J} v` to both sides, and substituting the above definitions of :math:`A, \au, \ac`. In terms of
-implementation, we do not actually compute the acceleration term :math:`\dot{J} v`. This is because our optimization
-problems depend on differences of constraint-space accelerations, and so this term would cancel out even if we were to
-compute it.
+left, adding :math:`\dot{J} v` to both sides, and substituting the above definitions of :math:`A, \au, \ac`. Computing
+:math:`\dot{J} v` requires differentiating the constraint Jacobian with respect to time, which is nontrivial.
+Although this term cancels in the identity :eq:`eq:identity` and so does not affect the forward-inverse comparison, its
+omission in the forward dynamics introduces a velocity-dependent bias for any constraint whose Jacobian varies with
+configuration. We compute this term for equality constraints (connect and weld) where Jacobian differentiation
+is tractable. For contacts, the term remains omitted due to the complexity of differentiating the contact frame through
+the collision pipeline.
 
-Note that the quadratic term in the inverse problem is weighted by :math:`R` instead of :math:`A+R`. This tells us two
-things. First, in the limit :math:`R \to 0` corresponding to hard constraints the inverse is no longer defined, as one
-would expect. Second and more useful, the inverse problem is diagonal, i.e., it decouples into independent optimization
-problems over the individual constraint forces. The only remaining coupling is due to the constraint set :math:`\Omega`,
-but that set is also decoupled over the conceptual constraints discussed earlier. It turns out that all these
-independent optimization problems can be solved analytically. The only non-trivial case is the elliptic friction cone
-model; we have shown how it can be handled in the above-referenced
+Note that the quadratic term in the inverse problem is weighted by :math:`R` instead of :math:`A+R`. This is the key
+structural insight: the :math:`A` matrix cancels entirely, leaving only :math:`R` in the quadratic term. Two
+consequences follow. First, in the limit :math:`R \to 0` corresponding to hard constraints the inverse is no longer
+defined, as one would expect. Second, the inverse problem is diagonal, i.e., it decouples into independent optimization
+problems over the individual constraint forces. Since :math:`R` is diagonal, no matrix inversion or factorization is
+needed -- the inverse dynamics require no optimization at all, only analytical formulas. The only remaining coupling is
+due to the constraint set :math:`\Omega`, but that set is also decoupled over the conceptual constraints discussed
+earlier. It turns out that all these independent optimization problems can be solved analytically. The only non-trivial
+case is the elliptic friction cone model; we have shown how it can be handled in the above-referenced
 `paper <https://scholar.google.com/scholar?cluster=9217655838195954277>`__. It requires a certain coupling of the
 diagonal values of :math:`R`, which is automatically enforced by MuJoCo so as to enable an exact analytical inverse for
 every model.
@@ -1234,12 +1364,18 @@ Each solver algorithm can be used with both pyramidal and elliptic friction cone
 representations of the constraint Jacobian and related matrices.
 
 **CG** : conjugate gradient method
-   This algorithm uses the non-linear conjugate gradient method with the Polak-Ribiere-Plus formula. Line-search is
-   exact, using Newton's method in one dimension, with analytical second derivatives.
+   This algorithm uses the non-linear conjugate gradient method with the Hager-Zhang formula. Line-search is
+   exact, using Newton's method in one dimension with analytical second derivatives on the piecewise-quadratic
+   cost. CG has no setup cost.
 
 **Newton** : Newton's method
    This algorithm implements the exact Newton method, with analytical second-order derivatives and Cholesky
-   factorization of the Hessian. The line-search is the same as in the CG method. It is the default solver.
+   factorization of the Hessian. The line-search is the same as in the CG method. When constraint states change between
+   iterations (e.g., a constraint transitions from quadratic to linear), the Hessian factorization is updated
+   incrementally via rank-1 Cholesky updates, avoiding full refactorization. Early termination is triggered when any of
+   three quantities falls below :ref:`tolerance<option-tolerance>`: the cost improvement of the last iteration, the
+   gradient norm, and the Newton decrement :math:`\tfrac{1}{2} g^T H^{-1} g` -- the predicted cost improvement of the
+   next iteration. It is the default solver.
 
 **PGS** : Projected Gauss-Seidel method
    This is the most common algorithm used in physics simulators, and used to be the default in MuJoCo, until we
@@ -1274,6 +1410,29 @@ representations of the constraint Jacobian and related matrices.
    handle elliptic cones without approximating them. It does more work per contact, however the contact dimensionality
    is smaller, and these two factors roughly balance each other.
 
+**NoSlip** : post-processing pass
+   This is not a standalone solver but a post-processing step, enabled by setting ``noslip_iterations`` to a positive
+   value in :ref:`option <option>`. After the main solver (Newton, CG, or PGS) has converged, the NoSlip solver
+   re-solves the friction dimensions only, using a PGS sweep with :math:`R = 0` (i.e., hard constraints) in those
+   dimensions. This suppresses the contact slip that is inherent to soft-constraint models. However, this cascade of
+   optimization steps no longer solves a single well-defined optimization problem; it is an ad-hoc correction that can
+   occasionally cause instabilities in models with complex multi-contact interactions.
+
+**Warmstart**
+   Before solving, the solver warmstarts the constraint forces from the previous time step. It evaluates the cost of
+   the warmstarted forces and compares it against the cost of zero forces (i.e., the unconstrained solution
+   ``qacc_smooth``). The lower-cost initialization is used. This dual warmstart strategy is robust: it quickly
+   bootstraps the solver when constraints persist across time steps, but avoids carrying over stale forces from
+   constraints that have disappeared.
+
+   Because every zone of the piecewise-quadratic cost has curvature of at least :math:`M`, the cost is strongly convex
+   in the :math:`M`-norm, which bounds the suboptimality of any point by the duality gap at its constraint forces:
+   :math:`\text{cost}(a) - \text{cost}^* \le \tfrac{1}{2} g^T M^{-1} g`. Before starting iterations, the CG and Newton
+   solvers evaluate this certificate at the warmstarted point, using the already-computed factorization of
+   :math:`M`. If it is below tolerance, convergence is proven and the solver returns immediately with zero iterations;
+   in the Newton case this skips constructing and factorizing the Hessian. In a quiescent, well-warmstarted scene this
+   eliminates nearly the entire cost of the constraint solver.
+
 .. _soIsland:
 
 Constraint islands
@@ -1301,12 +1460,6 @@ While islanding is not free (see implementation in `engine_island.c
 - Unconstrained DOFs are completely untouched by the solver, which otherwise needs to discover that they are unaffected.
 - Solving separate islands can be multi-threaded.
 
-.. admonition:: Known issues
-   :class: note
-
-   Islanding is not yet supported by the PGS solver.
-
-
 .. _soParameters:
 
 Parameters
@@ -1331,10 +1484,12 @@ Thus the constrained acceleration interpolates between the unconstrained and the
 in the limit :math:`R \to 0` we have a hard constraint and :math:`\ac = \ar`, while in the limit :math:`R \to \infty` we
 have have an infinitely soft constraint (i.e., no constraint) and :math:`\ac = \au`. It is then natural to introduce a
 model parameter which directly controls the interpolation. We call this parameter *impedance* and denote it :math:`d`.
-It is a vector with dimensionality :math:`\nq` satisfying :math:`0<d<1` element-wise. Once it is specified, we compute
+It is a vector with dimensionality :math:`\nc` satisfying :math:`0<d<1` element-wise. Once it is specified, we compute
 the diagonal elements of the regularizer as
 
 .. math::
+   :label: eq:impedance_R
+
    R_{ii} = \frac{1-d_i}{d_i} \hat{A}_{ii}
 
 Note that we are not using the diagonal of the actual :math:`A` matrix, but an approximation to it. This is because we
@@ -1350,21 +1505,74 @@ constraint would satisfy
 and so we would achieve the desired interpolation effect. This of course does not hold exactly in general, but the goal
 here is to construct a sensible and intuitive parameterization of the constraint model and get the scaling right.
 
+.. _soExactDiag:
+
+Diagonal approximation
+  The approximation has three sources of error: (i) it is frozen at ``qpos0`` rather than evaluated at the current
+  configuration; (ii) it averages the directional inverse inertia into a scalar, assuming isotropy; and (iii) it treats
+  the contributions of different bodies as independent, ignoring kinematic coupling through shared DOFs. These errors
+  are usually modest, but can become significant for models with highly anisotropic inertias or long kinematic chains
+  that operate far from ``qpos0``. In severe cases — particularly when the averaged inertia becomes near-zero despite
+  finite directional inertia — the regularizer :math:`R` becomes near-zero, making constraints infinitely hard and
+  causing divergence. The :ref:`diagexact<option-flag-diagexact>` flag replaces the approximation with the exact
+  diagonal :math:`A_{ii} = \|Y_i\|^2`, where :math:`Y = J M^{-1/2}` is the whitened Jacobian, computed at the current
+  configuration. This eliminates all three sources of error at a modest runtime cost: computing :math:`Y` requires a
+  back-substitution with the Cholesky factor of the mass matrix for each active constraint row; if :ref:`dual
+  solvers<soAlgorithms>` are used (PGS or NoSlip), the cost is negligible since :math:`Y` is computed anyway.
+
 Next we explain how the reference acceleration is computed. As already mentioned, we use a spring-damper model
 parameterized by *damping* and *stiffness* coefficients element-wise:
 
 .. math::
+   :label: eq:aref
+
    \ari = -b_i (J v)_i - k_i r_i
 
-Recall that :math:`r` is the position residual (which is zero for friction loss and friction dimensions of elliptic
-cones), while :math:`J v` is the joint velocity projected in constraint space; the indexing notation refers to one
-component of the projected velocity vector.
+Recall that :math:`r` is the position residual, while :math:`J v` is the joint velocity projected in constraint space;
+the indexing notation refers to one component of the projected velocity vector. For friction loss and friction
+dimensions of elliptic cones, :math:`r \equiv 0` and therefore :math:`k=0`, so the reference acceleration reduces to
+pure damping: :math:`\ari = -b_i (J v)_i`. More detail is given in the :ref:`Friction<CSolverFriction>` section of the
+Modeling chapter. For the tangential rows of contacts whose geoms specify a
+:ref:`surface velocity<body-geom-surfacevel>`, the projected velocity :math:`(J v)_i` is biased by the relative
+velocity of the surface material, so that the reference acceleration drives the contact toward moving *with* the
+surface; this is how conveyor belts and turntables are implemented, and it is also the quantity reported in the
+contact rows of ``mjData.efc_vel``.
 
-To summarize, the user specifies the vectors of impedance coefficients :math:`0<d<1`, damping coefficients :math:`b > 0`
-and stiffness coefficients :math:`k > 0`. The quantities :math:`R, \ar` are then computed by MuJoCo as shown above, and
-the selected optimization algorithm is applied to solve problem :eq:`eq:dual`. As explained in the :ref:`solver
-parameters <CSolver>` section of the Modeling chapter, MuJoCo offers additional automation for setting :math:`d, b, k`
-so as to achieve critical damping, or model a soft contact layer by varying :math:`d` with distance.
+.. _soAdhesion:
+
+Adhesion
+  Contacts of geoms with nonzero :ref:`adhesion<body-geom-adhesion>` force :math:`\delta` can pull: the feasible force
+  set is the friction cone *translated down the contact normal* by :math:`\delta`. This is implemented with an exact
+  factorization which leaves the cone machinery untouched. A constant attractive force :math:`\delta` along the contact
+  normal is accumulated into the passive force ``mjData.qfrc_adhesion``, and the reference acceleration of the contact's
+  normal row is biased:
+
+  .. math::
+     \ar \rightarrow \ar + R \, \delta
+
+  (for pyramidal cones the bias is distributed equally over the :math:`2(\mathrm{dim}-1)` edges). To see that this
+  factorization is exactly cone translation, combine :math:`f = (A+R)^{-1}(\ar - \au)` with :eq:`eq:identity` to obtain
+  the force relation :math:`R f = \ar - \ac`, and consider the net interface force :math:`f - \delta`: the passive
+  attraction cancels :math:`A \delta` in :eq:`eq:identity` while the bias cancels :math:`R \delta` in the force
+  relation, so the pair :math:`(f - \delta, \ac)` satisfies exactly the unbiased equations, with the cone membership of
+  :math:`f` becoming membership of the translated cone for :math:`f - \delta`. Consequently the compression branch of
+  the net contact force is independent of adhesion — resting penetration is unaffected — while a tensile branch of depth
+  :math:`\delta` is added. Adhesive contacts remain active when separated within the :ref:`gap<body-geom-gap>` band and
+  the biased reference acceleration continues to pull the geoms together across this distance.
+
+To summarize, the constraint behavior is determined by three per-constraint quantities: impedance :math:`0<d<1`, damping
+:math:`b > 0`, and stiffness :math:`k \geq 0`. These are computed from the :at:`solimp` and :at:`solref` attributes as
+described in the :ref:`solver parameters <soRefScaling>` section of the Modeling chapter, which also offers additional
+automation (e.g., achieving critical damping, or varying :math:`d` with distance to model a soft contact layer). The
+quantities :math:`R, \ar` are then computed from :eq:`eq:impedance_R` and :eq:`eq:aref`, and the selected optimization
+algorithm is applied to solve problem :eq:`eq:dual`.
+
+The closed-loop constraint dynamics resulting from the combination of :math:`R` and :math:`\ar` are analyzed in
+detail in the :ref:`Solver parameters <CSolver>` section of the Modeling chapter. In brief, each scalar constraint
+behaves approximately as a damped second-order system whose time constant and damping ratio are set by the :at:`solref`
+attribute, and whose strength is controlled by the impedance :math:`d` set via :at:`solimp`. When critically damped
+(:math:`\text{dampratio} = 1`), the steady-state penetration under a constant external load is independent of the
+effective mass in constraint space -- a consequence of the impedance-scaled parameterization.
 
 .. _soCones:
 
@@ -1372,10 +1580,10 @@ Friction cones
 ~~~~~~~~~~~~~~
 
 As explained above, MuJoCo allows both elliptic friction cones and pyramidal approximations to them; the selected solver
-determines which type of friction cone is used. The pyramidal approximation has :math:`2 (n-1)` edges where :math:`n` is
-the dimensionality of the contact space as specified by condim. We could add more edges yielding better approximations
-to the underlying elliptic cone, but this is pointless because the resulting solver would become slower than its
-elliptic counterpart.
+determines which type of friction cone is used. The pyramidal approximation has :math:`2 (n-1)` edges where :math:`n`
+is the dimensionality of the contact space as specified by :at:`condim`. We could add more edges yielding better
+approximations to the underlying elliptic cone, but this is pointless because the resulting solver would become
+slower than its elliptic counterpart.
 
 One might have expected that if we were to increase the number of edges in the pyramidal approximation, the solution to
 our optimization problem :eq:`eq:primal` would converge to the solution for the elliptic cone. This is true in the limit
@@ -1458,8 +1666,11 @@ Filtering
    3. The two geoms cannot belong to the same body. Furthermore, they cannot belong to a parent and a child body, unless
       the parent is the world body. The motivation is to avoid permanent contacts within bodies and joints. Note that if
       several bodies are welded together in the sense that there are no joints between them, they are treated as a
-      single body for the purposes of this test. The parent-filter test can be disabled by the user, while the same-body
-      test cannot be disabled.
+      single body for the purposes of this test. :ref:`Mocap bodies<CMocap>` and their dof-less descendants form their
+      own weld group, distinct from the world weld, so the parent-child exclusion applies to children of mocap bodies as
+      usual. Additionally, geom pairs where neither body can move (both weld groups have no degrees of freedom) are
+      skipped, so mocap bodies do not generate contacts with static geometry or with each other. The parent-filter test
+      can be disabled by the user, while the same-body test cannot be disabled.
    4. The two geoms must be "compatible" in the following sense. Each geom has integer parameters ``contype`` and
       ``conaffinity``. The boolean expression below must be true for the test to pass:
 
@@ -1519,23 +1730,25 @@ Both pipelines are controlled by a tolerance (in units of distance) and maximum 
 
 Multiple contacts
 ^^^^^^^^^^^^^^^^^
-Some colliders can return more than one contact per colliding pair to model line or surface contacts, as when two flat
+Some colliders can return more than one contact per colliding pair to model edge or surface contacts, as when two flat
 objects touch. For example the capsule-plane and box-plane colliders can return up to two or four contacts,
-respectively. Standard general-purpose convex collision algorithms like MPR and GJK always return a single contact
+respectively. Standard general-purpose convex collision algorithms like MPR and GJK/EPA always return a single contact
 point, which is problematic for surface contact scenarios (e.g., box-stacking). Both of MuJoCo's CCD pipelines can
 return multiple points per contacting pair ("multiccd"). This behavior is controlled by the
 :ref:`multiccd<option-flag-multiccd>` flag, but is implemented in different ways with different trade-offs:
 
-libccd pipeline (legacy)
+multi-run pipeline (legacy)
   Multiple contact points are found by rotating the two geoms by ±1e-3 radians around the tangential axes and
   re-running the collision routine. If a new contact is detected it is added, allowing for up to 4 additional contact
-  points. This method is effective, but increases the cost of each collision call by a factor of 5.
+  points. This method is effective, but increases the cost of each collision call by a factor of 5.  This method is
+  used when the :ref:`nativeccd<option-flag-nativeccd>` flag is disabled, and for geoms collisions involving cylinders
+  and capsules or with :ref:`positive contact margins<body-geom-margin>`.
 
-native pipeline
-  Native multiccd discovers multiple contacts using a novel analysis of the contacting surfaces at the solution,
-  avoiding full re-runs of the collision routine, and is thus effectively "free". Note that native multiccd currently
-  does not support positive contact margins. If one of the two geoms has a positive margin, native multiccd will fall
-  back to legacy algorithm.
+single-shot pipeline
+  The single-shot pipeline is used in conjunction with the native CCD pipeline, i.e., when the
+  :ref:`nativeccd<option-flag-nativeccd>` flag is enabled. As this pipeline is one-shot and most of the geom analysis
+  is done at compilation time, there is very little performance overhead. Supported geoms are boxes and meshes without
+  :ref:`positive contact margins<body-geom-margin>`.
 
 .. _coDistance:
 
@@ -1573,6 +1786,253 @@ outside MuJoCo to automate this process. Finally, all built-in collision functio
 callbacks. This can be used to incorporate a general-purpose "triangle soup" collision detector for example. However we
 do not recommend such an approach. Pre-processing the geometry and representing it as a union of convex geoms takes some
 work, but it pays off at runtime and yields both faster and more stable simulation.
+
+.. _coPairwise:
+
+Pair-wise colliders
+^^^^^^^^^^^^^^^^^^^
+
+The table below provides information about the colliders used for different geom pairs. These values can be computed
+dynamically by the :ref:`mj_maxContact` function. Use the toggles to see the max number of contacts returned with the
+parameters :ref:`nativeccd<option-flag-nativeccd>`, :ref:`multiccd<option-flag-multiccd>`, and
+:ref:`margin<body-geom-margin>`.
+
+.. raw:: html
+
+   <div class="pairwise-toggles">
+     <div class="pairwise-toggle-item">
+       <label class="pairwise-switch">
+         <input type="checkbox" id="nativeccd-checkbox" checked>
+         <span class="pairwise-slider"></span>
+       </label>
+       <span>nativeccd</span>
+     </div>
+     <div class="pairwise-toggle-item">
+       <label class="pairwise-switch">
+         <input type="checkbox" id="multiccd-checkbox">
+         <span class="pairwise-slider"></span>
+       </label>
+       <span>multiccd</span>
+     </div>
+     <div class="pairwise-toggle-item">
+       <label class="pairwise-switch">
+         <input type="checkbox" id="margin-checkbox">
+         <span class="pairwise-slider"></span>
+       </label>
+       <span>with margin</span>
+     </div>
+   </div>
+
+.. list-table::
+   :header-rows: 1
+   :stub-columns: 1
+   :widths: auto
+   :class: table-pairwise
+
+   * -
+     - Sphere
+     - Capsule
+     - Ellipsoid
+     - Cylinder
+     - Box
+     - Mesh
+     - SDF
+   * - Plane
+     - | primitive
+       | **1**
+     - | primitive
+       | **2**
+     - | primitive
+       | **1**
+     - | primitive
+       | **4**
+     - | primitive
+       | **4**
+     - | primitive
+       | **3**
+     - | primitive
+       | **1**
+   * - HField
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
+     - | HFieldSDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Sphere
+     - | primitive
+       | **1**
+     - | primitive
+       | **1**
+     - | CCD
+       | **1**
+     - | primitive
+       | **1**
+     - | primitive
+       | **1**
+     - | CCD
+       | **1**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Capsule
+     -
+     - | primitive
+       | **2**
+     - | CCD
+       | **1**
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line">
+           <div class="multiccd-off"><strong>1</strong></div>
+           <div class="multiccd-native"><strong>5</strong></div>
+           <div class="multiccd-legacy"><strong>5</strong></div>
+         </div>
+
+     - | primitive
+       | **2**
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line">
+           <div class="multiccd-off"><strong>1</strong></div>
+           <div class="multiccd-native"><strong>5</strong></div>
+           <div class="multiccd-legacy"><strong>5</strong></div>
+         </div>
+
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Ellipsoid
+     -
+     -
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Cylinder
+     -
+     -
+     -
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line">
+           <div class="multiccd-off"><strong>1</strong></div>
+           <div class="multiccd-native"><strong>5</strong></div>
+           <div class="multiccd-legacy"><strong>5</strong></div>
+         </div>
+
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line">
+           <div class="multiccd-off"><strong>1</strong></div>
+           <div class="multiccd-native"><strong>5</strong></div>
+           <div class="multiccd-legacy"><strong>5</strong></div>
+         </div>
+
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line">
+           <div class="multiccd-off"><strong>1</strong></div>
+           <div class="multiccd-native"><strong>5</strong></div>
+           <div class="multiccd-legacy"><strong>5</strong></div>
+         </div>
+
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Box
+     -
+     -
+     -
+     -
+     - | primitive
+       | **8**
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line">
+           <div class="multiccd-off"><strong>1</strong></div>
+           <div class="multiccd-native"><strong>4</strong></div>
+           <div class="multiccd-legacy"><strong>5</strong></div>
+         </div>
+
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Mesh
+     -
+     -
+     -
+     -
+     -
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line">
+            <div class="multiccd-off"><strong>1</strong></div>
+            <div class="multiccd-native"><strong>4</strong></div>
+            <div class="multiccd-legacy"><strong>5</strong></div>
+         </div>
+
+     - | MeshSDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - SDF
+     -
+     -
+     -
+     -
+     -
+     -
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+
+.. raw:: html
+
+   <script>
+     const pairwiseToggles = () => {
+       const table = document.querySelector('.table-pairwise');
+       const toggles = [
+         {id: 'nativeccd-checkbox', cls: 'nativeccd-enabled'},
+         {id: 'multiccd-checkbox', cls: 'multiccd-enabled'},
+         {id: 'margin-checkbox', cls: 'margin-enabled'}
+       ];
+
+       toggles.forEach(toggle => {
+         const cb = document.getElementById(toggle.id);
+         if (cb.checked) {
+           table.classList.add(toggle.cls);
+         }
+         cb.addEventListener('change', () => {
+           table.classList.toggle(toggle.cls, this.checked);
+         });
+       });
+     };
+     pairwiseToggles();
+   </script>
+
+
 
 .. _Sleeping:
 
@@ -1617,7 +2077,7 @@ sleeping mechanism is provided in the :ref:`Simulation chapter<siSleep>` but her
 Sleeping can occur in one of two ways:
 
 - **Automatic:** A tree whose maximum velocity in absolute value is less than the
-  :ref:`tolerance <option-sleep_tolerance>` for :ref:`mjMINAWAKE <glNumeric>` time steps is marked as "ready to sleep".
+  :ref:`tolerance <option-sleep_tolerance>` for :ref:`mjMINAWAKE <glNumericEngine>` time steps is marked as "ready to sleep".
   If all trees in an island are ready to sleep, they are put to sleep during state advancement.
 - **Initialized asleep:** By setting the :ref:`body/sleep<body-sleep>` attribute of a tree root to "init", it is
   marked as "initialized-asleep" and put to sleep during :ref:`mjData` initialization.

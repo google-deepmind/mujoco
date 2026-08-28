@@ -292,9 +292,13 @@ void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
 //   single-letter shortcuts:
 //     inputs: q=qpos, v=qvel, a=act, u=ctrl
 //     outputs: y=next_state (concatenated next qpos, qvel, act), s=sensordata
-void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
+void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
                 mjtNum* DyDq, mjtNum* DyDv, mjtNum* DyDa, mjtNum* DyDu,
                 mjtNum* DsDq, mjtNum* DsDv, mjtNum* DsDa, mjtNum* DsDu) {
+  if (m->nhistory) {
+    mjERROR("delays are not supported");
+  }
+
   int nq = m->nq, nv = m->nv, na = m->na, nu = m->nu, ns = m->nsensordata;
   int ndx = 2*nv+na;  // row length of Dy Jacobians
   mj_markStack(d);
@@ -535,10 +539,13 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
 //      B: (2*nv+na x nu)
 //      C: (nsensordata x 2*nv+na)
 //      D: (nsensordata x nu)
-void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
+void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
                       mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D) {
   if (m->opt.integrator == mjINT_RK4) {
     mjERROR("RK4 integrator is not supported");
+  }
+  if (m->nhistory) {
+    mjERROR("delays are not supported");
   }
 
   int nv = m->nv, na = m->na, nu = m->nu, ns = m->nsensordata;
@@ -591,18 +598,18 @@ void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_cente
 //     DsDq: (nv x nsensordata)
 //     DsDv: (nv x nsensordata)
 //     DsDa: (nv x nsensordata)
-//     DmDq: (nv x nM)
+//     DmDq: (nv x nC)
 //   single-letter shortcuts:
 //     inputs: q=qpos, v=qvel, a=qacc
-//     outputs: f=qfrc_inverse, s=sensordata, m=qM
+//     outputs: f=qfrc_inverse, s=sensordata, m=M
 //   notes:
 //     optionally compute mass matrix Jacobian DmDq
 //     flg_actuation specifies whether to subtract qfrc_actuator from qfrc_inverse
-void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuation,
+void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_actuation,
                    mjtNum *DfDq, mjtNum *DfDv, mjtNum *DfDa,
                    mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
                    mjtNum *DmDq) {
-  int nq = m->nq, nv = m->nv, nM = m->nM, ns = m->nsensordata;
+  int nq = m->nq, nv = m->nv, nC = m->nC, ns = m->nsensordata;
 
   if (m->opt.integrator == mjINT_RK4) {
     mjERROR("RK4 integrator is not supported");
@@ -621,7 +628,7 @@ void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuatio
   mjtNum *force      = mjSTACKALLOC(d, nv, mjtNum);                      // force
   mjtNum *force_plus = mjSTACKALLOC(d, nv, mjtNum);                      // nudged force
   mjtNum *sensor     = skipsensor ? NULL : mjSTACKALLOC(d, ns, mjtNum);  // sensor values
-  mjtNum *mass       = DmDq ? mjSTACKALLOC(d, nM, mjtNum) : NULL;        // mass matrix
+  mjtNum *mass       = DmDq ? mjSTACKALLOC(d, nC, mjtNum) : NULL;        // mass matrix
 
   // save current positions
   mju_copy(pos, d->qpos, nq);
@@ -629,7 +636,7 @@ void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuatio
   // center point outputs
   inverseSkip(m, d, mjSTAGE_NONE, skipsensor, flg_actuation, force);
   if (sensor) mju_copy(sensor, d->sensordata, ns);
-  if (mass) mju_copy(mass, d->qM, nM);
+  if (mass) mju_copy(mass, d->M, nC);
 
   // acceleration: skip = mjSTAGE_VEL
   if (DfDa || DsDa) {
@@ -695,7 +702,7 @@ void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuatio
       if (DsDq) diff(DsDq + i*ns, sensor, d->sensordata, eps, ns);
 
       // row of inertia Jacobian
-      if (DmDq) diff(DmDq + i*nM, mass, d->qM, eps, nM);
+      if (DmDq) diff(DmDq + i*nC, mass, d->M, eps, nC);
     }
   }
 

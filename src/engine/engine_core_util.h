@@ -18,6 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,7 +37,7 @@ MJAPI int mj_isSparse(const mjModel* m);
 //-------------------------- sparse chains ---------------------------------------------------------
 
 // merge dof chains for two bodies
-int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2);
+int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2, int flg_skipcommon);
 
 // merge dof chains for two simple bodies
 int mj_mergeChainSimple(const mjModel* m, int* chain, int b1, int b2);
@@ -78,23 +79,29 @@ MJAPI void mj_jacPointAxis(const mjModel* m, mjData* d,
 // compute 3/6-by-nv sparse Jacobian of global point attached to given body
 void mj_jacSparse(const mjModel* m, const mjData* d,
                   mjtNum* jacp, mjtNum* jacr, const mjtNum* point, int body,
-                  int NV, const int* chain);
+                  int NV, const int* chain, int flg_skipcommon);
 
 // sparse Jacobian difference for simple body contacts
 void mj_jacSparseSimple(const mjModel* m, const mjData* d,
                         mjtNum* jacdifp, mjtNum* jacdifr, const mjtNum* point,
                         int body, int flg_second, int NV, int start);
 
+// compute 3/6-by-NV sparse Jacobian time derivative of global point attached to given body
+MJAPI void mj_jacDotSparse(const mjModel* m, const mjData* d,
+                           mjtNum* jacp, mjtNum* jacr, const mjtNum* point, int body,
+                           int NV, const int* chain);
+
 // dense or sparse Jacobian difference for two body points: pos2 - pos1, global
 MJAPI int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
                         int b1, int b2, const mjtNum pos1[3], const mjtNum pos2[3],
                         mjtNum* jac1p, mjtNum* jac2p, mjtNum* jacdifp,
-                        mjtNum* jac1r, mjtNum* jac2r, mjtNum* jacdifr);
+                        mjtNum* jac1r, mjtNum* jac2r, mjtNum* jacdifr,
+                        int issparse, int flg_skipcommon);
 
 // dense or sparse weighted sum of multiple body Jacobians at same point
 int mj_jacSum(const mjModel* m, mjData* d, int* chain,
               int n, const int* body, const mjtNum* weight,
-              const mjtNum point[3], mjtNum* jac, int flg_rot);
+              const mjtNum point[3], mjtNum* jacp, mjtNum* jacr, int flg_rot);
 
 // compute 3/6-by-nv Jacobian time derivative of global point attached to given body
 MJAPI void mj_jacDot(const mjModel* m, const mjData* d,
@@ -110,6 +117,10 @@ MJAPI void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body);
 MJAPI void mj_objectVelocity(const mjModel* m, const mjData* d,
                              int objtype, int objid, mjtNum res[6], int flg_local);
 
+// compute material surface velocity of a geom at a point, in world frame
+void mj_geomSurfaceVelocity(const mjModel* m, const mjData* d, int geomid,
+                            const mjtNum point[3], mjtNum linear[3], mjtNum angular[3]);
+
 // compute object 6D acceleration in object-centered frame, world/local orientation
 MJAPI void mj_objectAcceleration(const mjModel* m, const mjData* d,
                                  int objtype, int objid, mjtNum res[6], int flg_local);
@@ -122,11 +133,20 @@ MJAPI void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
 
 //-------------------------- miscellaneous ---------------------------------------------------------
 
+// gather global node positions and velocities
+MJAPI void mju_flexGatherState(const mjModel* m, const mjData* d, int f, mjtNum* xpos, mjtNum* vel);
+
 // extract 6D force:torque for one contact, in contact frame
 MJAPI void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]);
 
 // count the number of length limit violations for tendon i (0, 1 or 2)
 int tendonLimit(const mjModel* m, const mjtNum* ten_length, int i);
+
+// return actuator damping contribution to joint or tendon
+MJAPI mjtNum mj_actuatorDamping(const mjModel* m, mjtObj type, int id, mjtNum poly[mjNPOLY]);
+
+// return actuator armature contribution to joint or tendon
+MJAPI mjtNum mj_actuatorArmature(const mjModel* m, mjtObj type, int id);
 
 // high-level warning function: count warnings in mjData, print only the first time
 MJAPI void mj_warning(mjData* d, int warning, int info);

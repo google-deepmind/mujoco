@@ -17,6 +17,34 @@
 # consider making the builds parallel.
 
 
+# Wrap the compiler with ccache when it is available (set up by ccache-action in
+# CI). This makes warm rebuilds - including the expensive, pinned Filament build -
+# much faster. ccache is content-addressed on the full compiler invocation, so
+# changing a flag or source forces a recompile: a stale object is never reused.
+# Guarded by `command -v` so the script still works locally without ccache.
+CCACHE_ARGS=""
+if command -v ccache >/dev/null 2>&1; then
+    CCACHE_ARGS="-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
+fi
+
+
+# Emit the build matrix for build.yml as a step output. On pull_request we run
+# only the representative "core" compiler set; on push (e.g. to main) we run the
+# full compiler sweep. Tiers are defined in build_matrix.json.
+generate_matrix() {
+    echo "Generating build matrix for event '${GITHUB_EVENT_NAME}'..."
+    local file=".github/workflows/build_matrix.json"
+    local matrix
+    if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+        matrix="$(jq -c '{include: [.include[] | select(.tier == "core") | del(.tier)]}' "${file}")"
+    else
+        matrix="$(jq -c '{include: [.include[] | del(.tier)]}' "${file}")"
+    fi
+    echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
+    echo "${matrix}" | jq .
+}
+
+
 prepare_linux() {
     echo "Preparing Linux..."
     sudo apt-get update && sudo apt-get install \
@@ -43,8 +71,17 @@ prepare_python() {
     ln -s ../Scripts/activate venv/bin/activate
     fi
     source venv/bin/activate
-    python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements.txt"
-    python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements_usd.txt"
+    # Install build deps with uv when available (set up by setup-uv in CI on
+    # POSIX) - much faster than pip. Fall back to pip otherwise (e.g. Windows,
+    # local dev). The venv is still created by `python -m venv`, so pip stays
+    # available for later steps (pip wheel / python -m build).
+    if command -v uv > /dev/null 2>&1; then
+        uv pip install --require-hashes -r "${repo}/python/build_requirements.txt"
+        uv pip install --require-hashes -r "${repo}/python/build_requirements_usd.txt"
+    else
+        python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements.txt"
+        python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements_usd.txt"
+    fi
     popd > /dev/null
 }
 
@@ -62,18 +99,33 @@ setup_emsdk() {
     git clone https://github.com/emscripten-core/emsdk.git
     ./emsdk/emsdk install 4.0.10
     ./emsdk/emsdk activate 4.0.10
+    # Force installing emscripten's typescript dependencies. This is a
+    # workaround for the github update to a newer typescript, which gives an
+    # error on the deprecated `--outFile` flag.
+    pushd emsdk/upstream/emscripten
+    npm i
+    popd
 }
 
 
 configure_mujoco() {
     echo "Configuring MuJoCo..."
+    # Disable IPO/LTO to cut build time. Skip this on Windows: turning off MSVC's
+    # whole-program optimization (/GL) exposes a latent heap corruption in
+    # SetConstTest.SleepingNotAllowed (a real bug worth a separate investigation),
+    # and Windows build time is not a CI bottleneck.
+    local ipo_off="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF"
+    if [[ "${RUNNER_OS}" == "Windows" ]]; then
+        ipo_off=""
+    fi
     mkdir build &&
     cd build &&
     cmake .. \
         -DCMAKE_BUILD_TYPE:STRING=Release \
-        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
+        ${ipo_off} \
         -DCMAKE_INSTALL_PREFIX:STRING=${TMPDIR}/mujoco_install \
         -DMUJOCO_BUILD_EXAMPLES:BOOL=OFF \
+        ${CCACHE_ARGS} \
         ${CMAKE_ARGS}
 }
 
@@ -86,7 +138,18 @@ build_mujoco() {
 
 test_mujoco() {
     echo "Testing MuJoCo..."
-    ctest -C Release --output-on-failure .
+    # ctest defaults to serial. The suite is ~1650 independent tests that use
+    # unique temp files (mkstemp / testing::TempDir) and declare no RUN_SERIAL /
+    # RESOURCE_LOCK, so running them in parallel is safe and ~2x faster on POSIX.
+    # Windows is kept serial conservatively: parallel-safety on the Windows file
+    # system is unverified and its test time is not a CI bottleneck.
+    if [[ "${RUNNER_OS}" == "Windows" ]]; then
+        ctest -C Release --output-on-failure .
+    else
+        local ncpu
+        ncpu="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo "${NUMBER_OF_PROCESSORS:-2}")"
+        ctest -C Release --output-on-failure --parallel "${ncpu}" .
+    fi
 }
 
 
@@ -117,24 +180,28 @@ copy_plugins_window() {
 
 configure_samples() {
     echo "Configuring samples..."
+    # Samples are tiny, so they keep the default IPO/LTO: disabling it saves no
+    # meaningful build time and would expose the same gcc -Werror false positives
+    # that -O3-without-LTO triggers (see configure_mujoco).
     mkdir build &&
     cd build &&
     cmake .. \
         -DCMAKE_BUILD_TYPE:STRING=Release \
-        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
         -Dmujoco_ROOT:STRING=${TMPDIR}/mujoco_install \
+        ${CCACHE_ARGS} \
         ${CMAKE_ARGS}
 }
 
 
 configure_simulate() {
     echo "Configuring simulate..."
+    # See configure_samples: keep the default IPO/LTO for this small build.
     mkdir build &&
     cd build &&
     cmake .. \
         -DCMAKE_BUILD_TYPE:STRING=Release \
-        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
         -Dmujoco_ROOT:STRING=${TMPDIR}/mujoco_install \
+        ${CCACHE_ARGS} \
         ${CMAKE_ARGS}
 }
 
@@ -145,9 +212,8 @@ build_simulate() {
 }
 
 
-_configure_studio() {
-    # Invoke cmake will all options OFF assuming that the caller will enable
-    # needed options by running `export _CONFIGURE_STUDIO_CMAKE_ARGS=...` first
+configure_studio() {
+    echo "Configuring Studio..."
     cmake -B build \
         -DCMAKE_BUILD_TYPE:STRING=Release \
         -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
@@ -155,28 +221,13 @@ _configure_studio() {
         -DBUILD_SHARED_LIBS=OFF \
         -DMUJOCO_BUILD_EXAMPLES=OFF \
         -DMUJOCO_BUILD_SIMULATE=OFF \
-        -DMUJOCO_BUILD_STUDIO=OFF \
+        -DMUJOCO_BUILD_STUDIO=ON \
         -DMUJOCO_BUILD_TESTS=OFF \
         -DMUJOCO_TEST_PYTHON_UTIL=OFF \
         -DMUJOCO_WITH_USD=OFF \
-        -DMUJOCO_USE_FILAMENT=OFF \
-        -DMUJOCO_USE_FILAMENT_VULKAN=OFF \
-        ${_CONFIGURE_STUDIO_CMAKE_ARGS}
-}
-
-
-configure_studio_legacy_opengl() {
-    echo "Configuring Studio (legacy OpenGL)..."
-    export _CONFIGURE_STUDIO_CMAKE_ARGS="-DMUJOCO_BUILD_STUDIO=ON ${CMAKE_ARGS}"
-    _configure_studio
-    echo "Configuring Studio (legacy OpenGL)... DONE"
-}
-
-
-configure_studio() {
-    echo "Configuring Studio..."
-    export _CONFIGURE_STUDIO_CMAKE_ARGS="-DMUJOCO_BUILD_STUDIO=ON -DMUJOCO_USE_FILAMENT=ON ${CMAKE_ARGS}"
-    _configure_studio
+        -DMUJOCO_USE_FILAMENT=ON \
+        ${CCACHE_ARGS} \
+        ${CMAKE_ARGS}
     echo "Configuring Studio... DONE"
 }
 
@@ -197,10 +248,26 @@ make_python_sdist() {
 
 build_python_bindings() {
     echo "Building Python bindings..."
-    source ${TMPDIR}/venv/bin/activate &&
+    source ${TMPDIR}/venv/bin/activate
+    # pip unpacks the sdist into a randomized temp dir every run, so the absolute
+    # source/include paths differ each time and defeat ccache (0% hit, full
+    # recompile). CCACHE_BASEDIR rewrites absolute paths under it to paths relative
+    # to the (also-in-temp) build cwd, cancelling the random component so objects
+    # hash identically across runs. CCACHE_SLOPPINESS ignores timestamp/path noise.
+    #
+    # Do NOT add system_headers here: CMake adds the imported mujoco target's
+    # include dir (MUJOCO_PATH/include) as -isystem, so ccache would treat the
+    # public MuJoCo headers as system headers and skip hashing them. A change that
+    # lives only in those headers (a new mjData field, a new enum value) would then
+    # go undetected and ccache would reuse an object compiled against the old struct
+    # layout, producing an ABI-mismatched binding (wrong field offsets, stale
+    # mjNENABLE, signature mismatch). The mtime/ctime flags are kept: they handle the
+    # temp-dir churn without affecting header content detection.
+    export CCACHE_BASEDIR="${TMPDIR}"
+    export CCACHE_SLOPPINESS="time_macros,include_file_mtime,include_file_ctime,pch_defines,locale"
     MUJOCO_PATH="${TMPDIR}/mujoco_install" \
     MUJOCO_PLUGIN_PATH="${TMPDIR}/mujoco_install/mujoco_plugin" \
-    MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${CMAKE_ARGS}" \
+    MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${CCACHE_ARGS} ${CMAKE_ARGS}" \
     pip wheel -v --no-deps mujoco-*.tar.gz
 }
 
@@ -223,11 +290,41 @@ build_test_wasm() {
     echo "Building and testing WASM bindings..."
     source emsdk/emsdk_env.sh
     export PATH="$(pwd)/node_modules/.bin:$PATH"
+    echo "Build MuJoCo with Emscripten (Multi-Threaded)..."
+    emcmake cmake -B build_wasm_mt \
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
+        -DMUJOCO_WASM_THREADS=ON \
+        ${CCACHE_ARGS} \
+        $WASM_CMAKE_ARGS
+    cmake --build build_wasm_mt --parallel $(nproc)
 
-    emcmake cmake -B build_wasm -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF $WASM_CMAKE_ARGS
-    cmake --build build_wasm
-
+    echo "Run bindings tests for Multi-Threaded version..."
     npm run test --prefix ./wasm
+
+    echo "Moving Multi-Thread version under mt subfolder..."
+    mkdir -p wasm/dist/mt
+    mv wasm/dist/mujoco.* wasm/dist/mt/
+
+    echo "Build MuJoCo with Emscripten (Single-Threaded)..."
+    emcmake cmake -B build_wasm_st \
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
+        -DMUJOCO_WASM_THREADS=OFF \
+        ${CCACHE_ARGS} \
+        $WASM_CMAKE_ARGS
+    cmake --build build_wasm_st --parallel $(nproc)
+
+    echo "Run bindings tests for Single-Threaded version..."
+    npm run test --prefix ./wasm
+}
+
+package_wasm() {
+    echo "Publishing WASM bindings..."
+    cp wasm/package.npm.json wasm/dist/package.json
+    cp wasm/README.md wasm/dist/README.md
+    VERSION="${VERSION:-${GITHUB_REF#refs/tags/}}"
+    npm --prefix wasm/dist version "${VERSION}" --no-git-tag-version
+    npm pack --dry-run ./wasm/dist
+    npm publish ./wasm/dist --access public --provenance
 }
 
 
@@ -240,8 +337,14 @@ package_mjx() {
 
 install_mjx() {
     echo "Installing MJX..."
-    source ${TMPDIR}/venv/bin/activate &&
-    pip install --require-hashes -r requirements.txt &&
+    source ${TMPDIR}/venv/bin/activate
+    # The MJX requirements (jax, jaxlib, scipy, ...) are a big install; use uv when
+    # available. Keep pip for the local --no-index wheel.
+    if command -v uv > /dev/null 2>&1; then
+        uv pip install --require-hashes -r requirements.txt
+    else
+        pip install --require-hashes -r requirements.txt
+    fi
     pip install --no-index dist/mujoco_mjx-*.whl
 }
 
@@ -275,6 +378,32 @@ EOF
     -X POST \
     -H "Content-Type: application/json" \
     --data-raw "${CHATMSG}"
+}
+
+
+build_mujoco_live() {
+    echo "Setting up Emscripten SDK..."
+    source emsdk/emsdk_env.sh
+
+    echo "Building Filament tools, targeting host platform..."
+    cmake -S . -B build_host -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DUSE_STATIC_LIBCXX=OFF \
+        -DMUJOCO_BUILD_STUDIO=ON \
+        -DMUJOCO_USE_FILAMENT=ON \
+        -DMUJOCO_BUILD_TESTS=OFF \
+        -DMUJOCO_BUILD_EXAMPLES=OFF \
+        -DMUJOCO_BUILD_SIMULATE=OFF
+    cmake --build build_host --target matc resgen cmgen mujoco_filament_assets -j$(nproc)
+
+    echo "Building WASM app..."
+    emcmake cmake -S . -B build_wasm -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DMUJOCO_BUILD_STUDIO=ON \
+        -DMUJOCO_USE_FILAMENT=ON \
+        -DMUJOCO_BUILD_TESTS_WASM=OFF \
+        -DMUJOCO_NATIVE_BUILD_DIR=$(pwd)/build_host
+    cmake --build build_wasm --target mujoco_studio -j$(nproc)
 }
 
 

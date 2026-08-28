@@ -45,9 +45,8 @@ TEST_F(MujocoTest, ReadsCapsule) {
   </robot>
   )";
   std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(urdf, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << error.data();
-  mj_deleteModel(model);
+  MjModelPtr model = LoadModelFromString(urdf, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
 }
 
 TEST_F(MujocoTest, ReadsGeomNames) {
@@ -74,19 +73,17 @@ TEST_F(MujocoTest, ReadsGeomNames) {
   </robot>
   )";
   std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(urdf, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << error.data();
+  MjModelPtr model = LoadModelFromString(urdf, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
 
   // Check the geoms have been loaded with the right names
-  int collision_box_id = mj_name2id(model, mjtObj::mjOBJ_GEOM, "collision_box");
+  int collision_box_id = mj_name2id(model.get(), mjtObj::mjOBJ_GEOM, "collision_box");
   ASSERT_GE(collision_box_id, 0);
   EXPECT_EQ(model->geom_type[collision_box_id], mjtGeom::mjGEOM_BOX);
 
-  int visual_sphere_id = mj_name2id(model, mjtObj::mjOBJ_GEOM, "visual_sphere");
+  int visual_sphere_id = mj_name2id(model.get(), mjtObj::mjOBJ_GEOM, "visual_sphere");
   ASSERT_GE(visual_sphere_id, 0);
   EXPECT_EQ(model->geom_type[visual_sphere_id], mjtGeom::mjGEOM_SPHERE);
-
-  mj_deleteModel(model);
 }
 
 TEST_F(MujocoTest, CanLoadUrdfWithNonUniqueNamesCollisionBeforeVisual) {
@@ -113,16 +110,14 @@ TEST_F(MujocoTest, CanLoadUrdfWithNonUniqueNamesCollisionBeforeVisual) {
   </robot>
   )";
   std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(urdf, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << error.data();
+  MjModelPtr model = LoadModelFromString(urdf, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
 
   // Check the collision geom gets its name from the URDF. The visual sphere
   // should not have a name to avoid duplicates.
-  int collision_box_id = mj_name2id(model, mjtObj::mjOBJ_GEOM, "shared_name");
+  int collision_box_id = mj_name2id(model.get(), mjtObj::mjOBJ_GEOM, "shared_name");
   ASSERT_GE(collision_box_id, 0);
   EXPECT_EQ(model->geom_type[collision_box_id], mjtGeom::mjGEOM_BOX);
-
-  mj_deleteModel(model);
 }
 
 TEST_F(MujocoTest, CanLoadUrdfWithNonUniqueNamesVisualBeforeCollision) {
@@ -149,16 +144,14 @@ TEST_F(MujocoTest, CanLoadUrdfWithNonUniqueNamesVisualBeforeCollision) {
   </robot>
   )";
   std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(urdf, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << error.data();
+  MjModelPtr model = LoadModelFromString(urdf, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
 
   // Check the visual geom gets its name from the URDF. The collision geom
   // should not have a name to avoid duplicates.
-  int visual_sphere_id = mj_name2id(model, mjtObj::mjOBJ_GEOM, "shared_name");
+  int visual_sphere_id = mj_name2id(model.get(), mjtObj::mjOBJ_GEOM, "shared_name");
   ASSERT_GE(visual_sphere_id, 0);
   EXPECT_EQ(model->geom_type[visual_sphere_id], mjtGeom::mjGEOM_SPHERE);
-
-  mj_deleteModel(model);
 }
 
 TEST_F(MujocoTest, ReadsJointTypes) {
@@ -226,8 +219,8 @@ TEST_F(MujocoTest, ReadsJointTypes) {
   </robot>
   )";
   std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(urdf, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << error.data();
+  MjModelPtr model = LoadModelFromString(urdf, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
 
   constexpr float eps = 1e-6;
 
@@ -241,14 +234,12 @@ TEST_F(MujocoTest, ReadsJointTypes) {
     {0.0, 0.0, 1.0}
   };
   for (int i = 0; i < joint_names.size(); ++i) {
-    int id = mj_name2id(model, mjtObj::mjOBJ_JOINT, joint_names[i].c_str());
+    int id = mj_name2id(model.get(), mjtObj::mjOBJ_JOINT, joint_names[i].c_str());
     EXPECT_EQ(model->jnt_type[id], expected_joint_types[i]);
     EXPECT_NEAR(model->jnt_axis[3 * id], expected_axis[i][0], eps);
     EXPECT_NEAR(model->jnt_axis[3 * id + 1], expected_axis[i][1], eps);
     EXPECT_NEAR(model->jnt_axis[3 * id + 2], expected_axis[i][2], eps);
   }
-
-  mj_deleteModel(model);
 }
 
 TEST_F(MujocoTest, RepeatedMeshName) {

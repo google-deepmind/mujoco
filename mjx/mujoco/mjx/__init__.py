@@ -14,7 +14,14 @@
 # ==============================================================================
 """Public API for MJX."""
 
+# isort: off
+from mujoco.mjx._src.forward import step
+from mujoco.mjx._src.types import Model
+from mujoco.mjx._src.types import Data
+# isort: on
+
 # pylint:disable=g-importing-member
+from mujoco.mjx._src.bvh import refit_bvh
 from mujoco.mjx._src.collision_driver import collision
 from mujoco.mjx._src.constraint import make_constraint
 from mujoco.mjx._src.derivative import deriv_smooth_vel
@@ -26,8 +33,8 @@ from mujoco.mjx._src.forward import fwd_position
 from mujoco.mjx._src.forward import fwd_velocity
 from mujoco.mjx._src.forward import implicit
 from mujoco.mjx._src.forward import rungekutta4
-from mujoco.mjx._src.forward import step
 from mujoco.mjx._src.inverse import inverse
+from mujoco.mjx._src.io import create_render_context
 from mujoco.mjx._src.io import get_data
 from mujoco.mjx._src.io import get_data_into
 from mujoco.mjx._src.io import get_state
@@ -38,6 +45,11 @@ from mujoco.mjx._src.io import set_state
 from mujoco.mjx._src.io import state_size
 from mujoco.mjx._src.passive import passive
 from mujoco.mjx._src.ray import ray
+from mujoco.mjx._src.render import render
+from mujoco.mjx._src.render import render_with_segmentation
+from mujoco.mjx._src.render_util import get_depth
+from mujoco.mjx._src.render_util import get_rgb
+from mujoco.mjx._src.render_util import get_segmentation
 from mujoco.mjx._src.sensor import sensor_acc
 from mujoco.mjx._src.sensor import sensor_pos
 from mujoco.mjx._src.sensor import sensor_vel

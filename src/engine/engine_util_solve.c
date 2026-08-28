@@ -43,7 +43,8 @@ int mju_cholFactor(mjtNum* mat, int n, mjtNum mindiag) {
     }
 
     // correct diagonal values below threshold
-    if (tmp < mindiag) {
+    int deficient = tmp < mindiag;
+    if (deficient) {
       tmp = mindiag;
       rank--;
     }
@@ -52,9 +53,16 @@ int mju_cholFactor(mjtNum* mat, int n, mjtNum mindiag) {
     mat[j*(n+1)] = mju_sqrt(tmp);
 
     // process off-diagonal entries
-    tmp = 1/mat[j*(n+1)];
-    for (int i=j+1; i < n; i++) {
-      mat[i*n+j] = (mat[i*n+j] - mju_dot(mat+i*n, mat+j*n, j)) * tmp;
+    if (deficient) {
+      // clear off-diagonals if deficient
+      for (int i=j+1; i < n; i++) {
+        mat[i*n+j] = 0;
+      }
+    } else {
+      tmp = 1/mat[j*(n+1)];
+      for (int i=j+1; i < n; i++) {
+        mat[i*n+j] = (mat[i*n+j] - mju_dot(mat+i*n, mat+j*n, j)) * tmp;
+      }
     }
   }
 
@@ -144,10 +152,7 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
                          int* rownnz, const int* rowadr, int* colind,
                          mjData* d) {
   int rank = n;
-
-  mj_markStack(d);
-  mjtNum* buf = mjSTACKALLOC(d, n, mjtNum);
-  int* buf_ind = mjSTACKALLOC(d, n, int);
+  (void) d;
 
   // backpass over rows
   for (int r=n-1; r >= 0; r--) {
@@ -175,15 +180,13 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
 
       // mat(c,0:c) = mat(c,0:c) - mat(r,c) * mat(r,0:c)
       int nnz_c = mju_combineSparse(mat + rowadr[c], mat+rowadr[r], 1, -mat[adr+i],
-                                    rownnz[c], i+1, colind+rowadr[c], colind+rowadr[r],
-                                    buf, buf_ind);
+                                    rownnz[c], i+1, colind+rowadr[c], colind+rowadr[r]);
 
       // assign new nnz to row c
       rownnz[c] = nnz_c;
     }
   }
 
-  mj_freeStack(d);
   return rank;
 }
 
@@ -197,16 +200,19 @@ int mju_cholFactorSymbolic(int* restrict L_colind, int* restrict L_rownnz, int* 
                            int* restrict LT_rowadr, int* restrict LT_map,
                            const int* rownnz, const int* rowadr, const int* colind, int n,
                            mjData* d) {
-  mj_markStack(d);
-  int* restrict parent = mjSTACKALLOC(d, n, int);
-  int* restrict flag = mjSTACKALLOC(d, n, int);
+  // d supplies stack scratch; if NULL, scratch is heap-allocated
+  if (d) {
+    mj_markStack(d);
+  }
+  int* restrict parent = d ? mjSTACKALLOC(d, n, int) : (int*) mju_malloc(sizeof(int)*n);
+  int* restrict flag = d ? mjSTACKALLOC(d, n, int) : (int*) mju_malloc(sizeof(int)*n);
   int* restrict cursor = NULL;
   int* LT_write = NULL;
 
   // filling phase: initialize write positions
   if (L_colind) {
-    cursor = mjSTACKALLOC(d, n, int);
-    LT_write = mjSTACKALLOC(d, n, int);
+    cursor = d ? mjSTACKALLOC(d, n, int) : (int*) mju_malloc(sizeof(int)*n);
+    LT_write = d ? mjSTACKALLOC(d, n, int) : (int*) mju_malloc(sizeof(int)*n);
     for (int r = 0; r < n; r++) {
       cursor[r] = L_rowadr[r] + L_rownnz[r] - 2;  // end of row r (before diagonal)
       LT_write[r] = LT_rowadr[r];                 // start of LT row r
@@ -275,7 +281,14 @@ int mju_cholFactorSymbolic(int* restrict L_colind, int* restrict L_rownnz, int* 
     }
   }
 
-  mj_freeStack(d);
+  if (d) {
+    mj_freeStack(d);
+  } else {
+    mju_free(parent);
+    mju_free(flag);
+    mju_free(cursor);
+    mju_free(LT_write);
+  }
 
   // counting phase: compute row addresses, add up total non-zeros
   int nnz = 0;
@@ -669,7 +682,7 @@ int mju_bandDiag(int i, int ntotal, int nband, int ndense) {
 
 // convert band matrix to dense matrix
 void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense,
-                    mjtByte flg_sym) {
+                    mjtBool flg_sym) {
   int nsparse = ntotal-ndense;
 
   // clear all
@@ -722,7 +735,7 @@ void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int n
 
 // multiply band-diagonal matrix with vector
 void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                       int ntotal, int nband, int ndense, int nvec, mjtByte flg_sym) {
+                       int ntotal, int nband, int ndense, int nvec, mjtBool flg_sym) {
   int nsparse = ntotal-ndense;
 
   // handle multiple vectors
@@ -756,7 +769,169 @@ void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 }
 
 
-//------------------------------ LU factorization --------------------------------------------------
+//------------------------------ dense LU factorization --------------------------------------------
+
+// dense LU factorization with partial pivoting
+//   factorizes n x n row-major matrix A in-place into L and U
+//   L has unit diagonal (not stored), U has explicit diagonal
+//   pivot stores row permutation: row i of original = row pivot[i] of result
+//   return 1 if successful, 0 if singular (diagonal element < mjMINVAL)
+int mju_factorLU(mjtNum* restrict A, int n, int* pivot) {
+  for (int k=0; k < n; k++) {
+    // initialize pivot
+    pivot[k] = k;
+
+    // find pivot: max absolute value in column k, rows k..n-1
+    mjtNum maxval = mju_abs(A[k*n+k]);
+    int maxrow = k;
+    for (int i=k+1; i < n; i++) {
+      mjtNum val = mju_abs(A[i*n+k]);
+      if (val > maxval) {
+        maxval = val;
+        maxrow = i;
+      }
+    }
+
+    // check singularity
+    if (maxval < mjMINVAL) {
+      return 0;
+    }
+
+    // swap rows k and maxrow
+    if (maxrow != k) {
+      pivot[k] = maxrow;
+      for (int j=0; j < n; j++) {
+        mjtNum tmp = A[k*n+j];
+        A[k*n+j] = A[maxrow*n+j];
+        A[maxrow*n+j] = tmp;
+      }
+    }
+
+    // compute multipliers and update trailing submatrix
+    mjtNum diaginv = 1.0 / A[k*n+k];
+    for (int i=k+1; i < n; i++) {
+      A[i*n+k] *= diaginv;
+      mjtNum Aik = A[i*n+k];
+      for (int j=k+1; j < n; j++) {
+        A[i*n+j] -= Aik * A[k*n+j];
+      }
+    }
+  }
+
+  return 1;
+}
+
+
+// solve A*x = b given LU factorization of A, LU and pivot are output of mju_factorLU
+void mju_solveLU(mjtNum* restrict x, const mjtNum* LU, const mjtNum* b, const int* pivot, int n) {
+  // copy b into x
+  mju_copy(x, b, n);
+
+  // apply row permutation and forward substitution: solve L*y = P*b
+  for (int i=0; i < n; i++) {
+    // apply pivot swap
+    if (pivot[i] != i) {
+      mjtNum tmp = x[i];
+      x[i] = x[pivot[i]];
+      x[pivot[i]] = tmp;
+    }
+
+    // subtract known terms
+    for (int j=0; j < i; j++) {
+      x[i] -= LU[i*n+j] * x[j];
+    }
+  }
+
+  // back substitution: solve U*x = y
+  for (int i=n-1; i >= 0; i--) {
+    for (int j=i+1; j < n; j++) {
+      x[i] -= LU[i*n+j] * x[j];
+    }
+    x[i] /= LU[i*n+i];
+  }
+}
+
+
+// 6x6 specialization of mju_factorLU: same algorithm with compile-time size,
+// allowing full unrolling; produces identical results
+int mju_factorLU6(mjtNum A[36], int pivot[6]) {
+  for (int k=0; k < 6; k++) {
+    // initialize pivot
+    pivot[k] = k;
+
+    // find pivot: max absolute value in column k, rows k..n-1
+    mjtNum maxval = mju_abs(A[k*6+k]);
+    int maxrow = k;
+    for (int i=k+1; i < 6; i++) {
+      mjtNum val = mju_abs(A[i*6+k]);
+      if (val > maxval) {
+        maxval = val;
+        maxrow = i;
+      }
+    }
+
+    // check singularity
+    if (maxval < mjMINVAL) {
+      return 0;
+    }
+
+    // swap rows k and maxrow
+    if (maxrow != k) {
+      pivot[k] = maxrow;
+      for (int j=0; j < 6; j++) {
+        mjtNum tmp = A[k*6+j];
+        A[k*6+j] = A[maxrow*6+j];
+        A[maxrow*6+j] = tmp;
+      }
+    }
+
+    // compute multipliers and update trailing submatrix
+    mjtNum diaginv = 1.0 / A[k*6+k];
+    for (int i=k+1; i < 6; i++) {
+      A[i*6+k] *= diaginv;
+      mjtNum Aik = A[i*6+k];
+      for (int j=k+1; j < 6; j++) {
+        A[i*6+j] -= Aik * A[k*6+j];
+      }
+    }
+  }
+
+  return 1;
+}
+
+
+// solve A*x = b given 6x6 LU factorization from mju_factorLU6
+void mju_solveLU6(mjtNum x[6], const mjtNum LU[36], const mjtNum b[6], const int pivot[6]) {
+  for (int i=0; i < 6; i++) {
+    x[i] = b[i];
+  }
+
+  // apply row permutation and forward substitution: solve L*y = P*b
+  for (int i=0; i < 6; i++) {
+    // apply pivot swap
+    if (pivot[i] != i) {
+      mjtNum tmp = x[i];
+      x[i] = x[pivot[i]];
+      x[pivot[i]] = tmp;
+    }
+
+    // subtract known terms
+    for (int j=0; j < i; j++) {
+      x[i] -= LU[i*6+j] * x[j];
+    }
+  }
+
+  // back substitution: solve U*x = y
+  for (int i=6-1; i >= 0; i--) {
+    for (int j=i+1; j < 6; j++) {
+      x[i] -= LU[i*6+j] * x[j];
+    }
+    x[i] /= LU[i*6+i];
+  }
+}
+
+
+//------------------------------ sparse LU factorization -------------------------------------------
 
 // sparse reverse-order LU factorization, no fill-in (assuming tree topology)
 //   result: LU = L + U; original = (U+I) * L; scratch size is n
@@ -880,6 +1055,37 @@ void mju_solveLUSparse(mjtNum* res, const mjtNum* LU, const mjtNum* vec, int n,
     // divide by diagonal element of L
     res[i] /= LU[adr + d];
   }
+}
+
+
+//--------------------------- 3x3 linear solve -----------------------------------------------------
+
+// solve 3x3 linear system A*x = b using Gaussian elimination
+void mju_solve3(mjtNum x[3], const mjtNum A[9], const mjtNum b[3]) {
+  mjtNum M[3][4] = {
+    {A[0], A[1], A[2], b[0]},
+    {A[3], A[4], A[5], b[1]},
+    {A[6], A[7], A[8], b[2]}
+  };
+
+  for (int i=0; i<3; i++) {
+    mjtNum pivot = M[i][i];
+    for (int j=i; j<4; j++) {
+      M[i][j] /= pivot;
+    }
+
+    for (int k=0; k<3; k++) {
+      if (k != i) {
+        mjtNum factor = M[k][i];
+        for (int j=i; j<4; j++) {
+          M[k][j] -= factor * M[i][j];
+        }
+      }
+    }
+  }
+  x[0] = M[0][3];
+  x[1] = M[1][3];
+  x[2] = M[2][3];
 }
 
 
@@ -1298,6 +1504,19 @@ static mjtNum mulVecMatVecSym(const mjtNum* vec, const mjtNum* mat, int n) {
 }
 
 
+// multiply symmetric matrix with vector: res = mat*vec
+//   assumes symmetry of mat, ignores upper triangle, res must not alias vec
+static void mulSymVec(mjtNum* restrict res, const mjtNum* mat, const mjtNum* vec, int n) {
+  for (int i=0; i < n; i++) {
+    // diagonal + strict lower triangle: res[i] = sum_{j<=i} mat[i,j] * vec[j]
+    res[i] = mat[n*i+i]*vec[i] + mju_dot(mat+n*i, vec, i);
+
+    // strict upper mirror contribution: res[k] += mat[i,k] * vec[i] for k < i
+    mju_addToScl(res, mat+n*i, vec[i], i);
+  }
+}
+
+
 // minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <=upper, explicit options
 //  additional arguments to mju_boxQP (see mju_boxQP documentation):
 //   maxiter     maximum number of iterations
@@ -1403,7 +1622,7 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
     oldvalue = value;
 
     // compute gradient
-    mju_mulMatVec(grad, H, res, n, n);
+    mulSymVec(grad, H, res, n);
     mju_addTo(grad, g, n);
 
     // find clamped dimensions
@@ -1446,7 +1665,7 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
     for (int i=0; i < n; i++) {
       temp[i] = clamped[i] ? res[i] : 0;
     }
-    mju_mulMatVec(search, H, temp, n, n);
+    mulSymVec(search, H, temp, n);
     mju_addTo(search, g, n);
 
     // search = compress_free(search)
@@ -1534,12 +1753,15 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
 
 
     // print iteration info
-    if (log) {
-      logptr += snprintf(log+logptr, logsz-logptr,
-                         "iter %-3d:  |grad|: %-8.2g  reduction: %-8.2g  improvement: %-8.4g  "
-                         "linesearch: %g^%-2d  factorized: %d  nfree: %d\n",
-                         iter+1, mju_sqrt(norm2), oldvalue-value, improvement,
-                         backtrack, nstep-1, factorize, nfree);
+    if (log && logptr < logsz) {
+      int written = snprintf(log+logptr, logsz-logptr,
+                             "iter %-3d:  |grad|: %-8.2g  reduction: %-8.2g  improvement: %-8.4g  "
+                             "linesearch: %g^%-2d  factorized: %d  nfree: %d\n",
+                             iter+1, mju_sqrt(norm2), oldvalue-value, improvement,
+                             backtrack, nstep-1, factorize, nfree);
+      if (written > 0) {
+        logptr = mjMIN(logptr + written, logsz);
+      }
     }
 
     // accept candidate
@@ -1552,7 +1774,7 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
   }
 
   // print final info
-  if (log) {
+  if (log && logptr < logsz) {
     snprintf(log+logptr, logsz-logptr, "BOXQP: %s.\n"
              "iterations= %d,  factorizations= %d,  |grad|= %-12.6g, final value= %-12.6g\n",
              status_string[status+1], iter, nfactor, mju_sqrt(norm2), value);

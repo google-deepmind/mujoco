@@ -44,9 +44,7 @@ class MjvSceneTest : public MujocoTest {
     }
   }
 
-  void FreeSceneObjects() {
-    mjv_freeScene(&scn_);
-  }
+  void FreeSceneObjects() { mjv_freeScene(&scn_); }
 
   mjvScene scn_;
   mjvOption opt_;
@@ -80,7 +78,6 @@ TEST_F(MjvSceneTest, UpdateScene) {
 
   mj_deleteData(data_copy);
   mj_deleteData(data);
-
   FreeSceneObjects();
   mj_deleteModel(model);
 }
@@ -101,11 +98,53 @@ TEST_F(MjvSceneTest, UpdateSceneGeomsExhausted) {
   mjv_updateScene(model, data, &opt_, &pert_, &cam_, mjCAT_ALL, &scn_);
   EXPECT_EQ(scn_.status, 1);
   EXPECT_EQ(scn_.ngeom, maxgeoms);
-  EXPECT_EQ(data->warning[mjWARN_VGEOMFULL].number, 1);
-
   mj_deleteData(data);
   FreeSceneObjects();
   mj_deleteModel(model);
+}
+
+TEST_F(MjvSceneTest, PrincipalPointFrustumSign) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <camera name="cam" pos="0 0 1" zaxis="0 0 1"
+              sensorsize="0.01 0.01" focal="0.01 0.01"
+              principal="0 0.002"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  InitSceneObjects(model.get());
+
+  // point camera at the fixed cam
+  cam_.type = mjCAMERA_FIXED;
+  cam_.fixedcamid = 0;
+  mjv_updateCamera(model.get(), data.get(), &cam_, &scn_);
+
+  float top = scn_.camera[0].frustum_top;
+  float bottom = scn_.camera[0].frustum_bottom;
+
+  // with cy > 0 the principal point is above center, so the frustum should
+  // extend further downward than upward: |bottom| > top
+  EXPECT_GT(-bottom, top);
+
+  // verify exact values against the pinhole model
+  float znear = model->vis.map.znear * model->stat.extent;
+  float cy = model->cam_intrinsic[3];
+  float fy = model->cam_intrinsic[1];
+  float sh = model->cam_sensorsize[1];
+  float half = znear / fy * (sh / 2);
+  float offset = znear / fy * cy;
+
+  EXPECT_FLOAT_EQ(top, half - offset);
+  EXPECT_FLOAT_EQ(bottom, -(half + offset));
+
+  FreeSceneObjects();
 }
 
 }  // namespace

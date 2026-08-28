@@ -16,7 +16,6 @@
 
 #include <stdio.h>
 #include <stddef.h>
-#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
@@ -46,7 +45,7 @@ static void clearIsland(mjData* d, size_t parena) {
   d->parena = parena;
 
   // poison remaining memory
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   ASAN_POISON_MEMORY_REGION(
     (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
 #endif
@@ -82,7 +81,74 @@ static int arenaAllocIsland(const mjModel* m, mjData* d) {
 }
 
 
-//-------------------------- flood-fill and graph construction  ------------------------------------
+//-------------------------- union-find and flood-fill  --------------------------------------------
+
+// find the canonical root of an active tree and compress its path
+int mj_dsuRoot(int* parent, int tree) {
+  int root = tree;
+  while (parent[root] != root) {
+    root = parent[root];
+  }
+
+  while (parent[tree] != tree) {
+    int next = parent[tree];
+    parent[tree] = root;
+    tree = next;
+  }
+
+  return root;
+}
+
+
+// activate and union two incident trees; -1 denotes a static endpoint
+void mj_dsuMerge(int* parent, int tree1, int tree2) {
+  if (tree1 == -1 && tree2 == -1) {
+    mjERROR("self-incidence of the static tree");  // SHOULD NOT OCCUR
+    return;
+  }
+
+  if (tree1 == -1) tree1 = tree2;
+  if (tree2 == -1) tree2 = tree1;
+
+  if (parent[tree1] == -1) parent[tree1] = tree1;
+  if (parent[tree2] == -1) parent[tree2] = tree2;
+
+  if (parent[tree1] == parent[tree2]) return;
+
+  int root1 = mj_dsuRoot(parent, tree1);
+  int root2 = mj_dsuRoot(parent, tree2);
+  if (root1 < root2) {
+    parent[root2] = root1;
+  } else if (root2 < root1) {
+    parent[root1] = root2;
+  }
+}
+
+
+// assign deterministic island ids in ascending canonical-root order
+int mj_dsuAssign(int* island, int* parent, const int* tree_dofnum, int ntree, int* nidof) {
+  int nisland = 0;
+  *nidof = 0;
+  for (int tree=0; tree < ntree; tree++) {
+    if (parent[tree] == -1) {
+      island[tree] = -1;
+      continue;
+    }
+
+    if (parent[tree] == tree) {
+      island[tree] = nisland++;
+    } else {
+      // union always links the larger root to the smaller root. Since trees are visited in
+      // ascending order, this predecessor has already been compressed and assigned an island.
+      parent[tree] = parent[parent[tree]];
+      island[tree] = island[parent[tree]];
+    }
+    *nidof += tree_dofnum[tree];
+  }
+
+  return nisland;
+}
+
 
 // find disjoint subgraphs ("islands") given sparse symmetric adjacency matrix
 //   arguments:
@@ -137,24 +203,42 @@ int mj_floodFill(int* island, int nr, const int* rownnz, const int* rowadr, cons
 }
 
 
-// return id of next tree in Jacobian row i that is different from tree, -1 if not found
-//   start search from *index
-//   write the index of the found tree to *index
-//   if J is (dense/sparse) *index is the (column/nonzero) index, respectively
-static int treeNext(const mjModel* m, const mjData* d, int tree, int i, int *index) {
-  int tree_next = -1;
-  int j;  // local loop variable, saved to *index
+// state of iterator for finding trees involved in a constraint
+typedef struct {
+  int trees[2];   // pre-calculated trees (special-cased constraints); -2: empty/sentinel
+  int jac_idx;    // generic scan: current lookup index in Jacobian row; -1: scan disabled
+  int tree_prev;  // generic scan: previous tree in ongoing scan
+} mjTreeIter;
+
+
+// return next tree of constraint i from iterator; -2: no more trees
+static int treeNext(const mjModel* m, const mjData* d, int i, mjTreeIter* iter) {
+  // handle special cases
+  if (iter->trees[0] != -2) {
+    // get first tree, queue up second tree, return first tree
+    int tree = iter->trees[0];
+    iter->trees[0] = iter->trees[1];
+    iter->trees[1] = -2;
+    return tree;
+  }
+
+  // special case mode complete
+  if (iter->jac_idx == -1) {
+    return -2;
+  }
+
+  // generic scan mode
+  int j;
+  int tree_next = -2;
 
   // sparse
   if (mj_isSparse(m)) {
     int rownnz = d->efc_J_rownnz[i];
-    int* colind = d->efc_J_colind + d->efc_J_rowadr[i];
-
-    // loop over remaining nonzeros, look for different tree
-    for (j=(*index); j < rownnz; j++) {
+    const int* colind = d->efc_J_colind + d->efc_J_rowadr[i];
+    for (j = iter->jac_idx; j < rownnz; j++) {
       int tree_j = m->dof_treeid[colind[j]];
-      if (tree_j != tree) {
-        // found different tree
+      if (tree_j != iter->tree_prev) {
+        // found new tree
         tree_next = tree_j;
         break;
       }
@@ -164,234 +248,208 @@ static int treeNext(const mjModel* m, const mjData* d, int tree, int i, int *ind
   // dense
   else {
     int nv = m->nv;
-
-    // scan row, look for different tree
-    for (j=(*index); j < nv; j++) {
-      if (d->efc_J[nv*i + j]) {
+    const mjtNum* J = d->efc_J + nv * i;
+    for (j = iter->jac_idx; j < nv; j++) {
+      if (J[j]) {
         int tree_j = m->dof_treeid[j];
-        if (tree_j != tree) {
-          // found different tree
+        if (tree_j != iter->tree_prev) {
+          // found new tree
           tree_next = tree_j;
           break;
         }
+
+        // skip to end of tree's dof block
+        j = m->tree_dofadr[tree_j] + m->tree_dofnum[tree_j] - 1;
       }
     }
   }
 
-  // save last index
-  *index = j;
+  // update iterator state
+  iter->jac_idx = j;
+  if (tree_next != -2) {
+    iter->tree_prev = tree_next;
+  }
 
   return tree_next;
 }
 
 
-// find first and possibly second nonegative tree ids in Jacobian row i
-//   if row i is special-cased (no more trees), return -1
-//   otherwise call treeNext, starting scan at index 0, return index
-static int treeFirst(const mjModel* m, const mjData* d, int tree[2], int i) {
+// initialize tree iterator, handle special cases
+static void treeIterInit(const mjModel* m, const mjData* d, int i, mjTreeIter* iter) {
+  iter->trees[0] = -2;
+  iter->trees[1] = -2;
+  iter->jac_idx = -1;
+  iter->tree_prev = -1;
+
   int efc_type = d->efc_type[i];
   int efc_id = d->efc_id[i];
 
-  // clear outputs
-  tree[0] = -1;
-  tree[1] = -1;
-
-  // ==== fast handling of special cases
+  // ==== special cases: fill iter->trees where possible
 
   // joint friction
   if (efc_type == mjCNSTR_FRICTION_DOF) {
-    tree[0] = m->dof_treeid[efc_id];
-    return -1;
+    iter->trees[0] = m->dof_treeid[efc_id];
   }
 
   // joint limit
-  if (efc_type == mjCNSTR_LIMIT_JOINT) {
-    tree[0] = m->dof_treeid[m->jnt_dofadr[efc_id]];
-    return -1;
+  else if (efc_type == mjCNSTR_LIMIT_JOINT) {
+    iter->trees[0] = m->dof_treeid[m->jnt_dofadr[efc_id]];
   }
 
   // contact
-  if (efc_type == mjCNSTR_CONTACT_FRICTIONLESS ||
-      efc_type == mjCNSTR_CONTACT_PYRAMIDAL ||
-      efc_type == mjCNSTR_CONTACT_ELLIPTIC) {
+  else if (efc_type == mjCNSTR_CONTACT_FRICTIONLESS ||
+           efc_type == mjCNSTR_CONTACT_PYRAMIDAL ||
+           efc_type == mjCNSTR_CONTACT_ELLIPTIC) {
     int g1 = d->contact[efc_id].geom[0];
     int g2 = d->contact[efc_id].geom[1];
 
-    // no shortcut for flex contacts (handled in the generic case)
-    if (g1 >=0 && g2 >= 0) {
-      tree[0] = m->body_treeid[m->geom_bodyid[g1]];
-      tree[1] = m->body_treeid[m->geom_bodyid[g2]];
-
-      // handle static bodies
-      if (tree[0] < 0) {
-        if (tree[1] < 0) {
-          mjERROR("contact %d is between two static bodies", efc_id);  // SHOULD NOT OCCUR
-        } else {
-          int tmp = tree[0];
-          tree[0] = tree[1];
-          tree[1] = tmp;
-        }
+    // geom-geom contact
+    if (g1 >= 0 && g2 >= 0) {
+      iter->trees[0] = m->body_treeid[m->geom_bodyid[g1]];
+      iter->trees[1] = m->body_treeid[m->geom_bodyid[g2]];
+      if (iter->trees[0] < 0 && iter->trees[1] < 0) {
+        mjERROR("contact %d is between two static bodies", efc_id);  // SHOULD NOT OCCUR
       }
+    }
 
-      return -1;
+    // no shortcut for flex contacts: enable generic scan
+    else {
+      iter->jac_idx = 0;
     }
   }
 
   // connect or weld constraints
-  if (efc_type == mjCNSTR_EQUALITY) {
-    mjtEq eq_type = m->eq_type[efc_id];
-    if (eq_type == mjEQ_CONNECT || eq_type == mjEQ_WELD) {
-      int b1 = m->eq_obj1id[efc_id];
-      int b2 = m->eq_obj2id[efc_id];
+  else if (efc_type == mjCNSTR_EQUALITY &&
+           (m->eq_type[efc_id] == mjEQ_CONNECT ||
+            m->eq_type[efc_id] == mjEQ_WELD)) {
+    int b1 = m->eq_obj1id[efc_id];
+    int b2 = m->eq_obj2id[efc_id];
 
-      // get body ids if using site semantics
-      if (m->eq_objtype[efc_id] == mjOBJ_SITE) {
-        b1 = m->site_bodyid[b1];
-        b2 = m->site_bodyid[b2];
-      }
+    // get body ids if using site semantics
+    if (m->eq_objtype[efc_id] == mjOBJ_SITE) {
+      b1 = m->site_bodyid[b1];
+      b2 = m->site_bodyid[b2];
+    }
 
-      tree[0] = m->body_treeid[b1];
-      tree[1] = m->body_treeid[b2];
-
-      // handle static bodies
-      if (tree[0] < 0) {
-        if (tree[1] < 0) {
-          mjERROR("equality %d is between two static bodies", efc_id);  // SHOULD NOT OCCUR
-        } else {
-          int tmp = tree[0];
-          tree[0] = tree[1];
-          tree[1] = tmp;
-        }
-      }
-
-      return -1;
+    // get trees
+    iter->trees[0] = m->body_treeid[b1];
+    iter->trees[1] = m->body_treeid[b2];
+    if (iter->trees[0] < 0 && iter->trees[1] < 0) {
+      mjERROR("equality %d is between two static bodies", efc_id);  // SHOULD NOT OCCUR
     }
   }
 
-  // ==== generic case: scan Jacobian
-  int index = 0;
-  tree[0] = treeNext(m, d, -1, i, &index);
-
-  if (tree[0] < 0) {
-    mjERROR("no tree found for constraint %d", i);  // SHOULD NOT OCCUR
+  // otherwise enable generic scan
+  else {
+    iter->jac_idx = 0;
   }
-
-  return index;
 }
 
 
-// add 0 edges, 1 self-edge or 2 flipped edges to array, increment treenedge
-//   return current number of edges
-static int addEdge(int* treenedge, int* edge, int nedge, int tree1, int tree2, int nedge_max) {
-  // handle the static tree
-  if (tree1 == -1 && tree2 == -1) {
-    mjERROR("self-edge of the static tree");  // SHOULD NOT OCCUR
-    return 0;
-  }
-  if (tree1 == -1) tree1 = tree2;
-  if (tree2 == -1) tree2 = tree1;
-
-  // previous edge
-  int p1 = nedge ? edge[2*nedge - 2] : -1;
-  int p2 = nedge ? edge[2*nedge - 1] : -1;
-
-  // === self edge
-  if (tree1 == tree2) {
-    // same as previous edge, return
-    if (nedge && tree1 == p1 && tree1 == p2) {
-      return nedge;
-    }
-
-    // check size
-    if (nedge >= nedge_max) {
-      mjERROR("edge array too small");
-      return 0;
-    }
-
-    // add tree1-tree1 self-edge
-    edge[2*nedge + 0] = tree1;
-    edge[2*nedge + 1] = tree1;
-    treenedge[tree1]++;
-    return nedge + 1;
-  }
-
-  // === non-self edge
-  if (nedge && ((tree1 == p1 && tree2 == p2) || (tree1 == p2 && tree2 == p1))) {
-    // same as previous edge, return
-    return nedge;
-  }
-
-  // check size
-  if (nedge + 2 > nedge_max) {
-    mjERROR("edge array too small");
-    return 0;
-  }
-
-  // add tree1-tree2 and tree2-tree1
-  edge[2*nedge + 0] = tree1;
-  edge[2*nedge + 1] = tree2;
-  edge[2*nedge + 2] = tree2;
-  edge[2*nedge + 3] = tree1;
-  treenedge[tree1]++;
-  treenedge[tree2]++;
-  return nedge + 2;
+// return whether repeated scalar rows of this constraint require separate tree scans
+static int isFlexEquality(const mjModel* m, int efc_type, int efc_id) {
+  return efc_type == mjCNSTR_EQUALITY &&
+         (m->eq_type[efc_id] == mjEQ_FLEX ||
+          m->eq_type[efc_id] == mjEQ_FLEXVERT ||
+          m->eq_type[efc_id] == mjEQ_FLEXSTRAIN);
 }
 
 
-// find tree-tree edges, increment treenedge counters, return total number of edges
-static int findEdges(const mjModel* m, const mjData* d, int* treenedge, int* edge, int nedge_max) {
+// activate and union all trees with direct incidence in a constraint
+static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* parent,
+                                        int* efc_tree, int* err_i) {
   int nefc = d->nefc;
   int efc_type = -1;
   int efc_id = -1;
 
-  // clear treenedge
-  mju_zeroInt(treenedge, m->ntree);
-
-  int nedge = 0;
+  // iterate over constraints and union incident trees
   for (int i=0; i < nefc; i++) {
-    // row i is still in the same constraint: skip it,
-    if (efc_type == d->efc_type[i] && efc_id == d->efc_id[i]) {
+    // row i is still in the same constraint: skip it
+    if (i > 0 && efc_type == d->efc_type[i] && efc_id == d->efc_id[i]) {
       // unless it is a flex equality, where the tree pattern changes per dof
-      if (!(efc_type == mjCNSTR_EQUALITY && m->eq_type[efc_id] == mjEQ_FLEX)) {
+      if (!isFlexEquality(m, efc_type, efc_id)) {
+        efc_tree[i] = efc_tree[i-1];
         continue;
       }
     }
     efc_type = d->efc_type[i];
     efc_id = d->efc_id[i];
 
-    int tree[2];
-    int index = treeFirst(m, d, tree, i);
-    int tree1 = tree[0];
-    int tree2 = tree[1];
+    // initialize tree iterator
+    mjTreeIter iter;
+    treeIterInit(m, d, i, &iter);
 
-    // no more edges to find, add and continue
-    if (index == -1) {
-      nedge = addEdge(treenedge, edge, nedge, tree1, tree2 == -1 ? tree1 : tree2, nedge_max);
+    // iterate over trees involved in constraint i
+    int tree1 = treeNext(m, d, i, &iter);
+    if (tree1 != -2) {
+      int tree2 = treeNext(m, d, i, &iter);
+      // assign tree to constraint, one of (tree1, tree2) must be non-negative
+      efc_tree[i] = tree1 >= 0 ? tree1 : tree2;
+      if (efc_tree[i] < 0) {
+        *err_i = i;
+        return "constraint %d is between two static bodies";
+      }
+
+      // activate a singleton or union all trees in a multi-tree constraint
+      if (tree2 == -2) {
+        mj_dsuMerge(parent, tree1, -1);
+      } else {
+        while (tree2 != -2) {
+          mj_dsuMerge(parent, tree1, tree2);
+          tree1 = tree2;
+          tree2 = treeNext(m, d, i, &iter);
+        }
+      }
+    } else {
+      *err_i = i;
+      return "no tree found for constraint %d";
+    }
+  }
+
+  // flex stiffness couples all vertices (nodes for interpolated flexes) of a flex without any
+  // constraint row representing the coupling: union the trees of every stiffness-active flex
+  // (star around the first dynamic tree). This keeps the partition valid when the implicit
+  // effective metric (mj_flexCG) carries the stiffness inside the constraint solve. Awake
+  // trees only: sleeping trees must stay out of islands (mj_sleep invariant, matching the
+  // constraint filter); waking a flex as a unit remains the wake machinery's job.
+  for (int f=0; f < m->nflex; f++) {
+    // mirror the stiffness-activity conditions of engine_derivative's flexStiff_active /
+    // flexInterp_processed: deformable dim>=2 flex with bending or nonzero stiffness
+    if (m->flex_rigid[f] || m->flex_dim[f] < 2) {
+      continue;
+    }
+    int sadr = m->flex_stiffnessadr[f];
+    if (m->flex_bendingadr[f] < 0 && (sadr < 0 || m->flex_stiffness[sadr] == 0)) {
       continue;
     }
 
-    // possibly more edges, scan Jacobian row
-    else {
-      tree2 = treeNext(m, d, tree1, i, &index);
+    int num, adr;
+    const int* bodyid;
+    if (m->flex_interp[f]) {
+      num = m->flex_nodenum[f];
+      adr = m->flex_nodeadr[f];
+      bodyid = m->flex_nodebodyid;
+    } else {
+      num = m->flex_vertnum[f];
+      adr = m->flex_vertadr[f];
+      bodyid = m->flex_vertbodyid;
+    }
 
-      if (tree2 == -1) {
-        // 1 tree found: add self-edge
-        nedge = addEdge(treenedge, edge, nedge, tree1, tree1, nedge_max);
+    int tree1 = -1;
+    for (int j=0; j < num; j++) {
+      int tree2 = m->body_treeid[bodyid[adr+j]];
+      if (tree2 < 0 || tree2 == tree1 || !d->tree_awake[tree2]) {
+        continue;
+      }
+      if (tree1 < 0) {
+        tree1 = tree2;
       } else {
-        // 2 trees found: add edge, keep scanning and adding until no more trees
-        nedge = addEdge(treenedge, edge, nedge, tree1, tree2, nedge_max);
-        int tree3 = treeNext(m, d, tree2, i, &index);
-        while (tree3 > -1 && tree3 != tree2) {
-          tree1 = tree2;
-          tree2 = tree3;
-          nedge = addEdge(treenedge, edge, nedge, tree1, tree2, nedge_max);
-          tree3 = treeNext(m, d, tree2, i, &index);
-        }
+        mj_dsuMerge(parent, tree1, tree2);
       }
     }
   }
 
-  return nedge;
+  return NULL;
 }
 
 
@@ -400,9 +458,9 @@ static int findEdges(const mjModel* m, const mjData* d, int* treenedge, int* edg
 // discover islands:
 //   nisland, island_idofadr, dof_island, dof_islandnext, island_efcadr, efc_island, efc_islandnext
 void mj_island(const mjModel* m, mjData* d) {
-  int nv = m->nv, nefc = d->nefc, ntree = m->ntree, nJ = d->nJ;
+  int nv = m->nv, nefc = d->nefc, ntree = m->ntree;
 
-  // no constraints: quick return
+  // no constraints or islands disabled: quick return
   if (mjDISABLED(mjDSBL_ISLAND) || !nefc) {
     d->nisland = d->nidof = 0;
     return;
@@ -410,34 +468,19 @@ void mj_island(const mjModel* m, mjData* d) {
 
   mj_markStack(d);
 
-  // allocate edge array, nJ is an upper bound
-  int* edge = mjSTACKALLOC(d, 2*nJ, int);
-
-  // get tree-tree edges and rownnz counts from efc arrays
-  int* rownnz = mjSTACKALLOC(d, ntree, int);  // number of edges per tree
-  int nedge = findEdges(m, d, rownnz, edge, nJ);
-
-  // compute starting address of tree's column indices while resetting rownnz
-  int* rowadr = mjSTACKALLOC(d, ntree, int);
-  rowadr[0] = 0;
-  for (int r=1; r < ntree; r++) {
-    rowadr[r] = rowadr[r-1] + rownnz[r-1];
-    rownnz[r-1] = 0;
+  // union direct tree incidence and assign deterministic components
+  int* efc_tree = mjSTACKALLOC(d, nefc, int);
+  int* parent = mjSTACKALLOC(d, ntree, int);
+  mju_fillInt(parent, -1, ntree);
+  int err_i = -1;
+  const char* err_msg = unionConstraintTrees(m, d, parent, efc_tree, &err_i);
+  if (err_msg) {
+    mj_freeStack(d);
+    mjERROR(err_msg, err_i);
   }
-  rownnz[ntree-1] = 0;
-
-  // copy column indices: list each tree's neighbors
-  int* colind = mjSTACKALLOC(d, nedge, int);
-  for (int e=0; e < nedge; e++) {
-    int row = edge[2*e];
-    int col = edge[2*e + 1];
-    colind[rowadr[row] + rownnz[row]++] = col;
-  }
-
-  // discover islands
-  int* tree_island = mjSTACKALLOC(d, ntree, int);  // id of island assigned to tree
-  int* stack = mjSTACKALLOC(d, nedge, int);
-  d->nisland = mj_floodFill(tree_island, ntree, rownnz, rowadr, colind, stack);
+  int* tree_island = mjSTACKALLOC(d, ntree, int);
+  int nidof;
+  d->nisland = mj_dsuAssign(tree_island, parent, m->tree_dofnum, ntree, &nidof);
 
   // no islands found: quick return
   if (!d->nisland) {
@@ -446,13 +489,6 @@ void mj_island(const mjModel* m, mjData* d) {
     return;
   }
 
-  // count nidof: total number of dofs in islands
-  int nidof = 0;
-  for (int i=0; i < ntree; i++) {
-    if (tree_island[i] >= 0) {
-      nidof += m->tree_dofnum[i];
-    }
-  }
   d->nidof = nidof;
 
   // allocate island arrays on arena
@@ -508,7 +544,7 @@ void mj_island(const mjModel* m, mjData* d) {
   // compute dof_island, island_nv
   mju_zeroInt(d->island_nv, nisland);
   for (int i=0; i < nv; i++) {
-    // assign dofs to islands
+    // assign DOFs to islands
     int island = tree_island[m->dof_treeid[i]];  // -1 if unconstrained
     d->dof_island[i] = island;
 
@@ -525,7 +561,7 @@ void mj_island(const mjModel* m, mjData* d) {
   }
 
   // compute dof <-> idof maps
-  int* island_nv2 = mjSTACKALLOC(d, nisland + 1, int);  // last element counts unconstrained dofs
+  int* island_nv2 = mjSTACKALLOC(d, nisland + 1, int);  // last element counts unconstrained DOFs
   mju_zeroInt(island_nv2, nisland + 1);
   for (int dof=0; dof < nv; dof++) {
     int island = d->dof_island[dof];
@@ -551,15 +587,6 @@ void mj_island(const mjModel* m, mjData* d) {
     d->island_dofadr[i] = d->map_idof2dof[d->island_idofadr[i]];
   }
 
-  // inertia: block-diagonalize both iLD <- qLD and iM <- qM
-  mju_blockDiagSparse(d->iLD, d->iM_rownnz, d->iM_rowadr, d->iM_colind,
-                      d->qLD,  m->M_rownnz, m->M_rowadr, m->M_colind,
-                      nidof, nisland,
-                      d->map_idof2dof, d->map_dof2idof,
-                      d->island_idofadr, d->island_idofadr,
-                      d->iM, d->M);
-  mju_gather(d->iLDiagInv, d->qLDiagInv, d->map_idof2dof, nidof);
-
 
   // ------------------------------------- constraints ---------------------------------------------
 
@@ -568,10 +595,8 @@ void mj_island(const mjModel* m, mjData* d) {
   mju_zeroInt(d->island_nf, nisland);
   mju_zeroInt(d->island_nefc, nisland);
   for (int i=0; i < nefc; i++) {
-    int tree[2];
-    treeFirst(m, d, tree, i);
-    int island = tree_island[tree[0]];
-    d->efc_island[i] = island;
+    d->efc_island[i] = tree_island[efc_tree[i]];
+    int island = d->efc_island[i];
     d->island_nefc[island]++;
     switch (d->efc_type[i]) {
       case mjCNSTR_EQUALITY:
@@ -600,43 +625,15 @@ void mj_island(const mjModel* m, mjData* d) {
     int ic = d->island_iefcadr[island] + island_nefc2[island]++;
     d->map_efc2iefc[c] = ic;
     d->map_iefc2efc[ic] = c;
+    d->iefc_type[ic] = d->efc_type[c];
+    d->iefc_id[ic] = d->efc_id[c];
+    d->iefc_frictionloss[ic] = d->efc_frictionloss[c];
+    d->iefc_D[ic] = d->efc_D[c];
+    d->iefc_R[ic] = d->efc_R[c];
   }
 
   // SHOULD NOT OCCUR
   if (!mju_compare(island_nefc2, d->island_nefc, nisland)) mjERROR("island_nefc miscount");
-
-  // dense: block-diagonalize Jacobian
-  if (!mj_isSparse(m)) {
-    mju_blockDiag(d->iefc_J, d->efc_J,
-                  nv, nidof, nisland,
-                  d->map_iefc2efc, d->map_idof2dof,
-                  d->island_nefc, d->island_nv,
-                  d->island_iefcadr, d->island_idofadr);
-  }
-
-  // sparse
-  else {
-    // block-diagonalize Jacobian
-    mju_blockDiagSparse(d->iefc_J, d->iefc_J_rownnz, d->iefc_J_rowadr, d->iefc_J_colind,
-                        d->efc_J, d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
-                        nefc, nisland,
-                        d->map_iefc2efc, d->map_dof2idof,
-                        d->island_iefcadr, d->island_idofadr, NULL, NULL);
-
-    // recompute rowsuper per island
-    for (int island=0; island < nisland; island++) {
-      int adr = d->island_iefcadr[island];
-      mju_superSparse(d->island_nefc[island], d->iefc_J_rowsuper + adr,
-                      d->iefc_J_rownnz + adr, d->iefc_J_rowadr + adr, d->iefc_J_colind);
-    }
-  }
-
-  // copy position-dependent efc vectors required by solver
-  mju_gatherInt(d->iefc_type, d->efc_type, d->map_iefc2efc, nefc);
-  mju_gatherInt(d->iefc_id, d->efc_id, d->map_iefc2efc, nefc);
-  mju_gather(d->iefc_frictionloss, d->efc_frictionloss, d->map_iefc2efc, nefc);
-  mju_gather(d->iefc_D, d->efc_D, d->map_iefc2efc, nefc);
-  mju_gather(d->iefc_R, d->efc_R, d->map_iefc2efc, nefc);
 
   mj_freeStack(d);
 }

@@ -60,6 +60,9 @@ class ConstraintTest(parameterized.TestCase):
     # sample a mix of active/inactive constraints at different timesteps
     for key in range(3):
       mujoco.mj_resetDataKeyframe(m, d, key)
+      # scale down velocities to minimize Jdotv effect (not in MJX)
+      # TODO(team): remove this change when mjx supports this feature
+      d.qvel[:] *= 1e-2
       if rand_eq_active:
         d.eq_active[:] = np.random.randint(0, 2, size=m.neq)
       mujoco.mj_forward(m, d)

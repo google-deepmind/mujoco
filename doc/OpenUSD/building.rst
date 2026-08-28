@@ -3,55 +3,61 @@ Building
 
 .. WARNING:: OpenUSD support is currently experimental and subject to frequent change.
 
-Advanced users can start testing out USD support by building against their own USD libraries or USD built from source.
+MuJoCo must be built against a pre-built USD library, we provide a utility to do so but you may also bring your own USD
+libraries.
 
-This assumes that you have built MuJoCo in ``~/mujoco`` and have a build directory at ``~/mujoco/build``
+The following instructions assume that you have cloned MuJoCo into ``~/mujoco`` and have a build directory at
+``~/mujoco/build``.
+
+.. _usdBuildingUSD:
 
 Building USD
 ------------
 
-USD has a pretty streamlined installation via their ``build_usd.py`` script. It's recommended to use a separate
-installation directory that exists outside of the cloned repository directory.
+If you have a pre-built USD library, you can skip this section.
+
+MuJoCo provides a CMake project that simplifies the process of building USD. It will download and build USD with only
+the necessary features enabled.
+
+.. code-block:: bash
+
+   cd ~/mujoco
+   cmake -Bcmake/third_party_deps/openusd/build cmake/third_party_deps/openusd
+   cmake --build cmake/third_party_deps/openusd/build
+
+If you want to customize the build process, you can use USD's ``build_usd.py`` script. It's recommended to use a
+separate installation directory that exists outside of the cloned repository directory.
 
 .. code-block:: bash
 
    git clone https://github.com/PixarAnimationStudios/OpenUSD
    python OpenUSD/build_scripts/build_usd.py /path/to/my_usd_install_dir
 
+.. _usdEnablingUSD:
+
 Enabling USD
 ------------
 
-USD is comprised of many plugins. When USD enabled application starts up it looks for an environment variable called
-``PXR_PLUGINPATH_NAME``. Below is an example where we build MuJoCo with USD enabled and set this variable.
+If USD was built with the third_party_deps/openusd CMake project, you can enable USD support with the MUJOCO_WITH_USD
+flag.
 
 .. code-block:: bash
 
-   cd ~/mujoco/build
-   cmake .. -DCMAKE_BUILD_TYPE=Release -DUSD_DIR=/path/to/my_usd_install_dir
-   cmake --build . -j 30; sudo cmake --install .
-   export PXR_PLUGINPATH_NAME=/usr/local/lib/mujocoUsd/resources/*/plugInfo.json
+   cd ~/mujoco
+   cmake -Bbuild -S. -DMUJOCO_WITH_USD=True
+   cmake --build build -j 64
+
+Otherwise, if you have a pre-built USD library, you must also pass the pxr_DIR flag.
+
+.. code-block:: bash
+
+   cd ~/mujoco
+   cmake -Bbuild -S. -DMUJOCO_WITH_USD=True -Dpxr_DIR=/path/to/my_usd_install_dir
+   cmake --build build -j 64
+
 
 If we now run :ref:`simulate.cc <saSimulate>`, we will be able to drag and drop USD files.
 
 .. code-block:: bash
 
    simulate
-
-Enabling plugins in Houdini
----------------------------
-
-Houdini is a procedural content authoring tool with extensive support for USD workflows via their Solaris context. It's
-highly popular in the VFX industry, and it's easy to imagine procedural generation tools for simulation ready assets and
-scenes.
-
-To allow support for loading MJCF files in Solaris, and usage of the mjcPhysics schemas you can build against Houdini's
-USD libraries. To do so, simply run `source ./houdini_setup` as descrived in the `SideFX documentation
-<https://www.sidefx.com/faq/question/how-do-i-set-up-the-houdini-environment-for-command-line-tools>`__.
-
-.. code-block:: bash
-
-   cd ~/mujoco/build
-   cmake .. -DCMAKE_BUILD_TYPE=Release -DHOUDINI_HFS_DIR=$HFS
-   cmake --build . -j 30; sudo cmake --install .
-   export PXR_PLUGINPATH_NAME=/usr/local/lib/mujocoUsd/resources/*/plugInfo.json
-   houdini

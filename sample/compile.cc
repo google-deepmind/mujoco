@@ -12,174 +12,137 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <chrono>
 #include <cctype>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <string>
+#include <string_view>
 
 #include <mujoco/mujoco.h>
 
 // help
-static constexpr char helpstring[] =
-  "\n Usage:  compile infile outfile\n"
-  "   infile can be in mjcf, urdf, mjb format\n"
-  "   outfile can be in mjcf, mjb, txt format, or empty\n\n"
-  "   if infile is mjcf, compilation will be timed twice to measure the impact of caching\n\n"
-  " Example: compile model.xml [model.mjb]\n";
-
-// timer (seconds)
-mjtNum gettm(void) {
-  using Clock = std::chrono::steady_clock;
-  using Seconds = std::chrono::duration<mjtNum>;
-  static const Clock::time_point tm_start = Clock::now();
-  return Seconds(Clock::now() - tm_start).count();
-}
+static constexpr char kHelp[] =
+    "\n Usage:  compile infile [outfile]\n"
+    "   infile can be in any format with a registered decoder (e.g. mjcf, "
+    "urdf) or mjb\n"
+    "   outfile can be in mjcf, mjb, txt format, or empty\n\n"
+    "   if outfile is empty, compilation will be "
+    "timed twice to measure the impact of caching\n\n"
+    " Example: compile model.xml [model.mjb]\n";
 
 // deallocate and print message
-int finish(const char* msg = 0, mjModel* m = 0) {
+int finish(const char* msg = 0, int exitcode = EXIT_SUCCESS, mjModel* m = 0, mjVFS* vfs = 0) {
   // deallocated everything
-  if (m) {
-    mj_deleteModel(m);
-  }
+  if (m) { mj_deleteModel(m); }
+  if (vfs) { mj_deleteVFS(vfs); }
 
   // print message
-  if (msg) {
-    std::cout << msg << std::endl;
-  }
+  if (msg) { std::cout << msg << std::endl; }
 
-  return EXIT_SUCCESS;
+  return exitcode;
 }
 
+// check if filename has extension (case-insensitive)
+bool HasExtension(std::string_view filename, std::string_view ext) {
+  if (filename.length() < ext.length()) return false;
 
-// possible file types
-enum {
-  typeUNKNOWN = 0,
-  typeXML,
-  typeMJB,
-  typeTXT,
-  typeNONE
-};
-
-
-// determine file type
-int filetype(const char* filename) {
-  // convert to lower case for string comparison
-  char lower[1000];
-  std::size_t i=0;
-  while (i<std::strlen(filename) && i<999) {
-    lower[i] = (char)tolower(filename[i]);
-    i++;
+  std::string_view file_ext = filename.substr(filename.length() - ext.length());
+  for (std::size_t i = 0; i < ext.length(); ++i) {
+    if (std::tolower(static_cast<unsigned char>(file_ext[i])) !=
+        std::tolower(static_cast<unsigned char>(ext[i]))) {
+      return false;
+    }
   }
-  lower[i] = 0;
-
-  // find last dot
-  int dot = (int)std::strlen(lower);
-  while (dot>=0 && lower[dot]!='.') {
-    dot--;
-  }
-
-  // no dot found
-  if (dot<0) {
-    return typeUNKNOWN;
-  }
-
-  // check extension
-  if (!std::strcmp(lower+dot, ".xml") || !std::strcmp(lower+dot, ".urdf")) {
-    return typeXML;
-  } else if (!std::strcmp(lower+dot, ".mjb")) {
-    return typeMJB;
-  } else if (!std::strcmp(lower+dot, ".txt")) {
-    return typeTXT;
-  } else {
-    return typeUNKNOWN;
-  }
+  return true;
 }
-
-
 
 // main function
 int main(int argc, char** argv) {
 
   // model and error
   mjModel* m = 0;
-  char error[1000];
+  char     error[1000];
 
   // print help if arguments are missing
-  if (argc!=3 && argc!=2) {
-    return finish(helpstring);
-  }
+  if (argc != 3 && argc != 2) { return finish(kHelp, EXIT_FAILURE); }
 
-  // determine file types
-  int type1 = filetype(argv[1]);
-  int type2 = argc==2 ? typeNONE : filetype(argv[2]);
+  const bool is_mjb = HasExtension(argv[1], ".mjb");
 
-  // check types
-  if (type1==typeUNKNOWN || type1==typeTXT ||
-      type2==typeUNKNOWN || (type1==typeMJB && type2==typeXML)) {
-    return finish("Illegal combination of file formats");
+  if (is_mjb && argc == 3 && HasExtension(argv[2], ".xml")) {
+    return finish("Illegal combination: cannot save binary model to XML", EXIT_FAILURE);
   }
 
   // check if output file exists
-  std::FILE* fp = std::fopen(argv[2], "r");
-  if (fp) {
-    std::cout << "Output file already exists, overwrite? (Y/n) ";
-    char c;
-    std::cin >> c;
-    if (c!='y' && c!='Y') {
+  if (argc == 3) {
+    std::FILE* fp = std::fopen(argv[2], "r");
+    if (fp) {
       std::fclose(fp);
-      return finish();
+      std::cout << "Output file already exists, overwrite? (Y/n) ";
+      char c;
+      std::cin >> c;
+      if (c != 'y' && c != 'Y') { return finish(); }
     }
   }
 
+  // enable compile timing diagnostics
+  if (argc == 2) {
+    mjLogConfig config  = mju_getLogConfig();
+    config.logfile[0]   = '\0';
+    config.topics      |= (1 << (mjTOPIC_TIME_CMP - 1));
+    mju_setLogConfig(config);
+  }
+
   // load model
-  double first=0, second=0;
-  if (type1==typeXML) {
-    double starttime = gettm();
-    m = mj_loadXML(argv[1], 0, error, 1000);
-    first = gettm() - starttime;
-    if (m) {
-      mj_deleteModel(m);
-      starttime = gettm();
-      m = mj_loadXML(argv[1], 0, error, 1000);
-      second = gettm() - starttime;
-    }
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mjSpec* spec = nullptr;
+
+  if (is_mjb) {
+    m = mj_loadModel(argv[1], &vfs);
+    if (!m) { return finish("Could not load binary model", EXIT_FAILURE, nullptr, &vfs); }
   } else {
-    m = mj_loadModel(argv[1], 0);
+    spec = mj_parse(argv[1], nullptr, &vfs, error, 1000);
+    if (!spec) { return finish(error, EXIT_FAILURE, nullptr, &vfs); }
+
+    if (argc == 2) { std::cout << "Compile 1 (cold cache)\n"; }
+    m = mj_compile(spec, &vfs);
+    if (!m) {
+      // copy the message before mj_deleteSpec frees the memory it points into
+      std::string err_msg = mjs_getError(spec);
+      mj_deleteSpec(spec);
+      return finish(err_msg.c_str(), EXIT_FAILURE, nullptr, &vfs);
+    }
+
+    if (argc == 2) {
+      mj_deleteModel(m);
+      std::cout << "Compile 2 (warm cache)\n";
+      m = mj_compile(spec, &vfs);
+    }
   }
 
   // check error
   if (!m) {
-    if (type1==typeXML) {
-      return finish(error, 0);
+    if (spec) {
+      std::string err_msg = mjs_getError(spec);
+      mj_deleteSpec(spec);
+      return finish(err_msg.c_str(), EXIT_FAILURE, nullptr, &vfs);
     } else {
-      return finish("Could not load model", 0);
+      return finish("Could not load model", EXIT_FAILURE, nullptr, &vfs);
     }
   }
 
-  // save model
-  if (type2==typeXML) {
-    if (!mj_saveLastXML(argv[2], m, error, 1000)) {
-      return finish(error, m);
+  // encode output
+  if (argc == 3) {
+    if (mj_encode(spec, m, argv[2], nullptr, &vfs, error, 1000) < 0) {
+      if (spec) mj_deleteSpec(spec);
+      return finish(error, EXIT_FAILURE, m, &vfs);
     }
-  } else if (type2==typeMJB) {
-    mj_saveModel(m, argv[2], 0, 0);
-  } else if (type2==typeTXT) {
-    mj_printModel(m, argv[2]);
   }
 
   // finalize
-  char msg[1000];
-  if (first) {
-    snprintf(msg, sizeof(msg), "Done.\n"
-             "First compile: %.4gs\n"
-             "Second compile: %.4gs",
-             first, second);
-  } else {
-    snprintf(msg, sizeof(msg), "Done.");
-  }
-
-  return finish(msg, m);
+  if (spec) mj_deleteSpec(spec);
+  return finish("Done.", EXIT_SUCCESS, m, &vfs);
 }

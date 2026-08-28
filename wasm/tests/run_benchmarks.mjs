@@ -13,6 +13,13 @@
 // limitations under the License.
 
 import Jasmine from 'jasmine';
+import os from 'os';
+
+if (typeof navigator === 'undefined') {
+  globalThis.navigator = {
+    hardwareConcurrency: os.cpus().length,
+  };
+}
 
 const jasmine = new Jasmine();
 

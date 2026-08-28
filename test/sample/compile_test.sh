@@ -35,4 +35,35 @@ if [ ! -s "$OUTPUT_FILE" ]; then
   die "Output file empty or missing (${OUTPUT_FILE})."
 fi
 
+# Test invalid arguments (expect failure)
+"$TARGET_BINARY" > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+  die "Expected failure with no arguments"
+fi
+
+# Test illegal combination (MJB -> XML, expect failure)
+"$TARGET_BINARY" "$OUTPUT_FILE" "${TEST_TMPDIR}/failed.xml" > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+  die "Expected failure for MJB -> XML"
+fi
+
+# Test compile with 1 argument (expect success)
+"$TARGET_BINARY" "$MODEL" > /dev/null || die "compile with 1 argument failed"
+
+# Test XML -> MJZ (expect success)
+OUTPUT_MJZ="${TEST_TMPDIR}/compiled.mjz"
+"$TARGET_BINARY" "$MODEL" "$OUTPUT_MJZ" || die "compile to MJZ failed"
+
+if [ ! -s "$OUTPUT_MJZ" ]; then
+  die "MJZ output file empty or missing (${OUTPUT_MJZ})."
+fi
+
+# Test MJZ -> MJB (expect success)
+OUTPUT_MJB_FROM_MJZ="${TEST_TMPDIR}/compiled_from_mjz.mjb"
+"$TARGET_BINARY" "$OUTPUT_MJZ" "$OUTPUT_MJB_FROM_MJZ" || die "compile from MJZ to MJB failed"
+
+if [ ! -s "$OUTPUT_MJB_FROM_MJZ" ]; then
+  die "MJB output from MJZ empty or missing (${OUTPUT_MJB_FROM_MJZ})."
+fi
+
 echo "PASS"

@@ -54,7 +54,7 @@ def collider(ncon: int):
         return jax.tree_util.tree_map(jp.concatenate, (dist, pos, frame))
       return dist, pos, frame
 
-    collide.ncon = ncon
+    collide.ncon = ncon  # pyrefly: ignore[missing-attribute]
     return collide
 
   return wrapper

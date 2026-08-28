@@ -173,7 +173,7 @@ def com_pos(m: Model, d: Data) -> Data:
   root_com = subtree_com[m.body_rootid]
   offset = d.xipos - root_com
   cinert = inert_com(m.body_inertia, d.ximat, offset, m.body_mass)
-  d = d.tree_replace({'_impl.cinert': cinert})
+  d = d.tree_replace({'_impl.cinert': cinert})  # pyrefly: ignore[bad-assignment]
 
   # map motion dofs to global frame centered at subtree_com
   def cdof_fn(jnt_typs, root_com, xmat, xanchor, xaxis):
@@ -212,7 +212,7 @@ def com_pos(m: Model, d: Data) -> Data:
       d.xanchor,
       d.xaxis,
   )
-  d = d.tree_replace({'cdof': cdof})
+  d = d.tree_replace({'cdof': cdof})  # pyrefly: ignore[bad-assignment]
 
   return d
 
@@ -302,12 +302,12 @@ def crb(m: Model, d: Data) -> Data:
 
   crb_body = scan.body_tree(m, crb_fn, 'b', 'b', d._impl.cinert, reverse=True)
   crb_body = crb_body.at[0].set(0.0)
-  d = d.tree_replace({'_impl.crb': crb_body})
+  d = d.tree_replace({'_impl.crb': crb_body})  # pyrefly: ignore[bad-assignment]
 
   crb_dof = jp.take(crb_body, jp.array(m.dof_bodyid), axis=0)
   crb_cdof = jax.vmap(math.inert_mul)(crb_dof, d.cdof)
   qm = support.make_m(m, crb_cdof, d.cdof, m.dof_armature)
-  d = d.tree_replace({'_impl.qM': qm})
+  d = d.tree_replace({'_impl.M': qm})  # pyrefly: ignore[bad-assignment]
   return d
 
 
@@ -317,58 +317,57 @@ def factor_m(m: Model, d: Data) -> Data:
     raise ValueError('factor_m requires JAX backend implementation.')
 
   if not support.is_sparse(m):
-    qh, _ = jax.scipy.linalg.cho_factor(d._impl.qM)
-    d = d.tree_replace({'_impl.qLD': qh})
+    qh, _ = jax.scipy.linalg.cho_factor(d._impl.M)
+    d = d.tree_replace({'_impl.qLD': qh})  # pyrefly: ignore[bad-assignment]
     return d
 
-  # build up indices for where we will do backwards updates over qLD
   depth = []
   for i in range(m.nv):
     depth.append(depth[m.dof_parentid[i]] + 1 if m.dof_parentid[i] != -1 else 0)
   updates = {}
-  madr_ds = []
+  diag_ds = []
   for i in range(m.nv):
-    madr_d = madr_ij = m.dof_Madr[i]
-    j = i
-    while True:
-      madr_ds.append(madr_d)
-      madr_ij, j = madr_ij + 1, m.dof_parentid[j]
-      if j == -1:
-        break
-      out_beg, out_end = tuple(m.dof_Madr[j : j + 2])
+    diag_i = m.M_rowadr[i] + m.M_rownnz[i] - 1
+    start_i = m.M_rowadr[i]
+    for k in range(m.M_rownnz[i]):
+      diag_ds.append(diag_i)
+    for k in range(m.M_rownnz[i] - 1):
+      adr = start_i + k
+      j = m.M_colind[adr]
+      out_beg = m.M_rowadr[j]
+      width = m.M_rownnz[j]
+      out_end = out_beg + width
       updates.setdefault(depth[j], []).append(
-          (out_beg, out_end, madr_d, madr_ij)
+          (out_beg, out_end, diag_i, adr, start_i)
       )
 
-  qld = d._impl.qM
+  qld = d._impl.M
 
   for _, updates in sorted(updates.items(), reverse=True):
-    # combine the updates into one update batch (per depth level)
     rows = []
     madr_ijs = []
     pivots = []
     out = []
 
-    for b, e, madr_d, madr_ij in updates:
+    for b, e, piv_i, madr_ij, start_i in updates:
       width = e - b
-      rows.append(np.arange(madr_ij, madr_ij + width))
+      rows.append(np.arange(start_i, start_i + width))
       madr_ijs.append(np.full((width,), madr_ij))
-      pivots.append(np.full((width,), madr_d))
+      pivots.append(np.full((width,), piv_i))
       out.append(np.arange(b, e))
-    rows = np.concatenate(rows)
-    madr_ijs = np.concatenate(madr_ijs)
-    pivots = np.concatenate(pivots)
-    out = np.concatenate(out)
+    if out:
+      rows = np.concatenate(rows)
+      madr_ijs = np.concatenate(madr_ijs)
+      pivots = np.concatenate(pivots)
+      out = np.concatenate(out)
 
-    # apply the update batch
-    qld = qld.at[out].add(-(qld[madr_ijs] / qld[pivots]) * qld[rows])
-    # TODO(erikfrey): determine if this minimum value guarding is necessary:
-    # qld = qld.at[dof_madr].set(jp.maximum(qld[dof_madr], _MJ_MINVAL))
+      qld = qld.at[out].add(-(qld[madr_ijs] / qld[pivots]) * qld[rows])
 
-  qld_diag = qld[m.dof_Madr]
-  qld = (qld / qld[jp.array(madr_ds)]).at[m.dof_Madr].set(qld_diag)
+  diag_adr = m.M_rowadr + m.M_rownnz - 1
+  qld_diag = qld[diag_adr]
+  qld = (qld / qld[np.array(diag_ds)]).at[diag_adr].set(qld_diag)
 
-  d = d.tree_replace({'_impl.qLD': qld, '_impl.qLDiagInv': 1 / qld_diag})
+  d = d.tree_replace({'_impl.qLD': qld, '_impl.qLDiagInv': 1 / qld_diag})  # pyrefly: ignore[bad-assignment]
   return d
 
 
@@ -386,13 +385,12 @@ def solve_m(m: Model, d: Data, x: jax.Array) -> jax.Array:
 
   updates_i, updates_j = {}, {}
   for i in range(m.nv):
-    madr_ij, j = m.dof_Madr[i], i
-    while True:
-      madr_ij, j = madr_ij + 1, m.dof_parentid[j]
-      if j == -1:
-        break
-      updates_i.setdefault(depth[i], []).append((i, madr_ij, j))
-      updates_j.setdefault(depth[j], []).append((j, madr_ij, i))
+    start_i = m.M_rowadr[i]
+    for k in range(m.M_rownnz[i] - 1):
+      adr = start_i + k
+      j = m.M_colind[adr]
+      updates_i.setdefault(depth[i], []).append((i, adr, j))
+      updates_j.setdefault(depth[j], []).append((j, adr, i))
 
   # x <- inv(L') * x
   for _, vals in sorted(updates_j.items(), reverse=True):
@@ -450,7 +448,7 @@ def com_vel(m: Model, d: Data) -> Data:
       d.qvel,
   )
 
-  d = d.tree_replace({'cvel': cvel, 'cdof_dot': cdof_dot})
+  d = d.tree_replace({'cvel': cvel, 'cdof_dot': cdof_dot})  # pyrefly: ignore[bad-assignment]
 
   return d
 
@@ -546,7 +544,7 @@ def subtree_vel(m: Model, d: Data) -> Data:
       reverse=True,
   )
 
-  return d.tree_replace({
+  return d.tree_replace({  # pyrefly: ignore[bad-return]
       '_impl.subtree_linvel': subtree_linvel,
       '_impl.subtree_angmom': subtree_angmom,
   })
@@ -843,7 +841,7 @@ def rne_postconstraint(m: Model, d: Data) -> Data:
   )
 
   # update data
-  return d.tree_replace({
+  return d.tree_replace({  # pyrefly: ignore[bad-return]
       '_impl.cacc': cacc,
       '_impl.cfrc_int': cfrc_int,
       '_impl.cfrc_ext': cfrc_ext,
@@ -1174,7 +1172,7 @@ def tendon(m: Model, d: Data) -> Data:
       [wrap_obj[sort], jp.zeros(2 * m.nwrap - count, dtype=int)]
   ).reshape((m.nwrap, 2))
 
-  return d.tree_replace({
+  return d.tree_replace({  # pyrefly: ignore[bad-return]
       'ten_length': ten_length,
       '_impl.ten_J': ten_moment,
       '_impl.ten_wrapadr': jp.array(ten_wrapadr, dtype=int),
@@ -1278,7 +1276,7 @@ def transmission(m: Model, d: Data) -> Data:
       moment = jac @ wrench
     elif trntype == TrnType.TENDON:
       length = d.ten_length[trnid[0]] * gear[:1]
-      moment = d._impl.ten_J[trnid[0]] * gear[0]
+      moment = d._impl.ten_J[trnid[0]] * gear[0]  # pyrefly: ignore[missing-attribute]
     else:
       raise RuntimeError(f'unrecognized trntype: {TrnType(trntype)}')
 
@@ -1310,14 +1308,14 @@ def transmission(m: Model, d: Data) -> Data:
   length = length.reshape((m.nu,))
   moment = moment.reshape((m.nu, m.nv))
 
-  d = d.tree_replace(
+  d = d.tree_replace(  # pyrefly: ignore[bad-assignment]
       {'actuator_length': length, '_impl.actuator_moment': moment}
   )
   return d
 
 
 def tendon_armature(m: Model, d: Data) -> Data:
-  """Add tendon armature to qM."""
+  """Add tendon armature to M."""
   if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
     raise ValueError('tendon_armature requires JAX backend implementation.')
 
@@ -1330,17 +1328,11 @@ def tendon_armature(m: Model, d: Data) -> Data:
   )
 
   if support.is_sparse(m):
-    ij = []
-    for i in range(m.nv):
-      j = i
-      while j > -1:
-        ij.append((i, j))
-        j = m.dof_parentid[j]
-
-    i, j = (jp.array(x) for x in zip(*ij))
+    i = np.repeat(np.arange(m.nv), m.M_rownnz)
+    j = m.M_colind
     JTAJ = JTAJ[(i, j)]
 
-  return d.tree_replace({'_impl.qM': d._impl.qM + JTAJ})
+  return d.tree_replace({'_impl.M': d._impl.M + JTAJ})  # pyrefly: ignore[bad-return]
 
 
 def tendon_dot(m: Model, d: Data) -> jax.Array:
@@ -1465,7 +1457,7 @@ def tendon_bias(m: Model, d: Data) -> Data:
   # add bias term: qfrc += ten_J * armature * ten_Jdot @ qvel
   coef = m.tendon_armature * jp.dot(ten_Jdot, d.qvel)
 
-  return d.tree_replace({
+  return d.tree_replace({  # pyrefly: ignore[bad-return]
       'qfrc_bias': (
           d.qfrc_bias
           + jp.sum(jax.vmap(jp.multiply)(d._impl.ten_J, coef), axis=0)

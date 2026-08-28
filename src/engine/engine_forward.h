@@ -18,6 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,7 +47,6 @@ MJAPI void mj_forward(const mjModel* m, mjData* d);
 MJAPI void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor);
 
 
-
 //-------------------------------- integrators -----------------------------------------------------
 
 // Runge Kutta explicit order-N integrator
@@ -64,6 +64,10 @@ MJAPI void mj_implicit(const mjModel *m, mjData *d);
 // fully implicit in velocity, possibly skipping factorization
 MJAPI void mj_implicitSkip(const mjModel *m, mjData *d, int skipfactor);
 
+// implicit-flex solve gate: with solver=CG, an implicit integrator and flex stiffness present,
+// the constraint solve is dispatched to the flex-augmented primal solver (monolithic,
+// pyramidal cones only); solver=Newton keeps its exact-factorization semantics
+int mj_flexCG(const mjModel* m);
 
 //-------------------------------- solver components -----------------------------------------------
 

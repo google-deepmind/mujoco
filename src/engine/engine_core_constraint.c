@@ -47,6 +47,85 @@
 //-------------------------- utility functions -----------------------------------------------------
 
 
+// compute cell node Jacobians and combined chain for flex strain constraints
+// npc: number of nodes per cell
+// gindices: global indices of cell nodes in flex
+// cell_node_jac: output array of size 3*npc*cell_nnz (allocated on stack)
+// mj_{mark/free}Stack in calling function
+static mjtNum* cell_pos_and_jac(const mjModel* m, mjData* d, int flex_id, int npc, const int* gindices,
+                                int nv, const mjtNum* xpos_c, int* cell_chain, int* cell_nnz) {
+  int* nstart = m->flex_nodeadr + flex_id;
+  int* bodyid = m->flex_nodebodyid + *nstart;
+
+  // build per-cell sparse chain: union of bodyChain for npc nodes
+  *cell_nnz = 0;
+  int* dof_used = mjSTACKALLOC(d, nv, int);
+  int* temp_chain = mjSTACKALLOC(d, nv, int);
+  mju_zeroInt(dof_used, nv);
+  for (int n = 0; n < npc; n++) {
+    int temp_nnz = mj_bodyChain(m, bodyid[gindices[n]], temp_chain);
+    for (int k = 0; k < temp_nnz; k++) {
+      dof_used[temp_chain[k]] = 1;
+    }
+  }
+  for (int q = 0; q < nv; q++) {
+    if (dof_used[q]) {
+      cell_chain[(*cell_nnz)++] = q;
+    }
+  }
+
+  // build per-cell node Jacobians: 3*npc x cell_nnz
+  mjtNum* cell_node_jac = mjSTACKALLOC(d, 3*npc*(*cell_nnz), mjtNum);
+  mju_zero(cell_node_jac, 3*npc*(*cell_nnz));
+  int* chain_col = mjSTACKALLOC(d, nv, int);
+  mjtNum* blk_jac = mjSTACKALLOC(d, 3*nv, mjtNum);
+  for (int n = 0; n < npc; n++) {
+    int body = bodyid[gindices[n]];
+    int chain_n = mj_bodyChain(m, body, chain_col);
+    mju_zero(blk_jac, 3*chain_n);
+    mj_jacSparse(m, d, blk_jac, NULL, xpos_c + 3*n,
+                 body, chain_n, chain_col, 0);
+    // map node's sparse chain into cell_chain indexing
+    for (int r = 0; r < 3; r++) {
+      for (int k = 0; k < chain_n; k++) {
+        // find chain_col[k] in cell_chain via linear scan (chain is short)
+        for (int cc = 0; cc < *cell_nnz; cc++) {
+          if (cell_chain[cc] == chain_col[k]) {
+            cell_node_jac[(3*n + r)*(*cell_nnz) + cc] = blk_jac[r*chain_n + k];
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  return cell_node_jac;
+}
+
+
+
+// compute strain Jacobian from strain derivative w.r.t. cell-local node positions
+// dSdx_local: input array of size 3*npc (dStrain/dNodePosition for cell nodes)
+// cell_node_jac: input array of size 3*npc*cell_nnz (sparse Jacobians)
+// strain_jac: output array of size cell_nnz (dStrain/dq)
+static void cell_strain_jacobian(int npc, int cell_nnz,
+                                 const mjtNum* dSdx_local,
+                                 const mjtNum* cell_node_jac,
+                                 mjtNum* strain_jac) {
+  mju_zero(strain_jac, cell_nnz);
+  for (int n = 0; n < npc; n++) {
+    for (int c = 0; c < 3; c++) {
+      mjtNum w = dSdx_local[3*n + c];
+      if (w == 0) continue;
+      int row = 3*n + c;
+      for (int k = 0; k < cell_nnz; k++) {
+        strain_jac[k] += w * cell_node_jac[row*cell_nnz + k];
+      }
+    }
+  }
+}
+
+
 // allocate efc arrays on arena, return 1 on success, 0 on failure
 static int arenaAllocEfc(const mjModel* m, mjData* d) {
 #undef MJ_M
@@ -58,7 +137,7 @@ static int arenaAllocEfc(const mjModel* m, mjData* d) {
   d->parena = d->ncon * sizeof(mjContact);
 
   // poison remaining memory
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   ASAN_POISON_MEMORY_REGION(
     (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
 #endif
@@ -189,22 +268,119 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
     return 0;
   }
 
+  // determine sign: vweight may be negative for side-0 of a contact pair
+  mjtNum sign = vweight[0] < 0 ? -1 : 1;
+
+  // compute parametric coordinates using absolute weights
   mjtNum coord[3] = {0, 0, 0};
   for (int i = 0; i < nw; i++) {
-    mju_addToScl3(coord,  m->flex_vert0 + 3*v[i], vweight[i]);
+    mju_addToScl3(coord, m->flex_vert0 + 3*v[i], mju_abs(vweight[i]));
   }
+
+  int interp = m->flex_interp[f];
+  int order = interp < 0 ? -interp : interp;
+  int npc = (order+1)*(order+1)*(order+1);  // number of nodes per cell
+
+  // grid dimensions for shell mode
+  int nx = 0, ny = 0, nz = 0;
+  if (interp < 0) {
+    nx = m->flex_cellnum[3*f+0] * order + 1;
+    ny = m->flex_cellnum[3*f+1] * order + 1;
+    nz = m->flex_cellnum[3*f+2] * order + 1;
+  }
+
+  // cell lookup: get local coords and node indices
+  mjtNum local[3];
+  int nodeindices[27];  // max npc for quadratic: 3^3 = 27
+  mju_cellLookup(coord, m->flex_cellnum+3*f, order, local, nodeindices);
+
+  // evaluate basis functions for this cell's local nodes
   int nstart = m->flex_nodeadr[f];
-  int nend = m->flex_nodeadr[f] + m->flex_nodenum[f];
   int nb = 0;
 
-  for (int i = nstart; i < nend; i++) {
-    mjtNum w = mju_evalBasis(coord, i-nstart, m->flex_interp[f]);
-    if (w < 1e-5) {
-      continue;
-    }
-    if (bweight) bweight[nb] = w;
-    body[nb++] = m->flex_nodebodyid[i];
+  if (!m->flex_nodebodyid) {
+    return 0;
   }
+
+  if (npc > 27) {
+    for (int j = 0; j < npc; j++) {
+      mjtNum w = mju_evalBasis(local, j, order);
+      if (w < 1e-5) {
+        continue;
+      }
+
+      int idx = nodeindices[j];
+
+      // shell mode: map interior nodes to boundary
+      if (interp < 0) {
+        int k_idx = idx % nz;
+        int rest = idx / nz;
+        int j_idx = rest % ny;
+        int i_idx = rest / ny;
+
+        if (i_idx > 0 && i_idx < nx-1 && j_idx > 0 && j_idx < ny-1 && k_idx > 0 && k_idx < nz-1) {
+          mju_shellTFIWeights(nx, ny, nz, i_idx, j_idx, k_idx, sign * w, &nb, body, bweight, m->flex_nodebodyid, nstart);
+          continue;
+        }
+      }
+
+      // add node, check for duplicates (especially needed when combining with TFI)
+      int b = m->flex_nodebodyid[nstart + idx];
+      int found = 0;
+      for (int k = 0; k < nb; k++) {
+        if (body[k] == b) {
+          if (bweight) bweight[k] += sign * w;
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        if (bweight) bweight[nb] = sign * w;
+        body[nb++] = b;
+      }
+    }
+  } else {
+    mjtNum basis[27];
+    mju_evalBasisArray(basis, local, order);
+
+    for (int j = 0; j < npc; j++) {
+      mjtNum w = basis[j];
+      if (w < 1e-5) {
+        continue;
+      }
+
+      int idx = nodeindices[j];
+
+      // shell mode: map interior nodes to boundary
+      if (interp < 0) {
+        int k_idx = idx % nz;
+        int rest = idx / nz;
+        int j_idx = rest % ny;
+        int i_idx = rest / ny;
+
+        if (i_idx > 0 && i_idx < nx-1 && j_idx > 0 && j_idx < ny-1 && k_idx > 0 && k_idx < nz-1) {
+          mju_shellTFIWeights(nx, ny, nz, i_idx, j_idx, k_idx, sign * w, &nb, body, bweight, m->flex_nodebodyid, nstart);
+          continue;
+        }
+      }
+
+      // add node, check for duplicates (especially needed when combining with TFI)
+      int b = m->flex_nodebodyid[nstart + idx];
+      int found = 0;
+      for (int k = 0; k < nb; k++) {
+        if (body[k] == b) {
+          if (bweight) bweight[k] += sign * w;
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        if (bweight) bweight[nb] = sign * w;
+        body[nb++] = b;
+      }
+    }
+  }
+
 
   return nb;
 }
@@ -214,7 +390,7 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
 int mj_addContact(const mjModel* m, mjData* d, const mjContact* con) {
   // move arena pointer back to the end of the existing contact array and invalidate efc_ arrays
   d->parena = d->ncon * sizeof(mjContact);
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   ASAN_POISON_MEMORY_REGION(
     (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
 #endif
@@ -301,6 +477,18 @@ static void mj_addConstraint(const mjModel* m, mjData* d,
         mju_copy(J + adr[nefc+i], jac + i*NV, NV);
       }
     }
+
+    // set J row supernodes; 1: next row has same pattern, 0: different pattern
+
+    // cross-boundary: does previous row have same pattern?
+    if (nefc > 0 && NV == nnz[nefc-1] &&
+        (NV == 0 || mju_compare(ind + adr[nefc], ind + adr[nefc-1], NV))) {
+      d->efc_J_rowsuper[nefc-1] = 1;
+    }
+
+    // within-constraint: consecutive rows always share same pattern
+    mju_fillInt(d->efc_J_rowsuper + nefc, 1, size-1);
+    d->efc_J_rowsuper[nefc+size-1] = 0;
   }
 
   // all rows empty: skip constraint
@@ -369,16 +557,50 @@ void mj_mulJacTVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum*
 }
 
 
+// compute global anchor points for connect/weld equality constraints
+static void mj_equalityAnchors(const mjModel* m, const mjData* d, int eq_id,
+                               mjtNum pos1[3], mjtNum pos2[3],
+                               int* body1, int* body2) {
+  mjtEq type = (mjtEq) m->eq_type[eq_id];
+  int obj1 = m->eq_obj1id[eq_id];
+  int obj2 = m->eq_obj2id[eq_id];
+
+  if (m->eq_objtype[eq_id] == mjOBJ_BODY) {
+    const mjtNum* data = m->eq_data + mjNEQDATA*eq_id;
+    if (type == mjEQ_CONNECT) {
+      mju_mulMatVec3(pos1, d->xmat + 9*obj1, data);
+      mju_addTo3(pos1, d->xpos + 3*obj1);
+      mju_mulMatVec3(pos2, d->xmat + 9*obj2, data + 3);
+      mju_addTo3(pos2, d->xpos + 3*obj2);
+    } else {
+      // weld uses data+3*(1-j) for anchor
+      mju_mulMatVec3(pos1, d->xmat + 9*obj1, data + 3);
+      mju_addTo3(pos1, d->xpos + 3*obj1);
+      mju_mulMatVec3(pos2, d->xmat + 9*obj2, data);
+      mju_addTo3(pos2, d->xpos + 3*obj2);
+    }
+    *body1 = obj1;
+    *body2 = obj2;
+  } else {
+    mju_copy3(pos1, d->site_xpos + 3*obj1);
+    mju_copy3(pos2, d->site_xpos + 3*obj2);
+    *body1 = m->site_bodyid[obj1];
+    *body2 = m->site_bodyid[obj2];
+  }
+}
+
+
 //--------------------- instantiate constraints by type --------------------------------------------
 
 // equality constraints
 void mj_instantiateEquality(const mjModel* m, mjData* d) {
   int issparse = mj_isSparse(m), nv = m->nv;
-  int id[2], size, NV, NV2, *chain = NULL, *chain2 = NULL, *buf_ind = NULL;
+  int id[2], size, NV, NV2, *chain = NULL, *chain2 = NULL;
   int flex_edgeadr, flex_edgenum;
+  int flex_vertadr, flex_vertnum;
   mjtNum cpos[6], pos[2][3], ref[2], dif, deriv;
   mjtNum quat[4], quat1[4], quat2[4], quat3[4], axis[3];
-  mjtNum *jac[2], *jacdif, *data, *sparse_buf = NULL;
+  mjtNum *jac[2], *jacdif, *data;
 
   // disabled or no equality constraints: return
   if (mjDISABLED(mjDSBL_EQUALITY) || m->nemax == 0) {
@@ -397,8 +619,6 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
   if (issparse) {
     chain = mjSTACKALLOC(d, nv, int);
     chain2 = mjSTACKALLOC(d, nv, int);
-    buf_ind = mjSTACKALLOC(d, nv, int);
-    sparse_buf = mjSTACKALLOC(d, nv, mjtNum);
   }
 
   // find active equality constraints
@@ -426,28 +646,15 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
     switch ((mjtEq) m->eq_type[i]) {
     case mjEQ_CONNECT:              // connect bodies with ball joint
       // find global points, body semantic
-      if (m->eq_objtype[i] == mjOBJ_BODY) {
-        for (int j=0; j < 2; j++) {
-          mju_mulMatVec3(pos[j], d->xmat + 9*id[j], data + 3*j);
-          mju_addTo3(pos[j], d->xpos + 3*id[j]);
-          body_id[j] = id[j];
-        }
-      }
-
-      // find global points, site semantic
-      else {
-        for (int j=0; j < 2; j++) {
-          mju_copy3(pos[j], d->site_xpos + 3*id[j]);
-          body_id[j] = m->site_bodyid[id[j]];
-        }
-      }
+      mj_equalityAnchors(m, d, i, pos[0], pos[1], body_id, body_id + 1);
 
       // compute position error
       mju_sub3(cpos, pos[0], pos[1]);
 
       // compute Jacobian difference (opposite of contact: 0 - 1)
       NV = mj_jacDifPair(m, d, chain, body_id[1], body_id[0], pos[1], pos[0],
-                          jac[1], jac[0], jacdif, NULL, NULL, NULL);
+                         jac[1], jac[0], jacdif, NULL, NULL, NULL, issparse,
+                         /*flg_skipcommon=*/0);
 
       // copy difference into jac[0]
       mju_copy(jac[0], jacdif, 3*NV);
@@ -457,22 +664,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 
     case mjEQ_WELD:                 // fix relative position and orientation
       // find global points, body semantic
-      if (m->eq_objtype[i] == mjOBJ_BODY) {
-        for (int j=0; j < 2; j++) {
-          mjtNum* anchor = data + 3*(1-j);
-          mju_mulMatVec3(pos[j], d->xmat + 9*id[j], anchor);
-          mju_addTo3(pos[j], d->xpos + 3*id[j]);
-          body_id[j] = id[j];
-        }
-      }
-
-      // find global points, site semantic
-      else {
-        for (int j=0; j < 2; j++) {
-          mju_copy3(pos[j], d->site_xpos + 3*id[j]);
-          body_id[j] = m->site_bodyid[id[j]];
-        }
-      }
+      mj_equalityAnchors(m, d, i, pos[0], pos[1], body_id, body_id + 1);
 
       // compute position error
       mju_sub3(cpos, pos[0], pos[1]);
@@ -483,7 +675,8 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
       // compute error Jacobian (opposite of contact: 0 - 1)
       NV = mj_jacDifPair(m, d, chain, body_id[1], body_id[0], pos[1], pos[0],
                           jac[1], jac[0], jacdif,
-                          jac[1]+3*nv, jac[0]+3*nv, jacdif+3*nv);
+                          jac[1]+3*nv, jac[0]+3*nv, jacdif+3*nv, issparse,
+                          /*flg_skipcommon=*/0);
 
       // copy difference into jac[0], compress translation:rotation if sparse
       mju_copy(jac[0], jacdif, 3*NV);
@@ -566,18 +759,17 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 
           // copy Jacobian: sparse or dense
           if (issparse) {
-            // add first or second chain
             if (j == 0) {
-              NV = d->ten_J_rownnz[id[j]];
-              mju_copyInt(chain, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV);
-              mju_copy(jac[j], d->ten_J+d->ten_J_rowadr[id[j]], NV);
+              NV = m->ten_J_rownnz[id[j]];
+              mju_copyInt(chain, m->ten_J_colind+m->ten_J_rowadr[id[j]], NV);
+              mju_copy(jac[j], d->ten_J+m->ten_J_rowadr[id[j]], NV);
             } else {
-              NV2 = d->ten_J_rownnz[id[j]];
-              mju_copyInt(chain2, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV2);
-              mju_copy(jac[j], d->ten_J+d->ten_J_rowadr[id[j]], NV2);
+              NV2 = m->ten_J_rownnz[id[j]];
+              mju_copyInt(chain2, m->ten_J_colind+m->ten_J_rowadr[id[j]], NV2);
+              mju_copy(jac[j], d->ten_J+m->ten_J_rowadr[id[j]], NV2);
             }
           } else {
-            mju_copy(jac[j], d->ten_J+id[j]*nv, nv);
+            mju_sparse2dense(jac[j], d->ten_J, 1, nv, m->ten_J_rownnz+id[j], m->ten_J_rowadr+id[j], m->ten_J_colind);
           }
         }
       }
@@ -594,8 +786,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 
         // compute Jacobian: sparse or dense
         if (issparse) {
-          NV = mju_combineSparse(jac[0], jac[1], 1, -deriv, NV, NV2, chain,
-                                  chain2, sparse_buf, buf_ind);
+          NV = mju_combineSparse(jac[0], jac[1], 1, -deriv, NV, NV2, chain, chain2);
         } else {
           mju_addToScl(jac[0], jac[1], -deriv, nv);
         }
@@ -612,29 +803,235 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
       size = 1;
       break;
 
-    case mjEQ_FLEX:
-      flex_edgeadr = m->flex_edgeadr[id[0]];
-      flex_edgenum = m->flex_edgenum[id[0]];
-      // add one constraint per non-rigid edge
-      for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
-        // skip rigid
-        if (m->flexedge_rigid[e]) {
-          continue;
+    case mjEQ_FLEXSTRAIN: {
+      // each constraint represents a single element (3D cell or 2D face)
+      int f = id[0];
+      int nodenum = m->flex_nodenum[f];
+      int interp = m->flex_interp[f];
+      int order = interp < 0 ? -interp : interp;
+      int shell_mode = (interp < 0);
+
+      // skip if not interpolated (order == 0 or no nodes)
+      if (!order || !nodenum) {
+        break;
+      }
+
+      // only order 1 (trilinear) and 2 (quadratic) are supported
+      if (order > 2) {
+        mjERROR("flex strain constraints only support order 1 and 2, got %d", order);
+      }
+
+      int cx = m->flex_cellnum[3*f+0];
+      int cy = m->flex_cellnum[3*f+1];
+      int cz = m->flex_cellnum[3*f+2];
+      int nstart = m->flex_nodeadr[f];
+      int* bodyid = m->flex_nodebodyid + nstart;
+
+      // nodes per element and element index
+      int npe;
+      int elem_idx;
+      if (shell_mode) {
+        npe = (order+1) * (order+1);
+        elem_idx = (int)data[0];  // face element index
+      } else {
+        npe = (order+1) * (order+1) * (order+1);
+        int ci = (int)data[0];
+        int cj = (int)data[1];
+        int ck = (int)data[2];
+        elem_idx = ci * cy * cz + cj * cz + ck;
+      }
+
+      mj_markStack(d);
+
+      // get element node indices
+      int gindices[125];  // max npc = 125 for quadratic
+      if (shell_mode) {
+        mju_flexGatherFaceState(order, cx, cy, cz, elem_idx,
+                                NULL, NULL, NULL, NULL, NULL, NULL, gindices, NULL);
+      } else {
+        int ci = (int)data[0], cj = (int)data[1], ck = (int)data[2];
+        mju_flexGatherCellState(order, cy, cz, ci, cj, ck,
+                                NULL, NULL, NULL, NULL, NULL, NULL, gindices, NULL);
+      }
+
+      // compute positions only for element nodes (npe << nodenum)
+      mjtNum* xpos_e = mjSTACKALLOC(d, 3*npe, mjtNum);
+      mjtNum* refpos_e = mjSTACKALLOC(d, 3*npe, mjtNum);
+      for (int n = 0; n < npe; n++) {
+        int gn = gindices[n];
+        if (m->flex_centered[f] ||
+            (m->flex_node[3*(gn + nstart)+0] == 0 &&
+             m->flex_node[3*(gn + nstart)+1] == 0 &&
+             m->flex_node[3*(gn + nstart)+2] == 0)) {
+          mju_copy3(xpos_e + 3*n, d->xpos + 3*bodyid[gn]);
+        } else {
+          mju_mulMatVec3(xpos_e + 3*n, d->xmat + 9*bodyid[gn], m->flex_node + 3*(gn + nstart));
+          mju_addTo3(xpos_e + 3*n, d->xpos + 3*bodyid[gn]);
+        }
+        mju_copy3(refpos_e + 3*n, m->flex_node0 + 3*(gn + nstart));
+      }
+
+      // compute corotational quaternion
+      mjtNum elem_quat[4] = {1, 0, 0, 0};
+      if (shell_mode) {
+        // determine face normal axis from elem_idx
+        int face_sizes[6] = {cy*cz, cy*cz, cx*cz, cx*cz, cx*cy, cx*cy};
+        int face_normals[6] = {0, 0, 1, 1, 2, 2};
+        int cumul = 0, normal_axis = 0;
+        for (int ff = 0; ff < 6; ff++) {
+          if (elem_idx < cumul + face_sizes[ff]) {
+            normal_axis = face_normals[ff];
+            break;
+          }
+          cumul += face_sizes[ff];
+        }
+        int na0 = (normal_axis + 1) % 3;
+        int na1 = (normal_axis + 2) % 3;
+
+        // compute corotational rotation from 2D deformation gradient at face center
+        mjtNum p[2] = {.5, .5};
+        mju_flexInterpRotation2D(order, xpos_e, npe, na0, na1, normal_axis, p, elem_quat);
+      } else {
+        mjtNum center[3] = {0.5, 0.5, 0.5};
+        mjtNum mat[9];
+        mju_defGradient(mat, center, xpos_e, order);
+        mju_mat2Rot(elem_quat, mat);
+        mju_negQuat(elem_quat, elem_quat);
+      }
+
+      // build per-element sparse chain and node Jacobians
+      int* elem_chain = mjSTACKALLOC(d, nv, int);
+      int elem_nnz = 0;
+      mjtNum* elem_node_jac = cell_pos_and_jac(m, d, f, npe, gindices, nv, xpos_e, elem_chain,
+                                               &elem_nnz);
+
+
+      mjtNum* strain_jac = mjSTACKALLOC(d, elem_nnz, mjtNum);
+      mjtNum* dSdx_local = mjSTACKALLOC(d, 3*npe, mjtNum);
+
+      // for dense mode: allocate and zero a dense Jacobian buffer once
+      mjtNum* dense_jac = NULL;
+      if (!issparse) {
+        dense_jac = mjSTACKALLOC(d, nv, mjtNum);
+        mju_zero(dense_jac, nv);
+      }
+
+      // read eigenmode data from flex_stiffness
+      int ndof_elem = 3 * npe;
+      int stiffnessadr = m->flex_stiffnessadr[f];
+      int neig = 0;
+      const mjtNum* k_elem = NULL;
+      if (stiffnessadr >= 0) {
+        k_elem = m->flex_stiffness + stiffnessadr
+               + elem_idx * ndof_elem * ndof_elem;
+        neig = (int)k_elem[0];
+      }
+
+      // compute displacement in corotational frame
+      mjtNum* displ_e = mjSTACKALLOC(d, ndof_elem, mjtNum);
+      for (int n = 0; n < npe; n++) {
+        // rotate xpos_e to corotational frame
+        mjtNum xrot[3];
+        mju_rotVecQuat(xrot, xpos_e + 3*n, elem_quat);
+        displ_e[3*n + 0] = xrot[0] - refpos_e[3*n + 0];
+        displ_e[3*n + 1] = xrot[1] - refpos_e[3*n + 1];
+        displ_e[3*n + 2] = xrot[2] - refpos_e[3*n + 2];
+      }
+
+      // compute inverse quaternion for rotating eigenvectors to world frame
+      mjtNum elem_quat_inv[4];
+      mju_negQuat(elem_quat_inv, elem_quat);
+
+      // loop over eigenmodes
+      for (int eig = 0; eig < neig; eig++) {
+        const mjtNum* eigvec = k_elem + 1 + eig * ndof_elem;
+
+        // constraint residual: dot product of scaled eigenvector with displacement
+        mjtNum residual = 0;
+        for (int j = 0; j < ndof_elem; j++) {
+          residual += eigvec[j] * displ_e[j];
+        }
+        cpos[0] = residual;
+
+        // rotate eigenvector to world frame for Jacobian
+        for (int n = 0; n < npe; n++) {
+          mju_rotVecQuat(dSdx_local + 3*n, eigvec + 3*n, elem_quat_inv);
         }
 
-        // position error
-        cpos[0] = d->flexedge_length[e] - m->flexedge_length0[e];
+        // contract with elem_node_jac to get sparse Jacobian
+        cell_strain_jacobian(npe, elem_nnz, dSdx_local, elem_node_jac, strain_jac);
 
-        // add constraint: sparse or dense
         if (issparse) {
-          mj_addConstraint(m, d, d->flexedge_J+d->flexedge_J_rowadr[e], cpos, 0, 0,
-                            1, mjCNSTR_EQUALITY, i,
-                            d->flexedge_J_rownnz[e],
-                            d->flexedge_J_colind+d->flexedge_J_rowadr[e]);
+          mj_addConstraint(m, d, strain_jac, cpos, 0, 0, 1, mjCNSTR_EQUALITY, i,
+                           elem_nnz, elem_chain);
         } else {
-          mj_addConstraint(m, d, d->flexedge_J+e*nv, cpos, 0, 0,
-                            1, mjCNSTR_EQUALITY, i,
-                            0, NULL);
+          for (int k = 0; k < elem_nnz; k++) {
+            dense_jac[elem_chain[k]] = strain_jac[k];
+          }
+          mj_addConstraint(m, d, dense_jac, cpos, 0, 0, 1, mjCNSTR_EQUALITY, i, 0, NULL);
+          for (int k = 0; k < elem_nnz; k++) {
+            dense_jac[elem_chain[k]] = 0;
+          }
+        }
+      }
+
+      mj_freeStack(d);
+      break;
+    }
+
+  case mjEQ_FLEX:
+    // edge constraint mode: add one constraint per non-rigid edge
+    flex_edgeadr = m->flex_edgeadr[id[0]];
+    flex_edgenum = m->flex_edgenum[id[0]];
+    for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
+      // skip rigid
+      if (m->flexedge_rigid[e]) {
+        continue;
+      }
+
+      // position error
+      cpos[0] = d->flexedge_length[e] - m->flexedge_length0[e];
+
+      // add constraint: sparse or dense
+      if (issparse) {
+        mj_addConstraint(m, d, d->flexedge_J+m->flexedge_J_rowadr[e], cpos, 0, 0,
+                          1, mjCNSTR_EQUALITY, i,
+                          m->flexedge_J_rownnz[e],
+                          m->flexedge_J_colind+m->flexedge_J_rowadr[e]);
+      } else {
+        mju_zero(jac[0], nv);  // reuse first row of jac[0]
+        int rowadr = m->flexedge_J_rowadr[e];
+        int rownnz = m->flexedge_J_rownnz[e];
+        for (int k=0; k<rownnz; k++) {
+          jac[0][m->flexedge_J_colind[rowadr+k]] = d->flexedge_J[rowadr+k];
+        }
+        mj_addConstraint(m, d, jac[0], cpos, 0, 0, 1, mjCNSTR_EQUALITY, i, 0, NULL);
+      }
+    }
+    break;
+
+    case mjEQ_FLEXVERT:
+      // add two constraints per vertex
+      flex_vertadr = m->flex_vertadr[id[0]];
+      flex_vertnum = m->flex_vertnum[id[0]];
+      for (int v=flex_vertadr; v < flex_vertadr+flex_vertnum; v++) {
+        for (int j=0; j < 2; j++) {
+          cpos[0] = d->flexvert_length[2*v+j];
+          int row = 2*v+j;
+          if (issparse) {
+            mj_addConstraint(m, d, d->flexvert_J + m->flexvert_J_rowadr[row],
+                             cpos, 0, 0, 1, mjCNSTR_EQUALITY, i,
+                             m->flexvert_J_rownnz[row],
+                             m->flexvert_J_colind + m->flexvert_J_rowadr[row]);
+          } else {
+            mju_zero(jac[0], nv);  // reuse first row of jac[0]
+            int rowadr = m->flexvert_J_rowadr[row];
+            int rownnz = m->flexvert_J_rownnz[row];
+            for (int k=0; k<rownnz; k++) {
+              jac[0][m->flexvert_J_colind[rowadr+k]] = d->flexvert_J[rowadr+k];
+            }
+            mj_addConstraint(m, d, jac[0], cpos, 0, 0, 1, mjCNSTR_EQUALITY, i, 0, NULL);
+          }
         }
       }
       break;
@@ -655,26 +1052,242 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
   mj_freeStack(d);
 }
 
+// subtract Jdot*v correction from result vector for equality constraints
+void mj_Jdotv(const mjModel* m, mjData* d, mjtNum* result) {
+  int nv = m->nv, ne = d->ne;
 
-// frictional dofs and tendons
-void mj_instantiateFriction(const mjModel* m, mjData* d) {
+  // nothing to do
+  if (!ne || !nv) {
+    return;
+  }
+
+  int issparse = mj_isSparse(m);
+
+  mj_markStack(d);
+
+  // allocate scratch for jacDot matrices (translational and rotational)
+  int* chain = issparse ? mjSTACKALLOC(d, nv, int) : NULL;
+  mjtNum* jacdot1 = NULL;
+  mjtNum* jacdot2 = NULL;
+  mjtNum* jacrdot1 = NULL;
+  mjtNum* jacrdot2 = NULL;
+
+  // iterate over equality constraint efc rows
+  int row = 0;
+  while (row < ne) {
+    int eq_id = d->efc_id[row];
+    mjtEq type = (mjtEq) m->eq_type[eq_id];
+
+    // connect or weld: compute Jdot*v for translational part
+    if (type == mjEQ_CONNECT || type == mjEQ_WELD) {
+      mjtNum* data = m->eq_data + mjNEQDATA*eq_id;
+
+      // allocate translational scratch on first connect or weld
+      if (!jacdot1) {
+        jacdot1 = mjSTACKALLOC(d, 3*nv, mjtNum);
+        jacdot2 = mjSTACKALLOC(d, 3*nv, mjtNum);
+      }
+
+      // allocate rotational scratch on first weld
+      if (type == mjEQ_WELD && !jacrdot1) {
+        jacrdot1 = mjSTACKALLOC(d, 3*nv, mjtNum);
+        jacrdot2 = mjSTACKALLOC(d, 3*nv, mjtNum);
+      }
+
+      // compute global anchor points and body ids
+      int obj1 = m->eq_obj1id[eq_id];
+      int obj2 = m->eq_obj2id[eq_id];
+      mjtNum pos1[3], pos2[3];
+      int body1, body2;
+      mj_equalityAnchors(m, d, eq_id, pos1, pos2, &body1, &body2);
+
+      // compute jacDot*v for each body point
+      mjtNum jdv1[3], jdv2[3];
+      mjtNum jrdv1[3] = {0}, jrdv2[3] = {0};
+      if (issparse) {
+        // get merged chain for the two bodies
+        int NV = mj_mergeChain(m, chain, body1, body2, /*flg_skipcommon=*/0);
+
+        if (NV) {
+          // sparse: translational and rotational
+          mjtNum* jacr1 = (type == mjEQ_WELD) ? jacrdot1 : NULL;
+          mjtNum* jacr2 = (type == mjEQ_WELD) ? jacrdot2 : NULL;
+          mj_jacDotSparse(m, d, jacdot1, jacr1, pos1, body1, NV, chain);
+          mj_jacDotSparse(m, d, jacdot2, jacr2, pos2, body2, NV, chain);
+
+          // translational jdv = jacDot * qvel
+          mju_dotSparseX3(jdv1, jdv1+1, jdv1+2, jacdot1, jacdot1+NV, jacdot1+2*NV,
+                          d->qvel, NV, chain);
+          mju_dotSparseX3(jdv2, jdv2+1, jdv2+2, jacdot2, jacdot2+NV, jacdot2+2*NV,
+                          d->qvel, NV, chain);
+
+          // rotational jdv for welds
+          if (type == mjEQ_WELD) {
+            mju_dotSparseX3(jrdv1, jrdv1+1, jrdv1+2, jacrdot1, jacrdot1+NV, jacrdot1+2*NV,
+                            d->qvel, NV, chain);
+            mju_dotSparseX3(jrdv2, jrdv2+1, jrdv2+2, jacrdot2, jacrdot2+NV, jacrdot2+2*NV,
+                            d->qvel, NV, chain);
+          }
+        } else {
+          mju_zero3(jdv1);
+          mju_zero3(jdv2);
+        }
+      } else {
+        // dense: translational and rotational
+        mjtNum* jacr1 = (type == mjEQ_WELD) ? jacrdot1 : NULL;
+        mjtNum* jacr2 = (type == mjEQ_WELD) ? jacrdot2 : NULL;
+        mj_jacDot(m, d, jacdot1, jacr1, pos1, body1);
+        mj_jacDot(m, d, jacdot2, jacr2, pos2, body2);
+
+        // translational jdv = jacDot * qvel
+        mju_mulMatVec(jdv1, jacdot1, d->qvel, 3, nv);
+        mju_mulMatVec(jdv2, jacdot2, d->qvel, 3, nv);
+
+        // rotational jdv for welds
+        if (type == mjEQ_WELD) {
+          mju_mulMatVec(jrdv1, jacrdot1, d->qvel, 3, nv);
+          mju_mulMatVec(jrdv2, jacrdot2, d->qvel, 3, nv);
+        }
+      }
+
+      // subtract translational Jdot*v
+      result[row+0] -= jdv1[0] - jdv2[0];
+      result[row+1] -= jdv1[1] - jdv2[1];
+      result[row+2] -= jdv1[2] - jdv2[2];
+
+      // advance past translational rows
+      row += 3;
+
+      // weld: compute rotational Jdot*v
+      if (type == mjEQ_WELD) {
+        mjtNum torquescale = data[10];
+
+        // get body quaternions and relpose, following mj_instantiateEquality
+        mjtNum q0r[4], negq1[4];   // q0r = q0*relpose, negq1 = neg(q1)
+        if (m->eq_objtype[eq_id] == mjOBJ_BODY) {
+          mjtNum* relpose = data+6;
+          mju_mulQuat(q0r, d->xquat+4*body1, relpose);
+          mju_negQuat(negq1, d->xquat+4*body2);
+        } else {
+          mju_mulQuat(q0r, d->xquat+4*body1, m->site_quat+4*obj1);
+          mjtNum qsite1[4];
+          mju_mulQuat(qsite1, d->xquat+4*body2, m->site_quat+4*obj2);
+          mju_negQuat(negq1, qsite1);
+        }
+
+        // angular velocities from cvel (first 3 components are angular)
+        const mjtNum* omega1 = d->cvel+6*body1;
+        const mjtNum* omega2 = d->cvel+6*body2;
+
+        // relative angular velocity: domega = omega1 - omega2
+        mjtNum domega[3];
+        mju_sub3(domega, omega1, omega2);
+
+        // quaternion derivatives: qdot = 0.5 * q * (0, omega)
+        mjtNum qdot0[4];
+        if (m->eq_objtype[eq_id] == mjOBJ_BODY) {
+          mju_derivQuat(qdot0, d->xquat+4*body1, omega1);
+        } else {
+          mjtNum qfull0[4];
+          mju_mulQuat(qfull0, d->xquat+4*body1, m->site_quat+4*obj1);
+          mju_derivQuat(qdot0, qfull0, omega1);
+        }
+        mjtNum qdot0r[4];  // d/dt(q0 * relpose) = qdot0 * relpose
+        if (m->eq_objtype[eq_id] == mjOBJ_BODY) {
+          mju_mulQuat(qdot0r, qdot0, data+6);
+        } else {
+          mju_copy4(qdot0r, qdot0);
+        }
+
+        // neg(qdot1): d/dt(neg(q1)) = neg(qdot1)
+        mjtNum negqdot1[4];
+        if (m->eq_objtype[eq_id] == mjOBJ_BODY) {
+          mjtNum qdot1[4];
+          mju_derivQuat(qdot1, d->xquat+4*body2, omega2);
+          mju_negQuat(negqdot1, qdot1);
+        } else {
+          mjtNum qfull1[4], qdot1[4];
+          mju_mulQuat(qfull1, d->xquat+4*body2, m->site_quat+4*obj2);
+          mju_derivQuat(qdot1, qfull1, omega2);
+          mju_negQuat(negqdot1, qdot1);
+        }
+
+        // Jdot_rot * v differentiates: 0.5 * neg(q1) * (J0-J1)*v * q0*relpose
+        // three terms from product rule:
+
+        // djrdv = Jrdot0*v - Jrdot1*v (rotational jacDot difference * v)
+        mjtNum djrdv[3];
+        mju_sub3(djrdv, jrdv1, jrdv2);
+
+        // term1: neg(qdot1) * domega * q0r
+        mjtNum t1a[4], t1[4];
+        mju_mulQuatAxis(t1a, negqdot1, domega);
+        mju_mulQuat(t1, t1a, q0r);
+
+        // term2: neg(q1) * djrdv * q0r
+        mjtNum t2a[4], t2[4];
+        mju_mulQuatAxis(t2a, negq1, djrdv);
+        mju_mulQuat(t2, t2a, q0r);
+
+        // term3: neg(q1) * domega * qdot0r
+        mjtNum t3a[4], t3[4];
+        mju_mulQuatAxis(t3a, negq1, domega);
+        mju_mulQuat(t3, t3a, qdot0r);
+
+        // combine: 0.5 * (term1 + term2 + term3), take vector part, scale
+        result[row+0] -= 0.5 * (t1[1] + t2[1] + t3[1]) * torquescale;
+        result[row+1] -= 0.5 * (t1[2] + t2[2] + t3[2]) * torquescale;
+        result[row+2] -= 0.5 * (t1[3] + t2[3] + t3[3]) * torquescale;
+
+        row += 3;
+      }
+    }
+
+    // other types: advance past all rows with this efc_id
+    else {
+      while (row < ne && d->efc_id[row] == eq_id) {
+        row++;
+      }
+    }
+  }
+
+  mj_freeStack(d);
+}
+
+
+// return number of constraint non-zeros, handle dense and dof-less cases
+static inline int mj_addConstraintCount(const mjModel* m, int size, int NV) {
+  // over count for dense allocation
+  if (!mj_isSparse(m)) {
+    return m->nv ? size : 0;
+  }
+  return mjMAX(0, NV) ? size : 0;
+}
+
+
+// frictional DOFs and tendons
+// count_only: count constraints and Jacobian nonzeros without instantiating
+static int mj_instantiateFriction(const mjModel* m, mjData* d, int count_only, int* nnz) {
   int nv = m->nv, issparse = mj_isSparse(m);
-  mjtNum* jac;
+  int nf = 0;
+  mjtNum* jac = NULL;
 
   // disabled: return
   if (mjDISABLED(mjDSBL_FRICTIONLOSS)) {
-    return;
+    return 0;
   }
 
   // sleep filtering
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
 
-  mj_markStack(d);
+  if (!count_only) {
+    mj_markStack(d);
 
-  // allocate Jacobian
-  jac = mjSTACKALLOC(d, nv, mjtNum);
+    // allocate Jacobian
+    jac = mjSTACKALLOC(d, nv, mjtNum);
+  }
 
-  // find frictional dofs
+  // find frictional DOFs
   for (int i=0; i < nv; i++) {
     // no friction loss: skip
     if (!m->dof_frictionloss[i]) {
@@ -686,60 +1299,84 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
       continue;
     }
 
-    // prepare Jacobian: sparse or dense
-    if (issparse) {
-      jac[0] = 1;
+    if (count_only) {
+      nf += mj_addConstraintCount(m, 1, 1);
+      if (nnz) *nnz += 1;
     } else {
-      mju_zero(jac, nv);
-      jac[i] = 1;
-    }
+      // prepare Jacobian: sparse or dense
+      if (issparse) {
+        jac[0] = 1;
+      } else {
+        mju_zero(jac, nv);
+        jac[i] = 1;
+      }
 
-    // add constraint
-    mj_addConstraint(m, d, jac, 0, 0, m->dof_frictionloss[i],
-                      1, mjCNSTR_FRICTION_DOF, i,
-                      issparse ? 1 : 0,
-                      issparse ? &i : NULL);
+      // add constraint
+      mj_addConstraint(m, d, jac, 0, 0, m->dof_frictionloss[i],
+                        1, mjCNSTR_FRICTION_DOF, i,
+                        issparse ? 1 : 0,
+                        issparse ? &i : NULL);
+    }
   }
 
   // find frictional tendons
   for (int i=0; i < m->ntendon; i++) {
     if (m->tendon_frictionloss[i] > 0) {
-      int efcadr = d->nefc;
-      // add constraint
-      mj_addConstraint(m, d, d->ten_J + (issparse ? d->ten_J_rowadr[i] : i*nv),
-                       0, 0, m->tendon_frictionloss[i],
-                       1, mjCNSTR_FRICTION_TENDON, i,
-                       issparse ? d->ten_J_rownnz[i] : 0,
-                       issparse ? d->ten_J_colind+d->ten_J_rowadr[i] : NULL);
-      // set tendon_efcadr
-      if (d->tendon_efcadr[i] == -1) {
-        d->tendon_efcadr[i] = efcadr;
+      if (count_only) {
+        nf += mj_addConstraintCount(m, 1, m->ten_J_rownnz[i]);
+        if (nnz) *nnz += m->ten_J_rownnz[i];
+      } else {
+        int efcadr = d->nefc;
+        // add constraint
+        if (issparse) {
+          mj_addConstraint(m, d, d->ten_J + m->ten_J_rowadr[i],
+                           0, 0, m->tendon_frictionloss[i],
+                           1, mjCNSTR_FRICTION_TENDON, i,
+                           m->ten_J_rownnz[i],
+                           m->ten_J_colind+m->ten_J_rowadr[i]);
+        } else {
+          mju_sparse2dense(jac, d->ten_J, 1, nv, m->ten_J_rownnz+i, m->ten_J_rowadr+i, m->ten_J_colind);
+          mj_addConstraint(m, d, jac, 0, 0, m->tendon_frictionloss[i],
+                           1, mjCNSTR_FRICTION_TENDON, i, 0, NULL);
+        }
+        // set tendon_efcadr
+        if (d->tendon_efcadr[i] == -1) {
+          d->tendon_efcadr[i] = efcadr;
+        }
       }
     }
   }
 
-  mj_freeStack(d);
+  if (!count_only) {
+    mj_freeStack(d);
+  }
+
+  return nf;
 }
 
 
 // joint and tendon limits
-void mj_instantiateLimit(const mjModel* m, mjData* d) {
+// count_only: count constraints and Jacobian nonzeros without instantiating
+static int mj_instantiateLimit(const mjModel* m, mjData* d, int count_only, int* nnz) {
   int nv = m->nv, issparse = mj_isSparse(m);
+  int nl = 0;
   mjtNum margin, value, dist, angleAxis[3];
-  mjtNum *jac;
+  mjtNum *jac = NULL;
 
   // disabled: return
   if (mjDISABLED(mjDSBL_LIMIT)) {
-    return;
+    return 0;
   }
 
   // sleep filtering
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
 
-  mj_markStack(d);
+  if (!count_only) {
+    mj_markStack(d);
 
-  // allocate Jacobian
-  jac = mjSTACKALLOC(d, nv, mjtNum);
+    // allocate Jacobian
+    jac = mjSTACKALLOC(d, nv, mjtNum);
+  }
 
   // find joint limits
   for (int i=0; i < m->njnt; i++) {
@@ -768,19 +1405,24 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
 
         // detect joint limit
         if (dist < margin) {
-          // prepare Jacobian: sparse or dense
-          if (issparse) {
-            jac[0] = -(mjtNum)side;
+          if (count_only) {
+            nl += mj_addConstraintCount(m, 1, 1);
+            if (nnz) *nnz += 1;
           } else {
-            mju_zero(jac, nv);
-            jac[m->jnt_dofadr[i]] = -(mjtNum)side;
-          }
+            // prepare Jacobian: sparse or dense
+            if (issparse) {
+              jac[0] = -(mjtNum)side;
+            } else {
+              mju_zero(jac, nv);
+              jac[m->jnt_dofadr[i]] = -(mjtNum)side;
+            }
 
-          // add constraint
-          mj_addConstraint(m, d, jac, &dist, &margin, 0,
-                           1, mjCNSTR_LIMIT_JOINT, i,
-                           issparse ? 1 : 0,
-                           issparse ? m->jnt_dofadr+i : NULL);
+            // add constraint
+            mj_addConstraint(m, d, jac, &dist, &margin, 0,
+                             1, mjCNSTR_LIMIT_JOINT, i,
+                             issparse ? 1 : 0,
+                             issparse ? m->jnt_dofadr+i : NULL);
+          }
         }
       }
     }
@@ -801,8 +1443,13 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
 
       // detect joint limit
       if (dist < margin) {
+        if (count_only) {
+          nl += mj_addConstraintCount(m, 1, 3);
+          if (nnz) *nnz += 3;
+        }
+
         // sparse
-        if (issparse) {
+        else if (issparse) {
           // prepare dof index array
           int chain[3] = {
             m->jnt_dofadr[i] + 0,
@@ -834,31 +1481,39 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
 
   // find tendon limits
   for (int i=0; i < m->ntendon; i++) {
-    if (m->tendon_limited[i]) {
-      // get value = length, margin
-      value = d->ten_length[i];
-      margin = m->tendon_margin[i];
+    if (!m->tendon_limited[i]) {
+      continue;
+    }
 
-      // process lower and upper limits
-      for (int side=-1; side <= 1; side+=2) {
-        // compute distance (negative: penetration)
-        dist = side * (m->tendon_range[2*i+(side+1)/2] - value);
+    // get value = length, margin
+    value = d->ten_length[i];
+    margin = m->tendon_margin[i];
 
-        // detect tendon limit
-        if (dist < margin) {
-          // prepare Jacobian: sparse or dense
-          if (issparse) {
-            mju_scl(jac, d->ten_J+d->ten_J_rowadr[i], -side, d->ten_J_rownnz[i]);
-          } else {
-            mju_scl(jac, d->ten_J+i*nv, -side, nv);
-          }
+    // process lower and upper limits
+    for (int side=-1; side <= 1; side+=2) {
+      // compute distance (negative: penetration)
+      dist = side * (m->tendon_range[2*i+(side+1)/2] - value);
 
-          // add constraint
+      // detect tendon limit
+      if (dist < margin) {
+        if (count_only) {
+          nl += mj_addConstraintCount(m, 1, m->ten_J_rownnz[i]);
+          if (nnz) *nnz += m->ten_J_rownnz[i];
+        } else {
+          // prepare Jacobian
           int efcadr = d->nefc;
-          mj_addConstraint(m, d, jac, &dist, &margin, 0,
-                           1, mjCNSTR_LIMIT_TENDON, i,
-                           issparse ? d->ten_J_rownnz[i] : 0,
-                           issparse ? d->ten_J_colind+d->ten_J_rowadr[i] : NULL);
+          if (issparse) {
+            mju_scl(jac, d->ten_J+m->ten_J_rowadr[i], -side, m->ten_J_rownnz[i]);
+            mj_addConstraint(m, d, jac, &dist, &margin, 0,
+                             1, mjCNSTR_LIMIT_TENDON, i,
+                             m->ten_J_rownnz[i],
+                             m->ten_J_colind+m->ten_J_rowadr[i]);
+          } else {
+            mju_sparse2dense(jac, d->ten_J, 1, nv, m->ten_J_rownnz+i, m->ten_J_rowadr+i, m->ten_J_colind);
+            mju_scl(jac, jac, -side, nv);
+            mj_addConstraint(m, d, jac, &dist, &margin, 0,
+                             1, mjCNSTR_LIMIT_TENDON, i, 0, NULL);
+          }
           // set tendon_efcadr
           if (d->tendon_efcadr[i] == -1) {
             d->tendon_efcadr[i] = efcadr;
@@ -868,14 +1523,18 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
     }
   }
 
-  mj_freeStack(d);
+  if (!count_only) {
+    mj_freeStack(d);
+  }
+
+  return nl;
 }
 
 
 // compute Jacobian for contact, return number of DOFs affected
 int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int dim,
-                       mjtNum* jac, mjtNum* jacdif, mjtNum* jacdifp,
-                       mjtNum* jacdifr, mjtNum* jac1p, mjtNum* jac2p,
+                       mjtNum* jacdifp, mjtNum* jacdifr,
+                       mjtNum* jac1p, mjtNum* jac2p,
                        mjtNum* jac1r, mjtNum* jac2r, int* chain) {
   // special case: single body on each side
   if ((con->geom[0] >= 0 || (con->vert[0] >= 0 && m->flex_interp[con->flex[0]] == 0)) &&
@@ -887,14 +1546,13 @@ int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int di
                   m->geom_bodyid[con->geom[side]] :
                   m->flex_vertbodyid[m->flex_vertadr[con->flex[side]] + con->vert[side]];
     }
-
-    // compute Jacobian differences
+    // compute Jacobian differences, skipping common DOFs
     if (dim > 3) {
       return mj_jacDifPair(m, d, chain, bid[0], bid[1], con->pos, con->pos,
-                           jac1p, jac2p, jacdifp, jac1r, jac2r, jacdifr);
+                           jac1p, jac2p, jacdifp, jac1r, jac2r, jacdifr, mj_isSparse(m), 1);
     } else {
       return mj_jacDifPair(m, d, chain, bid[0], bid[1], con->pos, con->pos,
-                           jac1p, jac2p, jacdifp, NULL, NULL, NULL);
+                           jac1p, jac2p, jacdifp, NULL, NULL, NULL, mj_isSparse(m), 1);
     }
   }
 
@@ -950,7 +1608,7 @@ int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int di
     }
 
     // combine weighted Jacobians
-    return mj_jacSum(m, d, chain, nb, bid, bweight, con->pos, jacdif, dim > 3);
+    return mj_jacSum(m, d, chain, nb, bid, bweight, con->pos, jacdifp, jacdifr, dim > 3);
   }
 }
 
@@ -960,7 +1618,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
   int ispyramid = mj_isPyramidal(m), issparse = mj_isSparse(m), ncon = d->ncon;
   int dim, NV, nv = m->nv, *chain = NULL;
   mjContact* con;
-  mjtNum cpos[6], cmargin[6], *jac, *jacdif, *jacdifp, *jacdifr, *jac1p, *jac2p, *jac1r, *jac2r;
+  mjtNum cpos[6], cmargin[6], *jac, *jacdifp, *jacdifr, *jac1p, *jac2p, *jac1r, *jac2r;
 
   if (mjDISABLED(mjDSBL_CONTACT) || ncon == 0 || nv == 0) {
     return;
@@ -970,9 +1628,8 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
 
   // allocate Jacobian
   jac = mjSTACKALLOC(d, 6*nv, mjtNum);
-  jacdif = mjSTACKALLOC(d, 6*nv, mjtNum);
-  jacdifp = jacdif;
-  jacdifr = jacdif + 3*nv;
+  jacdifp = mjSTACKALLOC(d, 3*nv, mjtNum);
+  jacdifr = mjSTACKALLOC(d, 3*nv, mjtNum);
   jac1p = mjSTACKALLOC(d, 3*nv, mjtNum);
   jac2p = mjSTACKALLOC(d, 3*nv, mjtNum);
   jac1r = mjSTACKALLOC(d, 3*nv, mjtNum);
@@ -991,7 +1648,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
     con = d->contact + i;
     dim = con->dim;
     con->efc_address = d->nefc;
-    NV = mj_contactJacobian(m, d, con, dim, jac, jacdif, jacdifp, jacdifr,
+    NV = mj_contactJacobian(m, d, con, dim, jacdifp, jacdifr,
                             jac1p, jac2p, jac1r, jac2r, chain);
 
     // skip contact if no DOFs affected
@@ -1062,7 +1719,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
 void mj_diagApprox(const mjModel* m, mjData* d) {
   int id, dim, b1, b2, f, weldcnt = 0;
   int nefc = d->nefc;
-  mjtNum tran, rot, fri, *dA = d->efc_diagApprox;
+  mjtNum tran, rot, fri, *dA = d->efc_diagA;
   mjContact* con = NULL;
 
   // loop over all constraints, compute approximate inverse inertia
@@ -1134,8 +1791,83 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
         i--;
         break;
 
+      case mjEQ_FLEXVERT:
+        // process all vertices for this flex
+        f = m->eq_obj1id[id];
+        int vertadr = m->flex_vertadr[f];
+        int vertnum = m->flex_vertnum[f];
+        for (int v=vertadr; v<vertadr+vertnum; v++) {
+          int bodyid = m->flex_vertbodyid[v];
+          dA[i++] = m->body_invweight0[2*bodyid];
+          dA[i++] = m->body_invweight0[2*bodyid];
+        }
+
+        // adjust constraint counter
+        i--;
+        break;
+
+      case mjEQ_FLEXSTRAIN: {
+        // strain constraints: use avg inv weight of element's nodes
+        int flex_id = m->eq_obj1id[id];
+        int nstart = m->flex_nodeadr[flex_id];
+        int interp = m->flex_interp[flex_id];
+        int order = interp < 0 ? -interp : interp;
+        int is_shell = (interp < 0);
+
+        int cx = m->flex_cellnum[3*flex_id+0];
+        int cy = m->flex_cellnum[3*flex_id+1];
+        int cz = m->flex_cellnum[3*flex_id+2];
+
+        // nodes per element
+        int npe;
+        int elem_idx;
+        if (is_shell) {
+          npe = (order+1) * (order+1);
+          elem_idx = (int)m->eq_data[mjNEQDATA*id + 0];
+        } else {
+          npe = (order+1) * (order+1) * (order+1);
+          int ci_cell = (int)m->eq_data[mjNEQDATA*id + 0];
+          int cj_cell = (int)m->eq_data[mjNEQDATA*id + 1];
+          int ck_cell = (int)m->eq_data[mjNEQDATA*id + 2];
+          elem_idx = ci_cell * cy * cz + cj_cell * cz + ck_cell;
+        }
+
+        // read neig from flex_stiffness
+        int ndof_elem = 3 * npe;
+        const mjtNum* k_elem = m->flex_stiffness + m->flex_stiffnessadr[flex_id]
+                             + elem_idx * ndof_elem * ndof_elem;
+        int nconstraint = (int)k_elem[0];
+
+        // get element node indices
+        int gindices[125];
+        if (is_shell) {
+          mju_flexGatherFaceState(order, cx, cy, cz, elem_idx,
+                                  NULL, NULL, NULL, NULL, NULL, NULL, gindices, NULL);
+        } else {
+          int ci_cell = (int)m->eq_data[mjNEQDATA*id + 0];
+          int cj_cell = (int)m->eq_data[mjNEQDATA*id + 1];
+          int ck_cell = (int)m->eq_data[mjNEQDATA*id + 2];
+          mju_flexGatherCellState(order, cy, cz, ci_cell, cj_cell, ck_cell,
+                                  NULL, NULL, NULL, NULL, NULL, NULL, gindices, NULL);
+        }
+
+        mjtNum avg_invweight = 0;
+        for (int n = 0; n < npe; n++) {
+          int bodyid = m->flex_nodebodyid[nstart + gindices[n]];
+          avg_invweight += m->body_invweight0[2*bodyid];
+        }
+        avg_invweight /= npe;
+        for (int c = 0; c < nconstraint; c++) {
+          dA[i++] = avg_invweight;
+        }
+
+        // adjust constraint counter
+        i--;
+        break;
+      }
+
       default:
-        mjERROR("unknown constraint type type %d", d->efc_type[i]);    // SHOULD NOT OCCUR
+        mjERROR("unknown constraint type %d", d->efc_type[i]);    // SHOULD NOT OCCUR
       }
       break;
 
@@ -1415,7 +2147,7 @@ static void getimpedance(const mjtNum* solimp, mjtNum pos, mjtNum margin,
 }
 
 
-// compute efc_R, efc_D, efc_KBIP, adjust efc_diagApprox
+// compute efc_R, efc_D, efc_KBIP, adjust efc_diagA
 void mj_makeImpedance(const mjModel* m, mjData* d) {
   int dim, nefc = d->nefc;
   mjtNum *R = d->efc_R, *KBIP = d->efc_KBIP;
@@ -1435,7 +2167,7 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
     // set R and KBIP for all constraint dimensions
     for (int j=0; j < dim; j++) {
       // R = (1-imp)/imp * diagApprox
-      R[i+j] = mju_max(mjMINVAL, (1-imp)*d->efc_diagApprox[i+j]/imp);
+      R[i+j] = mju_max(mjMINVAL, (1-imp)*d->efc_diagA[i+j]/imp);
 
       // constraint type
       int tp = d->efc_type[i+j];
@@ -1450,21 +2182,21 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
         KBIP[4*(i+j)] = 0;
       }
 
-      // standard: K = 1 / (dmax^2 * timeconst^2 * dampratio^2)
+      // standard: K = 1 / (d_width^2 * timeconst^2 * dampratio^2)
       else if (ref[0] > 0)
         KBIP[4*(i+j)] = 1 / mju_max(mjMINVAL, solimp[1]*solimp[1] * ref[0]*ref[0] * ref[1]*ref[1]);
 
-      // direct: K = -solref[0] / dmax^2
+      // direct: K = -solref[0] / d_width^2
       else {
         KBIP[4*(i+j)] = -ref[0] / mju_max(mjMINVAL, solimp[1]*solimp[1]);
       }
 
-      // standard: B = 2 / (dmax*timeconst)
+      // standard: B = 2 / (d_width*timeconst)
       if (ref[1] > 0) {
         KBIP[4*(i+j)+1] = 2 / mju_max(mjMINVAL, solimp[1]*ref[0]);
       }
 
-      // direct: B = -solref[1] / dmax
+      // direct: B = -solref[1] / d_width
       else {
         KBIP[4*(i+j)+1] = -ref[1] / mju_max(mjMINVAL, solimp[1]);
       }
@@ -1526,32 +2258,14 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
     d->efc_D[i] = 1 / R[i];
   }
 
-  // adjust diagApprox so that R = (1-imp)/imp * diagApprox
+  // adjust diagA so that R = (1-imp)/imp * diagA
   for (int i=0; i < nefc; i++) {
-    d->efc_diagApprox[i] = R[i] * KBIP[4*i+2] / (1-KBIP[4*i+2]);
+    d->efc_diagA[i] = R[i] * KBIP[4*i+2] / (1-KBIP[4*i+2]);
   }
 }
 
 
 //------------------------------------- constraint counting ----------------------------------------
-
-// count the non-zero columns in the Jacobian difference of two bodies
-static int mj_jacDifPairCount(const mjModel* m, int* chain,
-                              int b1, int b2, int issparse) {
-  if (!m->nv) {
-    return 0;
-  }
-
-  if (issparse) {
-    if (m->body_simple[b1] && m->body_simple[b2]) {
-      return mj_mergeChainSimple(m, chain, b1, b2);
-    }
-    return mj_mergeChain(m, chain, b1, b2);
-  }
-
-  return m->nv;
-}
-
 
 // count the non-zero columns of the Jacobian returned by mj_jacSum
 static int mj_jacSumCount(const mjModel* m, mjData* d, int* chain,
@@ -1584,24 +2298,13 @@ static int mj_jacSumCount(const mjModel* m, mjData* d, int* chain,
   return NV;
 }
 
-
-// return number of constraint non-zeros, handle dense and dof-less cases
-static inline int mj_addConstraintCount(const mjModel* m, int size, int NV) {
-  // over count for dense allocation
-  if (!mj_isSparse(m)) {
-    return m->nv ? size : 0;
-  }
-  return mjMAX(0, NV) ? size : 0;
-}
-
-
 // count equality constraints, count Jacobian nonzeros if nnz is not NULL
 static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
   int ne = 0, nnze = 0;
   int nv = m->nv, neq = m->neq;
   int id[2], size, NV, NV2, *chain = NULL, *chain2 = NULL;
   int issparse = (nnz != NULL);
-  int flex_edgeadr, flex_edgenum;
+  int flex_edgeadr, flex_edgenum, flex_vertadr, flex_vertnum;
 
   // disabled or no equality constraints: return
   if (mjDISABLED(mjDSBL_EQUALITY) || m->nemax == 0) {
@@ -1617,6 +2320,9 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
     chain = mjSTACKALLOC(d, nv, int);
     chain2 = mjSTACKALLOC(d, nv, int);
   }
+
+  // pre-allocate buffer for cell body IDs (max npc = 125 for order=2)
+  int* cell_bodies = nnz ? mjSTACKALLOC(d, 125, int) : NULL;
 
   // find active equality constraints
   for (int i=0; i < neq; i++) {
@@ -1650,7 +2356,9 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
         id[1] = m->site_bodyid[id[1]];
       }
 
-      NV = mj_jacDifPairCount(m, chain, id[1], id[0], issparse);
+      NV = mj_jacDifPair(m, NULL, chain, id[1], id[0], NULL, NULL,
+                         NULL, NULL, NULL, NULL, NULL, NULL, issparse,
+                         /*flg_skipcommon=*/0);
       break;
 
     case mjEQ_WELD:
@@ -1665,7 +2373,9 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
         id[1] = m->site_bodyid[id[1]];
       }
 
-      NV = mj_jacDifPairCount(m, chain, id[1], id[0], issparse);
+      NV = mj_jacDifPair(m, NULL, chain, id[1], id[0], NULL, NULL,
+                         NULL, NULL, NULL, NULL, NULL, NULL, issparse,
+                         /*flg_skipcommon=*/0);
       break;
 
     case mjEQ_JOINT:
@@ -1686,11 +2396,11 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
           }
         } else {
           if (!j) {
-            NV = d->ten_J_rownnz[id[j]];
-            mju_copyInt(chain, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV);
+            NV = m->ten_J_rownnz[id[j]];
+            mju_copyInt(chain, m->ten_J_colind+m->ten_J_rowadr[id[j]], NV);
           } else {
-            NV2 = d->ten_J_rownnz[id[j]];
-            mju_copyInt(chain2, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV2);
+            NV2 = m->ten_J_rownnz[id[j]];
+            mju_copyInt(chain2, m->ten_J_colind+m->ten_J_rowadr[id[j]], NV2);
           }
         }
       }
@@ -1719,19 +2429,97 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
         if (nnz) {
           int b1 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e]];
           int b2 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e+1]];
-          NV += mj_jacDifPairCount(m, chain, b1, b2, issparse);
+          NV += mj_jacDifPair(m, NULL, chain, b1, b2, NULL, NULL,
+                              NULL, NULL, NULL, NULL, NULL, NULL, issparse,
+                              /*flg_skipcommon=*/0);
         }
       }
       break;
 
+    case mjEQ_FLEXVERT:
+      flex_vertadr = m->flex_vertadr[id[0]];
+      flex_vertnum = m->flex_vertnum[id[0]];
+      size = 2 * flex_vertnum;
+      if (nnz) {
+        for (int v=flex_vertadr; v < flex_vertadr+flex_vertnum; v++) {
+          NV += m->flexvert_J_rownnz[2*v+0];
+          NV += m->flexvert_J_rownnz[2*v+1];
+        }
+      }
+      break;
+
+    case mjEQ_FLEXSTRAIN: {
+      // per-element strain constraints: each equality is one cell or face
+      int f = id[0];
+      int interp = m->flex_interp[f];
+      int order = interp < 0 ? -interp : interp;
+      int is_shell = (interp < 0);
+      if (!order || !m->flex_nodenum[f]) {
+        break;
+      }
+
+      int cx = m->flex_cellnum[3*f+0];
+      int cy = m->flex_cellnum[3*f+1];
+      int cz = m->flex_cellnum[3*f+2];
+
+      int npe;
+      int elem_idx;
+      if (is_shell) {
+        npe = (order+1) * (order+1);
+        elem_idx = (int)m->eq_data[mjNEQDATA*i + 0];
+      } else {
+        npe = (order+1) * (order+1) * (order+1);
+        int ci_cell = (int)m->eq_data[mjNEQDATA*i + 0];
+        int cj_cell = (int)m->eq_data[mjNEQDATA*i + 1];
+        int ck_cell = (int)m->eq_data[mjNEQDATA*i + 2];
+        elem_idx = ci_cell * cy * cz + cj_cell * cz + ck_cell;
+      }
+
+      // read eigenmode count from flex_stiffness
+      int ndof_elem = 3 * npe;
+      size = 0;
+      if (m->flex_stiffnessadr[f] >= 0) {
+        const mjtNum* k_elem = m->flex_stiffness + m->flex_stiffnessadr[f]
+                             + elem_idx * ndof_elem * ndof_elem;
+        size = (int)k_elem[0];  // neig stored as first element
+      }
+
+      if (nnz) {
+        // get element node body IDs
+        int gindices[125];
+        if (is_shell) {
+          mju_flexGatherFaceState(order, cx, cy, cz, elem_idx,
+                                  NULL, NULL, NULL, NULL, NULL, NULL, gindices, NULL);
+        } else {
+          int ci_cell = (int)m->eq_data[mjNEQDATA*i + 0];
+          int cj_cell = (int)m->eq_data[mjNEQDATA*i + 1];
+          int ck_cell = (int)m->eq_data[mjNEQDATA*i + 2];
+          mju_flexGatherCellState(order, cy, cz, ci_cell, cj_cell, ck_cell,
+                                  NULL, NULL, NULL, NULL, NULL, NULL, gindices, NULL);
+        }
+        int nstart = m->flex_nodeadr[f];
+        for (int n = 0; n < npe; n++) {
+          cell_bodies[n] = m->flex_nodebodyid[nstart + gindices[n]];
+        }
+        NV = mj_jacSumCount(m, d, chain, npe, cell_bodies);
+        NV = size * NV;
+      }
+      break;
+    }
+
     default:
       // might occur in case of the now-removed distance equality constraint
-      mjERROR("unknown constraint type type %d", m->eq_type[i]);    // SHOULD NOT OCCUR
+      mjERROR("unknown constraint type %d", m->eq_type[i]);    // SHOULD NOT OCCUR
     }
 
     // accumulate counts; flex NV already accumulated
     ne += mj_addConstraintCount(m, size, NV);
-    nnze += (m->eq_type[i] == mjEQ_FLEX) ? NV : size*NV;
+    if (m->eq_type[i] == mjEQ_FLEX || m->eq_type[i] == mjEQ_FLEXVERT ||
+        m->eq_type[i] == mjEQ_FLEXSTRAIN) {
+      nnze += NV;
+    } else {
+      nnze += size*NV;
+    }
   }
 
   if (nnz) {
@@ -1740,112 +2528,6 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
 
   mj_freeStack(d);
   return ne;
-}
-
-
-// count frictional constraints, count Jacobian nonzeros if nnz is not NULL
-static int mj_nf(const mjModel* m, const mjData* d, int *nnz) {
-  int nf = 0;
-  int nv = m->nv, ntendon = m->ntendon;
-
-  if (mjDISABLED(mjDSBL_FRICTIONLOSS)) {
-    return 0;
-  }
-
-  // sleep filtering
-  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
-
-  for (int i=0; i < nv; i++) {
-    // no friction loss: skip
-    if (!m->dof_frictionloss[i]) {
-      continue;
-    }
-
-    // sleeping tree: skip
-    if (sleep_filter && !d->tree_awake[m->dof_treeid[i]]) {
-      continue;
-    }
-
-    nf += mj_addConstraintCount(m, 1, 1);
-    if (nnz) *nnz += 1;
-  }
-
-  for (int i=0; i < ntendon; i++) {
-    if (m->tendon_frictionloss[i] > 0) {
-      nf += mj_addConstraintCount(m, 1, d->ten_J_rownnz[i]);
-      if (nnz) *nnz += d->ten_J_rownnz[i];
-    }
-  }
-
-  return nf;
-}
-
-
-// count limit constraints, count Jacobian nonzeros if nnz is not NULL
-static int mj_nl(const mjModel* m, const mjData* d, int *nnz) {
-  int nl = 0;
-  int ntendon = m->ntendon;
-  int side;
-  mjtNum margin, value, dist;
-
-  // disabled: return
-  if (mjDISABLED(mjDSBL_LIMIT)) {
-    return 0;
-  }
-
-  // sleep filtering
-  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
-
-  for (int i=0; i < m->njnt; i++) {
-    if (!m->jnt_limited[i]) {
-      continue;
-    }
-
-    // sleeping tree: skip
-    if (sleep_filter && !d->tree_awake[m->dof_treeid[m->jnt_dofadr[i]]]) {
-      continue;
-    }
-
-    margin = m->jnt_margin[i];
-
-    // SLIDE and HINGE joint limits can be bilateral, check both sides
-    if (m->jnt_type[i] == mjJNT_SLIDE || m->jnt_type[i] == mjJNT_HINGE) {
-      value = d->qpos[m->jnt_qposadr[i]];
-      for (side=-1; side <= 1; side+=2) {
-        dist = side * (m->jnt_range[2*i+(side+1)/2] - value);
-        if (dist < margin) {
-          nl += mj_addConstraintCount(m, 1, 1);
-          if (nnz) *nnz += 1;
-        }
-      }
-    }
-
-    // BALL joint limits are always unilateral
-    else if (m->jnt_type[i] == mjJNT_BALL) {
-      mjtNum angleAxis[3];
-      int adr = m->jnt_qposadr[i];
-      mjtNum quat[4] = {d->qpos[adr], d->qpos[adr+1], d->qpos[adr+2], d->qpos[adr+3]};
-      mju_normalize4(quat);
-      mju_quat2Vel(angleAxis, quat, 1);
-      value = mju_normalize3(angleAxis);
-      dist = mju_max(m->jnt_range[2*i], m->jnt_range[2*i+1]) - value;
-      if (dist < margin) {
-        nl += mj_addConstraintCount(m, 1, 3);
-        if (nnz) *nnz += 3;
-      }
-    }
-  }
-
-  // tendon limits
-  for (int i=0; i < ntendon; i++) {
-    int count = tendonLimit(m, d->ten_length, i);
-    for (int j = 0; j < count; j++) {
-      nl += mj_addConstraintCount(m, 1, d->ten_J_rownnz[i]);
-      if (nnz) *nnz += d->ten_J_rownnz[i];
-    }
-  }
-
-  return nl;
 }
 
 
@@ -1867,11 +2549,22 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
   for (int i=0; i < ncon; i++) {
     mjContact* con = d->contact + i;
 
-    // skip if passive
-    if ((con->flex[0] > -1 && m->flex_passive[con->flex[0]]) ||
-        (con->flex[1] > -1 && m->flex_passive[con->flex[1]])) {
-      con->efc_address = -1;
-      con->exclude = 4;
+    // Passive path: flex-flex (including self-collision) and flex-vs-static-geometry, where every
+    // dof is a metric-carried flex vertex so the Hessian is assembled in full. Flex-vs-moving-body
+    // stays on the constraint solver. Passive if either flex asks for it.
+    {
+      int f0 = con->flex[0], f1 = con->flex[1];
+      int wants = (f0 > -1 && m->flex_passive[f0]) || (f1 > -1 && m->flex_passive[f1]);
+      int ok = (f0 > -1 && f1 > -1);   // flex-flex, or a flex with itself
+      for (int s = 0; s < 2 && !ok; s++) {
+        if (con->flex[s] < 0 && con->geom[s] > -1) {
+          ok = (m->body_weldid[m->geom_bodyid[con->geom[s]]] == 0);   // welded to the world
+        }
+      }
+      if (wants && ok) {
+        con->efc_address = -1;
+        con->exclude = 4;
+      }
     }
 
     // skip if excluded
@@ -1892,60 +2585,86 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
           mjERROR("contact %d involves sleeping geom %d", i, asleep1 ? g1 : g2);
         }
       }
+
+      // check flex contact sides
+      for (int side = 0; side < 2; side++) {
+        if (con->geom[side] >= 0) continue;
+        int b = mj_flexBody(m, con, side);
+        if (d->body_awake[m->body_weldid[b]] == mjS_ASLEEP) {
+          mjERROR("contact %d involves sleeping flex %d", i, con->flex[side]);
+        }
+      }
     }
 
     // compute NV only if nnz requested
     int NV = 0;
     if (nnz) {
-      // get bodies
-      int nb = 0, bid[729];
-      for (int side=0; side < 2; side++) {
-        // geom
-        if (con->geom[side] >= 0) {
-          bid[nb++] = m->geom_bodyid[con->geom[side]];
+      // single body on each side (geom-geom or flex vert-vert): skip common dofs
+      if ((con->geom[0] >= 0 || (con->vert[0] >= 0 && m->flex_interp[con->flex[0]] == 0)) &&
+          (con->geom[1] >= 0 || (con->vert[1] >= 0 && m->flex_interp[con->flex[1]] == 0))) {
+        // get bodies
+        int bid[2];
+        for (int side=0; side < 2; side++) {
+          bid[side] = (con->geom[side] >= 0) ?
+                      m->geom_bodyid[con->geom[side]] :
+                      m->flex_vertbodyid[m->flex_vertadr[con->flex[side]] + con->vert[side]];
         }
-
-        // flex
-        else {
-          int nw = 0;
-          int vid[4];
-          mjtNum vweight[4];
-
-          // flex vert
-          if (con->vert[side] >= 0) {
-            vid[nw++] = m->flex_vertadr[con->flex[side]] + con->vert[side];
-            vweight[0] = 1;
-          }
-
-          // flex elem
-          else {
-            int f = con->flex[side];
-            int fdim = m->flex_dim[f];
-            const int* edata = m->flex_elem + m->flex_elemdataadr[f] + con->elem[side]*(fdim+1);
-            for (int k=0; k <= fdim; k++) {
-              vid[nw++] = m->flex_vertadr[f] + edata[k];
-            }
-
-            if (m->flex_interp[f]) {
-              nw = mj_elemBodyWeight(m, d, con->flex[side], con->elem[side],
-                                    con->vert[1-side], con->pos, vid, vweight);
-            }
-          }
-
-          // get body or node ids and weights
-          if (m->flex_interp[con->flex[side]] == 0) {
-            for (int k=0; k < nw; k++) {
-              bid[nb] = m->flex_vertbodyid[vid[k]];
-              nb++;
-            }
-          } else {
-            nb += mj_vertBodyWeight(m, d, con->flex[side], vid, bid+nb, NULL, vweight, nw);
-          }
-        }
+        NV = mj_jacDifPair(m, NULL, chain, bid[0], bid[1], NULL, NULL,
+                           NULL, NULL, NULL, NULL, NULL, NULL, mj_isSparse(m), 1);
       }
 
-      // count non-zeros in merged chain
-      NV = mj_jacSumCount(m, d, chain, nb, bid);
+      // general case: flex elements involved
+      else {
+        // get bodies
+        int nb = 0, bid[729];
+        for (int side=0; side < 2; side++) {
+          // geom
+          if (con->geom[side] >= 0) {
+            bid[nb++] = m->geom_bodyid[con->geom[side]];
+          }
+
+          // flex
+          else {
+            int nw = 0;
+            int vid[4];
+            mjtNum vweight[4];
+
+            // flex vert
+            if (con->vert[side] >= 0) {
+              vid[nw++] = m->flex_vertadr[con->flex[side]] + con->vert[side];
+              vweight[0] = 1;
+            }
+
+            // flex elem
+            else {
+              int f = con->flex[side];
+              int fdim = m->flex_dim[f];
+              const int* edata = m->flex_elem + m->flex_elemdataadr[f] + con->elem[side]*(fdim+1);
+              for (int k=0; k <= fdim; k++) {
+                vid[nw++] = m->flex_vertadr[f] + edata[k];
+              }
+
+              if (m->flex_interp[f]) {
+                nw = mj_elemBodyWeight(m, d, con->flex[side], con->elem[side],
+                                      con->vert[1-side], con->pos, vid, vweight);
+              }
+            }
+
+            // get body or node ids and weights
+            if (m->flex_interp[con->flex[side]] == 0) {
+              for (int k=0; k < nw; k++) {
+                bid[nb] = m->flex_vertbodyid[vid[k]];
+                nb++;
+              }
+            } else {
+              nb += mj_vertBodyWeight(m, d, con->flex[side], vid, bid+nb, NULL, vweight, nw);
+            }
+          }
+        }
+
+        // count non-zeros in merged chain
+        NV = mj_jacSumCount(m, d, chain, nb, bid);
+      }
       if (!NV) {
         continue;
       }
@@ -1974,12 +2693,137 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
 }
 
 
+// pre-count Y_rownnz, Y_rowadr, return total nonzeros nY
+//   Y has the sparsity of J * inv(L'), where L is the Cholesky factor of M
+static int computeY_precount(int* Y_rownnz, int* Y_rowadr, int nefc, int nv,
+                             const int* J_rownnz, const int* J_rowadr, const int* J_colind,
+                             const int* M_rownnz, const int* M_rowadr, const int* M_colind,
+                             int* marker) {
+  mju_fillInt(marker, -1, nv);
+
+  Y_rowadr[0] = 0;
+  for (int r=0; r < nefc; r++) {
+    int nnz = 0;  // nonzeros in row r of Y
+
+    // traverse row r of J in reverse, count unique nonzeros
+    int start = J_rowadr[r];
+    int end = start + J_rownnz[r];
+    for (int i=end-1; i >= start; i--) {
+      int j = J_colind[i];
+
+      // if dof j is marked, it was already counted by a child dof: skip it
+      if (marker[j] == r) {
+        continue;
+      }
+
+      // traverse row j of M, marking new unique nonzeros
+      int nnzM = M_rownnz[j];
+      int adrM = M_rowadr[j];
+      for (int k=0; k < nnzM; k++) {
+        int c = M_colind[adrM + k];
+        if (marker[c] != r) {
+          marker[c] = r;
+          nnz++;
+        }
+      }
+    }
+
+    // update rownnz and rowadr
+    Y_rownnz[r] = nnz;
+    if (r < nefc - 1) {
+      Y_rowadr[r+1] = Y_rowadr[r] + nnz;
+    }
+  }
+
+  // total non-zeros in Y
+  return Y_rowadr[nefc-1] + Y_rownnz[nefc-1];
+}
+
+
+// fill Y column indices and values from J, chaining up the kinematic tree
+static void computeY_fill(mjtNum* Y, int* Y_colind,
+                          const int* Y_rownnz, const int* Y_rowadr, int nefc,
+                          const mjtNum* J, const int* J_rownnz, const int* J_rowadr,
+                          const int* J_colind, const int* dof_parentid) {
+  for (int r=0; r < nefc; r++) {
+    // init row
+    int end = Y_rowadr[r] + Y_rownnz[r];
+    int adrJ = J_rowadr[r];
+    int remainJ = J_rownnz[r];
+    int nnzY = 0;
+
+    // complete chain in reverse
+    while (1) {
+      // get previous dof in src and dst
+      int prev_src = (remainJ > 0 ? J_colind[adrJ + remainJ - 1] : -1);
+      int prev_dst = (nnzY > 0 ? dof_parentid[Y_colind[end - nnzY]] : -1);
+
+      // both finished: break
+      if (prev_src < 0 && prev_dst < 0) {
+        break;
+      }
+
+      // add src
+      else if (prev_src >= prev_dst) {
+        nnzY++;
+        remainJ--;
+        Y_colind[end - nnzY] = prev_src;
+        Y[end - nnzY] = J[adrJ + remainJ];
+      }
+
+      // add dst
+      else {
+        nnzY++;
+        Y_colind[end - nnzY] = prev_dst;
+        Y[end - nnzY] = 0;
+      }
+    }
+
+    // compare with Y_rownnz: SHOULD NOT OCCUR
+    if (nnzY != Y_rownnz[r]) {
+      mjERROR("pre and post-count of Y_rownnz are not equal on row %d", r);
+    }
+  }
+}
+
+
+// in-place sparse back-substitution:  Y <- Y * M^{-1/2}
+static void computeY_backsub(mjtNum* Y, const int* Y_rownnz, const int* Y_rowadr,
+                             const int* Y_colind, int nefc,
+                             const mjtNum* qLD, const int* M_rownnz, const int* M_rowadr,
+                             const int* M_colind, const mjtNum* sqrtInvD) {
+  for (int r=0; r < nefc; r++) {
+    int nnzY = Y_rownnz[r];
+    int adrY = Y_rowadr[r];
+
+    // Y(r,:) <- inv(L') * Y(r,:), exploit sparsity of input vector
+    for (int i=adrY + nnzY-1; i >= adrY; i--) {
+      mjtNum val = Y[i];
+      if (val == 0) {
+        continue;
+      }
+      int j = Y_colind[i];
+      int adrM = M_rowadr[j];
+      mju_addToSclSparseInc(Y + adrY, qLD + adrM,
+                            nnzY, Y_colind + adrY,
+                            M_rownnz[j]-1, M_colind + adrM, -val);
+    }
+
+    // Y(r,:) <- sqrt(inv(D)) * Y(r,:)
+    for (int i=adrY; i < adrY + nnzY; i++) {
+      int j = Y_colind[i];
+      Y[i] *= sqrtInvD[j];
+    }
+  }
+}
+
+
 //---------------------------- top-level API for constraint construction ---------------------------
 
 // driver: call all functions above
 void mj_makeConstraint(const mjModel* m, mjData* d) {
   // clear sizes
-  d->ne = d->nf = d->nl = d->nefc = d->nJ = d->nA = 0;
+  d->ne = d->nf = d->nl = d->nefc = d->nJ = d->nA = d->nY = 0;
 
   // disabled or Jacobian not allocated: return
   if (mjDISABLED(mjDSBL_CONSTRAINT)) {
@@ -1989,9 +2833,10 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
   // precount sizes for constraint Jacobian matrices
   int *nnz = mj_isSparse(m) ? &(d->nJ) : NULL;
   int ne_allocated = mj_ne(m, d, nnz);
-  int nf_allocated = mj_nf(m, d, nnz);
-  int nl_allocated = mj_nl(m, d, nnz);
-  int nefc_allocated = ne_allocated + nf_allocated + nl_allocated + mj_nc(m, d, nnz);
+  int nf_allocated = mj_instantiateFriction(m, d, 1, nnz);
+  int nl_allocated = mj_instantiateLimit(m, d, 1, nnz);
+  int nc_allocated = mj_nc(m, d, nnz);
+  int nefc_allocated = ne_allocated + nf_allocated + nl_allocated + nc_allocated;
   if (!mj_isSparse(m)) {
     d->nJ = nefc_allocated * m->nv;
   }
@@ -2008,8 +2853,8 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
   // reset nefc for the instantiation functions, instantiate all elements of Jacobian
   d->nefc = 0;
   mj_instantiateEquality(m, d);
-  mj_instantiateFriction(m, d);
-  mj_instantiateLimit(m, d);
+  mj_instantiateFriction(m, d, 0, NULL);
+  mj_instantiateLimit(m, d, 0, NULL);
   mj_instantiateContact(m, d);
 
   // check sparse allocation
@@ -2052,36 +2897,26 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
     return;
   }
 
-  // transpose sparse Jacobian, make row supernodes
-  if (mj_isSparse(m)) {
-#ifdef mjUSEAVX
-    // compute supernodes of J; used by mju_mulMatVecSparse_avx
-    mju_superSparse(d->nefc, d->efc_J_rowsuper,
-                    d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
-#else
-  #ifdef MEMORY_SANITIZER
-    // tell msan to treat the entire J rowsuper as uninitialized
-    __msan_allocated_memory(d->efc_J_rowsuper, d->nefc);
-  #endif  // MEMORY_SANITIZER
-#endif  // mjUSEAVX
+  // accumulate J row supernodes (reverse cumsum of 0/1 flags set at assembly time)
+  if (mj_isSparse(m) && d->nefc) {
+    for (int r=d->nefc-2; r >= 0; r--) {
+      if (d->efc_J_rowsuper[r]) {
+        d->efc_J_rowsuper[r] += d->efc_J_rowsuper[r+1];
+      }
+    }
   }
 
   // compute diagApprox
   mj_diagApprox(m, d);
 
-  // compute KBIP, D, R, adjust diagApprox
+  // compute KBIP, D, R, adjust diagA
   mj_makeImpedance(m, d);
 }
 
 
-// compute efc_AR
-void mj_projectConstraint(const mjModel* m, mjData* d) {
+// compute Y = J*M^{-1/2}; if flg_diagexact, overwrite efc_diagA with ||Y_i||^2
+static void mj_makeY(const mjModel* m, mjData* d, int flg_diagexact) {
   int nefc = d->nefc, nv = m->nv;
-
-  // nothing to do
-  if (nefc == 0 || !mj_isDual(m)) {
-    return;
-  }
 
   mj_markStack(d);
 
@@ -2092,145 +2927,103 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     sqrtInvD[i] = 1 / mju_sqrt(d->qLD[diag]);
   }
 
+  // sparse Y = backsubM2(J')' and its transpose
+  if (mj_isSparse(m)) {
+    // arena-allocate Y rownnz and rowadr
+    d->efc_Y_rownnz = mj_arenaAllocByte(d, sizeof(int) * nefc, _Alignof(int));
+    d->efc_Y_rowadr = mj_arenaAllocByte(d, sizeof(int) * nefc, _Alignof(int));
+    if (!d->efc_Y_rownnz || !d->efc_Y_rowadr) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      mj_clearEfc(d);
+      d->parena = d->ncon * sizeof(mjContact);
+      mj_freeStack(d);
+      return;
+    }
+
+    // pre-count Y_rownnz, Y_rowadr, nY (total nonzeros)
+    int* marker = mjSTACKALLOC(d, nv, int);
+    d->nY = computeY_precount(d->efc_Y_rownnz, d->efc_Y_rowadr, nefc, nv,
+                              d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
+                              m->M_rownnz, m->M_rowadr, m->M_colind, marker);
+
+    // arena-allocate values and column indices
+    d->efc_Y = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nY, _Alignof(mjtNum));
+    d->efc_Y_colind = mj_arenaAllocByte(d, sizeof(int) * d->nY, _Alignof(int));
+    if (!d->efc_Y || !d->efc_Y_colind) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      mj_clearEfc(d);
+      d->parena = d->ncon * sizeof(mjContact);
+      mj_freeStack(d);
+      return;
+    }
+
+    // fill in Y column indices, copy values from J
+    computeY_fill(d->efc_Y, d->efc_Y_colind, d->efc_Y_rownnz, d->efc_Y_rowadr, nefc,
+                  d->efc_J, d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
+                  m->dof_parentid);
+
+    // in-place sparse back-substitution:  Y <- Y * M^-1/2
+    computeY_backsub(d->efc_Y, d->efc_Y_rownnz, d->efc_Y_rowadr,
+                     d->efc_Y_colind, nefc,
+                     d->qLD, m->M_rownnz, m->M_rowadr, m->M_colind, sqrtInvD);
+
+    // overwrite diagA with exact diagonal: diagA[i] = ||Y_i||^2
+    if (flg_diagexact) {
+      for (int i=0; i < nefc; i++) {
+        int adr = d->efc_Y_rowadr[i];
+        int nnz = d->efc_Y_rownnz[i];
+        d->efc_diagA[i] = mju_dot(d->efc_Y+adr, d->efc_Y+adr, nnz);
+      }
+    }
+  }
+
+  // dense Y = backsubM2(J')' and its transpose
+  else {
+    // arena-allocate efc_Y
+    d->nY = nefc * nv;
+    d->efc_Y = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nY, _Alignof(mjtNum));
+    if (!d->efc_Y) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      mj_clearEfc(d);
+      d->parena = d->ncon * sizeof(mjContact);
+      mj_freeStack(d);
+      return;
+    }
+
+    // Y = backsubM2(J')'
+    mj_solveM2(m, d, d->efc_Y, d->efc_J, sqrtInvD, nefc);
+
+    // overwrite diagA with exact diagonal: diagA[i] = ||Y_i||^2
+    if (flg_diagexact) {
+      for (int i=0; i < nefc; i++) {
+        d->efc_diagA[i] = mju_dot(d->efc_Y+i*nv, d->efc_Y+i*nv, nv);
+      }
+    }
+  }
+
+  mj_freeStack(d);
+}
+
+
+// assemble AR = Y*Y' + diag(R) for dual solver
+static void mj_makeAR(const mjModel* m, mjData* d) {
+  int nefc = d->nefc, nv = m->nv;
+
+  mj_markStack(d);
+
   // sparse
   if (mj_isSparse(m)) {
-    // compute B = backsubM2(J')' and its transpose
+    // Y supernodes are identical to J supernodes
+    const int* Y_rowsuper = d->efc_J_rowsuper;
 
-
-    // === pre-count B_rownnz, B_rowadr, nB (total nonzeros)
-
-    // allocate B rownnz and rowadr
-    int* B_rownnz = mjSTACKALLOC(d, nefc, int);
-    int* B_rowadr = mjSTACKALLOC(d, nefc, int);
-
-    // markers for merged dofs, initialized to -1
-    int* marker = mjSTACKALLOC(d, nv, int);
-    mju_fillInt(marker, -1, nv);
-
-    B_rowadr[0] = 0;
-    for (int r=0; r < nefc; r++) {
-      int nnz = 0;  // nonzeros in row r of B
-
-      // traverse row r of J in reverse, count unique nonzeros
-      int start = d->efc_J_rowadr[r];
-      int end = start + d->efc_J_rownnz[r];
-      for (int i=end-1; i >= start; i--) {
-        int j = d->efc_J_colind[i];
-
-        // if dof j is marked, it was already counted by a child dof: skip it
-        if (marker[j] == r) {
-          continue;
-        }
-
-        // traverse row j of C, marking new unique nonzeros
-        int nnzC = m->M_rownnz[j];
-        int adrC = m->M_rowadr[j];
-        for (int k=0; k < nnzC; k++) {
-          int c = m->M_colind[adrC + k];
-          if (marker[c] != r) {
-            marker[c] = r;
-            nnz++;
-          }
-        }
-      }
-
-      // update rownnz and rowadr
-      B_rownnz[r] = nnz;
-      if (r < nefc - 1) {
-        B_rowadr[r+1] = B_rowadr[r] + nnz;
-      }
-    }
-
-    // total non-zeros in B
-    int nB = B_rowadr[nefc-1] + B_rownnz[nefc-1];
-
-
-    // === fill in B column indices, copy values from J
-
-    // allocate values and column indices
-    mjtNum* B = mjSTACKALLOC(d, nB, mjtNum);
-    int* B_colind = mjSTACKALLOC(d, nB, int);
-
-    for (int r=0; r < nefc; r++) {
-      // init row
-      int end = B_rowadr[r] + B_rownnz[r];
-      int adrJ = d->efc_J_rowadr[r];
-      int remainJ = d->efc_J_rownnz[r];
-      int nnzB = 0;
-
-      // complete chain in reverse
-      while (1) {
-        // get previous dof in src and dst
-        int prev_src = (remainJ > 0 ? d->efc_J_colind[adrJ + remainJ - 1] : -1);
-        int prev_dst = (nnzB > 0 ? m->dof_parentid[B_colind[end - nnzB]] : -1);
-
-        // both finished: break
-        if (prev_src < 0 && prev_dst < 0) {
-          break;
-        }
-
-        // add src
-        else if (prev_src >= prev_dst) {
-          nnzB++;
-          remainJ--;
-          B_colind[end - nnzB] = prev_src;
-          B[end - nnzB] = d->efc_J[adrJ + remainJ];
-        }
-
-        // add dst
-        else {
-          nnzB++;
-          B_colind[end - nnzB] = prev_dst;
-          B[end - nnzB] = 0;
-        }
-      }
-
-      // compare with B_rownnz: SHOULD NOT OCCUR
-      if (nnzB != B_rownnz[r]) {
-        mjERROR("pre and post-count of B_rownnz are not equal on row %d", r);
-      }
-    }
-
-
-    // === in-place sparse back-substitution:  B <- B * M^-1/2
-
-    // sparse backsubM2 (half of LD back-substitution)
-    for (int r=0; r < nefc; r++) {
-      int nnzB = B_rownnz[r];
-      int adrB = B_rowadr[r];
-
-      // B(r,:) <- inv(L') * B(r,:), exploit sparsity of input vector
-      for (int i=adrB + nnzB-1; i >= adrB; i--) {
-        mjtNum b = B[i];
-        if (b == 0) {
-          continue;
-        }
-        int j = B_colind[i];
-        int adrC = m->M_rowadr[j];
-        mju_addToSclSparseInc(B + adrB, d->qLD + adrC,
-                              nnzB, B_colind + adrB,
-                              m->M_rownnz[j]-1, m->M_colind + adrC, -b);
-      }
-
-      // B(r,:) <- sqrt(inv(D)) * B(r,:)
-      for (int i=adrB; i < adrB + nnzB; i++) {
-        int j = B_colind[i];
-        B[i] *= sqrtInvD[j];
-      }
-    }
-
-    // construct B supernodes
-    int* B_rowsuper = mjSTACKALLOC(d, nefc, int);
-    mju_superSparse(nefc, B_rowsuper, B_rownnz, B_rowadr, B_colind);
-
-    // construct B transposed
-    int* BT_rownnz = mjSTACKALLOC(d, nv, int);
-    int* BT_rowadr = mjSTACKALLOC(d, nv, int);
-    int* BT_colind = mjSTACKALLOC(d, nB, int);
-    mjtNum* BT = mjSTACKALLOC(d, nB, mjtNum);
-    mju_transposeSparse(BT, B, nefc, nv,
-                        BT_rownnz, BT_rowadr, BT_colind, NULL,
-                        B_rownnz, B_rowadr, B_colind);
+    // construct Y transposed
+    int* YT_rownnz = mjSTACKALLOC(d, nv, int);
+    int* YT_rowadr = mjSTACKALLOC(d, nv, int);
+    int* YT_colind = mjSTACKALLOC(d, d->nY, int);
+    mjtNum* YT = mjSTACKALLOC(d, d->nY, mjtNum);
+    mju_transposeSparse(YT, d->efc_Y, nefc, nv,
+                        YT_rownnz, YT_rowadr, YT_colind, NULL,
+                        d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind);
 
     // allocate AR row nonzeros and addresses on arena
     d->efc_AR_rownnz = mj_arenaAllocByte(d, sizeof(int) * nefc, _Alignof(int));
@@ -2243,10 +3036,11 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
       return;
     }
 
-    // pre-count A nonzeros (compute AR_rownnz, AR_rowadr)
-    d->nA = mju_sqrMatTDSparseCount(d->efc_AR_rownnz, d->efc_AR_rowadr, nefc,
-                                    BT_rownnz, BT_rowadr, BT_colind,
-                                    B_rownnz, B_rowadr, B_colind, B_rowsuper, d, /*flg_upper=*/1);
+    int* diagind = mjSTACKALLOC(d, nefc, int);
+    d->nA = mju_sqrMatTDSparseSymbolic(
+        d->efc_AR_rownnz, d->efc_AR_rowadr, NULL, diagind,
+        nv, nefc, YT_rownnz, YT_rowadr, YT_colind,
+        d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind, Y_rowsuper, d);
 
     // allocate A values and column indices on arena
     d->efc_AR = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nA, _Alignof(mjtNum));
@@ -2259,12 +3053,18 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
       return;
     }
 
-    // A = B * B'
-    int* diagind = mjSTACKALLOC(d, nefc, int);
-    mju_sqrMatTDSparse(d->efc_AR, BT, B, NULL, nv, nefc,
-                       d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind,
-                       BT_rownnz, BT_rowadr, BT_colind, NULL,
-                       B_rownnz, B_rowadr, B_colind, B_rowsuper, d, diagind);
+    // A = Y * Y': symbolic phase
+    mju_sqrMatTDSparseSymbolic(
+        d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind, diagind,
+        nv, nefc, YT_rownnz, YT_rowadr, YT_colind,
+        d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind, Y_rowsuper, d);
+
+    // A = Y * Y': numeric phase
+    mju_sqrMatTDSparseNumeric(
+        d->efc_AR, nefc, d->efc_AR_rownnz, d->efc_AR_rowadr,
+        d->efc_AR_colind, diagind, YT, YT_rownnz, YT_rowadr,
+        YT_colind, d->efc_Y, d->efc_Y_rownnz, d->efc_Y_rowadr,
+        d->efc_Y_colind, Y_rowsuper, NULL, d);
 
     // AR = A + diag(R)
     for (int i=0; i < nefc; i++) {
@@ -2272,11 +3072,10 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     }
   }
 
-  // dense
+  // dense Y = backsubM2(J')' and its transpose
   else {
-    d->nA = nefc * nefc;
-
     // arena-allocate efc_AR
+    d->nA = nefc * nefc;
     d->efc_AR = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nA, _Alignof(mjtNum));
     if (!d->efc_AR) {
       mj_warning(d, mjWARN_CNSTRFULL, d->narena);
@@ -2286,18 +3085,12 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
       return;
     }
 
-    // space for B = backsubM2(J')' and its transpose
-    mjtNum* B = mjSTACKALLOC(d, nefc*nv, mjtNum);
-    mjtNum* BT = mjSTACKALLOC(d, nv*nefc, mjtNum);
+    // construct YT on stack
+    mjtNum* YT = mjSTACKALLOC(d, nv*nefc, mjtNum);
+    mju_transpose(YT, d->efc_Y, nefc, nv);
 
-    // B = backsubM2(J')'
-    mj_solveM2(m, d, B, d->efc_J, sqrtInvD, nefc);
-
-    // construct BT
-    mju_transpose(BT, B, nefc, nv);
-
-    // AR = B * B'
-    mju_sqrMatTD(d->efc_AR, BT, NULL, nv, nefc);
+    // AR = Y * Y'
+    mju_sqrMatTD(d->efc_AR, YT, NULL, nv, nefc);
 
     // add R to diagonal of AR
     for (int r=0; r < nefc; r++) {
@@ -2309,6 +3102,145 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 }
 
 
+// compute efc_Y, optionally efc_diagA, optionally efc_AR
+void mj_projectConstraint(const mjModel* m, mjData* d) {
+  int nefc = d->nefc;
+
+  // nothing to do
+  if (!nefc) {
+    return;
+  }
+
+  int isDual = mj_isDual(m);
+  int diagexact = mjENABLED(mjENBL_DIAGEXACT);
+
+  // compute Y = J*M^{-1/2}; overwrite diagApprox if diagexact
+  if (isDual || diagexact) {
+    mj_makeY(m, d, diagexact);
+  }
+
+  // recompute impedance from exact diagonal
+  if (diagexact && d->nefc) {
+    mj_makeImpedance(m, d);
+
+    // re-gather island D/R
+    if (d->nisland) {
+      mju_gather(d->iefc_D, d->efc_D, d->map_iefc2efc, d->nefc);
+      mju_gather(d->iefc_R, d->efc_R, d->map_iefc2efc, d->nefc);
+    }
+  }
+
+  // assemble AR for dual solver
+  if (isDual && d->nefc) {
+    mj_makeAR(m, d);
+  }
+}
+
+
+// add relative surface velocity of contacting geoms to contact rows of efc_vel
+static void mj_addSurfaceVel(const mjModel* m, mjData* d) {
+  // no surface velocity on any geom: quick return
+  if (!m->flg_surfacevel) {
+    return;
+  }
+
+  int ispyramid = mj_isPyramidal(m);
+  int ncon = d->ncon;
+
+  // loop over contacts, add surface velocity to efc_vel
+  for (int i=0; i < ncon; i++) {
+    // get contact, skip excluded
+    const mjContact* con = d->contact + i;
+    if (con->efc_address < 0) { continue; }
+
+    // relative surface velocity in world frame: geom2 minus geom1, linear and angular
+    mjtNum svel[3] = {0, 0, 0}, sang[3] = {0, 0, 0};
+    int active = 0;
+    for (int side=0; side < 2; side++) {
+      int g = con->geom[side];
+      if (g < 0) {
+        // TODO(team): support flex
+        continue;
+      }
+      const mjtNum* sv = m->geom_surfacevel + 6*g;
+
+      // skip geom with no surface velocity
+      if (!sv[0] && !sv[1] && !sv[2] && !sv[3] && !sv[4] && !sv[5]) {
+        continue;
+      }
+      active = 1;
+
+      // rotate to world frame, add angular contribution at contact point
+      mjtNum sgn = side ? 1 : -1;
+      mjtNum vw[3], ww[3];
+      mj_geomSurfaceVelocity(m, d, g, con->pos, vw, ww);
+      mju_addToScl3(svel, vw, sgn);
+      mju_addToScl3(sang, ww, sgn);
+    }
+    if (!active) {
+      continue;
+    }
+
+    // rotate to contact frame: (normal, tangent1, tangent2, spin, roll1, roll2)
+    mjtNum cs[6];
+    mju_mulMatVec3(cs, con->frame, svel);
+    mju_mulMatVec3(cs + 3, con->frame, sang);
+
+    // surface velocity acts in the tangent plane and torsional direction only
+    cs[0] = 0;  // no normal push
+    cs[4] = 0;  // no rolling drive
+    cs[5] = 0;  // no rolling drive
+
+    // add to contact rows
+    int adr = con->efc_address, dim = con->dim;
+    if (dim == 1 || !ispyramid) {
+      for (int j=0; j < dim; j++) {
+        d->efc_vel[adr + j] += cs[j];
+      }
+    } else {
+      for (int k=1; k < dim; k++) {
+        mjtNum mu = con->friction[k-1];
+        d->efc_vel[adr + 2*(k-1)]     += cs[0] + mu*cs[k];
+        d->efc_vel[adr + 2*(k-1) + 1] += cs[0] - mu*cs[k];
+      }
+    }
+  }
+}
+
+
+
+// bias aref of adhesive contact rows: makes the compression branch of the net
+// force-penetration curve independent of adhesion (exact translated-cone semantics)
+static void mj_adhesionRef(const mjModel* m, mjData* d) {
+  // no adhesion on any geom or pair: quick return
+  if (!m->flg_adhesion) {
+    return;
+  }
+
+  int ispyramid = mj_isPyramidal(m), ncon = d->ncon;
+
+  for (int i=0; i < ncon; i++) {
+    const mjContact* con = d->contact + i;
+    if (!con->adhesion || con->efc_address < 0) {
+      continue;
+    }
+
+    int adr = con->efc_address, dim = con->dim;
+    if (dim == 1 || !ispyramid) {
+      // normal row
+      d->efc_aref[adr] += d->efc_R[adr] * con->adhesion;
+    } else {
+      // pyramid rows: the normal decomposes equally over the 2*(dim-1) edges
+      mjtNum edge = con->adhesion / (2*(dim-1));
+      for (int j=0; j < 2*(dim-1); j++) {
+        d->efc_aref[adr+j] += d->efc_R[adr+j] * edge;
+      }
+    }
+  }
+}
+
+
+
 // compute efc_vel, efc_aref
 void mj_referenceConstraint(const mjModel* m, mjData* d) {
   int nefc = d->nefc;
@@ -2317,10 +3249,21 @@ void mj_referenceConstraint(const mjModel* m, mjData* d) {
   // compute efc_vel
   mj_mulJacVec(m, d, d->efc_vel, d->qvel);
 
+  // add relative surface velocity to contact rows
+  mj_addSurfaceVel(m, d);
+
   // compute aref = -B*vel - K*I*(pos-margin)
   for (int i=0; i < nefc; i++) {
     d->efc_aref[i] = -KBIP[4*i+1]*d->efc_vel[i]
                      -KBIP[4*i]*KBIP[4*i+2]*(d->efc_pos[i]-d->efc_margin[i]);
+  }
+
+  // bias adhesive contact rows
+  mj_adhesionRef(m, d);
+
+  // subtract Jdot*v correction for connect/weld equality constraints
+  if (d->ne > 0) {
+    mj_Jdotv(m, d, d->efc_aref);
   }
 }
 

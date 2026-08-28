@@ -14,7 +14,12 @@
 
 mujoco_test(xml_api_test)
 
-mujoco_test(xml_native_reader_test)
+mujoco_test(
+  xml_native_reader_test
+  ADDITIONAL_LINK_LIBRARIES compare_model
+)
+
+mujoco_test(schema_defaults_test)
 
 mujoco_test(xml_utils_test)
 
@@ -22,6 +27,16 @@ mujoco_test(
   xml_native_writer_test
   ADDITIONAL_LINK_LIBRARIES
   absl::flat_hash_set
+  PROPERTIES
+  ENVIRONMENT
+  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
+)
+
+mujoco_test(
+  xml_write_read_test
+  ADDITIONAL_LINK_LIBRARIES
+  absl::flat_hash_set
+  compare_model
   PROPERTIES
   ENVIRONMENT
   "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"

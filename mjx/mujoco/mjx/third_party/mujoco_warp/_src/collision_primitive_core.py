@@ -13,76 +13,18 @@
 # limitations under the License.
 # ==============================================================================
 
-from typing import Any, Tuple
+from typing import Tuple
 
 import warp as wp
 
-MJ_MINVAL = 1e-15
-
+from mujoco.mjx.third_party.mujoco_warp._src.math import closest_segment_point
+from mujoco.mjx.third_party.mujoco_warp._src.math import closest_segment_to_segment_points
+from mujoco.mjx.third_party.mujoco_warp._src.math import normalize_with_norm
+from mujoco.mjx.third_party.mujoco_warp._src.math import safe_div
+from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
+from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 
 wp.set_module_options({"enable_backward": False})
-
-
-@wp.func
-def safe_div(x: Any, y: Any) -> Any:
-  return x / wp.where(y != 0.0, y, MJ_MINVAL)
-
-
-@wp.func
-def normalize_with_norm(x: Any):
-  norm = wp.length(x)
-  if norm == 0.0:
-    return x, 0.0
-  return x / norm, norm
-
-
-@wp.func
-def closest_segment_point(a: wp.vec3, b: wp.vec3, pt: wp.vec3) -> wp.vec3:
-  """Returns the closest point on the a-b line segment to a point pt."""
-  ab = b - a
-  t = wp.dot(pt - a, ab) / (wp.dot(ab, ab) + 1e-6)
-  return a + wp.clamp(t, 0.0, 1.0) * ab
-
-
-@wp.func
-def closest_segment_point_and_dist(a: wp.vec3, b: wp.vec3, pt: wp.vec3) -> Tuple[wp.vec3, float]:
-  """Returns closest point on the line segment and the distance squared."""
-  closest = closest_segment_point(a, b, pt)
-  dist = wp.dot((pt - closest), (pt - closest))
-  return closest, dist
-
-
-@wp.func
-def closest_segment_to_segment_points(a0: wp.vec3, a1: wp.vec3, b0: wp.vec3, b1: wp.vec3) -> Tuple[wp.vec3, wp.vec3]:
-  """Returns closest points between two line segments."""
-  dir_a, len_a = normalize_with_norm(a1 - a0)
-  dir_b, len_b = normalize_with_norm(b1 - b0)
-
-  half_len_a = len_a * 0.5
-  half_len_b = len_b * 0.5
-  a_mid = a0 + dir_a * half_len_a
-  b_mid = b0 + dir_b * half_len_b
-
-  trans = a_mid - b_mid
-
-  dira_dot_dirb = wp.dot(dir_a, dir_b)
-  dira_dot_trans = wp.dot(dir_a, trans)
-  dirb_dot_trans = wp.dot(dir_b, trans)
-  denom = 1.0 - dira_dot_dirb * dira_dot_dirb
-
-  orig_t_a = (-dira_dot_trans + dira_dot_dirb * dirb_dot_trans) / (denom + 1e-6)
-  orig_t_b = dirb_dot_trans + orig_t_a * dira_dot_dirb
-  t_a = wp.clamp(orig_t_a, -half_len_a, half_len_a)
-  t_b = wp.clamp(orig_t_b, -half_len_b, half_len_b)
-
-  best_a = a_mid + dir_a * t_a
-  best_b = b_mid + dir_b * t_b
-
-  new_a, d1 = closest_segment_point_and_dist(a0, a1, best_b)
-  new_b, d2 = closest_segment_point_and_dist(b0, b1, best_a)
-  if d1 < d2:
-    return new_a, best_b
-  return best_a, new_b
 
 
 class vec8f(wp.types.vector(length=8, dtype=wp.float32)):
@@ -188,7 +130,8 @@ def capsule_capsule(
   cap2_axis: wp.vec3,
   cap2_radius: float,
   cap2_half_length: float,
-) -> Tuple[float, wp.vec3, wp.vec3]:
+  margin: float,
+) -> Tuple[wp.vec2, mat23f, mat23f]:
   """Core contact geometry calculation for capsule-capsule collision.
 
   Args:
@@ -200,28 +143,110 @@ def capsule_capsule(
     cap2_axis: Axis direction of the second capsule.
     cap2_radius: Radius of the second capsule.
     cap2_half_length: Half length of the second capsule.
+    margin: Collision margin for filtering contacts.
 
   Returns:
-    - Vector of contact distances.
+    - Vector of contact distances (wp.inf for invalid contacts).
     - Matrix of contact positions (one per row).
     - Matrix of contact normal vectors (one per row).
   """
-  # TODO(team): parallel axes case
+  contact_dist = wp.vec2(wp.inf, wp.inf)
+  contact_pos = mat23f()
+  contact_normal = mat23f()
 
-  # Calculate capsule segments
-  seg1 = cap1_axis * cap1_half_length
-  seg2 = cap2_axis * cap2_half_length
+  # calculate scaled axes and center difference
+  axis1 = cap1_axis * cap1_half_length
+  axis2 = cap2_axis * cap2_half_length
+  dif = cap1_pos - cap2_pos
 
-  # Find closest points between capsule centerlines
-  pt1, pt2 = closest_segment_to_segment_points(
-    cap1_pos - seg1,
-    cap1_pos + seg1,
-    cap2_pos - seg2,
-    cap2_pos + seg2,
-  )
+  # compute matrix coefficients and determinant
+  ma = wp.dot(axis1, axis1)
+  mb = -wp.dot(axis1, axis2)
+  mc = wp.dot(axis2, axis2)
+  u = -wp.dot(axis1, dif)
+  v = wp.dot(axis2, dif)
+  det = ma * mc - mb * mb
 
-  # Use sphere-sphere collision between closest points
-  return sphere_sphere(pt1, cap1_radius, pt2, cap2_radius)
+  # non-parallel axes: 1 contact
+  if wp.abs(det) >= MJ_MINVAL:
+    inv_det = 1.0 / det
+    x1 = (mc * u - mb * v) * inv_det
+    x2 = (ma * v - mb * u) * inv_det
+
+    if x1 > 1.0:
+      x1 = 1.0
+      x2 = (v - mb) / mc
+    elif x1 < -1.0:
+      x1 = -1.0
+      x2 = (v + mb) / mc
+
+    if x2 > 1.0:
+      x2 = 1.0
+      x1 = wp.clamp((u - mb) / ma, -1.0, 1.0)
+    elif x2 < -1.0:
+      x2 = -1.0
+      x1 = wp.clamp((u + mb) / ma, -1.0, 1.0)
+
+    # find nearest points
+    vec1 = cap1_pos + axis1 * x1
+    vec2 = cap2_pos + axis2 * x2
+
+    dist, pos, normal = sphere_sphere(vec1, cap1_radius, vec2, cap2_radius)
+    if dist <= margin:
+      contact_dist[0] = dist
+      contact_pos[0] = pos
+      contact_normal[0] = normal
+
+  # parallel axes: test all 4 endpoint pairs, keep first 2 that pass margin check
+  else:
+    contact_count = 0
+
+    # x1 = 1: test positive end of capsule 1
+    vec1 = cap1_pos + axis1
+    x2 = wp.clamp((v - mb) / mc, -1.0, 1.0)
+    vec2 = cap2_pos + axis2 * x2
+    dist, pos, normal = sphere_sphere(vec1, cap1_radius, vec2, cap2_radius)
+    if dist <= margin:
+      contact_dist[contact_count] = dist
+      contact_pos[contact_count] = pos
+      contact_normal[contact_count] = normal
+      contact_count += 1
+
+    # x1 = -1: test negative end of capsule 1
+    vec1 = cap1_pos - axis1
+    x2 = wp.clamp((v + mb) / mc, -1.0, 1.0)
+    vec2 = cap2_pos + axis2 * x2
+    dist, pos, normal = sphere_sphere(vec1, cap1_radius, vec2, cap2_radius)
+    if dist <= margin:
+      contact_dist[contact_count] = dist
+      contact_pos[contact_count] = pos
+      contact_normal[contact_count] = normal
+      contact_count += 1
+
+    # x2 = 1: test positive end of capsule 2
+    if contact_count < 2:
+      vec2 = cap2_pos + axis2
+      x1 = wp.clamp((u - mb) / ma, -1.0, 1.0)
+      vec1 = cap1_pos + axis1 * x1
+      dist, pos, normal = sphere_sphere(vec1, cap1_radius, vec2, cap2_radius)
+      if dist <= margin:
+        contact_dist[contact_count] = dist
+        contact_pos[contact_count] = pos
+        contact_normal[contact_count] = normal
+        contact_count += 1
+
+    # x2 = -1: test negative end of capsule 2
+    if contact_count < 2:
+      vec2 = cap2_pos - axis2
+      x1 = wp.clamp((u + mb) / ma, -1.0, 1.0)
+      vec1 = cap1_pos + axis1 * x1
+      dist, pos, normal = sphere_sphere(vec1, cap1_radius, vec2, cap2_radius)
+      if dist <= margin:
+        contact_dist[contact_count] = dist
+        contact_pos[contact_count] = pos
+        contact_normal[contact_count] = normal
+
+  return contact_dist, contact_pos, contact_normal
 
 
 @wp.func
@@ -328,13 +353,13 @@ def plane_box(
     margin: Collision tolerance.
 
   Returns:
-    - Vector of contact distances (wp.inf for unpopulated contacts).
+    - Vector of contact distances (MJ_MAXVAL for unpopulated contacts).
     - Matrix of contact positions (one per row).
     - Contact normal vector.
   """
   center_dist = wp.dot(box_pos - plane_pos, plane_normal)
 
-  dist = vec8f(wp.inf)
+  dist = vec8f(MJ_MAXVAL)
   pos = mat83f()
 
   # test all corners, pick bottom 4
@@ -457,7 +482,7 @@ def plane_cylinder(
     - Matrix of contact normal vectors (one per row).
   """
   # Initialize output matrices
-  contact_dist = wp.vec4(wp.inf)
+  contact_dist = wp.vec4(MJ_MAXVAL)
   contact_pos = mat43f()
   contact_count = 0
 
@@ -583,14 +608,14 @@ def box_box(
     margin: Collision tolerance.
 
   Returns:
-    - Vector of contact distances (wp.inf for unpopulated contacts).
+    - Vector of contact distances (MJ_MAXVAL for unpopulated contacts).
     - Matrix of contact positions (one per row).
     - Matrix of contact normal vectors (one per row).
   """
   # Initialize output matrices
   contact_dist = vec8f()
   for i in range(8):
-    contact_dist[i] = wp.inf
+    contact_dist[i] = MJ_MAXVAL
   contact_pos = mat83f()
   contact_normals = mat83f()
   contact_count = 0
@@ -1093,7 +1118,7 @@ def capsule_box(
     box_size: Half-extents of the box along each axis.
 
   Returns:
-    - Vector of contact distances (wp.inf for unpopulated contacts).
+    - Vector of contact distances (MJ_MAXVAL for unpopulated contacts).
     - Matrix of contact positions (one per row).
     - Matrix of contact normal vectors (one per row).
   """
@@ -1265,7 +1290,7 @@ def capsule_box(
     c1 = wp.where((ee2 > 0) == w_neg, 1, 2)
 
   if cltype == -4:  # invalid type
-    return wp.vec2(wp.inf), mat23f(), mat23f()
+    return wp.vec2(MJ_MAXVAL), mat23f(), mat23f()
 
   if cltype >= 0 and cltype // 3 != 1:  # closest to a corner of the box
     c1 = axisdir ^ clcorner
@@ -1396,7 +1421,7 @@ def capsule_box(
     # collide with sphere using core function
     dist2, pos2, normal2 = sphere_box(s2_pos_g, capsule_radius, box_pos, box_rot, box_size)
   else:
-    dist2 = wp.inf
+    dist2 = MJ_MAXVAL
     pos2 = wp.vec3()
     normal2 = wp.vec3()
 
@@ -1404,4 +1429,535 @@ def capsule_box(
     wp.vec2(dist1, dist2),
     mat23f(pos1[0], pos1[1], pos1[2], pos2[0], pos2[1], pos2[2]),
     mat23f(normal1[0], normal1[1], normal1[2], normal2[0], normal2[1], normal2[2]),
+  )
+
+
+@wp.func
+def _tri_area_sign(p1: wp.vec2, p2: wp.vec2, p3: wp.vec2) -> float:
+  """Sign of (signed) area of planar triangle."""
+  return wp.sign((p1[0] - p3[0]) * (p2[1] - p3[1]) - (p2[0] - p3[0]) * (p1[1] - p3[1]))
+
+
+@wp.func
+def _tri_point_segment(p: wp.vec2, u: wp.vec2, v: wp.vec2) -> wp.vec2:
+  """Find nearest point to p within line segment (u, v)."""
+  uv = v - u
+  up = p - u
+
+  denom = wp.max(MJ_MINVAL, wp.dot(uv, uv))
+  a = wp.dot(uv, up) / denom
+
+  if a <= 0.0:
+    return u
+  elif a >= 1.0:
+    return v
+  else:
+    return u + a * uv
+
+
+@wp.func
+def sphere_triangle(
+  sphere_pos: wp.vec3,
+  sphere_radius: float,
+  t1: wp.vec3,
+  t2: wp.vec3,
+  t3: wp.vec3,
+  tri_radius: float,
+) -> Tuple[float, wp.vec3, wp.vec3]:
+  """Core contact geometry calculation for sphere-triangle collision.
+
+  Port of mjraw_SphereTriangle from engine_collision_primitive.c
+
+  Args:
+    sphere_pos: Center position of the sphere.
+    sphere_radius: Radius of the sphere.
+    t1: Triangle vertex positions.
+    t2: Triangle vertex positions.
+    t3: Triangle vertex positions.
+    tri_radius: Triangle (flex element) radius.
+
+  Returns:
+    - Contact distance (MJ_MAXVAL if no collision).
+    - Contact position.
+    - Contact normal vector.
+  """
+  S = sphere_pos - t1
+  A = t2 - t1
+  B = t3 - t1
+
+  N = wp.normalize(wp.cross(A, B))
+
+  dstS = wp.dot(N, S)
+
+  P = S - dstS * N
+
+  V1 = wp.normalize(A)
+  lenA = wp.length(A)
+  V2 = wp.normalize(wp.cross(N, A))
+
+  o = wp.vec2(0.0, 0.0)
+  a = wp.vec2(lenA, 0.0)
+  b = wp.vec2(wp.dot(V1, B), wp.dot(V2, B))
+  p = wp.vec2(wp.dot(V1, P), wp.dot(V2, P))
+
+  sign1 = _tri_area_sign(p, o, a)
+  sign2 = _tri_area_sign(p, a, b)
+  sign3 = _tri_area_sign(p, b, o)
+
+  X = wp.vec3(0.0)
+  if sign1 == sign2 and sign2 == sign3:
+    X = P
+  else:
+    x0 = _tri_point_segment(p, o, a)
+    x1 = _tri_point_segment(p, a, b)
+    x2 = _tri_point_segment(p, b, o)
+
+    d0 = wp.length(p - x0)
+    d1 = wp.length(p - x1)
+    d2 = wp.length(p - x2)
+
+    if d0 < d1 and d0 < d2:
+      X = x0[0] * V1 + x0[1] * V2
+    elif d1 < d2:
+      X = x1[0] * V1 + x1[1] * V2
+    else:
+      X = x2[0] * V1 + x2[1] * V2
+
+  nrm = X - S
+  dst = wp.length(nrm)
+
+  if dst > MJ_MINVAL:
+    nrm = nrm / dst
+  else:
+    nrm = N
+
+  dist = dst - sphere_radius - tri_radius
+  pos = sphere_pos + nrm * (sphere_radius + 0.5 * dist)
+
+  return dist, pos, nrm
+
+
+@wp.func
+def box_triangle(
+  box_pos: wp.vec3,
+  box_rot: wp.mat33,
+  box_size: wp.vec3,
+  t1: wp.vec3,
+  t2: wp.vec3,
+  t3: wp.vec3,
+  tri_radius: float,
+) -> Tuple[wp.vec2, mat23f, mat23f]:
+  """Core contact geometry calculation for box-triangle collision.
+
+  Port of mjraw_BoxTriangle from engine_collision_primitive.c
+
+  Args:
+    box_pos: Center position of the box.
+    box_rot: Orientation matrix of the box.
+    box_size: Half-sizes of the box.
+    t1: Triangle vertex positions.
+    t2: Triangle vertex positions.
+    t3: Triangle vertex positions.
+    tri_radius: Triangle (flex element) radius.
+
+  Returns:
+    - wp.vec2 of distances for up to 2 contacts (MJ_MAXVAL if no collision).
+    - mat23f of contact positions (2 x vec3).
+    - mat23f of contact normals (2 x vec3).
+  """
+  dist1 = MJ_MAXVAL
+  dist2 = MJ_MAXVAL
+  pos1 = wp.vec3(0.0)
+  pos2 = wp.vec3(0.0)
+  nrm1 = wp.vec3(0.0)
+  nrm2 = wp.vec3(0.0)
+  cnt = 0
+
+  box_rotT = wp.transpose(box_rot)
+
+  for vi in range(3):
+    vert = wp.vec3(0.0)
+    if vi == 0:
+      vert = t1
+    elif vi == 1:
+      vert = t2
+    else:
+      vert = t3
+
+    diff = vert - box_pos
+    local = box_rotT @ diff
+
+    maxaxis = 0
+    maxval = wp.abs(local[0]) - box_size[0]
+    for j in range(1, 3):
+      val = wp.abs(local[j]) - box_size[j]
+      if val > maxval:
+        maxval = val
+        maxaxis = j
+
+    inside = True
+    for j in range(3):
+      if wp.abs(local[j]) > box_size[j] + tri_radius:
+        inside = False
+
+    if inside and cnt < 2:
+      nrm_local = wp.vec3(0.0)
+      if maxaxis == 0:
+        nrm_local = wp.vec3(wp.sign(local[0]), 0.0, 0.0)
+      elif maxaxis == 1:
+        nrm_local = wp.vec3(0.0, wp.sign(local[1]), 0.0)
+      else:
+        nrm_local = wp.vec3(0.0, 0.0, wp.sign(local[2]))
+
+      nrm_global = box_rot @ nrm_local
+      d = maxval - tri_radius
+      offset = tri_radius + d * 0.5
+      p = vert - nrm_global * offset
+
+      if cnt == 0:
+        dist1 = d
+        pos1 = p
+        nrm1 = nrm_global
+      else:
+        dist2 = d
+        pos2 = p
+        nrm2 = nrm_global
+      cnt += 1
+
+  for i in range(8):
+    if cnt >= 2:
+      break
+
+    vec = wp.vec3(
+      wp.where(i & 1, box_size[0], -box_size[0]),
+      wp.where(i & 2, box_size[1], -box_size[1]),
+      wp.where(i & 4, box_size[2], -box_size[2]),
+    )
+    corner = box_rot @ vec + box_pos
+
+    d, p, n = sphere_triangle(corner, 0.0, t1, t2, t3, tri_radius)
+    if d < MJ_MAXVAL:
+      if cnt == 0:
+        dist1 = d
+        pos1 = p
+        nrm1 = n
+      elif cnt == 1:
+        dist2 = d
+        pos2 = p
+        nrm2 = n
+      cnt += 1
+
+  return (
+    wp.vec2(dist1, dist2),
+    mat23f(pos1[0], pos1[1], pos1[2], pos2[0], pos2[1], pos2[2]),
+    mat23f(nrm1[0], nrm1[1], nrm1[2], nrm2[0], nrm2[1], nrm2[2]),
+  )
+
+
+@wp.func
+def capsule_triangle(
+  capsule_pos: wp.vec3,
+  capsule_axis: wp.vec3,
+  capsule_radius: float,
+  capsule_half_length: float,
+  t1: wp.vec3,
+  t2: wp.vec3,
+  t3: wp.vec3,
+  tri_radius: float,
+) -> Tuple[wp.vec2, mat23f, mat23f]:
+  """Core contact geometry calculation for capsule-triangle collision.
+
+  Port of mjraw_CapsuleTriangle from engine_collision_primitive.c
+
+  Args:
+    capsule_pos: Center position of the capsule.
+    capsule_axis: Unit axis direction of the capsule.
+    capsule_radius: Radius of the capsule.
+    capsule_half_length: Half-length of the capsule cylinder.
+    t1: Triangle vertex positions.
+    t2: Triangle vertex positions.
+    t3: Triangle vertex positions.
+    tri_radius: Triangle (flex element) radius.
+
+  Returns:
+    - wp.vec2 of distances for up to 2 contacts (MJ_MAXVAL if no collision).
+    - mat23f of contact positions (2 x vec3).
+    - mat23f of contact normals (2 x vec3).
+  """
+  dist1 = MJ_MAXVAL
+  dist2 = MJ_MAXVAL
+  pos1 = wp.vec3(0.0)
+  pos2 = wp.vec3(0.0)
+  nrm1 = wp.vec3(0.0)
+  nrm2 = wp.vec3(0.0)
+  cnt = 0
+
+  p1 = capsule_pos - capsule_axis * capsule_half_length
+  p2 = capsule_pos + capsule_axis * capsule_half_length
+
+  d, p, n = sphere_triangle(p1, capsule_radius, t1, t2, t3, tri_radius)
+  if d < MJ_MAXVAL:
+    dist1 = d
+    pos1 = p
+    nrm1 = n
+    cnt = 1
+
+  d, p, n = sphere_triangle(p2, capsule_radius, t1, t2, t3, tri_radius)
+  if d < MJ_MAXVAL and cnt < 2:
+    if cnt == 0:
+      dist1 = d
+      pos1 = p
+      nrm1 = n
+    else:
+      dist2 = d
+      pos2 = p
+      nrm2 = n
+    cnt += 1
+
+  ab = p2 - p1
+  ab_len_sq = 4.0 * capsule_half_length * capsule_half_length
+
+  for vi in range(3):
+    if cnt >= 2:
+      break
+
+    vert = wp.vec3(0.0)
+    if vi == 0:
+      vert = t1
+    elif vi == 1:
+      vert = t2
+    else:
+      vert = t3
+
+    vec = vert - p1
+    t_param = wp.dot(vec, ab) / wp.max(MJ_MINVAL, ab_len_sq)
+
+    if t_param > MJ_MINVAL and t_param < 1.0 - MJ_MINVAL:
+      closest = p1 + ab * t_param
+      diff = vert - closest
+      dist_raw = wp.length(diff)
+
+      if dist_raw > MJ_MINVAL:
+        nrm = diff / dist_raw
+        d = dist_raw - capsule_radius - tri_radius
+        p = (closest + vert + nrm * (capsule_radius - tri_radius)) * 0.5
+
+        if cnt == 0:
+          dist1 = d
+          pos1 = p
+          nrm1 = nrm
+        else:
+          dist2 = d
+          pos2 = p
+          nrm2 = nrm
+        cnt += 1
+
+  return (
+    wp.vec2(dist1, dist2),
+    mat23f(pos1[0], pos1[1], pos1[2], pos2[0], pos2[1], pos2[2]),
+    mat23f(nrm1[0], nrm1[1], nrm1[2], nrm2[0], nrm2[1], nrm2[2]),
+  )
+
+
+@wp.func
+def cylinder_triangle(
+  cylinder_pos: wp.vec3,
+  cylinder_axis: wp.vec3,
+  cylinder_radius: float,
+  cylinder_half_height: float,
+  t1: wp.vec3,
+  t2: wp.vec3,
+  t3: wp.vec3,
+  tri_radius: float,
+) -> Tuple[wp.vec2, mat23f, mat23f]:
+  """Core contact geometry calculation for cylinder-triangle collision.
+
+  Args:
+    cylinder_pos: Center position of the cylinder.
+    cylinder_axis: Unit axis direction of the cylinder.
+    cylinder_radius: Radius of the cylinder.
+    cylinder_half_height: Half-height of the cylinder.
+    t1: Triangle vertex positions.
+    t2: Triangle vertex positions.
+    t3: Triangle vertex positions.
+    tri_radius: Triangle (flex element) radius.
+
+  Returns:
+    - wp.vec2 of distances for up to 2 contacts (MJ_MAXVAL if no collision).
+    - mat23f of contact positions (2 x vec3).
+    - mat23f of contact normals (2 x vec3).
+  """
+  dist1 = MJ_MAXVAL
+  dist2 = MJ_MAXVAL
+  pos1 = wp.vec3(0.0)
+  pos2 = wp.vec3(0.0)
+  nrm1 = wp.vec3(0.0)
+  nrm2 = wp.vec3(0.0)
+  cnt = int(0)
+
+  p1 = cylinder_pos - cylinder_axis * cylinder_half_height
+  p2 = cylinder_pos + cylinder_axis * cylinder_half_height
+
+  ab = p2 - p1
+  ab_len_sq = 4.0 * cylinder_half_height * cylinder_half_height
+
+  for vi in range(3):
+    if cnt >= 2:
+      break
+
+    vert = wp.vec3(0.0)
+    if vi == 0:
+      vert = t1
+    elif vi == 1:
+      vert = t2
+    else:
+      vert = t3
+
+    vec = vert - p1
+    t_param = wp.dot(vec, ab) / wp.max(MJ_MINVAL, ab_len_sq)
+
+    if t_param > MJ_MINVAL and t_param < 1.0 - MJ_MINVAL:
+      closest = p1 + ab * t_param
+      diff = vert - closest
+      dist_raw = wp.length(diff)
+
+      if dist_raw < cylinder_radius + tri_radius:
+        if dist_raw > MJ_MINVAL:
+          nrm = diff / dist_raw
+          d = dist_raw - cylinder_radius - tri_radius
+          p = (closest + vert + nrm * (cylinder_radius - tri_radius)) * 0.5
+        else:
+          dist_to_side = cylinder_radius
+          dist_to_p2 = (1.0 - t_param) * wp.sqrt(ab_len_sq)
+          dist_to_p1 = t_param * wp.sqrt(ab_len_sq)
+
+          if dist_to_p2 < dist_to_side and dist_to_p2 < dist_to_p1:
+            nrm = cylinder_axis
+            d = -dist_to_p2 - tri_radius
+            p = vert
+          elif dist_to_p1 < dist_to_side:
+            nrm = -cylinder_axis
+            d = -dist_to_p1 - tri_radius
+            p = vert
+          else:
+            tri_normal = wp.normalize(wp.cross(t2 - t1, t3 - t1))
+            nrm = tri_normal
+            d = -cylinder_radius - tri_radius
+            p = closest
+
+        if cnt == 0:
+          dist1 = d
+          pos1 = p
+          nrm1 = nrm
+        else:
+          dist2 = d
+          pos2 = p
+          nrm2 = nrm
+        cnt += 1
+    elif t_param <= MJ_MINVAL:
+      diff = vert - p1
+      signed_dist = wp.dot(diff, cylinder_axis)
+      perp = diff - cylinder_axis * signed_dist
+      perp_len = wp.length(perp)
+
+      if perp_len < cylinder_radius:
+        d = -signed_dist - tri_radius
+        nrm = -cylinder_axis
+        p = vert - nrm * (tri_radius + d * 0.5)
+        if cnt == 0:
+          dist1 = d
+          pos1 = p
+          nrm1 = nrm
+        else:
+          dist2 = d
+          pos2 = p
+          nrm2 = nrm
+        cnt += 1
+      elif perp_len < cylinder_radius + tri_radius:
+        edge_dir = perp / perp_len
+        edge_point = p1 + edge_dir * cylinder_radius
+        diff_to_edge = vert - edge_point
+        dist_raw = wp.length(diff_to_edge)
+        if dist_raw > MJ_MINVAL:
+          nrm = diff_to_edge / dist_raw
+          d = dist_raw - tri_radius
+          p = vert - nrm * (tri_radius + d * 0.5)
+          if cnt == 0:
+            dist1 = d
+            pos1 = p
+            nrm1 = nrm
+          else:
+            dist2 = d
+            pos2 = p
+            nrm2 = nrm
+          cnt += 1
+    else:
+      diff = vert - p2
+      signed_dist = wp.dot(diff, cylinder_axis)
+      perp = diff - cylinder_axis * signed_dist
+      perp_len = wp.length(perp)
+
+      if perp_len < cylinder_radius:
+        d = signed_dist - tri_radius
+        nrm = cylinder_axis
+        p = vert - nrm * (tri_radius + d * 0.5)
+        if cnt == 0:
+          dist1 = d
+          pos1 = p
+          nrm1 = nrm
+        else:
+          dist2 = d
+          pos2 = p
+          nrm2 = nrm
+        cnt += 1
+      elif perp_len < cylinder_radius + tri_radius:
+        edge_dir = perp / perp_len
+        edge_point = p2 + edge_dir * cylinder_radius
+        diff_to_edge = vert - edge_point
+        dist_raw = wp.length(diff_to_edge)
+        if dist_raw > MJ_MINVAL:
+          nrm = diff_to_edge / dist_raw
+          d = dist_raw - tri_radius
+          p = vert - nrm * (tri_radius + d * 0.5)
+          if cnt == 0:
+            dist1 = d
+            pos1 = p
+            nrm1 = nrm
+          else:
+            dist2 = d
+            pos2 = p
+            nrm2 = nrm
+          cnt += 1
+
+  # edge-vs-segment checks
+  for edge_idx in range(3):
+    if cnt >= 2:
+      break
+    u = t1 if edge_idx == 0 else (t2 if edge_idx == 1 else t3)
+    v = t2 if edge_idx == 0 else (t3 if edge_idx == 1 else t1)
+
+    closest_axis, closest_edge = closest_segment_to_segment_points(p1, p2, u, v)
+    diff = closest_edge - closest_axis
+    dist_raw = wp.length(diff)
+
+    if dist_raw < cylinder_radius + tri_radius:
+      if dist_raw > MJ_MINVAL:
+        nrm = diff / dist_raw
+        d = dist_raw - cylinder_radius - tri_radius
+        p = (closest_axis + closest_edge + nrm * (cylinder_radius - tri_radius)) * 0.5
+
+        if cnt == 0:
+          dist1 = d
+          pos1 = p
+          nrm1 = nrm
+        else:
+          dist2 = d
+          pos2 = p
+          nrm2 = nrm
+        cnt += 1
+
+  return (
+    wp.vec2(dist1, dist2),
+    mat23f(pos1[0], pos1[1], pos1[2], pos2[0], pos2[1], pos2[2]),
+    mat23f(nrm1[0], nrm1[1], nrm1[2], nrm2[0], nrm2[1], nrm2[2]),
   )

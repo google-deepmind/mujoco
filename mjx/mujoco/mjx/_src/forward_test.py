@@ -49,6 +49,9 @@ class ForwardTest(absltest.TestCase):
     d.xfrc_applied[0, 2] = 0.1  # torque
     d.xfrc_applied[1, 4] = 0.3  # linear force
     mujoco.mj_step(m, d, 20)  # get some dynamics going
+    # scale down velocities to minimize Jdotv effect (not in MJX)
+    # TODO(team): remove this change when mjx supports this feature
+    d.qvel[:] *= 1e-2
     mujoco.mj_forward(m, d)
 
     mx = mjx.put_model(m)
@@ -78,6 +81,8 @@ class ForwardTest(absltest.TestCase):
 
     # implicitfast
     m.opt.integrator = mujoco.mjtIntegrator.mjINT_IMPLICITFAST
+    # TODO(team): remove this override when the mjx feature matches mujoco
+    m.opt.enableflags |= mujoco.mjtEnableBit.mjENBL_INVDISCRETE
     dx = jax.jit(mjx.implicit)(mx, mjx.put_data(m, d))
     mujoco.mj_implicit(m, d)
     _assert_attr_eq(d, dx, 'qpos')
@@ -90,6 +95,9 @@ class ForwardTest(absltest.TestCase):
     d.xfrc_applied[0, 2] = 0.1  # torque
     d.xfrc_applied[1, 4] = 0.3  # linear force
     mujoco.mj_step(m, d, 20)  # get some dynamics going
+    # scale down velocities to minimize Jdotv effect (not in MJX)
+    # TODO(team): remove this change when mjx supports this feature
+    d.qvel[:] *= 1e-2
 
     dx = jax.jit(mjx.step)(mjx.put_model(m), mjx.put_data(m, d))
     mujoco.mj_step(m, d)
@@ -168,6 +176,50 @@ class ForwardTest(absltest.TestCase):
     dx = jax.jit(mjx.euler)(mjx.put_model(m), mjx.put_data(m, d))
 
     np.testing.assert_allclose(dx.qvel, 1 + m.opt.timestep)
+
+  def test_where(self):
+    m = mujoco.MjModel.from_xml_string("""
+        <mujoco>
+          <worldbody>
+            <body>
+              <joint type="slide" axis="1 0 0"/>
+              <geom size="0.1"/>
+            </body>
+          </worldbody>
+        </mujoco>
+        """)
+    d_template = mjx.make_data(m)
+
+    d1 = d_template.replace(qpos=jp.array([1.0]))
+    d2 = d_template.replace(qpos=jp.array([2.0]))
+
+    # Test scalar condition (outside vmap)
+    out_true = d1.where(True, d2)
+    np.testing.assert_allclose(out_true.qpos, d2.qpos)
+
+    out_false = d1.where(False, d2)
+    np.testing.assert_allclose(out_false.qpos, d1.qpos)
+
+    # Test batched condition (inside vmap)
+    @jax.vmap
+    def merge_batched(done, r, s):
+      return s.where(done, r)
+
+    done_batch = jp.array([True, False])
+    r_batch = jax.vmap(lambda x: d_template.replace(qpos=jp.array([x])))(
+        jp.array([2.0, 3.0])
+    )
+    s_batch = jax.vmap(lambda x: d_template.replace(qpos=jp.array([x])))(
+        jp.array([1.0, 1.0])
+    )
+
+    merged = merge_batched(done_batch, r_batch, s_batch)
+
+    # env 0: done=True -> r -> qpos=2.0
+    # env 1: done=False -> s -> qpos=1.0
+    np.testing.assert_allclose(merged.qpos, jp.array([[2.0], [1.0]]))
+
+
 
 
 class ActuatorTest(parameterized.TestCase):

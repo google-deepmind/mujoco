@@ -16,25 +16,27 @@
 
 #include "src/engine/engine_forward.h"
 
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <limits>
-#include <vector>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
-#include <mujoco/mujoco.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjxmacro.h>
-#include "src/cc/array_safety.h"
+#include <mujoco/mujoco.h>
 #include "src/engine/engine_callback.h"
+#include "src/engine/engine_core_util.h"
+#include "src/engine/engine_derivative.h"
 #include "src/engine/engine_io.h"
 #include "test/fixture.h"
 
 #ifdef MEMORY_SANITIZER
-  #include <sanitizer/msan_interface.h>
+#include <sanitizer/msan_interface.h>
 #endif
 
 namespace mujoco {
@@ -42,6 +44,18 @@ namespace {
 
 static const char* const kEnergyConservingPendulumPath =
     "engine/testdata/derivative/energy_conserving_pendulum.xml";
+
+// helper for precision-aware checks in macros (e.g. MJDATA_POINTERS)
+template <typename T>
+void ExpectNear(T a, T b) {
+  EXPECT_EQ(a, b);
+}
+
+template <>
+void ExpectNear<mjtNum>(mjtNum a, mjtNum b) {
+  EXPECT_EQ(a, b);
+}
+
 static const char* const kDampedActuatorsPath =
     "engine/testdata/derivative/damped_actuators.xml";
 static const char* const kJointForceClamp =
@@ -50,11 +64,13 @@ static const char* const kTendonForceClamp =
     "engine/testdata/actuation/tendon_force_clamp.xml";
 
 using ::testing::Pointwise;
-using ::testing::DoubleNear;
-using ::testing::Ne;
-using ::testing::HasSubstr;
-using ::testing::NotNull;
+
+using ::testing::_;
 using ::testing::Gt;
+using ::testing::HasSubstr;
+using ::testing::IsNull;
+using ::testing::Ne;
+using ::testing::NotNull;
 
 // --------------------------- activation limits -------------------------------
 
@@ -63,7 +79,9 @@ struct ActLimitedTestCase {
   mjtIntegrator integrator;
 };
 
-using ParametrizedForwardTest = ::testing::TestWithParam<ActLimitedTestCase>;
+class ParametrizedForwardTest
+    : public MujocoTest,
+      public ::testing::WithParamInterface<ActLimitedTestCase> {};
 
 TEST_P(ParametrizedForwardTest, ActLimited) {
   static constexpr char xml[] = R"(
@@ -84,36 +102,35 @@ TEST_P(ParametrizedForwardTest, ActLimited) {
   )";
 
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   model->opt.integrator = GetParam().integrator;
 
   data->ctrl[0] = 1.0;
   // integrating up from 0, we will hit the clamp after 99 steps
-  for (int i=0; i < 200; i++) {
-    mj_step(model, data);
+  for (int i = 0; i < 200; i++) {
+    mj_step(model.get(), data.get());
     // always greater than lower bound
     EXPECT_GT(data->act[0], -1);
     // after 99 steps we hit the upper bound
     if (i < 99) EXPECT_LT(data->act[0], 1);
-    if (i >= 99) EXPECT_EQ(data->act[0], 1);
+    if (i >= 99) EXPECT_NEAR(data->act[0], 1, MjTol(0, 5e-6));
   }
 
   data->ctrl[0] = -1.0;
   // integrating down from 1, we will hit the clamp after 199 steps
-  for (int i=0; i < 300; i++) {
-    mj_step(model, data);
+  for (int i = 0; i < 300; i++) {
+    mj_step(model.get(), data.get());
     // always smaller than upper bound
     EXPECT_LT(data->act[0], model->actuator_actrange[1]);
     // after 199 steps we hit the lower bound
     if (i < 199) EXPECT_GT(data->act[0], model->actuator_actrange[0]);
-    if (i >= 199) EXPECT_EQ(data->act[0], model->actuator_actrange[0]);
+    if (i >= 199) {
+      EXPECT_NEAR(data->act[0], model->actuator_actrange[0], MjTol(0.0, 5e-6));
+    }
   }
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -147,25 +164,21 @@ TEST_F(ForwardTest, DamperDampens) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // move the joint
   data->ctrl[0] = 100.0;
   data->ctrl[1] = 0.0;
-  for (int i=0; i < 100; i++)
-    mj_step(model, data);
+  for (int i = 0; i < 100; i++) mj_step(model.get(), data.get());
 
   // stop the joint with damping
   data->ctrl[0] = 0.0;
   data->ctrl[1] = 100.0;
-  for (int i=0; i < 1000; i++)
-    mj_step(model, data);
+  for (int i = 0; i < 1000; i++) mj_step(model.get(), data.get());
 
   EXPECT_LE(data->qvel[0], std::numeric_limits<double>::epsilon());
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 static const char* const kArmatureEquivalencePath =
@@ -184,13 +197,13 @@ TEST_F(ForwardTest, ArmatureEquivalence) {
   mjtNum qpos_mse = 0;
   int nstep = 0;
   while (data->time < 4) {
-    data->ctrl[0] = data->ctrl[1] = mju_sin(2*data->time);
+    data->ctrl[0] = data->ctrl[1] = mju_sin(2 * data->time);
     mj_step(model, data);
     nstep++;
     mjtNum err = data->qpos[0] - data->qpos[2];
     qpos_mse += err * err;
   }
-  EXPECT_LT(mju_sqrt(qpos_mse/nstep), 1e-3);
+  EXPECT_LT(mju_sqrt(qpos_mse / nstep), 1e-3);
 
   // no actuators
   model->opt.disableflags |= mjDSBL_ACTUATION;
@@ -203,7 +216,7 @@ TEST_F(ForwardTest, ArmatureEquivalence) {
     mjtNum err = data->qpos[0] - data->qpos[2];
     qpos_mse += err * err;
   }
-  EXPECT_LT(mju_sqrt(qpos_mse/nstep), 1e-3);
+  EXPECT_LT(mju_sqrt(qpos_mse / nstep), 1e-3);
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -235,45 +248,42 @@ TEST_F(ImplicitIntegratorTest, EulerDampDisable) {
   )";
 
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // step once, call mj_forward, save qvel and qacc
-  mj_step(model, data);
-  mj_forward(model, data);
+  mj_step(model.get(), data.get());
+  mj_forward(model.get(), data.get());
   std::vector<mjtNum> qvel = AsVector(data->qvel, model->nv);
   std::vector<mjtNum> qacc = AsVector(data->qacc, model->nv);
 
   // second step
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
 
   // compute finite-difference acceleration
   std::vector<mjtNum> qacc_fd(model->nv);
-  for (int i=0; i < model->nv; i++) {
+  for (int i = 0; i < model->nv; i++) {
     qacc_fd[i] = (data->qvel[i] - qvel[i]) / model->opt.timestep;
   }
   // expect finite-differenced qacc to match to high precision
-  EXPECT_THAT(qacc_fd, Pointwise(DoubleNear(1e-14), qacc));
+  EXPECT_THAT(qacc_fd, Pointwise(MjNear(1e-14, 1e-6), qacc));
 
   // reach the same initial state
-  mj_resetData(model, data);
-  mj_step(model, data);
+  mj_resetData(model.get(), data.get());
+  mj_step(model.get(), data.get());
 
   // second step again, but with implicit integration of joint damping
   model->opt.disableflags &= ~mjDSBL_EULERDAMP;
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
 
   // compute finite-difference acceleration difference
   std::vector<mjtNum> dqacc(model->nv);
-  for (int i=0; i < model->nv; i++) {
+  for (int i = 0; i < model->nv; i++) {
     dqacc[i] = (data->qvel[i] - qvel[i]) / model->opt.timestep;
   }
   // expect finite-differenced qacc to not match
   EXPECT_GT(mju_norm(dqacc.data(), model->nv), 1);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // Reducing timesteps reduces the difference between implicit/explicit
@@ -294,9 +304,9 @@ TEST_F(ImplicitIntegratorTest, EulerDampLimit) {
   )";
 
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   mjtNum diff_norm_prev = -1;
   for (const mjtNum dt : {1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8}) {
@@ -305,33 +315,30 @@ TEST_F(ImplicitIntegratorTest, EulerDampLimit) {
 
     // step twice with implicit damping, save qvel
     model->opt.disableflags &= ~mjDSBL_EULERDAMP;
-    mj_resetData(model, data);
-    mj_step(model, data);
-    mj_step(model, data);
+    mj_resetData(model.get(), data.get());
+    mj_step(model.get(), data.get());
+    mj_step(model.get(), data.get());
     std::vector<mjtNum> qvel_imp = AsVector(data->qvel, model->nv);
 
     // step once, step again without implicit damping, save qvel
-    mj_resetData(model, data);
-    mj_step(model, data);
+    mj_resetData(model.get(), data.get());
+    mj_step(model.get(), data.get());
     model->opt.disableflags |= mjDSBL_EULERDAMP;
-    mj_step(model, data);
+    mj_step(model.get(), data.get());
     std::vector<mjtNum> qvel_exp = AsVector(data->qvel, model->nv);
 
     mjtNum diff_norm = 0;
-    for (int i=0; i < model->nv; i++) {
+    for (int i = 0; i < model->nv; i++) {
       diff_norm += (qvel_imp[i] - qvel_exp[i]) * (qvel_imp[i] - qvel_exp[i]);
     }
     diff_norm = mju_sqrt(diff_norm);
 
-    if (diff_norm_prev != -1){
+    if (diff_norm_prev != -1) {
       EXPECT_LT(diff_norm, diff_norm_prev);
     }
 
     diff_norm_prev = diff_norm;
   }
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // Euler and implicit should be equivalent if there is only joint damping
@@ -352,32 +359,31 @@ TEST_F(ImplicitIntegratorTest, EulerImplicitEquivalent) {
   )";
 
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // step 10 times with Euler, save copy of qpos as vector
-  for (int i=0; i < 10; i++) {
-    mj_step(model, data);
+  for (int i = 0; i < 10; i++) {
+    mj_step(model.get(), data.get());
   }
   std::vector<mjtNum> qposEuler = AsVector(data->qpos, model->nq);
 
   // reset, step 10 times with implicit
-  mj_resetData(model, data);
+  mj_resetData(model.get(), data.get());
   model->opt.integrator = mjINT_IMPLICIT;
-  for (int i=0; i < 10; i++) {
-    mj_step(model, data);
+  for (int i = 0; i < 10; i++) {
+    mj_step(model.get(), data.get());
   }
 
   // expect qpos vectors to be numerically different
+#ifndef mjUSESINGLE
   EXPECT_THAT(AsVector(data->qpos, model->nq), Pointwise(Ne(), qposEuler));
+#endif
 
   // expect qpos vectors to be similar to high precision
   EXPECT_THAT(AsVector(data->qpos, model->nq),
-              Pointwise(DoubleNear(1e-14), qposEuler));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
+              Pointwise(MjNear(1e-14, 1e-6), qposEuler));
 }
 
 // Joint and actuator damping should integrate identically under implicit
@@ -387,23 +393,25 @@ TEST_F(ImplicitIntegratorTest, JointActuatorEquivalent) {
   mjData* data = mj_makeData(model);
 
   // take 1000 steps with Euler
-  for (int i=0; i < 1000; i++) {
+  for (int i = 0; i < 1000; i++) {
     mj_step(model, data);
   }
   // expect corresponding joint values to be significantly different
-  EXPECT_GT(fabs(data->qpos[0]-data->qpos[2]), 1e-4);
-  EXPECT_GT(fabs(data->qpos[1]-data->qpos[3]), 1e-4);
+#ifndef mjUSESINGLE
+  EXPECT_GT(fabs(data->qpos[0] - data->qpos[2]), 1e-4);
+  EXPECT_GT(fabs(data->qpos[1] - data->qpos[3]), 1e-4);
+#endif
 
   // reset, take 10 steps with implicit
   mj_resetData(model, data);
   model->opt.integrator = mjINT_IMPLICIT;
-  for (int i=0; i < 10; i++) {
+  for (int i = 0; i < 10; i++) {
     mj_step(model, data);
   }
 
   // expect corresponding joint values to be insignificantly different
-  EXPECT_LT(fabs(data->qpos[0]-data->qpos[2]), 1e-16);
-  EXPECT_LT(fabs(data->qpos[1]-data->qpos[3]), 1e-16);
+  EXPECT_LT(fabs(data->qpos[0] - data->qpos[2]), MjTol(1e-16, 1e-6));
+  EXPECT_LT(fabs(data->qpos[1] - data->qpos[3]), MjTol(1e-16, 1e-6));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -420,7 +428,7 @@ TEST_F(ImplicitIntegratorTest, EnergyConservation) {
 
   // take nstep steps with Euler, measure energy (potential + kinetic)
   model->opt.integrator = mjINT_EULER;
-  for (int i=0; i < nstep; i++) {
+  for (int i = 0; i < nstep; i++) {
     mj_step(model, data);
   }
   mjtNum energyEuler = data->energy[0] + data->energy[1];
@@ -428,7 +436,7 @@ TEST_F(ImplicitIntegratorTest, EnergyConservation) {
   // take nstep steps with implicit, measure energy
   model->opt.integrator = mjINT_IMPLICIT;
   mj_resetData(model, data);
-  for (int i=0; i < nstep; i++) {
+  for (int i = 0; i < nstep; i++) {
     mj_step(model, data);
   }
   mjtNum energyImplicit = data->energy[0] + data->energy[1];
@@ -436,7 +444,7 @@ TEST_F(ImplicitIntegratorTest, EnergyConservation) {
   // take nstep steps with 4th order Runge-Kutta, measure energy
   model->opt.integrator = mjINT_RK4;
   mj_resetData(model, data);
-  for (int i=0; i < nstep; i++) {
+  for (int i = 0; i < nstep; i++) {
     mj_step(model, data);
   }
   mjtNum energyRK4 = data->energy[0] + data->energy[1];
@@ -456,6 +464,355 @@ TEST_F(ImplicitIntegratorTest, EnergyConservation) {
   mj_deleteModel(model);
 }
 
+// free-body local solve: implicitfast matches implicit exactly for a standalone
+// free body
+TEST_F(ImplicitIntegratorTest, FreeBodyMatchesImplicit) {
+  // damped free body in vacuum
+  static constexpr char xml1[] = R"(
+  <mujoco>
+    <option timestep="0.005"/>
+    <worldbody>
+      <body pos="0.1 -0.2 0.5" euler="20 -30 40">
+        <joint type="free" damping="0.1"/>
+        <geom type="box" size=".1 .2 .3" mass="2" pos=".04 -.02 .03" euler="10 20 30"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // free body in fluid with wind, ellipsoid fluid model (asymmetric lift
+  // derivatives)
+  static constexpr char xml2[] = R"(
+  <mujoco>
+    <option timestep="0.005" density="1.2" viscosity="0.002" wind="1 2 3"/>
+    <worldbody>
+      <body pos="0.1 -0.2 0.5" euler="20 -30 40">
+        <joint type="free"/>
+        <geom type="ellipsoid" size=".1 .2 .3" mass="2" pos=".04 -.02 .03"
+              fluidshape="ellipsoid"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  int xml_idx = 1;
+  for (auto xml : {xml1, xml2}) {
+    SCOPED_TRACE(testing::Message() << "XML case " << xml_idx++);
+    char error[1024];
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    MjDataPtr d1 = MakeData(model);
+    MjDataPtr d2 = MakeData(model);
+    mjModel* m = model.get();
+
+    // tumbling initial velocity
+    mj_resetData(m, d1.get());
+    d1->qvel[3] = 5;
+    d1->qvel[4] = -3;
+    d1->qvel[5] = 2;
+
+    // step both integrators from identical states, re-synchronizing each step
+    // to avoid chaotic divergence of tumbling trajectories
+    int nstate = mj_stateSize(m, mjSTATE_INTEGRATION);
+    std::vector<mjtNum> state(nstate);
+    for (int i = 0; i < 50; i++) {
+      mj_getState(m, d1.get(), state.data(), mjSTATE_INTEGRATION);
+      mj_setState(m, d2.get(), state.data(), mjSTATE_INTEGRATION);
+
+      m->opt.integrator = mjINT_IMPLICITFAST;
+      mj_step(m, d1.get());
+      m->opt.integrator = mjINT_IMPLICIT;
+      mj_step(m, d2.get());
+
+      for (int k = 0; k < m->nv; k++) {
+        EXPECT_NEAR(d1->qvel[k], d2->qvel[k], MjTol(1e-14, 1e-6))
+            << "step " << i << " dof " << k;
+      }
+    }
+  }
+}
+
+// free-body local solve: spinning free bodies do not gain energy in vacuum
+TEST_F(ImplicitIntegratorTest, FreeBodyGyroStable) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast" timestep="0.005">
+      <flag energy="enable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="box" size=".1 .2 .3" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
+
+  // middle-axis tumble and fast principal-axis spin
+  static constexpr mjtNum qvel0[2][3] = {{0.05, 5, 0.05}, {20, 0.05, 0.05}};
+
+  for (int c = 0; c < 2; c++) {
+    SCOPED_TRACE(testing::Message() << "velocity case " << c);
+    mj_resetData(m, d);
+    mju_copy3(d->qvel + 3, qvel0[c]);
+    mj_forward(m, d);
+    mjtNum initial_energy = d->energy[1];
+
+    // 100 simulated seconds
+    for (int i = 0; i < 20000; i++) {
+      mj_step(m, d);
+      ASSERT_LT(d->energy[1], 1.01 * initial_energy)
+          << "energy gain at step " << i;
+    }
+  }
+}
+
+// free-body local solve: applies to bodies in contact
+TEST_F(ImplicitIntegratorTest, FreeBodyGyroStableContact) {
+  // spinning ellipsoid on an inclined plane, as in gyroscopic.xml
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast" timestep="0.002"/>
+    <worldbody>
+      <geom type="plane" size="5 5 .1" euler="0 15 0"/>
+      <body pos="0 0 .2">
+        <freejoint/>
+        <geom type="ellipsoid" size=".05 .1 .15" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
+
+  mj_resetData(m, d);
+  d->qvel[3] = 30;
+  mjtNum initial_speed = mju_norm(d->qvel, m->nv);
+
+  int ncon_total = 0;
+  for (int i = 0; i < 5000; i++) {
+    mj_step(m, d);
+    ncon_total += d->ncon;
+    ASSERT_LT(mju_norm(d->qvel, m->nv), 2 * initial_speed)
+        << "speed gain at step " << i;
+  }
+
+  // the body was in contact while spinning
+  EXPECT_GT(ncon_total, 1000);
+}
+
+// free-body local solve: energy of a tumbling free body never increases and is
+// only mildly damped; angular momentum drift is bounded
+TEST_F(ImplicitIntegratorTest, FreeBodyConservation) {
+  // aligned: CoM at joint origin
+  static constexpr char xml1[] = R"(
+  <mujoco>
+    <option integrator="implicitfast" timestep="0.01">
+      <flag energy="enable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="box" size=".1 .2 .3" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // non-aligned: CoM offset from joint origin
+  static constexpr char xml2[] = R"(
+  <mujoco>
+    <option integrator="implicitfast" timestep="0.01">
+      <flag energy="enable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="box" size=".1 .2 .3" mass="1" euler="10 20 30" pos=".03 .02 .01"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  int xml_idx = 1;
+  for (auto xml : {xml1, xml2}) {
+    SCOPED_TRACE(testing::Message() << "XML case " << xml_idx++);
+    char error[1024];
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    MjDataPtr data = MakeData(model);
+    mjModel* m = model.get();
+    mjData* d = data.get();
+
+    mj_resetData(m, d);
+    d->qvel[3] = 1.0;
+    d->qvel[4] = 2.0;
+    d->qvel[5] = 3.0;
+    mj_forward(m, d);
+    mjtNum initial_energy = d->energy[1];
+    mjtNum initial_angmom[3];
+    mj_subtreeVel(m, d);
+    mju_copy3(initial_angmom, d->subtree_angmom);
+
+    for (int i = 0; i < 500; i++) {
+      mj_step(m, d);
+
+      // energy never increases (small tolerance for rounding)
+      ASSERT_LT(d->energy[1], initial_energy * (1 + MjTol(1e-9, 1e-4)))
+          << "energy gain at step " << i;
+    }
+
+    // implicit damping of tumbling is mild: measured E_end/E0 = 0.93
+    EXPECT_GT(d->energy[1], 0.7 * initial_energy);
+
+    // angular momentum drift is bounded: measured 5e-3
+    mj_subtreeVel(m, d);
+    mjtNum angmom_err[3];
+    mju_sub3(angmom_err, d->subtree_angmom, initial_angmom);
+    EXPECT_LT(mju_norm3(angmom_err), 0.05);
+  }
+}
+
+// gyroscopic instability: Euler gains energy where implicitfast does not
+TEST_F(ImplicitIntegratorTest, FreeBodyEulerGainsImplicitfastDissipates) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01">
+      <flag energy="enable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="box" size=".1 .2 .3" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
+
+  mjtNum energy_end[2];
+  for (int integrator : {mjINT_EULER, mjINT_IMPLICITFAST}) {
+    m->opt.integrator = integrator;
+    mj_resetData(m, d);
+    d->qvel[3] = 1.0;
+    d->qvel[4] = 2.0;
+    d->qvel[5] = 3.0;
+    mj_forward(m, d);
+    mjtNum initial_energy = d->energy[1];
+    for (int i = 0; i < 500; i++) {
+      mj_step(m, d);
+    }
+    energy_end[integrator == mjINT_IMPLICITFAST] =
+        d->energy[1] / initial_energy;
+  }
+
+  // Euler gains energy (measured: 1.09), implicitfast does not
+  EXPECT_GT(energy_end[0], 1.01);
+  EXPECT_LT(energy_end[1], 1.0);
+}
+
+// the invdiscrete flag has no effect on forward dynamics
+TEST_F(ImplicitIntegratorTest, InvdiscreteForwardNoop) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.005"/>
+    <worldbody>
+      <geom type="plane" size="2 2 .1"/>
+      <body pos="0 0 .3">
+        <joint type="free" damping="0.1"/>
+        <geom type="box" size=".1 .2 .3" mass="2" pos=".03 .02 .01"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr d1 = MakeData(model);
+  MjDataPtr d2 = MakeData(model);
+  mjModel* m = model.get();
+
+  for (int integrator : {mjINT_IMPLICITFAST, mjINT_IMPLICIT}) {
+    m->opt.integrator = integrator;
+
+    mj_resetData(m, d1.get());
+    d1->qvel[3] = 5;
+    d1->qvel[5] = 2;
+    mj_resetData(m, d2.get());
+    d2->qvel[3] = 5;
+    d2->qvel[5] = 2;
+
+    for (int i = 0; i < 200; i++) {
+      m->opt.enableflags &= ~mjENBL_INVDISCRETE;
+      mj_step(m, d1.get());
+      m->opt.enableflags |= mjENBL_INVDISCRETE;
+      mj_step(m, d2.get());
+    }
+    m->opt.enableflags &= ~mjENBL_INVDISCRETE;
+
+    // trajectories are bit-identical
+    for (int k = 0; k < m->nq; k++) {
+      EXPECT_EQ(d1->qpos[k], d2->qpos[k]) << "qpos " << k;
+    }
+    for (int k = 0; k < m->nv; k++) {
+      EXPECT_EQ(d1->qvel[k], d2->qvel[k]) << "qvel " << k;
+    }
+  }
+}
+
+// model with degenerate translational inertia
+TEST_F(ForwardTest, DegenerateInertia) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast" cone="elliptic">
+      <flag gravity="disable" diagexact="enable"/>
+    </option>
+    <worldbody>
+      <body name="1" pos="0.05 0.3 0">
+        <joint name="1" axis="0 1 0"/>
+        <geom type="capsule" size="0.1 0.5"/>
+      </body>
+      <body name="2">
+        <joint name="2" axis="1 0 0" stiffness="1" springref="90"/>
+        <geom type="capsule" size="0.1 0.5"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  for (int i = 0; i < 1000; i++) {
+    mj_step(model.get(), data.get());
+    EXPECT_EQ(data->warning[mjWARN_BADQACC].number, 0)
+        << "divergence at timestep " << i;
+    if (data->warning[mjWARN_BADQACC].number != 0) {
+      break;
+    }
+  }
+}
+
 TEST_F(ForwardTest, ControlClamping) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -472,65 +829,56 @@ TEST_F(ForwardTest, ControlClamping) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // for the unclamped actuator, ctrl={1, 2} produce different accelerations
   data->ctrl[0] = 1;
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   mjtNum qacc1 = data->qacc[0];
   data->ctrl[0] = 2;
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   mjtNum qacc2 = data->qacc[0];
   EXPECT_NE(qacc1, qacc2);
 
   // for the clamped actuator, ctrl={1, 2} produce identical accelerations
   data->ctrl[1] = 1;
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   qacc1 = data->qacc[0];
   data->ctrl[1] = 2;
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   qacc2 = data->qacc[0];
   EXPECT_EQ(qacc1, qacc2);
 
   // data->ctrl[1] remains pristine
   EXPECT_EQ(data->ctrl[1], 2);
 
-  // install warning handler
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
 
   // for the unclamped actuator, huge raises warning
-  data->ctrl[0] = 10*mjMAXVAL;
-  mj_forward(model, data);
-  EXPECT_THAT(warning,
-              HasSubstr("Nan, Inf or huge value in CTRL at ACTUATOR 0"));
+  warning_handler.ExpectWarnings(
+      "Nan, Inf or huge value in CTRL at ACTUATOR 0");
+  data->ctrl[0] = 10 * mjMAXVAL;
+  mj_forward(model.get(), data.get());
+  testing::Mock::VerifyAndClearExpectations(&warning_handler);
 
   // for the clamped actuator, huge does not raise warning
-  mj_resetData(model, data);
-  warning[0] = '\0';
-  data->ctrl[1] = 10*mjMAXVAL;
-  mj_forward(model, data);
-  EXPECT_EQ(warning[0], '\0');
+  EXPECT_CALL(warning_handler, Warn(_)).Times(0);
+  mj_resetData(model.get(), data.get());
+  data->ctrl[1] = 10 * mjMAXVAL;
+  mj_forward(model.get(), data.get());
+  testing::Mock::VerifyAndClearExpectations(&warning_handler);
 
   // for the clamped actuator, NaN raises warning
-  mj_resetData(model, data);
+  warning_handler.ExpectWarnings(
+      "Nan, Inf or huge value in CTRL at ACTUATOR 1");
+  mj_resetData(model.get(), data.get());
   data->ctrl[1] = std::numeric_limits<double>::quiet_NaN();
-  mj_forward(model, data);
-  EXPECT_THAT(warning,
-              HasSubstr("Nan, Inf or huge value in CTRL at ACTUATOR 1"));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  mj_forward(model.get(), data.get());
 }
 
-void control_callback(const mjModel* m, mjData *d) {
-  d->ctrl[0] = 2;
-}
+void control_callback(const mjModel* m, mjData* d) { d->ctrl[0] = 2; }
 
 TEST_F(ForwardTest, MjcbControlDisabled) {
   static constexpr char xml[] = R"(
@@ -547,30 +895,27 @@ TEST_F(ForwardTest, MjcbControlDisabled) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // install global control callback
   mjcb_control = control_callback;
 
   // call forward
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   // expect that callback was used
   EXPECT_EQ(data->ctrl[0], 2.0);
 
   // reset, disable actuation, call forward
-  mj_resetData(model, data);
+  mj_resetData(model.get(), data.get());
   model->opt.disableflags |= mjDSBL_ACTUATION;
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   // expect that callback was not used
   EXPECT_EQ(data->ctrl[0], 0.0);
 
   // remove global control callback
   mjcb_control = nullptr;
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(ForwardTest, gravcomp) {
@@ -594,13 +939,15 @@ TEST_F(ForwardTest, gravcomp) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
-  mjData* data = mj_makeData(model);
-  while (data->time < 1) { mj_step(model, data); }
+  MjDataPtr data = MakeData(model);
+  while (data->time < 1) {
+    mj_step(model.get(), data.get());
+  }
 
-  mjtNum dist = 0.5*mju_norm3(model->opt.gravity)*(data->time*data->time);
+  mjtNum dist = 0.5 * mju_norm3(model->opt.gravity) * (data->time * data->time);
 
   // expect that body 1 moved down, allowing some slack from our estimate
   EXPECT_NEAR(data->qpos[0], -dist, 0.011);
@@ -610,9 +957,6 @@ TEST_F(ForwardTest, gravcomp) {
 
   // expect that body 3 moves up the same distance that body 0 moved down
   EXPECT_EQ(data->qpos[0], -data->qpos[2]);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // test disabling of equality constraints
@@ -631,14 +975,14 @@ TEST_F(ForwardTest, eq_active) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
-  mjData* data = mj_makeData(model);
+  MjDataPtr data = MakeData(model);
 
   // simulate for 1 second
   while (data->time < 1) {
-    mj_step(model, data);
+    mj_step(model.get(), data.get());
   }
 
   // expect that the body has barely moved
@@ -647,7 +991,7 @@ TEST_F(ForwardTest, eq_active) {
   // turn the equality off, simulate for another second
   data->eq_active[0] = 0;
   while (data->time < 2) {
-    mj_step(model, data);
+    mj_step(model.get(), data.get());
   }
 
   // expect that the body has fallen about 5m
@@ -657,18 +1001,18 @@ TEST_F(ForwardTest, eq_active) {
   // turn the equality back on, simulate for another second
   data->eq_active[0] = 1;
   while (data->time < 3) {
-    mj_step(model, data);
+    mj_step(model.get(), data.get());
   }
 
   // expect that the body has snapped back
   EXPECT_LT(mju_abs(data->qpos[0]), 0.001);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // test that normalized and denormalized quats give the same result
 TEST_F(ForwardTest, NormalizeQuats) {
+#ifdef mjUSESINGLE
+  GTEST_SKIP() << "Skipping in float32: exact mjData comparison infeasible.";
+#endif
   static constexpr char xml[] = R"(
   <mujoco>
     <option integrator="implicit">
@@ -691,27 +1035,27 @@ TEST_F(ForwardTest, NormalizeQuats) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
-  mjData* data_u = mj_makeData(model);
+  MjDataPtr data_u = MakeData(model);
 
-  // we'll compare all the memory, so unpoison it first
-  #ifdef MEMORY_SANITIZER
-    __msan_unpoison(data_u->buffer, data_u->nbuffer);
-    __msan_unpoison(data_u->arena, data_u->narena);
-  #endif
+// we'll compare all the memory, so unpoison it first
+#ifdef MEMORY_SANITIZER
+  __msan_unpoison(data_u->buffer, data_u->nbuffer);
+  __msan_unpoison(data_u->arena, data_u->narena);
+#endif
 
   // set quats to denormalized values, non-zero velocities
   for (int i = 3; i < model->nq; i++) data_u->qpos[i] = i;
-  for (int i = 0; i < model->nv; i++) data_u->qvel[i] = 0.1*i;
+  for (int i = 0; i < model->nv; i++) data_u->qvel[i] = 0.1 * i;
 
   // copy data and normalize quats
-  mjData* data_n = mj_copyData(nullptr, model, data_u);
-  mj_normalizeQuat(model, data_n->qpos);
+  mjData* data_n = mj_copyData(nullptr, model.get(), data_u.get());
+  mj_normalizeQuat(model.get(), data_n->qpos);
 
   // call forward, expect quats to be untouched
-  mj_forward(model, data_u);
+  mj_forward(model.get(), data_u.get());
   for (int i = 3; i < model->nq; i++) {
     EXPECT_EQ(data_u->qpos[i], (mjtNum)i);
   }
@@ -720,51 +1064,48 @@ TEST_F(ForwardTest, NormalizeQuats) {
   EXPECT_EQ(data_u->nl, 1);
 
   // step both models
-  mj_step(model, data_u);
-  mj_step(model, data_n);
+  mj_step(model.get(), data_u.get());
+  mj_step(model.get(), data_n);
 
-  // expect everything to match
-  MJDATA_POINTERS_PREAMBLE(model)
-  #define X(type, name, nr, nc)                                 \
-    for (int i = 0; i < model->nr; i++)                         \
-      for (int j = 0; j < nc; j++)                              \
-        EXPECT_EQ(data_n->name[i*nc+j], data_u->name[i*nc+j]);
+// expect everything to match
+#define X(type, name, nr, nc)         \
+  for (int i = 0; i < model->nr; i++) \
+    for (int j = 0; j < nc; j++)      \
+      ExpectNear(data_n->name[i * nc + j], data_u->name[i * nc + j]);
   MJDATA_POINTERS;
-  #undef X
+#undef X
 
   // repeat the above with RK4 integrator
   model->opt.integrator = mjINT_RK4;
 
   // reset data, unpoison
-  mj_resetData(model, data_u);
-  #ifdef MEMORY_SANITIZER
-    __msan_unpoison(data_u->buffer, data_u->nbuffer);
-    __msan_unpoison(data_u->arena, data_u->narena);
-  #endif
+  mj_resetData(model.get(), data_u.get());
+#ifdef MEMORY_SANITIZER
+  __msan_unpoison(data_u->buffer, data_u->nbuffer);
+  __msan_unpoison(data_u->arena, data_u->narena);
+#endif
 
   // set quats to un-normalized values, non-zero velocities
   for (int i = 3; i < model->nq; i++) data_u->qpos[i] = i;
-  for (int i = 0; i < model->nv; i++) data_u->qvel[i] = 0.1*i;
+  for (int i = 0; i < model->nv; i++) data_u->qvel[i] = 0.1 * i;
 
   // copy data and normalize quats
-  mj_copyData(data_n, model, data_u);
-  mj_normalizeQuat(model, data_n->qpos);
+  mj_copyData(data_n, model.get(), data_u.get());
+  mj_normalizeQuat(model.get(), data_n->qpos);
 
   // step both models
-  mj_step(model, data_u);
-  mj_step(model, data_n);
+  mj_step(model.get(), data_u.get());
+  mj_step(model.get(), data_n);
 
-  // expect everything to match
-  #define X(type, name, nr, nc)                                 \
-    for (int i = 0; i < model->nr; i++)                         \
-      for (int j = 0; j < nc; j++)                              \
-        EXPECT_EQ(data_n->name[i*nc+j], data_u->name[i*nc+j]);
+// expect everything to match
+#define X(type, name, nr, nc)         \
+  for (int i = 0; i < model->nr; i++) \
+    for (int j = 0; j < nc; j++)      \
+      ExpectNear(data_n->name[i * nc + j], data_u->name[i * nc + j]);
   MJDATA_POINTERS;
-  #undef X
+#undef X
 
   mj_deleteData(data_n);
-  mj_deleteData(data_u);
-  mj_deleteModel(model);
 }
 
 // test that normalized and denormalized quats give the same result
@@ -782,38 +1123,35 @@ TEST_F(ForwardTest, MocapQuats) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
-  mjData* data = mj_makeData(model);
-  mj_forward(model, data);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
 
   // expect mocap_quat to be normalized (by the compiler)
   for (int i = 0; i < 4; i++) {
-    EXPECT_EQ(data->mocap_quat[i], 0.5);
-    EXPECT_EQ(data->xquat[4+i], 0.5);
+    EXPECT_NEAR(data->mocap_quat[i], 0.5, MjTol(0, 1e-6));
+    EXPECT_NEAR(data->xquat[4 + i], 0.5, MjTol(0, 1e-6));
   }
 
   // write denormalized quats to mocap_quat, call forward again
   for (int i = 0; i < 4; i++) {
     data->mocap_quat[i] = 1;
   }
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
 
   // expect mocap_quat to remain denormalized, but xquat to be normalized
   for (int i = 0; i < 4; i++) {
-    EXPECT_EQ(data->mocap_quat[i], 1);
-    EXPECT_EQ(data->xquat[4+i], 0.5);
+    EXPECT_NEAR(data->mocap_quat[i], 1, MjTol(0, 1e-6));
+    EXPECT_NEAR(data->xquat[4 + i], 0.5, MjTol(0, 1e-6));
   }
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // user defined 2nd-order activation dynamics: frequency-controlled oscillator
 //  note that scalar mjcb_act_dyn callbacks are expected to return act_dot, but
 //  since we have a vector output we write into act_dot directly
-mjtNum oscillator(const mjModel* m, const mjData *d, int id) {
+mjtNum oscillator(const mjModel* m, const mjData* d, int id) {
   // check that actnum == 2
   if (m->actuator_actnum[id] != 2) {
     mju_error("callback expected actnum == 2");
@@ -824,7 +1162,7 @@ mjtNum oscillator(const mjModel* m, const mjData *d, int id) {
   mjtNum* act_dot = d->act_dot + m->actuator_actadr[id];
 
   // harmonic oscillator with controlled frequency
-  mjtNum frequency = 2*mjPI*d->ctrl[id];
+  mjtNum frequency = 2 * mjPI * d->ctrl[id];
   act_dot[0] = -act[1] * frequency;
   act_dot[1] = act[0] * frequency;
 
@@ -847,9 +1185,9 @@ TEST_F(ForwardTest, MjcbActDynSecondOrderExpectsActnum) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // install global dynamics callback
   mjcb_act_dyn = oscillator;
@@ -857,23 +1195,20 @@ TEST_F(ForwardTest, MjcbActDynSecondOrderExpectsActnum) {
   // for two arbitrary frequencies, compare actuator force as output by the
   // user-defined oscillator and analytical sine function
   for (mjtNum frequency : {1.5, 0.7}) {
-    mj_resetData(model, data);
+    mj_resetData(model.get(), data.get());
     data->ctrl[0] = frequency;  // set desired oscillation frequency
-    data->act[0] = 1;  // initialise activation
+    data->act[0] = 1;           // initialise activation
 
     // simulate and compare to sine function
     while (data->time < 1) {
-      mjtNum expected_force = mju_sin(2*mjPI*data->time*frequency);
-      mj_step(model, data);
+      mjtNum expected_force = mju_sin(2 * mjPI * data->time * frequency);
+      mj_step(model.get(), data.get());
       EXPECT_NEAR(data->actuator_force[0], expected_force, .01);
     }
   }
 
   // uninstall global dynamics callback
   mjcb_act_dyn = nullptr;
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // ------------------------------ actuators -----------------------------------
@@ -906,9 +1241,9 @@ TEST_F(ActuatorTest, ExpectedAdhesionForce) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // iterate over cone type
   for (mjtCone cone : {mjCONE_ELLIPTIC, mjCONE_PYRAMIDAL}) {
@@ -917,33 +1252,31 @@ TEST_F(ActuatorTest, ExpectedAdhesionForce) {
     // iterate over condim
     for (int condim : {1, 3, 4, 6}) {
       // set condim
-      for (int id=0; id < model->ngeom; id++) {
+      for (int id = 0; id < model->ngeom; id++) {
         model->geom_condim[id] = condim;
       }
       // iterate over actuators
-      for (int id=0; id < 2; id++) {
+      for (int id = 0; id < 2; id++) {
         // set ctrl > 1, expect free body to not fall
-        mj_resetData(model, data);
+        mj_resetData(model.get(), data.get());
         data->ctrl[id] = 1.01;
         for (int i = 0; i < 100; i++) {
-          mj_step(model, data);
+          mj_step(model.get(), data.get());
         }
         // moved down at most 10 microns
         EXPECT_GT(data->qpos[2], -1e-5);
 
         // set ctrl < 1, expect free body to fall below 1cm
-        mj_resetData(model, data);
+        mj_resetData(model.get(), data.get());
         data->ctrl[id] = 0.99;
         for (int i = 0; i < 100; i++) {
-          mj_step(model, data);
+          mj_step(model.get(), data.get());
         }
         // fell lower than 1cm
         EXPECT_LT(data->qpos[2], -0.01);
       }
     }
   }
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // Actuator force clamping at joints
@@ -956,8 +1289,8 @@ TEST_F(ActuatorTest, ActuatorForceClamping) {
   mj_forward(model, data);
 
   // expect clamping as specified in the model
-  EXPECT_EQ(data->actuator_force[0], 1);
-  EXPECT_EQ(data->qfrc_actuator[0], 0.4);
+  EXPECT_NEAR(data->actuator_force[0], 1, MjTol(0, 1e-6));
+  EXPECT_NEAR(data->qfrc_actuator[0], 0.4, MjTol(0, 1e-6));
 
   // simulate for 2 seconds to gain velocity
   while (data->time < 2) {
@@ -967,7 +1300,7 @@ TEST_F(ActuatorTest, ActuatorForceClamping) {
   // activate damper, expect force to be clamped at lower bound
   data->ctrl[1] = 1;
   mj_forward(model, data);
-  EXPECT_EQ(data->qfrc_actuator[0], -0.4);
+  EXPECT_NEAR(data->qfrc_actuator[0], -0.4, MjTol(0, 1e-6));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -995,10 +1328,10 @@ TEST_F(ActuatorTest, ActuatorGravcomp) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
 
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
 
   // expect force clamping as specified in the model
   EXPECT_EQ(data->actuator_force[0], 0);
@@ -1009,7 +1342,7 @@ TEST_F(ActuatorTest, ActuatorGravcomp) {
 
   // reduce gravity so gravcomp is not clamped
   model->opt.gravity[2] = -1;
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   EXPECT_EQ(data->actuator_force[0], 0);
   EXPECT_EQ(data->qfrc_actuator[0], 1);
   EXPECT_EQ(data->qfrc_passive[0], 0);
@@ -1018,7 +1351,7 @@ TEST_F(ActuatorTest, ActuatorGravcomp) {
 
   // add control, see that it adds up
   data->ctrl[0] = 0.5;
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   EXPECT_EQ(data->actuator_force[0], 0.5);
   EXPECT_EQ(data->qfrc_actuator[0], 1.5);
   EXPECT_EQ(data->qfrc_passive[0], 0);
@@ -1027,7 +1360,7 @@ TEST_F(ActuatorTest, ActuatorGravcomp) {
 
   // add larger control, expect clamping
   data->ctrl[0] = 1.5;
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   EXPECT_EQ(data->actuator_force[0], 1.5);
   EXPECT_EQ(data->qfrc_actuator[0], 2);
   EXPECT_EQ(data->qfrc_passive[0], 0);
@@ -1036,15 +1369,12 @@ TEST_F(ActuatorTest, ActuatorGravcomp) {
 
   // disable actgravcomp, expect gravcomp as a passive force
   model->jnt_actgravcomp[0] = 0;
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   EXPECT_EQ(data->actuator_force[0], 1.5);
   EXPECT_EQ(data->qfrc_actuator[0], 1.5);
   EXPECT_EQ(data->qfrc_passive[0], 1);
   EXPECT_EQ(data->sensordata[0], 1.5);
   EXPECT_EQ(data->sensordata[1], 1.5);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // Check that dampratio works as expected
@@ -1071,15 +1401,15 @@ TEST_F(ActuatorTest, DampRatio) {
     </actuator>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
 
   data->qpos[0] = data->qpos[1] = -0.1;
 
   mjtNum under_damped = data->qpos[0];
   mjtNum over_damped = data->qpos[1];
   while (data->time < 10) {
-    mj_step(model, data);
+    mj_step(model.get(), data.get());
     under_damped = mju_max(under_damped, data->qpos[0]);
     over_damped = mju_max(over_damped, data->qpos[1]);
   }
@@ -1091,11 +1421,7 @@ TEST_F(ActuatorTest, DampRatio) {
   // expect slightly overdamped to slightly undershoot
   EXPECT_LT(over_damped, 0);
   EXPECT_GT(over_damped, -1e-6);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
-
 
 // Check dampratio for actuators with nontrivial transmission
 TEST_F(ActuatorTest, DampRatioTendon) {
@@ -1114,14 +1440,1186 @@ TEST_F(ActuatorTest, DampRatioTendon) {
   }
 
   // expect first and second fingers to move together
-  double tol  = 1e-10;
+  double tol = 1e-10;
   EXPECT_THAT(AsVector(data->qpos, 4),
-              Pointwise(DoubleNear(tol), AsVector(data->qpos + 4, 4)));
+              Pointwise(MjNear(tol, tol), AsVector(data->qpos + 4, 4)));
   EXPECT_THAT(AsVector(data->qvel, 4),
-              Pointwise(DoubleNear(tol), AsVector(data->qvel + 4, 4)));
+              Pointwise(MjNear(tol, tol), AsVector(data->qvel + 4, 4)));
 
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+// ----------------------- DC motor actuators ----------------------------------
+
+using DCMotorTest = MujocoTest;
+
+// A stateless dcmotor with setpoint inputs matches <pid> exactly, for any
+// motor constant and resistance: the torque-space controller commands
+// kp*(qref - l) + kd*(vref - ldot) and the tau->V map compensates back-EMF.
+TEST_F(DCMotorTest, SetpointMatchesPid) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001" integrator="implicitfast">
+      <flag contact="disable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <joint name="slide1" type="slide" axis="1 0 0"/>
+        <geom size="0.1" mass="1"/>
+      </body>
+      <body>
+        <joint name="slide2" type="slide" axis="1 0 0"/>
+        <geom size="0.1" mass="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <pid name="pid" joint="slide1" kp="10" kv="5"/>
+      <dcmotor name="dcmotor" joint="slide2" motorconst="0.05" resistance="2.0"
+               input="pos vel" controller="10 0 5"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  // both actuators own [pos, vel] blocks
+  ASSERT_EQ(model->nu, 4);
+  MjDataPtr data = MakeData(model);
+
+  // time-varying position and velocity commands, identical for both
+  while (data->time < 1.0) {
+    mjtNum qref = mju_sin(5 * data->time);
+    mjtNum vref = mju_cos(3 * data->time);
+    data->ctrl[0] = data->ctrl[2] = qref;
+    data->ctrl[1] = data->ctrl[3] = vref;
+    mj_step(model.get(), data.get());
+
+    EXPECT_NEAR(data->qpos[0], data->qpos[1], MjTol(1e-14, 1e-6));
+    EXPECT_NEAR(data->qvel[0], data->qvel[1], MjTol(1e-14, 1e-6));
+
+    // recompute forces at the post-step state before comparing: identical, the
+    // tau->V map cancels back-EMF so there is no extra damping to account for
+    mj_forward(model.get(), data.get());
+    EXPECT_NEAR(data->actuator_force[0], data->actuator_force[1],
+                MjTol(1e-13, 1e-5));
+  }
+}
+TEST_F(DCMotorTest, StatelessSteadyState) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // the dcmotor ff input is the terminal voltage, named accordingly
+  EXPECT_STREQ(mj_actuatorInputName(model.get(), 0, 0), "voltage");
+
+  double K = 0.05;
+  double R = 2.0;
+  double V = 12.0;
+  double omega = 3.0;
+
+  data->ctrl[0] = V;
+  data->qvel[0] = omega;
+  mj_forward(model.get(), data.get());
+
+  double expected_force = K / R * (V - K * omega);
+  EXPECT_NEAR(data->actuator_force[0], expected_force, MjTol(1e-12, 1e-5));
+  EXPECT_EQ(model->actuator_actnum[0], 0);
+}
+
+TEST_F(DCMotorTest, CurrentFilterConverges) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.0001"/>
+    <worldbody>
+      <body>
+        <joint name="joint" damping="1000"/>
+        <geom size="1" mass="100"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               inductance="0.01 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  ASSERT_EQ(model->actuator_actnum[0], 1);
+
+  double K = 0.05;
+  double R = 2.0;
+  double V = 12.0;
+
+  data->ctrl[0] = V;
+  for (int i = 0; i < 10000; i++) {
+    mj_step(model.get(), data.get());
+  }
+
+  double omega = data->qvel[0];
+  double i_ss = V / R - K / R * omega;
+  double expected_force = K * i_ss;
+
+  EXPECT_NEAR(data->act[0], i_ss, MjTol(1e-6, 1e-4));
+  EXPECT_NEAR(data->actuator_force[0], expected_force, MjTol(1e-6, 1e-4));
+}
+
+TEST_F(DCMotorTest, CurrentFilterExactIntegration) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint" damping="10000"/>
+        <geom size="1" mass="10000"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               inductance="0.01 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  double R = 2.0;
+  double te = 0.01 / R;
+  double V = 12.0;
+
+  data->ctrl[0] = V;
+  mj_step(model.get(), data.get());
+
+  double h = model->opt.timestep;
+  double exact_current = V / R * (1 - mju_exp(-h / te));
+  EXPECT_NEAR(data->act[0], exact_current, MjTol(1e-10, 1e-4));
+
+  double euler_current = V / R * h / te;
+  EXPECT_GT(std::abs(data->act[0] - euler_current),
+            std::abs(data->act[0] - exact_current));
+}
+
+TEST_F(DCMotorTest, CoggingTorque) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               cogging="0.1 6 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  double A = 0.1, Np = 6, phi = 0;
+  double K = 0.05, R = 2.0;
+  double V = 5.0;
+  double pos = 1.0;
+
+  data->ctrl[0] = V;
+  data->qpos[0] = pos;
+  mj_forward(model.get(), data.get());
+
+  double electrical_force = K / R * V;
+  double cogging = A * mju_sin(Np * pos + phi);
+  EXPECT_NEAR(data->actuator_force[0], electrical_force + cogging,
+              MjTol(1e-12, 1e-5));
+}
+
+TEST_F(DCMotorTest, CoggingBypassesSaturation) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               saturation="0.001 0" cogging="0.1 6 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  double A = 0.1, Np = 6, phi = 0;
+  double pos = 1.0;
+
+  data->ctrl[0] = 100.0;
+  data->qpos[0] = pos;
+  mj_forward(model.get(), data.get());
+
+  double cogging = A * mju_sin(Np * pos + phi);
+  EXPECT_NEAR(model->actuator_forcerange[1], 0.001, MjTol(1e-12, 1e-5));
+  EXPECT_GT(mju_abs(data->actuator_force[0]), 0.001);
+  EXPECT_NEAR(data->actuator_force[0], 0.001 + cogging, MjTol(1e-12, 1e-5));
+}
+
+TEST_F(DCMotorTest, LuGreViscousFriction) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               damping="0.01" lugre="100 1 0.5 0.7 10"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  ASSERT_EQ(model->actuator_actnum[0], 1);
+
+  double sigma1 = 1, sigma2 = 0.01;
+  double K = 0.05, R = 2.0;
+  double omega = 2.0;
+
+  data->ctrl[0] = 0;
+  data->qvel[0] = omega;
+  mj_forward(model.get(), data.get());
+
+  EXPECT_MJTNUM_EQ(model->actuator_damping[0], sigma2);
+  double electrical_force = K / R * (0 - K * omega);
+  double z = data->act[model->actuator_actadr[0]];
+  double z_dot = data->act_dot[model->actuator_actadr[0]];
+  double lugre_force = 100 * z + sigma1 * z_dot;
+  EXPECT_NEAR(data->actuator_force[0], electrical_force - lugre_force,
+              MjTol(1e-12, 1e-5));
+}
+
+// the LuGre bristle must integrate the velocity of its own transmission:
+// placing a multi-output (SO3) actuator before the DC motor, so that the
+// motor's actuator id and output address diverge, must not change the
+// bristle dynamics
+TEST_F(DCMotorTest, LuGreBristleVelocityOrderInvariance) {
+  static constexpr char xml_dc_first[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+      <body pos="3 0 0">
+        <joint name="ball" type="ball"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor name="dc" joint="hinge" motorconst="0.05" resistance="2.0"
+               lugre="100 0.5 0.5 0.8 0.5"/>
+      <orientation name="so3" joint="ball" kp="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  static constexpr char xml_so3_first[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+      <body pos="3 0 0">
+        <joint name="ball" type="ball"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <orientation name="so3" joint="ball" kp="1"/>
+      <dcmotor name="dc" joint="hinge" motorconst="0.05" resistance="2.0"
+               lugre="100 0.5 0.5 0.8 0.5"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+
+  // reference: DC motor first, actuator id == output address
+  MjModelPtr model = LoadModelFromString(xml_dc_first, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  int dc = mj_name2id(model.get(), mjOBJ_ACTUATOR, "dc");
+  data->qvel[model->jnt_dofadr[mj_name2id(model.get(), mjOBJ_JOINT, "hinge")]] =
+      1;
+  mj_step(model.get(), data.get());
+  double z_dc_first = data->act[model->actuator_actadr[dc]];
+
+  // reordered: the SO3 actuator has 3 outputs, so the DC motor now has
+  // actuator id 1 but output address 3
+  model = LoadModelFromString(xml_so3_first, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  data = MakeData(model);
+  dc = mj_name2id(model.get(), mjOBJ_ACTUATOR, "dc");
+  ASSERT_EQ(model->actuator_outadr[dc], 3);
+  data->qvel[model->jnt_dofadr[mj_name2id(model.get(), mjOBJ_JOINT, "hinge")]] =
+      1;
+  mj_step(model.get(), data.get());
+  double z_so3_first = data->act[model->actuator_actadr[dc]];
+
+  // the bristle state saw the same spinning hinge in both models
+  EXPECT_NE(z_dc_first, 0);
+  EXPECT_MJTNUM_EQ(z_so3_first, z_dc_first);
+}
+
+// A dcmotor with input="none" has no controls and acts as a passive device:
+// LuGre friction, cogging and back-EMF braking with the terminals shorted.
+TEST_F(DCMotorTest, PassiveNoInputs) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0" input="none"
+               damping="0.01" lugre="100 1 0.5 0.7 10"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // no controls at all, one actuator, one bristle state
+  EXPECT_EQ(model->nu, 0);
+  EXPECT_EQ(model->nactuator, 1);
+  EXPECT_EQ(model->actuator_ctrlnum[0], 0);
+  ASSERT_EQ(model->actuator_actnum[0], 1);
+
+  // same force as a voltage-commanded motor with u = 0: shorted terminals
+  double sigma1 = 1;
+  double K = 0.05, R = 2.0;
+  double omega = 2.0;
+  data->qvel[0] = omega;
+  mj_forward(model.get(), data.get());
+
+  double electrical_force = K / R * (0 - K * omega);
+  double z = data->act[model->actuator_actadr[0]];
+  double z_dot = data->act_dot[model->actuator_actadr[0]];
+  double lugre_force = 100 * z + sigma1 * z_dot;
+  EXPECT_NEAR(data->actuator_force[0], electrical_force - lugre_force,
+              MjTol(1e-12, 1e-5));
+
+  // the model steps with an empty ctrl vector: friction brakes the joint
+  for (int i = 0; i < 100; i++) {
+    mj_step(model.get(), data.get());
+  }
+  EXPECT_GT(data->act[model->actuator_actadr[0]], 0);
+  EXPECT_LT(data->qvel[0], omega);
+}
+
+// input="none" validation: dcmotor-only, incompatible with slew and ki.
+TEST_F(DCMotorTest, NoInputsCompileErrors) {
+  char error[1024];
+
+  // pid does not accept input="none"
+  static constexpr char pid_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <pid joint="joint" kp="1" input="none"/>
+    </actuator>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(pid_xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("subset"));
+
+  // slew rate limiting requires an input
+  static constexpr char slew_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0" input="none"
+               controller="0 0 0 4.0 0 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  model = LoadModelFromString(slew_xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("slew"));
+
+  // the "voltage" keyword is dcmotor-only
+  static constexpr char voltage_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <pid joint="joint" kp="1" input="voltage"/>
+    </actuator>
+  </mujoco>
+  )";
+  model = LoadModelFromString(voltage_xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), IsNull());
+
+  // integral gain requires the pos input
+  static constexpr char ki_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0" input="vel ff"
+               controller="0 2.0 0 0 0 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  model = LoadModelFromString(ki_xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("pos input"));
+}
+
+TEST_F(DCMotorTest, ThermalRiseAndFall) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint" damping="10000"/>
+        <geom size="1" mass="10000"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               thermal="10 5 0 0 25 25"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  int adr = model->actuator_actadr[0];
+  ASSERT_EQ(model->actuator_actnum[0], 1);
+  EXPECT_EQ(data->act[adr], 0);
+
+  double R = 2.0, V = 10.0;
+  double RT = 10.0, C = 5.0;
+  double h = model->opt.timestep;
+  double P = V * V / R;
+
+  data->ctrl[0] = V;
+
+  mj_step(model.get(), data.get());
+  double dT1 = h * P / C;
+  EXPECT_NEAR(data->act[adr], dT1, MjTol(1e-11, 1e-4));
+
+  mj_step(model.get(), data.get());
+  double dT2 = dT1 + h * (P - dT1 / RT) / C;
+  EXPECT_NEAR(data->act[adr], dT2, MjTol(1e-11, 1e-4));
+
+  data->ctrl[0] = 0;
+  mj_step(model.get(), data.get());
+  double dT3 = dT2 + h * (0 - dT2 / RT) / C;
+  EXPECT_NEAR(data->act[adr], dT3, MjTol(1e-11, 1e-4));
+  EXPECT_LT(data->act[adr], dT2);
+}
+
+TEST_F(DCMotorTest, ThermalSteadyState) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint" damping="10000"/>
+        <geom size="1" mass="10000"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               thermal="0.1 0.1 0 0 25 25"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  double R = 2.0, V = 10.0;
+  double RT = 0.1;
+  double dT_ss = RT * V * V / R;
+
+  data->ctrl[0] = V;
+  for (int i = 0; i < 10000; i++) {
+    mj_step(model.get(), data.get());
+  }
+
+  int adr = model->actuator_actadr[0];
+  EXPECT_NEAR(data->act[adr], dT_ss, 1e-4);
+}
+
+TEST_F(DCMotorTest, ThermalAffectsForce) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               thermal="0.1 0.1 0 0.004 25 25"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  double K = 0.05, R = 2.0, V = 10.0;
+  double alpha = 0.004;
+  int adr = model->actuator_actadr[0];
+
+  data->ctrl[0] = V;
+  data->act[adr] = 0;
+  mj_forward(model.get(), data.get());
+  double force_cold = data->actuator_force[0];
+  EXPECT_NEAR(force_cold, K / R * V, MjTol(1e-12, 1e-5));
+
+  double dT = 50;
+  data->act[adr] = dT;
+  mj_forward(model.get(), data.get());
+  double R_hot = R * (1 + alpha * dT);
+  double force_hot = data->actuator_force[0];
+  EXPECT_NEAR(force_hot, K / R_hot * V, MjTol(1e-12, 1e-5));
+  EXPECT_LT(force_hot, force_cold);
+}
+
+// Temperature slot must be correctly offset past slew and integral states.
+TEST_F(DCMotorTest, ThermalAffectsForceWithController) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               input="pos vel" controller="1.0 1.0 0 5.0 0"
+               thermal="0.1 0.1 0 0.004 25 25"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // slot order: slew(0), integral(1), temperature(2)
+  ASSERT_EQ(model->actuator_actnum[0], 3);
+  int adr = model->actuator_actadr[0];
+  int temp_adr = adr + 2;  // temperature is slot 2
+
+  double R = 2.0, alpha = 0.004;
+  double dT = 50;
+  data->act[adr] = 1.0;      // slew state = ctrl: no rate-limiting applied
+  data->act[adr + 1] = 0.0;  // integral state x_I = 0
+  data->act[temp_adr] = dT;  // temperature rise above ambient
+  data->ctrl[0] = 1.0;       // position setpoint = 1.0, qpos = 0, error = 1.0
+  mj_forward(model.get(), data.get());
+
+  // u_eff = ctrl = 1.0 (no slew applied since act[slew] == ctrl)
+  // torque command tau = kp*(u_eff - length) = 1.0; the tau->V map uses the
+  // nameplate resistance, so the hot motor under-delivers by R/R(T):
+  // V = R/K * tau = 40, force = K/R(T) * V = (R/R(T)) * tau
+  double R_hot = R * (1 + alpha * dT);
+  EXPECT_NEAR(data->actuator_force[0], R / R_hot * 1.0, MjTol(1e-12, 1e-5));
+}
+
+TEST_F(DCMotorTest, StatelessPositionMode) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" input="pos vel" controller="2.0 0 0.5 0 0"
+               motorconst="0.05" resistance="2.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // setpoint inputs are named
+  EXPECT_STREQ(mj_actuatorInputName(model.get(), 0, 0), "pos");
+  EXPECT_STREQ(mj_actuatorInputName(model.get(), 0, 1), "vel");
+
+  // Position target 5.0, current pos 0.0, current vel 0.0
+  data->ctrl[0] = 5.0;
+  mj_forward(model.get(), data.get());
+
+  // torque-space controller with back-EMF compensation: force = kp*(qref - l)
+  // force = 2.0 * 5.0 = 10.0, exactly
+  EXPECT_NEAR(data->actuator_force[0], 10.0, MjTol(1e-12, 1e-5));
+
+  // Velocity penalty
+  data->qvel[0] = 2.0;
+  mj_forward(model.get(), data.get());
+  // force = kp*(qref - l) - kd*omega = 10.0 - 0.5*2.0 = 9.0: no back-EMF droop
+  EXPECT_NEAR(data->actuator_force[0], 9.0, MjTol(1e-12, 1e-5));
+}
+
+TEST_F(DCMotorTest, StatelessVelocityMode) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" input="pos vel" controller="0 0 3.0 0 0"
+               motorconst="0.05" resistance="2.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // Velocity target 4.0 (second input), current vel 1.0
+  data->ctrl[1] = 4.0;
+  data->qvel[0] = 1.0;
+  mj_forward(model.get(), data.get());
+
+  // force = kd * (vref - omega) = 3.0 * (4.0 - 1.0) = 9.0, exactly
+  EXPECT_NEAR(data->actuator_force[0], 9.0, MjTol(1e-12, 1e-5));
+}
+
+TEST_F(DCMotorTest, StatefulPositionMode) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" input="pos vel" controller="2.0 0.5 0.1 10.0 5.0"
+               motorconst="0.05" resistance="2.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // Controller states: 1 for slew, 1 for ki -> actnum = 2
+  ASSERT_EQ(model->actuator_actnum[0], 2);
+  int adr = model->actuator_actadr[0];
+
+  // Current states
+  double u_prev = 1.0;
+  double x_I = 2.0;
+  data->act[adr] = u_prev;
+  data->act[adr + 1] = x_I;
+
+  // target 5.0 position, current 0.0
+  data->ctrl[0] = 5.0;
+  data->qvel[0] = 0.5;
+  mj_forward(model.get(), data.get());
+
+  // slew bounding: s = 10.0, dt = 0.001. max_change = 0.01
+  // Target = 5.0. It is upper bounded by u_prev + 0.01 = 1.01
+  EXPECT_NEAR(data->act_dot[adr], 10.0, MjTol(1e-12, 1e-5));
+
+  // PI error: error = u_eff - length = 1.01 - 0.0 = 1.01
+  EXPECT_NEAR(data->act_dot[adr + 1], 1.01, MjTol(1e-12, 1e-5));
+
+  // force = kp * (u_eff - length) + ki * x_I - kd * omega
+  //       = 2.0 * 1.01 + 0.5 * 2.0 - 0.1 * 0.5 = 2.97, exactly
+  EXPECT_NEAR(data->actuator_force[0], 2.97, MjTol(1e-12, 1e-5));
+}
+
+TEST_F(DCMotorTest, StatefulPositionWithCurrentMode) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" input="pos vel" controller="2.0 0.5 0.1 10.0 5.0"
+               motorconst="0.05" resistance="2.0" inductance="1.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // Controller states: slew (0), ki (1), current (2). actnum = 3
+  ASSERT_EQ(model->actuator_actnum[0], 3);
+  int adr = model->actuator_actadr[0];
+
+  double u_prev = 1.0;
+  double x_I = 2.0;
+  double current = 0.5;
+  data->act[adr] = u_prev;
+  data->act[adr + 1] = x_I;
+  data->act[adr + 2] = current;
+
+  // Target 5.0 position, velocity 0.5
+  data->ctrl[0] = 5.0;
+  data->qvel[0] = 0.5;
+  mj_forward(model.get(), data.get());
+
+  // Slew bounding: max_change = 0.01, u_eff = 1.01
+  EXPECT_NEAR(data->act_dot[adr], 10.0, MjTol(1e-12, 1e-5));
+
+  // PI error: error = u_eff - length = 1.01
+  EXPECT_NEAR(data->act_dot[adr + 1], 1.01, MjTol(1e-12, 1e-5));
+
+  // torque command: tau = kp * (u_eff - length) + ki * x_I - kd * omega
+  //                      = 2.0 * 1.01 + 0.5 * 2.0 - 0.1 * 0.5 = 2.97
+  // tau->V map with back-EMF compensation:
+  // V = R/K * tau + K * omega = 2.0/0.05 * 2.97 + 0.05 * 0.5 = 118.825
+
+  // Current filter:
+  // t_e = L / R = 1.0 / 2.0 = 0.5
+  // di/dt = (V/R - K/R * omega - i) / t_e
+  // di/dt = (118.825/2.0 - 0.05/2.0 * 0.5 - 0.5) / 0.5 = 117.8
+  EXPECT_NEAR(data->act_dot[adr + 2], 117.8, MjTol(1e-12, 1e-4));
+
+  // Force is K * next_activation (actearly is always on for DC motors)
+  // Inline mj_nextActivation for te = 0.5
+  mjtNum te = 0.5;
+  mjtNum h = model->opt.timestep;
+  mjtNum next_i = 0.5 + data->act_dot[adr + 2] * te * (1 - mju_exp(-h / te));
+  EXPECT_NEAR(data->actuator_force[0], 0.05 * next_i, MjTol(1e-12, 1e-5));
+}
+
+TEST_F(DCMotorTest, StatefulVelocityMode) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" input="pos vel" controller="3.0 1.0 0 0 2.0"
+               motorconst="0.05" resistance="2.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // Controller states: 1 for ki (no slew)
+  ASSERT_EQ(model->actuator_actnum[0], 1);
+  int adr = model->actuator_actadr[0];
+
+  double x_I = 2.0;  // Exactly at Imax limit (Imax = 2.0)
+  data->act[adr] = x_I;
+
+  // position target 4.0, current pos 0, current vel 1.0 (kd = 0)
+  data->ctrl[0] = 4.0;
+  data->qvel[0] = 1.0;
+  mj_forward(model.get(), data.get());
+
+  // error = 4.0; since x_I == Imax (2.0) and error > 0, act_dot clamps to 0
+  EXPECT_NEAR(data->act_dot[adr], 0.0, MjTol(1e-12, 1e-5));
+
+  // force = kp * (qref - l) + ki * x_I = 3.0 * (4.0 - 0.0) + 1.0 * 2.0 = 14.0
+  EXPECT_NEAR(data->actuator_force[0], 14.0, MjTol(1e-12, 1e-5));
+
+  // repeat with non-zero joint position
+  data->qpos[0] = 1.5;
+  mj_forward(model.get(), data.get());
+
+  // force = 3.0 * (4.0 - 1.5) + 1.0 * 2.0 = 9.5
+  EXPECT_NEAR(data->actuator_force[0], 9.5, MjTol(1e-12, 1e-5));
+}
+
+TEST_F(DCMotorTest, CurrentPlusThermal) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint" damping="10000"/>
+        <geom size="1" mass="10000"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               inductance="0.01 0" thermal="10 5 0 0.004 25 25"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  ASSERT_EQ(model->actuator_actnum[0], 2);
+  int adr = model->actuator_actadr[0];
+
+  double K = 0.05, R = 2.0, V = 12.0;
+  double te = 0.01 / R;
+  double RT = 10.0, C = 5.0;
+
+  double current = 3.0;
+  double dT = 10.0;
+  data->act[adr] = dT;
+  data->act[adr + 1] = current;
+  data->ctrl[0] = V;
+  mj_forward(model.get(), data.get());
+
+  // Force uses next_activation (actearly is always on for DC motors)
+  // Inline mj_nextActivation for te = 0.01 / R = 0.005
+  mjtNum h = model->opt.timestep;
+  mjtNum next_i =
+      current + data->act_dot[adr + 1] * te * (1 - mju_exp(-h / te));
+  EXPECT_NEAR(data->actuator_force[0], K * next_i, MjTol(1e-12, 1e-5));
+
+  double R_hot = R * (1 + 0.004 * dT);
+  double T_dot = (R_hot * current * current - dT / RT) / C;
+  EXPECT_NEAR(data->act_dot[adr], T_dot, MjTol(1e-10, 1e-4));
+
+  double omega = data->qvel[0];
+  double i_dot = (V / R_hot - K / R_hot * omega - current) / te;
+  EXPECT_NEAR(data->act_dot[adr + 1], i_dot, MjTol(1e-10, 1e-3));
+}
+
+TEST_F(DCMotorTest, CurrentRateLimit) {
+  // Verifies that saturation:current_rate clamps di/dt.
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint" damping="10000"/>
+        <geom size="1" mass="10000"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               inductance="0.01 0" saturation="0 0 100"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  ASSERT_EQ(model->actuator_actnum[0], 1);
+  int adr = model->actuator_actadr[0];
+
+  double V = 12.0;
+  double dimax = 100.0;  // A/s rate limit
+
+  // unclamped: i_dot = (V/R - 0 - 0) / te = 6 / 0.005 = 1200 A/s >> dimax
+  data->act[adr] = 0;  // current = 0
+  data->ctrl[0] = V;
+  mj_forward(model.get(), data.get());
+
+  // i_dot should be clipped to +dimax
+  EXPECT_NEAR(data->act_dot[adr], dimax, MjTol(1e-12, 1e-5));
+
+  // reverse: large negative drive
+  data->ctrl[0] = -V;
+  mj_forward(model.get(), data.get());
+
+  // i_dot should be clipped to -dimax
+  EXPECT_NEAR(data->act_dot[adr], -dimax, MjTol(1e-12, 1e-5));
+}
+
+TEST_F(DCMotorTest, VoltageLimit) {
+  // verifies that saturation:voltage clamps voltage
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               input="pos vel" controller="1 0 0 0 0 10.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // Vmax = 10.0, ctrl = 20.0
+  // force = K/R * Vmax = 0.05 / 2.0 * 10.0 = 0.25
+  data->ctrl[0] = 20.0;
+  mj_forward(model.get(), data.get());
+
+  EXPECT_NEAR(data->actuator_force[0], 0.25, MjTol(1e-12, 1e-5));
+
+  // negative drive
+  data->ctrl[0] = -20.0;
+  mj_forward(model.get(), data.get());
+
+  EXPECT_NEAR(data->actuator_force[0], -0.25, MjTol(1e-12, 1e-5));
+}
+
+TEST_F(DCMotorTest, IntegralClamp) {
+  // verifies that controller Imax clamps integral state
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" input="pos vel" controller="2.0 0.5 0 0 5.0"
+               motorconst="0.05" resistance="2.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // Imax = 5.0
+  ASSERT_EQ(model->actuator_actnum[0], 1);  // only ki is stateful
+  int adr = model->actuator_actadr[0];
+
+  // set integral state to Imax
+  data->act[adr] = 5.0;
+
+  // set target to generate positive error (ctrl - length)
+  data->ctrl[0] = 1.0;  // target
+  data->qpos[0] = 0.0;  // length = 0
+
+  mj_forward(model.get(), data.get());
+
+  // act_dot should be clamped to 0 because act >= Imax and error > 0
+  EXPECT_NEAR(data->act_dot[adr], 0.0, MjTol(1e-12, 1e-5));
+
+  // set target to generate negative error
+  data->ctrl[0] = -1.0;
+  mj_forward(model.get(), data.get());
+
+  // act_dot should be negative (not clamped)
+  EXPECT_NEAR(data->act_dot[adr], -1.0, MjTol(1e-12, 1e-5));
+
+  // set integral state to -Imax
+  data->act[adr] = -5.0;
+
+  // set target to generate negative error
+  data->ctrl[0] = -1.0;
+  data->qpos[0] = 0.0;
+  mj_forward(model.get(), data.get());
+
+  // act_dot should be clamped to 0 because act <= -Imax and error < 0
+  EXPECT_NEAR(data->act_dot[adr], 0.0, MjTol(1e-12, 1e-5));
+}
+
+TEST_F(DCMotorTest, LuGreExactIntegration) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1" mass="1e6"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               damping="0.01" lugre="100 1 0.5 0.7 10"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  ASSERT_EQ(model->actuator_actnum[0], 1);
+  int adr = model->actuator_actadr[0];
+
+  double sigma0 = 100, F_C = 0.5, F_S = 0.7, v_S = 10;
+  double z0 = 0.002;
+  double v = 0.5;
+  double h = model->opt.timestep;
+
+  data->act[adr] = z0;
+  data->qvel[0] = v;
+
+  double ratio = v / v_S;
+  double g_v = F_C + (F_S - F_C) * mju_exp(-ratio * ratio);
+  double a = -sigma0 * std::abs(v) / g_v;
+  double exp_ah = mju_exp(a * h);
+  double int_h = (exp_ah - 1) / a;
+  double z_new = exp_ah * z0 + int_h * v;
+
+  mj_step(model.get(), data.get());
+  EXPECT_NEAR(data->act[adr], z_new, MjTol(1e-12, 1e-5));
+}
+
+TEST_F(DCMotorTest, LuGreSteadyState) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1" mass="1e6"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               damping="0.01" lugre="100 1 0.5 0.7 10"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  int adr = model->actuator_actadr[0];
+
+  double sigma0 = 100, sigma2 = 0.01;
+  double F_C = 0.5, F_S = 0.7, v_S = 10;
+  double K = 0.05, R = 2.0;
+  double v = 0.5;
+
+  data->qvel[0] = v;
+  data->ctrl[0] = 0;
+  for (int i = 0; i < 10000; i++) {
+    mj_step(model.get(), data.get());
+  }
+
+  double ratio = v / v_S;
+  double g_v = F_C + (F_S - F_C) * mju_exp(-ratio * ratio);
+  double z_ss = g_v / sigma0;
+  EXPECT_NEAR(data->act[adr], z_ss, 1e-4);
+
+  EXPECT_MJTNUM_EQ(model->actuator_damping[0], sigma2);
+  double back_emf = K * K / R * data->qvel[0];
+  double lugre_ss = g_v;
+  EXPECT_NEAR(data->actuator_force[0], -back_emf - lugre_ss, 1e-3);
+}
+
+TEST_F(DCMotorTest, LuGreBristleSpring) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               damping="0.01" lugre="100 1 0.5 0.7 10"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  int adr = model->actuator_actadr[0];
+  double sigma0 = 100;
+  double X = 0.01;
+
+  data->act[adr] = X;
+  data->ctrl[0] = 0;
+  mj_forward(model.get(), data.get());
+
+  EXPECT_NEAR(data->actuator_force[0], -sigma0 * X, MjTol(1e-12, 1e-5));
 }
 
 // ----------------------- filterexact actuators -------------------------------
@@ -1145,48 +2643,45 @@ TEST_F(FilterExactTest, ApproximatesContinuousTime) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
   const mjtNum kSimulationTime = 1.0;
 
   // compute act with a small timestep to approximate continuous integration
   model->opt.timestep = 0.001;
-  mj_resetData(model, data);
+  mj_resetData(model.get(), data.get());
   data->ctrl[0] = 1.0;
   data->act[0] = 0.0;
   for (int i = 0; i < std::round(kSimulationTime / model->opt.timestep); i++) {
-    mj_step(model, data);
+    mj_step(model.get(), data.get());
   }
   mjtNum continuous_act = data->act[0];
 
   // compute again with a larger timestep, introducing integration error
   model->opt.timestep = 0.01;
-  mj_resetData(model, data);
+  mj_resetData(model.get(), data.get());
   data->ctrl[0] = 1.0;
   data->act[0] = 0.0;
   for (int i = 0; i < std::round(kSimulationTime / model->opt.timestep); i++) {
-    mj_step(model, data);
+    mj_step(model.get(), data.get());
   }
   mjtNum discrete_act = data->act[0];
 
   // compute a third time with exact integration
   model->actuator_dyntype[0] = mjDYN_FILTEREXACT;
-  mj_resetData(model, data);
+  mj_resetData(model.get(), data.get());
   data->ctrl[0] = 1.0;
   data->act[0] = 0.0;
   for (int i = 0; i < std::round(kSimulationTime / model->opt.timestep); i++) {
-    mj_step(model, data);
+    mj_step(model.get(), data.get());
   }
   mjtNum exactfilter_act = data->act[0];
 
   // expect exact integration to be closer to the small-timestep result
   EXPECT_THAT(std::abs(continuous_act - discrete_act),
-              Gt(5*std::abs(continuous_act - exactfilter_act)))
+              Gt(5 * std::abs(continuous_act - exactfilter_act)))
       << "Using filterexact should make the error at least 5 times smaller";
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(FilterExactTest, TimestepIndependent) {
@@ -1206,37 +2701,34 @@ TEST_F(FilterExactTest, TimestepIndependent) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
   const mjtNum kSimulationTime = 1.0;
 
   // first, compute act based on a small timestep and exact integration
   model->opt.timestep = 0.01;
-  mj_resetData(model, data);
+  mj_resetData(model.get(), data.get());
   data->ctrl[0] = 1.0;
   data->act[0] = 0.0;
   for (int i = 0; i < std::round(kSimulationTime / model->opt.timestep); i++) {
-    mj_step(model, data);
+    mj_step(model.get(), data.get());
   }
   mjtNum small_timestep_act = data->act[0];
 
   // now change the timestep to a much larger timestep
   model->opt.timestep = 0.1;
-  mj_resetData(model, data);
+  mj_resetData(model.get(), data.get());
   data->ctrl[0] = 1.0;
   data->act[0] = 0.0;
   for (int i = 0; i < std::round(kSimulationTime / model->opt.timestep); i++) {
-    mj_step(model, data);
+    mj_step(model.get(), data.get());
   }
   mjtNum large_timestep_act = data->act[0];
 
-  EXPECT_THAT(small_timestep_act, DoubleNear(large_timestep_act, 1e-14))
+  EXPECT_NEAR(small_timestep_act, large_timestep_act, MjTol(1e-14, 1e-6))
       << "exact integration should be independent of timestep to machine "
          "precision.";
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(FilterExactTest, ActEqualsCtrlWhenTauIsZero) {
@@ -1256,16 +2748,13 @@ TEST_F(FilterExactTest, ActEqualsCtrlWhenTauIsZero) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
   data->ctrl[0] = 0.5;
   data->act[0] = 0.0;
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
   EXPECT_EQ(data->act[0], data->ctrl[0]);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // ----------------------- actearly actuator attribute -------------------------
@@ -1286,8 +2775,8 @@ TEST_F(ActEarlyTest, RemovesOneStepDelay) {
 
   // actuators are ordered in pairs with actearly=true and actearly=false
   for (int i = 0; i < model->na / 2; i++) {
-    EXPECT_TRUE(model->actuator_actearly[2*i]);
-    EXPECT_FALSE(model->actuator_actearly[2*i + 1]);
+    EXPECT_TRUE(model->actuator_actearly[2 * i]);
+    EXPECT_FALSE(model->actuator_actearly[2 * i + 1]);
   }
 
   mjData* data = mj_makeData(model);
@@ -1312,8 +2801,8 @@ TEST_F(ActEarlyTest, RemovesOneStepDelay) {
     mj_step(model, data);
     for (int j = 0; j < model->nu / 2; j++) {
       // this is true for torque actuators
-      EXPECT_THAT(last_qfrc[2 * j],
-                  DoubleNear(data->qfrc_actuator[2 * j + 1], 1e-3))
+      EXPECT_NEAR(last_qfrc[2 * j], data->qfrc_actuator[2 * j + 1],
+                  MjTol(1e-3, 1e-1))
           << "there should be a 1 step delay between qfrc for "
           << mj_id2name(model, mjOBJ_ACTUATOR, 2 * j);
     }
@@ -1337,9 +2826,8 @@ TEST_F(ActEarlyTest, DoesntChangeStateInMjForward) {
   mj_forward(model, data);
 
   for (int i = 0; i < model->na; i++) {
-    EXPECT_EQ(data->act[i], 0)
-        << "act should not change with mj_forward."
-        << mj_id2name(model, mjOBJ_ACTUATOR, i);
+    EXPECT_EQ(data->act[i], 0) << "act should not change with mj_forward."
+                               << mj_id2name(model, mjOBJ_ACTUATOR, i);
   }
 
   mj_deleteData(data);
@@ -1363,26 +2851,23 @@ TEST_F(ActuatorTest, DisableActuator) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   data->ctrl[0] = 1.0;
   data->ctrl[1] = 1.0;
 
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   EXPECT_EQ(data->qfrc_actuator[0], 3.0);
 
   model->opt.disableactuator = 1 << 0;
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   EXPECT_EQ(data->qfrc_actuator[0], 1.0);
 
   model->opt.disableactuator = 1 << 1;
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   EXPECT_EQ(data->qfrc_actuator[0], 2.0);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(ActuatorTest, DisableActuatorOutOfRange) {
@@ -1403,25 +2888,22 @@ TEST_F(ActuatorTest, DisableActuatorOutOfRange) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   data->ctrl[0] = 1.0;
   data->ctrl[1] = 1.0;
   data->ctrl[2] = 1.0;
 
   // all actuators active
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   EXPECT_EQ(data->qfrc_actuator[0], 35.0);
 
   // set all bits of disableactuator, only group 1 is disabled
   model->opt.disableactuator = ~0;
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   EXPECT_EQ(data->qfrc_actuator[0], 30.0);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(ActuatorTest, TendonActuatorForceRange) {
@@ -1476,5 +2958,1062 @@ TEST_F(ActuatorTest, TendonActuatorForceRange) {
   mj_deleteModel(model);
 }
 
+// ----------------------------- actuator delays -------------------------------
+
+TEST_F(ForwardTest, ActuatorDelay) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1" mass="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="slide" delay="0.02" nsample="2"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // delay = 0.02 seconds, timestep = 0.01, so ndelay = ceil(0.02/0.01) = 2
+  EXPECT_EQ(model->actuator_history[0], 2);
+
+  // set ctrl to a nonzero value
+  data->ctrl[0] = 10.0;
+
+  // step once: the new ctrl is appended but won't be read for 2 timesteps
+  mj_step(model.get(), data.get());
+  // actuator_force should still be 0 (delayed value from buffer init)
+  EXPECT_NEAR(data->actuator_force[0], 0.0, 1e-10);
+
+  // step again
+  mj_step(model.get(), data.get());
+  // still reading old values
+  EXPECT_NEAR(data->actuator_force[0], 0.0, 1e-10);
+
+  // step a third time - now the delayed ctrl should arrive
+  mj_step(model.get(), data.get());
+  // actuator_force should now be 10.0
+  EXPECT_NEAR(data->actuator_force[0], 10.0, 1e-10);
+}
+
+// Test actuator delay with linear interpolation (interp=1)
+// Uses delay = 1.5*timestep so interpolation is meaningful
+TEST_F(ForwardTest, ActuatorDelayLinearInterp) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="slide" delay="0.015" nsample="3" interp="linear"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // delay = 0.015 seconds = 1.5*timestep, nsample=3, interp=1 (linear)
+  EXPECT_EQ(model->actuator_history[0], 3);
+  EXPECT_EQ(model->actuator_history[1], 1);  // interp=1 (linear)
+  EXPECT_NEAR(model->actuator_delay[0], 0.015, MjTol(1e-10, 5e-6));
+
+  // Set increasing ctrl values
+  // Buffer has samples at times: -0.02, -0.01, 0 with values 0, 0, 0
+  // After step 0 at time=0.01: buffer has times -0.01, 0, 0.01 with values 0,
+  // 0, ctrl[0] Read at time 0.01 - 0.015 = -0.005: interpolate between t=-0.01
+  // and t=0 Since both values are 0, expected actuator_force = 0
+
+  data->ctrl[0] = 10.0;
+  mj_step(model.get(), data.get());
+  EXPECT_NEAR(data->actuator_force[0], 0.0, MjTol(1e-10, 5e-6)) << "step 0";
+
+  // After step 1 at time=0.02: buffer has times 0, 0.01, 0.02 with values 0,
+  // 10, 20 Read at time 0.02 - 0.015 = 0.005: interpolate between t=0 (val=0)
+  // and t=0.01 (val=10) Expected: 0 * 0.5 + 10 * 0.5 = 5
+
+  data->ctrl[0] = 20.0;
+  mj_step(model.get(), data.get());
+  EXPECT_NEAR(data->actuator_force[0], 5.0, MjTol(1e-10, 5e-6)) << "step 1";
+
+  // After step 2 at time=0.03: buffer has times 0.01, 0.02, 0.03 with values
+  // 10, 20, 30 Read at 0.03 - 0.015 = 0.015: interpolate between t=0.01
+  // (val=10) and t=0.02 (val=20) Expected: 10 * 0.5 + 20 * 0.5 = 15
+
+  data->ctrl[0] = 30.0;
+  mj_step(model.get(), data.get());
+  EXPECT_NEAR(data->actuator_force[0], 15.0, MjTol(1e-10, 5e-6)) << "step 2";
+}
+
+TEST_F(ForwardTest, FlexTrilinearInstability) {
+  // model parameters matches user's trilinear.xml
+  constexpr char xml[] = R"(
+  <mujoco model="stability_test">
+      <option gravity="0 0 -9.81" iterations="100" solver="CG" tolerance="1e-10"
+              timestep="0.002" integrator="implicitfast">
+          <flag warmstart="disable" island="disable"/>
+      </option>
+      <worldbody>
+          <geom name="floor" size="0 0 .05" type="plane" condim="3"/>
+          <flexcomp name="bed" type="grid" count="17 17 3" spacing="0.05 0.05 0.05"
+                    pos="0 0 0.05" radius="0.0005" dim="3" mass="10" dof="trilinear">
+              <contact condim="3" solref="0.005 1" solimp=".99 .99 .001" selfcollide="none"/>
+              <elasticity young="865067.00" poisson="0.1" damping="1"/>
+          </flexcomp>
+          <body name="box" pos="0.05 0.05 0.5">
+              <freejoint/>
+              <geom name="box_geom" type="box" size="0.04 0.04 0.04" mass="0.5"
+                    solref="0.001 1" solimp="0.99 0.99 0.01"/>
+          </body>
+      </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  MjDataPtr data = MakeData(model);
+
+  // flex stiffness sign checks
+  // verify correct sign of flex stiffness derivatives before simulation
+  int nv = model->nv;
+  mjtNum h = model->opt.timestep;
+
+  // create a test vector
+  std::vector<mjtNum> v(nv), Mv(nv), flex_Kv(nv);
+  for (int i = 0; i < nv; i++) v[i] = mju_Halton(i, 2) - 0.5;
+  mjtNum vnorm = mju_norm(v.data(), nv);
+  for (int i = 0; i < nv; i++) v[i] /= vnorm;
+
+  mj_forward(model.get(), data.get());
+
+  // compute M*v and stiffness contributions
+  mj_mulM(model.get(), data.get(), Mv.data(), v.data());
+
+  // note: we use mjd_flexInterp_mulK here (unscaled by h^2) to check raw
+  // stiffness logic similar to what we expect in the solver now
+  mjtNum* v_copy = (mjtNum*)mju_malloc(nv * sizeof(mjtNum));
+  mju_copy(v_copy, v.data(), nv);
+  mju_zero(flex_Kv.data(), nv);
+
+  // using mulKD for legacy check consistency, but we know it applies h^2+h*d
+  // scaling; actually, let's stick to the high-level property checks from
+  // FlexStiffnessSign which used mulKD
+  mjd_flexInterp_mul(model.get(), data.get(), flex_Kv.data(), v.data(), h * h,
+                     h, NULL);
+
+  // compute v^T*M*v and v^T*scale*K*v
+  mjtNum vMv = mju_dot(v.data(), Mv.data(), nv);
+  // mulKD returns -scale*K*v, so -flex_Kv = +scale*K*v
+  mjtNum vKv = -mju_dot(v.data(), flex_Kv.data(), nv);
+
+  // assertions from FlexStiffnessSign
+  EXPECT_GT(vKv, 0) << "Stiffness contribution should be positive";
+  EXPECT_GT(vMv + vKv, vMv) << "Full Hessian should exceed M alone";
+
+  mju_free(v_copy);
+
+  // stability simulation
+  // run for steps to catch instability
+  for (int i = 0; i < 2000; ++i) {
+    mj_step(model.get(), data.get());
+
+    for (int j = 0; j < model->nq; ++j) {
+      if (mju_abs(data->qpos[j]) > 1000.0) {
+        ADD_FAILURE() << "Instability detected at step " << i << " dof " << j
+                      << " val " << data->qpos[j];
+        return;  // Exit early
+      }
+    }
+  }
+}
+
+// Verify that flex damping does not affect rigid body motion
+TEST_F(ForwardTest, FlexDampingRigidMotion) {
+  constexpr char xml[] = R"(
+  <mujoco>
+      <option gravity="0 0 0" timestep="0.01" integrator="implicitfast" solver="CG"/>
+      <worldbody>
+          <flexcomp name="flex" type="grid" count="3 3 3" spacing="0.1 0.1 0.1"
+                    pos="0 0 0" euler="45 45 45" radius="0.01" dim="3" mass="1" dof="trilinear">
+              <contact selfcollide="none"/>
+              <elasticity young="1e5" poisson="0.3" damping="10"/>
+          </flexcomp>
+      </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // Set initial rigid rotation velocity about Z axis
+  // Center of mass is roughly at 0 0 0 because pos="0 0 0" and symmetric grid.
+  // v = w x r. Let w = (1, 1, 1).
+  mjtNum w[3] = {10.0, 10.0, 10.0};
+  for (int i = 0; i < model->nv / 3; ++i) {
+    int qpos_adr = model->jnt_qposadr[i];
+    int qvel_adr = model->jnt_dofadr[i];
+    mjtNum* pos = data->qpos + qpos_adr;
+    mjtNum* vel = data->qvel + qvel_adr;
+
+    mjtNum r[3] = {pos[0], pos[1], pos[2]};
+    mju_cross(vel, w, r);
+  }
+
+  mj_forward(model.get(), data.get());
+  mjtNum initial_energy = data->energy[0] + data->energy[1];
+
+  // Run a few steps
+  for (int i = 0; i < 10; ++i) {
+    mj_step(model.get(), data.get());
+  }
+
+  mj_forward(model.get(), data.get());
+  mjtNum final_energy = data->energy[0] + data->energy[1];
+
+  // Expect energy conservation.
+  // With the bug, damping force acts on rigid rotation, dissipating energy.
+  EXPECT_NEAR(final_energy, initial_energy, 1e-6 * initial_energy)
+      << "Energy decayed significantly (" << initial_energy << " -> "
+      << final_energy << ")";
+}
+
+// verify that implicit integrator respects parent-flex coupling
+TEST_F(ForwardTest, FlexParentCoupling) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option integrator="implicit" timestep="0.01" solver="CG"/>
+    <worldbody>
+      <body name="parent" pos="0 0 0">
+        <freejoint/>
+        <geom size=".1" mass="0.1"/>
+        <flexcomp name="flex" type="grid" count="3 3 3" cellcount="1 1 1" spacing="1 1 1"
+                  radius=".01" dim="3" mass="100" dof="trilinear" pos="1 1 1">
+          <contact selfcollide="none"/>
+          <elasticity young="1e4" poisson="0.3" damping="50"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // set state: parent moving, flex deformed
+  // this ensures both H_fp (coupling) and qacc_parent are non-trivial
+  // Run with Euler (timestep 1e-6)
+  model->opt.timestep = 1e-6;
+  model->opt.integrator = mjINT_EULER;
+  mj_resetData(model.get(), data.get());
+  data->qvel[0] = 1.0;
+  data->qpos[7] += 0.01;
+  data->qfrc_applied[0] = 10000.0;   // Apply large force to parent
+  mj_step(model.get(), data.get());  // Step integrates
+  std::vector<mjtNum> qvel_euler(model->nv);
+  mju_copy(qvel_euler.data(), data->qvel, model->nv);
+
+  // Run with Implicit (timestep 1e-6)
+  model->opt.integrator = mjINT_IMPLICIT;
+  mj_resetData(model.get(), data.get());
+  data->qvel[0] = 1.0;
+  data->qpos[7] += 0.01;
+  data->qfrc_applied[0] = 10000.0;
+  mj_step(model.get(), data.get());  // Step integrates
+  std::vector<mjtNum> qvel_implicit(model->nv);
+  mju_copy(qvel_implicit.data(), data->qvel, model->nv);
+
+  // Check agreement
+  double max_diff = 0;
+  for (int i = 0; i < model->nv; ++i) {
+    double diff = mju_abs(qvel_euler[i] - qvel_implicit[i]);
+    if (diff > max_diff) max_diff = diff;
+  }
+
+  // implicit and explicit flex damping legitimately differ at
+  // O(h*damping*K/M) in this comparison
+  EXPECT_LT(max_diff, MjTol(5e-5, 1.5e-2))
+      << "Implicit integrator should match Euler at small timestep";
+}
+
+TEST_F(ForwardTest, TrilinearPinnedParentWithFreejoint) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <option integrator="implicitfast" solver="CG"/>
+  <worldbody>
+    <body>
+      <joint type="free"/>
+      <geom type="box" size="0.13 0.18 0.036" pos="0 0 0.036"/>
+      <body name="parent">
+        <flexcomp name="test" type="grid"
+                  count="3 3 3" spacing=".1 .02 .1" radius="0.001"
+                  pos="0 0 0.1" dof="trilinear" xyaxes="0 1 0 0 0 1" mass="10" dim="3">
+          <contact selfcollide="none"/>
+          <elasticity young="1e5" poisson="0.3" damping="0.1"/>
+          <pin id="0 2 4 6"/>
+        </flexcomp>
+      </body>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  MjDataPtr d = MakeData(m);
+
+  int parent_id = mj_name2id(m.get(), mjOBJ_BODY, "parent");
+  ASSERT_GT(parent_id, 0);
+
+  EXPECT_EQ(m->nflexnode, 8);
+  EXPECT_EQ(m->body_dofnum[parent_id], 0) << "parent body should have 0 DOFs";
+
+  int freejoint_body = m->body_parentid[parent_id];
+  EXPECT_EQ(m->body_dofnum[freejoint_body], 6) << "freejoint body has 6 DOFs";
+
+  mj_resetData(m.get(), d.get());
+  mj_forward(m.get(), d.get());
+
+  for (int i = 0; i < 500; i++) {
+    mj_step(m.get(), d.get());
+
+    ASSERT_FALSE(mju_isBad(d->qpos[0]))
+        << "Simulation became unstable at step " << i;
+    ASSERT_FALSE(mju_isBad(d->qvel[0]))
+        << "Velocity became unstable at step " << i;
+
+    for (int j = 0; j < m->nq; j++) {
+      ASSERT_LT(mju_abs(d->qpos[j]), 100.0)
+          << "Position exploded at step " << i << ", qpos[" << j
+          << "]=" << d->qpos[j];
+    }
+    for (int j = 0; j < m->nv; j++) {
+      ASSERT_LT(mju_abs(d->qvel[j]), 1000.0)
+          << "Velocity exploded at step " << i << ", qvel[" << j
+          << "]=" << d->qvel[j];
+    }
+  }
+}
+
+// -------------------- actuator damping and armature --------------------------
+
+using ActuatorDampingTest = MujocoTest;
+
+TEST_F(ActuatorDampingTest, SingleActuatorJointDamping) {
+  // actuator damping=3 with gear=2 should produce same force as
+  // joint damping=12 (3*2^2=12)
+  static constexpr char xml_actuator[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt" gear="2" damping="3"/>
+    </actuator>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_joint[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"
+               damping="12"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m1 = LoadModelFromString(xml_actuator, error, sizeof(error));
+  ASSERT_THAT(m1.get(), NotNull()) << error;
+  MjDataPtr d1 = MakeData(m1);
+
+  MjModelPtr m2 = LoadModelFromString(xml_joint, error, sizeof(error));
+  ASSERT_THAT(m2.get(), NotNull()) << error;
+  MjDataPtr d2 = MakeData(m2);
+
+  mj_resetDataKeyframe(m1.get(), d1.get(), 0);
+  mj_forward(m1.get(), d1.get());
+
+  mj_resetDataKeyframe(m2.get(), d2.get(), 0);
+  mj_forward(m2.get(), d2.get());
+
+  EXPECT_EQ(d1->qfrc_passive[0], d2->qfrc_passive[0]);
+}
+
+TEST_F(ActuatorDampingTest, SingleActuatorTendonDamping) {
+  // actuator damping through tendon transmission
+  static constexpr char xml_actuator[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <fixed name="ten">
+        <joint joint="jnt" coef="1"/>
+      </fixed>
+    </tendon>
+    <actuator>
+      <motor tendon="ten" gear="2" damping="3"/>
+    </actuator>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_tendon[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <fixed name="ten" damping="12">
+        <joint joint="jnt" coef="1"/>
+      </fixed>
+    </tendon>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m1 = LoadModelFromString(xml_actuator, error, sizeof(error));
+  ASSERT_THAT(m1.get(), NotNull()) << error;
+  MjDataPtr d1 = MakeData(m1);
+
+  MjModelPtr m2 = LoadModelFromString(xml_tendon, error, sizeof(error));
+  ASSERT_THAT(m2.get(), NotNull()) << error;
+  MjDataPtr d2 = MakeData(m2);
+
+  mj_resetDataKeyframe(m1.get(), d1.get(), 0);
+  mj_forward(m1.get(), d1.get());
+
+  mj_resetDataKeyframe(m2.get(), d2.get(), 0);
+  mj_forward(m2.get(), d2.get());
+
+  EXPECT_EQ(d1->qfrc_passive[0], d2->qfrc_passive[0]);
+}
+
+TEST_F(ActuatorDampingTest, SingleActuatorArmature) {
+  // actuator armature=0.5 with gear=3 should equal
+  // joint armature=4.5 (0.5*3^2=4.5)
+  static constexpr char xml_actuator[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt" gear="3" armature="0.5"/>
+    </actuator>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_joint[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"
+               armature="4.5"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m1 = LoadModelFromString(xml_actuator, error, sizeof(error));
+  ASSERT_THAT(m1.get(), NotNull()) << error;
+  MjDataPtr d1 = MakeData(m1);
+
+  MjModelPtr m2 = LoadModelFromString(xml_joint, error, sizeof(error));
+  ASSERT_THAT(m2.get(), NotNull()) << error;
+  MjDataPtr d2 = MakeData(m2);
+
+  mj_resetDataKeyframe(m1.get(), d1.get(), 0);
+  mj_forward(m1.get(), d1.get());
+
+  mj_resetDataKeyframe(m2.get(), d2.get(), 0);
+  mj_forward(m2.get(), d2.get());
+
+  EXPECT_EQ(d1->qacc[0], d2->qacc[0]);
+}
+
+TEST_F(ActuatorDampingTest, MultipleActuatorsAccumulate) {
+  // two actuators: damping=2 gear=3, damping=1 gear=4
+  // equivalent joint damping: 2*9 + 1*16 = 34
+  static constexpr char xml_actuator[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt" gear="3" damping="2"/>
+      <motor joint="jnt" gear="4" damping="1"/>
+    </actuator>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_joint[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"
+               damping="34"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m1 = LoadModelFromString(xml_actuator, error, sizeof(error));
+  ASSERT_THAT(m1.get(), NotNull()) << error;
+  MjDataPtr d1 = MakeData(m1);
+
+  MjModelPtr m2 = LoadModelFromString(xml_joint, error, sizeof(error));
+  ASSERT_THAT(m2.get(), NotNull()) << error;
+  MjDataPtr d2 = MakeData(m2);
+
+  mj_resetDataKeyframe(m1.get(), d1.get(), 0);
+  mj_forward(m1.get(), d1.get());
+
+  mj_resetDataKeyframe(m2.get(), d2.get(), 0);
+  mj_forward(m2.get(), d2.get());
+
+  EXPECT_EQ(d1->qfrc_passive[0], d2->qfrc_passive[0]);
+}
+
+TEST_F(ActuatorDampingTest, DampingSimulationEquivalence) {
+  // actuator damping=5 gear=2 should match joint damping=20 over time
+  static constexpr char xml_actuator[] = R"(
+  <mujoco>
+    <option gravity="0 0 -10"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="0 0 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt" gear="2" damping="5"/>
+    </actuator>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_joint[] = R"(
+  <mujoco>
+    <option gravity="0 0 -10"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="0 0 1"
+               damping="20"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m1 = LoadModelFromString(xml_actuator, error, sizeof(error));
+  ASSERT_THAT(m1.get(), NotNull()) << error;
+  MjDataPtr d1 = MakeData(m1);
+
+  MjModelPtr m2 = LoadModelFromString(xml_joint, error, sizeof(error));
+  ASSERT_THAT(m2.get(), NotNull()) << error;
+  MjDataPtr d2 = MakeData(m2);
+
+  mj_resetDataKeyframe(m1.get(), d1.get(), 0);
+  mj_resetDataKeyframe(m2.get(), d2.get(), 0);
+  for (int i = 0; i < 100; i++) {
+    mj_step(m1.get(), d1.get());
+    mj_step(m2.get(), d2.get());
+  }
+
+  EXPECT_MJTNUM_EQ(d1->qpos[0], d2->qpos[0]);
+  EXPECT_MJTNUM_EQ(d1->qvel[0], d2->qvel[0]);
+}
+
+TEST_F(ActuatorDampingTest, ArmatureSimulationEquivalence) {
+  // actuator armature=2 gear=3 should match joint armature=18 over time
+  static constexpr char xml_actuator[] = R"(
+  <mujoco>
+    <option gravity="0 0 -10"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="0 0 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt" gear="3" armature="2"/>
+    </actuator>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_joint[] = R"(
+  <mujoco>
+    <option gravity="0 0 -10"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="0 0 1"
+               armature="18"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m1 = LoadModelFromString(xml_actuator, error, sizeof(error));
+  ASSERT_THAT(m1.get(), NotNull()) << error;
+  MjDataPtr d1 = MakeData(m1);
+
+  MjModelPtr m2 = LoadModelFromString(xml_joint, error, sizeof(error));
+  ASSERT_THAT(m2.get(), NotNull()) << error;
+  MjDataPtr d2 = MakeData(m2);
+
+  mj_resetDataKeyframe(m1.get(), d1.get(), 0);
+  mj_resetDataKeyframe(m2.get(), d2.get(), 0);
+  for (int i = 0; i < 100; i++) {
+    mj_step(m1.get(), d1.get());
+    mj_step(m2.get(), d2.get());
+  }
+
+  EXPECT_MJTNUM_EQ(d1->qpos[0], d2->qpos[0]);
+  EXPECT_MJTNUM_EQ(d1->qvel[0], d2->qvel[0]);
+}
+
+TEST_F(ActuatorDampingTest, UtilityFunctionValues) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt" gear="5" damping="7" armature="3"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+
+  mjtNum poly[mjNPOLY] = {0};
+  EXPECT_EQ(mj_actuatorDamping(m.get(), mjOBJ_JOINT, 0, poly), 175);
+  EXPECT_EQ(mj_actuatorArmature(m.get(), mjOBJ_JOINT, 0), 75);
+}
+
+TEST_F(ActuatorDampingTest, NonlinearDamping) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt" gear="3" damping="2 0.5 0.1"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+
+  // linear damping: 2 * gear^2 = 18
+  mjtNum poly0[mjNPOLY] = {0};
+  EXPECT_EQ(mj_actuatorDamping(m.get(), mjOBJ_JOINT, 0, poly0), 18);
+
+  // poly coefficients scaled by gear^2
+  mjtNum poly[mjNPOLY] = {0};
+  mj_actuatorDamping(m.get(), mjOBJ_JOINT, 0, poly);
+  EXPECT_MJTNUM_EQ(poly[0], 0.5 * 9);  // 4.5
+  EXPECT_MJTNUM_EQ(poly[1], 0.1 * 9);  // 0.9
+}
+
+TEST_F(ActuatorDampingTest, DampingVsKvGearScaling) {
+  // Single model with two parallel bodies: one using kv, one using damping.
+  // Both produce the same joint-space damping force:
+  //   kv:      qfrc_actuator contribution = -kv * gear^2 * qvel
+  //   damping: qfrc_passive  contribution = -damping * gear^2 * qvel
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="implicitfast"/>
+    <worldbody>
+      <body name="kv_body">
+        <joint name="jnt_kv" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+      <body name="damp_body" pos="5 0 0">
+        <joint name="jnt_damp" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt_kv" kp="0" kv="5" gear="3"/>
+      <position joint="jnt_damp" kp="0" damping="5" gear="3"/>
+    </actuator>
+    <keyframe>
+      <key qvel="1 1"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  // check forces at initial state
+  mj_resetDataKeyframe(m.get(), d.get(), 0);
+  mj_forward(m.get(), d.get());
+
+  // kv force arrives via qfrc_actuator, damping via qfrc_passive
+  mjtNum frc_kv = d->qfrc_actuator[0];
+  mjtNum frc_damp = d->qfrc_passive[1];
+  EXPECT_NEAR(frc_kv, frc_damp, MjTol(1e-12, 1e-5));
+
+  // expected force = -5 * 3^2 * 1 = -45
+  EXPECT_NEAR(frc_damp, -45, MjTol(1e-12, 1e-5));
+
+  // simulate and check trajectory equivalence
+  mj_resetDataKeyframe(m.get(), d.get(), 0);
+  for (int i = 0; i < 100; i++) {
+    mj_step(m.get(), d.get());
+  }
+
+  EXPECT_NEAR(d->qpos[0], d->qpos[1], MjTol(1e-12, 1e-5))
+      << "position trajectory mismatch";
+  EXPECT_NEAR(d->qvel[0], d->qvel[1], MjTol(1e-12, 1e-5))
+      << "velocity trajectory mismatch";
+}
+
+// flex sheet dropping on a plane should not gain energy from implicit bending
+// Passive flex contact stiffness is far beyond the explicit limit (~50x) because its curvature is
+// carried by the metric. Both curvature and shift are needed; without the shift it rings apart.
+TEST_F(ImplicitIntegratorTest, PassiveFlexContactIsImplicit) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="implicitfast" solver="CG" iterations="400"/>
+    <worldbody>
+      <flexcomp name="lower" type="grid" dim="2" count="9 9 1" spacing=".04 .04 1"
+                radius=".004" mass=".3" pos="0 0 .2">
+        <contact selfcollide="auto" passive="true"/>
+        <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="both" damping="1e-4"/>
+        <pin id="0 8 72 80"/>
+      </flexcomp>
+      <flexcomp name="upper" type="grid" dim="2" count="5 5 1" spacing=".04 .04 1"
+                radius=".004" mass=".1" pos="0 0 .27">
+        <contact selfcollide="auto" passive="true"/>
+        <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="both" damping="1e-4"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  const mjModel* model = m.get();
+  mjData* data = d.get();
+
+  // Physical peak speed is ~2 m/s; without the shift this scene reaches 143 m/s.
+  mjtNum vmax = 0;
+  for (int i = 0; i < 1000; i++) {
+    mj_step(model, data);
+    for (int j = 0; j < model->nv; j++) {
+      vmax = mju_max(vmax, mju_abs(data->qvel[j]));
+    }
+    ASSERT_FALSE(data->warning[mjWARN_BADQACC].number) << "diverged at step " << i;
+  }
+  EXPECT_LT(vmax, 4.0) << "peak speed " << vmax;
+
+  // Upper sheet must not pass through the lower one: check that its lowest vertex stays above
+  // the lower sheet's lowest point.
+  mjtNum lo[2] = {1e30, 1e30};
+  for (int k = 0; k < 2; k++) {
+    int f = mj_name2id(model, mjOBJ_FLEX, k ? "upper" : "lower");
+    for (int i = 0; i < model->flex_vertnum[f]; i++) {
+      lo[k] = mju_min(lo[k], data->flexvert_xpos[3*(model->flex_vertadr[f] + i) + 2]);
+    }
+  }
+  EXPECT_GT(lo[1], lo[0] - 0.01) << "upper sheet passed through: lowest z " << lo[1]
+                                 << " against the lower sheet's " << lo[0];
+
+}
+
+TEST_F(ImplicitIntegratorTest, FlexContactEnergy) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 -10" timestep="0.001" integrator="implicitfast"
+            solver="CG" tolerance="1e-6">
+      <flag energy="enable"/>
+    </option>
+    <default>
+      <geom solref="0.003 1"/>
+    </default>
+    <worldbody>
+      <geom type="plane" size="5 5 0.1"/>
+      <flexcomp type="grid" count="8 8 1" spacing=".04 .04 .04"
+                radius=".01" name="sheet" dim="2" pos="0 0 0.02" mass="0.1">
+        <edge equality="true" damping="0.1"/>
+        <elasticity young="3e6" poisson="0" thickness="2e-2"
+                    elastic2d="bend" damping="0"/>
+        <contact solref="0.003 1" internal="false" selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  ASSERT_EQ(m->nflex, 1);
+
+  MjDataPtr d = MakeData(m);
+
+  // compute initial energy
+  mj_forward(m.get(), d.get());
+  mjtNum initial_energy = d->energy[0] + d->energy[1];
+  ASSERT_GT(initial_energy, 0);
+
+  // simulate
+  mjtNum max_energy = initial_energy;
+  int max_energy_step = 0;
+  int nsteps = 500;
+  for (int i = 0; i < nsteps; i++) {
+    mj_step(m.get(), d.get());
+    mjtNum total_energy = d->energy[0] + d->energy[1];
+    if (total_energy > max_energy) {
+      max_energy = total_energy;
+      max_energy_step = i + 1;
+    }
+  }
+
+  mjtNum energy_ratio = max_energy / initial_energy;
+
+  EXPECT_LE(energy_ratio, 1.01)
+      << "contact solver injected energy: max_energy/initial_energy = "
+      << energy_ratio << " (max at step " << max_energy_step << ")"
+      << "\n  initial_energy = " << initial_energy
+      << "\n  max_energy     = " << max_energy;
+}
+
+// bending damping on a flat flex must dissipate energy with implicit integrator
+TEST_F(ImplicitIntegratorTest, BendingDampingDecaysEnergy) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" timestep="0.001" integrator="implicitfast" solver="CG">
+      <flag energy="enable"/>
+    </option>
+    <worldbody>
+      <flexcomp type="grid" count="6 6 1" spacing=".1 .1 .1"
+                radius=".005" name="sheet" dim="2" mass="0.1">
+        <edge equality="false" damping="0" stiffness="0"/>
+        <elasticity young="1e6" poisson="0" thickness="0.02"
+                    elastic2d="bend" damping="0.1"/>
+        <contact solref="0.01" internal="false" selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  ASSERT_EQ(m->nflex, 1);
+  ASSERT_GT(m->flex_damping[0], 0) << "flex_damping not set";
+
+  MjDataPtr d = MakeData(m);
+
+  // perturb a central vertex with upward velocity
+  // vertex layout is 6x6 grid; pick a central vertex (row=3, col=3 -> id=21)
+  int center_vert = 21;
+  int bid = m->flex_vertbodyid[m->flex_vertadr[0] + center_vert];
+  int dofadr = m->body_dofadr[bid];
+  d->qvel[dofadr + 2] = 1.0;  // z-velocity
+
+  // initial forward to compute energy
+  mj_forward(m.get(), d.get());
+  mjtNum initial_energy = d->energy[0] + d->energy[1];
+  ASSERT_GT(initial_energy, 0) << "initial energy should be nonzero";
+
+  // step forward and check energy decay
+  mjtNum max_energy = initial_energy;
+  int nsteps = 100;
+  for (int i = 0; i < nsteps; i++) {
+    mj_step(m.get(), d.get());
+    mjtNum total_energy = d->energy[0] + d->energy[1];
+    max_energy = mju_max(max_energy, total_energy);
+  }
+
+  // energy must never exceed initial (system must not go unstable)
+  EXPECT_LE(max_energy, initial_energy * 1.01)
+      << "energy exceeded initial by more than 1%: max=" << max_energy
+      << ", initial=" << initial_energy;
+
+  // after 100 steps (0.1 seconds), energy should have decayed significantly
+  mjtNum final_energy = d->energy[0] + d->energy[1];
+  EXPECT_LT(final_energy, 0.5 * initial_energy)
+      << "energy did not decay by at least 50% after " << nsteps << " steps"
+      << " (initial=" << initial_energy << ", final=" << final_energy << ")";
+}
+
+// interp stretch stiffness with implicitfast must preserve energy stability
+TEST_F(ImplicitIntegratorTest, InterpStretchEnergy) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" timestep="0.001" integrator="implicitfast" solver="CG">
+      <flag energy="enable"/>
+    </option>
+    <worldbody>
+      <flexcomp type="grid" count="4 4 4" cellcount="3 3 3"
+                spacing=".05 .05 .05" radius=".005" name="cube"
+                dim="3" mass="10" dof="trilinear">
+        <elasticity young="1e6" poisson="0.3" damping="0"/>
+        <contact selfcollide="none" internal="false"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+
+  MjDataPtr d = MakeData(m);
+
+  // perturb a central vertex with velocity
+  int center_body = m->nbody / 2;
+  int dofadr = m->body_dofadr[center_body];
+  ASSERT_GT(m->body_dofnum[center_body], 0);
+  d->qvel[dofadr + 2] = 1.0;  // z-velocity
+
+  mj_forward(m.get(), d.get());
+  mjtNum initial_energy = d->energy[0] + d->energy[1];
+  ASSERT_GT(initial_energy, 0) << "initial energy should be nonzero";
+
+  // step and track max energy
+  mjtNum max_energy = initial_energy;
+  int nsteps = 50;
+  for (int i = 0; i < nsteps; i++) {
+    mj_step(m.get(), d.get());
+    mjtNum total_energy = d->energy[0] + d->energy[1];
+    max_energy = mju_max(max_energy, total_energy);
+  }
+
+  // energy must not blow up
+  EXPECT_LE(max_energy, initial_energy * 1.01)
+      << "energy exceeded initial by more than 1%: max=" << max_energy
+      << ", initial=" << initial_energy;
+}
+
+// with the implicit effective metric active, inverse dynamics must recover the
+// applied force (zero here): the forward solve is (M+B)*qacc = qfrc_smooth + c
+// + J'*f and the inverse adds the same B*qacc - c terms. This is the fwd/inv
+// consistency fence for the flex-CG dispatch.
+TEST_F(ForwardTest, GatedFlexInverseConsistency) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option solver="CG" integrator="implicitfast" tolerance="1e-14"/>
+    <worldbody>
+      <flexcomp name="cloth" type="grid" count="6 6 1" spacing="0.1 0.1 0.1"
+                radius=".01" dim="2" mass="1" pos="0 0 1">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e4" poisson="0.3" thickness="0.01"
+                    elastic2d="both" damping="0.5"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  int nv = model->nv;
+
+  // deform and settle a few steps under gravity
+  for (int i=0; i < nv; i++) {
+    data->qvel[i] = 0.1 * (mju_Halton(i, 3) - 0.5);
+  }
+  for (int step=0; step < 50; step++) {
+    mj_step(model.get(), data.get());
+  }
+
+  // forward then inverse at the same state
+  mj_forward(model.get(), data.get());
+  mj_inverse(model.get(), data.get());
+
+  // no applied forces: the inverse must return ~zero, at the scale of the
+  // passive forces
+  mjtNum scale = 1 + mju_norm(data->qfrc_passive, nv);
+  EXPECT_LT(mju_norm(data->qfrc_inverse, nv), 1e-6 * scale);
+}
+
 }  // namespace
+
 }  // namespace mujoco

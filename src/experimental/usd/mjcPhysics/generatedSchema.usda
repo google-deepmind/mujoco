@@ -4,6 +4,7 @@
 )
 
 class "MjcSceneAPI" (
+    apiSchemas = ["NewtonSceneAPI"]
     doc = "API providing global simulation options for MuJoCo."
 )
 {
@@ -120,7 +121,9 @@ class "MjcSceneAPI" (
     )
     uniform bool mjc:flag:gravity = 1 (
         displayName = "Gravity Toggle"
-        doc = "Enables the application of gravitational acceleration as defined in mjOption."
+        doc = """DEPRECATED: Use newton:gravityEnabled instead.
+
+        Enables the application of gravitational acceleration as defined in mjOption."""
     )
     uniform bool mjc:flag:invdiscrete = 0 (
         displayName = "Discrete-Time Inverse Dynamics Toggle"
@@ -138,7 +141,7 @@ class "MjcSceneAPI" (
         displayName = "Mid-Phase Collision Filtering Toggle"
         doc = "Enables mid-phase collision filtering using a static AABB bounding volume hierarchy (BVH)."
     )
-    uniform bool mjc:flag:multiccd = 0 (
+    uniform bool mjc:flag:multiccd = 1 (
         displayName = "Multiple Contact Collision Detection (CCD) Toggle"
         doc = "Enables multiple-contact collision detection for geom pairs using a general-purpose convex-convex collider."
     )
@@ -200,7 +203,9 @@ class "MjcSceneAPI" (
     )
     uniform int mjc:option:iterations = 100 (
         displayName = "Solver Iterations"
-        doc = "Maximum number of iterations of the constraint solver."
+        doc = """DEPRECATED: Use newton:maxSolverIterations instead.
+
+        Maximum number of iterations of the constraint solver."""
     )
     uniform token mjc:option:jacobian = "auto" (
         allowedTokens = ["auto", "dense", "sparse"]
@@ -265,7 +270,9 @@ class "MjcSceneAPI" (
     )
     uniform double mjc:option:timestep = 0.002 (
         displayName = "Timestep"
-        doc = "Controls the timestep in seconds used by MuJoCo."
+        doc = """DEPRECATED: Use newton:timeStepsPerSecond instead.
+
+        Controls the timestep in seconds used by MuJoCo."""
     )
     uniform double mjc:option:tolerance = 1e-8 (
         displayName = "Solver Tolerance"
@@ -283,6 +290,7 @@ class "MjcSceneAPI" (
 }
 
 class "MjcSiteAPI" (
+    apiSchemas = ["NewtonSiteAPI"]
     doc = "API describing a MuJoCo site."
 )
 {
@@ -303,6 +311,7 @@ class "MjcImageableAPI" (
 }
 
 class "MjcCollisionAPI" (
+    apiSchemas = ["NewtonCollisionAPI"]
     doc = "API describing a MuJoCo collider."
 )
 {
@@ -312,7 +321,9 @@ class "MjcCollisionAPI" (
     )
     uniform double mjc:gap = 0 (
         displayName = "Gap"
-        doc = "This attribute is used to enable the generation of inactive contacts, i.e., contacts that are ignored by the constraint solver but are included in mjData.contact for the purpose of custom computations. When this value is positive, geom distances between margin and margin-gap correspond to such inactive contacts."
+        doc = """DEPRECATED: Use newton:contactGap instead.
+
+        Additional contact detection buffer beyond margin. Contacts are detected at distance margin + gap but forces are only generated at distance margin."""
     )
     uniform int mjc:group = 0 (
         displayName = "Group"
@@ -320,7 +331,9 @@ class "MjcCollisionAPI" (
     )
     uniform double mjc:margin = 0 (
         displayName = "Margin"
-        doc = "Distance threshold below which contacts are detected and included in the global array mjData.contact."
+        doc = """DEPRECATED: Use newton:contactMargin and newton:contactGap instead.
+
+        Geometric inflation of the geom surface for the purpose of contact force generation."""
     )
     uniform int mjc:priority = 0 (
         displayName = "Priority"
@@ -328,7 +341,9 @@ class "MjcCollisionAPI" (
     )
     uniform bool mjc:shellinertia = 0 (
         displayName = "Shell Inertia"
-        doc = "Enables handling of the inertia assuming mass is concentrated on the surface."
+        doc = """DEPRECATED: Use NewtonMassAPI's newton:massModel = \"shell\" instead.
+
+        Enables handling of the inertia assuming mass is concentrated on the surface."""
     )
     uniform double[] mjc:solimp = [0.9, 0.95, 0.001, 0.5, 2] (
         displayName = "SolImp"
@@ -345,17 +360,22 @@ class "MjcCollisionAPI" (
 }
 
 class "MjcMeshCollisionAPI" (
+    apiSchemas = ["NewtonMeshCollisionAPI"]
     doc = "API describing a MuJoCo mesh collider."
 )
 {
     uniform token mjc:inertia = "legacy" (
         allowedTokens = ["legacy", "convex", "exact", "shell"]
         displayName = "Inertia"
-        doc = "Controls how a mesh is used when mass and inertia are inferred from geometry."
+        doc = """DEPRECATED: Use NewtonMassAPI's newton:massModel or UsdPhysics's physics:approximation instead.
+
+        Controls how a mesh is used when mass and inertia are inferred from geometry."""
     )
     uniform int mjc:maxhullvert = -1 (
         displayName = "Maximum Hull Vertices"
-        doc = "Sets an upper limit on the number of vertices in the meshes convex hull. The default value of -1 means unlimited."
+        doc = """DEPRECATED: Use newton:maxHullVertices instead.
+
+        Sets an upper limit on the number of vertices in the meshes convex hull. The default value of -1 means unlimited."""
     )
 }
 
@@ -478,6 +498,7 @@ class MjcKeyframe "MjcKeyframe" (
 }
 
 class "MjcJointAPI" (
+    apiSchemas = ["NewtonJointAPI"]
     doc = "API describing a MuJoCo joint."
 )
 {
@@ -495,13 +516,19 @@ class "MjcJointAPI" (
         doc = "If this flag is enabled, gravity compensation applied to this joint is added to actuator forces (mjData.qfrc_actuator) rather than passive forces (mjData.qfrc_passive). Notionally, this means that gravity compensation is the result of a control system rather than natural buoyancy. In practice, enabling this flag is useful when joint-level actuator force clamping is used. In this case, the total actuation force applied on a joint, including gravity compensation, is guaranteed to not exceed the specified limits. See Force limits and actuatorfrcrange for more details on this type of force limit."
     )
     uniform double mjc:armature = 0 (
-        doc = "Additional inertia associated with movement of the joint that is not due to body mass. This added inertia is usually due to a rotor (a.k.a armature) spinning faster than the joint itself due to a geared transmission. The value applies to all degrees of freedom created by this joint. Besides increasing the realism of joints with geared transmission, positive armature significantly improves simulation stability, even for small values, and is a recommended possible fix when encountering stability issues."
+        doc = """DEPRECATED: Use newton:armature instead.
+
+        Additional inertia associated with movement of the joint that is not due to body mass. This added inertia is usually due to a rotor (a.k.a armature) spinning faster than the joint itself due to a geared transmission. The value applies to all degrees of freedom created by this joint. Besides increasing the realism of joints with geared transmission, positive armature significantly improves simulation stability, even for small values, and is a recommended possible fix when encountering stability issues."""
     )
     uniform double mjc:damping = 0 (
-        doc = "Damping applied to all degrees of freedom created by this joint. Unlike friction loss which is computed by the constraint solver, damping is simply a force linear in velocity. It is included in the passive forces. Despite this simplicity, larger damping values can make numerical integrators unstable, which is why our Euler integrator handles damping implicitly. See Integration in the Computation chapter."
+        doc = """DEPRECATED: Use newton:damping instead.
+
+        Damping applied to all degrees of freedom created by this joint. Unlike friction loss which is computed by the constraint solver, damping is simply a force linear in velocity. It is included in the passive forces. Despite this simplicity, larger damping values can make numerical integrators unstable, which is why our Euler integrator handles damping implicitly. See Integration in the Computation chapter."""
     )
     uniform double mjc:frictionloss = 0 (
-        doc = "Friction loss due to dry friction. This value is the same for all degrees of freedom created by this joint. Semantically friction loss does not make sense for free joints, but the compiler allows it. To enable friction loss, set this attribute to a positive value."
+        doc = """DEPRECATED: Use newton:friction instead.
+
+        Friction loss due to dry friction. This value is the same for all degrees of freedom created by this joint. Semantically friction loss does not make sense for free joints, but the compiler allows it. To enable friction loss, set this attribute to a positive value."""
     )
     uniform int mjc:group = 0 (
         displayName = "Group"
@@ -537,16 +564,117 @@ class "MjcJointAPI" (
 }
 
 class "MjcMaterialAPI" (
-    doc = "API providing extension attributes to represent physical MuJoCo materials."
+    apiSchemas = ["NewtonMaterialAPI"]
+    doc = """DEPRECATED: Use NewtonMaterialAPI instead. All attributes on this API have been superseded by Newton equivalents.
+
+    API providing extension attributes to represent physical MuJoCo materials."""
 )
 {
     uniform double mjc:rollingfriction = 0.0001 (
         displayName = "Rolling Friction"
-        doc = "Friction value acting around both axes on the contact tangent plane."
+        doc = """DEPRECATED: Use newton:rollingFriction instead.
+
+        Friction value acting around both axes on the contact tangent plane."""
     )
     uniform double mjc:torsionalfriction = 0.005 (
         displayName = "Torsional Friction"
-        doc = "Friction value acting around contact normal."
+        doc = """DEPRECATED: Use newton:torsionalFriction instead.
+
+        Friction value acting around contact normal."""
+    )
+}
+
+class "MjcEqualityAPI" (
+    doc = "Base API for equality constraints."
+)
+{
+    uniform double[] mjc:solimp = [0.9, 0.95, 0.001, 0.5, 2] (
+        displayName = "SolImp"
+        doc = "Constraint solver parameter for equality constraint simulation."
+    )
+    uniform double[] mjc:solref = [0.02, 1] (
+        displayName = "SolRef"
+        doc = "Constraint solver parameter for equality constraint simulation."
+    )
+    rel mjc:target (
+        doc = "Secondary target of the equality constraint."
+    )
+}
+
+class "MjcEqualityConnectAPI" (
+    apiSchemas = ["MjcEqualityAPI"]
+    doc = "API providing extension attributes to represent equality/connect constraints."
+)
+{
+}
+
+class "MjcEqualityWeldAPI" (
+    apiSchemas = ["MjcEqualityAPI"]
+    doc = "API providing extension attributes to represent equality/weld constraints."
+)
+{
+    uniform float mjc:torqueScale = 1 (
+        displayName = "Torque Scale"
+        doc = "A constant that scales the angular residual (angular constraint violation). Notionally in units of torque/force = length. Intuitively this coefficient defines how much the weld “cares” about rotational displacements vs. translational displacements."
+    )
+}
+
+class "MjcEqualityJointAPI" (
+    apiSchemas = ["NewtonMimicAPI"]
+    doc = """API providing extension attributes to represent equality/joint constraints.
+
+    This API is applied to a joint prim which acts as the follower (joint0). The leader
+    joint (joint1) is specified via the newton:mimicJoint relationship inherited from
+    NewtonMimicAPI.
+
+    The follower's position or angle is constrained to be a quartic polynomial of the
+    leader's position or angle:
+        joint0 = coef0 + coef1*(joint1) + coef2*(joint1)^2 + coef3*(joint1)^3 + coef4*(joint1)^4
+
+    The constant (coef0) and linear (coef1) coefficients are provided by NewtonMimicAPI
+    as newton:mimicCoef0 and newton:mimicCoef1. The higher-order coefficients (coef2-coef4)
+    are provided by this API.
+
+    Only scalar joint types (slide and hinge) can be used."""
+)
+{
+    uniform double mjc:coef0 = 0 (
+        displayName = "Coefficient 0"
+        doc = """DEPRECATED: Use newton:mimicCoef0 instead.
+
+        Constant coefficient a0 of the quartic polynomial. The constraint is:
+        y = y0 + a0 + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4."""
+    )
+    uniform double mjc:coef1 = 1 (
+        displayName = "Coefficient 1"
+        doc = """DEPRECATED: Use newton:mimicCoef1 instead.
+
+        Linear coefficient a1 of the quartic polynomial."""
+    )
+    uniform double mjc:coef2 = 0 (
+        displayName = "Coefficient 2"
+        doc = "Quadratic coefficient a2 of the quartic polynomial."
+    )
+    uniform double mjc:coef3 = 0 (
+        displayName = "Coefficient 3"
+        doc = "Cubic coefficient a3 of the quartic polynomial."
+    )
+    uniform double mjc:coef4 = 0 (
+        displayName = "Coefficient 4"
+        doc = "Quartic coefficient a4 of the quartic polynomial."
+    )
+    uniform double[] mjc:solimp = [0.9, 0.95, 0.001, 0.5, 2] (
+        displayName = "SolImp"
+        doc = "Constraint solver parameter for equality constraint simulation."
+    )
+    uniform double[] mjc:solref = [0.02, 1] (
+        displayName = "SolRef"
+        doc = "Constraint solver parameter for equality constraint simulation."
+    )
+    rel mjc:target (
+        doc = """DEPRECATED: Use newton:mimicJoint instead.
+
+        Secondary target of the equality constraint (the leader/reference joint)."""
     )
 }
 
@@ -593,13 +721,16 @@ class MjcTendon "MjcTendon" (
         doc = "The limit constraint becomes active when the absolute value of the difference between the tendon length and either limit of the specified range falls below this margin. Similar to contacts, the margin parameter is subtracted from the difference between the range limit and the tendon length. The resulting constraint distance is always negative when the constraint is active. This quantity is used to compute constraint impedance as a function of distance."
     )
     rel mjc:path (
-        doc = "For spatial tendons, this describes a list of sites and geoms the tendon wraps. For fixed tendons, this is instead a list of joints."
+        doc = "For spatial tendons, this describes a list of unique of sites and geoms the tendon wraps. For fixed tendons, this is instead a list of joints."
     )
     uniform double[] mjc:path:coef = [] (
         doc = "For fixed tendons passing through joints this represents a multiplicative factor on the position or angle of the targeted joint."
     )
     uniform double[] mjc:path:divisors = [] (
         doc = "For spatial tendons, this represents an indexed array of divisors. A tendon path segments' length contribution to the overall tendon length is divided by its divisor."
+    )
+    uniform int[] mjc:path:indices = [] (
+        doc = "This list represents the order in which the tendon wraps the sites in mjc:path."
     )
     uniform int[] mjc:path:segments = [] (
         doc = "For spatial tendons, this holds the index of the segment each tendon path wrap point belongs to."

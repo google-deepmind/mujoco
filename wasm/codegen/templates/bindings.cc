@@ -15,10 +15,14 @@
 // NOLINTBEGIN(whitespace/line_length)
 // NOLINTBEGIN(whitespace/semicolon)
 
+#include "wasm/codegen/generated/bindings.h"
+
 #include <emscripten.h>
 #include <emscripten/bind.h>
+#include <emscripten/em_asm.h>
 #include <emscripten/val.h>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -27,46 +31,81 @@
 #include <cstring>  // NOLINT
 #include <memory>
 #include <optional>  // NOLINT
-#include <string>    // NOLINT
+#include <sstream>
+#include <string>  // NOLINT
+#include <string_view>
 #include <vector>
 
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjspec.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include <mujoco/mjspec.h>
 #include "engine/engine_util_errmem.h"
 #include "wasm/unpack.h"
+#include "python/mujoco/indexer_xmacro.h"
 
 namespace mujoco::wasm {
 
-using emscripten::enum_;
-using emscripten::function;
-using emscripten::val;
-using emscripten::return_value_policy::reference;
-using emscripten::return_value_policy::take_ownership;
 
-EMSCRIPTEN_DECLARE_VAL_TYPE(NumberArray);
-EMSCRIPTEN_DECLARE_VAL_TYPE(String);
-
-// Raises an error if the given val is null or undefined.
-// A macro is used so that the error contains the name of the variable.
-// TODO(matijak): Remove this when we can handle strings using UNPACK_STRING?
-#define CHECK_VAL(val)                                    \
-  if (val.isNull()) {                                     \
-    mju_error("Invalid argument: %s is null", #val);      \
-  } else if (val.isUndefined()) {                         \
-    mju_error("Invalid argument: %s is undefined", #val); \
+void ThrowMujocoErrorToJS(const mjLogMessage* msg) {
+  if (msg->level == mjLOG_ERROR) {
+    std::string message = msg->subject;
+    if (msg->func) {
+      message = std::string(msg->func) + ": " + msg->subject;
+    }
+    // Get a handle to the JS global Error constructor function, create a new
+    // object instance and then throw the object as an exception using the
+    // val::throw_() helper function.
+    val(val::global("Error").new_(val("MuJoCo Error: " + message))).throw_();
   }
-
-void ThrowMujocoErrorToJS(const char* msg) {
-  // Get a handle to the JS global Error constructor function, create a new
-  // object instance and then throw the object as an exception using the
-  // val::throw_() helper function.
-  val(val::global("Error").new_(val("MuJoCo Error: " + std::string(msg))))
-      .throw_();
 }
 __attribute__((constructor)) void InitMuJoCoErrorHandler() {
-  mju_user_error = ThrowMujocoErrorToJS;
+  mju_setLogHandler(ThrowMujocoErrorToJS);
+}
+
+// Generates a descriptive error message for when a key lookup fails.
+// The message includes the invalid name and a list of valid names of the
+// specified object type currently present in the model.
+//
+// Arguments:
+//   model: Pointer to the mjModel.
+//   objtype: The mjOBJ_* enum value representing the object type.
+//   count: The number of objects of the given type in the model.
+//   name: The invalid name that was looked up.
+//
+// Returns:
+//   A string containing the error message.
+std::string KeyErrorMessage(const mjModel* model, int objtype, int count,
+                            std::string_view name, std::string_view accessor_name) {
+  std::vector<std::string> valid_names;
+  valid_names.reserve(count);
+  for (int i = 0; i < count; ++i) {
+    const char* n = mj_id2name(model, objtype, i);
+    if (n) {
+      valid_names.push_back(n);
+    }
+  }
+  std::sort(valid_names.begin(), valid_names.end());
+
+  std::ostringstream message;
+  message << "Invalid name '" << name << "' for " << accessor_name
+          << ". Valid names: [";
+  for (size_t i = 0; i < valid_names.size(); ++i) {
+    message << "'" << valid_names[i] << "'";
+    if (i < valid_names.size() - 1) {
+      message << ", ";
+    }
+  }
+  message << "]";
+  return message.str();
+}
+
+std::string IndexErrorMessage(int index, int count,
+                              std::string_view accessor_name) {
+  std::ostringstream message;
+  message << "Invalid index " << index << " for " << accessor_name
+          << ". Valid indices from 0 to " << count - 1;
+  return message.str();
 }
 
 template <size_t N>
@@ -109,108 +148,7 @@ val get_mjFRAMESTRING() { return MakeValArray(mjFRAMESTRING); }
 val get_mjVISSTRING() { return MakeValArray3(mjVISSTRING); }
 val get_mjRNDSTRING() { return MakeValArray3(mjRNDSTRING); }
 
-
-// {{ ANONYMOUS_STRUCT_TYPEDEFS }}
-
-// {{ STRUCTS_HEADER }}
-
 // {{ STRUCTS_SOURCE }}
-
-struct MjvScene {
-  MjvScene();
-  MjvScene(MjModel *m, int maxgeom);
-  ~MjvScene();
-  std::unique_ptr<MjvScene> copy();
-  int GetSumFlexFaces() const;
-
-  mjvScene* get() const;
-  void set(mjvScene* ptr);
-
-  std::vector<MjvGeom> geoms() const;
-
-  emscripten::val geomorder() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->ngeom, ptr_->geomorder));
-  }
-  emscripten::val flexedgeadr() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexedgeadr));
-  }
-  emscripten::val flexedgenum() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexedgenum));
-  }
-  emscripten::val flexvertadr() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexvertadr));
-  }
-  emscripten::val flexvertnum() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexvertnum));
-  }
-  emscripten::val flexfaceadr() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexfaceadr));
-  }
-  emscripten::val flexfacenum() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexfacenum));
-  }
-  emscripten::val flexfaceused() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexfaceused));
-  }
-  emscripten::val flexedge() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(2 * model->nflexedge, ptr_->flexedge));
-  }
-  emscripten::val flexvert() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(3 * model->nflexvert, ptr_->flexvert));
-  }
-  emscripten::val skinfacenum() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nskin, ptr_->skinfacenum));
-  }
-  emscripten::val skinvertadr() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nskin, ptr_->skinvertadr));
-  }
-  emscripten::val skinvertnum() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nskin, ptr_->skinvertnum));
-  }
-  emscripten::val skinvert() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(3 * model->nskinvert, ptr_->skinvert));
-  }
-  emscripten::val skinnormal() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(3 * model->nskinvert, ptr_->skinnormal));
-  }
-  emscripten::val flexface() const {
-    return emscripten::val(emscripten::typed_memory_view(
-        9 * MjvScene::GetSumFlexFaces(), ptr_->flexface));
-  }
-  emscripten::val flexnormal() const {
-    return emscripten::val(emscripten::typed_memory_view(
-        9 * MjvScene::GetSumFlexFaces(), ptr_->flexnormal));
-  }
-  emscripten::val flextexcoord() const {
-    return emscripten::val(emscripten::typed_memory_view(
-        6 * MjvScene::GetSumFlexFaces(), ptr_->flextexcoord));
-  }
-  // INSERT-GENERATED-MjvScene-DECLARATION
-
- private:
-  mjvScene* ptr_;
-  bool owned_ = false;
-
- public:
-  mjModel *model;
-  std::vector<MjvLight> lights;
-  std::vector<MjvGLCamera> camera;
-};
 
 MjModel::MjModel(mjModel* ptr)
     : ptr_(ptr), opt(&ptr->opt), vis(&ptr->vis), stat(&ptr->stat) {}
@@ -338,7 +276,8 @@ MjSpec::MjSpec()
       compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat) {
+      stat(&ptr_->stat),
+      authored(&ptr_->authored) {
   owned_ = true;
   mjs_defaultSpec(ptr_);
 };
@@ -349,7 +288,8 @@ MjSpec::MjSpec(mjSpec *ptr)
       compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat) {}
+      stat(&ptr_->stat),
+      authored(&ptr_->authored) {}
 
 MjSpec::MjSpec(const MjSpec &other)
     : ptr_(mj_copySpec(other.get())),
@@ -357,7 +297,8 @@ MjSpec::MjSpec(const MjSpec &other)
       compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat) {
+      stat(&ptr_->stat),
+      authored(&ptr_->authored) {
   owned_ = true;
 }
 
@@ -387,12 +328,71 @@ MjSpec::~MjSpec() {
 mjSpec *MjSpec::get() const { return ptr_; }
 void MjSpec::set(mjSpec *ptr) { ptr_ = ptr; }
 
-std::unique_ptr<MjModel> mj_loadXML_wrapper(std::string filename) {
+emscripten::val MjSpec::timer() const {
+  return emscripten::val(emscripten::typed_memory_view(9, mjs_getTimer(ptr_)));
+}
+
+std::unique_ptr<MjModel> mj_loadXML_wrapper_1(std::string filename) {
   char error[1000];
   mjModel *model = mj_loadXML(filename.c_str(), nullptr, error, sizeof(error));
   if (!model) {
-    printf("Loading error: %s\n", error);
-    return nullptr;
+    mju_error("Loading error: %s\n", error);
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+std::unique_ptr<MjModel> mj_loadXML_wrapper_2(std::string filename, const MjVFS& vfs) {
+  char error[1000];
+  mjModel *model = mj_loadXML(filename.c_str(), vfs.get(), error, sizeof(error));
+  if (!model) {
+    mju_error("Loading error: %s\n", error);
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+void mj_saveModel_wrapper(const MjModel& m, const StringOrNull& filename, const val& buffer) {
+  UNPACK_NULLABLE_STRING(filename);
+  UNPACK_NULLABLE_VALUE(uint8_t, buffer);
+  mj_saveModel(m.get(), filename_.data(), buffer_.data(), static_cast<int>(buffer_.size()));
+}
+
+std::unique_ptr<MjModel> mj_loadModel_wrapper(std::string filename, const MjVFS& vfs) {
+  mjModel *model = mj_loadModel(filename.c_str(), vfs.get());
+  if (!model) {
+    mju_error("Failed to load from mjb");
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+std::unique_ptr<MjModel> from_xml_string_wrapper_1(const std::string& xml) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  const char* filename = "model.xml";
+  int add_result = mj_addBufferVFS(&vfs, filename, xml.c_str(), xml.length());
+  if (add_result != 0) {
+    mj_deleteVFS(&vfs);
+    mju_error("Could not add XML string to VFS: %d", add_result);
+  }
+  char error[1000];
+  mjModel* model = mj_loadXML(filename, &vfs, error, sizeof(error));
+  mj_deleteVFS(&vfs);
+  if (!model) {
+    mju_error("Loading error: %s\n", error);
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+std::unique_ptr<MjModel> from_xml_string_wrapper_2(const std::string& xml, const MjVFS& vfs) {
+  std::string filename = "model.xml";
+  int add_result = mj_addBufferVFS(vfs.get(), filename.c_str(), xml.c_str(), xml.length());
+  if (add_result != 0) {
+    mju_error("Could not add XML string to VFS: %d", add_result);
+  }
+  char error[1000];
+  mjModel* model = mj_loadXML(filename.c_str(), vfs.get(), error, sizeof(error));
+  mj_deleteFileVFS(vfs.get(), filename.c_str());
+  if (!model) {
+    mju_error("Loading error: %s\n", error);
   }
   return std::unique_ptr<MjModel>(new MjModel(model));
 }
@@ -401,17 +401,59 @@ std::unique_ptr<MjSpec> parseXMLString_wrapper(const std::string &xml) {
   char error[1000];
   mjSpec *ptr = mj_parseXMLString(xml.c_str(), nullptr, error, sizeof(error));
   if (!ptr) {
-    printf("Could not create Spec from XML string: %s\n", error);
-    return nullptr;
+    mju_error("Could not create Spec from XML string: %s\n", error);
   }
   return std::unique_ptr<MjSpec>(new MjSpec(ptr));
 }
 
-std::unique_ptr<MjModel> mj_compile_wrapper(const MjSpec& spec) {
+std::unique_ptr<MjSpec> parseXMLString_wrapper_2(const std::string &xml, const MjVFS& vfs) {
+  char error[1000];
+  mjSpec *ptr = mj_parseXMLString(xml.c_str(), vfs.get(), error, sizeof(error));
+  if (!ptr) {
+    mju_error("Could not create Spec from XML string: %s\n", error);
+  }
+  return std::unique_ptr<MjSpec>(new MjSpec(ptr));
+}
+
+std::unique_ptr<MjModel> mj_compile_wrapper_1(const MjSpec& spec) {
   mjSpec* spec_ptr = spec.get();
+
+  // suppress stderr playback: warnings are raised via console.warn() below
+  mjfLogHandler prev = _mjPRIVATE_setTlsLogHandler([](const mjLogMessage*) {});
   mjModel* model = mj_compile(spec_ptr, nullptr);
-  if (!model || mjs_isWarning(spec_ptr)) {
+  _mjPRIVATE_setTlsLogHandler(prev);
+  if (!model) {
     mju_error("%s", mjs_getError(spec_ptr));
+  }
+  int num_warnings = mjs_numWarnings(spec_ptr);
+  if (num_warnings > 0) {
+    for (int i = 0; i < num_warnings; ++i) {
+      val::global("console").call<void>(
+          "warn",
+          val("MuJoCo Warning: " + std::string(mjs_getWarning(spec_ptr, i))));
+    }
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+std::unique_ptr<MjModel> mj_compile_wrapper_2(const MjSpec& spec, const MjVFS& vfs) {
+  mjSpec* spec_ptr = spec.get();
+  mjVFS* vfs_ptr = vfs.get();
+
+  // suppress stderr playback: warnings are raised via console.warn() below
+  mjfLogHandler prev = _mjPRIVATE_setTlsLogHandler([](const mjLogMessage*) {});
+  mjModel* model = mj_compile(spec_ptr, vfs_ptr);
+  _mjPRIVATE_setTlsLogHandler(prev);
+  if (!model) {
+    mju_error("%s", mjs_getError(spec_ptr));
+  }
+  int num_warnings = mjs_numWarnings(spec_ptr);
+  if (num_warnings > 0) {
+    for (int i = 0; i < num_warnings; ++i) {
+      val::global("console").call<void>(
+          "warn",
+          val("MuJoCo Warning: " + std::string(mjs_getWarning(spec_ptr, i))));
+    }
   }
   return std::unique_ptr<MjModel>(new MjModel(model));
 }
@@ -437,17 +479,66 @@ int mj_setLengthRange_wrapper(const MjModel& m, const MjData& d, int index, cons
   return result;
 }
 
+void mju_info_wrapper(int topic, const String& msg) {
+  CHECK_VAL(msg);
+  mju_info(topic, "%s", msg.as<const std::string>().data());
+}
+
 // {{ WRAPPER_FUNCTIONS }}
 
 EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   // {{ ENUM_BINDINGS }}
 
+  // Bindings for the MjModel accessor classes.
+  #define X(type, prefix, var, dim0, dim1) .property(#var, &Accessor::get_##var, &Accessor::set_##var)
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)        \
+    {                                                           \
+      using Accessor = MjModel##Name##Accessor;                 \
+      emscripten::class_<Accessor>("MjModel" #Name "Accessor")  \
+          .property("id", &Accessor::id)                        \
+          .property("name", &Accessor::name)                    \
+          MJMODEL_##NAME;                                       \
+    }
+    MJMODEL_ACCESSORS
+  #undef X
+  #undef X_ACCESSOR
+
+  // Bindings for the MjData accessor classes.
+  #define X(type, prefix, var, dim0, dim1) .property(#var, &Accessor::get_##var, &Accessor::set_##var)
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)       \
+    {                                                          \
+      using Accessor = MjData##Name##Accessor;                 \
+      emscripten::class_<Accessor>("MjData" #Name "Accessor")  \
+          .property("id", &Accessor::id)                       \
+          .property("name", &Accessor::name)                   \
+          MJDATA_##NAME;                                       \
+    }
+    MJDATA_ACCESSORS
+  #undef X
+  #undef X_ACCESSOR
+
   // {{ STRUCTS_BINDINGS }}
 
-  // {{ FUNCTION_BINDINGS }}
+  emscripten::class_<MjVFS>("MjVFS")
+      .constructor<>()
+      .function("addBuffer", &MjVFS::AddBuffer)
+      .function("deleteFile", &MjVFS::DeleteFile);
 
-  function("parseXMLString", &parseXMLString_wrapper, take_ownership());
+  // {{ FUNCTION_BINDINGS }}
+  // parseXMLString is bound using two overloads to handle the optional MjVFS argument.
+  function("parseXMLString", emscripten::select_overload<std::unique_ptr<MjSpec>(const std::string&)>(&parseXMLString_wrapper), take_ownership());
+  function("parseXMLString", emscripten::select_overload<std::unique_ptr<MjSpec>(const std::string&, const MjVFS&)>(&parseXMLString_wrapper_2), take_ownership());
   function("error", &error_wrapper);
+  function("mj_saveModel", &mj_saveModel_wrapper);
+  function("mj_saveLastXML", &mj_saveLastXML_wrapper);
+  function("mj_setLengthRange", &mj_setLengthRange_wrapper);
+  function("mju_info", &mju_info_wrapper);
+  // mj_compile is bound using two overloads to handle the optional MjVFS argument,
+  // as using std::optional<MjVFS> caused memory errors due to missing copy/move constructors.
+  function("mj_compile", emscripten::select_overload<std::unique_ptr<MjModel>(const MjSpec&)>(&mj_compile_wrapper_1));
+  function("mj_compile", emscripten::select_overload<std::unique_ptr<MjModel>(const MjSpec&, const MjVFS&)>(&mj_compile_wrapper_2));
+  function("from_xml_string", emscripten::select_overload<std::unique_ptr<MjModel>(const std::string&)>(&from_xml_string_wrapper_1));
+  function("from_xml_string", emscripten::select_overload<std::unique_ptr<MjModel>(const std::string&, const MjVFS&)>(&from_xml_string_wrapper_2));
 
   emscripten::class_<WasmBuffer<float>>("FloatBuffer")
       .constructor<int>()
@@ -470,7 +561,15 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
       .function("GetElementCount", &WasmBuffer<int>::GetElementCount)
       .function("GetView", &WasmBuffer<int>::GetView);
 
+  emscripten::class_<WasmBuffer<uint8_t>>("Uint8Buffer")
+      .constructor<int>()
+      .class_function("FromArray", &WasmBuffer<uint8_t>::FromArray)
+      .function("GetPointer", &WasmBuffer<uint8_t>::GetPointer)
+      .function("GetElementCount", &WasmBuffer<uint8_t>::GetElementCount)
+      .function("GetView", &WasmBuffer<uint8_t>::GetView);
+
   emscripten::register_vector<std::string>("mjStringVec");
+  emscripten::register_vector<std::vector<std::string>>("mjStringVecVec");
   emscripten::register_vector<int>("mjIntVec");
   emscripten::register_vector<mjIntVec>("mjIntVecVec");
   emscripten::register_vector<float>("mjFloatVec");
@@ -486,8 +585,12 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::register_vector<MjvGeom>("MjvGeomVec");
 
   // register_type() improves type information (val is mapped to any by default)
+  // NumberOrString is used in functions returning accessors, allowing users to
+  // get an accessor by name (string) or id (number).
+  emscripten::register_type<NumberOrString>("number|string");
   emscripten::register_type<NumberArray>("number[]");
   emscripten::register_type<String>("string");
+  emscripten::register_type<StringOrNull>("string|null");
 
   emscripten::constant("mjMAXCONPAIR", mjMAXCONPAIR);
   emscripten::constant("mjMAXIMP", mjMAXIMP);
@@ -511,7 +614,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::constant("mjPI", mjPI);
   emscripten::constant("mjVERSION_HEADER", mjVERSION_HEADER);
 
-  // These complex constants are bound using function() rather than constant()
   emscripten::function("get_mjDISABLESTRING", &get_mjDISABLESTRING);
   emscripten::function("get_mjENABLESTRING", &get_mjENABLESTRING);
   emscripten::function("get_mjFRAMESTRING", &get_mjFRAMESTRING);
@@ -519,6 +621,31 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::function("get_mjRNDSTRING", &get_mjRNDSTRING);
   emscripten::function("get_mjTIMERSTRING", &get_mjTIMERSTRING);
   emscripten::function("get_mjVISSTRING", &get_mjVISSTRING);
+  // Bind these complex constants as properties on the module object.
+  // We use emscripten::constant with emscripten::val::array() to type them
+  // as `any` in TypeScript. At runtime, the EM_ASM block below overrides
+  // these properties with getters that return native JavaScript arrays
+  // (string[] or string[][]) via the get_ functions above, which is more
+  // performant and idiomatic than vector wrappers.
+  emscripten::constant("mjDISABLESTRING", emscripten::val::array());
+  emscripten::constant("mjENABLESTRING", emscripten::val::array());
+  emscripten::constant("mjFRAMESTRING", emscripten::val::array());
+  emscripten::constant("mjLABELSTRING", emscripten::val::array());
+  emscripten::constant("mjRNDSTRING", emscripten::val::array());
+  emscripten::constant("mjTIMERSTRING", emscripten::val::array());
+  emscripten::constant("mjVISSTRING", emscripten::val::array());
+  EM_ASM({
+    if (typeof Module !== "undefined") {
+      "mjDISABLESTRING mjENABLESTRING mjFRAMESTRING mjLABELSTRING mjRNDSTRING mjTIMERSTRING mjVISSTRING".split(" ").forEach(function(name) {
+        Object.defineProperty(Module, name, {
+          get: function() { return Module["get_" + name](); },
+          set: function(v) { },
+          enumerable: true,
+          configurable: true
+        });
+      });
+    }
+  });
 }
 
 }  // namespace mujoco::wasm

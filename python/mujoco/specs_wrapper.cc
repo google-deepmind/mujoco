@@ -15,6 +15,7 @@
 #include "specs_wrapper.h"
 
 #include <cstddef>  // IWYU pragma: keep
+#include <optional>
 #include <string>
 #include <string_view>  // IWYU pragma: keep
 #include <vector>       // IWYU pragma: keep
@@ -23,6 +24,7 @@
 #include <mujoco/mujoco.h>
 #include "errors.h"
 #include "indexers.h"  // IWYU pragma: keep
+#include "private.h"
 #include "raw.h"
 #include "structs.h"  // IWYU pragma: keep
 #include <pybind11/cast.h>
@@ -87,36 +89,64 @@ MjSpec& MjSpec::operator=(MjSpec&& other) {
 
 MjSpec::~MjSpec() { mj_deleteSpec(ptr); }
 
-raw::MjModel* MjSpec::Compile() {
-  if (assets.empty()) {
-    auto m = mj_compile(ptr, 0);
-    if (!m || mjs_isWarning(ptr)) {
-      throw py::value_error(mjs_getError(ptr));
-    }
-    return m;
+raw::MjModel* MjSpec::Compile(mjVFS* vfs) {
+  if (vfs != nullptr && !assets.empty()) {
+    throw py::value_error("Cannot specify both 'vfs' and 'assets'.");
   }
-  mjVFS vfs;
-  mj_defaultVFS(&vfs);
-  for (const auto& asset : assets) {
-    std::string buffer_name = py::cast<std::string>(asset.first).c_str();
-    std::string buffer = py::cast<std::string>(asset.second);
-    const int vfs_error = InterceptMjErrors(mj_addBufferVFS)(
-        &vfs, buffer_name.c_str(), buffer.c_str(), buffer.size());
-    if (vfs_error) {
-      mj_deleteVFS(&vfs);
-      if (vfs_error == 2) {
-        throw py::value_error("Repeated file name in assets dict: " +
-                              buffer_name);
-      } else {
-        throw py::value_error("Asset failed to load: " + buffer_name);
+
+  std::optional<mjVFS> local_vfs;
+  if (vfs == nullptr) {
+    vfs = &local_vfs.emplace();
+    mj_defaultVFS(vfs);
+
+    for (const auto& asset : assets) {
+      std::string buffer_name = py::cast<std::string>(asset.first).c_str();
+      std::string buffer = py::cast<std::string>(asset.second);
+      const int vfs_error = InterceptMjErrors(mj_addBufferVFS)(
+          vfs, buffer_name.c_str(), buffer.c_str(), buffer.size());
+      if (vfs_error) {
+        mj_deleteVFS(vfs);
+        if (vfs_error == 2) {
+          throw py::value_error("Repeated file name in assets dict: " +
+                                buffer_name);
+        } else {
+          throw py::value_error("Asset failed to load: " + buffer_name);
+        }
       }
     }
   }
-  auto m = mj_compile(ptr, &vfs);
-  if (!m || mjs_isWarning(ptr)) {
+
+  raw::MjModel* m;
+  {
+    py::gil_scoped_release no_gil;
+
+    // Install a no-op handler to suppress stderr output from warnings.
+    // Compile() installs its own (setjmp/longjmp) handler and then chains to
+    // prev. We want to raise a `warnings.warn`, so pass in a no-op handler.
+    mjfLogHandler prev =
+        _mjPRIVATE_setTlsLogHandler([](const mjLogMessage*) {});
+    m = mj_compile(ptr, vfs);
+    _mjPRIVATE_setTlsLogHandler(prev);
+  }
+
+  if (local_vfs.has_value()) {
+    // vfs points at local_vfs value.
+    mj_deleteVFS(vfs);
+    local_vfs = std::nullopt;
+  }
+
+  if (!m) {
     throw py::value_error(mjs_getError(ptr));
   }
-  mj_deleteVFS(&vfs);
+
+  int num_warnings = mjs_numWarnings(ptr);
+  if (num_warnings > 0) {
+    py::object warnings = py::module_::import("warnings");
+    for (int i = 0; i < num_warnings; ++i) {
+      warnings.attr("warn")(mjs_getWarning(ptr, i));
+    }
+  }
+
   return m;
 }
 

@@ -1,0 +1,46 @@
+<mujoco model="emissive_bloom">
+  <asset>
+    <texture name="dark" type="2d" builtin="checker" width="512" height="512"
+             rgb1="0.08 0.08 0.10" rgb2="0.12 0.12 0.14"/>
+
+    <material name="floor" texture="dark" texrepeat="6 6" texuniform="true" reflectance="0.4" metallic="0.5" roughness="0.2"/>
+    <material name="wall" rgba="0.13 0.13 0.16 1" metallic="0.05" roughness="0.85"/>
+    <material name="chrome" rgba="0.95 0.95 0.95 1" metallic="1.0" roughness="0.05" emission="1.0"/>
+  </asset>
+
+  <custom>
+    <!-- Bloom: high strength, lots of levels for big halos. -->
+    <numeric name="filament.bloom.enabled"    data="1"/>
+    <numeric name="filament.bloom.strength"   data="0.55"/>
+    <numeric name="filament.bloom.levels"     data="9"/>
+    <numeric name="filament.bloom.resolution" data="384"/>
+    <numeric name="filament.bloom.quality"    data="3"/>
+
+    <numeric name="filament.shadows.type" data="1"/>
+  </custom>
+
+  <worldbody>
+    <camera name="default" pos="0 -3.4 2.0" xyaxes="1 0 0  0 0.60 1"/>
+
+    <geom name="ground" type="plane" size="6 6 0.05" material="floor"/>
+    <geom name="backwall" type="box" pos="0 1.6 0.9" size="3 0.05 0.9" material="wall"/>
+
+    <light type="point" pos="-2.0 -0.2 0.40" diffuse="1.00 0.20 0.20" intensity="180000" range="3" bulbradius="120"/>
+    <geom type="sphere" pos="-2.0 0.20 0.18" size="0.18" material="chrome"/>
+
+    <light type="point" pos="-1.2 -0.2 0.40" diffuse="1.00 0.50 0.10" intensity="180000" range="3" bulbradius="120"/>
+    <geom type="sphere" pos="-1.2 0.20 0.18" size="0.18" material="chrome"/>
+
+    <light type="point" pos="-0.4 -0.2 0.40" diffuse="1.00 0.95 0.30" intensity="180000" range="3" bulbradius="120"/>
+    <geom type="sphere" pos="-0.4 0.20 0.18" size="0.18" material="chrome"/>
+
+    <light type="point" pos=" 0.4 -0.2 0.40" diffuse="0.20 1.00 0.40" intensity="180000" range="3" bulbradius="120"/>
+    <geom type="sphere" pos=" 0.4 0.20 0.18" size="0.18" material="chrome"/>
+
+    <light type="point" pos=" 1.2 -0.2 0.40" diffuse="0.30 0.55 1.00" intensity="180000" range="3" bulbradius="120"/>
+    <geom type="sphere" pos=" 1.2 0.20 0.18" size="0.18" material="chrome"/>
+
+    <light type="point" pos=" 2.0 -0.2 0.40" diffuse="1.00 0.30 0.95" intensity="180000" range="3" bulbradius="120"/>
+    <geom type="sphere" pos=" 2.0 0.20 0.18" size="0.18" material="chrome"/>
+  </worldbody>
+</mujoco>

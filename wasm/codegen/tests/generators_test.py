@@ -15,9 +15,9 @@
 """Tests for helper modules."""
 
 from absl.testing import absltest
+from mujoco.codegen import code_builder
 from introspect import ast_nodes
 
-from wasm.codegen.generators import code_builder
 from wasm.codegen.generators import common
 from wasm.codegen.generators import enums
 from wasm.codegen.generators import functions
@@ -266,7 +266,7 @@ MjvLight::~MjvLight() {
     delete ptr_;
   }
 }
-MjvLight::MjvLight() : ptr_(new mjvLight) {
+MjvLight::MjvLight() : ptr_(new mjvLight()) {
   owned_ = true;
 }
 MjvLight::MjvLight(const MjvLight &other) : MjvLight() {
@@ -475,7 +475,7 @@ void set_ngeom(int value) {
     )
     self.assertEqual(
         wrapped_field_data.binding,
-        '.property("ngeom", &MjModel::ngeom, &MjModel::set_ngeom, reference())',
+        '.property("ngeom", &MjModel::ngeom, &MjModel::set_ngeom)',
     )
 
   def test_pointer_type_field(self):

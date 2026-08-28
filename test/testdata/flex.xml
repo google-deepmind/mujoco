@@ -1,6 +1,6 @@
 <mujoco model="flex">
   <option timestep="0.01" integrator="implicitfast">
-    <flag island="enable"/>
+    <flag island="enable" multiccd="enable"/>
   </option>
 
   <asset>
@@ -14,7 +14,7 @@
     <map force="0.1" zfar="30"/>
     <rgba haze="0.15 0.25 0.35 1"/>
     <quality shadowsize="4096"/>
-    <global offwidth="800" offheight="800"/>
+    <global offwidth="800" offheight="800" bvactive="true"/>
   </visual>
 
   <worldbody>

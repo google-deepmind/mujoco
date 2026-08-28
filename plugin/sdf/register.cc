@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <mujoco/mjplugin.h>
 #include "bolt.h"
 #include "bowl.h"
 #include "gear.h"
@@ -20,7 +21,7 @@
 
 namespace mujoco::plugin::sdf {
 
-mjPLUGIN_LIB_INIT {
+mjPLUGIN_LIB_INIT(sdf) {
   Bolt::RegisterPlugin();
   Bowl::RegisterPlugin();
   Gear::RegisterPlugin();

@@ -38,19 +38,116 @@ body[data-theme="dark"] table.docutils:not(.mjcf-attributes) {
   }
 }
 
-.schema-small {
-  font-size: 93%;
-}
-
 .caption-small {
   font-size: 85%;
+}
+
+.table-small {
+  font-size: 93%;
 }
 
 .small-centered {
   font-size: 93%;
 }
 
-.small-centered td, .small-centered th {
+.table-pairwise {
+  font-size: 85%;
+}
+
+.pairwise-toggles {
+  display: flex;
+  align-items: center;
+  gap: 1.5em;
+  margin-bottom: 0.75em;
+}
+
+.pairwise-toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.pairwise-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+
+.pairwise-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.pairwise-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 20px;
+}
+
+.pairwise-slider:before {
+  content: "";
+  position: absolute;
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.pairwise-switch input:checked + .pairwise-slider {
+  background-color: var(--secondary-header-color, #123693);
+}
+
+.pairwise-switch input:checked + .pairwise-slider:before {
+  transform: translateX(16px);
+}
+
+.multiccd-off,
+.multiccd-native,
+.multiccd-legacy {
+  display: none;
+  margin: 0;
+}
+
+.multiccd-off {
+  display: inline;
+}
+
+.multiccd-enabled .multiccd-off {
+  display: none;
+}
+
+.multiccd-enabled.nativeccd-enabled:not(.margin-enabled) .multiccd-native {
+  display: inline;
+}
+
+.multiccd-enabled:not(.nativeccd-enabled) .multiccd-legacy,
+.multiccd-enabled.nativeccd-enabled.margin-enabled .multiccd-legacy {
+  display: inline;
+}
+
+.margin-show {
+  display: none;
+}
+
+.margin-enabled .margin-hide {
+  display: none;
+}
+
+.margin-enabled .margin-show {
+  display: inline;
+}
+
+
+.small-centered td, .small-centered th,
+.table-pairwise td, .table-pairwise th {
   text-align: center !important;
   vertical-align: middle !important;
   border: 2px solid var(--color-table-border) !important;
@@ -99,11 +196,6 @@ h4 {
 .rst-content div[class^=highlight] pre {
   padding: 6px;
 }
-
-/* Don't change color of visited links.
-.rst-content a.reference:visited {
-  color: var(--rst-content-a-color);
-} */
 
 .rst-content code, .rst-content tt {
   font-size: 90%;
@@ -227,6 +319,7 @@ table.mjcf-attributes {
   border-style: none;
   margin-left: 0;
   margin-right: 0;
+  margin-bottom: 0.2em;
   width: 100%;
   box-shadow: none;
 }
@@ -287,8 +380,32 @@ dt .at {
   display: none;
 }
 
-.admonition p:not(.admonition-title) {
-  margin-left: 0.5em;
+/* Better Furo Admonition Alignment */
+.admonition {
+    padding: 0.5rem 1rem !important; /* Standardize body padding */
+}
+
+/* Align the title text perfectly with the body text */
+.admonition .admonition-title {
+    display: flex;
+    align-items: center;
+    margin-left: -0.25rem; /* Pulls the title slightly left to balance the icon */
+    padding-bottom: 0.25rem;
+}
+
+/* Align admonition bullets with section-level bullets. The margin is set here
+   rather than inherited from ul.simple, which docutils drops from any list
+   holding a multi-paragraph item. */
+.admonition > ul {
+    margin-left: 24px;
+    padding-left: 0.1em;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+/* (Optional) Drop the background color for a cleaner look */
+body {
+    --color-admonition-background: transparent;
 }
 
 /* Reduce top and bottom margins around displayed KaTeX equations */
@@ -307,4 +424,79 @@ dt .at {
 
 details summary {
   font-weight: 600;
+}
+
+/* ==========================================================================
+   Schema display styling (.schema-small)
+   Used in: XMLreference.rst (dropdowns + grids)
+   ========================================================================== */
+
+/* Base: smaller font for compact display */
+.schema-small {
+  font-size: 93%;
+}
+
+/* Dropdown styling: compact margins and padding */
+.schema-small details.sd-dropdown {
+  margin-bottom: 0.15em !important;
+  margin-top: 0 !important;
+}
+
+.schema-small .sd-card-header,
+.schema-small .sd-card-body {
+  padding: 0.25em 0.5em !important;
+}
+
+.schema-small .sd-summary-text {
+  font-size: 0.9em;
+  margin: 0 !important;
+}
+
+/* Dropdown hierarchy: left border visualization */
+.schema-small .sd-dropdown,
+.schema-small > .sd-dropdown,
+.schema-small details.sd-dropdown {
+  border-left: 2px solid #5671cf;
+}
+
+body[data-theme="dark"] .schema-small .sd-dropdown,
+body[data-theme="dark"] .schema-small > .sd-dropdown,
+body[data-theme="dark"] .schema-small details.sd-dropdown {
+  border-left-color: #7b93e8;
+}
+
+@media (prefers-color-scheme: dark) {
+  body[data-theme="auto"] .schema-small .sd-dropdown,
+  body[data-theme="auto"] .schema-small > .sd-dropdown,
+  body[data-theme="auto"] .schema-small details.sd-dropdown {
+    border-left-color: #7b93e8;
+  }
+}
+
+/* Link styling: prevent visited color change */
+.schema-small a:visited {
+  color: var(--color-brand-primary) !important;
+}
+
+/* Grid styling: compact rows for attribute lists */
+.schema-small .sd-row {
+  row-gap: 0 !important;
+  --sd-gutter-x: 0.5rem !important;
+  --sd-gutter-y: 0 !important;
+}
+
+.schema-small .sd-col,
+.schema-small [class*="sd-col-"] {
+  padding-top: 0 !important;
+  padding-bottom: 0.1em !important;
+}
+
+.schema-small .sd-container-fluid {
+  padding: 0 !important;
+}
+
+/* Remove paragraph margin inside grid items */
+.schema-small .sd-container-fluid .sd-col p,
+.admonition .sd-container-fluid .sd-col p {
+  margin-bottom: 0 !important;
 }

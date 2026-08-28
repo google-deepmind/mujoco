@@ -14,6 +14,7 @@
 
 #include "engine/engine_support.h"
 
+#include <inttypes.h>  // IWYU pragma: keep
 #include <stddef.h>
 
 #include <mujoco/mjdata.h>
@@ -42,8 +43,8 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 341
-#define mjVERSIONSTRING "3.4.1"
+ #define mjVERSION 3012001
+#define mjVERSIONSTRING "3.12.1"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -65,7 +66,8 @@ const char* mjDISABLESTRING[mjNDISABLE] = {
   "Eulerdamp",
   "AutoReset",
   "NativeCCD",
-  "Island"
+  "Island",
+  "MultiCCD"
 };
 
 
@@ -75,8 +77,8 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "Energy",
   "Fwdinv",
   "InvDiscrete",
-  "MultiCCD",
-  "Sleep"
+  "Sleep",
+  "DiagExact"
 };
 
 
@@ -97,6 +99,14 @@ const char* mjTIMERSTRING[mjNTIMER]= {
   "pos_project",
   "col_broadphase",
   "col_narrowphase"
+};
+
+
+// names of log topics (index i corresponds to topic i+1)
+const char* mjTOPICSTRING[mjNTOPIC] = {
+  "Step timing",
+  "Compile timing",
+  "Sleep/wake"
 };
 
 
@@ -131,6 +141,7 @@ static inline int mj_stateElemSize(const mjModel* m, mjtState sig) {
   case mjSTATE_QPOS:          return m->nq;
   case mjSTATE_QVEL:          return m->nv;
   case mjSTATE_ACT:           return m->na;
+  case mjSTATE_HISTORY:       return m->nhistory;
   case mjSTATE_WARMSTART:     return m->nv;
   case mjSTATE_CTRL:          return m->nu;
   case mjSTATE_QFRC_APPLIED:  return m->nv;
@@ -154,6 +165,7 @@ static inline mjtNum* mj_stateElemPtr(const mjModel* m, mjData* d, mjtState sig)
   case mjSTATE_QPOS:          return d->qpos;
   case mjSTATE_QVEL:          return d->qvel;
   case mjSTATE_ACT:           return d->act;
+  case mjSTATE_HISTORY:       return d->history;
   case mjSTATE_WARMSTART:     return d->qacc_warmstart;
   case mjSTATE_CTRL:          return d->ctrl;
   case mjSTATE_QFRC_APPLIED:  return d->qfrc_applied;
@@ -216,7 +228,7 @@ void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, int sig) {
     if (element & sig) {
       int size = mj_stateElemSize(m, element);
 
-      // special handling of eq_active (mjtByte)
+      // special handling of eq_active (mjtBool)
       if (element == mjSTATE_EQ_ACTIVE) {
         int neq = m->neq;
         for (int j=0; j < neq; j++) {
@@ -284,7 +296,7 @@ void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, int sig) {
     if (element & sig) {
       int size = mj_stateElemSize(m, element);
 
-      // special handling of eq_active (mjtByte)
+      // special handling of eq_active (mjtBool)
       if (element == mjSTATE_EQ_ACTIVE) {
         int neq = m->neq;
         for (int j=0; j < neq; j++) {
@@ -320,7 +332,7 @@ void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, int sig) {
     if (element & sig) {
       int size = mj_stateElemSize(m, element);
 
-      // special handling of eq_active (mjtByte)
+      // special handling of eq_active (mjtBool)
       if (element == mjSTATE_EQ_ACTIVE) {
         int neq = m->neq;
         for (int j=0; j < neq; j++) {
@@ -343,7 +355,7 @@ void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, int sig) {
 void mj_setKeyframe(mjModel* m, const mjData* d, int k) {
   // check keyframe index
   if (k >= m->nkey) {
-    mjERROR("index must be smaller than %d (keyframes allocated in model)", m->nkey);
+    mjERROR("index must be smaller than %" PRId64 " (keyframes allocated in model)", m->nkey);
   }
   if (k < 0) {
     mjERROR("keyframe index cannot be negative");
@@ -363,19 +375,8 @@ void mj_setKeyframe(mjModel* m, const mjData* d, int k) {
 //-------------------------- inertia functions -----------------------------------------------------
 
 // convert sparse inertia matrix M into full matrix
-void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M) {
-  int adr = 0, nv = m->nv;
-  mju_zero(dst, nv*nv);
-
-  for (int i=0; i < nv; i++) {
-    int j = i;
-    while (j >= 0) {
-      dst[i*nv+j] = M[adr];
-      dst[j*nv+i] = M[adr];
-      j = m->dof_parentid[j];
-      adr++;
-    }
-  }
+void mj_fullM(const mjModel* m, const mjData* d, mjtNum* dst) {
+  mju_sym2dense(dst, d->M, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind);
 }
 
 
@@ -417,17 +418,11 @@ void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec)
 void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
              int* rownnz, int* rowadr, int* colind) {
   int nv = m->nv;
+
   // sparse
   if (rownnz && rowadr && colind) {
-    mj_markStack(d);
-    mjtNum* buf_val = mjSTACKALLOC(d, nv, mjtNum);
-    int* buf_ind = mjSTACKALLOC(d, nv, int);
-
-    mju_addToMatSparse(dst, rownnz, rowadr, colind, nv,
-      d->M, m->M_rownnz, m->M_rowadr, m->M_colind,
-      buf_val, buf_ind);
-
-    mj_freeStack(d);
+    mju_addToMatSparse(dst, rownnz, rowadr, colind, nv, d->M,
+                       m->M_rownnz, m->M_rowadr, m->M_colind);
   }
 
   // dense
@@ -461,7 +456,7 @@ void mj_applyFT(const mjModel* m, mjData* d,
     // construct chain and sparse Jacobians
     int* chain = mjSTACKALLOC(d, nv, int);
     int NV = mj_bodyChain(m, body, chain);
-    mj_jacSparse(m, d, jacp, jacr, point, body, NV, chain);
+    mj_jacSparse(m, d, jacp, jacr, point, body, NV, chain, /*flg_skipcommon=*/0);
 
     // compute J'*f and accumulate
     if (force) {
@@ -521,22 +516,27 @@ void mj_xfrcAccumulate(const mjModel* m, mjData* d, mjtNum* qfrc) {
 //-------------------------- miscellaneous ---------------------------------------------------------
 
 // returns the smallest distance between two geoms (using nativeccd)
-static mjtNum mj_geomDistanceCCD(const mjModel* m, const mjData* d, int g1, int g2,
+static mjtNum mj_geomDistanceCCD(const mjModel* m, mjData* d, int g1, int g2,
                                  mjtNum distmax, mjtNum fromto[6]) {
+  mj_markStack(d);
   mjCCDConfig config;
   mjCCDStatus status;
 
   // set config
   config.max_iterations = m->opt.ccd_iterations;
   config.tolerance = m->opt.ccd_tolerance;
+  config.npolygonmax = 0;
+  config.nmeshdegmax = 0;
   config.max_contacts = 1;        // want contacts
   config.dist_cutoff = distmax;   // want geom distances
+  config.buffer = mj_stackAllocByte(d, mjc_ccdSize(0, 0, config.max_iterations), sizeof(mjtNum));
 
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, 0);
   mjc_initCCDObj(&obj2, m, d, g2, 0);
 
   mjtNum dist = mjc_ccd(&config, &status, &obj1, &obj2);
+  mj_freeStack(d);
 
   // witness points are only computed if dist <= distmax
   if (fromto && status.nx > 0) {
@@ -550,9 +550,9 @@ static mjtNum mj_geomDistanceCCD(const mjModel* m, const mjData* d, int g1, int 
 
 
 // returns the smallest distance between two geoms
-mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2, mjtNum distmax,
+mjtNum mj_geomDistance(const mjModel* m, mjData* d, int geom1, int geom2, mjtNum distmax,
                        mjtNum fromto[6]) {
-  mjContact con[mjMAXCONPAIR];
+  mjPreContact con[mjMAXCONPAIR];
   mjtNum dist = distmax;
   if (fromto) mju_zero(fromto, 6);
 
@@ -593,8 +593,8 @@ mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2, 
   // write fromto if given and a collision has been found
   if (fromto && smallest >= 0) {
     mjtNum sign = flip ? -1 : 1;
-    mju_addScl3(fromto+0, con[smallest].pos, con[smallest].frame, -0.5*sign*dist);
-    mju_addScl3(fromto+3, con[smallest].pos, con[smallest].frame, 0.5*sign*dist);
+    mju_addScl3(fromto+0, con[smallest].pos, con[smallest].normal, -0.5*sign*dist);
+    mju_addScl3(fromto+3, con[smallest].pos, con[smallest].normal, 0.5*sign*dist);
   }
 
   return dist;
@@ -618,7 +618,7 @@ void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
       vadr += 3;
       padr += 3;
 
-      // continute with rotations
+      // continue with rotations
       mjFALLTHROUGH;
 
     case mjJNT_BALL:
@@ -700,6 +700,81 @@ int mj_actuatorDisabled(const mjModel* m, int i) {
     return m->opt.disableactuator & (1 << group) ? 1 : 0;
   }
 }
+
+
+// returns the next activation given current act_dot, after clamping
+mjtNum mj_nextActivation(const mjModel* m, const mjData* d,
+                         int actuator_id, int act_adr, mjtNum act_dot) {
+  mjtNum act = d->act[act_adr];
+  int dyntype = m->actuator_dyntype[actuator_id];
+
+  if (dyntype == mjDYN_FILTEREXACT) {
+    // exact filter integration
+    // act_dot(0) = (ctrl-act(0)) / tau
+    // act(h) = act(0) + (ctrl-act(0)) (1 - exp(-h / tau))
+    //        = act(0) + act_dot(0) * tau * (1 - exp(-h / tau))
+    mjtNum tau = mju_max(mjMINVAL, m->actuator_dynprm[actuator_id*mjNDYN]);
+    act = act + act_dot * tau * (1 - mju_exp(-m->opt.timestep / tau));
+  } else if (dyntype == mjDYN_DCMOTOR) {
+    const mjtNum* dynprm = m->actuator_dynprm + actuator_id * mjNDYN;
+    const mjtNum* gainprm = m->actuator_gainprm + actuator_id * mjNGAIN;
+    mjDCMotorSlots slots = mj_dcmotorSlots(dynprm, gainprm);
+
+    int offset = act_adr - m->actuator_actadr[actuator_id];
+
+    // current filter: exact integration
+    if (offset == slots.current) {
+      mjtNum te = mju_max(mjMINVAL, dynprm[0]);
+      act = act + act_dot * te * (1 - mju_exp(-m->opt.timestep / te));
+    }
+
+    // LuGre bristle:  dz/dt = a*z + v  where a = -sigma0*|v|/g(v)
+    else if (offset == slots.bristle) {
+      const mjtNum* biasprm = m->actuator_biasprm + mjNBIAS*actuator_id;
+      mjtNum F_C = biasprm[3];    // Coulomb friction
+      mjtNum F_S = biasprm[4];    // static friction
+      mjtNum v_S = biasprm[5];    // Stribeck velocity
+      mjtNum sigma0 = dynprm[5];  // bristle stiffness
+      mjtNum velocity = d->actuator_velocity[m->actuator_outadr[actuator_id]];
+      mjtNum g = mj_lugreStribeck(velocity, F_C, F_S, v_S);
+
+      // ZOH exact ZOH integration: z(h) = exp(ah)*z(0) + ((exp(ah)-1)/a)*v
+      mjtNum a = -sigma0 * mju_abs(velocity) / mju_max(mjMINVAL, g);  // decay rate
+      mjtNum h = m->opt.timestep;
+      mjtNum exp_ah = mju_exp(a * h);                                 // state transition
+      mjtNum int_h = mju_abs(a) > mjMINVAL ? (exp_ah - 1) / a : h;    // input integral
+      act = exp_ah * act + int_h * velocity;
+    }
+
+    // integral state: Euler integration with anti-windup clamp
+    else if (offset == slots.integral) {
+      act = act + act_dot * m->opt.timestep;
+      mjtNum Imax = dynprm[8];
+      if (Imax > 0) {
+        act = mju_clip(act, -Imax, Imax);
+      }
+    }
+
+    // temperature and slew: Euler integration
+    else {
+      act = act + act_dot * m->opt.timestep;
+    }
+  }
+
+  // otherwise Euler integration
+  else {
+    act = act + act_dot * m->opt.timestep;
+  }
+
+  // clamp to actrange unless DC motor
+  if (dyntype != mjDYN_DCMOTOR && m->actuator_actlimited[actuator_id]) {
+    const mjtNum* actrange = m->actuator_actrange + 2*actuator_id;
+    act = mju_clip(act, actrange[0], actrange[1]);
+  }
+
+  return act;
+}
+
 
 // sum all body masses
 mjtNum mj_getTotalmass(const mjModel* m) {
@@ -804,4 +879,114 @@ void mju_camIntrinsics(const mjModel* m, int camid,
 
   // extent only used for orthographic cameras
   *extent = m->cam_fovy[camid];
+}
+
+
+// read delayed ctrl value for actuator at given time
+mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int interp) {
+  // validate actuator id
+  if (id < 0 || id >= m->nactuator) {
+    mjERROR("invalid actuator id %d", id);
+    return 0;
+  }
+
+  // no delay: return current ctrl value
+  int nsample = m->actuator_history[2*id];
+  if (nsample == 0) {
+    return d->ctrl[m->actuator_ctrladr[id]];
+  }
+
+  // resolve interpolation order: use model's interp if argument is -1
+  if (interp < 0) interp = m->actuator_history[2*id+1];
+
+  // get buffer pointer and read from history buffer
+  mjtNum delay = m->actuator_delay[id];
+  const mjtNum* buf = d->history + m->actuator_historyadr[id];
+  mjtNum res;
+  const mjtNum* ptr = mju_historyRead(buf, nsample, /*dim=*/1, &res, time - delay, interp);
+  return ptr ? *ptr : res;
+}
+
+
+// read sensor value from history buffer at given time
+const mjtNum* mj_readSensor(const mjModel* m, const mjData* d, int id, mjtNum time,
+                            mjtNum* result, int interp) {
+  // validate sensor id
+  if (id < 0 || id >= m->nsensor) {
+    mjERROR("invalid sensor id %d", id);
+    return NULL;
+  }
+
+  // no history: return current sensor value
+  int nsample = m->sensor_history[2*id];
+  if (nsample == 0) {
+    return d->sensordata + m->sensor_adr[id];
+  }
+
+  // resolve interpolation order: use model's interp if argument is -1
+  if (interp < 0) interp = m->sensor_history[2*id+1];
+
+  // get buffer pointer and read from history buffer
+  int dim = m->sensor_dim[id];
+  mjtNum delay = m->sensor_delay[id];
+  const mjtNum* buf = d->history + m->sensor_historyadr[id];
+  return mju_historyRead(buf, nsample, dim, result, time - delay, interp);
+}
+
+
+// initialize history buffer for actuator
+void mj_initCtrlHistory(const mjModel* m, mjData* d, int id,
+                        const mjtNum* times, const mjtNum* values) {
+  // validate actuator id
+  if (id < 0 || id >= m->nactuator) {
+    mjERROR("invalid actuator id %d", id);
+    return;
+  }
+
+  // check that actuator has a history buffer
+  int nsample = m->actuator_history[2*id];
+  if (nsample == 0) {
+    mjERROR("actuator %d has no history buffer", id);
+    return;
+  }
+
+  // get buffer pointer
+  mjtNum* buf = d->history + m->actuator_historyadr[id];
+
+  // if times is NULL, use existing buffer times
+  const mjtNum* buf_times = times ? times : buf + 2;
+
+  // get existing user value (preserve it)
+  mjtNum user = buf[0];
+
+  // initialize history buffer
+  mju_historyInit(buf, nsample, 1, buf_times, values, user);
+}
+
+
+// initialize history buffer for sensor
+void mj_initSensorHistory(const mjModel* m, mjData* d, int id,
+                          const mjtNum* times, const mjtNum* values, mjtNum phase) {
+  // validate sensor id
+  if (id < 0 || id >= m->nsensor) {
+    mjERROR("invalid sensor id %d", id);
+    return;
+  }
+
+  // check that sensor has a history buffer
+  int nsample = m->sensor_history[2*id];
+  if (nsample == 0) {
+    mjERROR("sensor %d has no history buffer", id);
+    return;
+  }
+
+  // get buffer pointer and dimension
+  mjtNum* buf = d->history + m->sensor_historyadr[id];
+  int dim = m->sensor_dim[id];
+
+  // if times is NULL, use existing buffer times
+  const mjtNum* buf_times = times ? times : buf + 2;
+
+  // initialize history buffer with provided phase
+  mju_historyInit(buf, nsample, dim, buf_times, values, phase);
 }

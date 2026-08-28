@@ -18,6 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,6 +35,9 @@ MJAPI void mj_mulJacVec(const mjModel* m, const mjData* d, mjtNum* res, const mj
 
 // multiply JacobianT by vector
 MJAPI void mj_mulJacTVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
+
+// subtract Jdot*v correction from result vector
+MJAPI void mj_Jdotv(const mjModel* m, mjData* d, mjtNum* result);
 
 
 //-------------------------- utility functions -----------------------------------------------------
@@ -58,28 +62,38 @@ MJAPI int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
 // equality constraints
 void mj_instantiateEquality(const mjModel* m, mjData* d);
 
-// frictional dofs and tendons
-void mj_instantiateFriction(const mjModel* m, mjData* d);
-
-// joint and tendon limits
-void mj_instantiateLimit(const mjModel* m, mjData* d);
-
 // frictionless and frictional contacts
 void mj_instantiateContact(const mjModel* m, mjData* d);
 
 // compute Jacobian for contact, return number of DOFs affected
-int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int dim,
-                       mjtNum* jac, mjtNum* jacdif, mjtNum* jacdifp,
-                       mjtNum* jacdifr, mjtNum* jac1p, mjtNum* jac2p,
-                       mjtNum* jac1r, mjtNum* jac2r, int* chain);
+//
+// Arguments:
+//   m:       model structure (mjModel)
+//   d:       data structure (mjData)
+//   con:     contact information
+//   dim:     contact dimension (1 to 6)
+//   jacdifp: translational Jacobian difference [3 * (NV or nv)]
+//   jacdifr: rotational Jacobian difference    [3 * (NV or nv)], nullable, unused if dim <= 3
+//   jac1p:   translational Jacobian for body 1 [3 * (NV or nv)], nullable
+//   jac2p:   translational Jacobian for body 2 [3 * (NV or nv)], nullable
+//   jac1r:   rotational Jacobian for body 1    [3 * (NV or nv)], nullable, unused if dim <= 3
+//   jac2r:   rotational Jacobian for body 2    [3 * (NV or nv)], nullable, unused if dim <= 3
+//   chain:   list of DOF indices affecting contact [NV], unused if dense
+//
+// Returns:
+//   number of DOFs affected (NV for sparse, nv for dense)
+MJAPI int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int dim,
+                             mjtNum* jacdifp, mjtNum* jacdifr,
+                             mjtNum* jac1p, mjtNum* jac2p,
+                             mjtNum* jac1r, mjtNum* jac2r, int* chain);
 
 
 //------------------------ parameter computation/extraction ----------------------------------------
 
-// compute efc_diagApprox
+// compute efc_diagA
 void mj_diagApprox(const mjModel* m, mjData* d);
 
-// compute efc_R, efc_D, efc_KDIP, adjust diagApprox
+// compute efc_R, efc_D, efc_KDIP, adjust diagA
 void mj_makeImpedance(const mjModel* m, mjData* d);
 
 

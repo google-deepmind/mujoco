@@ -1,0 +1,97 @@
+// Copyright 2026 DeepMind Technologies Limited
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+material {
+    name : pbr_packed_reflect,
+    shadingModel : lit,
+    postLightingBlending : add,
+    flipUV: false,
+    parameters : [
+        { type : sampler2d, name : BaseColor },
+        { type : sampler2d, name : Normal },
+        { type : sampler2d, name : ORM },
+        { type : sampler2d, name : Emissive },
+        { type : float4, name : BaseColorFactor },
+        { type : float, name : MetallicFactor },
+        { type : float, name : RoughnessFactor },
+        { type : float, name : EmissiveFactor },
+        { type : float, name : Reflectance },
+        { type : float3, name : ReflectionNormal },
+        { type : mat4, name : ReflectionViewProj },
+        { type : sampler2d, name : Reflection },
+        { type : float3, name : UvScale },
+        { type : float3, name : UvOffset }
+    ],
+    requires : [
+        uv0
+    ]
+}
+
+fragment {
+  // Blur reflection for rough surfaces.
+  vec3 sampleReflection(vec2 uv, float rough) {
+    vec3 sum = texture(materialParams_Reflection, uv).rgb;
+    if (rough <= 0.0) {
+      return sum;
+    }
+    vec2 texel = 1.0 / vec2(textureSize(materialParams_Reflection, 0));
+    float radius = rough * 32.0;
+    const vec2 kTaps[8] = vec2[8](
+        vec2( 1.0,  0.0), vec2(-1.0,  0.0), vec2( 0.0,  1.0), vec2( 0.0, -1.0),
+        vec2( 0.7,  0.7), vec2(-0.7,  0.7), vec2( 0.7, -0.7), vec2(-0.7, -0.7));
+    for (int i = 0; i < 8; ++i) {
+      sum += texture(materialParams_Reflection, uv + kTaps[i] * radius * texel).rgb;
+      sum += texture(materialParams_Reflection,
+                     uv + kTaps[i] * radius * 0.5 * texel).rgb;
+    }
+    return sum / 17.0;
+  }
+  void material(inout MaterialInputs material) {
+    vec2 uv = getUV0() * materialParams.UvScale.xy + materialParams.UvOffset.xy;
+
+    material.normal = texture(materialParams_Normal, uv).xyz * 2.0 - 1.0;
+    prepareMaterial(material);
+
+    material.baseColor        = materialParams.BaseColorFactor;
+    material.baseColor        *= texture(materialParams_BaseColor, uv);
+    material.ambientOcclusion = texture(materialParams_ORM, uv).r;
+    material.roughness        = materialParams.RoughnessFactor;
+    material.roughness        *= texture(materialParams_ORM, uv).g;
+    material.metallic         = materialParams.MetallicFactor;
+    material.metallic         *= texture(materialParams_ORM, uv).b;
+    material.emissive         = texture(materialParams_Emissive, uv);
+    material.emissive.rgb     *= materialParams.EmissiveFactor;
+    material.emissive.a       = (1.0 - material.emissive.a) *
+                                materialParams.EmissiveFactor;
+
+    // Planar reflection: Fresnel-weighted additive post-lighting.
+    vec4 refl_clip = materialParams.ReflectionViewProj * vec4(getUserWorldPosition(), 1.0);
+    vec2 refl_uv = refl_clip.xy / refl_clip.w * 0.5 + 0.5;
+    vec3 reflection = sampleReflection(refl_uv, material.roughness);
+    vec3 f0 = mix(vec3(materialParams.Reflectance), material.baseColor.rgb,
+                  material.metallic);
+    vec3 fresnel = f0 + (1.0 - f0) * pow(1.0 - getNdotV(), 5.0);
+    float front =
+        dot(materialParams.ReflectionNormal, materialParams.ReflectionNormal) < 0.5
+            ? 1.0  // planes bypass the front-face gate
+            : step(0.99, dot(getWorldGeometricNormalVector(),
+                             materialParams.ReflectionNormal));
+    // Single-bounce gate: reject secondary reflection passes.
+    vec2 refl_err = refl_uv - gl_FragCoord.xy * getResolution().zw;
+    float main_view =
+        step(length(refl_err) + 48.0 * length(fwidth(refl_err)), 0.02);
+    material.postLightingColor =
+        vec4(reflection * fresnel * front * main_view, 0.0);
+  }
+}

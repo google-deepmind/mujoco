@@ -20,6 +20,8 @@ from typing import Tuple
 import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src import math
+from mujoco.mjx.third_party.mujoco_warp._src import types
+from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import WrapType
@@ -105,13 +107,13 @@ def wrap_circle(end: wp.vec4, side: wp.vec2, radius: float) -> Tuple[float, wp.v
 
   Args:
     end: Two 2D points.
-    side: Optional 2D side point, no side point: wp.vec2(wp.inf).
+    side: Optional 2D side point, no side point: wp.vec2(MJ_MAXVAL).
     radius: Circle radius.
 
   Returns:
     Length of circular wrap or -1.0 if no wrap, pair of 2D wrap points.
   """
-  valid_side = wp.norm_l2(side) < wp.inf
+  valid_side = wp.norm_l2(side) < MJ_MAXVAL
 
   end0 = wp.vec2(end[0], end[1])
   end1 = wp.vec2(end[2], end[3])
@@ -122,13 +124,13 @@ def wrap_circle(end: wp.vec4, side: wp.vec2, radius: float) -> Tuple[float, wp.v
 
   # either point inside circle or circle too small: no wrap
   if (sqlen0 < sqrad) or (sqlen1 < sqrad) or (radius < MJ_MINVAL):
-    return -1.0, wp.vec2(wp.inf), wp.vec2(wp.inf)
+    return -1.0, wp.vec2(MJ_MAXVAL), wp.vec2(MJ_MAXVAL)
 
   # points too close: no wrap
   dif = end1 - end0
   dd = wp.dot(dif, dif)
   if dd < MJ_MINVAL:
-    return -1.0, wp.vec2(wp.inf), wp.vec2(wp.inf)
+    return -1.0, wp.vec2(MJ_MAXVAL), wp.vec2(MJ_MAXVAL)
 
   # find nearest point on line segment to origin: a * dif + d0
   a = -wp.dot(dif, end0) / dd
@@ -137,7 +139,7 @@ def wrap_circle(end: wp.vec4, side: wp.vec2, radius: float) -> Tuple[float, wp.v
   # check for intersection and side
   tmp = a * dif + end0
   if (wp.dot(tmp, tmp) > sqrad) and (not valid_side or wp.dot(side, tmp) >= 0.0):
-    return -1.0, wp.vec2(wp.inf), wp.vec2(wp.inf)
+    return -1.0, wp.vec2(MJ_MAXVAL), wp.vec2(MJ_MAXVAL)
 
   sqrt0 = wp.sqrt(sqlen0 - sqrad)
   sqrt1 = wp.sqrt(sqlen1 - sqrad)
@@ -191,7 +193,7 @@ def wrap_circle(end: wp.vec4, side: wp.vec2, radius: float) -> Tuple[float, wp.v
 
   # check for intersection
   if is_intersect(end0, pnt0, end1, pnt1):
-    return -1.0, wp.vec2(wp.inf), wp.vec2(wp.inf)
+    return -1.0, wp.vec2(MJ_MAXVAL), wp.vec2(MJ_MAXVAL)
 
   # return curve length
   return length_circle(pnt0, pnt1, ind, radius), pnt0, pnt1
@@ -230,7 +232,7 @@ def wrap_inside(
 
   # either point inside circle or circle too small: no wrap
   if (len0 <= radius) or (len1 <= radius) or (radius < MJ_MINVAL) or (len0 < MJ_MINVAL) or (len1 < MJ_MINVAL):
-    return -1.0, wp.vec2(wp.inf), wp.vec2(wp.inf)
+    return -1.0, wp.vec2(MJ_MAXVAL), wp.vec2(MJ_MAXVAL)
 
   # segment-circle intersection: no wrap
   if dd > MJ_MINVAL:
@@ -241,7 +243,7 @@ def wrap_inside(
     if (a > 0.0) and (a < 1.0):
       tmp = end0 + a * dif
       if wp.norm_l2(tmp) <= radius:
-        return -1.0, wp.vec2(wp.inf), wp.vec2(wp.inf)
+        return -1.0, wp.vec2(MJ_MAXVAL), wp.vec2(MJ_MAXVAL)
 
   # prepare default in case of numerical failure: average
   pnt = 0.5 * (end0 + end1)
@@ -335,14 +337,14 @@ def wrap(
     mat: Orientation of geom.
     radius: Geom radius.
     geomtype: Wrap type (mjtWrap).
-    side: 3D position for sidesite, no side point: wp.vec3(wp.inf).
+    side: 3D position for sidesite, no side point: wp.vec3(MJ_MAXVAL).
 
   Returns:
     Length of circular wrap else -1.0 if no wrap, pair of 3D wrap points.
   """
   # check object type
   if geomtype != WrapType.SPHERE and geomtype != WrapType.CYLINDER:
-    return wp.inf, wp.vec3(wp.inf), wp.vec3(wp.inf)
+    return MJ_MAXVAL, wp.vec3(MJ_MAXVAL), wp.vec3(MJ_MAXVAL)
 
   # map sites to wrap object's local frame
   matT = wp.transpose(mat)
@@ -351,7 +353,7 @@ def wrap(
 
   # too close to origin: return
   if (wp.norm_l2(p0) < MJ_MINVAL) or (wp.norm_l2(p1) < MJ_MINVAL):
-    return -1.0, wp.vec3(wp.inf), wp.vec3(wp.inf)
+    return -1.0, wp.vec3(MJ_MAXVAL), wp.vec3(MJ_MAXVAL)
 
   # construct 2D frame for circle wrap
   if geomtype == WrapType.SPHERE:
@@ -399,7 +401,7 @@ def wrap(
   )
 
   # handle sidesite
-  valid_side = wp.norm_l2(side) < wp.inf
+  valid_side = wp.norm_l2(side) < MJ_MAXVAL
 
   if valid_side:
     # side point: apply same projection as x0, x1
@@ -414,7 +416,7 @@ def wrap(
     sidepnt_proj, _ = math.normalize_with_norm(sidepnt_proj)
     sidepnt_proj *= radius
   else:
-    sidepnt_proj = wp.vec2(wp.inf)
+    sidepnt_proj = wp.vec2(MJ_MAXVAL)
 
   # apply inside wrap
   if valid_side and wp.norm_l2(sidepnt) < radius:
@@ -424,7 +426,7 @@ def wrap(
 
   # no wrap: return
   if wlen < 0.0:
-    return -1.0, wp.vec3(wp.inf), wp.vec3(wp.inf)
+    return -1.0, wp.vec3(MJ_MAXVAL), wp.vec3(MJ_MAXVAL)
 
   # reconstruct 3D points in local frame: res
   res0 = axis0 * pnt0[0] + axis1 * pnt0[1]
@@ -599,6 +601,78 @@ def muscle_dynamics(control: float, activation: float, prm: vec10) -> float:
 
 
 @wp.func
+def dcmotor_slots(dynprm: types.vec10, gainprm: types.vec10) -> types.vec6i:
+  """Compute activation slot layout for a DC motor actuator.
+
+  Each DC motor can have up to 5 optional activation states. This function
+  determines which states are enabled (based on nonzero parameters) and
+  assigns each a contiguous slot offset in the activation array.
+
+  Returns a vec6i where:
+    s[0]: slew rate     — enabled when dynprm[7] > 0  (slew rate limit)
+    s[1]: integral      — enabled when gainprm[5] > 0 (integral gain ki)
+    s[2]: temperature   — enabled when dynprm[2] > 0  (thermal resistance RT)
+    s[3]: bristle       — enabled when dynprm[5] > 0  (LuGre stiffness sigma0)
+    s[4]: current       — enabled when dynprm[0] > 0  (electrical time const te)
+    s[5]: total number of active slots (num_slots)
+
+  Enabled slots hold a contiguous offset (0, 1, 2, ...); disabled slots
+  are set to -1.
+  """
+  s = types.vec6i(-1, -1, -1, -1, -1, 0)
+  num_slots = 0
+  if dynprm[7] > 0.0:
+    s[0] = num_slots
+    num_slots += 1
+  if gainprm[5] > 0.0:
+    s[1] = num_slots
+    num_slots += 1
+  if dynprm[2] > 0.0:
+    s[2] = num_slots
+    num_slots += 1
+  if dynprm[5] > 0.0:
+    s[3] = num_slots
+    num_slots += 1
+  if dynprm[0] > 0.0:
+    s[4] = num_slots
+    num_slots += 1
+  s[5] = num_slots
+  return s
+
+
+@wp.func
+def lugre_stribeck(velocity: float, F_C: float, F_S: float, v_S: float) -> float:
+  ratio = velocity / wp.max(MJ_MINVAL, v_S)
+  return F_C + (F_S - F_C) * wp.exp(-ratio * ratio)
+
+
+@wp.func
+def dcmotor_voltage(u: float, length: float, velocity: float, x_I: float, gainprm: types.vec10) -> float:
+  input_mode = int(gainprm[8])
+  Vmax = gainprm[7]
+  voltage = 0.0
+
+  if input_mode > 0:
+    kp = gainprm[4]
+    ki = gainprm[5]
+    kd = gainprm[6]
+
+    if input_mode == 1:
+      # position mode
+      voltage = kp * (u - length) + ki * x_I - kd * velocity
+    else:
+      # velocity mode
+      voltage = kp * (u - velocity) + ki * (x_I - length)
+  else:
+    voltage = u
+
+  if Vmax > 0.0:
+    voltage = wp.clamp(voltage, -Vmax, Vmax)
+
+  return voltage
+
+
+@wp.func
 def inside_geom(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, geomtype: int, point: wp.vec3) -> bool:
   """Return True if point is inside primitive geom, False otherwise."""
   # vector from geom to point
@@ -629,3 +703,34 @@ def inside_geom(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, geomtype: int, point
     return plocal[2] < 0.0
 
   return False
+
+
+@wp.func
+def _poly_force(linear: float, poly: wp.vec2, x: float, flg_odd: int) -> float:
+  x_val = wp.where(flg_odd == 1, wp.abs(x), x)
+  res = linear
+  res += poly[0] * x_val
+  res += poly[1] * x_val * x_val
+  return res
+
+
+@wp.func
+def _poly_force_deriv(linear: float, poly: wp.vec2, x: float, flg_odd: int) -> float:
+  x_val = wp.where(flg_odd == 1, wp.abs(x), x)
+  res = linear
+  res += 2.0 * poly[0] * x_val
+  res += 3.0 * poly[1] * x_val * x_val
+  return res
+
+
+@wp.func
+def poly_potential(linear: float, poly: wp.vec2, x: float, flg_odd: int) -> float:
+  x_val = wp.where(flg_odd == 1, wp.abs(x), x)
+  x_val2 = x_val * x_val
+  x_val3 = x_val2 * x_val
+  x_val4 = x_val3 * x_val
+
+  res = 0.5 * linear * x_val2
+  res += poly[0] * wp.static(1.0 / 3.0) * x_val3
+  res += poly[1] * 0.25 * x_val4
+  return res

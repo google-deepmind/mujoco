@@ -39,17 +39,22 @@ _FORCE_TEST = os.environ.get('MJX_WARP_FORCE_TEST', '0') == '1'
 
 class CollisionTest(absltest.TestCase):
 
+  @classmethod
+  def setUpClass(cls):
+    super().setUpClass()
+    if mjxw.WARP_INSTALLED:
+      cls.tempdir = tempfile.TemporaryDirectory()
+      wp.config.kernel_cache_dir = cls.tempdir.name
+
+  @classmethod
+  def tearDownClass(cls):
+    super().tearDownClass()
+    if hasattr(cls, 'tempdir'):
+      cls.tempdir.cleanup()
+
   def setUp(self):
     super().setUp()
-    if mjxw.WARP_INSTALLED:
-      self.tempdir = tempfile.TemporaryDirectory()
-      wp.config.kernel_cache_dir = self.tempdir.name
     np.random.seed(0)
-
-  def tearDown(self):
-    super().tearDown()
-    if hasattr(self, 'tempdir'):
-      self.tempdir.cleanup()
 
   _SPHERE_SPHERE = """
     <mujoco>

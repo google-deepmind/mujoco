@@ -43,7 +43,7 @@ void CheckRosetta() {
 }  // namespace
 #endif  // defined(__APPLE__) && defined(__AVX__)
 
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
 #include <sanitizer/common_interface_defs.h>
 
 #include <array>

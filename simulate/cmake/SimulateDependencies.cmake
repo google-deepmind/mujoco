@@ -35,6 +35,7 @@ set(MUJOCO_DEP_VERSION_glfw3
 )
 mark_as_advanced(MUJOCO_DEP_VERSION_glfw3)
 
+
 find_package(Threads REQUIRED)
 
 set(MUJOCO_BUILD_EXAMPLES OFF)
@@ -102,3 +103,7 @@ if(NOT SIMULATE_STANDALONE AND NOT MUJOCO_SIMULATE_USE_SYSTEM_GLFW)
   target_compile_options(glfw PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
   target_link_options(glfw PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 endif()
+
+# Fetch lodepng dependency.
+include(third_party_deps/lodepng)
+

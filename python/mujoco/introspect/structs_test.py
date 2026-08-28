@@ -14,8 +14,6 @@
 # ==============================================================================
 """Tests for structs.py."""
 
-import re
-
 from absl.testing import absltest
 
 from . import ast_nodes
@@ -36,7 +34,7 @@ class StructsTest(absltest.TestCase):
       field_names.add(field.name)
       if field.name == 'warning':
         self.assertEqual(field.type,
-                         type_parsing.parse_type('mjWarningStat[8]'))
+                         type_parsing.parse_type('mjWarningStat[7]'))
         self.assertEqual(field.doc, 'warning statistics (mutable)')
       elif field.name == 'qpos':
         self.assertEqual(field.type, type_parsing.parse_type('mjtNum*'))

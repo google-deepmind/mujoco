@@ -18,21 +18,26 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjspec.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjvisualize.h>
 
 
 //---------------------------------- Resource Provider ---------------------------------------------
 
-struct mjResource_ {
+typedef struct mjResource_ {
   char* name;                                   // name of resource (filename, etc)
   void* data;                                   // opaque data pointer
+  mjVFS* vfs;                                   // pointer to the VFS
   char timestamp[512];                          // timestamp of the resource
   const struct mjpResourceProvider* provider;   // pointer to the provider
-};
-typedef struct mjResource_ mjResource;
+  const char* args;  // resource arguments/hints, URI query format key=val&...
+                     // (optional)
+} mjResource;
 
-// callback for opening a resource, returns zero on failure
+// callback for opening a resource, returns zero on failure.
+// Note: If opening fails, the close callback will not be called. Therefore, the
+// open callback is responsible for cleaning up any allocated memory before
+// returning 0.
 typedef int (*mjfOpenResource)(mjResource* resource);
 
 // callback for reading a resource
@@ -42,9 +47,11 @@ typedef int (*mjfReadResource)(mjResource* resource, const void** buffer);
 // callback for closing a resource (responsible for freeing any allocated memory)
 typedef void (*mjfCloseResource)(mjResource* resource);
 
-// callback for returning the directory of a resource
-// sets dir to directory string with ndir being size of directory string
-typedef void (*mjfGetResourceDir)(mjResource* resource, const char** dir, int* ndir);
+// callback for mounting a resource (provider), returns zero on failure
+typedef int (*mjfMountResource)(mjResource* resource);
+
+// callback for unmounting a resource (provider), returns zero on failure
+typedef int (*mjfUnmountResource)(mjResource* resource);
 
 // callback for checking if the current resource was modified from the time
 // specified by the timestamp
@@ -53,17 +60,22 @@ typedef void (*mjfGetResourceDir)(mjResource* resource, const char** dir, int* n
 // returns < 0 if the resource is older than the given timestamp
 typedef int (*mjfResourceModified)(const mjResource* resource, const char* timestamp);
 
+// callback for writing bytes to a resource
+// return number of bytes written, return -1 if error
+typedef mjtSize (*mjfWriteResource)(mjResource* resource, const void* buffer, mjtSize nbytes);
+
 // struct describing a single resource provider
-struct mjpResourceProvider {
+typedef struct mjpResourceProvider {
   const char* prefix;               // prefix for match against a resource name
   mjfOpenResource open;             // opening callback
   mjfReadResource read;             // reading callback
   mjfCloseResource close;           // closing callback
-  mjfGetResourceDir getdir;         // get directory callback (optional)
+  mjfMountResource mount;           // mounting callback (optional)
+  mjfUnmountResource unmount;       // unmounting callback (optional)
   mjfResourceModified modified;     // resource modified callback (optional)
+  mjfWriteResource write;           // writing callback (optional)
   void* data;                       // opaque data pointer (resource invariant)
-};
-typedef struct mjpResourceProvider mjpResourceProvider;
+} mjpResourceProvider;
 
 //---------------------------------- Decoder -------------------------------------------------------
 
@@ -74,7 +86,7 @@ typedef mjSpec* (*mjfDecode)(mjResource* resource, const mjVFS* vfs);
 typedef int (*mjfCanDecode)(const mjResource* resource);
 
 // the struct defining the decoder plugin's interface
-struct mjpDecoder {
+typedef struct mjpDecoder {
   const char* content_type;
   const char* extension;
   // user-facing functions
@@ -82,8 +94,19 @@ struct mjpDecoder {
   mjfDecode decode;         // main decoding function
   // the caller takes ownership of the spec returned by decode and is responsible
   // for cleaning it up
-};
-typedef struct mjpDecoder mjpDecoder;
+} mjpDecoder;
+
+//---------------------------------- Encoder -------------------------------------------------------
+
+typedef mjtSize (*mjfEncode)(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
+                            mjResource* resource);
+
+typedef struct mjpEncoder {
+  const char* content_type;
+  const char* extension;
+  mjfEncode encode;  //  Function to encode an mjSpec and mjModel to a mjResource.
+  mjfCloseResource close_resource;  // Function to close/free the resource.
+} mjpEncoder;
 
 //---------------------------------- Plugins -------------------------------------------------------
 
@@ -94,7 +117,7 @@ typedef enum mjtPluginCapabilityBit_ {
   mjPLUGIN_SDF      = 1<<3,       // signed distance fields
 } mjtPluginCapabilityBit;
 
-struct mjpPlugin_ {
+typedef struct mjpPlugin_ {
   const char* name;               // globally unique name identifying the plugin
 
   int nattribute;                 // number of configuration attributes
@@ -152,52 +175,57 @@ struct mjpPlugin_ {
 
   // bounding box of implicit surface
   void (*sdf_aabb)(mjtNum aabb[6], const mjtNum* attributes);
-};
-typedef struct mjpPlugin_ mjpPlugin;
+} mjpPlugin;
 
-struct mjSDF_ {
+typedef struct mjSDF_ {
   const mjpPlugin** plugin;
   int* id;
   mjtSDFType type;
   mjtNum* relpos;
   mjtNum* relmat;
   mjtGeom* geomtype;
-};
-typedef struct mjSDF_ mjSDF;
+} mjSDF;
+
+//------------------------------------ Initialization ----------------------------------------------
 
 #if defined(__has_attribute)
-
   #if __has_attribute(constructor)
-    #define mjPLUGIN_LIB_INIT __attribute__((constructor)) static void _mjplugin_init(void)
-  #endif  // __has_attribute(constructor)
-
-#elif defined(_MSC_VER)
-
-  #ifndef mjDLLMAIN
-    #define mjDLLMAIN DllMain
+    #define mjPLUGIN_LIB_INIT(n)                                     \
+      static void _mj_init_##n(void) __attribute__((constructor));   \
+      static void _mj_init_##n(void)
   #endif
-
-  #if !defined(mjEXTERNC)
-    #if defined(__cplusplus)
-      #define mjEXTERNC extern "C"
+#elif defined(_MSC_VER)
+    // on x86, symbols are decorated with a leading underscore
+    #ifdef _M_IX86
+      #define LINKER_NAME "__mj_ptr_"
     #else
-      #define mjEXTERNC
-    #endif  // defined(__cplusplus)
-  #endif  // !defined(mjEXTERNC)
+      #define LINKER_NAME "_mj_ptr_"
+    #endif
 
-  // NOLINTBEGIN(runtime/int)
-  #define mjPLUGIN_LIB_INIT                                                                 \
-    static void _mjplugin_dllmain(void);                                                    \
-    mjEXTERNC int __stdcall mjDLLMAIN(void* hinst, unsigned long reason, void* reserved) {  \
-      if (reason == 1) {                                                                    \
-        _mjplugin_dllmain();                                                                \
-      }                                                                                     \
-      return 1;                                                                             \
-    }                                                                                       \
-    static void _mjplugin_dllmain(void)
-  // NOLINTEND(runtime/int)
+    #pragma section(".CRT$XCU", read)
 
-#endif  // defined(_MSC_VER)
+    #if !defined(mjEXTERNC)
+      #if defined(__cplusplus)
+        #define mjEXTERNC extern "C"
+      #else
+        #define mjEXTERNC
+      #endif  // defined(__cplusplus)
+    #endif  // !defined(mjEXTERNC)
+
+    #define mjPLUGIN_LIB_INIT(n)                                                          \
+      static void __cdecl _mj_init_##n(void);                                             \
+      /* use mjEXTERNC to prevent C++ name mangling */                                    \
+      /* allocate the function pointer to the .CRT$XCU section of the executable */       \
+      /* functions in this section are executed on startup before calling main() */       \
+      mjEXTERNC __declspec(allocate(".CRT$XCU"))                                          \
+      void (__cdecl * _mj_ptr_##n)(void) = _mj_init_##n;                                  \
+      /* Force the linker to include the pointer symbol */                                \
+      __pragma(comment(linker, "/include:" LINKER_NAME #n))                               \
+      static void __cdecl _mj_init_##n(void)
+
+#else
+    #error "Unknown compiler: Plugin registration not supported."
+#endif
 
 // function pointer type for mj_loadAllPluginLibraries callback
 typedef void (*mjfPluginLibraryLoadCallback)(const char* filename, int first, int count);

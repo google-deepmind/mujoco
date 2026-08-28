@@ -23,8 +23,8 @@
   #include <EGL/egl.h>
 #elif defined(MJ_OSMESA)
   #include <GL/osmesa.h>
-  OSMesaContext ctx;
-  unsigned char buffer[10000000];
+OSMesaContext ctx;
+unsigned char buffer[10000000];
 #else
   #include <GLFW/glfw3.h>
 #endif
@@ -32,33 +32,31 @@
 #include "array_safety.h"
 namespace mju = ::mujoco::sample_util;
 
-//-------------------------------- global data ------------------------------------------
+//-------------------------------- global data -----------------------------------------------------
 
 // MuJoCo model and data
 mjModel* m = 0;
-mjData* d = 0;
+mjData*  d = 0;
 
 // MuJoCo visualization
-mjvScene scn;
-mjvCamera cam;
-mjvOption opt;
+mjvScene   scn;
+mjvCamera  cam;
+mjvOption  opt;
 mjrContext con;
 
 
-//-------------------------------- utility functions ------------------------------------
+//-------------------------------- utility functions -----------------------------------------------
 
 // load model, init simulation and rendering
 void initMuJoCo(const char* filename) {
   // load and compile
   char error[1000] = "Could not load binary model";
-  if (std::strlen(filename)>4 && !std::strcmp(filename+std::strlen(filename)-4, ".mjb")) {
+  if (std::strlen(filename) > 4 && !std::strcmp(filename + std::strlen(filename) - 4, ".mjb")) {
     m = mj_loadModel(filename, 0);
   } else {
     m = mj_loadXML(filename, 0, error, 1000);
   }
-  if (!m) {
-    mju_error("Load model error: %s", error);
-  }
+  if (!m) { mju_error("Load model error: %s", error); }
 
   // make data, run one computation to initialize all fields
   d = mj_makeData(m);
@@ -93,6 +91,7 @@ void initOpenGL(void) {
   //------------------------ EGL
 #if defined(MJ_EGL)
   // desired config
+  // clang-format off
   const EGLint configAttribs[] = {
     EGL_RED_SIZE,           8,
     EGL_GREEN_SIZE,         8,
@@ -105,39 +104,40 @@ void initOpenGL(void) {
     EGL_RENDERABLE_TYPE,    EGL_OPENGL_BIT,
     EGL_NONE
   };
+  // clang-format on
 
   // get default display
   EGLDisplay eglDpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-  if (eglDpy==EGL_NO_DISPLAY) {
+  if (eglDpy == EGL_NO_DISPLAY) {
     mju_error("Could not get EGL display, error 0x%x\n", eglGetError());
   }
 
   // initialize
   EGLint major, minor;
-  if (eglInitialize(eglDpy, &major, &minor)!=EGL_TRUE) {
+  if (eglInitialize(eglDpy, &major, &minor) != EGL_TRUE) {
     mju_error("Could not initialize EGL, error 0x%x\n", eglGetError());
   }
 
   // choose config
-  EGLint numConfigs;
+  EGLint    numConfigs;
   EGLConfig eglCfg;
-  if (eglChooseConfig(eglDpy, configAttribs, &eglCfg, 1, &numConfigs)!=EGL_TRUE) {
+  if (eglChooseConfig(eglDpy, configAttribs, &eglCfg, 1, &numConfigs) != EGL_TRUE) {
     mju_error("Could not choose EGL config, error 0x%x\n", eglGetError());
   }
 
   // bind OpenGL API
-  if (eglBindAPI(EGL_OPENGL_API)!=EGL_TRUE) {
+  if (eglBindAPI(EGL_OPENGL_API) != EGL_TRUE) {
     mju_error("Could not bind EGL OpenGL API, error 0x%x\n", eglGetError());
   }
 
   // create context
   EGLContext eglCtx = eglCreateContext(eglDpy, eglCfg, EGL_NO_CONTEXT, NULL);
-  if (eglCtx==EGL_NO_CONTEXT) {
+  if (eglCtx == EGL_NO_CONTEXT) {
     mju_error("Could not create EGL context, error 0x%x\n", eglGetError());
   }
 
   // make context current, no surface (let OpenGL handle FBO)
-  if (eglMakeCurrent(eglDpy, EGL_NO_SURFACE, EGL_NO_SURFACE, eglCtx)!=EGL_TRUE) {
+  if (eglMakeCurrent(eglDpy, EGL_NO_SURFACE, EGL_NO_SURFACE, eglCtx) != EGL_TRUE) {
     mju_error("Could not make EGL context current, error 0x%x\n", eglGetError());
   }
 
@@ -145,9 +145,7 @@ void initOpenGL(void) {
 #elif defined(MJ_OSMESA)
   // create context
   ctx = OSMesaCreateContextExt(GL_RGBA, 24, 8, 8, 0);
-  if (!ctx) {
-    mju_error("OSMesa context creation failed");
-  }
+  if (!ctx) { mju_error("OSMesa context creation failed"); }
 
   // make current
   if (!OSMesaMakeCurrent(ctx, buffer, GL_UNSIGNED_BYTE, 800, 800)) {
@@ -157,17 +155,13 @@ void initOpenGL(void) {
   //------------------------ GLFW
 #else
   // init GLFW
-  if (!glfwInit()) {
-    mju_error("Could not initialize GLFW");
-  }
+  if (!glfwInit()) { mju_error("Could not initialize GLFW"); }
 
   // create invisible window, single-buffered
   glfwWindowHint(GLFW_VISIBLE, 0);
   glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_FALSE);
   GLFWwindow* window = glfwCreateWindow(800, 800, "Invisible window", NULL, NULL);
-  if (!window) {
-    mju_error("Could not create GLFW window");
-  }
+  if (!window) { mju_error("Could not create GLFW window"); }
 
   // make context current
   glfwMakeContextCurrent(window);
@@ -181,9 +175,7 @@ void closeOpenGL(void) {
 #if defined(MJ_EGL)
   // get current display
   EGLDisplay eglDpy = eglGetCurrentDisplay();
-  if (eglDpy==EGL_NO_DISPLAY) {
-    return;
-  }
+  if (eglDpy == EGL_NO_DISPLAY) { return; }
 
   // get current context
   EGLContext eglCtx = eglGetCurrentContext();
@@ -192,9 +184,7 @@ void closeOpenGL(void) {
   eglMakeCurrent(eglDpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 
   // destroy context if valid
-  if (eglCtx!=EGL_NO_CONTEXT) {
-    eglDestroyContext(eglDpy, eglCtx);
-  }
+  if (eglCtx != EGL_NO_CONTEXT) { eglDestroyContext(eglDpy, eglCtx); }
 
   // terminate display
   eglTerminate(eglDpy);
@@ -207,13 +197,13 @@ void closeOpenGL(void) {
 #else
   // terminate GLFW (crashes with Linux NVidia drivers)
   #if defined(__APPLE__) || defined(_WIN32)
-    glfwTerminate();
+  glfwTerminate();
   #endif
 #endif
 }
 
 
-//-------------------------------- main function ----------------------------------------
+//-------------------------------- main function ---------------------------------------------------
 
 int main(int argc, const char** argv) {
   // check command-line arguments
@@ -233,27 +223,23 @@ int main(int argc, const char** argv) {
 
   // set rendering to offscreen buffer
   mjr_setBuffer(mjFB_OFFSCREEN, &con);
-  if (con.currentBuffer!=mjFB_OFFSCREEN) {
+  if (con.currentBuffer != mjFB_OFFSCREEN) {
     std::printf("Warning: offscreen rendering not supported, using default/window framebuffer\n");
   }
 
   // get size of active renderbuffer
-  mjrRect viewport =  mjr_maxViewport(&con);
-  int W = viewport.width;
-  int H = viewport.height;
+  mjrRect viewport = mjr_maxViewport(&con);
+  int     W        = viewport.width;
+  int     H        = viewport.height;
 
   // allocate rgb and depth buffers
-  unsigned char* rgb = (unsigned char*)std::malloc(3*W*H);
-  float* depth = (float*)std::malloc(sizeof(float)*W*H);
-  if (!rgb || !depth) {
-    mju_error("Could not allocate buffers");
-  }
+  unsigned char* rgb   = (unsigned char*)std::malloc(3 * W * H);
+  float*         depth = (float*)std::malloc(sizeof(float) * W * H);
+  if (!rgb || !depth) { mju_error("Could not allocate buffers"); }
 
   // create output rgb file
   std::FILE* fp = std::fopen(argv[4], "wb");
-  if (!fp) {
-    mju_error("Could not open rgbfile for writing");
-  }
+  if (!fp) { mju_error("Could not open rgbfile for writing"); }
 
   int adddepth = 1;
   if (argc > 5 && std::sscanf(argv[5], "%d", &adddepth) != 1) {
@@ -261,11 +247,11 @@ int main(int argc, const char** argv) {
   }
 
   // main loop
-  double frametime = 0;
-  int framecount = 0;
-  while (d->time<duration) {
+  double frametime  = 0;
+  int    framecount = 0;
+  while (d->time < duration) {
     // render new frame if it is time (or first frame)
-    if ((d->time-frametime)>1/fps || frametime==0) {
+    if ((d->time - frametime) > 1 / fps || frametime == 0) {
       // update abstract scene
       mjv_updateScene(m, d, &opt, NULL, &cam, mjCAT_ALL, &scn);
 
@@ -282,20 +268,21 @@ int main(int argc, const char** argv) {
 
       // insert subsampled depth image in lower-left corner of rgb image
       if (adddepth) {
-        const int NS = 3;           // depth image sub-sampling
-        for (int r=0; r<H; r+=NS) {
-          for (int c=0; c<W; c+=NS) {
-            int adr = (r/NS)*W + c/NS;
-            rgb[3*adr] = rgb[3*adr+1] = rgb[3*adr+2] = (unsigned char)((1.0f-depth[r*W+c])*255.0f);
+        const int NS = 3;  // depth image subsampling
+        for (int r = 0; r < H; r += NS) {
+          for (int c = 0; c < W; c += NS) {
+            int adr      = (r / NS) * W + c / NS;
+            rgb[3 * adr] = rgb[3 * adr + 1] = rgb[3 * adr + 2] =
+                (unsigned char)((1.0f - depth[r * W + c]) * 255.0f);
           }
         }
       }
 
       // write rgb image to file
-      std::fwrite(rgb, 3, W*H, fp);
+      std::fwrite(rgb, 3, W * H, fp);
 
       // print every 10 frames: '.' if ok, 'x' if OpenGL error
-      if (((framecount++)%10)==0) {
+      if (((framecount++) % 10) == 0) {
         if (mjr_getError()) {
           std::printf("x");
         } else {

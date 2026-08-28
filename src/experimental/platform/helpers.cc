@@ -14,6 +14,7 @@
 
 #include "experimental/platform/helpers.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -23,6 +24,7 @@
 #include <ios>
 #include <iterator>
 #include <string>
+#include <vector>
 
 #include "webp/encode.h"
 #include "webp/types.h"
@@ -77,14 +79,19 @@ std::string ResolveFile(const std::string& filename,
       return resolved;
     }
 
+    std::vector<std::filesystem::path> entries;
     for (const auto& it : std::filesystem::recursive_directory_iterator(path)) {
-      resolved = CheckPathForFile(it.path(), filename);
+      entries.push_back(it.path());
+    }
+    std::sort(entries.begin(), entries.end());
+    for (const auto& entry : entries) {
+      resolved = CheckPathForFile(entry, filename);
       if (!resolved.empty()) {
         return resolved;
       }
     }
   }
-  return "";
+  return filename;
 }
 
 void SaveToWebp(int width, int height, const std::byte* data,
@@ -100,7 +107,6 @@ void SaveToWebp(int width, int height, const std::byte* data,
 
 const void* GetValue(const mjModel* model, const mjData* data,
                      const char* field, int index) {
-  MJDATA_POINTERS_PREAMBLE(model);
 #define X(TYPE, NAME, NR, NC)                                        \
   if (!std::strcmp(#NAME, field) && !std::strcmp(#TYPE, "mjtNum")) { \
     if (index >= 0 && index < model->NR * NC) {                      \

@@ -21,34 +21,61 @@ the console. To simulate controlled dynamics instead of passive dynamics one can
 
 .. code-block:: Shell
 
-   testspeed modelfile [nstep nthread ctrlnoise npoolthread]
+   testspeed [options] model
 
-Where the command line arguments are
+Where the command-line options and arguments are
 
 .. list-table::
    :width: 95%
    :align: left
-   :widths: 1 1 5
+   :widths: 2 1 4
    :header-rows: 1
 
-   * - Argument
+   * - Option
      - Default
      - Meaning
-   * - ``modelfile``
+   * - ``model``
      - (required)
-     - path to model
-   * - ``nstep``
+     - path to model (positional argument)
+   * - ``--nstep=N``
      - 10000
      - number of steps per rollout
-   * - ``nthread``
+   * - ``--nthread=N``
      - 1
      - number of threads running parallel rollouts
-   * - ``ctrlnoise``
+   * - ``--noisestd=X``
      - 0.01
      - scale of pseudo-random noise injected into actuators
-   * - ``npoolthread``
-     - 1
+   * - ``--noiserate=X``
+     - 0.1
+     - rate of convergence to ctrl keyframe/midpoint
+   * - ``--nenginethread=N``
+     - 0
      - number of threads in engine-internal threadpool
+   * - ``--solver=S``
+     - Newton
+     - override constraint solver algorithm (PGS, CG, Newton)
+   * - ``--cone=C``
+     - Pyramidal
+     - override friction cone type (Pyramidal, Elliptic)
+   * - ``--jacobian=J``
+     - Auto
+     - override constraint Jacobian type (Dense, Sparse, Auto)
+   * - ``--integrator=I``
+     - Euler
+     - override integration mode (Euler, RK4, Implicit, ImplicitFast)
+   * - ``--iterations=N``
+     - 100
+     - override solver iterations limit
+   * - ``--tolerance=X``
+     - 1e-8
+     - override solver convergence tolerance
+   * - ``--sleep_tolerance=X``
+     - 1e-4
+     - override sleep tolerance
+   * - ``--noslip_iterations=N``
+     - 0
+     - override noslip solver iterations limit
 
 **Notes:**
 
@@ -58,11 +85,13 @@ Where the command line arguments are
   logical cores.
 - By default, the simulation starts from the model reference configuration with zero velocities. However, if a
   keyframe named "test" is present in the model, it is used as the initial state.
-- The ``ctrlnoise`` argument prevents models from settling into a static state where, due to warmstarts, one can
-  measure artificially faster simulation.
-- When ``npoolthread > 1`` is specified, an engine-internal :ref:`mjThreadPool` is created with the specified number of
+- The physics option override flags (such as ``--solver``) only override the model settings if they are explicitly
+  specified on the command line; otherwise, the model options configured in the XML file are preserved.
+- The control noise arguments (``noisestd`` and ``noiserate``) prevent models from settling into a static state where,
+  due to warmstarts, one can measure artificially faster simulation.
+- When ``nenginethread > 1`` is specified, an engine-internal thread pool is created with the specified number of
   threads, to speed up simulation of large scenes. Note that while it is possible to use both ``nthread`` and
-  ``npoolthread``, the scenarios for which one would want these different types of multithreading are usually mutually
+  ``nenginethread``, the scenarios for which one would want these different types of multithreading are usually mutually
   exclusive.
 - For more repeatable performance statistics, run the tool with the ``performance``
   `governor <https://www.kernel.org/doc/Documentation/cpu-freq/governors.txt>`__ on Linux, or the
@@ -93,7 +122,250 @@ Interaction is done with the mouse; built-in help with a summary of available co
 ``F1`` key. Briefly, an object is selected by left-double-click. The user can then apply forces and torques on the
 selected object by holding Ctrl and dragging the mouse. Dragging the mouse alone (without Ctrl) moves the camera. There
 are keyboard shortcuts for pausing the simulation, resetting, and re-loading the model file. The latter functionality is
-very useful while editing the model in an XML editor.
+very useful while editing the model in an XML editor. The complete set of shortcuts is given in
+:ref:`saSimulateShortcuts` below.
+
+.. _saSimulateShortcuts:
+
+Shortcuts
+^^^^^^^^^
+
+The ``F1`` help overlay lists the most common commands. The tables below are the complete reference, and also apply to
+the Python viewer launched with :ref:`mujoco.viewer<PyViewer>`, which is built on the same ``Simulate`` UI. Shortcuts
+that step or pause the simulation have no effect in passive mode, where stepping is driven by user code.
+
+In addition to the shortcuts listed here, every UI control shows its own shortcut when the right mouse button is held
+over the UI panel.
+
+Simulation and camera
+"""""""""""""""""""""
+
+.. list-table::
+   :width: 95%
+   :align: left
+   :widths: 1 3
+   :header-rows: 1
+
+   * - Key
+     - Action
+   * - ``Space``
+     - Play / pause
+   * - ``Right arrow``
+     - Step forward
+   * - ``Left arrow``
+     - Step backward, through the history buffer
+   * - ``+`` (actually ``=``)
+     - Speed up
+   * - ``-``
+     - Slow down
+   * - ``Backspace``
+     - Reset
+   * - ``Ctrl C``
+     - Copy state to clipboard
+   * - ``Ctrl L``
+     - Reload the model
+   * - ``Ctrl A``
+     - Align the free camera
+   * - ``Esc``
+     - Switch to the free camera
+   * - ``[`` / ``]``
+     - Cycle down / up through the fixed cameras defined in the model
+   * - ``Page Up``
+     - Select the parent of the currently selected body
+   * - ``Tab`` / ``Shift Tab``
+     - Toggle the left / right UI panel
+
+Panels and files
+""""""""""""""""
+
+.. list-table::
+   :width: 95%
+   :align: left
+   :widths: 1 3
+   :header-rows: 1
+
+   * - Key
+     - Action
+   * - ``F1``
+     - Toggle the help overlay
+   * - ``F2``
+     - Toggle the info overlay
+   * - ``F3``
+     - Toggle the profiler
+   * - ``F4``
+     - Toggle the sensor plots
+   * - ``F5``
+     - Toggle fullscreen
+   * - ``F6``
+     - Cycle the frame visualization
+   * - ``F7``
+     - Cycle the label visualization
+   * - ``Ctrl M``
+     - Print the model to ``MJMODEL.TXT``
+   * - ``Ctrl D``
+     - Print the data to ``MJDATA.TXT``
+   * - ``Ctrl P``
+     - Save a screenshot
+   * - ``Ctrl Q``
+     - Quit
+   * - ``Alt`` + letter
+     - Expand / collapse a UI section: ``F`` File, ``O`` Option, ``S`` Simulation, ``W`` Watch, ``P`` Physics,
+       ``R`` Rendering, ``V`` Visualization, ``G`` Group enable, ``L`` Logging, ``J`` Joint, ``C`` Control,
+       ``E`` Equality
+
+Visibility groups
+"""""""""""""""""
+
+.. list-table::
+   :width: 95%
+   :align: left
+   :widths: 1 3
+   :header-rows: 1
+
+   * - Key
+     - Action
+   * - ``0`` … ``5``
+     - Toggle visibility of geom group 0 … 5
+   * - ``Shift 0`` … ``Shift 5``
+     - Toggle visibility of site group 0 … 5
+
+Visualization flags
+"""""""""""""""""""
+
+These toggle the abstract visualization flags in the Rendering section, and correspond to the shortcuts declared in
+``mjVISSTRING``. Flags with no shortcut assigned (Select Point, the Flex flags and SDF iters) are omitted.
+
+.. list-table::
+   :width: 95%
+   :align: left
+   :widths: 1 3 1 3
+   :header-rows: 1
+
+   * - Key
+     - Flag
+     - Key
+     - Flag
+   * - ``H``
+     - Convex Hull
+     - ``X``
+     - Texture
+   * - ``J``
+     - Joint
+     - ``Q``
+     - Camera
+   * - ``U``
+     - Actuator
+     - ``,``
+     - Activation
+   * - ``Z``
+     - Light
+     - ``V``
+     - Tendon
+   * - ``Y``
+     - Range Finder
+     - ``E``
+     - Equality
+   * - ``I``
+     - Inertia
+     - ``'``
+     - Scale Inertia
+   * - ``B``
+     - Perturb Force
+     - ``O``
+     - Perturb Object
+   * - ``C``
+     - Contact Point
+     - ``N``
+     - Island
+   * - ``F``
+     - Contact Force
+     - ``P``
+     - Contact Split
+   * - ``T``
+     - Transparent
+     - ``A``
+     - Auto Connect
+   * - ``M``
+     - Center of Mass
+     - ``D``
+     - Static Body
+   * - ``;``
+     - Skin
+     - :literal:`\``
+     - Body Tree
+   * - ``\``
+     - Mesh Tree
+     -
+     -
+
+Rendering flags
+"""""""""""""""
+
+These toggle the OpenGL effects in the Rendering section, and correspond to the shortcuts declared in ``mjRNDSTRING``.
+Flags with no shortcut assigned (Depth, Id Color and Cull Face) are omitted.
+
+.. list-table::
+   :width: 95%
+   :align: left
+   :widths: 1 3 1 3
+   :header-rows: 1
+
+   * - Key
+     - Flag
+     - Key
+     - Flag
+   * - ``S``
+     - Shadow
+     - ``W``
+     - Wireframe
+   * - ``R``
+     - Reflection
+     - ``L``
+     - Additive
+   * - ``K``
+     - Skybox
+     - ``G``
+     - Fog
+   * - ``/``
+     - Haze
+     -
+     -
+
+Mouse
+"""""
+
+.. list-table::
+   :width: 95%
+   :align: left
+   :widths: 2 3
+   :header-rows: 1
+
+   * - Action
+     - Effect
+   * - Left drag
+     - Orbit the camera
+   * - Right drag
+     - Pan camera in vertical plane
+   * - ``Shift`` right drag
+     - Pan camera in horizontal plane
+   * - Scroll, or middle drag
+     - Zoom
+   * - Double-click
+     - Select an object
+   * - Right double-click
+     - Center the camera on the clicked point
+   * - ``Ctrl`` right double-click
+     - Track the selected body
+   * - ``Ctrl`` drag
+     - Rotate the selected object
+   * - ``Ctrl`` right drag
+     - Translate object in vertical plane
+   * - ``Ctrl`` ``Shift`` right drag
+     - Translate object in horizontal plane
+   * - Right-button hold over the UI
+     - Show the shortcut of each UI control
+   * - Double-click a UI section title
+     - Expand / collapse all sections
 
 The code is long yet reasonably commented, so it is best to just read it. Here we provide a high-level overview.
 The ``main()`` function initializes both MuJoCo and GLFW, opens a window, and install GLFW callbacks for mouse and
@@ -120,13 +392,19 @@ Windows power plan so that the minimum processor state is 100%.
 `compile <https://github.com/google-deepmind/mujoco/blob/main/sample/compile.cc>`_
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This code sample evokes the built-in parser and compiler. It implements all possible model conversions from (MJCF, URDF,
-MJB) format to (MJCF, MJB, TXT) format. Models saved as MJCF use a canonical subset of our format as described in the
-:doc:`../modeling` chapter, and therefore MJCF-to-MJCF conversion will generally result in a different file.
+This code sample invokes the built-in parser and compiler. It implements all possible model conversions from (MJCF,
+URDF, MJB) format to (MJCF, MJB, TXT) format. Models saved as MJCF use a canonical subset of our format as described in
+the :doc:`../modeling` chapter, and therefore MJCF-to-MJCF conversion will generally result in a different file.
 The TXT format is a human-readable road-map to the model. It cannot be loaded by MuJoCo, but can be a very useful aid
 during model development. It is in one-to-one correspondence with the compiled mjModel. Note also that one can use the
 function :ref:`mj_printData` to create a text file which is in one-to-one correspondence
 with mjData, although this is not done by the code sample.
+
+If the input file is MJCF or URDF and the output file is empty, compilation is performed twice to measure the impact
+of the compiler's :ref:`asset cache<Assetcache>`. A detailed timing breakdown is printed for each compilation, showing
+total time, asset processing time (wall clock), and per-category CPU times for meshes and textures. These timings are
+read from the :ref:`mjtCTimer` fields via :ref:`mjs_getTimer`, which can be read programmatically
+after any call to :ref:`mj_compile`.
 
 .. _saBasic:
 
@@ -207,7 +485,7 @@ data file into a playable movie file:
 Note that the offscreen rendering resolution of the model and ffmpeg's video_size must be identical.
 
 This sample can be compiled in three ways which differ in how the OpenGL context is created: using GLFW with an
-invisible window, using OSMesa, or using EGL. The latter two options are only available on Linux and are envoked by
+invisible window, using OSMesa, or using EGL. The latter two options are only available on Linux and are invoked by
 defining the symbols MJ_OSMESA or MJ_EGL when compiling record.cc. The functions ``initOpenGL`` and ``closeOpenGL``
 create and close the OpenGL context in three different ways depending on which of the above symbols is defined.
 
@@ -218,3 +496,107 @@ proliferation of overlapping technologies, which differ not only between platfor
 case of Linux. The addition of a couple of extra functions (such as those provided by OSMesa for example) could have
 avoided a lot of confusion. EGL is a newer standard from Khronos which aims to do this, and it is gaining popularity.
 But we cannot yet assume that all users have it installed.
+
+.. _saRender:
+
+`render <https://github.com/google-deepmind/mujoco/blob/main/sample/render.cc>`_
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This code sample renders a model configuration offscreen and saves the result directly to a PNG image file. It supports
+both the modern Filament rendering backend (:ref:`mjrf <FilamentRenderingApi>`) with physically-based rendering (PBR),
+and the classic OpenGL renderer (:ref:`mjrContext`). The rendering runs headless without creating an interactive window.
+
+.. code-block:: Shell
+
+   render model [output] [options]
+
+Where the command-line arguments and options are
+
+.. list-table::
+   :width: 95%
+   :align: left
+   :widths: 2 1 4
+   :header-rows: 1
+
+   * - Option
+     - Default
+     - Meaning
+   * - ``model``
+     - (required)
+     - path to model (positional argument)
+   * - ``output``
+     - (default)
+     - path to output image file (positional argument, default: ``<model>.png``)
+   * - ``--backend=B``
+     - ``filament``
+     - rendering backend (``filament``, ``classic``)
+   * - ``--width=N``
+     - 640
+     - image width in pixels
+   * - ``--height=N``
+     - 480
+     - image height in pixels
+   * - ``--camera=C``
+     - (free)
+     - camera name or integer index (default: free camera)
+   * - ``--lookat=X,Y,Z``
+     - (center)
+     - free camera lookat position
+   * - ``--distance=D``
+     - (fit)
+     - free camera distance
+   * - ``--azimuth=A``
+     - ``90``
+     - free camera azimuth in degrees
+   * - ``--elevation=E``
+     - ``-45``
+     - free camera elevation in degrees
+   * - ``--key=K``
+     - (none)
+     - keyframe name or integer index to load prior to rendering
+   * - ``--steps=N``
+     - 0
+     - number of simulation steps to advance before rendering
+   * - ``--geomgroup=G``
+     - ``111000``
+     - 6-character string enabling/disabling geom groups 0-5 (e.g. ``111111``)
+   * - ``--sitegroup=S``
+     - ``111000``
+     - 6-character string enabling/disabling site groups 0-5
+   * - ``--label=L``
+     - (none)
+     - type of label (e.g. ``--label=geom``, ``--label=body``, ``--label=site``)
+   * - ``--frame=F``
+     - (none)
+     - type of coordinate frame (e.g. ``--frame=geom``, ``--frame=body``, ``--frame=site``)
+   * - ``--<visflag>=0|1``
+     - (default)
+     - toggle visualization flag declared in :ref:`mjVISSTRING` (e.g. ``--joint=1``, ``--contactpoint=1``)
+   * - ``--<rndflag>=0|1``
+     - (default)
+     - toggle rendering flag declared in :ref:`mjRNDSTRING` (e.g. ``--shadow=0``, ``--wireframe=1``)
+
+**Notes:**
+
+- Running ``render`` with no arguments (or with ``--help`` / ``-h``) prints the help message.
+- The non-optional ``model`` path and optional ``output`` path are positional arguments. If ``output`` is
+  omitted, the output filename is derived from the model filename with the ``.png`` extension (e.g.
+  ``humanoid.xml`` becomes ``humanoid.png``).
+- ``--backend=filament`` uses MuJoCo's Filament C API to configure a scene from the model, setting up lighting,
+  materials, and textures, and rendering via Filament's offscreen pipeline. ``--backend=classic`` uses standard OpenGL
+  offscreen rendering with an EGL context.
+- The default camera is the model's free camera looking at the center of the scene. Specifying ``--camera=name`` selects
+  a named camera defined in the model XML, while integer indices ``0, 1, ...`` select fixed cameras in order of definition.
+  When using the free camera, its viewpoint can be adjusted via ``--lookat=x,y,z``, ``--distance=d``, ``--azimuth=a``,
+  and ``--elevation=e``.
+- If a keyframe is specified via ``--key``, the model state is reset to that keyframe before evaluating kinematics and
+  rendering. If no keyframe is specified and a keyframe named ``test`` exists in the model, it is used by default.
+- ``--steps=N`` advances the simulation by ``N`` steps (after any keyframe reset) before rendering, so a state reached by
+  simulating can be captured rather than only the initial or keyframe pose.
+- Visualization and rendering flags can be individually toggled using normalized flag names from :ref:`mjVISSTRING`
+  and :ref:`mjRNDSTRING`.
+- Labels can be enabled using ``--label=L`` where ``L`` is a label type name from :ref:`mjLABELSTRING` (e.g. ``geom``,
+  ``body``, ``joint``) or an integer index.
+- Coordinate frames can be rendered using ``--frame=F`` where ``F`` is a frame type name from :ref:`mjFRAMESTRING` (e.g.
+  ``geom``, ``body``, ``site``, ``world``) or an integer index.
+

@@ -13,7 +13,7 @@ initialized by the corresponding API functions. These are very elaborate data st
 structures, preallocated data arrays for all intermediate results, as well as an :ref:`internal stack <siStack>`. Our
 strategy is to allocate all necessary heap memory at the beginning of the simulation, and free it after the simulation
 is done, so that we never have to call the C memory allocation and deallocation functions during the simulation. This is
-done for speed, avoidance of memory fragmentation, future GPU portability, and ease of managing the state of the entire
+done for speed, avoidance of memory fragmentation, GPU portability, and ease of managing the state of the entire
 simulator during a reset. It also means however that the maximal variable-memory allocation given by the :at:`memory`
 attribute in the :ref:`size <size>` MJCF element, which affects the allocation of :ref:`mjData`, must be set to a
 sufficiently large value. If this maximal size is exceeded during simulation, it is not increased dynamically, but
@@ -264,10 +264,10 @@ individual components and combinations of components. These are:
 Physics state
 """""""""""""
 The *physics state* (:ref:`mjSTATE_PHYSICS<mjtState>`) contains the main quantities which are time-integrated during
-stepping. These are ``mjData.{qpos, qvel, act}``:
+stepping. These are ``mjData.{qpos, qvel, act, history}``:
 
 Position: ``qpos``
-  The configuration in generalized coodinates, denoted in the :ref:`Numerical Integration<geIntegration>` section as
+  The configuration in generalized coordinates, denoted in the :ref:`Numerical Integration<geIntegration>` section as
   :math:`q`.
 
 Velocity: ``qvel``
@@ -280,6 +280,11 @@ Actuator activation: ``act``
   For a second-order mechanical system, the state contains only position and velocity, but MuJoCo also models stateful
   actuators (such as biological muscles) that have their own activation states assembled in ``mjData.act``, denoted
   as :math:`w` in the :ref:`Numerical Integration<geIntegration>` section.
+
+History buffer: ``history``
+  When actuators or sensors have a positive :at:`nsample` attribute (:ref:`actuators<actuator-general-nsample>`,
+  :ref:`sensors<sensor-nsample>`), this buffer stores timestamped samples of previous
+  control or sensor values. See :ref:`Delays<CDelay>` for details.
 
 .. _siFullPhysics:
 
@@ -317,7 +322,7 @@ Control: ``ctrl``
   Controls are defined by the :ref:`actuator<actuator>` section of the XML. ``mjData.ctrl`` values either produce
   generalized forces directly (stateless actuators), or affect the actuator activations in ``mjData.act``, which then
   produce forces. Note that while all actuators produce forces, the semantics of ``ctrl`` and ``act`` depend on the
-  specifc parameters of the :ref:`actuation model<geActuation>`.
+  specific parameters of the :ref:`actuation model<geActuation>`.
 
 Auxiliary Controls: ``qfrc_applied`` and ``xfrc_applied``
   | ``mjData.qfrc_applied`` are directly applied generalized forces.
@@ -325,6 +330,8 @@ Auxiliary Controls: ``qfrc_applied`` and ``xfrc_applied``
     example, by the :ref:`native viewer<saSimulate>` to apply mouse perturbations.
   | Note that the effects of ``qfrc_applied`` and ``xfrc_applied`` can be recreated by appropriate actuator
     definitions.
+
+.. _siMocap:
 
 MoCap poses: ``mocap_pos`` and ``mocap_quat``
   ``mjData.mocap_pos`` and ``mjData.mocap_quat`` are special optional kinematic states :ref:`described here<CMocap>`,
@@ -555,14 +562,11 @@ external force computed by inverse dynamics.
 Multi-threading
 ~~~~~~~~~~~~~~~
 
-When MuJoCo is used for simulation as explained in the :ref:`simulation loop <siSimulation>` section, it runs in a
-single thread. We have experimented with multi-threading parts of the simulation pipeline that are computationally
-expensive and amenable to parallel processing, and have concluded that the speedup is not worth using up the extra
-processor cores. This is because MuJoCo is already fast compared to the overhead of launching and synchronizing
-multiple threads within the same time step. If users start working with large simulations involving many floating
-bodies, we may eventually implement within-step multi-threading, but for now this use case is not common.
+MuJoCo has support for within-step multi-threading. When a thread pool is initialized via
+``mju_threadpool``, parts of the simulation pipeline — such as collision detection and constraint solving across
+:ref:`islands<siSleep>` — can be distributed across worker threads.
 
-Rather than speed up a single simulation, we prefer to use multi-threading to speed up sampling operations that are
+The more common and well-supported use of multi-threading is to speed up sampling operations that are
 common in more advanced applications. Simulation is inherently serial over time (the output of one mj_step is the
 input to the next), while in sampling many calls to either forward or inverse dynamics can be executed in parallel
 since there are no dependencies among them, except perhaps for a common initial state.
@@ -652,7 +656,7 @@ Exceptions to the general rule that **integer** types are **not safe to change**
 .. list-table::
    :widths: 1 1 4
    :header-rows: 1
-   :class: schema-small
+   :class: table-small
 
    * - Field
      - Modifiability
@@ -693,7 +697,7 @@ Exceptions to the general rule that **real-valued** types **are safe to change**
 .. list-table::
    :widths: 1 1 4
    :header-rows: 1
-   :class: schema-small
+   :class: table-small
 
    * - Field
      - Modifiability
@@ -711,14 +715,20 @@ Exceptions to the general rule that **real-valued** types **are safe to change**
      - Unsafe for static bodies, invalidates the midphase collision structures (BVH).
    * - ``body_gravcomp``
      - Safe.
-     - If the number of bodies with gravity compensation is changed from zero to non-zero,
-       :ref:`mj_setConst` must be called.
+     - If passing from a state where all bodies have zero gravity compensation to a state where some bodies have
+       non-zero gravity compensation (or vice-versa), the ``flg_gravcomp`` flag in :ref:`mjModel` must be updated.
+       This can be done directly or by calling :ref:`mj_setConst`.
    * - ``dof_armature``
      - Safe with :ref:`mj_setConst`.
      -
    * - ``geom_pos`` |br| ``geom_quat`` |br| ``geom_size`` |br| ``geom_rbound`` |br| ``geom_aabb``
      - Unsafe.
      -
+   * - ``geom_surfacevel``
+     - Safe.
+     - If passing from a state where all geoms have zero surface velocity to a state where some geoms have
+       non-zero surface velocity (or vice-versa), the ``flg_surfacevel`` flag in :ref:`mjModel` must be updated.
+       This can be done directly or by calling :ref:`mj_setConst`.
    * - ``{site,cam,light}_`` |br| ``{pos,quat}``
      - Mostly safe.
      - For cameras and lights with tracking or targeting, :ref:`mj_setConst` is required.
@@ -779,7 +789,7 @@ difference between row-major and column-major formats.
 When possible, MuJoCo exploits sparsity. This can make all the difference between O(N) and O(N^3) scaling. The inertia
 matrix ``mjData.qM`` and its LTDL factorization ``mjData.qLD`` are always represented as sparse. ``qM`` uses a custom
 indexing format designed for matrices that correspond to tree topology, while ``qLD`` uses the standard CSR format.
-``qM`` will be migrated to CSR in and upcoming change. The functions :ref:`mj_factorM`, :ref:`mj_solveM`,
+``qM`` will be migrated to CSR in an upcoming change. The functions :ref:`mj_factorM`, :ref:`mj_solveM`,
 :ref:`mj_solveM2` and :ref:`mj_mulM` are used for sparse factorization, substitution and matrix-vector multiplication.
 The user can also convert these matrices to dense format with the function :ref:`mj_fullM` although MuJoCo never does
 that internally.
@@ -882,20 +892,79 @@ and :ref:`mj_stackAllocByte` is provided for allocation of arbitrary number of b
 
 .. _siError:
 
-Errors and warnings
-~~~~~~~~~~~~~~~~~~~
+Errors, warnings, logging
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When a terminal error occurs, MuJoCo calls the function :ref:`mju_error` internally. Here is what mju_error does:
+MuJoCo has a unified logging system for errors, warnings and informational messages. All log output is routed
+through a single callback of type :ref:`mjfLogHandler`, which receives a structured :ref:`mjLogMessage`
+containing the severity level, message text, and optional source location. Errors are fatal and terminate the
+program by default. Warnings indicate problematic but non-fatal conditions. Informational messages provide
+optional diagnostic output.
 
-#. Append the error message at the end of the file MUJOCO_LOG.TXT in the program directory (create the file if it does
-   not exist). Also write the date and time along with the error message.
-#. If the user error callback :ref:`mju_user_error` is installed, call that function with the error message as
-   argument. Otherwise, print the error message and "Press Enter to exit..." to standard output. Then wait for any
-   keyboard input, and then terminate the simulator with failure.
+.. _siLogHandler:
 
-If a user error callback is installed, it must **not** return, otherwise the behavior of the simulator is undefined.
-The idea here is that if mju_error is called, the simulation cannot continue and the user is expected to make some
-change such that the error condition is avoided. The error messages are self-explanatory.
+Installing a handler
+^^^^^^^^^^^^^^^^^^^^
+
+Users who want to intercept and process MuJoCo's log output should install a log handler using
+:ref:`mju_setLogHandler`. The handler receives all errors, warnings and info messages as a single structured
+callback:
+
+.. code-block:: C
+
+   void my_handler(const mjLogMessage* msg) {
+     // do something with msg, for example:
+     printf("%s\n", msg->subject);
+   }
+
+   // install handler, save previous
+   mjfLogHandler prev = mju_setLogHandler(my_handler);
+
+   // ... do work ...
+
+   // restore previous handler
+   mju_setLogHandler(prev);
+
+:ref:`mju_setLogHandler` returns the previously installed handler (which is never ``NULL``; passing ``NULL`` restores
+the default handler). The previous handler can be used in two ways:
+
+* **Save/restore**: A library or subsystem can temporarily install its own handler and later restore the previous one.
+* **Chaining**: A custom handler can act as a pure observer by calling the previous handler at the end of its callback
+  to preserve existing behavior. Conversely, handlers intended to intercept and recover from errors (e.g., via
+  ``longjmp``) should not chain to the previous handler.
+
+When the handler is called with ``level == mjLOG_ERROR``, the error is always fatal: the :ref:`default handler
+<siDefaultHandler>` terminates the process with ``exit(EXIT_FAILURE)`` (unless a legacy error handler is installed).
+Handlers that wish to recover from errors (e.g., to throw a C++ exception or convert to a Python exception) must not
+return — they should ``longjmp`` to a previously established recovery point or otherwise transfer control before
+returning. This is how the compiler and Python bindings handle errors. MuJoCo is written with the assumption that
+error handlers will not return; if they do, the behavior of the software is undefined.
+
+.. warning::
+   Log handlers must not call :ref:`mju_error` from within the callback; this will cause infinite recursion.
+
+.. _siDefaultHandler:
+
+Default handler
+^^^^^^^^^^^^^^^
+
+If no custom handler is installed (or if ``NULL`` is passed to :ref:`mju_setLogHandler`), MuJoCo uses a default
+handler that provides the following behavior:
+
+#. If a legacy handler (:ref:`mju_user_error` or :ref:`mju_user_warning`) is installed, it is called with the
+   formatted message text. This provides backward compatibility with existing code.
+#. Otherwise, the message is written to the log file (default: ``MUJOCO_LOG.TXT``) and printed to the
+   console (``stderr`` for errors and warnings, ``stdout`` for info).
+#. For errors, the program is terminated with ``exit(EXIT_FAILURE)`` (unless a legacy error handler is installed).
+
+The default handler's behavior can be configured using :ref:`mju_setLogConfig` and :ref:`mju_getLogConfig`,
+which control whether output goes to the console, the log file path (or disabling file logging by setting it to
+an empty string), and which info topics are enabled.
+
+.. _siErrorRecovery:
+
+Error recovery
+^^^^^^^^^^^^^^
 
 One situation where it is desirable to continue even after an error is an interactive simulator that fails to load a
 model file. This could be because the user provided the wrong file name, or because model compilation failed. This is
@@ -905,26 +974,99 @@ operation fails, and there is no need to exit the program. In the case of mj_loa
 containing the parser or compiler error that caused the failure, while mj_loadModel generates corresponding warnings
 (see below).
 
-Internally mj_loadXML actually uses the mju_error mechanism, by temporarily installing a "user" handler that triggers
-a C++ exception, which is then intercepted. This is possible because the parser, compiler and runtime are compiled and
-linked together, and use the same copy of the C/C++ memory manager and standard library. If the user implements an
-error callback that triggers a C++ exception, this will be in their workspace which is not necessarily the same as the
-MuJoCo library workspace, and so it is not clear what will happen; the outcome probably depends on the compiler and
-platform. It is better to avoid this approach and simply exit when mju_error is called (which is the default behavior
-in the absence of a user handler).
+Internally mj_loadXML actually uses the mju_error mechanism, by temporarily installing a thread-local handler
+(using the internal ``_mjPRIVATE_setTlsLogHandler``) that triggers a C++ exception, which is then intercepted.
+This thread-local override takes priority over the global handler and affects only the calling thread.
 
-MuJoCo can also generate warnings. They indicate conditions that are likely to cause numerical inaccuracies, but can
-also indicate problems with loading a model and other problematic situations where the simulator is nevertheless able
-to continue normal operation. The warning mechanism has two levels. The high-level is implemented with the function
-:ref:`mj_warning`. It registers a warning in mjData as explained in more detail in the :ref:`diagnostics
-<siDiagnostics>` section below, and also calls the low-level function :ref:`mju_warning`. Alternatively, the low-level
-function may be called directly (from within mj_loadModel for example) without registering a warning in mjData. This
-is done in places where mjData is not available.
+.. _siInfoMessages:
 
-mju_warning does the following: if the user callback :ref:`mju_user_warning` is installed, it calls that callback.
-Otherwise it appends the warning message to MUJOCO_LOG.TXT and also does a printf, similar to mju_error but without
-exiting. When MuJoCo wrappers are developed for environments such as MATLAB, it makes sense to install a user callback
-which prints warnings in the command window (with mexPrintf).
+Informational messages
+^^^^^^^^^^^^^^^^^^^^^^
+
+MuJoCo provides two :ref:`levels<mjtLogLevel>` of opt-in diagnostic logging: informational messages (``mjLOG_INFO``) and
+debug traces (``mjLOG_DEBUG``). Both use topic identifiers from the :ref:`mjtLogTopic` enum, but have a subtle
+architectural distinction in how filtering is applied:
+
+* **INFO messages**: Emitted unconditionally by the engine. Filtering happens on the **consumer side** inside the
+  default handler. Custom handlers installed via :ref:`mju_setLogHandler` receive all INFO messages and
+  can implement their own filtering logic.
+
+* **DEBUG messages**: Designed for tight, high-frequency simulation loops where constructing strings would be a
+  performance bottleneck. Therefore, filtering happens on the **producer side**. If a topic is disabled, the message is
+  never constructed or dispatched. Consequently, custom handlers will only receive DEBUG messages if the topic is
+  explicitly enabled in the active :ref:`mjLogConfig`.
+
+In the default handler, INFO messages are followed by a blank line for readability, whereas high-frequency DEBUG traces
+are printed compactly without trailing blank lines.
+
+To enable topics in the default handler configuration:
+
+.. code-block:: C
+
+   // enable sleep/wake messages
+   mjLogConfig config = mju_getLogConfig();
+   config.topics |= (1 << (mjTOPIC_SLEEP - 1));
+   mju_setLogConfig(config);
+
+Topic 0 (``mjTOPIC_NONE``) always passes through, regardless of the topic configuration.
+
+Note that topics are 1-indexed, so the bitmask for topic ``t`` is ``(1 << (t - 1))``. This is also how the
+``topics`` field of :ref:`mjLogConfig` is encoded.
+
+Topics can also be enabled via the environment variable ``MUJOCO_LOG_TOPICS``, which is read once at startup.
+The value is a comma-separated list of topic names (case-insensitive), derived from the :ref:`mjtLogTopic` enum
+by removing the ``mjTOPIC_`` prefix and lowercasing (e.g., ``mjTOPIC_SLEEP`` becomes ``sleep``).
+For example:
+
+.. code-block:: shell
+
+   export MUJOCO_LOG_TOPICS=sleep,time_stp
+
+This is equivalent to programmatically enabling the corresponding topic bits via :ref:`mju_setLogConfig`, and is
+useful for enabling diagnostics without modifying code.
+
+
+.. _siLogFrameworks:
+
+Frameworks and wrappers
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Framework authors (e.g., those building Python bindings, MATLAB wrappers, or game engine integrations) should
+install a custom log handler to route MuJoCo's output to their environment's logging system:
+
+.. code-block:: C
+
+   // example: route to a framework's logging API
+   void framework_handler(const mjLogMessage* msg) {
+     if (msg->level == mjLOG_ERROR) {
+       framework_log_error(msg->subject);
+       framework_abort();  // must not return
+     } else if (msg->level == mjLOG_WARNING) {
+       framework_log_warning(msg->subject);
+     } else {
+       framework_log_info(msg->subject);
+     }
+   }
+
+   mju_setLogHandler(framework_handler);
+
+The :ref:`mjLogMessage` struct also provides source location information (``func``, ``file``, ``line``) when
+available, which can be useful for debugging.
+
+.. _siLogLegacy:
+
+Legacy handlers
+^^^^^^^^^^^^^^^
+
+The global function pointers :ref:`mju_user_error` and :ref:`mju_user_warning` are still supported for backward
+compatibility, but are deprecated in favor of :ref:`mju_setLogHandler`. When both a custom log handler and legacy
+handlers are installed, the custom log handler takes precedence. The legacy handlers are only consulted by the
+*default* handler when no custom handler has been installed.
+
+.. _siLogMemory:
+
+Memory handlers
+^^^^^^^^^^^^^^^
 
 When MuJoCo allocates and frees memory on the heap, it always uses the functions :ref:`mju_malloc` and
 :ref:`mju_free`. These functions call the user callbacks :ref:`mju_user_malloc` and :ref:`mju_user_free` when
@@ -969,9 +1111,10 @@ does not need timing, and in that case there is no reason to call timing functio
 One part of the simulation pipeline that needs to be monitored closely is the iterative constraint solver. The
 simplest diagnostic here is ``mjData.solver_niter`` which shows how many iterations the solver took on the last call to
 mj_step or ``mj_forward``. Note that the solver has tolerance parameters for early termination, so this number is
-usually smaller than the maximum number of iterations allowed. The array ``mjData.solver`` contains one
-:ref:`mjSolverStat` data structure per iteration of the constraint solver, with information about the constraint state
-and line search.
+usually smaller than the maximum number of iterations allowed; it can be 0 when a warmstarted solution is already
+certified as converged, in which case no iterations are performed and no statistics are written. The array
+``mjData.solver`` contains one :ref:`mjSolverStat` data structure per iteration of the constraint solver, with
+information about the constraint state and line search.
 
 When the option :at:`fwdinv` is enabled in ``mjModel.opt.enableflags``, the field ``mjData.fwdinv`` is also populated.
 It contains the difference between the forward and inverse dynamics, in terms of generalized forces and constraint
@@ -989,7 +1132,7 @@ in MJCF which are sufficient for most models, and allow the user to adjust them 
 the simulator runs out of dynamic memory at runtime it will trigger an error. When such errors are triggered, the user
 should increase :at:`memory`. The field ``mjData.maxuse_arena`` is designed to help with this adjustment. It keeps track
 of the maximum arena use since the last reset. So one strategy is to make very large allocation, then monitor
-``mjData.maxuse_memory`` statistics during typical simulations, and use it to reduce the allocation.
+``mjData.maxuse_arena`` statistics during typical simulations, and use it to reduce the allocation.
 
 The kinetic and potential energy are computed and stored in ``mjData.energy`` when the corresponding flag in
 ``mjModel.opt.enableflags`` is set. This can be used as another diagnostic. In general, simulation instability is
@@ -1056,7 +1199,7 @@ non-convex mesh collisions, or to replace some of the convex collision functions
 beyond the ones provided by MuJoCo. The global 2D array :ref:`mjCOLLISIONFUNC` contains the collision function pointer
 for each pair of geom types (in the upper-left triangle). To replace them, simply set these pointers to your
 functions. The collision function type is :ref:`mjfCollision`. When user collision functions detect contacts, they
-should construct an mjvContact structure for each contact and then call the function :ref:`mj_addContact` to add that
+should construct an :ref:`mjContact` structure for each contact and then call the function :ref:`mj_addContact` to add that
 contact to ``mjData.contact``. The reference documentation of mj_addContact explains which fields of mjContact must be
 filled in by custom collision functions. Note that the functions we are talking about here correspond to near-phase
 collisions, and are called only after the list of candidate geom pairs has been constructed by the internal
@@ -1093,7 +1236,7 @@ implementation details.
 
 The high level sleep state of :ref:`trees<ElemTree>` is described by ``mjData.tree_asleep`` (though see caveat below). A
 negative value means a tree is awake, non-negative means asleep. Maximally awake trees are given the value - |-| (1 |-|
-+ |-| :ref:`mjMINAWAKE<glNumeric>`), and for every timestep where their velocity falls below the sleep :ref:`tolerance
++ |-| :ref:`mjMINAWAKE<glNumericEngine>`), and for every timestep where their velocity falls below the sleep :ref:`tolerance
 <option-sleep_tolerance>`, this integer is incremented, up to -1, which means "ready to sleep". If all trees in an
 island are ready to sleep, they are put to sleep during state advancement and their associated values in ``tree_asleep``
 are set to a (non-negative) index cycle: the "sleeping island". If any tree in the island is woken, all are woken.
@@ -1157,6 +1300,8 @@ criteria:
 - It comes into contact with an awake tree. Waking due to contact leads to collision detection being run *twice*, but
   only on the timestep when it occurs. This is required in order to detect contacts inside the island and between the
   island and the world, which were skipped in the first run when it was deemed asleep.
+- It comes into contact with a :ref:`mocap body<CMocap>`, or is connected to one by an active equality constraint.
+  Mocap bodies count as awake, since the user can move them at any time.
 - It is connected to an awake tree by an active equality constraint or limited tendon.
 - It is connected by an equality constraint to a sleeping tree in a different island. For this to occur, the equality
   must have been disabled when both trees were put to sleep.
@@ -1170,11 +1315,6 @@ which are initialized asleep. These can be placed in mid-air or in deep collisio
 
 Notes
 ^^^^^
-
-.. admonition:: New feature
-   :class: warning
-
-   Sleeping is a new feature (Nov 2025) that is subject to change and may have latent bugs.
 
 **Sleeping actuators**
   As explained in the :ref:`body/sleep <body-sleep>` documentation, trees with actuators are by default not allowed to
@@ -1208,7 +1348,7 @@ Notes
 **Provisional choices**
   Some implementation choices are provisional and subject to change.
 
-  A concrete example is the decision to hard-code the value of :ref:`mjMINAWAKE<glNumeric>` instead of exposing it to
+  A concrete example is the decision to hard-code the value of :ref:`mjMINAWAKE<glNumericEngine>` instead of exposing it to
   the user as a runtime option. This was done for two reasons. First, in our experiments, we've found that changing this
   value is equivalent to changing the :ref:`sleep_tolerance<option-sleep_tolerance>`, which is the more useful knob.
   Second, one could argue for a time-to-sleep semantic that is in units of time rather than an integer number of
@@ -1263,13 +1403,6 @@ Notes
 
 **RK4 integrator**
   The RK4 integrator is not currently supported, due to the subtleties of waking inside the sub-steps.
-
-**Latent bugs**
-  Sleeping is a new feature (Nov 2025) and may have latent bugs. These bugs may generally come in two varieties:
-
-  - Quantities which could be skipped are instead recomputed. The only observable effect of such a bug would be that
-    the simulation is slower than it could be. This type of bug can only be diagnosed with detailed profiling.
-  - Actual bugs. Hopefully these will lead to informative runtime errors, please report any to the development team.
 
 
 .. _siCoordinate:

@@ -89,7 +89,7 @@ def fwd_velocity(m: Model, d: Data) -> Data:
   if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
     raise ValueError('fwd_velocity requires JAX backend implementation.')
 
-  d = d.tree_replace({
+  d = d.tree_replace({  # pyrefly: ignore[bad-assignment]
       '_impl.actuator_velocity': d._impl.actuator_moment @ d.qvel,
       '_impl.ten_velocity': d._impl.ten_J @ d.qvel,
   })
@@ -228,7 +228,7 @@ def fwd_actuation(m: Model, d: Data) -> Data:
 
   qfrc_actuator = d._impl.actuator_moment.T @ force
 
-  if m.ngravcomp:
+  if m.flg_gravcomp:
     # actuator-level gravity compensation, skip if added as passive force
     qfrc_actuator += d.qfrc_gravcomp * m.jnt_actgravcomp[m.dof_jntid]
 
@@ -301,7 +301,7 @@ def _next_activation(m: Model, d: Data, act_dot: jax.Array) -> jax.Array:
 
   def fn(dyntype, dynprm, act, act_dot, actrange):
     if dyntype == DynType.FILTEREXACT:
-      tau = jp.clip(dynprm[0], a_min=mujoco.mjMINVAL)
+      tau = jp.clip(dynprm[0], min=mujoco.mjMINVAL)
       act = act + act_dot * tau * (1 - jp.exp(-m.opt.timestep / tau))
     else:
       act = act + act_dot * m.opt.timestep
@@ -352,11 +352,12 @@ def euler(m: Model, d: Data) -> Data:
   qacc = d.qacc
   if not m.opt.disableflags & DisableBit.EULERDAMP:
     if support.is_sparse(m):
-      qM = d._impl.qM.at[m.dof_Madr].add(m.opt.timestep * m.dof_damping)
+      diag_adr = m.M_rowadr + m.M_rownnz - 1
+      M = d._impl.M.at[diag_adr].add(m.opt.timestep * m.dof_damping)
     else:
-      qM = d._impl.qM + jp.diag(m.opt.timestep * m.dof_damping)
-    dh = d.tree_replace({'_impl.qM': qM})
-    dh = smooth.factor_m(m, dh)
+      M = d._impl.M + jp.diag(m.opt.timestep * m.dof_damping)
+    dh = d.tree_replace({'_impl.M': M})
+    dh = smooth.factor_m(m, dh)  # pyrefly: ignore[bad-argument-type]
     qfrc = d.qfrc_smooth + d.qfrc_constraint
     qacc = smooth.solve_m(m, dh, qfrc)
   return _advance(m, d, d.act_dot, qacc)
@@ -418,7 +419,7 @@ def implicit(m: Model, d: Data) -> Data:
   qacc = d.qacc
   if qderiv is not None:
     # TODO(robotics-simulation): use smooth.factor_m / solve_m here:
-    qm = support.full_m(m, d) if support.is_sparse(m) else d._impl.qM
+    qm = support.full_m(m, d) if support.is_sparse(m) else d._impl.M
     qm -= m.opt.timestep * qderiv
     qh, _ = jax.scipy.linalg.cho_factor(qm)
     qfrc = d.qfrc_smooth + d.qfrc_constraint

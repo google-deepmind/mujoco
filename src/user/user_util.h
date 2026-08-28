@@ -18,13 +18,18 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
-const double mjEPS = 1E-14;     // minimum value in various calculations
-const double mjMINMASS = 1E-6;  // minimum mass allowed
+#include <mujoco/mjexport.h>
+
+const double mjEPS     = 1E-14;  // minimum value in various calculations
+const double mjMINMASS = 1E-6;   // minimum mass allowed
 
 // check if numeric variable is defined:  !_isnan(num)
 bool mjuu_defined(double num);
@@ -71,7 +76,7 @@ double mjuu_L1(const double* a, const double* b, int n);
 // normalize vector to unit length, return previous length
 //  if norm(vec)<mjEPS, return 0 and do not change vector
 double mjuu_normvec(double* vec, int n);
-float mjuu_normvec(float* vec, int n);
+float  mjuu_normvec(float* vec, int n);
 
 // scale vector by scalar
 void mjuu_scalevec(double* res, const double* vec, double s, int n);
@@ -110,8 +115,8 @@ void mjuu_localquat(double* local, const double* child, const double* parent);
 void mjuu_crossvec(double* a, const double* b, const double* c);
 
 // compute normal vector to given triangle
-template<typename T> double mjuu_makenormal(double* normal, const T a[3],
-                                            const T b[3], const T c[3]);
+template <typename T>
+double mjuu_makenormal(double* normal, const T a[3], const T b[3], const T c[3]);
 
 // compute quaternion corresponding to minimal rotation from [0;0;1] to vec
 void mjuu_z2quat(double* quat, const double* vec);
@@ -120,20 +125,28 @@ void mjuu_z2quat(double* quat, const double* vec);
 void mjuu_frame2quat(double* quat, const double* x, const double* y, const double* z);
 
 // invert frame transformation
-void mjuu_frameinvert(double newpos[3], double newquat[4],
-                      const double oldpos[3], const double oldquat[4]);
+void mjuu_frameinvert(double       newpos[3],
+                      double       newquat[4],
+                      const double oldpos[3],
+                      const double oldquat[4]);
 
 // accumulate frame transformation into parent frame
-void mjuu_frameaccum(double pos[3], double quat[4],
-                     const double childpos[3], const double childquat[4]);
+void mjuu_frameaccum(double       pos[3],
+                     double       quat[4],
+                     const double childpos[3],
+                     const double childquat[4]);
 
 // accumulate frame transformation into child frame
-void mjuu_frameaccumChild(const double pos[3], const double quat[4],
-                          double childpos[3], double childquat[4]);
+void mjuu_frameaccumChild(const double pos[3],
+                          const double quat[4],
+                          double       childpos[3],
+                          double       childquat[4]);
 
 // invert frame accumulation
-void mjuu_frameaccuminv(double pos[3], double quat[4],
-                        const double childpos[3], const double childquat[4]);
+void mjuu_frameaccuminv(double       pos[3],
+                        double       quat[4],
+                        const double childpos[3],
+                        const double childquat[4]);
 
 // convert local_inertia[3] to global_inertia[6]
 void mjuu_globalinertia(double* global, const double* local, const double* quat);
@@ -142,17 +155,27 @@ void mjuu_globalinertia(double* global, const double* local, const double* quat)
 void mjuu_offcenter(double* res, double mass, const double* vec);
 
 // compute viscosity coefficients from mass and inertia
-void mjuu_visccoef(double* visccoef, double mass, const double* inertia, double scl=1);
+void mjuu_visccoef(double* visccoef, double mass, const double* inertia, double scl = 1);
 
 // rotate vector by quaternion
 void mjuu_rotVecQuat(double res[3], const double vec[3], const double quat[4]);
 
 // update moving frame along a discrete curve or initialize it, returns edge length
-double mjuu_updateFrame(double quat[4], double normal[3], const double edge[3],
-                       const double tprv[3], const double tnxt[3], int first);
+double mjuu_updateFrame(double       quat[4],
+                        double       normal[3],
+                        const double edge[3],
+                        const double tprv[3],
+                        const double tnxt[3],
+                        int          first);
 
 // eigenvalue decomposition of symmetric 3x3 matrix
 int mjuu_eig3(double eigval[3], double eigvec[9], double quat[4], const double mat[9]);
+
+// Jacobi eigenvalue decomposition of symmetric n×n matrix
+// eigval[n]: output eigenvalues, eigvec[n*n]: output eigenvectors (columns)
+// mat[n*n]: input matrix (destroyed on output)
+// returns number of sweeps used
+MJAPI int mjuu_eigendecompose(double* mat, double* eigval, double* eigvec, int n);
 
 // transform vector by pose
 void mjuu_trnVecPose(double res[3], const double pos[3], const double quat[4], const double vec[3]);
@@ -163,7 +186,7 @@ const char* mjuu_fullInertia(double quat[4], double inertia[3], const double ful
 namespace mujoco::user {
 
 // utility class for handling file paths
-class FilePath {
+class MJAPI FilePath {
  public:
   FilePath() = default;
   explicit FilePath(const std::string& str) : path_(PathReduce(str)) {}
@@ -171,10 +194,10 @@ class FilePath {
   FilePath(const std::string& str1, const std::string& str2) {
     path_ = PathReduce(Combine(str1, str2));
   }
-  FilePath(FilePath&& other) = default;
+  FilePath(FilePath&& other)            = default;
   FilePath& operator=(FilePath&& other) = default;
-  FilePath(const FilePath&) = default;
-  FilePath& operator=(const FilePath&) = default;
+  FilePath(const FilePath&)             = default;
+  FilePath& operator=(const FilePath&)  = default;
 
   // return true if the path is absolute
   bool IsAbs() const { return !AbsPrefix(path_).empty(); }
@@ -208,15 +231,13 @@ class FilePath {
   // C++ string methods
   std::size_t size() const { return path_.size(); }
   const char* c_str() const { return path_.c_str(); }
-  bool empty() const { return path_.empty(); }
-  char operator[](int i) const { return path_[i]; }
+  bool        empty() const { return path_.empty(); }
+  char        operator[](int i) const { return path_[i]; }
 
  private:
   static std::string AbsPrefix(const std::string& str);
   static std::string PathReduce(const std::string& str);
-  static bool IsSeparator(char c) {
-    return c == '/' || c == '\\';
-  }
+  static bool        IsSeparator(char c) { return c == '/' || c == '\\'; }
   static std::string Combine(const std::string& s1, const std::string& s2);
 
   // fast constructor that does not call PathReduce
@@ -235,15 +256,34 @@ class FilePath {
   std::string path_;
 };
 
+// utility class for scoping resources to functions
+struct Cleanup {
+  using Fn = std::function<void()>;
+  ~Cleanup() {
+    for (auto& f : cleanup) f();
+  }
+  void operator+=(Fn f) { cleanup.push_front(std::move(f)); }
+
+  std::deque<Fn> cleanup;
+};
+
+
 // read file into memory buffer
 std::vector<uint8_t> FileToMemory(const char* filename);
 
 // convert vector to string separating elements by whitespace
-template<typename T> std::string VectorToString(const std::vector<T>& v);
+template <typename T>
+MJAPI std::string VectorToString(const std::vector<T>& v);
 
 // convert string to vector
-template<typename T> std::vector<T> StringToVector(char *cs);
-template<typename T> std::vector<T> StringToVector(const std::string& s);
+template <typename T>
+MJAPI std::vector<T> StringToVector(char* cs);
+template <typename T>
+MJAPI std::vector<T> StringToVector(const std::string& s);
+template <>
+MJAPI std::vector<std::string> StringToVector(char* cs);
+template <>
+MJAPI std::vector<std::string> StringToVector(const std::string& s);
 
 }  // namespace mujoco::user
 
@@ -261,7 +301,8 @@ bool mjuu_isabspath(std::string path);
 
 // assemble file paths
 std::string mjuu_combinePaths(const std::string& path1, const std::string& path2);
-std::string mjuu_combinePaths(const std::string& path1, const std::string& path2,
+std::string mjuu_combinePaths(const std::string& path1,
+                              const std::string& path2,
                               const std::string& path3);
 
 // return type from content_type format {type}/{subtype}[;{parameter}={value}]

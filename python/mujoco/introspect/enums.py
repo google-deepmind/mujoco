@@ -25,7 +25,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtDisableBit',
      EnumDecl(
          name='mjtDisableBit',
-         declname='enum mjtDisableBit_',
+         declname='enum mjtDisableBit',
          values=dict([
              ('mjDSBL_CONSTRAINT', 1),
              ('mjDSBL_EQUALITY', 2),
@@ -46,27 +46,28 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjDSBL_AUTORESET', 65536),
              ('mjDSBL_NATIVECCD', 131072),
              ('mjDSBL_ISLAND', 262144),
-             ('mjNDISABLE', 19),
+             ('mjDSBL_MULTICCD', 524288),
+             ('mjNDISABLE', 20),
          ]),
      )),
     ('mjtEnableBit',
      EnumDecl(
          name='mjtEnableBit',
-         declname='enum mjtEnableBit_',
+         declname='enum mjtEnableBit',
          values=dict([
              ('mjENBL_OVERRIDE', 1),
              ('mjENBL_ENERGY', 2),
              ('mjENBL_FWDINV', 4),
              ('mjENBL_INVDISCRETE', 8),
-             ('mjENBL_MULTICCD', 16),
-             ('mjENBL_SLEEP', 32),
+             ('mjENBL_SLEEP', 16),
+             ('mjENBL_DIAGEXACT', 32),
              ('mjNENABLE', 6),
          ]),
      )),
     ('mjtJoint',
      EnumDecl(
          name='mjtJoint',
-         declname='enum mjtJoint_',
+         declname='enum mjtJoint',
          values=dict([
              ('mjJNT_FREE', 0),
              ('mjJNT_BALL', 1),
@@ -77,7 +78,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtGeom',
      EnumDecl(
          name='mjtGeom',
-         declname='enum mjtGeom_',
+         declname='enum mjtGeom',
          values=dict([
              ('mjGEOM_PLANE', 0),
              ('mjGEOM_HFIELD', 1),
@@ -104,7 +105,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtProjection',
      EnumDecl(
          name='mjtProjection',
-         declname='enum mjtProjection_',
+         declname='enum mjtProjection',
          values=dict([
              ('mjPROJ_PERSPECTIVE', 0),
              ('mjPROJ_ORTHOGRAPHIC', 1),
@@ -113,7 +114,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtCamLight',
      EnumDecl(
          name='mjtCamLight',
-         declname='enum mjtCamLight_',
+         declname='enum mjtCamLight',
          values=dict([
              ('mjCAMLIGHT_FIXED', 0),
              ('mjCAMLIGHT_TRACK', 1),
@@ -125,7 +126,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtLightType',
      EnumDecl(
          name='mjtLightType',
-         declname='enum mjtLightType_',
+         declname='enum mjtLightType',
          values=dict([
              ('mjLIGHT_SPOT', 0),
              ('mjLIGHT_DIRECTIONAL', 1),
@@ -136,7 +137,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtTexture',
      EnumDecl(
          name='mjtTexture',
-         declname='enum mjtTexture_',
+         declname='enum mjtTexture',
          values=dict([
              ('mjTEXTURE_2D', 0),
              ('mjTEXTURE_CUBE', 1),
@@ -146,7 +147,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtTextureRole',
      EnumDecl(
          name='mjtTextureRole',
-         declname='enum mjtTextureRole_',
+         declname='enum mjtTextureRole',
          values=dict([
              ('mjTEXROLE_USER', 0),
              ('mjTEXROLE_RGB', 1),
@@ -164,7 +165,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtColorSpace',
      EnumDecl(
          name='mjtColorSpace',
-         declname='enum mjtColorSpace_',
+         declname='enum mjtColorSpace',
          values=dict([
              ('mjCOLORSPACE_AUTO', 0),
              ('mjCOLORSPACE_LINEAR', 1),
@@ -174,7 +175,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtIntegrator',
      EnumDecl(
          name='mjtIntegrator',
-         declname='enum mjtIntegrator_',
+         declname='enum mjtIntegrator',
          values=dict([
              ('mjINT_EULER', 0),
              ('mjINT_RK4', 1),
@@ -185,7 +186,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtCone',
      EnumDecl(
          name='mjtCone',
-         declname='enum mjtCone_',
+         declname='enum mjtCone',
          values=dict([
              ('mjCONE_PYRAMIDAL', 0),
              ('mjCONE_ELLIPTIC', 1),
@@ -194,7 +195,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtJacobian',
      EnumDecl(
          name='mjtJacobian',
-         declname='enum mjtJacobian_',
+         declname='enum mjtJacobian',
          values=dict([
              ('mjJAC_DENSE', 0),
              ('mjJAC_SPARSE', 1),
@@ -204,7 +205,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtSolver',
      EnumDecl(
          name='mjtSolver',
-         declname='enum mjtSolver_',
+         declname='enum mjtSolver',
          values=dict([
              ('mjSOL_PGS', 0),
              ('mjSOL_CG', 1),
@@ -214,20 +215,22 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtEq',
      EnumDecl(
          name='mjtEq',
-         declname='enum mjtEq_',
+         declname='enum mjtEq',
          values=dict([
              ('mjEQ_CONNECT', 0),
              ('mjEQ_WELD', 1),
              ('mjEQ_JOINT', 2),
              ('mjEQ_TENDON', 3),
              ('mjEQ_FLEX', 4),
-             ('mjEQ_DISTANCE', 5),
+             ('mjEQ_FLEXVERT', 5),
+             ('mjEQ_FLEXSTRAIN', 6),
+             ('mjEQ_DISTANCE', 7),
          ]),
      )),
     ('mjtWrap',
      EnumDecl(
          name='mjtWrap',
-         declname='enum mjtWrap_',
+         declname='enum mjtWrap',
          values=dict([
              ('mjWRAP_NONE', 0),
              ('mjWRAP_JOINT', 1),
@@ -240,7 +243,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtTrn',
      EnumDecl(
          name='mjtTrn',
-         declname='enum mjtTrn_',
+         declname='enum mjtTrn',
          values=dict([
              ('mjTRN_JOINT', 0),
              ('mjTRN_JOINTINPARENT', 1),
@@ -248,48 +251,77 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjTRN_TENDON', 3),
              ('mjTRN_SITE', 4),
              ('mjTRN_BODY', 5),
+             ('mjTRN_SO3', 6),
              ('mjTRN_UNDEFINED', 1000),
          ]),
      )),
     ('mjtDyn',
      EnumDecl(
          name='mjtDyn',
-         declname='enum mjtDyn_',
+         declname='enum mjtDyn',
          values=dict([
              ('mjDYN_NONE', 0),
              ('mjDYN_INTEGRATOR', 1),
              ('mjDYN_FILTER', 2),
              ('mjDYN_FILTEREXACT', 3),
              ('mjDYN_MUSCLE', 4),
-             ('mjDYN_USER', 5),
+             ('mjDYN_DCMOTOR', 5),
+             ('mjDYN_PID', 6),
+             ('mjDYN_USER', 7),
          ]),
      )),
     ('mjtGain',
      EnumDecl(
          name='mjtGain',
-         declname='enum mjtGain_',
+         declname='enum mjtGain',
          values=dict([
              ('mjGAIN_FIXED', 0),
              ('mjGAIN_AFFINE', 1),
              ('mjGAIN_MUSCLE', 2),
-             ('mjGAIN_USER', 3),
+             ('mjGAIN_DCMOTOR', 3),
+             ('mjGAIN_SO3', 4),
+             ('mjGAIN_PID', 5),
+             ('mjGAIN_USER', 6),
          ]),
      )),
     ('mjtBias',
      EnumDecl(
          name='mjtBias',
-         declname='enum mjtBias_',
+         declname='enum mjtBias',
          values=dict([
              ('mjBIAS_NONE', 0),
              ('mjBIAS_AFFINE', 1),
              ('mjBIAS_MUSCLE', 2),
-             ('mjBIAS_USER', 3),
+             ('mjBIAS_DCMOTOR', 3),
+             ('mjBIAS_SO3', 4),
+             ('mjBIAS_USER', 5),
+         ]),
+     )),
+    ('mjtCtrlChart',
+     EnumDecl(
+         name='mjtCtrlChart',
+         declname='enum mjtCtrlChart',
+         values=dict([
+             ('mjCHART_EXPMAP', 1),
+             ('mjCHART_QUAT', 2),
+         ]),
+     )),
+    ('mjtCtrlInput',
+     EnumDecl(
+         name='mjtCtrlInput',
+         declname='enum mjtCtrlInput',
+         values=dict([
+             ('mjINPUT_POS', 1),
+             ('mjINPUT_VEL', 2),
+             ('mjINPUT_FF', 4),
+             ('mjINPUT_VOLTAGE', 8),
+             ('mjINPUT_NONE', 16),
          ]),
      )),
     ('mjtObj',
      EnumDecl(
          name='mjtObj',
-         declname='enum mjtObj_',
+         declname='enum mjtObj',
          values=dict([
              ('mjOBJ_UNKNOWN', 0),
              ('mjOBJ_BODY', 1),
@@ -326,7 +358,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtSensor',
      EnumDecl(
          name='mjtSensor',
-         declname='enum mjtSensor_',
+         declname='enum mjtSensor',
          values=dict([
              ('mjSENS_TOUCH', 0),
              ('mjSENS_ACCELEROMETER', 1),
@@ -382,7 +414,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtStage',
      EnumDecl(
          name='mjtStage',
-         declname='enum mjtStage_',
+         declname='enum mjtStage',
          values=dict([
              ('mjSTAGE_NONE', 0),
              ('mjSTAGE_POS', 1),
@@ -393,7 +425,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtDataType',
      EnumDecl(
          name='mjtDataType',
-         declname='enum mjtDataType_',
+         declname='enum mjtDataType',
          values=dict([
              ('mjDATATYPE_REAL', 0),
              ('mjDATATYPE_POSITIVE', 1),
@@ -404,7 +436,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtConDataField',
      EnumDecl(
          name='mjtConDataField',
-         declname='enum mjtConDataField_',
+         declname='enum mjtConDataField',
          values=dict([
              ('mjCONDATA_FOUND', 0),
              ('mjCONDATA_FORCE', 1),
@@ -419,7 +451,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtRayDataField',
      EnumDecl(
          name='mjtRayDataField',
-         declname='enum mjtRayDataField_',
+         declname='enum mjtRayDataField',
          values=dict([
              ('mjRAYDATA_DIST', 0),
              ('mjRAYDATA_DIR', 1),
@@ -430,10 +462,23 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjNRAYDATA', 6),
          ]),
      )),
+    ('mjtCamOutBit',
+     EnumDecl(
+         name='mjtCamOutBit',
+         declname='enum mjtCamOutBit',
+         values=dict([
+             ('mjCAMOUT_RGB', 1),
+             ('mjCAMOUT_DEPTH', 2),
+             ('mjCAMOUT_DIST', 4),
+             ('mjCAMOUT_NORMAL', 8),
+             ('mjCAMOUT_SEG', 16),
+             ('mjNCAMOUT', 5),
+         ]),
+     )),
     ('mjtSameFrame',
      EnumDecl(
          name='mjtSameFrame',
-         declname='enum mjtSameFrame_',
+         declname='enum mjtSameFrame',
          values=dict([
              ('mjSAMEFRAME_NONE', 0),
              ('mjSAMEFRAME_BODY', 1),
@@ -445,7 +490,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtSleepPolicy',
      EnumDecl(
          name='mjtSleepPolicy',
-         declname='enum mjtSleepPolicy_',
+         declname='enum mjtSleepPolicy',
          values=dict([
              ('mjSLEEP_AUTO', 0),
              ('mjSLEEP_AUTO_NEVER', 1),
@@ -458,7 +503,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtLRMode',
      EnumDecl(
          name='mjtLRMode',
-         declname='enum mjtLRMode_',
+         declname='enum mjtLRMode',
          values=dict([
              ('mjLRMODE_NONE', 0),
              ('mjLRMODE_MUSCLE', 1),
@@ -469,7 +514,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtFlexSelf',
      EnumDecl(
          name='mjtFlexSelf',
-         declname='enum mjtFlexSelf_',
+         declname='enum mjtFlexSelf',
          values=dict([
              ('mjFLEXSELF_NONE', 0),
              ('mjFLEXSELF_NARROW', 1),
@@ -481,7 +526,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtSDFType',
      EnumDecl(
          name='mjtSDFType',
-         declname='enum mjtSDFType_',
+         declname='enum mjtSDFType',
          values=dict([
              ('mjSDFTYPE_SINGLE', 0),
              ('mjSDFTYPE_INTERSECTION', 1),
@@ -489,45 +534,36 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjSDFTYPE_COLLISION', 3),
          ]),
      )),
-    ('mjtTaskStatus',
-     EnumDecl(
-         name='mjtTaskStatus',
-         declname='enum mjtTaskStatus_',
-         values=dict([
-             ('mjTASK_NEW', 0),
-             ('mjTASK_QUEUED', 1),
-             ('mjTASK_COMPLETED', 2),
-         ]),
-     )),
     ('mjtState',
      EnumDecl(
          name='mjtState',
-         declname='enum mjtState_',
+         declname='enum mjtState',
          values=dict([
              ('mjSTATE_TIME', 1),
              ('mjSTATE_QPOS', 2),
              ('mjSTATE_QVEL', 4),
              ('mjSTATE_ACT', 8),
-             ('mjSTATE_WARMSTART', 16),
-             ('mjSTATE_CTRL', 32),
-             ('mjSTATE_QFRC_APPLIED', 64),
-             ('mjSTATE_XFRC_APPLIED', 128),
-             ('mjSTATE_EQ_ACTIVE', 256),
-             ('mjSTATE_MOCAP_POS', 512),
-             ('mjSTATE_MOCAP_QUAT', 1024),
-             ('mjSTATE_USERDATA', 2048),
-             ('mjSTATE_PLUGIN', 4096),
-             ('mjNSTATE', 13),
-             ('mjSTATE_PHYSICS', 14),
-             ('mjSTATE_FULLPHYSICS', 4111),
-             ('mjSTATE_USER', 4064),
-             ('mjSTATE_INTEGRATION', 8191),
+             ('mjSTATE_HISTORY', 16),
+             ('mjSTATE_WARMSTART', 32),
+             ('mjSTATE_CTRL', 64),
+             ('mjSTATE_QFRC_APPLIED', 128),
+             ('mjSTATE_XFRC_APPLIED', 256),
+             ('mjSTATE_EQ_ACTIVE', 512),
+             ('mjSTATE_MOCAP_POS', 1024),
+             ('mjSTATE_MOCAP_QUAT', 2048),
+             ('mjSTATE_USERDATA', 4096),
+             ('mjSTATE_PLUGIN', 8192),
+             ('mjNSTATE', 14),
+             ('mjSTATE_PHYSICS', 30),
+             ('mjSTATE_FULLPHYSICS', 8223),
+             ('mjSTATE_USER', 8128),
+             ('mjSTATE_INTEGRATION', 16383),
          ]),
      )),
     ('mjtConstraint',
      EnumDecl(
          name='mjtConstraint',
-         declname='enum mjtConstraint_',
+         declname='enum mjtConstraint',
          values=dict([
              ('mjCNSTR_EQUALITY', 0),
              ('mjCNSTR_FRICTION_DOF', 1),
@@ -542,7 +578,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtConstraintState',
      EnumDecl(
          name='mjtConstraintState',
-         declname='enum mjtConstraintState_',
+         declname='enum mjtConstraintState',
          values=dict([
              ('mjCNSTRSTATE_SATISFIED', 0),
              ('mjCNSTRSTATE_QUADRATIC', 1),
@@ -554,23 +590,22 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtWarning',
      EnumDecl(
          name='mjtWarning',
-         declname='enum mjtWarning_',
+         declname='enum mjtWarning',
          values=dict([
              ('mjWARN_INERTIA', 0),
              ('mjWARN_CONTACTFULL', 1),
              ('mjWARN_CNSTRFULL', 2),
-             ('mjWARN_VGEOMFULL', 3),
-             ('mjWARN_BADQPOS', 4),
-             ('mjWARN_BADQVEL', 5),
-             ('mjWARN_BADQACC', 6),
-             ('mjWARN_BADCTRL', 7),
-             ('mjNWARNING', 8),
+             ('mjWARN_BADQPOS', 3),
+             ('mjWARN_BADQVEL', 4),
+             ('mjWARN_BADQACC', 5),
+             ('mjWARN_BADCTRL', 6),
+             ('mjNWARNING', 7),
          ]),
      )),
     ('mjtTimer',
      EnumDecl(
          name='mjtTimer',
-         declname='enum mjtTimer_',
+         declname='enum mjtTimer',
          values=dict([
              ('mjTIMER_STEP', 0),
              ('mjTIMER_FORWARD', 1),
@@ -593,17 +628,40 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtSleepState',
      EnumDecl(
          name='mjtSleepState',
-         declname='enum mjtSleepState_',
+         declname='enum mjtSleepState',
          values=dict([
              ('mjS_STATIC', -1),
              ('mjS_ASLEEP', 0),
              ('mjS_AWAKE', 1),
          ]),
      )),
+    ('mjtLogLevel',
+     EnumDecl(
+         name='mjtLogLevel',
+         declname='enum mjtLogLevel',
+         values=dict([
+             ('mjLOG_DEBUG', 0),
+             ('mjLOG_INFO', 1),
+             ('mjLOG_WARNING', 2),
+             ('mjLOG_ERROR', 3),
+         ]),
+     )),
+    ('mjtLogTopic',
+     EnumDecl(
+         name='mjtLogTopic',
+         declname='enum mjtLogTopic',
+         values=dict([
+             ('mjTOPIC_NONE', 0),
+             ('mjTOPIC_TIME_STP', 1),
+             ('mjTOPIC_TIME_CMP', 2),
+             ('mjTOPIC_SLEEP', 3),
+             ('mjNTOPIC', 3),
+         ]),
+     )),
     ('mjtGeomInertia',
      EnumDecl(
          name='mjtGeomInertia',
-         declname='enum mjtGeomInertia_',
+         declname='enum mjtGeomInertia',
          values=dict([
              ('mjINERTIA_VOLUME', 0),
              ('mjINERTIA_SHELL', 1),
@@ -612,7 +670,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtMeshInertia',
      EnumDecl(
          name='mjtMeshInertia',
-         declname='enum mjtMeshInertia_',
+         declname='enum mjtMeshInertia',
          values=dict([
              ('mjMESH_INERTIA_CONVEX', 0),
              ('mjMESH_INERTIA_EXACT', 1),
@@ -623,7 +681,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtMeshBuiltin',
      EnumDecl(
          name='mjtMeshBuiltin',
-         declname='enum mjtMeshBuiltin_',
+         declname='enum mjtMeshBuiltin',
          values=dict([
              ('mjMESH_BUILTIN_NONE', 0),
              ('mjMESH_BUILTIN_SPHERE', 1),
@@ -638,7 +696,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtBuiltin',
      EnumDecl(
          name='mjtBuiltin',
-         declname='enum mjtBuiltin_',
+         declname='enum mjtBuiltin',
          values=dict([
              ('mjBUILTIN_NONE', 0),
              ('mjBUILTIN_GRADIENT', 1),
@@ -649,7 +707,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtMark',
      EnumDecl(
          name='mjtMark',
-         declname='enum mjtMark_',
+         declname='enum mjtMark',
          values=dict([
              ('mjMARK_NONE', 0),
              ('mjMARK_EDGE', 1),
@@ -660,7 +718,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtLimited',
      EnumDecl(
          name='mjtLimited',
-         declname='enum mjtLimited_',
+         declname='enum mjtLimited',
          values=dict([
              ('mjLIMITED_FALSE', 0),
              ('mjLIMITED_TRUE', 1),
@@ -670,7 +728,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtAlignFree',
      EnumDecl(
          name='mjtAlignFree',
-         declname='enum mjtAlignFree_',
+         declname='enum mjtAlignFree',
          values=dict([
              ('mjALIGNFREE_FALSE', 0),
              ('mjALIGNFREE_TRUE', 1),
@@ -680,7 +738,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtInertiaFromGeom',
      EnumDecl(
          name='mjtInertiaFromGeom',
-         declname='enum mjtInertiaFromGeom_',
+         declname='enum mjtInertiaFromGeom',
          values=dict([
              ('mjINERTIAFROMGEOM_FALSE', 0),
              ('mjINERTIAFROMGEOM_TRUE', 1),
@@ -690,13 +748,40 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtOrientation',
      EnumDecl(
          name='mjtOrientation',
-         declname='enum mjtOrientation_',
+         declname='enum mjtOrientation',
          values=dict([
              ('mjORIENTATION_QUAT', 0),
              ('mjORIENTATION_AXISANGLE', 1),
              ('mjORIENTATION_XYAXES', 2),
              ('mjORIENTATION_ZAXIS', 3),
              ('mjORIENTATION_EULER', 4),
+         ]),
+     )),
+    ('mjtConflict',
+     EnumDecl(
+         name='mjtConflict',
+         declname='enum mjtConflict',
+         values=dict([
+             ('mjCONFLICT_WARNING', 0),
+             ('mjCONFLICT_MERGE', 1),
+             ('mjCONFLICT_ERROR', 2),
+         ]),
+     )),
+    ('mjtCTimer',
+     EnumDecl(
+         name='mjtCTimer',
+         declname='enum mjtCTimer',
+         values=dict([
+             ('mjCTIMER_TOTAL', 0),
+             ('mjCTIMER_ASSETS', 1),
+             ('mjCTIMER_TEXTURE', 2),
+             ('mjCTIMER_MESH_LOAD', 3),
+             ('mjCTIMER_MESH_HULL', 4),
+             ('mjCTIMER_MESH_POLYGON', 5),
+             ('mjCTIMER_MESH_INERTIA', 6),
+             ('mjCTIMER_MESH_BVH', 7),
+             ('mjCTIMER_MESH_OCTREE', 8),
+             ('mjNCTIMER', 9),
          ]),
      )),
     ('mjtCatBit',
@@ -723,6 +808,8 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjMOUSE_ZOOM', 5),
              ('mjMOUSE_MOVE_V_REL', 6),
              ('mjMOUSE_MOVE_H_REL', 7),
+             ('mjMOUSE_TURN_V', 8),
+             ('mjMOUSE_TURN_H', 9),
          ]),
      )),
     ('mjtPertBit',
@@ -921,10 +1008,65 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjFONT_BIG', 2),
          ]),
      )),
+    ('mjrPixelFormat',
+     EnumDecl(
+         name='mjrPixelFormat',
+         declname='enum mjrPixelFormat_',
+         values=dict([
+             ('mjPIXEL_FORMAT_UNKNOWN', 0),
+             ('mjPIXEL_FORMAT_R8', 1),
+             ('mjPIXEL_FORMAT_RGB8', 2),
+             ('mjPIXEL_FORMAT_RGBA8', 3),
+             ('mjPIXEL_FORMAT_R32F', 4),
+             ('mjPIXEL_FORMAT_DEPTH32F', 5),
+             ('mjPIXEL_FORMAT_KTX', 6),
+         ]),
+     )),
+    ('mjrVertexAttributeUsage',
+     EnumDecl(
+         name='mjrVertexAttributeUsage',
+         declname='enum mjrVertexAttributeUsage_',
+         values=dict([
+             ('mjVERTEX_ATTRIBUTE_USAGE_POSITION', 0),
+             ('mjVERTEX_ATTRIBUTE_USAGE_NORMAL', 1),
+             ('mjVERTEX_ATTRIBUTE_USAGE_TANGENTS', 2),
+             ('mjVERTEX_ATTRIBUTE_USAGE_UV', 3),
+             ('mjVERTEX_ATTRIBUTE_USAGE_COLOR', 4),
+         ]),
+     )),
+    ('mjrVertexAttributeType',
+     EnumDecl(
+         name='mjrVertexAttributeType',
+         declname='enum mjrVertexAttributeType_',
+         values=dict([
+             ('mjVERTEX_ATTRIBUTE_TYPE_FLOAT2', 0),
+             ('mjVERTEX_ATTRIBUTE_TYPE_FLOAT3', 1),
+             ('mjVERTEX_ATTRIBUTE_TYPE_FLOAT4', 2),
+             ('mjVERTEX_ATTRIBUTE_TYPE_UBYTE4', 3),
+         ]),
+     )),
+    ('mjrIndexType',
+     EnumDecl(
+         name='mjrIndexType',
+         declname='enum mjrIndexType_',
+         values=dict([
+             ('mjINDEX_TYPE_U16', 0),
+             ('mjINDEX_TYPE_U32', 1),
+         ]),
+     )),
+    ('mjrMeshPrimitiveType',
+     EnumDecl(
+         name='mjrMeshPrimitiveType',
+         declname='enum mjrMeshPrimitiveType_',
+         values=dict([
+             ('mjMESH_PRIMITIVE_TYPE_TRIANGLES', 0),
+             ('mjMESH_PRIMITIVE_TYPE_LINES', 1),
+         ]),
+     )),
     ('mjtButton',
      EnumDecl(
          name='mjtButton',
-         declname='enum mjtButton_',
+         declname='enum mjtButton',
          values=dict([
              ('mjBUTTON_NONE', 0),
              ('mjBUTTON_LEFT', 1),
@@ -935,7 +1077,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtEvent',
      EnumDecl(
          name='mjtEvent',
-         declname='enum mjtEvent_',
+         declname='enum mjtEvent',
          values=dict([
              ('mjEVENT_NONE', 0),
              ('mjEVENT_MOVE', 1),
@@ -951,7 +1093,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtItem',
      EnumDecl(
          name='mjtItem',
-         declname='enum mjtItem_',
+         declname='enum mjtItem',
          values=dict([
              ('mjITEM_END', -2),
              ('mjITEM_SECTION', -1),
@@ -975,7 +1117,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
     ('mjtSection',
      EnumDecl(
          name='mjtSection',
-         declname='enum mjtSection_',
+         declname='enum mjtSection',
          values=dict([
              ('mjSECT_CLOSED', 0),
              ('mjSECT_OPEN', 1),

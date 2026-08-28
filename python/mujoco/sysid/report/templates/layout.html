@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ report_title }}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400;1,500;1,700&family=JetBrains+Mono:wght@400;700&display=swap');
+
+    :root {
+      /* Light Theme Defaults */
+      --bg-color: #f4f6f8;
+      --card-bg: #ffffff;
+      --text-color: #212529;
+      --text-muted: #6c757d;
+      --heading-color: #111;
+      --primary-color: #0d6efd;
+      --border-color: #dee2e6;
+      --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+      --toc-link-bg: #f4f6f8;
+      --toc-link-hover: #0d6efd;
+      --toc-link-hover-text: #fff;
+      /* Semantic Colors - Light Default */
+      --color-initial: #d32f2f;
+      --color-nominal: #388e3c;
+      --color-optimized: #1976d2;
+      --color-success: #2e7d32;
+      --color-warning: #f57c00;
+      --color-error: #c62828;
+      --color-boundary: #7b1fa2;
+    }
+
+    [data-theme="dark"] {
+      /* Dark Theme Overrides */
+      --bg-color: #121212;
+      --card-bg: #1e1e1e;
+      --text-color: #e0e0e0;
+      --text-muted: #a0a0a0;
+      --heading-color: #fff;
+      --primary-color: #6ea8fe;
+      --border-color: #333;
+      --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.3);
+      --toc-link-bg: #2d2d2d;
+      --toc-link-hover: #6ea8fe;
+      --toc-link-hover-text: #121212;
+      /* Semantic Colors - Dark Default */
+      --color-initial: #ef5350;
+      --color-nominal: #66bb6a;
+      --color-optimized: #42a5f5;
+      --color-success: #4caf50;
+      --color-warning: #ff9800;
+      --color-error: #f44336;
+      --color-boundary: #ab47bc;
+    }
+
+    /* Colorblind-friendly overrides (applied via data-colorscheme) */
+    [data-colorscheme="colorblind"] {
+      --color-initial: #d55e00;
+      --color-nominal: #0072b2;
+      --color-optimized: #cc79a7;
+      --color-success: #009e73;
+      --color-warning: #f0e442;
+      --color-error: #d55e00;
+      --color-boundary: #cc79a7;
+    }
+
+    /* Semantic color helper classes for inline use */
+    .color-initial {
+      color: var(--color-initial);
+    }
+
+    .color-nominal {
+      color: var(--color-nominal);
+    }
+
+    .color-optimized {
+      color: var(--color-optimized);
+    }
+
+    .color-success {
+      color: var(--color-success);
+    }
+
+    .color-warning {
+      color: var(--color-warning);
+    }
+
+    .color-error {
+      color: var(--color-error);
+    }
+
+    .color-boundary {
+      color: var(--color-boundary);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      color: var(--text-color);
+      background-color: var(--bg-color);
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.3s, color 0.3s;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+      margin-top: 0;
+      margin-bottom: 0.5rem;
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--heading-color);
+    }
+
+    h1 {
+      font-size: 2.25rem;
+      margin-bottom: 0.5rem;
+    }
+
+    h2 {
+      font-size: 1.75rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--bg-color);
+    }
+
+    h3 {
+      font-size: 1.5rem;
+    }
+
+    a {
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    header.report-header {
+      background-color: var(--card-bg);
+      padding: 1.5rem 0;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 2rem;
+      box-shadow: var(--shadow-sm);
+      transition: background-color 0.3s, border-color 0.3s;
+    }
+
+    header .container {
+      padding-top: 0;
+      padding-bottom: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .report-meta {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    /* CARD STYLES */
+    section {
+      background-color: var(--card-bg);
+      border-radius: 0.5rem;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 2rem;
+      padding: 2rem;
+      border: 1px solid var(--border-color);
+      transition: background-color 0.3s, border-color 0.3s;
+      overflow: hidden;
+      /* Prevent spillover */
+    }
+
+    /* Make content responsive */
+    section>div,
+    section>table,
+    section>.plotly-graph-div {
+      overflow-x: auto;
+      max-width: 100%;
+    }
+
+    /* TOC STYLES */
+    .toc-card {
+      background-color: var(--card-bg);
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      border: 1px solid var(--border-color);
+      transition: background-color 0.3s, border-color 0.3s;
+    }
+
+    .toc-card h3 {
+      margin-top: 0;
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .toc-card ul {
+      list-style: none;
+      padding-left: 0;
+      margin: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .toc-card li a {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      background: var(--toc-link-bg);
+      border-radius: 2rem;
+      font-weight: 500;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+      color: var(--text-color);
+    }
+
+    .toc-card li a:hover {
+      background: var(--toc-link-hover);
+      color: var(--toc-link-hover-text);
+      text-decoration: none;
+    }
+
+    /* DETAILS / SUMMARY overrides */
+    details {
+      margin-top: 0;
+      border: none;
+      background: none;
+      padding: 0;
+    }
+
+    details>summary {
+      font-size: 1.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--bg-color);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      color: var(--heading-color);
+    }
+
+    details>summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details>summary::after {
+      content: '+';
+      margin-left: auto;
+      font-weight: 400;
+      color: var(--text-muted);
+    }
+
+    details[open]>summary::after {
+      content: '−';
+    }
+
+    /* Code/Mono font improvements */
+    code,
+    pre {
+      font-family: 'JetBrains Mono', source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+    }
+
+    /* Toggle Button */
+    #theme-toggle,
+    #colorscheme-toggle {
+      background: none;
+      border: 1px solid var(--border-color);
+      border-radius: 2rem;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.9rem;
+      color: var(--text-color);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    #theme-toggle:hover,
+    #colorscheme-toggle:hover {
+      background-color: var(--bg-color);
+    }
+
+    /* Header Controls */
+    .header-controls {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    /* Color Scheme Dropdown */
+    .color-scheme-dropdown {
+      position: relative;
+    }
+
+    .color-panel {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      padding: 1rem;
+      z-index: 1000;
+      min-width: 220px;
+      opacity: 0;
+      transform: translateY(-10px) scale(0.95);
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    .color-panel.visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+
+    .color-panel-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+    }
+
+    .color-option {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.625rem 0.75rem;
+      border: none;
+      background: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      color: var(--text-color);
+      font-family: inherit;
+      font-size: 0.9rem;
+      transition: background-color 0.15s ease;
+    }
+
+    .color-option:hover {
+      background-color: var(--bg-color);
+    }
+
+    .color-option.active {
+      background-color: var(--primary-color);
+      color: white;
+    }
+
+    .color-swatch {
+      display: flex;
+      gap: 3px;
+    }
+
+    .color-swatch span {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+    }
+
+    .swatch-default .c1 {
+      background: #ef5350;
+    }
+
+    .swatch-default .c2 {
+      background: #66bb6a;
+    }
+
+    .swatch-default .c3 {
+      background: #42a5f5;
+    }
+
+    .swatch-colorblind .c1 {
+      background: #d55e00;
+    }
+
+    .swatch-colorblind .c2 {
+      background: #0072b2;
+    }
+
+    .swatch-colorblind .c3 {
+      background: #cc79a7;
+    }
+
+    /* Back to Top */
+    #back-to-top {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background-color: var(--primary-color);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 3rem;
+      height: 3rem;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: var(--shadow-md);
+      z-index: 1000;
+      font-size: 1.5rem;
+      transition: transform 0.2s;
+    }
+
+    #back-to-top:hover {
+      transform: translateY(-3px);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .container {
+        padding: 1rem;
+      }
+
+      h1 {
+        font-size: 1.75rem;
+      }
+
+      section {
+        padding: 1.5rem;
+      }
+    }
+  </style>
+
+  {% for include in header_includes %}
+  {{ include | safe }}
+  {% endfor %}
+</head>
+
+<body>
+
+  <header class="report-header">
+    <div class="container">
+      <div>
+        <h1>{{ report_title }}</h1>
+        {% if report_timestamp %}
+        <div class="report-meta">Generated at {{ report_timestamp }}</div>
+        {% endif %}
+      </div>
+      <div class="header-controls">
+        <button id="theme-toggle" onclick="toggleTheme()">
+          <span>🌗</span> Theme
+        </button>
+        <div class="color-scheme-dropdown">
+          <button id="colorscheme-toggle" onclick="toggleColorSchemePanel()">
+            <span>🎨</span> Colors
+          </button>
+          <div id="color-panel" class="color-panel">
+            <div class="color-panel-title">Color Scheme</div>
+            <button class="color-option active" data-scheme="default" onclick="setColorScheme('default')">
+              <div class="color-swatch swatch-default">
+                <span class="c1"></span>
+                <span class="c2"></span>
+                <span class="c3"></span>
+              </div>
+              Default
+            </button>
+            <button class="color-option" data-scheme="colorblind" onclick="setColorScheme('colorblind')">
+              <div class="color-swatch swatch-colorblind">
+                <span class="c1"></span>
+                <span class="c2"></span>
+                <span class="c3"></span>
+              </div>
+              Colorblind Safe
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <nav class="toc-card">
+      <h3>Contents</h3>
+      <ul>
+        {% for sec in sections %}
+        <li><a href="#{{ sec.anchor }}">{{ sec.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </nav>
+
+    <main>
+      {% for sec in sections %}
+      <section id="{{ sec.anchor }}">
+        {% if sec.collapsible %}
+        <details {% if sec.is_open %}open{% endif %}>
+          <summary>{{ sec.title }}</summary>
+          {{ sec.content | safe }}
+        </details>
+        {% else %}
+        <h2>{{ sec.title }}</h2>
+        {{ sec.content | safe }}
+        {% endif %}
+      </section>
+      {% endfor %}
+    </main>
+
+  </div>
+
+  <button id="back-to-top" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" title="Back to Top">
+    ↑
+  </button>
+
+  <script>
+    // Theme Logic
+    function toggleTheme() {
+      const body = document.body;
+      const currentTheme = body.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      body.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      updatePlotsTheme(newTheme);
+    }
+
+    // Update Plotly plots
+    function updatePlotsTheme(theme) {
+      const isDark = theme === 'dark';
+      const bgColor = isDark ? '#1e1e1e' : '#ffffff';
+      const fontColor = isDark ? '#e0e0e0' : '#212529';
+      const gridColor = isDark ? '#444' : 'rgba(211, 211, 211, 0.7)';
+      const lineColor = isDark ? '#666' : 'black';
+
+      const update = {
+        'paper_bgcolor': bgColor,
+        'plot_bgcolor': bgColor,
+        'font.color': fontColor
+      };
+
+      const plots = document.getElementsByClassName('plotly-graph-div');
+      for (let i = 0; i < plots.length; i++) {
+        const div = plots[i];
+        // dynamic update object
+        const layoutUpdate = { ...update };
+
+        // Iterate over layout keys to find axes
+        if (div.layout) {
+          Object.keys(div.layout).forEach(key => {
+            if (key.match(/^[xy]axis\d*$/)) {
+              layoutUpdate[`${key}.gridcolor`] = gridColor;
+              layoutUpdate[`${key}.linecolor`] = lineColor;
+              layoutUpdate[`${key}.zerolinecolor`] = gridColor;
+            }
+          });
+        }
+
+        Plotly.relayout(div, layoutUpdate);
+      }
+    }
+
+    // Load saved theme
+    const savedTheme = localStorage.getItem('theme');
+    let startTheme = 'light';
+    if (savedTheme) {
+      document.body.setAttribute('data-theme', savedTheme);
+      startTheme = savedTheme;
+    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.body.setAttribute('data-theme', 'dark');
+      startTheme = 'dark';
+    }
+
+    // Color Scheme Logic
+    function toggleColorSchemePanel() {
+      const panel = document.getElementById('color-panel');
+      panel.classList.toggle('visible');
+    }
+
+    function setColorScheme(scheme) {
+      // Update body attribute
+      if (scheme === 'colorblind') {
+        document.body.setAttribute('data-colorscheme', 'colorblind');
+      } else {
+        document.body.removeAttribute('data-colorscheme');
+      }
+      localStorage.setItem('colorscheme', scheme);
+
+      // Update active state on buttons
+      document.querySelectorAll('.color-option').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.scheme === scheme);
+      });
+
+      // Close panel
+      document.getElementById('color-panel').classList.remove('visible');
+    }
+
+    // Close panel when clicking outside
+    document.addEventListener('click', (e) => {
+      const dropdown = document.querySelector('.color-scheme-dropdown');
+      if (dropdown && !dropdown.contains(e.target)) {
+        document.getElementById('color-panel').classList.remove('visible');
+      }
+    });
+
+    // Load saved color scheme
+    const savedColorScheme = localStorage.getItem('colorscheme');
+    if (savedColorScheme === 'colorblind') {
+      document.body.setAttribute('data-colorscheme', 'colorblind');
+      document.querySelectorAll('.color-option').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.scheme === 'colorblind');
+      });
+    }
+
+    // Apply plot theme on load (wait for plotly to init?)
+    // Plotly scripts usually run inline, so we might need to wait a tick or use an event.
+    // However, the report generates static HTML where the Plotly.newPlot is called in script tags.
+    // Those script tags might run after this one depending on placement.
+    // layout.html ends with this script, and content is inserted before it?
+    // StartTheme application:
+    window.addEventListener('DOMContentLoaded', () => {
+      // Observers to catch plots as they load if they are async,
+      // but typically jinja renders them inline.
+      // We'll try running it immediately and also after a short delay to be safe.
+      updatePlotsTheme(startTheme);
+      setTimeout(() => updatePlotsTheme(startTheme), 500);
+    });
+
+    // Back to Top Logic
+    const backToTopBtn = document.getElementById('back-to-top');
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 300) {
+        backToTopBtn.style.display = 'flex';
+      } else {
+        backToTopBtn.style.display = 'none';
+      }
+    });
+
+    // Video Synchronization
+    const videos = document.querySelectorAll('video');
+    let ignoreEvents = false;
+
+    videos.forEach(video => {
+      video.addEventListener('play', (e) => {
+        if (ignoreEvents) return;
+        ignoreEvents = true;
+        videos.forEach(v => {
+          if (v !== e.target && v.paused) {
+            v.play();
+          }
+        });
+        setTimeout(() => ignoreEvents = false, 10);
+      });
+
+      video.addEventListener('pause', (e) => {
+        if (ignoreEvents) return;
+        ignoreEvents = true;
+        videos.forEach(v => {
+          if (v !== e.target && !v.paused) {
+            v.pause();
+          }
+        });
+        setTimeout(() => ignoreEvents = false, 10);
+      });
+
+      video.addEventListener('seeking', (e) => {
+        if (ignoreEvents) return;
+        ignoreEvents = true;
+        const currentTime = e.target.currentTime;
+        videos.forEach(v => {
+          if (v !== e.target && Math.abs(v.currentTime - currentTime) > 0.05) {
+            v.currentTime = currentTime;
+          }
+        });
+        setTimeout(() => ignoreEvents = false, 10);
+      });
+    });
+  </script>
+
+</body>
+
+</html>

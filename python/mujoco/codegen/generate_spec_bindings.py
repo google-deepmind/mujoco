@@ -19,10 +19,11 @@ from collections.abc import Sequence
 from absl import app
 
 from introspect import ast_nodes
+from introspect import enums
 from introspect import structs
 
 
-SCALAR_TYPES = {'int', 'double', 'float', 'mjtByte', 'mjtNum'}
+SCALAR_TYPES = {'int', 'double', 'float', 'mjtByte', 'mjtBool', 'mjtNum'}
 
 # pylint: disable=bad-whitespace
 # key, parent, default, listname, objtype
@@ -82,8 +83,10 @@ def _value_binding_code(
         field.name == 'mjsPlugin'
         or field.name == 'mjsOrientation'
         or field.name == 'mjsCompiler'
+        or field.name == 'mjsAuthored'
     ):
-      fulltype = fulltype + '&'  # plugin, orientation, compiler aren't pointers
+      # plugin, orientation, compiler, authored aren't pointers
+      fulltype = fulltype + '&'
     else:
       fulltype = fulltype + '*'
   # non-mjs structs
@@ -93,19 +96,34 @@ def _value_binding_code(
   fulltype = fulltype.replace('mjOption', 'raw::MjOption')
   fulltype = fulltype.replace('mjVisual', 'raw::MjVisual')
   fulltype = fulltype.replace('mjStatistic', 'raw::MjStatistic')
-  element = '.element' if fullvarname == 'plugin' else ''
+  element = ''
+  is_enum = field.name in enums.ENUMS
+
+  if field.name == 'mjsPlugin':
+    setter = f"""[]({rawclassname}& self, {fulltype} {varname}) {{
+      if (self.{fullvarname}.name && {varname}.name) *self.{fullvarname}.name = *{varname}.name;
+      if (self.{fullvarname}.plugin_name && {varname}.plugin_name) *self.{fullvarname}.plugin_name = *{varname}.plugin_name;
+      self.{fullvarname}.active = {varname}.active;
+      if (self.{fullvarname}.info && {varname}.info) *self.{fullvarname}.info = *{varname}.info;
+    }}"""
+  elif is_enum:
+    setter = f"""[]({rawclassname}& self, int {varname}) {{
+      self.{fullvarname}{element} = static_cast<{field.name}>({varname}){element};
+    }}"""
+  else:
+    setter = f"""[]({rawclassname}& self, {fulltype} {varname}) {{
+      self.{fullvarname}{element} = {varname}{element};
+    }}"""
 
   def_property_args = (
       f'"{varname}"',
-      f"""[]({rawclassname}& self) -> {fulltype} {{
+      f"""[]({rawclassname}& self) -> {field.name if is_enum else fulltype} {{
         return self.{fullvarname};
       }}""",
-      f"""[]({rawclassname}& self, {fulltype} {varname}) {{
-        self.{fullvarname}{element} = {varname}{element};
-      }}""",
+      setter,
   )
 
-  if field.name not in SCALAR_TYPES:
+  if field.name not in SCALAR_TYPES and not is_enum:
     def_property_args += ('py::return_value_policy::reference_internal',)
 
   return f'{classname}.def_property({",".join(def_property_args)});'
@@ -124,10 +142,10 @@ def _struct_binding_code(
       for f in field.fields
   ):
     for subfield in field.fields:
-      code += _binding_code(subfield, name)
+      code += _binding_code(subfield, name)  # pyrefly: ignore[bad-argument-type]
   # generate for the struct itself
-  field = ast_nodes.ValueType(name=name)
-  code += _value_binding_code(field, classname, varname)
+  field = ast_nodes.ValueType(name=name)  # pyrefly: ignore[bad-assignment]
+  code += _value_binding_code(field, classname, varname)  # pyrefly: ignore[bad-argument-type]
   return code
 
 
@@ -146,8 +164,10 @@ def _array_binding_code(
   if classname == 'mjSpec':  # raw mjSpec has a wrapper
     rawclassname = classname.replace('mjS', 'MjS')
     fullvarname = 'ptr->' + varname
-  if innertype == 'double' or innertype == 'mjtNum':
-    innertype = 'MjDouble'  # custom Eigen type
+  if innertype == 'mjtNum':
+    innertype = 'MjNum'  # custom Eigen type for mjtNum fields
+  elif innertype == 'double':
+    innertype = 'MjDouble'  # custom Eigen type for double fields
   elif innertype == 'float':
     innertype = 'MjFloat'  # custom Eigen type
   elif innertype == 'int':
@@ -191,7 +211,7 @@ def _ptr_binding_code(
   if vartype == 'mjsElement':  # this is ignored by the caller
     return 'mjsElement'
   if vartype.startswith('mjs'):  # for structs, use the value case
-    return _value_binding_code(field.inner_type, classname, varname)
+    return _value_binding_code(field.inner_type, classname, varname)  # pyrefly: ignore[bad-argument-type]
   elif vartype == 'mjString':  # C++ string -> Python string
     return f"""\
   {classname}.def_property(
@@ -239,6 +259,30 @@ def _ptr_binding_code(
       }}
     }}, py::return_value_policy::move);"""
   elif vartype == 'mjStringVec':
+    # Special case for material.textures: must be exactly mjNTEXROLE size
+    if classname == 'mjsMaterial' and varname == 'textures':
+      return f"""\
+  {classname}.def_property(
+    "{varname}",
+    []({rawclassname}& self) -> MjTypeVec<std::string> {{
+        return MjTypeVec<std::string>(self.{fullvarname}->data(),
+                                      self.{fullvarname}->size());
+      }},
+    []({rawclassname}& self, py::object rhs) {{
+        if (py::len(rhs) != mjNTEXROLE) {{
+          throw pybind11::value_error(
+              "material.textures must have exactly " + std::to_string(mjNTEXROLE) +
+              " elements, got " + std::to_string(py::len(rhs)) + ". " +
+              "Assign a list of " + std::to_string(mjNTEXROLE) + " texture names " +
+              "(use empty strings '' for unused slots).");
+        }}
+        self.{fullvarname}->clear();
+        self.{fullvarname}->reserve(mjNTEXROLE);
+        for (auto val : rhs) {{
+          self.{fullvarname}->push_back(py::cast<std::string>(val));
+      }}
+    }}, py::return_value_policy::move);"""
+    # Default case for other mjStringVec properties
     return f"""\
   {classname}.def_property(
     "{varname}",
@@ -303,7 +347,7 @@ def generate() -> None:
     ) and key != 'mjsElement':
       print('\n  // ' + key)
       for field in structs.STRUCTS[key].fields:
-        code = _binding_code(field, key)
+        code = _binding_code(field, key)  # pyrefly: ignore[bad-argument-type]
         if code != 'mjsElement':
           print(code)
 
@@ -439,6 +483,35 @@ def generate_add() -> None:
             f'py::arg("{f.name}") = py::none()',
         )
       elif isinstance(f.type, ast_nodes.ArrayType):
+        inner_type = f.type.inner_type.decl()
+        if inner_type == 'char':
+          return (
+              (
+                  f'set_char_array(out->{f.name}, {f.name},'
+                  f' {f.type.extents[0]}, "{f.name}");'
+              ),
+              'char_array',
+              f.name,
+              'str | list[str]',
+              f'py::object& {f.name}',
+              f'py::arg("{f.name}") = py::none()',
+          )
+        if (
+            f.name == 'size'
+            and f.type.extents[0] == 3
+            or f.name in ('stiffness', 'damping')
+        ):
+          return (
+              (
+                  f'set_array_padded(out->{f.name}, {f.name},'
+                  f' {f.type.extents[0]}, "{f.name}");'
+              ),
+              'array_padded',
+              f.name,
+              'Optional[list[float]]',
+              f'std::optional<py::object>& {f.name}',
+              f'py::arg("{f.name}") = py::none()',
+          )
         return (
             (
                 f'set_array(out->{f.name}, {f.name}, {f.type.extents[0]},'
@@ -483,7 +556,7 @@ def generate_add() -> None:
       py_args = ['py::arg("name") = py::none()']
 
     for field in structs.STRUCTS[key].fields:
-      line, set_type, name, type_name, cpp_arg, py_arg = _field(field)
+      line, set_type, name, type_name, cpp_arg, py_arg = _field(field)  # pyrefly: ignore[bad-argument-type]
       if line:
         code_field = code_field + '\n        ' + line
         set_types.append(set_type)
@@ -726,6 +799,66 @@ def generate_add() -> None:
             }
           };
           """
+        elif t == 'array_padded':
+          code += """\n
+          auto set_array_padded = [](auto&& des, const std::optional<py::object>& obj, int size, const char* name) {
+            if (obj.has_value() && !obj->is_none()) {
+              std::vector<double> array;
+              if (py::isinstance<py::int_>(*obj) || py::isinstance<py::float_>(*obj)) {
+                array.push_back(py::cast<double>(*obj));
+              } else if (py::isinstance<py::str>(*obj)) {
+                throw pybind11::type_error(
+                    std::string(name) + " should be a numeric scalar or list.");
+              } else {
+                try {
+                  array = py::cast<std::vector<double>>(*obj);
+                } catch (const py::cast_error&) {
+                  throw pybind11::type_error(
+                      std::string(name) + " should be a numeric scalar or list.");
+                }
+              }
+              if (array.empty() || array.size() > static_cast<size_t>(size)) {
+                std::string msg = std::string(name) + " should be a list/array of size 1 to " + std::to_string(size) + ".";
+                throw pybind11::value_error(msg);
+              }
+              for (int i = 0; i < size; i++) {
+                des[i] = (i < static_cast<int>(array.size())) ? array[i] : 0;
+              }
+            }
+          };
+          """
+        elif t == 'char_array':
+          code += """\n
+          auto set_char_array = [](auto&& des, py::object& obj, int size, const char* name) {
+            if (obj.is_none()) {
+              return;
+            }
+            std::string chars;
+            if (py::isinstance<py::str>(obj)) {
+              chars = py::cast<std::string>(obj);
+            } else if (py::isinstance<py::list>(obj)) {
+              py::list list = py::cast<py::list>(obj);
+              chars.reserve(py::len(list));
+              for (auto item : list) {
+                std::string s = py::cast<std::string>(item);
+                if (s.size() != 1) {
+                  throw pybind11::value_error(std::string(name) + " list elements must be single characters.");
+                }
+                chars.push_back(s[0]);
+              }
+            } else {
+              throw pybind11::type_error(std::string(name) + " must be a string or a list of single-character strings.");
+            }
+            if (chars.size() != size) {
+              std::string msg = std::string(name) + " should have length " + std::to_string(size) + ", got " + std::to_string(chars.size()) + ".";
+              throw pybind11::value_error(msg);
+            }
+            int idx = 0;
+            for (char val : chars) {
+              des[idx++] = val;
+            }
+          };
+          """
         elif t == 'value':
           code += """\n
           auto set_value = [](auto&& des, auto&& val) {
@@ -739,7 +872,9 @@ def generate_add() -> None:
           code += """\n
           auto set_name = [](raw::MjsElement* el, const std::optional<std::string>& name) {
             if (name.has_value()) {
-              mjs_setName(el, name->c_str());
+              if (mjs_setName(el, name->c_str())) {
+                throw pybind11::value_error(mjs_getError(mjs_getSpec(el)));
+              }
             }
           };
           """
@@ -843,6 +978,24 @@ def generate_name() -> None:
     print(code)
 
 
+def generate_compiler() -> None:
+  """Generate compiler property for all spec element types."""
+  for key, _, _, _, _ in SPECS:
+    elem = key.removeprefix('mjs')
+    titlecase = 'Mjs' + elem
+    code = f"""\n
+      {key}.def_property_readonly("compiler",
+      [](raw::{titlecase}& self) -> raw::MjsCompiler& {{
+        ::mjsCompiler* compiler = mjs_getCompiler(self.element);
+        if (!compiler) {{
+          throw pybind11::value_error("Element is not attached to a spec.");
+        }}
+        return *compiler;
+      }}, py::return_value_policy::reference_internal);
+    """
+    print(code)
+
+
 def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
@@ -852,6 +1005,7 @@ def main(argv: Sequence[str]) -> None:
   generate_signature()
   generate_id()
   generate_name()
+  generate_compiler()
 
 
 if __name__ == '__main__':

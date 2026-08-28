@@ -97,7 +97,7 @@ class WasmBuffer {
 template <typename T>
 class UnpackedParam {
   // The C++ representation of the parameter data
-  std::variant<std::monostate, std::vector<T>, std::span<T>> data_;
+  std::variant<std::monostate, std::vector<T>, std::span<T>, std::string> data_;
 
   // Printable representations of the param and function name used for errors
   const char* repr_;
@@ -112,7 +112,11 @@ class UnpackedParam {
   UnpackedParam(T* data, std::size_t count, const char* repr, const char* func)
       : data_(std::span<T>(data, count)), repr_(repr), func_(func) {}
 
+  UnpackedParam(std::string&& str, const char* repr, const char* func)
+      : data_(std::move(str)), repr_(repr), func_(func) {}
+
   // Returns true and raises an error if the val is null or undefined.
+  // This function should never be called when unpacking nullable values.
   static bool ErrorOnNullOrUndefined(const emscripten::val& p,
                                      const char* func,
                                     const char* expected_type) {
@@ -161,6 +165,24 @@ class UnpackedParam {
     return UnpackedParam<T>(convertJSArrayToNumberVector<T>(p), repr, func);
   }
 
+  // Create from a nullable Javascript string. Call via UNPACK_NULLABLE_STRING.
+  static UnpackedParam<T> FromNullableString(const emscripten::val& p,
+                                             const char* repr,
+                                             const char* func) {
+    if (IsNullOrUndefined(p)) {
+      return UnpackedParam<T>(repr, func);
+    }
+    if (!p.isString()) {
+      mju_error(
+          "[%s] Invalid argument. Expected a string for %s.",
+          StripWrapperSuffix(func).c_str(), repr);
+      return UnpackedParam<T>(repr, func);
+    }
+    static_assert(std::is_same_v<T, char>,
+                  "UNPACK_NULLABLE_STRING requires UnpackedParam<char>");
+    return UnpackedParam<T>(p.as<std::string>(), repr, func);
+  }
+
   // Creates an UnpackedParam from a Javascript a TypedArray or a WasmBuffer.
   // Call via UNPACK_VALUE.
   static UnpackedParam<T> FromValue(const emscripten::val& p, const char* repr,
@@ -200,14 +222,16 @@ class UnpackedParam {
   // Returns the name of the function the parameter is used in.
   std::string func() const { return StripWrapperSuffix(func_); }
 
-  // Returns the size of the parameter. Returns 0 if the parameter is null.
+  // Returns the size of the parameter. Returns 0 if the parameter is null. For
+  // strings, returns the length of the string.
   std::size_t size() const {
     if (std::holds_alternative<std::vector<T>>(data_)) {
       return std::get<std::vector<T>>(data_).size();
     } else if (std::holds_alternative<std::span<T>>(data_)) {
       return std::get<std::span<T>>(data_).size();
+    } else if (std::holds_alternative<std::string>(data_)) {
+      return std::get<std::string>(data_).length();
     }
-    mju_error("[%s] [%s] UnpackedParam is null", func().c_str(), repr());
     return 0;
   }
 
@@ -218,6 +242,11 @@ class UnpackedParam {
       return std::get<std::vector<T>>(data_).data();
     } else if (std::holds_alternative<std::span<T>>(data_)) {
       return std::get<std::span<T>>(data_).data();
+    } else if (std::holds_alternative<std::string>(data_)) {
+      static_assert(std::is_same_v<T, char>,
+                    "Cannot call data() on UnpackedParam with a string unless "
+                    "T is char.");
+      return reinterpret_cast<const T*>(std::get<std::string>(data_).data());
     }
     return nullptr;
   }
@@ -229,6 +258,14 @@ class UnpackedParam {
       return std::get<std::vector<T>>(data_).data();
     } else if (std::holds_alternative<std::span<T>>(data_)) {
       return const_cast<T*>(std::get<std::span<T>>(data_).data());
+    } else if (std::holds_alternative<std::string>(data_)) {
+      if constexpr (std::is_same_v<T, char>) {
+        return reinterpret_cast<T*>(std::get<std::string>(data_).data());
+      } else {
+        mju_error(
+          "[%s] [%s] Cannot call data() on UnpackedParam<%s> holding a string",
+                  func().c_str(), repr(), typeid(T).name());
+      }
     }
     return nullptr;
   }
@@ -255,6 +292,11 @@ class UnpackedParam {
 
 #define UNPACK_NULLABLE_ARRAY(T, p) \
   UnpackedParam<T> p##_ = UnpackedParam<T>::FromNullableArray(p, #p, __func__)
+
+#define UNPACK_NULLABLE_STRING(p) \
+  UnpackedParam<char> p##_ = UnpackedParam<char>::FromNullableString( \
+      p, #p, __func__ \
+  )
 
 // Raises an error if x##_.size() is not equal to expr.
 // Assumes UnpackedParam x##_ is defined.

@@ -2,6 +2,10 @@
      The frustum should match exactly the fron face of the box. -->
 
 <mujoco>
+  <option>
+    <flag multiccd="enable"/>
+  </option>
+
   <visual>
     <map znear="0.01"/>
     <rgba frustum="1. 1. 0 0.2"/>

@@ -18,6 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,8 +46,8 @@ MJAPI void mj_flex(const mjModel* m, mjData* d);
 // compute tendon lengths, velocities and moment arms
 MJAPI void mj_tendon(const mjModel* m, mjData* d);
 
-// compute time derivative of dense tendon Jacobian for one tendon
-MJAPI void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot);
+// return dot product of tendon Jacobian time derivative with vector
+MJAPI mjtNum mj_tendonDot(const mjModel* m, mjData* d, int id, const mjtNum* vec);
 
 // compute actuator transmission lengths and moments
 MJAPI void mj_transmission(const mjModel* m, mjData* d);
@@ -63,20 +64,13 @@ MJAPI void mj_tendonArmature(const mjModel* m, mjData* d);
 // make inertia matrix
 MJAPI void mj_makeM(const mjModel* m, mjData* d);
 
-// sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd  (legacy implementation)
-MJAPI void mj_factorI_legacy(const mjModel* m, mjData* d, const mjtNum* M,
-                             mjtNum* qLD, mjtNum* qLDiagInv);
+// sparse L'*D*L factorization of inertia-like matrix (only dofs in index, if given);
+// clamp non-positive pivots up to mjMINVAL, return first clamped dof index or -1 if none
+MJAPI int mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
+                     const int* rownnz, const int* rowadr, const int* colind, const int* index);
 
-// sparse L'*D*L factorizaton of inertia-like matrix (only dofs in index, if given)
-MJAPI void mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
-                      const int* rownnz, const int* rowadr, const int* colind, const int* index);
-
-// sparse L'*D*L factorizaton of the inertia matrix M, assumed spd
+// sparse L'*D*L factorization of the inertia matrix M, assumed spd
 MJAPI void mj_factorM(const mjModel* m, mjData* d);
-
-// sparse backsubstitution:  x = inv(L'*D*L)*x  (legacy implementation)
-MJAPI void mj_solveLD_legacy(const mjModel* m, mjtNum* x, int n,
-                             const mjtNum* qLD, const mjtNum* qLDiagInv);
 
 // in-place sparse backsubstitution (only dofs in index, if given):  x = inv(L'*D*L)*x
 //  handle n vectors at once

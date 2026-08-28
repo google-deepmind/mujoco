@@ -16,7 +16,7 @@
 
     <body pos="0 0 .3">
       <freejoint/>
-      <geom type="sphere" size=".05" rgba=".5 .5 .5 .5" margin="0.1" gap="0.1"/>
+      <geom type="sphere" size=".05" rgba=".5 .5 .5 .5" gap="0.1"/>
     </body>
 
     <body pos="-.5 0 .3">

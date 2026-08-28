@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <random>
 #include <string>
 #include <vector>
@@ -34,26 +35,25 @@
 namespace mujoco {
 namespace {
 
-using ::testing::DoubleEq;
 using ::testing::Pointwise;
-using ::testing::DoubleNear;
-using ::testing::ElementsAre;
+
+using ::std::setw;
 using ::std::string;
 using ::std::vector;
-using ::std::setw;
+using ::testing::ElementsAre;
 using QCQP2Test = MujocoTest;
 
 TEST_F(QCQP2Test, DegenerateAMatrix) {
   // A 2x2 matrix with determinant zero.
-  const mjtNum Ain[9] { 6, -15, 2, -5 };
+  const mjtNum Ain[9]{6, -15, 2, -5};
 
   // Any values will do for these three inputs.
-  const mjtNum bin[3] { -12, 49 };
-  const mjtNum d[3] { 11, 31 };
+  const mjtNum bin[3]{-12, 49};
+  const mjtNum d[3]{11, 31};
   const mjtNum r = 0.01;
 
   // Make output array explicitly nonzero to simulate uninitialized memory.
-  mjtNum res[2] { 999, 999 };
+  mjtNum res[2]{999, 999};
 
   EXPECT_EQ(mju_QCQP2(res, Ain, bin, d, r), 0);
   EXPECT_EQ(res[0], 0);
@@ -64,15 +64,15 @@ using QCQP3Test = MujocoTest;
 
 TEST_F(QCQP3Test, DegenerateAMatrix) {
   // A 3x3 matrix with determinant zero.
-  const mjtNum Ain[9] { 1, 4, -2, -3, -7, 5, 2, -9, 0 };
+  const mjtNum Ain[9]{1, 4, -2, -3, -7, 5, 2, -9, 0};
 
   // Any values will do for these three inputs.
-  const mjtNum bin[3] { -12, 49, 8 };
-  const mjtNum d[3] { 11, 31, -23 };
+  const mjtNum bin[3]{-12, 49, 8};
+  const mjtNum d[3]{11, 31, -23};
   const mjtNum r = 0.1;
 
   // Make output array explicitly nonzero to simulate uninitialized memory.
-  mjtNum res[3] { 999, 999, 999 };
+  mjtNum res[3]{999, 999, 999};
 
   EXPECT_EQ(mju_QCQP3(res, Ain, bin, d, r), 0);
   EXPECT_EQ(res[0], 0);
@@ -92,9 +92,10 @@ mjtNum objective(const mjtNum* x, const mjtNum* H, const mjtNum* g, int n) {
 // utility: test if res is the minimum of a given box-QP problem
 bool isQPminimum(const mjtNum* res, const mjtNum* H, const mjtNum* g, int n,
                  const mjtNum* lower, const mjtNum* upper) {
-  static const mjtNum eps = 1e-4;  // epsilon used for nudging
+  const mjtNum eps = MjTol(1e-4, 5e-2);      // epsilon used for nudging
+  const mjtNum threshold = MjTol(0, -2e-3);  // comparison threshold
   bool is_minimum = true;
-  mjtNum* res_nudge = (mjtNum*) mju_malloc(sizeof(mjtNum)*n);
+  mjtNum* res_nudge = (mjtNum*)mju_malloc(sizeof(mjtNum) * n);
 
   // get solution value
   mjtNum value = objective(res, H, g, n);
@@ -102,14 +103,14 @@ bool isQPminimum(const mjtNum* res, const mjtNum* H, const mjtNum* g, int n,
 
   // compare to nudged solution
   mju_copy(res_nudge, res, n);
-  for (int i=0; i < n; i++) {
+  for (int i = 0; i < n; i++) {
     // nudge down
     res_nudge[i] = res[i] - eps;
     if (lower) {
       res_nudge[i] = mju_max(lower[i], res_nudge[i]);
     }
     value_nudge = objective(res_nudge, H, g, n);
-    if (value_nudge - value < 0) {
+    if (value_nudge - value < threshold) {
       is_minimum = false;
       break;
     }
@@ -120,7 +121,7 @@ bool isQPminimum(const mjtNum* res, const mjtNum* H, const mjtNum* g, int n,
       res_nudge[i] = mju_min(upper[i], res_nudge[i]);
     }
     value_nudge = objective(res_nudge, H, g, n);
-    if (value_nudge - value < 0) {
+    if (value_nudge - value < threshold) {
       is_minimum = false;
       break;
     }
@@ -142,12 +143,12 @@ void randomBoxQP(int n, mjtNum* H, mjtNum* g, mjtNum* lower, mjtNum* upper,
   std::normal_distribution<double> dist(0, 1);
 
   // square root of H
-  mjtNum* sqrtH = (mjtNum*) mju_malloc(sizeof(mjtNum)*n*n);
+  mjtNum* sqrtH = (mjtNum*)mju_malloc(sizeof(mjtNum) * n * n);
 
-  for (int i=0; i < n; i++) {
+  for (int i = 0; i < n; i++) {
     g[i] = dist(rng);
-    lower[i] = 5*dist(rng);
-    upper[i] = 5*dist(rng);
+    lower[i] = 5 * dist(rng);
+    upper[i] = 5 * dist(rng);
 
     // fix invalid bounds
     if (lower[i] > upper[i]) {
@@ -157,8 +158,8 @@ void randomBoxQP(int n, mjtNum* H, mjtNum* g, mjtNum* lower, mjtNum* upper,
     }
 
     // sample temp
-    for (int j=0; j < n; j++) {
-      sqrtH[n*i+j] = dist(rng);
+    for (int j = 0; j < n; j++) {
+      sqrtH[n * i + j] = dist(rng);
     }
   }
 
@@ -172,27 +173,24 @@ void randomBoxQP(int n, mjtNum* H, mjtNum* g, mjtNum* lower, mjtNum* upper,
 TEST_F(BoxQPTest, UnboundedQP) {
   // small arrays, allocate on stack
   static const int n = 2;
-  mjtNum H[n*n] = {
-    2, 0,
-    0, 2
-  };
+  mjtNum H[n * n] = {2, 0, 0, 2};
   mjtNum g[n] = {1, 3};
   mjtNum res[n] = {0, 0};
-  mjtNum R[n*(n+7)];
+  mjtNum R[n * (n + 7)];
 
   int nfree = mju_boxQP(res, R, /*index=*/nullptr, H, g, n,
                         /*lower=*/nullptr, /*upper=*/nullptr);
 
   // no bounds, expect Newton point
   EXPECT_EQ(nfree, 2);
-  EXPECT_THAT(res[0], DoubleEq(-g[0]/H[0]));
-  EXPECT_THAT(res[1], DoubleEq(-g[1]/H[3]));
+  EXPECT_MJTNUM_EQ(res[0], -g[0] / H[0]);
+  EXPECT_MJTNUM_EQ(res[1], -g[1] / H[3]);
 
   // check that solution is actual minimum
   EXPECT_TRUE(isQPminimum(res, H, g, n, /*lower=*/nullptr, /*upper=*/nullptr));
 
   // perturb solution, expected it no longer be the minimum
-  res[0] += 0.001;
+  res[0] += MjTol(0.001, 0.1);
   EXPECT_FALSE(isQPminimum(res, H, g, n, /*lower=*/nullptr, /*upper=*/nullptr));
 
   // negative-definite Hessian, no solution
@@ -207,29 +205,99 @@ TEST_F(BoxQPTest, UnboundedQP) {
 TEST_F(BoxQPTest, AsymmetricUpperIgnored) {
   // small arrays, allocate on stack
   static const int n = 2;
-  mjtNum H[n*n] = {
-    1, -400,
-    0, 1
-  };
+  mjtNum H[n * n] = {1, -400, 0, 1};
   mjtNum g[n] = {1, 3};
   mjtNum res[n] = {0, 0};
   mjtNum lower[n] = {-2, -2};
   mjtNum upper[n] = {0, 0};
   int index[n];
-  mjtNum R[n*(n+7)];
+  mjtNum R[n * (n + 7)];
 
   // solve box-QP
   int nfree = mju_boxQP(res, R, index, H, g, n, lower, upper);
 
   EXPECT_EQ(nfree, 1);
 
-  EXPECT_THAT(res[0], DoubleEq(-g[0]/H[0]));
-  EXPECT_THAT(res[1], DoubleEq(lower[1]));
+  EXPECT_MJTNUM_EQ(res[0], -g[0] / H[0]);
+  EXPECT_MJTNUM_EQ(res[1], lower[1]);
+}
+
+// verify mju_boxQP reads only the lower triangle of H by poisoning the upper
+// triangle with NaN and comparing to a clean symmetric solve
+TEST_F(BoxQPTest, UpperTrianglePoisoned) {
+  int n = 30;
+  const mjtNum nan = std::numeric_limits<mjtNum>::quiet_NaN();
+
+  // allocate on heap
+  mjtNum *H, *g, *lower, *upper;  // inputs
+  mjtNum *res, *R;                // outputs
+  int* index;                     // outputs
+  mju_boxQPmalloc(&res, &R, &index, &H, &g, n, &lower, &upper);
+
+  struct Cleanup {
+    mjtNum *res, *R, *H, *g, *lower, *upper;
+    int* index;
+    ~Cleanup() {
+      mju_free(res);
+      mju_free(R);
+      mju_free(index);
+      mju_free(H);
+      mju_free(g);
+      mju_free(lower);
+      mju_free(upper);
+    }
+  } cleanup{res, R, H, g, lower, upper, index};
+
+  // generate a symmetric SPD Hessian and bounded QP problem
+  randomBoxQP(n, H, g, lower, upper, /*seed=*/1);
+
+  int maxiter = 100;
+  mjtNum mingrad = MjTol(1E-16, 1E-5);
+  mjtNum backtrack = 0.5;
+  mjtNum minstep = MjTol(1E-22, 1E-10);
+  mjtNum armijo = 0.1;
+
+  // solve with symmetric H to get the reference result
+  mju_zero(res, n);
+  int nfree_ref =
+      mju_boxQPoption(res, R, index, H, g, n, lower, upper, maxiter, mingrad,
+                      backtrack, minstep, armijo, nullptr, 0);
+  ASSERT_GT(nfree_ref, -1);
+
+  // save reference
+  std::vector<mjtNum> res_ref(res, res + n);
+  std::vector<int> index_ref(index, index + n);
+  std::vector<mjtNum> R_ref(R, R + nfree_ref * nfree_ref);
+
+  // poison the strict upper triangle of H with NaN
+  for (int i = 0; i < n; i++) {
+    for (int j = i + 1; j < n; j++) {
+      H[n * i + j] = nan;
+    }
+  }
+
+  // solve again; result must match because only lower triangle should be read
+  mju_zero(res, n);
+  int nfree_poisoned =
+      mju_boxQPoption(res, R, index, H, g, n, lower, upper, maxiter, mingrad,
+                      backtrack, minstep, armijo, nullptr, 0);
+
+  EXPECT_EQ(nfree_poisoned, nfree_ref);
+  for (int i = 0; i < n; i++) {
+    EXPECT_EQ(res[i], res_ref[i]) << "mismatch at index " << i;
+  }
+  for (int i = 0; i < nfree_ref; i++) {
+    EXPECT_EQ(index[i], index_ref[i]) << "index mismatch at " << i;
+    for (int j = 0; j <= i; j++) {
+      int k = i * nfree_ref + j;
+      EXPECT_EQ(R[k], R_ref[k]) << "R mismatch at row " << i << ", col " << j;
+    }
+  }
 }
 
 // test mju_boxQP on a single random bounded QP
 TEST_F(BoxQPTest, BoundedQP) {
-  int n = 50;                     // problem size
+  int n = 50;  // problem size
 
   // allocate on heap
   mjtNum *H, *g, *lower, *upper;  // inputs
@@ -243,19 +311,19 @@ TEST_F(BoxQPTest, BoundedQP) {
   mju_zero(res, n);
 
   // use default options
-  int    maxiter    = 100;    // maximum number of iterations
-  mjtNum mingrad    = 1E-16;  // minimum squared norm of (unclamped) gradient
-  mjtNum backtrack  = 0.5;    // backtrack factor for decreasing stepsize
-  mjtNum minstep    = 1E-22;  // minimum stepsize for linesearch
-  mjtNum armijo     = 0.1;    // Armijo parameter
+  int maxiter = 100;  // maximum number of iterations
+  mjtNum mingrad =
+      MjTol(1E-16, 1E-5);  // minimum squared norm of (unclamped) gradient
+  mjtNum backtrack = 0.5;  // backtrack factor for decreasing stepsize
+  mjtNum minstep = MjTol(1E-22, 1E-10);  // minimum stepsize for linesearch
+  mjtNum armijo = 0.1;                   // Armijo parameter
 
   // logging
   static const int logsz = 10000;
   char log[logsz];
 
-  int nfree = mju_boxQPoption(res, R, index, H, g, n, lower, upper,
-                              maxiter, mingrad, backtrack,
-                              minstep, armijo, log, logsz);
+  int nfree = mju_boxQPoption(res, R, index, H, g, n, lower, upper, maxiter,
+                              mingrad, backtrack, minstep, armijo, log, logsz);
 
   // ADD_FAILURE() << log;  // uncomment to print `log` to error log
 
@@ -265,12 +333,12 @@ TEST_F(BoxQPTest, BoundedQP) {
 
   // verify clamping
   int j = nfree > 0 ? 0 : -1;
-  for (int i=0; i < n; i++) {
+  for (int i = 0; i < n; i++) {
     if (j >= 0 && i == index[j]) {  // free dimension
       EXPECT_GT(res[i], lower[i]);
       EXPECT_LT(res[i], upper[i]);
       j++;
-    } else {                        // clamped dimension
+    } else {  // clamped dimension
       EXPECT_TRUE(res[i] == lower[i] || res[i] == upper[i]);
     }
   }
@@ -285,6 +353,12 @@ TEST_F(BoxQPTest, BoundedQP) {
 
 // test mju_boxQP on a set of random bounded QPs
 TEST_F(BoxQPTest, BoundedQPvariations) {
+  if constexpr (sizeof(mjtNum) == sizeof(float)) {
+    GTEST_SKIP()
+        << "BoxQP test permutations contain ill-conditioned matrices which "
+           "natively fail to find descent directions under float32 precision";
+  }
+
   int nmax = 100;
 
   // allocate maximum size on heap
@@ -307,7 +381,7 @@ TEST_F(BoxQPTest, BoundedQPvariations) {
           // make random box-QP
           randomBoxQP(n, H, g, lower, upper, seed++);
 
-          mju_scl(H, H, scaleH, n*n);
+          mju_scl(H, H, scaleH, n * n);
           mju_scl(g, g, scaleg, n);
           mju_scl(lower, lower, scalebounds, n);
           mju_scl(upper, upper, scalebounds, n);
@@ -316,16 +390,16 @@ TEST_F(BoxQPTest, BoundedQPvariations) {
           mju_zero(res, n);
 
           // default algorithm options
-          int    maxiter    = 100;
-          mjtNum mingrad    = 1E-16;
-          mjtNum backtrack  = 0.5;
-          mjtNum minstep    = 1E-22;
-          mjtNum armijo     = 0.1;
+          int maxiter = 100;
+          mjtNum mingrad = MjTol(1E-16, 1E-5);
+          mjtNum backtrack = 0.5;
+          mjtNum minstep = MjTol(1E-22, 1E-10);
+          mjtNum armijo = 0.1;
 
           // solve box-QP with logging
-          int nfree = mju_boxQPoption(res, R, index, H, g, n, lower, upper,
-                                      maxiter, mingrad, backtrack,
-                                      minstep, armijo, log, logsz);
+          int nfree =
+              mju_boxQPoption(res, R, index, H, g, n, lower, upper, maxiter,
+                              mingrad, backtrack, minstep, armijo, log, logsz);
 
           // check solution
           EXPECT_GT(nfree, -1) << log;
@@ -354,8 +428,8 @@ TEST_F(BoxQPTest, BoundedQPvariations) {
     // average of 4.5 factorizations is expected
     EXPECT_LE(meanfactor, 5.0);
 
-    std::cerr << "n=" << setw(3) << n
-              << ": average of " << meanfactor << " factorizations\n";
+    std::cerr << "n=" << setw(3) << n << ": average of " << meanfactor
+              << " factorizations\n";
   }
   mju_free(res);
   mju_free(R);
@@ -380,13 +454,13 @@ void randomBanded(mjtNum* H, int nTotal, int nBand, int nDense, int seed,
   std::normal_distribution<double> dist(0, 1);
 
   // allocate square root
-  mjtNum* sqrtH = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal*nTotal);
+  mjtNum* sqrtH = (mjtNum*)mju_malloc(sizeof(mjtNum) * nTotal * nTotal);
 
   // sample
-  for (int i=0; i < nTotal; i++) {
+  for (int i = 0; i < nTotal; i++) {
     if (vec) vec[i] = dist(rng);
-    for (int j=0; j < nTotal; j++) {
-      sqrtH[nTotal*i+j] = dist(rng);
+    for (int j = 0; j < nTotal; j++) {
+      sqrtH[nTotal * i + j] = dist(rng);
     }
   }
 
@@ -394,23 +468,22 @@ void randomBanded(mjtNum* H, int nTotal, int nBand, int nDense, int seed,
   mju_mulMatTMat(H, sqrtH, sqrtH, nTotal, nTotal, nTotal);
 
   // set zeros
-  int nSparse = nTotal-nDense;
-  for (int i=0; i < nSparse; i++) {
+  int nSparse = nTotal - nDense;
+  for (int i = 0; i < nSparse; i++) {
     int nzeros = mjMAX(0, i + 1 - nBand);
-    for (int j=0; j < nzeros; j++) {
-      H[nTotal*i + j] = 0;
-      H[nTotal*j + i] = 0;
+    for (int j = 0; j < nzeros; j++) {
+      H[nTotal * i + j] = 0;
+      H[nTotal * j + i] = 0;
     }
   }
 
   // add regularizer to diagonal
-  for (int i=0; i < nTotal; i++) {
-    H[nTotal*i + i] += reg;
+  for (int i = 0; i < nTotal; i++) {
+    H[nTotal * i + i] += reg;
   }
 
   mju_free(sqrtH);
 }
-
 
 // test banded-vector diagonal values
 TEST_F(BandMatrixTest, Diagonal) {
@@ -419,10 +492,10 @@ TEST_F(BandMatrixTest, Diagonal) {
   for (int nBand : {1, 3}) {
     for (int nDense : {0, 2}) {
       // allocate
-      int nB = (nTotal-nDense)*nBand + nDense*nTotal;
-      mjtNum* B = (mjtNum*) mju_malloc(sizeof(mjtNum)*nB);
-      int nH = nTotal*nTotal;
-      mjtNum* H = (mjtNum*) mju_malloc(sizeof(mjtNum)*nH);
+      int nB = (nTotal - nDense) * nBand + nDense * nTotal;
+      mjtNum* B = (mjtNum*)mju_malloc(sizeof(mjtNum) * nB);
+      int nH = nTotal * nTotal;
+      mjtNum* H = (mjtNum*)mju_malloc(sizeof(mjtNum) * nH);
 
       // make random banded SPD matrix, dense representation
       randomBanded(H, nTotal, nBand, nDense, seed++);
@@ -431,8 +504,8 @@ TEST_F(BandMatrixTest, Diagonal) {
       mju_dense2Band(B, H, nTotal, nBand, nDense);
 
       // expect diagonals to be equal
-      for (int i=0; i < nTotal; i++) {
-        EXPECT_EQ(H[i*nTotal + i], B[mju_bandDiag(i, nTotal, nBand, nDense)]);
+      for (int i = 0; i < nTotal; i++) {
+        EXPECT_EQ(H[i * nTotal + i], B[mju_bandDiag(i, nTotal, nBand, nDense)]);
       }
 
       mju_free(H);
@@ -448,11 +521,11 @@ TEST_F(BandMatrixTest, Conversion) {
   for (int nBand : {0, 1, 3}) {
     for (int nDense : {0, 2}) {
       // allocate
-      int nB = (nTotal-nDense)*nBand + nDense*nTotal;
-      mjtNum* B = (mjtNum*) mju_malloc(sizeof(mjtNum)*nB);
-      int nH = nTotal*nTotal;
-      mjtNum* H = (mjtNum*) mju_malloc(sizeof(mjtNum)*nH);
-      mjtNum* H1 = (mjtNum*) mju_malloc(sizeof(mjtNum)*nH);
+      int nB = (nTotal - nDense) * nBand + nDense * nTotal;
+      mjtNum* B = (mjtNum*)mju_malloc(sizeof(mjtNum) * nB);
+      int nH = nTotal * nTotal;
+      mjtNum* H = (mjtNum*)mju_malloc(sizeof(mjtNum) * nH);
+      mjtNum* H1 = (mjtNum*)mju_malloc(sizeof(mjtNum) * nH);
 
       // make random banded SPD matrix, dense
       randomBanded(H, nTotal, nBand, nDense, seed++);
@@ -480,13 +553,13 @@ TEST_F(BandMatrixTest, Multiplication) {
   for (int nBand : {0, 1, 3}) {
     for (int nDense : {0, 2}) {
       // allocate
-      int nB = (nTotal-nDense)*nBand + nDense*nTotal;
-      mjtNum* B = (mjtNum*) mju_malloc(sizeof(mjtNum)*nB);
-      int nH = nTotal*nTotal;
-      mjtNum* H = (mjtNum*) mju_malloc(sizeof(mjtNum)*nH);
-      mjtNum* vec = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
-      mjtNum* res = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
-      mjtNum* res1 = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
+      int nB = (nTotal - nDense) * nBand + nDense * nTotal;
+      mjtNum* B = (mjtNum*)mju_malloc(sizeof(mjtNum) * nB);
+      int nH = nTotal * nTotal;
+      mjtNum* H = (mjtNum*)mju_malloc(sizeof(mjtNum) * nH);
+      mjtNum* vec = (mjtNum*)mju_malloc(sizeof(mjtNum) * nTotal);
+      mjtNum* res = (mjtNum*)mju_malloc(sizeof(mjtNum) * nTotal);
+      mjtNum* res1 = (mjtNum*)mju_malloc(sizeof(mjtNum) * nTotal);
 
       // make random banded SPD matrix, dense
       randomBanded(H, nTotal, nBand, nDense, seed++, vec);
@@ -500,9 +573,9 @@ TEST_F(BandMatrixTest, Multiplication) {
                         /*nVec=*/1, /*flg_sym=*/1);
 
       // expect numerical equality
-      mjtNum eps = 1e-12;
+      mjtNum eps = MjTol(1e-12, 5e-5);
       EXPECT_THAT(AsVector(res, nTotal),
-                  Pointwise(DoubleNear(eps), AsVector(res1, nTotal)));
+                  Pointwise(MjNear(eps, eps), AsVector(res1, nTotal)));
 
       mju_free(res1);
       mju_free(res);
@@ -522,14 +595,14 @@ TEST_F(BandMatrixTest, Factorization) {
       for (mjtNum diagadd : {0.0, 1.0}) {
         for (int diagmul : {0.0, 1.3}) {
           // allocate
-          int nB = (nTotal-nDense)*nBand + nDense*nTotal;
-          mjtNum* B = (mjtNum*) mju_malloc(sizeof(mjtNum)*nB);
-          int nH = nTotal*nTotal;
-          mjtNum* H = (mjtNum*) mju_malloc(sizeof(mjtNum)*nH);
-          mjtNum* H1 = (mjtNum*) mju_malloc(sizeof(mjtNum)*nH);
-          mjtNum* vec = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
-          mjtNum* res = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
-          mjtNum* res1 = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
+          int nB = (nTotal - nDense) * nBand + nDense * nTotal;
+          mjtNum* B = (mjtNum*)mju_malloc(sizeof(mjtNum) * nB);
+          int nH = nTotal * nTotal;
+          mjtNum* H = (mjtNum*)mju_malloc(sizeof(mjtNum) * nH);
+          mjtNum* H1 = (mjtNum*)mju_malloc(sizeof(mjtNum) * nH);
+          mjtNum* vec = (mjtNum*)mju_malloc(sizeof(mjtNum) * nTotal);
+          mjtNum* res = (mjtNum*)mju_malloc(sizeof(mjtNum) * nTotal);
+          mjtNum* res1 = (mjtNum*)mju_malloc(sizeof(mjtNum) * nTotal);
 
           // make random banded matrix, dense representation
           //  add regularizer to ensure PD
@@ -539,8 +612,8 @@ TEST_F(BandMatrixTest, Factorization) {
           mju_dense2Band(B, H, nTotal, nBand, nDense);
 
           // apply diagadd and diagmul
-          for (int i=0; i < nTotal; i++) {
-            H[nTotal*i + i] += diagadd + diagmul*H[nTotal*i + i];
+          for (int i = 0; i < nTotal; i++) {
+            H[nTotal * i + i] += diagadd + diagmul * H[nTotal * i + i];
           }
 
           // in-place dense factorization
@@ -550,8 +623,8 @@ TEST_F(BandMatrixTest, Factorization) {
           EXPECT_EQ(rank, nTotal);
 
           // banded factorization
-          mjtNum minDiag = mju_cholFactorBand(B, nTotal, nBand, nDense,
-                                              diagadd, diagmul);
+          mjtNum minDiag =
+              mju_cholFactorBand(B, nTotal, nBand, nDense, diagadd, diagmul);
 
           // expect factorization to have succeeded
           EXPECT_GT(minDiag, 0);
@@ -560,14 +633,14 @@ TEST_F(BandMatrixTest, Factorization) {
           mju_band2Dense(H1, B, nTotal, nBand, nDense, /*flg_sym=*/0);
 
           // zero upper triangle of H (unused)
-          for (int i=0; i < nTotal-1; i++) {
-            mju_zero(H + nTotal*i + i + 1, nTotal - i - 1);
+          for (int i = 0; i < nTotal - 1; i++) {
+            mju_zero(H + nTotal * i + i + 1, nTotal - i - 1);
           }
 
           // expect numerical equality
-          mjtNum eps = 1e-12;
+          mjtNum eps = MjTol(1e-12, 5e-5);
           EXPECT_THAT(AsVector(H, nH),
-                      Pointwise(DoubleNear(eps), AsVector(H1, nH)));
+                      Pointwise(MjNear(eps, eps), AsVector(H1, nH)));
 
           // multiply dense
           mju_mulMatVec(res, H, vec, nTotal, nTotal);
@@ -578,7 +651,7 @@ TEST_F(BandMatrixTest, Factorization) {
 
           // expect numerical equality
           EXPECT_THAT(AsVector(res, nTotal),
-                      Pointwise(DoubleNear(eps), AsVector(res1, nTotal)));
+                      Pointwise(MjNear(eps, eps), AsVector(res1, nTotal)));
 
           mju_free(res1);
           mju_free(res);
@@ -599,14 +672,14 @@ TEST_F(BandMatrixTest, Solve) {
   for (int nBand : {1, 3}) {
     for (int nDense : {0, 2}) {
       // allocate
-      int nB = (nTotal-nDense)*nBand + nDense*nTotal;
-      mjtNum* B = (mjtNum*) mju_malloc(sizeof(mjtNum)*nB);
-      int nH = nTotal*nTotal;
-      mjtNum* H = (mjtNum*) mju_malloc(sizeof(mjtNum)*nH);
-      mjtNum* H1 = (mjtNum*) mju_malloc(sizeof(mjtNum)*nH);
-      mjtNum* vec = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
-      mjtNum* res = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
-      mjtNum* res1 = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
+      int nB = (nTotal - nDense) * nBand + nDense * nTotal;
+      mjtNum* B = (mjtNum*)mju_malloc(sizeof(mjtNum) * nB);
+      int nH = nTotal * nTotal;
+      mjtNum* H = (mjtNum*)mju_malloc(sizeof(mjtNum) * nH);
+      mjtNum* H1 = (mjtNum*)mju_malloc(sizeof(mjtNum) * nH);
+      mjtNum* vec = (mjtNum*)mju_malloc(sizeof(mjtNum) * nTotal);
+      mjtNum* res = (mjtNum*)mju_malloc(sizeof(mjtNum) * nTotal);
+      mjtNum* res1 = (mjtNum*)mju_malloc(sizeof(mjtNum) * nTotal);
 
       // make random banded matrix, dense representation
       //  add regularizer to ensure PD
@@ -638,9 +711,9 @@ TEST_F(BandMatrixTest, Solve) {
       mju_cholSolveBand(res1, B, vec, nTotal, nBand, nDense);
 
       // expect numerical equality
-      mjtNum eps = 1e-12;
+      mjtNum eps = MjTol(1e-12, 5e-5);
       EXPECT_THAT(AsVector(res, nTotal),
-                  Pointwise(DoubleNear(eps), AsVector(res1, nTotal)));
+                  Pointwise(MjNear(eps, eps), AsVector(res1, nTotal)));
 
       mju_free(res1);
       mju_free(res);
@@ -655,8 +728,8 @@ TEST_F(BandMatrixTest, Solve) {
 using EngineUtilSolveTest = MujocoTest;
 
 TEST_F(EngineUtilSolveTest, MjuCholFactorSymbolic) {
-  mjModel* model = LoadModelFromString("<mujoco/>");
-  mjData* d = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString("<mujoco/>");
+  MjDataPtr d = MakeData(model);
 
   // Test matrix (upper triangular, representing symmetric matrix):
   //   [10  1  2  3]
@@ -679,7 +752,7 @@ TEST_F(EngineUtilSolveTest, MjuCholFactorSymbolic) {
   int LT_rownnz[4], LT_rowadr[4];
   int nnz = mju_cholFactorSymbolic(nullptr, L_rownnz, L_rowadr, nullptr,
                                    LT_rownnz, LT_rowadr, nullptr, H_rownnz,
-                                   H_rowadr, H_colind, n, d);
+                                   H_rowadr, H_colind, n, d.get());
 
   // verify counting phase outputs
   EXPECT_EQ(nnz, 8);
@@ -693,7 +766,8 @@ TEST_F(EngineUtilSolveTest, MjuCholFactorSymbolic) {
   // phase 2: filling
   int L_colind[8], LT_colind[8], LT_pos[8];
   mju_cholFactorSymbolic(L_colind, L_rownnz, L_rowadr, LT_colind, LT_rownnz,
-                         LT_rowadr, LT_pos, H_rownnz, H_rowadr, H_colind, n, d);
+                         LT_rowadr, LT_pos, H_rownnz, H_rowadr, H_colind, n,
+                         d.get());
 
   // verify L_colind
   EXPECT_THAT(AsVector(L_colind, 8), ElementsAre(0, 0, 1, 0, 2, 0, 2, 3));
@@ -720,9 +794,6 @@ TEST_F(EngineUtilSolveTest, MjuCholFactorSymbolic) {
           << "LT_pos mismatch at column " << c << ", entry " << k;
     }
   }
-
-  mj_deleteData(d);
-  mj_deleteModel(model);
 }
 
 // Test for mju_cholUpdate: rank-one Cholesky update L*L' +/- x*x'
@@ -808,7 +879,7 @@ TEST_F(EngineUtilSolveTest, MjuCholUpdate) {
                      n, n);
 
       // compare
-      mjtNum eps = 1e-8;
+      mjtNum eps = MjTol(1e-8, 5e-4);
       for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
           EXPECT_NEAR(H_reconstructed[i * n + j], H_expected[i * n + j], eps)
@@ -823,8 +894,8 @@ TEST_F(EngineUtilSolveTest, MjuCholUpdate) {
 // Test for mju_cholUpdateSparse: sparse rank-one Cholesky update L'*L +/- x*x'
 // Uses sparse reverse Cholesky factorization and sparse rank-one update.
 TEST_F(EngineUtilSolveTest, MjuCholUpdateSparse) {
-  mjModel* model = LoadModelFromString("<mujoco/>");
-  mjData* d = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString("<mujoco/>");
+  MjDataPtr d = MakeData(model);
 
   std::mt19937_64 rng;
   rng.seed(123);
@@ -906,12 +977,12 @@ TEST_F(EngineUtilSolveTest, MjuCholUpdateSparse) {
 
       // sparse Cholesky factorization (reverse-order: L'*L)
       mju_cholFactorSparse(L_sparse.data(), n, 0, rownnz.data(), rowadr.data(),
-                           colind.data(), d);
+                           colind.data(), d.get());
 
       // apply sparse rank-one update
       int rank_sparse = mju_cholUpdateSparse(
           L_sparse.data(), x_sparse.data(), n, flg_plus, rownnz.data(),
-          rowadr.data(), colind.data(), x_nnz, x_ind.data(), d);
+          rowadr.data(), colind.data(), x_nnz, x_ind.data(), d.get());
       EXPECT_EQ(rank_sparse, n)
           << "Sparse update rank loss for n=" << n << ", flg_plus=" << flg_plus;
 
@@ -922,7 +993,7 @@ TEST_F(EngineUtilSolveTest, MjuCholUpdateSparse) {
                      L_sparse_dense.data(), n, n, n);
 
       // compare
-      mjtNum eps = 1e-8;
+      mjtNum eps = MjTol(1e-8, 5e-4);
       for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
           EXPECT_NEAR(H_sparse_reconstructed[i * n + j], H_expected[i * n + j],
@@ -933,16 +1004,13 @@ TEST_F(EngineUtilSolveTest, MjuCholUpdateSparse) {
       }
     }
   }
-
-  mj_deleteData(d);
-  mj_deleteModel(model);
 }
 
 // Test that mju_cholFactorSymbolic + mju_cholFactorNumeric produces identical
 // results to the reference implementation mju_cholFactorSparse
 TEST_F(EngineUtilSolveTest, CholFactorSymbolicNumeric) {
-  mjModel* model = LoadModelFromString("<mujoco/>");
-  mjData* d = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString("<mujoco/>");
+  MjDataPtr d = MakeData(model);
 
   // test matrix with fill-in: upper triangle structure
   int n = 4;
@@ -963,13 +1031,13 @@ TEST_F(EngineUtilSolveTest, CholFactorSymbolicNumeric) {
   int LT_rownnz[4], LT_rowadr[4];
   int nnz = mju_cholFactorSymbolic(nullptr, L_rownnz, L_rowadr, nullptr,
                                    LT_rownnz, LT_rowadr, nullptr, HT_rownnz,
-                                   HT_rowadr, HT_colind, n, d);
+                                   HT_rowadr, HT_colind, n, d.get());
 
   // filling phase: compute L_colind, LT_colind, and LT_pos
   int L_colind[16], LT_colind[16], LT_pos[16];
   mju_cholFactorSymbolic(L_colind, L_rownnz, L_rowadr, LT_colind, LT_rownnz,
                          LT_rowadr, LT_pos, HT_rownnz, HT_rowadr, HT_colind, n,
-                         d);
+                         d.get());
 
   // verify LT structure matches what we'd get from a separate transpose
   int LT_rownnz_ref[4], LT_rowadr_ref[4], LT_colind_ref[16];
@@ -999,7 +1067,7 @@ TEST_F(EngineUtilSolveTest, CholFactorSymbolicNumeric) {
   mjtNum L_new[16];
   int rank_new = mju_cholFactorNumeric(
       L_new, n, 1e-10, L_rownnz, L_rowadr, L_colind, LT_rownnz, LT_rowadr,
-      LT_colind, LT_pos, sparseH, H_rownnz, H_rowadr, H_colind, d);
+      LT_colind, LT_pos, sparseH, H_rownnz, H_rowadr, H_colind, d.get());
 
   // reference implementation: copy sparse H into L_ref, then factor in-place
   mjtNum L_ref[16];
@@ -1018,20 +1086,224 @@ TEST_F(EngineUtilSolveTest, CholFactorSymbolicNumeric) {
     L_ref_rownnz[r] = lower_nnz;
   }
   int rank_ref = mju_cholFactorSparse(L_ref, n, 1e-10, L_ref_rownnz, L_rowadr,
-                                      L_ref_colind, d);
+                                      L_ref_colind, d.get());
 
   // compare results
   EXPECT_EQ(rank_new, rank_ref);
   EXPECT_EQ(rank_new, n);
 
   // compare L values
-  mjtNum eps = 1e-10;
+  mjtNum eps = MjTol(1e-10, 5e-5);
   for (int i = 0; i < nnz; i++) {
     EXPECT_NEAR(L_new[i], L_ref[i], eps) << "mismatch at index " << i;
   }
+}
 
-  mj_deleteData(d);
-  mj_deleteModel(model);
+// ----------------------------- dense LU --------------------------------------
+
+using DenseLUTest = MujocoTest;
+
+// factor identity, solve recovers b exactly
+TEST_F(DenseLUTest, Identity) {
+  constexpr int n = 4;
+  mjtNum A[n * n] = {
+      1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
+  };
+  int pivot[n];
+  mjtNum b[n] = {1, 2, 3, 4};
+  mjtNum x[n];
+
+  EXPECT_EQ(mju_factorLU(A, n, pivot), 1);
+  mju_solveLU(x, A, b, pivot, n);
+
+  for (int i = 0; i < n; i++) {
+    EXPECT_MJTNUM_EQ(x[i], b[i]);
+  }
+}
+
+// 3x3 with known solution
+TEST_F(DenseLUTest, SmallKnown) {
+  constexpr int n = 3;
+  // A = [2 1 1; 4 3 3; 8 7 9], b = [1; 1; 1]
+  // solution: x = [1; -1; 0]  (verified: A*x = [2-1; 4-3; 8-7] = [1;1;1])
+  mjtNum A[n * n] = {
+      2, 1, 1, 4, 3, 3, 8, 7, 9,
+  };
+  int pivot[n];
+  mjtNum b[n] = {1, 1, 1};
+  mjtNum x[n];
+
+  EXPECT_EQ(mju_factorLU(A, n, pivot), 1);
+  mju_solveLU(x, A, b, pivot, n);
+
+  mjtNum eps = MjTol(1e-14, 1e-6);
+  EXPECT_NEAR(x[0], 1, eps);
+  EXPECT_NEAR(x[1], -1, eps);
+  EXPECT_NEAR(x[2], 0, eps);
+}
+
+// random SPD matrices: compare LU solve against Cholesky solve
+TEST_F(DenseLUTest, RandomSPD) {
+  std::mt19937_64 rng;
+  rng.seed(7);
+  std::normal_distribution<double> dist(0, 1);
+
+  for (int n : {4, 8, 16}) {
+    vector<mjtNum> sqrtH(n * n);
+    vector<mjtNum> A(n * n);
+    vector<mjtNum> A_chol(n * n);
+    vector<mjtNum> b(n);
+    vector<mjtNum> x_lu(n);
+    vector<mjtNum> x_chol(n);
+    vector<int> pivot(n);
+
+    // generate random SPD matrix
+    for (int i = 0; i < n * n; i++) sqrtH[i] = dist(rng);
+    mju_mulMatTMat(A.data(), sqrtH.data(), sqrtH.data(), n, n, n);
+
+    // add diagonal regularizer
+    for (int i = 0; i < n; i++) A[i * n + i] += n;
+
+    // generate random rhs
+    for (int i = 0; i < n; i++) b[i] = dist(rng);
+
+    // solve with Cholesky
+    mju_copy(A_chol.data(), A.data(), n * n);
+    int rank = mju_cholFactor(A_chol.data(), n, 0);
+    EXPECT_EQ(rank, n);
+    mju_cholSolve(x_chol.data(), A_chol.data(), b.data(), n);
+
+    // solve with LU
+    int ok = mju_factorLU(A.data(), n, pivot.data());
+    EXPECT_EQ(ok, 1);
+    mju_solveLU(x_lu.data(), A.data(), b.data(), pivot.data(), n);
+
+    // compare
+    mjtNum eps = MjTol(1e-15, 1e-7);
+    EXPECT_THAT(AsVector(x_lu.data(), n),
+                Pointwise(MjNear(eps, eps), AsVector(x_chol.data(), n)));
+  }
+}
+
+// random non-symmetric matrices: verify A*x == b
+TEST_F(DenseLUTest, RandomGeneral) {
+  std::mt19937_64 rng;
+  rng.seed(42);
+  std::normal_distribution<double> dist(0, 1);
+
+  for (int n : {3, 5, 10, 20}) {
+    vector<mjtNum> A(n * n);
+    vector<mjtNum> A_orig(n * n);
+    vector<mjtNum> b(n);
+    vector<mjtNum> x(n);
+    vector<mjtNum> Ax(n);
+    vector<int> pivot(n);
+
+    // random non-symmetric matrix with diagonal dominance
+    for (int i = 0; i < n; i++) {
+      for (int j = 0; j < n; j++) {
+        A[i * n + j] = dist(rng);
+      }
+      A[i * n + i] += 2 * n;
+    }
+    mju_copy(A_orig.data(), A.data(), n * n);
+
+    // random rhs
+    for (int i = 0; i < n; i++) b[i] = dist(rng);
+
+    // factor and solve
+    int ok = mju_factorLU(A.data(), n, pivot.data());
+    EXPECT_EQ(ok, 1);
+    mju_solveLU(x.data(), A.data(), b.data(), pivot.data(), n);
+
+    // verify: A_orig * x == b
+    mju_mulMatVec(Ax.data(), A_orig.data(), x.data(), n, n);
+
+    mjtNum eps = MjTol(1e-14, 1e-5);
+    EXPECT_THAT(AsVector(Ax.data(), n),
+                Pointwise(MjNear(eps, eps), AsVector(b.data(), n)));
+  }
+}
+
+// near-singular matrix returns 0
+TEST_F(DenseLUTest, Singular) {
+  constexpr int n = 3;
+  // all zeros: maximally singular
+  mjtNum A[n * n] = {0};
+  int pivot[n];
+
+  EXPECT_EQ(mju_factorLU(A, n, pivot), 0);
+}
+
+// 6x6 specialization: identical results to the generic version
+TEST_F(DenseLUTest, Fixed6MatchesGeneric) {
+  constexpr int n = 6;
+  std::mt19937_64 rng;
+  rng.seed(3);
+  std::normal_distribution<double> dist(0, 1);
+
+  for (int trial = 0; trial < 100; trial++) {
+    mjtNum A[n * n], A6[n * n], b[n], x[n], x6[n];
+    int pivot[n], pivot6[n];
+
+    // random asymmetric matrix; first trial zeroes the diagonal to force
+    // pivoting
+    for (int i = 0; i < n * n; i++) {
+      A[i] = dist(rng);
+    }
+    if (trial == 0) {
+      for (int i = 0; i < n; i++) {
+        A[i * n + i] = 0;
+      }
+    }
+    for (int i = 0; i < n; i++) {
+      b[i] = dist(rng);
+    }
+    mju_copy(A6, A, n * n);
+
+    // same algorithm; results agree to rounding (not bitwise: the compiler may
+    // contract the unrolled fixed-size version differently)
+    int rank = mju_factorLU(A, n, pivot);
+    int rank6 = mju_factorLU6(A6, pivot6);
+    ASSERT_EQ(rank, rank6);
+    if (!rank) {
+      continue;
+    }
+    for (int i = 0; i < n; i++) {
+      EXPECT_EQ(pivot[i], pivot6[i]);
+    }
+    for (int i = 0; i < n * n; i++) {
+      EXPECT_NEAR(A[i], A6[i], MjTol(1e-13, 1e-4));
+    }
+
+    mju_solveLU(x, A, b, pivot, n);
+    mju_solveLU6(x6, A6, b, pivot6);
+    for (int i = 0; i < n; i++) {
+      EXPECT_NEAR(x[i], x6[i], MjTol(1e-12, 1e-3));
+    }
+  }
+}
+
+// nonsingular matrix with all-zero diagonal: requires pivoting
+TEST_F(DenseLUTest, ZeroDiagonal) {
+  constexpr int n = 3;
+  // A = [0 2 1; 1 0 3; 4 1 0], det(A) = 25
+  mjtNum A[n * n] = {
+      0, 2, 1, 1, 0, 3, 4, 1, 0,
+  };
+  mjtNum A_orig[n * n];
+  mju_copy(A_orig, A, n * n);
+  int pivot[n];
+  mjtNum b[n] = {1, 2, 3};
+  mjtNum x[n], Ax[n];
+
+  EXPECT_EQ(mju_factorLU(A, n, pivot), 1);
+  mju_solveLU(x, A, b, pivot, n);
+
+  // verify A_orig * x == b
+  mju_mulMatVec(Ax, A_orig, x, n, n);
+  mjtNum eps = MjTol(1e-14, 1e-6);
+  EXPECT_THAT(AsVector(Ax, n), Pointwise(MjNear(eps, eps), AsVector(b, n)));
 }
 
 }  // namespace

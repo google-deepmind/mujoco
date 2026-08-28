@@ -18,123 +18,35 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjthread.h>
-
-//---------------------------------- primitive types (mjt) -----------------------------------------
-
-typedef enum mjtState_ {            // state elements
-  mjSTATE_TIME           = 1<<0,    // time
-  mjSTATE_QPOS           = 1<<1,    // position
-  mjSTATE_QVEL           = 1<<2,    // velocity
-  mjSTATE_ACT            = 1<<3,    // actuator activation
-  mjSTATE_WARMSTART      = 1<<4,    // acceleration used for warmstart
-  mjSTATE_CTRL           = 1<<5,    // control
-  mjSTATE_QFRC_APPLIED   = 1<<6,    // applied generalized force
-  mjSTATE_XFRC_APPLIED   = 1<<7,    // applied Cartesian force/torque
-  mjSTATE_EQ_ACTIVE      = 1<<8,    // enable/disable constraints
-  mjSTATE_MOCAP_POS      = 1<<9,    // positions of mocap bodies
-  mjSTATE_MOCAP_QUAT     = 1<<10,   // orientations of mocap bodies
-  mjSTATE_USERDATA       = 1<<11,   // user data
-  mjSTATE_PLUGIN         = 1<<12,   // plugin state
-
-  mjNSTATE               = 13,      // number of state elements
-
-  // convenience values for commonly used state specifications
-  mjSTATE_PHYSICS        = mjSTATE_QPOS | mjSTATE_QVEL | mjSTATE_ACT,
-  mjSTATE_FULLPHYSICS    = mjSTATE_TIME | mjSTATE_PHYSICS | mjSTATE_PLUGIN,
-  mjSTATE_USER           = mjSTATE_CTRL | mjSTATE_QFRC_APPLIED | mjSTATE_XFRC_APPLIED |
-                          mjSTATE_EQ_ACTIVE | mjSTATE_MOCAP_POS | mjSTATE_MOCAP_QUAT |
-                          mjSTATE_USERDATA,
-  mjSTATE_INTEGRATION    = mjSTATE_FULLPHYSICS | mjSTATE_USER | mjSTATE_WARMSTART
-} mjtState;
 
 
-typedef enum mjtConstraint_ {       // type of constraint
-  mjCNSTR_EQUALITY       = 0,       // equality constraint
-  mjCNSTR_FRICTION_DOF,             // dof friction
-  mjCNSTR_FRICTION_TENDON,          // tendon friction
-  mjCNSTR_LIMIT_JOINT,              // joint limit
-  mjCNSTR_LIMIT_TENDON,             // tendon limit
-  mjCNSTR_CONTACT_FRICTIONLESS,     // frictionless contact
-  mjCNSTR_CONTACT_PYRAMIDAL,        // frictional contact, pyramidal friction cone
-  mjCNSTR_CONTACT_ELLIPTIC          // frictional contact, elliptic friction cone
-} mjtConstraint;
 
 
-typedef enum mjtConstraintState_ {  // constraint state
-  mjCNSTRSTATE_SATISFIED = 0,       // constraint satisfied, zero cost (limit, contact)
-  mjCNSTRSTATE_QUADRATIC,           // quadratic cost (equality, friction, limit, contact)
-  mjCNSTRSTATE_LINEARNEG,           // linear cost, negative side (friction)
-  mjCNSTRSTATE_LINEARPOS,           // linear cost, positive side (friction)
-  mjCNSTRSTATE_CONE                 // squared distance to cone cost (elliptic contact)
-} mjtConstraintState;
+//------------------------------------- Contact ----------------------------------------------------
+
+typedef struct mjPreContact_ {     // contact parameters set by narrowphase collision functions
+  mjtNum dist;
+  mjtNum pos[3];
+  mjtNum normal[3];                // contact normal of the collision
+  mjtNum tangent[3];               // first tangent direction
+} mjPreContact;
 
 
-typedef enum mjtWarning_ {          // warning types
-  mjWARN_INERTIA         = 0,       // (near) singular inertia matrix
-  mjWARN_CONTACTFULL,               // too many contacts in contact list
-  mjWARN_CNSTRFULL,                 // too many constraints
-  mjWARN_VGEOMFULL,                 // too many visual geoms
-  mjWARN_BADQPOS,                   // bad number in qpos
-  mjWARN_BADQVEL,                   // bad number in qvel
-  mjWARN_BADQACC,                   // bad number in qacc
-  mjWARN_BADCTRL,                   // bad number in ctrl
-
-  mjNWARNING                        // number of warnings
-} mjtWarning;
-
-
-typedef enum mjtTimer_ {            // internal timers
-  // main api
-  mjTIMER_STEP           = 0,       // step
-  mjTIMER_FORWARD,                  // forward
-  mjTIMER_INVERSE,                  // inverse
-
-  // breakdown of step/forward
-  mjTIMER_POSITION,                 // fwdPosition
-  mjTIMER_VELOCITY,                 // fwdVelocity
-  mjTIMER_ACTUATION,                // fwdActuation
-  mjTIMER_CONSTRAINT,               // fwdConstraint
-  mjTIMER_ADVANCE,                  // mj_Euler, mj_implicit
-
-  // breakdown of fwdPosition
-  mjTIMER_POS_KINEMATICS,           // kinematics, com, tendon, transmission
-  mjTIMER_POS_INERTIA,              // inertia computations
-  mjTIMER_POS_COLLISION,            // collision detection
-  mjTIMER_POS_MAKE,                 // make constraints
-  mjTIMER_POS_PROJECT,              // project constraints
-
-  // breakdown of mj_collision
-  mjTIMER_COL_BROAD,                // broadphase
-  mjTIMER_COL_NARROW,               // narrowphase
-
-  mjNTIMER                          // number of timers
-} mjtTimer;
-
-
-typedef enum mjtSleepState_ {       // sleep state of an object
-  mjS_STATIC = -1,                  // object is static
-  mjS_ASLEEP = 0,                   // object is asleep
-  mjS_AWAKE  = 1                    // object is awake
-} mjtSleepState;
-
-
-//---------------------------------- mjContact -----------------------------------------------------
-
-struct mjContact_ {                // result of collision detection functions
-  // contact parameters set by near-phase collision function
+typedef struct mjContact_ {        // result of collision detection functions
+  // contact parameters set by narrowphase collision function
   mjtNum  dist;                    // distance between nearest points; neg: penetration
   mjtNum  pos[3];                  // position of contact point: midpoint between geoms
   mjtNum  frame[9];                // normal is in [0-2], points from geom[0] to geom[1]
 
   // contact parameters set by mj_collideGeoms
-  mjtNum  includemargin;           // include if dist<includemargin=margin-gap
+  mjtNum  includemargin;           // margin for force generation
   mjtNum  friction[5];             // tangent1, 2, spin, roll1, 2
   mjtNum  solref[mjNREF];          // constraint solver reference, normal direction
   mjtNum  solreffriction[mjNREF];  // constraint solver reference, friction directions
   mjtNum  solimp[mjNIMP];          // constraint solver impedance
+  mjtNum  adhesion;                // adhesive force along the contact normal
 
   // internal storage used by solver
   mjtNum  mu;                      // friction of regularized cone, set by mj_makeConstraint
@@ -154,41 +66,37 @@ struct mjContact_ {                // result of collision detection functions
 
   // address computed by mj_instantiateContact
   int     efc_address;             // address in efc; -1: not included
-};
-typedef struct mjContact_ mjContact;
+} mjContact;
 
 
 //---------------------------------- diagnostics ---------------------------------------------------
 
-struct mjWarningStat_ {      // warning statistics
-  int     lastinfo;          // info from last warning
-  int     number;            // how many times was warning raised
-};
-typedef struct mjWarningStat_ mjWarningStat;
+typedef struct mjWarningStat_ {  // warning statistics
+  int     lastinfo;              // info from last warning
+  int     number;                // how many times was warning raised
+} mjWarningStat;
 
 
-struct mjTimerStat_ {        // timer statistics
-  mjtNum  duration;          // cumulative duration
-  int     number;            // how many times was timer called
-};
-typedef struct mjTimerStat_ mjTimerStat;
+typedef struct mjTimerStat_ {  // timer statistics
+  mjtNum  duration;            // cumulative duration
+  int     number;              // how many times was timer called
+} mjTimerStat;
 
 
-struct mjSolverStat_ {       // per-iteration solver statistics
-  mjtNum  improvement;       // cost reduction, scaled by 1/trace(M(qpos0))
-  mjtNum  gradient;          // gradient norm (primal only, scaled)
-  mjtNum  lineslope;         // slope in linesearch
-  int     nactive;           // number of active constraints
-  int     nchange;           // number of constraint state changes
-  int     neval;             // number of cost evaluations in line search
-  int     nupdate;           // number of Cholesky updates in line search
-};
-typedef struct mjSolverStat_ mjSolverStat;
+typedef struct mjSolverStat_ {  // per-iteration solver statistics
+  mjtNum  improvement;          // cost reduction, scaled by 1/trace(M(qpos0))
+  mjtNum  gradient;             // gradient norm (primal only, scaled)
+  mjtNum  lineslope;            // slope in linesearch
+  int     nactive;              // number of active constraints
+  int     nchange;              // number of constraint state changes
+  int     neval;                // number of cost evaluations in line search
+  int     nupdate;              // number of Cholesky updates in line search
+} mjSolverStat;
 
 
 //---------------------------------- mjData --------------------------------------------------------
 
-struct mjData_ {
+typedef struct mjData_ {
   // constant sizes
   mjtSize narena;            // size of the arena in bytes (inclusive of the stack)
   mjtSize nbuffer;           // size of main buffer in bytes
@@ -201,9 +109,12 @@ struct mjData_ {
   // arena pointer
   size_t  parena;            // first available byte in arena
 
+  // threading
+  uintptr_t threadpool;      // thread pool pointer
+  mjtBool threadlock;        // disable stack freeing during threaded execution
+
   // memory utilization statistics
   mjtSize maxuse_stack;                       // maximum stack allocation in bytes (mutable)
-  mjtSize maxuse_threadstack[mjMAXTHREAD];    // maximum stack allocation per thread in bytes
   mjtSize maxuse_arena;                       // maximum arena allocation in bytes
   int     maxuse_con;                         // maximum number of contacts
   int     maxuse_efc;                         // maximum number of scalar constraints
@@ -211,7 +122,7 @@ struct mjData_ {
   // solver statistics
   mjSolverStat  solver[mjNISLAND*mjNSOLVER];  // solver statistics per island, per iteration
   int           solver_niter[mjNISLAND];      // number of solver iterations, per island
-  int           solver_nnz[mjNISLAND];        // number of nonzeros in Hessian or efc_AR, per island
+  int           solver_nnz[mjNISLAND];        // number of nonzeros in solver matrix, per island
   mjtNum        solver_fwdinv[2];             // forward-inverse comparison: qfrc, efc
 
   // diagnostics
@@ -225,6 +136,11 @@ struct mjData_ {
   int     nl;                // number of limit constraints
   int     nefc;              // number of constraints
   int     nJ;                // number of non-zeros in constraint Jacobian
+  int     efm_active;        // implicit effective metric M+K is active (see mjd_effBuild)
+  int     nefmK;             // number of non-zeros in effective-stiffness CSR
+  int     nefmdof;           // number of 3x3 blocks in the effective-metric preconditioner
+  int     nefmL;             // size of the effective-metric block storage (9*nefmdof)
+  int     nY;                // number of non-zeros in constraint inverse inertia square root
   int     nA;                // number of non-zeros in constraint inverse inertia matrix
   int     nisland;           // number of detected constraint islands
   int     nidof;             // number of dofs in all islands
@@ -232,6 +148,12 @@ struct mjData_ {
   int     nbody_awake;       // number of awake dynamic and static bodies
   int     nparent_awake;     // number of bodies with awake parents
   int     nv_awake;          // number of awake dofs
+
+  // flags marking lazily evaluated stages
+  mjtBool flg_energypos;     // has mj_energyPos been called
+  mjtBool flg_energyvel;     // has mj_energyVel been called
+  mjtBool flg_subtreevel;    // has mj_subtreeVel been called
+  mjtBool flg_rnepost;       // has mj_rnePostConstraint been called
 
   // global properties
   mjtNum  time;              // simulation time
@@ -249,6 +171,7 @@ struct mjData_ {
   mjtNum* qpos;              // position                                         (nq x 1)
   mjtNum* qvel;              // velocity                                         (nv x 1)
   mjtNum* act;               // actuator activation                              (na x 1)
+  mjtNum* history;           // history buffer                                   (nhistory x 1)
   mjtNum* qacc_warmstart;    // acceleration used for warmstart                  (nv x 1)
   mjtNum* plugin_state;      // plugin state                                     (npluginstate x 1)
 
@@ -256,7 +179,7 @@ struct mjData_ {
   mjtNum* ctrl;              // control                                          (nu x 1)
   mjtNum* qfrc_applied;      // applied generalized force                        (nv x 1)
   mjtNum* xfrc_applied;      // applied Cartesian force/torque                   (nbody x 6)
-  mjtByte* eq_active;        // enable/disable constraints                       (neq x 1)
+  mjtBool* eq_active;        // enable/disable constraints                       (neq x 1)
 
   // mocap data
   mjtNum* mocap_pos;         // positions of mocap bodies                        (nmocap x 3)
@@ -306,42 +229,38 @@ struct mjData_ {
   // computed by mj_fwdPosition/mj_flex
   mjtNum* flexvert_xpos;     // Cartesian flex vertex positions                  (nflexvert x 3)
   mjtNum* flexelem_aabb;     // flex element bounding boxes (center, size)       (nflexelem x 6)
-  int*    flexedge_J_rownnz; // number of non-zeros in Jacobian row              (nflexedge x 1)
-  int*    flexedge_J_rowadr; // row start address in colind array                (nflexedge x 1)
-  int*    flexedge_J_colind; // column indices in sparse Jacobian                (nflexedge x nv)
-  mjtNum* flexedge_J;        // flex edge Jacobian                               (nflexedge x nv)
+  mjtNum* flexelem_krot;     // corotated element stiffness (implicit only)      (nflexstiffness x 1)
+  mjtNum* flexedge_J;        // flex edge Jacobian                               (nJfe x 1)
   mjtNum* flexedge_length;   // flex edge lengths                                (nflexedge x 1)
+  mjtNum* flexvert_J;        // flex vertex Jacobian                             (nJfv x 2)
+  mjtNum* flexvert_length;   // flex vertex lengths                              (nflexvert x 2)
   mjtNum* bvh_aabb_dyn;      // global bounding box (center, size)               (nbvhdynamic x 6)
 
   // computed by mj_fwdPosition/mj_tendon
   int*    ten_wrapadr;       // start address of tendon's path                   (ntendon x 1)
   int*    ten_wrapnum;       // number of wrap points in path                    (ntendon x 1)
-  int*    ten_J_rownnz;      // number of non-zeros in Jacobian row              (ntendon x 1)
-  int*    ten_J_rowadr;      // row start address in colind array                (ntendon x 1)
-  int*    ten_J_colind;      // column indices in sparse Jacobian                (ntendon x nv)
-  mjtNum* ten_J;             // tendon Jacobian                                  (ntendon x nv)
+  mjtNum* ten_J;             // tendon Jacobian                                  (nJten x 1)
   mjtNum* ten_length;        // tendon lengths                                   (ntendon x 1)
   int*    wrap_obj;          // geom id; -1: site; -2: pulley                    (nwrap x 2)
   mjtNum* wrap_xpos;         // Cartesian 3D points in all paths                 (nwrap x 6)
 
   // computed by mj_fwdPosition/mj_transmission
-  mjtNum* actuator_length;   // actuator lengths                                 (nu x 1)
-  int*    moment_rownnz;     // number of non-zeros in actuator_moment row       (nu x 1)
-  int*    moment_rowadr;     // row start address in colind array                (nu x 1)
+  mjtNum* actuator_length;   // actuator lengths, one per force output           (nout x 1)
+  int*    moment_rownnz;     // number of non-zeros in actuator_moment row       (nout x 1)
+  int*    moment_rowadr;     // row start address in colind array                (nout x 1)
   int*    moment_colind;     // column indices in sparse Jacobian                (nJmom x 1)
   mjtNum* actuator_moment;   // actuator moments                                 (nJmom x 1)
 
   // computed by mj_fwdPosition/mj_makeM
   mjtNum* crb;               // com-based composite inertia and mass             (nbody x 10)
-  mjtNum* qM;                // inertia (sparse)                                 (nM x 1)
-  mjtNum* M;                 // reduced inertia (compressed sparse row)          (nC x 1)
+  mjtNum* M;                 // inertia (sparse)                                 (nC x 1)
 
   // computed by mj_fwdPosition/mj_factorM
   mjtNum* qLD;               // L'*D*L factorization of M (sparse)               (nC x 1)
   mjtNum* qLDiagInv;         // 1/diag(D)                                        (nv x 1)
 
   // computed by mj_collision/mj_collideTree
-  mjtByte* bvh_active;       // was bounding volume checked for collision        (nbvh x 1)
+  mjtBool* bvh_active;       // was bounding volume checked for collision        (nbvh x 1)
 
   // computed by mj_updateSleep
   int*    tree_awake;        // is tree awake; 0: asleep; 1: awake               (ntree x 1)
@@ -355,7 +274,7 @@ struct mjData_ {
   // computed by mj_fwdVelocity
   mjtNum* flexedge_velocity; // flex edge velocities                             (nflexedge x 1)
   mjtNum* ten_velocity;      // tendon velocities                                (ntendon x 1)
-  mjtNum* actuator_velocity; // actuator velocities                              (nu x 1)
+  mjtNum* actuator_velocity; // actuator velocities, one per force output        (nout x 1)
 
   // computed by mj_fwdVelocity/mj_comVel
   mjtNum* cvel;              // com-based velocity (rot:lin)                     (nbody x 6)
@@ -369,6 +288,7 @@ struct mjData_ {
   mjtNum* qfrc_damper;       // passive damper force                             (nv x 1)
   mjtNum* qfrc_gravcomp;     // passive gravity compensation force               (nv x 1)
   mjtNum* qfrc_fluid;        // passive fluid force                              (nv x 1)
+  mjtNum* qfrc_adhesion;     // passive contact adhesion force                   (nv x 1)
   mjtNum* qfrc_passive;      // total passive force                              (nv x 1)
 
   // computed by mj_sensorVel/mj_subtreeVel if needed
@@ -383,13 +303,13 @@ struct mjData_ {
   mjtNum* qDeriv;            // d (passive + actuator - bias) / d qvel           (nD x 1)
 
   // computed by mj_implicit/mju_factorLUSparse
-  mjtNum* qLU;               // sparse LU of (qM - dt*qDeriv)                    (nD x 1)
+  mjtNum* qLU;               // sparse LU of (M - dt*qDeriv)                     (nD x 1)
 
   //-------------------- POSITION, VELOCITY, CONTROL/ACCELERATION dependent
 
   // computed by mj_fwdActuation
-  mjtNum* actuator_force;    // actuator force in actuation space                (nu x 1)
-  mjtNum* qfrc_actuator;     // actuator force                                   (nv x 1)
+  mjtNum* actuator_force;    // actuator force in actuation space                (nout x 1)
+  mjtNum* qfrc_actuator;     // actuator force in joint space                    (nv x 1)
 
   // computed by mj_fwdAcceleration
   mjtNum* qfrc_smooth;       // net unconstrained force                          (nv x 1)
@@ -423,7 +343,7 @@ struct mjData_ {
   mjtNum* efc_pos;           // constraint position (equality, contact)          (nefc x 1)
   mjtNum* efc_margin;        // inclusion margin (contact)                       (nefc x 1)
   mjtNum* efc_frictionloss;  // frictionloss (friction)                          (nefc x 1)
-  mjtNum* efc_diagApprox;    // approximation to diagonal of A                   (nefc x 1)
+  mjtNum* efc_diagA;         // diagonal of A matrix, approximate or exact       (nefc x 1)
   mjtNum* efc_KBIP;          // stiffness, damping, impedance, imp'              (nefc x 4)
   mjtNum* efc_D;             // constraint mass                                  (nefc x 1)
   mjtNum* efc_R;             // inverse constraint mass                          (nefc x 1)
@@ -446,12 +366,6 @@ struct mjData_ {
   // computed by mj_island (dofs sorted by island)
   mjtNum* ifrc_smooth;       // net unconstrained force                          (nidof x 1)
   mjtNum* iacc_smooth;       // unconstrained acceleration                       (nidof x 1)
-  int*    iM_rownnz;         // inertia: non-zeros in each row                   (nidof x 1)
-  int*    iM_rowadr;         // inertia: address of each row in iM_colind        (nidof x 1)
-  int*    iM_colind;         // inertia: column indices of non-zeros             (nC x 1)
-  mjtNum* iM;                // total inertia (sparse)                           (nC x 1)
-  mjtNum* iLD;               // L'*D*L factorization of M (sparse)               (nC x 1)
-  mjtNum* iLDiagInv;         // 1/diag(D)                                        (nidof x 1)
   mjtNum* iacc;              // acceleration                                     (nidof x 1)
 
   // computed by mj_island (island constraint structure)
@@ -466,18 +380,17 @@ struct mjData_ {
   // computed by mj_island (constraints sorted by island)
   int*    iefc_type;         // constraint type (mjtConstraint)                  (nefc x 1)
   int*    iefc_id;           // id of object of specified type                   (nefc x 1)
-  int*    iefc_J_rownnz;     // number of non-zeros in constraint Jacobian row   (nefc x 1)
-  int*    iefc_J_rowadr;     // row start address in colind array                (nefc x 1)
-  int*    iefc_J_rowsuper;   // number of subsequent rows in supernode           (nefc x 1)
-  int*    iefc_J_colind;     // column indices in constraint Jacobian            (nJ x 1)
-  mjtNum* iefc_J;            // constraint Jacobian                              (nJ x 1)
   mjtNum* iefc_frictionloss; // frictionloss (friction)                          (nefc x 1)
   mjtNum* iefc_D;            // constraint mass                                  (nefc x 1)
   mjtNum* iefc_R;            // inverse constraint mass                          (nefc x 1)
 
   // computed by mj_projectConstraint (PGS solver)
+  int*    efc_Y_rownnz;      // number of non-zeros in Y row                     (nefc x 1)
+  int*    efc_Y_rowadr;      // row start address in Y colind array              (nefc x 1)
+  int*    efc_Y_colind;      // column indices in sparse Y                       (nY x 1)
+  mjtNum* efc_Y;             // whitened Jacobian Y = J*M^(-1/2)                 (nY x 1)
   int*    efc_AR_rownnz;     // number of non-zeros in AR                        (nefc x 1)
-  int*    efc_AR_rowadr;     // row start address in colind array                (nefc x 1)
+  int*    efc_AR_rowadr;     // row start address in AR colind array             (nefc x 1)
   int*    efc_AR_colind;     // column indices in sparse AR                      (nA x 1)
   mjtNum* efc_AR;            // J*inv(M)*J' + R                                  (nA x 1)
 
@@ -486,6 +399,15 @@ struct mjData_ {
   // computed by mj_fwdVelocity/mj_referenceConstraint
   mjtNum* efc_vel;           // velocity in constraint space: J*qvel             (nefc x 1)
   mjtNum* efc_aref;          // reference pseudo-acceleration                    (nefc x 1)
+
+  // computed by mj_fwdPosition/mj_invPosition when the implicit effective metric M+K is active
+  mjtNum* efm_c;             // smooth-force shift h*K*qvel                      (nv x 1)
+  int*    efm_K_rownnz;      // effective-stiffness CSR row nonzeros             (nv x 1)
+  int*    efm_K_rowadr;      // effective-stiffness CSR row addresses            (nv x 1)
+  int*    efm_K_colind;      // effective-stiffness CSR column indices           (nefmK x 1)
+  mjtNum* efm_K_val;         // effective-stiffness CSR values                   (nefmK x 1)
+  int*    efm_dofid;         // block k -> dof address of its vertex triple      (nefmdof x 1)
+  mjtNum* efm_L;             // factored 3x3 diagonal blocks of M+K              (nefmL x 1)
 
   //-------------------- arena-allocated: POSITION, VELOCITY, CONTROL/ACCELERATION dependent
 
@@ -498,13 +420,9 @@ struct mjData_ {
   mjtNum* efc_force;         // constraint force in constraint space             (nefc x 1)
   mjtNum* ifrc_constraint;   // constraint force                                 (nidof x 1)
 
-  // thread pool pointer
-  uintptr_t threadpool;
-
   // compilation signature
   uint64_t  signature;       // also held by the mjSpec that compiled the model
-};
-typedef struct mjData_ mjData;
+} mjData;
 
 
 //---------------------------------- callback function types ---------------------------------------
@@ -525,7 +443,7 @@ typedef mjtNum (*mjfTime)(void);
 typedef mjtNum (*mjfAct)(const mjModel* m, const mjData* d, int id);
 
 // collision detection
-typedef int (*mjfCollision)(const mjModel* m, const mjData* d,
-                            mjContact* con, int g1, int g2, mjtNum margin);
+typedef int (*mjfCollision)(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2,
+                            mjtNum margin);
 
 #endif  // MUJOCO_MJDATA_H_

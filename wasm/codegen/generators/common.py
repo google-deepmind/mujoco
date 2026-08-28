@@ -15,7 +15,9 @@
 """Utility functions for code generation."""
 
 import os
+from typing import Union
 from introspect import ast_nodes
+from wasm.codegen.generators import constants
 
 
 def write_to_file(filepath: str, content: str) -> None:
@@ -87,12 +89,27 @@ def get_inner_value_type(
   return param.type.inner_type
 
 
+def is_struct_value_type(
+    t: Union[ast_nodes.ValueType, ast_nodes.ArrayType, ast_nodes.PointerType],
+) -> bool:
+  """Checks if a type is a struct passed by value."""
+  if isinstance(t, ast_nodes.ValueType):
+    return (
+        t.name not in constants.PRIMITIVE_TYPES
+        and t.name != "void"
+        and not t.name.startswith("mjf")
+    )
+  return False
+
+
 def should_be_wrapped(func: ast_nodes.FunctionDecl) -> bool:
   """Checks if a MuJoCo function needs a wrapper function."""
   if get_pointer_return_inner_value_type(func):
     return True
+  if is_struct_value_type(func.return_type):
+    return True
   for param in func.parameters:
-    if get_inner_value_type(param):
+    if get_inner_value_type(param) or is_struct_value_type(param.type):
       return True
   return False
 

@@ -17,7 +17,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <filesystem>
+#include <cstring>
+#include <filesystem>  // NOLINT
 #include <functional>
 #include <map>
 #include <memory>
@@ -26,21 +27,20 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <absl/strings/match.h>
-#include "src/cc/array_safety.h"
-#include <mujoco/mujoco.h>
+#include <absl/strings/str_format.h>
+#include <mujoco/mjplugin.h>
 #include <mujoco/mjspec.h>
+#include <mujoco/mujoco.h>
 #include "src/xml/xml_api.h"
-#include "src/xml/xml_numeric_format.h"
+#include "test/compare_model.h"
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
 
 using ::testing::HasSubstr;
-using ::testing::NotNull;
 using ::testing::IsNull;
-
+using ::testing::NotNull;
 
 // -------------------------- test model manipulation  -------------------------
 
@@ -171,7 +171,167 @@ TEST_F(MujocoTest, TreeTraversal) {
   mj_deleteSpec(spec);
 }
 
-TEST_F(PluginTest, ActivatePlugin) {
+TEST_F(MujocoTest, AttachAndChildDeletion) {
+  mjSpec* child_spec = mj_makeSpec();
+  mjsBody* child_world = mjs_findBody(child_spec, "world");
+  mjsBody* child_body = mjs_addBody(child_world, 0);
+  mjsJoint* freejoint = mjs_addJoint(child_body, 0);
+  freejoint->type = mjJNT_FREE;
+  mjs_setName(freejoint->element, "child_freejoint");
+
+  mjSpec* parent_spec = mj_makeSpec();
+  mjsBody* parent_world = mjs_findBody(parent_spec, "world");
+  mjsBody* parent_body = mjs_addBody(parent_world, 0);
+
+  // Attach child spec to parent_body
+  mjsElement* attached =
+      mjs_attach(parent_body->element, child_spec->element, "pre_", "");
+  ASSERT_THAT(attached, NotNull());
+
+  // Delete freejoint from child_spec, should fail because it is attached
+  int result = mjs_delete(child_spec, freejoint->element);
+  EXPECT_EQ(result, -1);
+
+  // The freejoint should still be in parent_spec because deletion failed
+  mjsElement* found_joint =
+      mjs_findElement(parent_spec, mjOBJ_JOINT, "pre_child_freejoint");
+  EXPECT_THAT(found_joint, NotNull());
+
+  mj_deleteSpec(child_spec);
+  mj_deleteSpec(parent_spec);
+}
+
+TEST_F(MujocoTest, OriginSpecInvariantToAttachment) {
+  mjSpec* child_spec = mj_makeSpec();
+  mjsBody* child_world = mjs_findBody(child_spec, "world");
+  mjsBody* child_body = mjs_addBody(child_world, 0);
+  mjsJoint* freejoint = mjs_addJoint(child_body, 0);
+  freejoint->type = mjJNT_FREE;
+  mjs_setName(freejoint->element, "child_freejoint");
+
+  mjSpec* parent_spec = mj_makeSpec();
+  mjsBody* parent_world = mjs_findBody(parent_spec, "world");
+  mjsBody* parent_body = mjs_addBody(parent_world, 0);
+  mjs_setName(parent_body->element, "parent_body");
+
+  // Attach child spec to parent_body
+  mjsElement* attached =
+      mjs_attach(parent_body->element, child_spec->element, "pre_", "");
+  ASSERT_THAT(attached, NotNull());
+
+  // The freejoint should still be in parent_spec because deletion failed
+  mjsElement* child_spec_joint =
+      mjs_findElement(parent_spec, mjOBJ_JOINT, "pre_child_freejoint");
+  EXPECT_EQ(mjs_getSpec(child_spec_joint), parent_spec);
+  EXPECT_EQ(mjs_getOriginSpec(child_spec_joint), child_spec);
+
+  mjsElement* parent_spec_body =
+      mjs_findElement(parent_spec, mjOBJ_BODY, "parent_body");
+  EXPECT_EQ(mjs_getOriginSpec(parent_spec_body), parent_spec);
+
+  mj_deleteSpec(child_spec);
+  mj_deleteSpec(parent_spec);
+}
+
+int open_mock(mjResource* resource) {
+  static const char parent_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent_body"/>
+    </worldbody>
+  </mujoco>
+  )";
+  resource->data = mju_malloc(sizeof(parent_xml));
+  absl::SNPrintF(static_cast<char*>(resource->data), sizeof(parent_xml), "%s",
+                 parent_xml);
+  return 1;
+}
+
+int read_mock(mjResource* resource, const void** buffer) {
+  *buffer = resource->data;
+  return std::strlen((const char*)resource->data);
+}
+
+void close_mock(mjResource* resource) {
+  mju_free(resource->data);
+  resource->data = nullptr;
+}
+
+TEST_F(MujocoTest, AttachedSpecDoesNotInheritURI) {
+  // This test checks that when we attach a child spec to a parent spec that was
+  // loaded from a resource provider, the child spec does not inherit the
+  // resource URI from the parent. This allows the child spec to specify assets
+  // relative to its model file or in the VFS.
+  mjpResourceProvider provider = {
+      .prefix = "fakeprovider",
+      .open = open_mock,
+      .read = read_mock,
+      .close = close_mock,
+  };
+
+  mjp_registerResourceProvider(&provider);
+
+  std::array<char, 1024> err;
+  mjSpec* parent_spec =
+      mj_parseXML("fakeprovider:parent.xml", nullptr, err.data(), err.size());
+  mjs_setString(parent_spec->modelname, "parent");
+  ASSERT_THAT(parent_spec, NotNull()) << err.data();
+
+  // Create child spec
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="child_body">
+        <geom type="mesh" mesh="asset"/>
+      </body>
+    </worldbody>
+    <asset>
+      <mesh name="asset" file="asset.obj"/>
+    </asset>
+  </mujoco>
+  )";
+
+  // Setup VFS with asset
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  static constexpr char asset_data[] = R"(
+  v 0 0 0
+  v 1 0 0
+  v 0 1 0
+  v 0 0 1
+  f 1 2 3
+  f 1 2 4
+  f 2 3 4
+  f 3 1 4
+  )";
+  mj_addBufferVFS(&vfs, "asset.obj", asset_data, sizeof(asset_data));
+
+  mjSpec* child_spec =
+      mj_parseXMLString(child_xml, &vfs, err.data(), err.size());
+  mjs_setString(child_spec->modelname, "child");
+  ASSERT_THAT(child_spec, NotNull()) << err.data();
+
+  // Attach child spec to parent spec's world body
+  mjsBody* world = mjs_findBody(parent_spec, "world");
+  ASSERT_THAT(world, NotNull());
+
+  mjsElement* attached =
+      mjs_attach(world->element, child_spec->element, "", "");
+  ASSERT_THAT(attached, NotNull());
+
+  mjModel* model = mj_compile(parent_spec, &vfs);
+  mj_deleteVFS(&vfs);
+
+  EXPECT_THAT(model, NotNull()) << mjs_getError(parent_spec);
+
+  if (model) {
+    mj_deleteModel(model);
+  }
+  mj_deleteSpec(parent_spec);
+  mj_deleteSpec(child_spec);
+}
+
+TEST_F(MujocoTest, ActivatePlugin) {
   mjSpec* spec = mj_makeSpec();
   mjs_activatePlugin(spec, "mujoco.elasticity.cable");
 
@@ -196,7 +356,7 @@ TEST_F(PluginTest, ActivatePlugin) {
   mj_deleteModel(model);
 }
 
-TEST_F(PluginTest, DeletePlugin) {
+TEST_F(MujocoTest, DeletePlugin) {
   mjSpec* spec = mj_makeSpec();
   mjs_activatePlugin(spec, "mujoco.pid");
 
@@ -237,6 +397,157 @@ TEST_F(PluginTest, DeletePlugin) {
   mj_deleteModel(newmodel);
 }
 
+TEST_F(MujocoTest, SetToDCMotorNullable) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  double motorconst[2] = {0.05, 0.05};
+  double resistance = 2.0;
+
+  const char* err =
+      mjs_setToDCMotor(actuator, motorconst, resistance, nullptr, nullptr,
+                       nullptr, nullptr, nullptr, nullptr, nullptr, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->gainprm[0], 2.0);
+  EXPECT_EQ(actuator->gainprm[1], 0.05);
+  EXPECT_EQ(actuator->gainprm[4], 0);
+  EXPECT_EQ(actuator->gainprm[5], 0);
+  EXPECT_EQ(actuator->gainprm[6], 0);
+  EXPECT_EQ(actuator->dynprm[7], 0);
+  EXPECT_EQ(actuator->dynprm[8], 0);
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetToDCMotorDeriveKe) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  double resistance = 2.0;
+  double nominal[3] = {12.0, 0, 100.0};  // vn=12, omega0=100
+
+  const char* err =
+      mjs_setToDCMotor(actuator, nullptr, resistance, nominal, nullptr, nullptr,
+                       nullptr, nullptr, nullptr, nullptr, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->gainprm[0], 2.0);
+  EXPECT_NEAR(actuator->gainprm[1], 0.12, 1e-5);
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetToDCMotorFull) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  double motorconst[2] = {0.05, 0.05};
+  double resistance = 2.0;
+  double saturation[3] = {1.0, 2.0, 3.0};
+  double controller[6] = {10.0, 20.0, 30.0, 40.0, 50.0, 60.0};
+
+  const char* err =
+      mjs_setToDCMotor(actuator, motorconst, resistance, nullptr, saturation,
+                       nullptr, nullptr, controller, nullptr, nullptr, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->gainprm[0], 2.0);   // resistance
+  EXPECT_EQ(actuator->gainprm[1], 0.05);  // K
+  EXPECT_EQ(actuator->gainprm[4], 10.0);  // kp
+  EXPECT_EQ(actuator->gainprm[5], 20.0);  // ki
+  EXPECT_EQ(actuator->gainprm[6], 30.0);  // kd
+  EXPECT_EQ(actuator->dynprm[7], 40.0);   // slewmax
+  EXPECT_EQ(actuator->dynprm[8], 50.0);   // Imax
+  EXPECT_EQ(actuator->gainprm[7], 60.0);  // Vmax
+  EXPECT_EQ(actuator->dynprm[1], 3.0);    // (di/dt)_max
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetToDCMotorLuGre) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  double motorconst[2] = {0.05, 0.05};
+  double resistance = 2.0;
+  double lugre[5] = {100.0, 1.0, 0.5, 0.7, 10.0};
+
+  const char* err =
+      mjs_setToDCMotor(actuator, motorconst, resistance, nullptr, nullptr,
+                       nullptr, nullptr, nullptr, nullptr, lugre, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->dynprm[5], 100.0);  // stiffness
+  EXPECT_EQ(actuator->dynprm[6], 1.0);    // damping
+  EXPECT_EQ(actuator->biasprm[3], 0.5);   // coulomb
+  EXPECT_EQ(actuator->biasprm[4], 0.7);   // static
+  EXPECT_EQ(actuator->biasprm[5], 10.0);  // stribeck
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetToOrientation) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  // kv variant, default (expmap) chart
+  double kv = 2.0;
+  const char* err = mjs_setToOrientation(actuator, 5.0, &kv, nullptr, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->gaintype, mjGAIN_SO3);
+  EXPECT_EQ(actuator->biastype, mjBIAS_SO3);
+  EXPECT_EQ(actuator->dyntype, mjDYN_NONE);
+  EXPECT_EQ(actuator->gainprm[0], 5.0);
+  EXPECT_EQ(actuator->biasprm[1], -5.0);
+  EXPECT_EQ(actuator->biasprm[2], -2.0);
+  EXPECT_EQ(actuator->ctrlspec, 0);
+
+  // dampratio variant, quat chart
+  double dampratio = 1.0;
+  err = mjs_setToOrientation(actuator, 5.0, nullptr, &dampratio, mjCHART_QUAT);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->biasprm[2], 1.0);
+  EXPECT_EQ(actuator->ctrlspec, mjCHART_QUAT);
+
+  // kv and dampratio are mutually exclusive
+  err = mjs_setToOrientation(actuator, 5.0, &kv, &dampratio, 0);
+  EXPECT_STREQ(err, "kv and dampratio cannot both be defined");
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetToPID) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  // stateless PID with kv, default input signature
+  double kv = 3.0;
+  const char* err = mjs_setToPID(actuator, 5.0, &kv, nullptr, nullptr, nullptr,
+                                 nullptr, 0, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->gaintype, mjGAIN_PID);
+  EXPECT_EQ(actuator->biastype, mjBIAS_AFFINE);
+  EXPECT_EQ(actuator->dyntype, mjDYN_NONE);
+  EXPECT_EQ(actuator->biasprm[1], -5.0);
+  EXPECT_EQ(actuator->biasprm[2], -3.0);
+  EXPECT_EQ(actuator->gainprm[0], 0.0);
+
+  // integral action with anti-windup, pos-only signature
+  double ki = 0.5, imax = 2.0, dampratio = 1.0;
+  err = mjs_setToPID(actuator, 5.0, nullptr, &dampratio, &ki, &imax, nullptr, 0,
+                     mjINPUT_POS);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->dyntype, mjDYN_PID);
+  EXPECT_EQ(actuator->gainprm[0], 0.5);
+  EXPECT_EQ(actuator->dynprm[0], 2.0);
+  EXPECT_EQ(actuator->biasprm[2], 1.0);
+  EXPECT_EQ(actuator->ctrlspec, mjINPUT_POS);
+
+  // kv and dampratio are mutually exclusive
+  err = mjs_setToPID(actuator, 5.0, &kv, &dampratio, nullptr, nullptr, nullptr,
+                     0, 0);
+  EXPECT_STREQ(err, "kv and dampratio cannot both be defined");
+
+  mj_deleteSpec(spec);
+}
+
 static constexpr char xml_plugin_1[] = R"(
   <mujoco model="MuJoCo Model">
     <worldbody>
@@ -267,7 +578,7 @@ static constexpr char xml_plugin_2[] = R"(
     </actuator>
   </mujoco>)";
 
-TEST_F(PluginTest, AttachPlugin) {
+TEST_F(MujocoTest, AttachPlugin) {
   std::array<char, 1000> err;
   mjSpec* parent = mj_parseXMLString(xml_plugin_1, 0, err.data(), err.size());
   ASSERT_THAT(parent, NotNull()) << err.data();
@@ -316,7 +627,7 @@ TEST_F(PluginTest, AttachPlugin) {
   mj_deleteSpec(spec_3);
 }
 
-TEST_F(PluginTest, DetachPlugin) {
+TEST_F(MujocoTest, DetachPlugin) {
   std::array<char, 1000> err;
   mjSpec* parent = mj_parseXMLString(xml_plugin_1, 0, err.data(), err.size());
   ASSERT_THAT(parent, NotNull()) << err.data();
@@ -342,7 +653,7 @@ TEST_F(PluginTest, DetachPlugin) {
   mj_deleteSpec(child);
 }
 
-TEST_F(PluginTest, AttachExplicitPlugin) {
+TEST_F(MujocoTest, AttachExplicitPlugin) {
   static constexpr char xml_parent[] = R"(
     <mujoco model="MuJoCo Model">
       <worldbody>
@@ -396,7 +707,7 @@ TEST_F(PluginTest, AttachExplicitPlugin) {
   mj_deleteModel(model);
 }
 
-TEST_F(PluginTest, ReplicatePlugin) {
+TEST_F(MujocoTest, ReplicatePlugin) {
   static constexpr char xml[] = R"(
     <mujoco>
       <extension>
@@ -429,7 +740,7 @@ TEST_F(PluginTest, ReplicatePlugin) {
   mj_deleteModel(model);
 }
 
-TEST_F(PluginTest, ReplicateExplicitPlugin) {
+TEST_F(MujocoTest, ReplicateExplicitPlugin) {
   static constexpr char xml[] = R"(
     <mujoco>
       <extension>
@@ -484,7 +795,7 @@ TEST_F(MujocoTest, RecompileFails) {
   mj_deleteSpec(spec);
 }
 
-TEST_F(PluginTest, ModifyShellInertiaFails) {
+TEST_F(MujocoTest, ModifyShellInertiaFails) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -514,99 +825,7 @@ TEST_F(PluginTest, ModifyShellInertiaFails) {
   mj_deleteModel(model);
 }
 
-// ------------------- test recompilation multiple files -----------------------
-TEST_F(PluginTest, RecompileCompare) {
-  mjtNum tol = 0;
-  std::string field = "";
-
-  // full precision float printing
-  FullFloatPrecision increase_precision;
-
-  // loop over all xml files in data
-  std::vector<std::string> paths = {GetTestDataFilePath("."),
-                                    GetModelPath(".")};
-  std::string ext(".xml");
-  for (auto const& path : paths) {
-    for (auto &p : std::filesystem::recursive_directory_iterator(path)) {
-      if (p.path().extension() == ext) {
-        std::string xml = p.path().string();
-
-        // if file is meant to fail or model is too slow to load, skip it
-        if (absl::StrContains(p.path().string(), "malformed_") ||
-            absl::StrContains(p.path().string(), "_fail") ||
-            absl::StrContains(p.path().string(), "touch_grid") ||
-            absl::StrContains(p.path().string(), "perf") ||
-            absl::StrContains(p.path().string(), "cow")) {
-          continue;
-        }
-
-        // load spec
-        std::array<char, 1000> err;
-        mjSpec* s = mj_parseXML(xml.c_str(), 0, err.data(), err.size());
-
-        ASSERT_THAT(s, NotNull())
-            << "Failed to load " << xml << ": " << err.data();
-
-        // copy spec
-        mjSpec* s_copy = mj_copySpec(s);
-
-        // compare signature
-        EXPECT_EQ(s->element->signature, s_copy->element->signature) << xml;
-
-        // compile twice and compare
-        mjModel* m_old = mj_compile(s, nullptr);
-
-        ASSERT_THAT(m_old, NotNull())
-            << "Failed to compile " << xml << ": " << mjs_getError(s);
-
-        mjModel* m_new = mj_compile(s, nullptr);
-        mjModel* m_copy = mj_compile(s_copy, nullptr);
-
-        // compare signature
-        EXPECT_EQ(m_old->signature, m_new->signature) << xml;
-        EXPECT_EQ(m_old->signature, m_copy->signature) << xml;
-
-        ASSERT_THAT(m_new, NotNull())
-            << "Failed to recompile " << xml << ": " << mjs_getError(s);
-        ASSERT_THAT(m_copy, NotNull())
-            << "Failed to compile " << xml << ": " << mjs_getError(s_copy);
-
-        EXPECT_LE(CompareModel(m_old, m_new, field), tol)
-            << "Compiled and recompiled models are different!\n"
-            << "Affected file " << p.path().string() << '\n'
-            << "Different field: " << field << '\n';
-
-        EXPECT_LE(CompareModel(m_old, m_copy, field), tol)
-            << "Original and copied models are different!\n"
-            << "Affected file " << p.path().string() << '\n'
-            << "Different field: " << field << '\n';
-
-        // copy to a new spec, compile and compare
-        mjSpec* s_copy2 = mj_copySpec(s);
-        mjModel* m_copy2 = mj_compile(s_copy2, nullptr);
-
-        ASSERT_THAT(m_copy2, NotNull())
-            << "Failed to compile " << xml << ": " << mjs_getError(s_copy2);
-
-        EXPECT_LE(CompareModel(m_old, m_copy2, field), tol)
-            << "Original and re-copied models are different!\n"
-            << "Affected file " << p.path().string() << '\n'
-            << "Different field: " << field << '\n';
-
-        // delete models
-        mj_deleteSpec(s);
-        mj_deleteSpec(s_copy);
-        mj_deleteSpec(s_copy2);
-        mj_deleteModel(m_old);
-        mj_deleteModel(m_new);
-        mj_deleteModel(m_copy);
-        mj_deleteModel(m_copy2);
-      }
-    }
-  }
-}
-
-TEST_F(PluginTest, RecompileEdit) {
+TEST_F(MujocoTest, RecompileEdit) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -619,18 +838,18 @@ TEST_F(PluginTest, RecompileEdit) {
   )";
 
   std::array<char, 1000> er;
-  mjSpec *spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
   EXPECT_THAT(spec, NotNull()) << er.data();
-  mjModel *m1 = mj_compile(spec, nullptr);
+  mjModel* m1 = mj_compile(spec, nullptr);
   EXPECT_THAT(m1, NotNull());
 
   // add a geom
-  mjsBody *world = mjs_findBody(spec, "world");
-  mjsGeom *geom = mjs_addGeom(world, nullptr);
+  mjsBody* world = mjs_findBody(spec, "world");
+  mjsGeom* geom = mjs_addGeom(world, nullptr);
   geom->size[0] = 1;
 
   // compile again
-  mjModel *m2 = mj_compile(spec, nullptr);
+  mjModel* m2 = mj_compile(spec, nullptr);
   EXPECT_THAT(m2, NotNull());
 
   mj_deleteModel(m1);
@@ -640,7 +859,7 @@ TEST_F(PluginTest, RecompileEdit) {
 
 // ------------------- test cache with modified assets -------------------------
 
-TEST_F(PluginTest, RecompileCompareObjCache) {
+TEST_F(MujocoTest, RecompileCompareObjCache) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -678,45 +897,42 @@ TEST_F(PluginTest, RecompileCompareObjCache) {
   std::array<char, 1024> error;
 
   // load model once
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size(), vfs.get());
+  MjModelPtr m =
+      LoadModelFromString(xml, error.data(), error.size(), vfs.get());
   EXPECT_EQ(m->mesh_vert[0], -0.5);
-  mj_deleteModel(m);
 
   // update cube.obj, load again
   mj_deleteFileVFS(vfs.get(), "cube.obj");
   mj_addBufferVFS(vfs.get(), "cube.obj", cube2, sizeof(cube2));
   m = LoadModelFromString(xml, error.data(), error.size(), vfs.get());
   EXPECT_EQ(m->mesh_vert[0], -1);
-  mj_deleteModel(m);
 
   mj_deleteVFS(vfs.get());
 }
 
 // tiny RGB 2 x 3 PNG file
 static constexpr uint8_t tex1[] = {
-  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
-  0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x02,
-  0x08, 0x02, 0x00, 0x00, 0x00, 0x12, 0x16, 0xf1, 0x4d, 0x00, 0x00, 0x00,
-  0x1c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63, 0x78, 0xc1, 0xc0, 0xc0,
-  0xc0, 0xf0, 0xbf, 0xb8, 0xb8, 0x98, 0x81, 0xe1, 0x3f, 0xc3, 0xff, 0xff,
-  0xff, 0xc5, 0xc4, 0xc4, 0x00, 0x46, 0xd7, 0x07, 0x7f, 0xd2, 0x52, 0xa1,
-  0x41, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60,
-  0x82
-};
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00,
+    0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00,
+    0x00, 0x02, 0x08, 0x02, 0x00, 0x00, 0x00, 0x12, 0x16, 0xf1, 0x4d,
+    0x00, 0x00, 0x00, 0x1c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63,
+    0x78, 0xc1, 0xc0, 0xc0, 0xc0, 0xf0, 0xbf, 0xb8, 0xb8, 0x98, 0x81,
+    0xe1, 0x3f, 0xc3, 0xff, 0xff, 0xff, 0xc5, 0xc4, 0xc4, 0x00, 0x46,
+    0xd7, 0x07, 0x7f, 0xd2, 0x52, 0xa1, 0x41, 0x00, 0x00, 0x00, 0x00,
+    0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82};
 
 // previous PNG file, but rotated by 180 degrees
 static constexpr uint8_t tex2[] = {
-  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
-  0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x02,
-  0x08, 0x02, 0x00, 0x00, 0x00, 0x12, 0x16, 0xf1, 0x4d, 0x00, 0x00, 0x00,
-  0x1c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63, 0x10, 0x13, 0x13, 0xfb,
-  0xff, 0xff, 0x3f, 0xc3, 0x7f, 0x06, 0x96, 0xd8, 0xd8, 0x58, 0x46, 0x46,
-  0x86, 0x17, 0x0c, 0x0c, 0x00, 0x49, 0x22, 0x06, 0x44, 0xe4, 0x91, 0xb8,
-  0x83, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60,
-  0x82
-};
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00,
+    0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00,
+    0x00, 0x02, 0x08, 0x02, 0x00, 0x00, 0x00, 0x12, 0x16, 0xf1, 0x4d,
+    0x00, 0x00, 0x00, 0x1c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63,
+    0x10, 0x13, 0x13, 0xfb, 0xff, 0xff, 0x3f, 0xc3, 0x7f, 0x06, 0x96,
+    0xd8, 0xd8, 0x58, 0x46, 0x46, 0x86, 0x17, 0x0c, 0x0c, 0x00, 0x49,
+    0x22, 0x06, 0x44, 0xe4, 0x91, 0xb8, 0x83, 0x00, 0x00, 0x00, 0x00,
+    0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82};
 
-TEST_F(PluginTest, RecompileComparePngCache) {
+TEST_F(MujocoTest, RecompileComparePngCache) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -737,10 +953,10 @@ TEST_F(PluginTest, RecompileComparePngCache) {
   std::array<char, 1024> error;
 
   // load model once
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size(), vfs.get());
+  MjModelPtr m =
+      LoadModelFromString(xml, error.data(), error.size(), vfs.get());
   EXPECT_EQ(m->ntexdata, 18);  // w x h x rgb = 3 x 2 x 3
   mjtByte byte = m->tex_data[0];
-  mj_deleteModel(m);
 
   // update tex.png, load again
   mj_deleteFileVFS(vfs.get(), "tex.png");
@@ -748,12 +964,11 @@ TEST_F(PluginTest, RecompileComparePngCache) {
   m = LoadModelFromString(xml, error.data(), error.size(), vfs.get());
   EXPECT_NE(m->tex_data[0], byte);
   EXPECT_EQ(m->tex_data[15], byte);  // first pixel is now last pixel
-  mj_deleteModel(m);
 
   mj_deleteVFS(vfs.get());
 }
 
-TEST_F(PluginTest, DisableCache) {
+TEST_F(MujocoTest, DisableCache) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -778,20 +993,19 @@ TEST_F(PluginTest, DisableCache) {
   std::array<char, 1024> error;
 
   // load model once
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size(), vfs.get());
+  MjModelPtr m =
+      LoadModelFromString(xml, error.data(), error.size(), vfs.get());
 
   EXPECT_EQ(mj_getCacheSize(cache), 0);
   EXPECT_EQ(m->ntexdata, 18);  // w x h x rgb = 3 x 2 x 3
 
   mj_setCacheCapacity(cache, capacity);
-
-  mj_deleteModel(m);
   mj_deleteVFS(vfs.get());
 }
 
 // -------------------------------- test textures ------------------------------
 
-TEST_F(PluginTest, TextureFromBuffer) {
+TEST_F(MujocoTest, TextureFromBuffer) {
   mjSpec* spec = mj_makeSpec();
 
   mjsTexture* t1 = mjs_addTexture(spec);
@@ -1067,16 +1281,158 @@ TEST_F(MujocoTest, AttachSame) {
   EXPECT_THAT(m_attached->body_parentid[4], 0);
 
   // compare with expected XML
-  mjModel* m_expected = LoadModelFromString(xml_result, er.data(), er.size());
-  EXPECT_THAT(m_expected, NotNull()) << er.data();
-  EXPECT_LE(CompareModel(m_attached, m_expected, field), tol)
-            << "Expected and attached models are different!\n"
-            << "Different field: " << field << '\n';;
+  MjModelPtr m_expected = LoadModelFromString(xml_result, er.data(), er.size());
+  EXPECT_THAT(m_expected.get(), NotNull()) << er.data();
+  EXPECT_LE(CompareModel(m_attached, m_expected.get(), field), tol)
+      << "Expected and attached models are different!\n"
+      << "Different field: " << field << '\n';
+  ;
 
   // destroy everything
   mj_deleteSpec(parent);
   mj_deleteModel(m_attached);
-  mj_deleteModel(m_expected);
+}
+
+TEST_F(MujocoTest, AttachSpatialTendonWithoutSidesite) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent_body">
+        <geom size="0.1" type="sphere"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="child_body">
+        <geom name="wrap_geom" size="0.05" type="sphere"/>
+        <site name="site_A" pos="0 0 0.1"/>
+        <site name="site_B" pos="0 0 -0.1"/>
+        <site name="side_site" pos="0.05 0 0"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <spatial name="tendon_with_sidesite">
+        <site site="site_A"/>
+        <geom geom="wrap_geom" sidesite="side_site"/>
+        <site site="site_B"/>
+      </spatial>
+      <spatial name="tendon_without_sidesite">
+        <site site="site_A"/>
+        <geom geom="wrap_geom"/>
+        <site site="site_B"/>
+      </spatial>
+    </tendon>
+  </mujoco>)";
+
+  std::array<char, 1000> er;
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  ASSERT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+
+  mjsBody* parent_body = mjs_findBody(parent, "parent_body");
+  ASSERT_THAT(parent_body, NotNull());
+  mjsSite* attach_site = mjs_addSite(parent_body, 0);
+  mjs_setName(attach_site->element, "attach_site");
+
+  mjs_attach(attach_site->element, mjs_findBody(child, "child_body")->element,
+             "", "_child");
+
+  EXPECT_THAT(
+      mjs_findElement(parent, mjOBJ_TENDON, "tendon_with_sidesite_child"),
+      NotNull());
+  EXPECT_THAT(
+      mjs_findElement(parent, mjOBJ_TENDON, "tendon_without_sidesite_child"),
+      NotNull());
+
+  mjsTendon* tendon = mjs_asTendon(
+      mjs_findElement(parent, mjOBJ_TENDON, "tendon_with_sidesite_child"));
+  ASSERT_THAT(tendon, NotNull());
+  ASSERT_EQ(mjs_getWrapNum(tendon), 3);
+
+  EXPECT_EQ(mjs_getWrapTarget(mjs_getWrap(tendon, 0)),
+            mjs_findElement(parent, mjOBJ_SITE, "site_A_child"));
+  EXPECT_EQ(mjs_getWrapTarget(mjs_getWrap(tendon, 1)),
+            mjs_findElement(parent, mjOBJ_GEOM, "wrap_geom_child"));
+  EXPECT_EQ(mjs_getWrapTarget(mjs_getWrap(tendon, 2)),
+            mjs_findElement(parent, mjOBJ_SITE, "site_B_child"));
+  EXPECT_EQ(mjs_getWrapSideSite(mjs_getWrap(tendon, 1)),
+            mjs_asSite(mjs_findElement(parent, mjOBJ_SITE, "side_site_child")));
+
+  mjModel* model = mj_compile(parent, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(parent);
+  EXPECT_EQ(model->ntendon, 2);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+}
+
+TEST_F(MujocoTest, AttachSpatialTendonGitHubIssue3119) {
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent_body">
+        <geom size="0.1" type="sphere"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="child_body">
+        <geom name="wrap_geom" size="0.05" type="sphere"/>
+        <site name="site_A" pos="0 0 0.1"/>
+        <site name="site_B" pos="0 0 -0.1"/>
+        <site name="side_site" pos="0.05 0 0"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <spatial name="tendon_with_sidesite">
+        <site site="site_A"/>
+        <geom geom="wrap_geom" sidesite="side_site"/>
+        <site site="site_B"/>
+      </spatial>
+      <spatial name="tendon_without_sidesite">
+        <site site="site_A"/>
+        <geom geom="wrap_geom"/>
+        <site site="site_B"/>
+      </spatial>
+    </tendon>
+  </mujoco>)";
+
+  std::array<char, 1000> er;
+  mjSpec* parent_spec = mj_parseXMLString(parent_xml, 0, er.data(), er.size());
+  ASSERT_THAT(parent_spec, NotNull()) << er.data();
+  mjSpec* child_spec = mj_parseXMLString(child_xml, 0, er.data(), er.size());
+  ASSERT_THAT(child_spec, NotNull()) << er.data();
+
+  mjsBody* parent_body = mjs_findBody(parent_spec, "parent_body");
+  ASSERT_THAT(parent_body, NotNull());
+  mjsSite* attach_site = mjs_addSite(parent_body, 0);
+  mjs_setName(attach_site->element, "attach_site");
+
+  mjs_attach(attach_site->element,
+             mjs_findBody(child_spec, "child_body")->element, "", "_child");
+
+  EXPECT_THAT(
+      mjs_findElement(parent_spec, mjOBJ_TENDON, "tendon_with_sidesite_child"),
+      NotNull());
+  EXPECT_THAT(mjs_findElement(parent_spec, mjOBJ_TENDON,
+                              "tendon_without_sidesite_child"),
+              NotNull());
+
+  mjModel* model = mj_compile(parent_spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(parent_spec);
+  EXPECT_EQ(model->ntendon, 2);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(parent_spec);
+  mj_deleteSpec(child_spec);
 }
 
 TEST_F(MujocoTest, AttachDifferent) {
@@ -1212,17 +1568,17 @@ TEST_F(MujocoTest, AttachDifferent) {
   EXPECT_THAT(mjs_findDefault(parent, "attached-cylinder-1"), NotNull());
 
   // compare with expected XML
-  mjModel* m_expected = LoadModelFromString(xml_result, er.data(), er.size());
-  EXPECT_THAT(m_expected, NotNull()) << er.data();
-  EXPECT_LE(CompareModel(m_attached, m_expected, field), tol)
-            << "Expected and attached models are different!\n"
-            << "Different field: " << field << '\n';;
+  MjModelPtr m_expected = LoadModelFromString(xml_result, er.data(), er.size());
+  EXPECT_THAT(m_expected.get(), NotNull()) << er.data();
+  EXPECT_LE(CompareModel(m_attached, m_expected.get(), field), tol)
+      << "Expected and attached models are different!\n"
+      << "Different field: " << field << '\n';
+  ;
 
   // destroy everything
   mj_deleteSpec(parent);
   mj_deleteSpec(child);
   mj_deleteModel(m_attached);
-  mj_deleteModel(m_expected);
 }
 
 TEST_F(MujocoTest, AttachFrame) {
@@ -1347,17 +1703,17 @@ TEST_F(MujocoTest, AttachFrame) {
   EXPECT_THAT(m_attached->body_parentid[2], 1);
 
   // compare with expected XML
-  mjModel* m_expected = LoadModelFromString(xml_result, er.data(), er.size());
-  EXPECT_THAT(m_expected, NotNull()) << er.data();
-  EXPECT_LE(CompareModel(m_attached, m_expected, field), tol)
-            << "Expected and attached models are different!\n"
-            << "Different field: " << field << '\n';;
+  MjModelPtr m_expected = LoadModelFromString(xml_result, er.data(), er.size());
+  EXPECT_THAT(m_expected.get(), NotNull()) << er.data();
+  EXPECT_LE(CompareModel(m_attached, m_expected.get(), field), tol)
+      << "Expected and attached models are different!\n"
+      << "Different field: " << field << '\n';
+  ;
 
   // destroy everything
   mj_deleteSpec(parent);
   mj_deleteSpec(child);
   mj_deleteModel(m_attached);
-  mj_deleteModel(m_expected);
 }
 
 TEST_F(MujocoTest, AttachCompiled) {
@@ -1405,8 +1761,8 @@ TEST_F(MujocoTest, AttachCompiled) {
 
   // check that attached model can be compiled
   mjModel* m_attached = mj_compile(parent, 0);
-  EXPECT_THAT(m_attached, NotNull()) <<
-      "Failed to compile attached model" <<  mjs_getError(parent);
+  EXPECT_THAT(m_attached, NotNull())
+      << "Failed to compile attached model" << mjs_getError(parent);
 
   // destroy everything
   mj_deleteSpec(parent);
@@ -1472,24 +1828,23 @@ void TestDetachBody(bool compile) {
   std::array<char, 1024> s;
   EXPECT_EQ(mj_saveXMLString(child, s.data(), 1024, e.data(), 1024), -1);
   EXPECT_THAT(e.data(), compile
-                  ? HasSubstr("Model has pending keyframes")
-                  : HasSubstr("Only compiled model can be written"));
+                            ? HasSubstr("Model has pending keyframes")
+                            : HasSubstr("Only compiled model can be written"));
 
   // compile new model
   mjModel* m_detached = mj_compile(child, 0);
   EXPECT_THAT(m_detached, NotNull());
 
   // compare with expected XML
-  mjModel* m_expected = LoadModelFromString(xml_result, er.data(), er.size());
-  EXPECT_THAT(m_expected, NotNull()) << er.data();
-  EXPECT_LE(CompareModel(m_detached, m_expected, field), tol)
-            << "Expected and attached models are different!\n"
-            << "Different field: " << field << '\n';
+  MjModelPtr m_expected = LoadModelFromString(xml_result, er.data(), er.size());
+  EXPECT_THAT(m_expected.get(), NotNull()) << er.data();
+  EXPECT_LE(CompareModel(m_detached, m_expected.get(), field), tol)
+      << "Expected and attached models are different!\n"
+      << "Different field: " << field << '\n';
 
   // destroy everything
   mj_deleteSpec(child);
   mj_deleteModel(m_detached);
-  mj_deleteModel(m_expected);
   if (m_child) mj_deleteModel(m_child);
 }
 
@@ -1550,16 +1905,15 @@ TEST_F(MujocoTest, AttachToSite) {
 
   mjModel* model = mj_compile(parent, 0);
   EXPECT_THAT(model, NotNull());
-  mjModel* expected = LoadModelFromString(xml_result, er.data(), er.size());
-  EXPECT_THAT(expected, NotNull()) << er.data();
-  EXPECT_LE(CompareModel(model, expected, field), tol)
-            << "Expected and attached models are different!\n"
-            << "Different field: " << field << '\n';
+  MjModelPtr expected = LoadModelFromString(xml_result, er.data(), er.size());
+  EXPECT_THAT(expected.get(), NotNull()) << er.data();
+  EXPECT_LE(CompareModel(model, expected.get(), field), tol)
+      << "Expected and attached models are different!\n"
+      << "Different field: " << field << '\n';
 
   mj_deleteSpec(parent);
   mj_deleteSpec(child);
   mj_deleteModel(model);
-  mj_deleteModel(expected);
 }
 
 TEST_F(MujocoTest, AttachFrameToSite) {
@@ -1616,16 +1970,15 @@ TEST_F(MujocoTest, AttachFrameToSite) {
 
   mjModel* model = mj_compile(parent, 0);
   EXPECT_THAT(model, NotNull());
-  mjModel* expected = LoadModelFromString(xml_result, er.data(), er.size());
-  EXPECT_THAT(expected, NotNull()) << er.data();
-  EXPECT_LE(CompareModel(model, expected, field), tol)
-            << "Expected and attached models are different!\n"
-            << "Different field: " << field << '\n';
+  MjModelPtr expected = LoadModelFromString(xml_result, er.data(), er.size());
+  EXPECT_THAT(expected.get(), NotNull()) << er.data();
+  EXPECT_LE(CompareModel(model, expected.get(), field), tol)
+      << "Expected and attached models are different!\n"
+      << "Different field: " << field << '\n';
 
   mj_deleteSpec(parent);
   mj_deleteSpec(child);
   mj_deleteModel(model);
-  mj_deleteModel(expected);
 }
 
 TEST_F(MujocoTest, BodyToFrame) {
@@ -1705,18 +2058,17 @@ TEST_F(MujocoTest, BodyToFrame) {
   // compile and compare
   mjModel* model2 = mj_compile(parent, 0);
   EXPECT_THAT(model2, NotNull());
-  mjModel* expected = LoadModelFromString(xml_result, er.data(), er.size());
-  EXPECT_THAT(expected, NotNull()) << er.data();
-  EXPECT_LE(CompareModel(model2, expected, field), tol)
-            << "Expected and attached models are different!\n"
-            << "Different field: " << field << '\n';
+  MjModelPtr expected = LoadModelFromString(xml_result, er.data(), er.size());
+  EXPECT_THAT(expected.get(), NotNull()) << er.data();
+  EXPECT_LE(CompareModel(model2, expected.get(), field), tol)
+      << "Expected and attached models are different!\n"
+      << "Different field: " << field << '\n';
 
   mj_deleteSpec(parent);
   mj_deleteSpec(child1);
   mj_deleteSpec(child2);
   mj_deleteModel(model1);
   mj_deleteModel(model2);
-  mj_deleteModel(expected);
 }
 
 TEST_F(MujocoTest, BodyToFrameWithInertial) {
@@ -1814,11 +2166,11 @@ TEST_F(MujocoTest, AttachSpecToSite) {
   // compile and compare
   mjModel* model = mj_compile(parent, 0);
   EXPECT_THAT(model, NotNull());
-  mjModel* expected = LoadModelFromString(xml_result, er.data(), er.size());
-  EXPECT_THAT(expected, NotNull()) << er.data();
-  EXPECT_LE(CompareModel(model, expected, field), tol)
-            << "Expected and attached models are different!\n"
-            << "Different field: " << field << '\n';
+  MjModelPtr expected = LoadModelFromString(xml_result, er.data(), er.size());
+  EXPECT_THAT(expected.get(), NotNull()) << er.data();
+  EXPECT_LE(CompareModel(model, expected.get(), field), tol)
+      << "Expected and attached models are different!\n"
+      << "Different field: " << field << '\n';
 
   // check that the child world still exists
   mjsBody* child_world = mjs_findBody(child, "world");
@@ -1827,7 +2179,6 @@ TEST_F(MujocoTest, AttachSpecToSite) {
   mj_deleteSpec(parent);
   mj_deleteSpec(child);
   mj_deleteModel(model);
-  mj_deleteModel(expected);
 }
 
 TEST_F(MujocoTest, AttachSpecToBody) {
@@ -1895,11 +2246,11 @@ TEST_F(MujocoTest, AttachSpecToBody) {
   // compile and compare
   mjModel* model = mj_compile(parent, 0);
   EXPECT_THAT(model, NotNull());
-  mjModel* expected = LoadModelFromString(xml_result, er.data(), er.size());
-  EXPECT_THAT(expected, NotNull()) << er.data();
-  EXPECT_LE(CompareModel(model, expected, field), tol)
-            << "Expected and attached models are different!\n"
-            << "Different field: " << field << '\n';
+  MjModelPtr expected = LoadModelFromString(xml_result, er.data(), er.size());
+  EXPECT_THAT(expected.get(), NotNull()) << er.data();
+  EXPECT_LE(CompareModel(model, expected.get(), field), tol)
+      << "Expected and attached models are different!\n"
+      << "Different field: " << field << '\n';
 
   // check that the child world still exists
   mjsBody* child_world = mjs_findBody(child, "world");
@@ -1908,7 +2259,6 @@ TEST_F(MujocoTest, AttachSpecToBody) {
   mj_deleteSpec(parent);
   mj_deleteSpec(child);
   mj_deleteModel(model);
-  mj_deleteModel(expected);
 }
 
 TEST_F(MujocoTest, PreserveState) {
@@ -1960,31 +2310,32 @@ TEST_F(MujocoTest, PreserveState) {
   // compile models
   mjModel* model = mj_compile(spec, 0);
   EXPECT_THAT(model, NotNull());
-  mjModel* m_expected = LoadModelFromString(xml_expected, er.data(), er.size());
-  EXPECT_THAT(m_expected, NotNull());
+  MjModelPtr m_expected =
+      LoadModelFromString(xml_expected, er.data(), er.size());
+  EXPECT_THAT(m_expected.get(), NotNull());
 
   // create data
   mjData* data = mj_makeData(model);
   EXPECT_THAT(data, NotNull());
-  mjData* d_expected = mj_makeData(m_expected);
-  EXPECT_THAT(d_expected, NotNull());
+  MjDataPtr d_expected = MakeData(m_expected);
+  EXPECT_THAT(d_expected.get(), NotNull());
 
   // set ctrl
   data->ctrl[0] = 1;
   data->ctrl[1] = 2;
-  d_expected->ctrl[0] = 2;
+  d_expected.get()->ctrl[0] = 2;
 
   // set mocap
   data->mocap_pos[3] = 1;
   data->mocap_quat[4] = 0;
   data->mocap_quat[5] = 1;
-  d_expected->mocap_pos[0] = 1;
-  d_expected->mocap_quat[0] = 0;
-  d_expected->mocap_quat[1] = 1;
+  d_expected.get()->mocap_pos[0] = 1;
+  d_expected.get()->mocap_quat[0] = 0;
+  d_expected.get()->mocap_quat[1] = 1;
 
   // step models
   mj_step(model, data);
-  mj_step(m_expected, d_expected);
+  mj_step(m_expected.get(), d_expected.get());
   EXPECT_THAT(data->time, model->opt.timestep);
 
   // detach subtree
@@ -2012,7 +2363,7 @@ TEST_F(MujocoTest, PreserveState) {
   joint->axis[0] = 0;
   joint->axis[1] = 0;
   joint->axis[2] = 1;
-  joint->ref = d_expected->qpos[m_expected->nq-1];
+  joint->ref = d_expected.get()->qpos[m_expected->nq - 1];
 
   // compile new model
   mj_recompile(spec, 0, model, data);
@@ -2022,32 +2373,36 @@ TEST_F(MujocoTest, PreserveState) {
   // compare qpos
   EXPECT_EQ(model->nq, m_expected->nq);
   for (int i = 0; i < model->nq; ++i) {
-    EXPECT_EQ(data->qpos[i], d_expected->qpos[i]) << i;
+    EXPECT_EQ(data->qpos[i], d_expected.get()->qpos[i]) << i;
   }
 
   // compare qvel
   EXPECT_EQ(model->nv, m_expected->nv);
-  for (int i = 0; i < model->nv-1; ++i) {
-    EXPECT_EQ(data->qvel[i], d_expected->qvel[i]) << i;
+  for (int i = 0; i < model->nv - 1; ++i) {
+    EXPECT_EQ(data->qvel[i], d_expected.get()->qvel[i]) << i;
   }
 
   // second body was added after stepping so qvel should be zero
-  EXPECT_EQ(data->qvel[model->nv-1], 0);
+  EXPECT_EQ(data->qvel[model->nv - 1], 0);
 
   // compare act
   EXPECT_EQ(model->na, m_expected->na);
   for (int i = 0; i < model->na; ++i) {
-    EXPECT_EQ(data->act[i], d_expected->act[i]) << i;
+    EXPECT_EQ(data->act[i], d_expected.get()->act[i]) << i;
   }
 
   // compare mocap
   EXPECT_EQ(model->nmocap, m_expected->nmocap);
   for (int i = 0; i < model->nmocap; ++i) {
     for (int j = 0; j < 3; ++j) {
-      EXPECT_EQ(data->mocap_pos[3*i+j], d_expected->mocap_pos[3*i+j]) << i;
+      EXPECT_EQ(data->mocap_pos[3 * i + j],
+                d_expected.get()->mocap_pos[3 * i + j])
+          << i;
     }
     for (int j = 0; j < 4; ++j) {
-      EXPECT_EQ(data->mocap_quat[4*i+j], d_expected->mocap_quat[4*i+j]) << i;
+      EXPECT_EQ(data->mocap_quat[4 * i + j],
+                d_expected.get()->mocap_quat[4 * i + j])
+          << i;
     }
   }
 
@@ -2056,10 +2411,8 @@ TEST_F(MujocoTest, PreserveState) {
   mj_recompile(spec, 0, model, nullptr);
 
   // destroy everything
-  mj_deleteData(d_expected);
   mj_deleteSpec(spec);
   mj_deleteModel(model);
-  mj_deleteModel(m_expected);
 }
 
 TEST_F(MujocoTest, RecompileAttach) {
@@ -2159,15 +2512,15 @@ TEST_F(MujocoTest, AttachMocap) {
   mjModel* model = mj_compile(spec, 0);
   EXPECT_THAT(model, NotNull());
 
-  mjModel* m_expected = LoadModelFromString(xml_expected, er.data(), er.size());
-  EXPECT_THAT(m_expected, NotNull()) << er.data();
-  EXPECT_LE(CompareModel(model, m_expected, field), tol)
-            << "Expected and attached models are different!\n"
-            << "Different field: " << field << '\n';
+  MjModelPtr m_expected =
+      LoadModelFromString(xml_expected, er.data(), er.size());
+  EXPECT_THAT(m_expected.get(), NotNull()) << er.data();
+  EXPECT_LE(CompareModel(model, m_expected.get(), field), tol)
+      << "Expected and attached models are different!\n"
+      << "Different field: " << field << '\n';
 
   mj_deleteSpec(spec);
   mj_deleteModel(model);
-  mj_deleteModel(m_expected);
 }
 
 TEST_F(MujocoTest, ReplicateKeyframe) {
@@ -2189,8 +2542,8 @@ TEST_F(MujocoTest, ReplicateKeyframe) {
 
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, testing::NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), testing::NotNull()) << error.data();
   EXPECT_THAT(m->ngeom, 1);
   EXPECT_THAT(m->nbody, 2);
 
@@ -2199,10 +2552,8 @@ TEST_F(MujocoTest, ReplicateKeyframe) {
   EXPECT_THAT(m->nq, 1);
   EXPECT_THAT(m->key_qpos[0], 1);
   EXPECT_THAT(m->key_qpos[1], 0);
-  EXPECT_STREQ(mj_id2name(m, mjOBJ_KEY, 0), "keyframe0");
-  EXPECT_STREQ(mj_id2name(m, mjOBJ_KEY, 1), "keyframe");
-
-  mj_deleteModel(m);
+  EXPECT_STREQ(mj_id2name(m.get(), mjOBJ_KEY, 0), "keyframe0");
+  EXPECT_STREQ(mj_id2name(m.get(), mjOBJ_KEY, 1), "keyframe");
 }
 
 TEST_F(MujocoTest, AttachUnnamedAssets) {
@@ -2383,39 +2734,44 @@ void AttachNestedKeyframe(bool compile) {
   mjModel* m_child = compile ? mj_compile(child, 0) : nullptr;
 
   // check warning is issued, empty for a compiled model
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-      util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
+  if (!compile) {
+    warning_handler.ExpectWarnings("model has pending keyframes");
+  }
 
   // attach child to parent
   mjs_attach(mjs_findFrame(parent, "frame")->element,
              mjs_findBody(child, "body")->element, "child-", "");
 
-  EXPECT_THAT(warning, HasSubstr(compile ? "" : "model has pending keyframes"));
-
+  if (compile) {
+    EXPECT_EQ(mjs_numWarnings(parent), 0);
+  } else {
+    EXPECT_GE(mjs_numWarnings(parent), 1);
+    EXPECT_THAT(mjs_getWarning(parent, 0),
+                HasSubstr("model has pending keyframes"));
+  }
   // compare models
   mjtNum tol = 0;
   std::string field = "";
   mjModel* m_attached = mj_compile(parent, 0);
   EXPECT_THAT(m_attached, NotNull());
-  mjModel* m_expected = LoadModelFromString(
+  MjModelPtr m_expected = LoadModelFromString(
       compile ? expected_xml : expected_xml_uncompiled, er.data(), er.size());
-  EXPECT_THAT(m_expected, NotNull()) << er.data();
-  EXPECT_LE(CompareModel(m_attached, m_expected, field), tol)
-            << "Expected and attached models are different!\n"
-            << "Different field: " << field << '\n';;
+  EXPECT_THAT(m_expected.get(), NotNull()) << er.data();
+  EXPECT_LE(CompareModel(m_attached, m_expected.get(), field), tol)
+      << "Expected and attached models are different!\n"
+      << "Different field: " << field << '\n';
+  ;
 
   mj_deleteSpec(parent);
   mj_deleteSpec(child);
   mj_deleteSpec(gchild);
-  mj_deleteModel(m_expected);
   mj_deleteModel(m_attached);
   mj_deleteModel(m_child);
 }
 
 TEST_F(MujocoTest, TestAttachNestedKeyframe) {
+  mock_warning_handler.ExpectWarnings();
   AttachNestedKeyframe(/*compile=*/true);
   AttachNestedKeyframe(/*compile=*/false);
 }
@@ -2445,30 +2801,30 @@ TEST_F(MujocoTest, RepeatedAttachKeyframe) {
       </keyframe>
     </mujoco>)";
 
-    std::array<char, 1000> er;
-    mjSpec* parent = mj_parseXMLString(xml_1, 0, er.data(), er.size());
-    EXPECT_THAT(parent, NotNull()) << er.data();
-    mjSpec* child = mj_parseXMLString(xml_2, 0, er.data(), er.size());
-    EXPECT_THAT(child, NotNull()) << er.data();
+  std::array<char, 1000> er;
+  mjSpec* parent = mj_parseXMLString(xml_1, 0, er.data(), er.size());
+  EXPECT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_2, 0, er.data(), er.size());
+  EXPECT_THAT(child, NotNull()) << er.data();
 
-    mjsBody* body_1 = mjs_findBody(parent, "body");
-    mjsElement* attachment_frame = mjs_addFrame(body_1, 0)->element;
-    mjs_attach(attachment_frame, mjs_findBody(child, "b1")->element, "b1-", "");
-    mjModel* model_1 = mj_compile(parent, 0);
-    EXPECT_THAT(model_1, NotNull());
-    mjs_attach(attachment_frame, mjs_findBody(child, "b2")->element, "b2-", "");
-    mjModel* model_2 = mj_compile(parent, 0);
-    EXPECT_THAT(model_2, NotNull());
+  mjsBody* body_1 = mjs_findBody(parent, "body");
+  mjsElement* attachment_frame = mjs_addFrame(body_1, 0)->element;
+  mjs_attach(attachment_frame, mjs_findBody(child, "b1")->element, "b1-", "");
+  mjModel* model_1 = mj_compile(parent, 0);
+  EXPECT_THAT(model_1, NotNull());
+  mjs_attach(attachment_frame, mjs_findBody(child, "b2")->element, "b2-", "");
+  mjModel* model_2 = mj_compile(parent, 0);
+  EXPECT_THAT(model_2, NotNull());
 
-    EXPECT_EQ(model_1->nkey, 1);
-    EXPECT_EQ(model_2->nkey, 2);
-    EXPECT_STREQ(mj_id2name(model_2, mjOBJ_KEY, 0), "b1-home");
-    EXPECT_STREQ(mj_id2name(model_2, mjOBJ_KEY, 1), "b2-home");
+  EXPECT_EQ(model_1->nkey, 1);
+  EXPECT_EQ(model_2->nkey, 2);
+  EXPECT_STREQ(mj_id2name(model_2, mjOBJ_KEY, 0), "b1-home");
+  EXPECT_STREQ(mj_id2name(model_2, mjOBJ_KEY, 1), "b2-home");
 
-    mj_deleteSpec(parent);
-    mj_deleteSpec(child);
-    mj_deleteModel(model_1);
-    mj_deleteModel(model_2);
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+  mj_deleteModel(model_1);
+  mj_deleteModel(model_2);
 }
 
 TEST_F(MujocoTest, ResizeParentKeyframe) {
@@ -2529,16 +2885,15 @@ TEST_F(MujocoTest, ResizeParentKeyframe) {
 
   mjtNum tol = 0;
   std::string field = "";
-  mjModel* expected = LoadModelFromString(xml_expected, er.data(), er.size());
-  EXPECT_THAT(expected, NotNull()) << er.data();
-  EXPECT_LE(CompareModel(model, expected, field), tol)
-            << "Expected and attached models are different!\n"
-            << "Different field: " << field << '\n';
+  MjModelPtr expected = LoadModelFromString(xml_expected, er.data(), er.size());
+  EXPECT_THAT(expected.get(), NotNull()) << er.data();
+  EXPECT_LE(CompareModel(model, expected.get(), field), tol)
+      << "Expected and attached models are different!\n"
+      << "Different field: " << field << '\n';
 
   mj_deleteSpec(parent);
   mj_deleteSpec(child);
   mj_deleteModel(model);
-  mj_deleteModel(expected);
 }
 
 TEST_F(MujocoTest, KeyframeSizeError) {
@@ -2563,8 +2918,10 @@ TEST_F(MujocoTest, KeyframeSizeError) {
   std::array<char, 1000> er;
   mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
   EXPECT_THAT(spec, IsNull());
-  EXPECT_THAT(er.data(), HasSubstr(
-      "Keyframe 'invalid_qpos' has invalid qpos size, got 2, should be 1"));
+  EXPECT_THAT(
+      er.data(),
+      HasSubstr(
+          "Keyframe 'invalid_qpos' has invalid qpos size, got 2, should be 1"));
 }
 
 TEST_F(MujocoTest, DifferentUnitsAllowed) {
@@ -2608,8 +2965,7 @@ TEST_F(MujocoTest, DifferentUnitsAllowed) {
   )";
 
   std::array<char, 1024> error;
-  mjSpec* gchild =
-      mj_parseXMLString(gchild_xml, 0, error.data(), error.size());
+  mjSpec* gchild = mj_parseXMLString(gchild_xml, 0, error.data(), error.size());
   mjSpec* child = mj_parseXMLString(child_xml, 0, error.data(), error.size());
   mjSpec* spec = mj_parseXMLString(parent_xml, 0, error.data(), error.size());
   ASSERT_THAT(spec, NotNull()) << error.data();
@@ -2978,5 +3334,352 @@ TEST_F(MujocoTest, UserValue) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, CompilerTimers) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="grid" type="2d" builtin="checker" width="300" height="300" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+      <material name="grid" texture="grid"/>
+    </asset>
+    <worldbody>
+      <geom type="plane" size="1 1 1" material="grid"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull());
+
+  EXPECT_GT(mjs_getTimer(spec)[mjCTIMER_TOTAL], 0);
+  EXPECT_GT(mjs_getTimer(spec)[mjCTIMER_ASSETS], 0);
+  EXPECT_GT(mjs_getTimer(spec)[mjCTIMER_TEXTURE], 0);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// -------------------- test compile warning infrastructure --------------------
+
+TEST_F(MujocoTest, CompileWarningCount) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent">
+        <geom size="1"/>
+        <flexcomp name="grid" type="grid" count="3 3 1" spacing="0.1 0.1 0.1"
+                  dim="2" radius="0.01">
+          <contact internal="false"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull());
+
+  // flex with no passive forces should produce a warning
+  EXPECT_GT(mjs_numWarnings(spec), 0);
+  EXPECT_THAT(mjs_getWarning(spec, 0), HasSubstr("not rigid"));
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, CompileWarningOutOfBounds) {
+  mjSpec* spec = mj_makeSpec();
+  mjsBody* world = mjs_findBody(spec, "world");
+  mjsGeom* geom = mjs_addGeom(world, 0);
+  geom->size[0] = 1;
+
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull());
+
+  // no warnings expected for simple model
+  EXPECT_EQ(mjs_numWarnings(spec), 0);
+  EXPECT_THAT(mjs_getWarning(spec, 0), IsNull());
+  EXPECT_THAT(mjs_getWarning(spec, -1), IsNull());
+
+  // nullptr spec should not crash
+  EXPECT_EQ(mjs_numWarnings(nullptr), 0);
+  EXPECT_THAT(mjs_getWarning(nullptr, 0), IsNull());
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, RecompileClearsCompileWarnings) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent">
+        <geom size="1"/>
+        <flexcomp name="grid" type="grid" count="3 3 1" spacing="0.1 0.1 0.1"
+                  dim="2" radius="0.01">
+          <contact internal="false"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull());
+  int first_count = mjs_numWarnings(spec);
+  EXPECT_GT(first_count, 0);
+
+  // recompile — warnings should be regenerated, not accumulated
+  mj_deleteModel(model);
+  model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull());
+  EXPECT_EQ(mjs_numWarnings(spec), first_count);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, LoadXMLWarningInErrorBuffer) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent">
+        <geom size="1"/>
+        <flexcomp name="grid" type="grid" count="3 3 1" spacing="0.1 0.1 0.1"
+                  dim="2" radius="0.01">
+          <contact internal="false"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // write xml to VFS
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "model.xml", xml, sizeof(xml));
+
+  std::array<char, 1024> error;
+  error[0] = '\0';
+  mjModel* model = mj_loadXML("model.xml", &vfs, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+
+  // warning should be in the error buffer
+  EXPECT_THAT(error.data(), HasSubstr("not rigid"));
+
+  mj_deleteModel(model);
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(MujocoTest, CompileWarningChainedToHandler) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent">
+        <geom size="1"/>
+        <flexcomp name="grid" type="grid" count="3 3 1" spacing="0.1 0.1 0.1"
+                  dim="2" radius="0.01">
+          <contact internal="false"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  // install a custom log handler that captures warnings
+  std::vector<std::string> captured_warnings;
+  static thread_local std::vector<std::string>* capture_ptr = nullptr;
+  capture_ptr = &captured_warnings;
+
+  // install custom log handler (replaces global, so mock is bypassed)
+
+  mjfLogHandler prev = mju_setLogHandler([](const mjLogMessage* msg) {
+    if (msg->level == mjLOG_WARNING && capture_ptr) {
+      capture_ptr->push_back(msg->subject);
+    }
+  });
+
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull());
+
+  // restore log handler
+  mju_setLogHandler(prev);
+  capture_ptr = nullptr;
+
+  // chaining should have forwarded warnings to our handler
+  EXPECT_THAT(captured_warnings, testing::Contains(HasSubstr("not rigid")));
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, WarningAccumulationAndRetrieval) {
+  mock_warning_handler.ExpectWarnings();
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame name="parent"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="child">
+        <frame name="child_frame"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char xml_gchild[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="gchild"/>
+    </worldbody>
+    <keyframe>
+      <key name="k1"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> er;
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  ASSERT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+  mjSpec* gchild = mj_parseXMLString(xml_gchild, 0, er.data(), er.size());
+  ASSERT_THAT(gchild, NotNull()) << er.data();
+
+  mjs_setDeepCopy(parent, true);
+  mjs_setDeepCopy(child, true);
+  mjs_setDeepCopy(gchild, true);
+
+  mjs_attach(mjs_findFrame(child, "child_frame")->element,
+             mjs_findBody(gchild, "gchild")->element, "gchild-", "");
+
+  mjs_attach(mjs_findFrame(parent, "parent")->element,
+             mjs_findBody(child, "child")->element, "child-", "");
+
+  EXPECT_EQ(mjs_numWarnings(parent), 1);
+  EXPECT_THAT(mjs_getWarning(parent, 0),
+              HasSubstr("Child model has pending keyframes"));
+  EXPECT_THAT(mjs_getWarning(parent, 1), IsNull());
+
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+  mj_deleteSpec(gchild);
+}
+
+TEST_F(MujocoTest, CompilationWarningsClearedOnRecompile) {
+  mock_warning_handler.ExpectWarnings();
+  // flex with no edge stiffness or equality triggers passive forces warning
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="4 4 1" spacing=".2 .2 .2"
+              dim="2" radius=".1"/>
+  </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+
+  // first compile: should generate flex warning
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull());
+  int n1 = mjs_numWarnings(spec);
+  EXPECT_EQ(n1, 1);
+  EXPECT_THAT(mjs_getWarning(spec, 0),
+              HasSubstr("no equality constraints or passive forces"));
+
+  // recompile: warnings should be cleared and regenerated
+  mj_deleteModel(m);
+  m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull());
+  EXPECT_EQ(mjs_numWarnings(spec), n1);
+
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, MjEncodeNativeFormats) {
+  // simple test spec
+  mjSpec* spec = mj_makeSpec();
+  mjsBody* world = mjs_findBody(spec, "world");
+  mjsBody* body = mjs_addBody(world, nullptr);
+  mjsGeom* geom = mjs_addGeom(body, nullptr);
+  geom->size[0] = 1.0;
+  geom->size[1] = 1.0;
+  geom->size[2] = 1.0;
+
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull());
+
+  std::filesystem::path tmp_dir = std::filesystem::temp_directory_path();
+  std::string xml_path = (tmp_dir / "test_encode.xml").string();
+  std::string mjb_path = (tmp_dir / "test_encode.mjb").string();
+  std::string txt_path = (tmp_dir / "test_encode.txt").string();
+
+  char error[1000];
+
+  // XML Encoding with spec
+  EXPECT_GT(mj_encode(spec, model, xml_path.c_str(), nullptr, nullptr, error,
+                      sizeof(error)),
+            0);
+  EXPECT_TRUE(std::filesystem::exists(xml_path));
+  EXPECT_GT(std::filesystem::file_size(xml_path), 0);
+
+  // XML Encoding without spec (should fail because no XML loaded in global
+  // spec)
+  std::filesystem::remove(xml_path);
+  // free global spec
+  mj_freeLastXML();
+  EXPECT_EQ(mj_encode(nullptr, model, xml_path.c_str(), nullptr, nullptr, error,
+                      sizeof(error)),
+            -1);
+  EXPECT_THAT(error, HasSubstr("No XML model loaded"));
+  EXPECT_TRUE(std::filesystem::exists(xml_path));
+  EXPECT_EQ(std::filesystem::file_size(xml_path), 0);
+  std::filesystem::remove(xml_path);
+
+  // MJB Encoding (spec can be null)
+  EXPECT_GT(mj_encode(nullptr, model, mjb_path.c_str(), nullptr, nullptr, error,
+                      sizeof(error)),
+            0);
+  EXPECT_TRUE(std::filesystem::exists(mjb_path));
+  EXPECT_GT(std::filesystem::file_size(mjb_path), 0);
+
+  mjModel* model2 = mj_loadModel(mjb_path.c_str(), nullptr);
+  EXPECT_THAT(model2, NotNull());
+  mj_deleteModel(model2);
+
+  // TXT Encoding (spec can be null)
+  EXPECT_GT(mj_encode(nullptr, model, txt_path.c_str(), nullptr, nullptr, error,
+                      sizeof(error)),
+            0);
+  EXPECT_TRUE(std::filesystem::exists(txt_path));
+  EXPECT_GT(std::filesystem::file_size(txt_path), 0);
+
+  // Clean up
+  std::filesystem::remove(mjb_path);
+  std::filesystem::remove(txt_path);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
 }  // namespace
 }  // namespace mujoco

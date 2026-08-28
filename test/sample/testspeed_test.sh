@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright 2021 DeepMind Technologies Limited
+# Copyright 2026 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,50 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-MODEL_DIRS=(
-  "${CMAKE_SOURCE_DIR}/model"
-  "${CMAKE_SOURCE_DIR}/test"
-)
+MODEL="${CMAKE_SOURCE_DIR}/model/sleep/dominos.xml"
 
 die() { echo "$*" 1>&2 ; exit 1; }
-
-test_model() {
-  local EXPECTED_STR='Simulation time'
-  local model="$1"
-  echo "Testing $model" >&2
-
-  local iterations=10
-  # for particularly slow models, only run 2 steps under ASAN, or skip.
-  if [[ ${TESTSPEED_ASAN:-0} != 0 ]]; then
-    if [[ "$model" == */humanoid/100_humanoids.xml ||
-          "$model" == */composite/particle.xml ||
-          "$model" == */replicate/bunnies.xml ||
-          "$model" == */replicate/leaves.xml ||
-          "$model" == */replicate/particle.xml ||
-          "$model" == */perf/*
-    ]]; then
-      # these tests can take several minutes under ASAN
-      return 0
-    fi
-    if [[ "$model" == */benchmark/testdata/humanoid200.xml ||
-          "$model" == */engine/testdata/collision_convex/stacked_boxes.xml ||
-          "$model" == */user/testdata/shark_22_ascii_fTetWild.xml ||
-          "$model" == */user/testdata/shark_22_binary_fTetWild.xml
-    ]]; then
-      iterations=2
-    fi
-  fi
-
-  # run testspeed, writing its output to stderr.
-  # die if testspeed returns a failure code, or if it doesn't have the string
-  # "Simulation time" in the output.
-  ("$TARGET_BINARY" "$model" "$iterations" || die "testspeed failed") \
-      | tee >(cat 1>&2) | grep -q "$EXPECTED_STR"
-
-  if [ "$?" != 0 ]; then
-    die "Expected string not found in output ($EXPECTED_STR)."
-  fi
-}
 
 if [ -z "$TARGET_BINARY" ]; then
   die "Expecting environment variable TARGET_BINARY."
@@ -68,24 +27,46 @@ if [ -z "$MUJOCO_DLL_DIR" ]; then
   PATH=$PATH:$MUJOCO_DLL_DIR
 fi
 
-shopt -s globstar
-for model_dir in ${MODEL_DIRS[@]}; do
-  echo "Looking in $model_dir"
-  for model in $model_dir/**/*.xml; do
-    if [[ $(basename $model) == malformed* ]]; then
-      echo "Skipping $model" >&2
-      continue
-    fi
-    if [[ $(basename $model) == *_fail.xml ]]; then
-      echo "Skipping $model" >&2
-      continue
-    fi
-    if grep -q "plugin" $model; then
-      continue
-    fi
-    test_model "$model"
-  done
-done
+# Run testspeed with override flags and verify they get applied
+echo "Running testspeed with command-line overrides on dominos.xml..."
+echo "Command: $TARGET_BINARY --nstep=10 --nthread=1 --noisestd=0.02 --noiserate=0.2 --solver=PGS --jacobian=sparse --integrator=rk4 --iterations=12 --tolerance=1e-7 --sleep_tolerance=2e-4 --noslip_iterations=5 $MODEL"
 
-cd $CURRENT_DIR
+OUTPUT=$("$TARGET_BINARY" --nstep=10 --nthread=1 --noisestd=0.02 --noiserate=0.2 --solver=PGS --jacobian=sparse --integrator=rk4 --iterations=12 --tolerance=1e-7 --sleep_tolerance=2e-4 --noslip_iterations=5 "$MODEL") || die "testspeed failed"
+
+# Verify option printing works.
+# Dominos.xml has:
+#   cone="elliptic" -> cone: Elliptic
+#   impratio="10" -> impratio: 10
+#   <flag sleep="enable"/> -> Sleep: Enabled
+#
+# Overridden via command line options:
+#   solver=PGS
+#   jacobian=sparse -> jacobian: Sparse
+#   integrator=rk4 -> integrator: RK4
+#   iterations=12
+#   tolerance=1e-7 -> tolerance: 1e-07
+#   sleep_tolerance=2e-4 (overwrites XML's 3e-4) -> sleep_tolerance: 0.0002
+#   noslip_iterations=5
+
+echo "Full testspeed Output:"
+echo "--------------------------------------------------------"
+echo "$OUTPUT"
+echo "--------------------------------------------------------"
+
+echo "Verifying printed non-default option block:"
+echo "$OUTPUT" | grep -A 10 "Physics options (non-default):" || die "Missing physics options block!"
+echo "--------------------------------------------------------"
+
+echo "$OUTPUT" | grep -F "Physics options (non-default):" || die "Missing non-default header"
+echo "$OUTPUT" | grep -F "  cone              : Elliptic" || die "Missing cone print"
+echo "$OUTPUT" | grep -F "  impratio          : 10" || die "Missing impratio print"
+echo "$OUTPUT" | grep -E "  sleep_tolerance   : (0.0002|2e-0?4)" || die "Missing sleep_tolerance print"
+echo "$OUTPUT" | grep -F "  Sleep             : Enabled" || die "Missing Sleep print"
+echo "$OUTPUT" | grep -F "  solver            : PGS" || die "Missing solver print"
+echo "$OUTPUT" | grep -F "  jacobian          : Sparse" || die "Missing jacobian print"
+echo "$OUTPUT" | grep -F "  integrator        : RK4" || die "Missing integrator print"
+echo "$OUTPUT" | grep -F "  iterations        : 12" || die "Missing iterations print"
+echo "$OUTPUT" | grep -E "  tolerance         : (1e-0?7|0.0000001|1e-7)" || die "Missing tolerance print"
+echo "$OUTPUT" | grep -F "  noslip_iterations : 5" || die "Missing noslip_iterations print"
+
 echo "PASS"

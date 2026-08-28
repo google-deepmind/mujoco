@@ -1,0 +1,11 @@
+<mujoco model="meshdir_test">
+  <compiler meshdir="assets"/>
+  <asset>
+    <mesh name="box" file="box.obj"/>
+  </asset>
+  <worldbody>
+    <body name="b1">
+      <geom type="mesh" mesh="box"/>
+    </body>
+  </worldbody>
+</mujoco>

@@ -30,7 +30,7 @@ static const int kNumBenchmarkSteps = 50;
 
 // ----------------------------- benchmark ------------------------------------
 
-static void BM_solveLD(benchmark::State& state, bool featherstone, bool coil) {
+static void BM_solveLD(benchmark::State& state, bool coil) {
   static mjModel* m;
   if (coil) {
     m = LoadModelFromPath("plugin/elasticity/coil.xml");
@@ -51,21 +51,12 @@ static void BM_solveLD(benchmark::State& state, bool featherstone, bool coil) {
     vec[i] = 0.2 + 0.3*i;
   }
 
-  // scatter into legacy matrix
-  mjtNum* LDlegacy = mj_stackAllocNum(d, m->nM);
-  mju_zero(LDlegacy, m->nM);
-  mju_scatter(LDlegacy, d->qLD, m->mapM2M, m->nC);
-
   // benchmark
   while (state.KeepRunningBatch(kNumBenchmarkSteps)) {
     for (int i=0; i < kNumBenchmarkSteps; i++) {
       mju_copy(res, vec, m->nv);
-      if (featherstone) {
-        mj_solveLD_legacy(m, res, 1, LDlegacy, d->qLDiagInv);
-      } else {
-        mj_solveLD(res, d->qLD, d->qLDiagInv, m->nv, 1,
-                   m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
-      }
+      mj_solveLD(res, d->qLD, d->qLDiagInv, m->nv, 1,
+                 m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
     }
   }
 
@@ -76,27 +67,15 @@ static void BM_solveLD(benchmark::State& state, bool featherstone, bool coil) {
   state.SetItemsProcessed(state.iterations());
 }
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_solveLD_COIL_FS(benchmark::State& state) {
-  MujocoErrorTestGuard guard;
-  BM_solveLD(state, /*featherstone=*/true, /*coil=*/true);
-}
-BENCHMARK(BM_solveLD_COIL_FS);
-
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_solveLD_COIL_CSR(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_solveLD(state, /*featherstone=*/false, /*coil=*/true);
+  BM_solveLD(state, /*coil=*/true);
 }
 BENCHMARK(BM_solveLD_COIL_CSR);
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_solveLD_H100_FS(benchmark::State& state) {
-  MujocoErrorTestGuard guard;
-  BM_solveLD(state, /*featherstone=*/true, /*coil=*/false);
-}
-BENCHMARK(BM_solveLD_H100_FS);
-
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_solveLD_H100_CSR(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_solveLD(state, /*featherstone=*/false, /*coil=*/false);
+  BM_solveLD(state, /*coil=*/false);
 }
 BENCHMARK(BM_solveLD_H100_CSR);
 

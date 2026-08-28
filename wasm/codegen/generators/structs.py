@@ -19,11 +19,11 @@ import dataclasses
 import math
 from typing import Tuple, Union, cast
 
+from mujoco.codegen import code_builder
 from introspect import ast_nodes
-from introspect import structs as introspect_structs
 from introspect import functions as introspect_functions
+from introspect import structs as introspect_structs
 
-from wasm.codegen.generators import code_builder
 from wasm.codegen.generators import common
 from wasm.codegen.generators import constants
 
@@ -80,7 +80,7 @@ def _generate_field_data(
     # Note: Manually handled MjModel fields are special cased so that a
     # by-reference embind return value policy is used.
     return WrappedFieldData(
-        typename=_get_field_struct_type(f, s),
+        typename=_get_field_struct_type(f, s),  # pyrefly: ignore[bad-argument-type]
         declaration=f"// {f.name} field is handled manually in template file struct declaration",  # pylint: disable=line-too-long
         binding=_get_property_binding(f, w, reference=(w == "MjModel")),
     )
@@ -97,22 +97,33 @@ def _generate_field_data(
   ):
 
     builder = code_builder.CodeBuilder()
-    with builder.function(f"{f.type.name} {f.name}() const"):
-      builder.line(f"return ptr_->{f.name};")
-    with builder.function(f"void set_{f.name}({f.type.name} value)"):
-      builder.line(f"ptr_->{f.name} = value;")
+
+    # `mjtSize` is a 64-bit signed integer type and would be represented in
+    # JS/TS a `bigint` because it doesn't fit in the number primitive (a 64-bit
+    # float). By casting int, we avoid "TS2345: Argument of type 'bigint' is not
+    # assignable to parameter of type 'number'" errors.
+    if f.type.name == "mjtSize":
+      with builder.function(f"int {f.name}() const"):
+        builder.line(f"return static_cast<int>(ptr_->{f.name});")
+      with builder.function(f"void set_{f.name}(int value)"):
+        builder.line(f"ptr_->{f.name} = static_cast<mjtSize>(value);")
+    else:
+      with builder.function(f"{f.type.name} {f.name}() const"):
+        builder.line(f"return ptr_->{f.name};")
+      with builder.function(f"void set_{f.name}({f.type.name} value)"):
+        builder.line(f"ptr_->{f.name} = value;")
 
     return WrappedFieldData(
         declaration=builder.to_string(),
-        typename=_get_field_struct_type(f, s),
-        binding=_get_property_binding(f, w, setter=True, reference=True),
+        typename=_get_field_struct_type(f, s),  # pyrefly: ignore[bad-argument-type]
+        binding=_get_property_binding(f, w, setter=True),
         is_primitive_or_fixed_size=True,
     )
 
   elif isinstance(f.type, ast_nodes.ValueType) and f.type.name.startswith("mj"):
     return WrappedFieldData(
         declaration=f"{common.capitalize(f.type.name)} {f.name};",
-        typename=_get_field_struct_type(f, s),
+        typename=_get_field_struct_type(f, s),  # pyrefly: ignore[bad-argument-type]
         binding=_get_property_binding(f, w, setter=False, reference=True),
         ptr_initialization=f"{f.name}(&ptr_->{f.name})",
         ptr_copy_reset=f"{f.name}.set(&ptr_->{f.name});",
@@ -123,9 +134,9 @@ def _generate_field_data(
     anonymous_struct_name = _get_field_struct_type(f, s)
     return WrappedFieldData(
         binding=_get_property_binding(f, w, setter=False, reference=True),
-        typename=anonymous_struct_name,
+        typename=anonymous_struct_name,  # pyrefly: ignore[bad-argument-type]
         declaration=(
-            f"{common.wrapped_struct_name(anonymous_struct_name)} {f.name};"
+            f"{common.wrapped_struct_name(anonymous_struct_name)} {f.name};"  # pyrefly: ignore[bad-argument-type]
         ),
         ptr_initialization=f"{f.name}(&ptr_->{f.name})",
         ptr_copy_reset=f"{f.name}.set(&ptr_->{f.name});",
@@ -162,7 +173,7 @@ def _generate_field_data(
 
       return WrappedFieldData(
           declaration=builder.to_string(),
-          typename=_get_field_struct_type(f, s),
+          typename=_get_field_struct_type(f, s),  # pyrefly: ignore[bad-argument-type]
           binding=_get_property_binding(f, w),
           is_primitive_or_fixed_size=True,
       )
@@ -172,7 +183,7 @@ def _generate_field_data(
               f"std::vector<{common.capitalize(inner_type_name)}> {f.name};"
           ),
           ptr_initialization=f"{f.name}(&ptr_->{f.name})",
-          typename=_get_field_struct_type(f, s),
+          typename=_get_field_struct_type(f, s),  # pyrefly: ignore[bad-argument-type]
           binding=_get_property_binding(f, w, reference=True),
       )
 
@@ -196,7 +207,7 @@ def _generate_field_data(
           builder.line(f"*(ptr_->{f.name}) = value;")
       return WrappedFieldData(
           declaration=builder.to_string(),
-          typename=_get_field_struct_type(f, s),
+          typename=_get_field_struct_type(f, s),  # pyrefly: ignore[bad-argument-type]
           binding=_get_property_binding(f, w, setter=True, reference=True),
       )
 
@@ -214,8 +225,38 @@ def _generate_field_data(
         builder.line(f"return {ptr_field_expr_vec};")
       return WrappedFieldData(
           declaration=builder.to_string(),
-          typename=_get_field_struct_type(f, s),
+          typename=_get_field_struct_type(f, s),  # pyrefly: ignore[bad-argument-type]
           binding=_get_property_binding(f, w, setter=False, reference=True),
+      )
+
+    # Case 2.5: const char* without array_extent (C strings like body, func).
+    elif (
+        inner_type_name == "char"
+        and not is_dynamically_sized
+    ):
+      builder = code_builder.CodeBuilder()
+      if f.type.inner_type.is_const:  # pyrefly: ignore[missing-attribute]
+        with builder.function(f"std::string {f.name}() const"):
+          builder.line(
+              f'return ptr_->{f.name} ? std::string(ptr_->{f.name}) : "";'
+          )
+      else:
+        with builder.function(f"std::string {f.name}() const"):
+          builder.line(
+              f'return ptr_->{f.name} ? std::string(ptr_->{f.name}) : "";'
+          )
+        with builder.function(f"void set_{f.name}(const std::string& value)"):
+          with builder.block(f"if (ptr_->{f.name})"):
+            builder.line(
+                f"std::strncpy(ptr_->{f.name}, value.c_str(),"
+                f" sizeof(ptr_->{f.name}));"
+            )
+      return WrappedFieldData(
+          declaration=builder.to_string(),
+          typename=_get_field_struct_type(f, s),  # pyrefly: ignore[bad-argument-type]
+          binding=_get_property_binding(
+              f, w, setter=not f.type.inner_type.is_const, reference=True
+          ),
       )
 
     # Case 3: Non-dynamically sized pointer fields to other structs.
@@ -232,7 +273,7 @@ def _generate_field_data(
       )
       return WrappedFieldData(
           declaration=f"{wrapper_field_name} {f.name};",
-          typename=_get_field_struct_type(f, s),
+          typename=_get_field_struct_type(f, s),  # pyrefly: ignore[bad-argument-type]
           binding=_get_property_binding(f, w, setter=False, reference=True),
           ptr_initialization=f"{f.name}(ptr_->{f.name})",
       )
@@ -243,7 +284,7 @@ def _generate_field_data(
       ptr_field_expr = f"ptr_->{f.name}"
       array_size_str = ""
       if is_dynamically_sized:
-        array_size_str = parse_array_extent(f.array_extent, w, f.name)
+        array_size_str = parse_array_extent(f.array_extent, w, f.name)  # pyrefly: ignore[bad-argument-type]
       elif f.name in constants.BYTE_FIELDS.keys():
         # For byte fields, we need to cast the pointer to uint8_t*
         # so embind can correctly interpret the memory view
@@ -262,7 +303,7 @@ def _generate_field_data(
         )
       return WrappedFieldData(
           declaration=builder.to_string(),
-          typename=_get_field_struct_type(f, s),
+          typename=_get_field_struct_type(f, s),  # pyrefly: ignore[bad-argument-type]
           binding=_get_property_binding(f, w),
       )
 
@@ -370,11 +411,65 @@ def build_struct_header(
     builder.line(f"{s}* get() const;")
     builder.line(f"void set({s}* ptr);")
 
+    if w == "MjSpec":
+      builder.line("emscripten::val timer() const;")
+
     # field declarations
     for field in wrapped_fields:
       if field.declaration and field not in member_inits:
         for line in field.declaration.splitlines():
           builder.line(line)
+
+    # accessors declarations
+    if w == "MjModel":
+      builder.line("""
+  // Generates functions to return accessor classes.
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, accessor_name, nfield)               \\
+    MjModel##Name##Accessor accessor_name(const NumberOrString& val) const {   \\
+      if (val.isString()) {                                                    \\
+        int id = mj_name2id(ptr_, OBJTYPE, val.as<std::string>().c_str());     \\
+        if (id == -1) {                                                        \\
+          mju_error("%s", KeyErrorMessage(ptr_, OBJTYPE, ptr_->nfield, val.as<std::string>(), #accessor_name).c_str());  \\
+        }                                                                      \\
+        return MjModel##Name##Accessor(ptr_, id);                              \\
+      } else if (val.isNumber()) {                                             \\
+        int id = val.as<int>();                                                \\
+        if (id < 0 || id >= ptr_->nfield) {                                    \\
+          mju_error("%s", IndexErrorMessage(id, ptr_->nfield, #accessor_name).c_str());  \\
+        }                                                                      \\
+        return MjModel##Name##Accessor(ptr_, id);                              \\
+      } else {                                                                 \\
+        mju_error(#accessor_name "() argument must be a string or number");    \\
+        return MjModel##Name##Accessor(nullptr, 0);                            \\
+      }                                                                        \\
+    }
+
+    MJMODEL_ACCESSORS
+  #undef X_ACCESSOR""".lstrip())
+    elif w == "MjData":
+      builder.line("""
+  // Generates functions to return accessor classes.
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, accessor_name, nfield)              \\
+    MjData##Name##Accessor accessor_name(const NumberOrString& val) const {   \\
+      if (val.isString()) {                                                   \\
+        int id = mj_name2id(model, OBJTYPE, val.as<std::string>().c_str());   \\
+        if (id == -1) {                                                       \\
+          mju_error("%s", KeyErrorMessage(model, OBJTYPE, model->nfield, val.as<std::string>(), #accessor_name).c_str());  \\
+        }                                                                     \\
+        return MjData##Name##Accessor(ptr_, model, id);                       \\
+      } else if (val.isNumber()) {                                            \\
+        int id = val.as<int>();                                               \\
+        if (id < 0 || id >= model->nfield) {                                  \\
+          mju_error("%s", IndexErrorMessage(id, model->nfield, #accessor_name).c_str());  \\
+        }                                                                     \\
+        return MjData##Name##Accessor(ptr_, model, id);                       \\
+      } else {                                                                \\
+        mju_error(#accessor_name "() argument must be a string or number");   \\
+        return MjData##Name##Accessor(nullptr, nullptr, 0);                   \\
+      }                                                                       \\
+    }
+    MJDATA_ACCESSORS
+  #undef X_ACCESSOR""".lstrip())
 
     # define private struct members
     builder.private()
@@ -428,7 +523,7 @@ def build_struct_source(
 
   if not is_mjs:
     # default constructor
-    with builder.function(f"{w}::{w}() : ptr_(new {s}){fields_init}"):
+    with builder.function(f"{w}::{w}() : ptr_(new {s}()){fields_init}"):
       builder.line("owned_ = true;")
       default_func = _default_function_statement(s)
       if default_func:
@@ -480,14 +575,63 @@ def _build_struct_bindings(
     if w == "MjData":
       builder.line(".constructor<MjModel *>()")
       builder.line(".constructor<const MjModel &, const MjData &>()")
+      builder.line("""
+    // Binds the functions on MjData that return accessors.
+    #define X_ACCESSOR(NAME, Name, OBJTYPE, field_name, nfield) \\
+      .function(#field_name, &MjData::field_name)
+      MJDATA_ACCESSORS
+    #undef X_ACCESSOR""".lstrip())
     elif w == "MjModel":
-      w = common.wrapped_function_name(
-          introspect_functions.FUNCTIONS["mj_loadXML"]
+      builder.line(
+          "// mj_loadXML is deprecated and will be removed in a future release"
       )
-      builder.line(f'.class_function("mj_loadXML", &{w}, take_ownership())')
+      builder.line(
+          '.class_function("mj_loadXML",'
+          " emscripten::select_overload<std::unique_ptr<MjModel>(std::string)>(&mj_loadXML_wrapper_1))"
+      )
+      builder.line(
+          '.class_function("mj_loadXML",'
+          " emscripten::select_overload<std::unique_ptr<MjModel>(std::string,"
+          " const MjVFS&)>(&mj_loadXML_wrapper_2))"
+      )
+      f2 = common.wrapped_function_name(
+          introspect_functions.FUNCTIONS["mj_loadModel"]
+      )
+      builder.line(
+          "// mj_loadModel is deprecated and will be removed in a future"
+          " release"
+      )
+      builder.line(f'.class_function("mj_loadModel", &{f2})')
+      builder.line(f'.class_function("from_binary_path", &{f2})')
+      builder.line(
+          '.class_function("from_xml_string",'
+          " emscripten::select_overload<std::unique_ptr<MjModel>(const"
+          " std::string&)>(&from_xml_string_wrapper_1))"
+      )
+      builder.line(
+          '.class_function("from_xml_string",'
+          " emscripten::select_overload<std::unique_ptr<MjModel>(const"
+          " std::string&, const MjVFS&)>(&from_xml_string_wrapper_2))"
+      )
+      builder.line(
+          '.class_function("from_xml_path",'
+          " emscripten::select_overload<std::unique_ptr<MjModel>(std::string)>(&mj_loadXML_wrapper_1))"
+      )
+      builder.line(
+          '.class_function("from_xml_path",'
+          " emscripten::select_overload<std::unique_ptr<MjModel>(std::string,"
+          " const MjVFS&)>(&mj_loadXML_wrapper_2))"
+      )
       builder.line(".constructor<const MjModel &>()")
+      builder.line("""
+  // Binds the functions on MjModel that return accessors.
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, field_name, nfield) \\
+    .function(#field_name, &MjModel::field_name)
+    MJMODEL_ACCESSORS
+  #undef X_ACCESSOR""".lstrip())
     elif w == "MjSpec":
       builder.line(".constructor<const MjSpec &>()")
+      builder.line('.property("timer", &MjSpec::timer)')
     elif w == "MjvScene":
       builder.line(".constructor<MjModel *, int>()")
       builder.line(".constructor<>()")
@@ -567,7 +711,7 @@ def _get_anonymous_struct_field(
       ),
       None,
   )
-  return target_field
+  return target_field  # pyrefly: ignore[bad-return]
 
 
 def _get_field_struct_type(

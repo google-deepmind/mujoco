@@ -33,11 +33,12 @@
 #include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_sleep.h"
+#include "engine/engine_thread.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   #include <sanitizer/asan_interface.h>
   #include <sanitizer/common_interface_defs.h>
 #endif
@@ -50,10 +51,7 @@
   #pragma warning (disable: 4305)  // disable MSVC warning: truncation from 'double' to 'float'
 #endif
 
-static const int MAX_ARRAY_SIZE = INT_MAX / 4;
-
-
-//----------------------------------- static utility functions -------------------------------------
+static const int MAX_ARRAY_SIZE = INT_MAX;
 
 
 //----------------------------------- static utility functions -------------------------------------
@@ -70,24 +68,12 @@ static const int ID = 54321;
 #define MJMODEL_MEMBER(name) (((mjModel*) NULL)->name)
 
 
-// count ints in mjModel
-static int getnint(void) {
-  int cnt = 0;
-
-#define X(name) cnt += _Generic(MJMODEL_MEMBER(name), int: 1, default: 0);
-  MJMODEL_INTS
-#undef X
-
-  return cnt;
-}
-
-
-// count buffer members in mjModel (mjtSize)
-static int getnbuffer(void) {
+// count mjtSize members in mjModel
+static int getnsize(void) {
   int cnt = 0;
 
 #define X(name) cnt += _Generic(MJMODEL_MEMBER(name), mjtSize: 1, default: 0);
-  MJMODEL_INTS
+  MJMODEL_SIZES
 #undef X
 
   return cnt;
@@ -107,7 +93,7 @@ static int getnptr(void) {
 
 
 // write to memory buffer
-static void bufwrite(const void* src, int num, int szbuf, void* buf, int* ptrbuf) {
+static void bufwrite(const void* src, int num, mjtSize szbuf, void* buf, mjtSize* ptrbuf) {
   // check pointers
   if (!src || !buf || !ptrbuf) {
     mjERROR("NULL pointer passed to bufwrite");
@@ -125,7 +111,7 @@ static void bufwrite(const void* src, int num, int szbuf, void* buf, int* ptrbuf
 
 
 // read from memory buffer
-static void bufread(void* dest, int num, int szbuf, const void* buf, int* ptrbuf) {
+static void bufread(void* dest, int num, mjtSize szbuf, const void* buf, mjtSize* ptrbuf) {
   // check pointers
   if (!dest || !buf || !ptrbuf) {
     mjERROR("NULL pointer passed to bufread");
@@ -184,8 +170,8 @@ static void mj_setPtrModel(mjModel* m) {
 // performs the following operations:
 // *nbuffer += SKIP(*offset) + type_size*nr*nc;
 // *offset += SKIP(*offset) + type_size*nr*nc;
-static int safeAddToBufferSize(intptr_t* offset, mjtSize* nbuffer,
-                               size_t type_size, int nr, int nc) {
+static mjtSize safeAddToBufferSize(intptr_t* offset, mjtSize* nbuffer,
+                                   size_t type_size, mjtSize nr, mjtSize nc) {
   if (type_size < 0 || nr < 0 || nc < 0) {
     return 0;
   }
@@ -199,9 +185,32 @@ static int safeAddToBufferSize(intptr_t* offset, mjtSize* nbuffer,
   if (__builtin_add_overflow(*nbuffer, to_add, nbuffer)) return 0;
   if (__builtin_add_overflow(*offset, to_add, offset)) return 0;
 #else
-  // TODO: offer a safe implementation for MSVC or other compilers that don't have the builtins
-  *nbuffer += SKIP(*offset) + type_size*nr*nc;
-  *offset += SKIP(*offset) + type_size*nr*nc;
+  // safe overflow checks for MSVC and other compilers without __builtin_*_overflow
+  {
+    size_t product;
+    size_t to_add;
+    size_t skip = SKIP(*offset);
+
+    // nc * nr
+    if (nr > 0 && (size_t)nc > SIZE_MAX / (size_t)nr) return 0;
+    product = (size_t)nc * (size_t)nr;
+
+    // product * type_size
+    if (type_size > 0 && product > SIZE_MAX / type_size) return 0;
+    product *= type_size;
+
+    // product + SKIP(*offset)
+    if (product > SIZE_MAX - skip) return 0;
+    to_add = product + skip;
+
+    // *nbuffer + to_add
+    if ((size_t)*nbuffer > SIZE_MAX - to_add) return 0;
+    *nbuffer += to_add;
+
+    // *offset + to_add
+    if (*offset > 0 && to_add > (size_t)(INTPTR_MAX - *offset)) return 0;
+    *offset += to_add;
+  }
 #endif
 
   return 1;
@@ -216,24 +225,62 @@ static void freeModelBuffers(mjModel* m) {
 
 // allocate and initialize mjModel structure
 void mj_makeModel(mjModel** dest,
-    int nq, int nv, int nu, int na, int nbody, int nbvh,
-    int nbvhstatic, int nbvhdynamic, int noct, int njnt, int ntree,
-    int nM, int nB, int nC, int nD, int ngeom, int nsite, int ncam,
-    int nlight, int nflex, int nflexnode, int nflexvert, int nflexedge, int nflexelem,
-    int nflexelemdata, int nflexelemedge, int nflexshelldata, int nflexevpair, int nflextexcoord,
-    int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,
-    int nmeshgraph, int nmeshpoly, int nmeshpolyvert, int nmeshpolymap, int nskin, int nskinvert,
-    int nskintexvert, int nskinface,
-    int nskinbone, int nskinbonevert, int nhfield, int nhfielddata, int ntex,
-    int ntexdata, int nmat, int npair, int nexclude, int neq, int ntendon,
-    int nwrap, int nsensor, int nnumeric, int nnumericdata, int ntext,
-    int ntextdata, int ntuple, int ntupledata, int nkey, int nmocap,
-    int nplugin, int npluginattr, int nuser_body, int nuser_jnt, int nuser_geom,
-    int nuser_site, int nuser_cam, int nuser_tendon, int nuser_actuator,
-    int nuser_sensor, int nnames, int npaths) {
+    mjtSize nq, mjtSize nv, mjtSize nu, mjtSize nactuator, mjtSize nout, mjtSize na,
+    mjtSize nbody, mjtSize nbvh, mjtSize nbvhstatic,
+    mjtSize nbvhdynamic, mjtSize noct, mjtSize njnt, mjtSize ntree, mjtSize nM, mjtSize nB,
+    mjtSize nC, mjtSize nD, mjtSize ngeom, mjtSize nsite, mjtSize ncam, mjtSize nlight,
+    mjtSize nflex, mjtSize nflexnode, mjtSize nflexvert, mjtSize nflexedge, mjtSize nflexelem,
+    mjtSize nflexelemdata, mjtSize nflexstiffness, mjtSize nflexbending,
+    mjtSize nefm0dof, mjtSize nefm0L, mjtSize nflexelemedge,
+    mjtSize nflexshelldata, mjtSize nflexevpair, mjtSize nflextexcoord, mjtSize nJfe, mjtSize nJfv,
+    mjtSize nmesh, mjtSize nmeshvert, mjtSize nmeshnormal, mjtSize nmeshtexcoord, mjtSize nmeshface,
+    mjtSize nmeshgraph, mjtSize nmeshpoly, mjtSize nmeshpolyvert, mjtSize nmeshpolymap,
+    mjtSize nskin, mjtSize nskinvert, mjtSize nskintexvert, mjtSize nskinface, mjtSize nskinbone,
+    mjtSize nskinbonevert, mjtSize nhfield, mjtSize nhfielddata, mjtSize ntex, mjtSize ntexdata,
+    mjtSize nmat, mjtSize npair, mjtSize nexclude, mjtSize neq, mjtSize ntendon, mjtSize nJten,
+    mjtSize nwrap, mjtSize nsensor, mjtSize nnumeric, mjtSize nnumericdata, mjtSize ntext,
+    mjtSize ntextdata, mjtSize ntuple, mjtSize ntupledata, mjtSize nkey, mjtSize nmocap,
+    mjtSize nplugin, mjtSize npluginattr, mjtSize nuser_body, mjtSize nuser_jnt, mjtSize nuser_geom,
+    mjtSize nuser_site, mjtSize nuser_cam, mjtSize nuser_tendon, mjtSize nuser_actuator,
+    mjtSize nuser_sensor, mjtSize nnames, mjtSize npaths) {
   intptr_t offset = 0;
   int allocate = *dest ? 0 : 1;
   mjModel* m = NULL;
+
+  // CHECK SIZE PARAMETERS
+  {
+    // dummy variables for MJMODEL_SIZES set after mjModel construction
+    int nnames_map = 0, nJmom = 0, ngravcomp = 0, nemax = 0, njmax = 0, nconmax=0;
+    int npolygonmax = 0, nmeshdegmax = 0;
+    int nuserdata=0, nsensordata=0, npluginstate=0, nhistory=0, narena=0, nbuffer=0;
+
+    // sizes must be non-negative and fit in int, except for the byte arrays texdata and textdata
+    #define X(name)                                                                   \
+      if (name < 0) {                                                                 \
+        mju_warning("Invalid model: %s is negative (%lld).", #name, (long long)name); \
+        return;                                                                       \
+      }                                                                               \
+      if (name >= MAX_ARRAY_SIZE &&                                                   \
+          strcmp(#name, "ntexdata") != 0 && strcmp(#name, "ntextdata") != 0) {        \
+        mju_warning("Invalid model: %s is too large. Expected < %d. Got %lld.",       \
+                    #name, MAX_ARRAY_SIZE, (long long)name);                          \
+        return;                                                                       \
+      }
+    MJMODEL_SIZES
+#undef X
+
+    // suppress unused variable warnings
+    (void)nnames_map; (void)nJmom; (void)ngravcomp; (void)nemax; (void)njmax; (void)nconmax;
+    (void)npolygonmax; (void)nmeshdegmax;
+    (void)nuserdata; (void)nsensordata; (void)npluginstate; (void)nhistory; (void)narena;
+    (void)nbuffer;
+  }
+
+  // nbody should always be positive
+  if (nbody == 0) {
+    mju_warning("Invalid model: nbody == 0");
+    return;
+  }
 
   // allocate mjModel
   if (!allocate) {
@@ -252,6 +299,8 @@ void mj_makeModel(mjModel** dest,
   m->nq = nq;
   m->nv = nv;
   m->nu = nu;
+  m->nactuator = nactuator;
+  m->nout = nout;
   m->na = na;
   m->nbody = nbody;
   m->nbvh = nbvh;
@@ -274,10 +323,16 @@ void mj_makeModel(mjModel** dest,
   m->nflexedge = nflexedge;
   m->nflexelem = nflexelem;
   m->nflexelemdata = nflexelemdata;
+  m->nflexstiffness = nflexstiffness;
+  m->nflexbending = nflexbending;
+  m->nefm0dof = nefm0dof;
+  m->nefm0L = nefm0L;
   m->nflexelemedge = nflexelemedge;
   m->nflexshelldata = nflexshelldata;
   m->nflexevpair = nflexevpair;
   m->nflextexcoord = nflextexcoord;
+  m->nJfe = nJfe;
+  m->nJfv = nJfv;
   m->nmesh = nmesh;
   m->nmeshvert = nmeshvert;
   m->nmeshnormal = nmeshnormal;
@@ -302,6 +357,7 @@ void mj_makeModel(mjModel** dest,
   m->nexclude = nexclude;
   m->neq = neq;
   m->ntendon = ntendon;
+  m->nJten = nJten;
   m->nwrap = nwrap;
   m->nsensor = nsensor;
   m->nnumeric = nnumeric;
@@ -324,7 +380,7 @@ void mj_makeModel(mjModel** dest,
   m->nuser_sensor = nuser_sensor;
   m->nnames = nnames;
   long nnames_map = (long)nbody + njnt + ngeom + nsite + ncam + nlight + nflex + nmesh + nskin +
-                    nhfield + ntex + nmat + npair + nexclude + neq + ntendon + nu + nsensor +
+                    nhfield + ntex + nmat + npair + nexclude + neq + ntendon + nactuator + nsensor +
                     nnumeric + ntext + ntuple + nkey + nplugin;
   if (nnames_map >= INT_MAX / mjLOAD_MULTIPLE) {
     if (allocate) mju_free(m);
@@ -333,29 +389,6 @@ void mj_makeModel(mjModel** dest,
   }
   m->nnames_map = mjLOAD_MULTIPLE * nnames_map;
   m->npaths = npaths;
-
-#define X(name)                                    \
-  if ((m->name) < 0) {                             \
-    if (allocate) mju_free(m);                     \
-    mju_warning("Invalid model: negative " #name); \
-    return;                                        \
-  }
-  MJMODEL_INTS;
-#undef X
-
-  // nbody should always be positive
-  if (m->nbody == 0) {
-    if (allocate) mju_free(m);
-    mju_warning("Invalid model: nbody == 0");
-    return;
-  }
-
-  // nmocap is going to get multiplied by 4, and shouldn't overflow
-  if (m->nmocap >= MAX_ARRAY_SIZE) {
-    if (allocate) mju_free(m);
-    mju_warning("Invalid model: nmocap too large");
-    return;
-  }
 
   // compute buffer size
   m->nbuffer = 0;
@@ -401,23 +434,21 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
   // allocate new model if needed
   if (!dest) {
     mj_makeModel(
-        &dest, src->nq, src->nv, src->nu, src->na, src->nbody, src->nbvh,
-        src->nbvhstatic, src->nbvhdynamic, src->noct, src->njnt, src->ntree,
-        src->nM, src->nB, src->nC, src->nD, src->ngeom, src->nsite, src->ncam,
-        src->nlight, src->nflex, src->nflexnode, src->nflexvert, src->nflexedge,
-        src->nflexelem, src->nflexelemdata, src->nflexelemedge,
-        src->nflexshelldata, src->nflexevpair, src->nflextexcoord, src->nmesh,
-        src->nmeshvert, src->nmeshnormal, src->nmeshtexcoord, src->nmeshface,
-        src->nmeshgraph, src->nmeshpoly, src->nmeshpolyvert, src->nmeshpolymap,
-        src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
-        src->nskinbone, src->nskinbonevert, src->nhfield, src->nhfielddata,
-        src->ntex, src->ntexdata, src->nmat, src->npair, src->nexclude,
-        src->neq, src->ntendon, src->nwrap, src->nsensor, src->nnumeric,
-        src->nnumericdata, src->ntext, src->ntextdata, src->ntuple,
-        src->ntupledata, src->nkey, src->nmocap, src->nplugin, src->npluginattr,
-        src->nuser_body, src->nuser_jnt, src->nuser_geom, src->nuser_site,
-        src->nuser_cam, src->nuser_tendon, src->nuser_actuator,
-        src->nuser_sensor, src->nnames, src->npaths);
+        &dest, src->nq, src->nv, src->nu, src->nactuator, src->nout, src->na,
+        src->nbody, src->nbvh, src->nbvhstatic,
+        src->nbvhdynamic, src->noct, src->njnt, src->ntree, src->nM, src->nB, src->nC, src->nD,
+        src->ngeom, src->nsite, src->ncam, src->nlight, src->nflex, src->nflexnode, src->nflexvert,
+        src->nflexedge, src->nflexelem, src->nflexelemdata, src->nflexstiffness,
+        src->nflexbending, src->nefm0dof, src->nefm0L, src->nflexelemedge, src->nflexshelldata, src->nflexevpair,
+        src->nflextexcoord, src->nJfe, src->nJfv, src->nmesh, src->nmeshvert, src->nmeshnormal,
+        src->nmeshtexcoord, src->nmeshface, src->nmeshgraph, src->nmeshpoly, src->nmeshpolyvert,
+        src->nmeshpolymap, src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
+        src->nskinbone, src->nskinbonevert, src->nhfield, src->nhfielddata, src->ntex,
+        src->ntexdata, src->nmat, src->npair, src->nexclude, src->neq, src->ntendon, src->nJten,
+        src->nwrap, src->nsensor, src->nnumeric, src->nnumericdata, src->ntext, src->ntextdata,
+        src->ntuple, src->ntupledata, src->nkey, src->nmocap, src->nplugin, src->npluginattr,
+        src->nuser_body, src->nuser_jnt, src->nuser_geom, src->nuser_site, src->nuser_cam,
+        src->nuser_tendon, src->nuser_actuator, src->nuser_sensor, src->nnames, src->npaths);
   }
   if (!dest) {
     mjERROR("failed to make mjModel. Invalid sizes.");
@@ -481,63 +512,52 @@ void mjv_copyModel(mjModel* dest, const mjModel* src) {
 
 // save model to binary file, or memory buffer of szbuf>0
 void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buffer_sz) {
-  FILE* fp = 0;
-  int ptrbuf = 0;
+  mjtSize ptrbuf = 0;
 
   // standard header
-  int header[NHEADER] = {ID, sizeof(mjtNum), getnint(), getnbuffer(), getnptr()};
+  int header[NHEADER] = {ID, sizeof(mjtNum), getnsize(), mj_version(), getnptr()};
 
-  // open file for writing if no buffer
+  // no buffer: serialize to temporary buffer, then write via resource provider
   if (!buffer) {
-    fp = fopen(filename, "wb");
-    if (!fp) {
-      mju_warning("Could not open file '%s'", filename);
+    mjtSize sz = mj_sizeModel(m);
+    void* tmpbuf = mju_malloc(sz);
+    if (!tmpbuf) {
+      mju_warning("Could not allocate buffer for saving model");
       return;
     }
+    mj_saveModel(m, NULL, tmpbuf, (int)sz);
+
+    mjtSize written = mju_writeResource(filename, tmpbuf, sz, NULL, NULL, 0);
+    if (written != sz) {
+      mju_warning("Could not save model to '%s'", filename);
+    }
+    mju_free(tmpbuf);
+    return;
   }
 
   // write standard header, info, options, buffer (omit pointers)
-  if (fp) {
-    fwrite(header, sizeof(int), NHEADER, fp);
-    #define X(name) fwrite(&m->name, sizeof(m->name), 1, fp);
-    MJMODEL_INTS
+  bufwrite(header, sizeof(header), buffer_sz, buffer, &ptrbuf);
+  #define X(name) bufwrite(&m->name, sizeof(m->name), buffer_sz, buffer, &ptrbuf);
+  MJMODEL_SIZES
+  #undef X
+  bufwrite((void*)&m->opt, sizeof(mjOption), buffer_sz, buffer, &ptrbuf);
+  bufwrite((void*)&m->vis, sizeof(mjVisual), buffer_sz, buffer, &ptrbuf);
+  bufwrite((void*)&m->stat, sizeof(mjStatistic), buffer_sz, buffer, &ptrbuf);
+  bufwrite(&m->flg_gravcomp, sizeof(mjtBool), buffer_sz, buffer, &ptrbuf);
+  bufwrite(&m->flg_surfacevel, sizeof(mjtBool), buffer_sz, buffer, &ptrbuf);
+  {
+    MJMODEL_POINTERS_PREAMBLE(m)
+    #define X(type, name, nr, nc)  \
+      bufwrite((void*)m->name, sizeof(type)*(m->nr)*(nc), buffer_sz, buffer, &ptrbuf);
+    MJMODEL_POINTERS
     #undef X
-    fwrite((void*)&m->opt, sizeof(mjOption), 1, fp);
-    fwrite((void*)&m->vis, sizeof(mjVisual), 1, fp);
-    fwrite((void*)&m->stat, sizeof(mjStatistic), 1, fp);
-    {
-      MJMODEL_POINTERS_PREAMBLE(m)
-      #define X(type, name, nr, nc)  \
-        fwrite((void*)m->name, sizeof(type), (m->nr)*(nc), fp);
-      MJMODEL_POINTERS
-      #undef X
-    }
-  } else {
-    bufwrite(header, sizeof(header), buffer_sz, buffer, &ptrbuf);
-    #define X(name) bufwrite(&m->name, sizeof(m->name), buffer_sz, buffer, &ptrbuf);
-    MJMODEL_INTS
-    #undef X
-    bufwrite((void*)&m->opt, sizeof(mjOption), buffer_sz, buffer, &ptrbuf);
-    bufwrite((void*)&m->vis, sizeof(mjVisual), buffer_sz, buffer, &ptrbuf);
-    bufwrite((void*)&m->stat, sizeof(mjStatistic), buffer_sz, buffer, &ptrbuf);
-    {
-      MJMODEL_POINTERS_PREAMBLE(m)
-      #define X(type, name, nr, nc)  \
-        bufwrite((void*)m->name, sizeof(type)*(m->nr)*(nc), buffer_sz, buffer, &ptrbuf);
-      MJMODEL_POINTERS
-      #undef X
-    }
-  }
-
-  if (fp) {
-    fclose(fp);
   }
 }
 
 
 // load binary MJB model
 mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
-  int ptrbuf = 0;
+  mjtSize ptrbuf = 0;
   mjModel *m = 0;
 
   if (buffer_sz < NHEADER*sizeof(int)) {
@@ -549,7 +569,7 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
   bufread(header, NHEADER*sizeof(int), buffer_sz, buffer, &ptrbuf);
 
   // check header
-  int expected_header[NHEADER] = {ID, sizeof(mjtNum), getnint(), getnbuffer(), getnptr()};
+  int expected_header[NHEADER] = {ID, sizeof(mjtNum), getnsize(), mj_version(), getnptr()};
   for (int i=0; i < NHEADER; i++) {
     if (header[i] != expected_header[i]) {
       switch (i) {
@@ -562,11 +582,11 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
         return NULL;
 
       case 2:
-        mju_warning("Model and executable have different number of ints in mjModel");
+        mju_warning("Model and executable have different number of sizes in mjModel");
         return NULL;
 
       case 3:
-        mju_warning("Model and executable have different number of size_t members in mjModel");
+        mju_warning("Model and executable use different MuJoCo version");
         return NULL;
 
       default:
@@ -576,35 +596,41 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
     }
   }
 
-  if (ptrbuf + sizeof(int)*getnint() + sizeof(mjtSize)*getnbuffer() > buffer_sz) {
+  int nsize = getnsize();  // number of mjtSize fields in mjModel
+
+  if (ptrbuf + sizeof(mjtSize)*nsize > buffer_sz) {
     mju_warning("Truncated model file - ran out of data while reading sizes");
     return NULL;
   }
 
   // read mjModel construction fields
-  int ints[256];
-  bufread(ints, sizeof(int)*getnint(), buffer_sz, buffer, &ptrbuf);
+  mjtSize sizes[256];
+  bufread(sizes, sizeof(mjtSize)*nsize, buffer_sz, buffer, &ptrbuf);
 
   // allocate new mjModel
   mj_makeModel(&m,
-               ints[0],  ints[1],  ints[2],  ints[3],  ints[4],  ints[5],  ints[6],
-               ints[7],  ints[8],  ints[9],  ints[10], ints[11], ints[12], ints[13],
-               ints[14], ints[15], ints[16], ints[17], ints[18], ints[19], ints[20],
-               ints[21], ints[22], ints[23], ints[24], ints[25], ints[26], ints[27],
-               ints[28], ints[29], ints[30], ints[31], ints[32], ints[33], ints[34],
-               ints[35], ints[36], ints[37], ints[38], ints[39], ints[40], ints[41],
-               ints[42], ints[43], ints[44], ints[45], ints[46], ints[47], ints[48],
-               ints[49], ints[50], ints[51], ints[52], ints[53], ints[54], ints[55],
-               ints[56], ints[57], ints[58], ints[59], ints[60], ints[61], ints[62],
-               ints[63], ints[64], ints[65], ints[66], ints[67], ints[68], ints[69],
-               ints[70], ints[71], ints[72], ints[73], ints[74]);
+               sizes[0],  sizes[1],  sizes[2],  sizes[3],  sizes[4],  sizes[5],  sizes[6],
+               sizes[7],  sizes[8],  sizes[9],  sizes[10], sizes[11], sizes[12], sizes[13],
+               sizes[14], sizes[15], sizes[16], sizes[17], sizes[18], sizes[19], sizes[20],
+               sizes[21], sizes[22], sizes[23], sizes[24], sizes[25], sizes[26], sizes[27],
+               sizes[28], sizes[29], sizes[30], sizes[31], sizes[32], sizes[33], sizes[34],
+               sizes[35], sizes[36], sizes[37], sizes[38], sizes[39], sizes[40], sizes[41],
+               sizes[42], sizes[43], sizes[44], sizes[45], sizes[46], sizes[47], sizes[48],
+               sizes[49], sizes[50], sizes[51], sizes[52], sizes[53], sizes[54], sizes[55],
+               sizes[56], sizes[57], sizes[58], sizes[59], sizes[60], sizes[61], sizes[62],
+               sizes[63], sizes[64], sizes[65], sizes[66], sizes[67], sizes[68], sizes[69],
+               sizes[70], sizes[71], sizes[72], sizes[73], sizes[74], sizes[75], sizes[76],
+               sizes[77], sizes[78], sizes[79], sizes[80], sizes[81],
+               sizes[82], sizes[83]);
 
-  // read mjModel mjtSize fields
-  mjtSize sizes[8];
-  bufread(sizes, sizeof(mjtSize)*getnbuffer(), buffer_sz, buffer, &ptrbuf);
+  // mj_makeModel may fail if the input buffer has invalid sizes
+  if (!m) {
+    mju_warning("Invalid sizes, unable to load model");
+    return NULL;
+  }
 
-  // check mjtSize fields
-  if (!m || m->nbuffer != sizes[getnbuffer()-1]) {
+  // check buffer size (last mjtSize field is nbuffer)
+  if (m->nbuffer != sizes[nsize-1]) {
     mju_warning("Corrupted model, wrong nbuffer field");
     mj_deleteModel(m);
     return NULL;
@@ -613,21 +639,23 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
   // set integer fields
   {
     int int_idx = 0;
-    int size_idx = 0;
     #define X(name) \
-        m->name = _Generic(m->name, mjtSize: sizes[size_idx++], default: ints[int_idx++]);
-    MJMODEL_INTS
+        m->name = sizes[int_idx++];
+    MJMODEL_SIZES
     #undef X
   }
 
   // read options and buffer
-  if (ptrbuf + sizeof(mjOption) + sizeof(mjVisual) + sizeof(mjStatistic) > buffer_sz) {
+  if (ptrbuf + sizeof(mjOption) + sizeof(mjVisual) + sizeof(mjStatistic) +
+      sizeof(mjtBool) * 2 > buffer_sz) {
     mju_warning("Truncated model file - ran out of data while reading structs");
     return NULL;
   }
   bufread((void*)&m->opt, sizeof(mjOption), buffer_sz, buffer, &ptrbuf);
   bufread((void*)&m->vis, sizeof(mjVisual), buffer_sz, buffer, &ptrbuf);
   bufread((void*)&m->stat, sizeof(mjStatistic), buffer_sz, buffer, &ptrbuf);
+  bufread(&m->flg_gravcomp, sizeof(mjtBool), buffer_sz, buffer, &ptrbuf);
+  bufread(&m->flg_surfacevel, sizeof(mjtBool), buffer_sz, buffer, &ptrbuf);
   {
     MJMODEL_POINTERS_PREAMBLE(m)
     #define X(type, name, nr, nc)                                           \
@@ -673,11 +701,12 @@ void mj_deleteModel(mjModel* m) {
 // size of buffer needed to hold model
 mjtSize mj_sizeModel(const mjModel* m) {
   mjtSize size = (
-    sizeof(int)*(NHEADER+getnint())
-    + sizeof(mjtSize)*getnbuffer()
+    sizeof(int)*NHEADER
+    + sizeof(mjtSize)*getnsize()
     + sizeof(mjOption)
     + sizeof(mjVisual)
-    + sizeof(mjStatistic));
+    + sizeof(mjStatistic)
+    + sizeof(mjtBool)*2);
 
   MJMODEL_POINTERS_PREAMBLE(m)
 #define X(type, name, nr, nc)         \
@@ -963,9 +992,6 @@ void mj_makeDofDofMaps(int nv, int nM, int nC, int nD,
 static void mj_setPtrData(const mjModel* m, mjData* d) {
   char* ptr = (char*)d->buffer;
 
-  // prepare symbols needed by xmacro
-  MJDATA_POINTERS_PREAMBLE(m);
-
   // assign pointers with padding
 #define X(type, name, nr, nc)                             \
   d->name = (type*)(ptr + SKIP((intptr_t)ptr));           \
@@ -1011,7 +1037,7 @@ void mj_initPlugin(const mjModel* m, mjData* d) {
 
 // free mjData memory without destroying the struct
 static void freeDataBuffers(mjData* d) {
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
     // raise an error if there's a dangling stack frame
     mj_freeStack(d);
 #endif
@@ -1046,8 +1072,8 @@ void mj_makeRawData(mjData** dest, const mjModel* m) {
     mjERROR("could not allocate mjData");
   }
 
-  // prepare symbols needed by xmacro
-  MJDATA_POINTERS_PREAMBLE(m);
+  // prevent spurious timing print from mj_resetData before _resetData zeroes the struct
+  d->timer[mjTIMER_STEP].number = 0;
 
   // compute buffer size
   d->nbuffer = 0;
@@ -1085,6 +1111,7 @@ void mj_makeRawData(mjData** dest, const mjModel* m) {
 
   // clear threadpool
   d->threadpool = 0;
+  d->threadlock = 0;
 
   // clear nplugin (overwritten by _initPlugin)
   d->nplugin = 0;
@@ -1144,6 +1171,7 @@ mjData* mj_copyDataVisual(mjData* dest, const mjModel* m, const mjData* src, int
   *dest = *src;
   dest->buffer = save_buffer;
   dest->arena = save_arena;
+  dest->threadpool = 0;
   mj_setPtrData(m, dest);
 
   // save plugin_data, since the X macro copying block below will override it
@@ -1159,7 +1187,6 @@ mjData* mj_copyDataVisual(mjData* dest, const mjModel* m, const mjData* src, int
 
   // copy buffer
   {
-    MJDATA_POINTERS_PREAMBLE(m)
     if (flg_all) {
       #define X(type, name, nr, nc)  \
         memcpy((char*)dest->name, (const char*)src->name, sizeof(type)*(m->nr)*nc);
@@ -1244,8 +1271,6 @@ mjData* mj_copyDataVisual(mjData* dest, const mjModel* m, const mjData* src, int
     }
   }
 
-  dest->threadpool = src->threadpool;
-
   return dest;
 }
 
@@ -1262,6 +1287,12 @@ mjData* mjv_copyData(mjData* dest, const mjModel* m, const mjData* src) {
 
 // clear data, set defaults
 static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
+  // error early if history buffers cannot be initialized
+  mjtNum dt = m->opt.timestep;
+  if (m->nhistory && dt <= 0) {
+    mjERROR("history buffers require positive timestep, got %g", dt);
+  }
+
   //------------------------------ save plugin state and data
   mjtNum* plugin_state;
   uintptr_t* plugindata;
@@ -1284,7 +1315,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   d->parena = 0;
 
   // poison the entire arena+stack memory region when built with asan
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   ASAN_POISON_MEMORY_REGION(d->arena, d->narena);
 #endif
 
@@ -1299,7 +1330,6 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 
   // clear memory utilization stats
   d->maxuse_stack = 0;
-  memset(d->maxuse_threadstack, 0, mjMAXTHREAD*sizeof(mjtSize));
   d->maxuse_arena = 0;
   d->maxuse_con = 0;
   d->maxuse_efc = 0;
@@ -1319,21 +1349,31 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   d->nl = 0;
   d->nefc = 0;
   d->nJ = 0;
+  d->nY = 0;
   d->nA = 0;
   d->nisland = 0;
   d->nidof = 0;
+  d->efm_active = 0;
+  d->nefmK = 0;
+  d->nefmdof = 0;
+  d->nefmL = 0;
 
   // clear global properties
   d->time = 0;
   mju_zero(d->energy, 2);
 
+  // clear lazy evaluation flags
+  d->flg_energypos = 0;
+  d->flg_energyvel = 0;
+  d->flg_subtreevel = 0;
+  d->flg_rnepost = 0;
+
   //------------------------------ clear buffer, set defaults
 
   // fill buffer with debug_value (normally 0)
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
   {
     #define X(type, name, nr, nc) memset(d->name, (int)debug_value, sizeof(type)*(m->nr)*(nc));
-    MJDATA_POINTERS_PREAMBLE(m)
     MJDATA_POINTERS
     #undef X
   }
@@ -1350,7 +1390,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   mju_zero(d->qpos, m->nq);
   mju_zero(d->qvel, m->nv);
   mju_zero(d->act, m->na);
-  mju_zero(d->ctrl, m->nu);
+  mj_resetCtrl(m, d);
   for (int i=0; i < m->neq; i++) d->eq_active[i] = m->eq_active0[i];
   mju_zero(d->qfrc_applied, m->nv);
   mju_zero(d->xfrc_applied, 6*m->nbody);
@@ -1361,8 +1401,57 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   mju_zero(d->mocap_pos, 3*m->nmocap);
   mju_zero(d->mocap_quat, 4*m->nmocap);
 
-  // zero out qM, special case because scattering from M skips simple body off-diagonals
-  mju_zero(d->qM, m->nM);
+  // initialize ctrl history buffers: timestamps at [-n*dt, ..., -dt]
+  for (int i = 0; i < m->nactuator; i++) {
+    int n = m->actuator_history[2*i];
+    if (n > 0) {
+      mjtNum* buf = d->history + m->actuator_historyadr[i];
+      buf[0] = 0;          // user slot
+      buf[1] = n - 1;      // cursor: newest at logical index n-1
+      mjtNum* times = buf + 2;
+      for (int j = 0; j < n; j++) {
+        times[j] = -(n-j)*dt;
+      }
+
+      // clear values
+      mjtNum* values = buf + 2 + n;
+      mju_zero(values, n);
+    }
+  }
+
+  // initialize sensor history buffers
+  for (int i = 0; i < m->nsensor; i++) {
+    int n = m->sensor_history[2*i];
+    if (n > 0) {
+      int dim = m->sensor_dim[i];
+      mjtNum period = m->sensor_interval[2*i];
+      mjtNum phase = m->sensor_interval[2*i+1];
+      mjtNum* buf = d->history + m->sensor_historyadr[i];
+
+      // user slot: last compute time (phase=0 means -period, i.e. first compute at t=0)
+      buf[0] = (period > 0) ? (phase == 0 ? -period : phase) : -dt;
+      buf[1] = n - 1;  // cursor: newest at logical index n-1
+
+      mjtNum* times = buf + 2;
+      if (period > 0) {
+        // samples spaced at period intervals, rounded up to dt grid
+        mjtNum t0 = (phase == 0) ? -period : phase;
+        for (int j = 0; j < n; j++) {
+          mjtNum continuous_t = t0 - (n-1-j)*period;
+          times[j] = mju_ceil(continuous_t / dt) * dt;
+        }
+      } else {
+        // no period: timestamps at [-n*dt, ..., -dt]
+        for (int j = 0; j < n; j++) {
+          times[j] = -(n-j)*dt;
+        }
+      }
+
+      // clear values
+      mjtNum* values = buf + 2 + n;
+      mju_zero(values, n*dim);
+    }
+  }
 
   // copy qpos0 from model
   if (m->qpos0) {
@@ -1481,10 +1570,94 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 }
 
 
+// emit step timing diagnostics
+static void mj_logTimingDiagnostics(const mjData* d) {
+  int nstep = d->timer[mjTIMER_STEP].number;
+  if (nstep <= 0) {
+    return;
+  }
+
+  mjtNum tstep = d->timer[mjTIMER_STEP].duration / nstep;
+  if (tstep <= 0) {
+    return;
+  }
+
+  char buf[2048];
+  int pos = 0;
+  mjtNum components = 0;
+
+  for (int i = mjTIMER_POSITION; i <= mjTIMER_ADVANCE; i++) {
+    if (d->timer[i].number > 0) {
+      mjtNum istep = d->timer[i].duration / d->timer[i].number;
+      components += istep;
+      pos += snprintf(buf + pos, sizeof(buf) - pos,
+                      "%s  %-15s %8.1f  (%5.1f%%)",
+                      pos > 0 ? "\n" : "",
+                      mjTIMERSTRING[i], istep * 1000, 100 * istep / tstep);
+
+      // position sub-breakdown
+      if (i == mjTIMER_POSITION) {
+        for (int p = mjTIMER_POS_KINEMATICS; p <= mjTIMER_POS_PROJECT; p++) {
+          if (d->timer[p].number > 0) {
+            mjtNum pstep = d->timer[p].duration / d->timer[p].number;
+            pos += snprintf(buf + pos, sizeof(buf) - pos,
+                            "\n    %-13s %8.1f  (%5.1f%%)",
+                            mjTIMERSTRING[p] + 4, pstep * 1000, 100 * pstep / tstep);
+
+            // collision sub-breakdown
+            if (p == mjTIMER_POS_COLLISION) {
+              for (int c = mjTIMER_COL_BROAD; c <= mjTIMER_COL_NARROW; c++) {
+                if (d->timer[c].number > 0) {
+                  mjtNum cstep = d->timer[c].duration / d->timer[c].number;
+                  pos += snprintf(buf + pos, sizeof(buf) - pos,
+                                  "\n      %-11s %8.1f  (%5.1f%%)",
+                                  mjTIMERSTRING[c] + 4, cstep * 1000, 100 * cstep / tstep);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  mjtNum other = tstep - components;
+  pos += snprintf(buf + pos, sizeof(buf) - pos,
+                  "%s  %-15s %8.1f  (%5.1f%%)",
+                  pos > 0 ? "\n" : "",
+                  "other", other * 1000, 100 * other / tstep);
+
+  pos += snprintf(buf + pos, sizeof(buf) - pos,
+                  "%s  %-15s %8.1f",
+                  pos > 0 ? "\n" : "",
+                  "total", tstep * 1000);
+
+  mjLogMessage msg = {.level = mjLOG_INFO, .topic = mjTOPIC_TIME_STP, .body = buf};
+  snprintf(msg.subject, sizeof(msg.subject),
+           "average time per step (%d steps, units: \u00B5s)", nstep);
+  mju_message(&msg);
+}
+
+
+// set ctrl to neutral values: zero, except quaternion inputs which reset to the identity
+void mj_resetCtrl(const mjModel* m, mjData* d) {
+  mju_zero(d->ctrl, m->nu);
+  for (int i=0; i < m->nactuator; i++) {
+    if (m->actuator_gaintype[i] == mjGAIN_SO3 && m->actuator_ctrlspec[i] == mjCHART_QUAT) {
+      d->ctrl[m->actuator_ctrladr[i]] = 1;
+    }
+  }
+}
+
+
 // clear data, set data->qpos = model->qpos0
 void mj_resetData(const mjModel* m, mjData* d) {
+  // emit step timing diagnostics before timers are cleared
+  mj_logTimingDiagnostics(d);
+
   _resetData(m, d, 0);
 }
+
 
 
 // clear data, set data->qpos = model->qpos0, fill with debug_value
@@ -1513,6 +1686,7 @@ void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key) {
 // de-allocate mjData
 void mj_deleteData(mjData* d) {
   if (d) {
+    mju_threadpool(d, 0);
     freeDataBuffers(d);
     mju_free(d);
   }
@@ -1640,7 +1814,7 @@ static int numObjects(const mjModel* m, mjtObj objtype) {
   case mjOBJ_TENDON:
     return m->ntendon;
   case mjOBJ_ACTUATOR:
-    return m->nu;
+    return m->nactuator;
   case mjOBJ_SENSOR:
     return m->nsensor;
   case mjOBJ_NUMERIC:
@@ -1726,8 +1900,10 @@ const char* mj_validateReferences(const mjModel* m) {
   X(skin_bonevertid,    nskinbonevert,  nskinvert     , 0                      ) \
   X(pair_geom1,         npair,          ngeom         , 0                      ) \
   X(pair_geom2,         npair,          ngeom         , 0                      ) \
-  X(actuator_plugin,    nu,             nplugin       , 0                      ) \
-  X(actuator_actadr,    nu,             na            , m->actuator_actnum     ) \
+  X(actuator_plugin,    nactuator,      nplugin       , 0                      ) \
+  X(actuator_actadr,    nactuator,      na            , m->actuator_actnum     ) \
+  X(actuator_ctrladr,   nactuator,      nu            , m->actuator_ctrlnum    ) \
+  X(actuator_outadr,    nactuator,      nout          , m->actuator_outnum     ) \
   X(sensor_plugin,      nsensor,        nplugin       , 0                      ) \
   X(plugin_stateadr,    nplugin,        npluginstate  , m->plugin_statenum     ) \
   X(plugin_attradr,     nplugin,        npluginattr   , 0                      ) \
@@ -1752,7 +1928,7 @@ const char* mj_validateReferences(const mjModel* m) {
   X(name_excludeadr,    nexclude,       nnames        , 0                      ) \
   X(name_eqadr,         neq,            nnames        , 0                      ) \
   X(name_tendonadr,     ntendon,        nnames        , 0                      ) \
-  X(name_actuatoradr,   nu,             nnames        , 0                      ) \
+  X(name_actuatoradr,   nactuator,      nnames        , 0                      ) \
   X(name_sensoradr,     nsensor,        nnames        , 0                      ) \
   X(name_numericadr,    nnumeric,       nnames        , 0                      ) \
   X(name_textadr,       ntext,          nnames        , 0                      ) \
@@ -1830,14 +2006,14 @@ const char* mj_validateReferences(const mjModel* m) {
     }
   }
   for (int i=0; i < m->nhfield; i++) {
-    int hfield_adr = m->hfield_adr[i] + m->hfield_nrow[i]*m->hfield_ncol[i];
+    mjtSize hfield_adr = m->hfield_adr[i] + ((mjtSize) m->hfield_nrow[i]) * m->hfield_ncol[i];
     if (hfield_adr > m->nhfielddata || m->hfield_adr[i] < 0) {
       return "Invalid model: hfield_adr out of bounds.";
     }
   }
   for (int i=0; i < m->ntex; i++) {
-    int tex_adr = m->tex_adr[i] + m->tex_nchannel[i]*m->tex_height[i]*m->tex_width[i];
-    if (tex_adr > m->ntexdata || m->tex_adr[i] < 0) {
+    mjtSize nbytes = ((mjtSize) m->tex_nchannel[i]) * m->tex_height[i] * m->tex_width[i];
+    if (m->tex_adr[i] + nbytes > m->ntexdata || m->tex_adr[i] < 0) {
       return "Invalid model: tex_adr out of bounds.";
     }
   }
@@ -1898,6 +2074,8 @@ const char* mj_validateReferences(const mjModel* m) {
       break;
 
     case mjEQ_FLEX:
+    case mjEQ_FLEXVERT:
+    case mjEQ_FLEXSTRAIN:
       if (obj1id >= m->nflex || obj1id < 0) {
         return "Invalid model: eq_obj1id out of bounds.";
       }
@@ -1938,7 +2116,7 @@ const char* mj_validateReferences(const mjModel* m) {
       break;
     }
   }
-  for (int i=0; i < m->nu; i++) {
+  for (int i=0; i < m->nactuator; i++) {
     int actuator_trntype = m->actuator_trntype[i];
     int id = m->actuator_trnid[2*i];
     int idslider = m->actuator_trnid[2*i+1];
@@ -1970,6 +2148,18 @@ const char* mj_validateReferences(const mjModel* m) {
     case mjTRN_BODY:
       if (id < 0 || id >= m->nbody) {
         return "Invalid model: actuator_trnid out of bounds.";
+      }
+      break;
+    case mjTRN_SO3:
+      // ball joint target (idslider == -1) or site + refsite target
+      if (idslider == -1) {
+        if (id < 0 || id >= m->njnt) {
+          return "Invalid model: actuator_trnid out of bounds.";
+        }
+      } else {
+        if (id < 0 || id >= m->nsite || idslider < 0 || idslider >= m->nsite) {
+          return "Invalid model: actuator_trnid out of bounds.";
+        }
       }
       break;
     case mjTRN_UNDEFINED:
@@ -2012,8 +2202,7 @@ const char* mj_validateReferences(const mjModel* m) {
       return "Invalid model: invalid sensor_refid";
     }
     if (sensor_type == mjSENS_TACTILE) {
-      int obj_id = m->sensor_objid[i];
-      int parent_body = m->geom_bodyid[obj_id];
+      int parent_body = m->geom_bodyid[m->sensor_refid[i]];
       int collision_geoms = 0;
       for (int b = 0; b < m->body_geomnum[parent_body]; ++b) {
         int geom_id = m->body_geomadr[parent_body]+b;

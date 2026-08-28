@@ -17,15 +17,27 @@
 import dataclasses
 import functools
 import inspect
+import threading
 import typing
 from typing import Any, Callable, Optional, Sequence, Tuple, Union
 
 import jax
 from jax import numpy as jp
-from mujoco.mjx.warp import types as mjx_warp_types
 import numpy as np
 import warp as wp
-from mujoco.mjx.third_party.warp._src.jax_experimental import ffi
+from mujoco.mjx.third_party.warp._src.jax import ffi as warp_ffi
+
+from mujoco.mjx._src.types import tree_path_to_attr_str
+from mujoco.mjx.warp import types as mjx_warp_types
+
+
+# ``warp_ffi.jax_callable`` keys its registry by wrapper function and
+# configuration. Cache generated wrappers here by the original shim and MJX's
+# flattened call structure so equivalent retraces reuse the same Warp entry.
+_JAX_CALLABLE_VARIADIC_TUPLE_REGISTRY: dict[
+    tuple[Any, ...], Callable[..., Any]
+] = {}
+_JAX_CALLABLE_VARIADIC_TUPLE_REGISTRY_LOCK = threading.Lock()
 
 
 def flatten_signature(signature: inspect.Signature, args: Tuple[Any, ...]):
@@ -97,42 +109,104 @@ def flatten_signature(signature: inspect.Signature, args: Tuple[Any, ...]):
 def jax_callable_variadic_tuple(
     func: Callable,  # pylint: disable=g-bare-generic
     num_outputs: int = 1,
-    graph_mode: ffi.GraphMode = ffi.GraphMode.WARP,
+    graph_mode: warp_ffi.JaxCallableGraphMode = warp_ffi.JaxCallableGraphMode.WARP,
     vmap_method: Optional[str] = None,
     output_dims: Optional[dict[str, tuple[int, ...]]] = None,
     in_out_argnames: Optional[Sequence[str]] = None,
+    stage_in_argnames: Optional[Sequence[str]] = None,
+    stage_out_argnames: Optional[Sequence[str]] = None,
+    has_side_effect: bool = False,
 ):
   """Wraps a JAX callable to support variadic tuples and dataclasses."""
 
+  # Snapshot mapping and name-set options into stable cache-key forms. Warp
+  # consumes them by argument name, so caller ordering does not distinguish
+  # callable configurations.
+  hashable_output_dims = (
+      None if output_dims is None else tuple(sorted(output_dims.items()))
+  )
+  hashable_in_out_argnames = (
+      tuple(sorted(in_out_argnames)) if in_out_argnames else None
+  )
+  hashable_stage_in_argnames = (
+      tuple(sorted(stage_in_argnames)) if stage_in_argnames else None
+  )
+  hashable_stage_out_argnames = (
+      tuple(sorted(stage_out_argnames)) if stage_out_argnames else None
+  )
+
   def callable_wrapper(*args, **kwargs):
-    def func_wrapper(*flat_args, **kwargs):
-      num_inputs = in_tree.num_leaves
-      flat_inputs = flat_args[:num_inputs]
-      output_buffers = flat_args[num_inputs:]
-      unflat_args = jax.tree.unflatten(in_tree, flat_inputs)
-      return func(*unflat_args, *output_buffers, **kwargs)
-
     # Provide a flattened signature for the Warp callable machinery.
+    flat_args, in_tree = jax.tree.flatten(args)
     new_signature = flatten_signature(inspect.signature(func), args)
-    func_wrapper.__signature__ = new_signature
-    func_wrapper.__annotations__ = {
-        p.name: p.annotation
-        for p in new_signature.parameters.values()
-        if p.annotation is not inspect.Parameter.empty
-    }
-    if new_signature.return_annotation is not inspect.Signature.empty:
-      func_wrapper.__annotations__['return'] = new_signature.return_annotation
-
-    my_callable = ffi.jax_callable(
-        func_wrapper,
-        num_outputs=num_outputs,
-        graph_mode=graph_mode,
-        vmap_method=vmap_method,
-        output_dims=output_dims,
-        in_out_argnames=in_out_argnames,
+    # Cache the wrapper's structural ABI, not per-call leaves. The flattened
+    # signature defines Warp's arguments and the PyTree defines reconstruction.
+    # Leaf arrays and tracers are forwarded on every invocation; keying on them
+    # would prevent equivalent retraces from reusing the same FFI target.
+    callable_cache_key = (
+        func,
+        new_signature,
+        in_tree,
+        num_outputs,
+        graph_mode,
+        vmap_method,
+        hashable_output_dims,
+        hashable_in_out_argnames,
+        hashable_stage_in_argnames,
+        hashable_stage_out_argnames,
+        has_side_effect,
     )
 
-    flat_args, in_tree = jax.tree.flatten(args)
+    # Serialize construction so concurrent traces cannot register duplicate
+    # Warp callbacks for the same structural key.
+    with _JAX_CALLABLE_VARIADIC_TUPLE_REGISTRY_LOCK:
+      my_callable = _JAX_CALLABLE_VARIADIC_TUPLE_REGISTRY.get(
+          callable_cache_key
+      )
+      if my_callable is None:
+
+        # Restore the original PyTree inputs; Warp appends output buffers.
+        def func_wrapper(*flat_args, **kwargs):
+          num_inputs = in_tree.num_leaves
+          flat_inputs = flat_args[:num_inputs]
+          output_buffers = flat_args[num_inputs:]
+          unflat_args = jax.tree.unflatten(in_tree, flat_inputs)
+          return func(*unflat_args, *output_buffers, **kwargs)
+
+        # Warp derives the FFI ABI from this synthetic signature and
+        # annotations.
+        func_wrapper.__signature__ = (  # pyrefly: ignore[missing-attribute]
+            new_signature
+        )
+        func_wrapper.__annotations__ = {
+            p.name: p.annotation
+            for p in new_signature.parameters.values()
+            if p.annotation is not inspect.Parameter.empty
+        }
+        if new_signature.return_annotation is not inspect.Signature.empty:
+          func_wrapper.__annotations__['return'] = (
+              new_signature.return_annotation
+          )
+
+        # Constructing the callable registers its FFI target.
+        my_callable = warp_ffi.jax_callable(
+            func_wrapper,
+            num_outputs=num_outputs,
+            graph_mode=graph_mode,
+            vmap_method=vmap_method,
+            output_dims=(
+                None
+                if hashable_output_dims is None
+                else dict(hashable_output_dims)
+            ),
+            in_out_argnames=hashable_in_out_argnames,
+            stage_in_argnames=hashable_stage_in_argnames,
+            stage_out_argnames=hashable_stage_out_argnames,
+            has_side_effect=has_side_effect,
+        )
+        _JAX_CALLABLE_VARIADIC_TUPLE_REGISTRY[callable_cache_key] = my_callable
+
+    # Invocation may re-enter JAX or Warp and needs no registry serialization.
     return my_callable(*flat_args, **kwargs)
 
   return callable_wrapper
@@ -150,7 +224,7 @@ def _format_arg(arg: Any, name: str, annotation: Any, verbose: bool):
         for i in range(len(arg))
     )
 
-  if not isinstance(annotation, wp.types.array):
+  if not isinstance(annotation, wp.array):
     if verbose:
       print(f'Skipping {name}: {arg}')
     return arg
@@ -160,20 +234,6 @@ def _format_arg(arg: Any, name: str, annotation: Any, verbose: bool):
     raise AssertionError(
         f'Arg ndim {arg.ndim} does not match expected ndim {expected_ndim}.'
     )
-
-  # Add stride 0 to first axis in case the underlying argument should be
-  # batched.
-  # NB: the outer marshalling does an "expand_dims" on Model fields.
-  is_batch_field = mjx_warp_types._BATCH_DIM['Model'].get(name, False)  # pylint: disable=protected-access
-  if arg.shape[0] == 1 and is_batch_field:
-    old_strides = arg.strides
-    arg.strides = (0,) + arg.strides[1:]
-    if verbose:
-      print(
-          f'Leading batch dim of 1, adding stride: {name} {old_strides} =>'
-          f' {arg.strides}'
-      )
-    return arg
 
   if verbose:
     print(f'Did nothing: {name}: {arg.shape}')
@@ -193,29 +253,12 @@ def format_args_for_warp(func, verbose=False):
   return wrapper
 
 
-def _tree_path_to_attr_str(path: jax.tree_util.KeyPath) -> str:
-  """Converts a tree path to a dataclass attribute string."""
-  if not isinstance(path, tuple):
-    raise NotImplementedError(
-        f'Parsing for jax tree path {path} not implemented.'
-    )
-
-  if any(isinstance(p, jax.tree_util.SequenceKey) for p in path):
-    # get the path up to the first sequence key, we assume variadic sequences
-    is_seq_key = [isinstance(p, jax.tree_util.SequenceKey) for p in path]
-    path = path[: is_seq_key.index(True)]
-
-  assert all(isinstance(p, jax.tree_util.GetAttrKey) for p in path)
-  path = [p for p in path if p.name != '_impl']
-  return '__'.join(p.name for p in path)
-
-
 def _get_mapping_from_tree_path(
     path: jax.tree_util.KeyPath,
     mapping: dict[str, int],
 ) -> Optional[int]:
   """Gets the mapped value from a tree path."""
-  attr = _tree_path_to_attr_str(path)
+  attr = tree_path_to_attr_str(path)
   # None if the MJX public field is not present in the MJX-Warp mapping.
   return mapping.get(attr)
 
@@ -228,7 +271,7 @@ def _expand_dim_from_path(
   if ndim is None or ndim < 0:
     return leaf
   if ndim > leaf.ndim:
-    leaf = jp.expand_dims(leaf, axis=np.arange(ndim - leaf.ndim))
+    leaf = jp.expand_dims(leaf, axis=np.arange(ndim - leaf.ndim))  # pyrefly: ignore[bad-argument-type]
   if ndim != leaf.ndim:
     raise AssertionError(
         f'Leaf node ndim ({leaf.ndim}) and expected ndim ({ndim}) do not match'
@@ -244,15 +287,15 @@ def _squeeze_dim(leaf_expanded: Any, leaf: Any) -> Any:
         f' ndim {leaf.ndim}'
     )
   if leaf_expanded.ndim > leaf.ndim:
-    return jp.squeeze(leaf_expanded, np.arange(leaf_expanded.ndim - leaf.ndim))
+    return jp.squeeze(leaf_expanded, np.arange(leaf_expanded.ndim - leaf.ndim))  # pyrefly: ignore[bad-argument-type]
   return leaf_expanded
 
 
-def marshal_jax_warp_callable(func, raw_output: bool = False):
+def marshal_jax_warp_callable(func, tree_map_output: bool = False):
   """Marshal fields into a MuJoCo Warp function."""
 
   @functools.wraps(func)
-  def wrapper(m, d):
+  def wrapper(m, d, *extra_args):
     # Expand dims for Warp implicit vmap before calling into the FFI wrapped
     # function.
     m_expanded = jax.tree.map_with_path(
@@ -267,9 +310,9 @@ def marshal_jax_warp_callable(func, raw_output: bool = False):
         ),
         d,
     )
-    d_expanded_result = func(m_expanded, d_expanded)
+    d_expanded_result = func(m_expanded, d_expanded, *extra_args)
 
-    if raw_output:
+    if tree_map_output:
       return d_expanded_result
     d_result = jax.tree.map(_squeeze_dim, d_expanded_result, d)
     return d_result
@@ -311,7 +354,7 @@ def _maybe_broadcast_to(
   """Broadcasts fields that are used in MuJoCo Warp."""
   ndim = _get_mapping_from_tree_path(path, mjx_warp_types._NDIM[cls_str])
   needs_batch_dim = _get_mapping_from_tree_path(
-      path, mjx_warp_types._BATCH_DIM[cls_str]  # pylint: disable=protected-access
+      path, mjx_warp_types._BATCH_DIM[cls_str]  # pylint: disable=protected-access  # pyrefly: ignore[bad-argument-type]
   )
   needs_batch_dim = bool(needs_batch_dim) and (ndim is not None and ndim > 0)
   if needs_batch_dim and not is_batched:
@@ -323,44 +366,57 @@ def _check_leading_dim(
     path: jax.tree_util.KeyPath,
     leaf: Any,
     expected_batch_dim: int,
-    expected_nconmax: int,
+    expected_naconmax: int,
     expected_njmax: int,
 ):
   """Asserts that the batch dimension of a leaf node matches the expected batch dimension."""
   has_batch_dim = _get_mapping_from_tree_path(
-      path, mjx_warp_types._BATCH_DIM['Data']
+      path, mjx_warp_types._BATCH_DIM['Data']  # pyrefly: ignore[bad-argument-type]
   )
-  attr = _tree_path_to_attr_str(path)
+  attr = tree_path_to_attr_str(path)
   if has_batch_dim and leaf.shape[0] != expected_batch_dim:
     raise ValueError(
         f'Leaf node batch size ({leaf.shape[0]}) and expected batch size'
         f' ({expected_batch_dim}) do not match for field {attr}.'
+        ' If you are trying to merge Data objects (e.g. for resets),'
+        ' use Data.where instead of jax.tree.map.'
     )
   if (
       not has_batch_dim
       and attr.startswith('contact__')
-      and leaf.shape[0] != expected_nconmax
+      and leaf.shape[0] != expected_naconmax
+      and leaf.shape[0]
+      != 0  # Allow empty arrays (shape[0] == 0) for unused contact fields (e.g., flex).
   ):
     raise ValueError(
-        f'Leaf node leading dim ({leaf.shape[0]}) does not match nconmax'
-        f' ({expected_nconmax}) for field {attr}.'
+        f'Leaf node leading dim ({leaf.shape[0]}) does not match naconmax'
+        f' ({expected_naconmax}) for field {attr}.'
+        ' If you are trying to merge Data objects (e.g. for resets),'
+        ' use Data.where instead of jax.tree.map.'
     )
   if (
       not has_batch_dim
       and attr.startswith('efc__')
       and leaf.shape[0] != expected_njmax
+      and leaf.shape[0]
+      != 0  # Allow empty arrays (shape[0] == 0) for unused constraint fields (e.g., islands).
   ):
     raise ValueError(
         f'Leaf node leading dim ({leaf.shape[0]}) does not match njmax'
         f' ({expected_njmax}) for field {attr}.'
+        ' If you are trying to merge Data objects (e.g. for resets),'
+        ' use Data.where instead of jax.tree.map.'
     )
 
 
-def marshal_custom_vmap(vmap_func, raw_output: bool = False):
+def marshal_custom_vmap(
+    vmap_func,
+    tree_map_output: bool = False,
+):
   """Marshal fields for a custom vmap into an MuJoCo Warp function."""
 
   @functools.wraps(vmap_func)
-  def wrapper(axis_size, is_batched, m, d):
+  def wrapper(axis_size, is_batched, m, d, *extra_args):
     # Vmappable data fields may not have been broadcasted if vmap_func is called
     # within a vmap trace. Since data fields are read/write in warp, we need to
     # explicitly broadcast them here.
@@ -391,16 +447,22 @@ def marshal_custom_vmap(vmap_func, raw_output: bool = False):
         d_broadcast,
     )
     d_broadcast_flat_result, out_batched = vmap_func(
-        axis_size, is_batched, m_flat, d_broadcast_flat
+        axis_size, is_batched, m_flat, d_broadcast_flat, *extra_args
     )
-    if raw_output:
-      return d_broadcast_flat_result, out_batched
+    if tree_map_output:
+      out = jax.tree.map(
+          lambda x: x
+          if x.shape[0] == axis_size
+          else x.reshape(axis_size, -1, *x.shape[1:]),
+          d_broadcast_flat_result,
+      )
+      return out, out_batched
 
     # Explicitly mark MuJoCo Warp data fields as batched after vmapping is done.
     out_batched = jax.tree.map_with_path(
         # NB: if a field is not in MuJoCo Warp, we let JAX do its magic.
         lambda path, x: _get_mapping_from_tree_path(
-            path, mjx_warp_types._BATCH_DIM['Data']  # pylint: disable=protected-access
+            path, mjx_warp_types._BATCH_DIM['Data']  # pylint: disable=protected-access  # pyrefly: ignore[bad-argument-type]
         )
         or x,
         out_batched,

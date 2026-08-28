@@ -1,0 +1,45 @@
+<mujoco model="surfacevel turntable">
+  <!-- record player: a static cylinder with angular surfacevel about its axis;
+       condim 6 so the torsional row spins centered objects and rolling rows engage -->
+
+  <visual>
+    <headlight diffuse=".8 .8 .8" ambient=".2 .2 .2"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="32" height="512"/>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".1 .2 .3" rgb2=".2 .3 .4" width="300" height="300"/>
+    <material name="grid" texture="grid" texrepeat="8 8" reflectance=".2"/>
+    <material name="platter" rgba=".25 .25 .3 1"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 3" dir="0 0 -1"/>
+    <geom name="floor" type="plane" size="3 3 .1" material="grid"/>
+
+    <!-- platter spinning at 1 rad/s about +z, top surface at z=0.1 -->
+    <geom name="platter" type="cylinder" size="1 .05" pos="0 0 .05" material="platter" condim="6" friction="1 .01 .003" surfacevel="0 0 0  0 0 1"/>
+
+    <!-- centered box: pure torsional spin-up -->
+    <body name="center" pos="0 0 .2">
+      <freejoint/>
+      <geom type="box" size=".08 .08 .08" rgba=".9 .8 .2 1" mass=".3"/>
+    </body>
+
+    <!-- boxes at increasing radii: tangential speed grows with r -->
+    <body name="mid" pos=".4 0 .2">
+      <freejoint/>
+      <geom type="box" size=".06 .06 .06" rgba=".2 .8 .4 1" mass=".3"/>
+    </body>
+    <body name="rim" pos=".75 0 .2">
+      <freejoint/>
+      <geom type="box" size=".06 .06 .06" rgba=".9 .3 .7 1" mass=".3"/>
+    </body>
+
+    <!-- ball: rolling rows vs the spinning surface -->
+    <body name="ball" pos="-.4 .3 .25">
+      <freejoint/>
+      <geom type="sphere" size=".07" rgba=".4 .7 .9 1" mass=".3"/>
+    </body>
+  </worldbody>
+</mujoco>
