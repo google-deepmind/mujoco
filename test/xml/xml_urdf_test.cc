@@ -306,5 +306,43 @@ TEST_F(MujocoTest, RepeatedMeshName) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, MimicBecomesJointEquality) {
+  // gripper with mirrored fingers: right_joint = -1 * left_joint. the target
+  // joint is declared after the joint that mimics it, on purpose
+  static constexpr char urdf[] = R"(
+  <robot name="gripper">
+    <link name="base">
+      <inertial><mass value="1"/>
+        <inertia ixx="1" iyy="1" izz="1" ixy="0" ixz="0" iyz="0"/></inertial>
+    </link>
+    <link name="left_finger">
+      <inertial><mass value="0.1"/>
+        <inertia ixx="1e-4" iyy="1e-4" izz="1e-4" ixy="0" ixz="0" iyz="0"/></inertial>
+    </link>
+    <link name="right_finger">
+      <inertial><mass value="0.1"/>
+        <inertia ixx="1e-4" iyy="1e-4" izz="1e-4" ixy="0" ixz="0" iyz="0"/></inertial>
+    </link>
+    <joint name="right_joint" type="prismatic">
+      <parent link="base"/><child link="right_finger"/><axis xyz="1 0 0"/>
+      <mimic joint="left_joint" multiplier="-1" offset="0.02"/>
+    </joint>
+    <joint name="left_joint" type="prismatic">
+      <parent link="base"/><child link="left_finger"/><axis xyz="1 0 0"/>
+    </joint>
+  </robot>)";
+
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(urdf, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+
+  ASSERT_EQ(model->neq, 1);
+  EXPECT_EQ(model->eq_type[0], mjEQ_JOINT);
+  EXPECT_EQ(model->eq_obj1id[0], mj_name2id(model.get(), mjOBJ_JOINT, "right_joint"));
+  EXPECT_EQ(model->eq_obj2id[0], mj_name2id(model.get(), mjOBJ_JOINT, "left_joint"));
+  EXPECT_EQ(model->eq_data[0], 0.02);  // offset
+  EXPECT_EQ(model->eq_data[1], -1.0);  // multiplier
+}
+
 }  // namespace
 }  // namespace mujoco
