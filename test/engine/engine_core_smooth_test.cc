@@ -17,6 +17,7 @@
 #include "src/engine/engine_core_smooth.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <string>
 #include <string_view>
@@ -2227,6 +2228,40 @@ TEST_F(CoreSmoothTest, FlexVertStability) {
     mj_deleteData(data);
     mj_deleteModel(model);
     mj_deleteSpec(spec);
+  }
+}
+
+// two coincident hinges make M exactly singular: the dof-0 pivot vanishes after
+// eliminating dof 1; expect a clamped pivot, one INERTIA warning naming dof 0,
+// and finite accelerations
+TEST_F(CoreSmoothTest, FactorMClampsSingularPivotAndWarns) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint axis="0 0 1"/>
+        <joint axis="0 0 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  // expect warnings from both the compiler (mj_setConst) and mj_forward below
+  mock_warning_handler.ExpectWarnings(
+      "Inertia matrix is too close to singular");
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  mj_forward(model.get(), data.get());
+
+  EXPECT_EQ(data->warning[mjWARN_INERTIA].number, 1);
+  EXPECT_EQ(data->warning[mjWARN_INERTIA].lastinfo, 0);
+  for (int i=0; i < model->nv; i++) {
+    EXPECT_TRUE(std::isfinite(data->qacc[i]));
   }
 }
 

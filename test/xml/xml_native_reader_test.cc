@@ -2922,7 +2922,7 @@ TEST_F(ActuatorParseTest, IntvelocityDefaultsPropagate) {
     <worldbody>
       <body>
         <joint name="hinge1"/>
-        <joint name="hinge2"/>
+        <joint name="hinge2" axis="1 0 0"/>
         <geom type="box" size=".025 .025 .025"/>
       </body>
     </worldbody>
@@ -3770,8 +3770,8 @@ TEST_F(ActuatorParseTest, ActuatorDelayParsed) {
       <body>
         <geom size="1"/>
         <joint name="jnt1"/>
-        <joint name="jnt2"/>
-        <joint name="jnt3"/>
+        <joint name="jnt2" axis="1 0 0"/>
+        <joint name="jnt3" axis="0 1 0"/>
       </body>
     </worldbody>
     <actuator>
@@ -3808,7 +3808,7 @@ TEST_F(ActuatorParseTest, ActuatorDelayDefault) {
       <body>
         <geom size="1"/>
         <joint name="jnt1"/>
-        <joint name="jnt2"/>
+        <joint name="jnt2" axis="1 0 0"/>
       </body>
     </worldbody>
     <actuator>

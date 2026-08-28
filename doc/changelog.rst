@@ -7,21 +7,25 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
-
 - The :ref:`.mjz <MJZArchives>` encoder now writes the root file as ``model.xml`` in the archive as this is less
   susceptible to breakage due to file renaming.
 - Added support for Python 3.15 (GIL and Free-Threading).
 
+Engine
+^^^^^^
+- Restored clamping of non-positive pivots in the sparse inertia factorization, along with the associated
+  ``mjWARN_INERTIA`` warning. The guard was inadvertently dropped in the 3.3.0 conversion of ``qLD`` to CSR format;
+  since then, models with singular mass matrices silently produced non-finite accelerations, typically surfacing as
+  divergence warnings and automatic resets.
+
 Compiler
 ^^^^^^^^
-
 - Custom text fields (:ref:`custom/text<custom-text>`) in MJCF now accept their values inside a ``<![CDATA[ ... ]]>``
   block in addition to the ``data`` attribute. When saving a model via :ref:`mj_saveXML`, custom text containing
   newlines or XML characters is exported as CDATA.
 
 Samples
 ^^^^^^^
-
 - Added :ref:`render.cc<saRender>`: a headless offscreen rendering sample that saves an image to a PNG image.
   Supports both the Filament and classic OpenGL backends, with command-line options for camera, resolution, keyframe,
   simulation steps, geom/site groups, visualization and rendering flags, labels, and frames.
