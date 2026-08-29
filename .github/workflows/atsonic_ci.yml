@@ -18,22 +18,10 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install Rust Toolchain
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Install Maturin and System Dependencies
+    - name: Install Dependencies & AtSonic Engine from PyPI
       run: |
         python -m pip install --upgrade pip
-        pip install maturin psutil matplotlib
-
-    - name: Clone and Build AtSonic Engine
-      run: |
-        cd ..
-        git clone https://github.com/${{ github.repository_owner }}/atsonic_ungc.git || true
-        if [ -d "atsonic_ungc" ]; then
-          cd atsonic_ungc
-          maturin develop --release
-        fi
+        pip install psutil matplotlib atsonic-ungc
 
     - name: Build MuJoCo Python Package
       run: |
