@@ -344,5 +344,37 @@ TEST_F(MujocoTest, MimicBecomesJointEquality) {
   EXPECT_EQ(model->eq_data[1], -1.0);  // multiplier
 }
 
+TEST_F(MujocoTest, MimicTargetingIncompatibleJointIsIgnored) {
+  // a <mimic> pointing at a fixed joint used to load with the mimic dropped;
+  // it must still load rather than turn into a hard failure
+  static constexpr char urdf[] = R"(
+  <robot name="robot">
+    <link name="base">
+      <inertial><mass value="1"/>
+        <inertia ixx="1" iyy="1" izz="1" ixy="0" ixz="0" iyz="0"/></inertial>
+    </link>
+    <link name="a">
+      <inertial><mass value="0.1"/>
+        <inertia ixx="1e-4" iyy="1e-4" izz="1e-4" ixy="0" ixz="0" iyz="0"/></inertial>
+    </link>
+    <link name="b">
+      <inertial><mass value="0.1"/>
+        <inertia ixx="1e-4" iyy="1e-4" izz="1e-4" ixy="0" ixz="0" iyz="0"/></inertial>
+    </link>
+    <joint name="mover" type="prismatic">
+      <parent link="base"/><child link="a"/><axis xyz="1 0 0"/>
+      <mimic joint="welded"/>
+    </joint>
+    <joint name="welded" type="fixed">
+      <parent link="a"/><child link="b"/>
+    </joint>
+  </robot>)";
+
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(urdf, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->neq, 0);
+}
+
 }  // namespace
 }  // namespace mujoco

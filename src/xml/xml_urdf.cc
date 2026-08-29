@@ -189,9 +189,21 @@ void mjXURDF::Parse(XMLElement*        root,
   }
 
   // <mimic> -> joint equality: q_follower - q0 = offset + multiplier*(q_driver - q0)
+  auto hinge_or_slide = [&](const std::string& jnt_name) {
+    mjsElement* el  = mjs_findElement(spec, mjOBJ_JOINT, jnt_name.c_str());
+    mjsJoint*   jnt = el ? mjs_asJoint(el) : nullptr;
+    return jnt && (jnt->type == mjJNT_HINGE || jnt->type == mjJNT_SLIDE);
+  };
   for (const auto& [follower, driver, multiplier, offset] : urMimic) {
+    // mjEQ_JOINT couples two 1-dof joints; skip the mimic rather than fail the
+    // load when the target is fixed, planar, floating or missing
+    if (!hinge_or_slide(follower) || !hinge_or_slide(driver)) {
+      std::cerr << "WARNING: <mimic> on joint '" << follower
+                << "' ignored; mimic requires revolute or prismatic joints\n";
+      continue;
+    }
     mjsEquality* eq = mjs_addEquality(spec, nullptr);
-    eq->type = mjEQ_JOINT;
+    eq->type        = mjEQ_JOINT;
     mjs_setString(eq->name1, follower.c_str());
     mjs_setString(eq->name2, driver.c_str());
     eq->data[0] = offset;
