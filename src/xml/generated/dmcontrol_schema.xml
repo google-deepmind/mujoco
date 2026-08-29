@@ -3159,6 +3159,7 @@
             <attribute name="interp" type="keyword" valid_values="zoh linear cubic"/>
             <attribute name="delay" type="float"/>
             <attribute name="interval" type="array" array_type="float" array_size="2"/>
+            <attribute name="cutoff" type="float"/>
             <attribute name="user" type="array" array_type="float"/>
           </attributes>
         </element>

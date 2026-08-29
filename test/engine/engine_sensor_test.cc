@@ -1801,6 +1801,63 @@ TEST_F(SensorTest, TactileSkipTangents) {
   EXPECT_EQ(nonzero_count, 2) << "Expected 2 taxels in contact";
 }
 
+// Test tactile sensor cutoff attribute, engine clamping, and round-trip XML save/load
+TEST_F(SensorTest, TactileCutoff) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag multiccd="enable"/>
+    </option>
+    <asset>
+      <mesh name="sensor_mesh" builtin="sphere" params="0"/>
+    </asset>
+    <worldbody>
+      <body pos="0 0 1">
+        <freejoint/>
+        <geom name="sensor_geom" type="mesh" mesh="sensor_mesh"/>
+      </body>
+      <body>
+        <geom type="box" size=".7 .7 .3"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <tactile geom="sensor_geom" mesh="sensor_mesh" cutoff="0.05"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_GT(model->nsensordata, 0) << "No sensor data allocated";
+  EXPECT_MJTNUM_EQ(model->sensor_cutoff[0], 0.05);
+
+  MjDataPtr data = MakeData(model);
+
+  // Compute collisions and sensors at t=0
+  mj_forward(model.get(), data.get());
+
+  int ntaxel = model->nsensordata / 3;
+  int nonzero_count = 0;
+  for (int i = 0; i < ntaxel; i++) {
+    if (data->sensordata[i] != 0) {
+      nonzero_count++;
+      // Without cutoff, penetration is ~0.2; with cutoff=0.05, it must be clamped to 0.05
+      EXPECT_NEAR(data->sensordata[i], 0.05, MjTol(1e-6, 1e-4))
+          << "Penetration depth at taxel " << i << " should be clamped to cutoff";
+    }
+  }
+  EXPECT_EQ(nonzero_count, 2) << "Expected 2 taxels in contact";
+
+  // Verify XML round-trip preserves cutoff without schema errors
+  std::string saved_xml = SaveAndReadXml(model.get());
+  EXPECT_THAT(saved_xml, HasSubstr("cutoff=\"0.05\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("noise")));
+
+  MjModelPtr reloaded = LoadModelFromString(saved_xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(reloaded.get(), NotNull()) << error;
+  EXPECT_MJTNUM_EQ(reloaded->sensor_cutoff[0], 0.05);
+}
+
 // insidesite uses subtree_com for massless flex parent bodies
 TEST_F(SensorTest, InsideSiteFlexBody) {
   static constexpr char xml[] = R"(

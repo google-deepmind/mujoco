@@ -9035,6 +9035,8 @@ visualization of contact points.
 
 .. _sensor-tactile-name:
 
+.. _sensor-tactile-cutoff:
+
 .. _sensor-tactile-nsample:
 
 .. _sensor-tactile-interp:
@@ -9045,7 +9047,7 @@ visualization of contact points.
 
 .. _sensor-tactile-user:
 
-:at:`name`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`:
+:at:`name`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`:
    See :ref:`CSensor`.
 
 .. _sensor-e_potential:

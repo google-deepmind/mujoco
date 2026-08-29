@@ -3770,6 +3770,7 @@
     <xs:attribute name="interp" type="kw_interp"/>
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="interval" type="double1to2"/>
+    <xs:attribute name="cutoff" type="xs:double"/>
     <xs:attribute name="user" type="doublelist"/>
   </xs:complexType>
 

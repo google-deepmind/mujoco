@@ -2115,6 +2115,7 @@ element tactile : mjsSensor {
   interp             : enum<interp>
   delay              : double
   interval           : double[1..2]
+  cutoff             : double
   user               : double[]
 }
 

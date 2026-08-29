@@ -23,6 +23,7 @@ Compiler
 - Custom text fields (:ref:`custom/text<custom-text>`) in MJCF now accept their values inside a ``<![CDATA[ ... ]]>``
   block in addition to the ``data`` attribute. When saving a model via :ref:`mj_saveXML`, custom text containing
   newlines or XML characters is exported as CDATA.
+- Added :ref:`cutoff<sensor-tactile-cutoff>` attribute to :ref:`sensor/tactile<sensor-tactile>`.
 
 Samples
 ^^^^^^^

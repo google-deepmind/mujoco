@@ -5100,6 +5100,9 @@
                :ref:`interval<sensor-tactile-interval>`
 
             .. grid-item::
+               :ref:`cutoff<sensor-tactile-cutoff>`
+
+            .. grid-item::
                :ref:`user<sensor-tactile-user>`
 
 

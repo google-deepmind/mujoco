@@ -2192,7 +2192,9 @@ void mjXWriter::Sensor(XMLElement* root) {
     // write name, noise, userdata
     WriteAttrTxt(elem, "name", sensor->name);
     WriteAttr(elem, "cutoff", 1, &sensor->cutoff, &zero);
-    if (sensor->type != mjSENS_PLUGIN) { WriteAttr(elem, "noise", 1, &sensor->noise, &zero); }
+    if (sensor->type != mjSENS_PLUGIN && sensor->type != mjSENS_TACTILE) {
+      WriteAttr(elem, "noise", 1, &sensor->noise, &zero);
+    }
     WriteAttrInt(elem, "nsample", sensor->nsample, 0);
     WriteAttrKey(elem, "interp", interp_map, interp_sz, sensor->interp, 0);
     WriteAttr(elem, "delay", 1, &sensor->delay, &zero);
