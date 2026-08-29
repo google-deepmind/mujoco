@@ -23,10 +23,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install psutil matplotlib
 
-    - name: Install Single AtSonic Engine Wheel
+    - name: Install Fresh AtSonic Engine Wheel
       run: |
-        # Inainstall wheel ya manylinux iliyobaki pekee
-        pip install wheels/atsonic_ungc-*-manylinux_*.whl
+        pip install wheels/*.whl
 
     - name: Run 10M Steps Memory Stability Benchmark
       run: |
