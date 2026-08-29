@@ -12,17 +12,76 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Python bindings for MuJoCo."""
+"""Python bindings for MuJoCo with AtSonic UNGC Integration."""
 
 import ctypes
 import ctypes.util
 import os
 import platform
 import subprocess
+import gc
 from typing import Any, IO, Union, Sequence
 from typing_extensions import TypeAlias
 import warnings
 import zipfile
+
+# ==============================================================================
+# AtSonic UNGC Integration Layer (Deterministic Engine)
+# ==============================================================================
+_ATSONIC_AVAILABLE = False
+_ATSONIC_ENGINE = None
+
+try:
+    import atsonic_ungc
+    _ATSONIC_AVAILABLE = True
+except ImportError:
+    _ATSONIC_AVAILABLE = False
+
+
+def enable_atsonic_ungc(capacity: int = 1_000_000) -> bool:
+    """
+    Enables deterministic No-GC mode using AtSonic Engine.
+    Prevents cyclic Garbage Collection latency pauses during physics steps.
+    
+    Args:
+        capacity: Pre-allocated buffer limit for the Rust engine.
+    Returns:
+        bool: True if engine was enabled successfully, False otherwise.
+    """
+    global _ATSONIC_ENGINE
+    if not _ATSONIC_AVAILABLE:
+        warnings.warn(
+            "atsonic_ungc C-extension is not installed. Running in standard Python GC mode.",
+            RuntimeWarning
+        )
+        return False
+    
+    try:
+        # Instantiate Rust engine pre-allocated arena
+        _ATSONIC_ENGINE = atsonic_ungc.AtsonicEngine(capacity=capacity)
+        gc.disable()
+        return True
+    except Exception as e:
+        warnings.warn(f"Failed to initialize AtSonic Engine: {e}", RuntimeWarning)
+        return False
+
+
+def disable_atsonic_ungc() -> None:
+    """Restores Python's standard generational Garbage Collector."""
+    global _ATSONIC_ENGINE
+    _ATSONIC_ENGINE = None
+    gc.enable()
+
+
+def is_atsonic_active() -> bool:
+    """Checks if AtSonic No-GC mode is currently active."""
+    return (_ATSONIC_ENGINE is not None) and (not gc.isenabled())
+
+# ==============================================================================
+
+# Continue standard MuJoCo loader...
+__path__ = __import__('pkgutil').extend_path(__path__, __name__)
+# 
 
 # Extend the path to enable multiple directories to contribute to the same
 # package. Without this line, the `mujoco-mjx` package would not be able to
@@ -31,7 +90,6 @@ import zipfile
 # of declaring the namespace package is to use the native namespace packages.
 # This seems non-trivial at the current state of the project, however.
 # For more information, see: https://github.com/google-deepmind/mujoco/issues/2119
-__path__ = __import__('pkgutil').extend_path(__path__, __name__)
 
 _SYSTEM = platform.system()
 if _SYSTEM == 'Windows':
@@ -254,3 +312,4 @@ def _load_all_bundled_plugins():
 _load_all_bundled_plugins()
 
 __version__ = mj_versionString()  # pylint: disable=undefined-variable
+from mujoco.atsonic.engine import AtSonicMujocoRunner

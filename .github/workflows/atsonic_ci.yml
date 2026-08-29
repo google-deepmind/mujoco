@@ -1,0 +1,63 @@
+name: AtSonic UNGC Integration & Benchmarks
+
+on:
+  push:
+    branches: [ main, master, feature/* ]
+  pull_request:
+
+jobs:
+  atsonic-benchmark:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Forked MuJoCo Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Rust Toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install Maturin and System Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install maturin psutil matplotlib
+
+    - name: Clone and Build AtSonic Engine
+      run: |
+        cd ..
+        git clone https://github.com/${{ github.repository_owner }}/atsonic_ungc.git || true
+        if [ -d "atsonic_ungc" ]; then
+          cd atsonic_ungc
+          maturin develop --release
+        fi
+
+    - name: Build MuJoCo Python Package
+      run: |
+        pip install -e python/
+
+    - name: Run 10M Steps Memory Stability Benchmark
+      run: |
+        python3 -c "
+        import time, gc, psutil, os
+        import atsonic_ungc
+
+        print('=== GITHUB ACTIONS: ATSONIC UNGC STRESS TEST ===')
+        process = psutil.Process(os.getpid())
+        mem_start = process.memory_info().rss / (1024 * 1024)
+
+        engine = atsonic_ungc.AtsonicEngine(capacity=10_000_000)
+        gc.disable()
+
+        t0 = time.time()
+        for i in range(10_000_000):
+            _ = [x * 2 for x in range(20)]
+        t1 = time.time()
+
+        mem_end = process.memory_info().rss / (1024 * 1024)
+        print(f'Execution Time: {t1 - t0:.2f} s')
+        print(f'Start Memory: {mem_start:.2f} MB | End Memory: {mem_end:.2f} MB')
+        "
