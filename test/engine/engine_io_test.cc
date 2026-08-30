@@ -846,7 +846,7 @@ TEST_F(EngineIoTest, CanDetectStackFrameLeakage) {
   EXPECT_THAT(
       MjuErrorMessageFrom(mj_freeStack)(data.get()),
       ContainsRegex(
-          "mj_markStack in MarkFreeStack at .*engine_io_test\\.cc.* has no "
+          "mj_markStack in .*MarkFreeStack.* at .*engine_io_test\\.cc.* has no "
           "corresponding mj_freeStack"));
 
   // Dangling stack frames should be detected in mj_deleteData.

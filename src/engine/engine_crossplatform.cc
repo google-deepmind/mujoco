@@ -83,10 +83,14 @@ FuncNameAndDebugInfoCached(void* pc) {
   __sanitizer_symbolize_pc(pc, "%f", buf.data(), buf.size());
 
   // buf contains sequence of null-terminated strings of inlined function names
-  // so we walk through the sequence until we find the first unignored function
+  // so we walk through the sequence until we find the first unignored function.
+  // A frame from a C++ translation unit is rendered with its parameter list,
+  // "mj_markStack(mjData_*)", and one from C without it, "mj_markStack", so the
+  // comparison is against the name up to the first parenthesis.
   std::string_view func_name(buf.data());
   int idx = 0;
-  while (kIgnoredInlinedFunctions->find(func_name.data()) !=
+  while (kIgnoredInlinedFunctions->find(
+             std::string(func_name.substr(0, func_name.find('(')))) !=
          kIgnoredInlinedFunctions->end()) {
     func_name = func_name.data() + func_name.size() + 1;
     ++idx;

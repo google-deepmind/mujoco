@@ -44,8 +44,8 @@ MJAPI void mj_freeStack(mjData* d);
 
 #else
 
-void mj__markStack(mjData* d) __attribute__((noinline));
-void mj__freeStack(mjData* d) __attribute__((noinline));
+MJAPI void mj__markStack(mjData* d) __attribute__((noinline));
+MJAPI void mj__freeStack(mjData* d) __attribute__((noinline));
 
 #endif  // ADDRESS_SANITIZER
 
