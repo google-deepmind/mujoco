@@ -16,9 +16,9 @@
 
 import copy
 import dataclasses
-import hashlib
 import typing
 from typing import Dict, Optional, Sequence, Tuple, TypeVar, Union
+import zlib
 import jax
 import numpy as np
 
@@ -36,10 +36,10 @@ class _NumPyArrayHashWrapper:
 
   def __init__(self, arr: np.ndarray):
     if arr.size == 0:
-      h = hashlib.sha256(b'').hexdigest()
+      h = 0
     else:
       contiguous = np.ascontiguousarray(arr)
-      h = hashlib.sha256(contiguous.data.cast('B')).hexdigest()
+      h = zlib.crc32(contiguous.data)
     self._hash_key = (h, arr.dtype, arr.shape)
     self.array = arr
 
@@ -49,7 +49,14 @@ class _NumPyArrayHashWrapper:
   def __eq__(self, other):
     if not isinstance(other, _NumPyArrayHashWrapper):
       return NotImplemented
-    return self._hash_key == other._hash_key
+    if self.array is other.array:
+      return True
+  # Since we use crc32, collision is not a negligible probability thus we
+  # if two independent arrays have the same dtype, shape and hash then
+  # we double check the contents are the same.
+    return self._hash_key == other._hash_key and np.array_equal(
+        self.array, other.array, equal_nan=True
+    )
 
 
 def _jax_in_args(typ) -> bool:
