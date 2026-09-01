@@ -59,6 +59,7 @@ class ObjectManager {
     kPhongCubeReflect,
     kUnlitSegmentation,
     kDecor,
+    kDecorFade,
     kUnlitDepth,
     kUnlitUi,
     kOutlineComposite,

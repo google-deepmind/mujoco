@@ -127,6 +127,8 @@ MaterialManager::MaterialType MaterialManager::GetMaterialType(
   if (material.decor_ux) {
     if (material.color_texture) {
       return ObjectManager::kUnlitUi;
+    } else if (material.color[3] < 1.0f) {
+      return ObjectManager::kDecorFade;
     } else {
       return ObjectManager::kDecor;
     }

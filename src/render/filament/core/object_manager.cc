@@ -89,6 +89,7 @@ ObjectManager::ObjectManager(filament::Engine* engine) : engine_(engine) {
   materials_[kUnlitSegmentation] =
       LoadMaterial(engine, "unlit_segmentation.filamat");
   materials_[kDecor] = LoadMaterial(engine, "decor.filamat");
+  materials_[kDecorFade] = LoadMaterial(engine, "decor_fade.filamat");
   materials_[kUnlitDepth] = LoadMaterial(engine, "unlit_depth.filamat");
   materials_[kUnlitUi] = LoadMaterial(engine, "unlit_ui.filamat");
   materials_[kOutlineComposite] =
