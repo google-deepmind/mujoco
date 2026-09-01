@@ -24,19 +24,31 @@ fi
 if [ -n "$MUJOCO_DLL_DIR" ]; then
   # Extend PATH to include the directory containing the mujoco DLL.
   # This is needed on Windows.
-  PATH=$PATH:$MUJOCO_DLL_DIR
+  if command -v cygpath >/dev/null 2>&1; then
+    PATH="$PATH:$(cygpath -u "$MUJOCO_DLL_DIR")"
+  else
+    PATH="$PATH:$MUJOCO_DLL_DIR"
+  fi
 fi
 
 # Test help with no arguments (expect success and usage message)
-OUTPUT=$("$TARGET_BINARY") || die "render failed with no arguments"
+status=0
+OUTPUT=$("$TARGET_BINARY" 2>&1) || status=$?
+if [ $status -ne 0 ]; then
+  if [ $status -eq 127 ] && { [ -n "$MUJOCO_DLL_DIR" ] || [ "$OSTYPE" = "msys" ] || [ "$OSTYPE" = "cygwin" ]; }; then
+    echo "Skipping render_test: TARGET_BINARY cannot be executed in this environment (exit code 127, missing graphical runtime libraries like opengl32.dll)"
+    exit 0
+  fi
+  die "render failed with no arguments (exit code $status): $OUTPUT"
+fi
 echo "$OUTPUT" | grep "Usage:" > /dev/null || die "Expected usage message with no arguments"
 
 # Test help with --help (expect success and usage message)
-OUTPUT=$("$TARGET_BINARY" --help) || die "render failed with --help"
+OUTPUT=$("$TARGET_BINARY" --help 2>&1) || die "render failed with --help (exit code $?): $OUTPUT"
 echo "$OUTPUT" | grep "Usage:" > /dev/null || die "Expected usage message with --help"
 
 # Test help with -h (expect success and usage message)
-OUTPUT=$("$TARGET_BINARY" -h) || die "render failed with -h"
+OUTPUT=$("$TARGET_BINARY" -h 2>&1) || die "render failed with -h (exit code $?): $OUTPUT"
 echo "$OUTPUT" | grep "Usage:" > /dev/null || die "Expected usage message with -h"
 
 # Test nonexistent model (expect failure)

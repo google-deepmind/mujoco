@@ -415,7 +415,7 @@ static std::string ExecutableDir() {
 static std::string ResolveAsset(string_view path) {
   string_view           name = path.substr(path.find(':') + 1);
   std::filesystem::path dir  = ExecutableDir();
-  return (dir.empty() ? std::filesystem::path("assets") : dir / "assets") / name;
+  return ((dir.empty() ? std::filesystem::path("assets") : dir / "assets") / name).string();
 }
 
 

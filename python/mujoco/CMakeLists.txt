@@ -169,6 +169,8 @@ if(NOT TARGET mujoco::platform)
     set(dep_libs
       mujoco_filament
       dear_imgui
+      dear_imgui_SDL2
+      dear_imgui_OpenGL3
       dear_imgui_stdlib
       implot
       filament
