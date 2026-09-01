@@ -28,8 +28,8 @@ from mujoco.experimental.studio import launch_passive
 from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import parser
 from mujoco.experimental.studio import step_control
-from mujoco.experimental.studio import studio_app_events
 from mujoco.experimental.studio import ux
+from mujoco.experimental.studio import viewer_app_events
 from mujoco.experimental.studio import viewer_protocol
 from mujoco.experimental.studio import viewer_utils
 import numpy as np
@@ -104,7 +104,7 @@ class GhostRenderer:
     model = self._viewer.model
     data = self._viewer.data
 
-    studio_app_events.handle_mouse_events(
+    viewer_app_events.handle_mouse_events(
         model,
         data,
         self._viewer.camera,

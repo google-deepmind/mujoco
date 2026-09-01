@@ -34,13 +34,13 @@ import mujoco
 from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import parser
 from mujoco.experimental.studio import sim
-from mujoco.experimental.studio import studio_app_events
 from mujoco.experimental.studio import ux
+from mujoco.experimental.studio import viewer_app_events
 from mujoco.experimental.studio import viewer_protocol
 from mujoco.experimental.studio import viewer_utils
+import numpy as np
 
 from mujoco.experimental.dear_imgui import dear_imgui as imgui
-import numpy as np
 
 
 @dataclasses.dataclass(frozen=True)
@@ -159,28 +159,28 @@ class ViewerApp:
     """Handles keyboard events."""
 
     is_freecam_wasd = self.ux_state.camera_index == ux.FREE_CAMERA_IDX
-    if studio_app_events.handle_step_control_keyboard_events(
+    if viewer_app_events.handle_step_control_keyboard_events(
         self.step_control_state, self.ux_state
     ):
       return
 
-    if studio_app_events.handle_reset_keyboard_events(self.model, self.data):
+    if viewer_app_events.handle_reset_keyboard_events(self.model, self.data):
       self.reset_physics()
       return
 
-    if studio_app_events.handle_camera_select_keyboard_events(
+    if viewer_app_events.handle_camera_select_keyboard_events(
         self.model, self.viewer.camera, self.ux_state
     ):
       return
 
-    if studio_app_events.handle_vis_options_keyboard_events(
+    if viewer_app_events.handle_vis_options_keyboard_events(
         self.viewer.vis_options, is_freecam_wasd
     ):
       return
 
     if is_freecam_wasd:
       handled, cam_speed = (
-          studio_app_events.handle_freecam_wasd_keyboard_events(
+          viewer_app_events.handle_freecam_wasd_keyboard_events(
               self.model, self.data, self.viewer.camera, self.viewer.cam_speed
           )
       )
@@ -190,7 +190,7 @@ class ViewerApp:
 
   def handle_camera_tracking_mouse_events(self) -> None:
     """Handles mouse events for camera tracking."""
-    return studio_app_events.handle_camera_tracking_mouse_events(
+    return viewer_app_events.handle_camera_tracking_mouse_events(
         self.model,
         self.data,
         self.viewer.camera,
@@ -202,7 +202,7 @@ class ViewerApp:
       self,
   ) -> None:
     """Handles mouse events."""
-    return studio_app_events.handle_mouse_events(
+    return viewer_app_events.handle_mouse_events(
         self.model,
         self.data,
         self.viewer.camera,
