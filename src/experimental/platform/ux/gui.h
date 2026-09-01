@@ -43,11 +43,30 @@ enum class GuiTheme {
   kClassic,
 };
 
-// Render a section header with custom, visually-balanced smaller expand/collapse arrow.
-bool SectionHeader(const char* label, ImGuiTreeNodeFlags flags = 0, float arrow_scale = 0.55f);
+// Render a section header with custom, visually-balanced smaller
+// expand/collapse arrow.
+bool SectionHeader(const char* label, ImGuiTreeNodeFlags flags = 0,
+                   float arrow_scale = 0.55f);
 
 // Updates the ImGui internal style state to match the requested theme.
 void SetupTheme(GuiTheme theme);
+
+// Returns the default INI settings file path (~/.mujoco.ini).
+std::string GetDefaultIniPath();
+
+// Loads the GUI theme from an INI file (defaults to ~/.mujoco.ini if empty).
+GuiTheme LoadTheme(const std::string& ini_path = "",
+                   GuiTheme def_theme = GuiTheme::kLight);
+
+// Loads settings from an INI file into ImGui and returns the loaded theme.
+GuiTheme LoadSettings(const std::string& ini_path = "",
+                      GuiTheme def_theme = GuiTheme::kLight);
+
+// Saves settings (including ImGui state and theme) to an INI file.
+void SaveSettings(GuiTheme theme, const std::string& ini_path = "");
+
+// Resets configuration INI file.
+void ResetConfig(const std::string& ini_path = "");
 
 // Rescales all dock node widths by the given ratio.
 void RescaleDock(float ratio);
@@ -70,7 +89,8 @@ void RescaleDock(float ratio);
 //
 // Returns the size and position of the remaining workspace area which can then
 // be used to place additional elements (e.g. floating charts).
-ImVec4 ConfigureDockingLayout(bool show_toolbar = true, bool show_status_bar = false);
+ImVec4 ConfigureDockingLayout(bool show_toolbar = true,
+                              bool show_status_bar = false);
 
 // logarithmically spaced real-time slow-down coefficients (percent)
 // clang-format off
@@ -139,6 +159,9 @@ void SimulationGui(const SimulationGuiContext& ctx);
 // UX for selecting the GUI theme.
 bool ThemeSelectGui(GuiTheme* theme, const ImVec2& size = ImVec2(0, 0));
 
+// UX for selecting the GUI theme from a menu item.
+bool ThemeMenuGui(GuiTheme* theme);
+
 // UX for selecting the visualization label option.
 bool LabelSelectionGui(mjvOption* opts);
 
@@ -206,7 +229,8 @@ void CountsGui(const mjModel* model, mjData* data,
                ImVec2 plot_size = ImVec2(-1, 0));
 
 // UX for Profiler panel combining Solver and Performance metrics.
-void ProfilerGui(const mjModel* model, mjData* data, SimProfiler* profiler, bool show_iter);
+void ProfilerGui(const mjModel* model, mjData* data, SimProfiler* profiler,
+                 bool show_iter);
 
 // UX for displaying basic simulation information. Note that the pause state and
 // FPS needs to be tracked by the caller and passed here to be displayed.

@@ -68,6 +68,7 @@ PYBIND11_MODULE(dear_imgui, m) {
       .def_readonly("Framerate", &ImGuiIO::Framerate)
       .def_readonly("WantCaptureMouse", &ImGuiIO::WantCaptureMouse)
       .def_readonly("WantCaptureKeyboard", &ImGuiIO::WantCaptureKeyboard)
+      .def_readwrite("WantSaveIniSettings", &ImGuiIO::WantSaveIniSettings)
       .def_readonly("KeyShift", &ImGuiIO::KeyShift)
       .def_readonly("KeyCtrl", &ImGuiIO::KeyCtrl)
       .def_readonly("KeyAlt", &ImGuiIO::KeyAlt)

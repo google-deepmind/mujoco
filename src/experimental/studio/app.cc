@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <array>
 #include <cfloat>
-#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -29,7 +28,6 @@
 #include <span>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -76,12 +74,8 @@ static void SelectParentPerturb(const mjModel* model, mjvPerturb& perturb) {
   // TODO: update selected element!
 }
 
-static constexpr const char* ICON_COPY_CAMERA = platform::ICON_FA_COPY;
 static constexpr const char* ICON_RELOAD_MODEL = platform::ICON_FA_REFRESH;
 static constexpr const char* ICON_RESET_MODEL = platform::ICON_FA_UNDO;
-static constexpr const char* ICON_PREV_FRAME = platform::ICON_FA_CARET_LEFT;
-static constexpr const char* ICON_NEXT_FRAME = platform::ICON_FA_CARET_RIGHT;
-static constexpr const char* ICON_CURR_FRAME = platform::ICON_FA_FAST_FORWARD;
 static constexpr const char* ICON_UNDO_SPEC = platform::ICON_FA_UNDO;
 static constexpr const char* ICON_REDO_SPEC = platform::ICON_FA_REPEAT;
 
@@ -944,7 +938,8 @@ void App::LoadSettings() {
   }
 }
 
-// Key for one entry in state storage; the window name locates its owner on load.
+// Key for one entry in state storage; the window name locates its owner on
+// load.
 static std::string WindowStateStorageKey(const char* window_name, ImGuiID id) {
   char id_str[16];
   std::snprintf(id_str, sizeof(id_str), "%08X", id);
@@ -952,7 +947,8 @@ static std::string WindowStateStorageKey(const char* window_name, ImGuiID id) {
 }
 
 void App::ApplyWindowStateStorage() {
-  for (auto it = window_state_storage_.begin(); it != window_state_storage_.end();) {
+  for (auto it = window_state_storage_.begin();
+       it != window_state_storage_.end();) {
     const std::string::size_type sep = it->first.rfind('/');
     if (sep == std::string::npos) {
       it = window_state_storage_.erase(it);
@@ -988,8 +984,8 @@ void App::SaveSettings() {
 
     // Pending entries first, so state for windows never opened this session is
     // not dropped, then let the live windows override. Merge into a local copy:
-    // window_state_storage_ must stay pending-only, or a stale value could re-apply
-    // over a newer toggle.
+    // window_state_storage_ must stay pending-only, or a stale value could
+    // re-apply over a newer toggle.
     platform::KeyValues window_state_storage = window_state_storage_;
     ImGuiContext& g = *ImGui::GetCurrentContext();
     for (ImGuiWindow* window : g.Windows) {
@@ -1238,8 +1234,9 @@ void App::BuildGui() {
     }
   });
 
-  // This frame's windows are submitted, so pending state storage can be restored.
-  // Must precede the save below, which would otherwise write the defaults.
+  // This frame's windows are submitted, so pending state storage can be
+  // restored. Must precede the save below, which would otherwise write the
+  // defaults.
   ApplyWindowStateStorage();
 
   ImGuiIO& io = ImGui::GetIO();
@@ -1608,8 +1605,7 @@ void App::SpecEditorGui() {
     if (tmp_.editor_split < 0) {
       tmp_.editor_split = region.y * 0.7f;
     }
-    tmp_.editor_split =
-        std::clamp(tmp_.editor_split, 20.0f, region.y - 40.0f);
+    tmp_.editor_split = std::clamp(tmp_.editor_split, 20.0f, region.y - 40.0f);
   }
 
   mjsElement* element = spec_editor_.GetActiveElement();
@@ -1843,8 +1839,8 @@ void App::ToolBarGui() {
     platform::StepControlGui(&step_control_, tmp_.speed_index);
 
     ImGui::SameLine(0, separator_width);
-    platform::TimelineScrubberGui(model(), data(), step_control_,
-                                  sim_history_, timeline_);
+    platform::TimelineScrubberGui(model(), data(), step_control_, sim_history_,
+                                  timeline_);
 
     ImGui::TableNextColumn();
 
@@ -1967,7 +1963,7 @@ void App::MainMenuGui() {
         SaveSettings();
       }
       if (ImGui::MenuItem("Reset Config")) {
-        platform::SaveText("\n\n", ini_path_);
+        platform::ResetConfig(ini_path_);
         LoadSettings();
       }
       ImGui::Separator();
@@ -2019,27 +2015,7 @@ void App::MainMenuGui() {
       }
       ImGui::Separator();
 
-      if (ImGui::BeginMenu("Theme")) {
-        if (ImGui::MenuItem("Light", nullptr,
-                            ui_.theme == platform::GuiTheme::kLight)) {
-          ui_.theme = platform::GuiTheme::kLight;
-          platform::SetupTheme(ui_.theme);
-          ImGui::GetIO().WantSaveIniSettings = true;
-        }
-        if (ImGui::MenuItem("Dark", nullptr,
-                            ui_.theme == platform::GuiTheme::kDark)) {
-          ui_.theme = platform::GuiTheme::kDark;
-          platform::SetupTheme(ui_.theme);
-          ImGui::GetIO().WantSaveIniSettings = true;
-        }
-        if (ImGui::MenuItem("Classic", nullptr,
-                            ui_.theme == platform::GuiTheme::kClassic)) {
-          ui_.theme = platform::GuiTheme::kClassic;
-          platform::SetupTheme(ui_.theme);
-          ImGui::GetIO().WantSaveIniSettings = true;
-        }
-        ImGui::EndMenu();
-      }
+      platform::ThemeMenuGui(&ui_.theme);
 
 #ifdef __linux__
       if (ImGui::BeginMenu("Graphics Mode (Experimental)")) {

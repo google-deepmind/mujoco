@@ -92,9 +92,10 @@ class ViewerApp:
 
   def __init__(self) -> None:
     self._viewer: viewer_protocol.Viewer | None = None
-    self.theme = ux.GuiTheme.LIGHT
+    self.theme = ux.load_theme()
+    self.show_toolbar = False
     self.show_info = False
-    self.show_solver = False
+    self.show_profiler = False
     self.status = 'Ready'
     self.sim_history = sim.SimHistory()
     self._reset_app_state()
@@ -102,6 +103,8 @@ class ViewerApp:
   @messages.handler(priority=messages.Priority.CRITICAL)
   def _on_viewer_init(self, event: viewer_protocol.ViewerInitEvent) -> None:
     self.viewer = event.viewer
+    self.theme = ux.load_settings(def_theme=self.theme)
+    ux.setup_theme(self.theme)
     self._setup_history()
     self.viewer.dispatch(ViewerAppInitEvent(viewer_app=self))
 
@@ -153,6 +156,7 @@ class ViewerApp:
         print(f'Error reloading model from {self.model_path!r}: {ex}')
 
   def close(self) -> None:
+    ux.save_settings(self.theme)
     self.viewer.close()
 
   def handle_keyboard_events(self) -> None:
@@ -176,6 +180,9 @@ class ViewerApp:
     if viewer_app_events.handle_vis_options_keyboard_events(
         self.viewer.vis_options, is_freecam_wasd
     ):
+      return
+
+    if viewer_app_events.handle_miscellaneous_keyboard_events(self):
       return
 
     if is_freecam_wasd:
@@ -291,7 +298,12 @@ class ViewerApp:
   def build_gui(self) -> None:
     """Emit full Studio UI."""
     ux.setup_theme(self.theme)
-    ux.configure_docking_layout()
+    ux.configure_docking_layout(show_toolbar=self.show_toolbar)
+
+    io = imgui.GetIO()
+    if io.WantSaveIniSettings:
+      ux.save_settings(self.theme)
+      io.WantSaveIniSettings = False
 
     # -- Main menu bar --------------------------------------------------------
     if imgui.BeginMainMenuBar():
@@ -301,56 +313,66 @@ class ViewerApp:
         imgui.EndMenu()
       if imgui.BeginMenu('Simulation'):
         imgui.EndMenu()
-      if imgui.BeginMenu('Charts'):
-        if imgui.MenuItem('Solver', '', self.show_solver):
-          self.show_solver = not self.show_solver
-        if imgui.MenuItem('Info', '', self.show_info):
+      if imgui.BeginMenu('View'):
+        if imgui.MenuItem('Save Config'):
+          ux.save_settings(self.theme)
+        if imgui.MenuItem('Reset Config'):
+          ux.reset_config()
+          self.theme = ux.load_settings(def_theme=ux.GuiTheme.LIGHT)
+          ux.setup_theme(self.theme)
+        imgui.Separator()
+        if imgui.MenuItem(
+            'Hide Toolbar' if self.show_toolbar else 'Show Toolbar'
+        ):
+          self.show_toolbar = not self.show_toolbar
+        imgui.Separator()
+        if imgui.MenuItem('Info', 'F2', self.show_info):
           self.show_info = not self.show_info
+        if imgui.MenuItem('Profiler', 'F3', self.show_profiler):
+          self.show_profiler = not self.show_profiler
+        imgui.Separator()
+        changed, self.theme = ux.theme_menu_gui(self.theme)
+        if changed:
+          ux.setup_theme(self.theme)
+          ux.save_settings(self.theme)
         imgui.EndMenu()
       if imgui.BeginMenu('Help'):
-        if imgui.MenuItem('Info', '', self.show_info):
-          self.show_info = not self.show_info
-        imgui.Separator()
         version = f'Version {mujoco.mj_versionString()}'
         imgui.MenuItem(version)
         imgui.EndMenu()
       imgui.EndMainMenuBar()
 
     # -- Tool Bar -------------------------------------------------------------
-    if imgui.Begin('ToolBar'):
-      imgui.PushStyleVar(imgui.StyleVar.CellPadding, imgui.Vec2(0, 0))
-      if imgui.BeginTable('##ToolBarTable', 2):
-        imgui.TableSetupColumn('', int(imgui.TableColumnFlags.WidthStretch))
-        imgui.TableSetupColumn('', int(imgui.TableColumnFlags.WidthFixed))
+    if self.show_toolbar:
+      if imgui.Begin('ToolBar'):
+        imgui.PushStyleVar(imgui.StyleVar.CellPadding, imgui.Vec2(0, 0))
+        if imgui.BeginTable('##ToolBarTable', 2):
+          imgui.TableSetupColumn('', int(imgui.TableColumnFlags.WidthStretch))
+          imgui.TableSetupColumn('', int(imgui.TableColumnFlags.WidthFixed))
 
-        imgui.TableNextColumn()
-        self.reset_physics_gui()
+          imgui.TableNextColumn()
+          self.reset_physics_gui()
 
-        imgui.SameLine()
-        ux.step_control_gui(self.step_control_state, self.ux_state)
+          imgui.SameLine()
+          ux.step_control_gui(self.step_control_state, self.ux_state)
 
-        imgui.TableNextColumn()
-        ux.camera_selection_gui(
-            self.model,
-            self.data,
-            self.viewer.camera,
-            self.ux_state,
-        )
+          imgui.TableNextColumn()
+          ux.camera_selection_gui(
+              self.model,
+              self.data,
+              self.viewer.camera,
+              self.ux_state,
+          )
 
-        imgui.SameLine()
-        ux.label_selection_gui(self.viewer.vis_options)
+          imgui.SameLine()
+          ux.label_selection_gui(self.viewer.vis_options)
 
-        imgui.SameLine()
-        ux.frame_selection_gui(self.viewer.vis_options)
+          imgui.SameLine()
+          ux.frame_selection_gui(self.viewer.vis_options)
 
-        imgui.SameLine()
-        changed, self.theme = ux.theme_select_gui(self.theme)
-        if changed:
-          ux.setup_theme(self.theme)
-
-        imgui.EndTable()
-      imgui.PopStyleVar()
-    imgui.End()
+          imgui.EndTable()
+        imgui.PopStyleVar()
+      imgui.End()
 
     # -- Left pane: Options ---------------------------------------------------
     node_flags = int(imgui.TreeNodeFlags.SpanAvailWidth) | int(
@@ -436,8 +458,8 @@ class ViewerApp:
     imgui.End()
 
     # -- Floating windows -----------------------------------------------------
-    if self.show_solver:
-      _, self.show_solver = imgui.Begin('Solver', self.show_solver)
+    if self.show_profiler:
+      _, self.show_profiler = imgui.Begin('Profiler', self.show_profiler)
       ux.counts_gui(self.model, self.data)
       ux.convergence_gui(self.model, self.data)
       imgui.End()

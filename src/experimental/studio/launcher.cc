@@ -22,13 +22,13 @@
 #include <mujoco/mujoco.h>
 #include "experimental/platform/hal/graphics_mode.h"
 #include "experimental/platform/resources.h"
+#include "experimental/platform/ux/gui.h"
 #include "experimental/studio/app.h"
 
 namespace mujoco::studio {
 
 int LaunchStudio(int argc, char** argv, LauncherConfig config) {
-  const char* home = std::getenv("HOME");
-  const std::string ini_path = std::string(home ? home : ".") + "/.mujoco.ini";
+  const std::string ini_path = platform::GetDefaultIniPath();
 
   mujoco::platform::RegisterResourceProviders();
 

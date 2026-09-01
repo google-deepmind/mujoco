@@ -18,8 +18,10 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <limits>
 #include <span>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -367,6 +369,78 @@ void SetupTheme(GuiTheme theme) {
   s.DockingNodeHasCloseButton = false;
 }
 
+std::string GetDefaultIniPath() {
+  const char* home = std::getenv("HOME");
+  if (!home) {
+    home = std::getenv("USERPROFILE");
+  }
+  return std::string(home ? home : ".") + "/.mujoco.ini";
+}
+
+GuiTheme LoadTheme(const std::string& ini_path, GuiTheme def_theme) {
+  const std::string path = ini_path.empty() ? GetDefaultIniPath() : ini_path;
+  const std::string settings = LoadText(path);
+  if (settings.empty()) {
+    return def_theme;
+  }
+  KeyValues ux_section = ReadIniSection(settings, "[Studio][UX]");
+  return ReadIniValue(ux_section, "theme", def_theme);
+}
+
+GuiTheme LoadSettings(const std::string& ini_path, GuiTheme def_theme) {
+  const std::string path = ini_path.empty() ? GetDefaultIniPath() : ini_path;
+  const std::string settings = LoadText(path);
+  if (settings.empty()) {
+    return def_theme;
+  }
+  KeyValues ux_section = ReadIniSection(settings, "[Studio][UX]");
+  GuiTheme theme = ReadIniValue(ux_section, "theme", def_theme);
+  if (ImGui::GetCurrentContext() != nullptr) {
+    ImGui::LoadIniSettingsFromMemory(settings.data(), settings.size());
+  }
+  return theme;
+}
+
+void SaveSettings(GuiTheme theme, const std::string& ini_path) {
+  const std::string path = ini_path.empty() ? GetDefaultIniPath() : ini_path;
+  const std::string existing = LoadText(path);
+  std::string settings;
+  if (ImGui::GetCurrentContext() != nullptr) {
+    settings = ImGui::SaveIniSettingsToMemory();
+  }
+
+  // Preserve existing [Studio][UX] keys while updating theme.
+  KeyValues ux_dict = ReadIniSection(existing, "[Studio][UX]");
+  ux_dict["theme"] = std::to_string(static_cast<int>(theme));
+  AppendIniSection(settings, "[Studio][UX]", ux_dict);
+
+  // Preserve other Studio custom sections (e.g. [Studio][Plugins], [Studio][WindowStateStorage]).
+  std::istringstream f(existing);
+  std::string line;
+  std::vector<std::string> custom_sections;
+  while (std::getline(f, line)) {
+    if (!line.empty() && line.front() == '[' && line.back() == ']') {
+      if (line.rfind("[Studio]", 0) == 0 && line != "[Studio][UX]") {
+        if (std::find(custom_sections.begin(), custom_sections.end(), line) ==
+            custom_sections.end()) {
+          custom_sections.push_back(line);
+        }
+      }
+    }
+  }
+  for (const auto& sec : custom_sections) {
+    KeyValues kv = ReadIniSection(existing, sec);
+    AppendIniSection(settings, sec, kv);
+  }
+
+  SaveText(settings, path);
+}
+
+void ResetConfig(const std::string& ini_path) {
+  const std::string path = ini_path.empty() ? GetDefaultIniPath() : ini_path;
+  SaveText("\n\n", path);
+}
+
 void RescaleDock(float ratio) {
   if (ratio == 1) return;
   ImGuiID root = ImGui::GetID("Root");
@@ -609,7 +683,6 @@ void SetSpeedIndex(StepControl* step_control, int& speed_index,
   step_control->SetSpeed(speed);
 }
 
-
 void LoadHistoryFrame(SimHistory& history, StepControl& step_control,
                       const mjModel* model, mjData* data, int index) {
   std::span<mjtNum> state = history.SetIndex(index);
@@ -674,15 +747,14 @@ void TimelineScrubberGui(const mjModel* model, mjData* data,
   double curr_time =
       ((data != nullptr) && current_index == history.GetIndex())
           ? data->time
-          : (max_time +
-             current_index *
-                 ((model != nullptr) ? model->opt.timestep : 0.002));
+          : (max_time + current_index *
+                            ((model != nullptr) ? model->opt.timestep : 0.002));
   if (curr_time < 0.0) curr_time = 0.0;
 
-  const int curr_step = ((model != nullptr) && model->opt.timestep > 0)
-                            ? static_cast<int>(std::round(
-                                  curr_time / model->opt.timestep))
-                            : 0;
+  const int curr_step =
+      ((model != nullptr) && model->opt.timestep > 0)
+          ? static_cast<int>(std::round(curr_time / model->opt.timestep))
+          : 0;
   const int max_step =
       ((model != nullptr) && model->opt.timestep > 0)
           ? static_cast<int>(std::round(max_time / model->opt.timestep))
@@ -704,9 +776,8 @@ void TimelineScrubberGui(const mjModel* model, mjData* data,
 
   const ImVec2 cursor = ImGui::GetCursorScreenPos();
   const float spacing = ImGui::GetStyle().ItemSpacing.x;
-  const float base_label_w =
-      std::max(ImGui::CalcTextSize("88.8 ms").x,
-               ImGui::CalcTextSize("88.8 \xC2\xB5s").x);
+  const float base_label_w = std::max(ImGui::CalcTextSize("88.8 ms").x,
+                                      ImGui::CalcTextSize("88.8 \xC2\xB5s").x);
   const float curr_lh_w =
       std::max({base_label_w, ImGui::CalcTextSize(lh_top_label).x,
                 ImGui::CalcTextSize(lh_bot_label).x});
@@ -722,8 +793,8 @@ void TimelineScrubberGui(const mjModel* model, mjData* data,
   const float lh_box_w = timeline.lh_width;
   const float rh_box_w = timeline.rh_width;
   const float track_w =
-      std::max(10.0f, ImGui::GetContentRegionAvail().x - lh_box_w -
-                          rh_box_w - spacing * 2.0f);
+      std::max(10.0f, ImGui::GetContentRegionAvail().x - lh_box_w - rh_box_w -
+                          spacing * 2.0f);
 
   const float spine_h = 3.0f;
   const float knob_w = 12.0f;
@@ -751,15 +822,14 @@ void TimelineScrubberGui(const mjModel* model, mjData* data,
   const float knob_cx = spine_x0 + t * (track_w - knob_w) + knob_w * 0.5f;
 
   // Invisible interaction button over the full track area.
-  ImGui::SetCursorScreenPos(
-      ImVec2(track_x0, row_center_y - total_h * 0.5f));
+  ImGui::SetCursorScreenPos(ImVec2(track_x0, row_center_y - total_h * 0.5f));
   ImGui::InvisibleButton("##Scrubber", ImVec2(track_w, total_h));
   const bool hovered = ImGui::IsItemHovered();
   const bool active = ImGui::IsItemActive();
 
   // Handle dragging.
-  if (!locked && (active || (hovered && ImGui::IsMouseDown(
-                                            ImGuiMouseButton_Left)))) {
+  if (!locked &&
+      (active || (hovered && ImGui::IsMouseDown(ImGuiMouseButton_Left)))) {
     const float mouse_x = ImGui::GetIO().MousePos.x;
     if (!timeline.scrubber_active) {
       timeline.scrubber_active = true;
@@ -785,11 +855,9 @@ void TimelineScrubberGui(const mjModel* model, mjData* data,
                effective_mouse_x >= spine_x1 - knob_w * 0.5f - 6.0f) {
       new_index = hist_max;
     } else {
-      const float inner_t =
-          (clamped_t - snap_eps) / (1.0f - 2.0f * snap_eps);
-      new_index =
-          hist_min +
-          static_cast<int>(std::round(inner_t * (hist_max - hist_min)));
+      const float inner_t = (clamped_t - snap_eps) / (1.0f - 2.0f * snap_eps);
+      new_index = hist_min +
+                  static_cast<int>(std::round(inner_t * (hist_max - hist_min)));
     }
 
     if (new_index != current_index) {
@@ -804,8 +872,7 @@ void TimelineScrubberGui(const mjModel* model, mjData* data,
         lh_top_label = lh_top_str.c_str();
         const int updated_curr_step =
             ((model != nullptr) && model->opt.timestep > 0)
-                ? static_cast<int>(
-                      std::round(curr_time / model->opt.timestep))
+                ? static_cast<int>(std::round(curr_time / model->opt.timestep))
                 : 0;
         lh_bot_str = "(" + std::to_string(updated_curr_step) + ")";
         lh_bot_label = lh_bot_str.c_str();
@@ -851,21 +918,19 @@ void TimelineScrubberGui(const mjModel* model, mjData* data,
   const ImGuiStyle& style = ImGui::GetStyle();
 
   // Spine.
-  const ImVec4 scrollbar_bg =
-      ImGui::GetStyle().Colors[ImGuiCol_ScrollbarBg];
+  const ImVec4 scrollbar_bg = ImGui::GetStyle().Colors[ImGuiCol_ScrollbarBg];
   ImGuiCol bg_col_idx;
   if (active) {
     bg_col_idx = ImGuiCol_FrameBgActive;
   } else if (hovered) {
     bg_col_idx = ImGuiCol_FrameBgHovered;
   } else {
-    bg_col_idx = (scrollbar_bg.w > 0.01f) ? ImGuiCol_ScrollbarBg
-                                          : ImGuiCol_FrameBg;
+    bg_col_idx =
+        (scrollbar_bg.w > 0.01f) ? ImGuiCol_ScrollbarBg : ImGuiCol_FrameBg;
   }
   const ImU32 spine_col = ImGui::GetColorU32(bg_col_idx);
-  dl->AddRectFilled(ImVec2(spine_x0, spine_y0),
-                    ImVec2(spine_x1, spine_y1), spine_col,
-                    spine_h * 0.5f);
+  dl->AddRectFilled(ImVec2(spine_x0, spine_y0), ImVec2(spine_x1, spine_y1),
+                    spine_col, spine_h * 0.5f);
 
   // Knob rectangle.
   const float knob_x0 = knob_cx - knob_w * 0.5f;
@@ -899,8 +964,8 @@ void SimulationGui(const SimulationGuiContext& ctx) {
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
   ImGui::BeginChild("SimulationGui", {0, 0}, child_flags);
-  if (SectionHeader(
-          "Simulation", node_flags | ImGuiTreeNodeFlags_DefaultOpen, 0.65f)) {
+  if (SectionHeader("Simulation", node_flags | ImGuiTreeNodeFlags_DefaultOpen,
+                    0.65f)) {
     ImGui::PushID("SimSection");
 
     const float slider_w = -ImGui::CalcTextSize(" Keyframe").x -
@@ -948,11 +1013,12 @@ void SimulationGui(const SimulationGuiContext& ctx) {
       std::snprintf(pause_label, sizeof(pause_label), "%s  Pause",
                     ICON_FA_PAUSE);
       char run_label[32];
-      std::snprintf(run_label, sizeof(run_label), "%s  Run",
-                    ICON_FA_PLAY);
+      std::snprintf(run_label, sizeof(run_label), "%s  Run", ICON_FA_PLAY);
 
-      bool paused = ctx.step_control->GetPauseState() != StepControl::PauseState::kUnpaused;
-      bool running = ctx.step_control->GetPauseState() == StepControl::PauseState::kUnpaused;
+      bool paused = ctx.step_control->GetPauseState() !=
+                    StepControl::PauseState::kUnpaused;
+      bool running = ctx.step_control->GetPauseState() ==
+                     StepControl::PauseState::kUnpaused;
 
       const float avail = ImGui::GetContentRegionAvail().x;
       const float half = avail * 0.5f;
@@ -960,14 +1026,12 @@ void SimulationGui(const SimulationGuiContext& ctx) {
 
       ImGui::SetWindowFontScale(1.3f);
       if (ImGui_ColorButtonEx(pause_label, paused, yellow,
-                                        ImDrawFlags_RoundCornersLeft,
-                                        ImVec2(half, h))) {
+                              ImDrawFlags_RoundCornersLeft, ImVec2(half, h))) {
         ctx.step_control->SetPauseState(StepControl::PauseState::kNormalPaused);
       }
       ImGui::SameLine(0.f, 0.f);
       if (ImGui_ColorButtonEx(run_label, running, green,
-                                        ImDrawFlags_RoundCornersRight,
-                                        ImVec2(half, h))) {
+                              ImDrawFlags_RoundCornersRight, ImVec2(half, h))) {
         ctx.step_control->SetPauseState(StepControl::PauseState::kUnpaused);
       }
       ImGui::SetWindowFontScale(1.0f);
@@ -1018,7 +1082,8 @@ void SimulationGui(const SimulationGuiContext& ctx) {
       const float btn_w = (avail - spacing) / 2.0f;
 
       if (ImGui::Button(prev_label, ImVec2(btn_w, 0))) {
-        LoadHistoryFrame(*ctx.history, *ctx.step_control, ctx.model, ctx.data, ctx.history->GetIndex() - 1);
+        LoadHistoryFrame(*ctx.history, *ctx.step_control, ctx.model, ctx.data,
+                         ctx.history->GetIndex() - 1);
       }
       ImGui::SetItemTooltip("%s", "Load previous frame from history");
       ImGui::SameLine();
@@ -1026,13 +1091,15 @@ void SimulationGui(const SimulationGuiContext& ctx) {
         if (ctx.history->GetIndex() == 0) {
           ctx.step_control->RequestSingleStep();
         } else {
-          LoadHistoryFrame(*ctx.history, *ctx.step_control, ctx.model, ctx.data, ctx.history->GetIndex() + 1);
+          LoadHistoryFrame(*ctx.history, *ctx.step_control, ctx.model, ctx.data,
+                           ctx.history->GetIndex() + 1);
         }
       }
       ImGui::SetItemTooltip("%s", "Load next frame from history / Single step");
 
       // Timeline scrubber.
-      TimelineScrubberGui(ctx.model, ctx.data, *ctx.step_control, *ctx.history, *ctx.timeline);
+      TimelineScrubberGui(ctx.model, ctx.data, *ctx.step_control, *ctx.history,
+                          *ctx.timeline);
     }
 
     // Keyframe controls.
@@ -1096,7 +1163,8 @@ void SimulationGui(const SimulationGuiContext& ctx) {
     // Thread control.
     ImGui::SetNextItemWidth(slider_w);
     ImGui::BeginDisabled(std::thread::hardware_concurrency() <= 1);
-    if (ImGui::SliderInt("Threads", &(*ctx.nthread), 0, 8, "%d worker threads")) {
+    if (ImGui::SliderInt("Threads", &(*ctx.nthread), 0, 8,
+                         "%d worker threads")) {
       (*ctx.update_threadpool) = true;
     }
     ImGui::EndDisabled();
@@ -1124,6 +1192,32 @@ bool ThemeSelectGui(GuiTheme* theme, const ImVec2& size) {
   ImGui::SetItemTooltip("%s", "Toggle theme");
 
   return false;
+}
+
+bool ThemeMenuGui(GuiTheme* theme) {
+  bool changed = false;
+  if (ImGui::BeginMenu("Theme")) {
+    if (ImGui::MenuItem("Light", nullptr, *theme == GuiTheme::kLight)) {
+      *theme = GuiTheme::kLight;
+      SetupTheme(*theme);
+      ImGui::GetIO().WantSaveIniSettings = true;
+      changed = true;
+    }
+    if (ImGui::MenuItem("Dark", nullptr, *theme == GuiTheme::kDark)) {
+      *theme = GuiTheme::kDark;
+      SetupTheme(*theme);
+      ImGui::GetIO().WantSaveIniSettings = true;
+      changed = true;
+    }
+    if (ImGui::MenuItem("Classic", nullptr, *theme == GuiTheme::kClassic)) {
+      *theme = GuiTheme::kClassic;
+      SetupTheme(*theme);
+      ImGui::GetIO().WantSaveIniSettings = true;
+      changed = true;
+    }
+    ImGui::EndMenu();
+  }
+  return changed;
 }
 
 bool LabelSelectionGui(mjvOption* opts) {
@@ -1517,14 +1611,19 @@ void PhysicsGui(mjModel* model, mjSpec* spec, float min_width) {
   if (SectionHeader("Algorithmic Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
     ImGui_LogStepper("Timestep", &opt.timestep, {0, 1});
     ImGui_Input("Iterations", &opt.iterations, {0, 1000, 1, 10});
-    ImGui_LogStepper("Tolerance", &opt.tolerance, {.min = 0.0, .max = 1.0, .zero_below = 1e-10});
+    ImGui_LogStepper("Tolerance", &opt.tolerance,
+                     {.min = 0.0, .max = 1.0, .zero_below = 1e-10});
     ImGui_Input("LS Iter", &opt.ls_iterations, {0, 100, 1, 0.1});
-    ImGui_LogStepper("LS Tol", &opt.ls_tolerance, {.min = 0.0, .max = 0.1, .zero_below = 1e-4});
+    ImGui_LogStepper("LS Tol", &opt.ls_tolerance,
+                     {.min = 0.0, .max = 0.1, .zero_below = 1e-4});
     ImGui_Input("Noslip Iter", &opt.noslip_iterations, {0, 1000, 1, 100});
-    ImGui_LogStepper("Noslip Tol", &opt.noslip_tolerance, {.min = 0.0, .max = 1.0, .zero_below = 1e-8});
+    ImGui_LogStepper("Noslip Tol", &opt.noslip_tolerance,
+                     {.min = 0.0, .max = 1.0, .zero_below = 1e-8});
     ImGui_Input("CCD Iter", &opt.ccd_iterations, {0, 1000, 1, 100});
-    ImGui_LogStepper("CCD Tol", &opt.ccd_tolerance, {.min = 0.0, .max = 1.0, .zero_below = 1e-8});
-    ImGui_LogStepper("Sleep Tol", &opt.sleep_tolerance, {.min = 0.0, .max = 1.0, .zero_below = 1e-6});
+    ImGui_LogStepper("CCD Tol", &opt.ccd_tolerance,
+                     {.min = 0.0, .max = 1.0, .zero_below = 1e-8});
+    ImGui_LogStepper("Sleep Tol", &opt.sleep_tolerance,
+                     {.min = 0.0, .max = 1.0, .zero_below = 1e-6});
     ImGui_Input("SDF Iter", &opt.sdf_iterations, {1, 20, 1, 10});
     ImGui_Input("SDF Init", &opt.sdf_initpoints, {1, 100, 1, 10});
     ImGui::TreePop();
@@ -1807,8 +1906,7 @@ static void SliderRowWithReset(const char* name, mjtNum* value, mjtNum min,
                                mjtNum max, mjtNum reset) {
   const float btn = ImGui::GetFrameHeight();
   const float spacing = ImGui::GetStyle().ItemSpacing.x;
-  const float usable_end =
-      ImGui::GetWindowContentRegionMax().x - btn - spacing;
+  const float usable_end = ImGui::GetWindowContentRegionMax().x - btn - spacing;
   const float usable = usable_end - ImGui::GetCursorPosX();
   ImGui::SetNextItemWidth(usable * 0.5f);
   char hidden[104];
@@ -1904,8 +2002,10 @@ void ControlsGui(const mjModel* model, mjData* data,
 
       double min = -1.0;
       double max = 1.0;
-      // a defined ctrlrange sets the slider range, even when ctrl is not clamped
-      if (model->actuator_ctrlrange[2 * j] < model->actuator_ctrlrange[2 * j + 1]) {
+      // a defined ctrlrange sets the slider range, even when ctrl is not
+      // clamped
+      if (model->actuator_ctrlrange[2 * j] <
+          model->actuator_ctrlrange[2 * j + 1]) {
         min = model->actuator_ctrlrange[2 * j + 0];
         max = model->actuator_ctrlrange[2 * j + 1];
       }

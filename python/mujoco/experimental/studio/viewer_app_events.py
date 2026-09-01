@@ -11,14 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Temporary event handling functions for StudioApp."""
+"""Temporary event handling functions for ViewerApp."""
 
 # TODO(matijak): These free functions implement the keyboard and mouse event
-# handling for Studio. They are separated from the main StudioApp class to keep
+# handling for Studio. They are separated from the main ViewerApp class to
 # clarify the long-term API and avoid cluttering it with a large amount of
 # temporary code. When studio/platform has a proper API for registering key
 # bindings and mouse behaviour, the event handling functions will delegate to
 # code shared with the C++ studio application.
+
+from typing import Any
 
 import mujoco
 from mujoco.experimental.studio import sim
@@ -225,6 +227,28 @@ def handle_camera_select_keyboard_events(
     ux_state.camera_index = ux.set_camera(
         model, camera, ux_state.camera_index + 1
     )
+    return True
+
+  return False
+
+
+def handle_miscellaneous_keyboard_events(app: Any) -> bool:
+  """Handles miscellaneous keyboard shortcuts (e.g. F2 for Info, F3 for Profiler).
+
+  Args:
+    app: The viewer application instance with UI state flags.
+
+  Returns:
+    True if a key was handled, False otherwise.
+  """
+  if imgui.GetIO().WantCaptureKeyboard:
+    return False
+
+  if imgui.IsKeyChordPressed(imgui.Key.F2):
+    app.show_info = not app.show_info
+    return True
+  elif imgui.IsKeyChordPressed(imgui.Key.F3):
+    app.show_profiler = not app.show_profiler
     return True
 
   return False

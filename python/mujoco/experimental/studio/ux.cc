@@ -122,11 +122,13 @@ PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
 
   m.def(
       "configure_docking_layout",
-      []() {
+      [](bool show_toolbar, bool show_status_bar) {
         py::gil_scoped_release no_gil;
-        ImVec4 r = mujoco::platform::ConfigureDockingLayout(true, true);
+        ImVec4 r = mujoco::platform::ConfigureDockingLayout(show_toolbar,
+                                                            show_status_bar);
         return std::make_tuple(r.x, r.y, r.z, r.w);
       },
+      py::arg("show_toolbar") = true, py::arg("show_status_bar") = true,
       "Configure the docking layout with Options (left) and Inspector (right) "
       "panes. Returns (x, y, w, h) of the central workspace area.");
 
@@ -219,6 +221,55 @@ PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
       "Render the GUI theme selector. Returns (changed, theme).");
 
   m.def(
+      "theme_menu_gui",
+      [](mujoco::platform::GuiTheme theme) {
+        py::gil_scoped_release no_gil;
+        bool changed = mujoco::platform::ThemeMenuGui(&theme);
+        return std::make_tuple(changed, theme);
+      },
+      py::arg("theme"), "Render the Theme menu. Returns (changed, theme).");
+
+  m.def("get_default_ini_path", &mujoco::platform::GetDefaultIniPath,
+        "Returns the default INI configuration file path (~/.mujoco.ini).");
+
+  m.def(
+      "load_theme",
+      [](const std::string& ini_path, mujoco::platform::GuiTheme def_theme) {
+        py::gil_scoped_release no_gil;
+        return mujoco::platform::LoadTheme(ini_path, def_theme);
+      },
+      py::arg("ini_path") = "",
+      py::arg("def_theme") = mujoco::platform::GuiTheme::kLight,
+      "Loads the GUI theme from an INI file.");
+
+  m.def(
+      "load_settings",
+      [](const std::string& ini_path, mujoco::platform::GuiTheme def_theme) {
+        py::gil_scoped_release no_gil;
+        return mujoco::platform::LoadSettings(ini_path, def_theme);
+      },
+      py::arg("ini_path") = "",
+      py::arg("def_theme") = mujoco::platform::GuiTheme::kLight,
+      "Loads settings and theme from an INI file into ImGui.");
+
+  m.def(
+      "save_settings",
+      [](mujoco::platform::GuiTheme theme, const std::string& ini_path) {
+        py::gil_scoped_release no_gil;
+        mujoco::platform::SaveSettings(theme, ini_path);
+      },
+      py::arg("theme"), py::arg("ini_path") = "",
+      "Saves settings and theme to an INI file.");
+
+  m.def(
+      "reset_config",
+      [](const std::string& ini_path) {
+        py::gil_scoped_release no_gil;
+        mujoco::platform::ResetConfig(ini_path);
+      },
+      py::arg("ini_path") = "", "Resets the configuration INI file.");
+
+  m.def(
       "label_selection_gui",
       [](mujoco::python::MjvOptionWrapper& vis_options) {
         py::gil_scoped_release no_gil;
@@ -275,16 +326,14 @@ PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
 
   m.def(
       "physics_gui",
-      [](mujoco::python::MjModelWrapper& model,
-         mujoco::python::MjSpec* spec,
+      [](mujoco::python::MjModelWrapper& model, mujoco::python::MjSpec* spec,
          float min_width) {
         py::gil_scoped_release no_gil;
         mujoco::platform::PhysicsGui(model.get(), spec ? spec->ptr : nullptr,
                                      min_width);
       },
       py::arg("model"), py::arg("spec") = nullptr,
-      py::arg("min_width") = 150.0f,
-      "Render the physics settings UI.");
+      py::arg("min_width") = 150.0f, "Render the physics settings UI.");
 
   m.def(
       "rendering_gui",
