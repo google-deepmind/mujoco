@@ -24,7 +24,7 @@
 #include <implot.h>
 #include <mujoco/experimental/platform/hal/graphics_mode.h>
 #include <mujoco/experimental/platform/hal/window.h>
-#include <mujoco/experimental/platform/resources.h>
+#include <mujoco/experimental/platform/io/resources.h>
 #include <pybind11/eval.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>

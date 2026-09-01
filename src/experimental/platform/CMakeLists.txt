@@ -22,8 +22,6 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
     PRIVATE
         helpers.cc
         helpers.h
-        resources.cc
-        resources.h
         hal/classic_renderer.cc
         hal/classic_renderer.h
         hal/egl_utils.cc
@@ -35,6 +33,8 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         hal/renderer.h
         hal/window.cc
         hal/window.h
+        io/resources.cc
+        io/resources.h
         sim/model_holder.cc
         sim/model_holder.h
         sim/sim_history.cc

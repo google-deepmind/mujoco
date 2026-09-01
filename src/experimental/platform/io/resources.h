@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_RESOURCES_H_
-#define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_RESOURCES_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_IO_RESOURCES_H_
+#define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_IO_RESOURCES_H_
 
 #include <string>
 
@@ -27,4 +27,4 @@ void RegisterResourceProviders();
 
 }  // namespace mujoco::platform
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_RESOURCES_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_IO_RESOURCES_H_

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/platform/resources.h"
+#include "experimental/platform/io/resources.h"
 
 #include <filesystem>  // NOLINT(build/c++17)
 #include <fstream>

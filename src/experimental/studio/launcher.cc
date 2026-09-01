@@ -21,7 +21,7 @@
 
 #include <mujoco/mujoco.h>
 #include "experimental/platform/hal/graphics_mode.h"
-#include "experimental/platform/resources.h"
+#include "experimental/platform/io/resources.h"
 #include "experimental/platform/ux/gui.h"
 #include "experimental/studio/app.h"
 
