@@ -24,8 +24,6 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         helpers.h
         resources.cc
         resources.h
-        sys_utils.cc
-        sys_utils.h
         hal/classic_renderer.cc
         hal/classic_renderer.h
         hal/egl_utils.cc

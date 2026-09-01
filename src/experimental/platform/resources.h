@@ -15,7 +15,12 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_RESOURCES_H_
 #define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_RESOURCES_H_
 
+#include <string>
+
 namespace mujoco::platform {
+
+// Returns the path to the directory of the current module (exe or shared lib).
+std::string GetModuleDir(void* addr);
 
 // Registers MuJoCo resource providers for font and filament assets.
 void RegisterResourceProviders();

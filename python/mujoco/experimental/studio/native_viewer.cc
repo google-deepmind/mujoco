@@ -29,7 +29,7 @@
 #include <mujoco/experimental/platform/hal/filament_renderer.h>
 #include <mujoco/experimental/platform/hal/graphics_mode.h>
 #include <mujoco/experimental/platform/hal/window.h>
-#include <mujoco/experimental/platform/sys_utils.h>
+#include <mujoco/experimental/platform/resources.h>
 #include "structs.h"
 #include <pybind11/eval.h>
 #include <pybind11/pybind11.h>

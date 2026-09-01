@@ -19,10 +19,16 @@
 #include <ios>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
+#if defined(_WIN32) || defined(__CYGWIN__)
+  #include <windows.h>
+#else
+  #include <dlfcn.h>
+#endif
+
 #include <mujoco/mujoco.h>
-#include "experimental/platform/sys_utils.h"
 
 namespace mujoco::platform {
 
@@ -30,7 +36,7 @@ namespace {
 
 std::string Resolve(std::string_view path) {
   std::string_view subpath = path.substr(path.find(':') + 1);
-  std::filesystem::path exe_dir = mujoco::platform::GetModuleDir((void*)&Resolve);
+  std::filesystem::path exe_dir = GetModuleDir((void*)&Resolve);
   if (exe_dir.empty()) {
     return std::string("assets/") + std::string(subpath);
   }
@@ -75,6 +81,37 @@ class FileResource {
 };
 
 }  // namespace
+
+std::string GetModuleDir(void* addr) {
+#if defined(_WIN32) || defined(__CYGWIN__)
+  HMODULE hModule = NULL;
+  if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                         GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                         (LPCSTR)addr, &hModule)) {
+    char path[MAX_PATH];
+    DWORD written = GetModuleFileNameA(hModule, path, sizeof(path));
+    if (written > 0 && written < sizeof(path)) {
+      return std::filesystem::path(path).parent_path().string();
+    }
+  }
+  return "";
+#else
+  Dl_info info;
+  if (dladdr(addr, &info) != 0 && info.dli_fname != nullptr) {
+    std::filesystem::path p(info.dli_fname);
+    if (p.is_absolute()) {
+      return p.parent_path().string();
+    }
+    std::error_code ec;
+    std::filesystem::path cwd = std::filesystem::current_path(ec);
+    if (!ec) {
+      return (cwd / p).parent_path().string();
+    }
+    return p.parent_path().string();
+  }
+  return "";
+#endif
+}
 
 void RegisterResourceProviders() {
   mjpResourceProvider resource_provider;
