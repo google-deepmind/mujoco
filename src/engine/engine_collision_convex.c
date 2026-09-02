@@ -312,6 +312,7 @@ static void mjc_cylinderSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3
 
   // set result in Z direction
   local_supp[2] = local_dir[2] >= 0 ? size[1] : -size[1];
+  obj->vertindex = local_dir[2] >= 0 ? 0 : 1;
 
   // transform result to global frame
   localToGlobal(res, mat, local_supp, pos);
@@ -865,9 +866,9 @@ static int maxContacts(const mjModel* m, const mjCCDObj* obj1, const mjCCDObj* o
     return 8;
   }
 
-  // reduce mesh collisions to 4 contacts max
-  if (type1 == mjGEOM_BOX || type1 == mjGEOM_MESH) {
-    if (type2 == mjGEOM_BOX || type2 == mjGEOM_MESH) {
+  // reduce geom collisions to 4 contacts max
+  if (type1 == mjGEOM_BOX || type1 == mjGEOM_MESH || type1 == mjGEOM_CYLINDER) {
+    if (type2 == mjGEOM_BOX || type2 == mjGEOM_MESH || type2 == mjGEOM_CYLINDER) {
       return mjDISABLED(mjDSBL_MULTICCD) ? 1 : 4;
     }
   }

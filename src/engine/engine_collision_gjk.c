@@ -1874,6 +1874,18 @@ static int meshEdgeNormals(mjtNum* res, mjtNum* endverts, int dim, mjCCDObj* obj
 }
 
 
+// try recovering the cylinder normal from vertex index
+static int cylinderNormals(mjtNum res[9], int resind[3], int dim, mjCCDObj* obj,
+                           const int vi[3], const mjtNum dir[3]) {
+  if (dim == 1) {
+    globalcoord(res, obj->mat, NULL, 0, 0, vi[0] ? -1.0 : 1.0);
+    resind[0] = vi[0];
+    return 1;
+  }
+  return 0;
+}
+
+
 // try recovering box normal from collision normal
 static int boxNormals2(mjtNum res[9], int resind[3], const mjtNum mat[9], const mjtNum n[3]) {
   // list of box face normals
@@ -1991,6 +2003,49 @@ static int boxEdgeNormals(mjtNum res[9], mjtNum endverts[9], int dim, mjCCDObj* 
     return 3;
   }
   return 0;
+}
+
+
+// recover edge of a cylinder from collision point
+static int cylinderEdgeNormals(mjtNum res[9], mjtNum endverts[9], int dim, mjCCDObj* obj,
+                               const mjtNum v[9], int v1i) {
+  if (dim == 1 || dim == 2) {
+    mjtNum sgn = v1i ? 1.0 : -1.0;
+    res[0] = sgn * obj->mat[2];
+    res[1] = sgn * obj->mat[5];
+    res[2] = sgn * obj->mat[8];
+
+    // compute endverts = v1 + res * 2 * half_length
+    addScl3(endverts, v, res, 2 * obj->size[1]);
+    return 1;
+  }
+  return 0;
+}
+
+
+// recover face of a cylinder (approximated as a 16-gon) from its index
+static int cylinderFace(mjtNum res[48], mjCCDObj* obj, int idx) {
+  static const mjtNum cos_16[16] = {
+    1.000000000000000,  0.923879532511287,  0.707106781186548,  0.382683432365090,
+    0.000000000000000, -0.382683432365090, -0.707106781186547, -0.923879532511287,
+   -1.000000000000000, -0.923879532511287, -0.707106781186548, -0.382683432365090,
+    0.000000000000000,  0.382683432365090,  0.707106781186547,  0.923879532511287
+  };
+  static const mjtNum sin_16[16] = {
+    0.000000000000000,  0.382683432365090,  0.707106781186547,  0.923879532511287,
+    1.000000000000000,  0.923879532511287,  0.707106781186548,  0.382683432365090,
+    0.000000000000000, -0.382683432365090, -0.707106781186547, -0.923879532511287,
+   -1.000000000000000, -0.923879532511287, -0.707106781186548, -0.382683432365090
+  };
+
+  // compute 16-gon cylinder face (size[0]: radius, size[1]: half-length)
+  mjtNum sgn = idx ? -1.0 : 1.0;
+  for (int i = 0; i < 16; i++) {
+    mjtNum x = cos_16[i] * obj->size[0];
+    mjtNum y = -sin_16[i] * obj->size[0] * sgn;  // use sgn for correct orientation
+    globalcoord(res + 3*i, obj->mat, obj->pos, x, y, sgn * obj->size[1]);
+  }
+  return 16;
 }
 
 
@@ -2114,6 +2169,10 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
   if (obj2->geom_type == mjGEOM_MESH && !obj2->data.mesh.mesh_polynum) {
     return;
   }
+  if (obj1->geom_type == mjGEOM_CYLINDER || obj2->geom_type == mjGEOM_CYLINDER) {
+    nmeshdegmax = nmeshdegmax < 2 ? 2 : nmeshdegmax;
+    npolygonmax = npolygonmax < 16 ? 16 : npolygonmax;
+  }
   if (obj1->geom_type == mjGEOM_BOX || obj2->geom_type == mjGEOM_BOX) {
     nmeshdegmax = nmeshdegmax < 3 ? 3 : nmeshdegmax;
     npolygonmax = npolygonmax < 4 ? 4 : npolygonmax;
@@ -2156,11 +2215,15 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
     nnorms1 = boxNormals(n1, idx1, nface1, obj1, v1i, dir_neg);
   } else if (obj1->geom_type == mjGEOM_MESH) {
     nnorms1 = meshNormals(n1, idx1, nface1, obj1, v1i);
+  } else if (obj1->geom_type == mjGEOM_CYLINDER) {
+    nnorms1 = cylinderNormals(n1, idx1, nface1, obj1, v1i, dir_neg);
   }
   if (obj2->geom_type == mjGEOM_BOX) {
     nnorms2 = boxNormals(n2, idx2, nface2, obj2, v2i, dir);
   } else if (obj2->geom_type == mjGEOM_MESH) {
     nnorms2 = meshNormals(n2, idx2, nface2, obj2, v2i);
+  } else if (obj2->geom_type == mjGEOM_CYLINDER) {
+    nnorms2 = cylinderNormals(n2, idx2, nface2, obj2, v2i, dir);
   }
 
   // determine if any two face normals match
@@ -2173,6 +2236,8 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
         nnorms1 = boxEdgeNormals(n1, endverts, nface1, obj1, v1, v1i[0]);
       } else if (obj1->geom_type == mjGEOM_MESH) {
         nnorms1 = meshEdgeNormals(n1, endverts, nface1, obj1, v1, v1i[0]);
+      } else if (obj1->geom_type == mjGEOM_CYLINDER) {
+        nnorms1 = cylinderEdgeNormals(n1, endverts, nface1, obj1, v1, v1i[0]);
       }
       if (!alignedFaceEdge(res, n1, nnorms1, n2, nnorms2)) return;
       edgecon1 = 1;
@@ -2184,6 +2249,8 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
         nnorms2 = boxEdgeNormals(n2, endverts, nface2, obj2, v2, v2i[0]);
       } else if (obj2->geom_type == mjGEOM_MESH) {
         nnorms2 = meshEdgeNormals(n2, endverts, nface2, obj2, v2, v2i[0]);
+      } else if (obj2->geom_type == mjGEOM_CYLINDER) {
+        nnorms2 = cylinderEdgeNormals(n2, endverts, nface2, obj2, v2, v2i[0]);
       }
       if (!alignedFaceEdge(res, n2, nnorms2, n1, nnorms1)) return;
       edgecon2 = 1;
@@ -2206,6 +2273,9 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
     } else if (obj1->geom_type == mjGEOM_MESH) {
       int ind = (edgecon2 ? idx1[j] : idx1[i]);
       nface1 = meshFace(face1, obj1, ind);
+    } else if (obj1->geom_type == mjGEOM_CYLINDER) {
+      int ind = (edgecon2 ? idx1[j] : idx1[i]);
+      nface1 = cylinderFace(face1, obj1, ind);
     }
   }
 
@@ -2219,6 +2289,8 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
       nface2 = boxFace(face2, obj2, idx2[j]);
     } else if (obj2->geom_type == mjGEOM_MESH) {
       nface2 = meshFace(face2, obj2, idx2[j]);
+    } else if (obj2->geom_type == mjGEOM_CYLINDER) {
+      nface2 = cylinderFace(face2, obj2, idx2[j]);
     }
   }
 
@@ -2281,8 +2353,8 @@ size_t mjc_ccdSize(int npolygonmax, int nmeshdegmax, int iterations) {
                   + align8(sizeof(int) * 24)                    // horizon indices
                   + align8(sizeof(int) * 24);                   // horizon edges
 
-  // allocate room for box geoms (multicontact is hardwired for box-box collisions)
-  npolygonmax = npolygonmax < 4 ? 4 : npolygonmax;
+  // allocate room for primitive geoms (multicontact is hardwired for primitive collisions)
+  npolygonmax = npolygonmax < 16 ? 16 : npolygonmax;
   nmeshdegmax = nmeshdegmax < 3 ? 3 : nmeshdegmax;
   size_t multiccd_size = align8(sizeof(mjtNum) * 3 * 2 * npolygonmax)
                        + align8(sizeof(mjtNum) * 3 * 2 * npolygonmax)

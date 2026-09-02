@@ -1848,14 +1848,14 @@ multi-run pipeline (legacy)
   Multiple contact points are found by rotating the two geoms by ±1e-3 radians around the tangential axes and
   re-running the collision routine. If a new contact is detected it is added, allowing for up to 4 additional contact
   points. This method is effective, but increases the cost of each collision call by a factor of 5.  This method is
-  used when the :ref:`nativeccd<option-flag-nativeccd>` flag is disabled, and for geoms collisions involving cylinders
-  and capsules or with :ref:`positive contact margins<body-geom-margin>`.
+  used when the :ref:`nativeccd<option-flag-nativeccd>` flag is disabled, and for geom collisions involving capsules
+  or with :ref:`positive contact margins<body-geom-margin>`.
 
 single-shot pipeline
   The single-shot pipeline is used in conjunction with the native CCD pipeline, i.e., when the
   :ref:`nativeccd<option-flag-nativeccd>` flag is enabled. As this pipeline is one-shot and most of the geom analysis
-  is done at compilation time, there is very little performance overhead. Supported geoms are boxes and meshes without
-  :ref:`positive contact margins<body-geom-margin>`.
+  is done at compilation time, there is very little performance overhead. Supported geoms are boxes, cylinders, and meshes
+  without :ref:`positive contact margins<body-geom-margin>`.
 
 .. _coDistance:
 
@@ -2042,7 +2042,7 @@ parameters :ref:`nativeccd<option-flag-nativeccd>`, :ref:`multiccd<option-flag-m
          <div class="line">CCD</div>
          <div class="line">
            <div class="multiccd-off"><strong>1</strong></div>
-           <div class="multiccd-native"><strong>5</strong></div>
+           <div class="multiccd-native"><strong>4</strong></div>
            <div class="multiccd-legacy"><strong>5</strong></div>
          </div>
 
@@ -2052,7 +2052,7 @@ parameters :ref:`nativeccd<option-flag-nativeccd>`, :ref:`multiccd<option-flag-m
          <div class="line">CCD</div>
          <div class="line">
            <div class="multiccd-off"><strong>1</strong></div>
-           <div class="multiccd-native"><strong>5</strong></div>
+           <div class="multiccd-native"><strong>4</strong></div>
            <div class="multiccd-legacy"><strong>5</strong></div>
          </div>
 
@@ -2062,7 +2062,7 @@ parameters :ref:`nativeccd<option-flag-nativeccd>`, :ref:`multiccd<option-flag-m
          <div class="line">CCD</div>
          <div class="line">
            <div class="multiccd-off"><strong>1</strong></div>
-           <div class="multiccd-native"><strong>5</strong></div>
+           <div class="multiccd-native"><strong>4</strong></div>
            <div class="multiccd-legacy"><strong>5</strong></div>
          </div>
 

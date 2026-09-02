@@ -63,9 +63,9 @@ TEST_F(MjcConvexTest, CylinderBox) {
   ASSERT_THAT(model, NotNull());
   mjData* data = mj_makeData(model);
 
-  // with multiCCD enabled, should find 5 contacts
+  // with multiCCD enabled, should find 4 contacts
   mj_forward(model, data);
-  EXPECT_EQ(data->ncon, 5);
+  EXPECT_EQ(data->ncon, 4);
 
   // with multiCCD disabled, should find 1 contact
   model->opt.disableflags |= mjDSBL_MULTICCD;
@@ -103,6 +103,76 @@ TEST_F(MjcConvexTest, PlaneConvexMultipleFaces) {
 
   // quad bottom has 4 contacts, triangular side has 3 contacts
   EXPECT_EQ(data->ncon, 7);
+}
+
+TEST_F(MjcConvexTest, CylinderBoxHorizontal) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="box" size="1 1 1" pos="0 0 0"/>
+      <body pos="0 0 1.49">
+        <freejoint/>
+        <geom type="cylinder" size="0.5 1" euler="90 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  MjDataPtr data = MakeData(model);
+
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->ncon, 2);
+
+  model->opt.disableflags |= mjDSBL_MULTICCD;
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->ncon, 1);
+}
+
+TEST_F(MjcConvexTest, CylinderCylinderFaceToFace) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="cylinder" size="1 1" pos="0 0 0"/>
+      <body pos="0 0 1.99">
+        <freejoint/>
+        <geom type="cylinder" size="1 1"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  MjDataPtr data = MakeData(model);
+
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->ncon, 4);
+
+  model->opt.disableflags |= mjDSBL_MULTICCD;
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->ncon, 1);
+}
+
+TEST_F(MjcConvexTest, CylinderCylinderSideToSide) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="cylinder" size="1 1" pos="0 0 0" euler="90 0 0"/>
+      <body pos="0 0 1.99">
+        <freejoint/>
+        <geom type="cylinder" size="1 1" euler="90 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  MjDataPtr data = MakeData(model);
+
+  mj_forward(model.get(), data.get());
+  // TODO(kylebayes): support edge-edge cylinder multicontact
+  EXPECT_EQ(data->ncon, 1);
+
+  model->opt.disableflags |= mjDSBL_MULTICCD;
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->ncon, 1);
 }
 
 }  // namespace

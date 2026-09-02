@@ -37,6 +37,7 @@ Engine
   ``mjWARN_INERTIA`` warning. The guard was inadvertently dropped in the 3.3.0 conversion of ``qLD`` to CSR format;
   since then, models with singular mass matrices silently produced non-finite accelerations, typically surfacing as
   divergence warnings and automatic resets.
+- Added single-shot :ref:`multicontact<coMultiCCD>` for collisions with cylinder geoms.
 
 Compiler
 ^^^^^^^^
