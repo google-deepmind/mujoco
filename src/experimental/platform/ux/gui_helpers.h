@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Standalone functions used by Simulate.
-#ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_HELPERS_H_
-#define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_HELPERS_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_UX_GUI_HELPERS_H_
+#define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_UX_GUI_HELPERS_H_
 
 #include <string>
 
@@ -25,7 +24,6 @@ namespace mujoco::platform {
 // Save/load for simple ascii files.
 void SaveText(const std::string& contents, const std::string& filename);
 std::string LoadText(const std::string& filename);
-
 
 // Returns a pointer to the value of the given field in the given data.
 // Returns nullptr if the field is not found or the index is out of bounds.
@@ -41,4 +39,4 @@ std::string KeyframeToString(const mjModel* model, const mjData* data,
 
 }  // namespace mujoco::platform
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_HELPERS_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_UX_GUI_HELPERS_H_

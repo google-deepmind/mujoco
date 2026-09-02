@@ -31,10 +31,10 @@
 #include <imgui_internal.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
-#include "experimental/platform/helpers.h"
 #include "experimental/platform/sim/sim_history.h"
 #include "experimental/platform/sim/sim_profiler.h"
 #include "experimental/platform/sim/step_control.h"
+#include "experimental/platform/ux/gui_helpers.h"
 #include "experimental/platform/ux/imgui_widgets.h"
 #include "experimental/platform/ux/interaction.h"
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/platform/helpers.h"
+#include "experimental/platform/ux/gui_helpers.h"
 
 #include <cstdio>
 #include <cstring>

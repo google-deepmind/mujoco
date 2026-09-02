@@ -20,8 +20,6 @@ add_library(${MUJOCO_PLATFORM_TARGET_NAME} STATIC)
 
 target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
     PRIVATE
-        helpers.cc
-        helpers.h
         hal/classic_renderer.cc
         hal/classic_renderer.h
         hal/egl_utils.cc
@@ -49,6 +47,8 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         ux/fonts.h
         ux/gui.cc
         ux/gui.h
+        ux/gui_helpers.cc
+        ux/gui_helpers.h
         ux/gui_spec.cc
         ux/gui_spec.h
         ux/imgui_widgets.cc
