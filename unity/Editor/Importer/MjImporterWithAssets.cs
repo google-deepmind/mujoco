@@ -21,6 +21,7 @@ using System.Reflection;
 using System.Xml;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Mujoco {
 
@@ -28,10 +29,14 @@ namespace Mujoco {
 public class MjImporterWithAssets : MjcfImporter {
 
   private const string _semiTransparentMaterialName = "mujoco_semitransparent_template";
+  private const string _universalRenderPipelineAssetType =
+      "UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset";
+  private const string _universalLitShaderName = "Universal Render Pipeline/Lit";
 
   private string _sourceMeshesDir;
   private string _targetMeshesDir;
   private string _targetAssetDir;
+  private Material _defaultImportedMaterial;
   private unsafe MujocoLib.mjModel_* _mjModel = null;
 
   // Imports the scene from the specified file, which should be a well-formed MJCF document.
@@ -206,6 +211,46 @@ public class MjImporterWithAssets : MjcfImporter {
     }
   }
 
+  private static bool IsUniversalRenderPipelineActive() {
+    var pipeline = GraphicsSettings.currentRenderPipeline;
+    return pipeline != null && pipeline.GetType().FullName == _universalRenderPipelineAssetType;
+  }
+
+  private Material CreateImportMaterial(bool transparent) {
+    if (IsUniversalRenderPipelineActive()) {
+      var shader = Shader.Find(_universalLitShaderName);
+      if (shader != null) {
+        var material = new Material(shader);
+        if (transparent) {
+          material.SetFloat("_Surface", 1.0f);
+          material.SetFloat("_Blend", 0.0f);
+          material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+          material.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+          material.SetFloat("_ZWrite", 0.0f);
+          material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+          material.renderQueue = (int)RenderQueue.Transparent;
+        }
+        return material;
+      }
+    }
+
+    if (transparent) {
+      return new Material(AssetDatabase.LoadMainAssetAtPath(
+        AssetDatabase.GUIDToAssetPath(
+          AssetDatabase.FindAssets(_semiTransparentMaterialName)[0])) as Material);
+    }
+    return new Material(Shader.Find("Standard"));
+  }
+
+  private static void SetMaterialColor(Material material, Color color) {
+    if (material.HasProperty("_BaseColor")) {
+      material.SetColor("_BaseColor", color);
+    }
+    if (material.HasProperty("_Color")) {
+      material.SetColor("_Color", color);
+    }
+  }
+
   private void ParseMaterial(XmlElement parentNode) {
     var rgba = parentNode.GetFloatArrayAttribute(
       "rgba", defaultValue: new float[] {1.0f, 1.0f, 1.0f, 1.0f});
@@ -219,17 +264,9 @@ public class MjImporterWithAssets : MjcfImporter {
 
     // Mujoco uses a Blinn/Phong shading model with the addition of reflectance. Unfortunately, at
     // the moment of writing this comment, Unity does not come with a compatible shader. The closest
-    // results can be achieved using the Standard shader that implements the Cook-Torrence shading
-    // model.
-    Material material;
-    if (rgba[3] < 1f) {
-      material = new Material(AssetDatabase.LoadMainAssetAtPath(
-        AssetDatabase.GUIDToAssetPath(
-          AssetDatabase.FindAssets(_semiTransparentMaterialName)[0])) as Material);
-    } else {
-      material = new Material(Shader.Find("Standard"));
-    }
-    material.SetColor("_Color", albedo);
+    // results can be achieved using the active render pipeline's lit shader.
+    Material material = CreateImportMaterial(rgba[3] < 1f);
+    SetMaterialColor(material, albedo);
     material.SetFloat("_Metallic", reflectance);
 
     // In order to convert the specular/shininess parameters into glossiness/roughness,
@@ -245,7 +282,11 @@ public class MjImporterWithAssets : MjcfImporter {
     // Instead of modifying the Shininess parameter however, we're dirrectly modifying
     // the glossiness by bringing the value closer to the upper boundary.
     glossiness = (1.0f - reflectance) * glossiness + reflectance;
-    material.SetFloat("_Glossiness", glossiness);
+    if (material.HasProperty("_Smoothness")) {
+      material.SetFloat("_Smoothness", glossiness);
+    } else {
+      material.SetFloat("_Glossiness", glossiness);
+    }
 
     // We choose to define a simple emission model that only emits light, without scaling
     // the brightness of the defined color. If the user requires, they should tweak the material
@@ -278,15 +319,8 @@ public class MjImporterWithAssets : MjcfImporter {
         // We need a bespoke copy of the material from the database for this particular node.
         var rgba = parentNode.GetFloatArrayAttribute(
           "rgba", defaultValue: new float[] {1.0f, 1.0f, 1.0f, 1.0f});
-        if (rgba[3] < 1f) {
-          material = new Material(
-            AssetDatabase.LoadMainAssetAtPath(
-              AssetDatabase.GUIDToAssetPath(
-                AssetDatabase.FindAssets(_semiTransparentMaterialName)[0])) as Material);
-        } else {
-          material = new Material(Shader.Find("Standard"));
-        }
-        material.color = new Color(rgba[0], rgba[1], rgba[2], rgba[3]);
+        material = CreateImportMaterial(rgba[3] < 1f);
+        SetMaterialColor(material, new Color(rgba[0], rgba[1], rgba[2], rgba[3]));
         // We use the geom's name, guaranteed to be unique, as the asset name.
         // If geom is nameless, use a random number.
         var name =
@@ -300,6 +334,11 @@ public class MjImporterWithAssets : MjcfImporter {
         AssetDatabase.CreateAsset(material, assetPath);
         AssetDatabase.SaveAssets();
         material = AssetDatabase.LoadMainAssetAtPath(assetPath) as Material;
+      } else if (IsUniversalRenderPipelineActive()) {
+        if (_defaultImportedMaterial == null) {
+          _defaultImportedMaterial = CreateImportMaterial(transparent: false);
+        }
+        material = _defaultImportedMaterial;
       } else {
         material = DefaultMujocoMaterial;
       }
