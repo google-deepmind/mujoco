@@ -98,5 +98,19 @@ public class MjHingeJointTests {
     Assert.That(_joint.RangeLower, Is.EqualTo(expectedLow));
     Assert.That(_joint.RangeUpper, Is.EqualTo(expectedHigh));
   }
+
+  [Test]
+  public void ParsingReferenceConvertsRadiansToDegrees() {
+    var previous = MjSceneImportSettings.AnglesInDegrees;
+    MjSceneImportSettings.AnglesInDegrees = false;
+    try {
+      var jointElement = (XmlElement)_doc.AppendChild(_doc.CreateElement("joint"));
+      jointElement.SetAttribute("ref", "1.57079632679");
+      _joint.ParseMjcf(jointElement);
+      Assert.That(_joint.Configuration, Is.EqualTo(90.0f).Within(1e-3f));
+    } finally {
+      MjSceneImportSettings.AnglesInDegrees = previous;
+    }
+  }
 }
 }
