@@ -195,22 +195,28 @@ the clause:
       # https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/glFrustum.xml
       zfar = np.float32(far)
       znear = np.float32(near)
-      c_coef = -(zfar + znear) / (zfar - znear)
-      d_coef = -(np.float32(2) * zfar * znear) / (zfar - znear)
-
-      # In reverse Z mode the perspective matrix is transformed by the following
-      c_coef = np.float32(-0.5) * c_coef - np.float32(0.5)
-      d_coef = np.float32(-0.5) * d_coef
 
       # We need 64 bits to convert Z from ndc to metric depth without noticeable
       # losses in precision
       out_64 = out.astype(np.float64)
 
-      # Undo OpenGL projection
-      # Note: We do not need to take action to convert from window coordinates
-      # to normalized device coordinates because in reversed Z mode the mapping
-      # is identity
-      out_64 = d_coef / (out_64 + c_coef)
+      if self._scene.camera[0].orthographic:
+        # Orthographic cameras: mapping is linear
+        out_64 = zfar - out_64 * (zfar - znear)
+      else:
+        # Perspective cameras: mapping is hyperbolic
+        c_coef = -(zfar + znear) / (zfar - znear)
+        d_coef = -(np.float32(2) * zfar * znear) / (zfar - znear)
+
+        # In reverse Z mode the perspective matrix is transformed by the following
+        c_coef = np.float32(-0.5) * c_coef - np.float32(0.5)
+        d_coef = np.float32(-0.5) * d_coef
+
+        # Undo OpenGL projection
+        # Note: We do not need to take action to convert from window coordinates
+        # to normalized device coordinates because in reversed Z mode the mapping
+        # is identity
+        out_64 = d_coef / (out_64 + c_coef)
 
       # Cast result back to float32 for backwards compatibility
       # This has a small accuracy cost

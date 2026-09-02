@@ -167,6 +167,56 @@ class MuJoCoRendererTest(parameterized.TestCase):
       with self.assertRaises(ValueError):
         renderer.render(out=np.zeros((*failing_render_size, 3), np.uint8))
 
+  def test_renderer_depth_rendering_camera_projection(self):
+    """Orthographic depth uses a linear NDC mapping (glOrtho); perspective
+    depth uses a hyperbolic mapping (glFrustum).
+
+    Render the same tilted plane using identically positioned orthographic and
+    perspective cameras. The two should agree on the depth at the center pixel
+    (actual distance), but they should have different depth values at non-center
+    pixels because the rays of the perspective camera diverge while those of the
+    orthographic camera remain parallel.
+    """
+    distance = 3.0
+    xml = f"""
+<mujoco>
+  <statistic extent="1"/>
+  <worldbody>
+    <camera name="ortho" pos="0 0 {distance}" xyaxes="1 0 0 0 1 0" projection="orthographic" fovy="45"/>
+    <camera name="persp" pos="0 0 {distance}" xyaxes="1 0 0 0 1 0" projection="perspective" fovy="45"/>
+    <geom name="floor" type="plane" size="5 5 0.1" zaxis="0 0.3 1"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+
+    # Odd resolution so a single pixel sits exactly on the optical axis.
+    def render_depth(camera_name):
+      with mujoco.Renderer(model, 51, 51) as renderer:
+        renderer.enable_depth_rendering()
+        renderer.update_scene(data, camera_name)
+        return renderer.scene.camera[0].orthographic, renderer.render().copy()
+
+    is_ortho, ortho_depth = render_depth('ortho')
+    is_persp, persp_depth = render_depth('persp')
+
+    # Check that the scenes are actually rendered with the expected cameras.
+    self.assertTrue(is_ortho)
+    self.assertFalse(is_persp)
+
+    # Center pixels of both cameras should show the actual distance
+    center = ortho_depth.shape[0] // 2, ortho_depth.shape[1] // 2
+    self.assertAlmostEqual(ortho_depth[center], distance, delta=1e-2)
+    self.assertAlmostEqual(persp_depth[center], distance, delta=1e-2)
+
+    # Depth values at the corner should differ
+    corner = (0, 0)
+    self.assertNotAlmostEqual(
+        ortho_depth[corner], persp_depth[corner], delta=1e-2
+    )
+
   def test_renderer_del_safe_when_init_fails_early(self):
     """Regression test for #3213.
 
