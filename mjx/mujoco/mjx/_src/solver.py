@@ -598,6 +598,10 @@ def solve(m: Model, d: Data) -> Data:
   ctx = Context.create(m, d)
   if m.opt.iterations == 1:
     ctx = body(ctx)
+  elif m.opt._impl.solver_scan:
+    # Opt-in scan-based loop for reverse-mode autodiff. The default remains
+    # `while_loop` to avoid changing solver performance characteristics.
+    ctx = _while_loop_scan(cond, body, ctx, m.opt.iterations)
   else:
     ctx = jax.lax.while_loop(cond, body, ctx)
 
