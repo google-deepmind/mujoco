@@ -14,13 +14,14 @@
 # ==============================================================================
 """Tests for msh2obj.py."""
 
+import pathlib
 
 from absl.testing import absltest
 from etils import epath
-import mujoco
-from mujoco import msh2obj
 import numpy as np
 
+import mujoco
+from mujoco import msh2obj
 
 _MESH_FIELDS = (
     "mesh_vertadr",
@@ -53,6 +54,36 @@ _XML = """
 
 
 class MshTest(absltest.TestCase):
+
+  def test_rejects_truncated_header(self) -> None:
+    for header in ([], [1, 0]):
+      with self.subTest(header=header):
+        msh_path = pathlib.Path(self.create_tempfile().full_path)
+        np.asarray(header, dtype=np.int32).tofile(msh_path)
+
+        with self.assertRaisesRegex(
+            ValueError,
+            f"Invalid MSH header: expected 4 counts, got {len(header)}.",
+        ):
+          msh2obj.Msh.create(msh_path)
+
+  def test_rejects_negative_count(self) -> None:
+    msh_path = pathlib.Path(self.create_tempfile().full_path)
+    np.asarray([-1, 0, 0, 0], dtype=np.int32).tofile(msh_path)
+
+    with self.assertRaisesRegex(
+        ValueError, "Invalid MSH header: counts must be nonnegative"
+    ):
+      msh2obj.Msh.create(msh_path)
+
+  def test_reports_texcoord_count(self) -> None:
+    msh_path = pathlib.Path(self.create_tempfile().full_path)
+    np.asarray([0, 0, 1, 0], dtype=np.int32).tofile(msh_path)
+
+    with self.assertRaisesRegex(
+        ValueError, r"Invalid number of texcoords: 0 != 2\*1\."
+    ):
+      msh2obj.Msh.create(msh_path)
 
   def test_obj_model_matches_msh_model(self) -> None:
     test_path = epath.resource_path("mujoco") / "testdata"
