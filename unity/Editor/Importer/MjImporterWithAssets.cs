@@ -152,12 +152,15 @@ public class MjImporterWithAssets : MjcfImporter {
       parentNode.GetStringAttribute("name", defaultValue: string.Empty);
     var assetReferenceName = MjEngineTool.Sanitize(unsanitizedAssetReferenceName);
     var sourceFilePath = Path.Combine(_sourceMeshesDir, fileName);
+    var sourceFileExtension = Path.GetExtension(sourceFilePath);
 
-    if (Path.GetExtension(sourceFilePath) != ".obj" && Path.GetExtension(sourceFilePath) != ".stl") {
-      throw new NotImplementedException("Type of mesh file not yet supported. " +
-                                        "Please convert to binary STL or OBJ. " +
-                                        $"Attempted to load: {sourceFilePath}");
-    }
+    if (!sourceFileExtension.Equals(".obj", StringComparison.OrdinalIgnoreCase) 
+     && !sourceFileExtension.Equals(".stl", StringComparison.OrdinalIgnoreCase))
+      {
+        throw new NotImplementedException("Type of mesh file not yet supported. " +
+                                          "Please convert to binary STL or OBJ. " +
+                                          $"Attempted to load: {sourceFilePath}");
+      }
 
     var targetFilePath =
         Path.Combine(_targetMeshesDir, assetReferenceName + Path.GetExtension(sourceFilePath));
@@ -194,16 +197,22 @@ public class MjImporterWithAssets : MjcfImporter {
   private void CopyMeshAndRescale(
       string sourceFilePath, string targetFilePath, Vector3 scale) {
     var originalMeshBytes = File.ReadAllBytes(sourceFilePath);
-    if (Path.GetExtension(sourceFilePath) == ".stl") {
-      var mesh = StlMeshParser.ParseBinary(originalMeshBytes, scale);
-      var rescaledMeshBytes = StlMeshParser.SerializeBinary(mesh);
-      File.WriteAllBytes(targetFilePath, rescaledMeshBytes);
-    } else if (Path.GetExtension(sourceFilePath) == ".obj") {
-      ObjMeshImportUtility.CopyAndScaleOBJFile(sourceFilePath, targetFilePath, scale);
-    } else {
-      throw new NotImplementedException($"Extension {Path.GetExtension(sourceFilePath)} " +
-                                        $"not yet supported for MuJoCo mesh asset.");
-    }
+    var sourceFileExtension = Path.GetExtension(sourceFilePath);
+    if (sourceFileExtension.Equals(".stl", StringComparison.OrdinalIgnoreCase))
+      {
+        var mesh = StlMeshParser.ParseBinary(originalMeshBytes, scale);
+        var rescaledMeshBytes = StlMeshParser.SerializeBinary(mesh);
+        File.WriteAllBytes(targetFilePath, rescaledMeshBytes);
+      }
+      else if (sourceFileExtension.Equals(".obj", StringComparison.OrdinalIgnoreCase))
+      {
+        ObjMeshImportUtility.CopyAndScaleOBJFile(sourceFilePath, targetFilePath, scale);
+      }
+      else
+      {
+        throw new NotImplementedException($"Extension {Path.GetExtension(sourceFilePath)} " +
+                                          $"not yet supported for MuJoCo mesh asset.");
+      }
   }
 
   private void ParseMaterial(XmlElement parentNode) {
