@@ -34,11 +34,13 @@ extern "C" {
 //            a proportionally thin skin and thick ones do not carry a fat layer;
 //   band  -- the detection reach: how early the broad phase starts tracking a pair. Not a physical
 //            length; wider costs candidates, narrower hands pairs to the solver later.
-// FLEX-FLEX pairs (types 0/1) measure their gap at the MIDSURFACE: mjc_pairGap does not subtract
-// the radii for those types, because where the mesh geometry is tighter than the combined radii
-// (a string threaded through a hem) a skin-to-skin gap is permanently negative and the pair would
-// be discarded as invalid -- no CCD coverage, so the region could tunnel. The broad phase adds the
-// radii back into its reach so detection range is unchanged (see addCand).
+// ALL pair types measure their gap at the flex MIDSURFACE: mjc_pairGap does not subtract the flex
+// radii, because where the geometry is tighter than the radii (a string threaded through a hem, a
+// liner resting on its bin) a skin-to-skin gap is permanently negative and the pair would be
+// discarded as invalid -- no CCD coverage, so the region could tunnel. For types 2/3/4 the gap is
+// flex-midsurface to geom SURFACE (a geom's surface is its geometry; it has no radius to fold).
+// The broad phase adds the flex radii back into its reach so detection range is unchanged (see
+// addCand).
 
 // Pair types for continuous collision.
 typedef enum {
@@ -79,14 +81,15 @@ MJAPI mjtNum mjc_pairGap(const mjcFlexPair* pair, const mjModel* m, const mjData
 // Swept candidate generation: all pairs whose gap can enter the detection band along the segment
 // dfrom -> dto, gathered over the flex BVH (self and cross-flex) and the geom features. thresh /
 // threshGeom bound the flex-flex / flex-geom reach, maxdisp the per-vertex motion the collar must
-// absorb, ghat the detection band. Returns the number of candidates written to cand (at most
-// candmax).
-MJAPI int mjc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, const mjtNum* gv,
+// absorb, ghat the detection band. The candidates are pushed onto the mjData arena one at a
+// time, so they form a contiguous array that lives until the arena is next reset (the position
+// stage); *cand receives its start and the count is returned. If the arena fills, the remaining
+// pairs are dropped with a warning: raise the model's memory attribute.
+MJAPI int mjc_candidates(const mjModel* m, mjData* d, const mjtNum* x, const mjtNum* gv,
                          const mjtNum* ge, int ngv, int nge, const mjtNum* radii, mjtNum thresh,
                          mjtNum threshGeom, mjtNum maxdisp, const mjtNum* dfrom, const mjtNum* dto,
                          mjtNum ghat, int nfv, int npt, const int* fidx, const int* flist,
-                         const int* fxadr, int nfd, const int* pt2flex, mjcFlexPair* cand,
-                         int candmax);
+                         const int* fxadr, int nfd, const int* pt2flex, mjcFlexPair** cand);
 
 // Conservative advancement: the largest alpha in [0, 1] such that moving the free points from x by
 // alpha*dxw keeps every candidate's gap above a fraction of its value at x (no pair's gap is

@@ -1175,6 +1175,7 @@
     <xs:attribute name="invdiscrete" type="kw_enable" default="disable"/>
     <xs:attribute name="sleep" type="kw_enable" default="disable"/>
     <xs:attribute name="diagexact" type="kw_enable" default="disable"/>
+    <xs:attribute name="ipc" type="kw_enable" default="disable"/>
   </xs:complexType>
 
   <xs:complexType name="global">

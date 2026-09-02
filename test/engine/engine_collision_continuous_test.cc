@@ -380,10 +380,10 @@ TEST_F(ContinuousCollisionTest, CandidatesFindApproachingPairs) {
 
     // static query (no sweep): reach = 3*band, band 3 mm
     mjtNum band = 0.003;
-    mjcFlexPair cand[256];
+    mjcFlexPair* cand = nullptr;
     int ncand = mjc_candidates(m, d, x, nullptr, nullptr, 0, 0, radii, 3 * band,
                                3 * band, 0.0, x, x, band, nfv, nfv, fidx, flist,
-                               fxadr, nfd, pt2flex, cand, 256);
+                               fxadr, nfd, pt2flex, &cand);
     if (dz < 0.01) {
       EXPECT_GT(ncand, 0) << "2 mm apart, within reach: pairs expected";
       for (int c = 0; c < ncand; c++) {

@@ -188,6 +188,9 @@
             .. grid-item::
                :ref:`diagexact<option-flag-diagexact>`
 
+            .. grid-item::
+               :ref:`ipc<option-flag-ipc>`
+
 
    .. dropdown:: :ref:`compiler<compiler>` |*|
 

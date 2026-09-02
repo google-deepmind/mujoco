@@ -6233,6 +6233,22 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nbvhdynamic', 6),
              ),
              StructFieldDecl(
+                 name='flexvert_lambda',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='flex contact multiplier',
+                 array_extent=('nflexvert',),
+             ),
+             StructFieldDecl(
+                 name='flexvert_conage',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='flex contact age: <0 loaded, >0 steps since',
+                 array_extent=('nflexvert',),
+             ),
+             StructFieldDecl(
                  name='ten_wrapadr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -6581,7 +6597,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='constraint force',
+                 doc='constraint force (flag ipc: incl. flex contact)',
                  array_extent=('nv',),
              ),
              StructFieldDecl(
@@ -7165,7 +7181,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='contact rank-1 rows, packed [nnz, colind...]',
+                 doc='contact rows, packed [nnz, conid, colind...]',
                  array_extent=('nefmcon',),
              ),
              StructFieldDecl(
@@ -7173,7 +7189,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='contact rank-1 rows, packed [scale, val...]',
+                 doc='contact rows, packed [scale, force, val...]',
                  array_extent=('nefmcon',),
              ),
              StructFieldDecl(
