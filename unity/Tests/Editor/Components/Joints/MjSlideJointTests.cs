@@ -98,5 +98,19 @@ public class MjSlideJointTests {
     Assert.That(_joint.RangeLower, Is.EqualTo(expectedLow));
     Assert.That(_joint.RangeUpper, Is.EqualTo(expectedHigh));
   }
+
+  [Test]
+  public void ParsingSpringReferenceKeepsLinearUnitsInRadianModels() {
+    var previous = MjSceneImportSettings.AnglesInDegrees;
+    MjSceneImportSettings.AnglesInDegrees = false;
+    try {
+      var jointElement = (XmlElement)_doc.AppendChild(_doc.CreateElement("joint"));
+      jointElement.SetAttribute("springref", "0.25");
+      _joint.ParseMjcf(jointElement);
+      Assert.That(_joint.Settings.Spring.EquilibriumPose, Is.EqualTo(0.25f).Within(1e-6f));
+    } finally {
+      MjSceneImportSettings.AnglesInDegrees = previous;
+    }
+  }
 }
 }
