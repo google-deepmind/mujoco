@@ -67,10 +67,10 @@ TEST_F(HeaderTest, MjOptionFields) {
   static_assert(                                                           \
       std::is_same_v<decltype(mjOption::name), ArrayOrScalarT<type, dim>>, \
       "incorrect type for mjOption::" #name);
-#define X(type, name, dim) \
+#define X(type, name, dim)                                   \
   static_assert(dim == 1, "use XVEC for non-scalar fields"); \
   XIMPL(type, name, dim)
-#define XVEC(type, name, dim) \
+#define XVEC(type, name, dim)                        \
   static_assert(dim > 1, "use X for scalar fields"); \
   XIMPL(type, name, dim)
 
@@ -117,8 +117,8 @@ TEST_F(HeaderTest, MjStatisticFields) {
 #define X(name, dim)                                         \
   static_assert(dim == 1, "use XVEC for non-scalar fields"); \
   XIMPL(name, dim)
-#define XVEC(name, dim)                                      \
-  static_assert(dim > 1, "use X for scalar fields");         \
+#define XVEC(name, dim)                              \
+  static_assert(dim > 1, "use X for scalar fields"); \
   XIMPL(name, dim)
 
   MJSTATISTIC_FIELDS
@@ -154,10 +154,9 @@ TEST_F(HeaderTest, MjVisualFields) {
   std::vector<std::pair<const void*, const char*>> fields;
 
   // check that all X macros have the correct type and dim
-#define X(type, name, dim)                                 \
-  static_assert(                                           \
-      std::is_same_v<decltype(v.global.name), type>,       \
-      "incorrect type for mjVisual::global::" #name);
+#define X(type, name, dim)                                     \
+  static_assert(std::is_same_v<decltype(v.global.name), type>, \
+                "incorrect type for mjVisual::global::" #name);
 
   MJVISUAL_GLOBAL_FIELDS
 
@@ -246,7 +245,7 @@ TEST_F(HeaderTest, MjVisualFields) {
   struct ExpectedMjVisual {
     struct {
 #define X(type, name, dim) type name;
-    MJVISUAL_GLOBAL_FIELDS;
+      MJVISUAL_GLOBAL_FIELDS;
 #undef X
     } global;
     struct {
@@ -331,7 +330,6 @@ TEST_F(HeaderTest, MjModelPointersOrdered) {
 
   CheckAddressOrdering(pointers, "MJMODEL_POINTER");
 }
-
 
 TEST_F(HeaderTest, MjDataPointersOrdered) {
   mjData d;

@@ -41,16 +41,12 @@ MJAPI mjfLogHandler _mjPRIVATE_setTlsLogHandler(mjfLogHandler handler);
 namespace mujoco {
 
 struct MjModelDeleter {
-  void operator()(mjModel* m) const {
-    mj_deleteModel(m);
-  }
+  void operator()(mjModel* m) const { mj_deleteModel(m); }
 };
 using MjModelPtr = std::unique_ptr<mjModel, MjModelDeleter>;
 
 struct MjDataDeleter {
-  void operator()(mjData* d) const {
-    mj_deleteData(d);
-  }
+  void operator()(mjData* d) const { mj_deleteData(d); }
 };
 using MjDataPtr = std::unique_ptr<mjData, MjDataDeleter>;
 
@@ -103,9 +99,9 @@ inline mjtNum MjTol(T1 double_tol, T2 float_tol) {
 
 // Precision-aware equality assertion: 4 ULPs in either precision.
 #ifdef mjUSESINGLE
-#define EXPECT_MJTNUM_EQ(a, b) EXPECT_FLOAT_EQ(a, b)
+  #define EXPECT_MJTNUM_EQ(a, b) EXPECT_FLOAT_EQ(a, b)
 #else
-#define EXPECT_MJTNUM_EQ(a, b) EXPECT_DOUBLE_EQ(a, b)
+  #define EXPECT_MJTNUM_EQ(a, b) EXPECT_DOUBLE_EQ(a, b)
 #endif
 
 // Installs and uninstalls error callbacks on MuJoCo that fail the currently
@@ -205,7 +201,7 @@ const std::string GetModelPath(std::string_view path);
 // Returns a newly-allocated mjModel, loaded from the contents of xml.
 // On failure returns nullptr and populates the error array if present.
 MjModelPtr LoadModelFromString(std::string_view xml, char* error = nullptr,
-                             int error_size = 0, mjVFS* vfs = nullptr);
+                               int error_size = 0, mjVFS* vfs = nullptr);
 
 // Returns a newly-allocated mjData, initialized using model.
 MjDataPtr MakeData(const MjModelPtr& model);
@@ -223,7 +219,6 @@ std::string SaveAndReadXml(const mjSpec* spec);
 // Adds control noise.
 std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
                                  mjtNum ctrlnoise = 0.01);
-
 
 // Returns a vector containing the elements of the array.
 template <typename T>

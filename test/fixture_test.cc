@@ -29,7 +29,6 @@ using MujocoTestTest = MujocoTest;
 class MujocoErrorTestGuardTest : public ::testing::Test {};
 using ::testing::IsNull;
 
-
 TEST_F(MujocoTestTest, MjUserWarningFailsTest) {
   EXPECT_NONFATAL_FAILURE(mju_warning("Warning."), "Warning.");
 }
