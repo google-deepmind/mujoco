@@ -15,6 +15,7 @@
 #include "engine/engine_collision_driver.h"
 
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #include <mujoco/mjdata.h>
@@ -618,7 +619,7 @@ void mj_collision(const mjModel* m, mjData* d) {
   // broadphase collision detector
   TM_START;
   int nmaxpairs = (nbodyflex*(nbodyflex - 1))/2;
-  int* broadphasepair = mjSTACKALLOC(d, nmaxpairs, int);
+  uint32_t* broadphasepair = mjSTACKALLOC(d, nmaxpairs, uint32_t);
   int nbfpair = mj_broadphase(m, d, broadphasepair, nmaxpairs);
   unsigned int last_signature = -1;
   TM_END(mjTIMER_COL_BROAD);
@@ -634,11 +635,11 @@ void mj_collision(const mjModel* m, mjData* d) {
 
   for (int i=0; i < nbfpair; i++) {
     // reconstruct bodyflex pair ids
-    int bf1 = (broadphasepair[i]>>16) & 0xFFFF;
+    int bf1 = broadphasepair[i] >> 16;
     int bf2 = broadphasepair[i] & 0xFFFF;
 
     // compute signature for this bodyflex pair
-    unsigned int signature = (bf1<<16) + bf2;
+    unsigned int signature = ((uint32_t)bf1<<16) + bf2;
     // pairs come sorted by signature, but may not be unique
     // if signature is repeated, skip it
     if (signature == last_signature) {
@@ -1350,7 +1351,7 @@ static void makeAAMM(const mjModel* m, mjData* d,
 
 // add bodyflex pair in buffer; do not filter if m is NULL
 static void add_pair(const mjModel* m, int bf1, int bf2,
-                     int* npair, int* pair, int maxpair) {
+                     int* npair, uint32_t* pair, int maxpair) {
   // add pair if there is room in buffer
   if ((*npair) < maxpair) {
     // contact filtering if m is not NULL
@@ -1394,9 +1395,9 @@ static void add_pair(const mjModel* m, int bf1, int bf2,
 
     // add pair
     if (bf1 < bf2) {
-      pair[*npair] = (bf1<<16) + bf2;
+      pair[*npair] = ((uint32_t)bf1 << 16) | (uint32_t)bf2;
     } else {
-      pair[*npair] = (bf2<<16) + bf1;
+      pair[*npair] = ((uint32_t)bf2 << 16) | (uint32_t)bf1;
     }
     (*npair)++;
   } else {
@@ -1432,9 +1433,9 @@ mjSORT(SAPsort, mjtSAP, SAPcmp);
 
 
 // given list of axis-aligned bounding boxes in AAMM (min[3], max[3]) format,
-// return list of pairs (i, j) in format (i<<16 + j) that can collide,
+// return list of pairs (i, j) in format (i<<16 | j) that can collide,
 // using sweep-and-prune along specified x axis (0, 1 or 2).
-static int mj_SAP(mjData* d, const mjtNum* aamm, int n, int axis_x, int* pair, int maxpair) {
+static int mj_SAP(mjData* d, const mjtNum* aamm, int n, int axis_x, uint32_t* pair, int maxpair) {
   // check inputs
   if (n >= 0x10000 || axis_x < 0 || axis_x > 2 || maxpair < 1) {
     return -1;
@@ -1500,7 +1501,7 @@ static int mj_SAP(mjData* d, const mjtNum* aamm, int n, int axis_x, int* pair, i
         }
 
         // add pair, check buffer size
-        pair[npair++] = (id1<<16) + id2;
+        pair[npair++] = ((uint32_t)id1 << 16) | (uint32_t)id2;
         if (npair >= maxpair) {
           return maxpair;
         }
@@ -1552,8 +1553,8 @@ static void updateCov(mjtNum cov[9], const mjtNum vec[3], const mjtNum cen[3]) {
 
 
 // comparison function for unsigned ints
-static inline int uintcmp(int* i, int* j, void* context) {
-  if ((unsigned) *i < (unsigned) *j) {
+static inline int uintcmp(uint32_t* i, uint32_t* j, void* context) {
+  if (*i < *j) {
     return -1;
   } else if (*i == *j) {
     return 0;
@@ -1563,11 +1564,11 @@ static inline int uintcmp(int* i, int* j, void* context) {
 }
 
 // define bfsort function for sorting bodyflex pairs
-mjSORT(bfsort, int, uintcmp);
+mjSORT(bfsort, uint32_t, uintcmp);
 
 
 // broadphase collision detector
-int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
+int mj_broadphase(const mjModel* m, mjData* d, uint32_t* bfpair, int maxpair) {
   int npair = 0, nbody = m->nbody, ngeom = m->ngeom;
   int nvert = m->nflexvert, nflex = m->nflex, nbodyflex = m->nbody + m->nflex;
   int dsbl_filterparent = mjDISABLED(mjDSBL_FILTERPARENT);
@@ -1679,7 +1680,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
 
     // call SAP
     int maxsappair = ncollide*(ncollide-1)/2;
-    int* sappair = mjSTACKALLOC(d, maxsappair, int);
+    uint32_t* sappair = mjSTACKALLOC(d, maxsappair, uint32_t);
     int nsappair = mj_SAP(d, aamm, ncollide, 0, sappair, maxsappair);
     if (nsappair < 0) {
       mjERROR("SAP failed");
@@ -1723,7 +1724,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
 
   // sort bodyflex pairs by signature
   if (npair > 1) {
-    int* buf = mjSTACKALLOC(d, npair, int);
+    uint32_t* buf = mjSTACKALLOC(d, npair, uint32_t);
     bfsort(bfpair, buf, npair, NULL);
   }
 
@@ -2349,7 +2350,7 @@ void mj_collideFlexSAP(const mjModel* m, mjData* d, int f) {
 
   // call SAP; hard limit on number of pairs to avoid out-of-memory
   int maxsappair = mjMIN(nactive*(nactive-1)/2, 1000000);
-  int* sappair = mjSTACKALLOC(d, maxsappair, int);
+  uint32_t* sappair = mjSTACKALLOC(d, maxsappair, uint32_t);
   int nsappair = mj_SAP(d, aamm, nactive, axis, sappair, maxsappair);
   if (nsappair < 0) {
     mjERROR("SAP failed");

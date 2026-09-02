@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_COLLISION_DRIVER_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_COLLISION_DRIVER_H_
 
+#include <stdint.h>
+
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
@@ -45,7 +47,7 @@ MJAPI int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
 MJAPI int mj_isElemActive(const mjModel* m, int f, int e);
 
 // broad phase collision detection; return list of bodyflex pairs
-int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair);
+int mj_broadphase(const mjModel* m, mjData* d, uint32_t* bfpair, int maxpair);
 
 // test active element self-collisions with SAP
 void mj_collideFlexSAP(const mjModel* m, mjData* d, int f);
