@@ -997,11 +997,11 @@ TEST_F(SensorTest, CameraProjection) {
 }
 
 // previous implementation of cam_project to verify the new one
-static void cam_project_old(
-    mjtNum sensordata[2], const mjtNum target_xpos[3],
-    const mjtNum cam_xpos[3], const mjtNum cam_xmat[9],
-    const int cam_res[2], mjtNum cam_fovy,
-    const float cam_intrinsic[4], const float cam_sensorsize[2]) {
+static void cam_project_old(mjtNum sensordata[2], const mjtNum target_xpos[3],
+                            const mjtNum cam_xpos[3], const mjtNum cam_xmat[9],
+                            const int cam_res[2], mjtNum cam_fovy,
+                            const float cam_intrinsic[4],
+                            const float cam_sensorsize[2]) {
   mjtNum fx, fy;
 
   // translation matrix (4x4)
@@ -1020,9 +1020,9 @@ static void cam_project_old(
   rotation[1][1] = 1;
   rotation[2][2] = 1;
   rotation[3][3] = 1;
-  for (int i=0; i < 3; i++) {
-    for (int j=0; j < 3; j++) {
-      rotation[i][j] = cam_xmat[j*3+i];
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      rotation[i][j] = cam_xmat[j * 3 + i];
     }
   }
 
@@ -1036,7 +1036,7 @@ static void cam_project_old(
 
   mjtNum focal[3][4] = {};
   focal[0][0] = -fx;
-  focal[1][1] =  fy;
+  focal[1][1] = fy;
   focal[2][2] = 1.0;
 
   // image matrix (3x3)
@@ -1049,13 +1049,13 @@ static void cam_project_old(
 
   // projection matrix (3x4): product of all 4 matrices
   mjtNum proj[3][4] = {};
-  for (int i=0; i < 3; i++) {
-    for (int j=0; j < 3; j++) {
-      for (int k=0; k < 4; k++) {
-        for (int l=0; l < 4; l++) {
-          for (int n=0; n < 4; n++) {
-            proj[i][n] += image[i][j] * focal[j][k] *
-                          rotation[k][l] * translation[l][n];
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      for (int k = 0; k < 4; k++) {
+        for (int l = 0; l < 4; l++) {
+          for (int n = 0; n < 4; n++) {
+            proj[i][n] +=
+                image[i][j] * focal[j][k] * rotation[k][l] * translation[l][n];
           }
         }
       }
@@ -1069,8 +1069,8 @@ static void cam_project_old(
   // project world coordinates into pixel space, see:
   // https://en.wikipedia.org/wiki/3D_projection#Mathematical_formula
   mjtNum pixel_coord_hom[3] = {0};
-  for (int i=0; i < 3; i++) {
-    for (int j=0; j < 4; j++) {
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 4; j++) {
       pixel_coord_hom[i] += proj[i][j] * pos_hom[j];
     }
   }
@@ -1139,14 +1139,11 @@ TEST_F(SensorTest, CameraProjectionComparison) {
       int refid = model->sensor_refid[i];
 
       mjtNum expected[2];
-      cam_project_old(expected,
-                      data->site_xpos + 3*objid,
-                      data->cam_xpos + 3*refid,
-                      data->cam_xmat + 9*refid,
-                      model->cam_resolution + 2*refid,
-                      model->cam_fovy[refid],
-                      model->cam_intrinsic + 4*refid,
-                      model->cam_sensorsize + 2*refid);
+      cam_project_old(expected, data->site_xpos + 3 * objid,
+                      data->cam_xpos + 3 * refid, data->cam_xmat + 9 * refid,
+                      model->cam_resolution + 2 * refid, model->cam_fovy[refid],
+                      model->cam_intrinsic + 4 * refid,
+                      model->cam_sensorsize + 2 * refid);
 
       int adr = model->sensor_adr[i];
       EXPECT_NEAR(data->sensordata[adr], expected[0], MjTol(1e-10, 1e-3));
@@ -1801,7 +1798,8 @@ TEST_F(SensorTest, TactileSkipTangents) {
   EXPECT_EQ(nonzero_count, 2) << "Expected 2 taxels in contact";
 }
 
-// Test tactile sensor cutoff attribute, engine clamping, and round-trip XML save/load
+// Test tactile sensor cutoff attribute, engine clamping, and round-trip XML
+// save/load
 TEST_F(SensorTest, TactileCutoff) {
   constexpr char xml[] = R"(
   <mujoco>
@@ -1841,9 +1839,11 @@ TEST_F(SensorTest, TactileCutoff) {
   for (int i = 0; i < ntaxel; i++) {
     if (data->sensordata[i] != 0) {
       nonzero_count++;
-      // Without cutoff, penetration is ~0.2; with cutoff=0.05, it must be clamped to 0.05
+      // Without cutoff, penetration is ~0.2; with cutoff=0.05, it must be
+      // clamped to 0.05
       EXPECT_NEAR(data->sensordata[i], 0.05, MjTol(1e-6, 1e-4))
-          << "Penetration depth at taxel " << i << " should be clamped to cutoff";
+          << "Penetration depth at taxel " << i
+          << " should be clamped to cutoff";
     }
   }
   EXPECT_EQ(nonzero_count, 2) << "Expected 2 taxels in contact";
@@ -1853,7 +1853,8 @@ TEST_F(SensorTest, TactileCutoff) {
   EXPECT_THAT(saved_xml, HasSubstr("cutoff=\"0.05\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("noise")));
 
-  MjModelPtr reloaded = LoadModelFromString(saved_xml.c_str(), error, sizeof(error));
+  MjModelPtr reloaded =
+      LoadModelFromString(saved_xml.c_str(), error, sizeof(error));
   ASSERT_THAT(reloaded.get(), NotNull()) << error;
   EXPECT_MJTNUM_EQ(reloaded->sensor_cutoff[0], 0.05);
 }

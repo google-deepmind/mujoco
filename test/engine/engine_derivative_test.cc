@@ -1235,18 +1235,19 @@ TEST_F(DerivativeTest, ForcerangeClampedDerivative) {
       << "implicitfast should be more accurate than Euler at large timestep "
       << "when forcerange derivatives are correctly handled";
 
-  // the discrete arm: while the force is clamped, actuatorDerivSkip keeps the gains out
-  // of the metric and discrete coincides with Euler; unclamped stretches trade Euler's
-  // explicit overshoot for the metric's implicit damping, so the errors are near-equal
-  // with a platform-dependent sign. Assert comparable accuracy; the stability advantage
-  // at large h*omega is pinned by DiscreteStiffLegPress
+  // the discrete arm: while the force is clamped, actuatorDerivSkip keeps the
+  // gains out of the metric and discrete coincides with Euler; unclamped
+  // stretches trade Euler's explicit overshoot for the metric's implicit
+  // damping, so the errors are near-equal with a platform-dependent sign.
+  // Assert comparable accuracy; the stability advantage at large h*omega is
+  // pinned by DiscreteStiffLegPress
   EXPECT_LT(error_discrete, 1.5 * error_euler)
       << "discrete should be comparable to Euler under a clamped servo";
 }
 
 // under discrete, qacc is the step map: finite differences of mj_step through
-// mjd_transitionFD (which reuses stages via mj_stepSkip) must match naive finite
-// differences with a full reset and a fresh step per perturbation
+// mjd_transitionFD (which reuses stages via mj_stepSkip) must match naive
+// finite differences with a full reset and a fresh step per perturbation
 TEST_F(DerivativeTest, DiscreteStepMapDerivatives) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -1268,7 +1269,7 @@ TEST_F(DerivativeTest, DiscreteStepMapDerivatives) {
   MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(m.get(), NotNull()) << error;
   MjDataPtr d = MakeData(m);
-  int nv = m->nv, nu = m->nu, ns = 2*nv;
+  int nv = m->nv, nu = m->nu, ns = 2 * nv;
 
   // state with an active contact and nonzero velocity
   const mjtNum qpos0[2] = {-0.01, 0.05};
@@ -1283,11 +1284,12 @@ TEST_F(DerivativeTest, DiscreteStepMapDerivatives) {
   // transition derivatives via stage-reusing finite differences
   // (eps is a perturbation size, not a tolerance: independent of MJTOL_SCALE)
   mjtNum eps = sizeof(mjtNum) == 8 ? 1e-6 : 1e-3;
-  std::vector<mjtNum> A(ns*ns), B(ns*nu);
-  mjd_transitionFD(m.get(), d.get(), eps, /*flg_centered=*/1, A.data(), B.data(),
-                   nullptr, nullptr);
+  std::vector<mjtNum> A(ns * ns), B(ns * nu);
+  mjd_transitionFD(m.get(), d.get(), eps, /*flg_centered=*/1, A.data(),
+                   B.data(), nullptr, nullptr);
 
-  // naive centered differences: full reset and one fresh mj_step per perturbation
+  // naive centered differences: full reset and one fresh mj_step per
+  // perturbation
   auto naive = [&](int what, int idx, mjtNum* dx) {
     mjtNum x[2][4];
     for (int sgn = 0; sgn < 2; sgn++) {
@@ -1304,25 +1306,26 @@ TEST_F(DerivativeTest, DiscreteStepMapDerivatives) {
       mju_copy(x[sgn] + nv, d->qvel, nv);
     }
     for (int i = 0; i < ns; i++) {
-      dx[i] = (x[1][i] - x[0][i]) / (2*eps);
+      dx[i] = (x[1][i] - x[0][i]) / (2 * eps);
     }
   };
 
-  // guard against a vacuous pass: A contains the identity block and h-scale dynamics
-  EXPECT_GT(mju_norm(A.data(), ns*ns), 1);
+  // guard against a vacuous pass: A contains the identity block and h-scale
+  // dynamics
+  EXPECT_GT(mju_norm(A.data(), ns * ns), 1);
 
   mjtNum maxdiff = 0;
   mjtNum dx[4];
   for (int j = 0; j < ns; j++) {
     naive(j < nv ? 0 : 1, j < nv ? j : j - nv, dx);
     for (int i = 0; i < ns; i++) {
-      maxdiff = mju_max(maxdiff, mju_abs(A[i*ns + j] - dx[i]));
+      maxdiff = mju_max(maxdiff, mju_abs(A[i * ns + j] - dx[i]));
     }
   }
   for (int j = 0; j < nu; j++) {
     naive(2, j, dx);
     for (int i = 0; i < ns; i++) {
-      maxdiff = mju_max(maxdiff, mju_abs(B[i*nu + j] - dx[i]));
+      maxdiff = mju_max(maxdiff, mju_abs(B[i * nu + j] - dx[i]));
     }
   }
   EXPECT_LT(maxdiff, MjTol(1e-8, 2e-5));
@@ -1929,8 +1932,8 @@ TEST_F(DerivativeTest, FlexInterpDerivativesDeformed) {
 
 // Helper: assemble the standard-flex stretch stiffness into a dense matrix,
 // column-by-column using mjd_flexStretch_mul with scale (s1 + s2*damping).
-static void stretchK_dense(mjModel* m, mjData* d, mjtNum* K, int nv,
-                           mjtNum s1, mjtNum s2) {
+static void stretchK_dense(mjModel* m, mjData* d, mjtNum* K, int nv, mjtNum s1,
+                           mjtNum s2) {
   std::vector<mjtNum> e_i(nv, 0);
   std::vector<mjtNum> col(nv, 0);
   for (int i = 0; i < nv; i++) {
@@ -2009,9 +2012,10 @@ TEST_F(DerivativeTest, FlexBendDerivativesRotated) {
       int body = model->flex_vertbodyid[model->flex_vertadr[f] + k];
       int adr = model->body_dofadr[body];
       for (int x = 0; x < model->body_dofnum[body]; x++) {
-        mjtNum fd = -(perturbed->qfrc_passive[adr+x] -
-                      data->qfrc_passive[adr+x]) / eps;
-        max_err = mju_max(max_err, mju_abs(res[adr+x] - fd));
+        mjtNum fd =
+            -(perturbed->qfrc_passive[adr + x] - data->qfrc_passive[adr + x]) /
+            eps;
+        max_err = mju_max(max_err, mju_abs(res[adr + x] - fd));
         scale = mju_max(scale, mju_abs(fd));
       }
     }
@@ -2024,11 +2028,13 @@ TEST_F(DerivativeTest, FlexBendDerivativesRotated) {
   mj_deleteData(perturbed);
 }
 
-// K_stretch must be the full Hessian of the stretch force, not just its Gauss-Newton part: the
-// geometric (stress-proportional) term is what makes it the Jacobian at finite strain. Uniformly
-// dilating the mesh puts every edge in tension, so the tensile clamp is inactive and the operator
-// is exact -- with only the Gauss-Newton term the finite-difference error is a large fraction of
-// the force. FlexStretchDerivatives covers the near-rest limit, where the two agree anyway.
+// K_stretch must be the full Hessian of the stretch force, not just its
+// Gauss-Newton part: the geometric (stress-proportional) term is what makes it
+// the Jacobian at finite strain. Uniformly dilating the mesh puts every edge in
+// tension, so the tensile clamp is inactive and the operator is exact -- with
+// only the Gauss-Newton term the finite-difference error is a large fraction of
+// the force. FlexStretchDerivatives covers the near-rest limit, where the two
+// agree anyway.
 TEST_F(DerivativeTest, FlexStretchDerivativesTensile) {
   static const char* const kXml = R"(
   <mujoco>
@@ -2052,18 +2058,20 @@ TEST_F(DerivativeTest, FlexStretchDerivativesTensile) {
   MjDataPtr data = MakeData(model);
   mj_forward(model.get(), data.get());
 
-  // dilate about the flex centroid: every edge stretches by 5%, so every Me is strictly positive
+  // dilate about the flex centroid: every edge stretches by 5%, so every Me is
+  // strictly positive
   mjtNum centroid[3] = {0, 0, 0};
   int nvert = model->flex_vertnum[0];
   for (int v = 0; v < nvert; v++) {
-    mju_addTo3(centroid, data->flexvert_xpos + 3*v);
+    mju_addTo3(centroid, data->flexvert_xpos + 3 * v);
   }
-  mju_scl3(centroid, centroid, 1.0/nvert);
+  mju_scl3(centroid, centroid, 1.0 / nvert);
   for (int v = 0; v < nvert; v++) {
     int body = model->flex_vertbodyid[model->flex_vertadr[0] + v];
     int adr = model->body_dofadr[body];
     for (int x = 0; x < 3; x++) {
-      data->qpos[adr+x] += 0.05*(data->flexvert_xpos[3*v+x] - centroid[x]);
+      data->qpos[adr + x] +=
+          0.05 * (data->flexvert_xpos[3 * v + x] - centroid[x]);
     }
   }
   mj_forward(model.get(), data.get());
@@ -2126,9 +2134,10 @@ TEST_F(DerivativeTest, FlexStretchDerivatives) {
 
   MjDataPtr data = MakeData(model);
 
-  // deform both flexes deterministically, at small strain. FlexStretchDerivativesTensile
-  // covers finite strain, where the geometric term of K_stretch is what carries the accuracy;
-  // the solid (dim=3) flex below has no such term, so the tolerance stays loose here.
+  // deform both flexes deterministically, at small strain.
+  // FlexStretchDerivativesTensile covers finite strain, where the geometric
+  // term of K_stretch is what carries the accuracy; the solid (dim=3) flex
+  // below has no such term, so the tolerance stays loose here.
   for (int i = 0; i < nv; i++) {
     data->qpos[i] += 5e-4 * (mju_Halton(i, 2) - 0.5);
   }
@@ -2149,8 +2158,9 @@ TEST_F(DerivativeTest, FlexStretchDerivatives) {
     mj_forward(model.get(), data_perturbed);
 
     // qfrc_passive = -dV/dq  =>  -(qfrc_new - qfrc)/eps ~= K * vec.
-    // Compare max error against the force scale rather than entrywise: individual near-zero
-    // entries are not meaningful, and the dim=3 flex still carries a Gauss-Newton residual.
+    // Compare max error against the force scale rather than entrywise:
+    // individual near-zero entries are not meaningful, and the dim=3 flex still
+    // carries a Gauss-Newton residual.
     mjtNum max_err = 0, scale = 0;
     for (int i = 0; i < nv; ++i) {
       mjtNum fd =
@@ -2203,8 +2213,8 @@ TEST_F(DerivativeTest, FlexStretchDerivatives) {
       vec[i] = mju_Halton(i, 5) - 0.5;
     }
     mjtNum h = 1e-3;
-    mjd_flexStretch_mul(model.get(), data.get(), a.data(), vec.data(),
-                        h * h, h);
+    mjd_flexStretch_mul(model.get(), data.get(), a.data(), vec.data(), h * h,
+                        h);
     mjd_flexStretch_mul(model.get(), data.get(), b.data(), vec.data(), 1, 0);
     mjd_flexStretch_mul(model.get(), data.get(), c.data(), vec.data(), 0, 1);
     for (int i = 0; i < nv; i++) {
@@ -2253,9 +2263,9 @@ TEST_F(DerivativeTest, FlexStiffAssemble) {
   // assemble both terms with a mixed (s1, s2) scale
   mjtNum s1 = 4e-6, s2 = 2e-3;
   std::vector<int> rownnz(nv), rowadr(nv);
-  int nnz = mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(),
-                                   rowadr.data(), NULL, NULL, s1, s2,
-                                   /*flg_bend=*/1, /*flg_stretch=*/1, /*flg_contact=*/0, NULL);
+  int nnz = mjd_flexStiff_assemble(
+      model.get(), data.get(), rownnz.data(), rowadr.data(), NULL, NULL, s1, s2,
+      /*flg_bend=*/1, /*flg_stretch=*/1, /*flg_contact=*/0, NULL);
   ASSERT_GT(nnz, 0);
   std::vector<int> colind(nnz);
   std::vector<mjtNum> val(nnz);
@@ -2267,7 +2277,7 @@ TEST_F(DerivativeTest, FlexStiffAssemble) {
   for (int trial = 0; trial < 3; trial++) {
     std::vector<mjtNum> vec(nv), res_op(nv, 0), res_csr(nv, 0);
     for (int i = 0; i < nv; i++) {
-      vec[i] = mju_Halton(i + trial*nv, 3) - 0.5;
+      vec[i] = mju_Halton(i + trial * nv, 3) - 0.5;
     }
     mjd_flexBend_mul(model.get(), data.get(), res_op.data(), vec.data(), s1,
                      s2);
@@ -2276,7 +2286,7 @@ TEST_F(DerivativeTest, FlexStiffAssemble) {
     for (int i = 0; i < nv; i++) {
       mjtNum sum = 0;
       for (int k = 0; k < rownnz[i]; k++) {
-        sum += val[rowadr[i] + k]*vec[colind[rowadr[i] + k]];
+        sum += val[rowadr[i] + k] * vec[colind[rowadr[i] + k]];
       }
       res_csr[i] = sum;
     }
@@ -2287,8 +2297,9 @@ TEST_F(DerivativeTest, FlexStiffAssemble) {
   }
 }
 
-// verify the interp assembly mode: with the K_rot cache supplied, the assembled CSR applied
-// to test vectors must reproduce mjd_flexInterp_mul, whose sign convention is negated
+// verify the interp assembly mode: with the K_rot cache supplied, the assembled
+// CSR applied to test vectors must reproduce mjd_flexInterp_mul, whose sign
+// convention is negated
 TEST_F(DerivativeTest, FlexStiffAssembleInterp) {
   static const char* const kXml = R"(
   <mujoco>
@@ -2321,34 +2332,36 @@ TEST_F(DerivativeTest, FlexStiffAssembleInterp) {
   // assemble interp only
   mjtNum s1 = 4e-6, s2 = 2e-3;
   std::vector<int> rownnz(nv), rowadr(nv);
-  int nnz = mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(), rowadr.data(),
-                                   NULL, NULL, s1, s2, /*flg_bend=*/0, /*flg_stretch=*/0, /*flg_contact=*/0,
-                                   krot.data());
+  int nnz = mjd_flexStiff_assemble(
+      model.get(), data.get(), rownnz.data(), rowadr.data(), NULL, NULL, s1, s2,
+      /*flg_bend=*/0, /*flg_stretch=*/0, /*flg_contact=*/0, krot.data());
   ASSERT_GT(nnz, 0);
   std::vector<int> colind(nnz);
   std::vector<mjtNum> val(nnz);
   mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(), rowadr.data(),
-                         colind.data(), val.data(), s1, s2, /*flg_bend=*/0, /*flg_stretch=*/0, /*flg_contact=*/0,
-                         krot.data());
+                         colind.data(), val.data(), s1, s2, /*flg_bend=*/0,
+                         /*flg_stretch=*/0, /*flg_contact=*/0, krot.data());
 
-  // compare CSR apply vs the operator called with negated scales (its convention)
+  // compare CSR apply vs the operator called with negated scales (its
+  // convention)
   for (int trial = 0; trial < 3; trial++) {
     std::vector<mjtNum> vec(nv), res_op(nv, 0), res_csr(nv, 0);
     for (int i = 0; i < nv; i++) {
-      vec[i] = mju_Halton(i + trial*nv, 3) - 0.5;
+      vec[i] = mju_Halton(i + trial * nv, 3) - 0.5;
     }
-    mjd_flexInterp_mul(model.get(), data.get(), res_op.data(), vec.data(), -s1, -s2,
-                       krot.data());
+    mjd_flexInterp_mul(model.get(), data.get(), res_op.data(), vec.data(), -s1,
+                       -s2, krot.data());
     for (int i = 0; i < nv; i++) {
       mjtNum sum = 0;
       for (int k = 0; k < rownnz[i]; k++) {
-        sum += val[rowadr[i] + k]*vec[colind[rowadr[i] + k]];
+        sum += val[rowadr[i] + k] * vec[colind[rowadr[i] + k]];
       }
       res_csr[i] = sum;
     }
     for (int i = 0; i < nv; i++) {
       EXPECT_THAT(res_csr[i], MjNear(res_op[i], 1e-12, 2e-5))
-          << "interp assembly/operator mismatch at DOF " << i << " trial " << trial;
+          << "interp assembly/operator mismatch at DOF " << i << " trial "
+          << trial;
     }
   }
 }
@@ -2366,7 +2379,8 @@ TEST_F(DerivativeTest, EffSolve) {
       b[i] = mju_Halton(i, 3) - 0.5;
     }
     mjd_effSolve(m, d, x.data(), b.data());
-    mju_mulSymVecSparse(r.data(), d->M, x.data(), nv, m->M_rownnz, m->M_rowadr, m->M_colind);
+    mju_mulSymVecSparse(r.data(), d->M, x.data(), nv, m->M_rownnz, m->M_rowadr,
+                        m->M_colind);
     mjd_effMulAdd(m, d, r.data(), x.data(), /*flg_contact=*/1);
     mju_subFrom(r.data(), b.data(), nv);
     return mju_norm(r.data(), nv) / mju_norm(b.data(), nv);
@@ -2395,7 +2409,8 @@ TEST_F(DerivativeTest, EffSolve) {
   EXPECT_GT(data->nefmdof, 0);
   EXPECT_LT(solve_residual(model.get(), data.get()), MjTol(1e-8, 1e-4));
 
-  // bending-only cloth: no CSR or per-step factor, constant factor covers, exact
+  // bending-only cloth: no CSR or per-step factor, constant factor covers,
+  // exact
   static const char* const kXmlBend = R"(
   <mujoco>
     <option solver="CG" integrator="discrete"/>
@@ -2418,8 +2433,8 @@ TEST_F(DerivativeTest, EffSolve) {
   EXPECT_GT(model->nefm0dof, 0);
   EXPECT_LT(solve_residual(model.get(), data.get()), MjTol(1e-8, 1e-4));
 
-  // cloth under a jointed parent: M couples across the covered block, not exact,
-  // the refinement path must still meet its tolerance
+  // cloth under a jointed parent: M couples across the covered block, not
+  // exact, the refinement path must still meet its tolerance
   static const char* const kXmlMoving = R"(
   <mujoco>
     <option solver="CG" integrator="discrete"/>
@@ -2514,8 +2529,8 @@ TEST_F(DerivativeTest, EffPrecIsSymmetric) {
   std::vector<mjtNum> u(nv), v(nv), Pu(nv), Pv(nv);
   for (int trial = 0; trial < 5; trial++) {
     for (int i = 0; i < nv; i++) {
-      u[i] = mju_Halton(i + trial*nv, 2) - 0.5;
-      v[i] = mju_Halton(i + trial*nv, 5) - 0.5;
+      u[i] = mju_Halton(i + trial * nv, 2) - 0.5;
+      v[i] = mju_Halton(i + trial * nv, 5) - 0.5;
     }
     mjd_effPrec(model.get(), data.get(), Pu.data(), u.data());
     mjd_effPrec(model.get(), data.get(), Pv.data(), v.data());

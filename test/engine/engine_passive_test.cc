@@ -966,7 +966,6 @@ TEST_F(ElasticityTest, InterpBendingRigidRotationInvariance) {
   }
 }
 
-
 // verify that a pinned vertex (on a static body) gets zero bending force
 // while its free neighbors get nonzero bending force
 TEST_F(ElasticityTest, PinnedVertexBendingForce) {
@@ -1062,7 +1061,8 @@ TEST_F(ElasticityTest, TrilinearParentBodyRotation) {
   mj_forward(m_rot.get(), d_rot.get());
   mj_forward(m_non.get(), d_non.get());
 
-  // check force sign on the displaced DOF: positive qpos -> negative qfrc (restoring)
+  // check force sign on the displaced DOF: positive qpos -> negative qfrc
+  // (restoring)
   EXPECT_LT(d_rot->qfrc_passive[0], 0)
       << "rotated model: expected restoring force on displaced DOF 0";
   EXPECT_LT(d_non->qfrc_passive[0], 0)
@@ -1092,7 +1092,6 @@ TEST_F(ElasticityTest, TrilinearParentBodyRotation) {
 
   EXPECT_LT(max_qacc, 1e4);
 }
-
 
 // A dim=2 flexcomp with bending elasticity inside a parent body with a
 // non-identity quaternion. The implicit metric assembles the bending

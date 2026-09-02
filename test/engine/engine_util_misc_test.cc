@@ -111,9 +111,9 @@ TEST_F(UtilMiscTest, SpringDamperInvariantToTimeUnits) {
 
   for (mjtNum damping : {3, 2, 1}) {
     mjtNum expected = mju_springDamper(pos0, vel0, stiffness, damping, dt);
-    mjtNum scaled = mju_springDamper(pos0, time_scale*vel0,
-                                     time_scale*time_scale*stiffness,
-                                     time_scale*damping, dt/time_scale);
+    mjtNum scaled = mju_springDamper(pos0, time_scale * vel0,
+                                     time_scale * time_scale * stiffness,
+                                     time_scale * damping, dt / time_scale);
     EXPECT_NEAR(scaled, expected, MjTol(1e-14, 1e-5)) << "damping=" << damping;
   }
 }

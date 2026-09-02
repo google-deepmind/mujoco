@@ -37,7 +37,7 @@
 #include "test/fixture.h"
 
 #ifdef MEMORY_SANITIZER
-#include <sanitizer/msan_interface.h>
+  #include <sanitizer/msan_interface.h>
 #endif
 
 namespace mujoco {
@@ -690,7 +690,8 @@ TEST_F(ImplicitIntegratorTest, FreeBodyConservation) {
   }
 }
 
-// gyroscopic instability: Euler gains energy where implicitfast and discrete do not
+// gyroscopic instability: Euler gains energy where implicitfast and discrete do
+// not
 TEST_F(ImplicitIntegratorTest, FreeBodyEulerGainsImplicitfastDissipates) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -3855,8 +3856,9 @@ TEST_F(ImplicitIntegratorTest, PassiveFlexContactUnsupportedShape) {
   EXPECT_GT(d->qpos[model->nq - 5], 0.1) << "sphere fell through the cable";
 }
 
-// passive contact with no elastic stiffness still contributes to the metric: the flex
-// predicate must see it, and flex metric terms force a monolithic solve under islands
+// passive contact with no elastic stiffness still contributes to the metric:
+// the flex predicate must see it, and flex metric terms force a monolithic
+// solve under islands
 TEST_F(ImplicitIntegratorTest, PassiveFlexContactOnlyInMetric) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -3906,7 +3908,8 @@ TEST_F(ImplicitIntegratorTest, PassiveFlexContactOnlyInMetric) {
   }
   EXPECT_GT(sag, 0.002);
 
-  // island and monolithic solves agree (islands only reorder the constraint rows)
+  // island and monolithic solves agree (islands only reorder the constraint
+  // rows)
   EXPECT_THAT(AsVector(d1->qpos, model->nq),
               Pointwise(MjNear(1e-6, 1e-5), AsVector(d2->qpos, model->nq)));
 }
@@ -4103,10 +4106,10 @@ TEST_F(ForwardTest, DiscreteFlexInverseConsistency) {
   int nv = model->nv;
 
   // deform and settle a few steps under gravity
-  for (int i=0; i < nv; i++) {
+  for (int i = 0; i < nv; i++) {
     data->qvel[i] = 0.1 * (mju_Halton(i, 3) - 0.5);
   }
-  for (int step=0; step < 50; step++) {
+  for (int step = 0; step < 50; step++) {
     mj_step(model.get(), data.get());
   }
 
@@ -4119,7 +4122,6 @@ TEST_F(ForwardTest, DiscreteFlexInverseConsistency) {
   mjtNum scale = 1 + mju_norm(data->qfrc_passive, nv);
   EXPECT_LT(mju_norm(data->qfrc_inverse, nv), MjTol(1e-6, 1e-4) * scale);
 }
-
 
 // ------------------------------ discrete integrator --------------------------
 
@@ -4333,12 +4335,13 @@ TEST_F(ForwardTest, DiscreteJointInverseConsistency) {
   mj_forward(model.get(), data.get());
   ASSERT_GT(data->ncon, 0);
   mj_inverse(model.get(), data.get());
-  scale = mju_norm(data->qfrc_passive, nv) + mju_norm(data->qfrc_constraint, nv) +
-          mju_norm(data->qfrc_bias, nv);
+  scale = mju_norm(data->qfrc_passive, nv) +
+          mju_norm(data->qfrc_constraint, nv) + mju_norm(data->qfrc_bias, nv);
   EXPECT_LT(mju_norm(data->qfrc_inverse, nv), MjTol(1e-6, 5e-5) * scale);
 }
 
-// flex elasticity lost its implicit treatment under implicit*: the migration is loud
+// flex elasticity lost its implicit treatment under implicit*: the migration is
+// loud
 TEST_F(ForwardTest, ImplicitFlexElasticityRequiresMetric) {
   static const char* const kXml = R"(
   <mujoco>
@@ -4358,11 +4361,13 @@ TEST_F(ForwardTest, ImplicitFlexElasticityRequiresMetric) {
   MjDataPtr data = MakeData(model);
   auto forward_error = MjuErrorMessageFrom(mj_forward);
 
-  // the model loads and runs under discrete; flipping to implicitfast is a loud error
+  // the model loads and runs under discrete; flipping to implicitfast is a loud
+  // error
   EXPECT_EQ(forward_error(model.get(), data.get()), "");
   model->opt.integrator = mjINT_IMPLICITFAST;
-  EXPECT_THAT(forward_error(model.get(), data.get()),
-              testing::HasSubstr("flex elasticity is no longer integrated implicitly"));
+  EXPECT_THAT(
+      forward_error(model.get(), data.get()),
+      testing::HasSubstr("flex elasticity is no longer integrated implicitly"));
 
   // Euler always integrated elasticity explicitly and still does
   model->opt.integrator = mjINT_EULER;
@@ -4391,8 +4396,9 @@ TEST_F(ForwardTest, DiscreteUnsupportedOptions) {
   MjDataPtr data = MakeData(model);
   auto forward_error = MjuErrorMessageFrom(mj_forward);
 
-  // PGS and noslip are supported: joint damping is a backbone term, and the servo is
-  // excluded from the metric under PGS (mj_effCouplings), integrating explicitly
+  // PGS and noslip are supported: joint damping is a backbone term, and the
+  // servo is excluded from the metric under PGS (mj_effCouplings), integrating
+  // explicitly
   model->opt.solver = mjSOL_PGS;
   EXPECT_EQ(forward_error(model.get(), data.get()), "");
   EXPECT_EQ(data->nefmA, 0);
@@ -4401,8 +4407,8 @@ TEST_F(ForwardTest, DiscreteUnsupportedOptions) {
   model->opt.noslip_iterations = 5;
   EXPECT_EQ(forward_error(model.get(), data.get()), "");
 
-  // tendon terms enter the metric under primal solvers; under PGS the class is excluded
-  // and the tendon force integrates explicitly
+  // tendon terms enter the metric under primal solvers; under PGS the class is
+  // excluded and the tendon force integrates explicitly
   static const char* const kXmlTendon = R"(
   <mujoco>
     <option integrator="discrete" solver="CG"/>
@@ -4431,8 +4437,8 @@ TEST_F(ForwardTest, DiscreteUnsupportedOptions) {
   EXPECT_EQ(forward_error(model_t.get(), data_t.get()), "");
   EXPECT_EQ(data_t->nefmT, 0);
 
-  // same exclusion for a servo on a multi-dof transmission: its rank-1 metric term has
-  // off-diagonal content the backbone factor does not carry
+  // same exclusion for a servo on a multi-dof transmission: its rank-1 metric
+  // term has off-diagonal content the backbone factor does not carry
   static const char* const kXmlServo = R"(
   <mujoco>
     <option integrator="discrete" solver="CG"/>
@@ -4487,8 +4493,9 @@ TEST_F(ForwardTest, DiscreteUnsupportedOptions) {
   EXPECT_THAT(forward_error(model_f.get(), data_f.get()),
               testing::HasSubstr("not yet supported with flex"));
 
-  // interpolated flex anchored to a moving body: Newton needs CSR assembly of the flex
-  // terms, only possible for simple or fixed nodes; such models require the CG solver
+  // interpolated flex anchored to a moving body: Newton needs CSR assembly of
+  // the flex terms, only possible for simple or fixed nodes; such models
+  // require the CG solver
   static const char* const kXmlInterp = R"(
   <mujoco>
     <option integrator="discrete" solver="CG"/>
@@ -4535,8 +4542,9 @@ TEST_F(ForwardTest, DiscreteUnsupportedOptions) {
   EXPECT_EQ(forward_error(model.get(), data.get()), "");
 }
 
-// Newton and CG solve the same discrete problem: qacc must match, for the diagonal
-// classes, an assembled flex, and a bending-only flex (whose CSR assembly Newton forces)
+// Newton and CG solve the same discrete problem: qacc must match, for the
+// diagonal classes, an assembled flex, and a bending-only flex (whose CSR
+// assembly Newton forces)
 TEST_F(ForwardTest, DiscreteNewtonMatchesCG) {
   static const char* const kXmls[] = {
       // ellipsoid-fluid paddle on a hinge, in contact
@@ -4578,7 +4586,8 @@ TEST_F(ForwardTest, DiscreteNewtonMatchesCG) {
     </worldbody>
   </mujoco>
   )",
-      // bending-only cloth: CG uses the matrix-free stencil, Newton forces assembly
+      // bending-only cloth: CG uses the matrix-free stencil, Newton forces
+      // assembly
       R"(
   <mujoco>
     <option timestep="0.001" integrator="discrete" solver="CG" tolerance="1e-14" iterations="500"/>
@@ -4603,7 +4612,8 @@ TEST_F(ForwardTest, DiscreteNewtonMatchesCG) {
     <tendon><spatial stiffness="3e3" springlength="0.3" damping="10"><site site="a"/><site site="b"/></spatial></tendon>
   </mujoco>
   )",
-      // stiff position servo pressing into contact: actuator terms in the metric
+      // stiff position servo pressing into contact: actuator terms in the
+      // metric
       R"(
   <mujoco>
     <option timestep="0.002" integrator="discrete" solver="CG" tolerance="1e-14" iterations="500"/>
@@ -4644,7 +4654,8 @@ TEST_F(ForwardTest, DiscreteNewtonMatchesCG) {
 
       mjtNum scale = mju_norm(qacc_cg.data(), nv) / mju_sqrt((mjtNum)nv) + 1;
       for (int i = 0; i < nv; i++) {
-        EXPECT_THAT(data->qacc[i], MjNear(qacc_cg[i], 1e-13 * scale, 1e-4 * scale))
+        EXPECT_THAT(data->qacc[i],
+                    MjNear(qacc_cg[i], 1e-13 * scale, 1e-4 * scale))
             << "cone " << cone << " dof " << i;
       }
 
@@ -4657,9 +4668,10 @@ TEST_F(ForwardTest, DiscreteNewtonMatchesCG) {
   }
 }
 
-// under discrete, constraint dissipation is independent of the constraint stiffness: an
-// under-damped equality decays at 1/timeconst for any dampratio, while a smooth spring
-// at a matched frequency pays additional numerical damping at coarse timesteps
+// under discrete, constraint dissipation is independent of the constraint
+// stiffness: an under-damped equality decays at 1/timeconst for any dampratio,
+// while a smooth spring at a matched frequency pays additional numerical
+// damping at coarse timesteps
 TEST_F(ForwardTest, DiscreteSolrefPreserved) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -4683,13 +4695,13 @@ TEST_F(ForwardTest, DiscreteSolrefPreserved) {
   ASSERT_THAT(model.get(), NotNull()) << error;
   MjDataPtr data = MakeData(model);
 
-  // oscillation frequencies: omega = 1/(timeconst*dampratio) for the equalities,
-  // sqrt(k/m) for the smooth spring (matched to eq1)
-  const mjtNum omega[3] = {25, 25.0/3, 25};
+  // oscillation frequencies: omega = 1/(timeconst*dampratio) for the
+  // equalities, sqrt(k/m) for the smooth spring (matched to eq1)
+  const mjtNum omega[3] = {25, 25.0 / 3, 25};
 
-  // excite all three, sample the envelope R = sqrt(x^2 + (v/omega)^2) at t1 and t2;
-  // the span covers multiple periods of the slowest oscillator, averaging the
-  // sampling wobble, while the amplitude stays above the solimp width
+  // excite all three, sample the envelope R = sqrt(x^2 + (v/omega)^2) at t1 and
+  // t2; the span covers multiple periods of the slowest oscillator, averaging
+  // the sampling wobble, while the amplitude stays above the solimp width
   const int step1 = 10, step2 = 70;
   mjtNum R1[3], R2[3];
   mj_resetData(model.get(), data.get());
@@ -4698,8 +4710,9 @@ TEST_F(ForwardTest, DiscreteSolrefPreserved) {
     mj_step(model.get(), data.get());
     if (i == step1 - 1 || i == step2 - 1) {
       for (int j = 0; j < 3; j++) {
-        mjtNum R = mju_sqrt(data->qpos[j]*data->qpos[j] +
-                            data->qvel[j]*data->qvel[j]/(omega[j]*omega[j]));
+        mjtNum R =
+            mju_sqrt(data->qpos[j] * data->qpos[j] +
+                     data->qvel[j] * data->qvel[j] / (omega[j] * omega[j]));
         (i == step1 - 1 ? R1 : R2)[j] = R;
       }
     }
@@ -4710,24 +4723,24 @@ TEST_F(ForwardTest, DiscreteSolrefPreserved) {
     rate[j] = mju_log(R1[j] / R2[j]) / span;
   }
 
-  // both equalities decay at 1/timeconst = 2.5 up to O(h*b) discretization bias (10%
-  // here); the sharp assertion is the next one: the decay is INDEPENDENT of the
-  // constraint stiffness, which differs 9-fold between the two rows
+  // both equalities decay at 1/timeconst = 2.5 up to O(h*b) discretization bias
+  // (10% here); the sharp assertion is the next one: the decay is INDEPENDENT
+  // of the constraint stiffness, which differs 9-fold between the two rows
   EXPECT_THAT(rate[0], MjNear(2.5, 0.25, 0.25));
   EXPECT_THAT(rate[1], MjNear(rate[0], 0.025, 0.025));
 
-  // the smooth spring decays at the exact discrete rate: the step map's determinant is
-  // 1/(1 + h*b + h^2*k), so |lambda| = D^-1/2 per step
+  // the smooth spring decays at the exact discrete rate: the step map's
+  // determinant is 1/(1 + h*b + h^2*k), so |lambda| = D^-1/2 per step
   mjtNum h = model->opt.timestep;
-  mjtNum predicted = mju_log(1 + h*5 + h*h*625) / (2*h);
+  mjtNum predicted = mju_log(1 + h * 5 + h * h * 625) / (2 * h);
   EXPECT_THAT(rate[2], MjNear(predicted, 0.5, 0.5));
-  EXPECT_GT(rate[2], 2*rate[0]);
+  EXPECT_GT(rate[2], 2 * rate[0]);
 }
 
 // stiff ">" leg pressed onto the floor: joint stiffness far beyond the explicit
-// stability limit interacting with a contact. discrete converges first-order to the
-// fine-timestep limit; implicitfast diverges at h*omega = 3.6; at the settled
-// equilibrium the active set does not flicker
+// stability limit interacting with a contact. discrete converges first-order to
+// the fine-timestep limit; implicitfast diverges at h*omega = 3.6; at the
+// settled equilibrium the active set does not flicker
 TEST_F(ForwardTest, DiscreteStiffLegPress) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -4774,7 +4787,8 @@ TEST_F(ForwardTest, DiscreteStiffLegPress) {
     return e;
   };
 
-  // discrete converges to the fine-timestep implicitfast reference, at first order
+  // discrete converges to the fine-timestep implicitfast reference, at first
+  // order
   mjtNum ref[6], coarse[6], fine[6];
   endpoint(mjINT_IMPLICITFAST, 1e-4, ref);
   endpoint(mjINT_DISCRETE, 0.01, coarse);
@@ -4782,8 +4796,8 @@ TEST_F(ForwardTest, DiscreteStiffLegPress) {
   EXPECT_LT(err(coarse, ref), MjTol(0.07, 0.07));
   EXPECT_LT(err(fine, ref), 0.7 * err(coarse, ref));
 
-  // at h = 0.02 the joint springs are beyond the explicit limit (h*omega = 3.6):
-  // implicitfast diverges, discrete settles quietly
+  // at h = 0.02 the joint springs are beyond the explicit limit (h*omega
+  // = 3.6): implicitfast diverges, discrete settles quietly
   mjtNum big[6];
   MockWarningHandler warning_handler;
   warning_handler.ExpectWarnings("The simulation is unstable");
@@ -4801,11 +4815,13 @@ TEST_F(ForwardTest, DiscreteStiffLegPress) {
   }
   EXPECT_EQ(nwarning, 0);
 
-  // zero-flicker: at the settled equilibrium, contact count, constraint states and
-  // force signs are constant across steps
+  // zero-flicker: at the settled equilibrium, contact count, constraint states
+  // and force signs are constant across steps
   endpoint(mjINT_DISCRETE, 0.01, coarse);
   mjtNum tiny = MjTol(1e-10, 1e-4);
-  auto force_sign = [&](mjtNum f) { return f > tiny ? 1 : (f < -tiny ? -1 : 0); };
+  auto force_sign = [&](mjtNum f) {
+    return f > tiny ? 1 : (f < -tiny ? -1 : 0);
+  };
   int ncon = data->ncon, nefc = data->nefc;
   std::vector<int> state(data->efc_state, data->efc_state + nefc);
   std::vector<int> sign(nefc);
@@ -4818,12 +4834,14 @@ TEST_F(ForwardTest, DiscreteStiffLegPress) {
     ASSERT_EQ(data->nefc, nefc);
     for (int i = 0; i < nefc; i++) {
       EXPECT_EQ(data->efc_state[i], state[i]) << "row " << i << " step " << k;
-      EXPECT_EQ(force_sign(data->efc_force[i]), sign[i]) << "row " << i << " step " << k;
+      EXPECT_EQ(force_sign(data->efc_force[i]), sign[i])
+          << "row " << i << " step " << k;
     }
   }
 }
 
-// cross-tree tendon stiffness far beyond the explicit stability bound: stable and dissipating
+// cross-tree tendon stiffness far beyond the explicit stability bound: stable
+// and dissipating
 TEST_F(ForwardTest, DiscreteTendonStiffStable) {
   static const char* const kXml = R"(
   <mujoco>
@@ -4851,8 +4869,8 @@ TEST_F(ForwardTest, DiscreteTendonStiffStable) {
   EXPECT_LT(mju_abs(data->qvel[0]) + mju_abs(data->qvel[1]), 0.1);
 }
 
-// single-chain fixed-tendon damping: discrete matches implicitfast (which carries this
-// coupling in qDeriv since both dofs are ancestor-related)
+// single-chain fixed-tendon damping: discrete matches implicitfast (which
+// carries this coupling in qDeriv since both dofs are ancestor-related)
 TEST_F(ForwardTest, DiscreteTendonDampingMatchesImplicitfast) {
   static const char* const kXml = R"(
   <mujoco>
@@ -4890,7 +4908,8 @@ TEST_F(ForwardTest, DiscreteTendonDampingMatchesImplicitfast) {
   step_with(mjINT_DISCRETE, qvel_discrete);
 
   for (int i = 0; i < nv; i++) {
-    EXPECT_THAT(qvel_discrete[i], MjNear(qvel_fast[i], 1e-12, 2e-6)) << "dof " << i;
+    EXPECT_THAT(qvel_discrete[i], MjNear(qvel_fast[i], 1e-12, 2e-6))
+        << "dof " << i;
   }
 }
 
@@ -4936,15 +4955,17 @@ TEST_F(ForwardTest, DiscreteIslandsMatchMonolithic) {
 
     mjtNum scale = mju_norm(qacc_island.data(), nv) / mju_sqrt((mjtNum)nv) + 1;
     for (int i = 0; i < nv; i++) {
-      EXPECT_THAT(data->qacc[i], MjNear(qacc_island[i], 1e-7 * scale, 1e-4 * scale))
+      EXPECT_THAT(data->qacc[i],
+                  MjNear(qacc_island[i], 1e-7 * scale, 1e-4 * scale))
           << "solver " << solver << " dof " << i;
     }
     model->opt.disableflags &= ~mjDSBL_ISLAND;
   }
 }
 
-// a stiff tendon routed through three trees: island discovery unions the full ten_J
-// footprint (not just two trees), and the island solve matches the monolithic solve
+// a stiff tendon routed through three trees: island discovery unions the full
+// ten_J footprint (not just two trees), and the island solve matches the
+// monolithic solve
 TEST_F(ForwardTest, DiscreteTendonThreeTreeIsland) {
   static const char* const kXml = R"(
   <mujoco>
@@ -4990,7 +5011,8 @@ TEST_F(ForwardTest, DiscreteTendonThreeTreeIsland) {
   ASSERT_GT(d1->ncon, 0);
   EXPECT_EQ(d1->nisland, 1);
 
-  // island and monolithic solves agree (islands only reorder the constraint rows)
+  // island and monolithic solves agree (islands only reorder the constraint
+  // rows)
   mj_resetData(m, d1.get());
   for (int i = 0; i < 100; i++) {
     m->opt.disableflags &= ~mjDSBL_ISLAND;
@@ -5003,8 +5025,9 @@ TEST_F(ForwardTest, DiscreteTendonThreeTreeIsland) {
               Pointwise(MjNear(1e-8, 1e-4), AsVector(d2->qpos, nq)));
 }
 
-// sleep composes with the discrete metric: unrelated trees sleep while the metric-coupled
-// tendon pair stays awake (the pre-existing tendon sleep policy) and keeps solving correctly
+// sleep composes with the discrete metric: unrelated trees sleep while the
+// metric-coupled tendon pair stays awake (the pre-existing tendon sleep policy)
+// and keeps solving correctly
 TEST_F(ForwardTest, DiscreteSleep) {
   static const char* const kXml = R"(
   <mujoco>
@@ -5024,7 +5047,8 @@ TEST_F(ForwardTest, DiscreteSleep) {
   MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
   ASSERT_THAT(model.get(), NotNull()) << error;
   MjDataPtr data = MakeData(model);
-  int lone_tree = model->body_treeid[mj_name2id(model.get(), mjOBJ_BODY, "lone")];
+  int lone_tree =
+      model->body_treeid[mj_name2id(model.get(), mjOBJ_BODY, "lone")];
   int b1_tree = model->body_treeid[mj_name2id(model.get(), mjOBJ_BODY, "b1")];
   int b2_tree = model->body_treeid[mj_name2id(model.get(), mjOBJ_BODY, "b2")];
 
@@ -5050,13 +5074,13 @@ TEST_F(ForwardTest, DiscreteSleep) {
   EXPECT_LT(mju_norm(data->qvel, model->nv), 1e-6);
 
   // waking the lone tree with an applied force works as usual
-  data->xfrc_applied[6*mj_name2id(model.get(), mjOBJ_BODY, "lone")] = 5;
+  data->xfrc_applied[6 * mj_name2id(model.get(), mjOBJ_BODY, "lone")] = 5;
   mj_step(model.get(), data.get());
   EXPECT_TRUE(data->tree_awake[lone_tree]);
 }
 
-// position servo with kp far beyond the explicit stability bound (the use case of
-// issue #3443): stable and converging to the setpoint at a 2ms timestep
+// position servo with kp far beyond the explicit stability bound (the use case
+// of issue #3443): stable and converging to the setpoint at a 2ms timestep
 TEST_F(ForwardTest, DiscreteActuatorKpStable) {
   static const char* const kXml = R"(
   <mujoco>
@@ -5075,7 +5099,8 @@ TEST_F(ForwardTest, DiscreteActuatorKpStable) {
   ASSERT_THAT(model.get(), NotNull()) << error;
   MjDataPtr data = MakeData(model);
 
-  // omega*h = h*sqrt(kp/I) = 2*sqrt(1e5/0.083)/1000 = 2.2: beyond the explicit bound
+  // omega*h = h*sqrt(kp/I) = 2*sqrt(1e5/0.083)/1000 = 2.2: beyond the explicit
+  // bound
   mj_resetData(model.get(), data.get());
   data->ctrl[0] = 0.5;
   for (int i = 0; i < 1000; i++) {
@@ -5086,8 +5111,8 @@ TEST_F(ForwardTest, DiscreteActuatorKpStable) {
   EXPECT_LT(mju_abs(data->qvel[0]), 0.01);
 }
 
-// velocity-gain actuator with no stiffness: discrete matches implicitfast, which carries
-// the same kv in qDeriv
+// velocity-gain actuator with no stiffness: discrete matches implicitfast,
+// which carries the same kv in qDeriv
 TEST_F(ForwardTest, DiscreteActuatorKvMatchesImplicitfast) {
   static const char* const kXml = R"(
   <mujoco>
@@ -5120,12 +5145,14 @@ TEST_F(ForwardTest, DiscreteActuatorKvMatchesImplicitfast) {
   step_with(mjINT_IMPLICITFAST, qvel_fast);
   step_with(mjINT_DISCRETE, qvel_discrete);
   for (int i = 0; i < nv; i++) {
-    EXPECT_THAT(qvel_discrete[i], MjNear(qvel_fast[i], 1e-12, 2e-6)) << "dof " << i;
+    EXPECT_THAT(qvel_discrete[i], MjNear(qvel_fast[i], 1e-12, 2e-6))
+        << "dof " << i;
   }
 }
 
-// destabilizing (wrong-sign) position gain is clamped out of the metric: the force
-// integrates explicitly under both integrators, and one step matches implicitfast
+// destabilizing (wrong-sign) position gain is clamped out of the metric: the
+// force integrates explicitly under both integrators, and one step matches
+// implicitfast
 TEST_F(ForwardTest, DiscreteWrongSignGainClamped) {
   static const char* const kXml = R"(
   <mujoco>
@@ -5158,12 +5185,13 @@ TEST_F(ForwardTest, DiscreteWrongSignGainClamped) {
   step_with(mjINT_IMPLICITFAST, qvel_fast);
   step_with(mjINT_DISCRETE, qvel_discrete);
   for (int i = 0; i < nv; i++) {
-    EXPECT_THAT(qvel_discrete[i], MjNear(qvel_fast[i], 1e-12, 2e-6)) << "dof " << i;
+    EXPECT_THAT(qvel_discrete[i], MjNear(qvel_fast[i], 1e-12, 2e-6))
+        << "dof " << i;
   }
 }
 
-// cross-tree refsite actuator: the union-find merges the two trees, islands match the
-// monolithic solve
+// cross-tree refsite actuator: the union-find merges the two trees, islands
+// match the monolithic solve
 TEST_F(ForwardTest, DiscreteRefsiteIslandsMatchMonolithic) {
   static const char* const kXml = R"(
   <mujoco>
@@ -5201,15 +5229,17 @@ TEST_F(ForwardTest, DiscreteRefsiteIslandsMatchMonolithic) {
 
     mjtNum scale = mju_norm(qacc_island.data(), nv) / mju_sqrt((mjtNum)nv) + 1;
     for (int i = 0; i < nv; i++) {
-      EXPECT_THAT(data->qacc[i], MjNear(qacc_island[i], 1e-7 * scale, 1e-4 * scale))
+      EXPECT_THAT(data->qacc[i],
+                  MjNear(qacc_island[i], 1e-7 * scale, 1e-4 * scale))
           << "solver " << solver << " dof " << i;
     }
     model->opt.disableflags &= ~mjDSBL_ISLAND;
   }
 }
 
-// a position servo on a three-tree tendon, with the damper class disabled so only the
-// actuator-transmission edge remains: island discovery still unions the full footprint
+// a position servo on a three-tree tendon, with the damper class disabled so
+// only the actuator-transmission edge remains: island discovery still unions
+// the full footprint
 TEST_F(ForwardTest, DiscreteActuatorTendonThreeTreeIsland) {
   static const char* const kXml = R"(
   <mujoco>
@@ -5254,8 +5284,8 @@ TEST_F(ForwardTest, DiscreteActuatorTendonThreeTreeIsland) {
   mjModel* m = model.get();
   int nq = m->nq;
 
-  // the tendon itself is metric-inactive (damper disabled, no stiffness): the actuator
-  // gain supplies the coupling and all three trees share one island
+  // the tendon itself is metric-inactive (damper disabled, no stiffness): the
+  // actuator gain supplies the coupling and all three trees share one island
   ASSERT_FALSE(mj_effTendonPossible(m, 0));
   d1->ctrl[0] = 0.3;
   mj_forward(m, d1.get());
@@ -5277,7 +5307,8 @@ TEST_F(ForwardTest, DiscreteActuatorTendonThreeTreeIsland) {
               Pointwise(MjNear(1e-8, 1e-4), AsVector(d2->qpos, nq)));
 }
 
-// servo in contact: native discrete inverse dynamics recovers the actuator force
+// servo in contact: native discrete inverse dynamics recovers the actuator
+// force
 TEST_F(ForwardTest, DiscreteActuatorInverseConsistency) {
   static const char* const kXml = R"(
   <mujoco>
@@ -5298,7 +5329,8 @@ TEST_F(ForwardTest, DiscreteActuatorInverseConsistency) {
   MjDataPtr data = MakeData(model);
   int nv = model->nv;
 
-  // press the arm into the floor with the servo (positive rotation about +y swings down)
+  // press the arm into the floor with the servo (positive rotation about +y
+  // swings down)
   mj_resetData(model.get(), data.get());
   data->ctrl[0] = 0.5;
   for (int i = 0; i < 100; i++) {
@@ -5311,15 +5343,16 @@ TEST_F(ForwardTest, DiscreteActuatorInverseConsistency) {
   mj_inverse(model.get(), data.get());
 
   // qfrc_inverse is the force that must be applied: here, the actuator's
-  mjtNum scale = mju_norm(data->qfrc_actuator, nv) + mju_norm(data->qfrc_constraint, nv) +
+  mjtNum scale = mju_norm(data->qfrc_actuator, nv) +
+                 mju_norm(data->qfrc_constraint, nv) +
                  mju_norm(data->qfrc_bias, nv);
   std::vector<mjtNum> diff(nv);
   mju_sub(diff.data(), data->qfrc_inverse, data->qfrc_actuator, nv);
   EXPECT_LT(mju_norm(diff.data(), nv), 1e-6 * scale);
 }
 
-// tendon spring-damper in contact: native discrete inverse dynamics recovers the (zero)
-// applied force
+// tendon spring-damper in contact: native discrete inverse dynamics recovers
+// the (zero) applied force
 TEST_F(ForwardTest, DiscreteTendonInverseConsistency) {
   static const char* const kXml = R"(
   <mujoco>
@@ -5348,16 +5381,17 @@ TEST_F(ForwardTest, DiscreteTendonInverseConsistency) {
   ASSERT_GT(data->ncon, 0);
   mj_inverse(model.get(), data.get());
 
-  mjtNum scale = mju_norm(data->qfrc_passive, nv) + mju_norm(data->qfrc_constraint, nv) +
+  mjtNum scale = mju_norm(data->qfrc_passive, nv) +
+                 mju_norm(data->qfrc_constraint, nv) +
                  mju_norm(data->qfrc_bias, nv);
   EXPECT_LT(mju_norm(data->qfrc_inverse, nv), 1e-6 * scale);
 }
 
-
-// under integrator="discrete" the constraint regularizer must live in the effective
-// metric: for a single active row with constant impedance d, the realized constraint
-// acceleration interpolates the metric-consistent free acceleration and aref with
-// weight exactly d:  J*qacc == (1-d)*J*qacc_smooth + d*aref
+// under integrator="discrete" the constraint regularizer must live in the
+// effective metric: for a single active row with constant impedance d, the
+// realized constraint acceleration interpolates the metric-consistent free
+// acceleration and aref with weight exactly d:  J*qacc == (1-d)*J*qacc_smooth +
+// d*aref
 TEST_F(ForwardTest, DiscreteImpedanceInEffectiveMetric) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -5384,11 +5418,13 @@ TEST_F(ForwardTest, DiscreteImpedanceInEffectiveMetric) {
 
     const mjtNum d_imp = 0.9;  // constant solimp
     mjtNum lhs = data->efc_J[0] * data->qacc[0];
-    mjtNum rhs = (1 - d_imp) * data->efc_J[0] * data->qacc_smooth[0] + d_imp * data->efc_aref[0];
+    mjtNum rhs = (1 - d_imp) * data->efc_J[0] * data->qacc_smooth[0] +
+                 d_imp * data->efc_aref[0];
     EXPECT_NEAR(lhs, rhs, MjTol(1e-6, 1e-4)) << "solver=" << solver;
   }
 
-  // same identity with actuator gains providing the metric terms: rho = M/(M + h*kv + h^2*kp)
+  // same identity with actuator gains providing the metric terms: rho = M/(M +
+  // h*kv + h^2*kp)
   static constexpr char xml_servo[] = R"(
   <mujoco>
     <option timestep="0.005" integrator="discrete" jacobian="dense"/>
@@ -5415,7 +5451,8 @@ TEST_F(ForwardTest, DiscreteImpedanceInEffectiveMetric) {
 
     const mjtNum d_imp = 0.9;
     mjtNum lhs = data2->efc_J[0] * data2->qacc[0];
-    mjtNum rhs = (1 - d_imp) * data2->efc_J[0] * data2->qacc_smooth[0] + d_imp * data2->efc_aref[0];
+    mjtNum rhs = (1 - d_imp) * data2->efc_J[0] * data2->qacc_smooth[0] +
+                 d_imp * data2->efc_aref[0];
     EXPECT_NEAR(lhs, rhs, MjTol(1e-6, 1e-4)) << "servo, solver=" << solver;
   }
 
@@ -5426,12 +5463,13 @@ TEST_F(ForwardTest, DiscreteImpedanceInEffectiveMetric) {
   mj_resetData(model.get(), data.get());
   data->qpos[0] = 0.05;
   mj_forward(model.get(), data.get());
-  EXPECT_NEAR(data->efc_diagA[0], 1.0/(1.0 + 0.005*100), MjTol(1e-10, 1e-6));
+  EXPECT_NEAR(data->efc_diagA[0], 1.0 / (1.0 + 0.005 * 100),
+              MjTol(1e-10, 1e-6));
 }
 
-
-// with the box fluid model (pure drag, no lift terms) and no constraints, discrete and
-// implicitfast compute the same symmetrized fluid derivative: one step must match tightly
+// with the box fluid model (pure drag, no lift terms) and no constraints,
+// discrete and implicitfast compute the same symmetrized fluid derivative: one
+// step must match tightly
 TEST_F(ForwardTest, DiscreteFluidMatchesImplicitfast) {
   static const char* const kXml = R"(
   <mujoco>
@@ -5462,12 +5500,13 @@ TEST_F(ForwardTest, DiscreteFluidMatchesImplicitfast) {
   step_with(mjINT_IMPLICITFAST, qvel_fast);
   step_with(mjINT_DISCRETE, qvel_discrete);
   for (int i = 0; i < nv; i++) {
-    EXPECT_THAT(qvel_discrete[i], MjNear(qvel_fast[i], 1e-12, 2e-6)) << "dof " << i;
+    EXPECT_THAT(qvel_discrete[i], MjNear(qvel_fast[i], 1e-12, 2e-6))
+        << "dof " << i;
   }
 }
 
-// strong ellipsoid-model drag at a large timestep: the drag-only metric keeps the paddle
-// stable and monotonically dissipates its kinetic energy
+// strong ellipsoid-model drag at a large timestep: the drag-only metric keeps
+// the paddle stable and monotonically dissipates its kinetic energy
 TEST_F(ForwardTest, DiscreteEllipsoidDragStable) {
   static const char* const kXml = R"(
   <mujoco>
@@ -5494,12 +5533,11 @@ TEST_F(ForwardTest, DiscreteEllipsoidDragStable) {
   EXPECT_LT(mju_abs(data->qvel[0]), 1.0);
 }
 
-
-// PGS solves the same discrete dual problem: qacc must match CG on a model whose metric
-// is fully carried by the backbone (diagonal classes + fluid)
-// re-evaluating from the velocity stage on (mj_forwardSkip, finite-difference loops)
-// must not allocate: the Y/AR patterns are laid down at the position stage by
-// mj_projectConstraint, later stages only fill values
+// PGS solves the same discrete dual problem: qacc must match CG on a model
+// whose metric is fully carried by the backbone (diagonal classes + fluid)
+// re-evaluating from the velocity stage on (mj_forwardSkip, finite-difference
+// loops) must not allocate: the Y/AR patterns are laid down at the position
+// stage by mj_projectConstraint, later stages only fill values
 TEST_F(ForwardTest, DiscreteSkipEvaluationAllocationFree) {
   static const char* const kXml = R"(
   <mujoco>
@@ -5558,13 +5596,15 @@ TEST_F(ForwardTest, DiscretePGSMatchesCG) {
   MjDataPtr data = MakeData(model);
   int nv = model->nv;
 
-  // pressed sliding contact: the spring drives the sphere into the plane while it slides
+  // pressed sliding contact: the spring drives the sphere into the plane while
+  // it slides
   auto press = [&]() {
     mj_resetData(model.get(), data.get());
     data->qvel[0] = 0.5;
     mj_forward(model.get(), data.get());
     ASSERT_GT(data->ncon, 0);
-    // the contact must carry force: a separating contact would make this test vacuous
+    // the contact must carry force: a separating contact would make this test
+    // vacuous
     ASSERT_GT(mju_norm(data->efc_force, data->nefc), 1);
     // the fluid backbone blocks must be exercised
     ASSERT_NE(data->efm_fluid, nullptr);
@@ -5578,7 +5618,8 @@ TEST_F(ForwardTest, DiscretePGSMatchesCG) {
 
   mjtNum scale = mju_norm(qacc_cg.data(), nv) / mju_sqrt((mjtNum)nv) + 1;
   for (int i = 0; i < nv; i++) {
-    EXPECT_THAT(data->qacc[i], MjNear(qacc_cg[i], 1e-7 * scale, 1e-6 * scale)) << "dof " << i;
+    EXPECT_THAT(data->qacc[i], MjNear(qacc_cg[i], 1e-7 * scale, 1e-6 * scale))
+        << "dof " << i;
   }
 
   // noslip post-processing runs and keeps qacc finite
@@ -5590,10 +5631,9 @@ TEST_F(ForwardTest, DiscretePGSMatchesCG) {
   }
 }
 
-
 // inverse dynamics under PGS: the coupling classes are excluded from the metric
-// (mj_effCouplings) and every consumer sees the same backbone, so forward and inverse
-// remain consistent
+// (mj_effCouplings) and every consumer sees the same backbone, so forward and
+// inverse remain consistent
 TEST_F(ForwardTest, DiscretePGSInverseConsistency) {
   static const char* const kXml = R"(
   <mujoco>
@@ -5620,16 +5660,16 @@ TEST_F(ForwardTest, DiscretePGSInverseConsistency) {
   ASSERT_GT(mju_norm(data->efc_force, data->nefc), 1);
   mj_compareFwdInv(model.get(), data.get());
 
-  // measured residual: 1.1e-6 double (the PGS convergence floor); slots ~1 click above
+  // measured residual: 1.1e-6 double (the PGS convergence floor); slots ~1
+  // click above
   mjtNum epsilon = MjTol(1e-5, 5e-4);
   EXPECT_LT(data->solver_fwdinv[0], epsilon);
   EXPECT_LT(data->solver_fwdinv[1], epsilon);
 }
 
-
 // standalone free bodies receive the local gyroscopic treatment under discrete
-// (mj_discreteGyro): a tumbling body must match implicitfast, which reinstates the same
-// derivative -- the two integrators coincide on this model by design
+// (mj_discreteGyro): a tumbling body must match implicitfast, which reinstates
+// the same derivative -- the two integrators coincide on this model by design
 TEST_F(ForwardTest, DiscreteGyroMatchesImplicitfast) {
   static const char* const kXml = R"(
   <mujoco>
@@ -5662,12 +5702,13 @@ TEST_F(ForwardTest, DiscreteGyroMatchesImplicitfast) {
   step_with(mjINT_IMPLICITFAST, qvel_fast);
   step_with(mjINT_DISCRETE, qvel_discrete);
   for (int i = 0; i < nv; i++) {
-    EXPECT_THAT(qvel_discrete[i], MjNear(qvel_fast[i], 1e-12, 2e-6)) << "dof " << i;
+    EXPECT_THAT(qvel_discrete[i], MjNear(qvel_fast[i], 1e-12, 2e-6))
+        << "dof " << i;
   }
 }
 
-// the gyroscopic composition also applies on the constrained exit: a tumbling free body
-// is unaffected by unrelated contacts elsewhere in the scene
+// the gyroscopic composition also applies on the constrained exit: a tumbling
+// free body is unaffected by unrelated contacts elsewhere in the scene
 TEST_F(ForwardTest, DiscreteGyroWithUnrelatedContacts) {
   static const char* const kXml = R"(
   <mujoco>
@@ -5698,7 +5739,8 @@ TEST_F(ForwardTest, DiscreteGyroWithUnrelatedContacts) {
     data->qvel[10] = 6;
     data->qvel[11] = 0.5;
     mj_step(model.get(), data.get());
-    ASSERT_GT(data->ncon, 0);  // the sphere's contacts keep the solve constrained
+    ASSERT_GT(data->ncon,
+              0);  // the sphere's contacts keep the solve constrained
     qvel.assign(data->qvel, data->qvel + nv);
   };
 
@@ -5706,13 +5748,15 @@ TEST_F(ForwardTest, DiscreteGyroWithUnrelatedContacts) {
   step_with(mjINT_IMPLICITFAST, qvel_fast);
   step_with(mjINT_DISCRETE, qvel_discrete);
   for (int i = 6; i < nv; i++) {
-    EXPECT_THAT(qvel_discrete[i], MjNear(qvel_fast[i], 1e-12, 2e-6)) << "dof " << i;
+    EXPECT_THAT(qvel_discrete[i], MjNear(qvel_fast[i], 1e-12, 2e-6))
+        << "dof " << i;
   }
 }
 
-// the diagonal-ratio impedance correction is exact for backbone classes but sees only the
-// diagonal of the tendon block: with a cross-branch tendon the realized interpolation
-// weight deviates from solimp's d by the analytically-known ratio rho = Ahat_true/Ahat_diag
+// the diagonal-ratio impedance correction is exact for backbone classes but
+// sees only the diagonal of the tendon block: with a cross-branch tendon the
+// realized interpolation weight deviates from solimp's d by the
+// analytically-known ratio rho = Ahat_true/Ahat_diag
 TEST_F(ForwardTest, DiscreteImpedanceTendonResidual) {
   static const char* const kXml = R"(
   <mujoco>
@@ -5747,25 +5791,28 @@ TEST_F(ForwardTest, DiscreteImpedanceTendonResidual) {
   ASSERT_GT(mju_abs(data->efc_force[0]), 0);  // the row is active
 
   // measured interpolation weight
-  mjtNum Ja = data->efc_J[0]*data->qacc[0] + data->efc_J[1]*data->qacc[1];
-  mjtNum Ja0 = data->efc_J[0]*data->qacc_smooth[0] + data->efc_J[1]*data->qacc_smooth[1];
+  mjtNum Ja = data->efc_J[0] * data->qacc[0] + data->efc_J[1] * data->qacc[1];
+  mjtNum Ja0 = data->efc_J[0] * data->qacc_smooth[0] +
+               data->efc_J[1] * data->qacc_smooth[1];
   mjtNum w = (Ja - Ja0) / (data->efc_aref[0] - Ja0);
 
-  // analytic: Mhat = I + c*[1 1;1 1] with c = h^2*k; true Ahat_11 = (1+c)/(1+2c),
-  // diagonal surrogate = 1/(1+c); rho = their ratio; w_pred = rho*d/(rho*d + 1-d)
-  mjtNum h = model->opt.timestep, c = h*h*40000, d_imp = 0.9;
-  mjtNum rho = (1+c)*(1+c) / (1+2*c);
-  mjtNum w_pred = rho*d_imp / (rho*d_imp + 1 - d_imp);
+  // analytic: Mhat = I + c*[1 1;1 1] with c = h^2*k; true Ahat_11 =
+  // (1+c)/(1+2c), diagonal surrogate = 1/(1+c); rho = their ratio; w_pred =
+  // rho*d/(rho*d + 1-d)
+  mjtNum h = model->opt.timestep, c = h * h * 40000, d_imp = 0.9;
+  mjtNum rho = (1 + c) * (1 + c) / (1 + 2 * c);
+  mjtNum w_pred = rho * d_imp / (rho * d_imp + 1 - d_imp);
   EXPECT_THAT(w, MjNear(w_pred, 1e-14, 1e-6));
 
   // and the deviation from d is real: the pinned deficit this test documents
   EXPECT_GT(mju_abs(w - d_imp), 0.01);
 }
 
-// design 5.4, the headline physics claim: a spring-and-damper tendon pressing a body
-// into the floor. The constraint solve in the effective metric couples the contact to the
-// damper; implicitfast computes contact forces against bare M, and its trajectory error
-// grows with h*b/m while discrete's stays near the h->0 reference
+// design 5.4, the headline physics claim: a spring-and-damper tendon pressing a
+// body into the floor. The constraint solve in the effective metric couples the
+// contact to the damper; implicitfast computes contact forces against bare M,
+// and its trajectory error grows with h*b/m while discrete's stays near the
+// h->0 reference
 TEST_F(ForwardTest, DiscreteContactCouplingTendon) {
   static const char* const kXml = R"(
   <mujoco>
@@ -5789,7 +5836,8 @@ TEST_F(ForwardTest, DiscreteContactCouplingTendon) {
   ASSERT_THAT(model.get(), NotNull()) << error;
   MjDataPtr data = MakeData(model);
 
-  // simulate 0.2s from a perturbed contacting state, return endpoint (qpos, qvel)
+  // simulate 0.2s from a perturbed contacting state, return endpoint (qpos,
+  // qvel)
   auto endpoint = [&](mjtIntegrator integrator, mjtNum h, mjtNum out[2]) {
     model->opt.integrator = integrator;
     model->opt.timestep = h;
@@ -5808,18 +5856,17 @@ TEST_F(ForwardTest, DiscreteContactCouplingTendon) {
   mjtNum ref[2], ref2[2], disc[2], fast[2];
   endpoint(mjINT_IMPLICITFAST, 1e-4, ref);
   endpoint(mjINT_DISCRETE, 1e-4, ref2);
-  mjtNum dref = mju_abs(ref2[0]-ref[0]) + mju_abs(ref2[1]-ref[1]);
+  mjtNum dref = mju_abs(ref2[0] - ref[0]) + mju_abs(ref2[1] - ref[1]);
   EXPECT_LT(dref, 1e-3);
 
-  // large timestep, h*b/m = 3: implicitfast's error dominates both discrete's error and
-  // the residual small-h disagreement
+  // large timestep, h*b/m = 3: implicitfast's error dominates both discrete's
+  // error and the residual small-h disagreement
   endpoint(mjINT_DISCRETE, 0.01, disc);
   endpoint(mjINT_IMPLICITFAST, 0.01, fast);
-  mjtNum err_disc = mju_abs(disc[0]-ref[0]) + mju_abs(disc[1]-ref[1]);
-  mjtNum err_fast = mju_abs(fast[0]-ref[0]) + mju_abs(fast[1]-ref[1]);
+  mjtNum err_disc = mju_abs(disc[0] - ref[0]) + mju_abs(disc[1] - ref[1]);
+  mjtNum err_fast = mju_abs(fast[0] - ref[0]) + mju_abs(fast[1] - ref[1]);
   EXPECT_GT(err_fast, 5 * mju_max(err_disc, dref));
 }
-
 
 // design 5.6, the sensor contract: acceleration-stage sensors consume the
 // step-map qacc through mj_rnePostConstraint --
@@ -5905,9 +5952,9 @@ TEST_F(ForwardTest, DiscreteClearEfcDeactivatesMetric) {
   EXPECT_EQ(data->nefmT, 1);
 }
 
-
-// all single-step integrators share the continuous limit and are first-order accurate:
-// halving the timestep halves the endpoint error against an RK4 reference
+// all single-step integrators share the continuous limit and are first-order
+// accurate: halving the timestep halves the endpoint error against an RK4
+// reference
 TEST_F(ForwardTest, IntegratorConvergenceOrder) {
   static const char* const kXml = R"(
   <mujoco>
@@ -5967,12 +6014,13 @@ TEST_F(ForwardTest, IntegratorConvergenceOrder) {
   EXPECT_LT(err(rk4), 0.05 * err_min);
 }
 
-// the shared continuous limit holds through a force-carrying contact: a pendulum swings
-// on a base that a spring presses onto the floor, shaking the contact inside the
-// friction cone, and every first-order integrator converges to the same RK4 reference
-// trajectory. Under discrete this pins consistency: the metric modifies the step map at
-// O(h), not the limit. (Gross sliding is deliberately avoided: at coarse timesteps the
-// coupled cone converts fast slip into normal-force boost and the contact chatters.)
+// the shared continuous limit holds through a force-carrying contact: a
+// pendulum swings on a base that a spring presses onto the floor, shaking the
+// contact inside the friction cone, and every first-order integrator converges
+// to the same RK4 reference trajectory. Under discrete this pins consistency:
+// the metric modifies the step map at O(h), not the limit. (Gross sliding is
+// deliberately avoided: at coarse timesteps the coupled cone converts fast slip
+// into normal-force boost and the contact chatters.)
 TEST_F(ForwardTest, IntegratorConvergenceOrderContact) {
   static const char* const kXml = R"(
   <mujoco>
@@ -6000,8 +6048,9 @@ TEST_F(ForwardTest, IntegratorConvergenceOrderContact) {
     model->opt.integrator = integrator;
     model->opt.timestep = h;
     mj_resetData(model.get(), data.get());
-    // start pressed into the cushion with the pendulum raised: the pendulum's initial
-    // reaction unloads a surface-level start, separating the contact for one step
+    // start pressed into the cushion with the pendulum raised: the pendulum's
+    // initial reaction unloads a surface-level start, separating the contact
+    // for one step
     data->qpos[0] = -0.00048;
     data->qpos[2] = 1;
     int nstep = (int)mju_round(0.5 / h);
@@ -6012,7 +6061,8 @@ TEST_F(ForwardTest, IntegratorConvergenceOrderContact) {
     out[1] = data->qpos[2];
   };
 
-  // the contact carries force throughout: never airborne, pressed at the endpoint
+  // the contact carries force throughout: never airborne, pressed at the
+  // endpoint
   {
     model->opt.integrator = mjINT_DISCRETE;
     model->opt.timestep = 4e-3;
@@ -6047,8 +6097,8 @@ TEST_F(ForwardTest, IntegratorConvergenceOrderContact) {
 }
 
 // on an undamped oscillator below the explicit stability bound, RK4 and the
-// semi-implicit integrators conserve energy while discrete dissipates at the analytic
-// backward-Euler rate: per-step energy factor 1/(1 + (h*omega)^2)
+// semi-implicit integrators conserve energy while discrete dissipates at the
+// analytic backward-Euler rate: per-step energy factor 1/(1 + (h*omega)^2)
 TEST_F(ForwardTest, DiscreteDissipationAnalytic) {
   static const char* const kXml = R"(
   <mujoco>
@@ -6070,9 +6120,11 @@ TEST_F(ForwardTest, DiscreteDissipationAnalytic) {
 
   // h*omega = 0.1, well below the explicit stability bound h*omega = 2
   const int kNstep = 250;
-  mjtNum homega2 = model->opt.timestep * model->opt.timestep * 100;  // (h*omega)^2
+  mjtNum homega2 =
+      model->opt.timestep * model->opt.timestep * 100;  // (h*omega)^2
 
-  // simulate N steps from unit displacement, return total energy ratio E_N / E_0
+  // simulate N steps from unit displacement, return total energy ratio E_N /
+  // E_0
   auto energy_ratio = [&](mjtIntegrator integrator) {
     model->opt.integrator = integrator;
     mj_resetData(model.get(), data.get());
@@ -6099,9 +6151,9 @@ TEST_F(ForwardTest, DiscreteDissipationAnalytic) {
   EXPECT_THAT(measured / predicted, AllOf(Gt(0.8), Lt(1.25)));
 }
 
-// beyond the explicit stability bound (h*omega = 3 > 2) the explicit-on-stiffness
-// integrators diverge, tripping the auto-reset warnings; discrete decays
-// monotonically, and remains stable even at h*omega = 30
+// beyond the explicit stability bound (h*omega = 3 > 2) the
+// explicit-on-stiffness integrators diverge, tripping the auto-reset warnings;
+// discrete decays monotonically, and remains stable even at h*omega = 30
 TEST_F(ForwardTest, IntegratorStabilityEnvelope) {
   static const char* const kXml = R"(
   <mujoco>
@@ -6137,13 +6189,15 @@ TEST_F(ForwardTest, IntegratorStabilityEnvelope) {
 
   // omega = 300: at h = 0.01 all explicit-on-stiffness integrators blow up
   MockWarningHandler warning_handler;
-  for (mjtIntegrator integrator : {mjINT_EULER, mjINT_IMPLICITFAST, mjINT_RK4}) {
+  for (mjtIntegrator integrator :
+       {mjINT_EULER, mjINT_IMPLICITFAST, mjINT_RK4}) {
     warning_handler.ExpectWarnings("The simulation is unstable");
     EXPECT_GT(warnings(integrator, 0.01), 0) << integrator;
     testing::Mock::VerifyAndClearExpectations(&warning_handler);
   }
 
-  // discrete is stable at h*omega = 3 and decays: |lambda| = 1/sqrt(10) per step
+  // discrete is stable at h*omega = 3 and decays: |lambda| = 1/sqrt(10) per
+  // step
   EXPECT_CALL(warning_handler, Warn(_)).Times(0);
   EXPECT_EQ(warnings(mjINT_DISCRETE, 0.01), 0);
   EXPECT_LT(mju_abs(data->qpos[0]), 1e-3);
@@ -6153,9 +6207,10 @@ TEST_F(ForwardTest, IntegratorStabilityEnvelope) {
   EXPECT_LT(mju_abs(data->qpos[0]), 1e-3);
 }
 
-// design 5.4 for the diagonal metric class: a joint damper coupled to a contact.
-// under implicitfast the contact solve is blind to the damper (split scheme, error
-// growing with h*b/m); under discrete they share the solve and the error stays flat
+// design 5.4 for the diagonal metric class: a joint damper coupled to a
+// contact. under implicitfast the contact solve is blind to the damper (split
+// scheme, error growing with h*b/m); under discrete they share the solve and
+// the error stays flat
 TEST_F(ForwardTest, DiscreteContactCouplingJointDamping) {
   static const char* const kXml = R"(
   <mujoco>
@@ -6175,7 +6230,8 @@ TEST_F(ForwardTest, DiscreteContactCouplingJointDamping) {
   ASSERT_THAT(model.get(), NotNull()) << error;
   MjDataPtr data = MakeData(model);
 
-  // simulate 0.2s from a perturbed contacting state, return endpoint (qpos, qvel)
+  // simulate 0.2s from a perturbed contacting state, return endpoint (qpos,
+  // qvel)
   auto endpoint = [&](mjtIntegrator integrator, mjtNum h, mjtNum out[2]) {
     model->opt.integrator = integrator;
     model->opt.timestep = h;
@@ -6194,20 +6250,20 @@ TEST_F(ForwardTest, DiscreteContactCouplingJointDamping) {
   mjtNum ref[2], ref2[2], disc[2], fast[2];
   endpoint(mjINT_IMPLICITFAST, 1e-4, ref);
   endpoint(mjINT_DISCRETE, 1e-4, ref2);
-  mjtNum dref = mju_abs(ref2[0]-ref[0]) + mju_abs(ref2[1]-ref[1]);
+  mjtNum dref = mju_abs(ref2[0] - ref[0]) + mju_abs(ref2[1] - ref[1]);
   EXPECT_LT(dref, 1e-3);
 
-  // large timestep, h*b/m = 3: implicitfast's error dominates both discrete's error and
-  // the residual small-h disagreement
+  // large timestep, h*b/m = 3: implicitfast's error dominates both discrete's
+  // error and the residual small-h disagreement
   endpoint(mjINT_DISCRETE, 0.01, disc);
   endpoint(mjINT_IMPLICITFAST, 0.01, fast);
-  mjtNum err_disc = mju_abs(disc[0]-ref[0]) + mju_abs(disc[1]-ref[1]);
-  mjtNum err_fast = mju_abs(fast[0]-ref[0]) + mju_abs(fast[1]-ref[1]);
+  mjtNum err_disc = mju_abs(disc[0] - ref[0]) + mju_abs(disc[1] - ref[1]);
+  mjtNum err_fast = mju_abs(fast[0] - ref[0]) + mju_abs(fast[1] - ref[1]);
   EXPECT_GT(err_fast, 5 * mju_max(err_disc, dref));
 }
 
-// joint and tendon limit velocity sensors read efc_vel at the velocity stage: under
-// integrator=discrete, efc_vel must be computed before mj_sensorVel runs
+// joint and tendon limit velocity sensors read efc_vel at the velocity stage:
+// under integrator=discrete, efc_vel must be computed before mj_sensorVel runs
 TEST_F(ForwardTest, DiscreteLimitVelocitySensors) {
   static const char* const kXml = R"(
   <mujoco>
@@ -6256,7 +6312,8 @@ TEST_F(ForwardTest, DiscreteLimitVelocitySensors) {
   EXPECT_NE(expected_joint_vel, 0);
   EXPECT_NE(expected_tendon_vel, 0);
 
-  // discrete integrator under mj_step1 on fresh data: sensors must be valid before actuation/step2
+  // discrete integrator under mj_step1 on fresh data: sensors must be valid
+  // before actuation/step2
   model->opt.integrator = mjINT_DISCRETE;
   MjDataPtr data_disc = MakeData(model);
   data_disc->qpos[0] = 0.6;

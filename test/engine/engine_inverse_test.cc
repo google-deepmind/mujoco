@@ -72,14 +72,20 @@ TEST_F(InverseTest, ForwardInverseMatch) {
       // per-solver tolerances
       mjtNum epsilon;
       switch (solver) {
-      case mjSOL_PGS:    epsilon = MjTol(1e-6, 1e-2);   break;
-      case mjSOL_CG:     epsilon = MjTol(1e-9, 1e-1);   break;
-      case mjSOL_NEWTON: epsilon = MjTol(1e-10, 1.5e-2);  break;
+        case mjSOL_PGS:
+          epsilon = MjTol(1e-6, 1e-2);
+          break;
+        case mjSOL_CG:
+          epsilon = MjTol(1e-9, 1e-1);
+          break;
+        case mjSOL_NEWTON:
+          epsilon = MjTol(1e-10, 1.5e-2);
+          break;
       }
       EXPECT_LT(data->solver_fwdinv[0], epsilon)
-        << solver_name[solver] << " diagexact=" << diagexact;
+          << solver_name[solver] << " diagexact=" << diagexact;
       EXPECT_LT(data->solver_fwdinv[1], epsilon)
-        << solver_name[solver] << " diagexact=" << diagexact;
+          << solver_name[solver] << " diagexact=" << diagexact;
     }
   }
 
@@ -128,7 +134,7 @@ TEST_F(InverseTest, DiscreteInverseMatch) {
       // reset the state, compute discrete-time (finite-differenced) qacc
       mj_setState(model, data, state, mjSTATE_INTEGRATION);
       mju_sub(qacc_fd, qvel_next, data->qvel, nv);
-      mju_scl(qacc_fd, qacc_fd, 1/model->opt.timestep, nv);
+      mju_scl(qacc_fd, qacc_fd, 1 / model->opt.timestep, nv);
 
       // call mj_forward, overwrite qacc with qacc_fd
       mj_forward(model, data);
@@ -222,9 +228,9 @@ TEST_F(InverseTest, DiscreteInverseFreeBody) {
   EXPECT_LT(d->solver_fwdinv[1], epsilon);
 }
 
-// forward/inverse consistency for a free joint with stiffness and damping in the
-// metric: covers the diagonal classes on free-joint dofs and the local gyroscopic
-// treatment (mj_discreteGyro) together with its inverse mirror
+// forward/inverse consistency for a free joint with stiffness and damping in
+// the metric: covers the diagonal classes on free-joint dofs and the local
+// gyroscopic treatment (mj_discreteGyro) together with its inverse mirror
 TEST_F(InverseTest, DiscreteFreeJointInverseConsistency) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -247,9 +253,9 @@ TEST_F(InverseTest, DiscreteFreeJointInverseConsistency) {
   mjData* d = data.get();
   int nv = m->nv;
 
-  // phase 1, in flight: tumbling spin, no constraints. The local gyroscopic treatment
-  // is active (mj_discreteGyro) and mj_inverse mirrors it: the trajectory is passive,
-  // so the recovered applied force must vanish
+  // phase 1, in flight: tumbling spin, no constraints. The local gyroscopic
+  // treatment is active (mj_discreteGyro) and mj_inverse mirrors it: the
+  // trajectory is passive, so the recovered applied force must vanish
   mj_resetData(m, d);
   d->qvel[0] = 0.3;
   d->qvel[2] = -0.2;
@@ -266,7 +272,8 @@ TEST_F(InverseTest, DiscreteFreeJointInverseConsistency) {
   mjtNum scale = 1 + mju_norm(d->qfrc_passive, nv);
   EXPECT_LT(mju_norm(d->qfrc_inverse, nv), MjTol(5e-14, 5e-6) * scale);
 
-  // phase 2, resting on the floor: force-carrying contact plus the free-joint metric
+  // phase 2, resting on the floor: force-carrying contact plus the free-joint
+  // metric
   for (int i = 0; i < 400; i++) {
     mj_step(m, d);
   }
@@ -283,4 +290,3 @@ TEST_F(InverseTest, DiscreteFreeJointInverseConsistency) {
 
 }  // namespace
 }  // namespace mujoco
-

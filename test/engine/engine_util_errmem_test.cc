@@ -53,13 +53,13 @@ static thread_local std::jmp_buf capture_jmp_buf;
 // log handler that captures messages
 void CapturingHandler(const mjLogMessage* msg) {
   captured_msgs.push_back({
-    .level = msg->level,
-    .topic = msg->topic,
-    .subject = msg->subject,
-    .func = msg->func ? msg->func : "",
-    .file = msg->file ? msg->file : "",
-    .line = msg->line,
-    .body = msg->body ? msg->body : "",
+      .level = msg->level,
+      .topic = msg->topic,
+      .subject = msg->subject,
+      .func = msg->func ? msg->func : "",
+      .file = msg->file ? msg->file : "",
+      .line = msg->line,
+      .body = msg->body ? msg->body : "",
   });
   // longjmp on error to prevent exit()
   if (msg->level == mjLOG_ERROR && capture_longjmp) {
@@ -133,7 +133,6 @@ TEST(LogHandlerTest, WarningRecursionGuard) {
 
   EXPECT_EQ(call_count, 1);
 }
-
 
 // ========================= TLS handler override tests =======================
 
@@ -396,9 +395,7 @@ TEST(LegacyCompatTest, LegacyWarningHandlerViaDefault) {
 
   auto old_tls = _mjPRIVATE_setTlsLogHandler(nullptr);
   auto old_global = mju_setLogHandler(nullptr);  // default handler
-  mju_user_warning = [](const char* msg) {
-    legacy_msg = msg;
-  };
+  mju_user_warning = [](const char* msg) { legacy_msg = msg; };
 
   mju_warning("legacy warn %s", "bar");
 
@@ -410,8 +407,6 @@ TEST(LegacyCompatTest, LegacyWarningHandlerViaDefault) {
 }
 
 // ========================= truncation tests (from original) =================
-
-
 
 TEST(TruncationTest, MjuErrorInternal) {
   ScopedCapture cap;
@@ -469,18 +464,14 @@ TEST(BaseNameTest, WindowsPath) {
   EXPECT_STREQ(BaseName("C:\\path\\to\\file.c"), "file.c");
 }
 
-TEST(BaseNameTest, NoSeparator) {
-  EXPECT_STREQ(BaseName("file.c"), "file.c");
-}
+TEST(BaseNameTest, NoSeparator) { EXPECT_STREQ(BaseName("file.c"), "file.c"); }
 
 TEST(BaseNameTest, MixedSeparators) {
   EXPECT_STREQ(BaseName("/mixed\\path/file.c"), "file.c");
   EXPECT_STREQ(BaseName("C:\\mixed/path\\file.c"), "file.c");
 }
 
-TEST(BaseNameTest, EmptyString) {
-  EXPECT_STREQ(BaseName(""), "");
-}
+TEST(BaseNameTest, EmptyString) { EXPECT_STREQ(BaseName(""), ""); }
 
 // ========================= default handler topic filtering ==================
 

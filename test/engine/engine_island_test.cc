@@ -38,8 +38,6 @@ using ::testing::NotNull;
 using ::testing::Pointwise;
 using IslandTest = MujocoTest;
 
-
-
 TEST_F(IslandTest, DsuRootReturnsCanonicalRootAndCompressesPath) {
   int parent[] = {0, 0, 1, 2, 3};
 
@@ -184,7 +182,7 @@ TEST_F(IslandTest, DsuAssignCompresses4096NodeAdversarialChain) {
 
   int nidof = -1;
   EXPECT_EQ(mj_dsuAssign(island.data(), parent.data(), tree_dofnum.data(),
-                                kTreeCount, &nidof),
+                         kTreeCount, &nidof),
             1);
   EXPECT_EQ(nidof, expected_nidof);
   for (int tree = 0; tree < kTreeCount; ++tree) {
@@ -210,7 +208,7 @@ TEST_F(IslandTest, DsuHandlesLongConnectedBoundaryCase) {
 
   int nidof = -1;
   EXPECT_EQ(mj_dsuAssign(island.data(), parent.data(), tree_dofnum.data(),
-                                kTreeCount, &nidof),
+                         kTreeCount, &nidof),
             1);
   EXPECT_EQ(nidof, expected_nidof);
   for (int tree = 0; tree < kTreeCount; ++tree) {
@@ -320,8 +318,8 @@ TEST_F(IslandTest, DsuRandomizedDifferentialAgainstGraphTraversal) {
     }
     std::vector<int> island(ntree, -2);
     int nidof = -1;
-    const int nisland = mj_dsuAssign(
-        island.data(), parent.data(), tree_dofnum.data(), ntree, &nidof);
+    const int nisland = mj_dsuAssign(island.data(), parent.data(),
+                                     tree_dofnum.data(), ntree, &nidof);
 
     SCOPED_TRACE(::testing::Message()
                  << "seed=" << kSeed << " trial=" << trial << " ntree=" << ntree
@@ -584,7 +582,7 @@ TEST_F(IslandTest, ProductionFlexEqualityRescansRows) {
   ASSERT_EQ(data->nefc, 2);
   auto row_trees = [&](int row) {
     std::vector<int> trees;
-    for (int j=0; j < data->efc_J_rownnz[row]; j++) {
+    for (int j = 0; j < data->efc_J_rownnz[row]; j++) {
       int dof = data->efc_J_colind[data->efc_J_rowadr[row] + j];
       int tree = model->dof_treeid[dof];
       if (trees.empty() || trees.back() != tree) {
@@ -639,7 +637,7 @@ TEST_F(IslandTest, BoundedArenaSupports1024Trees) {
   <worldbody>
 )";
   xml.reserve(160 * kTreeCount);
-  for (int i=0; i < kTreeCount; i++) {
+  for (int i = 0; i < kTreeCount; i++) {
     std::string name = std::to_string(i);
     xml += "<body name=\"b" + name + "\">";
     xml += "<inertial pos=\"0 0 0\" mass=\"1\" diaginertia=\"1 1 1\"/>";
@@ -672,7 +670,7 @@ TEST_F(IslandTest, BoundedArenaSupports1024Trees) {
   ASSERT_THAT(data->tree_island, NotNull());
   EXPECT_EQ(data->tree_island[0], 0);
   EXPECT_EQ(data->tree_island[1], 0);
-  for (int tree=2; tree < kTreeCount; tree++) {
+  for (int tree = 2; tree < kTreeCount; tree++) {
     EXPECT_EQ(data->tree_island[tree], -1);
   }
   EXPECT_LE(data->maxuse_arena, kArenaBytes);
@@ -871,9 +869,8 @@ TEST_F(IslandTest, IslandEfc) {
   EXPECT_THAT(AsVector(data->island_nefc, data->nisland),
               ElementsAre(6, 17, 1, 6));
   EXPECT_THAT(AsVector(data->efc_island, data->nefc),
-              ElementsAre(0, 3, 3, 3, 3, 3, 3, 1, 2, 0,
-                          0, 0, 0, 0, 1, 1, 1, 1, 1, 1,
-                          1, 1, 1, 1, 1, 1, 1, 1, 1, 1));
+              ElementsAre(0, 3, 3, 3, 3, 3, 3, 1, 2, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+                          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1));
 
   mj_deleteData(data);
   mj_deleteModel(model);

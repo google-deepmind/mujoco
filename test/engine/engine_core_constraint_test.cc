@@ -185,7 +185,7 @@ TEST_F(CoreConstraintTest, SurfaceVelocityNormalProjected) {
   }
 
   // box rests as if the floor were plain
-  for (int i=0; i < 6; i++) {
+  for (int i = 0; i < 6; i++) {
     EXPECT_NEAR(data->qvel[i], 0.0, 1e-6);
   }
 }
@@ -280,8 +280,8 @@ TEST_F(CoreConstraintTest, SurfaceVelocityMeshFrame) {
   // recovers the authored world-frame spin (0, 0, .4)
   int carousel = mj_name2id(model.get(), mjOBJ_GEOM, "carousel");
   mjtNum w_world[3];
-  mju_mulMatVec3(w_world, data->geom_xmat + 9*carousel,
-                 model->geom_surfacevel + 6*carousel + 3);
+  mju_mulMatVec3(w_world, data->geom_xmat + 9 * carousel,
+                 model->geom_surfacevel + 6 * carousel + 3);
   EXPECT_NEAR(w_world[0], 0.0, MjTol(1e-10, 1e-6));
   EXPECT_NEAR(w_world[1], 0.0, MjTol(1e-10, 1e-6));
   EXPECT_NEAR(w_world[2], 0.4, MjTol(1e-10, 1e-6));
@@ -291,10 +291,10 @@ TEST_F(CoreConstraintTest, SurfaceVelocityMeshFrame) {
     mj_step(model.get(), data.get());
   }
   mjtNum x = data->qpos[0], y = data->qpos[1];
-  mjtNum r = mju_sqrt(x*x + y*y);
+  mjtNum r = mju_sqrt(x * x + y * y);
   mjtNum speed =
       mju_sqrt(data->qvel[0] * data->qvel[0] + data->qvel[1] * data->qvel[1]);
-  EXPECT_NEAR(speed, 0.4*r, 5e-3);
+  EXPECT_NEAR(speed, 0.4 * r, 5e-3);
 }
 
 static const char* const kDoflessContactPath =
@@ -1201,6 +1201,7 @@ TEST_P(StrainConstraintRotatedTest, ResidualIsZero) {
   }
 }
 
+// clang-format off
 INSTANTIATE_TEST_SUITE_P(
   StrainConstraintRotatedTests, StrainConstraintRotatedTest,
   testing::ValuesIn<StrainConstraintTestCase>({
@@ -1251,6 +1252,7 @@ INSTANTIATE_TEST_SUITE_P(
     return info.param.test_name;
   }
 );
+// clang-format on
 
 TEST_F(CoreConstraintTest, ShellModeContactJacobian) {
   constexpr char xml[] = R"(
@@ -1304,8 +1306,8 @@ TEST_F(CoreConstraintTest, ShellModeContactJacobian) {
   // buffer for Jacobian
   std::vector<mjtNum> jacdif(3 * model->nv, 0.0);
 
-  mj_contactJacobian(model.get(), data.get(), &con, 1, jacdif.data(),
-                     nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+  mj_contactJacobian(model.get(), data.get(), &con, 1, jacdif.data(), nullptr,
+                     nullptr, nullptr, nullptr, nullptr, nullptr);
 
   // check that boundary nodes have non-zero entries, and central node has zero
 
@@ -1346,7 +1348,6 @@ TEST_F(CoreConstraintTest, ShellModeContactJacobian) {
       << "Interior nodes should not receive contact force";
 }
 
-
 // ------------------------------- adhesion ------------------------------------
 
 static const char* kAdhereCeiling = R"(
@@ -1376,14 +1377,14 @@ TEST_F(CoreConstraintTest, AdhesionPulloff) {
   EXPECT_GT(data->qpos[2], 0.9);
 
   // holds a load below 4*delta - mg
-  data->xfrc_applied[6*1 + 2] = -60;
+  data->xfrc_applied[6 * 1 + 2] = -60;
   while (data->time < 4) {
     mj_step(model.get(), data.get());
   }
   EXPECT_GT(data->qpos[2], 0.9);
 
   // detaches above 4*delta
-  data->xfrc_applied[6*1 + 2] = -85;
+  data->xfrc_applied[6 * 1 + 2] = -85;
   while (data->time < 5) {
     mj_step(model.get(), data.get());
   }
@@ -1398,8 +1399,8 @@ TEST_F(CoreConstraintTest, AdhesionTether) {
   MjDataPtr data = MakeData(model);
 
   mjtNum dist[2];
-  for (int k=0; k < 2; k++) {
-    data->xfrc_applied[6*1 + 2] = k ? -50 : 0;
+  for (int k = 0; k < 2; k++) {
+    data->xfrc_applied[6 * 1 + 2] = k ? -50 : 0;
     mjtNum tend = data->time + 3;
     while (data->time < tend) {
       mj_step(model.get(), data.get());
@@ -1407,8 +1408,8 @@ TEST_F(CoreConstraintTest, AdhesionTether) {
     ASSERT_GT(data->ncon, 0);
     dist[k] = data->contact[0].dist;
   }
-  EXPECT_GT(dist[0], 0);         // hanging in tension at positive separation
-  EXPECT_GT(dist[1], dist[0]);   // separation grows with load
+  EXPECT_GT(dist[0], 0);        // hanging in tension at positive separation
+  EXPECT_GT(dist[1], dist[0]);  // separation grows with load
 }
 
 // a box released inside the adhesion band is captured into steady contact
@@ -1430,8 +1431,8 @@ TEST_F(CoreConstraintTest, AdhesionCapture) {
     zmin = mju_min(zmin, data->qpos[2]);
     zmax = mju_max(zmax, data->qpos[2]);
   }
-  EXPECT_GT(zmax, 0.928);         // captured up to the ceiling
-  EXPECT_LT(zmax - zmin, 1e-4);   // and steady
+  EXPECT_GT(zmax, 0.928);        // captured up to the ceiling
+  EXPECT_LT(zmax - zmin, 1e-4);  // and steady
 }
 
 // resting penetration is independent of adhesion (the R*delta correction)
@@ -1449,7 +1450,7 @@ TEST_F(CoreConstraintTest, AdhesionRestingPenetration) {
   )";
   char error[1024];
   mjtNum depth[2];
-  for (int k=0; k < 2; k++) {
+  for (int k = 0; k < 2; k++) {
     std::string xml2 = xml;
     size_t pos = xml2.find("ADH");
     xml2.replace(pos, 3, k ? "50" : "0");
@@ -1465,7 +1466,7 @@ TEST_F(CoreConstraintTest, AdhesionRestingPenetration) {
     // net reported force sums to the weight
     if (k) {
       mjtNum total = 0, f[6];
-      for (int i=0; i < data->ncon; i++) {
+      for (int i = 0; i < data->ncon; i++) {
         mj_contactForce(model.get(), data.get(), i, f);
         total += f[0];
       }
@@ -1575,7 +1576,7 @@ TEST_F(CoreConstraintTest, SparseRotationalJacobianMatchesDense) {
     con.vert[0] = -1;
     con.vert[1] = -1;
     con.geom[0] = plane_geom_id;  // plane geom (world body)
-    con.geom[1] = -1;  // trigger flex branch in mj_contactJacobian
+    con.geom[1] = -1;             // trigger flex branch in mj_contactJacobian
     con.flex[1] = 0;
     con.vert[1] = vert_idx;
     con.dim = 6;  // full frictional contact: exercises rotational Jacobian
@@ -1592,9 +1593,8 @@ TEST_F(CoreConstraintTest, SparseRotationalJacobianMatchesDense) {
     std::vector<int> chain(nv, 0);
 
     int NV = mj_contactJacobian(model.get(), data.get(), &con, con.dim,
-                                jacdifp.data(), jacdifr.data(),
-                                nullptr, nullptr, nullptr, nullptr,
-                                chain.data());
+                                jacdifp.data(), jacdifr.data(), nullptr,
+                                nullptr, nullptr, nullptr, chain.data());
     ASSERT_GT(NV, 0);
 
     // for sparse: unpack to dense using chain indices

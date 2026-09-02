@@ -40,9 +40,9 @@ namespace {
 using ::std::string;
 using ::std::vector;
 using ::testing::Each;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
-using ::testing::ElementsAre;
 using ::testing::Not;
 using ::testing::NotNull;
 using ::testing::Pointwise;
@@ -793,7 +793,7 @@ static void Expmap2Quat(mjtNum quat[4], const mjtNum v[3]) {
     quat[0] = 1;
     quat[1] = quat[2] = quat[3] = 0;
   } else {
-    mjtNum axis[3] = {v[0]/angle, v[1]/angle, v[2]/angle};
+    mjtNum axis[3] = {v[0] / angle, v[1] / angle, v[2] / angle};
     mju_axisAngle2Quat(quat, axis, angle);
   }
 }
@@ -892,14 +892,15 @@ TEST_F(CoreSmoothTest, SO3RefsiteMixedAxisEquilibrium) {
   // target: 5.66 rad rotation about the mixed axis (1,1,0)/sqrt(2), beyond pi;
   // canonical (shortest) expmap is u*(1 - 2*pi/norm(u)) = (-.4429, -.4429, 0)
   mjtNum target[3] = {4, 4, 0};
-  mjtNum shrink = 1 - 2*mjPI/mju_norm3(target);
-  mjtNum canonical[3] = {target[0]*shrink, target[1]*shrink, target[2]*shrink};
+  mjtNum shrink = 1 - 2 * mjPI / mju_norm3(target);
+  mjtNum canonical[3] = {target[0] * shrink, target[1] * shrink,
+                         target[2] * shrink};
   mju_copy3(data->ctrl + uadr, target);
 
   // place the body exactly at the commanded orientation: force must vanish
   Expmap2Quat(data->qpos + 3, target);
   mj_forward(model.get(), data);
-  for (int k=0; k < 3; k++) {
+  for (int k = 0; k < 3; k++) {
     EXPECT_LT(mju_abs(data->actuator_force[oadr + k]), MjTol(1e-10, 1e-6));
     EXPECT_LT(mju_abs(data->actuator_length[oadr + k] - canonical[k]),
               MjTol(1e-10, 1e-6));
@@ -915,7 +916,7 @@ TEST_F(CoreSmoothTest, SO3RefsiteMixedAxisEquilibrium) {
   while (data->time < 10) {
     mj_step(model.get(), data);
   }
-  for (int k=0; k < 3; k++) {
+  for (int k = 0; k < 3; k++) {
     EXPECT_LT(mju_abs(data->actuator_length[oadr + k] - canonical[k]), 1e-3);
     EXPECT_LT(mju_abs(data->actuator_velocity[oadr + k]), 1e-3);
   }
@@ -945,7 +946,7 @@ TEST_F(CoreSmoothTest, SO3RefsiteTracksMixedWindingTarget) {
   // ramp the rz target from 0 to 2*pi
   const mjtNum rate = 0.5;  // rad/s
   mjtNum start = data->time;
-  while (data->time - start < 2*mjPI / rate) {
+  while (data->time - start < 2 * mjPI / rate) {
     data->ctrl[uadr + 2] = rate * (data->time - start);
     mj_step(model.get(), data);
 
@@ -988,7 +989,7 @@ TEST_F(CoreSmoothTest, SO3BallMixedAxisContrast) {
   mj_forward(model.get(), data);
 
   // SO3: zero force at the commanded orientation
-  for (int k=0; k < 3; k++) {
+  for (int k = 0; k < 3; k++) {
     EXPECT_LT(mju_abs(data->actuator_force[oadr + k]), MjTol(1e-10, 1e-6));
   }
 
@@ -1119,7 +1120,7 @@ TEST_F(CoreSmoothTest, SO3IntVelocityWindsWithBoundedAct) {
   // spin about z for 4 full turns
   const mjtNum rate = 1.0;  // rad/s
   data->ctrl[2] = rate;
-  while (data->time < 8*mjPI / rate) {
+  while (data->time < 8 * mjPI / rate) {
     mj_step(model.get(), data);
     ASSERT_LT(mju_norm3(data->act), mjPI + 0.1) << "act unbounded";
   }
@@ -1314,7 +1315,7 @@ TEST_F(CoreSmoothTest, SO3QuatSetpoint) {
 
   // zero ctrl commands the identity orientation: zero force at qpos0
   mj_forward(model.get(), data);
-  for (int k=0; k < 3; k++) {
+  for (int k = 0; k < 3; k++) {
     EXPECT_LT(mju_abs(data->actuator_force[oadr + k]), MjTol(1e-10, 1e-6));
   }
 
@@ -1327,16 +1328,16 @@ TEST_F(CoreSmoothTest, SO3QuatSetpoint) {
   // scale and antipodal invariance: q, 2q and -q command the same orientation
   mjtNum ctrl_variants[3][4];
   mju_copy4(ctrl_variants[0], q_tgt);
-  for (int k=0; k < 4; k++) {
-    ctrl_variants[1][k] = 2*q_tgt[k];
+  for (int k = 0; k < 4; k++) {
+    ctrl_variants[1][k] = 2 * q_tgt[k];
     ctrl_variants[2][k] = -q_tgt[k];
   }
-  for (int v=0; v < 3; v++) {
+  for (int v = 0; v < 3; v++) {
     mj_resetData(model.get(), data);
     mju_copy4(data->qpos + model->jnt_qposadr[jnt], q_tgt);
     mju_copy4(data->ctrl + uadr, ctrl_variants[v]);
     mj_forward(model.get(), data);
-    for (int k=0; k < 3; k++) {
+    for (int k = 0; k < 3; k++) {
       EXPECT_LT(mju_abs(data->actuator_force[oadr + k]), MjTol(1e-10, 1e-6))
           << "variant " << v;
     }
@@ -1348,8 +1349,8 @@ TEST_F(CoreSmoothTest, SO3QuatSetpoint) {
   while (data->time < 10) {
     mj_step(model.get(), data);
   }
-  mjtNum shrink = 1 - 2*mjPI/mju_norm3(target);
-  for (int k=0; k < 3; k++) {
+  mjtNum shrink = 1 - 2 * mjPI / mju_norm3(target);
+  for (int k = 0; k < 3; k++) {
     EXPECT_LT(mju_abs(data->actuator_length[oadr + k] - target[k] * shrink),
               1e-3);
     EXPECT_LT(mju_abs(data->actuator_velocity[oadr + k]), 1e-3);
@@ -1426,7 +1427,7 @@ TEST_F(CoreSmoothTest, PidMatchesPositionServo) {
     mjtNum target = 0.8 * data->time;
     data->ctrl[0] = target;
     data->ctrl[uadr] = target;
-    data->ctrl[uadr+1] = 0;
+    data->ctrl[uadr + 1] = 0;
     mj_step(model.get(), data);
     ASSERT_EQ(data->warning[mjWARN_BADQACC].number, 0) << "diverged";
     ASSERT_EQ(data->qpos[model->jnt_qposadr[j_servo]],
@@ -1533,7 +1534,7 @@ TEST_F(CoreSmoothTest, PidInputSubsets) {
   EXPECT_EQ(m->nout, 5);
   EXPECT_EQ(m->nu, 6);
   int expected_ctrlnum[5] = {1, 1, 1, 1, 2};
-  for (int i=0; i < 5; i++) {
+  for (int i = 0; i < 5; i++) {
     EXPECT_EQ(m->actuator_ctrlnum[i], expected_ctrlnum[i]) << "actuator " << i;
   }
 
@@ -1553,7 +1554,7 @@ TEST_F(CoreSmoothTest, PidInputSubsets) {
   EXPECT_DOUBLE_EQ(data->actuator_force[2], data->actuator_force[3]);
 
   // [pos, ff]: kp*(qref - l) - kv*ldot + ff (absent velocity setpoint is zero)
-  mjtNum expected = 5*(0.3 - data->qpos[1]) - 2*data->qvel[1] + 0.9;
+  mjtNum expected = 5 * (0.3 - data->qpos[1]) - 2 * data->qvel[1] + 0.9;
   EXPECT_MJTNUM_EQ(data->actuator_force[4], expected);
 
   // input names skip absent inputs
@@ -1679,12 +1680,12 @@ TEST_F(CoreSmoothTest, PidTracksWindingTarget) {
   mjData* data = mj_makeData(model.get());
 
   const mjtNum rate = 0.5;
-  while (data->time < 2*mjPI / rate) {
+  while (data->time < 2 * mjPI / rate) {
     data->ctrl[0] = rate * data->time;
     data->ctrl[1] = rate;  // matched velocity setpoint
     mj_step(model.get(), data);
     mjtNum err = data->ctrl[0] - data->actuator_length[0];
-    err -= 2*mjPI * mju_round(err / (2*mjPI));
+    err -= 2 * mjPI * mju_round(err / (2 * mjPI));
     ASSERT_LT(mju_abs(err), 0.5) << "tracking lost at time " << data->time;
   }
 
@@ -1893,8 +1894,6 @@ TEST_F(CoreSmoothTest, SolveM2) {
   mj_deleteData(d);
   mj_deleteModel(m);
 }
-
-
 
 TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
   constexpr char xml[] = R"(
@@ -2259,7 +2258,7 @@ TEST_F(CoreSmoothTest, FactorMClampsSingularPivotAndWarns) {
 
   EXPECT_EQ(data->warning[mjWARN_INERTIA].number, 1);
   EXPECT_EQ(data->warning[mjWARN_INERTIA].lastinfo, 0);
-  for (int i=0; i < model->nv; i++) {
+  for (int i = 0; i < model->nv; i++) {
     EXPECT_TRUE(std::isfinite(data->qacc[i]));
   }
 }

@@ -37,11 +37,11 @@ TEST_F(ThreadTest, SingleAndMultiThreadedMatch) {
   std::array<char, 1024> error;
   mjModel* model =
       mj_loadXML(model_path.c_str(), nullptr, error.data(), error.size());
-  model->opt.solver = mjSOL_CG;             // use CG solver
+  model->opt.solver = mjSOL_CG;  // use CG solver
 
   mjModel* model_threaded =
       mj_loadXML(model_path.c_str(), nullptr, error.data(), error.size());
-  model_threaded->opt.solver = mjSOL_CG;             // use CG solver
+  model_threaded->opt.solver = mjSOL_CG;  // use CG solver
 
   mjData* data = mj_makeData(model);
   mjData* data_threaded = mj_makeData(model_threaded);
@@ -69,12 +69,13 @@ TEST_F(ThreadTest, SingleAndMultiThreadedMatch) {
 
   // compare the mjData's.
   {
-    #define X(type, name, nr, nc)                                     \
-        EXPECT_EQ(std::memcmp(data->name, data_threaded->name,        \
-                              sizeof(type)*(model->nr)*(nc)),         \
-                  0) << "mjData::" #name " differs";
+#define X(type, name, nr, nc)                               \
+  EXPECT_EQ(std::memcmp(data->name, data_threaded->name,    \
+                        sizeof(type) * (model->nr) * (nc)), \
+            0)                                              \
+      << "mjData::" #name " differs";
     MJDATA_POINTERS
-    #undef X
+#undef X
   }
 
   mj_deleteData(data);
@@ -88,12 +89,12 @@ TEST_F(ThreadTest, IslandSingleAndMultiThreadedMatch) {
   std::array<char, 1024> error;
   mjModel* model =
       mj_loadXML(model_path.c_str(), nullptr, error.data(), error.size());
-  model->opt.solver = mjSOL_CG;             // use CG solver
+  model->opt.solver = mjSOL_CG;               // use CG solver
   model->opt.disableflags &= ~mjDSBL_ISLAND;  // enable islands
 
   mjModel* model_threaded =
       mj_loadXML(model_path.c_str(), nullptr, error.data(), error.size());
-  model_threaded->opt.solver = mjSOL_CG;             // use CG solver
+  model_threaded->opt.solver = mjSOL_CG;               // use CG solver
   model_threaded->opt.disableflags &= ~mjDSBL_ISLAND;  // enable islands
 
   mjData* data = mj_makeData(model);
@@ -122,12 +123,13 @@ TEST_F(ThreadTest, IslandSingleAndMultiThreadedMatch) {
 
   // compare the mjData's.
   {
-    #define X(type, name, nr, nc)                                     \
-        EXPECT_EQ(std::memcmp(data->name, data_threaded->name,        \
-                              sizeof(type)*(model->nr)*(nc)),         \
-                  0) << "mjData::" #name " differs";
+#define X(type, name, nr, nc)                               \
+  EXPECT_EQ(std::memcmp(data->name, data_threaded->name,    \
+                        sizeof(type) * (model->nr) * (nc)), \
+            0)                                              \
+      << "mjData::" #name " differs";
     MJDATA_POINTERS
-    #undef X
+#undef X
   }
 
   mj_deleteData(data);

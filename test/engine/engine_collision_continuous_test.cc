@@ -46,14 +46,16 @@ static mjtNum SegSeg(const mjtNum* p1, const mjtNum* p2, const mjtNum* q1,
 }
 static mjtNum GeomDist(const mjModel* m, const mjData* d, int gi,
                        const mjtNum* x, mjtNum* n) {
-  return mjc_GeomDist(m, gi, d->geom_xpos + 3*gi, d->geom_xmat + 9*gi, x, n,
+  return mjc_GeomDist(m, gi, d->geom_xpos + 3 * gi, d->geom_xmat + 9 * gi, x, n,
                       1e30);
 }
 static int GeomVerts(const mjModel* m, const mjData* d, int gi, mjtNum* out) {
-  return mjc_GeomVerts(m, gi, d->geom_xpos + 3*gi, d->geom_xmat + 9*gi, out);
+  return mjc_GeomVerts(m, gi, d->geom_xpos + 3 * gi, d->geom_xmat + 9 * gi,
+                       out);
 }
 static int GeomEdges(const mjModel* m, const mjData* d, int gi, mjtNum* out) {
-  return mjc_GeomEdges(m, gi, d->geom_xpos + 3*gi, d->geom_xmat + 9*gi, out);
+  return mjc_GeomEdges(m, gi, d->geom_xpos + 3 * gi, d->geom_xmat + 9 * gi,
+                       out);
 }
 
 using ::testing::NotNull;
@@ -75,16 +77,16 @@ static int FirstGeom(const mjModel* m) { return 0; }
 TEST_F(ContinuousCollisionTest, PointTriangleDistance) {
   mjtNum a[3] = {0, 0, 0}, b[3] = {1, 0, 0}, c[3] = {0, 1, 0};
 
-  mjtNum p_above[3] = {0.2, 0.2, 0.5};        // over the interior
+  mjtNum p_above[3] = {0.2, 0.2, 0.5};  // over the interior
   EXPECT_NEAR(PtTri(p_above, a, b, c), 0.5, MjTol(1e-12, 1e-5));
 
-  mjtNum p_edge[3] = {-1, 0.5, 0};            // nearest the x=0 edge
+  mjtNum p_edge[3] = {-1, 0.5, 0};  // nearest the x=0 edge
   EXPECT_NEAR(PtTri(p_edge, a, b, c), 1.0, MjTol(1e-12, 1e-5));
 
-  mjtNum p_vert[3] = {-3, -4, 0};             // nearest vertex a
+  mjtNum p_vert[3] = {-3, -4, 0};  // nearest vertex a
   EXPECT_NEAR(PtTri(p_vert, a, b, c), 5.0, MjTol(1e-12, 1e-5));
 
-  mjtNum p_on[3] = {0.25, 0.25, 0};           // on the triangle
+  mjtNum p_on[3] = {0.25, 0.25, 0};  // on the triangle
   EXPECT_NEAR(PtTri(p_on, a, b, c), 0.0, MjTol(1e-12, 1e-5));
 }
 
@@ -97,10 +99,10 @@ TEST_F(ContinuousCollisionTest, SegmentSegmentDistance) {
   mjtNum q1[3] = {0, -1, 0.3}, q2[3] = {0, 1, 0.3};
   EXPECT_NEAR(SegSeg(p1, p2, q1, q2), 0.3, MjTol(1e-12, 1e-5));
 
-  mjtNum r1[3] = {2, 0, 0}, r2[3] = {3, 0, 0};            // collinear, gap 1
+  mjtNum r1[3] = {2, 0, 0}, r2[3] = {3, 0, 0};  // collinear, gap 1
   EXPECT_NEAR(SegSeg(p1, p2, r1, r2), 1.0, MjTol(1e-12, 1e-5));
 
-  mjtNum s1[3] = {-1, 0, 0.5}, s2[3] = {1, 0, 0.5};       // parallel, 0.5 above
+  mjtNum s1[3] = {-1, 0, 0.5}, s2[3] = {1, 0, 0.5};  // parallel, 0.5 above
   EXPECT_NEAR(SegSeg(p1, p2, s1, s2), 0.5, MjTol(1e-12, 1e-5));
 }
 
@@ -163,26 +165,26 @@ TEST_F(ContinuousCollisionTest, BoxFeatures) {
   mjData* d = mj_makeData(m);
   mj_forward(m, d);
 
-  mjtNum verts[8*3], edges[12*6];
+  mjtNum verts[8 * 3], edges[12 * 6];
   int nv = GeomVerts(m, d, FirstGeom(m), verts);
   int ne = GeomEdges(m, d, FirstGeom(m), edges);
   EXPECT_EQ(nv, 8);
   EXPECT_EQ(ne, 12);
   for (int i = 0; i < nv; i++) {
-    EXPECT_NEAR(std::fabs(verts[3*i + 0]), 0.1, MjTol(1e-12, 1e-5));
-    EXPECT_NEAR(std::fabs(verts[3*i + 1]), 0.2, MjTol(1e-12, 1e-5));
-    EXPECT_NEAR(std::fabs(verts[3*i + 2]), 0.3, MjTol(1e-12, 1e-5));
+    EXPECT_NEAR(std::fabs(verts[3 * i + 0]), 0.1, MjTol(1e-12, 1e-5));
+    EXPECT_NEAR(std::fabs(verts[3 * i + 1]), 0.2, MjTol(1e-12, 1e-5));
+    EXPECT_NEAR(std::fabs(verts[3 * i + 2]), 0.3, MjTol(1e-12, 1e-5));
   }
   // every box edge has unit length along exactly one axis (here 0.2, 0.4, or
   // 0.6)
   for (int i = 0; i < ne; i++) {
-    mjtNum dx = edges[6*i+3] - edges[6*i+0];
-    mjtNum dy = edges[6*i+4] - edges[6*i+1];
-    mjtNum dz = edges[6*i+5] - edges[6*i+2];
-    mjtNum len = std::sqrt(dx*dx + dy*dy + dz*dz);
-    EXPECT_TRUE(std::fabs(len-0.2) < MjTol(1e-12, 1e-5) ||
-                std::fabs(len-0.4) < MjTol(1e-12, 1e-5) ||
-                std::fabs(len-0.6) < MjTol(1e-12, 1e-5))
+    mjtNum dx = edges[6 * i + 3] - edges[6 * i + 0];
+    mjtNum dy = edges[6 * i + 4] - edges[6 * i + 1];
+    mjtNum dz = edges[6 * i + 5] - edges[6 * i + 2];
+    mjtNum len = std::sqrt(dx * dx + dy * dy + dz * dz);
+    EXPECT_TRUE(std::fabs(len - 0.2) < MjTol(1e-12, 1e-5) ||
+                std::fabs(len - 0.4) < MjTol(1e-12, 1e-5) ||
+                std::fabs(len - 0.6) < MjTol(1e-12, 1e-5))
         << "edge " << i << " length " << len;
   }
   mj_deleteData(d);
@@ -201,11 +203,11 @@ TEST_F(ContinuousCollisionTest, MeshFeatures) {
   mjData* d = mj_makeData(m);
   mj_forward(m, d);
 
-  mjtNum verts[64*3], edges[256*6];
+  mjtNum verts[64 * 3], edges[256 * 6];
   int nv = GeomVerts(m, d, FirstGeom(m), verts);
   int ne = GeomEdges(m, d, FirstGeom(m), edges);
-  EXPECT_EQ(nv, 4);   // tetrahedron vertices
-  EXPECT_EQ(ne, 6);   // tetrahedron edges (each shared hull edge emitted once)
+  EXPECT_EQ(nv, 4);  // tetrahedron vertices
+  EXPECT_EQ(ne, 6);  // tetrahedron edges (each shared hull edge emitted once)
   mj_deleteData(d);
   mj_deleteModel(m);
 }
@@ -221,11 +223,14 @@ TEST_F(ContinuousCollisionTest, PairGapVertexTriangleGradient) {
   mj_forward(m, d);
 
   // free points: vertex 0 above the interior of triangle (1, 2, 3)
-  mjtNum x[12] = {0.2, 0.2, 0.5,   0, 0, 0,   1, 0, 0,   0, 1, 0};
+  mjtNum x[12] = {0.2, 0.2, 0.5, 0, 0, 0, 1, 0, 0, 0, 1, 0};
   mjtNum radii[4] = {0.005, 0.005, 0.005, 0.005};
   mjcFlexPair pair;
   pair.type = mjcFLEX_VERT_TRI;
-  pair.idx[0] = 0; pair.idx[1] = 1; pair.idx[2] = 2; pair.idx[3] = 3;
+  pair.idx[0] = 0;
+  pair.idx[1] = 1;
+  pair.idx[2] = 2;
+  pair.idx[3] = 3;
   pair.g = -1;
 
   mjtNum n[3], cw[4];
@@ -243,17 +248,17 @@ TEST_F(ContinuousCollisionTest, PairGapVertexTriangleGradient) {
   mjtNum eps = MjTol(1e-6, 1e-3);
   for (int p = 0; p < nidx; p++) {
     for (int k = 0; k < 3; k++) {
-      mjtNum saved = x[3*idv[p] + k];
-      x[3*idv[p] + k] = saved + eps;
-      mjtNum gp = mjc_pairGap(&pair, m, d, x, nullptr, nullptr, radii, n,
-                              idv, cw, &nidx, 1e30);
-      x[3*idv[p] + k] = saved - eps;
-      mjtNum gm = mjc_pairGap(&pair, m, d, x, nullptr, nullptr, radii, n,
-                              idv, cw, &nidx, 1e30);
-      x[3*idv[p] + k] = saved;
-      mjtNum g0 = mjc_pairGap(&pair, m, d, x, nullptr, nullptr, radii, n,
-                              idv, cw, &nidx, 1e30);
-      EXPECT_NEAR(cw[p]*n[k], (gp - gm) / (2*eps), MjTol(1e-6, 1e-3))
+      mjtNum saved = x[3 * idv[p] + k];
+      x[3 * idv[p] + k] = saved + eps;
+      mjtNum gp = mjc_pairGap(&pair, m, d, x, nullptr, nullptr, radii, n, idv,
+                              cw, &nidx, 1e30);
+      x[3 * idv[p] + k] = saved - eps;
+      mjtNum gm = mjc_pairGap(&pair, m, d, x, nullptr, nullptr, radii, n, idv,
+                              cw, &nidx, 1e30);
+      x[3 * idv[p] + k] = saved;
+      mjtNum g0 = mjc_pairGap(&pair, m, d, x, nullptr, nullptr, radii, n, idv,
+                              cw, &nidx, 1e30);
+      EXPECT_NEAR(cw[p] * n[k], (gp - gm) / (2 * eps), MjTol(1e-6, 1e-3))
           << "gradient mismatch at involved vertex " << p << " axis " << k
           << " (gap " << g0 << ")";
     }
@@ -272,14 +277,17 @@ TEST_F(ContinuousCollisionTest, AdvanceCapsCrossing) {
   mjData* d = mj_makeData(m);
   mj_forward(m, d);
 
-  mjtNum x[12] = {0.2, 0.2, 0.5,   0, 0, 0,   1, 0, 0,   0, 1, 0};
+  mjtNum x[12] = {0.2, 0.2, 0.5, 0, 0, 0, 1, 0, 0, 0, 1, 0};
   mjtNum radii[4] = {0.005, 0.005, 0.005, 0.005};
-  int fidx[4] = {0, 1, 2, 3};              // all points free, identity map
+  int fidx[4] = {0, 1, 2, 3};  // all points free, identity map
   // cross-flex pair: no coherent-motion mean removal
   int pt2flex[4] = {0, 1, 1, 1};
   mjcFlexPair cand;
   cand.type = mjcFLEX_VERT_TRI;
-  cand.idx[0] = 0; cand.idx[1] = 1; cand.idx[2] = 2; cand.idx[3] = 3;
+  cand.idx[0] = 0;
+  cand.idx[1] = 1;
+  cand.idx[2] = 2;
+  cand.idx[3] = 3;
   cand.g = -1;
 
   mjtNum n[3], cw[4];
@@ -307,8 +315,8 @@ TEST_F(ContinuousCollisionTest, AdvanceCapsCrossing) {
   // flagged approaching -- but the actual gap grows along the path, so the
   // advance is uncapped and there is no impact
   mjtNum dxw_up[12] = {0, 0, +1};
-  alpha = mjc_advance(m, d, x, dxw_up, nullptr, nullptr, radii, 4, fidx,
-                      &cand, 1, cgap, pt2flex, appr, toi);
+  alpha = mjc_advance(m, d, x, dxw_up, nullptr, nullptr, radii, 4, fidx, &cand,
+                      1, cgap, pt2flex, appr, toi);
   EXPECT_NEAR(alpha, 1.0, MjTol(1e-12, 1e-5));
   EXPECT_NEAR(toi[0], 1.0, MjTol(1e-12, 1e-5));
 
@@ -357,12 +365,13 @@ TEST_F(ContinuousCollisionTest, CandidatesFindApproachingPairs) {
       nfv += m->flex_vertnum[k];
     }
     ASSERT_EQ(nfv, 8);
-    mjtNum x[8*3], radii[8];
+    mjtNum x[8 * 3], radii[8];
     int fidx[8], pt2flex[8];
     for (int k = 0; k < nfd; k++) {
       for (int v = 0; v < m->flex_vertnum[k]; v++) {
         int pt = fxadr[k] + v, vg = m->flex_vertadr[k] + v;
-        for (int c = 0; c < 3; c++) x[3*pt + c] = d->flexvert_xpos[3*vg + c];
+        for (int c = 0; c < 3; c++)
+          x[3 * pt + c] = d->flexvert_xpos[3 * vg + c];
         radii[pt] = m->flex_radius[k];
         fidx[pt] = pt;
         pt2flex[pt] = k;
@@ -372,8 +381,8 @@ TEST_F(ContinuousCollisionTest, CandidatesFindApproachingPairs) {
     // static query (no sweep): reach = 3*band, band 3 mm
     mjtNum band = 0.003;
     mjcFlexPair cand[256];
-    int ncand = mjc_candidates(m, d, x, nullptr, nullptr, 0, 0, radii, 3*band,
-                               3*band, 0.0, x, x, band, nfv, nfv, fidx, flist,
+    int ncand = mjc_candidates(m, d, x, nullptr, nullptr, 0, 0, radii, 3 * band,
+                               3 * band, 0.0, x, x, band, nfv, nfv, fidx, flist,
                                fxadr, nfd, pt2flex, cand, 256);
     if (dz < 0.01) {
       EXPECT_GT(ncand, 0) << "2 mm apart, within reach: pairs expected";
