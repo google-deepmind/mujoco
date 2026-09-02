@@ -447,7 +447,7 @@ TEST_F(MjCollisionTest, MaxContact) {
   int cylinder = mj_name2id(m.get(), mjOBJ_GEOM, "cylinder");
 
   EXPECT_EQ(mj_maxContact(m.get(), mesh, box, -1), 4);
-  EXPECT_EQ(mj_maxContact(m.get(), mesh, plane, -1), 3);
+  EXPECT_EQ(mj_maxContact(m.get(), mesh, plane, -1), 4);
   EXPECT_EQ(mj_maxContact(m.get(), box, plane, -1), 4);
   EXPECT_EQ(mj_maxContact(m.get(), mesh, mesh, -1), 4);
   EXPECT_EQ(mj_maxContact(m.get(), box, box, -1), 8);

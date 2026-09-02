@@ -1507,70 +1507,55 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
 
 // ------------------------------------- MultiCCD -------------------------------------------------
 
-// compute area of a quadrilateral
-static inline mjtNum area4(const mjtNum a[3], const mjtNum b[3],
-                           const mjtNum c[3], const mjtNum d[3]) {
-  mjtNum ad[3] = {d[0] - a[0], d[1] - a[1], d[2] - a[2]};
-  mjtNum db[3] = {b[0] - d[0], b[1] - d[1], b[2] - d[2]};
-  mjtNum bc[3] = {c[0] - b[0], c[1] - b[1], c[2] - b[2]};
-  mjtNum ca[3] = {a[0] - c[0], a[1] - c[1], a[2] - c[2]};
-  mjtNum e[3], f[3], g[3];
-  cross3(e, ad, db);
-  cross3(f, bc, ca);
-  add3(g, e, f);
-  return 0.5 * norm3(g);
+// compute area of a quadrilateral (helper for hull4)
+static inline mjtNum area4(const mjtNum* hull, int a, int b, int c, int d) {
+  mjtNum ca[3], db[3], cross[3];
+  sub3(ca, hull + 3*a, hull + 3*c);
+  sub3(db, hull + 3*b, hull + 3*d);
+  cross3(cross, ca, db);
+  return 0.5 * norm3(cross);
 }
 
 
-// return pointer to next vertex in a polygon
-static inline mjtNum* next(mjtNum* polygon, int nvert, mjtNum* curr) {
-  if (curr == polygon + 3*(nvert - 1)) {
-    return polygon;
-  }
-  return curr + 3;
-}
-
-
-// prune a polygon to a maximum area convex quadrilateral
-static inline void polygonQuad(mjtNum* res[4], mjtNum* polygon, int nvert) {
-  mjtNum* a = polygon, *b = polygon + 3, *c = polygon + 6, *d = polygon + 9;
-  res[0] = a, res[1] = b, res[2] = c, res[3] = d;
-  mjtNum m = area4(a, b, c, d), m_next;
-  mjtNum* end = polygon + 3 * nvert;
-  for (; a < end; a += 3) {
+// prune a convex hull to a maximum area convex quadrilateral
+static inline void hull4(int res[4], const mjtNum* hull, int nhull) {
+  int a = 0, b = 1, c = 2, d = 3;
+  res[0] = 0, res[1] = 1, res[2] = 2, res[3] = 3;
+  mjtNum m = area4(hull, a, b, c, d), m_next;
+  for (; a < nhull; a++) {
     while (1) {
-      m_next = area4(a, b, c, next(polygon, nvert, d));
+      int d_next = (d + 1) % nhull;
+      m_next = area4(hull, a, b, c, d_next);
       if (m_next <= m) {
         break;
       }
-      m = m_next;
-      d = next(polygon, nvert, d);
+      d = d_next, m = m_next;
       res[0] = a, res[1] = b, res[2] = c, res[3] = d;
       while (1) {
-        m_next = area4(a, b, next(polygon, nvert, c), d);
+        int c_next = (c + 1) % nhull;
+        m_next = area4(hull, a, b, c_next, d);
         if (m_next <= m) {
           break;
         }
-        m = m_next;
-        c = next(polygon, nvert, c);
+        c = c_next, m = m_next;
         res[0] = a, res[1] = b, res[2] = c, res[3] = d;
       }
       while (1) {
-        m_next = area4(a, next(polygon, nvert, b), c, d);
+        int b_next = (b + 1) % nhull;
+        m_next = area4(hull, a, b_next, c, d);
         if (m_next <= m) {
           break;
         }
-        m = m_next;
-        b = next(polygon, nvert, b);
+        b = b_next, m = m_next;
         res[0] = a, res[1] = b, res[2] = c, res[3] = d;
       }
     }
     if (b == a) {
-      b = next(polygon, nvert, b);
+      b = (b + 1) % nhull;
       if (c == b) {
-        c = next(polygon, nvert, c);
+        c = (c + 1) % nhull;
         if (d == c) {
-          d = next(polygon, nvert, d);
+          d = (d + 1) % nhull;
         }
       }
     }
@@ -1706,10 +1691,11 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
   // copy final clipped polygon to status
   if (status->max_contacts < 5 && npolygon > 4) {
     status->nx = 4;
-    mjtNum* rect[4];
-    polygonQuad(rect, polygon, npolygon);
+    int idx[4];
+    hull4(idx, polygon, npolygon);
     for (int i = 0; i < 4; i++) {
-      dist[i] = witnessOnFace(status->x1 + 3*i, status->x2 + 3*i, rect[i], face1, n, dir);
+      dist[i] = witnessOnFace(status->x1 + 3*i, status->x2 + 3*i, polygon + 3*idx[i],
+                              face1, n, dir);
     }
     return;
   }

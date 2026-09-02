@@ -31,6 +31,11 @@ Samples
   Supports both the Filament and classic OpenGL backends, with command-line options for camera, resolution, keyframe,
   simulation steps, geom/site groups, visualization and rendering flags, labels, and frames.
 
+Bug fixes
+^^^^^^^^^
+
+- Rewrote the Plane-Mesh collider to fix bugs and improve performance. Fixes :issue:`3524`.
+
 Version 3.12.0 (August 20, 2026)
 --------------------------------
 

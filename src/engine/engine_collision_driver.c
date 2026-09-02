@@ -106,9 +106,8 @@ int mj_maxContact(const mjModel* m, int g1, int g2, int has_margin) {
         return 2;
       case mjGEOM_CYLINDER:
       case mjGEOM_BOX:
-        return 4;
       case mjGEOM_MESH:
-        return 3;
+        return 4;
       default:
         return 0;
     }

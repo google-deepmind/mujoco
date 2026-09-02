@@ -76,5 +76,34 @@ TEST_F(MjcConvexTest, CylinderBox) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjcConvexTest, PlaneConvexMultipleFaces) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="wedge" vertex="1 1 -1 1 -1 -1 -1 -1 -1 -1 1 -1 0 1 1 0 -1 1"/>
+    </asset>
+    <worldbody>
+      <geom type="plane" size="10 10 0.1"/>
+      <body pos="0 -2 0">
+        <freejoint/>
+        <geom type="mesh" mesh="wedge"/>
+      </body>
+      <body pos="0 2 0.8" euler="-90 0 0">
+        <freejoint/>
+        <geom type="mesh" mesh="wedge"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  MjDataPtr data = MakeData(model);
+
+  mj_forward(model.get(), data.get());
+
+  // quad bottom has 4 contacts, triangular side has 3 contacts
+  EXPECT_EQ(data->ncon, 7);
+}
+
 }  // namespace
 }  // namespace mujoco

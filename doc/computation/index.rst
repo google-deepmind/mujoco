@@ -1849,7 +1849,7 @@ parameters :ref:`nativeccd<option-flag-nativeccd>`, :ref:`multiccd<option-flag-m
      - | primitive
        | **4**
      - | primitive
-       | **3**
+       | **4**
      - | primitive
        | **1**
    * - HField
