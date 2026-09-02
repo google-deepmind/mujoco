@@ -34,15 +34,46 @@ if _MUJOCO_GL not in ('disable', 'disabled', 'off', 'false', '0'):
     raise RuntimeError(
         f'invalid value for environment variable MUJOCO_GL: {_MUJOCO_GL}')
 
-  if _SYSTEM == 'Linux' and _MUJOCO_GL == 'osmesa':
-    from mujoco.osmesa import GLContext as _GLContext
-    GLContext = _GLContext
-  elif _SYSTEM == 'Linux' and _MUJOCO_GL == 'egl':
-    from mujoco.egl import GLContext as _GLContext
-    GLContext = _GLContext
-  elif _SYSTEM == 'Darwin':
-    from mujoco.cgl import GLContext as _GLContext
-    GLContext = _GLContext
-  else:
-    from mujoco.glfw import GLContext as _GLContext
-    GLContext = _GLContext
+  def _resolve_gl_context():
+    """Imports and returns the configured backend's GLContext class.
+
+    Importing the backend pulls in the OpenGL native libraries, so this is
+    deferred until a context is actually constructed (see GLContext below).
+    """
+    if _SYSTEM == 'Linux' and _MUJOCO_GL == 'osmesa':
+      from mujoco.osmesa import GLContext as _GLContext
+    elif _SYSTEM == 'Linux' and _MUJOCO_GL == 'egl':
+      from mujoco.egl import GLContext as _GLContext
+    elif _SYSTEM == 'Darwin':
+      from mujoco.cgl import GLContext as _GLContext
+    else:
+      from mujoco.glfw import GLContext as _GLContext
+    return _GLContext
+
+  class GLContext:
+    """The configured OpenGL backend, resolved lazily on first construction.
+
+    The backend import (and therefore the OpenGL native libraries it needs) is
+    deferred until a context is actually created, so that `import mujoco`
+    succeeds on systems that never render, even when no OpenGL stack is present.
+    Constructing a context resolves the backend and returns a backend-native
+    GLContext instance.
+    """
+
+    def __new__(cls, *args, **kwargs):
+      try:
+        backend = _resolve_gl_context()
+      except (ImportError, AttributeError) as exc:
+        # Resolving the backend fails either because the Python rendering
+        # packages aren't installed (ImportError) or because the OpenGL system
+        # libraries they wrap are missing, in which case PyOpenGL raises
+        # AttributeError instead of ImportError. Both mean rendering is
+        # unavailable; surface it here, at the point of use, instead of
+        # crashing `import mujoco`.
+        raise ImportError(
+            f'Could not initialize the OpenGL backend for MUJOCO_GL='
+            f'{_MUJOCO_GL!r}. Rendering is unavailable; the required OpenGL '
+            'libraries may not be installed. Set MUJOCO_GL=disable to skip GL '
+            'initialization entirely.'
+        ) from exc
+      return backend(*args, **kwargs)
