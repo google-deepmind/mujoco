@@ -24,7 +24,6 @@
 namespace mujoco {
 namespace {
 
-
 using XMLSchemaTest = MujocoTest;
 
 static std::optional<std::string> IsValidSchemaFormat(
@@ -44,22 +43,26 @@ static std::optional<std::string> IsValidSchemaFormat(
     if (schema[i][0][0] != '<' && schema[i][0][0] != '>') {
       // first 2 pointers required
       if (!schema[i][1]) {
-        return absl::StrFormat("expected element, found null pointers"
-                               "in row %d, element %s", i, schema[i][0]);
+        return absl::StrFormat(
+            "expected element, found null pointers"
+            "in row %d, element %s",
+            i, schema[i][0]);
       }
 
       // check type
       if (schema[i][1][0] != '!' && schema[i][1][0] != '?' &&
           schema[i][1][0] != '*' && schema[i][1][0] != 'R') {
-        return absl::StrFormat("invalid type in row %d, element %s",
-                               i, schema[i][0]);
+        return absl::StrFormat("invalid type in row %d, element %s", i,
+                               schema[i][0]);
       }
 
       // attribute pointers
       for (int j = 0; j < schema[i].size() - 2; j++) {
         if (!schema[i][2 + j]) {
-          return absl::StrFormat("null attribute %d in"
-                                 " row %d, element %s", j, i, schema[i][0]);
+          return absl::StrFormat(
+              "null attribute %d in"
+              " row %d, element %s",
+              j, i, schema[i][0]);
         }
       }
     }

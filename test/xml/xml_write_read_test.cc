@@ -90,8 +90,7 @@ TEST_P(WriteReadCompareTest, WriteReadCompare) {
 
   // load model
   std::array<char, 1000> error;
-  mjSpec* s =
-      mj_parseXML(xml.c_str(), nullptr, error.data(), error.size());
+  mjSpec* s = mj_parseXML(xml.c_str(), nullptr, error.data(), error.size());
   if (!s) {
     GTEST_SKIP() << "Failed to load " << xml.c_str() << ": " << error.data();
   }
@@ -136,8 +135,8 @@ TEST_P(WriteReadCompareTest, WriteReadCompare) {
 
   // check for stack memory leak
   mj_step(m, d);
-  EXPECT_EQ(d->pstack, 0) << "mjData stack memory leak detected in " <<
-      xml << '\n';
+  EXPECT_EQ(d->pstack, 0) << "mjData stack memory leak detected in " << xml
+                          << '\n';
 
   // delete data
   mj_deleteData(d);
@@ -180,8 +179,8 @@ INSTANTIATE_TEST_SUITE_P(
     [](const ::testing::TestParamInfo<std::string>& info) {
       std::string name = std::filesystem::path(info.param).filename().string();
       std::replace_if(
-          name.begin(), name.end(),
-          [](char c) { return !std::isalnum(c); }, '_');
+          name.begin(), name.end(), [](char c) { return !std::isalnum(c); },
+          '_');
       return name + "_" + std::to_string(info.index);
     });
 

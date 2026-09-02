@@ -19,7 +19,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <filesystem> // NOLINT
+#include <filesystem>  // NOLINT
 #include <string>
 #include <vector>
 
@@ -29,12 +29,12 @@
 
 // Disable unused function warnings for miniz.
 #if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-function"
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 #include <miniz.h>
 #if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
+  #pragma GCC diagnostic pop
 #endif
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>

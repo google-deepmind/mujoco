@@ -69,7 +69,8 @@ TEST_F(XMLReaderTest, SchemaLocationHeaderAccepted) {
   // reference mjcf.xsd for editor completion; see the linked example in the
   // XML reference intro
   std::array<char, 1024> error;
-  const std::string path = GetTestDataFilePath("xml/testdata/schema_location.xml");
+  const std::string path =
+      GetTestDataFilePath("xml/testdata/schema_location.xml");
   mjSpec* spec = mj_parseXML(path.c_str(), nullptr, error.data(), error.size());
   ASSERT_THAT(spec, NotNull()) << error.data();
   mjModel* model = mj_compile(spec, nullptr);
@@ -197,7 +198,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     )";
     MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
     ASSERT_THAT(model.get(), NotNull()) << error.data();
-    EXPECT_EQ(model->narena, 4*1024*1024);
+    EXPECT_EQ(model->narena, 4 * 1024 * 1024);
   }
   {
     static constexpr char xml[] = R"(
@@ -207,7 +208,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     )";
     MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
     ASSERT_THAT(model.get(), NotNull()) << error.data();
-    EXPECT_EQ(model->narena, 1024*1024*1024);
+    EXPECT_EQ(model->narena, 1024 * 1024 * 1024);
   }
   {
     static constexpr char xml[] = R"(
@@ -217,7 +218,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     )";
     MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
     ASSERT_THAT(model.get(), NotNull()) << error.data();
-    EXPECT_EQ(model->narena, 1024*1024*1024);
+    EXPECT_EQ(model->narena, 1024 * 1024 * 1024);
   }
 }
 
@@ -480,7 +481,7 @@ TEST_F(XMLReaderTest, InvalidNumber) {
 }
 
 TEST_F(XMLReaderTest, InvalidNumberRange) {
-    static constexpr char xml[] = R"(
+  static constexpr char xml[] = R"(
   <mujoco>
     <asset>
       <mesh name="mesh" file="mesh.stl" face="100000000000000000000000"/>
@@ -532,15 +533,13 @@ TEST_F(XMLReaderTest, InvalidDoubleOrientation) {
   std::string prefix = "<mujoco><worldbody><";
   std::string suffix = "/></worldbody></mujoco>";
   std::vector<std::string> orientations = {
-    R"( quat="0 1 0 0" )",
-    R"( euler="1.7 2.9 0.1" )",
-    R"( zaxis="1.7 2.9 0.1" )",
-    R"( axisangle="1.7 2.9 0.1 0" )",
-    R"( xyaxes="1.7 2.9 0.1 0.4 1.4 0.6" )",
+      R"( quat="0 1 0 0" )",
+      R"( euler="1.7 2.9 0.1" )",
+      R"( zaxis="1.7 2.9 0.1" )",
+      R"( axisangle="1.7 2.9 0.1 0" )",
+      R"( xyaxes="1.7 2.9 0.1 0.4 1.4 0.6" )",
   };
-  std::vector<std::string> fields = {
-    "geom", "body", "camera", "site"
-  };
+  std::vector<std::string> fields = {"geom", "body", "camera", "site"};
   for (auto const& field : fields) {
     for (auto const& orient1 : orientations) {
       for (auto const& orient2 : orientations) {
@@ -584,10 +583,10 @@ TEST_F(XMLReaderTest, ClassOverridesChildclass) {
   std::array<char, 1024> error;
   MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model.get(), NotNull()) << error.data();
-  EXPECT_EQ(model->geom_size[3*0], 2);
-  EXPECT_EQ(model->geom_size[3*1], 3);
-  EXPECT_EQ(model->geom_size[3*2], 2);
-  EXPECT_EQ(model->geom_size[3*3], 3);
+  EXPECT_EQ(model->geom_size[3 * 0], 2);
+  EXPECT_EQ(model->geom_size[3 * 1], 3);
+  EXPECT_EQ(model->geom_size[3 * 2], 2);
+  EXPECT_EQ(model->geom_size[3 * 3], 3);
 }
 
 TEST_F(XMLReaderTest, RepeatedDefaultName) {
@@ -679,15 +678,14 @@ TEST_F(XMLReaderTest, ValidTopDefaultClassName) {
 
 // tiny RGB 2 x 3 PNG file
 static constexpr unsigned char kTinyPng[] = {
-  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
-  0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x02,
-  0x08, 0x02, 0x00, 0x00, 0x00, 0x12, 0x16, 0xf1, 0x4d, 0x00, 0x00, 0x00,
-  0x1c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63, 0x78, 0xc1, 0xc0, 0xc0,
-  0xc0, 0xf0, 0xbf, 0xb8, 0xb8, 0x98, 0x81, 0xe1, 0x3f, 0xc3, 0xff, 0xff,
-  0xff, 0xc5, 0xc4, 0xc4, 0x00, 0x46, 0xd7, 0x07, 0x7f, 0xd2, 0x52, 0xa1,
-  0x41, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60,
-  0x82
-};
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00,
+    0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00,
+    0x00, 0x02, 0x08, 0x02, 0x00, 0x00, 0x00, 0x12, 0x16, 0xf1, 0x4d,
+    0x00, 0x00, 0x00, 0x1c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63,
+    0x78, 0xc1, 0xc0, 0xc0, 0xc0, 0xf0, 0xbf, 0xb8, 0xb8, 0x98, 0x81,
+    0xe1, 0x3f, 0xc3, 0xff, 0xff, 0xff, 0xc5, 0xc4, 0xc4, 0x00, 0x46,
+    0xd7, 0x07, 0x7f, 0xd2, 0x52, 0xa1, 0x41, 0x00, 0x00, 0x00, 0x00,
+    0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82};
 
 // mesh OBJ file of a cube
 static constexpr char kTinyObj[] = R"(
@@ -699,7 +697,6 @@ static constexpr char kTinyObj[] = R"(
   v  1  1 -1
   v -1 -1 -1
   v  1 -1 -1)";
-
 
 TEST_F(XMLReaderTest, IncludeTest) {
   static constexpr char xml[] = R"(
@@ -716,13 +713,13 @@ TEST_F(XMLReaderTest, IncludeTest) {
     <geom name="box" type="box" size="1 1 1"/>
   </mujoco>)";
 
-  static constexpr char xml2[]= R"(
+  static constexpr char xml2[] = R"(
   <mujoco>
     <geom name="ball" type="sphere" size="2"/>
     <include file="model3.xml"/>
   </mujoco>)";
 
-  static constexpr char xml3[]= R"(
+  static constexpr char xml3[] = R"(
   <mujoco>
     <geom name="another_box" type="box" size="2 2 2"/>
   </mujoco>)";
@@ -735,8 +732,8 @@ TEST_F(XMLReaderTest, IncludeTest) {
   mj_addBufferVFS(vfs.get(), "model3.xml", xml3, sizeof(xml3));
 
   std::array<char, 1024> error;
-  MjModelPtr model = LoadModelFromString(xml, error.data(),
-                                       error.size(), vfs.get());
+  MjModelPtr model =
+      LoadModelFromString(xml, error.data(), error.size(), vfs.get());
   ASSERT_THAT(model.get(), NotNull()) << error.data();
   EXPECT_EQ(mj_name2id(model.get(), mjOBJ_GEOM, "ball"), 2);
   EXPECT_EQ(mj_name2id(model.get(), mjOBJ_GEOM, "another_box"), 3);
@@ -778,8 +775,8 @@ TEST_F(XMLReaderTest, IncludeSameFileTest) {
   mj_addBufferVFS(vfs.get(), "model1.xml", xml1, sizeof(xml1));
 
   std::array<char, 1024> error;
-  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size(),
-                                       vfs.get());
+  MjModelPtr model =
+      LoadModelFromString(xml, error.data(), error.size(), vfs.get());
   ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("File 'model1.xml' already included"));
   mj_deleteVFS(vfs.get());
@@ -800,13 +797,13 @@ TEST_F(XMLReaderTest, IncludePathTest) {
     <geom name="box" type="box" size="1 1 1"/>
   </mujoco>)";
 
-  static constexpr char xml2[]= R"(
+  static constexpr char xml2[] = R"(
   <mujoco>
     <geom name="ball" type="sphere" size="2"/>
     <include file="subsubmodels/model3.xml"/>
   </mujoco>)";
 
-  static constexpr char xml3[]= R"(
+  static constexpr char xml3[] = R"(
   <mujoco>
     <geom name="another_box" type="box" size="2 2 2"/>
   </mujoco>)";
@@ -820,8 +817,7 @@ TEST_F(XMLReaderTest, IncludePathTest) {
                   sizeof(xml3));
 
   std::array<char, 1024> error;
-  mjModel* model = mj_loadXML("model.xml", &vfs, error.data(),
-                              error.size());
+  mjModel* model = mj_loadXML("model.xml", &vfs, error.data(), error.size());
   ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "ball"), 2);
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "another_box"), 3);
@@ -844,13 +840,13 @@ TEST_F(XMLReaderTest, FallbackIncludePathTest) {
     <geom name="box" type="box" size="1 1 1"/>
   </mujoco>)";
 
-  static constexpr char xml2[]= R"(
+  static constexpr char xml2[] = R"(
   <mujoco>
     <geom name="ball" type="sphere" size="2"/>
     <include file="subsubmodels/model3.xml"/>
   </mujoco>)";
 
-  static constexpr char xml3[]= R"(
+  static constexpr char xml3[] = R"(
   <mujoco>
     <geom name="another_box" type="box" size="2 2 2"/>
   </mujoco>)";
@@ -863,8 +859,7 @@ TEST_F(XMLReaderTest, FallbackIncludePathTest) {
   mj_addBufferVFS(&vfs, "subsubmodels/model3.xml", xml3, sizeof(xml3));
 
   std::array<char, 1024> error;
-  mjModel* model = mj_loadXML("model.xml", &vfs,
-                              error.data(), error.size());
+  mjModel* model = mj_loadXML("model.xml", &vfs, error.data(), error.size());
   ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "ball"), 2);
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "another_box"), 3);
@@ -1050,8 +1045,7 @@ TEST_F(XMLReaderTest, IncludeAssetsTest) {
 
   // loading the file should be successful
   std::array<char, 1024> error;
-  mjModel* model = mj_loadXML("model.xml", &vfs, error.data(),
-                              error.size());
+  mjModel* model = mj_loadXML("model.xml", &vfs, error.data(), error.size());
 
   ASSERT_THAT(model, NotNull()) << error.data();
 
@@ -1098,8 +1092,7 @@ TEST_F(XMLReaderTest, FallbackIncludeAssetsTest) {
 
   // loading the file should be successful
   std::array<char, 1024> error;
-  mjModel* model = mj_loadXML("model.xml", &vfs,
-                              error.data(), error.size());
+  mjModel* model = mj_loadXML("model.xml", &vfs, error.data(), error.size());
   ASSERT_THAT(model, NotNull()) << error.data();
 
   mj_deleteModel(model);
@@ -1134,17 +1127,16 @@ TEST_F(XMLReaderTest, IncludeAbsoluteTest) {
   MockFilesystem fs("IncludeAbsoluteTest");
   fs.AddFile("assets/tiny.png", kTinyPng, sizeof(kTinyPng));
   fs.AddFile("assets/subtiny.png", kTinyPng, sizeof(kTinyPng));
-  fs.AddFile("assets/assets.xml", (const unsigned char*) assets,
-   sizeof(assets));
-  fs.AddFile("assets/subassets/assets.xml", (const unsigned char*) subassets,
-   sizeof(subassets));
-  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
+  fs.AddFile("assets/assets.xml", (const unsigned char*)assets, sizeof(assets));
+  fs.AddFile("assets/subassets/assets.xml", (const unsigned char*)subassets,
+             sizeof(subassets));
+  fs.AddFile("model.xml", (const unsigned char*)xml, sizeof(xml));
   std::string modelpath = fs.FullPath("model.xml");
 
   std::array<char, 1024> error;
   // loading the file should be successful
-  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr,
-                              error.data(), error.size());
+  mjModel* model =
+      mj_loadXML(modelpath.c_str(), nullptr, error.data(), error.size());
   ASSERT_THAT(model, NotNull()) << error.data();
 
   mj_deleteModel(model);
@@ -1176,16 +1168,15 @@ TEST_F(XMLReaderTest, IncludeAbsoluteMeshDirTest) {
   v  0.500000 -0.500000 -0.500000)";
 
   MockFilesystem fs("IncludeAbsoluteMeshDirTest");
-  fs.AddFile("/assets/cube.obj", (const unsigned char*) cube, sizeof(cube));
-  fs.AddFile("assets.xml", (const unsigned char*) assets,
-   sizeof(assets));
-  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
+  fs.AddFile("/assets/cube.obj", (const unsigned char*)cube, sizeof(cube));
+  fs.AddFile("assets.xml", (const unsigned char*)assets, sizeof(assets));
+  fs.AddFile("model.xml", (const unsigned char*)xml, sizeof(xml));
   std::string modelpath = fs.FullPath("model.xml");
 
   std::array<char, 1024> error;
   // loading the file should be successful
-  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr,
-                              error.data(), error.size());
+  mjModel* model =
+      mj_loadXML(modelpath.c_str(), nullptr, error.data(), error.size());
   ASSERT_THAT(model, NotNull()) << error.data();
 
   mj_deleteModel(model);
@@ -1215,13 +1206,13 @@ TEST_F(XMLReaderTest, ParsePolycoef) {
   std::array<char, 1024> error;
   MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m.get(), NotNull()) << error.data();
-  EXPECT_THAT(AsVector(m->eq_data + 0*mjNEQDATA, 5),
+  EXPECT_THAT(AsVector(m->eq_data + 0 * mjNEQDATA, 5),
               ElementsAre(0, 1, 0, 0, 0));
-  EXPECT_THAT(AsVector(m->eq_data + 1*mjNEQDATA, 5),
+  EXPECT_THAT(AsVector(m->eq_data + 1 * mjNEQDATA, 5),
               ElementsAre(2, 1, 0, 0, 0));
-  EXPECT_THAT(AsVector(m->eq_data + 2*mjNEQDATA, 5),
+  EXPECT_THAT(AsVector(m->eq_data + 2 * mjNEQDATA, 5),
               ElementsAre(3, 4, 0, 0, 0));
-  EXPECT_THAT(AsVector(m->eq_data + 3*mjNEQDATA, 5),
+  EXPECT_THAT(AsVector(m->eq_data + 3 * mjNEQDATA, 5),
               ElementsAre(5, 6, 7, 8, 9));
 }
 
@@ -1348,10 +1339,10 @@ TEST_F(XMLReaderTest, ParseFrame) {
   std::array<char, 1024> error;
   MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m.get(), NotNull()) << error.data();
-  EXPECT_THAT(m->geom_size[ 0], .5);
-  EXPECT_THAT(m->geom_size[ 3], .6);
-  EXPECT_THAT(m->geom_size[ 6], .1);
-  EXPECT_THAT(m->geom_size[ 9], .2);
+  EXPECT_THAT(m->geom_size[0], .5);
+  EXPECT_THAT(m->geom_size[3], .6);
+  EXPECT_THAT(m->geom_size[6], .1);
+  EXPECT_THAT(m->geom_size[9], .2);
   EXPECT_THAT(m->geom_size[12], .3);
 }
 
@@ -1374,7 +1365,6 @@ TEST_F(XMLReaderTest, DuplicateFrameName) {
   EXPECT_THAT(m.get(), IsNull()) << error.data();
   EXPECT_THAT(error.data(), HasSubstr("repeated name 'frame1'"));
 }
-
 
 // ---------------------- test replicate parsing -------------------------------
 
@@ -1423,10 +1413,10 @@ TEST_F(XMLReaderTest, ParseReplicate) {
   for (int i = 0; i < 2; ++i) {
     for (int j = 0; j < 2; ++j) {
       char geom_name[mjMAXUINAME] = "";
-      util::strcat_arr(geom_name, m->names + m->name_geomadr[2*i+j]);
-      EXPECT_THAT(m->geom_pos[6*i+3*j+0], i);
-      EXPECT_THAT(m->geom_pos[6*i+3*j+1], j);
-      EXPECT_THAT(m->geom_pos[6*i+3*j+2], 1);
+      util::strcat_arr(geom_name, m->names + m->name_geomadr[2 * i + j]);
+      EXPECT_THAT(m->geom_pos[6 * i + 3 * j + 0], i);
+      EXPECT_THAT(m->geom_pos[6 * i + 3 * j + 1], j);
+      EXPECT_THAT(m->geom_pos[6 * i + 3 * j + 2], 1);
       EXPECT_THAT(std::string(geom_name),
                   "geom_" + std::to_string(j) + std::to_string(i));
     }
@@ -1436,10 +1426,10 @@ TEST_F(XMLReaderTest, ParseReplicate) {
   for (int i = 0; i < 2; ++i) {
     for (int j = 0; j < 10; ++j) {
       for (int k = 0; k < 10; ++k) {
-        int ngeom = 100*i+10*j+k;
+        int ngeom = 100 * i + 10 * j + k;
         if (ngeom > 99) break;
         char geom_name[mjMAXUINAME] = "";
-        util::strcat_arr(geom_name, m->names + m->name_geomadr[4+ngeom]);
+        util::strcat_arr(geom_name, m->names + m->name_geomadr[4 + ngeom]);
         EXPECT_THAT(
             std::string(geom_name),
             "g" + std::to_string(i) + std::to_string(j) + std::to_string(k));
@@ -1451,27 +1441,27 @@ TEST_F(XMLReaderTest, ParseReplicate) {
   mjtNum pos[2] = {0, 0};
   const mjtNum tol = MjTol(1e-8, 1e-3);
   for (int i = 1; i < 102; ++i) {
-    mjtNum theta = (i-1) * 1.8 * mjPI / 180;
-    EXPECT_NEAR(m->body_pos[3*i+0], pos[0] + sin(theta), tol) << i;
-    EXPECT_NEAR(m->body_pos[3*i+1], pos[1] - cos(theta), tol) << i;
-    EXPECT_NEAR(m->body_pos[3*i+2], (i-1) * .1, tol);
+    mjtNum theta = (i - 1) * 1.8 * mjPI / 180;
+    EXPECT_NEAR(m->body_pos[3 * i + 0], pos[0] + sin(theta), tol) << i;
+    EXPECT_NEAR(m->body_pos[3 * i + 1], pos[1] - cos(theta), tol) << i;
+    EXPECT_NEAR(m->body_pos[3 * i + 2], (i - 1) * .1, tol);
     pos[0] += 3 * cos(theta);
     pos[1] += 3 * sin(theta);
   }
 
   // check that the final pose is correct
-  int n = m->nbody-1;
-  EXPECT_NEAR(m->body_quat[4*n+0], 0, tol);
-  EXPECT_EQ(m->body_quat[4*n+1], 0);
-  EXPECT_EQ(m->body_quat[4*n+2], 0);
-  EXPECT_EQ(m->body_quat[4*n+3], 1);
+  int n = m->nbody - 1;
+  EXPECT_NEAR(m->body_quat[4 * n + 0], 0, tol);
+  EXPECT_EQ(m->body_quat[4 * n + 1], 0);
+  EXPECT_EQ(m->body_quat[4 * n + 2], 0);
+  EXPECT_EQ(m->body_quat[4 * n + 3], 1);
 
   // check that the keyframe is resized
   EXPECT_THAT(m->nkey, 102);
   EXPECT_THAT(m->nq, 101);
   for (int i = 0; i < m->nkey; i++) {
     for (int j = 0; j < m->nq; j++) {
-      EXPECT_THAT(m->key_qpos[i*m->nq+j], i == j ? 1 : 0) << i << " " << j;
+      EXPECT_THAT(m->key_qpos[i * m->nq + j], i == j ? 1 : 0) << i << " " << j;
     }
   }
 }
@@ -1797,10 +1787,8 @@ TEST_F(XMLReaderTest, ParseReplicateWithTendon) {
 TEST_F(XMLReaderTest, ParseSpecAssets) {
   std::array<char, 1024> er;
 
-  static const char* const kParentPath =
-      "xml/testdata/parent.xml";
-  static const char* const kChildPath =
-      "xml/testdata/child.xml";
+  static const char* const kParentPath = "xml/testdata/parent.xml";
+  static const char* const kChildPath = "xml/testdata/child.xml";
 
   const std::string xml_parent = GetTestDataFilePath(kParentPath);
   const std::string xml_child = GetTestDataFilePath(kChildPath);
@@ -1873,8 +1861,9 @@ TEST_F(XMLReaderTest, AttachSpecAssets) {
   mjtNum tol = 0;
   std::string field = "";
   EXPECT_LE(CompareModel(model.get(), expected.get(), field), tol)
-            << "Expected and attached models are different!\n"
-            << "Different field: " << field << '\n';;
+      << "Expected and attached models are different!\n"
+      << "Different field: " << field << '\n';
+  ;
   mj_deleteVFS(vfs.get());
 }
 
@@ -1963,8 +1952,8 @@ TEST_F(XMLReaderTest, LookupCompilerOptionWithoutSpecCopy) {
   mj_addBufferVFS(vfs.get(), "parent.xml", parent_xml, sizeof(parent_xml));
 
   std::array<char, 1024> error;
-  auto* spec = mj_parseXMLString(parent_xml, vfs.get(), error.data(),
-                                 error.size());
+  auto* spec =
+      mj_parseXMLString(parent_xml, vfs.get(), error.data(), error.size());
   ASSERT_THAT(spec, NotNull()) << error.data();
 
   mjModel* model = mj_compile(spec, vfs.get());
@@ -2105,10 +2094,9 @@ TEST_F(XMLReaderTest, InvalidInertialOrientation) {
   std::array<char, 1024> error;
   MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model.get(), IsNull());
-  EXPECT_THAT(
-      error.data(),
-      HasSubstr("at most one of 'fullinertia', 'quat', 'axisangle', "
-                "'xyaxes', 'zaxis', 'euler' can be specified"));
+  EXPECT_THAT(error.data(),
+              HasSubstr("at most one of 'fullinertia', 'quat', 'axisangle', "
+                        "'xyaxes', 'zaxis', 'euler' can be specified"));
 }
 
 TEST_F(XMLReaderTest, ReadShellParameter) {
@@ -2195,9 +2183,8 @@ TEST_F(XMLReaderTest, MakePlateTooFewParameters) {
   std::array<char, 1024> error;
   MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model.get(), IsNull());
-  EXPECT_THAT(
-      error.data(),
-      HasSubstr("Plate builtin mesh type requires 2 parameters"));
+  EXPECT_THAT(error.data(),
+              HasSubstr("Plate builtin mesh type requires 2 parameters"));
 }
 
 TEST_F(XMLReaderTest, MakePlateInvalidParameters) {
@@ -2421,14 +2408,13 @@ TEST_F(HfieldParsingTest, HasData) {
   float scale = 6.0 - offset;
 
   // compare data, note: reverse row order
-  EXPECT_THAT(model->hfield_data[0], FloatEq((5-offset)/scale));
-  EXPECT_THAT(model->hfield_data[1], FloatEq((6-offset)/scale));
-  EXPECT_THAT(model->hfield_data[2], FloatEq((3-offset)/scale));
-  EXPECT_THAT(model->hfield_data[3], FloatEq((4-offset)/scale));
-  EXPECT_THAT(model->hfield_data[4], FloatEq((1-offset)/scale));
-  EXPECT_THAT(model->hfield_data[5], FloatEq((2-offset)/scale));
+  EXPECT_THAT(model->hfield_data[0], FloatEq((5 - offset) / scale));
+  EXPECT_THAT(model->hfield_data[1], FloatEq((6 - offset) / scale));
+  EXPECT_THAT(model->hfield_data[2], FloatEq((3 - offset) / scale));
+  EXPECT_THAT(model->hfield_data[3], FloatEq((4 - offset) / scale));
+  EXPECT_THAT(model->hfield_data[4], FloatEq((1 - offset) / scale));
+  EXPECT_THAT(model->hfield_data[5], FloatEq((2 - offset) / scale));
 }
-
 
 // ------------- test relative frame sensor parsing ----------------------------
 
@@ -2737,8 +2723,8 @@ TEST_F(ActuatorParseTest, ReadsPositionIntvelKv) {
   std::array<char, 1024> error;
   MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model.get(), NotNull());
-  EXPECT_THAT(model->actuator_biasprm[0*mjNBIAS + 2], Eq(-2.0));
-  EXPECT_THAT(model->actuator_biasprm[1*mjNBIAS + 2], Eq(-3.0));
+  EXPECT_THAT(model->actuator_biasprm[0 * mjNBIAS + 2], Eq(-2.0));
+  EXPECT_THAT(model->actuator_biasprm[1 * mjNBIAS + 2], Eq(-3.0));
 }
 
 TEST_F(ActuatorParseTest, RequirePositiveKv) {
@@ -2792,29 +2778,28 @@ TEST_F(ActuatorParseTest, PositionIntvelocityVelocityDefaultsPropagate) {
   std::array<char, 1024> error;
   MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model.get(), NotNull()) << error.data();
-  EXPECT_EQ(model->actuator_gainprm[0*mjNGAIN + 0], 3.0);
-  EXPECT_EQ(model->actuator_biasprm[0*mjNBIAS + 1], -3.0);
-  EXPECT_EQ(model->actuator_biasprm[0*mjNBIAS + 2], -4.0);
-  EXPECT_EQ(model->actuator_gainprm[1*mjNGAIN + 0], 5.0);
-  EXPECT_EQ(model->actuator_biasprm[1*mjNBIAS + 1], -5.0);
-  EXPECT_EQ(model->actuator_biasprm[1*mjNBIAS + 2], -6.0);
-  EXPECT_EQ(model->actuator_gainprm[2*mjNGAIN + 0], 7.0);
-  EXPECT_EQ(model->actuator_biasprm[2*mjNBIAS + 1], 0.0);
-  EXPECT_EQ(model->actuator_biasprm[2*mjNBIAS + 2], -7.0);
+  EXPECT_EQ(model->actuator_gainprm[0 * mjNGAIN + 0], 3.0);
+  EXPECT_EQ(model->actuator_biasprm[0 * mjNBIAS + 1], -3.0);
+  EXPECT_EQ(model->actuator_biasprm[0 * mjNBIAS + 2], -4.0);
+  EXPECT_EQ(model->actuator_gainprm[1 * mjNGAIN + 0], 5.0);
+  EXPECT_EQ(model->actuator_biasprm[1 * mjNBIAS + 1], -5.0);
+  EXPECT_EQ(model->actuator_biasprm[1 * mjNBIAS + 2], -6.0);
+  EXPECT_EQ(model->actuator_gainprm[2 * mjNGAIN + 0], 7.0);
+  EXPECT_EQ(model->actuator_biasprm[2 * mjNBIAS + 1], 0.0);
+  EXPECT_EQ(model->actuator_biasprm[2 * mjNBIAS + 2], -7.0);
   for (int i = 0; i < model->nu; i++) {
     for (int j = 3; j < mjNBIAS; j++) {
-      EXPECT_EQ(model->actuator_biasprm[i*mjNBIAS + j], 0.0);
+      EXPECT_EQ(model->actuator_biasprm[i * mjNBIAS + j], 0.0);
     }
     for (int j = 3; j < mjNGAIN; j++) {
-      EXPECT_EQ(model->actuator_gainprm[i*mjNGAIN + j], 0.0);
+      EXPECT_EQ(model->actuator_gainprm[i * mjNGAIN + j], 0.0);
     }
   }
-  EXPECT_EQ(model->actuator_ctrlrange[0*2 + 0], -1.0);
-  EXPECT_EQ(model->actuator_ctrlrange[0*2 + 1], 3.0);
-  EXPECT_EQ(model->actuator_actrange[1*2 + 0], 0.5);
-  EXPECT_EQ(model->actuator_actrange[1*2 + 1], 1.5);
+  EXPECT_EQ(model->actuator_ctrlrange[0 * 2 + 0], -1.0);
+  EXPECT_EQ(model->actuator_ctrlrange[0 * 2 + 1], 3.0);
+  EXPECT_EQ(model->actuator_actrange[1 * 2 + 0], 0.5);
+  EXPECT_EQ(model->actuator_actrange[1 * 2 + 1], 1.5);
 }
-
 
 TEST_F(ActuatorParseTest, IntvelocityCheckEquivalence) {
   static constexpr char xml[] = R"(
@@ -3123,26 +3108,26 @@ TEST_F(ActuatorParseTest, DCMotorNominalDerivation) {
   {
     double K = 12.0 / 600.0;
     double R = K * 12.0 / 0.6;
-    EXPECT_MJTNUM_EQ(model->actuator_gainprm[0*mjNGAIN + 0], R);
-    EXPECT_MJTNUM_EQ(model->actuator_gainprm[0*mjNGAIN + 1], K);
+    EXPECT_MJTNUM_EQ(model->actuator_gainprm[0 * mjNGAIN + 0], R);
+    EXPECT_MJTNUM_EQ(model->actuator_gainprm[0 * mjNGAIN + 1], K);
   }
 
   // actuator 1: B > 0, R given, quadratic Ke^2*omega0 - Ke*vn + R*B*omega0 = 0
   {
     double B = 0.0001, R = 0.4, vn = 12.0, omega0 = 600.0;
-    double disc = vn*vn - 4*R*B*omega0*omega0;
-    double Ke = (vn + sqrt(disc)) / (2*omega0);
-    EXPECT_MJTNUM_EQ(model->actuator_gainprm[1*mjNGAIN + 0], R);
-    EXPECT_MJTNUM_EQ(model->actuator_gainprm[1*mjNGAIN + 1], Ke);
+    double disc = vn * vn - 4 * R * B * omega0 * omega0;
+    double Ke = (vn + sqrt(disc)) / (2 * omega0);
+    EXPECT_MJTNUM_EQ(model->actuator_gainprm[1 * mjNGAIN + 0], R);
+    EXPECT_MJTNUM_EQ(model->actuator_gainprm[1 * mjNGAIN + 1], Ke);
   }
 
   // actuator 2: B > 0, R from nominal, Ke = vn/omega0 - vn*B/tau0
   {
     double B = 0.0001, vn = 12.0, tau0 = 0.6, omega0 = 600.0;
-    double Ke = vn / omega0 - vn*B / tau0;
+    double Ke = vn / omega0 - vn * B / tau0;
     double R = Ke * vn / tau0;
-    EXPECT_MJTNUM_EQ(model->actuator_gainprm[2*mjNGAIN + 0], R);
-    EXPECT_MJTNUM_EQ(model->actuator_gainprm[2*mjNGAIN + 1], Ke);
+    EXPECT_MJTNUM_EQ(model->actuator_gainprm[2 * mjNGAIN + 0], R);
+    EXPECT_MJTNUM_EQ(model->actuator_gainprm[2 * mjNGAIN + 1], Ke);
   }
 }
 
@@ -3168,7 +3153,6 @@ TEST_F(ActuatorParseTest, DCMotorSaturation) {
   EXPECT_MJTNUM_EQ(model->actuator_forcerange[0], -1.5);
   EXPECT_MJTNUM_EQ(model->actuator_forcerange[1], 1.5);
 }
-
 
 TEST_F(ActuatorParseTest, DCMotorInheritedDefaults) {
   static constexpr char xml[] = R"(
@@ -3550,7 +3534,7 @@ TEST_F(ActuatorParseTest, GroupDisable) {
   std::array<char, 1024> error;
   MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model.get(), NotNull());
-  EXPECT_EQ(model->opt.disableactuator, (1<<0) + (1<<3) + (1<<8));
+  EXPECT_EQ(model->opt.disableactuator, (1 << 0) + (1 << 3) + (1 << 8));
 }
 
 TEST_F(ActuatorParseTest, GroupDisableNegative) {

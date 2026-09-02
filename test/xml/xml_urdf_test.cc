@@ -77,11 +77,13 @@ TEST_F(MujocoTest, ReadsGeomNames) {
   ASSERT_THAT(model.get(), NotNull()) << error.data();
 
   // Check the geoms have been loaded with the right names
-  int collision_box_id = mj_name2id(model.get(), mjtObj::mjOBJ_GEOM, "collision_box");
+  int collision_box_id =
+      mj_name2id(model.get(), mjtObj::mjOBJ_GEOM, "collision_box");
   ASSERT_GE(collision_box_id, 0);
   EXPECT_EQ(model->geom_type[collision_box_id], mjtGeom::mjGEOM_BOX);
 
-  int visual_sphere_id = mj_name2id(model.get(), mjtObj::mjOBJ_GEOM, "visual_sphere");
+  int visual_sphere_id =
+      mj_name2id(model.get(), mjtObj::mjOBJ_GEOM, "visual_sphere");
   ASSERT_GE(visual_sphere_id, 0);
   EXPECT_EQ(model->geom_type[visual_sphere_id], mjtGeom::mjGEOM_SPHERE);
 }
@@ -115,7 +117,8 @@ TEST_F(MujocoTest, CanLoadUrdfWithNonUniqueNamesCollisionBeforeVisual) {
 
   // Check the collision geom gets its name from the URDF. The visual sphere
   // should not have a name to avoid duplicates.
-  int collision_box_id = mj_name2id(model.get(), mjtObj::mjOBJ_GEOM, "shared_name");
+  int collision_box_id =
+      mj_name2id(model.get(), mjtObj::mjOBJ_GEOM, "shared_name");
   ASSERT_GE(collision_box_id, 0);
   EXPECT_EQ(model->geom_type[collision_box_id], mjtGeom::mjGEOM_BOX);
 }
@@ -149,7 +152,8 @@ TEST_F(MujocoTest, CanLoadUrdfWithNonUniqueNamesVisualBeforeCollision) {
 
   // Check the visual geom gets its name from the URDF. The collision geom
   // should not have a name to avoid duplicates.
-  int visual_sphere_id = mj_name2id(model.get(), mjtObj::mjOBJ_GEOM, "shared_name");
+  int visual_sphere_id =
+      mj_name2id(model.get(), mjtObj::mjOBJ_GEOM, "shared_name");
   ASSERT_GE(visual_sphere_id, 0);
   EXPECT_EQ(model->geom_type[visual_sphere_id], mjtGeom::mjGEOM_SPHERE);
 }
@@ -229,12 +233,13 @@ TEST_F(MujocoTest, ReadsJointTypes) {
   std::vector<mjtJoint> expected_joint_types = {
       mjtJoint::mjJNT_FREE, mjtJoint::mjJNT_HINGE, mjtJoint::mjJNT_BALL,
       mjtJoint::mjJNT_SLIDE};
-  std::vector<std::vector<float>> expected_axis = {
-    {0.0, 0.0, 1.0}, {0.707107, 0.0, -0.707107}, {0.0, 0.0, 1.0},
-    {0.0, 0.0, 1.0}
-  };
+  std::vector<std::vector<float>> expected_axis = {{0.0, 0.0, 1.0},
+                                                   {0.707107, 0.0, -0.707107},
+                                                   {0.0, 0.0, 1.0},
+                                                   {0.0, 0.0, 1.0}};
   for (int i = 0; i < joint_names.size(); ++i) {
-    int id = mj_name2id(model.get(), mjtObj::mjOBJ_JOINT, joint_names[i].c_str());
+    int id =
+        mj_name2id(model.get(), mjtObj::mjOBJ_JOINT, joint_names[i].c_str());
     EXPECT_EQ(model->jnt_type[id], expected_joint_types[i]);
     EXPECT_NEAR(model->jnt_axis[3 * id], expected_axis[i][0], eps);
     EXPECT_NEAR(model->jnt_axis[3 * id + 1], expected_axis[i][1], eps);
