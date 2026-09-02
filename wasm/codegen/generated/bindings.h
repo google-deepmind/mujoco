@@ -6791,6 +6791,12 @@ struct MjData {
   void set_nefmK(int value) {
     ptr_->nefmK = value;
   }
+  int nefmcon() const {
+    return ptr_->nefmcon;
+  }
+  void set_nefmcon(int value) {
+    ptr_->nefmcon = value;
+  }
   int nefmT() const {
     return ptr_->nefmT;
   }
@@ -7382,6 +7388,12 @@ struct MjData {
   }
   emscripten::val efm_dofid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefmdof, ptr_->efm_dofid));
+  }
+  emscripten::val efm_con_ind() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmcon, ptr_->efm_con_ind));
+  }
+  emscripten::val efm_con_val() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmcon, ptr_->efm_con_val));
   }
   emscripten::val efm_L() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefmL, ptr_->efm_L));

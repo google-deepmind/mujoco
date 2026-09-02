@@ -5761,6 +5761,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of non-zeros in effective-stiffness CSR',
              ),
              StructFieldDecl(
+                 name='nefmcon',
+                 type=ValueType(name='int'),
+                 doc='packed length of the contact rank-1 rows',
+             ),
+             StructFieldDecl(
                  name='nefmT',
                  type=ValueType(name='int'),
                  doc='number of tendons with terms in the metric',
@@ -7154,6 +7159,22 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='block k -> dof address of its vertex triple',
                  array_extent=('nefmdof',),
+             ),
+             StructFieldDecl(
+                 name='efm_con_ind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='contact rank-1 rows, packed [nnz, colind...]',
+                 array_extent=('nefmcon',),
+             ),
+             StructFieldDecl(
+                 name='efm_con_val',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='contact rank-1 rows, packed [scale, val...]',
+                 array_extent=('nefmcon',),
              ),
              StructFieldDecl(
                  name='efm_L',

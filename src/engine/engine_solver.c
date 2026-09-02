@@ -1266,7 +1266,7 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
       int tcap = 0, tlow = 0;
       mjEffRank1Iter it = {0};
       mjEffRank1 e;
-      while (mjd_effRank1Next(m, d, &it, &e)) {
+      while (mjd_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
         if (ctx->island >= 0 && d->tree_island[m->dof_treeid[e.colind[0]]] != ctx->island) {
           continue;
         }
@@ -2157,7 +2157,7 @@ static void MakeMetricLower(mjData* d, mjPrimalContext* ctx) {
 
   // count rank-1 entries per (local) row
   it = (mjEffRank1Iter){0};
-  while (mjd_effRank1Next(m, d, &it, &e)) {
+  while (mjd_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
     if (island >= 0 && d->tree_island[m->dof_treeid[e.colind[0]]] != island) {
       continue;
     }
@@ -2182,7 +2182,7 @@ static void MakeMetricLower(mjData* d, mjPrimalContext* ctx) {
 
   // fill the buckets
   it = (mjEffRank1Iter){0};
-  while (mjd_effRank1Next(m, d, &it, &e)) {
+  while (mjd_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
     if (island >= 0 && d->tree_island[m->dof_treeid[e.colind[0]]] != island) {
       continue;
     }

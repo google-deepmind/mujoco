@@ -1028,6 +1028,8 @@
     X  ( int,      efm_K_colind,      MJ_D(nefmK),       1 ) \
     X  ( mjtNum,   efm_K_val,         MJ_D(nefmK),       1 ) \
     X  ( int,      efm_dofid,         MJ_D(nefmdof),     1 ) \
+    X  ( int,      efm_con_ind,       MJ_D(nefmcon),     1 ) \
+    X  ( mjtNum,   efm_con_val,       MJ_D(nefmcon),     1 ) \
     X  ( mjtNum,   efm_L,             MJ_D(nefmL),       1 )
 
 
@@ -1060,6 +1062,7 @@
     X( int,       nJ                 ) \
     X( int,       efm_active         ) \
     X( int,       nefmK              ) \
+    X( int,       nefmcon            ) \
     X( int,       nefmT              ) \
     X( int,       nefmA              ) \
     X( int,       nefmdof            ) \

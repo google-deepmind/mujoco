@@ -431,6 +431,9 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
   // effective metric (integrator=discrete) carries the coupling inside the constraint solve. Awake
   // trees only: sleeping trees must stay out of islands (mj_sleep invariant, matching the
   // constraint filter); waking a flex as a unit remains the wake machinery's job.
+  // NOTE: passive flex contact between two DIFFERENT flexes has no efc row either, and nothing
+  // merges their trees. Unreachable while effFlexAny forces a monolithic solve; island-local
+  // flex operators will need a contact-driven merge here (walk exclude==4 contacts, union sides).
   for (int f=0; f < m->nflex; f++) {
     if (!mj_effFlexStiffPossible(m, f) && !mj_effFlexContactPossible(m, f)) {
       continue;

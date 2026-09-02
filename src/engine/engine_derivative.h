@@ -82,15 +82,11 @@ MJAPI void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const m
 // fills colind/val. Interp flexes are assembled iff Krot (mjd_flexInterp_cacheKrot cache) is
 // non-NULL and the centered fast path applies (check mjd_flexInterpAssemblable first).
 // Passive contact stiffness (omega^2 * m_min); force and Hessian must use the same value.
-// res += scale * K_contact * vec (shift counterpart of the contact stiffness in the metric).
-MJAPI void mjd_flexContact_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
-                               mjtNum scale);
-
 MJAPI mjtNum mjd_flexContactStiffness(const mjModel* m, const mjData* d, const mjContact* con);
 
 MJAPI int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr,
                                  int* colind, mjtNum* val, mjtNum s1, mjtNum s2,
-                                 int flg_bend, int flg_stretch, int flg_contact, const mjtNum* Krot);
+                                 int flg_bend, int flg_stretch, const mjtNum* Krot);
 
 // can all interp flexes be assembled to dof-level CSR? (centered fast path everywhere)
 MJAPI mjtBool mjd_flexInterpAssemblable(const mjModel* m);
@@ -118,8 +114,10 @@ typedef struct {
 
 // yield the next live rank-1 term of the metric; init the cursor to {0}, returns 0 when
 // exhausted. Producers: tendons, then actuator output rows; zero entries are skipped.
-// A new metric class becomes a new case here, invisible to every consumer
-int mjd_effRank1Next(const mjModel* m, const mjData* d, mjEffRank1Iter* it, mjEffRank1* e);
+// A new metric class becomes a new case here, invisible to every consumer.
+// flg_contact selects the passive-contact class, for callers that account for contact separately
+int mjd_effRank1Next(const mjModel* m, const mjData* d, mjEffRank1Iter* it,
+                     mjEffRank1* e, int flg_contact);
 
 // island-local metric product res += S*vec, vectors in island-local dof coordinates
 void mjd_effMulAddIsland(const mjModel* m, const mjData* d, mjtNum* res,
@@ -134,7 +132,7 @@ MJAPI void mjd_effShift(const mjModel* m, mjData* d);
 
 // res += B*vec (the stiffness part of the metric; caller supplies the M part).
 // flg_contact selects the passive-contact class, for callers that account for contact
-// energy separately; inert while contact rides the flex-stiffness CSR
+// energy separately
 MJAPI void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                          int flg_contact);
 

@@ -3814,6 +3814,73 @@ TEST_F(ImplicitIntegratorTest, PassiveFlexContactInMetric) {
       << " against the lower sheet's " << lo[0];
 }
 
+// The contact rows carry the full Jacobian chain: with the lower sheet pinned
+// to a hinged body, the upper sheet's contacts couple to the hinge inside the
+// metric, not only in the shift. The drop must stay stable, stay bounded, and
+// reach the base. The pinned sheet is stretch-only because pins on a jointed
+// body are refused with bending, and soft because its elastic coupling to the
+// hinge is still explicit. With contact restricted to flex dofs this scene
+// diverged within 100 steps of contact onset.
+TEST_F(ImplicitIntegratorTest, PassiveFlexContactMovingBase) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="CG" iterations="400"/>
+    <worldbody>
+      <body name="base" pos="0 0 .2">
+        <joint name="tilt" type="hinge" axis="0 1 0" stiffness="1" damping=".05"/>
+        <geom type="box" size=".05 .05 .005" pos="0 0 -.1" mass="2"/>
+        <flexcomp name="lower" type="grid" dim="2" count="9 9 1" spacing=".04 .04 1"
+                  radius=".008" mass=".3">
+          <contact selfcollide="auto" passive="true"/>
+          <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="stretch" damping="1e-4"/>
+          <pin id="0 8 72 80"/>
+        </flexcomp>
+      </body>
+      <flexcomp name="upper" type="grid" dim="2" count="5 5 1" spacing=".04 .04 1"
+                radius=".008" mass=".1" pos=".05 0 .23">
+        <contact selfcollide="auto" passive="true"/>
+        <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="both" damping="1e-4"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  const mjModel* model = m.get();
+  mjData* data = d.get();
+
+  mjtNum vmax = 0;
+  for (int i = 0; i < 1000; i++) {
+    mj_step(model, data);
+    for (int j = 0; j < model->nv; j++) {
+      vmax = mju_max(vmax, mju_abs(data->qvel[j]));
+    }
+    ASSERT_FALSE(data->warning[mjWARN_BADQACC].number)
+        << "diverged at step " << i;
+  }
+  EXPECT_LT(vmax, 4.0) << "peak speed " << vmax;
+
+  // the off-centre load tilts the base through the pinned corners
+  int tilt = mj_name2id(model, mjOBJ_JOINT, "tilt");
+  EXPECT_GT(mju_abs(data->qpos[model->jnt_qposadr[tilt]]), 1e-3)
+      << "load never reached the base";
+
+  // upper sheet must not pass through the lower one
+  mjtNum lo[2] = {1e30, 1e30};
+  for (int k = 0; k < 2; k++) {
+    int f = mj_name2id(model, mjOBJ_FLEX, k ? "upper" : "lower");
+    for (int i = 0; i < model->flex_vertnum[f]; i++) {
+      lo[k] = mju_min(
+          lo[k], data->flexvert_xpos[3 * (model->flex_vertadr[f] + i) + 2]);
+    }
+  }
+  EXPECT_GT(lo[1], lo[0] - 0.01)
+      << "upper sheet passed through: lowest z " << lo[1]
+      << " against the lower sheet's " << lo[0];
+}
+
 // passive contact on unsupported flex shapes (rigid, interpolated, 1D): a
 // compile-time warning fires, the attribute is ignored, and the contact stays
 // on the constraint solver
