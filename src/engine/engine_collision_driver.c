@@ -1688,7 +1688,8 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
 
     // filter SAP pairs, convert to bodyflex pairs
     for (int i=0; i < nsappair; i++) {
-      int bf1 = bfid[sappair[i] >> 16];
+      // mask the high half: the packed pair is negative once an id reaches 0x8000
+      int bf1 = bfid[(sappair[i] >> 16) & 0xFFFF];
       int bf2 = bfid[sappair[i] & 0xFFFF];
 
       // body pair: prune based on sleep filter and weld filter
@@ -2358,7 +2359,8 @@ void mj_collideFlexSAP(const mjModel* m, mjData* d, int f) {
 
   // send SAP pairs to nearphase
   for (int i=0; i < nsappair; i++) {
-    int e1 = elid[sappair[i] >> 16];
+    // mask the high half: the packed pair is negative once an id reaches 0x8000
+    int e1 = elid[(sappair[i] >> 16) & 0xFFFF];
     int e2 = elid[sappair[i] & 0xFFFF];
     mj_collideElems(m, d, f, e1, f, e2);
   }
