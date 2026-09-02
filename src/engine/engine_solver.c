@@ -1049,6 +1049,7 @@ typedef struct {
   // Newton arrays, known-size (PrimalAllocate)
   mjtNum* D;              // constraint inertia                           (nefc x 1)
   mjtNum* cholupd;        // scratch for rank-1 Cholesky updates          (nv x 1)
+  mjtNum* cholscratch;    // dense accumulator for the sparse kernels     (nv x 1)
   mjtNum* LTJ;            // L'*J for cone Cholesky updates               (6 x nv)
   int* H_rowadr;          // Hessian row addresses                        (nv x 1)
   int* H_rownnz;          // Hessian row nonzeros                         (nv x 1)
@@ -1226,7 +1227,9 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
   if (flg_Newton) {
     nNum += nefc + nv;                 // D, cholupd
     if (is_elliptic) nNum += 6*nv;     // LTJ
-    if (!is_sparse) {
+    if (is_sparse) {
+      nNum += nv;                      // cholscratch
+    } else {
       nNum += nv*nv;                   // L (dense)
       if (is_elliptic) nNum += nv*nv;  // Lcone (dense)
     }
@@ -1347,7 +1350,9 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
     if (is_elliptic) {
       ctx->LTJ = numblock;  numblock += 6*nv;
     }
-    if (!is_sparse) {
+    if (is_sparse) {
+      ctx->cholscratch = numblock;  numblock += nv;
+    } else {
       ctx->nL = nv*nv;
       ctx->L     = numblock;  numblock += ctx->nL;
       ctx->Lcone = is_elliptic ? numblock : NULL;
@@ -2442,7 +2447,7 @@ static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute)
         ctx->L, nv, mjMINVAL,
         ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind,
         ctx->LT_rownnz, ctx->LT_rowadr, ctx->LT_colind, ctx->LT_map,
-        ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, d);
+        ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, ctx->cholscratch);
 
     // rank-deficient; SHOULD NOT OCCUR
     if (rank != nv) {
@@ -2515,7 +2520,7 @@ static void HessianCone(mjData* d, mjPrimalContext* ctx) {
         for (int r=0; r < dim; r++) {
           mju_cholUpdateSparse(ctx->Lcone, LTJ+r*nnz, nv, 1,
                                ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind, nnz,
-                               ctx->J_colind+ctx->J_rowadr[i+r], d);
+                               ctx->J_colind+ctx->J_rowadr[i+r], ctx->cholscratch);
         }
       }
 
@@ -2580,7 +2585,7 @@ static void HessianIncremental(mjData* d, mjPrimalContext* ctx, const int* oldst
         // sparse update or downdate
         rank = mju_cholUpdateSparse(ctx->L, cholupd, nv, flag_update,
                                     ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind, nnz,
-                                    ctx->J_colind+adr, d);
+                                    ctx->J_colind+adr, ctx->cholscratch);
       } else {
         mju_scl(cholupd, ctx->J+i*nv, mju_sqrt(ctx->efc_D[i]), nv);
         rank = mju_cholUpdate(ctx->L, cholupd, nv, flag_update);

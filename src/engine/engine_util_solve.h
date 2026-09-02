@@ -51,12 +51,13 @@ MJAPI int mju_cholFactorSymbolic(int* L_colind, int* L_rownnz, int* L_rowadr,
 // numeric reverse-Cholesky: compute L values given fixed sparsity pattern, returns rank
 //  L_colind must already contain the correct sparsity pattern (from mju_cholFactorSymbolic)
 //  LT_map[k] gives index in L for LT_colind[k]
+//  scratch: caller-provided workspace of size n, contents ignored
 MJAPI int mju_cholFactorNumeric(mjtNum* L, int n, mjtNum mindiag,
                                 const int* L_rownnz, const int* L_rowadr, const int* L_colind,
                                 const int* LT_rownnz, const int* LT_rowadr, const int* LT_colind,
                                 const int* LT_map, const mjtNum* H,
                                 const int* H_rownnz, const int* H_rowadr, const int* H_colind,
-                                mjData* d);
+                                mjtNum* scratch);
 
 // sparse reverse-order Cholesky solve
 void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n,
@@ -64,9 +65,10 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 
 // sparse reverse-order Cholesky rank-one update: L'*L +/i x*x'; return rank
 //  x is sparse, change in sparsity pattern of mat is not allowed
+//  scratch: caller-provided workspace of size n, contents ignored
 MJAPI int mju_cholUpdateSparse(mjtNum* mat, const mjtNum* x, int n, int flg_plus,
                                const int* rownnz, const int* rowadr, const int* colind,
-                               int x_nnz, const int* x_ind, mjData* d);
+                               int x_nnz, const int* x_ind, mjtNum* scratch);
 
 // band-dense Cholesky decomposition
 //  returns minimum value in the factorized diagonal, or 0 if rank-deficient

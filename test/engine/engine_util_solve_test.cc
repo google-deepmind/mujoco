@@ -916,6 +916,7 @@ TEST_F(EngineUtilSolveTest, MjuCholUpdateSparse) {
     vector<mjtNum> x_sparse(n);
     vector<int> x_ind(n);
     vector<mjtNum> L_sparse_dense(n * n);
+    vector<mjtNum> scratch(n);
     vector<mjtNum> H_sparse_reconstructed(n * n);
 
     for (int flg_plus : {0, 1}) {
@@ -982,7 +983,7 @@ TEST_F(EngineUtilSolveTest, MjuCholUpdateSparse) {
       // apply sparse rank-one update
       int rank_sparse = mju_cholUpdateSparse(
           L_sparse.data(), x_sparse.data(), n, flg_plus, rownnz.data(),
-          rowadr.data(), colind.data(), x_nnz, x_ind.data(), d.get());
+          rowadr.data(), colind.data(), x_nnz, x_ind.data(), scratch.data());
       EXPECT_EQ(rank_sparse, n)
           << "Sparse update rank loss for n=" << n << ", flg_plus=" << flg_plus;
 
@@ -1064,10 +1065,11 @@ TEST_F(EngineUtilSolveTest, CholFactorSymbolicNumeric) {
   }
 
   // numeric factorization using new function
-  mjtNum L_new[16];
+  mjtNum L_new[16], numeric_scratch[4];
   int rank_new = mju_cholFactorNumeric(
       L_new, n, 1e-10, L_rownnz, L_rowadr, L_colind, LT_rownnz, LT_rowadr,
-      LT_colind, LT_pos, sparseH, H_rownnz, H_rowadr, H_colind, d.get());
+      LT_colind, LT_pos, sparseH, H_rownnz, H_rowadr, H_colind,
+      numeric_scratch);
 
   // reference implementation: copy sparse H into L_ref, then factor in-place
   mjtNum L_ref[16];

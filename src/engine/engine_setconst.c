@@ -1507,10 +1507,11 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
                          Hu_rownnz, Hu_rowadr, Hu_colind, nbd, d);
 
   // numeric factorization
+  mjtNum* scratch = mjSTACKALLOC(d, nbd, mjtNum);
   int rank = mju_cholFactorNumeric(m->efm0_L, nbd, mjMINVAL,
                                    m->efm0_L_rownnz, m->efm0_L_rowadr, m->efm0_L_colind,
                                    LT_rownnz, LT_rowadr, LT_colind, LT_map,
-                                   Hl_val, Hl_rownnz, Hl_rowadr, Hl_colind, d);
+                                   Hl_val, Hl_rownnz, Hl_rowadr, Hl_colind, scratch);
   if (rank != nbd) {
     mj_freeStack(d);
     mjERROR("constant metric factor is rank-deficient (%d of %d)", rank, nbd);

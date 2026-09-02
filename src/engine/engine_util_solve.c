@@ -314,13 +314,10 @@ int mju_cholFactorNumeric(mjtNum* restrict L, int n, mjtNum mindiag,
                           const int* LT_rownnz, const int* LT_rowadr, const int* LT_colind,
                           const int* LT_map, const mjtNum* H,
                           const int* H_rownnz, const int* H_rowadr, const int* H_colind,
-                          mjData* d) {
+                          mjtNum* scratch) {
   int rank = n;
 
-  // single-row dense accumulator
-  mj_markStack(d);
-  mjtNum* restrict dense = mjSTACKALLOC(d, n, mjtNum);
-  mju_zero(dense, n);
+  mjtNum* restrict dense = scratch;
 
   // backpass over rows
   for (int r = n - 1; r >= 0; r--) {
@@ -379,7 +376,6 @@ int mju_cholFactorNumeric(mjtNum* restrict L, int n, mjtNum mindiag,
     }
   }
 
-  mj_freeStack(d);
   return rank;
 }
 
@@ -431,7 +427,7 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 int mju_cholUpdateSparse(mjtNum* restrict mat, const mjtNum* restrict x, int n, int flg_plus,
                          const int* restrict rownnz, const int* restrict rowadr,
                          const int* restrict colind, int x_nnz, const int* restrict x_ind,
-                         mjData* d) {
+                         mjtNum* scratch) {
   // early return if x is empty
   if (x_nnz == 0) {
     return n;
@@ -440,9 +436,8 @@ int mju_cholUpdateSparse(mjtNum* restrict mat, const mjtNum* restrict x, int n, 
   // get starting row: last non-zero entry in x
   int start = x_ind[x_nnz - 1];
 
-  // allocate dense accumulator for x
-  mj_markStack(d);
-  mjtNum* restrict dense = mjSTACKALLOC(d, start + 1, mjtNum);
+  // dense accumulator for x, cleared over the range the backpass touches
+  mjtNum* restrict dense = scratch;
   mju_zero(dense, start + 1);
 
   // scatter x into dense
@@ -486,7 +481,6 @@ int mju_cholUpdateSparse(mjtNum* restrict mat, const mjtNum* restrict x, int n, 
     }
   }
 
-  mj_freeStack(d);
   return rank;
 }
 
