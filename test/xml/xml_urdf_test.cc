@@ -307,10 +307,11 @@ TEST_F(MujocoTest, RepeatedMeshName) {
 }
 
 TEST_F(MujocoTest, MimicBecomesJointEquality) {
-  // gripper with mirrored fingers: right_joint = -1 * left_joint. the target
-  // joint is declared after the joint that mimics it, on purpose
+  // gripper with mirrored fingers: right_joint = -1 * left_joint + 0.02. the
+  // target joint is declared after the joint that mimics it, on purpose
   static constexpr char urdf[] = R"(
   <robot name="gripper">
+    <mujoco><option gravity="0 0 0"/></mujoco>
     <link name="base">
       <inertial><mass value="1"/>
         <inertia ixx="1" iyy="1" izz="1" ixy="0" ixz="0" iyz="0"/></inertial>
@@ -325,10 +326,12 @@ TEST_F(MujocoTest, MimicBecomesJointEquality) {
     </link>
     <joint name="right_joint" type="prismatic">
       <parent link="base"/><child link="right_finger"/><axis xyz="1 0 0"/>
+      <dynamics damping="1"/>
       <mimic joint="left_joint" multiplier="-1" offset="0.02"/>
     </joint>
     <joint name="left_joint" type="prismatic">
       <parent link="base"/><child link="left_finger"/><axis xyz="1 0 0"/>
+      <dynamics damping="1"/>
     </joint>
   </robot>)";
 
@@ -338,10 +341,23 @@ TEST_F(MujocoTest, MimicBecomesJointEquality) {
 
   ASSERT_EQ(model->neq, 1);
   EXPECT_EQ(model->eq_type[0], mjEQ_JOINT);
-  EXPECT_EQ(model->eq_obj1id[0], mj_name2id(model.get(), mjOBJ_JOINT, "right_joint"));
-  EXPECT_EQ(model->eq_obj2id[0], mj_name2id(model.get(), mjOBJ_JOINT, "left_joint"));
+  int right = mj_name2id(model.get(), mjOBJ_JOINT, "right_joint");
+  int left = mj_name2id(model.get(), mjOBJ_JOINT, "left_joint");
+  EXPECT_EQ(model->eq_obj1id[0], right);
+  EXPECT_EQ(model->eq_obj2id[0], left);
   EXPECT_EQ(model->eq_data[0], 0.02);  // offset
   EXPECT_EQ(model->eq_data[1], -1.0);  // multiplier
+
+  // simulate from a driver displacement and check the follower tracks
+  // q_right = -1 * q_left + 0.02
+  MjDataPtr data = MakeData(model);
+  data->qpos[model->jnt_qposadr[left]] = 0.03;
+  while (data->time < 2) {
+    mj_step(model.get(), data.get());
+  }
+  double q_left = data->qpos[model->jnt_qposadr[left]];
+  double q_right = data->qpos[model->jnt_qposadr[right]];
+  EXPECT_NEAR(q_right, -1.0 * q_left + 0.02, 1e-4);
 }
 
 TEST_F(MujocoTest, MimicTargetingIncompatibleJointIsIgnored) {
