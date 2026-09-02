@@ -16,6 +16,8 @@
 #     no coverage.
 #   * ccache is used to wrap the compiler. PR branches fall back to main's cache, so
 #     the expensive (and pinned) Filament build is restored rather than recompiled.
+#   * Single precision (mjUSESINGLE) is covered by the dedicated `single` job
+#     below - one fast configuration rather than a matrix-wide rebuild.
 
 # TODO(matijak): Consider switching Windows to Ninja builds only, this configures slightly faster
 # and brings Windows in line with other OSes. Also we wouldn't need to specify the --config option
@@ -50,7 +52,7 @@ jobs:
     outputs:
       matrix: ${{ steps.generate.outputs.matrix }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
     - name: Generate build matrix
       id: generate
       env:
@@ -66,7 +68,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
     - name: Prepare Linux
       if: ${{ runner.os == 'Linux' }}
@@ -76,7 +78,7 @@ jobs:
       if: ${{ runner.os == 'macOS' }}
       run: brew install ninja
 
-    - uses: actions/setup-python@v6
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
       with:
         python-version: "3.11"
 
@@ -85,7 +87,7 @@ jobs:
     # keeps the venv activate fixup path untouched there).
     - name: Install uv
       if: ${{ runner.os != 'Windows' }}
-      uses: astral-sh/setup-uv@v8.2.0
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
       with:
         enable-cache: true
         cache-dependency-glob: "python/build_requirements*.txt"
@@ -102,7 +104,7 @@ jobs:
     # isn't the bottleneck, so we skip it there.
     - name: Setup ccache
       if: ${{ runner.os != 'Windows' }}
-      uses: hendrikmuhs/ccache-action@v1.2.23
+      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ${{ matrix.label }}
         max-size: "1.5G"
@@ -115,7 +117,7 @@ jobs:
 
     - name: Upload CMake Configure Log
       if: always()
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: cmake-configure-log-${{ matrix.label }}
         path: build/CMakeFiles/CMakeConfigureLog.yaml
@@ -157,8 +159,11 @@ jobs:
       run: bash ../.github/workflows/build_steps.sh configure_samples
 
     - name: Build samples
+      shell: bash
       working-directory: sample/build
-      run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
+      env:
+        CMAKE_BUILD_ARGS: ${{ matrix.cmake_build_args }}
+      run: cmake --build . --config=Release $CMAKE_BUILD_ARGS
 
     - name: Configure simulate
       working-directory: simulate
@@ -220,6 +225,61 @@ jobs:
       if: failure() && github.ref_name == 'main' && github.event_name == 'push' && env.GCHAT_API_URL != ''
       run: bash ./.github/workflows/build_steps.sh notify_team_chat
 
+  # Single-precision canary: build the library and test suite with mjtNum
+  # defined as float (-DmjUSESINGLE) and run the C/C++ tests. Internal CI tests
+  # this configuration, but the matrix above is double-only, so PRs that break
+  # single-precision builds or tests would otherwise look green here and only
+  # fail on import. One fast configuration is enough: the failures this catches
+  # (double-only code, tolerances too tight for float32) are not
+  # compiler-specific, and a full extra matrix would double CI cost.
+  single:
+    name: "ubuntu-24.04-clang-18-single"
+    runs-on: ubuntu-24.04
+    env:
+      label: "ubuntu-24.04-clang-18-single"
+      TMPDIR: "/tmp"
+      CMAKE_ARGS: >-
+        -G Ninja
+        -DCMAKE_C_COMPILER:STRING=clang-18
+        -DCMAKE_CXX_COMPILER:STRING=clang++-18
+        -DMUJOCO_HARDEN:BOOL=ON
+        -DCMAKE_C_FLAGS:STRING=-DmjUSESINGLE
+        -DCMAKE_CXX_FLAGS:STRING=-DmjUSESINGLE
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+    - name: Prepare Linux
+      run: bash ./.github/workflows/build_steps.sh prepare_linux
+
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
+      with:
+        key: ${{ env.label }}
+        max-size: "1.5G"
+
+    - name: Configure MuJoCo
+      run: bash ./.github/workflows/build_steps.sh configure_mujoco
+
+    - name: Build MuJoCo
+      working-directory: build
+      run: bash ../.github/workflows/build_steps.sh build_mujoco
+
+    - name: Test MuJoCo
+      working-directory: build
+      run: bash ../.github/workflows/build_steps.sh test_mujoco
+
+    - name: Notify team chat
+      shell: bash
+      env:
+        GCHAT_API_URL: ${{ secrets.GCHAT_API }}
+        JOB_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
+        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
+        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        CHATMSG_JOB_ID: ${{ env.label }}
+      if: failure() && github.ref_name == 'main' && github.event_name == 'push' && env.GCHAT_API_URL != ''
+      run: bash ./.github/workflows/build_steps.sh notify_team_chat
+
   # This job quickly determines if MuJoCo Studio is broken. It is the only place
   # Filament is compiled in CI, so ccache here is what keeps the long pole short.
   studio:
@@ -258,11 +318,11 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
     - name: Prepare Windows (setup MSVC)
       if: ${{ runner.os == 'Windows' }}
-      uses: ilammy/msvc-dev-cmd@v1
+      uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
 
     - name: Prepare Linux
       if: ${{ runner.os == 'Linux' }}
@@ -275,7 +335,7 @@ jobs:
     # compiler invocation, so changing any build flag forces a recompile regardless.)
     - name: Setup ccache
       if: ${{ runner.os != 'Windows' }}
-      uses: hendrikmuhs/ccache-action@v1.2.23
+      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ${{ matrix.label }}-filament-${{ hashFiles('cmake/third_party_deps/filament.cmake') }}
         restore-keys: ${{ matrix.label }}-filament-
@@ -314,10 +374,10 @@ jobs:
         -DCMAKE_CXX_COMPILER:STRING=clang++-18
         -DMUJOCO_HARDEN:BOOL=ON
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
     - name: Setup Node.js for WASM bindings
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
       with:
         node-version: '24.x'
 
@@ -326,7 +386,7 @@ jobs:
       run: bash ./.github/workflows/build_steps.sh prepare_linux
 
     - name: Setup ccache
-      uses: hendrikmuhs/ccache-action@v1.2.23
+      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ${{ env.label }}
         max-size: "1.5G"
@@ -369,17 +429,17 @@ jobs:
         -DMUJOCO_HARDEN:BOOL=ON
         -DMUJOCO_BUILD_TESTS:BOOL=OFF
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
     - name: Prepare Linux
       run: bash ./.github/workflows/build_steps.sh prepare_linux
 
-    - uses: actions/setup-python@v6
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
       with:
         python-version: "3.11"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v8.2.0
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
       with:
         enable-cache: true
         cache-dependency-glob: "python/build_requirements*.txt"
@@ -388,7 +448,7 @@ jobs:
       run: bash ./.github/workflows/build_steps.sh prepare_python
 
     - name: Setup ccache
-      uses: hendrikmuhs/ccache-action@v1.2.23
+      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ubuntu-24.04-clang-18-mjx
         max-size: "1.0G"
