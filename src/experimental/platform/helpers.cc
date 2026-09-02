@@ -14,20 +14,12 @@
 
 #include "experimental/platform/helpers.h"
 
-#include <algorithm>
-#include <cstddef>
-#include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <filesystem>
 #include <fstream>
-#include <ios>
 #include <iterator>
 #include <string>
-#include <vector>
 
-#include "webp/encode.h"
-#include "webp/types.h"
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "engine/engine_vis_visualize.h"
@@ -46,63 +38,6 @@ std::string LoadText(const std::string& filename) {
                        std::istreambuf_iterator<char>());
   file.close();
   return contents;
-}
-
-static std::string CheckPathForFile(const std::filesystem::path& path,
-                                    const std::string& filename) {
-  std::filesystem::path resolved = path / filename;
-  if (std::filesystem::exists(resolved)) {
-    return resolved.string();
-  }
-  resolved += ".xml";
-  if (std::filesystem::exists(resolved)) {
-    return resolved.string();
-  }
-  return "";
-}
-
-std::string ResolveFile(const std::string& filename,
-                        const std::vector<std::string>& search_paths) {
-  if (std::filesystem::exists(filename)) {
-    return filename;
-  }
-
-  std::string resolved;
-  for (const std::string& path : search_paths) {
-    if (!std::filesystem::exists(path) ||
-        !std::filesystem::is_directory(path)) {
-      continue;
-    }
-
-    resolved = CheckPathForFile(std::filesystem::path(path), filename);
-    if (!resolved.empty()) {
-      return resolved;
-    }
-
-    std::vector<std::filesystem::path> entries;
-    for (const auto& it : std::filesystem::recursive_directory_iterator(path)) {
-      entries.push_back(it.path());
-    }
-    std::sort(entries.begin(), entries.end());
-    for (const auto& entry : entries) {
-      resolved = CheckPathForFile(entry, filename);
-      if (!resolved.empty()) {
-        return resolved;
-      }
-    }
-  }
-  return filename;
-}
-
-void SaveToWebp(int width, int height, const std::byte* data,
-                const std::string& filename) {
-  uint8_t* webp = nullptr;
-  const size_t size = WebPEncodeLosslessRGB(
-      reinterpret_cast<const uint8_t*>(data), width, height, width * 3, &webp);
-  std::ofstream file(filename, std::ios::binary);
-  file.write(reinterpret_cast<const char*>(webp), size);
-  file.close();
-  WebPFree(webp);
 }
 
 const void* GetValue(const mjModel* model, const mjData* data,

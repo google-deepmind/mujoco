@@ -18,11 +18,14 @@
 #include <array>
 #include <cfloat>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <functional>
+#include <ios>
 #include <memory>
 #include <optional>
 #include <span>
@@ -34,6 +37,8 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <implot.h>
+#include "webp/encode.h"
+#include "webp/types.h"
 #include <mujoco/mujoco.h>
 #include "experimental/platform/hal/classic_renderer.h"
 #include "experimental/platform/hal/filament_renderer.h"
@@ -72,6 +77,66 @@ static void SelectParentPerturb(const mjModel* model, mjvPerturb& perturb) {
     }
   }
   // TODO: update selected element!
+}
+
+static std::string CheckPathForFile(const std::filesystem::path& path,
+                                    const std::string& filename) {
+  std::filesystem::path resolved = path / filename;
+  if (std::filesystem::exists(resolved)) {
+    return resolved.string();
+  }
+  resolved += ".xml";
+  if (std::filesystem::exists(resolved)) {
+    return resolved.string();
+  }
+  return "";
+}
+
+// Attempts to find a file with the given name by recursively searching the
+// given search paths.
+static std::string ResolveFile(const std::string& filename,
+                               const std::vector<std::string>& search_paths) {
+  if (std::filesystem::exists(filename)) {
+    return filename;
+  }
+
+  std::string resolved;
+  for (const std::string& path : search_paths) {
+    if (!std::filesystem::exists(path) ||
+        !std::filesystem::is_directory(path)) {
+      continue;
+    }
+
+    resolved = CheckPathForFile(std::filesystem::path(path), filename);
+    if (!resolved.empty()) {
+      return resolved;
+    }
+
+    std::vector<std::filesystem::path> entries;
+    for (const auto& it : std::filesystem::recursive_directory_iterator(path)) {
+      entries.push_back(it.path());
+    }
+    std::sort(entries.begin(), entries.end());
+    for (const auto& entry : entries) {
+      resolved = CheckPathForFile(entry, filename);
+      if (!resolved.empty()) {
+        return resolved;
+      }
+    }
+  }
+  return filename;
+}
+
+// Exports the given image (assumed to be RGB888) to a webp file.
+static void SaveToWebp(int width, int height, const std::byte* data,
+                       const std::string& filename) {
+  uint8_t* webp = nullptr;
+  const size_t size = WebPEncodeLosslessRGB(
+      reinterpret_cast<const uint8_t*>(data), width, height, width * 3, &webp);
+  std::ofstream file(filename, std::ios::binary);
+  file.write(reinterpret_cast<const char*>(webp), size);
+  file.close();
+  WebPFree(webp);
 }
 
 static constexpr const char* ICON_RELOAD_MODEL = platform::ICON_FA_REFRESH;
@@ -175,8 +240,7 @@ void App::InitEmptyModel() {
 }
 
 void App::LoadModelFromFile(const std::string& filepath) {
-  const std::string resolved_file =
-      platform::ResolveFile(filepath, search_paths_);
+  const std::string resolved_file = ResolveFile(filepath, search_paths_);
   model_holder_ = platform::ModelHolder::FromFile(resolved_file);
   if (model_holder_->ok()) {
     OnModelLoaded(filepath, kModelFromFile);
@@ -2136,7 +2200,7 @@ void App::FileDialogGui() {
           std::vector<std::byte> buffer(width * height * 3);
           renderer_->RenderToTexture(model(), data(), &camera_, width, height,
                                      buffer.data());
-          platform::SaveToWebp(width, height, buffer.data(), res.path);
+          SaveToWebp(width, height, buffer.data(), res.path);
           break;
         }
         case UiTempState::FileDialog_PrintModel:

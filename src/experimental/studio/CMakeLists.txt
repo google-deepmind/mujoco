@@ -19,6 +19,7 @@ include(third_party_deps/implot)
 include(third_party_deps/atkinson_hyperlegible_next)
 include(third_party_deps/atkinson_hyperlegible_mono)
 include(third_party_deps/font_awesome)
+include(third_party_deps/libwebp)
 
 # Common configuration shared between mujoco_studio and mujoco_live.
 function(configure_studio_target TARGET_NAME)
@@ -53,6 +54,7 @@ function(configure_studio_target TARGET_NAME)
             implot
             mujoco::mujoco
             mujoco::platform
+            webp
     )
 
     # Self-registering plugin TUs (mjPLUGIN_LIB_INIT) have no referenced symbols,

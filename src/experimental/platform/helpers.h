@@ -16,11 +16,7 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_HELPERS_H_
 #define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_HELPERS_H_
 
-#include <cstddef>
-#include <functional>
 #include <string>
-#include <string_view>
-#include <vector>
 
 #include <mujoco/mujoco.h>
 
@@ -30,14 +26,6 @@ namespace mujoco::platform {
 void SaveText(const std::string& contents, const std::string& filename);
 std::string LoadText(const std::string& filename);
 
-// Attempts to find a file with the given name by recursively searching the
-// given search paths.
-std::string ResolveFile(const std::string& filename,
-                        const std::vector<std::string>& search_paths);
-
-// Exports the given image (assumed to be RGB888) to a webp file.
-void SaveToWebp(int width, int height, const std::byte* data,
-                const std::string& filename);
 
 // Returns a pointer to the value of the given field in the given data.
 // Returns nullptr if the field is not found or the index is out of bounds.

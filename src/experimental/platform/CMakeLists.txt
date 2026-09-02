@@ -102,7 +102,6 @@ include(third_party_deps/sdl2)
 include(third_party_deps/dear_imgui)
 mujoco_add_dear_imgui_sdl2_backend()
 include(third_party_deps/implot)
-include(third_party_deps/libwebp)
 
 target_link_libraries(${MUJOCO_PLATFORM_TARGET_NAME}
     dear_imgui
@@ -111,7 +110,6 @@ target_link_libraries(${MUJOCO_PLATFORM_TARGET_NAME}
     dear_imgui_stdlib
     implot
     mujoco::filament
-    webp
     SDL2::SDL2-static
     ${MUJOCO_PLATFORM_RENDER_DEPS}
 )
