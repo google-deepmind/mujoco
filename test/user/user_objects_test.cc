@@ -1274,9 +1274,9 @@ TEST_F(MjCJointTest, BodySimpleFalse) {
   d->qpos[0] = d_ns->qpos[0] = 0.5;
   mj_forward(m.get(), d.get());
   mj_forward(m_ns.get(), d_ns.get());
-  EXPECT_THAT(d_ns->xpos[3*b+0], MjNear(d->xpos[3*b+0], 1e-10, 1e-6));
-  EXPECT_THAT(d_ns->xpos[3*b+1], MjNear(d->xpos[3*b+1], 1e-10, 1e-6));
-  EXPECT_THAT(d_ns->xpos[3*b+2], MjNear(d->xpos[3*b+2], 1e-10, 1e-6));
+  EXPECT_THAT(d_ns->xpos[3 * b + 0], MjNear(d->xpos[3 * b + 0], 1e-10, 1e-6));
+  EXPECT_THAT(d_ns->xpos[3 * b + 1], MjNear(d->xpos[3 * b + 1], 1e-10, 1e-6));
+  EXPECT_THAT(d_ns->xpos[3 * b + 2], MjNear(d->xpos[3 * b + 2], 1e-10, 1e-6));
 }
 
 // ------------- test height fields --------------------------------------------

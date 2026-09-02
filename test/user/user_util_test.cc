@@ -29,11 +29,11 @@
 namespace mujoco {
 namespace {
 
+using ::testing::ElementsAre;
+using ::testing::IsNan;
 using user::FilePath;
 using user::StringToVector;
 using user::VectorToString;
-using ::testing::ElementsAre;
-using ::testing::IsNan;
 
 using UserUtilTest = MujocoTest;
 
@@ -116,7 +116,6 @@ TEST_F(UserUtilTest, StripPathWin) {
   FilePath path = FilePath("\\world.txt");
   EXPECT_EQ(path.StripPath().Str(), "world.txt");
 }
-
 
 TEST_F(UserUtilTest, StrLower) {
   FilePath path = FilePath("/HELLO/worlD.txt");
@@ -208,8 +207,8 @@ static void gramSchmidt(double* Q, int n) {
 }
 
 // utility: compose SPD matrix A = Q * diag(eigvals) * Q^T
-static void composeMatrix(double* A, const double* Q,
-                          const double* eigvals, int n) {
+static void composeMatrix(double* A, const double* Q, const double* eigvals,
+                          int n) {
   for (int i = 0; i < n; i++) {
     for (int j = 0; j <= i; j++) {
       double sum = 0;
@@ -269,19 +268,16 @@ TEST_F(UserUtilTest, EigendecomposeConvergence) {
         // decompose
         std::vector<double> found_eigval(n);
         std::vector<double> found_eigvec(n * n);
-        int sweeps = mjuu_eigendecompose(
-            A.data(), found_eigval.data(),
-            found_eigvec.data(), n);
+        int sweeps = mjuu_eigendecompose(A.data(), found_eigval.data(),
+                                         found_eigvec.data(), n);
 
         total_sweeps += sweeps;
         if (sweeps > max_sweeps) max_sweeps = sweeps;
         count++;
 
         // verify convergence
-        EXPECT_LT(sweeps, 200)
-            << "n=" << n
-            << " condition=" << condition
-            << " cluster=" << cluster;
+        EXPECT_LT(sweeps, 200) << "n=" << n << " condition=" << condition
+                               << " cluster=" << cluster;
 
         // verify A*v = lambda*v for each eigenpair
         for (int i = 0; i < n; i++) {
@@ -291,18 +287,15 @@ TEST_F(UserUtilTest, EigendecomposeConvergence) {
               Av += A_copy[r * n + c] * found_eigvec[c * n + i];
             }
             double lv = found_eigval[i] * found_eigvec[r * n + i];
-            EXPECT_NEAR(Av, lv,
-                        1e-6 * std::abs(found_eigval[i]))
+            EXPECT_NEAR(Av, lv, 1e-6 * std::abs(found_eigval[i]))
                 << "n=" << n << " condition=" << condition
-                << " cluster=" << cluster
-                << " eigpair=" << i << " row=" << r;
+                << " cluster=" << cluster << " eigpair=" << i << " row=" << r;
           }
         }
 
         // verify all eigenvalues are positive
         for (int i = 0; i < n; i++) {
-          EXPECT_GT(found_eigval[i], 0)
-              << "n=" << n << " eigenvalue " << i;
+          EXPECT_GT(found_eigval[i], 0) << "n=" << n << " eigenvalue " << i;
         }
       }
     }
@@ -310,12 +303,10 @@ TEST_F(UserUtilTest, EigendecomposeConvergence) {
     double mean_sweeps = (double)total_sweeps / count;
 
     // assert reasonable average convergence
-    EXPECT_LE(mean_sweeps, 20.0)
-        << "n=" << n << ": mean sweeps too high";
+    EXPECT_LE(mean_sweeps, 20.0) << "n=" << n << ": mean sweeps too high";
 
     // assert max sweeps within budget
-    EXPECT_LT(max_sweeps, 200)
-        << "n=" << n << ": max sweeps exceeded 200";
+    EXPECT_LT(max_sweeps, 200) << "n=" << n << ": max sweeps exceeded 200";
   }
 }
 

@@ -1164,23 +1164,23 @@ TEST_F(MjCMeshTest, UserNormalsAnisotropicScale) {
   ASSERT_THAT(model, NotNull()) << error;
   const mjModel* m = model.get();
   int mid = 0;
-  const mjtNum* mq = m->mesh_quat + 4*mid;
-  const mjtNum* mp = m->mesh_pos + 3*mid;
+  const mjtNum* mq = m->mesh_quat + 4 * mid;
+  const mjtNum* mp = m->mesh_pos + 3 * mid;
   double scale[3] = {.2, .1, .1};
   int va = m->mesh_vertadr[mid];
   int na = m->mesh_normaladr[mid];
   int fa = m->mesh_faceadr[mid];
-  for (int i = 0; i < 3*m->mesh_facenum[mid]; i++) {
-    int vid = m->mesh_face[3*fa + i];
-    int nid = m->mesh_facenormal[3*fa + i];
+  for (int i = 0; i < 3 * m->mesh_facenum[mid]; i++) {
+    int vid = m->mesh_face[3 * fa + i];
+    int nid = m->mesh_facenormal[3 * fa + i];
 
     // rotate vertex and normal back to the authored frame
-    mjtNum vm[3] = {m->mesh_vert[3*(va+vid)+0],
-                    m->mesh_vert[3*(va+vid)+1],
-                    m->mesh_vert[3*(va+vid)+2]};
-    mjtNum nm[3] = {m->mesh_normal[3*(na+nid)+0],
-                    m->mesh_normal[3*(na+nid)+1],
-                    m->mesh_normal[3*(na+nid)+2]};
+    mjtNum vm[3] = {m->mesh_vert[3 * (va + vid) + 0],
+                    m->mesh_vert[3 * (va + vid) + 1],
+                    m->mesh_vert[3 * (va + vid) + 2]};
+    mjtNum nm[3] = {m->mesh_normal[3 * (na + nid) + 0],
+                    m->mesh_normal[3 * (na + nid) + 1],
+                    m->mesh_normal[3 * (na + nid) + 2]};
     mjtNum v[3], n[3];
     mju_rotVecQuat(v, vm, mq);
     mju_addTo3(v, mp);
@@ -1567,8 +1567,8 @@ TEST_F(MjCMeshTest, LoadSKNMalformed) {
   // Test 5: Integer overflow in bone vertex count (vcount)
   {
     // Header: nvert=0, ntexcoord=0, nface=0, nbone=1 (16 bytes)
-    // Bone: name[40] (40B), bindpos[3] (12B), bindquat[4] (16B), vcount=0x40000000 (4B)
-    // Total size = 16 + 72 = 88 bytes
+    // Bone: name[40] (40B), bindpos[3] (12B), bindquat[4] (16B),
+    // vcount=0x40000000 (4B) Total size = 16 + 72 = 88 bytes
     std::vector<uint8_t> evil_skn(88, 0);
     uint32_t header[4] = {0, 0, 0, 1};
     std::memcpy(evil_skn.data(), header, sizeof(header));

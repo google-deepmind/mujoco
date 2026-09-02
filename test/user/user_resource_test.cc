@@ -44,9 +44,7 @@ using ::testing::StrEq;
 
 using ResourceTest = MujocoTest;
 
-int open_nop(mjResource* resource) {
-  return 1;
-}
+int open_nop(mjResource* resource) { return 1; }
 
 int open_str(mjResource* resource) {
   if (std::strcmp(resource->name, "str:file")) {
@@ -55,21 +53,18 @@ int open_str(mjResource* resource) {
 
   const std::size_t kBufferSize = 100;
   resource->data = mju_malloc(kBufferSize * sizeof(char));
-  absl::SNPrintF((char*) resource->data, kBufferSize, "Hello World");
+  absl::SNPrintF((char*)resource->data, kBufferSize, "Hello World");
   return 1;
 }
 
-int read_nop(mjResource* resource, const void** buffer) {
-  return 0;
-}
+int read_nop(mjResource* resource, const void** buffer) { return 0; }
 
 int read_str(mjResource* resource, const void** buffer) {
   *buffer = resource->data;
-  return std::strlen((const char*) resource->data) + 1;
+  return std::strlen((const char*)resource->data) + 1;
 }
 
-void close_nop(mjResource* resource) {
-}
+void close_nop(mjResource* resource) {}
 
 void close_str(mjResource* resource) {
   mju_free(resource->data);
@@ -247,10 +242,10 @@ TEST_F(ResourceTest, GeneralTest) {
 
   // open resource
   mjResource* resource = mju_openResource("", "str:file", nullptr, nullptr, 0);
-  ASSERT_THAT(resource,  NotNull());
+  ASSERT_THAT(resource, NotNull());
 
   const char* buffer = NULL;
-  int bytes = mju_readResource(resource, (const void**) &buffer);
+  int bytes = mju_readResource(resource, (const void**)&buffer);
   EXPECT_EQ(bytes, std::strlen("Hello World") + 1);
   EXPECT_THAT(buffer, StrEq("Hello World"));
 
@@ -272,8 +267,8 @@ TEST_F(ResourceTest, GeneralFailureTest) {
   static std::array<char, 1024> error;
 
   // open resource
-  mjResource* resource = mju_openResource("", "str:notfound", nullptr,
-                                          error.data(), error.size());
+  mjResource* resource =
+      mju_openResource("", "str:notfound", nullptr, error.data(), error.size());
   ASSERT_THAT(resource, IsNull());
 
   EXPECT_THAT(error.data(), HasSubstr("Error opening file"));
@@ -343,13 +338,13 @@ TEST_F(ResourceTest, NameWithInvalidPrefix) {
 
 TEST_F(ResourceTest, GetResourceDir) {
   const std::vector<std::pair<std::string, std::string>> cases = {
-    { "foo/bar/baz", "foo/bar/" },
-    { "foo/bar/", "foo/bar/" },
-    { "foo/bar", "foo/" },
-    { "/foo/bar", "/foo/" },
-    { "/foo", "/" },
-    { "/", "/" },
-    { "", "" },
+      {"foo/bar/baz", "foo/bar/"},
+      {"foo/bar/", "foo/bar/"},
+      {"foo/bar", "foo/"},
+      {"/foo/bar", "/foo/"},
+      {"/foo", "/"},
+      {"/", "/"},
+      {"", ""},
   };
 
   const char* dir = nullptr;
@@ -369,11 +364,11 @@ TEST_F(ResourceTest, GetResourceDir) {
 
 TEST_F(ResourceTest, GetResourceDirProvider) {
   const std::vector<std::pair<std::string, std::string>> cases = {
-    { "provider:/foo/bar", "provider:/foo/" },
-    { "provider:/foo/", "provider:/foo/" },
-    { "provider:foo/", "provider:foo/" },
-    { "provider:foo", "provider:" },
-    { "provider:/", "provider:/" },
+      {"provider:/foo/bar", "provider:/foo/"},
+      {"provider:/foo/", "provider:/foo/"},
+      {"provider:foo/", "provider:foo/"},
+      {"provider:foo", "provider:"},
+      {"provider:/", "provider:/"},
   };
 
   const char* dir = nullptr;
@@ -420,9 +415,9 @@ TEST_F(ResourceTest, OSFilesystemTimestamps) {
   const char* const file = "engine/testdata/collision_box/boxbox_deep.xml";
   const std::string xml_path = GetTestDataFilePath(file);
 
-  mjResource* resource = mju_openResource("", xml_path.c_str(), nullptr,
-                                          nullptr, 0);
-  mju_decodeBase64((uint8_t*) &t, resource->timestamp);
+  mjResource* resource =
+      mju_openResource("", xml_path.c_str(), nullptr, nullptr, 0);
+  mju_decodeBase64((uint8_t*)&t, resource->timestamp);
 
   // equal timestamps
   EXPECT_EQ(mju_isModifiedResource(resource, resource->timestamp), 0);
@@ -431,13 +426,12 @@ TEST_F(ResourceTest, OSFilesystemTimestamps) {
 
   // older resource timestamp
   t++;
-  mju_encodeBase64(test_timestamp.data(), (uint8_t*) &t, sizeof(time_t));
+  mju_encodeBase64(test_timestamp.data(), (uint8_t*)&t, sizeof(time_t));
   EXPECT_EQ(mju_isModifiedResource(resource, test_timestamp.data()), -1);
-
 
   // newer resource timestamp
   t -= 2;
-  mju_encodeBase64(test_timestamp.data(), (uint8_t*) &t, sizeof(time_t));
+  mju_encodeBase64(test_timestamp.data(), (uint8_t*)&t, sizeof(time_t));
   EXPECT_EQ(mju_isModifiedResource(resource, test_timestamp.data()), 1);
 
   mju_closeResource(resource);
@@ -452,7 +446,8 @@ struct WriteBuffer {
 // static storage for the last written buffer (for round-trip testing)
 static std::vector<uint8_t> last_written;
 
-mjtSize write_capture(mjResource* resource, const void* buffer, mjtSize nbytes) {
+mjtSize write_capture(mjResource* resource, const void* buffer,
+                      mjtSize nbytes) {
   last_written.clear();
   const uint8_t* bytes = static_cast<const uint8_t*>(buffer);
   last_written.insert(last_written.end(), bytes, bytes + nbytes);
@@ -485,7 +480,8 @@ TEST_F(ResourceTest, WriteResourceWithProvider) {
   const char* data = "Hello, Resource Writer!";
   mjtSize nbytes = static_cast<mjtSize>(std::strlen(data));
 
-  mjtSize written = mju_writeResource("wrtest:myfile.txt", data, nbytes, nullptr, nullptr, 0);
+  mjtSize written =
+      mju_writeResource("wrtest:myfile.txt", data, nbytes, nullptr, nullptr, 0);
   EXPECT_EQ(written, nbytes);
 
   // Read it back via the same provider
@@ -508,7 +504,8 @@ TEST_F(ResourceTest, WriteResourceDefaultPosix) {
   const char* data = "MuJoCo resource write test";
   mjtSize nbytes = static_cast<mjtSize>(std::strlen(data));
 
-  mjtSize written = mju_writeResource(tmpfile.c_str(), data, nbytes, nullptr, nullptr, 0);
+  mjtSize written =
+      mju_writeResource(tmpfile.c_str(), data, nbytes, nullptr, nullptr, 0);
   EXPECT_EQ(written, nbytes);
 
   // Read it back via mju_openResource (default POSIX provider)
@@ -540,7 +537,8 @@ TEST_F(ResourceTest, WriteResourceNoWriteCallback) {
   mjp_registerResourceProvider(&provider);
 
   const char* data = "data";
-  mjtSize written = mju_writeResource("rdonly:somefile", data, 4, nullptr, nullptr, 0);
+  mjtSize written =
+      mju_writeResource("rdonly:somefile", data, 4, nullptr, nullptr, 0);
   EXPECT_EQ(written, -1);
 }
 

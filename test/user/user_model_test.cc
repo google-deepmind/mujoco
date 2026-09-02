@@ -925,7 +925,6 @@ TEST_F(LengthRangeTest, LengthRangeThreading) {
   mj_deleteSpec(spec);
 }
 
-
 TEST_F(MujocoTest, ResolvePluginMissingInstanceThrowsError) {
   // Instance name="my_pid_config" dos not match actuator plugin's
   // instance="pid_config", this should throw an appropriate error

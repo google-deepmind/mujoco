@@ -144,8 +144,8 @@ INSTANTIATE_TEST_SUITE_P(
     [](const ::testing::TestParamInfo<std::string>& info) {
       std::string name = std::filesystem::path(info.param).filename().string();
       std::replace_if(
-          name.begin(), name.end(),
-          [](char c) { return !std::isalnum(c); }, '_');
+          name.begin(), name.end(), [](char c) { return !std::isalnum(c); },
+          '_');
       return name + "_" + std::to_string(info.index);
     });
 

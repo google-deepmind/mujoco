@@ -31,7 +31,8 @@ using ::testing::NotNull;
 using UserVfsTest = MujocoTest;
 
 static bool HasFile(const mjVFS* vfs, const std::string& filename) {
-  mjResource* resource = mju_openResource("", filename.c_str(), vfs, nullptr, 0);
+  mjResource* resource =
+      mju_openResource("", filename.c_str(), vfs, nullptr, 0);
   bool result = resource != nullptr;
   mju_closeResource(resource);
   return result;
@@ -71,9 +72,7 @@ struct TestProvider : public mjpResourceProvider {
       *out = res->provider->data;
       return (int)sizeof(int);
     };
-    close = [](mjResource* res) {
-      *(int*)res->provider->data += Closed;
-    };
+    close = [](mjResource* res) { *(int*)res->provider->data += Closed; };
   }
 };
 
@@ -115,7 +114,6 @@ TEST_F(UserVfsTest, AddFile) {
   EXPECT_FALSE(HasFile(&vfs, file1.c_str()));
   EXPECT_TRUE(HasFile(&vfs, file2.c_str()));
   EXPECT_TRUE(HasFile(&vfs, file3.c_str()));
-
 
   mj_deleteFileVFS(&vfs, file3.c_str());
   EXPECT_FALSE(HasFile(&vfs, file1.c_str()));
@@ -256,7 +254,6 @@ TEST_F(UserVfsTest, ContainsFile) {
   mj_deleteVFS(&vfs);
 }
 
-
 TEST_F(UserVfsTest, AddBuffer) {
   mjVFS vfs;
   mj_defaultVFS(&vfs);
@@ -273,8 +270,8 @@ TEST_F(UserVfsTest, AddBuffer) {
 TEST_F(UserVfsTest, AddBufferRepeat) {
   mjVFS vfs;
   mj_defaultVFS(&vfs);
-    std::string buffer = "<mujoco/>";
-    const void* ptr = static_cast<const void*>(buffer.c_str());
+  std::string buffer = "<mujoco/>";
+  const void* ptr = static_cast<const void*>(buffer.c_str());
   mj_addBufferVFS(&vfs, "model", ptr, buffer.size());
   int result = mj_addBufferVFS(&vfs, "model", ptr, buffer.size());
   EXPECT_EQ(result, 2);
@@ -284,8 +281,8 @@ TEST_F(UserVfsTest, AddBufferRepeat) {
 TEST_F(UserVfsTest, BufferPath) {
   mjVFS vfs;
   mj_defaultVFS(&vfs);
-    std::string buffer = "<mujoco/>";
-    const void* ptr = static_cast<const void*>(buffer.c_str());
+  std::string buffer = "<mujoco/>";
+  const void* ptr = static_cast<const void*>(buffer.c_str());
   mj_addBufferVFS(&vfs, "dir/model", ptr, buffer.size());
   EXPECT_TRUE(HasFile(&vfs, "files/../dir/model"));
   mj_deleteVFS(&vfs);

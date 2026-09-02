@@ -30,9 +30,9 @@
 namespace mujoco {
 namespace {
 
+using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
-using ::testing::HasSubstr;
 using UserCompositeTest = MujocoTest;
 
 // ------------------------ cable tests ---------------------------------------
@@ -67,7 +67,7 @@ TEST_F(UserCompositeTest, GeomSurfacevel) {
   ASSERT_THAT(m.get(), NotNull()) << error.data();
   for (int g = 0; g < m->ngeom; g++) {
     if (m->geom_type[g] == mjGEOM_CAPSULE) {
-      EXPECT_EQ(m->geom_surfacevel[6*g + 5], 3);
+      EXPECT_EQ(m->geom_surfacevel[6 * g + 5], 3);
     }
   }
 }
