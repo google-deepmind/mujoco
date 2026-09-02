@@ -43,10 +43,10 @@
 #include <imgui.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
-#include "experimental/platform/hal/filament_renderer.h"
-#include "experimental/platform/hal/window.h"
-#include "experimental/platform/sim/model_holder.h"
-#include "experimental/platform/ux/interaction.h"
+#include "experimental/studio/hal/filament_renderer.h"
+#include "experimental/studio/hal/window.h"
+#include "experimental/studio/sim/model_holder.h"
+#include "experimental/studio/ux/interaction.h"
 #include <NetImgui_Api.h>
 #include "google/logging.h"
 #include "state_payload.h"

@@ -17,8 +17,8 @@
 #include <tuple>
 
 #include <mujoco/mujoco.h>
-#include <mujoco/experimental/platform/sim/sim_history.h>
-#include <mujoco/experimental/platform/sim/step_control.h>
+#include <mujoco/experimental/studio/sim/sim_history.h>
+#include <mujoco/experimental/studio/sim/step_control.h>
 #include "structs.h"
 #include <pybind11/pybind11.h>
 

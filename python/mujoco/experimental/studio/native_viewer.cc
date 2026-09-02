@@ -26,10 +26,10 @@
 #include <imgui.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
-#include <mujoco/experimental/platform/hal/filament_renderer.h>
-#include <mujoco/experimental/platform/hal/graphics_mode.h>
-#include <mujoco/experimental/platform/hal/window.h>
-#include <mujoco/experimental/platform/io/resources.h>
+#include <mujoco/experimental/studio/hal/filament_renderer.h>
+#include <mujoco/experimental/studio/hal/graphics_mode.h>
+#include <mujoco/experimental/studio/hal/window.h>
+#include <mujoco/experimental/studio/io/resources.h>
 #include "structs.h"
 #include <pybind11/eval.h>
 #include <pybind11/pybind11.h>

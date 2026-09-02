@@ -20,9 +20,9 @@
 #include <string_view>
 
 #include <mujoco/mujoco.h>
-#include "experimental/platform/hal/graphics_mode.h"
-#include "experimental/platform/io/resources.h"
-#include "experimental/platform/ux/gui.h"
+#include "experimental/studio/hal/graphics_mode.h"
+#include "experimental/studio/io/resources.h"
+#include "experimental/studio/ux/gui.h"
 #include "experimental/studio/app.h"
 
 namespace mujoco::studio {

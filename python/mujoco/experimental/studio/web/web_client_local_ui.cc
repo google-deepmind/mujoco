@@ -23,7 +23,7 @@
 #include <initializer_list>
 
 #include <imgui.h>
-#include "experimental/platform/ux/imgui_widgets.h"
+#include "experimental/studio/ux/imgui_widgets.h"
 #include "google/logging.h"
 #include "web_client_session.h"
 

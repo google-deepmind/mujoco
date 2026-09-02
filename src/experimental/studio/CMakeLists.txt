@@ -14,12 +14,111 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-include(third_party_deps/dear_imgui)
-include(third_party_deps/implot)
-include(third_party_deps/atkinson_hyperlegible_next)
 include(third_party_deps/atkinson_hyperlegible_mono)
+include(third_party_deps/atkinson_hyperlegible_next)
+include(third_party_deps/dear_imgui)
 include(third_party_deps/font_awesome)
+include(third_party_deps/implot)
 include(third_party_deps/libwebp)
+include(third_party_deps/sdl2)
+
+set(MUJOCO_STUDIO_PLATFORM_TARGET_NAME mujoco_studio_platform)
+
+add_library(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} STATIC)
+
+target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME}
+    PRIVATE
+        hal/classic_renderer.cc
+        hal/classic_renderer.h
+        hal/egl_utils.cc
+        hal/egl_utils.h
+        hal/filament_renderer.cc
+        hal/filament_renderer.h
+        hal/graphics_mode.cc
+        hal/graphics_mode.h
+        hal/renderer.h
+        hal/window.cc
+        hal/window.h
+        io/resources.cc
+        io/resources.h
+        sim/model_holder.cc
+        sim/model_holder.h
+        sim/sim_history.cc
+        sim/sim_history.h
+        sim/sim_profiler.cc
+        sim/sim_profiler.h
+        sim/step_control.cc
+        sim/step_control.h
+        ux/enum_utils.h
+        ux/file_dialog.h
+        ux/fonts.cc
+        ux/fonts.h
+        ux/gui.cc
+        ux/gui.h
+        ux/gui_helpers.cc
+        ux/gui_helpers.h
+        ux/gui_spec.cc
+        ux/gui_spec.h
+        ux/imgui_widgets.cc
+        ux/imgui_widgets.h
+        ux/interaction.cc
+        ux/interaction.h
+        ux/picture_gui.h
+        ux/picture_gui.cc
+        ux/plugin.cc
+        ux/plugin.h
+        ux/spec_editor.cc
+        ux/spec_editor.h
+        ux/well_tempered.h
+)
+
+if(NOT WIN32)
+  target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME}
+      PRIVATE
+          ux/object_launcher_plugin.cc
+  )
+endif()
+
+if(APPLE)
+    set_source_files_properties(hal/window_osx.mm PROPERTIES
+        COMPILE_FLAGS "-x objective-c++")
+    target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} PRIVATE
+        hal/window_osx.mm
+        ux/file_dialog_cocoa.mm
+    )
+elseif(UNIX AND NOT APPLE)
+    target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} PRIVATE
+        ux/file_dialog_zenity.cc
+    )
+elseif(WIN32)
+    target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} PRIVATE
+        ux/file_dialog_win.cc
+    )
+else()
+    target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} PRIVATE
+        ux/file_dialog.cc
+    )
+endif()
+
+target_include_directories(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME}
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src
+)
+
+mujoco_add_dear_imgui_sdl2_backend()
+
+target_link_libraries(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME}
+    dear_imgui
+    dear_imgui_SDL2
+    dear_imgui_OpenGL3
+    dear_imgui_stdlib
+    implot
+    mujoco::filament
+    SDL2::SDL2-static
+)
+
+add_library(mujoco::platform ALIAS ${MUJOCO_STUDIO_PLATFORM_TARGET_NAME})
 
 # Common configuration shared between mujoco_studio and mujoco_live.
 function(configure_studio_target TARGET_NAME)
@@ -61,13 +160,13 @@ function(configure_studio_target TARGET_NAME)
     # so the linker discards them when they arrive inside a static archive.
     if(APPLE)
         target_link_options(${TARGET_NAME} PRIVATE
-            "-Wl,-force_load,$<TARGET_FILE:mujoco_platform>")
+            "-Wl,-force_load,$<TARGET_FILE:mujoco_studio_platform>")
     elseif(NOT MSVC)
         target_link_options(${TARGET_NAME} PRIVATE
-            "-Wl,--whole-archive" "$<TARGET_FILE:mujoco_platform>" "-Wl,--no-whole-archive")
+            "-Wl,--whole-archive" "$<TARGET_FILE:mujoco_studio_platform>" "-Wl,--no-whole-archive")
     else()
         target_link_options(${TARGET_NAME} PRIVATE
-            "/WHOLEARCHIVE:$<TARGET_FILE:mujoco_platform>")
+            "/WHOLEARCHIVE:$<TARGET_FILE:mujoco_studio_platform>")
     endif()
 
     get_target_property(IS_BUNDLE ${TARGET_NAME} MACOSX_BUNDLE)

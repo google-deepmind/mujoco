@@ -23,11 +23,11 @@
 #include <imgui.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
-#include <mujoco/experimental/platform/sim/sim_history.h>
-#include <mujoco/experimental/platform/sim/step_control.h>
-#include <mujoco/experimental/platform/ux/gui.h>
-#include <mujoco/experimental/platform/ux/gui_helpers.h>
-#include <mujoco/experimental/platform/ux/interaction.h>
+#include <mujoco/experimental/studio/sim/sim_history.h>
+#include <mujoco/experimental/studio/sim/step_control.h>
+#include <mujoco/experimental/studio/ux/gui.h>
+#include <mujoco/experimental/studio/ux/gui_helpers.h>
+#include <mujoco/experimental/studio/ux/interaction.h>
 #include "specs_wrapper.h"
 #include "structs.h"
 #include <pybind11/pybind11.h>
