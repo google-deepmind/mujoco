@@ -2093,7 +2093,13 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
 
 void ParseJointEnabled(mjsEquality* eq, const pxr::UsdPhysicsJoint& joint) {
   bool jointEnabled = true;
-  joint.GetJointEnabledAttr().Get(&jointEnabled);
+  const pxr::UsdPrim& prim = joint.GetPrim();
+  if (prim.HasAPI(NewtonTokens->NewtonMimicAPI) &&
+      !prim.HasAPI<pxr::MjcPhysicsEqualityJointAPI>()) {
+    prim.GetAttribute(NewtonTokens->newtonMimicEnabled).Get(&jointEnabled);
+  } else {
+    joint.GetJointEnabledAttr().Get(&jointEnabled);
+  }
   eq->active = jointEnabled ? 1 : 0;
 }
 
@@ -2193,14 +2199,8 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     eq_joint_api.GetCoef3Attr().Get(&eq->data[3]);
     eq_joint_api.GetCoef4Attr().Get(&eq->data[4]);
 
-    if (prim.HasAPI<pxr::MjcPhysicsEqualityJointAPI>()) {
-      pxr::UsdPhysicsJoint joint(prim);
-      ParseJointEnabled(eq, joint);
-    } else {
-      bool mimic_enabled = true;
-      prim.GetAttribute(NewtonTokens->newtonMimicEnabled).Get(&mimic_enabled);
-      eq->active = mimic_enabled ? 1 : 0;
-    }
+    pxr::UsdPhysicsJoint joint(prim);
+    ParseJointEnabled(eq, joint);
 
     // Solver params are now inline on MjcEqualityJointAPI
     auto solref_attr = prim.GetAttribute(MjcPhysicsTokens->mjcSolref);
