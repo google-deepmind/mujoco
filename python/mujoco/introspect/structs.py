@@ -5761,6 +5761,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of non-zeros in effective-stiffness CSR',
              ),
              StructFieldDecl(
+                 name='nefmT',
+                 type=ValueType(name='int'),
+                 doc='number of tendons with terms in the metric',
+             ),
+             StructFieldDecl(
+                 name='nefmA',
+                 type=ValueType(name='int'),
+                 doc='number of actuators with terms in the metric',
+             ),
+             StructFieldDecl(
                  name='nefmdof',
                  type=ValueType(name='int'),
                  doc='number of 3x3 blocks in the effective-metric preconditioner',  # pylint: disable=line-too-long
@@ -7015,6 +7025,94 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='smooth-force shift h*K*qvel',
+                 array_extent=('nv',),
+             ),
+             StructFieldDecl(
+                 name='efm_diag',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='effective-metric diagonal h*D + h^2*K',
+                 array_extent=('nv',),
+             ),
+             StructFieldDecl(
+                 name='efm_ck',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='diagonal stiffness h*k, for the smooth shift',
+                 array_extent=('nv',),
+             ),
+             StructFieldDecl(
+                 name='efm_sdiag',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='diagonal additions to M in the backbone',
+                 array_extent=('nv',),
+             ),
+             StructFieldDecl(
+                 name='efm_fluid',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc="fluid drag blocks in M's sparsity pattern",
+                 array_extent=('nC',),
+             ),
+             StructFieldDecl(
+                 name='efm_tid',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='ids of tendons with terms in the metric',
+                 array_extent=('ntendon',),
+             ),
+             StructFieldDecl(
+                 name='efm_ts',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='tendon metric scale h^2*k + h*b, tid indexed',
+                 array_extent=('ntendon',),
+             ),
+             StructFieldDecl(
+                 name='efm_tk',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='tendon stiffness h*k for shift, tid indexed',
+                 array_extent=('ntendon',),
+             ),
+             StructFieldDecl(
+                 name='efm_aid',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='ids of actuators with terms in the metric',
+                 array_extent=('nu',),
+             ),
+             StructFieldDecl(
+                 name='efm_as',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='actuator metric scale h^2*gp + h*gv, aid indexed',
+                 array_extent=('nu',),
+             ),
+             StructFieldDecl(
+                 name='efm_ak',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='actuator stiffness h*gp, aid indexed',
+                 array_extent=('nu',),
+             ),
+             StructFieldDecl(
+                 name='efm_ca',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='actuation-stage smooth-force shift',
                  array_extent=('nv',),
              ),
              StructFieldDecl(

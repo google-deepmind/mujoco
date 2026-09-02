@@ -73,8 +73,10 @@ static void dualFinish(const mjModel* m, mjData* d) {
   // map constraint force to joint space
   mj_mulJacTVec(m, d, d->qfrc_constraint, d->efc_force);
 
-  // compute constrained acceleration in joint space
-  mj_solveM(m, d, d->qacc, d->qfrc_constraint, 1);
+  // compute constrained acceleration in joint space, in the solve metric: under the
+  // effective metric, qacc_smooth and the constraint response both live in Mtilde
+  // (mjd_effSolve is the plain M solve when the metric is inactive)
+  mjd_effSolve(m, d, d->qacc, d->qfrc_constraint);
   mju_addTo(d->qacc, d->qacc_smooth, m->nv);
 }
 
@@ -1069,12 +1071,21 @@ typedef struct {
   mjtNum* L;              // Cholesky factor                              (nL x 1)
   mjtNum* Lcone;          // Cholesky factor with cone contributions      (nL x 1)
 
-  // implicit effective metric for flex: Mtilde = M + K (built per step in mj_fwdPosition): when
-  // active, ctx.qfrc_smooth is pre-shifted by +c and Ma/Mv carry the B term, so the stock
-  // objective/gradient/linesearch formulas below operate in the Mtilde metric unchanged
-  int flg_flex;           // effective metric active for this solve
+  // implicit effective metric (built per step in mj_fwdPosition): when active, ctx.qfrc_smooth
+  // is pre-shifted by +c and Ma/Mv carry the metric terms, so the stock objective/gradient/
+  // linesearch formulas below operate in the Mtilde = M + h*D + h^2*K metric unchanged
+  int flg_metric;         // effective metric active for this solve
   const mjModel* fm;      // model, for the metric calls
   mjData* fd;             // data, for the metric calls
+
+  // Newton: lower-triangle view of the metric matrix S = diag(h*D+h^2*K) + K_csr, built by
+  // MakeMetricLower on the solver stack, merged into the Hessian alongside M
+  int nS;                 // total nonzeros of the view
+  int S_tcap;             // capacity of the rank-1 contribution, set by PrimalAllocate
+  int* S_rownnz;          // view row nonzeros                            (nv x 1)
+  int* S_rowadr;          // view row addresses                           (nv x 1)
+  int* S_colind;          // view column indices                          (nS x 1)
+  mjtNum* S_val;          // view values                                  (nS x 1)
 
   // globals
   mjtNum cost;            // constraint + Gauss cost
@@ -1243,6 +1254,32 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
     }
   }
 
+  // discrete metric: the effective smooth force, and Newton's lower-triangle view S_*
+  // (filled by MakeMetricLower)
+  int nScap = 0;
+  if (d->efm_active) {
+    nNum += nv;                        // qfrc_eff
+    if (flg_Newton) {
+      int tcap = 0, tlow = 0;
+      mjEffRank1Iter it = {0};
+      mjEffRank1 e;
+      while (mjd_effRank1Next(m, d, &it, &e)) {
+        if (ctx->island >= 0 && d->tree_island[m->dof_treeid[e.colind[0]]] != ctx->island) {
+          continue;
+        }
+        tcap += e.nnz * e.nnz;
+        tlow += e.nnz * (e.nnz + 1) / 2;
+      }
+      ctx->S_tcap = tcap;
+
+      // the view is lower-triangle: at most half the symmetric CSR, the lower wedge of
+      // each rank-1 outer product, the strictly-lower fluid pattern, one diagonal per row
+      nScap = (ctx->island < 0 ? d->nefmK/2 : 0) + tlow + nv + (d->efm_fluid ? m->nC - nv : 0);
+      nInt += 2*nv + nScap;            // S_rownnz, S_rowadr, S_colind
+      nNum += nScap;                   // S_val
+    }
+  }
+
   // allocate mjtNum and int blocks
   mjtNum* numblock = mjSTACKALLOC(d, nNum, mjtNum);
   int* intblock    = mjSTACKALLOC(d, nInt, int);
@@ -1262,11 +1299,16 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
     ctx->qLD = numblock; numblock += nC;
     ctx->qLDiagInv = numblock; numblock += nv;
 
+    // under the discrete metric, gather the qH backbone factor of M + diag in place of
+    // qLD: both are block-diagonal by tree, so the island block of the global factor is
+    // the factor of the island block
+    const mjtNum* gLD = (d->efm_active && d->efm_diag) ? d->qH : d->qLD;
+    const mjtNum* gLDiagInv = (d->efm_active && d->efm_diag) ? d->qHDiagInv : d->qLDiagInv;
     mju_blockSparse(ctx->qLD, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind,
-                    d->qLD, m->M_rownnz, m->M_rowadr, m->M_colind,
+                    gLD, m->M_rownnz, m->M_rowadr, m->M_colind,
                     nv, d->map_idof2dof + idofadr, d->map_dof2idof,
                     d->island_idofadr[island], 0, ctx->M, d->M);
-    mju_gather(ctx->qLDiagInv, d->qLDiagInv, d->map_idof2dof + idofadr, nv);
+    mju_gather(ctx->qLDiagInv, gLDiagInv, d->map_idof2dof + idofadr, nv);
 
     ctx->J = numblock; numblock += nJ;
     if (!is_sparse) {
@@ -1354,13 +1396,34 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
 
   // implicit effective metric (built in mj_fwdPosition): route Ma/Mv/Mgrad through the
   // metric operators and shift the smooth force, so the stock objective/gradient/linesearch
-  // formulas operate in the Mtilde = M+K metric
-  if (ctx->island < 0 && !is_elliptic && !flg_Newton && d->efm_active) {
-    ctx->flg_flex = 1;
+  // formulas operate in the Mtilde = M + h*D + h^2*K metric; Newton additionally merges the
+  // metric matrix into its Hessian (MakeHessian/FactorizeHessian). Island contexts see the
+  // island-local view: gathered shift, island-mapped products, and the backbone factor of
+  // M + diag gathered in place of qLD; flex never reaches the island path (monolithic solve
+  // is forced for flex with metric terms)
+  if (d->efm_active) {
+    ctx->flg_metric = 1;
     ctx->fm = m;
     ctx->fd = d;
-    mjtNum* qfrc_eff = mjSTACKALLOC(d, nv, mjtNum);
-    mju_add(qfrc_eff, ctx->qfrc_smooth, d->efm_c, nv);
+    if (flg_Newton) {
+      ctx->S_rownnz = intblock;  intblock += nv;
+      ctx->S_rowadr = intblock;  intblock += nv;
+      ctx->S_colind = intblock;  intblock += nScap;
+      ctx->S_val    = numblock;  numblock += nScap;
+    }
+    mjtNum* qfrc_eff = numblock;  numblock += nv;
+    if (ctx->island < 0) {
+      mju_add(qfrc_eff, ctx->qfrc_smooth, d->efm_c, nv);
+      if (d->efm_ca) {
+        mju_addTo(qfrc_eff, d->efm_ca, nv);
+      }
+    } else {
+      const int* idof2dof = d->map_idof2dof + d->island_idofadr[ctx->island];
+      for (int k=0; k < nv; k++) {
+        qfrc_eff[k] = ctx->qfrc_smooth[k] + d->efm_c[idof2dof[k]] +
+                      (d->efm_ca ? d->efm_ca[idof2dof[k]] : 0);
+      }
+    }
     ctx->qfrc_smooth = qfrc_eff;
   }
 }
@@ -1426,12 +1489,13 @@ static void PrimalUpdateMgrad(mjPrimalContext* ctx, int flg_Newton) {
     }
   }
 
-  // CG: Mgrad = Mtilde \ grad
-  else if (ctx->flg_flex) {
+  // CG monolithic: Mgrad = Mtilde \ grad (approximate metric preconditioner)
+  else if (ctx->flg_metric && ctx->island < 0) {
     mjd_effPrec(ctx->fm, ctx->fd, ctx->Mgrad, ctx->grad);
   }
 
-  // CG: Mgrad = M \ grad
+  // CG: Mgrad = M \ grad. For metric island contexts the gathered factor already holds
+  // M + diag including the tendon diagonal; tendon off-diagonals are handled by CG itself
   else {
     mju_copy(ctx->Mgrad, ctx->grad, nv);
     mj_solveLD(ctx->Mgrad, ctx->qLD, ctx->qLDiagInv, nv, 1,
@@ -1878,8 +1942,12 @@ static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_ite
   // compute Mv = Mtilde * v
   mju_mulSymVecSparse(ctx->Mv, ctx->M, ctx->search, nv,
                       ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
-  if (ctx->flg_flex) {
-    mjd_effMulAdd(ctx->fm, ctx->fd, ctx->Mv, ctx->search);
+  if (ctx->flg_metric) {
+    if (ctx->island < 0) {
+      mjd_effMulAdd(ctx->fm, ctx->fd, ctx->Mv, ctx->search, /*flg_contact=*/1);
+    } else {
+      mjd_effMulAddIsland(ctx->fm, ctx->fd, ctx->Mv, ctx->search, ctx->island);
+    }
   }
 
   // compute Jv = J * search  (dense or sparse)
@@ -2052,6 +2120,169 @@ static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_ite
 }
 
 
+// build the lower-triangle view of the discrete metric matrix
+// S = diag(h*D+h^2*K) + K_csr + tendon outer products: Newton consumes the metric
+// explicitly inside the Hessian. The efm CSR stores the full symmetric pattern with
+// sorted columns; the view keeps entries with col < row, folds all diagonals into one
+// entry, and produces sorted unique columns per row. For island contexts rows and columns
+// are island-local (the maps are monotone, so mapped columns stay sorted); the flex CSR
+// never appears there (flex with metric terms forces a monolithic solve)
+static void MakeMetricLower(mjData* d, mjPrimalContext* ctx) {
+  const mjModel* m = ctx->fm;
+  int nv = ctx->nv, island = ctx->island;
+  int idofadr = island >= 0 ? d->island_idofadr[island] : 0;
+  const int* idof2dof = island >= 0 ? d->map_idof2dof + idofadr : NULL;
+
+  // the view S_* was carved by PrimalAllocate (which also sized the rank-1 contribution)
+  // and lives for the whole solve: FactorizeHessian re-merges it on active-set recomputes.
+  // Scratch below is freed before returning
+  int tcap = ctx->S_tcap;
+  mjEffRank1Iter it = {0};
+  mjEffRank1 e;
+
+  mj_markStack(d);
+
+  // bucket the rank-1 entries by (local) row: count, carve, fill
+  int* tint = mjSTACKALLOC(d, 2*nv + (tcap > 0 ? tcap : 1), int);
+  mjtNum* tval = mjSTACKALLOC(d, tcap > 0 ? tcap : 1, mjtNum);
+  int* trownnz = tint;
+  int* trowadr = tint + nv;
+  int* tcol = tint + 2*nv;
+  mju_zeroInt(trownnz, nv);
+
+  // count rank-1 entries per (local) row
+  it = (mjEffRank1Iter){0};
+  while (mjd_effRank1Next(m, d, &it, &e)) {
+    if (island >= 0 && d->tree_island[m->dof_treeid[e.colind[0]]] != island) {
+      continue;
+    }
+    for (int j=0; j < e.nnz; j++) {
+      int r = e.colind[j];
+      int lr = island >= 0 ? d->map_dof2idof[r] - idofadr : r;
+      if (lr < 0 || lr >= nv) {
+        // island discovery unions metric couplings and the sleep policy keeps coupled
+        // trees awake together, so a rank-1 term cannot straddle islands or sleep
+        mjERROR("metric rank-1 term spans islands on dof %d", r);  // SHOULD NOT OCCUR
+      }
+      trownnz[lr] += e.nnz;
+    }
+  }
+  // carve row addresses
+  int adr = 0;
+  for (int i=0; i < nv; i++) {
+    trowadr[i] = adr;
+    adr += trownnz[i];
+    trownnz[i] = 0;
+  }
+
+  // fill the buckets
+  it = (mjEffRank1Iter){0};
+  while (mjd_effRank1Next(m, d, &it, &e)) {
+    if (island >= 0 && d->tree_island[m->dof_treeid[e.colind[0]]] != island) {
+      continue;
+    }
+    for (int j=0; j < e.nnz; j++) {
+      int r = e.colind[j];
+      int lr = island >= 0 ? d->map_dof2idof[r] - idofadr : r;
+      mjtNum sJr = e.scale * e.val[j];
+      for (int a=0; a < e.nnz; a++) {
+        int lc = island >= 0 ? d->map_dof2idof[e.colind[a]] - idofadr : e.colind[a];
+        int w = trowadr[lr] + trownnz[lr]++;
+        tcol[w] = lc;
+        tval[w] = sJr * e.val[a];
+      }
+    }
+  }
+
+  // sort each bucketed row (insertion sort: per-tendon runs are already sorted and rows
+  // are short)
+  for (int i=0; i < nv; i++) {
+    int start = trowadr[i], end = start + trownnz[i];
+    for (int a=start+1; a < end; a++) {
+      int c = tcol[a];
+      mjtNum v = tval[a];
+      int b = a - 1;
+      while (b >= start && tcol[b] > c) {
+        tcol[b+1] = tcol[b];
+        tval[b+1] = tval[b];
+        b--;
+      }
+      tcol[b+1] = c;
+      tval[b+1] = v;
+    }
+  }
+
+  // merge flex CSR (monolithic only), tendon buckets and diagonals into the lower view
+  adr = 0;
+  for (int i=0; i < nv; i++) {
+    ctx->S_rowadr[i] = adr;
+    int gdof = island >= 0 ? idof2dof[i] : i;
+    mjtNum diag = d->efm_diag ? d->efm_diag[gdof] : 0;
+
+    // three-way merge of the sorted flex row, the sorted tendon/actuator row and the
+    // fluid M-pattern row, summing duplicates. Island dof->idof maps preserve order
+    // within a tree, so mapped fluid columns stay sorted
+    int fa = 0, fn = 0;
+    const int* fcol = NULL;
+    const mjtNum* fval = NULL;
+    if (island < 0 && d->nefmK) {
+      fa = d->efm_K_rowadr[i];
+      fn = d->efm_K_rownnz[i];
+      fcol = d->efm_K_colind;
+      fval = d->efm_K_val;
+    }
+    int fe = fa + fn;
+    int ta = trowadr[i], te = ta + trownnz[i];
+    int ga = 0, ge = 0;
+    if (d->efm_fluid) {
+      ga = m->M_rowadr[gdof];
+      ge = ga + m->M_rownnz[gdof];
+    }
+    while (fa < fe || ta < te || ga < ge) {
+      int col;
+      mjtNum val = 0;
+      int cf = fa < fe ? fcol[fa] : nv;
+      int ct = ta < te ? tcol[ta] : nv;
+      int cg = ga < ge ? (island >= 0 ? d->map_dof2idof[m->M_colind[ga]] - idofadr
+                                      : m->M_colind[ga]) : nv;
+      col = cf < ct ? cf : ct;
+      col = cg < col ? cg : col;
+      while (fa < fe && fcol[fa] == col) {
+        val += fval[fa++];
+      }
+      while (ta < te && tcol[ta] == col) {
+        val += tval[ta++];
+      }
+      while (ga < ge &&
+             (island >= 0 ? d->map_dof2idof[m->M_colind[ga]] - idofadr
+                          : m->M_colind[ga]) == col) {
+        val += d->efm_fluid[ga++];
+      }
+      if (col < i) {
+        ctx->S_colind[adr] = col;
+        ctx->S_val[adr] = val;
+        adr++;
+      } else if (col == i) {
+        diag += val;
+        break;  // columns are strictly sorted: nothing at or before the diagonal remains
+      } else {
+        break;
+      }
+    }
+
+    if (diag) {
+      ctx->S_colind[adr] = i;
+      ctx->S_val[adr] = diag;
+      adr++;
+    }
+    ctx->S_rownnz[i] = adr - ctx->S_rowadr[i];
+  }
+  ctx->nS = adr;
+
+  mj_freeStack(d);
+}
+
+
 // allocate and compute Hessian given efc_state
 //  mj_{mark/free}Stack in caller function!
 static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
@@ -2060,6 +2291,12 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
   // compute constraint inertia
   for (int i=0; i < nefc; i++) {
     ctx->D[i] = ctx->efc_state[i] == mjCNSTRSTATE_QUADRATIC ? ctx->efc_D[i] : 0;
+  }
+
+  // discrete metric: build the lower-triangle view of S for merging into H
+  ctx->nS = 0;
+  if (ctx->flg_metric) {
+    MakeMetricLower(d, ctx);
   }
 
   // sparse
@@ -2073,16 +2310,19 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
     // add M nonzeros to Hessian total (unavoidable overcounting since H_colind is still unknown)
     ctx->nH += ctx->M_rowadr[nv - 1] + ctx->M_rownnz[nv - 1];
 
+    // add discrete-metric nonzeros
+    ctx->nH += ctx->nS;
+
     // nH is known: allocate H, H_colind, HT_colind
     ctx->H          = mjSTACKALLOC(d, ctx->nH, mjtNum);
     int* H_intblock = mjSTACKALLOC(d, 2*ctx->nH, int);
     ctx->H_colind   = H_intblock;
     ctx->HT_colind  = H_intblock + ctx->nH;
 
-    // shift H row addresses to make room for M
+    // shift H row addresses to make room for M and the discrete metric
     int shift = 0;
     for (int r = 0; r < nv - 1; r++) {
-      shift += ctx->M_rownnz[r];
+      shift += ctx->M_rownnz[r] + (ctx->nS ? ctx->S_rownnz[r] : 0);
       ctx->H_rowadr[r + 1] += shift;
     }
 
@@ -2102,6 +2342,12 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
     // add mass matrix: H = J'*D*J + M
     mju_addToMatSparse(ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv,
                        ctx->M, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
+
+    // add discrete metric: H = J'*D*J + Mtilde
+    if (ctx->nS) {
+      mju_addToMatSparse(ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv,
+                         ctx->S_val, ctx->S_rownnz, ctx->S_rowadr, ctx->S_colind);
+    }
 
     // compute H' sparse structure (upper triangle, required for symbolic Cholesky)
     mju_transposeSparse(NULL, NULL, nv, nv, ctx->HT_rownnz, ctx->HT_rowadr, ctx->HT_colind, NULL,
@@ -2138,6 +2384,13 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
     mju_addToSymSparse(ctx->L, ctx->M, ctx->nv,
                        ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind,
                        /*flg_upper=*/ 0);
+
+    // add discrete metric (the view is lower+diagonal by construction)
+    if (ctx->nS) {
+      mju_addToSymSparse(ctx->L, ctx->S_val, nv,
+                         ctx->S_rownnz, ctx->S_rowadr, ctx->S_colind,
+                         /*flg_upper=*/ 0);
+    }
   }
 }
 
@@ -2176,6 +2429,12 @@ static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute)
       // add mass matrix: H = J'*D*J + C
       mju_addToMatSparse(ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv,
                          ctx->M, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
+
+      // add discrete metric: H = J'*D*J + Mtilde
+      if (ctx->nS) {
+        mju_addToMatSparse(ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv,
+                           ctx->S_val, ctx->S_rownnz, ctx->S_rowadr, ctx->S_colind);
+      }
     }
 
     // numeric sparse factorization: L = chol(H) using pre-computed sparsity pattern
@@ -2193,12 +2452,17 @@ static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute)
 
   // dense
   else {
-    // maybe compute H = M + J'*D*J
+    // maybe compute H = Mtilde + J'*D*J
     if (flg_recompute) {
       mju_sqrMatTD_impl(ctx->L, ctx->J, ctx->D, nefc, nv, /*flg_upper=*/ 0);
       mju_addToSymSparse(ctx->L, ctx->M, ctx->nv,
                          ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind,
                          /*flg_upper=*/ 0);
+      if (ctx->nS) {
+        mju_addToSymSparse(ctx->L, ctx->S_val, nv,
+                           ctx->S_rownnz, ctx->S_rowadr, ctx->S_colind,
+                           /*flg_upper=*/ 0);
+      }
     }
 
     // factorize H
@@ -2359,8 +2623,12 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
   // compute Ma = Mtilde * qacc
   mju_mulSymVecSparse(ctx.Ma, ctx.M, ctx.qacc, nv,
                       ctx.M_rownnz, ctx.M_rowadr, ctx.M_colind);
-  if (ctx.flg_flex) {
-    mjd_effMulAdd(m, d, ctx.Ma, ctx.qacc);
+  if (ctx.flg_metric) {
+    if (ctx.island < 0) {
+      mjd_effMulAdd(m, d, ctx.Ma, ctx.qacc, /*flg_contact=*/1);
+    } else {
+      mjd_effMulAddIsland(m, d, ctx.Ma, ctx.qacc, ctx.island);
+    }
   }
 
 

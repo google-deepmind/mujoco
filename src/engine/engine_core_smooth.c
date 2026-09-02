@@ -2150,14 +2150,16 @@ void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
 // half of sparse backsubstitution:  x = sqrt(inv(D))*inv(L')*y
 void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y,
                 const mjtNum* sqrtInvD, int n) {
-  int nv = m->nv;
+  mj_solveM2_impl(x, y, sqrtInvD, d->qLD, m->nv, n,
+                  m->M_rownnz, m->M_rowadr, m->M_colind, m->dof_simplenum);
+}
 
-  // local copies of key variables
-  const int* rownnz = m->M_rownnz;
-  const int* rowadr = m->M_rowadr;
-  const int* colind = m->M_colind;
-  const int* diagnum = m->dof_simplenum;
-  const mjtNum* qLD = d->qLD;
+
+// implementation of mj_solveM2: backsubstitute against a caller-selected factor (qLD or qH)
+void mj_solveM2_impl(mjtNum* x, const mjtNum* y, const mjtNum* sqrtInvD, const mjtNum* factor,
+                     int nv, int n, const int* rownnz, const int* rowadr, const int* colind,
+                     const int* diagnum) {
+  const mjtNum* qLD = factor;
 
   // x = y
   mju_copy(x, y, n * nv);

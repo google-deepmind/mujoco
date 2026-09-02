@@ -140,6 +140,11 @@ void mj_stepSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
     mj_implicitSkip(m, d, skipstage >= mjSTAGE_VEL);
     break;
 
+  case mjINT_DISCRETE:
+    // the solve already performed the velocity update: no skip-dependent work
+    mj_discrete(m, d);
+    break;
+
   default:
     mjERROR("invalid integrator");
   }

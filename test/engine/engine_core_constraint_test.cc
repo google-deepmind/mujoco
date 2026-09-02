@@ -563,7 +563,7 @@ TEST_F(CoreConstraintTest, BoxShellPinnedParentWithFreejoint) {
 #endif
   static constexpr char xml[] = R"(
   <mujoco>
-  <option integrator="implicitfast" jacobian="dense" gravity="0 0 0"/>
+  <option integrator="discrete" jacobian="dense" gravity="0 0 0"/>
   <worldbody>
     <geom type="plane" size="10 10 1" pos="0 0 -.1"/>
     <body>
@@ -726,7 +726,7 @@ TEST_F(CoreConstraintTest, BoxShellPinnedParentWithFreejoint) {
 TEST_F(CoreConstraintTest, StrainConstraintNoPinning) {
   static constexpr char xml[] = R"(
   <mujoco>
-  <option integrator="implicitfast" jacobian="dense"/>
+  <option integrator="discrete" jacobian="dense"/>
   <worldbody>
     <body name="parent">
       <joint type="free"/>
@@ -810,7 +810,7 @@ TEST_F(CoreConstraintTest, StrainConstraintNoPinning) {
 TEST_F(CoreConstraintTest, StrainConstraintQuadratic) {
   static constexpr char xml[] = R"(
   <mujoco>
-  <option integrator="implicitfast" jacobian="dense"/>
+  <option integrator="discrete" jacobian="dense"/>
   <worldbody>
     <body name="parent">
       <joint type="free"/>
@@ -906,7 +906,7 @@ TEST_F(CoreConstraintTest, ShellModeBendZeroForceAtRest) {
 TEST_F(CoreConstraintTest, QuadraticPassiveForceStability) {
   static constexpr char xml[] = R"(
   <mujoco>
-  <option integrator="implicitfast" solver="CG" tolerance="1e-6"/>
+  <option integrator="discrete" solver="CG" tolerance="1e-6"/>
   <worldbody>
     <geom type="plane" size="10 10 1"/>
     <flexcomp name="test" type="grid" count="3 3 3"
@@ -939,7 +939,7 @@ TEST_F(CoreConstraintTest, QuadraticPassiveForceStability) {
 TEST_F(CoreConstraintTest, QuadraticAnisotropicStrain) {
   static constexpr char xml[] = R"(
   <mujoco>
-  <option integrator="implicitfast" solver="CG" tolerance="1e-6"/>
+  <option integrator="discrete" solver="CG" tolerance="1e-6"/>
   <size memory="50M"/>
   <worldbody>
     <geom type="plane" size="10 10 1"/>
@@ -1137,7 +1137,7 @@ TEST_P(StrainConstraintRotatedTest, ResidualIsZero) {
   auto param = GetParam();
   std::string xml = R"(
   <mujoco>
-  <option integrator="implicitfast" jacobian="dense" gravity="0 0 0"/>
+  <option integrator="discrete" jacobian="dense" gravity="0 0 0"/>
   <worldbody>
     <body name="parent" )";
 

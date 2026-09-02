@@ -18,7 +18,7 @@
        eyelets, with grab bights at two opposite holes. Pull a bight out and
        the string slides through the eyelets, extracting length from the rim loop: the mouth
        closes. Slide pull (the hand position) up to close the bag around the contents. -->
-  <option timestep="0.002" solver="CG" tolerance="1e-6" iterations="400" integrator="implicitfast"/>
+  <option timestep="0.002" solver="CG" tolerance="1e-6" iterations="400" integrator="discrete"/>
 
   <visual>
     <headlight ambient=".3 .3 .3"/>

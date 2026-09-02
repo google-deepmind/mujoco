@@ -1015,7 +1015,7 @@ TEST_F(ElasticityTest, PinnedVertexBendingForce) {
 TEST_F(ElasticityTest, TrilinearParentBodyRotation) {
   static constexpr char rotated_xml[] = R"(
   <mujoco>
-    <option gravity="0 0 0" integrator="implicitfast"
+    <option gravity="0 0 0" integrator="discrete"
             timestep="0.0005" solver="CG"/>
     <worldbody>
       <body name="base" pos="0 0 0" quat="0.7071 0 0.7071 0">
@@ -1030,7 +1030,7 @@ TEST_F(ElasticityTest, TrilinearParentBodyRotation) {
   )";
   static constexpr char nonrotated_xml[] = R"(
   <mujoco>
-    <option gravity="0 0 0" integrator="implicitfast"
+    <option gravity="0 0 0" integrator="discrete"
             timestep="0.0005" solver="CG"/>
     <worldbody>
       <body name="base" pos="0 0 0">
@@ -1104,7 +1104,7 @@ TEST_F(ElasticityTest, TrilinearParentBodyRotation) {
 TEST_F(ElasticityTest, BendParentBodyRotation) {
   static constexpr char rotated_xml[] = R"(
   <mujoco>
-    <option gravity="0 0 0" integrator="implicitfast"
+    <option gravity="0 0 0" integrator="discrete"
             timestep="0.001" solver="CG"/>
     <worldbody>
       <body name="base" pos="0 0 0" quat="0.7071 0.7071 0 0">
@@ -1120,7 +1120,7 @@ TEST_F(ElasticityTest, BendParentBodyRotation) {
   )";
   static constexpr char nonrotated_xml[] = R"(
   <mujoco>
-    <option gravity="0 0 0" integrator="implicitfast"
+    <option gravity="0 0 0" integrator="discrete"
             timestep="0.001" solver="CG"/>
     <worldbody>
       <body name="base" pos="0 0 0">
@@ -1191,7 +1191,7 @@ TEST_F(ElasticityTest, BendParentBodyRotation) {
 TEST_F(ElasticityTest, StretchParentBodyRotation) {
   static constexpr char rotated_xml[] = R"(
   <mujoco>
-    <option gravity="0 0 0" integrator="implicitfast"
+    <option gravity="0 0 0" integrator="discrete"
             timestep="0.001" solver="CG"/>
     <worldbody>
       <body name="base" pos="0 0 0" quat="0.7071 0.7071 0 0">
@@ -1207,7 +1207,7 @@ TEST_F(ElasticityTest, StretchParentBodyRotation) {
   )";
   static constexpr char nonrotated_xml[] = R"(
   <mujoco>
-    <option gravity="0 0 0" integrator="implicitfast"
+    <option gravity="0 0 0" integrator="discrete"
             timestep="0.001" solver="CG"/>
     <worldbody>
       <body name="base" pos="0 0 0">

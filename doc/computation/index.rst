@@ -107,7 +107,8 @@ indeed we are hoping that MuJoCo will attract users from that community. Another
 formulations is that they are amenable to sophisticated numerical integration, without having to pay the computational
 overhead of discrete-time variational integrators (which are necessarily implicit when the inertia is
 configuration-dependent). Continuous-time dynamics are also well-defined backward in time, which is needed in some
-optimization algorithms.
+optimization algorithms. The opt-in ``discrete`` :ref:`integrator<geIntegrators>` is the exception: it performs the
+constraint solve directly in discrete time, trading these properties for unconditional stability of stiff elements.
 
 .. _moInverse:
 
@@ -553,8 +554,8 @@ Thus we define the derivative
 
 .. math::
    \begin{aligned}
-       {\partial a(v) \over \partial v} &= M^{-1} D \\
-       D &\equiv {\partial \over \partial v} \Big(\tau(v) - c (v) + J^T f(v)\Big)
+       {\partial a(v) \over \partial v} &= -M^{-1} D \\
+       D &\equiv -{\partial \over \partial v} \Big(\tau(v) - c (v) + J^T f(v)\Big)
    \end{aligned}
 
 The velocity update corresponding to Newton's method is as follows. First, we expand the right-hand side to first order
@@ -563,12 +564,12 @@ The velocity update corresponding to Newton's method is as follows. First, we ex
    \begin{aligned}
       v_{t+h} &= v_t + h a(v_{t+h}) \\
               &\approx v_t + h \big( a(v_t) + {\partial a(v) \over \partial v} \cdot (v_{t+h}-v_t) \big) \\
-              &= v_t + h a(v_t) + h M^{-1} D \cdot (v_{t+h}-v_t)
+              &= v_t + h a(v_t) - h M^{-1} D \cdot (v_{t+h}-v_t)
    \end{aligned}
 
 Premultiplying by :math:`M` and rearranging yields
 
-.. math:: (M-h D) v_{t+h} = (M-h D) v_t + h M a(v_t)
+.. math:: (M+h D) v_{t+h} = (M+h D) v_t + h M a(v_t)
 
 Solving for :math:`v_{t+h}`, we obtain the implicit-in-velocity update
 
@@ -577,8 +578,33 @@ Solving for :math:`v_{t+h}`, we obtain the implicit-in-velocity update
 
    \begin{aligned}
        v_{t+h} &= v_t + h \widehat{M}^{-1} M a(v_t) \\
-       \widehat{M} &\equiv M-h D
+       \widehat{M} &\equiv M+h D
    \end{aligned}
+
+The ``discrete`` integrator described :ref:`below<geIntegrators>` extends this update in two ways. First, *position*
+enters the expansion: writing :math:`K \equiv -\partial f / \partial q` for the positive stiffness matrix of the
+smooth forces, and substituting the position update :math:`q_{t+h} = q_t + h v_{t+h}`, the first-order expansion
+of :math:`f(q_{t+h}, v_{t+h})` contributes position stiffness to the effective inertia. Second, the expansion is
+solved *jointly with the constraints*: the :ref:`constraint solver<soAlgorithms>` operates directly in the
+extended metric, so constraint forces are computed against the same effective inertia that performs the update.
+Premultiplying by :math:`M` and rearranging as above yields the discrete step
+
+.. math::
+   :label: eq_discrete_update
+
+   \begin{aligned}
+      \widehat{M} \, a \; &= \; f(q_t, v_t) - h K v_t + J^T f_c \\
+      \widehat{M} \; &\equiv \; M + h D + h^2 K \\
+      v_{t+h} = v_t + h a&, \qquad q_{t+h} = q_t + h v_{t+h}
+   \end{aligned}
+
+where :math:`f_c` are the constraint forces and :math:`a`, stored in ``mjData.qacc``, is the *step map*
+:math:`(v_{t+h} - v_t)/h` rather than the continuous-time acceleration. Because the solver's objective must remain
+positive definite, :math:`D` and :math:`K` are restricted to their definiteness-safe parts: damping-type velocity
+derivatives and positive stiffness-type position derivatives, clamped per term to the dissipative sign. The Coriolis
+and centripetal derivatives, whose symmetric part is indefinite, cannot enter :math:`\widehat{M}`; in this respect
+``discrete`` is a sibling of ``implicitfast``, not a superset of ``implicit``. The :math:`-h K v_t` shift on the
+right-hand side is the position-stiffness force evaluated at the end-of-step position, to first order.
 
 .. _geFreeBody:
 
@@ -603,9 +629,10 @@ Gyroscopic derivatives for free bodies
 
 Integrators
 ^^^^^^^^^^^
-MuJoCo supports four integrators: three single-step integrators and the multi-step 4th order Runge-Kutta integrator.
-All three single-step integrators in MuJoCo use the update :eq:`eq_implicit_update`, with different definitions of the
-:math:`D` matrix, which is always computed analytically.
+MuJoCo supports five integrators: four single-step integrators and the multi-step 4th order Runge-Kutta integrator.
+The first three single-step integrators use the update :eq:`eq_implicit_update`, with different definitions of the
+:math:`D` matrix, which is always computed analytically. The ``discrete`` integrator performs the same implicit update
+*inside* the constraint solve, extended with position stiffness :eq:`eq_discrete_update`.
 
 Semi-implicit with implicit joint damping (``Euler``)
    For this method, :math:`D` only includes derivatives of joint damping. Note that in this case :math:`D` is diagonal
@@ -637,6 +664,71 @@ Fast implicit-in-velocity (``implicitfast``)
    faster :math:`L^TL` rather than :math:`LU` decomposition.
    For standalone free bodies, the dropped :ref:`gyroscopic derivatives<geFreeBody>` are reinstated with a local
    unsymmetric solve, preventing energy gain of spinning bodies at negligible additional cost.
+
+Discrete-time (``discrete``)
+   The integrators above preserve MuJoCo's :ref:`continuous-time<moContinuous>` contract: forward dynamics compute the
+   instantaneous acceleration, and integration is a separate stage which advances the state. This integrator gives up
+   that separation, in the tradition of the velocity-stepping schemes: the constraint solve and the implicit update are
+   one operation whose solution is the step itself, so integration is trivial and the additional factorization of
+   :math:`\widehat{M}` performed by the integrators above (stored in ``mjData.qH`` or ``mjData.qLU``) is not needed. The
+   :ref:`solver<soAlgorithms>` minimizes the same convex Gauss-principle objective, but in the effective metric
+   :math:`\widehat{M} = M + hD + h^2K`, where :math:`D` and :math:`K` denote *positive* damping and stiffness matrices:
+   the negated derivatives of the smooth forces, restricted to terms which keep :math:`\widehat{M}` positive definite.
+   Constraint forces are therefore computed against the same effective inertia which performs the velocity update, and
+   the damping ratio specified by :at:`solref` is honored even at coarse timesteps.
+
+   The :math:`h^2K` term makes ``discrete`` the only integrator which is implicit in *position*: joint, tendon and flex
+   stiffness and actuator position feedback are stable at timesteps far beyond the explicit stability limit
+   :math:`h \lesssim 2/\omega_{\max}`, where :math:`\omega_{\max}` is the highest natural frequency in the model.
+
+   The terms entering :math:`D` and :math:`K` are: joint damping and stiffness, tendon damping and stiffness, actuator
+   gains (clamped to the stabilizing sign), flex elasticity and damping, and the dissipative drag component of fluid
+   forces. Terms which fit inside the sparsity pattern of :math:`M` (the joint diagonals, the fluid drag blocks) join
+   its tree-structured factorization with no fill-in and add no cost to the solve; the couplings introduced by tendon,
+   actuator and flex terms are applied matrix-free inside the iterative solvers. This split determines solver support:
+   ``CG`` is matrix-free and requires only products with :math:`\widehat{M}`, and ``Newton`` merges the metric directly
+   into its Hessian, while the dual ``PGS`` and :ref:`noslip<option-noslip_iterations>` solvers require an explicit
+   factorization.
+
+   Under ``PGS``, tendon and actuator terms are therefore excluded from the metric and their forces integrate
+   explicitly, like the sparsity-pattern restriction of ``implicit`` above. Noslip post-processing under a primal solver
+   splits the metric: the main solve runs in the full :math:`\widehat{M}`, while the post-pass consumes the factored
+   part alone as an approximation. Flex terms, which are too stiff to integrate explicitly, raise an error. The Coriolis
+   and centripetal derivatives are excluded --- they cannot enter a positive-definite metric --- so
+   gyroscopically-dominated mechanisms are better served by ``implicit``; standalone free bodies receive the same local
+   :ref:`gyroscopic treatment<geFreeBody>` as ``implicitfast``.
+
+   Under this integrator forward dynamics computes the *discrete step map*: ``mjData.qacc`` holds the velocity
+   difference :math:`(v^+ - v)/h` rather than the continuous-time acceleration, so the same state yields a different
+   ``qacc`` under a different :ref:`timestep<option-timestep>`; as :math:`h \to 0` it converges to the continuous
+   acceleration. Acceleration-stage sensors (accelerometer, force/torque) report this finite-difference acceleration,
+   which is what a physical sensor averaging over one timestep measures. Inverse dynamics inverts the same relation,
+   so the :ref:`fwdinv<option-flag-fwdinv>` consistency check remains meaningful and
+   :ref:`invdiscrete<option-flag-invdiscrete>` is implied. Because ``qacc`` is the step, derivatives of forward
+   dynamics are derivatives of the discrete transition, with no discretization gap for gradient-based methods.
+
+   .. admonition:: Limitations and current status
+      :class: attention
+
+      The ``discrete`` integrator is new (September 2026), under active development, and subject to change.
+
+      The following combinations are not supported and raise a runtime error:
+
+      - Models with flex elasticity or passive flex contact under the ``PGS`` :ref:`solver<option-solver>` or with
+        :ref:`noslip<option-noslip_iterations>` post-processing.
+      - :ref:`Sleep<option-flag-sleep>` without :ref:`islands<option-flag-island>` (island grouping is required
+        to keep metric-coupled trees awake or asleep together), and sleep combined with flex.
+      - Interpolated flexes (e.g. flexcomp ``dof="trilinear"``) whose nodes are attached to arbitrary moving bodies
+        under the ``Newton`` solver (these models require the ``CG`` solver).
+
+      The following approximations and fallbacks apply under ``discrete``:
+
+      - Under ``PGS``, tendon and actuator metric terms are excluded and their forces integrate explicitly.
+      - Under primal solvers (``CG``, ``Newton``), ``noslip`` post-processing approximates the Delassus operator
+        from the backbone metric factor alone, omitting tendon and actuator couplings.
+      - Muscle force-length and DC-motor position-loop stiffness are not yet in the metric and integrate explicitly
+        (their velocity damping derivatives are included).
+      - Models with flex currently fall back to a monolithic solve across islands.
 
 4th-order Runge-Kutta (``RK4``)
    One advantage of our continuous-time formulation is that we can use higher order integrators such as Runge-Kutta or
@@ -674,6 +766,12 @@ Fast implicit-in-velocity (``implicitfast``)
      ``implicitfast`` applies the :ref:`gyroscopic derivatives<geFreeBody>` to such bodies. For example,
      `gyroscopic.xml <../_static/gyroscopic.xml>`__ shows an ellipsoid rolling on an inclined plane; both
      ``implicitfast`` and ``implicit`` handle this case well, while ``Euler`` quickly diverges.
+    **discrete**:
+     Choose ``discrete`` when stiff springs, position servos or strong damping interact with contacts: the constraint
+     solver and the integrator share one effective inertia, and position stiffness is unconditionally stable. Below
+     the explicit stability limit it is slightly more damped than ``implicitfast`` (backward-Euler dissipation on the
+     spring). Note that ``mjData.qacc`` reports the finite-difference velocity step :math:`(v^+ - v)/h` rather than
+     continuous acceleration.
     **RK4**:
      This integrator is best for systems which are energy conserving, or almost energy-conserving. `pendulum.xml
      <../_static/pendulum.xml>`__ shows a complicated pendulum mechanism which diverges quickly using ``Euler`` or
@@ -1505,6 +1603,15 @@ constraint would satisfy
 and so we would achieve the desired interpolation effect. This of course does not hold exactly in general, but the goal
 here is to construct a sensible and intuitive parameterization of the constraint model and get the scaling right.
 
+Note that :math:`A` is the Delassus operator of the *solve metric*: :math:`J M^{-1} J^T` for the continuous-time
+integrators, and :math:`J \widehat{M}^{-1} J^T` under the ``discrete`` integrator :eq:`eq_discrete_update`. The
+impedance is a statement about the realized constraint acceleration, so the regularizer must be computed against the
+metric which produces that acceleration. Under ``discrete`` the approximate diagonal is therefore corrected per row
+by the ratio of effective to bare diagonal inertias, and the :ref:`diagexact<option-flag-diagexact>` flag computes
+the exact diagonal against the effective metric's factor. Both are computed against the metric's *backbone* --- the
+diagonal classes and fluid blocks --- so tendon and flex couplings leave a residual mismatch between specified and
+realized impedance, in either direction; models dominated by such terms should expect impedances to be approximate.
+
 .. _soExactDiag:
 
 Diagonal approximation
@@ -2171,6 +2278,11 @@ Velocity
 ''''''''
 The stages below compute quantities that depend on the generalized velocity ``mjData.qvel``. Due to the sequential
 dependence structure of the pipeline, the actual dependence is on both ``qpos`` and ``qvel``.
+
+The converse does not hold in general: position-stage quantities are independent of velocity, with one exception:
+when :ref:`sleeping<siSleep>` is enabled, velocities are read during island construction, as the wake signal.
+``qvel`` should therefore not be modified between the position and velocity stages: modify it before
+:ref:`mj_fwdPosition`, or use :ref:`mj_forwardSkip`.
 
 13. Compute the tendon, flex edge and actuator velocities: :ref:`mj_fwdVelocity`
 14. Compute the body velocities and rates of change of the joint axes, again in the global coordinate frames centered at

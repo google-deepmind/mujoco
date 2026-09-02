@@ -1,5 +1,5 @@
 <mujoco model="flex">
-  <option timestep="0.01" integrator="implicitfast">
+  <option timestep="0.01" integrator="discrete">
     <flag island="enable" multiccd="enable"/>
   </option>
 

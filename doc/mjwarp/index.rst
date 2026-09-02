@@ -44,6 +44,7 @@ The MuJoCo ecosystem offers multiple options for batched simulation.
   TPUs.
 - :func:`mujoco_warp.step <mujoco_warp.step>`: Python API for high throughput simulation targeting NVIDIA GPUs. Scales
   better than MJX on nearly every workload, in particular complex simulation scenes. Works well with PyTorch.
+
 .. TODO(robotics-simulation): add step/time comparison plot
 
 Low latency

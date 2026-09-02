@@ -152,6 +152,37 @@ MJAPI mjtNum mj_actuatorArmature(const mjModel* m, mjtObj type, int id);
 MJAPI void mj_warning(mjData* d, int warning, int info);
 
 
+//-------------------------- effective-metric predicates ------------------------------------------
+
+// the selected integrator performs the constraint solve in the effective metric
+int mj_isMetric(const mjModel* m);
+
+// do the tendon and actuator classes enter the metric (excluded under solver=PGS only;
+// noslip atop a primal solver keeps them)
+MJAPI int mj_effCouplings(const mjModel* m);
+
+// tendon i has a spring: nonzero stiffness or stiffness polynomial
+int mj_tendonHasStiffness(const mjModel* m, int i);
+
+// tendon i has a damper: nonzero damping, damping polynomial, or an attached actuator
+int mj_tendonHasDamping(const mjModel* m, int i);
+
+// does flex f use the passive contact path (metric-carried contacts)
+MJAPI int mj_effFlexContactPossible(const mjModel* m, int f);
+
+// does flex f contribute elastic stiffness to the metric
+int mj_effFlexStiffPossible(const mjModel* m, int f);
+
+// does flex f need the implicit metric treatment: elastic stiffness or passive contact
+MJAPI int mj_effFlexPossible(const mjModel* m, int f);
+
+// can this tendon contribute to the metric (model-level; mirrored by island discovery
+// and the sleep wake rule)
+MJAPI int mj_effTendonPossible(const mjModel* m, int i);
+
+// can this actuator contribute to the metric (model-level type check)
+int mj_effActuatorPossible(const mjModel* m, int i);
+
 #ifdef __cplusplus
 }
 #endif

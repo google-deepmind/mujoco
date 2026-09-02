@@ -355,6 +355,25 @@ static int isFlexEquality(const mjModel* m, int efc_type, int efc_id) {
 }
 
 
+// union the awake trees of all dofs in tendon i's Jacobian: the static ten_J sparsity is
+// the coupling footprint of the tendon's metric term, whatever the number of path trees
+static void unionTendonTrees(const mjModel* m, const mjData* d, int* parent, int i) {
+  int start = m->ten_J_rowadr[i], end = start + m->ten_J_rownnz[i];
+  int tree1 = -1;
+  for (int j=start; j < end; j++) {
+    int tree2 = m->dof_treeid[m->ten_J_colind[j]];
+    if (!d->tree_awake[tree2]) {
+      continue;
+    }
+    if (tree1 < 0) {
+      tree1 = tree2;
+    } else if (tree1 != tree2) {
+      mj_dsuMerge(parent, tree1, tree2);
+    }
+  }
+}
+
+
 // activate and union all trees with direct incidence in a constraint
 static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* parent,
                                         int* efc_tree, int* err_i) {
@@ -406,20 +425,14 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
     }
   }
 
-  // flex stiffness couples all vertices (nodes for interpolated flexes) of a flex without any
-  // constraint row representing the coupling: union the trees of every stiffness-active flex
+  // flexes with metric terms couple all their vertices (nodes for interpolated flexes) without
+  // any constraint row representing the coupling: union the trees of every such flex
   // (star around the first dynamic tree). This keeps the partition valid when the implicit
-  // effective metric (mj_flexCG) carries the stiffness inside the constraint solve. Awake
+  // effective metric (integrator=discrete) carries the coupling inside the constraint solve. Awake
   // trees only: sleeping trees must stay out of islands (mj_sleep invariant, matching the
   // constraint filter); waking a flex as a unit remains the wake machinery's job.
   for (int f=0; f < m->nflex; f++) {
-    // mirror the stiffness-activity conditions of engine_derivative's flexStiff_active /
-    // flexInterp_processed: deformable dim>=2 flex with bending or nonzero stiffness
-    if (m->flex_rigid[f] || m->flex_dim[f] < 2) {
-      continue;
-    }
-    int sadr = m->flex_stiffnessadr[f];
-    if (m->flex_bendingadr[f] < 0 && (sadr < 0 || m->flex_stiffness[sadr] == 0)) {
+    if (!mj_effFlexStiffPossible(m, f) && !mj_effFlexContactPossible(m, f)) {
       continue;
     }
 
@@ -444,6 +457,56 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
       if (tree1 < 0) {
         tree1 = tree2;
       } else {
+        mj_dsuMerge(parent, tree1, tree2);
+      }
+    }
+  }
+
+  // discrete metric: tendon stiffness/damping couples every tree in the tendon's path
+  // with no constraint row (mj_effTendonPossible); the coupling footprint is the static
+  // ten_J sparsity, covering tendons that span any number of trees. Awake trees only: the
+  // pre-existing sleep policy (mj_setConst) keeps metric-coupled trees awake. Under the
+  // dual solver these classes are excluded from the metric (mj_effCouplings): no
+  // couplings, no unions
+  if (mj_effCouplings(m)) {
+    for (int i=0; i < m->ntendon; i++) {
+      if (m->tendon_treenum[i] < 2 || !mj_effTendonPossible(m, i)) {
+        continue;
+      }
+      unionTendonTrees(m, d, parent, i);
+    }
+
+    // actuator gains couple every tree their transmission touches (mj_effActuatorPossible);
+    // static transmission targets, mirroring the sleep-policy sweep in mj_setConst
+    for (int i=0; i < m->nu; i++) {
+      if (!mj_effActuatorPossible(m, i)) {
+        continue;
+      }
+      int tree1 = -1, tree2 = -1;
+      int tid = m->actuator_trnid[2*i];
+      int tid2 = m->actuator_trnid[2*i + 1];
+      switch ((mjtTrn) m->actuator_trntype[i]) {
+      case mjTRN_TENDON:
+        unionTendonTrees(m, d, parent, tid);
+        break;
+      case mjTRN_SITE:
+      case mjTRN_SLIDERCRANK:
+        tree1 = m->body_treeid[m->site_bodyid[tid]];
+        if (tid2 >= 0) {
+          tree2 = m->body_treeid[m->site_bodyid[tid2]];
+        }
+        break;
+      case mjTRN_SO3:
+        if (tid2 >= 0) {
+          tree1 = m->body_treeid[m->site_bodyid[tid]];
+          tree2 = m->body_treeid[m->site_bodyid[tid2]];
+        }
+        break;
+      default:
+        break;  // joint, jointinparent, body: single tree, no edge
+      }
+      if (tree1 >= 0 && tree2 >= 0 && tree1 != tree2 &&
+          d->tree_awake[tree1] && d->tree_awake[tree2]) {
         mj_dsuMerge(parent, tree1, tree2);
       }
     }

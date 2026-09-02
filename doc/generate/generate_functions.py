@@ -156,7 +156,7 @@ def generate() -> str:
 {doc}
 
 """.lstrip())
-  return rst_str
+  return rst_str.rstrip('\n') + '\n'
 
 
 def main() -> None:

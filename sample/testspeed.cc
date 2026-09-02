@@ -148,54 +148,54 @@ static void PrintOptions(const mjModel* m) {
     }
   };
 
-#define X(type, name, size)                                                 \
-  if (std::strcmp(#name, "disableflags") != 0 &&                            \
-      std::strcmp(#name, "enableflags") != 0 &&                             \
-      std::strcmp(#name, "disableactuator") != 0) {                         \
-    if (m->opt.name != optd.name) {                                         \
-      print_header();                                                       \
-      std::printf("  %-18s: ", #name);                                      \
-      if (std::strcmp(#name, "integrator") == 0) {                          \
-        const char* names[] = {"Euler", "RK4", "Implicit", "ImplicitFast"}; \
-        int         val     = (int)m->opt.name;                             \
-        if (val >= 0 && val < 4) {                                          \
-          std::printf("%s", names[val]);                                    \
-        } else {                                                            \
-          std::printf("%d", val);                                           \
-        }                                                                   \
-      } else if (std::strcmp(#name, "cone") == 0) {                         \
-        const char* names[] = {"Pyramidal", "Elliptic"};                    \
-        int         val     = (int)m->opt.name;                             \
-        if (val >= 0 && val < 2) {                                          \
-          std::printf("%s", names[val]);                                    \
-        } else {                                                            \
-          std::printf("%d", val);                                           \
-        }                                                                   \
-      } else if (std::strcmp(#name, "jacobian") == 0) {                     \
-        const char* names[] = {"Dense", "Sparse", "Auto"};                  \
-        int         val     = (int)m->opt.name;                             \
-        if (val >= 0 && val < 3) {                                          \
-          std::printf("%s", names[val]);                                    \
-        } else {                                                            \
-          std::printf("%d", val);                                           \
-        }                                                                   \
-      } else if (std::strcmp(#name, "solver") == 0) {                       \
-        const char* names[] = {"PGS", "CG", "Newton"};                      \
-        int         val     = (int)m->opt.name;                             \
-        if (val >= 0 && val < 3) {                                          \
-          std::printf("%s", names[val]);                                    \
-        } else {                                                            \
-          std::printf("%d", val);                                           \
-        }                                                                   \
-      } else {                                                              \
-        if (std::strcmp(#type, "int") == 0) {                               \
-          std::printf("%d", (int)m->opt.name);                              \
-        } else {                                                            \
-          std::printf("%g", (double)m->opt.name);                           \
-        }                                                                   \
-      }                                                                     \
-      std::printf("\n");                                                    \
-    }                                                                       \
+#define X(type, name, size)                                                             \
+  if (std::strcmp(#name, "disableflags") != 0 &&                                        \
+      std::strcmp(#name, "enableflags") != 0 &&                                         \
+      std::strcmp(#name, "disableactuator") != 0) {                                     \
+    if (m->opt.name != optd.name) {                                                     \
+      print_header();                                                                   \
+      std::printf("  %-18s: ", #name);                                                  \
+      if (std::strcmp(#name, "integrator") == 0) {                                      \
+        const char* names[] = {"Euler", "RK4", "Implicit", "ImplicitFast", "Discrete"}; \
+        int         val     = (int)m->opt.name;                                         \
+        if (val >= 0 && val < 5) {                                                      \
+          std::printf("%s", names[val]);                                                \
+        } else {                                                                        \
+          std::printf("%d", val);                                                       \
+        }                                                                               \
+      } else if (std::strcmp(#name, "cone") == 0) {                                     \
+        const char* names[] = {"Pyramidal", "Elliptic"};                                \
+        int         val     = (int)m->opt.name;                                         \
+        if (val >= 0 && val < 2) {                                                      \
+          std::printf("%s", names[val]);                                                \
+        } else {                                                                        \
+          std::printf("%d", val);                                                       \
+        }                                                                               \
+      } else if (std::strcmp(#name, "jacobian") == 0) {                                 \
+        const char* names[] = {"Dense", "Sparse", "Auto"};                              \
+        int         val     = (int)m->opt.name;                                         \
+        if (val >= 0 && val < 3) {                                                      \
+          std::printf("%s", names[val]);                                                \
+        } else {                                                                        \
+          std::printf("%d", val);                                                       \
+        }                                                                               \
+      } else if (std::strcmp(#name, "solver") == 0) {                                   \
+        const char* names[] = {"PGS", "CG", "Newton"};                                  \
+        int         val     = (int)m->opt.name;                                         \
+        if (val >= 0 && val < 3) {                                                      \
+          std::printf("%s", names[val]);                                                \
+        } else {                                                                        \
+          std::printf("%d", val);                                                       \
+        }                                                                               \
+      } else {                                                                          \
+        if (std::strcmp(#type, "int") == 0) {                                           \
+          std::printf("%d", (int)m->opt.name);                                          \
+        } else {                                                                        \
+          std::printf("%g", (double)m->opt.name);                                       \
+        }                                                                               \
+      }                                                                                 \
+      std::printf("\n");                                                                \
+    }                                                                                   \
   }
 
 #define XVEC(type, name, size)                                                       \
@@ -293,7 +293,7 @@ int main(int argc, char** argv) {
       "  --solver=S             Newton    PGS, CG, Newton\n"
       "  --cone=C               Pyramidal Pyramidal, Elliptic\n"
       "  --jacobian=J           Auto      Dense, Sparse, Auto\n"
-      "  --integrator=I         Euler     Euler, RK4, Implicit, ImplicitFast\n"
+      "  --integrator=I         Euler     Euler, RK4, Implicit, ImplicitFast, Discrete\n"
       "  --iterations=N         100       solver iterations limit\n"
       "  --tolerance=X          1e-8      solver tolerance\n"
       "  --sleep_tolerance=X    1e-3      sleep tolerance\n"
@@ -367,8 +367,8 @@ int main(int argc, char** argv) {
       opt_jacobian = parsed;
       set_jacobian = true;
     } else if ((val = getarg("integrator"))) {
-      int parsed = ParseEnum(val, {"Euler", "RK4", "Implicit", "ImplicitFast"});
-      if (parsed < 0 || parsed > 3) { return finish("Invalid --integrator argument"); }
+      int parsed = ParseEnum(val, {"Euler", "RK4", "Implicit", "ImplicitFast", "Discrete"});
+      if (parsed < 0 || parsed > 4) { return finish("Invalid --integrator argument"); }
       opt_integrator = parsed;
       set_integrator = true;
     } else if ((val = getarg("iterations"))) {

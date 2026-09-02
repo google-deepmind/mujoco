@@ -418,7 +418,7 @@ TEST_F(DerivativeTest, StepSkip) {
   model->opt.disableflags |= mjDSBL_WARMSTART;
 
   for (const mjtIntegrator integrator :
-       {mjINT_EULER, mjINT_IMPLICIT, mjINT_IMPLICITFAST}) {
+       {mjINT_EULER, mjINT_IMPLICIT, mjINT_IMPLICITFAST, mjINT_DISCRETE}) {
     model->opt.integrator = integrator;
 
     // reset, take 20 steps
@@ -1175,16 +1175,20 @@ TEST_F(DerivativeTest, ForcerangeClampedDerivative) {
   MjDataPtr d_gt = MakeData(m);
   MjDataPtr d_implicit = MakeData(m);
   MjDataPtr d_euler = MakeData(m);
+  MjDataPtr d_discrete = MakeData(m);
 
   mj_resetData(m.get(), d_gt.get());
   mj_resetData(m.get(), d_implicit.get());
   mj_resetData(m.get(), d_euler.get());
+  mj_resetData(m.get(), d_discrete.get());
 
   d_gt.get()->ctrl[0] = 0.5;
   d_implicit->ctrl[0] = 0.5;
   d_euler->ctrl[0] = 0.5;
+  d_discrete->ctrl[0] = 0.5;
 
   mjtNum error_implicit = 0;
+  mjtNum error_discrete = 0;
   mjtNum error_euler = 0;
   int nsteps_large = static_cast<int>(duration / dt_large);
   int substeps = static_cast<int>(dt_large / dt_small);
@@ -1213,17 +1217,115 @@ TEST_F(DerivativeTest, ForcerangeClampedDerivative) {
     m->opt.integrator = mjINT_IMPLICITFAST;
     mj_step(m.get(), d_implicit.get());
 
+    // discrete at large timestep
+    m->opt.integrator = mjINT_DISCRETE;
+    mj_step(m.get(), d_discrete.get());
+
     // accumulate errors
     mjtNum diff_implicit = d_gt.get()->qpos[0] - d_implicit->qpos[0];
     mjtNum diff_euler = d_gt.get()->qpos[0] - d_euler->qpos[0];
+    mjtNum diff_discrete = d_gt.get()->qpos[0] - d_discrete->qpos[0];
     error_implicit += diff_implicit * diff_implicit;
     error_euler += diff_euler * diff_euler;
+    error_discrete += diff_discrete * diff_discrete;
   }
 
   // expect implicitfast to be more accurate than Euler
   EXPECT_LT(error_implicit, error_euler)
       << "implicitfast should be more accurate than Euler at large timestep "
       << "when forcerange derivatives are correctly handled";
+
+  // the discrete arm: while the force is clamped, actuatorDerivSkip keeps the gains out
+  // of the metric and discrete coincides with Euler; unclamped stretches trade Euler's
+  // explicit overshoot for the metric's implicit damping, so the errors are near-equal
+  // with a platform-dependent sign. Assert comparable accuracy; the stability advantage
+  // at large h*omega is pinned by DiscreteStiffLegPress
+  EXPECT_LT(error_discrete, 1.5 * error_euler)
+      << "discrete should be comparable to Euler under a clamped servo";
+}
+
+// under discrete, qacc is the step map: finite differences of mj_step through
+// mjd_transitionFD (which reuses stages via mj_stepSkip) must match naive finite
+// differences with a full reset and a fresh step per perturbation
+TEST_F(DerivativeTest, DiscreteStepMapDerivatives) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01" integrator="discrete"/>
+    <worldbody>
+      <geom name="floor" type="plane" size="1 1 .1"/>
+      <body pos="0 0 0.079">
+        <joint name="slide" type="slide" axis="0 0 1" stiffness="2000" damping="10" springref="-0.02"/>
+        <joint name="hinge" type="hinge" axis="0 1 0" stiffness="500" damping="2"/>
+        <geom type="capsule" size="0.04" fromto="0 0 0 0.2 0 -0.04"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="hinge"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  int nv = m->nv, nu = m->nu, ns = 2*nv;
+
+  // state with an active contact and nonzero velocity
+  const mjtNum qpos0[2] = {-0.01, 0.05};
+  const mjtNum qvel0[2] = {-0.2, 0.3};
+  const mjtNum ctrl0[1] = {0.5};
+  mju_copy(d->qpos, qpos0, nv);
+  mju_copy(d->qvel, qvel0, nv);
+  mju_copy(d->ctrl, ctrl0, nu);
+  mj_forward(m.get(), d.get());
+  ASSERT_GT(d->ncon, 0);
+
+  // transition derivatives via stage-reusing finite differences
+  // (eps is a perturbation size, not a tolerance: independent of MJTOL_SCALE)
+  mjtNum eps = sizeof(mjtNum) == 8 ? 1e-6 : 1e-3;
+  std::vector<mjtNum> A(ns*ns), B(ns*nu);
+  mjd_transitionFD(m.get(), d.get(), eps, /*flg_centered=*/1, A.data(), B.data(),
+                   nullptr, nullptr);
+
+  // naive centered differences: full reset and one fresh mj_step per perturbation
+  auto naive = [&](int what, int idx, mjtNum* dx) {
+    mjtNum x[2][4];
+    for (int sgn = 0; sgn < 2; sgn++) {
+      mj_resetData(m.get(), d.get());
+      mju_copy(d->qpos, qpos0, nv);
+      mju_copy(d->qvel, qvel0, nv);
+      mju_copy(d->ctrl, ctrl0, nu);
+      mjtNum e = sgn ? eps : -eps;
+      if (what == 0) d->qpos[idx] += e;
+      if (what == 1) d->qvel[idx] += e;
+      if (what == 2) d->ctrl[idx] += e;
+      mj_step(m.get(), d.get());
+      mju_copy(x[sgn], d->qpos, nv);
+      mju_copy(x[sgn] + nv, d->qvel, nv);
+    }
+    for (int i = 0; i < ns; i++) {
+      dx[i] = (x[1][i] - x[0][i]) / (2*eps);
+    }
+  };
+
+  // guard against a vacuous pass: A contains the identity block and h-scale dynamics
+  EXPECT_GT(mju_norm(A.data(), ns*ns), 1);
+
+  mjtNum maxdiff = 0;
+  mjtNum dx[4];
+  for (int j = 0; j < ns; j++) {
+    naive(j < nv ? 0 : 1, j < nv ? j : j - nv, dx);
+    for (int i = 0; i < ns; i++) {
+      maxdiff = mju_max(maxdiff, mju_abs(A[i*ns + j] - dx[i]));
+    }
+  }
+  for (int j = 0; j < nu; j++) {
+    naive(2, j, dx);
+    for (int i = 0; i < ns; i++) {
+      maxdiff = mju_max(maxdiff, mju_abs(B[i*nu + j] - dx[i]));
+    }
+  }
+  EXPECT_LT(maxdiff, MjTol(1e-8, 2e-5));
 }
 
 // forcelimited actuator following a multi-output SO3 actuator: the derivative
@@ -1581,7 +1683,7 @@ static void mulKD_dense(mjModel* m, mjData* d, mjtNum* H_dense, int nv,
 TEST_F(DerivativeTest, FlexInterpDerivatives) {
   static const char* const kXml = R"(
   <mujoco>
-    <option integrator="implicit"/>
+    <option integrator="discrete"/>
     <worldbody>
       <flexcomp name="flex" type="grid" count="3 3 3" spacing="0.1 0.2 0.3"
                 radius=".01" dim="3" mass="1" dof="trilinear">
@@ -1750,7 +1852,7 @@ TEST_F(DerivativeTest, FlexInterpDerivatives) {
 TEST_F(DerivativeTest, FlexInterpDerivativesDeformed) {
   static const char* const kXml = R"(
   <mujoco>
-    <option integrator="implicit"/>
+    <option integrator="discrete"/>
     <worldbody>
       <flexcomp name="flex" type="grid" count="3 3 3" spacing="0.1 0.2 0.3"
                 radius=".01" dim="3" mass="1" dof="trilinear">
@@ -1851,7 +1953,7 @@ static void stretchK_dense(mjModel* m, mjData* d, mjtNum* K, int nv,
 TEST_F(DerivativeTest, FlexBendDerivativesRotated) {
   static const char* const kXml = R"(
   <mujoco>
-    <option integrator="implicitfast" solver="CG"/>
+    <option integrator="discrete" solver="CG"/>
     <worldbody>
       <body name="turned" euler="90 35 20">
         <flexcomp name="rot" type="grid" count="3 3 1" spacing="0.1 0.1 0.1"
@@ -1930,7 +2032,7 @@ TEST_F(DerivativeTest, FlexBendDerivativesRotated) {
 TEST_F(DerivativeTest, FlexStretchDerivativesTensile) {
   static const char* const kXml = R"(
   <mujoco>
-    <option integrator="implicit"/>
+    <option integrator="discrete"/>
     <worldbody>
       <flexcomp name="cloth" type="grid" count="4 4 1" spacing="0.1 0.1 0.1"
                 radius=".01" dim="2" mass="1" pos="0 0 1">
@@ -1998,7 +2100,7 @@ TEST_F(DerivativeTest, FlexStretchDerivativesTensile) {
 TEST_F(DerivativeTest, FlexStretchDerivatives) {
   static const char* const kXml = R"(
   <mujoco>
-    <option integrator="implicit"/>
+    <option integrator="discrete"/>
     <worldbody>
       <flexcomp name="cloth" type="grid" count="4 4 1" spacing="0.1 0.1 0.1"
                 radius=".01" dim="2" mass="1" pos="0 0 1">
@@ -2118,7 +2220,7 @@ TEST_F(DerivativeTest, FlexStretchDerivatives) {
 TEST_F(DerivativeTest, FlexStiffAssemble) {
   static const char* const kXml = R"(
   <mujoco>
-    <option integrator="implicit"/>
+    <option integrator="discrete"/>
     <worldbody>
       <flexcomp name="cloth" type="grid" count="4 4 1" spacing="0.1 0.1 0.1"
                 radius=".01" dim="2" mass="1" pos="0 0 1">
@@ -2190,7 +2292,7 @@ TEST_F(DerivativeTest, FlexStiffAssemble) {
 TEST_F(DerivativeTest, FlexStiffAssembleInterp) {
   static const char* const kXml = R"(
   <mujoco>
-    <option integrator="implicit"/>
+    <option integrator="discrete"/>
     <worldbody>
       <flexcomp name="soft" type="grid" count="4 4 4" spacing="0.1 0.1 0.1"
                 radius=".01" dim="3" mass="1" pos="0 0 1" dof="trilinear">
@@ -2265,7 +2367,7 @@ TEST_F(DerivativeTest, EffSolve) {
     }
     mjd_effSolve(m, d, x.data(), b.data());
     mju_mulSymVecSparse(r.data(), d->M, x.data(), nv, m->M_rownnz, m->M_rowadr, m->M_colind);
-    mjd_effMulAdd(m, d, r.data(), x.data());
+    mjd_effMulAdd(m, d, r.data(), x.data(), /*flg_contact=*/1);
     mju_subFrom(r.data(), b.data(), nv);
     return mju_norm(r.data(), nv) / mju_norm(b.data(), nv);
   };
@@ -2273,7 +2375,7 @@ TEST_F(DerivativeTest, EffSolve) {
   // stretch + bending cloth on world: per-step factor, exact
   static const char* const kXmlBoth = R"(
   <mujoco>
-    <option solver="CG" integrator="implicitfast"/>
+    <option solver="CG" integrator="discrete"/>
     <worldbody>
       <flexcomp name="cloth" type="grid" count="6 6 1" spacing="0.05 0.05 0.05"
                 radius=".005" dim="2" mass="0.5" pos="0 0 1" dof="full">
@@ -2296,7 +2398,7 @@ TEST_F(DerivativeTest, EffSolve) {
   // bending-only cloth: no CSR or per-step factor, constant factor covers, exact
   static const char* const kXmlBend = R"(
   <mujoco>
-    <option solver="CG" integrator="implicitfast"/>
+    <option solver="CG" integrator="discrete"/>
     <worldbody>
       <flexcomp name="cloth" type="grid" count="6 6 1" spacing="0.05 0.05 0.05"
                 radius=".005" dim="2" mass="0.5" pos="0 0 1" dof="full">
@@ -2320,7 +2422,7 @@ TEST_F(DerivativeTest, EffSolve) {
   // the refinement path must still meet its tolerance
   static const char* const kXmlMoving = R"(
   <mujoco>
-    <option solver="CG" integrator="implicitfast"/>
+    <option solver="CG" integrator="discrete"/>
     <worldbody>
       <body name="base" pos="0 0 1">
         <joint type="slide" axis="0 0 1"/>
@@ -2345,7 +2447,7 @@ TEST_F(DerivativeTest, EffSolve) {
 // A cloth with per-step stretch stiffness, used by the two tests below.
 static const char* const kStretchCloth = R"(
 <mujoco>
-  <option solver="CG" integrator="implicitfast"/>
+  <option solver="CG" integrator="discrete"/>
   <worldbody>
     <body name="base" pos="0 0 1">
       <joint type="slide" axis="0 0 1"/>
@@ -2369,7 +2471,7 @@ static const char* const kStretchCloth = R"(
 TEST_F(DerivativeTest, EffSolveCapWarns) {
   static const char* const kStiffCloth = R"(
   <mujoco>
-    <option solver="CG" integrator="implicitfast"/>
+    <option solver="CG" integrator="discrete"/>
     <worldbody>
       <body name="base" pos="0 0 1">
         <joint type="slide" axis="0 0 1"/>

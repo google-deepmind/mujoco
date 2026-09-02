@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_inline.h"
 #include "engine/engine_memory.h"
@@ -1235,4 +1236,110 @@ void mj_warning(mjData* d, int warning, int info) {
 
   // increase counter
   d->warning[warning].number++;
+}
+
+
+//-------------------------- effective-metric predicates ------------------------------------------
+
+// the selected integrator performs the constraint solve in the effective metric.
+// The option-level gate decision; d->efm_active reports whether the per-step build ran
+int mj_isMetric(const mjModel* m) {
+  return m->opt.integrator == mjINT_DISCRETE;
+}
+
+
+// do the tendon and actuator classes enter the metric. Under solver=PGS -- and only
+// there -- they are excluded and their forces integrate explicitly: the dual assembles
+// its constraint-space AR from the backbone factor, which cannot carry their couplings,
+// and a consistent backbone metric beats a solve whose forces and accelerations disagree.
+// Noslip atop a primal solver keeps the couplings: the main solve runs in the full
+// metric and the post-pass consumes the backbone AR as an approximation. Flex, which is
+// too stiff to exclude, is rejected by mj_checkDiscrete instead
+int mj_effCouplings(const mjModel* m) {
+  return mj_isMetric(m) && m->opt.solver != mjSOL_PGS;
+}
+
+
+// tendon i has a spring: nonzero stiffness or stiffness polynomial
+int mj_tendonHasStiffness(const mjModel* m, int i) {
+  return m->tendon_stiffness[i] != 0 ||
+         !mju_isZero(m->tendon_stiffnesspoly + mjNPOLY*i, mjNPOLY);
+}
+
+
+// tendon i has a damper: nonzero damping, damping polynomial, or an attached actuator
+int mj_tendonHasDamping(const mjModel* m, int i) {
+  return m->tendon_damping[i] != 0 ||
+         !mju_isZero(m->tendon_dampingpoly + mjNPOLY*i, mjNPOLY) ||
+         m->tendon_actuatorid[i] != -1;
+}
+
+
+// does flex f use the passive contact path: metric-carried contacts require a standard
+// (non-interpolated) deformable flex of dim >= 2. This predicate is the single authority,
+// shared by the integrator validation and the constraint-exclusion path
+int mj_effFlexContactPossible(const mjModel* m, int f) {
+  return m->flex_passive[f] && !m->flex_rigid[f] && !m->flex_interp[f] && m->flex_dim[f] >= 2;
+}
+
+
+// does flex f contribute elastic stiffness to the metric. Unlike the assembler gate
+// flexStiff_active (engine_derivative.c), interpolated flexes are included: their
+// stiffness is carried matrix-free
+int mj_effFlexStiffPossible(const mjModel* m, int f) {
+  // rigid or 1D flexes do not contribute stiffness
+  if (m->flex_rigid[f] || m->flex_dim[f] < 2) {
+    return 0;
+  }
+
+  // stretch stiffness present
+  int sadr = m->flex_stiffnessadr[f];
+  if (sadr >= 0 && m->flex_stiffness[sadr] != 0) {
+    return 1;
+  }
+
+  // bending: an allocated block does not imply stiffness
+  // (strain-constrained and zero-elasticity flexes carry an all-zero block)
+  int badr = m->flex_bendingadr[f];
+  if (badr < 0) {
+    return 0;
+  }
+  int end = m->nflexbending;
+  for (int g=f+1; g < m->nflex; g++) {
+    if (m->flex_bendingadr[g] >= 0) {
+      end = m->flex_bendingadr[g];
+      break;
+    }
+  }
+  return !mju_isZero(m->flex_bending + badr, end - badr);
+}
+
+
+// does flex f need the implicit metric treatment: elastic stiffness or passive contact
+int mj_effFlexPossible(const mjModel* m, int f) {
+  return mj_effFlexStiffPossible(m, f) || mj_effFlexContactPossible(m, f);
+}
+
+
+// can this tendon contribute to the metric (model-level; mirrored by island discovery
+// and the sleep wake rule)
+int mj_effTendonPossible(const mjModel* m, int i) {
+  return (!mjDISABLED(mjDSBL_SPRING) && mj_tendonHasStiffness(m, i)) ||
+         (!mjDISABLED(mjDSBL_DAMPER) && mj_tendonHasDamping(m, i));
+}
+
+
+// can this actuator contribute to the metric (model-level type check; mirrored by island
+// discovery). Muscle and DC-motor types contribute velocity derivatives only
+int mj_effActuatorPossible(const mjModel* m, int i) {
+  if (mjDISABLED(mjDSBL_ACTUATION)) {
+    return 0;
+  }
+  return m->actuator_biastype[i] == mjBIAS_AFFINE ||
+         m->actuator_biastype[i] == mjBIAS_SO3 ||
+         m->actuator_biastype[i] == mjBIAS_DCMOTOR ||
+         m->actuator_gaintype[i] == mjGAIN_AFFINE ||
+         m->actuator_gaintype[i] == mjGAIN_SO3 ||
+         m->actuator_gaintype[i] == mjGAIN_MUSCLE ||
+         m->actuator_gaintype[i] == mjGAIN_DCMOTOR;
 }

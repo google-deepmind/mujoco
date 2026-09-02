@@ -157,8 +157,9 @@ inline constexpr mjMap integrator_map[] = {
   {"RK4",           mjINT_RK4},
   {"implicit",      mjINT_IMPLICIT},
   {"implicitfast",  mjINT_IMPLICITFAST},
+  {"discrete",      mjINT_DISCRETE},
 };
-inline constexpr int integrator_sz = 4;
+inline constexpr int integrator_sz = 5;
 
 // enum cone
 inline constexpr mjMap cone_map[] = {

@@ -2179,10 +2179,9 @@ TEST_F(CoreSmoothTest, FlexVertStability) {
   std::vector<TestCase> cases = {
       // Explicit integration with Newton solver should be stable
       {mjINT_RK4, mjSOL_NEWTON, 1e-6, true},
-      // ImplicitFast with CG solver should now be STABLE with mass weighting
-      {mjINT_IMPLICITFAST, mjSOL_CG, 1e-6, true},
-      // ImplicitFast with Newton solver should be stable
-      {mjINT_IMPLICITFAST, mjSOL_NEWTON, 1e-6, true},
+      // Discrete carries the flex elasticity in the effective metric: stable
+      {mjINT_DISCRETE, mjSOL_CG, 1e-6, true},
+      {mjINT_DISCRETE, mjSOL_NEWTON, 1e-6, true},
   };
 
   for (const auto& test_case : cases) {

@@ -436,11 +436,12 @@ adjust it properly through the XML.
 
 .. _option-integrator:
 
-:at:`integrator`: :at-val:`[Euler, RK4, implicit, implicitfast], "Euler"`
+:at:`integrator`: :at-val:`[Euler, RK4, implicit, implicitfast, discrete], "Euler"`
    This attribute selects the numerical :ref:`integrator <geIntegration>` to be used. Currently the available
-   integrators are the semi-implicit Euler method, the fixed-step 4-th order Runge Kutta method, the
-   Implicit-in-velocity Euler method, and :at:`implicitfast`, which drops the Coriolis and centrifugal terms. See
-   :ref:`Numerical Integration<geIntegration>` for more details.
+   integrators are the semi-implicit Euler method, the fixed-step 4th-order Runge-Kutta method, the
+   implicit-in-velocity Euler method, :at:`implicitfast`, which drops the Coriolis and centrifugal terms, and
+   :at:`discrete`, a velocity-stepping integrator which unifies constraint solving and implicit position/velocity
+   updates in an effective inertia metric. See :ref:`Numerical Integration<geIntegration>` for more details.
 
 .. _option-cone:
 
@@ -752,6 +753,9 @@ from its default.
    negligible since :math:`Y` is computed anyway. Consider enabling this flag when observing divergence or poor
    constraint quality, particularly in models with highly anisotropic body inertias or bodies operating far from the
    initial configuration ``qpos0``.
+
+   Under the ``discrete`` :ref:`integrator<option-integrator>`, the exact diagonal is computed against the factored
+   backbone of the effective metric :math:`\widehat{M}`; tendon, actuator and flex couplings are not included.
 
 .. _compiler:
 

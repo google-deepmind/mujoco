@@ -103,6 +103,90 @@ TEST_F(SetConstTest, AwakeActuatedSite) {
   EXPECT_EQ(model->tree_sleep_policy[1], mjSLEEP_AUTO_ALLOWED);
 }
 
+TEST_F(SetConstTest, AwakeActuatedMultiSite) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="B1">
+        <joint name="J1" type="slide"/>
+        <geom size=".1"/>
+        <site name="S1"/>
+      </body>
+      <body name="B2">
+        <joint name="J2" type="slide"/>
+        <geom size=".1"/>
+        <site name="S2"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general site="S1" refsite="S2" gear="1 0 0 0 0 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  EXPECT_EQ(model->tree_sleep_policy[0], mjSLEEP_AUTO_NEVER);
+  EXPECT_EQ(model->tree_sleep_policy[1], mjSLEEP_AUTO_NEVER);
+}
+
+TEST_F(SetConstTest, AwakeActuatedSliderCrank) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="B1">
+        <joint name="J1" type="slide"/>
+        <geom size=".1"/>
+        <site name="S1"/>
+      </body>
+      <body name="B2">
+        <joint name="J2" type="slide"/>
+        <geom size=".1"/>
+        <site name="S2"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general cranksite="S1" slidersite="S2" cranklength="0.5"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  EXPECT_EQ(model->tree_sleep_policy[0], mjSLEEP_AUTO_NEVER);
+  EXPECT_EQ(model->tree_sleep_policy[1], mjSLEEP_AUTO_NEVER);
+}
+
+TEST_F(SetConstTest, AwakeActuatedSO3Refsite) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="B1">
+        <joint name="J1" type="ball"/>
+        <geom size=".1"/>
+        <site name="S1"/>
+      </body>
+      <body name="B2">
+        <joint name="J2" type="ball"/>
+        <geom size=".1"/>
+        <site name="S2"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <intvelocity site="S1" refsite="S2"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  EXPECT_EQ(model->tree_sleep_policy[0], mjSLEEP_AUTO_NEVER);
+  EXPECT_EQ(model->tree_sleep_policy[1], mjSLEEP_AUTO_NEVER);
+}
+
 TEST_F(SetConstTest, AwakeActuatedBody) {
   constexpr char xml[] = R"(
   <mujoco>

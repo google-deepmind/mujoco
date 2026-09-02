@@ -242,7 +242,7 @@ TEST_F(SleepTest, WakingUnaffectedBySleeping) {
   for (mjtJacobian jacobian : {mjJAC_DENSE, mjJAC_SPARSE}) {
     m->opt.jacobian = jacobian;
     for (mjtIntegrator integrator :  // TODO: b/457674312 - Add support for RK4.
-         {mjINT_EULER, mjINT_IMPLICITFAST, mjINT_IMPLICIT}) {
+         {mjINT_EULER, mjINT_IMPLICITFAST, mjINT_IMPLICIT, mjINT_DISCRETE}) {
       m->opt.integrator = integrator;
 
       // make data with sleeping enabled
@@ -352,7 +352,7 @@ TEST_F(SleepTest, SleepingUnaffectedByWaking) {
 
     // TODO: b/457674312 - Add support for RK4.
     for (mjtIntegrator integrator :
-         {mjINT_EULER, mjINT_IMPLICITFAST, mjINT_IMPLICIT}) {
+         {mjINT_EULER, mjINT_IMPLICITFAST, mjINT_IMPLICIT, mjINT_DISCRETE}) {
       m->opt.integrator = integrator;
 
       // make data with sleeping enabled

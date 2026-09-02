@@ -13,6 +13,26 @@ General
 
 Engine
 ^^^^^^
+- Added a new integrator ``discrete``: the constraint solve and the implicit velocity update merge into one
+  operation, performed in the effective metric :math:`\widehat{M} = M + hD + h^2K`, which incorporates both
+  implicit damping :math:`hD` and implicit position stiffness :math:`h^2 K`.
+  Under this integrator ``mjData.qacc`` is the discrete step map :math:`(v^+ - v)/h`, and joint,
+  tendon and actuator stiffness and damping join the solver's metric, making joint and tendon springs and stiff
+  position servos stable at timesteps far beyond the explicit stability limit. The actuator-gain treatment
+  resolves the stiff-servo timestep limitation of :issue:`3443` (analysis contributed by
+  :github:user:`qiayuanl`). See the :ref:`integrator documentation<geIntegrators>` for semantics and current
+  limitations.
+
+  .. admonition:: Breaking API changes
+     :class: attention
+
+     Removed the implicit flex effective-metric special case under ``implicit``/``implicitfast`` with the ``CG``
+     solver, introduced in 3.11.0. This behavior now requires ``integrator="discrete"`` (with a primal solver:
+     ``CG`` or ``Newton``), which additionally treats joint damping and stiffness implicitly inside the solve. Models
+     relying on the old behavior should set :ref:`integrator<option-integrator>` to ``discrete``; models with flex
+     elasticity or passive flex contact under ``implicit``/``implicitfast`` now raise a runtime error carrying this
+     migration note.
+
 - Restored clamping of non-positive pivots in the sparse inertia factorization, along with the associated
   ``mjWARN_INERTIA`` warning. The guard was inadvertently dropped in the 3.3.0 conversion of ``qLD`` to CSR format;
   since then, models with singular mass matrices silently produced non-finite accelerations, typically surfacing as

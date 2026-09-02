@@ -52,7 +52,11 @@ MJAPI void mjd_freeBias_vel(const mjModel* m, const mjData* d, int jnt, mjtNum B
 // 6x6 block A = M - h * (d qfrc_smooth / d qvel) for the free joint of a standalone body
 //   returns 1 and writes A if jnt is the free joint of a standalone awake body, 0 otherwise
 //   requires valid d->qDeriv rows for the block, computed with flg_bias = 0
-MJAPI int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjtNum A[36]);
+MJAPI int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjtNum A[36],
+                       int flg_discrete);
+
+// can this standalone free joint take the local gyroscopic treatment under discrete
+int mjd_freeGyroPossible(const mjModel* m, const mjData* d, int jnt);
 
 // compute res += (s1 + s2*damping) * J'*K*J * vec, for all interpolated flexes
 //   K_rot_cache: if non-NULL, use pre-cached K_rot (same layout as m->flex_stiffness)
@@ -94,6 +98,33 @@ MJAPI mjtBool mjd_flexInterpAssemblable(const mjModel* m);
 // does any flex contribute assemblable implicit stiffness? (existence check)
 MJAPI mjtBool mjd_flexStiff_any(const mjModel* m, int flg_interp);
 
+// actuation-stage refresh of the metric: actuator gains, their shift, the backbone factor
+void mjd_effActuation(const mjModel* m, mjData* d);
+
+// one rank-1 term of the metric: term = scale * val' * val over the sparse row
+typedef struct {
+  const mjtNum* val;   // sparse row values
+  const int* colind;   // sparse row column indices
+  int nnz;             // row nonzeros
+  mjtNum scale;        // rank-1 scale
+} mjEffRank1;
+
+// iteration cursor over the metric's rank-1 producers (internal layout)
+typedef struct {
+  int cls;             // producer class
+  int i;               // index within class
+  int k;               // sub-row within index (multi-output actuators)
+} mjEffRank1Iter;
+
+// yield the next live rank-1 term of the metric; init the cursor to {0}, returns 0 when
+// exhausted. Producers: tendons, then actuator output rows; zero entries are skipped.
+// A new metric class becomes a new case here, invisible to every consumer
+int mjd_effRank1Next(const mjModel* m, const mjData* d, mjEffRank1Iter* it, mjEffRank1* e);
+
+// island-local metric product res += S*vec, vectors in island-local dof coordinates
+void mjd_effMulAddIsland(const mjModel* m, const mjData* d, mjtNum* res,
+                         const mjtNum* vec, int island);
+
 // implicit effective metric Mtilde = M + (h^2+h*d)*K: per-step arena object (see mjdata.h efm_*)
 // build (or deactivate, active==0); the gate decision belongs to the caller
 MJAPI void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor);
@@ -101,8 +132,11 @@ MJAPI void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor)
 // refresh the metric's smooth-force shift c = h*K*qvel (values only, velocity stage)
 MJAPI void mjd_effShift(const mjModel* m, mjData* d);
 
-// res += B*vec (the stiffness part of the metric; caller supplies the M part)
-MJAPI void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
+// res += B*vec (the stiffness part of the metric; caller supplies the M part).
+// flg_contact selects the passive-contact class, for callers that account for contact
+// energy separately; inert while contact rides the flex-stiffness CSR
+MJAPI void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                         int flg_contact);
 
 // solve (M + B) x = b by PCG preconditioned with mjd_effPrec, to opt.tolerance on the relative
 // residual; x = M^-1 b when the metric is inactive. Warns (mjWARN_INERTIA) if the iteration cap

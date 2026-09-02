@@ -841,7 +841,8 @@ mjtBool mj_isFreeBody(const mjModel* m, int body) {
 //   returns 1 and writes A if jnt is the free joint of a standalone awake body, 0 otherwise
 //   requires valid d->qDeriv rows for the block, computed with flg_bias = 0; the bias
 //   derivative excluded from qDeriv is added here via mjd_freeBias_vel
-int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjtNum A[36]) {
+int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjtNum A[36],
+                 int flg_discrete) {
   int body = m->jnt_bodyid[jnt];
   int adr = m->jnt_dofadr[jnt];
 
@@ -861,13 +862,41 @@ int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjtNum A[
     }
   }
 
-  // A -= h * qDeriv block (actuator and passive derivatives)
-  for (int r=0; r < 6; r++) {
-    int rowadr = m->D_rowadr[adr+r];
-    int rownnz = m->D_rownnz[adr+r];
-    for (int k=0; k < rownnz; k++) {
-      int c = m->D_colind[rowadr+k] - adr;
-      A[6*r+c] -= h * d->qDeriv[rowadr+k];
+  // discrete: the metric block is M + diag + fluid, assembled from the efm arrays
+  // (qDeriv is not computed under discrete)
+  if (flg_discrete) {
+    // per-dof diagonal metric terms
+    if (d->efm_diag) {
+      for (int r=0; r < 6; r++) {
+        A[6*r+r] += d->efm_diag[adr+r];
+      }
+    }
+
+    // fluid drag blocks in this joint's rows of M's pattern
+    if (d->efm_fluid) {
+      for (int r=0; r < 6; r++) {
+        int rowadr = m->M_rowadr[adr+r];
+        int rownnz = m->M_rownnz[adr+r];
+        for (int k=0; k < rownnz; k++) {
+          int c = m->M_colind[rowadr+k] - adr;
+          A[6*r+c] += d->efm_fluid[rowadr+k];
+          if (c != r) {
+            A[6*c+r] += d->efm_fluid[rowadr+k];
+          }
+        }
+      }
+    }
+  }
+
+  // implicit-family: A -= h * qDeriv block (actuator and passive derivatives)
+  else {
+    for (int r=0; r < 6; r++) {
+      int rowadr = m->D_rowadr[adr+r];
+      int rownnz = m->D_rownnz[adr+r];
+      for (int k=0; k < rownnz; k++) {
+        int c = m->D_colind[rowadr+k] - adr;
+        A[6*r+c] -= h * d->qDeriv[rowadr+k];
+      }
     }
   }
 
@@ -893,10 +922,85 @@ int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjtNum A[
 }
 
 
+// can this standalone free joint take the local gyroscopic treatment under discrete:
+// its rows of the solve must be decoupled -- no constraint Jacobian support, no flex
+// CSR row, no tendon or actuator metric terms on its 6 dofs. Structural: reads the
+// constraint Jacobian, valid from mj_makeConstraint on
+int mjd_freeGyroPossible(const mjModel* m, const mjData* d, int jnt) {
+  int adr = m->jnt_dofadr[jnt];
+  if (m->jnt_type[jnt] != mjJNT_FREE || !mj_isFreeBody(m, m->jnt_bodyid[jnt])) {
+    return 0;
+  }
+  for (int r=0; r < 6; r++) {
+    if (d->nefmK && d->efm_K_rownnz[adr+r]) {
+      return 0;
+    }
+  }
+
+  // constraint Jacobian support on any of the 6 dofs couples them to the solve
+  int nefc = d->nefc;
+  if (mj_isSparse(m)) {
+    for (int i=0; i < nefc; i++) {
+      int end = d->efc_J_rowadr[i] + d->efc_J_rownnz[i];
+      for (int j=d->efc_J_rowadr[i]; j < end; j++) {
+        int c = d->efc_J_colind[j];
+        if (c >= adr+6) {
+          break;
+        }
+        if (c >= adr) {
+          return 0;
+        }
+      }
+    }
+  } else {
+    int nv = m->nv;
+    for (int i=0; i < nefc; i++) {
+      const mjtNum* row = d->efc_J + nv*i + adr;
+      for (int r=0; r < 6; r++) {
+        if (row[r]) {
+          return 0;
+        }
+      }
+    }
+  }
+
+  // any tendon with metric terms touching these dofs couples them to other trees
+  for (int t=0; t < d->nefmT; t++) {
+    if (!d->efm_ts[t]) {
+      continue;
+    }
+    int i = d->efm_tid[t];
+    int end = m->ten_J_rowadr[i] + m->ten_J_rownnz[i];
+    for (int j=m->ten_J_rowadr[i]; j < end; j++) {
+      int c = m->ten_J_colind[j];
+      if (c >= adr && c < adr+6) {
+        return 0;
+      }
+    }
+  }
+  for (int t=0; t < d->nefmA; t++) {
+    int i = d->efm_aid[t];
+    int oadr = m->actuator_outadr[i];
+    for (int k=0; k < m->actuator_outnum[i]; k++) {
+      int r = oadr + k;
+      int end = d->moment_rowadr[r] + d->moment_rownnz[r];
+      for (int j=d->moment_rowadr[r]; j < end; j++) {
+        int c = d->moment_colind[j];
+        if (c >= adr && c < adr+6) {
+          return 0;
+        }
+      }
+    }
+  }
+  return 1;
+}
+
+
 //--------------------- utility functions for (d force / d vel) Jacobians --------------------------
 
-// add J'*B*J to qDeriv
-static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* B, int n) {
+// add J'*B*J to res, in qDeriv's sparsity layout
+static void addJTBJ(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* J,
+                    const mjtNum* B, int n) {
   int nv = m->nv;
 
   // allocate dense row
@@ -915,11 +1019,11 @@ static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* 
           // row = J(i,k)*B(i,j)*J(j,:)
           mju_scl(row, J+j*nv, J[i*nv+k] * B[i*n+j], nv);
 
-          // add row to qDeriv(k,:)
+          // add row to res(k,:)
           int rownnz_k = m->D_rownnz[k];
           for (int s=0; s < rownnz_k; s++) {
             int adr = m->D_rowadr[k] + s;
-            d->qDeriv[adr] += row[m->D_colind[adr]];
+            res[adr] += row[m->D_colind[adr]];
           }
         }
       }
@@ -930,13 +1034,13 @@ static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* 
 }
 
 
-// add J'*B*J to qDeriv, sparse version
+// add J'*B*J to res (in qDeriv's sparsity layout), sparse version
 static void addJTBJSparse(
-  const mjModel* m, mjData* d, const mjtNum* J,
+  const mjModel* m, mjData* d, mjtNum* res, const mjtNum* J,
   const mjtNum* B, int n, int offset,
   const int* J_rownnz, const int* J_rowadr, const int* J_colind) {
 
-  // compute qDeriv(k,p) += sum_{i,j} ( J(i,k)*B(i,j)*J(j,p) )
+  // compute res(k,p) += sum_{i,j} ( J(i,k)*B(i,j)*J(j,p) )
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < n; j++) {
       if (!B[i*n+j]) {
@@ -952,8 +1056,8 @@ static void addJTBJSparse(
         int ik = adr_i + k;
         int colik = J_colind[ik];
 
-        // qDeriv(k,:) += J(j,:) * J(i,k)*B(i,j)
-        mju_addToSclSparseInc(d->qDeriv + m->D_rowadr[colik], J + adr_j,
+        // res(k,:) += J(j,:) * J(i,k)*B(i,j)
+        mju_addToSclSparseInc(res + m->D_rowadr[colik], J + adr_j,
                               m->D_rownnz[colik], m->D_colind + m->D_rowadr[colik],
                               nnz_j, J_colind + adr_j,
                               J[ik]*B[i*n+j]);
@@ -1628,14 +1732,11 @@ mjtBool mjd_flexInterpAssemblable(const mjModel* m) {
     }                                                                        \
   }
 
-// does ANY flex contribute assemblable implicit stiffness? (cheap existence check for the
-// solver gate: stretch stiffness on a standard flex, or -- when Krot will be supplied -- an
-// operator-processed interp flex)
 // does any flex use the passive contact path? Distinct from elasticity: an empty CSR is valid for
 // elastic models (matrix-free operators) but means "nothing" for a contact-only flex.
 static mjtBool flexPassiveContact_any(const mjModel* m) {
   for (int f = 0; f < m->nflex; f++) {
-    if (!m->flex_interp[f] && !m->flex_rigid[f] && m->flex_dim[f] >= 2 && m->flex_passive[f]) {
+    if (mj_effFlexContactPossible(m, f)) {
       return 1;
     }
   }
@@ -1683,6 +1784,9 @@ void mjd_flexContact_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum*
   mj_freeStack(d);
 }
 
+// does ANY flex contribute assemblable implicit stiffness? (cheap existence check for the
+// solver gate: stretch stiffness on a standard flex, or -- when Krot will be supplied -- an
+// operator-processed interp flex)
 mjtBool mjd_flexStiff_any(const mjModel* m, int flg_interp) {
   for (int f = 0; f < m->nflex; f++) {
     if (flg_interp && flexInterp_processed(m, f)) {
@@ -1791,8 +1895,7 @@ static mjtBool flexMetric_participates(const mjModel* m, int f, int flg_bend, in
   if (flexStiff_active(m, f, flg_bend, flg_stretch)) {
     return 1;
   }
-  return flg_contact && m->flex_passive[f] && !m->flex_rigid[f] && !m->flex_interp[f] &&
-         m->flex_dim[f] >= 2;
+  return flg_contact && mj_effFlexContactPossible(m, f);
 }
 
 
@@ -2346,6 +2449,175 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
 
 
 
+// per-actuator skip conditions shared by the qDeriv and discrete-metric assemblers:
+// disabled, sleeping, or force-clamped actuators contribute no derivative
+static int actuatorDerivSkip(const mjModel* m, const mjData* d, int i, int sleep_filter) {
+  // skip if disabled
+  if (mj_actuatorDisabled(m, i)) {
+    return 1;
+  }
+
+  // skip if sleeping
+  if (sleep_filter && mj_sleepState(m, d, mjOBJ_ACTUATOR, i) == mjS_ASLEEP) {
+    return 1;
+  }
+
+  // skip if force is clamped by forcerange
+  if (m->actuator_forcelimited[i]) {
+    int oadr = m->actuator_outadr[i];
+    const mjtNum* range = m->actuator_forcerange + 2*i;
+
+    // SO3: force is norm-clamped (approximation: saturated force still varies tangentially)
+    if (m->actuator_gaintype[i] == mjGAIN_SO3) {
+      if (mju_norm3(d->actuator_force + oadr) >= range[1]) {
+        return 1;
+      }
+    } else {
+      mjtNum force = d->actuator_force[oadr];
+      if (force <= range[0] || force >= range[1]) {
+        return 1;
+      }
+    }
+  }
+
+  return 0;
+}
+
+
+// input of actuator i: ctrl, or (next-)activation
+static mjtNum actuatorInput(const mjModel* m, const mjData* d, int i) {
+  if (m->actuator_dyntype[i] == mjDYN_NONE) {
+    // mirror mj_fwdActuation's input extraction: delayed controls read from the history
+    // buffer, and the control is clamped to ctrlrange
+    mjtNum ctrl;
+    if (m->actuator_delay[i]) {
+      ctrl = mj_readCtrl(m, d, i, d->time, m->actuator_history[2*i+1]);
+    } else {
+      ctrl = d->ctrl[m->actuator_ctrladr[i]];
+    }
+    if (!mjDISABLED(mjDSBL_CLAMPCTRL) && m->actuator_ctrllimited[i]) {
+      ctrl = mju_clip(ctrl, m->actuator_ctrlrange[2*i], m->actuator_ctrlrange[2*i+1]);
+    }
+    return ctrl;
+  }
+  int act_adr = m->actuator_actadr[i] + m->actuator_actnum[i] - 1;
+  mjtNum act = d->act[act_adr];
+
+  // use next activation if actearly is set (matching forward pass)
+  if (m->actuator_actearly[i]) {
+    act = mj_nextActivation(m, d, i, act_adr, d->act_dot[act_adr]);
+  }
+  return act;
+}
+
+
+// d(force)/d(length) of actuator i: affine and SO3 servo terms only (muscle force-length
+// and DC-motor position-loop stiffness are not treated)
+static mjtNum actuatorLenDeriv(const mjModel* m, const mjData* d, int i) {
+  mjtNum bias_len = 0, gain_len = 0;
+  if (m->actuator_biastype[i] == mjBIAS_AFFINE || m->actuator_biastype[i] == mjBIAS_SO3) {
+    bias_len = (m->actuator_biasprm + mjNBIAS*i)[1];
+  }
+  if (m->actuator_gaintype[i] == mjGAIN_AFFINE) {
+    gain_len = (m->actuator_gainprm + mjNGAIN*i)[1];
+  }
+  if (gain_len != 0) {
+    bias_len += gain_len * actuatorInput(m, d, i);
+  }
+  return bias_len;
+}
+
+
+// d(force)/d(velocity) of actuator i: all gain and bias types
+static mjtNum actuatorVelDeriv(const mjModel* m, const mjData* d, int i) {
+  int oadr = m->actuator_outadr[i];
+  mjtNum bias_vel = 0, gain_vel = 0;
+
+  // affine bias
+  if (m->actuator_biastype[i] == mjBIAS_AFFINE) {
+    // extract bias info: prm = [const, kp, kv]
+    bias_vel = (m->actuator_biasprm + mjNBIAS*i)[2];
+  }
+
+  // SO3 geodesic servo: kv term, applied to each output row below
+  else if (m->actuator_biastype[i] == mjBIAS_SO3) {
+    bias_vel = (m->actuator_biasprm + mjNBIAS*i)[2];
+  }
+
+  // DC motor bias (back-EMF)
+  else if (m->actuator_biastype[i] == mjBIAS_DCMOTOR) {
+    const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
+    const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
+    if (dynprm[0] <= 0) {
+      mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+      mjtNum K = gainprm[1];
+      bias_vel -= K * K / R;
+    }
+  }
+
+  // affine gain
+  if (m->actuator_gaintype[i] == mjGAIN_AFFINE) {
+    // extract bias info: prm = [const, kp, kv]
+    gain_vel = (m->actuator_gainprm + mjNGAIN*i)[2];
+  }
+
+  // muscle gain
+  else if (m->actuator_gaintype[i] == mjGAIN_MUSCLE) {
+    gain_vel = mjd_muscleGain_vel(d->actuator_length[oadr],
+                                  d->actuator_velocity[oadr],
+                                  m->actuator_lengthrange+2*oadr,
+                                  m->actuator_acc0[oadr],
+                                  m->actuator_gainprm + mjNGAIN*i);
+  }
+
+  // DC motor controller damping and LuGre micro-damping
+  else if (m->actuator_gaintype[i] == mjGAIN_DCMOTOR) {
+    const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
+    const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
+    mjtNum te = dynprm[0];
+
+    // controller velocity derivative dV/dw: torque-space kd through the tau->V map,
+    // plus the back-EMF compensation K, which cancels the -K^2/R back-EMF bias term so
+    // the net damping of an unclipped torque-mode motor is -kd; Vmax clipping is ignored
+    // here, matching the treatment of the other saturations
+    mjtNum dVdw = 0;
+    if (m->actuator_ctrlspec[i] & (mjINPUT_POS | mjINPUT_VEL | mjINPUT_FF)) {
+      mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+      mjtNum K = gainprm[1];  // K > 0 on this path, enforced by the compiler
+      dVdw = -gainprm[6]*R/K + K;
+    }
+
+    if (te > 0) {
+      // stateful current with actearly: d(K*next_act)/dω
+      // includes both back-EMF (-K) and controller (dVdw) through act_dot
+      mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+      mjtNum K = gainprm[1];
+      mjtNum s = 1 - mju_exp(-m->opt.timestep / te);
+      bias_vel += K * (dVdw - K) * s / R;
+    } else if (dVdw != 0) {
+      // stateless: controller terms only (back-EMF handled in bias block)
+      mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+      mjtNum K = gainprm[1];
+      bias_vel += K * dVdw / R;
+    }
+
+    // LuGre: force includes -sigma1*z_dot, z_dot = a*z + v
+    // d(sigma1*z_dot)/dv = sigma1*(da/dv*z + 1), ignoring higher-order da/dv*z
+    mjtNum sigma1 = dynprm[6];
+    if (sigma1 > 0) {
+      bias_vel -= sigma1;
+    }
+  }
+
+  // force = gain .* [ctrl/act]
+  if (gain_vel != 0) {
+    bias_vel += gain_vel * actuatorInput(m, d, i);
+  }
+
+  return bias_vel;
+}
+
+
 // add (d qfrc_actuator / d qvel) to qDeriv
 void mjd_actuator_vel(const mjModel* m, mjData* d) {
   int nactuator = m->nactuator;
@@ -2358,135 +2630,18 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
 
   // process actuators
   for (int i=0; i < nactuator; i++) {
-    int uadr = m->actuator_ctrladr[i];
-    int oadr = m->actuator_outadr[i];
-
-    // skip if disabled
-    if (mj_actuatorDisabled(m, i)) {
+    if (actuatorDerivSkip(m, d, i, sleep_filter)) {
       continue;
     }
 
-    // skip if sleeping
-    if (sleep_filter && mj_sleepState(m, d, mjOBJ_ACTUATOR, i) == mjS_ASLEEP) {
-      continue;
-    }
-
-    // skip if force is clamped by forcerange
-    if (m->actuator_forcelimited[i]) {
-      const mjtNum* range = m->actuator_forcerange + 2*i;
-
-      // SO3: force is norm-clamped (approximation: saturated force still varies tangentially)
-      if (m->actuator_gaintype[i] == mjGAIN_SO3) {
-        if (mju_norm3(d->actuator_force + oadr) >= range[1]) {
-          continue;
-        }
-      } else {
-        mjtNum force = d->actuator_force[oadr];
-        if (force <= range[0] || force >= range[1]) {
-          continue;
-        }
-      }
-    }
-
-    mjtNum bias_vel = 0, gain_vel = 0;
-
-    // affine bias
-    if (m->actuator_biastype[i] == mjBIAS_AFFINE) {
-      // extract bias info: prm = [const, kp, kv]
-      bias_vel = (m->actuator_biasprm + mjNBIAS*i)[2];
-    }
-
-    // SO3 geodesic servo: kv term, applied to each output row below
-    else if (m->actuator_biastype[i] == mjBIAS_SO3) {
-      bias_vel = (m->actuator_biasprm + mjNBIAS*i)[2];
-    }
-
-    // DC motor bias (back-EMF)
-    else if (m->actuator_biastype[i] == mjBIAS_DCMOTOR) {
-      const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
-      const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
-      if (dynprm[0] <= 0) {
-        mjtNum R = mju_max(mjMINVAL, gainprm[0]);
-        mjtNum K = gainprm[1];
-        bias_vel -= K * K / R;
-      }
-    }
-
-    // affine gain
-    if (m->actuator_gaintype[i] == mjGAIN_AFFINE) {
-      // extract bias info: prm = [const, kp, kv]
-      gain_vel = (m->actuator_gainprm + mjNGAIN*i)[2];
-    }
-
-    // muscle gain
-    else if (m->actuator_gaintype[i] == mjGAIN_MUSCLE) {
-      gain_vel = mjd_muscleGain_vel(d->actuator_length[oadr],
-                                    d->actuator_velocity[oadr],
-                                    m->actuator_lengthrange+2*oadr,
-                                    m->actuator_acc0[oadr],
-                                    m->actuator_gainprm + mjNGAIN*i);
-    }
-
-    // DC motor controller damping and LuGre micro-damping
-    else if (m->actuator_gaintype[i] == mjGAIN_DCMOTOR) {
-      const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
-      const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
-      mjtNum te = dynprm[0];
-
-      // controller velocity derivative dV/dw: torque-space kd through the tau->V map,
-      // plus the back-EMF compensation K, which cancels the -K^2/R back-EMF bias term so
-      // the net damping of an unclipped torque-mode motor is -kd; Vmax clipping is ignored
-      // here, matching the treatment of the other saturations
-      mjtNum dVdw = 0;
-      if (m->actuator_ctrlspec[i] & (mjINPUT_POS | mjINPUT_VEL | mjINPUT_FF)) {
-        mjtNum R = mju_max(mjMINVAL, gainprm[0]);
-        mjtNum K = gainprm[1];  // K > 0 on this path, enforced by the compiler
-        dVdw = -gainprm[6]*R/K + K;
-      }
-
-      if (te > 0) {
-        // stateful current with actearly: d(K*next_act)/dω
-        // includes both back-EMF (-K) and controller (dVdw) through act_dot
-        mjtNum R = mju_max(mjMINVAL, gainprm[0]);
-        mjtNum K = gainprm[1];
-        mjtNum s = 1 - mju_exp(-m->opt.timestep / te);
-        bias_vel += K * (dVdw - K) * s / R;
-      } else if (dVdw != 0) {
-        // stateless: controller terms only (back-EMF handled in bias block)
-        mjtNum R = mju_max(mjMINVAL, gainprm[0]);
-        mjtNum K = gainprm[1];
-        bias_vel += K * dVdw / R;
-      }
-
-      // LuGre: force includes -sigma1*z_dot, z_dot = a*z + v
-      // d(sigma1*z_dot)/dv = sigma1*(da/dv*z + 1), ignoring higher-order da/dv*z
-      mjtNum sigma1 = dynprm[6];
-      if (sigma1 > 0) {
-        bias_vel -= sigma1;
-      }
-    }
-
-    // force = gain .* [ctrl/act]
-    if (gain_vel != 0) {
-      if (m->actuator_dyntype[i] == mjDYN_NONE) {
-        bias_vel += gain_vel * d->ctrl[uadr];
-      } else {
-        int act_adr = m->actuator_actadr[i] + m->actuator_actnum[i] - 1;
-        mjtNum act = d->act[act_adr];
-
-        // use next activation if actearly is set (matching forward pass)
-        if (m->actuator_actearly[i]) {
-          act = mj_nextActivation(m, d, i, act_adr, d->act_dot[act_adr]);
-        }
-
-        bias_vel += gain_vel * act;
-      }
-    }
+    // combined scalar derivative
+    mjtNum bias_vel = actuatorVelDeriv(m, d, i);
 
     // add, once per output row
     if (bias_vel != 0) {
+      int oadr = m->actuator_outadr[i];
       for (int k=0; k < m->actuator_outnum[i]; k++) {
-        addJTBJSparse(m, d, d->actuator_moment, &bias_vel, 1, oadr+k,
+        addJTBJSparse(m, d, d->qDeriv, d->actuator_moment, &bias_vel, 1, oadr+k,
                       d->moment_rownnz, d->moment_rowadr, d->moment_colind);
       }
     }
@@ -2775,7 +2930,8 @@ static inline void mjd_magnus_force(
 //----------------- fluid force derivatives, ellipsoid and inertia-box models ----------------------
 
 // fluid forces based on ellipsoid approximation
-void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
+void mjd_ellipsoidFluid(const mjModel* m, mjData* d, mjtNum* res, int bodyid,
+                        int flg_dragonly) {
   mj_markStack(d);
 
   int nv = m->nv;
@@ -2849,10 +3005,14 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
 
     mjtNum B[36], D[9];
     mju_zero(B, 36);
-    mjd_magnus_force(B, lvel, m->opt.density, semiaxes, magnus_lift_coef);
 
-    mjd_kutta_lift(D, lvel, m->opt.density, semiaxes, kutta_lift_coef);
-    addToQuadrant(B, D, 1, 1);
+    // lift and added-mass terms: asymmetric, excluded from the drag-only (metric) variant
+    if (!flg_dragonly) {
+      mjd_magnus_force(B, lvel, m->opt.density, semiaxes, magnus_lift_coef);
+
+      mjd_kutta_lift(D, lvel, m->opt.density, semiaxes, kutta_lift_coef);
+      addToQuadrant(B, D, 1, 1);
+    }
 
     mjd_viscous_drag(D, lvel, m->opt.density, m->opt.viscosity, semiaxes,
                      blunt_drag_coef, slender_drag_coef);
@@ -2862,17 +3022,21 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
                        slender_drag_coef, ang_drag_coef);
     addToQuadrant(B, D, 0, 0);
 
-    mjd_addedMassForces(B, lvel, m->opt.density, virtual_mass, virtual_inertia);
+    if (!flg_dragonly) {
+      mjd_addedMassForces(B, lvel, m->opt.density, virtual_mass, virtual_inertia);
+    }
 
-    // make B symmetric if integrator is IMPLICITFAST, except for standalone free bodies
-    if (m->opt.integrator == mjINT_IMPLICITFAST && !mj_isFreeBody(m, bodyid)) {
+    // make B symmetric for the metric, or if integrator is IMPLICITFAST,
+    // except for standalone free bodies
+    if (flg_dragonly ||
+        (m->opt.integrator == mjINT_IMPLICITFAST && !mj_isFreeBody(m, bodyid))) {
       mju_symmetrize(B, B, 6);
     }
 
     if (mj_isSparse(m)) {
-      addJTBJSparse(m, d, J, B, 6, 0, rownnz, rowadr, colind_compressed);
+      addJTBJSparse(m, d, res, J, B, 6, 0, rownnz, rowadr, colind_compressed);
     } else {
-      addJTBJ(m, d, J, B, 6);
+      addJTBJ(m, d, res, J, B, 6);
     }
   }
 
@@ -2881,7 +3045,7 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
 
 
 // fluid forces based on inertia-box approximation
-void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
+void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, mjtNum* res, int i) {
   mj_markStack(d);
 
   int nv = m->nv;
@@ -2956,9 +3120,9 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
     B = -mjPI*diam*diam*diam*m->opt.viscosity;
     for (int j=0; j < 3; j++) {
       if (mj_isSparse(m)) {
-        addJTBJSparse(m, d, J, &B, 1, j, rownnz, rowadr, colind);
+        addJTBJSparse(m, d, res, J, &B, 1, j, rownnz, rowadr, colind);
       } else {
-        addJTBJ(m, d, J+j*nv, &B, 1);
+        addJTBJ(m, d, res, J+j*nv, &B, 1);
       }
     }
 
@@ -2966,9 +3130,9 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
     B = -3.0*mjPI*diam*m->opt.viscosity;
     for (int j=0; j < 3; j++) {
       if (mj_isSparse(m)) {
-        addJTBJSparse(m, d, J, &B, 1, 3+j, rownnz, rowadr, colind);
+        addJTBJSparse(m, d, res, J, &B, 1, 3+j, rownnz, rowadr, colind);
       } else {
-        addJTBJ(m, d, J+3*nv+j*nv, &B, 1);
+        addJTBJ(m, d, res, J+3*nv+j*nv, &B, 1);
       }
     }
   }
@@ -2980,9 +3144,9 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
     B = -m->opt.density*box[0]*(box[1]*box[1]*box[1]*box[1]+box[2]*box[2]*box[2]*box[2])*
         2*mju_abs(lvel[0])/64.0;
     if (mj_isSparse(m)) {
-      addJTBJSparse(m, d, J, &B, 1, 0, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, res, J, &B, 1, 0, rownnz, rowadr, colind);
     } else {
-      addJTBJ(m, d, J, &B, 1);
+      addJTBJ(m, d, res, J, &B, 1);
     }
 
     // lfrc[1] -= m->opt.density*box[1]*(box[0]*box[0]*box[0]*box[0]+box[2]*box[2]*box[2]*box[2])*
@@ -2990,9 +3154,9 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
     B = -m->opt.density*box[1]*(box[0]*box[0]*box[0]*box[0]+box[2]*box[2]*box[2]*box[2])*
         2*mju_abs(lvel[1])/64.0;
     if (mj_isSparse(m)) {
-      addJTBJSparse(m, d, J, &B, 1, 1, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, res, J, &B, 1, 1, rownnz, rowadr, colind);
     } else {
-      addJTBJ(m, d, J+nv, &B, 1);
+      addJTBJ(m, d, res, J+nv, &B, 1);
     }
 
     // lfrc[2] -= m->opt.density*box[2]*(box[0]*box[0]*box[0]*box[0]+box[1]*box[1]*box[1]*box[1])*
@@ -3000,33 +3164,33 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
     B = -m->opt.density*box[2]*(box[0]*box[0]*box[0]*box[0]+box[1]*box[1]*box[1]*box[1])*
         2*mju_abs(lvel[2])/64.0;
     if (mj_isSparse(m)) {
-      addJTBJSparse(m, d, J, &B, 1, 2, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, res, J, &B, 1, 2, rownnz, rowadr, colind);
     } else {
-      addJTBJ(m, d, J+2*nv, &B, 1);
+      addJTBJ(m, d, res, J+2*nv, &B, 1);
     }
 
     // lfrc[3] -= 0.5*m->opt.density*box[1]*box[2]*mju_abs(lvel[3])*lvel[3];
     B = -0.5*m->opt.density*box[1]*box[2]*2*mju_abs(lvel[3]);
     if (mj_isSparse(m)) {
-      addJTBJSparse(m, d, J, &B, 1, 3, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, res, J, &B, 1, 3, rownnz, rowadr, colind);
     } else {
-      addJTBJ(m, d, J+3*nv, &B, 1);
+      addJTBJ(m, d, res, J+3*nv, &B, 1);
     }
 
     // lfrc[4] -= 0.5*m->opt.density*box[0]*box[2]*mju_abs(lvel[4])*lvel[4];
     B = -0.5*m->opt.density*box[0]*box[2]*2*mju_abs(lvel[4]);
     if (mj_isSparse(m)) {
-      addJTBJSparse(m, d, J, &B, 1, 4, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, res, J, &B, 1, 4, rownnz, rowadr, colind);
     } else {
-      addJTBJ(m, d, J+4*nv, &B, 1);
+      addJTBJ(m, d, res, J+4*nv, &B, 1);
     }
 
     // lfrc[5] -= 0.5*m->opt.density*box[0]*box[1]*mju_abs(lvel[5])*lvel[5];
     B = -0.5*m->opt.density*box[0]*box[1]*2*mju_abs(lvel[5]);
     if (mj_isSparse(m)) {
-      addJTBJSparse(m, d, J, &B, 1, 5, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, res, J, &B, 1, 5, rownnz, rowadr, colind);
     } else {
-      addJTBJ(m, d, J+5*nv, &B, 1);
+      addJTBJ(m, d, res, J+5*nv, &B, 1);
     }
   }
 
@@ -3062,9 +3226,9 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
         use_ellipsoid_model += (m->geom_fluid[mjNFLUID*geomid] > 0);
       }
       if (use_ellipsoid_model) {
-        mjd_ellipsoidFluid(m, d, i);
+        mjd_ellipsoidFluid(m, d, d->qDeriv, i, /*flg_dragonly=*/0);
       } else {
-        mjd_inertiaBoxFluid(m, d, i);
+        mjd_inertiaBoxFluid(m, d, d->qDeriv, i);
       }
     }
   }
@@ -3105,7 +3269,7 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
       }
 
       // always sparse
-      addJTBJSparse(m, d, d->flexedge_J, &B, 1, e,
+      addJTBJSparse(m, d, d->qDeriv, d->flexedge_J, &B, 1, e,
                     m->flexedge_J_rownnz, m->flexedge_J_rowadr, m->flexedge_J_colind);
     }
   }
@@ -3133,7 +3297,8 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
     }
 
     // add sparse
-    addJTBJSparse(m, d, d->ten_J, &B, 1, i, m->ten_J_rownnz, m->ten_J_rowadr, m->ten_J_colind);
+    addJTBJSparse(m, d, d->qDeriv, d->ten_J, &B, 1, i,
+                  m->ten_J_rownnz, m->ten_J_rowadr, m->ten_J_colind);
   }
 }
 
@@ -3165,10 +3330,12 @@ void mjd_smooth_vel(const mjModel* m, mjData* d, int flg_bias) {
 }
 
 
-//------------------------- implicit effective metric Mtilde = M + K -------------------------------
-// K = (h^2 + h*damping) * (K_bend + K_stretch), the PSD implicit flex stiffness. Built once per step on the arena by
-// mjd_effBuild (called from mj_fwdAcceleration under the mj_flexCG gate), then consumed uniformly:
-// the smooth acceleration, the constraint solver and inverse dynamics all see the same metric.
+//------------------- implicit effective metric Mtilde = M + h*D + h^2*K --------------------------
+// The flex part is K = (h^2 + h*damping) * (K_bend + K_stretch), the PSD implicit flex stiffness;
+// the diagonal part holds joint damping and stiffness (h*D + h^2*K per dof, clamped PSD). Built
+// once per step on the arena by mjd_effBuild (under integrator=discrete), then consumed
+// uniformly: the smooth acceleration, the constraint solver and inverse dynamics all see the
+// same metric.
 
 // arena allocation with hard failure (mirrors stack overflow semantics)
 static void* effAlloc(mjData* d, size_t bytes, size_t align) {
@@ -3180,10 +3347,100 @@ static void* effAlloc(mjData* d, size_t bytes, size_t align) {
 }
 #define EFMALLOC(type, n) (type*) effAlloc(d, sizeof(type)*(size_t)(n), _Alignof(type))
 
-// res += B*vec. The STRETCH (and, when assemblable, bending and interp) part is applied from the
-// per-step assembled CSR; terms not in the CSR fall back to the matrix-free stencil operators.
-void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) {
+// yield the next live rank-1 term of the metric; see the declaration for the contract
+int mjd_effRank1Next(const mjModel* m, const mjData* d, mjEffRank1Iter* it, mjEffRank1* e) {
+  // class 0: one entry per tendon with metric terms
+  while (it->cls == 0) {
+    if (it->i >= d->nefmT) {
+      it->cls = 1;
+      it->i = 0;
+      break;
+    }
+    int t = it->i++;
+    mjtNum s = d->efm_ts[t];
+    int id = d->efm_tid[t];
+    int nnz = m->ten_J_rownnz[id];
+    if (!s || !nnz) {
+      continue;
+    }
+    e->val = d->ten_J + m->ten_J_rowadr[id];
+    e->colind = m->ten_J_colind + m->ten_J_rowadr[id];
+    e->nnz = nnz;
+    e->scale = s;
+    return 1;
+  }
+
+  // class 1: one entry per output row of each actuator with metric terms
+  while (it->cls == 1) {
+    if (it->i >= d->nefmA) {
+      it->cls = 2;  // not a producer class: the cursor's done state, all future calls return 0
+      break;
+    }
+    int id = d->efm_aid[it->i];
+    if (it->k >= m->actuator_outnum[id]) {
+      it->i++;
+      it->k = 0;
+      continue;
+    }
+    mjtNum s = d->efm_as[it->i];
+    int r = m->actuator_outadr[id] + it->k++;
+    int nnz = d->moment_rownnz[r];
+    if (!s || !nnz) {
+      continue;
+    }
+    e->val = d->actuator_moment + d->moment_rowadr[r];
+    e->colind = d->moment_colind + d->moment_rowadr[r];
+    e->nnz = nnz;
+    e->scale = s;
+    return 1;
+  }
+  return 0;
+}
+
+
+// res += B*vec, the stiffness part of the metric. The per-dof diagonal classes are applied
+// from efm_diag (scales pre-folded); the stretch (and, when assemblable, bending and interp)
+// part from the per-step CSR; terms not in the CSR fall back to the matrix-free operators.
+void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, int flg_contact) {
   mjtNum h = m->opt.timestep;
+  if (d->efm_diag) {
+    int nv = m->nv;
+    for (int i=0; i < nv; i++) {
+      res[i] += d->efm_diag[i] * vec[i];
+    }
+  }
+
+  // fluid drag blocks: res += F*vec, F symmetric in M's lower-triangle pattern
+  if (d->efm_fluid) {
+    int nv = m->nv;
+    for (int i=0; i < nv; i++) {
+      int start = m->M_rowadr[i];
+      int diag = start + m->M_rownnz[i] - 1;
+      mjtNum acc = d->efm_fluid[diag] * vec[i];
+      for (int a=start; a < diag; a++) {
+        int c = m->M_colind[a];
+        mjtNum F = d->efm_fluid[a];
+        acc += F * vec[c];
+        res[c] += F * vec[i];
+      }
+      res[i] += acc;
+    }
+  }
+
+  // rank-1 terms (tendon, actuator): res += scale * row' * (row * vec)
+  mjEffRank1Iter it = {0};
+  mjEffRank1 e;
+  while (mjd_effRank1Next(m, d, &it, &e)) {
+    mjtNum dot = 0;
+    for (int j=0; j < e.nnz; j++) {
+      dot += e.val[j] * vec[e.colind[j]];
+    }
+    dot *= e.scale;
+    for (int j=0; j < e.nnz; j++) {
+      res[e.colind[j]] += dot * e.val[j];
+    }
+  }
+
   if (d->nefmK) {
     int nv = m->nv;
     for (int i=0; i < nv; i++) {
@@ -3267,7 +3524,8 @@ static void effBlockApply(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* 
   mjtNum* rhs = mjSTACKALLOC(d, nv, mjtNum);
   mju_copy(rhs, b, nv);   // b may alias x, which the sweep below overwrites
 
-  // dofs no factor covers
+  // dofs no factor covers: backbone solve, using the qH backbone factor when diagonal
+  // terms exist, else qLD
   mju_copy(x, rhs, nv);
   for (int k = 0; k < d->nefmdof; k++) {
     mju_zero(x + d->efm_dofid[k], 3);
@@ -3277,7 +3535,12 @@ static void effBlockApply(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* 
       x[m->efm0_dofid[i]] = 0;
     }
   }
-  mj_solveLD(x, d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+  // TODO(team): restrict solve to awake trees when island sleep filtering is active
+  if (d->efm_diag) {
+    mj_solveLD(x, d->qH, d->qHDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+  } else {
+    mj_solveLD(x, d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+  }
 
   // per-step stiffness: 3x3 blocks
   for (int k = 0; k < d->nefmdof; k++) {
@@ -3311,6 +3574,18 @@ void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
     mjd_effPrec(m, d, x, b);
     return;
   }
+
+  // backbone-only metric (no tendon, actuator or flex couplings): the qH solve inside the
+  // block-apply is the exact metric solve, skip the iteration. Beyond the saved iterations,
+  // the direct solve is block-decoupled across trees, which sleeping trees rely on
+  int flex_any = 0;
+  for (int f=0; f < m->nflex; f++) {
+    flex_any = flex_any || mj_effFlexPossible(m, f);
+  }
+  if (!d->nefmT && !d->nefmA && !flex_any) {
+    effBlockApply(m, d, x, b);
+    return;
+  }
   int nv = m->nv;
   mj_markStack(d);
   mjtNum* r = mjSTACKALLOC(d, nv, mjtNum);
@@ -3325,7 +3600,7 @@ void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
 #ifdef mjUSESINGLE
     // float cannot reach a 1e-8 relative residual (eps ~1.2e-7): without a floor every step of
     // every covered model would run to opt.iterations and then warn.
-    mjtNum tolerance = mju_max(m->opt.tolerance, 1e-6);
+    mjtNum tolerance = mju_max(m->opt.tolerance, 1e-5);
 #else
     mjtNum tolerance = m->opt.tolerance;
 #endif
@@ -3336,7 +3611,7 @@ void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
     mjtNum rz = mju_dot(r, z, nv);
     for (int it = 0; it < m->opt.iterations; it++) {
       mju_mulSymVecSparse(Ap, d->M, p, nv, m->M_rownnz, m->M_rowadr, m->M_colind);
-      mjd_effMulAdd(m, d, Ap, p);
+      mjd_effMulAdd(m, d, Ap, p, /*flg_contact=*/1);
       mjtNum pAp = mju_dot(p, Ap, nv);
       // curvature breakdown: the metric has no curvature along p, so no further progress is
       // possible and x is the best available. Not a budget failure, so it does not warn.
@@ -3393,8 +3668,110 @@ void mjd_effPrec(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
 }
 
 
-// refresh the smooth-force shift c = h*K*qvel of the active metric (values only, no
-// allocation: called from the velocity stage, mirroring the efc value refresh pattern)
+// can this dof contribute a damping term to the metric diagonal (model-level check;
+// values are velocity-dependent and computed in mjd_effShift)
+static int dofDampPossible(const mjModel* m, int i) {
+  if (mjDISABLED(mjDSBL_DAMPER)) {
+    return 0;
+  }
+  return m->dof_damping[i] > 0 ||
+         !mju_isZero(m->dof_dampingpoly + mjNPOLY*i, mjNPOLY) ||
+         m->jnt_actuatorid[m->dof_jntid[i]] != -1;
+}
+
+
+// fill efm_ck with h * d(spring force)/d(displacement) per dof, clamped PSD-safe;
+// mirrors the joint-spring structure of mj_springdamper; returns any-nonzero
+static int effDiagStiff(const mjModel* m, mjData* d) {
+  int any = 0, njnt = m->njnt;
+  mjtNum h = m->opt.timestep;
+  mju_zero(d->efm_ck, m->nv);
+  if (mjDISABLED(mjDSBL_SPRING)) {
+    return 0;
+  }
+
+  for (int j=0; j < njnt; j++) {
+    mjtNum stiffness = m->jnt_stiffness[j];
+    const mjtNum* spoly = m->jnt_stiffnesspoly + mjNPOLY*j;
+    if (stiffness == 0 && mju_isZero(spoly, mjNPOLY)) {
+      continue;
+    }
+
+    int padr = m->jnt_qposadr[j];
+    int dadr = m->jnt_dofadr[j];
+    mjtNum k;
+
+    switch ((mjtJoint) m->jnt_type[j]) {
+    case mjJNT_FREE:
+      // translation: radial derivative of the spring, isotropic on the 3 slide dofs
+      {
+        mjtNum dif[3];
+        mju_sub3(dif, d->qpos+padr, m->qpos_spring+padr);
+        k = mju_max(0, mjd_xPolyForce(stiffness, spoly, mju_norm3(dif), mjNPOLY, 0));
+        d->efm_ck[dadr] = d->efm_ck[dadr+1] = d->efm_ck[dadr+2] = h*k;
+        any = any || k > 0;
+      }
+
+      // continue with rotations
+      dadr += 3;
+      padr += 3;
+      mjFALLTHROUGH;
+
+    case mjJNT_BALL:
+      // rotation: small-angle isotropic treatment of the quaternion spring
+      {
+        mjtNum dif[3], quat[4];
+        mju_copy4(quat, d->qpos+padr);
+        mju_normalize4(quat);
+        mju_subQuat(dif, quat, m->qpos_spring + padr);
+        k = mju_max(0, mjd_xPolyForce(stiffness, spoly, mju_norm3(dif), mjNPOLY, 0));
+        d->efm_ck[dadr] = d->efm_ck[dadr+1] = d->efm_ck[dadr+2] = h*k;
+        any = any || k > 0;
+      }
+      break;
+
+    case mjJNT_SLIDE:
+    case mjJNT_HINGE:
+      {
+        mjtNum x = d->qpos[padr] - m->qpos_spring[padr];
+        k = mju_max(0, mjd_xPolyForce(stiffness, spoly, x, mjNPOLY, 0));
+        d->efm_ck[dadr] = h*k;
+        any = any || k > 0;
+      }
+      break;
+    }
+  }
+
+  return any;
+}
+
+
+// finalize efm_diag = h*D + h^2*K: the damping derivative is velocity-dependent,
+// evaluated here at the velocity stage, matching mj_EulerSkip's coverage but clamped
+static void effDiagDamp(const mjModel* m, mjData* d) {
+  int nv = m->nv;
+  mjtNum h = m->opt.timestep;
+  int damper = !mjDISABLED(mjDSBL_DAMPER);
+
+  for (int i=0; i < nv; i++) {
+    mjtNum damp_deriv = 0;
+    if (damper) {
+      mjtNum poly[mjNPOLY];
+      mju_copy(poly, m->dof_dampingpoly + mjNPOLY*i, mjNPOLY);
+      mjtNum damping = m->dof_damping[i]
+                       + mj_actuatorDamping(m, mjOBJ_JOINT, m->dof_jntid[i], poly);
+      damp_deriv = mju_max(0, mjd_xPolyForce(damping, poly, d->qvel[i], mjNPOLY, 1));
+    }
+    d->efm_diag[i] = h*damp_deriv + h*d->efm_ck[i];
+  }
+}
+
+
+// refresh the velocity-stage values of the active metric: the smooth-force shift
+// c = -h*K*qvel and the diagonal (its damping part is velocity-dependent). No allocation
+// here, mirroring the efc value refresh pattern. Called from the velocity stage only,
+// after the derived velocities (ten_velocity, body velocities) it reads are computed;
+// every consumer of the values runs at the actuation stage or later
 void mjd_effShift(const mjModel* m, mjData* d) {
   if (!d->efm_active) {
     return;
@@ -3405,18 +3782,262 @@ void mjd_effShift(const mjModel* m, mjData* d) {
   mjd_flexBend_mul(m, d, d->efm_c, d->qvel, -h, 0);
   mjd_flexStretch_mul(m, d, d->efm_c, d->qvel, -h, 0);
   mjd_flexContact_mul(m, d, d->efm_c, d->qvel, -h);
+
+  // per-dof diagonal classes
+  if (d->efm_diag) {
+    int nv = m->nv;
+    effDiagDamp(m, d);
+
+    // stiffness shift
+    for (int i=0; i < nv; i++) {
+      d->efm_c[i] -= d->efm_ck[i] * d->qvel[i];
+    }
+  }
+
+  // tendon values: stiffness at the current deadband displacement, damping at the current
+  // tendon velocity, both clamped PSD-safe, mirroring the passive-force expressions
+  for (int t=0; t < d->nefmT; t++) {
+    int i = d->efm_tid[t];
+
+    mjtNum k = 0;
+    if (!mjDISABLED(mjDSBL_SPRING)) {
+      mjtNum length = d->ten_length[i];
+      mjtNum lower = m->tendon_lengthspring[2*i];
+      mjtNum upper = m->tendon_lengthspring[2*i+1];
+      mjtNum x = (length > upper) ? length - upper : (length < lower) ? length - lower : 0;
+      if (x) {
+        k = mju_max(0, mjd_xPolyForce(m->tendon_stiffness[i],
+                                      m->tendon_stiffnesspoly + mjNPOLY*i, x, mjNPOLY, 0));
+      }
+    }
+
+    mjtNum b = 0;
+    if (!mjDISABLED(mjDSBL_DAMPER)) {
+      mjtNum dpoly[mjNPOLY];
+      mju_copy(dpoly, m->tendon_dampingpoly + mjNPOLY*i, mjNPOLY);
+      mjtNum damping = m->tendon_damping[i] + mj_actuatorDamping(m, mjOBJ_TENDON, i, dpoly);
+      b = mju_max(0, mjd_xPolyForce(damping, dpoly, d->ten_velocity[i], mjNPOLY, 1));
+    }
+
+    d->efm_ts[t] = h*h*k + h*b;
+    d->efm_tk[t] = h*k;
+
+    // stiffness shift: c -= h*k * ten_velocity * J'
+    if (k) {
+      mjtNum ckv = d->efm_tk[t] * d->ten_velocity[i];
+      int end = m->ten_J_rowadr[i] + m->ten_J_rownnz[i];
+      for (int j=m->ten_J_rowadr[i]; j < end; j++) {
+        d->efm_c[m->ten_J_colind[j]] -= ckv * d->ten_J[j];
+      }
+    }
+  }
+
+
+  // fluid drag blocks: assemble the drag-only passive-fluid velocity derivative into the
+  // assemble the drag derivatives into stack scratch in qDeriv's shape (qDeriv itself is
+  // user-facing), gather into M's sparsity pattern, scale by -h. Drag derivatives are
+  // symmetric dissipative by construction; lift and added-mass terms are excluded and
+  // integrate explicitly
+  if (d->efm_fluid) {
+    mj_markStack(d);
+    mjtNum* scratch = mjSTACKALLOC(d, m->nD, mjtNum);
+    mju_zero(scratch, m->nD);
+    int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+    int nbody = sleep_filter ? d->nbody_awake : m->nbody;
+    for (int b=0; b < nbody; b++) {
+      int i = sleep_filter ? d->body_awake_ind[b] : b;
+      if (m->body_mass[i] < mjMINVAL) {
+        continue;
+      }
+      int use_ellipsoid_model = 0;
+      for (int j=0; j < m->body_geomnum[i] && use_ellipsoid_model == 0; j++) {
+        use_ellipsoid_model += (m->geom_fluid[mjNFLUID*(m->body_geomadr[i] + j)] > 0);
+      }
+      if (use_ellipsoid_model) {
+        mjd_ellipsoidFluid(m, d, scratch, i, /*flg_dragonly=*/1);
+      } else {
+        mjd_inertiaBoxFluid(m, d, scratch, i);
+      }
+    }
+    mju_gather(d->efm_fluid, scratch, m->mapD2M, m->nC);
+    mju_scl(d->efm_fluid, d->efm_fluid, -m->opt.timestep, m->nC);
+    mj_freeStack(d);
+  }
+}
+
+
+// actuation-stage refresh of the metric: actuator gain scalars (ctrl- and state-dependent,
+// so evaluated after mj_fwdActuation), their smooth-force shift, and the backbone factor
+// qH = M + diag(h*D + h^2*K) + tendon and actuator diagonals. The backbone is the part of
+// the metric inside M's kinematic-tree sparsity -- every class's diagonal projection plus
+// the fluid blocks -- so mj_factorI factors it with no fill-in; it is the exact metric
+// when no coupling terms exist, the preconditioner otherwise, and the only metric the dual
+// solvers ever see (mj_makeY). Idempotent: actuation-stage objects are rebuilt from
+// scratch, so re-running the stage (mj_forwardSkip) is safe. Under sleep, rows of sleeping
+// trees may hold stale M values: harmless, M and its factor are block-diagonal by tree and
+// only awake rows are ever gathered or solved
+void mjd_effActuation(const mjModel* m, mjData* d) {
+  if (!d->efm_active) {
+    return;
+  }
+  int nv = m->nv;
+  mjtNum h = m->opt.timestep;
+
+  // actuator gains, clamped to the stabilizing sign
+  d->nefmA = 0;
+  if (d->efm_aid) {
+    mju_zero(d->efm_ca, nv);
+    int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+    for (int i=0; i < m->nu; i++) {
+      if (!mj_effActuatorPossible(m, i) || actuatorDerivSkip(m, d, i, sleep_filter)) {
+        continue;
+      }
+      mjtNum gv = mju_max(0, -actuatorVelDeriv(m, d, i));
+      mjtNum gp = mju_max(0, -actuatorLenDeriv(m, d, i));
+      if (!gv && !gp) {
+        continue;
+      }
+      int t = d->nefmA++;
+      d->efm_aid[t] = i;
+      d->efm_as[t] = h*h*gp + h*gv;
+      d->efm_ak[t] = h*gp;
+
+      // stiffness shift: ca -= h*gp * actuator_velocity * moment'
+      if (gp) {
+        int oadr = m->actuator_outadr[i];
+        for (int k=0; k < m->actuator_outnum[i]; k++) {
+          int r = oadr + k;
+          mjtNum ckv = d->efm_ak[t] * d->actuator_velocity[r];
+          int end = d->moment_rowadr[r] + d->moment_rownnz[r];
+          for (int j=d->moment_rowadr[r]; j < end; j++) {
+            d->efm_ca[d->moment_colind[j]] -= ckv * d->actuator_moment[j];
+          }
+        }
+      }
+    }
+  }
+
+  // factor the backbone qH = M + all metric diagonals
+  if (d->efm_diag) {
+    mju_copy(d->qH, d->M, m->nC);
+    for (int i=0; i < nv; i++) {
+      d->qH[m->M_rowadr[i] + m->M_rownnz[i] - 1] += d->efm_diag[i];
+    }
+    for (int t=0; t < d->nefmT; t++) {
+      mjtNum s = d->efm_ts[t];
+      if (!s) {
+        continue;
+      }
+      int i = d->efm_tid[t];
+      int end = m->ten_J_rowadr[i] + m->ten_J_rownnz[i];
+      for (int j=m->ten_J_rowadr[i]; j < end; j++) {
+        int c = m->ten_J_colind[j];
+        d->qH[m->M_rowadr[c] + m->M_rownnz[c] - 1] += s * d->ten_J[j] * d->ten_J[j];
+      }
+    }
+    for (int t=0; t < d->nefmA; t++) {
+      mjtNum s = d->efm_as[t];
+      int i = d->efm_aid[t];
+      int oadr = m->actuator_outadr[i];
+      for (int k=0; k < m->actuator_outnum[i]; k++) {
+        int r = oadr + k;
+        int end = d->moment_rowadr[r] + d->moment_rownnz[r];
+        for (int j=d->moment_rowadr[r]; j < end; j++) {
+          int c = d->moment_colind[j];
+          d->qH[m->M_rowadr[c] + m->M_rownnz[c] - 1] +=
+              s * d->actuator_moment[j] * d->actuator_moment[j];
+        }
+      }
+    }
+    // fluid drag blocks share M's sparsity: add the full pattern
+    if (d->efm_fluid) {
+      mju_addTo(d->qH, d->efm_fluid, m->nC);
+    }
+
+    // record the diagonal additions for metric-consistent regularization, then factor
+    for (int i=0; i < nv; i++) {
+      int diag = m->M_rowadr[i] + m->M_rownnz[i] - 1;
+      d->efm_sdiag[i] = d->qH[diag] - d->M[diag];
+    }
+    mj_factorI(d->qH, d->qHDiagInv, nv, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+  }
+}
+
+
+// island-local metric product res += S*vec: the diagonal classes and the island's tendons,
+// with vectors in island-local dof coordinates. Flex terms never reach the island path:
+// models with flex metric terms force a monolithic solve
+void mjd_effMulAddIsland(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
+                         int island) {
+  int nv = d->island_nv[island];
+  int idofadr = d->island_idofadr[island];
+  const int* idof2dof = d->map_idof2dof + idofadr;
+
+  if (d->efm_diag) {
+    for (int k=0; k < nv; k++) {
+      res[k] += d->efm_diag[idof2dof[k]] * vec[k];
+    }
+  }
+
+  // fluid drag blocks: M-row columns are ancestor dofs, guaranteed in the same island
+  if (d->efm_fluid) {
+    for (int k=0; k < nv; k++) {
+      int i = idof2dof[k];
+      int start = m->M_rowadr[i];
+      int diag = start + m->M_rownnz[i] - 1;
+      mjtNum acc = d->efm_fluid[diag] * vec[k];
+      for (int a=start; a < diag; a++) {
+        int kc = d->map_dof2idof[m->M_colind[a]] - idofadr;
+        mjtNum F = d->efm_fluid[a];
+        acc += F * vec[kc];
+        res[kc] += F * vec[k];
+      }
+      res[k] += acc;
+    }
+  }
+
+  // the island's rank-1 terms: every tree an entry touches shares the island (union-find
+  // merges the support), so the first column decides membership
+  mjEffRank1Iter it = {0};
+  mjEffRank1 e;
+  while (mjd_effRank1Next(m, d, &it, &e)) {
+    if (d->tree_island[m->dof_treeid[e.colind[0]]] != island) {
+      continue;
+    }
+    mjtNum dot = 0;
+    for (int j=0; j < e.nnz; j++) {
+      dot += e.val[j] * vec[d->map_dof2idof[e.colind[j]] - idofadr];
+    }
+    dot *= e.scale;
+    for (int j=0; j < e.nnz; j++) {
+      res[d->map_dof2idof[e.colind[j]] - idofadr] += dot * e.val[j];
+    }
+  }
 }
 
 
 // build the per-step implicit effective metric on the arena, or deactivate it. The gate
-// decision (mj_flexCG) is the caller's: the metric module has no dependency on the solver
-// configuration beyond what it is told here.
+// decision (integrator=discrete) is the caller's: the metric module has no dependency on
+// the solver configuration beyond what it is told here.
 void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
   int nv = m->nv;
   d->efm_active = 0;
   d->nefmK = 0;
+  d->nefmT = 0;
   d->nefmdof = 0;
   d->nefmL = 0;
+  d->nefmA = 0;
+  d->efm_diag = NULL;
+  d->efm_ck = NULL;
+  d->efm_sdiag = NULL;
+  d->efm_fluid = NULL;
+  d->efm_tid = NULL;
+  d->efm_ts = NULL;
+  d->efm_tk = NULL;
+  d->efm_aid = NULL;
+  d->efm_as = NULL;
+  d->efm_ak = NULL;
+  d->efm_ca = NULL;
   if (!active) {
     return;
   }
@@ -3429,6 +4050,64 @@ void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
   // smooth-force shift c = h*K*qvel (values refreshed by mjd_effShift in the velocity stage)
   d->efm_c = EFMALLOC(mjtNum, nv);
 
+  // per-dof diagonal classes (joint damping/stiffness, joint-transmission actuator damping):
+  // position-dependent stiffness assembled here; the velocity-dependent damping part and the
+  // qH backbone factor are refreshed by mjd_effShift in the velocity stage
+  d->efm_ck = EFMALLOC(mjtNum, nv);
+  int any_diag = effDiagStiff(m, d);
+  for (int i=0; !any_diag && i < nv; i++) {
+    any_diag = dofDampPossible(m, i);
+  }
+
+  // tendons with metric terms: id list here, values (velocity-dependent) in mjd_effShift.
+  // Sleeping tendons are excluded, matching the passive-force filter; the wake rule
+  // (mj_wakeTendon) keeps metric-coupled tendon pairs awake or asleep together. Under the
+  // dual solver the class is excluded (mj_effCouplings): an empty list removes its metric
+  // terms and its shift together, so the tendon forces integrate explicitly
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+  if (m->ntendon && mj_effCouplings(m)) {
+    d->efm_tid = EFMALLOC(int, m->ntendon);
+    d->efm_ts  = EFMALLOC(mjtNum, m->ntendon);
+    d->efm_tk  = EFMALLOC(mjtNum, m->ntendon);
+    for (int i=0; i < m->ntendon; i++) {
+      if (!mj_effTendonPossible(m, i)) {
+        continue;
+      }
+      if (sleep_filter && mj_sleepState(m, d, mjOBJ_TENDON, i) != mjS_AWAKE) {
+        continue;
+      }
+      d->efm_tid[d->nefmT++] = i;
+    }
+  }
+
+  // metric-possible actuators: allocation here, values (ctrl- and state-dependent) in
+  // mjd_effActuation at the actuation stage. Under the dual solver the class is excluded
+  // (mj_effCouplings, as for tendons): no allocation, so mjd_effActuation adds nothing
+  int any_act = 0;
+  if (mj_effCouplings(m)) {
+    for (int i=0; i < m->nu; i++) {
+      if (mj_effActuatorPossible(m, i)) {
+        any_act = 1;
+        break;
+      }
+    }
+  }
+  if (any_act) {
+    d->efm_aid = EFMALLOC(int, m->nu);
+    d->efm_as  = EFMALLOC(mjtNum, m->nu);
+    d->efm_ak  = EFMALLOC(mjtNum, m->nu);
+    d->efm_ca  = EFMALLOC(mjtNum, nv);
+    mju_zero(d->efm_ca, nv);
+  }
+
+  // the tendon and actuator diagonals join the qH backbone: force the diagonal machinery on.
+  // Fluid drag is gated on the medium alone, matching the force computation: the spring and
+  // damper disable flags do not touch fluid forces
+  int any_fluid = m->opt.viscosity > 0 || m->opt.density > 0;
+  d->efm_diag = (any_diag || d->nefmT || any_act || any_fluid) ? EFMALLOC(mjtNum, nv) : NULL;
+  d->efm_sdiag = d->efm_diag ? EFMALLOC(mjtNum, nv) : NULL;
+  d->efm_fluid = any_fluid ? EFMALLOC(mjtNum, m->nC) : NULL;
+
   // assemble the standard-flex part of B into CSR (constant during the step). With stretch or
   // assemblable interp present, assemble the FULL matrix (bending included): one CSR then
   // serves both the matvec and the per-step factor. Bending-only models keep the stencil
@@ -3436,7 +4115,18 @@ void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
   const mjtNum* krot = mjd_flexInterpAssemblable(m) ? d->flexelem_krot : NULL;
   d->efm_K_rownnz = EFMALLOC(int, nv);
   d->efm_K_rowadr = EFMALLOC(int, nv);
-  if (mjd_flexStiff_any(m, krot != NULL) || flexPassiveContact_any(m)) {
+
+  // Newton consumes the metric as an explicit sparse matrix inside its Hessian: force full
+  // CSR assembly, including bending-only flexes which otherwise keep the matrix-free stencil
+  // plus the constant mj_setConst factor (non-assemblable interp flexes are rejected by
+  // mj_checkDiscrete under Newton)
+  int assemble_any = mjd_flexStiff_any(m, krot != NULL) || flexPassiveContact_any(m);
+  if (m->opt.solver == mjSOL_NEWTON) {
+    for (int f=0; !assemble_any && f < m->nflex; f++) {
+      assemble_any = flexStiff_active(m, f, /*flg_bend=*/1, /*flg_stretch=*/1);
+    }
+  }
+  if (assemble_any) {
     d->nefmK = mjd_flexStiff_assemble(m, d, d->efm_K_rownnz, d->efm_K_rowadr,
                                       NULL, NULL, h*h, h, /*bend*/ 1, /*stretch*/ 1,
                                       /*contact*/ 1, krot);
@@ -3461,7 +4151,4 @@ void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
   }
 
   d->efm_active = 1;
-
-  // fill the shift with the current velocity (refreshed again in the velocity stage)
-  mjd_effShift(m, d);
 }

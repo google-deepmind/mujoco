@@ -1596,7 +1596,7 @@ void PhysicsGui(mjModel* model, mjSpec* spec, float min_width) {
 
   auto& opt = spec ? spec->option : model->opt;
 
-  const char* opts0[] = {"Euler", "RK4", "implicit", "implicitfast"};
+  const char* opts0[] = {"Euler", "RK4", "implicit", "implicitfast", "discrete"};
   ImGui::Combo("Integrator", &opt.integrator, opts0, IM_ARRAYSIZE(opts0));
 
   const char* opts1[] = {"Pyramidal", "Elliptic"};

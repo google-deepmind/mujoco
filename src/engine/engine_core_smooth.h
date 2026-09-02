@@ -84,6 +84,11 @@ MJAPI void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, in
 MJAPI void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y,
                       const mjtNum* sqrtInvD, int n);
 
+// implementation of mj_solveM2: backsubstitute against a caller-selected factor (qLD or qH)
+void mj_solveM2_impl(mjtNum* x, const mjtNum* y, const mjtNum* sqrtInvD, const mjtNum* factor,
+                     int nv, int n, const int* rownnz, const int* rowadr, const int* colind,
+                     const int* diagnum);
+
 
 //-------------------------- velocity --------------------------------------------------------------
 

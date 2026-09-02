@@ -64,10 +64,11 @@ MJAPI void mj_implicit(const mjModel *m, mjData *d);
 // fully implicit in velocity, possibly skipping factorization
 MJAPI void mj_implicitSkip(const mjModel *m, mjData *d, int skipfactor);
 
-// implicit-flex solve gate: with solver=CG, an implicit integrator and flex stiffness present,
-// the constraint solve is dispatched to the flex-augmented primal solver (monolithic,
-// pyramidal cones only); solver=Newton keeps its exact-factorization semantics
-int mj_flexCG(const mjModel* m);
+// discrete integrator: the solver's qacc is the step map, advance directly
+void mj_discrete(const mjModel* m, mjData* d);
+
+// runtime option validation for the discrete integrator: mjERROR on unsupported combinations
+void mj_checkDiscrete(const mjModel* m);
 
 //-------------------------------- solver components -----------------------------------------------
 

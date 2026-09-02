@@ -71,7 +71,7 @@ void mj_invPosition(const mjModel* m, mjData* d) {
   TM_ADD(mjTIMER_POS_KINEMATICS);
 
   // implicit effective metric: multiply-only build (no factorization) for the inverse
-  mjd_effBuild(m, d, mj_flexCG(m), /*flg_factor=*/0);
+  mjd_effBuild(m, d, mj_isMetric(m), /*flg_factor=*/0);
 
   TM_END1(mjTIMER_POSITION);
 }
@@ -93,6 +93,12 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
 
   // use selected integrator
   switch ((mjtIntegrator) m->opt.integrator) {
+  case mjINT_DISCRETE:
+    // qacc is already the discrete step map: the effective-metric terms are handled
+    // natively by mj_inverseSkip, so INVDISCRETE is implied and there is nothing to do
+    mj_freeStack(d);
+    return;
+
   case mjINT_RK4:
     // not supported by RK4
     mjERROR("discrete inverse dynamics is not supported by RK4 integrator");
@@ -167,7 +173,7 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
     // including the bias (gyroscopic) derivative, mirroring mj_implicitSkip
     for (int j=0; j < m->njnt; j++) {
       mjtNum A[36];
-      if (!mjd_freeMhat(m, d, j, m->opt.timestep, A)) {
+      if (!mjd_freeMhat(m, d, j, m->opt.timestep, A, /*flg_discrete=*/0)) {
         continue;
       }
       int adr = m->jnt_dofadr[j];
@@ -181,7 +187,7 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
 
   mj_freeStack(d);
 
-  // refresh the effective-metric velocity shift
+  // refresh the metric's velocity-stage values
   mjd_effShift(m, d);
 }
 
@@ -221,6 +227,9 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
   mjtNum* qacc;
   int nv = m->nv;
 
+  // validate option combinations for the discrete integrator
+  mj_checkDiscrete(m);
+
   // position-dependent
   if (skipstage < mjSTAGE_POS) {
     mj_invPosition(m, d);
@@ -241,6 +250,13 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
     if (mjENABLED(mjENBL_ENERGY) && !d->flg_energyvel) {
       mj_energyVel(m, d);
     }
+  }
+
+  // actuation-stage metric refresh: reads ctrl/act from mjData without running actuation
+  mjd_effActuation(m, d);
+  if (mj_isMetric(m)) {
+    mj_regularizeConstraint(m, d, /*flg_AR=*/0);
+    mj_referenceConstraint(m, d);
   }
 
   if (mjENABLED(mjENBL_INVDISCRETE)) {
@@ -271,8 +287,25 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
   // implicit effective metric (built in mj_invPosition): the forward dynamics solved
   // (M+K)*qacc = qfrc + c + J'*f, so the discrete-consistent inverse adds K*qacc - c
   if (d->efm_active) {
-    mjd_effMulAdd(m, d, Ma, d->qacc);
+    mjd_effMulAdd(m, d, Ma, d->qacc, /*flg_contact=*/1);
+
+    // decoupled standalone free bodies took the local gyroscopic solve in the forward
+    // pass (mj_discreteGyro): mirror it, overwriting their rows with the local product
+    for (int j=0; j < m->njnt; j++) {
+      mjtNum A[36];
+      if (!mjd_freeGyroPossible(m, d, j) ||
+          !mjd_freeMhat(m, d, j, m->opt.timestep, A, /*flg_discrete=*/1)) {
+        continue;
+      }
+      int adr = m->jnt_dofadr[j];
+      // TODO(tassa): engine_metric refactor: add a hand-unrolled mji_mulMatVec6
+      mju_mulMatVec(Ma+adr, A, d->qacc+adr, 6, 6);
+    }
+
     mju_subFrom(Ma, d->efm_c, nv);
+    if (d->efm_ca) {
+      mju_subFrom(Ma, d->efm_ca, nv);
+    }
   }
 
   // qfrc_inverse += Ma - qfrc_passive - qfrc_constraint
