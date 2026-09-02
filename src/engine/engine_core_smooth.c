@@ -189,12 +189,16 @@ void mj_kinematics1(const mjModel* m, mjData* d) {
 
 // forward kinematics part 2: body inertias, geoms and sites
 void mj_kinematics2(const mjModel* m, mjData* d) {
-  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
-  int nbody = sleep_filter ? d->nbody_awake : m->nbody;
+  int use_awake_indices = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+  int sleep_filter = mjENABLED(mjENBL_SLEEP);
+  int nbody = use_awake_indices ? d->nbody_awake : m->nbody;
 
   // compute/copy Cartesian positions and orientations of body inertial frames
   for (int b=1; b < nbody; b++) {
-    int i = sleep_filter ? d->body_awake_ind[b] : b;
+    int i = use_awake_indices ? d->body_awake_ind[b] : b;
+
+    // skip static bodies
+    if (sleep_filter && d->body_awake[i] == mjS_STATIC) continue;
 
     mj_local2Global(d, d->xipos+3*i, d->ximat+9*i,
                     m->body_ipos+3*i, m->body_iquat+4*i,
@@ -203,7 +207,7 @@ void mj_kinematics2(const mjModel* m, mjData* d) {
 
   // compute/copy Cartesian positions and orientations of geoms
   for (int b=0; b < nbody; b++) {
-    int i = sleep_filter ? d->body_awake_ind[b] : b;
+    int i = use_awake_indices ? d->body_awake_ind[b] : b;
 
     // skip geom in sleeping or static body
     if (sleep_filter && d->body_awake[i] != mjS_AWAKE) continue;
@@ -353,7 +357,7 @@ void mj_comPos(const mjModel* m, mjData* d) {
 // compute camera and light positions and orientations
 void mj_camlight(const mjModel* m, mjData* d) {
   int ncam = m->ncam, nlight = m->nlight;
-  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+  int sleep_filter = mjENABLED(mjENBL_SLEEP);
 
   // compute Cartesian positions and orientations of cameras
   for (int i=0; i < ncam; i++) {
