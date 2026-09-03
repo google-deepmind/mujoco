@@ -105,6 +105,6 @@ def launch_thread(
       sim_endpoint,
       is_alive_fn=thread.is_alive,
       shutdown_fn=thread.join,
-      plugins=sim_plugins,
+      sim_plugins=sim_plugins,
   )
   return handle

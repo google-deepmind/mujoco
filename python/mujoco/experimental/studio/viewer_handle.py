@@ -37,7 +37,7 @@ class ViewerHandle:
       self,
       sim_endpoint: endpoints.SimEndpoint,
       *,
-      plugins: list[Any] | None = None,
+      sim_plugins: list[Any] | None = None,
       is_alive_fn: IsAliveFn | None = None,
       shutdown_fn: ShutdownFn | None = None,
   ) -> None:
@@ -45,7 +45,7 @@ class ViewerHandle:
 
     Args:
       sim_endpoint: The endpoint to use for communication with the viewer.
-      plugins: Optional list of plugin instances for sim-side processing, which
+      sim_plugins: Optional list of plugin instances for sim-side processing,
         are classes with methods decorated with ``@handler``.
       is_alive_fn: Optional liveness check; without one the viewer is assumed to
         be running until ``close()`` is called.
@@ -60,9 +60,9 @@ class ViewerHandle:
     self.data: mujoco.MjData | None = None
 
     # Instantiate handlers from user plugins + framework defaults.
-    all_plugins: list[Any] = list(plugins or [])
-    all_plugins.append(self)
-    self._plugins = plugin_registry.PluginRegistry(all_plugins)
+    all_sim_plugins: list[Any] = list(sim_plugins or [])
+    all_sim_plugins.append(self)
+    self._sim_plugins = plugin_registry.PluginRegistry(all_sim_plugins)
 
   def close(self) -> None:
     """Signals the viewer to exit and waits for it to shut down."""
@@ -131,16 +131,16 @@ class ViewerHandle:
 
     # Process incoming events from the viewer.
     for event in self._sim_endpoint.get_viewer_events():
-      self._plugins.dispatch(event)
+      self._sim_plugins.dispatch(event)
 
     # Process incoming snapshots from the viewer.
     for snapshot in self._sim_endpoint.get_viewer_snapshots():
-      self._plugins.dispatch(snapshot)
+      self._sim_plugins.dispatch(snapshot)
 
     if self.model is not None:
       assert self.data is not None
       # Advance the simulation: dispatched locally to sim-side plugins.
-      self._plugins.dispatch(
+      self._sim_plugins.dispatch(
           messages.StepEvent(model=self.model, data=self.data)
       )
 
