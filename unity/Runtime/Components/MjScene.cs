@@ -355,7 +355,7 @@ public class MjScene : MonoBehaviour {
     }
     if (Data->warning2.number > 0) {
       Data->warning2.number = 0;
-      throw new PhysicsRuntimeException("CNSTRFULL: njmax {Model.njmax} isn't sufficient.");
+      throw new PhysicsRuntimeException($"CNSTRFULL: njmax {Model.njmax} isn't sufficient.");
     }
     if (Data->warning3.number > 0) {
       Data->warning3.number = 0;

@@ -310,7 +310,7 @@ public static class MjEngineTool {
       if ((toPoint - fromPoint).magnitude < _fromToValidityTolerance) {
         throw new ArgumentException(
             $"{nodeName}: 'fromto' produces a vector that's too short. {fromto} has magnitude " +
-            "{fromto.magnitude} lower than the tolerance {_fromToValidityTolerance}");
+            $"{(toPoint - fromPoint).magnitude} lower than the tolerance {_fromToValidityTolerance}");
       }
       return true;
     } else {
