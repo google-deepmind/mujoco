@@ -57,6 +57,16 @@ Bug fixes
 
 - Rewrote the Plane-Mesh collider to fix bugs and improve performance. Fixes :issue:`3524`.
 
+Rendering
+^^^^^^^^^
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - For materials with physically-based rendering parameters that do *not* provide a metallic texture the fallback is
+     now white. Previously the fallback was black, which caused scalar metallic values to be discarded when multiplied
+     in the PBR shader.
+
 Version 3.12.0 (August 20, 2026)
 --------------------------------
 
