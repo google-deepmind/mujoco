@@ -5733,6 +5733,7 @@ public unsafe struct mjData_ {
   public int nJ;
   public int efm_active;
   public int nefmK;
+  public int nefmcon;
   public int nefmT;
   public int nefmA;
   public int nefmdof;
@@ -5914,6 +5915,8 @@ public unsafe struct mjData_ {
   public int* efm_K_colind;
   public double* efm_K_val;
   public int* efm_dofid;
+  public int* efm_con_ind;
+  public double* efm_con_val;
   public double* efm_L;
   public double* efc_b;
   public double* iefc_aref;

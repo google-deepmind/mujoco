@@ -341,6 +341,8 @@ MJDATA_SIZES: tuple[str, ...] = (
     "efc_vel",
     "efm_K_colind",
     "efm_K_val",
+    "efm_con_ind",
+    "efm_con_val",
     "efm_dofid",
     "efm_L",
     "iLDiagInv",

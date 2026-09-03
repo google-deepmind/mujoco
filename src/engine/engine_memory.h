@@ -78,7 +78,7 @@ static inline void mj_clearEfc(mjData* d) {
   // deactivate the effective metric: its arena pointers were cleared above, so the
   // activity flag and counts consumers gate on must clear with them
   d->efm_active = 0;
-  d->nefmT = d->nefmA = d->nefmK = d->nefmL = d->nefmdof = 0;
+  d->nefmT = d->nefmA = d->nefmK = d->nefmL = d->nefmdof = d->nefmcon = 0;
   d->contact = (mjContact*) d->arena;
 
   // if any contacts are allocated, clear their efc_address
