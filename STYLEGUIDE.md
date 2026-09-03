@@ -13,13 +13,9 @@ Most of this guide involves C/C++ code. For Python, jump to the section
     `include/` and C source files and internal headers under `src/`. This style
     guide primarily concerns itself with this category.
 
-2.  **C++ code:**
-
-    -   MuJoCo C++ source files are based on Google C++ style with a
-        100-character line limit and are formatted using `clang-format`
-        according to the repository's `.clang-format` configuration.
-    -   Test files under `test/` adhere to standard
-        [Google C++ style](https://google.github.io/styleguide/cppguide.html).
+2.  **C++ code:** MuJoCo C++ source files should be formatted using
+    `clang-format` according to their nearest enclosing `.clang-format`
+    configuration (where enabled).
 
 3.  **Python and other languages:** Python files under `python/` adhere to
     Google Python style (see [below](#python-code)). C# files under `unity/`
