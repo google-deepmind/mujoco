@@ -25,6 +25,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat43
+from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
 wp.set_module_options({"enable_backward": False})
@@ -559,34 +560,109 @@ def _fluid(m: Model, d: Data):
 
 
 @wp.kernel
-def _qfrc_passive(
+def _qfrc_adhesion(
   # Model:
-  jnt_actgravcomp: wp.array[int],
-  dof_jntid: wp.array[int],
-  has_fluid: bool,
+  body_parentid: wp.array[int],
+  body_rootid: wp.array[int],
+  body_weldid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  dof_bodyid: wp.array[int],
+  geom_bodyid: wp.array[int],
+  body_isdofancestor: wp.array2d[int],
   # Data in:
-  qfrc_spring_in: wp.array2d[float],
-  qfrc_damper_in: wp.array2d[float],
-  qfrc_gravcomp_in: wp.array2d[float],
-  qfrc_fluid_in: wp.array2d[float],
-  # In:
-  gravity_enabled: bool,
+  subtree_com_in: wp.array2d[wp.vec3],
+  cdof_in: wp.array2d[wp.spatial_vector],
+  contact_pos_in: wp.array[wp.vec3],
+  contact_frame_in: wp.array[wp.mat33],
+  contact_geom_in: wp.array[wp.vec2i],
+  contact_worldid_in: wp.array[int],
+  contact_adhesion_in: wp.array[float],
+  nacon_in: wp.array[int],
   # Data out:
-  qfrc_passive_out: wp.array2d[float],
+  qfrc_adhesion_out: wp.array2d[float],
 ):
-  worldid, dofid = wp.tid()
-  qfrc_passive = qfrc_spring_in[worldid, dofid]
-  qfrc_passive += qfrc_damper_in[worldid, dofid]
+  cid = wp.tid()
+  if cid >= nacon_in[0]:
+    return
 
-  # add gravcomp unless added by actuators
-  if gravity_enabled and not jnt_actgravcomp[dof_jntid[dofid]]:
-    qfrc_passive += qfrc_gravcomp_in[worldid, dofid]
+  adhesion = contact_adhesion_in[cid]
+  if adhesion == 0.0:
+    return
 
-  # add fluid force
-  if has_fluid:
-    qfrc_passive += qfrc_fluid_in[worldid, dofid]
+  worldid = contact_worldid_in[cid]
+  geoms = contact_geom_in[cid]
+  g1 = geoms[0]
+  g2 = geoms[1]
+  body1 = body_weldid[geom_bodyid[g1]] if g1 >= 0 else -1
+  body2 = body_weldid[geom_bodyid[g2]] if g2 >= 0 else -1
 
-  qfrc_passive_out[worldid, dofid] = qfrc_passive
+  pos = contact_pos_in[cid]
+  frame = contact_frame_in[cid]
+  normal = wp.vec3(frame[0, 0], frame[0, 1], frame[0, 2])
+  force = adhesion * normal
+
+  if body1 > 0:
+    b = body1
+    while b > 0:
+      dofadr = body_dofadr[b]
+      dofnum = body_dofnum[b]
+      for dofid in range(dofadr, dofadr + dofnum):
+        jacp, _ = support.jac_dof(
+          body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, pos, body1, dofid, worldid
+        )
+        wp.atomic_add(qfrc_adhesion_out, worldid, dofid, wp.dot(jacp, force))
+      b = body_parentid[b]
+
+  if body2 > 0:
+    b = body2
+    while b > 0:
+      dofadr = body_dofadr[b]
+      dofnum = body_dofnum[b]
+      for dofid in range(dofadr, dofadr + dofnum):
+        jacp, _ = support.jac_dof(
+          body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, pos, body2, dofid, worldid
+        )
+        wp.atomic_add(qfrc_adhesion_out, worldid, dofid, wp.dot(jacp, -force))
+      b = body_parentid[b]
+
+
+@cache_kernel
+def _qfrc_passive_kernel(has_fluid: bool, flg_adhesion: bool, gravity_enabled: bool):
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    jnt_actgravcomp: wp.array[int],
+    dof_jntid: wp.array[int],
+    # Data in:
+    qfrc_spring_in: wp.array2d[float],
+    qfrc_damper_in: wp.array2d[float],
+    qfrc_gravcomp_in: wp.array2d[float],
+    qfrc_fluid_in: wp.array2d[float],
+    qfrc_adhesion_in: wp.array2d[float],
+    # Data out:
+    qfrc_passive_out: wp.array2d[float],
+  ):
+    worldid, dofid = wp.tid()
+    qfrc_passive = qfrc_spring_in[worldid, dofid]
+    qfrc_passive += qfrc_damper_in[worldid, dofid]
+
+    # add gravcomp unless added by actuators
+    if wp.static(gravity_enabled):
+      if not jnt_actgravcomp[dof_jntid[dofid]]:
+        qfrc_passive += qfrc_gravcomp_in[worldid, dofid]
+
+    # add fluid force
+    if wp.static(has_fluid):
+      qfrc_passive += qfrc_fluid_in[worldid, dofid]
+
+    # add adhesion force
+    if wp.static(flg_adhesion):
+      qfrc_passive += qfrc_adhesion_in[worldid, dofid]
+
+    qfrc_passive_out[worldid, dofid] = qfrc_passive
+
+  return kernel
 
 
 @wp.kernel
@@ -1392,18 +1468,45 @@ def passive(m: Model, d: Data):
   if m.has_fluid:
     _fluid(m, d)
 
+  d.qfrc_adhesion.zero_()
+  if m.flg_adhesion and (not (m.opt.disableflags & DisableBit.CONTACT)) and m.nv > 0:
+    wp.launch(
+      _qfrc_adhesion,
+      dim=d.naconmax,
+      inputs=[
+        m.body_parentid,
+        m.body_rootid,
+        m.body_weldid,
+        m.body_dofnum,
+        m.body_dofadr,
+        m.dof_bodyid,
+        m.geom_bodyid,
+        m.body_isdofancestor,
+        d.subtree_com,
+        d.cdof,
+        d.contact.pos,
+        d.contact.frame,
+        d.contact.geom,
+        d.contact.worldid,
+        d.contact.adhesion,
+        d.nacon,
+      ],
+      outputs=[
+        d.qfrc_adhesion,
+      ],
+    )
+
   wp.launch(
-    _qfrc_passive,
+    _qfrc_passive_kernel(m.has_fluid, m.flg_adhesion, gravity_enabled),
     dim=(d.nworld, m.nv),
     inputs=[
       m.jnt_actgravcomp,
       m.dof_jntid,
-      m.has_fluid,
       d.qfrc_spring,
       d.qfrc_damper,
       d.qfrc_gravcomp,
       d.qfrc_fluid,
-      gravity_enabled,
+      d.qfrc_adhesion,
     ],
     outputs=[
       d.qfrc_passive,

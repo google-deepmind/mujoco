@@ -839,7 +839,7 @@ def _linesearch_iterative_kernel(
   fuse_jv: bool,
   is_sparse: bool,
   incremental: bool,
-  warn_overflow: bool,
+  warn_overflow: int,
 ):
   """Factory for iterative linesearch kernel.
 
@@ -848,8 +848,8 @@ def _linesearch_iterative_kernel(
     cone_type: Friction cone type (PYRAMIDAL or ELLIPTIC) for compile-time optimization.
     fuse_jv: Whether to compute jv = J @ search in-kernel (efficient for small nv).
     is_sparse: Use sparse matrix representation for constraint Jacobian.
-    incremental: State changes are tracked: flag exhausted rays, reuse jv on unchanged search.
-    warn_overflow: Whether to print overflow warnings.
+    incremental: Use incremental linesearch updates.
+    warn_overflow: Overflow warning bitmask.
   """
   LS_ITERATIONS = ls_iterations
   IS_ELLIPTIC = cone_type == types.ConeType.ELLIPTIC
@@ -1337,9 +1337,10 @@ def _linesearch_iterative_kernel(
       if wp.static(INCREMENTAL):
         ctx_ls_exhausted_out[worldid] = wp.abs(alpha) < noise_floor
       if not ls_converged:
-        if wp.static(warn_overflow):
+        if wp.static(bool(warn_overflow & OverflowType.LS_ITERATIONS)):
           wp.printf(
-            "linesearch iterations limit reached - please increase ls_iterations to %u\n",
+            "linesearch iterations limit reached - please increase ls_iterations beyond %u\n"
+            "To disable the print warning: m.opt.warn_overflow &= ~mjw.OverflowType.LS_ITERATIONS (or = 0 for all)\n",
             wp.static(LS_ITERATIONS),
           )
         wp.atomic_or(overflow_out, worldid, wp.static(OverflowType.LS_ITERATIONS))
@@ -1363,7 +1364,7 @@ def _linesearch_iterative(m: types.Model, d: types.Data, ctx: SolverContext, fus
       fuse_jv,
       m.is_sparse,
       _use_incremental(m),
-      bool(m.opt.warn_overflow),
+      int(m.opt.warn_overflow),
     ),
     dim=d.nworld,
     inputs=[
@@ -3399,7 +3400,7 @@ def _solve_search_update_cg_tiled(
 
 
 @cache_kernel
-def _solve_cg_finalize(warn_overflow: bool):
+def _solve_cg_finalize(warn_overflow: int):
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # Model:
@@ -3441,8 +3442,12 @@ def _solve_cg_finalize(warn_overflow: bool):
     done = (improvement < tolerance) or (gradient < tolerance)
     if done or solver_niter_out[worldid] == opt_iterations:
       if not done and solver_niter_out[worldid] == opt_iterations:
-        if wp.static(warn_overflow):
-          wp.printf("solver iterations limit reached - please increase iterations to %u\n", opt_iterations)
+        if wp.static(bool(warn_overflow & OverflowType.ITERATIONS)):
+          wp.printf(
+            "solver iterations limit reached - please increase iterations beyond %u\n"
+            "To disable the print warning: m.opt.warn_overflow &= ~mjw.OverflowType.ITERATIONS (or = 0 for all)\n",
+            opt_iterations,
+          )
         overflow_out[worldid] = overflow_out[worldid] | OverflowType.ITERATIONS
       ctx_done_out[worldid] = True
       wp.atomic_add(nsolving_out, 0, -1)
@@ -3451,7 +3456,7 @@ def _solve_cg_finalize(warn_overflow: bool):
 
 
 @cache_kernel
-def _solve_done(warn_overflow: bool):
+def _solve_done(warn_overflow: int):
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # Model:
@@ -3488,8 +3493,12 @@ def _solve_done(warn_overflow: bool):
       # if the solver has converged or the maximum number of iterations has been reached then
       # mark this world as done and remove it from the number of unconverged worlds
       if not done and solver_niter_out[worldid] == opt_iterations:
-        if wp.static(warn_overflow):
-          wp.printf("solver iterations limit reached - please increase iterations to %u\n", opt_iterations)
+        if wp.static(bool(warn_overflow & OverflowType.ITERATIONS)):
+          wp.printf(
+            "solver iterations limit reached - please increase iterations beyond %u\n"
+            "To disable the print warning: m.opt.warn_overflow &= ~mjw.OverflowType.ITERATIONS (or = 0 for all)\n",
+            opt_iterations,
+          )
         overflow_out[worldid] = overflow_out[worldid] | OverflowType.ITERATIONS
       ctx_done_out[worldid] = True
       wp.atomic_add(nsolving_out, 0, -1)
@@ -3572,7 +3581,7 @@ def _solver_iteration(
       block_dim=m.block_dim.solve_beta_accumulate,
     )
     wp.launch(
-      _solve_cg_finalize(bool(m.opt.warn_overflow)),
+      _solve_cg_finalize(int(m.opt.warn_overflow)),
       dim=d.nworld,
       inputs=[
         m.nv,
@@ -3603,7 +3612,7 @@ def _solver_iteration(
 
   else:
     wp.launch(
-      _solve_done(bool(m.opt.warn_overflow)),
+      _solve_done(int(m.opt.warn_overflow)),
       dim=d.nworld,
       inputs=[
         m.nv,

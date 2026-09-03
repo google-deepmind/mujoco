@@ -62,7 +62,6 @@ def _collision_shim(
     flex_elemdataadr: wp.array[int],
     flex_elemflexid: wp.array[int],
     flex_elemlayer: wp.array[int],
-    flex_elemnum: wp.array[int],
     flex_friction: wp.array[wp.vec3],
     flex_gap: wp.array[float],
     flex_margin: wp.array[float],
@@ -76,9 +75,8 @@ def _collision_shim(
     flex_vertbodyid: wp.array[int],
     flex_vertflexid: wp.array[int],
     flex_vertnum: wp.array[int],
-    flexelem_geom_pair_filtered: wp.array[wp.vec2i],
-    flexvert_geom_pair_filtered: wp.array[wp.vec2i],
     geom_aabb: wp.array3d[wp.vec3],
+    geom_adhesion: wp.array2d[float],
     geom_bodyid: wp.array[int],
     geom_conaffinity: wp.array[int],
     geom_condim: wp.array[int],
@@ -99,6 +97,7 @@ def _collision_shim(
     has_3d_flex: bool,
     has_ellipsoid_geom: bool,
     has_flex_selfcollide: bool,
+    has_plane_geom: bool,
     has_sdf_geom: bool,
     hfield_adr: wp.array[int],
     hfield_data: wp.array[float],
@@ -138,6 +137,7 @@ def _collision_shim(
     oct_aabb: wp.array2d[wp.vec3],
     oct_child: wp.array[mjwp_types.vec8i],
     oct_coeff: wp.array[mjwp_types.vec8],
+    pair_adhesion: wp.array2d[float],
     pair_dim: wp.array[int],
     pair_friction: wp.array2d[mjwp_types.vec5],
     pair_gap: wp.array2d[float],
@@ -156,7 +156,7 @@ def _collision_shim(
     opt__graph_conditional: bool,
     opt__sdf_initpoints: int,
     opt__sdf_iterations: int,
-    opt__warn_overflow: bool,
+    opt__warn_overflow: int,
     # Data
     naccdmax: int,
     naconmax: int,
@@ -169,6 +169,7 @@ def _collision_shim(
     nacon: wp.array[int],
     ncollision: wp.array[int],
     overflow: wp.array[int],
+    contact__adhesion: wp.array[float],
     contact__dim: wp.array[int],
     contact__dist: wp.array[float],
     contact__efc_address: wp.array2d[int],
@@ -203,7 +204,6 @@ def _collision_shim(
   _m.flex_elemdataadr = flex_elemdataadr
   _m.flex_elemflexid = flex_elemflexid
   _m.flex_elemlayer = flex_elemlayer
-  _m.flex_elemnum = flex_elemnum
   _m.flex_friction = flex_friction
   _m.flex_gap = flex_gap
   _m.flex_margin = flex_margin
@@ -217,9 +217,8 @@ def _collision_shim(
   _m.flex_vertbodyid = flex_vertbodyid
   _m.flex_vertflexid = flex_vertflexid
   _m.flex_vertnum = flex_vertnum
-  _m.flexelem_geom_pair_filtered = flexelem_geom_pair_filtered
-  _m.flexvert_geom_pair_filtered = flexvert_geom_pair_filtered
   _m.geom_aabb = geom_aabb
+  _m.geom_adhesion = geom_adhesion
   _m.geom_bodyid = geom_bodyid
   _m.geom_conaffinity = geom_conaffinity
   _m.geom_condim = geom_condim
@@ -240,6 +239,7 @@ def _collision_shim(
   _m.has_3d_flex = has_3d_flex
   _m.has_ellipsoid_geom = has_ellipsoid_geom
   _m.has_flex_selfcollide = has_flex_selfcollide
+  _m.has_plane_geom = has_plane_geom
   _m.has_sdf_geom = has_sdf_geom
   _m.hfield_adr = hfield_adr
   _m.hfield_data = hfield_data
@@ -289,6 +289,7 @@ def _collision_shim(
   _m.opt.sdf_initpoints = opt__sdf_initpoints
   _m.opt.sdf_iterations = opt__sdf_iterations
   _m.opt.warn_overflow = opt__warn_overflow
+  _m.pair_adhesion = pair_adhesion
   _m.pair_dim = pair_dim
   _m.pair_friction = pair_friction
   _m.pair_gap = pair_gap
@@ -299,6 +300,7 @@ def _collision_shim(
   _m.plugin = plugin
   _m.plugin_attr = plugin_attr
   _d.body_awake = body_awake
+  _d.contact.adhesion = contact__adhesion
   _d.contact.dim = contact__dim
   _d.contact.dist = contact__dist
   _d.contact.efc_address = contact__efc_address
@@ -337,6 +339,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       'nacon': d._impl.nacon.shape,
       'ncollision': d._impl.ncollision.shape,
       'overflow': d._impl.overflow.shape,
+      'contact__adhesion': d._impl.contact__adhesion.shape,
       'contact__dim': d._impl.contact__dim.shape,
       'contact__dist': d._impl.contact__dist.shape,
       'contact__efc_address': d._impl.contact__efc_address.shape,
@@ -357,7 +360,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
   }
   jf = ffi.jax_callable_variadic_tuple(
       _collision_shim,
-      num_outputs=22,
+      num_outputs=23,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames=set([
@@ -366,6 +369,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
           'nacon',
           'ncollision',
           'overflow',
+          'contact__adhesion',
           'contact__dim',
           'contact__dist',
           'contact__efc_address',
@@ -386,6 +390,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       ]),
       stage_in_argnames=set([
           'body_awake',
+          'contact__adhesion',
           'contact__dim',
           'contact__dist',
           'contact__efc_address',
@@ -407,6 +412,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
           'flex_aabb_min',
           'flexvert_xpos',
           'geom_aabb',
+          'geom_adhesion',
           'geom_friction',
           'geom_gap',
           'geom_margin',
@@ -422,6 +428,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
           'ncollision',
           'opt__ccd_tolerance',
           'overflow',
+          'pair_adhesion',
           'pair_friction',
           'pair_gap',
           'pair_margin',
@@ -430,6 +437,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
           'pair_solreffriction',
       ]),
       stage_out_argnames=set([
+          'contact__adhesion',
           'contact__dim',
           'contact__dist',
           'contact__efc_address',
@@ -469,7 +477,6 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_elemdataadr,
       m._impl.flex_elemflexid,
       m._impl.flex_elemlayer,
-      m._impl.flex_elemnum,
       m._impl.flex_friction,
       m._impl.flex_gap,
       m._impl.flex_margin,
@@ -483,9 +490,8 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_vertbodyid,
       m._impl.flex_vertflexid,
       m.flex_vertnum,
-      m._impl.flexelem_geom_pair_filtered,
-      m._impl.flexvert_geom_pair_filtered,
       m.geom_aabb,
+      m._impl.geom_adhesion,
       m.geom_bodyid,
       m.geom_conaffinity,
       m.geom_condim,
@@ -506,6 +512,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m._impl.has_3d_flex,
       m._impl.has_ellipsoid_geom,
       m._impl.has_flex_selfcollide,
+      m._impl.has_plane_geom,
       m._impl.has_sdf_geom,
       m.hfield_adr,
       m.hfield_data,
@@ -545,6 +552,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m._impl.oct_aabb,
       m._impl.oct_child,
       m._impl.oct_coeff,
+      m._impl.pair_adhesion,
       m.pair_dim,
       m.pair_friction,
       m.pair_gap,
@@ -575,6 +583,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       d._impl.nacon,
       d._impl.ncollision,
       d._impl.overflow,
+      d._impl.contact__adhesion,
       d._impl.contact__dim,
       d._impl.contact__dist,
       d._impl.contact__efc_address,
@@ -599,23 +608,24 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       '_impl.nacon': out[2],
       '_impl.ncollision': out[3],
       '_impl.overflow': out[4],
-      '_impl.contact__dim': out[5],
-      '_impl.contact__dist': out[6],
-      '_impl.contact__efc_address': out[7],
-      '_impl.contact__elem': out[8],
-      '_impl.contact__flex': out[9],
-      '_impl.contact__frame': out[10],
-      '_impl.contact__friction': out[11],
-      '_impl.contact__geom': out[12],
-      '_impl.contact__geomcollisionid': out[13],
-      '_impl.contact__includemargin': out[14],
-      '_impl.contact__pos': out[15],
-      '_impl.contact__solimp': out[16],
-      '_impl.contact__solref': out[17],
-      '_impl.contact__solreffriction': out[18],
-      '_impl.contact__type': out[19],
-      '_impl.contact__vert': out[20],
-      '_impl.contact__worldid': out[21],
+      '_impl.contact__adhesion': out[5],
+      '_impl.contact__dim': out[6],
+      '_impl.contact__dist': out[7],
+      '_impl.contact__efc_address': out[8],
+      '_impl.contact__elem': out[9],
+      '_impl.contact__flex': out[10],
+      '_impl.contact__frame': out[11],
+      '_impl.contact__friction': out[12],
+      '_impl.contact__geom': out[13],
+      '_impl.contact__geomcollisionid': out[14],
+      '_impl.contact__includemargin': out[15],
+      '_impl.contact__pos': out[16],
+      '_impl.contact__solimp': out[17],
+      '_impl.contact__solref': out[18],
+      '_impl.contact__solreffriction': out[19],
+      '_impl.contact__type': out[20],
+      '_impl.contact__vert': out[21],
+      '_impl.contact__worldid': out[22],
   })
   return d
 

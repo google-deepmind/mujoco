@@ -441,7 +441,7 @@ def build_mesh_bvh(
   indices = indices.flatten()
   pmin = np.min(points, axis=0)
   pmax = np.max(points, axis=0)
-  half = 0.5 * (pmax - pmin)
+  half = np.maximum(np.abs(pmin), np.abs(pmax))
 
   points = wp.array(points, dtype=wp.vec3)
   indices = wp.array(indices, dtype=wp.int32)

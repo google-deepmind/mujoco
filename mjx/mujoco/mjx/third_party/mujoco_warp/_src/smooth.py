@@ -1691,6 +1691,7 @@ def _cfrc_ext_contact(
   contact_geom_in: wp.array[wp.vec2i],
   contact_efc_address_in: wp.array2d[int],
   contact_worldid_in: wp.array[int],
+  contact_adhesion_in: wp.array[float],
   efc_force_in: wp.array2d[float],
   njmax_in: int,
   nacon_in: wp.array[int],
@@ -1718,6 +1719,7 @@ def _cfrc_ext_contact(
     contact_friction_in,
     contact_dim_in,
     contact_efc_address_in,
+    contact_adhesion_in,
     efc_force_in,
     njmax_in,
     nacon_in,
@@ -1804,6 +1806,7 @@ def rne_postconstraint(m: Model, d: Data):
       d.contact.geom,
       d.contact.efc_address,
       d.contact.worldid,
+      d.contact.adhesion,
       d.efc.force,
       d.njmax,
       d.nacon,
@@ -2896,7 +2899,7 @@ def transmission(m: Model, d: Data):
 
   wp.launch(
     _transmission,
-    dim=(d.nworld, m.nu),
+    dim=(d.nworld, m.nactuator),
     inputs=[
       m.nv,
       m.body_parentid,

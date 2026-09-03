@@ -292,6 +292,7 @@ def plane_sphere_wrapper(
   solref: wp.vec2,
   solreffriction: wp.vec2,
   solimp: vec5,
+  adhesion: float,
   geoms: wp.vec2i,
   pairid: wp.vec2i,
   # Data out:
@@ -309,6 +310,7 @@ def plane_sphere_wrapper(
   contact_worldid_out: wp.array[int],
   contact_type_out: wp.array[int],
   contact_geomcollisionid_out: wp.array[int],
+  contact_adhesion_out: wp.array[float],
   nacon_out: wp.array[int],
 ):
   """Calculates contact between a sphere and a plane."""
@@ -328,6 +330,7 @@ def plane_sphere_wrapper(
     solref,
     solreffriction,
     solimp,
+    adhesion,
     geoms,
     pairid,
     worldid,
@@ -345,6 +348,7 @@ def plane_sphere_wrapper(
     contact_worldid_out,
     contact_type_out,
     contact_geomcollisionid_out,
+    contact_adhesion_out,
     nacon_out,
   )
 
@@ -364,6 +368,7 @@ def sphere_sphere_wrapper(
   solref: wp.vec2,
   solreffriction: wp.vec2,
   solimp: vec5,
+  adhesion: float,
   geoms: wp.vec2i,
   pairid: wp.vec2i,
   # Data out:
@@ -381,6 +386,7 @@ def sphere_sphere_wrapper(
   contact_worldid_out: wp.array[int],
   contact_type_out: wp.array[int],
   contact_geomcollisionid_out: wp.array[int],
+  contact_adhesion_out: wp.array[float],
   nacon_out: wp.array[int],
 ):
   """Calculates contact between two spheres."""
@@ -399,6 +405,7 @@ def sphere_sphere_wrapper(
     solref,
     solreffriction,
     solimp,
+    adhesion,
     geoms,
     pairid,
     worldid,
@@ -416,6 +423,7 @@ def sphere_sphere_wrapper(
     contact_worldid_out,
     contact_type_out,
     contact_geomcollisionid_out,
+    contact_adhesion_out,
     nacon_out,
   )
 
@@ -435,6 +443,7 @@ def sphere_capsule_wrapper(
   solref: wp.vec2,
   solreffriction: wp.vec2,
   solimp: vec5,
+  adhesion: float,
   geoms: wp.vec2i,
   pairid: wp.vec2i,
   # Data out:
@@ -452,6 +461,7 @@ def sphere_capsule_wrapper(
   contact_worldid_out: wp.array[int],
   contact_type_out: wp.array[int],
   contact_geomcollisionid_out: wp.array[int],
+  contact_adhesion_out: wp.array[float],
   nacon_out: wp.array[int],
 ):
   """Calculates one contact between a sphere and a capsule."""
@@ -473,6 +483,7 @@ def sphere_capsule_wrapper(
     solref,
     solreffriction,
     solimp,
+    adhesion,
     geoms,
     pairid,
     worldid,
@@ -490,6 +501,7 @@ def sphere_capsule_wrapper(
     contact_worldid_out,
     contact_type_out,
     contact_geomcollisionid_out,
+    contact_adhesion_out,
     nacon_out,
   )
 
@@ -509,6 +521,7 @@ def capsule_capsule_wrapper(
   solref: wp.vec2,
   solreffriction: wp.vec2,
   solimp: vec5,
+  adhesion: float,
   geoms: wp.vec2i,
   pairid: wp.vec2i,
   # Data out:
@@ -526,6 +539,7 @@ def capsule_capsule_wrapper(
   contact_worldid_out: wp.array[int],
   contact_type_out: wp.array[int],
   contact_geomcollisionid_out: wp.array[int],
+  contact_adhesion_out: wp.array[float],
   nacon_out: wp.array[int],
 ):
   """Calculates contacts between two capsules."""
@@ -559,6 +573,7 @@ def capsule_capsule_wrapper(
       solref,
       solreffriction,
       solimp,
+      adhesion,
       geoms,
       pairid,
       worldid,
@@ -576,6 +591,7 @@ def capsule_capsule_wrapper(
       contact_worldid_out,
       contact_type_out,
       contact_geomcollisionid_out,
+      contact_adhesion_out,
       nacon_out,
     )
 
@@ -595,6 +611,7 @@ def plane_capsule_wrapper(
   solref: wp.vec2,
   solreffriction: wp.vec2,
   solimp: vec5,
+  adhesion: float,
   geoms: wp.vec2i,
   pairid: wp.vec2i,
   # Data out:
@@ -612,6 +629,7 @@ def plane_capsule_wrapper(
   contact_worldid_out: wp.array[int],
   contact_type_out: wp.array[int],
   contact_geomcollisionid_out: wp.array[int],
+  contact_adhesion_out: wp.array[float],
   nacon_out: wp.array[int],
 ):
   """Calculates contacts between a capsule and a plane."""
@@ -641,6 +659,7 @@ def plane_capsule_wrapper(
       solref,
       solreffriction,
       solimp,
+      adhesion,
       geoms,
       pairid,
       worldid,
@@ -658,6 +677,7 @@ def plane_capsule_wrapper(
       contact_worldid_out,
       contact_type_out,
       contact_geomcollisionid_out,
+      contact_adhesion_out,
       nacon_out,
     )
 
@@ -677,6 +697,7 @@ def plane_ellipsoid_wrapper(
   solref: wp.vec2,
   solreffriction: wp.vec2,
   solimp: vec5,
+  adhesion: float,
   geoms: wp.vec2i,
   pairid: wp.vec2i,
   # Data out:
@@ -694,6 +715,7 @@ def plane_ellipsoid_wrapper(
   contact_worldid_out: wp.array[int],
   contact_type_out: wp.array[int],
   contact_geomcollisionid_out: wp.array[int],
+  contact_adhesion_out: wp.array[float],
   nacon_out: wp.array[int],
 ):
   """Calculates contacts between an ellipsoid and a plane."""
@@ -712,6 +734,7 @@ def plane_ellipsoid_wrapper(
     solref,
     solreffriction,
     solimp,
+    adhesion,
     geoms,
     pairid,
     worldid,
@@ -729,6 +752,7 @@ def plane_ellipsoid_wrapper(
     contact_worldid_out,
     contact_type_out,
     contact_geomcollisionid_out,
+    contact_adhesion_out,
     nacon_out,
   )
 
@@ -748,6 +772,7 @@ def plane_box_wrapper(
   solref: wp.vec2,
   solreffriction: wp.vec2,
   solimp: vec5,
+  adhesion: float,
   geoms: wp.vec2i,
   pairid: wp.vec2i,
   # Data out:
@@ -765,6 +790,7 @@ def plane_box_wrapper(
   contact_worldid_out: wp.array[int],
   contact_type_out: wp.array[int],
   contact_geomcollisionid_out: wp.array[int],
+  contact_adhesion_out: wp.array[float],
   nacon_out: wp.array[int],
 ):
   """Calculates contacts between a box and a plane."""
@@ -785,6 +811,7 @@ def plane_box_wrapper(
       solref,
       solreffriction,
       solimp,
+      adhesion,
       geoms,
       pairid,
       worldid,
@@ -802,6 +829,7 @@ def plane_box_wrapper(
       contact_worldid_out,
       contact_type_out,
       contact_geomcollisionid_out,
+      contact_adhesion_out,
       nacon_out,
     )
 
@@ -821,6 +849,7 @@ def plane_convex_wrapper(
   solref: wp.vec2,
   solreffriction: wp.vec2,
   solimp: vec5,
+  adhesion: float,
   geoms: wp.vec2i,
   pairid: wp.vec2i,
   # Data out:
@@ -838,6 +867,7 @@ def plane_convex_wrapper(
   contact_worldid_out: wp.array[int],
   contact_type_out: wp.array[int],
   contact_geomcollisionid_out: wp.array[int],
+  contact_adhesion_out: wp.array[float],
   nacon_out: wp.array[int],
 ):
   """Calculates contacts between a plane and a convex object."""
@@ -858,6 +888,7 @@ def plane_convex_wrapper(
       solref,
       solreffriction,
       solimp,
+      adhesion,
       geoms,
       pairid,
       worldid,
@@ -875,6 +906,7 @@ def plane_convex_wrapper(
       contact_worldid_out,
       contact_type_out,
       contact_geomcollisionid_out,
+      contact_adhesion_out,
       nacon_out,
     )
 
@@ -894,6 +926,7 @@ def sphere_cylinder_wrapper(
   solref: wp.vec2,
   solreffriction: wp.vec2,
   solimp: vec5,
+  adhesion: float,
   geoms: wp.vec2i,
   pairid: wp.vec2i,
   # Data out:
@@ -911,6 +944,7 @@ def sphere_cylinder_wrapper(
   contact_worldid_out: wp.array[int],
   contact_type_out: wp.array[int],
   contact_geomcollisionid_out: wp.array[int],
+  contact_adhesion_out: wp.array[float],
   nacon_out: wp.array[int],
 ):
   """Calculates contacts between a sphere and a cylinder."""
@@ -939,6 +973,7 @@ def sphere_cylinder_wrapper(
     solref,
     solreffriction,
     solimp,
+    adhesion,
     geoms,
     pairid,
     worldid,
@@ -956,6 +991,7 @@ def sphere_cylinder_wrapper(
     contact_worldid_out,
     contact_type_out,
     contact_geomcollisionid_out,
+    contact_adhesion_out,
     nacon_out,
   )
 
@@ -975,6 +1011,7 @@ def plane_cylinder_wrapper(
   solref: wp.vec2,
   solreffriction: wp.vec2,
   solimp: vec5,
+  adhesion: float,
   geoms: wp.vec2i,
   pairid: wp.vec2i,
   # Data out:
@@ -992,6 +1029,7 @@ def plane_cylinder_wrapper(
   contact_worldid_out: wp.array[int],
   contact_type_out: wp.array[int],
   contact_geomcollisionid_out: wp.array[int],
+  contact_adhesion_out: wp.array[float],
   nacon_out: wp.array[int],
 ):
   """Calculates contacts between a cylinder and a plane."""
@@ -1022,6 +1060,7 @@ def plane_cylinder_wrapper(
       solref,
       solreffriction,
       solimp,
+      adhesion,
       geoms,
       pairid,
       worldid,
@@ -1039,6 +1078,7 @@ def plane_cylinder_wrapper(
       contact_worldid_out,
       contact_type_out,
       contact_geomcollisionid_out,
+      contact_adhesion_out,
       nacon_out,
     )
 
@@ -1058,6 +1098,7 @@ def sphere_box_wrapper(
   solref: wp.vec2,
   solreffriction: wp.vec2,
   solimp: vec5,
+  adhesion: float,
   geoms: wp.vec2i,
   pairid: wp.vec2i,
   # Data out:
@@ -1075,6 +1116,7 @@ def sphere_box_wrapper(
   contact_worldid_out: wp.array[int],
   contact_type_out: wp.array[int],
   contact_geomcollisionid_out: wp.array[int],
+  contact_adhesion_out: wp.array[float],
   nacon_out: wp.array[int],
 ):
   dist, pos, normal = sphere_box(sphere.pos, sphere.size[0], box.pos, box.rot, box.size)
@@ -1092,6 +1134,7 @@ def sphere_box_wrapper(
     solref,
     solreffriction,
     solimp,
+    adhesion,
     geoms,
     pairid,
     worldid,
@@ -1109,6 +1152,7 @@ def sphere_box_wrapper(
     contact_worldid_out,
     contact_type_out,
     contact_geomcollisionid_out,
+    contact_adhesion_out,
     nacon_out,
   )
 
@@ -1128,6 +1172,7 @@ def capsule_box_wrapper(
   solref: wp.vec2,
   solreffriction: wp.vec2,
   solimp: vec5,
+  adhesion: float,
   geoms: wp.vec2i,
   pairid: wp.vec2i,
   # Data out:
@@ -1145,6 +1190,7 @@ def capsule_box_wrapper(
   contact_worldid_out: wp.array[int],
   contact_type_out: wp.array[int],
   contact_geomcollisionid_out: wp.array[int],
+  contact_adhesion_out: wp.array[float],
   nacon_out: wp.array[int],
 ):
   """Calculates contacts between a capsule and a box."""
@@ -1177,6 +1223,7 @@ def capsule_box_wrapper(
       solref,
       solreffriction,
       solimp,
+      adhesion,
       geoms,
       pairid,
       worldid,
@@ -1194,6 +1241,7 @@ def capsule_box_wrapper(
       contact_worldid_out,
       contact_type_out,
       contact_geomcollisionid_out,
+      contact_adhesion_out,
       nacon_out,
     )
 
@@ -1213,6 +1261,7 @@ def box_box_wrapper(
   solref: wp.vec2,
   solreffriction: wp.vec2,
   solimp: vec5,
+  adhesion: float,
   geoms: wp.vec2i,
   pairid: wp.vec2i,
   # Data out:
@@ -1230,6 +1279,7 @@ def box_box_wrapper(
   contact_worldid_out: wp.array[int],
   contact_type_out: wp.array[int],
   contact_geomcollisionid_out: wp.array[int],
+  contact_adhesion_out: wp.array[float],
   nacon_out: wp.array[int],
 ):
   """Calculates contacts between two boxes."""
@@ -1258,6 +1308,7 @@ def box_box_wrapper(
       solref,
       solreffriction,
       solimp,
+      adhesion,
       geoms,
       pairid,
       worldid,
@@ -1275,6 +1326,7 @@ def box_box_wrapper(
       contact_worldid_out,
       contact_type_out,
       contact_geomcollisionid_out,
+      contact_adhesion_out,
       nacon_out,
     )
 
@@ -1313,6 +1365,7 @@ def _primitive_narrowphase(primitive_collisions_types, primitive_collisions_func
     geom_friction: wp.array2d[wp.vec3],
     geom_margin: wp.array2d[float],
     geom_gap: wp.array2d[float],
+    geom_adhesion: wp.array2d[float],
     mesh_vertadr: wp.array[int],
     mesh_vertnum: wp.array[int],
     mesh_graphadr: wp.array[int],
@@ -1333,6 +1386,7 @@ def _primitive_narrowphase(primitive_collisions_types, primitive_collisions_func
     pair_solimp: wp.array2d[vec5],
     pair_margin: wp.array2d[float],
     pair_gap: wp.array2d[float],
+    pair_adhesion: wp.array2d[float],
     pair_friction: wp.array2d[vec5],
     # Data in:
     geom_xpos_in: wp.array2d[wp.vec3],
@@ -1358,6 +1412,7 @@ def _primitive_narrowphase(primitive_collisions_types, primitive_collisions_func
     contact_worldid_out: wp.array[int],
     contact_type_out: wp.array[int],
     contact_geomcollisionid_out: wp.array[int],
+    contact_adhesion_out: wp.array[float],
     nacon_out: wp.array[int],
   ):
     tid = wp.tid()
@@ -1368,7 +1423,7 @@ def _primitive_narrowphase(primitive_collisions_types, primitive_collisions_func
     geoms = collision_pair_in[tid]
     worldid = collision_worldid_in[tid]
 
-    _, margin, gap, condim, friction, solref, solreffriction, solimp = contact_params(
+    _, margin, gap, condim, friction, solref, solreffriction, solimp, adhesion = contact_params(
       geom_condim,
       geom_priority,
       geom_solmix,
@@ -1377,12 +1432,14 @@ def _primitive_narrowphase(primitive_collisions_types, primitive_collisions_func
       geom_friction,
       geom_margin,
       geom_gap,
+      geom_adhesion,
       pair_dim,
       pair_solref,
       pair_solreffriction,
       pair_solimp,
       pair_margin,
       pair_gap,
+      pair_adhesion,
       pair_friction,
       collision_pair_in,
       collision_pairid_in,
@@ -1432,6 +1489,7 @@ def _primitive_narrowphase(primitive_collisions_types, primitive_collisions_func
           solref,
           solreffriction,
           solimp,
+          adhesion,
           geoms,
           collision_pairid_in[tid],
           contact_dist_out,
@@ -1448,6 +1506,7 @@ def _primitive_narrowphase(primitive_collisions_types, primitive_collisions_func
           contact_worldid_out,
           contact_type_out,
           contact_geomcollisionid_out,
+          contact_adhesion_out,
           nacon_out,
         )
 
@@ -1500,6 +1559,7 @@ def primitive_narrowphase(m: Model, d: Data, ctx: CollisionContext, collision_ta
       m.geom_friction,
       m.geom_margin,
       m.geom_gap,
+      m.geom_adhesion,
       m.mesh_vertadr,
       m.mesh_vertnum,
       m.mesh_graphadr,
@@ -1520,6 +1580,7 @@ def primitive_narrowphase(m: Model, d: Data, ctx: CollisionContext, collision_ta
       m.pair_solimp,
       m.pair_margin,
       m.pair_gap,
+      m.pair_adhesion,
       m.pair_friction,
       d.geom_xpos,
       d.geom_xmat,
@@ -1544,6 +1605,7 @@ def primitive_narrowphase(m: Model, d: Data, ctx: CollisionContext, collision_ta
       d.contact.worldid,
       d.contact.type,
       d.contact.geomcollisionid,
+      d.contact.adhesion,
       d.nacon,
     ],
   )

@@ -94,6 +94,7 @@ class BlockDim:
     segmented_sort: segmented sort block dimension (collision_driver)
     convex_ccd: convex CCD kernel block dimension (collision_convex)
     actuator_velocity: actuator velocity block dimension (forward)
+    island_dsu: island discovery DSU block dimension (island)
     ray: ray block dimension (ray)
     contact_sort: contact sort block dimension (sensor)
     energy_vel_kinetic: energy velocity kinetic block dimension (sensor)
@@ -122,6 +123,7 @@ class BlockDim:
   segmented_sort: int = 128
   convex_ccd: int = 64
   actuator_velocity: int = 32
+  island_dsu: int = 32
   ray: int = 64
   contact_sort: int = 64
   energy_vel_kinetic: int = 32
@@ -171,7 +173,7 @@ class OptionWarp(PyTreeNode):
   sdf_initpoints: int
   sdf_iterations: int
   sleep_tolerance: jax.Array
-  warn_overflow: bool
+  warn_overflow: int
 
 class ModelWarp(PyTreeNode):
   """Derived fields from Model."""
@@ -190,6 +192,9 @@ class ModelWarp(PyTreeNode):
   M_mulm_madr: np.ndarray
   M_mulm_rowadr: np.ndarray
   M_tiles: Tuple[TileSet, ...]
+  actuator_ctrladr: np.ndarray
+  actuator_ctrlnum: np.ndarray
+  actuator_ctrlspec: np.ndarray
   actuator_delay: np.ndarray
   actuator_history: np.ndarray
   actuator_historyadr: np.ndarray
@@ -267,11 +272,11 @@ class ModelWarp(PyTreeNode):
   flexedge_J_rownnz: np.ndarray
   flexedge_invweight0: np.ndarray
   flexedge_length0: np.ndarray
-  flexelem_geom_pair_filtered: np.ndarray
   flexstrain_J_colind: np.ndarray
   flexstrain_J_rowadr: np.ndarray
   flexstrain_J_rownnz: np.ndarray
-  flexvert_geom_pair_filtered: np.ndarray
+  flg_adhesion: bool
+  geom_adhesion: jax.Array
   geom_pair_type_count: Tuple[int, ...]
   geom_plugin_index: np.ndarray
   geom_surfacevel: jax.Array
@@ -279,6 +284,7 @@ class ModelWarp(PyTreeNode):
   has_ellipsoid_geom: bool
   has_flex_selfcollide: bool
   has_fluid: bool
+  has_plane_geom: bool
   has_sdf_geom: bool
   is_sparse: bool
   jnt_limited_ball_adr: np.ndarray
@@ -304,6 +310,7 @@ class ModelWarp(PyTreeNode):
   nJfe: int
   nJfs: int
   nacttrnbody: int
+  nactuator: int
   nbranch: int
   neq_flexstrain: int
   nflexbend_interp: int
@@ -337,6 +344,7 @@ class ModelWarp(PyTreeNode):
   oct_aabb: np.ndarray
   oct_child: np.ndarray
   oct_coeff: np.ndarray
+  pair_adhesion: jax.Array
   plugin: np.ndarray
   plugin_attr: np.ndarray
   qD_fullm_i: np.ndarray
@@ -407,6 +415,7 @@ class DataWarp(PyTreeNode):
   cfrc_int: jax.Array
   cinert: jax.Array
   cls_tol: jax.Array
+  contact__adhesion: jax.Array
   contact__dim: jax.Array
   contact__dist: jax.Array
   contact__efc_address: jax.Array
@@ -509,6 +518,7 @@ class DataWarp(PyTreeNode):
   qLD: jax.Array
   qLDiagInv: jax.Array
   qLU: jax.Array
+  qfrc_adhesion: jax.Array
   qfrc_damper: jax.Array
   qfrc_spring: jax.Array
   solver_niter: jax.Array
@@ -531,6 +541,7 @@ DATA_NON_VMAP = {
     'cdof_tri_col',
     'cdof_tri_row',
     'cls_tol',
+    'contact__adhesion',
     'contact__dim',
     'contact__dist',
     'contact__efc_address',
@@ -612,6 +623,7 @@ _NDIM = {
         'cfrc_int': 3,
         'cinert': 3,
         'cls_tol': 1,
+        'contact__adhesion': 1,
         'contact__dim': 1,
         'contact__dist': 1,
         'contact__efc_address': 2,
@@ -726,6 +738,7 @@ _NDIM = {
         'qacc_smooth': 2,
         'qacc_warmstart': 2,
         'qfrc_actuator': 2,
+        'qfrc_adhesion': 2,
         'qfrc_applied': 2,
         'qfrc_bias': 2,
         'qfrc_constraint': 2,
@@ -794,8 +807,11 @@ _NDIM = {
         'actuator_biasprm': 3,
         'actuator_biastype': 1,
         'actuator_cranklength': 2,
+        'actuator_ctrladr': 1,
         'actuator_ctrllimited': 1,
+        'actuator_ctrlnum': 1,
         'actuator_ctrlrange': 3,
+        'actuator_ctrlspec': 1,
         'actuator_delay': 1,
         'actuator_dynprm': 3,
         'actuator_dyntype': 1,
@@ -818,6 +834,7 @@ _NDIM = {
         'block_dim__contact_sort': 0,
         'block_dim__convex_ccd': 0,
         'block_dim__energy_vel_kinetic': 0,
+        'block_dim__island_dsu': 0,
         'block_dim__linesearch_iterative': 0,
         'block_dim__qderiv_actuator_dense': 0,
         'block_dim__ray': 0,
@@ -968,13 +985,13 @@ _NDIM = {
         'flexedge_J_rownnz': 1,
         'flexedge_invweight0': 1,
         'flexedge_length0': 1,
-        'flexelem_geom_pair_filtered': 2,
         'flexstrain_J_colind': 1,
         'flexstrain_J_rowadr': 1,
         'flexstrain_J_rownnz': 1,
-        'flexvert_geom_pair_filtered': 2,
+        'flg_adhesion': 0,
         'flg_surfacevel': 0,
         'geom_aabb': 4,
+        'geom_adhesion': 2,
         'geom_bodyid': 1,
         'geom_conaffinity': 1,
         'geom_condim': 1,
@@ -1003,6 +1020,7 @@ _NDIM = {
         'has_ellipsoid_geom': 0,
         'has_flex_selfcollide': 0,
         'has_fluid': 0,
+        'has_plane_geom': 0,
         'has_sdf_geom': 0,
         'hfield_adr': 1,
         'hfield_data': 1,
@@ -1095,6 +1113,7 @@ _NDIM = {
         'nM': 0,
         'na': 0,
         'nacttrnbody': 0,
+        'nactuator': 0,
         'nbody': 0,
         'nbranch': 0,
         'ncam': 0,
@@ -1185,6 +1204,7 @@ _NDIM = {
         'opt__viscosity': 1,
         'opt__warn_overflow': 0,
         'opt__wind': 2,
+        'pair_adhesion': 2,
         'pair_dim': 1,
         'pair_friction': 3,
         'pair_gap': 2,
@@ -1343,6 +1363,7 @@ _BATCH_DIM = {
         'cfrc_int': True,
         'cinert': True,
         'cls_tol': False,
+        'contact__adhesion': False,
         'contact__dim': False,
         'contact__dist': False,
         'contact__efc_address': False,
@@ -1457,6 +1478,7 @@ _BATCH_DIM = {
         'qacc_smooth': True,
         'qacc_warmstart': True,
         'qfrc_actuator': True,
+        'qfrc_adhesion': True,
         'qfrc_applied': True,
         'qfrc_bias': True,
         'qfrc_constraint': True,
@@ -1525,8 +1547,11 @@ _BATCH_DIM = {
         'actuator_biasprm': True,
         'actuator_biastype': False,
         'actuator_cranklength': True,
+        'actuator_ctrladr': False,
         'actuator_ctrllimited': False,
+        'actuator_ctrlnum': False,
         'actuator_ctrlrange': True,
+        'actuator_ctrlspec': False,
         'actuator_delay': False,
         'actuator_dynprm': True,
         'actuator_dyntype': False,
@@ -1549,6 +1574,7 @@ _BATCH_DIM = {
         'block_dim__contact_sort': False,
         'block_dim__convex_ccd': False,
         'block_dim__energy_vel_kinetic': False,
+        'block_dim__island_dsu': False,
         'block_dim__linesearch_iterative': False,
         'block_dim__qderiv_actuator_dense': False,
         'block_dim__ray': False,
@@ -1699,13 +1725,13 @@ _BATCH_DIM = {
         'flexedge_J_rownnz': False,
         'flexedge_invweight0': False,
         'flexedge_length0': False,
-        'flexelem_geom_pair_filtered': False,
         'flexstrain_J_colind': False,
         'flexstrain_J_rowadr': False,
         'flexstrain_J_rownnz': False,
-        'flexvert_geom_pair_filtered': False,
+        'flg_adhesion': False,
         'flg_surfacevel': False,
         'geom_aabb': True,
+        'geom_adhesion': True,
         'geom_bodyid': False,
         'geom_conaffinity': False,
         'geom_condim': False,
@@ -1734,6 +1760,7 @@ _BATCH_DIM = {
         'has_ellipsoid_geom': False,
         'has_flex_selfcollide': False,
         'has_fluid': False,
+        'has_plane_geom': False,
         'has_sdf_geom': False,
         'hfield_adr': False,
         'hfield_data': False,
@@ -1826,6 +1853,7 @@ _BATCH_DIM = {
         'nM': False,
         'na': False,
         'nacttrnbody': False,
+        'nactuator': False,
         'nbody': False,
         'nbranch': False,
         'ncam': False,
@@ -1916,6 +1944,7 @@ _BATCH_DIM = {
         'opt__viscosity': True,
         'opt__warn_overflow': False,
         'opt__wind': True,
+        'pair_adhesion': True,
         'pair_dim': False,
         'pair_friction': True,
         'pair_gap': True,

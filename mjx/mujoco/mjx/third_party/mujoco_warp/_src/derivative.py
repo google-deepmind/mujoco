@@ -41,6 +41,7 @@ def _qderiv_actuator_passive_vel(
   actuator_dyntype: wp.array[int],
   actuator_gaintype: wp.array[int],
   actuator_biastype: wp.array[int],
+  actuator_ctrlspec: wp.array[int],
   actuator_actadr: wp.array[int],
   actuator_actnum: wp.array[int],
   actuator_dynprm: wp.array2d[vec10],
@@ -75,12 +76,11 @@ def _qderiv_actuator_passive_vel(
     te = dynprm[0]
 
     # controller velocity derivative: dV/dω
-    input_mode = int(gainprm[8])
     dVdw = 0.0
-    if input_mode == 1:
-      dVdw = -gainprm[6]  # position: -kd
-    elif input_mode == 2:
-      dVdw = -gainprm[4]  # velocity: -kp
+    if (actuator_ctrlspec[actid] & 7) != 0:
+      R = wp.max(MJ_MINVAL, gainprm[0])
+      K = gainprm[1]
+      dVdw = -gainprm[6] * R / K + K
 
     if te > 0.0:
       # stateful current with actearly: d(K*next_act)/dω
@@ -1128,16 +1128,17 @@ def deriv_smooth_vel(m: Model, d: Data, out: wp.array2d[float]):
   if ~(m.opt.disableflags & (DisableBit.ACTUATION | DisableBit.DAMPER)):
     # TODO(team): only clear elements not set by _qderiv_actuator_passive
     out.zero_()
-    if m.nu > 0 and not (m.opt.disableflags & DisableBit.ACTUATION):
-      vel = wp.empty((d.nworld, m.nu), dtype=float)
+    if m.nactuator > 0 and not (m.opt.disableflags & DisableBit.ACTUATION):
+      vel = wp.empty((d.nworld, m.nactuator), dtype=float)
       wp.launch(
         _qderiv_actuator_passive_vel,
-        dim=(d.nworld, m.nu),
+        dim=(d.nworld, m.nactuator),
         inputs=[
           m.opt.timestep,
           m.actuator_dyntype,
           m.actuator_gaintype,
           m.actuator_biastype,
+          m.actuator_ctrlspec,
           m.actuator_actadr,
           m.actuator_actnum,
           m.actuator_dynprm,
@@ -1158,7 +1159,7 @@ def deriv_smooth_vel(m: Model, d: Data, out: wp.array2d[float]):
       # out (qDeriv) is in M-structure.
       wp.launch(
         _qderiv_actuator_passive_actuation_sparse,
-        dim=(d.nworld, m.nu),
+        dim=(d.nworld, m.nactuator),
         inputs=[
           m.M_elemid,
           d.moment_rownnz,

@@ -360,6 +360,8 @@ def _history_insert_vector(
 @wp.kernel
 def _read_ctrl_delayed_kernel(
   # Model:
+  actuator_ctrladr: wp.array[int],
+  actuator_ctrlnum: wp.array[int],
   actuator_history: wp.array[wp.vec2i],
   actuator_historyadr: wp.array[int],
   actuator_delay: wp.array[float],
@@ -373,23 +375,33 @@ def _read_ctrl_delayed_kernel(
   """Read delayed ctrl for each actuator."""
   worldid, uid = wp.tid()
 
+  ctrlnum = actuator_ctrlnum[uid]
+  if ctrlnum == 0:
+    return
+
+  uadr = actuator_ctrladr[uid]
   hist = actuator_history[uid]
   nsample = hist[0]
   delay = actuator_delay[uid]
 
   if nsample == 0 or delay == 0.0:
     # no delay: direct copy
-    ctrl_out[worldid, uid] = ctrl_in[worldid, uid]
+    for j in range(ctrlnum):
+      ctrl_out[worldid, uadr + j] = ctrl_in[worldid, uadr + j]
   else:
     interp = hist[1]
     buf_offset = actuator_historyadr[uid]
     t = time_in[worldid] - delay
-    ctrl_out[worldid, uid] = _history_read_scalar(history_in, worldid, buf_offset, nsample, t, interp)
+    for j in range(ctrlnum):
+      ctrl_out[worldid, uadr + j] = ctrl_in[worldid, uadr + j]
+    ctrl_out[worldid, uadr] = _history_read_scalar(history_in, worldid, buf_offset, nsample, t, interp)
 
 
 @wp.kernel
 def _insert_ctrl_history_kernel(
   # Model:
+  actuator_ctrladr: wp.array[int],
+  actuator_ctrlnum: wp.array[int],
   actuator_history: wp.array[wp.vec2i],
   actuator_historyadr: wp.array[int],
   # Data in:
@@ -401,14 +413,18 @@ def _insert_ctrl_history_kernel(
   """Insert current ctrl into history buffers."""
   worldid, uid = wp.tid()
 
+  if actuator_ctrlnum[uid] == 0:
+    return
+
   hist = actuator_history[uid]
   nsample = hist[0]
   if nsample == 0:
     return
 
+  uadr = actuator_ctrladr[uid]
   buf_offset = actuator_historyadr[uid]
   t = time_in[worldid]
-  value = ctrl_in[worldid, uid]
+  value = ctrl_in[worldid, uadr]
   _history_insert_scalar(worldid, buf_offset, nsample, t, value, history_out)
 
 
@@ -515,8 +531,10 @@ def read_ctrl_delayed(m: Model, d: Data, ctrl: wp.array2d[float]):
 
   wp.launch(
     _read_ctrl_delayed_kernel,
-    dim=(d.nworld, m.nu),
+    dim=(d.nworld, m.nactuator),
     inputs=[
+      m.actuator_ctrladr,
+      m.actuator_ctrlnum,
       m.actuator_history,
       m.actuator_historyadr,
       m.actuator_delay,
@@ -530,13 +548,15 @@ def read_ctrl_delayed(m: Model, d: Data, ctrl: wp.array2d[float]):
 
 def insert_ctrl_history(m: Model, d: Data):
   """Insert current ctrl values into history buffers."""
-  if m.nhistory == 0 or m.nu == 0:
+  if m.nhistory == 0 or m.nactuator == 0:
     return
 
   wp.launch(
     _insert_ctrl_history_kernel,
-    dim=(d.nworld, m.nu),
+    dim=(d.nworld, m.nactuator),
     inputs=[
+      m.actuator_ctrladr,
+      m.actuator_ctrlnum,
       m.actuator_history,
       m.actuator_historyadr,
       d.time,

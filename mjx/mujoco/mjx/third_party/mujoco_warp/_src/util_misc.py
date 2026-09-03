@@ -647,29 +647,69 @@ def lugre_stribeck(velocity: float, F_C: float, F_S: float, v_S: float) -> float
 
 
 @wp.func
-def dcmotor_voltage(u: float, length: float, velocity: float, x_I: float, gainprm: types.vec10) -> float:
-  input_mode = int(gainprm[8])
-  Vmax = gainprm[7]
-  voltage = 0.0
+def unpack_servo_inputs(
+  # Data in:
+  ctrl_in: wp.array2d[float],
+  # In:
+  worldid: int,
+  uadr: int,
+  spec: int,
+  u_first: float,
+) -> wp.vec4:
+  out = wp.vec4(0.0, 0.0, 0.0, 0.0)
+  adr = uadr
+  first_set = False
+  if (spec & 1) != 0:  # POS
+    out[0] = u_first if not first_set else ctrl_in[worldid, adr]
+    first_set = True
+    adr += 1
+  if (spec & 2) != 0:  # VEL
+    out[1] = u_first if not first_set else ctrl_in[worldid, adr]
+    first_set = True
+    adr += 1
+  if (spec & 4) != 0:  # FF
+    out[2] = u_first if not first_set else ctrl_in[worldid, adr]
+    first_set = True
+    adr += 1
+  if (spec & 8) != 0:  # VOLTAGE
+    out[3] = u_first if not first_set else ctrl_in[worldid, adr]
+  return out
 
-  if input_mode > 0:
+
+@wp.func
+def dcmotor_voltage(
+  # Data in:
+  ctrl_in: wp.array2d[float],
+  # In:
+  worldid: int,
+  uadr: int,
+  spec: int,
+  u_first: float,
+  length: float,
+  velocity: float,
+  x_I: float,
+  gainprm: types.vec10,
+) -> float:
+  voltage = 0.0
+  u4 = unpack_servo_inputs(ctrl_in, worldid, uadr, spec, u_first)
+
+  if (spec & 7) != 0:  # POS (1) | VEL (2) | FF (4)
     kp = gainprm[4]
     ki = gainprm[5]
     kd = gainprm[6]
+    torque = kp * (u4[0] - length) + kd * (u4[1] - velocity) + ki * x_I + u4[2]
 
-    if input_mode == 1:
-      # position mode
-      voltage = kp * (u - length) + ki * x_I - kd * velocity
-    else:
-      # velocity mode
-      voltage = kp * (u - velocity) + ki * (x_I - length)
+    R = gainprm[0]
+    K = gainprm[1]
+    voltage = (R / K) * torque + K * velocity
+
+    Vmax = gainprm[7]
+    if Vmax > 0.0:
+      voltage = wp.clamp(voltage, -Vmax, Vmax)
+
+    return voltage + u4[3]
   else:
-    voltage = u
-
-  if Vmax > 0.0:
-    voltage = wp.clamp(voltage, -Vmax, Vmax)
-
-  return voltage
+    return u_first
 
 
 @wp.func

@@ -28,6 +28,10 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import vec6
 
 wp.set_module_options({"enable_backward": False, "default_grid_stride": False})
 
+# Widen ray prune bounds so a coincident hit survives to the closest-hit tie-break.
+RAY_TOL_REL = 1.0e-6
+RAY_TOL_ABS = 1.0e-9
+
 
 @wp.func
 def _ray_map(pos: wp.vec3, mat: wp.mat33, pnt: wp.vec3, vec: wp.vec3) -> Tuple[wp.vec3, wp.vec3]:
@@ -714,17 +718,20 @@ def ray_mesh_with_bvh(
   f = int(-1)
 
   lpnt, lvec = _ray_map(pos, mat, pnt, vec)
-  hit = wp.mesh_query_ray(mesh_bvh_id[mesh_geom_id], lpnt, lvec, max_t, t, u, v, sign, n, f)
+  mesh_bvh = mesh_bvh_id[mesh_geom_id]
 
-  if not hit:
-    return -1.0, wp.vec3(0.0, 0.0, 0.0), 0.0, 0.0, -1, -1
-
-  # Front-face hit, or back-face hit when cull is disabled: rotate the
-  # local-space normal into world space and return the hit.
-  if (not cull_backfaces) or wp.dot(lvec, n) < 0.0:
-    normal = mat @ n
-    normal = wp.normalize(normal)
-    return t, normal, u, v, f, mesh_geom_id
+  # Culling drops back-facing triangles, not the mesh: like a rasterizer, march
+  # past culled hits to the next surface (bounded to keep the kernel in check).
+  offset = float(0.0)
+  for _ in range(8):
+    hit = wp.mesh_query_ray(mesh_bvh, lpnt + lvec * offset, lvec, max_t - offset, t, u, v, sign, n, f)
+    if not hit:
+      return -1.0, wp.vec3(0.0, 0.0, 0.0), 0.0, 0.0, -1, -1
+    if (not cull_backfaces) or wp.dot(lvec, n) < 0.0:
+      normal = mat @ n
+      normal = wp.normalize(normal)
+      return offset + t, normal, u, v, f, mesh_geom_id
+    offset += t * (1.0 + RAY_TOL_REL) + RAY_TOL_ABS
 
   return -1.0, wp.vec3(0.0, 0.0, 0.0), 0.0, 0.0, -1, -1
 
