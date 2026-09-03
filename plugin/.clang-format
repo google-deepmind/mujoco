@@ -1,0 +1,6 @@
+---
+BasedOnStyle: Google
+SortIncludes: false
+IndentPPDirectives: BeforeHash
+MaxEmptyLinesToKeep: 2
+...
