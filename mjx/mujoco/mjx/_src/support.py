@@ -176,7 +176,7 @@ def jac_dot(
   jnt_type = m.jnt_type[m.dof_jntid]
   dof_adr = m.jnt_dofadr[m.dof_jntid]
   is_quat = (jnt_type == JointType.BALL) | (
-      jnt_type == JointType.FREE & (np.arange(m.nv) >= dof_adr + 3)
+      (jnt_type == JointType.FREE) & (np.arange(m.nv) >= dof_adr + 3)
   )
 
   # compute cdof_dot for quaternion (use current body cvel)
