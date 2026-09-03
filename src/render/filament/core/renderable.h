@@ -135,7 +135,7 @@ class Renderable : public mjrfRenderable {
   // of which instance, as well as other render state, to use with each render
   // request.
   struct DrawState {
-    MaterialManager::MaterialKey material_key;
+    MaterialManager::MaterialKey material_key = 0;
     bool cast_shadows = true;
     bool receive_shadows = true;
     bool wireframe = false;
