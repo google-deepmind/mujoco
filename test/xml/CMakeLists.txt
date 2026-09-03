@@ -14,6 +14,8 @@
 
 mujoco_test(xml_api_test)
 
+mujoco_test(xml_urdf_test)
+
 mujoco_test(
   xml_native_reader_test
   ADDITIONAL_LINK_LIBRARIES compare_model

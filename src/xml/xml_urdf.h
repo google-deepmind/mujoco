@@ -17,6 +17,7 @@
 
 #include <map>
 #include <string>
+#include <tuple>
 #include <unordered_set>
 #include <vector>
 
@@ -71,6 +72,9 @@ class mjXURDF : public mjXBase {
   std::vector<mjRGBA>                          urRGBA;       // material RBG value
   std::unordered_set<std::string>              urGeomNames;  // geom name
   std::map<std::string, std::vector<mjsMesh*>> meshes;       // map from name to mjsMesh
+
+  // <mimic>: (follower, driver, multiplier, offset), emitted as joint equalities
+  std::vector<std::tuple<std::string, std::string, double, double>> urMimic;
 
   std::string urPrefix;                                      // prefix to apply to all names
 };
