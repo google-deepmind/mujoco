@@ -25,7 +25,6 @@
 #include <cstring>
 #include <memory>
 #include <new>
-#include <sstream>
 #include <string>
 #include <string_view>
 
@@ -125,6 +124,54 @@ const char* PluginAttrSeek(const mjModel* m, int plugin_id, int attrib_id) {
     ++ptr;
   }
   return ptr;
+}
+
+template <typename Fn>
+void ForEachPipeSeparated(std::string_view str, Fn&& fn) {
+  while (!str.empty()) {
+    std::size_t pos = str.find('|');
+    std::string_view item = (pos == std::string_view::npos) ? str : str.substr(0, pos);
+    if (!item.empty()) {
+      fn(std::string(item).c_str());
+    }
+    if (pos == std::string_view::npos) {
+      break;
+    }
+    str.remove_prefix(pos + 1);
+  }
+}
+
+// resource provider helpers
+std::string_view ResourceProviderKey(const mjpResourceProvider& provider) {
+  return std::string_view(provider.prefix, strklen(provider.prefix));
+}
+
+bool ResourceProviderEqual(const mjpResourceProvider& p1, const mjpResourceProvider& p2) {
+  return (mujoco::CaseInsensitiveEqual(p1.prefix, p2.prefix) &&
+          p1.open == p2.open &&
+          p1.read == p2.read &&
+          p1.close == p2.close &&
+          p1.modified == p2.modified &&
+          p1.write == p2.write &&
+          p1.data == p2.data);
+}
+
+bool ResourceProviderCopy(mjpResourceProvider& dst, const mjpResourceProvider& src,
+                          char (&err)[512]) {
+  std::unique_ptr<char[]> prefix = CopyName(src.prefix);
+  if (!prefix) {
+    if (strklen(src.prefix) == -1) {
+      std::snprintf(err, sizeof(err),
+                    "provider->prefix length exceeds the maximum limit of %d", kMaxNameLength);
+    } else {
+      std::snprintf(err, sizeof(err), "failed to allocate memory for resource provider prefix");
+    }
+    return false;
+  }
+
+  dst = src;
+  dst.prefix = prefix.release();
+  return true;
 }
 }  // namespace
 
@@ -243,36 +290,18 @@ const char* GlobalTable<mjpResourceProvider>::HumanReadableTypeName() {
 
 template <>
 std::string_view GlobalTable<mjpResourceProvider>::ObjectKey(const mjpResourceProvider& plugin) {
-  return std::string_view(plugin.prefix, strklen(plugin.prefix));
+  return ResourceProviderKey(plugin);
 }
 
 // check if two resource providers are identical
 template <>
 bool GlobalTable<mjpResourceProvider>::ObjectEqual(const mjpResourceProvider& p1, const mjpResourceProvider& p2) {
-  return (CaseInsensitiveEqual(p1.prefix, p2.prefix) && p1.open == p2.open &&
-          p1.read == p2.read && p1.close == p2.close &&
-          p1.modified == p2.modified &&
-          p1.write == p2.write &&
-          p1.data == p2.data);
+  return ResourceProviderEqual(p1, p2);
 }
 
 template <>
 bool GlobalTable<mjpResourceProvider>::CopyObject(mjpResourceProvider& dst, const mjpResourceProvider& src, ErrorMessage& err) {
-  // copy prefix
-  std::unique_ptr<char[]> prefix = CopyName(src.prefix);
-  if (!prefix) {
-    if (strklen(src.prefix) == -1) {
-      std::snprintf(err, sizeof(err),
-                    "provider->prefix length exceeds the maximum limit of %d", kMaxNameLength);
-    } else {
-      std::snprintf(err, sizeof(err), "failed to allocate memory for resource provider prefix");
-    }
-    return false;
-  }
-
-  dst = src;
-  dst.prefix = prefix.release();
-  return true;
+  return ResourceProviderCopy(dst, src, err);
 }
 
 template <>
@@ -576,15 +605,10 @@ void mjp_registerDecoder(const mjpDecoder* decoder) {
   // Register with extensions
   if (decoder->extension) {
     decoder_copy.content_type = nullptr;
-    std::string extensions_str(decoder->extension);
-    std::stringstream ss(extensions_str);
-    std::string extension;
-    while (std::getline(ss, extension, '|')) {
-      if (!extension.empty()) {
-        decoder_copy.extension = extension.c_str();
-        GlobalTable<mjpDecoder>::GetSingleton().AppendIfUnique(decoder_copy);
-      }
-    }
+    ForEachPipeSeparated(decoder->extension, [&](const char* ext) {
+      decoder_copy.extension = ext;
+      GlobalTable<mjpDecoder>::GetSingleton().AppendIfUnique(decoder_copy);
+    });
   }
 }
 
@@ -643,15 +667,10 @@ void mjp_registerEncoder(const mjpEncoder* encoder) {
 
   if (encoder->extension) {
     encoder_copy.content_type = nullptr;
-    std::string extensions_str(encoder->extension);
-    std::stringstream ss(extensions_str);
-    std::string extension;
-    while (std::getline(ss, extension, '|')) {
-      if (!extension.empty()) {
-        encoder_copy.extension = extension.c_str();
-        GlobalTable<mjpEncoder>::GetSingleton().AppendIfUnique(encoder_copy);
-      }
-    }
+    ForEachPipeSeparated(encoder->extension, [&](const char* ext) {
+      encoder_copy.extension = ext;
+      GlobalTable<mjpEncoder>::GetSingleton().AppendIfUnique(encoder_copy);
+    });
   }
 }
 
