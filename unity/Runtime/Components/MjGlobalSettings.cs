@@ -92,7 +92,7 @@ public struct MjcfOptionFlag {
     Override = EnableDisableFlag.disable,
     Energy = EnableDisableFlag.disable,
     FwdInv = EnableDisableFlag.disable,
-    MultiCCD = EnableDisableFlag.disable
+    MultiCCD = EnableDisableFlag.enable
   };
 
   public void FromMjcf(XmlElement mjcf) {
@@ -135,7 +135,11 @@ public struct MjcfOptionFlag {
     mjcf.SetAttribute("override", Override.ToString());
     mjcf.SetAttribute("energy", Energy.ToString());
     mjcf.SetAttribute("fwdinv", FwdInv.ToString());
-    mjcf.SetAttribute("multiccd", MultiCCD.ToString());
+    // MultiCCD is enabled by default, so the flag is only written when it deviates from the
+    // default, i.e. when it's disabled.
+    if (MultiCCD != MjcfOptionFlag.Default.MultiCCD) {
+      mjcf.SetAttribute("multiccd", MultiCCD.ToString());
+    }
   }
 }
 
