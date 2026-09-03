@@ -156,7 +156,7 @@ if(NOT TARGET mujoco::platform)
   if(MUJOCO_PLATFORM_LIBRARY)
     message(STATUS "Found mujoco_studio_platform library at ${MUJOCO_PLATFORM_LIBRARY}")
     add_library(mujoco_studio_platform STATIC IMPORTED GLOBAL)
-    set_target_properties(mujoco_platmujoco_studio_platformform PROPERTIES IMPORTED_LOCATION "${MUJOCO_PLATFORM_LIBRARY}")
+    set_target_properties(mujoco_studio_platform PROPERTIES IMPORTED_LOCATION "${MUJOCO_PLATFORM_LIBRARY}")
     add_library(mujoco::platform ALIAS mujoco_studio_platform)
 
     set(PLATFORM_INCLUDES "${MUJOCO_INCLUDE}" "${MUJOCO_INCLUDE}/mujoco" "${MUJOCO_INCLUDE}/SDL2")
