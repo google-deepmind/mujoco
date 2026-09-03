@@ -18,7 +18,7 @@
 #include <mujoco/mujoco.h>
 #include "experimental/studio/ux/spec_editor.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Displaying the mjSpec as a tree. `element` is the currently selected
 // element and will be updated if a new element is selected. The `editor` is
@@ -42,6 +42,6 @@ void ElementDataGui(const mjData* data, mjsElement* element);
 // the given element.
 void ElementModelGui(const mjModel* model, mjsElement* element);
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_GUI_SPEC_H_

@@ -24,7 +24,7 @@
 #include <SDL_video.h>
 #include "experimental/studio/hal/graphics_mode.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Platform-independent window abstraction using SDL2.
 //
@@ -105,6 +105,6 @@ class Window {
   std::string drop_file_;
 };
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_HAL_WINDOW_H_

@@ -21,7 +21,7 @@
 
 #include <imgui.h>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 static DialogResult ImGui_FileDialog(std::string_view path) {
   static constexpr int kBufferSize = 1024;
@@ -66,4 +66,4 @@ DialogResult SelectPathDialog(std::string_view path) {
   return ImGui_FileDialog(path);
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

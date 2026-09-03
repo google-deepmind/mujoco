@@ -19,7 +19,7 @@
 #include <string>
 #include <string_view>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Result returned by various file dialog functions.
 struct DialogResult {
@@ -54,6 +54,6 @@ DialogResult SaveFileDialog(std::string_view path,
 // Opens a file dialog used for selecting a folder.
 DialogResult SelectPathDialog(std::string_view path);
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_FILE_DIALOG_H_

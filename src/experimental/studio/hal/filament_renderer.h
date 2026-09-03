@@ -30,7 +30,7 @@
 #include "render/filament/support/model_objects.h"
 #include "render/filament/support/model_renderables.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Renders the mujoco simulation and the imgui state using the Filament-based
 // MuJoCo renderer.
@@ -102,6 +102,6 @@ class FilamentRenderer : public Renderer {
   double fps_ = 0;
 };
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_HAL_FILAMENT_RENDERER_H_

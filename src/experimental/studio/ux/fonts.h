@@ -21,7 +21,7 @@
 #include <string_view>
 #include <vector>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // The Studio UI font files (every viewer loads this same files).
 inline constexpr char kMainFontFile[] = "AtkinsonHyperlegibleNext[wght].ttf";
@@ -43,6 +43,6 @@ std::vector<std::byte> LoadFontResource(std::string_view filename);
 // rebuild at new DPI scales without buffers used by `load` staying alive.
 void AddStudioFonts(const FontLoaderFn& load);
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_FONTS_H_

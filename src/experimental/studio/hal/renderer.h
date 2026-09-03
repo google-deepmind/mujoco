@@ -20,7 +20,7 @@
 
 #include <mujoco/mujoco.h>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Renders the mujoco simulation and the imgui state.
 class Renderer {
@@ -62,6 +62,6 @@ class Renderer {
   virtual double GetFps() = 0;
 };
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_HAL_RENDERER_H_

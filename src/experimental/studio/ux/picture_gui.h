@@ -20,7 +20,7 @@
 #include <mujoco/mujoco.h>
 #include "experimental/studio/hal/renderer.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Manages the state of a single picture-in-picture widget.
 struct PipState {
@@ -32,8 +32,8 @@ struct PipState {
 
 // Renders the GUI for a set of picture-in-picture widgets.
 void PipGui(const mjModel* model, mjData* data, float aspect_ratio,
-            platform::Renderer* renderer, std::vector<PipState>* pips);
+            Renderer* renderer, std::vector<PipState>* pips);
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_PICTURE_GUI_H_

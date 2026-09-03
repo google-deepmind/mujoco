@@ -18,7 +18,7 @@
 
 #include <mujoco/mujoco.h>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 bool IsClassic(GraphicsMode gfx_mode) {
   return gfx_mode == GraphicsMode::ClassicOpenGl ||
@@ -88,4 +88,4 @@ GraphicsMode GraphicsModeFromString(std::string_view str,
   }
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

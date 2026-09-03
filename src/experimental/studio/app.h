@@ -55,10 +55,10 @@ class App {
     std::string ini_path;
 
     // The graphics configuration used for initializing the window.
-    platform::GraphicsMode gfx_mode = platform::GraphicsMode::FilamentVulkan;
+    GraphicsMode gfx_mode = GraphicsMode::FilamentVulkan;
 
     // The initial GUI theme. If set, overrides the default (kLight).
-    std::optional<platform::GuiTheme> initial_theme;
+    std::optional<GuiTheme> initial_theme;
 
     // The application title shown in the window title bar.
     std::string title = "MuJoCo Studio";
@@ -110,9 +110,9 @@ class App {
   struct UiState {
     char watch_field[1000] = "qpos";
     int watch_index = 0;
-    int camera_idx = platform::kTumbleCameraIdx;
+    int camera_idx = kTumbleCameraIdx;
     int key_idx = 0;
-    platform::GuiTheme theme = platform::GuiTheme::kDark;
+    GuiTheme theme = GuiTheme::kDark;
     float font_scale = 1.0f;
     int window_width = 0;
     int window_height = 0;
@@ -166,7 +166,7 @@ class App {
     std::vector<mjtNum> state;
 
     // Picture-in-Picture.
-    std::vector<platform::PipState> pips;
+    std::vector<PipState> pips;
 
     // File dialogs.
     enum FileDialog {
@@ -197,7 +197,7 @@ class App {
   // then compile the spec to a model.
   void OnModelLoaded(std::string filename, ModelKind model_kind);
 
-  void SwitchGraphicsMode(int width, int height, platform::GraphicsMode mode);
+  void SwitchGraphicsMode(int width, int height, GraphicsMode mode);
 
   void SetLoadError(std::string error);
   void UpdateFilePaths(const std::string& resolved_path);
@@ -221,8 +221,6 @@ class App {
 
   void ProcessPendingLoads();
 
-  void SetupTheme(platform::GuiTheme theme);
-
   void MainMenuGui();
   void ToolBarGui();
   void StatusBarGui();
@@ -245,30 +243,30 @@ class App {
   // Window state storage (e.g. collapsing header open/closed state), keyed
   // "<window name>/<id>", which ImGui does not serialize. Entries stay
   // pending until their window is first created.
-  platform::KeyValues window_state_storage_;
+  KeyValues window_state_storage_;
   std::string model_name_;  // Used if model_kind_ is kModelFromBuffer.
   std::string model_path_;
   std::string load_error_;
   std::string step_error_;
   std::string edit_error_;
-  platform::StepControl::PauseState last_pause_state_ =
-      platform::StepControl::PauseState::kNormalPaused;
+  StepControl::PauseState last_pause_state_ =
+      StepControl::PauseState::kNormalPaused;
 
   std::optional<std::string> pending_load_;
   std::function<void()> pending_op_;
   bool preserve_camera_on_load_ = false;
   ModelKind model_kind_ = kEmptyModel;
-  platform::GraphicsMode gfx_mode_ = platform::GraphicsMode::FilamentVulkan;
+  GraphicsMode gfx_mode_ = GraphicsMode::FilamentVulkan;
 
-  std::unique_ptr<platform::Window> window_;
-  std::unique_ptr<platform::Renderer> renderer_;
-  std::unique_ptr<platform::ModelHolder> model_holder_;
+  std::unique_ptr<Window> window_;
+  std::unique_ptr<Renderer> renderer_;
+  std::unique_ptr<ModelHolder> model_holder_;
 
-  platform::StepControl step_control_;
-  platform::SimProfiler profiler_;
-  platform::SimHistory sim_history_;
-  platform::SimulationTimelineState timeline_;
-  platform::SpecEditor spec_editor_;
+  StepControl step_control_;
+  SimProfiler profiler_;
+  SimHistory sim_history_;
+  SimulationTimelineState timeline_;
+  SpecEditor spec_editor_;
   std::vector<std::string> search_paths_;
   std::vector<std::byte> pixels_;
 

@@ -17,7 +17,7 @@
 
 #include <mujoco/mujoco.h>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // The result of a pick operation.
 struct PickResult {
@@ -79,6 +79,6 @@ void InitPerturb(const mjModel* m, const mjData* d, const mjvCamera* cam,
 void MovePerturb(const mjModel* m, const mjData* d, const mjvCamera* cam,
                  mjvPerturb* pert, mjtMouse action, mjtNum reldx, mjtNum reldy);
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_INTERACTION_H_

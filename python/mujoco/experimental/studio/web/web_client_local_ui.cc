@@ -46,9 +46,9 @@ void DrawDisconnectWindow(const char* window_id,
   ImGui::Begin(window_id, nullptr,
                ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
                    ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize);
-  platform::CenteredBanner("DISCONNECTED", ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
+  CenteredBanner("DISCONNECTED", ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
   for (const char* line : lines) {
-    platform::CenteredLine(line, nullptr);
+    CenteredLine(line, nullptr);
   }
   ImGui::End();
 }
@@ -251,7 +251,7 @@ void RoleWindow::DrawExpanded(const SessionView& view,
   if (view.is_downloading) {
     bool done_downloading =
         view.total_bytes > 0 && view.bytes_downloaded >= view.total_bytes;
-    platform::CenteredBanner(done_downloading ? "PARSING..." : "DOWNLOADING...",
+    CenteredBanner(done_downloading ? "PARSING..." : "DOWNLOADING...",
                              kConnectingColor);
     if (!done_downloading) {
       float progress = view.total_bytes > 0
@@ -275,7 +275,7 @@ void RoleWindow::DrawExpanded(const SessionView& view,
   } else if (view.role == SessionRole::kClaiming) {
     // The first roster or /ui claim outcome resolves this within a few
     // hundred milliseconds of page load.
-    platform::CenteredBanner("CONNECTING...", kConnectingColor);
+    CenteredBanner("CONNECTING...", kConnectingColor);
     ImGui::Separator();
     DataRateLines(view);
   } else if (view.role == SessionRole::kSpectating) {
@@ -292,7 +292,7 @@ void RoleWindow::DrawExpanded(const SessionView& view,
 void RoleWindow::DrawSpectatorContents(const SessionView& view,
                                        SessionActions& actions) {
   // Control group.
-  platform::CenteredBanner("SPECTATING", kSpectatingColor);
+  CenteredBanner("SPECTATING", kSpectatingColor);
   char queue_text[64];
   if (view.queue_pos > 0) {
     snprintf(queue_text, sizeof(queue_text), "Control Queue: Position %d of %d",
@@ -303,7 +303,7 @@ void RoleWindow::DrawSpectatorContents(const SessionView& view,
   } else {
     snprintf(queue_text, sizeof(queue_text), "Control Queue: (empty)");
   }
-  platform::CenteredLine(queue_text, nullptr);
+  CenteredLine(queue_text, nullptr);
   if (view.queue_pos == 0) {
     if (ImGui::Button("Request control", kFullWidth)) {
       actions.RequestControl();
@@ -351,14 +351,14 @@ void RoleWindow::DrawSpectatorContents(const SessionView& view,
 void RoleWindow::DrawControllerContents(const SessionView& view,
                                         SessionActions& actions) {
   // Control group.
-  platform::CenteredBanner("CONTROLLING", kControllingColor);
+  CenteredBanner("CONTROLLING", kControllingColor);
   if (view.queue_len > 0) {
     char queue_text[64];
     snprintf(queue_text, sizeof(queue_text), ">> Control Queue: %d waiting <<",
              view.queue_len);
-    platform::CenteredLine(queue_text, &kQueueColor);
+    CenteredLine(queue_text, &kQueueColor);
   } else {
-    platform::CenteredLine("Control Queue: (empty)", nullptr);
+    CenteredLine("Control Queue: (empty)", nullptr);
   }
   if (ImGui::Button("Release control", kFullWidth)) {
     actions.ReleaseControl();

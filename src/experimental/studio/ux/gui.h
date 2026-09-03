@@ -34,7 +34,7 @@
 #include "experimental/studio/sim/sim_profiler.h"
 #include "experimental/studio/sim/step_control.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Standard default UX themes for MuJoCo applications.
 enum class GuiTheme {
@@ -236,6 +236,6 @@ void ProfilerGui(const mjModel* model, mjData* data, SimProfiler* profiler,
 // FPS needs to be tracked by the caller and passed here to be displayed.
 void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps);
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_GUI_H_

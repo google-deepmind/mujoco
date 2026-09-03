@@ -32,12 +32,12 @@ namespace mujoco::python {
 
 class Renderer {
  public:
-  using RendererImpl = mujoco::platform::FilamentRenderer;
-  using GraphicsMode = mujoco::platform::GraphicsMode;
+  using RendererImpl = mujoco::studio::FilamentRenderer;
+  using GraphicsMode = mujoco::studio::GraphicsMode;
 
   Renderer(const std::string& graphics_mode_str) {
     py::gil_scoped_release no_gil;
-    const GraphicsMode mode = mujoco::platform::GraphicsModeFromString(
+    const GraphicsMode mode = mujoco::studio::GraphicsModeFromString(
         graphics_mode_str, GraphicsMode::FilamentOpenGl);
     impl_ = std::make_unique<RendererImpl>(nullptr, mode);
   }

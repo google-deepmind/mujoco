@@ -23,7 +23,7 @@
 #endif
 #include <mujoco/mujoco.h>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 #ifdef MUJOCO_HAS_EGL
 
@@ -153,4 +153,4 @@ std::shared_ptr<void> CreateEglContext() {
   #endif
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

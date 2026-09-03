@@ -29,7 +29,7 @@
 #endif
 #include "experimental/studio/hal/graphics_mode.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 static void FlipImage(unsigned char* pixels, int width, int height, int bpp) {
   const int row_size = width * bpp;
@@ -199,4 +199,4 @@ void ClassicRenderer::UpdateFps() {
     frames_ = 0;
   }
 }
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

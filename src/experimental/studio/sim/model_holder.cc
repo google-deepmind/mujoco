@@ -23,7 +23,7 @@
 #include <mujoco/mujoco.h>
 #include "user/user_resource.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 struct BufferProvider : public mjpResourceProvider {
   BufferProvider(std::span<const std::byte> buffer) : buffer(buffer) {
@@ -167,4 +167,4 @@ mjModel* ModelHolder::ReleaseModel() {
   return model;
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

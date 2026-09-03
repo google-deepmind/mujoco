@@ -18,7 +18,7 @@
 #include <array>
 #include <cmath>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Steps `value` to the next value in a "well-tempered" logarithmic ladder, in
 // the given direction (+1 up, -1 down). The ladder is spaced roughly evenly in
@@ -71,6 +71,6 @@ inline double WellTemperedStep(double value, int direction,
   return (zero_below > 0 && next < zero_below) ? 0.0 : next;
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_WELL_TEMPERED_H_

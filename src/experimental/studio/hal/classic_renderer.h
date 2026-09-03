@@ -24,7 +24,7 @@
 #include "experimental/studio/hal/graphics_mode.h"
 #include "experimental/studio/hal/renderer.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Renders the mujoco simulation and the imgui state using the Classic MuJoCo
 // OpenGL renderer.
@@ -86,6 +86,6 @@ class ClassicRenderer : public Renderer {
   bool initialized_ = false;
 };
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_HAL_CLASSIC_RENDERER_H_

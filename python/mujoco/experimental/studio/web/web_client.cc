@@ -116,9 +116,9 @@ class AppCallbacks final : public RemoteUi::Callbacks,
 };
 
 struct App {
-  std::unique_ptr<mujoco::platform::Window> window;
-  std::unique_ptr<mujoco::platform::ModelHolder> model_holder;
-  mujoco::platform::Renderer* renderer = nullptr;
+  std::unique_ptr<mujoco::studio::Window> window;
+  std::unique_ptr<mujoco::studio::ModelHolder> model_holder;
+  mujoco::studio::Renderer* renderer = nullptr;
   mjvPerturb perturb;
   mjvCamera camera;
   mjvOption vis_options;
@@ -265,11 +265,11 @@ void SetSpectatorCameraMode(int mode) {
   }
   const mjModel* model = g_app.model_holder->model();
   if (mode == kSpecCamTumble) {
-    mujoco::platform::SetCamera(model, &g_app.camera,
-                                mujoco::platform::kTumbleCameraIdx);
+    mujoco::studio::SetCamera(model, &g_app.camera,
+                                mujoco::studio::kTumbleCameraIdx);
   } else if (mode == kSpecCamWasd) {
-    mujoco::platform::SetCamera(model, &g_app.camera,
-                                mujoco::platform::kFreeCameraIdx);
+    mujoco::studio::SetCamera(model, &g_app.camera,
+                                mujoco::studio::kFreeCameraIdx);
   }
   // kSpecCamFollow: the next state payload restores the controller's camera.
 }
@@ -297,8 +297,8 @@ void HandleSpectatorCameraInput() {
   if (g_app.camera.type == mjCAMERA_FIXED) {
     mjv_defaultFreeCamera(model, &g_app.camera);
     if (wasd) {
-      mujoco::platform::SetCamera(model, &g_app.camera,
-                                  mujoco::platform::kFreeCameraIdx);
+      mujoco::studio::SetCamera(model, &g_app.camera,
+                                  mujoco::studio::kFreeCameraIdx);
     }
   }
 
@@ -502,8 +502,8 @@ void MainLoopImpl() {
   g_app.remote_ui.ReceiveAndProcessCommands(g_app.frame_count);
 
   // Event loop and ImGui NewFrame via window abstraction.
-  mujoco::platform::Window::Status status = g_app.window->NewFrame();
-  if (status == mujoco::platform::Window::kQuitting) {
+  mujoco::studio::Window::Status status = g_app.window->NewFrame();
+  if (status == mujoco::studio::Window::kQuitting) {
     // NewFrame() started an ImGui frame; end it before bailing out.
     ImGui::EndFrame();
     emscripten_cancel_main_loop();
@@ -604,7 +604,7 @@ void SetupScene(const mjModel* m) {
 
   const int model_cam = m->vis.global.cameraid;
   if (model_cam >= 0 && model_cam < m->ncam) {
-    mujoco::platform::SetCamera(m, &g_app.camera, model_cam);
+    mujoco::studio::SetCamera(m, &g_app.camera, model_cam);
   } else {
     mjv_defaultFreeCamera(m, &g_app.camera);
   }
@@ -626,7 +626,7 @@ uint32_t Crc32(const uint8_t* data, size_t len) {
 
 bool ParseModelBufferImpl(const char* data, size_t size) {
   LOG(Info, "Fetched model.mjb, size: %zu", size);
-  g_app.model_holder = mujoco::platform::ModelHolder::FromBuffer(
+  g_app.model_holder = mujoco::studio::ModelHolder::FromBuffer(
       std::span<const std::byte>(reinterpret_cast<const std::byte*>(data),
                                  size),
       "application/mjb", "model.mjb");
@@ -767,23 +767,23 @@ static void RegisterAssetProviders() {
 // Starts the viewer once the page has registered every asset. Exposed to JS
 // and called from index.html after the fetches complete.
 void StartApp() {
-  mujoco::platform::Window::Config config;
-  config.gfx_mode = mujoco::platform::GraphicsMode::FilamentWebGl;
+  mujoco::studio::Window::Config config;
+  config.gfx_mode = mujoco::studio::GraphicsMode::FilamentWebGl;
   // Load the Studio UI fonts for the browser's local ImGui (the role window);
   // the "font:" resource provider above resolves them from the AssetRegistry.
   // (The streamed/remote UI carries its own font atlas separately.)
   config.load_fonts = true;
 
-  g_app.window = std::make_unique<mujoco::platform::Window>("MuJoCo Web Viewer",
+  g_app.window = std::make_unique<mujoco::studio::Window>("MuJoCo Web Viewer",
                                                             1400, 720, config);
   ImPlot::CreateContext();  // Needed if the server app uses ImPlot.
 
-  g_app.renderer = new mujoco::platform::FilamentRenderer(
+  g_app.renderer = new mujoco::studio::FilamentRenderer(
       g_app.window->GetNativeWindowHandle(), config.gfx_mode);
 
   // Initialize an empty dummy scene so Filament and ImGui are ready to render
   // the "DOWNLOADING..." progress bar while /model downloads asynchronously
-  g_app.model_holder = mujoco::platform::ModelHolder::FromSpec(mj_makeSpec());
+  g_app.model_holder = mujoco::studio::ModelHolder::FromSpec(mj_makeSpec());
   if (g_app.model_holder && g_app.model_holder->ok()) {
     SetupScene(g_app.model_holder->model());
   }

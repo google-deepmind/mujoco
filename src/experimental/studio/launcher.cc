@@ -28,9 +28,9 @@
 namespace mujoco::studio {
 
 int LaunchStudio(int argc, char** argv, LauncherConfig config) {
-  const std::string ini_path = platform::GetDefaultIniPath();
+  const std::string ini_path = GetDefaultIniPath();
 
-  mujoco::platform::RegisterResourceProviders();
+  mujoco::studio::RegisterResourceProviders();
 
   if (config.gfx_mode.empty()) {
     const char* display = std::getenv("DISPLAY");
@@ -53,9 +53,9 @@ int LaunchStudio(int argc, char** argv, LauncherConfig config) {
     }
   }
 
-  mujoco::platform::GraphicsMode gfx_mode =
-      mujoco::platform::GraphicsModeFromString(
-          config.gfx_mode, mujoco::platform::GraphicsMode::FilamentOpenGl);
+  mujoco::studio::GraphicsMode gfx_mode =
+      mujoco::studio::GraphicsModeFromString(
+          config.gfx_mode, mujoco::studio::GraphicsMode::FilamentOpenGl);
 
   // Use config values if they are set (non-default), otherwise use flags.
   mujoco::studio::App app({

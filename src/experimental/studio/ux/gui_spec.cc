@@ -44,7 +44,7 @@
   const auto* ptr = data;               \
   MJDATA_POINTERS
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Returns the index of the element in the spec. This is different from
 // mjs_getId which returns the runtime ID of an element.
@@ -888,4 +888,4 @@ void ElementDataGui(const mjData* data, mjsElement* element) {
       break;
   }
 }
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

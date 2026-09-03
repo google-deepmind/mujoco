@@ -57,20 +57,20 @@ class Window {
          std::string graphics_mode_str) {
     pybind11::gil_scoped_release no_gil;
 
-    mujoco::platform::RegisterResourceProviders();
+    mujoco::studio::RegisterResourceProviders();
 
-    mujoco::platform::Window::Config config;
-    config.gfx_mode = mujoco::platform::GraphicsModeFromString(
-        graphics_mode_str, mujoco::platform::GraphicsMode::FilamentOpenGl);
-    window_ = std::make_unique<mujoco::platform::Window>(
+    mujoco::studio::Window::Config config;
+    config.gfx_mode = mujoco::studio::GraphicsModeFromString(
+        graphics_mode_str, mujoco::studio::GraphicsMode::FilamentOpenGl);
+    window_ = std::make_unique<mujoco::studio::Window>(
         title, width, height, config);
     ImPlot::CreateContext();
   }
 
   bool NewFrame() {
     pybind11::gil_scoped_release no_gil;
-    const mujoco::platform::Window::Status window_status = window_->NewFrame();
-    return window_status == mujoco::platform::Window::Status::kRunning;
+    const mujoco::studio::Window::Status window_status = window_->NewFrame();
+    return window_status == mujoco::studio::Window::Status::kRunning;
   }
 
   void Present(pybind11::bytes pixels) {
@@ -90,7 +90,7 @@ class Window {
   std::string GetDropFile() { return window_->GetDropFile(); }
 
  private:
-  std::unique_ptr<mujoco::platform::Window> window_;
+  std::unique_ptr<mujoco::studio::Window> window_;
 };
 
 PYBIND11_MODULE(window, m, pybind11::mod_gil_not_used()) {

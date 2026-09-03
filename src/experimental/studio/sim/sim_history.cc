@@ -20,7 +20,7 @@
 
 #include <mujoco/mujoco.h>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 void SimHistory::Init(int state_size, int max_history, int max_bytes) {
   // History buffer will be smaller of number of states and total memory.
@@ -72,4 +72,4 @@ std::span<mjtNum> SimHistory::SetIndex(int offset) {
   return history_[actual_index];
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

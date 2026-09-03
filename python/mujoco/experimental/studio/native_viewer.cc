@@ -53,7 +53,7 @@ static std::vector<std::byte> LoadAsset(std::string_view path) {
   std::string_view subpath = path.substr(path.find(':') + 1);
   static const std::string asset_dir = []() {
     std::string module_dir =
-        mujoco::platform::GetModuleDir((void*)&LoadAsset);
+        mujoco::studio::GetModuleDir((void*)&LoadAsset);
     return module_dir.empty()
                ? "assets"
                : (std::filesystem::path(module_dir) / "assets").string();
@@ -111,15 +111,15 @@ class Viewer {
     resource_provider.prefix = "filament";
     mjp_registerResourceProvider(&resource_provider);
 
-    mujoco::platform::Window::Config config;
-    using GraphicsMode = mujoco::platform::GraphicsMode;
-    config.gfx_mode = mujoco::platform::GraphicsModeFromString(
+    mujoco::studio::Window::Config config;
+    using GraphicsMode = mujoco::studio::GraphicsMode;
+    config.gfx_mode = mujoco::studio::GraphicsModeFromString(
         graphics_mode_str, GraphicsMode::FilamentOpenGl);
-    window_ = std::make_unique<mujoco::platform::Window>("PyStudio " + title,
+    window_ = std::make_unique<mujoco::studio::Window>("PyStudio " + title,
                                                          width, height, config);
     ImPlot::CreateContext();
 
-    renderer_ = std::make_unique<mujoco::platform::FilamentRenderer>(
+    renderer_ = std::make_unique<mujoco::studio::FilamentRenderer>(
         window_->GetNativeWindowHandle(), config.gfx_mode);
   }
 
@@ -130,8 +130,8 @@ class Viewer {
 
   bool NewFrame() {
     py::gil_scoped_release no_gil;
-    const mujoco::platform::Window::Status status = window_->NewFrame();
-    return status == mujoco::platform::Window::Status::kRunning;
+    const mujoco::studio::Window::Status status = window_->NewFrame();
+    return status == mujoco::studio::Window::Status::kRunning;
   }
 
   intptr_t UploadImage(intptr_t tex_id, const std::string img, int width,
@@ -178,7 +178,7 @@ class Viewer {
     const float height = window_->GetHeight();
     const float scale = window_->GetScale();
 
-    if (mujoco::platform::IsHeadless(window_->GetGraphicsMode())) {
+    if (mujoco::studio::IsHeadless(window_->GetGraphicsMode())) {
       pixels_.resize(width * height * 3);
     } else {
       pixels_.clear();
@@ -209,8 +209,8 @@ class Viewer {
   }
 
  private:
-  std::unique_ptr<mujoco::platform::Window> window_;
-  std::unique_ptr<mujoco::platform::Renderer> renderer_;
+  std::unique_ptr<mujoco::studio::Window> window_;
+  std::unique_ptr<mujoco::studio::Renderer> renderer_;
   std::vector<std::byte> pixels_;
 };
 

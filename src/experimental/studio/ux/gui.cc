@@ -38,7 +38,7 @@
 #include "experimental/studio/ux/imgui_widgets.h"
 #include "experimental/studio/ux/interaction.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 namespace {
 struct SpeedStatus {
   bool misaligned;
@@ -538,7 +538,7 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
 
   // Main workspace area in which we can dock other windows.
   {
-    platform::ScopedStyle style;
+    ScopedStyle style;
     style.Var(ImGuiStyleVar_WindowRounding, 0.0f);
     style.Var(ImGuiStyleVar_WindowBorderSize, 0.0f);
     style.Var(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
@@ -552,7 +552,7 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
 
   // Toolbar is fixed at the top.
   if (show_toolbar) {
-    platform::ScopedStyle style;
+    ScopedStyle style;
     style.Var(ImGuiStyleVar_WindowBorderSize, 1.0f);
     style.Var(ImGuiStyleVar_WindowRounding, 0.0f);
     style.Var(ImGuiStyleVar_WindowMinSize, ImVec2(1, 1));
@@ -568,7 +568,7 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
 
   // StatusBar is fixed at the bottom.
   if (show_status_bar) {
-    platform::ScopedStyle style;
+    ScopedStyle style;
     style.Var(ImGuiStyleVar_WindowBorderSize, 1.0f);
     style.Var(ImGuiStyleVar_WindowRounding, 0.0f);
     style.Var(ImGuiStyleVar_WindowMinSize, ImVec2(1, 1));
@@ -595,7 +595,7 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
 }
 
 void StepControlGui(StepControl* step_control, int& speed_index) {
-  platform::ScopedStyle style;
+  ScopedStyle style;
 
   bool is_dark = ImGui::GetStyle().Colors[ImGuiCol_WindowBg].x < 0.5f;
   const ImColor yellow =
@@ -2323,4 +2323,4 @@ void ProfilerGui(const mjModel* model, mjData* data, SimProfiler* profiler,
   }
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

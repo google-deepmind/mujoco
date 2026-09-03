@@ -44,7 +44,7 @@
 extern void* GetNativeWindowOsx(void* window);
 #endif
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 static void InitImGui(SDL_Window* window, float content_scale,
                       bool load_fonts) {
@@ -258,4 +258,4 @@ void Window::Present(std::span<const std::byte> pixels) {
 
 GraphicsMode Window::GetGraphicsMode() const { return config_.gfx_mode; }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

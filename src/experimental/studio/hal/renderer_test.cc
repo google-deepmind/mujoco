@@ -24,7 +24,7 @@
 
 #include "testing/base/public/gunit.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 namespace {
 
 class RendererTest : public ::testing::Test {
@@ -124,4 +124,4 @@ TEST_F(RendererTest, VulkanHeadless) {
 }
 
 }  // namespace
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

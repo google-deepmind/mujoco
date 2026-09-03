@@ -20,7 +20,7 @@
 #include <imgui.h>
 #include <mujoco/mujoco.h>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Collects and displays profiling data for MuJoCo simulations.
 class SimProfiler {
@@ -51,6 +51,6 @@ class SimProfiler {
   std::vector<float> dim_iteration_;
 };
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_SIM_SIM_PROFILER_H_

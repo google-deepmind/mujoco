@@ -24,7 +24,7 @@
 #include "engine/engine_vis_interact.h"
 #include "engine/engine_vis_visualize.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 static mjtNum CalculateMovementScale(const mjModel* m, const mjvCamera* cam) {
   float zclip[2] = {0, 0}, zver[2] = {0, 0};
@@ -599,4 +599,4 @@ int SetCamera(const mjModel* m, mjvCamera* camera, int request_idx) {
 
   return camera_idx;
 }
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

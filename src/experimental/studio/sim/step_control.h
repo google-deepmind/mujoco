@@ -21,7 +21,7 @@
 
 #include <mujoco/mujoco.h>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 using Seconds = std::chrono::duration<double>;
 using Clock = std::chrono::steady_clock;
@@ -127,6 +127,6 @@ class StepControl {
   StepFn post_step_ = nullptr;
 };
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_SIM_STEP_CONTROL_H_

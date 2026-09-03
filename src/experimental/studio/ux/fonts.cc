@@ -26,7 +26,7 @@
 #include <imgui.h>
 #include <mujoco/mujoco.h>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 namespace {
 
@@ -103,4 +103,4 @@ void AddStudioFonts(const FontLoaderFn& load) {
   }
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

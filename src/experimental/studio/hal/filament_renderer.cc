@@ -31,7 +31,7 @@
 #include "render/filament/support/model_objects.h"
 #include "render/filament/support/model_renderables.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 static std::function<void()> g_update_gui_callback = nullptr;
 static void PluginUpdate(GuiPlugin* plugin) {
@@ -278,13 +278,13 @@ void FilamentRenderer::BuildUxRenderRequest(mjrfRenderRequest* request,
   request->enable_reflections = false;
   request->enable_post_processing = false;
 }
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 mjPLUGIN_LIB_INIT(renderer) {
-  mujoco::platform::GuiPlugin plugin;
+  mujoco::studio::GuiPlugin plugin;
   plugin.name = "Filament";
-  plugin.update = [](mujoco::platform::GuiPlugin* self) {
-    mujoco::platform::PluginUpdate(self);
+  plugin.update = [](mujoco::studio::GuiPlugin* self) {
+    mujoco::studio::PluginUpdate(self);
   };
-  mujoco::platform::RegisterPlugin(plugin);
+  mujoco::studio::RegisterPlugin(plugin);
 }

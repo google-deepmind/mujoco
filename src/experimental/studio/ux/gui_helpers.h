@@ -19,7 +19,7 @@
 
 #include <mujoco/mujoco.h>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Save/load for simple ascii files.
 void SaveText(const std::string& contents, const std::string& filename);
@@ -37,6 +37,6 @@ std::string CameraToString(const mjData* data, const mjvCamera* camera);
 std::string KeyframeToString(const mjModel* model, const mjData* data,
                              bool full_precision = false);
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_GUI_HELPERS_H_

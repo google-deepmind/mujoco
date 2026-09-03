@@ -19,7 +19,7 @@
 #include <vector>
 #include <mujoco/mujoco.h>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // A historical buffer of simulation data.
 class SimHistory {
@@ -89,6 +89,6 @@ class SimHistory {
   int size_ = 0;
 };
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_SIM_SIM_HISTORY_H_

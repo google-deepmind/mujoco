@@ -19,7 +19,7 @@
 
 #include <mujoco/mujoco.h>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Registers plugins with the global registry. The plugins must have a
 // case-insensitive unique name for the plugin type. Note that plugins are
@@ -150,6 +150,6 @@ struct SpecEditorPlugin final {
   void* data = nullptr;
 };
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_PLUGIN_H_

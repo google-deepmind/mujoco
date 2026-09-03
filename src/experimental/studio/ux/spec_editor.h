@@ -24,7 +24,7 @@
 #include <mujoco/mujoco.h>
 #include "experimental/studio/sim/model_holder.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Manages everything related to mjSpec editing including compiling, undo/redo,
 // etc.
@@ -175,6 +175,6 @@ class SpecEditor {
   int capacity_ = 0;
   int cursor_ = 0;
 };
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_SPEC_EDITOR_H_

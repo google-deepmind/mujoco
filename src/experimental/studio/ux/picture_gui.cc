@@ -22,12 +22,12 @@
 #include "experimental/studio/hal/renderer.h"
 #include "experimental/studio/ux/imgui_widgets.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Returns false if the user requests that this picture-in-picture widget be
 // removed from the GUI.
 static bool PipGuiImpl(const mjModel* model, mjData* data, float aspect_ratio,
-                       platform::Renderer* renderer, PipState* pip) {
+                       Renderer* renderer, PipState* pip) {
   bool result = true;
 
   auto get_camera_name = [model](int i) -> const char* {
@@ -96,7 +96,7 @@ static bool PipGuiImpl(const mjModel* model, mjData* data, float aspect_ratio,
 }
 
 void PipGui(const mjModel* model, mjData* data, float aspect_ratio,
-            platform::Renderer* renderer, std::vector<PipState>* pips) {
+            Renderer* renderer, std::vector<PipState>* pips) {
   if (pips->empty()) {
     pips->emplace_back();
   }
@@ -117,4 +117,4 @@ void PipGui(const mjModel* model, mjData* data, float aspect_ratio,
   };
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

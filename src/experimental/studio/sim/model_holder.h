@@ -23,7 +23,7 @@
 
 #include <mujoco/mujoco.h>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Container for storing an mjModel as well as its associated mjData. Also, if
 // applicable, stores the mjSpec and mjVFS from which the model was constructed.
@@ -84,6 +84,6 @@ class ModelHolder {
   char error_[1000] = "";
   std::string warning_;
 };
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_SIM_MODEL_HOLDER_H_

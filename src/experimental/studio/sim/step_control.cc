@@ -22,7 +22,7 @@
 
 #include <mujoco/mujoco.h>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 static mjtNum Timer() {
   using Clock = std::chrono::steady_clock;
@@ -232,4 +232,4 @@ void StepControl::SetPostStepCallback(StepFn step_fn) {
   post_step_ = step_fn;
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

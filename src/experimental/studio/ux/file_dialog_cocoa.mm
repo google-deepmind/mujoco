@@ -18,7 +18,7 @@
 #include <Cocoa/Cocoa.h>
 #include "experimental/studio/ux/file_dialog.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Points the panel at the directory of `path` with its filename pre-filled,
 // falling back to the user's Documents directory when no path is given.
@@ -78,4 +78,4 @@ DialogResult SelectPathDialog(std::string_view path) {
   return OpenFileDialog(path);
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

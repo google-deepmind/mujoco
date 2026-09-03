@@ -86,8 +86,8 @@ static bool Client_Startup(ImGuiContext*& context,
   ImGui::StyleColorsLight();
 
   // The Studio font set shared with the native viewer and the browser client.
-  mujoco::platform::AddStudioFonts([&assets_dir](std::string_view filename) {
-    return mujoco::platform::LoadFontAsset(assets_dir, filename);
+  mujoco::studio::AddStudioFonts([&assets_dir](std::string_view filename) {
+    return mujoco::studio::LoadFontAsset(assets_dir, filename);
   });
 
   if (!NetImgui::Startup()) {

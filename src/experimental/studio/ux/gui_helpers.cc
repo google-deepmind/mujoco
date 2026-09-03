@@ -24,7 +24,7 @@
 #include <mujoco/mujoco.h>
 #include "engine/engine_vis_visualize.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 void SaveText(const std::string& contents, const std::string& filename) {
   std::ofstream file(filename);
@@ -140,4 +140,4 @@ std::string KeyframeToString(const mjModel* model, const mjData* data,
   return str;
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

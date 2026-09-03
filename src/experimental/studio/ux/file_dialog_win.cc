@@ -35,7 +35,7 @@
 #include <utility>
 #include <vector>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 static DialogResult SetError(std::string err) {
   return {.status = DialogResult::kError, .path = std::move(err)};
@@ -257,4 +257,4 @@ DialogResult SelectPathDialog(std::string_view path) {
   }
   return RunDialog(dialog.get(), path);
 }
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

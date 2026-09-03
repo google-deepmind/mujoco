@@ -33,7 +33,7 @@
 // the format of __PRETTY_FUNCTION__ in order to extract the name of an enum
 // from a template function.
 
-namespace mujoco::platform::enum_utils {
+namespace mujoco::studio::enum_utils {
 
 // Range of values to check for valid enums. This range should be large enough
 // to accommodate MuJoCo enums, but not flags. Any enum value that falls outside
@@ -165,6 +165,6 @@ constexpr std::string_view enum_to_string(E value) {
   return {};
 }
 
-}  // namespace mujoco::platform::enum_utils
+}  // namespace mujoco::studio::enum_utils
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_ENUM_UTILS_H_

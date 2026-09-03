@@ -32,7 +32,7 @@
 #include "experimental/studio/ux/enum_utils.h"
 #include "experimental/studio/ux/well_tempered.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Helper to get available content region width that does not change/reflow
 // when the vertical scrollbar appears or disappears.
@@ -826,6 +826,6 @@ void TextOverlay(const char* id, OverlayPos pos, ImVec4 workspace_rect,
                  float font_scale = 1.0f, float alpha = 0.8f,
                  float min_width = 0.0f);
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_IMGUI_WIDGETS_H_

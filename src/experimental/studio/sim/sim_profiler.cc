@@ -25,7 +25,7 @@
 #include <mujoco/mujoco.h>
 #include "experimental/studio/ux/imgui_widgets.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 SimProfiler::SimProfiler() { Clear(); }
 
@@ -248,4 +248,4 @@ void SimProfiler::DimensionsGraph(ImVec2 plot_size) {
   }
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

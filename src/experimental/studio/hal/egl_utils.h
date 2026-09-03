@@ -17,12 +17,12 @@
 
 #include <memory>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Creates an opaque handle to an initialized EGL context and display.
 // Resetting this handle will destroy the context and release the display.
 std::shared_ptr<void> CreateEglContext();
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_HAL_EGL_UTILS_H_

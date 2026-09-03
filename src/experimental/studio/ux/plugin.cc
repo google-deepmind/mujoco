@@ -20,7 +20,7 @@
 #include <mujoco/mujoco.h>
 #include "engine/engine_global_table.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 template <typename T>
 void RegisterPlugin(T plugin) {
@@ -39,7 +39,7 @@ void ForEachPlugin(const std::function<void(T*)>& fn) {
   }
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #define MUJOCO_SPECIALIZE_PLUGIN(PLUGIN, NAME)                                 \
   template <>                                                                  \
@@ -61,15 +61,15 @@ void ForEachPlugin(const std::function<void(T*)>& fn) {
     dst = src;                                                                 \
     return true;                                                               \
   }                                                                            \
-  namespace mujoco::platform {                                                 \
+  namespace mujoco::studio {                                                 \
   template void RegisterPlugin<PLUGIN>(PLUGIN plugin);                         \
   template void ForEachPlugin<PLUGIN>(const std::function<void(PLUGIN*)>& fn); \
   }
 
-MUJOCO_SPECIALIZE_PLUGIN(mujoco::platform::GuiPlugin, "gui plugin");
-MUJOCO_SPECIALIZE_PLUGIN(mujoco::platform::ModelPlugin, "model plugin");
-MUJOCO_SPECIALIZE_PLUGIN(mujoco::platform::ScenePlugin, "scene plugin");
-MUJOCO_SPECIALIZE_PLUGIN(mujoco::platform::KeyHandlerPlugin,
+MUJOCO_SPECIALIZE_PLUGIN(mujoco::studio::GuiPlugin, "gui plugin");
+MUJOCO_SPECIALIZE_PLUGIN(mujoco::studio::ModelPlugin, "model plugin");
+MUJOCO_SPECIALIZE_PLUGIN(mujoco::studio::ScenePlugin, "scene plugin");
+MUJOCO_SPECIALIZE_PLUGIN(mujoco::studio::KeyHandlerPlugin,
                          "key handler plugin");
-MUJOCO_SPECIALIZE_PLUGIN(mujoco::platform::SpecEditorPlugin,
+MUJOCO_SPECIALIZE_PLUGIN(mujoco::studio::SpecEditorPlugin,
                          "spec editor plugin");

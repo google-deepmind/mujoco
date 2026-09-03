@@ -33,9 +33,6 @@ class ObjectLauncher {
   ObjectLauncher() : rng_(std::random_device{}()) {}
 
   void UpdateGui() {
-    using platform::ImGui_ResetButton;
-    using platform::ImGui_SliderLog;
-
     constexpr mjtNum kLifeDefault = 2.0;
     ImGui_SliderLog("Size", &size_, size_seed_ * 0.1, size_seed_ * 10);
     ImGui::BeginDisabled(size_ == size_seed_);
@@ -72,7 +69,7 @@ class ObjectLauncher {
 
   void HandleKeyboardEvent() {
     // The key binding is armed only while the plugin window is open.
-    platform::ForEachPlugin<platform::GuiPlugin>([this](auto* gui) {
+    ForEachPlugin<GuiPlugin>([this](auto* gui) {
       if (gui->active && !std::strcmp(gui->name, kObjectLauncherName)) {
         active_ = true;
       }
@@ -236,50 +233,50 @@ mjPLUGIN_LIB_INIT(object_launcher) {
 
   static ObjectLauncher plugin;
 
-  mujoco::platform::GuiPlugin gui;
+  mujoco::studio::GuiPlugin gui;
   gui.data = &plugin;
   gui.name = mujoco::studio::kObjectLauncherName;
-  gui.update = [](mujoco::platform::GuiPlugin* self) {
+  gui.update = [](mujoco::studio::GuiPlugin* self) {
     auto* plugin = static_cast<mujoco::studio::ObjectLauncher*>(self->data);
     plugin->UpdateGui();
   };
-  mujoco::platform::RegisterPlugin(gui);
+  mujoco::studio::RegisterPlugin(gui);
 
-  mujoco::platform::KeyHandlerPlugin key_handler;
+  mujoco::studio::KeyHandlerPlugin key_handler;
   key_handler.data = &plugin;
   key_handler.name = mujoco::studio::kObjectLauncherName;
   key_handler.key_chord = ImGuiKey_Enter;
-  key_handler.on_key_pressed = [](mujoco::platform::KeyHandlerPlugin* self) {
+  key_handler.on_key_pressed = [](mujoco::studio::KeyHandlerPlugin* self) {
     auto* plugin = static_cast<mujoco::studio::ObjectLauncher*>(self->data);
     plugin->HandleKeyboardEvent();
   };
-  mujoco::platform::RegisterPlugin(key_handler);
+  mujoco::studio::RegisterPlugin(key_handler);
 
-  mujoco::platform::ModelPlugin model_plugin;
+  mujoco::studio::ModelPlugin model_plugin;
   model_plugin.data = &plugin;
   model_plugin.name = mujoco::studio::kObjectLauncherName;
-  model_plugin.post_model_loaded = [](mujoco::platform::ModelPlugin* self,
+  model_plugin.post_model_loaded = [](mujoco::studio::ModelPlugin* self,
                                       const mjModel* model,
                                       const char* model_path) {
     auto* plugin = static_cast<mujoco::studio::ObjectLauncher*>(self->data);
     plugin->OnModelLoaded(model);
   };
-  mujoco::platform::RegisterPlugin(model_plugin);
+  mujoco::studio::RegisterPlugin(model_plugin);
 
-  mujoco::platform::SpecEditorPlugin spec_editor;
+  mujoco::studio::SpecEditorPlugin spec_editor;
   spec_editor.data = &plugin;
   spec_editor.name = mujoco::studio::kObjectLauncherName;
-  spec_editor.pre_compile = [](mujoco::platform::SpecEditorPlugin* self,
+  spec_editor.pre_compile = [](mujoco::studio::SpecEditorPlugin* self,
                                mjSpec* spec, const mjModel* model,
                                const mjData* data, const mjvCamera* camera) {
     auto* plugin = static_cast<mujoco::studio::ObjectLauncher*>(self->data);
     return plugin->UpdateSpecPreCompile(spec, model, data, camera);
   };
-  spec_editor.post_compile = [](mujoco::platform::SpecEditorPlugin* self,
+  spec_editor.post_compile = [](mujoco::studio::SpecEditorPlugin* self,
                                 const mjSpec* spec, const mjModel* model,
                                 mjData* data) {
     auto* plugin = static_cast<mujoco::studio::ObjectLauncher*>(self->data);
     return plugin->UpdateSpecPostCompile(spec, model, data);
   };
-  mujoco::platform::RegisterPlugin(spec_editor);
+  mujoco::studio::RegisterPlugin(spec_editor);
 }

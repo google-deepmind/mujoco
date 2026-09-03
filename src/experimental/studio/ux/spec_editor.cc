@@ -20,7 +20,7 @@
 #include <mujoco/mujoco.h>
 #include "experimental/studio/sim/model_holder.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 SpecEditor::SpecEditor(int history_size) : capacity_(history_size) {}
 
@@ -405,4 +405,4 @@ mjsElement* SpecEditor::AddElementToSpec(mjSpec* spec, mjtObj type,
   }
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

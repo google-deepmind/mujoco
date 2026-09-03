@@ -28,7 +28,7 @@
 #include <implot.h>
 #include <mujoco/mujoco.h>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 void AppendIniSection(std::string& ini, const std::string& section,
                       const KeyValues& key_values) {
@@ -631,4 +631,4 @@ void TextOverlay(const char* id, OverlayPos pos, ImVec4 workspace_rect,
   EndOverlay();
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

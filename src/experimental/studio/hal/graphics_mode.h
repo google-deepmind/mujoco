@@ -17,7 +17,7 @@
 
 #include <string_view>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 // Describes the configuration of the graphics and rendering systems.
 enum class GraphicsMode {
@@ -57,6 +57,6 @@ bool IsSoftware(GraphicsMode gfx_mode);
 GraphicsMode GraphicsModeFromString(std::string_view str,
                                     GraphicsMode default_mode);
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_HAL_GRAPHICS_MODE_H_

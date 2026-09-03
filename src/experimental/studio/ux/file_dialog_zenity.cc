@@ -28,7 +28,7 @@
 
 #include "experimental/studio/ux/file_dialog.h"
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 static DialogResult RunZenity(std::vector<std::string>& args) {
   std::string cmd = "zenity";
@@ -103,4 +103,4 @@ DialogResult SelectPathDialog(std::string_view path) {
   return RunZenity(args);
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio

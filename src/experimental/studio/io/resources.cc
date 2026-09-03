@@ -30,7 +30,7 @@
 
 #include <mujoco/mujoco.h>
 
-namespace mujoco::platform {
+namespace mujoco::studio {
 
 namespace {
 
@@ -142,4 +142,4 @@ void RegisterResourceProviders() {
   mjp_registerResourceProvider(&resource_provider);
 }
 
-}  // namespace mujoco::platform
+}  // namespace mujoco::studio
