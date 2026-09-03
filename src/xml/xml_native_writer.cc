@@ -1055,7 +1055,7 @@ void mjXWriter::Option(XMLElement* root) {
   if (model->option.disableflags || model->option.enableflags) {
     XMLElement* sub = InsertEnd(section, "flag");
 
-#define WRITEDSBL(NAME, MASK)                                                       \
+#define WRITEDSBL(NAME, MASK) \
   if (model->option.disableflags & MASK) WriteAttrKey(sub, NAME, enable_map, 2, 0);
     // clang-format off
     WRITEDSBL("constraint",     mjDSBL_CONSTRAINT)
@@ -1081,7 +1081,7 @@ void mjXWriter::Option(XMLElement* root) {
     // clang-format on
 #undef WRITEDSBL
 
-#define WRITEENBL(NAME, MASK)                                                      \
+#define WRITEENBL(NAME, MASK) \
   if (model->option.enableflags & MASK) WriteAttrKey(sub, NAME, enable_map, 2, 1);
     // clang-format off
     WRITEENBL("override",       mjENBL_OVERRIDE)

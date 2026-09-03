@@ -1717,11 +1717,11 @@ mjsElement* mjs_findElement(const mjSpec* s, mjtObj type, const char* name) {
     case mjOBJ_FRAME:
       return model->FindTree(model->GetWorld(), type, std::string(name));  // recursive search
     case mjOBJ_TEXTURE:
-      return model->FindAsset(std::string(name), model->Textures());       // check filename too
+      return model->FindAsset(std::string(name), model->Textures());  // check filename too
     case mjOBJ_MESH:
-      return model->FindAsset(std::string(name), model->Meshes());         // check filename too
+      return model->FindAsset(std::string(name), model->Meshes());  // check filename too
     default:
-      return model->FindObject(type, std::string(name));                   // always available
+      return model->FindObject(type, std::string(name));  // always available
   }
 }
 
@@ -2491,21 +2491,21 @@ int mjs_isAuthored(const void* elem_ptr, const void* field_ptr) {
 #undef X
 #undef XVEC
 
-#define X(type, name, dim)                                                    \
+#define X(type, name, dim) \
   CHECK_FIELD(cel->spec.visual.global.name, cel->spec.authored.visual_global)
     idx = 0;
     MJVISUAL_GLOBAL_FIELDS
 #undef X
 
-#define X(type, name, dim)                                                      \
+#define X(type, name, dim) \
   CHECK_FIELD(cel->spec.visual.quality.name, cel->spec.authored.visual_quality)
     idx = 0;
     MJVISUAL_QUALITY_FIELDS
 #undef X
 
-#define X(type, name, dim)                                                          \
+#define X(type, name, dim) \
   CHECK_FIELD(cel->spec.visual.headlight.name, cel->spec.authored.visual_headlight)
-#define XVEC(type, name, dim)                                                           \
+#define XVEC(type, name, dim) \
   CHECK_FIELD_VEC(cel->spec.visual.headlight.name, cel->spec.authored.visual_headlight)
     idx = 0;
     MJVISUAL_HEADLIGHT_FIELDS
@@ -2522,7 +2522,7 @@ int mjs_isAuthored(const void* elem_ptr, const void* field_ptr) {
     MJVISUAL_SCALE_FIELDS
 #undef X
 
-#define XVEC(type, name, dim)                                                 \
+#define XVEC(type, name, dim) \
   CHECK_FIELD_VEC(cel->spec.visual.rgba.name, cel->spec.authored.visual_rgba)
     idx = 0;
     MJVISUAL_RGBA_FIELDS
@@ -2586,15 +2586,15 @@ void mjs_setAuthored(const void* elem_ptr, const void* field_ptr, int authored) 
     MJVISUAL_GLOBAL_FIELDS
 #undef X
 
-#define X(type, name, dim)                                                    \
+#define X(type, name, dim) \
   SET_FIELD(cel->spec.visual.quality.name, cel->spec.authored.visual_quality)
     idx = 0;
     MJVISUAL_QUALITY_FIELDS
 #undef X
 
-#define X(type, name, dim)                                                        \
+#define X(type, name, dim) \
   SET_FIELD(cel->spec.visual.headlight.name, cel->spec.authored.visual_headlight)
-#define XVEC(type, name, dim)                                                         \
+#define XVEC(type, name, dim) \
   SET_FIELD_VEC(cel->spec.visual.headlight.name, cel->spec.authored.visual_headlight)
     idx = 0;
     MJVISUAL_HEADLIGHT_FIELDS
@@ -2611,7 +2611,7 @@ void mjs_setAuthored(const void* elem_ptr, const void* field_ptr, int authored) 
     MJVISUAL_SCALE_FIELDS
 #undef X
 
-#define XVEC(type, name, dim)                                               \
+#define XVEC(type, name, dim) \
   SET_FIELD_VEC(cel->spec.visual.rgba.name, cel->spec.authored.visual_rgba)
     idx = 0;
     MJVISUAL_RGBA_FIELDS

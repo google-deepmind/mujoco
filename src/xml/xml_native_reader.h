@@ -28,8 +28,8 @@
 
 class mjXReader : public mjXBase {
  public:
-  mjXReader();                                                         // constructor
-  virtual ~mjXReader() = default;                                      // destructor
+  mjXReader();                     // constructor
+  virtual ~mjXReader() = default;  // destructor
 
   void Parse(tinyxml2::XMLElement* root, const mjVFS* vfs = nullptr);  // parse XML document
   void PrintSchema(std::stringstream& str, bool html, bool pad);       // print text or HTML schema
@@ -106,7 +106,7 @@ class mjXReader : public mjXBase {
   mjXSchema         schema;                                   // schema used for validation
   const mjsDefault* GetClass(tinyxml2::XMLElement* section);  // get default class name
 
-  bool readingdefaults;                                       // true while reading defaults
+  bool readingdefaults;  // true while reading defaults
 
   // accessors for directory defaults
   mujoco::user::FilePath AssetDir() const;

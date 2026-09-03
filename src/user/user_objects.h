@@ -260,9 +260,9 @@ struct hash<Point> {
 typedef std::array<std::array<double, 3>, 3> Triangle;
 
 struct OctNode {
-  int level        = 0;                 // level of the node
-  int parent_index = -1;                // index of the parent node
-  int child_slot   = -1;                // slot of the child node in the parent node
+  int level        = 0;   // level of the node
+  int parent_index = -1;  // index of the parent node
+  int child_slot   = -1;  // slot of the child node in the parent node
 
   std::array<int, 8>    child  = {-1};  // children nodes
   std::array<int, 8>    vertid = {-1};  // vertex id's
@@ -281,13 +281,13 @@ struct OctreeTask {
 struct mjCOctree_ {
   int nnode_     = 0;
   int nvert_     = 0;
-  int max_depth_ = 6;                           // max octree depth (default 6)
+  int max_depth_ = 6;  // max octree depth (default 6)
 
   std::vector<OctNode>  node_;
-  std::vector<Triangle> face_;                  // mesh faces                (nmeshface x 3)
-  std::vector<Point>    vert_;                  // octree vertices           (nvert x 3)
+  std::vector<Triangle> face_;  // mesh faces                (nmeshface x 3)
+  std::vector<Point>    vert_;  // octree vertices           (nvert x 3)
 
-  std::vector<std::vector<int>> hang_;          // hanging nodes status      (nvert x 1)
+  std::vector<std::vector<int>> hang_;  // hanging nodes status      (nvert x 1)
   double                        ipos_[3]  = {0, 0, 0};
   double                        iquat_[4] = {1, 0, 0, 0};
   int smoothing_iterations_               = 0;  // Laplacian smoothing iterations (0 = disabled)
@@ -405,9 +405,9 @@ class mjCBase : public mjCBase_ {
   // Copy assignment
   mjCBase& operator=(const mjCBase& other);
 
-  mjCFrame*    frame;            // pointer to frame transformation
-  mjCModel*    model;            // pointer to model that owns object
-  mjsCompiler* compiler;         // pointer to the compiler options
+  mjCFrame*    frame;     // pointer to frame transformation
+  mjCModel*    model;     // pointer to model that owns object
+  mjsCompiler* compiler;  // pointer to the compiler options
 
   virtual ~mjCBase() = default;  // destructor
 
@@ -480,9 +480,9 @@ class mjCBody_ : public mjCBase {
   mjCBody* parent;
 
   // variables computed by 'Compile' and 'AddXXX'
-  int weldid;          // top index of body we are welded to
-  int dofnum;          // number of motion dofs for body
-  int mocapid;         // mocap id, -1: not mocap
+  int weldid;   // top index of body we are welded to
+  int dofnum;   // number of motion dofs for body
+  int mocapid;  // mocap id, -1: not mocap
 
   int    contype;      // OR over geom contypes
   int    conaffinity;  // OR over geom conaffinities
@@ -491,8 +491,8 @@ class mjCBody_ : public mjCBase {
   double xquat0[4];    // global orientation in qpos0
 
   // used internally by compiler
-  int lastdof;                      // id of last dof
-  int subtreedofs;                  // number of dofs in subtree, including self
+  int lastdof;      // id of last dof
+  int subtreedofs;  // number of dofs in subtree, including self
 
   mjCBoundingVolumeHierarchy tree;  // bounding volume hierarchy
 
@@ -611,8 +611,8 @@ class mjCBody : public mjCBody_, private mjsBody {
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
   mjCBody& operator=(const mjCBody& other);         // copy assignment
 
-  void Compile(void);                               // compiler
-  void InertiaFromGeom(void);                       // get inertial info from geoms
+  void Compile(void);          // compiler
+  void InertiaFromGeom(void);  // get inertial info from geoms
 
   // objects allocated by Add functions
   std::vector<mjCBody*>   bodies;   // child bodies
@@ -623,7 +623,7 @@ class mjCBody : public mjCBody_, private mjsBody {
   std::vector<mjCCamera*> cameras;  // cameras attached to this body
   std::vector<mjCLight*>  lights;   // lights attached to this body
 
-  void CopyFromSpec();              // copy spec into attributes
+  void CopyFromSpec();  // copy spec into attributes
   void PointToLocal(void);
   void NameSpace_(const mjCModel* m, bool propagate = true);
   void CopyPlugin();
@@ -672,12 +672,12 @@ class mjCFrame : public mjCFrame_, private mjsFrame {
 
   bool IsAncestor(const mjCFrame* child) const;  // true if child is contained in this frame
 
-  mjsBody* last_attached;                        // last attached body to this frame
+  mjsBody* last_attached;  // last attached body to this frame
 
  private:
-  void Compile(void);                            // compiler
+  void Compile(void);  // compiler
 
-  mjCBody* body;                                 // body that owns the frame
+  mjCBody* body;  // body that owns the frame
 };
 
 
@@ -748,7 +748,7 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
 
 class mjCGeom_ : public mjCBase {
  public:
-  bool inferinertia;           // true if inertia should be computed from geom
+  bool inferinertia;  // true if inertia should be computed from geom
 
  protected:
   bool       visual_;          // true: geom does not collide and is unreferenced
@@ -1052,18 +1052,18 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
   const std::vector<std::string>& get_nodebody() const { return nodebody_; }
   const std::vector<double>&      get_node() const { return node_; }
 
-  bool HasTexcoord() const;                       // texcoord not null
-  void DelTexcoord();                             // delete texcoord
+  bool HasTexcoord() const;  // texcoord not null
+  void DelTexcoord();        // delete texcoord
 
   static constexpr int kNumEdges[3] = {1, 3, 6};  // number of edges per element indexed by dim
 
 
  private:
-  void Compile(const mjVFS* vfs);                       // compiler
-  void CreateBVH(void);                                 // create flex BVH
-  void CreateShellPair(void);                           // create shells and evpairs
+  void Compile(const mjVFS* vfs);  // compiler
+  void CreateBVH(void);            // create flex BVH
+  void CreateShellPair(void);      // create shells and evpairs
   void ComputeCellEmpty(const double* vpos,
-                        const int*    elems,            // identify cells
+                        const int*    elems,  // identify cells
                         int           nv,
                         int           ne,
                         int           fdim,             // with no mesh content
@@ -1233,16 +1233,16 @@ class mjCMesh : public mjCMesh_, private mjsMesh {
   void    FitGeom(mjCGeom* geom, double center[3]);  // approximate mesh with simple geom
   bool    HasTexcoord() const;                       // texcoord not null
   void    DelTexcoord();                             // delete texcoord
-  bool    IsVisual(void) const { return visual_; }  // is geom visual
-  void    SetNotVisual(void) { visual_ = false; }  // mark mesh as not visual
+  bool    IsVisual(void) const { return visual_; }   // is geom visual
+  void    SetNotVisual(void) { visual_ = false; }    // mark mesh as not visual
 
-  void CopyVert(float* arr) const;                 // copy vert data into array
-  void CopyNormal(float* arr) const;               // copy normal data into array
-  void CopyFace(int* arr) const;                   // copy face data into array
-  void CopyFaceNormal(int* arr) const;             // copy face normal data into array
-  void CopyFaceTexcoord(int* arr) const;           // copy face texcoord data into array
-  void CopyTexcoord(float* arr) const;             // copy texcoord data into array
-  void CopyGraph(int* arr) const;                  // copy graph data into array
+  void CopyVert(float* arr) const;        // copy vert data into array
+  void CopyNormal(float* arr) const;      // copy normal data into array
+  void CopyFace(int* arr) const;          // copy face data into array
+  void CopyFaceNormal(int* arr) const;    // copy face normal data into array
+  void CopyFaceTexcoord(int* arr) const;  // copy face texcoord data into array
+  void CopyTexcoord(float* arr) const;    // copy texcoord data into array
+  void CopyGraph(int* arr) const;         // copy graph data into array
 
   // copy polygon data into array
   void CopyPolygons(int* verts, int* adr, int* num, int poly_adr) const;
@@ -1285,17 +1285,17 @@ class mjCMesh : public mjCMesh_, private mjsMesh {
   void LoadSTL(mjResource* resource);                        // load mesh in STL BIN format
   void LoadMSH(mjResource* resource, bool remove_repeated);  // load mesh in MSH BIN format
 
-  void   LoadSDF();                                          // generate mesh using marching cubes
-  void   MakeGraph(const double* dvert);                     // make graph of convex hull
-  void   CopyGraph();                                        // copy graph into face data
-  void   MakeNormal(const double* dvert);                    // compute vertex normals
-  void   MakeCenter(const double* dvert);                    // compute face circumcircle data
-  void   Process();                                          // compute inertial properties
-  void   ApplyTransformations(double* dvert);                // apply user transformations
+  void   LoadSDF();                            // generate mesh using marching cubes
+  void   MakeGraph(const double* dvert);       // make graph of convex hull
+  void   CopyGraph();                          // copy graph into face data
+  void   MakeNormal(const double* dvert);      // compute vertex normals
+  void   MakeCenter(const double* dvert);      // compute face circumcircle data
+  void   Process();                            // compute inertial properties
+  void   ApplyTransformations(double* dvert);  // apply user transformations
   double ComputeFaceCentroid(double[3], const double* dvert) const;
-  void   CheckInitialMesh() const;                           // check if initial mesh is valid
+  void   CheckInitialMesh() const;  // check if initial mesh is valid
   void   CopyPlugin();
-  void   Rotate(double quat[4], double* dvert);              // rotate mesh by quaternion
+  void   Rotate(double quat[4], double* dvert);     // rotate mesh by quaternion
   void   Transform(double pos[3], double quat[4]);  // transform mesh by position and quaternion
   void   MakePolygons(const double* dvert);         // compute the polygon sides of the mesh
   void   MakePolygonNormals(const double* dvert);   // compute the normals of the polygons
@@ -1427,7 +1427,7 @@ class mjCHField : public mjCHField_, private mjsHField {
   std::vector<float>& get_userdata() { return userdata_; }
 
  private:
-  void Compile(const mjVFS* vfs);                // compiler
+  void Compile(const mjVFS* vfs);  // compiler
 
   std::string GetCacheId(const mjResource* resource, const std::string& asset_type);
   void        LoadCustom(mjResource* resource);  // load from custom format
@@ -1481,8 +1481,8 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
   void        BuiltinCube(void);                               // make builtin cube
   void        Load2D(std::string filename, const mjVFS* vfs);  // load 2D from file
   void        LoadCubeSingle(std::string  filename,
-                             const mjVFS* vfs);                // load cube from single file
-  void        LoadCubeSeparate(const mjVFS* vfs);              // load cube from separate files
+                             const mjVFS* vfs);    // load cube from single file
+  void        LoadCubeSeparate(const mjVFS* vfs);  // load cube from separate files
 
   void FlipIfNeeded(std::vector<std::byte>& image, unsigned int w, unsigned int h);
 
@@ -1584,8 +1584,8 @@ class mjCPair : public mjCPair_, private mjsPair {
  private:
   void Compile(void);  // compiler
 
-  mjCGeom* geom1;      // geom1
-  mjCGeom* geom2;      // geom2
+  mjCGeom* geom1;  // geom1
+  mjCGeom* geom2;  // geom2
 };
 
 
@@ -1594,9 +1594,9 @@ class mjCPair : public mjCPair_, private mjsPair {
 
 class mjCBodyPair_ : public mjCBase {
  protected:
-  int body1;               // id of body1
-  int body2;               // id of body2
-  int signature;           // body1<<16 + body2
+  int body1;      // id of body1
+  int body2;      // id of body2
+  int signature;  // body1<<16 + body2
 
   std::string bodyname1_;  // name of geom 1
   std::string bodyname2_;  // name of geom 2
@@ -1753,16 +1753,16 @@ class mjCWrap : public mjCWrap_, private mjsWrap {
   void    NameSpace(const mjCModel* m);
   mjtWrap Type() const { return spec.type; }
 
-  mjCBase* obj;                              // wrap object pointer
+  mjCBase* obj;  // wrap object pointer
 
  private:
   mjCWrap(mjCModel*, mjCTendon*);            // constructor
   mjCWrap(const mjCWrap& other);             // copy constructor
   mjCWrap& operator=(const mjCWrap& other);  // copy assignment
 
-  void Compile(void);                        // compiler
+  void Compile(void);  // compiler
 
-  mjCTendon* tendon;                         // tendon owning this wrap
+  mjCTendon* tendon;  // tendon owning this wrap
 };
 
 
@@ -1795,7 +1795,7 @@ class mjCPlugin : public mjCPlugin_ {
   int       plugin_slot;  // global registered slot number of the plugin
 
  private:
-  void Compile(void);     // compiler
+  void Compile(void);  // compiler
 };
 
 
@@ -2103,7 +2103,7 @@ class mjCDef : public mjsElement {
   std::vector<mjCDef*> child;   // child classes
 
   mjsDefault spec;
-  mjCModel*  model;             // pointer to model that owns object
+  mjCModel*  model;  // pointer to model that owns object
 
  private:
   mjCJoint    joint_;

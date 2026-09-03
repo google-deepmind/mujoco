@@ -12,10 +12,10 @@ AlignConsecutiveDeclarations:
   Enabled:  true
 AlignConsecutiveShortCaseStatements:
   Enabled:  true
-AlignEscapedNewlines: LeftWithLastLine
+AlignEscapedNewlines: Left
 AlignTrailingComments:
   Kind:  Always
-  OverEmptyLines:  2
+  OverEmptyLines:  0
 AllowAllArgumentsOnNextLine: false
 AllowShortBlocksOnASingleLine: Always
 AllowShortFunctionsOnASingleLine: Inline

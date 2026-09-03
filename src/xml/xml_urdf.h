@@ -45,7 +45,7 @@ class mjXURDF : public mjXBase {
   void Parse(tinyxml2::XMLElement* root, const mjVFS* vfs = nullptr);  // main parser
 
  private:
-  std::string GetPrefixedName(const std::string& name);                // get prefix/name of element
+  std::string GetPrefixedName(const std::string& name);  // get prefix/name of element
 
   int      FindName(std::string name, std::vector<std::string>& list);  // find name in list
   void     AddName(std::string name, std::vector<std::string>& list);   // add name to list
@@ -58,7 +58,7 @@ class mjXURDF : public mjXBase {
                 bool                  collision);  // parse origin and geometry of geom
   void     Origin(tinyxml2::XMLElement* origin_elem,
                   double*               pos,
-                  double*               quat);     // parse origin element
+                  double*               quat);  // parse origin element
 
   void MakeMaterials(tinyxml2::XMLElement* elem);  // find all materials recursively
   void Clear(void);                                // clear local objects
@@ -72,7 +72,7 @@ class mjXURDF : public mjXBase {
   std::unordered_set<std::string>              urGeomNames;  // geom name
   std::map<std::string, std::vector<mjsMesh*>> meshes;       // map from name to mjsMesh
 
-  std::string urPrefix;                                      // prefix to apply to all names
+  std::string urPrefix;  // prefix to apply to all names
 };
 
 

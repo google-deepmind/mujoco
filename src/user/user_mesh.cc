@@ -2542,9 +2542,9 @@ class MeshPolygon {
   MeshPolygon(MeshPolygon&&)                 = default;
   MeshPolygon& operator=(MeshPolygon&&)      = default;
 
-  void InsertFace(int v1, int v2, int v3);      // insert a face into the polygon
-  std::vector<std::vector<int>> Paths() const;  // return trace of the polygons
-  const double* Normal() const { return normal_; }  // return the normal of the polygon
+  void InsertFace(int v1, int v2, int v3);           // insert a face into the polygon
+  std::vector<std::vector<int>> Paths() const;       // return trace of the polygons
+  const double* Normal() const { return normal_; }   // return the normal of the polygon
   double Normal(int i) const { return normal_[i]; }  // return the i-th component of the normal
 
  private:
@@ -5325,7 +5325,7 @@ void mjCFlex::CreateShellPair(void) {
       nelem * (dim + 1));  // [sorted frag vertices, elem, original frag vertices]
   std::vector<std::vector<int>> connectspec;  // [elem1, elem2, common sorted frag vertices]
 
-  std::vector<bool> border(nelem, false);     // is element on the border
+  std::vector<bool> border(nelem, false);                  // is element on the border
   std::vector<bool> borderfrag(nelem * (dim + 1), false);  // is fragment on the border
 
   // make fragspec

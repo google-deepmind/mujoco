@@ -55,8 +55,8 @@ const struct Glfw& Glfw(void* dlhandle) {
       std::cerr << "cannot obtain a shared object handle\n";
       abort();
     }
-    #define mjGLFW_RESOLVE_SYMBOL(func)                               \
-      glfw.func = reinterpret_cast<decltype(glfw.func)>(              \
+    #define mjGLFW_RESOLVE_SYMBOL(func)                  \
+      glfw.func = reinterpret_cast<decltype(glfw.func)>( \
           GetProcAddress(reinterpret_cast<HMODULE>(dlhandle), #func))
   #else
     if (!dlhandle) dlhandle = dlopen("nullptr", RTLD_GLOBAL | RTLD_NOW);
@@ -64,7 +64,7 @@ const struct Glfw& Glfw(void* dlhandle) {
       std::cerr << "cannot obtain a shared object handle\n";
       abort();
     }
-    #define mjGLFW_RESOLVE_SYMBOL(func)                                         \
+    #define mjGLFW_RESOLVE_SYMBOL(func) \
       glfw.func = reinterpret_cast<decltype(glfw.func)>(dlsym(dlhandle, #func))
   #endif
 #else

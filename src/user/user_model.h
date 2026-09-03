@@ -193,7 +193,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCModel();
   mjCModel(const mjCModel& other);
   ~mjCModel();
-  void CopyFromSpec();                           // copy spec to private attributes
+  void CopyFromSpec();  // copy spec to private attributes
   void PointToLocal();
 
   mjCModel& operator=(const mjCModel& other);    // copy other into this, if they are not the same
@@ -203,7 +203,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCModel& operator-=(const mjCDef& subtree);   // remove default tree from this model
 
   mjSpec spec;
-  double timer[mjNCTIMER] = {0};                 // compiler timers
+  double timer[mjNCTIMER] = {0};  // compiler timers
 
   mjModel* Compile(const mjVFS* vfs = nullptr, mjModel** m = nullptr);  // construct mjModel
   bool     CopyBack(const mjModel*);    // DECOMPILER: copy numeric back
@@ -247,8 +247,8 @@ class mjCModel : public mjCModel_, private mjSpec {
   void RemoveDefault(mjCDef* def);
 
   // API for access to model elements (outside tree)
-  int         NumObjects(mjtObj type);                        // number of objects in specified list
-  mjCBase*    GetObject(mjtObj type, int id);                 // pointer to specified object
+  int         NumObjects(mjtObj type);         // number of objects in specified list
+  mjCBase*    GetObject(mjtObj type, int id);  // pointer to specified object
   mjsElement* NextObject(const mjsElement* object,
                          mjtObj type = mjOBJ_UNKNOWN) const;  // next object of specified type
 
@@ -258,7 +258,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   void            SetError(const mjCError& error) { errInfo = error; }  // set value of error object
   void            AddWarning(std::string    msg,                        // add warning to vector
                              const mjCBase* obj = nullptr);
-  void            AddGroupedWarning(const std::string& subject,         // add grouped warning
+  void            AddGroupedWarning(const std::string& subject,  // add grouped warning
                                     const std::string& body);
   const std::vector<std::string>& GetWarnings() const {  // get accumulated warnings
     return warnings_;
@@ -411,8 +411,8 @@ class mjCModel : public mjCModel_, private mjSpec {
   void CopyPlugins(mjModel*);           // copy plugin data
   int  CountTendonDofs(const mjModel* m,  // compute number of dofs for a given tendon
                        int            id);
-  int  CountNJmom(const mjModel* m);      // compute number of non-zeros in actuator_moment matrix
-  int  CountNJten(const mjModel* m);      // compute number of non-zeros in ten_J matrix
+  int  CountNJmom(const mjModel* m);  // compute number of non-zeros in actuator_moment matrix
+  int  CountNJten(const mjModel* m);  // compute number of non-zeros in ten_J matrix
 
   // remove plugins that are not referenced by any object
   void RemovePlugins();

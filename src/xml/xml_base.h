@@ -71,10 +71,10 @@ struct mjXAttr {
     kIntVec,     // mjIntVec* field, set via mjs_setInt
     kChars,      // char[len] field: text copied in place, length-checked
   };
-  const char*  attr;       // XML attribute name
+  const char*  attr;  // XML attribute name
   Kind         kind;
-  int          len;        // number of values (1 = scalar); numeric kinds only
-  bool         exact;      // exactly len values, else up to len
+  int          len;    // number of values (1 = scalar); numeric kinds only
+  bool         exact;  // exactly len values, else up to len
   bool         required;
   bool         nodefault;  // not read in default classes
   bool         handwrite;  // custom save policy (writing=custom): OneX() remnant

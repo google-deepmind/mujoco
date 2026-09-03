@@ -71,8 +71,8 @@ class mjXSchema {
             int                      nconstraint = 0,
             int                      first_row   = 0);
 
-  std::string GetError();                                                  // return error
-  void        Print(std::stringstream& str, int level) const;              // print schema
+  std::string GetError();                                      // return error
+  void        Print(std::stringstream& str, int level) const;  // print schema
   void        PrintHTML(std::stringstream& str, int level, bool pad) const;
 
   bool                  NameMatch(tinyxml2::XMLElement* elem, int level);  // does name match
@@ -80,16 +80,16 @@ class mjXSchema {
 
 
  private:
-  std::string            name_;                       // element name
-  char                   type_;                       // element type: '?', '!', '*', 'R'
-  std::set<std::string>  attr_;                       // allowed attributes
-  std::vector<mjXSchema> subschema_;                  // allowed child elements
+  std::string            name_;       // element name
+  char                   type_;       // element type: '?', '!', '*', 'R'
+  std::set<std::string>  attr_;       // allowed attributes
+  std::vector<mjXSchema> subschema_;  // allowed child elements
 
   std::vector<const mjXConstraintDef*> constraints_;  // constraints here
   tinyxml2::XMLElement*                CheckConstraints(tinyxml2::XMLElement* elem);
 
-  int         refcnt_ = 0;                            // refcount used for validation
-  std::string error;                                  // error from constructor or Check
+  int         refcnt_ = 0;  // refcount used for validation
+  std::string error;        // error from constructor or Check
 };
 
 
