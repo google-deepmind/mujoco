@@ -618,7 +618,7 @@ void mj_collision(const mjModel* m, mjData* d) {
 
   // broadphase collision detector
   TM_START;
-  int nmaxpairs = (nbodyflex*(nbodyflex - 1))/2;
+  int nmaxpairs = (size_t)nbodyflex*(nbodyflex - 1)/2;
   uint32_t* broadphasepair = mjSTACKALLOC(d, nmaxpairs, uint32_t);
   int nbfpair = mj_broadphase(m, d, broadphasepair, nmaxpairs);
   unsigned int last_signature = -1;
@@ -1679,7 +1679,7 @@ int mj_broadphase(const mjModel* m, mjData* d, uint32_t* bfpair, int maxpair) {
     }
 
     // call SAP
-    int maxsappair = ncollide*(ncollide-1)/2;
+    int maxsappair = (size_t)ncollide*(ncollide-1)/2;
     uint32_t* sappair = mjSTACKALLOC(d, maxsappair, uint32_t);
     int nsappair = mj_SAP(d, aamm, ncollide, 0, sappair, maxsappair);
     if (nsappair < 0) {
@@ -2349,7 +2349,7 @@ void mj_collideFlexSAP(const mjModel* m, mjData* d, int f) {
   int axis = (bvh[3] > bvh[4] && bvh[3] > bvh[5]) ? 0 : (bvh[4] > bvh[5] ? 1 : 2);
 
   // call SAP; hard limit on number of pairs to avoid out-of-memory
-  int maxsappair = mjMIN(nactive*(nactive-1)/2, 1000000);
+  int maxsappair = mjMIN((size_t)nactive*(nactive-1)/2, 1000000);
   uint32_t* sappair = mjSTACKALLOC(d, maxsappair, uint32_t);
   int nsappair = mj_SAP(d, aamm, nactive, axis, sappair, maxsappair);
   if (nsappair < 0) {

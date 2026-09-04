@@ -477,8 +477,9 @@ TEST_F(MjCollisionTest, MaxContact) {
 TEST_F(MjCollisionTest, FlexSapElementIndexAboveSignBit) {
   // Element indices above 0x7FFF used to sign-extend when the SAP broadphase
   // decoded the high half of its packed (id1<<16)|id2 pair, indexing the
-  // element list out of bounds.
-  constexpr int kNumVert = 32769;
+  // element list out of bounds. With 46342 elements, n*(n-1)/2 also used to
+  // overflow int.
+  constexpr int kNumVert = 46341;
   std::string body, vertex, element;
   for (int i = 0; i < kNumVert; i++) {
     body += "b0 ";
