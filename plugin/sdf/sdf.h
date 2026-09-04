@@ -15,8 +15,9 @@
 #ifndef MUJOCO_PLUGIN_SDF_SDF_H_
 #define MUJOCO_PLUGIN_SDF_SDF_H_
 
+#include <cmath>
+#include <cstdlib>
 #include <map>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -24,21 +25,13 @@
 
 namespace mujoco::plugin::sdf {
 
-inline mjtNum Union(mjtNum a, mjtNum b) {
-    return mju_min(a, b);
-}
+inline mjtNum Union(mjtNum a, mjtNum b) { return mju_min(a, b); }
 
-inline mjtNum Intersection(mjtNum a, mjtNum b) {
-    return mju_max(a, b);
-}
+inline mjtNum Intersection(mjtNum a, mjtNum b) { return mju_max(a, b); }
 
-inline mjtNum Subtraction(mjtNum a, mjtNum b) {
-    return mju_max(a, -b);
-}
+inline mjtNum Subtraction(mjtNum a, mjtNum b) { return mju_max(a, -b); }
 
-inline mjtNum Fract(mjtNum x) {
-  return x - floor(x);
-}
+inline mjtNum Fract(mjtNum x) { return x - floor(x); }
 
 // reads numeric attributes
 bool CheckAttr(const char* name, const mjModel* m, int instance);
@@ -58,13 +51,13 @@ class SdfDefault {
     if (std::string(value).empty()) {
       return default_[name];
     }
-    try {
-      mjtNum num = std::stod(value);
-      return num;
-    } catch (const std::invalid_argument& e) {
+    char* end = nullptr;
+    mjtNum num = strtod(value, &end);
+    if (end == value) {
       mju_error("invalid attribute value for '%s'", name);
       return 0;
     }
+    return num;
   }
 
   // populate attribute array

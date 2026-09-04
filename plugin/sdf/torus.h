@@ -20,14 +20,13 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtype.h>
-#include "sdf.h"
 
 namespace mujoco::plugin::sdf {
 
 struct TorusAttribute {
   static constexpr int nattribute = 2;
   static constexpr char const* names[nattribute] = {"radius1", "radius2"};
-  static constexpr mjtNum defaults[nattribute] = { .35, .15 };
+  static constexpr mjtNum defaults[nattribute] = {.35, .15};
 };
 
 class Torus {

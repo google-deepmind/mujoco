@@ -17,8 +17,6 @@
 
 namespace mujoco::plugin::elasticity {
 
-mjPLUGIN_LIB_INIT(elasticity) {
-  Cable::RegisterPlugin();
-}
+mjPLUGIN_LIB_INIT(elasticity) { Cable::RegisterPlugin(); }
 
 }  // namespace mujoco::plugin::elasticity

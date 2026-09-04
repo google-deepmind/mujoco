@@ -255,8 +255,9 @@ std::unique_ptr<Node> BuildKinematicTree(const pxr::UsdStageRefPtr stage) {
     // nodes.
     extraction.nodes[to_idx]->joints.push_back(joint.GetPath());
 
-    // If the joint has NewtonMimicAPI or MjcPhysicsEqualityJointAPI, also add it to constraints
-    // so that ParseConstraint is called to create the equality constraint.
+    // If the joint has NewtonMimicAPI or MjcPhysicsEqualityJointAPI, also add
+    // it to constraints so that ParseConstraint is called to create the
+    // equality constraint.
     if (joint.GetPrim().HasAPI(NewtonTokens->NewtonMimicAPI) ||
         joint.GetPrim().HasAPI<pxr::MjcPhysicsEqualityJointAPI>()) {
       extraction.nodes[to_idx]->constraints.push_back(joint.GetPath());

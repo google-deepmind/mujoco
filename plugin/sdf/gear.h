@@ -27,10 +27,9 @@ namespace mujoco::plugin::sdf {
 
 struct GearAttribute {
   static constexpr int nattribute = 5;
-  static constexpr char const* names[nattribute] = {"alpha", "diameter",
-                                                    "teeth", "thickness",
-                                                    "innerdiameter"};
-  static constexpr mjtNum defaults[nattribute] = { 0, 2.8, 25, .2 , -1};
+  static constexpr char const* names[nattribute] = {
+      "alpha", "diameter", "teeth", "thickness", "innerdiameter"};
+  static constexpr mjtNum defaults[nattribute] = {0, 2.8, 25, .2, -1};
 };
 
 class Gear {
