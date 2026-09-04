@@ -286,6 +286,58 @@ public class MjcfImporterTests {
   }
 
   [Test]
+  public void MultiCcdEnabledFlagIsOmittedFromCompiledXml() {
+    var mjcfString = @"<mujoco>
+      <option>
+        <flag multiccd='enable'/>
+      </option>
+      <worldbody/>
+    </mujoco>";
+    _sceneRoot = _importer.ImportString(
+        name: string.Empty, mjcfString: mjcfString);
+    var settings = _sceneRoot.GetComponentInChildren<MjGlobalSettings>();
+    Assert.That(settings.GlobalOptions.Flag.MultiCCD, Is.EqualTo(EnableDisableFlag.enable));
+
+    var doc = new XmlDocument();
+    var mujocoRoot = (XmlElement)doc.AppendChild(doc.CreateElement("mujoco"));
+    settings.GlobalsToMjcf(mujocoRoot);
+    // MultiCCD is enabled by default, so the compiled XML contains no multiccd flag.
+    Assert.That(doc.OuterXml, Does.Not.Contain("multiccd"));
+  }
+
+  [Test]
+  public void MultiCcdDisabledFlagIsPreservedInCompiledXml() {
+    var mjcfString = @"<mujoco>
+      <option>
+        <flag multiccd='disable'/>
+      </option>
+      <worldbody/>
+    </mujoco>";
+    _sceneRoot = _importer.ImportString(
+        name: string.Empty, mjcfString: mjcfString);
+    var settings = _sceneRoot.GetComponentInChildren<MjGlobalSettings>();
+    Assert.That(settings.GlobalOptions.Flag.MultiCCD, Is.EqualTo(EnableDisableFlag.disable));
+
+    var doc = new XmlDocument();
+    var mujocoRoot = (XmlElement)doc.AppendChild(doc.CreateElement("mujoco"));
+    settings.GlobalsToMjcf(mujocoRoot);
+    Assert.That(doc.OuterXml, Does.Contain(@"multiccd=""disable"""));
+  }
+
+  [Test]
+  public void MultiCcdDefaultsToEnabledWhenFlagAbsent() {
+    var mjcfString = @"<mujoco>
+      <option/>
+      <worldbody/>
+    </mujoco>";
+    _sceneRoot = _importer.ImportString(
+        name: string.Empty, mjcfString: mjcfString);
+    var settings = _sceneRoot.GetComponentInChildren<MjGlobalSettings>();
+    Assert.That(settings, Is.Not.Null);
+    Assert.That(settings.GlobalOptions.Flag.MultiCCD, Is.EqualTo(EnableDisableFlag.enable));
+  }
+
+  [Test]
   public void ParsedActuatorsAddedToDedicatedGameObjectAggregate() {
     var mjcfString = @"<mujoco>
       <worldbody>
