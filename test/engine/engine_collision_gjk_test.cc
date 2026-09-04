@@ -2174,5 +2174,67 @@ TEST_F(MjGjkTest, ThinBoxGrazing) {
   EXPECT_LE(dist, model->opt.ccd_tolerance);
 }
 
+TEST_F(MjGjkTest, CylinderBoxBackFaceEdge) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="cylinder" size="0.05 0.15"/>
+      <geom name="geom2" type="box" size="0.05 0.15 0.07"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  mjtNum* xpos1 = data->geom_xpos;
+  mjtNum* xmat1 = data->geom_xmat;
+
+  xpos1[0] = 0.23191021521759686;
+  xpos1[1] = -0.43472537698525593;
+  xpos1[2] = 0.39661285409646718;
+
+  xmat1[0] = -0.32701292892485478;
+  xmat1[1] = -0.12329280998746245;
+  xmat1[2] = -0.93694259553154202;
+  xmat1[3] = 0.49240015314737545;
+  xmat1[4] = -0.8684624433071888;
+  xmat1[5] = -0.057576677095404399;
+  xmat1[6] = -0.80660066544506925;
+  xmat1[7] = -0.48017899534475972;
+  xmat1[8] = 0.34470784576691638;
+
+  mjtNum* xpos2 = data->geom_xpos + 3;
+  mjtNum* xmat2 = data->geom_xmat + 9;
+
+  xpos2[0] = 0.11445187572345047;
+  xpos2[1] = -0.40755363814662998;
+  xpos2[2] = 0.33704040755212905;
+
+  xmat2[0] = 0.34942077365670599;
+  xmat2[1] = -0.93671954300419125;
+  xmat2[2] = -0.021485359926434244;
+  xmat2[3] = -0.13775655212039611;
+  xmat2[4] = -0.028678169746457732;
+  xmat2[5] = -0.99005085471802623;
+  xmat2[6] = 0.92678382338334431;
+  xmat2[7] = 0.34890408471958706;
+  xmat2[8] = -0.13906000280791611;
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  mjCCDStatus status1, status2;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status1, dist, dir, pos, model, data, g1, g2, 0, 4);
+  ASSERT_EQ(ncons, 1);
+
+  ncons = Penetration(status2, dist, dir, pos, model, data, g1, g2);
+  ASSERT_EQ(ncons, 1);
+
+  EXPECT_MJTNUM_EQ(status1.x1[0], status2.x1[0]);
+}
+
 }  // namespace
 }  // namespace mujoco

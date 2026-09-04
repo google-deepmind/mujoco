@@ -2134,8 +2134,13 @@ static inline int alignedFaces(int res[2], const mjtNum* v, int nv,
 
 // find two normals that are perpendicular to each other within a tolerance, return 1 if found
 static inline int alignedFaceEdge(int res[2], const mjtNum* edge, int nedge,
-                                  const mjtNum* face, int nface) {
+                                  const mjtNum* face, int nface, const mjtNum dir[3]) {
   for (int i = 0; i < nface; i++) {
+    // ignore faces pointing away from the collision direction (negative dot product)
+    if (dot3(face + 3*i, dir) <= mjMINVAL) {
+      continue;
+    }
+
     for (int j = 0; j < nedge; j++) {
       if (mju_abs(dot3(edge + 3*j, face + 3*i)) < mjEDGE_TOL) {
         res[0] = j;
@@ -2239,7 +2244,7 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
       } else if (obj1->geom_type == mjGEOM_CYLINDER) {
         nnorms1 = cylinderEdgeNormals(n1, endverts, nface1, obj1, v1, v1i[0]);
       }
-      if (!alignedFaceEdge(res, n1, nnorms1, n2, nnorms2)) return;
+      if (!alignedFaceEdge(res, n1, nnorms1, n2, nnorms2, dir)) return;
       edgecon1 = 1;
 
     // check if face-edge collision
@@ -2252,7 +2257,7 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
       } else if (obj2->geom_type == mjGEOM_CYLINDER) {
         nnorms2 = cylinderEdgeNormals(n2, endverts, nface2, obj2, v2, v2i[0]);
       }
-      if (!alignedFaceEdge(res, n2, nnorms2, n1, nnorms1)) return;
+      if (!alignedFaceEdge(res, n2, nnorms2, n1, nnorms1, dir_neg)) return;
       edgecon2 = 1;
     } else {
       // no multi-contact
