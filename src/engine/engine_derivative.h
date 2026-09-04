@@ -81,7 +81,35 @@ MJAPI void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const m
 // dof-level CSR; phase 1 (colind==NULL) fills rownnz/rowadr and returns total nnz, phase 2
 // fills colind/val. Interp flexes are assembled iff Krot (mjd_flexInterp_cacheKrot cache) is
 // non-NULL and the centered fast path applies (check mjd_flexInterpAssemblable first).
-// Passive contact stiffness (omega^2 * m_min); force and Hessian must use the same value.
+// The flex-contact law, shared by the passive penalty and the IPC contact mode. A pair with
+// normal row `row` and stiffness `scale` costs
+//
+//   0.5 * scale * d^2,   d = gap - s - lam/k,   s = max(0, gap - lam/k)
+//
+// giving a force -scale*d along the row and a curvature scale*row'row in the metric. `gap` is the
+// pair's signed distance in the producer's own convention (surface distance for the penalty,
+// midsurface distance less the standoff for IPC), `lam` the augmented-Lagrangian multiplier and
+// `k` the stiffness it is defined against. The passive penalty is the case lam = 0, scale = k.
+// The slack is frozen across an inner solve: computed once per outer iteration, passed back in.
+// Convention: scale*row'row must equal h^2 * k * J'J, however the producer splits the factors.
+MJAPI mjtNum mjd_flexContactSlack(mjtNum k, mjtNum gap, mjtNum lam);
+MJAPI mjtNum mjd_flexContactResidual(mjtNum k, mjtNum gap, mjtNum s, mjtNum lam);
+
+// A published contact row in mjData.efm_con_ind / efm_con_val is a two-slot header and the entries:
+//
+//   ind = [nnz, conid, colind...]      val = [scale, force, val...]
+//
+// scale is the curvature the metric applies, force the pair's force along the row, conid the
+// contact it came from or -1. Apply the published forces: res += force * row over the rows.
+MJAPI void mjd_effContactForce(const mjData* d, mjtNum* res);
+
+// natural frequency of the law: pair stiffness = mjFLEXCONTACT_OMEGA2 * min nonzero vertex mass
+#define mjFLEXCONTACT_OMEGA2 5e7
+
+// point mass of global flex vertex gv, 0 when it has no 3-dof body of its own (pinned)
+MJAPI mjtNum mjd_flexVertMass(const mjModel* m, const mjData* d, int gv);
+
+// passive contact stiffness of a pair; force and Hessian must use the same value
 MJAPI mjtNum mjd_flexContactStiffness(const mjModel* m, const mjData* d, const mjContact* con);
 
 MJAPI int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr,
@@ -144,6 +172,17 @@ MJAPI void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b)
 // apply the metric preconditioner: x ~= (M + B)^-1 b, a cheap fixed linear operator, NOT a solve.
 // Exact only when the metric is inactive (x = M^-1 b); otherwise approximate by construction.
 MJAPI void mjd_effPrec(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);
+
+// fold the rank-1 classes and the efc rows (quadratic zone) into a copy of the preconditioner
+// blocks L (9*nefmdof), factored; returns 0 if nothing is covered, leaving L untouched
+MJAPI int mjd_effPrecFold(const mjModel* m, mjData* d, mjtNum* L,
+                          int nefc, const int* efc_state, const mjtNum* efc_D, int is_sparse,
+                          const mjtNum* J, const int* J_rownnz, const int* J_rowadr,
+                          const int* J_colind);
+
+// apply the metric preconditioner using caller-supplied factored blocks
+MJAPI void mjd_effPrecBlocks(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b,
+                             const mjtNum* L);
 
 
 #ifdef __cplusplus

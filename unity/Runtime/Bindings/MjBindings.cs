@@ -152,7 +152,8 @@ public enum mjtEnableBit : int{
   mjENBL_INVDISCRETE = 8,
   mjENBL_SLEEP = 16,
   mjENBL_DIAGEXACT = 32,
-  mjNENABLE = 6,
+  mjENBL_IPC = 64,
+  mjNENABLE = 7,
 }
 public enum mjtJoint : int{
   mjJNT_FREE = 0,
@@ -5799,6 +5800,8 @@ public unsafe struct mjData_ {
   public double* flexvert_J;
   public double* flexvert_length;
   public double* bvh_aabb_dyn;
+  public double* flexvert_lambda;
+  public int* flexvert_conage;
   public int* ten_wrapadr;
   public int* ten_wrapnum;
   public double* ten_J;

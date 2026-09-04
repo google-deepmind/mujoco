@@ -4042,6 +4042,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjENBL_INVDISCRETE", mjENBL_INVDISCRETE)
     .value("mjENBL_SLEEP", mjENBL_SLEEP)
     .value("mjENBL_DIAGEXACT", mjENBL_DIAGEXACT)
+    .value("mjENBL_IPC", mjENBL_IPC)
     .value("mjNENABLE", mjNENABLE);
   enum_<mjtEq>("mjtEq")
     .value("mjEQ_CONNECT", mjEQ_CONNECT)
@@ -4657,6 +4658,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flexelem_aabb", &MjData::flexelem_aabb)
     .property("flexelem_krot", &MjData::flexelem_krot)
     .property("flexvert_J", &MjData::flexvert_J)
+    .property("flexvert_conage", &MjData::flexvert_conage)
+    .property("flexvert_lambda", &MjData::flexvert_lambda)
     .property("flexvert_length", &MjData::flexvert_length)
     .property("flexvert_xpos", &MjData::flexvert_xpos)
     .property("flg_energypos", &MjData::flg_energypos, &MjData::set_flg_energypos)

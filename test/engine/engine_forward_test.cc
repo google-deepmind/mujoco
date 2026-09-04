@@ -3814,6 +3814,57 @@ TEST_F(ImplicitIntegratorTest, PassiveFlexContactInMetric) {
       << " against the lower sheet's " << lo[0];
 }
 
+// A dense Jacobian gets no chain from mj_contactJacobian: it returns every dof
+// in order and leaves the chain untouched, so the published rows are compacted
+// on their nonzeros instead. Reading the chain regardless indexed uninitialized
+// memory and crashed in the velocity shift.
+TEST_F(ImplicitIntegratorTest, PassiveFlexContactDenseJacobian) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="CG" iterations="400"
+            jacobian="dense"/>
+    <worldbody>
+      <flexcomp name="lower" type="grid" dim="2" count="9 9 1" spacing=".04 .04 1"
+                radius=".004" mass=".3" pos="0 0 .2">
+        <contact selfcollide="auto" passive="true"/>
+        <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="both" damping="1e-4"/>
+        <pin id="0 8 72 80"/>
+      </flexcomp>
+      <flexcomp name="upper" type="grid" dim="2" count="5 5 1" spacing=".04 .04 1"
+                radius=".004" mass=".1" pos="0 0 .27">
+        <contact selfcollide="auto" passive="true"/>
+        <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="both" damping="1e-4"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  const mjModel* model = m.get();
+  mjData* data = d.get();
+  ASSERT_FALSE(mj_isSparse(model)) << "the scene must exercise the dense path";
+
+  for (int i = 0; i < 300; i++) {
+    mj_step(model, data);
+    ASSERT_FALSE(data->warning[mjWARN_BADQACC].number)
+        << "diverged at step " << i;
+    // every published column index addresses a real dof
+    for (int adr = 0; adr < data->nefmcon;) {
+      int nnz = data->efm_con_ind[adr];
+      ASSERT_GE(nnz, 0);
+      ASSERT_LE(adr + 2 + nnz, data->nefmcon);
+      for (int j = 0; j < nnz; j++) {
+        int c = data->efm_con_ind[adr + 2 + j];
+        ASSERT_GE(c, 0);
+        ASSERT_LT(c, model->nv);
+      }
+      adr += 2 + nnz;
+    }
+  }
+}
+
 // The contact rows carry the full Jacobian chain: with the lower sheet pinned
 // to a hinged body, the upper sheet's contacts couple to the hinge inside the
 // metric, not only in the shift. The drop must stay stable, stay bounded, and

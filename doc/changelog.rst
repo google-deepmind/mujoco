@@ -33,6 +33,13 @@ Engine
      elasticity or passive flex contact under ``implicit``/``implicitfast`` now raise a runtime error carrying this
      migration note.
 
+- Added the ``ipc`` :ref:`flag<option-flag-ipc>`, a prototype contact mode of the ``discrete`` integrator for
+  penetration-free flex contact. Each step minimizes an incremental potential subject to linearized contact
+  constraints, using a barrier-free augmented Lagrangian whose subproblems are the discrete solve. Every committed
+  position update is verified intersection-free by continuous collision detection, so flex contact cannot tunnel.
+  Supported for dim-2 flexes: a flex with edge equality constraints keeps its elasticity in the constraint solver,
+  while ``elastic2d`` elasticity is integrated implicitly through the effective metric.
+
 - Restored clamping of non-positive pivots in the sparse inertia factorization, along with the associated
   ``mjWARN_INERTIA`` warning. The guard was inadvertently dropped in the 3.3.0 conversion of ``qLD`` to CSR format;
   since then, models with singular mass matrices silently produced non-finite accelerations, typically surfacing as

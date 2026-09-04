@@ -7043,6 +7043,12 @@ struct MjData {
   emscripten::val bvh_aabb_dyn() const {
     return emscripten::val(emscripten::typed_memory_view(model->nbvhdynamic * 6, ptr_->bvh_aabb_dyn));
   }
+  emscripten::val flexvert_lambda() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nflexvert, ptr_->flexvert_lambda));
+  }
+  emscripten::val flexvert_conage() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nflexvert, ptr_->flexvert_conage));
+  }
   emscripten::val ten_wrapadr() const {
     return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->ten_wrapadr));
   }

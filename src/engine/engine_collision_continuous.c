@@ -21,8 +21,9 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtype.h>
+#include "engine/engine_memory.h"        // mj_arenaAllocByte, mjSTACKALLOC
 #include "engine/engine_util_blas.h"     // mju_dot3, mju_mulMatVec3
-#include "engine/engine_util_errmem.h"   // mju_malloc, mju_free
+#include "engine/engine_util_errmem.h"   // mju_warning
 
 static inline mjtNum min2(mjtNum a, mjtNum b) { return a < b ? a : b; }
 
@@ -500,7 +501,7 @@ mjtNum mjc_pairGap(const mjcFlexPair* pair, const mjModel* m, const mjData* d, c
       idv[0] = v;
       cw[0] = 1;
       *nidx = 1;
-      return dd - radii[v];
+      return dd;  // MIDSURFACE distance: radii NOT subtracted (delta unchanged; see header)
     }
     case mjcGEOM_CORNER_TRI: {  // static geom corner gv[idx0] vs flex triangle A,B,C
       const mjtNum* corner = &gv[3 * pair->idx[0]];
@@ -514,7 +515,7 @@ mjtNum mjc_pairGap(const mjcFlexPair* pair, const mjModel* m, const mjData* d, c
       cw[1] = -w[1];
       cw[2] = -w[2];
       *nidx = 3;
-      return dd - radii[A];  // flex triangle radius
+      return dd;  // MIDSURFACE distance: radii NOT subtracted (delta unchanged; see header)
     }
     case mjcGEOM_EDGE_EDGE: {  // static geom edge ge[idx0] vs flex edge a,b
       const mjtNum* eg = &ge[6 * pair->idx[0]];
@@ -526,7 +527,7 @@ mjtNum mjc_pairGap(const mjcFlexPair* pair, const mjModel* m, const mjData* d, c
       cw[0] = -(1 - st[1]);
       cw[1] = -st[1];
       *nidx = 2;
-      return dd - radii[a];  // flex edge radius
+      return dd;  // MIDSURFACE distance: radii NOT subtracted (delta unchanged; see header)
     }
     default:
       mju_error("mjc_pairGap: unknown pair type %d", pair->type);
@@ -604,14 +605,13 @@ static mjtNum conGapAdv(const mjcFlexPair* con, const mjModel* m, const mjData* 
     case mjcFLEX_VERT_GEOM: {
       mjtNum nn[3];
       return mjc_GeomDist(m, con->g, d->geom_xpos + 3 * con->g, d->geom_xmat + 9 * con->g, P[0],
-                          nn, 1e30) -
-             radii[con->idx[0]];
+                          nn, 1e30);  // midsurface, matching mjc_pairGap
     }
     case mjcGEOM_CORNER_TRI:
-      return mjc_PtTri(&gv[3 * con->idx[0]], P[0], P[1], P[2], cp, w) - radii[con->idx[1]];
+      return mjc_PtTri(&gv[3 * con->idx[0]], P[0], P[1], P[2], cp, w);  // midsurface, matching mjc_pairGap
     case mjcGEOM_EDGE_EDGE: {
       const mjtNum* eg = &ge[6 * con->idx[0]];
-      return mjc_SegSeg(eg, eg + 3, P[0], P[1], c1, c2, st) - radii[con->idx[1]];
+      return mjc_SegSeg(eg, eg + 3, P[0], P[1], c1, c2, st);  // midsurface, matching mjc_pairGap
     }
     default:
       mju_error("conGapAdv: unknown pair type %d", con->type);
@@ -709,26 +709,35 @@ mjtNum mjc_advance(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
   return alpha;
 }
 
-// the radii sum a flex-flex midsurface gap reads ABOVE the old skin gap. Used ONLY to keep the
-// broad-phase detection band at its pre-midsurface reach; types 2/3/4 still subtract their radius
-// inside mjc_pairGap, so they contribute nothing here.
+// the radii a midsurface gap reads ABOVE the old skin gap. Used ONLY to keep the broad-phase
+// detection band at its pre-midsurface reach; every pair type measures at the flex midsurface,
+// so each flex participant contributes its radius (geoms have none: their surface is the surface).
 static mjtNum bandOffset(const mjcFlexPair* con, const mjtNum* radii) {
   switch (con->type) {
     case mjcFLEX_VERT_TRI:
       return radii[con->idx[0]] + radii[con->idx[1]];  // vertex + triangle flex radius
     case mjcFLEX_EDGE_EDGE:
       return radii[con->idx[0]] + radii[con->idx[2]];  // both edges (flex) radii
+    case mjcFLEX_VERT_GEOM:
+      return radii[con->idx[0]];  // flex vertex radius
+    case mjcGEOM_CORNER_TRI:
+      return radii[con->idx[1]];  // flex triangle radius
+    case mjcGEOM_EDGE_EDGE:
+      return radii[con->idx[1]];  // flex edge radius
     default:
-      return 0.0;  // geom side: mjc_pairGap already subtracted the flex radius for types 2/3/4
+      return 0.0;
   }
 }
 
-// append a candidate contact if its gap at x is below the (margin-inflated) detection threshold
-static void addCand(mjcFlexPair con, const mjModel* m, const mjData* d, const mjtNum* x,
+// append a candidate contact if its gap at x is below the (margin-inflated) detection threshold.
+// Candidates are pushed onto the arena one at a time, as mj_collision pushes its pairs: consecutive
+// pushes of one type are adjacent, so *base + *nc indexes them as an array. Once the arena is full
+// *full is set and nothing more is pushed.
+static void addCand(mjcFlexPair con, const mjModel* m, mjData* d, const mjtNum* x,
                     const mjtNum* gv, const mjtNum* ge, const mjtNum* radii, mjtNum thresh,
-                    const mjtNum* dfrom, const mjtNum* dto, mjtNum ghat, mjcFlexPair* cand, int* nc,
-                    int candmax) {
-  if (*nc >= candmax) return;
+                    const mjtNum* dfrom, const mjtNum* dto, mjtNum ghat, mjcFlexPair** base,
+                    int* nc, int* full) {
+  if (*full) return;
   mjtNum n[3], cw[4];
   int idv[4], nidx;
   mjtNum g = mjc_pairGap(&con, m, d, x, gv, ge, radii, n, idv, cw, &nidx, thresh);
@@ -738,12 +747,14 @@ static void addCand(mjcFlexPair con, const mjModel* m, const mjData* d, const mj
   // -- the rest target (mjc_standoff(mjc_pairBand)) is unchanged and must stay that way.
   mjtNum bo = bandOffset(&con, radii);
   if (g >= bo + thresh) return;
+
   // KEEP penetrating geom pairs (g < 0): the normal is still defined there and the solver's
   // restoring force is what pushes the flex back out, so dropping them leaves the penetration
-  // unopposed;
-  // mjc_advance (g0 <= 0 -> no cap) and the merge (cgap <= 0 -> admit) already expect them.
-  // Flex-flex distances are UNSIGNED, so g <= 0 means coincident features with no defined normal.
+  // unopposed; mjc_advance (g0 <= 0 -> no cap) and the merge (cgap <= 0 -> admit) already expect
+  // them. Flex-flex distances are UNSIGNED, so g <= 0 means coincident features with no defined
+  // normal.
   if (con.type <= mjcFLEX_EDGE_EDGE && g <= 0) return;
+
   // closing-bound prune: over the step the gap changes by at most |sum_p cw[p]*(dto-dfrom)[idv[p]]|
   // (Cauchy-Schwarz, |n|=1), so a pair beyond its per-contact ghc + that bound cannot become active
   // this step -> drop it. Replaces the crude GLOBAL 4*maxdisp band (which inflated by the fastest
@@ -756,7 +767,17 @@ static void addCand(mjcFlexPair con, const mjModel* m, const mjData* d, const mj
     if (vp < 0) continue;
     for (int c=0; c < 3; c++) rel[c] += cw[p] * (dto[3 * vp + c] - dfrom[3 * vp + c]);
   }
-  if (g < bo + mjc_pairBand(&con, radii, ghat) + sqrt(mju_dot3(rel, rel))) cand[(*nc)++] = con;
+  if (g < bo + mjc_pairBand(&con, radii, ghat) + sqrt(mju_dot3(rel, rel))) {
+    mjcFlexPair* p =
+        (mjcFlexPair*)mj_arenaAllocByte(d, sizeof(mjcFlexPair), _Alignof(mjcFlexPair));
+    if (!p) {
+      *full = 1;
+      return;
+    }
+    *p = con;
+    if (*nc == 0) *base = p;
+    (*nc)++;
+  }
 }
 
 // descend flex f's element BVH (built and AABB-refreshed by mj_flex at the step's xold), collecting
@@ -795,14 +816,15 @@ static int bvhBox(const mjModel* m, const mjData* d, int f, const mjtNum* c, con
 // build the candidate-contact list once per step, gated by a velocity-aware threshold so any pair
 // that could close within the step is captured (the Newton loop then only re-tests candidates).
 // Flex-flex and geom-feature-vs-flex pairs are found by querying the flex element BVH (bvhBox).
-int mjc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, const mjtNum* gv,
+int mjc_candidates(const mjModel* m, mjData* d, const mjtNum* x, const mjtNum* gv,
                    const mjtNum* ge, int ngv, int nge, const mjtNum* radii, mjtNum thresh,
                    mjtNum threshGeom, mjtNum maxdisp, const mjtNum* dfrom, const mjtNum* dto,
                    mjtNum ghat, int nfv, int npt, const int* fidx, const int* flist,
-                   const int* fxadr, int nfd, const int* pt2flex, mjcFlexPair* cand, int candmax) {
+                   const int* fxadr, int nfd, const int* pt2flex, mjcFlexPair** cand) {
   (void)
       npt;  // increment A: candidates are flex-only (npt==nfv); rigid bodies carry no hard contact
-  int nc = 0;
+  int nc = 0, full = 0;
+  *cand = NULL;
   for (int gi=0; gi < m->ngeom; gi++) {  // free point (flex vert) vs STATIC geom
     if (m->geom_contype[gi] == 0 && m->geom_conaffinity[gi] == 0) continue;  // skip non-colliding
     if (m->body_weldid[m->geom_bodyid[gi]] != 0)
@@ -834,7 +856,7 @@ int mjc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
           continue;
       }
       mjcFlexPair con = {mjcFLEX_VERT_GEOM, {v, 0, 0, 0}, gi};
-      addCand(con, m, d, x, gv, ge, radii, thresh, dfrom, dto, ghat, cand, &nc, candmax);
+      addCand(con, m, d, x, gv, ge, radii, thresh, dfrom, dto, ghat, cand, &nc, &full);
     }
   }
 
@@ -855,9 +877,10 @@ int mjc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
     if (m->flex_elemnum[fk] > maxel) maxel = m->flex_elemnum[fk];
     if (m->flex_edgenum[fk] > maxen) maxen = m->flex_edgenum[fk];
   }
-  int* stk = (int*)mju_malloc(maxbvh * sizeof(int));
-  int* outel = (int*)mju_malloc(maxel * sizeof(int));
-  int* stampG = (int*)mju_malloc(maxen * sizeof(int));
+  mj_markStack(d);
+  int* stk = mjSTACKALLOC(d, maxbvh, int);
+  int* outel = mjSTACKALLOC(d, maxel, int);
+  int* stampG = mjSTACKALLOC(d, maxen, int);
   for (int e=0; e < maxen; e++) stampG[e] = -1;
   int qid = 0;
 
@@ -871,9 +894,9 @@ int mjc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
     int doself_k = (m->flex_selfcollide[fk] != mjFLEXSELF_NONE);
 
     // (rigid sphere-vs-flex-triangle hard contact removed in increment A -- see note above.)
-    // geom-corner vs flex triangle (type 3); geom is static (one-sided) -> tighter threshGeom (the
-    // convex-decomposition bin's ~1600 edges otherwise overflow candmax and drop the bag-bin
-    // contacts).
+    // geom-corner vs flex triangle (type 3); geom is static (one-sided) -> tighter threshGeom (a
+    // convex-decomposition bin's ~1600 edges otherwise produce hundreds of thousands of
+    // candidates).
     mjtNum qhvG[3] = {threshGeom + rk, threshGeom + rk, threshGeom + rk};
     for (int c=0; c < ngv; c++) {
       int n = bvhBox(m, d, fk, &gv[3 * c], qhvG, stk, outel, ne_k);
@@ -883,7 +906,7 @@ int mjc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
                            {c, off_k + el_k[3 * e], off_k + el_k[3 * e + 1],
                             off_k + el_k[3 * e + 2]},
                            -1};
-        addCand(con, m, d, x, gv, ge, radii, threshGeom, dfrom, dto, ghat, cand, &nc, candmax);
+        addCand(con, m, d, x, gv, ge, radii, threshGeom, dfrom, dto, ghat, cand, &nc, &full);
       }
     }
     // geom-edge vs flex edge (type 4); dedup the shared triangle edges per query via stampG.
@@ -907,7 +930,7 @@ int mjc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
                         {c, off_k + m->flex_edge[2 * (ea_k + e2)],
                          off_k + m->flex_edge[2 * (ea_k + e2) + 1], 0},
                         -1};
-          addCand(con, m, d, x, gv, ge, radii, threshGeom, dfrom, dto, ghat, cand, &nc, candmax);
+          addCand(con, m, d, x, gv, ge, radii, threshGeom, dfrom, dto, ghat, cand, &nc, &full);
         }
       }
     }
@@ -926,7 +949,7 @@ int mjc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
         int A = off_k + el_k[3 * e], B = off_k + el_k[3 * e + 1], C = off_k + el_k[3 * e + 2];
         if (kv == k && (v == A || v == B || v == C)) continue;  // skip the self-adjacent triangle
         mjcFlexPair con = {mjcFLEX_VERT_TRI, {v, A, B, C}, -1};
-        addCand(con, m, d, x, gv, ge, radii, thv, dfrom, dto, ghat, cand, &nc, candmax);
+        addCand(con, m, d, x, gv, ge, radii, thv, dfrom, dto, ghat, cand, &nc, &full);
       }
     }
     // flex edge vs flex edge (type 1): symmetric, so canonical -- querying flex kj <= k, and e2 >
@@ -958,14 +981,17 @@ int mjc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
             if (a1 == a2 || a1 == b2 || b1 == a2 || b1 == b2)
               continue;  // shared vertex -> adjacent, skip
             mjcFlexPair con = {mjcFLEX_EDGE_EDGE, {a1, b1, a2, b2}, -1};
-            addCand(con, m, d, x, gv, ge, radii, the, dfrom, dto, ghat, cand, &nc, candmax);
+            addCand(con, m, d, x, gv, ge, radii, the, dfrom, dto, ghat, cand, &nc, &full);
           }
         }
       }
     }
   }
-  mju_free(stk);
-  mju_free(outel);
-  mju_free(stampG);
+  mj_freeStack(d);
+  if (full) {
+    mju_warning("IPC: arena full after %d candidate pairs; the rest were dropped, so geometry "
+                "there can pass through. Increase the model's memory attribute. Time = %.4f",
+                nc, d->time);
+  }
   return nc;
 }

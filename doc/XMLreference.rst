@@ -757,6 +757,30 @@ from its default.
    Under the ``discrete`` :ref:`integrator<option-integrator>`, the exact diagonal is computed against the factored
    backbone of the effective metric :math:`\widehat{M}`; tendon, actuator and flex couplings are not included.
 
+.. _option-flag-ipc:
+
+:at:`ipc`: :at-val:`[disable, enable], "disable"`
+   This flag selects the IPC contact mode of the ``discrete`` :ref:`integrator<option-integrator>`; it is an error
+   with any other integrator. The mode solves its subproblems with matrix-free conjugate gradient, so
+   :ref:`solver<option-solver>` must be ``CG``, and it cannot be combined with the ``fwdinv`` or ``sleep`` flags. It
+   applies model-wide: every flex the mode supports has its contact solved this way. The mode assumes metre-scale
+   models with millimetre-thick flexes: its detection band, rest gap between flex surfaces and convergence speed are
+   fixed at 3 mm, 1 mm and 0.05 m/s.
+   Contact is passive under this flag whatever :ref:`passive<flex-contact-passive>` says, since the flag replaces
+   the penalty form of passive contact — the same contact law with the multiplier held at zero — with the
+   augmented-Lagrangian solve, rather than returning any flex to the constraint solver. Flex contact is solved by a
+   barrier-free augmented-Lagrangian outer loop around the
+   discrete solve: each step minimizes an incremental potential subject to linearized contact constraints,
+   re-linearizing contact at trial positions, and every committed position update is verified intersection-free
+   by continuous collision detection, so flex contact cannot tunnel. Rigid bodies are carried through the same
+   position-level step with their contacts kept in the constraint solver, and a model without 2D flexes takes that
+   step as well. Supported for dim-2 flexes: a flex with edge equality constraints keeps its elasticity in the
+   constraint solver, while :ref:`elastic2d<body-flexcomp-elasticity>` elasticity is integrated implicitly through
+   the effective metric.
+   Under this flag the constraint stage of :ref:`mj_forward` is skipped: ``mjData.qacc`` holds the free-flight
+   acceleration and the acceleration-stage sensors do not include contact until the step completes. Inverse
+   dynamics is not supported.
+
 .. _compiler:
 
 **compiler** |*|
