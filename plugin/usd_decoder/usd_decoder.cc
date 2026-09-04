@@ -863,11 +863,15 @@ void ParseUsdPhysicsScene(mjSpec* spec,
 
 void ParseUsdPhysicsMassAPIForBody(mjsBody* body,
                                    const pxr::UsdPhysicsMassAPI& mass_api) {
+  bool has_mass = false;
+  bool has_diagonal_inertia = false;
+
   auto mass_attr = mass_api.GetMassAttr();
   if (mass_attr.HasAuthoredValue()) {
     float mass;
     mass_attr.Get(&mass);
     body->mass = mass;
+    has_mass = true;
   }
 
   auto com_attr = mass_api.GetCenterOfMassAttr();
@@ -889,6 +893,11 @@ void ParseUsdPhysicsMassAPIForBody(mjsBody* body,
     pxr::GfVec3f diag_inertia;
     diag_inertia_attr.Get(&diag_inertia);
     SetDoubleArrFromGfVec3d(body->inertia, diag_inertia);
+    has_diagonal_inertia = true;
+  }
+
+  if (has_mass && has_diagonal_inertia) {
+    body->explicitinertial = true;
   }
 
   auto newton_inertia_attr =
@@ -2007,6 +2016,22 @@ void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
     if (material) {
       mjs_setString(geom->material, mjs_getName(material->element)->c_str());
     }
+  }
+
+  bool has_authored_mass_properties = false;
+  if (gprim.HasAPI<pxr::UsdPhysicsMassAPI>()) {
+    auto mass_api = pxr::UsdPhysicsMassAPI(gprim);
+    has_authored_mass_properties =
+        mass_api.GetMassAttr().HasAuthoredValue() ||
+        mass_api.GetDensityAttr().HasAuthoredValue();
+    ParseUsdPhysicsMassAPIForGeom(geom, mass_api);
+  }
+
+  if (gprim.HasAPI<pxr::MjcPhysicsImageableAPI>() &&
+      !has_authored_mass_properties) {
+    // This non-collider GPrim has MuJoCo visual metadata but no explicit mass
+    // properties. Keep it from inheriting MuJoCo's default geom density.
+    geom->density = 0;
   }
 
   if (gprim.HasAPI<pxr::MjcPhysicsImageableAPI>()) {
