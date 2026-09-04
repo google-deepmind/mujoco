@@ -1096,6 +1096,20 @@ typedef struct {
   int ncone;              // number of contacts in cone state
   int nupdate;            // number of Cholesky updates
 
+  // cone fold gate (elliptic sparse)
+  int* pathcost;          // reverse-etree path costs of L rows               (nv x 1)
+  mjtSize Lflops;         // sum of squared L row nonzeros (2x factorization MACs)
+  int cone_fold;          // cached fold decision (-1: recompute)
+
+  // cone fold workspace, allocated on the first fold (elliptic sparse)
+  mjtNum* Jmod;           // Jacobian, cone rows replaced by Lc'*Jc           (nJ x 1)
+  mjtNum* JTmod;          // transpose of Jmod                                (nJ x 1)
+  mjtNum* Dmod;           // constraint inertia, cone rows set to 1           (nefc x 1)
+  mjtNum* Hcone;          // cone-inclusive Hessian                           (nH x 1)
+  int* JTmod_rownnz;      // Jmod transpose row nonzeros                      (nv x 1)
+  int* JTmod_rowadr;      // Jmod transpose row addresses                     (nv x 1)
+  int* JTmod_colind;      // Jmod transpose column indices                    (nJ x 1)
+
   // linesearch diagnostics
   int LSiter;             // number of linesearch iterations
   int LSresult;           // linesearch result
@@ -1113,6 +1127,7 @@ static void PrimalPointers(const mjModel* m, const mjData* d, mjPrimalContext* c
   ctx->is_elliptic = (m->opt.cone == mjCONE_ELLIPTIC);
   ctx->contact = d->contact;
   ctx->island = island;
+  ctx->cone_fold = -1;
 
   // set sizes and pointers (monolithic)
   if (island < 0) {
@@ -2365,13 +2380,14 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
                                      nv, d);
 
     // nL is known: allocate blocks and carve L_colind, LT_colind, LT_map, L, Lcone
-    size_t nL_int = 2*ctx->nL + ctx->nL;                     // L_colind + LT_colind + LT_map
-    size_t nL_num = ctx->is_elliptic ? 2*ctx->nL : ctx->nL;  // L + Lcone
+    size_t nL_int = 3*ctx->nL + (ctx->is_elliptic ? nv : 0);  // L_colind + LT_colind + LT_map + pathcost
+    size_t nL_num = ctx->is_elliptic ? 2*ctx->nL : ctx->nL;   // L + Lcone
     int* L_intblock    = mjSTACKALLOC(d, nL_int, int);
     mjtNum* L_numblock = mjSTACKALLOC(d, nL_num, mjtNum);
     ctx->L_colind      = L_intblock;
     ctx->LT_colind     = L_intblock + ctx->nL;
     ctx->LT_map        = L_intblock + 2*ctx->nL;
+    ctx->pathcost      = ctx->is_elliptic ? L_intblock + 3*ctx->nL : NULL;
     ctx->L             = L_numblock;
     ctx->Lcone         = ctx->is_elliptic ? L_numblock + ctx->nL : NULL;
 
@@ -2380,6 +2396,20 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
                            ctx->LT_colind, ctx->LT_rownnz, ctx->LT_rowadr, ctx->LT_map,
                            ctx->HT_rownnz, ctx->HT_rowadr, ctx->HT_colind,
                            nv, d);
+
+    // cone fold gate inputs, fixed for the solve since the L pattern is fixed:
+    // pathcost[r] totals the L row nonzeros along the reverse-etree path from
+    // row r (parent(r) = largest off-diagonal column of L row r), the cost of
+    // a rank-1 update starting at column r; Lflops totals squared row nonzeros
+    if (ctx->is_elliptic) {
+      ctx->Lflops = 0;
+      for (int r=0; r < nv; r++) {
+        int nnz = ctx->L_rownnz[r];
+        int parent = nnz >= 2 ? ctx->L_colind[ctx->L_rowadr[r] + nnz - 2] : -1;
+        ctx->pathcost[r] = nnz + (parent >= 0 ? ctx->pathcost[parent] : 0);
+        ctx->Lflops += (mjtSize)nnz * nnz;
+      }
+    }
   }
 
   // dense
@@ -2476,6 +2506,7 @@ static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute)
 
   // add cones to factor if present
   if (ctx->ncone) {
+    ctx->cone_fold = -1;
     HessianCone(d, ctx);
   }
 
@@ -2484,8 +2515,80 @@ static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute)
 }
 
 
-// elliptic case: Hcone = H + cone_contributions
-static void HessianCone(mjData* d, mjPrimalContext* ctx) {
+// elliptic sparse case with many cones: rebuild Lcone with one factorization.
+static void HessianConeFolded(mjData* d, mjPrimalContext* ctx) {
+  int nv = ctx->nv, nefc = ctx->nefc;
+  mjtNum local[36];
+
+  // allocate on the first fold of this solve and reuse for the rest of it
+  if (!ctx->Jmod) {
+    ctx->Jmod         = mjSTACKALLOC(d, ctx->nJ, mjtNum);
+    ctx->JTmod        = mjSTACKALLOC(d, ctx->nJ, mjtNum);
+    ctx->Dmod         = mjSTACKALLOC(d, nefc, mjtNum);
+    ctx->Hcone        = mjSTACKALLOC(d, ctx->nH, mjtNum);
+    ctx->JTmod_rownnz = mjSTACKALLOC(d, nv, int);
+    ctx->JTmod_rowadr = mjSTACKALLOC(d, nv, int);
+    ctx->JTmod_colind = mjSTACKALLOC(d, ctx->nJ, int);
+  }
+  mjtNum* Jmod   = ctx->Jmod;
+  mjtNum* JTmod  = ctx->JTmod;
+  mjtNum* Dmod   = ctx->Dmod;
+  mjtNum* Hcone  = ctx->Hcone;
+  int* JT_rownnz = ctx->JTmod_rownnz;
+  int* JT_rowadr = ctx->JTmod_rowadr;
+  int* JT_colind = ctx->JTmod_colind;
+
+  mju_copy(Jmod, ctx->J, ctx->nJ);
+  for (int i=0; i < nefc; i++) {
+    Dmod[i] = ctx->efc_state[i] == mjCNSTRSTATE_QUADRATIC ? ctx->efc_D[i] : 0;
+  }
+
+  // replace cone contact rows with Lc'*Jc, where Hc = Lc*Lc'
+  for (int i=0; i < nefc; i++) {
+    if (ctx->efc_state[i] == mjCNSTRSTATE_CONE) {
+      int dim = ctx->contact[ctx->efc_id[i]].dim;
+      mju_copy(local, ctx->contact[ctx->efc_id[i]].H, dim*dim);
+      mju_cholFactor(local, dim, mjMINVAL);
+
+      const int nnz = ctx->J_rownnz[i];
+      for (int c=0; c < dim; c++) {
+        mjtNum* dst = Jmod + ctx->J_rowadr[i+c];
+        mju_zero(dst, nnz);
+        for (int r=c; r < dim; r++) {
+          mju_addToScl(dst, ctx->J + ctx->J_rowadr[i+r], local[r*dim+c], nnz);
+        }
+        Dmod[i+c] = 1;
+      }
+      ctx->nupdate += dim;
+      i += (dim-1);
+    }
+  }
+
+  // Lcone = chol(Jmod'*Dmod*Jmod + M), same sparsity as L
+  mju_transposeSparse(JTmod, Jmod, nefc, nv, JT_rownnz, JT_rowadr, JT_colind, NULL,
+                      ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind);
+  mju_sqrMatTDSparseNumeric(Hcone, nv, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, NULL,
+                            Jmod, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+                            JTmod, JT_rownnz, JT_rowadr, JT_colind,
+                            ctx->JT_rowsuper, Dmod, d);
+  mju_addToMatSparse(Hcone, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv,
+                     ctx->M, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
+  if (ctx->nS) {
+    mju_addToMatSparse(Hcone, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv,
+                       ctx->S_val, ctx->S_rownnz, ctx->S_rowadr, ctx->S_colind);
+  }
+  if (mju_cholFactorNumeric(ctx->Lcone, nv, mjMINVAL,
+                            ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind,
+                            ctx->LT_rownnz, ctx->LT_rowadr, ctx->LT_colind, ctx->LT_map,
+                            Hcone, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
+                            ctx->cholscratch) != nv) {
+    mjERROR("rank-deficient cone Hessian");
+  }
+}
+
+
+// elliptic case, update path: Lcone = L, then dim rank-1 updates per cone contact
+static void HessianConeUpdate(mjData* d, mjPrimalContext* ctx) {
   int nv = ctx->nv, nefc = ctx->nefc;
   mjtNum* LTJ = ctx->LTJ;
   mjtNum local[36];
@@ -2550,6 +2653,52 @@ static void HessianCone(mjData* d, mjPrimalContext* ctx) {
 }
 
 
+// predict whether folding is faster than rank-1 updates for the current set, comparing flop counts:
+// update path:   U = sum over cone contacts of dim * pathcost of the contact's last dof (a rank-1
+//                update walks the reverse-etree path of its last dof; lower dofs merge into it)
+// folded path:   Lflops/2 for the factorization plus S for J'*D*J over the D != 0 rows
+// fold when 10 U > 3 (Lflops + 2 S): an update flop costs about twice a factorization flop
+static int HessianConeFoldFaster(const mjPrimalContext* ctx) {
+  int nefc = ctx->nefc;
+
+  // U: update flops, S: J'*D*J flops
+  mjtSize U = 0, S = 0;
+  for (int i=0; i < nefc; i++) {
+    int nnz = ctx->J_rownnz[i];
+    if (ctx->efc_state[i] == mjCNSTRSTATE_QUADRATIC) {
+      S += (mjtSize)nnz * nnz;
+    } else if (ctx->efc_state[i] == mjCNSTRSTATE_CONE) {
+      int dim = ctx->contact[ctx->efc_id[i]].dim;
+      int lastcol = ctx->J_colind[ctx->J_rowadr[i] + nnz - 1];
+      U += (mjtSize)dim * ctx->pathcost[lastcol];
+      S += (mjtSize)dim * nnz * nnz;
+      i += dim - 1;
+    }
+  }
+
+  return 10*U > 3*(ctx->Lflops + 2*S);
+}
+
+
+// elliptic case: Hcone = H + cone_contributions
+static void HessianCone(mjData* d, mjPrimalContext* ctx) {
+  // sparse mode with many sliding contacts: one refactorization can beat
+  // sum(dim) rank-1 updates per cone contact. The decision depends only on
+  // sparsity patterns and efc_state, so it is cached until a state change.
+  if (ctx->is_sparse) {
+    if (ctx->cone_fold < 0) {
+      ctx->cone_fold = HessianConeFoldFaster(ctx);
+    }
+    if (ctx->cone_fold) {
+      HessianConeFolded(d, ctx);
+      return;
+    }
+  }
+
+  HessianConeUpdate(d, ctx);
+}
+
+
 // incremental update to Hessian factor due to changes in efc_state
 static void HessianIncremental(mjData* d, mjPrimalContext* ctx, const int* oldstate) {
   int rank, nv = ctx->nv, nefc = ctx->nefc;
@@ -2561,6 +2710,11 @@ static void HessianIncremental(mjData* d, mjPrimalContext* ctx, const int* oldst
   // update H factorization
   for (int i=0; i < nefc; i++) {
     int flag_update = -1;
+
+    // any state change invalidates the cached cone fold decision
+    if (oldstate[i] != ctx->efc_state[i]) {
+      ctx->cone_fold = -1;
+    }
 
     // add quad
     if (oldstate[i] != mjCNSTRSTATE_QUADRATIC && ctx->efc_state[i] == mjCNSTRSTATE_QUADRATIC) {

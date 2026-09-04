@@ -681,5 +681,89 @@ TEST_F(SolverTest, EllipticConeHessianSurvivesFrictionRatios) {
   }
 }
 
+// With many sliding contacts, the sparse elliptic Newton solver rebuilds the
+// cone-augmented factor with one refactorization instead of per-contact rank-1
+// updates (cone folding). The folded factor must match the incremental one, so
+// sparse and dense (which always uses rank-1 updates) must agree. The scene is
+// a walled corner where a pile of 29 boxes clumps under diagonal gravity and
+// slides steadily, holding most contacts in cone state; mixed condim exercises
+// contact dim 3, 4 and 6.
+TEST_F(SolverTest, ConeFoldEquivalent) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option cone="elliptic" solver="Newton" gravity="-8 -8 -10">
+      <flag island="disable"/>
+    </option>
+    <worldbody>
+      <geom name="floor" type="plane" size="1 1 .01"/>
+      <geom name="wallx" type="box" size=".02 .5 .1" pos="-.5 0 .1"/>
+      <geom name="wally" type="box" size=".5 .02 .1" pos="0 -.5 .1"/>
+      <replicate count="3" offset="0 .11 0">
+        <replicate count="3" offset=".11 0 0">
+          <replicate count="3" offset="0 0 .11">
+            <body pos="-.35 -.35 .06">
+              <freejoint/>
+              <geom type="box" size=".05 .05 .05"/>
+            </body>
+          </replicate>
+        </replicate>
+      </replicate>
+      <body pos="-.1 -.1 .06">
+        <freejoint/>
+        <geom type="box" size=".05 .05 .05" condim="4" friction="1 .01 .01"/>
+      </body>
+      <body pos="-.1 -.25 .06">
+        <freejoint/>
+        <geom type="box" size=".05 .05 .05" condim="6" friction="1 .01 .0001"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  model->opt.tolerance = 0;  // run all iterations for tight convergence
+  int nv = model->nv;
+
+  model->opt.jacobian = mjJAC_SPARSE;
+  MjDataPtr data_sparse = MakeData(model);
+  MjDataPtr data_dense = MakeData(model);
+
+  // let the pile fall and clump against the walls (sparse drives the state)
+  for (int step = 0; step < 100; step++) {
+    mj_step(model.get(), data_sparse.get());
+  }
+
+  int state_size = mj_stateSize(model.get(), mjSTATE_PHYSICS);
+  std::vector<mjtNum> state(state_size);
+
+  // compare sparse (folding) and dense (rank-1 updates) accelerations while
+  // the clump slides
+  for (int step = 0; step < 50; step++) {
+    mj_getState(model.get(), data_sparse.get(), state.data(), mjSTATE_PHYSICS);
+
+    model->opt.jacobian = mjJAC_SPARSE;
+    mj_forward(model.get(), data_sparse.get());
+
+    model->opt.jacobian = mjJAC_DENSE;
+    mj_setState(model.get(), data_dense.get(), state.data(), mjSTATE_PHYSICS);
+    mj_forward(model.get(), data_dense.get());
+
+    for (int j = 0; j < nv; j++) {
+      mjtNum scale = max(static_cast<mjtNum>(1), std::abs(data_dense->qacc[j]));
+      EXPECT_NEAR(data_sparse->qacc[j] / scale, data_dense->qacc[j] / scale,
+                  MjTol(1e-6, 1e-3))
+          << "dof " << j << " at step " << step;
+    }
+    for (int i = 0; i < mjNWARNING; i++) {
+      ASSERT_EQ(data_sparse->warning[i].number, 0)
+          << "warning " << i << " at step " << step;
+    }
+
+    model->opt.jacobian = mjJAC_SPARSE;
+    mj_step(model.get(), data_sparse.get());
+  }
+}
+
 }  // namespace
 }  // namespace mujoco
