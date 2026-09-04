@@ -21,6 +21,16 @@ function hideLoading() {
   loadingOverlay.style.display = 'none';
 }
 
+function isIOSDevice() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+// iOS WebKit has a substantially lower WebAssembly memory ceiling than
+// desktop browsers. Select the single-threaded, lower-memory build before the
+// Emscripten runtime creates its WebAssembly.Memory object.
+const wasmRuntimeDirectory = isIOSDevice() ? 'bin/ios' : 'bin';
+
 // ---------------------------------------------------------------------------
 // Parallel asset prefetcher.
 //
@@ -124,7 +134,7 @@ var Module = {
   postRun: [],
   locateFile: function (path) {
     const baseURL = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf("/"));
-    return baseURL + "/bin/" + path;
+    return baseURL + "/" + wasmRuntimeDirectory + "/" + path;
   },
   print: console.log,
   printErr: text => {
@@ -328,3 +338,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+const wasmRuntimeScript = document.createElement('script');
+wasmRuntimeScript.async = true;
+wasmRuntimeScript.src = Module.locateFile('mujoco_studio.js');
+wasmRuntimeScript.onerror = () => {
+  hideLoading();
+  console.error('Failed to load MuJoCo Live runtime:', wasmRuntimeScript.src);
+};
+document.body.appendChild(wasmRuntimeScript);

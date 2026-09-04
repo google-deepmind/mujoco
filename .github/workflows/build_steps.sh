@@ -396,7 +396,7 @@ build_mujoco_live() {
         -DMUJOCO_BUILD_SIMULATE=OFF
     cmake --build build_host --target matc resgen cmgen mujoco_filament_assets -j$(nproc)
 
-    echo "Building WASM app..."
+    echo "Building desktop WASM app..."
     emcmake cmake -S . -B build_wasm -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DMUJOCO_BUILD_STUDIO=ON \
@@ -404,6 +404,20 @@ build_mujoco_live() {
         -DMUJOCO_BUILD_TESTS_WASM=OFF \
         -DMUJOCO_NATIVE_BUILD_DIR=$(pwd)/build_host
     cmake --build build_wasm --target mujoco_studio -j$(nproc)
+
+    # iOS WebKit cannot reliably reserve the desktop build's 4 GiB shared
+    # memory. Keep a separate non-threaded profile below its practical limit.
+    echo "Building iOS WASM app..."
+    emcmake cmake -S . -B build_wasm_ios -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DMUJOCO_BUILD_STUDIO=ON \
+        -DMUJOCO_USE_FILAMENT=ON \
+        -DMUJOCO_BUILD_TESTS_WASM=OFF \
+        -DMUJOCO_WASM_THREADS=OFF \
+        -DMUJOCO_STUDIO_WASM_INITIAL_MEMORY=256mb \
+        -DMUJOCO_STUDIO_WASM_MAXIMUM_MEMORY=512mb \
+        -DMUJOCO_NATIVE_BUILD_DIR=$(pwd)/build_host
+    cmake --build build_wasm_ios --target mujoco_studio -j$(nproc)
 }
 
 
