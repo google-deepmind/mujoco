@@ -37,7 +37,7 @@
 #include "user/user_api.h"
 
 #ifdef MUJOCO_TINYOBJLOADER_IMPL
-#define TINYOBJLOADER_IMPLEMENTATION
+  #define TINYOBJLOADER_IMPLEMENTATION
 #endif
 
 #if defined(__clang__)

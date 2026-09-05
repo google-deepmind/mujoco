@@ -38,7 +38,6 @@
 //  if vfs is not NULL, look up files in vfs before reading from disk
 //  error can be NULL; otherwise assumed to have size error_sz
 mjModel* mj_loadXML(const char* filename, const mjVFS* vfs, char* error, int error_sz) {
-
   // parse new model
   std::unique_ptr<mjSpec, std::function<void(mjSpec*)> > spec(
       ParseXML(filename, vfs, error, error_sz),
