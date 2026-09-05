@@ -5520,7 +5520,7 @@ uint64_t mjCModel::Signature() {
   for (unsigned int i = 0; i < materials_.size(); ++i) { tree << "<material/>\n"; }
   for (unsigned int i = 0; i < pairs_.size(); ++i) { tree << "<pair/>\n"; }
   for (unsigned int i = 0; i < excludes_.size(); ++i) { tree << "<exclude/>\n"; }
-  for (unsigned int i = 1; i < equalities_.size(); ++i) { tree << "<equality/>\n"; }
+  for (unsigned int i = 0; i < equalities_.size(); ++i) { tree << "<equality/>\n"; }
   for (unsigned int i = 0; i < tendons_.size(); ++i) { tree << "<tendon/>\n"; }
   for (unsigned int i = 0; i < actuators_.size(); ++i) { tree << "<actuator/>\n"; }
   for (unsigned int i = 0; i < sensors_.size(); ++i) {
