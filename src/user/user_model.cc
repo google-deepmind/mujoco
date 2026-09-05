@@ -4538,6 +4538,9 @@ static void reassignid(vector<T*>& list) {
 
 // set object ids, check for repeated names
 void mjCModel::ProcessLists(bool checkrepeat) {
+  // names may have changed outside mjs_setName (e.g. namespacing on attach)
+  name_counts_valid_ = false;
+
   for (int i = 0; i < mjNOBJECT; i++) {
     if (i != mjOBJ_XBODY && object_lists_[i]) {
       ids[i].clear();
@@ -4597,6 +4600,81 @@ void mjCModel::CheckRepeat(mjtObj type) {
       string msg = "repeated name '" + *adjacent + "' in " + mju_type2Str(type);
       throw mjCError(nullptr, "%s", msg.c_str());
     }
+  }
+}
+
+
+// rebuild per-type name counts from the element lists
+void mjCModel::BuildNameCounts() {
+  for (auto& counts : name_counts_) { counts.clear(); }
+  for (int i = 0; i < mjNOBJECT; i++) {
+    if (i == mjOBJ_XBODY || !object_lists_[i]) { continue; }
+    for (const mjCBase* element : *object_lists_[i]) {
+      if (!element->name.empty()) { name_counts_[i][element->name]++; }
+    }
+  }
+  for (const mjCFrame* frame : frames_) {
+    if (!frame->name.empty()) { name_counts_[mjNOBJECT][frame->name]++; }
+  }
+  for (int i = 0; i <= mjNOBJECT; i++) {
+    name_dups_[i] = 0;
+    for (const auto& [name, count] : name_counts_[i]) {
+      if (count > 1) { name_dups_[i]++; }
+    }
+  }
+  name_counts_valid_ = true;
+}
+
+
+// check that newname is not used by another element of the same type
+void mjCModel::CheckNameChange(mjtObj             type,
+                               const std::string& oldname,
+                               const std::string& newname) {
+  // slot in name_counts_: regular types index directly, frames use the last slot
+  int slot;
+  if (type == mjOBJ_FRAME) {
+    slot = mjNOBJECT;
+  } else if (type < mjNOBJECT && type != mjOBJ_XBODY && object_lists_[type]) {
+    slot = type;
+  } else {
+    return;
+  }
+  std::unordered_map<std::string, int>& counts = name_counts_[slot];
+
+  // rebuild if stale, otherwise move one count from oldname to newname
+  if (!name_counts_valid_) {
+    BuildNameCounts();  // the element already holds newname, so counts are up to date
+  } else {
+    if (!oldname.empty()) {
+      auto it = counts.find(oldname);
+      if (it != counts.end()) {
+        if (it->second == 2) { name_dups_[slot]--; }
+        if (--it->second == 0) { counts.erase(it); }
+      }
+    }
+    if (!newname.empty() && ++counts[newname] == 2) { name_dups_[slot]++; }
+  }
+
+  // before reporting, rebuild from the lists so that a reported duplicate is never stale: a
+  // renamed element that is no longer in the lists (e.g. after mjs_delete) leaves a phantom count
+  if (name_dups_[slot] > 0) { BuildNameCounts(); }
+
+  // report a repeated name, as CheckRepeat would: prefer newname, otherwise any repeated name
+  if (name_dups_[slot] > 0) {
+    const std::string* repeated = nullptr;
+    if (auto it = newname.empty() ? counts.end() : counts.find(newname);
+        it != counts.end() && it->second > 1) {
+      repeated = &newname;
+    } else {
+      for (const auto& [name, count] : counts) {
+        if (count > 1) {
+          repeated = &name;
+          break;
+        }
+      }
+    }
+    string msg = "repeated name '" + *repeated + "' in " + mju_type2Str(type);
+    throw mjCError(nullptr, "%s", msg.c_str());
   }
 }
 

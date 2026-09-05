@@ -774,6 +774,110 @@ TEST_F(MujocoTest, ReplicateExplicitPlugin) {
   mj_deleteModel(model);
 }
 
+TEST_F(MujocoTest, SetNameDetectsRepeatedNames) {
+  mjSpec* spec = mj_makeSpec();
+  mjsBody* world = mjs_findBody(spec, "world");
+  mjsGeom* geom1 = mjs_addGeom(world, 0);
+  mjsGeom* geom2 = mjs_addGeom(world, 0);
+  mjsSite* site = mjs_addSite(world, 0);
+
+  // repeated name within a type is an error
+  EXPECT_EQ(mjs_setName(geom1->element, "a"), 0);
+  EXPECT_EQ(mjs_setName(geom2->element, "a"), -1);
+  EXPECT_STREQ(mjs_getError(spec), "Error: repeated name 'a' in geom");
+
+  // same name across types is fine
+  EXPECT_EQ(mjs_setName(site->element, "a"), 0);
+
+  // renaming an element frees its old name
+  EXPECT_EQ(mjs_setName(geom1->element, "b"), 0);
+  EXPECT_EQ(mjs_setName(geom2->element, "a"), 0);
+  EXPECT_EQ(mjs_setName(geom1->element, "a"), -1);
+
+  // a failed rename leaves the name in place, so both geoms are now "a"
+  EXPECT_STREQ(mjs_getName(geom1->element)->c_str(), "a");
+  EXPECT_EQ(mjs_setName(geom2->element, "a"), -1);
+  EXPECT_EQ(mjs_setName(geom1->element, "b"), 0);
+
+  // renaming to the current name is fine
+  EXPECT_EQ(mjs_setName(geom2->element, "a"), 0);
+
+  // empty names may repeat
+  EXPECT_EQ(mjs_setName(geom1->element, ""), 0);
+  mjsGeom* geom3 = mjs_addGeom(world, 0);
+  EXPECT_EQ(mjs_setName(geom3->element, ""), 0);
+
+  // deleting an element frees its name
+  EXPECT_EQ(mjs_delete(spec, geom2->element), 0);
+  EXPECT_EQ(mjs_setName(geom3->element, "a"), 0);
+
+  // frames are checked too
+  mjsFrame* frame1 = mjs_addFrame(world, nullptr);
+  mjsFrame* frame2 = mjs_addFrame(world, nullptr);
+  EXPECT_EQ(mjs_setName(frame1->element, "f"), 0);
+  EXPECT_EQ(mjs_setName(frame2->element, "f"), -1);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("repeated name 'f'"));
+  EXPECT_EQ(mjs_setName(frame2->element, "g"), 0);
+
+  // names that arrived through attach are visible to the check
+  mjSpec* child = mj_makeSpec();
+  mjsBody* child_body = mjs_addBody(mjs_findBody(child, "world"), 0);
+  EXPECT_EQ(mjs_setName(child_body->element, "attached"), 0);
+  mjsFrame* frame = mjs_addFrame(world, nullptr);
+  ASSERT_THAT(mjs_attach(frame->element, child_body->element, "", ""),
+              NotNull());
+  mjsBody* body = mjs_addBody(world, 0);
+  EXPECT_EQ(mjs_setName(body->element, "attached"), -1);
+  EXPECT_STREQ(mjs_getError(spec), "Error: repeated name 'attached' in body");
+  EXPECT_EQ(mjs_setName(body->element, "own"), 0);
+
+  // the model compiles once names are unique
+  geom1->size[0] = geom3->size[0] = 1;
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "a"), 1);
+  EXPECT_EQ(mj_name2id(model, mjOBJ_BODY, "attached"), 1);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(child);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetNameDetectsRepeatedNamesFromXML) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="plane" size="1 1 1"/>
+      <body name="box">
+        <geom name="boxgeom" size="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  // names loaded from XML are visible to the check
+  mjsBody* world = mjs_findBody(spec, "world");
+  mjsGeom* geom = mjs_addGeom(world, 0);
+  geom->size[0] = 1;
+  EXPECT_EQ(mjs_setName(geom->element, "floor"), -1);
+  EXPECT_STREQ(mjs_getError(spec), "Error: repeated name 'floor' in geom");
+  EXPECT_EQ(mjs_setName(geom->element, "boxgeom"), -1);
+  EXPECT_EQ(mjs_setName(geom->element, "box"), 0);  // body name, other type
+
+  // still checked after a compile
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjsBody* body = mjs_addBody(world, 0);
+  EXPECT_EQ(mjs_setName(body->element, "box"), -1);
+  EXPECT_EQ(mjs_setName(body->element, "box2"), 0);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, RecompileFails) {
   mjSpec* spec = mj_makeSpec();
   mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);

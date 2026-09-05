@@ -33,8 +33,9 @@
 #include <mujoco/mjtype.h>
 #include "user/user_objects.h"
 
-typedef std::map<std::string, int, std::less<>> mjKeyMap;
-typedef std::array<mjKeyMap, mjNOBJECT>         mjListKeyMap;
+typedef std::map<std::string, int, std::less<>>                         mjKeyMap;
+typedef std::array<mjKeyMap, mjNOBJECT>                                 mjListKeyMap;
+typedef std::array<std::unordered_map<std::string, int>, mjNOBJECT + 1> mjNameCounts;
 
 typedef struct mjKeyInfo_ {
   std::string name;
@@ -373,6 +374,10 @@ class mjCModel : public mjCModel_, private mjSpec {
   // check for repeated names in list
   void CheckRepeat(mjtObj type);
 
+  // check that newname is not used by another element of the same type; the element
+  // already holds newname, oldname is the name it held before
+  void CheckNameChange(mjtObj type, const std::string& oldname, const std::string& newname);
+
   // increment and decrement reference count
   void AddRef() { ++refcount; }
   int  GetRef() const { return refcount; }
@@ -479,6 +484,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   // populate objects ids
   void ProcessLists(bool checkrepeat = true);
 
+  // rebuild name_counts_ from the element lists
+  void BuildNameCounts();
+
   // process list of objects
   template <class T>
   void ProcessList_(mjListKeyMap& ids, std::vector<T*>& list, mjtObj type, bool checkrepeat = true);
@@ -526,9 +534,12 @@ class mjCModel : public mjCModel_, private mjSpec {
   // expand all keyframes in the model
   void ExpandAllKeyframes();
 
-  mjListKeyMap             ids;              // map from object names to ids
-  mjCError                 errInfo;          // last error info
-  std::vector<std::string> warnings_;        // chronological list of non-fatal warnings
+  mjListKeyMap                   ids;                         // map from object names to ids
+  mjNameCounts                   name_counts_;                // names in use per element type
+  std::array<int, mjNOBJECT + 1> name_dups_         = {};     // names used more than once, per type
+  bool                           name_counts_valid_ = false;  // name_counts_ matches the lists
+  mjCError                       errInfo;                     // last error info
+  std::vector<std::string>       warnings_;  // chronological list of non-fatal warnings
   int  num_attach_warnings_ = 0;             // boundary: [0, n) are attach, [n, size) are compile
   bool compiling_           = false;         // true during Compile()
   std::vector<mjKeyInfo> key_pending_;       // attached keyframes
