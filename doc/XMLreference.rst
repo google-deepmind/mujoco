@@ -373,9 +373,10 @@ adjust it properly through the XML.
    This attribute determines the ratio of frictional-to-normal constraint impedance for elliptic friction cones. The
    setting of solimp determines a single impedance value for all contact dimensions, which is then modulated by this
    attribute. Settings larger than 1 cause friction forces to be "harder" than normal forces, having the general effect
-   of preventing slip, without increasing the actual friction coefficient. For pyramidal friction cones the situation is
-   more complex because the pyramidal approximation mixes normal and frictional dimensions within each basis vector; it
-   is not recommended to use high impratio values with pyramidal cones.
+   of reducing :ref:`slow slippage<CSlowSlippage>` without increasing the actual friction coefficient or guaranteeing
+   exact sticking. For pyramidal friction cones the situation is more complex because the pyramidal approximation mixes
+   normal and frictional dimensions within each basis vector; it is not recommended to use high impratio values with
+   pyramidal cones.
 
 .. _option-gravity:
 
@@ -496,9 +497,10 @@ adjust it properly through the XML.
 .. _option-noslip_iterations:
 
 :at:`noslip_iterations`: :at-val:`int, "0"`
-   Maximum number of iterations of the Noslip solver. This is a post-processing step executed after the main solver. It
+   Maximum number of iterations of the NoSlip solver. This is a post-processing step executed after the main solver. It
    uses a modified PGS method to suppress slip/drift in friction dimensions resulting from the soft-constraint model.
-   The default setting 0 disables this post-processing step.
+   The default setting 0 disables this post-processing step. See the :ref:`NoSlip solver<soNoSlip>` for its mechanics
+   and tradeoffs, and :ref:`slow slippage<CSlowSlippage>` for practical guidance.
 
 .. _option-noslip_tolerance:
 
