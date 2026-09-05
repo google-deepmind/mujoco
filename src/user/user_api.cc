@@ -2265,10 +2265,11 @@ int mjs_setName(mjsElement* element, const char* name) {
     def->name   = std::string(name);
     return 0;
   }
-  mjCBase* baseC = static_cast<mjCBase*>(element);
-  baseC->name    = std::string(name);
+  mjCBase*    baseC   = static_cast<mjCBase*>(element);
+  std::string oldname = std::move(baseC->name);
+  baseC->name         = std::string(name);
   try {
-    baseC->model->CheckRepeat(element->elemtype);
+    baseC->model->CheckNameChange(element->elemtype, oldname, baseC->name);
   } catch (mjCError& e) {
     baseC->model->SetError(e);
     return -1;
