@@ -5263,7 +5263,12 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntex, ptr_->tex_nchannel));
   }
   emscripten::val tex_adr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->ntex, ptr_->tex_adr));
+    int size = ptr_->ntex;
+    emscripten::val result = emscripten::val::global("Int32Array").new_(size);
+    for (int i = 0; i < size; ++i) {
+      result.set(i, static_cast<int>(ptr_->tex_adr[i]));
+    }
+    return result;
   }
   emscripten::val tex_data() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntexdata, ptr_->tex_data));
