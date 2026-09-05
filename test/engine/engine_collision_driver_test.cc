@@ -379,6 +379,128 @@ TEST_F(MjCollisionTest, PinchingSucceeds) {
   EXPECT_GT(avg_z, 0.2) << "Cloth slipped out of gripper!";
 }
 
+TEST_F(MjCollisionTest, FlexFilterCompactsSelectedSet) {
+  // A flat flex grid with 8x8 = 64 vertices sits within contact range of a
+  // plane, so the plane-flex collision emits more than mjMAXCONPAIR candidate
+  // contacts and filterFlexContacts has to trim them down. The retained prefix
+  // must be exactly the farthest-point sample of the candidates, in selection
+  // order, with no candidate dropped or duplicated.
+  //
+  // Midphase is disabled so the flex-plane pair takes the direct narrowphase
+  // path, which leaves the filtered contacts in selection order instead of
+  // re-sorting them by contact id.
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag midphase="disable"/>
+    </option>
+    <worldbody>
+      <geom name="floor" type="plane" size="5 5 0.1"/>
+      <flexcomp name="cloth" type="grid" dim="2" count="8 8 1"
+                spacing="0.08 0.08 0.08" pos="0 0 0.009" radius="0.01">
+        <edge equality="true"/>
+        <contact internal="false" selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  int plane = mj_name2id(m.get(), mjOBJ_GEOM, "floor");
+  int flex = mj_name2id(m.get(), mjOBJ_FLEX, "cloth");
+  ASSERT_GE(plane, 0);
+  ASSERT_GE(flex, 0);
+
+  const int nvert = m->flex_vertnum[flex];
+  ASSERT_GT(nvert, mjMAXCONPAIR);
+
+  mj_fwdPosition(m.get(), d.get());
+
+  // Reconstruct the candidate contacts the way mj_collidePlaneFlex does: one
+  // contact per vertex within range of the plane. The contact point and signed
+  // distance use the same expressions as the engine, so the reference below
+  // operates on the same values the filter sees.
+  const mjtNum* xmat = d->geom_xmat + 9*plane;
+  const mjtNum nrm[3] = {xmat[2], xmat[5], xmat[8]};
+  const mjtNum* xpos = d->geom_xpos + 3*plane;
+  const mjtNum margin = m->geom_margin[plane] + m->flex_margin[flex];
+  const mjtNum gap = m->geom_gap[plane] + m->flex_gap[flex];
+  const mjtNum radius = m->flex_radius[flex];
+  const int adr = m->flex_vertadr[flex];
+
+  std::vector<int> cand_vert;
+  std::vector<mjtNum> cand_pos;
+  std::vector<mjtNum> cand_dist;
+  for (int i = 0; i < nvert; i++) {
+    const mjtNum* v = d->flexvert_xpos + 3*(adr + i);
+    mjtNum dif[3];
+    mju_sub3(dif, v, xpos);
+    mjtNum dist = mju_dot3(dif, nrm);
+    if (dist > margin + gap + radius) {
+      continue;
+    }
+    cand_vert.push_back(i);
+    mjtNum pos[3];
+    mju_addScl3(pos, v, nrm, -((dist - radius)*0.5 + radius));
+    cand_pos.insert(cand_pos.end(), pos, pos + 3);
+    cand_dist.push_back(dist - radius);
+  }
+  ASSERT_EQ(cand_vert.size(), static_cast<size_t>(nvert));  // all in range
+  ASSERT_GT(cand_vert.size(), static_cast<size_t>(mjMAXCONPAIR));
+
+  // Reference farthest-point selection over the candidate contacts.
+  const int ncand = static_cast<int>(cand_vert.size());
+  std::vector<int> selected(ncand, 0);
+  std::vector<mjtNum> min_dist(ncand, mjMAXVAL);
+  std::vector<int> picks;
+
+  // start with the deepest-penetrating contact (lowest index wins ties)
+  int best = 0;
+  mjtNum bestpen = -cand_dist[0];
+  for (int i = 1; i < ncand; i++) {
+    if (-cand_dist[i] > bestpen) {
+      bestpen = -cand_dist[i];
+      best = i;
+    }
+  }
+
+  while (static_cast<int>(picks.size()) < mjMAXCONPAIR && best >= 0) {
+    picks.push_back(cand_vert[best]);
+    selected[best] = 1;
+    const mjtNum* bestpos = &cand_pos[3*best];
+
+    int nextbest = -1;
+    mjtNum nextbestdist = -1;
+    for (int i = 0; i < ncand; i++) {
+      if (selected[i]) continue;
+      mjtNum dx = cand_pos[3*i] - bestpos[0];
+      mjtNum dy = cand_pos[3*i+1] - bestpos[1];
+      mjtNum dz = cand_pos[3*i+2] - bestpos[2];
+      mjtNum d2 = dx*dx + dy*dy + dz*dz;
+      if (d2 < min_dist[i]) min_dist[i] = d2;
+      if (min_dist[i] > nextbestdist) {
+        nextbestdist = min_dist[i];
+        nextbest = i;
+      }
+    }
+    best = nextbest;
+  }
+  ASSERT_EQ(picks.size(), static_cast<size_t>(mjMAXCONPAIR));
+
+  // The retained prefix must be the selected contacts in selection order,
+  // including the final (mjMAXCONPAIR-th) selected contact.
+  ASSERT_EQ(d->ncon, mjMAXCONPAIR);
+  for (int k = 0; k < mjMAXCONPAIR; k++) {
+    EXPECT_EQ(d->contact[k].flex[1], flex) << "contact " << k;
+    EXPECT_EQ(d->contact[k].geom[0], plane) << "contact " << k;
+    EXPECT_EQ(d->contact[k].vert[1], picks[k]) << "contact " << k;
+  }
+}
+
 TEST_F(MjCollisionTest, MarginSumming) {
   // Two spheres with size 0.1, placed 0.21 apart (distance of 0.01).
   // With margin summing, margin1 + margin2 = 0.00999 + 0.00999 = 0.01998 > 0.01

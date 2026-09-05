@@ -453,6 +453,7 @@ static void filterFlexContacts(mjData* d, int ncon_before) {
   mj_markStack(d);
   mjtByte* selected = mjSTACKALLOC(d, n, mjtByte);
   mjtNum* min_dist = mjSTACKALLOC(d, n, mjtNum);
+  mjContact* kept = mjSTACKALLOC(d, mjMAXCONPAIR, mjContact);
   memset(selected, 0, n);
 
   for (int i = 0; i < n; i++) {
@@ -470,8 +471,15 @@ static void filterFlexContacts(mjData* d, int ncon_before) {
     }
   }
 
+  // Select contacts by farthest point sampling.  The selected contacts are
+  // collected in `kept` and compacted into the contact prefix only after the
+  // selection loop finishes: swapping contacts in place during the loop would
+  // leave `selected`/`min_dist` indexed against a permuted array and corrupt
+  // the selection (and also drop the last selected contact when its index is
+  // not moved into the prefix).
   while (nselected < mjMAXCONPAIR && best >= 0) {
     selected[best] = 1;
+    kept[nselected] = contacts[best];
     mjtNum* bestpos = contacts[best].pos;
 
     int nextbest = -1;
@@ -492,18 +500,12 @@ static void filterFlexContacts(mjData* d, int ncon_before) {
       }
     }
 
-    if (nselected < mjMAXCONPAIR - 1) {
-      mjContact temp = contacts[nselected];
-      contacts[nselected] = contacts[best];
-      contacts[best] = temp;
-
-      if (nextbest == nselected) {
-        nextbest = best;
-      }
-    }
-
     nselected++;
     best = nextbest;
+  }
+
+  for (int i = 0; i < nselected; i++) {
+    contacts[i] = kept[i];
   }
 
   mj_freeStack(d);
