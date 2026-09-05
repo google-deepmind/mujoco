@@ -45,11 +45,7 @@ using ::testing::Pointwise;
 using DerivativeTest = MujocoTest;
 
 // errors smaller than this are ignored
-#ifdef mjUSESINGLE
-static const mjtNum absolute_tolerance = 1e-3;
-#else
-static const mjtNum absolute_tolerance = 1e-9;
-#endif
+static const mjtNum absolute_tolerance = MjTol(1e-9, 1e-3);
 
 // corrected relative error
 static mjtNum RelativeError(mjtNum a, mjtNum b) {
@@ -131,7 +127,7 @@ TEST_F(DerivativeTest, SmoothDvel) {
       vector<mjtNum> qDerivAnalytic = AsVector(data->qDeriv, nD);
 
       // compute finite-difference derivatives
-      mjtNum eps = MjTol(1e-7, 1e-3);
+      mjtNum eps = MjEps(1e-7, 1e-3);
       mju_zero(data->qDeriv, nD);
       mjd_smooth_velFD(model, data, eps);
 
@@ -204,7 +200,7 @@ TEST_F(DerivativeTest, FreeBiasVel) {
   }
 
   // compare with central finite differences of mj_rne
-  mjtNum eps = MjTol(1e-6, 1e-3);
+  mjtNum eps = MjEps(1e-6, 1e-3);
   for (int c = 0; c < 6; c++) {
     mjtNum bias_plus[6], bias_minus[6];
 
@@ -389,7 +385,7 @@ TEST_F(DerivativeTest, PassiveDvel) {
       // clear qDeriv, get finite-difference derivatives
       mju_zero(data->qDeriv, nD);
       mju_zero(qDerivFD, nD);
-      mjtNum eps = MjTol(1e-6, 1e-4);
+      mjtNum eps = MjEps(1e-6, 1e-4);
       mjd_passive_velFD(model, data, eps);
 
       // expect FD and analytic derivatives to be similar to tol precision
@@ -573,7 +569,7 @@ TEST_F(DerivativeTest, LinearSystem) {
   // PrintMatrix(B, 2*nv, nu);
 
   // forward differenced A and B
-  mjtNum eps = MjTol(1e-6, 1e-3);
+  mjtNum eps = MjEps(1e-6, 1e-3);
   mjtNum* AFD = (mjtNum*)mju_malloc(sizeof(mjtNum) * 2 * nv * 2 * nv);
   mjtNum* BFD = (mjtNum*)mju_malloc(sizeof(mjtNum) * 2 * nv * nu);
 
@@ -628,7 +624,7 @@ TEST_F(DerivativeTest, ClampedCtrlDerivatives) {
   LinearSystem(model, data, nullptr, B);
 
   // forward differenced A and B
-  mjtNum eps = MjTol(1e-6, 1e-3);
+  mjtNum eps = MjEps(1e-6, 1e-3);
   mjtNum* BFD = (mjtNum*)mju_malloc(sizeof(mjtNum) * 2 * nv * nu);
 
   // set ctrl to the limits, request forward differences
@@ -1377,7 +1373,7 @@ TEST_F(DerivativeTest, ForcerangeClampedAfterSO3) {
 
   // expect match with finite differences: the saturated actuator contributes
   // nothing, the SO3 actuator's damping is unaffected by its neighbor
-  mjtNum eps = MjTol(1e-7, 1e-3);
+  mjtNum eps = MjEps(1e-7, 1e-3);
   mju_zero(d->qDeriv, m->nD);
   mjd_smooth_velFD(m, d, eps);
   EXPECT_THAT(AsVector(d->qDeriv, m->nD),
@@ -1740,7 +1736,7 @@ TEST_F(DerivativeTest, FlexInterpDerivatives) {
       mju_mulMatVec(res.data(), H.data(), vec.data(), nv, nv);
 
       // finite difference of mj_passive for stiffness
-      mjtNum eps = MjTol(1e-6, 1e-3);
+      mjtNum eps = MjEps(1e-6, 1e-3);
       mjData* data_perturbed = mj_copyData(NULL, model.get(), data.get());
 
       // apply perturbation
@@ -1811,7 +1807,7 @@ TEST_F(DerivativeTest, FlexInterpDerivatives) {
       // finite-difference derivatives
       std::vector<mjtNum> qDerivFD(nD);
       mju_zero(data->qDeriv, nD);
-      mjtNum eps = MjTol(1e-6, 1e-3);
+      mjtNum eps = MjEps(1e-6, 1e-3);
 
       mjd_passive_velFD(model.get(), data.get(), eps);
       mju_copy(qDerivFD.data(), data->qDeriv, nD);
@@ -1998,7 +1994,7 @@ TEST_F(DerivativeTest, FlexBendDerivativesRotated) {
   }
   mjd_flexBend_mul(model.get(), data.get(), res.data(), vec.data(), 1, 0);
 
-  mjtNum eps = MjTol(1e-7, 1e-4);
+  mjtNum eps = MjEps(1e-7, 1e-4);
   mjData* perturbed = mj_copyData(NULL, model.get(), data.get());
   mju_addToScl(perturbed->qpos, vec.data(), eps, nv);
   mj_forward(model.get(), perturbed);
@@ -2082,7 +2078,7 @@ TEST_F(DerivativeTest, FlexStretchDerivativesTensile) {
   }
   mjd_flexStretch_mul(model.get(), data.get(), res.data(), vec.data(), 1, 0);
 
-  mjtNum eps = MjTol(1e-7, 1e-4);
+  mjtNum eps = MjEps(1e-7, 1e-4);
   mjData* perturbed = mj_copyData(NULL, model.get(), data.get());
   mju_addToScl(perturbed->qpos, vec.data(), eps, nv);
   mj_forward(model.get(), perturbed);
@@ -2152,7 +2148,7 @@ TEST_F(DerivativeTest, FlexStretchDerivatives) {
     }
     mjd_flexStretch_mul(model.get(), data.get(), res.data(), vec.data(), 1, 0);
 
-    mjtNum eps = MjTol(1e-7, 1e-4);
+    mjtNum eps = MjEps(1e-7, 1e-4);
     mjData* data_perturbed = mj_copyData(NULL, model.get(), data.get());
     mju_addToScl(data_perturbed->qpos, vec.data(), eps, nv);
     mj_forward(model.get(), data_perturbed);

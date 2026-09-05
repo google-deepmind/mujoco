@@ -97,6 +97,17 @@ inline mjtNum MjTol(T1 double_tol, T2 float_tol) {
 #endif
 }
 
+// Precision-aware value selector for finite-difference steps and other
+// quantities which must not shrink with MJTOL_SCALE.
+template <typename T1, typename T2>
+inline mjtNum MjEps(T1 double_val, T2 float_val) {
+#ifdef mjUSESINGLE
+  return static_cast<mjtNum>(float_val);
+#else
+  return static_cast<mjtNum>(double_val);
+#endif
+}
+
 // Precision-aware equality assertion: 4 ULPs in either precision.
 #ifdef mjUSESINGLE
   #define EXPECT_MJTNUM_EQ(a, b) EXPECT_FLOAT_EQ(a, b)

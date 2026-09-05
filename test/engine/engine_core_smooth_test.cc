@@ -1998,7 +1998,7 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
     mj_kinematics(m.get(), d.get());
     mj_flex(m.get(), d.get());
 
-    mjtNum eps = MjTol(1e-6, 1e-4);
+    mjtNum eps = MjEps(1e-6, 1e-4);
     int nflexvert = m->flex_vertnum[0];
     std::vector<mjtNum> jac_fd(2 * nflexvert * m->nv);
     std::vector<mjtNum> qpos_backup(m->nq);

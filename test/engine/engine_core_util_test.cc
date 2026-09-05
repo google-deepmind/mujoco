@@ -217,7 +217,7 @@ TEST_F(AngMomMatTest, CompareAngMomMats) {
   mj_angmomMat(model.get(), data.get(), angmom_mat, bodyid);
 
   // compute the angular momentum matrix using finite differences
-  static const mjtNum eps = MjTol(1e-6, 1e-3);
+  static const mjtNum eps = MjEps(1e-6, 1e-3);
   for (int i = 0; i < nv; i++) {
     // reset vel, forward nudge i-th dof, get angmom
     mju_copy(data->qvel, model->key_qvel, model->nv);

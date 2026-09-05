@@ -245,7 +245,7 @@ TEST_F(ContinuousCollisionTest, PairGapVertexTriangleGradient) {
   EXPECT_GT(nidx, 0);
 
   // dg/d(vertex idv[p]) = cw[p]*n, by central differences
-  mjtNum eps = MjTol(1e-6, 1e-3);
+  mjtNum eps = MjEps(1e-6, 1e-3);
   for (int p = 0; p < nidx; p++) {
     for (int k = 0; k < 3; k++) {
       mjtNum saved = x[3 * idv[p] + k];
