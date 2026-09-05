@@ -2753,6 +2753,10 @@ std::optional<MjsBody> mjs_getParent_wrapper(const MjsElement& element) {
   return MjsBody(result);
 }
 
+uint64_t mjs_getSignature_wrapper(MjSpec& s) {
+  return mjs_getSignature(s.get());
+}
+
 std::optional<MjSpec> mjs_getSpec_wrapper(const MjsElement& element) {
   mjSpec* result = mjs_getSpec(element.get());
   if (result == nullptr) {
@@ -6532,6 +6536,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_getName", &mjs_getName_wrapper);
   function("mjs_getOriginSpec", &mjs_getOriginSpec_wrapper);
   function("mjs_getParent", &mjs_getParent_wrapper);
+  function("mjs_getSignature", &mjs_getSignature_wrapper);
   function("mjs_getSpec", &mjs_getSpec_wrapper);
   function("mjs_getSpecDefault", &mjs_getSpecDefault_wrapper);
   function("mjs_getWarning", &mjs_getWarning_wrapper);

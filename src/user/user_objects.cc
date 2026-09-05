@@ -1950,8 +1950,8 @@ mjCBody* mjCBody::AddBody(mjCDef* _def) {
 
   obj->parent = this;
 
-  // update signature
-  model->spec.element->signature = model->Signature();
+  // structure changed, the signature is recomputed on demand
+  model->InvalidateSignature();
   return obj;
 }
 
@@ -1963,8 +1963,8 @@ mjCFrame* mjCBody::AddFrame(mjCFrame* _frame) {
   model->ResetTreeLists();
   model->MakeTreeLists();
 
-  // update signature
-  model->spec.element->signature = model->Signature();
+  // structure changed, the signature is recomputed on demand
+  model->InvalidateSignature();
   return obj;
 }
 
@@ -1984,8 +1984,8 @@ mjCJoint* mjCBody::AddFreeJoint() {
   model->ResetTreeLists();
   model->MakeTreeLists();
 
-  // update signature
-  model->spec.element->signature = model->Signature();
+  // structure changed, the signature is recomputed on demand
+  model->InvalidateSignature();
   return obj;
 }
 
@@ -2004,8 +2004,8 @@ mjCJoint* mjCBody::AddJoint(mjCDef* _def) {
   model->ResetTreeLists();
   model->MakeTreeLists();
 
-  // update signature
-  model->spec.element->signature = model->Signature();
+  // structure changed, the signature is recomputed on demand
+  model->InvalidateSignature();
   return obj;
 }
 
@@ -2024,8 +2024,8 @@ mjCGeom* mjCBody::AddGeom(mjCDef* _def) {
   model->ResetTreeLists();
   model->MakeTreeLists();
 
-  // update signature
-  model->spec.element->signature = model->Signature();
+  // structure changed, the signature is recomputed on demand
+  model->InvalidateSignature();
   return obj;
 }
 
@@ -2044,8 +2044,8 @@ mjCSite* mjCBody::AddSite(mjCDef* _def) {
   model->ResetTreeLists();
   model->MakeTreeLists();
 
-  // update signature
-  model->spec.element->signature = model->Signature();
+  // structure changed, the signature is recomputed on demand
+  model->InvalidateSignature();
   return obj;
 }
 
@@ -2064,8 +2064,8 @@ mjCCamera* mjCBody::AddCamera(mjCDef* _def) {
   model->ResetTreeLists();
   model->MakeTreeLists();
 
-  // update signature
-  model->spec.element->signature = model->Signature();
+  // structure changed, the signature is recomputed on demand
+  model->InvalidateSignature();
   return obj;
 }
 
@@ -2084,8 +2084,8 @@ mjCLight* mjCBody::AddLight(mjCDef* _def) {
   model->ResetTreeLists();
   model->MakeTreeLists();
 
-  // update signature
-  model->spec.element->signature = model->Signature();
+  // structure changed, the signature is recomputed on demand
+  model->InvalidateSignature();
   return obj;
 }
 
@@ -2117,7 +2117,7 @@ mjCFrame* mjCBody::ToFrame() {
                        parent->bodies.end());
   model->ResetTreeLists();
   model->MakeTreeLists();
-  model->spec.element->signature = model->Signature();
+  model->InvalidateSignature();
   return newframe;
 }
 
