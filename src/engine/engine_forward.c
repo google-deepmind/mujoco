@@ -29,6 +29,7 @@
 #include "engine/engine_core_util.h"
 #include "engine/engine_derivative.h"
 #include "engine/engine_inverse.h"
+#include "engine/engine_io.h"
 #include "engine/engine_island.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
@@ -297,7 +298,7 @@ static void expmap2Quat(mjtNum quat[4], const mjtNum v[3]) {
     quat[1] = quat[2] = quat[3] = 0;
   } else {
     mjtNum axis[3] = {v[0]/angle, v[1]/angle, v[2]/angle};
-    mju_axisAngle2Quat(quat, axis, angle);
+    mji_axisAngle2Quat(quat, axis, angle);
   }
 }
 
@@ -670,7 +671,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       // so no wrapping is required; act is re-anchored at integration time in mj_advance
       mjtNum q_cur[4], e[3];
       expmap2Quat(q_cur, d->actuator_length + oadr);
-      mju_subQuat(e, q_tgt, q_cur);
+      mji_subQuat(e, q_tgt, q_cur);
 
       // output force: kp * error + constant - kv * velocity
       mjtNum kp = m->actuator_gainprm[mjNGAIN*i];

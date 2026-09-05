@@ -64,6 +64,15 @@
   #define mjUNLIKELY(x) (x)
 #endif
 
+// Thread-local storage.
+#if !defined(mjTHREADLOCAL)
+  #ifdef _MSC_VER
+    #define mjTHREADLOCAL __declspec(thread)
+  #else
+    #define mjTHREADLOCAL _Thread_local
+  #endif
+#endif
+
 // Define ADDRESS_SANITIZER if implied by other macros.
 #if !defined(ADDRESS_SANITIZER)
   #if defined(__SANITIZE_ADDRESS__)

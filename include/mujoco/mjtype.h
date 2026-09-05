@@ -21,15 +21,19 @@
 
 //---------------------------------- floating-point definition -------------------------------------
 
-// floating point data type and minval
+// floating point data type and constants
 #ifndef mjUSESINGLE
   typedef double mjtNum;
   #define mjMINVAL    1E-15       // minimum value in any denominator
+  #define mjMAXVAL    1E+10       // maximum value in qpos, qvel, qacc
 #else
   typedef float mjtNum;
   #define mjMINVAL    1E-15f
+  #define mjMAXVAL    1E+10f
 #endif
 
+// ratio of circumference to diameter
+#define mjPI          3.14159265358979323846
 
 
 //---------------------------------- byte definition -----------------------------------------------
@@ -42,10 +46,10 @@ typedef unsigned char mjtByte;    // used for small integers and binary data
   typedef bool mjtBool;           // used for boolean values
 #endif
 
+
 //---------------------------------- size definition -----------------------------------------------
 
 typedef int64_t mjtSize;          // used for buffer sizes
-
 
 
 //---------------------------------- enum types (mjModel) ------------------------------------------
@@ -498,7 +502,6 @@ typedef enum mjtSDFType {         // signed distance function (SDF) type
 } mjtSDFType;
 
 
-
 //---------------------------------- enum types (mjData) -------------------------------------------
 
 typedef enum mjtState {             // state elements
@@ -596,7 +599,6 @@ typedef enum mjtSleepState {        // sleep state of an object
   mjS_ASLEEP = 0,                   // object is asleep
   mjS_AWAKE  = 1                    // object is awake
 } mjtSleepState;
-
 
 
 //---------------------------------- logging -------------------------------------------------------

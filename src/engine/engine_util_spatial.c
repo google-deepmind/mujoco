@@ -16,7 +16,6 @@
 
 #include <math.h>
 
-#include <mujoco/mjmodel.h>
 #include "engine/engine_inline.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"

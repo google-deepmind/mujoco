@@ -422,10 +422,12 @@ indicated otherwise.
      - :math:`\pi`
      - The value of :math:`\pi`. This is used in various trigonometric functions, and also for conversion from degrees
        to radians in the compiler.
+       Defined in `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`_.
    * - ``mjMAXVAL``
      - 1E+10
      - The maximal absolute value allowed in mjData.qpos, mjData.qvel, mjData.qacc. The API functions
        :ref:`mj_checkPos`, :ref:`mj_checkVel`, :ref:`mj_checkAcc` use this constant to detect instability.
+       Defined in `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`_.
    * - ``mjMINMU``
      - 1E-5
      - The minimal value allowed in any friction coefficient. Recall that MuJoCo's contact model allows different number

@@ -21,8 +21,6 @@
 #include <mujoco/mjtype.h>
 
 // global constants
-#define mjPI            3.14159265358979323846
-#define mjMAXVAL        1E+10     // maximum value in qpos, qvel, qacc
 #define mjMINMU         1E-5      // minimum friction coefficient
 #define mjMINIMP        0.0001    // minimum constraint impedance
 #define mjMAXIMP        0.9999    // maximum constraint impedance

@@ -32,7 +32,6 @@
 #endif
 
 #include "engine/engine_crossplatform.h"  // IWYU pragma: keep
-#include "engine/engine_macro.h"
 
 //------------------------- cross-platform aligned malloc/free -------------------------------------
 

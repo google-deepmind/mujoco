@@ -16,7 +16,6 @@
 #define MUJOCO_SRC_ENGINE_ENGINE_UTIL_MISC_H_
 
 #include <mujoco/mjexport.h>
-#include <mujoco/mjmodel.h>
 #include <mujoco/mjtype.h>
 
 #ifdef __cplusplus

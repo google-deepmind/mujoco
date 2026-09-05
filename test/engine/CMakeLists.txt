@@ -16,7 +16,7 @@
 # measured against it rather than asserted to be better; see boxbox_legacy.h
 add_library(boxbox_legacy STATIC boxbox_legacy.h boxbox_legacy.c)
 target_include_directories(boxbox_legacy PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../..)
-target_include_directories(boxbox_legacy PRIVATE ${mujoco_SOURCE_DIR}/include)
+target_include_directories(boxbox_legacy PRIVATE ${mujoco_SOURCE_DIR}/include ${mujoco_SOURCE_DIR}/src)
 target_compile_definitions(boxbox_legacy PUBLIC MJSTATIC)
 target_link_libraries(boxbox_legacy PUBLIC mujoco::mujoco)
 
