@@ -878,6 +878,47 @@ TEST_F(MujocoTest, SetNameDetectsRepeatedNamesFromXML) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, SignatureIsComputedOnDemand) {
+  mjSpec* spec = mj_makeSpec();
+  mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);
+  mjsGeom* geom = mjs_addGeom(body, 0);
+  geom->size[0] = 1;
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(mjs_getSignature(spec), model->signature);
+
+  // adding an element changes the signature, repeated queries are stable
+  mjsGeom* added = mjs_addGeom(body, 0);
+  uint64_t changed = mjs_getSignature(spec);
+  EXPECT_NE(changed, model->signature);
+  EXPECT_EQ(mjs_getSignature(spec), changed);
+
+  // deleting it restores the original structure and signature
+  EXPECT_EQ(mjs_delete(spec, added->element), 0);
+  EXPECT_EQ(mjs_getSignature(spec), model->signature);
+
+  // attaching changes it
+  mjSpec* child = mj_makeSpec();
+  mjsBody* child_body = mjs_addBody(mjs_findBody(child, "world"), 0);
+  mjsFrame* frame = mjs_addFrame(body, nullptr);
+  ASSERT_THAT(mjs_attach(frame->element, child_body->element, "c_", ""),
+              NotNull());
+  EXPECT_NE(mjs_getSignature(spec), model->signature);
+
+  // a copy has the same signature, and compiling agrees with the getter
+  mjSpec* copy = mj_copySpec(spec);
+  EXPECT_EQ(mjs_getSignature(copy), mjs_getSignature(spec));
+  mjModel* model2 = mj_compile(spec, 0);
+  ASSERT_THAT(model2, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(mjs_getSignature(spec), model2->signature);
+
+  mj_deleteModel(model2);
+  mj_deleteModel(model);
+  mj_deleteSpec(copy);
+  mj_deleteSpec(child);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, RecompileFails) {
   mjSpec* spec = mj_makeSpec();
   mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);

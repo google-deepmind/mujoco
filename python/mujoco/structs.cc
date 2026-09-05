@@ -473,7 +473,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   mjModel.def(                                                       \
       "bind_scalar",                                                 \
       [](MjModelWrapper& m, spectype& spec) -> auto& {               \
-        if (mjs_getSpec(spec.element)->element->signature !=         \
+        if (mjs_getSignature(mjs_getSpec(spec.element)) !=          \
             m.get()->signature) {                                    \
           throw py::value_error(                                     \
               "The mjSpec does not match mjModel. Please recompile " \
@@ -956,7 +956,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   mjData.def(                                                       \
       "bind_scalar",                                                \
       [](MjDataWrapper& d, spectype& spec) -> auto& {               \
-        if (mjs_getSpec(spec.element)->element->signature !=        \
+        if (mjs_getSignature(mjs_getSpec(spec.element)) !=         \
             d.get()->signature) {                                   \
           throw py::value_error(                                    \
               "The mjSpec does not match mjData. Please recompile " \

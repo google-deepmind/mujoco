@@ -242,8 +242,8 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     // copy name maps
     for (int i = 0; i < mjNOBJECT; i++) { ids[i] = other.ids[i]; }
 
-    // update signature after we updated everything
-    spec.element->signature = Signature();
+    // structure changed, the signature is recomputed on demand
+    signature_valid_ = false;
   }
   deepcopy_ = other.deepcopy_;
   return *this;
@@ -482,8 +482,8 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   // reprocess lists to ensure ordering matches compiled model after attach
   ProcessLists(/*checkrepeat=*/false);
 
-  // update signature after we updated the tree lists and we updated the pointers
-  spec.element->signature = Signature();
+  // structure changed, the signature is recomputed on demand
+  signature_valid_ = false;
   return *this;
 }
 
@@ -600,8 +600,8 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   RemoveFromList(sensors_, oldmodel);
   RemovePlugins();
 
-  // update signature before we reset the tree lists
-  spec.element->signature = Signature();
+  // structure changed, the signature is recomputed on demand
+  signature_valid_ = false;
 
   return *this;
 }
@@ -781,8 +781,8 @@ void mjCModel::operator-=(mjsElement* el) {
   MakeTreeLists();
   ProcessLists(/*checkrepeat=*/false);
 
-  // update signature after we updated everything
-  spec.element->signature = Signature();
+  // structure changed, the signature is recomputed on demand
+  signature_valid_ = false;
 }
 
 
@@ -1181,7 +1181,7 @@ T* mjCModel::AddObject(vector<T*>& list, string type) {
   T* obj  = new T(this);
   obj->id = (int)list.size();
   list.push_back(obj);
-  spec.element->signature = Signature();
+  signature_valid_ = false;
   return obj;
 }
 
@@ -1193,7 +1193,7 @@ T* mjCModel::AddObjectDefault(vector<T*>& list, string type, mjCDef* def) {
   obj->id        = (int)list.size();
   obj->classname = def ? def->name : "main";
   list.push_back(obj);
-  spec.element->signature = Signature();
+  signature_valid_ = false;
   return obj;
 }
 
@@ -5091,6 +5091,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // initialize spec signature (needed if the user changed sensor or joint types)
   spec.element->signature = Signature();
+  signature_valid_        = true;
 
   // fill missing names and check that they are all filled
   for (const auto& asset : meshes_) asset->CopyFromSpec();
@@ -5553,6 +5554,12 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // save signature
   m->signature = Signature();
 
+  // the spec may have changed structurally during compilation (e.g. keyframes added on attach)
+  if (!signature_valid_) {
+    spec.element->signature = m->signature;
+    signature_valid_        = true;
+  }
+
   timer[mjCTIMER_TOTAL] = Seconds(Clock::now() - timer_start).count();
 
   // special cases that are not caused by user edits
@@ -5630,6 +5637,16 @@ uint64_t mjCModel::Signature() {
   }
   for (unsigned int i = 0; i < keys_.size(); ++i) { tree << "<key/>\n"; }
   return mj_hashString(tree.str().c_str(), UINT64_MAX);
+}
+
+
+// return the signature, recomputing it if the spec changed since it was last computed
+uint64_t mjCModel::GetSignature() {
+  if (!signature_valid_) {
+    spec.element->signature = Signature();
+    signature_valid_        = true;
+  }
+  return spec.element->signature;
 }
 
 
@@ -5712,7 +5729,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     return false;
   }
 
-  if (spec.element->signature != m->signature) {
+  if (GetSignature() != m->signature) {
     errInfo = mjCError(0, "incompatible signatures in CopyBack");
     return false;
   }

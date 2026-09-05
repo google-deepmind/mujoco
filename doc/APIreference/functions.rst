@@ -5509,6 +5509,15 @@ Find and get utilities
 
 Get spec from body.
 
+.. _mjs_getSignature:
+
+`mjs_getSignature <#mjs_getSignature>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getSignature
+
+Get spec's compilation signature, recomputing it if the spec changed since it was last computed.
+
 .. _mjs_getOriginSpec:
 
 `mjs_getOriginSpec <#mjs_getOriginSpec>`__

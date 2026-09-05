@@ -378,6 +378,12 @@ class mjCModel : public mjCModel_, private mjSpec {
   // already holds newname, oldname is the name it held before
   void CheckNameChange(mjtObj type, const std::string& oldname, const std::string& newname);
 
+  // return the signature, recomputing it if the spec changed since it was last computed
+  uint64_t GetSignature();
+
+  // mark the signature as stale after a structural change
+  void InvalidateSignature() { signature_valid_ = false; }
+
   // increment and decrement reference count
   void AddRef() { ++refcount; }
   int  GetRef() const { return refcount; }
@@ -537,6 +543,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjListKeyMap                   ids;                         // map from object names to ids
   mjNameCounts                   name_counts_;                // names in use per element type
   std::array<int, mjNOBJECT + 1> name_dups_         = {};     // names used more than once, per type
+  bool                           signature_valid_   = false;  // spec.element->signature is current
   bool                           name_counts_valid_ = false;  // name_counts_ matches the lists
   mjCError                       errInfo;                     // last error info
   std::vector<std::string>       warnings_;  // chronological list of non-fatal warnings

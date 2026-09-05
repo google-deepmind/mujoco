@@ -1648,6 +1648,12 @@ mjSpec* mjs_getSpec(const mjsElement* element) {
 }
 
 
+// get spec signature, recomputing it if the spec changed since it was last computed
+uint64_t mjs_getSignature(mjSpec* s) {
+  return static_cast<mjCModel*>(s->element)->GetSignature();
+}
+
+
 // get spec that originally defined an element
 // contrary to mjs_getSpec, this does not change after attachment
 mjSpec* mjs_getOriginSpec(const mjsElement* element) {

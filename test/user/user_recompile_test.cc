@@ -81,7 +81,7 @@ TEST_P(RecompileCompareTest, RecompileCompare) {
   mjSpec* s_copy = mj_copySpec(s);
 
   // compare signature
-  EXPECT_EQ(s->element->signature, s_copy->element->signature) << xml;
+  EXPECT_EQ(mjs_getSignature(s), mjs_getSignature(s_copy)) << xml;
 
   // compile twice and compare
   mjModel* m_old = mj_compile(s, nullptr);
