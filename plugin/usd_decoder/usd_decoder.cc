@@ -41,7 +41,7 @@
 #include <mujoco/mujoco.h>
 #include "kinematic_tree.h"
 #include "material_parsing.h"
-#include "third_party/mujoco/plugin/usd_decoder/newton_tokens.h"
+#include "newton_tokens.h"
 #include <pxr/base/gf/declare.h>
 #include <pxr/base/gf/matrix4d.h>
 #include <pxr/base/gf/matrix4f.h>
@@ -2100,7 +2100,13 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
 
 void ParseJointEnabled(mjsEquality* eq, const pxr::UsdPhysicsJoint& joint) {
   bool jointEnabled = true;
-  joint.GetJointEnabledAttr().Get(&jointEnabled);
+  const pxr::UsdPrim& prim = joint.GetPrim();
+  if (prim.HasAPI(NewtonTokens->NewtonMimicAPI) &&
+      !prim.HasAPI<pxr::MjcPhysicsEqualityJointAPI>()) {
+    prim.GetAttribute(NewtonTokens->newtonMimicEnabled).Get(&jointEnabled);
+  } else {
+    joint.GetJointEnabledAttr().Get(&jointEnabled);
+  }
   eq->active = jointEnabled ? 1 : 0;
 }
 
