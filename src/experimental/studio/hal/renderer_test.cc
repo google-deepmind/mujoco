@@ -68,6 +68,26 @@ TEST_F(RendererTest, OpengGlSoftware) {
   }
 }
 
+TEST_F(RendererTest, ReinitializeWithDecorations) {
+  FilamentRenderer renderer(nullptr, GraphicsMode::FilamentOpenGlSoftware);
+  renderer.Init(holder_->model());
+
+  mjvGeom decoration;
+  mjtNum size[3] = {0.1, 0.1, 0.1};
+  mjtNum pos[3] = {0.0, 0.0, 0.0};
+  mjtNum mat[9];
+  mju_eye(mat, 3);
+  float rgba[4] = {1.0, 0.0, 0.0, 1.0};
+  mjv_initGeom(&decoration, mjGEOM_SPHERE, size, pos, mat, rgba);
+
+  std::vector<std::byte> pixels(width_ * height_ * 3);
+  renderer.Render(holder_->model(), holder_->data(), nullptr, nullptr, nullptr,
+                  width_, height_, pixels, {&decoration, 1});
+  renderer.Init(holder_->model());
+  renderer.Render(holder_->model(), holder_->data(), nullptr, nullptr, nullptr,
+                  width_, height_, pixels);
+}
+
 TEST_F(RendererTest, OpengGlHeadless) {
   FilamentRenderer renderer(nullptr, GraphicsMode::FilamentOpenGlHeadless);
   renderer.Init(holder_->model());
