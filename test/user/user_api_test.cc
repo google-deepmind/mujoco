@@ -3791,19 +3791,18 @@ TEST_F(MujocoTest, AttachPreservesJointOrder) {
   // Export and re-import to test round-trip preservation
   std::string exported_xml = SaveAndReadXml(parent);
 
-  mjSpec* reimported =
-      mj_parseXMLString(exported_xml.c_str(), nullptr, error.data(),
-                        error.size());
+  mjSpec* reimported = mj_parseXMLString(exported_xml.c_str(), nullptr,
+                                         error.data(), error.size());
   ASSERT_THAT(reimported, NotNull()) << error.data();
 
   mjModel* reimported_model = mj_compile(reimported, nullptr);
   ASSERT_THAT(reimported_model, NotNull());
 
   // Verify joint order is preserved after round-trip
-  int reimported_slide_id = mj_name2id(reimported_model, mjOBJ_JOINT,
-                                       "child_slide_joint");
-  int reimported_free_id = mj_name2id(reimported_model, mjOBJ_JOINT,
-                                      "child_free_joint");
+  int reimported_slide_id =
+      mj_name2id(reimported_model, mjOBJ_JOINT, "child_slide_joint");
+  int reimported_free_id =
+      mj_name2id(reimported_model, mjOBJ_JOINT, "child_free_joint");
   ASSERT_GE(reimported_slide_id, 0);
   ASSERT_GE(reimported_free_id, 0);
   EXPECT_EQ(reimported_slide_id, slide_id)
