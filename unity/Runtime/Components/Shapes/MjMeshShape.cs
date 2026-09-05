@@ -37,6 +37,12 @@ public class MjMeshShape : IMjShape {
         mjcf.GetStringAttribute("mesh", defaultValue: string.Empty));
     if (!string.IsNullOrEmpty(assetName)) {
       Mesh = Resources.Load<Mesh>(assetName);
+      if (Mesh == null) {
+        throw new Exception(
+            $"Could not load mesh asset '{assetName}'. The MJCF references a mesh "
+            + "that was not imported, or its import failed (for example, the mesh "
+            + "format may not yet be supported by the Unity plugin).");
+      }
     }
   }
 
