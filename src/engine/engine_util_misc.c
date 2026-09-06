@@ -1617,9 +1617,14 @@ mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum k, mjtNum b, mjtNum t) 
     // compute w = sqrt(det)/2
     w = mju_sqrt(det)/2;
 
-    // compute r1,r2
-    r1 = -b/2 + w;
-    r2 = -b/2 - w;
+    // take the root without subtractive cancellation, recover the other from r1*r2 = k
+    if (b >= 0) {
+      r2 = -b/2 - w;
+      r1 = k/r2;
+    } else {
+      r1 = -b/2 + w;
+      r2 = k/r1;
+    }
 
     // compute coefficients
     c1 = (pos0*r2-vel0) / (r2-r1);

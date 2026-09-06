@@ -118,6 +118,16 @@ TEST_F(UtilMiscTest, SpringDamperInvariantToTimeUnits) {
   }
 }
 
+TEST_F(UtilMiscTest, SpringDamperStronglyOverdamped) {
+  // b*b >> 4*k: the slow root ~ -k/b must not be lost to cancellation in
+  // -b/2 + sqrt(b*b - 4*k)/2. evaluated at t = b/k, one slow-mode time
+  // constant, so the answer is 1/e.
+  constexpr mjtNum inv_e = 0.36787944117144233;
+  EXPECT_NEAR(mju_springDamper(1, 0, 1, 1e9, 1e9), inv_e, MjTol(1e-10, 1e-4));
+  // the same physical system with time rescaled by 1e9
+  EXPECT_NEAR(mju_springDamper(1, 0, 1e18, 1e18, 1), inv_e, MjTol(1e-10, 1e-4));
+}
+
 TEST_F(UtilMiscTest, SphereWrap) {
   static constexpr char xml[] = R"(
   <mujoco>
