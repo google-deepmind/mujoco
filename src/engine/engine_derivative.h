@@ -43,14 +43,14 @@ MJAPI void mjd_passive_vel(const mjModel* m, mjData* d);
 // subtract (d qfrc_bias / d qvel) from qDeriv (dense version)
 MJAPI void mjd_rne_vel_dense(const mjModel* m, mjData* d);
 
-// return 1 if body is a standalone free body: a free joint with no children
+// return 1 if body is the root of a free rigid subtree: a free joint with fixed descendants
 mjtBool mj_isFreeBody(const mjModel* m, int body);
 
-// 6x6 block B = d qfrc_bias / d qvel for the free joint of a standalone body
+// 6x6 block B = d qfrc_bias / d qvel for the free joint of a rigid subtree
 MJAPI void mjd_freeBias_vel(const mjModel* m, const mjData* d, int jnt, mjtNum B[36]);
 
-// 6x6 block A = M - h * (d qfrc_smooth / d qvel) for the free joint of a standalone body
-//   returns 1 and writes A if jnt is the free joint of a standalone awake body, 0 otherwise
+// 6x6 block A = M - h * (d qfrc_smooth / d qvel) for the free joint of a rigid subtree
+//   returns 1 and writes A if jnt is the free joint of an awake rigid subtree, 0 otherwise
 //   requires valid d->qDeriv rows for the block, computed with flg_bias = 0
 MJAPI int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjtNum A[36],
                        int flg_discrete);
