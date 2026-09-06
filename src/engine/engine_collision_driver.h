@@ -45,7 +45,7 @@ MJAPI int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
 MJAPI int mj_isElemActive(const mjModel* m, int f, int e);
 
 // broad phase collision detection; return list of bodyflex pairs
-int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair);
+int mj_broadphase(const mjModel* m, mjData* d, unsigned* bfpair, int maxpair);
 
 // test active element self-collisions with SAP
 void mj_collideFlexSAP(const mjModel* m, mjData* d, int f);
