@@ -399,8 +399,8 @@ if not token and sa_key_str:
     token = creds.token
 
 if not token:
-    print('Error: Neither CHAT_ACCESS_TOKEN nor CHAT_SERVICE_ACCOUNT_KEY is available.', file=sys.stderr)
-    sys.exit(1)
+    print('Skipping chat notification (no credentials provided).')
+    sys.exit(0)
 
 server_url = os.environ.get('GITHUB_SERVER_URL', 'https://github.com')
 repo = os.environ.get('GITHUB_REPOSITORY', 'google-deepmind/mujoco')
