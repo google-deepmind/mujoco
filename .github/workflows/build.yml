@@ -125,9 +125,6 @@ jobs:
         path: build/CMakeFiles/CMakeConfigureLog.yaml
         retention-days: 5
 
-    - name: Trigger intentional failure for chat alert test
-      run: exit 1
-
     - name: Build MuJoCo
       working-directory: build
       env:
@@ -214,6 +211,16 @@ jobs:
         TMPDIR: ${{ matrix.tmpdir }}
       run: bash ./.github/workflows/build_steps.sh test_python_bindings
 
+    - name: Notify team chat
+      if: failure()
+      env:
+        CHAT_SERVICE_ACCOUNT_KEY: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
+        CHAT_SPACE_ID: "spaces/AAQAJJIPgX8"
+        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name || github.actor }}
+        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email || github.actor }}
+        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message || github.event.pull_request.title }}
+      run: bash ./.github/workflows/build_steps.sh notify_team_chat
+
     # MJX (mujoco.mjx) is covered by the dedicated `mjx` job below; it is
     # compiler-independent so it does not need to run in every matrix job.
 
@@ -285,11 +292,18 @@ jobs:
         CMAKE_ARGS: ${{ matrix.cmake_args }}
       run: bash ./.github/workflows/build_steps.sh configure_studio
 
-    - name: Trigger intentional failure for chat alert test
-      run: exit 1
-
     - name: Build Studio
       run: bash ./.github/workflows/build_steps.sh build_studio
+
+    - name: Notify team chat
+      if: failure()
+      env:
+        CHAT_SERVICE_ACCOUNT_KEY: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
+        CHAT_SPACE_ID: "spaces/AAQAJJIPgX8"
+        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name || github.actor }}
+        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email || github.actor }}
+        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message || github.event.pull_request.title }}
+      run: bash ./.github/workflows/build_steps.sh notify_team_chat
 
 
   # This job quickly determines if WASM bindings are broken.
@@ -334,6 +348,16 @@ jobs:
         bash ./.github/workflows/build_steps.sh npm_ci
         bash ./.github/workflows/build_steps.sh setup_emsdk
         bash ./.github/workflows/build_steps.sh build_test_wasm
+
+    - name: Notify team chat
+      if: failure()
+      env:
+        CHAT_SERVICE_ACCOUNT_KEY: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
+        CHAT_SPACE_ID: "spaces/AAQAJJIPgX8"
+        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name || github.actor }}
+        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email || github.actor }}
+        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message || github.event.pull_request.title }}
+      run: bash ./.github/workflows/build_steps.sh notify_team_chat
 
 
   # MJX (mujoco.mjx) is pure JAX/XLA and compiler-independent: it imports the
@@ -417,22 +441,12 @@ jobs:
       working-directory: mjx
       run: bash ../.github/workflows/build_steps.sh test_mjx
 
-  # Notify team chat if any job in the workflow failed.
-  notify:
-    name: "notify team chat"
-    needs: [mujoco, studio, wasm, mjx]
-    if: failure()
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          persist-credentials: false
-
-      - name: Notify team chat
-        env:
-          CHAT_SERVICE_ACCOUNT_KEY: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
-          CHAT_SPACE_ID: "spaces/AAQAJJIPgX8"
-          CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name || github.actor }}
-          CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email || github.actor }}
-          CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message || github.event.pull_request.title }}
-        run: bash ./.github/workflows/build_steps.sh notify_team_chat
+    - name: Notify team chat
+      if: failure()
+      env:
+        CHAT_SERVICE_ACCOUNT_KEY: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
+        CHAT_SPACE_ID: "spaces/AAQAJJIPgX8"
+        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name || github.actor }}
+        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email || github.actor }}
+        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message || github.event.pull_request.title }}
+      run: bash ./.github/workflows/build_steps.sh notify_team_chat
