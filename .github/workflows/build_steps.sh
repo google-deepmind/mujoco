@@ -439,11 +439,32 @@ server_url = os.environ.get('GITHUB_SERVER_URL', 'https://github.com')
 repo = os.environ.get('GITHUB_REPOSITORY', 'google-deepmind/mujoco')
 run_id = os.environ.get('GITHUB_RUN_ID', '123456')
 run_url = os.environ.get('JOB_URL', f'{server_url}/{repo}/actions/runs/{run_id}')
-commit_sha = os.environ.get('GITHUB_SHA', 'unknown')[:7]
-author = os.environ.get('CHATMSG_AUTHOR_NAME') or os.environ.get('GITHUB_ACTOR', 'Unknown Author')
-email = os.environ.get('CHATMSG_AUTHOR_EMAIL', '')
-author_display = f'{author} ({email})' if email else author
-commit_msg = os.environ.get('CHATMSG_COMMIT_MESSAGE', 'Build failed')
+
+def git_log(fmt):
+    try:
+        return subprocess.check_output(['git', 'log', '-1', f'--format={fmt}'], text=True).strip()
+    except Exception:
+        return ''
+
+commit_sha = os.environ.get('GITHUB_SHA', '')[:7] or git_log('%h') or 'unknown'
+git_name = git_log('%an')
+git_email = git_log('%ae')
+git_msg = git_log('%s')
+
+author = os.environ.get('CHATMSG_AUTHOR_NAME') or git_name or os.environ.get('GITHUB_ACTOR', 'Unknown Author')
+email = os.environ.get('CHATMSG_AUTHOR_EMAIL') or git_email
+commit_msg = os.environ.get('CHATMSG_COMMIT_MESSAGE') or git_msg or 'Build failed'
+
+if author == email and git_name and git_email:
+    author = git_name
+    email = git_email
+
+if author and email and author != email:
+    author_display = f'{author} <{email}>'
+elif author:
+    author_display = author
+else:
+    author_display = 'Unknown Author'
 
 payload = {
     'cardsV2': [
