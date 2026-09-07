@@ -364,9 +364,14 @@ test_mjx() {
 
 notify_team_chat() {
     python3 - <<'EOF'
+import base64
 import json
 import os
+import subprocess
 import sys
+import tempfile
+import time
+import urllib.parse
 import urllib.request
 
 space_id = os.environ.get('CHAT_SPACE_ID', 'spaces/AAQAJJIPgX8')
@@ -377,26 +382,54 @@ token = os.environ.get('CHAT_ACCESS_TOKEN')
 sa_key_str = os.environ.get('CHAT_SERVICE_ACCOUNT_KEY')
 
 if not token and sa_key_str:
-    try:
-        import google.auth.transport.requests
-        from google.oauth2 import service_account
-    except ImportError:
-        import subprocess
-        subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-q', 'google-auth'])
-        import google.auth.transport.requests
-        from google.oauth2 import service_account
-
     if sa_key_str.strip().startswith('{'):
         key_data = json.loads(sa_key_str)
     else:
         with open(sa_key_str, 'r', encoding='utf-8') as f:
             key_data = json.load(f)
 
-    scopes = ['https://www.googleapis.com/auth/chat.messages.create']
-    creds = service_account.Credentials.from_service_account_info(key_data, scopes=scopes)
-    req = google.auth.transport.requests.Request()
-    creds.refresh(req)
-    token = creds.token
+    scope = 'https://www.googleapis.com/auth/chat.messages.create'
+    header = {'alg': 'RS256', 'typ': 'JWT'}
+    now = int(time.time())
+    payload = {
+        'iss': key_data['client_email'],
+        'scope': scope,
+        'aud': key_data.get('token_uri', 'https://oauth2.googleapis.com/token'),
+        'exp': now + 3600,
+        'iat': now,
+    }
+
+    def b64url(b):
+        return base64.urlsafe_b64encode(b).decode('utf-8').rstrip('=')
+
+    unsigned_jwt = f"{b64url(json.dumps(header).encode('utf-8'))}.{b64url(json.dumps(payload).encode('utf-8'))}"
+
+    with tempfile.NamedTemporaryFile('w', delete=False) as f:
+        f.write(key_data['private_key'])
+        key_file = f.name
+    try:
+        proc = subprocess.Popen(
+            ['openssl', 'dgst', '-sha256', '-sign', key_file],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        sig, err = proc.communicate(unsigned_jwt.encode('utf-8'))
+        if proc.returncode != 0:
+            raise RuntimeError(f"OpenSSL signing failed: {err.decode('utf-8')}")
+        signed_jwt = f"{unsigned_jwt}.{b64url(sig)}"
+    finally:
+        if os.path.exists(key_file):
+            os.remove(key_file)
+
+    token_url = key_data.get('token_uri', 'https://oauth2.googleapis.com/token')
+    data = urllib.parse.urlencode({
+        'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        'assertion': signed_jwt,
+    }).encode('utf-8')
+    req = urllib.request.Request(token_url, data=data)
+    with urllib.request.urlopen(req) as resp:
+        token = json.loads(resp.read().decode('utf-8'))['access_token']
 
 if not token:
     print('Skipping chat notification (no credentials provided).')
