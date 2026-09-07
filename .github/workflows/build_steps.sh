@@ -363,27 +363,110 @@ test_mjx() {
 
 
 notify_team_chat() {
-    CHATMSG="$(cat <<-'EOF' | python3
+    python3 - <<'EOF'
 import json
 import os
-env = lambda x: os.getenv(x, '')
-data = dict(
-    result=env('JOB_URL'),
-    job=env('CHATMSG_JOB_ID'),
-    commit=env('GITHUB_SHA')[:6],
-    name=env('CHATMSG_AUTHOR_NAME').replace('```', ''),
-    email=env('CHATMSG_AUTHOR_EMAIL'),
-    msg=env('CHATMSG_COMMIT_MESSAGE').replace('```', '')
-)
-text = '<{result}|*FAILURE*>: job `{job}` commit `{commit}`\n```Author: {name} <{email}>\n\n{msg}```'.format(**data)
-print(json.dumps({'text' : text}))
-EOF
-)" &&
+import sys
+import urllib.request
 
-    curl "$GCHAT_API_URL&threadKey=$GITHUB_SHA&messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD" \
-    -X POST \
-    -H "Content-Type: application/json" \
-    --data-raw "${CHATMSG}"
+space_id = os.environ.get('CHAT_SPACE_ID', 'spaces/AAQAJJIPgX8')
+if not space_id.startswith('spaces/'):
+    space_id = f'spaces/{space_id}'
+
+token = os.environ.get('CHAT_ACCESS_TOKEN')
+sa_key_str = os.environ.get('CHAT_SERVICE_ACCOUNT_KEY')
+
+if not token and sa_key_str:
+    try:
+        import google.auth.transport.requests
+        from google.oauth2 import service_account
+    except ImportError:
+        import subprocess
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-q', 'google-auth'])
+        import google.auth.transport.requests
+        from google.oauth2 import service_account
+
+    if sa_key_str.strip().startswith('{'):
+        key_data = json.loads(sa_key_str)
+    else:
+        with open(sa_key_str, 'r', encoding='utf-8') as f:
+            key_data = json.load(f)
+
+    scopes = ['https://www.googleapis.com/auth/chat.messages.create']
+    creds = service_account.Credentials.from_service_account_info(key_data, scopes=scopes)
+    req = google.auth.transport.requests.Request()
+    creds.refresh(req)
+    token = creds.token
+
+if not token:
+    print('Error: Neither CHAT_ACCESS_TOKEN nor CHAT_SERVICE_ACCOUNT_KEY is available.', file=sys.stderr)
+    sys.exit(1)
+
+server_url = os.environ.get('GITHUB_SERVER_URL', 'https://github.com')
+repo = os.environ.get('GITHUB_REPOSITORY', 'google-deepmind/mujoco')
+run_id = os.environ.get('GITHUB_RUN_ID', '123456')
+run_url = os.environ.get('JOB_URL', f'{server_url}/{repo}/actions/runs/{run_id}')
+commit_sha = os.environ.get('GITHUB_SHA', 'unknown')[:7]
+author = os.environ.get('CHATMSG_AUTHOR_NAME') or os.environ.get('GITHUB_ACTOR', 'Unknown Author')
+email = os.environ.get('CHATMSG_AUTHOR_EMAIL', '')
+author_display = f'{author} ({email})' if email else author
+commit_msg = os.environ.get('CHATMSG_COMMIT_MESSAGE', 'Build failed')
+
+payload = {
+    'cardsV2': [
+        {
+            'cardId': 'buildStatusCard',
+            'card': {
+                'header': {
+                    'title': 'Build Status: FAILURE',
+                    'subtitle': f"Workflow: {os.environ.get('GITHUB_WORKFLOW', 'build')}",
+                    'imageUrl': 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
+                    'imageType': 'CIRCLE',
+                },
+                'sections': [
+                    {
+                        'widgets': [
+                            {
+                                'decoratedText': {
+                                    'text': f'🔴 Run: <a href="{run_url}">{run_id}</a>',
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        'widgets': [
+                            {
+                                'textParagraph': {
+                                    'text': f'```\nCommit: {commit_sha}\nAuthor: {author_display}\n\n{commit_msg}\n```',
+                                    'textSyntax': 'MARKDOWN',
+                                }
+                            }
+                        ]
+                    },
+                ],
+            },
+        }
+    ]
+}
+
+url = f'https://chat.googleapis.com/v1/{space_id}/messages'
+post_req = urllib.request.Request(
+    url,
+    data=json.dumps(payload).encode('utf-8'),
+    headers={
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json',
+    },
+    method='POST',
+)
+
+try:
+    with urllib.request.urlopen(post_req) as response:
+        print('Chat notification sent successfully!')
+except Exception as e:
+    print(f'Failed to post chat message: {e}', file=sys.stderr)
+    sys.exit(1)
+EOF
 }
 
 
