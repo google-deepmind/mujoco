@@ -50,7 +50,9 @@ jobs:
     outputs:
       matrix: ${{ steps.generate.outputs.matrix }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        persist-credentials: false
     - name: Generate build matrix
       id: generate
       env:
@@ -66,7 +68,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        persist-credentials: false
 
     - name: Prepare Linux
       if: ${{ runner.os == 'Linux' }}
@@ -76,7 +80,7 @@ jobs:
       if: ${{ runner.os == 'macOS' }}
       run: brew install ninja
 
-    - uses: actions/setup-python@v6
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
       with:
         python-version: "3.11"
 
@@ -85,7 +89,7 @@ jobs:
     # keeps the venv activate fixup path untouched there).
     - name: Install uv
       if: ${{ runner.os != 'Windows' }}
-      uses: astral-sh/setup-uv@v8.2.0
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
       with:
         enable-cache: true
         cache-dependency-glob: "python/build_requirements*.txt"
@@ -102,7 +106,7 @@ jobs:
     # isn't the bottleneck, so we skip it there.
     - name: Setup ccache
       if: ${{ runner.os != 'Windows' }}
-      uses: hendrikmuhs/ccache-action@v1.2.23
+      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ${{ matrix.label }}
         max-size: "1.5G"
@@ -115,7 +119,7 @@ jobs:
 
     - name: Upload CMake Configure Log
       if: always()
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
         name: cmake-configure-log-${{ matrix.label }}
         path: build/CMakeFiles/CMakeConfigureLog.yaml
@@ -158,7 +162,9 @@ jobs:
 
     - name: Build samples
       working-directory: sample/build
-      run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
+      env:
+        CMAKE_BUILD_ARGS: ${{ matrix.cmake_build_args }}
+      run: bash ../../.github/workflows/build_steps.sh build_samples
 
     - name: Configure simulate
       working-directory: simulate
@@ -258,11 +264,13 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        persist-credentials: false
 
     - name: Prepare Windows (setup MSVC)
       if: ${{ runner.os == 'Windows' }}
-      uses: ilammy/msvc-dev-cmd@v1
+      uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
 
     - name: Prepare Linux
       if: ${{ runner.os == 'Linux' }}
@@ -275,7 +283,7 @@ jobs:
     # compiler invocation, so changing any build flag forces a recompile regardless.)
     - name: Setup ccache
       if: ${{ runner.os != 'Windows' }}
-      uses: hendrikmuhs/ccache-action@v1.2.23
+      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ${{ matrix.label }}-filament-${{ hashFiles('cmake/third_party_deps/filament.cmake') }}
         restore-keys: ${{ matrix.label }}-filament-
@@ -314,10 +322,12 @@ jobs:
         -DCMAKE_CXX_COMPILER:STRING=clang++-18
         -DMUJOCO_HARDEN:BOOL=ON
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        persist-credentials: false
 
     - name: Setup Node.js for WASM bindings
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
       with:
         node-version: '24.x'
 
@@ -326,7 +336,7 @@ jobs:
       run: bash ./.github/workflows/build_steps.sh prepare_linux
 
     - name: Setup ccache
-      uses: hendrikmuhs/ccache-action@v1.2.23
+      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ${{ env.label }}
         max-size: "1.5G"
@@ -369,17 +379,19 @@ jobs:
         -DMUJOCO_HARDEN:BOOL=ON
         -DMUJOCO_BUILD_TESTS:BOOL=OFF
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        persist-credentials: false
 
     - name: Prepare Linux
       run: bash ./.github/workflows/build_steps.sh prepare_linux
 
-    - uses: actions/setup-python@v6
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
       with:
         python-version: "3.11"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v8.2.0
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
       with:
         enable-cache: true
         cache-dependency-glob: "python/build_requirements*.txt"
@@ -388,7 +400,7 @@ jobs:
       run: bash ./.github/workflows/build_steps.sh prepare_python
 
     - name: Setup ccache
-      uses: hendrikmuhs/ccache-action@v1.2.23
+      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ubuntu-24.04-clang-18-mjx
         max-size: "1.0G"

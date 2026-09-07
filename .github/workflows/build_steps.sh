@@ -193,6 +193,12 @@ configure_samples() {
 }
 
 
+build_samples() {
+    echo "Building samples..."
+    cmake --build . --config=Release ${CMAKE_BUILD_ARGS}
+}
+
+
 configure_simulate() {
     echo "Configuring simulate..."
     # See configure_samples: keep the default IPO/LTO for this small build.
