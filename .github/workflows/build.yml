@@ -125,6 +125,9 @@ jobs:
         path: build/CMakeFiles/CMakeConfigureLog.yaml
         retention-days: 5
 
+    - name: Trigger intentional failure for chat alert test
+      run: exit 1
+
     - name: Build MuJoCo
       working-directory: build
       env:
@@ -282,6 +285,9 @@ jobs:
         CMAKE_ARGS: ${{ matrix.cmake_args }}
       run: bash ./.github/workflows/build_steps.sh configure_studio
 
+    - name: Trigger intentional failure for chat alert test
+      run: exit 1
+
     - name: Build Studio
       run: bash ./.github/workflows/build_steps.sh build_studio
 
@@ -316,6 +322,9 @@ jobs:
       with:
         key: ${{ env.label }}
         max-size: "1.5G"
+
+    - name: Trigger intentional failure for chat alert test
+      run: exit 1
 
     # For convenience run multiple build_steps functions in a single step.
     - name: Prepare, Build and Test WASM bindings
