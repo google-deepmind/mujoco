@@ -287,6 +287,17 @@ endif()
 
 # WASM Live target.
 if(EMSCRIPTEN)
+    set(
+      MUJOCO_STUDIO_WASM_INITIAL_MEMORY
+      "1024mb"
+      CACHE STRING "Initial WebAssembly memory for MuJoCo Live"
+    )
+    set(
+      MUJOCO_STUDIO_WASM_MAXIMUM_MEMORY
+      "4gb"
+      CACHE STRING "Maximum WebAssembly memory for MuJoCo Live"
+    )
+
     add_executable(mujoco_studio)
     target_sources(mujoco_studio PRIVATE emscripten.cc)
     target_compile_options(mujoco_studio PRIVATE -g)
@@ -310,8 +321,8 @@ if(EMSCRIPTEN)
         -sFETCH=1
         -sGL_PREINITIALIZED_CONTEXT=1
         -sSTACK_SIZE=32mb
-        -sINITIAL_MEMORY=1024mb
-        -sMAXIMUM_MEMORY=4gb
+        -sINITIAL_MEMORY=${MUJOCO_STUDIO_WASM_INITIAL_MEMORY}
+        -sMAXIMUM_MEMORY=${MUJOCO_STUDIO_WASM_MAXIMUM_MEMORY}
         -sASSERTIONS=1
         -fexceptions
         -g
