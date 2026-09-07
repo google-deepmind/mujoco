@@ -213,13 +213,10 @@ jobs:
 
     - name: Notify team chat
       if: failure()
-      env:
-        CHAT_SERVICE_ACCOUNT_KEY: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
-        CHAT_SPACE_ID: "spaces/AAQAJJIPgX8"
-        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name || github.actor }}
-        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email || github.actor }}
-        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message || github.event.pull_request.title }}
-      run: bash ./.github/workflows/build_steps.sh notify_team_chat
+      uses: ./.github/actions/notify-chat
+      with:
+        service-account-key: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
+        space-id: "spaces/AAQAJJIPgX8"
 
     # MJX (mujoco.mjx) is covered by the dedicated `mjx` job below; it is
     # compiler-independent so it does not need to run in every matrix job.
@@ -297,13 +294,10 @@ jobs:
 
     - name: Notify team chat
       if: failure()
-      env:
-        CHAT_SERVICE_ACCOUNT_KEY: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
-        CHAT_SPACE_ID: "spaces/AAQAJJIPgX8"
-        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name || github.actor }}
-        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email || github.actor }}
-        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message || github.event.pull_request.title }}
-      run: bash ./.github/workflows/build_steps.sh notify_team_chat
+      uses: ./.github/actions/notify-chat
+      with:
+        service-account-key: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
+        space-id: "spaces/AAQAJJIPgX8"
 
 
   # This job quickly determines if WASM bindings are broken.
@@ -351,13 +345,10 @@ jobs:
 
     - name: Notify team chat
       if: failure()
-      env:
-        CHAT_SERVICE_ACCOUNT_KEY: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
-        CHAT_SPACE_ID: "spaces/AAQAJJIPgX8"
-        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name || github.actor }}
-        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email || github.actor }}
-        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message || github.event.pull_request.title }}
-      run: bash ./.github/workflows/build_steps.sh notify_team_chat
+      uses: ./.github/actions/notify-chat
+      with:
+        service-account-key: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
+        space-id: "spaces/AAQAJJIPgX8"
 
 
   # MJX (mujoco.mjx) is pure JAX/XLA and compiler-independent: it imports the
@@ -443,10 +434,7 @@ jobs:
 
     - name: Notify team chat
       if: failure()
-      env:
-        CHAT_SERVICE_ACCOUNT_KEY: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
-        CHAT_SPACE_ID: "spaces/AAQAJJIPgX8"
-        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name || github.actor }}
-        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email || github.actor }}
-        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message || github.event.pull_request.title }}
-      run: bash ./.github/workflows/build_steps.sh notify_team_chat
+      uses: ./.github/actions/notify-chat
+      with:
+        service-account-key: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
+        space-id: "spaces/AAQAJJIPgX8"

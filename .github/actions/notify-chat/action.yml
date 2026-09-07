@@ -1,0 +1,41 @@
+name: 'Notify Google Chat'
+description: 'Sends a Cards V2 build failure notification to a Google Chat space'
+
+inputs:
+  service-account-key:
+    description: 'JSON Service Account private key with chat.messages.create scope'
+    required: false
+    default: ''
+  space-id:
+    description: 'Google Chat space resource name (e.g. spaces/AAQAJJIPgX8)'
+    required: true
+  commit-sha:
+    description: 'Commit SHA to report'
+    required: false
+    default: ${{ github.event.pull_request.head.sha || github.sha }}
+  author-name:
+    description: 'Commit author name'
+    required: false
+    default: ${{ github.event.head_commit.author.name || '' }}
+  author-email:
+    description: 'Commit author email'
+    required: false
+    default: ${{ github.event.head_commit.author.email || '' }}
+  commit-message:
+    description: 'Commit message'
+    required: false
+    default: ${{ github.event.head_commit.message || github.event.pull_request.title || '' }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run notify script
+      shell: bash
+      env:
+        CHAT_SERVICE_ACCOUNT_KEY: ${{ inputs.service-account-key }}
+        CHAT_SPACE_ID: ${{ inputs.space-id }}
+        CHAT_COMMIT_SHA: ${{ inputs.commit-sha }}
+        CHATMSG_AUTHOR_NAME: ${{ inputs.author-name }}
+        CHATMSG_AUTHOR_EMAIL: ${{ inputs.author-email }}
+        CHATMSG_COMMIT_MESSAGE: ${{ inputs.commit-message }}
+      run: python3 ${{ github.action_path }}/notify_chat.py
