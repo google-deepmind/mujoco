@@ -34,6 +34,27 @@ public class MjSceneGenerationTests {
   }
 
   [Test]
+  public void SiblingRootsAreOrderedByInstanceId() {
+    _fakeBodyA.enabled = true;
+    _fakeBodyB.enabled = true;
+    var mjcf = _scene.CreateScene(skipCompile:true);
+
+    var first = _fakeBodyA.GetInstanceID() < _fakeBodyB.GetInstanceID() ? _fakeBodyA : _fakeBodyB;
+    var second = _fakeBodyA.GetInstanceID() < _fakeBodyB.GetInstanceID() ? _fakeBodyB : _fakeBodyA;
+
+    int firstIndex = int.Parse(first.MujocoName.Replace("component_", ""));
+    int secondIndex = int.Parse(second.MujocoName.Replace("component_", ""));
+    Assert.That(firstIndex, Is.LessThan(secondIndex));
+
+    var bodyNodes = mjcf.SelectNodes("/mujoco/worldbody/body");
+    var bodyNames = new List<string>();
+    foreach (XmlNode node in bodyNodes) {
+      bodyNames.Add(node.Attributes["name"].Value);
+    }
+    Assert.That(bodyNames.IndexOf(first.MujocoName), Is.LessThan(bodyNames.IndexOf(second.MujocoName)));
+  }
+
+  [Test]
   public void AttachingComponentsToMjNodesThroughId() {
     _fakeBodyA.enabled = true;
     _fakeBodyB.enabled = true;
