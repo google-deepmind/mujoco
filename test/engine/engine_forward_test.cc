@@ -4972,10 +4972,10 @@ TEST_F(ForwardTest, DiscreteImplicitRowImpedanceCeiling) {
 
 // refsafe under the discrete integrator: a contact or limit row stiffer than
 // the step can resolve (h^2*K*I > 1) would rebound on impact, so it is replaced
-// by the resolved row: zero restitution (h^2*K*I = 1) with deadbeat damping
-// (row factor 20). Rows with timeconst*dampratio >= h and equality rows are
-// untouched; disabling refsafe restores the authored spring-damper and its
-// rebound
+// by the resolved row: zero restitution (h^2*K*I = 1) at the authored damping
+// ratio, i.e. row factor f = 2 + 2*dampratio/sqrt(I). Rows with
+// timeconst*dampratio >= h and equality rows are untouched; disabling refsafe
+// restores the authored spring-damper and its rebound
 TEST_F(ForwardTest, DiscreteRefsafeResolvedRow) {
   static constexpr char xml_template[] = R"(
   <mujoco>
@@ -4993,7 +4993,7 @@ TEST_F(ForwardTest, DiscreteRefsafeResolvedRow) {
         <geom name="soft" type="sphere" size=".05" mass="1" priority="1"/>
       </body>
       <body pos="2 0 1">
-        <joint name="hinge" axis="0 1 0" range="-1 0" solreflimit="0.004 1"/>
+        <joint name="hinge" axis="0 1 0" range="-1 0" solreflimit="0.004 2"/>
         <geom type="capsule" size=".02" fromto="0 0 0 0 0 -.3" mass="1"/>
       </body>
       <body pos="3 0 1">
@@ -5045,11 +5045,13 @@ TEST_F(ForwardTest, DiscreteRefsafeResolvedRow) {
       bool stiff_contact = (type == mjCNSTR_CONTACT_PYRAMIDAL) &&
                            (data->contact[data->efc_id[i]].geom[1] == stiff);
       if (stiff_contact || type == mjCNSTR_LIMIT_JOINT) {
-        // resolved: zero restitution, deadbeat damping
+        // resolved: zero restitution at the authored damping ratio (1 for the
+        // contact, 2 for the limit)
+        mjtNum zeta = stiff_contact ? 1 : 2;
         EXPECT_NEAR(h * h * kbip[0] * kbip[2], 1, MjTol(1e-12, 1e-6))
             << "row " << i;
-        EXPECT_NEAR(1 + h * kbip[1] + h * h * kbip[0] * kbip[2], 20,
-                    MjTol(1e-10, 1e-5))
+        EXPECT_NEAR(1 + h * kbip[1] + h * h * kbip[0] * kbip[2],
+                    2 + 2 * zeta / mju_sqrt(kbip[2]), MjTol(1e-10, 1e-5))
             << "row " << i;
         nresolved++;
       } else {
@@ -5086,7 +5088,7 @@ TEST_F(ForwardTest, DiscreteRefsafeResolvedRow) {
     EXPECT_NEAR(data->qvel[2], v_expected, MjTol(1e-9, 1e-4))
         << "refsafe " << enabled;
     if (enabled) {
-      EXPECT_LT(mju_abs(data->qvel[2]), 0.01 * v0);  // no rebound
+      EXPECT_LT(mju_abs(data->qvel[2]), 0.05 * v0);  // no rebound
     } else {
       EXPECT_GT(data->qvel[2], 0.3 * v0);  // rebound
     }

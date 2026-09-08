@@ -2143,10 +2143,6 @@ static inline mjtNum implicitFactor(const mjtNum* kbip, mjtNum h) {
   return 1 + h*kbip[1] + h*h*kbip[0]*kbip[2];
 }
 
-// row factor of a resolved contact or limit row under the discrete integrator (refsafe):
-// a step removes 1 - 1/f of the approach velocity, the deadbeat of the classic refsafe row
-#define mjRESOLVED_FACTOR 20
-
 
 // compute efc_R, efc_D, efc_KBIP, adjust efc_diagA
 void mj_makeImpedance(const mjModel* m, mjData* d) {
@@ -2214,9 +2210,10 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
         mjtNum* kbip = KBIP + 4*(i+j);
 
         // refsafe: a contact or limit row whose spring the step cannot resolve
-        // (h^2*K*I > 1) rebounds on impact with restitution (h^2*K*I - 1)/f.
-        // Replace it by the resolved row: the stiffest zero-restitution spring, K = 1/(h^2*I),
-        // with the excess stiffness moved into damping up to the deadbeat level
+        // (h^2*K*I > 1) rebounds on impact with restitution (h^2*K*I - 1)/f. Replace it
+        // by the resolved row: timeconst shortened to the stiffest zero-restitution
+        // value, damping ratio kept (K /= excess, B /= sqrt(excess)), damping bounded by
+        // the impedance ceiling so that the statics stay exact
         if (!mjDISABLED(mjDSBL_REFSAFE) && ref[0] > 0 && kbip[0] > 0 &&
             (tp == mjCNSTR_LIMIT_JOINT          ||
              tp == mjCNSTR_LIMIT_TENDON         ||
@@ -2225,14 +2222,9 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
              tp == mjCNSTR_CONTACT_ELLIPTIC)) {
           mjtNum excess = (h*h)*kbip[0]*kbip[2];
           if (excess > 1) {
-            // damping: ramp the authored value up with the excess, to at least the deadbeat
-            // level and at most the impedance ceiling (f <= fmax keeps the statics exact)
-            mjtNum hB = h*kbip[1];
             mjtNum fmax = mjMAXIMP*(1-kbip[2]) / mju_max(mjMINVAL, kbip[2]*(1-mjMAXIMP));
-            mjtNum hBmax = mju_max(mjRESOLVED_FACTOR-2, fmax-2);
-            mjtNum hBres = mju_min(mju_max(hB, mjRESOLVED_FACTOR-2), hBmax);
             kbip[0] = 1 / (h*h*kbip[2]);
-            kbip[1] = mju_min(hB*excess, hBres) / h;
+            kbip[1] = mju_min(kbip[1]/mju_sqrt(excess), mju_max(0, fmax-2)/h);
           }
         }
 

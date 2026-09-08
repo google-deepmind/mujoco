@@ -644,7 +644,7 @@ from its default.
    stabilization. If this setting is enabled, the solver uses max(solref[0], 2*timestep) in place of solref[0]
    separately for each active constraint. Under the :ref:`discrete<geIntegrators>` integrator, the flag instead
    replaces contact and limit rows whose spring the timestep cannot resolve (solref[0]*solref[1] < timestep) by the
-   stiffest zero-restitution row for the timestep.
+   stiffest zero-restitution row for the timestep, keeping the authored damping ratio.
 
 .. _option-flag-sensor:
 

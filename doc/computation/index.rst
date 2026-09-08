@@ -681,7 +681,7 @@ Discrete-time (``discrete``)
    :at:`solref` at any timestep. A contact or limit row whose spring is stiffer than the timestep can resolve
    (:at:`timeconst` :math:`\times` :at:`dampratio` :math:`< h`) would however rebound on impact, so under this
    integrator the :ref:`refsafe<option-flag-refsafe>` flag replaces such rows by the resolved row: the stiffest
-   zero-restitution spring for the timestep, with deadbeat damping (95% of the approach velocity is removed per step).
+   zero-restitution spring for the timestep at the authored damping ratio.
    Rows with :at:`timeconst` :math:`\times` :at:`dampratio` :math:`\ge h` and equality rows are left as authored; with
    :at:`refsafe` disabled, every row is honored and :at:`timeconst` :math:`\to 0` approaches the rigid-constraint limit
    (the violation is removed in one step) rather than an instability. The row's effective impedance is capped at the
