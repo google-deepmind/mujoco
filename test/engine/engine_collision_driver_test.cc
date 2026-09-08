@@ -474,5 +474,36 @@ TEST_F(MjCollisionTest, MaxContact) {
   EXPECT_EQ(mj_maxContact(m.get(), cylinder, mesh, -1), 4);
 }
 
+TEST_F(MjCollisionTest, FlexContactFilterTieBreak) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="plane" size="1 1 0.1"/>
+      <flexcomp name="cloth" type="grid" dim="2" count="9 9 1" spacing="0.05 0.05 0.05"
+                pos="0 0 0.005" radius="0.01">
+        <edge equality="true"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  mj_fwdPosition(m.get(), d.get());
+
+  // A 9x9 flat grid produces 128 elements, all penetrating the plane
+  // identically. Contact filtering should cap the contacts to mjMAXCONPAIR
+  // (50).
+  EXPECT_EQ(d->ncon, mjMAXCONPAIR);
+
+  for (int i = 0; i < d->ncon; ++i) {
+    EXPECT_LT(d->contact[i].dist, 0.0);
+    EXPECT_FALSE(std::isnan(d->contact[i].dist));
+  }
+}
+
 }  // namespace
 }  // namespace mujoco
