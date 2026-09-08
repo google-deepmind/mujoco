@@ -247,6 +247,72 @@ TEST_F(MujocoTest, ReadsJointTypes) {
   }
 }
 
+// ---------------------------- inertial orientation --------------------------
+
+TEST_F(MujocoTest, UrdfInertialOriginRotation) {
+  // issue #3559: the inertial origin rotation must not be lost during
+  // compilation, for both the default (alignfree) and non-aligned paths
+  for (bool alignfree : {true, false}) {
+    std::string urdf =
+        "<robot name=\"inertia_frame\">\n"
+        "  <mujoco><compiler fusestatic=\"false\" alignfree=\"" +
+        std::string(alignfree ? "true" : "false") +
+        "\"/></mujoco>\n"
+        "  <link name=\"world\"/>\n"
+        "  <link name=\"body\">\n"
+        "    <inertial>\n"
+        "      <origin xyz=\"0 0 0\" rpy=\"0 0 1.5707963267948966\"/>\n"
+        "      <mass value=\"1\"/>\n"
+        "      <inertia ixx=\"1\" iyy=\"2\" izz=\"2.5\" ixy=\"0\" ixz=\"0\" "
+        "iyz=\"0\"/>\n"
+        "    </inertial>\n"
+        "  </link>\n"
+        "  <joint name=\"free\" type=\"floating\">\n"
+        "    <parent link=\"world\"/>\n"
+        "    <child link=\"body\"/>\n"
+        "  </joint>\n"
+        "</robot>\n";
+
+    std::array<char, 1000> error;
+    MjModelPtr model = LoadModelFromString(urdf, error.data(), error.size());
+    ASSERT_THAT(model.get(), NotNull()) << error.data();
+
+    int body_id = mj_name2id(model.get(), mjtObj::mjOBJ_BODY, "body");
+
+    // world-frame inertia tensor must be diag(2, 1, 2.5)
+    mjtNum rot_body[9], mat[9], rot_world[9], tensor[9];
+    mju_quat2Mat(rot_body, model->body_iquat + 4 * body_id);
+    mju_quat2Mat(mat, model->body_quat + 4 * body_id);
+    mju_mulMatMat(rot_world, mat, rot_body, 3, 3, 3);
+    for (int r = 0; r < 3; r++) {
+      for (int c = 0; c < 3; c++) {
+        mjtNum sum = 0;
+        for (int k = 0; k < 3; k++) {
+          sum += rot_world[3 * r + k] * rot_world[3 * c + k] *
+                 model->body_inertia[3 * body_id + k];
+        }
+        tensor[3 * r + c] = sum;
+      }
+    }
+    constexpr double diag2[9] = {2, 0, 0, 0, 1, 0, 0, 0, 2.5};
+    for (int i = 0; i < 9; i++) {
+      EXPECT_NEAR(tensor[i], diag2[i], 1e-8) << "alignfree=" << alignfree;
+    }
+
+    // X torque for 1 rad/s^2 must equal the x principal moment R*D*R'[0][0]
+    MjDataPtr data = MakeData(model);
+    data->qacc[3] = 1.0;
+    mj_inverse(model.get(), data.get());
+    mjtNum expected = 0;
+    for (int k = 0; k < 3; k++) {
+      expected +=
+          rot_body[k] * rot_body[k] * model->body_inertia[3 * body_id + k];
+    }
+    EXPECT_NEAR(data->qfrc_inverse[3], expected, 1e-8)
+        << "alignfree=" << alignfree;
+  }
+}
+
 TEST_F(MujocoTest, RepeatedMeshName) {
   static constexpr char urdf[] = R"(
   <robot name="">
