@@ -441,7 +441,9 @@ static inline int contactcompare(const mjContact* c1, const mjContact* c2, void*
 mjSORT(contactSort, mjContact, contactcompare);
 
 
-// Strict total-order tie-breaker for flex contact selection: (elem1, elem2, candidate index)
+// Strict total-order tie-breaker for flex contact selection: (elem1, elem2, candidate index).
+// Contacts from different element pairs are separated by (elem[0], elem[1]); the candidate index
+// breaks ties between contacts emitted for the same element pair (e.g. mjraw_CapsuleCapsule).
 static inline int tieBreakFlexContact(const mjContact* c_curr, int idx_curr,
                                       const mjContact* c_sel, int idx_sel) {
   if (idx_sel < 0) {
@@ -458,7 +460,7 @@ static inline int tieBreakFlexContact(const mjContact* c_curr, int idx_curr,
 
 
 // filter flex contacts based on distance
-static void filterFlexContacts(mjData* d, int ncon_before) {
+void filterFlexContacts(mjData* d, int ncon_before) {
   int n = d->ncon - ncon_before;
   if (n <= mjMAXCONPAIR) {
     return;
@@ -518,6 +520,7 @@ static void filterFlexContacts(mjData* d, int ncon_before) {
       }
     }
 
+    // stop if no candidates remain, or if all remaining candidates are coincident (min_dist <= 0)
     if (nextbest < 0 || nextbestdist <= 0) {
       break;
     }

@@ -59,6 +59,9 @@ void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2
 // test element and vertex for collision, add to contact list
 void mj_collideElemVert(const mjModel* m, mjData* d, int f, int e, int v);
 
+// filter flex contacts based on distance
+MJAPI void filterFlexContacts(mjData* d, int ncon_before);
+
 
 #ifdef __cplusplus
 }

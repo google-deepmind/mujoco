@@ -19,6 +19,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstring>
+#include <numeric>
+#include <random>
 #include <string>
 #include <utility>
 #include <vector>
@@ -494,15 +497,103 @@ TEST_F(MjCollisionTest, FlexContactFilterTieBreak) {
 
   mj_fwdPosition(m.get(), d.get());
 
-  // A 9x9 flat grid produces 128 elements, all penetrating the plane
-  // identically. Contact filtering should cap the contacts to mjMAXCONPAIR
-  // (50).
+  // A 9x9 flat grid produces 81 vertices, all penetrating the plane identically
+  // via mj_collidePlaneFlex. Contact filtering should cap contacts to
+  // mjMAXCONPAIR (50).
   EXPECT_EQ(d->ncon, mjMAXCONPAIR);
 
+  const std::vector<int> expected_verts = {
+      0,  2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 21, 22, 23, 24, 26, 28,
+      29, 30, 31, 32, 33, 34, 36, 38, 39, 40, 41, 42, 44, 46, 47, 48, 49,
+      50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72, 74, 76, 78, 80};
+  std::vector<int> selected_verts;
+  selected_verts.reserve(d->ncon);
   for (int i = 0; i < d->ncon; ++i) {
     EXPECT_LT(d->contact[i].dist, 0.0);
     EXPECT_FALSE(std::isnan(d->contact[i].dist));
+    selected_verts.push_back(d->contact[i].vert[1]);
   }
+  EXPECT_EQ(selected_verts, expected_verts);
+}
+
+TEST_F(MjCollisionTest, FlexContactFilterTieBreakPermutation) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <size nconmax="200"/>
+    <worldbody>
+      <geom name="floor" type="plane" size="1 1 0.1"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  // Generate 60 candidate contacts (> mjMAXCONPAIR) with identical penetration
+  // depth, where symmetric distances lead to ties resolved by (elem[0],
+  // elem[1], candidate index).
+  constexpr int kNumCandidates = 60;
+  static_assert(kNumCandidates > mjMAXCONPAIR,
+                "Candidate count must exceed max pair cap");
+
+  auto build_candidates = [](mjData* data, const std::vector<int>& elem_order) {
+    data->ncon = elem_order.size();
+    for (int i = 0; i < data->ncon; ++i) {
+      mjContact* c = data->contact + i;
+      std::memset(c, 0, sizeof(mjContact));
+      c->dist = -0.01;
+      c->pos[0] = static_cast<mjtNum>(elem_order[i]);
+      c->pos[1] = 0.0;
+      c->pos[2] = 0.0;
+      c->elem[0] = elem_order[i];
+      c->elem[1] = 0;
+      c->vert[0] = -1;
+      c->vert[1] = -1;
+    }
+  };
+
+  std::vector<int> order_forward(kNumCandidates);
+  std::iota(order_forward.begin(), order_forward.end(), 0);
+  std::vector<int> order_reversed(order_forward.rbegin(), order_forward.rend());
+
+  build_candidates(d.get(), order_forward);
+  filterFlexContacts(d.get(), 0);
+  EXPECT_EQ(d->ncon, mjMAXCONPAIR);
+  std::vector<int> selected_forward;
+  selected_forward.reserve(d->ncon);
+  for (int i = 0; i < d->ncon; ++i) {
+    selected_forward.push_back(d->contact[i].elem[0]);
+  }
+
+  build_candidates(d.get(), order_reversed);
+  filterFlexContacts(d.get(), 0);
+  EXPECT_EQ(d->ncon, mjMAXCONPAIR);
+  std::vector<int> selected_reversed;
+  selected_reversed.reserve(d->ncon);
+  for (int i = 0; i < d->ncon; ++i) {
+    selected_reversed.push_back(d->contact[i].elem[0]);
+  }
+
+  // Filter with randomly shuffled order
+  std::vector<int> order_shuffled = order_forward;
+  std::mt19937 rng(42);
+  std::shuffle(order_shuffled.begin(), order_shuffled.end(), rng);
+
+  build_candidates(d.get(), order_shuffled);
+  filterFlexContacts(d.get(), 0);
+  EXPECT_EQ(d->ncon, mjMAXCONPAIR);
+  std::vector<int> selected_shuffled;
+  selected_shuffled.reserve(d->ncon);
+  for (int i = 0; i < d->ncon; ++i) {
+    selected_shuffled.push_back(d->contact[i].elem[0]);
+  }
+
+  // Tie-breaking enforces strict total order on (elem[0], elem[1], idx),
+  // ensuring that candidate selection is independent of input candidate order.
+  EXPECT_EQ(selected_forward, selected_reversed);
+  EXPECT_EQ(selected_forward, selected_shuffled);
 }
 
 }  // namespace
