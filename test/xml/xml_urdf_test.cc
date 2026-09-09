@@ -15,12 +15,14 @@
 // Tests for xml/xml_api.cc.
 
 #include <array>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mujoco.h>
+#include "src/xml/xml_numeric_format.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -310,6 +312,71 @@ TEST_F(MujocoTest, UrdfInertialOriginRotation) {
     }
     EXPECT_NEAR(data->qfrc_inverse[3], expected, 1e-8)
         << "alignfree=" << alignfree;
+  }
+}
+
+TEST_F(MujocoTest, UrdfObliqueInertiaRecompileAndRoundTrip) {
+  // q = (1, 2, 3, 4) / sqrt(30), so R = [-10 2 11; 10 -5 10; 5 14 2] / 15.
+  // For I = [4 .3 .2; .3 3 .1; .2 .1 2], these are the exact entries of R I R'.
+  // I is positive definite, with every eigenvalue less than trace(I)/2.
+  constexpr mjtNum expected[9] = {
+      1004.0 / 375, -127.0 / 150, -49.0 / 125, -127.0 / 150, 3,
+      61.0 / 150,   -49.0 / 125,  61.0 / 150,  1246.0 / 375};
+  static constexpr char urdf[] = R"(
+    <robot name="oblique">
+      <mujoco><compiler fusestatic="false"/></mujoco>
+      <link name="world"/>
+      <link name="body">
+        <inertial>
+          <origin rpy="1.4288992721907328 -0.3398369094541219 2.356194490192345"/>
+          <mass value="1"/>
+          <inertia ixx="4" iyy="3" izz="2" ixy="0.3" ixz="0.2" iyz="0.1"/>
+        </inertial>
+      </link>
+      <joint name="free" type="floating">
+        <parent link="world"/>
+        <child link="body"/>
+      </joint>
+    </robot>)";
+
+  // World axes include the frame change made by alignfree.
+  auto check_inertia = [&](const MjModelPtr& model) {
+    int body = mj_name2id(model.get(), mjOBJ_BODY, "body");
+    ASSERT_GE(body, 0);
+    MjDataPtr data = MakeData(model);
+    mj_forward(model.get(), data.get());
+    const mjtNum* rot = data->ximat + 9 * body;
+    for (int r = 0; r < 3; ++r) {
+      for (int c = 0; c < 3; ++c) {
+        mjtNum inertia = 0;
+        for (int k = 0; k < 3; ++k) {
+          inertia += rot[3 * r + k] * model->body_inertia[3 * body + k] *
+                     rot[3 * c + k];
+        }
+        EXPECT_THAT(inertia, MjNear(expected[3 * r + c], 1e-7, 1e-5));
+      }
+    }
+  };
+
+  FullFloatPrecision precision;
+  for (bool alignfree : {false, true}) {
+    SCOPED_TRACE(alignfree);
+    std::array<char, 1000> error{};
+    std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)> spec(
+        mj_parseXMLString(urdf, nullptr, error.data(), error.size()),
+        mj_deleteSpec);
+    ASSERT_THAT(spec.get(), NotNull()) << error.data();
+    spec->compiler.alignfree = alignfree;
+    for (int repeat = 0; repeat < 3; ++repeat) {
+      SCOPED_TRACE(repeat);
+      MjModelPtr model(mj_compile(spec.get(), nullptr));
+      ASSERT_THAT(model.get(), NotNull()) << mjs_getError(spec.get());
+      check_inertia(model);
+      MjModelPtr roundtrip = LoadModelFromString(SaveAndReadXml(spec.get()),
+                                                 error.data(), error.size());
+      ASSERT_THAT(roundtrip.get(), NotNull()) << error.data();
+      check_inertia(roundtrip);
+    }
   }
 }
 
