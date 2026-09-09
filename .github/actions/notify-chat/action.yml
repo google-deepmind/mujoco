@@ -25,6 +25,10 @@ inputs:
     description: 'Commit message'
     required: false
     default: ${{ github.event.head_commit.message || github.event.pull_request.title || '' }}
+  user-id-map:
+    description: 'JSON mapping of author emails to Google Chat user IDs for @mentions'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -33,6 +37,7 @@ runs:
       shell: bash
       env:
         CHAT_SERVICE_ACCOUNT_KEY: ${{ inputs.service-account-key }}
+        CHAT_USER_ID_MAP: ${{ inputs.user-id-map }}
         CHAT_SPACE_ID: ${{ inputs.space-id }}
         CHAT_COMMIT_SHA: ${{ inputs.commit-sha }}
         CHATMSG_AUTHOR_NAME: ${{ inputs.author-name }}

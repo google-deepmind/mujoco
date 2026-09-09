@@ -219,6 +219,7 @@ jobs:
       uses: ./.github/actions/notify-chat
       with:
         service-account-key: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
+        user-id-map: ${{ secrets.CHAT_USER_ID_MAP }}
         space-id: "spaces/AAAAzcCLt1A"
 
   # This job quickly determines if MuJoCo Studio is broken. It is the only place
@@ -297,6 +298,7 @@ jobs:
       uses: ./.github/actions/notify-chat
       with:
         service-account-key: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
+        user-id-map: ${{ secrets.CHAT_USER_ID_MAP }}
         space-id: "spaces/AAAAzcCLt1A"
 
 
@@ -345,6 +347,7 @@ jobs:
       uses: ./.github/actions/notify-chat
       with:
         service-account-key: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
+        user-id-map: ${{ secrets.CHAT_USER_ID_MAP }}
         space-id: "spaces/AAAAzcCLt1A"
 
 
@@ -434,4 +437,5 @@ jobs:
       uses: ./.github/actions/notify-chat
       with:
         service-account-key: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
+        user-id-map: ${{ secrets.CHAT_USER_ID_MAP }}
         space-id: "spaces/AAAAzcCLt1A"

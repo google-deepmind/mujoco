@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -71,7 +72,11 @@ def get_service_account_token(key_data: dict, scope: str = 'https://www.googleap
 
 def git_log(fmt: str) -> str:
     try:
-        return subprocess.check_output(['git', 'log', '-1', f'--format={fmt}'], text=True).strip()
+        return subprocess.check_output(
+            ['git', 'log', '-1', f'--format={fmt}'],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
     except Exception:
         return ''
 
@@ -158,23 +163,71 @@ def main():
         ]
     }
 
-    url = f'https://chat.googleapis.com/v1/{space_id}/messages'
+    message_id = f'client-run-{run_id}'
+    url = f'https://chat.googleapis.com/v1/{space_id}/messages?messageId={message_id}'
     post_req = urllib.request.Request(
         url,
         data=json.dumps(payload).encode('utf-8'),
         headers={
             'Authorization': f'Bearer {token}',
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/json; charset=UTF-8',
         },
         method='POST',
     )
 
     try:
         with urllib.request.urlopen(post_req) as response:
+            resp_data = json.loads(response.read().decode('utf-8'))
             print('Chat notification sent successfully!')
+    except urllib.error.HTTPError as e:
+        if e.code == 409:
+            print(f'Notification for run {run_id} was already posted by another job; skipping duplicate.')
+            sys.exit(0)
+        print(f'Failed to post chat message (HTTP {e.code}): {e.read().decode("utf-8")}', file=sys.stderr)
+        sys.exit(1)
     except Exception as e:
         print(f'Failed to post chat message: {e}', file=sys.stderr)
         sys.exit(1)
+
+    user_id_map_str = os.environ.get('CHAT_USER_ID_MAP', '')
+    chat_user_id_map = {}
+    if user_id_map_str:
+        try:
+            chat_user_id_map = json.loads(user_id_map_str)
+        except Exception as e:
+            print(f'Failed to parse CHAT_USER_ID_MAP: {e}', file=sys.stderr)
+
+    email = email.strip().lower() if email else ''
+    chat_user_id = chat_user_id_map.get(email)
+    thread_name = resp_data.get('thread', {}).get('name')
+    if chat_user_id:
+        if thread_name:
+            reply_payload = {
+                'text': f'cc <users/{chat_user_id}>',
+                'thread': {'name': thread_name},
+            }
+            reply_url = f'https://chat.googleapis.com/v1/{space_id}/messages?messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD&messageId={message_id}-cc'
+            reply_req = urllib.request.Request(
+                reply_url,
+                data=json.dumps(reply_payload).encode('utf-8'),
+                headers={
+                    'Authorization': f'Bearer {token}',
+                    'Content-Type': 'application/json; charset=UTF-8',
+                },
+                method='POST',
+            )
+            try:
+                with urllib.request.urlopen(reply_req) as reply_resp:
+                    print('Threaded mention reply sent successfully!')
+            except urllib.error.HTTPError as e:
+                if e.code == 409:
+                    print(f'Threaded mention for run {run_id} was already posted; skipping duplicate.')
+                else:
+                    print(f'Failed to post threaded mention (HTTP {e.code}): {e.read().decode("utf-8")}', file=sys.stderr)
+            except Exception as e:
+                print(f'Failed to post threaded mention: {e}', file=sys.stderr)
+        else:
+            print(f'Warning: User ID found for {email}, but no thread name in chat response. Skipping threaded mention.', file=sys.stderr)
 
 
 if __name__ == '__main__':
