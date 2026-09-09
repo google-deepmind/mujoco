@@ -2094,8 +2094,7 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
 void ParseJointEnabled(mjsEquality* eq, const pxr::UsdPhysicsJoint& joint) {
   bool jointEnabled = true;
   const pxr::UsdPrim& prim = joint.GetPrim();
-  if (prim.HasAPI(NewtonTokens->NewtonMimicAPI) &&
-      !prim.HasAPI<pxr::MjcPhysicsEqualityJointAPI>()) {
+  if (prim.HasAPI(NewtonTokens->NewtonMimicAPI)) {
     prim.GetAttribute(NewtonTokens->newtonMimicEnabled).Get(&jointEnabled);
   } else {
     joint.GetJointEnabledAttr().Get(&jointEnabled);
