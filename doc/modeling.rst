@@ -253,7 +253,7 @@ equality constraints that become stronger with larger violation (so as to approx
 of the function :math:`d(r)` is determined by the element-specific parameter vector :at:`solimp`.
 
 **solimp :** real(5), "0.9 0.95 0.001 0.5 2"
-   The five numbers (:math:`d_0`, :math:`d_\text{width}`, :math:`\text{width}`, :math:`\text{midpoint}`,
+   The five numbers (:math:`d_0`, :math:`d_\mathrm{w}`, :math:`\text{width}`, :math:`\text{midpoint}`,
    :math:`\text{power}`) parameterize :math:`d(r)` -- the impedance :math:`d` as a function of the constraint
    violation :math:`r`.
 
@@ -261,33 +261,35 @@ of the function :math:`d(r)` is determined by the element-specific parameter vec
    :math:`0` to :math:`\text{width}`:
 
    .. math::
-      d(0) = d_0, \quad d(\text{width}) = d_\text{width}
+      d(0) = d_0, \quad d(\text{width}) = d_\mathrm{w}
 
    The 4th and 5th values, :math:`\text{midpoint}` and :math:`\text{power}`, control the shape of the sigmoidal
-   function that interpolates between :math:`d_0` and :math:`d_\text{width}`, as shown in the plots below.
+   function that interpolates between :math:`d_0` and :math:`d_\mathrm{w}`, as shown in the plots below.
    The plots show two reflected sigmoids, because the impedance :math:`d(r)` depends on the absolute
    value of :math:`r`. The :math:`\text{power}` (of the polynomial spline used to generate the function) must be 1 or
    greater. The :math:`\text{midpoint}` (specifying the inflection point) must be between 0 and 1, and is expressed in
    units of :math:`\text{width}`. Note that when :math:`\text{power}` is 1, the function is linear regardless of the
    :math:`\text{midpoint}`.
 
-   .. image:: images/modeling/impedance.png
+   .. image:: images/modeling/impedance.svg
+      :alt: Impedance curves with midpoint 0.2, 0.5 and 0.8 by row and power 1, 2 and 6 by column.
+            The negative-residual half is shaded; dotted lines mark midpoint times width.
       :width: 600px
       :align: center
       :class: only-light
 
-   .. image:: images/modeling/impedance_dark.png
+   .. image:: images/modeling/impedance_dark.svg
+      :alt: Impedance curves with midpoint 0.2, 0.5 and 0.8 by row and power 1, 2 and 6 by column.
+            The negative-residual half is shaded; dotted lines mark midpoint times width.
       :width: 600px
       :align: center
       :class: only-dark
 
-   These plots show the impedance :math:`d(r)` on the vertical axis, as a function of the constraint violation :math:`r`
-   on the horizontal axis.
-
-   For equality constraints, :math:`r` is the constraint violation. For limits, normal directions of elliptic cones and
-   all directions of pyramidal cones, :math:`r` is the (limit or contact) distance minus the margin at which the
-   constraint becomes active; for contacts this margin is :ref:`margin<body-geom-margin>`.
-   Limit and contact constraints are active when :math:`r < 0` (penetration).
+   These plots show the impedance :math:`d(r)` as a function of the constraint violation :math:`r`. For equality
+   constraints, :math:`r` is the constraint violation itself. For limits, normal directions of elliptic cones and all
+   directions of pyramidal cones, :math:`r` is the distance minus the margin at which the constraint becomes active
+   (the :ref:`margin<body-geom-margin>` attribute for contacts). These unilateral constraints are active only when
+   :math:`r<0`, shown by the shaded region.
 
    For frictional constraints, see :ref:`Friction<CSolverFriction>`.
 
@@ -351,8 +353,8 @@ see :ref:`Friction<CSolverFriction>`.
       :label: eq:solref_standard
 
       \begin{aligned}
-      b &= 2 / (d_\text{width}\cdot \text{timeconst}) \\
-      k &= d(r) / (d_\text{width}^2 \cdot \text{timeconst}^2 \cdot \text{dampratio}^2) \\
+      b &= 2 / (d_\mathrm{w}\cdot \text{timeconst}) \\
+      k &= d(r) / (d_\mathrm{w}^2 \cdot \text{timeconst}^2 \cdot \text{dampratio}^2) \\
       \end{aligned}
 
    The timeconst parameter should be at least two times larger than the simulation time step, otherwise the system can
@@ -362,7 +364,7 @@ see :ref:`Friction<CSolverFriction>`.
    critical damping. Smaller values result in under-damped or bouncy constraints, while larger values result in
    over-damped constraints. Combining :eq:`eq:solref_standard` with :eq:`eq:constraint`, we can derive the following
    If the reference acceleration is given using the positive number format and the impedance is constant
-   :math:`d = d_0 = d_\text{width}`, then the penetration depth at rest is
+   :math:`d = d_0 = d_\mathrm{w}`, then the penetration depth at rest is
 
    .. math::
       r = \au \cdot (1 - d) \cdot \text{timeconst}^2 \cdot \text{dampratio}^2
@@ -376,8 +378,8 @@ see :ref:`Friction<CSolverFriction>`.
       :label: eq:solref_direct
 
       \begin{aligned}
-      b &= \text{damping} / d_\text{width} \\
-      k &= \text{stiffness} \cdot d(r) / d_\text{width}^2 \\
+      b &= \text{damping} / d_\mathrm{w} \\
+      k &= \text{stiffness} \cdot d(r) / d_\mathrm{w}^2 \\
       \end{aligned}
 
    Similarly to the derivation following :eq:`eq:solref_standard`, if the reference acceleration is given using the
@@ -412,7 +414,7 @@ violation: :math:`r \equiv 0`. This simplifies the constraint model (see also :r
 - In the standard :at:`solref` format, the time constant controls exponential velocity decay. The damping ratio is
   ignored (it only appears in the :math:`k` formula).
 - In the direct :at:`solref` format, the damping (second value) is used but the stiffness (first value) is ignored.
-- :math:`d_\text{width}` (:at:`solimp[1]`) still affects the damping :math:`b` as a scaling denominator
+- :math:`d_\mathrm{w}` (:at:`solimp[1]`) still affects the damping :math:`b` as a scaling denominator
   (:eq:`eq:solref_standard`, :eq:`eq:solref_direct`), even though it does not affect the impedance.
 
 See :ref:`slow slippage<CSlowSlippage>` for the implications of this model for exact sticking and practical guidance.
