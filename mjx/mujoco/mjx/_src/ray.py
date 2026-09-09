@@ -33,7 +33,7 @@ def _ray_quad(
 ) -> Tuple[jax.Array, jax.Array]:
   """Returns two solutions for quadratic: a*x^2 + 2*b*x + c = 0."""
   det = b * b - a * c
-  det_2 = jp.sqrt(det)
+  det_2 = jp.sqrt(jp.maximum(det, 0))
 
   x0, x1 = math.safe_div(-b - det_2, a), math.safe_div(-b + det_2, a)
   x0 = jp.where((det < mujoco.mjMINVAL) | (x0 < 0), jp.inf, x0)
