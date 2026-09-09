@@ -2027,6 +2027,51 @@ const char* mj_validateReferences(const mjModel* m) {
       return "Invalid model: tex_adr out of bounds.";
     }
   }
+  // validate per-mesh index arrays: their contents are mesh-local indices that
+  // are used as offsets at runtime (e.g. mesh_vert + 3*mesh_face[...]) without
+  // further bounds checks. These are set by the compiler for XML models, but
+  // are read verbatim from the file when loading a binary (MJB) model, so they
+  // must be validated here. The corresponding *adr/*num arrays are already
+  // bounds-checked by MJMODEL_REFERENCES above.
+  for (int i=0; i < m->nmesh; i++) {
+    int vertnum = m->mesh_vertnum[i];
+    int polynum = m->mesh_polynum[i];
+
+    // face vertex indices: local, in [0, vertnum)
+    int faceadr = m->mesh_faceadr[i];
+    for (int f=0; f < m->mesh_facenum[i]; f++) {
+      for (int k=0; k < 3; k++) {
+        int v = m->mesh_face[3*(faceadr + f) + k];
+        if (v < 0 || v >= vertnum) {
+          return "Invalid model: mesh_face vertex index out of bounds.";
+        }
+      }
+    }
+
+    // convex-hull polygon vertex indices: local, in [0, vertnum)
+    int polyadr = m->mesh_polyadr[i];
+    for (int p=0; p < polynum; p++) {
+      int pvadr = m->mesh_polyvertadr[polyadr + p];
+      for (int j=0; j < m->mesh_polyvertnum[polyadr + p]; j++) {
+        int v = m->mesh_polyvert[pvadr + j];
+        if (v < 0 || v >= vertnum) {
+          return "Invalid model: mesh_polyvert vertex index out of bounds.";
+        }
+      }
+    }
+
+    // vertex->polygon map entries: local polygon indices, in [0, polynum)
+    int vertadr = m->mesh_vertadr[i];
+    for (int v=0; v < vertnum; v++) {
+      int pmadr = m->mesh_polymapadr[vertadr + v];
+      for (int j=0; j < m->mesh_polymapnum[vertadr + v]; j++) {
+        int p = m->mesh_polymap[pmadr + j];
+        if (p < 0 || p >= polynum) {
+          return "Invalid model: mesh_polymap polygon index out of bounds.";
+        }
+      }
+    }
+  }
   for (int i=0; i < m->npair; i++) {
     int pair_body1 = (m->pair_signature[i] & 0xFFFF);
     if (pair_body1 >= m->nbody || pair_body1 < 0) {
