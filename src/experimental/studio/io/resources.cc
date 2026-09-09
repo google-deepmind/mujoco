@@ -36,15 +36,25 @@ namespace {
 
 std::string Resolve(std::string_view path) {
   std::string_view subpath = path.substr(path.find(':') + 1);
-  std::filesystem::path exe_dir = GetModuleDir((void*)&Resolve);
-  if (exe_dir.empty()) {
+  std::filesystem::path module_dir = GetModuleDir((void*)&Resolve);
+  if (module_dir.empty()) {
     return std::string("assets/") + std::string(subpath);
   }
-  std::filesystem::path resources_dir = exe_dir.parent_path() / "Resources";
+  std::filesystem::path resources_dir = module_dir.parent_path() / "Resources";
   if (std::filesystem::exists(resources_dir / "assets")) {
     return (resources_dir / "assets" / subpath).string();
   }
-  return (exe_dir / "assets" / subpath).string();
+  if (std::filesystem::exists(module_dir / "assets")) {
+    return (module_dir / "assets" / subpath).string();
+  }
+  // For a module at the Python package root such as mujoco/_render_filament,
+  // assets are staged in the experimental/studio package directory.
+  std::filesystem::path studio_assets =
+      module_dir / "experimental" / "studio" / "assets";
+  if (std::filesystem::exists(studio_assets)) {
+    return (studio_assets / subpath).string();
+  }
+  return (module_dir / "assets" / subpath).string();
 }
 
 class FileResource {
@@ -114,6 +124,14 @@ std::string GetModuleDir(void* addr) {
 }
 
 void RegisterResourceProviders() {
+  // Every executable and extension module links its own copy of this
+  // library, but the engine's provider table is per process and
+  // registering a prefix twice is an error: the first caller's providers
+  // serve everyone.
+  if (mjp_getResourceProvider("font:") != nullptr) {
+    return;
+  }
+
   mjpResourceProvider resource_provider;
   mjp_defaultResourceProvider(&resource_provider);
 
