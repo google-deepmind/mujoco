@@ -130,9 +130,9 @@ class Rollout:
       raise ValueError('control_spec can only contain bits in mjSTATE_USER')
 
     # check types
-    if nstep and not isinstance(nstep, int):
+    if nstep and not isinstance(nstep, (int, np.integer)):
       raise ValueError('nstep must be an integer')
-    if chunk_size and not isinstance(chunk_size, int):
+    if chunk_size and not isinstance(chunk_size, (int, np.integer)):
       raise ValueError('chunk_size must be an integer')
     _check_must_be_numeric(
         initial_state=initial_state,
