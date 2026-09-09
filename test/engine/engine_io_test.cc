@@ -395,6 +395,39 @@ TEST_F(ValidateReferencesTest, Texture) {
   EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("tex_adr"));
 }
 
+TEST_F(ValidateReferencesTest, Mesh) {
+  static const char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="m" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+                      face="0 1 2  0 1 3  0 2 3  1 2 3"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="m"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // A mesh face vertex index is a mesh-local index into [0, mesh_vertnum).
+  // These are read verbatim from a binary (MJB) model, so an out-of-range value
+  // must be rejected here (it would otherwise cause an out-of-bounds read when
+  // the mesh is ray-cast, rendered or collided).
+  int saved = model->mesh_face[0];
+  model->mesh_face[0] = model->mesh_vertnum[0];  // one past the end
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("mesh_face"));
+  model->mesh_face[0] = -1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("mesh_face"));
+  model->mesh_face[0] = saved;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+}
+
 TEST_F(ValidateReferencesTest, GeomPairs) {
   static const char xml[] = R"(
   <mujoco>
