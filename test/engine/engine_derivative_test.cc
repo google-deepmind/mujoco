@@ -1468,6 +1468,11 @@ TEST_F(DerivativeTest, ActearlyDerivative) {
   </mujoco>
   )";
 
+  // the affine velocity gain of 1 makes M - h*qDeriv exactly singular at h=1:
+  // expect a clamped-pivot warning from the implicitfast qH factorization
+  mock_warning_handler.ExpectWarnings(
+      "Inertia matrix is too close to singular");
+
   char error[1024];
   MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(m.get(), NotNull()) << error;

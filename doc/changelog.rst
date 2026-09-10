@@ -2,6 +2,15 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+Engine
+^^^^^^
+- The :ref:`mjWARN_INERTIA <mjtWarning>` warning is now also raised by the modified-inertia factorizations of the
+  :at:`implicitfast` and damped-:at:`Euler` integrators (previously silent) and of the :at:`implicit` integrator
+  (previously a fatal error).
+
 Version 3.13.0 (September 8, 2026)
 ----------------------------------
 

@@ -821,6 +821,45 @@ TEST_F(ForwardTest, DegenerateInertia) {
   }
 }
 
+// a singular modified inertia M - h*qDeriv is a warning under both implicit
+// integrators: implicitfast clamps the LDL pivot, implicit clamps the LU pivot
+TEST_F(ForwardTest, SingularModifiedInertiaWarns) {
+  mock_warning_handler.ExpectWarnings(
+      "Inertia matrix is too close to singular");
+
+  // the affine velocity gain of 1 makes M - h*qDeriv exactly singular at h=1,
+  // once a unit control brings the early activation to 1
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="1" integrator="implicit"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom type="sphere" size="0.1" mass="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="slide" dyntype="integrator" gaintype="affine" gainprm="1 0 1"
+               actearly="true"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  for (int integrator : {mjINT_IMPLICIT, mjINT_IMPLICITFAST}) {
+    model->opt.integrator = integrator;
+    mj_resetData(model.get(), data.get());
+    data->ctrl[0] = 1;
+    mj_step(model.get(), data.get());
+    EXPECT_EQ(data->warning[mjWARN_INERTIA].number, 1) << integrator;
+    EXPECT_EQ(data->warning[mjWARN_INERTIA].lastinfo, 0);
+    EXPECT_TRUE(std::isfinite(data->qvel[0]));
+  }
+}
+
 TEST_F(ForwardTest, ControlClamping) {
   static constexpr char xml[] = R"(
   <mujoco>

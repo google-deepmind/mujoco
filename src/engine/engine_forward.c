@@ -1526,8 +1526,12 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
         d->qH[m->M_rowadr[i] + m->M_rownnz[i] - 1] += m->opt.timestep * damp_deriv;
       }
 
-      // factorize in-place
-      mj_factorI(d->qH, d->qHDiagInv, nv, m->M_rownnz, m->M_rowadr, m->M_colind, dof_awake_ind);
+      // factorize in-place; warn if a near-singular pivot was clamped
+      int clamped = mj_factorI(d->qH, d->qHDiagInv, nv,
+                               m->M_rownnz, m->M_rowadr, m->M_colind, dof_awake_ind);
+      if (clamped >= 0) {
+        mj_warning(d, mjWARN_INERTIA, clamped);
+      }
     }
 
     // solve
@@ -1784,11 +1788,19 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
     }
 
     // standard factorization (implicit / implicitfast)
+    int clamped;
     if (m->opt.integrator == mjINT_IMPLICIT) {
       int* scratch = mjSTACKALLOC(d, nv, int);
-      mju_factorLUSparse(d->qLU, nv, scratch, m->D_rownnz, m->D_rowadr, m->D_colind, dof_awake_ind);
+      clamped = mju_factorLUSparse(d->qLU, nv, scratch,
+                                   m->D_rownnz, m->D_rowadr, m->D_colind, dof_awake_ind);
     } else {
-      mj_factorI(d->qH, d->qHDiagInv, nv, m->M_rownnz, m->M_rowadr, m->M_colind, dof_awake_ind);
+      clamped = mj_factorI(d->qH, d->qHDiagInv, nv,
+                           m->M_rownnz, m->M_rowadr, m->M_colind, dof_awake_ind);
+    }
+
+    // warn if a near-singular pivot was clamped
+    if (clamped >= 0) {
+      mj_warning(d, mjWARN_INERTIA, clamped);
     }
   }
 

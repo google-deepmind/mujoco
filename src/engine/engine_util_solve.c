@@ -929,10 +929,12 @@ void mju_solveLU6(mjtNum x[6], const mjtNum LU[36], const mjtNum b[6], const int
 
 // sparse reverse-order LU factorization, no fill-in (assuming tree topology)
 //   result: LU = L + U; original = (U+I) * L; scratch size is n
-void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
-                        const int* rownnz, const int* rowadr, const int* colind,
-                        const int* index) {
+//   clamp pivots with magnitude below mjMINVAL, return first clamped dof index or -1 if none
+int mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
+                       const int* rownnz, const int* rowadr, const int* colind,
+                       const int* index) {
   int* remaining = scratch;
+  int clamped = -1;
 
   // set remaining = rownnz
   if (index) {
@@ -956,9 +958,12 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
       mjERROR("missing diagonal element");
     }
 
-    // make sure diagonal is not too small
+    // near-singular pivot: clamp, preserving the sign
     if (mju_abs(LU[ii]) < mjMINVAL) {
-      mjERROR("diagonal element too small");
+      LU[ii] = LU[ii] < 0 ? -mjMINVAL : mjMINVAL;
+      if (clamped < 0) {
+        clamped = i;
+      }
     }
 
     // rows j above i
@@ -1013,6 +1018,8 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
       mjERROR("unexpected sparse matrix structure");
     }
   }
+
+  return clamped;
 }
 
 

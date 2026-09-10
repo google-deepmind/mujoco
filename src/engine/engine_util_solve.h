@@ -115,8 +115,9 @@ MJAPI void mju_solveLU6(mjtNum x[6], const mjtNum LU[36], const mjtNum b[6], con
 
 // sparse reverse-order LU factorization, assume tree topology (only dofs in index, if given)
 //  LU = L + U; original = (U+I) * L; scratch is size n
-void mju_factorLUSparse(mjtNum *LU, int n, int* scratch,
-                        const int *rownnz, const int *rowadr, const int *colind, const int *index);
+//  clamp pivots with magnitude below mjMINVAL, return first clamped dof index or -1 if none
+int mju_factorLUSparse(mjtNum *LU, int n, int* scratch,
+                       const int *rownnz, const int *rowadr, const int *colind, const int *index);
 
 // solve mat*res=vec given LU factorization of mat (only dofs in index, if given)
 void mju_solveLUSparse(mjtNum *res, const mjtNum *LU, const mjtNum* vec, int n,
