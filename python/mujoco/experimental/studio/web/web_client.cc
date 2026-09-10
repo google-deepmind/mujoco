@@ -631,6 +631,25 @@ bool ParseModelBufferImpl(const char* data, size_t size) {
                                  size),
       "application/mjb", "model.mjb");
   if (g_app.model_holder && g_app.model_holder->ok()) {
+    mjModel* m = g_app.model_holder->model();
+    if (m && m->name_pluginadr) {
+      for (int i = 0; i < m->nplugin; ++i) {
+        if (m->name_pluginadr[i] < 0) continue;
+        std::string_view iname(m->names + m->name_pluginadr[i]);
+        if (iname.empty()) continue;
+        for (int s = 0; s < mjp_pluginCount(); ++s) {
+          const mjpPlugin* p = mjp_getPluginAtSlot(s);
+          if (!p || !p->name) continue;
+          std::string_view pname(p->name);
+          if (pname == iname ||
+              (pname.size() > iname.size() && pname.ends_with(iname) &&
+               pname[pname.size() - iname.size() - 1] == '.')) {
+            m->plugin[i] = s;
+            break;
+          }
+        }
+      }
+    }
     g_app.session.SetModelCrc32(
         Crc32(reinterpret_cast<const uint8_t*>(data), size));
     LOG(Info, "Model parsed successfully!");
