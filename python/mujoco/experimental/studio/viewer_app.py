@@ -496,6 +496,6 @@ class ViewerApp:
   def _on_update(self, _: messages.UpdateEvent) -> None:
     self.update()
 
-  @messages.handler(priority=messages.Priority.INTERNAL)
+  @messages.handler(priority=messages.Priority.CRITICAL)
   def _on_build_gui(self, _: messages.BuildGuiEvent) -> None:
     self.build_gui()
