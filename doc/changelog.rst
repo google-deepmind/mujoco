@@ -28,15 +28,15 @@ Engine
    :issue:`3443` (analysis contributed by :github:user:`qiayuanl`). See the
    :ref:`integrator documentation<geIntegrators>` for semantics and current limitations.
 
-  .. admonition:: Breaking API changes
-     :class: attention
+   .. admonition:: Breaking API changes
+      :class: attention
 
-     Removed the implicit flex effective-metric special case under ``implicit``/``implicitfast`` with the ``CG``
-     solver, introduced in 3.11.0. This behavior now requires ``integrator="discrete"`` (with a primal solver:
-     ``CG`` or ``Newton``), which additionally treats joint damping and stiffness implicitly inside the solve. Models
-     relying on the old behavior should set :ref:`integrator<option-integrator>` to ``discrete``; models with flex
-     elasticity or passive flex contact under ``implicit``/``implicitfast`` now raise a runtime error carrying this
-     migration note.
+      Removed the implicit flex effective-metric special case under ``implicit``/``implicitfast`` with the ``CG``
+      solver, introduced in 3.11.0. This behavior now requires ``integrator="discrete"`` (with a primal solver:
+      ``CG`` or ``Newton``), which additionally treats joint damping and stiffness implicitly inside the solve. Models
+      relying on the old behavior should set :ref:`integrator<option-integrator>` to ``discrete``; models with flex
+      elasticity or passive flex contact under ``implicit``/``implicitfast`` now raise a runtime error carrying this
+      migration note.
 
 5. :commit:`0b4e17747` Restored clamping of non-positive pivots in the sparse inertia factorization, along with the
    associated ``mjWARN_INERTIA`` warning. The guard was inadvertently dropped in the 3.3.0 conversion of ``qLD`` to CSR
@@ -65,14 +65,13 @@ Bug fixes
 ^^^^^^^^^
 11. :commit:`67562d95f` Rewrote the Plane-Mesh collider to fix bugs and improve performance. Fixes :issue:`3524`.
 
-Models
-^^^^^^
-
 .. youtube:: MNQsV_etq24
    :aspect: 16:7
    :align: right
    :width: 35%
 
+Models
+^^^^^^
 12. :commit:`f6c1004b7` Added `house of cards <https://github.com/google-deepmind/mujoco/tree/main/model/cards/>`__
     example model and three `free-standing arch <https://github.com/google-deepmind/mujoco/tree/main/model/arch/>`__
     models: roman, gothic, and hyperbolic. Inspired by `Song et al <https://www.cs.ubc.ca/research/fbf-friction/>`__.

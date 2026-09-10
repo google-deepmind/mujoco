@@ -274,14 +274,14 @@ of the function :math:`d(r)` is determined by the element-specific parameter vec
    .. image:: images/modeling/impedance.svg
       :alt: Impedance curves with midpoint 0.2, 0.5 and 0.8 by row and power 1, 2 and 6 by column.
             The negative-residual half is shaded; dotted lines mark midpoint times width.
-      :width: 600px
+      :width: 99%
       :align: center
       :class: only-light
 
    .. image:: images/modeling/impedance_dark.svg
       :alt: Impedance curves with midpoint 0.2, 0.5 and 0.8 by row and power 1, 2 and 6 by column.
             The negative-residual half is shaded; dotted lines mark midpoint times width.
-      :width: 600px
+      :width: 99%
       :align: center
       :class: only-dark
 
