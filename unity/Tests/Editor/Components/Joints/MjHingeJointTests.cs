@@ -98,5 +98,14 @@ public class MjHingeJointTests {
     Assert.That(_joint.RangeLower, Is.EqualTo(expectedLow));
     Assert.That(_joint.RangeUpper, Is.EqualTo(expectedHigh));
   }
+
+  [Test]
+  public void ParseMissingAxisUsesMuJoCoDefaultZ() {
+    var jointElement = (XmlElement)_doc.AppendChild(_doc.CreateElement("joint"));
+    _joint.ParseMjcf(jointElement);
+    var element = _joint.GenerateMjcf("name", _doc);
+    Assert.That(element.GetVector3Attribute("axis", Vector3.zero),
+                Is.EqualTo(MjEngineTool.MjVector3Up).Using(_comparer));
+  }
 }
 }
