@@ -283,9 +283,9 @@ def ray(
     if geom_type == GeomType.MESH:
       dist, id_ = fn(m, id_, *args)  # pyrefly: ignore[bad-argument-count, bad-argument-type]
     else:
-      dist = jax.vmap(fn)(*args)
+      dist = jax.vmap(fn)(*args)  # pyrefly: ignore[bad-argument-type, missing-argument]
 
-    dist = jp.where(geom_filter_dyn[id_], dist, jp.inf)
+    dist = jp.where(geom_filter_dyn[id_], dist, jp.inf)  # pyrefly: ignore[bad-argument-type]
     dists, ids = dists + [dist], ids + [id_]
 
   if not ids:

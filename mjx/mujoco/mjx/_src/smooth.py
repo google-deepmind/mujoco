@@ -1000,7 +1000,7 @@ def tendon(m: Model, d: Data) -> Data:
       geom_xmat[wrap_inside_id],
       geom_size[wrap_inside_id],
       side[wrap_inside_id],
-      has_sidesite[wrap_inside_id],
+      has_sidesite[wrap_inside_id],  # pyrefly: ignore[bad-argument-type]
       is_sphere[wrap_inside_id],
       True,
       m._impl.wrap_inside_maxiter,
@@ -1015,7 +1015,7 @@ def tendon(m: Model, d: Data) -> Data:
       geom_xmat[wrap_outside_id],
       geom_size[wrap_outside_id],
       side[wrap_outside_id],
-      has_sidesite[wrap_outside_id],
+      has_sidesite[wrap_outside_id],  # pyrefly: ignore[bad-argument-type]
       is_sphere[wrap_outside_id],
       False,
       m._impl.wrap_inside_maxiter,
