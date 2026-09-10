@@ -3429,23 +3429,14 @@ Destroys the light.
 
 Enables or disables the light.
 
-.. _mjrf_setLightIntensity:
+.. _mjrf_setLightShadowsEnabled:
 
-`mjrf_setLightIntensity <#mjrf_setLightIntensity>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjrf_setLightShadowsEnabled <#mjrf_setLightShadowsEnabled>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjrf_setLightIntensity
+.. mujoco-include:: mjrf_setLightShadowsEnabled
 
-Sets the intensity of the light, in candela.
-
-.. _mjrf_setLightShadowMapSize:
-
-`mjrf_setLightShadowMapSize <#mjrf_setLightShadowMapSize>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjrf_setLightShadowMapSize
-
-Sets the resolution of the light's shadow map, in texels.
+Enables or disables whether or not the light casts shadows.
 
 .. _mjrf_setLightColor:
 
@@ -3455,6 +3446,69 @@ Sets the resolution of the light's shadow map, in texels.
 .. mujoco-include:: mjrf_setLightColor
 
 Sets the RGB color of the light.
+
+.. _mjrf_setLightIntensity:
+
+`mjrf_setLightIntensity <#mjrf_setLightIntensity>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setLightIntensity
+
+Sets the intensity of the light, in candela.
+
+.. _mjrf_setLightRange:
+
+`mjrf_setLightRange <#mjrf_setLightRange>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setLightRange
+
+Sets the effective range of the light, in meters.
+
+.. _mjrf_setLightCutoffAngle:
+
+`mjrf_setLightCutoffAngle <#mjrf_setLightCutoffAngle>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setLightCutoffAngle
+
+Sets the cutoff angle of the light, in degrees. Only used for spot lights.
+
+.. _mjrf_setLightSoftness:
+
+`mjrf_setLightSoftness <#mjrf_setLightSoftness>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setLightSoftness
+
+Sets the softness of the light, in the range [0, 1]. Only used for spot lights.
+
+.. _mjrf_setLightBulbRadius:
+
+`mjrf_setLightBulbRadius <#mjrf_setLightBulbRadius>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setLightBulbRadius
+
+Sets the radius of the light bulb.
+
+.. _mjrf_setLightBlurWidth:
+
+`mjrf_setLightBlurWidth <#mjrf_setLightBlurWidth>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setLightBlurWidth
+
+Sets the width of the blur applied to the light's shadow map, in texels.
+
+.. _mjrf_setLightShadowMapSize:
+
+`mjrf_setLightShadowMapSize <#mjrf_setLightShadowMapSize>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setLightShadowMapSize
+
+Sets the resolution of the light's shadow map, in texels.
 
 .. _mjrf_setLightTransform:
 
