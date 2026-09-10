@@ -329,6 +329,50 @@ class DocTest(googletest.TestCase):
       msg = 'APItypes.rst mismatches:\n' + '\n'.join(errors)
       self.fail(msg)
 
+  def test_mjdata_xmacro_fields(self):
+    """Checks that every mjData field appears in the mjData X macros."""
+    with open(
+        _get_path('include', 'mujoco', 'mjdata.h'), encoding='utf-8'
+    ) as f:
+      header = f.read()
+    with open(
+        _get_path('include', 'mujoco', 'mjxmacro.h'), encoding='utf-8'
+    ) as f:
+      xmacro = f.read()
+
+    # fields of struct mjData_, one declaration per line
+    body = re.search(
+        r'typedef struct mjData_ \{(.*?)\n\} mjData;', header, re.S
+    ).group(1)
+    fields = []
+    for line in body.split('\n'):
+      line = line.split('//')[0].strip()
+      match = re.match(r'^[\w ]+?[\s\*]+(\w+)(\[[^\]]*\])*;$', line)
+      if match:
+        fields.append(match.group(1))
+    self.assertGreater(len(fields), 100)
+
+    # the second argument of every X entry in the MJDATA_* macros
+    xmacro_fields = set()
+    for macro in re.finditer(
+        r'#define MJDATA_\w*((?:[^\n]*\\\n)*[^\n]*)', xmacro
+    ):
+      for entry in re.finditer(r'\bX\w*\s*\(\s*[^,]+,\s*(\w+)', macro.group(1)):
+        xmacro_fields.add(entry.group(1))
+
+    # buffer and arena are the allocations that the pointer fields index into,
+    # signature is the model's compilation signature: not simulation data.
+    # threadlock is an internal runtime flag for thread dispatch.
+    excluded = {'buffer', 'arena', 'signature', 'threadlock'}
+    missing = [
+        f for f in fields if f not in xmacro_fields and f not in excluded
+    ]
+    self.assertEqual(
+        missing, [], 'mjData fields missing from the X macros in mjxmacro.h'
+    )
+    unknown = sorted(xmacro_fields - set(fields))
+    self.assertEqual(unknown, [], 'X macro entries that are not mjData fields')
+
   def test_element_constraints_diamond_inheritance(self):
     con = mjcf_schema.Constraint(
         kind='exclusive', bundles=(('a',), ('b',)), doc=None, line=1
