@@ -21,7 +21,7 @@ fi
 # Figure out the path to this script (https://stackoverflow.com/a/246128).
 package_dir="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
-if [[ "$(uname)" == CYGWIN* || "$(uname)" == MINGW* ]]; then
+if [[ "$(uname)" == CYGWIN* || "$(uname)" == MINGW* || "$(uname)" == MSYS* ]]; then
   package_dir="$(cygpath -m ${package_dir})"
   readonly tmp_dir="$(TMPDIR="${LOCALAPPDATA//\\/$'/'}/Temp" mktemp -d)"
 else
@@ -35,7 +35,7 @@ cp -r "${package_dir}"/* .
 
 # Generate header files.
 old_pythonpath="${PYTHONPATH}"
-if [[ "$(uname)" == CYGWIN* || "$(uname)" == MINGW* ]]; then
+if [[ "$(uname)" == CYGWIN* || "$(uname)" == MINGW* || "$(uname)" == MSYS* ]]; then
   export PYTHONPATH="${old_pythonpath};${package_dir}/mujoco/python/.."
 else
   export PYTHONPATH="${old_pythonpath}:${package_dir}/mujoco/python/.."
