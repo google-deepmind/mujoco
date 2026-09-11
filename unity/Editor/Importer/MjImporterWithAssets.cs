@@ -153,7 +153,7 @@ public class MjImporterWithAssets : MjcfImporter {
     var assetReferenceName = MjEngineTool.Sanitize(unsanitizedAssetReferenceName);
     var sourceFilePath = Path.Combine(_sourceMeshesDir, fileName);
 
-    if (Path.GetExtension(sourceFilePath) != ".obj" && Path.GetExtension(sourceFilePath) != ".stl") {
+    if (Path.GetExtension(sourceFilePath).ToLowerInvariant() != ".obj" && Path.GetExtension(sourceFilePath).ToLowerInvariant() != ".stl") {
       throw new NotImplementedException("Type of mesh file not yet supported. " +
                                         "Please convert to binary STL or OBJ. " +
                                         $"Attempted to load: {sourceFilePath}");
@@ -194,11 +194,11 @@ public class MjImporterWithAssets : MjcfImporter {
   private void CopyMeshAndRescale(
       string sourceFilePath, string targetFilePath, Vector3 scale) {
     var originalMeshBytes = File.ReadAllBytes(sourceFilePath);
-    if (Path.GetExtension(sourceFilePath) == ".stl") {
+    if (Path.GetExtension(sourceFilePath).ToLowerInvariant() == ".stl") {
       var mesh = StlMeshParser.ParseBinary(originalMeshBytes, scale);
       var rescaledMeshBytes = StlMeshParser.SerializeBinary(mesh);
       File.WriteAllBytes(targetFilePath, rescaledMeshBytes);
-    } else if (Path.GetExtension(sourceFilePath) == ".obj") {
+    } else if (Path.GetExtension(sourceFilePath).ToLowerInvariant() == ".obj") {
       ObjMeshImportUtility.CopyAndScaleOBJFile(sourceFilePath, targetFilePath, scale);
     } else {
       throw new NotImplementedException($"Extension {Path.GetExtension(sourceFilePath)} " +
