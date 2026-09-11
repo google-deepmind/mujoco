@@ -34,12 +34,23 @@ target_compile_options(usd_decoder_plugin PRIVATE
   ${MUJOCO_MACOS_COMPILE_OPTIONS}
   ${EXTRA_COMPILE_OPTIONS}
   ${MUJOCO_CXX_FLAGS}
-  -Wno-deprecated # pxr Tf lib uses deprecated header
 )
 target_link_options(usd_decoder_plugin PRIVATE
   ${MUJOCO_MACOS_LINK_OPTIONS}
   ${EXTRA_LINK_OPTIONS}
 )
+if(MSVC)
+  target_compile_options(
+      usd_decoder_plugin
+      PRIVATE /wd4996 # pxr Tf lib uses deprecated header
+  )
+  target_compile_definitions(usd_decoder_plugin PRIVATE NOMINMAX=1)
+else()
+  target_compile_options(
+      usd_decoder_plugin
+      PRIVATE -Wno-deprecated # pxr Tf lib uses deprecated header
+  )
+endif()
 
 # Install to mujoco_plugin directory in bin location so that it is picked up by simulate
 # on startup.
