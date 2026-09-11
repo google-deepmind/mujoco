@@ -112,11 +112,43 @@ def to_zip(spec: _specs.MjSpec, file: Union[str, IO[bytes]]) -> None:
     spec: The mjSpec to save to a file.
     file: The path to the file to save to or the file object to write to.
   """
-  files_to_zip = spec.assets
+  # Copy to avoid mutating spec.assets.
+  files_to_zip = dict(spec.assets)
+
+  # Collect assets referenced by file path in spec elements that were not
+  # explicitly added to spec.assets (e.g. loaded from disk via XML).
+  modelfiledir = spec.modelfiledir or ''
+
+  def _maybe_add_file(filepath: str) -> None:
+    if not filepath or filepath in files_to_zip:
+      return
+    full_path = (
+        filepath if os.path.isabs(filepath)
+        else os.path.join(modelfiledir, filepath) if modelfiledir
+        else filepath
+    )
+    try:
+      with open(full_path, 'rb') as f:
+        files_to_zip[filepath] = f.read()
+    except OSError:
+      pass
+
+  for mesh in spec.meshes:
+    _maybe_add_file(mesh.file)
+  for hfield in spec.hfields:
+    _maybe_add_file(hfield.file)
+  for skin in spec.skins:
+    _maybe_add_file(skin.file)
+  for texture in spec.textures:
+    _maybe_add_file(texture.file)
+    for cubefile in texture.cubefiles:
+      _maybe_add_file(cubefile)
+
   files_to_zip[spec.modelname + '.xml'] = spec.to_xml()
   if isinstance(file, str):
     directory = os.path.dirname(file)
-    os.makedirs(directory, exist_ok=True)
+    if directory:
+      os.makedirs(directory, exist_ok=True)
     file = open(file, 'wb')
   with zipfile.ZipFile(file, 'w') as zip_file:
     for filename, contents in files_to_zip.items():
