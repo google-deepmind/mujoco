@@ -102,6 +102,7 @@ class UnpackedParam {
   // Printable representations of the param and function name used for errors
   const char* repr_;
   const char* func_;
+  emscripten::val source_val_ = emscripten::val::undefined();
 
   explicit UnpackedParam(const char* repr, const char* func)
       : data_(std::monostate{}), repr_(repr), func_(func) {}
@@ -190,9 +191,10 @@ class UnpackedParam {
     ErrorOnNullOrUndefined(p, func, "TypedArray or WasmBuffer");
 
     if (!p["byteOffset"].isUndefined()) {  // Javascript TypedArray
-      T* data = reinterpret_cast<T*>(p["byteOffset"].as<uintptr_t>());
-      std::size_t count = p["length"].as<std::size_t>();
-      return UnpackedParam<T>(data, count, repr, func);
+      auto param = UnpackedParam<T>(
+          convertJSArrayToNumberVector<T>(p), repr, func);
+      param.source_val_ = p;  // Save reference for writeback
+      return param;
     } else if (!p["GetPointer"].isUndefined()) {  // C++ WasmBuffer
       WasmBuffer<T>& buffer = p.as<WasmBuffer<T>&>();
       T* data = reinterpret_cast<T*>(buffer.GetPointer());
@@ -268,6 +270,18 @@ class UnpackedParam {
       }
     }
     return nullptr;
+  }
+
+  // Writes the local vector data back to the original JS TypedArray.
+  // Call this after the C function has written output into data().
+  void writeBack() {
+    if (source_val_.isUndefined()) return;
+    if (!std::holds_alternative<std::vector<T>>(data_)) return;
+    auto& vec = std::get<std::vector<T>>(data_);
+    // Use TypedArray.set() to copy data back
+    emscripten::val view = emscripten::val(emscripten::typed_memory_view(
+        vec.size(), vec.data()));
+    source_val_.call<void>("set", view);
   }
 };
 
