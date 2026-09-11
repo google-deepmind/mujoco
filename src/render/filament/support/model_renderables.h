@@ -17,6 +17,7 @@
 
 #include <array>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <math/vec4.h>
@@ -66,6 +67,10 @@ class ModelRenderables {
   // - switches meshes to convex hull mode if mjVIS_CONVEXHULL is enabled
   // - adjusts alpha values if mjVIS_TRANSPARENT is enabled
   void SetOptions(const mjvOption& opt);
+
+  // Returns the object type and index corresponding to the given
+  // segmentation ID.
+  std::pair<mjtObj, int> GetObjectFromSegmentationId(int segmentation_id) const;
 
   // Returns the current visualization options.
   const mjvOption& GetOptions() const { return vopts_; }

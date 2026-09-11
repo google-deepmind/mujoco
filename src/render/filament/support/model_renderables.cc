@@ -683,10 +683,53 @@ void ModelRenderables::UpdateSpatialTendons(const mjData* data, int tendon_id) {
   }
 }
 
+std::pair<mjtObj, int> ModelRenderables::GetObjectFromSegmentationId(
+    int segmentation_id) const {
+  if (segmentation_id <= 0) {
+    return std::make_pair(mjOBJ_UNKNOWN, -1);
+  }
+
+  const mjModel* model = model_objects_->GetModel();
+  segmentation_id -= 1;
+
+  if (segmentation_id < model->ngeom) {
+    return std::make_pair(mjOBJ_GEOM, segmentation_id);
+  } else {
+    segmentation_id -= model->ngeom;
+  }
+  if (segmentation_id < model->nsite) {
+    return std::make_pair(mjOBJ_SITE, segmentation_id);
+  } else {
+    segmentation_id -= model->nsite;
+  }
+  if (segmentation_id < model->nflex) {
+    return std::make_pair(mjOBJ_FLEX, segmentation_id);
+  } else {
+    segmentation_id -= model->nflex;
+  }
+  if (segmentation_id < model->nskin) {
+    return std::make_pair(mjOBJ_SKIN, segmentation_id);
+  } else {
+    segmentation_id -= model->nskin;
+  }
+  if (segmentation_id < model->ntendon) {
+    return std::make_pair(mjOBJ_TENDON, segmentation_id);
+  } else {
+    segmentation_id -= model->ntendon;
+  }
+  if (segmentation_id < model->nactuator) {
+    return std::make_pair(mjOBJ_ACTUATOR, segmentation_id);
+  } else {
+    segmentation_id -= model->nactuator;
+  }
+
+  return std::make_pair(mjOBJ_UNKNOWN, -1);
+}
+
 int ModelRenderables::GetSegmentationId(mjtObj obj_type, int obj_index) {
   const mjModel* model = model_objects_->GetModel();
 
-  int id = 0;
+  int id = 1;
   if (obj_type == mjOBJ_GEOM) {
     return id + obj_index;
   } else {
