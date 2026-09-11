@@ -549,7 +549,7 @@ def put_model(
     device: which device to use - if unspecified picks the default device
     impl: implementation to use
     graph_mode: CUDA graph capture mode (for Warp only). Use GraphMode enum from
-      warp._src.jax.ffi.GraphMode.WARP is the default mode.
+      warp.JaxCallableGraphMode.WARP is the default mode.
     keepalive_refs: optional dict to store references to underlying MuJoCo
       objects, preventing them from being garbage collected. Required for CPP
       impl to keep the model alive.

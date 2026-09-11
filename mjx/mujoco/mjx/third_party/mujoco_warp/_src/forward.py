@@ -43,6 +43,8 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import OverflowType
 from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType
+from mujoco.mjx.third_party.mujoco_warp._src.types import mat66
+from mujoco.mjx.third_party.mujoco_warp._src.types import vec6
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec10
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
@@ -591,16 +593,404 @@ def _map_m2d(
     qLU_out[worldid, elemid] = 0.0
 
 
+@wp.kernel
+def _implicit_free_body_reset_m(
+  # Model:
+  body_dofadr: wp.array[int],
+  M_rownnz: wp.array[int],
+  M_rowadr: wp.array[int],
+  body_freeadr: wp.array[int],
+  # Data in:
+  M_in: wp.array2d[float],
+  # Out:
+  qH_out: wp.array2d[float],
+):
+  worldid, freeid = wp.tid()
+  bodyid = body_freeadr[freeid]
+
+  dof_adr = body_dofadr[bodyid]
+  for r in range(6):
+    row = dof_adr + r
+    start = M_rowadr[row]
+    nnz = M_rownnz[row]
+    for k in range(nnz):
+      qH_out[worldid, start + k] = M_in[worldid, start + k]
+
+
+@wp.func
+def _project_spatial_B(
+  # Data in:
+  cdof_in: wp.array2d[wp.spatial_vector],
+  # In:
+  worldid: int,
+  dof_adr: int,
+  geom_rotT: wp.mat33,
+  offset: wp.vec3,
+  B00: wp.mat33,
+  B01: wp.mat33,
+  B10: wp.mat33,
+  B11: wp.mat33,
+) -> mat66:
+  c0 = cdof_in[worldid, dof_adr + 0]
+  c1 = cdof_in[worldid, dof_adr + 1]
+  c2 = cdof_in[worldid, dof_adr + 2]
+  c3 = cdof_in[worldid, dof_adr + 3]
+  c4 = cdof_in[worldid, dof_adr + 4]
+  c5 = cdof_in[worldid, dof_adr + 5]
+
+  ll0 = geom_rotT @ wp.vec3(c0[3], c0[4], c0[5])
+  ll1 = geom_rotT @ wp.vec3(c1[3], c1[4], c1[5])
+  ll2 = geom_rotT @ wp.vec3(c2[3], c2[4], c2[5])
+
+  a3 = wp.vec3(c3[0], c3[1], c3[2])
+  a4 = wp.vec3(c4[0], c4[1], c4[2])
+  a5 = wp.vec3(c5[0], c5[1], c5[2])
+
+  p3 = wp.vec3(c3[3], c3[4], c3[5]) + wp.cross(a3, offset)
+  p4 = wp.vec3(c4[3], c4[4], c4[5]) + wp.cross(a4, offset)
+  p5 = wp.vec3(c5[3], c5[4], c5[5]) + wp.cross(a5, offset)
+
+  la3 = geom_rotT @ a3
+  la4 = geom_rotT @ a4
+  la5 = geom_rotT @ a5
+
+  ll3 = geom_rotT @ p3
+  ll4 = geom_rotT @ p4
+  ll5 = geom_rotT @ p5
+
+  ll_trans = wp.mat33(
+    ll0[0],
+    ll1[0],
+    ll2[0],
+    ll0[1],
+    ll1[1],
+    ll2[1],
+    ll0[2],
+    ll1[2],
+    ll2[2],
+  )
+  la_rot = wp.mat33(
+    la3[0],
+    la4[0],
+    la5[0],
+    la3[1],
+    la4[1],
+    la5[1],
+    la3[2],
+    la4[2],
+    la5[2],
+  )
+  ll_rot = wp.mat33(
+    ll3[0],
+    ll4[0],
+    ll5[0],
+    ll3[1],
+    ll4[1],
+    ll5[1],
+    ll3[2],
+    ll4[2],
+    ll5[2],
+  )
+
+  ll_trans_T = wp.transpose(ll_trans)
+  la_rot_T = wp.transpose(la_rot)
+  ll_rot_T = wp.transpose(ll_rot)
+
+  T_lin = B11 @ ll_trans
+  T_rot = B10 @ la_rot + B11 @ ll_rot
+
+  top_left = ll_trans_T @ T_lin
+  top_right = ll_trans_T @ T_rot
+
+  bot_left = la_rot_T @ (B01 @ ll_trans) + ll_rot_T @ T_lin
+  bot_right = la_rot_T @ (B00 @ la_rot + B01 @ ll_rot) + ll_rot_T @ T_rot
+
+  out = mat66(0.0)
+  for r in range(3):
+    for c in range(3):
+      out[r, c] = top_left[r, c]
+      out[r, 3 + c] = top_right[r, c]
+      out[3 + r, c] = bot_left[r, c]
+      out[3 + r, 3 + c] = bot_right[r, c]
+  return out
+
+
+@wp.kernel
+def _implicit_free_body_solve(
+  # Model:
+  opt_timestep: wp.array[float],
+  opt_wind: wp.array[wp.vec3],
+  opt_density: wp.array[float],
+  opt_viscosity: wp.array[float],
+  opt_integrator: int,
+  opt_disableflags: int,
+  opt_enableflags: int,
+  body_dofadr: wp.array[int],
+  body_geomnum: wp.array[int],
+  body_geomadr: wp.array[int],
+  body_mass: wp.array2d[float],
+  body_inertia: wp.array2d[wp.vec3],
+  dof_treeid: wp.array[int],
+  dof_damping: wp.array2d[float],
+  dof_dampingpoly: wp.array2d[wp.vec2],
+  geom_type: wp.array[int],
+  geom_size: wp.array2d[wp.vec3],
+  geom_fluid: wp.array2d[float],
+  M_rownnz: wp.array[int],
+  M_rowadr: wp.array[int],
+  M_colind: wp.array[int],
+  body_fluid_ellipsoid: wp.array[bool],
+  body_freeadr: wp.array[int],
+  # Data in:
+  qvel_in: wp.array2d[float],
+  xpos_in: wp.array2d[wp.vec3],
+  xmat_in: wp.array2d[wp.mat33],
+  xipos_in: wp.array2d[wp.vec3],
+  ximat_in: wp.array2d[wp.mat33],
+  geom_xpos_in: wp.array2d[wp.vec3],
+  geom_xmat_in: wp.array2d[wp.mat33],
+  subtree_com_in: wp.array2d[wp.vec3],
+  cdof_in: wp.array2d[wp.spatial_vector],
+  M_in: wp.array2d[float],
+  tree_awake_in: wp.array2d[int],
+  cvel_in: wp.array2d[wp.spatial_vector],
+  # In:
+  qfrc_in: wp.array2d[float],
+  # Data out:
+  qacc_out: wp.array2d[float],
+):
+  worldid, freeid = wp.tid()
+  bodyid = body_freeadr[freeid]
+
+  dof_adr = body_dofadr[bodyid]
+
+  # Sleep guard matching mjd_freeMhat: skip if sleeping
+  treeid = dof_treeid[dof_adr]
+  if (opt_enableflags & EnableBit.SLEEP) and (tree_awake_in[worldid, treeid] == 0):
+    return
+
+  timestep = opt_timestep[worldid % opt_timestep.shape[0]]
+
+  # 1. A = M block (gather from sparse lower triangle)
+  A = mat66(0.0)
+  for r in range(6):
+    row = dof_adr + r
+    start = M_rowadr[row]
+    nnz = M_rownnz[row]
+    for k in range(nnz):
+      c = M_colind[start + k] - dof_adr
+      val = M_in[worldid, start + k]
+      A[r, c] = val
+      A[c, r] = val
+
+  # 2. Add joint damping (with damper disable check and polynomial damping)
+  if not (opt_disableflags & DisableBit.DAMPER):
+    for r in range(6):
+      dof = dof_adr + r
+      damp = dof_damping[worldid % dof_damping.shape[0], dof]
+      dpoly = dof_dampingpoly[worldid % dof_dampingpoly.shape[0], dof]
+      v = qvel_in[worldid, dof]
+      A[r, r] += timestep * util_misc._poly_force_deriv(damp, dpoly, v, 1)
+
+  # 3. Add gyroscopic bias velocity derivative
+  mass = body_mass[worldid % body_mass.shape[0], bodyid]
+  R = xmat_in[worldid, bodyid]
+  Xi = ximat_in[worldid, bodyid]
+  inertia = body_inertia[worldid % body_inertia.shape[0], bodyid]
+  s = xipos_in[worldid, bodyid] - xpos_in[worldid, bodyid]
+  qvel_rot = wp.vec3(
+    qvel_in[worldid, dof_adr + 3],
+    qvel_in[worldid, dof_adr + 4],
+    qvel_in[worldid, dof_adr + 5],
+  )
+  lin, rot = math.free_bias_vel_blocks(mass, R, Xi, inertia, s, qvel_rot)
+  h_mass = -timestep * mass
+  for r in range(3):
+    for c in range(3):
+      A[r, 3 + c] += h_mass * lin[r, c]
+      A[3 + r, 3 + c] += timestep * rot[r, c]
+
+  # 4. Fluid force derivatives
+  density = opt_density[worldid % opt_density.shape[0]]
+  viscosity = opt_viscosity[worldid % opt_viscosity.shape[0]]
+  wind = opt_wind[worldid % opt_wind.shape[0]]
+
+  if density > 0.0 or viscosity > 0.0:
+    if body_fluid_ellipsoid[bodyid]:
+      subtree_root = subtree_com_in[worldid, bodyid]
+      xipos = xipos_in[worldid, bodyid]
+      cvel = cvel_in[worldid, bodyid]
+      ang_global = wp.spatial_top(cvel)
+      lin_global = wp.spatial_bottom(cvel)
+      lin_com = lin_global - wp.cross(xipos - subtree_root, ang_global)
+
+      geomadr = body_geomadr[bodyid]
+      geomnum = body_geomnum[bodyid]
+
+      for g in range(geomnum):
+        geomid = geomadr + g
+        coef = geom_fluid[geomid, 0]
+        if coef <= 0.0:
+          continue
+
+        size = geom_size[worldid % geom_size.shape[0], geomid]
+        semiaxes = passive.geom_semiaxes(size, geom_type[geomid])
+        geom_rot = geom_xmat_in[worldid, geomid]
+        geom_rotT = wp.transpose(geom_rot)
+        geom_pos = geom_xpos_in[worldid, geomid]
+
+        # compute local velocity
+        lin_point = lin_com + wp.cross(ang_global, geom_pos - xipos)
+        l_ang = geom_rotT @ ang_global
+        l_lin = geom_rotT @ lin_point
+
+        if wind[0] != 0.0 or wind[1] != 0.0 or wind[2] != 0.0:
+          l_lin -= geom_rotT @ wind
+
+        ang_vel = l_ang
+        lin_vel = l_lin
+
+        blunt_drag_coef = geom_fluid[geomid, 1]
+        slender_drag_coef = geom_fluid[geomid, 2]
+        ang_drag_coef = geom_fluid[geomid, 3]
+        kutta_lift_coef = geom_fluid[geomid, 4]
+        magnus_lift_coef = geom_fluid[geomid, 5]
+        virtual_mass = wp.vec3(geom_fluid[geomid, 6], geom_fluid[geomid, 7], geom_fluid[geomid, 8])
+        virtual_inertia = wp.vec3(geom_fluid[geomid, 9], geom_fluid[geomid, 10], geom_fluid[geomid, 11])
+
+        # Compute 6x6 spatial B matrix once per geom (unsymmetrized for free body)
+        B00, B01, B10, B11 = derivative._geom_ellipsoid_fluid_B(
+          semiaxes,
+          blunt_drag_coef,
+          slender_drag_coef,
+          ang_drag_coef,
+          kutta_lift_coef,
+          magnus_lift_coef,
+          virtual_mass,
+          virtual_inertia,
+          ang_vel,
+          lin_vel,
+          density,
+          viscosity,
+        )
+
+        # 3x3 block projection of J^T @ B @ J
+        offset = geom_pos - subtree_root
+        J_T_B_J = _project_spatial_B(cdof_in, worldid, dof_adr, geom_rotT, offset, B00, B01, B10, B11)
+        for r in range(6):
+          for c in range(6):
+            A[r, c] -= timestep * J_T_B_J[r, c]
+
+    elif mass >= MJ_MINVAL:
+      b_ipos = xipos_in[worldid, bodyid]
+      b_imat = ximat_in[worldid, bodyid]
+      subtree_root = subtree_com_in[worldid, bodyid]
+
+      vel_subtree = cvel_in[worldid, bodyid]
+      v_subtree_ang = wp.vec3(vel_subtree[0], vel_subtree[1], vel_subtree[2])
+      v_subtree_lin = wp.vec3(vel_subtree[3], vel_subtree[4], vel_subtree[5])
+
+      lin_com = v_subtree_lin - wp.cross(b_ipos - subtree_root, v_subtree_ang)
+      b_imat_T = wp.transpose(b_imat)
+      v_local_ang = b_imat_T @ v_subtree_ang
+      v_local_lin = b_imat_T @ (lin_com - wind)
+
+      lvel = wp.spatial_vector(
+        v_local_ang[0],
+        v_local_ang[1],
+        v_local_ang[2],
+        v_local_lin[0],
+        v_local_lin[1],
+        v_local_lin[2],
+      )
+
+      B_box = derivative._deriv_box_fluid(
+        opt_integrator,
+        body_mass,
+        body_inertia,
+        worldid,
+        bodyid,
+        lvel,
+        density,
+        viscosity,
+      )
+      B00 = wp.diag(wp.vec3(B_box[0, 0], B_box[1, 1], B_box[2, 2]))
+      B11 = wp.diag(wp.vec3(B_box[3, 3], B_box[4, 4], B_box[5, 5]))
+      zero33 = wp.mat33(0.0)
+      offset_box = b_ipos - subtree_root
+      J_T_B_J = _project_spatial_B(cdof_in, worldid, dof_adr, b_imat_T, offset_box, B00, zero33, zero33, B11)
+      for r in range(6):
+        for c in range(6):
+          A[r, c] -= timestep * J_T_B_J[r, c]
+
+  # 5. Solve A * x = qfrc
+  A_fact, pivot, ok = math.lu_factor_6x6(A)
+  if ok:
+    b_vec = vec6(0.0)
+    for r in range(6):
+      b_vec[r] = qfrc_in[worldid, dof_adr + r]
+    x = math.lu_solve_6x6(A_fact, pivot, b_vec)
+    for r in range(6):
+      qacc_out[worldid, dof_adr + r] = x[r]
+
+
+def _launch_implicit_free_body_solve(m: Model, d: Data, qacc: wp.array2d[float]):
+  if m.body_freeadr.size == 0:
+    return
+  wp.launch(
+    _implicit_free_body_solve,
+    dim=(d.nworld, m.body_freeadr.size),
+    inputs=[
+      m.opt.timestep,
+      m.opt.wind,
+      m.opt.density,
+      m.opt.viscosity,
+      m.opt.integrator,
+      m.opt.disableflags,
+      m.opt.enableflags,
+      m.body_dofadr,
+      m.body_geomnum,
+      m.body_geomadr,
+      m.body_mass,
+      m.body_inertia,
+      m.dof_treeid,
+      m.dof_damping,
+      m.dof_dampingpoly,
+      m.geom_type,
+      m.geom_size,
+      m.geom_fluid,
+      m.M_rownnz,
+      m.M_rowadr,
+      m.M_colind,
+      m.body_fluid_ellipsoid,
+      m.body_freeadr,
+      d.qvel,
+      d.xpos,
+      d.xmat,
+      d.xipos,
+      d.ximat,
+      d.geom_xpos,
+      d.geom_xmat,
+      d.subtree_com,
+      d.cdof,
+      d.M,
+      d.tree_awake,
+      d.cvel,
+      d.efc.Ma,
+    ],
+    outputs=[qacc],
+  )
+
+
 @event_scope
 def implicit(m: Model, d: Data):
   """Integrates fully implicit in velocity."""
   if m.opt.integrator == IntegratorType.IMPLICIT:
-    qH_M = wp.empty(d.M.shape, dtype=float)
-
-    # 1. Compute M - dt * qDeriv_smooth in M-structure
+    # 1. Smooth velocity derivatives into M-structure
+    qH_M = wp.empty((d.nworld, m.nC), dtype=float)
     derivative.deriv_smooth_vel(m, d, qH_M)
 
-    # 2. Map M-structure to D-structure
+    # 2. Map qH_M (M-structure) to qLU (D-structure) via mapM2D.
     wp.launch(
       _map_m2d,
       dim=(d.nworld, m.nD),
@@ -614,6 +1004,7 @@ def implicit(m: Model, d: Data):
     # 4. Factorize and solve: qacc = qLU \ Ma
     qacc = wp.empty((d.nworld, m.nv), dtype=float)
     smooth.factor_solve_lu(m, d, d.qLU, qacc, d.efc.Ma)
+    _launch_implicit_free_body_solve(m, d, qacc)
     _advance(m, d, qacc)
   elif ~(m.opt.disableflags | ~(DisableBit.ACTUATION | DisableBit.SPRING | DisableBit.DAMPER)):
     # qDeriv is in M-structure; the scratch qLD matches d.qLD (per-block).
@@ -621,8 +1012,22 @@ def implicit(m: Model, d: Data):
     qLD = wp.empty_like(d.qLD)
     qLDiagInv = wp.empty((d.nworld, m.nv), dtype=float)
     derivative.deriv_smooth_vel(m, d, qDeriv)
+    if m.body_freeadr.size > 0:
+      wp.launch(
+        _implicit_free_body_reset_m,
+        dim=(d.nworld, m.body_freeadr.size),
+        inputs=[
+          m.body_dofadr,
+          m.M_rownnz,
+          m.M_rowadr,
+          m.body_freeadr,
+          d.M,
+        ],
+        outputs=[qDeriv],
+      )
     qacc = wp.empty((d.nworld, m.nv), dtype=float)
     smooth.factor_solve_i(m, d, qDeriv, qLD, qLDiagInv, qacc, d.efc.Ma)
+    _launch_implicit_free_body_solve(m, d, qacc)
     _advance(m, d, qacc)
   else:
     _advance(m, d, d.qacc)
@@ -1405,7 +1810,9 @@ def forward(m: Model, d: Data):
   fwd_acceleration(m, d, factorize=True)
 
   solver.solve(m, d)
-  sensor.sensor_acc(m, d)
+  if m.opt.run_rne_postconstraint or (not (m.opt.disableflags & DisableBit.SENSOR) and m.sensor_rne_postconstraint):
+    smooth.rne_postconstraint(m, d)
+  sensor.sensor_acc(m, d, skip_rne_postconstraint=True)
 
 
 @event_scope
@@ -1448,7 +1855,9 @@ def step2(m: Model, d: Data):
   fwd_actuation(m, d)
   fwd_acceleration(m, d)
   solver.solve(m, d)
-  sensor.sensor_acc(m, d)
+  if m.opt.run_rne_postconstraint or (not (m.opt.disableflags & DisableBit.SENSOR) and m.sensor_rne_postconstraint):
+    smooth.rne_postconstraint(m, d)
+  sensor.sensor_acc(m, d, skip_rne_postconstraint=True)
 
   # integrate with Euler or implicitfast
   if m.opt.integrator in (IntegratorType.IMPLICITFAST, IntegratorType.IMPLICIT):

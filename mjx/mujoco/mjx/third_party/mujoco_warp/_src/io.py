@@ -21,6 +21,7 @@ import mujoco
 import numpy as np
 import warp as wp
 
+from mujoco.mjx.third_party.mujoco_warp._src import history
 from mujoco.mjx.third_party.mujoco_warp._src import sleep
 from mujoco.mjx.third_party.mujoco_warp._src import support
 from mujoco.mjx.third_party.mujoco_warp._src import types
@@ -361,6 +362,7 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   opt.graph_conditional = True
   opt.run_collision_detection = True
   opt.warn_overflow = int(types.OverflowType.ALL)
+  opt.run_rne_postconstraint = False
   contact_sensor_maxmatch_id = mujoco.mj_name2id(mjm, mujoco.mjtObj.mjOBJ_NUMERIC, "contact_sensor_maxmatch")
   if contact_sensor_maxmatch_id > -1:
     opt.contact_sensor_maxmatch = mjm.numeric_data[mjm.numeric_adr[contact_sensor_maxmatch_id]]
@@ -412,6 +414,8 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   m.has_flex_selfcollide = bool(
     mjm.nflex > 0 and np.any((mjm.flex_selfcollide != 0) & ((mjm.flex_contype & mjm.flex_conaffinity) != 0))
   )
+  m.has_1d_flex = bool(mjm.nflex > 0 and np.any(mjm.flex_dim == 1))
+  m.has_2d_flex = bool(mjm.nflex > 0 and np.any(mjm.flex_dim == 2))
   m.has_3d_flex = bool(mjm.nflex > 0 and np.any(mjm.flex_dim == 3))
   m.max_flex_dim = int(np.max(mjm.flex_dim)) if mjm.nflex > 0 else 0
   m.block_dim = types.BlockDim()
@@ -477,11 +481,31 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   m.mocap_bodyid = np.arange(mjm.nbody)[mjm.body_mocapid >= 0]
   m.mocap_bodyid = m.mocap_bodyid[mjm.body_mocapid[mjm.body_mocapid >= 0].argsort()]
   m.body_fluid_ellipsoid = np.zeros(mjm.nbody, dtype=bool)
-  m.body_fluid_ellipsoid[mjm.geom_bodyid[mjm.geom_fluid.reshape(mjm.ngeom, mujoco.mjNFLUID)[:, 0] > 0]] = True
+  has_fluid = mjm.geom_fluid.reshape(mjm.ngeom, mujoco.mjNFLUID)[:, 0] > 0
+  if np.any(has_fluid):
+    fluid_bodyids = mjm.geom_bodyid[has_fluid]
+    valid_mass = mjm.body_mass[fluid_bodyids] >= types.MJ_MINVAL
+    m.body_fluid_ellipsoid[fluid_bodyids[valid_mass]] = True
   m.body_fluid_ellipsoid_adr = np.nonzero(m.body_fluid_ellipsoid)[0]
+  body_is_free = np.zeros(mjm.nbody, dtype=bool)
+  has_one_jnt = mjm.body_jntnum == 1
+  if np.any(has_one_jnt):
+    b_indices = np.nonzero(has_one_jnt)[0]
+    jnt_adrs = mjm.body_jntadr[b_indices]
+    is_free_jnt = mjm.jnt_type[jnt_adrs] == mujoco.mjtJoint.mjJNT_FREE
+    if np.any(is_free_jnt):
+      b_free = b_indices[is_free_jnt]
+      jnt_free_adrs = jnt_adrs[is_free_jnt]
+      dof_adrs = mjm.jnt_dofadr[jnt_free_adrs]
+      tree_ids = mjm.dof_treeid[dof_adrs]
+      tree_dof6 = mjm.tree_dofnum[tree_ids] == 6
+      mass_match = mjm.body_subtreemass[b_free] == mjm.body_mass[b_free]
+      body_is_free[b_free] = tree_dof6 & mass_match
+  m.body_is_free = body_is_free
+  m.body_freeadr = np.nonzero(m.body_is_free)[0]
   body_fluid_box = np.zeros(mjm.nbody, dtype=bool)
   for b in range(1, mjm.nbody):
-    if not m.body_fluid_ellipsoid[b] and mjm.body_mass[b] > 0.0:
+    if not m.body_fluid_ellipsoid[b] and mjm.body_mass[b] >= types.MJ_MINVAL:
       body_fluid_box[b] = True
   m.body_fluid_box_adr = np.nonzero(body_fluid_box)[0]
   jnt_limited_slide_hinge = mjm.jnt_limited & np.isin(mjm.jnt_type, (mujoco.mjtJoint.mjJNT_SLIDE, mujoco.mjtJoint.mjJNT_HINGE))
@@ -876,6 +900,14 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
     if mjm.sensor_type[i] == mujoco.mjtSensor.mjSENS_TACTILE
     for j in range(mjm.mesh_vertnum[mjm.sensor_objid[i]])
   ]
+  tactile_geomid = mjm.sensor_refid[mjm.sensor_type == mujoco.mjtSensor.mjSENS_TACTILE]
+  tactile_weldid = mjm.body_weldid[mjm.geom_bodyid[tactile_geomid]]
+  unique_tactile_welds = np.unique(tactile_weldid)
+  m.ntactileweld = int(len(unique_tactile_welds))
+  weld_tactile_id = np.full(mjm.nbody, -1, dtype=np.int32)
+  for idx, weld in enumerate(unique_tactile_welds):
+    weld_tactile_id[weld] = idx
+  m.weld_tactile_id = weld_tactile_id
 
   # Per-block scalar/tile/sparse layout (see m_block_layout).
   _lay = m_block_layout(mjm)
@@ -1098,6 +1130,7 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
     {
       "nbody_branches": len(m.body_branches),
       "nbranch_start": len(m.body_branch_start),
+      "nbodyfree": sum(body_is_free),
       "nbody_fluid_ellipsoid": len(m.body_fluid_ellipsoid_adr),
       "nbody_fluid_box": len(m.body_fluid_box_adr),
       "njnt_limited_slide_hinge": len(m.jnt_limited_slide_hinge_adr),
@@ -1514,6 +1547,25 @@ def _allocate_island_arrays(
   d.efc_islandid = wp.array(efc_islandid, dtype=int)
 
 
+_COMPACT_DATA_FIELDS: tuple[str, ...] = (
+  "ctol",
+  "cls_tol",
+  "cdof_tri_row",
+  "cdof_tri_col",
+  "cM",
+  "cqLD",
+  "crhs",
+  "cx",
+  "cJ",
+  "cMa",
+  "cqfrc_smooth",
+  "cqacc_smooth",
+  "cqacc_warmstart",
+  "cqacc",
+  "cqfrc_constraint",
+)
+
+
 def _allocate_compact_arrays(
   mjm: mujoco.MjModel,
   d: types.Data,
@@ -1759,6 +1811,12 @@ def make_data(
     ),
     # equality constraints
     "eq_active": wp.array(np.tile(mjm.eq_active0.astype(bool), (nworld, 1)), shape=(nworld, mjm.neq), dtype=bool),
+    # history
+    "history": (
+      wp.array(np.tile(mjd.history, (nworld, 1)), shape=(nworld, mjm.nhistory), dtype=float)
+      if mjm.nhistory > 0
+      else wp.zeros((nworld, 0), dtype=float)
+    ),
     # island arrays
     "nisland": None,
     "tree_island": None,
@@ -1777,6 +1835,8 @@ def make_data(
     "map_iefc2efc": None,
     "dof_islandid": None,
     "efc_islandid": None,
+    # compact arrays (populated by _allocate_compact_arrays; skip eager allocation)
+    **{name: None for name in _COMPACT_DATA_FIELDS},
     "tree_asleep": wp.array(np.full((nworld, mjm.ntree), -(1 + types.MJ_MINAWAKE), dtype=np.int32), dtype=int),
     "tree_awake": wp.array(np.ones((nworld, mjm.ntree), dtype=np.int32), dtype=int),
     "body_awake": wp.array(_initial_body_awake(mjm, nworld, False), dtype=int),
@@ -2045,6 +2105,8 @@ def put_data(
     "map_iefc2efc": None,
     "dof_islandid": None,
     "efc_islandid": None,
+    # compact arrays (populated by _allocate_compact_arrays; skip eager allocation)
+    **{name: None for name in _COMPACT_DATA_FIELDS},
     "tree_asleep": wp.array(np.tile(tree_asleep_init, (nworld, 1)), dtype=int),
     "tree_awake": wp.array(np.tile((tree_asleep_init < 0).astype(np.int32), (nworld, 1)), dtype=int),
     "body_awake": wp.array(np.tile(body_awake_init.astype(np.int32), (nworld, 1)), dtype=int),
@@ -2700,6 +2762,9 @@ def reset_data(m: types.Model, d: types.Data, reset: Optional[wp.array] = None):
     ],
   )
 
+  if m.nhistory > 0:
+    history.reset_history(m, d, reset=reset_input)
+
   if sleep_enabled:
     sleep.update_sleep(m, d)
 
@@ -2872,6 +2937,8 @@ def override_model(model: types.Model | mujoco.MjModel, overrides: dict[str, Any
     "opt.graph_conditional",
     "opt.contact_sensor_maxmatch",
     "opt.warn_overflow",
+    "opt.run_collision_detection",
+    "opt.run_rne_postconstraint",
   }
   mj_only_fields = {"opt.jacobian", "vis.quality.offsamples"}
 

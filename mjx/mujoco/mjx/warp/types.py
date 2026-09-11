@@ -32,13 +32,13 @@ if typing.TYPE_CHECKING:
 
 else:
   try:
-    from mujoco.mjx.third_party.warp._src.jax import ffi as warp_ffi
+    import warp as wp
 
-    GraphMode = warp_ffi.JaxCallableGraphMode
+    GraphMode = wp.JaxCallableGraphMode
     from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 
     Callback = mjwp_types.Callback
-  except ImportError:
+  except (ImportError, AttributeError):
     GraphMode = int
     Callback = None
 PyTreeNode = mjx_dataclasses.PyTreeNode
@@ -170,6 +170,7 @@ class OptionWarp(PyTreeNode):
   graph_mode: GraphMode
   impratio_invsqrt: jax.Array
   run_collision_detection: bool
+  run_rne_postconstraint: bool
   sdf_initpoints: int
   sdf_iterations: int
   sleep_tolerance: jax.Array
@@ -195,9 +196,9 @@ class ModelWarp(PyTreeNode):
   actuator_ctrladr: np.ndarray
   actuator_ctrlnum: np.ndarray
   actuator_ctrlspec: np.ndarray
-  actuator_delay: np.ndarray
-  actuator_history: np.ndarray
-  actuator_historyadr: np.ndarray
+  actuator_delay: jax.Array
+  actuator_history: jax.Array
+  actuator_historyadr: jax.Array
   actuator_trntype_body_adr: np.ndarray
   block_dim: BlockDim
   body_branch_start: np.ndarray
@@ -205,6 +206,8 @@ class ModelWarp(PyTreeNode):
   body_fluid_box_adr: np.ndarray
   body_fluid_ellipsoid: np.ndarray
   body_fluid_ellipsoid_adr: np.ndarray
+  body_freeadr: np.ndarray
+  body_is_free: np.ndarray
   body_isdofancestor: np.ndarray
   body_tree: Tuple[np.ndarray, ...]
   callback: Callback
@@ -280,6 +283,8 @@ class ModelWarp(PyTreeNode):
   geom_pair_type_count: Tuple[int, ...]
   geom_plugin_index: np.ndarray
   geom_surfacevel: jax.Array
+  has_1d_flex: bool
+  has_2d_flex: bool
   has_3d_flex: bool
   has_ellipsoid_geom: bool
   has_flex_selfcollide: bool
@@ -335,6 +340,7 @@ class ModelWarp(PyTreeNode):
   nsensorcollision: int
   nsensorcontact: int
   nsensortaxel: int
+  ntactileweld: int
   ntree: int
   nv_pad: int
   nxn_geom_pair: np.ndarray
@@ -359,12 +365,12 @@ class ModelWarp(PyTreeNode):
   sensor_adr_to_contact_adr: np.ndarray
   sensor_collision_start_adr: np.ndarray
   sensor_contact_adr: np.ndarray
-  sensor_delay: np.ndarray
+  sensor_delay: jax.Array
   sensor_e_kinetic: bool
   sensor_e_potential: bool
-  sensor_history: np.ndarray
-  sensor_historyadr: np.ndarray
-  sensor_interval: np.ndarray
+  sensor_history: jax.Array
+  sensor_historyadr: jax.Array
+  sensor_interval: jax.Array
   sensor_limitfrc_adr: np.ndarray
   sensor_limitpos_adr: np.ndarray
   sensor_limitvel_adr: np.ndarray
@@ -391,6 +397,7 @@ class ModelWarp(PyTreeNode):
   tree_dofadr: np.ndarray
   tree_dofnum: np.ndarray
   tree_sleep_policy: np.ndarray
+  weld_tactile_id: np.ndarray
   wrap_geom_adr: np.ndarray
   wrap_jnt_adr: np.ndarray
   wrap_pulley_scale: np.ndarray
@@ -812,7 +819,7 @@ _NDIM = {
         'actuator_ctrlnum': 1,
         'actuator_ctrlrange': 3,
         'actuator_ctrlspec': 1,
-        'actuator_delay': 1,
+        'actuator_delay': 2,
         'actuator_dynprm': 3,
         'actuator_dyntype': 1,
         'actuator_forcelimited': 1,
@@ -820,8 +827,8 @@ _NDIM = {
         'actuator_gainprm': 3,
         'actuator_gaintype': 1,
         'actuator_gear': 3,
-        'actuator_history': 2,
-        'actuator_historyadr': 1,
+        'actuator_history': 3,
+        'actuator_historyadr': 2,
         'actuator_lengthrange': 3,
         'actuator_trnid': 2,
         'actuator_trntype': 1,
@@ -859,6 +866,7 @@ _NDIM = {
         'body_fluid_box_adr': 1,
         'body_fluid_ellipsoid': 1,
         'body_fluid_ellipsoid_adr': 1,
+        'body_freeadr': 1,
         'body_geomadr': 1,
         'body_geomnum': 1,
         'body_gravcomp': 2,
@@ -866,6 +874,7 @@ _NDIM = {
         'body_invweight0': 3,
         'body_ipos': 3,
         'body_iquat': 3,
+        'body_is_free': 1,
         'body_isdofancestor': 2,
         'body_jntadr': 1,
         'body_jntnum': 1,
@@ -1016,6 +1025,8 @@ _NDIM = {
         'geom_solref': 3,
         'geom_surfacevel': 3,
         'geom_type': 1,
+        'has_1d_flex': 0,
+        'has_2d_flex': 0,
         'has_3d_flex': 0,
         'has_ellipsoid_geom': 0,
         'has_flex_selfcollide': 0,
@@ -1165,6 +1176,7 @@ _NDIM = {
         'nsensordata': 0,
         'nsensortaxel': 0,
         'nsite': 0,
+        'ntactileweld': 0,
         'ntendon': 0,
         'ntree': 0,
         'nu': 0,
@@ -1195,6 +1207,7 @@ _NDIM = {
         'opt__ls_tolerance': 1,
         'opt__magnetic': 2,
         'opt__run_collision_detection': 0,
+        'opt__run_rne_postconstraint': 0,
         'opt__sdf_initpoints': 0,
         'opt__sdf_iterations': 0,
         'opt__sleep_tolerance': 1,
@@ -1233,13 +1246,13 @@ _NDIM = {
         'sensor_contact_adr': 1,
         'sensor_cutoff': 1,
         'sensor_datatype': 1,
-        'sensor_delay': 1,
+        'sensor_delay': 2,
         'sensor_dim': 1,
         'sensor_e_kinetic': 0,
         'sensor_e_potential': 0,
-        'sensor_history': 2,
-        'sensor_historyadr': 1,
-        'sensor_interval': 2,
+        'sensor_history': 3,
+        'sensor_historyadr': 2,
+        'sensor_interval': 3,
         'sensor_intprm': 2,
         'sensor_limitfrc_adr': 1,
         'sensor_limitpos_adr': 1,
@@ -1298,6 +1311,7 @@ _NDIM = {
         'tree_dofadr': 1,
         'tree_dofnum': 1,
         'tree_sleep_policy': 1,
+        'weld_tactile_id': 1,
         'wrap_geom_adr': 1,
         'wrap_jnt_adr': 1,
         'wrap_objid': 1,
@@ -1324,6 +1338,7 @@ _NDIM = {
         'ls_tolerance': 1,
         'magnetic': 2,
         'run_collision_detection': 0,
+        'run_rne_postconstraint': 0,
         'sdf_initpoints': 0,
         'sdf_iterations': 0,
         'sleep_tolerance': 1,
@@ -1552,7 +1567,7 @@ _BATCH_DIM = {
         'actuator_ctrlnum': False,
         'actuator_ctrlrange': True,
         'actuator_ctrlspec': False,
-        'actuator_delay': False,
+        'actuator_delay': True,
         'actuator_dynprm': True,
         'actuator_dyntype': False,
         'actuator_forcelimited': False,
@@ -1560,8 +1575,8 @@ _BATCH_DIM = {
         'actuator_gainprm': True,
         'actuator_gaintype': False,
         'actuator_gear': True,
-        'actuator_history': False,
-        'actuator_historyadr': False,
+        'actuator_history': True,
+        'actuator_historyadr': True,
         'actuator_lengthrange': True,
         'actuator_trnid': False,
         'actuator_trntype': False,
@@ -1599,6 +1614,7 @@ _BATCH_DIM = {
         'body_fluid_box_adr': False,
         'body_fluid_ellipsoid': False,
         'body_fluid_ellipsoid_adr': False,
+        'body_freeadr': False,
         'body_geomadr': False,
         'body_geomnum': False,
         'body_gravcomp': True,
@@ -1606,6 +1622,7 @@ _BATCH_DIM = {
         'body_invweight0': True,
         'body_ipos': True,
         'body_iquat': True,
+        'body_is_free': False,
         'body_isdofancestor': False,
         'body_jntadr': False,
         'body_jntnum': False,
@@ -1756,6 +1773,8 @@ _BATCH_DIM = {
         'geom_solref': True,
         'geom_surfacevel': True,
         'geom_type': False,
+        'has_1d_flex': False,
+        'has_2d_flex': False,
         'has_3d_flex': False,
         'has_ellipsoid_geom': False,
         'has_flex_selfcollide': False,
@@ -1905,6 +1924,7 @@ _BATCH_DIM = {
         'nsensordata': False,
         'nsensortaxel': False,
         'nsite': False,
+        'ntactileweld': False,
         'ntendon': False,
         'ntree': False,
         'nu': False,
@@ -1935,6 +1955,7 @@ _BATCH_DIM = {
         'opt__ls_tolerance': True,
         'opt__magnetic': True,
         'opt__run_collision_detection': False,
+        'opt__run_rne_postconstraint': False,
         'opt__sdf_initpoints': False,
         'opt__sdf_iterations': False,
         'opt__sleep_tolerance': True,
@@ -1973,13 +1994,13 @@ _BATCH_DIM = {
         'sensor_contact_adr': False,
         'sensor_cutoff': False,
         'sensor_datatype': False,
-        'sensor_delay': False,
+        'sensor_delay': True,
         'sensor_dim': False,
         'sensor_e_kinetic': False,
         'sensor_e_potential': False,
-        'sensor_history': False,
-        'sensor_historyadr': False,
-        'sensor_interval': False,
+        'sensor_history': True,
+        'sensor_historyadr': True,
+        'sensor_interval': True,
         'sensor_intprm': False,
         'sensor_limitfrc_adr': False,
         'sensor_limitpos_adr': False,
@@ -2038,6 +2059,7 @@ _BATCH_DIM = {
         'tree_dofadr': False,
         'tree_dofnum': False,
         'tree_sleep_policy': False,
+        'weld_tactile_id': False,
         'wrap_geom_adr': False,
         'wrap_jnt_adr': False,
         'wrap_objid': False,
@@ -2064,6 +2086,7 @@ _BATCH_DIM = {
         'ls_tolerance': True,
         'magnetic': True,
         'run_collision_detection': False,
+        'run_rne_postconstraint': False,
         'sdf_initpoints': False,
         'sdf_iterations': False,
         'sleep_tolerance': True,

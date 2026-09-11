@@ -165,6 +165,7 @@ class OverflowType(enum.IntFlag):
     EPA_HORIZON: EPA horizon buffer overflow
     ITERATIONS: solver iteration limit reached
     LS_ITERATIONS: linesearch iteration limit reached
+    TACTILE: tactile sensor collision pair overflow
     ALL: all overflows
   """
 
@@ -180,6 +181,7 @@ class OverflowType(enum.IntFlag):
   EPA_HORIZON = 1 << 8
   ITERATIONS = 1 << 9
   LS_ITERATIONS = 1 << 10
+  TACTILE = 1 << 11
   ALL = (
     NEFC
     | NJMAX_NNZ
@@ -192,6 +194,7 @@ class OverflowType(enum.IntFlag):
     | EPA_HORIZON
     | ITERATIONS
     | LS_ITERATIONS
+    | TACTILE
   )
 
 
@@ -844,6 +847,10 @@ class mat63f(wp.types.matrix(shape=(6, 3), dtype=float)):
   pass
 
 
+class mat66f(wp.types.matrix(shape=(6, 6), dtype=float)):
+  pass
+
+
 vec5 = vec5f
 vec6 = vec6f
 vec8 = vec8f
@@ -854,6 +861,7 @@ vec128 = vec_pluginattr
 mat23 = mat23f
 mat43 = mat43f
 mat63 = mat63f
+mat66 = mat66f
 
 
 def array(*args) -> wp.array:
@@ -904,6 +912,8 @@ class Option:
     run_collision_detection: if False, skips collision detection and allows user-populated
       contacts during the physics step (as opposed to DisableBit.CONTACT which explicitly
       zeros out the contacts at each step)
+    run_rne_postconstraint: if True, evaluates rne_postconstraint after the solver step even if
+      sensors are disabled or no sensors are present
     contact_sensor_maxmatch: max number of contacts considered by contact sensor matching criteria
                              contacts matched after this value is exceded will be ignored
     warn_overflow: overflow warning bitmask (OverflowType)
@@ -935,6 +945,7 @@ class Option:
   broadphase_filter: BroadphaseFilter
   graph_conditional: bool
   run_collision_detection: bool
+  run_rne_postconstraint: bool
   contact_sensor_maxmatch: int
   warn_overflow: int
 
@@ -1354,9 +1365,9 @@ class Model:
     actuator_actlimited: is activation limited               (nactuator,)
     actuator_actrange: range of activations                  (*, nactuator, 2)
     actuator_actearly: step activation before force          (nactuator,)
-    actuator_history: history buffer sizes                   (nactuator, 2)
-    actuator_historyadr: history buffer address              (nactuator,)
-    actuator_delay: delay in seconds                         (nactuator,)
+    actuator_history: history buffer sizes                   (*, nactuator, 2)
+    actuator_historyadr: history buffer address              (*, nactuator)
+    actuator_delay: delay in seconds                         (*, nactuator)
     actuator_forcelimited: is force limited                  (nactuator,)
     actuator_forcerange: range of forces                     (*, nactuator, 2)
     actuator_ctrllimited: is control limited                 (nu,)
@@ -1374,10 +1385,10 @@ class Model:
     sensor_dim: number of scalar outputs                     (nsensor,)
     sensor_adr: address in sensor array                      (nsensor,)
     sensor_cutoff: cutoff for real and positive; 0: ignore   (nsensor,)
-    sensor_history: history buffer sizes                     (nsensor, 2)
-    sensor_historyadr: history buffer address                (nsensor,)
-    sensor_delay: delay in seconds                           (nsensor,)
-    sensor_interval: sensor interval and phase               (nsensor, 2)
+    sensor_history: history buffer sizes                     (*, nsensor, 2)
+    sensor_historyadr: history buffer address                (*, nsensor)
+    sensor_delay: delay in seconds                           (*, nsensor)
+    sensor_interval: sensor interval and phase               (*, nsensor, 2)
     plugin: globally registered plugin slot number           (nplugin,)
     plugin_attr: config attributes of geom plugin            (nplugin, _NPLUGINATTR)
     key_time: keyframe time                                  (nkey,)
@@ -1406,6 +1417,7 @@ class Model:
     nsensorcollision: number of unique collisions for
                       geom distance sensors
     nsensortaxel: number of taxels in all tactile sensors
+    ntactileweld: number of unique weld bodies with tactile sensors
     nsensorcontact: number of contact sensors
     nrangefinder: number of rangefinder sensors
     nmaxcondim: maximum condim across geoms, pairs, and flexes
@@ -1422,6 +1434,8 @@ class Model:
     has_flex_selfcollide: whether any flex has self-collision enabled
     has_ellipsoid_geom: whether the model contains ellipsoid geoms
     has_plane_geom: whether the model contains plane geoms
+    has_1d_flex: whether the model contains 1D flexes
+    has_2d_flex: whether the model contains 2D flexes
     has_3d_flex: whether the model contains 3D flexes
     max_flex_dim: maximum flex dimension in the model
     block_dim: block dim options
@@ -1430,8 +1444,10 @@ class Model:
     body_branch_start: start index in body_branches for each branch   (nbranch + 1,)
     mocap_bodyid: id of body for mocap                       (nmocap,)
     body_fluid_ellipsoid: does body use ellipsoid fluid      (nbody,)
+    body_is_free: is body a standalone free body             (nbody,)
     body_fluid_ellipsoid_adr: body ids with ellipsoid fluid  (nbody_fluid_ellipsoid,)
     body_fluid_box_adr: body ids with box fluid              (nbody_fluid_box,)
+    body_freeadr: body ids of free bodies                    (nbodyfree,)
     jnt_limited_slide_hinge_adr: limited/slide/hinge jntadr
     jnt_limited_ball_adr: limited/ball jntadr
     body_isdofancestor: precomputed mask of which DOFs affect each body
@@ -1490,6 +1506,7 @@ class Model:
     sensor_adr_to_contact_adr: map sensor adr to contact adr (nsensor,)
     sensor_rne_postconstraint: evaluate rne_postconstraint
     sensor_rangefinder_bodyid: bodyid for rangefinder        (nrangefinder,)
+    weld_tactile_id: weld body to tactile weld index         (nbody,)
     taxel_vertadr: tactile sensor vertex address             (nsensortaxel,)
     taxel_sensorid: address for tactile sensors
     M_tiles: scalar and tiled block-factorization groups
@@ -1850,9 +1867,9 @@ class Model:
   actuator_actlimited: array("nactuator", bool)
   actuator_actrange: array("*", "nactuator", wp.vec2)
   actuator_actearly: array("nactuator", bool)
-  actuator_history: array("nactuator", wp.vec2i)
-  actuator_historyadr: array("nactuator", int)
-  actuator_delay: array("nactuator", float)
+  actuator_history: array("*", "nactuator", wp.vec2i)
+  actuator_historyadr: array("*", "nactuator", int)
+  actuator_delay: array("*", "nactuator", float)
   actuator_forcelimited: array("nactuator", bool)
   actuator_forcerange: array("*", "nactuator", wp.vec2)
   actuator_ctrllimited: array("nu", bool)
@@ -1870,10 +1887,10 @@ class Model:
   sensor_dim: array("nsensor", int)
   sensor_adr: array("nsensor", int)
   sensor_cutoff: array("nsensor", float)
-  sensor_history: array("nsensor", wp.vec2i)
-  sensor_historyadr: array("nsensor", int)
-  sensor_delay: array("nsensor", float)
-  sensor_interval: array("nsensor", wp.vec2)
+  sensor_history: array("*", "nsensor", wp.vec2i)
+  sensor_historyadr: array("*", "nsensor", int)
+  sensor_delay: array("*", "nsensor", float)
+  sensor_interval: array("*", "nsensor", wp.vec2)
   plugin: array("nplugin", int)
   plugin_attr: array("nplugin", vec_pluginattr)
   key_time: array("nkey", float)
@@ -1900,6 +1917,7 @@ class Model:
   nacttrnbody: int
   nsensorcollision: int
   nsensortaxel: int
+  ntactileweld: int
   nsensorcontact: int
   nrangefinder: int
   nmaxcondim: int
@@ -1915,6 +1933,8 @@ class Model:
   has_flex_selfcollide: bool
   has_ellipsoid_geom: bool
   has_plane_geom: bool
+  has_1d_flex: bool
+  has_2d_flex: bool
   has_3d_flex: bool
   max_flex_dim: int
   block_dim: BlockDim
@@ -1923,8 +1943,10 @@ class Model:
   body_branch_start: array("nbranch_start", int)
   mocap_bodyid: array("nmocap", int)
   body_fluid_ellipsoid: array("nbody", bool)
+  body_is_free: array("nbody", bool)
   body_fluid_ellipsoid_adr: array("nbody_fluid_ellipsoid", int)
   body_fluid_box_adr: array("nbody_fluid_box", int)
+  body_freeadr: array("nbodyfree", int)
   jnt_limited_slide_hinge_adr: array("njnt_limited_slide_hinge", int)
   jnt_limited_ball_adr: array("njnt_limited_ball", int)
   body_isdofancestor: array("nbody", "nv_pad", int)
@@ -1974,6 +1996,7 @@ class Model:
   sensor_adr_to_contact_adr: array("nsensor", int)
   sensor_rne_postconstraint: bool
   sensor_rangefinder_bodyid: array("nrangefinder", int)
+  weld_tactile_id: array("nbody", int)
   taxel_vertadr: array("nsensortaxel", int)
   taxel_sensorid: array("nsensortaxel", int)
   M_tiles: tuple[TileSet, ...]
@@ -2467,7 +2490,6 @@ class SolverContext:
   prev_grad: wp.array2d[float]
   prev_Mgrad: wp.array2d[float]
   beta: wp.array[float]
-  beta_den: wp.array[float]
   h: wp.array3d[float]
   hfactor: wp.array3d[float]
   quad_changed_ids: wp.array2d[int]

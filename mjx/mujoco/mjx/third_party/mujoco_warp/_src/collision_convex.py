@@ -822,6 +822,10 @@ def ccd_kernel_builder(
       cutoff = 1.0e32
     else:
       cutoff = gap
+    # Shift origin to geom1 position for translation invariance with numerical precision.
+    origin = geom1.pos
+    geom1.pos = wp.vec3(0.0)
+    geom2.pos = geom2.pos - origin
     needs_epa, dist, ncollision, w1, w2, gjk_result, geom1, geom2 = gjk_phase(
       tolerance,
       cutoff,
@@ -964,7 +968,7 @@ def ccd_kernel_builder(
         naconmax_in,
         i,
         dists[i] if ncollision > 1 else dist,
-        0.5 * (witness1[i] + witness2[i]),
+        0.5 * (witness1[i] + witness2[i]) + origin,
         frame,
         margin,
         gap,

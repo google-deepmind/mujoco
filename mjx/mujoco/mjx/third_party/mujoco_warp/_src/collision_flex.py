@@ -14,6 +14,7 @@
 """Flex collision detection (geom vs flex triangles)."""
 
 import dataclasses
+import math
 
 import warp as wp
 
@@ -40,6 +41,9 @@ from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
 wp.set_module_options({"enable_backward": False, "default_grid_stride": False})
 
+_FPS_BLOCK_SIZE: int = 64
+ENABLE_SAT_PREFILTER: bool = True
+
 
 @wp.func
 def _flex_element_aabb_filter(
@@ -56,6 +60,177 @@ def _flex_element_aabb_filter(
     return True
   if box1_max[2] < box2_min[2] or box1_min[2] > box2_max[2]:
     return True
+  return False
+
+
+@wp.func
+def _axis_separated(
+  # In:
+  p0: wp.vec3,
+  p1: wp.vec3,
+  p2: wp.vec3,
+  q0: wp.vec3,
+  q1: wp.vec3,
+  q2: wp.vec3,
+  ax: wp.vec3,
+  cutoff_sq: float,
+) -> bool:
+  min1 = wp.min(wp.dot(p0, ax), wp.min(wp.dot(p1, ax), wp.dot(p2, ax)))
+  max1 = wp.max(wp.dot(p0, ax), wp.max(wp.dot(p1, ax), wp.dot(p2, ax)))
+  min2 = wp.min(wp.dot(q0, ax), wp.min(wp.dot(q1, ax), wp.dot(q2, ax)))
+  max2 = wp.max(wp.dot(q0, ax), wp.max(wp.dot(q1, ax), wp.dot(q2, ax)))
+  diff = wp.max(min1 - max2, min2 - max1)
+  if diff > 0.0:
+    lax_sq = wp.length_sq(ax)
+    if lax_sq > 1e-12 and diff * diff > cutoff_sq * lax_sq:
+      return True
+  return False
+
+
+@wp.func
+def _point_segment_axis(p: wp.vec3, a: wp.vec3, b: wp.vec3) -> wp.vec3:
+  ab = b - a
+  ab_len_sq = wp.length_sq(ab)
+  if ab_len_sq > 1e-12:
+    ap = p - a
+    t = wp.clamp(wp.dot(ap, ab) / ab_len_sq, 0.0, 1.0)
+    return ap - t * ab
+  return p - a
+
+
+@wp.func
+def _triangle_sat_separated(
+  # In:
+  p0: wp.vec3,
+  p1: wp.vec3,
+  p2: wp.vec3,
+  q0: wp.vec3,
+  q1: wp.vec3,
+  q2: wp.vec3,
+  cutoff_sq: float,
+) -> bool:
+  """Returns True if two triangles inflated by cutoff are separated (no contact possible)."""
+  e1_0 = p1 - p0
+  e1_1 = p2 - p1
+  e1_2 = p0 - p2
+
+  # Face normal of triangle 1
+  n1 = wp.cross(e1_0, e1_1)
+  p_proj = wp.dot(p0, n1)
+  q0_d = wp.dot(q0, n1)
+  q1_d = wp.dot(q1, n1)
+  q2_d = wp.dot(q2, n1)
+  diff1 = wp.max(p_proj - wp.max(q0_d, wp.max(q1_d, q2_d)), wp.min(q0_d, wp.min(q1_d, q2_d)) - p_proj)
+  if diff1 > 0.0:
+    ln1_sq = wp.length_sq(n1)
+    if ln1_sq > 1e-12 and diff1 * diff1 > cutoff_sq * ln1_sq:
+      return True
+
+  # Face normal of triangle 2
+  e2_0 = q1 - q0
+  e2_1 = q2 - q1
+  e2_2 = q0 - q2
+  n2 = wp.cross(e2_0, e2_1)
+  q_proj = wp.dot(q0, n2)
+  p0_d = wp.dot(p0, n2)
+  p1_d = wp.dot(p1, n2)
+  p2_d = wp.dot(p2, n2)
+  diff2 = wp.max(wp.min(p0_d, wp.min(p1_d, p2_d)) - q_proj, q_proj - wp.max(p0_d, wp.max(p1_d, p2_d)))
+  if diff2 > 0.0:
+    ln2_sq = wp.length_sq(n2)
+    if ln2_sq > 1e-12 and diff2 * diff2 > cutoff_sq * ln2_sq:
+      return True
+
+  # Edge-edge cross products (3x3 = 9 axes)
+  for i in range(3):
+    e1 = e1_0
+    if i == 1:
+      e1 = e1_1
+    elif i == 2:
+      e1 = e1_2
+    for j in range(3):
+      e2 = e2_0
+      if j == 1:
+        e2 = e2_1
+      elif j == 2:
+        e2 = e2_2
+      if _axis_separated(p0, p1, p2, q0, q1, q2, wp.cross(e1, e2), cutoff_sq):
+        return True
+
+  # In-plane edge normals for triangle 1 (3 axes)
+  for i in range(3):
+    e = e1_0
+    if i == 1:
+      e = e1_1
+    elif i == 2:
+      e = e1_2
+    if _axis_separated(p0, p1, p2, q0, q1, q2, wp.cross(e, n1), cutoff_sq):
+      return True
+
+  # In-plane edge normals for triangle 2 (3 axes)
+  for i in range(3):
+    e = e2_0
+    if i == 1:
+      e = e2_1
+    elif i == 2:
+      e = e2_2
+    if _axis_separated(p0, p1, p2, q0, q1, q2, wp.cross(e, n2), cutoff_sq):
+      return True
+
+  # Vertex-to-vertex axes (3x3 = 9 axes)
+  for i in range(3):
+    p = p0
+    if i == 1:
+      p = p1
+    elif i == 2:
+      p = p2
+    for j in range(3):
+      q = q0
+      if j == 1:
+        q = q1
+      elif j == 2:
+        q = q2
+      if _axis_separated(p0, p1, p2, q0, q1, q2, p - q, cutoff_sq):
+        return True
+
+  # Vertex-to-edge axes: vertices of T1 to edges of T2 (9 axes)
+  for i in range(3):
+    p = p0
+    if i == 1:
+      p = p1
+    elif i == 2:
+      p = p2
+    for j in range(3):
+      qa = q0
+      qb = q1
+      if j == 1:
+        qa = q1
+        qb = q2
+      elif j == 2:
+        qa = q2
+        qb = q0
+      if _axis_separated(p0, p1, p2, q0, q1, q2, _point_segment_axis(p, qa, qb), cutoff_sq):
+        return True
+
+  # Vertex-to-edge axes: vertices of T2 to edges of T1 (9 axes)
+  for i in range(3):
+    q = q0
+    if i == 1:
+      q = q1
+    elif i == 2:
+      q = q2
+    for j in range(3):
+      pa = p0
+      pb = p1
+      if j == 1:
+        pa = p1
+        pb = p2
+      elif j == 2:
+        pa = p2
+        pb = p0
+      if _axis_separated(p0, p1, p2, q0, q1, q2, _point_segment_axis(q, pa, pb), cutoff_sq):
+        return True
+
   return False
 
 
@@ -1194,12 +1369,14 @@ def _flex_sap_project(
 
 
 @cache_kernel
-def _flex_sap_sweep(is_self: bool, warn_overflow: int):
+def _flex_sap_sweep(is_self: bool, warn_overflow: int, enable_sat: bool = True):
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # Model:
     flex_contype: wp.array[int],
     flex_conaffinity: wp.array[int],
+    flex_margin: wp.array[float],
+    flex_gap: wp.array[float],
     flex_selfcollide: wp.array[int],
     flex_dim: wp.array[int],
     flex_vertadr: wp.array[int],
@@ -1207,8 +1384,10 @@ def _flex_sap_sweep(is_self: bool, warn_overflow: int):
     flex_elemdataadr: wp.array[int],
     flex_vertbodyid: wp.array[int],
     flex_elem: wp.array[int],
+    flex_radius: wp.array[float],
     flex_elemflexid: wp.array[int],
     # Data in:
+    flexvert_xpos_in: wp.array2d[wp.vec3],
     flex_aabb_min_in: wp.array2d[wp.vec3],
     flex_aabb_max_in: wp.array2d[wp.vec3],
     # In:
@@ -1287,11 +1466,7 @@ def _flex_sap_sweep(is_self: bool, warn_overflow: int):
       lower2 = aabb_lower_in[worldid, elem2]
       upper2 = aabb_upper_in[worldid, elem2]
 
-      if lower1[0] > upper2[0] or lower2[0] > upper1[0]:
-        continue
-      if lower1[1] > upper2[1] or lower2[1] > upper1[1]:
-        continue
-      if lower1[2] > upper2[2] or lower2[2] > upper1[2]:
+      if _flex_element_aabb_filter(lower1, upper1, lower2, upper2):
         continue
 
       dim1 = flex_dim[flexid1]
@@ -1305,7 +1480,14 @@ def _flex_sap_sweep(is_self: bool, warn_overflow: int):
         e2 = elem2 - elem_adr1
         elem_data_idx2 = flex_elemdataadr[flexid1] + e2 * (dim1 + 1)
         v2_indices = _get_element_vertices(flex_elem, dim1, elem_data_idx2)
-        if _exclude_self_collision(flex_vertbodyid, v1_indices, dim1 + 1, v2_indices, dim1 + 1, vert_adr1):
+        if _exclude_self_collision(
+          flex_vertbodyid,
+          v1_indices,
+          dim1 + 1,
+          v2_indices,
+          dim1 + 1,
+          vert_adr1,
+        ):
           continue
       else:
         dim2 = flex_dim[flexid2]
@@ -1332,6 +1514,26 @@ def _flex_sap_sweep(is_self: bool, warn_overflow: int):
 
         if shared_body:
           continue
+
+      if dim1 == 2:
+        dim2 = dim1 if wp.static(is_self) else flex_dim[flexid2]
+        if dim2 == 2 and wp.static(enable_sat):
+          r1 = flex_radius[flexid1]
+          cutoff = float(2.0) * r1
+          if not wp.static(is_self):
+            cutoff = (
+              r1 + flex_radius[flexid2] + flex_margin[flexid1] + flex_margin[flexid2] + flex_gap[flexid1] + flex_gap[flexid2]
+            )
+          cutoff_sq = cutoff * cutoff
+          p0 = flexvert_xpos_in[worldid, vert_adr1 + v1_indices[0]]
+          p1 = flexvert_xpos_in[worldid, vert_adr1 + v1_indices[1]]
+          p2 = flexvert_xpos_in[worldid, vert_adr1 + v1_indices[2]]
+          vadr2 = vert_adr1 if wp.static(is_self) else flex_vertadr[flexid2]
+          q0 = flexvert_xpos_in[worldid, vadr2 + v2_indices[0]]
+          q1 = flexvert_xpos_in[worldid, vadr2 + v2_indices[1]]
+          q2 = flexvert_xpos_in[worldid, vadr2 + v2_indices[2]]
+          if _triangle_sat_separated(p0, p1, p2, q0, q1, q2, cutoff_sq):
+            continue
 
       idx = wp.atomic_add(ncollision_out, 0, 1)
       if idx >= max_pairs:
@@ -1372,8 +1574,6 @@ def _flex_narrowphase(warn_overflow: int):
     naccdmax_in: int,
     ncollision_in: wp.array[int],
     # In:
-    elem_aabb_lower_in: wp.array2d[wp.vec3],
-    elem_aabb_upper_in: wp.array2d[wp.vec3],
     max_candidates: int,
     gjk_iterations: int,
     epa_iterations: int,
@@ -1410,15 +1610,6 @@ def _flex_narrowphase(warn_overflow: int):
     elem1_global = pair[0]
     elem2_global = pair[1]
     worldid = collision_worldid_in[pairid]
-
-    # Precomputed AABB rejection filter
-    box1_min = elem_aabb_lower_in[worldid, elem1_global]
-    box1_max = elem_aabb_upper_in[worldid, elem1_global]
-    box2_min = elem_aabb_lower_in[worldid, elem2_global]
-    box2_max = elem_aabb_upper_in[worldid, elem2_global]
-
-    if _flex_element_aabb_filter(box1_min, box1_max, box2_min, box2_max):
-      return
 
     flexid1 = flex_elemflexid[elem1_global]
     flexid2 = flex_elemflexid[elem2_global]
@@ -2029,7 +2220,7 @@ def _compute_filter_key(
   ncand: wp.array[int],
   cand_geom: wp.array[wp.vec2i],
   cand_flex: wp.array[wp.vec2i],
-  cand_elem: wp.array[wp.vec2i],
+  cand_pos: wp.array[wp.vec3],
   cand_worldid: wp.array[int],
   # Out:
   key_out: wp.array[wp.int64],
@@ -2037,9 +2228,7 @@ def _compute_filter_key(
 ):
   """Compute sort key for candidate grouping.
 
-  Groups candidates by (worldid, flex_id, geom_id) so that duplicates
-  are contiguous after sorting. Self-collision contacts (geom_id < 0)
-  are mapped to a sentinel value (ngeom).
+  Groups candidates by (worldid, flex_id, geom_id) in high bits and spatial projection in low bits.
   """
   i = wp.tid()
   if i >= ncand[0]:
@@ -2050,8 +2239,6 @@ def _compute_filter_key(
   worldid = cand_worldid[i]
   flex_id = cand_flex[i][1]
   geom_id = cand_geom[i][0]
-  elem1 = cand_elem[i][0]
-  elem2 = cand_elem[i][1]
   flex1 = cand_flex[i][0]
 
   if geom_id >= 0:
@@ -2065,127 +2252,33 @@ def _compute_filter_key(
   is_self = int(flex1 == flex_id) if geom_id < 0 else 0
 
   group_key = (wp.int64(group_id) << wp.int64(1)) | wp.int64(is_self)
-  # Pack 16-bit element indices for radix sort ordering within each group.
-  # Deduplication compares exact cand_elem values, so any wrap-around (> 65535 elements)
-  # affects sort order only without compromising contact deduplication correctness.
-  elem_key = ((wp.int64(elem1 + 1) & wp.int64(0xFFFF)) << wp.int64(16)) | (wp.int64(elem2 + 1) & wp.int64(0xFFFF))
 
-  key_out[i] = (group_key << wp.int64(32)) | elem_key
+  # Spatial projection key: project position onto diagonal vector u = (1, 1, 1) / sqrt(3).
+  # Clamped monotonic 1D integer mapping with 1 um resolution.
+  p = cand_pos[i]
+  s = (p[0] + p[1] + p[2]) * wp.static(1.0 / math.sqrt(3.0))
+  spatial_key = wp.clamp(wp.int64(s * 1000000.0) + wp.int64(100000000), wp.int64(0), wp.int64(2147483647))
+
+  key_out[i] = (group_key << wp.int64(32)) | spatial_key
   val_out[i] = i
 
 
-@wp.func
-def _is_candidate_dominated(
-  # In:
-  dist_i: float,
-  dist_j: float,
-  elem1_i: int,
-  elem2_i: int,
-  elem1_j: int,
-  elem2_j: int,
-  pos_i: wp.vec3,
-  pos_j: wp.vec3,
-) -> bool:
-  """Returns True if candidate i is dominated by (and should yield to) candidate j."""
-  if dist_j < dist_i:
-    return True
-  if dist_j == dist_i:
-    if elem1_j < elem1_i:
-      return True
-    if elem1_j == elem1_i and elem2_j < elem2_i:
-      return True
-    if elem1_j == elem1_i and elem2_j == elem2_i:
-      if pos_j[0] < pos_i[0]:
-        return True
-      if pos_j[0] == pos_i[0] and pos_j[1] < pos_i[1]:
-        return True
-      if pos_j[0] == pos_i[0] and pos_j[1] == pos_i[1] and pos_j[2] < pos_i[2]:
-        return True
-  return False
-
-
+# Note: Matches MuJoCo C contact filtering semantics. Cross-pair proximity
+# deduplication is omitted; all candidate contacts from narrowphase are passed
+# directly to farthest-point sampling.
 @wp.kernel
-def _filter_flex_candidates_sorted(
+def _init_cand_active(
   # In:
   ncand: wp.array[int],
-  epsilon: float,
-  sort_key: wp.array[wp.int64],
-  sort_val: wp.array[int],
-  cand_dist: wp.array[float],
-  cand_pos: wp.array[wp.vec3],
-  cand_elem: wp.array[wp.vec2i],
   # Out:
   cand_active_out: wp.array[int],
 ):
-  """Filter duplicate candidates using sorted order.
-
-  After sorting by group key, candidates in the same group are contiguous.
-  Each candidate only compares with neighbors sharing the same key, reducing
-  complexity from O(n^2) to O(n * k) where k is the average group size.
-  """
-  si = wp.tid()
+  i = wp.tid()
   ncand_limit = wp.min(ncand[0], cand_active_out.shape[0])
-  if si >= ncand_limit:
-    return
-
-  i = sort_val[si]
-  my_key = sort_key[si]
-  my_group = my_key >> wp.int64(32)
-  pos_i = cand_pos[i]
-  dist_i = cand_dist[i]
-  eps2 = epsilon * epsilon
-
-  elem1 = cand_elem[i][0]
-  elem2 = cand_elem[i][1]
-
-  keep = int(1)
-
-  # Compare with same-key neighbors (backward)
-  j = si - 1
-  while j >= 0:
-    if (sort_key[j] >> wp.int64(32)) != my_group:
-      break
-    oj = sort_val[j]
-    diff = pos_i - cand_pos[oj]
-    if wp.dot(diff, diff) < eps2:
-      if _is_candidate_dominated(
-        dist_i,
-        cand_dist[oj],
-        elem1,
-        elem2,
-        cand_elem[oj][0],
-        cand_elem[oj][1],
-        pos_i,
-        cand_pos[oj],
-      ):
-        keep = 0
-        break
-    j -= 1
-
-  # Compare with same-key neighbors (forward)
-  if keep == 1:
-    j = si + 1
-    while j < ncand_limit:
-      if (sort_key[j] >> wp.int64(32)) != my_group:
-        break
-      oj = sort_val[j]
-      diff = pos_i - cand_pos[oj]
-      if wp.dot(diff, diff) < eps2:
-        if _is_candidate_dominated(
-          dist_i,
-          cand_dist[oj],
-          elem1,
-          elem2,
-          cand_elem[oj][0],
-          cand_elem[oj][1],
-          pos_i,
-          cand_pos[oj],
-        ):
-          keep = 0
-          break
-      j += 1
-
-  cand_active_out[i] = keep
+  if i < ncand_limit:
+    cand_active_out[i] = 1
+  else:
+    cand_active_out[i] = 0
 
 
 @cache_kernel
@@ -2458,11 +2551,161 @@ def _tie_break_fps(
 
   if elem1_curr != elem1_sel:
     return elem1_curr < elem1_sel
-  return elem2_curr < elem2_sel
+  if elem2_curr != elem2_sel:
+    return elem2_curr < elem2_sel
+  return curr_idx < sel_idx
 
 
 @wp.kernel
-def _filter_flex_fps(
+def _parallel_fps_find_seed(
+  # In:
+  flex_group_start_indices_in: wp.array[int],
+  flex_num_groups_in: wp.array[int],
+  ncand: wp.array[int],
+  cand_active_sorted: wp.array[int],
+  sort_val: wp.array[int],
+  cand_dist: wp.array[float],
+  cand_elem: wp.array[wp.vec2i],
+  cand_geom: wp.array[wp.vec2i],
+  # Out:
+  scratch_dist_out: wp.array2d[float],
+  scratch_cidx_out: wp.array2d[int],
+  scratch_count_out: wp.array2d[int],
+):
+  g, tid = wp.tid()
+  if g >= flex_num_groups_in[0] or ncand[0] <= MJ_MAXCONPAIR:
+    return
+
+  ncand_limit = wp.min(ncand[0], cand_active_sorted.shape[0])
+  g_start = flex_group_start_indices_in[g]
+  if g_start < 0 or g_start >= ncand_limit:
+    scratch_count_out[g, tid] = 0
+    scratch_cidx_out[g, tid] = -1
+    return
+
+  first_cand_idx = sort_val[g_start]
+  if cand_geom[first_cand_idx][0] >= 0:
+    scratch_count_out[g, tid] = 0
+    scratch_cidx_out[g, tid] = -1
+    return
+
+  g_end = ncand_limit
+  if g < flex_num_groups_in[0] - 1:
+    g_end = wp.min(ncand_limit, flex_group_start_indices_in[g + 1])
+
+  local_active = int(0)
+  min_d = float(1e10)
+  sel_cidx = int(-1)
+
+  for si in range(g_start + tid, g_end, wp.static(_FPS_BLOCK_SIZE)):
+    if cand_active_sorted[si] == 1:
+      local_active += 1
+      c_idx = sort_val[si]
+      d_val = cand_dist[c_idx]
+      if d_val < min_d:
+        min_d = d_val
+        sel_cidx = c_idx
+      elif d_val == min_d:
+        if _tie_break_fps(c_idx, sel_cidx, cand_elem):
+          sel_cidx = c_idx
+
+  scratch_dist_out[g, tid] = min_d
+  scratch_cidx_out[g, tid] = sel_cidx
+  scratch_count_out[g, tid] = local_active
+
+
+@wp.kernel
+def _parallel_fps_init_condition(
+  # Out:
+  fps_groups_active_out: wp.array[int],
+  fps_iter_out: wp.array[int],
+  fps_condition_out: wp.array[int],
+):
+  fps_groups_active_out[0] = 0
+  fps_iter_out[0] = 0
+  fps_condition_out[0] = 0
+
+
+@wp.kernel
+def _parallel_fps_check_condition(
+  # In:
+  ncand: wp.array[int],
+  fps_groups_active_in: wp.array[int],
+  # Out:
+  fps_condition_out: wp.array[int],
+):
+  if ncand[0] > wp.static(MJ_MAXCONPAIR) and fps_groups_active_in[0] > 0:
+    fps_condition_out[0] = 1
+  else:
+    fps_condition_out[0] = 0
+
+
+@wp.kernel
+def _parallel_fps_step_condition(
+  # In:
+  fps_groups_active_in: wp.array[int],
+  # Out:
+  fps_iter_out: wp.array[int],
+  fps_condition_out: wp.array[int],
+):
+  k = fps_iter_out[0] + 1
+  fps_iter_out[0] = k
+  if k >= wp.static(MJ_MAXCONPAIR - 1) or fps_groups_active_in[0] <= 0:
+    fps_condition_out[0] = 0
+  else:
+    fps_condition_out[0] = 1
+
+
+@wp.kernel
+def _parallel_fps_resolve_seed(
+  # In:
+  flex_num_groups_in: wp.array[int],
+  ncand: wp.array[int],
+  cand_pos: wp.array[wp.vec3],
+  cand_elem: wp.array[wp.vec2i],
+  scratch_dist_in: wp.array2d[float],
+  scratch_cidx_in: wp.array2d[int],
+  scratch_count_in: wp.array2d[int],
+  # Out:
+  selected_cidx_out: wp.array[int],
+  selected_pos_out: wp.array[wp.vec3],
+  fps_groups_active_out: wp.array[int],
+):
+  g = wp.tid()
+  selected_cidx_out[g] = -1
+  if g >= flex_num_groups_in[0] or ncand[0] <= MJ_MAXCONPAIR:
+    return
+
+  total_active = int(0)
+  for t in range(wp.static(_FPS_BLOCK_SIZE)):
+    total_active += scratch_count_in[g, t]
+
+  if total_active <= MJ_MAXCONPAIR:
+    selected_cidx_out[g] = -1
+    return
+
+  wp.atomic_add(fps_groups_active_out, 0, 1)
+
+  min_d = float(1e10)
+  sel_cidx = int(-1)
+  for t in range(wp.static(_FPS_BLOCK_SIZE)):
+    c_idx = scratch_cidx_in[g, t]
+    if c_idx >= 0:
+      d_val = scratch_dist_in[g, t]
+      if d_val < min_d:
+        min_d = d_val
+        sel_cidx = c_idx
+      elif d_val == min_d:
+        if _tie_break_fps(c_idx, sel_cidx, cand_elem):
+          sel_cidx = c_idx
+
+  selected_cidx_out[g] = sel_cidx
+  if sel_cidx >= 0:
+    selected_pos_out[g] = cand_pos[sel_cidx]
+
+
+@wp.kernel
+def _parallel_fps_init_dist_and_find_max(
   # In:
   flex_group_start_indices_in: wp.array[int],
   flex_num_groups_in: wp.array[int],
@@ -2470,105 +2713,157 @@ def _filter_flex_fps(
   cand_active_sorted: wp.array[int],
   sort_val: wp.array[int],
   cand_pos: wp.array[wp.vec3],
-  cand_dist: wp.array[float],
   cand_elem: wp.array[wp.vec2i],
-  cand_geom: wp.array[wp.vec2i],
+  selected_cidx: wp.array[int],
+  selected_pos: wp.array[wp.vec3],
   # Out:
   fps_min_dist_out: wp.array[float],
   cand_active_out: wp.array[int],
+  scratch_dist_out: wp.array2d[float],
+  scratch_cidx_out: wp.array2d[int],
 ):
-  g = wp.tid()
-
+  g, tid = wp.tid()
   if g >= flex_num_groups_in[0]:
     return
 
-  g_start = flex_group_start_indices_in[g]
-  first_cand_idx = sort_val[g_start]
-
-  # Only perform FPS for flex-flex/self-flex candidate groups (geom_id < 0)
-  if cand_geom[first_cand_idx][0] >= 0:
+  seed_idx = selected_cidx[g]
+  if seed_idx < 0:
+    scratch_dist_out[g, tid] = float(-1e10)
+    scratch_cidx_out[g, tid] = -1
     return
 
+  g_start = flex_group_start_indices_in[g]
   ncand_limit = wp.min(ncand[0], cand_active_sorted.shape[0])
   g_end = ncand_limit
   if g < flex_num_groups_in[0] - 1:
-    g_end = flex_group_start_indices_in[g + 1]
+    g_end = wp.min(ncand_limit, flex_group_start_indices_in[g + 1])
 
-  # Count active candidates in this group
-  total_active = int(0)
-  for si in range(g_start, g_end):
-    if cand_active_sorted[si] == 1:
-      total_active += 1
+  seed_p = selected_pos[g]
+  max_d = float(-1e10)
+  sel_cidx = int(-1)
 
-  # If group has <= MJ_MAXCONPAIR candidates, no FPS filtering needed
-  if total_active <= MJ_MAXCONPAIR:
-    return
-
-  # Deactivate all candidates in group first
-  for si in range(g_start, g_end):
-    if cand_active_sorted[si] == 1:
-      cand_active_out[sort_val[si]] = 0
-
-  # 1. Find seed candidate (deepest contact = minimum cand_dist)
-  min_d = float(1e10)
-  sel_cand_idx = int(-1)
-  for si in range(g_start, g_end):
+  for si in range(g_start + tid, g_end, wp.static(_FPS_BLOCK_SIZE)):
     if cand_active_sorted[si] == 1:
       c_idx = sort_val[si]
-      d_val = cand_dist[c_idx]
-      if d_val < min_d:
-        min_d = d_val
-        sel_cand_idx = c_idx
-      elif d_val == min_d:
-        if _tie_break_fps(c_idx, sel_cand_idx, cand_elem):
-          sel_cand_idx = c_idx
-
-  if sel_cand_idx < 0:
-    return
-
-  # Mark seed selected
-  cand_active_out[sel_cand_idx] = 1
-  seed_pos = cand_pos[sel_cand_idx]
-
-  # 2. Initialize running minimum distance for all active candidates in group
-  for si in range(g_start, g_end):
-    if cand_active_sorted[si] == 1:
-      c_idx = sort_val[si]
-      if c_idx == sel_cand_idx:
+      if c_idx == seed_idx:
+        cand_active_out[c_idx] = 1
         fps_min_dist_out[c_idx] = -1e10
       else:
-        fps_min_dist_out[c_idx] = wp.length(cand_pos[c_idx] - seed_pos)
+        cand_active_out[c_idx] = 0
+        d = wp.length(cand_pos[c_idx] - seed_p)
+        fps_min_dist_out[c_idx] = d
+        if d > max_d:
+          max_d = d
+          sel_cidx = c_idx
+        elif d == max_d:
+          if _tie_break_fps(c_idx, sel_cidx, cand_elem):
+            sel_cidx = c_idx
 
-  # 3. Iteratively select remaining MJ_MAXCONPAIR - 1 candidates with max min_dist
-  for k in range(1, MJ_MAXCONPAIR):
-    max_min_d = float(-1e10)
-    sel_cand_idx = int(-1)
-    for si in range(g_start, g_end):
-      if cand_active_sorted[si] == 1:
-        c_idx = sort_val[si]
-        md = fps_min_dist_out[c_idx]
-        if md > max_min_d:
-          max_min_d = md
-          sel_cand_idx = c_idx
-        elif md == max_min_d:
-          if _tie_break_fps(c_idx, sel_cand_idx, cand_elem):
-            sel_cand_idx = c_idx
+  scratch_dist_out[g, tid] = max_d
+  scratch_cidx_out[g, tid] = sel_cidx
 
-    if sel_cand_idx < 0 or max_min_d <= 0.0:
-      break
 
-    # Mark selected candidate
-    cand_active_out[sel_cand_idx] = 1
-    fps_min_dist_out[sel_cand_idx] = -1e10
-    new_pos = cand_pos[sel_cand_idx]
+@wp.kernel
+def _parallel_fps_resolve_max(
+  # In:
+  flex_num_groups_in: wp.array[int],
+  cand_pos: wp.array[wp.vec3],
+  cand_elem: wp.array[wp.vec2i],
+  scratch_dist_in: wp.array2d[float],
+  scratch_cidx_in: wp.array2d[int],
+  # Out:
+  selected_cidx_out: wp.array[int],
+  selected_pos_out: wp.array[wp.vec3],
+  cand_active_out: wp.array[int],
+  fps_min_dist_out: wp.array[float],
+  fps_groups_active_out: wp.array[int],
+):
+  g = wp.tid()
+  if g >= flex_num_groups_in[0]:
+    return
 
-    # Update running min_dist to selected set
-    for si in range(g_start, g_end):
-      if cand_active_sorted[si] == 1:
-        c_idx = sort_val[si]
-        if fps_min_dist_out[c_idx] > 0.0:
-          d_new = wp.length(cand_pos[c_idx] - new_pos)
-          fps_min_dist_out[c_idx] = wp.min(fps_min_dist_out[c_idx], d_new)
+  if selected_cidx_out[g] < 0:
+    return
+
+  max_d = float(-1e10)
+  sel_cidx = int(-1)
+  for t in range(wp.static(_FPS_BLOCK_SIZE)):
+    c_idx = scratch_cidx_in[g, t]
+    if c_idx >= 0:
+      md = scratch_dist_in[g, t]
+      if md > max_d:
+        max_d = md
+        sel_cidx = c_idx
+      elif md == max_d:
+        if _tie_break_fps(c_idx, sel_cidx, cand_elem):
+          sel_cidx = c_idx
+
+  if sel_cidx >= 0 and max_d > 0.0:
+    selected_cidx_out[g] = sel_cidx
+    selected_pos_out[g] = cand_pos[sel_cidx]
+    cand_active_out[sel_cidx] = 1
+    fps_min_dist_out[sel_cidx] = -1e10
+  else:
+    selected_cidx_out[g] = -1
+    wp.atomic_sub(fps_groups_active_out, 0, 1)
+
+
+@wp.kernel
+def _parallel_fps_update_and_find_max(
+  # In:
+  flex_group_start_indices_in: wp.array[int],
+  flex_num_groups_in: wp.array[int],
+  ncand: wp.array[int],
+  cand_active_sorted: wp.array[int],
+  sort_val: wp.array[int],
+  cand_pos: wp.array[wp.vec3],
+  cand_elem: wp.array[wp.vec2i],
+  selected_cidx: wp.array[int],
+  selected_pos: wp.array[wp.vec3],
+  # Out:
+  fps_min_dist_out: wp.array[float],
+  scratch_dist_out: wp.array2d[float],
+  scratch_cidx_out: wp.array2d[int],
+):
+  g, tid = wp.tid()
+  if g >= flex_num_groups_in[0]:
+    return
+
+  new_cidx = selected_cidx[g]
+  if new_cidx < 0:
+    scratch_dist_out[g, tid] = float(-1e10)
+    scratch_cidx_out[g, tid] = -1
+    return
+
+  g_start = flex_group_start_indices_in[g]
+  ncand_limit = wp.min(ncand[0], cand_active_sorted.shape[0])
+  g_end = ncand_limit
+  if g < flex_num_groups_in[0] - 1:
+    g_end = wp.min(ncand_limit, flex_group_start_indices_in[g + 1])
+
+  new_p = selected_pos[g]
+
+  max_d = float(-1e10)
+  sel_cidx = int(-1)
+
+  for si in range(g_start + tid, g_end, wp.static(_FPS_BLOCK_SIZE)):
+    if cand_active_sorted[si] == 1:
+      c_idx = sort_val[si]
+      md = fps_min_dist_out[c_idx]
+      if md > 0.0:
+        d_new = wp.length(cand_pos[c_idx] - new_p)
+        md = wp.min(md, d_new)
+        fps_min_dist_out[c_idx] = md
+
+        if md > max_d:
+          max_d = md
+          sel_cidx = c_idx
+        elif md == max_d:
+          if _tie_break_fps(c_idx, sel_cidx, cand_elem):
+            sel_cidx = c_idx
+
+  scratch_dist_out[g, tid] = max_d
+  scratch_cidx_out[g, tid] = sel_cidx
 
 
 def flex_broadphase_aabb(m: Model, d: Data):
@@ -2626,6 +2921,14 @@ class FlexWorkspace:
   flex_group_start_indices: wp.array | None = None
   flex_fps_min_dist: wp.array | None = None
   flex_num_groups: wp.array | None = None
+  fps_scratch_dist: wp.array | None = None
+  fps_scratch_cidx: wp.array | None = None
+  fps_scratch_count: wp.array | None = None
+  fps_selected_cidx: wp.array | None = None
+  fps_selected_pos: wp.array | None = None
+  fps_groups_active: wp.array | None = None
+  fps_condition: wp.array | None = None
+  fps_iter: wp.array | None = None
   nccd: wp.array | None = None
 
 
@@ -2647,6 +2950,14 @@ def _allocate_flex_workspace(m: Model, d: Data) -> FlexWorkspace:
     flex_group_start_indices = wp.full(nmax_groups, -1, dtype=int)
     flex_fps_min_dist = wp.empty(d.naconmax, dtype=float)
     flex_num_groups = wp.zeros(1, dtype=int)
+    fps_scratch_dist = wp.empty((nmax_groups, _FPS_BLOCK_SIZE), dtype=float)
+    fps_scratch_cidx = wp.empty((nmax_groups, _FPS_BLOCK_SIZE), dtype=int)
+    fps_scratch_count = wp.empty((nmax_groups, _FPS_BLOCK_SIZE), dtype=int)
+    fps_selected_cidx = wp.full(nmax_groups, -1, dtype=int)
+    fps_selected_pos = wp.empty(nmax_groups, dtype=wp.vec3)
+    fps_groups_active = wp.zeros(1, dtype=int)
+    fps_condition = wp.zeros(1, dtype=int)
+    fps_iter = wp.zeros(1, dtype=int)
   else:
     cand_active_sorted = None
     flex_group_temp = None
@@ -2654,6 +2965,14 @@ def _allocate_flex_workspace(m: Model, d: Data) -> FlexWorkspace:
     flex_group_start_indices = None
     flex_fps_min_dist = None
     flex_num_groups = None
+    fps_scratch_dist = None
+    fps_scratch_cidx = None
+    fps_scratch_count = None
+    fps_selected_cidx = None
+    fps_selected_pos = None
+    fps_groups_active = None
+    fps_condition = None
+    fps_iter = None
 
   return FlexWorkspace(
     dist=wp.empty(d.naconmax, dtype=float),
@@ -2674,6 +2993,14 @@ def _allocate_flex_workspace(m: Model, d: Data) -> FlexWorkspace:
     flex_group_start_indices=flex_group_start_indices,
     flex_fps_min_dist=flex_fps_min_dist,
     flex_num_groups=flex_num_groups,
+    fps_scratch_dist=fps_scratch_dist,
+    fps_scratch_cidx=fps_scratch_cidx,
+    fps_scratch_count=fps_scratch_count,
+    fps_selected_cidx=fps_selected_cidx,
+    fps_selected_pos=fps_selected_pos,
+    fps_groups_active=fps_groups_active,
+    fps_condition=fps_condition,
+    fps_iter=fps_iter,
     epa_vert=wp.empty(shape=(capacity, 10 + 2 * epa_iterations), dtype=wp.vec3),
     epa_vert_index=wp.empty(shape=(capacity, 10 + 2 * epa_iterations), dtype=int),
     epa_face=wp.empty(shape=(capacity, 6 + MJ_MAX_EPAFACES * epa_iterations), dtype=int),
@@ -2684,49 +3011,173 @@ def _allocate_flex_workspace(m: Model, d: Data) -> FlexWorkspace:
   )
 
 
+def _run_filter_flex_fps(
+  m: Model,
+  d: Data,
+  ws: FlexWorkspace,
+  nmax_groups: int,
+):
+  """Applies Far Point Sampling to limit contact points per group to MJ_MAXCONPAIR in parallel."""
+  wp.launch(
+    _parallel_fps_init_condition,
+    dim=1,
+    inputs=[],
+    outputs=[
+      ws.fps_groups_active,
+      ws.fps_iter,
+      ws.fps_condition,
+    ],
+  )
+  wp.launch(
+    _parallel_fps_find_seed,
+    dim=(nmax_groups, _FPS_BLOCK_SIZE),
+    inputs=[
+      ws.flex_group_start_indices,
+      ws.flex_num_groups,
+      ws.ncand,
+      ws.cand_active_sorted,
+      ws.filter_val,
+      ws.dist,
+      ws.elem,
+      ws.geom,
+      ws.fps_scratch_dist,
+      ws.fps_scratch_cidx,
+      ws.fps_scratch_count,
+    ],
+  )
+  wp.launch(
+    _parallel_fps_resolve_seed,
+    dim=nmax_groups,
+    inputs=[
+      ws.flex_num_groups,
+      ws.ncand,
+      ws.pos,
+      ws.elem,
+      ws.fps_scratch_dist,
+      ws.fps_scratch_cidx,
+      ws.fps_scratch_count,
+    ],
+    outputs=[
+      ws.fps_selected_cidx,
+      ws.fps_selected_pos,
+      ws.fps_groups_active,
+    ],
+  )
+  wp.launch(
+    _parallel_fps_check_condition,
+    dim=1,
+    inputs=[ws.ncand, ws.fps_groups_active],
+    outputs=[ws.fps_condition],
+  )
+  wp.launch(
+    _parallel_fps_init_dist_and_find_max,
+    dim=(nmax_groups, _FPS_BLOCK_SIZE),
+    inputs=[
+      ws.flex_group_start_indices,
+      ws.flex_num_groups,
+      ws.ncand,
+      ws.cand_active_sorted,
+      ws.filter_val,
+      ws.pos,
+      ws.elem,
+      ws.fps_selected_cidx,
+      ws.fps_selected_pos,
+      ws.flex_fps_min_dist,
+      ws.cand_active,
+      ws.fps_scratch_dist,
+      ws.fps_scratch_cidx,
+    ],
+  )
+
+  def _fps_iteration():
+    wp.launch(
+      _parallel_fps_resolve_max,
+      dim=nmax_groups,
+      inputs=[
+        ws.flex_num_groups,
+        ws.pos,
+        ws.elem,
+        ws.fps_scratch_dist,
+        ws.fps_scratch_cidx,
+      ],
+      outputs=[
+        ws.fps_selected_cidx,
+        ws.fps_selected_pos,
+        ws.cand_active,
+        ws.flex_fps_min_dist,
+        ws.fps_groups_active,
+      ],
+    )
+    wp.launch(
+      _parallel_fps_update_and_find_max,
+      dim=(nmax_groups, _FPS_BLOCK_SIZE),
+      inputs=[
+        ws.flex_group_start_indices,
+        ws.flex_num_groups,
+        ws.ncand,
+        ws.cand_active_sorted,
+        ws.filter_val,
+        ws.pos,
+        ws.elem,
+        ws.fps_selected_cidx,
+        ws.fps_selected_pos,
+        ws.flex_fps_min_dist,
+        ws.fps_scratch_dist,
+        ws.fps_scratch_cidx,
+      ],
+    )
+    wp.launch(
+      _parallel_fps_step_condition,
+      dim=1,
+      inputs=[ws.fps_groups_active],
+      outputs=[
+        ws.fps_iter,
+        ws.fps_condition,
+      ],
+    )
+
+  if m.opt.graph_conditional:
+    wp.capture_while(ws.fps_condition, while_body=_fps_iteration)
+  else:
+    for _ in range(1, MJ_MAXCONPAIR):
+      _fps_iteration()
+
+
 def _filter_and_write_contacts(
   m: Model,
   d: Data,
   ws: FlexWorkspace,
   enable_fps: bool = False,
 ):
-  """Deduplicates candidates, optionally applies FPS filtering, and writes contacts to d.contact."""
+  """Optionally applies FPS filtering and writes contacts to d.contact."""
   wp.launch(
-    _compute_filter_key,
+    _init_cand_active,
     dim=d.naconmax,
-    inputs=[
-      m.ngeom,
-      m.nflex,
-      ws.ncand,
-      ws.geom,
-      ws.flex,
-      ws.elem,
-      ws.worldid,
-    ],
-    outputs=[
-      ws.filter_key,
-      ws.filter_val,
-    ],
-  )
-
-  wp.utils.radix_sort_pairs(ws.filter_key, ws.filter_val, d.naconmax)
-
-  wp.launch(
-    _filter_flex_candidates_sorted,
-    dim=d.naconmax,
-    inputs=[
-      ws.ncand,
-      1e-3,
-      ws.filter_key,
-      ws.filter_val,
-      ws.dist,
-      ws.pos,
-      ws.elem,
-    ],
+    inputs=[ws.ncand],
     outputs=[ws.cand_active],
   )
 
   if enable_fps:
+    wp.launch(
+      _compute_filter_key,
+      dim=d.naconmax,
+      inputs=[
+        m.ngeom,
+        m.nflex,
+        ws.ncand,
+        ws.geom,
+        ws.flex,
+        ws.pos,
+        ws.worldid,
+      ],
+      outputs=[
+        ws.filter_key,
+        ws.filter_val,
+      ],
+    )
+
+    wp.utils.radix_sort_pairs(ws.filter_key, ws.filter_val, d.naconmax)
+
     wp.launch(
       _populate_active_sorted,
       dim=d.naconmax,
@@ -2766,25 +3217,7 @@ def _filter_and_write_contacts(
       ],
     )
 
-    wp.launch(
-      _filter_flex_fps,
-      dim=nmax_groups,
-      inputs=[
-        ws.flex_group_start_indices,
-        ws.flex_num_groups,
-        ws.ncand,
-        ws.cand_active_sorted,
-        ws.filter_val,
-        ws.pos,
-        ws.dist,
-        ws.elem,
-        ws.geom,
-      ],
-      outputs=[
-        ws.flex_fps_min_dist,
-        ws.cand_active,
-      ],
-    )
+    _run_filter_flex_fps(m, d, ws, nmax_groups)
 
   wp.launch(
     _write_filtered_contacts(int(m.opt.warn_overflow)),
@@ -2895,7 +3328,7 @@ def _detect_1d_geom_candidates(
   ws: FlexWorkspace,
 ):
   """Detect candidates between 1D flex rope vertices and geoms."""
-  if m.nflexvert == 0:
+  if m.nflexvert == 0 or not m.has_1d_flex:
     return
 
   epa_iterations = m.opt.ccd_iterations
@@ -2970,7 +3403,7 @@ def _detect_elem_geom_candidates(
   ws: FlexWorkspace,
 ):
   """Detect candidates between 2D/3D flex elements and geoms."""
-  if m.nflexelem == 0:
+  if m.nflexelem == 0 or not (m.has_2d_flex or m.has_3d_flex):
     return
 
   epa_iterations = m.opt.ccd_iterations
@@ -3132,8 +3565,6 @@ def _run_flex_narrowphase(
   d: Data,
   ctx,
   ws: FlexWorkspace,
-  elem_aabb_lower: wp.array,
-  elem_aabb_upper: wp.array,
 ):
   """Executes narrowphase collision detection for element pairs."""
   epa_iterations = m.opt.ccd_iterations
@@ -3157,8 +3588,6 @@ def _run_flex_narrowphase(
       d.flexvert_xpos,
       d.naccdmax,
       d.ncollision,
-      elem_aabb_lower,
-      elem_aabb_upper,
       d.naconmax,
       m.opt.ccd_iterations,
       epa_iterations,
@@ -3220,12 +3649,16 @@ def _flex_sap_collision(
   ws: FlexWorkspace,
   is_self: bool,
   sap_data: tuple[wp.array, wp.array, wp.array, wp.array] | None = None,
+  enable_sat: bool | None = None,
 ):
   """Detect and write flex self or flex-flex collision contacts (broadphase and narrowphase)."""
   if is_self and not m.has_flex_selfcollide:
     return
   if not is_self and m.nflex <= 1:
     return
+
+  if enable_sat is None:
+    enable_sat = ENABLE_SAT_PREFILTER
 
   ws.ncand.zero_()
   if ws.flex_num_groups is not None:
@@ -3238,11 +3671,13 @@ def _flex_sap_collision(
   d.ncollision.zero_()
 
   wp.launch(
-    _flex_sap_sweep(is_self, int(m.opt.warn_overflow)),
+    _flex_sap_sweep(is_self, int(m.opt.warn_overflow), enable_sat),
     dim=nsweep,
     inputs=[
       m.flex_contype,
       m.flex_conaffinity,
+      m.flex_margin,
+      m.flex_gap,
       m.flex_selfcollide,
       m.flex_dim,
       m.flex_vertadr,
@@ -3250,7 +3685,9 @@ def _flex_sap_collision(
       m.flex_elemdataadr,
       m.flex_vertbodyid,
       m.flex_elem,
+      m.flex_radius,
       m.flex_elemflexid,
+      d.flexvert_xpos,
       d.flex_aabb_min,
       d.flex_aabb_max,
       m.nflexelem,
@@ -3274,18 +3711,19 @@ def _flex_sap_collision(
     d,
     ctx,
     ws,
-    elem_aabb_lower,
-    elem_aabb_upper,
   )
 
   _filter_and_write_contacts(m, d, ws, enable_fps=True)
 
 
 @event_scope
-def flex_collision(m: Model, d: Data, ctx):
+def flex_collision(m: Model, d: Data, ctx, enable_sat: bool | None = None):
   """Runs collision detection for all flex collisions."""
   if m.nflex == 0 or m.nflexelem == 0:
     return
+
+  if enable_sat is None:
+    enable_sat = ENABLE_SAT_PREFILTER
 
   # Update dynamic flex object bounding boxes
   flex_broadphase_aabb(m, d)
@@ -3303,7 +3741,7 @@ def flex_collision(m: Model, d: Data, ctx):
   _flex_geom_collision(m, d, ws)
 
   # 2. Flex Self-Collision (Broadphase and Narrowphase)
-  _flex_sap_collision(m, d, ctx, ws, is_self=True, sap_data=sap_data)
+  _flex_sap_collision(m, d, ctx, ws, is_self=True, sap_data=sap_data, enable_sat=enable_sat)
 
   # 3. Flex-Flex Collision (Broadphase and Narrowphase)
-  _flex_sap_collision(m, d, ctx, ws, is_self=False, sap_data=sap_data)
+  _flex_sap_collision(m, d, ctx, ws, is_self=False, sap_data=sap_data, enable_sat=enable_sat)

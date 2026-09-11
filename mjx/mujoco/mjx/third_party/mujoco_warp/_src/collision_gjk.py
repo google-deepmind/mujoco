@@ -1481,7 +1481,7 @@ def _epa(
 @wp.func
 def _area4(a: wp.vec3, b: wp.vec3, c: wp.vec3, d: wp.vec3) -> float:
   """Computes area of a quadrilateral embedded in 3D space."""
-  return 0.5 * wp.norm_l2(wp.cross(a - d, d - b) + wp.cross(b - c, c - a))
+  return 0.5 * wp.norm_l2(wp.cross(a - c, b - d))
 
 
 @wp.func
@@ -1565,9 +1565,15 @@ def _aligned_faces(vert1: wp.array[wp.vec3], len1: int, vert2: wp.array[wp.vec3]
 # find two normals that are perpendicular to each other within a tolerance
 # return 1 if found
 @wp.func
-def _aligned_face_edge(edge: wp.array[wp.vec3], nedge: int, face: wp.array[wp.vec3], nface: int) -> Tuple[int, wp.vec2i]:
+def _aligned_face_edge(
+  edge: wp.array[wp.vec3], nedge: int, face: wp.array[wp.vec3], nface: int, dir: wp.vec3
+) -> Tuple[int, wp.vec2i]:
   res = wp.vec2i()
   for i in range(nface):
+    # ignore faces pointing away from the collision direction (negative dot product)
+    if wp.dot(face[i], dir) <= MINVAL:
+      continue
+
     for j in range(nedge):
       if wp.abs(wp.dot(edge[j], face[i])) < EDGE_TOL:
         res[0] = j
@@ -2250,7 +2256,7 @@ def multicontact(
           n1,
           endvert,
         )
-      nres, res = _aligned_face_edge(n1, nnorms1, n2, nnorms2)
+      nres, res = _aligned_face_edge(n1, nnorms1, n2, nnorms2, dir)
       if not nres:
         return 1, witness1, witness2, dists
       is_edge_contact_geom1 = 1
@@ -2282,7 +2288,7 @@ def multicontact(
           n2,
           endvert,
         )
-      nres, res = _aligned_face_edge(n2, nnorms2, n1, nnorms1)
+      nres, res = _aligned_face_edge(n2, nnorms2, n1, nnorms1, dir_neg)
       if not nres:
         return 1, witness1, witness2, dists
       is_edge_contact_geom2 = 1

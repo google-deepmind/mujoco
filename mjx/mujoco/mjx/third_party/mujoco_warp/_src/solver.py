@@ -103,7 +103,6 @@ def _create_solver_context(m: types.Model, d: types.Data) -> SolverContext:
     prev_grad=wp.empty((nworld, nv), dtype=float) if alloc_mgrad else wp.empty((nworld, 0), dtype=float),
     prev_Mgrad=wp.empty((nworld, nv), dtype=float) if alloc_mgrad else wp.empty((nworld, 0), dtype=float),
     beta=wp.empty((nworld,), dtype=float) if alloc_mgrad else wp.empty((0,), dtype=float),
-    beta_den=wp.empty((nworld,), dtype=float) if alloc_mgrad else wp.empty((0,), dtype=float),
     h=wp.empty((nworld, nv_pad, nv_pad), dtype=float) if alloc_h else wp.empty((nworld, 0, 0), dtype=float),
     hfactor=wp.empty((nworld, nv_pad, nv_pad), dtype=float) if alloc_hfactor else wp.empty((nworld, 0, 0), dtype=float),
     quad_changed_ids=wp.empty((nworld, njmax), dtype=int) if alloc_incremental else wp.empty((nworld, 0), dtype=int),
@@ -1022,9 +1021,31 @@ def _linesearch_iterative_kernel(
     scale = meaninertia * wp.float(nv)
     gtol = wp.max(tolerance * ls_tolerance * snorm * scale, 1e-6)
 
-    # p0 via parallel reduction
+    # quad_gauss = [0, search.T @ Ma - search.T @ qfrc_smooth, 0.5 * search.T @ mv] + equality
+    local_gauss = wp.vec2(0.0)
+    for dofid in range(tid, nv, wp.block_dim()):
+      search = ctx_search_in[worldid, dofid]
+      local_gauss += wp.vec2(
+        search * (efc_Ma_out[worldid, dofid] - qfrc_smooth_in[worldid, dofid]),
+        0.5 * search * ctx_mv_in[worldid, dofid],
+      )
+
+    for efcid in range(tid, ne, wp.block_dim()):
+      jv = ctx_jv_in[worldid, efcid]
+      jvD = jv * efc_D_in[worldid, efcid]
+      local_gauss += wp.vec2(
+        jvD * ctx_Jaref_in[worldid, efcid],
+        0.5 * jv * jvD,
+      )
+
+    gauss_tile = wp.tile(local_gauss, preserve_type=True)
+    gauss_sum = wp.tile_reduce(wp.add, gauss_tile)
+    gauss_reduced = gauss_sum[0]
+    ctx_quad_gauss = wp.vec3(0.0, gauss_reduced[0], gauss_reduced[1])
+
+    # p0 via parallel reduction over non-equality constraints
     local_p0 = wp.vec3(0.0)
-    for efcid in range(tid, nefc, wp.block_dim()):
+    for efcid in range(ne + tid, nefc, wp.block_dim()):
       if wp.static(IS_ELLIPTIC):
         efc_type = efc_type_in[worldid, efcid]
         efc_id = 0
@@ -1078,20 +1099,6 @@ def _linesearch_iterative_kernel(
     p0_tile = wp.tile(local_p0, preserve_type=True)
     p0_sum = wp.tile_reduce(wp.add, p0_tile)
 
-    # quad_gauss = [0, search.T @ Ma - search.T @ qfrc_smooth, 0.5 * search.T @ mv]
-    local_gauss = wp.vec2(0.0)
-    for dofid in range(tid, nv, wp.block_dim()):
-      search = ctx_search_in[worldid, dofid]
-      local_gauss += wp.vec2(
-        search * (efc_Ma_out[worldid, dofid] - qfrc_smooth_in[worldid, dofid]),
-        0.5 * search * ctx_mv_in[worldid, dofid],
-      )
-
-    gauss_tile = wp.tile(local_gauss, preserve_type=True)
-    gauss_sum = wp.tile_reduce(wp.add, gauss_tile)
-    gauss_reduced = gauss_sum[0]
-    ctx_quad_gauss = wp.vec3(0.0, gauss_reduced[0], gauss_reduced[1])
-
     # add quad_gauss contribution to p0
     p0 = wp.vec3(ctx_quad_gauss[0], ctx_quad_gauss[1], 2.0 * ctx_quad_gauss[2]) + p0_sum[0]
     p0_delta = wp.vec3(0.0, p0[1], p0[2])
@@ -1114,7 +1121,7 @@ def _linesearch_iterative_kernel(
     lo_alpha_in = -math.safe_div(p0[1], p0[2])
 
     local_lo_in = wp.vec3(0.0)
-    for efcid in range(tid, nefc, wp.block_dim()):
+    for efcid in range(ne + tid, nefc, wp.block_dim()):
       if wp.static(IS_ELLIPTIC):
         efc_type = efc_type_in[worldid, efcid]
         efc_id = 0
@@ -1193,7 +1200,7 @@ def _linesearch_iterative_kernel(
         local_hi = wp.vec3(0.0)
         local_mid = wp.vec3(0.0)
 
-        for efcid in range(tid, nefc, wp.block_dim()):
+        for efcid in range(ne + tid, nefc, wp.block_dim()):
           if wp.static(IS_ELLIPTIC):
             efc_type = efc_type_in[worldid, efcid]
             efc_id = 0
@@ -3282,82 +3289,6 @@ def _update_gradient_incremental(m: types.Model, d: types.Data, ctx: SolverConte
 
 
 @wp.kernel
-def _solve_beta_zero(
-  # Out:
-  ctx_beta_num_out: wp.array[float],
-  ctx_beta_den_out: wp.array[float],
-):
-  worldid = wp.tid()
-  ctx_beta_num_out[worldid] = 0.0
-  ctx_beta_den_out[worldid] = 0.0
-
-
-@wp.kernel
-def _solve_beta_accumulate_tiled(
-  # Model:
-  nv: int,
-  # In:
-  ctx_grad_in: wp.array2d[float],
-  ctx_Mgrad_in: wp.array2d[float],
-  ctx_prev_grad_in: wp.array2d[float],
-  ctx_prev_Mgrad_in: wp.array2d[float],
-  ctx_done_in: wp.array[bool],
-  # Out:
-  ctx_beta_num_out: wp.array[float],
-  ctx_beta_den_out: wp.array[float],
-):
-  worldid, tid = wp.tid()
-
-  if ctx_done_in[worldid]:
-    return
-
-  local_num = float(0.0)
-  local_den = float(0.0)
-  BLOCK_DIM = wp.block_dim()
-
-  for dofid in range(tid, nv, BLOCK_DIM):
-    prev_Mgrad = ctx_prev_Mgrad_in[worldid, dofid]
-    num = ctx_grad_in[worldid, dofid] * (ctx_Mgrad_in[worldid, dofid] - prev_Mgrad)
-    den = ctx_prev_grad_in[worldid, dofid] * prev_Mgrad
-    local_num += num
-    local_den += den
-
-  num_tile = wp.tile(local_num, preserve_type=True)
-  num_sum = wp.tile_reduce(wp.add, num_tile)
-
-  den_tile = wp.tile(local_den, preserve_type=True)
-  den_sum = wp.tile_reduce(wp.add, den_tile)
-
-  if tid == 0:
-    ctx_beta_num_out[worldid] = num_sum[0]
-    ctx_beta_den_out[worldid] = den_sum[0]
-
-
-@wp.kernel
-def _solve_beta_accumulate(
-  # In:
-  ctx_grad_in: wp.array2d[float],
-  ctx_Mgrad_in: wp.array2d[float],
-  ctx_prev_grad_in: wp.array2d[float],
-  ctx_prev_Mgrad_in: wp.array2d[float],
-  ctx_done_in: wp.array[bool],
-  # Out:
-  ctx_beta_num_out: wp.array[float],
-  ctx_beta_den_out: wp.array[float],
-):
-  worldid, dofid = wp.tid()
-
-  if ctx_done_in[worldid]:
-    return
-
-  prev_Mgrad = ctx_prev_Mgrad_in[worldid, dofid]
-  num = ctx_grad_in[worldid, dofid] * (ctx_Mgrad_in[worldid, dofid] - prev_Mgrad)
-  den = ctx_prev_grad_in[worldid, dofid] * prev_Mgrad
-  wp.atomic_add(ctx_beta_num_out, worldid, num)
-  wp.atomic_add(ctx_beta_den_out, worldid, den)
-
-
-@wp.kernel
 def _solve_search_update_cg_tiled(
   # Model:
   nv: int,
@@ -3400,7 +3331,9 @@ def _solve_search_update_cg_tiled(
 
 
 @cache_kernel
-def _solve_cg_finalize(warn_overflow: int):
+def _solve_beta_finalize_tiled(warn_overflow: int):
+  WARN_OVERFLOW = warn_overflow
+
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # Model:
@@ -3409,11 +3342,13 @@ def _solve_cg_finalize(warn_overflow: int):
     opt_iterations: int,
     stat_meaninertia: wp.array[float],
     # In:
-    ctx_beta_num_in: wp.array[float],
-    ctx_beta_den_in: wp.array[float],
+    ctx_grad_in: wp.array2d[float],
+    ctx_Mgrad_in: wp.array2d[float],
+    ctx_prev_grad_in: wp.array2d[float],
+    ctx_prev_Mgrad_in: wp.array2d[float],
     ctx_improvement_in: wp.array[float],
-    ctx_done_in: wp.array[bool],
     ctx_grad_dot_in: wp.array[float],
+    ctx_done_in: wp.array[bool],
     # Data out:
     solver_niter_out: wp.array[int],
     overflow_out: wp.array[int],
@@ -3422,35 +3357,49 @@ def _solve_cg_finalize(warn_overflow: int):
     nsolving_out: wp.array[int],
     ctx_done_out: wp.array[bool],
   ):
-    worldid = wp.tid()
+    worldid, tid = wp.tid()
 
     if ctx_done_in[worldid]:
       return
 
-    # 1. solve_beta_finalize
-    ctx_beta_out[worldid] = wp.max(0.0, ctx_beta_num_in[worldid] / wp.max(types.MJ_MINVAL, ctx_beta_den_in[worldid]))
+    local_num = float(0.0)
+    local_den = float(0.0)
+    BLOCK_DIM = wp.block_dim()
 
-    # 2. solve_done
-    solver_niter_out[worldid] += 1
-    tolerance = opt_tolerance[worldid % opt_tolerance.shape[0]]
-    meaninertia = stat_meaninertia[worldid % stat_meaninertia.shape[0]]
+    for dofid in range(tid, nv, BLOCK_DIM):
+      prev_Mgrad = ctx_prev_Mgrad_in[worldid, dofid]
+      num = ctx_grad_in[worldid, dofid] * (ctx_Mgrad_in[worldid, dofid] - prev_Mgrad)
+      den = ctx_prev_grad_in[worldid, dofid] * prev_Mgrad
+      local_num += num
+      local_den += den
 
-    grad_dot = ctx_grad_dot_in[worldid]
+    beta_tile = wp.tile(wp.vec2(local_num, local_den), preserve_type=True)
+    beta_sum = wp.tile_reduce(wp.add, beta_tile)
+    reduced_beta = beta_sum[0]
 
-    improvement = _rescale(nv, meaninertia, ctx_improvement_in[worldid])
-    gradient = _rescale(nv, meaninertia, wp.sqrt(grad_dot))
-    done = (improvement < tolerance) or (gradient < tolerance)
-    if done or solver_niter_out[worldid] == opt_iterations:
-      if not done and solver_niter_out[worldid] == opt_iterations:
-        if wp.static(bool(warn_overflow & OverflowType.ITERATIONS)):
-          wp.printf(
-            "solver iterations limit reached - please increase iterations beyond %u\n"
-            "To disable the print warning: m.opt.warn_overflow &= ~mjw.OverflowType.ITERATIONS (or = 0 for all)\n",
-            opt_iterations,
-          )
-        overflow_out[worldid] = overflow_out[worldid] | OverflowType.ITERATIONS
-      ctx_done_out[worldid] = True
-      wp.atomic_add(nsolving_out, 0, -1)
+    if tid == 0:
+      ctx_beta_out[worldid] = wp.max(0.0, reduced_beta[0] / wp.max(types.MJ_MINVAL, reduced_beta[1]))
+
+      solver_niter_out[worldid] += 1
+      tolerance = opt_tolerance[worldid % opt_tolerance.shape[0]]
+      meaninertia = stat_meaninertia[worldid % stat_meaninertia.shape[0]]
+
+      grad_dot = ctx_grad_dot_in[worldid]
+
+      improvement = _rescale(nv, meaninertia, ctx_improvement_in[worldid])
+      gradient = _rescale(nv, meaninertia, wp.sqrt(grad_dot))
+      done = (improvement < tolerance) or (gradient < tolerance)
+      if done or solver_niter_out[worldid] == opt_iterations:
+        if not done and solver_niter_out[worldid] == opt_iterations:
+          if wp.static(bool(WARN_OVERFLOW & OverflowType.ITERATIONS)):
+            wp.printf(
+              "solver iterations limit reached - please increase iterations beyond %u\n"
+              "To disable the print warning: m.opt.warn_overflow &= ~mjw.OverflowType.ITERATIONS (or = 0 for all)\n",
+              opt_iterations,
+            )
+          overflow_out[worldid] = overflow_out[worldid] | OverflowType.ITERATIONS
+        ctx_done_out[worldid] = True
+        wp.atomic_add(nsolving_out, 0, -1)
 
   return kernel
 
@@ -3568,31 +3517,21 @@ def _solver_iteration(
 
   # polak-ribiere
   if m.opt.solver == types.SolverType.CG:
-    wp.launch(
-      _solve_beta_zero,
-      dim=d.nworld,
-      outputs=[ctx.beta, ctx.beta_den],
-    )
     wp.launch_tiled(
-      _solve_beta_accumulate_tiled,
-      dim=d.nworld,
-      inputs=[m.nv, ctx.grad, ctx.Mgrad, ctx.prev_grad, ctx.prev_Mgrad, ctx.done],
-      outputs=[ctx.beta, ctx.beta_den],
-      block_dim=m.block_dim.solve_beta_accumulate,
-    )
-    wp.launch(
-      _solve_cg_finalize(int(m.opt.warn_overflow)),
+      _solve_beta_finalize_tiled(int(m.opt.warn_overflow)),
       dim=d.nworld,
       inputs=[
         m.nv,
         m.opt.tolerance,
         m.opt.iterations,
         m.stat.meaninertia,
-        ctx.beta,
-        ctx.beta_den,
+        ctx.grad,
+        ctx.Mgrad,
+        ctx.prev_grad,
+        ctx.prev_Mgrad,
         ctx.improvement,
-        ctx.done,
         ctx.grad_dot,
+        ctx.done,
       ],
       outputs=[
         d.solver_niter,
@@ -3601,6 +3540,7 @@ def _solver_iteration(
         nsolving,
         ctx.done,
       ],
+      block_dim=m.block_dim.solve_beta_accumulate,
     )
     wp.launch_tiled(
       _solve_search_update_cg_tiled,

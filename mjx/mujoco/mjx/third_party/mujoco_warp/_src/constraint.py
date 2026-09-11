@@ -81,6 +81,74 @@ def _zero_constraint_counts(
 
 
 @wp.func
+def _contact_kbimp(
+  # Model:
+  opt_disableflags: int,
+  # In:
+  timestep: float,
+  solref: wp.vec2,
+  solimp: vec5,
+  pos_imp: float,
+) -> wp.vec3:
+  """Computes the constraint (k, b, impedance) from solref/solimp at impedance position pos_imp."""
+  timeconst = solref[0]
+  dampratio = solref[1]
+  dmin = solimp[0]
+  dmax = solimp[1]
+  width_raw = solimp[2]
+  width = width_raw
+  mid = solimp[3]
+  power = solimp[4]
+
+  if not (opt_disableflags & DisableBit.REFSAFE):
+    timeconst = wp.max(timeconst, 2.0 * timestep)
+
+  dmin = wp.clamp(dmin, types.MJ_MINIMP, types.MJ_MAXIMP)
+  dmax = wp.clamp(dmax, types.MJ_MINIMP, types.MJ_MAXIMP)
+  width = wp.max(types.MJ_MINVAL, width)
+  mid = wp.clamp(mid, types.MJ_MINIMP, types.MJ_MAXIMP)
+  power = wp.max(1.0, power)
+
+  # see https://mujoco.readthedocs.io/en/latest/modeling.html#solver-parameters
+  dmax_sq = dmax * dmax
+  # use a branch because Warp differentiates both wp.where operands; the unused time-constant
+  # formula for direct-format solref can divide by zero or produce NaN gradients
+  if solref[0] <= 0.0:
+    k = -solref[0] / wp.max(types.MJ_MINVAL, dmax_sq)
+  else:
+    k = 1.0 / wp.max(types.MJ_MINVAL, dmax_sq * timeconst * timeconst * dampratio * dampratio)
+  if solref[1] <= 0.0:
+    b = -solref[1] / wp.max(types.MJ_MINVAL, dmax)
+  else:
+    b = 2.0 / wp.max(types.MJ_MINVAL, dmax * timeconst)
+
+  imp_x = wp.abs(pos_imp) / width
+  # evaluate only the active polynomial because the unused branch can raise FE_INVALID or produce
+  # NaN gradients; the constant branch gives zero gradient at and beyond the transition endpoints
+  if dmin == dmax or width_raw <= types.MJ_MINVAL:
+    imp = 0.5 * (dmin + dmax)
+  elif imp_x <= 0.0:
+    imp = dmin
+  elif imp_x >= 1.0:
+    imp = dmax
+  elif power == 1.0:
+    imp = dmin + imp_x * (dmax - dmin)
+  elif imp_x <= mid:
+    imp_y = (1.0 / wp.pow(mid, power - 1.0)) * wp.pow(imp_x, power)
+    imp = wp.clamp(dmin + imp_y * (dmax - dmin), dmin, dmax)
+  else:
+    imp_y = 1.0 - (1.0 / wp.pow(1.0 - mid, power - 1.0)) * wp.pow(1.0 - imp_x, power)
+    imp = wp.clamp(dmin + imp_y * (dmax - dmin), dmin, dmax)
+
+  return wp.vec3(k, b, imp)
+
+
+@wp.func
+def _efc_D(invweight: float, imp: float) -> float:
+  return 1.0 / wp.max(invweight * (1.0 - imp) / imp, types.MJ_MINVAL)
+
+
+@wp.func
 def _efc_row(
   # Model:
   opt_disableflags: int,
@@ -109,40 +177,13 @@ def _efc_row(
   frictionloss_out: wp.array2d[float],
 ):
   # calculate kbi
-  timeconst = solref[0]
-  dampratio = solref[1]
-  dmin = solimp[0]
-  dmax = solimp[1]
-  width = solimp[2]
-  mid = solimp[3]
-  power = solimp[4]
-
-  if not (opt_disableflags & DisableBit.REFSAFE):
-    timeconst = wp.max(timeconst, 2.0 * timestep)
-
-  dmin = wp.clamp(dmin, types.MJ_MINIMP, types.MJ_MAXIMP)
-  dmax = wp.clamp(dmax, types.MJ_MINIMP, types.MJ_MAXIMP)
-  width = wp.max(types.MJ_MINVAL, width)
-  mid = wp.clamp(mid, types.MJ_MINIMP, types.MJ_MAXIMP)
-  power = wp.max(1.0, power)
-
-  # see https://mujoco.readthedocs.io/en/latest/modeling.html#solver-parameters
-  dmax_sq = dmax * dmax
-  k = 1.0 / (dmax_sq * timeconst * timeconst * dampratio * dampratio)
-  b = 2.0 / (dmax * timeconst)
-  k = wp.where(solref[0] <= 0, -solref[0] / dmax_sq, k)
-  b = wp.where(solref[1] <= 0, -solref[1] / dmax, b)
-
-  imp_x = wp.abs(pos_imp) / width
-  imp_a = (1.0 / wp.pow(mid, power - 1.0)) * wp.pow(imp_x, power)
-  imp_b = 1.0 - (1.0 / wp.pow(1.0 - mid, power - 1.0)) * wp.pow(1.0 - imp_x, power)
-  imp_y = wp.where(imp_x < mid, imp_a, imp_b)
-  imp = dmin + imp_y * (dmax - dmin)
-  imp = wp.clamp(imp, dmin, dmax)
-  imp = wp.where(imp_x > 1.0, dmax, imp)
+  kbimp = _contact_kbimp(opt_disableflags, timestep, solref, solimp, pos_imp)
+  k = kbimp[0]
+  b = kbimp[1]
+  imp = kbimp[2]
 
   # set outputs
-  D_out[worldid, efcid] = 1.0 / wp.max(invweight * (1.0 - imp) / imp, types.MJ_MINVAL)
+  D_out[worldid, efcid] = _efc_D(invweight, imp)
   vel_out[worldid, efcid] = vel
   aref_out[worldid, efcid] = -k * imp * pos_aref - b * vel
   pos_out[worldid, efcid] = pos_aref + margin

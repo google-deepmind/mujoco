@@ -94,6 +94,8 @@ def _collision_shim(
     geom_solmix: wp.array2d[float],
     geom_solref: wp.array2d[wp.vec2],
     geom_type: wp.array[int],
+    has_1d_flex: bool,
+    has_2d_flex: bool,
     has_3d_flex: bool,
     has_ellipsoid_geom: bool,
     has_flex_selfcollide: bool,
@@ -236,6 +238,8 @@ def _collision_shim(
   _m.geom_solmix = geom_solmix
   _m.geom_solref = geom_solref
   _m.geom_type = geom_type
+  _m.has_1d_flex = has_1d_flex
+  _m.has_2d_flex = has_2d_flex
   _m.has_3d_flex = has_3d_flex
   _m.has_ellipsoid_geom = has_ellipsoid_geom
   _m.has_flex_selfcollide = has_flex_selfcollide
@@ -509,6 +513,8 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.geom_solmix,
       m.geom_solref,
       m.geom_type,
+      m._impl.has_1d_flex,
+      m._impl.has_2d_flex,
       m._impl.has_3d_flex,
       m._impl.has_ellipsoid_geom,
       m._impl.has_flex_selfcollide,
