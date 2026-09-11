@@ -124,6 +124,18 @@ std::string KeyErrorMessage(const mjModel* model, int objtype, int count,
 std::string IndexErrorMessage(int index, int count,
                               std::string_view accessor_name);
 
+template <typename T>
+inline val ToInt32Array(const T* data, int size) {
+  if (!data || size <= 0) {
+    return val::global("Int32Array").new_(0);
+  }
+  std::vector<int> buf(size);
+  for (int i = 0; i < size; ++i) {
+    buf[i] = static_cast<int>(data[i]);
+  }
+  return val::global("Int32Array").new_(typed_memory_view(size, buf.data()));
+}
+
 using mjVisualGlobal = decltype(::mjVisual::global);
 using mjVisualHeadlight = decltype(::mjVisual::headlight);
 using mjVisualMap = decltype(::mjVisual::map);
@@ -5274,7 +5286,7 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntex, ptr_->tex_nchannel));
   }
   emscripten::val tex_adr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->ntex, ptr_->tex_adr));
+    return ToInt32Array(ptr_->tex_adr, ptr_->ntex);
   }
   emscripten::val tex_data() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntexdata, ptr_->tex_data));
