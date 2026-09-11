@@ -16,6 +16,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
+using UnityEditor;
 using UnityEngine;
 
 namespace Mujoco {
@@ -142,6 +143,26 @@ public class MjcfImporter {
       settingsComponent.ParseGlobalMjcfSections(mujocoNode);
     }
 
+    // This section introduces parameters for user plugins.
+    var extensionNode = mujocoNode.SelectSingleNode("extension") as XmlElement;
+    if (extensionNode != null) {
+      var extensionParentObject = CreateGameObjectInParent("extension", rootObject);
+      foreach (var child in extensionNode.OfType<XmlElement>()) {
+        _modifiers.ApplyModifiersToElement(child);
+        ParseExtensions(extensionParentObject, extensionNode);
+      }
+    }
+
+    var customNode = mujocoNode.SelectSingleNode("custom") as XmlElement;
+    if (customNode != null) {
+      var customObject = CreateGameObjectInParent("custom", rootObject);
+      var customComponent = customObject.AddComponent<MjCustom>();
+      foreach (var child in customNode.OfType<XmlElement>()) {
+        _modifiers.ApplyModifiersToElement(child);
+        customComponent.ParseCustom(child);
+      }
+    }
+
     // This makes references to assets.
     var worldBodyNode = mujocoNode.SelectSingleNode("worldbody") as XmlElement;
     ParseBodyChildren(rootObject, worldBodyNode);
@@ -178,8 +199,18 @@ public class MjcfImporter {
       }
     }
 
-    // This section references worldbody elements + tendons, must be parsed after them.
-    var equalityNode = mujocoNode.SelectSingleNode("equality") as XmlElement;
+    var deformableNode = mujocoNode.SelectSingleNode("deformable") as XmlElement;
+    if (deformableNode != null) {
+      var deformableParentObject = CreateGameObjectInParent("deformable configuration", rootObject);
+      foreach (var child in deformableNode.OfType<XmlElement>()) {
+        var deformableType = ParseDeformableType(child);
+        _modifiers.ApplyModifiersToElement(child);
+        CreateGameObjectWithUniqueName(deformableParentObject, child, deformableType);
+      }
+    }
+
+      // This section references worldbody elements + tendons, must be parsed after them.
+      var equalityNode = mujocoNode.SelectSingleNode("equality") as XmlElement;
     if (equalityNode != null) {
       var equalitiesParentObject = CreateGameObjectInParent("equality constraints", rootObject);
       foreach (var child in equalityNode.OfType<XmlElement>()) {
@@ -239,6 +270,42 @@ public class MjcfImporter {
     }
   }
 
+  private void ParseExtensions(GameObject parentObject, XmlElement parentNode) {
+    foreach (var child in parentNode.Cast<XmlNode>().OfType<XmlElement>()) {
+      _modifiers.ApplyModifiersToElement(child);
+
+      if (_customNodeHandlers.TryGetValue(child.Name, out var handler)) {
+        handler?.Invoke(child, parentObject);
+      } else {
+        ParseExtension(child, parentObject);
+      }
+    }
+  }
+
+  private void ParseExtension(XmlElement child, GameObject parentObject) {
+    switch (child.Name) {
+
+      case "plugin": {
+        var pluginObject = CreateGameObjectWithUniqueName<MjPlugin>(parentObject, child);
+        ParseBodyChildren(pluginObject, child);
+        break;
+      }
+      case "instance": {
+        var instanceObject = CreateGameObjectWithUniqueName<MjPluginInstance>(parentObject, child);
+        ParseBodyChildren(instanceObject, child);
+        break;
+      }
+      case "config": {
+        CreateGameObjectWithUniqueName<MjPluginConfig>(parentObject, child);
+        break;
+      }
+      default: {
+        Debug.Log($"The importer does not yet support tags <{child.Name}>.");
+        break;
+      }
+    }
+  }
+
   // Called by ParseBodyChildren for each XML node, overridable by inheriting classes.
   private void ParseBodyChild(XmlElement child, GameObject parentObject) {
     switch (child.Name) {
@@ -285,10 +352,22 @@ public class MjcfImporter {
         break;
       }
       case "plugin": {
-        Debug.Log($"Plugin elements are only partially supported.");
+        var pluginObject = CreateGameObjectWithUniqueName<MjPluginTag>(parentObject, child);
+        ParseBodyChildren(pluginObject, child);
         break;
       }
-
+      case "instance": {
+        var instanceObject = CreateGameObjectWithUniqueName<MjPluginInstance>(parentObject, child);
+        ParseBodyChildren(instanceObject, child);
+        break;
+      }
+      case "numeric": {
+        break;
+      }
+      case "config": {
+        CreateGameObjectWithUniqueName<MjPluginConfig>(parentObject, child);
+        break;
+      }
       default: {
         Debug.Log($"The importer does not yet support tags <{child.Name}>.");
         break;
@@ -311,11 +390,27 @@ public class MjcfImporter {
       case "tendon":
         equalityType = typeof(MjTendonConstraint);
         break;
+       case "flex":
+        equalityType = typeof(MjFlexConstraint);
+        break;
       default:
-        Debug.Log($"The importer does not yet support equality <{node.Name}>.");
+        Debug.LogWarning($"The importer does not yet support equality <{node.Name}>.");
         break;
     }
     return equalityType;
+  }
+
+  private static Type ParseDeformableType(XmlElement node) {
+    Type deformableType = null;
+    switch (node.Name) {
+      case "flex":
+        deformableType = typeof(MjFlexDeformable);
+        break;
+      default:
+        Debug.LogWarning($"The importer does not yet support deformable <{node.Name}>.");
+        break;
+    }
+    return deformableType;
   }
 
   private static Type ParseSensorType(XmlElement node) {
