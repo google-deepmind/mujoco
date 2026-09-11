@@ -242,18 +242,9 @@ void RemoteUi::ReceiveAndProcessCommands(int frame) {
 }
 
 void RemoteUi::UpdateTextures() {
-  // Clear cached GPU texture IDs so all textures are re-uploaded.
-  for (auto& [tex_id, local_tex] : texture_map_) {
-    local_tex = 0;
-  }
-
-  // Reset the ImGui font atlas so it gets re-created on the new context.
-  if (ImGui::GetCurrentContext() && ImGui::GetIO().Fonts &&
-      ImGui::GetIO().Fonts->TexData) {
-    ImGui::GetIO().Fonts->TexData->SetStatus(ImTextureStatus_WantCreate);
-  }
-
-  // Re-upload all CPU-buffered textures (font atlas, streamed UI images).
+  // Upload only textures with no GPU handle yet; the rest survive a model swap
+  // along with the Filament context. In particular, do not reset the ImGui font
+  // atlas here: that trips an assert in ImFontAtlasUpdateNewFrame.
   for (auto& [tex_id, entry] : texture_cpu_) {
     uintptr_t& local_tex = texture_map_[tex_id];
     if (local_tex == 0 && !entry.pixels.empty()) {
