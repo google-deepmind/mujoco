@@ -5639,7 +5639,7 @@ specify them independently.
    Armature inertia (or mass for slider joints) contributed by the actuator to its transmission target (joint or tendon
    only). This is the actual inertia of the spinning element inside the actuator (e.g., a rotor). The contributed value
    is scaled by :ref:`gear<actuator-general-gear>` squared, because the gear ratio scales both forces and velocities,
-   leading to `reflected inertia <https://en.wikipedia.org/wiki/Reflective_inertia>`__. See
+   leading to reflected inertia. See
    :ref:`joint<body-joint-armature>` and :ref:`tendon<tendon-fixed-armature>` armature for more details.
 
    See also the note in :ref:`damping<actuator-general-damping>` regarding multiple actuators acting on the same
