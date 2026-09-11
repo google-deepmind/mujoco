@@ -19,9 +19,14 @@ nested dropdown directives with list-table for attributes.
 """
 
 import copy
+import os
 import sys
 
-import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+  import resource_loader  # pyrefly: ignore[missing-import]
+except ImportError:
+  raise
 
 # Map symbols to icons:
 # ! = required element, can appear only once -> star (prominent, required)
@@ -122,10 +127,12 @@ def generate() -> str:
   Returns:
     RST content with nested dropdown directives for the MJCF schema.
   """
-  script_dir = os.path.dirname(os.path.abspath(__file__))
-  repo_root = os.path.dirname(os.path.dirname(script_dir))
-  filepath = os.path.join(repo_root, 'src', 'xml', 'generated', 'mjcf_table.inc')
-  xmlfile = os.path.join(repo_root, 'doc', 'XMLreference.rst')
+  filepath = resource_loader.resolve_path(
+      'src/xml/generated/mjcf_table.inc'
+  )
+  xmlfile = resource_loader.resolve_path(
+      'doc/XMLreference.rst'
+  )
 
   # Collect all link targets from XMLreference.rst for validation.
   links = []

@@ -16,22 +16,31 @@
 
 import os
 import re
-
 import sys
-import unittest as googletest
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-_REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
-sys.path.insert(0, os.path.join(_REPO_ROOT, 'doc', 'generate'))
-import generate_api_header
-import generate_default_table
-import generate_dmcontrol
-import generate_functions
-import generate_mjcf_map
-import generate_mjcf_table
-import generate_read_table
-import generate_schema
-import generate_xsd
-import mjcf_schema
+
+_DOC_GEN = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../doc/generate')
+)
+sys.path.insert(0, _DOC_GEN)
+try:
+  import resource_loader  # pyrefly: ignore[missing-import]
+  import generate_api_header  # pyrefly: ignore[missing-import]
+  import generate_default_table  # pyrefly: ignore[missing-import]
+  import generate_dmcontrol  # pyrefly: ignore[missing-import]
+  import generate_functions  # pyrefly: ignore[missing-import]
+  import generate_mjcf_map  # pyrefly: ignore[missing-import]
+  import generate_mjcf_table  # pyrefly: ignore[missing-import]
+  import generate_read_table  # pyrefly: ignore[missing-import]
+  import generate_schema  # pyrefly: ignore[missing-import]
+  import generate_xsd  # pyrefly: ignore[missing-import]
+  import mjcf_schema  # pyrefly: ignore[missing-import]
+except ImportError:
+  raise
+
+try:
+  from absl.testing import absltest as googletest
+except ImportError:
+  import unittest as googletest  # pyrefly: ignore[missing-import]
 
 # Functions in headers that are intentionally not in functions.rst.
 _FUNCTIONS_TO_SKIP = set()
@@ -78,7 +87,8 @@ _EXTRA_DOCUMENTED_TYPES = {
 
 def _get_path(*path_parts: str) -> str:
   """Returns absolute path for a repository-relative path."""
-  return os.path.join(_REPO_ROOT, *path_parts)
+  rel_path = '/'.join(path_parts)
+  return str(resource_loader.resolve_path(rel_path))
 
 
 def _check_up_to_date(test_case, rel_path, generated_content):

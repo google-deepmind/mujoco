@@ -14,15 +14,16 @@
 # ==============================================================================
 """Generates API for APIReference.rst."""
 
+import os
 import sys
 from typing import Dict
 
-import os
-import sys
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-_REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
-sys.path.insert(0, os.path.join(_REPO_ROOT, 'doc', 'ext'))
-import header_reader
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+  import resource_loader  # pyrefly: ignore[missing-import]
+  import header_reader  # pyrefly: ignore[missing-import]
+except ImportError:
+  raise
 
 _HEADER_FILES = [
     'include/mujoco/mjassert.h',
@@ -95,18 +96,15 @@ def generate_reference_header(
 
 def read_headers() -> Dict[str, header_reader.ApiDefinition]:
   """Reads API header and source files and generates a mapping between C tokens and C definitions."""
-
   api = {}
-
   for header in _HEADER_FILES:
-    filepath = os.path.join(_REPO_ROOT, header)
-    with open(filepath, 'r', encoding='utf-8') as file:
-      api.update(header_reader.read(file.readlines()))
+    lines = resource_loader.read_text(header).splitlines(keepends=True)
+    api.update(header_reader.read(lines))
 
   for source in _SOURCE_FILES:
-    filepath = os.path.join(_REPO_ROOT, source)
-    with open(filepath, 'r', encoding='utf-8') as file:
-      api.update(header_reader.read(file.readlines(), parse_functions=False))
+    lines = resource_loader.read_text(source).splitlines(keepends=True)
+    api.update(header_reader.read(lines, parse_functions=False))
+
   return api
 
 

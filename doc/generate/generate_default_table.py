@@ -24,15 +24,18 @@ failure, not documentation drift. Checked in and gated by
 test/doc/doc_test.py.
 """
 
-import os  # pylint: disable=unused-import
+import os
 import sys
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _SCRIPT_DIR)
-import generate_read_table
-import mjcf_schema
-_REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
-SCHEMA_PATH = os.path.join(_REPO_ROOT, 'src', 'xml', 'mjcf.schema')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+  import resource_loader  # pyrefly: ignore[missing-import]
+  import generate_read_table  # pyrefly: ignore[missing-import]
+  import mjcf_schema  # pyrefly: ignore[missing-import]
+except ImportError:
+  raise
+
+SCHEMA_PATH = str(resource_loader.resolve_path('src/xml/mjcf.schema'))
 
 # kind codes shared with the test
 KIND_BY_CTYPE = {'double': 0, 'float': 1, 'int': 2,

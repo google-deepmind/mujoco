@@ -36,12 +36,16 @@ import re
 import sys
 from xml.sax.saxutils import escape
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _SCRIPT_DIR)
-import mjcf_schema
-_REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
-SCHEMA_PATH = os.path.join(_REPO_ROOT, 'src', 'xml', 'mjcf.schema')
-MJMODEL_H_PATH = os.path.join(_REPO_ROOT, 'include', 'mujoco', 'mjmodel.h')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+  import resource_loader  # pyrefly: ignore[missing-import]
+  import generate_mjcf_table  # pyrefly: ignore[missing-import]
+  import mjcf_schema  # pyrefly: ignore[missing-import]
+except ImportError:
+  raise
+
+SCHEMA_PATH = str(resource_loader.resolve_path('src/xml/mjcf.schema'))
+MJMODEL_H_PATH = str(resource_loader.resolve_path('include/mujoco/mjmodel.h'))
 
 # schema scalar type -> XSD base type
 SCALAR_XSD = {'int': 'xs:int', 'double': 'xs:double', 'float': 'xs:float',
@@ -216,7 +220,6 @@ class _Emitter:
 
   def constraint_docs(self, element):
     """Presence constraints as documentation lines (not XSD-expressible)."""
-    import generate_mjcf_table
     docs = []
     for con in generate_mjcf_table._element_constraints(self.schema, element):
       bundles = ['+'.join(b) for b in con.bundles]

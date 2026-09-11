@@ -33,16 +33,19 @@ The generated file is checked in as src/xml/generated/dmcontrol_schema.xml
 and gated by test/doc/doc_test.py; dm_control vendors it at pin bumps.
 """
 
+import os
 import sys
 from xml.sax import saxutils
 
-import os
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _SCRIPT_DIR)
-import mjcf_schema
-import generate_xsd
-_REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
-SCHEMA_PATH = os.path.join(_REPO_ROOT, 'src', 'xml', 'mjcf.schema')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+  import resource_loader  # pyrefly: ignore[missing-import]
+  import generate_xsd  # pyrefly: ignore[missing-import]
+  import mjcf_schema  # pyrefly: ignore[missing-import]
+except ImportError:
+  raise
+
+SCHEMA_PATH = str(resource_loader.resolve_path('src/xml/mjcf.schema'))
 
 # elements dm_control does not support; the surface is frozen, so new MJCF
 # elements are added here rather than emitted
