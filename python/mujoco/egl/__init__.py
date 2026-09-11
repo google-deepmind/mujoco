@@ -83,6 +83,7 @@ class GLContext:
   """An EGL context for headless accelerated OpenGL rendering on GPU devices."""
 
   def __init__(self, max_width, max_height):
+    self._context = None
     del max_width, max_height  # unused
     num_configs = ctypes.c_long()
     config_size = 1
