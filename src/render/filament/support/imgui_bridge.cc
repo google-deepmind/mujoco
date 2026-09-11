@@ -185,7 +185,7 @@ void ImguiBridge::Update() {
       sizeof(float) * 4 + sizeof(uint8_t) * 4;
 
   int num_elements = 0;
-  for (int n = 0; n < commands->CmdListsCount; ++n) {
+  for (int n = 0; n < commands->CmdLists.Size; ++n) {
     const ImDrawList* cmds = commands->CmdLists[n];
     if (kExpectedVertexSize != sizeof(cmds->VtxBuffer.Data[0])) {
       mju_error("Invalid vertex buffer size.");
@@ -216,7 +216,7 @@ void ImguiBridge::Update() {
 
   meshes_.clear();
   int renderable_index = 0;
-  for (int n = 0; n < commands->CmdListsCount; ++n) {
+  for (int n = 0; n < commands->CmdLists.Size; ++n) {
     const ImDrawList* cmds = commands->CmdLists[n];
 
     mjrfMeshConfig config;

@@ -541,19 +541,18 @@ void MainLoopImpl() {
     if (local_draw_data) {
       // Save local draw lists.
       ImVector<ImDrawList*> local_lists;
-      local_lists.reserve(local_draw_data->CmdListsCount);
-      for (int i = 0; i < local_draw_data->CmdListsCount; ++i) {
+      local_lists.reserve(local_draw_data->CmdLists.Size);
+      for (int i = 0; i < local_draw_data->CmdLists.Size; ++i) {
         local_lists.push_back(local_draw_data->CmdLists[i]);
       }
 
       // Clear and rebuild: remote first, then local.
       local_draw_data->CmdLists.resize(0);
-      local_draw_data->CmdListsCount = 0;
       local_draw_data->TotalVtxCount = 0;
       local_draw_data->TotalIdxCount = 0;
 
       // Remote draw lists (background).
-      for (int i = 0; i < remote_draw_data->CmdListsCount; ++i) {
+      for (int i = 0; i < remote_draw_data->CmdLists.Size; ++i) {
         local_draw_data->AddDrawList(remote_draw_data->CmdLists[i]);
       }
 
