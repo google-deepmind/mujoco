@@ -5,6 +5,19 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+
+1. Added the ``ipc`` :ref:`flag<option-flag-ipc>`, an experimental contact mode of the ``discrete`` integrator for
+   penetration-free flex contact. Each step minimizes an incremental potential subject to linearized contact
+   constraints, using a barrier-free augmented Lagrangian whose subproblems are the discrete solve. Every committed
+   position update is verified intersection-free by continuous collision detection, so flex contact cannot tunnel.
+   Supported for dim-2 flexes: a flex with edge equality constraints keeps its elasticity in the constraint solver,
+   while ``elastic2d`` elasticity is integrated implicitly through the effective metric. The contacts the mode
+   resolves are frictionless. The mode keeps contact
+   multipliers across steps that no state specification covers, so ``mj_getState``/``mj_setState`` do not capture
+   its full state and exact replay is not supported.
+
 Engine
 ^^^^^^
 - The :ref:`mjWARN_INERTIA <mjtWarning>` warning is now also raised by the modified-inertia factorizations of the

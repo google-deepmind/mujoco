@@ -627,6 +627,7 @@ element flag {
   invdiscrete        : enum<enable> = disable
   sleep              : enum<enable> = disable
   diagexact          : enum<enable> = disable
+  ipc                : enum<enable> = disable
 }
 
 

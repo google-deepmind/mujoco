@@ -1078,6 +1078,7 @@ typedef struct {
   int flg_metric;         // effective metric active for this solve
   const mjModel* fm;      // model, for the metric calls
   mjData* fd;             // data, for the metric calls
+  mjtNum* epL;            // metric blocks with the contact class folded in, or NULL
 
   // Newton: lower-triangle view of the metric matrix S = diag(h*D+h^2*K) + K_csr, built by
   // MakeMetricLower on the solver stack, merged into the Hessian alongside M
@@ -1115,6 +1116,14 @@ typedef struct {
   int LSresult;           // linesearch result
   mjtNum LSslope;         // linesearch slope at solution
 } mjPrimalContext;
+
+
+// IPC folds the efc rows in their quadratic zone (its contact pairs among them) and the metric's
+// rank-1 classes into a solver-owned copy of the metric blocks (mjd_effPrecFold): monolithic CG
+// with a live metric
+static int effFoldWanted(const mjModel* m, const mjData* d, int island, int is_elliptic) {
+  return d->efm_active && island < 0 && !is_elliptic && mjENABLED(mjENBL_IPC);
+}
 
 
 // set sizes and pointers to mjData arrays in mjPrimalContext
@@ -1344,6 +1353,13 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
     }
 
     // constraint state and Jacobian transpose (sparse)
+    // IPC: a solver-owned copy of the metric blocks with the contact class folded in
+    // (mjd_effPrecFold), or none
+    ctx->epL = NULL;
+    if (effFoldWanted(m, d, ctx->island, is_elliptic)) {
+      CARVE_NUM(ctx->epL, 9*d->nefmdof);
+    }
+
     CARVE_INT(ctx->oldstate, nefc);
     if (is_sparse) {
       CARVE_INT(ctx->JT_rownnz,   nv);
@@ -1498,6 +1514,16 @@ static void PrimalUpdateGrad(mjPrimalContext* ctx) {
 }
 
 
+// the metric preconditioner, against the contact-folded blocks where they were built
+static void PrimalMetricPrecond(mjPrimalContext* ctx, mjtNum* x, const mjtNum* b) {
+  if (ctx->epL) {
+    mjd_effPrecBlocks(ctx->fm, ctx->fd, x, b, ctx->epL);
+  } else {
+    mjd_effPrec(ctx->fm, ctx->fd, x, b);
+  }
+}
+
+
 // update Mgrad;  Newton: Mgrad = H \ grad,  CG: Mgrad = M \ grad
 static void PrimalUpdateMgrad(mjPrimalContext* ctx, int flg_Newton) {
   int nv = ctx->nv;
@@ -1514,7 +1540,7 @@ static void PrimalUpdateMgrad(mjPrimalContext* ctx, int flg_Newton) {
 
   // CG monolithic: Mgrad = Mtilde \ grad (approximate metric preconditioner)
   else if (ctx->flg_metric && ctx->island < 0) {
-    mjd_effPrec(ctx->fm, ctx->fd, ctx->Mgrad, ctx->grad);
+    PrimalMetricPrecond(ctx, ctx->Mgrad, ctx->grad);
   }
 
   // CG: Mgrad = M \ grad. For metric island contexts the gathered factor already holds
@@ -2820,6 +2846,13 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
     scale = 1 / island_inertia;
   }
   ctx.scale = scale;
+
+  // IPC: fold the contact class and the efc rows into the solver-owned copy of the metric
+  // blocks, so the CG preconditioner sees the contact curvature the operator carries
+  if (ctx.epL && !mjd_effPrecFold(m, d, ctx.epL, ctx.nefc, ctx.efc_D, ctx.is_sparse, ctx.J,
+                                  ctx.J_rownnz, ctx.J_rowadr, ctx.J_colind)) {
+    ctx.epL = NULL;
+  }
 
   // Mgrad = M \ grad: the CG preconditioned gradient, also the convergence certificate
   PrimalUpdateMgrad(&ctx, /*flg_Newton=*/0);

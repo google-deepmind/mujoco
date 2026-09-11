@@ -23,6 +23,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_callback.h"
+#include "engine/engine_collision_continuous.h"
 #include "engine/engine_collision_convex.h"
 #include "engine/engine_collision_flex.h"
 #include "engine/engine_collision_gjk.h"
@@ -674,6 +675,11 @@ void mj_collision(const mjModel* m, mjData* d) {
       continue;
     }
 
+    // under the ipc flag the IPC step resolves two dim-2 flexes itself
+    if (bf1 >= nbody && bf2 >= nbody && mjc_ipcOwnsFlexFlex(m, bf1 - nbody, bf2 - nbody)) {
+      continue;
+    }
+
     // handle body pair exclusion
     int exadr = 0;
     if (nexclude) {
@@ -844,6 +850,8 @@ void mj_collision(const mjModel* m, mjData* d) {
     if (!m->flex_rigid[f] && (m->flex_contype[f] & m->flex_conaffinity[f])) {
       // skip if flex is asleep
       if (sleep_filter && mj_sleepState(m, d, mjOBJ_FLEX, f) == mjS_ASLEEP) continue;
+      // under the ipc flag the IPC step resolves a dim-2 flex's self-contact itself
+      if (mjc_ipcOwnsFlexFlex(m, f, f)) continue;
 
       // internal collisions
       if (m->flex_internal[f]) {
@@ -2068,6 +2076,10 @@ static void mj_narrowphase(const mjModel* m, mjData* d, const mjcPair* buffer, i
 
 // test a plane geom and a flex for collision, add to contact list
 static void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f) {
+  // under the ipc flag the IPC step resolves this pair itself
+  if (mjc_ipcOwnsFlexGeom(m, f, g)) {
+    return;
+  }
   int flex_vertnum = m->flex_vertnum[f];
   mj_markStack(d);
   mjPreContact* precon = mjSTACKALLOC(d, flex_vertnum, mjPreContact);
@@ -2342,6 +2354,10 @@ void mj_collideFlexSAP(const mjModel* m, mjData* d, int f) {
 
 // test a geom and an elem for collision, add to contact list
 void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
+  // under the ipc flag the IPC step resolves this pair itself
+  if (mjc_ipcOwnsFlexGeom(m, f, g)) {
+    return;
+  }
   mjtNum margin = mj_assignMargin(m, m->geom_margin[g] + m->flex_margin[f]);
   mjtNum gap = m->geom_gap[g] + m->flex_gap[f];
 
