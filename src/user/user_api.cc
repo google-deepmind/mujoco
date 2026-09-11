@@ -1239,10 +1239,6 @@ const char* mjs_setToMotor(mjsActuator* actuator) {
   actuator->dyntype  = mjDYN_NONE;
   actuator->gaintype = mjGAIN_FIXED;
   actuator->biastype = mjBIAS_NONE;
-
-  // clear bias parameters to prevent inheriting from defaults
-  mjuu_zerovec(actuator->biasprm, mjNBIAS);
-
   return "";
 }
 
@@ -1254,9 +1250,6 @@ const char* mjs_setToPosition(mjsActuator* actuator,
                               double       dampratio[1],
                               double       timeconst[1],
                               double       inheritrange) {
-  // clear bias parameters to prevent inheriting from defaults
-  mjuu_zerovec(actuator->biasprm, mjNBIAS);
-
   actuator->gainprm[0] = kp;
   actuator->biasprm[1] = -kp;
 
@@ -1312,9 +1305,6 @@ const char* mjs_setToIntVelocity(mjsActuator* actuator,
 // Set to orientation actuator.
 const char* mjs_setToOrientation(
     mjsActuator* actuator, double kp, double kv[1], double dampratio[1], int ctrlspec) {
-  // clear bias parameters to prevent inheriting from defaults
-  mjuu_zerovec(actuator->biasprm, mjNBIAS);
-
   if (kv && dampratio) { return "kv and dampratio cannot both be defined"; }
   actuator->gainprm[0] = kp;
   actuator->biasprm[1] = -kp;
@@ -1344,9 +1334,6 @@ const char* mjs_setToPID(mjsActuator* actuator,
                          double       slewmax[1],
                          double       inheritrange,
                          int          ctrlspec) {
-  // clear bias parameters to prevent inheriting from defaults
-  mjuu_zerovec(actuator->biasprm, mjNBIAS);
-
   if (kv && dampratio) { return "kv and dampratio cannot both be defined"; }
   actuator->biasprm[1] = -kp;
   if (kv) {
@@ -1396,7 +1383,6 @@ const char* mjs_setToVelocity(mjsActuator* actuator, double kv) {
 // Set to damper actuator.
 const char* mjs_setToDamper(mjsActuator* actuator, double kv) {
   mjuu_zerovec(actuator->gainprm, mjNGAIN);
-  mjuu_zerovec(actuator->biasprm, mjNBIAS);  // clear bias parameters
   actuator->gainprm[2]  = -kv;
   actuator->ctrllimited = mjLIMITED_TRUE;
   actuator->dyntype     = mjDYN_NONE;
@@ -1414,9 +1400,6 @@ const char* mjs_setToDamper(mjsActuator* actuator, double kv) {
 // Set to cylinder actuator.
 const char* mjs_setToCylinder(
     mjsActuator* actuator, double timeconst, double bias, double area, double diameter) {
-  // clear bias parameters to prevent inheriting from defaults
-  mjuu_zerovec(actuator->biasprm, mjNBIAS);
-
   actuator->dynprm[0]  = timeconst;
   actuator->biasprm[0] = bias;
   actuator->gainprm[0] = area;
@@ -1440,9 +1423,6 @@ const char* mjs_setToMuscle(mjsActuator* actuator,
                             double       vmax,
                             double       fpmax,
                             double       fvmax) {
-  // clear bias parameters to prevent inheriting from defaults
-  mjuu_zerovec(actuator->biasprm, mjNBIAS);
-
   // set muscle defaults if same as global defaults
   if (actuator->dynprm[0] == 1) actuator->dynprm[0] = 0.01;    // tau act
   if (actuator->dynprm[1] == 0) actuator->dynprm[1] = 0.04;    // tau deact
@@ -1483,9 +1463,6 @@ const char* mjs_setToMuscle(mjsActuator* actuator,
 
 // Set to adhesion actuator.
 const char* mjs_setToAdhesion(mjsActuator* actuator, double gain) {
-  // clear bias parameters to prevent inheriting from defaults
-  mjuu_zerovec(actuator->biasprm, mjNBIAS);
-
   actuator->gainprm[0]  = gain;
   actuator->ctrllimited = mjLIMITED_TRUE;
   actuator->gaintype    = mjGAIN_FIXED;
@@ -1509,9 +1486,6 @@ const char* mjs_setToDCMotor(mjsActuator* actuator,
                              double       thermal[6],
                              double       lugre[5],
                              int          ctrlspec) {
-  // clear bias parameters to prevent inheriting from defaults
-  mjuu_zerovec(actuator->biasprm, mjNBIAS);
-
   double R      = resistance;                      // electrical resistance
   double Kt     = motorconst ? motorconst[0] : 0;  // torque constant
   double Ke     = motorconst ? motorconst[1] : 0;  // back-EMF constant
