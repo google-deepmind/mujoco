@@ -2034,7 +2034,8 @@ const char* mj_validateReferences(const mjModel* m) {
     if (pair_body1 >= m->nbody || pair_body1 < 0) {
       return "Invalid model: pair_body1 out of bounds.";
     }
-    int pair_body2 = (m->pair_signature[i] >> 16);
+    // unsigned shift: a signed >> sign-extends signatures whose high id is >= 0x8000
+    int pair_body2 = (int)((unsigned int)m->pair_signature[i] >> 16);
     if (pair_body2 >= m->nbody || pair_body2 < 0) {
       return "Invalid model: pair_body2 out of bounds.";
     }
@@ -2232,7 +2233,8 @@ const char* mj_validateReferences(const mjModel* m) {
     if (exclude_body1 >= m->nbody || exclude_body1 < 0) {
       return "Invalid model: exclude_body1 out of bounds.";
     }
-    int exclude_body2 = (m->exclude_signature[i] >> 16);
+    // unsigned shift: a signed >> sign-extends signatures whose high id is >= 0x8000
+    int exclude_body2 = (int)((unsigned int)m->exclude_signature[i] >> 16);
     if (exclude_body2 >= m->nbody || exclude_body2 < 0) {
       return "Invalid model: exclude_body2 out of bounds.";
     }

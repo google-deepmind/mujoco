@@ -28,6 +28,7 @@
 #include <gtest/gtest-spi.h>  // IWYU pragma: keep
 #include <gtest/gtest.h>
 #include <absl/strings/str_format.h>
+#include <mujoco/mjspec.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_memory.h"
@@ -576,6 +577,52 @@ TEST_F(ValidateReferencesTest, BodyExcludes) {
   EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("exclude_body1"));
   model->exclude_signature[0] = (4 << 16) | 2;
   EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("exclude_body2"));
+}
+
+TEST_F(ValidateReferencesTest, SignaturesAboveSignBit) {
+  // pair_signature and exclude_signature pack the two body ids as body1 << 16 | body2. Body ids at
+  // or above 0x8000 set the sign bit, so unpacking body1 with a signed shift sign-extends it into a
+  // negative id, and a valid model is rejected.
+  // Note: building the model is slow, mjCModel::Signature is recomputed on every added body.
+  static constexpr int kNumBodies = 0x8000 + 4;
+
+  mjSpec* spec = mj_makeSpec();
+  mjsBody* world = mjs_findBody(spec, "world");
+
+  // only the last four bodies are named; they are the ones with ids above the sign bit
+  for (int i = 0; i < kNumBodies; i++) {
+    mjsBody* body = mjs_addBody(world, nullptr);
+    if (i < kNumBodies - 4) {
+      continue;
+    }
+    std::string suffix = std::to_string(kNumBodies - i);
+    mjs_setName(body->element, ("body" + suffix).c_str());
+    mjsGeom* geom = mjs_addGeom(body, nullptr);
+    geom->type = mjGEOM_SPHERE;
+    geom->size[0] = 1;
+    mjs_setName(geom->element, ("geom" + suffix).c_str());
+  }
+
+  mjsExclude* exclude = mjs_addExclude(spec);
+  mjs_setString(exclude->bodyname1, "body4");
+  mjs_setString(exclude->bodyname2, "body3");
+
+  mjsPair* pair = mjs_addPair(spec, nullptr);
+  mjs_setString(pair->geomname1, "geom2");
+  mjs_setString(pair->geomname2, "geom1");
+
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+
+  // both signatures have their sign bit set, and the model is valid
+  ASSERT_EQ(model->nexclude, 1);
+  ASSERT_EQ(model->npair, 1);
+  EXPECT_LT(model->exclude_signature[0], 0);
+  EXPECT_LT(model->pair_signature[0], 0);
+  EXPECT_THAT(mj_validateReferences(model), IsNull());
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
 }
 
 TEST_F(ValidateReferencesTest, EqualityConstraints) {
