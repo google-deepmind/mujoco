@@ -2550,7 +2550,7 @@ static mjtNum actuatorVelDeriv(const mjModel* m, const mjData* d, int i) {
     const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
     const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
     if (dynprm[0] <= 0) {
-      mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+      mjtNum R = mj_dcmotorResistance(m, d, i);
       mjtNum K = gainprm[1];
       bias_vel -= K * K / R;
     }
@@ -2577,27 +2577,26 @@ static mjtNum actuatorVelDeriv(const mjModel* m, const mjData* d, int i) {
     const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
     mjtNum te = dynprm[0];
 
-    // controller velocity derivative dV/dw: torque-space kd through the tau->V map,
-    // plus the back-EMF compensation K, which cancels the -K^2/R back-EMF bias term so
-    // the net damping of an unclipped torque-mode motor is -kd; Vmax clipping is ignored
-    // here, matching the treatment of the other saturations
+    // controller velocity derivative dV/dw: torque-space kd through the tau->V map using
+    // nameplate resistance, plus back-EMF compensation K, which cancels the physical -K^2/R
+    // back-EMF bias term so net damping is -kd*R0/R; Vmax clipping is ignored here
     mjtNum dVdw = 0;
     if (m->actuator_ctrlspec[i] & (mjINPUT_POS | mjINPUT_VEL | mjINPUT_FF)) {
-      mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+      mjtNum R0 = mju_max(mjMINVAL, gainprm[0]);
       mjtNum K = gainprm[1];  // K > 0 on this path, enforced by the compiler
-      dVdw = -gainprm[6]*R/K + K;
+      dVdw = -gainprm[6]*R0/K + K;
     }
 
     if (te > 0) {
       // stateful current with actearly: d(K*next_act)/dω
       // includes both back-EMF (-K) and controller (dVdw) through act_dot
-      mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+      mjtNum R = mj_dcmotorResistance(m, d, i);
       mjtNum K = gainprm[1];
       mjtNum s = 1 - mju_exp(-m->opt.timestep / te);
       bias_vel += K * (dVdw - K) * s / R;
     } else if (dVdw != 0) {
       // stateless: controller terms only (back-EMF handled in bias block)
-      mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+      mjtNum R = mj_dcmotorResistance(m, d, i);
       mjtNum K = gainprm[1];
       bias_vel += K * dVdw / R;
     }

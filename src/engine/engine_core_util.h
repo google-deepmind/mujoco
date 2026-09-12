@@ -148,6 +148,9 @@ MJAPI mjtNum mj_actuatorDamping(const mjModel* m, mjtObj type, int id, mjtNum po
 // return actuator armature contribution to joint or tendon
 MJAPI mjtNum mj_actuatorArmature(const mjModel* m, mjtObj type, int id);
 
+// return DC motor winding resistance at the current temperature
+mjtNum mj_dcmotorResistance(const mjModel* m, const mjData* d, int id);
+
 // high-level warning function: count warnings in mjData, print only the first time
 MJAPI void mj_warning(mjData* d, int warning, int info);
 

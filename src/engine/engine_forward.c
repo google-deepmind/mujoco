@@ -719,8 +719,8 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       break;
 
     case mjGAIN_DCMOTOR: {          // DC motor: gain = K or K/R
-      mjtNum R = gainprm[0];  // resistance
-      mjtNum K = gainprm[1];  // motor constant
+      mjtNum R = mj_dcmotorResistance(m, d, i);  // motor resistance
+      mjtNum K = gainprm[1];                     // motor constant
       mjDCMotorSlots slots = mj_dcmotorSlots(dynprm, gainprm);
 
       // verify allocated state size matches parameters; SHOULD NOT OCCUR
@@ -728,25 +728,14 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
         mjERROR("inconsistent state array dimension in DC motor (actuator %d)", i);
       }
 
-      int adr = m->actuator_actadr[i];
-
-      // adjust R for temperature if enabled
-      if (slots.temperature >= 0) {
-        mjtNum T = d->act[adr + slots.temperature];
-        mjtNum alpha = gainprm[2];  // temperature coefficient
-        mjtNum T0 = gainprm[3];     // reference temperature
-        mjtNum Ta = dynprm[4];      // ambient temperature
-        R *= 1 + alpha * (T + Ta - T0);
-      }
-
       // stateful current: gain = K, force = K * act[last] (generic path)
       // stateless: gain = K/R, force = K/R * ctrl (condition below)
-      gain = (dynprm[0] > 0) ? K : K / mju_max(mjMINVAL, R);
+      gain = (dynprm[0] > 0) ? K : K / R;
 
       // controller: compute voltage, override ctrl[uadr] for force computation
       // (pure raw-voltage motor reads ctrl directly; empty block reads as 0 below)
       if (m->actuator_ctrlspec[i] != mjINPUT_VOLTAGE && m->actuator_ctrlnum[i] > 0) {
-        mjtNum x_I = (slots.integral >= 0) ? d->act[adr + slots.integral] : 0;
+        mjtNum x_I = (slots.integral >= 0) ? d->act[m->actuator_actadr[i]+slots.integral] : 0;
         ctrl[uadr] = dcmotorVoltage(ctrl + uadr, m->actuator_ctrlspec[i],
                                     d->actuator_length[oadr],
                                     d->actuator_velocity[oadr], x_I, gainprm);

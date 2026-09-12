@@ -1219,6 +1219,26 @@ mjtNum mj_actuatorArmature(const mjModel* m, mjtObj type, int id) {
 }
 
 
+// return DC motor winding resistance at the current temperature
+mjtNum mj_dcmotorResistance(const mjModel* m, const mjData* d, int id) {
+  const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*id;
+  const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*id;
+  mjtNum R = gainprm[0];
+  mjDCMotorSlots slots = mj_dcmotorSlots(dynprm, gainprm);
+
+  // account for temperature if thermal model is enabled
+  if (slots.temperature >= 0) {
+    mjtNum T = d->act[m->actuator_actadr[id]+slots.temperature];
+    mjtNum alpha = gainprm[2];  // temperature coefficient
+    mjtNum T0 = gainprm[3];     // reference temperature
+    mjtNum Ta = dynprm[4];      // ambient temperature
+    R *= 1 + alpha * (T + Ta - T0);
+  }
+
+  return mju_max(mjMINVAL, R);
+}
+
+
 // count warnings, print only the first time
 void mj_warning(mjData* d, int warning, int info) {
   // check type
