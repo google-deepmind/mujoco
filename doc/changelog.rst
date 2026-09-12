@@ -23,6 +23,13 @@ Engine
   :at:`implicitfast` and damped-:at:`Euler` integrators (previously silent) and of the :at:`implicit` integrator
   (previously a fatal error).
 
+Bug fixes
+^^^^^^^^^
+- Tendon :ref:`actuatorfrclimited<tendon-spatial-actuatorfrclimited>` now defaults to "auto" as documented, so under
+  :ref:`autolimits<compiler-autolimits>` a tendon with :at:`actuatorfrcrange` has actuator force clamping enabled,
+  matching joints. Previously the default was "false" and :at:`actuatorfrcrange` was silently ignored unless
+  :at:`actuatorfrclimited` was set explicitly.
+
 Version 3.13.0 (September 8, 2026)
 ----------------------------------
 
