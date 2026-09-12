@@ -1357,7 +1357,7 @@ element spatial : mjsTendon {
   class              : ref<default>
   group              : int
   limited            : enum<FalseTrueAuto> = auto
-  actuatorfrclimited : enum<FalseTrueAuto> (field=actfrclimited)
+  actuatorfrclimited : enum<FalseTrueAuto> = auto (field=actfrclimited)
   range              : double[2]
   actuatorfrcrange   : double[2] (field=actfrcrange)
   solreflimit        : double[1..mjNREF] = {0.02, 1} (field=solref_limit)
@@ -1400,7 +1400,7 @@ element fixed : mjsTendon {
   class              : ref<default>
   group              : int
   limited            : enum<FalseTrueAuto> = auto
-  actuatorfrclimited : enum<FalseTrueAuto> (field=actfrclimited)
+  actuatorfrclimited : enum<FalseTrueAuto> = auto (field=actfrclimited)
   range              : double[2]
   actuatorfrcrange   : double[2] (field=actfrcrange)
   solreflimit        : double[1..mjNREF] = {0.02, 1} (field=solref_limit)

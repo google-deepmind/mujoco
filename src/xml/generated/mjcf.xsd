@@ -2460,7 +2460,7 @@
     <xs:attribute name="class" type="xs:string"/>
     <xs:attribute name="group" type="xs:int"/>
     <xs:attribute name="limited" type="kw_FalseTrueAuto" default="auto"/>
-    <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="range" type="double2"/>
     <xs:attribute name="actuatorfrcrange" type="double2"/>
     <xs:attribute name="solreflimit" type="double1to2" default="0.02 1"/>
@@ -2503,7 +2503,7 @@
     <xs:attribute name="class" type="xs:string"/>
     <xs:attribute name="group" type="xs:int"/>
     <xs:attribute name="limited" type="kw_FalseTrueAuto" default="auto"/>
-    <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="range" type="double2"/>
     <xs:attribute name="actuatorfrcrange" type="double2"/>
     <xs:attribute name="solreflimit" type="double1to2" default="0.02 1"/>
