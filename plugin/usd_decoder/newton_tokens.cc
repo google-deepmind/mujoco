@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "third_party/mujoco/plugin/usd_decoder/newton_tokens.h"
+#include "newton_tokens.h"
 #include <pxr/base/tf/staticTokens.h>
 #include <pxr/pxr.h>
 

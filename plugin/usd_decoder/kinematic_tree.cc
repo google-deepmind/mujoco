@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "kinematic_tree.h"
-#include "third_party/mujoco/plugin/usd_decoder/newton_tokens.h"
+#include "newton_tokens.h"
 
 #include <map>
 #include <memory>
