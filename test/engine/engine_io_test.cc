@@ -400,7 +400,8 @@ TEST_F(ValidateReferencesTest, Mesh) {
   <mujoco>
     <asset>
       <mesh name="m" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
-                      face="0 1 2  0 1 3  0 2 3  1 2 3"/>
+                      face="0 1 2  0 1 3  0 2 3  1 2 3"
+                      texcoord="0 0  1 0  0 1  1 1"/>
     </asset>
     <worldbody>
       <geom type="mesh" mesh="m"/>
@@ -425,6 +426,36 @@ TEST_F(ValidateReferencesTest, Mesh) {
   model->mesh_face[0] = -1;
   EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("mesh_face"));
   model->mesh_face[0] = saved;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // Face normal indices are mesh-local indices into [0, mesh_normalnum) and
+  // are used the same way (mesh_normal + 3*(mesh_facenormal[...] + normaladr)).
+  saved = model->mesh_facenormal[0];
+  model->mesh_facenormal[0] = model->mesh_normalnum[0];  // one past the end
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("mesh_facenormal"));
+  model->mesh_facenormal[0] = -1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("mesh_facenormal"));
+  model->mesh_facenormal[0] = saved;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // Face texcoord indices are mesh-local indices into [0, mesh_texcoordnum),
+  // used only when the mesh has texcoords (mesh_texcoordadr != -1).
+  ASSERT_GE(model->mesh_texcoordadr[0], 0);
+  saved = model->mesh_facetexcoord[0];
+  model->mesh_facetexcoord[0] = model->mesh_texcoordnum[0];  // one past the end
+  EXPECT_THAT(mj_validateReferences(model.get()),
+              HasSubstr("mesh_facetexcoord"));
+  model->mesh_facetexcoord[0] = -1;
+  EXPECT_THAT(mj_validateReferences(model.get()),
+              HasSubstr("mesh_facetexcoord"));
+
+  // A mesh without texcoords (mesh_texcoordadr == -1) never reads
+  // mesh_facetexcoord, so its contents are not validated in that case.
+  int saved_adr = model->mesh_texcoordadr[0];
+  model->mesh_texcoordadr[0] = -1;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+  model->mesh_texcoordadr[0] = saved_adr;
+  model->mesh_facetexcoord[0] = saved;
   EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
 }
 

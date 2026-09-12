@@ -2028,22 +2028,40 @@ const char* mj_validateReferences(const mjModel* m) {
     }
   }
   // validate per-mesh index arrays: their contents are mesh-local indices that
-  // are used as offsets at runtime (e.g. mesh_vert + 3*mesh_face[...]) without
-  // further bounds checks. These are set by the compiler for XML models, but
-  // are read verbatim from the file when loading a binary (MJB) model, so they
-  // must be validated here. The corresponding *adr/*num arrays are already
-  // bounds-checked by MJMODEL_REFERENCES above.
+  // are used as offsets at runtime (e.g. mesh_vert + 3*mesh_face[...],
+  // mesh_normal + 3*mesh_facenormal[...]) without further bounds checks. These
+  // are set by the compiler for XML models, but are read verbatim from the file
+  // when loading a binary (MJB) model, so they must be validated here. The
+  // corresponding *adr/*num arrays are already bounds-checked by
+  // MJMODEL_REFERENCES above.
   for (int i=0; i < m->nmesh; i++) {
     int vertnum = m->mesh_vertnum[i];
     int polynum = m->mesh_polynum[i];
 
-    // face vertex indices: local, in [0, vertnum)
+    int normalnum = m->mesh_normalnum[i];
+    int texcoordnum = m->mesh_texcoordnum[i];
+    int has_texcoord = (m->mesh_texcoordadr[i] >= 0);
+
+    // per-face indices: local, in [0, vertnum), [0, normalnum), [0, texcoordnum)
+    // mesh_facetexcoord is only used when the mesh has texcoords
+    // (mesh_texcoordadr != -1), so it is only validated in that case.
     int faceadr = m->mesh_faceadr[i];
     for (int f=0; f < m->mesh_facenum[i]; f++) {
       for (int k=0; k < 3; k++) {
-        int v = m->mesh_face[3*(faceadr + f) + k];
+        int j = 3*(faceadr + f) + k;
+        int v = m->mesh_face[j];
         if (v < 0 || v >= vertnum) {
           return "Invalid model: mesh_face vertex index out of bounds.";
+        }
+        int n = m->mesh_facenormal[j];
+        if (n < 0 || n >= normalnum) {
+          return "Invalid model: mesh_facenormal normal index out of bounds.";
+        }
+        if (has_texcoord) {
+          int t = m->mesh_facetexcoord[j];
+          if (t < 0 || t >= texcoordnum) {
+            return "Invalid model: mesh_facetexcoord texcoord index out of bounds.";
+          }
         }
       }
     }
