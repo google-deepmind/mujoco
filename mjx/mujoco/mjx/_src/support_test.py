@@ -85,6 +85,29 @@ class SupportTest(parameterized.TestCase):
     np.testing.assert_almost_equal(jacp, jacp_expected.T, 6)
     np.testing.assert_almost_equal(jacr, jacr_expected.T, 6)
 
+  @parameterized.parameters('constraints.xml', 'pendula.xml')
+  def test_jac_dot(self, fname):
+    np.random.seed(0)
+
+    m = test_util.load_test_file(fname)
+    d = mujoco.MjData(m)
+    # give the system a little kick to ensure we have non-zero velocities
+    d.qvel = np.random.random(m.nv)
+    mujoco.mj_step(m, d, 10)  # let dynamics get state significantly non-zero
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+    point = np.random.randn(3)
+    jac_dot = jax.jit(support.jac_dot)
+
+    for body in range(m.nbody):
+      jacp, jacr = jac_dot(mx, dx, point, body)
+
+      jacp_expected, jacr_expected = np.zeros((3, m.nv)), np.zeros((3, m.nv))
+      mujoco.mj_jacDot(m, d, jacp_expected, jacr_expected, point, body)
+      np.testing.assert_allclose(jacp, jacp_expected.T, atol=5e-5, rtol=5e-5)
+      np.testing.assert_allclose(jacr, jacr_expected.T, atol=5e-5, rtol=5e-5)
+
   def test_xfrc_accumulate(self):
     """Tests that xfrc_accumulate ouput matches mj_xfrcAccumulate."""
     np.random.seed(0)
