@@ -94,9 +94,17 @@ Window::Window(std::string_view title, int width, int height, Config config)
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
   } else if (IsOpenGl(config_.gfx_mode)) {
-    window_flags |= SDL_WINDOW_OPENGL;
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#if defined(__WIN32__)
+    const bool sdl_owns_gl_context =
+        config_.gfx_mode != GraphicsMode::FilamentOpenGl;
+#else
+    constexpr bool sdl_owns_gl_context = true;
+#endif
+    if (sdl_owns_gl_context) {
+      window_flags |= SDL_WINDOW_OPENGL;
+      SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+      SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    }
   } else {
     mju_error("Unsupported window config: %d", config_.gfx_mode);
   }
