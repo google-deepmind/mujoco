@@ -114,8 +114,10 @@ TEST_XML_TEXTURE = r"""
 @contextlib.contextmanager
 def temporary_callback(setter, callback):
   setter(callback)
-  yield
-  setter(None)
+  try:
+    yield
+  finally:
+    setter(None)
 
 
 class MuJoCoBindingsTest(parameterized.TestCase):
