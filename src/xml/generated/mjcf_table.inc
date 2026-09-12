@@ -42,7 +42,7 @@ std::vector<const char*> MJCF[] = {
         {"flag", "?", "constraint", "equality", "frictionloss", "limit", "contact", "spring",
             "damper", "gravity", "clampctrl", "warmstart", "filterparent", "actuation", "refsafe",
             "sensor", "midphase", "eulerdamp", "autoreset", "nativeccd", "island", "multiccd",
-            "override", "energy", "fwdinv", "invdiscrete", "sleep", "diagexact"},
+            "override", "energy", "fwdinv", "invdiscrete", "sleep", "diagexact", "ipc"},
     {">"},
 
     {"size", "*", "memory", "njmax", "nconmax", "nstack", "nuserdata", "nkey", "nuser_body",

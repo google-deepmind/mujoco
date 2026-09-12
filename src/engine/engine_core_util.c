@@ -1275,11 +1275,12 @@ int mj_tendonHasDamping(const mjModel* m, int i) {
 }
 
 
-// does flex f use the passive contact path: metric-carried contacts require a standard
-// (non-interpolated) deformable flex of dim >= 2. This predicate is the single authority,
-// shared by the integrator validation and the constraint-exclusion path
+// does flex f use the penalty form of passive contact: a standard deformable flex of dim >= 2
+// that asks for it, and not under the ipc flag, which solves the same law for every supported
+// flex itself (running both would apply each pair's force twice)
 int mj_effFlexContactPossible(const mjModel* m, int f) {
-  return m->flex_passive[f] && !m->flex_rigid[f] && !m->flex_interp[f] && m->flex_dim[f] >= 2;
+  return m->flex_passive[f] && !m->flex_rigid[f] && !m->flex_interp[f] && m->flex_dim[f] >= 2 &&
+         !mjENABLED(mjENBL_IPC);
 }
 
 

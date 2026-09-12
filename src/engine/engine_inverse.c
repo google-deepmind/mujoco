@@ -94,6 +94,9 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
   // use selected integrator
   switch ((mjtIntegrator) m->opt.integrator) {
   case mjINT_DISCRETE:
+    if (mjENABLED(mjENBL_IPC)) {
+      mjERROR("discrete inverse dynamics is not supported with flag ipc");
+    }
     // qacc is already the discrete step map: the effective-metric terms are handled
     // natively by mj_inverseSkip, so INVDISCRETE is implied and there is nothing to do
     mj_freeStack(d);
@@ -180,6 +183,7 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
       mju_mulMatVec(qfrc+adr, A, qacc+adr, 6, 6);
     }
     break;
+
   }
 
   // solve for qacc: qfrc = M * qacc

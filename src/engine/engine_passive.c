@@ -905,76 +905,28 @@ static int mj_fluid(const mjModel* m, mjData* d) {
 
 // passive contact forces
 int mj_contactPassive(const mjModel* m, mjData* d) {
-  int ncon = d->ncon, issparse = mj_isSparse(m);
-  int dim, NV, nv = m->nv, *chain = NULL;
-  mjtNum *jac, *jacdifp, *jac1p, *jac2p, *qfrc;
-  mjContact* con;
-  int has_contact = 0;
-
-  if (mjDISABLED(mjDSBL_CONTACT) || ncon == 0 || nv == 0) {
+  if (mjDISABLED(mjDSBL_CONTACT) || d->ncon == 0 || m->nv == 0) {
     return 0;
   }
 
-  // early return if no contact to be included
-  for (int i=0; i < ncon; i++) {
-    if (d->contact[i].exclude != 4) {
-      continue;
-    }
-    has_contact = 1;
-  }
-
-  if (!has_contact) {
-    return 0;
-  }
-
-  // allocate Jacobian
-  mj_markStack(d);
-  jac     = mjSTACKALLOC(d, 6*nv, mjtNum);
-  jacdifp = mjSTACKALLOC(d, 3*nv, mjtNum);
-  jac1p   = mjSTACKALLOC(d, 3*nv, mjtNum);
-  jac2p   = mjSTACKALLOC(d, 3*nv, mjtNum);
-  qfrc    = mjSTACKALLOC(d, nv, mjtNum);
-  if (issparse) {
-    chain = mjSTACKALLOC(d, nv, int);
-  }
-
-  // find contacts to be included
-  for (int i=0; i < ncon; i++) {
-    if (d->contact[i].exclude != 4) {
-      continue;
-    }
-
-    // get contact info, safe efc_address
-    con = d->contact + i;
-    dim = con->dim;
-    con->efc_address = -1;
-    NV = mj_contactJacobian(m, d, con, dim, jacdifp, NULL,
-                            jac1p, jac2p, NULL, NULL, chain);
-
-    // skip contact if no DOFs affected
-    if (NV == 0) {
-      con->efc_address = -1;
-      con->exclude = 3;
-      continue;
-    }
-
-    // rotate Jacobian differences to contact frame
-    mju_mulMatMat(jac, con->frame, jacdifp, dim > 1 ? 3 : 1, 3, NV);
-
-    // compute passive contact force (dim = 1); stiffness shared with the metric Hessian.
-    mjtNum scl = -mjd_flexContactStiffness(m, d, con)*con->dist;
-    if (!issparse) {
-      mju_addToScl(d->qfrc_spring, jac, scl, nv);
-    } else {
-      mju_scl(qfrc, jac, scl, NV);
-      for (int j=0; j < NV; j++) {
-        d->qfrc_spring[chain[j]] += qfrc[j];
+  // the force rides on the rows the metric build published at the position stage, so the force,
+  // the operator and the velocity shift see one contact set. Without an active metric there are
+  // no rows: a model that wants passive flex contact gets an error rather than a silent zero
+  if (!d->efm_active) {
+    for (int f=0; f < m->nflex; f++) {
+      if (mj_effFlexContactPossible(m, f)) {
+        mjERROR("passive flex contact needs the effective metric: run the position stage "
+                "(mj_forward, or mj_fwdPosition) before mj_passive");
       }
     }
+    return 0;
+  }
+  if (!d->nefmcon) {
+    return 0;
   }
 
-  mj_freeStack(d);
-  return has_contact;
+  mjd_effContactForce(d, d->qfrc_spring);
+  return 1;
 }
 
 

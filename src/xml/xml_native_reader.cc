@@ -427,6 +427,7 @@ void mjXReader::Option(XMLElement* section, mjSpec* s, mjOption* opt) {
     READENBL("invdiscrete", mjENBL_INVDISCRETE)
     READENBL("sleep",       mjENBL_SLEEP)
     READENBL("diagexact",   mjENBL_DIAGEXACT)
+    READENBL("ipc",         mjENBL_IPC)
     // clang-format on
 #undef READENBL
   }
