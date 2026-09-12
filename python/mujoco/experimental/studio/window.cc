@@ -94,6 +94,8 @@ class Window {
 };
 
 PYBIND11_MODULE(window, m, pybind11::mod_gil_not_used()) {
+  mujoco::studio::RegisterResourceProviders();
+
   m.def("IsCrd", &IsCrd);
   m.def("IsCuda", &IsCuda);
   m.def("GetImGuiContext", &GetImGuiContext);
