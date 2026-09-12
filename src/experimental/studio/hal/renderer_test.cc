@@ -68,6 +68,34 @@ TEST_F(RendererTest, OpengGlSoftware) {
   }
 }
 
+TEST_F(RendererTest, ToggleGeomGroupVisibility) {
+  mjSpec* spec = mj_makeSpec();
+  mjsGeom* geom = mjs_addGeom(mjs_findBody(spec, "world"), nullptr);
+  geom->type = mjGEOM_BOX;
+  geom->size[0] = 0.1;
+  geom->size[1] = 0.1;
+  geom->size[2] = 0.1;
+  geom->group = 2;
+  holder_ = ModelHolder::FromSpec(spec);
+  holder_->model()->vis.global.offwidth = width_;
+  holder_->model()->vis.global.offheight = height_;
+
+  FilamentRenderer renderer(nullptr, GraphicsMode::FilamentOpenGlSoftware);
+  renderer.Init(holder_->model());
+
+  mjvOption options;
+  mjv_defaultOption(&options);
+  std::vector<std::byte> pixels(width_ * height_ * 3);
+  renderer.Render(holder_->model(), holder_->data(), nullptr, nullptr, &options,
+                  width_, height_, pixels);
+  options.geomgroup[2] = 0;
+  renderer.Render(holder_->model(), holder_->data(), nullptr, nullptr, &options,
+                  width_, height_, pixels);
+  options.geomgroup[2] = 1;
+  renderer.Render(holder_->model(), holder_->data(), nullptr, nullptr, &options,
+                  width_, height_, pixels);
+}
+
 TEST_F(RendererTest, OpengGlHeadless) {
   FilamentRenderer renderer(nullptr, GraphicsMode::FilamentOpenGlHeadless);
   renderer.Init(holder_->model());
