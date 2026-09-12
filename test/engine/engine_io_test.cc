@@ -395,6 +395,70 @@ TEST_F(ValidateReferencesTest, Texture) {
   EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("tex_adr"));
 }
 
+TEST_F(ValidateReferencesTest, Mesh) {
+  static const char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="m" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+                      face="0 1 2  0 1 3  0 2 3  1 2 3"
+                      texcoord="0 0  1 0  0 1  1 1"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="m"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // A mesh face vertex index is a mesh-local index into [0, mesh_vertnum).
+  // These are read verbatim from a binary (MJB) model, so an out-of-range value
+  // must be rejected here (it would otherwise cause an out-of-bounds read when
+  // the mesh is ray-cast, rendered or collided).
+  int saved = model->mesh_face[0];
+  model->mesh_face[0] = model->mesh_vertnum[0];  // one past the end
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("mesh_face"));
+  model->mesh_face[0] = -1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("mesh_face"));
+  model->mesh_face[0] = saved;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // Face normal indices are mesh-local indices into [0, mesh_normalnum) and
+  // are used the same way (mesh_normal + 3*(mesh_facenormal[...] + normaladr)).
+  saved = model->mesh_facenormal[0];
+  model->mesh_facenormal[0] = model->mesh_normalnum[0];  // one past the end
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("mesh_facenormal"));
+  model->mesh_facenormal[0] = -1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("mesh_facenormal"));
+  model->mesh_facenormal[0] = saved;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // Face texcoord indices are mesh-local indices into [0, mesh_texcoordnum),
+  // used only when the mesh has texcoords (mesh_texcoordadr != -1).
+  ASSERT_GE(model->mesh_texcoordadr[0], 0);
+  saved = model->mesh_facetexcoord[0];
+  model->mesh_facetexcoord[0] = model->mesh_texcoordnum[0];  // one past the end
+  EXPECT_THAT(mj_validateReferences(model.get()),
+              HasSubstr("mesh_facetexcoord"));
+  model->mesh_facetexcoord[0] = -1;
+  EXPECT_THAT(mj_validateReferences(model.get()),
+              HasSubstr("mesh_facetexcoord"));
+
+  // A mesh without texcoords (mesh_texcoordadr == -1) never reads
+  // mesh_facetexcoord, so its contents are not validated in that case.
+  int saved_adr = model->mesh_texcoordadr[0];
+  model->mesh_texcoordadr[0] = -1;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+  model->mesh_texcoordadr[0] = saved_adr;
+  model->mesh_facetexcoord[0] = saved;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+}
+
 TEST_F(ValidateReferencesTest, GeomPairs) {
   static const char xml[] = R"(
   <mujoco>
