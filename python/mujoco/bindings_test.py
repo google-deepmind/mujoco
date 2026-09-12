@@ -1284,6 +1284,34 @@ Euler integrator, semi-implicit in velocity.
     ):
       mujoco.set_mjcb_time(1)
 
+  def test_mjcb_time_restore_default(self):
+    timer_step = mujoco.mjtTimer.mjTIMER_STEP
+    call_count = 0
+
+    def custom_timer():
+      nonlocal call_count
+      call_count += 1
+      return 0.0
+
+    with temporary_callback(mujoco.set_mjcb_time, custom_timer):
+      mujoco.mj_step(self.model, self.data)
+      # Both of these establish the baseline for the assertions after the
+      # restore: the custom timer is being called, and it keeps the accumulated
+      # duration at exactly zero.
+      self.assertGreater(call_count, 0)
+      self.assertEqual(self.data.timer[timer_step].duration, 0.0)
+
+    # Leaving the context calls set_mjcb_time(None), which must restore the
+    # default timer rather than clear it. No MjData is constructed after the
+    # restore -- self.data already exists -- so nothing can install a timer
+    # lazily on the way past, and a nonzero duration below can only come from
+    # set_mjcb_time(None) itself.
+    self.assertIsNone(mujoco.get_mjcb_time())
+    call_count_at_restore = call_count
+    mujoco.mj_step(self.model, self.data)
+    self.assertEqual(call_count, call_count_at_restore)
+    self.assertGreater(self.data.timer[timer_step].duration, 0.0)
+
   def test_mjcb_sensor(self):
 
     class SensorCallback:

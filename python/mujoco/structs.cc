@@ -104,6 +104,13 @@ py::tuple RecompileSpec(raw::MjSpec* spec, const MjModelWrapper& old_m,
 PYBIND11_MODULE(_structs, m, pybind11::mod_gil_not_used()) {
   py::module_::import("mujoco._enums");
 
+  // We import _callbacks so that a default timer is installed.
+  try {
+    py::module_::import("mujoco._callbacks");
+  } catch (py::error_already_set&) {
+    // In stubgen or isolated extension loading, _callbacks may not be present.
+  }
+
   // ==================== MJOPTION =============================================
   py::class_<MjOptionWrapper> mjOption(m, "MjOption");
   mjOption.def(py::init<>());

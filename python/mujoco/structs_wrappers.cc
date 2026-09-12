@@ -17,9 +17,7 @@
 #include <array>
 #include <cstddef>
 #include <cstring>
-#include <chrono>  // NOLINT(build/c++11)
 #include <exception>
-#include <functional>
 #include <ios>
 #include <iostream>
 #include <memory>
@@ -52,13 +50,13 @@
 
 namespace mujoco::python::_impl {
 
-using ::mujoco::python::GetCallbackMutex;
 using ::mujoco::python::MutexLockIfGilDisabled;
 
 namespace py = ::pybind11;
 
 namespace {
-#define PTRDIFF(x, y) \
+
+#define PTRDIFF(x, y)                                                   \
   reinterpret_cast<const char*>(x) - reinterpret_cast<const char*>(y)
 
 // Returns the shape of a NumPy array given the dimensions from an X Macro.
@@ -495,6 +493,7 @@ py::tuple RecompileSpec(raw::MjSpec* spec, const MjModelWrapper& old_m,
 }
 
 namespace {
+
 // A byte at the start of serialized mjModel structs, which can be incremented
 // when we change the serialization logic to reject pickles from an unsupported
 // future version.
@@ -644,16 +643,6 @@ MjDataWrapper* MjDataWrapper::FromRawPointer(raw::MjData* m) noexcept {
   }
 }
 
-namespace {
-// default timer callback (seconds)
-mjtNum GetTime() {
-  using Clock = std::chrono::steady_clock;
-  using Seconds = std::chrono::duration<mjtNum>;
-  static const Clock::time_point tm_start = Clock::now();
-  return Seconds(Clock::now() - tm_start).count();
-}
-}  // namespace
-
 MjDataWrapper::MjWrapper(MjModelWrapper* model)
     : WrapperBase(InterceptMjErrors(mj_makeData)(model->get()),
                   &MjDataCapsuleDestructor),
@@ -683,14 +672,6 @@ MjDataWrapper::MjWrapper(MjModelWrapper* model)
   if (!is_newly_inserted) {
     throw UnexpectedError(
         "MjDataRawPointerMap already contains this raw mjData*");
-  }
-
-  // install default timer if not already installed
-  {
-    MutexLockIfGilDisabled lock(GetCallbackMutex());
-    if (!mjcb_time) {
-      mjcb_time = GetTime;
-    }
   }
 }
 
