@@ -198,6 +198,37 @@ class DocTest(googletest.TestCase):
     if errors:
       self.fail('read-table coverage:\n' + '\n'.join(errors))
 
+  def test_flag_defaults(self):
+    """Checks option flag defaults against the disable/enable bit enums.
+
+    The flag element is unbound (its attributes lower to bits of
+    disableflags/enableflags), so SchemaDefaultsTest cannot verify its
+    declared defaults. The rule is mechanical: a disable bit is on by
+    default, so its flag defaults to 'enable'; an enable bit defaults
+    to 'disable'.
+    """
+    with open(_get_path('include', 'mujoco', 'mjtype.h'),
+              encoding='utf-8') as file:
+      content = file.read()
+    dsbl = set(re.findall(r'mjDSBL_(\w+)', content))
+    enbl = set(re.findall(r'mjENBL_(\w+)', content))
+    schema = mjcf_schema.parse_file(_get_path('src', 'xml', 'mjcf.schema'))
+    errors = []
+    for attr in schema.expanded_attrs(schema.elements['flag']):
+      name = attr.name.upper()
+      if name in dsbl:
+        expected = 'enable'
+      elif name in enbl:
+        expected = 'disable'
+      else:
+        errors.append(f'flag.{attr.name}: no mjDSBL_/mjENBL_ member')
+        continue
+      if attr.default != expected:
+        errors.append(f'flag.{attr.name}: declared {attr.default!r}, '
+                      f'but the bit implies {expected!r}')
+    if errors:
+      self.fail('flag defaults:\n' + '\n'.join(errors))
+
   def test_schema_enum_coverage(self):
     """Checks schema enums against the C enums they bind.
 
