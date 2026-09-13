@@ -120,6 +120,25 @@ target_link_libraries(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME}
 
 add_library(mujoco::platform ALIAS ${MUJOCO_STUDIO_PLATFORM_TARGET_NAME})
 
+if(NOT TARGET mujoco_studio_assets)
+    set(STUDIO_ASSETS_STAGE_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets)
+    add_custom_target(mujoco_studio_assets
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${STUDIO_ASSETS_STAGE_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_BINARY_DIR}/_deps/atkinson_hyperlegible_next-src/fonts/variable/AtkinsonHyperlegibleNext[wght].ttf"
+                "${CMAKE_BINARY_DIR}/_deps/font_awesome-src/fonts/fontawesome-webfont.ttf"
+                "${CMAKE_BINARY_DIR}/_deps/atkinson_hyperlegible_mono-src/fonts/ttf/AtkinsonHyperlegibleMono-Regular.ttf"
+                "${STUDIO_ASSETS_STAGE_DIR}"
+        COMMENT "Staging Studio fonts into ${STUDIO_ASSETS_STAGE_DIR}")
+    if(MUJOCO_USE_FILAMENT)
+        add_custom_command(TARGET mujoco_studio_assets POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../src/render/filament/assets
+                    "${STUDIO_ASSETS_STAGE_DIR}")
+        add_dependencies(mujoco_studio_assets mujoco_filament_assets)
+    endif()
+endif()
+
 # Common configuration shared between mujoco_studio and mujoco_live.
 function(configure_studio_target TARGET_NAME)
     target_sources(${TARGET_NAME}
@@ -169,55 +188,17 @@ function(configure_studio_target TARGET_NAME)
             "/WHOLEARCHIVE:$<TARGET_FILE:mujoco_studio_platform>")
     endif()
 
+    add_dependencies(${TARGET_NAME} mujoco_studio_assets)
+
     get_target_property(IS_BUNDLE ${TARGET_NAME} MACOSX_BUNDLE)
     if(IS_BUNDLE)
-        set(STUDIO_ASSETS_DIR $<TARGET_FILE_DIR:${TARGET_NAME}>/../Resources/assets)
-    else()
-        set(STUDIO_ASSETS_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets)
-    endif()
-
-    add_custom_command(
-        TARGET ${TARGET_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${STUDIO_ASSETS_DIR}
-        COMMAND ${CMAKE_COMMAND}
-            -E copy
-                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/atkinson_hyperlegible_next-src/fonts/variable/AtkinsonHyperlegibleNext[wght].ttf"
-                ${STUDIO_ASSETS_DIR}/AtkinsonHyperlegibleNext[wght].ttf
-        COMMENT "Copying AtkinsonHyperlegibleNext font to build directory"
-    )
-    add_custom_command(
-        TARGET ${TARGET_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${STUDIO_ASSETS_DIR}
-        COMMAND ${CMAKE_COMMAND}
-            -E copy
-                ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/font_awesome-src/fonts/fontawesome-webfont.ttf
-                ${STUDIO_ASSETS_DIR}
-        COMMENT "Copying fontawesome-webfont.ttf to build directory"
-    )
-    add_custom_command(
-        TARGET ${TARGET_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${STUDIO_ASSETS_DIR}
-        COMMAND ${CMAKE_COMMAND}
-            -E copy
-                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/atkinson_hyperlegible_mono-src/fonts/ttf/AtkinsonHyperlegibleMono-Regular.ttf"
-                ${STUDIO_ASSETS_DIR}/AtkinsonHyperlegibleMono-Regular.ttf
-        COMMENT "Copying AtkinsonHyperlegibleMono-Regular font to build directory"
-    )
-
-    # Filament backend requires additional files to be copied into an "assets" folder.
-    if(MUJOCO_USE_FILAMENT)
         add_custom_command(
             TARGET ${TARGET_NAME}
             POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${STUDIO_ASSETS_DIR}
-            COMMAND ${CMAKE_COMMAND}
-                -E copy_directory
-                    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../src/render/filament/assets
-                    ${STUDIO_ASSETS_DIR}
-            COMMENT "Copying Filament assets to build directory"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${STUDIO_ASSETS_STAGE_DIR}"
+                    $<TARGET_FILE_DIR:${TARGET_NAME}>/../Resources/assets
+            COMMENT "Copying staged assets to bundle Resources"
         )
     endif()
 endfunction()
@@ -283,6 +264,14 @@ if(NOT EMSCRIPTEN)
           DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT studio
         )
     endif()
+endif()
+
+# Browser WASM client for the Web Viewer.
+if(EMSCRIPTEN)
+    add_subdirectory(
+        ${PROJECT_SOURCE_DIR}/python/mujoco/experimental/studio/web
+        ${CMAKE_CURRENT_BINARY_DIR}/web
+    )
 endif()
 
 # WASM Live target.

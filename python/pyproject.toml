@@ -31,6 +31,7 @@ dependencies = [
     "glfw",
     "numpy",
     "pyopengl",
+    "websockets>=13",
 ]
 dynamic = ["readme", "scripts"]
 
@@ -62,6 +63,9 @@ mujoco = [
     "testdata/*.zip",
     "testdata/*.urdf",
     "sysid/report/templates/*.html",
+    "experimental/studio/web/*.html",
+    "experimental/studio/web/dist/*",
+    "experimental/studio/web/dist/assets/*",
 ]
 
 [project.optional-dependencies]

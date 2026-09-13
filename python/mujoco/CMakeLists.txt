@@ -325,6 +325,17 @@ target_sources(mujoco_private_api_header INTERFACE private.h)
 set_target_properties(mujoco_private_api_header PROPERTIES PUBLIC_HEADER private.h)
 target_link_libraries(mujoco_private_api_header INTERFACE mujoco)
 
+# enum_traits.h, function_traits.h and specs.cc.inc are pre-generated into the
+# sdist by make_sdist.sh, so only the EXISTS branches below are taken by any
+# build we run: CI and Kokoro both build the wheel from an sdist.
+#
+# The else() branches are stale and are not known to work. The generators do
+# `from mujoco.introspect import ...`, which needs the *parent* of the mujoco
+# package on PYTHONPATH, not the package itself as set below; and importing
+# mujoco.introspect executes mujoco/__init__.py, which imports the native
+# _specs and _structs extensions that do not exist yet at codegen time. Making
+# these branches usable therefore needs more than a corrected PYTHONPATH --
+# see the TODO in .github/workflows/README.md.
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/enum_traits.h)
   add_library(enum_traits INTERFACE)
   target_sources(enum_traits INTERFACE enum_traits.h)
@@ -520,6 +531,28 @@ target_link_libraries(
 )
 
 mujoco_pybind11_module(_rollout rollout.cc threadpool.cc)
+
+# The Filament rendering API binding. It needs the Filament C API library, the
+# Filament engine archives and the source-tree headers under
+# MUJOCO_INCLUDE/mujoco, all of which the Studio platform target carries in its
+# interface (includes, C++20, dependency archives); a Studio SDK is what makes
+# the binding buildable, so key on that target.
+if(TARGET mujoco::platform)
+  mujoco_pybind11_module(
+    _render_filament
+    render_filament.cc
+    render_filament_generated.cc.inc
+  )
+  target_link_libraries(
+    _render_filament
+    PRIVATE Eigen3::Eigen
+            mujoco
+            mujoco::platform
+            raw
+            structs_header
+  )
+endif()
+
 target_link_libraries(_rollout PRIVATE functions_header mujoco raw)
 
 mujoco_pybind11_module(
@@ -603,6 +636,9 @@ if(MUJOCO_STUDIO_TARGETS)
     list(APPEND LIBRARIES_FOR_WHEEL "$<TARGET_FILE:${target}>")
   endforeach()
 endif()
+if(TARGET _render_filament)
+  list(APPEND LIBRARIES_FOR_WHEEL "$<TARGET_FILE:_render_filament>")
+endif()
 
 if(APPLE)
   add_executable(mjpython mjpython/mjpython.mm)
@@ -641,6 +677,9 @@ if(MUJOCO_PYTHON_MAKE_WHEEL)
   )
   if(MUJOCO_STUDIO_TARGETS)
     add_dependencies(wheel ${MUJOCO_STUDIO_TARGETS})
+  endif()
+  if(TARGET _render_filament)
+    add_dependencies(wheel _render_filament)
   endif()
   if(APPLE)
     add_dependencies(wheel mjpython)
