@@ -68,6 +68,10 @@ struct Glfw {
   mjGLFW_DECLARE_SYMBOL(glfwGetNSGLContext);
 #endif
 
+#if GLFW_VERSION_MAJOR > 3 || (GLFW_VERSION_MAJOR == 3 && GLFW_VERSION_MINOR >= 4)
+  mjGLFW_DECLARE_SYMBOL(glfwGetPlatform);
+#endif
+
 #undef mjGLFW_DECLARE_SYMBOL
 };
 

@@ -118,6 +118,10 @@ const struct Glfw& Glfw(void* dlhandle) {
     mjGLFW_INITIALIZE_SYMBOL(glfwGetNSGLContext);
 #endif
 
+#if GLFW_VERSION_MAJOR > 3 || (GLFW_VERSION_MAJOR == 3 && GLFW_VERSION_MINOR >= 4)
+    mjGLFW_RESOLVE_SYMBOL(glfwGetPlatform);
+#endif
+
 #undef mjGLFW_INITIALIZE_SYMBOL
 
     return glfw;
