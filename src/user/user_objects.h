@@ -1591,7 +1591,7 @@ class mjCPair : public mjCPair_, private mjsPair {
   const std::string& get_geomname1() const { return geomname1_; }
   const std::string& get_geomname2() const { return geomname2_; }
 
-  int GetSignature(void) { return signature; }
+  uint32_t GetSignature(void) const { return signature; }
 
  private:
   void Compile(void);  // compiler
@@ -1636,7 +1636,7 @@ class mjCBodyPair : public mjCBodyPair_, private mjsExclude {
   std::string get_bodyname1() const { return bodyname1_; }
   std::string get_bodyname2() const { return bodyname2_; }
 
-  int GetSignature() { return signature; }
+  uint32_t GetSignature() const { return signature; }
 
  private:
   void Compile();  // compiler

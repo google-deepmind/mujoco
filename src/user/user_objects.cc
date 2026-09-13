@@ -5720,7 +5720,7 @@ void mjCPair::ResolveReferences(const mjCModel* m) {
   }
 
   // get geom ids and body signature
-  signature = ((geom1->body->id) << 16) + geom2->body->id;
+  signature = ((unsigned int)(geom1->body->id) << 16) + geom2->body->id;
 }
 
 
@@ -5923,7 +5923,7 @@ void mjCBodyPair::ResolveReferences(const mjCModel* m) {
   // get body ids and body signature
   body1     = pb1->id;
   body2     = pb2->id;
-  signature = (body1 << 16) + body2;
+  signature = ((unsigned int)body1 << 16) + body2;
 }
 
 
