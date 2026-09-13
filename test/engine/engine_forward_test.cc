@@ -501,8 +501,47 @@ TEST_F(ImplicitIntegratorTest, FreeBodyMatchesImplicit) {
   </mujoco>
   )";
 
+  // free rigid subtree with rotated, offset inertias and multiple levels
+  static constexpr char xml3[] = R"(
+  <mujoco>
+    <option timestep="0.005"/>
+    <default><geom contype="0" conaffinity="0"/></default>
+    <worldbody>
+      <body pos="0.1 -0.2 0.5" euler="20 -30 40">
+        <joint type="free" damping="0.1"/>
+        <geom type="box" size=".1 .2 .3" mass="2" pos=".04 -.02 .03" euler="10 20 30"/>
+        <body pos=".2 -.1 .3" euler="30 20 -10">
+          <geom type="box" size=".2 .1 .1" mass="1" pos=".03 .01 -.02"/>
+          <body pos="-.1 .2 .1" euler="10 -20 30">
+            <geom type="box" size=".1 .1 .2" mass=".5"/>
+          </body>
+        </body>
+      </body>
+      <body pos="3 0 1">
+        <freejoint/>
+        <geom type="box" size=".1 .2 .3"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // fluid forces on a fixed child must retain asymmetric lift derivatives
+  static constexpr char xml4[] = R"(
+  <mujoco>
+    <option timestep="0.005" density="1.2" viscosity="0.002" wind="1 2 3"/>
+    <worldbody>
+      <body pos="0.1 -0.2 0.5" euler="20 -30 40">
+        <freejoint/>
+        <body pos=".04 -.02 .03" euler="10 20 30">
+          <geom type="ellipsoid" size=".1 .2 .3" mass="2" fluidshape="ellipsoid"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
   int xml_idx = 1;
-  for (auto xml : {xml1, xml2}) {
+  for (auto xml : {xml1, xml2, xml3, xml4}) {
     SCOPED_TRACE(testing::Message() << "XML case " << xml_idx++);
     char error[1024];
     MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
@@ -576,6 +615,48 @@ TEST_F(ImplicitIntegratorTest, FreeBodyGyroStable) {
       mj_step(m, d);
       ASSERT_LT(d->energy[1], 1.01 * initial_energy)
           << "energy gain at step " << i;
+    }
+  }
+}
+
+// a massless free root with a fixed inertial child must not disable gyroscopic
+// stabilization
+TEST_F(ImplicitIntegratorTest, FreeRigidSubtreeGyroStable) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast" timestep="0.001" gravity="0 0 0">
+      <flag energy="enable"/>
+    </option>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <body>
+          <inertial pos="0 0 0" mass="0.12"
+                    diaginertia="0.00017231 0.00000658 0.00017243"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_EQ(model->nbody, 3);
+  MjDataPtr data = MakeData(model);
+  for (mjtIntegrator integrator : {mjINT_IMPLICITFAST, mjINT_DISCRETE}) {
+    SCOPED_TRACE(testing::Message() << "integrator " << integrator);
+    model->opt.integrator = integrator;
+    mj_resetData(model.get(), data.get());
+    data->qvel[3] = 100;
+    data->qvel[4] = 30;
+    data->qvel[5] = 100;
+    mj_forward(model.get(), data.get());
+    mjtNum initial_energy = data->energy[1];
+
+    for (int i = 0; i < 10000; i++) {
+      mj_step(model.get(), data.get());
+      ASSERT_EQ(data->warning[mjWARN_BADQACC].number, 0) << "step " << i;
+      ASSERT_LT(data->energy[1], 1.01 * initial_energy) << "step " << i;
     }
   }
 }

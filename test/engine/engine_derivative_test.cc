@@ -222,6 +222,154 @@ TEST_F(DerivativeTest, FreeBiasVel) {
   }
 }
 
+// fixed descendants contribute inertia about the free joint, not their own body
+// frames
+TEST_F(DerivativeTest, FreeBiasVelFixedDescendants) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default><geom contype="0" conaffinity="0"/></default>
+    <worldbody>
+      <body pos=".1 -.2 .3" euler="20 -30 40">
+        <freejoint/>
+        <geom type="box" size=".1 .2 .3" mass="2" pos=".04 -.02 .03" euler="10 20 30"/>
+        <body pos=".2 -.1 .3" euler="30 20 -10">
+          <geom type="box" size=".2 .1 .1" mass="1" pos=".03 .01 -.02"/>
+          <body pos="-.1 .2 .1" euler="10 -20 30">
+            <geom type="box" size=".1 .1 .2" mass=".5"/>
+          </body>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_EQ(model->nbody, 4);
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
+  mjtNum qvel[6] = {0.4, -0.3, 0.2, 5, -3, 2};
+  mju_copy(d->qvel, qvel, 6);
+  mj_forward(m, d);
+
+  mjtNum B[36];
+  mjd_freeBias_vel(m, d, /*jnt=*/0, B);
+
+  // compare the aggregate derivative with the full recursive Newton-Euler
+  // derivative
+  mju_zero(d->qDeriv, m->nD);
+  mjd_smooth_vel(m, d, /*flg_bias=*/1);
+  for (int r = 0; r < 6; r++) {
+    ASSERT_EQ(m->D_rownnz[r], 6);
+    for (int k = 0; k < 6; k++) {
+      int adr = m->D_rowadr[r] + k;
+      EXPECT_NEAR(B[6 * r + m->D_colind[adr]], -d->qDeriv[adr],
+                  MjTol(1e-14, 1e-5));
+    }
+  }
+
+  // independent central finite differences, including the zero linear-velocity
+  // columns
+  mjtNum eps = MjEps(1e-6, 1e-3);
+  for (int c = 0; c < 6; c++) {
+    mjtNum plus[6], minus[6];
+    d->qvel[c] = qvel[c] + eps;
+    mj_comVel(m, d);
+    mj_rne(m, d, /*flg_acc=*/0, plus);
+    d->qvel[c] = qvel[c] - eps;
+    mj_comVel(m, d);
+    mj_rne(m, d, /*flg_acc=*/0, minus);
+    d->qvel[c] = qvel[c];
+    for (int r = 0; r < 6; r++) {
+      EXPECT_NEAR(B[6 * r + c], (plus[r] - minus[r]) / (2 * eps),
+                  MjTol(1e-7, 1e-2));
+    }
+  }
+}
+
+// fixed-body fusion preserves the bias derivative of a massless free root
+TEST_F(DerivativeTest, FreeBiasVelFusedInertia) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler fusestatic="false" alignfree="false"/>
+    <default><geom contype="0" conaffinity="0"/></default>
+    <worldbody>
+      <body pos=".1 -.2 .3" euler="20 -30 40">
+        <freejoint/>
+        <body pos=".2 -.1 .3" euler="30 20 -10">
+          <geom type="box" size=".2 .1 .1" mass="1" pos=".03 .01 -.02"/>
+          <body pos="-.1 .2 .1" euler="10 -20 30">
+            <geom type="box" size=".1 .1 .2" mass=".5"/>
+          </body>
+        </body>
+        <body pos="-.1 .3 -.2" euler="-20 10 40">
+          <geom type="box" size=".1 .2 .3" mass="2" pos=".04 -.02 .03"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::string fused_xml = xml;
+  fused_xml.replace(fused_xml.find("false"), 5, "true");
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjModelPtr fused =
+      LoadModelFromString(fused_xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(fused.get(), NotNull()) << error;
+  ASSERT_EQ(model->nbody, 5);
+  ASSERT_EQ(fused->nbody, 2);
+  ASSERT_EQ(model->body_mass[1], 0);
+  MjDataPtr data = MakeData(model);
+  MjDataPtr fused_data = MakeData(fused);
+
+  mjtNum qvel[6] = {0.4, -0.3, 0.2, 5, -3, 2};
+  mju_copy(data->qvel, qvel, 6);
+  mju_copy(fused_data->qvel, qvel, 6);
+  mj_forward(model.get(), data.get());
+  mj_forward(fused.get(), fused_data.get());
+
+  mjtNum B[36], B_fused[36];
+  mjd_freeBias_vel(model.get(), data.get(), /*jnt=*/0, B);
+  mjd_freeBias_vel(fused.get(), fused_data.get(), /*jnt=*/0, B_fused);
+  EXPECT_GT(mju_norm(B, 36), 1);
+
+  // fusing diagonalizes the inertia at compiler precision
+  EXPECT_THAT(AsVector(B, 36),
+              Pointwise(MjNear(1e-5, 1e-5), AsVector(B_fused, 36)));
+}
+
+// a jointed descendant must still exclude the free root from the local six-DOF
+// solve
+TEST_F(DerivativeTest, FreeMhatRejectsArticulatedSubtree) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom size=".1"/>
+        <body pos="0 0 1">
+          <joint/>
+          <geom size=".1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  mjtNum A[36];
+  for (int discrete : {0, 1}) {
+    EXPECT_EQ(mjd_freeMhat(model.get(), data.get(), /*jnt=*/0,
+                           model->opt.timestep, A, discrete),
+              0);
+  }
+}
+
 // disabled actuators do not contribute to d_qfrc_actuator/d_qvel
 TEST_F(DerivativeTest, DisabledActuators) {
   // model with only a position actuator

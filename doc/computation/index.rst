@@ -614,7 +614,7 @@ Gyroscopic derivatives for free bodies
    with the faster Cholesky decomposition. However integrating gyroscopic forces explicitly can lead to
    energy gain and divergence of fast-spinning free bodies with asymmetric inertia.
 
-   Therefore for *standalone free bodies* (free joints whose body has no children), these derivatives are reinstated.
+   Therefore for *standalone free bodies* (free bodies with no jointed descendants), these derivatives are reinstated.
    The rows of :math:`\widehat M` corresponding to such a body form a :math:`6\times 6` block which is decoupled from
    the rest of the system. After the global Cholesky solve, this block is re-assembled with the exact derivative of the
    body's bias force and re-solved with an optimized :math:`6\times 6` LU routine. For standalone free bodies,
