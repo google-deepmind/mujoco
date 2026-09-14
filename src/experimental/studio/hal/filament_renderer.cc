@@ -149,7 +149,6 @@ void FilamentRenderer::Render(const mjModel* model, mjData* data,
     }
     mjrf_setLightTransform(headlight, pos, gl_camera.forward);
   }
-  model_renderables_->Update(data);
 
   if (vis_option) {
     model_renderables_->SetOptions(*vis_option);
@@ -163,6 +162,7 @@ void FilamentRenderer::Render(const mjModel* model, mjData* data,
   } else {
     model_renderables_->MarkAsSelected(mjOBJ_UNKNOWN, -1);
   }
+  model_renderables_->Update(data);
 
   model_decorations_->Update(data, vis_option, perturb, camera, viewport,
                              DrawTextAt, extra_geoms);
