@@ -495,7 +495,7 @@ class Option(PyTreeNode):
 
   iterations: int
   ls_iterations: int
-  tolerance: jax.Array
+  tolerance: float
   ls_tolerance: jax.Array
   impratio: jax.Array
   gravity: jax.Array
