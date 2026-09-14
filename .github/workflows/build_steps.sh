@@ -27,6 +27,10 @@ if command -v ccache >/dev/null 2>&1; then
     CCACHE_ARGS="-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 fi
 
+# Portable parallel job count. getconf works on Linux and macOS; on Windows we
+# fall back to the NUMBER_OF_PROCESSORS environment variable, then to 4.
+NJOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo "${NUMBER_OF_PROCESSORS:-4}")"
+
 
 # Emit the build matrix for build.yml as a step output. On pull_request we run
 # only the representative "core" compiler set; on push (e.g. to main) we run the
@@ -103,7 +107,7 @@ setup_emsdk() {
     # workaround for the github update to a newer typescript, which gives an
     # error on the deprecated `--outFile` flag.
     pushd emsdk/upstream/emscripten
-    npm i
+    npm i || true
     popd
 }
 
@@ -292,35 +296,57 @@ test_python_bindings() {
 }
 
 
+# Builds the WASM bindings for one threading mode into wasm/dist.
+_build_wasm_threads() {  # $1 = ON | OFF
+    local mode=$1 dir
+    [[ "${mode}" == "ON" ]] && dir=build_wasm_mt || dir=build_wasm_st
+    echo "Build MuJoCo with Emscripten (MUJOCO_WASM_THREADS=${mode})..."
+    emcmake cmake -B "${dir}" \
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
+        -DMUJOCO_WASM_THREADS=${mode} \
+        ${CCACHE_ARGS} \
+        $WASM_CMAKE_ARGS
+    cmake --build "${dir}" --parallel $(nproc)
+}
+
+
+# Runs the bindings tests against whatever is in wasm/dist.
+test_wasm() {
+    echo "Testing WASM bindings..."
+    export PATH="$(pwd)/node_modules/.bin:$PATH"
+    npm run test --prefix ./wasm
+}
+
+
+# Builds both threading modes without testing: multi-threaded under
+# wasm/dist/mt, single-threaded in wasm/dist.
+build_wasm() {
+    echo "Building WASM bindings..."
+    source emsdk/emsdk_env.sh
+    export PATH="$(pwd)/node_modules/.bin:$PATH"
+    _build_wasm_threads ON
+    echo "Moving Multi-Thread version under mt subfolder..."
+    mkdir -p wasm/dist/mt
+    mv wasm/dist/mujoco.* wasm/dist/mt/
+    _build_wasm_threads OFF
+}
+
+
+# CI: builds and tests both threading modes, testing each before the next
+# build replaces wasm/dist.
 build_test_wasm() {
     echo "Building and testing WASM bindings..."
     source emsdk/emsdk_env.sh
     export PATH="$(pwd)/node_modules/.bin:$PATH"
-    echo "Build MuJoCo with Emscripten (Multi-Threaded)..."
-    emcmake cmake -B build_wasm_mt \
-        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
-        -DMUJOCO_WASM_THREADS=ON \
-        ${CCACHE_ARGS} \
-        $WASM_CMAKE_ARGS
-    cmake --build build_wasm_mt --parallel $(nproc)
-
+    _build_wasm_threads ON
     echo "Run bindings tests for Multi-Threaded version..."
-    npm run test --prefix ./wasm
-
+    test_wasm
     echo "Moving Multi-Thread version under mt subfolder..."
     mkdir -p wasm/dist/mt
     mv wasm/dist/mujoco.* wasm/dist/mt/
-
-    echo "Build MuJoCo with Emscripten (Single-Threaded)..."
-    emcmake cmake -B build_wasm_st \
-        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
-        -DMUJOCO_WASM_THREADS=OFF \
-        ${CCACHE_ARGS} \
-        $WASM_CMAKE_ARGS
-    cmake --build build_wasm_st --parallel $(nproc)
-
+    _build_wasm_threads OFF
     echo "Run bindings tests for Single-Threaded version..."
-    npm run test --prefix ./wasm
+    test_wasm
 }
 
 package_wasm() {
@@ -378,7 +404,7 @@ build_mujoco_live() {
         -DMUJOCO_BUILD_TESTS=OFF \
         -DMUJOCO_BUILD_EXAMPLES=OFF \
         -DMUJOCO_BUILD_SIMULATE=OFF
-    cmake --build build_host --target matc resgen cmgen mujoco_filament_assets -j$(nproc)
+    cmake --build build_host --target matc resgen cmgen mujoco_filament_assets -j"${NJOBS}"
 
     echo "Building WASM app..."
     emcmake cmake -S . -B build_wasm -G Ninja \
@@ -387,7 +413,372 @@ build_mujoco_live() {
         -DMUJOCO_USE_FILAMENT=ON \
         -DMUJOCO_BUILD_TESTS_WASM=OFF \
         -DMUJOCO_NATIVE_BUILD_DIR=$(pwd)/build_host
-    cmake --build build_wasm --target mujoco_studio -j$(nproc)
+    cmake --build build_wasm --target mujoco_studio -j"${NJOBS}"
+}
+
+
+# ---------------------------------------------------------------------------
+# Modular developer steps for MuJoCo Studio and the self-contained wheel.
+#
+# All of them run from the repository top level and use these trees:
+#   build/                the engine build (build_engine) or a configure_studio tree
+#   build_simulate/       the engine + classic simulate app, no Filament
+#   build_host/           the native Studio host build: platform library, Filament
+#                         tools, staged assets, engine plugins, the mujoco_studio app
+#   build_wasm/           the Emscripten build of the browser client
+#   build/mujoco_install/ the SDK the Python extensions compile against
+#
+# The primitives are idempotent and incremental, so the workflows are flat
+# lists of primitives, any step can be run in any order, and a repeated step
+# costs seconds rather than a rebuild.
+# ---------------------------------------------------------------------------
+
+# --- primitives ------------------------------------------------------------
+
+# Packages an sdist and builds the wheel from it against the SDK at $1, into
+# python/dist. The wheel is always compiled from the sdist in pip's own
+# temporary tree, so this is a full build rather than an incremental one.
+_build_python_wheel() {
+    local prefix="$1"
+    # A clean python/dist keeps the wheel glob below unambiguous.
+    rm -rf python/dist
+    (cd python && ./make_sdist.sh)
+
+    # See build_python_bindings for why CCACHE_BASEDIR/SLOPPINESS are set.
+    # ccache is what keeps repeated wheel builds bearable.
+    export CCACHE_BASEDIR="${TMPDIR:-$(pwd)}"
+    export CCACHE_SLOPPINESS="time_macros,include_file_mtime,include_file_ctime,pch_defines,locale"
+    MUJOCO_PATH="${prefix}" \
+    MUJOCO_PLUGIN_PATH="${prefix}/mujoco_plugin" \
+    MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${CCACHE_ARGS} ${CMAKE_ARGS}" \
+    pip wheel -v --no-deps -w python/dist python/dist/mujoco-*.tar.gz
+}
+
+
+# _build_python_wheel followed by an install into the active virtualenv
+# (VIRTUAL_ENV or CONDA_DEFAULT_ENV); without one it prints a note and skips.
+_install_python_wheel() {
+    local prefix="$1"
+    if [[ -z "${VIRTUAL_ENV:-}" && -z "${CONDA_DEFAULT_ENV:-}" ]]; then
+        echo "NOTE: no active virtualenv (VIRTUAL_ENV / CONDA_DEFAULT_ENV); skipping the Python install."
+        return 0
+    fi
+    echo "Building and installing the Python bindings against ${prefix}..."
+    _build_python_wheel "${prefix}"
+    # --force-reinstall --no-deps replaces whatever mujoco is installed with the
+    # one just built, without disturbing the rest of the environment. It also
+    # installs none of the wheel's runtime dependencies, so the plain install
+    # that follows adds those (websockets, which the web viewer server needs,
+    # among them) and leaves the freshly installed mujoco alone.
+    pip install --force-reinstall --no-deps python/dist/mujoco-*.whl
+    pip install python/dist/mujoco-*.whl
+}
+
+
+
+# True when the build tree $1 holds the Studio platform library.
+_has_studio_platform() {
+    [[ -f "$1/lib/libmujoco_studio_platform.a" || \
+       -f "$1/lib/mujoco_studio_platform.lib" || \
+       -f "$1/bin/Release/mujoco_studio_platform.lib" ]]
+}
+
+
+# Prints the tree holding the native Studio host build (platform library and
+# Filament tools): MUJOCO_NATIVE_BUILD_DIR when set, else build/ when it was
+# configured with Studio, else build_host/.
+_resolve_studio_host_dir() {
+    if [[ -n "${MUJOCO_NATIVE_BUILD_DIR:-}" && -d "${MUJOCO_NATIVE_BUILD_DIR}" ]]; then
+        echo "${MUJOCO_NATIVE_BUILD_DIR}"
+    elif _has_studio_platform build; then
+        echo "$(pwd)/build"
+    else
+        echo "$(pwd)/build_host"
+    fi
+}
+
+
+# Configures build_host/ once (no-op afterwards).
+_configure_studio_host() {
+    if [[ -f build_host/CMakeCache.txt ]]; then
+        return 0
+    fi
+    echo "Configuring the native Studio host build..."
+    cmake -S . -B build_host -G Ninja \
+        -DCMAKE_BUILD_TYPE:STRING=Release \
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
+        -DUSE_STATIC_LIBCXX=OFF \
+        -DMUJOCO_BUILD_STUDIO=ON \
+        -DMUJOCO_USE_FILAMENT=ON \
+        -DMUJOCO_BUILD_TESTS=OFF \
+        -DMUJOCO_BUILD_EXAMPLES=OFF \
+        -DMUJOCO_BUILD_SIMULATE=OFF \
+        ${CCACHE_ARGS} \
+        ${CMAKE_ARGS}
+}
+
+
+# The native Studio platform without the app: the platform library (its
+# closure includes the Filament tools matc, resgen and cmgen the browser
+# client build imports), the staged runtime assets (fonts + compiled
+# materials, target mujoco_studio_assets) and the engine plugins the wheel
+# ships. main.cc / launcher.cc are never compiled here. A host build provided
+# by MUJOCO_NATIVE_BUILD_DIR or by a Studio build in build/ is used as is.
+build_studio_platform_libs() {
+    local host_dir
+    host_dir="$(_resolve_studio_host_dir)"
+    if [[ "${host_dir}" != "$(pwd)/build_host" ]]; then
+        echo "Using the existing Studio host build in ${host_dir}"
+        return 0
+    fi
+    _configure_studio_host
+    echo "Building the Studio platform libraries, assets and engine plugins..."
+    cmake --build build_host -j"${NJOBS}" \
+        --target mujoco_studio_platform mujoco_studio_assets actuator elasticity sensor sdf_plugin
+}
+
+
+# The C++ Studio viewer app (mujoco_studio) with its plugins, in the host
+# tree. The fast path for C engine and C++ GUI work: an edit recompiles its
+# translation unit and relinks.
+build_studio_cpp_viewer() {
+    local host_dir
+    host_dir="$(_resolve_studio_host_dir)"
+    if [[ "${host_dir}" == "$(pwd)/build_host" ]]; then
+        _configure_studio_host
+    fi
+    echo "Building the C++ Studio viewer app (mujoco_studio) in ${host_dir}..."
+    cmake --build "${host_dir}" -j"${NJOBS}" \
+        --target mujoco_studio actuator elasticity sensor sdf_plugin
+}
+
+
+# Gathers the headers, static archives, plugins and assets the Python
+# extensions compile against from the host build into build/mujoco_install/.
+install_studio_platform() {
+    echo "Gathering the headers + libraries the Studio Python modules compile against..."
+    local build_dir prefix deps plugin_ext plugin_dir
+    build_dir="$(_resolve_studio_host_dir)"
+    # Recreate the prefix every time. cmake --install and the copies below only
+    # ever add files, so after a version bump the previous engine library
+    # (libmujoco.so.<old version>) would stay here next to the new one, and
+    # setup.py, which packages every libmujoco.so.* it finds, would ship both.
+    # The copies keep timestamps, so repeated Python builds stay incremental.
+    rm -rf build/mujoco_install
+    mkdir -p build/mujoco_install
+    prefix="$(cd build/mujoco_install && pwd)"
+    # Per-OS engine-plugin layout.
+    case "$(uname -s)" in
+        Darwin) plugin_ext="dylib"; plugin_dir="${build_dir}/lib" ;;
+        MINGW*|MSYS*|CYGWIN*) plugin_ext="dll"; plugin_dir="${build_dir}/bin" ;;
+        *) plugin_ext="so"; plugin_dir="${build_dir}/lib" ;;
+    esac
+
+    # Portable copy helpers. They preserve timestamps (cp -p): the Python
+    # extensions depend on these headers, so a copy that looked new would make
+    # every rebuild recompile everything.
+    _copy_headers() {  # $1=src dir, $2=dst dir — only *.h/*.inl, keep subdirs
+        local s="${1%/}"
+        (cd "${s}" && find . \( -name '*.h' -o -name '*.inl' \) -print0 |
+            while IFS= read -r -d '' f; do
+                mkdir -p "$2/${f%/*}" && cp -p "${f}" "$2/${f}"
+            done)
+    }
+    _copy_tree() {  # $1=src dir, $2=dst dir — the whole subtree
+        local s="${1%/}"
+        mkdir -p "$2" && cp -rp "${s}/." "$2/"
+    }
+
+    # 1. Standard install: libmujoco (runtime), headers + archives (dev), the
+    #    export and models (Unspecified). Not the studio component: it holds
+    #    the app, which the Python builds do not need and may not have built.
+    local component
+    for component in runtime dev Unspecified; do
+        cmake --install "${build_dir}" --prefix "${prefix}" --component "${component}"
+    done
+
+    # 2. Engine plugins (setup.py packages them from MUJOCO_PLUGIN_PATH).
+    mkdir -p "${prefix}/mujoco_plugin"
+    for plugin in actuator elasticity sensor sdf_plugin; do
+        find "${plugin_dir}" -name "*${plugin}.${plugin_ext}" \
+            -exec cp {} "${prefix}/mujoco_plugin/" \; 2>/dev/null || true
+    done
+
+    # 3. Static archives: mujoco_platform + every dependency archive; the Python
+    #    build looks each one up by name with find_library().
+    mkdir -p "${prefix}/lib"
+    find "${build_dir}" \( -name "*.a" -o -name "*.lib" \) -exec cp -up {} "${prefix}/lib/" \;
+
+    # 4. Source-tree headers for platform / filament-compat / render.
+    _copy_headers src/experimental "${prefix}/include/mujoco/experimental"
+    _copy_headers src/render "${prefix}/include/mujoco/render"
+
+    # 5. Third-party headers.
+    deps="${build_dir}/_deps"
+    # Dear ImGui.
+    cp -p "${deps}/dear_imgui-src/"im*.h "${prefix}/include/"
+    mkdir -p "${prefix}/include/misc/cpp"
+    cp -p "${deps}/dear_imgui-src/misc/cpp/imgui_stdlib.h" "${prefix}/include/misc/cpp/"
+    mkdir -p "${prefix}/include/backends"
+    cp -p "${deps}/dear_imgui-src/backends/"imgui_impl_{sdl2,opengl3}.h \
+        "${prefix}/include/backends/" 2>/dev/null || true
+    # ImPlot.
+    cp -p "${deps}/implot-src/"implot*.h "${prefix}/include/"
+    # SDL2.
+    mkdir -p "${prefix}/include/SDL2"
+    cp -p "${deps}/sdl2-src/include/"*.h "${prefix}/include/SDL2/"
+    cp -fp "${deps}/sdl2-build/include/"*.h "${prefix}/include/SDL2/" 2>/dev/null || true
+    cp -fp "${deps}/sdl2-build/include-config-"*/*.h "${prefix}/include/SDL2/" 2>/dev/null || true
+    # Filament support libraries (math/, utils/, filament/, backend/, ...).
+    for lib in math utils filament backend filabridge ibl; do
+        [[ -d "${deps}/filament-src/libs/${lib}/include/" ]] &&
+            _copy_tree "${deps}/filament-src/libs/${lib}/include" "${prefix}/include"
+    done
+    _copy_tree "${deps}/filament-src/filament/include" "${prefix}/include"
+    _copy_tree "${deps}/filament-src/filament/backend/include" "${prefix}/include"
+
+    # 6. Studio runtime assets (fonts + Filament materials), staged by the
+    #    mujoco_studio_assets target.
+    if [[ ! -d "${build_dir}/bin/assets" ]]; then
+        echo "ERROR: ${build_dir}/bin/assets is missing; build the mujoco_studio_assets target first" >&2
+        return 1
+    fi
+    mkdir -p "${prefix}/assets"
+    cp -rp "${build_dir}/bin/assets/." "${prefix}/assets/"
+
+    echo "Gathered Studio platform compile inputs at ${prefix}"
+}
+
+
+# The web viewer browser client (WASM) in
+# python/mujoco/experimental/studio/web/dist/. The output is
+# platform-independent. It needs the host Filament tools, so the platform
+# libraries come first (a no-op once built). Installs Emscripten into ./emsdk
+# when it is missing. Configures build_wasm/ once; Ninja re-runs CMake by
+# itself when a CMakeLists changes, and the tree is reconfigured when it was
+# built against another host tree.
+build_studio_wasm() {
+    if [[ ! -d emsdk ]]; then
+        setup_emsdk
+    fi
+    source emsdk/emsdk_env.sh
+
+    build_studio_platform_libs
+    local host_dir
+    host_dir="$(_resolve_studio_host_dir)"
+
+    if [[ ! -f build_wasm/CMakeCache.txt ]] ||
+       ! grep -q "^MUJOCO_NATIVE_BUILD_DIR:[A-Z]*=${host_dir}\$" build_wasm/CMakeCache.txt; then
+        echo "Configuring the web viewer browser client (WASM) with host tools from ${host_dir}..."
+        emcmake cmake -S . -B build_wasm -G Ninja \
+            -DCMAKE_BUILD_TYPE:STRING=Release \
+            -DMUJOCO_BUILD_STUDIO=ON \
+            -DMUJOCO_USE_FILAMENT=ON \
+            -DMUJOCO_BUILD_TESTS_WASM=OFF \
+            -DMUJOCO_NATIVE_BUILD_DIR:PATH="${host_dir}" \
+            ${CCACHE_ARGS}
+    fi
+    echo "Building the web viewer browser client (WASM)..."
+    cmake --build build_wasm --target web_client -j"${NJOBS}"
+}
+
+
+# --- workflows -------------------------------------------------------------
+
+# Builds libmujoco into build/, installs it with the engine plugins under
+# ${TMPDIR:-build}/mujoco_install, then builds and installs the core Python
+# bindings (Studio modules are skipped: this SDK has no Studio platform).
+build_engine() {
+    echo "Building the MuJoCo engine..."
+    local prefix="${TMPDIR:-$(pwd)/build}/mujoco_install"
+    # See configure_mujoco for why IPO stays on for Windows.
+    local ipo_off="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF"
+    if [[ "${RUNNER_OS}" == "Windows" ]]; then
+        ipo_off=""
+    fi
+    cmake -S . -B build -G Ninja \
+        -DCMAKE_BUILD_TYPE:STRING=Release \
+        ${ipo_off} \
+        -DCMAKE_INSTALL_PREFIX:PATH="${prefix}" \
+        -DMUJOCO_BUILD_EXAMPLES:BOOL=OFF \
+        ${CCACHE_ARGS} \
+        ${CMAKE_ARGS}
+    cmake --build build -j"${NJOBS}"
+    cmake --install build --prefix "${prefix}"
+
+    mkdir -p "${prefix}/mujoco_plugin"
+    local plugin
+    for plugin in actuator elasticity sensor sdf_plugin; do
+        find build/lib build/bin -maxdepth 2 \
+            \( -name "lib${plugin}.so" -o -name "lib${plugin}.dylib" -o -name "${plugin}.dll" \) \
+            -exec cp {} "${prefix}/mujoco_plugin/" \; 2>/dev/null || true
+    done
+
+    _install_python_wheel "${prefix}"
+}
+
+
+# The engine and the classic simulate app, no Filament, Dear ImGui, Emscripten
+# or Python: the fastest loop for C engine work. Its own tree, build_simulate/,
+# so it never collides with build/ (engine + tests, or a configure_studio
+# tree). CI's configure_simulate / build_simulate are a different thing: they
+# build the simulate/ sample against an installed MuJoCo.
+build_simulate_app() {
+    if [[ ! -f build_simulate/CMakeCache.txt ]]; then
+        echo "Configuring the engine + simulate build..."
+        local ipo_off="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF"
+        if [[ "${RUNNER_OS}" == "Windows" ]]; then
+            ipo_off=""
+        fi
+        cmake -S . -B build_simulate -G Ninja \
+            -DCMAKE_BUILD_TYPE:STRING=Release \
+            ${ipo_off} \
+            -DMUJOCO_BUILD_SIMULATE=ON \
+            -DMUJOCO_BUILD_STUDIO=OFF \
+            -DMUJOCO_BUILD_TESTS=OFF \
+            -DMUJOCO_BUILD_EXAMPLES=OFF \
+            ${CCACHE_ARGS} \
+            ${CMAKE_ARGS}
+    fi
+    echo "Building the engine and simulate..."
+    cmake --build build_simulate --target simulate -j"${NJOBS}"
+    echo "Built build_simulate/bin/simulate"
+}
+
+
+# The Python Studio viewer: platform libraries, SDK, then the Studio Python
+# modules (ux, sim, renderer, window, dear_imgui, implot, headless_ui,
+# state_payload, _render_filament) built into a wheel and installed. The
+# browser client and the C++ app are not built.
+build_studio_python() {
+    echo "Building the Studio platform for Python..."
+    build_studio_platform_libs
+    install_studio_platform
+    _install_python_wheel "$(cd build/mujoco_install && pwd)"
+}
+
+
+# Everything Python-facing: build_studio_python plus the browser client, so the
+# installed wheel also carries web/dist.
+build_studio_all() {
+    echo "Building the complete Studio suite..."
+    build_studio_platform_libs
+    build_studio_wasm
+    install_studio_platform
+    _install_python_wheel "$(cd build/mujoco_install && pwd)"
+}
+
+
+# Builds the self-contained wheel: platform libraries, SDK and browser client,
+# then a clean sdist (it carries web/dist, see MANIFEST.in) and the wheel from
+# it. Unlike build_studio_all it does not install the result. The C++ app is
+# not built.
+build_wheel() {
+    echo "Building the self-contained MuJoCo Python wheel..."
+    build_studio_platform_libs
+    install_studio_platform
+    build_studio_wasm
+    _build_python_wheel "$(cd build/mujoco_install && pwd)"
 }
 
 
