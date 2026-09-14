@@ -611,8 +611,8 @@ void ModelRenderables::UpdateSpatialTendons(const mjData* data, int tendon_id) {
   }
 
   if (vopts_.flags[mjVIS_ISLAND]) {
-    const int ecf = data->tendon_efcadr[tendon_id];
-    if (data->nisland && ecf >= 0) {
+    const int ecf = data->nisland ? data->tendon_efcadr[tendon_id] : -1;
+    if (ecf >= 0) {
       material.island_id = data->island_dofadr[data->efc_island[ecf]];
       material.sleep_state = mjS_AWAKE;
     }
