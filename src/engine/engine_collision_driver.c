@@ -1943,6 +1943,103 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
 }
 
 
+// populate contacts from mjPreContact array; allocate in arena
+static void addPairContacts(const mjModel* m, mjData* d, const mjPreContact* precon, int ncon,
+                            const mjcPair* pair, const int* elem, const int* vert) {
+  if (!ncon) {
+    return;
+  }
+
+  mjContact* con = (mjContact*) mj_arenaAllocByte(d, sizeof(mjContact) * ncon, _Alignof(mjContact));
+  if (!con) {
+    mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
+    return;
+  }
+  d->ncon += ncon;
+
+  int condim = 0;
+  mjtNum margin = 0;
+  mjtNum friction[5] = {0}, solref[mjNREF] = {0}, solimp[mjNIMP] = {0}, adhesion = 0;
+  mjtNum solreffriction[mjNREF] = {0};
+
+  int g1 = -1, g2 = -1, f1 = -1, f2 = -1;
+  int e1 = -1, e2 = -1, v1 = -1, v2 = -1;
+
+  switch (pair->type) {
+    case mjCPAIR_GEOM_GEOM: {
+      g1 = pair->geom_geom.g1;
+      g2 = pair->geom_geom.g2;
+      int ipair = pair->geom_geom.ipair;
+      margin = getMargin(m, g1, g2, ipair);
+      if (ipair >= 0) {
+        condim = m->pair_dim[ipair];
+        mju_copy(solref, m->pair_solref + mjNREF * ipair, mjNREF);
+        mju_copy(solimp, m->pair_solimp + mjNIMP * ipair, mjNIMP);
+        mju_copy(friction, m->pair_friction + 5 * ipair, 5);
+        adhesion = m->pair_adhesion[ipair];
+        if (m->pair_solreffriction[mjNREF * ipair] || m->pair_solreffriction[mjNREF * ipair + 1]) {
+          mju_copy(solreffriction, m->pair_solreffriction + mjNREF * ipair, mjNREF);
+        }
+      } else {
+        mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, g1, g2, -1, -1);
+      }
+      break;
+    }
+
+    case mjCPAIR_GEOM_FLEX:
+      g1 = pair->geom_flex.g;
+      f2 = pair->geom_flex.f;
+      margin = mj_assignMargin(m, m->geom_margin[g1] + m->flex_margin[f2]);
+      mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, g1, -1, -1, f2);
+      break;
+
+    case mjCPAIR_GEOM_ELEM:
+      g1 = pair->geom_elem.g;
+      f2 = pair->geom_elem.f;
+      e2 = pair->geom_elem.e;
+      margin = mj_assignMargin(m, m->geom_margin[g1] + m->flex_margin[f2]);
+      mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, g1, -1, -1, f2);
+      break;
+
+    case mjCPAIR_ELEM_ELEM:
+      f1 = pair->elem_elem.f1;
+      e1 = pair->elem_elem.e1;
+      f2 = pair->elem_elem.f2;
+      e2 = pair->elem_elem.e2;
+      margin = (f1 == f2) ? 0 : mj_assignMargin(m, m->flex_margin[f1] + m->flex_margin[f2]);
+      mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, -1, -1, f1, f2);
+      break;
+
+    case mjCPAIR_ELEM_VERT:
+      f1 = pair->elem_vert.f;
+      f2 = pair->elem_vert.f;
+      e2 = pair->elem_vert.e;
+      v1 = pair->elem_vert.v;
+      margin = 0;  // ignore margin
+      mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, -1, -1, f1, f2);
+      break;
+  }
+
+  for (int i = 0; i < ncon; i++) {
+    con[i].dist = precon[i].dist;
+    mji_copy3(con[i].pos, precon[i].pos);
+    mji_copy3(con[i].frame + 0, precon[i].normal);
+    mji_copy3(con[i].frame + 3, precon[i].tangent);
+
+    con[i].geom[0] = g1;
+    con[i].geom[1] = g2;
+    con[i].flex[0] = f1;
+    con[i].flex[1] = f2;
+    con[i].elem[0] = e1;
+    con[i].elem[1] = elem ? elem[i] : e2;
+    con[i].vert[0] = v1;
+    con[i].vert[1] = vert ? vert[i] : v2;
+
+    mj_setContact(m, con + i, condim, margin, solref, solreffriction, solimp, friction, adhesion);
+  }
+}
+
+
 // compute contacts for a batch of collision pairs contained in a buffer of
 // stride 3 ints (g1, g2, ipair)
 // if buffer is NULL, results are read from arena starting at parena
@@ -2004,71 +2101,15 @@ static void mj_narrowphase(const mjModel* m, mjData* d, const mjcPair* buffer, i
     mj_freeStack(d);
   }
 
-  int ncon = 0;
-  for (int i = 0; i < npair; i++) {
-    ncon += arg.nconbuffer[i];
-  }
-
-  if (ncon == 0) {
-    mj_freeStack(d);
-    return;
-  }
-
-  // try allocate contact buffer in arena
-  mjContact* con =
-    (mjContact*) mj_arenaAllocByte(d, sizeof(mjContact) * ncon, _Alignof(mjContact));
-  if (!con) {
-    mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
-    mj_freeStack(d);
-    return;
-  }
-  d->ncon += ncon;
-
   // fill in contact data
-  int conpos = 0;
   for (int i = 0; i < npair; i++) {
-    if (!(ncon = arg.nconbuffer[i]))
+    int ncon = arg.nconbuffer[i];
+    if (!ncon) {
       continue;
-
-    int condim;
-    mjtNum friction[5], solref[mjNREF], solimp[mjNIMP], adhesion;
-    mjtNum solreffriction[mjNREF] = {0};
-    int g1 = pairbuffer[i].geom_geom.g1;
-    int g2 = pairbuffer[i].geom_geom.g2;
-    int ipair = pairbuffer[i].geom_geom.ipair;
-
-    if (ipair >= 0) {
-      condim = m->pair_dim[ipair];
-      mju_copy(solref, m->pair_solref+mjNREF*ipair, mjNREF);
-      mju_copy(solimp, m->pair_solimp+mjNIMP*ipair, mjNIMP);
-      mju_copy(friction, m->pair_friction+5*ipair, 5);
-      adhesion = m->pair_adhesion[ipair];
-      if (m->pair_solreffriction[mjNREF*ipair] || m->pair_solreffriction[mjNREF*ipair + 1]) {
-        mju_copy(solreffriction, m->pair_solreffriction+mjNREF*ipair, mjNREF);
-      }
-    } else {
-      mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, g1, g2, -1, -1);
     }
 
-    mjPreContact* bc = arg.conbuffer + pairbuffer[i].conpos;
-    margin = getMargin(m, g1, g2, ipair);
-    for (int j=0; j < ncon; j++) {
-      mjContact* c = con + conpos + j;
-      c->dist = bc[j].dist;
-      mji_copy3(c->pos, bc[j].pos);
-      mji_copy3(c->frame, bc[j].normal);
-      mji_copy3(c->frame + 3, bc[j].tangent);
-      c->geom[0] = g1;
-      c->geom[1] = g2;
-      c->flex[0] = -1;
-      c->flex[1] = -1;
-      c->elem[0] = -1;
-      c->elem[1] = -1;
-      c->vert[0] = -1;
-      c->vert[1] = -1;
-      mj_setContact(m, c, condim, margin, solref, solreffriction, solimp, friction, adhesion);
-    }
-    conpos += ncon;
+    addPairContacts(m, d, arg.conbuffer + pairbuffer[i].conpos, ncon,
+                    pairbuffer + i, NULL, NULL);
   }
   mj_freeStack(d);
 }
@@ -2089,35 +2130,11 @@ static void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f) {
 
   int ncon = mjc_PlaneFlex(m, d, precon, vert, g, f, margin + gap);
 
-  if (ncon) {
-    int condim;
-    mjtNum solref[mjNREF], solimp[mjNIMP], friction[5], adhesion;
-    mjtNum solreffriction[mjNREF] = {0};
-    mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, g, -1, -1, f);
-
-    mjContact con;
-    memset(&con, 0, sizeof(mjContact));
-    for (int i = 0; i < ncon; i++) {
-      con.dist = precon[i].dist;
-      mju_copy3(con.pos, precon[i].pos);
-      mju_copy3(con.frame, precon[i].normal);
-      mju_zero3(con.frame + 3);
-
-      con.geom[0] = g;
-      con.geom[1] = -1;
-      con.flex[0] = -1;
-      con.flex[1] = f;
-      con.elem[0] = -1;
-      con.elem[1] = -1;
-      con.vert[0] = -1;
-      con.vert[1] = vert[i];
-
-      mj_setContact(m, &con, condim, margin, solref, solreffriction, solimp, friction, adhesion);
-      if (mj_addContact(m, d, &con)) {
-        break;
-      }
-    }
-  }
+  mjcPair pair;
+  defaultPair(&pair, mjCPAIR_GEOM_FLEX);
+  pair.geom_flex.g = g;
+  pair.geom_flex.f = f;
+  addPairContacts(m, d, precon, ncon, &pair, NULL, vert);
 
   mj_freeStack(d);
 }
@@ -2133,10 +2150,6 @@ static void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f) {
   // prepare contact parameters (same for all contacts)
   mjtNum margin = mj_assignMargin(m, m->geom_margin[g] + m->flex_margin[f]);
   mjtNum gap = m->geom_gap[g] + m->flex_gap[f];
-  int condim;
-  mjtNum solref[mjNREF], solimp[mjNIMP], friction[5], adhesion;
-  mjtNum solreffriction[mjNREF] = {0};
-  mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, g, -1, -1, f);
 
   // allocate temporary contact array on stack (zero-initialized)
   mj_markStack(d);
@@ -2146,35 +2159,11 @@ static void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f) {
   // call batched flex-SDF collision
   int num = mjc_FlexSDF(m, d, precon, elem, g, f, margin + gap);
 
-  // add contacts to mjData
-  mjContact con;
-  memset(&con, 0, sizeof(mjContact));
-  for (int i = 0; i < num; i++) {
-    // copy properties from mjPreContact to mjContact
-    con.dist = precon[i].dist;
-    mju_copy3(con.pos, precon[i].pos);
-    mju_copy3(con.frame, precon[i].normal);
-    mju_copy3(con.frame + 3, precon[i].tangent);
-
-    // set contact ids
-    con.geom[0] = g;
-    con.geom[1] = -1;
-    con.flex[0] = -1;
-    con.flex[1] = f;
-    con.elem[0] = -1;
-    con.elem[1] = elem[i];
-    con.vert[0] = -1;
-    con.vert[1] = -1;
-
-    // set remaining contact parameters
-    mj_setContact(m, &con, condim, margin, solref, solreffriction, solimp, friction, adhesion);
-
-    // add to mjData, abort if too many contacts
-    if (mj_addContact(m, d, &con)) {
-      mj_freeStack(d);
-      return;
-    }
-  }
+  mjcPair pair;
+  defaultPair(&pair, mjCPAIR_GEOM_FLEX);
+  pair.geom_flex.g = g;
+  pair.geom_flex.f = f;
+  addPairContacts(m, d, precon, num, &pair, elem, NULL);
 
   mj_freeStack(d);
 }
@@ -2367,50 +2356,13 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
 
   int num = mjc_GeomElem(m, d, precon, g, f, e, margin + gap);
 
-  // check contacts
-  if (!num) {
-    mj_freeStack(d);
-    return;
-  }
+  mjcPair pair;
+  defaultPair(&pair, mjCPAIR_GEOM_ELEM);
+  pair.geom_elem.g = g;
+  pair.geom_elem.f = f;
+  pair.geom_elem.e = e;
+  addPairContacts(m, d, precon, num, &pair, NULL, NULL);
 
-  // get contact parameters
-  int condim;
-  mjtNum friction[5], solref[mjNREF], solimp[mjNIMP], adhesion;
-  mjtNum solreffriction[mjNREF] = {0};
-  mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, g, -1, -1, f);
-
-  // allocate mjContact[num] on the arena
-  mjContact* con =
-    (mjContact*) mj_arenaAllocByte(d, sizeof(mjContact) * num, _Alignof(mjContact));
-  if (!con) {
-    mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
-    mj_freeStack(d);
-    return;
-  }
-
-  // add contacts
-  for (int i = 0; i < num; i++) {
-    // set contact ids
-    con[i].geom[0] = g;
-    con[i].geom[1] = -1;
-    con[i].flex[0] = -1;
-    con[i].flex[1] = f;
-    con[i].elem[0] = -1;
-    con[i].elem[1] = e;
-    con[i].vert[0] = -1;
-    con[i].vert[1] = -1;
-
-    con[i].dist = precon[i].dist;
-    mju_copy3(con[i].pos, precon[i].pos);
-    mju_copy3(con[i].frame + 0, precon[i].normal);
-    mju_copy3(con[i].frame + 3, precon[i].tangent);
-
-    // set remaining contact parameters
-    mj_setContact(m, con + i, condim, margin, solref, solreffriction, solimp, friction, adhesion);
-  }
-
-  // add to ncon
-  d->ncon += num;
   mj_freeStack(d);
 }
 
@@ -2431,48 +2383,14 @@ void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2
 
   int num = mjc_ElemElem(m, d, precon, f1, e1, f2, e2, margin + gap);
 
-  // check contacts
-  if (!num) {
-    mj_freeStack(d);
-    return;
-  }
+  mjcPair pair;
+  defaultPair(&pair, mjCPAIR_ELEM_ELEM);
+  pair.elem_elem.f1 = f1;
+  pair.elem_elem.e1 = e1;
+  pair.elem_elem.f2 = f2;
+  pair.elem_elem.e2 = e2;
+  addPairContacts(m, d, precon, num, &pair, NULL, NULL);
 
-  // get contact parameters
-  int condim;
-  mjtNum friction[5], solref[mjNREF], solimp[mjNIMP], adhesion;
-  mjtNum solreffriction[mjNREF] = {0};
-  mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, -1, -1, f1, f2);
-
-  mjContact* con = (mjContact*) mj_arenaAllocByte(d, sizeof(mjContact) * num, _Alignof(mjContact));
-  if (!con) {
-    mj_freeStack(d);
-    mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
-    return;
-  }
-
-  // add contacts
-  for (int i = 0; i < num; i++) {
-    // set contact ids
-    con[i].geom[0] = -1;
-    con[i].geom[1] = -1;
-    con[i].flex[0] = f1;
-    con[i].flex[1] = f2;
-    con[i].elem[0] = e1;
-    con[i].elem[1] = e2;
-    con[i].vert[0] = -1;
-    con[i].vert[1] = -1;
-
-    con[i].dist = precon[i].dist;
-    mju_copy3(con[i].pos, precon[i].pos);
-    mju_copy3(con[i].frame + 0, precon[i].normal);
-    mju_copy3(con[i].frame + 3, precon[i].tangent);
-
-    // set remaining contact parameters
-    mj_setContact(m, con + i, condim, margin, solref, solreffriction, solimp, friction, adhesion);
-  }
-
-  // add to ncon
-  d->ncon += num;
   mj_freeStack(d);
 }
 
@@ -2487,50 +2405,12 @@ void mj_collideElemVert(const mjModel* m, mjData* d, int f, int e, int v) {
 
   int num = mjc_ElemVert(m, d, precon, f, e, v, margin);
 
-  // check contacts
-  if (!num) {
-    mj_freeStack(d);
-    return;
-  }
-
-  // get contact parameters
-  int condim;
-  mjtNum friction[5], solref[mjNREF], solimp[mjNIMP], adhesion;
-  mjtNum solreffriction[mjNREF] = {0};
-  mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, -1, -1, f, f);
-
-  // allocate mjContact[num] on the arena
-  mjContact* con =
-    (mjContact*) mj_arenaAllocByte(d, sizeof(mjContact) * num, _Alignof(mjContact));
-  if (!con) {
-    mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
-    mj_freeStack(d);
-    return;
-  }
-
-  // add contacts
-  for (int i = 0; i < num; i++) {
-    // set contact ids
-    con[i].geom[0] = -1;
-    con[i].geom[1] = -1;
-    con[i].flex[0] = f;
-    con[i].flex[1] = f;
-    con[i].elem[0] = -1;
-    con[i].elem[1] = e;
-    con[i].vert[0] = v;
-    con[i].vert[1] = -1;
-
-    con[i].dist = precon[i].dist;
-    mju_copy3(con[i].pos, precon[i].pos);
-    mju_copy3(con[i].frame + 0, precon[i].normal);
-    mju_copy3(con[i].frame + 3, precon[i].tangent);
-
-    // set remaining contact parameters
-    mj_setContact(m, con + i, condim, 0, solref, solreffriction, solimp, friction, adhesion);
-  }
-
-  // add to ncon
-  d->ncon += num;
+  mjcPair pair;
+  defaultPair(&pair, mjCPAIR_ELEM_VERT);
+  pair.elem_vert.f = f;
+  pair.elem_vert.e = e;
+  pair.elem_vert.v = v;
+  addPairContacts(m, d, precon, num, &pair, NULL, NULL);
 
   mj_freeStack(d);
 }
