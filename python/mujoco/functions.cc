@@ -1686,7 +1686,9 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
       [](MjDataWrapper& d, int ncon, int nefc, int nJ) {
         raw::MjData* data = d.get();
 
-        auto cleanup = [](raw::MjData* data, int nJ) {
+        // discard all contacts and constraint rows: like mj_clearEfc, clear the
+        // arena pointers and every count that sizes or indexes them
+        auto cleanup = [](raw::MjData* data) {
 #ifdef ADDRESS_SANITIZER
         ASAN_POISON_MEMORY_REGION(
             static_cast<char*>(data->arena),
@@ -1694,8 +1696,12 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
 #endif
           data->parena = 0;
           data->ncon = 0;
-          data->nefc = 0;
-          if (nJ > -1) data->nJ = 0;
+          data->ne = data->nf = data->nl = data->nefc = 0;
+          data->nisland = data->nidof = 0;
+          data->nJ = data->nY = data->nA = 0;
+          data->efm_active = 0;
+          data->nefmT = data->nefmA = data->nefmK = data->nefmL = 0;
+          data->nefmdof = data->nefmcon = 0;
           data->contact = static_cast<raw::MjContact*>(data->arena);
 #define X(type, name, nr, nc) data->name = nullptr;
           MJDATA_ARENA_POINTERS_SOLVER
@@ -1710,15 +1716,16 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
         const char* error_msg_fmt =
             "Insufficient arena memory, currently allocated memory=\"%s\". "
             "Increase using <size memory=\"X\"/>.";
-        cleanup(data, nJ);
+        if (nJ < 0) nJ = data->nJ;  // by default, keep the current size
+        cleanup(data);
         data->ncon = ncon;
         data->nefc = nefc;
-        if (nJ > -1) data->nJ = nJ;
+        data->nJ = nJ;
         data->contact =
             static_cast<raw::MjContact*>(InterceptMjErrors(::mj_arenaAllocByte)(
                 data, ncon * sizeof(raw::MjContact), alignof(raw::MjContact)));
         if (!data->contact) {
-          cleanup(data, nJ);
+          cleanup(data);
           std::snprintf(error_msg, sizeof(error_msg), error_msg_fmt,
                         mju_writeNumBytes(data->narena));
           throw FatalError(error_msg);
@@ -1732,7 +1739,7 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
   data->name = static_cast<type*>(InterceptMjErrors(::mj_arenaAllocByte)( \
       data, sizeof(type) * (nr) * (nc), alignof(type)));                  \
   if (!data->name) {                                                      \
-    cleanup(data, nJ);                                                    \
+    cleanup(data);                                                        \
     std::snprintf(error_msg, sizeof(error_msg), error_msg_fmt,            \
                   mju_writeNumBytes(data->narena));                       \
     throw FatalError(error_msg);                                          \
@@ -1759,15 +1766,35 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
         size_t parena_start = data->parena;
         // Find island block start in arena to reclaim memory on re-allocation.
         char* min_ptr = nullptr;
-#define X(type, name, nr, nc)                                                   \
-        if (data->name &&                                                       \
-            (!min_ptr || reinterpret_cast<char*>(data->name) < min_ptr)) {      \
-          min_ptr = reinterpret_cast<char*>(data->name);                        \
-        }
+#define X(type, name, nr, nc)                                        \
+  if (data->name &&                                                  \
+      (!min_ptr || reinterpret_cast<char*>(data->name) < min_ptr)) { \
+    min_ptr = reinterpret_cast<char*>(data->name);                   \
+  }
         MJDATA_ARENA_POINTERS_ISLAND
 #undef X
+
+#undef MJ_M
+#define MJ_M(x) d.model().get()->x
+#undef MJ_D
+#define MJ_D(x) data->x
+        // Reclaim the island block only if no other arena array follows it; a
+        // forward pass allocates the dual and effective-metric arrays after it.
         if (min_ptr && data->arena) {
-          parena_start = min_ptr - static_cast<char*>(data->arena);
+          bool followed = false;
+#define X(type, name, nr, nc)                           \
+  if (data->name && (nr) * (nc) > 0 &&                  \
+      reinterpret_cast<char*>(data->name) >= min_ptr) { \
+    followed = true;                                    \
+  }
+          MJDATA_ARENA_POINTERS_CONTACT
+          MJDATA_ARENA_POINTERS_SOLVER
+          MJDATA_ARENA_POINTERS_DUAL
+          MJDATA_ARENA_POINTERS_EFM
+#undef X
+          if (!followed) {
+            parena_start = min_ptr - static_cast<char*>(data->arena);
+          }
         }
 
         auto cleanup = [](raw::MjData* data, size_t target_parena) {
@@ -1795,19 +1822,15 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
         data->nisland = nisland;
         data->nidof = nidof;
 
-#undef MJ_M
-#define MJ_M(x) d.model().get()->x
-#undef MJ_D
-#define MJ_D(x) data->x
-#define X(type, name, nr, nc)                                                   \
-        data->name = static_cast<type*>(InterceptMjErrors(::mj_arenaAllocByte)( \
-            data, sizeof(type) * (nr) * (nc), alignof(type)));                  \
-        if (!data->name) {                                                      \
-          cleanup(data, parena_start);                                          \
-          std::snprintf(error_msg, sizeof(error_msg), error_msg_fmt,            \
-                        mju_writeNumBytes(data->narena));                       \
-          throw FatalError(error_msg);                                          \
-        }
+#define X(type, name, nr, nc)                                             \
+  data->name = static_cast<type*>(InterceptMjErrors(::mj_arenaAllocByte)( \
+      data, sizeof(type) * (nr) * (nc), alignof(type)));                  \
+  if (!data->name) {                                                      \
+    cleanup(data, parena_start);                                          \
+    std::snprintf(error_msg, sizeof(error_msg), error_msg_fmt,            \
+                  mju_writeNumBytes(data->narena));                       \
+    throw FatalError(error_msg);                                          \
+  }
 
         MJDATA_ARENA_POINTERS_ISLAND
 #undef X
