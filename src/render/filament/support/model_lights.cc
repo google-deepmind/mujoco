@@ -294,9 +294,15 @@ void ModelLights::Update(const mjData* data) {
       mjrf_setLightTransform(light, pos.v, dir.v);
 
       const float3 color = ReadFloat3(model->light_diffuse, i);
-      mjrf_setLightColor(light, color.v);
-
       mjrf_setLightEnabled(light, model->light_active[i]);
+      mjrf_setLightColor(light, color.v);
+      mjrf_setLightIntensity(light, model->light_intensity[i]);
+      mjrf_setLightRange(light, model->light_range[i]);
+      mjrf_setLightCutoffAngle(light, model->light_cutoff[i]);
+      mjrf_setLightSoftness(light, model->light_softness[i]);
+      mjrf_setLightBulbRadius(light, model->light_bulbradius[i]);
+      mjrf_setLightBlurWidth(light, model->light_bulbradius[i]);
+      mjrf_setLightShadowsEnabled(light, model->light_castshadow[i]);
     }
   }
 }
