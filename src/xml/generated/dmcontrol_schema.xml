@@ -2019,7 +2019,7 @@
             <attribute name="class" type="reference" reference_namespace="default"/>
             <attribute name="group" type="int"/>
             <attribute name="limited" type="keyword" valid_values="false true auto" default="auto"/>
-            <attribute name="actuatorfrclimited" type="keyword" valid_values="false true auto"/>
+            <attribute name="actuatorfrclimited" type="keyword" valid_values="false true auto" default="auto"/>
             <attribute name="range" type="array" array_type="float" array_size="2"/>
             <attribute name="actuatorfrcrange" type="array" array_type="float" array_size="2"/>
             <attribute name="solreflimit" type="array" array_type="float" array_size="2" default="0.02 1"/>
@@ -2062,7 +2062,7 @@
             <attribute name="class" type="reference" reference_namespace="default"/>
             <attribute name="group" type="int"/>
             <attribute name="limited" type="keyword" valid_values="false true auto" default="auto"/>
-            <attribute name="actuatorfrclimited" type="keyword" valid_values="false true auto"/>
+            <attribute name="actuatorfrclimited" type="keyword" valid_values="false true auto" default="auto"/>
             <attribute name="range" type="array" array_type="float" array_size="2"/>
             <attribute name="actuatorfrcrange" type="array" array_type="float" array_size="2"/>
             <attribute name="solreflimit" type="array" array_type="float" array_size="2" default="0.02 1"/>

@@ -2156,6 +2156,25 @@ TEST_F(LimitedTest, ErrorIfForceLimitedMissingOnActuator) {
   EXPECT_THAT(error.data(), HasSubstr("line 11"));
 }
 
+TEST_F(LimitedTest, ErrorIfActuatorForceLimitedMissingOnJoint) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler autolimits="false"/>
+    <worldbody>
+      <body>
+        <joint user="1" actuatorfrcrange="0 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("actuatorfrclimited"));
+  EXPECT_THAT(error.data(), HasSubstr("line 6"));
+}
+
 // ------------- tests for tendon ----------------------------------------------
 
 using TendonTest = MujocoTest;
@@ -2227,6 +2246,51 @@ TEST_F(TendonTest, ActuatorForceRangeNotAllowed) {
   MjModelPtr m2 = LoadModelFromString(xml2.c_str(), error.data(), error.size());
   EXPECT_THAT(m2.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid actuatorfrcrange in tendon"));
+}
+
+TEST_F(TendonTest, ActuatorForceRangeAutoLimited) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="site0"/>
+      <site name="site1"/>
+    </worldbody>
+    <tendon>
+      <spatial name="spatial" actuatorfrcrange="-1 1">
+        <site site="site0"/>
+        <site site="site1"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->tendon_actfrclimited[0], 1);
+}
+
+TEST_F(TendonTest, ErrorIfActuatorForceLimitedMissing) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler autolimits="false"/>
+    <worldbody>
+      <site name="site0"/>
+      <site name="site1"/>
+    </worldbody>
+    <tendon>
+      <spatial name="spatial" actuatorfrcrange="-1 1">
+        <site site="site0"/>
+        <site site="site1"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("actuatorfrclimited"));
+  EXPECT_THAT(error.data(), HasSubstr("tendon"));
+  EXPECT_THAT(error.data(), HasSubstr("line 9"));
 }
 
 // ------------- tests for tendon springrange ----------------------------------

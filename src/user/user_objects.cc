@@ -3071,7 +3071,7 @@ int mjCJoint::Compile(void) {
   // otherwise if actfrclimited is auto, check consistency wrt auto-limits
   else if (actfrclimited == mjLIMITED_AUTO) {
     bool hasrange = !(actfrcrange[0] == 0 && actfrcrange[1] == 0);
-    checklimited(this, compiler->autolimits, "joint", "", actfrclimited, hasrange);
+    checklimited(this, compiler->autolimits, "joint", "actuatorfrc", actfrclimited, hasrange);
   }
 
   // resolve actuator force range limits
@@ -6439,7 +6439,12 @@ void mjCTendon::Compile(void) {
   // if limited is auto, set to 1 if range is specified, otherwise unlimited
   if (actfrclimited == mjLIMITED_AUTO) {
     bool hasactfrcrange = !(actfrcrange[0] == 0 && actfrcrange[1] == 0);
-    checklimited(this, compiler->autolimits, "tendon", "", actfrclimited, hasactfrcrange);
+    checklimited(this,
+                 compiler->autolimits,
+                 "tendon",
+                 "actuatorfrc",
+                 actfrclimited,
+                 hasactfrcrange);
   }
 
   // check actfrclimits
