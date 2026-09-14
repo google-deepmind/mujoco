@@ -1705,7 +1705,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     fprintf(fp, "\n\n");
   }
 
-  if (m->ntendon) {
+  if (m->ntendon && d->tendon_efcadr) {
     fprintf(fp, NAME_FORMAT, "TENDON_EFCADR");
     for (int i = 0; i < m->ntendon; i++) {
       fprintf(fp, " %d", d->tendon_efcadr[i]);

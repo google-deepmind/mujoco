@@ -34,24 +34,6 @@
 
 //-------------------------- local utilities -------------------------------------------------------
 
-// clear island-related arena pointers in mjData
-static void clearIsland(mjData* d, size_t parena) {
-#define X(type, name, nr, nc) d->name = NULL;
-  MJDATA_ARENA_POINTERS_ISLAND
-#undef X
-  d->nefc = 0;
-  d->nisland = 0;
-  d->nidof = 0;
-  d->parena = parena;
-
-  // poison remaining memory
-#ifdef mjUSEASAN
-  ASAN_POISON_MEMORY_REGION(
-    (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
-#endif
-}
-
-
 // allocate island arrays on arena, return 1 on success, 0 on failure
 static int arenaAllocIsland(const mjModel* m, mjData* d) {
 #undef MJ_M
@@ -59,13 +41,11 @@ static int arenaAllocIsland(const mjModel* m, mjData* d) {
 #undef MJ_D
 #define MJ_D(n) d->n
 
-  size_t parena_old = d->parena;
-
 #define X(type, name, nr, nc)                                                 \
   d->name = mj_arenaAllocByte(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
   if (!d->name) {                                                             \
     mj_warning(d, mjWARN_CNSTRFULL, d->narena);                               \
-    clearIsland(d, parena_old);                                               \
+    mj_clearEfc(d);                                                           \
     return 0;                                                                 \
   }
 
