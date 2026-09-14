@@ -44,6 +44,12 @@ mujoco_test(
 )
 
 mujoco_test(
+  spec_benchmark_test
+  MAIN_TARGET benchmark::benchmark_main
+  ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
+)
+
+mujoco_test(
   engine_util_spatial_benchmark_test
   MAIN_TARGET benchmark::benchmark_main
   ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
