@@ -414,6 +414,14 @@
     </xs:restriction>
   </xs:simpleType>
 
+  <xs:simpleType name="kw_initial">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="none"/>
+      <xs:enumeration value="free"/>
+      <xs:enumeration value="ball"/>
+    </xs:restriction>
+  </xs:simpleType>
+
   <xs:simpleType name="kw_shape">
     <xs:restriction base="xs:string">
       <xs:enumeration value="s"/>
@@ -2331,7 +2339,7 @@
     <xs:attribute name="count" type="int1to3"/>
     <xs:attribute name="offset" type="double3"/>
     <xs:attribute name="vertex" type="doublelist"/>
-    <xs:attribute name="initial" type="xs:string"/>
+    <xs:attribute name="initial" type="kw_initial" default="ball"/>
     <xs:attribute name="curve" type="xs:string"/>
     <xs:attribute name="size" type="double1to3"/>
     <xs:attribute name="quat" type="double4"/>

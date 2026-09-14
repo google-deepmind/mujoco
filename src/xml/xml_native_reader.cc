@@ -1448,7 +1448,10 @@ void mjXReader::OneComposite(XMLElement*       elem,
   // cable
   string curves;
   ReadAttrTxt(elem, "curve", curves);
-  ReadAttrTxt(elem, "initial", comp.initial);
+  if (ReadAttrTxt(elem, "initial", comp.initial) &&
+      FindKey(initial_map, initial_sz, comp.initial) < 0) {
+    throw mjXError(elem, "invalid keyword: '%s'", comp.initial.c_str());
+  }
   ReadAttr(elem, "size", 3, comp.size, text, false, false);
   auto uservert = ReadAttrVec<float>(elem, "vertex");
   if (uservert.has_value()) { comp.uservert = std::move(uservert.value()); }

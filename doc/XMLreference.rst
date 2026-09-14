@@ -3484,7 +3484,7 @@ cable, which produces an inextensible chain of bodies connected with ball joints
 
 .. _body-composite-initial:
 
-:at:`initial`: :at-val:`[free, ball, none], "0"`
+:at:`initial`: :at-val:`[free, ball, none], "ball"`
    Behavior of the first point. Free: free joint. Ball: ball joint. None: no dof.
 
 .. _body-composite-curve:

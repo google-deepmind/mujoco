@@ -361,6 +361,12 @@ enum jkind {   # vestigial: composite pruning left a single kind
   main   = mjCOMPKIND_JOINT
 }
 
+enum initial {
+  none   = 0
+  free   = 1
+  ball   = 2
+}
+
 enum shape {
   s        = mjCOMPSHAPE_LINE
   "cos(s)" = mjCOMPSHAPE_COS
@@ -1136,7 +1142,7 @@ element composite {
   count              : int[1..3]
   offset             : double[3]
   vertex             : double[]
-  initial            : string
+  initial            : enum<initial> = ball
   curve              : string
   size               : double[1..3]
   quat               : double[4]

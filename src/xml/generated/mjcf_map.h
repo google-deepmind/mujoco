@@ -401,6 +401,14 @@ inline constexpr mjMap jkind_map[] = {
 };
 inline constexpr int jkind_sz = 1;
 
+// enum initial
+inline constexpr mjMap initial_map[] = {
+  {"none",  0},
+  {"free",  1},
+  {"ball",  2},
+};
+inline constexpr int initial_sz = 3;
+
 // enum shape
 inline constexpr mjMap shape_map[] = {
   {"s",       mjCOMPSHAPE_LINE},

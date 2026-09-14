@@ -1413,7 +1413,7 @@
                 <attribute name="count" type="array" array_type="int" array_size="3"/>
                 <attribute name="offset" type="array" array_type="float" array_size="3"/>
                 <attribute name="vertex" type="array" array_type="float"/>
-                <attribute name="initial" type="string"/>
+                <attribute name="initial" type="keyword" valid_values="none free ball" default="ball"/>
                 <attribute name="curve" type="string"/>
                 <attribute name="size" type="array" array_type="float" array_size="3"/>
                 <attribute name="quat" type="array" array_type="float" array_size="4"/>
@@ -1723,7 +1723,7 @@
             <attribute name="count" type="array" array_type="int" array_size="3"/>
             <attribute name="offset" type="array" array_type="float" array_size="3"/>
             <attribute name="vertex" type="array" array_type="float"/>
-            <attribute name="initial" type="string"/>
+            <attribute name="initial" type="keyword" valid_values="none free ball" default="ball"/>
             <attribute name="curve" type="string"/>
             <attribute name="size" type="array" array_type="float" array_size="3"/>
             <attribute name="quat" type="array" array_type="float" array_size="4"/>
