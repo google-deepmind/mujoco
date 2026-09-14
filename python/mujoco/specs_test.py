@@ -2360,5 +2360,26 @@ class SpecsTest(absltest.TestCase):
       )
 
 
+  def test_bind_rejects_stale_model_after_first_equality(self):
+    spec = mujoco.MjSpec()
+    for name in ('a', 'b'):
+      body = spec.worldbody.add_body(name=name)
+      body.add_geom(size=[1, 0, 0])
+      body.add_freejoint()
+    model = spec.compile()
+
+    # the first equality must invalidate the compiled model for bind
+    equality = spec.add_equality(
+        type=mujoco.mjtEq.mjEQ_WELD,
+        objtype=mujoco.mjtObj.mjOBJ_BODY,
+        name1='a',
+        name2='b',
+    )
+    with self.assertRaisesRegex(ValueError, 'does not match'):
+      model.bind(equality)
+
+    model = spec.compile()
+    self.assertEqual(model.bind(equality).id, 0)
+
 if __name__ == '__main__':
   absltest.main()
