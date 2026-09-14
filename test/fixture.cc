@@ -149,12 +149,50 @@ MujocoErrorTestGuard::~MujocoErrorTestGuard() {
   }
 }
 
+namespace {
+std::string GetRunfilesPrefix(std::string_view subpath) {
+  const char* test_srcdir = std::getenv("TEST_SRCDIR");
+  if (test_srcdir && test_srcdir[0] != '\0') {
+    const char* workspace = std::getenv("TEST_WORKSPACE");
+    if (workspace && workspace[0] != '\0') {
+      std::string ws_path = absl::StrCat(test_srcdir, "/", workspace);
+      if (std::filesystem::exists(ws_path)) {
+        return absl::StrCat(ws_path, "/", subpath);
+      }
+    }
+    if (std::filesystem::exists(test_srcdir)) {
+      return absl::StrCat(test_srcdir, "/", subpath);
+    }
+  }
+  if (std::filesystem::exists(subpath)) {
+    return std::string(subpath);
+  }
+  return "";
+}
+}  // namespace
+
 const std::string GetTestDataFilePath(std::string_view path) {  // NOLINT
-  return std::string(path);
+  std::string prefix = GetRunfilesPrefix("third_party/mujoco/test/");
+  if (prefix.empty()) {
+    return std::string(path);
+  }
+  return absl::StrCat(prefix, path);
 }
 
 const std::string GetModelPath(std::string_view path) {  // NOLINT
-  return absl::StrCat("../model/", path);
+  std::string prefix = GetRunfilesPrefix("third_party/mujoco/model/");
+  if (prefix.empty()) {
+    return absl::StrCat("../model/", path);
+  }
+  return absl::StrCat(prefix, path);
+}
+
+std::string GetMenagerieModelPath(std::string_view path) {
+  std::string prefix = GetRunfilesPrefix("third_party/mujoco_menagerie/");
+  if (prefix.empty()) {
+    return absl::StrCat("../../mujoco_menagerie/", path);
+  }
+  return absl::StrCat(prefix, path);
 }
 
 MjModelPtr LoadModelFromString(std::string_view xml, char* error,

@@ -174,12 +174,12 @@ class MujocoTest : public ::testing::Test {
       const char* plugin_dir = std::getenv("MUJOCO_PLUGIN_DIR");
       if (plugin_dir) {
         mj_loadAllPluginLibraries(
-          plugin_dir, +[](const char* filename, int first, int count) {
-            std::printf("Plugins registered by library '%s':\n", filename);
-            for (int i = first; i < first + count; ++i) {
-              std::printf("    %s\n", mjp_getPluginAtSlot(i)->name);
-            }
-          });
+            plugin_dir, +[](const char* filename, int first, int count) {
+              std::printf("Plugins registered by library '%s':\n", filename);
+              for (int i = first; i < first + count; ++i) {
+                std::printf("    %s\n", mjp_getPluginAtSlot(i)->name);
+              }
+            });
       }
     });
   }
@@ -216,10 +216,17 @@ auto MjuErrorMessageFrom(Return (*func)(Args...)) {
 }
 
 // Returns a path to a data file, under the mujoco/test directory.
+// When testing with Bazel, this file should be a data dependency of the test
+// target. When testing with cmake, this will look in the source directory.
 const std::string GetTestDataFilePath(std::string_view path);
 
 // Returns a path to a data file, under the mujoco/model directory.
+// When testing with Bazel, this file should be a data dependency of the test
+// target. When testing with cmake, this will look in the source directory.
 const std::string GetModelPath(std::string_view path);
+
+// Returns a path to a data file, under the mujoco_menagerie/ directory.
+std::string GetMenagerieModelPath(std::string_view path);
 
 // Returns a newly-allocated mjModel, loaded from the contents of xml.
 // On failure returns nullptr and populates the error array if present.

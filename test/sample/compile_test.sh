@@ -13,8 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-MODEL="${CMAKE_SOURCE_DIR}/model/humanoid/humanoid100.xml"
-OUTPUT_FILE="${TEST_TMPDIR}/compiled.mjb"
+if [ -n "${TEST_SRCDIR:-}" ]; then
+  readonly MODEL="${TEST_SRCDIR}/${TEST_WORKSPACE}/third_party/mujoco/model/humanoid/humanoid100.xml"
+  readonly TARGET_BINARY="${TEST_SRCDIR}/${TEST_WORKSPACE}/third_party/mujoco/sample/compile"
+  readonly OUTPUT_FILE="${TEST_TMPDIR}/compiled.mjb"
+else
+  MODEL="${CMAKE_SOURCE_DIR}/model/humanoid/humanoid100.xml"
+  OUTPUT_FILE="${TEST_TMPDIR}/compiled.mjb"
+fi
 
 
 die() { echo "$*" 1>&2 ; exit 1; }
