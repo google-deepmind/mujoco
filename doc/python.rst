@@ -750,7 +750,7 @@ For users familiar with ``PyMJCF``, the ``MjSpec`` object is conceptually simila
 Model Editing
 `colab notebook <https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/mjspec.ipynb>`__
 includes a reimplementation of the ``PyMJCF`` example in the ``dm_control``
-`tutorial notebook <https://github.com/google-deepmind/dm_control/blob/main/dm_control/mjcf/tutorial.ipynb>`__.
+`tutorial notebook <https://github.com/google-deepmind/dm_control/blob/main/tutorial.ipynb>`__.
 
 ``PyMJCF`` provides a notion of "binding", giving access to :ref:`mjModel` and :ref:`mjData` values via a helper class.
 In the native API, the helper class is not needed, so it is possible to directly bind an ``mjs`` object to

@@ -154,7 +154,7 @@ Graph Modes
 The ``mjx.put_model`` function accepts a ``graph_mode`` argument to configure the CUDA graph capture behavior,
 exposed by the ``mjx.warp.GraphMode`` enum. When called from JAX, CUDA graphs are captured by the Warp
 Foreign Function interface and are cached to help improve runtime performance. See the
-`Warp JAX interoperability documentation <https://nvidia.github.io/warp/user_guide/interoperability.html#jax>`__
+`Warp JAX interoperability documentation <https://nvidia.github.io/warp/latest/user_guide/interoperability/jax.html>`__
 for more details. The graph mode can be configured as follows:
 
 .. code-block:: python
@@ -534,7 +534,7 @@ The following table compares feature support between MJX-Warp and MJX-JAX compar
 
 
 .. [1] Differentiability is `mostly supported <https://github.com/google-deepmind/mujoco/issues/2259>`__ in MJX-JAX but is
-       **not** currently available in MJX-Warp. See `Warp differentiability <https://nvidia.github.io/warp/user_guide/differentiability.html>`__
+       **not** currently available in MJX-Warp. See `Warp differentiability <https://nvidia.github.io/warp/latest/user_guide/differentiability.html>`__
        for more details.
 .. [2] **Sensors**: ``MAGNETOMETER``, ``CAMPROJECTION``, ``RANGEFINDER``, ``JOINTPOS``, ``TENDONPOS``, ``ACTUATORPOS``,
        ``BALLQUAT``, ``FRAMEPOS``, ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``FRAMEQUAT``, ``SUBTREECOM``, ``CLOCK``,
