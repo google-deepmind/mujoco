@@ -12,6 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// --- Default model redirect ---
+// When no ?model= parameter is present, redirect to the same page with the
+// default model URL. This fires before WASM starts loading, so no time is
+// wasted. Uses replace() to avoid polluting browser history.
+// Visit ?model= (empty) to explicitly get an empty scene without redirect.
+{
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has('model')) {
+    const defaultModel =
+        'https://raw.githubusercontent.com/google-deepmind/mujoco/main/model/humanoid/humanoid.xml';
+    window.location.replace(
+        window.location.pathname + '?model=' + encodeURIComponent(defaultModel) +
+        window.location.hash);
+    // Stop all further execution while the browser navigates.
+    throw new Error('Redirecting to default model');
+  }
+}
+
 // --- Loading overlay (shown while model is compiling) ---
 const loadingOverlay = document.getElementById('loadingOverlay');
 function showLoading() {
