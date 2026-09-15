@@ -61,6 +61,7 @@ class Rollout:
       state: Optional[npt.ArrayLike] = None,
       sensordata: Optional[npt.ArrayLike] = None,
       chunk_size: Optional[int] = None,
+      raise_on_error: bool = True,
   ):
     """Rolls out open-loop trajectories from initial states, get subsequent state and sensor values.
 
@@ -87,6 +88,8 @@ class Rollout:
         (nbatch x nstep x nsensordata)
       chunk_size: Determines threadpool chunk size. If unspecified,
                   chunk_size = max(1, nbatch / (nthread * 10))
+      raise_on_error: Whether MuJoCo errors abort rollout. If false, the
+        remainder of the failed trajectory is filled like a diverged rollout.
 
     Returns:
       state:
@@ -119,6 +122,7 @@ class Rollout:
           state,
           sensordata,
           chunk_size,
+          raise_on_error,
       )
       return state, sensordata
 
@@ -235,6 +239,7 @@ class Rollout:
         state,
         sensordata,
         chunk_size,
+        raise_on_error,
     )
 
     # return outputs
@@ -272,6 +277,7 @@ def rollout(
     sensordata: Optional[npt.ArrayLike] = None,
     chunk_size: Optional[int] = None,
     persistent_pool: bool = False,
+    raise_on_error: bool = True,
 ):
   """Rolls out open-loop trajectories from initial states, get subsequent states and sensor values.
 
@@ -299,6 +305,8 @@ def rollout(
     chunk_size: Determines threadpool chunk size. If unspecified,
                 chunk_size = max(1, nbatch / (nthread * 10))
     persistent_pool: Determines if a persistent thread pool is created or reused.
+    raise_on_error: Whether MuJoCo errors abort rollout. If false, the
+      remainder of the failed trajectory is filled like a diverged rollout.
 
   Returns:
     state:
@@ -340,6 +348,7 @@ def rollout(
         state=state,
         sensordata=sensordata,
         chunk_size=chunk_size,
+        raise_on_error=raise_on_error,
     )
   finally:
     if not persistent_pool:
