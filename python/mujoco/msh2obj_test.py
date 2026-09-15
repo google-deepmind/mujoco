@@ -14,13 +14,13 @@
 # ==============================================================================
 """Tests for msh2obj.py."""
 
-
 from absl.testing import absltest
+from absl.testing import parameterized
 from etils import epath
-import mujoco
-from mujoco import msh2obj
 import numpy as np
 
+import mujoco
+from mujoco import msh2obj
 
 _MESH_FIELDS = (
     "mesh_vertadr",
@@ -52,7 +52,63 @@ _XML = """
 """
 
 
-class MshTest(absltest.TestCase):
+class MshTest(parameterized.TestCase):
+
+  @parameterized.named_parameters(
+      ("vertices_only", False, False, "f 1 3 2"),
+      ("with_normals", True, False, "f 1//1 3//3 2//2"),
+      ("with_texcoords", False, True, "f 1/1 3/3 2/2"),
+      ("with_both", True, True, "f 1/1/1 3/3/3 2/2/2"),
+  )
+  def test_optional_vertex_attributes(
+      self, has_normals, has_texcoords, expected_face
+  ):
+    vertices = np.array(
+        [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float32
+    )
+    normals = np.array(
+        [[-1, -1, -1], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float32
+    )
+    normals[0] /= np.sqrt(3)
+    if not has_normals:
+      normals = normals[:0]
+    texcoords = np.array([[0, 0], [1, 0], [0, 1], [1, 1]], dtype=np.float32)
+    if not has_texcoords:
+      texcoords = texcoords[:0]
+    faces = np.array(
+        [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]], dtype=np.int32
+    )
+    header = np.array([4, len(normals), len(texcoords), 4], dtype=np.int32)
+    msh_path = epath.Path(self.create_tempdir().full_path) / "tetra.msh"
+    with msh_path.open("wb") as f:
+      for array in (header, vertices, normals, texcoords, faces):
+        array.tofile(f)
+
+    obj = msh2obj.msh_to_obj(msh_path)
+    lines = obj.splitlines()
+    self.assertLen(
+        [line for line in lines if line.startswith("vn ")], len(normals)
+    )
+    self.assertLen(
+        [line for line in lines if line.startswith("vt ")], len(texcoords)
+    )
+    self.assertEqual(
+        [line for line in lines if line.startswith("f ")][0], expected_face
+    )
+
+    for extension, data in (
+        ("msh", msh_path.read_bytes()),
+        ("obj", obj.encode()),
+    ):
+      filename = f"tetra.{extension}"
+      model = mujoco.MjModel.from_xml_string(
+          '<mujoco><asset><mesh name="tetra"'
+          f' file="{filename}"/></asset></mujoco>',
+          {filename: data},
+      )
+      self.assertEqual(model.nmesh, 1)
+      self.assertEqual(model.mesh_vertnum[0], 4)
+      self.assertEqual(model.mesh_facenum[0], 4)
 
   def test_obj_model_matches_msh_model(self) -> None:
     test_path = epath.resource_path("mujoco") / "testdata"
