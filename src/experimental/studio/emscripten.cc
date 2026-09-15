@@ -49,7 +49,7 @@ class AssetRegistry {
 
   // Registers asset contents with the given filename.
   void RegisterAsset(std::string filename, std::string contents) {
-    std::filesystem::path(filename).filename().string();
+    filename = std::filesystem::path(filename).filename().string();
     assets_[filename] = std::move(contents);
   }
 
