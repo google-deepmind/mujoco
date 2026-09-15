@@ -17,11 +17,13 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>  // NOLINT
 #include <functional>
 #include <map>
 #include <memory>
+#include <new>
 #include <string>
 #include <vector>
 
@@ -34,6 +36,40 @@
 #include "src/xml/xml_api.h"
 #include "test/compare_model.h"
 #include "test/fixture.h"
+
+namespace {
+
+class ScopedAllocFailure {
+ public:
+  explicit ScopedAllocFailure(int allocations_until_failure)
+      : remaining_(allocations_until_failure) {
+    active_ = this;
+  }
+
+  ~ScopedAllocFailure() { active_ = nullptr; }
+
+  static ScopedAllocFailure* active_;
+  int remaining_;
+};
+
+ScopedAllocFailure* ScopedAllocFailure::active_ = nullptr;
+
+}  // namespace
+
+void* operator new(std::size_t size) {
+  if (ScopedAllocFailure::active_ &&
+      --ScopedAllocFailure::active_->remaining_ == 0) {
+    throw std::bad_alloc();
+  }
+  if (void* ptr = std::malloc(size)) {
+    return ptr;
+  }
+  throw std::bad_alloc();
+}
+
+void operator delete(void* ptr) noexcept {
+  std::free(ptr);
+}
 
 namespace mujoco {
 namespace {
@@ -68,6 +104,28 @@ TEST_F(MujocoTest, GetSetData) {
 
   mj_deleteSpec(spec);
 }
+
+TEST_F(MujocoTest, AddBodyAllocationFailureReturnsNullNotCrash) {
+  mjSpec* spec = mj_makeSpec();
+  ASSERT_THAT(spec, NotNull());
+
+  mjsBody* world = mjs_findBody(spec, "world");
+  ASSERT_THAT(world, NotNull());
+
+  bool saw_clean_failure = false;
+  for (int n = 1; n <= 50 && !saw_clean_failure; ++n) {
+    ScopedAllocFailure inject(n);
+    mjsBody* body = mjs_addBody(world, nullptr);
+    if (body == nullptr) {
+      saw_clean_failure = true;
+      EXPECT_THAT(mjs_getError(spec), HasSubstr("Could not allocate memory"));
+    }
+  }
+
+  EXPECT_TRUE(saw_clean_failure);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, TreeTraversal) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -3727,19 +3785,18 @@ TEST_F(MujocoTest, AttachPreservesJointOrder) {
   // Export and re-import to test round-trip preservation
   std::string exported_xml = SaveAndReadXml(parent);
 
-  mjSpec* reimported =
-      mj_parseXMLString(exported_xml.c_str(), nullptr, error.data(),
-                        error.size());
+  mjSpec* reimported = mj_parseXMLString(exported_xml.c_str(), nullptr,
+                                         error.data(), error.size());
   ASSERT_THAT(reimported, NotNull()) << error.data();
 
   mjModel* reimported_model = mj_compile(reimported, nullptr);
   ASSERT_THAT(reimported_model, NotNull());
 
   // Verify joint order is preserved after round-trip
-  int reimported_slide_id = mj_name2id(reimported_model, mjOBJ_JOINT,
-                                       "child_slide_joint");
-  int reimported_free_id = mj_name2id(reimported_model, mjOBJ_JOINT,
-                                      "child_free_joint");
+  int reimported_slide_id =
+      mj_name2id(reimported_model, mjOBJ_JOINT, "child_slide_joint");
+  int reimported_free_id =
+      mj_name2id(reimported_model, mjOBJ_JOINT, "child_free_joint");
   ASSERT_GE(reimported_slide_id, 0);
   ASSERT_GE(reimported_free_id, 0);
   EXPECT_EQ(reimported_slide_id, slide_id)
