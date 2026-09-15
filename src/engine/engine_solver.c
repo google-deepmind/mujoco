@@ -2503,16 +2503,11 @@ static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute)
     }
 
     // numeric sparse factorization: L = chol(H) using pre-computed sparsity pattern
-    int rank = mju_cholFactorNumeric(
+    mju_cholFactorNumeric(
         ctx->L, nv, mjMINVAL,
         ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind,
         ctx->LT_rownnz, ctx->LT_rowadr, ctx->LT_colind, ctx->LT_map,
         ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, ctx->cholscratch);
-
-    // rank-deficient; SHOULD NOT OCCUR
-    if (rank != nv) {
-      mjERROR("rank-deficient sparse Hessian");
-    }
   }
 
   // dense
@@ -2607,13 +2602,11 @@ static void HessianConeFolded(mjData* d, mjPrimalContext* ctx) {
     mju_addToMatSparse(Hcone, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv,
                        ctx->S_val, ctx->S_rownnz, ctx->S_rowadr, ctx->S_colind);
   }
-  if (mju_cholFactorNumeric(ctx->Lcone, nv, mjMINVAL,
-                            ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind,
-                            ctx->LT_rownnz, ctx->LT_rowadr, ctx->LT_colind, ctx->LT_map,
-                            Hcone, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
-                            ctx->cholscratch) != nv) {
-    mjERROR("rank-deficient cone Hessian");
-  }
+  mju_cholFactorNumeric(ctx->Lcone, nv, mjMINVAL,
+                        ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind,
+                        ctx->LT_rownnz, ctx->LT_rowadr, ctx->LT_colind, ctx->LT_map,
+                        Hcone, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
+                        ctx->cholscratch);
 }
 
 

@@ -1101,6 +1101,52 @@ TEST_F(EngineUtilSolveTest, CholFactorSymbolicNumeric) {
   }
 }
 
+// A pivot lost to rounding leaves its row's coupling in place. The clamp must
+// decouple the row, as mju_cholFactor does: dividing the coupling by
+// sqrt(mindiag) would drive every later pivot of the factorization negative.
+TEST_F(EngineUtilSolveTest, CholFactorNumericClampDecouples) {
+  MjModelPtr model = LoadModelFromString("<mujoco/>");
+  MjDataPtr d = MakeData(model);
+
+  // reverse elimination: row 2 has pivot 1, leaving row 1 with pivot 0 and
+  // coupling 0.5 to row 0, whose pivot is 1 once row 1 is decoupled
+  constexpr int n = 3;
+  mjtNum H[n * n] = {1, .5, 0, .5, 1, 1, 0, 1, 1};
+  mjtNum sparseH[n * n];
+  int H_rownnz[n], H_rowadr[n], H_colind[n * n];
+  mju_dense2sparse(sparseH, H, n, n, H_rownnz, H_rowadr, H_colind, n * n);
+
+  // symbolic factorization
+  int L_rownnz[n], L_rowadr[n], LT_rownnz[n], LT_rowadr[n];
+  int nnz = mju_cholFactorSymbolic(nullptr, L_rownnz, L_rowadr, nullptr,
+                                   LT_rownnz, LT_rowadr, nullptr, H_rownnz,
+                                   H_rowadr, H_colind, n, d.get());
+  int L_colind[n * n], LT_colind[n * n], LT_map[n * n];
+  mju_cholFactorSymbolic(L_colind, L_rownnz, L_rowadr, LT_colind, LT_rownnz,
+                         LT_rowadr, LT_map, H_rownnz, H_rowadr, H_colind, n,
+                         d.get());
+
+  // numeric factorization: only row 1 is clamped
+  mjtNum L[n * n], scratch[n];
+  int rank = mju_cholFactorNumeric(
+      L, n, mjMINVAL, L_rownnz, L_rowadr, L_colind, LT_rownnz, LT_rowadr,
+      LT_colind, LT_map, sparseH, H_rownnz, H_rowadr, H_colind, scratch);
+  EXPECT_EQ(rank, n - 1);
+
+  // row 1 is decoupled: clamped diagonal, zero off-diagonals
+  int adr1 = L_rowadr[1], nnz1 = L_rownnz[1];
+  EXPECT_EQ(L[adr1 + nnz1 - 1], mju_sqrt(mjMINVAL));
+  for (int i = 0; i < nnz1 - 1; i++) {
+    EXPECT_EQ(L[adr1 + i], 0);
+  }
+
+  // row 0 keeps its pivot, every entry is bounded
+  EXPECT_EQ(L[L_rowadr[0] + L_rownnz[0] - 1], 1);
+  for (int i = 0; i < nnz; i++) {
+    EXPECT_LE(mju_abs(L[i]), 1) << "entry " << i;
+  }
+}
+
 // ----------------------------- dense LU --------------------------------------
 
 using DenseLUTest = MujocoTest;

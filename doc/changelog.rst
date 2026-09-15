@@ -22,6 +22,9 @@ Engine
 - The :ref:`mjWARN_INERTIA <mjtWarning>` warning is now also raised by the modified-inertia factorizations of the
   :at:`implicitfast` and damped-:at:`Euler` integrators (previously silent) and of the :at:`implicit` integrator
   (previously a fatal error).
+- The sparse Newton solver no longer aborts with a "rank-deficient sparse Hessian" error when rounding loses a pivot of
+  its Hessian, as can happen in single precision with ill-conditioned inertia. The pivot is now clamped and its row
+  decoupled, as in the dense factorization.
 
 Bug fixes
 ^^^^^^^^^

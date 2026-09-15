@@ -351,20 +351,25 @@ int mju_cholFactorNumeric(mjtNum* restrict L, int n, mjtNum mindiag,
 
     // factor row r diagonal, handle rank-deficient case
     mjtNum diag = dense[r];
-    if (diag < mindiag) {
+    int deficient = diag < mindiag;
+    if (deficient) {
       diag = mindiag;
       rank--;
     }
 
-    // scale off-diagonals
+    // scale off-diagonals; if deficient clear them, decoupling the row as mju_cholFactor does
     mjtNum L_rr = mju_sqrt(diag);
     mjtNum L_rr_inv = 1.0 / L_rr;
     int L_adr = L_rowadr[r];
     int L_nnz = L_rownnz[r];
     const int* colptr = L_colind + L_adr;
     mjtNum* Lptr = L + L_adr;
-    for (int i = 0; i < L_nnz - 1; i++) {
-      Lptr[i] = dense[colptr[i]] * L_rr_inv;
+    if (deficient) {
+      mju_zero(Lptr, L_nnz - 1);
+    } else {
+      for (int i = 0; i < L_nnz - 1; i++) {
+        Lptr[i] = dense[colptr[i]] * L_rr_inv;
+      }
     }
 
     // store diagonal
