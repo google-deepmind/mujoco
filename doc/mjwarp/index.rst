@@ -321,7 +321,7 @@ Memory
 Simulation throughput is often limited by memory requirements for large numbers of worlds. Considerations for optimizing
 memory utilization include:
 
-- CCD colliders require more memory than primitive colliders, see MuJoCo's :ref:`pair-wise colliders table <coPairwise>`
+- CCD colliders require more memory than primitive colliders, see the :ref:`pair-wise colliders table <mjwPairwise>`
   for information about colliders.
 - :ref:`multiccd <option-flag-multiccd>` requires more memory than CCD.
 - CCD memory requirements scale linearly with :ref:`Option.ccd_iterations <option-ccd_iterations>`.
@@ -337,7 +337,8 @@ Memory allocated inline, including for CCD and the constraint solver, can also b
 .. admonition:: Maximum number of contacts per collider
   :class: note
 
-  Some MJWarp colliders have a different maximum number of contacts compared to MuJoCo:
+  Some MJWarp colliders have a different maximum number of contacts compared to MuJoCo (see the
+  :ref:`pair-wise colliders table <mjwPairwise>`):
 
   - ``PLANE<>MESH``: 4 versus 3
   - ``HFieldCCD``: 4 versus ``mjMAXCONPAIR``
@@ -1166,7 +1167,8 @@ Compilation
 
 Limit the number of unique colliders that require the general convex collision pipeline. These colliders are listed as
 ``CONVEX`` in ``MJ_COLLISION_TABLE`` in
-`collision_driver.py <https://github.com/google-deepmind/mujoco_warp/blob/e357e88b6b47166d325b564c805d9ecbae659a64/mujoco_warp/_src/collision_driver.py#L45>`__.
+`collision_driver.py <https://github.com/google-deepmind/mujoco_warp/blob/e357e88b6b47166d325b564c805d9ecbae659a64/mujoco_warp/_src/collision_driver.py#L45>`__
+(and marked as ``CCD`` in the :ref:`pair-wise colliders table <mjwPairwise>`).
 
 **Why are the physics not working as expected after upgrading MJWarp?**
 
@@ -1395,6 +1397,236 @@ The following callbacks are available:
   mjw.step(m, d)
   assert d.ctrl.numpy()[0, 0] == 2.0
 
+.. _mjwPairwise:
+
+Pair-wise colliders
+-------------------
+
+The table below provides information about the colliders and maximum number of contacts generated for different geom
+pairs in MJWarp. Use the toggles to see the maximum number of contacts with the options
+:ref:`nativeccd<option-flag-nativeccd>`, :ref:`multiccd<option-flag-multiccd>`, and
+:ref:`margin<body-geom-margin>`.
+
+.. raw:: html
+
+   <div class="pairwise-toggles">
+     <div class="pairwise-toggle-item">
+       <label class="pairwise-switch">
+         <input type="checkbox" id="nativeccd-checkbox" checked>
+         <span class="pairwise-slider"></span>
+       </label>
+       <span>nativeccd</span>
+     </div>
+     <div class="pairwise-toggle-item">
+       <label class="pairwise-switch">
+         <input type="checkbox" id="multiccd-checkbox" checked>
+         <span class="pairwise-slider"></span>
+       </label>
+       <span>multiccd</span>
+     </div>
+     <div class="pairwise-toggle-item">
+       <label class="pairwise-switch">
+         <input type="checkbox" id="margin-checkbox">
+         <span class="pairwise-slider"></span>
+       </label>
+       <span>with margin</span>
+     </div>
+   </div>
+
+.. list-table::
+   :header-rows: 1
+   :stub-columns: 1
+   :widths: auto
+   :class: table-pairwise
+
+   * -
+     - Sphere
+     - Capsule
+     - Ellipsoid
+     - Cylinder
+     - Box
+     - Mesh
+     - SDF
+   * - Plane
+     - | primitive
+       | **1**
+     - | primitive
+       | **2**
+     - | primitive
+       | **1**
+     - | primitive
+       | **4**
+     - | primitive
+       | **4**
+     - | primitive
+       | **4**
+     - | primitive
+       | **1**
+   * - HField
+     - | HFieldCCD
+       | **4**
+     - | HFieldCCD
+       | **4**
+     - | HFieldCCD
+       | **4**
+     - | HFieldCCD
+       | **4**
+     - | HFieldCCD
+       | **4**
+     - | HFieldCCD
+       | **4**
+     - | HFieldSDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Sphere
+     - | primitive
+       | **1**
+     - | primitive
+       | **1**
+     - | CCD
+       | **1**
+     - | primitive
+       | **1**
+     - | primitive
+       | **1**
+     - | CCD
+       | **1**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Capsule
+     -
+     - | primitive
+       | **2**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | primitive
+       | **2**
+     - | CCD
+       | **1**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Ellipsoid
+     -
+     -
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Cylinder
+     -
+     -
+     -
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line"><strong class="mjw-ccd">4</strong></div>
+
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line"><strong class="mjw-ccd">4</strong></div>
+
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line"><strong class="mjw-ccd">4</strong></div>
+
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Box
+     -
+     -
+     -
+     -
+     -
+       .. raw:: html
+
+         <div class="mjw-boxbox">
+           <div class="line">CCD</div>
+           <div class="line"><strong>4</strong></div>
+         </div>
+
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line"><span class="mjw-mesh-ccd"><strong>4</strong></span></div>
+
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Mesh
+     -
+     -
+     -
+     -
+     -
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line"><span class="mjw-mesh-ccd"><strong>4</strong></span></div>
+
+     - | MeshSDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - SDF
+     -
+     -
+     -
+     -
+     -
+     -
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+
+.. raw:: html
+
+   <script>
+     (() => {
+       const nativeccd = document.getElementById('nativeccd-checkbox');
+       const multiccd = document.getElementById('multiccd-checkbox');
+       const margin = document.getElementById('margin-checkbox');
+
+       const update = () => {
+         const isNative = nativeccd && nativeccd.checked;
+         const isMulti = multiccd && multiccd.checked;
+         const isMargin = margin && margin.checked;
+
+         const ccdVal = (isMulti && !isMargin) ? '4' : '1';
+         document.querySelectorAll('.mjw-ccd').forEach(el => el.textContent = ccdVal);
+
+         const meshVal = (isMulti && isMargin)
+           ? '<a href="#mjwccdmargin">not implemented</a>'
+           : `<strong>${ccdVal}</strong>`;
+         document.querySelectorAll('.mjw-mesh-ccd').forEach(el => el.innerHTML = meshVal);
+
+         const boxbox = document.querySelector('.mjw-boxbox');
+         if (boxbox) {
+           if (!isNative) {
+             boxbox.innerHTML = '<div class="line">primitive</div><div class="line"><strong>8</strong></div>';
+           } else if (isMargin) {
+             boxbox.innerHTML = '<div class="line">CCD</div><div class="line"><a href="#mjwccdmargin">not implemented</a></div>';
+           } else {
+             boxbox.innerHTML = `<div class="line">CCD</div><div class="line"><strong>${isMulti ? '4' : '1'}</strong></div>`;
+           }
+         }
+       };
+
+       [nativeccd, multiccd, margin].forEach(cb => cb && cb.addEventListener('change', update));
+     })();
+   </script>
+
+.. _mjwBoxBox:
+
 Box-box collisions
 ------------------
 
@@ -1409,6 +1641,8 @@ is available by setting the ``NATIVECCD`` disable flag:
 
 The specialized collider generates up to 8 contact points, compared to up to 4 for the convex pipeline, and may improve
 contact stability for tasks involving box stacking or manipulation.
+
+.. _mjwCCDMargin:
 
 CCD margin
 ----------
