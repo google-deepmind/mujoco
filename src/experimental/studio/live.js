@@ -21,7 +21,7 @@
   const params = new URLSearchParams(window.location.search);
   if (!params.has('model')) {
     const defaultModel =
-        'https://raw.githubusercontent.com/google-deepmind/mujoco/main/model/humanoid/humanoid.xml';
+        'github:google-deepmind/mujoco/main/model/humanoid/humanoid.xml';
     window.location.replace(
         window.location.pathname + '?model=' + encodeURIComponent(defaultModel) +
         window.location.hash);
