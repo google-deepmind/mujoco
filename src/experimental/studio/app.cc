@@ -2037,29 +2037,25 @@ void App::MainMenuGui() {
       }
       ImGui::Separator();
 
-      if (ImGui::MenuItem(tmp_.options_panel ? "Hide Options" : "Show Options",
-                          "Tab")) {
+      if (ImGui::MenuItem("Options", "Tab", tmp_.options_panel)) {
         tmp_.options_panel = !tmp_.options_panel;
       }
-      if (ImGui::MenuItem(
-              tmp_.inspector_panel ? "Hide Inspector" : "Show Inspector",
-              "Shift+Tab")) {
+      if (ImGui::MenuItem("Inspector", "Shift+Tab", tmp_.inspector_panel)) {
         tmp_.inspector_panel = !tmp_.inspector_panel;
       }
-      if (ImGui::MenuItem(tmp_.editor_panel ? "Hide Editor" : "Show Editor")) {
+      if (ImGui::MenuItem("Editor", nullptr, tmp_.editor_panel)) {
         tmp_.editor_panel = !tmp_.editor_panel;
         if (tmp_.editor_panel) {
           tmp_.inspector_panel = true;
         }
       }
-      if (ImGui::MenuItem(tmp_.toolbar ? "Hide Toolbar" : "Show Toolbar")) {
+      if (ImGui::MenuItem("Toolbar", nullptr, tmp_.toolbar)) {
         tmp_.toolbar = !tmp_.toolbar;
       }
-      if (ImGui::MenuItem(tmp_.status_bar ? "Hide Status Bar"
-                                          : "Show Status Bar")) {
+      if (ImGui::MenuItem("Status Bar", nullptr, tmp_.status_bar)) {
         tmp_.status_bar = !tmp_.status_bar;
       }
-      if (ImGui::MenuItem("Full Screen", "F11")) {
+      if (ImGui::MenuItem("Full Screen", "F11", tmp_.full_screen)) {
         tmp_.full_screen = !tmp_.full_screen;
       }
       ImGui::Separator();
@@ -2079,7 +2075,8 @@ void App::MainMenuGui() {
       }
       ImGui::Separator();
 
-      if (ImGui::MenuItem("Picture-in-Picture")) {
+      if (ImGui::MenuItem("Picture-in-Picture", nullptr,
+                          tmp_.picture_in_picture)) {
         tmp_.picture_in_picture = !tmp_.picture_in_picture;
       }
       ImGui::Separator();

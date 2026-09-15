@@ -54,6 +54,23 @@ class ViewerAppInitEvent(messages.Event):
   viewer_app: 'ViewerApp'
 
 
+@dataclasses.dataclass
+class ViewerAppConfig:
+  """Configures the ViewerApp.
+
+  Pass an instance to ViewerApp to choose what is visible on startup. The
+  ViewerApp keeps the instance as its live UI state, so the View menu and the
+  keyboard shortcuts toggle these same fields.
+  """
+
+  show_info: bool = False
+  show_profiler: bool = False
+  show_options: bool = True
+  show_toolbar: bool = False
+  show_status_bar: bool = False
+  show_inspector: bool = True
+
+
 class ViewerApp:
   """ViewerApp wraps a Viewer and adds Studio UI/UX."""
 
@@ -90,12 +107,10 @@ class ViewerApp:
   def data(self, value: mujoco.MjData) -> None:
     self.viewer.data = value
 
-  def __init__(self) -> None:
+  def __init__(self, config: ViewerAppConfig | None = None) -> None:
     self._viewer: viewer_protocol.Viewer | None = None
     self.theme = ux.load_theme()
-    self.show_toolbar = False
-    self.show_info = False
-    self.show_profiler = False
+    self.config = config if config is not None else ViewerAppConfig()
     self.status = 'Ready'
     self.sim_history = sim.SimHistory()
     self._reset_app_state()
@@ -298,7 +313,10 @@ class ViewerApp:
   def build_gui(self) -> None:
     """Emit full Studio UI."""
     ux.setup_theme(self.theme)
-    ux.configure_docking_layout(show_toolbar=self.show_toolbar)
+    ux.configure_docking_layout(
+        show_toolbar=self.config.show_toolbar,
+        show_status_bar=self.config.show_status_bar,
+    )
 
     io = imgui.GetIO()
     if io.WantSaveIniSettings:
@@ -321,15 +339,19 @@ class ViewerApp:
           self.theme = ux.load_settings(def_theme=ux.GuiTheme.LIGHT)
           ux.setup_theme(self.theme)
         imgui.Separator()
-        if imgui.MenuItem(
-            'Hide Toolbar' if self.show_toolbar else 'Show Toolbar'
-        ):
-          self.show_toolbar = not self.show_toolbar
+        if imgui.MenuItem('Options', 'Tab', self.config.show_options):
+          self.config.show_options = not self.config.show_options
+        if imgui.MenuItem('Inspector', 'Shift+Tab', self.config.show_inspector):
+          self.config.show_inspector = not self.config.show_inspector
+        if imgui.MenuItem('Toolbar', '', self.config.show_toolbar):
+          self.config.show_toolbar = not self.config.show_toolbar
+        if imgui.MenuItem('Status Bar', '', self.config.show_status_bar):
+          self.config.show_status_bar = not self.config.show_status_bar
         imgui.Separator()
-        if imgui.MenuItem('Info', 'F2', self.show_info):
-          self.show_info = not self.show_info
-        if imgui.MenuItem('Profiler', 'F3', self.show_profiler):
-          self.show_profiler = not self.show_profiler
+        if imgui.MenuItem('Info', 'F2', self.config.show_info):
+          self.config.show_info = not self.config.show_info
+        if imgui.MenuItem('Profiler', 'F3', self.config.show_profiler):
+          self.config.show_profiler = not self.config.show_profiler
         imgui.Separator()
         changed, self.theme = ux.theme_menu_gui(self.theme)
         if changed:
@@ -343,7 +365,7 @@ class ViewerApp:
       imgui.EndMainMenuBar()
 
     # -- Tool Bar -------------------------------------------------------------
-    if self.show_toolbar:
+    if self.config.show_toolbar:
       if imgui.Begin('ToolBar'):
         imgui.PushStyleVar(imgui.StyleVar.CellPadding, imgui.Vec2(0, 0))
         if imgui.BeginTable('##ToolBarTable', 2):
@@ -379,93 +401,101 @@ class ViewerApp:
         imgui.TreeNodeFlags.Framed
     )
 
-    imgui.Begin('Options')
-    # The Simulation panel draws its own collapsible section header.
-    ux.simulation_gui(
-        self.model,
-        self.data,
-        self.step_control_state,
-        self.sim_history,
-        self.ux_state,
-        self.reset_physics,
-        self.reload_model,
-        self.align_camera,
-    )
-    if imgui.TreeNodeEx('Physics Settings', node_flags):
-      ux.physics_gui(self.model)
-      imgui.TreePop()
-    if imgui.TreeNodeEx('Rendering Settings', node_flags):
-      ux.rendering_gui(
-          self.model,
-          self.viewer.vis_options,
-          self.viewer.render_flags,
+    if self.config.show_options:
+      _, self.config.show_options = imgui.Begin(
+          'Options', self.config.show_options
       )
-      imgui.TreePop()
-    if imgui.TreeNodeEx('Visibility Groups', node_flags):
-      ux.groups_gui(self.model, self.viewer.vis_options)
-      imgui.TreePop()
-    if imgui.TreeNodeEx('Visualization', node_flags):
-      ux.visualization_gui(
+      # The Simulation panel draws its own collapsible section header.
+      ux.simulation_gui(
           self.model,
-          self.viewer.vis_options,
-          self.viewer.camera,
+          self.data,
+          self.step_control_state,
+          self.sim_history,
+          self.ux_state,
+          self.reset_physics,
+          self.reload_model,
+          self.align_camera,
       )
-      imgui.TreePop()
-    imgui.End()
+      if imgui.TreeNodeEx('Physics Settings', node_flags):
+        ux.physics_gui(self.model)
+        imgui.TreePop()
+      if imgui.TreeNodeEx('Rendering Settings', node_flags):
+        ux.rendering_gui(
+            self.model,
+            self.viewer.vis_options,
+            self.viewer.render_flags,
+        )
+        imgui.TreePop()
+      if imgui.TreeNodeEx('Visibility Groups', node_flags):
+        ux.groups_gui(self.model, self.viewer.vis_options)
+        imgui.TreePop()
+      if imgui.TreeNodeEx('Visualization', node_flags):
+        ux.visualization_gui(
+            self.model,
+            self.viewer.vis_options,
+            self.viewer.camera,
+        )
+        imgui.TreePop()
+      imgui.End()
 
     # -- Right pane: Inspector ------------------------------------------------
-    imgui.Begin('Inspector')
-    if imgui.TreeNodeEx('Noise', node_flags):
-      ux.noise_gui(self.step_control_state)
-      imgui.TreePop()
-    if imgui.TreeNodeEx('Joints', node_flags):
-      # The GUI edits the viewer's local data.qpos; forward any change to the
-      # sim, else the next incoming StateSnapshot reverts it.
-      qpos_before = self.data.qpos.copy()
-      ux.joints_gui(self.model, self.data, self.viewer.vis_options)
-      if not np.array_equal(qpos_before, self.data.qpos):
-        viewer_utils.send_state(
-            self.viewer,
-            self.model,
-            self.data,
-            int(mujoco.mjtState.mjSTATE_QPOS),
-        )
-      imgui.TreePop()
-    if imgui.TreeNodeEx('Controls', node_flags):
-      # The GUI edits the viewer's local data.ctrl; forward any change to the
-      # sim, else the next incoming StateSnapshot reverts it.
-      ctrl_before = self.data.ctrl.copy()
-      ux.controls_gui(self.model, self.data, self.viewer.vis_options)
-      if not np.array_equal(ctrl_before, self.data.ctrl):
-        viewer_utils.send_state(
-            self.viewer,
-            self.model,
-            self.data,
-            int(mujoco.mjtState.mjSTATE_CTRL),
-        )
-      imgui.TreePop()
-    if imgui.TreeNodeEx(
-        'Sensors', node_flags | int(imgui.TreeNodeFlags.DefaultOpen)
-    ):
-      ux.sensor_gui(self.model, self.data)
-      imgui.TreePop()
-    if imgui.TreeNodeEx('Watch', node_flags):
-      ux.watch_gui(self.model, self.data, self.ux_state)
-      imgui.TreePop()
-    if imgui.TreeNodeEx('State', node_flags):
-      ux.state_gui(self.model, self.data, self.ux_state)
-      imgui.TreePop()
-    imgui.End()
+    if self.config.show_inspector:
+      _, self.config.show_inspector = imgui.Begin(
+          'Inspector', self.config.show_inspector
+      )
+      if imgui.TreeNodeEx('Noise', node_flags):
+        ux.noise_gui(self.step_control_state)
+        imgui.TreePop()
+      if imgui.TreeNodeEx('Joints', node_flags):
+        # The GUI edits the viewer's local data.qpos; forward any change to the
+        # sim, else the next incoming StateSnapshot reverts it.
+        qpos_before = self.data.qpos.copy()
+        ux.joints_gui(self.model, self.data, self.viewer.vis_options)
+        if not np.array_equal(qpos_before, self.data.qpos):
+          viewer_utils.send_state(
+              self.viewer,
+              self.model,
+              self.data,
+              int(mujoco.mjtState.mjSTATE_QPOS),
+          )
+        imgui.TreePop()
+      if imgui.TreeNodeEx('Controls', node_flags):
+        # The GUI edits the viewer's local data.ctrl; forward any change to the
+        # sim, else the next incoming StateSnapshot reverts it.
+        ctrl_before = self.data.ctrl.copy()
+        ux.controls_gui(self.model, self.data, self.viewer.vis_options)
+        if not np.array_equal(ctrl_before, self.data.ctrl):
+          viewer_utils.send_state(
+              self.viewer,
+              self.model,
+              self.data,
+              int(mujoco.mjtState.mjSTATE_CTRL),
+          )
+        imgui.TreePop()
+      if imgui.TreeNodeEx(
+          'Sensors', node_flags | int(imgui.TreeNodeFlags.DefaultOpen)
+      ):
+        ux.sensor_gui(self.model, self.data)
+        imgui.TreePop()
+      if imgui.TreeNodeEx('Watch', node_flags):
+        ux.watch_gui(self.model, self.data, self.ux_state)
+        imgui.TreePop()
+      if imgui.TreeNodeEx('State', node_flags):
+        ux.state_gui(self.model, self.data, self.ux_state)
+        imgui.TreePop()
+      imgui.End()
 
     # -- Floating windows -----------------------------------------------------
-    if self.show_profiler:
-      _, self.show_profiler = imgui.Begin('Profiler', self.show_profiler)
+    if self.config.show_profiler:
+      _, self.config.show_profiler = imgui.Begin(
+          'Profiler', self.config.show_profiler
+      )
       ux.counts_gui(self.model, self.data)
       ux.convergence_gui(self.model, self.data)
       imgui.End()
 
-    if self.show_info:
-      _, self.show_info = imgui.Begin('Info', self.show_info)
+    if self.config.show_info:
+      _, self.config.show_info = imgui.Begin('Info', self.config.show_info)
       paused = (
           self.step_control_state.get_pause_state() != sim.PauseState.UNPAUSED
       )
@@ -473,13 +503,14 @@ class ViewerApp:
       imgui.End()
 
     # -- Status bar -----------------------------------------------------------
-    imgui.PushStyleVar(imgui.StyleVar.CellPadding, imgui.Vec2(0, 0))
-    imgui.PushStyleVar(imgui.StyleVar.FramePadding, imgui.Vec2(0, 0))
-    imgui.PushStyleVar(imgui.StyleVar.WindowPadding, imgui.Vec2(0, 0))
-    if imgui.Begin('StatusBar'):
-      imgui.Text(self.status)
-    imgui.End()
-    imgui.PopStyleVar(3)
+    if self.config.show_status_bar:
+      imgui.PushStyleVar(imgui.StyleVar.CellPadding, imgui.Vec2(0, 0))
+      imgui.PushStyleVar(imgui.StyleVar.FramePadding, imgui.Vec2(0, 0))
+      imgui.PushStyleVar(imgui.StyleVar.WindowPadding, imgui.Vec2(0, 0))
+      if imgui.Begin('StatusBar'):
+        imgui.Text(self.status)
+      imgui.End()
+      imgui.PopStyleVar(3)
 
   @messages.handler(priority=messages.Priority.CRITICAL)
   def _on_model(self, event: messages.ModelEvent) -> bool:
