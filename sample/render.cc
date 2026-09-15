@@ -280,7 +280,6 @@ static bool ParseFlag(string_view name, string_view val, Options& opt) {
   return ParseVisOrRndFlag(name, val, opt);
 }
 
-
 // helper: parse command line arguments
 static bool ParseCommandLine(int& argc, char** argv, Options& opt) {
 
@@ -304,8 +303,7 @@ static bool ParseCommandLine(int& argc, char** argv, Options& opt) {
       }
 
       if (!ParseFlag(name, val, opt)) {
-        printf("Unknown or invalid option: --%.*s\n",
-               static_cast<int>(name.size()), name.data());
+        printf("Unknown or invalid option: --%.*s\n", static_cast<int>(name.size()), name.data());
         return false;
       }
     } else if (opt.model_path.empty()) {
@@ -546,6 +544,8 @@ static vector<unsigned char> RenderFilament(const mjModel*   m,
     request.draw_mode = mjDRAW_MODE_DEPTH;
   } else if (rnd_flags[mjRND_WIREFRAME] > 0) {
     request.draw_mode = mjDRAW_MODE_WIREFRAME;
+  } else if (opt.flags[mjVIS_ISLAND]) {
+    request.draw_mode = mjDRAW_MODE_ISLANDS;
   }
   if (rnd_flags[mjRND_SHADOW] >= 0) { request.enable_shadows = rnd_flags[mjRND_SHADOW]; }
   if (rnd_flags[mjRND_REFLECTION] >= 0) {
@@ -587,7 +587,6 @@ static vector<unsigned char> RenderClassic(mjModel*         m,
                                            const int        rnd_flags[mjNRNDFLAG],
                                            int              width,
                                            int              height) {
-
   // create scene
   static constexpr int kMaxGeom = 50000;
   mjvScene             scn;
