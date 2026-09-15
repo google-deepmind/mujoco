@@ -509,8 +509,9 @@ def sensor_acc(m: Model, d: Data) -> Data:
       # compute distance, mapping over sites and contacts
       def _distance(site_size, site_xpos, site_xmat, site_type, pos, conray):
         def dist(size, xpos, xmat, conray):
-          pnt = (pos - xpos) @ xmat
-          vec = conray @ xmat
+          # Avoid matmul here: its batching rule can reorder nested vmap axes.
+          pnt = jp.sum((pos - xpos)[..., :, None] * xmat, axis=-2)
+          vec = jp.sum(conray[..., :, None] * xmat, axis=-2)
           ray_geom_ = lambda pnt, vec: ray.ray_geom(size, pnt, vec, site_type)
           return jax.vmap(ray_geom_)(pnt, vec)
 

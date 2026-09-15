@@ -83,6 +83,23 @@ class SensorTest(parameterized.TestCase):
 
     _assert_eq(d.sensordata, dx.sensordata, 'sensordata')
 
+  def test_touch_sensor_nested_vmap(self):
+    """Tests touch sensors compose under nested vmap."""
+    m = test_util.load_test_file('sensor/sensor.xml')
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 10)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    def forward(offset):
+      data = dx.replace(qpos=dx.qpos + offset * jp.zeros_like(dx.qpos))
+      return mjx.forward(mx, data).sensordata
+
+    offsets = jp.zeros((2, 4))
+    actual = jax.jit(jax.vmap(jax.vmap(forward)))(offsets)
+    expected = np.asarray(mjx.forward(mx, dx).sensordata)
+    _assert_eq(actual, np.broadcast_to(expected, actual.shape), 'sensordata')
+
   def test_disable_sensor(self):
     """Tests disabling sensor."""
     m = test_util.load_test_file('sensor/sensor.xml')
