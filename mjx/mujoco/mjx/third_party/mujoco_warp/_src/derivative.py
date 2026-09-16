@@ -490,7 +490,6 @@ def deriv_rne_body2jnt_sparse(
   Di: wp.array[int],
   Dj: wp.array[int],
   Dcfrcbody_in: wp.array3d[wp.spatial_vector],
-  flg_subtract: bool,
   # Out:
   qDeriv_out: wp.array2d[float],
 ):
@@ -505,14 +504,11 @@ def deriv_rne_body2jnt_sparse(
   dcfrc = Dcfrcbody_in[worldid, body_i, j]
   term = wp.dot(cdof_in[worldid, i], dcfrc)
 
-  if flg_subtract:
-    wp.atomic_sub(qDeriv_out[worldid], elemid, dt * term)
-  else:
-    wp.atomic_add(qDeriv_out[worldid], elemid, dt * term)
+  wp.atomic_add(qDeriv_out[worldid], elemid, dt * term)
 
 
-def deriv_rne_vel(m: Model, d: Data, out: wp.array2d[float], flg_subtract: bool = False):
-  """Compute RNE velocity derivatives and add/subtract from the output.
+def deriv_rne_vel(m: Model, d: Data, out: wp.array2d[float]):
+  """Compute RNE velocity derivatives and add to the output.
 
   Implements the analytical derivative of inverse-dynamics Coriolis/centrifugal
   forces with respect to joint velocities.
@@ -521,7 +517,6 @@ def deriv_rne_vel(m: Model, d: Data, out: wp.array2d[float], flg_subtract: bool 
     m: The model (device).
     d: The data (device).
     out: D-structure output array (nworld, nD) to accumulate RNE terms into.
-    flg_subtract: If True, subtract the RNE derivatives from output instead of adding them.
   """
   # TODO(team): consider caching these allocations
   Dcvel = wp.zeros((d.nworld, m.nbody, m.nv), dtype=wp.spatial_vector)
@@ -579,7 +574,7 @@ def deriv_rne_vel(m: Model, d: Data, out: wp.array2d[float], flg_subtract: bool 
   wp.launch(
     deriv_rne_body2jnt_sparse,
     dim=(d.nworld, m.qD_fullm_i.size),
-    inputs=[m.dof_bodyid, d.cdof, m.opt.timestep, m.qD_fullm_i, m.qD_fullm_j, Dcfrcbody, flg_subtract],
+    inputs=[m.dof_bodyid, d.cdof, m.opt.timestep, m.qD_fullm_i, m.qD_fullm_j, Dcfrcbody],
     outputs=[out],
   )
 
@@ -1155,7 +1150,7 @@ def deriv_smooth_vel(m: Model, d: Data, out: wp.array2d[float]):
   Mi = m.M_fullm_i
   Mj = m.M_fullm_j
 
-  if ~(m.opt.disableflags & (DisableBit.ACTUATION | DisableBit.DAMPER)):
+  if not (m.opt.disableflags & (DisableBit.ACTUATION | DisableBit.DAMPER)):
     # TODO(team): only clear elements not set by _qderiv_actuator_passive
     out.zero_()
     if m.nactuator > 0 and not (m.opt.disableflags & DisableBit.ACTUATION):

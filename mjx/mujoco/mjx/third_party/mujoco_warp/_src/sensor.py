@@ -778,7 +778,7 @@ def _sensor_collision(
   if conid >= nacon_in[0]:
     return
 
-  if not contact_type_in[conid] & ContactType.SENSOR:
+  if not (contact_type_in[conid] & ContactType.SENSOR):
     return
 
   geom = contact_geom_in[conid]
@@ -2434,7 +2434,7 @@ def _contact_match_builder(warn_overflow: int):
     if contactid >= nacon_in[0]:
       return
 
-    if not contact_type_in[contactid] & ContactType.CONSTRAINT:
+    if not (contact_type_in[contactid] & ContactType.CONSTRAINT):
       return
 
     # sensor information

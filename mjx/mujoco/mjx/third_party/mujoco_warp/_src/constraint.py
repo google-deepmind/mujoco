@@ -2721,7 +2721,7 @@ def _efc_contact_init(cone_type: types.ConeType, is_sparse: bool, newton: bool, 
     if conid >= nacon_in[0]:
       return
 
-    if not type_in[conid] & ContactType.CONSTRAINT:
+    if not (type_in[conid] & ContactType.CONSTRAINT):
       return
 
     condim = condim_in[conid]
@@ -2857,7 +2857,7 @@ def _efc_contact_init_flex(cone_type: types.ConeType, is_sparse: bool, newton: b
     if conid >= nacon_in[0]:
       return
 
-    if not type_in[conid] & ContactType.CONSTRAINT:
+    if not (type_in[conid] & ContactType.CONSTRAINT):
       return
 
     condim = condim_in[conid]
@@ -4278,7 +4278,7 @@ def _efc_contact_update(cone_type: types.ConeType, flg_adhesion: bool):
     if conid >= nacon_in[0]:
       return
 
-    if not type_in[conid] & ContactType.CONSTRAINT:
+    if not (type_in[conid] & ContactType.CONSTRAINT):
       return
 
     condim = condim_in[conid]
@@ -4444,7 +4444,7 @@ def _efc_contact_update_flex(cone_type: types.ConeType, flg_adhesion: bool = Fal
     if conid >= nacon_in[0]:
       return
 
-    if not type_in[conid] & ContactType.CONSTRAINT:
+    if not (type_in[conid] & ContactType.CONSTRAINT):
       return
 
     condim = condim_in[conid]
@@ -4862,7 +4862,7 @@ def _add_surface_vel(is_pyramidal: bool):
     if conid >= nacon_in[0]:
       return
 
-    if not type_in[conid] & ContactType.CONSTRAINT:
+    if not (type_in[conid] & ContactType.CONSTRAINT):
       return
 
     if contact_efc_address_in[conid, 0] < 0:

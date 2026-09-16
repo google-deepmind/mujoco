@@ -653,6 +653,9 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
           (types.GeomType.BOX, types.GeomType.BOX),
           (types.GeomType.BOX, types.GeomType.MESH),
           (types.GeomType.MESH, types.GeomType.MESH),
+          (types.GeomType.CYLINDER, types.GeomType.CYLINDER),
+          (types.GeomType.CYLINDER, types.GeomType.BOX),
+          (types.GeomType.CYLINDER, types.GeomType.MESH),
         ):
           if m.geom_pair_type_count[geom_trid_index(int(g1), int(g2))] > 0:
             unsupported_multiccd_pairs.append((g1.name, g2.name))

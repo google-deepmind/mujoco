@@ -998,15 +998,19 @@ def implicit(m: Model, d: Data):
       outputs=[d.qLU],
     )
 
-    # 3. Compute RNE derivatives, scale by timestep, and subtract in-place from qLU
-    derivative.deriv_rne_vel(m, d, d.qLU, flg_subtract=True)
+    # 3. Compute RNE derivatives, scale by timestep, and add in-place to qLU.
+    # Note: inverse dynamics Coriolis enters equations of motion as -qfrc_bias,
+    # so M - dt * df/dv = M + dt * d(qfrc_bias)/dv.
+    derivative.deriv_rne_vel(m, d, d.qLU)
 
     # 4. Factorize and solve: qacc = qLU \ Ma
     qacc = wp.empty((d.nworld, m.nv), dtype=float)
     smooth.factor_solve_lu(m, d, d.qLU, qacc, d.efc.Ma)
     _launch_implicit_free_body_solve(m, d, qacc)
     _advance(m, d, qacc)
-  elif ~(m.opt.disableflags | ~(DisableBit.ACTUATION | DisableBit.SPRING | DisableBit.DAMPER)):
+  elif (m.opt.disableflags & (DisableBit.ACTUATION | DisableBit.SPRING | DisableBit.DAMPER)) != (
+    DisableBit.ACTUATION | DisableBit.SPRING | DisableBit.DAMPER
+  ):
     # qDeriv is in M-structure; the scratch qLD matches d.qLD (per-block).
     qDeriv = wp.empty((d.nworld, m.nC), dtype=float)
     qLD = wp.empty_like(d.qLD)
