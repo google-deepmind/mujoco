@@ -21,7 +21,7 @@
   const params = new URLSearchParams(window.location.search);
   if (!params.has('model')) {
     const defaultModel =
-        'github:google-deepmind/mujoco/main/model/humanoid/humanoid.xml';
+        'github:google-deepmind/mujoco/main/model/welcome/welcome.xml';
     // Construct the query string manually instead of using URLSearchParams.toString()
     // or encodeURIComponent() so that ':' and '/' in defaultModel remain unencoded
     // and human-readable in the browser's address bar.
