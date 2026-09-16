@@ -59,9 +59,9 @@ def main(argv):
   # mjpython binary when we execve. We therefore preemptively resolve all
   # @executable_path-relative paths now and add them to
   # DYLD_FALLBACK_LIBRARY_PATH.
-  libpython_dir = os.path.dirname(libpython_path)
+  libpython_dir = os.path.dirname(os.path.realpath(libpython_path))
   dyld_fallback_paths = []
-  pattern = re.compile(r'@executable_path/(.+) \(offset \d+\)\Z')
+  pattern = re.compile(r'^\s*(name|path) @executable_path/(.+) \(offset \d+\)\Z')
   otool_out = subprocess.run(
       ['otool', '-l', libpython_path],
       capture_output=True,
@@ -70,7 +70,8 @@ def main(argv):
   for line in otool_out.split('\n'):
     m = pattern.search(line)
     if m is not None:
-      new_path = os.path.dirname(os.path.join(libpython_dir, m.group(1)))
+      resolved = os.path.join(libpython_dir, m.group(2))
+      new_path = resolved if m.group(1) == 'path' else os.path.dirname(resolved)
       if new_path not in dyld_fallback_paths:
         dyld_fallback_paths.insert(0, new_path)
 
