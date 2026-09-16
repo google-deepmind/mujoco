@@ -1572,6 +1572,7 @@ def _cfrc_ext_equality(
   body_rootid: wp.array[int],
   site_bodyid: wp.array[int],
   site_pos: wp.array2d[wp.vec3],
+  site_quat: wp.array2d[wp.quat],
   eq_obj1id: wp.array[int],
   eq_obj2id: wp.array[int],
   eq_objtype: wp.array[int],
@@ -1579,6 +1580,7 @@ def _cfrc_ext_equality(
   # Data in:
   xpos_in: wp.array2d[wp.vec3],
   xmat_in: wp.array2d[wp.mat33],
+  xquat_in: wp.array2d[wp.quat],
   subtree_com_in: wp.array2d[wp.vec3],
   efc_id_in: wp.array2d[int],
   efc_force_in: wp.array2d[float],
@@ -1600,10 +1602,8 @@ def _cfrc_ext_equality(
   is_connect = eqid < num_connect
   if is_connect:
     efcid = 3 * eqid
-    cfrc_torque = wp.vec3(0.0, 0.0, 0.0)  # no torque from connect
   else:
     efcid = 6 * eqid - ne_connect
-    cfrc_torque = wp.vec3(efc_force_in[worldid, efcid + 3], efc_force_in[worldid, efcid + 4], efc_force_in[worldid, efcid + 5])
 
   cfrc_force = wp.vec3(
     efc_force_in[worldid, efcid + 0],
@@ -1624,6 +1624,26 @@ def _cfrc_ext_equality(
   else:
     bodyid1 = site_bodyid[obj1]
     bodyid2 = site_bodyid[obj2]
+
+  if is_connect:
+    cfrc_torque = wp.vec3(0.0, 0.0, 0.0)  # no torque from connect
+  else:
+    force_torque = wp.vec3(
+      efc_force_in[worldid, efcid + 3],
+      efc_force_in[worldid, efcid + 4],
+      efc_force_in[worldid, efcid + 5],
+    )
+    if body_semantic:
+      relpose = wp.quat(eq_data_[6], eq_data_[7], eq_data_[8], eq_data_[9])
+      q0 = math.mul_quat(xquat_in[worldid, bodyid1], relpose)
+      q1 = xquat_in[worldid, bodyid2]
+    else:
+      site_quat_id = worldid % site_quat.shape[0]
+      q0 = math.mul_quat(xquat_in[worldid, bodyid1], site_quat[site_quat_id, obj1])
+      q1 = math.mul_quat(xquat_in[worldid, bodyid2], site_quat[site_quat_id, obj2])
+
+    quat = math.mul_quat(math.quat_mul_axis(q1, force_torque), math.quat_inv(q0))
+    cfrc_torque = (0.5 * eq_data_[10]) * wp.vec3(quat[1], quat[2], quat[3])
 
   # body 1
   if bodyid1:
@@ -1775,12 +1795,14 @@ def rne_postconstraint(m: Model, d: Data):
         m.body_rootid,
         m.site_bodyid,
         m.site_pos,
+        m.site_quat,
         m.eq_obj1id,
         m.eq_obj2id,
         m.eq_objtype,
         m.eq_data,
         d.xpos,
         d.xmat,
+        d.xquat,
         d.subtree_com,
         d.efc.id,
         d.efc.force,

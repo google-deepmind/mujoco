@@ -2502,18 +2502,33 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
     switch ((mjtEq) m->eq_type[id]) {
     case mjEQ_CONNECT:
     case mjEQ_WELD:
+      body_semantic = m->eq_objtype[id] == mjOBJ_BODY;
+      obj1 = m->eq_obj1id[id];
+      obj2 = m->eq_obj2id[id];
+
       // cfrc = world-oriented torque:force vector
       mji_copy3(cfrc + 3, d->efc_force + i);
-      if (m->eq_type[id] == mjEQ_WELD) {
-        mji_copy3(cfrc, d->efc_force + i + 3);
-      } else {
+      if (m->eq_type[id] == mjEQ_CONNECT) {
         mju_zero3(cfrc);  // no torque from connect
+      } else {
+        // the rotational rows are 0.5*torquescale * neg(q1)*(jac0-jac1)*q0*relpose (see
+        // mj_instantiateEquality), so the torque is the adjoint applied to the multiplier:
+        // 0.5*torquescale * q1*force*neg(q0*relpose), with site frames as q1 and q0*relpose
+        mjtNum q0[4], q1[4], quat[4];
+        if (body_semantic) {
+          mju_mulQuat(q0, d->xquat+4*obj1, eq_data+6);
+          mji_copy4(q1, d->xquat+4*obj2);
+        } else {
+          mju_mulQuat(q0, d->xquat+4*m->site_bodyid[obj1], m->site_quat+4*obj1);
+          mju_mulQuat(q1, d->xquat+4*m->site_bodyid[obj2], m->site_quat+4*obj2);
+        }
+        mju_negQuat(q0, q0);
+        mju_mulQuatAxis(quat, q1, d->efc_force+i+3);
+        mju_mulQuat(quat, quat, q0);
+        mju_scl3(cfrc, quat+1, 0.5*eq_data[10]);
       }
 
-      body_semantic = m->eq_objtype[id] == mjOBJ_BODY;
-
       // body 1
-      obj1 = m->eq_obj1id[id];
       k = body_semantic ? obj1 : m->site_bodyid[obj1];
       if (k) {
         offset = body_semantic ? eq_data + 3 * (m->eq_type[id] == mjEQ_WELD) :
@@ -2530,7 +2545,6 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       }
 
       // body 2
-      obj2 = m->eq_obj2id[id];
       k = body_semantic ? obj2 : m->site_bodyid[obj2];
       if (k) {
         offset = body_semantic ? eq_data + 3 * (m->eq_type[id] == mjEQ_CONNECT) :

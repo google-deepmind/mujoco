@@ -741,6 +741,32 @@ def rne_postconstraint(m: Model, d: Data) -> Data:
       pos1 = jp.where(is_site[:, None], m.site_pos[m.eq_obj1id], pos1)
       pos2 = jp.where(is_site[:, None], m.site_pos[m.eq_obj2id], pos2)
 
+    quat1 = jax.vmap(math.quat_mul)(d.xquat[body1id], m.eq_data[:, 6:10])
+    quat2 = d.xquat[body2id]
+
+    if m.nsite:
+      quat1_site = jax.vmap(math.quat_mul)(
+          d.xquat[body1id], m.site_quat[m.eq_obj1id]
+      )
+      quat2_site = jax.vmap(math.quat_mul)(
+          d.xquat[body2id], m.site_quat[m.eq_obj2id]
+      )
+      quat1 = jp.where(is_site[:, None], quat1_site, quat1)
+      quat2 = jp.where(is_site[:, None], quat2_site, quat2)
+
+    # the rotational rows are 0.5*torquescale * neg(q2)*(jac1-jac2)*q1, so the
+    # torque is the adjoint applied to the multiplier: 0.5*torquescale * q2*f*neg(q1)
+    def _weld_torque(q1, q2, frc, torquescale):
+      quat = math.quat_mul(math.quat_mul_axis(q2, frc), math.quat_inv(q1))
+      return 0.5 * torquescale * quat[1:]
+
+    cfrc_weld_torque = jax.vmap(_weld_torque)(
+        quat1[weld_id],
+        quat2[weld_id],
+        cfrc_weld_torque,
+        m.eq_data[weld_id, 10],
+    )
+
     # body 1
     k1_weld = body1id[weld_id]
     k1_weld_mask = k1_weld != 0

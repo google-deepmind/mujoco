@@ -31,6 +31,10 @@ Bug fixes
 - Tendon :ref:`actuatorfrclimited<tendon-spatial-actuatorfrclimited>` now defaults to "auto" as documented.
   Previously the default was "false" and :at:`actuatorfrcrange` was silently ignored unless :at:`actuatorfrclimited`
   was set explicitly.
+- Fixed the torque applied by :ref:`weld<equality-weld>` constraints in :ref:`mj_rnePostConstraint`. The rotational
+  constraint force was used directly as a world-frame torque, missing the scaling by ``0.5 * torquescale`` and the
+  rotation into the world frame. :ref:`Force<sensor-force>` and :ref:`torque<sensor-torque>` sensors on bodies held
+  by a weld that carries torque were wrong (:issue:`2533`).
 
 Version 3.13.0 (September 8, 2026)
 ----------------------------------

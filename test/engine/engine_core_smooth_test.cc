@@ -481,6 +481,19 @@ TEST_F(CoreSmoothTest, RnePostWeldForceTorqueFreeRotated) {
   TestWeld(kModelFilePath);
 }
 
+TEST_F(CoreSmoothTest, RnePostWeldForceTorqueLever) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/weld/force_torque_lever.xml";
+  TestWeld(kModelFilePath);
+}
+
+TEST_F(CoreSmoothTest, RnePostWeldForceTorqueLeverRotated) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/weld/"
+      "force_torque_lever_rotated.xml";
+  TestWeld(kModelFilePath);
+}
+
 TEST_F(CoreSmoothTest, WeldRatioForceFree) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/tfratio0_force_free.xml";
@@ -545,6 +558,145 @@ TEST_F(CoreSmoothTest, EqualityBodySite) {
 
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+// ------------------------- mj_rnePostConstraint ------------------------------
+
+// projection of the interaction force with the parent onto the joint axes
+vector<mjtNum> JointForce(const mjModel* m, mjData* d) {
+  // the solver stops at its tolerance: make qacc exactly consistent with the
+  // constraint force before the recursion
+  vector<mjtNum> qfrc(m->nv);
+  mju_add(qfrc.data(), d->qfrc_smooth, d->qfrc_constraint, m->nv);
+  mj_solveM(m, d, d->qacc, qfrc.data(), 1);
+  mj_rnePostConstraint(m, d);
+
+  for (int v = 0; v < m->nv; v++) {
+    qfrc[v] = mju_dot(d->cdof + 6 * v, d->cfrc_int + 6 * m->dof_bodyid[v], 6);
+  }
+  return qfrc;
+}
+
+// forces not transmitted through joints (constraints, contacts, perturbations)
+// are external: cfrc_int carries no component along the joint axes
+TEST_F(CoreSmoothTest, RnePostBodyForcesAreExternal) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="plane" size="1 1 .1"/>
+      <body pos="0 0 .5">
+        <joint type="hinge" axis="0 1 0"/>
+        <geom type="capsule" fromto="0 0 0 .3 0 0" size=".03"/>
+        <site name="link" pos=".1 0 0"/>
+        <body name="tip" pos=".3 0 0">
+          <joint type="ball"/>
+          <geom type="capsule" fromto="0 0 0 .2 0 0" size=".03"/>
+        </body>
+      </body>
+      <body name="box" pos=".5 0 .5" euler="0 0 20">
+        <freejoint/>
+        <geom type="box" size=".05 .05 .05"/>
+      </body>
+      <body name="ball" pos="0 .3 .09">
+        <freejoint/>
+        <geom type="sphere" size=".1"/>
+        <site name="ball" pos="0 .1 0"/>
+      </body>
+    </worldbody>
+    <equality>
+      <weld body1="tip" body2="box" torquescale=".5"/>
+      <weld site1="link" site2="ball" torquescale="2"/>
+      <connect body1="ball" body2="box" anchor="0 0 .1"/>
+    </equality>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
+  int box = mj_name2id(m, mjOBJ_BODY, "box");
+
+  for (mjtCone cone : {mjCONE_PYRAMIDAL, mjCONE_ELLIPTIC}) {
+    m->opt.cone = cone;
+    mj_resetData(m, d);
+
+    // perturb, step away from the satisfied constraints
+    for (int v = 0; v < m->nv; v++) {
+      d->qvel[v] = (v % 2 ? -1 : 1) * 0.1 * (v + 1);
+    }
+    for (int i = 0; i < 6; i++) {
+      d->xfrc_applied[6 * box + i] = i + 1;
+    }
+    for (int i = 0; i < 50; i++) {
+      mj_step(m, d);
+    }
+    mj_forward(m, d);
+    ASSERT_GT(mju_norm(d->efc_force, d->nefc), 1);
+
+    vector<mjtNum> qfrc = JointForce(m, d);
+    for (int v = 0; v < m->nv; v++) {
+      EXPECT_NEAR(qfrc[v], 0, MjTol(1e-11, 2e-3)) << "dof " << v;
+    }
+  }
+}
+
+// forces transmitted through joints are internal: cfrc_int projects onto the
+// joint axes as the total joint-space force
+TEST_F(CoreSmoothTest, RnePostJointForcesAreInternal) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="0 0 .5">
+        <joint name="hinge" type="hinge" axis="0 1 0" damping=".1" stiffness="2"
+               armature=".3" range="-.5 .5"/>
+        <geom type="capsule" fromto="0 0 0 .3 0 0" size=".03"/>
+        <body pos=".3 0 0">
+          <joint name="slide" type="slide" axis="1 0 0" damping=".2" frictionloss=".1"/>
+          <geom type="box" size=".05 .05 .05"/>
+        </body>
+      </body>
+    </worldbody>
+    <tendon>
+      <fixed stiffness="3" damping=".1">
+        <joint joint="hinge" coef="1"/>
+        <joint joint="slide" coef="-.5"/>
+      </fixed>
+    </tendon>
+    <equality>
+      <joint joint1="hinge" joint2="slide" polycoef="0 .5 0 0 0"/>
+    </equality>
+    <actuator>
+      <motor joint="hinge"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
+
+  // hinge beyond its limit, everything else in motion
+  d->qpos[0] = 0.6;
+  d->qpos[1] = 0.1;
+  d->qvel[0] = 0.3;
+  d->qvel[1] = -0.2;
+  d->ctrl[0] = 0.7;
+  d->qfrc_applied[0] = 0.4;
+  d->qfrc_applied[1] = -0.5;
+  mj_forward(m, d);
+  ASSERT_GT(mju_norm(d->efc_force, d->nefc), 0.1);
+
+  vector<mjtNum> qfrc = JointForce(m, d);
+  for (int v = 0; v < m->nv; v++) {
+    mjtNum expected = d->qfrc_passive[v] + d->qfrc_actuator[v] +
+                      d->qfrc_applied[v] + d->qfrc_constraint[v] -
+                      m->dof_armature[v] * d->qacc[v];
+    EXPECT_NEAR(qfrc[v], expected, MjTol(1e-11, 3e-4)) << "dof " << v;
+  }
 }
 
 // --------------------------- site actuators ----------------------------------
