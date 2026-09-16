@@ -1,0 +1,357 @@
+<mujoco model="welcome">
+  <compiler angle="radian" />
+  <option timestep="0.02" />
+
+  <visual>
+    <global elevation="-15" offwidth="1920" offheight="1080" />
+  </visual>
+
+  <default>
+    <default class="letter">
+      <geom type="mesh" density="4000" material="m1" />
+      <default class="letter_visual">
+        <geom contype="0" conaffinity="0" group="2" />
+      </default>
+      <default class="letter_collision">
+        <geom group="3" friction="1 0.02 0.001" rgba="0.9 0.3 0.2 0.5" density="0" />
+      </default>
+    </default>
+    <default class="humanoid_main">
+      <general ctrlrange="-1 1" ctrllimited="true" />
+      <default class="humanoid_body">
+        <joint solimplimit="0 0.99 0.01" stiffness="1" armature="0.01" damping="0.2" limited="true" />
+        <geom type="capsule" condim="1" group="1" friction="0.7" solref="0.015" solimp="0.9 0.99 0.003" material="body" />
+        <default class="humanoid_thigh">
+          <geom size="0.06 0 0" />
+        </default>
+        <default class="humanoid_shin">
+          <geom size="0.049 0 0" />
+        </default>
+        <default class="humanoid_foot">
+          <geom size="0.027 0 0" />
+          <default class="humanoid_foot1" />
+          <default class="humanoid_foot2" />
+        </default>
+        <default class="humanoid_arm_upper">
+          <geom size="0.04 0 0" />
+        </default>
+        <default class="humanoid_arm_lower">
+          <geom size="0.031 0 0" />
+        </default>
+        <default class="humanoid_hand">
+          <geom size="0.04 0 0" type="sphere" />
+        </default>
+        <default class="humanoid_joint_big">
+          <joint stiffness="10" damping="5" />
+          <default class="humanoid_hip_x">
+            <joint range="-30 10" />
+          </default>
+          <default class="humanoid_hip_z">
+            <joint range="-60 35" />
+          </default>
+          <default class="humanoid_hip_y">
+            <joint range="-150 20" axis="0 1 0" />
+          </default>
+          <default class="humanoid_joint_big_stiff">
+            <joint stiffness="20" />
+          </default>
+        </default>
+        <default class="humanoid_knee">
+          <joint range="-160 2" pos="0 0 0.02" axis="0 -1 0" />
+        </default>
+        <default class="humanoid_ankle">
+          <joint range="-50 50" />
+          <default class="humanoid_ankle_y">
+            <joint stiffness="6" pos="0 0 0.08" axis="0 1 0" />
+          </default>
+          <default class="humanoid_ankle_x">
+            <joint stiffness="3" pos="0 0 0.04" />
+          </default>
+        </default>
+        <default class="humanoid_shoulder">
+          <joint range="-85 60" />
+        </default>
+        <default class="humanoid_elbow">
+          <joint stiffness="0" range="-100 50" />
+        </default>
+      </default>
+    </default>
+  </default>
+
+
+  <worldbody>
+    <geom name="floor" size="-1 -1 0.05" type="plane" material="groundplane" />
+    <camera name="wide" quat="0.788205 0.615412 0 0" pos="0.144 -4.896 1.44" />
+    <camera name="sit" quat="0.75774 0.652556 0 0" pos="-0.144 -2.592 0.864" />
+    <camera name="hero" quat="0.724077 0.611092 -0.206267 -0.244404" pos="-2.736 -3.024 1.152" />
+    <light name="key" pos="-1.44 -4.32 5.76" dir="0.169031 0.507093 -0.845154" specular="0.2 0.2 0.2" />
+    <light name="fill" pos="2.88 2.88 4.32" dir="-0.336861 -0.421076 -0.842152" diffuse="0.25 0.25 0.3" specular="0 0 0" />
+    <light intensity="15000" type="image" texture="ibl" />
+    <body name="humanoid_torso" childclass="humanoid_body" pos="-0.127819 -0.0178385 0.608413" quat="-0.00642665 0.0480706 -0.0248267 0.998515">
+      <joint name="humanoid_root" type="free" solimplimit="0.9 0.95 0.001" stiffness="0" armature="0" damping="0" />
+      <geom name="humanoid_torso" size="0.07 0.07" quat="0.707107 0.707107 0 0" material="humanoid_body" />
+      <geom name="humanoid_waist_upper" size="0.06 0.06" pos="-0.01 0 -0.12" quat="0.707107 0.707107 0 0" material="humanoid_body" />
+      <camera name="humanoid_back" quat="0.601501 0.371748 -0.371748 -0.601501" pos="-3 0 1" mode="trackcom" />
+      <camera name="humanoid_side" quat="0.850651 0.525731 0 0" pos="0 -3 1" mode="trackcom" />
+      <body name="humanoid_head" pos="-4.41253e-17 1.53144e-18 0.19" quat="1 0 0 0">
+        <geom name="humanoid_head" size="0.09" type="sphere" material="humanoid_body" />
+        <camera name="humanoid_egocentric" quat="0.524286 0.474472 -0.474472 -0.524286" pos="0.09 0 0" fovy="80" />
+      </body>
+      <body name="humanoid_waist_lower" pos="0.0485073 -0.000773476 -0.173771" quat="0.926655 0.00431149 -0.375846 0.00563022">
+        <joint name="humanoid_abdomen_z" class="humanoid_joint_big_stiff" range="-0.803144 0.767652" pos="0 0 0.065" />
+        <joint name="humanoid_abdomen_y" class="humanoid_joint_big" range="-0.381344 1.45126" pos="0 0 0.065" axis="0 1 0" />
+        <geom name="humanoid_waist_lower" size="0.06 0.06" quat="0.707107 0.707107 0 0" material="humanoid_body" />
+        <body name="humanoid_pelvis" pos="-0.0862561 -0.00208985 -0.158447" quat="0.996587 -0.0256613 0.0784549 -0.000758383">
+          <joint name="humanoid_abdomen_x" class="humanoid_joint_big" range="-0.559953 0.661777" pos="0 0 0.1" axis="1 0 0" />
+          <geom name="humanoid_butt" size="0.09 0.07" pos="-0.02 0 0" quat="0.707107 0.707107 0 0" material="humanoid_body" />
+          <body name="humanoid_thigh_right" pos="0.00401756 -0.0999881 -0.0398277" quat="0.703308 -0.224835 -0.671685 0.060386">
+            <joint name="humanoid_hip_x_right" class="humanoid_hip_x" range="-0.085139 0.612993" axis="1 0 0" />
+            <joint name="humanoid_hip_z_right" class="humanoid_hip_z" range="-0.873441 0.784624" />
+            <joint name="humanoid_hip_y_right" class="humanoid_hip_y" range="-1.2363 1.73076" />
+            <geom name="humanoid_thigh_right" class="humanoid_thigh" size="0.06 0.170074" pos="0 0.005 -0.17" quat="0.999892 0.0147011 0 0" material="humanoid_body" />
+            <body name="humanoid_shin_right" pos="-0.0157658 0.01 -0.367694" quat="0.438574 -2.77556e-17 0.898695 -1.38778e-17">
+              <joint name="humanoid_knee_right" class="humanoid_knee" range="-0.55896 2.26848" />
+              <geom name="humanoid_shin_right" class="humanoid_shin" size="0.049 0.15" pos="0 0 -0.15" material="humanoid_body" />
+              <body name="humanoid_foot_right" pos="0.00483989 0.00892905 -0.388841" quat="0.991489 0.110538 -0.0335853 0.06003">
+                <joint name="humanoid_ankle_y_right" class="humanoid_ankle_y" range="-0.804944 0.940386" />
+                <joint name="humanoid_ankle_x_right" class="humanoid_ankle_x" range="-1.12491 0.620424" axis="0.894427 0 0.447214" />
+                <geom name="humanoid_foot1_right" class="humanoid_foot1" size="0.027 0.105475" pos="0.035 -0.02 0" quat="0.707107 -0.0670402 -0.703922 0" material="humanoid_body" />
+                <geom name="humanoid_foot2_right" class="humanoid_foot2" size="0.027 0.105475" pos="0.035 0.02 0" quat="0.707107 0.0670402 -0.703922 0" material="humanoid_body" />
+              </body>
+            </body>
+          </body>
+          <body name="humanoid_thigh_left" pos="0.00434365 0.100012 -0.0397341" quat="0.694967 0.260429 -0.667602 -0.0592143">
+            <joint name="humanoid_hip_x_left" class="humanoid_hip_x" range="-0.025515 0.672617" axis="-1 0 0" />
+            <joint name="humanoid_hip_z_left" class="humanoid_hip_z" range="-0.826099 0.831966" axis="0 0 -1" />
+            <joint name="humanoid_hip_y_left" class="humanoid_hip_y" range="-1.24896 1.7181" />
+            <geom name="humanoid_thigh_left" class="humanoid_thigh" size="0.06 0.170074" pos="0 -0.005 -0.17" quat="0.999892 -0.0147011 0 0" material="humanoid_body" />
+            <body name="humanoid_shin_left" pos="-0.01557 -0.01 -0.367447" quat="0.431483 6.93889e-18 0.902121 -1.38778e-17">
+              <joint name="humanoid_knee_left" class="humanoid_knee" range="-0.54321 2.28423" />
+              <geom name="humanoid_shin_left" class="humanoid_shin" size="0.049 0.15" pos="0 0 -0.15" material="humanoid_body" />
+              <body name="humanoid_foot_left" pos="0.00554994 -0.00821875 -0.388951" quat="0.992582 -0.1014 -0.0375313 -0.0555852">
+                <joint name="humanoid_ankle_y_left" class="humanoid_ankle_y" range="-0.797077 0.948253" />
+                <joint name="humanoid_ankle_x_left" class="humanoid_ankle_x" range="-1.10446 0.640874" axis="-0.894427 0 -0.447214" />
+                <geom name="humanoid_foot1_left" class="humanoid_foot1" size="0.027 0.105475" pos="0.035 -0.02 0" quat="0.707107 -0.0670402 -0.703922 0" material="humanoid_body" />
+                <geom name="humanoid_foot2_left" class="humanoid_foot2" size="0.027 0.105475" pos="0.035 0.02 0" quat="0.707107 0.0670402 -0.703922 0" material="humanoid_body" />
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="humanoid_upper_arm_right" pos="2.09658e-17 -0.17 0.06" quat="0.883579 0.269514 0.377313 0.0654607">
+        <joint name="humanoid_shoulder1_right" class="humanoid_shoulder" range="-2.33527 0.195461" axis="0.816497 0.408248 0.408248" />
+        <joint name="humanoid_shoulder2_right" class="humanoid_shoulder" range="-0.994386 1.53634" axis="0 -0.707107 0.707107" />
+        <geom name="humanoid_upper_arm_right" class="humanoid_arm_upper" size="0.04 0.138564" pos="0.08 -0.08 -0.08" quat="0.888074 -0.325058 -0.325058 0" material="humanoid_body" />
+        <body name="humanoid_lower_arm_right" pos="0.18 -0.18 -0.18" quat="0.998151 -2.77556e-17 0.0429843 -0.0429843">
+          <joint name="humanoid_elbow_right" class="humanoid_elbow" range="-1.62368 0.994318" axis="0 -0.707107 0.707107" />
+          <geom name="humanoid_lower_arm_right" class="humanoid_arm_lower" size="0.031 0.138564" pos="0.09 0.09 0.09" quat="0.459701 0.627963 -0.627963 0" material="humanoid_body" />
+          <body name="humanoid_hand_right" pos="0.18 0.18 0.18" quat="1 2.77556e-17 0 2.77556e-17">
+            <geom name="humanoid_hand_right" class="humanoid_hand" quat="0.888074 -0.325058 0.325058 0" material="humanoid_body" />
+          </body>
+        </body>
+      </body>
+      <body name="humanoid_upper_arm_left" pos="-2.6563e-18 0.17 0.06" quat="0.894382 -0.284274 0.334246 -0.0868864">
+        <joint name="humanoid_shoulder1_left" class="humanoid_shoulder" range="-2.33214 0.198586" axis="-0.816497 0.408248 -0.408248" />
+        <joint name="humanoid_shoulder2_left" class="humanoid_shoulder" range="-1.09728 1.43345" axis="0 -0.707107 -0.707107" />
+        <geom name="humanoid_upper_arm_left" class="humanoid_arm_upper" size="0.04 0.138564" pos="0.08 0.08 -0.08" quat="0.888074 0.325058 -0.325058 0" material="humanoid_body" />
+        <body name="humanoid_lower_arm_left" pos="0.18 0.18 -0.18" quat="0.990235 -2.77556e-17 0.0985763 0.0985763">
+          <joint name="humanoid_elbow_left" class="humanoid_elbow" range="-1.4656 1.15239" axis="0 -0.707107 -0.707107" />
+          <geom name="humanoid_lower_arm_left" class="humanoid_arm_lower" size="0.031 0.138564" pos="0.09 -0.09 0.09" quat="0.459701 -0.627963 -0.627963 0" material="humanoid_body" />
+          <body name="humanoid_hand_left" pos="0.18 -0.18 0.18" quat="1 0 0 6.93889e-18">
+            <geom name="humanoid_hand_left" class="humanoid_hand" quat="0.888074 0.325058 0.325058 0" material="humanoid_body" />
+          </body>
+        </body>
+      </body>
+    </body>
+    <body name="letter_m" childclass="letter" pos="-1.94057 -4.23527e-12 0.0121745" quat="0.707106 0.707106 0.000986566 -0.000986566">
+      <joint type="free" />
+      <geom name="m" class="letter_visual" mesh="m" />
+      <geom name="m_col00" class="letter_collision" mesh="m_00" />
+      <geom name="m_col01" class="letter_collision" mesh="m_01" />
+      <geom name="m_col02" class="letter_collision" mesh="m_02" />
+      <geom name="m_col03" class="letter_collision" mesh="m_03" />
+    </body>
+    <body name="letter_u" childclass="letter" pos="-1.08652 -3.76922e-09 0.00799187" quat="0.707092 0.707093 -0.0044939 0.0044939">
+      <joint type="free" />
+      <geom name="u" class="letter_visual" mesh="u" />
+      <geom name="u_col00" class="letter_collision" mesh="u_00" />
+      <geom name="u_col01" class="letter_collision" mesh="u_01" />
+      <geom name="u_col02" class="letter_collision" mesh="u_02" />
+      <geom name="u_col03" class="letter_collision" mesh="u_03" />
+      <geom name="u_col04" class="letter_collision" mesh="u_04" />
+      <geom name="u_col05" class="letter_collision" mesh="u_05" />
+      <geom name="u_col06" class="letter_collision" mesh="u_06" />
+    </body>
+    <body name="letter_j" childclass="letter" pos="-0.506145 -0.000676261 0.0609605" quat="0.706298 0.702925 0.0597848 -0.0588629">
+      <joint type="free" />
+      <geom name="j" class="letter_visual" mesh="j" />
+      <geom name="j_col00" class="letter_collision" mesh="j_00" friction="2.5 0.1 0.01" condim="6" priority="100" />
+      <geom name="j_col01" class="letter_collision" mesh="j_01" friction="2.5 0.1 0.01" condim="6" priority="100" />
+      <geom name="j_col02" class="letter_collision" mesh="j_02" friction="2.5 0.1 0.01" condim="6" priority="100" />
+      <geom name="j_col03" class="letter_collision" mesh="j_03" friction="2.5 0.1 0.01" condim="6" priority="100" />
+      <geom name="j_col04" class="letter_collision" mesh="j_04" friction="2.5 0.1 0.01" condim="6" priority="100" />
+    </body>
+    <body name="letter_o" childclass="letter" pos="0.0597923 -0.00132683 0.0101368" quat="0.717508 0.696539 1.71146e-05 0.0038991">
+      <joint type="free" />
+      <geom name="o" mesh="o" />
+    </body>
+    <body name="letter_c" childclass="letter" pos="0.654377 -0.000684745 -0.041328" quat="0.703417 0.706685 -0.0526039 0.0550882">
+      <joint type="free" />
+      <geom name="c" class="letter_visual" mesh="c" />
+      <geom name="c_col00" class="letter_collision" mesh="c_00" />
+      <geom name="c_col01" class="letter_collision" mesh="c_01" />
+      <geom name="c_col02" class="letter_collision" mesh="c_02" />
+      <geom name="c_col03" class="letter_collision" mesh="c_03" />
+      <geom name="c_col04" class="letter_collision" mesh="c_04" />
+      <geom name="c_col05" class="letter_collision" mesh="c_05" />
+      <geom name="c_col06" class="letter_collision" mesh="c_06" />
+    </body>
+    <body name="letter_o2" childclass="letter" pos="1.96338 -0.000359361 -0.00280635" quat="-0.0167475 0.0173448 0.697317 0.716357">
+      <joint type="free" />
+      <geom name="o2" mesh="o" />
+    </body>
+  </worldbody>
+
+  <contact>
+    <exclude body1="humanoid_waist_lower" body2="humanoid_thigh_right" />
+    <exclude body1="humanoid_waist_lower" body2="humanoid_thigh_left" />
+  </contact>
+
+  <tendon>
+    <fixed name="humanoid_hamstring_right" limited="true" range="-0.3 2">
+      <joint joint="humanoid_hip_y_right" coef="0.5" />
+      <joint joint="humanoid_knee_right" coef="-0.5" />
+    </fixed>
+    <fixed name="humanoid_hamstring_left" limited="true" range="-0.3 2">
+      <joint joint="humanoid_hip_y_left" coef="0.5" />
+      <joint joint="humanoid_knee_left" coef="-0.5" />
+    </fixed>
+  </tendon>
+
+  <actuator>
+    <general name="humanoid_abdomen_z" joint="humanoid_abdomen_z" ctrlrange="-1 1" ctrllimited="true" gear="40" />
+    <general name="humanoid_abdomen_y" joint="humanoid_abdomen_y" ctrlrange="-1 1" ctrllimited="true" gear="40" />
+    <general name="humanoid_abdomen_x" joint="humanoid_abdomen_x" ctrlrange="-1 1" ctrllimited="true" gear="40" />
+    <general name="humanoid_hip_x_right" joint="humanoid_hip_x_right" ctrlrange="-1 1" ctrllimited="true" gear="40" />
+    <general name="humanoid_hip_z_right" joint="humanoid_hip_z_right" ctrlrange="-1 1" ctrllimited="true" gear="40" />
+    <general name="humanoid_hip_y_right" joint="humanoid_hip_y_right" ctrlrange="-1 1" ctrllimited="true" gear="120" />
+    <general name="humanoid_knee_right" joint="humanoid_knee_right" ctrlrange="-1 1" ctrllimited="true" gear="80" />
+    <general name="humanoid_ankle_y_right" joint="humanoid_ankle_y_right" ctrlrange="-1 1" ctrllimited="true" gear="20" />
+    <general name="humanoid_ankle_x_right" joint="humanoid_ankle_x_right" ctrlrange="-1 1" ctrllimited="true" gear="20" />
+    <general name="humanoid_hip_x_left" joint="humanoid_hip_x_left" ctrlrange="-1 1" ctrllimited="true" gear="40" />
+    <general name="humanoid_hip_z_left" joint="humanoid_hip_z_left" ctrlrange="-1 1" ctrllimited="true" gear="40" />
+    <general name="humanoid_hip_y_left" joint="humanoid_hip_y_left" ctrlrange="-1 1" ctrllimited="true" gear="120" />
+    <general name="humanoid_knee_left" joint="humanoid_knee_left" ctrlrange="-1 1" ctrllimited="true" gear="80" />
+    <general name="humanoid_ankle_y_left" joint="humanoid_ankle_y_left" ctrlrange="-1 1" ctrllimited="true" gear="20" />
+    <general name="humanoid_ankle_x_left" joint="humanoid_ankle_x_left" ctrlrange="-1 1" ctrllimited="true" gear="20" />
+    <general name="humanoid_shoulder1_right" joint="humanoid_shoulder1_right" ctrlrange="-1 1" ctrllimited="true" gear="20" />
+    <general name="humanoid_shoulder2_right" joint="humanoid_shoulder2_right" ctrlrange="-1 1" ctrllimited="true" gear="20" />
+    <general name="humanoid_elbow_right" joint="humanoid_elbow_right" ctrlrange="-1 1" ctrllimited="true" gear="40" />
+    <general name="humanoid_shoulder1_left" joint="humanoid_shoulder1_left" ctrlrange="-1 1" ctrllimited="true" gear="20" />
+    <general name="humanoid_shoulder2_left" joint="humanoid_shoulder2_left" ctrlrange="-1 1" ctrllimited="true" gear="20" />
+    <general name="humanoid_elbow_left" joint="humanoid_elbow_left" ctrlrange="-1 1" ctrllimited="true" gear="40" />
+  </actuator>
+
+  <custom>
+    <numeric name="filament.fog.color" size="3" data="0 0.1 0.2" />
+    <numeric name="filament.fog.enabled" size="1" data="1" />
+    <numeric name="filament.fog.distance" size="1" data="10" />
+    <numeric name="filament.fog.density" size="1" data="0.15" />
+    <numeric name="filament.fog.height" size="1" data="-1.5" />
+  </custom>
+
+  <asset>
+    <texture type="2d" colorspace="auto" name="grid" builtin="checker" rgb1="0.1 0.2 0.3" rgb2="0.2 0.3 0.4" width="512" height="512" />
+    <texture type="cube" colorspace="auto" name="ibl" builtin="gradient" rgb1="0.22 0.28 0.38" rgb2="0.8 0.84 0.9" width="64" height="384" />
+    <texture type="skybox" colorspace="auto" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="32" height="192" />
+    <texture type="cube" colorspace="auto" name="humanoid_body" builtin="flat" mark="cross" rgb1="0.8 0.6 0.4" rgb2="0.8 0.6 0.4" markrgb="1 1 1" width="128" height="768" />
+    <material name="groundplane" texture="grid" texuniform="true" reflectance="0.05" />
+    <material name="m1" metallic="0" roughness="0.2" />
+    <material name="humanoid_body" texture="humanoid_body" texuniform="true" rgba="0.8 0.6 0.4 1" />
+    <mesh name="m" scale="1.44 1.44 1.02857"
+      vertex="0.47539 0.57227 0.07  0.59219 -0.00039 0.07  0.49375 -0.00039 0.07  0.43438 0.3082 0.07  0.31914 -0.00781 0.07  0.28281 -0.00781 0.07  0.16758 0.3082 0.07  0.10586 -0.00039 0.07  0.00781 -0.00039 0.07  0.12305 0.57227 0.07  0.17695 0.57227 0.07  0.30078 0.18672 0.07  0.42188 0.57227 0.07  0.47539 0.57227 -0.07  0.59219 -0.00039 -0.07  0.49375 -0.00039 -0.07  0.43438 0.3082 -0.07  0.31914 -0.00781 -0.07  0.28281 -0.00781 -0.07  0.16758 0.3082 -0.07  0.10586 -0.00039 -0.07  0.00781 -0.00039 -0.07  0.12305 0.57227 -0.07  0.17695 0.57227 -0.07  0.30078 0.18672 -0.07  0.42188 0.57227 -0.07"
+      face="8 10 9  8 6 10  6 11 10  11 0 12  11 3 0  3 1 0  8 7 6  5 11 6  11 4 3  2 1 3  5 4 11  21 22 23  21 23 19  19 23 24  24 25 13  24 13 16  16 13 14  21 19 20  18 19 24  24 16 17  15 16 14  18 24 17  0 1 14  0 14 13  1 2 15  1 15 14  2 3 16  2 16 15  3 4 17  3 17 16  4 5 18  4 18 17  5 6 19  5 19 18  6 7 20  6 20 19  7 8 21  7 21 20  8 9 22  8 22 21  9 10 23  9 23 22  10 11 24  10 24 23  11 12 25  11 25 24  12 0 13  12 13 25" />
+    <mesh name="m_00" scale="1.44 1.44 1.02857"
+      vertex="0.12305 0.57227 0.07  0.00781 -0.00039 0.07  0.10586 -0.00039 0.07  0.16758 0.3082 0.07  0.12305 0.57227 -0.07  0.00781 -0.00039 -0.07  0.10586 -0.00039 -0.07  0.16758 0.3082 -0.07"
+      face="0 1 2  0 2 3  7 6 5  7 5 4  1 0 4  1 4 5  2 1 5  2 5 6  3 2 6  3 6 7  0 3 7  0 7 4" />
+    <mesh name="m_01" scale="1.44 1.44 1.02857"
+      vertex="0.16758 0.3082 0.07  0.28281 -0.00781 0.07  0.30078 0.18672 0.07  0.17695 0.57227 0.07  0.12305 0.57227 0.07  0.16758 0.3082 -0.07  0.28281 -0.00781 -0.07  0.30078 0.18672 -0.07  0.17695 0.57227 -0.07  0.12305 0.57227 -0.07"
+      face="0 1 2  0 2 3  0 3 4  9 8 7  9 7 6  9 6 5  1 0 5  1 5 6  2 1 6  2 6 7  3 2 7  3 7 8  4 3 8  4 8 9  0 4 9  0 9 5" />
+    <mesh name="m_02" scale="1.44 1.44 1.02857"
+      vertex="0.47539 0.57227 0.07  0.42188 0.57227 0.07  0.30078 0.18672 0.07  0.28281 -0.00781 0.07  0.31914 -0.00781 0.07  0.43438 0.3082 0.07  0.47539 0.57227 -0.07  0.42188 0.57227 -0.07  0.30078 0.18672 -0.07  0.28281 -0.00781 -0.07  0.31914 -0.00781 -0.07  0.43438 0.3082 -0.07"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  11 10 9  11 9 8  11 8 7  11 7 6  1 0 6  1 6 7  2 1 7  2 7 8  3 2 8  3 8 9  4 3 9  4 9 10  5 4 10  5 10 11  0 5 11  0 11 6" />
+    <mesh name="m_03" scale="1.44 1.44 1.02857"
+      vertex="0.47539 0.57227 0.07  0.43438 0.3082 0.07  0.49375 -0.00039 0.07  0.59219 -0.00039 0.07  0.47539 0.57227 -0.07  0.43438 0.3082 -0.07  0.49375 -0.00039 -0.07  0.59219 -0.00039 -0.07"
+      face="0 1 2  0 2 3  7 6 5  7 5 4  1 0 4  1 4 5  2 1 5  2 5 6  3 2 6  3 6 7  0 3 7  0 7 4" />
+    <mesh name="u" scale="1.08 1.08 1.08"
+      vertex="0.05859 0.57227 0.05  0.16016 0.57227 0.05  0.16016 0.18438 0.05  0.16436 0.15237 0.05  0.17451 0.12785 0.05  0.19086 0.10725 0.05  0.21253 0.09201 0.05  0.23172 0.08458 0.05  0.27897 0.08096 0.05  0.31077 0.08666 0.05  0.33591 0.09744 0.05  0.34873 0.10653 0.05  0.36276 0.12154 0.05  0.37767 0.15239 0.05  0.38203 0.18633 0.05  0.38203 0.57227 0.05  0.48359 0.57227 0.05  0.48308 0.16781 0.05  0.47846 0.13034 0.05  0.47106 0.1057 0.05  0.4538 0.07272 0.05  0.42914 0.04453 0.05  0.40893 0.0286 0.05  0.37411 0.0102 0.05  0.32034 -0.00508 0.05  0.2584 -0.00926 0.05  0.19849 -0.00248 0.05  0.15975 0.0094 0.05  0.13729 0.02092 0.05  0.11736 0.03516 0.05  0.09259 0.06131 0.05  0.07982 0.08169 0.05  0.07006 0.10441 0.05  0.06329 0.12948 0.05  0.05859 0.17891 0.05  0.05859 0.57227 -0.05  0.16016 0.57227 -0.05  0.1604 0.17877 -0.05  0.16631 0.14588 -0.05  0.17803 0.12232 -0.05  0.1907 0.10707 -0.05  0.20652 0.09502 -0.05  0.23874 0.08298 -0.05  0.27028 0.08077 -0.05  0.30329 0.0847 -0.05  0.33749 0.09827 -0.05  0.35381 0.11122 -0.05  0.37299 0.13917 -0.05  0.37937 0.15943 -0.05  0.38203 0.18633 -0.05  0.38203 0.57227 -0.05  0.48359 0.57227 -0.05  0.48359 0.17852 -0.05  0.47846 0.13034 -0.05  0.47106 0.1057 -0.05  0.4538 0.07272 -0.05  0.43818 0.05339 -0.05  0.41934 0.03624 -0.05  0.39797 0.02166 -0.05  0.36149 0.00534 -0.05  0.30552 -0.00716 -0.05  0.24261 -0.00858 -0.05  0.18505 0.00092 -0.05  0.14821 0.01482 -0.05  0.11736 0.03516 -0.05  0.1001 0.052 -0.05  0.08583 0.07121 -0.05  0.07006 0.10441 -0.05  0.06329 0.12948 -0.05  0.05906 0.1679 -0.05"
+      face="34 1 0  34 2 1  14 16 15  14 17 16  13 17 14  34 3 2  13 18 17  33 3 34  33 4 3  12 18 13  12 19 18  32 4 33  32 5 4  11 19 12  10 19 11  32 6 5  10 20 19  31 6 32  9 20 10  31 7 6  8 20 9  31 8 7  31 20 8  30 20 31  30 21 20  29 21 30  29 22 21  28 22 29  28 23 22  27 23 28  26 23 27  26 24 23  25 24 26  69 35 36  69 36 37  49 50 51  49 51 52  48 49 52  69 37 38  47 48 52  47 52 53  68 69 38  68 38 39  46 47 53  46 53 54  67 68 39  67 39 40  45 46 54  67 40 41  66 67 41  66 41 42  44 45 54  44 54 55  43 44 55  66 42 43  66 43 55  66 55 56  65 66 56  65 56 57  64 65 57  64 57 58  63 64 58  63 58 59  62 63 59  62 59 60  61 62 60  34 0 35  34 35 69  0 1 36  0 36 35  1 2 37  1 37 36  2 3 37  3 38 37  3 4 38  4 39 38  4 5 39  5 40 39  5 6 41  5 41 40  6 42 41  6 7 42  7 8 42  8 43 42  8 44 43  8 9 44  9 45 44  9 10 45  10 11 45  11 46 45  11 12 46  12 47 46  12 13 47  13 48 47  13 14 48  14 49 48  14 15 50  14 50 49  15 16 51  15 51 50  16 17 52  16 52 51  17 18 53  17 53 52  18 19 54  18 54 53  19 20 54  20 55 54  20 21 56  20 56 55  21 57 56  21 22 57  22 58 57  22 23 58  23 59 58  23 24 59  24 60 59  24 25 60  25 61 60  25 26 61  26 62 61  26 27 62  27 63 62  27 28 63  28 29 64  28 64 63  29 30 65  29 65 64  30 66 65  30 31 66  31 32 67  31 67 66  32 33 68  32 68 67  33 34 69  33 69 68" />
+    <mesh name="u_00" scale="1.08 1.08 1.08"
+      vertex="0.3786 0.17961 -0.04365  0.3786 0.17961 0.04364  0.38806 0.5712 0.04997  0.38806 0.5712 -0.04998  0.37862 0.1372 -0.05311  0.37862 0.14065 0.05311  0.47979 0.57389 0.04622  0.47979 0.57389 -0.04622  0.45189 0.06956 -0.04911  0.40197 0.02364 -0.04875  0.40153 0.02343 0.04869  0.48548 0.18527 -0.04732  0.45189 0.06956 0.04912  0.48548 0.18527 0.04731  0.43378 0.04633 -0.04629  0.48412 0.15331 -0.04685  0.47539 0.11472 -0.04709  0.47539 0.11472 0.04709  0.43378 0.04633 0.04629  0.48412 0.15331 0.04685"
+      face="0 1 2  0 2 3  0 3 4  0 4 1  1 4 5  1 5 2  3 2 6  3 6 7  3 7 4  4 8 9  4 9 10  4 10 5  4 7 11  4 11 8  2 5 6  5 10 12  5 12 13  5 13 6  7 6 13  7 13 11  8 14 9  8 11 15  8 15 16  8 16 17  8 17 12  8 12 18  8 18 14  9 14 18  9 18 10  10 18 12  11 13 19  11 19 15  12 17 19  12 19 13  15 19 17  15 17 16" />
+    <mesh name="u_01" scale="1.08 1.08 1.08"
+      vertex="0.05799 0.16798 -0.04936  0.16049 0.1574 -0.0531  0.12206 0.03367 -0.05  0.0695 0.10557 -0.04833  0.05962 0.14259 -0.0481  0.05962 0.14259 0.04811  0.05799 0.16798 0.04936  0.06239 0.57389 0.04622  0.06239 0.57389 -0.04622  0.15414 0.5712 -0.04998  0.16339 0.18005 -0.04427  0.15291 0.0137 -0.04876  0.15291 0.0137 0.04877  0.12206 0.03367 0.05  0.0848 0.07135 0.04811  0.0848 0.07135 -0.04811  0.0695 0.10557 0.04832  0.16049 0.16222 0.05222  0.15414 0.5712 0.04998  0.16337 0.18526 0.04364"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  0 5 6  0 6 7  0 7 8  0 8 9  0 9 1  1 9 10  1 10 11  1 11 2  2 11 12  2 12 13  2 13 14  2 14 15  2 15 3  3 16 5  3 5 4  3 15 14  3 14 16  6 17 18  6 18 7  6 5 16  6 16 13  6 13 17  8 7 18  8 18 9  9 19 10  9 18 19  10 19 12  10 12 11  13 16 14  13 12 17  17 19 18  17 12 19" />
+    <mesh name="u_02" scale="1.08 1.08 1.08"
+      vertex="0.3786 0.13701 0.05319  0.3786 0.12701 -0.0532  0.3786 0.14167 -0.05317  0.3786 0.16614 -0.04946  0.3786 0.1796 -0.04074  0.3786 0.1796 0.04074  0.3786 0.16614 0.04946  0.3779 0.15223 0.05279  0.3515 0.10709 0.05197  0.37561 0.01082 0.05082  0.36713 0.12118 -0.05318  0.37554 0.01051 -0.05041  0.3515 0.01061 -0.05318  0.3515 0.11349 0.04074  0.3515 0.11349 -0.04074  0.3515 0.10604 -0.05221  0.35311 0.00127 0.0482  0.36453 0.0026 0.04364  0.3779 0.15237 -0.05277  0.35972 0.00143 -0.0455"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  0 5 6  0 6 7  0 7 8  0 8 9  0 9 1  1 10 2  1 9 11  1 11 12  1 12 10  6 5 8  6 8 7  8 5 13  8 13 14  8 14 15  8 15 12  8 12 16  8 16 9  9 16 17  9 17 11  10 18 2  10 12 15  10 15 18  2 18 3  11 17 19  11 19 12  12 19 16  5 4 14  5 14 13  16 19 17  18 15 3  15 14 4  15 4 3" />
+    <mesh name="u_03" scale="1.08 1.08 1.08"
+      vertex="0.32057 -0.00102 0.0532  0.30891 -0.00746 0.04916  0.3342 -0.00469 0.04795  0.34994 0.00086 0.04819  0.34744 0.09981 0.05317  0.30838 0.08776 0.04775  0.31066 -0.01012 -0.04453  0.32348 -0.00816 0.04365  0.30763 -0.0046 -0.05226  0.35058 -0.00192 -0.04365  0.3515 0.11202 0.0508  0.3515 0.11351 0.04073  0.3515 0.11351 -0.04075  0.30856 0.08559 -0.05108  0.32348 -0.00816 -0.04365  0.3342 -0.00469 -0.04795  0.32057 -0.00102 -0.0532  0.34901 0.00715 -0.05293  0.3515 0.11143 -0.05107  0.34721 0.09936 -0.05317"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  0 5 1  1 6 7  1 7 2  1 5 8  1 8 6  2 9 3  2 7 9  3 10 4  3 9 10  4 10 5  5 10 11  5 11 12  5 12 13  5 13 8  6 14 7  6 8 15  6 15 14  7 14 9  8 16 15  8 13 16  9 14 15  9 15 17  9 17 18  9 18 10  10 18 12  10 12 11  12 18 13  13 18 19  13 19 16  15 16 17  16 19 17  17 19 18" />
+    <mesh name="u_04" scale="1.08 1.08 1.08"
+      vertex="0.16343 0.08878 -0.05319  0.16341 0.09004 0.04627  0.21319 0.09004 -0.0503  0.30654 0.08607 -0.0463  0.29605 -0.00972 -0.04829  0.2789 -0.01141 -0.04874  0.18207 0.0029 -0.05072  0.16415 0.00853 -0.04817  0.16415 0.00853 0.04816  0.18207 0.0029 0.05073  0.21518 0.09067 0.04981  0.30653 0.08649 0.04634  0.29598 -0.00942 0.04851  0.2789 -0.01141 0.04874  0.22416 -0.0104 0.04487  0.22416 -0.0104 -0.04487  0.2461 -0.0108 -0.0487  0.20445 -0.00424 -0.04902  0.20445 -0.00424 0.04903  0.2461 -0.0108 0.0487"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  0 5 6  0 6 7  0 7 1  1 7 8  1 8 9  1 9 10  1 10 2  2 10 3  3 11 4  3 10 11  4 11 12  4 12 13  4 13 5  5 13 14  5 14 15  5 15 16  5 16 6  6 17 7  6 16 17  7 17 18  7 18 8  8 18 9  9 18 19  9 19 13  9 13 12  9 12 10  10 12 11  13 19 14  15 14 18  15 18 17  15 17 16  18 14 19" />
+    <mesh name="u_05" scale="1.08 1.08 1.08"
+      vertex="0.1697 0.12655 -0.05319  0.16341 0.12679 -0.0532  0.16341 0.14157 -0.05318  0.16569 0.15117 -0.05251  0.17223 0.13594 -0.05244  0.17651 0.12655 -0.05084  0.17888 0.12655 -0.04047  0.17888 0.12655 0.041  0.17648 0.12655 0.05114  0.1634 0.12655 0.0532  0.1634 0.12655 0.04509  0.1634 0.16628 -0.04947  0.1634 0.18472 -0.04061  0.1634 0.16628 0.04946  0.1634 0.18471 0.04364  0.1634 0.18473 0.03782  0.16924 0.12679 0.05318  0.16341 0.14156 0.05317  0.17223 0.13594 0.05243  0.16569 0.1508 0.05253"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  0 5 6  0 6 7  0 7 8  0 8 9  0 9 10  0 10 1  1 11 2  1 10 11  2 11 3  3 11 4  4 11 12  4 12 5  5 12 6  10 9 13  10 13 14  10 14 15  10 15 12  10 12 11  12 15 6  6 15 7  9 16 17  9 17 13  9 8 16  15 14 7  7 14 8  16 8 18  16 18 19  16 19 17  17 19 13  13 19 18  13 18 14  8 14 18" />
+    <mesh name="u_06" scale="1.08 1.08 1.08"
+      vertex="0.22152 0.09132 -0.03782  0.22151 0.09132 -0.04365  0.17889 0.12654 -0.04047  0.17888 0.12654 0.04125  0.22152 0.09132 0.04078  0.21949 0.09132 0.04958  0.21259 0.09132 0.05282  0.16339 0.09132 0.05318  0.20493 0.09132 -0.05319  0.21368 0.09132 -0.05252  0.21884 0.09132 -0.04982  0.17733 0.12605 -0.05079  0.16971 0.12654 -0.05319  0.16341 0.12654 0.04509  0.16341 0.12654 0.0532  0.16924 0.12654 0.05318  0.17734 0.12605 0.05102  0.16341 0.12386 -0.0532  0.20415 0.09171 0.05318  0.16341 0.09171 -0.05319"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  0 5 6  0 6 7  0 7 8  0 8 9  0 9 10  0 10 1  1 10 11  1 11 2  2 11 12  2 12 13  2 13 14  2 14 15  2 15 3  3 15 16  3 16 4  4 16 5  10 9 11  11 9 12  12 17 13  12 9 8  12 8 17  15 6 16  15 14 18  15 18 6  16 6 5  17 7 13  17 8 19  17 19 7  13 7 14  8 7 19  6 18 7  14 7 18" />
+    <mesh name="j" scale="1.44 1.44 1.44"
+      vertex="0.06629 0.02092 0.05  0.03852 0.04627 0.05  0.01921 0.07823 0.05  0.0084 0.11642 0.05  0.00664 0.13242 0.05  0.09727 0.13242 0.05  0.1098 0.10759 0.05  0.1287 0.09336 0.05  0.16459 0.08364 0.05  0.20016 0.08411 0.05  0.22865 0.09402 0.05  0.24572 0.1073 0.05  0.25614 0.12353 0.05  0.26896 0.16855 0.05  0.27187 0.21328 0.05  0.27187 0.57227 0.05  0.37344 0.57227 0.05  0.37302 0.20266 0.05  0.36923 0.15499 0.05  0.36318 0.12434 0.05  0.35444 0.09697 0.05  0.34299 0.07287 0.05  0.32887 0.05207 0.05  0.31188 0.03445 0.05  0.29166 0.01992 0.05  0.26819 0.00845 0.05  0.24146 0.00003 0.05  0.21148 -0.00532 0.05  0.17824 -0.00762 0.05  0.14133 -0.00588 0.05  0.10077 0.0034 0.05  0.05864 0.02658 -0.05  0.03287 0.05366 -0.05  0.01575 0.08722 -0.05  0.00664 0.13242 -0.05  0.09727 0.13242 -0.05  0.1098 0.10759 -0.05  0.1287 0.09336 -0.05  0.16174 0.08372 -0.05  0.20016 0.08411 -0.05  0.22612 0.09222 -0.05  0.24552 0.10752 -0.05  0.25899 0.12987 -0.05  0.26796 0.16468 -0.05  0.27187 0.21328 -0.05  0.27187 0.57227 -0.05  0.37344 0.57227 -0.05  0.37344 0.21641 -0.05  0.36923 0.15499 -0.05  0.36318 0.12434 -0.05  0.35444 0.09697 -0.05  0.34299 0.07287 -0.05  0.32887 0.05207 -0.05  0.30217 0.0268 -0.05  0.28033 0.0138 -0.05  0.25523 0.00385 -0.05  0.22688 -0.00303 -0.05  0.17949 -0.00727 -0.05  0.13062 -0.00433 -0.05  0.09158 0.007 -0.05"
+      face="14 16 15  14 17 16  13 17 14  13 18 17  13 19 18  12 19 13  3 5 4  11 19 12  3 6 5  11 20 19  10 20 11  3 7 6  2 7 3  10 21 20  9 21 10  2 8 7  8 21 9  2 21 8  2 22 21  1 22 2  1 23 22  0 23 1  0 24 23  0 25 24  30 25 0  30 26 25  29 26 30  29 27 26  29 28 27  44 45 46  44 46 47  43 44 47  43 47 48  42 43 48  42 48 49  41 42 49  34 35 36  41 49 50  33 34 36  33 36 37  40 41 50  40 50 51  39 40 51  33 37 38  38 39 51  33 38 51  32 33 51  32 51 52  31 32 52  31 52 53  31 53 54  59 31 54  59 54 55  59 55 56  58 59 56  58 56 57  0 1 31  1 32 31  1 2 32  2 33 32  2 3 33  3 34 33  3 4 34  4 5 35  4 35 34  5 6 36  5 36 35  6 7 37  6 37 36  7 8 38  7 38 37  8 9 39  8 39 38  9 10 40  9 40 39  10 41 40  10 11 41  11 12 41  12 42 41  12 13 42  13 43 42  13 14 43  14 44 43  14 15 45  14 45 44  15 16 46  15 46 45  16 17 47  16 47 46  17 18 48  17 48 47  18 19 49  18 49 48  19 20 50  19 50 49  20 21 51  20 51 50  21 22 52  21 52 51  22 23 52  23 53 52  23 24 53  24 54 53  24 25 54  25 55 54  25 26 55  26 56 55  26 27 56  27 57 56  27 28 57  28 29 57  29 58 57  29 30 58  30 59 58  30 0 59  0 31 59" />
+    <mesh name="j_00" scale="1.44 1.44 1.44"
+      vertex="0.25799 0.13606 0.04471  0.25958 0.1361 -0.04926  0.36686 0.13854 -0.04832  0.36704 0.13854 0.04801  0.26661 0.14154 0.05292  0.27529 0.57278 0.04707  0.27529 0.57278 -0.04707  0.26835 0.14205 -0.05319  0.36916 0.16208 -0.05151  0.3751 0.17895 -0.04349  0.3751 0.17895 0.04349  0.36916 0.16208 0.05151  0.37235 0.20108 0.05269  0.37049 0.57338 0.04715  0.37049 0.57338 -0.04714  0.37235 0.20108 -0.05269  0.37591 0.19659 -0.04621  0.37591 0.19659 0.0462  0.37572 0.21722 0.04735  0.37572 0.21722 -0.04735"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  0 5 6  0 6 1  1 6 7  1 7 2  2 7 8  2 8 9  2 9 3  3 9 10  3 10 11  3 11 4  4 11 12  4 12 5  5 13 14  5 14 6  5 12 13  6 14 15  6 15 7  7 15 8  8 15 16  8 16 9  9 16 17  9 17 10  10 17 11  11 17 12  12 17 18  12 18 13  13 18 19  13 19 14  14 19 15  15 19 16  16 19 18  16 18 17" />
+    <mesh name="j_01" scale="1.44 1.44 1.44"
+      vertex="0.35535 0.11111 -0.05319  0.36615 0.1309 -0.04769  0.3565 0.09954 -0.04909  0.24222 0.09817 -0.05304  0.26502 0.13361 -0.05286  0.36661 0.13538 0.04774  0.36587 0.12621 0.0471  0.36351 0.11361 0.04349  0.3622 0.10946 -0.04349  0.25789 0.13603 -0.04059  0.35957 0.10228 0.04519  0.35178 0.09817 0.05298  0.2322 0.09772 -0.05083  0.35621 0.10821 0.053  0.25794 0.13603 0.04223  0.2651 0.13361 0.05291  0.22969 0.09772 -0.04059  0.22969 0.09772 0.04059  0.24427 0.09861 0.05319  0.2345 0.09772 0.05159"
+      face="0 1 2  0 2 3  0 3 4  0 4 1  1 5 6  1 6 7  1 7 8  1 8 2  1 4 9  1 9 5  2 10 11  2 11 12  2 12 3  2 8 10  3 12 4  4 12 9  5 13 6  5 9 14  5 14 15  5 15 13  6 13 10  6 10 7  7 10 8  9 12 16  9 16 17  9 17 14  10 13 11  11 13 18  11 18 19  11 19 12  12 19 16  13 15 18  14 17 19  14 19 15  15 19 18  16 19 17" />
+    <mesh name="j_02" scale="1.44 1.44 1.44"
+      vertex="0.29565 0.02598 -0.05299  0.3476 0.08404 -0.04994  0.333 0.05728 -0.04881  0.31515 0.03609 -0.04784  0.29868 0.021 -0.04639  0.26735 0.00784 -0.04801  0.19093 -0.00594 -0.05014  0.18062 0.08077 -0.05003  0.34757 0.08404 0.04998  0.333 0.05728 0.04881  0.2331 0.0972 -0.04642  0.23261 0.09744 0.04612  0.31515 0.03609 0.04784  0.29868 0.021 0.04639  0.26735 0.00784 0.04801  0.22988 -0.00416 -0.0467  0.21949 -0.00638 0.04623  0.18702 -0.00364 0.05138  0.18051 0.08277 0.04793  0.29565 0.02598 0.05299"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  0 5 6  0 6 7  0 7 1  1 8 9  1 9 2  1 7 10  1 10 11  1 11 8  2 9 12  2 12 3  3 12 13  3 13 4  4 13 14  4 14 5  5 14 15  5 15 6  6 16 17  6 17 7  6 15 16  7 17 18  7 18 10  8 19 9  8 11 18  8 18 19  9 19 12  10 18 11  12 19 13  13 19 14  14 17 16  14 16 15  14 19 17  17 19 18" />
+    <mesh name="j_03" scale="1.44 1.44 1.44"
+      vertex="0.17553 0.00089 0.05319  0.17975 0.08269 0.04816  0.12496 0.08934 0.05316  0.12037 0.00263 0.05263  0.14907 -0.00942 0.04684  0.17559 -0.00995 0.0472  0.17794 -0.00978 -0.04728  0.18036 0.08502 -0.04689  0.11994 0.10094 0.04744  0.11994 0.10072 -0.04752  0.12079 -0.00136 -0.04995  0.12164 -0.00611 0.0435  0.13595 -0.00847 0.04557  0.13595 -0.00847 -0.04557  0.14907 -0.00942 -0.04684  0.16302 -0.01041 0.04517  0.17553 0.00089 -0.05319  0.17794 0.07652 -0.05316  0.16375 -0.00999 -0.04705  0.12538 0.08903 -0.05317"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  0 5 1  1 5 6  1 6 7  1 7 8  1 8 2  2 8 3  3 8 9  3 9 10  3 10 11  3 11 12  3 12 4  4 12 13  4 13 14  4 14 15  4 15 5  5 15 6  6 16 17  6 17 7  6 15 18  6 18 16  7 17 9  7 9 8  9 17 19  9 19 10  10 14 13  10 13 11  10 19 16  10 16 14  11 13 12  14 18 15  14 16 18  16 19 17" />
+    <mesh name="j_04" scale="1.44 1.44 1.44"
+      vertex="0.00793 0.11276 -0.04725  0.01407 0.08821 -0.04753  0.01407 0.08821 0.04753  0.00793 0.11276 0.04725  0.00959 0.13269 0.04729  0.00959 0.13269 -0.04729  0.02424 0.06995 -0.04987  0.02424 0.06995 0.04986  0.09225 0.1341 0.04696  0.09225 0.1341 -0.04695  0.11642 -0.00089 -0.04961  0.06778 0.02036 -0.04944  0.04232 0.03925 -0.0468  0.04232 0.03925 0.0468  0.11962 0.09918 -0.04786  0.11961 0.09587 0.0502  0.06778 0.02036 0.04944  0.11634 0.00168 0.0501  0.09103 0.00687 0.04939  0.09103 0.00687 -0.04939"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  0 5 6  0 6 1  1 6 7  1 7 2  3 2 7  3 7 4  5 4 8  5 8 9  5 9 6  6 10 11  6 11 12  6 12 13  6 13 7  6 9 14  6 14 10  4 15 8  4 7 15  7 13 16  7 16 17  7 17 15  9 8 14  10 17 18  10 18 19  10 19 11  10 14 15  10 15 17  11 19 18  11 18 16  11 16 13  11 13 12  14 8 15  16 18 17" />
+    <mesh name="o" scale="1.08 1.08 1.08"
+      vertex="0.06265 0.12321 0.05  0.04044 0.195 0.05  0.0319 0.27908 0.05  0.03753 0.3588 0.05  0.06219 0.43663 0.05  0.10398 0.5046 0.05  0.14155 0.53925 0.05  0.19969 0.57039 0.05  0.28767 0.58161 0.05  0.36123 0.57099 0.05  0.4088 0.55238 0.05  0.44869 0.52367 0.05  0.49841 0.45584 0.05  0.51698 0.40427 0.05  0.52967 0.32409 0.05  0.5277 0.23637 0.05  0.51066 0.15844 0.05  0.48841 0.10791 0.05  0.45679 0.06552 0.05  0.41836 0.03114 0.05  0.37235 0.00745 0.05  0.3188 -0.00553 0.05  0.24203 -0.00781 0.05  0.17565 0.00784 0.05  0.13332 0.03075 0.05  0.09847 0.0648 0.05  0.17039 0.43273 0.05  0.15097 0.39146 0.05  0.13772 0.30518 0.05  0.1418 0.22248 0.05  0.16103 0.15612 0.05  0.19342 0.10858 0.05  0.22529 0.08831 0.05  0.25407 0.08181 0.05  0.29939 0.08328 0.05  0.35925 0.10761 0.05  0.39478 0.14904 0.05  0.41369 0.19447 0.05  0.42369 0.25075 0.05  0.42192 0.34445 0.05  0.40465 0.41326 0.05  0.38197 0.44958 0.05  0.35105 0.47472 0.05  0.31188 0.48869 0.05  0.26912 0.49172 0.05  0.2311 0.48405 0.05  0.19721 0.46437 0.05  0.06692 0.11568 -0.05  0.04044 0.195 -0.05  0.0319 0.27908 -0.05  0.03753 0.3588 -0.05  0.058 0.42879 -0.05  0.08266 0.47606 -0.05  0.11609 0.51694 -0.05  0.15491 0.54924 -0.05  0.19969 0.57039 -0.05  0.25041 0.58037 -0.05  0.32574 0.57844 -0.05  0.4088 0.55238 -0.05  0.44869 0.52367 -0.05  0.48119 0.48564 -0.05  0.5052 0.43922 -0.05  0.52513 0.36589 -0.05  0.53055 0.27988 -0.05  0.52107 0.19582 -0.05  0.50451 0.14054 -0.05  0.45721 0.06499 -0.05  0.41836 0.03114 -0.05  0.37235 0.00745 -0.05  0.3188 -0.00553 -0.05  0.24203 -0.00781 -0.05  0.19076 0.0017 -0.05  0.14657 0.02181 -0.05  0.10946 0.05254 -0.05  0.15791 0.40731 -0.05  0.13962 0.3341 -0.05  0.13754 0.26702 -0.05  0.14416 0.2089 -0.05  0.15832 0.16086 -0.05  0.17995 0.12312 -0.05  0.21663 0.09213 -0.05  0.25407 0.08181 -0.05  0.29939 0.08328 -0.05  0.34547 0.09975 -0.05  0.38202 0.13043 -0.05  0.40535 0.1704 -0.05  0.4198 0.22126 -0.05  0.42543 0.2786 -0.05  0.4232 0.33781 -0.05  0.4129 0.39091 -0.05  0.39434 0.43281 -0.05  0.36754 0.46355 -0.05  0.33249 0.48311 -0.05  0.30105 0.49079 -0.05  0.24045 0.48745 -0.05  0.18983 0.45756 -0.05"
+      face="7 9 8  7 10 9  6 10 7  6 11 10  5 11 6  44 11 5  44 43 11  43 12 11  5 45 44  42 12 43  4 45 5  4 46 45  41 12 42  4 26 46  41 13 12  40 13 41  4 27 26  3 27 4  39 13 40  39 14 13  3 28 27  2 28 3  38 14 39  38 15 14  2 29 28  1 29 2  37 15 38  37 16 15  1 30 29  36 16 37  0 30 1  35 16 36  35 17 16  0 31 30  35 18 17  0 32 31  25 32 0  34 18 35  25 33 32  33 18 34  25 18 33  25 19 18  24 19 25  24 20 19  23 20 24  23 21 20  22 21 23  55 56 57  55 57 58  54 55 58  53 54 58  53 58 59  53 59 60  52 53 94  94 53 93  93 53 60  92 93 60  91 92 60  91 60 61  52 94 95  51 52 95  90 91 61  51 95 74  89 90 61  89 61 62  50 51 74  88 89 62  50 74 75  88 62 63  49 50 75  87 88 63  49 75 76  86 87 63  86 63 64  48 49 76  48 76 77  85 86 64  48 77 78  85 64 65  47 48 78  84 85 65  47 78 79  83 84 65  83 65 66  47 79 80  82 83 66  47 80 81  73 47 81  81 82 66  73 81 66  73 66 67  72 73 67  72 67 68  71 72 68  71 68 69  70 71 69  25 47 73  25 0 47  0 1 48  0 48 47  1 2 49  1 49 48  2 3 50  2 50 49  3 4 51  3 51 50  4 52 51  4 5 52  5 53 52  5 6 53  6 54 53  6 7 54  7 55 54  7 56 55  7 8 56  8 57 56  8 9 57  9 58 57  9 10 58  10 11 58  11 59 58  11 60 59  11 12 60  12 61 60  12 13 61  13 62 61  13 14 62  14 63 62  14 15 63  15 64 63  15 16 64  16 65 64  16 17 65  17 66 65  17 18 66  18 19 67  18 67 66  19 20 67  20 68 67  20 21 69  20 69 68  21 22 70  21 70 69  22 23 71  22 71 70  23 72 71  23 24 72  24 73 72  24 25 73  26 27 74  27 75 74  27 28 75  28 76 75  28 29 76  29 77 76  29 30 77  30 78 77  30 79 78  30 31 79  31 80 79  31 32 80  32 33 81  32 81 80  33 34 82  33 82 81  34 35 83  34 83 82  35 84 83  35 36 84  36 85 84  36 37 85  37 86 85  37 38 86  38 87 86  38 39 87  39 88 87  39 89 88  39 40 89  40 90 89  40 41 90  41 91 90  41 42 91  42 92 91  42 43 92  43 93 92  43 44 93  44 94 93  44 45 94  45 46 94  46 95 94  46 26 95  26 74 95" />
+    <mesh name="c" scale="1.44 1.44 1.44"
+      vertex="0.33232 0.57994 0.05  0.38808 0.56988 0.05  0.45078 0.5418 0.05  0.40898 0.45781 0.05  0.35966 0.48436 0.05  0.2909 0.49128 0.05  0.26015 0.48659 0.05  0.22978 0.4741 0.05  0.18653 0.43626 0.05  0.16005 0.39387 0.05  0.14322 0.3444 0.05  0.13717 0.2727 0.05  0.14305 0.21689 0.05  0.15835 0.16937 0.05  0.18295 0.13041 0.05  0.21983 0.09975 0.05  0.26421 0.08328 0.05  0.31155 0.08187 0.05  0.35862 0.09312 0.05  0.38904 0.10958 0.05  0.41875 0.13828 0.05  0.46602 0.05625 0.05  0.43753 0.03173 0.05  0.39644 0.01018 0.05  0.33094 -0.00633 0.05  0.25531 -0.00785 0.05  0.18576 0.00749 0.05  0.12774 0.03982 0.05  0.0928 0.07635 0.05  0.05731 0.13649 0.05  0.03471 0.23056 0.05  0.03304 0.3151 0.05  0.04736 0.39165 0.05  0.07804 0.45895 0.05  0.11116 0.5035 0.05  0.13742 0.52839 0.05  0.18111 0.55684 0.05  0.21309 0.56988 0.05  0.26565 0.57996 0.05  0.34736 0.57854 -0.05  0.40065 0.56597 -0.05  0.45078 0.5418 -0.05  0.40898 0.45781 -0.05  0.37732 0.47823 -0.05  0.33971 0.48861 -0.05  0.28219 0.49075 -0.05  0.23502 0.47576 -0.05  0.19447 0.44537 -0.05  0.16576 0.40519 -0.05  0.14671 0.35726 -0.05  0.13783 0.30225 -0.05  0.13893 0.2438 -0.05  0.14952 0.19208 -0.05  0.16336 0.15855 -0.05  0.19038 0.1222 -0.05  0.22415 0.09675 -0.05  0.26421 0.08328 -0.05  0.31155 0.08187 -0.05  0.34783 0.0887 -0.05  0.37947 0.10315 -0.05  0.41875 0.13828 -0.05  0.46602 0.05625 -0.05  0.44949 0.0409 -0.05  0.39644 0.01018 -0.05  0.33094 -0.00633 -0.05  0.25531 -0.00785 -0.05  0.18576 0.00749 -0.05  0.14104 0.02996 -0.05  0.10377 0.06335 -0.05  0.07298 0.10461 -0.05  0.04578 0.17197 -0.05  0.03286 0.25169 -0.05  0.03252 0.31539 -0.05  0.03764 0.35482 -0.05  0.05299 0.40963 -0.05  0.08826 0.47433 -0.05  0.12743 0.51935 -0.05  0.16597 0.54855 -0.05  0.19681 0.56395 -0.05  0.26093 0.57981 -0.05"
+      face="38 1 0  37 1 38  36 1 37  36 2 1  35 2 36  35 4 2  4 3 2  34 5 35  5 4 35  33 5 34  33 6 5  33 7 6  33 8 7  32 8 33  32 9 8  32 10 9  31 10 32  31 11 10  30 11 31  30 12 11  29 12 30  29 13 12  29 14 13  19 21 20  29 15 14  28 15 29  18 21 19  28 16 15  17 21 18  28 17 16  28 21 17  27 21 28  27 22 21  27 23 22  26 23 27  26 24 23  25 24 26  78 79 39  78 39 40  77 78 40  77 40 41  76 77 41  76 41 44  44 41 43  43 41 42  75 76 45  45 76 44  75 45 46  75 46 47  74 75 47  74 47 48  73 74 48  73 48 49  72 73 49  72 49 50  71 72 50  71 50 51  71 51 52  70 71 52  70 52 53  69 70 53  69 53 54  59 60 61  69 54 55  58 59 61  68 69 55  68 55 56  57 58 61  68 56 57  68 57 61  68 61 62  67 68 62  67 62 63  66 67 63  66 63 64  65 66 64  38 0 39  38 39 79  0 1 39  1 40 39  1 2 40  2 41 40  2 3 42  2 42 41  3 4 43  3 43 42  4 44 43  4 5 44  5 45 44  5 6 45  6 46 45  6 7 46  7 47 46  7 8 47  8 48 47  8 9 48  9 49 48  9 10 49  10 50 49  10 11 50  11 51 50  11 12 51  12 52 51  12 13 52  13 53 52  13 14 53  14 54 53  14 15 54  15 55 54  15 16 56  15 56 55  16 17 57  16 57 56  17 18 58  17 58 57  18 59 58  18 19 59  19 20 60  19 60 59  20 21 61  20 61 60  21 62 61  21 22 62  22 23 63  22 63 62  23 24 64  23 64 63  24 25 65  24 65 64  25 26 66  25 66 65  26 27 67  26 67 66  27 68 67  27 28 68  28 69 68  28 29 69  29 70 69  29 30 70  30 71 70  30 31 71  31 72 71  31 73 72  31 32 73  32 74 73  32 33 74  33 75 74  33 34 75  34 76 75  34 35 76  35 36 77  35 77 76  36 78 77  36 37 78  37 38 79  37 79 78" />
+    <mesh name="c_00" scale="1.44 1.44 1.44"
+      vertex="0.03413 0.22945 0.04887  0.03949 0.18663 0.0465  0.05171 0.15196 0.04988  0.06978 0.11334 0.05055  0.13703 0.24433 0.04991  0.0345 0.22957 -0.04922  0.03949 0.18663 -0.0465  0.05171 0.15196 -0.04988  0.06978 0.11334 -0.05055  0.08702 0.08171 -0.0478  0.08702 0.08171 0.0478  0.12044 0.0476 0.05018  0.19708 0.11368 0.04956  0.13872 0.24433 -0.04818  0.18756 0.00788 -0.05003  0.12044 0.0476 -0.05018  0.14564 0.02496 -0.04732  0.14564 0.02496 0.04732  0.18764 0.0076 0.04956  0.19707 0.1144 -0.04791"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  0 5 6  0 6 1  1 6 7  1 7 2  2 7 8  2 8 3  3 8 9  3 9 10  3 10 11  3 11 12  3 12 4  4 12 13  4 13 5  5 13 8  5 8 7  5 7 6  8 14 15  8 15 9  8 13 14  10 9 15  10 15 11  11 15 16  11 16 17  11 17 18  11 18 12  12 18 19  12 19 13  13 19 14  14 18 16  14 16 15  14 19 18  17 16 18" />
+    <mesh name="c_01" scale="1.44 1.44 1.44"
+      vertex="0.30535 0.58311 0.04806  0.30535 0.58311 -0.04806  0.29265 0.4909 -0.04807  0.29265 0.49084 0.048  0.33359 0.5814 0.04938  0.33359 0.5814 -0.04938  0.42912 0.50807 -0.05324  0.41634 0.47378 -0.04985  0.41634 0.47378 0.04985  0.42912 0.50807 0.05324  0.39091 0.57081 0.04701  0.35958 0.57798 0.04767  0.35958 0.57798 -0.04767  0.44029 0.52995 0.05005  0.39091 0.57081 -0.04701  0.43428 0.55005 -0.05064  0.44095 0.52877 -0.05292  0.42912 0.50215 -0.05263  0.44295 0.52051 -0.04833  0.42912 0.50215 0.05263"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  0 5 1  1 5 2  2 5 6  2 6 7  2 7 3  3 8 9  3 9 4  3 7 8  4 10 11  4 11 12  4 12 5  4 9 13  4 13 10  5 12 14  5 14 15  5 15 16  5 16 6  6 16 17  6 17 7  7 17 18  7 18 8  8 18 19  8 19 9  9 19 13  10 14 12  10 12 11  10 13 15  10 15 14  13 19 18  13 18 16  13 16 15  16 18 17" />
+    <mesh name="c_02" scale="1.44 1.44 1.44"
+      vertex="0.23533 0.57369 0.05258  0.21342 0.56898 0.0498  0.21253 0.46988 0.05255  0.28698 0.58094 0.05138  0.26239 0.5826 0.04686  0.22461 0.57652 0.04545  0.21297 0.56536 -0.05238  0.21946 0.5751 -0.04492  0.21253 0.45902 -0.04266  0.21254 0.4584 0.04144  0.29265 0.49084 0.04801  0.28698 0.58094 -0.05139  0.27525 0.58294 -0.04799  0.27525 0.58294 0.04798  0.29265 0.4909 -0.04807  0.26239 0.5826 -0.04686  0.23828 0.57978 -0.04437  0.23828 0.57978 0.04438  0.23533 0.57369 -0.05258  0.21297 0.47108 -0.05299"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  0 5 1  1 6 2  1 5 7  1 7 6  2 8 9  2 9 10  2 10 3  2 6 8  3 11 12  3 12 13  3 13 4  3 10 14  3 14 11  4 13 12  4 12 15  4 15 16  4 16 17  4 17 5  5 17 16  5 16 7  6 7 18  6 18 19  6 19 8  7 16 18  8 19 14  8 14 9  9 14 10  11 15 12  11 14 19  11 19 18  11 18 15  15 18 16" />
+    <mesh name="c_03" scale="1.44 1.44 1.44"
+      vertex="0.04322 0.37241 0.05067  0.05278 0.40855 -0.04874  0.04501 0.37181 -0.0501  0.15084 0.37103 0.0493  0.17697 0.55272 0.05166  0.09025 0.47654 0.05044  0.07154 0.44605 0.05008  0.05278 0.40855 0.04874  0.07154 0.44605 -0.05008  0.14915 0.37059 -0.05  0.09025 0.47654 -0.05044  0.17697 0.55272 -0.05166  0.2125 0.46165 0.04815  0.20433 0.56612 0.04982  0.15268 0.54011 -0.04869  0.15268 0.54011 0.04869  0.12099 0.51212 0.05012  0.12099 0.51212 -0.05012  0.21222 0.46469 -0.0502  0.20483 0.5648 -0.05038"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  0 5 6  0 6 7  0 7 1  1 7 6  1 6 8  1 8 2  2 9 3  2 8 10  2 10 11  2 11 9  3 9 12  3 12 4  4 13 11  4 11 14  4 14 15  4 15 16  4 16 5  4 12 13  5 16 17  5 17 10  5 10 8  5 8 6  9 11 18  9 18 12  10 17 11  11 13 19  11 19 18  11 17 14  12 18 19  12 19 13  15 14 17  15 17 16" />
+    <mesh name="c_04" scale="1.44 1.44 1.44"
+      vertex="0.02878 0.27171 -0.04595  0.02878 0.27171 0.04595  0.02957 0.3184 0.04532  0.02957 0.3184 -0.04532  0.03019 0.29891 -0.04852  0.03258 0.25058 -0.04995  0.03066 0.25746 0.04952  0.03019 0.29891 0.04851  0.03105 0.33347 0.04437  0.03105 0.33347 -0.04437  0.03636 0.34409 -0.05094  0.04619 0.3696 -0.0525  0.13873 0.24436 -0.04818  0.03856 0.24436 0.05324  0.03636 0.34409 0.05095  0.03704 0.36807 -0.04437  0.15084 0.36961 -0.0466  0.04221 0.36909 0.04999  0.15066 0.3696 0.04674  0.13703 0.24436 0.04991"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  0 5 6  0 6 1  1 6 7  1 7 2  3 2 8  3 8 9  3 9 10  3 10 4  4 10 5  5 10 11  5 11 12  5 12 13  5 13 6  6 13 14  6 14 7  7 14 2  2 14 8  9 8 15  9 15 10  10 15 11  11 16 12  11 15 17  11 17 18  11 18 16  12 19 13  12 16 18  12 18 19  13 19 18  13 18 14  14 18 17  14 17 8  8 17 15" />
+    <mesh name="c_05" scale="1.44 1.44 1.44"
+      vertex="0.43559 0.10997 0.05031  0.44392 0.08787 0.05319  0.45662 0.07132 0.05017  0.45662 0.07132 -0.05017  0.43559 0.10997 -0.05031  0.31126 0.08013 -0.05032  0.31127 0.07983 0.05053  0.44282 0.03704 0.04992  0.315 -0.00541 0.05062  0.39369 0.01018 0.05056  0.44282 0.03704 -0.04992  0.44392 0.08787 -0.05319  0.315 -0.00548 -0.05062  0.42357 0.0207 0.04691  0.42357 0.0207 -0.04691  0.34539 -0.00733 0.04544  0.37365 0.00278 0.04986  0.39369 0.01018 -0.05056  0.37365 0.00278 -0.04986  0.34539 -0.00733 -0.04544"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  0 5 6  0 6 1  1 7 2  1 6 8  1 8 9  1 9 7  2 7 10  2 10 3  4 3 11  4 11 5  5 12 6  5 11 12  6 12 8  7 9 13  7 13 14  7 14 10  8 12 15  8 15 16  8 16 9  9 16 13  3 10 11  11 10 17  11 17 12  12 17 18  12 18 19  12 19 15  13 16 18  13 18 14  10 14 17  15 19 18  15 18 16  17 14 18" />
+    <mesh name="c_06" scale="1.44 1.44 1.44"
+      vertex="0.1971 0.1186 0.04614  0.19712 0.11912 -0.0438  0.19712 0.1095 -0.05294  0.19905 0.00745 0.0528  0.19773 0.10857 0.05296  0.31088 0.08011 0.05  0.31088 0.08012 -0.04992  0.31087 -0.001 -0.05324  0.27377 -0.00895 -0.05119  0.20301 0 -0.04733  0.20224 -0.00205 0.04437  0.22679 -0.00592 0.04728  0.25474 -0.00983 0.04902  0.31087 -0.00088 0.05324  0.30078 -0.01078 -0.04924  0.30078 -0.01078 0.04924  0.25474 -0.00983 -0.04902  0.22679 -0.00592 -0.04728  0.26638 -0.01247 -0.04437  0.27008 -0.0107 0.04778"
+      face="0 1 2  0 2 3  0 3 4  0 4 5  0 5 1  1 5 6  1 6 2  2 6 7  2 7 8  2 8 9  2 9 3  3 9 10  3 10 11  3 11 12  3 12 13  3 13 4  4 13 5  5 13 7  5 7 6  7 14 8  7 13 15  7 15 14  8 14 16  8 16 9  9 16 17  9 17 10  10 17 18  10 18 11  11 18 12  12 18 19  12 19 15  12 15 13  14 15 18  14 18 16  15 19 18  16 18 17" />
+  </asset>
+
+  </mujoco>
