@@ -168,6 +168,9 @@ bool LabelSelectionGui(mjvOption* opts);
 // UX for selecting the visualization frame option.
 bool FrameSelectionGui(mjvOption* opts);
 
+// Get the display name for a keyframe given its index.
+std::string GetKeyframeName(const mjModel* model, int index);
+
 // Get the display name for a camera given its index.
 std::string GetCameraName(const mjModel* model, const mjvCamera& camera,
                           int index);

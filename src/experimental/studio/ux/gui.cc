@@ -1108,51 +1108,55 @@ void SimulationGui(const SimulationGuiContext& ctx) {
       ImGui::Separator();
       ImGui::Spacing();
       {
-        char key_fmt[128];
-        const char* key_name = mj_id2name(ctx.model, mjOBJ_KEY, (*ctx.key_idx));
-        if (key_name) {
-          std::snprintf(key_fmt, sizeof(key_fmt), "%s", key_name);
-        } else {
-          std::snprintf(key_fmt, sizeof(key_fmt), "Key %d", (*ctx.key_idx));
+        if (*ctx.key_idx >= ctx.model->nkey || *ctx.key_idx < -1) {
+          *ctx.key_idx = -1;
         }
+        std::string key_name = GetKeyframeName(ctx.model, *ctx.key_idx);
         ImGui::SetNextItemWidth(slider_w);
-        ImGui::SliderInt("Keyframe", &(*ctx.key_idx), 0, ctx.model->nkey - 1,
-                         key_fmt);
+        if (ImGui::BeginCombo("Keyframe", key_name.c_str())) {
+          if (ImGui::Selectable("\xE2\x80\x94", (*ctx.key_idx == -1))) {
+            *ctx.key_idx = -1;
+            ctx.reset();
+          }
+          for (int k = 0; k < ctx.model->nkey; k++) {
+            std::string item_name = GetKeyframeName(ctx.model, k);
+            ImGui::PushID(k);
+            if (ImGui::Selectable(item_name.c_str(), (*ctx.key_idx == k))) {
+              *ctx.key_idx = k;
+              ctx.reset();
+            }
+            ImGui::PopID();
+          }
+          ImGui::EndCombo();
+        }
       }
 
       // Keyframe buttons.
       {
-        char load_label[32];
-        std::snprintf(load_label, sizeof(load_label), "%s Load key",
-                      ICON_FA_DOWNLOAD);
         char save_label[32];
-        std::snprintf(save_label, sizeof(save_label), "%s Save key",
+        std::snprintf(save_label, sizeof(save_label), "%s Save keyframe",
                       ICON_FA_UPLOAD);
         char copy_label[32];
-        std::snprintf(copy_label, sizeof(copy_label), "%s Copy key",
+        std::snprintf(copy_label, sizeof(copy_label), "%s Copy keyframe",
                       ICON_FA_COPY);
 
         const float avail = ImGui::GetContentRegionAvail().x;
         const float spacing = ImGui::GetStyle().ItemSpacing.x;
-        const float btn_w = (avail - spacing * 2) / 3.0f;
+        const float btn_w = (avail - spacing) / 2.0f;
 
-        if (ImGui::Button(load_label, ImVec2(btn_w, 0))) {
-          mj_resetDataKeyframe(ctx.model, ctx.data, (*ctx.key_idx));
-          mj_forward(ctx.model, ctx.data);
-        }
-        ImGui::SetItemTooltip("%s", "Load selected keyframe to active state");
-        ImGui::SameLine();
+        ImGui::BeginDisabled(*ctx.key_idx < 0 || *ctx.key_idx >= ctx.model->nkey);
         if (ImGui::Button(save_label, ImVec2(btn_w, 0))) {
           mj_setKeyframe(ctx.model, ctx.data, (*ctx.key_idx));
         }
         ImGui::SetItemTooltip("%s", "Save active state to selected keyframe");
+        ImGui::EndDisabled();
         ImGui::SameLine();
         if (ImGui::Button(copy_label, ImVec2(btn_w, 0))) {
           std::string str = KeyframeToString(ctx.model, ctx.data, false);
           MaybeSaveToClipboard(str);
         }
         ImGui::SetItemTooltip(
-            "%s", "Copy selected keyframe to clipboard as MJCF XML");
+            "%s", "Copy active state to clipboard as MJCF XML");
       }
     }
 
@@ -1270,6 +1274,18 @@ bool FrameSelectionGui(mjvOption* opts) {
   }
   ImGui::SetItemTooltip("%s", "Frame");
   return changed;
+}
+
+std::string GetKeyframeName(const mjModel* model, int index) {
+  if (index < 0) {
+    return "\xE2\x80\x94";
+  }
+  if (model && index < model->nkey) {
+    if (const char* key_name = mj_id2name(model, mjOBJ_KEY, index)) {
+      return key_name;
+    }
+  }
+  return "Key " + std::to_string(index);
 }
 
 std::string GetCameraName(const mjModel* model, const mjvCamera& camera,

@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <array>
 #include <cfloat>
+#include <charconv>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -31,6 +32,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -196,27 +198,17 @@ void App::SwitchGraphicsMode(int width, int height,
 }
 
 void App::Recompile() {
+  const SavedKeyframeSelection saved_key =
+      CaptureKeyframeSelection(/*is_reload=*/true);
   model_holder_->Recompile();
   if (!model_holder_->ok()) {
     SetLoadError(std::string(model_holder_->error()));
     return;
   }
 
+  RestoreKeyframeSelection(saved_key);
+  ResetPhysics();
   renderer_->Init(model());
-
-  const int state_size = mj_stateSize(model(), mjSTATE_INTEGRATION);
-  sim_history_.Init(state_size);
-  if (has_model() && has_data()) {
-    std::span<mjtNum> state = sim_history_.AddToHistory();
-    if (!state.empty()) {
-      mj_getState(model(), data(), state.data(), mjSTATE_INTEGRATION);
-    }
-  }
-  timeline_.sim_head_time = has_data() ? data()->time : 0.0;
-  timeline_.lh_width = 0.0f;
-  timeline_.rh_width = 0.0f;
-  timeline_.scrubber_active = false;
-  timeline_.scrubber_grab_offset = 0.0f;
 }
 
 void App::RequestModelLoad(std::string model_file) {
@@ -233,14 +225,22 @@ void App::RequestModelReload() {
 
 void App::InitEmptyModel() {
   model_holder_ = ModelHolder::FromSpec(mj_makeSpec());
+  ui_.key_idx = -1;
+  last_buffer_.clear();
+  last_content_type_.clear();
   OnModelLoaded("", kEmptyModel);
   spec_editor_.Reset(*spec());
 }
 
 void App::LoadModelFromFile(const std::string& filepath) {
   const std::string resolved_file = ResolveFile(filepath, search_paths_);
+  const SavedKeyframeSelection saved_key =
+      CaptureKeyframeSelection(preserve_camera_on_load_);
   model_holder_ = ModelHolder::FromFile(resolved_file);
   if (model_holder_->ok()) {
+    last_buffer_.clear();
+    last_content_type_.clear();
+    RestoreKeyframeSelection(saved_key);
     OnModelLoaded(filepath, kModelFromFile);
     if (spec()) {
       spec_editor_.Reset(*spec());
@@ -266,9 +266,14 @@ void App::LoadModelFromFile(const std::string& filepath) {
 void App::LoadModelFromBuffer(std::span<const std::byte> buffer,
                               std::string_view content_type,
                               std::string_view filename) {
+  const SavedKeyframeSelection saved_key =
+      CaptureKeyframeSelection(preserve_camera_on_load_);
   model_holder_ =
       ModelHolder::FromBuffer(buffer, content_type, filename);
   if (model_holder_->ok()) {
+    last_buffer_.assign(buffer.begin(), buffer.end());
+    last_content_type_ = std::string(content_type);
+    RestoreKeyframeSelection(saved_key);
     OnModelLoaded(std::string(filename), kModelFromFile);
   } else {
     SetLoadError(std::string(model_holder_->error()));
@@ -277,6 +282,97 @@ void App::LoadModelFromBuffer(std::span<const std::byte> buffer,
     spec_editor_.Reset(*spec());
   } else {
     spec_editor_.Reset();
+  }
+}
+
+void App::LoadKeyframe(std::string_view keyframe) {
+  if (!has_model() || !has_data() || model()->nkey <= 0) {
+    return;
+  }
+  const mjModel* m = model();
+  int id = mj_name2id(m, mjOBJ_KEY, std::string(keyframe).c_str());
+  if (id >= 0 && id < m->nkey) {
+    ui_.key_idx = id;
+    ResetPhysics();
+    return;
+  }
+
+  if (!keyframe.empty()) {
+    int parsed = -1;
+    auto [ptr, ec] = std::from_chars(
+        keyframe.data(), keyframe.data() + keyframe.size(), parsed);
+    if (ec == std::errc() && ptr == keyframe.data() + keyframe.size() &&
+        parsed >= 0 && parsed < m->nkey) {
+      ui_.key_idx = parsed;
+      ResetPhysics();
+      return;
+    }
+  }
+}
+
+App::SavedKeyframeSelection App::CaptureKeyframeSelection(bool is_reload) const {
+  SavedKeyframeSelection saved;
+  saved.is_reload = is_reload;
+  saved.key_idx = ui_.key_idx;
+  if (is_reload && has_model()) {
+    const mjModel* m = model_holder_->model();
+    if (ui_.key_idx >= 0 && ui_.key_idx < m->nkey) {
+      if (const char* name = mj_id2name(m, mjOBJ_KEY, ui_.key_idx)) {
+        saved.key_name = name;
+      }
+    }
+    saved.all_old_names.reserve(m->nkey);
+    for (int k = 0; k < m->nkey; ++k) {
+      if (const char* name = mj_id2name(m, mjOBJ_KEY, k)) {
+        saved.all_old_names.push_back(name);
+      } else {
+        saved.all_old_names.push_back("");
+      }
+    }
+  }
+  return saved;
+}
+
+void App::RestoreKeyframeSelection(const SavedKeyframeSelection& saved) {
+  if (!saved.is_reload || !has_model() || saved.key_idx < 0) {
+    ui_.key_idx = -1;
+    return;
+  }
+  const mjModel* m = model();
+  if (!saved.key_name.empty()) {
+    int id = mj_name2id(m, mjOBJ_KEY, saved.key_name.c_str());
+    if (id >= 0) {
+      ui_.key_idx = id;
+      return;
+    }
+    if (saved.key_idx >= 0 && saved.key_idx < m->nkey &&
+        mj_id2name(m, mjOBJ_KEY, saved.key_idx) == nullptr) {
+      ui_.key_idx = saved.key_idx;
+      return;
+    }
+    ui_.key_idx = -1;
+    return;
+  } else {
+    if (saved.key_idx >= 0 && saved.key_idx < m->nkey) {
+      const char* new_name = mj_id2name(m, mjOBJ_KEY, saved.key_idx);
+      if (new_name == nullptr) {
+        ui_.key_idx = saved.key_idx;
+        return;
+      }
+      bool shifted_from_other = false;
+      for (size_t i = 0; i < saved.all_old_names.size(); ++i) {
+        if (static_cast<int>(i) != saved.key_idx &&
+            saved.all_old_names[i] == new_name) {
+          shifted_from_other = true;
+          break;
+        }
+      }
+      if (!shifted_from_other) {
+        ui_.key_idx = saved.key_idx;
+        return;
+      }
+    }
+    ui_.key_idx = -1;
   }
 }
 
@@ -301,19 +397,7 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
   // Reset/reinitialize everything that depends on the new mjModel.
   mjModel* model = model_holder_->model();
   renderer_->Init(model);
-  const int state_size = mj_stateSize(model, mjSTATE_INTEGRATION);
-  sim_history_.Init(state_size);
-  if (has_model() && has_data()) {
-    std::span<mjtNum> state = sim_history_.AddToHistory();
-    if (!state.empty()) {
-      mj_getState(model, data(), state.data(), mjSTATE_INTEGRATION);
-    }
-  }
-  timeline_.sim_head_time = has_data() ? data()->time : 0.0;
-  timeline_.lh_width = 0.0f;
-  timeline_.rh_width = 0.0f;
-  timeline_.scrubber_active = false;
-  timeline_.scrubber_grab_offset = 0.0f;
+  ResetPhysics();
 
   if (!preserve_camera_on_load_) {
     const int model_cam = model->vis.global.cameraid;
@@ -374,8 +458,13 @@ void App::SetLoadError(std::string error) {
 }
 
 void App::ResetPhysics() {
-  mj_resetData(model(), data());
-  mj_forward(model(), data());
+  if (has_model() && has_data()) {
+    if (ui_.key_idx >= model()->nkey || ui_.key_idx < -1) {
+      ui_.key_idx = -1;
+    }
+    mj_resetDataKeyframe(model(), data(), ui_.key_idx);
+    mj_forward(model(), data());
+  }
   if (has_model()) {
     const int state_size = mj_stateSize(model(), mjSTATE_INTEGRATION);
     sim_history_.Init(state_size);
@@ -562,6 +651,8 @@ void App::ProcessPendingLoads() {
 
     if (load_data.empty()) {
       InitEmptyModel();
+    } else if (!last_buffer_.empty() && load_data == model_path_) {
+      LoadModelFromBuffer(last_buffer_, last_content_type_, load_data);
     } else {
       LoadModelFromFile(load_data);
     }
@@ -1613,9 +1704,13 @@ void App::SpecEditorGui() {
       ImGui::PushStyleColor(ImGuiCol_Button, compile_green.Value);
       if (ImGui::Button("Compile and Reload", ImVec2(-1, 0))) {
         pending_op_ = [this]() {
+          const SavedKeyframeSelection saved_key =
+              CaptureKeyframeSelection(/*is_reload=*/true);
           auto tmp_holder = spec_editor_.Compile();
           if (tmp_holder->ok()) {
+            preserve_camera_on_load_ = true;
             model_holder_ = std::move(tmp_holder);
+            RestoreKeyframeSelection(saved_key);
             OnModelLoaded(model_name_, model_kind_);
           } else {
             load_error_ = std::move(tmp_holder->error());
@@ -1999,22 +2094,41 @@ void App::MainMenuGui() {
       if (ImGui::MenuItem("Reload", "Ctrl+L")) {
         RequestModelReload();
       }
-      ImGui::Separator();
-      if (ImGui::BeginMenu("Keyframes")) {
-        ImGui::SetNextItemWidth(200);
-        ImGui::SliderInt("##Key", &ui_.key_idx, 0, model()->nkey);
-        if (ImGui::MenuItem("Load")) {
-          mj_resetDataKeyframe(model(), data(), ui_.key_idx);
-          mj_forward(model(), data());
+      if (model()->nkey > 0) {
+        ImGui::Separator();
+        if (ImGui::BeginMenu("Keyframes")) {
+          if (ui_.key_idx >= model()->nkey || ui_.key_idx < -1) {
+            ui_.key_idx = -1;
+          }
+          std::string key_name = GetKeyframeName(model(), ui_.key_idx);
+          ImGui::SetNextItemWidth(200);
+          if (ImGui::BeginCombo("##Key", key_name.c_str())) {
+            if (ImGui::Selectable("\xE2\x80\x94", (ui_.key_idx == -1))) {
+              ui_.key_idx = -1;
+              ResetPhysics();
+            }
+            for (int k = 0; k < model()->nkey; k++) {
+              std::string item_name = GetKeyframeName(model(), k);
+              ImGui::PushID(k);
+              if (ImGui::Selectable(item_name.c_str(), (ui_.key_idx == k))) {
+                ui_.key_idx = k;
+                ResetPhysics();
+              }
+              ImGui::PopID();
+            }
+            ImGui::EndCombo();
+          }
+          ImGui::BeginDisabled(ui_.key_idx < 0 || ui_.key_idx >= model()->nkey);
+          if (ImGui::MenuItem("Save")) {
+            mj_setKeyframe(model(), data(), ui_.key_idx);
+          }
+          ImGui::EndDisabled();
+          if (ImGui::MenuItem("Copy")) {
+            std::string str = KeyframeToString(model(), data(), false);
+            MaybeSaveToClipboard(str);
+          }
+          ImGui::EndMenu();
         }
-        if (ImGui::MenuItem("Save")) {
-          mj_setKeyframe(model(), data(), ui_.key_idx);
-        }
-        if (ImGui::MenuItem("Copy")) {
-          std::string str = KeyframeToString(model(), data(), false);
-          MaybeSaveToClipboard(str);
-        }
-        ImGui::EndMenu();
       }
       ImGui::EndMenu();
     }
