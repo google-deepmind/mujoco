@@ -198,7 +198,7 @@ incremental, so any source edit — Python or C++ — needs the step re-run.
 - **Browser client**: Node.js and npm, used by `setup_emsdk` (installs
   Emscripten 4.0.10 into `./emsdk`; `build_studio_wasm` runs it when `emsdk/`
   is missing).
-- **Python** (workflows 4 to 7): an active virtualenv (`VIRTUAL_ENV`) with
+- **Python** (workflows 4 to 8): an active virtualenv (`VIRTUAL_ENV`) with
   `pip install -r python/build_requirements.txt`. Without one, the install
   part of a step is skipped with a note.
 - **ccache** is strongly recommended: the wheel is compiled from a fresh sdist
@@ -327,4 +327,55 @@ Platform libraries, SDK and browser client, then a clean sdist and the wheel
 compiled from it in pip's own temporary tree, with the engine, the Python
 bindings, the Studio modules, the plugins and the pre-built browser client.
 MuJoCo has one distribution wheel; this is it.
+</details>
+
+<details>
+<summary><b>8. Sharing the Web Viewer with other machines (Cloudflare quick tunnel)</b></summary>
+
+```sh
+python -m mujoco.experimental.studio.viewer --model=model/humanoid/humanoid.xml --gfx=web
+cloudflared tunnel --url http://localhost:8080 --no-autoupdate
+```
+
+The viewer server listens on all interfaces, but a machine on another network
+(or behind WSL2's own network) cannot reach `localhost:8080`. A Cloudflare
+quick tunnel publishes it without any account or router configuration: the
+second command prints a random `https://<words>.trycloudflare.com` URL that
+anyone can open, from anywhere. The client switches to `wss://` under https,
+and Cloudflare passes the viewer's WebSocket connections through; the first
+browser to connect becomes the controller, later ones are viewers.
+
+`cloudflared` is a single binary from
+https://github.com/cloudflare/cloudflared/releases (Linux, macOS, Windows);
+put it on your `PATH`. Run it from the same machine as the viewer server, and
+leave both running; the tunnel closes when `cloudflared` exits.
+
+Caveats: the URL is public, not limited to your network, and unauthenticated,
+so share it only with the people meant to see the simulation. Quick tunnels
+carry no uptime guarantee and the URL changes on every restart of
+`cloudflared`. For a fixed, memorable hostname use a named tunnel on a domain
+in your own Cloudflare account (`cloudflared tunnel login`, then
+`cloudflared tunnel create` / `route dns` / `run`); that setup is outside this
+document.
+
+> [!TIP]
+> **A stable, memorable URL without a domain.** URL shorteners refuse
+> `trycloudflare.com` targets (they blacklist redirect services), but a GitHub
+> Pages project site can forward to the tunnel for free. Create a public
+> repository named, say, `robosim`, containing a single `index.html`:
+>
+> ```html
+> <meta http-equiv="refresh" content="0; url=https://<words>.trycloudflare.com/">
+> ```
+>
+> and enable Pages from its `main` branch:
+>
+> ```sh
+> gh repo create <user>/robosim --public --source . --push
+> echo '{"source":{"branch":"main","path":"/"}}' | gh api -X POST repos/<user>/robosim/pages --input -
+> ```
+>
+> A minute later `https://<user>.github.io/robosim` forwards every visitor to
+> the viewer. When the tunnel restarts, put the new hostname in that one line
+> and push; the site rebuilds within a minute.
 </details>
