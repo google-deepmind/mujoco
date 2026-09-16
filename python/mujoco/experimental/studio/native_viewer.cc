@@ -210,7 +210,7 @@ class Viewer {
 
  private:
   std::unique_ptr<mujoco::studio::Window> window_;
-  std::unique_ptr<mujoco::studio::Renderer> renderer_;
+  std::unique_ptr<mujoco::studio::FilamentRenderer> renderer_;
   std::vector<std::byte> pixels_;
 };
 

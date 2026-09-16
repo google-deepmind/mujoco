@@ -40,10 +40,8 @@
 #include "webp/encode.h"
 #include "webp/types.h"
 #include <mujoco/mujoco.h>
-#include "experimental/studio/hal/classic_renderer.h"
 #include "experimental/studio/hal/filament_renderer.h"
 #include "experimental/studio/hal/graphics_mode.h"
-#include "experimental/studio/hal/renderer.h"
 #include "experimental/studio/hal/window.h"
 #include "experimental/studio/sim/model_holder.h"
 #include "experimental/studio/sim/step_control.h"
@@ -187,14 +185,8 @@ void App::SwitchGraphicsMode(int width, int height,
   window_config.gfx_mode = gfx_mode_;
   window_ = std::make_unique<Window>(app_title_, width, height,
                                                window_config);
-  if (IsClassic(gfx_mode_)) {
-    renderer_ = std::make_unique<ClassicRenderer>(
-        window_->GetNativeWindowHandle(), gfx_mode_);
-
-  } else {
-    renderer_ = std::make_unique<FilamentRenderer>(
-        window_->GetNativeWindowHandle(), gfx_mode_);
-  }
+  renderer_ = std::make_unique<FilamentRenderer>(
+      window_->GetNativeWindowHandle(), gfx_mode_);
 
   // TODO: Figure out why this breaks on some platforms.
   // LoadSettings();
@@ -2087,16 +2079,6 @@ void App::MainMenuGui() {
       if (ImGui::BeginMenu("Graphics Mode (Experimental)")) {
         std::optional<GraphicsMode> mode;
         if (ImGui::MenuItem(
-                "Classic OpenGL", nullptr,
-                gfx_mode_ == GraphicsMode::ClassicOpenGl)) {
-          mode = GraphicsMode::ClassicOpenGl;
-        }
-        if (ImGui::MenuItem(
-                "Classic OpenGL Headless", nullptr,
-                gfx_mode_ == GraphicsMode::ClassicOpenGlHeadless)) {
-          mode = GraphicsMode::ClassicOpenGlHeadless;
-        }
-        if (ImGui::MenuItem(
                 "Filament OpenGL", nullptr,
                 gfx_mode_ == GraphicsMode::FilamentOpenGl)) {
           mode = GraphicsMode::FilamentOpenGl;
@@ -2126,10 +2108,6 @@ void App::MainMenuGui() {
             const int width = window_->GetWidth();
             const int height = window_->GetHeight();
             SwitchGraphicsMode(width, height, *mode);
-            // TODO: figure out why ImGui doesn't work unless we do this twice.
-            if (IsClassic(*mode)) {
-              SwitchGraphicsMode(width, height, *mode);
-            }
             renderer_->Init(model());
           };
         }

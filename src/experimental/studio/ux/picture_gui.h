@@ -18,7 +18,7 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
-#include "experimental/studio/hal/renderer.h"
+#include "experimental/studio/hal/filament_renderer.h"
 
 namespace mujoco::studio {
 
@@ -32,7 +32,7 @@ struct PipState {
 
 // Renders the GUI for a set of picture-in-picture widgets.
 void PipGui(const mjModel* model, mjData* data, float aspect_ratio,
-            Renderer* renderer, std::vector<PipState>* pips);
+            FilamentRenderer* renderer, std::vector<PipState>* pips);
 
 }  // namespace mujoco::studio
 

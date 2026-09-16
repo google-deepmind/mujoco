@@ -20,11 +20,6 @@
 
 namespace mujoco::studio {
 
-bool IsClassic(GraphicsMode gfx_mode) {
-  return gfx_mode == GraphicsMode::ClassicOpenGl ||
-         gfx_mode == GraphicsMode::ClassicOpenGlHeadless;
-}
-
 bool IsFilament(GraphicsMode gfx_mode) {
   return gfx_mode == GraphicsMode::FilamentOpenGl ||
          gfx_mode == GraphicsMode::FilamentVulkan ||
@@ -35,9 +30,7 @@ bool IsFilament(GraphicsMode gfx_mode) {
 }
 
 bool IsOpenGl(GraphicsMode gfx_mode) {
-  return gfx_mode == GraphicsMode::ClassicOpenGl ||
-         gfx_mode == GraphicsMode::ClassicOpenGlHeadless ||
-         gfx_mode == GraphicsMode::FilamentOpenGl ||
+  return gfx_mode == GraphicsMode::FilamentOpenGl ||
          gfx_mode == GraphicsMode::FilamentOpenGlHeadless ||
          gfx_mode == GraphicsMode::FilamentOpenGlSoftware;
 }
@@ -52,8 +45,7 @@ bool IsWebGl(GraphicsMode gfx_mode) {
 }
 
 bool IsHeadless(GraphicsMode gfx_mode) {
-  return gfx_mode == GraphicsMode::ClassicOpenGlHeadless ||
-         gfx_mode == GraphicsMode::FilamentOpenGlHeadless ||
+  return gfx_mode == GraphicsMode::FilamentOpenGlHeadless ||
          gfx_mode == GraphicsMode::FilamentOpenGlSoftware;
 }
 
@@ -64,11 +56,7 @@ bool IsSoftware(GraphicsMode gfx_mode) {
 
 GraphicsMode GraphicsModeFromString(std::string_view str,
                                     GraphicsMode default_mode) {
-  if (str == "classic") {
-    return GraphicsMode::ClassicOpenGl;
-  } else if (str == "classic_headless") {
-    return GraphicsMode::ClassicOpenGlHeadless;
-  } else if (str == "opengl") {
+  if (str == "opengl") {
     return GraphicsMode::FilamentOpenGl;
   } else if (str == "vulkan") {
     return GraphicsMode::FilamentVulkan;

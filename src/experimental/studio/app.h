@@ -27,7 +27,7 @@
 
 #include <mujoco/mujoco.h>
 #include "experimental/studio/hal/graphics_mode.h"
-#include "experimental/studio/hal/renderer.h"
+#include "experimental/studio/hal/filament_renderer.h"
 #include "experimental/studio/hal/window.h"
 #include "experimental/studio/sim/model_holder.h"
 #include "experimental/studio/sim/sim_history.h"
@@ -259,7 +259,7 @@ class App {
   GraphicsMode gfx_mode_ = GraphicsMode::FilamentVulkan;
 
   std::unique_ptr<Window> window_;
-  std::unique_ptr<Renderer> renderer_;
+  std::unique_ptr<FilamentRenderer> renderer_;
   std::unique_ptr<ModelHolder> model_holder_;
 
   StepControl step_control_;

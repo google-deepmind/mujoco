@@ -28,15 +28,12 @@ add_library(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} STATIC)
 
 target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME}
     PRIVATE
-        hal/classic_renderer.cc
-        hal/classic_renderer.h
         hal/egl_utils.cc
         hal/egl_utils.h
         hal/filament_renderer.cc
         hal/filament_renderer.h
         hal/graphics_mode.cc
         hal/graphics_mode.h
-        hal/renderer.h
         hal/window.cc
         hal/window.h
         io/resources.cc

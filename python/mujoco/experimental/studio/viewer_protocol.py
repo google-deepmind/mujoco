@@ -26,8 +26,6 @@ from mujoco.experimental.studio import ux
 import numpy as np
 
 GFX_MODES = (
-    'classic',
-    'classic_headless',
     'opengl',
     'opengl_headless',
     'opengl_software',

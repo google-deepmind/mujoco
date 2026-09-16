@@ -22,7 +22,6 @@
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "experimental/studio/hal/graphics_mode.h"
-#include "experimental/studio/hal/renderer.h"
 #include "render/filament/mjrfilament_cpp.h"
 #include "render/filament/support/imgui_bridge.h"
 #include "render/filament/support/model_decorations.h"
@@ -41,7 +40,7 @@ namespace mujoco::studio {
 // will be rendering to a texture and will use an EGL context. Vulkan and WebGL
 // have no need for such a distinction. If rendering to a window surface (e.g.
 // x11), it requires a pointer to the native window to do so.
-class FilamentRenderer : public Renderer {
+class FilamentRenderer {
  public:
   FilamentRenderer(void* native_window, GraphicsMode gfx_mode);
   ~FilamentRenderer();
@@ -50,32 +49,32 @@ class FilamentRenderer : public Renderer {
   FilamentRenderer& operator=(const FilamentRenderer&) = delete;
 
   // Initializes the renderer with the given mjModel.
-  void Init(const mjModel* model) override;
+  void Init(const mjModel* model);
 
   // Renders the simulation and ux state. Renders into `pixels` if provided,
   // otherwise renders to the `native_window` provided at construction.
   void Render(const mjModel* model, mjData* data, const mjvPerturb* perturb,
               mjvCamera* camera, const mjvOption* vis_option, int width,
               int height, std::span<std::byte> pixels = {},
-              std::span<mjvGeom> extra_geoms = {}) override;
+              std::span<mjvGeom> extra_geoms = {});
 
   // Populates the given output buffer with RGB888 pixel data. The size of the
   // output buffer must be at least width * height * 3.
   void RenderToTexture(const mjModel* model, mjData* data, mjvCamera* camera,
-                       int width, int height, std::byte* output) override;
+                       int width, int height, std::byte* output);
 
   // Uploads an image to the backend for GUI rendering, returning the texture
   // ID for the texture. The ID can be used in subsequent calls to update the
   // texture data. A nullptr pixels argument will free the texture if it exists.
   // A texture ID of 0 will create a new texture.
   int UploadImage(int texture_id, const std::byte* pixels, int width,
-                  int height, int bpp) override;
+                  int height, int bpp);
 
   // Rendering flags.
-  mjtByte* GetRenderFlags() override { return render_flags_; }
+  mjtByte* GetRenderFlags() { return render_flags_; }
 
   // Returns the current frame rate.
-  double GetFps() override;
+  double GetFps();
 
  private:
   // Resets the renderer; no rendering will occur until Init() is called again.

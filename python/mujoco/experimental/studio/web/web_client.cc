@@ -118,7 +118,7 @@ class AppCallbacks final : public RemoteUi::Callbacks,
 struct App {
   std::unique_ptr<mujoco::studio::Window> window;
   std::unique_ptr<mujoco::studio::ModelHolder> model_holder;
-  mujoco::studio::Renderer* renderer = nullptr;
+  mujoco::studio::FilamentRenderer* renderer = nullptr;
   mjvPerturb perturb;
   mjvCamera camera;
   mjvOption vis_options;

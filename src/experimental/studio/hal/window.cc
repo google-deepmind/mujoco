@@ -116,8 +116,7 @@ Window::Window(std::string_view title, int width, int height, Config config)
 
   // Filament (except WebGL) manages its own swap chain including when to swap.
   // In all other cases, we'll use SDL to manage the swap chain.
-  if (config_.gfx_mode == GraphicsMode::FilamentWebGl ||
-      config_.gfx_mode == GraphicsMode::ClassicOpenGl) {
+  if (config_.gfx_mode == GraphicsMode::FilamentWebGl) {
     SDL_GLContext gl_context = SDL_GL_CreateContext(sdl_window_);
     SDL_GL_MakeCurrent(sdl_window_, gl_context);
   }
