@@ -2519,6 +2519,7 @@ void mjCBody::ForgetKeyframes() const {
   for (auto joint : joints) {
     joint->qpos_.clear();
     joint->qvel_.clear();
+    joint->savedtype_.clear();
   }
   ((mjCBody*)this)->mpos_.clear();
   ((mjCBody*)this)->mquat_.clear();
@@ -2932,6 +2933,7 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
   // no previous state when a joint is created
   qposadr_ = -1;
   dofadr_  = -1;
+  type_    = spec.type;
 }
 
 
@@ -2949,6 +2951,7 @@ mjCJoint& mjCJoint::operator=(const mjCJoint& other) {
 
     qposadr_ = -1;
     dofadr_  = -1;
+    type_    = spec.type;
   }
   PointToLocal();
   return *this;
@@ -3000,6 +3003,13 @@ mjtNum* mjCJoint::qpos(const std::string& state_name) {
 mjtNum* mjCJoint::qvel(const std::string& state_name) {
   if (qvel_.find(state_name) == qvel_.end()) { qvel_[state_name] = {mjNAN, 0, 0, 0, 0, 0}; }
   return qvel_.at(state_name).data();
+}
+
+
+// joint type at the time the state was saved; defaults to the current type
+mjtJoint& mjCJoint::savedtype(const std::string& state_name) {
+  if (savedtype_.find(state_name) == savedtype_.end()) { savedtype_[state_name] = spec.type; }
+  return savedtype_.at(state_name);
 }
 
 

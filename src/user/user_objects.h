@@ -691,6 +691,7 @@ class mjCJoint_ : public mjCBase {
   // variable used for temporarily storing the state of the joint
   std::map<std::string, std::array<mjtNum, 7>> qpos_;  // qpos at the previous step
   std::map<std::string, std::array<mjtNum, 6>> qvel_;  // qvel at the previous step
+  std::map<std::string, mjtJoint>              savedtype_;  // joint type at the previous step
 
   // variable-size data
   std::vector<double> userdata_;
@@ -730,16 +731,18 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
   int        nq() const { return nq(spec.type); }
   int        nv() const { return nv(spec.type); }
 
-  mjtNum* qpos(const std::string& state_name);
-  mjtNum* qvel(const std::string& state_name);
+  mjtNum*   qpos(const std::string& state_name);
+  mjtNum*   qvel(const std::string& state_name);
+  mjtJoint& savedtype(const std::string& state_name);
 
  private:
   int  Compile(void);  // compiler; return dofnum
   void PointToLocal(void);
 
   // variables that should not be copied during copy assignment
-  int qposadr_;  // address of dof in data->qpos
-  int dofadr_;   // address of dof in data->qvel
+  int      qposadr_;  // address of dof in data->qpos
+  int      dofadr_;   // address of dof in data->qvel
+  mjtJoint type_;     // joint type used to compute qposadr_ and dofadr_
 };
 
 
