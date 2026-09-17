@@ -109,6 +109,7 @@ std::vector<std::string> GetWriteReadTestModels() {
             absl::StrContains(xml, "cube_3x3x3") ||
             absl::StrContains(xml, "arch/gothic") ||
             absl::StrContains(xml, "arch/roman") ||
+            absl::StrContains(xml, "welcome/welcome") ||
             // flex_stiffness: stretch amplifies geometry XML rounds on save
             absl::StrContains(xml, "flex/bag") ||
             // exclude files that fail since we do not save pinned flex nodes

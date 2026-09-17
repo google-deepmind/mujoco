@@ -80,14 +80,18 @@
   </default>
   <worldbody>
     <geom name="floor" size="-1 -1 0.05" type="plane" material="groundplane" />
+    <camera name="hero" quat="0.724077 0.611092 -0.206267 -0.244404" pos="-2.736 -3.024 1.152" />
     <camera name="wide" quat="0.788205 0.615412 0 0" pos="0.144 -4.896 1.44" />
     <camera name="sit" quat="0.75774 0.652556 0 0" pos="-0.144 -2.592 0.864" />
-    <camera name="hero" quat="0.724077 0.611092 -0.206267 -0.244404" pos="-2.736 -3.024 1.152" />
-    <light pos="0 0 6" dir="0 0 -1" castshadow="true" directional="true" diffuse="0.5 0.6 0.85" intensity="5000"/>
-    <light type="point" pos="-1.6 0   1.0" diffuse="1 0.77 0.56" intensity="200000" range="6" castshadow="true" bulbradius="50"/>
-    <light type="point" pos=" 0.0 0.6 1.0" diffuse="0.957 0.992 1" intensity="200000" range="6" castshadow="true" bulbradius="50"/>
-    <light type="point" pos=" 1.6 0   1.0" diffuse="1 0.77 0.56" intensity="200000" range="6" castshadow="true" bulbradius="50"/>
     <light intensity="15000" type="image" texture="ibl" />
+
+    <frame euler="0 0 20">
+
+    <light type="directional" dir="0 0 -1" castshadow="true" diffuse="0.5 0.5 0.5" intensity="10000"/>
+    <light type="point" pos="-1.7 0.4 1.2" dir=" 1 -1 -1" diffuse="0.56 0.77 1.00" intensity="600000" range="1.5" castshadow="true" bulbradius="125"/>
+    <light type="point" pos=" 0.2 0.6 1.2" dir=" 0 -1 -1" diffuse="1.00 0.77 0.56" intensity="120000" range="4" castshadow="true" bulbradius="25"/>
+    <light type="point" pos=" 2.0 0.4 1.2" dir="-1 -1 -1" diffuse="0.56 0.77 1.00" intensity="600000" range="1.5" castshadow="true" bulbradius="125"/>
+
     <body name="letter_m" childclass="letter" pos="-1.94057 0 0.012" quat="0.707106 0.707106 0.000986566 -0.000986566">
       <joint type="free" />
       <geom name="m" class="letter_visual" mesh="m" />
@@ -163,7 +167,7 @@
       <geom name="c_07" class="letter_collision" mesh="c_07" />
       <geom name="c_08" class="letter_collision" mesh="c_08" />
     </body>
-    <body name="letter_o2" childclass="letter" pos="1.59005 0 0.010" quat="0.717508 0.696539 1.71146e-05 0.0038991">
+    <body name="letter_o2" childclass="letter" pos="1.57005 0 0.010" quat="0.717508 0.696539 1.71146e-05 0.0038991">
       <joint type="free" />
       <geom name="o2" class="letter_visual" mesh="o" />
       <geom name="o2_o_00" class="letter_collision" mesh="o_00" />
@@ -277,13 +281,19 @@
         </body>
       </body>
     </frame>
+  </frame>
   </worldbody>
   <custom>
     <numeric name="filament.fog.color" size="3" data="0 0.1 0.2" />
-    <numeric name="filament.fog.enabled" size="1" data="1" />
-    <numeric name="filament.fog.distance" size="1" data="10" />
-    <numeric name="filament.fog.density" size="1" data="0.15" />
-    <numeric name="filament.fog.height" size="1" data="-1.5" />
+    <numeric name="filament.fog.enabled" data="1" />
+    <numeric name="filament.fog.distance" data="10" />
+    <numeric name="filament.fog.density" data="0.15" />
+    <numeric name="filament.fog.height" data="-1.5" />
+    <numeric name="filament.shadows.type" data="1"/>
+    <numeric name="filament.bloom.enabled" data="1"/>
+    <numeric name="filament.bloom.strength" data="0.3"/>
+    <numeric name="filament.vignette.enabled" data="1"/>
+    <numeric name="filament.vignette.midpoint" data="0.7"/>
   </custom>
   <contact>
     <exclude body1="waist_lower" body2="thigh_right" />
@@ -326,8 +336,19 @@
     <texture type="2d" colorspace="auto" name="grid" builtin="checker" rgb1="0.1 0.2 0.3" rgb2="0.2 0.3 0.4" width="512" height="512" />
     <texture type="cube" colorspace="auto" name="ibl" builtin="gradient" rgb1="0.22 0.28 0.38" rgb2="0.8 0.84 0.9" width="64" height="384" />
     <texture type="skybox" colorspace="auto" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="32" height="192" />
+
+    <texture type="2d" builtin="flat" name="white" rgb1="1.0 1.0 1.0" width="4" height="4" />
+    <texture type="2d" builtin="flat" name="metallic" rgb1="0.9 0.9 0.9" width="4" height="4" />
+    <texture type="2d" builtin="flat" name="roughness" rgb1="0.5 0.5 0.5" width="4" height="4" />
+    <texture type="2d" builtin="flat" name="emissive" rgb1="0.03 0.03 0.03" width="4" height="4" />
+
     <material name="groundplane" texture="grid" texuniform="true" />
-    <material name="m1" metallic="0" roughness="0.2" />
+    <material name="m1">
+      <layer role="rgb" texture="white"/>
+      <layer role="metallic" texture="metallic"/>
+      <layer role="roughness" texture="roughness"/>
+      <layer role="emissive" texture="emissive"/>
+    </material>
     <texture name="body" type="cube" builtin="flat" mark="cross" width="128" height="128" rgb1="0.8 0.6 0.4" rgb2="0.8 0.6 0.4" markrgb="1 1 1" />
     <material name="body" texture="body" texuniform="true" rgba="0.8 0.6 .4 1" />
     <mesh name="m" vertex="0.61286 0.48051 0.12  0.67699 0.05701 0.12  0.8073 0.05701 0.12  0.6658 0.8806 0.12  0.40314 0 0.12  0.4062 0.28912 0.12  0.15678 0.88162 0.12  0 0.05803 0.12  0.13031 0.05803 0.12  0.20259 0.48153 0.12  0.61286 0.48051 -0.12  0.8073 0.05701 -0.12  0.67699 0.05701 -0.12  0.6658 0.8806 -0.12  0.40314 0 -0.12  0.4062 0.28912 -0.12  0.15678 0.88162 -0.12  0.13031 0.05803 -0.12  0 0.05803 -0.12  0.20259 0.48153 -0.12  0.67699 0.05701 0.12  0.61286 0.48051 0.12  0.61286 0.48051 -0.12  0.67699 0.05701 -0.12  0.8073 0.05701 0.12  0.67699 0.05701 0.12  0.67699 0.05701 -0.12  0.8073 0.05701 -0.12  0.6658 0.8806 0.12  0.8073 0.05701 0.12  0.8073 0.05701 -0.12  0.6658 0.8806 -0.12  0.4062 0.28912 0.12  0.6658 0.8806 0.12  0.6658 0.8806 -0.12  0.4062 0.28912 -0.12  0.15678 0.88162 0.12  0.4062 0.28912 0.12  0.4062 0.28912 -0.12  0.15678 0.88162 -0.12  0 0.05803 0.12  0.15678 0.88162 0.12  0.15678 0.88162 -0.12  0 0.05803 -0.12  0.13031 0.05803 0.12  0 0.05803 0.12  0 0.05803 -0.12  0.13031 0.05803 -0.12  0.20259 0.48153 0.12  0.13031 0.05803 0.12  0.13031 0.05803 -0.12  0.20259 0.48153 -0.12  0.40314 0 0.12  0.20259 0.48153 0.12  0.20259 0.48153 -0.12  0.40314 0 -0.12  0.61286 0.48051 0.12  0.40314 0 0.12  0.40314 0 -0.12  0.61286 0.48051 -0.12" face="0 1 2  0 2 3  4 0 3  4 3 5  4 5 6  6 7 8  6 8 9  6 9 4  10 11 12  10 13 11  14 13 10  14 15 13  14 16 15  16 17 18  16 19 17  16 14 19  20 21 22  20 22 23  24 25 26  24 26 27  28 29 30  28 30 31  32 33 34  32 34 35  36 37 38  36 38 39  40 41 42  40 42 43  44 45 46  44 46 47  48 49 50  48 50 51  52 53 54  52 54 55  56 57 58  56 58 59" normal="0 0 1  0 0 1  0 0 1  0 0 1  0 0 1  0 0 1  0 0 1  0 0 1  0 0 1  0 0 1  0 0 -1  0 0 -1  0 0 -1  0 0 -1  0 0 -1  0 0 -1  0 0 -1  0 0 -1  0 0 -1  0 0 -1  -0.9887 -0.1497 0  -0.9887 -0.1497 0  -0.9887 -0.1497 0  -0.9887 -0.1497 0  0 -1 0  0 -1 0  0 -1 0  0 -1 0  0.9856 0.1693 0  0.9856 0.1693 0  0.9856 0.1693 0  0.9856 0.1693 0  -0.9157 0.4019 0  -0.9157 0.4019 0  -0.9157 0.4019 0  -0.9157 0.4019 0  0.9217 0.388 0  0.9217 0.388 0  0.9217 0.388 0  0.9217 0.388 0  -0.9824 0.187 0  -0.9824 0.187 0  -0.9824 0.187 0  -0.9824 0.187 0  0 -1 0  0 -1 0  0 -1 0  0 -1 0  0.9857 -0.1682 0  0.9857 -0.1682 0  0.9857 -0.1682 0  0.9857 -0.1682 0  -0.9231 -0.3845 0  -0.9231 -0.3845 0  -0.9231 -0.3845 0  -0.9231 -0.3845 0  0.9165 -0.4 0  0.9165 -0.4 0  0.9165 -0.4 0  0.9165 -0.4 0" />
