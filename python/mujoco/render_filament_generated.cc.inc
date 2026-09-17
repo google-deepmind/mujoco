@@ -588,6 +588,7 @@ mjrf_context.def("wait_for_frame", [](
     return mjrf_waitForFrame(ctx.get(), frame);
 }
 , py::arg("frame")
+, py::call_guard<py::gil_scoped_release>()
 );
 
 mjrf_context.def("set_clear_color", [](

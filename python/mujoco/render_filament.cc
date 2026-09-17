@@ -466,7 +466,8 @@ PYBIND11_MODULE(_render_filament, m, pybind11::mod_gil_not_used()) {
       return mjrf_render(ctx.get(), req.data(), req.size(), read.data(),
                           read.size());
     },
-    py::arg("req"), py::arg("read"));
+    py::arg("req"), py::arg("read"),
+    py::call_guard<py::gil_scoped_release>());
 
   mjrf_renderable.def("get_material", [](PyRenderable& renderable) {
     mjrfMaterial material;
