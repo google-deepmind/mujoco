@@ -552,6 +552,13 @@ void App::UpdatePhysics() {
       }
     }
   }
+
+  plugin_scene_.ngeom = 0;
+  ForEachPlugin<ScenePlugin>([&](auto* plugin) {
+    if (plugin->enhance_scene) {
+      plugin->enhance_scene(plugin, model(), data(), &plugin_scene_);
+    }
+  });
 }
 
 void App::PreStep(const mjModel* m, mjData* d) {
@@ -590,6 +597,13 @@ bool App::Update() {
 
   ProcessPendingLoads();
 
+  if (has_data()) {
+    for (int i = 0; i < mjNTIMER; i++) {
+      data()->timer[i].duration = 0;
+      data()->timer[i].number = 0;
+    }
+  }
+
   PauseState current_pause = step_control_.GetPauseState();
   if (current_pause != last_pause_state_) {
     load_error_ = "";
@@ -615,26 +629,11 @@ void App::Render() {
     pixels_.clear();
   }
 
-  plugin_scene_.ngeom = 0;
-  ForEachPlugin<ScenePlugin>([&](auto* plugin) {
-    if (plugin->enhance_scene) {
-      plugin->enhance_scene(plugin, model(), data(), &plugin_scene_);
-    }
-  });
-
   renderer_->Render(model(), data(), &perturb_, &camera_, &vis_options_,
                     width * scale, height * scale, pixels_,
                     {plugin_scene_.geoms, (size_t)plugin_scene_.ngeom});
-
   window_->EndFrame();
   window_->Present(pixels_);
-
-  if (has_data()) {
-    for (int i = 0; i < mjNTIMER; i++) {
-      data()->timer[i].duration = 0;
-      data()->timer[i].number = 0;
-    }
-  }
 }
 
 void App::ProcessPendingLoads() {
