@@ -468,5 +468,12 @@ void SceneView::Configure(const mjModel* model) {
       ReadElement(model, "filament.bloom.resolution", bloom.resolution);
   bloom.levels = ReadElement(model, "filament.bloom.levels", bloom.levels);
   main_view_->setBloomOptions(bloom);
+
+  auto vignette = main_view_->getVignetteOptions();
+  vignette.enabled =
+      ReadElement(model, "filament.vignette.enabled", vignette.enabled);
+  vignette.midPoint =
+      ReadElement(model, "filament.vignette.midpoint", vignette.midPoint);
+  main_view_->setVignetteOptions(vignette);
 }
 }  // namespace mujoco
