@@ -2295,11 +2295,11 @@ TEST_F(DerivativeTest, FlexStretchDerivativesTensile) {
       << "mjd_flexStretch_mul is not the Jacobian of the flex stretch force";
 }
 
-// verify mjd_flexStretch_mul (Gauss-Newton Hessian of the standard-flex
-// stretch force) against finite differences of qfrc_passive, plus symmetry,
-// positive semi-definiteness and (s1, s2) scale linearity. The model covers
-// both element edge tables (dim=2 triangles and dim=3 tets) and a pinned
-// vertex (zero-dof body guard).
+// verify mjd_flexStretch_mul (stiffness of the standard-flex stretch force)
+// against finite differences of qfrc_passive, plus symmetry, positive
+// semi-definiteness and (s1, s2) scale linearity. The model covers both
+// element edge tables (dim=2 triangles and dim=3 tets) and a pinned vertex
+// (zero-dof body guard).
 TEST_F(DerivativeTest, FlexStretchDerivatives) {
   static const char* const kXml = R"(
   <mujoco>
@@ -2331,8 +2331,9 @@ TEST_F(DerivativeTest, FlexStretchDerivatives) {
 
   // deform both flexes deterministically, at small strain.
   // FlexStretchDerivativesTensile covers finite strain, where the geometric
-  // term of K_stretch is what carries the accuracy; the solid (dim=3) flex
-  // below has no such term, so the tolerance stays loose here.
+  // term of K_stretch is what carries the accuracy; here some edges are
+  // compressed and the operator drops their geometric term to stay PSD, so the
+  // tolerance stays loose.
   for (int i = 0; i < nv; i++) {
     data->qpos[i] += 5e-4 * (mju_Halton(i, 2) - 0.5);
   }
@@ -2354,8 +2355,8 @@ TEST_F(DerivativeTest, FlexStretchDerivatives) {
 
     // qfrc_passive = -dV/dq  =>  -(qfrc_new - qfrc)/eps ~= K * vec.
     // Compare max error against the force scale rather than entrywise:
-    // individual near-zero entries are not meaningful, and the dim=3 flex still
-    // carries a Gauss-Newton residual.
+    // individual near-zero entries are not meaningful, and the dropped
+    // compressive geometric term leaves a residual in both flexes.
     mjtNum max_err = 0, scale = 0;
     for (int i = 0; i < nv; ++i) {
       mjtNum fd =

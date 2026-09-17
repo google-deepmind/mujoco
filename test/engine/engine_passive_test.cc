@@ -17,6 +17,7 @@
 #include <cmath>
 #include <limits>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -818,6 +819,41 @@ TEST_F(ElasticityTest, ShellModeZeroForceAtRest) {
   for (int i = 0; i < m->nv; i++) {
     EXPECT_NEAR(d->qfrc_spring[i], 0, 1e-10)
         << "nonzero spring force at DOF " << i;
+  }
+}
+
+// flex stretch damping must exert exactly no force at zero velocity
+TEST_F(ElasticityTest, StretchDampingZeroVelocity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp type="grid" count="3 3 3" spacing=".1 .1 .1" radius=".01" dim="3" mass="1" name="solid">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e4" poisson="0.3" damping="10"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  // deform at zero velocity
+  for (int i = 0; i < m->nv; i++) {
+    d->qpos[i] += 1e-3 * (mju_Halton(i, 2) - 0.5);
+  }
+  mj_forward(m.get(), d.get());
+  std::vector<mjtNum> damped(d->qfrc_passive, d->qfrc_passive + m->nv);
+  EXPECT_GT(mju_norm(damped.data(), m->nv), 1)
+      << "test should exercise a nontrivial stretch force";
+
+  // the same state without damping must give bitwise the same force
+  m->flex_damping[0] = 0;
+  mj_forward(m.get(), d.get());
+  for (int i = 0; i < m->nv; i++) {
+    EXPECT_EQ(d->qfrc_passive[i], damped[i]) << "damping force at DOF " << i;
   }
 }
 

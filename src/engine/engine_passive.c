@@ -588,13 +588,15 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
     // Kharevych et al., "Geometric, Variational Integrators for Computer
     // Animation" http://multires.caltech.edu/pubs/DiscreteLagrangian.pdf
 
-    // extract elongation of edges belonging to this element
+    // extract elongation of edges belonging to this element; the damping term
+    // L^2 - Lprev^2 is factored as dL*(2*L - dL), dL = L - Lprev = vel*timestep,
+    // so it has no cancellation and vanishes exactly at zero velocity
     mjtNum elongation[6];
     for (int e = 0; e < nedge; e++) {
       int idx = edgeelem[t * nedge + e];
-      mjtNum previous = deformed[idx] - vel[idx] * m->opt.timestep;
+      mjtNum dL = vel[idx] * m->opt.timestep;
       elongation[e] = deformed[idx]*deformed[idx] - reference[idx]*reference[idx] +
-                     (deformed[idx]*deformed[idx] - previous*previous) * kD;
+                      dL*(2*deformed[idx] - dL) * kD;
     }
 
     // unpack triangular representation
