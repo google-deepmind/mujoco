@@ -437,8 +437,8 @@ TEST_F(CoreSmoothTest, RnePostConnectMultipleConstraints) {
 
 // --------------------------- weld constraint ---------------------------------
 
-// test that bodies attached with welds lead to expected force sensor readings
-void TestWeld(const char* const filepath) {
+// test that all sensors read their expected values once the physics settles
+void TestSensors(const char* const filepath, mjtNum tol = MjTol(1e-6, 5e-5)) {
   const std::string xml_path = GetTestDataFilePath(filepath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
   mjData* data = mj_makeData(model);
@@ -450,7 +450,7 @@ void TestWeld(const char* const filepath) {
     for (int i = 0; i < 3; i++) {
       EXPECT_NEAR(data->sensordata[model->sensor_adr[sensor_index] + i],
                   model->sensor_user[model->nuser_sensor * sensor_index + i],
-                  MjTol(1e-6, 5e-5));
+                  tol);
     }
   }
   mj_deleteData(data);
@@ -460,38 +460,38 @@ void TestWeld(const char* const filepath) {
 TEST_F(CoreSmoothTest, RnePostWeldForceFree) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/force_free.xml";
-  TestWeld(kModelFilePath);
+  TestSensors(kModelFilePath);
 }
 
 TEST_F(CoreSmoothTest, RnePostWeldForceFreeRotated) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/force_free_rotated.xml";
-  TestWeld(kModelFilePath);
+  TestSensors(kModelFilePath);
 }
 
 TEST_F(CoreSmoothTest, RnePostWeldForceTorqueFree) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/force_torque_free.xml";
-  TestWeld(kModelFilePath);
+  TestSensors(kModelFilePath);
 }
 
 TEST_F(CoreSmoothTest, RnePostWeldForceTorqueFreeRotated) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/force_torque_free_rotated.xml";
-  TestWeld(kModelFilePath);
+  TestSensors(kModelFilePath);
 }
 
 TEST_F(CoreSmoothTest, RnePostWeldForceTorqueLever) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/force_torque_lever.xml";
-  TestWeld(kModelFilePath);
+  TestSensors(kModelFilePath);
 }
 
 TEST_F(CoreSmoothTest, RnePostWeldForceTorqueLeverRotated) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/"
       "force_torque_lever_rotated.xml";
-  TestWeld(kModelFilePath);
+  TestSensors(kModelFilePath);
 }
 
 TEST_F(CoreSmoothTest, WeldRatioForceFree) {
@@ -524,6 +524,57 @@ TEST_F(CoreSmoothTest, WeldRatioMultipleConstraints) {
       "engine/testdata/core_smooth/rne_post/weld/"
       "tfratio0_multiple_constraints.xml";
   TestConnect(kModelFilePath);
+}
+
+// --------------------------- spatial tendons ---------------------------------
+
+TEST_F(CoreSmoothTest, RnePostTendonSpring) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/tendon/spring_free.xml";
+  TestSensors(kModelFilePath);
+}
+
+TEST_F(CoreSmoothTest, RnePostTendonLimit) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/tendon/limit_free.xml";
+  TestSensors(kModelFilePath);
+}
+
+TEST_F(CoreSmoothTest, RnePostTendonActuator) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/tendon/actuator_free.xml";
+  TestSensors(kModelFilePath);
+}
+
+TEST_F(CoreSmoothTest, RnePostTendonFrictionloss) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/tendon/frictionloss_free.xml";
+  TestSensors(kModelFilePath);
+}
+
+TEST_F(CoreSmoothTest, RnePostTendonEquality) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/tendon/equality_free.xml";
+  TestSensors(kModelFilePath);
+}
+
+TEST_F(CoreSmoothTest, RnePostTendonPulley) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/tendon/pulley_free.xml";
+  TestSensors(kModelFilePath);
+}
+
+TEST_F(CoreSmoothTest, RnePostTendonWrap) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/tendon/wrap_free.xml";
+  TestSensors(kModelFilePath, MjTol(1e-5, 2e-4));
+}
+
+// fixed tendons act through the joints: nothing to attribute to the bodies
+TEST_F(CoreSmoothTest, RnePostTendonFixed) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/tendon/fixed_slide.xml";
+  TestSensors(kModelFilePath);
 }
 
 TEST_F(CoreSmoothTest, EqualityBodySite) {
@@ -577,13 +628,17 @@ vector<mjtNum> JointForce(const mjModel* m, mjData* d) {
   return qfrc;
 }
 
-// forces not transmitted through joints (constraints, contacts, perturbations)
-// are external: cfrc_int carries no component along the joint axes
+// forces not transmitted through joints (constraints, contacts, perturbations,
+// spatial tendons) are external: cfrc_int carries no component along the
+// joint axes
 TEST_F(CoreSmoothTest, RnePostBodyForcesAreExternal) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
       <geom type="plane" size="1 1 .1"/>
+      <site name="anchor" pos="-.3 0 1"/>
+      <site name="anchor2" pos=".3 .5 1"/>
+      <site name="anchor3" pos="-.5 .5 1"/>
       <body pos="0 0 .5">
         <joint type="hinge" axis="0 1 0"/>
         <geom type="capsule" fromto="0 0 0 .3 0 0" size=".03"/>
@@ -591,23 +646,53 @@ TEST_F(CoreSmoothTest, RnePostBodyForcesAreExternal) {
         <body name="tip" pos=".3 0 0">
           <joint type="ball"/>
           <geom type="capsule" fromto="0 0 0 .2 0 0" size=".03"/>
+          <site name="tip" pos=".2 0 0"/>
         </body>
       </body>
       <body name="box" pos=".5 0 .5" euler="0 0 20">
         <freejoint/>
         <geom type="box" size=".05 .05 .05"/>
+        <site name="box" pos="0 0 .05"/>
       </body>
       <body name="ball" pos="0 .3 .09">
         <freejoint/>
         <geom type="sphere" size=".1"/>
         <site name="ball" pos="0 .1 0"/>
+        <site name="ballweld" pos=".1 -.3 .41"/>
+      </body>
+      <body name="post" pos=".25 .2 .32">
+        <geom name="wrap" type="sphere" size=".12" contype="0" conaffinity="0"/>
+        <site name="side" pos="0 0 .3"/>
       </body>
     </worldbody>
+    <tendon>
+      <spatial name="spring" stiffness="20" damping=".5" armature=".05" springlength="0 .2">
+        <site site="anchor"/>
+        <site site="box"/>
+      </spatial>
+      <spatial name="wrapped" stiffness="5" springlength="0 .3">
+        <site site="ball"/>
+        <geom geom="wrap" sidesite="side"/>
+        <site site="box"/>
+      </spatial>
+      <spatial name="pulley" limited="true" range="1.3 2" frictionloss=".2">
+        <site site="tip"/>
+        <site site="anchor2"/>
+        <pulley divisor="2"/>
+        <site site="anchor3"/>
+        <site site="ball"/>
+      </spatial>
+    </tendon>
     <equality>
       <weld body1="tip" body2="box" torquescale=".5"/>
-      <weld site1="link" site2="ball" torquescale="2"/>
+      <weld site1="link" site2="ballweld" torquescale="2"/>
       <connect body1="ball" body2="box" anchor="0 0 .1"/>
+      <tendon tendon1="spring" tendon2="pulley" polycoef="0 .5 .3 0 0"/>
     </equality>
+    <actuator>
+      <motor tendon="wrapped" gear="2"/>
+      <general tendon="pulley" biastype="affine" biasprm="-.5"/>
+    </actuator>
   </mujoco>
   )";
   char error[1024];
@@ -617,6 +702,7 @@ TEST_F(CoreSmoothTest, RnePostBodyForcesAreExternal) {
   mjModel* m = model.get();
   mjData* d = data.get();
   int box = mj_name2id(m, mjOBJ_BODY, "box");
+  int wrapped = mj_name2id(m, mjOBJ_TENDON, "wrapped");
 
   for (mjtCone cone : {mjCONE_PYRAMIDAL, mjCONE_ELLIPTIC}) {
     m->opt.cone = cone;
@@ -629,11 +715,17 @@ TEST_F(CoreSmoothTest, RnePostBodyForcesAreExternal) {
     for (int i = 0; i < 6; i++) {
       d->xfrc_applied[6 * box + i] = i + 1;
     }
+    d->ctrl[0] = 0.8;
     for (int i = 0; i < 50; i++) {
       mj_step(m, d);
     }
     mj_forward(m, d);
+
+    // every force source carries load
     ASSERT_GT(mju_norm(d->efc_force, d->nefc), 1);
+    ASSERT_GT(d->nf, 0);
+    ASSERT_GT(d->nl, 0);
+    ASSERT_EQ(d->ten_wrapnum[wrapped], 4);
 
     vector<mjtNum> qfrc = JointForce(m, d);
     for (int v = 0; v < m->nv; v++) {

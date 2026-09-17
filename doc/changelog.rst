@@ -35,6 +35,9 @@ Bug fixes
   constraint force was used directly as a world-frame torque, missing the scaling by ``0.5 * torquescale`` and the
   rotation into the world frame. :ref:`Force<sensor-force>` and :ref:`torque<sensor-torque>` sensors on bodies held
   by a weld that carries torque were wrong (:issue:`2533`).
+- :ref:`mj_rnePostConstraint` now accounts for the forces of spatial tendons (spring, damper, actuator, limit,
+  friction loss, equality and armature), so :ref:`force<sensor-force>` and :ref:`torque<sensor-torque>` sensors
+  register the forces that tendons apply to bodies (:issue:`832`).
 
 Version 3.13.0 (September 8, 2026)
 ----------------------------------

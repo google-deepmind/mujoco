@@ -142,6 +142,10 @@ MJAPI void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum res
 // count the number of length limit violations for tendon i (0, 1 or 2)
 int tendonLimit(const mjModel* m, const mjtNum* ten_length, int i);
 
+// compute spring and damper forces along tendon i, zero when disabled
+void mj_tendonSpringDamper(const mjModel* m, const mjData* d, int i,
+                           mjtNum* frc_spring, mjtNum* frc_damper);
+
 // return actuator damping contribution to joint or tendon
 MJAPI mjtNum mj_actuatorDamping(const mjModel* m, mjtObj type, int id, mjtNum poly[mjNPOLY]);
 

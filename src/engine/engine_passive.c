@@ -797,36 +797,9 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
       continue;
     }
 
-    mjtNum stiffness = 0;
-    const mjtNum* spoly = NULL;
-    if (enbl_spring) {
-      stiffness = m->tendon_stiffness[i];
-      spoly = m->tendon_stiffnesspoly + mjNPOLY*i;
-    }
-
-    mjtNum damping = 0;
-    mjtNum dpoly[mjNPOLY] = {0};
-    if (enbl_damper) {
-      mju_copy(dpoly, m->tendon_dampingpoly + mjNPOLY*i, mjNPOLY);
-      damping = m->tendon_damping[i] + mj_actuatorDamping(m, mjOBJ_TENDON, i, dpoly);
-    }
-
-    // both zero: nothing to do
-    if (stiffness == 0 && (!enbl_spring || mju_isZero(spoly, mjNPOLY)) &&
-        damping == 0   && mju_isZero(dpoly, mjNPOLY)) {
-      continue;
-    }
-
-    // compute spring force along tendon
-    mjtNum length = d->ten_length[i];
-    mjtNum lower = m->tendon_lengthspring[2*i];
-    mjtNum upper = m->tendon_lengthspring[2*i+1];
-    mjtNum x = (length > upper) ? length - upper : (length < lower) ? length - lower : 0;
-    mjtNum frc_spring = enbl_spring ? -x * mju_polyForce(stiffness, spoly, x, mjNPOLY, 0) : 0;
-
-    // compute damper force along tendon
-    mjtNum v = d->ten_velocity[i];
-    mjtNum frc_damper = enbl_damper ? -v * mju_polyForce(damping, dpoly, v, mjNPOLY, 1) : 0;
+    // compute spring and damper forces along tendon
+    mjtNum frc_spring, frc_damper;
+    mj_tendonSpringDamper(m, d, i, &frc_spring, &frc_damper);
 
     // transform to joint torque, add to qfrc_{spring, damper}
     if (frc_spring || frc_damper) {
