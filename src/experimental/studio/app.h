@@ -256,7 +256,6 @@ class App {
   // "<window name>/<id>", which ImGui does not serialize. Entries stay
   // pending until their window is first created.
   KeyValues window_state_storage_;
-  std::string model_name_;  // Used if model_kind_ is kModelFromBuffer.
   std::string model_path_;
   std::vector<std::byte> last_buffer_;
   std::string last_content_type_;

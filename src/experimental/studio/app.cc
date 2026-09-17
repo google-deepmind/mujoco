@@ -1704,7 +1704,7 @@ void App::SpecEditorGui() {
             preserve_camera_on_load_ = true;
             model_holder_ = std::move(tmp_holder);
             RestoreKeyframeSelection(saved_key);
-            OnModelLoaded(model_name_, model_kind_);
+            OnModelLoaded("", model_kind_);
           } else {
             load_error_ = std::move(tmp_holder->error());
           }
