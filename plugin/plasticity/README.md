@@ -50,12 +50,8 @@ $$
 with equivalent von Mises stress
 
 $$
-\sigma_{\mathrm{eq}}^{\mathrm{trial}}
-=
-\sqrt{
-\frac{3}{2}
-s^{\mathrm{trial}} : s^{\mathrm{trial}}
-}.
+\sigma_{\mathrm{eq}}^{\mathrm{trial}} =
+\sqrt{\frac{3}{2}\,s^{\mathrm{trial}} : s^{\mathrm{trial}}}.
 $$
 
 The yield function is
@@ -69,36 +65,24 @@ If $f \le 0$, the step is elastic and the plastic state is unchanged.
 For $f > 0$, perfect J2 plasticity uses the radial-return increment
 
 $$
-\Delta\lambda
-=
-\frac{
-\sigma_{\mathrm{eq}}^{\mathrm{trial}} - \sigma_y
-}{
-3G
-},
+\Delta\lambda =
+\frac{\sigma_{\mathrm{eq}}^{\mathrm{trial}} - \sigma_y}{3G},
 $$
 
 with associative plastic flow
 
 $$
-\Delta E^p
-=
+\Delta E^p =
 \Delta\lambda
 \frac{3}{2}
-\frac{s^{\mathrm{trial}}}
-{\sigma_{\mathrm{eq}}^{\mathrm{trial}}}.
+\frac{s^{\mathrm{trial}}}{\sigma_{\mathrm{eq}}^{\mathrm{trial}}}.
 $$
 
 The corrected deviatoric stress lies on the yield surface:
 
 $$
-s_{n+1}
-=
-\frac{
-\sigma_y
-}{
-\sigma_{\mathrm{eq}}^{\mathrm{trial}}
-}
+s_{n+1} =
+\frac{\sigma_y}{\sigma_{\mathrm{eq}}^{\mathrm{trial}}}
 s^{\mathrm{trial}}.
 $$
 
@@ -110,19 +94,13 @@ For a tetrahedron, MuJoCo represents deformation using six
 squared-edge-length coordinates. For reference edge vectors $A_i$,
 
 $$
-q_i
-=
-l_i^2 - l_{i0}^2
-=
-2A_i^T E A_i.
+q_i = l_i^2 - l_{i0}^2 = 2A_i^T E A_i.
 $$
 
 The plastic contribution is represented in the same coordinates:
 
 $$
-q_i^p
-=
-2A_i^T E^p A_i.
+q_i^p = 2A_i^T E^p A_i.
 $$
 
 Therefore the desired elastic coordinate is
