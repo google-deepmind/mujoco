@@ -199,30 +199,12 @@ void App::SwitchGraphicsMode(int width, int height,
   }
 }
 
-void App::Recompile() {
-  const SavedKeyframeSelection saved_key =
-      CaptureKeyframeSelection(/*is_reload=*/true);
-  model_holder_->Recompile();
-  if (!model_holder_->ok()) {
-    SetLoadError(std::string(model_holder_->error()));
-    return;
-  }
-
-  RestoreKeyframeSelection(saved_key);
-  ResetPhysics();
-  renderer_->Init(model());
-}
-
 void App::RequestModelLoad(std::string model_file) {
   pending_load_ = std::move(model_file);
 }
 
 void App::RequestModelReload() {
-  if (model_kind_ == kModelFromFile ||
-      (model_kind_ == kEmptyModel && !model_path_.empty())) {
-    pending_load_ = model_path_;
-    preserve_camera_on_load_ = true;
-  }
+  pending_reload_ = true;
 }
 
 void App::InitEmptyModel() {
@@ -591,6 +573,13 @@ void App::LoadHistory(int offset) {
 bool App::Update() {
   const Window::Status status = window_->NewFrame();
 
+  // Execute any operations that could not be performed during the actual
+  // BuildGui() flow.
+  if (pending_op_) {
+    pending_op_();
+    pending_op_ = nullptr;
+  }
+
   HandleWindowEvents();
   HandleMouseEvents();
   HandleKeyboardEvents();
@@ -637,6 +626,15 @@ void App::Render() {
 }
 
 void App::ProcessPendingLoads() {
+  if (pending_reload_) {
+    pending_reload_ = false;
+    if (model_kind_ == kModelFromFile ||
+        (model_kind_ == kEmptyModel && !model_path_.empty())) {
+      pending_load_ = model_path_;
+      preserve_camera_on_load_ = true;
+    }
+  }
+
   // Check to see if we need to load a new model.
   if (pending_load_.has_value()) {
     std::string load_data = std::move(pending_load_.value());
@@ -651,16 +649,38 @@ void App::ProcessPendingLoads() {
     }
   }
 
-  if (pending_op_) {
-    pending_op_();
-    pending_op_ = nullptr;
+  if (recompile_spec_) {
+    recompile_spec_ = false;
+    const SavedKeyframeSelection saved_key =
+      CaptureKeyframeSelection(/*is_reload=*/true);
+    auto tmp_holder = spec_editor_.Compile();
+    if (tmp_holder->ok()) {
+      preserve_camera_on_load_ = true;
+      model_holder_ = std::move(tmp_holder);
+      RestoreKeyframeSelection(saved_key);
+      OnModelLoaded("", model_kind_);
+    } else {
+      load_error_ = std::move(tmp_holder->error());
+    }
   }
 
   // Allow plugins to edit the spec as well.
   ForEachPlugin<SpecEditorPlugin>([&](auto* plugin) {
     if (plugin->pre_compile) {
       if (plugin->pre_compile(plugin, spec(), model(), data(), &camera_)) {
-        Recompile();
+
+        const SavedKeyframeSelection saved_key =
+            CaptureKeyframeSelection(/*is_reload=*/true);
+        model_holder_->Recompile();
+        if (!model_holder_->ok()) {
+          SetLoadError(std::string(model_holder_->error()));
+          return;
+        }
+
+        RestoreKeyframeSelection(saved_key);
+        ResetPhysics();
+        renderer_->Init(model());
+
         if (plugin->post_compile) {
           plugin->post_compile(plugin, spec(), model(), data());
         }
@@ -1696,19 +1716,7 @@ void App::SpecEditorGui() {
           is_dark ? ImColor(40, 125, 60, 255) : ImColor(40, 180, 40, 255);
       ImGui::PushStyleColor(ImGuiCol_Button, compile_green.Value);
       if (ImGui::Button("Compile and Reload", ImVec2(-1, 0))) {
-        pending_op_ = [this]() {
-          const SavedKeyframeSelection saved_key =
-              CaptureKeyframeSelection(/*is_reload=*/true);
-          auto tmp_holder = spec_editor_.Compile();
-          if (tmp_holder->ok()) {
-            preserve_camera_on_load_ = true;
-            model_holder_ = std::move(tmp_holder);
-            RestoreKeyframeSelection(saved_key);
-            OnModelLoaded("", model_kind_);
-          } else {
-            load_error_ = std::move(tmp_holder->error());
-          }
-        };
+        recompile_spec_ = true;
       }
       ImGui::PopStyleColor();
 

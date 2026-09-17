@@ -193,9 +193,6 @@ class App {
   // Requests that the currently loaded model be reloaded at the next update.
   void RequestModelReload();
 
-  // Recompiles the spec, updating the model and data.
-  void Recompile();
-
   // Updates the currently loaded model to the given model. If model is null,
   // then compile the spec to a model.
   void OnModelLoaded(std::string filename, ModelKind model_kind);
@@ -266,6 +263,9 @@ class App {
       StepControl::PauseState::kNormalPaused;
 
   std::optional<std::string> pending_load_;
+  bool pending_reload_ = false;
+  bool recompile_spec_ = false;
+
   std::function<void()> pending_op_;
   bool preserve_camera_on_load_ = false;
   ModelKind model_kind_ = kEmptyModel;
