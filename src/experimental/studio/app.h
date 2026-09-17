@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 #include <mujoco/mujoco.h>
@@ -103,6 +104,19 @@ class App {
     kModelFromFile,
     kModelFromBuffer,
   };
+
+  struct EmptyModel {};
+  struct FileModel {
+    std::string_view filepath;
+  };
+  struct BufferModel {
+    std::span<const std::byte> buffer;
+    std::string_view content_type;
+    std::string_view name;
+  };
+
+  using LoadModelInfo =
+      std::variant<EmptyModel, FileModel, BufferModel>;
 
   enum class SpecPropertiesMode {
     kSpec,
@@ -193,9 +207,12 @@ class App {
   // Requests that the currently loaded model be reloaded at the next update.
   void RequestModelReload();
 
+  // Loads the model from the given info.
+  void LoadModel(const LoadModelInfo& info);
+
   // Updates the currently loaded model to the given model. If model is null,
   // then compile the spec to a model.
-  void OnModelLoaded(std::string filename, ModelKind model_kind);
+  void OnModelLoaded(std::string_view filename, ModelKind model_kind);
 
   struct SavedKeyframeSelection {
     bool is_reload = false;
