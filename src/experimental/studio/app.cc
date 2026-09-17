@@ -167,6 +167,8 @@ App::App(Config config)
       [this](const mjModel* m, mjData* d) { PreStep(m, d); });
   step_control_.SetPostStepCallback(
       [this](const mjModel* m, mjData* d) { PostStep(m, d); });
+
+  LoadSettings();
 }
 
 App::~App() {
@@ -580,14 +582,6 @@ void App::LoadHistory(int offset) {
 }
 
 bool App::Update() {
-  // Must precede the first NewFrame: the dockspace is built lazily on the frame
-  // that finds no root node, so the saved nodes have to be there already or the
-  // default layout wins.
-  if (tmp_.first_frame) {
-    LoadSettings();
-    tmp_.first_frame = false;
-  }
-
   const Window::Status status = window_->NewFrame();
 
   HandleWindowEvents();

@@ -130,7 +130,6 @@ class App {
   // UI state that is transient and only needed while the application runs
   struct UiTempState {
     bool should_exit = false;
-    bool first_frame = true;
     bool update_threadpool = false;
 
     // Windows.
