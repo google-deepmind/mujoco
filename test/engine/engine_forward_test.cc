@@ -4367,6 +4367,79 @@ TEST_F(ForwardTest, DiscreteFlexInverseConsistency) {
   EXPECT_LT(mju_norm(data->qfrc_inverse, nv), MjTol(1e-6, 1e-4) * scale);
 }
 
+// the fluid drag and passive flex contact terms of the discrete integrator's
+// effective metric follow the spring and damper disable flags, as the forces
+// do: mj_passive skips both, like every passive force, only when both flags
+// are disabled. Neither model has springs, dampers, other metric terms or
+// constraints, so disabling either flag alone must leave the step unchanged,
+// and disabling both must reduce the smooth acceleration to M^-1 * qfrc_smooth.
+TEST_F(ForwardTest, DiscretePassiveDisableFlags) {
+  static constexpr char fluid[] = R"(
+  <mujoco>
+    <option timestep="0.01" integrator="discrete" solver="CG" density="1000" viscosity="1"/>
+    <worldbody>
+      <body>
+        <joint type="slide" axis="1 0 0"/>
+        <joint type="slide" axis="0 1 0"/>
+        <joint type="slide" axis="0 0 1"/>
+        <geom type="box" size=".1 .05 .01" mass=".2"/>
+      </body>
+      <body pos="1 0 0">
+        <joint type="slide" axis="1 0 0"/>
+        <joint type="slide" axis="0 1 0"/>
+        <joint type="slide" axis="0 0 1"/>
+        <geom type="box" size=".1 .05 .01" mass=".2" fluidshape="ellipsoid"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char contact[] = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="CG"/>
+    <worldbody>
+      <geom type="box" size=".5 .5 .05" pos="0 0 -.05"/>
+      <flexcomp type="grid" count="4 4 1" spacing=".05 .05 1" radius=".005" dim="2" mass=".1" pos="0 0 .004" name="sheet">
+        <contact passive="true"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  for (const char* xml : {fluid, contact}) {
+    char error[1024];
+    MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    MjDataPtr d = MakeData(m);
+    int nv = m->nv;
+
+    // qacc at a moving state, with the given disable flags
+    auto qacc = [&](int flags) {
+      m->opt.disableflags = flags;
+      mj_resetData(m.get(), d.get());
+      for (int i = 0; i < nv; i++) {
+        d->qvel[i] = mju_Halton(i, 3) - 0.5;
+      }
+      mj_forward(m.get(), d.get());
+      return AsVector(d->qacc, nv);
+    };
+
+    qacc(0);
+    EXPECT_GT(mju_norm(d->qfrc_passive, nv), 0.1)
+        << "test should exercise a nontrivial passive force";
+    EXPECT_EQ(qacc(mjDSBL_SPRING), qacc(0));
+    EXPECT_EQ(qacc(mjDSBL_DAMPER), qacc(0));
+
+    // both flags disabled: no passive force, and the metric reduces to M
+    qacc(mjDSBL_SPRING | mjDSBL_DAMPER);
+    ASSERT_EQ(d->nefc, 0);
+    std::vector<mjtNum> expected(nv), diff(nv);
+    mj_solveM(m.get(), d.get(), expected.data(), d->qfrc_smooth, 1);
+    mju_sub(diff.data(), d->qacc_smooth, expected.data(), nv);
+    EXPECT_LT(mju_norm(diff.data(), nv),
+              MjTol(1e-12, 1e-5) * mju_norm(expected.data(), nv));
+  }
+}
+
 // ------------------------------ discrete integrator --------------------------
 
 // with no position stiffness and no constraints, Euler (eulerdamp),

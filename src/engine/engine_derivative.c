@@ -4388,9 +4388,10 @@ void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
   }
 
   // the tendon and actuator diagonals join the qH backbone: force the diagonal machinery on.
-  // Fluid drag is gated on the medium alone, matching the force computation: the spring and
-  // damper disable flags do not touch fluid forces
-  int any_fluid = m->opt.viscosity > 0 || m->opt.density > 0;
+  // Fluid drag and passive flex contact enter only while their forces are applied: mj_passive
+  // skips them, like every passive force, when both the spring and damper forces are disabled
+  int passive = !(mjDISABLED(mjDSBL_SPRING) && mjDISABLED(mjDSBL_DAMPER));
+  int any_fluid = passive && (m->opt.viscosity > 0 || m->opt.density > 0);
   d->efm_diag = (any_diag || d->nefmT || any_act || any_fluid) ? EFMALLOC(mjtNum, nv) : NULL;
   d->efm_sdiag = d->efm_diag ? EFMALLOC(mjtNum, nv) : NULL;
   d->efm_fluid = any_fluid ? EFMALLOC(mjtNum, m->nC) : NULL;
@@ -4419,7 +4420,9 @@ void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
   }
 
   // passive flex contact is a rank-1 class, not CSR entries (see effContactBuild)
-  effContactBuild(m, d, h*h);
+  if (passive) {
+    effContactBuild(m, d, h*h);
+  }
   if (d->nefmK) {
     d->efm_K_colind = EFMALLOC(int, d->nefmK);
     d->efm_K_val    = EFMALLOC(mjtNum, d->nefmK);
