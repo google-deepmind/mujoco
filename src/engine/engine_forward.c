@@ -387,15 +387,11 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   mj_markStack(d);
   mjtNum *ctrl = mjSTACKALLOC(d, nu, mjtNum);
 
-  // read from ctrl or history buffer for delayed actuators
+  // copy controls, overwrite delayed actuators from history buffer
+  mju_copy(ctrl, d->ctrl, nu);
   for (int i = 0; i < nactuator; i++) {
-    int adr = m->actuator_ctrladr[i];
     if (m->actuator_delay[i]) {
-      // delayed: read from history buffer (scalar input)
-      int interp = m->actuator_history[2*i+1];
-      ctrl[adr] = mj_readCtrl(m, d, i, d->time, interp);
-    } else {
-      mju_copy(ctrl + adr, d->ctrl + adr, m->actuator_ctrlnum[i]);
+      ctrl[m->actuator_ctrladr[i]] = mj_readCtrl(m, d, i, d->time, -1);
     }
   }
 
