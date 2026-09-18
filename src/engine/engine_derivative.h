@@ -101,7 +101,7 @@ MJAPI mjtNum mjd_flexContactResidual(mjtNum k, mjtNum gap, mjtNum s, mjtNum lam)
 //   ind = [nnz, conid, colind...]      val = [scale, force, val...]
 //
 // scale is the curvature the metric applies, force the pair's force along the row, conid the
-// contact it came from or -1. Apply the published forces: res += force * row over the rows.
+// contact it came from. Apply the published forces: res += force * row over the rows.
 MJAPI void mjd_effContactForce(const mjData* d, mjtNum* res);
 
 // natural frequency of the law: pair stiffness = mjFLEXCONTACT_OMEGA2 * min nonzero vertex mass

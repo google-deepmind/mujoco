@@ -4291,8 +4291,8 @@ static void effContactBuild(const mjModel* m, mjData* d, mjtNum scale) {
 }
 
 
-// apply the published rows' forces, res += force * row: the passive stage and the IPC inner
-// solve both take their contact force from the rows the metric build published
+// apply the published rows' forces, res += force * row: the passive stage takes its contact
+// force from the rows the metric build published
 void mjd_effContactForce(const mjData* d, mjtNum* res) {
   const int* ind = d->efm_con_ind;
   const mjtNum* val = d->efm_con_val;
@@ -4302,7 +4302,7 @@ void mjd_effContactForce(const mjData* d, mjtNum* res) {
     const int* colind = ind + adr + 2;
     const mjtNum* row = val + adr + 2;
     for (int a = 0; a < nnz; a++) {
-      // fused multiply-add: rounding the product first moves the IPC mode's results by an ulp
+      // fused multiply-add: rounding the product first moves the results by an ulp
       res[colind[a]] += f * row[a];
     }
     adr += 2 + nnz;
