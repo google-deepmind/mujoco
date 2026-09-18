@@ -4654,9 +4654,10 @@ extensions specific to flexes.
    The force is a penalty on penetration depth whose stiffness is chosen as a natural frequency scaled by the
    participating vertex mass, so a single value is appropriate across model scales; it is not user-specified. That
    stiffness is integrated implicitly, its curvature being carried by the effective metric, and is therefore far
-   stiffer than an explicit force at the same timestep could be. It follows that the feature requires an integrator
-   whose constraint solve runs in that metric: :at:`implicit` or :at:`implicitfast` with the CG solver, pyramidal
-   friction cones and sleep disabled. A model requesting passive flex collisions otherwise is rejected with an error.
+   stiffer than an explicit force at the same timestep could be. It follows that the feature requires the ``discrete``
+   :ref:`integrator<option-integrator>`, with the ``CG`` or ``Newton`` :ref:`solver<option-solver>`, no
+   :ref:`noslip<option-noslip_iterations>` iterations and the :ref:`sleep<option-flag-sleep>` flag disabled. A model
+   requesting passive flex collisions otherwise is rejected with an error.
 
    Being a penalty force, it does not guarantee non-penetration: a thin flex moving fast enough to cross another
    within one step will pass through it. This is an experimental feature.
