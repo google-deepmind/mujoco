@@ -437,6 +437,15 @@ TEST_F(MujocoTest, RepeatedMeshName) {
   EXPECT_STREQ(mjs_getName(mesh1->element)->c_str(), "mesh1");
   EXPECT_STREQ(mjs_getName(mesh2->element)->c_str(), "mesh2");
 
+  mjsGeom* vis1 = mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "vis1"));
+  mjsGeom* vis2 = mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "vis2"));
+  mjsGeom* vis3 = mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "vis3"));
+  mjsGeom* vis4 = mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "vis4"));
+  EXPECT_STREQ(mjs_getString(vis1->meshname), "mesh");
+  EXPECT_STREQ(mjs_getString(vis2->meshname), "mesh1");
+  EXPECT_STREQ(mjs_getString(vis3->meshname), "mesh2");
+  EXPECT_STREQ(mjs_getString(vis4->meshname), "mesh1");
+
   mj_deleteSpec(spec);
 }
 
