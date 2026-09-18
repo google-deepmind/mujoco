@@ -40,3 +40,4 @@ target_link_options(
   ${MUJOCO_MACOS_LINK_OPTIONS}
   ${EXTRA_LINK_OPTIONS}
 )
+install(TARGETS sensor)
