@@ -11526,6 +11526,20 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Get spec from body.',
      )),
+    ('mjs_getSignature',
+     FunctionDecl(
+         name='mjs_getSignature',
+         return_type=ValueType(name='uint64_t'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+         ),
+         doc="Get spec's compilation signature, recomputing it if the spec changed since it was last computed.",  # pylint: disable=line-too-long
+     )),
     ('mjs_getOriginSpec',
      FunctionDecl(
          name='mjs_getOriginSpec',

@@ -2360,5 +2360,21 @@ class SpecsTest(absltest.TestCase):
       )
 
 
+  def test_signature_tracks_edits(self):
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body()
+    body.add_geom(size=[1, 0, 0])
+    model = spec.compile()
+    self.assertEqual(body.signature, model.signature)
+
+    geom = body.add_geom(size=[1, 0, 0])
+    self.assertNotEqual(geom.signature, model.signature)
+    with self.assertRaisesRegex(ValueError, 'does not match'):
+      model.bind(geom)
+
+    model = spec.compile()
+    self.assertEqual(geom.signature, model.signature)
+    self.assertEqual(model.bind(geom).id, 1)
+
 if __name__ == '__main__':
   absltest.main()

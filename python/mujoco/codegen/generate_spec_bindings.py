@@ -935,7 +935,7 @@ def generate_signature() -> None:
     code = f"""\n
       {key}.def_property_readonly("signature",
       [](raw::{titlecase}& self) -> uint64_t {{
-        return mjs_getSpec(self.element)->element->signature;
+        return mjs_getSignature(mjs_getSpec(self.element));
       }});
     """
     print(code)

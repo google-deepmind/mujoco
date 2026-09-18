@@ -1648,6 +1648,12 @@ mjSpec* mjs_getSpec(const mjsElement* element) {
 }
 
 
+// get spec signature, recomputing it if the spec changed since it was last computed
+uint64_t mjs_getSignature(mjSpec* s) {
+  return static_cast<mjCModel*>(s->element)->GetSignature();
+}
+
+
 // get spec that originally defined an element
 // contrary to mjs_getSpec, this does not change after attachment
 mjSpec* mjs_getOriginSpec(const mjsElement* element) {
@@ -2265,10 +2271,11 @@ int mjs_setName(mjsElement* element, const char* name) {
     def->name   = std::string(name);
     return 0;
   }
-  mjCBase* baseC = static_cast<mjCBase*>(element);
-  baseC->name    = std::string(name);
+  mjCBase*    baseC   = static_cast<mjCBase*>(element);
+  std::string oldname = std::move(baseC->name);
+  baseC->name         = std::string(name);
   try {
-    baseC->model->CheckRepeat(element->elemtype);
+    baseC->model->CheckNameChange(element->elemtype, oldname, baseC->name);
   } catch (mjCError& e) {
     baseC->model->SetError(e);
     return -1;

@@ -242,8 +242,8 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     // copy name maps
     for (int i = 0; i < mjNOBJECT; i++) { ids[i] = other.ids[i]; }
 
-    // update signature after we updated everything
-    spec.element->signature = Signature();
+    // structure changed, the signature is recomputed on demand
+    signature_valid_ = false;
   }
   deepcopy_ = other.deepcopy_;
   return *this;
@@ -482,8 +482,8 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   // reprocess lists to ensure ordering matches compiled model after attach
   ProcessLists(/*checkrepeat=*/false);
 
-  // update signature after we updated the tree lists and we updated the pointers
-  spec.element->signature = Signature();
+  // structure changed, the signature is recomputed on demand
+  signature_valid_ = false;
   return *this;
 }
 
@@ -600,8 +600,8 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   RemoveFromList(sensors_, oldmodel);
   RemovePlugins();
 
-  // update signature before we reset the tree lists
-  spec.element->signature = Signature();
+  // structure changed, the signature is recomputed on demand
+  signature_valid_ = false;
 
   return *this;
 }
@@ -781,8 +781,8 @@ void mjCModel::operator-=(mjsElement* el) {
   MakeTreeLists();
   ProcessLists(/*checkrepeat=*/false);
 
-  // update signature after we updated everything
-  spec.element->signature = Signature();
+  // structure changed, the signature is recomputed on demand
+  signature_valid_ = false;
 }
 
 
@@ -1181,7 +1181,7 @@ T* mjCModel::AddObject(vector<T*>& list, string type) {
   T* obj  = new T(this);
   obj->id = (int)list.size();
   list.push_back(obj);
-  spec.element->signature = Signature();
+  signature_valid_ = false;
   return obj;
 }
 
@@ -1193,7 +1193,7 @@ T* mjCModel::AddObjectDefault(vector<T*>& list, string type, mjCDef* def) {
   obj->id        = (int)list.size();
   obj->classname = def ? def->name : "main";
   list.push_back(obj);
-  spec.element->signature = Signature();
+  signature_valid_ = false;
   return obj;
 }
 
@@ -4538,6 +4538,9 @@ static void reassignid(vector<T*>& list) {
 
 // set object ids, check for repeated names
 void mjCModel::ProcessLists(bool checkrepeat) {
+  // names may have changed outside mjs_setName (e.g. namespacing on attach)
+  name_counts_valid_ = false;
+
   for (int i = 0; i < mjNOBJECT; i++) {
     if (i != mjOBJ_XBODY && object_lists_[i]) {
       ids[i].clear();
@@ -4597,6 +4600,81 @@ void mjCModel::CheckRepeat(mjtObj type) {
       string msg = "repeated name '" + *adjacent + "' in " + mju_type2Str(type);
       throw mjCError(nullptr, "%s", msg.c_str());
     }
+  }
+}
+
+
+// rebuild per-type name counts from the element lists
+void mjCModel::BuildNameCounts() {
+  for (auto& counts : name_counts_) { counts.clear(); }
+  for (int i = 0; i < mjNOBJECT; i++) {
+    if (i == mjOBJ_XBODY || !object_lists_[i]) { continue; }
+    for (const mjCBase* element : *object_lists_[i]) {
+      if (!element->name.empty()) { name_counts_[i][element->name]++; }
+    }
+  }
+  for (const mjCFrame* frame : frames_) {
+    if (!frame->name.empty()) { name_counts_[mjNOBJECT][frame->name]++; }
+  }
+  for (int i = 0; i <= mjNOBJECT; i++) {
+    name_dups_[i] = 0;
+    for (const auto& [name, count] : name_counts_[i]) {
+      if (count > 1) { name_dups_[i]++; }
+    }
+  }
+  name_counts_valid_ = true;
+}
+
+
+// check that newname is not used by another element of the same type
+void mjCModel::CheckNameChange(mjtObj             type,
+                               const std::string& oldname,
+                               const std::string& newname) {
+  // slot in name_counts_: regular types index directly, frames use the last slot
+  int slot;
+  if (type == mjOBJ_FRAME) {
+    slot = mjNOBJECT;
+  } else if (type < mjNOBJECT && type != mjOBJ_XBODY && object_lists_[type]) {
+    slot = type;
+  } else {
+    return;
+  }
+  std::unordered_map<std::string, int>& counts = name_counts_[slot];
+
+  // rebuild if stale, otherwise move one count from oldname to newname
+  if (!name_counts_valid_) {
+    BuildNameCounts();  // the element already holds newname, so counts are up to date
+  } else {
+    if (!oldname.empty()) {
+      auto it = counts.find(oldname);
+      if (it != counts.end()) {
+        if (it->second == 2) { name_dups_[slot]--; }
+        if (--it->second == 0) { counts.erase(it); }
+      }
+    }
+    if (!newname.empty() && ++counts[newname] == 2) { name_dups_[slot]++; }
+  }
+
+  // before reporting, rebuild from the lists so that a reported duplicate is never stale: a
+  // renamed element that is no longer in the lists (e.g. after mjs_delete) leaves a phantom count
+  if (name_dups_[slot] > 0) { BuildNameCounts(); }
+
+  // report a repeated name, as CheckRepeat would: prefer newname, otherwise any repeated name
+  if (name_dups_[slot] > 0) {
+    const std::string* repeated = nullptr;
+    if (auto it = newname.empty() ? counts.end() : counts.find(newname);
+        it != counts.end() && it->second > 1) {
+      repeated = &newname;
+    } else {
+      for (const auto& [name, count] : counts) {
+        if (count > 1) {
+          repeated = &name;
+          break;
+        }
+      }
+    }
+    string msg = "repeated name '" + *repeated + "' in " + mju_type2Str(type);
+    throw mjCError(nullptr, "%s", msg.c_str());
   }
 }
 
@@ -5013,6 +5091,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // initialize spec signature (needed if the user changed sensor or joint types)
   spec.element->signature = Signature();
+  signature_valid_        = true;
 
   // fill missing names and check that they are all filled
   for (const auto& asset : meshes_) asset->CopyFromSpec();
@@ -5475,6 +5554,12 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // save signature
   m->signature = Signature();
 
+  // the spec may have changed structurally during compilation (e.g. keyframes added on attach)
+  if (!signature_valid_) {
+    spec.element->signature = m->signature;
+    signature_valid_        = true;
+  }
+
   timer[mjCTIMER_TOTAL] = Seconds(Clock::now() - timer_start).count();
 
   // special cases that are not caused by user edits
@@ -5552,6 +5637,16 @@ uint64_t mjCModel::Signature() {
   }
   for (unsigned int i = 0; i < keys_.size(); ++i) { tree << "<key/>\n"; }
   return mj_hashString(tree.str().c_str(), UINT64_MAX);
+}
+
+
+// return the signature, recomputing it if the spec changed since it was last computed
+uint64_t mjCModel::GetSignature() {
+  if (!signature_valid_) {
+    spec.element->signature = Signature();
+    signature_valid_        = true;
+  }
+  return spec.element->signature;
 }
 
 
@@ -5634,7 +5729,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     return false;
   }
 
-  if (spec.element->signature != m->signature) {
+  if (GetSignature() != m->signature) {
     errInfo = mjCError(0, "incompatible signatures in CopyBack");
     return false;
   }
