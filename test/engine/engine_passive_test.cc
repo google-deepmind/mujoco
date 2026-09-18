@@ -857,6 +857,77 @@ TEST_F(ElasticityTest, StretchDampingZeroVelocity) {
   }
 }
 
+// the spring and damper flags each disable their part of the flex stretch
+// force, and its Rayleigh damping is booked in qfrc_damper. The solid's
+// vertices are simple bodies; the cloth's, under a moving parent and with a
+// pinned vertex, are not.
+TEST_F(ElasticityTest, StretchDisableFlags) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <flexcomp type="grid" count="3 3 3" spacing=".1 .1 .1" radius=".01" dim="3" mass="1" name="solid">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e4" poisson="0.3" damping="10"/>
+      </flexcomp>
+      <body name="parent" pos="1 0 0">
+        <joint type="slide" axis="1 0 0"/>
+        <geom size=".01" mass="1" contype="0" conaffinity="0"/>
+        <flexcomp type="grid" count="3 3 1" spacing=".1 .1 .1" radius=".01" dim="2" mass="1" name="cloth">
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="1e4" poisson="0.3" thickness="1e-2" elastic2d="stretch" damping="10"/>
+          <pin id="0"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  int nv = m->nv;
+
+  // deform, with nonzero velocity
+  for (int i = 0; i < nv; i++) {
+    d->qpos[i] += 1e-3 * (mju_Halton(i, 2) - 0.5);
+    d->qvel[i] = 1e-3 * (mju_Halton(i, 3) - 0.5);
+  }
+
+  // stretch spring force: the same state without damping
+  std::vector<mjtNum> damping(m->flex_damping, m->flex_damping + m->nflex);
+  for (int f = 0; f < m->nflex; f++) {
+    m->flex_damping[f] = 0;
+  }
+  mj_forward(m.get(), d.get());
+  std::vector<mjtNum> spring = AsVector(d->qfrc_spring, nv);
+  EXPECT_GT(mju_norm(spring.data(), nv), 1)
+      << "test should exercise a nontrivial stretch force";
+
+  // both enabled: the damping is booked in qfrc_damper
+  for (int f = 0; f < m->nflex; f++) {
+    m->flex_damping[f] = damping[f];
+  }
+  mj_forward(m.get(), d.get());
+  std::vector<mjtNum> damper = AsVector(d->qfrc_damper, nv);
+  EXPECT_GT(mju_norm(damper.data(), nv), 1)
+      << "test should exercise a nontrivial damping force";
+  EXPECT_EQ(AsVector(d->qfrc_spring, nv), spring);
+
+  // spring disabled: only the damping remains
+  std::vector<mjtNum> zero(nv, 0);
+  m->opt.disableflags = mjDSBL_SPRING;
+  mj_forward(m.get(), d.get());
+  EXPECT_EQ(AsVector(d->qfrc_spring, nv), zero);
+  EXPECT_EQ(AsVector(d->qfrc_damper, nv), damper);
+
+  // damper disabled: only the spring remains
+  m->opt.disableflags = mjDSBL_DAMPER;
+  mj_forward(m.get(), d.get());
+  EXPECT_EQ(AsVector(d->qfrc_spring, nv), spring);
+  EXPECT_EQ(AsVector(d->qfrc_damper, nv), zero);
+}
 // interpolated shell bending must produce zero spring forces at rest
 TEST_F(ElasticityTest, InterpBendingZeroForceAtRest) {
   static constexpr char xml[] = R"(

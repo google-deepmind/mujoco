@@ -1417,15 +1417,18 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
   // assemble the bending-only stiffness K = (h^2 + h*damping)*K_bend over all dofs with the
   // shared stencil walker from engine_derivative: bending values are configuration-independent
   // and stretch/interp are gated off, so the call is valid at set-constants time (d is used
-  // for stack scratch only)
+  // for stack scratch only). As in the per-step metric, the h^2 and h*damping parts enter only
+  // when the spring and damper forces are enabled
+  mjtNum s1 = mjDISABLED(mjDSBL_SPRING) ? 0 : h*h;
+  mjtNum s2 = mjDISABLED(mjDSBL_DAMPER) ? 0 : h;
   int nv = m->nv;
   int* K_rownnz = mjSTACKALLOC(d, nv, int);
   int* K_rowadr = mjSTACKALLOC(d, nv, int);
-  int nK = mjd_flexStiff_assemble(m, d, K_rownnz, K_rowadr, NULL, NULL, h*h, h,
+  int nK = mjd_flexStiff_assemble(m, d, K_rownnz, K_rowadr, NULL, NULL, s1, s2,
                                   /*flg_bend=*/1, /*flg_stretch=*/0, NULL);
   int* K_colind = mjSTACKALLOC(d, nK > 0 ? nK : 1, int);
   mjtNum* K_val = mjSTACKALLOC(d, nK > 0 ? nK : 1, mjtNum);
-  mjd_flexStiff_assemble(m, d, K_rownnz, K_rowadr, K_colind, K_val, h*h, h, 1, 0, NULL);
+  mjd_flexStiff_assemble(m, d, K_rownnz, K_rowadr, K_colind, K_val, s1, s2, 1, 0, NULL);
 
   // inverse map: dof address -> compact factor row (monotone: slots follow dof order)
   int* dofrow = mjSTACKALLOC(d, nv, int);

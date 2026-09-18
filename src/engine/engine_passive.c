@@ -571,6 +571,30 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
 }
 
 
+// add the world-frame vertex forces frc of flex f to qfrc
+static void mj_flexApplyForce(const mjModel* m, mjData* d, int f, const mjtNum* frc,
+                              mjtNum* qfrc) {
+  const mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
+  const int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
+  for (int v = 0; v < m->flex_vertnum[f]; v++) {
+    int bid = bodyid[v];
+    if (m->body_simple[bid] != 2) {
+      // pinned vertex or non-simple body: distribute through the Jacobian
+      mj_applyFT(m, d, frc + 3*v, 0, xpos + 3*v, bid, qfrc);
+    } else {
+      // simple slider body: rotate into the slide dofs
+      int body_dofnum = m->body_dofnum[bid];
+      int body_dofadr = m->body_dofadr[bid];
+      mjtNum frc_loc[3];
+      mju_mulMatTVec3(frc_loc, d->xmat+9*bid, frc+3*v);
+      for (int x = 0; x < body_dofnum; x++) {
+        qfrc[body_dofadr+x] += frc_loc[x];
+      }
+    }
+  }
+}
+
+
 // passive forces for flex stretch
 static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
                                   int enbl_spring, int enbl_damper) {
@@ -583,6 +607,12 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
     return;
   }
 
+  // Rayleigh damping coefficient, 0 if disabled
+  mjtNum kD = enbl_damper && m->opt.timestep > 0 ? m->flex_damping[f] / m->opt.timestep : 0;
+  if (!enbl_spring && !kD) {
+    return;
+  }
+
   int dim = m->flex_dim[f];
   int nedge = (dim == 2) ? 3 : 6;
   const int* elem = m->flex_elem + m->flex_elemdataadr[f];
@@ -591,14 +621,14 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
   mjtNum* vel = d->flexedge_velocity + m->flex_edgeadr[f];
   mjtNum* deformed = d->flexedge_length + m->flex_edgeadr[f];
   mjtNum* reference = m->flexedge_length0 + m->flex_edgeadr[f];
-  int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
-  mjtNum kD = m->opt.timestep > 0 ? m->flex_damping[f] / m->opt.timestep : 0;
 
   mj_markStack(d);
-  mjtNum* qfrc = mjSTACKALLOC(d, 3*m->flex_vertnum[f], mjtNum);
-  mju_zero(qfrc, 3*m->flex_vertnum[f]);
+  mjtNum* frc = mjSTACKALLOC(d, 3*m->flex_vertnum[f], mjtNum);
+  mjtNum* dmp = mjSTACKALLOC(d, 3*m->flex_vertnum[f], mjtNum);
+  mju_zero(frc, 3*m->flex_vertnum[f]);
+  mju_zero(dmp, 3*m->flex_vertnum[f]);
 
-  // compute force element-by-element
+  // compute forces element-by-element
   int elemnum = m->flex_elemnum[f];
   for (int t = 0; t < elemnum; t++)  {
     const int* vert = elem + (dim+1) * t;
@@ -606,21 +636,6 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
     // compute length gradient with respect to dofs
     mjtNum gradient[6][2][3];
     GradSquaredLengths(gradient, xpos, vert, edges[dim-2], nedge);
-
-    // we add generalized Rayleigh damping as described in Section 5.2 of
-    // Kharevych et al., "Geometric, Variational Integrators for Computer
-    // Animation" http://multires.caltech.edu/pubs/DiscreteLagrangian.pdf
-
-    // extract elongation of edges belonging to this element; the damping term
-    // L^2 - Lprev^2 is factored as dL*(2*L - dL), dL = L - Lprev = vel*timestep,
-    // so it has no cancellation and vanishes exactly at zero velocity
-    mjtNum elongation[6];
-    for (int e = 0; e < nedge; e++) {
-      int idx = edgeelem[t * nedge + e];
-      mjtNum dL = vel[idx] * m->opt.timestep;
-      elongation[e] = deformed[idx]*deformed[idx] - reference[idx]*reference[idx] +
-                      dL*(2*deformed[idx] - dL) * kD;
-    }
 
     // unpack triangular representation
     mjtNum metric[36];
@@ -632,25 +647,38 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
       }
     }
 
-    AddStretchForce(qfrc, vert, elongation, metric, gradient, edges[dim-2], nedge);
+    // spring force, from the elongation of edges belonging to this element
+    if (enbl_spring) {
+      mjtNum elongation[6];
+      for (int e = 0; e < nedge; e++) {
+        int idx = edgeelem[t * nedge + e];
+        elongation[e] = deformed[idx]*deformed[idx] - reference[idx]*reference[idx];
+      }
+      AddStretchForce(frc, vert, elongation, metric, gradient, edges[dim-2], nedge);
+    }
+
+    // damper force: generalized Rayleigh damping as described in Section 5.2 of
+    // Kharevych et al., "Geometric, Variational Integrators for Computer
+    // Animation" http://multires.caltech.edu/pubs/DiscreteLagrangian.pdf; its
+    // elongation L^2 - Lprev^2 is factored as dL*(2*L - dL), dL = L - Lprev = vel*timestep,
+    // so it has no cancellation and vanishes exactly at zero velocity
+    if (kD) {
+      mjtNum elongation[6];
+      for (int e = 0; e < nedge; e++) {
+        int idx = edgeelem[t * nedge + e];
+        mjtNum dL = vel[idx] * m->opt.timestep;
+        elongation[e] = dL*(2*deformed[idx] - dL) * kD;
+      }
+      AddStretchForce(dmp, vert, elongation, metric, gradient, edges[dim-2], nedge);
+    }
   }
 
-  // insert force into qfrc_passive, straightforward for simple bodies,
-  // need to distribute the force in case of pinned vertices
-  for (int v = 0; v < m->flex_vertnum[f]; v++) {
-    int bid = bodyid[v];
-    if (m->body_simple[bid] != 2) {
-      // this should only occur for pinned flex vertices
-      mj_applyFT(m, d, qfrc + 3*v, 0, xpos + 3*v, bid, d->qfrc_spring);
-    } else {
-      int body_dofnum = m->body_dofnum[bid];
-      int body_dofadr = m->body_dofadr[bid];
-      mjtNum qfrc_loc[3];
-      mju_mulMatTVec3(qfrc_loc, d->xmat+9*bid, qfrc+3*v);
-      for (int x = 0; x < body_dofnum; x++) {
-        d->qfrc_spring[body_dofadr+x] += qfrc_loc[x];
-      }
-    }
+  // insert forces into qfrc_spring and qfrc_damper
+  if (enbl_spring) {
+    mj_flexApplyForce(m, d, f, frc, d->qfrc_spring);
+  }
+  if (kD) {
+    mj_flexApplyForce(m, d, f, dmp, d->qfrc_damper);
   }
 
   mj_freeStack(d);

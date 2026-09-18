@@ -3301,7 +3301,8 @@ void mjd_smooth_vel(const mjModel* m, mjData* d, int flg_bias) {
 
 
 //------------------- implicit effective metric Mtilde = M + h*D + h^2*K --------------------------
-// The flex part is K = (h^2 + h*damping) * (K_bend + K_stretch), the PSD implicit flex stiffness;
+// The flex part is K = (h^2 + h*damping) * (K_bend + K_stretch), the PSD implicit flex stiffness,
+// whose h^2 and h*damping parts enter only when the spring and damper forces are enabled;
 // the diagonal part holds joint damping and stiffness (h*D + h^2*K per dof, clamped PSD). Built
 // once per step on the arena by mjd_effBuild (under integrator=discrete), then consumed
 // uniformly: the smooth acceleration, the constraint solver and inverse dynamics all see the
@@ -3492,12 +3493,15 @@ void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, 
 
   // terms not folded into the CSR fall back to the matrix-free operators; which terms those
   // are is derivable, not state: the CSR is only ever built with bending included, and with
-  // interp included iff the model is assemblable
+  // interp included iff the model is assemblable. As in the CSR, the stiffness and damping
+  // parts enter only when their forces are enabled
+  mjtNum s1 = mjDISABLED(mjDSBL_SPRING) ? 0 : h*h;
+  mjtNum s2 = mjDISABLED(mjDSBL_DAMPER) ? 0 : h;
   if (!d->nefmK) {
-    mjd_flexBend_mul(m, d, res, vec, h*h, h);
+    mjd_flexBend_mul(m, d, res, vec, s1, s2);
   }
   if (!d->nefmK || !mjd_flexInterpAssemblable(m)) {
-    mjd_flexInterp_mul(m, d, res, vec, -(h*h), -h, d->flexelem_krot);
+    mjd_flexInterp_mul(m, d, res, vec, -s1, -s2, d->flexelem_krot);
   }
 }
 
@@ -3953,9 +3957,13 @@ void mjd_effShift(const mjModel* m, mjData* d) {
   }
   mjtNum h = m->opt.timestep;
   mju_zero(d->efm_c, m->nv);
-  mjd_flexInterp_mul(m, d, d->efm_c, d->qvel, h, 0, d->flexelem_krot);
-  mjd_flexBend_mul(m, d, d->efm_c, d->qvel, -h, 0);
-  mjd_flexStretch_mul(m, d, d->efm_c, d->qvel, -h, 0);
+
+  // flex stiffness shift, absent when the spring force is disabled
+  if (!mjDISABLED(mjDSBL_SPRING)) {
+    mjd_flexInterp_mul(m, d, d->efm_c, d->qvel, h, 0, d->flexelem_krot);
+    mjd_flexBend_mul(m, d, d->efm_c, d->qvel, -h, 0);
+    mjd_flexStretch_mul(m, d, d->efm_c, d->qvel, -h, 0);
+  }
 
   // contact: -h*K_contact*v from the packed rank-1 rows (see effContactBuild), so the shift
   // and the operator apply one definition of contact. Each row's scale already carries the h^2
@@ -4399,7 +4407,10 @@ void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
   // assemble the standard-flex part of B into CSR (constant during the step). With stretch or
   // assemblable interp present, assemble the FULL matrix (bending included): one CSR then
   // serves both the matvec and the per-step factor. Bending-only models keep the stencil
-  // operator + the constant mj_setConst factor.
+  // operator + the constant mj_setConst factor. The stiffness (s1) and damping (s2) parts enter
+  // only when their forces are enabled; the structure does not depend on the flags
+  mjtNum s1 = mjDISABLED(mjDSBL_SPRING) ? 0 : h*h;
+  mjtNum s2 = mjDISABLED(mjDSBL_DAMPER) ? 0 : h;
   const mjtNum* krot = mjd_flexInterpAssemblable(m) ? d->flexelem_krot : NULL;
   d->efm_K_rownnz = EFMALLOC(int, nv);
   d->efm_K_rowadr = EFMALLOC(int, nv);
@@ -4416,7 +4427,7 @@ void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
   }
   if (assemble_any) {
     d->nefmK = mjd_flexStiff_assemble(m, d, d->efm_K_rownnz, d->efm_K_rowadr,
-                                      NULL, NULL, h*h, h, /*bend*/ 1, /*stretch*/ 1, krot);
+                                      NULL, NULL, s1, s2, /*bend*/ 1, /*stretch*/ 1, krot);
   }
 
   // passive flex contact is a rank-1 class, not CSR entries (see effContactBuild)
@@ -4427,7 +4438,7 @@ void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
     d->efm_K_colind = EFMALLOC(int, d->nefmK);
     d->efm_K_val    = EFMALLOC(mjtNum, d->nefmK);
     mjd_flexStiff_assemble(m, d, d->efm_K_rownnz, d->efm_K_rowadr,
-                           d->efm_K_colind, d->efm_K_val, h*h, h,
+                           d->efm_K_colind, d->efm_K_val, s1, s2,
                            /*bend*/ 1, /*stretch*/ 1, krot);
     // per-step factor of the flex block of (M + K): the stiffness is constant during the
     // step, so one factorization here turns every preconditioner application into a direct
