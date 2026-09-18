@@ -2237,4 +2237,52 @@ TEST_F(MjGjkTest, CylinderBoxBackFaceEdge) {
 }
 
 }  // namespace
+
+TEST_F(MjGjkTest, CorrectFaceMultiCCD) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="wedge_box"
+            vertex="-0.5 -0.1  0.2   0.5 -0.1  0.2   0.5  0.1  0.2  -0.5  0.1  0.2
+                    -0.5 -0.1  0.01  0.5 -0.1  0.0   0.5  0.1  0.0  -0.5  0.1  0.01
+                     0.4 -0.1  0.0   0.4  0.1  0.0"/>
+    </asset>
+    <worldbody>
+      <geom name="floor" type="box" size="2 2 0.05"/>
+      <geom name="wedge" type="mesh" mesh="wedge_box"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "floor");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "wedge");
+
+  mjtNum* xpos2 = data->geom_xpos + 3;
+  mjtNum* xmat2 = data->geom_xmat + 9;
+
+  xpos2[0] = 0.0041063283594611893;
+  xpos2[1] = -2.8315597012716811e-17;
+  xpos2[2] = 0.14782321875543883;
+
+  xmat2[0] = -0.0054978550657821534;
+  xmat2[1] = 1.5171835118936141e-17;
+  xmat2[2] = 0.99998488668063767;
+  xmat2[3] = -1.297280742604275e-17;
+  xmat2[4] = -1.0000000000000062;
+  xmat2[5] = 1.5100740726228752e-17;
+  xmat2[6] = 0.99998488668063767;
+  xmat2[7] = -1.2889589679962258e-17;
+  xmat2[8] = 0.0054978550657821534;
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 1000);
+
+  EXPECT_EQ(ncons, 4);
+}
+
 }  // namespace mujoco
