@@ -87,6 +87,44 @@ class ForwardTest(absltest.TestCase):
     mujoco.mj_implicit(m, d)
     _assert_attr_eq(d, dx, 'qpos')
 
+  def test_rotational_setpoint_wrapping(self):
+    xml = """
+    <mujoco>
+      <worldbody>
+        <body>
+          <joint name="ball" type="ball"/>
+          <geom type="sphere" size=".1"/>
+          <site name="s1"/>
+        </body>
+        <site name="s0"/>
+      </worldbody>
+      <actuator>
+        <position joint="ball" kp="100" gear="1.5 0 0"/>
+        <general site="s1" refsite="s0" gaintype="fixed" biastype="affine" gainprm="50" biasprm="0 -50 0" gear="0 0 0 1.2 0 0"/>
+        <general joint="ball" dyntype="integrator" gaintype="fixed" biastype="affine" gainprm="40" biasprm="0 -40 0" gear="2 0 0"/>
+      </actuator>
+      <keyframe>
+        <key qpos="1 0 0 0" ctrl="10 -15 8" act="12"/>
+      </keyframe>
+    </mujoco>
+    """
+    m = mujoco.MjModel.from_xml_string(xml)
+    d = mujoco.MjData(m)
+    mujoco.mj_resetDataKeyframe(m, d, 0)
+    mujoco.mj_forward(m, d)
+
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    dx = jax.jit(mjx.fwd_actuation)(mx, dx)
+    _assert_attr_eq(d, dx, 'qfrc_actuator')
+    _assert_attr_eq(d, dx, 'actuator_force')
+
+    # next activations and step
+    mujoco.mj_step(m, d)
+    dx = jax.jit(mjx.step)(mx, dx)
+    _assert_attr_eq(d, dx, 'act')
+
   def test_step(self):
     m = test_util.load_test_file('constraints.xml')
     d = mujoco.MjData(m)

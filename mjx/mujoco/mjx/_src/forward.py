@@ -100,6 +100,51 @@ def fwd_velocity(m: Model, d: Data) -> Data:
   return d
 
 
+def _wrap_period(m: Model) -> jax.Array:
+  """Returns period of rotational transmission for wrap-eligible servos."""
+  is_servo_type = (
+      (m.actuator_gaintype == GainType.FIXED)
+      & (m.actuator_biastype == BiasType.AFFINE)
+      & np.isin(m.actuator_dyntype, (DynType.NONE, DynType.INTEGRATOR))
+  )
+  is_site_ref = (m.actuator_trntype == TrnType.SITE) & (
+      m.actuator_trnid[:, 1] >= 0
+  )
+  is_jnt = np.isin(
+      m.actuator_trntype, (TrnType.JOINT, TrnType.JOINTINPARENT)
+  )
+  if m.njnt:
+    jnt_ids = np.clip(m.actuator_trnid[:, 0], 0, m.njnt - 1)
+    is_ball_jnt = is_jnt & (m.jnt_type[jnt_ids] == JointType.BALL)
+  else:
+    is_ball_jnt = np.zeros(m.nu, dtype=bool)
+
+  if not np.any(is_servo_type & (is_site_ref | is_ball_jnt)):
+    return jp.zeros((m.nu,))
+
+  is_servo = is_servo_type & (
+      m.actuator_gainprm[:, 0] == -m.actuator_biasprm[:, 1]
+  )
+  pure_rot_site = is_site_ref & jp.all(m.actuator_gear[:, :3] == 0, axis=1)
+  site_period = 2 * jp.pi * jax.vmap(math.norm)(m.actuator_gear[:, 3:])
+  ball_period = 2 * jp.pi * jax.vmap(math.norm)(m.actuator_gear[:, :3])
+  period = jp.where(
+      pure_rot_site, site_period, jp.where(is_ball_jnt, ball_period, 0.0)
+  )
+  return jp.where(is_servo, period, 0.0)
+
+
+def _wrap_setpoint(
+    u: jax.Array, length: jax.Array, period: jax.Array
+) -> jax.Array:
+  """Returns representative of setpoint u nearest to length, given period."""
+  err = u - length
+  x = jp.where(period > 0, err / jp.where(period > 0, period, 1.0), 0.0)
+  # Round half away from zero to match MuJoCo C mju_round / round()
+  rounded = jp.sign(x) * jp.floor(jp.abs(x) + 0.5)
+  return jp.where(period > 0, u - period * rounded, u)
+
+
 @named_scope
 def fwd_actuation(m: Model, d: Data) -> Data:
   """Actuation-dependent computations."""
@@ -152,6 +197,7 @@ def fwd_actuation(m: Model, d: Data) -> Data:
   if m.na:
     act_last_dim = d.act[m.actuator_actadr + m.actuator_actnum - 1]
     ctrl_act = jp.where(m.actuator_actadr == -1, ctrl, act_last_dim)
+  ctrl_act = _wrap_setpoint(ctrl_act, d.actuator_length, _wrap_period(m))
 
   def get_force(*args):
     gain_t, gain_p, bias_t, bias_p, len_, vel, ctrl_act, len_range, acc0 = args
@@ -299,17 +345,27 @@ def _next_activation(m: Model, d: Data, act_dot: jax.Array) -> jax.Array:
       jp.array([-jp.inf, jp.inf]),
   )
 
-  def fn(dyntype, dynprm, act, act_dot, actrange):
+  def fn(dyntype, dynprm, act, act_dot, actrange, length, period):
     if dyntype == DynType.FILTEREXACT:
       tau = jp.clip(dynprm[0], min=mujoco.mjMINVAL)
       act = act + act_dot * tau * (1 - jp.exp(-m.opt.timestep / tau))
     else:
       act = act + act_dot * m.opt.timestep
     act = jp.clip(act, actrange[0], actrange[1])
+    if dyntype == DynType.INTEGRATOR:
+      act = _wrap_setpoint(act, length, period)
     return act
 
-  args = (m.actuator_dyntype, m.actuator_dynprm, act, act_dot, actrange)
-  act = scan.flat(m, fn, 'uuaau', 'a', *args, group_by='u')
+  args = (
+      m.actuator_dyntype,
+      m.actuator_dynprm,
+      act,
+      act_dot,
+      actrange,
+      d.actuator_length,
+      _wrap_period(m),
+  )
+  act = scan.flat(m, fn, 'uuaauuu', 'a', *args, group_by='u')
 
   return act.reshape(m.na)
 
