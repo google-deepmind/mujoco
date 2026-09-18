@@ -122,12 +122,6 @@ When decoding an ``.mjz`` archive, MuJoCo searches for the root model XML file i
 Options 2-4 exist for backwards compatibility with legacy archives and common zip packaging layouts, but are
 susceptible to failure if the archive file is renamed.
 
-VFS Requirement
-^^^^^^^^^^^^^^^
-
-Parsing and compilation of an ``.mjz`` archive (and all of its contained asset files) require using the **exact same
-VFS instance**.
-
 .. _meCustomFormats:
 
 Custom formats

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <string>
+#include <string_view>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -30,7 +31,41 @@ using ::testing::Not;
 using ::testing::NotNull;
 using ::testing::StrEq;
 
-TEST_F(MjzTest, Parse) {
+TEST_F(MjzTest, ParseWithoutVFS) {
+  std::string filepath = GetTestDataFilePath("testdata/model.mjz");
+  char err[1000] = "";
+  mjSpec* spec = mj_parse(filepath.c_str(), "", nullptr, err, sizeof(err));
+  EXPECT_THAT(spec, NotNull());
+  EXPECT_THAT(err, StrEq(""));
+  mjModel* model = mj_compile(spec, nullptr);
+  EXPECT_THAT(model, NotNull()) << mjs_getError(spec);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MjzTest, ParseMultipleTimesWithoutVFS) {
+  std::string filepath = GetTestDataFilePath("testdata/model.mjz");
+  char err[1000] = "";
+  mjSpec* spec1 = mj_parse(filepath.c_str(), "", nullptr, err, sizeof(err));
+  EXPECT_THAT(spec1, NotNull());
+  EXPECT_THAT(err, StrEq(""));
+
+  mjSpec* spec2 = mj_parse(filepath.c_str(), "", nullptr, err, sizeof(err));
+  EXPECT_THAT(spec2, NotNull());
+  EXPECT_THAT(err, StrEq(""));
+
+  mjModel* model1 = mj_compile(spec1, nullptr);
+  EXPECT_THAT(model1, NotNull()) << mjs_getError(spec1);
+  mjModel* model2 = mj_compile(spec2, nullptr);
+  EXPECT_THAT(model2, NotNull()) << mjs_getError(spec2);
+
+  mj_deleteModel(model1);
+  mj_deleteModel(model2);
+  mj_deleteSpec(spec1);
+  mj_deleteSpec(spec2);
+}
+
+TEST_F(MjzTest, ParseWithVFS) {
   mjVFS vfs;
   mj_defaultVFS(&vfs);
   std::string filepath = GetTestDataFilePath("testdata/model.mjz");

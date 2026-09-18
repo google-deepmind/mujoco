@@ -16,6 +16,12 @@ General
    while ``elastic2d`` elasticity is integrated implicitly through the effective metric. The contacts the mode resolves
    are frictionless. The mode keeps contact multipliers across steps that no state specification covers, so
    ``mj_getState``/``mj_setState`` do not capture its full state and exact replay is not supported.
+- Introduced :ref:`archive resource providers<mjp_registerArchiveResourceProvider>`
+  (``mjp_registerArchiveResourceProvider``). Archive providers use the
+  :ref:`mjpResourceProvider` interface to mount and read archive containers (such as
+  ``.mjz``/``.zip``), decoupling container handling from format decoders and enabling
+  on-demand asset extraction without requiring a pre-allocated :ref:`VFS<Virtualfilesystem>`.
+
 
 Engine
 ^^^^^^

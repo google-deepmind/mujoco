@@ -1590,6 +1590,16 @@ MJAPI void mjp_defaultEncoder(mjpEncoder* encoder);
 // If no match, return NULL.
 MJAPI const mjpEncoder* mjp_findEncoder(const char* filename, const char* content_type);
 
+// Globally register an archive resource provider. This function is thread-safe.
+// provider->prefix specifies the filename extension(s) (e.g. .mjz|.zip).
+MJAPI void mjp_registerArchiveResourceProvider(const mjpResourceProvider* provider);
+
+// Return the archive resource provider that matches against the resource name.
+// If no match, return NULL.
+MJAPI const mjpResourceProvider* mjp_findArchiveResourceProvider(const char* resource_name);
+
+// Return the number of globally registered archive resource providers.
+MJAPI int mjp_archiveResourceProviderCount(void);
 
 
 //---------------------------------- Resources -----------------------------------------------------

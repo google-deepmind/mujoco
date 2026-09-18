@@ -80,6 +80,16 @@ MJAPI void mjp_defaultEncoder(mjpEncoder* encoder);
 // find an encoder that can write a given format
 MJAPI const mjpEncoder* mjp_findEncoder(const char* filename, const char* content_type);
 
+// registers an archive resource provider
+MJAPI void mjp_registerArchiveResourceProvider(const mjpResourceProvider* provider);
+
+// find an archive resource provider that matches a given name
+MJAPI const mjpResourceProvider* mjp_findArchiveResourceProvider(const char* resource_name);
+
+// return the number of globally registered archive resource providers
+MJAPI int mjp_archiveResourceProviderCount(void);
+
+
 // =================================================================================================
 // MuJoCo-internal functions beyond this point.
 // "Unsafe" suffix indicates that improper use of these functions may result in data races.

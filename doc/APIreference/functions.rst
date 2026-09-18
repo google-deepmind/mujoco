@@ -4108,6 +4108,36 @@ Return the encoder that matches against the content type or filename extension.
 
 If no match, return NULL.
 
+.. _mjp_registerArchiveResourceProvider:
+
+`mjp_registerArchiveResourceProvider <#mjp_registerArchiveResourceProvider>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_registerArchiveResourceProvider
+
+Globally register an archive resource provider. This function is thread-safe.
+provider->prefix specifies the filename extension(s) (e.g. .mjz|.zip).
+
+.. _mjp_findArchiveResourceProvider:
+
+`mjp_findArchiveResourceProvider <#mjp_findArchiveResourceProvider>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_findArchiveResourceProvider
+
+Return the archive resource provider that matches against the resource name.
+
+If no match, return NULL.
+
+.. _mjp_archiveResourceProviderCount:
+
+`mjp_archiveResourceProviderCount <#mjp_archiveResourceProviderCount>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_archiveResourceProviderCount
+
+Return the number of globally registered archive resource providers.
+
 .. _Thread:
 
 Threads

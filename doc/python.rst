@@ -522,9 +522,7 @@ Assets
 ^^^^^^
 
 MuJoCo optionally uses a :ref:`Virtual File System <Virtualfilesystem>` (VFS) to load assets (like meshes and textures)
-from memory. Some :ref:`decoders<exDecoder>` may also choose to leverage the VFS as a way to load assets on
-demand, such as when addressing files in an archive format. This requires the same VFS to be used when parsing and
-compiling a spec (and all attached specs) into a model.
+from memory.
 
 The Python bindings provide the ``mujoco.MjVfs`` as a wrapper around the :ref:`mjVFS` C struct.
 

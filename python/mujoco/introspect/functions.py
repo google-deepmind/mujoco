@@ -9975,6 +9975,43 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Return the encoder that matches against the content type or filename extension. If no match, return NULL.',  # pylint: disable=line-too-long
      )),
+    ('mjp_registerArchiveResourceProvider',
+     FunctionDecl(
+         name='mjp_registerArchiveResourceProvider',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='provider',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjpResourceProvider', is_const=True),  # pylint: disable=line-too-long
+                 ),
+             ),
+         ),
+         doc='Globally register an archive resource provider. This function is thread-safe. provider->prefix specifies the filename extension(s) (e.g. .mjz|.zip).',  # pylint: disable=line-too-long
+     )),
+    ('mjp_findArchiveResourceProvider',
+     FunctionDecl(
+         name='mjp_findArchiveResourceProvider',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjpResourceProvider', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='resource_name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Return the archive resource provider that matches against the resource name. If no match, return NULL.',  # pylint: disable=line-too-long
+     )),
+    ('mjp_archiveResourceProviderCount',
+     FunctionDecl(
+         name='mjp_archiveResourceProviderCount',
+         return_type=ValueType(name='int'),
+         parameters=(),
+         doc='Return the number of globally registered archive resource providers.',  # pylint: disable=line-too-long
+     )),
     ('mju_openResource',
      FunctionDecl(
          name='mju_openResource',

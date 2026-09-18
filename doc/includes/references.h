@@ -4122,6 +4122,9 @@ const mjpDecoder* mjp_findDecoder(const mjResource* resource, const char* conten
 void mjp_registerEncoder(const mjpEncoder* encoder);
 void mjp_defaultEncoder(mjpEncoder* encoder);
 const mjpEncoder* mjp_findEncoder(const char* filename, const char* content_type);
+void mjp_registerArchiveResourceProvider(const mjpResourceProvider* provider);
+const mjpResourceProvider* mjp_findArchiveResourceProvider(const char* resource_name);
+int mjp_archiveResourceProviderCount(void);
 mjResource* mju_openResource(const char* dir, const char* name,
                              const mjVFS* vfs, char* error, size_t nerror);
 void mju_closeResource(mjResource* resource);
