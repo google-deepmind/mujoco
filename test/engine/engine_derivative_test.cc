@@ -501,6 +501,97 @@ TEST_F(DerivativeTest, ActuatorOrder) {
   EXPECT_EQ(d1->qvel[1], d2->qvel[1]);
 }
 
+// ctrllimited/ctrlrange are indexed by control slot (nu), not by actuator
+// ordinal; the analytic derivatives must clamp a limited control regardless of
+// how many control slots precede it
+TEST_F(DerivativeTest, ClampedCtrlDerivativeMultiInputOrder) {
+  // 3-input zero-gain pid first, limited affine-gain actuator second
+  static constexpr char xml1[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+
+    <worldbody>
+      <body>
+        <joint name="0" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <body pos="1 0 0">
+        <joint name="1" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <pid joint="0" kp="0" kv="0" input="pos vel ff"/>
+      <general joint="1" gaintype="affine" gainprm="1 -1 -1" ctrlrange="0 0.5"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  // same actuators, limited affine-gain actuator first
+  static constexpr char xml2[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+
+    <worldbody>
+      <body>
+        <joint name="0" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <body pos="1 0 0">
+        <joint name="1" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <general joint="1" gaintype="affine" gainprm="1 -1 -1" ctrlrange="0 0.5"/>
+      <pid joint="0" kp="0" kv="0" input="pos vel ff"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m1 = LoadModelFromString(xml1, error, sizeof(error));
+  ASSERT_THAT(m1.get(), NotNull()) << "Failed to load model: " << error;
+  MjModelPtr m2 = LoadModelFromString(xml2, error, sizeof(error));
+  ASSERT_THAT(m2.get(), NotNull()) << "Failed to load model: " << error;
+  ASSERT_EQ(m1->nu, 4);
+  ASSERT_EQ(m2->nu, 4);
+
+  // the limited control's slot follows the pid's three in model 1, leads in 2
+  int adr1 = m1->actuator_ctrladr[1];
+  int adr2 = m2->actuator_ctrladr[0];
+  ASSERT_EQ(adr1, 3);
+  ASSERT_EQ(adr2, 0);
+  EXPECT_TRUE(m1->actuator_ctrllimited[adr1]);
+  EXPECT_TRUE(m2->actuator_ctrllimited[adr2]);
+
+  MjDataPtr d1 = MakeData(m1);
+  MjDataPtr d2 = MakeData(m2);
+
+  // implicit: velocity derivative; discrete: length derivative in the metric
+  for (mjtIntegrator integrator : {mjINT_IMPLICITFAST, mjINT_DISCRETE}) {
+    m1->opt.integrator = integrator;
+    m2->opt.integrator = integrator;
+    mj_resetData(m1.get(), d1.get());
+    mj_resetData(m2.get(), d2.get());
+
+    // command far beyond ctrlrange: the forward pass clamps to 0.5 in both
+    d1->ctrl[adr1] = 100;
+    d2->ctrl[adr2] = 100;
+    for (int i = 0; i < 10; i++) {
+      mj_step(m1.get(), d1.get());
+      mj_step(m2.get(), d2.get());
+    }
+    EXPECT_EQ(d1->actuator_force[1], d2->actuator_force[0]) << integrator;
+
+    // the step must not depend on actuator order
+    EXPECT_EQ(d1->qvel[1], d2->qvel[1]) << integrator;
+    EXPECT_EQ(d1->qpos[1], d2->qpos[1]) << integrator;
+  }
+}
+
 // compare analytic and fin-diff d_qfrc_passive/d_qvel
 TEST_F(DerivativeTest, PassiveDvel) {
   for (const char* local_path :

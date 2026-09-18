@@ -34,6 +34,10 @@ Engine
 
 Bug fixes
 ^^^^^^^^^
+- The analytic actuator derivatives (:at:`implicit`, :at:`implicitfast` and :at:`discrete` integrators) now read
+  :at:`ctrllimited` and :at:`ctrlrange` by control slot rather than by actuator index. Previously a limited actuator
+  placed after a multi-input actuator (or an input-less :ref:`dcmotor<actuator-dcmotor>`) had its derivative computed
+  from the unclamped control, so the step depended on the order of actuators in the model (:issue:`3598`).
 - Tendon :ref:`actuatorfrclimited<tendon-spatial-actuatorfrclimited>` now defaults to "auto" as documented.
   Previously the default was "false" and :at:`actuatorfrcrange` was silently ignored unless :at:`actuatorfrclimited`
   was set explicitly.

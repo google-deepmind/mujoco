@@ -2405,15 +2405,16 @@ static int actuatorDerivSkip(const mjModel* m, const mjData* d, int i, int sleep
 static mjtNum actuatorInput(const mjModel* m, const mjData* d, int i) {
   if (m->actuator_dyntype[i] == mjDYN_NONE) {
     // mirror mj_fwdActuation's input extraction: delayed controls read from the history
-    // buffer, and the control is clamped to ctrlrange
+    // buffer, and the control is clamped to ctrlrange (indexed by control slot, not actuator)
     mjtNum ctrl;
+    int adr = m->actuator_ctrladr[i];
     if (m->actuator_delay[i]) {
       ctrl = mj_readCtrl(m, d, i, d->time, m->actuator_history[2*i+1]);
     } else {
-      ctrl = d->ctrl[m->actuator_ctrladr[i]];
+      ctrl = d->ctrl[adr];
     }
-    if (!mjDISABLED(mjDSBL_CLAMPCTRL) && m->actuator_ctrllimited[i]) {
-      ctrl = mju_clip(ctrl, m->actuator_ctrlrange[2*i], m->actuator_ctrlrange[2*i+1]);
+    if (!mjDISABLED(mjDSBL_CLAMPCTRL) && m->actuator_ctrllimited[adr]) {
+      ctrl = mju_clip(ctrl, m->actuator_ctrlrange[2*adr], m->actuator_ctrlrange[2*adr+1]);
     }
     return ctrl;
   }
