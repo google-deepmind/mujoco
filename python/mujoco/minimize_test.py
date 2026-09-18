@@ -183,14 +183,66 @@ class MinimizeTest(absltest.TestCase):
         x = np.array([[x0]])
         evaluated = []
 
-        def residual(xx, _ev=evaluated):
-          _ev.append(np.asarray(xx, dtype=np.float64).copy())
-          return np.atleast_2d(np.sum(xx, axis=0))
+        def make_eval_residual(eval_list):
+          def residual(xx):
+            eval_list.append(np.asarray(xx, dtype=np.float64).copy())
+            return np.atleast_2d(np.sum(xx, axis=0))
+          return residual
+
+        residual = make_eval_residual(evaluated)
 
         minimize.jacobian_fd(residual, x, residual(x), eps, 0, bounds)
         pts = np.concatenate([e.ravel() for e in evaluated])
         self.assertGreaterEqual(pts.min(), lo)
         self.assertLessEqual(pts.max(), hi)
+
+  def test_jacobian_fd_narrow_bounds(self) -> None:
+    eps = np.float64(np.finfo(np.float64).eps ** 0.5)
+    one_up = np.nextafter(1.0, np.inf)
+    two_up = np.nextafter(one_up, np.inf)
+    cases = {
+        'mixed_scales': (
+            [1.0, -1.0, -1e-10, 1e8],
+            [1.0 + 1e-10, -1.0 + 1e-10, 1e-11, 1e8 + 1e-4],
+        ),
+        'midpoint_rounds_down': ([1.0], [one_up]),
+        'midpoint_rounds_up': ([one_up], [two_up]),
+    }
+    for name, (lower, upper) in cases.items():
+      bounds = [np.array(lower)[:, None], np.array(upper)[:, None]]
+      points = (bounds[0], 0.5 * bounds[0] + 0.5 * bounds[1], bounds[1])
+      for position, x in enumerate(points):
+        with self.subTest(case=name, position=position):
+
+          def make_bounded_residual(curr_bounds):
+            def residual(xx):
+              self.assertTrue(np.all(xx >= curr_bounds[0]))
+              self.assertTrue(np.all(xx <= curr_bounds[1]))
+              return xx.copy()
+            return residual
+
+          residual = make_bounded_residual(bounds)
+
+          jac, n_res = minimize.jacobian_fd(
+              residual, x, residual(x), eps, 3, bounds
+          )
+          np.testing.assert_array_equal(jac, np.eye(x.size))
+          self.assertEqual(n_res, 3 + x.size)
+
+  def test_least_squares_narrow_bounds(self) -> None:
+    lower = np.array([0.0])
+    upper = np.array([1e-10])
+    target = 0.75 * upper
+
+    def residual(x):
+      self.assertTrue(np.all(x >= lower[:, None]))
+      self.assertTrue(np.all(x <= upper[:, None]))
+      return (x - target[:, None]) / upper[:, None]
+
+    x, _ = minimize.least_squares(
+        lower, residual, bounds=[lower, upper], output=io.StringIO()
+    )
+    np.testing.assert_allclose(x, target, rtol=0, atol=1e-22)
 
   def test_iter_callback(self) -> None:
     def residual(x):
