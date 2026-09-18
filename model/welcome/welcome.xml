@@ -88,9 +88,9 @@
     <frame euler="0 0 20">
 
     <light type="directional" dir="0 0 -1" castshadow="true" diffuse="0.5 0.5 0.5" intensity="10000"/>
-    <light type="point" pos="-1.7 0.4 1.2" dir=" 1 -1 -1" diffuse="0.56 0.77 1.00" intensity="600000" range="1.5" castshadow="true" bulbradius="125"/>
-    <light type="point" pos=" 0.2 0.6 1.2" dir=" 0 -1 -1" diffuse="1.00 0.77 0.56" intensity="120000" range="4" castshadow="true" bulbradius="25"/>
-    <light type="point" pos=" 2.0 0.4 1.2" dir="-1 -1 -1" diffuse="0.56 0.77 1.00" intensity="600000" range="1.5" castshadow="true" bulbradius="125"/>
+    <light type="spot" pos="-1.7 0.4 1.2" dir=" 1 -1 -1" diffuse="0.56 0.77 1.00" intensity="600000" range="1.5" castshadow="true" bulbradius="125"/>
+    <light type="spot" pos=" 0.2 0.6 1.2" dir=" 0 -1 -1" diffuse="1.00 0.77 0.56" intensity="120000" range="4" castshadow="true" bulbradius="25"/>
+    <light type="spot" pos=" 2.0 0.4 1.2" dir="-1 -1 -1" diffuse="0.56 0.77 1.00" intensity="600000" range="1.5" castshadow="true" bulbradius="125"/>
 
     <body name="letter_m" childclass="letter" pos="-1.94057 0 0.012" quat="0.707106 0.707106 0.000986566 -0.000986566">
       <joint type="free" />
