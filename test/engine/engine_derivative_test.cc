@@ -40,6 +40,7 @@ using ::std::vector;
 using ::testing::DoubleNear;
 using ::testing::Each;
 using ::testing::Eq;
+using ::testing::HasSubstr;
 using ::testing::NotNull;
 using ::testing::Pointwise;
 using DerivativeTest = MujocoTest;
@@ -89,6 +90,8 @@ static const char* const kLinearPath = "engine/testdata/derivative/linear.xml";
 static const char* const kDCMotorPath =
     "engine/testdata/derivative/dcmotor.xml";
 static const char* const kModelPath = "testdata/model.xml";
+static const char* const kSleepEqualityPath =
+    "engine/testdata/sleep/equality.xml";
 
 // compare analytic and finite-difference d_smooth/d_qvel
 TEST_F(DerivativeTest, SmoothDvel) {
@@ -953,6 +956,39 @@ TEST_F(DerivativeTest, NoStateMutation) {
   mj_deleteData(data0);
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+// finite differencing is not supported with sleeping enabled
+TEST_F(DerivativeTest, FiniteDifferenceRejectsSleep) {
+  const std::string xml_path = GetTestDataFilePath(kSleepEqualityPath);
+  MjModelPtr model(mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0));
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  int nv = model->nv, ndx = 2 * nv + model->na;
+  vector<mjtNum> A(ndx * ndx);
+  vector<mjtNum> DfDq(nv * nv);
+  mjtNum eps = 1e-6;
+
+  // all trees are awake, but the evaluations would change the sleep state
+  auto transition_error = MjuErrorMessageFrom(mjd_transitionFD);
+  EXPECT_THAT(transition_error(model.get(), data.get(), eps, /*centered=*/1,
+                               A.data(), nullptr, nullptr, nullptr),
+              HasSubstr("sleeping is not supported"));
+  auto inverse_error = MjuErrorMessageFrom(mjd_inverseFD);
+  EXPECT_THAT(inverse_error(model.get(), data.get(), eps, /*flg_actuation=*/0,
+                            DfDq.data(), nullptr, nullptr, nullptr, nullptr,
+                            nullptr, nullptr),
+              HasSubstr("sleeping is not supported"));
+
+  // disabling sleep allows finite differencing
+  model->opt.enableflags &= ~mjENBL_SLEEP;
+  EXPECT_EQ(transition_error(model.get(), data.get(), eps, /*centered=*/1,
+                             A.data(), nullptr, nullptr, nullptr),
+            "");
+  EXPECT_EQ(inverse_error(model.get(), data.get(), eps, /*flg_actuation=*/0,
+                          DfDq.data(), nullptr, nullptr, nullptr, nullptr,
+                          nullptr, nullptr),
+            "");
 }
 
 // compare dense and sparse derivatives of qfrc_bias (RNE)

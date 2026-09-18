@@ -8,14 +8,14 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 
-1. Added the ``ipc`` :ref:`flag<option-flag-ipc>`, an experimental contact mode of the ``discrete`` integrator for
-   penetration-free flex contact. Each step minimizes an incremental potential subject to linearized contact
-   constraints, using a barrier-free augmented Lagrangian whose subproblems are the discrete solve. Every committed
-   position update is verified intersection-free by continuous collision detection, so flex contact cannot tunnel.
-   Supported for dim-2 flexes: a flex with edge equality constraints keeps its elasticity in the constraint solver,
-   while ``elastic2d`` elasticity is integrated implicitly through the effective metric. The contacts the mode resolves
-   are frictionless. The mode keeps contact multipliers across steps that no state specification covers, so
-   ``mj_getState``/``mj_setState`` do not capture its full state and exact replay is not supported.
+- Added the ``ipc`` :ref:`flag<option-flag-ipc>`, an experimental contact mode of the ``discrete`` integrator for
+  penetration-free flex contact. Each step minimizes an incremental potential subject to linearized contact
+  constraints, using a barrier-free augmented Lagrangian whose subproblems are the discrete solve. Every committed
+  position update is verified intersection-free by continuous collision detection, so flex contact cannot tunnel.
+  Supported for dim-2 flexes: a flex with edge equality constraints keeps its elasticity in the constraint solver,
+  while ``elastic2d`` elasticity is integrated implicitly through the effective metric. The contacts the mode resolves
+  are frictionless. The mode keeps contact multipliers across steps that no state specification covers, so
+  ``mj_getState``/``mj_setState`` do not capture its full state and exact replay is not supported.
 - Introduced :ref:`archive resource providers<mjp_registerArchiveResourceProvider>`
   (``mjp_registerArchiveResourceProvider``). Archive providers use the
   :ref:`mjpResourceProvider` interface to mount and read archive containers (such as
@@ -44,6 +44,8 @@ Bug fixes
 - :ref:`mj_rnePostConstraint` now accounts for the forces of spatial tendons (spring, damper, actuator, limit,
   friction loss, equality and armature), so :ref:`force<sensor-force>` and :ref:`torque<sensor-torque>` sensors
   register the forces that tendons apply to bodies (:issue:`832`).
+- :ref:`mjd_transitionFD` and :ref:`mjd_inverseFD` now raise an error when :ref:`sleeping<Sleeping>` is enabled.
+  Previously, their repeated evaluations changed the sleep state, leading to internal errors or wrong derivatives.
 
 Version 3.13.0 (September 8, 2026)
 ----------------------------------

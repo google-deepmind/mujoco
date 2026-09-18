@@ -552,6 +552,9 @@ void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_cente
   if (m->nhistory) {
     mjERROR("delays are not supported");
   }
+  if (mjENABLED(mjENBL_SLEEP)) {
+    mjERROR("sleeping is not supported");
+  }
 
   int nv = m->nv, na = m->na, nu = m->nu, ns = m->nsensordata;
   int ndx = 2*nv+na;  // row length of state Jacobians
@@ -622,6 +625,10 @@ void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_actuatio
 
   if (m->opt.noslip_iterations) {
     mjERROR("noslip solver is not supported");
+  }
+
+  if (mjENABLED(mjENBL_SLEEP)) {
+    mjERROR("sleeping is not supported");
   }
 
   // skip sensor computations if no sensor Jacobians requested
