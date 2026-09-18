@@ -1182,6 +1182,15 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
   // get predefined type
   type = elem->Value();
 
+  // For actuator shortcuts, clear parameter arrays before setting type-specific values.
+  // This prevents cross-type parameter leakage in default classes where multiple
+  // actuator types may write to the same default actuator struct.
+  if (type != "general" && type != "plugin") {
+    mjuu_zerovec(actuator->gainprm, mjNGAIN);
+    mjuu_zerovec(actuator->biasprm, mjNBIAS);
+    mjuu_zerovec(actuator->dynprm, mjNDYN);
+  }
+
   // explicit attributes
   string err;
   if (type == "general") {
