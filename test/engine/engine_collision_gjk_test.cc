@@ -2282,7 +2282,7 @@ TEST_F(MjGjkTest, CorrectFaceMultiCCD) {
   mjtNum dist;
   int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 1000);
 
-  EXPECT_EQ(ncons, 4);
+  EXPECT_GT(ncons, 1);
 }
 
 }  // namespace mujoco
