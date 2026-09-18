@@ -774,6 +774,70 @@ TEST_F(MujocoTest, ReplicateExplicitPlugin) {
   mj_deleteModel(model);
 }
 
+TEST_F(MujocoTest, SignatureChangesWhenAddingElements) {
+  mjSpec* spec = mj_makeSpec();
+  mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);
+  mjsGeom* geom = mjs_addGeom(body, 0);
+  geom->size[0] = 1;
+
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(spec->element->signature, model->signature);
+
+  // every add must change the signature, including the first element of a
+  // type, otherwise bind would accept a spec that no longer matches the model
+  uint64_t previous = spec->element->signature;
+  auto expect_changed = [&](const char* what) {
+    EXPECT_NE(spec->element->signature, previous) << what;
+    EXPECT_NE(spec->element->signature, model->signature) << what;
+    previous = spec->element->signature;
+  };
+
+  mjs_addEquality(spec, 0);
+  expect_changed("first equality");
+  mjs_addEquality(spec, 0);
+  expect_changed("second equality");
+  mjs_addTendon(spec, 0);
+  expect_changed("tendon");
+  mjs_addActuator(spec, 0);
+  expect_changed("actuator");
+  mjs_addSensor(spec);
+  expect_changed("sensor");
+  mjs_addPair(spec, 0);
+  expect_changed("pair");
+  mjs_addExclude(spec);
+  expect_changed("exclude");
+  mjs_addFlex(spec);
+  expect_changed("flex");
+  mjs_addMesh(spec, 0);
+  expect_changed("mesh");
+  mjs_addHField(spec);
+  expect_changed("hfield");
+  mjs_addSkin(spec);
+  expect_changed("skin");
+  mjs_addTexture(spec);
+  expect_changed("texture");
+  mjs_addMaterial(spec, 0);
+  expect_changed("material");
+  mjs_addKey(spec);
+  expect_changed("key");
+  mjs_addBody(body, 0);
+  expect_changed("body");
+  mjs_addGeom(body, 0);
+  expect_changed("geom");
+  mjs_addJoint(body, 0);
+  expect_changed("joint");
+  mjs_addSite(body, 0);
+  expect_changed("site");
+  mjs_addCamera(body, 0);
+  expect_changed("camera");
+  mjs_addLight(body, 0);
+  expect_changed("light");
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, RecompileFails) {
   mjSpec* spec = mj_makeSpec();
   mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);
@@ -3727,19 +3791,18 @@ TEST_F(MujocoTest, AttachPreservesJointOrder) {
   // Export and re-import to test round-trip preservation
   std::string exported_xml = SaveAndReadXml(parent);
 
-  mjSpec* reimported =
-      mj_parseXMLString(exported_xml.c_str(), nullptr, error.data(),
-                        error.size());
+  mjSpec* reimported = mj_parseXMLString(exported_xml.c_str(), nullptr,
+                                         error.data(), error.size());
   ASSERT_THAT(reimported, NotNull()) << error.data();
 
   mjModel* reimported_model = mj_compile(reimported, nullptr);
   ASSERT_THAT(reimported_model, NotNull());
 
   // Verify joint order is preserved after round-trip
-  int reimported_slide_id = mj_name2id(reimported_model, mjOBJ_JOINT,
-                                       "child_slide_joint");
-  int reimported_free_id = mj_name2id(reimported_model, mjOBJ_JOINT,
-                                      "child_free_joint");
+  int reimported_slide_id =
+      mj_name2id(reimported_model, mjOBJ_JOINT, "child_slide_joint");
+  int reimported_free_id =
+      mj_name2id(reimported_model, mjOBJ_JOINT, "child_free_joint");
   ASSERT_GE(reimported_slide_id, 0);
   ASSERT_GE(reimported_free_id, 0);
   EXPECT_EQ(reimported_slide_id, slide_id)
