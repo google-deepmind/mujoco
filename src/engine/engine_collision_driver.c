@@ -1908,6 +1908,54 @@ typedef struct {
 } mjContactArg;
 
 
+// return the maximum number of contacts for a collision pair
+static inline int pairMaxContact(const mjModel* m, const mjcPair* pair) {
+  switch (pair->type) {
+    case mjCPAIR_GEOM_GEOM: {
+      int g1 = pair->geom_geom.g1;
+      int g2 = pair->geom_geom.g2;
+      int ipair = pair->geom_geom.ipair;
+      mjtNum margin = getMargin(m, g1, g2, ipair);
+      mjtNum gap = getGap(m, g1, g2, ipair);
+      return mj_maxContact(m, g1, g2, margin + gap > 0);
+    }
+
+    case mjCPAIR_GEOM_FLEX: {
+      int g = pair->geom_flex.g;
+      int f = pair->geom_flex.f;
+      return (m->geom_type[g] == mjGEOM_PLANE) ? m->flex_vertnum[f] : mjMAXCONPAIR;
+    }
+
+    case mjCPAIR_GEOM_ELEM: {
+      int g = pair->geom_elem.g;
+      int f = pair->geom_elem.f;
+      int dim = m->flex_dim[f];
+      int type = m->geom_type[g];
+      if (type == mjGEOM_HFIELD ||
+          (dim == 2 && (type == mjGEOM_BOX || type == mjGEOM_CAPSULE))) {
+        return mjMAXCONPAIR;
+      }
+      if (dim == 1 && (type == mjGEOM_CAPSULE || type == mjGEOM_BOX)) {
+        return 2;
+      }
+      return 1;
+    }
+
+    case mjCPAIR_ELEM_ELEM: {
+      int dim1 = m->flex_dim[pair->elem_elem.f1];
+      int dim2 = m->flex_dim[pair->elem_elem.f2];
+      return (dim1 == 1 && dim2 == 1) ? 2 : 1;
+    }
+
+    case mjCPAIR_ELEM_VERT:
+      return 1;
+
+    default:
+      return 0;
+  }
+}
+
+
 static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id, int idx) {
   mjContactArg* conargs = (mjContactArg*)arg;
   mjPreContact* conbuffer = conargs->conbuffer;
@@ -1922,21 +1970,63 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
 
   mjc_setCCDBuffer(epabuffer + thread_id * conargs->ccd_size);
   for (int i = 0; i < n; i++) {
-    int g1 = pair[i].geom_geom.g1;
-    int g2 = pair[i].geom_geom.g2;
-    int ipair = pair[i].geom_geom.ipair;
     int conpos = pair[i].conpos;
 
-    mjfCollision collision_func = mjCOLLISIONFUNC[m->geom_type[g1]][m->geom_type[g2]];
-    mjtNum margin = getMargin(m, g1, g2, ipair);
-    mjtNum gap = getGap(m, g1, g2, ipair);
-    ncon[i] = collision_func(m, d, conbuffer + conpos, g1, g2, margin + gap);
+    switch (pair[i].type) {
+      case mjCPAIR_GEOM_GEOM: {
+        int g1 = pair[i].geom_geom.g1;
+        int g2 = pair[i].geom_geom.g2;
+        int ipair = pair[i].geom_geom.ipair;
+        mjfCollision collision_func = mjCOLLISIONFUNC[m->geom_type[g1]][m->geom_type[g2]];
+        mjtNum margin = getMargin(m, g1, g2, ipair);
+        mjtNum gap = getGap(m, g1, g2, ipair);
+        ncon[i] = collision_func(m, d, conbuffer + conpos, g1, g2, margin + gap);
+        break;
+      }
+
+      case mjCPAIR_GEOM_ELEM: {
+        int g = pair[i].geom_elem.g;
+        int f = pair[i].geom_elem.f;
+        int e = pair[i].geom_elem.e;
+        mjtNum margin = mj_assignMargin(m, m->geom_margin[g] + m->flex_margin[f]);
+        mjtNum gap = m->geom_gap[g] + m->flex_gap[f];
+        ncon[i] = mjc_GeomElem(m, d, conbuffer + conpos, g, f, e, margin + gap);
+        break;
+      }
+
+      case mjCPAIR_ELEM_ELEM: {
+        int f1 = pair[i].elem_elem.f1;
+        int e1 = pair[i].elem_elem.e1;
+        int f2 = pair[i].elem_elem.f2;
+        int e2 = pair[i].elem_elem.e2;
+        mjtNum margin = mj_assignMargin(m, m->flex_margin[f1] + m->flex_margin[f2]);
+        mjtNum gap = m->flex_gap[f1] + m->flex_gap[f2];
+        if (f1 == f2) {
+          margin = 0;
+        }
+        ncon[i] = mjc_ElemElem(m, d, conbuffer + conpos, f1, e1, f2, e2, margin + gap);
+        break;
+      }
+
+      case mjCPAIR_ELEM_VERT: {
+        int f = pair[i].elem_vert.f;
+        int e = pair[i].elem_vert.e;
+        int v = pair[i].elem_vert.v;
+        mjtNum margin = mj_assignMargin(m, m->flex_margin[f]);
+        ncon[i] = mjc_ElemVert(m, d, conbuffer + conpos, f, e, v, margin);
+        break;
+      }
+
+      default:
+        ncon[i] = 0;
+        break;
+    }
 
     // SHOULD NOT OCCUR
     int expected_max = (globalidx + i + 1 < npair ? pair[i+1].conpos : conargs->maxcon) - conpos;
     if (ncon[i] > expected_max) {
-      mjERROR("collision function returned %d contacts for geom pair (%d, %d), "
-              "expected at most %d from mj_maxContact", ncon[i], g1, g2, expected_max);
+      mjERROR("collision function returned %d contacts, "
+              "expected at most %d from pairMaxContact", ncon[i], expected_max);
     }
   }
   mjc_setCCDBuffer(NULL);
@@ -2049,8 +2139,6 @@ static void mj_narrowphase(const mjModel* m, mjData* d, const mjcPair* buffer, i
   int npolygonmax = mjDISABLED(mjDSBL_MULTICCD) ? 0 : m->npolygonmax;
   int nmeshdegmax = mjDISABLED(mjDSBL_MULTICCD) ? 0 : m->nmeshdegmax;
   int ccd_size = mjc_ccdSize(npolygonmax, nmeshdegmax, m->opt.ccd_iterations);
-  mjtNum margin, gap;
-
   // try to balance load of 5 chunks per thread (chunksize should be divisible by 16)
   int chunksize = npair / mjMAX(1, 5 * nthread);
   chunksize = mjMAX(16, (chunksize + 15) & ~15);  // round up to next 16
@@ -2069,15 +2157,9 @@ static void mj_narrowphase(const mjModel* m, mjData* d, const mjcPair* buffer, i
   mjcPair* pairbuffer = mjSTACKALLOC(d, npair, mjcPair);
   int maxcon = 0;
   for (int i = 0; i < npair; i++) {
-    int g1 = buffer[i].geom_geom.g1;
-    int g2 = buffer[i].geom_geom.g2;
-    int ipair = buffer[i].geom_geom.ipair;
-
     pairbuffer[i] = buffer[i];
     pairbuffer[i].conpos = maxcon;
-    margin = getMargin(m, g1, g2, ipair);
-    gap = getGap(m, g1, g2, ipair);
-    maxcon += mj_maxContact(m, g1, g2, margin + gap > 0);
+    maxcon += pairMaxContact(m, buffer + i);
   }
 
   // buffer data has been copied to metadata on the stack;
@@ -2347,70 +2429,33 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
   if (mjc_ipcOwnsFlexGeom(m, f, g)) {
     return;
   }
-  mjtNum margin = mj_assignMargin(m, m->geom_margin[g] + m->flex_margin[f]);
-  mjtNum gap = m->geom_gap[g] + m->flex_gap[f];
-
-  // allocate mjPreContact[mjMAXCONPAIR] on the stack
-  mj_markStack(d);
-  mjPreContact* precon = mjSTACKALLOC(d, mjMAXCONPAIR, mjPreContact);
-
-  int num = mjc_GeomElem(m, d, precon, g, f, e, margin + gap);
-
   mjcPair pair;
   defaultPair(&pair, mjCPAIR_GEOM_ELEM);
   pair.geom_elem.g = g;
   pair.geom_elem.f = f;
   pair.geom_elem.e = e;
-  addPairContacts(m, d, precon, num, &pair, NULL, NULL);
-
-  mj_freeStack(d);
+  mj_narrowphase(m, d, &pair, 1, 0);
 }
 
 
 // test two elems for collision, add to contact list
 void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2) {
-  mjtNum margin = mj_assignMargin(m, m->flex_margin[f1] + m->flex_margin[f2]);
-  mjtNum gap = m->flex_gap[f1] + m->flex_gap[f2];
-
-  // ignore margin and gap in self-collisions
-  if (f1 == f2) {
-    margin = 0;
-  }
-
-  // allocate mjPreContact[mjMAXCONPAIR] on the stack
-  mj_markStack(d);
-  mjPreContact* precon = mjSTACKALLOC(d, mjMAXCONPAIR, mjPreContact);
-
-  int num = mjc_ElemElem(m, d, precon, f1, e1, f2, e2, margin + gap);
-
   mjcPair pair;
   defaultPair(&pair, mjCPAIR_ELEM_ELEM);
   pair.elem_elem.f1 = f1;
   pair.elem_elem.e1 = e1;
   pair.elem_elem.f2 = f2;
   pair.elem_elem.e2 = e2;
-  addPairContacts(m, d, precon, num, &pair, NULL, NULL);
-
-  mj_freeStack(d);
+  mj_narrowphase(m, d, &pair, 1, 0);
 }
 
 
 // test element and vertex for collision, add to contact list
 void mj_collideElemVert(const mjModel* m, mjData* d, int f, int e, int v) {
-  mjtNum margin = mj_assignMargin(m, m->flex_margin[f]);
-
-  // allocate mjPreContact[mjMAXCONPAIR] on the stack
-  mj_markStack(d);
-  mjPreContact* precon = mjSTACKALLOC(d, mjMAXCONPAIR, mjPreContact);
-
-  int num = mjc_ElemVert(m, d, precon, f, e, v, margin);
-
   mjcPair pair;
   defaultPair(&pair, mjCPAIR_ELEM_VERT);
   pair.elem_vert.f = f;
   pair.elem_vert.e = e;
   pair.elem_vert.v = v;
-  addPairContacts(m, d, precon, num, &pair, NULL, NULL);
-
-  mj_freeStack(d);
+  mj_narrowphase(m, d, &pair, 1, 0);
 }
