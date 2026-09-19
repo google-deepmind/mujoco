@@ -1374,6 +1374,66 @@ TEST_F(MjCMeshTest, InvalidIndexInFace) {
   EXPECT_THAT(error, HasSubstr("in face 0, vertex index 6 does not exist"));
 }
 
+class MeshNormalCacheTest : public MujocoTest,
+                            public testing::WithParamInterface<bool> {
+ protected:
+  void SetUp() override {
+    capacity_ = mj_getCacheCapacity(mj_getCache());
+    mj_clearCache(mj_getCache());
+    mj_setCacheCapacity(mj_getCache(), 1 << 20);
+  }
+
+  void TearDown() override {
+    mj_clearCache(mj_getCache());
+    mj_setCacheCapacity(mj_getCache(), capacity_);
+  }
+
+ private:
+  std::size_t capacity_;
+};
+
+TEST_P(MeshNormalCacheTest, RespectsSmoothNormal) {
+  auto load = [](bool smooth) {
+    std::string xml =
+        absl::StrFormat(R"(
+      <mujoco>
+        <asset>
+          <mesh name="cube" file="%s" smoothnormal="%s"/>
+        </asset>
+        <worldbody>
+          <geom type="mesh" mesh="cube"/>
+        </worldbody>
+      </mujoco>)",
+                        GetTestDataFilePath("user/testdata/cube.stl"),
+                        smooth ? "true" : "false");
+    return LoadModelFromString(xml);
+  };
+
+  // obtain each setting's normals without a cached mesh
+  std::array<std::vector<float>, 2> expected;
+  for (bool smooth : {false, true}) {
+    mj_clearCache(mj_getCache());
+    MjModelPtr model = load(smooth);
+    ASSERT_THAT(model.get(), NotNull());
+    expected[smooth] = AsVector(model->mesh_normal, 3 * model->nmeshnormal);
+  }
+  ASSERT_NE(expected[false], expected[true]);
+
+  // check repeated loads and switches in both directions
+  mj_clearCache(mj_getCache());
+  bool first = GetParam();
+  for (bool smooth : {first, first, !first, !first, first}) {
+    SCOPED_TRACE(smooth);
+    MjModelPtr model = load(smooth);
+    ASSERT_THAT(model.get(), NotNull());
+    EXPECT_EQ(AsVector(model->mesh_normal, 3 * model->nmeshnormal),
+              expected[smooth]);
+    EXPECT_GT(mj_getCacheSize(mj_getCache()), 0);
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(MjCMeshTest, MeshNormalCacheTest, testing::Bool());
+
 TEST_F(MjCMeshTest, QhullCache) {
   static constexpr char xml1[] = R"(
     <mujoco>
