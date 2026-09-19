@@ -2530,6 +2530,113 @@ TEST_F(MujocoTest, RecompileAttach) {
   mj_deleteSpec(parent);
 }
 
+TEST_F(MujocoTest, PreserveStateJointTypeChanged) {
+  std::array<char, 1000> er;
+
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="changed">
+        <joint name="changed" type="hinge" axis="0 0 1"/>
+        <geom type="sphere" size=".1" mass="1"/>
+      </body>
+      <body name="kept">
+        <joint name="kept" type="slide" axis="0 0 1"/>
+        <geom type="sphere" size=".1" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  EXPECT_THAT(spec, NotNull());
+  mjModel* model = mj_compile(spec, 0);
+  EXPECT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+  EXPECT_THAT(data, NotNull());
+  EXPECT_EQ(model->nq, 2);
+
+  data->qpos[0] = .25;
+  data->qvel[0] = .5;
+  data->qpos[1] = .75;
+  data->qvel[1] = 1.5;
+
+  // widen the first joint, the second one is untouched
+  mjsJoint* joint = mjs_asJoint(mjs_findElement(spec, mjOBJ_JOINT, "changed"));
+  EXPECT_THAT(joint, NotNull());
+  joint->type = mjJNT_FREE;
+
+  EXPECT_EQ(mj_recompile(spec, 0, model, data), 0);
+  EXPECT_EQ(model->nq, 8);
+  EXPECT_EQ(model->nv, 7);
+
+  // the hinge state cannot be reinterpreted as a free joint, so it is reset
+  for (int i = 0; i < 7; ++i) {
+    EXPECT_EQ(data->qpos[i], model->qpos0[i]) << i;
+  }
+  for (int i = 0; i < 6; ++i) {
+    EXPECT_EQ(data->qvel[i], 0) << i;
+  }
+
+  // the unchanged joint keeps its state
+  EXPECT_EQ(data->qpos[7], .75);
+  EXPECT_EQ(data->qvel[6], 1.5);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, PreserveStateActdimChanged) {
+  std::array<char, 1000> er;
+
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint" type="hinge"/>
+        <geom type="sphere" size=".1" mass="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general name="changed" joint="joint" dyntype="integrator"/>
+      <general name="kept" joint="joint" dyntype="integrator"/>
+    </actuator>
+  </mujoco>)";
+
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  EXPECT_THAT(spec, NotNull());
+  mjModel* model = mj_compile(spec, 0);
+  EXPECT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+  EXPECT_THAT(data, NotNull());
+  EXPECT_EQ(model->na, 2);
+
+  data->act[0] = 42;
+  data->act[1] = 7;
+
+  // widen the first actuator, the second one is untouched
+  mjsActuator* actuator =
+      mjs_asActuator(mjs_findElement(spec, mjOBJ_ACTUATOR, "changed"));
+  EXPECT_THAT(actuator, NotNull());
+  actuator->dyntype = mjDYN_USER;
+  actuator->actdim = 3;
+
+  EXPECT_EQ(mj_recompile(spec, 0, model, data), 0);
+  EXPECT_EQ(model->na, 4);
+
+  // one saved activation cannot fill three, so the actuator is reset
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_EQ(data->act[i], 0) << i;
+  }
+
+  // the unchanged actuator keeps its activation
+  EXPECT_EQ(data->act[3], 7);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, AttachMocap) {
   std::array<char, 1000> er;
   mjtNum tol = 0;

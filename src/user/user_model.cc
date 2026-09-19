@@ -323,6 +323,7 @@ void mjCModel::SaveDofOffsets(bool computesize) {
   for (auto joint : joints_) {
     joint->qposadr_  = qposadr;
     joint->dofadr_   = dofadr;
+    joint->type_     = joint->spec.type;
     qposadr         += joint->nq();
     dofadr          += joint->nv();
   }
@@ -4086,11 +4087,14 @@ void mjCModel::SaveState(const std::string& state_name,
     if (joint->qposadr_ < -1 || joint->dofadr_ < -1) {
       throw mjCError(nullptr, "SaveState: joint %s has invalid address", joint->name.c_str());
     }
+    // the source arrays have the widths that produced qposadr_ and dofadr_, which can differ
+    // from the widths implied by the spec if the joint type was edited since the last compile
+    joint->savedtype(state_name) = joint->type_;
     if (qpos && joint->qposadr_ != -1) {
-      mjuu_copyvec(joint->qpos(state_name), qpos + joint->qposadr_, joint->nq());
+      mjuu_copyvec(joint->qpos(state_name), qpos + joint->qposadr_, mjCJoint::nq(joint->type_));
     }
     if (qvel && joint->dofadr_ != -1) {
-      mjuu_copyvec(joint->qvel(state_name), qvel + joint->dofadr_, joint->nv());
+      mjuu_copyvec(joint->qvel(state_name), qvel + joint->dofadr_, mjCJoint::nv(joint->type_));
     }
   }
 
@@ -4135,23 +4139,34 @@ void mjCModel::RestoreState(const std::string& state_name,
                             T*                 mpos,
                             T*                 mquat) {
   for (auto joint : joints_) {
+    // a saved state can only be restored if the joint still has the width it was saved with
+    mjtJoint savedtype = joint->savedtype(state_name);
+    bool     samewidth =
+        mjCJoint::nq(savedtype) == joint->nq() && mjCJoint::nv(savedtype) == joint->nv();
     if (qpos) {
-      if (mjuu_defined(joint->qpos(state_name)[0])) {
+      if (samewidth && mjuu_defined(joint->qpos(state_name)[0])) {
         mjuu_copyvec(qpos + joint->qposadr_, joint->qpos(state_name), joint->nq());
       } else {
         mjuu_copyvec(qpos + joint->qposadr_, pos0 + joint->qposadr_, joint->nq());
       }
     }
-    if (mjuu_defined(joint->qvel(state_name)[0]) && qvel) {
-      mjuu_copyvec(qvel + joint->dofadr_, joint->qvel(state_name), joint->nv());
+    if (qvel) {
+      if (samewidth && mjuu_defined(joint->qvel(state_name)[0])) {
+        mjuu_copyvec(qvel + joint->dofadr_, joint->qvel(state_name), joint->nv());
+      } else {
+        mjuu_zerovec(qvel + joint->dofadr_, joint->nv());
+      }
     }
   }
 
   // restore act
   for (unsigned int i = 0; i < actuators_.size(); i++) {
-    auto actuator = actuators_[i];
-    if (!actuator->act(state_name).empty() && mjuu_defined(actuator->act(state_name)[0]) && act) {
-      mjuu_copyvec(act + actuator->actadr_, actuator->act(state_name).data(), actuator->actdim_);
+    auto        actuator = actuators_[i];
+    const auto& saved    = actuator->act(state_name);
+    // the size of the saved vector is the actdim it was saved with; a changed actdim is not
+    // convertible, so the actuator keeps the activations that MakeData initialized
+    if (!saved.empty() && (int)saved.size() == actuator->actdim_ && mjuu_defined(saved[0]) && act) {
+      mjuu_copyvec(act + actuator->actadr_, saved.data(), actuator->actdim_);
     }
     if (ctrl) {
       ctrl[i] = mjuu_defined(actuator->ctrl(state_name)) ? actuator->ctrl(state_name) : 0;
