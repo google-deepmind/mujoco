@@ -44,6 +44,7 @@ PXR_NAMESPACE_OPEN_SCOPE
   ((newtonArmature, "newton:armature")) \
   ((newtonDamping, "newton:damping")) \
   ((newtonFriction, "newton:friction")) \
+  ((newtonMimicEnabled, "newton:mimicEnabled")) \
   ((newtonMimicJoint, "newton:mimicJoint")) \
   ((newtonMimicCoef0, "newton:mimicCoef0")) \
   ((newtonMimicCoef1, "newton:mimicCoef1")) \
