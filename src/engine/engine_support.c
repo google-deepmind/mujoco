@@ -624,6 +624,12 @@ int mj_insideSite(const mjModel* m, const mjData* d, int siteid, const mjtNum po
     mju_sub3(vec, point, pos);
     mju_mulMatTVec3(plocal, mat, vec);
 
+    // transform from the authored site frame into the canonical mesh frame
+    mjtNum meshmat[9];
+    mju_sub3(vec, plocal, m->mesh_pos+3*meshid);
+    mju_quat2Mat(meshmat, m->mesh_quat+4*meshid);
+    mju_mulMatTVec3(plocal, meshmat, vec);
+
     // check bounding box
     if (mju_abs(plocal[0]) > size[0] ||
         mju_abs(plocal[1]) > size[1] ||
