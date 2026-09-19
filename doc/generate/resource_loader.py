@@ -46,8 +46,15 @@ def find_repo_root() -> pathlib.Path:
 
 
 def is_monorepo() -> bool:
-  """Returns True if running in a monorepo workspace."""
-  return (find_repo_root() / "METADATA").exists() or "TEST_SRCDIR" in os.environ
+  """Returns True if generating files for the monorepo.
+
+  Generators that emit monorepo-specific text cannot infer the repository from
+  the filesystem: a build sandbox may contain nothing but the runfiles of the
+  generator itself, with no repository root to inspect. The answer is therefore
+  declared explicitly by the build rules that invoke them, which exist only in
+  the monorepo.
+  """
+  return os.environ.get("MUJOCO_MONOREPO") == "1"
 
 
 def resolve_path(relative_path: Union[str, pathlib.Path]) -> pathlib.Path:
