@@ -235,12 +235,21 @@ class ViewerApp:
 
   def reset_physics(self) -> None:
     """Reset the physics."""
-    mujoco.mj_resetData(self.model, self.data)
-    mujoco.mj_forward(self.model, self.data)
-    self._setup_history()
-    self.viewer.send_to_sim(messages.ResetEvent())
-    # Discard any pre-reset snapshots so we don't overwrite the reset state.
-    self.viewer.get_sim_snapshots()
+    if self.model is not None and self.data is not None:
+      key_idx = self.ux_state.key_idx
+      if key_idx >= self.model.nkey or key_idx < -1:
+        key_idx = -1
+        self.ux_state.key_idx = -1
+
+      if key_idx >= 0:
+        mujoco.mj_resetDataKeyframe(self.model, self.data, key_idx)
+      else:
+        mujoco.mj_resetData(self.model, self.data)
+      mujoco.mj_forward(self.model, self.data)
+      self._setup_history()
+      self.viewer.send_to_sim(messages.ResetEvent(key=key_idx))
+      # Discard any pre-reset snapshots so we don't overwrite the reset state.
+      self.viewer.get_sim_snapshots()
 
   def apply_perturb(self) -> None:
     """Apply perturbation the model."""

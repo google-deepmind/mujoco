@@ -159,7 +159,14 @@ class SingleStepEvent(Event):
 
 @dataclasses.dataclass(frozen=True)
 class ResetEvent(Event):
-  """An event requesting to reset the simulation."""
+  """An event requesting to reset the simulation.
+
+  Attributes:
+    key: Optional keyframe index to load. If None or negative, resets to the
+      default initial state.
+  """
+
+  key: int | None = None
 
 
 @dataclasses.dataclass(frozen=True)

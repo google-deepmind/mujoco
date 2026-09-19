@@ -181,12 +181,15 @@ class ViewerHandle:
     return True
 
   @messages.handler(priority=messages.Priority.INTERNAL)
-  def _on_reset(self, _: messages.ResetEvent) -> bool:
+  def _on_reset(self, event: messages.ResetEvent) -> bool:
     model = self.model
     data = self.data
     if model is not None:
       assert data is not None
-      mujoco.mj_resetData(model, data)
+      if event.key is not None:
+        mujoco.mj_resetDataKeyframe(model, data, event.key)
+      else:
+        mujoco.mj_resetData(model, data)
       mujoco.mj_forward(model, data)
     return True
 
