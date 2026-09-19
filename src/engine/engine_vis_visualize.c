@@ -1116,9 +1116,22 @@ static void addSiteGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       return;
     }
 
+    // mesh canonicalization applies to the visual geometry, not the site's sensor frame
+    const mjtNum* pos = d->site_xpos+3*i;
+    const mjtNum* mat = d->site_xmat+9*i;
+    mjtNum meshpos[3], meshmat[9], meshrot[9];
+    if (m->site_type[i] == mjGEOM_MESH) {
+      int meshid = m->site_dataid[i];
+      mju_mulMatVec3(meshpos, mat, m->mesh_pos+3*meshid);
+      mju_addTo3(meshpos, pos);
+      mju_quat2Mat(meshrot, m->mesh_quat+4*meshid);
+      mju_mulMatMat3(meshmat, mat, meshrot);
+      pos = meshpos;
+      mat = meshmat;
+    }
+
     // construct geom
-    mjv_initGeom(thisgeom, m->site_type[i], m->site_size+3*i,
-                  d->site_xpos+3*i, d->site_xmat+9*i, NULL);
+    mjv_initGeom(thisgeom, m->site_type[i], m->site_size+3*i, pos, mat, NULL);
     thisgeom->dataid = m->site_dataid[i];
 
     // set texcoord

@@ -103,6 +103,103 @@ TEST_F(MjvSceneTest, UpdateSceneGeomsExhausted) {
   mj_deleteModel(model);
 }
 
+// Translated, non-cubic mesh ensures canonicalization changes both pose
+// components.
+static constexpr char kMeshSiteXml[] = R"(
+<mujoco>
+  <asset>
+    <mesh name="offset_box"
+          vertex="1 -.5 0  3 -.5 0  3 .5 0  1 .5 0
+                  1 -.5 4  3 -.5 4  3 .5 4  1 .5 4"/>
+  </asset>
+  <worldbody>
+    <body pos=".4 .5 .6" euler="10 20 30">
+      <freejoint/>
+      <inertial pos="0 0 0" mass="1" diaginertia="1 2 3"/>
+      <frame pos=".3 -.2 .1" euler="30 10 20">
+        <site name="plain" pos=".1 .2 .3" euler="20 30 10" size=".01"/>
+        <site name="mesh" type="mesh" mesh="offset_box"
+              pos=".1 .2 .3" euler="20 30 10"/>
+        <geom name="reference" type="mesh" mesh="offset_box"
+              pos=".1 .2 .3" euler="20 30 10" contype="0" conaffinity="0"/>
+      </frame>
+    </body>
+  </worldbody>
+  <sensor>
+    <framepos objtype="site" objname="plain"/>
+    <framepos objtype="site" objname="mesh"/>
+    <framequat objtype="site" objname="plain"/>
+    <framequat objtype="site" objname="mesh"/>
+    <gyro site="plain"/>
+    <gyro site="mesh"/>
+    <accelerometer site="plain"/>
+    <accelerometer site="mesh"/>
+  </sensor>
+</mujoco>
+)";
+
+TEST_F(MjvSceneTest, MeshSitePreservesAuthoredFrame) {
+  MjModelPtr model = LoadModelFromString(kMeshSiteXml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  int plain = mj_name2id(model.get(), mjOBJ_SITE, "plain");
+  int mesh = mj_name2id(model.get(), mjOBJ_SITE, "mesh");
+  for (int j = 0; j < 3; ++j) {
+    EXPECT_MJTNUM_EQ(model->site_pos[3 * plain + j],
+                     model->site_pos[3 * mesh + j]);
+  }
+  for (int j = 0; j < 4; ++j) {
+    EXPECT_MJTNUM_EQ(model->site_quat[4 * plain + j],
+                     model->site_quat[4 * mesh + j]);
+  }
+  for (int i = 0; i < model->nv; ++i) {
+    data->qvel[i] = 0.1 * (i + 1);
+    data->qfrc_applied[i] = 0.2 * (i + 1);
+  }
+  mj_forward(model.get(), data.get());
+  for (int sensor = 0; sensor < model->nsensor; sensor += 2) {
+    int adr1 = model->sensor_adr[sensor];
+    int adr2 = model->sensor_adr[sensor + 1];
+    for (int j = 0; j < model->sensor_dim[sensor]; ++j) {
+      EXPECT_MJTNUM_EQ(data->sensordata[adr1 + j], data->sensordata[adr2 + j]);
+    }
+  }
+}
+
+TEST_F(MjvSceneTest, MeshSitePreservesVisualPoseAndVolume) {
+  MjModelPtr model = LoadModelFromString(kMeshSiteXml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  int site = mj_name2id(model.get(), mjOBJ_SITE, "mesh");
+  int geom = mj_name2id(model.get(), mjOBJ_GEOM, "reference");
+  InitSceneObjects(model.get());
+  mjv_updateScene(model.get(), data.get(), &opt_, &pert_, &cam_, mjCAT_ALL,
+                  &scn_);
+  const mjvGeom* mesh_site = nullptr;
+  const mjvGeom* mesh_geom = nullptr;
+  for (int i = 0; i < scn_.ngeom; ++i) {
+    const mjvGeom* item = scn_.geoms + i;
+    if (item->objtype == mjOBJ_SITE && item->objid == site) mesh_site = item;
+    if (item->objtype == mjOBJ_GEOM && item->objid == geom) mesh_geom = item;
+  }
+  ASSERT_THAT(mesh_site, NotNull());
+  ASSERT_THAT(mesh_geom, NotNull());
+  for (int j = 0; j < 3; ++j) {
+    EXPECT_NEAR(mesh_site->pos[j], mesh_geom->pos[j], MjTol(1e-6, 3e-6));
+  }
+  for (int j = 0; j < 9; ++j) {
+    EXPECT_NEAR(mesh_site->mat[j], mesh_geom->mat[j], MjTol(1e-7, 1e-6));
+  }
+  // Volume queries must still use the mesh frame, including its offset.
+  EXPECT_EQ(
+      mj_insideSite(model.get(), data.get(), site, data->geom_xpos + 3 * geom),
+      1);
+  mjtNum outside[3] = {100, 100, 100};
+  EXPECT_EQ(mj_insideSite(model.get(), data.get(), site, outside), 0);
+  FreeSceneObjects();
+}
+
 TEST_F(MjvSceneTest, PrincipalPointFrustumSign) {
   constexpr char xml[] = R"(
   <mujoco>
