@@ -20,6 +20,11 @@ namespace Mujoco {
 [CustomEditor(typeof(MjGeom), true)]
 [CanEditMultipleObjects]
 public class MjGeomEditor : MjShapeComponentEditor {
+
+  static MjGeomEditor() {
+    EditorApplication.contextualPropertyMenu += OnHeightFieldContextMenu;
+  }
+
   public override void OnInspectorGUI() {
     serializedObject.Update();
     EditorGUILayout.PropertyField(serializedObject.FindProperty("Mass"));
@@ -79,27 +84,15 @@ public class MjGeomEditor : MjShapeComponentEditor {
     }
   }
 
-  void OnEnable() {
-    // Ensure we only subscribe handler once
-    EditorApplication.contextualPropertyMenu -= OnHeightFieldContextMenu;
-    EditorApplication.contextualPropertyMenu += OnHeightFieldContextMenu;
-  }
+  private static void OnHeightFieldContextMenu(GenericMenu menu, SerializedProperty property) {
+    if (property.type != nameof(MjHeightFieldShape)) return;
+    if (property.serializedObject.targetObject is not MjGeom geom) return;
 
-  void OnDestroy() {
-    EditorApplication.contextualPropertyMenu -= OnHeightFieldContextMenu;
+    menu.AddItem(new GUIContent("Add Unity Terrain"), false, () => {
+      Undo.RecordObject(geom, "Add Unity Terrain");
+      geom.HField.AddTerrain(geom.transform);
+      EditorUtility.SetDirty(geom);
+    });
   }
-
-  void OnHeightFieldContextMenu(GenericMenu menu, SerializedProperty property) {
-    if (property.type != nameof(MjHeightFieldShape))
-      return;
-
-    menu.AddItem(new GUIContent("Add Unity Terrain"),
-        false,
-        () =>
-        {
-          var geom = target as MjGeom;
-          geom.HField.AddTerrain();
-        });
   }
-}
 }

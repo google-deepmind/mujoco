@@ -24,8 +24,7 @@ namespace Mujoco {
 public class MjHeightFieldShape : IMjShape {
 
   [Tooltip("Terrain's heightmap should have a minimum value of zero (fully black). Right click " +
-           "HField to add Unity Terrain."),
-   ContextMenuItem("Add Unity Terrain", "AddTerrain")]
+           "HField to add Unity Terrain.")]
   public Terrain Terrain;
 
   [Tooltip("The path, relative to Application.dataPath, where the heightmap " +
@@ -52,10 +51,6 @@ public class MjHeightFieldShape : IMjShape {
   public int UpdateLimit;
 
   private int _updateCountdown;
-
-  [HideInInspector] public float MinimumHeight { get; private set; }
-
-  [HideInInspector] public float MaximumHeight { get; private set; }
 
   public int HeightFieldId { get; private set; }
 
@@ -107,7 +102,6 @@ public class MjHeightFieldShape : IMjShape {
     texture.ReadPixels(new Rect(0, 0, RenderTexture.active.width, RenderTexture.active.height),
       0,
       0);
-    MaximumHeight = texture.GetPixels().Select(c => c.r).Max() * HeightMapScale.y * 2;
     var minimumHeight = texture.GetPixels().Select(c => c.r).Min() * HeightMapScale.y * 2;
 
     RenderTexture.active = null;
@@ -169,19 +163,16 @@ public class MjHeightFieldShape : IMjShape {
 
   public void DebugDraw(Transform transform) {}
 
-  public void AddTerrain() {
-    GameObject terrainObject = new GameObject("Terrain");
-    Terrain newTerrain = terrainObject.AddComponent<Terrain>();
-    newTerrain.terrainData = new TerrainData();
+  public void AddTerrain(Transform parent) {
+    var terrainData = new TerrainData();
+    var terrainObject = Terrain.CreateTerrainGameObject(terrainData);
+    terrainObject.name = "Terrain";
+    var newTerrain = terrainObject.GetComponent<Terrain>();
     newTerrain.terrainData.size = new Vector3(100, 1, 100);
 
-    var transform = GameObject
-        .FindObjectsByType<MjGeom>(FindObjectsInactive.Include, FindObjectsSortMode.None)
-        .First(g => g.HField == this).transform;
-
-    terrainObject.transform.parent = transform;
+    terrainObject.transform.parent = parent;
     newTerrain.materialTemplate = new Material(Shader.Find("Nature/Terrain/Diffuse"));
-    var coll = newTerrain.gameObject.AddComponent<TerrainCollider>();
+    var coll = newTerrain.GetComponent<TerrainCollider>();
     coll.terrainData = newTerrain.terrainData;
     Terrain = newTerrain;
     terrainObject.transform.localPosition = new Vector3(-50, 0, -50);
