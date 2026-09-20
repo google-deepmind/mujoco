@@ -2782,7 +2782,9 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mj_readCtrl',
      FunctionDecl(
          name='mj_readCtrl',
-         return_type=ValueType(name='mjtNum'),
+         return_type=PointerType(
+             inner_type=ValueType(name='mjtNum', is_const=True),
+         ),
          parameters=(
              FunctionParameterDecl(
                  name='m',
@@ -2805,11 +2807,17 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='mjtNum'),
              ),
              FunctionParameterDecl(
+                 name='result',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
                  name='interp',
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Read ctrl value for actuator at given time. Returns d->ctrl[id] if no history, otherwise reads from history buffer. interp: 0=zero-order-hold, 1=linear, 2=cubic spline.',  # pylint: disable=line-too-long
+         doc='Read ctrl value for actuator at given time. Returns pointer to ctrl (no history) or history buffer (exact match), or NULL if interpolation performed (writes to result). interp: 0=zero-order-hold, 1=linear, 2=cubic spline.',  # pylint: disable=line-too-long
      )),
     ('mj_readSensor',
      FunctionDecl(

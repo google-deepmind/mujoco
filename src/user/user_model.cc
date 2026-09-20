@@ -2213,10 +2213,12 @@ void mjCModel::SetSizes() {
   // nsensordata
   for (int i = 0; i < nsensor; i++) { nsensordata += sensors_[i]->dim; }
 
-  // nhistory: layout is [user, cursor, times(n), values(n*dim)] = 2+2n per actuator (dim=1)
+  // nhistory: layout is [user, cursor, times(n), values(n*dim)] = 2 + n + n*dim
   nhistory = 0;
   for (int i = 0; i < actuators_.size(); i++) {
-    if (actuators_[i]->nsample > 0) { nhistory += 2 + 2 * actuators_[i]->nsample; }
+    if (actuators_[i]->nsample > 0) {
+      nhistory += 2 + actuators_[i]->nsample + actuators_[i]->nsample * actuators_[i]->ctrlnum_;
+    }
   }
   // sensor delay: layout is [user, cursor, times(n), values(n*dim)] = 2 + n + n*dim
   for (int i = 0; i < sensors_.size(); i++) {
@@ -3865,8 +3867,9 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->actuator_history[2 * i]     = pac->nsample;
     m->actuator_history[2 * i + 1] = pac->interp;
     if (pac->nsample > 0) {
-      m->actuator_historyadr[i]  = delay_adr;
-      delay_adr                 += 2 + 2 * pac->nsample;  // [user, cursor, times, values]
+      m->actuator_historyadr[i] = delay_adr;
+      delay_adr +=
+          2 + pac->nsample + pac->nsample * pac->ctrlnum_;  // [user, cursor, times, values]
     } else {
       m->actuator_historyadr[i] = -1;
     }

@@ -32,6 +32,17 @@ Engine
   its Hessian, as can happen in single precision with ill-conditioned inertia. The pivot is now clamped and its row
   decoupled, as in the dense factorization.
 
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - :ref:`mj_readCtrl` now matches the signature and semantics of :ref:`mj_readSensor` to support multi-input
+     actuators (e.g., :ref:`pid<actuator-pid>`, :ref:`dcmotor<actuator-dcmotor>`,
+     :ref:`orientation<actuator-orientation>`): it takes an output buffer ``result`` of size ``actuator_ctrlnum[id]``
+     and returns ``const mjtNum*`` (a pointer into ``mjData.ctrl`` or ``mjData.history`` on zero-order-hold or exact
+     timestamp matches, or ``NULL`` when interpolated values are written to ``result``). Actuator history buffers now
+     store ``actuator_ctrlnum[id]`` values per sample, and :ref:`mj_initCtrlHistory` expects ``nsample *
+     actuator_ctrlnum[id]`` values (:issue:`3597`).
+
 Bug fixes
 ^^^^^^^^^
 - Tendon :ref:`actuatorfrclimited<tendon-spatial-actuatorfrclimited>` now defaults to "auto" as documented.

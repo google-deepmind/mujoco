@@ -1418,9 +1418,15 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
         times[j] = -(n-j)*dt;
       }
 
-      // clear values
+      // clear values (or set identity quaternion for quat inputs)
       mjtNum* values = buf + 2 + n;
-      mju_zero(values, n);
+      int dim = m->actuator_ctrlnum[i];
+      mju_zero(values, n*dim);
+      if (m->actuator_gaintype[i] == mjGAIN_SO3 && m->actuator_ctrlspec[i] == mjCHART_QUAT) {
+        for (int j = 0; j < n; j++) {
+          values[4*j] = 1;
+        }
+      }
     }
   }
 

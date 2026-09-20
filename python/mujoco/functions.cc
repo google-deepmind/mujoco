@@ -359,17 +359,40 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
         return InterceptMjErrors(::mj_setState)(m, d, state.data(), sig);
       });
   Def<traits::mj_copyState>(pymodule);
-  Def<traits::mj_readCtrl>(pymodule);
+  Def<traits::mj_readCtrl>(
+      pymodule,
+      [](const raw::MjModel* m, const raw::MjData* d, int id, mjtNum time,
+         Eigen::Ref<EigenVectorX> result, int interp) {
+        if (id < 0 || id >= m->nactuator) {
+          throw py::index_error("actuator id out of range");
+        }
+        int dim = m->actuator_ctrlnum[id];
+        if (result.size() != dim) {
+          throw py::type_error(
+              "result should have length actuator_ctrlnum[id]");
+        }
+        const mjtNum* ptr = InterceptMjErrors(::mj_readCtrl)(
+            m, d, id, time, result.data(), interp);
+        if (ptr && ptr != result.data()) {
+          for (int i = 0; i < dim; ++i) {
+            result[i] = ptr[i];
+          }
+        }
+        return result;
+      });
   Def<traits::mj_readSensor>(
       pymodule,
       [](const raw::MjModel* m, const raw::MjData* d, int id, mjtNum time,
-         Eigen::Ref<EigenVectorX> result, int order) {
+         Eigen::Ref<EigenVectorX> result, int interp) {
+        if (id < 0 || id >= m->nsensor) {
+          throw py::index_error("sensor id out of range");
+        }
         int dim = m->sensor_dim[id];
         if (result.size() != dim) {
           throw py::type_error("result should have length sensor_dim[id]");
         }
         const mjtNum* ptr = InterceptMjErrors(::mj_readSensor)(
-            m, d, id, time, result.data(), order);
+            m, d, id, time, result.data(), interp);
         if (ptr && ptr != result.data()) {
           for (int i = 0; i < dim; ++i) {
             result[i] = ptr[i];
@@ -381,15 +404,20 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d, int id,
          std::optional<Eigen::Ref<const EigenVectorX>> times,
-         Eigen::Ref<const EigenVectorX> values) {
-        int nhistory = m->actuator_history[2*id];
+         Eigen::Ref<const EigenArrayXX> values) {
+        if (id < 0 || id >= m->nactuator) {
+          throw py::index_error("actuator id out of range");
+        }
+        int nhistory = m->actuator_history[2 * id];
+        int dim = m->actuator_ctrlnum[id];
         if (times.has_value() && times->size() != nhistory) {
           throw py::type_error(
               "times should have length actuator_history[2*id]");
         }
-        if (values.size() != nhistory) {
+        if (values.rows() != nhistory || values.cols() != dim) {
           throw py::type_error(
-              "values should have length actuator_history[2*id]");
+              "values should have shape (actuator_history[2*id], "
+              "actuator_ctrlnum[id])");
         }
         return InterceptMjErrors(::mj_initCtrlHistory)(
             m, d, id,
@@ -399,6 +427,9 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
       pymodule, [](const raw::MjModel* m, raw::MjData* d, int id,
                    std::optional<Eigen::Ref<const EigenVectorX>> times,
                    Eigen::Ref<const EigenArrayXX> values, mjtNum phase) {
+        if (id < 0 || id >= m->nsensor) {
+          throw py::index_error("sensor id out of range");
+        }
         int nhistory = m->sensor_history[2 * id];
         int dim = m->sensor_dim[id];
         if (times.has_value() && times->size() != nhistory) {

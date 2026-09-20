@@ -1985,23 +1985,64 @@ Euler integrator, semi-implicit in velocity.
     # delay = 0.01, so:
     #   read_time=0.02 -> lookup at 0.01 -> value 2.0
     #   read_time=0.03 -> lookup at 0.02 -> value 3.0
-    result = mujoco.mj_readCtrl(model, data, 0, 0.02, interp=0)
-    self.assertEqual(result, 2.0)  # ZOH returns value at t=0.01
+    result = np.zeros(1, DTYPE)
+    mujoco.mj_readCtrl(model, data, 0, 0.02, result, interp=0)
+    self.assertEqual(result[0], 2.0)  # ZOH returns value at t=0.01
 
     # Test with times=None (uses existing timestamps)
     new_values = np.array([5.0, 6.0, 7.0, 8.0])
     mujoco.mj_initCtrlHistory(model, data, 0, None, new_values)
     # read_time=0.02 -> lookup at 0.01 -> value 6.0
-    result = mujoco.mj_readCtrl(model, data, 0, 0.02, interp=0)
-    self.assertEqual(result, 6.0)
+    mujoco.mj_readCtrl(model, data, 0, 0.02, result, interp=0)
+    self.assertEqual(result[0], 6.0)
 
-    # Test dimension validation errors
+    # Test dimension and id validation errors
+    with self.assertRaises(IndexError):
+      mujoco.mj_readCtrl(model, data, -1, 0.02, result, interp=0)
+    with self.assertRaises(IndexError):
+      mujoco.mj_readCtrl(model, data, 1, 0.02, result, interp=0)
+    with self.assertRaises(IndexError):
+      mujoco.mj_initCtrlHistory(model, data, -1, times, values)
+    with self.assertRaises(IndexError):
+      mujoco.mj_initCtrlHistory(model, data, 1, times, values)
+    with self.assertRaises(TypeError):
+      # wrong result size
+      mujoco.mj_readCtrl(model, data, 0, 0.02, np.zeros(2), interp=0)
     with self.assertRaises(TypeError):
       # wrong times
       mujoco.mj_initCtrlHistory(model, data, 0, np.zeros(3), values)
     with self.assertRaises(TypeError):
       # wrong values
       mujoco.mj_initCtrlHistory(model, data, 0, times, np.zeros(5))
+
+    # Multi-input actuator (PID with pos, vel, ff -> ctrlnum=3)
+    mimo_xml = r"""
+<mujoco>
+  <worldbody>
+    <body>
+      <geom type="sphere" size="0.1"/>
+      <joint name="hinge" type="hinge"/>
+    </body>
+  </worldbody>
+  <actuator>
+    <pid name="pid" joint="hinge" kp="10" kv="2" input="pos vel ff"
+         delay="0.01" nsample="3"/>
+  </actuator>
+</mujoco>
+"""
+    mimo_model = mujoco.MjModel.from_xml_string(mimo_xml)
+    mimo_data = mujoco.MjData(mimo_model)
+    self.assertEqual(mimo_model.actuator_ctrlnum[0], 3)
+    mimo_times = np.array([0.0, 0.01, 0.02])
+    mimo_values = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=DTYPE)
+    mujoco.mj_initCtrlHistory(mimo_model, mimo_data, 0, mimo_times, mimo_values)
+    mimo_result = np.zeros(3, DTYPE)
+    mujoco.mj_readCtrl(mimo_model, mimo_data, 0, 0.02, mimo_result, interp=0)
+    np.testing.assert_array_equal(mimo_result, [4, 5, 6])
+
+    # Linear interpolation (interp=1) writes directly into mimo_result (ptr == NULL)
+    mujoco.mj_readCtrl(mimo_model, mimo_data, 0, 0.025, mimo_result, interp=1)
+    np.testing.assert_allclose(mimo_result, [5.5, 6.5, 7.5])
 
   def test_mj_read_sensor_and_init_sensor_delay(self):
     xml = r"""

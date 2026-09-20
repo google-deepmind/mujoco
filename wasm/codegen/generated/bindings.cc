@@ -1936,10 +1936,6 @@ mjtNum mj_rayMesh_wrapper(const MjModel& m, const MjData& d, int geomid, const N
   return mj_rayMesh(m.get(), d.get(), geomid, pnt_.data(), vec_.data(), normal_.data());
 }
 
-mjtNum mj_readCtrl_wrapper(const MjModel& m, const MjData& d, int id, mjtNum time, int interp) {
-  return mj_readCtrl(m.get(), d.get(), id, time, interp);
-}
-
 void mj_referenceConstraint_wrapper(const MjModel& m, MjData& d) {
   mj_referenceConstraint(m.get(), d.get());
 }
@@ -6405,7 +6401,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_rayFlex", &mj_rayFlex_wrapper);
   function("mj_rayHfield", &mj_rayHfield_wrapper);
   function("mj_rayMesh", &mj_rayMesh_wrapper);
-  function("mj_readCtrl", &mj_readCtrl_wrapper);
   function("mj_referenceConstraint", &mj_referenceConstraint_wrapper);
   function("mj_resetCallbacks", &mj_resetCallbacks);
   function("mj_resetCtrl", &mj_resetCtrl_wrapper);

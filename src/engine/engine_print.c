@@ -1369,7 +1369,8 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
         char name[100];
         const char* actuator_name = mj_id2name(m, mjOBJ_ACTUATOR, i);
         snprintf(name, sizeof(name), "actuator %d '%s'", i, actuator_name ? actuator_name : "");
-        printDelayBuffer(name, d->history + adr, m->actuator_history[2*i], 1, fp, float_format);
+        printDelayBuffer(name, d->history + adr, m->actuator_history[2*i], m->actuator_ctrlnum[i],
+                         fp, float_format);
       }
     }
 

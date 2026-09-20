@@ -222,8 +222,21 @@ Copy concatenated state components specified by ``sig`` from  ``state`` into ``d
 .. _mj_readCtrl:
 
 Read the control value for an actuator at a given time, taking delays into account. If no history buffer exists, return
-``mjData.ctrl[id]``. If a history buffer exists (:ref:`nsample<actuator-general-nsample>` > 0), read from the delay
-buffer at ``time - actuator_delay[id]`` using the requested interpolation order:
+a pointer to the actuator's slice of ``mjData.ctrl``. If a history buffer exists (:ref:`nsample<actuator-general-nsample>` > 0),
+read from the delay buffer at ``time - actuator_delay[id]``. Note that the subtraction of the delay changes the semantic
+of the ``time`` argument from "time at which values were pushed into the delay buffer" to "time at which values come out
+of the delay buffer". See :ref:`Delays<CDelay>` for details.
+
+**Return value semantics:**
+
+- If no history buffer exists (:ref:`nsample<actuator-general-nsample>` = 0), returns a pointer to the actuator's slice
+  of ``mjData.ctrl``.
+- If a history buffer exists (:ref:`nsample<actuator-general-nsample>` > 0) and the requested time matches a stored
+  sample (always true for ``interp = 0``), returns a pointer to the data in the history buffer.
+- If interpolation is required (``interp = 1 or 2``), returns ``NULL`` and writes the interpolated result to
+  ``result`` (must be of size ``actuator_ctrlnum[id]``).
+
+**Interpolation:**
 
 - ``interp = 0``: Zero-order hold (piecewise constant)
 - ``interp = 1``: Piecewise Linear
@@ -231,10 +244,6 @@ buffer at ``time - actuator_delay[id]`` using the requested interpolation order:
 - ``interp = -1``: Use the actuator's :ref:`interp<actuator-general-interp>` value.
 
 Constant extrapolation is used outside of buffer bounds.
-
-Note that the subtraction of the delay changes the semantic of the ``time`` argument from "time at which values were
-pushed into the delay buffer" to "time at which values come out of the delay buffer". See :ref:`Delays<CDelay>` for
-details.
 
 .. _mj_readSensor:
 
@@ -275,8 +284,9 @@ Constant extrapolation is used outside of buffer bounds.
 .. _mj_initCtrlHistory:
 
 Initialize the history buffer for an actuator with custom values. The ``times`` array specifies the timestamps for each
-sample (must be length :ref:`nsample<actuator-general-nsample>`), and ``values`` specifies the control values. If
-``times`` is ``NULL``, the existing timestamps in the buffer are used, and only the values are updated.
+sample (must be length :ref:`nsample<actuator-general-nsample>`), and ``values`` specifies the control values (must be of
+size ``nsample * actuator_ctrlnum[id]``). If ``times`` is ``NULL``, the existing timestamps in the buffer are used, and
+only the values are updated.
 See :ref:`Delays<CDelay>` for details.
 
 .. _mj_initSensorHistory:

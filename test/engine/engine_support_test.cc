@@ -819,10 +819,13 @@ TEST_F(SupportTest, ReadCtrlNoDelay) {
   ASSERT_THAT(model.get(), NotNull());
   MjDataPtr data = MakeData(model);
 
-  // no delay: should return current ctrl value
+  // no delay: should return pointer to current ctrl value
   data->ctrl[0] = 42.0;
-  EXPECT_EQ(mj_readCtrl(model.get(), data.get(), 0, data->time, /*order=*/0),
-            42.0);
+  mjtNum result = 0;
+  const mjtNum* ptr = mj_readCtrl(model.get(), data.get(), 0, data->time,
+                                  &result, /*interp=*/0);
+  ASSERT_THAT(ptr, NotNull());
+  EXPECT_EQ(*ptr, 42.0);
 }
 
 TEST_F(SupportTest, ReadCtrlWithDelay) {
@@ -853,7 +856,10 @@ TEST_F(SupportTest, ReadCtrlWithDelay) {
 
   // initially, buffer should be filled with constant value (from init)
   // reading at current time should return the init value
-  mjtNum val = mj_readCtrl(model.get(), data.get(), 0, data->time, /*order=*/0);
+  mjtNum result = 0;
+  const mjtNum* ptr = mj_readCtrl(model.get(), data.get(), 0, data->time,
+                                  &result, /*interp=*/0);
+  mjtNum val = ptr ? *ptr : result;
   EXPECT_EQ(val, data->ctrl[0]);
 }
 
@@ -892,14 +898,68 @@ TEST_F(SupportTest, InitCtrlDelay) {
   //   time=0.04 -> lookup at 0.02 -> value 3.0
   //   time=0.03 -> lookup at 0.01 -> value 2.0
   //   time=0.02 -> lookup at 0.00 -> value 1.0
-  mjtNum val = mj_readCtrl(model.get(), data.get(), 0, 0.04, /*order=*/0);
+  mjtNum result = 0;
+  const mjtNum* ptr =
+      mj_readCtrl(model.get(), data.get(), 0, 0.04, &result, /*interp=*/0);
+  mjtNum val = ptr ? *ptr : result;
   EXPECT_EQ(val, 3.0);
 
-  val = mj_readCtrl(model.get(), data.get(), 0, 0.03, /*order=*/0);
+  ptr = mj_readCtrl(model.get(), data.get(), 0, 0.03, &result, /*interp=*/0);
+  val = ptr ? *ptr : result;
   EXPECT_EQ(val, 2.0);
 
-  val = mj_readCtrl(model.get(), data.get(), 0, 0.02, /*order=*/0);
+  ptr = mj_readCtrl(model.get(), data.get(), 0, 0.02, &result, /*interp=*/0);
+  val = ptr ? *ptr : result;
   EXPECT_EQ(val, 1.0);
+}
+
+TEST_F(SupportTest, InitCtrlDelayMultiInput) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <pid joint="slide" kp="10" kv="2" input="pos vel ff"
+           delay="0.02" nsample="3"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // nhistory = 2 + nsample + nsample*ctrlnum = 2 + 3 + 3*3 = 14
+  EXPECT_EQ(model->actuator_ctrlnum[0], 3);
+  EXPECT_EQ(model->actuator_history[0], 3);
+  EXPECT_EQ(model->nhistory, 14);
+
+  mjtNum times[3] = {0.0, 0.01, 0.02};
+  mjtNum values[9] = {
+      1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0,
+  };
+  mj_initCtrlHistory(model.get(), data.get(), 0, times, values);
+
+  // ZOH at time=0.03 -> lookup at 0.01 -> [4.0, 5.0, 6.0]
+  mjtNum result[3] = {0, 0, 0};
+  const mjtNum* ptr =
+      mj_readCtrl(model.get(), data.get(), 0, 0.03, result, /*interp=*/0);
+  ASSERT_THAT(ptr, NotNull());
+  EXPECT_EQ(ptr[0], 4.0);
+  EXPECT_EQ(ptr[1], 5.0);
+  EXPECT_EQ(ptr[2], 6.0);
+
+  // linear interp at time=0.035 -> lookup at 0.015 -> [5.5, 6.5, 7.5]
+  ptr = mj_readCtrl(model.get(), data.get(), 0, 0.035, result, /*interp=*/1);
+  EXPECT_EQ(ptr, nullptr);
+  EXPECT_NEAR(result[0], 5.5, 1e-6);
+  EXPECT_NEAR(result[1], 6.5, 1e-6);
+  EXPECT_NEAR(result[2], 7.5, 1e-6);
 }
 
 TEST_F(SupportTest, InitCtrlDelayNullTimes) {

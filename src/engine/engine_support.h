@@ -139,9 +139,11 @@ void mju_camIntrinsics(const mjModel* m, int camid,
                        mjtNum* ortho_extent);
 
 // read ctrl value for actuator at given time
-// returns d->ctrl[id] if no history, otherwise reads from history buffer
+// returns pointer to ctrl (no history) or history buffer (exact match),
+// or NULL if interpolation performed (writes to result)
 // interp: 0=zero-order-hold, 1=linear, 2=cubic spline
-MJAPI mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int interp);
+MJAPI const mjtNum* mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time,
+                                mjtNum* result, int interp);
 
 // read sensor value from history buffer at given time
 // returns pointer to sensordata (no history) or history buffer (exact match),

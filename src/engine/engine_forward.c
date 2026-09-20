@@ -391,7 +391,9 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   mju_copy(ctrl, d->ctrl, nu);
   for (int i = 0; i < nactuator; i++) {
     if (m->actuator_delay[i]) {
-      ctrl[m->actuator_ctrladr[i]] = mj_readCtrl(m, d, i, d->time, -1);
+      int adr = m->actuator_ctrladr[i];
+      const mjtNum* ptr = mj_readCtrl(m, d, i, d->time, ctrl + adr, -1);
+      if (ptr) mju_copy(ctrl + adr, ptr, m->actuator_ctrlnum[i]);
     }
   }
 
@@ -1344,8 +1346,10 @@ static void advanceStart(const mjModel* m, mjData* d, const mjtNum* act_dot) {
       if (nsample == 0) continue;
 
       // get history buffer pointer and insert ctrl at current time
+      int dim = m->actuator_ctrlnum[i];
       mjtNum* buf = d->history + m->actuator_historyadr[i];
-      *mju_historyInsert(buf, nsample, /*dim=*/1, d->time) = d->ctrl[m->actuator_ctrladr[i]];
+      mjtNum* slot = mju_historyInsert(buf, nsample, dim, d->time);
+      mju_copy(slot, d->ctrl + m->actuator_ctrladr[i], dim);
     }
 
     // advance sensor history buffers

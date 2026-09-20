@@ -518,9 +518,11 @@ MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, int sig
 MJAPI void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, int sig);
 
 // Read ctrl value for actuator at given time.
-// Returns d->ctrl[id] if no history, otherwise reads from history buffer.
+// Returns pointer to ctrl (no history) or history buffer (exact match),
+// or NULL if interpolation performed (writes to result).
 // interp: 0=zero-order-hold, 1=linear, 2=cubic spline.
-MJAPI mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int interp);
+MJAPI const mjtNum* mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time,
+                                mjtNum* result, int interp);
 
 // Read sensor value from history buffer at given time.
 // Returns pointer to sensordata (no history) or history buffer (exact match),

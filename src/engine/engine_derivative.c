@@ -2405,7 +2405,14 @@ static int actuatorDerivSkip(const mjModel* m, const mjData* d, int i, int sleep
 static mjtNum actuatorInput(const mjModel* m, const mjData* d, int i) {
   if (m->actuator_dyntype[i] == mjDYN_NONE) {
     int adr = m->actuator_ctrladr[i];
-    mjtNum ctrl = m->actuator_delay[i] ? mj_readCtrl(m, d, i, d->time, -1) : d->ctrl[adr];
+    mjtNum ctrl;
+    if (m->actuator_delay[i]) {
+      mjtNum ctrl_buf[4] = {0};
+      const mjtNum* ptr = mj_readCtrl(m, d, i, d->time, ctrl_buf, -1);
+      ctrl = ptr ? ptr[0] : ctrl_buf[0];
+    } else {
+      ctrl = d->ctrl[adr];
+    }
     if (!mjDISABLED(mjDSBL_CLAMPCTRL) && m->actuator_ctrllimited[adr]) {
       ctrl = mju_clip(ctrl, m->actuator_ctrlrange[2*adr], m->actuator_ctrlrange[2*adr+1]);
     }

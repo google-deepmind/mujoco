@@ -3184,6 +3184,117 @@ TEST_F(ForwardTest, ActuatorDelayLinearInterp) {
   EXPECT_NEAR(data->actuator_force[0], 15.0, MjTol(1e-10, 5e-6)) << "step 2";
 }
 
+// Test actuator delay with multi-input PID actuator (input="pos vel ff")
+TEST_F(ForwardTest, ActuatorDelayMultiInputPID) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1" mass="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <pid joint="slide" kp="10" kv="2" input="pos vel ff"
+           delay="0.02" nsample="2"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  EXPECT_EQ(model->actuator_ctrlnum[0], 3);
+  EXPECT_EQ(model->actuator_history[0], 2);
+  EXPECT_EQ(model->nhistory, 2 + 2 + 2 * 3);
+
+  // Set pos=1.0, vel=2.0, ff=5.0
+  // Undelayed force at qpos=0, qvel=0 would be kp*1 + kv*2 + ff = 10 + 4 + 5 =
+  // 19
+  data->ctrl[0] = 1.0;
+  data->ctrl[1] = 2.0;
+  data->ctrl[2] = 5.0;
+
+  // Step 1 & 2: all three inputs (pos, vel, ff) must be delayed (force = 0)
+  mj_step(model.get(), data.get());
+  EXPECT_NEAR(data->actuator_force[0], 0.0, 1e-10);
+
+  mj_step(model.get(), data.get());
+  EXPECT_NEAR(data->actuator_force[0], 0.0, 1e-10);
+
+  // Step 3: delayed inputs [1.0, 2.0, 5.0] arrive while body is still at rest
+  mj_step(model.get(), data.get());
+  EXPECT_NEAR(data->actuator_force[0], 19.0, 1e-10);
+}
+
+// Test actuator delay with SO(3) orientation actuators (expmap and quat inputs)
+TEST_F(ForwardTest, ActuatorDelaySO3) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+    <worldbody>
+      <body>
+        <joint name="b1" type="ball"/>
+        <geom size="0.1" mass="1"/>
+      </body>
+      <body>
+        <joint name="b2" type="ball"/>
+        <geom size="0.1" mass="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <orientation joint="b1" kp="10" input="expmap" delay="0.02" nsample="2"/>
+      <orientation joint="b2" kp="10" input="quat" delay="0.02" nsample="2"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  EXPECT_EQ(model->actuator_ctrlnum[0], 3);
+  EXPECT_EQ(model->actuator_ctrlnum[1], 4);
+  // nhistory = (2 + 2 + 2*3) + (2 + 2 + 2*4) = 10 + 12 = 22
+  EXPECT_EQ(model->nhistory, 22);
+  EXPECT_EQ(model->actuator_historyadr[0], 0);
+  EXPECT_EQ(model->actuator_historyadr[1], 10);
+
+  // Command a 0.2 rad rotation around Y for b1 (expmap) and Z for b2 (quat)
+  data->ctrl[0] = 0.0;
+  data->ctrl[1] = 0.2;
+  data->ctrl[2] = 0.0;
+
+  mjtNum half_angle = 0.15;
+  data->ctrl[3] = mju_cos(half_angle);
+  data->ctrl[4] = 0.0;
+  data->ctrl[5] = 0.0;
+  data->ctrl[6] = mju_sin(half_angle);
+
+  // Steps 1 & 2: both SO3 actuators read neutral history, producing zero torque
+  mj_step(model.get(), data.get());
+  for (int k = 0; k < 6; k++) {
+    EXPECT_NEAR(data->actuator_force[k], 0.0, 1e-10);
+  }
+
+  mj_step(model.get(), data.get());
+  for (int k = 0; k < 6; k++) {
+    EXPECT_NEAR(data->actuator_force[k], 0.0, 1e-10);
+  }
+
+  // Step 3: delayed commands arrive; b1 gets torque along Y (kp * 0.2 = 2.0),
+  // b2 gets torque along Z (kp * 0.3 = 3.0)
+  mj_step(model.get(), data.get());
+  EXPECT_NEAR(data->actuator_force[0], 0.0, 1e-10);
+  EXPECT_NEAR(data->actuator_force[1], 2.0, MjTol(1e-10, 1e-5));
+  EXPECT_NEAR(data->actuator_force[2], 0.0, 1e-10);
+  EXPECT_NEAR(data->actuator_force[3], 0.0, 1e-10);
+  EXPECT_NEAR(data->actuator_force[4], 0.0, 1e-10);
+  EXPECT_NEAR(data->actuator_force[5], 3.0, MjTol(1e-10, 1e-5));
+}
+
 TEST_F(ForwardTest, FlexTrilinearInstability) {
   // model parameters matches user's trilinear.xml
   constexpr char xml[] = R"(
