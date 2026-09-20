@@ -14,9 +14,9 @@
 # ==============================================================================
 """Tests for sensor functions."""
 
+import itertools
 from absl.testing import absltest
 from absl.testing import parameterized
-import itertools
 import jax
 from jax import numpy as jp
 import mujoco
@@ -89,15 +89,20 @@ class SensorTest(parameterized.TestCase):
     d = mujoco.MjData(m)
     mujoco.mj_step(m, d, 10)
     mx = mjx.put_model(m)
-    dx = mjx.put_data(m, d)
+    dx = mjx.forward(mx, mjx.put_data(m, d))
 
-    def forward(offset):
-      data = dx.replace(qpos=dx.qpos + offset * jp.zeros_like(dx.qpos))
-      return mjx.forward(mx, data).sensordata
+    def sensor_fn(offset):
+      data = jax.tree.map(
+          lambda x: x + offset * jp.zeros_like(x)
+          if isinstance(x, jax.Array) and jp.issubdtype(x.dtype, jp.floating)
+          else x,
+          dx,
+      )
+      return mjx.sensor_acc(mx, data).sensordata
 
     offsets = jp.zeros((2, 4))
-    actual = jax.jit(jax.vmap(jax.vmap(forward)))(offsets)
-    expected = np.asarray(mjx.forward(mx, dx).sensordata)
+    actual = jax.jit(jax.vmap(jax.vmap(sensor_fn)))(offsets)
+    expected = np.asarray(dx.sensordata)
     _assert_eq(actual, np.broadcast_to(expected, actual.shape), 'sensordata')
 
   def test_disable_sensor(self):
