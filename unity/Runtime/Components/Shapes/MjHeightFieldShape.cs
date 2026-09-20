@@ -172,8 +172,6 @@ public class MjHeightFieldShape : IMjShape {
 
     terrainObject.transform.parent = parent;
     newTerrain.materialTemplate = new Material(Shader.Find("Nature/Terrain/Diffuse"));
-    var coll = newTerrain.GetComponent<TerrainCollider>();
-    coll.terrainData = newTerrain.terrainData;
     Terrain = newTerrain;
     terrainObject.transform.localPosition = new Vector3(-50, 0, -50);
   }
