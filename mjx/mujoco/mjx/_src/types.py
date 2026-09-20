@@ -14,12 +14,36 @@
 # ==============================================================================
 """Base types used in MJX."""
 
+import dataclasses
 import enum
+from typing import Any, Tuple, Union
+import warnings
 
 import jax
 import mujoco
 from mujoco.mjx._src.dataclasses import PyTreeNode  # pylint: disable=g-importing-member
+from mujoco.mjx.warp import types as mjxw_types
 import numpy as np
+
+
+class Impl(enum.Enum):
+  """Implementation to use."""
+
+  CPP = 'cpp'
+  C = 'cpp'  # alias C -> CPP
+  JAX = 'jax'
+  WARP = 'warp'
+
+  @classmethod
+  def _missing_(cls, value):
+    # This method is called only when lookup by value fails
+    # (e.g., Impl('JAX') fails initially because 'JAX' != 'jax')
+    if not isinstance(value, str):
+      return None
+    for member in cls:
+      if member.value == value.lower():
+        return member
+    return None
 
 
 class DisableBit(enum.IntFlag):
@@ -31,26 +55,47 @@ class DisableBit(enum.IntFlag):
     FRICTIONLOSS: joint and tendon frictionloss constraints
     LIMIT:        joint and tendon limit constraints
     CONTACT:      contact constraints
-    PASSIVE:      passive forces
+    SPRING:       passive spring forces
+    DAMPER:       passive damper forces
     GRAVITY:      gravitational forces
     CLAMPCTRL:    clamp control to specified range
     WARMSTART:    warmstart constraint solver
     ACTUATION:    apply actuation forces
     REFSAFE:      integrator safety: make ref[0]>=2*timestep
+    SENSOR:       sensors
   """
+
   CONSTRAINT = mujoco.mjtDisableBit.mjDSBL_CONSTRAINT
   EQUALITY = mujoco.mjtDisableBit.mjDSBL_EQUALITY
+  FRICTIONLOSS = mujoco.mjtDisableBit.mjDSBL_FRICTIONLOSS
   LIMIT = mujoco.mjtDisableBit.mjDSBL_LIMIT
   CONTACT = mujoco.mjtDisableBit.mjDSBL_CONTACT
-  PASSIVE = mujoco.mjtDisableBit.mjDSBL_PASSIVE
+  SPRING = mujoco.mjtDisableBit.mjDSBL_SPRING
+  DAMPER = mujoco.mjtDisableBit.mjDSBL_DAMPER
   GRAVITY = mujoco.mjtDisableBit.mjDSBL_GRAVITY
   CLAMPCTRL = mujoco.mjtDisableBit.mjDSBL_CLAMPCTRL
   WARMSTART = mujoco.mjtDisableBit.mjDSBL_WARMSTART
   ACTUATION = mujoco.mjtDisableBit.mjDSBL_ACTUATION
   REFSAFE = mujoco.mjtDisableBit.mjDSBL_REFSAFE
+  SENSOR = mujoco.mjtDisableBit.mjDSBL_SENSOR
   EULERDAMP = mujoco.mjtDisableBit.mjDSBL_EULERDAMP
   FILTERPARENT = mujoco.mjtDisableBit.mjDSBL_FILTERPARENT
-  # unsupported: FRICTIONLOSS, SENSOR, MIDPHASE
+  # unsupported: MIDPHASE
+
+
+class EnableBit(enum.IntFlag):
+  """Enable optional feature bitflags.
+
+  Attributes:
+    INVDISCRETE: discrete-time inverse dynamics
+    SLEEP: sleeping
+    IPC: IPC flex contact mode of the discrete integrator
+  """
+
+  INVDISCRETE = mujoco.mjtEnableBit.mjENBL_INVDISCRETE
+  # unsupported: OVERRIDE, ENERGY, FWDINV, ISLAND, DIAGEXACT
+  SLEEP = mujoco.mjtEnableBit.mjENBL_SLEEP
+  IPC = mujoco.mjtEnableBit.mjENBL_IPC
 
 
 class JointType(enum.IntEnum):
@@ -62,10 +107,11 @@ class JointType(enum.IntEnum):
     SLIDE: sliding distance along body-fixed axis       (1,)
     HINGE: rotation angle (rad) around body-fixed axis  (1,)
   """
-  FREE = mujoco.mjtJoint.mjJNT_FREE
-  BALL = mujoco.mjtJoint.mjJNT_BALL
-  SLIDE = mujoco.mjtJoint.mjJNT_SLIDE
-  HINGE = mujoco.mjtJoint.mjJNT_HINGE
+
+  FREE = mujoco.mjtJoint.mjJNT_FREE  # pyrefly: ignore[bad-assignment]
+  BALL = mujoco.mjtJoint.mjJNT_BALL  # pyrefly: ignore[bad-assignment]
+  SLIDE = mujoco.mjtJoint.mjJNT_SLIDE  # pyrefly: ignore[bad-assignment]
+  HINGE = mujoco.mjtJoint.mjJNT_HINGE  # pyrefly: ignore[bad-assignment]
 
   def dof_width(self) -> int:
     return {0: 6, 1: 3, 2: 1, 3: 1}[self.value]
@@ -80,10 +126,15 @@ class IntegratorType(enum.IntEnum):
   Attributes:
     EULER: semi-implicit Euler
     RK4: 4th-order Runge Kutta
+    IMPLICITFAST: implicit in velocity, no rne derivative
+    DISCRETE: discrete step map
   """
-  EULER = mujoco.mjtIntegrator.mjINT_EULER
-  RK4 = mujoco.mjtIntegrator.mjINT_RK4
-  # unsupported: IMPLICIT, IMPLICITFAST
+
+  EULER = mujoco.mjtIntegrator.mjINT_EULER  # pyrefly: ignore[bad-assignment]
+  RK4 = mujoco.mjtIntegrator.mjINT_RK4  # pyrefly: ignore[bad-assignment]
+  IMPLICITFAST = mujoco.mjtIntegrator.mjINT_IMPLICITFAST  # pyrefly: ignore[bad-assignment]
+  DISCRETE = mujoco.mjtIntegrator.mjINT_DISCRETE  # pyrefly: ignore[bad-assignment]
+  # unsupported: IMPLICIT
 
 
 class GeomType(enum.IntEnum):
@@ -101,15 +152,33 @@ class GeomType(enum.IntEnum):
     SDF: signed distance field
   """
 
-  PLANE = mujoco.mjtGeom.mjGEOM_PLANE
-  HFIELD = mujoco.mjtGeom.mjGEOM_HFIELD
-  SPHERE = mujoco.mjtGeom.mjGEOM_SPHERE
-  CAPSULE = mujoco.mjtGeom.mjGEOM_CAPSULE
-  ELLIPSOID = mujoco.mjtGeom.mjGEOM_ELLIPSOID
-  CYLINDER = mujoco.mjtGeom.mjGEOM_CYLINDER
-  BOX = mujoco.mjtGeom.mjGEOM_BOX
-  MESH = mujoco.mjtGeom.mjGEOM_MESH
+  PLANE = mujoco.mjtGeom.mjGEOM_PLANE  # pyrefly: ignore[bad-assignment]
+  HFIELD = mujoco.mjtGeom.mjGEOM_HFIELD  # pyrefly: ignore[bad-assignment]
+  SPHERE = mujoco.mjtGeom.mjGEOM_SPHERE  # pyrefly: ignore[bad-assignment]
+  CAPSULE = mujoco.mjtGeom.mjGEOM_CAPSULE  # pyrefly: ignore[bad-assignment]
+  ELLIPSOID = mujoco.mjtGeom.mjGEOM_ELLIPSOID  # pyrefly: ignore[bad-assignment]
+  CYLINDER = mujoco.mjtGeom.mjGEOM_CYLINDER  # pyrefly: ignore[bad-assignment]
+  BOX = mujoco.mjtGeom.mjGEOM_BOX  # pyrefly: ignore[bad-assignment]
+  MESH = mujoco.mjtGeom.mjGEOM_MESH  # pyrefly: ignore[bad-assignment]
   # unsupported: NGEOMTYPES, ARROW*, LINE, SKIN, LABEL, NONE
+
+
+class ConvexMesh(PyTreeNode):
+  """Geom properties for convex meshes.
+
+  Attributes:
+    vert: vertices of the convex mesh
+    face: faces of the convex mesh
+    face_normal: normal vectors for the faces
+    edge: edge indexes for all edges in the convex mesh
+    edge_face_normal: indexes for face normals adjacent to edges in `edge`
+  """
+
+  vert: jax.Array
+  face: jax.Array
+  face_normal: jax.Array
+  edge: jax.Array
+  edge_face_normal: jax.Array
 
 
 class ConeType(enum.IntEnum):
@@ -117,9 +186,11 @@ class ConeType(enum.IntEnum):
 
   Attributes:
     PYRAMIDAL: pyramidal
+    ELLIPTIC: elliptic
   """
-  PYRAMIDAL = mujoco.mjtCone.mjCONE_PYRAMIDAL
-  # unsupported: ELLIPTIC
+
+  PYRAMIDAL = mujoco.mjtCone.mjCONE_PYRAMIDAL  # pyrefly: ignore[bad-assignment]
+  ELLIPTIC = mujoco.mjtCone.mjCONE_ELLIPTIC  # pyrefly: ignore[bad-assignment]
 
 
 class JacobianType(enum.IntEnum):
@@ -130,9 +201,10 @@ class JacobianType(enum.IntEnum):
     SPARSE: sparse
     AUTO: sparse if nv>60 and device is TPU, dense otherwise
   """
-  DENSE = mujoco.mjtJacobian.mjJAC_DENSE
-  SPARSE = mujoco.mjtJacobian.mjJAC_SPARSE
-  AUTO = mujoco.mjtJacobian.mjJAC_AUTO
+
+  DENSE = mujoco.mjtJacobian.mjJAC_DENSE  # pyrefly: ignore[bad-assignment]
+  SPARSE = mujoco.mjtJacobian.mjJAC_SPARSE  # pyrefly: ignore[bad-assignment]
+  AUTO = mujoco.mjtJacobian.mjJAC_AUTO  # pyrefly: ignore[bad-assignment]
 
 
 class SolverType(enum.IntEnum):
@@ -140,10 +212,12 @@ class SolverType(enum.IntEnum):
 
   Attributes:
     CG: Conjugate gradient (primal)
+    NEWTON: Newton (primal)
   """
+
   # unsupported: PGS
-  CG = mujoco.mjtSolver.mjSOL_CG
-  NEWTON = mujoco.mjtSolver.mjSOL_NEWTON
+  CG = mujoco.mjtSolver.mjSOL_CG  # pyrefly: ignore[bad-assignment]
+  NEWTON = mujoco.mjtSolver.mjSOL_NEWTON  # pyrefly: ignore[bad-assignment]
 
 
 class EqType(enum.IntEnum):
@@ -153,11 +227,32 @@ class EqType(enum.IntEnum):
     CONNECT: connect two bodies at a point (ball joint)
     WELD: fix relative position and orientation of two bodies
     JOINT: couple the values of two scalar joints with cubic
+    TENDON: couple the lengths of two tendons with cubic
   """
-  CONNECT = mujoco.mjtEq.mjEQ_CONNECT
-  WELD = mujoco.mjtEq.mjEQ_WELD
-  JOINT = mujoco.mjtEq.mjEQ_JOINT
-  # unsupported: TENDON, DISTANCE
+
+  CONNECT = mujoco.mjtEq.mjEQ_CONNECT  # pyrefly: ignore[bad-assignment]
+  WELD = mujoco.mjtEq.mjEQ_WELD  # pyrefly: ignore[bad-assignment]
+  JOINT = mujoco.mjtEq.mjEQ_JOINT  # pyrefly: ignore[bad-assignment]
+  TENDON = mujoco.mjtEq.mjEQ_TENDON  # pyrefly: ignore[bad-assignment]
+  # unsupported: DISTANCE
+
+
+class WrapType(enum.IntEnum):
+  """Type of tendon wrap object.
+
+  Attributes:
+    JOINT: constant moment arm
+    PULLEY: pulley used to split tendon
+    SITE: pass through site
+    SPHERE: wrap around sphere
+    CYLINDER: wrap around (infinite) cylinder
+  """
+
+  JOINT = mujoco.mjtWrap.mjWRAP_JOINT  # pyrefly: ignore[bad-assignment]
+  PULLEY = mujoco.mjtWrap.mjWRAP_PULLEY  # pyrefly: ignore[bad-assignment]
+  SITE = mujoco.mjtWrap.mjWRAP_SITE  # pyrefly: ignore[bad-assignment]
+  SPHERE = mujoco.mjtWrap.mjWRAP_SPHERE  # pyrefly: ignore[bad-assignment]
+  CYLINDER = mujoco.mjtWrap.mjWRAP_CYLINDER  # pyrefly: ignore[bad-assignment]
 
 
 class TrnType(enum.IntEnum):
@@ -165,11 +260,16 @@ class TrnType(enum.IntEnum):
 
   Attributes:
     JOINT: force on joint
+    JOINTINPARENT: force on joint, expressed in parent frame
+    TENDON: force on tendon
     SITE: force on site
   """
-  JOINT = mujoco.mjtTrn.mjTRN_JOINT
-  SITE = mujoco.mjtTrn.mjTRN_SITE
-  # unsupported: JOINTINPARENT, SLIDERCRANK, TENDON, BODY
+
+  JOINT = mujoco.mjtTrn.mjTRN_JOINT  # pyrefly: ignore[bad-assignment]
+  JOINTINPARENT = mujoco.mjtTrn.mjTRN_JOINTINPARENT  # pyrefly: ignore[bad-assignment]
+  SITE = mujoco.mjtTrn.mjTRN_SITE  # pyrefly: ignore[bad-assignment]
+  TENDON = mujoco.mjtTrn.mjTRN_TENDON  # pyrefly: ignore[bad-assignment]
+  # unsupported: SLIDERCRANK, BODY
 
 
 class DynType(enum.IntEnum):
@@ -180,12 +280,15 @@ class DynType(enum.IntEnum):
     INTEGRATOR: integrator: da/dt = u
     FILTER: linear filter: da/dt = (u-a) / tau
     FILTEREXACT: linear filter: da/dt = (u-a) / tau, with exact integration
+    MUSCLE: piece-wise linear filter with two time constants
   """
-  NONE = mujoco.mjtDyn.mjDYN_NONE
-  INTEGRATOR = mujoco.mjtDyn.mjDYN_INTEGRATOR
-  FILTER = mujoco.mjtDyn.mjDYN_FILTER
-  FILTEREXACT = mujoco.mjtDyn.mjDYN_FILTEREXACT
-  # unsupported: MUSCLE, USER
+
+  NONE = mujoco.mjtDyn.mjDYN_NONE  # pyrefly: ignore[bad-assignment]
+  INTEGRATOR = mujoco.mjtDyn.mjDYN_INTEGRATOR  # pyrefly: ignore[bad-assignment]
+  FILTER = mujoco.mjtDyn.mjDYN_FILTER  # pyrefly: ignore[bad-assignment]
+  FILTEREXACT = mujoco.mjtDyn.mjDYN_FILTEREXACT  # pyrefly: ignore[bad-assignment]
+  MUSCLE = mujoco.mjtDyn.mjDYN_MUSCLE  # pyrefly: ignore[bad-assignment]
+  # unsupported: USER
 
 
 class GainType(enum.IntEnum):
@@ -194,10 +297,13 @@ class GainType(enum.IntEnum):
   Attributes:
     FIXED: fixed gain
     AFFINE: const + kp*length + kv*velocity
+    MUSCLE: muscle FLV curve computed by muscle_gain
   """
-  FIXED = mujoco.mjtGain.mjGAIN_FIXED
-  AFFINE = mujoco.mjtGain.mjGAIN_AFFINE
-  # unsupported: MUSCLE, USER
+
+  FIXED = mujoco.mjtGain.mjGAIN_FIXED  # pyrefly: ignore[bad-assignment]
+  AFFINE = mujoco.mjtGain.mjGAIN_AFFINE  # pyrefly: ignore[bad-assignment]
+  MUSCLE = mujoco.mjtGain.mjGAIN_MUSCLE  # pyrefly: ignore[bad-assignment]
+  # unsupported: USER
 
 
 class BiasType(enum.IntEnum):
@@ -206,10 +312,13 @@ class BiasType(enum.IntEnum):
   Attributes:
     NONE: no bias
     AFFINE: const + kp*length + kv*velocity
+    MUSCLE: muscle passive force computed by muscle_bias
   """
-  NONE = mujoco.mjtBias.mjBIAS_NONE
-  AFFINE = mujoco.mjtBias.mjBIAS_AFFINE
-  # unsupported: MUSCLE, USER
+
+  NONE = mujoco.mjtBias.mjBIAS_NONE  # pyrefly: ignore[bad-assignment]
+  AFFINE = mujoco.mjtBias.mjBIAS_AFFINE  # pyrefly: ignore[bad-assignment]
+  MUSCLE = mujoco.mjtBias.mjBIAS_MUSCLE  # pyrefly: ignore[bad-assignment]
+  # unsupported: USER
 
 
 class ConstraintType(enum.IntEnum):
@@ -218,16 +327,19 @@ class ConstraintType(enum.IntEnum):
   Attributes:
     EQUALITY: equality constraint
     LIMIT_JOINT: joint limit
+    LIMIT_TENDON: tendon limit
     CONTACT_FRICTIONLESS: frictionless contact
     CONTACT_PYRAMIDAL: frictional contact, pyramidal friction cone
   """
-  EQUALITY = mujoco.mjtConstraint.mjCNSTR_EQUALITY
-  # unsupported: FRICTION_DOF, FRICTION_TENDON
-  LIMIT_JOINT = mujoco.mjtConstraint.mjCNSTR_LIMIT_JOINT
-  # unsupported: LIMIT_TENDON
-  CONTACT_FRICTIONLESS = mujoco.mjtConstraint.mjCNSTR_CONTACT_FRICTIONLESS
-  CONTACT_PYRAMIDAL = mujoco.mjtConstraint.mjCNSTR_CONTACT_PYRAMIDAL
-  # unsupported: CONTACT_ELLIPTIC
+
+  EQUALITY = mujoco.mjtConstraint.mjCNSTR_EQUALITY  # pyrefly: ignore[bad-assignment]
+  FRICTION_DOF = mujoco.mjtConstraint.mjCNSTR_FRICTION_DOF  # pyrefly: ignore[bad-assignment]
+  FRICTION_TENDON = mujoco.mjtConstraint.mjCNSTR_FRICTION_TENDON  # pyrefly: ignore[bad-assignment]
+  LIMIT_JOINT = mujoco.mjtConstraint.mjCNSTR_LIMIT_JOINT  # pyrefly: ignore[bad-assignment]
+  LIMIT_TENDON = mujoco.mjtConstraint.mjCNSTR_LIMIT_TENDON  # pyrefly: ignore[bad-assignment]
+  CONTACT_FRICTIONLESS = mujoco.mjtConstraint.mjCNSTR_CONTACT_FRICTIONLESS  # pyrefly: ignore[bad-assignment]
+  CONTACT_PYRAMIDAL = mujoco.mjtConstraint.mjCNSTR_CONTACT_PYRAMIDAL  # pyrefly: ignore[bad-assignment]
+  CONTACT_ELLIPTIC = mujoco.mjtConstraint.mjCNSTR_CONTACT_ELLIPTIC  # pyrefly: ignore[bad-assignment]
 
 
 class CamLightType(enum.IntEnum):
@@ -241,59 +353,107 @@ class CamLightType(enum.IntEnum):
     TARGETBODYCOM: pos fixed in body, rot tracks target subtree com
   """
 
-  FIXED = mujoco.mjtCamLight.mjCAMLIGHT_FIXED
-  TRACK = mujoco.mjtCamLight.mjCAMLIGHT_TRACK
-  TRACKCOM = mujoco.mjtCamLight.mjCAMLIGHT_TRACKCOM
-  TARGETBODY = mujoco.mjtCamLight.mjCAMLIGHT_TARGETBODY
-  TARGETBODYCOM = mujoco.mjtCamLight.mjCAMLIGHT_TARGETBODYCOM
+  FIXED = mujoco.mjtCamLight.mjCAMLIGHT_FIXED  # pyrefly: ignore[bad-assignment]
+  TRACK = mujoco.mjtCamLight.mjCAMLIGHT_TRACK  # pyrefly: ignore[bad-assignment]
+  TRACKCOM = mujoco.mjtCamLight.mjCAMLIGHT_TRACKCOM  # pyrefly: ignore[bad-assignment]
+  TARGETBODY = mujoco.mjtCamLight.mjCAMLIGHT_TARGETBODY  # pyrefly: ignore[bad-assignment]
+  TARGETBODYCOM = mujoco.mjtCamLight.mjCAMLIGHT_TARGETBODYCOM  # pyrefly: ignore[bad-assignment]
 
 
-class Option(PyTreeNode):
-  """Physics options.
+class SensorType(enum.IntEnum):
+  """Type of sensor.
 
   Attributes:
-    timestep:         timestep
-    impratio:         ratio of friction-to-normal contact impedance
-    tolerance:        main solver tolerance
-    ls_tolerance:     CG/Newton linesearch tolerance
-    gravity:          gravitational acceleration                 (3,)
-    wind:             wind (for lift, drag and viscosity)
-    density:          density of medium
-    viscosity:        viscosity of medium
-    has_fluid_params: automatically set by mjx if wind/density/viscosity are
-      nonzero. Not used by mj
-    integrator:       integration mode
-    cone:             type of friction cone
-    jacobian:         matrix layout for mass matrices (dense or sparse)
-                      (note that this is different from MuJoCo, where jacobian
-                      specifies whether efc_J and its accompanying matrices
-                      are dense or sparse.
-    solver:           solver algorithm
-    iterations:       number of main solver iterations
-    ls_iterations:    maximum number of CG/Newton linesearch iterations
-    disableflags:     bit flags for disabling standard features
+    MAGNETOMETER: magnetometer
+    CAMPROJECTION: camera projection
+    RANGEFINDER: rangefinder
+    JOINTPOS: joint position
+    TENDONPOS: scalar tendon position
+    ACTUATORPOS: actuator position
+    BALLQUAT: ball joint orientation
+    FRAMEPOS: frame position
+    FRAMEXAXIS: frame x-axis
+    FRAMEYAXIS: frame y-axis
+    FRAMEZAXIS: frame z-axis
+    FRAMEQUAT: frame orientation, represented as quaternion
+    SUBTREECOM: subtree centor of mass
+    CLOCK: simulation time
+    VELOCIMETER: 3D linear velocity, in local frame
+    GYRO: 3D angular velocity, in local frame
+    JOINTVEL: joint velocity
+    TENDONVEL: scalar tendon velocity
+    ACTUATORVEL: actuator velocity
+    BALLANGVEL: ball joint angular velocity
+    FRAMELINVEL: 3D linear velocity
+    FRAMEANGVEL: 3D angular velocity
+    SUBTREELINVEL: subtree linear velocity
+    SUBTREEANGMOM: subtree angular momentum
+    TOUCH: scalar contact normal forces summed over the sensor zone
+    CONTACT: contacts which occurred during the simulation
+    ACCELEROMETER: accelerometer
+    FORCE: force
+    TORQUE: torque
+    ACTUATORFRC: scalar actuator force
+    JOINTACTFRC: scalar actuator force, measured at the joint
+    TENDONACTFRC: scalar actuator force, measured at the tendon
+    FRAMELINACC: 3D linear acceleration
+    FRAMEANGACC: 3D angular acceleration
   """
-  timestep: jax.Array
-  # unsupported: apirate
-  impratio: jax.Array
-  tolerance: jax.Array
-  ls_tolerance: jax.Array
-  # unsupported: noslip_tolerance, mpr_tolerance
-  gravity: jax.Array
-  wind: jax.Array
-  density: jax.Array
-  viscosity: jax.Array
-  has_fluid_params: bool
-  # unsupported: magnetic, o_margin, o_solref, o_solimp
-  integrator: IntegratorType
-  cone: ConeType
-  jacobian: JacobianType
-  solver: SolverType
-  iterations: int
-  ls_iterations: int
-  # unsupported: noslip_iterations, mpr_iterations
-  disableflags: DisableBit
-  # unsupported: enableflags
+
+  MAGNETOMETER = mujoco.mjtSensor.mjSENS_MAGNETOMETER  # pyrefly: ignore[bad-assignment]
+  CAMPROJECTION = mujoco.mjtSensor.mjSENS_CAMPROJECTION  # pyrefly: ignore[bad-assignment]
+  RANGEFINDER = mujoco.mjtSensor.mjSENS_RANGEFINDER  # pyrefly: ignore[bad-assignment]
+  JOINTPOS = mujoco.mjtSensor.mjSENS_JOINTPOS  # pyrefly: ignore[bad-assignment]
+  TENDONPOS = mujoco.mjtSensor.mjSENS_TENDONPOS  # pyrefly: ignore[bad-assignment]
+  ACTUATORPOS = mujoco.mjtSensor.mjSENS_ACTUATORPOS  # pyrefly: ignore[bad-assignment]
+  BALLQUAT = mujoco.mjtSensor.mjSENS_BALLQUAT  # pyrefly: ignore[bad-assignment]
+  FRAMEPOS = mujoco.mjtSensor.mjSENS_FRAMEPOS  # pyrefly: ignore[bad-assignment]
+  FRAMEXAXIS = mujoco.mjtSensor.mjSENS_FRAMEXAXIS  # pyrefly: ignore[bad-assignment]
+  FRAMEYAXIS = mujoco.mjtSensor.mjSENS_FRAMEYAXIS  # pyrefly: ignore[bad-assignment]
+  FRAMEZAXIS = mujoco.mjtSensor.mjSENS_FRAMEZAXIS  # pyrefly: ignore[bad-assignment]
+  FRAMEQUAT = mujoco.mjtSensor.mjSENS_FRAMEQUAT  # pyrefly: ignore[bad-assignment]
+  SUBTREECOM = mujoco.mjtSensor.mjSENS_SUBTREECOM  # pyrefly: ignore[bad-assignment]
+  CLOCK = mujoco.mjtSensor.mjSENS_CLOCK  # pyrefly: ignore[bad-assignment]
+  VELOCIMETER = mujoco.mjtSensor.mjSENS_VELOCIMETER  # pyrefly: ignore[bad-assignment]
+  GYRO = mujoco.mjtSensor.mjSENS_GYRO  # pyrefly: ignore[bad-assignment]
+  JOINTVEL = mujoco.mjtSensor.mjSENS_JOINTVEL  # pyrefly: ignore[bad-assignment]
+  TENDONVEL = mujoco.mjtSensor.mjSENS_TENDONVEL  # pyrefly: ignore[bad-assignment]
+  ACTUATORVEL = mujoco.mjtSensor.mjSENS_ACTUATORVEL  # pyrefly: ignore[bad-assignment]
+  BALLANGVEL = mujoco.mjtSensor.mjSENS_BALLANGVEL  # pyrefly: ignore[bad-assignment]
+  FRAMELINVEL = mujoco.mjtSensor.mjSENS_FRAMELINVEL  # pyrefly: ignore[bad-assignment]
+  FRAMEANGVEL = mujoco.mjtSensor.mjSENS_FRAMEANGVEL  # pyrefly: ignore[bad-assignment]
+  SUBTREELINVEL = mujoco.mjtSensor.mjSENS_SUBTREELINVEL  # pyrefly: ignore[bad-assignment]
+  SUBTREEANGMOM = mujoco.mjtSensor.mjSENS_SUBTREEANGMOM  # pyrefly: ignore[bad-assignment]
+  TOUCH = mujoco.mjtSensor.mjSENS_TOUCH  # pyrefly: ignore[bad-assignment]
+  CONTACT = mujoco.mjtSensor.mjSENS_CONTACT  # pyrefly: ignore[bad-assignment]
+  ACCELEROMETER = mujoco.mjtSensor.mjSENS_ACCELEROMETER  # pyrefly: ignore[bad-assignment]
+  FORCE = mujoco.mjtSensor.mjSENS_FORCE  # pyrefly: ignore[bad-assignment]
+  TORQUE = mujoco.mjtSensor.mjSENS_TORQUE  # pyrefly: ignore[bad-assignment]
+  ACTUATORFRC = mujoco.mjtSensor.mjSENS_ACTUATORFRC  # pyrefly: ignore[bad-assignment]
+  JOINTACTFRC = mujoco.mjtSensor.mjSENS_JOINTACTFRC  # pyrefly: ignore[bad-assignment]
+  TENDONACTFRC = mujoco.mjtSensor.mjSENS_TENDONACTFRC  # pyrefly: ignore[bad-assignment]
+  FRAMELINACC = mujoco.mjtSensor.mjSENS_FRAMELINACC  # pyrefly: ignore[bad-assignment]
+  FRAMEANGACC = mujoco.mjtSensor.mjSENS_FRAMEANGACC  # pyrefly: ignore[bad-assignment]
+
+
+class ObjType(PyTreeNode):
+  """Type of object.
+
+  Attributes:
+    UNKNOWN: unknown object type
+    BODY: body
+    XBODY: body, used to access regular frame instead of i-frame
+    GEOM: geom
+    SITE: site
+    CAMERA: camera
+  """
+
+  UNKNOWN = mujoco.mjtObj.mjOBJ_UNKNOWN
+  BODY = mujoco.mjtObj.mjOBJ_BODY
+  XBODY = mujoco.mjtObj.mjOBJ_XBODY
+  GEOM = mujoco.mjtObj.mjOBJ_GEOM
+  SITE = mujoco.mjtObj.mjOBJ_SITE
+  CAMERA = mujoco.mjtObj.mjOBJ_CAMERA
 
 
 class Statistic(PyTreeNode):
@@ -301,181 +461,149 @@ class Statistic(PyTreeNode):
 
   Attributes:
     meaninertia: mean diagonal inertia
+    meanmass: mean body mass (not used)
+    meansize: mean body size (not used)
+    extent: spatial extent (not used)
+    center: center of model (not used)
   """
+
   meaninertia: jax.Array
-  # unsupported: meanmass, meansize, extent, center
+  meanmass: jax.Array
+  meansize: jax.Array
+  extent: jax.Array
+  center: jax.Array
+
+
+class StatisticWarp(mjxw_types.StatisticWarp, Statistic):
+  """Warp-specific model statistics."""
+
+  # NB: StatisticWarp type annotations may not match those on Statistic.
+  pass
+
+
+class OptionJAX(PyTreeNode):
+  """JAX-specific option."""
+
+  o_margin: jax.Array
+  o_solref: jax.Array
+  o_solimp: jax.Array
+  o_friction: jax.Array
+  disableactuator: int
+  sdf_initpoints: int
+  has_fluid_params: bool
+
+
+
+
+class Option(PyTreeNode):
+  """Physics options."""
+
+  iterations: int
+  ls_iterations: int
+  tolerance: jax.Array
+  ls_tolerance: jax.Array
+  impratio: jax.Array
+  gravity: jax.Array
+  density: jax.Array
+  viscosity: jax.Array
+  magnetic: jax.Array
+  wind: jax.Array
+  jacobian: JacobianType
+  cone: ConeType
+  disableflags: DisableBit
+  enableflags: int
+  integrator: IntegratorType
+  solver: SolverType
+  timestep: jax.Array
+  _impl: Union[OptionJAX, mjxw_types.OptionWarp]
+
+
+class ModelCPP(PyTreeNode):
+  """Minimal Model implementation holding only the pointer."""
+  # To ensure that we retain the full pointer even if jax.config.enable_x64 is
+  # set to True, we store the pointer as two 32-bit values. In the FFI call,
+  # we combine the two values into a single pointer value.
+  pointer_lo: jax.Array
+  pointer_hi: jax.Array
+
+
+class DataCPP(PyTreeNode):
+  """Minimal Data implementation holding only the pointer."""
+  # To ensure that we retain the full pointer even if jax.config.enable_x64 is
+  # set to True, we store the pointer as two 32-bit values. In the FFI call,
+  # we combine the two values into a single pointer value.
+  pointer_lo: jax.Array
+  pointer_hi: jax.Array
+
+
+class ModelJAX(PyTreeNode):
+  """JAX-specific model data."""
+
+  dof_hasfrictionloss: np.ndarray
+  geom_rbound_hfield: np.ndarray
+  mesh_convex: Tuple[ConvexMesh, ...]
+  tendon_hasfrictionloss: np.ndarray
+  wrap_inside_maxiter: int
+  wrap_inside_tolerance: float
+  wrap_inside_z_init: float
+  is_wrap_inside: np.ndarray
 
 
 class Model(PyTreeNode):
   """Static model of the scene that remains unchanged with each physics step.
 
   Attributes:
-    nq: number of generalized coordinates = dim(qpos)
-    nv: number of degrees of freedom = dim(qvel)
-    nu: number of actuators/controls = dim(ctrl)
-    na: number of activation states = dim(act)
+    nq: number of generalized coordinates
+    nv: number of degrees of freedom
+    nu: number of actuators/controls
+    na: number of activation states
     nbody: number of bodies
     njnt: number of joints
     ngeom: number of geoms
     nsite: number of sites
     ncam: number of cameras
+    nlight: number of lights
     nmesh: number of meshes
-    nmeshvert: number of vertices in all meshes
-    nmeshface: number of triangular faces in all meshes
+    nmeshvert: number of vertices for all meshes
+    nmeshnormal: number of normals in all meshes
+    nmeshtexcoord: number of texcoords in all meshes
+    nmeshface: number of faces for all meshes
+    nmeshgraph: number of ints in mesh auxiliary data
+    nmeshpoly: number of polygons in all meshes
+    nmeshpolyvert: number of vertices in all polygons
+    nmeshpolymap: number of polygons in vertex map
+    nhfield: number of heightfields
+    nhfielddata: size of elevation data
+    ntex: number of textures
+    ntexdata: size of texture data
     nmat: number of materials
     npair: number of predefined geom pairs
     nexclude: number of excluded geom pairs
     neq: number of equality constraints
-    ngravcomp: number of bodies with nonzero gravcomp
+    ntendon: number of tendons
+    nwrap: number of wrap objects in all tendon paths
+    nsensor: number of sensors
     nnumeric: number of numeric custom fields
     ntuple: number of tuple custom fields
-    nsensor: number of sensors
     nkey: number of keyframes
-    nuserdata: size of userdata array
+    nmocap: number of mocap bodies
     nM: number of non-zeros in sparse inertia matrix
+    nB: number of non-zeros in B matrix
+    nC: number of non-zeros in C matrix
+    nD: number of non-zeros in D matrix
+    nJmom: number of non-zeros in Jacobian momentum matrix
+    nJten: number of non-zeros in sparse tendon Jacobian
+    ngravcomp: number of bodies with nonzero gravcomp
+    nuserdata: number of elements in userdata
+    nsensordata: number of elements in sensor data vector
+    npluginstate: number of plugin state values
+    nhistory: number of history buffer elements
     opt: physics options
     stat: model statistics
-    qpos0: qpos values at default pose                        (nq,)
-    qpos_spring: reference pose for springs                   (nq,)
-    body_parentid: id of body's parent                        (nbody,)
-    body_rootid: id of root above body                        (nbody,)
-    body_weldid: id of body that this body is welded to       (nbody,)
-    body_jntnum: number of joints for this body               (nbody,)
-    body_jntadr: start addr of joints; -1: no joints          (nbody,)
-    body_dofnum: number of motion degrees of freedom          (nbody,)
-    body_dofadr: start addr of dofs; -1: no dofs              (nbody,)
-    body_geomnum: number of geoms                             (nbody,)
-    body_geomadr: start addr of geoms; -1: no geoms           (nbody,)
-    body_pos: position offset rel. to parent body             (nbody, 3)
-    body_quat: orientation offset rel. to parent body         (nbody, 4)
-    body_ipos: local position of center of mass               (nbody, 3)
-    body_iquat: local orientation of inertia ellipsoid        (nbody, 4)
-    body_mass: mass                                           (nbody,)
-    body_subtreemass: mass of subtree starting at this body   (nbody,)
-    body_inertia: diagonal inertia in ipos/iquat frame        (nbody, 3)
-    body_gravcomp: antigravity force, units of body weight    (nbody,)
-    body_invweight0: mean inv inert in qpos0 (trn, rot)       (nbody, 2)
-    jnt_type: type of joint (mjtJoint)                        (njnt,)
-    jnt_qposadr: start addr in 'qpos' for joint's data        (njnt,)
-    jnt_dofadr: start addr in 'qvel' for joint's data         (njnt,)
-    jnt_bodyid: id of joint's body                            (njnt,)
-    jnt_group: group for visibility                           (njnt,)
-    jnt_limited: does joint have limits                       (njnt,)
-    jnt_actfrclimited: does joint have actuator force limits  (njnt,)
-    jnt_actgravcomp: is gravcomp force applied via actuators  (njnt,)
-    jnt_solref: constraint solver reference: limit            (njnt, mjNREF)
-    jnt_solimp: constraint solver impedance: limit            (njnt, mjNIMP)
-    jnt_pos: local anchor position                            (njnt, 3)
-    jnt_axis: local joint axis                                (njnt, 3)
-    jnt_stiffness: stiffness coefficient                      (njnt,)
-    jnt_range: joint limits                                   (njnt, 2)
-    jnt_actfrcrange: range of total actuator force            (njnt, 2)
-    jnt_margin: min distance for limit detection              (njnt,)
-    dof_bodyid: id of dof's body                              (nv,)
-    dof_jntid: id of dof's joint                              (nv,)
-    dof_parentid: id of dof's parent; -1: none                (nv,)
-    dof_Madr: dof address in M-diagonal                       (nv,)
-    dof_solref: constraint solver reference:frictionloss      (nv, mjNREF)
-    dof_solimp: constraint solver impedance:frictionloss      (nv, mjNIMP)
-    dof_frictionloss: dof friction loss                       (nv,)
-    dof_armature: dof armature inertia/mass                   (nv,)
-    dof_damping: damping coefficient                          (nv,)
-    dof_invweight0: diag. inverse inertia in qpos0            (nv,)
-    dof_M0: diag. inertia in qpos0                            (nv,)
-    geom_type: geometric type (mjtGeom)                       (ngeom,)
-    geom_contype: geom contact type                           (ngeom,)
-    geom_conaffinity: geom contact affinity                   (ngeom,)
-    geom_condim: contact dimensionality (1, 3, 4, 6)          (ngeom,)
-    geom_bodyid: id of geom's body                            (ngeom,)
-    geom_dataid: id of geom's mesh/hfield; -1: none           (ngeom,)
-    geom_group: group for visibility                          (ngeom,)
-    geom_matid: material id for rendering                     (ngeom,)
-    geom_priority: geom contact priority                      (ngeom,)
-    geom_solmix: mixing coef for solref/imp in geom pair      (ngeom,)
-    geom_solref: constraint solver reference: contact         (ngeom, mjNREF)
-    geom_solimp: constraint solver impedance: contact         (ngeom, mjNIMP)
-    geom_size: geom-specific size parameters                  (ngeom, 3)
-    geom_rbound: radius of bounding sphere                    (ngeom,)
-    geom_pos: local position offset rel. to body              (ngeom, 3)
-    geom_quat: local orientation offset rel. to body          (ngeom, 4)
-    geom_friction: friction for (slide, spin, roll)           (ngeom, 3)
-    geom_margin: include in solver if dist<margin-gap         (ngeom,)
-    geom_gap: include in solver if dist<margin-gap            (ngeom,)
-    geom_rgba: rgba when material is omitted                  (ngeom, 4)
-    site_bodyid: id of site's body                            (nsite,)
-    site_pos: local position offset rel. to body              (nsite, 3)
-    site_quat: local orientation offset rel. to body          (nsite, 4)
-    cam_mode:  camera tracking mode (mjtCamLight)             (ncam,)
-    cam_bodyid:  id of camera's body                          (ncam,)
-    cam_targetbodyid:  id of targeted body; -1: none          (ncam,)
-    cam_pos:  position rel. to body frame                     (ncam, 3)
-    cam_quat:  orientation rel. to body frame                 (ncam, 4)
-    cam_poscom0:  global position rel. to sub-com in qpos0    (ncam, 3)
-    cam_pos0:  global position rel. to body in qpos0          (ncam, 3)
-    cam_mat0:  global orientation in qpos0                    (ncam, 9)
-    mesh_vertadr: first vertex address                        (nmesh,)
-    mesh_faceadr: first face address                          (nmesh,)
-    mesh_graphadr: graph data address; -1: no graph           (nmesh,)
-    mesh_vert: vertex positions for all meshes                (nmeshvert, 3)
-    mesh_face: vertex face data                               (nmeshface, 3)
-    mesh_graph: convex graph data                             (nmeshgraph,)
-    mat_rgba: rgba                                            (nmat, 4)
-    pair_dim: contact dimensionality                          (npair,)
-    pair_geom1: id of geom1                                   (npair,)
-    pair_geom2: id of geom2                                   (npair,)
-    pair_solref: solver reference: contact normal             (npair, mjNREF)
-    pair_solreffriction: solver reference: contact friction   (npair, mjNREF)
-    pair_solimp: solver impedance: contact                    (npair, mjNIMP)
-    pair_margin: include in solver if dist<margin-gap         (npair,)
-    pair_gap: include in solver if dist<margin-gap            (npair,)
-    pair_friction: tangent1, 2, spin, roll1, 2                (npair, 5)
-    exclude_signature: (body1+1) << 16 + body2+1              (nexclude,)
-    eq_type: constraint type (mjtEq)                          (neq,)
-    eq_obj1id: id of object 1                                 (neq,)
-    eq_obj2id: id of object 2                                 (neq,)
-    eq_active0: initial enable/disable constraint state       (neq,)
-    eq_solref: constraint solver reference                    (neq, mjNREF)
-    eq_solimp: constraint solver impedance                    (neq, mjNIMP)
-    eq_data: numeric data for constraint                      (neq, mjNEQDATA)
-    actuator_trntype: transmission type (mjtTrn)              (nu,)
-    actuator_dyntype: dynamics type (mjtDyn)                  (nu,)
-    actuator_gaintype: gain type (mjtGain)                    (nu,)
-    actuator_biastype: bias type (mjtBias)                    (nu,)
-    actuator_trnid: transmission id: joint, tendon, site      (nu, 2)
-    actuator_actadr: first activation address; -1: stateless  (nu,)
-    actuator_actnum: number of activation variables           (nu,)
-    actuator_ctrllimited: is control limited                  (nu,)
-    actuator_forcelimited: is force limited                   (nu,)
-    actuator_actlimited: is activation limited                (nu,)
-    actuator_dynprm: dynamics parameters                      (nu, mjNDYN)
-    actuator_gainprm: gain parameters                         (nu, mjNGAIN)
-    actuator_biasprm: bias parameters                         (nu, mjNBIAS)
-    actuator_ctrlrange: range of controls                     (nu, 2)
-    actuator_forcerange: range of forces                      (nu, 2)
-    actuator_actrange: range of activations                   (nu, 2)
-    actuator_gear: scale length and transmitted force         (nu, 6)
-    numeric_adr: address of field in numeric_data             (nnumeric,)
-    numeric_data: array of all numeric fields                 (nnumericdata,)
-    tuple_adr: address of text in text_data                   (ntuple,)
-    tuple_size: number of objects in tuple                    (ntuple,)
-    tuple_objtype: array of object types in all tuples        (ntupledata,)
-    tuple_objid: array of object ids in all tuples            (ntupledata,)
-    tuple_objprm: array of object params in all tuples        (ntupledata,)
-    name_bodyadr: body name pointers                          (nbody,)
-    name_jntadr: joint name pointers                          (njnt,)
-    name_geomadr: geom name pointers                          (ngeom,)
-    name_siteadr: site name pointers                          (nsite,)
-    name_camadr: camera name pointers                         (ncam,)
-    name_meshadr: mesh name pointers                          (nmesh,)
-    name_pairadr: geom pair name pointers                     (npair,)
-    name_eqadr: equality constraint name pointers             (neq,)
-    name_actuatoradr: actuator name pointers                  (nu,)
-    name_sensoradr: sensor name pointers                      (nsensor,)
-    name_numericadr: numeric name pointers                    (nnumeric,)
-    name_tupleadr: tuple name pointers                        (ntuple,)
-    name_keyadr: keyframe name pointers                       (nkey,)
-    names: names of all objects, 0-terminated                 (nnames,)
+    qpos0: qpos values at default pose
+    qpos_spring: reference pose for springs
   """
+
   nq: int
   nv: int
   nu: int
@@ -485,33 +613,62 @@ class Model(PyTreeNode):
   ngeom: int
   nsite: int
   ncam: int
+  nlight: int
+  nflex: int
   nmesh: int
   nmeshvert: int
+  nmeshnormal: int
+  nmeshtexcoord: int
   nmeshface: int
+  nmeshgraph: int
+  nmeshpoly: int
+  nmeshpolyvert: int
+  nmeshpolymap: int
+  nhfield: int
+  nhfielddata: int
+  ntex: int
+  ntexdata: int
   nmat: int
   npair: int
   nexclude: int
   neq: int
-  ngravcomp: int
-  nnumeric: int
-  nuserdata: int
-  ntuple: int
+  ntendon: int
+  nwrap: int
   nsensor: int
+  nnumeric: int
+  ntuple: int
   nkey: int
+  nmocap: int
   nM: int  # pylint:disable=invalid-name
+  nB: int  # pylint:disable=invalid-name
+  nC: int  # pylint:disable=invalid-name
+  nD: int  # pylint:disable=invalid-name
+  nJmom: int  # pylint:disable=invalid-name
+  nJten: int  # pylint:disable=invalid-name
+  ngravcomp: int
+  flg_gravcomp: bool
+  flg_surfacevel: bool
+  nuserdata: int
+  nsensordata: int
+  npluginstate: int
+  nhistory: int
   opt: Option
-  stat: Statistic
+  stat: Union[Statistic, StatisticWarp]
   qpos0: jax.Array
   qpos_spring: jax.Array
   body_parentid: np.ndarray
+  body_mocapid: np.ndarray
   body_rootid: np.ndarray
   body_weldid: np.ndarray
   body_jntnum: np.ndarray
   body_jntadr: np.ndarray
+  body_sameframe: np.ndarray
   body_dofnum: np.ndarray
   body_dofadr: np.ndarray
+  body_treeid: np.ndarray
   body_geomnum: np.ndarray
   body_geomadr: np.ndarray
+  body_simple: np.ndarray
   body_pos: jax.Array
   body_quat: jax.Array
   body_ipos: jax.Array
@@ -520,6 +677,9 @@ class Model(PyTreeNode):
   body_subtreemass: jax.Array
   body_inertia: jax.Array
   body_gravcomp: jax.Array
+  body_margin: np.ndarray
+  body_contype: np.ndarray
+  body_conaffinity: np.ndarray
   body_invweight0: jax.Array
   jnt_type: np.ndarray
   jnt_qposadr: np.ndarray
@@ -533,18 +693,25 @@ class Model(PyTreeNode):
   jnt_pos: jax.Array
   jnt_axis: jax.Array
   jnt_stiffness: jax.Array
+  jnt_stiffnesspoly: jax.Array
   jnt_range: jax.Array
   jnt_actfrcrange: jax.Array
   jnt_margin: jax.Array
   dof_bodyid: np.ndarray
   dof_jntid: np.ndarray
   dof_parentid: np.ndarray
+  dof_treeid: np.ndarray
   dof_Madr: np.ndarray  # pylint:disable=invalid-name
+  dof_simplenum: np.ndarray
+  M_rowadr: np.ndarray  # pylint:disable=invalid-name
+  M_rownnz: np.ndarray  # pylint:disable=invalid-name
+  M_colind: np.ndarray  # pylint:disable=invalid-name
   dof_solref: jax.Array
   dof_solimp: jax.Array
   dof_frictionloss: jax.Array
   dof_armature: jax.Array
   dof_damping: jax.Array
+  dof_dampingpoly: jax.Array
   dof_invweight0: jax.Array
   dof_M0: jax.Array  # pylint:disable=invalid-name
   geom_type: np.ndarray
@@ -552,22 +719,28 @@ class Model(PyTreeNode):
   geom_conaffinity: np.ndarray
   geom_condim: np.ndarray
   geom_bodyid: np.ndarray
+  geom_sameframe: np.ndarray
   geom_dataid: np.ndarray
   geom_group: np.ndarray
-  geom_matid: np.ndarray
+  geom_matid: jax.Array
   geom_priority: np.ndarray
   geom_solmix: jax.Array
   geom_solref: jax.Array
   geom_solimp: jax.Array
   geom_size: jax.Array
+  geom_aabb: jax.Array
   geom_rbound: jax.Array
   geom_pos: jax.Array
   geom_quat: jax.Array
   geom_friction: jax.Array
   geom_margin: jax.Array
   geom_gap: jax.Array
-  geom_rgba: np.ndarray
+  geom_fluid: np.ndarray
+  geom_rgba: jax.Array
+  site_type: np.ndarray
   site_bodyid: np.ndarray
+  site_sameframe: np.ndarray
+  site_size: np.ndarray
   site_pos: jax.Array
   site_quat: jax.Array
   cam_mode: np.ndarray
@@ -578,16 +751,72 @@ class Model(PyTreeNode):
   cam_poscom0: jax.Array
   cam_pos0: jax.Array
   cam_mat0: jax.Array
+  cam_fovy: jax.Array
+  cam_resolution: np.ndarray
+  cam_sensorsize: np.ndarray
+  cam_intrinsic: jax.Array
+  light_mode: np.ndarray
+  light_type: jax.Array
+  light_active: jax.Array
+  light_castshadow: jax.Array
+  light_pos: jax.Array
+  light_dir: jax.Array
+  light_poscom0: jax.Array
+  light_pos0: jax.Array
+  light_dir0: jax.Array
+  light_cutoff: jax.Array
+  light_ambient: jax.Array
+  light_attenuation: jax.Array
+  light_diffuse: jax.Array
+  light_exponent: jax.Array
+  light_specular: jax.Array
   mesh_vertadr: np.ndarray
+  mesh_vertnum: np.ndarray
   mesh_faceadr: np.ndarray
+  mesh_bvhadr: np.ndarray
+  mesh_bvhnum: np.ndarray
+  mesh_octadr: np.ndarray
+  mesh_octnum: np.ndarray
+  mesh_normaladr: np.ndarray
+  mesh_normalnum: np.ndarray
   mesh_graphadr: np.ndarray
   mesh_vert: np.ndarray
+  mesh_normal: np.ndarray
   mesh_face: np.ndarray
   mesh_graph: np.ndarray
-  mat_rgba: np.ndarray
+  mesh_pos: np.ndarray
+  mesh_quat: np.ndarray
+  mesh_texcoordadr: np.ndarray
+  mesh_texcoordnum: np.ndarray
+  mesh_texcoord: np.ndarray
+  flex_vertadr: np.ndarray
+  flex_vertnum: np.ndarray
+  flex_interp: np.ndarray
+  flex_vert0: np.ndarray
+  flex_nodeadr: np.ndarray
+  flex_nodenum: np.ndarray
+  flex_nodebodyid: np.ndarray
+  flex_node0: np.ndarray
+  hfield_size: np.ndarray
+  hfield_nrow: np.ndarray
+  hfield_ncol: np.ndarray
+  hfield_adr: np.ndarray
+  hfield_data: jax.Array
+  tex_type: np.ndarray
+  tex_height: np.ndarray
+  tex_width: np.ndarray
+  tex_nchannel: np.ndarray
+  tex_adr: np.ndarray
+  tex_data: np.ndarray
+  mat_rgba: jax.Array
+  mat_texid: jax.Array
+  mat_emission: jax.Array
+  mat_specular: jax.Array
+  mat_shininess: jax.Array
   pair_dim: np.ndarray
   pair_geom1: np.ndarray
   pair_geom2: np.ndarray
+  pair_signature: np.ndarray
   pair_solref: jax.Array
   pair_solreffriction: jax.Array
   pair_solimp: jax.Array
@@ -598,10 +827,34 @@ class Model(PyTreeNode):
   eq_type: np.ndarray
   eq_obj1id: np.ndarray
   eq_obj2id: np.ndarray
+  eq_objtype: np.ndarray
   eq_active0: np.ndarray
   eq_solref: jax.Array
   eq_solimp: jax.Array
   eq_data: jax.Array
+  tendon_adr: np.ndarray
+  tendon_num: np.ndarray
+  tendon_limited: np.ndarray
+  tendon_actfrclimited: np.ndarray
+  tendon_solref_lim: jax.Array
+  tendon_solimp_lim: jax.Array
+  tendon_solref_fri: jax.Array
+  tendon_solimp_fri: jax.Array
+  tendon_range: jax.Array
+  tendon_actfrcrange: jax.Array
+  tendon_margin: jax.Array
+  tendon_stiffness: jax.Array
+  tendon_stiffnesspoly: jax.Array
+  tendon_damping: jax.Array
+  tendon_dampingpoly: jax.Array
+  tendon_armature: jax.Array
+  tendon_frictionloss: jax.Array
+  tendon_lengthspring: jax.Array
+  tendon_length0: jax.Array
+  tendon_invweight0: jax.Array
+  wrap_type: np.ndarray
+  wrap_objid: np.ndarray
+  wrap_prm: np.ndarray
   actuator_trntype: np.ndarray
   actuator_dyntype: np.ndarray
   actuator_gaintype: np.ndarray
@@ -609,16 +862,32 @@ class Model(PyTreeNode):
   actuator_trnid: np.ndarray
   actuator_actadr: np.ndarray
   actuator_actnum: np.ndarray
+  actuator_group: np.ndarray
   actuator_ctrllimited: np.ndarray
   actuator_forcelimited: np.ndarray
   actuator_actlimited: np.ndarray
   actuator_dynprm: jax.Array
   actuator_gainprm: jax.Array
   actuator_biasprm: jax.Array
+  actuator_actearly: np.ndarray
   actuator_ctrlrange: jax.Array
   actuator_forcerange: jax.Array
   actuator_actrange: jax.Array
   actuator_gear: jax.Array
+  actuator_cranklength: jax.Array
+  actuator_acc0: jax.Array
+  actuator_lengthrange: jax.Array
+  sensor_type: np.ndarray
+  sensor_datatype: np.ndarray
+  sensor_needstage: np.ndarray
+  sensor_objtype: np.ndarray
+  sensor_objid: np.ndarray
+  sensor_reftype: np.ndarray
+  sensor_refid: np.ndarray
+  sensor_intprm: np.ndarray
+  sensor_dim: np.ndarray
+  sensor_adr: np.ndarray
+  sensor_cutoff: np.ndarray
   numeric_adr: np.ndarray
   numeric_data: np.ndarray
   tuple_adr: np.ndarray
@@ -626,20 +895,63 @@ class Model(PyTreeNode):
   tuple_objtype: np.ndarray
   tuple_objid: np.ndarray
   tuple_objprm: np.ndarray
+  key_time: np.ndarray
+  key_qpos: np.ndarray
+  key_qvel: np.ndarray
+  key_act: np.ndarray
+  key_mpos: np.ndarray
+  key_mquat: np.ndarray
+  key_ctrl: np.ndarray
   name_bodyadr: np.ndarray
   name_jntadr: np.ndarray
   name_geomadr: np.ndarray
   name_siteadr: np.ndarray
   name_camadr: np.ndarray
+  name_flexadr: np.ndarray
   name_meshadr: np.ndarray
+  name_hfieldadr: np.ndarray
   name_pairadr: np.ndarray
   name_eqadr: np.ndarray
+  name_tendonadr: np.ndarray
   name_actuatoradr: np.ndarray
   name_sensoradr: np.ndarray
   name_numericadr: np.ndarray
   name_tupleadr: np.ndarray
   name_keyadr: np.ndarray
   names: bytes
+  signature: np.uint64
+  _sizes: jax.Array
+  _impl: Union[ModelJAX, mjxw_types.ModelWarp]
+
+  @property
+  def impl(self) -> Impl:
+    return {
+        ModelCPP: Impl.CPP,
+        ModelJAX: Impl.JAX,
+        mjxw_types.ModelWarp: Impl.WARP,
+    }[type(self._impl)]
+
+  def __getattr__(self, name: str):
+    if name == 'value':
+      # Special case for NNX, the value attribute may not exist on the parent
+      # PyTreeNode, before it exists on the child PyTreeNode. Thanks NNX.
+      return object.__getattribute__(self, 'value')
+
+    try:
+      impl_instance = object.__getattribute__(self, '_impl')
+      val = getattr(impl_instance, name)
+      warnings.warn(
+          f'Accessing `{name}` directly from `Model` is deprecated. '
+          f'Access it via `model._impl.{name}` instead.',
+          DeprecationWarning,
+          stacklevel=2,
+      )
+    except AttributeError:
+      # raise the standard exception
+      raise AttributeError(  # pylint: disable=raise-missing-from
+          f"'{type(self).__name__}' object has no attribute '{name}'"
+      )
+    return val
 
 
 class Contact(PyTreeNode):
@@ -649,7 +961,7 @@ class Contact(PyTreeNode):
     dist: distance between nearest points; neg: penetration
     pos: position of contact point: midpoint between geoms            (3,)
     frame: normal is in [0-2]                                         (9,)
-    includemargin: include if dist<includemargin=margin-gap           (1,)
+    includemargin: include if dist<includemargin=margin               (1,)
     friction: tangent1, 2, spin, roll1, 2                             (5,)
     solref: constraint solver reference, normal direction             (mjNREF,)
     solreffriction: constraint solver reference, friction directions  (mjNREF,)
@@ -659,7 +971,7 @@ class Contact(PyTreeNode):
     geom2: id of geom 2; deprecated, use geom[1]
     geom: geom ids                                                    (2,)
     efc_address: address in efc; -1: not included
-  """
+  """  # fmt: skip
   dist: jax.Array
   pos: jax.Array
   frame: jax.Array
@@ -668,7 +980,7 @@ class Contact(PyTreeNode):
   solref: jax.Array
   solreffriction: jax.Array
   solimp: jax.Array
-  # unsupported: mu, H
+  # unsupported: mu, H (calculated locally in solver.py)
   dim: np.ndarray
   geom1: jax.Array
   geom2: jax.Array
@@ -677,98 +989,121 @@ class Contact(PyTreeNode):
   efc_address: np.ndarray
 
 
-class Data(PyTreeNode):
-  r"""\Dynamic state that updates each step.
+class DataJAX(PyTreeNode):
+  """JAX-specific data."""
 
-  Attributes:
-    ne: number of equality constraints
-    nf: number of friction constraints
-    nl: number of limit constraints
-    nefc: number of constraints
-    ncon: number of contacts
-    solver_niter: number of solver iterations
-    time: simulation time
-    qpos: position                                                (nq,)
-    qvel: velocity                                                (nv,)
-    act: actuator activation                                      (na,)
-    qacc_warmstart: acceleration used for warmstart               (nv,)
-    ctrl: control                                                 (nu,)
-    qfrc_applied: applied generalized force                       (nv,)
-    xfrc_applied: applied Cartesian force/torque                  (nbody, 6)
-    eq_active: enable/disable constraints                         (neq,)
-    qacc: acceleration                                            (nv,)
-    act_dot: time-derivative of actuator activation               (na,)
-    xpos:  Cartesian position of body frame                       (nbody, 3)
-    xquat: Cartesian orientation of body frame                    (nbody, 4)
-    xmat:  Cartesian orientation of body frame                    (nbody, 3, 3)
-    xipos: Cartesian position of body com                         (nbody, 3)
-    ximat: Cartesian orientation of body inertia                  (nbody, 3, 3)
-    xanchor: Cartesian position of joint anchor                   (njnt, 3)
-    xaxis: Cartesian joint axis                                   (njnt, 3)
-    geom_xpos: Cartesian geom position                            (ngeom, 3)
-    geom_xmat: Cartesian geom orientation                         (ngeom, 3, 3)
-    site_xpos: Cartesian site position                            (nsite, 3)
-    site_xmat: Cartesian site orientation                         (nsite, 9)
-    cam_xpos: Cartesian camera position                           (ncam, 3)
-    cam_xmat: Cartesian camera orientation                        (ncam, 9)
-    subtree_com: center of mass of each subtree                   (nbody, 3)
-    cdof: com-based motion axis of each dof                       (nv, 6)
-    cinert: com-based body inertia and mass                       (nbody, 10)
-    actuator_length: actuator lengths                             (nu,)
-    actuator_moment: actuator moments                             (nu, nv)
-    crb: com-based composite inertia and mass                     (nbody, 10)  \
-    qM: total inertia                                  if sparse: (nM,)
-                                                       if dense:  (nv, nv)
-    qLD: L'*D*L (or Cholesky) factorization of M.      if sparse: (nM,)
-                                                       if dense:  (nv, nv)
-    qLDiagInv: 1/diag(D)                               if sparse: (nv,)
-                                                       if dense:  (0,)
-    contact: all detected contacts                                (ncon,)
-    efc_type: constraint type                                     (nefc,)
-    efc_J: constraint Jacobian                                    (nefc, nv)
-    efc_frictionloss: frictionloss (friction)                     (nefc,)
-    efc_D: constraint mass                                        (nefc,)
-    actuator_velocity: actuator velocities                        (nu,)
-    cvel: com-based velocity [3D rot; 3D tran]                    (nbody, 6)
-    cdof_dot: time-derivative of cdof                             (nv, 6)
-    qfrc_bias: C(qpos,qvel)                                       (nv,)
-    qfrc_gravcomp: passive gravity compensation force             (nv,)
-    qfrc_passive: passive force                                   (nv,)
-    efc_aref: reference pseudo-acceleration                       (nefc,)
-    qfrc_actuator: actuator force                                 (nv,)
-    qfrc_smooth: net unconstrained force                          (nv,)
-    qacc_smooth: unconstrained acceleration                       (nv,)
-    qfrc_constraint: constraint force                             (nv,)
-    qfrc_inverse: net external force; should equal:               (nv,)
-      qfrc_applied + J'*xfrc_applied + qfrc_actuator
-    efc_force: constraint force in constraint space               (nefc,)
-    userdata: user data, not touched by engine                    (nuserdata,)
-  """
-  # constant sizes:
   ne: int
   nf: int
   nl: int
   nefc: int
   ncon: int
-  # solver statistics:
   solver_niter: jax.Array
+  cinert: jax.Array
+  ten_wrapadr: jax.Array
+  ten_wrapnum: jax.Array
+  ten_J: jax.Array  # pylint:disable=invalid-name
+  wrap_obj: jax.Array
+  wrap_xpos: jax.Array
+  actuator_moment: jax.Array
+  crb: jax.Array
+  M: jax.Array  # pylint:disable=invalid-name
+  qLD: jax.Array  # pylint:disable=invalid-name
+  qLDiagInv: jax.Array  # pylint:disable=invalid-name
+  ten_velocity: jax.Array
+  actuator_velocity: jax.Array
+
+  cacc: jax.Array
+  cfrc_int: jax.Array
+  cfrc_ext: jax.Array
+  subtree_linvel: jax.Array
+  subtree_angmom: jax.Array
+  # dynamically sized data which are made static due to JAX limitations
+  contact: Contact
+  efc_type: jax.Array
+  efc_J: jax.Array  # pylint:disable=invalid-name
+  efc_pos: jax.Array
+  efc_margin: jax.Array
+  efc_frictionloss: jax.Array
+  efc_D: jax.Array  # pylint:disable=invalid-name
+  efc_aref: jax.Array
+  efc_force: jax.Array
+
+
+class Data(PyTreeNode):
+  """Dynamic state that updates each step.
+
+  Attributes:
+    time: simulation time
+    qpos: position
+    qvel: velocity
+    act: actuator activation
+    history: actuator history buffer
+    qacc_warmstart: warm start for solver
+    plugin_state: plugin state values
+    ctrl: control input
+    qfrc_applied: applied generalized force
+    xfrc_applied: applied Cartesian force/torque
+    eq_active: enable/disable equality constraints
+    mocap_pos: positions of mocap bodies
+    mocap_quat: orientations of mocap bodies
+    qacc: acceleration
+    act_dot: time-derivative of actuator activation
+    userdata: user data
+    sensordata: sensor data output
+    xpos: Cartesian position of body frame
+    xquat: Cartesian orientation of body frame
+    xmat: rotation matrix of body frame
+    xipos: Cartesian position of body com
+    ximat: rotation matrix of body inertia
+    xanchor: Cartesian position of joint anchor
+    xaxis: Cartesian joint axis
+    ten_length: tendon lengths
+    geom_xpos: Cartesian position of geoms
+    geom_xmat: rotation matrix of geoms
+    site_xpos: Cartesian position of sites
+    site_xmat: rotation matrix of sites
+    cam_xpos: camera positions
+    cam_xmat: camera rotation matrices
+    subtree_com: com of each subtree
+    cvel: center of mass based velocity
+    cdof: center of mass based jacobian
+    cdof_dot: time-derivative of cdof
+    qfrc_bias: C(qpos,qvel)
+    qfrc_gravcomp: gravity compensation term
+    qfrc_fluid: fluid drag and buoyancy forces
+    qfrc_passive: passive force
+    qfrc_actuator: actuator force
+    actuator_force: actuator force in actuation space
+    actuator_length: actuator lengths
+    qfrc_smooth: smooth dynamics force
+    qacc_smooth: acceleration without constraints
+    qfrc_constraint: constraint force
+    qfrc_inverse: net external force for inverse dynamics
+  """
+
   # global properties:
   time: jax.Array
   # state:
   qpos: jax.Array
   qvel: jax.Array
   act: jax.Array
+  history: jax.Array
   qacc_warmstart: jax.Array
+  plugin_state: jax.Array
   # control:
   ctrl: jax.Array
   qfrc_applied: jax.Array
   xfrc_applied: jax.Array
   eq_active: jax.Array
+  # mocap data:
+  mocap_pos: jax.Array
+  mocap_quat: jax.Array
   # dynamics:
   qacc: jax.Array
   act_dot: jax.Array
   # user data:
   userdata: jax.Array
+  sensordata: jax.Array
   # position dependent:
   xpos: jax.Array
   xquat: jax.Array
@@ -777,6 +1112,7 @@ class Data(PyTreeNode):
   ximat: jax.Array
   xanchor: jax.Array
   xaxis: jax.Array
+  ten_length: jax.Array
   geom_xpos: jax.Array
   geom_xmat: jax.Array
   site_xpos: jax.Array
@@ -784,31 +1120,104 @@ class Data(PyTreeNode):
   cam_xpos: jax.Array
   cam_xmat: jax.Array
   subtree_com: jax.Array
-  cdof: jax.Array
-  cinert: jax.Array
-  crb: jax.Array
-  actuator_length: jax.Array
-  actuator_moment: jax.Array
-  qM: jax.Array  # pylint:disable=invalid-name
-  qLD: jax.Array  # pylint:disable=invalid-name
-  qLDiagInv: jax.Array  # pylint:disable=invalid-name
-  contact: Contact
-  efc_type: np.ndarray
-  efc_J: jax.Array  # pylint:disable=invalid-name
-  efc_frictionloss: jax.Array
-  efc_D: jax.Array  # pylint:disable=invalid-name
-  # position, velocity dependent:
-  actuator_velocity: jax.Array
   cvel: jax.Array
+  cdof: jax.Array
   cdof_dot: jax.Array
   qfrc_bias: jax.Array
-  qfrc_passive: jax.Array
   qfrc_gravcomp: jax.Array
-  efc_aref: jax.Array
-  # position, velcoity, control & acceleration dependent:
+  qfrc_fluid: jax.Array
+  qfrc_passive: jax.Array
   qfrc_actuator: jax.Array
+  actuator_force: jax.Array
+  actuator_length: jax.Array
   qfrc_smooth: jax.Array
   qacc_smooth: jax.Array
   qfrc_constraint: jax.Array
   qfrc_inverse: jax.Array
-  efc_force: jax.Array
+  _impl: Union[DataCPP, DataJAX, mjxw_types.DataWarp]
+
+  @property
+  def impl(self) -> Impl:
+    return {
+        DataCPP: Impl.CPP,
+        DataJAX: Impl.JAX,
+        mjxw_types.DataWarp: Impl.WARP,
+    }[type(self._impl)]
+
+  def __getattr__(self, name: str):
+    try:
+      impl_instance = object.__getattribute__(self, '_impl')
+      val = getattr(impl_instance, name)
+      warnings.warn(
+          f'Accessing `{name}` directly from `Data` is deprecated. '
+          f'Access it via `data._impl.{name}` instead.',
+          DeprecationWarning,
+          stacklevel=2,
+      )
+    except AttributeError:
+      # raise the standard exception
+      raise AttributeError(  # pylint: disable=raise-missing-from
+          f"'{type(self).__name__}' object has no attribute '{name}'"
+      )
+    return val
+
+  def __getitem__(self, key):
+    if self.impl == Impl.WARP:
+      return jax.tree.map_with_path(
+          lambda path, x, k=key: x[k]
+          if tree_path_to_attr_str(path) not in mjxw_types.DATA_NON_VMAP
+          else x,
+          self,
+      )
+
+    return jax.tree.map(lambda x: x[key], self)
+
+  def where(self, done: jax.Array, other: 'Data') -> 'Data':
+    """Selectively merge self and other based on done.
+
+    Args:
+      done: Boolean array (or scalar inside vmap) indicating reset status.
+      other: Data object to select when done is True.
+
+    Returns:
+      Merged Data object.
+    """
+    if self.impl != Impl.JAX and self.impl != Impl.WARP:
+      raise NotImplementedError(
+          'where is only supported for JAX and WARP implementations.'
+      )
+
+    if self.impl == Impl.JAX:
+      return jax.tree.map(
+          lambda x, y: jax.numpy.where(done, x, y), other, self
+      )
+
+    # Warp impl:
+    def merge_leaf(path, r_val, s_val):
+      field_name = tree_path_to_attr_str(path)
+      is_batched = mjxw_types._BATCH_DIM['Data'].get(field_name, True)
+
+      if is_batched:
+        return jax.numpy.where(done, r_val, s_val)
+      else:
+        return s_val
+
+    return jax.tree_util.tree_map_with_path(merge_leaf, other, self)
+
+
+def tree_path_to_attr_str(path: jax.tree_util.KeyPath) -> str:
+  """Converts a tree path to a dataclass attribute string."""
+  if not isinstance(path, tuple):
+    raise NotImplementedError(
+        f'Parsing for jax tree path {path} not implemented.'
+    )
+
+  if any(isinstance(p, jax.tree_util.SequenceKey) for p in path):
+    # get the path up to the first sequence key, we assume variadic sequences
+    is_seq_key = [isinstance(p, jax.tree_util.SequenceKey) for p in path]
+    path = path[: is_seq_key.index(True)]
+
+  assert all(isinstance(p, jax.tree_util.GetAttrKey) for p in path)
+  path = [p for p in path if p.name != '_impl']  # pyrefly: ignore[bad-assignment]
+  return '__'.join(p.name for p in path)
+

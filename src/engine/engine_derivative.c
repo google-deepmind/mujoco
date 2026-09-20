@@ -14,23 +14,29 @@
 
 #include "engine/engine_derivative.h"
 
+#include <stddef.h>
+
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_core_constraint.h"
+#include "engine/engine_core_smooth.h"
+#include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"
-#include "engine/engine_io.h"
+#include "engine/engine_inline.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_passive.h"
+#include "engine/engine_sleep.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "engine/engine_util_solve.h"
 #include "engine/engine_util_spatial.h"
 #include "engine/engine_util_sparse.h"
 
 
-
 //------------------------- derivatives of spatial algebra -----------------------------------------
-
 
 
 // derivatives of cross product, Da and Db are 3x3
@@ -60,10 +66,8 @@ static void mjd_cross(const mjtNum a[3], const mjtNum b[3],
 }
 
 
-
 // derivative of mju_crossMotion w.r.t velocity
-static void mjd_crossMotion_vel(mjtNum D[36], const mjtNum v[6])
-{
+static void mjd_crossMotion_vel(mjtNum D[36], const mjtNum v[6]) {
   mju_zero(D, 36);
 
   // res[0] = -vel[2]*v[1] + vel[1]*v[2]
@@ -98,10 +102,8 @@ static void mjd_crossMotion_vel(mjtNum D[36], const mjtNum v[6])
 }
 
 
-
 // derivative of mju_crossForce w.r.t. velocity
-static void mjd_crossForce_vel(mjtNum D[36], const mjtNum f[6])
-{
+static void mjd_crossForce_vel(mjtNum D[36], const mjtNum f[6]) {
   mju_zero(D, 36);
 
   // res[0] = -vel[2]*f[1] + vel[1]*f[2] - vel[5]*f[4] + vel[4]*f[5]
@@ -136,10 +138,8 @@ static void mjd_crossForce_vel(mjtNum D[36], const mjtNum f[6])
 }
 
 
-
 // derivative of mju_crossForce w.r.t. force
-static void mjd_crossForce_frc(mjtNum D[36], const mjtNum vel[6])
-{
+static void mjd_crossForce_frc(mjtNum D[36], const mjtNum vel[6]) {
   mju_zero(D, 36);
 
   // res[0] = -vel[2]*f[1] + vel[1]*f[2] - vel[5]*f[4] + vel[4]*f[5]
@@ -174,10 +174,8 @@ static void mjd_crossForce_frc(mjtNum D[36], const mjtNum vel[6])
 }
 
 
-
 // derivative of mju_mulInertVec w.r.t vel
-static void mjd_mulInertVec_vel(mjtNum D[36], const mjtNum i[10])
-{
+static void mjd_mulInertVec_vel(mjtNum D[36], const mjtNum i[10]) {
   mju_zero(D, 36);
 
   // res[0] = i[0]*v[0] + i[3]*v[1] + i[4]*v[2] - i[8]*v[4] + i[7]*v[5]
@@ -218,10 +216,8 @@ static void mjd_mulInertVec_vel(mjtNum D[36], const mjtNum i[10])
 }
 
 
-
 // derivative of mju_subQuat w.r.t inputs
-void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db[9])
-{
+void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db[9]) {
   // no outputs, quick return
   if (!Da && !Db) {
     return;
@@ -251,12 +247,12 @@ void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db
 
   // add term linear in K * K
   mjtNum KK[9];
-  mju_mulMatMat3(KK, K, K);
+  mji_mulMatMat3(KK, K, K);
   mjtNum coef = 1.0 - (half_angle < 6e-8 ? 1.0 : half_angle / mju_tan(half_angle));
   mju_addToScl(Da_tmp, KK, coef, 9);
 
   if (Da) {
-    mju_copy(Da, Da_tmp, 9);
+    mju_copy9(Da, Da_tmp);
   }
 
   if (Db) {  // Db = -Da^T
@@ -264,7 +260,6 @@ void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db
     mju_scl(Db, Db, -1.0, 9);
   }
 }
-
 
 
 // derivative of mju_quatIntegrate w.r.t scaled velocity
@@ -295,7 +290,7 @@ void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
   mjtNum xx = mju_dot3(s, s);
   mjtNum x = mju_sqrt(xx);
 
-  // 4 coefficients: a=cos(x), b=sin(x)/x, c=(1-cos(x))/x^2, d=(x-sin(x))/x^3}
+  // 4 coefficients: a=cos(x), b=sin(x)/x, c=(1-cos(x))/x^2, d=(x-sin(x))/x^3
   mjtNum a = mju_cos(x);
   mjtNum b, c, d;
 
@@ -319,18 +314,16 @@ void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
     if (Dquat)          Dquat[i] = a*eye[i] + b*cross[i] + c*outer[i];
     if (Dvel || Dscale) Dvel_[i] = b*eye[i] + c*cross[i] + d*outer[i];
   }
-  if (Dvel) mju_copy(Dvel, Dvel_, 9);
-  if (Dscale) mju_rotVecMat(Dscale, vel, Dvel_);
+  if (Dvel) mju_copy9(Dvel, Dvel_);
+  if (Dscale) mji_mulMatVec3(Dscale, Dvel_, vel);
 }
-
 
 
 //------------------------- dense derivatives of component functions -------------------------------
 // no longer used, except in tests
 
 // derivative of cvel, cdof_dot w.r.t qvel (dense version)
-static void mjd_comVel_vel_dense(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* Dcdofdot)
-{
+static void mjd_comVel_vel_dense(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* Dcdofdot) {
   int nv = m->nv, nbody = m->nbody;
   mjtNum mat[36];
 
@@ -338,7 +331,7 @@ static void mjd_comVel_vel_dense(const mjModel* m, mjData* d, mjtNum* Dcvel, mjt
   mju_zero(Dcvel, nbody*6*nv);
 
   // forward pass over bodies: accumulate Dcvel, set Dcdofdot
-  for (int i=1; i < m->nbody; i++) {
+  for (int i=1; i < nbody; i++) {
     // Dcvel = Dcvel_parent
     mju_copy(Dcvel+i*6*nv, Dcvel+m->body_parentid[i]*6*nv, 6*nv);
 
@@ -393,18 +386,17 @@ static void mjd_comVel_vel_dense(const mjModel* m, mjData* d, mjtNum* Dcvel, mjt
 }
 
 
-
 // subtract (d qfrc_bias / d qvel) from qDeriv (dense version)
 void mjd_rne_vel_dense(const mjModel* m, mjData* d) {
   int nv = m->nv, nbody = m->nbody;
   mjtNum mat[36], mat1[36], mat2[36], dmul[36], tmp[6];
 
   mj_markStack(d);
-  mjtNum* Dcvel = mj_stackAllocNum(d, nbody*6*nv);
-  mjtNum* Dcdofdot = mj_stackAllocNum(d, nv*6*nv);
-  mjtNum* Dcacc = mj_stackAllocNum(d, nbody*6*nv);
-  mjtNum* Dcfrcbody = mj_stackAllocNum(d, nbody*6*nv);
-  mjtNum* row = mj_stackAllocNum(d, nv);
+  mjtNum* Dcvel = mjSTACKALLOC(d, nbody*6*nv, mjtNum);
+  mjtNum* Dcdofdot = mjSTACKALLOC(d, nv*6*nv, mjtNum);
+  mjtNum* Dcacc = mjSTACKALLOC(d, nbody*6*nv, mjtNum);
+  mjtNum* Dcfrcbody = mjSTACKALLOC(d, nbody*6*nv, mjtNum);
+  mjtNum* row = mjSTACKALLOC(d, nv, mjtNum);
 
   // compute Dcvel and Dcdofdot
   mjd_comVel_vel_dense(m, d, Dcvel, Dcdofdot);
@@ -450,7 +442,7 @@ void mjd_rne_vel_dense(const mjModel* m, mjData* d) {
   mju_zero(Dcfrcbody, 6*nv);
 
   // backward pass over bodies: accumulate Dcfrcbody
-  for (int i=m->nbody-1; i > 0; i--) {
+  for (int i=nbody-1; i > 0; i--) {
     if (m->body_parentid[i]) {
       mju_addTo(Dcfrcbody+m->body_parentid[i]*6*nv, Dcfrcbody+i*6*nv, 6*nv);
     }
@@ -463,16 +455,15 @@ void mjd_rne_vel_dense(const mjModel* m, mjData* d) {
       mju_scl(row, Dcfrcbody + (m->dof_bodyid[i]*6+k)*nv, d->cdof[i*6+k], nv);
 
       // dense to sparse: qDeriv -= row
-      int end = d->D_rowadr[i] + d->D_rownnz[i];
-      for (int adr=d->D_rowadr[i]; adr < end; adr++) {
-        d->qDeriv[adr] -= row[d->D_colind[adr]];
+      int end = m->D_rowadr[i] + m->D_rownnz[i];
+      for (int adr=m->D_rowadr[i]; adr < end; adr++) {
+        d->qDeriv[adr] -= row[m->D_colind[adr]];
       }
     }
   }
 
   mj_freeStack(d);
 }
-
 
 
 //------------------------- sparse derivatives of component functions ------------------------------
@@ -497,9 +488,8 @@ static void copyFromParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
   }
 
   // copy: guaranteed to be at beginning of sparse array, due to sorting
-  mju_copy(mat + 6*d->B_rowadr[n], mat + 6*d->B_rowadr[m->body_parentid[n]], 6*ndof);
+  mju_copy(mat + 6*m->B_rowadr[n], mat + 6*m->B_rowadr[m->body_parentid[n]], 6*ndof);
 }
-
 
 
 // add sparse B-row to parent, all overlapping nonzeros
@@ -512,10 +502,10 @@ static void addToParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
   // find matching nonzeros
   int np = m->body_parentid[n];
   int i = 0, ip = 0;
-  while (i < d->B_rownnz[n] && ip < d->B_rownnz[np]) {
+  while (i < m->B_rownnz[n] && ip < m->B_rownnz[np]) {
     // columns match
-    if (d->B_colind[d->B_rowadr[n] + i] == d->B_colind[d->B_rowadr[np] + ip]) {
-      mju_addTo(mat + 6*(d->B_rowadr[np] + ip), mat + 6*(d->B_rowadr[n] + i), 6);
+    if (m->B_colind[m->B_rowadr[n] + i] == m->B_colind[m->B_rowadr[np] + ip]) {
+      mju_addTo(mat + 6*(m->B_rowadr[np] + ip), mat + 6*(m->B_rowadr[n] + i), 6);
 
       // advance both
       i++;
@@ -523,7 +513,7 @@ static void addToParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
     }
 
     // mismatch columns: advance parent
-    else if (d->B_colind[d->B_rowadr[n] + i] > d->B_colind[d->B_rowadr[np] + ip]) {
+    else if (m->B_colind[m->B_rowadr[n] + i] > m->B_colind[m->B_rowadr[np] + ip]) {
       ip++;
     }
 
@@ -535,15 +525,18 @@ static void addToParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
 }
 
 
-
 // derivative of cvel, cdof_dot w.r.t qvel
 static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* Dcdofdot) {
-  int nv = m->nv, nbody = m->nbody;
-  int* Badr = d->B_rowadr, * Dadr = d->D_rowadr;
+  int nv = m->nv, nM = m->nM;
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+  int nbody = sleep_filter ? d->nbody_awake : m->nbody;
+  int* Badr = m->B_rowadr, * Dadr = m->D_rowadr;
   mjtNum mat[36], matT[36];   // 6x6 matrices
 
   // forward pass over bodies: accumulate Dcvel, set Dcdofdot
-  for (int i = 1; i < nbody; i++) {
+  for (int b=1; b < nbody; b++) {
+    int i = sleep_filter ? d->body_awake_ind[b] : b;
+
     // Dcvel = Dcvel_parent
     copyFromParent(m, d, Dcvel, i);
 
@@ -551,7 +544,7 @@ static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* D
     int doflast = m->body_dofadr[i] + m->body_dofnum[i];
     for (int j = m->body_dofadr[i]; j < doflast; j++) {
       // number of dof ancestors of dof j
-      int Jadr = (j < nv - 1 ? m->dof_Madr[j + 1] : m->nM) - (m->dof_Madr[j] + 1);
+      int Jadr = (j < nv - 1 ? m->dof_Madr[j + 1] : nM) - (m->dof_Madr[j] + 1);
 
       // Dcvel += D(cdof * qvel),  Dcdofdot = D(cvel x cdof)
       switch ((mjtJoint) m->jnt_type[m->dof_jntid[j]]) {
@@ -604,34 +597,57 @@ static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* D
 }
 
 
-
 // subtract d qfrc_bias / d qvel from qDeriv
 static void mjd_rne_vel(const mjModel* m, mjData* d) {
-  int nv = m->nv, nbody = m->nbody;
-  const int* Badr = d->B_rowadr;
-  const int* Dadr = d->D_rowadr;
-  const int* Bnnz = d->B_rownnz;
+  int nM = m->nM;
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+  int nbody = sleep_filter ? d->nbody_awake : m->nbody;
+  int nparent = sleep_filter ? d->nparent_awake : m->nbody;
+  int mnv = m->nv;
+  int nv = sleep_filter ? d->nv_awake : mnv;
+
+  const int* Badr = m->B_rowadr;
+  const int* Dadr = m->D_rowadr;
+  const int* Bnnz = m->B_rownnz;
 
   mjtNum mat[36], mat1[36], mat2[36], dmul[36], tmp[6];
 
   mj_markStack(d);
-  mjtNum* Dcdofdot = mj_stackAllocNum(d, 6*m->nD);
-  mjtNum* Dcvel = mj_stackAllocNum(d, 6*m->nB);
-  mjtNum* Dcacc = mj_stackAllocNum(d, 6*m->nB);
-  mjtNum* Dcfrcbody = mj_stackAllocNum(d, 6*m->nB);
-  mjtNum* row = mj_stackAllocNum(d, nv);
+  mjtNum* Dcdofdot = mjSTACKALLOC(d, 6*m->nD, mjtNum);
+  mjtNum* Dcvel = mjSTACKALLOC(d, 6*m->nB, mjtNum);
+  mjtNum* Dcacc = mjSTACKALLOC(d, 6*m->nB, mjtNum);
+  mjtNum* Dcfrcbody = mjSTACKALLOC(d, 6*m->nB, mjtNum);
+  mjtNum* row = mjSTACKALLOC(d, m->nv, mjtNum);
 
   // clear
-  mju_zero(Dcdofdot, 6*m->nD);
-  mju_zero(Dcvel, 6*m->nB);
-  mju_zero(Dcacc, 6*m->nB);
-  mju_zero(Dcfrcbody, 6*m->nB);
+  if (!sleep_filter) {
+    mju_zero(Dcdofdot,  6*m->nD);
+    mju_zero(Dcvel,     6*m->nB);
+    mju_zero(Dcacc,     6*m->nB);
+    mju_zero(Dcfrcbody, 6*m->nB);
+  } else {
+    for (int i = 0; i < nv; i++) {
+      int dof = d->dof_awake_ind[i];
+      mju_zero(Dcdofdot + 6*m->D_rowadr[dof], 6*m->D_rownnz[dof]);
+    }
+
+    for (int i = 0; i < nbody; i++) {
+      int body = d->body_awake_ind[i];
+      int adr = 6*m->B_rowadr[body];
+      int nnz = 6*m->B_rownnz[body];
+      mju_zero(Dcvel     + adr, nnz);
+      mju_zero(Dcacc     + adr, nnz);
+      mju_zero(Dcfrcbody + adr, nnz);
+    }
+  }
 
   // compute Dcvel and Dcdofdot
   mjd_comVel_vel(m, d, Dcvel, Dcdofdot);
 
   // forward pass over bodies: accumulate Dcacc, set Dcfrcbody
-  for (int i=1; i < nbody; i++) {
+  for (int b=1; b < nbody; b++) {
+    int i = sleep_filter ? d->body_awake_ind[b] : b;
+
     // Dcacc = Dcacc_parent
     copyFromParent(m, d, Dcacc, i);
 
@@ -639,7 +655,7 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
     int doflast = m->body_dofadr[i] + m->body_dofnum[i];
     for (int j=m->body_dofadr[i]; j < doflast; j++) {
       // number of dof ancestors of dof j
-      int Jadr = (j < nv - 1 ? m->dof_Madr[j + 1] : m->nM) - (m->dof_Madr[j] + 1);
+      int Jadr = (j < mnv - 1 ? m->dof_Madr[j + 1] : nM) - (m->dof_Madr[j] + 1);
 
       // Dcacc += cdofdot * (D qvel)
       mju_addTo(Dcacc + 6*(Badr[i] + Jadr), d->cdof_dot + 6*j, 6);
@@ -673,12 +689,15 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
   mju_zero(Dcfrcbody, 6*Bnnz[0]);
 
   // backward pass over bodies: accumulate Dcfrcbody
-  for (int i=m->nbody-1; i > 0; i--) {
+  for (int b=nparent-1; b > 0; b--) {
+    int i = sleep_filter ? d->parent_awake_ind[b] : b;
     addToParent(m, d, Dcfrcbody, i);
   }
 
   // process all dofs, update qDeriv
-  for (int j=0; j < nv; j++) {
+  for (int v=0; v < nv; v++) {
+    int j = sleep_filter ? d->dof_awake_ind[v] : v;
+
     // get body index
     int i = m->dof_bodyid[j];
 
@@ -691,16 +710,272 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
 }
 
 
+// 3x3 sub-blocks of (d qfrc_bias / d qvel) for a free rigid subtree
+//   outputs the two 3x3 blocks lin and rot such that the rotational columns
+//   of the full 6x6 bias Jacobian B are  [-mass*lin; rot]  (linear columns are zero)
+//
+// derivation: let R = xmat, s = subtree_com - xpos, w = R*qvel[rot], and Iw be the
+// composite world inertia about the subtree CoM. with qacc = 0,
+// the CoM acceleration is w x (w x s) and the world bias force/torque at the CoM are
+//   f = mass * w x (w x s),   tau = w x Iw*w
+// projected onto the joint coordinates: bias = [f;  R'*(s x f + tau)]. differentiating
+// w.r.t. the rotational dofs (through w = R*qvel[rot]), with K = [w x s]_x + [w]_x [s]_x:
+//   d f / d w   = -mass * K            =>  lin = K * R
+//   d tau / d w = [w]_x Iw - [Iw*w]_x  =>  rot = R' * (-mass*[s]_x K + d tau/d w) * R
+static void freeBias_vel_blocks(mjtNum mass, const mjtNum R[9], const mjtNum Iw[9],
+                                const mjtNum s[3], const mjtNum qvel_rot[3],
+                                mjtNum lin[9], mjtNum rot[9]) {
+  // world-frame angular velocity
+  mjtNum w[3];
+  mji_mulMatVec3(w, R, qvel_rot);
+
+  // intermediate vectors: ws = w x s  (CoM offset velocity),  Iww = Iw * w  (angular momentum)
+  mjtNum ws[3], Iww[3];
+  mji_cross(ws, w, s);
+  mji_mulMatVec3(Iww, Iw, w);
+
+  // K = [w x s]_x + [w]_x [s]_x = s w^T - (w . s) I + [ws]_x
+  mjtNum w_dot_s = w[0]*s[0] + w[1]*s[1] + w[2]*s[2];
+  mjtNum K[9];
+  K[0] = s[0]*w[0] - w_dot_s;
+  K[1] = s[0]*w[1] - ws[2];
+  K[2] = s[0]*w[2] + ws[1];
+
+  K[3] = s[1]*w[0] + ws[2];
+  K[4] = s[1]*w[1] - w_dot_s;
+  K[5] = s[1]*w[2] - ws[0];
+
+  K[6] = s[2]*w[0] - ws[1];
+  K[7] = s[2]*w[1] + ws[0];
+  K[8] = s[2]*w[2] - w_dot_s;
+
+  // lin = K * R
+  mji_mulMatMat3(lin, K, R);
+
+  // C = -mass * [s]_x K + [w]_x Iw - [Iww]_x,  column by column
+  // the last term (-[Iww]_x) is the negated cross-product matrix, added via ternaries
+  mjtNum C[9];
+  for (int c=0; c < 3; c++) {
+    mjtNum s_x_K_row0 = s[1]*K[6+c] - s[2]*K[3+c];
+    mjtNum s_x_K_row1 = s[2]*K[c] - s[0]*K[6+c];
+    mjtNum s_x_K_row2 = s[0]*K[3+c] - s[1]*K[c];
+
+    mjtNum w_x_Iw_row0 = w[1]*Iw[6+c] - w[2]*Iw[3+c];
+    mjtNum w_x_Iw_row1 = w[2]*Iw[c] - w[0]*Iw[6+c];
+    mjtNum w_x_Iw_row2 = w[0]*Iw[3+c] - w[1]*Iw[c];
+
+    C[c]     = -mass * s_x_K_row0 + w_x_Iw_row0 + (c == 1 ? Iww[2] : (c == 2 ? -Iww[1] : 0));
+    C[3 + c] = -mass * s_x_K_row1 + w_x_Iw_row1 + (c == 0 ? -Iww[2] : (c == 2 ? Iww[0] : 0));
+    C[6 + c] = -mass * s_x_K_row2 + w_x_Iw_row2 + (c == 0 ? Iww[1] : (c == 1 ? -Iww[0] : 0));
+  }
+
+  // rot = R^T * C * R
+  mjtNum tmp[9];
+  mji_mulMatTMat3(tmp, R, C);
+  mji_mulMatMat3(rot, tmp, R);
+}
+
+
+// 6x6 block B = d qfrc_bias / d qvel for a free rigid subtree
+//   assembles the full 6x6 from the 3x3 sub-blocks computed by freeBias_vel_blocks
+//   rows/cols ordered like the free joint dofs: [linear(3); rotational(3)]
+//   linear columns are zero: the bias force does not depend on linear velocity
+//   requires valid d->crb, computed by mj_crb
+void mjd_freeBias_vel(const mjModel* m, const mjData* d, int jnt, mjtNum B[36]) {
+  int body = m->jnt_bodyid[jnt];
+  int adr = m->jnt_dofadr[jnt];
+  const mjtNum* crb = d->crb + 10*body;
+  mjtNum mass = crb[9];
+
+  // composite world inertia about the subtree CoM, already accumulated by mj_crb
+  mjtNum Iw[9] = {crb[0], crb[3], crb[4],
+                  crb[3], crb[1], crb[5],
+                  crb[4], crb[5], crb[2]};
+  mjtNum s[3], lin[9], rot[9];
+  mji_sub3(s, d->subtree_com + 3*body, d->xpos + 3*body);
+  freeBias_vel_blocks(mass, d->xmat + 9*body, Iw, s, d->qvel + adr + 3, lin, rot);
+
+  mju_zero(B, 36);
+  for (int r=0; r < 3; r++) {
+    for (int c=0; c < 3; c++) {
+      B[6*(r+0) + 3+c] = -mass * lin[3*r+c];
+      B[6*(r+3) + 3+c] = rot[3*r+c];
+    }
+  }
+}
+
+
+// return 1 if body is the root of a free rigid subtree (single free joint, fixed descendants)
+mjtBool mj_isFreeBody(const mjModel* m, int body) {
+  // must have exactly one joint, of free type
+  if (m->body_jntnum[body] != 1 || m->jnt_type[m->body_jntadr[body]] != mjJNT_FREE) {
+    return false;
+  }
+
+  int adr = m->jnt_dofadr[m->body_jntadr[body]];
+
+  // descendants must not add degrees of freedom
+  return m->tree_dofnum[m->dof_treeid[adr]] == 6;
+}
+
+
+// 6x6 block A = M - h * (d qfrc_smooth / d qvel) for the free joint of a rigid subtree
+//   returns 1 and writes A if jnt is the free joint of an awake rigid subtree, 0 otherwise
+//   requires valid d->qDeriv rows for the block, computed with flg_bias = 0; the bias
+//   derivative excluded from qDeriv is added here via mjd_freeBias_vel
+int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjtNum A[36],
+                 int flg_discrete) {
+  int body = m->jnt_bodyid[jnt];
+  int adr = m->jnt_dofadr[jnt];
+
+  // must be a free rigid subtree, awake
+  if (!mj_isFreeBody(m, body) || !d->tree_awake[m->dof_treeid[adr]]) {
+    return 0;
+  }
+
+  // A = M block (gather from sparse lower triangle)
+  mju_zero(A, 36);
+  for (int r=0; r < 6; r++) {
+    int rowadr = m->M_rowadr[adr+r];
+    int rownnz = m->M_rownnz[adr+r];
+    for (int k=0; k < rownnz; k++) {
+      int c = m->M_colind[rowadr+k] - adr;
+      A[6*r+c] = A[6*c+r] = d->M[rowadr+k];
+    }
+  }
+
+  // discrete: the metric block is M + diag + fluid, assembled from the efm arrays
+  // (qDeriv is not computed under discrete)
+  if (flg_discrete) {
+    // per-dof diagonal metric terms
+    if (d->efm_diag) {
+      for (int r=0; r < 6; r++) {
+        A[6*r+r] += d->efm_diag[adr+r];
+      }
+    }
+
+    // fluid drag blocks in this joint's rows of M's pattern
+    if (d->efm_fluid) {
+      for (int r=0; r < 6; r++) {
+        int rowadr = m->M_rowadr[adr+r];
+        int rownnz = m->M_rownnz[adr+r];
+        for (int k=0; k < rownnz; k++) {
+          int c = m->M_colind[rowadr+k] - adr;
+          A[6*r+c] += d->efm_fluid[rowadr+k];
+          if (c != r) {
+            A[6*c+r] += d->efm_fluid[rowadr+k];
+          }
+        }
+      }
+    }
+  }
+
+  // implicit-family: A -= h * qDeriv block (actuator and passive derivatives)
+  else {
+    for (int r=0; r < 6; r++) {
+      int rowadr = m->D_rowadr[adr+r];
+      int rownnz = m->D_rownnz[adr+r];
+      for (int k=0; k < rownnz; k++) {
+        int c = m->D_colind[rowadr+k] - adr;
+        A[6*r+c] -= h * d->qDeriv[rowadr+k];
+      }
+    }
+  }
+
+  // A -= h * d(qfrc_smooth)/d(qvel) for the bias term missing from qDeriv;
+  // qfrc_smooth includes -qfrc_bias, so subtracting its derivative adds +h*B
+  mjtNum B[36];
+  mjd_freeBias_vel(m, d, jnt, B);
+  mju_addToScl(A, B, h, 36);
+
+  return 1;
+}
+
+
+// can this free rigid subtree take the local gyroscopic treatment under discrete:
+// its rows of the solve must be decoupled -- no constraint Jacobian support, no flex
+// CSR row, no tendon or actuator metric terms on its 6 dofs. Structural: reads the
+// constraint Jacobian, valid from mj_makeConstraint on
+int mjd_freeGyroPossible(const mjModel* m, const mjData* d, int jnt) {
+  int adr = m->jnt_dofadr[jnt];
+  if (m->jnt_type[jnt] != mjJNT_FREE || !mj_isFreeBody(m, m->jnt_bodyid[jnt])) {
+    return 0;
+  }
+  for (int r=0; r < 6; r++) {
+    if (d->nefmK && d->efm_K_rownnz[adr+r]) {
+      return 0;
+    }
+  }
+
+  // constraint Jacobian support on any of the 6 dofs couples them to the solve
+  int nefc = d->nefc;
+  if (mj_isSparse(m)) {
+    for (int i=0; i < nefc; i++) {
+      int end = d->efc_J_rowadr[i] + d->efc_J_rownnz[i];
+      for (int j=d->efc_J_rowadr[i]; j < end; j++) {
+        int c = d->efc_J_colind[j];
+        if (c >= adr+6) {
+          break;
+        }
+        if (c >= adr) {
+          return 0;
+        }
+      }
+    }
+  } else {
+    int nv = m->nv;
+    for (int i=0; i < nefc; i++) {
+      const mjtNum* row = d->efc_J + nv*i + adr;
+      for (int r=0; r < 6; r++) {
+        if (row[r]) {
+          return 0;
+        }
+      }
+    }
+  }
+
+  // any tendon with metric terms touching these dofs couples them to other trees
+  for (int t=0; t < d->nefmT; t++) {
+    if (!d->efm_ts[t]) {
+      continue;
+    }
+    int i = d->efm_tid[t];
+    int end = m->ten_J_rowadr[i] + m->ten_J_rownnz[i];
+    for (int j=m->ten_J_rowadr[i]; j < end; j++) {
+      int c = m->ten_J_colind[j];
+      if (c >= adr && c < adr+6) {
+        return 0;
+      }
+    }
+  }
+  for (int t=0; t < d->nefmA; t++) {
+    int i = d->efm_aid[t];
+    int oadr = m->actuator_outadr[i];
+    for (int k=0; k < m->actuator_outnum[i]; k++) {
+      int r = oadr + k;
+      int end = d->moment_rowadr[r] + d->moment_rownnz[r];
+      for (int j=d->moment_rowadr[r]; j < end; j++) {
+        int c = d->moment_colind[j];
+        if (c >= adr && c < adr+6) {
+          return 0;
+        }
+      }
+    }
+  }
+  return 1;
+}
+
 
 //--------------------- utility functions for (d force / d vel) Jacobians --------------------------
 
-// add J'*B*J to qDeriv
-static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* B, int n) {
+// add J'*B*J to res, in qDeriv's sparsity layout
+static void addJTBJ(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* J,
+                    const mjtNum* B, int n) {
   int nv = m->nv;
 
   // allocate dense row
   mj_markStack(d);
-  mjtNum* row = mj_stackAllocNum(d, nv);
+  mjtNum* row = mjSTACKALLOC(d, nv, mjtNum);
 
   // process non-zero elements of B
   for (int i=0; i < n; i++) {
@@ -714,11 +989,11 @@ static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* 
           // row = J(i,k)*B(i,j)*J(j,:)
           mju_scl(row, J+j*nv, J[i*nv+k] * B[i*n+j], nv);
 
-          // add row to qDeriv(k,:)
-          int rownnz_k = d->D_rownnz[k];
+          // add row to res(k,:)
+          int rownnz_k = m->D_rownnz[k];
           for (int s=0; s < rownnz_k; s++) {
-            int adr = d->D_rowadr[k] + s;
-            d->qDeriv[adr] += row[d->D_colind[adr]];
+            int adr = m->D_rowadr[k] + s;
+            res[adr] += row[m->D_colind[adr]];
           }
         }
       }
@@ -729,49 +1004,155 @@ static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* 
 }
 
 
-
-// add J'*B*J to qDeriv, sparse version
+// add J'*B*J to res (in qDeriv's sparsity layout), sparse version
 static void addJTBJSparse(
-  const mjModel* m, mjData* d, const mjtNum* J,
+  const mjModel* m, mjData* d, mjtNum* res, const mjtNum* J,
   const mjtNum* B, int n, int offset,
   const int* J_rownnz, const int* J_rowadr, const int* J_colind) {
-  int nv = m->nv;
 
-  // allocate row
-  mj_markStack(d);
-  mjtNum* row = mj_stackAllocNum(d, nv);
-
-  // compute qDeriv(k,p) += sum_{i,j} ( J(i,k)*B(i,j)*J(j,p) )
+  // compute res(k,p) += sum_{i,j} ( J(i,k)*B(i,j)*J(j,p) )
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < n; j++) {
-      int offset_i = offset+i, offset_j = offset+j;
       if (!B[i*n+j]) {
         continue;
       }
 
       // loop over non-zero elements of J(i,:)
-      for (int k = 0; k < J_rownnz[offset_i]; k++) {
-        int ik = J_rowadr[offset_i] + k;
+      int nnz_i = J_rownnz[offset+i];
+      int adr_i = J_rowadr[offset+i];
+      int nnz_j = J_rownnz[offset+j];
+      int adr_j = J_rowadr[offset+j];
+      for (int k = 0; k < nnz_i; k++) {
+        int ik = adr_i + k;
         int colik = J_colind[ik];
 
-        // row = J(i,k)*B(i,j)*J(j,:)
-        mju_scl(row, J + J_rowadr[offset_j], J[ik]*B[i*n+j], J_rownnz[offset_j]);
-
-        // qDeriv(k,:) += row
-        mju_addToSparseInc(d->qDeriv + d->D_rowadr[colik], row,
-                           d->D_rownnz[colik], d->D_colind + d->D_rowadr[colik],
-                           J_rownnz[offset_j], J_colind + J_rowadr[offset_j]);
+        // res(k,:) += J(j,:) * J(i,k)*B(i,j)
+        mju_addToSclSparseInc(res + m->D_rowadr[colik], J + adr_j,
+                              m->D_rownnz[colik], m->D_colind + m->D_rowadr[colik],
+                              nnz_j, J_colind + adr_j,
+                              J[ik]*B[i*n+j]);
       }
     }
   }
-
-  // free space
-  mj_freeStack(d);
 }
 
 
-
 //----------------------------- derivatives of actuator forces -------------------------------------
+
+// derivative of mju_muscleGainLength w.r.t length
+static mjtNum mjd_muscleGainLength(mjtNum length, mjtNum lmin, mjtNum lmax) {
+  if (lmin <= length && length <= lmax) {
+    // mid-ranges (maximum is at 1.0)
+    mjtNum a = 0.5*(lmin+1);
+    mjtNum b = 0.5*(1+lmax);
+
+    if (length <= a) {
+      // FL = 0.5*x*x
+      mjtNum x = (length-lmin) / mju_max(mjMINVAL, a-lmin);
+      return x / mju_max(mjMINVAL, a-lmin);
+    } else if (length <= 1) {
+      // FL = 1 - 0.5*x*x, x decreasing in length
+      mjtNum x = (1-length) / mju_max(mjMINVAL, 1-a);
+      return x / mju_max(mjMINVAL, 1-a);
+    } else if (length <= b) {
+      // FL = 1 - 0.5*x*x
+      mjtNum x = (length-1) / mju_max(mjMINVAL, b-1);
+      return -x / mju_max(mjMINVAL, b-1);
+    } else {
+      // FL = 0.5*x*x, x decreasing in length
+      mjtNum x = (lmax-length) / mju_max(mjMINVAL, lmax-b);
+      return -x / mju_max(mjMINVAL, lmax-b);
+    }
+  }
+
+  return 0;
+}
+
+
+// derivative of mju_muscleGain w.r.t length
+static mjtNum mjd_muscleGain_len(mjtNum len, mjtNum vel, const mjtNum lengthrange[2], mjtNum acc0,
+                                 const mjtNum prm[9]) {
+  // unpack parameters
+  mjtNum range[2] = {prm[0], prm[1]};
+  mjtNum force    = prm[2];
+  mjtNum scale    = prm[3];
+  mjtNum lmin     = prm[4];
+  mjtNum lmax     = prm[5];
+  mjtNum vmax     = prm[6];
+  mjtNum fvmax    = prm[8];
+
+  // scale force if negative
+  if (force < 0) {
+    force = scale / mju_max(mjMINVAL, acc0);
+  }
+
+  // optimum length
+  mjtNum L0 = (lengthrange[1]-lengthrange[0]) / mju_max(mjMINVAL, range[1]-range[0]);
+
+  // normalized length and velocity
+  mjtNum L = range[0] + (len-lengthrange[0]) / mju_max(mjMINVAL, L0);
+  mjtNum V = vel / mju_max(mjMINVAL, L0*vmax);
+
+  // length curve derivative
+  mjtNum dFL = mjd_muscleGainLength(L, lmin, lmax);
+
+  // velocity curve
+  mjtNum FV;
+  mjtNum y = fvmax-1;
+  if (V <= -1) {
+    FV = 0;
+  } else if (V <= 0) {
+    FV = (V+1)*(V+1);
+  } else if (V <= y) {
+    FV = fvmax - (y-V)*(y-V) / mju_max(mjMINVAL, y);
+  } else {
+    FV = fvmax;
+  }
+
+  // compute dFL*FV and scale, make it negative
+  return -force*dFL*FV/mju_max(mjMINVAL, L0);
+}
+
+
+// derivative of mju_muscleBias w.r.t length
+static mjtNum mjd_muscleBias_len(mjtNum len, const mjtNum lengthrange[2], mjtNum acc0,
+                                 const mjtNum prm[9]) {
+  // unpack parameters
+  mjtNum range[2] = {prm[0], prm[1]};
+  mjtNum force    = prm[2];
+  mjtNum scale    = prm[3];
+  mjtNum lmax     = prm[5];
+  mjtNum fpmax    = prm[7];
+
+  // scale force if negative
+  if (force < 0) {
+    force = scale / mju_max(mjMINVAL, acc0);
+  }
+
+  // optimum length
+  mjtNum L0 = (lengthrange[1]-lengthrange[0]) / mju_max(mjMINVAL, range[1]-range[0]);
+
+  // normalized length
+  mjtNum L = range[0] + (len-lengthrange[0]) / mju_max(mjMINVAL, L0);
+
+  // derivative of the passive curve: half-quadratic to (L0+lmax)/2, linear beyond
+  mjtNum b = 0.5*(1+lmax);
+  mjtNum dFP;
+  if (L <= 1) {
+    dFP = 0;
+  } else if (L <= b) {
+    // FP = 0.5*x*x
+    mjtNum x = (L-1) / mju_max(mjMINVAL, b-1);
+    dFP = x / mju_max(mjMINVAL, b-1);
+  } else {
+    // FP = 0.5 + x
+    dFP = 1 / mju_max(mjMINVAL, b-1);
+  }
+
+  // scale, make it negative
+  return -force*fpmax*dFP/mju_max(mjMINVAL, L0);
+}
+
 
 // derivative of mju_muscleGain w.r.t velocity
 static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrange[2], mjtNum acc0,
@@ -822,10 +1203,1389 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
 }
 
 
+//--------------------- utility functions for (d force / d pos) * vec Jacobians --------------------
+
+// add J'*B*J*vec to res, sparse version
+static void addJTBJ_mulSparse(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                              const int* J_rownnz, const int* J_rowadr, const int* J_colind,
+                              const mjtNum* J, const mjtNum* B, int n) {
+  // allocate temp vectors
+  mj_markStack(d);
+  mjtNum* Jv = mjSTACKALLOC(d, n, mjtNum);
+  mjtNum* BJv = mjSTACKALLOC(d, n, mjtNum);
+
+  // Jv = J*vec (Sparse Matrix-Vector Multiplication)
+  mju_zero(Jv, n);
+  for (int i=0; i < n; i++) {
+    int nnz = J_rownnz[i];
+    int adr = J_rowadr[i];
+    for (int k=0; k < nnz; k++) {
+      Jv[i] += J[adr + k] * vec[J_colind[adr + k]];
+    }
+  }
+
+  // BJv = B*Jv (Dense Matrix-Vector Multiplication)
+  mju_mulMatVec(BJv, B, Jv, n, n);
+
+  // res += J'*BJv (Sparse Transpose Matrix-Vector Multiplication)
+  for (int i=0; i < n; i++) {
+    int nnz = J_rownnz[i];
+    int adr = J_rowadr[i];
+    mjtNum val = BJv[i];
+    for (int k=0; k < nnz; k++) {
+      res[J_colind[adr + k]] += J[adr + k] * val;
+    }
+  }
+
+  mj_freeStack(d);
+}
+
+
+// shared kernel for flex interpolation derivatives, scale = s1 + s2*damping
+//  res: output vector (res += J'*K*J*vec), or NULL for cache-only mode
+//  vec: input vector, or NULL for cache-only mode
+//  K_rot_cache: if non-NULL, use pre-cached K_rot values instead of computing them
+//  K_rot_out: if non-NULL and K_rot_cache is NULL, store computed K_rot values here
+static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
+                                  mjtNum* res, const mjtNum* vec, mjtNum s1, mjtNum s2,
+                                  const mjtNum* K_rot_cache, mjtNum* K_rot_out) {
+  int nv = m->nv;
+
+  // compute upper bounds across all interpolated flexes
+  int max_nodenum = 0;
+  int max_npe = 0;  // max nodes per element (3D cell or 2D face)
+  for (int f = 0; f < m->nflex; f++) {
+    if (!m->flex_interp[f]) continue;
+    if (m->flex_rigid[f]) continue;
+    int order = m->flex_interp[f];
+    int shell_mode = order < 0;
+    order = order < 0 ? -order : order;
+    int npe;
+    if (shell_mode) {
+      npe = (order+1)*(order+1);
+    } else {
+      npe = (order+1)*(order+1)*(order+1);
+    }
+    if (npe > max_npe) max_npe = npe;
+    if (m->flex_nodenum[f] > max_nodenum) max_nodenum = m->flex_nodenum[f];
+  }
+
+  // nothing to do
+  if (max_npe == 0) {
+    return;
+  }
+
+  int max_dim_c = 3 * max_npe;
+
+  // single unconditional markStack
+  mj_markStack(d);
+
+  // per-flex node positions (upper bound)
+  mjtNum* xpos = mjSTACKALLOC(d, 3*max_nodenum, mjtNum);
+
+  // per-element arrays (upper bound)
+  mjtNum* xpos_c = mjSTACKALLOC(d, 3*max_npe, mjtNum);
+  mjtNum* K_rot_cell = mjSTACKALLOC(d, max_dim_c*max_dim_c, mjtNum);
+
+  // sparse Jacobian for one cell (upper bound)
+  int* J_rownnz = mjSTACKALLOC(d, max_dim_c, int);
+  int* J_rowadr = mjSTACKALLOC(d, max_dim_c, int);
+  mjtNum* J_val = mjSTACKALLOC(d, max_dim_c*nv, mjtNum);
+  int* J_colind = mjSTACKALLOC(d, max_dim_c*nv, int);
+
+  // temp allocations for chain
+  int* chain_colind = mjSTACKALLOC(d, nv, int);
+  mjtNum* blk_jac = mjSTACKALLOC(d, 3*nv, mjtNum);
+
+  // temp buffer for fast path element result
+  mjtNum* fast_tmp = mjSTACKALLOC(d, max_dim_c, mjtNum);
+
+  // loop over flexes
+  for (int f=0; f < m->nflex; f++) {
+    // only process flex_interp
+    if (!m->flex_interp[f]) {
+      continue;
+    }
+
+    // get stiffness and damping
+    int stiffnessadr = m->flex_stiffnessadr[f];
+    if (stiffnessadr < 0) {
+      continue;
+    }
+    mjtNum* K = m->flex_stiffness + stiffnessadr;
+
+    // skip if rigid or no stiffness
+    if (m->flex_rigid[f] || K[0] == 0) {
+      continue;
+    }
+
+    // skip if strain constraints present (stiffness handled by constraint solver)
+    if (m->flex_edgeequality[f] == 3) {
+      continue;
+    }
+
+    // compute scale
+    mjtNum damping = m->flex_damping[f];
+    mjtNum scale = s1 + s2 * damping;
+
+    // skip if scale is zero
+    if (scale == 0) {
+      continue;
+    }
+
+    int order = m->flex_interp[f];
+    int shell_mode = order < 0;
+    order = order < 0 ? -order : order;
+
+    int cx = m->flex_cellnum[3*f+0];
+    int cy = m->flex_cellnum[3*f+1];
+    int cz = m->flex_cellnum[3*f+2];
+
+    int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
+
+    // determine element type: 2D boundary quads (shell) or 3D cells (volume)
+    int npe;
+    int nelem_fe;
+    if (shell_mode) {
+      npe = (order+1)*(order+1);
+      nelem_fe = 2*(cy*cz + cx*cz + cx*cy);
+    } else {
+      npe = (order+1)*(order+1)*(order+1);
+      nelem_fe = cx * cy * cz;
+    }
+    int dim_e = 3 * npe;
+
+    // gather raw node positions (unrotated)
+    mju_flexGatherState(m, d, f, xpos, NULL);
+
+    // check if centered fast path applies: centered, all nodes on simple slider
+    // bodies (body_simple == 2 means diag M with sliders only, J = R_body per node)
+    int use_fast_path = m->flex_centered[f];
+    if (use_fast_path) {
+      int nodenum_f = m->flex_nodenum[f];
+      for (int n = 0; n < nodenum_f; n++) {
+        if (m->body_simple[bodyid[n]] != 2) {
+          use_fast_path = 0;
+          break;
+        }
+      }
+    }
+
+    // loop over finite elements
+    for (int fe = 0; fe < nelem_fe; fe++) {
+      // get element stiffness
+      mjtNum* k_elem = K + fe * 3*npe * 3*npe;
+
+      // skip empty elements: stiffness buffer is zero-initialized at compile time
+      // (user_model.cc), and non-empty elements have strictly positive diagonal
+      if (k_elem[0] == 0) {
+        continue;
+      }
+
+      // use cached K_rot or compute from scratch
+      int gindices[125];  // element node indices (max npe = 125 for quadratic 3D)
+      int krot_adr = stiffnessadr + fe * dim_e * dim_e;
+      if (K_rot_cache) {
+        // read K_rot from cache and apply scale
+        for (int i = 0; i < dim_e*dim_e; i++) {
+          K_rot_cell[i] = scale * K_rot_cache[krot_adr + i];
+        }
+
+        // recompute gindices (cheap index-only call, no rotation)
+        if (shell_mode) {
+          mju_flexGatherFaceState(order, cx, cy, cz, fe, NULL, NULL, NULL,
+                                  NULL, NULL, NULL, gindices, NULL);
+        } else {
+          int ci = fe / (cy * cz);
+          int cj = (fe / cz) % cy;
+          int ck = fe % cz;
+          mju_flexGatherCellState(order, cy, cz, ci, cj, ck, NULL, NULL, NULL,
+                                  NULL, NULL, NULL, gindices, NULL);
+        }
+      } else {
+        // gather element-local node positions and rotation
+        mjtNum quat[4];
+        if (shell_mode) {
+          mju_flexGatherFaceState(order, cx, cy, cz, fe, xpos, NULL, NULL,
+                                  xpos_c, NULL, NULL, gindices, quat);
+        } else {
+          int ci = fe / (cy * cz);
+          int cj = (fe / cz) % cy;
+          int ck = fe % cz;
+          mju_flexGatherCellState(order, cy, cz, ci, cj, ck, xpos, NULL, NULL,
+                                  xpos_c, NULL, NULL, gindices, quat);
+        }
+
+        // R = R_global2local, RT = R_local2global
+        mjtNum R[9], RT[9];
+        mju_quat2Mat(R, quat);
+        mju_transpose(RT, R, 3, 3);
+
+        // compute K_rot = RT * K_elem * R (block-wise)
+        mju_zero(K_rot_cell, dim_e*dim_e);
+        for (int a = 0; a < npe; a++) {
+          for (int b = 0; b < npe; b++) {
+            mjtNum blk[9], tmp[9];
+
+            // get K_elem(a,b) 3x3 block
+            int adr_cell = (3*a)*(3*npe) + 3*b;
+            for (int r = 0; r < 3; r++) {
+              for (int c = 0; c < 3; c++) {
+                blk[3*r+c] = k_elem[adr_cell + r*(3*npe) + c];
+              }
+            }
+
+            // tmp = K * R
+            mji_mulMatMat3(tmp, blk, R);
+            // blk = RT * tmp = RT * K * R
+            mji_mulMatMat3(blk, RT, tmp);
+
+            // store in K_rot_cell at (a, b)
+            int adr_out = (3*a)*dim_e + 3*b;
+            for (int r = 0; r < 3; r++) {
+              for (int c = 0; c < 3; c++) {
+                K_rot_cell[adr_out + r*dim_e + c] = scale * blk[3*r+c];
+              }
+            }
+          }
+        }
+
+        // optionally store unscaled K_rot to output cache
+        if (K_rot_out) {
+          for (int i = 0; i < dim_e*dim_e; i++) {
+            K_rot_out[krot_adr + i] = K_rot_cell[i] / scale;
+          }
+        }
+      }
+
+      // skip Jacobian construction and op when only caching (res == NULL)
+      if (!res) {
+        continue;
+      }
+
+      // fast path: centered flex with 3 translational DOFs per body
+      // J = R_body (not I when body is rotated), so J'*K*J*vec = R^T*K*(R*vec)
+      if (use_fast_path) {
+        // apply R_body to vec for each node
+        for (int n = 0; n < npe; n++) {
+          int dof = m->body_dofadr[bodyid[gindices[n]]];
+          mji_mulMatVec3(fast_tmp + 3*n, d->xmat + 9*bodyid[gindices[n]], vec + dof);
+        }
+
+        // compute R^T * K_rot * (R*vec) and add to res
+        for (int a = 0; a < npe; a++) {
+          int dof_a = m->body_dofadr[bodyid[gindices[a]]];
+          mjtNum row[3] = {0, 0, 0};
+          for (int b = 0; b < npe; b++) {
+            int adr = (3*a)*dim_e + 3*b;
+            for (int r = 0; r < 3; r++) {
+              for (int c = 0; c < 3; c++) {
+                row[r] += K_rot_cell[adr + r*dim_e + c] * fast_tmp[3*b + c];
+              }
+            }
+          }
+          // apply R^T and add to res
+          mjtNum qfrc_loc[3];
+          mji_mulMatTVec3(qfrc_loc, d->xmat + 9*bodyid[gindices[a]], row);
+          for (int r = 0; r < 3; r++) {
+            res[dof_a + r] += qfrc_loc[r];
+          }
+        }
+      } else {
+        // general path: construct sparse Jacobian for this element's nodes
+        int current_adr = 0;
+        for (int n = 0; n < npe; n++) {
+          int bid = bodyid[gindices[n]];
+          int chain_nnz = mj_bodyChain(m, bid, chain_colind);
+          mj_jacSparse(m, d, blk_jac, NULL, xpos+3*gindices[n], bid,
+                       chain_nnz, chain_colind, /*flg_skipcommon=*/0);
+
+          for (int r = 0; r < 3; r++) {
+            int row_idx = 3*n + r;
+            J_rownnz[row_idx] = chain_nnz;
+            J_rowadr[row_idx] = current_adr;
+
+            for (int idx = 0; idx < chain_nnz; idx++) {
+              J_colind[current_adr] = chain_colind[idx];
+              J_val[current_adr] = blk_jac[r*chain_nnz + idx];
+              current_adr++;
+            }
+          }
+        }
+
+        // res += J'*K_rot*J*vec
+        addJTBJ_mulSparse(m, d, res, vec, J_rownnz, J_rowadr, J_colind,
+                          J_val, K_rot_cell, dim_e);
+      }
+
+    }
+  }
+
+  mj_freeStack(d);
+}
+
+
+// compute res += (s1 + s2*damping) * J'*K*J * vec, for all interpolated flexes
+//   K_rot_cache: if non-NULL, use pre-cached K_rot (same layout as m->flex_stiffness)
+void mjd_flexInterp_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                        mjtNum s1, mjtNum s2, const mjtNum* K_rot_cache) {
+  mjd_flexInterp_kernel(m, d, res, vec, s1, s2, K_rot_cache, NULL);
+}
+
+
+// precompute unscaled K_rot for all elements into cache (same layout as m->flex_stiffness)
+void mjd_flexInterp_cacheKrot(const mjModel* m, mjData* d, mjtNum* K_rot_out) {
+  // use s1=1, s2=0 so scale=1 and K_rot_out gets unscaled values
+  mjd_flexInterp_kernel(m, d, NULL, NULL, 1, 0, NULL, K_rot_out);
+}
+
+
+// compute res += scale * K_bend * vec for standard (non-interp) flex bending
+//   scale = s1 + s2 * flex_damping[f]  per flex
+//   for stiffness+damping: s1=h^2, s2=h  =>  scale = h^2 + h*damping
+//   for stiffness only:    s1=h,   s2=0  =>  scale = h
+void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                      mjtNum s1, mjtNum s2) {
+  for (int f = 0; f < m->nflex; f++) {
+    // skip interp, rigid, or non-2D
+    if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] != 2) {
+      continue;
+    }
+
+    int bendingadr = m->flex_bendingadr[f];
+    if (bendingadr < 0) {
+      continue;
+    }
+
+    mjtNum scale = s1 + s2 * m->flex_damping[f];
+    if (!scale) {
+      continue;
+    }
+
+    const mjtNum* b = m->flex_bending + bendingadr;
+    const int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
+    int edgenum = m->flex_edgenum[f];
+    int edgeadr = m->flex_edgeadr[f];
+
+    for (int e = 0; e < edgenum; e++) {
+      const int* edge = m->flex_edge + 2*(e + edgeadr);
+      const int* flap = m->flex_edgeflap + 2*(e + edgeadr);
+      int v[4] = {edge[0], edge[1], flap[0], flap[1]};
+
+      // skip boundary edges (no second flap vertex)
+      if (v[3] == -1) {
+        continue;
+      }
+
+      // apply 4x4 bending stencil, coordinate-wise. Pinned vertices (zero-dof bodies) contribute
+      // nothing, as in mjd_flexStretch_mul: they have no dof to write a row into and none to read a
+      // displacement from, and body_dofadr is negative there, so an unguarded index runs off both
+      // res and vec.
+      // The stencil is built from WORLD-space vertex positions while the slide dofs live in each
+      // vertex body's own (possibly rotated) frame, so the operator is sandwiched with R (dof ->
+      // world) and R^T (world -> dof), as mjd_flexStretch_mul does. Without it the operator is not
+      // the Jacobian of mj_flexPassiveBend's force whenever a flex parent is rotated.
+      for (int i = 0; i < 4; i++) {
+        int bi = bodyid[v[i]];
+        if (!m->body_dofnum[bi]) {
+          continue;
+        }
+        mjtNum vw[3] = {0, 0, 0};
+        for (int j = 0; j < 4; j++) {
+          int bj = bodyid[v[j]];
+          if (!m->body_dofnum[bj]) {
+            continue;
+          }
+          mjtNum wj[3];
+          mji_mulMatVec3(wj, d->xmat + 9*bj, vec + m->body_dofadr[bj]);
+          mjtNum q = b[17*e + 4*i + j];
+          for (int x = 0; x < 3; x++) {
+            vw[x] += q * wj[x];
+          }
+        }
+        mjtNum vl[3];
+        mji_mulMatTVec3(vl, d->xmat + 9*bi, vw);
+        int dof_i = m->body_dofadr[bi];
+        for (int x = 0; x < 3; x++) {
+          res[dof_i + x] += scale * vl[x];
+        }
+      }
+    }
+  }
+}
+
+
+// local edge-based vertex indexing for 2D and 3D elements (mirrors engine_passive.c: the
+// flex_stiffness metric ordering is tied to this edge order)
+static const int stretch_edges[2][6][2] = {
+  {{1, 2}, {2, 0}, {0, 1}, {0, 0}, {0, 0}, {0, 0}},
+  {{0, 1}, {1, 2}, {2, 0}, {2, 3}, {0, 3}, {1, 3}}};
+
+// compute res += (s1 + s2*flex_damping) * K_stretch * vec for standard (non-interp) flex
+// stretch, where K_stretch is the Hessian of the passive stretch force in mj_flexPassiveStretch:
+// with elongation e_a = L_a^2 - L0_a^2 and force f = -sum_ab M_ab e_a grad(e_b)/2,
+//   K = 2 sum_ab M_ab (s_a d_a)(s_b d_b)^T  +  sum_a Me_a (Laplacian_a (x) I3),
+// d_a the current edge vector and Me_a = sum_b M_ab e_b the edge tension. The first (Gauss-Newton)
+// term alone is not the Jacobian of the force: without the second (geometric) term the operator is
+// only first-order correct, which shows up directly as finite-difference error against
+// -d(qfrc_passive)/dq. Pinned vertices (zero-dof bodies) contribute nothing.
+void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                         mjtNum s1, mjtNum s2) {
+  for (int f = 0; f < m->nflex; f++) {
+    // skip interp, rigid, or 1D
+    if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] < 2) {
+      continue;
+    }
+
+    int stiffnessadr = m->flex_stiffnessadr[f];
+    if (stiffnessadr < 0 || m->flex_stiffness[stiffnessadr] == 0) {
+      continue;
+    }
+
+    mjtNum scale = s1 + s2 * m->flex_damping[f];
+    if (!scale) {
+      continue;
+    }
+
+    int dim = m->flex_dim[f];
+    int nedge = (dim == 2) ? 3 : 6;
+    const int (*edge)[2] = stretch_edges[dim-2];
+    const int* elem = m->flex_elem + m->flex_elemdataadr[f];
+    const mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
+    const int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
+    const mjtNum* k = m->flex_stiffness + stiffnessadr;
+    const int* edgeelem = m->flex_elemedge + m->flex_elemedgeadr[f];
+    const mjtNum* deformed = d->flexedge_length + m->flex_edgeadr[f];
+    const mjtNum* reference = m->flexedge_length0 + m->flex_edgeadr[f];
+    int elemnum = m->flex_elemnum[f];
+
+    for (int t = 0; t < elemnum; t++) {
+      const int* vert = elem + (dim+1)*t;
+
+      // current edge vectors and g_a = d_a . (vec_{a0} - vec_{a1}), zero on pinned vertices
+      mjtNum dvec[6][3], dw[6][3];
+      mjtNum g[6];
+      for (int e = 0; e < nedge; e++) {
+        int v0 = vert[edge[e][0]], v1 = vert[edge[e][1]];
+        int b0 = bodyid[v0],       b1 = bodyid[v1];
+        g[e] = 0;
+
+        // the vertex bodies' slide dofs are expressed in their own (possibly rotated) frame while
+        // the stiffness is built from world-space edge vectors, so the operator must be sandwiched
+        // with R (dof -> world) and R^T (world -> dof); mj_flexPassiveStretch applies the same R^T
+        // to its world-space force. R = I for the common case of an unrotated parent body.
+        mjtNum w0[3] = {0}, w1[3] = {0};
+        if (m->body_dofnum[b0]) {
+          mji_mulMatVec3(w0, d->xmat + 9*b0, vec + m->body_dofadr[b0]);
+        }
+        if (m->body_dofnum[b1]) {
+          mji_mulMatVec3(w1, d->xmat + 9*b1, vec + m->body_dofadr[b1]);
+        }
+        for (int x = 0; x < 3; x++) {
+          dvec[e][x] = xpos[3*v0+x] - xpos[3*v1+x];
+          dw[e][x] = w0[x] - w1[x];
+          g[e] += dvec[e][x]*dw[e][x];
+        }
+      }
+
+      // unpack upper triangular metric (21 elements, matching mj_flexPassiveStretch)
+      mjtNum metric[36];
+      int id = 0;
+
+      for (int e1 = 0; e1 < nedge; e1++) {
+        for (int e2 = e1; e2 < nedge; e2++) {
+          metric[nedge*e1 + e2] = k[21*t + id];
+          metric[nedge*e2 + e1] = k[21*t + id++];
+        }
+      }
+
+      // Edge tension for the geometric term, keeping only its TENSILE part. The geometric block is
+      // Me_a*[[I,-I],[-I,I]] over the edge's two vertices, which is PSD iff Me_a >= 0; a compressed
+      // edge would make K indefinite, and its consumers (the CG constraint solver and the PCG in
+      // mjd_effSolve) both require SPD. The clamp is structural, so no eigendecomposition is
+      // needed. mj_flexPassiveStretch keeps the full Me_a: the force is unchanged, only the
+      // operator is projected.
+      mjtNum Me[6];
+      for (int e = 0; e < nedge; e++) {
+        Me[e] = 0;
+        for (int a = 0; a < nedge; a++) {
+          int idx = edgeelem[t*nedge + a];
+          Me[e] += metric[nedge*e + a]*(deformed[idx]*deformed[idx] -
+                                        reference[idx]*reference[idx]);
+        }
+        Me[e] = mju_max(Me[e], 0);
+      }
+
+      // scatter: res_{b0/b1} +/-= 2*scale*(sum_a M_ba g_a) * d_b + scale*Me_b * (vec_b0 - vec_b1)
+      for (int e = 0; e < nedge; e++) {
+        mjtNum coef = 0;
+        for (int a = 0; a < nedge; a++) {
+          coef += metric[nedge*e + a]*g[a];
+        }
+        coef *= 2*scale;
+        int b0 = bodyid[vert[edge[e][0]]], b1 = bodyid[vert[edge[e][1]]];
+        mjtNum rw[3], rl[3];
+        for (int x = 0; x < 3; x++) {
+          rw[x] = coef*dvec[e][x] + scale*Me[e]*dw[e][x];
+        }
+        if (m->body_dofnum[b0]) {   // world -> dof frame
+          mji_mulMatTVec3(rl, d->xmat + 9*b0, rw);
+          for (int x = 0; x < 3; x++) {
+            res[m->body_dofadr[b0]+x] += rl[x];
+          }
+        }
+        if (m->body_dofnum[b1]) {
+          mji_mulMatTVec3(rl, d->xmat + 9*b1, rw);
+          for (int x = 0; x < 3; x++) {
+            res[m->body_dofadr[b1]+x] -= rl[x];
+          }
+        }
+      }
+    }
+  }
+}
+
+
+// returns true if the interpolated flex is processed by mjd_flexInterp_mul
+static mjtBool flexInterp_processed(const mjModel* m, int f) {
+  if (!m->flex_interp[f]) {
+    return 0;
+  }
+  int sa = m->flex_stiffnessadr[f];
+  if (sa < 0 || m->flex_rigid[f] || m->flex_stiffness[sa] == 0) {
+    return 0;
+  }
+  if (m->flex_edgeequality[f] == 3) {
+    return 0;
+  }
+  return 1;
+}
+
+
+// can ALL operator-processed interp flexes be assembled to dof-level CSR? Requires every node
+// to sit on a simple slider body (body_simple == 2: sliders only, so the point Jacobian is I3
+// regardless of the node offset -- flex_centered is NOT required) or to be fixed (0 dofs, row
+// dropped like a pinned vertex). All-or-nothing: mjd_flexInterp_mul applies every interp flex,
+// so the CSR can replace the operator only if it covers them all.
+mjtBool mjd_flexInterpAssemblable(const mjModel* m) {
+  for (int f = 0; f < m->nflex; f++) {
+    if (!flexInterp_processed(m, f)) {
+      continue;
+    }
+    const int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
+    for (int n = 0; n < m->flex_nodenum[f]; n++) {
+      int dofnum = m->body_dofnum[bodyid[n]];
+      if (dofnum == 0) {
+        continue;
+      }
+      if (m->body_simple[bodyid[n]] != 2 || dofnum != 3) {
+        return 0;
+      }
+    }
+  }
+  return 1;
+}
+
+
+// element walk shared by the interp assembly passes: geometry of interp finite elements
+// (mirrors mjd_flexInterp_kernel; index-only gather calls)
+#define FLEXINTERP_WALK(f, body)                                             \
+  {                                                                          \
+    int order_ = m->flex_interp[f];                                          \
+    int shell_ = order_ < 0;                                                 \
+    order_ = order_ < 0 ? -order_ : order_;                                  \
+    int cx_ = m->flex_cellnum[3 * (f) + 0];                                  \
+    int cy_ = m->flex_cellnum[3 * (f) + 1];                                  \
+    int cz_ = m->flex_cellnum[3 * (f) + 2];                                  \
+    int npe = shell_ ? (order_ + 1) * (order_ + 1)                           \
+                     : (order_ + 1) * (order_ + 1) * (order_ + 1);           \
+    int nelem_fe_ =                                                          \
+        shell_ ? 2 * (cy_ * cz_ + cx_ * cz_ + cx_ * cy_) : cx_ * cy_ * cz_;  \
+    const mjtNum* K_ = m->flex_stiffness + m->flex_stiffnessadr[f];          \
+    int gindices[125];                                                       \
+    for (int fe = 0; fe < nelem_fe_; fe++) {                                 \
+      if (K_[(size_t)fe * 3 * npe * 3 * npe] == 0) continue;                 \
+      if (shell_) {                                                          \
+        mju_flexGatherFaceState(order_, cx_, cy_, cz_, fe, NULL, NULL, NULL, \
+                                NULL, NULL, NULL, gindices, NULL);           \
+      } else {                                                               \
+        int ci_ = fe / (cy_ * cz_), cj_ = (fe / cz_) % cy_, ck_ = fe % cz_;  \
+        mju_flexGatherCellState(order_, cy_, cz_, ci_, cj_, ck_, NULL, NULL, \
+                                NULL, NULL, NULL, NULL, gindices, NULL);     \
+      }                                                                      \
+      body                                                                   \
+    }                                                                        \
+  }
+
+// does any flex use the passive contact path? Distinct from elasticity: an empty CSR is valid for
+// elastic models (matrix-free operators) but means "nothing" for a contact-only flex.
+static mjtBool flexPassiveContact_any(const mjModel* m) {
+  for (int f = 0; f < m->nflex; f++) {
+    if (mj_effFlexContactPossible(m, f)) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+// does ANY flex contribute assemblable implicit stiffness? (cheap existence check for the
+// solver gate: stretch stiffness on a standard flex, or -- when Krot will be supplied -- an
+// operator-processed interp flex)
+mjtBool mjd_flexStiff_any(const mjModel* m, int flg_interp) {
+  for (int f = 0; f < m->nflex; f++) {
+    if (flg_interp && flexInterp_processed(m, f)) {
+      return 1;
+    }
+    if (!m->flex_interp[f] && !m->flex_rigid[f] && m->flex_dim[f] >= 2 &&
+        m->flex_stiffnessadr[f] >= 0 && m->flex_stiffness[m->flex_stiffnessadr[f]] != 0) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+
+// does this standard flex contribute implicit stiffness under the given term flags?
+static mjtBool flexStiff_active(const mjModel* m, int f, int flg_bend, int flg_stretch) {
+  if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] < 2) {
+    return 0;
+  }
+  int bend = flg_bend && m->flex_bendingadr[f] >= 0;
+  int stretch = flg_stretch && m->flex_stiffnessadr[f] >= 0 &&
+                m->flex_stiffness[m->flex_stiffnessadr[f]] != 0;
+  return bend || stretch;
+}
+
+// The flex-contact law (see engine_derivative.h). lam/k is taken as 0 when the multiplier is,
+// so a massless pair (k = 0) yields no force rather than a NaN.
+mjtNum mjd_flexContactSlack(mjtNum k, mjtNum gap, mjtNum lam) {
+  mjtNum t = gap - (lam ? lam/k : 0);
+  return t > 0 ? t : 0;
+}
+
+
+mjtNum mjd_flexContactResidual(mjtNum k, mjtNum gap, mjtNum s, mjtNum lam) {
+  return gap - s - (lam ? lam/k : 0);
+}
+
+
+mjtNum mjd_flexVertMass(const mjModel* m, const mjData* d, int gv) {
+  int b = m->flex_vertbodyid[gv];
+  if (m->body_dofnum[b] != 3) {
+    return 0;
+  }
+  int da = m->body_dofadr[b];
+  return d->M[m->M_rowadr[da] + m->M_rownnz[da] - 1];   // diagonal: the point mass
+}
+
+
+mjtNum mjd_flexContactStiffness(const mjModel* m, const mjData* d, const mjContact* con) {
+  mjtNum mmin = 0;
+  for (int side = 0; side < 2; side++) {
+    int f = con->flex[side];
+    if (f < 0) {
+      continue;
+    }
+    int gv[8], ngv = 0;
+    if (con->vert[side] >= 0) {
+      gv[ngv++] = m->flex_vertadr[f] + con->vert[side];
+    } else if (con->elem[side] >= 0) {
+      int nvrt = m->flex_dim[f] + 1;
+      const int* e = m->flex_elem + m->flex_elemdataadr[f] + nvrt*con->elem[side];
+      for (int j = 0; j < nvrt && ngv < 8; j++) {
+        gv[ngv++] = m->flex_vertadr[f] + e[j];
+      }
+    }
+    for (int j = 0; j < ngv; j++) {
+      mjtNum mv = mjd_flexVertMass(m, d, gv[j]);
+      if (mv > 0 && (mmin == 0 || mv < mmin)) {
+        mmin = mv;
+      }
+    }
+  }
+  return mjFLEXCONTACT_OMEGA2 * mmin;   // 0 if every participant is massless: no stiffness, no NaN
+}
+
+
+// assemble the standard-flex implicit stiffness K = (s1 + s2*damping) * (K_bend + K_stretch)
+// into dof-level CSR (same terms mjd_flexBend_mul / mjd_flexStretch_mul apply matrix-free; the
+// matrix is constant during a solve, so assembling once and applying as a sparse matvec avoids
+// re-walking stencils and re-unpacking metrics on every apply). Rows/columns exist only on the
+// dofs of unpinned vertices of standard dim>=2 flexes with bending or stretch stiffness.
+// Phase 1 (colind == NULL): fill rownnz/rowadr over nv, return total nnz.
+// Phase 2: fill colind and val (rownnz/rowadr must come from phase 1).
+// Interp flexes are assembled iff Krot (the mjd_flexInterp_cacheKrot cache) is non-NULL and
+// they qualify for the centered fast path (caller checks mjd_flexInterpAssemblable): rows on
+// node body dofs, corotated 3x3 blocks, with the operator's NEGATED sign convention folded in
+// so one CSR replaces all three matrix-free operators uniformly.
+int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr,
+                           int* colind, mjtNum* val, mjtNum s1, mjtNum s2,
+                           int flg_bend, int flg_stretch, const mjtNum* Krot) {
+  int nv = m->nv;
+  mj_markStack(d);
+
+  // collect participating vertices: global flex vertex id -> local slot, dofadr
+  int nvert = 0;
+  int* vslot = mjSTACKALLOC(d, m->nflexvert > 0 ? m->nflexvert : 1, int);
+  for (int i = 0; i < m->nflexvert; i++) {
+    vslot[i] = -1;
+  }
+  for (int f = 0; f < m->nflex; f++) {
+    // contact no longer forces vertex slots: a contact-only flex rides the rank-1 class
+    if (!flexStiff_active(m, f, flg_bend, flg_stretch)) {
+      continue;
+    }
+    for (int lv = 0; lv < m->flex_vertnum[f]; lv++) {
+      int gv = m->flex_vertadr[f] + lv;
+      if (m->body_dofnum[m->flex_vertbodyid[gv]] == 3) {
+        vslot[gv] = nvert++;
+      }
+    }
+  }
+
+  // interp nodes participate when the caller supplies the K_rot cache (centered fast path)
+  int* nslot = mjSTACKALLOC(d, m->nflexnode > 0 ? (int)m->nflexnode : 1, int);
+  for (int i = 0; i < m->nflexnode; i++) {
+    nslot[i] = -1;
+  }
+  if (Krot) {
+    for (int f = 0; f < m->nflex; f++) {
+      if (!flexInterp_processed(m, f)) {
+        continue;
+      }
+      const int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
+      for (int ln = 0; ln < m->flex_nodenum[f]; ln++) {
+        if (m->body_dofnum[bodyid[ln]] == 3) {
+          nslot[m->flex_nodeadr[f] + ln] = nvert++;
+        }
+      }
+    }
+  }
+
+  if (!nvert) {
+    mju_zeroInt(rownnz, nv);
+    if (rowadr) mju_zeroInt(rowadr, nv);
+    mj_freeStack(d);
+    return 0;
+  }
+  int* vdof = mjSTACKALLOC(d, nvert, int);
+  for (int gv = 0; gv < m->nflexvert; gv++) {
+    if (vslot[gv] >= 0) {
+      vdof[vslot[gv]] = m->body_dofadr[m->flex_vertbodyid[gv]];
+    }
+  }
+  for (int gn = 0; gn < m->nflexnode; gn++) {
+    if (nslot[gn] >= 0) {
+      vdof[nslot[gn]] = m->body_dofadr[m->flex_nodebodyid[gn]];
+    }
+  }
+
+  // count stencil incidence per vertex slot (with duplicates)
+  int* ncand = mjSTACKALLOC(d, nvert, int);
+  mju_zeroInt(ncand, nvert);
+  for (int f = 0; f < m->nflex; f++) {
+    if (!flexStiff_active(m, f, flg_bend, flg_stretch)) {
+      continue;
+    }
+    int dim = m->flex_dim[f], nvrt = dim + 1;
+    // bending stencils: 4-vertex flaps per edge
+    if (flg_bend && m->flex_bendingadr[f] >= 0) {
+      for (int e = 0; e < m->flex_edgenum[f]; e++) {
+        const int* edge = m->flex_edge + 2*(e + m->flex_edgeadr[f]);
+        const int* flap = m->flex_edgeflap + 2*(e + m->flex_edgeadr[f]);
+        if (flap[1] == -1) continue;
+        int v[4] = {edge[0], edge[1], flap[0], flap[1]};
+        for (int i = 0; i < 4; i++) {
+          int si = vslot[m->flex_vertadr[f] + v[i]];
+          if (si >= 0) ncand[si] += 4;
+        }
+      }
+    }
+    // stretch elements: (dim+1)-vertex cliques
+    if (flg_stretch && m->flex_stiffnessadr[f] >= 0 &&
+        m->flex_stiffness[m->flex_stiffnessadr[f]] != 0) {
+      const int* elem = m->flex_elem + m->flex_elemdataadr[f];
+      for (int t = 0; t < m->flex_elemnum[f]; t++) {
+        for (int i = 0; i < nvrt; i++) {
+          int si = vslot[m->flex_vertadr[f] + elem[(dim+1)*t + i]];
+          if (si >= 0) ncand[si] += nvrt;
+        }
+      }
+    }
+  }
+
+  // interp stencils: npe-node element cliques (counting)
+  if (Krot) {
+    for (int f = 0; f < m->nflex; f++) {
+      if (!flexInterp_processed(m, f)) {
+        continue;
+      }
+      FLEXINTERP_WALK(f, {
+        for (int i = 0; i < npe; i++) {
+          int si = nslot[m->flex_nodeadr[f] + gindices[i]];
+          if (si >= 0) ncand[si] += npe;
+        }
+      })
+    }
+  }
+
+  // gather candidate neighbor lists (vertex slots, with duplicates)
+  int* cadr = mjSTACKALLOC(d, nvert + 1, int);
+  cadr[0] = 0;
+  for (int s = 0; s < nvert; s++) {
+    cadr[s+1] = cadr[s] + ncand[s];
+  }
+  int* cand = mjSTACKALLOC(d, cadr[nvert] > 0 ? cadr[nvert] : 1, int);
+  mju_zeroInt(ncand, nvert);
+  for (int f = 0; f < m->nflex; f++) {
+    if (!flexStiff_active(m, f, flg_bend, flg_stretch)) {
+      continue;
+    }
+    int dim = m->flex_dim[f], nvrt = dim + 1;
+    if (flg_bend && m->flex_bendingadr[f] >= 0) {
+      for (int e = 0; e < m->flex_edgenum[f]; e++) {
+        const int* edge = m->flex_edge + 2*(e + m->flex_edgeadr[f]);
+        const int* flap = m->flex_edgeflap + 2*(e + m->flex_edgeadr[f]);
+        if (flap[1] == -1) continue;
+        int v[4] = {edge[0], edge[1], flap[0], flap[1]};
+        for (int i = 0; i < 4; i++) {
+          int si = vslot[m->flex_vertadr[f] + v[i]];
+          if (si < 0) continue;
+          for (int j = 0; j < 4; j++) {
+            int sj = vslot[m->flex_vertadr[f] + v[j]];
+            if (sj >= 0) cand[cadr[si] + ncand[si]++] = sj;
+          }
+        }
+      }
+    }
+    if (flg_stretch && m->flex_stiffnessadr[f] >= 0 &&
+        m->flex_stiffness[m->flex_stiffnessadr[f]] != 0) {
+      const int* elem = m->flex_elem + m->flex_elemdataadr[f];
+      for (int t = 0; t < m->flex_elemnum[f]; t++) {
+        const int* vert = elem + (dim+1)*t;
+        for (int i = 0; i < nvrt; i++) {
+          int si = vslot[m->flex_vertadr[f] + vert[i]];
+          if (si < 0) continue;
+          for (int j = 0; j < nvrt; j++) {
+            int sj = vslot[m->flex_vertadr[f] + vert[j]];
+            if (sj >= 0) cand[cadr[si] + ncand[si]++] = sj;
+          }
+        }
+      }
+    }
+  }
+
+  // interp stencils: npe-node element cliques (filling)
+  if (Krot) {
+    for (int f = 0; f < m->nflex; f++) {
+      if (!flexInterp_processed(m, f)) {
+        continue;
+      }
+      FLEXINTERP_WALK(f, {
+        for (int i = 0; i < npe; i++) {
+          int si = nslot[m->flex_nodeadr[f] + gindices[i]];
+          if (si < 0) continue;
+          for (int j = 0; j < npe; j++) {
+            int sj = nslot[m->flex_nodeadr[f] + gindices[j]];
+            if (sj >= 0) cand[cadr[si] + ncand[si]++] = sj;
+          }
+        }
+      })
+    }
+  }
+
+  // passive contacts (filling)
+  // per vertex: sort by neighbor dofadr, unique -> neighbor lists
+  int* nadr = mjSTACKALLOC(d, nvert + 1, int);
+  int* neigh = mjSTACKALLOC(d, cadr[nvert] > 0 ? cadr[nvert] : 1, int);
+  nadr[0] = 0;
+  for (int s = 0; s < nvert; s++) {
+    int* c = cand + cadr[s];
+    int n = ncand[s];
+    // insertion sort by dof address (stencil-local lists are short)
+    for (int i = 1; i < n; i++) {
+      int key = c[i], kd = vdof[key], j = i - 1;
+      while (j >= 0 && vdof[c[j]] > kd) {
+        c[j+1] = c[j];
+        j--;
+      }
+      c[j+1] = key;
+    }
+    int nn = 0;
+    for (int i = 0; i < n; i++) {
+      if (nn == 0 || neigh[nadr[s] + nn - 1] != c[i]) {
+        neigh[nadr[s] + nn++] = c[i];
+      }
+    }
+    nadr[s+1] = nadr[s] + nn;
+  }
+
+  // dof-level CSR structure: each vertex contributes 3 rows of 3*nneigh entries
+  mju_zeroInt(rownnz, nv);
+  int nnz = 0;
+  for (int s = 0; s < nvert; s++) {
+    int nn = nadr[s+1] - nadr[s];
+    for (int k = 0; k < 3; k++) {
+      rownnz[vdof[s] + k] = 3*nn;
+    }
+    nnz += 9*nn;
+  }
+  if (rowadr) {
+    rowadr[0] = 0;
+    for (int i = 1; i < nv; i++) {
+      rowadr[i] = rowadr[i-1] + rownnz[i-1];
+    }
+  }
+
+  // phase 1: structure only
+  if (!colind) {
+    mj_freeStack(d);
+    return nnz;
+  }
+
+  // column indices (per vertex row: the 3 dofs of each neighbor, neighbor-dof-sorted)
+  for (int s = 0; s < nvert; s++) {
+    for (int k = 0; k < 3; k++) {
+      int adr = rowadr[vdof[s] + k];
+      for (int j = nadr[s]; j < nadr[s+1]; j++) {
+        for (int c = 0; c < 3; c++) {
+          colind[adr++] = vdof[neigh[j]] + c;
+        }
+      }
+    }
+  }
+  mju_zero(val, nnz);
+
+// block accumulation helper data: find neighbor position by binary search on dofadr
+#define FLEXSTIFF_BLOCK(si, sj, pos)          \
+  {                                           \
+    int lo = nadr[si], hi = nadr[si + 1] - 1; \
+    pos = -1;                                 \
+    while (lo <= hi) {                        \
+      int mid = (lo + hi) / 2;                \
+      if (vdof[neigh[mid]] == vdof[sj]) {     \
+        pos = mid - nadr[si];                 \
+        break;                                \
+      }                                       \
+      if (vdof[neigh[mid]] < vdof[sj])        \
+        lo = mid + 1;                         \
+      else                                    \
+        hi = mid - 1;                         \
+    }                                         \
+  }
+
+  // values: bending (Q_ij * I3 per 4-vertex stencil) and stretch (GN blocks per element)
+  for (int f = 0; f < m->nflex; f++) {
+    if (!flexStiff_active(m, f, flg_bend, flg_stretch)) {
+      continue;
+    }
+    mjtNum scale = s1 + s2*m->flex_damping[f];
+    if (!scale) {
+      continue;
+    }
+    int dim = m->flex_dim[f], nvrt = dim + 1;
+    int nedge = (dim == 2) ? 3 : 6;
+    const int (*edget)[2] = stretch_edges[dim-2];
+
+    if (flg_bend && m->flex_bendingadr[f] >= 0) {
+      const mjtNum* b = m->flex_bending + m->flex_bendingadr[f];
+      for (int e = 0; e < m->flex_edgenum[f]; e++) {
+        const int* edge = m->flex_edge + 2*(e + m->flex_edgeadr[f]);
+        const int* flap = m->flex_edgeflap + 2*(e + m->flex_edgeadr[f]);
+        if (flap[1] == -1) continue;
+        int v[4] = {edge[0], edge[1], flap[0], flap[1]};
+        for (int i = 0; i < 4; i++) {
+          int si = vslot[m->flex_vertadr[f] + v[i]];
+          if (si < 0) continue;
+          for (int j = 0; j < 4; j++) {
+            int sj = vslot[m->flex_vertadr[f] + v[j]];
+            if (sj < 0) continue;
+            mjtNum q = scale*b[17*e + 4*i + j];
+            if (!q) continue;
+            int pos;
+            FLEXSTIFF_BLOCK(si, sj, pos);
+            for (int k = 0; k < 3; k++) {
+              val[rowadr[vdof[si] + k] + 3*pos + k] += q;
+            }
+          }
+        }
+      }
+    }
+
+    if (flg_stretch && m->flex_stiffnessadr[f] >= 0 &&
+        m->flex_stiffness[m->flex_stiffnessadr[f]] != 0) {
+      const int* elem = m->flex_elem + m->flex_elemdataadr[f];
+      const mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
+      const mjtNum* kk = m->flex_stiffness + m->flex_stiffnessadr[f];
+      const int* eelem = m->flex_elemedge + m->flex_elemedgeadr[f];
+      const mjtNum* elen = d->flexedge_length + m->flex_edgeadr[f];
+      const mjtNum* elen0 = m->flexedge_length0 + m->flex_edgeadr[f];
+      for (int t = 0; t < m->flex_elemnum[f]; t++) {
+        const int* vert = elem + (dim+1)*t;
+
+        // current edge vectors
+        mjtNum dvec[6][3];
+        for (int e = 0; e < nedge; e++) {
+          int v0 = vert[edget[e][0]], v1 = vert[edget[e][1]];
+          for (int x = 0; x < 3; x++) {
+            dvec[e][x] = xpos[3*v0+x] - xpos[3*v1+x];
+          }
+        }
+
+        // unpack triangular metric
+        mjtNum metric[36];
+        int id = 0;
+        for (int e1 = 0; e1 < nedge; e1++) {
+          for (int e2 = e1; e2 < nedge; e2++) {
+            metric[nedge*e1 + e2] = kk[21*t + id];
+            metric[nedge*e2 + e1] = kk[21*t + id++];
+          }
+        }
+
+        // tensile edge tension for the geometric term (see the clamp note in mjd_flexStretch_mul)
+        mjtNum Me[6];
+        for (int e1 = 0; e1 < nedge; e1++) {
+          Me[e1] = 0;
+          for (int e2 = 0; e2 < nedge; e2++) {
+            int idx = eelem[t*nedge + e2];
+            Me[e1] += metric[nedge*e1 + e2]*(elen[idx]*elen[idx] - elen0[idx]*elen0[idx]);
+          }
+          Me[e1] = mju_max(Me[e1], 0);
+        }
+
+        // per vertex pair: block += 2*scale * sum_ab M_ab s_a,vi s_b,vj d_a d_b^T
+        //                         + scale * (sum_a Me_a s_a,vi s_a,vj) * I3
+        for (int i = 0; i < nvrt; i++) {
+          int si = vslot[m->flex_vertadr[f] + vert[i]];
+          if (si < 0) continue;
+          for (int j = 0; j < nvrt; j++) {
+            int sj = vslot[m->flex_vertadr[f] + vert[j]];
+            if (sj < 0) continue;
+            mjtNum blk[9] = {0};
+            for (int a = 0; a < nedge; a++) {
+              mjtNum sa = (i == edget[a][0]) ? 1 : ((i == edget[a][1]) ? -1 : 0);
+              if (!sa) continue;
+              for (int bb = 0; bb < nedge; bb++) {
+                mjtNum sb = (j == edget[bb][0]) ? 1 : ((j == edget[bb][1]) ? -1 : 0);
+                if (!sb) continue;
+                mjtNum w = 2*scale*metric[nedge*a + bb]*sa*sb;
+                for (int r = 0; r < 3; r++) {
+                  for (int c = 0; c < 3; c++) {
+                    blk[3*r+c] += w*dvec[a][r]*dvec[bb][c];
+                  }
+                }
+              }
+            }
+            // geometric term: a multiple of I3, so the frame sandwich below leaves it unchanged
+            mjtNum geo = 0;
+            for (int a = 0; a < nedge; a++) {
+              mjtNum sa = (i == edget[a][0]) ? 1 : ((i == edget[a][1]) ? -1 : 0);
+              mjtNum sb = (j == edget[a][0]) ? 1 : ((j == edget[a][1]) ? -1 : 0);
+              if (!sa || !sb) continue;
+              geo += Me[a]*sa*sb;
+            }
+            geo *= scale;
+            blk[0] += geo;
+            blk[4] += geo;
+            blk[8] += geo;
+
+            // blk is world-space but the destination dofs are the vertex bodies' own (possibly
+            // rotated) slide axes: blk_dof = R_bi^T * blk_world * R_bj, matching the force path
+            int bi = m->flex_vertbodyid[m->flex_vertadr[f] + vert[i]];
+            int bj = m->flex_vertbodyid[m->flex_vertadr[f] + vert[j]];
+            mjtNum tmp[9], blkd[9];
+            mji_mulMatMat3(tmp, blk, d->xmat + 9*bj);      // tmp  = blk * R_bj
+            mji_mulMatTMat3(blkd, d->xmat + 9*bi, tmp);    // blkd = R_bi^T * tmp
+            int pos;
+            FLEXSTIFF_BLOCK(si, sj, pos);
+            for (int k = 0; k < 3; k++) {
+              for (int c = 0; c < 3; c++) {
+                val[rowadr[vdof[si] + k] + 3*pos + c] += blkd[3*k+c];
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // values: interp (corotated K_rot 3x3 node blocks per element). The interp operator's sign
+  // convention is opposite to bend/stretch -- FlexBmulAdd calls it with negated scales -- so
+  // the negation is folded in here and one CSR replaces all three operators uniformly.
+  if (Krot) {
+    for (int f = 0; f < m->nflex; f++) {
+      if (!flexInterp_processed(m, f)) {
+        continue;
+      }
+      mjtNum iscale = -(s1 + s2*m->flex_damping[f]);
+      if (!iscale) {
+        continue;
+      }
+      FLEXINTERP_WALK(f, {
+        int dim_e = 3*npe;
+        const mjtNum* kb = Krot + m->flex_stiffnessadr[f] + (size_t)fe*dim_e*dim_e;
+        for (int i = 0; i < npe; i++) {
+          int si = nslot[m->flex_nodeadr[f] + gindices[i]];
+          if (si < 0) continue;
+          int bi = m->flex_nodebodyid[m->flex_nodeadr[f] + gindices[i]];
+          for (int j = 0; j < npe; j++) {
+            int sj = nslot[m->flex_nodeadr[f] + gindices[j]];
+            if (sj < 0) continue;
+            int bj = m->flex_nodebodyid[m->flex_nodeadr[f] + gindices[j]];
+            // extract K_rot 3x3 block for (i,j)
+            mjtNum kb_ij[9];
+            for (int r = 0; r < 3; r++) {
+              for (int c = 0; c < 3; c++) {
+                kb_ij[3*r+c] = iscale*kb[(3*i + r)*dim_e + 3*j + c];
+              }
+            }
+            // apply R_bi^T * kb_ij * R_bj to transform to DOF space
+            mjtNum tmp[9];
+            mjtNum blk[9];
+            mji_mulMatMat3(tmp, kb_ij, d->xmat + 9*bj);     // tmp = kb * R_bj
+            mji_mulMatTMat3(blk, d->xmat + 9*bi, tmp);      // blk = R_bi^T * tmp
+            int pos;
+            FLEXSTIFF_BLOCK(si, sj, pos);
+            for (int r = 0; r < 3; r++) {
+              for (int c = 0; c < 3; c++) {
+                val[rowadr[vdof[si] + r] + 3*pos + c] += blk[3*r+c];
+              }
+            }
+          }
+        }
+      })
+    }
+  }
+  #undef FLEXSTIFF_BLOCK
+  #undef FLEXINTERP_WALK
+
+  mj_freeStack(d);
+  return nnz;
+}
+
+
+
+
+// per-actuator skip conditions shared by the qDeriv and discrete-metric assemblers:
+// disabled, sleeping, or force-clamped actuators contribute no derivative
+static int actuatorDerivSkip(const mjModel* m, const mjData* d, int i, int sleep_filter) {
+  // skip if disabled
+  if (mj_actuatorDisabled(m, i)) {
+    return 1;
+  }
+
+  // skip if sleeping
+  if (sleep_filter && mj_sleepState(m, d, mjOBJ_ACTUATOR, i) == mjS_ASLEEP) {
+    return 1;
+  }
+
+  // skip if force is clamped by forcerange
+  if (m->actuator_forcelimited[i]) {
+    int oadr = m->actuator_outadr[i];
+    const mjtNum* range = m->actuator_forcerange + 2*i;
+
+    // SO3: force is norm-clamped (approximation: saturated force still varies tangentially)
+    if (m->actuator_gaintype[i] == mjGAIN_SO3) {
+      if (mju_norm3(d->actuator_force + oadr) >= range[1]) {
+        return 1;
+      }
+    } else {
+      mjtNum force = d->actuator_force[oadr];
+      if (force <= range[0] || force >= range[1]) {
+        return 1;
+      }
+    }
+  }
+
+  return 0;
+}
+
+
+// input of actuator i: ctrl, or (next-)activation
+static mjtNum actuatorInput(const mjModel* m, const mjData* d, int i) {
+  if (m->actuator_dyntype[i] == mjDYN_NONE) {
+    int adr = m->actuator_ctrladr[i];
+    mjtNum ctrl = m->actuator_delay[i] ? mj_readCtrl(m, d, i, d->time, -1) : d->ctrl[adr];
+    if (!mjDISABLED(mjDSBL_CLAMPCTRL) && m->actuator_ctrllimited[adr]) {
+      ctrl = mju_clip(ctrl, m->actuator_ctrlrange[2*adr], m->actuator_ctrlrange[2*adr+1]);
+    }
+    return ctrl;
+  }
+  int act_adr = m->actuator_actadr[i] + m->actuator_actnum[i] - 1;
+  mjtNum act = d->act[act_adr];
+
+  // use next activation if actearly is set (matching forward pass)
+  if (m->actuator_actearly[i]) {
+    act = mj_nextActivation(m, d, i, act_adr, d->act_dot[act_adr]);
+  }
+  return act;
+}
+
+
+// d(force)/d(length) of actuator i: all gain and bias types
+static mjtNum actuatorLenDeriv(const mjModel* m, const mjData* d, int i) {
+  int oadr = m->actuator_outadr[i];
+  mjtNum bias_len = 0, gain_len = 0;
+
+  // affine and SO3 servo bias
+  if (m->actuator_biastype[i] == mjBIAS_AFFINE || m->actuator_biastype[i] == mjBIAS_SO3) {
+    bias_len = (m->actuator_biasprm + mjNBIAS*i)[1];
+  }
+
+  // muscle bias: passive force-length curve
+  else if (m->actuator_biastype[i] == mjBIAS_MUSCLE) {
+    bias_len = mjd_muscleBias_len(d->actuator_length[oadr],
+                                  m->actuator_lengthrange+2*oadr,
+                                  m->actuator_acc0[oadr],
+                                  m->actuator_biasprm + mjNBIAS*i);
+  }
+
+  // affine gain
+  if (m->actuator_gaintype[i] == mjGAIN_AFFINE) {
+    gain_len = (m->actuator_gainprm + mjNGAIN*i)[1];
+  }
+
+  // muscle gain: active force-length curve
+  else if (m->actuator_gaintype[i] == mjGAIN_MUSCLE) {
+    gain_len = mjd_muscleGain_len(d->actuator_length[oadr],
+                                  d->actuator_velocity[oadr],
+                                  m->actuator_lengthrange+2*oadr,
+                                  m->actuator_acc0[oadr],
+                                  m->actuator_gainprm + mjNGAIN*i);
+  }
+
+  // DC motor controller position loop
+  else if (m->actuator_gaintype[i] == mjGAIN_DCMOTOR) {
+    const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
+    const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
+    mjtNum te = dynprm[0];
+
+    // controller length derivative dV/dl: torque-space kp through the tau->V map; Vmax
+    // clipping and the O(h*ki) integral-state chain are ignored, matching the velocity
+    // derivative's treatment of the saturations
+    mjtNum dVdl = 0;
+    if (m->actuator_ctrlspec[i] & (mjINPUT_POS | mjINPUT_VEL | mjINPUT_FF)) {
+      mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+      mjtNum K = gainprm[1];  // K > 0 on this path, enforced by the compiler
+      dVdl = -gainprm[4]*R/K;
+    }
+
+    if (te > 0) {
+      // stateful current with actearly: d(K*next_act)/d(length) through act_dot
+      mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+      mjtNum K = gainprm[1];
+      mjtNum s = 1 - mju_exp(-m->opt.timestep / te);
+      bias_len += K * dVdl * s / R;
+    } else if (dVdl != 0) {
+      // stateless: K/R * dVdl = -kp exactly, the motor parameters cancel
+      mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+      mjtNum K = gainprm[1];
+      bias_len += K * dVdl / R;
+    }
+  }
+
+  // force = gain .* [ctrl/act]
+  if (gain_len != 0) {
+    bias_len += gain_len * actuatorInput(m, d, i);
+  }
+
+  return bias_len;
+}
+
+
+// d(force)/d(velocity) of actuator i: all gain and bias types
+static mjtNum actuatorVelDeriv(const mjModel* m, const mjData* d, int i) {
+  int oadr = m->actuator_outadr[i];
+  mjtNum bias_vel = 0, gain_vel = 0;
+
+  // affine bias
+  if (m->actuator_biastype[i] == mjBIAS_AFFINE) {
+    // extract bias info: prm = [const, kp, kv]
+    bias_vel = (m->actuator_biasprm + mjNBIAS*i)[2];
+  }
+
+  // SO3 geodesic servo: kv term, applied to each output row below
+  else if (m->actuator_biastype[i] == mjBIAS_SO3) {
+    bias_vel = (m->actuator_biasprm + mjNBIAS*i)[2];
+  }
+
+  // DC motor bias (back-EMF)
+  else if (m->actuator_biastype[i] == mjBIAS_DCMOTOR) {
+    const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
+    const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
+    if (dynprm[0] <= 0) {
+      mjtNum R = mj_dcmotorResistance(m, d, i);
+      mjtNum K = gainprm[1];
+      bias_vel -= K * K / R;
+    }
+  }
+
+  // affine gain
+  if (m->actuator_gaintype[i] == mjGAIN_AFFINE) {
+    // extract bias info: prm = [const, kp, kv]
+    gain_vel = (m->actuator_gainprm + mjNGAIN*i)[2];
+  }
+
+  // muscle gain
+  else if (m->actuator_gaintype[i] == mjGAIN_MUSCLE) {
+    gain_vel = mjd_muscleGain_vel(d->actuator_length[oadr],
+                                  d->actuator_velocity[oadr],
+                                  m->actuator_lengthrange+2*oadr,
+                                  m->actuator_acc0[oadr],
+                                  m->actuator_gainprm + mjNGAIN*i);
+  }
+
+  // DC motor controller damping and LuGre micro-damping
+  else if (m->actuator_gaintype[i] == mjGAIN_DCMOTOR) {
+    const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
+    const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
+    mjtNum te = dynprm[0];
+
+    // controller velocity derivative dV/dw: torque-space kd through the tau->V map using
+    // nameplate resistance, plus back-EMF compensation K, which cancels the physical -K^2/R
+    // back-EMF bias term so net damping is -kd*R0/R; Vmax clipping is ignored here
+    mjtNum dVdw = 0;
+    if (m->actuator_ctrlspec[i] & (mjINPUT_POS | mjINPUT_VEL | mjINPUT_FF)) {
+      mjtNum R0 = mju_max(mjMINVAL, gainprm[0]);
+      mjtNum K = gainprm[1];  // K > 0 on this path, enforced by the compiler
+      dVdw = -gainprm[6]*R0/K + K;
+    }
+
+    if (te > 0) {
+      // stateful current with actearly: d(K*next_act)/dω
+      // includes both back-EMF (-K) and controller (dVdw) through act_dot
+      mjtNum R = mj_dcmotorResistance(m, d, i);
+      mjtNum K = gainprm[1];
+      mjtNum s = 1 - mju_exp(-m->opt.timestep / te);
+      bias_vel += K * (dVdw - K) * s / R;
+    } else if (dVdw != 0) {
+      // stateless: controller terms only (back-EMF handled in bias block)
+      mjtNum R = mj_dcmotorResistance(m, d, i);
+      mjtNum K = gainprm[1];
+      bias_vel += K * dVdw / R;
+    }
+
+    // LuGre: force includes -sigma1*z_dot, z_dot = a*z + v
+    // d(sigma1*z_dot)/dv = sigma1*(da/dv*z + 1), ignoring higher-order da/dv*z
+    mjtNum sigma1 = dynprm[6];
+    if (sigma1 > 0) {
+      bias_vel -= sigma1;
+    }
+  }
+
+  // force = gain .* [ctrl/act]
+  if (gain_vel != 0) {
+    bias_vel += gain_vel * actuatorInput(m, d, i);
+  }
+
+  return bias_vel;
+}
+
 
 // add (d qfrc_actuator / d qvel) to qDeriv
 void mjd_actuator_vel(const mjModel* m, mjData* d) {
-  int nv = m->nv;
+  int nactuator = m->nactuator;
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
 
   // disabled: nothing to add
   if (mjDISABLED(mjDSBL_ACTUATION)) {
@@ -833,46 +2593,24 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
   }
 
   // process actuators
-  for (int i=0; i < m->nu; i++) {
-    mjtNum bias_vel = 0, gain_vel = 0;
-
-    // affine bias
-    if (m->actuator_biastype[i] == mjBIAS_AFFINE) {
-      // extract bias info: prm = [const, kp, kv]
-      bias_vel = (m->actuator_biasprm + mjNBIAS*i)[2];
+  for (int i=0; i < nactuator; i++) {
+    if (actuatorDerivSkip(m, d, i, sleep_filter)) {
+      continue;
     }
 
-    // affine gain
-    if (m->actuator_gaintype[i] == mjGAIN_AFFINE) {
-      // extract bias info: prm = [const, kp, kv]
-      gain_vel = (m->actuator_gainprm + mjNGAIN*i)[2];
-    }
+    // combined scalar derivative
+    mjtNum bias_vel = actuatorVelDeriv(m, d, i);
 
-    // muscle gain
-    else if (m->actuator_gaintype[i] == mjGAIN_MUSCLE) {
-      gain_vel = mjd_muscleGain_vel(d->actuator_length[i],
-                                    d->actuator_velocity[i],
-                                    m->actuator_lengthrange+2*i,
-                                    m->actuator_acc0[i],
-                                    m->actuator_gainprm + mjNGAIN*i);
-    }
-
-    // force = gain .* [ctrl/act]
-    if (gain_vel != 0) {
-      if (m->actuator_dyntype[i] == mjDYN_NONE) {
-        bias_vel += gain_vel * d->ctrl[i];
-      } else {
-        bias_vel += gain_vel * d->act[i-(m->nu - m->na)];
-      }
-    }
-
-    // add
+    // add, once per output row
     if (bias_vel != 0) {
-      addJTBJ(m, d, d->actuator_moment+i*nv, &bias_vel, 1);
+      int oadr = m->actuator_outadr[i];
+      for (int k=0; k < m->actuator_outnum[i]; k++) {
+        addJTBJSparse(m, d, d->qDeriv, d->actuator_moment, &bias_vel, 1, oadr+k,
+                      d->moment_rownnz, d->moment_rowadr, d->moment_colind);
+      }
     }
   }
 }
-
 
 
 //----------------- utilities for ellipsoid-based fluid force derivatives --------------------------
@@ -882,14 +2620,12 @@ static inline mjtNum pow2(const mjtNum val) {
 }
 
 
-
 static inline mjtNum ellipsoid_max_moment(const mjtNum size[3], const int dir) {
   const mjtNum d0 = size[dir];
   const mjtNum d1 = size[(dir+1) % 3];
   const mjtNum d2 = size[(dir+2) % 3];
   return 8.0/15.0 * mjPI * d0 * pow2(pow2(mju_max(d1, d2)));
 }
-
 
 
 // add 3x3 matrix D to one of the four quadrants of the 6x6 matrix B
@@ -906,7 +2642,6 @@ static void addToQuadrant(mjtNum* restrict B, const mjtNum D[9], int col_quad, i
   B[6*(c+2) + r+1] += D[7];
   B[6*(c+2) + r+2] += D[8];
 }
-
 
 
 //----------------- components of ellipsoid-based fluid force derivatives --------------------------
@@ -956,13 +2691,11 @@ static void mjd_addedMassForces(
 }
 
 
-
 // torque due to motion in the fluid, D is 3x3
 static inline void mjd_viscous_torque(
   mjtNum* restrict D, const mjtNum lvel[6], const mjtNum fluid_density,
   const mjtNum fluid_viscosity, const mjtNum size[3],
-  const mjtNum slender_drag_coef, const mjtNum ang_drag_coef)
-{
+  const mjtNum slender_drag_coef, const mjtNum ang_drag_coef) {
   const mjtNum d_max = mju_max(mju_max(size[0], size[1]), size[2]);
   const mjtNum d_min = mju_min(mju_min(size[0], size[1]), size[2]);
   const mjtNum d_mid = size[0] + size[1] + size[2] - d_max - d_min;
@@ -1009,7 +2742,6 @@ static inline void mjd_viscous_torque(
   mju_addToScl3(D+3, mom_sq, y);
   mju_addToScl3(D+6, mom_sq, z);
 }
-
 
 
 // drag due to motion in the fluid, D is 3x3
@@ -1079,7 +2811,6 @@ static inline void mjd_viscous_drag(
 }
 
 
-
 // Kutta lift due to motion in the fluid, D is 3x3
 static inline void mjd_kutta_lift(
   mjtNum* restrict D, const mjtNum lvel[6], const mjtNum fluid_density,
@@ -1133,7 +2864,6 @@ static inline void mjd_kutta_lift(
 }
 
 
-
 // Magnus force due to motion in the fluid, B is 6x6
 static inline void mjd_magnus_force(
   mjtNum* restrict B, const mjtNum lvel[6], const mjtNum fluid_density,
@@ -1161,20 +2891,20 @@ static inline void mjd_magnus_force(
 }
 
 
-
 //----------------- fluid force derivatives, ellipsoid and inertia-box models ----------------------
 
 // fluid forces based on ellipsoid approximation
-void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
+void mjd_ellipsoidFluid(const mjModel* m, mjData* d, mjtNum* res, int bodyid,
+                        int flg_dragonly) {
   mj_markStack(d);
 
   int nv = m->nv;
   int nnz = nv;
   int rownnz[6], rowadr[6];
-  mjtNum* J = mj_stackAllocNum(d, 6*nv);
-  mjtNum* tmp = mj_stackAllocNum(d, 3*nv);
-  int* colind = mj_stackAllocInt(d, 6*nv);
-  int* colind_compressed = mj_stackAllocInt(d, 6*nv);
+  mjtNum* J = mjSTACKALLOC(d, 6*nv, mjtNum);
+  mjtNum* tmp = mjSTACKALLOC(d, 3*nv, mjtNum);
+  int* colind = mjSTACKALLOC(d, 6*nv, int);
+  int* colind_compressed = mjSTACKALLOC(d, 6*nv, int);
 
   mjtNum lvel[6], wind[6], lwind[6];
   mjtNum geom_interaction_coef, magnus_lift_coef, kutta_lift_coef;
@@ -1198,7 +2928,7 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
   for (int j=0; j < m->body_geomnum[bodyid]; j++) {
     const int geomid = m->body_geomadr[bodyid] + j;
 
-    mju_geomSemiAxes(m, geomid, semiaxes);
+    mju_geomSemiAxes(semiaxes, m->geom_size + 3*geomid, m->geom_type[geomid]);
 
     readFluidGeomInteraction(
       m->geom_fluid + mjNFLUID*geomid, &geom_interaction_coef,
@@ -1225,7 +2955,8 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
 
     // get geom global Jacobian: rotation then translation
     if (mj_isSparse(m)) {
-      mj_jacSparse(m, d, J+3*nnz, J, d->geom_xpos+3*geomid, m->geom_bodyid[geomid], nnz, colind);
+      mj_jacSparse(m, d, J+3*nnz, J, d->geom_xpos+3*geomid, m->geom_bodyid[geomid], nnz, colind,
+                   /*flg_skipcommon=*/0);
     } else {
       mj_jacGeom(m, d, J+3*nv, J, geomid);
     }
@@ -1238,10 +2969,14 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
 
     mjtNum B[36], D[9];
     mju_zero(B, 36);
-    mjd_magnus_force(B, lvel, m->opt.density, semiaxes, magnus_lift_coef);
 
-    mjd_kutta_lift(D, lvel, m->opt.density, semiaxes, kutta_lift_coef);
-    addToQuadrant(B, D, 1, 1);
+    // lift and added-mass terms: asymmetric, excluded from the drag-only (metric) variant
+    if (!flg_dragonly) {
+      mjd_magnus_force(B, lvel, m->opt.density, semiaxes, magnus_lift_coef);
+
+      mjd_kutta_lift(D, lvel, m->opt.density, semiaxes, kutta_lift_coef);
+      addToQuadrant(B, D, 1, 1);
+    }
 
     mjd_viscous_drag(D, lvel, m->opt.density, m->opt.viscosity, semiaxes,
                      blunt_drag_coef, slender_drag_coef);
@@ -1251,18 +2986,21 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
                        slender_drag_coef, ang_drag_coef);
     addToQuadrant(B, D, 0, 0);
 
-    mjd_addedMassForces(B, lvel, m->opt.density, virtual_mass, virtual_inertia);
+    if (!flg_dragonly) {
+      mjd_addedMassForces(B, lvel, m->opt.density, virtual_mass, virtual_inertia);
+    }
 
-    // make B symmetric if integrator is IMPLICITFAST
-    if (m->opt.integrator == mjINT_IMPLICITFAST) {
+    // make B symmetric for the metric, or if integrator is IMPLICITFAST,
+    // except for free rigid subtrees, including fluid geoms on fixed descendants
+    if (flg_dragonly ||
+        (m->opt.integrator == mjINT_IMPLICITFAST && !mj_isFreeBody(m, m->body_rootid[bodyid]))) {
       mju_symmetrize(B, B, 6);
     }
 
     if (mj_isSparse(m)) {
-      addJTBJSparse(m, d, J, B, 6, 0, rownnz, rowadr, colind_compressed);
-    }
-    else {
-      addJTBJ(m, d, J, B, 6);
+      addJTBJSparse(m, d, res, J, B, 6, 0, rownnz, rowadr, colind_compressed);
+    } else {
+      addJTBJ(m, d, res, J, B, 6);
     }
   }
 
@@ -1270,17 +3008,15 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
 }
 
 
-
 // fluid forces based on inertia-box approximation
-void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
-{
+void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, mjtNum* res, int i) {
   mj_markStack(d);
 
   int nv = m->nv;
   int rownnz[6], rowadr[6];
-  mjtNum* J = mj_stackAllocNum(d, 6*nv);
-  mjtNum* tmp = mj_stackAllocNum(d, 3*nv);
-  int* colind = mj_stackAllocInt(d, 6*nv);
+  mjtNum* J = mjSTACKALLOC(d, 6*nv, mjtNum);
+  mjtNum* tmp = mjSTACKALLOC(d, 3*nv, mjtNum);
+  int* colind = mjSTACKALLOC(d, 6*nv, int);
 
   mjtNum lvel[6], wind[6], lwind[6], box[3], B;
   mjtNum* inertia = m->body_inertia + 3*i;
@@ -1314,7 +3050,7 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
     nnz = mj_bodyChain(m, i, colind);
 
     // get sparse jacBodyCom
-    mj_jacSparse(m, d, J+3*nnz, J, d->xipos+3*i, i, nnz, colind);
+    mj_jacSparse(m, d, J+3*nnz, J, d->xipos+3*i, i, nnz, colind, /*flg_skipcommon=*/0);
 
     // prepare rownnz, rowadr, colind for all 6 rows
     rownnz[0] = nnz;
@@ -1348,9 +3084,9 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
     B = -mjPI*diam*diam*diam*m->opt.viscosity;
     for (int j=0; j < 3; j++) {
       if (mj_isSparse(m)) {
-        addJTBJSparse(m, d, J, &B, 1, j, rownnz, rowadr, colind);
+        addJTBJSparse(m, d, res, J, &B, 1, j, rownnz, rowadr, colind);
       } else {
-        addJTBJ(m, d, J+j*nv, &B, 1);
+        addJTBJ(m, d, res, J+j*nv, &B, 1);
       }
     }
 
@@ -1358,9 +3094,9 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
     B = -3.0*mjPI*diam*m->opt.viscosity;
     for (int j=0; j < 3; j++) {
       if (mj_isSparse(m)) {
-        addJTBJSparse(m, d, J, &B, 1, 3+j, rownnz, rowadr, colind);
+        addJTBJSparse(m, d, res, J, &B, 1, 3+j, rownnz, rowadr, colind);
       } else {
-        addJTBJ(m, d, J+3*nv+j*nv, &B, 1);
+        addJTBJ(m, d, res, J+3*nv+j*nv, &B, 1);
       }
     }
   }
@@ -1372,9 +3108,9 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
     B = -m->opt.density*box[0]*(box[1]*box[1]*box[1]*box[1]+box[2]*box[2]*box[2]*box[2])*
         2*mju_abs(lvel[0])/64.0;
     if (mj_isSparse(m)) {
-      addJTBJSparse(m, d, J, &B, 1, 0, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, res, J, &B, 1, 0, rownnz, rowadr, colind);
     } else {
-      addJTBJ(m, d, J, &B, 1);
+      addJTBJ(m, d, res, J, &B, 1);
     }
 
     // lfrc[1] -= m->opt.density*box[1]*(box[0]*box[0]*box[0]*box[0]+box[2]*box[2]*box[2]*box[2])*
@@ -1382,9 +3118,9 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
     B = -m->opt.density*box[1]*(box[0]*box[0]*box[0]*box[0]+box[2]*box[2]*box[2]*box[2])*
         2*mju_abs(lvel[1])/64.0;
     if (mj_isSparse(m)) {
-      addJTBJSparse(m, d, J, &B, 1, 1, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, res, J, &B, 1, 1, rownnz, rowadr, colind);
     } else {
-      addJTBJ(m, d, J+nv, &B, 1);
+      addJTBJ(m, d, res, J+nv, &B, 1);
     }
 
     // lfrc[2] -= m->opt.density*box[2]*(box[0]*box[0]*box[0]*box[0]+box[1]*box[1]*box[1]*box[1])*
@@ -1392,33 +3128,33 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
     B = -m->opt.density*box[2]*(box[0]*box[0]*box[0]*box[0]+box[1]*box[1]*box[1]*box[1])*
         2*mju_abs(lvel[2])/64.0;
     if (mj_isSparse(m)) {
-      addJTBJSparse(m, d, J, &B, 1, 2, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, res, J, &B, 1, 2, rownnz, rowadr, colind);
     } else {
-      addJTBJ(m, d, J+2*nv, &B, 1);
+      addJTBJ(m, d, res, J+2*nv, &B, 1);
     }
 
     // lfrc[3] -= 0.5*m->opt.density*box[1]*box[2]*mju_abs(lvel[3])*lvel[3];
     B = -0.5*m->opt.density*box[1]*box[2]*2*mju_abs(lvel[3]);
     if (mj_isSparse(m)) {
-      addJTBJSparse(m, d, J, &B, 1, 3, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, res, J, &B, 1, 3, rownnz, rowadr, colind);
     } else {
-      addJTBJ(m, d, J+3*nv, &B, 1);
+      addJTBJ(m, d, res, J+3*nv, &B, 1);
     }
 
     // lfrc[4] -= 0.5*m->opt.density*box[0]*box[2]*mju_abs(lvel[4])*lvel[4];
     B = -0.5*m->opt.density*box[0]*box[2]*2*mju_abs(lvel[4]);
     if (mj_isSparse(m)) {
-      addJTBJSparse(m, d, J, &B, 1, 4, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, res, J, &B, 1, 4, rownnz, rowadr, colind);
     } else {
-      addJTBJ(m, d, J+4*nv, &B, 1);
+      addJTBJ(m, d, res, J+4*nv, &B, 1);
     }
 
     // lfrc[5] -= 0.5*m->opt.density*box[0]*box[1]*mju_abs(lvel[5])*lvel[5];
     B = -0.5*m->opt.density*box[0]*box[1]*2*mju_abs(lvel[5]);
     if (mj_isSparse(m)) {
-      addJTBJSparse(m, d, J, &B, 1, 5, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, res, J, &B, 1, 5, rownnz, rowadr, colind);
     } else {
-      addJTBJ(m, d, J+5*nv, &B, 1);
+      addJTBJ(m, d, res, J+5*nv, &B, 1);
     }
   }
 
@@ -1426,75 +3162,23 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
 }
 
 
-
 //------------------------- derivatives of passive forces ------------------------------------------
 
 // add (d qfrc_passive / d qvel) to qDeriv
 void mjd_passive_vel(const mjModel* m, mjData* d) {
-  int nv = m->nv, nbody = m->nbody;
-
-  // disabled: nothing to add
-  if (mjDISABLED(mjDSBL_PASSIVE)) {
+  // all disabled: nothing to add
+  if (mjDISABLED(mjDSBL_SPRING) && mjDISABLED(mjDSBL_DAMPER)) {
     return;
   }
 
-  // dof damping
-  for (int i=0; i < nv; i++) {
-    int nnz_i = d->D_rownnz[i];
-    for (int j=0; j < nnz_i; j++) {
-      int ij = d->D_rowadr[i] + j;
-
-      // identify diagonal element
-      if (d->D_colind[ij] == i) {
-        d->qDeriv[ij] -= m->dof_damping[i];
-        break;
-      }
-    }
-  }
-
-  // flex edge damping
-  for (int f=0; f < m->nflex; f++) {
-    if (!m->flex_rigid[f] && m->flex_edgedamping[f]) {
-      mjtNum B = -m->flex_edgedamping[f];
-      int flex_edgeadr = m->flex_edgeadr[f];
-      int flex_edgenum = m->flex_edgenum[f];
-
-      // process non-rigid edges of this flex
-      for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
-        // skip rigid
-        if (m->flexedge_rigid[e]) {
-          continue;
-        }
-
-        // add sparse or dense
-        if (mj_isSparse(m)) {
-          addJTBJSparse(m, d, d->flexedge_J, &B, 1, e,
-                        d->flexedge_J_rownnz, d->flexedge_J_rowadr, d->flexedge_J_colind);
-        } else {
-          addJTBJ(m, d, d->flexedge_J+e*nv, &B, 1);
-        }
-      }
-    }
-  }
-
-  // tendon damping
-  for (int i=0; i < m->ntendon; i++) {
-    if (m->tendon_damping[i] > 0) {
-      mjtNum B = -m->tendon_damping[i];
-
-      // add sparse or dense
-      if (mj_isSparse(m)) {
-        addJTBJSparse(m, d, d->ten_J, &B, 1, i,
-                      d->ten_J_rownnz, d->ten_J_rowadr, d->ten_J_colind);
-      } else {
-        addJTBJ(m, d, d->ten_J+i*nv, &B, 1);
-      }
-    }
-  }
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+  int nbody = sleep_filter ? d->nbody_awake : m->nbody;
 
   // fluid drag model, either body-level (inertia box) or geom-level (ellipsoid)
   if (m->opt.viscosity > 0 || m->opt.density > 0) {
-    for (int i=1; i < nbody; i++) {
+    for (int b=0; b < nbody; b++) {
+      int i = sleep_filter ? d->body_awake_ind[b] : b;
+
       if (m->body_mass[i] < mjMINVAL) {
         continue;
       }
@@ -1506,14 +3190,81 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
         use_ellipsoid_model += (m->geom_fluid[mjNFLUID*geomid] > 0);
       }
       if (use_ellipsoid_model) {
-        mjd_ellipsoidFluid(m, d, i);
+        mjd_ellipsoidFluid(m, d, d->qDeriv, i, /*flg_dragonly=*/0);
       } else {
-        mjd_inertiaBoxFluid(m, d, i);
+        mjd_inertiaBoxFluid(m, d, d->qDeriv, i);
       }
     }
   }
-}
 
+  // disabled: nothing to add
+  if (mjDISABLED(mjDSBL_DAMPER)) {
+    return;
+  }
+
+  // dof damping
+  int nv = m->nv;
+  int nv_awake = sleep_filter ? d->nv_awake : nv;
+  for (int j = 0; j < nv_awake; j++) {
+    int i = sleep_filter ? d->dof_awake_ind[j] : j;
+    mjtNum v = d->qvel[i];
+    mjtNum poly[mjNPOLY];
+    mju_copy(poly, m->dof_dampingpoly + mjNPOLY*i, mjNPOLY);
+    mjtNum damping = m->dof_damping[i] + mj_actuatorDamping(m, mjOBJ_JOINT, m->dof_jntid[i], poly);
+    int adr = m->D_rowadr[i] + m->D_diag[i];
+    d->qDeriv[adr] -= mjd_xPolyForce(damping, poly, v, mjNPOLY, 1);
+  }
+
+  // flex edge damping
+  for (int f=0; f < m->nflex; f++) {
+    mjtNum B = -m->flex_edgedamping[f];
+    if (m->flex_rigid[f] || !B) {
+      continue;
+    }
+
+    int flex_edgeadr = m->flex_edgeadr[f];
+    int flex_edgenum = m->flex_edgenum[f];
+
+    // process non-rigid edges of this flex
+    for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
+      // skip rigid
+      if (m->flexedge_rigid[e]) {
+        continue;
+      }
+
+      // always sparse
+      addJTBJSparse(m, d, d->qDeriv, d->flexedge_J, &B, 1, e,
+                    m->flexedge_J_rownnz, m->flexedge_J_rowadr, m->flexedge_J_colind);
+    }
+  }
+
+  // tendon damping
+  int ntendon = m->ntendon;
+  for (int i=0; i < ntendon; i++) {
+    // skip tendon in one or two sleeping trees
+    if (sleep_filter) {
+      int treenum = m->tendon_treenum[i];
+      int id1 = m->tendon_treeid[2*i];
+      if (treenum == 1 && !d->tree_awake[id1]) continue;
+      int id2 = m->tendon_treeid[2*i+1];
+      if (treenum == 2 && !d->tree_awake[id1] && !d->tree_awake[id2]) continue;
+    }
+
+    mjtNum v = d->ten_velocity[i];
+    mjtNum poly[mjNPOLY];
+    mju_copy(poly, m->tendon_dampingpoly+mjNPOLY*i, mjNPOLY);
+    mjtNum damping = m->tendon_damping[i] + mj_actuatorDamping(m, mjOBJ_TENDON, i, poly);
+    mjtNum B = -mjd_xPolyForce(damping, poly, v, mjNPOLY, 1);
+
+    if (!B) {
+      continue;
+    }
+
+    // add sparse
+    addJTBJSparse(m, d, d->qDeriv, d->ten_J, &B, 1, i,
+                  m->ten_J_rownnz, m->ten_J_rowadr, m->ten_J_colind);
+  }
+}
 
 
 //------------------------- main entry points ------------------------------------------------------
@@ -1521,8 +3272,14 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
 // analytical derivative of smooth forces w.r.t velocities:
 //   d->qDeriv = d (qfrc_actuator + qfrc_passive - [qfrc_bias]) / d qvel
 void mjd_smooth_vel(const mjModel* m, mjData* d, int flg_bias) {
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nv_awake < m->nv;
+
   // clear qDeriv
-  mju_zero(d->qDeriv, m->nD);
+  if (!sleep_filter) {
+    mju_zero(d->qDeriv, m->nD);
+  } else {
+    mju_zeroSparse(d->qDeriv, m->D_rownnz, m->D_rowadr, d->dof_awake_ind, d->nv_awake);
+  }
 
   // qDeriv += d qfrc_actuator / d qvel
   mjd_actuator_vel(m, d);
@@ -1534,4 +3291,1161 @@ void mjd_smooth_vel(const mjModel* m, mjData* d, int flg_bias) {
   if (flg_bias) {
     mjd_rne_vel(m, d);
   }
+}
+
+
+//------------------- implicit effective metric Mtilde = M + h*D + h^2*K --------------------------
+// The flex part is K = (h^2 + h*damping) * (K_bend + K_stretch), the PSD implicit flex stiffness,
+// whose h^2 and h*damping parts enter only when the spring and damper forces are enabled;
+// the diagonal part holds joint damping and stiffness (h*D + h^2*K per dof, clamped PSD). Built
+// once per step on the arena by mjd_effBuild (under integrator=discrete), then consumed
+// uniformly: the smooth acceleration, the constraint solver and inverse dynamics all see the
+// same metric.
+
+// arena allocation with hard failure (mirrors stack overflow semantics)
+static void* effAlloc(mjData* d, size_t bytes, size_t align) {
+  void* p = mj_arenaAllocByte(d, bytes, align);
+  if (!p) {
+    mjERROR("arena overflow in implicit effective metric");
+  }
+  return p;
+}
+#define EFMALLOC(type, n) (type*) effAlloc(d, sizeof(type)*(size_t)(n), _Alignof(type))
+
+// yield the next live rank-1 term of the metric; see the declaration for the contract
+int mjd_effRank1Next(const mjModel* m, const mjData* d, mjEffRank1Iter* it,
+                     mjEffRank1* e, int flg_contact) {
+  // class 0: one entry per tendon with metric terms
+  while (it->cls == 0) {
+    if (it->i >= d->nefmT) {
+      it->cls = 1;
+      it->i = 0;
+      break;
+    }
+    int t = it->i++;
+    mjtNum s = d->efm_ts[t];
+    int id = d->efm_tid[t];
+    int nnz = m->ten_J_rownnz[id];
+    if (!s || !nnz) {
+      continue;
+    }
+    e->val = d->ten_J + m->ten_J_rowadr[id];
+    e->colind = m->ten_J_colind + m->ten_J_rowadr[id];
+    e->nnz = nnz;
+    e->scale = s;
+    return 1;
+  }
+
+  // class 1: one entry per output row of each actuator with metric terms
+  while (it->cls == 1) {
+    if (it->i >= d->nefmA) {
+      it->cls = 2;
+      it->i = 0;
+      it->k = 0;  // class 2 walks the packed rows by offset
+      break;
+    }
+    int id = d->efm_aid[it->i];
+    if (it->k >= m->actuator_outnum[id]) {
+      it->i++;
+      it->k = 0;
+      continue;
+    }
+    mjtNum s = d->efm_as[it->i];
+    int r = m->actuator_outadr[id] + it->k++;
+    int nnz = d->moment_rownnz[r];
+    if (!s || !nnz) {
+      continue;
+    }
+    e->val = d->actuator_moment + d->moment_rowadr[r];
+    e->colind = d->moment_colind + d->moment_rowadr[r];
+    e->nnz = nnz;
+    e->scale = s;
+    return 1;
+  }
+
+  // class 2: one entry per passive flex contact, published by effContactBuild. Skipped
+  // wholesale when the caller accounts for contact separately
+  while (it->cls == 2) {
+    if (!flg_contact || it->k >= d->nefmcon) {
+      it->cls = 3;  // not a producer class: the cursor's done state
+      break;
+    }
+    int adr = it->k, nnz = d->efm_con_ind[adr];   // packed row: header then entries
+    e->nnz = nnz;
+    e->scale = d->efm_con_val[adr];
+    e->colind = d->efm_con_ind + adr + 2;
+    e->val = d->efm_con_val + adr + 2;
+    it->k = adr + 2 + nnz;
+    return 1;
+  }
+  return 0;
+}
+
+
+// res += B*vec, the stiffness part of the metric. The per-dof diagonal classes are applied
+// from efm_diag (scales pre-folded); the stretch (and, when assemblable, bending and interp)
+// part from the per-step CSR; terms not in the CSR fall back to the matrix-free operators.
+void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, int flg_contact) {
+  mjtNum h = m->opt.timestep;
+  if (d->efm_diag) {
+    int nv = m->nv;
+    for (int i=0; i < nv; i++) {
+      res[i] += d->efm_diag[i] * vec[i];
+    }
+  }
+
+  // fluid drag blocks: res += F*vec, F symmetric in M's lower-triangle pattern
+  if (d->efm_fluid) {
+    int nv = m->nv;
+    for (int i=0; i < nv; i++) {
+      int start = m->M_rowadr[i];
+      int diag = start + m->M_rownnz[i] - 1;
+      mjtNum acc = d->efm_fluid[diag] * vec[i];
+      for (int a=start; a < diag; a++) {
+        int c = m->M_colind[a];
+        mjtNum F = d->efm_fluid[a];
+        acc += F * vec[c];
+        res[c] += F * vec[i];
+      }
+      res[i] += acc;
+    }
+  }
+
+  // rank-1 terms (tendon, actuator): res += scale * row' * (row * vec)
+  mjEffRank1Iter it = {0};
+  mjEffRank1 e;
+  while (mjd_effRank1Next(m, d, &it, &e, /*flg_contact=*/0)) {
+    mjtNum dot = 0;
+    for (int j=0; j < e.nnz; j++) {
+      dot += e.val[j] * vec[e.colind[j]];
+    }
+    dot *= e.scale;
+    for (int j=0; j < e.nnz; j++) {
+      res[e.colind[j]] += dot * e.val[j];
+    }
+  }
+
+  // contact class: the same rank-1 apply over the packed rows, walked inline; the iterator's
+  // per-row call is measurable with thousands of published pairs
+  if (flg_contact) {
+    const int* ind = d->efm_con_ind;
+    const mjtNum* val = d->efm_con_val;
+    for (int adr=0; adr < d->nefmcon; ) {
+      int nnz = ind[adr];
+      const int* ci = ind + adr + 2;
+      const mjtNum* rv = val + adr + 2;
+      mjtNum dot = 0;
+      for (int j=0; j < nnz; j++) {
+        dot += rv[j] * vec[ci[j]];
+      }
+      dot *= val[adr];
+      for (int j=0; j < nnz; j++) {
+        res[ci[j]] += dot * rv[j];
+      }
+      adr += 2 + nnz;
+    }
+  }
+
+  if (d->nefmK && d->nefmdof) {
+    // the stiffness rows come in vertex triples with 3x3 blocks per neighbour (the assembly
+    // writes the three dofs of each neighbour in turn), so one column index per block and the
+    // three rows share the vector loads
+    const int* rowadr = d->efm_K_rowadr;
+    const int* rownnz = d->efm_K_rownnz;
+    const int* colind = d->efm_K_colind;
+    const mjtNum* val = d->efm_K_val;
+    for (int k=0; k < d->nefmdof; k++) {
+      int i = d->efm_dofid[k];
+      const mjtNum* v0 = val + rowadr[i];
+      const mjtNum* v1 = val + rowadr[i+1];
+      const mjtNum* v2 = val + rowadr[i+2];
+      const int* ci = colind + rowadr[i];
+      int nn = rownnz[i] / 3;
+      mjtNum r0 = 0, r1 = 0, r2 = 0;
+      for (int j=0; j < nn; j++) {
+        int c = ci[3*j];
+        mjtNum x0 = vec[c], x1 = vec[c+1], x2 = vec[c+2];
+        r0 += v0[3*j]*x0 + v0[3*j+1]*x1 + v0[3*j+2]*x2;
+        r1 += v1[3*j]*x0 + v1[3*j+1]*x1 + v1[3*j+2]*x2;
+        r2 += v2[3*j]*x0 + v2[3*j+1]*x1 + v2[3*j+2]*x2;
+      }
+      res[i] += r0;
+      res[i+1] += r1;
+      res[i+2] += r2;
+    }
+  } else if (d->nefmK) {
+    int nv = m->nv;
+    for (int i=0; i < nv; i++) {
+      int nnz = d->efm_K_rownnz[i];
+      if (!nnz) {
+        continue;
+      }
+      res[i] += mju_dotSparse(d->efm_K_val + d->efm_K_rowadr[i], vec, nnz,
+                              d->efm_K_colind + d->efm_K_rowadr[i]);
+    }
+  }
+
+  // terms not folded into the CSR fall back to the matrix-free operators; which terms those
+  // are is derivable, not state: the CSR is only ever built with bending included, and with
+  // interp included iff the model is assemblable. As in the CSR, the stiffness and damping
+  // parts enter only when their forces are enabled
+  mjtNum s1 = mjDISABLED(mjDSBL_SPRING) ? 0 : h*h;
+  mjtNum s2 = mjDISABLED(mjDSBL_DAMPER) ? 0 : h;
+  if (!d->nefmK) {
+    mjd_flexBend_mul(m, d, res, vec, s1, s2);
+  }
+  if (!d->nefmK || !mjd_flexInterpAssemblable(m)) {
+    mjd_flexInterp_mul(m, d, res, vec, -s1, -s2, d->flexelem_krot);
+  }
+}
+
+
+// the unfactored 3x3 diagonal block of M + K for the covered dof triple starting at i
+static void effBlockRaw(const mjModel* m, const mjData* d, int i, mjtNum* Bk) {
+  mju_zero(Bk, 9);
+  for (int r = 0; r < 3; r++) {
+    int row = i + r;
+    for (int a = m->M_rowadr[row]; a < m->M_rowadr[row] + m->M_rownnz[row]; a++) {
+      int c = m->M_colind[a];
+      if (c >= i && c < i+3) Bk[3*r + (c-i)] += d->M[a];
+    }
+    for (int a = d->efm_K_rowadr[row]; a < d->efm_K_rowadr[row] + d->efm_K_rownnz[row]; a++) {
+      int c = d->efm_K_colind[a];
+      if (c >= i && c < i+3) Bk[3*r + (c-i)] += d->efm_K_val[a];
+    }
+  }
+}
+
+
+// Build and factor the per-vertex 3x3 diagonal blocks of the flex part of (M + K), stored in
+// d->efm_L, 9 numbers per covered vertex: O(n) to build and apply, approximate where the sparse
+// factorization it replaces was exact. Both consumers use the blocks as a preconditioner: the CG
+// constraint solver (Mgrad = Mtilde \ grad) and the qacc_smooth PCG in mjd_effSolve, which
+// supplies the accuracy.
+static void effBlocks(const mjModel* m, mjData* d) {
+  int nv = m->nv;
+
+  // covered dofs come in contiguous triples (the 3 slide dofs of one flex point), but the first
+  // one need not be at a multiple of 3: any joint declared before the flex shifts them. Walk the
+  // covered rows rather than striding the dof index, which would straddle point boundaries.
+  int nb = 0;
+  for (int i = 0; i < nv; ) {
+    if (d->efm_K_rownnz[i]) { nb++; i += 3; } else { i++; }
+  }
+  d->nefmdof = 0;
+  mjtNum* B = (mjtNum*) effAlloc(d, sizeof(mjtNum)*9*(nb > 0 ? nb : 1), _Alignof(mjtNum));
+  int* adr = (int*) effAlloc(d, sizeof(int)*(nb > 0 ? nb : 1), _Alignof(int));
+  int k = 0;
+  for (int i = 0; i < nv; ) {
+    if (!d->efm_K_rownnz[i]) {
+      i++;
+      continue;
+    }
+    mjtNum* Bk = B + 9*k;
+    effBlockRaw(m, d, i, Bk);
+    mju_cholFactor(Bk, 3, mjMINVAL);
+    adr[k++] = i;
+    i += 3;
+  }
+  d->efm_L = B;
+  d->efm_dofid = adr;
+  d->nefmdof = nb;
+  d->nefmL = 9*nb;
+}
+
+// Apply the metric preconditioner: the per-step 3x3 blocks when they exist, else the constant
+// bending factor from mj_setConst, on the dofs they cover; M^-1 on all other dofs. PCG requires
+// symmetry, so covered and uncovered dofs must not see each other: zeroing the covered entries
+// of the right-hand side before the qLD sweep keeps the uncovered rows from reading them.
+// x = (L L') \ b for one 3x3 factor from mju_cholFactor, in mju_cholSolve's arithmetic; b may
+// alias x
+static inline void chol3Solve(mjtNum* x, const mjtNum* L, const mjtNum* b) {
+  mjtNum r0 = b[0] / L[0];
+  mjtNum r1 = (b[1] - L[3]*r0) / L[4];
+  mjtNum r2 = (b[2] - (L[6]*r0 + L[7]*r1)) / L[8];
+  r2 /= L[8];
+  r1 = (r1 - L[7]*r2) / L[4];
+  r0 -= L[3]*r1;
+  r0 -= L[6]*r2;
+  r0 /= L[0];
+  x[0] = r0;
+  x[1] = r1;
+  x[2] = r2;
+}
+
+static void effBlockApply(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b,
+                          const mjtNum* L) {
+  int nv = m->nv;
+  int nbd = m->nefm0dof;
+  int flg_bend = nbd && !d->nefmdof;
+  // every dof a covered triple: the blocks are the whole preconditioner
+  if (3*d->nefmdof == nv && !flg_bend) {
+    for (int k = 0; k < d->nefmdof; k++) {
+      int i = d->efm_dofid[k];
+      chol3Solve(x + i, L + 9*k, b + i);
+    }
+    return;
+  }
+  mj_markStack(d);
+  mjtNum* rhs = mjSTACKALLOC(d, nv, mjtNum);
+  mju_copy(rhs, b, nv);   // b may alias x, which the sweep below overwrites
+
+  // dofs no factor covers: backbone solve, using the qH backbone factor when diagonal
+  // terms exist, else qLD
+  mju_copy(x, rhs, nv);
+  for (int k = 0; k < d->nefmdof; k++) {
+    mju_zero(x + d->efm_dofid[k], 3);
+  }
+  if (flg_bend) {
+    for (int i = 0; i < nbd; i++) {
+      x[m->efm0_dofid[i]] = 0;
+    }
+  }
+  // TODO(team): restrict solve to awake trees when island sleep filtering is active
+  if (d->efm_diag) {
+    mj_solveLD(x, d->qH, d->qHDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+  } else {
+    mj_solveLD(x, d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+  }
+
+  // per-step stiffness: 3x3 blocks
+  for (int k = 0; k < d->nefmdof; k++) {
+    int i = d->efm_dofid[k];
+    chol3Solve(x + i, L + 9*k, rhs + i);
+  }
+
+  // bending-only: exact (M + K_bend)^-1 on the dofs the constant factor covers
+  if (flg_bend) {
+    mjtNum* bfr = mjSTACKALLOC(d, nbd, mjtNum);
+    mjtNum* bfz = mjSTACKALLOC(d, nbd, mjtNum);
+    for (int i = 0; i < nbd; i++) {
+      bfr[i] = rhs[m->efm0_dofid[i]];
+    }
+    mju_cholSolveSparse(bfz, m->efm0_L, bfr, nbd,
+                        m->efm0_L_rownnz, m->efm0_L_rowadr, m->efm0_L_colind);
+    for (int i = 0; i < nbd; i++) {
+      x[m->efm0_dofid[i]] = bfz[i];
+    }
+  }
+  mj_freeStack(d);
+}
+
+
+// accurate solve of (M + K) x = b by PCG with the 3x3 block preconditioner, converging the
+// relative residual to opt.tolerance; used for qacc_smooth. Reaching opt.iterations means the
+// metric is too ill-conditioned for the blocks: warn (mjWARN_INERTIA, worst-residual dof) and
+// return x under-converged.
+void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
+  if (!d->efm_active) {
+    mjd_effPrec(m, d, x, b);
+    return;
+  }
+
+  // backbone-only metric (no tendon, actuator or flex couplings): the qH solve inside the
+  // block-apply is the exact metric solve, skip the iteration. Beyond the saved iterations,
+  // the direct solve is block-decoupled across trees, which sleeping trees rely on
+  int flex_any = 0;
+  for (int f=0; f < m->nflex; f++) {
+    flex_any = flex_any || mj_effFlexPossible(m, f);
+  }
+  if (!d->nefmT && !d->nefmA && !flex_any) {
+    effBlockApply(m, d, x, b, d->efm_L);
+    return;
+  }
+  int nv = m->nv;
+  mj_markStack(d);
+  mjtNum* r = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* z = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* p = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* Ap = mjSTACKALLOC(d, nv, mjtNum);
+  mju_copy(r, b, nv);   // before zeroing x: b may alias x
+  mju_zero(x, nv);
+  mjtNum bn = mju_dot(r, r, nv);
+  if (bn > mjMINVAL) {
+    // converge the relative residual to opt.tolerance; both sides are squared norms
+#ifdef mjUSESINGLE
+    // float cannot reach a 1e-8 relative residual (eps ~1.2e-7): without a floor every step of
+    // every covered model would run to opt.iterations and then warn.
+    mjtNum tolerance = mju_max(m->opt.tolerance, 1e-5);
+#else
+    mjtNum tolerance = m->opt.tolerance;
+#endif
+    mjtNum tol = tolerance*tolerance*bn;
+    int capped = 1;   // cleared by either exit below; still set means the cap was reached
+    effBlockApply(m, d, z, r, d->efm_L);
+    mju_copy(p, z, nv);
+    mjtNum rz = mju_dot(r, z, nv);
+    for (int it = 0; it < m->opt.iterations; it++) {
+      mju_mulSymVecSparse(Ap, d->M, p, nv, m->M_rownnz, m->M_rowadr, m->M_colind);
+      mjd_effMulAdd(m, d, Ap, p, /*flg_contact=*/1);
+      mjtNum pAp = mju_dot(p, Ap, nv);
+      // curvature breakdown: the metric has no curvature along p, so no further progress is
+      // possible and x is the best available. Not a budget failure, so it does not warn.
+      if (pAp <= 0) { capped = 0; break; }
+      mjtNum alpha = rz/pAp;
+      mju_addToScl(x, p, alpha, nv);
+      mju_addToScl(r, Ap, -alpha, nv);
+      if (mju_dot(r, r, nv) < tol) { capped = 0; break; }
+      effBlockApply(m, d, z, r, d->efm_L);
+      mjtNum rznew = mju_dot(r, z, nv);
+      mju_addScl(p, z, p, rznew/rz, nv);
+      rz = rznew;
+    }
+
+    // Ran out of iterations with the residual still above tolerance: the metric is too
+    // ill-conditioned for the blocks to solve within the budget. Blame the dof carrying the
+    // largest residual.
+    // mjWARN_INERTIA is the closest existing warning (reusing it avoids an ABI addition), but on
+    // its own it points the user at their inertia when the cause is the flex stiffness, so say so
+    // first. Gate on the same first-time condition mj_warning uses, or a model that fails every
+    // step would print this thousands of times a second.
+    if (capped && mju_dot(r, r, nv) >= tol) {
+      int worst = 0;
+      for (int i = 1; i < nv; i++) {
+        if (mju_abs(r[i]) > mju_abs(r[worst])) worst = i;
+      }
+      if (!d->warning[mjWARN_INERTIA].number) {
+        mju_warning("Flex stiffness is too ill-conditioned for the effective-metric block "
+                    "preconditioner: the M+K solve ran out of iterations at a relative residual "
+                    "of %.2e and qacc_smooth is under-converged. Reported as a singular inertia "
+                    "below, because M+K is the effective inertia.",
+                    mju_sqrt(mju_dot(r, r, nv)/bn));
+      }
+      mj_warning(d, mjWARN_INERTIA, worst);
+    }
+  }
+  mj_freeStack(d);
+}
+
+void mjd_effPrec(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
+  int nv = m->nv;
+
+  // active metric: the prefactored 3x3 blocks are the preconditioner
+  if (d->efm_active) {
+    effBlockApply(m, d, x, b, d->efm_L);
+    return;
+  }
+
+  // inactive metric: x = M \ b, which is exact
+  if (x != b) {
+    mju_copy(x, b, nv);
+  }
+  mj_solveLD(x, d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+}
+
+
+// fold the metric's rank-1 classes and the efc rows (quadratic zone) into a copy of the
+// preconditioner blocks, factored into L (9*nefmdof); only each term's per-vertex 3x3 diagonal
+// survives, as for the elastic part. Returns 0 when nothing is covered, leaving L untouched.
+int mjd_effPrecFold(const mjModel* m, mjData* d, mjtNum* L,
+                    int nefc, const mjtNum* efc_D, int is_sparse,
+                    const mjtNum* J, const int* J_rownnz, const int* J_rowadr,
+                    const int* J_colind) {
+  if (!d->nefmdof) {
+    return 0;
+  }
+  mj_markStack(d);
+  int nv = m->nv;
+  mjtNum* Badd = mjSTACKALLOC(d, 9*d->nefmdof, mjtNum);
+  int* blk = mjSTACKALLOC(d, nv, int);
+  mju_zero(Badd, 9*d->nefmdof);
+  for (int i=0; i < nv; i++) {
+    blk[i] = -1;
+  }
+  for (int k=0; k < d->nefmdof; k++) {
+    for (int c=0; c < 3; c++) {
+      blk[d->efm_dofid[k] + c] = k;
+    }
+  }
+
+  // rank-1 classes: scale * v v', restricted to each covered block. A term's coupling between
+  // DIFFERENT vertices is off-diagonal and cannot be represented here; only its self-terms land
+  mjEffRank1Iter it = {0};
+  mjEffRank1 e;
+  while (mjd_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
+    for (int a=0; a < e.nnz; a++) {
+      int ia = e.colind[a], k = blk[ia];
+      if (k < 0) {
+        continue;
+      }
+      int base = d->efm_dofid[k];
+      for (int b=0; b < e.nnz; b++) {
+        int ib = e.colind[b];
+        if (blk[ib] == k) {
+          Badd[9*k + 3*(ia-base) + (ib-base)] += e.scale * e.val[a] * e.val[b];
+        }
+      }
+    }
+  }
+
+  // efc rows: the same blocks of J'*D*J, over every row the solve carries, active or not. The
+  // rows are the pairs inside their wall, the likely active set, and rows switch state in
+  // nearly every CG iteration, so a fold of the rows active at the start left the CG with a
+  // preconditioner that matched neither iterate: on the reef knot the mean iterations per
+  // solve fell from 212 to 59 when every row was folded
+  for (int r=0; r < nefc; r++) {
+    if (!efc_D[r]) {
+      continue;
+    }
+    mjtNum D = efc_D[r];
+    if (is_sparse) {
+      int adr = J_rowadr[r], nnz = J_rownnz[r];
+      for (int a=0; a < nnz; a++) {
+        int ia = J_colind[adr+a], k = blk[ia];
+        if (k < 0) {
+          continue;
+        }
+        int base = d->efm_dofid[k];
+        for (int b=0; b < nnz; b++) {
+          int ib = J_colind[adr+b];
+          if (blk[ib] == k) {
+            Badd[9*k + 3*(ia-base) + (ib-base)] += D * J[adr+a] * J[adr+b];
+          }
+        }
+      }
+    } else {
+      const mjtNum* Jr = J + (size_t)r*nv;
+      for (int k=0; k < d->nefmdof; k++) {
+        int base = d->efm_dofid[k];
+        for (int a=0; a < 3; a++) {
+          if (!Jr[base+a]) {
+            continue;
+          }
+          for (int b=0; b < 3; b++) {
+            Badd[9*k + 3*a + b] += D * Jr[base+a] * Jr[base+b];
+          }
+        }
+      }
+    }
+  }
+
+  for (int k=0; k < d->nefmdof; k++) {
+    mjtNum* Bk = L + 9*k;
+    effBlockRaw(m, d, d->efm_dofid[k], Bk);
+    mju_addTo(Bk, Badd + 9*k, 9);
+    mju_cholFactor(Bk, 3, mjMINVAL);
+  }
+  mj_freeStack(d);
+  return 1;
+}
+
+
+// mjd_effPrec against caller-supplied factored blocks instead of the shared d->efm_L
+void mjd_effPrecBlocks(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b,
+                       const mjtNum* L) {
+  if (d->efm_active) {
+    effBlockApply(m, d, x, b, L);
+    return;
+  }
+  mjd_effPrec(m, d, x, b);
+}
+
+
+// can this dof contribute a damping term to the metric diagonal (model-level check;
+// values are velocity-dependent and computed in mjd_effShift)
+static int dofDampPossible(const mjModel* m, int i) {
+  if (mjDISABLED(mjDSBL_DAMPER)) {
+    return 0;
+  }
+  return m->dof_damping[i] > 0 ||
+         !mju_isZero(m->dof_dampingpoly + mjNPOLY*i, mjNPOLY) ||
+         m->jnt_actuatorid[m->dof_jntid[i]] != -1;
+}
+
+
+// fill efm_ck with h * d(spring force)/d(displacement) per dof, clamped PSD-safe;
+// mirrors the joint-spring structure of mj_springdamper; returns any-nonzero
+static int effDiagStiff(const mjModel* m, mjData* d) {
+  int any = 0, njnt = m->njnt;
+  mjtNum h = m->opt.timestep;
+  mju_zero(d->efm_ck, m->nv);
+  if (mjDISABLED(mjDSBL_SPRING)) {
+    return 0;
+  }
+
+  for (int j=0; j < njnt; j++) {
+    mjtNum stiffness = m->jnt_stiffness[j];
+    const mjtNum* spoly = m->jnt_stiffnesspoly + mjNPOLY*j;
+    if (stiffness == 0 && mju_isZero(spoly, mjNPOLY)) {
+      continue;
+    }
+
+    int padr = m->jnt_qposadr[j];
+    int dadr = m->jnt_dofadr[j];
+    mjtNum k;
+
+    switch ((mjtJoint) m->jnt_type[j]) {
+    case mjJNT_FREE:
+      // translation: radial derivative of the spring, isotropic on the 3 slide dofs
+      {
+        mjtNum dif[3];
+        mju_sub3(dif, d->qpos+padr, m->qpos_spring+padr);
+        k = mju_max(0, mjd_xPolyForce(stiffness, spoly, mju_norm3(dif), mjNPOLY, 0));
+        d->efm_ck[dadr] = d->efm_ck[dadr+1] = d->efm_ck[dadr+2] = h*k;
+        any = any || k > 0;
+      }
+
+      // continue with rotations
+      dadr += 3;
+      padr += 3;
+      mjFALLTHROUGH;
+
+    case mjJNT_BALL:
+      // rotation: small-angle isotropic treatment of the quaternion spring
+      {
+        mjtNum dif[3], quat[4];
+        mju_copy4(quat, d->qpos+padr);
+        mju_normalize4(quat);
+        mju_subQuat(dif, quat, m->qpos_spring + padr);
+        k = mju_max(0, mjd_xPolyForce(stiffness, spoly, mju_norm3(dif), mjNPOLY, 0));
+        d->efm_ck[dadr] = d->efm_ck[dadr+1] = d->efm_ck[dadr+2] = h*k;
+        any = any || k > 0;
+      }
+      break;
+
+    case mjJNT_SLIDE:
+    case mjJNT_HINGE:
+      {
+        mjtNum x = d->qpos[padr] - m->qpos_spring[padr];
+        k = mju_max(0, mjd_xPolyForce(stiffness, spoly, x, mjNPOLY, 0));
+        d->efm_ck[dadr] = h*k;
+        any = any || k > 0;
+      }
+      break;
+    }
+  }
+
+  return any;
+}
+
+
+// finalize efm_diag = h*D + h^2*K: the damping derivative is velocity-dependent,
+// evaluated here at the velocity stage, matching mj_EulerSkip's coverage but clamped
+static void effDiagDamp(const mjModel* m, mjData* d) {
+  int nv = m->nv;
+  mjtNum h = m->opt.timestep;
+  int damper = !mjDISABLED(mjDSBL_DAMPER);
+
+  for (int i=0; i < nv; i++) {
+    mjtNum damp_deriv = 0;
+    if (damper) {
+      mjtNum poly[mjNPOLY];
+      mju_copy(poly, m->dof_dampingpoly + mjNPOLY*i, mjNPOLY);
+      mjtNum damping = m->dof_damping[i]
+                       + mj_actuatorDamping(m, mjOBJ_JOINT, m->dof_jntid[i], poly);
+      damp_deriv = mju_max(0, mjd_xPolyForce(damping, poly, d->qvel[i], mjNPOLY, 1));
+    }
+    d->efm_diag[i] = h*damp_deriv + h*d->efm_ck[i];
+  }
+}
+
+
+// refresh the velocity-stage values of the active metric: the smooth-force shift
+// c = -h*K*qvel and the diagonal (its damping part is velocity-dependent). No allocation
+// here, mirroring the efc value refresh pattern. Called from the velocity stage only,
+// after the derived velocities (ten_velocity, body velocities) it reads are computed;
+// every consumer of the values runs at the actuation stage or later
+void mjd_effShift(const mjModel* m, mjData* d) {
+  if (!d->efm_active) {
+    return;
+  }
+  mjtNum h = m->opt.timestep;
+  mju_zero(d->efm_c, m->nv);
+
+  // flex stiffness shift, absent when the spring force is disabled
+  if (!mjDISABLED(mjDSBL_SPRING)) {
+    mjd_flexInterp_mul(m, d, d->efm_c, d->qvel, h, 0, d->flexelem_krot);
+    mjd_flexBend_mul(m, d, d->efm_c, d->qvel, -h, 0);
+    mjd_flexStretch_mul(m, d, d->efm_c, d->qvel, -h, 0);
+  }
+
+  // contact: -h*K_contact*v from the packed rank-1 rows (see effContactBuild), so the shift
+  // and the operator apply one definition of contact. Each row's scale already carries the h^2
+  // of the effective stiffness, so the shift's -h*K*v is -(1/h) * scale * row'(row.v)
+  for (int adr=0; adr < d->nefmcon; ) {
+    int nnz = d->efm_con_ind[adr];
+    const int* colind = d->efm_con_ind + adr + 2;
+    const mjtNum* val = d->efm_con_val + adr + 2;
+    mjtNum dot = 0;
+    for (int a=0; a < nnz; a++) {
+      dot += val[a] * d->qvel[colind[a]];
+    }
+    dot *= -d->efm_con_val[adr] / h;
+    for (int a=0; a < nnz; a++) {
+      d->efm_c[colind[a]] += dot * val[a];
+    }
+    adr += 2 + nnz;
+  }
+
+  // per-dof diagonal classes
+  if (d->efm_diag) {
+    int nv = m->nv;
+    effDiagDamp(m, d);
+
+    // stiffness shift
+    for (int i=0; i < nv; i++) {
+      d->efm_c[i] -= d->efm_ck[i] * d->qvel[i];
+    }
+  }
+
+  // tendon values: stiffness at the current deadband displacement, damping at the current
+  // tendon velocity, both clamped PSD-safe, mirroring the passive-force expressions
+  for (int t=0; t < d->nefmT; t++) {
+    int i = d->efm_tid[t];
+
+    mjtNum k = 0;
+    if (!mjDISABLED(mjDSBL_SPRING)) {
+      mjtNum length = d->ten_length[i];
+      mjtNum lower = m->tendon_lengthspring[2*i];
+      mjtNum upper = m->tendon_lengthspring[2*i+1];
+      mjtNum x = (length > upper) ? length - upper : (length < lower) ? length - lower : 0;
+      if (x) {
+        k = mju_max(0, mjd_xPolyForce(m->tendon_stiffness[i],
+                                      m->tendon_stiffnesspoly + mjNPOLY*i, x, mjNPOLY, 0));
+      }
+    }
+
+    mjtNum b = 0;
+    if (!mjDISABLED(mjDSBL_DAMPER)) {
+      mjtNum dpoly[mjNPOLY];
+      mju_copy(dpoly, m->tendon_dampingpoly + mjNPOLY*i, mjNPOLY);
+      mjtNum damping = m->tendon_damping[i] + mj_actuatorDamping(m, mjOBJ_TENDON, i, dpoly);
+      b = mju_max(0, mjd_xPolyForce(damping, dpoly, d->ten_velocity[i], mjNPOLY, 1));
+    }
+
+    d->efm_ts[t] = h*h*k + h*b;
+    d->efm_tk[t] = h*k;
+
+    // stiffness shift: c -= h*k * ten_velocity * J'
+    if (k) {
+      mjtNum ckv = d->efm_tk[t] * d->ten_velocity[i];
+      int end = m->ten_J_rowadr[i] + m->ten_J_rownnz[i];
+      for (int j=m->ten_J_rowadr[i]; j < end; j++) {
+        d->efm_c[m->ten_J_colind[j]] -= ckv * d->ten_J[j];
+      }
+    }
+  }
+
+
+  // fluid drag blocks: assemble the drag-only passive-fluid velocity derivative into the
+  // assemble the drag derivatives into stack scratch in qDeriv's shape (qDeriv itself is
+  // user-facing), gather into M's sparsity pattern, scale by -h. Drag derivatives are
+  // symmetric dissipative by construction; lift and added-mass terms are excluded and
+  // integrate explicitly
+  if (d->efm_fluid) {
+    mj_markStack(d);
+    mjtNum* scratch = mjSTACKALLOC(d, m->nD, mjtNum);
+    mju_zero(scratch, m->nD);
+    int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+    int nbody = sleep_filter ? d->nbody_awake : m->nbody;
+    for (int b=0; b < nbody; b++) {
+      int i = sleep_filter ? d->body_awake_ind[b] : b;
+      if (m->body_mass[i] < mjMINVAL) {
+        continue;
+      }
+      int use_ellipsoid_model = 0;
+      for (int j=0; j < m->body_geomnum[i] && use_ellipsoid_model == 0; j++) {
+        use_ellipsoid_model += (m->geom_fluid[mjNFLUID*(m->body_geomadr[i] + j)] > 0);
+      }
+      if (use_ellipsoid_model) {
+        mjd_ellipsoidFluid(m, d, scratch, i, /*flg_dragonly=*/1);
+      } else {
+        mjd_inertiaBoxFluid(m, d, scratch, i);
+      }
+    }
+    mju_gather(d->efm_fluid, scratch, m->mapD2M, m->nC);
+    mju_scl(d->efm_fluid, d->efm_fluid, -m->opt.timestep, m->nC);
+    mj_freeStack(d);
+  }
+}
+
+
+// actuation-stage refresh of the metric: actuator gain scalars (ctrl- and state-dependent,
+// so evaluated after mj_fwdActuation), their smooth-force shift, and the backbone factor
+// qH = M + diag(h*D + h^2*K) + tendon and actuator diagonals. The backbone is the part of
+// the metric inside M's kinematic-tree sparsity -- every class's diagonal projection plus
+// the fluid blocks -- so mj_factorI factors it with no fill-in; it is the exact metric
+// when no coupling terms exist, the preconditioner otherwise, and the only metric the dual
+// solvers ever see (mj_makeY). Idempotent: actuation-stage objects are rebuilt from
+// scratch, so re-running the stage (mj_forwardSkip) is safe. Under sleep, rows of sleeping
+// trees may hold stale M values: harmless, M and its factor are block-diagonal by tree and
+// only awake rows are ever gathered or solved
+void mjd_effActuation(const mjModel* m, mjData* d) {
+  if (!d->efm_active) {
+    return;
+  }
+  int nv = m->nv;
+  mjtNum h = m->opt.timestep;
+
+  // actuator gains, clamped to the stabilizing sign
+  d->nefmA = 0;
+  if (d->efm_aid) {
+    mju_zero(d->efm_ca, nv);
+    int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+    for (int i=0; i < m->nactuator; i++) {
+      if (!mj_effActuatorPossible(m, i) || actuatorDerivSkip(m, d, i, sleep_filter)) {
+        continue;
+      }
+      mjtNum gv = mju_max(0, -actuatorVelDeriv(m, d, i));
+      mjtNum gp = mju_max(0, -actuatorLenDeriv(m, d, i));
+      if (!gv && !gp) {
+        continue;
+      }
+      int t = d->nefmA++;
+      d->efm_aid[t] = i;
+      d->efm_as[t] = h*h*gp + h*gv;
+      d->efm_ak[t] = h*gp;
+
+      // stiffness shift: ca -= h*gp * actuator_velocity * moment'
+      if (gp) {
+        int oadr = m->actuator_outadr[i];
+        for (int k=0; k < m->actuator_outnum[i]; k++) {
+          int r = oadr + k;
+          mjtNum ckv = d->efm_ak[t] * d->actuator_velocity[r];
+          int end = d->moment_rowadr[r] + d->moment_rownnz[r];
+          for (int j=d->moment_rowadr[r]; j < end; j++) {
+            d->efm_ca[d->moment_colind[j]] -= ckv * d->actuator_moment[j];
+          }
+        }
+      }
+    }
+  }
+
+  // factor the backbone qH = M + all metric diagonals
+  if (d->efm_diag) {
+    mju_copy(d->qH, d->M, m->nC);
+    for (int i=0; i < nv; i++) {
+      d->qH[m->M_rowadr[i] + m->M_rownnz[i] - 1] += d->efm_diag[i];
+    }
+    for (int t=0; t < d->nefmT; t++) {
+      mjtNum s = d->efm_ts[t];
+      if (!s) {
+        continue;
+      }
+      int i = d->efm_tid[t];
+      int end = m->ten_J_rowadr[i] + m->ten_J_rownnz[i];
+      for (int j=m->ten_J_rowadr[i]; j < end; j++) {
+        int c = m->ten_J_colind[j];
+        d->qH[m->M_rowadr[c] + m->M_rownnz[c] - 1] += s * d->ten_J[j] * d->ten_J[j];
+      }
+    }
+    for (int t=0; t < d->nefmA; t++) {
+      mjtNum s = d->efm_as[t];
+      int i = d->efm_aid[t];
+      int oadr = m->actuator_outadr[i];
+      for (int k=0; k < m->actuator_outnum[i]; k++) {
+        int r = oadr + k;
+        int end = d->moment_rowadr[r] + d->moment_rownnz[r];
+        for (int j=d->moment_rowadr[r]; j < end; j++) {
+          int c = d->moment_colind[j];
+          d->qH[m->M_rowadr[c] + m->M_rownnz[c] - 1] +=
+              s * d->actuator_moment[j] * d->actuator_moment[j];
+        }
+      }
+    }
+    // fluid drag blocks share M's sparsity: add the full pattern
+    if (d->efm_fluid) {
+      mju_addTo(d->qH, d->efm_fluid, m->nC);
+    }
+
+    // record the diagonal additions for metric-consistent regularization, then factor
+    for (int i=0; i < nv; i++) {
+      int diag = m->M_rowadr[i] + m->M_rownnz[i] - 1;
+      d->efm_sdiag[i] = d->qH[diag] - d->M[diag];
+    }
+    mj_factorI(d->qH, d->qHDiagInv, nv, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+  }
+}
+
+
+// island-local metric product res += S*vec: the diagonal classes and the island's tendons,
+// with vectors in island-local dof coordinates. Flex terms never reach the island path:
+// models with flex metric terms force a monolithic solve
+void mjd_effMulAddIsland(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
+                         int island) {
+  int nv = d->island_nv[island];
+  int idofadr = d->island_idofadr[island];
+  const int* idof2dof = d->map_idof2dof + idofadr;
+
+  if (d->efm_diag) {
+    for (int k=0; k < nv; k++) {
+      res[k] += d->efm_diag[idof2dof[k]] * vec[k];
+    }
+  }
+
+  // fluid drag blocks: M-row columns are ancestor dofs, guaranteed in the same island
+  if (d->efm_fluid) {
+    for (int k=0; k < nv; k++) {
+      int i = idof2dof[k];
+      int start = m->M_rowadr[i];
+      int diag = start + m->M_rownnz[i] - 1;
+      mjtNum acc = d->efm_fluid[diag] * vec[k];
+      for (int a=start; a < diag; a++) {
+        int kc = d->map_dof2idof[m->M_colind[a]] - idofadr;
+        mjtNum F = d->efm_fluid[a];
+        acc += F * vec[kc];
+        res[kc] += F * vec[k];
+      }
+      res[k] += acc;
+    }
+  }
+
+  // the island's rank-1 terms: every tree an entry touches shares the island (union-find
+  // merges the support), so the first column decides membership
+  mjEffRank1Iter it = {0};
+  mjEffRank1 e;
+  while (mjd_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
+    if (d->tree_island[m->dof_treeid[e.colind[0]]] != island) {
+      continue;
+    }
+    mjtNum dot = 0;
+    for (int j=0; j < e.nnz; j++) {
+      dot += e.val[j] * vec[d->map_dof2idof[e.colind[j]] - idofadr];
+    }
+    dot *= e.scale;
+    for (int j=0; j < e.nnz; j++) {
+      res[d->map_dof2idof[e.colind[j]] - idofadr] += dot * e.val[j];
+    }
+  }
+}
+
+
+// publish passive flex contact as the metric's rank-1 contact class, one packed row per pair
+// ([nnz, conid, colind...] / [scale, force, val...], see engine_derivative.h): matrix-free
+// contact costs O(nnz) per pair where the stiffness CSR cost O(nnz^2), and the CSR's sparsity no
+// longer grows with the contact set
+static void effContactBuild(const mjModel* m, mjData* d, mjtNum scale) {
+  d->nefmcon = 0;
+  if (!d->ncon || !flexPassiveContact_any(m)) {
+    return;
+  }
+  int nv = m->nv, issparse = mj_isSparse(m);
+  mj_markStack(d);
+  mjtNum* jacdif = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jac1 = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jac2 = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jacn = mjSTACKALLOC(d, 3*nv, mjtNum);
+  int* chain = mjSTACKALLOC(d, nv, int);
+
+  // pass 1: packed length, two header entries plus nnz per row
+  for (int i = 0; i < d->ncon; i++) {
+    const mjContact* con = d->contact + i;
+    if (con->exclude != 4 || mjd_flexContactStiffness(m, d, con) <= 0) {
+      continue;
+    }
+    int NV = mj_contactJacobian(m, d, con, con->dim, jacdif, NULL, jac1, jac2, NULL, NULL, chain);
+    if (NV) {
+      d->nefmcon += 2 + NV;   // an upper bound in a dense model, trimmed to `adr` below
+    } else {
+      d->contact[i].exclude = 3;   // affects no dofs, as the passive force used to mark it
+    }
+  }
+  if (!d->nefmcon) {
+    mj_freeStack(d);
+    return;
+  }
+  d->efm_con_ind = EFMALLOC(int, d->nefmcon);
+  d->efm_con_val = EFMALLOC(mjtNum, d->nefmcon);
+
+  // pass 2: fill, rows packed back to back in both arrays
+  int adr = 0;
+  for (int i = 0; i < d->ncon; i++) {
+    const mjContact* con = d->contact + i;
+    if (con->exclude != 4) {
+      continue;
+    }
+    mjtNum k = mjd_flexContactStiffness(m, d, con);
+    if (k <= 0) {
+      continue;
+    }
+    int NV = mj_contactJacobian(m, d, con, con->dim, jacdif, NULL, jac1, jac2, NULL, NULL, chain);
+    if (!NV) {
+      continue;
+    }
+    mju_mulMatMat(jacn, con->frame, jacdif, con->dim > 1 ? 3 : 1, 3, NV);
+    mjtNum s = mjd_flexContactSlack(k, con->dist, /*lam=*/0);
+    int nnz = 0;
+    for (int a = 0; a < NV; a++) {
+      // a dense model gets no chain: every dof is returned, so compact the row on its nonzeros
+      if (!issparse && jacn[a] == 0) {
+        continue;
+      }
+      d->efm_con_ind[adr + 2 + nnz] = issparse ? chain[a] : a;
+      d->efm_con_val[adr + 2 + nnz] = jacn[a];
+      nnz++;
+    }
+    d->efm_con_ind[adr] = nnz;
+    d->efm_con_ind[adr + 1] = i;
+    d->efm_con_val[adr] = scale * k;
+    d->efm_con_val[adr + 1] = -k*mjd_flexContactResidual(k, con->dist, s, /*lam=*/0);
+    adr += 2 + nnz;
+  }
+  d->nefmcon = adr;   // the dense compaction can land below the bound counted above
+  mj_freeStack(d);
+}
+
+
+// apply the published rows' forces, res += force * row: the passive stage takes its contact
+// force from the rows the metric build published
+void mjd_effContactForce(const mjData* d, mjtNum* res) {
+  const int* ind = d->efm_con_ind;
+  const mjtNum* val = d->efm_con_val;
+  for (int adr = 0; adr < d->nefmcon; ) {
+    int nnz = ind[adr];
+    mjtNum f = val[adr + 1];
+    const int* colind = ind + adr + 2;
+    const mjtNum* row = val + adr + 2;
+    for (int a = 0; a < nnz; a++) {
+      // fused multiply-add: rounding the product first moves the results by an ulp
+      res[colind[a]] += f * row[a];
+    }
+    adr += 2 + nnz;
+  }
+}
+
+
+// build the per-step implicit effective metric on the arena, or deactivate it. The gate
+// decision (integrator=discrete) is the caller's: the metric module has no dependency on
+// the solver configuration beyond what it is told here.
+void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
+  int nv = m->nv;
+  d->efm_active = 0;
+  d->nefmK = 0;
+  d->nefmcon = 0;
+  d->nefmT = 0;
+  d->nefmdof = 0;
+  d->nefmL = 0;
+  d->nefmA = 0;
+  d->efm_diag = NULL;
+  d->efm_ck = NULL;
+  d->efm_sdiag = NULL;
+  d->efm_fluid = NULL;
+  d->efm_tid = NULL;
+  d->efm_ts = NULL;
+  d->efm_tk = NULL;
+  d->efm_aid = NULL;
+  d->efm_as = NULL;
+  d->efm_ak = NULL;
+  d->efm_ca = NULL;
+  if (!active) {
+    return;
+  }
+  mjtNum h = m->opt.timestep;
+
+  // corotated element stiffness cache (used by the shift and the matrix-free fallback)
+  mju_zero(d->flexelem_krot, m->nflexstiffness);
+  mjd_flexInterp_cacheKrot(m, d, d->flexelem_krot);
+
+  // smooth-force shift c = h*K*qvel (values refreshed by mjd_effShift in the velocity stage)
+  d->efm_c = EFMALLOC(mjtNum, nv);
+
+  // per-dof diagonal classes (joint damping/stiffness, joint-transmission actuator damping):
+  // position-dependent stiffness assembled here; the velocity-dependent damping part and the
+  // qH backbone factor are refreshed by mjd_effShift in the velocity stage
+  d->efm_ck = EFMALLOC(mjtNum, nv);
+  int any_diag = effDiagStiff(m, d);
+  for (int i=0; !any_diag && i < nv; i++) {
+    any_diag = dofDampPossible(m, i);
+  }
+
+  // tendons with metric terms: id list here, values (velocity-dependent) in mjd_effShift.
+  // Sleeping tendons are excluded, matching the passive-force filter; the wake rule
+  // (mj_wakeTendon) keeps metric-coupled tendon pairs awake or asleep together. Under the
+  // dual solver the class is excluded (mj_effCouplings): an empty list removes its metric
+  // terms and its shift together, so the tendon forces integrate explicitly
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+  if (m->ntendon && mj_effCouplings(m)) {
+    d->efm_tid = EFMALLOC(int, m->ntendon);
+    d->efm_ts  = EFMALLOC(mjtNum, m->ntendon);
+    d->efm_tk  = EFMALLOC(mjtNum, m->ntendon);
+    for (int i=0; i < m->ntendon; i++) {
+      if (!mj_effTendonPossible(m, i)) {
+        continue;
+      }
+      if (sleep_filter && mj_sleepState(m, d, mjOBJ_TENDON, i) != mjS_AWAKE) {
+        continue;
+      }
+      d->efm_tid[d->nefmT++] = i;
+    }
+  }
+
+  // metric-possible actuators: allocation here, values (ctrl- and state-dependent) in
+  // mjd_effActuation at the actuation stage. Under the dual solver the class is excluded
+  // (mj_effCouplings, as for tendons): no allocation, so mjd_effActuation adds nothing
+  int any_act = 0;
+  if (mj_effCouplings(m)) {
+    for (int i=0; i < m->nactuator; i++) {
+      if (mj_effActuatorPossible(m, i)) {
+        any_act = 1;
+        break;
+      }
+    }
+  }
+  if (any_act) {
+    d->efm_aid = EFMALLOC(int, m->nactuator);
+    d->efm_as  = EFMALLOC(mjtNum, m->nactuator);
+    d->efm_ak  = EFMALLOC(mjtNum, m->nactuator);
+    d->efm_ca  = EFMALLOC(mjtNum, nv);
+    mju_zero(d->efm_ca, nv);
+  }
+
+  // the tendon and actuator diagonals join the qH backbone: force the diagonal machinery on.
+  // Fluid drag and passive flex contact enter only while their forces are applied: mj_passive
+  // skips them, like every passive force, when both the spring and damper forces are disabled
+  int passive = !(mjDISABLED(mjDSBL_SPRING) && mjDISABLED(mjDSBL_DAMPER));
+  int any_fluid = passive && (m->opt.viscosity > 0 || m->opt.density > 0);
+  d->efm_diag = (any_diag || d->nefmT || any_act || any_fluid) ? EFMALLOC(mjtNum, nv) : NULL;
+  d->efm_sdiag = d->efm_diag ? EFMALLOC(mjtNum, nv) : NULL;
+  d->efm_fluid = any_fluid ? EFMALLOC(mjtNum, m->nC) : NULL;
+
+  // assemble the standard-flex part of B into CSR (constant during the step). With stretch or
+  // assemblable interp present, assemble the FULL matrix (bending included): one CSR then
+  // serves both the matvec and the per-step factor. Bending-only models keep the stencil
+  // operator + the constant mj_setConst factor. The stiffness (s1) and damping (s2) parts enter
+  // only when their forces are enabled; the structure does not depend on the flags
+  mjtNum s1 = mjDISABLED(mjDSBL_SPRING) ? 0 : h*h;
+  mjtNum s2 = mjDISABLED(mjDSBL_DAMPER) ? 0 : h;
+  const mjtNum* krot = mjd_flexInterpAssemblable(m) ? d->flexelem_krot : NULL;
+  d->efm_K_rownnz = EFMALLOC(int, nv);
+  d->efm_K_rowadr = EFMALLOC(int, nv);
+
+  // Newton consumes the metric as an explicit sparse matrix inside its Hessian: force full
+  // CSR assembly, including bending-only flexes which otherwise keep the matrix-free stencil
+  // plus the constant mj_setConst factor (non-assemblable interp flexes are rejected by
+  // mj_checkDiscrete under Newton)
+  int assemble_any = mjd_flexStiff_any(m, krot != NULL) || flexPassiveContact_any(m);
+  if (m->opt.solver == mjSOL_NEWTON) {
+    for (int f=0; !assemble_any && f < m->nflex; f++) {
+      assemble_any = flexStiff_active(m, f, /*flg_bend=*/1, /*flg_stretch=*/1);
+    }
+  }
+  if (assemble_any) {
+    d->nefmK = mjd_flexStiff_assemble(m, d, d->efm_K_rownnz, d->efm_K_rowadr,
+                                      NULL, NULL, s1, s2, /*bend*/ 1, /*stretch*/ 1, krot);
+  }
+
+  // passive flex contact is a rank-1 class, not CSR entries (see effContactBuild)
+  if (passive) {
+    effContactBuild(m, d, h*h);
+  }
+  if (d->nefmK) {
+    d->efm_K_colind = EFMALLOC(int, d->nefmK);
+    d->efm_K_val    = EFMALLOC(mjtNum, d->nefmK);
+    mjd_flexStiff_assemble(m, d, d->efm_K_rownnz, d->efm_K_rowadr,
+                           d->efm_K_colind, d->efm_K_val, s1, s2,
+                           /*bend*/ 1, /*stretch*/ 1, krot);
+    // per-step factor of the flex block of (M + K): the stiffness is constant during the
+    // step, so one factorization here turns every preconditioner application into a direct
+    // solve (the stiff flex block stops being iterated on). Consumers that only multiply
+    // (inverse dynamics) skip it.
+    if (flg_factor) {
+      effBlocks(m, d);
+    }
+
+  } else {
+    mju_zeroInt(d->efm_K_rownnz, nv);
+    mju_zeroInt(d->efm_K_rowadr, nv);
+  }
+
+  d->efm_active = 1;
 }

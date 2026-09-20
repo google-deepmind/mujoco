@@ -1,0 +1,66 @@
+<mujoco model="tendon">
+  <default>
+    <joint axis="0 1 0" range="0 60" limited="true"/>
+    <geom type="capsule" size=".01" rgba=".9 .7 .1 1"/>
+    <site rgba=".9 .9 .9 1"/>
+    <default class="visual_cylinder">
+      <geom type="cylinder" fromto="0 .015 0  0 -.015 0" size=".02" rgba=".3 .9 .3 .4"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light pos="0 0 1"/>
+    <body name="weight" pos="-.03 0 .175">
+      <joint axis="0 0 1" pos="0 0 .025" type="slide"/>
+      <geom type="cylinder" size=".03 .025" density="5000" rgba=".2 .2 .5 1"/>
+      <site name="s1" pos="0 0 .025"/>
+    </body>
+
+    <site name="s2" pos="-.03 0 .33"/>
+
+    <body pos="0 0 .3">
+      <joint/>
+      <geom name="g1" class="visual_cylinder"/>
+      <geom fromto="0 0 0  .1 0 0"/>
+      <site name="s3" pos=".02 0 .03"/>
+
+      <body pos=".1 0 0">
+        <joint/>
+        <geom name="g2" class="visual_cylinder"/>
+        <geom fromto="0 0 0  .1 0 0"/>
+        <site name="s4" pos=".03 0 .01"/>
+        <site name="s5" pos=".05 0 .02"/>
+        <site name="side2" pos="0 0 .03"/>
+
+        <body pos=".1 0 0">
+          <joint/>
+          <geom name="g3" class="visual_cylinder"/>
+          <geom fromto="0 0 0  .1 0 0"/>
+          <site name="s6" pos=".03 0 .01"/>
+          <site name="side3" pos="0 0 .03"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <spatial range="0 .33" limited="true" width=".002" rgba=".95 .3 .3 1">
+      <site site="s1"/>
+      <site site="s2"/>
+      <geom geom="g1"/>
+      <site site="s3"/>
+
+      <pulley divisor="2"/>
+      <site site="s3"/>
+      <geom geom="g2" sidesite="side2"/>
+      <site site="s4"/>
+
+      <pulley divisor="2"/>
+      <site site="s3"/>
+      <geom geom="g2" sidesite="side2"/>
+      <site site="s5"/>
+      <geom geom="g3" sidesite="side3"/>
+      <site site="s6"/>
+    </spatial>
+  </tendon>
+</mujoco>

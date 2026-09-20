@@ -1,6 +1,6 @@
 <!--
   test model for constraint islanding:
-- 4 equalities (1:joint, 3:connect)
+- 7 equalities (1:joint, 6:connect)
 - 1 limit
 - 2 friction constraints
 - 1 unconstrained dof
@@ -65,14 +65,17 @@
       <geom type="box" size=".03 .03 .03" pos="0.01 0.01 0.01"/>
     </body>
 
+    <site name="0" pos="-.45 -.05 .35"/>
     <body pos="-.5 0 .3" name="connect">
       <freejoint/>
       <geom type="box" size=".05 .05 .05"/>
+      <site name="1" pos=".05 -.05 .05"/>
     </body>
   </worldbody>
 
   <equality>
     <joint joint1="hinge1" joint2="hinge2"/>
     <connect body1="connect" body2="world" anchor="-.05 -.05 .05"/>
+    <connect site1="0" site2="1"/>
   </equality>
 </mujoco>

@@ -29,6 +29,7 @@ from mujoco.mjx._src.types import Model
 
 def collider(ncon: int):
   """Wraps collision functions for use by collision_driver."""
+
   def wrapper(func):
     def collide(m: Model, d: Data, _, geom: jax.Array) -> Collision:
       g1, g2 = geom.T
@@ -39,7 +40,7 @@ def collider(ncon: int):
         return jax.tree_util.tree_map(jp.concatenate, (dist, pos, frame))
       return dist, pos, frame
 
-    collide.ncon = ncon
+    collide.ncon = ncon  # pyrefly: ignore[missing-attribute]
     return collide
 
   return wrapper
@@ -98,7 +99,7 @@ def plane_ellipsoid(plane: GeomInfo, ellipsoid: GeomInfo) -> Collision:
 
 @collider(ncon=3)
 def plane_cylinder(plane: GeomInfo, cylinder: GeomInfo) -> Collision:
-  """Calculates one contact between an cylinder and a plane."""
+  """Calculates three contacts between a cylinder and a plane."""
   n = plane.mat[:, 2]
   axis = cylinder.mat[:, 2]
 
@@ -119,7 +120,7 @@ def plane_cylinder(plane: GeomInfo, cylinder: GeomInfo) -> Collision:
       # disk parallel to plane: pick x-axis of cylinder, scale by radius
       cylinder.mat[:, 0] * cylinder.size[0],
       # general configuration: normalize vector, scale by radius
-      vec / len_ * cylinder.size[0]
+      math.safe_div(vec, len_) * cylinder.size[0],
   )
 
   # project vector on normal
@@ -138,11 +139,15 @@ def plane_cylinder(plane: GeomInfo, cylinder: GeomInfo) -> Collision:
   d1 = dist0 + prjaxis + prjvec
   d2 = dist0 + prjaxis + prjvec1
   dist = jp.array([d1, d2, d2])
-  pos = cylinder.pos + axis + jp.array([
-      vec  - n * d1 * 0.5,
-      vec1 + vec * -0.5 - n * d2 * 0.5,
-      -vec1 + vec * -0.5 - n * d2 * 0.5,
-  ])
+  pos = (
+      cylinder.pos
+      + axis
+      + jp.array([
+          vec - n * d1 * 0.5,
+          vec1 + vec * -0.5 - n * d2 * 0.5,
+          -vec1 + vec * -0.5 - n * d2 * 0.5,
+      ])
+  )
 
   # cylinder parallel to plane
   cond = jp.abs(prjaxis) < 1e-3

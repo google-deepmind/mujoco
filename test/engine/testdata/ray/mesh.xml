@@ -1,0 +1,13 @@
+<mujoco>
+  <asset>
+    <mesh file="stanford_bunny.obj" scale="10 10 10"/>
+  </asset>
+
+  <include file="ray_swing.xml"/>
+
+  <worldbody>
+    <body pos="-.5 .002 -1" euler="90 0 -40" mocap="true">
+      <geom type="mesh" mesh="stanford_bunny"/>
+    </body>
+  </worldbody>
+</mujoco>

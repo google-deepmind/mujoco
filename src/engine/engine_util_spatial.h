@@ -16,7 +16,7 @@
 #define MUJOCO_SRC_ENGINE_ENGINE_UTIL_SPATIAL_H_
 
 #include <mujoco/mjexport.h>
-#include <mujoco/mjmodel.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,6 +59,10 @@ MJAPI void mju_quatIntegrate(mjtNum quat[4], const mjtNum vel[3], mjtNum scale);
 // compute quaternion performing rotation from z-axis to given vector
 MJAPI void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]);
 
+// extract 3D rotation from an arbitrary 3x3 matrix by refining the input quaternion
+// returns the number of iterations required to converge
+MJAPI int mju_mat2Rot(mjtNum quat[4], const mjtNum mat[9]);
+
 
 //------------------------------ pose operations (pos, quat) ---------------------------------------
 
@@ -91,14 +95,14 @@ void mju_crossMotion(mjtNum res[6], const mjtNum vel[6], const mjtNum v[6]);
 void mju_crossForce(mjtNum res[6], const mjtNum vel[6], const mjtNum f[6]);
 
 // express inertia in com-based frame
-void mju_inertCom(mjtNum res[10], const mjtNum inert[3], const mjtNum mat[9],
+void mju_inertCom(mjtNum* res, const mjtNum inert[3], const mjtNum mat[9],
                   const mjtNum dif[3], mjtNum mass);
 
 // express motion axis in com-based frame
-void mju_dofCom(mjtNum res[6], const mjtNum axis[3], const mjtNum offset[3]);
+void mju_dofCom(mjtNum* res, const mjtNum axis[3], const mjtNum offset[3]);
 
 // multiply 6D vector (rotation, translation) by 6D inertia matrix
-void mju_mulInertVec(mjtNum res[6], const mjtNum inert[10], const mjtNum vec[6]);
+MJAPI void mju_mulInertVec(mjtNum* res, const mjtNum inert[10], const mjtNum vec[6]);
 
 // multiply dof matrix by vector
 void mju_mulDofVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n);

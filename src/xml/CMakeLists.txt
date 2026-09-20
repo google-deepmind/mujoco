@@ -17,6 +17,8 @@ set(MUJOCO_XML_SRCS
     xml_api.h
     xml_base.cc
     xml_base.h
+    xml_global.cc
+    xml_global.h
     xml.cc
     xml.h
     xml_native_reader.cc

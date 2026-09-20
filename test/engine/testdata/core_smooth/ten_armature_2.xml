@@ -1,0 +1,29 @@
+<mujoco>
+  <option integrator="RK4" timestep="1e-4">
+    <flag contact="disable" gravity="disable" energy="enable"/>
+  </option>
+
+  <worldbody>
+    <site name="tendon" type="box" size=".03 .03 .03" pos="-.5 0 0"/>
+    <body name="link1" pos="-1 0 0">
+      <joint name="link1" axis="0 -1 0" damping="0" stiffness="50"/>
+      <geom name="link1" type="capsule" size=".02" fromto="0 0 0 0 0 -1"/>
+      <body name="link2" pos="0 0 -1">
+        <joint name="link2" axis="0 -1 0" damping="0" stiffness="1" springref="-180"/>
+        <geom name="link2" type="capsule" size=".03" fromto="0 0 0 .6 0 0"/>
+        <site name="link2" type="box" size=".03 .03 .03" pos=".5 0 0"/>
+      </body>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <spatial width=".01" rgba=".2 .2 1 1" armature="9">
+      <site site="link2"/>
+      <site site="tendon"/>
+    </spatial>
+  </tendon>
+
+  <keyframe>
+    <key qpos="-1 0" qvel="1 1"/>
+  </keyframe>
+</mujoco>

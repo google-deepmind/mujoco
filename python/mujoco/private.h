@@ -17,11 +17,13 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
+#include <mujoco/mjtype.h>
 
 // DO NOT USE THESE FUNCTIONS ELSEWHERE.
 // They should be regarded as part of MuJoCo's internal implementation detail.
 extern "C" {
-MJAPI void _mjPRIVATE__set_tls_error_fn(void (*h)(const char*));
+MJAPI mjfLogHandler _mjPRIVATE_setTlsLogHandler(mjfLogHandler handler);
+MJAPI mjfLogHandler _mjPRIVATE_getGlobalLogHandler(void);
 MJAPI void* mj_arenaAllocByte(mjData* d, int bytes, int alignment);
 }
 

@@ -1,0 +1,147 @@
+<style>
+  table.pt {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.9rem;
+    color: var(--text-color);
+  }
+
+  table.pt thead tr th,
+  table.pt tbody tr td {
+    padding: 10px 12px;
+    text-align: left;
+    border-top: 1px solid var(--border-color);
+    vertical-align: middle;
+  }
+
+  table.pt thead,
+  table.pt thead th {
+    background-color: var(--bg-color);
+    /* Very light grey header background */
+    color: var(--heading-color);
+    font-weight: 600;
+    border-top: none;
+    border-bottom: 2px solid var(--border-color);
+    /* Keep a stronger bottom border for header */
+    text-align: right;
+  }
+
+  table.pt tbody tr:first-child td {
+    border-top: none;
+  }
+
+  table.pt th,
+  table.pt td {
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  /* Body row styles */
+  table.pt tbody tr {
+    background-color: var(--card-bg);
+  }
+
+  /* Alternating row colors (need a variable or opacity) */
+  /* Using a slight transparency for alternating rows to adapt to dark/light */
+  table.pt tbody tr:nth-child(even) {
+    background-color: rgba(128, 128, 128, 0.05);
+  }
+
+  table.pt tbody tr:hover {
+    background-color: rgba(128, 128, 128, 0.1);
+  }
+
+  table.pt thead th:first-child {
+    text-align: left;
+    /* Align 'Parameter' header left */
+  }
+
+  table.pt tbody tr td {
+    text-align: right;
+    font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+
+  table.pt tbody tr td.pt_param {
+    font-weight: 500;
+    white-space: nowrap;
+    text-align: left;
+    color: var(--primary-color);
+  }
+
+  /* Update these to use variable or standard colors suitable for both modes */
+  .pt_param {
+    color: var(--primary-color);
+  }
+
+  .pt_nominal {
+    color: var(--primary-color);
+    /* Was #1f1fb4 */
+  }
+
+  .pt_bound {
+    color: var(--primary-color);
+  }
+
+  .pt_small_error {
+    color: var(--color-success);
+  }
+
+  .pt_medium_error {
+    color: var(--color-warning);
+  }
+
+  .pt_large_error {
+    color: var(--color-error);
+  }
+
+  .pt_on_boundary {
+    color: var(--color-boundary);
+  }
+</style>
+<div class="parameters">
+  <table class="pt">
+    <thead>
+      <tr>
+        {% for header in headers %}
+        <th>{{ header }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in table_data %}
+      <tr>
+        <td class="pt_param" {% if row.is_frozen %}style="color: grey;" {% endif %}>{{ row.name }}</td> {# Parameter
+        name #}
+        {% if row.initial is defined %}
+        <td class="pt_nominal" style="color: var(--text-muted);">{{ "%.4f" | format(row.initial) }}</td>
+        {% endif %}
+        {% if row.nominal is defined %}
+        <td class="pt_nominal">{{ "%.4f" | format(row.nominal) }}</td>
+        {% endif %}
+        <td class="{{row.error_class}}">{{ "%.4f" | format(row.pred) }}</td>
+        {% if row.is_frozen %}
+        <td class="pt_bound">-</td>
+        <td class="pt_bound">-</td>
+        {% else %}
+        <td class="pt_bound">{{ "%.4f" | format(row.lower_bound) }}</td>
+        <td class="pt_bound">{{ "%.4f" | format(row.upper_bound) }}</td>
+        {% endif %}
+        {% if row.abs_err is defined %}
+        <td class="{{row.error_class}}">{{ "%.4f" | format(row.abs_err) }}</td>
+        {% endif %}
+        {# Format relative error as percentage #}
+        {% if row.rel_err is defined %}
+        <td class="{{row.error_class}}">{{ "%.1f%%" | format(row.rel_err * 100) }}</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if overall_rmse is not none %}
+  <p class="pt_mse">Overall Parameters RMSE: {{ "%.4f" | format(overall_rmse) }}</p>
+  {% endif %}
+  <p style="color: grey; font-size: 0.85em; margin-top: 0.5rem;">* parameter is frozen</p>
+</div>

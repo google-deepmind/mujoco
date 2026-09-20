@@ -18,4 +18,3 @@ mujoco_test(
   ENVIRONMENT
   "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:sensor>"
 )
-target_link_libraries(sensor_test fixture gmock)

@@ -77,6 +77,7 @@
   </custom>
 
   <asset>
+    <hfield name="rand_uniform" file="hfield_240_280.png" size="20.1 20.0 .05 .1"/>
     <mesh file="head.stl"/>
     <mesh file="powercable.stl"/>
     <mesh file="handle.stl"/>
@@ -101,7 +102,8 @@
     <site name="origin"/>
     <light pos="0 0 1.5" dir="0 0 -1" directional="true"/>
     <camera name="default" pos="0.846 -1.465 0.916" xyaxes="0.866 0.500 0.000 -0.171 0.296 0.940"/>
-    <geom name="floor" size="0 0 0.05" type="plane" conaffinity="1" material="groundplane"/>
+    <geom name="hfield_floor" type="hfield" hfield="rand_uniform" conaffinity="1"/>
+    <!-- <geom name="floor" pos="0 0 -0.05" size="0 0 0.05" type="plane" conaffinity="1" material="groundplane"/> -->
     <body name="chassis">
       <camera name="track" pos="0.846 -1.465 0.916" xyaxes="0.866 0.500 0.000 -0.171 0.296 0.940" mode="trackcom"/>
       <freejoint/>

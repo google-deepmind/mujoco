@@ -16,13 +16,47 @@
 
 import copy
 import dataclasses
-
 import typing
 from typing import Dict, Optional, Sequence, Tuple, TypeVar, Union
+import zlib
 import jax
 import numpy as np
 
 _T = TypeVar('_T')
+
+
+class _NumPyArrayHashWrapper:
+  """A wrapper for NumPy arrays to make them hashable based on content.
+
+  This class is used to allow NumPy arrays to be part of the metadata in a Jax
+  PyTree registration, as metadata must be hashable. The hash is based on the
+  array's content, dtype, and shape.
+  """
+  __slots__ = ('_hash_key', 'array')
+
+  def __init__(self, arr: np.ndarray):
+    if arr.size == 0:
+      h = 0
+    else:
+      contiguous = np.ascontiguousarray(arr)
+      h = zlib.crc32(contiguous.data)
+    self._hash_key = (h, arr.dtype, arr.shape)
+    self.array = arr
+
+  def __hash__(self):
+    return hash(self._hash_key)
+
+  def __eq__(self, other):
+    if not isinstance(other, _NumPyArrayHashWrapper):
+      return NotImplemented
+    if self.array is other.array:
+      return True
+  # Since we use crc32, collision is not a negligible probability thus we
+  # if two independent arrays have the same dtype, shape and hash then
+  # we double check the contents are the same.
+    return self._hash_key == other._hash_key and np.array_equal(
+        self.array, other.array, equal_nan=True
+    )
 
 
 def _jax_in_args(typ) -> bool:
@@ -30,12 +64,12 @@ def _jax_in_args(typ) -> bool:
     return True
   if dataclasses.is_dataclass(typ):
     return any(_jax_in_args(f.type) for f in dataclasses.fields(typ))
-  if typing.get_origin(typ) in (list, dict, Union, set):
+  if typing.get_origin(typ) in (tuple, list, dict, Union, set):
     return any(_jax_in_args(t) for t in typing.get_args(typ))
   return False
 
 
-def dataclass(clz: _T) -> _T:
+def dataclass(clz: _T, register_as_pytree: bool) -> _T:
   """Wraps a dataclass with metadata for which fields are pytrees.
 
   This is based off flax.struct.dataclass, but instead of using field
@@ -48,57 +82,69 @@ def dataclass(clz: _T) -> _T:
   Returns:
     the resulting dataclass, registered with Jax
   """
-  data_clz = dataclasses.dataclass(frozen=True)(clz)
-  meta_fields, data_fields = [], []
-  for field in dataclasses.fields(data_clz):
-    if _jax_in_args(field.type):
-      data_fields.append(field)
-    else:
-      meta_fields.append(field)
+  data_clz = dataclasses.dataclass(frozen=True)(clz)  # pyrefly: ignore[bad-argument-type]
+  data_clz.replace = dataclasses.replace
 
-  def replace(self, **updates):
-    """"Returns a new object replacing the specified fields with new values."""
-    return dataclasses.replace(self, **updates)
-
-  data_clz.replace = replace
-
-  def iterate_clz_with_keys(x):
-    def to_meta(field, obj):
-      val = getattr(obj, field.name)
-      # numpy arrays are not hashable so return raw bytes instead
-      if isinstance(val, np.ndarray):
-        return (val.tobytes(), val.dtype, val.shape)
+  if register_as_pytree:
+    meta_fields, data_fields = [], []
+    for field in dataclasses.fields(data_clz):
+      if _jax_in_args(field.type):
+        data_fields.append(field)
       else:
+        meta_fields.append(field)
+
+    def iterate_clz_with_keys(x):
+      def to_meta(field, obj):
+        val = getattr(obj, field.name)
+        if isinstance(val, np.ndarray):
+          return _NumPyArrayHashWrapper(val)
+        if typing.get_origin(field.type) == tuple:
+          type_args = typing.get_args(field.type)
+          if (
+              len(type_args) == 2
+              and type_args[0] == np.ndarray
+              and type_args[1] == ...
+          ):
+            return tuple(_NumPyArrayHashWrapper(v) for v in val)
         return val
 
-    def to_data(field, obj):
-      return (jax.tree_util.GetAttrKey(field.name), getattr(obj, field.name))
+      def to_data(field, obj):
+        return (jax.tree_util.GetAttrKey(field.name), getattr(obj, field.name))
 
-    data = tuple(to_data(f, x) for f in data_fields)
-    meta = tuple(to_meta(f, x) for f in meta_fields)
-    return data, meta
+      data = tuple(to_data(f, x) for f in data_fields)
+      meta = tuple(to_meta(f, x) for f in meta_fields)
+      return data, meta
 
-  def clz_from_iterable(meta, data):
+    def clz_from_iterable(meta, data):
 
-    def from_meta(field, meta):
-      if field.type is np.ndarray:
-        arr = np.frombuffer(meta[0], dtype=meta[1]).reshape(meta[2])
-        return (field.name, arr)
-      else:
+      def from_meta(field, meta):
+        if field.type is np.ndarray:
+          return (field.name, meta.array)
+        if typing.get_origin(field.type) == tuple:
+          type_args = typing.get_args(field.type)
+          if (
+              len(type_args) == 2
+              and type_args[0] == np.ndarray
+              and type_args[1] == ...
+          ):
+            return (
+                field.name,
+                tuple(m.array for m in meta),
+            )
         return (field.name, meta)
 
-    from_data = lambda field, meta: (field.name, meta)
+      from_data = lambda field, meta: (field.name, meta)
 
-    meta_args = tuple(from_meta(f, m) for f, m in zip(meta_fields, meta))
-    data_args = tuple(from_data(f, m) for f, m in zip(data_fields, data))
+      meta_args = tuple(from_meta(f, m) for f, m in zip(meta_fields, meta))
+      data_args = tuple(from_data(f, m) for f, m in zip(data_fields, data))
 
-    return data_clz(**dict(meta_args + data_args))
+      return data_clz(**dict(meta_args + data_args))
 
-  jax.tree_util.register_pytree_with_keys(
-      data_clz, iterate_clz_with_keys, clz_from_iterable
-  )
+    jax.tree_util.register_pytree_with_keys(
+        data_clz, iterate_clz_with_keys, clz_from_iterable
+    )
 
-  return data_clz
+  return data_clz  # pyrefly: ignore[bad-return]
 
 
 TNode = TypeVar('TNode', bound='PyTreeNode')
@@ -110,8 +156,9 @@ class PyTreeNode:
   This base class additionally avoids type checking errors when using PyType.
   """
 
-  def __init_subclass__(cls):
-    dataclass(cls)
+  def __init_subclass__(cls, register_as_pytree: bool = True, **kwargs):
+    super().__init_subclass__(**kwargs)
+    dataclass(cls, register_as_pytree=register_as_pytree)
 
   def __init__(self, *args, **kwargs):
     # stub for pytype
@@ -123,7 +170,7 @@ class PyTreeNode:
 
   @classmethod
   def fields(cls) -> Tuple[dataclasses.Field, ...]:  # pylint: disable=g-bare-generic
-    return dataclasses.fields(cls)
+    return dataclasses.fields(cls)  # pyrefly: ignore[bad-argument-type]
 
   def tree_replace(
       self, params: Dict[str, Optional[jax.typing.ArrayLike]]
@@ -150,7 +197,7 @@ def _tree_replace(
     for i, g in enumerate(lst):
       if not hasattr(g, attr[1]):
         continue
-      v = val if not hasattr(val, '__iter__') else val[i]
+      v = val if not hasattr(val, '__iter__') else val[i]  # pyrefly: ignore[bad-index, unsupported-operation]
       lst[i] = _tree_replace(g, attr[1:], v)
 
     return base.replace(**{attr[0]: lst})

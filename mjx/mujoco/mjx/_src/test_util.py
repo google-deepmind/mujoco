@@ -26,6 +26,7 @@ import mujoco
 # pylint: disable=g-importing-member
 from mujoco.mjx._src import forward
 from mujoco.mjx._src import io
+from mujoco.mjx._src.types import Data
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -52,7 +53,7 @@ def benchmark(
     nstep: int = 1000,
     batch_size: int = 1024,
     unroll_steps: int = 1,
-    solver: str = 'cg',
+    solver: str = 'newton',
     iterations: int = 1,
     ls_iterations: int = 4,
 ) -> Tuple[float, float, int]:
@@ -62,13 +63,13 @@ def benchmark(
   xla_flags += ' --xla_gpu_triton_gemm_any=True'
   os.environ['XLA_FLAGS'] = xla_flags
 
-  m.opt.solver = {
+  m.opt.solver = {  # pyrefly: ignore[bad-assignment]
       'cg': mujoco.mjtSolver.mjSOL_CG,
       'newton': mujoco.mjtSolver.mjSOL_NEWTON,
   }[solver.lower()]
   m.opt.iterations = iterations
   m.opt.ls_iterations = ls_iterations
-  m = io.put_model(m)
+  m = io.put_model(m)  # pyrefly: ignore[bad-assignment]
 
   @jax.pmap
   def init(key):
@@ -102,6 +103,28 @@ def benchmark(
   steps = nstep * batch_size
 
   return jit_time, run_time, steps
+
+
+def efc_order(m: mujoco.MjModel, d: mujoco.MjData, dx: Data) -> np.ndarray:
+  """Returns a sort order such that dx.efc_*[order][:d._impl.nefc] == d.efc_*."""  # pytype: disable=attribute-error
+  # reorder efc rows to skip inactive constraints and match contact order
+  efl = dx._impl.ne + dx._impl.nf + dx._impl.nl  # pytype: disable=attribute-error
+  order = np.arange(efl)
+  order[(dx._impl.efc_J[:efl] == 0).all(axis=1)] = 2**16  # move empty rows to end  # pytype: disable=attribute-error
+  for i in range(dx._impl.ncon):  # pytype: disable=attribute-error
+    num_rows = dx._impl.contact.dim[i]  # pytype: disable=attribute-error
+    if dx._impl.contact.dim[i] > 1 and m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:  # pytype: disable=attribute-error
+      num_rows = (dx._impl.contact.dim[i] - 1) * 2  # pytype: disable=attribute-error
+    if dx._impl.contact.dist[i] > 0:  # move empty contacts to end  # pytype: disable=attribute-error
+      order = np.append(order, np.repeat(2**16, num_rows))
+      continue
+    contact_match = (d.contact.geom == dx._impl.contact.geom[i]).all(axis=-1)  # pytype: disable=attribute-error
+    contact_match &= (d.contact.pos == dx._impl.contact.pos[i]).all(axis=-1)  # pytype: disable=attribute-error
+    assert contact_match.any(), f'contact {i} not found'
+    contact_id = np.nonzero(contact_match)[0][0]
+    order = np.append(order, np.repeat(efl + contact_id, num_rows))
+
+  return np.argsort(order, kind='stable')
 
 
 _ACTUATOR_TYPES = ['motor', 'velocity', 'position', 'general', 'intvelocity']
@@ -426,7 +449,7 @@ def create_mjcf(
     if p(80):
       continue
 
-    geom1, geom2 = np.random.choice(geom_names, replace=False, size=2)
+    geom1, geom2 = np.random.choice(geom_names, replace=False, size=2)  # pyrefly: ignore[no-matching-overload]
     if geom1 > geom2:
       geom1, geom2 = geom2, geom1
 
@@ -444,7 +467,7 @@ def create_mjcf(
     if p(50):
       continue
 
-    body1, body2 = np.random.choice(body_names, replace=False, size=2)
+    body1, body2 = np.random.choice(body_names, replace=False, size=2)  # pyrefly: ignore[no-matching-overload]
     ET.SubElement(contact, 'exclude', {'body1': body1, 'body2': body2})
 
   # ElementTree.indent is not available before Python 3.9

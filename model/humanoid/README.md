@@ -13,6 +13,7 @@ in the DeepMind Control Suite [2], which has fairly realistic actuator gains.
 
 ## Changelog
 
+* 08-10-2024: Moved tracking light from the torso to the world.
 * 20-02-2024: Sorted actuators in the same order as the joints.
 * 02-01-2024: Add more keyframes.
 * 27-11-2023: Move humanoid geoms to group 1.

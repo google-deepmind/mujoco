@@ -1,0 +1,15 @@
+<mujoco>
+  <option integrator="implicitfast" viscosity="10"
+          sleep_tolerance="0.01">
+    <flag sleep="enable" gravity="disable"/>
+  </option>
+
+  <worldbody>
+    <body name="flex_body">
+      <flexcomp name="f1" type="grid" dim="1" count="3 1 1"
+                spacing=".05 .05 .05" radius=".01" mass="1">
+        <edge equality="false" stiffness="100" damping="10"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+</mujoco>

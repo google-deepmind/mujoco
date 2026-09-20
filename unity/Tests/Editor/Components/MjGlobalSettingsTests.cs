@@ -56,8 +56,8 @@ public class MjGlobalSettingsGenerationTests {
     _settings.GlobalOptions.Tolerance = 3.4f;
     _settings.GlobalOptions.NoSlipIterations = 5;
     _settings.GlobalOptions.NoSlipTolerance = 6.7f;
-    _settings.GlobalOptions.MprIterations = 8;
-    _settings.GlobalOptions.MprTolerance = 0.9f;
+    _settings.GlobalOptions.CcdIterations = 8;
+    _settings.GlobalOptions.CcdTolerance = 0.9f;
     _settings.GlobalSizes.Memory = "1M";
 
     _settings.GlobalsToMjcf(_root);
@@ -77,8 +77,8 @@ public class MjGlobalSettingsGenerationTests {
     Assert.That(_doc.OuterXml, Does.Contain(@"tolerance=""3.4"""));
     Assert.That(_doc.OuterXml, Does.Contain(@"noslip_iterations=""5"""));
     Assert.That(_doc.OuterXml, Does.Contain(@"noslip_tolerance=""6.7"""));
-    Assert.That(_doc.OuterXml, Does.Contain(@"mpr_iterations=""8"""));
-    Assert.That(_doc.OuterXml, Does.Contain(@"mpr_tolerance=""0.9"""));
+    Assert.That(_doc.OuterXml, Does.Contain(@"ccd_iterations=""8"""));
+    Assert.That(_doc.OuterXml, Does.Contain(@"ccd_tolerance=""0.9"""));
     Assert.That(_doc.OuterXml, Does.Contain(@"memory=""1M"""));
   }
 
@@ -92,7 +92,8 @@ public class MjGlobalSettingsGenerationTests {
     Assert.That(_doc.OuterXml, Does.Contain(@"frictionloss="));
     Assert.That(_doc.OuterXml, Does.Contain(@"limit="));
     Assert.That(_doc.OuterXml, Does.Contain(@"contact="));
-    Assert.That(_doc.OuterXml, Does.Contain(@"passive="));
+    Assert.That(_doc.OuterXml, Does.Contain(@"spring="));
+    Assert.That(_doc.OuterXml, Does.Contain(@"damper="));
     Assert.That(_doc.OuterXml, Does.Contain(@"clampctrl="));
     Assert.That(_doc.OuterXml, Does.Contain(@"warmstart="));
     Assert.That(_doc.OuterXml, Does.Contain(@"filterparent="));
@@ -101,7 +102,7 @@ public class MjGlobalSettingsGenerationTests {
     Assert.That(_doc.OuterXml, Does.Contain(@"override="));
     Assert.That(_doc.OuterXml, Does.Contain(@"energy="));
     Assert.That(_doc.OuterXml, Does.Contain(@"fwdinv="));
-    Assert.That(_doc.OuterXml, Does.Contain(@"sensornoise="));
+    Assert.That(_doc.OuterXml, Does.Contain(@"multiccd="));
   }
 }
 
@@ -148,8 +149,8 @@ public class MjGlobalSettingsParsingTests {
     _option.SetAttribute("tolerance", "3.4");
     _option.SetAttribute("noslip_iterations", "5");
     _option.SetAttribute("noslip_tolerance", "6.7");
-    _option.SetAttribute("mpr_iterations", "8");
-    _option.SetAttribute("mpr_tolerance", "0.9");
+    _option.SetAttribute("ccd_iterations", "8");
+    _option.SetAttribute("ccd_tolerance", "0.9");
 
     _flag.SetAttribute("gravity", "disable");
 
@@ -173,8 +174,8 @@ public class MjGlobalSettingsParsingTests {
     Assert.That(_settings.GlobalOptions.Tolerance, Is.EqualTo(3.4f));
     Assert.That(_settings.GlobalOptions.NoSlipIterations, Is.EqualTo(5));
     Assert.That(_settings.GlobalOptions.NoSlipTolerance, Is.EqualTo(6.7f));
-    Assert.That(_settings.GlobalOptions.MprIterations, Is.EqualTo(8));
-    Assert.That(_settings.GlobalOptions.MprTolerance, Is.EqualTo(0.9f));
+    Assert.That(_settings.GlobalOptions.CcdIterations, Is.EqualTo(8));
+    Assert.That(_settings.GlobalOptions.CcdTolerance, Is.EqualTo(0.9f));
 
     Assert.That(_settings.GlobalOptions.Flag.Gravity, Is.EqualTo(EnableDisableFlag.disable));
 

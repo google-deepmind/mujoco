@@ -53,7 +53,7 @@ namespace Mujoco {
           CopyAttributesOverwriteExisting(defaultAncestor, aggregateDefaults);
         }
       }
-      // Add the merged attribiutes to the node, without overwriting the existing values.
+      // Add the merged attributes to the node, without overwriting the existing values.
       CopyAttributes(aggregateDefaults, element);
     }
 
@@ -83,7 +83,7 @@ namespace Mujoco {
       while (element != null) {
         var className = element.GetStringAttribute("childclass", string.Empty);
         if (element == modifiedElement) {
-          // "class" attribute does not partcipate in building of the inheritance tree, and so we're
+          // "class" attribute does not participate in building of the inheritance tree, and so we're
           // only considering it if it's defined on the very element we're trying to modify.
           className = element.GetStringAttribute("class", className);
         }

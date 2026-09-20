@@ -1,0 +1,68 @@
+name: live
+
+on:
+  push:
+    branches:
+      - live
+  # zizmor: ignore[dangerous-triggers] - triggers on completion of update-live to build live branch
+  workflow_run:
+    workflows: ["update-live"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-upload-artifacts:
+    if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        ref: live
+        persist-credentials: false
+
+    - name: Prepare Linux
+      run: bash ./.github/workflows/build_steps.sh prepare_linux
+
+    - name: Setup Emscripten
+      run: bash ./.github/workflows/build_steps.sh setup_emsdk
+
+    - name: Build MuJoCo Live
+      env:
+        CC: clang-18
+        CXX: clang++-18
+      run: bash ./.github/workflows/build_steps.sh build_mujoco_live
+
+    - name: Prepare files for GitHub Pages
+      run: |
+        mkdir -p dist/bin/ios
+        cp -r build_wasm/bin/* dist/bin/
+        cp -r build_wasm_ios/bin/* dist/bin/ios/
+        cp src/experimental/studio/live.html dist/index.html
+        cp src/experimental/studio/live.css dist/live.css
+        cp src/experimental/studio/live.js dist/live.js
+        cp src/experimental/studio/favicon.ico dist/favicon.ico
+        COMMIT_HASH=$(git rev-parse HEAD 2>/dev/null || true)
+        if [ -n "$COMMIT_HASH" ]; then
+          sed -i "s/__COMMIT_HASH_PLACEHOLDER__/$COMMIT_HASH/g" dist/index.html
+        fi
+
+    - name: Upload GitHub Pages artifacts
+      uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+      with:
+        path: dist
+
+  deploy-pages:
+    permissions:
+      pages: write
+      id-token: write
+    needs: build-and-upload-artifacts
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

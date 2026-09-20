@@ -57,7 +57,7 @@
       <site name="weight2" pos="-.013 -.013 .013" size="0.005"/>
     </body>
 
-    <!-- The gravcomp value of 7.2 is the ratio of air and helium desities at room temperature. -->
+    <!-- The gravcomp value of 7.2 is the ratio of air and helium densities at room temperature. -->
     <body name="pink" gravcomp="7.2" pos="-.2 .1 .2" childclass="pink">
       <freejoint />
       <geom name="pink" type="ellipsoid" size=".11 .11 .15"/>

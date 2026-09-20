@@ -63,7 +63,8 @@ public struct MjcfOptionFlag {
   public EnableDisableFlag FrictionLoss;
   public EnableDisableFlag Limit;
   public EnableDisableFlag Contact;
-  public EnableDisableFlag Passive;
+  public EnableDisableFlag Spring;
+  public EnableDisableFlag Damper;
   public EnableDisableFlag Gravity;
   public EnableDisableFlag ClampCtrl;
   public EnableDisableFlag WarmStart;
@@ -73,7 +74,6 @@ public struct MjcfOptionFlag {
   public EnableDisableFlag Override;
   public EnableDisableFlag Energy;
   public EnableDisableFlag FwdInv;
-  public EnableDisableFlag SensorNoise;
   public EnableDisableFlag MultiCCD;
   public static MjcfOptionFlag Default = new MjcfOptionFlag() {
     Constraint = EnableDisableFlag.enable,
@@ -81,7 +81,8 @@ public struct MjcfOptionFlag {
     FrictionLoss = EnableDisableFlag.enable,
     Limit = EnableDisableFlag.enable,
     Contact = EnableDisableFlag.enable,
-    Passive = EnableDisableFlag.enable,
+    Spring = EnableDisableFlag.enable,
+    Damper = EnableDisableFlag.enable,
     Gravity = EnableDisableFlag.enable,
     ClampCtrl = EnableDisableFlag.enable,
     WarmStart = EnableDisableFlag.enable,
@@ -91,8 +92,7 @@ public struct MjcfOptionFlag {
     Override = EnableDisableFlag.disable,
     Energy = EnableDisableFlag.disable,
     FwdInv = EnableDisableFlag.disable,
-    SensorNoise = EnableDisableFlag.disable,
-    MultiCCD = EnableDisableFlag.disable
+    MultiCCD = EnableDisableFlag.enable
   };
 
   public void FromMjcf(XmlElement mjcf) {
@@ -103,7 +103,8 @@ public struct MjcfOptionFlag {
                                                             localDefault.FrictionLoss);
     Limit = mjcf.GetEnumAttribute<EnableDisableFlag>("limit", localDefault.Limit);
     Contact = mjcf.GetEnumAttribute<EnableDisableFlag>("contact", localDefault.Contact);
-    Passive = mjcf.GetEnumAttribute<EnableDisableFlag>("passive", localDefault.Passive);
+    Spring = mjcf.GetEnumAttribute<EnableDisableFlag>("spring", localDefault.Spring);
+    Damper = mjcf.GetEnumAttribute<EnableDisableFlag>("damper", localDefault.Damper);
     Gravity = mjcf.GetEnumAttribute<EnableDisableFlag>("gravity", localDefault.Gravity);
     ClampCtrl = mjcf.GetEnumAttribute<EnableDisableFlag>("clampctrl", localDefault.ClampCtrl);
     WarmStart = mjcf.GetEnumAttribute<EnableDisableFlag>("warmstart", localDefault.WarmStart);
@@ -114,7 +115,6 @@ public struct MjcfOptionFlag {
     Override = mjcf.GetEnumAttribute<EnableDisableFlag>("override", localDefault.Override);
     Energy = mjcf.GetEnumAttribute<EnableDisableFlag>("energy", localDefault.Energy);
     FwdInv = mjcf.GetEnumAttribute<EnableDisableFlag>("fwdinv", localDefault.FwdInv);
-    SensorNoise = mjcf.GetEnumAttribute<EnableDisableFlag>("sensornoise", localDefault.SensorNoise);
     MultiCCD = mjcf.GetEnumAttribute<EnableDisableFlag>("multiccd", localDefault.MultiCCD);
   }
 
@@ -124,7 +124,8 @@ public struct MjcfOptionFlag {
     mjcf.SetAttribute("frictionloss", FrictionLoss.ToString());
     mjcf.SetAttribute("limit", Limit.ToString());
     mjcf.SetAttribute("contact", Contact.ToString());
-    mjcf.SetAttribute("passive", Passive.ToString());
+    mjcf.SetAttribute("spring", Spring.ToString());
+    mjcf.SetAttribute("damper", Damper.ToString());
     mjcf.SetAttribute("gravity", Gravity.ToString());
     mjcf.SetAttribute("clampctrl", ClampCtrl.ToString());
     mjcf.SetAttribute("warmstart", WarmStart.ToString());
@@ -134,7 +135,6 @@ public struct MjcfOptionFlag {
     mjcf.SetAttribute("override", Override.ToString());
     mjcf.SetAttribute("energy", Energy.ToString());
     mjcf.SetAttribute("fwdinv", FwdInv.ToString());
-    mjcf.SetAttribute("sensornoise", SensorNoise.ToString());
     mjcf.SetAttribute("multiccd", MultiCCD.ToString());
   }
 }
@@ -160,7 +160,6 @@ public struct MjSizeStruct {
 public struct MjOptionStruct {
 
   // "timestep" and "gravity" come from global settings.
-  // "apirate" is only relevant to HAPTIX.
   [Tooltip("Ratio of frictional-to-normal constraint impedance.")]
   public float ImpRatio;
   [Tooltip("Global magnetic flux used by magnetometer sensors.")]
@@ -194,9 +193,9 @@ public struct MjOptionStruct {
   [Tooltip("Threshold used for early termination of the Noslip solver.")]
   public float NoSlipTolerance;
   [Tooltip("Maximum iterations for convex mesh collisions.")]
-  public int MprIterations;
+  public int CcdIterations;
   [Tooltip("Threshold used for early termination of the MPR algorithm.")]
-  public float MprTolerance;
+  public float CcdTolerance;
 
   public MjcfOptionFlag Flag;
 
@@ -218,8 +217,8 @@ public struct MjOptionStruct {
     Tolerance = 1e-8f,
     NoSlipIterations = 0,
     NoSlipTolerance = 1e-6f,
-    MprIterations = 50,
-    MprTolerance = 1e-6f,
+    CcdIterations = 50,
+    CcdTolerance = 1e-6f,
     Flag = MjcfOptionFlag.Default
   };
 
@@ -262,8 +261,8 @@ public struct MjOptionStruct {
     NoSlipIterations = (int)mjcf.GetFloatAttribute(
         "noslip_iterations", localDefault.NoSlipIterations);
     NoSlipTolerance = mjcf.GetFloatAttribute("noslip_tolerance", localDefault.NoSlipTolerance);
-    MprIterations = (int)mjcf.GetFloatAttribute("mpr_iterations", localDefault.MprIterations);
-    MprTolerance = mjcf.GetFloatAttribute("mpr_tolerance", localDefault.MprTolerance);
+    CcdIterations = (int)mjcf.GetFloatAttribute("ccd_iterations", localDefault.CcdIterations);
+    CcdTolerance = mjcf.GetFloatAttribute("ccd_tolerance", localDefault.CcdTolerance);
 
     var flagElements = mjcf.GetElementsByTagName("flag");
     if (flagElements.Count == 1) {
@@ -275,10 +274,9 @@ public struct MjOptionStruct {
 
   public XmlElement ToMjcf(XmlElement mjcf) {
     mjcf.SetAttribute("impratio", MjEngineTool.MakeLocaleInvariant($"{ImpRatio}"));
-
-    mjcf.SetAttribute("magnetic", MjEngineTool.MakeLocaleInvariant($"{Magnetic.x} {Magnetic.y} {Magnetic.z}"));
+    mjcf.SetAttribute("magnetic",
+        MjEngineTool.MakeLocaleInvariant($"{Magnetic.x} {Magnetic.y} {Magnetic.z}"));
     mjcf.SetAttribute("wind", MjEngineTool.MakeLocaleInvariant($"{Wind.x} {Wind.y} {Wind.z}"));
-
     mjcf.SetAttribute("density", MjEngineTool.MakeLocaleInvariant($"{Density}"));
     mjcf.SetAttribute("viscosity", MjEngineTool.MakeLocaleInvariant($"{Viscosity}"));
     mjcf.SetAttribute("o_margin", MjEngineTool.MakeLocaleInvariant($"{OverrideMargin}"));
@@ -290,13 +288,12 @@ public struct MjOptionStruct {
     mjcf.SetAttribute("cone", Cone.ToString());
     mjcf.SetAttribute("jacobian", Jacobian.ToString());
     mjcf.SetAttribute("solver", Solver.ToString());
-
     mjcf.SetAttribute("iterations", MjEngineTool.MakeLocaleInvariant($"{Iterations}"));
     mjcf.SetAttribute("tolerance", MjEngineTool.MakeLocaleInvariant($"{Tolerance}"));
     mjcf.SetAttribute("noslip_iterations", MjEngineTool.MakeLocaleInvariant($"{NoSlipIterations}"));
     mjcf.SetAttribute("noslip_tolerance", MjEngineTool.MakeLocaleInvariant($"{NoSlipTolerance}"));
-    mjcf.SetAttribute("mpr_iterations", MjEngineTool.MakeLocaleInvariant($"{MprIterations}"));
-    mjcf.SetAttribute("mpr_tolerance", MjEngineTool.MakeLocaleInvariant($"{MprTolerance}"));
+    mjcf.SetAttribute("ccd_iterations", MjEngineTool.MakeLocaleInvariant($"{CcdIterations}"));
+    mjcf.SetAttribute("ccd_tolerance", MjEngineTool.MakeLocaleInvariant($"{CcdTolerance}"));
 
     var flags = (XmlElement)mjcf.AppendChild(
         mjcf.OwnerDocument.CreateElement("flag"));
@@ -332,15 +329,15 @@ public class MjGlobalSettings : MonoBehaviour {
   public static MjGlobalSettings Instance {
     get {
      if (_instance == null) {
-        var instances = FindObjectsOfType<MjGlobalSettings>();
+        var instances = FindObjectsByType<MjGlobalSettings>(FindObjectsSortMode.None);
         if (instances.Length > 1) {
           throw new InvalidOperationException(
               "Only one MjGlobalSettings instance is allowed - please resolve manually.");
         } else if (instances.Length == 1) {
           _instance = instances[0];
         }
-      }
-      return _instance;
+     }
+     return _instance;
     }
   }
 

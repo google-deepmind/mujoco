@@ -1,0 +1,57 @@
+{
+  "name": "@mujoco/mujoco",
+  "version": "0.0.0",
+  "description": "MuJoCo WASM bindings",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/google-deepmind/mujoco.git",
+    "directory": "wasm"
+  },
+  "homepage": "https://github.com/google-deepmind/mujoco/tree/main/wasm",
+  "bugs": {
+    "url": "https://github.com/google-deepmind/mujoco/issues"
+  },
+  "keywords": [
+    "mujoco",
+    "physics",
+    "wasm",
+    "google",
+    "deepmind",
+    "webassembly",
+    "simulation",
+    "robotics",
+    "emscripten",
+    "javascript",
+    "typescript"
+  ],
+  "exports": {
+    ".": {
+      "types": "./mujoco.d.ts",
+      "import": "./mujoco.js",
+      "default": "./mujoco.js"
+    },
+    "./mt": {
+      "types": "./mt/mujoco.d.ts",
+      "import": "./mt/mujoco.js",
+      "default": "./mt/mujoco.js"
+    },
+    "./mujoco.wasm": "./mujoco.wasm",
+    "./mujoco.wasm.map": "./mujoco.wasm.map",
+    "./mt/mujoco.wasm": "./mt/mujoco.wasm",
+    "./mt/mujoco.wasm.map": "./mt/mujoco.wasm.map"
+  },
+  "files": [
+    "mujoco.js",
+    "mujoco.d.ts",
+    "mujoco.wasm",
+    "mujoco.wasm.map",
+    "mt/mujoco.js",
+    "mt/mujoco.d.ts",
+    "mt/mujoco.wasm",
+    "mt/mujoco.wasm.map",
+    "README.md"
+  ],
+  "author": "Google DeepMind",
+  "license": "Apache-2.0",
+  "type": "module"
+}

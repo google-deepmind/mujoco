@@ -9,6 +9,8 @@ plugins](https://mujoco.readthedocs.io/en/latest/programming/extension.html#engi
   - [Illustration of foveal deformation](#illustration-of-foveal-deformation)
   - [Illustration combining resolution, fields-of-view and foveal deformation](#illustration-combining-resolution-fields-of-view-and-foveal-deformation)
 
+- [Touch Stress](#touch-stress)
+
 ## [Touch Grid](touch_grid.h)
 
 This sensor aggregates contact forces into "taxels": a rectangular array of pixel-like elements.
@@ -23,7 +25,7 @@ The output of the sensor is a stack of 1 to 6 "touch images" corresponding to fo
 and torques in the frame of the sensor. Forces and torques are in the in [z, x,
 y] order, corresponding to the ordering in contact frames: [normal, tangent,
 tangent] and [torsional, rolling, rolling]. Each "taxel" corresponds to an angular bin
-in spherical coordinates, and aggregates all the forces occuring inside this bin, which occur
+in spherical coordinates, and aggregates all the forces occurring inside this bin, which occur
 between the body in which the sensor's site is defined and any other body.
 
 The sensor is parametrized by 6 numbers:
@@ -84,3 +86,10 @@ See [touch_grid.xml](../../model/plugin/sensor/touch_grid.xml) to play with the 
 ### Illustration combining resolution, fields-of-view and foveal deformation
 
 [![touch grid illustration](https://img.youtube.com/vi/YScjmR8LwQI/0.jpg)](https://www.youtube.com/watch?v=YScjmR8LwQI)
+
+## Touch Stress
+
+The `touch_stress` sensor plugin was removed in MuJoCo 3.3.5 when its
+functionality was moved into the engine as the native
+[`tactile`](https://mujoco.readthedocs.io/en/latest/XMLreference.html#sensor-tactile)
+sensor. See [tactile.xml](../../model/tactile/tactile.xml) for an example model.

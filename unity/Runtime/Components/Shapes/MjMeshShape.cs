@@ -36,7 +36,7 @@ public class MjMeshShape : IMjShape {
     var assetName = MjEngineTool.Sanitize(
         mjcf.GetStringAttribute("mesh", defaultValue: string.Empty));
     if (!string.IsNullOrEmpty(assetName)) {
-      Mesh = (Mesh)Resources.Load(assetName);
+      Mesh = Resources.Load<Mesh>(assetName);
     }
   }
 

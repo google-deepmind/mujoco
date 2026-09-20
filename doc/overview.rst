@@ -8,9 +8,9 @@ Introduction
 aims to facilitate research and development in robotics, biomechanics, graphics and animation, machine learning, and
 other areas that demand fast and accurate simulation of articulated structures interacting with their environment.
 Initially developed by Roboti LLC, it was acquired and made `freely available
-<https://github.com/google-deepmind/mujoco/blob/main/LICENSE>`__ by DeepMind in October 2021, and open sourced in May
-2022. The MuJoCo codebase is available at the `deepmind/mujoco <https://github.com/google-deepmind/mujoco>`__ repository
-on GitHub.
+<https://github.com/google-deepmind/mujoco/blob/main/LICENSE>`__ by Google DeepMind in October 2021, and open sourced in
+May 2022. The MuJoCo codebase is available at the `google-deepmind/mujoco
+<https://github.com/google-deepmind/mujoco>`__ repository on GitHub.
 
 MuJoCo is a C/C++ library with a C API, intended for researchers and developers. The runtime simulation module is tuned
 to maximize performance and operates on low-level data structures which are preallocated by the built-in XML parser and
@@ -38,22 +38,21 @@ Generalized coordinates combined with modern contact dynamics
    rely on the earlier spring-damper approach which requires very small time-steps. Gaming engines use a more modern
    approach where contact forces are found by solving an optimization problem. However, they often resort to the
    over-specified Cartesian representation where joint constraints are imposed numerically, causing inaccuracies and
-   instabilities when elaborate kinematic structures are involved. MuJoCo was the first general-purpose engine to
-   combine the best of both worlds: simulation in generalized coordinates and optimization-based contact dynamics. Other
-   simulators have more recently been adapted to use MuJoCo's approach, but that is not usually compatible with all of
-   their functionality because they were not designed to do this from the start. Users accustomed to gaming engines may
-   find the generalized coordinates counterintuitive at first; see :ref:`Clarifications` section below.
+   instabilities when elaborate kinematic structures are involved. MuJoCo pioneered the combination of simulation in
+   generalized coordinates with optimization-based contact dynamics. This approach has since been adopted by other
+   simulators. Users accustomed to gaming engines may find the generalized coordinates counterintuitive at first; see
+   :ref:`Clarifications` section below.
 
 Soft, convex and analytically-invertible contact dynamics
    In the modern approach to contact dynamics, the forces or impulses caused by frictional contacts are usually defined
    as the solution to a linear or non-linear complementarity problem (LCP or NCP), both of which are NP-hard. MuJoCo is
    based on a different formulation of the physics of contact which reduces to a convex optimization problem, as
    explained in detail in the :doc:`computation/index` chapter. Our model allows soft contacts and other constraints,
-   and has a uniquely-defined inverse facilitating data analysis and control applications. There is a choice of
-   optimization algorithms, including a generalization to the projected Gauss-Seidel method that can handle elliptic
-   friction cones. The solver provides unified treatment of frictional contacts including torsional and rolling
-   friction, frictionless contacts, joint and tendon limits, dry friction in joints and tendons, as well as a variety of
-   equality constraints.
+   and has a uniquely-defined inverse facilitating data analysis and control applications. The default Newton solver
+   provides quadratic convergence; alternative algorithms include a conjugate gradient method and a generalized
+   Projected Gauss-Seidel method that can handle elliptic friction cones. The solver provides unified treatment of
+   frictional contacts including torsional and rolling friction, frictionless contacts, joint and tendon limits, dry
+   friction in joints and tendons, as well as a variety of equality constraints.
 
 Tendon geometry
    MuJoCo can model the 3D geometry of tendons -- which are minimum-path-length strings obeying wrapping and via-point
@@ -105,6 +104,13 @@ Separation of model and data
 
       void mj_step(const mjModel* m, mjData* d);
 
+Performance
+   MuJoCo's runtime performs zero memory allocations after initialization -- all working memory is preallocated in
+   ``mjData``. A single simulation step is single-threaded by default, but :ref:`constraint islands <soIsland>` enable
+   per-island parallelism within a step. Large-scale data-parallel sampling is achieved by creating multiple ``mjData``
+   instances that share the same ``mjModel`` and running them on separate threads; see :ref:`multi-threading
+   <siMultithread>`.
+
 Interactive simulation and visualization
    The native :ref:`3D visualizer <Visualization>` provides rendering of meshes and geometric primitives, textures,
    reflections, shadows, fog, transparency, wireframes, skyboxes, stereoscopic visualization (on video cards supporting
@@ -132,6 +138,25 @@ Automated generation of composite flexible objects
    macros which are automatically expanded by the model compiler into the necessary collections of standard model
    elements. Importantly, these resulting flexible objects are able to fully interact with the rest of the simulation.
 
+Constraint islands and sleeping
+   The constraint solver automatically discovers independent :ref:`constraint islands <soIsland>` -- groups of bodies
+   coupled by constraints that can be solved independently. This enables per-island parallelism and avoids over-solving:
+   each island converges with the number of iterations it needs, and unconstrained degrees of freedom are skipped
+   entirely. Additionally, :ref:`island sleeping <Sleeping>` can freeze stationary islands, substantially reducing
+   computation when parts of the scene are at rest.
+
+Plugin system
+   MuJoCo supports :doc:`engine plugins <programming/extension>` that extend the physics engine with custom
+   elements: sensors, actuators, and passive forces. Plugins are dynamically loaded shared libraries that register
+   themselves with the engine and are instantiated per model element. This allows extending MuJoCo without modifying
+   the core engine.
+
+GPU-accelerated backends
+   In addition to the C engine, MuJoCo has GPU-accelerated backends for large-scale parallel simulation:
+   :doc:`MJX <mjx>` (JAX) and :doc:`MuJoCo Warp <mjwarp/index>` (NVIDIA Warp). Both backends consume the same
+   ``mjModel`` and ``mjData`` structures, allowing seamless transfer between CPU and GPU. First-class
+   :doc:`Python bindings <python>` provide access to the full C API.
+
 .. _Instance:
 
 Model instances
@@ -141,32 +166,33 @@ There are several entities called "model" in MuJoCo. The user defines the model 
 The software can then create multiple instances of the same model in different media (file or memory) and on different
 levels of description (high or low). All combinations are possible as shown in the following table:
 
-+------------+----------------------+----------------------+
-|            | High level           | Low level            |
-+============+======================+======================+
-| **File**   | MJCF/URDF (XML)      | MJB (binary)         |
-+------------+----------------------+----------------------+
-| **Memory** | mjCModel (C++ class) | mjModel (C struct)   |
-+------------+----------------------+----------------------+
++------------+-------------------------------------+----------------------------+
+|            | High level                          | Low level                  |
++============+=====================================+============================+
+| **File**   | MJCF/URDF (XML), MJZ (Zip archive)  | MJB (binary)               |
++------------+-------------------------------------+----------------------------+
+| **Memory** | :ref:`mjSpec` (C struct)            | :ref:`mjModel` (C struct)  |
++------------+-------------------------------------+----------------------------+
 
-All runtime computations are performed with ``mjModel`` which is too complex to create manually. This is why we have two
-levels of modeling. The high level exists for user convenience: its sole purpose is to be compiled into a low level
-model on which computations can be performed. The resulting ``mjModel`` can be loaded and saved into a binary file
+All runtime computations are performed with :ref:`mjModel` which is too complex to create manually. This is why we have
+two levels of modeling. The high level exists for user convenience: its sole purpose is to be compiled into a low level
+model on which computations can be performed. The resulting :ref:`mjModel` can be loaded and saved into a binary file
 (MJB), however those are version-specific and cannot be decompiled, thus models should always be maintained as XML
-files.
+files or packaged into MJZ archives.
 
-The (internal) C++ class ``mjCModel`` is roughly in one-to-one correspondence with the MJCF file format. The XML parser
-interprets the MJCF or URDF file and creates the corresponding ``mjCModel``. In principle the user can create
-``mjCModel`` programmatically and then save it to MJCF or compile it. However this functionality is not yet exposed
-because a C++ API cannot be exported from a compiler-independent library. There is a plan to develop a C wrapper around
-it, but for the time being the parser and compiler are always invoked together, and models can only be created in XML.
+The :ref:`mjSpec` C struct is in one-to-one correspondence with the MJCF file format. The XML loader interprets the MJCF
+or URDF file, creates the corresponding :ref:`mjSpec` and compiles it to :ref:`mjModel`. The user can create
+:ref:`mjSpec` programmatically and then save it to MJCF/MJZ or compile it. Procedural model creation and editing is
+described in the :doc:`Model Editing <programming/modeledit>` chapter.
 
-The following diagram shows the different paths to obtaining an ``mjModel`` (again, the second bullet point is not yet
-available):
+The following diagram shows the different paths to obtaining an :ref:`mjModel`:
 
--  (text editor) → MJCF/URDF file → (MuJoCo parser → mjCModel → MuJoCo compiler) → mjModel
--  (user code) → mjCModel → (MuJoCo compiler) → mjModel
--  MJB file → (MuJoCo loader) → mjModel
+-  (text editor) → MJCF/URDF file → (MuJoCo parser → mjSpec → compiler) → mjModel
+-  MJZ archive → (MJZ decoder → mjSpec → compiler) → mjModel
+-  (user code) → mjSpec → (MuJoCo compiler) → mjModel
+-  MJB file → (model loader) → mjModel
+
+Models and specs can also be serialized or packaged back to disk using :ref:`mj_encode`.
 
 .. _Examples:
 
@@ -209,28 +235,26 @@ rendering, is given below.
    mjModel* m;
    mjData* d;
 
-   int main(void)
-   {
-      // load model from file and check for errors
-      m = mj_loadXML("hello.xml", NULL, error, 1000);
-      if( !m )
-      {
-         printf("%s\n", error);
-         return 1;
-      }
+   int main(void) {
+     // load model from file and check for errors
+     m = mj_loadXML("hello.xml", NULL, error, 1000);
+     if (!m) {
+       printf("%s\n", error);
+       return 1;
+     }
 
-      // make data corresponding to model
-      d = mj_makeData(m);
+     // make data corresponding to model
+     d = mj_makeData(m);
 
-      // run simulation for 10 seconds
-      while( d->time<10 )
-         mj_step(m, d);
+     // run simulation for 10 seconds
+     while (d->time < 10)
+       mj_step(m, d);
 
-      // free model and data
-      mj_deleteData(d);
-      mj_deleteModel(m);
+     // free model and data
+     mj_deleteData(d);
+     mj_deleteModel(m);
 
-      return 0;
+     return 0;
    }
 
 This is technically a C file, but it is also a legitimate C++ file. Indeed the MuJoCo API is compatible with both C and
@@ -401,7 +425,7 @@ the other objects in the simulation, so the number of contacts will be small for
 Texture
 ^^^^^^^
 
-Textures can be loaded from PNG files or synthesized by the compiler based on user-defined procedural parameters.
+Textures can be loaded from PNG or KTX files or synthesized by the compiler based on user-defined procedural parameters.
 There is also the option to leave the texture empty at model creation time and change it later at runtime -- so as to
 render video in a MuJoCo simulation, or create other dynamic effects. The visualizer supports two types of texture
 mapping: 2D and cube. 2D mapping is useful for planes and height fields. Cube mapping is useful for "shrink-wrapping"
@@ -426,12 +450,19 @@ Kinematic tree
 ~~~~~~~~~~~~~~
 
 MuJoCo simulates the dynamics of a collection of rigid bodies whose motion is usually constrained. The system state is
-represented in joint coordinates and the bodies are explicitly organized into kinematic trees. Each body except for the
-top-level "world" body has a unique parent. Kinematic loops are not allowed; if loop joints are needed they should be
-modeled with equality constraints. Thus the backbone of a MuJoCo model is one or several kinematic trees formed by
-nested body definitions; an isolated floating body counts as a tree. Several other elements listed below are defined
-within a body and belong to that body. This is in contrast with the stand-alone elements listed later which cannot be
-associated with a single body.
+represented in joint coordinates and the bodies are explicitly organized into kinematic trees. The tree structure is
+given by ``mjModel.body_parentid``, an integer array of length ``nbody >= 1``. The top-level "world" body always exists
+(with id ``0``) and is its own parent, thus ``body_parentid[0] == 0`` and ``body_parentid[i] < i`` for all other ``i``.
+Note that the world body and other static (joint-less) child bodies form a unique "static tree" with no associated
+degrees of freedom. Below this top-level static tree, multiple kinematic trees can be attached, see :ref:`Tree
+<ElemTree>` below.
+
+Kinematic loops are not allowed; if loop joints are needed they should be modeled with equality constraints. Thus the
+backbone of a MuJoCo model is one or several kinematic trees formed by nested body definitions; an isolated floating
+body counts as a tree. Several other elements listed below are defined within a body and belong to that body. This is in
+contrast with the stand-alone elements listed later which cannot be associated with a single body.
+
+.. _ElemBody:
 
 Body
 ^^^^
@@ -442,6 +473,9 @@ position other elements relative to it, and an inertial frame centered at the bo
 its principal axes of inertia. The body inertia matrix is therefore diagonal in this frame. At each time step MuJoCo
 computes the forward kinematics recursively, yielding all body positions and orientations in global Cartesian
 coordinates. This provides the basis for all subsequent computations.
+The number of bodies is given by ``mjModel.nbody``.
+
+.. _ElemJoint:
 
 Joint
 ^^^^^
@@ -452,7 +486,7 @@ over-complete Cartesian coordinates, where joints remove DOFs instead of adding 
 ball, slide, hinge, and a "free joint" which creates floating bodies. A single body can have multiple joints. In this
 way composite joints are created automatically, without having to define dummy bodies. The orientation components of
 ball and free joints are represented as unit quaternions, and all computations in MuJoCo respect the properties of
-quaternions.
+quaternions. The number of joints is given by ``mjModel.njnt``.
 
 Joint reference
 '''''''''''''''
@@ -479,6 +513,8 @@ spring reference pose is saved in ``mjModel.qpos_spring``. For slide and hinge j
 specified with the attribute springref. For ball and free joints, the spring reference corresponds to the initial
 model configuration.
 
+.. _ElemDof:
+
 DOF
 ^^^
 
@@ -489,7 +525,27 @@ system, while the joint velocities are coordinates over the tangent space to thi
 DOFs have velocity-related properties such as friction loss, damping, armature inertia. All generalized forces acting
 on the system are expressed in the space of DOFs. In contrast, joints have position-related properties such as limits
 and spring stiffness. DOFs are not specified directly by the user. Instead they are created by the compiler given the
-joints.
+joints. The number of DOFs is given by ``mjModel.nv``.
+
+.. _ElemTree:
+
+Tree
+^^^^
+
+As explained :ref:`above <Kinematic>`, moving bodies are organized into kinematic trees. A kinematic tree or "tree" is
+*a movable body and all of its descendants*. Thus the world and other static bodies are in the global tree structure but
+not associated with any *tree*. Because the global tree structure uses a depth-first organization, all bodies, joints
+and DOFs belonging to a single tree are always sequential. Note that unlike bodies which (if static) are not associated
+with any tree, joints and DOFs are always associated with a tree. Both :ref:`island discovery <soIsland>` and
+:ref:`island sleeping <Sleeping>` operate on the level of trees.
+
+The number of trees is given by ``mjModel.ntree``. For example, a model containing three free bodies and the `standard
+humanoid <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid/humanoid.xml>`__ has ``ntree = 4``. Note
+that while trees are indeed subtrees of the global tree (whose root is the world), this should not be confused with the
+specific term ``subtree``, which is reserved for per-body partial trees, thus ``mjModel.body_subtreemass`` gives the
+total mass of the partial tree under each body, for all bodies.
+
+.. _ElemGeom:
 
 Geom
 ^^^^
@@ -501,6 +557,9 @@ subsequent computation of contact forces, geoms are used for rendering, as well 
 and inertias when the latter are omitted. MuJoCo supports several primitive geometric shapes: plane, sphere, capsule,
 ellipsoid, cylinder, box. A geom can also be a mesh or a height field; this is done by referencing the corresponding
 asset. Geoms have a number of material properties that affect the simulation and visualization.
+The number of geoms is given by ``mjModel.ngeom``.
+
+.. _ElemSite:
 
 Site
 ^^^^
@@ -508,6 +567,9 @@ Site
 Sites are essentially light geoms. They represent locations of interest within the body frame. Sites do not
 participate in collision detection or automated computation of inertial properties, however they can be used to
 specify the spatial properties of other objects like sensors, tendon routing, and slider-crank endpoints.
+The number of sites is given by ``mjModel.nsite``.
+
+.. _ElemCamera:
 
 Camera
 ^^^^^^
@@ -519,6 +581,9 @@ orientation, the user can adjust the vertical field of view and the inter-pupila
 as well as create oblique projections needed for stereoscopic virtual environments. When modeling real cameras with
 imperfect optics, it is possible to specify separate focal lengths for the horizontal and vertical directions and a
 non-centered principal point.
+The number of cameras is given by ``mjModel.ncam``.
+
+.. _ElemLight:
 
 Light
 ^^^^^
@@ -531,6 +596,7 @@ used with caution. Documenting the lighting model in detail is beyond the scope 
 documentation <http://www.glprogramming.com/red/chapter05.html>`__ instead. Note that in addition to lights defined
 by the user in the kinematic tree, there is a default headlight that moves with the camera. Its properties are
 adjusted through the mjVisual options.
+The number of lights is given by ``mjModel.nlight``.
 
 .. _Standalone:
 
@@ -539,6 +605,8 @@ Stand-alone
 
 Here we describe the model elements which do not belong to an individual body, and therefore are described outside the
 kinematic tree.
+
+.. _ElemTendon:
 
 Tendon
 ^^^^^^
@@ -553,17 +621,21 @@ other, the user can also specify the preferred side. If there are multiple wrapp
 must be separated by sites, so as to avoid the need for an iterative solver. Spatial tendons can also be split into
 multiple branches using pulleys.
 
+.. _ElemActuator:
+
 Actuator
 ^^^^^^^^
 
 MuJoCo provides a flexible actuator model, with three components that can be specified independently. Together they
 determine how the actuator works. Common actuator types are obtained by specifying these components in a coordinated
 way. The three components are transmission, activation dynamics, and force generation. The transmission specifies how
-the actuator is attached to the rest of the system; available types are joint, tendon and slider-crank. The
+the actuator is attached to the rest of the system; available types are joint, tendon, slider-crank, site and body. The
 activation dynamics can be used to model internal activation states of pneumatic or hydraulic cylinders as well as
 biological muscles; using such actuators makes the overall system dynamics 3rd-order. The force generation mechanism
 determines how the scalar control signal provided as input to the actuator is mapped into a scalar force, which is in
 turn mapped into a generalized force by the moment arms inferred from the transmission.
+
+.. _ElemSensor:
 
 Sensor
 ^^^^^^
@@ -571,12 +643,14 @@ Sensor
 MuJoCo can generate simulated sensor data which is saved in the global array ``mjData.sensordata``. The result is not
 used in any internal computations; instead it is provided because the user presumably needs it for custom computation
 or data analysis. Available sensor types include touch sensors, inertial measurement units (IMUs), force-torque
-sensors, joint and tendon position and velocity sensors, actuator position, velocity and force sensors, motion
-capture marker positions and quaternions, and magnetometers. Some of these require extra computation, while others
-are copied from the corresponding fields of ``mjData``. There is also a user sensor, allowing user code to insert any
-other quantity of interest in the sensor data array. MuJoCo also has off-screen rendering capabilities, making it
-straightforward to simulate both color and depth camera sensors. This is not included in the standard sensor model
-and instead has to be done programmatically, as illustrated in the code sample :ref:`simulate.cc <saSimulate>`.
+sensors, joint and tendon position and velocity sensors, actuator sensors, body frame sensors, rangefinders, and
+many others; see the :ref:`Sensor <sensor>` section of the XML reference for the complete list. There is also a user
+sensor type, allowing user code to insert any other quantity of interest in the sensor data array. MuJoCo also has
+off-screen rendering capabilities, making it straightforward to simulate both color and depth camera sensors. This is
+not included in the standard sensor model and instead has to be done programmatically, as illustrated in the code
+sample :ref:`simulate.cc <saSimulate>`.
+
+.. _ElemEquality:
 
 Equality
 ^^^^^^^^
@@ -588,14 +662,15 @@ available equality constraint types are: connect two bodies at a point (creating
 tree); weld two bodies together; fix the position of a joint or tendon; couple the positions of two joints or two
 tendons via a cubic polynomial; constrain the edges of a flex (i.e. deformable mesh) to their initial lengths.
 
+.. _ElemFlex:
 
 Flex
 ^^^^
 
-Flexes were added in MuJoCo 3.0. They represent deformable meshes that can be 1, 2 or 3 dimensional (thus their elements
+Flexes represent deformable meshes that can be 1, 2 or 3 dimensional (thus their elements
 are capsules, triangles or tetrahedra). Unlike geoms which are static shapes attached rigidly to a single body, the
 elements of a flex are deformable: they are constructed by connecting multiple bodies, thus the body positions and
-orientations determine the shape of the flex elements at runtime. These deformable elements suport collisions and
+orientations determine the shape of the flex elements at runtime. These deformable elements support collisions and
 contact forces, as well as generate passive and constraint forces which softly preserve the shape of the deformable
 entity. Automation is provided to load a mesh from a file, construct bodies corresponding to the mesh vertices,
 construct flex elements corresponding to the mesh faces (or lines or tetrahedra, depending on dimensionality), and
@@ -650,8 +725,8 @@ use tuples to define pairs of bodies for custom contact processing.
 Keyframe
 ^^^^^^^^
 
-A keyframe is a snapshot of the simulation state variables. It contains the vectors of joint positions, joint
-velocities, actuator activations when present, and the simulation time. The model can contain a library of keyframes.
+A keyframe is a snapshot of the simulation state variables. It contains joint positions, joint velocities, actuator
+activations, controls, mocap body poses, and the simulation time. The model can contain a library of keyframes.
 They are useful for resetting the state of the system to a point of interest. Note that keyframes are not intended
 for storing trajectory data in the model; external files should be used for this purpose.
 
@@ -729,35 +804,35 @@ section, prevents objects from falling through the floor or moving through walls
 the following situation:
 
 The user comments out the root joint of a floating-base model, perhaps in order to prevent it from falling; now that the
-base body is counted as static, new collisions appear that were not there before and the user is confused. There are two
-easy ways to avoid this problem:
+base body is counted as static, new collisions appear that were not there before and the user is confused. There are
+three easy ways to avoid this problem:
 
-1. Don't remove the root joint. Perhaps it is enough to :ref:`disable gravity<option-flag>` and possibly add some
+1. Make the newly static body a :ref:`mocap body<body-mocap>`. Mocap bodies are the root of their own body group for
+   the purposes of collision filtering, rather than being welded to the world, so the parent-child exclusion applies to
+   their children as usual. As a bonus, the body can be moved around interactively.
+
+2. Don't remove the root joint. Perhaps it is enough to :ref:`disable gravity<option-flag>` and possibly add some
    :ref:`fluid viscosity<option>` in order to prevent your model from moving around too much.
 
-2. Use :ref:`collision filtering<Collision>` to explicitly disable the unwanted collisions, either by setting the
+3. Use :ref:`collision filtering<Collision>` to explicitly disable the unwanted collisions, either by setting the
    relevant :at:`contype` and :at:`conaffinity` attributes, or by using a contact :ref:`exclude <contact-exclude>`
    directive.
 
 
 .. _NotObject:
 
-Not object-oriented
-~~~~~~~~~~~~~~~~~~~
+Data-oriented design
+~~~~~~~~~~~~~~~~~~~~
 
-Object-oriented programming is a very useful abstraction, built on top of the more fundamental (and closer-to-hardware)
-notion of data structures vs. functions that operate on them. An object is a collection of data structures and functions
-that correspond to one semantic entity, and thereby have stronger dependencies among them than with the rest of the
-application. The reason we are not using this here is because the dependency structure is such that the natural entity
-is the entire physics simulator. Instead of objects, we have a small number of data structures and a large number of
-functions that operate on them.
+MuJoCo uses a data-oriented architecture rather than an object-oriented one. The natural semantic entity here is the
+entire physics simulator, rather than individual objects with private state and methods. Instead of objects, we have a
+small number of data structures and a large number of functions that operate on them.
 
-We still use a type of grouping, but it is different from the object-oriented approach. We separate the model
-(``mjModel``) from the data (``mjData``). These are both data structures. The model contains everything needed to
-describe the constant properties of the physical system being modeled, while the data contains the time-varying state
-and the reusable intermediate results of internal computations. All top-level functions expect pointers to ``mjModel``
-and ``mjData`` as arguments. In this way we avoid global variables which pollute the workspace and interfere with
-multi-threading, but we do so in a way that is different from how object-oriented programming achieves the same effect.
+We separate the model (``mjModel``) from the data (``mjData``). These are both data structures. The model contains
+everything needed to describe the constant properties of the physical system being modeled, while the data contains the
+time-varying state and the reusable intermediate results of internal computations. All top-level functions expect
+pointers to ``mjModel`` and ``mjData`` as arguments. This design avoids global variables and naturally supports
+multi-threading: each thread simply operates on its own ``mjData`` instance.
 
 .. _Soft:
 
@@ -784,12 +859,12 @@ two elements of ``solimp``) as well as the global ``mjModel.opt.impratio`` setti
 adjustment often requires smaller time steps to keep the simulation stable, because they make the nonlinear dynamics
 more difficult to integrate numerically. Slip is also reduced by the Newton solver which is more accurate in general.
 
-For situations where it is desirable to suppress slip completely, there is a second ``noslip`` solver which runs after
-the main solver. It updates the contact forces in friction dimensions by disregarding constraint softness. When this
-option is used however, MuJoCo is no longer solving the convex optimization problem it was designed to solve, and the
-simulation may become less robust. Thus using the Newton solver with elliptic friction cones and large value of
-``impratio`` is the recommended way of reducing slip. For more detailed recommendations, see
-:ref:`preventing slip<CSlippage>` in the Modeling chapter.
+For situations where stronger slip suppression is required, there is a :ref:`NoSlip <soNoSlip>`
+post-processing solver which runs after the main solver. It updates the contact forces in friction dimensions by
+disregarding constraint softness. When this option is used however, MuJoCo is no longer solving the convex optimization
+problem it was designed to solve, and the simulation may become less robust. Thus using the Newton solver with elliptic
+friction cones and large value of ``impratio`` is the recommended way of reducing slip. For more detailed
+recommendations, see :ref:`preventing slip<CSlippage>` in the Modeling chapter.
 
 .. _TypeNameId:
 
@@ -807,8 +882,8 @@ The size of each array (``njnt`` in this case) is also given in ``mjModel``. The
 first, followed by the limits of the second joint etc. This ordering reflects the fact that all matrices in MuJoCo have
 row-major format.
 
-The available element types are defined in `mjmodel.h
-<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h#L243>`_, in the enum type :ref:`mjtObj`.
+The available element types are defined in `mjtype.h
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`__, in the enum type :ref:`mjtObj`.
 These enums are mostly used internally. One exception are the functions :ref:`mj_name2id` and :ref:`mj_id2name` in the
 MuJoCo API, which map element names to integer ids and vice versa. These functions take an element type as input.
 
@@ -825,8 +900,9 @@ convention. Suppose we already have ``mjModel* m``. To print the range of a join
 .. code:: C
 
    int jntid = mj_name2id(m, mjOBJ_JOINT, "elbow");
-   if( jntid>=0 )
+   if (jntid >= 0)
       printf("(%f, %f)\n", m->jnt_range[2*jntid], m->jnt_range[2*jntid+1]);
+
 
 If the name is not found the function returns -1, which is why one should always check for id>=0.
 
@@ -854,10 +930,14 @@ Geoms (short for geometric primitive) are used to specify appearance and collisi
 and is rigidly attached to that body. Multiple geoms can be attached to the same body. This is particularly useful in
 light of the fact that MuJoCo's collision detector assumes that all geoms are convex (it internally replaces meshes with
 their convex hulls if the meshes are not convex). Thus if you want to model a non-convex shape, you have to decompose it
-into a union of convex geoms and attach all of them to the same body. Geoms can also have mass and inertia in the XML
-model (or rather material density which is used to compute the mass and inertia), but that is only used to compute the
-body mass and inertia in the model compiler. In the actual ``mjModel`` being simulated geoms do not have inertial
-properties.
+into a union of convex geoms and attach all of them to the same body.
+
+A geom can also have density or mass values specified in the XML, which the model compiler uses to compute the parent
+body's mass and inertia. Mass is either specified or computed from a geom's volume and :ref:`density
+<body-geom-density>`. Inertia is computed from the mass, shape, and uniform density assumption. If the
+:ref:`shellinertia <body-geom-shellinertia>` flag is set, mass is assumed to be uniformly distributed on the **surface**,
+:at:`density` is interpreted as mass-per-area, and the inertia contribution to the parent body is computed accordingly.
+In the actual ``mjModel`` being simulated, geoms do not have inertial properties.
 
 Sites are light geoms. They have the same appearance properties but cannot participate in collisions and cannot be used
 to infer body masses. On the other hand sites can do things that geoms cannot do: they can specify the volumes of touch
@@ -900,14 +980,14 @@ density of water).
 Joint coordinates
 ~~~~~~~~~~~~~~~~~
 
-One of the key distinctions between MuJoCo and gaming engines (such as ODE, Bullet, Havoc, PhysX) is that MuJoCo
-operates in generalized or joint coordinates, while gaming engines operate in Cartesian coordinates, although Bullet now
-supports generalized coordinates. The differences between these two approaches can be summarized as follows:
+One of the key distinctions between MuJoCo and gaming engines is that MuJoCo operates in generalized or joint
+coordinates, while most gaming engines operate in Cartesian coordinates. The differences between these two approaches
+can be summarized as follows:
 
 Joint coordinates:
 
 -  Best suited for elaborate kinematic structures such as robots;
--  Joints add degrees of freedom among bodies that would be welded together by default;
+-  Joints **add** degrees of freedom among bodies that would be welded together by default;
 -  Joint constraints are implicit in the representation and cannot be violated;
 -  The positions and orientations of the simulated bodies are obtained from the generalized coordinates via forward
    kinematics, and cannot be manipulated directly (except for root bodies).
@@ -915,7 +995,7 @@ Joint coordinates:
 Cartesian coordinates:
 
 -  Best suited for many bodies that bounce off each other, as in molecular dynamics and box stacking;
--  Joints remove degrees of freedom among bodies that would be free-floating by default;
+-  Joints **remove** degrees of freedom among bodies that would be free-floating by default;
 -  Joint constraints are enforced numerically and can be violated;
 -  The positions and orientations of the simulated bodies are represented explicitly and can be manipulated directly,
    although this can introduce further joint constraint violations.
@@ -934,31 +1014,18 @@ necessarily unique) set of joint coordinates for which the forward kinematics pl
 
 The situation is different for floating bodies, i.e., bodies that are connected to the world with a free joint. The
 positions and orientations as well as the linear and angular velocities of such bodies are explicitly represented in
-``mjData.qpos`` and ``mjData.qvel``, and can therefore be manipulated directly. The general approach is to find the
-addresses in qpos and qvel where the body's data are. Of course qpos and qvel represents joints and not bodies, so you
-need the corresponding joint addresses. Suppose the body was named "myfloatingbody" in the XML. The necessary addresses
-can be obtained as:
+``mjData.qpos`` and ``mjData.qvel``, and can therefore be manipulated directly. For structured state manipulation and
+serialization, see :ref:`State and control <siStateControl>` in the Simulation chapter.
 
-.. code:: C
-
-   int bodyid = mj_name2id(m, mjOBJ_BODY, "myfloatingbody");
-   int qposadr = -1, qveladr = -1;
-
-   // make sure we have a floating body: it has a single free joint
-   if( bodyid>=0 && m->body_jntnum[bodyid]==1 && m->jnt_type[m->body_jntadr[bodyid]]==mjJNT_FREE ) {
-     // extract the addresses from the joint specification
-     qposadr = m->jnt_qposadr[m->body_jntadr[bodyid]];
-     qveladr = m->jnt_dofadr[m->body_jntadr[bodyid]];
-   }
-
-Now if everything went well (i.e., "myfloatingbody" was indeed a floating body), qposadr and qveladr are the addresses
-in qpos and qvel where the data for our floating body/joint lives. The position data is 7 numbers (3D position followed
-by unit quaternion) while the velocity data is 6 numbers (3D linear velocity followed by 3D angular velocity). These
-numbers can now be set to the desired pose and velocity of the body.
-
-The semantics of free joints are as follows. The linear postions of free joints are in the global frame, as are
+The semantics of free joints are as follows. The position data is 7 numbers (3D position followed
+by unit quaternion) while the velocity data is 6 numbers (3D linear velocity followed by 3D angular velocity).
+The linear positions of free joints are in the global frame, as are
 linear velocities. The orientation of a free joint (the quaternion) is also in the global frame. However, the rotational
 velocities of a free joint are in the local body frame. This is not so much a design decision but rather correct
 use of the topology of quaternions. Angular velocities live in the quaternion tangent space, which is defined locally
-for a certain orientation, so frame-local angular velocities are a natural parameterization.
+for a certain orientation, so frame-local angular velocities are the natural parameterization.
 Accelerations are defined in the same space as the corresponding velocities.
+
+Free joints are always defined in the body frame, yet it is computationally favorable to align this frame with the
+body's inertia. Read more about this option in the documentation of the :ref:`freejoint/align<body-freejoint-align>`
+attribute.

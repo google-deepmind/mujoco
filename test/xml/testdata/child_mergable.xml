@@ -1,0 +1,10 @@
+<mujoco model="child_mergable">
+  <option timestep="0.002" iterations="100" gravity="0 0 -10">
+    <flag damper="disable"/>
+  </option>
+  <worldbody>
+    <body name="child_body">
+      <geom name="child_geom" size="1"/>
+    </body>
+  </worldbody>
+</mujoco>

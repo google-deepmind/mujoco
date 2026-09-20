@@ -28,7 +28,7 @@ else
   readonly tmp_dir="$(mktemp -d)"
 fi
 
-python -m pip install --upgrade --require-hashes \
+python -m pip install --no-build-isolation --upgrade --require-hashes \
     -r ${package_dir}/make_sdist_requirements.txt
 pushd ${tmp_dir}
 cp -r "${package_dir}"/* .
@@ -36,27 +36,29 @@ cp -r "${package_dir}"/* .
 # Generate header files.
 old_pythonpath="${PYTHONPATH}"
 if [[ "$(uname)" == CYGWIN* || "$(uname)" == MINGW* ]]; then
-  export PYTHONPATH="${old_pythonpath};${package_dir}/.."
+  export PYTHONPATH="${old_pythonpath};${package_dir}/mujoco/python/.."
 else
-  export PYTHONPATH="${old_pythonpath}:${package_dir}/.."
+  export PYTHONPATH="${old_pythonpath}:${package_dir}/mujoco/python/.."
 fi
 python "${package_dir}"/mujoco/codegen/generate_enum_traits.py > \
     mujoco/enum_traits.h
 python "${package_dir}"/mujoco/codegen/generate_function_traits.py > \
     mujoco/function_traits.h
+python "${package_dir}"/mujoco/codegen/generate_spec_bindings.py > \
+    mujoco/specs.cc.inc
 export PYTHONPATH="${old_pythonpath}"
 
 # Copy over the LICENSE file.
 cp "${package_dir}"/../LICENSE .
 
 # Copy over CMake scripts.
-mkdir mujoco/cmake
-cp "${package_dir}"/../cmake/*.cmake mujoco/cmake
+mkdir -p mujoco/cmake
+cp -r "${package_dir}"/../cmake/* mujoco/cmake
 
 # Copy over Simulate source code.
 cp -r "${package_dir}"/../simulate mujoco
 
-python -m build . --sdist
+python -m build --no-isolation . --sdist
 tar -tf dist/mujoco-*.tar.gz
 popd
 

@@ -1,0 +1,30 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 0423820..c5295c1 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -360,6 +360,7 @@ if (NOT DEFINED CMAKE_BUILD_WITH_INSTALL_RPATH)
+     set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+ endif ()
+ 
++if (NOT EMSCRIPTEN)
+ add_library(${qhull_SHAREDR} SHARED 
+         ${libqhullr_SOURCES}
+         src/libqhull_r/qhull_r-exports.def)
+@@ -420,7 +421,7 @@ set_target_properties(${qhull_SHAREDP} PROPERTIES
+ if(UNIX)
+     target_link_libraries(${qhull_SHAREDP} m)
+ endif(UNIX)
+-
++endif (NOT EMSCRIPTEN)
+ # ---------------------------------------
+ # Define static libraries qhullstatic (non-reentrant) and qhullstatic_r (reentrant)
+ # ---------------------------------------
+@@ -475,7 +476,7 @@ if(NOT ${BUILD_STATIC_LIBS})
+     set_target_properties(${qhull_STATICR} PROPERTIES EXCLUDE_FROM_ALL TRUE)
+     set_target_properties(${qhull_CPP} PROPERTIES EXCLUDE_FROM_ALL TRUE)
+ endif()
+-if(NOT ${BUILD_SHARED_LIBS})
++if(NOT ${BUILD_SHARED_LIBS} AND NOT EMSCRIPTEN)
+     set_target_properties(${qhull_SHARED} PROPERTIES EXCLUDE_FROM_ALL TRUE)
+     set_target_properties(${qhull_SHAREDR} PROPERTIES EXCLUDE_FROM_ALL TRUE)
+     set_target_properties(${qhull_SHAREDP} PROPERTIES EXCLUDE_FROM_ALL TRUE)

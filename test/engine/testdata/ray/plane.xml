@@ -1,0 +1,7 @@
+<mujoco>
+  <include file="ray_swing.xml"/>
+
+  <worldbody>
+    <geom type="plane" size="2 1 .01" zaxis="1 0 2"/>
+  </worldbody>
+</mujoco>

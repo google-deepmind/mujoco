@@ -33,9 +33,9 @@ def _ray_quad(
 ) -> Tuple[jax.Array, jax.Array]:
   """Returns two solutions for quadratic: a*x^2 + 2*b*x + c = 0."""
   det = b * b - a * c
-  det_2 = jp.sqrt(det)
+  det_2 = jp.sqrt(jp.maximum(det, 0))
 
-  x0, x1 = (-b - det_2) / a, (-b + det_2) / a
+  x0, x1 = math.safe_div(-b - det_2, a), math.safe_div(-b + det_2, a)
   x0 = jp.where((det < mujoco.mjMINVAL) | (x0 < 0), jp.inf, x0)
   x1 = jp.where((det < mujoco.mjMINVAL) | (x1 < 0), jp.inf, x1)
 
@@ -48,7 +48,7 @@ def _ray_plane(
     vec: jax.Array,
 ) -> jax.Array:
   """Returns the distance at which a ray intersects with a plane."""
-  x = -pnt[2] / vec[2]
+  x = -math.safe_div(pnt[2], vec[2])
 
   valid = vec[2] <= -mujoco.mjMINVAL  # z-vec pointing towards front face
   valid &= x >= 0
@@ -108,6 +108,29 @@ def _ray_capsule(
   return x
 
 
+def _ray_ellipsoid(
+    size: jax.Array,
+    pnt: jax.Array,
+    vec: jax.Array,
+) -> jax.Array:
+  """Returns the distance at which a ray intersects with an ellipsoid."""
+
+  # invert size^2
+  s = math.safe_div(1, jp.square(size))
+
+  # (x*lvec+lpnt)' * diag(1/size^2) * (x*lvec+lpnt) = 1
+  svec = s * vec
+  a = svec @ vec
+  b = svec @ pnt
+  c = (s * pnt) @ pnt - 1
+
+  # solve a*x^2 + 2*b*x + c = 0
+  x0, x1 = _ray_quad(a, b, c)
+  x = jp.where(jp.isinf(x0), x1, x0)
+
+  return x
+
+
 def _ray_box(
     size: jax.Array,
     pnt: jax.Array,
@@ -119,13 +142,14 @@ def _ray_box(
 
   # side +1, -1
   # solution of pnt[i] + x * vec[i] = side * size[i]
-  x = jp.concatenate([(size - pnt) / vec, (-size - pnt) / vec])
+  x = jp.concatenate([math.safe_div(size - pnt,  vec), -math.safe_div(size + pnt, vec)])
 
   # intersection with face
   p0 = pnt[iface[:, 0]] + x * vec[iface[:, 0]]
   p1 = pnt[iface[:, 1]] + x * vec[iface[:, 1]]
   valid = jp.abs(p0) <= size[iface[:, 0]]
   valid &= jp.abs(p1) <= size[iface[:, 1]]
+  valid &= x >= 0
 
   return jp.min(jp.where(valid, x, jp.inf))
 
@@ -146,14 +170,14 @@ def _ray_triangle(
   b = -planar[2]
   det = A[0, 0] * A[1, 1] - A[1, 0] * A[0, 1]
 
-  t0 = (A[1, 1] * b[0] - A[1, 0] * b[1]) / det
-  t1 = (-A[0, 1] * b[0] + A[0, 0] * b[1]) / det
+  t0 = math.safe_div(A[1, 1] * b[0] - A[1, 0] * b[1], det)
+  t1 = math.safe_div(-A[0, 1] * b[0] + A[0, 0] * b[1], det)
   valid = (t0 >= 0) & (t1 >= 0) & (t0 + t1 <= 1)
 
   # intersect ray with plane of triangle
   nrm = jp.cross(vert[0] - vert[2], vert[1] - vert[2])
-  dist = jp.dot(vert[2] - pnt, nrm) / jp.dot(vec, nrm)
-  valid &= dist >= 0
+  dist = math.safe_div(jp.dot(vert[2] - pnt, nrm), jp.dot(vec, nrm))
+  valid &= (dist >= 0)
   dist = jp.where(valid, dist, jp.inf)
 
   return dist
@@ -200,6 +224,7 @@ _RAY_FUNC = {
     GeomType.PLANE: _ray_plane,
     GeomType.SPHERE: _ray_sphere,
     GeomType.CAPSULE: _ray_capsule,
+    GeomType.ELLIPSOID: _ray_ellipsoid,
     GeomType.BOX: _ray_box,
     GeomType.MESH: _ray_mesh,
 }
@@ -212,9 +237,9 @@ def ray(
     vec: jax.Array,
     geomgroup: Sequence[int] = (),
     flg_static: bool = True,
-    bodyexclude: int = -1,
+    bodyexclude: Sequence[int] | int = -1,
 ) -> Tuple[jax.Array, jax.Array]:
-  """Returns the geom id and distance at which a ray intersects with a geom.
+  """Returns the distance and geom id at which a ray intersects with a geom.
 
   Args:
     m: MJX model
@@ -223,28 +248,32 @@ def ray(
     vec: ray direction    (3,)
     geomgroup: group inclusion/exclusion mask, or empty to ignore
     flg_static: if True, allows rays to intersect with static geoms
-    bodyexclude: ignore geoms on specified body id
+    bodyexclude: ignore geoms on specified body id or sequence of body ids
 
   Returns:
-    dist: distance from ray origin to geom surface (or -1.0 for no intersection)
-    id: id of intersected geom (or -1 for no intersection)
+    Distance from ray origin to geom surface (or -1.0 for no intersection) and
+    id of intersected geom (or -1 for no intersection)
   """
 
   dists, ids = [], []
-  geom_filter = m.geom_bodyid != bodyexclude
-  geom_filter &= (m.geom_matid != -1) | (m.geom_rgba[:, 3] != 0)
-  geom_filter &= (m.geom_matid == -1) | (m.mat_rgba[m.geom_matid, 3] != 0)
-  geom_filter &= flg_static | (m.body_weldid[m.geom_bodyid] != 0)
+  if not isinstance(bodyexclude, Sequence):
+    bodyexclude = [bodyexclude]
+  geom_filter = flg_static | (m.body_weldid[m.geom_bodyid] != 0)
+  # Loop through the body IDs to exclude and update the filter
+  for bodyid in bodyexclude:
+    geom_filter &= (m.geom_bodyid != bodyid)
   if geomgroup:
-    geomgroup = np.array(geomgroup, dtype=bool)
-    geom_filter &= geomgroup[np.clip(m.geom_group, 0, mujoco.mjNGROUP)]
+    geomgroup = np.array(geomgroup, dtype=bool)  # pyrefly: ignore[bad-assignment]
+    geom_filter &= geomgroup[np.clip(m.geom_group, 0, mujoco.mjNGROUP)]  # pyrefly: ignore[bad-index]
 
   # map ray to local geom frames
   geom_pnts = jax.vmap(lambda x, y: x.T @ (pnt - y))(d.geom_xmat, d.geom_xpos)
   geom_vecs = jax.vmap(lambda x: x.T @ vec)(d.geom_xmat)
 
+  geom_filter_dyn = (m.geom_matid != -1) | (m.geom_rgba[:, 3] != 0)
+  geom_filter_dyn &= (m.geom_matid == -1) | (m.mat_rgba[m.geom_matid, 3] != 0)
   for geom_type, fn in _RAY_FUNC.items():
-    id_, = np.nonzero(geom_filter & (m.geom_type == geom_type))
+    (id_,) = np.nonzero(geom_filter & (m.geom_type == geom_type))
 
     if id_.size == 0:
       continue
@@ -252,14 +281,15 @@ def ray(
     args = m.geom_size[id_], geom_pnts[id_], geom_vecs[id_]
 
     if geom_type == GeomType.MESH:
-      dist, id_ = fn(m, id_, *args)
+      dist, id_ = fn(m, id_, *args)  # pyrefly: ignore[bad-argument-count, bad-argument-type]
     else:
-      dist = jax.vmap(fn)(*args)
+      dist = jax.vmap(fn)(*args)  # pyrefly: ignore[bad-argument-type, missing-argument]
 
+    dist = jp.where(geom_filter_dyn[id_], dist, jp.inf)  # pyrefly: ignore[bad-argument-type]
     dists, ids = dists + [dist], ids + [id_]
 
   if not ids:
-    return jp.array(-1), jp.array(-1.0)
+    return jp.array(-1.0), jp.array(-1)
 
   dists = jp.concatenate(dists)
   ids = jp.concatenate(ids)
@@ -268,3 +298,20 @@ def ray(
   id_ = jp.where(jp.isinf(dists[min_id]), -1, ids[min_id])
 
   return dist, id_
+
+
+def ray_geom(
+    size: jax.Array, pnt: jax.Array, vec: jax.Array, geomtype: GeomType
+) -> jax.Array:
+  """Returns the distance at which a ray intersects with a primitive geom.
+
+  Args:
+    size: geom size (1,), (2,), or (3,)
+    pnt: ray origin point (3,)
+    vec: ray direction    (3,)
+    geomtype: type of geom
+
+  Returns:
+    dist: distance from ray origin to geom surface
+  """
+  return _RAY_FUNC[geomtype](size, pnt, vec)  # pyrefly: ignore[bad-argument-type, bad-return, missing-argument]

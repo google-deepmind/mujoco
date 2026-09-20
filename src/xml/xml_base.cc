@@ -21,9 +21,8 @@
 #include <string>
 #include <vector>
 
-#include "user/user_api.h"
-#include "user/user_model.h"
-#include "user/user_objects.h"
+#include <mujoco/mjmodel.h>
+#include <mujoco/mjspec.h>
 #include "xml/xml_util.h"
 #include "tinyxml2.h"
 
@@ -39,22 +38,20 @@ using tinyxml2::XMLElement;
 
 // base constructor
 mjXBase::mjXBase() {
-  model = NULL;
+  spec = NULL;
 }
-
 
 
 // set model field
-void mjXBase::SetModel(mjSpec* _model) {
-  model = _model;
+void mjXBase::SetModel(mjSpec* _model, const mjModel* m) {
+  spec = _model;
 }
-
 
 
 // read alternative orientation specification
 int mjXBase::ReadAlternative(XMLElement* elem, mjsOrientation& alt) {
   string text;
-  int numspec = (int)(elem->Attribute("quat") != 0);
+  int    numspec = (int)(elem->Attribute("quat") != 0);
   if (ReadAttr(elem, "axisangle", 4, alt.axisangle, text)) {
     numspec++;
     alt.type = mjORIENTATION_AXISANGLE;
@@ -71,8 +68,6 @@ int mjXBase::ReadAlternative(XMLElement* elem, mjsOrientation& alt) {
     numspec++;
     alt.type = mjORIENTATION_EULER;
   }
-  if (numspec > 1) {
-    throw mjXError(elem, "multiple orientation specifiers are not allowed");
-  }
+  if (numspec > 1) { throw mjXError(elem, "multiple orientation specifiers are not allowed"); }
   return numspec;
 }

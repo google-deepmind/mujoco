@@ -1,0 +1,314 @@
+// Copyright 2025 DeepMind Technologies Limited
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef MUJOCO_SRC_EXPERIMENTAL_STUDIO_APP_H_
+#define MUJOCO_SRC_EXPERIMENTAL_STUDIO_APP_H_
+
+#include <cstddef>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <span>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <variant>
+#include <vector>
+
+#include <mujoco/mujoco.h>
+#include "experimental/studio/hal/graphics_mode.h"
+#include "experimental/studio/hal/filament_renderer.h"
+#include "experimental/studio/hal/window.h"
+#include "experimental/studio/sim/model_holder.h"
+#include "experimental/studio/sim/sim_history.h"
+#include "experimental/studio/sim/sim_profiler.h"
+#include "experimental/studio/sim/step_control.h"
+#include "experimental/studio/ux/gui.h"
+#include "experimental/studio/ux/gui_spec.h"
+#include "experimental/studio/ux/imgui_widgets.h"
+#include "experimental/studio/ux/interaction.h"
+#include "experimental/studio/ux/picture_gui.h"
+#include "experimental/studio/ux/spec_editor.h"
+
+namespace mujoco::studio {
+
+// Owns, updates, and renders a MuJoCo simulation.
+class App {
+ public:
+  // Configuration/initialization options for the application.
+  struct Config {
+    // The original width and height of the window.
+    int width = 0;
+    int height = 0;
+
+    // The path to the ini file containing the user settings.
+    std::string ini_path;
+
+    // The graphics configuration used for initializing the window.
+    GraphicsMode gfx_mode = GraphicsMode::FilamentVulkan;
+
+    // The initial GUI theme. If set, overrides the default (kLight).
+    std::optional<GuiTheme> initial_theme;
+
+    // The application title shown in the window title bar.
+    std::string title = "MuJoCo Studio";
+  };
+
+  explicit App(Config config);
+  ~App();
+
+  // Loads an empty mjModel.
+  void InitEmptyModel();
+
+  // Loads an mjModel from the given file. This extension should be one of:
+  // .xml, .mjb, or .mjz.
+  void LoadModelFromFile(const std::string& filepath);
+
+  // Loads an mjModel from the given memory buffer. The content_type should be
+  // one of: "text/xml", "application/mjb", or "application/mjz". For zip files,
+  // a name is required in order to uniquely identify the model within the
+  // archive.
+  void LoadModelFromBuffer(std::span<const std::byte> buffer,
+                           std::string_view content_type,
+                           std::string_view name);
+
+  // Selects and loads a keyframe by name or numerical index. If invalid,
+  // silently ignores it.
+  void LoadKeyframe(std::string_view keyframe);
+
+  // Processes window events and advances the state of the simulation.
+  bool Update();
+
+  // Builds the GUI. We do this after Sync() to ensure we have the latest data
+  // for building the GUI.
+  void BuildGui();
+
+  // Renders everything (e.g. the simulation and the GUI).
+  void Render();
+
+ private:
+  // The kind of model that is currently loaded.
+  enum ModelKind {
+    kEmptyModel,
+    kModelFromFile,
+    kModelFromBuffer,
+  };
+
+  struct EmptyModel {};
+  struct FileModel {
+    std::string_view filepath;
+  };
+  struct BufferModel {
+    std::span<const std::byte> buffer;
+    std::string_view content_type;
+    std::string_view name;
+  };
+
+  using LoadModelInfo =
+      std::variant<EmptyModel, FileModel, BufferModel>;
+
+  enum class SpecPropertiesMode {
+    kSpec,
+    kModel,
+    kData,
+  };
+
+  // UI state that is persisted across application runs
+  struct UiState {
+    char watch_field[1000] = "qpos";
+    int watch_index = 0;
+    int camera_idx = kTumbleCameraIdx;
+    int key_idx = -1;
+    GuiTheme theme = GuiTheme::kDark;
+    float font_scale = 1.0f;
+    int window_width = 0;
+    int window_height = 0;
+    int nthread = 0;
+
+    using Dict = std::unordered_map<std::string, std::string>;
+    Dict ToDict() const;
+    void FromDict(const Dict& dict);
+  };
+
+  // UI state that is transient and only needed while the application runs
+  struct UiTempState {
+    bool should_exit = false;
+    bool update_threadpool = false;
+
+    // Windows.
+    bool help = false;
+    bool info = false;
+    bool profiler = false;
+    bool profiler_show_iter = false;
+    bool picture_in_picture = false;
+    bool options_panel = true;
+    bool toolbar = false;
+    bool status_bar = false;
+    bool inspector_panel = true;
+    bool editor_panel = false;
+    bool full_screen = false;
+    bool style_editor = false;
+    bool imgui_demo = false;
+    bool implot_demo = false;
+    float editor_split = -1;
+    float explorer_split = -1;
+
+    // Controls.
+    bool perturb_active = false;
+    int speed_index = 0;
+    float cam_speed = 0.0f;
+
+    // Cached data.
+    float expected_label_width = 0;
+    std::vector<std::string> camera_names;
+    std::vector<std::string> speed_names;
+
+    // Spec editing.
+    SpecPropertiesMode spec_prop_mode = SpecPropertiesMode::kSpec;
+    mjsElement* curr_element = nullptr;
+
+    // State.
+    int state_sig = 0;
+    std::vector<mjtNum> state;
+
+    // Picture-in-Picture.
+    std::vector<PipState> pips;
+
+    // File dialogs.
+    enum FileDialog {
+      FileDialog_None,
+      FileDialog_Load,
+      FileDialog_SaveXml,
+      FileDialog_SaveMjb,
+      FileDialog_PrintModel,
+      FileDialog_PrintData,
+      FileDialog_SaveScreenshot,
+      NumFileDialogs,
+    };
+    FileDialog file_dialog = FileDialog_None;
+    std::string last_path[NumFileDialogs];
+    char filename[1000] = "";
+  };
+
+  // Requests that the model be loaded from the given file at the next update.
+  void RequestModelLoad(std::string model_file);
+
+  // Requests that the currently loaded model be reloaded at the next update.
+  void RequestModelReload();
+
+  // Loads the model from the given info.
+  void LoadModel(const LoadModelInfo& info);
+
+  // Updates the currently loaded model to the given model. If model is null,
+  // then compile the spec to a model.
+  void OnModelLoaded(std::string_view filename, ModelKind model_kind);
+
+  struct SavedKeyframeSelection {
+    bool is_reload = false;
+    int key_idx = -1;
+    std::string key_name;
+    std::vector<std::string> all_old_names;
+  };
+  SavedKeyframeSelection CaptureKeyframeSelection(bool is_reload) const;
+  void RestoreKeyframeSelection(const SavedKeyframeSelection& saved);
+
+  void SwitchGraphicsMode(int width, int height, GraphicsMode mode);
+
+  void SetLoadError(std::string error);
+  void UpdateFilePaths(const std::string& resolved_path);
+
+  void ResetPhysics();
+  void UpdatePhysics();
+  void PreStep(const mjModel* m, mjData* d);
+  void PostStep(const mjModel* m, mjData* d);
+
+  void LoadSettings();
+  void SaveSettings();
+  void ApplyWindowStateStorage();
+
+  void LoadHistory(int offset);
+
+  void SetSpeedIndex(int idx);
+
+  void HandleWindowEvents();
+  void HandleMouseEvents();
+  void HandleKeyboardEvents();
+
+  void ProcessPendingLoads();
+
+  void MainMenuGui();
+  void ToolBarGui();
+  void StatusBarGui();
+  void HelpGui();
+  void FileDialogGui();
+  void ModelOptionsGui();
+  void DataInspectorGui();
+  void SpecExplorerGui();
+  void SpecEditorGui();
+
+  mjSpec* spec() { return model_holder_->spec(); }
+  mjModel* model() { return model_holder_->model(); }
+  mjData* data() { return model_holder_->data(); }
+  bool has_spec() const { return model_holder_ && model_holder_->spec(); }
+  bool has_model() const { return model_holder_ && model_holder_->model(); }
+  bool has_data() const { return model_holder_ && model_holder_->data(); }
+
+  std::string app_title_;
+  std::string ini_path_;
+  // Window state storage (e.g. collapsing header open/closed state), keyed
+  // "<window name>/<id>", which ImGui does not serialize. Entries stay
+  // pending until their window is first created.
+  KeyValues window_state_storage_;
+  std::string model_path_;
+  std::vector<std::byte> last_buffer_;
+  std::string last_content_type_;
+  std::string load_error_;
+  std::string step_error_;
+  std::string edit_error_;
+  StepControl::PauseState last_pause_state_ =
+      StepControl::PauseState::kNormalPaused;
+
+  std::optional<std::string> pending_load_;
+  bool pending_reload_ = false;
+  bool recompile_spec_ = false;
+
+  std::function<void()> pending_op_;
+  bool preserve_camera_on_load_ = false;
+  ModelKind model_kind_ = kEmptyModel;
+  GraphicsMode gfx_mode_ = GraphicsMode::FilamentVulkan;
+
+  std::unique_ptr<Window> window_;
+  std::unique_ptr<FilamentRenderer> renderer_;
+  std::unique_ptr<ModelHolder> model_holder_;
+
+  StepControl step_control_;
+  SimProfiler profiler_;
+  SimHistory sim_history_;
+  SimulationTimelineState timeline_;
+  SpecEditor spec_editor_;
+  std::vector<std::string> search_paths_;
+  std::vector<std::byte> pixels_;
+
+  mjvCamera camera_;
+  mjvPerturb perturb_;
+  mjvOption vis_options_;
+  mjvScene plugin_scene_;
+
+  UiState ui_;
+  UiTempState tmp_;
+};
+
+}  // namespace mujoco::studio
+
+#endif  // MUJOCO_SRC_EXPERIMENTAL_STUDIO_APP_H_

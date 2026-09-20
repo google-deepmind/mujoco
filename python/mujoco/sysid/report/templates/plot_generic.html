@@ -1,0 +1,8 @@
+<div class="plot-container">
+    {{ plot_div | safe }}
+    {% if caption %}
+    <div class="plot-caption" style="margin-top: 0.5rem; color: var(--text-muted); font-size: 0.9em;">
+        <em>{{ caption | safe }}</em>
+    </div>
+    {% endif %}
+</div>

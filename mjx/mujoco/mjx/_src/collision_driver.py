@@ -45,8 +45,12 @@ from jax import numpy as jp
 import mujoco
 from mujoco.mjx._src import support
 # pylint: disable=g-importing-member
+from mujoco.mjx._src.collision_convex import box_box
 from mujoco.mjx._src.collision_convex import capsule_convex
 from mujoco.mjx._src.collision_convex import convex_convex
+from mujoco.mjx._src.collision_convex import hfield_capsule
+from mujoco.mjx._src.collision_convex import hfield_convex
+from mujoco.mjx._src.collision_convex import hfield_sphere
 from mujoco.mjx._src.collision_convex import plane_convex
 from mujoco.mjx._src.collision_convex import sphere_convex
 from mujoco.mjx._src.collision_primitive import capsule_capsule
@@ -61,14 +65,21 @@ from mujoco.mjx._src.collision_sdf import capsule_ellipsoid
 from mujoco.mjx._src.collision_sdf import cylinder_cylinder
 from mujoco.mjx._src.collision_sdf import ellipsoid_cylinder
 from mujoco.mjx._src.collision_sdf import ellipsoid_ellipsoid
+from mujoco.mjx._src.collision_sdf import sphere_cylinder
+from mujoco.mjx._src.collision_sdf import sphere_ellipsoid
 from mujoco.mjx._src.collision_types import FunctionKey
 from mujoco.mjx._src.types import Contact
 from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import GeomType
+from mujoco.mjx._src.types import Impl
 from mujoco.mjx._src.types import Model
+from mujoco.mjx._src.types import ModelJAX
+from mujoco.mjx._src.types import OptionJAX
 # pylint: enable=g-importing-member
 import numpy as np
+
 
 # pair-wise collision functions
 _COLLISION_FUNC = {
@@ -78,8 +89,14 @@ _COLLISION_FUNC = {
     (GeomType.PLANE, GeomType.ELLIPSOID): plane_ellipsoid,
     (GeomType.PLANE, GeomType.CYLINDER): plane_cylinder,
     (GeomType.PLANE, GeomType.MESH): plane_convex,
+    (GeomType.HFIELD, GeomType.SPHERE): hfield_sphere,
+    (GeomType.HFIELD, GeomType.CAPSULE): hfield_capsule,
+    (GeomType.HFIELD, GeomType.BOX): hfield_convex,
+    (GeomType.HFIELD, GeomType.MESH): hfield_convex,
     (GeomType.SPHERE, GeomType.SPHERE): sphere_sphere,
     (GeomType.SPHERE, GeomType.CAPSULE): sphere_capsule,
+    (GeomType.SPHERE, GeomType.CYLINDER): sphere_cylinder,
+    (GeomType.SPHERE, GeomType.ELLIPSOID): sphere_ellipsoid,
     (GeomType.SPHERE, GeomType.BOX): sphere_convex,
     (GeomType.SPHERE, GeomType.MESH): sphere_convex,
     (GeomType.CAPSULE, GeomType.CAPSULE): capsule_capsule,
@@ -90,11 +107,13 @@ _COLLISION_FUNC = {
     (GeomType.ELLIPSOID, GeomType.ELLIPSOID): ellipsoid_ellipsoid,
     (GeomType.ELLIPSOID, GeomType.CYLINDER): ellipsoid_cylinder,
     (GeomType.CYLINDER, GeomType.CYLINDER): cylinder_cylinder,
-    (GeomType.BOX, GeomType.BOX): convex_convex,
+    (GeomType.BOX, GeomType.BOX): box_box,
     (GeomType.BOX, GeomType.MESH): convex_convex,
     (GeomType.MESH, GeomType.MESH): convex_convex,
 }
 
+# Maximum constraint dimension for collision functions.
+_MAX_NCON = 8
 
 # geoms for which we ignore broadphase
 _GEOM_NO_BROADPHASE = {GeomType.HFIELD, GeomType.PLANE}
@@ -133,13 +152,13 @@ def geom_pairs(
   b_end = b_start + m.body_geomnum
 
   for b1 in range(m.nbody):
-    if not geom_con[b_start[b1]:b_end[b1]].any():
+    if not geom_con[b_start[b1] : b_end[b1]].any():
       continue
     w1 = m.body_weldid[b1]
     w1_p = m.body_weldid[m.body_parentid[w1]]
 
     for b2 in range(b1, m.nbody):
-      if not geom_con[b_start[b2]:b_end[b2]].any():
+      if not geom_con[b_start[b2] : b_end[b2]].any():
         continue
       signature = (b1 << 16) + (b2)
       if signature in exclude_signature:
@@ -210,6 +229,21 @@ def _geom_groups(
       condim = max(m.geom_condim[g1], m.geom_condim[g2])
 
     key = FunctionKey(types, data_ids, condim)
+
+    if int(types[0]) == int(mujoco.mjtGeom.mjGEOM_HFIELD):
+      # add static grid bounds to the grouping key for hfield collisions
+      geom_rbound_hfield = (
+          m._impl.geom_rbound_hfield if isinstance(m, Model) else m.geom_rbound  # pytype: disable=attribute-error
+      )
+      nrow, ncol = m.hfield_nrow[data_ids[0]], m.hfield_ncol[data_ids[0]]
+      xsize, ysize = m.hfield_size[data_ids[0]][:2]
+      xtick, ytick = (2 * xsize) / (ncol - 1), (2 * ysize) / (nrow - 1)
+      xbound = int(np.ceil(2 * geom_rbound_hfield[g2] / xtick)) + 1
+      xbound = min(xbound, ncol)
+      ybound = int(np.ceil(2 * geom_rbound_hfield[g2] / ytick)) + 1
+      ybound = min(ybound, nrow)
+      key = FunctionKey(types, data_ids, condim, (xbound, ybound))
+
     groups.setdefault(key, []).append((g1, g2, ip))
 
   return groups
@@ -240,16 +274,15 @@ def _contact_groups(m: Model, d: Data) -> Dict[FunctionKey, Contact]:
     if ip.size > 0:
       # pair contacts get their params from m.pair_* fields
       params.append((
-          m.pair_margin[ip] - m.pair_gap[ip],
-          jp.clip(m.pair_friction[ip], a_min=eps),
+          m.pair_margin[ip],
+          jp.clip(m.pair_friction[ip], min=eps),
           m.pair_solref[ip],
           m.pair_solreffriction[ip],
-          m.pair_solimp[ip]
+          m.pair_solimp[ip],
       ))
     if geom1.size > 0 and geom2.size > 0:
       # other contacts get their params from geom fields
-      margin = jp.maximum(m.geom_margin[geom1], m.geom_margin[geom2])
-      gap = jp.maximum(m.geom_gap[geom1], m.geom_gap[geom2])
+      margin = m.geom_margin[geom1] + m.geom_margin[geom2]
       solmix1, solmix2 = m.geom_solmix[geom1], m.geom_solmix[geom2]
       mix = solmix1 / (solmix1 + solmix2)
       mix = jp.where((solmix1 < eps) & (solmix2 < eps), 0.5, mix)
@@ -280,7 +313,7 @@ def _contact_groups(m: Model, d: Data) -> Dict[FunctionKey, Contact]:
 
       # unpack 5d friction:
       friction = friction[:, [0, 0, 1, 2, 2]]
-      params.append((margin - gap, friction, solref, solreffriction, solimp))
+      params.append((margin, friction, solref, solreffriction, solimp))
 
     params = map(jp.concatenate, zip(*params))
     includemargin, friction, solref, solreffriction, solimp = params
@@ -295,11 +328,11 @@ def _contact_groups(m: Model, d: Data) -> Dict[FunctionKey, Contact]:
         solref=solref,
         solreffriction=solreffriction,
         solimp=solimp,
-        dim=d.contact.dim,
+        dim=d._impl.contact.dim,  # pytype: disable=attribute-error
         geom1=jp.array(geom[:, 0]),
         geom2=jp.array(geom[:, 1]),
         geom=jp.array(geom[:, :2]),
-        efc_address=d.contact.efc_address,
+        efc_address=d._impl.contact.efc_address,  # pytype: disable=attribute-error
     )
 
   return groups
@@ -310,8 +343,23 @@ def _numeric(m: Union[Model, mujoco.MjModel], name: str) -> int:
   return int(m.numeric_data[id_]) if id_ >= 0 else -1
 
 
-def make_condim(m: Union[Model, mujoco.MjModel]) -> np.ndarray:
+def make_condim(
+    m: Union[Model, mujoco.MjModel], impl: Impl = Impl.JAX
+) -> np.ndarray:
   """Returns the dims of the contacts for a Model."""
+  if impl != Impl.JAX:
+    raise ValueError('make_condim only supports JAX backend.')
+
+  if isinstance(m, mujoco.MjModel):
+    sdf_initpoints = m.opt.sdf_initpoints
+  elif isinstance(m.opt._impl, OptionJAX):
+    sdf_initpoints = m.opt._impl.sdf_initpoints
+  else:
+    raise ValueError(
+        'make_condim requires mujoco.MjModel or mjx.Model with JAX backend'
+        ' implementation.'
+    )
+
   if m.opt.disableflags & DisableBit.CONTACT:
     return np.empty(0, dtype=int)
 
@@ -333,8 +381,18 @@ def make_condim(m: Union[Model, mujoco.MjModel]) -> np.ndarray:
 
   condim_counts = {}
   for k, v in group_counts.items():
-    func = _COLLISION_FUNC[k.types]
-    num_contacts = condim_counts.get(k.condim, 0) + func.ncon * v  # pytype: disable=attribute-error
+    if k.types[1] == mujoco.mjtGeom.mjGEOM_SDF:
+      ncon = sdf_initpoints
+    else:
+      func = _COLLISION_FUNC.get(k.types, None)  # pyrefly: ignore[no-matching-overload]
+      if func is not None:
+        ncon = func.ncon  # pytype: disable=attribute-error
+      else:
+        raise ValueError(
+            f'Collision function not found for geom types {k.types[0]},',
+            f'{k.types[1]}'
+        )
+    num_contacts = condim_counts.get(k.condim, 0) + ncon * v
     if max_contact_points > -1:
       num_contacts = min(max_contact_points, num_contacts)
     condim_counts[k.condim] = num_contacts
@@ -346,14 +404,17 @@ def make_condim(m: Union[Model, mujoco.MjModel]) -> np.ndarray:
 
 def collision(m: Model, d: Data) -> Data:
   """Collides geometries."""
-  if d.ncon == 0:
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('collision requires JAX backend implementation.')
+
+  if d._impl.ncon == 0:  # pytype: disable=attribute-error
     return d
 
-  groups = _contact_groups(m, d)
   max_geom_pairs = _numeric(m, 'max_geom_pairs')
   max_contact_points = _numeric(m, 'max_contact_points')
 
   # run collision functions on groups
+  groups = _contact_groups(m, d)
   for key, contact in groups.items():
     # determine which contacts we'll use for collision testing by running a
     # broad phase cull if requested
@@ -369,9 +430,10 @@ def collision(m: Model, d: Data) -> Data:
       contact = jax.tree_util.tree_map(lambda x, idx=idx: x[idx], contact)
 
     # run the collision function specified by the grouping key
-    func = _COLLISION_FUNC[key.types]
-    dist, pos, frame = func(m, d, key, contact.geom)
+    func = _COLLISION_FUNC[key.types]  # pyrefly: ignore[bad-index]
     ncon = func.ncon  # pytype: disable=attribute-error
+
+    dist, pos, frame = func(m, d, key, contact.geom)
     if ncon > 1:
       # repeat contacts to match the number of collisions returned
       repeat_fn = lambda x, r=ncon: jp.repeat(x, r, axis=0)
@@ -395,4 +457,4 @@ def collision(m: Model, d: Data) -> Data:
   contacts = sum([condim_groups[k] for k in sorted(condim_groups)], [])
   contact = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *contacts)
 
-  return d.replace(contact=contact)
+  return d.tree_replace({'_impl.contact': contact})  # pyrefly: ignore[bad-return]

@@ -17,10 +17,22 @@ set(MUJOCO_TEST_WORKING_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 include(GoogleTest)
 
+# This macro is used to add a C++ test to MuJoCo CMake build system
+#
+# The CMake targets linked by default with target_link_libraries are:
+#   mujoco fixture gmock
+#
+# The macro supports the following parameters:
+#   * PROPERTIES: multiple value parameter, its value is set as test properties
+#                 via the set_tests_properties(<test> PROPERTIES <argument>) function
+#   * ADDITIONAL_LINK_LIBRARIES: multiple value parameter, additional libraries linked
+#                                to the test via target_link_libraries
+#   * MAIN_TARGET: single value parameter, used to specify the target linked to the tests
+#                  that define the main entry poiny. If not indicated, gest_main is used
 macro(mujoco_test name)
   set(options)
-  set(oneValueArgs)
-  set(multiValueArgs PROPERTIES)
+  set(oneValueArgs MAIN_TARGET)
+  set(multiValueArgs PROPERTIES ADDITIONAL_LINK_LIBRARIES)
   cmake_parse_arguments(
     _ARGS
     "${options}"
@@ -30,24 +42,50 @@ macro(mujoco_test name)
   )
 
   add_executable(${name} ${name}.cc)
-  target_link_libraries(${name} gtest_main mujoco)
+  target_link_options(${name} PRIVATE ${EXTRA_LINK_OPTIONS})
+  target_link_libraries(${name} mujoco fixture gmock)
+  if(_ARGS_MAIN_TARGET)
+    target_link_libraries(${name} ${_ARGS_MAIN_TARGET})
+  else()
+    target_link_libraries(${name} gtest_main)
+  endif()
+  if(_ARGS_ADDITIONAL_LINK_LIBRARIES)
+    target_link_libraries(${name} ${_ARGS_ADDITIONAL_LINK_LIBRARIES})
+  endif()
   target_include_directories(${name} PRIVATE ${MUJOCO_TEST_INCLUDE})
   set_target_properties(${name} PROPERTIES BUILD_RPATH ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
-  # gtest_discover_tests is recommended over gtest_add_tests, but has some issues in Windows.
-  gtest_add_tests(
-    TARGET ${name}
-    SOURCES ${name}.cc
-    WORKING_DIRECTORY ${MUJOCO_TEST_WORKING_DIR}
-    TEST_LIST testList
-  )
-  if(WIN32)
-    set_tests_properties(
-      ${testList} PROPERTIES ENVIRONMENT "PATH=$<TARGET_FILE_DIR:mujoco>;$ENV{PATH}"
+  # gtest_discover_tests is recommended over gtest_add_tests, but has issues on Windows.
+  # It also requires a GoogleTest binary, so we fall back for custom MAIN_TARGET (e.g. benchmarks).
+  if(WIN32 OR APPLE OR _ARGS_MAIN_TARGET)
+    gtest_add_tests(
+      TARGET ${name}
+      SOURCES ${name}.cc
+      WORKING_DIRECTORY ${MUJOCO_TEST_WORKING_DIR}
+      TEST_LIST testList
     )
+    if(WIN32)
+      set_tests_properties(
+        ${testList} PROPERTIES ENVIRONMENT "PATH=$<TARGET_FILE_DIR:mujoco>;$ENV{PATH}"
+      )
+    endif()
+    if(_ARGS_PROPERTIES)
+      set_tests_properties(${testList} PROPERTIES ${_ARGS_PROPERTIES})
+    endif()
+  else()
+    if(_ARGS_PROPERTIES)
+      gtest_discover_tests(
+        ${name}
+        WORKING_DIRECTORY ${MUJOCO_TEST_WORKING_DIR}
+        PROPERTIES ${_ARGS_PROPERTIES}
+      )
+    else()
+      gtest_discover_tests(
+        ${name}
+        WORKING_DIRECTORY ${MUJOCO_TEST_WORKING_DIR}
+      )
+    endif()
   endif()
-  if(_ARGS_PROPERTIES)
-    set_tests_properties(${testList} PROPERTIES ${_ARGS_PROPERTIES})
-  endif()
+
 endmacro()
 
 add_library(fixture STATIC fixture.h fixture.cc)
@@ -66,14 +104,19 @@ target_link_libraries(
 )
 target_include_directories(fixture PRIVATE ${mujoco_SOURCE_DIR}/include gmock)
 
+add_library(compare_model STATIC compare_model.h compare_model.cc)
+target_include_directories(compare_model PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_compile_definitions(compare_model PUBLIC MJSTATIC)
+target_link_libraries(compare_model PUBLIC mujoco::mujoco)
+target_include_directories(compare_model PRIVATE ${mujoco_SOURCE_DIR}/include)
+
 mujoco_test(fixture_test)
-target_link_libraries(fixture_test fixture gmock)
 
 mujoco_test(header_test)
-target_link_libraries(header_test fixture gmock)
+
+mujoco_test(mjspecmacro_test)
 
 mujoco_test(pipeline_test)
-target_link_libraries(pipeline_test fixture gmock)
 
 add_subdirectory(benchmark)
 add_subdirectory(engine)
@@ -82,3 +125,5 @@ add_subdirectory(user)
 add_subdirectory(xml)
 add_subdirectory(plugin/elasticity)
 add_subdirectory(plugin/actuator)
+add_subdirectory(experimental)
+add_subdirectory(doc)

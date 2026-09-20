@@ -53,19 +53,16 @@ public class MjBaseSensorTests {
 
   [Test]
   public void GeneratingNoiseAndCutoffMjcf() {
-    _sensor.Noise = 2.0f;
     _sensor.Cutoff = 3.0f;
     _doc.AppendChild(_sensor.GenerateMjcf("name", _doc));
-    Assert.That(_doc.OuterXml, Does.Contain("noise=\"2\""));
     Assert.That(_doc.OuterXml, Does.Contain("cutoff=\"3\""));
   }
 
   [Test]
   public void ParsingShapePropertiesMjcf() {
-    var mjcfString = "<sensor noise=\"3\" cutoff=\"4\" actuator=\"actuator\"/>";
+    var mjcfString = "<sensor cutoff=\"4\" actuator=\"actuator\"/>";
     var mjcfElement = Parse(mjcfString, "sensor");
     _sensor.ParseMjcf(mjcfElement);
-    Assert.That(_sensor.Noise, Is.EqualTo(3.0f));
     Assert.That(_sensor.Cutoff, Is.EqualTo(4.0f));
   }
 }

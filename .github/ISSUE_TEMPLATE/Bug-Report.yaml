@@ -1,0 +1,92 @@
+name: 🐛 Bug Report
+description: >-
+  Please only use this if you're sure you've found a bug. Thanks! 🙏
+labels: bug
+body:
+  - type: textarea
+    attributes:
+      label: Intro
+      description: Who are you, what do you use MuJoCo for?
+      value: |
+        Hi!
+
+        I am a ([graduate / undergrad] student / professor / researcher) at XYZ, I use MuJoCo for my research on ABC.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: My setup
+      description: MuJoCo / MJX version, API (C or Python), architecture, OS + version.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: What's happening? What did you expect?
+      description: A clear and concise description of the current behaviour vs what you expected. If helpful to understand the issue, attach screenshots/videos.
+      value: |
+        Setting `rgba="1 0 0 1"` renders as **green**, I expected it to render as **red**.
+
+        Here is a screen-shot showing a green sphere:
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Steps for reproduction
+      description: Steps to reproduce the issue.
+      value: |
+        1. Load the model below.
+        2. Run the code below.
+        3. See green sphere (should be red).
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Minimal model for reproduction
+      description: Please include a loadable MJCF, not a partial snippet. If your model requires binary assets to load, attach a zip file.
+      value: |
+        If you encountered the issue in a complex model, please simplify it as much as possible (while still reproducing the issue).
+
+        <details>
+        <summary>minimal XML</summary>
+
+        ```XML
+
+        <mujoco>
+          <worldbody>
+            <light pos="0 0 1"/>
+            <geom type="sphere" size="1" rgba="1 0 0 1"/>
+          </worldbody>
+        </mujoco>
+
+        ```
+        </details>
+    validations:
+      required: false
+  - type: textarea
+    attributes:
+      label: Code required for reproduction
+      description: Code required for reproduction of the bug.
+      value: |
+        ```python
+        import mujoco
+        import mediapy as media
+        model = mujoco.MjModel.from_xml_string(xml)
+        data = mujoco.MjData(model)
+
+        with mujoco.Renderer(model) as renderer:
+          mujoco.mj_forward(model, data)
+          renderer.update_scene(data)
+
+          media.show_image(renderer.render())
+        ```
+    validations:
+      required: false
+  - type: checkboxes
+    attributes:
+      label: Confirmations
+      options:
+        - label: I searched the [latest documentation](https://mujoco.readthedocs.io/en/latest/overview.html) thoroughly before posting.
+          required: true
+        - label: I searched previous [Issues](https://github.com/google-deepmind/mujoco/issues) and [Discussions](https://github.com/google-deepmind/mujoco/discussions), I am certain this has not been raised before.
+          required: true
+

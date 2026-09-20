@@ -1,0 +1,11 @@
+<mujoco>
+  <asset>
+    <model name="other" file="child.xml"/>
+  </asset>
+  <worldbody>
+    <body name="parent">
+      <geom name="geom" size="2"/>
+      <attach model="other" body="body" prefix="other"/>
+    </body>
+  </worldbody>
+</mujoco>

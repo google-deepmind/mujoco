@@ -26,6 +26,7 @@
 #define mjMAXUIRECT     25      // maximum number of rectangles
 
 #define mjSEPCLOSED     1000    // closed state of adjustable separator
+#define mjPRESERVE      2000    // preserve section or separator state
 
 
 // key codes matching GLFW (user must remap for other frameworks)
@@ -61,7 +62,7 @@
 
 //---------------------------------- primitive types (mjt) -----------------------------------------
 
-typedef enum mjtButton_ {         // mouse button
+typedef enum mjtButton {          // mouse button
   mjBUTTON_NONE = 0,              // no button
   mjBUTTON_LEFT,                  // left button
   mjBUTTON_RIGHT,                 // right button
@@ -69,7 +70,7 @@ typedef enum mjtButton_ {         // mouse button
 } mjtButton;
 
 
-typedef enum mjtEvent_ {          // mouse and keyboard event type
+typedef enum mjtEvent {           // mouse and keyboard event type
   mjEVENT_NONE = 0,               // no event
   mjEVENT_MOVE,                   // mouse move
   mjEVENT_PRESS,                  // mouse button press
@@ -82,7 +83,7 @@ typedef enum mjtEvent_ {          // mouse and keyboard event type
 } mjtEvent;
 
 
-typedef enum mjtItem_ {           // UI item type
+typedef enum mjtItem {            // UI item type
   mjITEM_END = -2,                // end of definition list (not an item)
   mjITEM_SECTION = -1,            // section (not an item)
   mjITEM_SEPARATOR = 0,           // separator
@@ -106,13 +107,20 @@ typedef enum mjtItem_ {           // UI item type
 } mjtItem;
 
 
+typedef enum mjtSection {         // UI section state
+  mjSECT_CLOSED = 0,              // closed state (regular section)
+  mjSECT_OPEN,                    // open state (regular section)
+  mjSECT_FIXED                    // fixed section: always open, no title
+} mjtSection;
+
+
 // predicate function: set enable/disable based on item category
 typedef int (*mjfItemEnable)(int category, void* data);
 
 
 //---------------------------------- mjuiState -----------------------------------------------------
 
-struct mjuiState_ {               // mouse and keyboard state
+typedef struct mjuiState_ {       // mouse and keyboard state
   // constants set by user
   int nrect;                      // number of rectangles used
   mjrRect rect[mjMAXUIRECT];      // rectangles (index 0: entire window)
@@ -152,37 +160,44 @@ struct mjuiState_ {               // mouse and keyboard state
   // files dropping (only valid when type == mjEVENT_FILESDROP)
   int dropcount;                  // number of files dropped
   const char** droppaths;         // paths to files dropped
-};
-typedef struct mjuiState_ mjuiState;
+} mjuiState;
 
 
 //---------------------------------- mjuiThemeSpacing ----------------------------------------------
 
-struct mjuiThemeSpacing_ {        // UI visualization theme spacing
-  int total;                      // total width
-  int scroll;                     // scrollbar width
-  int label;                      // label width
-  int section;                    // section gap
-  int itemside;                   // item side gap
-  int itemmid;                    // item middle gap
-  int itemver;                    // item vertical gap
-  int texthor;                    // text horizontal gap
-  int textver;                    // text vertical gap
-  int linescroll;                 // number of pixels to scroll
-  int samples;                    // number of multisamples
-};
-typedef struct mjuiThemeSpacing_ mjuiThemeSpacing;
+typedef struct mjuiThemeSpacing_ {  // UI visualization theme spacing
+  int total;                        // total width
+  int scroll;                       // scrollbar width
+  int label;                        // label width
+  int section;                      // section gap
+  int cornersect;                   // corner radius for section
+  int cornersep;                    // corner radius for separator
+  int itemside;                     // item side gap
+  int itemmid;                      // item middle gap
+  int itemver;                      // item vertical gap
+  int texthor;                      // text horizontal gap
+  int textver;                      // text vertical gap
+  int linescroll;                   // number of pixels to scroll
+  int samples;                      // number of multisamples
+} mjuiThemeSpacing;
 
 
 //---------------------------------- mjuiThemeColor ------------------------------------------------
 
-struct mjuiThemeColor_ {          // UI visualization theme color
+typedef struct mjuiThemeColor_ {  // UI visualization theme color
   float master[3];                // master background
   float thumb[3];                 // scrollbar thumb
   float secttitle[3];             // section title
+  float secttitle2[3];            // section title: bottom color
+  float secttitleuncheck[3];      // section title with unchecked box
+  float secttitleuncheck2[3];     // section title with unchecked box: bottom color
+  float secttitlecheck[3];        // section title with checked box
+  float secttitlecheck2[3];       // section title with checked box: bottom color
   float sectfont[3];              // section font
   float sectsymbol[3];            // section symbol
   float sectpane[3];              // section pane
+  float separator[3];             // separator title
+  float separator2[3];            // separator title: bottom color
   float shortcut[3];              // shortcut background
   float fontactive[3];            // font active
   float fontinactive[3];          // font inactive
@@ -198,8 +213,7 @@ struct mjuiThemeColor_ {          // UI visualization theme color
   float edit[3];                  // edit
   float edit2[3];                 // edit invalid
   float cursor[3];                // edit cursor
-};
-typedef struct mjuiThemeColor_ mjuiThemeColor;
+} mjuiThemeColor;
 
 
 //---------------------------------- mjuiItem ------------------------------------------------------
@@ -228,7 +242,7 @@ struct mjuiItemEdit_ {            // edit-related
 };
 
 
-struct mjuiItem_ {                // UI item
+typedef struct mjuiItem_ {        // UI item
   // common properties
   int type;                       // type (mjtItem)
   char name[mjMAXUINAME];         // name
@@ -236,6 +250,7 @@ struct mjuiItem_ {                // UI item
   void *pdata;                    // data pointer (type-specific)
   int sectionid;                  // id of section containing item
   int itemid;                     // id of item within section
+  int userid;                     // user-supplied id (for event handling)
 
   // type-specific properties
   union {
@@ -247,31 +262,32 @@ struct mjuiItem_ {                // UI item
 
   // internal
   mjrRect rect;                   // rectangle occupied by item
-};
-typedef struct mjuiItem_ mjuiItem;
+  int skip;                       // item skipped due to closed separator
+} mjuiItem;
 
 
 //---------------------------------- mjuiSection ---------------------------------------------------
 
-struct mjuiSection_ {             // UI section
+typedef struct mjuiSection_ {     // UI section
   // properties
   char name[mjMAXUINAME];         // name
-  int state;                      // 0: closed, 1: open
+  int state;                      // section state (mjtSection)
   int modifier;                   // 0: none, 1: control, 2: shift; 4: alt
   int shortcut;                   // shortcut key; 0: undefined
+  int checkbox;                   // 0: none, 1: unchecked, 2: checked
   int nitem;                      // number of items in use
   mjuiItem item[mjMAXUIITEM];     // preallocated array of items
 
   // internal
   mjrRect rtitle;                 // rectangle occupied by title
   mjrRect rcontent;               // rectangle occupied by content
-};
-typedef struct mjuiSection_ mjuiSection;
+  int lastclick;                  // last mouse click over this section
+} mjuiSection;
 
 
 //---------------------------------- mjUI ----------------------------------------------------------
 
-struct mjUI_ {                    // entire UI
+typedef struct mjUI_ {            // entire UI
   // constants set by user
   mjuiThemeSpacing spacing;       // UI theme spacing
   mjuiThemeColor color;           // UI theme color
@@ -283,14 +299,16 @@ struct mjUI_ {                    // entire UI
 
   // UI sizes (framebuffer units)
   int width;                      // width
-  int height;                     // current heigth
+  int height;                     // current height
   int maxheight;                  // height when all sections open
   int scroll;                     // scroll from top of UI
 
-  // mouse focus
+  // mouse focus and count
   int mousesect;                  // 0: none, -1: scroll, otherwise 1+section
   int mouseitem;                  // item within section
   int mousehelp;                  // help button down: print shortcuts
+  int mouseclicks;                // number of mouse clicks over UI
+  int mousesectcheck;             // 0: none, otherwise 1+section
 
   // keyboard focus and edit
   int editsect;                   // 0: none, otherwise 1+section
@@ -303,19 +321,18 @@ struct mjUI_ {                    // entire UI
   // sections
   int nsect;                      // number of sections in use
   mjuiSection sect[mjMAXUISECT];  // preallocated array of sections
-};
-typedef struct mjUI_ mjUI;
+} mjUI;
 
 
 //---------------------------------- mjuiDef -------------------------------------------------------
 
-struct mjuiDef_ {                 // table passed to mjui_add()
+typedef struct mjuiDef_ {         // table passed to mjui_add()
   int type;                       // type (mjtItem); -1: section
   char name[mjMAXUINAME];         // name
   int state;                      // state
   void* pdata;                    // pointer to data
   char other[mjMAXUITEXT];        // string with type-specific properties
-};
-typedef struct mjuiDef_ mjuiDef;
+  int otherint;                   // int with type-specific properties
+} mjuiDef;
 
 #endif  // MUJOCO_MJUI_H_

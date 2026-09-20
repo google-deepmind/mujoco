@@ -22,7 +22,9 @@ from etils import epath
 import mujoco
 from mujoco import mjx
 
-_MJCF = flags.DEFINE_string('mjcf', None, 'path to model', required=True)
+_MJCF = flags.DEFINE_string(
+    'mjcf', None, 'path to model `.xml` or `.mjb`', required=True
+)
 _BASE_PATH = flags.DEFINE_string(
     'base_path', None, 'base path, defaults to mujoco.mjx resource path'
 )
@@ -50,7 +52,10 @@ def _main(argv: Sequence[str]):
   path = epath.resource_path('mujoco.mjx') / 'test_data'
   path = _BASE_PATH.value or path
   f = epath.Path(path) / _MJCF.value
-  m = mujoco.MjModel.from_xml_path(f.as_posix())
+  if f.suffix == '.mjb':
+    m = mujoco.MjModel.from_binary_path(f.as_posix())
+  else:
+    m = mujoco.MjModel.from_xml_path(f.as_posix())
 
   print(f'Rolling out {_NSTEP.value} steps at dt = {m.opt.timestep:.3f}...')
   jit_time, run_time, steps = mjx.benchmark(

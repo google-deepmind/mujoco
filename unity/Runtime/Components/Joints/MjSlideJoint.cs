@@ -35,7 +35,14 @@ namespace Mujoco {
     public MjJointSettings Settings = MjJointSettings.Default;
 
     // World space slide axis.
-    public Vector3 SlideAxis => transform.rotation * Vector3.right;
+    public unsafe Vector3 SlideAxis {
+      get {
+        if (MjScene.InstanceExists) {
+          return MjEngineTool.UnityVector3(MjScene.Instance.Data->xaxis + 3 * MujocoId);
+        }
+        return transform.rotation * Vector3.right;
+      }
+    }
 
     protected override unsafe void OnBindToRuntime(MujocoLib.mjModel_* model, MujocoLib.mjData_* data) {
       base.OnBindToRuntime(model, data);
@@ -53,7 +60,7 @@ namespace Mujoco {
           MjEngineTool.UnityVector3(mjcf.GetVector3Attribute("pos", defaultValue: Vector3.zero));
 
       var rotationAxis =
-          MjEngineTool.UnityVector3(mjcf.GetVector3Attribute("axis", defaultValue: Vector3.right));
+          MjEngineTool.UnityVector3(mjcf.GetVector3Attribute("axis", defaultValue: MjEngineTool.MjVector3Up));
       transform.localRotation = Quaternion.FromToRotation(Vector3.right, rotationAxis);
 
       var rangeValues = mjcf.GetFloatArrayAttribute("range", defaultValue: new float[] { 0, 0 });

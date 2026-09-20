@@ -14,19 +14,21 @@
 
 // Tests for user/user_cache.cc
 
-#include <cstddef>
+#include <cstring>
+#include <memory>
 #include <string>
-#include <utility>
-#include <vector>
+#include <optional>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <mujoco/mujoco.h>
 #include "test/fixture.h"
 #include "src/user/user_cache.h"
+#include "src/user/user_vfs.h"
+#include "src/user/user_resource.h"
 
 namespace mujoco {
 
-using ::testing::ElementsAreArray;
 using ::testing::IsNull;
 using ::testing::NotNull;
 using ::testing::StrEq;
@@ -36,331 +38,217 @@ using CacheTest = MujocoTest;
 namespace {
 
 constexpr int kMaxSize = 100;  // in bytes
+constexpr std::string kText = "Hello World";
+constexpr std::string kTestId = "Test";
+constexpr std::string kModel = "myModel";
+constexpr std::string kFile = "hello.txt";
+
+void CacheText(mjCCache& cache, const std::string& id, const std::string& model,
+               const std::string& name, const std::string& text) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, name.c_str(), text.data(), text.size());
+  mjResource* resource = mju_openResource("", name.c_str(), &vfs, nullptr, 0);
+  std::shared_ptr<const void> data(&text, +[](const void* data) {});
+  cache.Insert(model, id, resource, data, text.size());
+  mju_closeResource(resource);
+  mj_deleteVFS(&vfs);
+}
+
+std::optional<std::string> GetCachedText(mjCCache& cache, const std::string& id,
+                                         const std::string& model,
+                                         const std::string& name,
+                                         const std::string& text) {
+  std::string cached_text;
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, name.c_str(), text.data(), std::strlen(text.c_str()));
+  mjResource* resource = mju_openResource("", name.c_str(), &vfs, nullptr, 0);
+  bool inserted =
+      cache.PopulateData(id, resource, [&cached_text](const void* data) {
+        cached_text = *(static_cast<const std::string*>(data));
+        return true;
+      });
+  mju_closeResource(resource);
+  mj_deleteVFS(&vfs);
+  return inserted ? std::optional<std::string>(cached_text) : std::nullopt;
+}
 
 TEST(CacheTest, SizeTest) {
   mjCCache cache(kMaxSize);
   EXPECT_EQ(cache.Size(), 0);
 }
 
-TEST(CacheTest, HasAssetSuccessTest) {
+TEST(CacheTest, InsertSuccess) {
   mjCCache cache(kMaxSize);
+  CacheText(cache, kTestId, kModel, kFile, kText);
+  auto cached_text = GetCachedText(cache, kTestId, kModel, kFile, kText);
 
-  mjCAsset asset("file.xml", "foo.obj", "now");
-  cache.Insert(asset);
-
-  EXPECT_THAT(*(cache.HasAsset("foo.obj")), StrEq("now"));
+  EXPECT_THAT(cached_text.value(), StrEq(kText));
 }
 
-TEST(CacheTest, HasAssetFailureTest) {
+TEST(CacheTest, InsertFailure) {
   mjCCache cache(kMaxSize);
-
-  mjCAsset asset("file.xml", "foo.obj", "now");
-  cache.Insert(asset);
-
-  EXPECT_THAT(cache.HasAsset("file2.xml"), nullptr);
+  CacheText(cache, kTestId, kModel, kFile, kText);
+  auto cached_text =
+      GetCachedText(cache, "WrongId", kModel, "hello2.txt", kText);
+  EXPECT_EQ(cached_text, std::nullopt);
 }
 
-TEST(CacheTest, AddSuccessTest) {
+TEST(CacheTest, InsertReplace) {
   mjCCache cache(kMaxSize);
-  std::vector<int> v1 = {1, 2, 3};
-  std::vector<double> v2 = {1.0, 2.0, 3.0};
+  const std::string kUpdatedText = "Goodbye World";
+  CacheText(cache, kTestId, kModel, kFile, kText);
+  CacheText(cache, kTestId, kModel, kFile, kUpdatedText);
+  auto cached_text = GetCachedText(cache, kTestId, kModel, kFile, kUpdatedText);
 
-  mjCAsset asset("file.xml", "foo.obj", "now");
-  std::size_t nbytes1 = asset.AddVector("v1", v1);
-  std::size_t nbytes2 = asset.AddVector("v2", v2);
-  cache.Insert(asset);
-
-  ASSERT_EQ(nbytes1, 12);
-  ASSERT_EQ(nbytes2, 24);
-  ASSERT_EQ(cache.Size(), 36);
-}
-
-TEST(CacheTest, AddFailureTest) {
-  mjCCache cache(kMaxSize);
-  std::vector<int> v1 = {1, 2, 3};
-  std::vector<double> v2 = {1.0, 2.0, 3.0};
-
-  mjCAsset asset("file.xml", "foo.obj", "now");
-  asset.AddVector("v1", v1);
-  std::size_t nbytes = asset.AddVector("v1", v2);
-  cache.Insert(asset);
-
-  ASSERT_EQ(nbytes, 0);
-  ASSERT_EQ(cache.Size(), 12);
-}
-
-TEST(CacheTest, InsertReplaceTest) {
-  mjCCache cache(kMaxSize);
-  std::vector<int> v1 = {1, 2, 3};
-  std::vector<double> v2 = {1.0, 2.0, 3.0};
-
-  mjCAsset asset("file.xml", "foo.obj", "now");
-  asset.AddVector("v", v1);
-  cache.Insert(asset);
-
-  mjCAsset asset2("file.xml", "foo.obj", "nower");
-  asset2.AddVector("v", v2);
-  bool inserted = cache.Insert(asset2);
-  EXPECT_TRUE(inserted);
-
-  mjCAsset asset3 = *(cache.Get("foo.obj"));
-  std::vector<double> v3 = asset3.GetVector<double>("v").value();
-  EXPECT_THAT(v3, ElementsAreArray(v2));
-
-  ASSERT_EQ(cache.Size(), 24);
-}
-
-TEST(CacheTest, MoveInsertNewTest) {
-  mjCCache cache(kMaxSize);
-  std::vector<int> v1 = {1, 2, 3};
-  std::vector<double> v2 = {1.0, 2.0, 3.0};
-
-  mjCAsset asset("file.xml", "foo.obj", "now");
-  std::size_t nbytes1 = asset.AddVector("v1", v1);
-  std::size_t nbytes2 = asset.AddVector("v2", v2);
-  cache.Insert(std::move(asset));
-
-  ASSERT_EQ(nbytes1, 12);
-  ASSERT_EQ(nbytes2, 24);
-  ASSERT_EQ(cache.Size(), 36);
-}
-
-TEST(CacheTest, MoveInsertReplaceTest) {
-  mjCCache cache(kMaxSize);
-  std::vector<int> v1 = {1, 2, 3};
-  std::vector<double> v2 = {1.0, 2.0, 3.0};
-
-  mjCAsset asset("file.xml", "foo.obj", "now");
-  asset.AddVector("v", v1);
-  cache.Insert(std::move(asset));
-
-  mjCAsset asset2("file.xml", "foo.obj", "nower");
-  asset2.AddVector("v", v2);
-  bool inserted = cache.Insert(std::move(asset2));
-  EXPECT_TRUE(inserted);
-
-  mjCAsset asset3 = *(cache.Get("foo.obj"));
-  std::vector<double> v3 = asset3.GetVector<double>("v").value();
-  EXPECT_THAT(v3, ElementsAreArray(v2));
-
-  ASSERT_EQ(cache.Size(), 24);
-}
-
-TEST(CacheTest, GetSuccessTest) {
-  mjCCache cache(kMaxSize);
-  std::vector<int> v1 = {1, 2, 3};
-  std::vector<double> v2 = {4.0, 5.0, 6.0};
-  mjCAsset asset("file.xml", "foo.obj", "now");
-  asset.AddVector("v1", v1);
-  asset.AddVector("v2", v2);
-  cache.Insert(asset);
-
-  mjCAsset asset2 = *(cache.Get("foo.obj"));
-
-  std::vector<int> v3 = asset2.GetVector<int>("v1").value();
-  EXPECT_THAT(v3, ElementsAreArray(v1));
-
-  std::vector<double> v4 = asset2.GetVector<double>("v2").value();
-  EXPECT_THAT(v4, ElementsAreArray(v2));
-}
-
-TEST(CacheTest, GetFailueTest) {
-  mjCCache cache(kMaxSize);
-  std::vector<int> v = {1, 2, 3};
-  mjCAsset asset("file.xml", "foo.obj", "now");
-  asset.AddVector("v", v);
-  cache.Insert(asset);
-
-  mjCAsset asset2 = *(cache.Get("foo.obj"));
-  EXPECT_EQ(cache.Get("bar.obj").has_value(), false);
-
-  auto v2 = asset2.GetVector<int>("v2");
-  EXPECT_EQ(v2.has_value(), false);
+  EXPECT_THAT(cached_text.value(), StrEq(kUpdatedText));
 }
 
 // Trim cache based off of access count
-TEST(CacheTest, LimitTest1) {
+TEST(CacheTest, Limit1) {
   mjCCache cache(kMaxSize);
-  EXPECT_THAT(cache.MaxSize(), kMaxSize);
-  std::vector<int> v = {1, 2, 3};
+  EXPECT_THAT(cache.Capacity(), kMaxSize);
 
-  mjCAsset asset1 = mjCAsset("file.xml", "foo.obj", "now");
-  mjCAsset asset2 = mjCAsset("file.xml", "bar.obj", "now");
-  asset1.AddVector("foo.obj", v);
-  asset2.AddVector("bar.obj", v);
-  cache.Insert(asset1);
-  cache.Insert(asset2);
+  CacheText(cache, "foo", "fil.xml", "foo.obj", kText);
+  CacheText(cache, "bar", "fil.xml", "bar.obj", kText);
 
   // access asset foo twice, bar one
-  cache.Get("foo.obj");
-  cache.Get("foo.obj");
-  cache.Get("bar.obj");
+  GetCachedText(cache, "foo", "file.xml", "foo.obj", kText);
+  GetCachedText(cache, "foo", "file.xml", "foo.obj", kText);
+  GetCachedText(cache, "bar", "file.xml", "bar.obj", kText);
 
   // make max size so cache can hold only one asset
-  cache.SetMaxSize(12);
+  cache.SetCapacity(12);
 
   // foo should still be in cache
-  EXPECT_THAT(cache.HasAsset("foo.obj"), NotNull());
+  EXPECT_THAT(cache.HasAsset("foo"), NotNull());
 
   // bar was accessed less, so is removed
-  EXPECT_THAT(cache.HasAsset("bar.obj"), IsNull());
+  EXPECT_THAT(cache.HasAsset("bar"), IsNull());
 }
 
 // Trim cache based off of insert order
-TEST(CacheTest, LimitTest2) {
+TEST(CacheTest, Limit2) {
   mjCCache cache(kMaxSize);
-  std::vector<int> v = {1, 2, 3};
-  mjCAsset asset1("file.xml", "foo.obj", "now");
-  mjCAsset asset2("file.xml", "bar.obj", "now");
-  asset1.AddVector("v", v);
-  asset2.AddVector("v", v);
-
-  cache.Insert(asset1);
-  cache.Insert(asset2);
+  CacheText(cache, "foo", "file.xml", "foo.obj", kText);
+  CacheText(cache, "bar", "file.xml", "bar.obj", kText);
 
   // get each asset once
-  mjCAsset asset3 = *(cache.Get("foo.obj"));
-  mjCAsset asset4 = *(cache.Get("bar.obj"));
+  GetCachedText(cache, "foo", "file.xml", "foo.obj", kText);
+  GetCachedText(cache, "bar", "file.xml", "bar.obj", kText);
 
   // make max size so cache can hold only one asset
-  cache.SetMaxSize(12);
+  cache.SetCapacity(12);
 
   // foo should be gone because it's older
-  EXPECT_THAT(cache.HasAsset("foo.obj"), IsNull());
+  EXPECT_THAT(cache.HasAsset("foo"), IsNull());
 
   // bar should still be in cache
-  EXPECT_THAT(cache.HasAsset("bar.obj"), NotNull());
+  EXPECT_THAT(cache.HasAsset("bar"), NotNull());
 }
 
 // stress test with large asset
-TEST(CacheTest, LimitTest3) {
+TEST(CacheTest, Limit3) {
   mjCCache cache(12);
-  std::vector<int> v1 = {1, 2, 3};
-  std::vector<int> v2 = {1, 2, 3, 4, 5};
-  mjCAsset asset1("file.xml", "foo.obj", "now");
-  mjCAsset asset2("file.xml", "bar.obj", "now");
-  asset1.AddVector("v", v1);
-  asset2.AddVector("v", v2);
-
-  cache.Insert(std::move(asset1));
-  cache.Insert(std::move(asset2));
+  CacheText(cache, "foo", "file.xml", "foo.obj", kText);
+  CacheText(cache, "bar", "file.xml", "bar.obj", kText);
 
   // foo should still be in cache
-  EXPECT_THAT(cache.HasAsset("foo.obj"), NotNull());
+  EXPECT_THAT(cache.HasAsset("foo"), NotNull());
 
   // bar could not be inserted because it's too large
-  EXPECT_THAT(cache.HasAsset("bar.obj"), IsNull());
+  EXPECT_THAT(cache.HasAsset("bar"), IsNull());
 }
 
-TEST(CacheTest, LimitTest4) {
+TEST(CacheTest, Limit4) {
   mjCCache cache(12);
-  std::vector<int> v = {1, 2, 3};
-  mjCAsset asset1("file.xml", "foo.obj", "now");
-  mjCAsset asset2("file.xml", "bar.obj", "now");
-  asset1.AddVector("v", v);
-  asset2.AddVector("v", v);
+  CacheText(cache, "foo", "file.xml", "foo.obj", kText);
+  CacheText(cache, "bar", "file.xml", "bar.obj", kText);
 
-  cache.Insert(std::move(asset1));
-  cache.Insert(std::move(asset2));
-
-  EXPECT_THAT(cache.HasAsset("foo.obj"), NotNull());
+  EXPECT_THAT(cache.HasAsset("foo"), NotNull());
 
   // cache is full, so bar can't be inserted
-  EXPECT_THAT(cache.HasAsset("bar.obj"), IsNull());
+  EXPECT_THAT(cache.HasAsset("bar"), IsNull());
 }
 
-TEST(CacheTest, ResetAllTest) {
+TEST(CacheTest, ResetAll) {
   mjCCache cache(kMaxSize);
-  mjCAsset asset1("file1.xml", "foo.obj", "now");
-  mjCAsset asset2("file2.xml", "bar.obj", "now");
-  cache.Insert(asset1);
-  cache.Insert(asset2);
+  CacheText(cache, "foo", "file1.xml", "foo.obj", kText);
+  CacheText(cache, "bar", "file2.xml", "bar.obj", kText);
 
-  EXPECT_THAT(cache.HasAsset("foo.obj"), NotNull());
-  EXPECT_THAT(cache.HasAsset("bar.obj"), NotNull());
+  EXPECT_THAT(cache.HasAsset("foo"), NotNull());
+  EXPECT_THAT(cache.HasAsset("bar"), NotNull());
 
   cache.Reset();
 
-  EXPECT_THAT(cache.HasAsset("foo.obj"), IsNull());
-  EXPECT_THAT(cache.HasAsset("bar.obj"), IsNull());
+  EXPECT_THAT(cache.HasAsset("foo"), IsNull());
+  EXPECT_THAT(cache.HasAsset("bar"), IsNull());
 }
 
-TEST(CacheTest, ResetModelTest1) {
+TEST(CacheTest, ResetModel1) {
   mjCCache cache(kMaxSize);
-  mjCAsset asset("file1.xml", "foo.obj", "now");
-  mjCAsset asset2("file1.xml", "bar.obj", "now");
-  mjCAsset asset3("file2.xml", "bar.obj", "now");
-  cache.Insert(asset);
-  cache.Insert(asset2);
-  cache.Insert(asset3);
+  CacheText(cache, "foo", "file1.xml", "foo.obj", kText);
+  CacheText(cache, "bar", "file1.xml", "bar.obj", kText);
+  CacheText(cache, "bar", "file2.xml", "bar.obj", kText);
 
   cache.Reset("file2.xml");
 
-  EXPECT_THAT(cache.HasAsset("foo.obj"), NotNull());
-  EXPECT_THAT(cache.HasAsset("bar.obj"), IsNull());
+  EXPECT_THAT(cache.HasAsset("foo"), NotNull());
+  EXPECT_THAT(cache.HasAsset("bar"), IsNull());
 }
 
-TEST(CacheTest, ResetModelTest2) {
+TEST(CacheTest, ResetModel2) {
   mjCCache cache(kMaxSize);
-  mjCAsset asset("file1.xml", "foo.obj", "now");
-  mjCAsset asset2("file2.xml", "foo.obj", "now");
-  mjCAsset asset3("file2.xml", "bar.obj", "now");
-  cache.Insert(asset);
-  cache.Insert(asset2);
-  cache.Insert(asset3);
+  CacheText(cache, "foo", "file1.xml", "foo.obj", kText);
+  CacheText(cache, "foo", "file2.xml", "foo.obj", kText);
+  CacheText(cache, "bar", "file2.xml", "bar.obj", kText);
 
   cache.Reset("file2.xml");
 
-  EXPECT_THAT(cache.HasAsset("foo.obj"), IsNull());
-  EXPECT_THAT(cache.HasAsset("bar.obj"), IsNull());
+  EXPECT_THAT(cache.HasAsset("foo"), IsNull());
+  EXPECT_THAT(cache.HasAsset("bar"), IsNull());
 }
 
-TEST(CacheTest, RemoveModelTest1) {
+TEST(CacheTest, RemoveModel1) {
   mjCCache cache(kMaxSize);
-  mjCAsset asset("file1.xml", "foo.obj", "now");
-  mjCAsset asset2("file1.xml", "bar.obj", "now");
-  mjCAsset asset3("file2.xml", "bar.obj", "now");
-  cache.Insert(asset);
-  cache.Insert(asset2);
-  cache.Insert(asset3);
+  CacheText(cache, "foo", "file1.xml", "foo.obj", kText);
+  CacheText(cache, "bar", "file1.xml", "bar.obj", kText);
+  CacheText(cache, "bar", "file2.xml", "bar.obj", kText);
 
   cache.RemoveModel("file2.xml");
 
-  EXPECT_THAT(cache.HasAsset("foo.obj"), NotNull());
-  EXPECT_THAT(cache.HasAsset("bar.obj"), NotNull());
+  EXPECT_THAT(cache.HasAsset("foo"), NotNull());
+  EXPECT_THAT(cache.HasAsset("bar"), NotNull());
 }
 
-TEST(CacheTest, RemoveModelTest2) {
+TEST(CacheTest, RemoveModel2) {
   mjCCache cache(kMaxSize);
-  mjCAsset asset("file1.xml", "foo.obj", "now");
-  mjCAsset asset2("file2.xml", "bar.obj", "now");
-  cache.Insert(asset);
-  cache.Insert(asset2);
+  CacheText(cache, "foo", "file1.xml", "foo.obj", kText);
+  CacheText(cache, "bar", "file2.xml", "bar.obj", kText);
 
   cache.Reset("file2.xml");
 
-  EXPECT_THAT(cache.HasAsset("foo.obj"), NotNull());
-  EXPECT_THAT(cache.HasAsset("bar.obj"), IsNull());
+  EXPECT_THAT(cache.HasAsset("foo"), NotNull());
+  EXPECT_THAT(cache.HasAsset("bar"), IsNull());
 }
 
-TEST(CacheTest, DeleteAssetSuccessTest) {
+TEST(CacheTest, DeleteAssetSuccess) {
   mjCCache cache(kMaxSize);
-  mjCAsset asset("file1.xml", "foo.obj", "now");
-  cache.Insert(asset);
+  CacheText(cache, "foo", "file.xml", "foo.obj", kText);
 
-  cache.DeleteAsset("foo.obj");
+  cache.DeleteAsset("foo");
 
-  EXPECT_THAT(cache.HasAsset("foo.obj"), IsNull());
+  EXPECT_THAT(cache.HasAsset("foo"), IsNull());
 }
 
-TEST(CacheTest, DeleteAssetFailureTest) {
+TEST(CacheTest, DeleteAssetFailure) {
   mjCCache cache(kMaxSize);
-  mjCAsset asset("file.xml", "foo.obj", "now");
-  cache.Insert(asset);
+  CacheText(cache, "foo", "file.xml", "foo.obj", kText);
 
-  cache.DeleteAsset("bar.obj");
+  cache.DeleteAsset("bar");
 
-  EXPECT_THAT(cache.HasAsset("foo.obj"), NotNull());
+  EXPECT_THAT(cache.HasAsset("foo"), NotNull());
 }
 
 }  // namespace

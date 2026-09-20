@@ -34,6 +34,8 @@ Humanoids
 
    * - Model
      - Preview
+   * - `Unitree G1 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/unitree_g1>`_
+     - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/unitree_g1/g1.png
    * - `Unitree H1 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/unitree_h1>`_
      - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/unitree_h1/h1.png
    * - `Robotis OP3 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/robotis_op3>`_
@@ -74,6 +76,8 @@ Quadrupeds
      - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/google_barkour_v0/barkour_v0.png
    * - `Google Barkour vB <https://github.com/google-deepmind/mujoco_menagerie/tree/main/google_barkour_vb>`_
      - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/google_barkour_vb/barkour_vb.png
+   * - `Boston Dynamics Spot <https://github.com/google-deepmind/mujoco_menagerie/tree/main/boston_dynamics_spot>`_
+     - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/boston_dynamics_spot/spot.png
 
 Grippers & Hands
 ^^^^^^^^^^^^^^^^
@@ -100,6 +104,8 @@ Arms
      - Preview
    * - `Franka Emika Panda <https://github.com/google-deepmind/mujoco_menagerie/tree/main/franka_emika_panda>`_
      - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/franka_emika_panda/panda.png
+   * - `Franka FR3 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/franka_fr3>`_
+     - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/franka_fr3/fr3.png
    * - `Universal Robots UR5e <https://github.com/google-deepmind/mujoco_menagerie/tree/main/universal_robots_ur5e>`_
      - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/universal_robots_ur5e/ur5e.png
    * - `Universal Robots UR10e <https://github.com/google-deepmind/mujoco_menagerie/tree/main/universal_robots_ur10e>`_
@@ -114,6 +120,8 @@ Arms
      - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/ufactory_lite6/lite6.png
    * - `ViperX 300 6DOF <https://github.com/google-deepmind/mujoco_menagerie/tree/main/trossen_vx300s>`_
      - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/trossen_vx300s/vx300s.png
+   * - `WidowX 250 6DOF <https://github.com/google-deepmind/mujoco_menagerie/tree/main/trossen_wx250s>`_
+     - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/trossen_wx250s/wx250s.png
    * - `ALOHA 2 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/aloha>`_
      - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/aloha/aloha.png
    * - `Unitree Z1 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/unitree_z1>`_
@@ -143,3 +151,5 @@ Biomechanical
      - Preview
    * - `Fruitfly <https://github.com/google-deepmind/mujoco_menagerie/tree/main/flybody>`_
      - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/flybody/flybody.png
+   * - `MS-Human-700 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/ms_human_700>`_
+     - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/ms_human_700/ms_human_700.png

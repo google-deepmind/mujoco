@@ -1,0 +1,13 @@
+<mujoco model="parent_merge_unmergable">
+  <compiler conflict="merge"/>
+  <option timestep="0.005" iterations="50" gravity="0 0 -10"/>
+  <asset>
+    <model name="child" file="child_unmergable.xml"/>
+  </asset>
+  <worldbody>
+    <body name="parent_body">
+      <geom name="parent_geom" size="2"/>
+      <attach model="child" body="child_body" prefix="child/"/>
+    </body>
+  </worldbody>
+</mujoco>

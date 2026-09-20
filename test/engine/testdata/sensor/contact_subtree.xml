@@ -1,0 +1,30 @@
+<mujoco model="contact subtree">
+  <asset>
+    <model file="humanoid.xml"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 5"/>
+    <geom name="floor" type="plane" size="2 2 .01"/>
+
+    <!-- two horizontal humanoids, in the air, one above the other -->
+    <frame pos="-.5 0 1.2" euler="0 90 0">
+      <attach model="Humanoid" body="torso" prefix="1"/>
+    </frame>
+    <frame pos="-.5 0 0.5" euler="0 90 -90">
+      <attach model="Humanoid" body="torso" prefix="2"/>
+    </frame>
+  </worldbody>
+
+  <sensor>
+    <contact name="all"/>
+    <contact name="w_t1" body1="world" subtree2="1torso"/>
+    <contact name="w_t2" body1="world" subtree2="2torso"/>
+    <contact name="t1" subtree1="1torso"/>
+    <contact name="t2" subtree1="2torso"/>
+    <contact name="t1_t1" subtree1="1torso" subtree2="1torso"/>
+    <contact name="t2_t2" subtree1="2torso" subtree2="2torso"/>
+    <contact name="t1_t2" subtree1="1torso" subtree2="2torso"/>
+    <contact name="t2_t1" subtree1="2torso" subtree2="1torso"/>
+  </sensor>
+</mujoco>

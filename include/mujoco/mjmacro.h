@@ -15,17 +15,6 @@
 #ifndef MUJOCO_MJMACRO_H_
 #define MUJOCO_MJMACRO_H_
 
-// include asan interface header, or provide stubs for poison/unpoison macros when not using asan
-#ifdef ADDRESS_SANITIZER
-  #include <sanitizer/asan_interface.h>
-#elif defined(_MSC_VER)
-  #define ASAN_POISON_MEMORY_REGION(addr, size)
-  #define ASAN_UNPOISON_MEMORY_REGION(addr, size)
-#else
-  #define ASAN_POISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
-  #define ASAN_UNPOISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
-#endif
-
 // max and min (use only for primitive types)
 #define mjMAX(a, b) (((a) > (b)) ? (a) : (b))
 #define mjMIN(a, b) (((a) < (b)) ? (a) : (b))

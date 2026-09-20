@@ -9,7 +9,7 @@
 
 This package is a re-implementation of the
 [MuJoCo physics engine](https://github.com/google-deepmind/mujoco) in
-[JAX](https://github.com/google/jax). This library is developed and maintained
+[JAX](https://github.com/jax-ml/jax). This library is developed and maintained
 by Google DeepMind, and is kept up-to-date with the latest developments in
 MuJoCo itself.
 

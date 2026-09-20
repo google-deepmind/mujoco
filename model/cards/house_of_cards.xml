@@ -1,0 +1,301 @@
+<mujoco model="House of cards">
+  <compiler assetdir="assets"/>
+
+  <!-- meansize is hand-set: the heuristic sees card half-diagonals (~8cm),
+       far coarser than the contact and gap scale of the model. -->
+  <statistic extent="0.35" center="0 0 0.105" meansize=".01"/>
+
+  <visual>
+    <global azimuth="150" elevation="-15"/>
+    <map force=".002"/>
+  </visual>
+
+  <!-- Frictional stability requires elliptic cones and large impratio. -->
+  <!-- Box-only cards (no edge capsules), soft contacts (a stiffer solref
+       bounces this thin stack apart), over-damped (dampratio 3): the ringing
+       of a critically damped contact is what eventually topples the apex
+       tent, and with it damped the house stands at timesteps up to 3 ms.
+       noslip_iterations=2 removes the slow frictional creep; with the
+       full-footprint boxes and the pre-settled base it no longer overshoots.
+       It is also the only thing here that costs real time: set noslip to 0
+       for real-time simulation, at the price of some creep. -->
+  <option timestep="2e-3" integrator="implicitfast" density="1.225" viscosity="1.8e-5" cone="elliptic" impratio="10" noslip_iterations="2"/>
+
+  <asset>
+    <texture name="ibl" type="cube" builtin="gradient" rgb1=".25 .3 .4" rgb2=".5 .45 .4" width="32" height="32"/>
+    <texture type="skybox" builtin="gradient" rgb1=".08 .1 .16" rgb2=".25 .28 .33" width="32" height="512"/>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".1 .2 .3" rgb2=".2 .3 .4" width="100" height="100"/>
+    <material name="grid" texture="grid" texrepeat="8 8" texuniform="true" reflectance="0.06"/>
+
+    <mesh file="card.obj"/>
+
+    <texture type="2d" file="ace_of_spades.png"/>
+    <material name="ace_of_spades" texture="ace_of_spades"/>
+
+    <texture type="2d" file="ace_of_hearts.png"/>
+    <material name="ace_of_hearts" texture="ace_of_hearts"/>
+
+    <texture type="2d" file="ace_of_clubs.png"/>
+    <material name="ace_of_clubs" texture="ace_of_clubs"/>
+
+    <texture type="2d" file="ace_of_diamonds.png"/>
+    <material name="ace_of_diamonds" texture="ace_of_diamonds"/>
+
+    <texture type="2d" file="king_of_spades.png"/>
+    <material name="king_of_spades" texture="king_of_spades"/>
+
+    <texture type="2d" file="king_of_hearts.png"/>
+    <material name="king_of_hearts" texture="king_of_hearts"/>
+
+    <texture type="2d" file="king_of_clubs.png"/>
+    <material name="king_of_clubs" texture="king_of_clubs"/>
+
+    <texture type="2d" file="king_of_diamonds.png"/>
+    <material name="king_of_diamonds" texture="king_of_diamonds"/>
+
+    <texture type="2d" file="10_of_spades.png"/>
+    <material name="10_of_spades" texture="10_of_spades"/>
+
+    <texture type="2d" file="10_of_hearts.png"/>
+    <material name="10_of_hearts" texture="10_of_hearts"/>
+
+    <texture type="2d" file="10_of_diamonds.png"/>
+    <material name="10_of_diamonds" texture="10_of_diamonds"/>
+
+    <texture type="2d" file="queen_of_spades.png"/>
+    <material name="queen_of_spades" texture="queen_of_spades"/>
+
+    <texture type="2d" file="queen_of_hearts.png"/>
+    <material name="queen_of_hearts" texture="queen_of_hearts"/>
+
+    <texture type="2d" file="queen_of_clubs.png"/>
+    <material name="queen_of_clubs" texture="queen_of_clubs"/>
+
+    <texture type="2d" file="queen_of_diamonds.png"/>
+    <material name="queen_of_diamonds" texture="queen_of_diamonds"/>
+
+    <texture type="2d" file="jack_of_spades.png"/>
+    <material name="jack_of_spades" texture="jack_of_spades"/>
+
+    <texture type="2d" file="jack_of_hearts.png"/>
+    <material name="jack_of_hearts" texture="jack_of_hearts"/>
+
+    <texture type="2d" file="9_of_spades.png"/>
+    <material name="9_of_spades" texture="9_of_spades"/>
+
+    <texture type="2d" file="9_of_hearts.png"/>
+    <material name="9_of_hearts" texture="9_of_hearts"/>
+
+    <texture type="2d" file="jack_of_clubs.png"/>
+    <material name="jack_of_clubs" texture="jack_of_clubs"/>
+
+    <texture type="2d" file="jack_of_diamonds.png"/>
+    <material name="jack_of_diamonds" texture="jack_of_diamonds"/>
+
+    <texture type="2d" file="8_of_spades.png"/>
+    <material name="8_of_spades" texture="8_of_spades"/>
+
+    <texture type="2d" file="8_of_hearts.png"/>
+    <material name="8_of_hearts" texture="8_of_hearts"/>
+
+    <texture type="2d" file="7_of_spades.png"/>
+    <material name="7_of_spades" texture="7_of_spades"/>
+
+    <texture type="2d" file="black_joker.png"/>
+    <material name="black_joker" texture="black_joker"/>
+
+    <texture type="2d" file="red_joker.png"/>
+    <material name="red_joker" texture="red_joker"/>
+  </asset>
+
+  <default>
+    <geom friction="0.7" solref="0.005 3" solimp="0.95 0.99 1e-4"/>
+    <default class="card">
+      <geom type="mesh" mesh="card" mass="2e-3" contype="0" conaffinity="0"/>
+    </default>
+    <!-- Collision boxes at the full card footprint (half-extents 0.047 x 0.032).
+         An earlier capsule-perimeter version inset the box by the capsule radius
+         (0.35 mm); dropping the capsules left the inset, floating the cards
+         ~0.35 mm apart, so the box is restored to the true footprint here. -->
+    <default class="collision">
+      <geom type="box" size="0.047 0.032 0.00035" mass="0" group="3"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light cutoff="40" pos="0 1 1" dir="0 -1 -2" ambient=".2 .2 .2" softness="1" intensity="150000"/>
+    <light cutoff="40" pos="0 -1 1" dir="0 1 -2" softness="1" intensity="60000"/>
+    <light type="image" texture="ibl" intensity="7500"/>
+
+    <geom type="plane" size="1.5 1.5 .01" material="grid"/>
+
+    <!-- Base card poses (levels 1-3) are baked at their settled equilibrium
+         (quat, not euler), so the house loads at rest instead of bedding in;
+         that bedding-in was what tipped the apex tent. -->
+    <!-- Level 1: 4 leaning pairs, apexes at y = -0.105, -0.035, 0.035, 0.105. -->
+    <body name="ace_of_spades" pos="0.0002 -0.11875 0.029" quat="0.843388 0.537298 -0.00145353 0.00228159">
+      <freejoint/>
+      <geom class="card" material="ace_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="ace_of_hearts" pos="-0.0001 -0.09125 0.029" quat="0.84339 -0.537298 -0.00112532 -0.00176639">
+      <freejoint/>
+      <geom class="card" material="ace_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="ace_of_clubs" pos="0.0003 -0.04875 0.029" quat="0.843391 0.537299 -0.0007971 0.0012512">
+      <freejoint/>
+      <geom class="card" material="ace_of_clubs"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="ace_of_diamonds" pos="-0.0002 -0.02125 0.029" quat="0.843388 -0.537297 -0.00154731 -0.00242879">
+      <freejoint/>
+      <geom class="card" material="ace_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="king_of_spades" pos="0.0001 0.02125 0.029" quat="0.843389 0.537298 -0.00121909 0.00191359">
+      <freejoint/>
+      <geom class="card" material="king_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="king_of_hearts" pos="-0.0003 0.04875 0.029" quat="0.84339 -0.537299 -0.000890876 -0.0013984">
+      <freejoint/>
+      <geom class="card" material="king_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="king_of_clubs" pos="0.0002 0.09125 0.029" quat="0.84339 0.537299 -0.00103154 0.00161919">
+      <freejoint/>
+      <geom class="card" material="king_of_clubs"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="king_of_diamonds" pos="-0.0002 0.11875 0.029" quat="0.843389 -0.537298 -0.00135976 -0.00213439">
+      <freejoint/>
+      <geom class="card" material="king_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <!-- Level 1 deck: flat cards spanning the apexes, odd cards bridge on their neighbors. -->
+    <body name="10_of_spades" pos="-0.0001 -0.07 0.05848" quat="0.706181 0 0 0.708032">
+      <freejoint/>
+      <geom class="card" material="10_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="10_of_hearts" pos="0.0003 0 0.05928" quat="0.708771 0 0 0.705439">
+      <freejoint/>
+      <geom class="card" material="10_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="10_of_diamonds" pos="-0.0003 0.07 0.05848" quat="0.70581 0 0 0.708401">
+      <freejoint/>
+      <geom class="card" material="10_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <!-- Level 2: 3 leaning pairs, apexes at y = -0.07, 0, 0.07. -->
+    <body name="queen_of_spades" pos="0.0001 -0.08375 0.08855" quat="0.84339 0.537299 0.000843988 -0.0013248">
+      <freejoint/>
+      <geom class="card" material="queen_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="queen_of_hearts" pos="0.0002 -0.05625 0.08855" quat="0.843388 -0.537298 0.00150042 0.00235519">
+      <freejoint/>
+      <geom class="card" material="queen_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="queen_of_clubs" pos="-0.0002 -0.01375 0.08855" quat="0.843389 0.537298 0.0011722 -0.00183999">
+      <freejoint/>
+      <geom class="card" material="queen_of_clubs"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="queen_of_diamonds" pos="0.0001 0.01375 0.08855" quat="0.843389 -0.537298 0.00131287 0.00206079">
+      <freejoint/>
+      <geom class="card" material="queen_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="jack_of_spades" pos="-0.0001 0.05625 0.08855" quat="0.843391 0.537299 0.000750212 -0.0011776">
+      <freejoint/>
+      <geom class="card" material="jack_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="jack_of_hearts" pos="0.0003 0.08375 0.08855" quat="0.84339 -0.537299 0.00107843 0.00169279">
+      <freejoint/>
+      <geom class="card" material="jack_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <!-- Level 2 deck: flat cards spanning the apexes, odd cards bridge on their neighbors. -->
+    <body name="9_of_spades" pos="-0.0003 -0.035 0.11803" quat="0.709017 0 0 0.705191">
+      <freejoint/>
+      <geom class="card" material="9_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="9_of_hearts" pos="0.0002 0.035 0.11883" quat="0.705933 0 0 0.708278">
+      <freejoint/>
+      <geom class="card" material="9_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <!-- Level 3: 2 leaning pairs, apexes at y = -0.035, 0.035. -->
+    <body name="jack_of_clubs" pos="-0.0001 -0.04875 0.1481" quat="0.84339 0.537299 0.00103154 -0.00161919">
+      <freejoint/>
+      <geom class="card" material="jack_of_clubs"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="jack_of_diamonds" pos="-0.0002 -0.02125 0.1481" quat="0.843389 -0.537298 0.00140665 0.00220799">
+      <freejoint/>
+      <geom class="card" material="jack_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="8_of_spades" pos="0.0001 0.02125 0.1481" quat="0.843391 0.537299 0.0007971 -0.0012512">
+      <freejoint/>
+      <geom class="card" material="8_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="8_of_hearts" pos="-0.0003 0.04875 0.1481" quat="0.843389 -0.537298 0.0011722 0.00183999">
+      <freejoint/>
+      <geom class="card" material="8_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <!-- Level 3 deck: flat cards spanning the apexes, odd cards bridge on their neighbors. -->
+    <body name="7_of_spades" pos="0.0003 0 0.17758" quat="0.708832 0 0 0.705377">
+      <freejoint/>
+      <geom class="card" material="7_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <!-- Level 4: the apex tent. The two jokers carry a tiny OPPOSITE z-yaw
+         (+-0.5 deg): aligned, their top edges tie parallel and slip; crossed at
+         a shallow angle they catch at a point. Sign matters, and the stable
+         window is sub-degree (>=1.6 over-rotates, <=0.2 ties). -->
+    <body name="black_joker" pos="-0.0001 -0.01375 0.20685" euler="65 0 0.5">
+      <freejoint/>
+      <geom class="card" material="black_joker"/>
+      <geom class="collision"/>
+    </body>
+
+    <body name="red_joker" pos="0.0002 0.01375 0.20685" euler="-65 0 -0.5">
+      <freejoint/>
+      <geom class="card" material="red_joker"/>
+      <geom class="collision"/>
+    </body>
+  </worldbody>
+</mujoco>

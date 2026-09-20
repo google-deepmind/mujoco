@@ -14,21 +14,21 @@
 
 #include "engine/engine_vis_interact.h"
 
-#include <math.h>
 #include <stddef.h>
 
 #include <mujoco/mjdata.h>
-#include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_core_smooth.h"
-#include "engine/engine_io.h"
+#include "engine/engine_core_util.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_ray.h"
-#include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
+#include "engine/engine_vis_visualize.h"
 
 // transform pose from room to model space
 void mjv_room2model(mjtNum* modelpos, mjtNum* modelquat, const mjtNum* roompos,
@@ -64,7 +64,6 @@ void mjv_room2model(mjtNum* modelpos, mjtNum* modelquat, const mjtNum* roompos,
 }
 
 
-
 // transform pose from model to room space
 void mjv_model2room(mjtNum* roompos, mjtNum* roomquat, const mjtNum* modelpos,
                     const mjtNum* modelquat, const mjvScene* scn) {
@@ -94,7 +93,6 @@ void mjv_model2room(mjtNum* roompos, mjtNum* roomquat, const mjtNum* modelpos,
     mju_copy4(roomquat, modelquat);
   }
 }
-
 
 
 // get camera info in model space: average left and right OpenGL cameras
@@ -170,7 +168,6 @@ void mjv_cameraInModel(mjtNum* headpos, mjtNum* forward, mjtNum* up, const mjvSc
 }
 
 
-
 // get camera info in room space: average left and right OpenGL cameras
 void mjv_cameraInRoom(mjtNum* headpos, mjtNum* forward, mjtNum* up, const mjvScene* scn) {
   mjtNum pos[3], fwd[3], u[3];
@@ -220,28 +217,53 @@ void mjv_cameraInRoom(mjtNum* headpos, mjtNum* forward, mjtNum* up, const mjvSce
 }
 
 
-
 // get frustum height at unit distance from camera; average left and right OpenGL cameras
 mjtNum mjv_frustumHeight(const mjvScene* scn) {
-  mjtNum height;
+  const mjvGLCamera* cam1 = scn->camera;
+  const mjvGLCamera* cam2 = scn->camera + 1;
 
-  // check znear
-  if (scn->camera[0].frustum_near < mjMINVAL || scn->camera[1].frustum_near < mjMINVAL) {
-    mjERROR("mjvScene frustum_near too small");
+  if (cam1->orthographic != cam2->orthographic) {
+    mjERROR("cannot average frustums of perspective and orthographic cameras");
   }
 
-  // add normalized height for left and right cameras
-  height = (scn->camera[0].frustum_top-scn->camera[0].frustum_bottom)/scn->camera[0].frustum_near +
-           (scn->camera[1].frustum_top-scn->camera[1].frustum_bottom)/scn->camera[1].frustum_near;
+  // get height
+  mjtNum height;
+  if (!cam1->orthographic) {
+    // check znear
+    if (cam1->frustum_near < mjMINVAL || cam2->frustum_near < mjMINVAL) {
+      mjERROR("mjvScene frustum_near too small");
+    }
+
+    // add normalized height for left and right cameras
+    height = (cam1->frustum_top - cam1->frustum_bottom) / cam1->frustum_near +
+             (cam2->frustum_top - cam2->frustum_bottom) / cam2->frustum_near;
+  } else {
+    // add height for left and right cameras
+    height = (cam1->frustum_top - cam1->frustum_bottom) +
+             (cam2->frustum_top - cam2->frustum_bottom);
+  }
 
   // average
   return 0.5*height;
 }
 
 
+static mjtNum cameraFrustumHeight(const mjModel* m, const mjvCamera* cam) {
+  float zclip[2] = {0, 0}, zver[2] = {0, 0};
+  mjv_cameraFrustum(zver, NULL, zclip, m, cam);
+  if (cam->orthographic) {
+    return (zver[1] + zver[0]);
+  } else {
+    if (zclip[0] < mjMINVAL) {
+      mjERROR("mjvScene frustum_near too small");
+    }
+    return (zver[1] + zver[0]) / zclip[0];
+  }
+}
+
 
 // rotate 3D vec in horizontal plane by angle between (0,1) and (forward_x,forward_y)
-MJAPI void mjv_alignToCamera(mjtNum* res, const mjtNum* vec, const mjtNum* forward) {
+void mjv_alignToCamera(mjtNum* res, const mjtNum* vec, const mjtNum* forward) {
   mjtNum xaxis[2], yaxis[2];
 
   // forward-aligned y-axis
@@ -257,7 +279,6 @@ MJAPI void mjv_alignToCamera(mjtNum* res, const mjtNum* vec, const mjtNum* forwa
   res[1] = vec[0]*xaxis[1] + vec[1]*yaxis[1];
   res[2] = vec[2];
 }
-
 
 
 // convert 2D mouse motion to z-aligned 3D world coordinates
@@ -279,12 +300,14 @@ static void convert2D(mjtNum* res, int action, mjtNum dx, mjtNum dy, const mjtNu
     break;
 
   case mjMOUSE_MOVE_V:
+  case mjMOUSE_MOVE_V_REL:
     vec[0] = dx;
     vec[1] = 0;
     vec[2] = -dy;
     break;
 
   case mjMOUSE_MOVE_H:
+  case mjMOUSE_MOVE_H_REL:
     vec[0] = dx;
     vec[1] = -dy;
     vec[2] = 0;
@@ -302,14 +325,13 @@ static void convert2D(mjtNum* res, int action, mjtNum dx, mjtNum dy, const mjtNu
 }
 
 
-
 // move camera with mouse; action is mjtMouse
-void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
-                    const mjvScene* scn, mjvCamera* cam) {
-  mjtNum headpos[3], forward[3];
+void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy, mjvCamera* cam) {
+  mjtNum headpos[3], forward[3], up[3], right[3];
   mjtNum vec[3], dif[3], scl;
 
   // fixed camera: nothing to do
+  // note: mjv_cameraFrame, which we use below, requires mjData for non-fixed camera
   if (cam->type == mjCAMERA_FIXED) {
     return;
   }
@@ -330,19 +352,60 @@ void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
     }
 
     // get camera info and align
-    mjv_cameraInModel(headpos, forward, NULL, scn);
+    mjv_cameraFrame(headpos, forward, NULL, NULL, NULL, cam);
     convert2D(vec, action, reldx, reldy, forward);
 
     // compute scaling: rendered lookat displacement = mouse displacement
     mju_sub3(dif, cam->lookat, headpos);
-    scl = mjv_frustumHeight(scn) * mju_dot3(dif, forward);
+    scl = cameraFrustumHeight(m, cam) * mju_dot3(dif, forward);
+
+    // multiply by mystery coefficient TODO: b/346130949
+    if (cam->orthographic) scl *= 0.15;
 
     // move lookat point in opposite direction
     mju_addToScl3(cam->lookat, vec, -scl);
     break;
 
+  case mjMOUSE_TURN_V:
+  case mjMOUSE_TURN_H:
+    if (cam->type == mjCAMERA_TRACKING) {
+      return;
+    }
+
+    mjv_cameraFrame(headpos, forward, NULL, NULL, NULL, cam);
+    if (action == mjMOUSE_TURN_H) {
+      cam->azimuth -= reldx * 180.0;
+    }
+    if (action == mjMOUSE_TURN_V) {
+      cam->elevation -= reldy * 180.0;
+    }
+    mjv_cameraFrame(NULL, forward, NULL, NULL, NULL, cam);
+
+    // move lookat point so that camera faces new direction
+    mju_addScl3(cam->lookat, headpos, forward, cam->distance);
+    break;
+
   case mjMOUSE_ZOOM:
     cam->distance -= mju_log(1 + cam->distance/m->stat.extent/3) * reldy * 9 * m->stat.extent;
+    break;
+
+  case mjMOUSE_MOVE_V_REL:
+  case mjMOUSE_MOVE_H_REL:
+    // do not move lookat point of tracking camera
+    if (cam->type == mjCAMERA_TRACKING) {
+      return;
+    }
+
+    mjv_cameraFrame(headpos, forward, up, NULL, NULL, cam);
+    mju_cross(right, forward, up);
+
+    // y-axis movement moves forward/backward (ie. camera dolly) on horizontal plane or up/down
+    // (ie. camera pedestal) on vertical plane
+    mju_addToScl3(cam->lookat, (action == mjMOUSE_MOVE_V_REL) ? up : forward, reldy);
+
+    // x-axis movement strafes left/right (ie. camera truck)
+    mju_addToScl3(cam->lookat, right, reldx);
+
     break;
 
   default:
@@ -371,11 +434,15 @@ void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
 }
 
 
-
 // move perturb object with mouse; action is mjtMouse
 void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx,
                      mjtNum reldy, const mjvScene* scn, mjvPerturb* pert) {
+  const mjtNum xaxis[3] = {1, 0, 0};
+  const mjtNum yaxis[3] = {0, 1, 0};
+  const mjtNum zaxis[3] = {0, 0, 1};
+
   int sel = pert->select;
+  const mjtNum* xmat = d->xmat+9*sel;
   mjtNum forward[3], vec[3], scl, q1[4], xiquat[4];
 
   // get camera info and align
@@ -386,8 +453,27 @@ void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx
   switch ((mjtMouse) action) {
   case mjMOUSE_MOVE_V:
   case mjMOUSE_MOVE_H:
+    // move along world-space horizontal/vertical planes relative to camera
     mju_addToScl3(pert->refpos, vec, pert->scale);
     mju_addToScl3(pert->refselpos, vec, pert->scale);
+    break;
+
+  case mjMOUSE_MOVE_V_REL:
+  case mjMOUSE_MOVE_H_REL:
+    // move along object's local coordinate frame
+    if (action == mjMOUSE_MOVE_H_REL) {
+      mju_mulMatVec3(vec, xmat, xaxis);
+      mju_addToScl3(pert->refpos, vec, pert->scale * reldy);
+      mju_addToScl3(pert->refselpos, vec, pert->scale * reldy);
+    } else {
+      mju_mulMatVec3(vec, xmat, zaxis);
+      mju_addToScl3(pert->refpos, vec, pert->scale * reldy);
+      mju_addToScl3(pert->refselpos, vec, pert->scale * reldy);
+    }
+
+    mju_mulMatVec3(vec, xmat, yaxis);
+    mju_addToScl3(pert->refpos, vec, pert->scale * reldx);
+    mju_addToScl3(pert->refselpos, vec, pert->scale * reldx);
     break;
 
   case mjMOUSE_ROTATE_V:
@@ -438,7 +524,6 @@ void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx
 }
 
 
-
 // move model with mouse; action is mjtMouse
 void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
                    const mjtNum roomup[3], mjvScene* scn) {
@@ -481,19 +566,21 @@ void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
     // get current model rotation
     mju_f2n(rotate, scn->rotate, 4);
 
-    // compose rotation, normalize and and set
+    // compose rotation, normalize and set
     mju_mulQuat(result, quat, rotate);
     mju_normalize4(result);
     mju_n2f(scn->rotate, result, 4);
     break;
 
   case mjMOUSE_MOVE_V:
+  case mjMOUSE_MOVE_V_REL:
     for (int i=0; i < 3; i++) {
       scn->translate[i] += (float)(roomright[i]*reldx - roomup[i]*reldy) * m->stat.extent;
     }
     break;
 
   case mjMOUSE_MOVE_H:
+  case mjMOUSE_MOVE_H_REL:
     for (int i=0; i < 3; i++) {
       scn->translate[i] += (float)(roomright[i]*reldx - roomforward[i]*reldy) * m->stat.extent;
     }
@@ -514,7 +601,6 @@ void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
 }
 
 
-
 // copy perturb pos,quat from selected body; set scale for perturbation
 void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPerturb* pert) {
   mj_markStack(d);
@@ -523,8 +609,9 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
   int sel = pert->select;
   mjtNum headpos[3], forward[3], dif[3];
 
-  mjtNum* jac = mj_stackAllocNum(d, 3*nv);
-  mjtNum* jacM2 = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jac = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jacM2 = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* sqrtInvD = mjSTACKALLOC(d, nv, mjtNum);
 
   // invalid selected body: return
   if (sel <= 0 || sel >= m->nbody) {
@@ -534,12 +621,15 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
 
   // compute selection point in world coordinates
   mjtNum selpos[3];
-  mju_rotVecMat(selpos, pert->localpos, d->xmat+9*sel);
+  mju_mulMatVec3(selpos, d->xmat+9*sel, pert->localpos);
   mju_addTo3(selpos, d->xpos+3*sel);
 
   // compute average spatial inertia at selection point
+  for (int i=0; i < nv; i++) {
+    sqrtInvD[i] = mju_sqrt(d->qLDiagInv[i]);
+  }
   mj_jac(m, d, jac, NULL, selpos, sel);
-  mj_solveM2(m, d, jacM2, jac, 3);
+  mj_solveM2(m, d, jacM2, jac, sqrtInvD, 3);
   mjtNum invmass = mju_dot(jacM2+0*nv, jacM2+0*nv, nv) +
                    mju_dot(jacM2+1*nv, jacM2+1*nv, nv) +
                    mju_dot(jacM2+2*nv, jacM2+2*nv, nv);
@@ -563,9 +653,11 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
   mju_sub3(dif, pert->refselpos, headpos);
   pert->scale = mjv_frustumHeight(scn) * mju_dot3(dif, forward);
 
+  // multiply by mystery coefficient TODO: b/346130949
+  if (scn->camera[0].orthographic) pert->scale *= 0.15;
+
   mj_freeStack(d);
 }
-
 
 
 // set perturb pos,quat in d->mocap when selected body is mocap, and in d->qpos otherwise
@@ -621,7 +713,6 @@ void mjv_applyPerturbPose(const mjModel* m, mjData* d, const mjvPerturb* pert, i
 }
 
 
-
 // set perturb force,torque in d->xfrc_applied, if selected body is dynamic
 void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert) {
   int sel = pert->select;
@@ -648,7 +739,7 @@ void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert) 
   if (((pert->active | pert->active2) & mjPERT_TRANSLATE)) {
     // compute selection point in world coordinates
     mjtNum selpos[3];
-    mju_rotVecMat(selpos, pert->localpos, d->xmat+9*sel);
+    mju_mulMatVec3(selpos, d->xmat+9*sel, pert->localpos);
     mju_addTo3(selpos, d->xpos+3*sel);
 
     // displacement of selection point from reference point
@@ -670,7 +761,7 @@ void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert) 
     mju_addTo3(svel, body_linvel);
 
     // add critical damping force of selection point
-    mju_addToScl3(force, svel, -sqrtf(stiffness)*pert->localmass);
+    mju_addToScl3(force, svel, -mju_sqrt(stiffness)*pert->localmass);
 
     // torque on body com due to force
     mju_cross(torque, moment_arm, force);
@@ -678,7 +769,7 @@ void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert) 
     // add critically damped torsional torque along displacement axis
     stiffness = m->vis.map.stiffnessrot;
     mju_normalize3(diff);
-    mju_addToScl3(torque, diff, -sqrtf(stiffness)*inertia*mju_dot3(diff, body_rotvel));
+    mju_addToScl3(torque, diff, -mju_sqrt(stiffness)*inertia*mju_dot3(diff, body_rotvel));
   }
 
   if (((pert->active | pert->active2) & mjPERT_ROTATE)) {
@@ -689,10 +780,9 @@ void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert) 
     mju_negQuat(xiquat, xiquat);
     mju_mulQuat(difquat, pert->refquat, xiquat);
     mju_quat2Vel(torque, difquat, 1.0/(stiffness*inertia));
-    mju_addToScl3(torque, body_rotvel, -sqrtf(stiffness)*inertia);
+    mju_addToScl3(torque, body_rotvel, -mju_sqrt(stiffness)*inertia);
   }
 }
-
 
 
 // return the average of two OpenGL cameras
@@ -733,10 +823,93 @@ mjvGLCamera mjv_averageCamera(const mjvGLCamera* cam1, const mjvGLCamera* cam2) 
   cam.frustum_near   = 0.5f * (cam1->frustum_near + cam2->frustum_near);
   cam.frustum_far    = 0.5f * (cam1->frustum_far + cam2->frustum_far);
 
+  if (cam1->orthographic != cam2->orthographic) {
+    mjERROR("cannot average perspective and orthographic cameras");
+  } else {
+    cam.orthographic = cam1->orthographic;
+  }
+
   return cam;
 }
 
 
+// converts a mjvCamera to a mjvGLCamera
+mjvGLCamera mjv_camera2GLCamera(const mjModel* model, const mjData* data,
+                                const mjvCamera* mjv_camera) {
+  mjvGLCamera gl_camera;
+  gl_camera.orthographic = model->vis.global.orthographic;
+  if (mjv_camera->type == mjCAMERA_FIXED) {
+    const int cid = mjv_camera->fixedcamid;
+    if (cid >= 0 &&  cid < model->ncam) {
+      gl_camera.orthographic = model->cam_projection[cid] == mjPROJ_ORTHOGRAPHIC;
+    }
+  }
+
+  mjtNum headpos[3], forward[3], up[3];
+  mjv_cameraFrame(headpos, forward, up, NULL, data, mjv_camera);
+  for (int i = 0; i < 3; i++) {
+    gl_camera.pos[i] = (float)(headpos[i]);
+    gl_camera.forward[i] = (float)forward[i];
+    gl_camera.up[i] = (float)up[i];
+  }
+
+  float zver[2], zhor[2], zclip[2];
+  mjv_cameraFrustum(zver, zhor, zclip, model, mjv_camera);
+  gl_camera.frustum_top = zver[0];
+  gl_camera.frustum_bottom = -zver[1];
+  gl_camera.frustum_center = (zhor[1] - zhor[0]) / 2;
+  gl_camera.frustum_width = (zhor[1] + zhor[0]) / 2;
+  gl_camera.frustum_near = zclip[0];
+  gl_camera.frustum_far = zclip[1];
+  return gl_camera;
+}
+
+
+// return body id, compute position of a vertex in a flex
+int mjv_flexBodyId(const mjModel* m, const mjData* d, int flexid, int vertid, mjtNum flexpnt[3]) {
+  int flexbodyid = -1;
+  if (m->flex_interp[flexid]) {
+    mjtNum* coord = m->flex_vert0 + 3*(m->flex_vertadr[flexid] + vertid);
+    int order = m->flex_interp[flexid];
+    order = order < 0 ? -order : order;
+    int npc = (order+1)*(order+1)*(order+1);
+
+    // cell lookup: get local coords and node indices
+    mjtNum loc[3];
+    int nodeindices[27];  // max npc for quadratic: 3^3 = 27
+    mju_cellLookup(coord, m->flex_cellnum+3*flexid, order, loc, nodeindices);
+
+    // find node with largest weight in this cell
+    // in shell mode, skip interior nodes (pinned to worldbody)
+    int nodeid = -1;
+    int nstart = m->flex_nodeadr[flexid];
+    mjtNum w = 0;
+    int shell_mode = m->flex_interp[flexid] < 0;
+    for (int j = 0; j < npc; j++) {
+      mjtNum ww = mju_evalBasis(loc, j, order);
+      int nid = nodeindices[j];
+      // skip interior nodes in shell mode (they map to worldbody)
+      if (shell_mode && m->body_dofnum[m->flex_nodebodyid[nstart + nid]] == 0) {
+        continue;
+      }
+      if (ww > w) {
+        w = ww;
+        nodeid = nid;
+      }
+    }
+    flexbodyid = m->flex_nodebodyid[nstart + nodeid];
+    if (m->flex_centered[flexid]) {
+      mju_copy3(flexpnt, d->xpos + 3*flexbodyid);
+    } else {
+      mju_mulMatVec3(flexpnt, d->xmat + 9*flexbodyid, m->flex_node + 3*(nstart + nodeid));
+      mju_addTo3(flexpnt, d->xpos + 3*flexbodyid);
+    }
+  } else {
+    flexbodyid = m->flex_vertbodyid[m->flex_vertadr[flexid] + vertid];
+    mju_copy3(flexpnt, d->flexvert_xpos + 3*(m->flex_vertadr[flexid] + vertid));
+  }
+  return flexbodyid;
+}
 
 // Select geom, flex or skin with mouse, return bodyid; -1: none selected.
 int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
@@ -755,17 +928,32 @@ int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
   // compute frustum halfwidth so as to match viewport aspect ratio
   mjtNum halfwidth = 0.5*aspectratio*(cam.frustum_top - cam.frustum_bottom);
 
-  // construct ray
+  // compute up and left offsets from normalized cursor
+  mjtNum d_up = cam.frustum_bottom + rely*(cam.frustum_top-cam.frustum_bottom);
+  mjtNum d_left = -(cam.frustum_center + (2*relx-1)*halfwidth);
+
+  // define ray
   mjtNum ray[3];
-  mju_scl3(ray, forward, cam.frustum_near);
-  mju_addToScl3(ray, up, cam.frustum_bottom + rely*(cam.frustum_top-cam.frustum_bottom));
-  mju_addToScl3(ray, left, -(cam.frustum_center + (2*relx-1)*halfwidth));
-  mju_normalize3(ray);
+
+  // construct ray for orthographic camera: fixed direction, modify pos
+  if (cam.orthographic) {
+    mju_copy3(ray, forward);
+    mju_addToScl3(pos, up, d_up);
+    mju_addToScl3(pos, left, d_left);
+  }
+
+  // construct ray for perspective camera: fixed pos, modify direction
+  else {
+    mju_scl3(ray, forward, cam.frustum_near);
+    mju_addToScl3(ray, up, d_up);
+    mju_addToScl3(ray, left, d_left);
+    mju_normalize3(ray);
+  }
 
   // find intersection with geoms
   *geomid = -1;
-  mjtNum geomdist = mj_ray(m, d, pos, ray, vopt->geomgroup,
-                           vopt->flags[mjVIS_STATIC], -1, geomid);
+  mjtNum geomdist = mj_ray(m, d, pos, ray,
+                           vopt->geomgroup, vopt->flags[mjVIS_STATIC], -1, geomid, NULL);
 
   // find intersection with flexes
   int flexbodyid = -1;
@@ -777,17 +965,16 @@ int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
     for (int i=0; i < m->nflex; i++) {
       // process one flex
       int vertid;
-      mjtNum newdist = mju_rayFlex(m, d, vopt->flex_layer,
-                                   vopt->flags[mjVIS_FLEXVERT], vopt->flags[mjVIS_FLEXEDGE],
-                                   vopt->flags[mjVIS_FLEXFACE], vopt->flags[mjVIS_FLEXSKIN],
-                                   i, pos, ray, &vertid);
+      mjtNum newdist =
+          mj_rayFlex(m, d, vopt->flex_layer, vopt->flags[mjVIS_FLEXVERT],
+                     vopt->flags[mjVIS_FLEXEDGE], vopt->flags[mjVIS_FLEXFACE],
+                     vopt->flags[mjVIS_FLEXSKIN], i, pos, ray, &vertid, NULL);
 
       // update if closer intersection found
       if (newdist >= 0 && (newdist < flexdist || flexdist < 0)) {
         flexdist = newdist;
-        flexbodyid = m->flex_vertbodyid[m->flex_vertadr[i] + vertid];
         *flexid = i;
-        mju_copy3(flexpnt, d->flexvert_xpos + 3*(m->flex_vertadr[i] + vertid));
+        flexbodyid = mjv_flexBodyId(m, d, *flexid, vertid, flexpnt);
       }
     }
   }
@@ -850,7 +1037,6 @@ int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
       }
     }
   }
-
 
   // geom
   if (best == 0) {

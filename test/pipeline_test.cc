@@ -27,38 +27,59 @@
 namespace mujoco {
 namespace {
 
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
-
 static const char* const kDefaultModel = "testdata/model.xml";
 
+using ::testing::NotNull;
 using ::testing::Pointwise;
-using ::testing::DoubleNear;
 using PipelineTest = MujocoTest;
 
-
-// Joint and actuator damping should integrate identically under implicit
+// sparse and dense pipelines should produce the same results, for all solvers
 TEST_F(PipelineTest, SparseDenseEquivalent) {
   const std::string xml_path = GetTestDataFilePath(kDefaultModel);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
-  // set dense jacobian, call mj_forward, save accelerations
-  model->opt.jacobian = mjJAC_DENSE;
-  mj_forward(model, data);
-  std::vector<mjtNum> qacc_dense = AsVector(data->qacc, model->nv);
+  const mjtNum tol = MjTol(1e-11, 1e-4);
 
-  // set sparse jacobian, call mj_forward, save accelerations
-  model->opt.jacobian = mjJAC_SPARSE;
-  mj_forward(model, data);
-  std::vector<mjtNum> qacc_sparse = AsVector(data->qacc, model->nv);
+  const char* sname[4] = {"NEWTON", "PGS", "CG", "NOSLIP"};
+  mjtSolver solver[4] = {mjSOL_NEWTON, mjSOL_PGS, mjSOL_CG, mjSOL_NEWTON};
 
-  // expect accelerations to be insignificantly different
-  mjtNum tol = 1e-11;
-  EXPECT_THAT(qacc_dense, Pointwise(DoubleNear(tol), qacc_sparse));
-  // TODO: is 1e-12 larger than we expect?
-  //       investigate sources of discrepancy, eliminate if possible
+#ifdef mjUSESINGLE
+  // CG and NOSLIP sparse-dense equivalence breaks at float32 precision.
+  int nsolvers = 2;
+#else
+  int nsolvers = 4;
+#endif
+
+  for (int i = 0; i < nsolvers; i++) {
+    model->opt.solver = solver[i];
+    if (i == 3) {
+      model->opt.noslip_iterations = 2;
+    }
+
+    // set dense jacobian, call mj_step, save qacc and new qpos
+    model->opt.jacobian = mjJAC_DENSE;
+    mj_resetDataKeyframe(model, data, 0);
+    mj_step(model, data);
+    std::vector<mjtNum> qacc_dense = AsVector(data->qacc, model->nv);
+    std::vector<mjtNum> qpos_dense = AsVector(data->qpos, model->nq);
+
+    // set sparse jacobian, call mj_step, save qacc and new qpos
+    model->opt.jacobian = mjJAC_SPARSE;
+    mj_resetDataKeyframe(model, data, 0);
+    mj_step(model, data);
+    std::vector<mjtNum> qacc_sparse = AsVector(data->qacc, model->nv);
+    std::vector<mjtNum> qpos_sparse = AsVector(data->qpos, model->nq);
+
+    // expect accelerations to be insignificantly different
+    EXPECT_THAT(qacc_dense, Pointwise(MjNear(tol, tol), qacc_sparse))
+        << "failed qacc equivalence for solver=" << sname[i];
+    // expect positions to be insignificantly different
+    EXPECT_THAT(qpos_dense, Pointwise(MjNear(tol, tol), qpos_sparse))
+        << "failed qpos equivalence for solver=" << sname[i];
+  }
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -105,7 +126,6 @@ TEST_F(PipelineTest, DeterministicNoWarmstart) {
   mj_deleteData(data);
   mj_deleteModel(model);
 }
-
 
 }  // namespace
 }  // namespace mujoco

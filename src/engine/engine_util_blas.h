@@ -18,7 +18,7 @@
 #include <math.h>
 
 #include <mujoco/mjexport.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,7 +26,7 @@ extern "C" {
 
 //------------------------------ standard library functions ----------------------------------------
 
-#ifdef mjUSEDOUBLE
+#if !defined(mjUSESINGLE)
   #define mju_sqrt    sqrt
   #define mju_exp     exp
   #define mju_sin     sin
@@ -59,7 +59,7 @@ extern "C" {
   #define mju_log10   log10f
   #define mju_floor   floorf
   #define mju_ceil    ceilf
-#endif
+#endif  // !defined(mjUSESINGLE)
 
 
 //------------------------------ 3D vector and matrix-vector operations ----------------------------
@@ -67,8 +67,14 @@ extern "C" {
 // res = 0
 MJAPI void mju_zero3(mjtNum res[3]);
 
+// vec1 == vec2
+MJAPI int mju_equal3(const mjtNum vec1[3], const mjtNum vec2[3]);
+
 // res = vec
-MJAPI void mju_copy3(mjtNum res[3], const mjtNum data[3]);
+MJAPI void mju_copy3(mjtNum res[3], const mjtNum vec[3]);
+
+// res = mat
+void mju_copy9(mjtNum res[9], const mjtNum mat[9]);
 
 // res = vec*scl
 MJAPI void mju_scl3(mjtNum res[3], const mjtNum vec[3], mjtNum scl);
@@ -103,17 +109,17 @@ MJAPI mjtNum mju_dot3(const mjtNum vec1[3], const mjtNum vec2[3]);
 // Cartesian distance between 3D vectors
 MJAPI mjtNum mju_dist3(const mjtNum pos1[3], const mjtNum pos2[3]);
 
-// multiply vector by 3D rotation matrix
-MJAPI void mju_rotVecMat(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]);
+// multiply 3-by-3 matrix by vector
+MJAPI void mju_mulMatVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum vec[3]);
 
-// multiply vector by transposed 3D rotation matrix
-MJAPI void mju_rotVecMatT(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]);
+// multiply transposed 3-by-3 matrix by vector
+MJAPI void mju_mulMatTVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum vec[3]);
 
 // multiply 3x3 matrices
 MJAPI void mju_mulMatMat3(mjtNum res[9], const mjtNum mat1[9], const mjtNum mat2[9]);
 
 // multiply 3x3 matrices, first argument transposed
-MJAPI void mju_mulMatTMat3(mjtNum res[9], const mjtNum a[9], const mjtNum b[9]);
+MJAPI void mju_mulMatTMat3(mjtNum res[9], const mjtNum mat1[9], const mjtNum mat2[9]);
 
 // multiply 3x3 matrices, second argument transposed
 MJAPI void mju_mulMatMatT3(mjtNum res[9], const mjtNum mat1[9], const mjtNum mat2[9]);
@@ -138,11 +144,17 @@ MJAPI mjtNum mju_normalize4(mjtNum vec[4]);
 // res = 0
 MJAPI void mju_zero(mjtNum* res, int n);
 
+// res = 0, at given indices
+void mju_zeroInd(mjtNum* res, int n, const int* ind);
+
 // res = val
 MJAPI void mju_fill(mjtNum* res, mjtNum val, int n);
 
 // res = vec
 MJAPI void mju_copy(mjtNum* res, const mjtNum* vec, int n);
+
+// res = vec, at given indices
+void mju_copyInd(mjtNum* res, const mjtNum* vec, const int* ind, int n);
 
 // sum(vec)
 MJAPI mjtNum mju_sum(const mjtNum* vec, int n);
@@ -156,17 +168,29 @@ MJAPI void mju_scl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n);
 // res = vec1 + vec2
 MJAPI void mju_add(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n);
 
+// res = vec1 + vec2, at given indices
+void mju_addInd(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, const int* ind, int n);
+
 // res = vec1 - vec2
 MJAPI void mju_sub(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n);
 
+// res = vec1 - vec2, at selected indices
+void mju_subInd(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, const int* ind, int n);
+
 // res += vec
 MJAPI void mju_addTo(mjtNum* res, const mjtNum* vec, int n);
+
+// res += vec, at selected indices
+void mju_addToInd(mjtNum* res, const mjtNum* vec, const int* ind, int n);
 
 // res -= vec
 MJAPI void mju_subFrom(mjtNum* res, const mjtNum* vec, int n);
 
 // res += vec*scl
 MJAPI void mju_addToScl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n);
+
+// res += vec*scl, at given indices
+void mju_addToSclInd(mjtNum* res, const mjtNum* vec, const int* ind, mjtNum scl, int n);
 
 // res = vec1 + vec2*scl
 MJAPI void mju_addScl(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, mjtNum scl, int n);
@@ -180,16 +204,16 @@ MJAPI mjtNum mju_norm(const mjtNum* res, int n);
 // vector dot-product
 MJAPI mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, int n);
 
+// vector dot-product, at given indices
+mjtNum mju_dotInd(const mjtNum* vec1, const mjtNum* vec2, const int* ind, int n);
 
 //------------------------------ matrix-vector operations ------------------------------------------
 
 // multiply matrix and vector
-MJAPI void mju_mulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                         int nr, int nc);
+MJAPI void mju_mulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc);
 
 // multiply transposed matrix and vector
-MJAPI void mju_mulMatTVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                          int nr, int nc);
+MJAPI void mju_mulMatTVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc);
 
 // multiply square matrix with vectors on both sides: return vec1'*mat*vec2
 MJAPI mjtNum mju_mulVecMatVec(const mjtNum* vec1, const mjtNum* mat, const mjtNum* vec2, int n);
@@ -206,6 +230,9 @@ MJAPI void mju_symmetrize(mjtNum* res, const mjtNum* mat, int n);
 // identity matrix
 MJAPI void mju_eye(mjtNum* mat, int n);
 
+// copy selected rows:  res[ind, :] = mat[ind, :]
+void mju_copyRows(mjtNum* res, const mjtNum* mat, const int* ind, int n, int nc);
+
 //------------------------------ matrix-matrix operations ------------------------------------------
 
 // multiply matrices
@@ -219,6 +246,10 @@ MJAPI void mju_mulMatMatT(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,
 // multiply matrices, first argument transposed
 MJAPI void mju_mulMatTMat(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,
                           int r1, int c1, int c2);
+
+// compute M'*diag*M (diag=NULL: compute M'*M), upper triangle optional
+void mju_sqrMatTD_impl(mjtNum* res, const mjtNum* mat, const mjtNum* diag, int nr, int nc,
+                       int flg_upper);
 
 // compute M'*diag*M (diag=NULL: compute M'*M)
 MJAPI void mju_sqrMatTD(mjtNum* res, const mjtNum* mat, const mjtNum* diag, int nr, int nc);

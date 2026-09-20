@@ -1,0 +1,31 @@
+<mujoco model="load save load test model with 2 frames">
+
+  <worldbody>
+    <frame name="frame1" pos=".1 .2 .3">
+
+      <geom name="geom1" type="sphere" size=".1"/>
+      <body name="root1">
+        <geom type="sphere" size=".1"/>
+      </body>
+
+      <frame name="frame2" pos=".01 .02 .03">
+
+        <geom name="geom2" type="sphere" size=".1"/>
+        <body name="root2">
+          <geom type="sphere" size=".1"/>
+          <body name="root22">
+            <geom type="sphere" size=".1"/>
+          </body>
+        </body>
+
+        <geom name="geom3" type="sphere" size=".1"/>
+        <body name="root3">
+          <geom type="sphere" size=".1"/>
+          <body name="root5">
+            <geom type="sphere" size=".1"/>
+          </body>
+        </body>
+      </frame> <!-- end frame1 -->
+    </frame><!-- end frame2 -->
+  </worldbody>
+</mujoco>

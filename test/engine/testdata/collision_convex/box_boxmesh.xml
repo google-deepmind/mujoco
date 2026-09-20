@@ -1,0 +1,25 @@
+<mujoco model="Box mesh with multiccd">
+  <option>
+    <flag multiccd="enable"/>
+  </option>
+
+  <asset>
+    <mesh name="box"
+          vertex="-1 -1 -1
+                   1 -1 -1
+                   1  1 -1
+                   1  1  1
+                   1 -1  1
+                  -1  1 -1
+                  -1  1  1
+                  -1 -1  1"/>
+  </asset>
+
+  <worldbody>
+    <geom pos="0 0 -1" type="box" size="5 5 1"/>
+    <body pos="0 0 0.9999">
+      <freejoint/>
+      <geom type="mesh" mesh="box"/>
+    </body>
+  </worldbody>
+</mujoco>

@@ -12,37 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Exports GLContext for MuJoCo Python bindings."""
+"""Wrapper around mujoco.rendering.classic.gl_context for backwards compatibility."""
 
-import ctypes
-import ctypes.util
-import os
-import platform
 
-# pylint: disable=g-import-not-at-top
-_SYSTEM = platform.system()
-_MUJOCO_GL = os.environ.get('MUJOCO_GL', '').lower().strip()
-if _MUJOCO_GL not in ('disable', 'disabled', 'off', 'false', '0'):
-  _VALID_MUJOCO_GL = ('enable', 'enabled', 'on', 'true', '1' , 'glfw', '')
-  if _SYSTEM == 'Linux':
-    _VALID_MUJOCO_GL += ('glx', 'egl', 'osmesa')
-  elif _SYSTEM == 'Windows':
-    _VALID_MUJOCO_GL += ('wgl',)
-  elif _SYSTEM == 'Darwin':
-    _VALID_MUJOCO_GL += ('cgl',)
-  if _MUJOCO_GL not in _VALID_MUJOCO_GL:
-    raise RuntimeError(
-        f'invalid value for environment variable MUJOCO_GL: {_MUJOCO_GL}')
-
-  if _SYSTEM == 'Linux' and _MUJOCO_GL == 'osmesa':
-    from mujoco.osmesa import GLContext as _GLContext
-    GLContext = _GLContext
-  elif _SYSTEM == 'Linux' and _MUJOCO_GL == 'egl':
-    from mujoco.egl import GLContext as _GLContext
-    GLContext = _GLContext
-  elif _SYSTEM == 'Darwin':
-    from mujoco.cgl import GLContext as _GLContext
-    GLContext = _GLContext
-  else:
-    from mujoco.glfw import GLContext as _GLContext
-    GLContext = _GLContext
+try:
+  from mujoco.rendering.classic.gl_context import *  # pytype: disable=import-error
+except ImportError:
+  pass

@@ -2,7 +2,7 @@
   <!-- This model leads to bad contacts from mjc_BoxBox -->
 
   <default>
-    <geom rgba="1 1 1 1" margin="1e-3" gap="1e-3"/>
+    <geom rgba="1 1 1 1" gap="1e-3"/>
     <site type="sphere" rgba="0 0 0 0" size="0.001"/>
   </default>
 

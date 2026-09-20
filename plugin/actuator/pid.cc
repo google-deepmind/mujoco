@@ -103,7 +103,7 @@ std::unique_ptr<Pid> Pid::Create(const mjModel* m, int instance) {
   }
 
   if (config.slew_max.value_or(0.0) < 0) {
-    mju_warning("maxslew must be non-negative");
+    mju_warning("slewmax must be non-negative");
     return nullptr;
   }
 
@@ -117,14 +117,30 @@ std::unique_ptr<Pid> Pid::Create(const mjModel* m, int instance) {
     mju_warning("actuator not found for plugin instance %d", instance);
     return nullptr;
   }
+  // Validate actnum values for all actuators:
+  for (int actuator_id : actuators) {
+    int actnum = m->actuator_actnum[actuator_id];
+    int expected_actnum = Pid::ActDim(m, instance, actuator_id);
+    int dyntype = m->actuator_dyntype[actuator_id];
+    if (dyntype == mjDYN_FILTER || dyntype == mjDYN_FILTEREXACT ||
+        dyntype == mjDYN_INTEGRATOR) {
+      expected_actnum++;
+    }
+    if (actnum != expected_actnum) {
+      mju_warning(
+          "actuator %d has actdim %d, expected %d. Add actdim=\"%d\" to the "
+          "actuator plugin element.",
+          actuator_id, actnum, expected_actnum, expected_actnum);
+      return nullptr;
+    }
+  }
   return std::unique_ptr<Pid>(new Pid(config, std::move(actuators)));
 }
 
 void Pid::Reset(mjtNum* plugin_state) {}
 
 mjtNum Pid::GetCtrl(const mjModel* m, const mjData* d, int actuator_idx,
-                    const State& state,
-                    bool actearly) const {
+                    const State& state, bool actearly) const {
   mjtNum ctrl = 0;
   if (m->actuator_dyntype[actuator_idx] == mjDYN_NONE) {
     ctrl = d->ctrl[actuator_idx];
@@ -136,8 +152,8 @@ mjtNum Pid::GetCtrl(const mjModel* m, const mjData* d, int actuator_idx,
   } else {
     // Use of act instead of ctrl, to create integrated-velocity controllers or
     // to filter the controls.
-    int actadr = m->actuator_actadr[actuator_idx] +
-                 m->actuator_actnum[actuator_idx] - 1;
+    int actadr =
+        m->actuator_actadr[actuator_idx] + m->actuator_actnum[actuator_idx] - 1;
     if (actearly) {
       ctrl = NextActivation(m, d, actuator_idx, actadr, d->act_dot[actadr]);
     } else {
@@ -193,8 +209,7 @@ void Pid::Compute(const mjModel* m, mjData* d, int instance) {
     if (config_.i_gain) {
       integral = state.integral + error * m->opt.timestep;
       if (config_.i_max.has_value()) {
-        integral =
-            mju_clip(integral, -*config_.i_max, *config_.i_max);
+        integral = mju_clip(integral, -*config_.i_max, *config_.i_max);
       }
     }
 
@@ -208,9 +223,7 @@ void Pid::Advance(const mjModel* m, mjData* d, int instance) const {
   // act variables already updated by MuJoCo integrating act_dot
 }
 
-int Pid::StateSize(const mjModel* m, int instance) {
-  return 0;
-}
+int Pid::StateSize(const mjModel* m, int instance) { return 0; }
 
 int Pid::ActDim(const mjModel* m, int instance, int actuator_id) {
   double i_gain = ReadOptionalDoubleAttr(m, instance, kAttrIGain).value_or(0);
@@ -240,8 +253,6 @@ void Pid::RegisterPlugin() {
                                          kAttrIMax, kAttrSlewMax};
   plugin.nattribute = attributes.size();
   plugin.attributes = attributes.data();
-
-  plugin.actuator_actdim = Pid::ActDim;
   plugin.nstate = Pid::StateSize;
 
   plugin.init = +[](const mjModel* m, mjData* d, int instance) {
@@ -256,7 +267,7 @@ void Pid::RegisterPlugin() {
     delete reinterpret_cast<Pid*>(d->plugin_data[instance]);
     d->plugin_data[instance] = 0;
   };
-  plugin.reset = +[](const mjModel* m, double* plugin_state, void* plugin_data,
+  plugin.reset = +[](const mjModel* m, mjtNum* plugin_state, void* plugin_data,
                      int instance) {
     auto* pid = reinterpret_cast<Pid*>(plugin_data);
     pid->Reset(plugin_state);

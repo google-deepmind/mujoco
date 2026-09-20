@@ -14,12 +14,14 @@
 
 // Tests for the PID controller plugin
 
+#include <string>
 #include <string_view>
 #include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <absl/cleanup/cleanup.h>
+#include <absl/strings/str_replace.h>
 #include <absl/strings/string_view.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
@@ -27,8 +29,8 @@
 namespace mujoco {
 namespace {
 
-using PidTest = PluginTest;
-using ::testing::DoubleNear;
+using PidTest = MujocoTest;
+
 using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
@@ -63,23 +65,21 @@ TEST_F(PidTest, PGain) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
   EXPECT_EQ(m->plugin_statenum[0], 0)
       << "Plugin should have no state variables";
   EXPECT_EQ(m->actuator_actnum[0], 0)
       << "Plugin should have no activation variables";
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   // apply the same ctrl to both actuators and see if the same qpos results
   d->ctrl[0] = 1.0;
   d->ctrl[1] = 1.0;
 
-  mj_step(m, d);
+  mj_step(m.get(), d.get());
 
   EXPECT_EQ(d->actuator_force[0], d->actuator_force[1]);
   EXPECT_EQ(d->qfrc_actuator[0], d->qfrc_actuator[1]);
@@ -109,7 +109,7 @@ TEST_F(PidTest, PGainWithFilterExact) {
   </worldbody>
 
   <actuator>
-    <plugin joint="j1" plugin="mujoco.pid" instance="pid1"
+    <plugin joint="j1" plugin="mujoco.pid" instance="pid1" actdim="1"
         dyntype="filterexact" dynprm="0.1" actearly="true"/>
     <general joint="j2" gainprm="4.0 0 0" biastype="affine" biasprm="0 -4.0 0"
         dyntype="filterexact" dynprm="0.1" actearly="true"/>
@@ -118,24 +118,22 @@ TEST_F(PidTest, PGainWithFilterExact) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
   EXPECT_EQ(m->plugin_statenum[0], 0)
       << "Plugin should have no state variables";
   EXPECT_EQ(m->actuator_actnum[0], 1)
       << "Plugin should have one activation variable";
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   // apply the same ctrl to both actuators and see if the same qpos results
   d->ctrl[0] = 1.0;
   d->ctrl[1] = 1.0;
 
   for (int i = 0; i < 2; i++) {
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
 
     EXPECT_EQ(d->actuator_force[0], d->actuator_force[1]);
     EXPECT_EQ(d->qfrc_actuator[0], d->qfrc_actuator[1]);
@@ -169,34 +167,32 @@ TEST_F(PidTest, SlewMaxRate) {
   </worldbody>
 
   <actuator>
-    <plugin joint="j1" plugin="mujoco.pid" instance="pid1" />
+    <plugin joint="j1" plugin="mujoco.pid" instance="pid1" actdim="1" />
     <position joint="j2" kp="4.0" />
   </actuator>
   </mujoco>
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
   // having a slew rate means that there should be one extra state variable
   // for the plugin.
   EXPECT_EQ(m->actuator_actnum[0], 1);
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   // going from ctrl=0.0 to ctrl=1.0 immediately should be equivalent to slowly
   // incrementing the setpoint
   d->ctrl[0] = d->ctrl[1] = 0.0;
-  mj_step(m, d);
+  mj_step(m.get(), d.get());
 
   mjtNum max_slew_rate = 0.75;
   for (int i = 0; i < 2; i++) {
     d->ctrl[0] = 1.0;
     d->ctrl[1] = d->time * max_slew_rate;
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
 
     EXPECT_EQ(d->actuator_force[0], d->actuator_force[1])
         << "actuator_force mismatch at step " << i;
@@ -235,41 +231,38 @@ TEST_F(PidTest, IntegratedVelocitySlewMaxRate) {
   </worldbody>
 
   <actuator>
-    <plugin joint="j1" plugin="mujoco.pid" instance="pid1" />
+    <plugin joint="j1" plugin="mujoco.pid" instance="pid1" actdim="1"/>
     <!-- make an integrated velocity controller using the PID plugin -->
     <plugin joint="j2" plugin="mujoco.pid" instance="pid2"
-        dyntype="integrator" dynprm="1 0 0" actearly="true"/>
+        dyntype="integrator" dynprm="1 0 0" actearly="true" actdim="1"/>
   </actuator>
   </mujoco>
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
   // having a slew rate means that there should be one extra state variable
   // for the plugin.
-  EXPECT_EQ(m->actuator_actnum[0], 1);
+  ASSERT_EQ(m->actuator_actnum[0], 1);
   // The integrated-velocity controller should have one activation variable too.
-  EXPECT_EQ(m->actuator_actnum[1], 1);
+  ASSERT_EQ(m->actuator_actnum[1], 1);
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   // going from ctrl=0.0 to ctrl=1.0 immediately should be equivalent to using
   // an integrated-velocity controller, with actearly = true
   d->ctrl[0] = d->ctrl[1] = 0.0;
-  mj_step(m, d);
+  mj_step(m.get(), d.get());
 
   mjtNum max_slew_rate = 0.75;
   for (int i = 0; i < 2; i++) {
     d->ctrl[0] = 1.0;
     d->ctrl[1] = max_slew_rate;
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
 
-    EXPECT_EQ(d->act[0], d->act[1])
-        << "act mismatch at step " << i;
+    EXPECT_EQ(d->act[0], d->act[1]) << "act mismatch at step " << i;
     EXPECT_EQ(d->actuator_force[0], d->actuator_force[1])
         << "actuator_force mismatch at step " << i;
     EXPECT_EQ(d->qfrc_actuator[0], d->qfrc_actuator[1])
@@ -299,21 +292,21 @@ TEST_F(PidTest, SlewMaxRateUsesFirstCtrl) {
     </body>
   </worldbody>
 
-  <actuator><plugin joint="j1" plugin="mujoco.pid" instance="pid1" /></actuator>
+  <actuator>
+    <plugin joint="j1" plugin="mujoco.pid" instance="pid1" actdim="1"/>
+  </actuator>
   </mujoco>
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   // When starting with ctrl = 1.0, there shouldn't be a slew rate restriction
   d->ctrl[0] = 1.0;
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
   EXPECT_EQ(d->actuator_force[0], 4.0);
 }
 
@@ -363,24 +356,22 @@ TEST_F(PidTest, ITerm) {
 
   <actuator>
     <plugin joint="j1" plugin="mujoco.pid" instance="pid1" />
-    <plugin joint="j2" plugin="mujoco.pid" instance="pid2" />
-    <plugin joint="j3" plugin="mujoco.pid" instance="pid3" />
+    <plugin joint="j2" plugin="mujoco.pid" instance="pid2" actdim="1" />
+    <plugin joint="j3" plugin="mujoco.pid" instance="pid3" actdim="1" />
   </actuator>
   </mujoco>
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
   // only the actuators with an I term should have state.
   EXPECT_EQ(m->actuator_actnum[0], 0);
   EXPECT_EQ(m->actuator_actnum[1], 1);
   EXPECT_EQ(m->actuator_actnum[2], 1);
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   // when applying a constant 1.0 control for a while:
   // - the PD controller should settle to 1.0 - m*g / kp
@@ -388,12 +379,12 @@ TEST_F(PidTest, ITerm) {
   // - the clamped PID controller should reach 1.0 - (m*g - imax) / kp
   d->ctrl[0] = d->ctrl[1] = d->ctrl[2] = 1.0;
   for (int i = 0; i < 10000; i++) {
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
   }
 
-  EXPECT_THAT(d->qpos[0], DoubleNear(1.0 - 10 / 40.0, 1e-5));
-  EXPECT_THAT(d->qpos[1], DoubleNear(1.0, 1e-5));
-  EXPECT_THAT(d->qpos[2], DoubleNear(1.0 - (10 - 0.125 * 40.0) / 40.0, 1e-5));
+  EXPECT_THAT(d->qpos[0], MjNear(1.0 - 10 / 40.0, 1e-5, 1e-5));
+  EXPECT_THAT(d->qpos[1], MjNear(1.0, 1e-5, 1e-5));
+  EXPECT_THAT(d->qpos[2], MjNear(1.0 - (10 - 0.125 * 40.0) / 40.0, 1e-5, 1e-5));
 }
 
 TEST_F(PidTest, FiniteDifferencing) {
@@ -413,34 +404,32 @@ TEST_F(PidTest, FiniteDifferencing) {
   </worldbody>
 
   <actuator>
-    <plugin joint="j" plugin="mujoco.pid" instance="pid" />
+    <plugin joint="j" plugin="mujoco.pid" instance="pid" actdim="2" />
   </actuator>
   </mujoco>
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
   // actuators with an I term and max slew rate should have 2 activation
   // variables.
-  EXPECT_EQ(m->actuator_actnum[0], 2);
+  ASSERT_EQ(m->actuator_actnum[0], 2);
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   d->ctrl[0] = 1.0;
-  mj_step(m, d);
+  mj_step(m.get(), d.get());
   EXPECT_NE(d->act[0], 0);
   mjtNum state_before_finite_differencing = d->act[0];
 
-  std::vector<mjtNum> A((2*m->nv+m->na) * (2*m->nv+m->na), 0);
-  std::vector<mjtNum> B((2*m->nv+m->na) * m->nu, 0);
-  std::vector<mjtNum> C((m->nsensordata) * (2*m->nv+m->na), 0);
+  std::vector<mjtNum> A((2 * m->nv + m->na) * (2 * m->nv + m->na), 0);
+  std::vector<mjtNum> B((2 * m->nv + m->na) * m->nu, 0);
+  std::vector<mjtNum> C((m->nsensordata) * (2 * m->nv + m->na), 0);
   std::vector<mjtNum> D((m->nsensordata) * m->nu, 0);
-  mjd_transitionFD(m, d, /*eps=*/1e-3, /*flg_centered=*/true, A.data(),
-                   B.data(), C.data(), D.data());
+  mjd_transitionFD(m.get(), d.get(), /*eps=*/1e-3, /*flg_centered=*/true,
+                   A.data(), B.data(), C.data(), D.data());
 
   EXPECT_EQ(d->act[0], state_before_finite_differencing)
       << "mjd_transitionFD should not change actuator plugin state.";
@@ -471,33 +460,31 @@ TEST_F(PidTest, CtrlClamp) {
 
   <actuator>
     <plugin joint="j1" plugin="mujoco.pid" instance="pid"
-        ctrlrange="0.25 0.75" />
+        ctrlrange="0.25 0.75" actdim="1" />
   </actuator>
   </mujoco>
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   // when applying a constant 1.0 control for a while, control should be clamped
   // to 0.75, and the body should reach that point.
   d->ctrl[0] = 1.0;
   for (int i = 0; i < 10000; i++) {
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
   }
-  EXPECT_THAT(d->qpos[0], DoubleNear(0.75, 1e-5));
+  EXPECT_THAT(d->qpos[0], MjNear(0.75, 1e-5, 1e-5));
 
   // when applying 0, it should be clamped to 0.25
   d->ctrl[0] = 0.0;
   for (int i = 0; i < 10000; i++) {
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
   }
-  EXPECT_THAT(d->qpos[0], DoubleNear(0.25, 1e-5));
+  EXPECT_THAT(d->qpos[0], MjNear(0.25, 1e-5, 1e-5));
 }
 
 TEST_F(PidTest, CopyData) {
@@ -534,29 +521,27 @@ TEST_F(PidTest, CopyData) {
 
   <actuator>
     <plugin joint="j1" plugin="mujoco.pid" instance="pid1" />
-    <plugin joint="j2" plugin="mujoco.pid" instance="pid2" />
+    <plugin joint="j2" plugin="mujoco.pid" instance="pid2" actdim="2"/>
   </actuator>
   </mujoco>
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
-  mjData* d1 = mj_makeData(m);
-  absl::Cleanup d1_deleter = [d1] { mj_deleteData(d1); };
+  MjDataPtr d1 = MakeData(m);
 
   d1->ctrl[0] = d1->ctrl[1] = -1.0;
 
   for (int i = 0; i < 3; i++) {
-    mj_step(m, d1);
+    mj_step(m.get(), d1.get());
   }
-  mjData* d2 = mj_copyData(nullptr, m, d1);
+  mjData* d2 = mj_copyData(nullptr, m.get(), d1.get());
   absl::Cleanup d2_deleter = [d2] { mj_deleteData(d2); };
 
-  mj_step(m, d1);
-  mj_step(m, d2);
+  mj_step(m.get(), d1.get());
+  mj_step(m.get(), d2);
 
   EXPECT_EQ(d1->qpos[0], d2->qpos[0]);
   EXPECT_EQ(d1->qpos[1], d2->qpos[1]);
@@ -588,24 +573,22 @@ TEST_F(PidTest, MultipleActuatorsSamePlugin) {
   </worldbody>
 
   <actuator>
-    <plugin joint="j1" plugin="mujoco.pid" instance="pid" />
-    <plugin joint="j2" plugin="mujoco.pid" instance="pid" />
+    <plugin joint="j1" plugin="mujoco.pid" instance="pid" actdim="1" />
+    <plugin joint="j2" plugin="mujoco.pid" instance="pid" actdim="1" />
   </actuator>
   </mujoco>
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
   // having a slew rate means that there should be one extra state variable
   // for the plugin.
   EXPECT_EQ(m->actuator_actnum[0], 1);
   EXPECT_EQ(m->actuator_actnum[1], 1);
 
-  mjData* d = mj_makeData(m);
-  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+  MjDataPtr d = MakeData(m);
 
   // Set different ctrls for the two actuators, and check that they're
   // independent.
@@ -613,7 +596,7 @@ TEST_F(PidTest, MultipleActuatorsSamePlugin) {
   d->ctrl[1] = -1.0;
 
   for (int i = 0; i < 2; i++) {
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
 
     EXPECT_EQ(d->actuator_force[0], -d->actuator_force[1])
         << "actuator_force mismatch at step " << i;
@@ -645,11 +628,11 @@ TEST_F(PidTest, InvalidClamp) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  EXPECT_THAT(m, IsNull());
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  EXPECT_THAT(m.get(), IsNull());
 
-  // TODO: b/303654852 - ensure that the compilation error includes "imax"
   EXPECT_THAT(std::string_view(error), HasSubstr("plugin"));
+  EXPECT_THAT(std::string_view(error), HasSubstr("imax"));
 }
 
 TEST_F(PidTest, InvalidSlew) {
@@ -676,11 +659,110 @@ TEST_F(PidTest, InvalidSlew) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
-  ASSERT_THAT(m, IsNull());
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), IsNull());
 
-  // TODO: b/303654852 - ensure that the compilation error includes "slewmax"
   EXPECT_THAT(std::string_view(error), HasSubstr("plugin"));
+  EXPECT_THAT(std::string_view(error), HasSubstr("slewmax"));
+}
+
+TEST_F(PidTest, WrongActdim) {
+  // XML where PLACEHOLDER is going to be replaced with various things
+  constexpr absl::string_view kBaseXml = R"(
+  <mujoco>
+  <extension>
+    <plugin plugin="mujoco.pid">
+      <instance name="pid1">
+        <config key="kp" value="4.0"/>
+        <config key="slewmax" value="0.75"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <worldbody>
+    <body>
+      <joint name="j1" type="slide"/>
+      <geom size="0.01"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <plugin joint="j1" plugin="mujoco.pid" instance="pid1" PLACEHOLDER />
+  </actuator>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  {
+    std::string no_actdim =
+        absl::StrReplaceAll(kBaseXml, {{"PLACEHOLDER", ""}});
+    MjModelPtr m = LoadModelFromString(no_actdim, error, sizeof(error));
+    EXPECT_THAT(m.get(), IsNull());
+    EXPECT_THAT(std::string_view(error), HasSubstr("actdim=\"1\""));
+  }
+
+  {
+    std::string big_actdim =
+        absl::StrReplaceAll(kBaseXml, {{"PLACEHOLDER", "actdim=\"2\""}});
+    MjModelPtr m = LoadModelFromString(big_actdim, error, sizeof(error));
+    EXPECT_THAT(m.get(), IsNull());
+    EXPECT_THAT(std::string_view(error), HasSubstr("actdim=\"1\""));
+  }
+
+  {
+    std::string dyntype_integrator = absl::StrReplaceAll(
+        kBaseXml, {{"PLACEHOLDER", "dyntype=\"integrator\" actdim=\"1\""}});
+    MjModelPtr m =
+        LoadModelFromString(dyntype_integrator, error, sizeof(error));
+    EXPECT_THAT(m.get(), IsNull());
+    EXPECT_THAT(std::string_view(error), HasSubstr("actdim=\"2\""));
+  }
+}
+
+// Regression test: loading models with PID plugin and keyframes used to crash.
+TEST_F(PidTest, Keyframe) {
+  constexpr absl::string_view kModelXml = R"(
+  <mujoco>
+  <extension>
+    <plugin plugin="mujoco.pid">
+      <instance name="pid1">
+        <config key="kp" value="4.0"/>
+        <config key="slewmax" value="0.75"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <worldbody>
+    <body>
+      <joint name="j1" type="slide"/>
+      <geom size="0.01"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <plugin joint="j1" plugin="mujoco.pid" instance="pid1" actdim="1" />
+  </actuator>
+  <keyframe>
+    <key name="home" qpos="0" act="1" />
+  </keyframe>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+
+  // having a slew rate means that there should be one extra state variable
+  // for the plugin.
+  EXPECT_EQ(m->actuator_actnum[0], 1);
+  EXPECT_EQ(m->na, 1);
+  ASSERT_EQ(m->nkey, 1);
+  EXPECT_EQ(m->key_act[0], 1.0);
+
+  MjDataPtr d = MakeData(m);
+
+  mj_resetDataKeyframe(m.get(), d.get(), 0);
+  EXPECT_EQ(d->act[0], 1.0);
 }
 }  // namespace
 }  // namespace mujoco

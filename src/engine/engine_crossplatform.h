@@ -25,29 +25,18 @@
 #endif
 // IWYU pragma: end_keep
 
-// Sorting and case-insensitive comparison functions.
+// Case-insensitive comparison functions.
 #ifdef _WIN32
   #define strcasecmp _stricmp
   #define strncasecmp _strnicmp
-
-  #define mjQUICKSORT(buf, elnum, elsz, func, context) \
-      qsort_s(buf, elnum, elsz, func, context)
-  #define quicksortfunc(name, context, el1, el2) \
-      static int name(void* context, const void* el1, const void* el2)
 #else  // assumes POSIX
   #include <strings.h>
+#endif
 
-  #ifdef __APPLE__
-    #define mjQUICKSORT(buf, elnum, elsz, func, context) \
-        qsort_r(buf, elnum, elsz, context, func)
-    #define quicksortfunc(name, context, el1, el2) \
-        static int name(void* context, const void* el1, const void* el2)
-  #else  // non-Apple
-    #define mjQUICKSORT(buf, elnum, elsz, func, context) \
-        qsort_r(buf, elnum, elsz, func, context)
-    #define quicksortfunc(name, context, el1, el2) \
-        static int name(const void* el1, const void* el2, void* context)
-  #endif
+// Environment variable handling.
+#ifdef _WIN32
+  #define setenv(name, value, overwrite) _putenv_s(name, value)
+  #define unsetenv(name) _putenv_s(name, "")
 #endif
 
 // Switch-case fallthrough annotation.
@@ -75,11 +64,59 @@
   #define mjUNLIKELY(x) (x)
 #endif
 
+// Thread-local storage.
+#if !defined(mjTHREADLOCAL)
+  #ifdef _MSC_VER
+    #define mjTHREADLOCAL __declspec(thread)
+  #else
+    #define mjTHREADLOCAL _Thread_local
+  #endif
+#endif
+
+// Define ADDRESS_SANITIZER if implied by other macros.
+#if !defined(ADDRESS_SANITIZER)
+  #if defined(__SANITIZE_ADDRESS__)
+    #define ADDRESS_SANITIZER
+  #elif defined(__has_feature)
+    #if __has_feature(address_sanitizer)
+      #define ADDRESS_SANITIZER
+    #endif
+  #endif
+#endif
+
+#if defined(ADDRESS_SANITIZER) && !defined(_MSC_VER)
+  #define mjUSEASAN
+#endif
+
+// Atomics helper for size_t.
+#if defined(_MSC_VER) && !defined(__clang__)
+  #include <intrin.h>
+  #define mj_atomic_add_size_t(ptr, val) \
+      (size_t)_InterlockedExchangeAdd64((__int64 volatile*)(ptr), (__int64)(val))
+#else
+  #define mj_atomic_add_size_t(ptr, val) \
+      __atomic_fetch_add(ptr, val, __ATOMIC_RELAXED)
+#endif
+
+// Atomics helpers for mjtBool (1-byte _Bool) with acquire/release semantics.
+#if defined(_MSC_VER) && !defined(__clang__)
+  #define mj_atomic_load_bool(ptr) \
+      (mjtBool) _InterlockedCompareExchange8((volatile char*)(ptr), 0, 0)
+  #define mj_atomic_store_bool(ptr, val) \
+      (void)_InterlockedExchange8((volatile char*)(ptr), (char)(val))
+  #define mj_atomic_exchange_bool(ptr, val) \
+      (mjtBool) _InterlockedExchange8((volatile char*)(ptr), (char)(val))
+#else
+  #define mj_atomic_load_bool(ptr) __atomic_load_n(ptr, __ATOMIC_ACQUIRE)
+  #define mj_atomic_store_bool(ptr, val) __atomic_store_n(ptr, val, __ATOMIC_RELEASE)
+  #define mj_atomic_exchange_bool(ptr, val) __atomic_exchange_n(ptr, val, __ATOMIC_ACQ_REL)
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifdef ADDRESS_SANITIZER
+#ifdef mjUSEASAN
 int mj__comparePcFuncName(void* pc1, void* pc2);
 const char* mj__getPcDebugInfo(void* pc);
 #endif

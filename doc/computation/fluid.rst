@@ -72,7 +72,7 @@ body coordinates are
    g_{V, i} = \quad &- 8 \beta \pi r_{eq}^3 \omega_i \\
    \end{aligned}
 
-One can also affect these forces by specifing a non-zero :ref:`wind<option-wind>`, which is a 3D vector subtracted
+One can also affect these forces by specifying a non-zero :ref:`wind<option-wind>`, which is a 3D vector subtracted
 from the body linear velocity in the fluid dynamics computation.
 
 .. _flEllipsoid:
@@ -116,26 +116,26 @@ also disables the inertia-based model for the parent body. The
      - :math:`C_{D, \text{blunt}}`
      - 0.5
    * - 1
-     - Slender drag coeficient
+     - Slender drag coefficient
      - :math:`C_{D, \text{slender}}`
      - 0.25
    * - 2
-     - Angular drag coeficient
+     - Angular drag coefficient
      - :math:`C_{D, \text{angular}}`
      - 1.5
    * - 3
-     - Kutta lift coeficient
+     - Kutta lift coefficient
      - :math:`C_K`
      - 1.0
    * - 4
-     - Magnus lift coeficient
+     - Magnus lift coefficient
      - :math:`C_M`
      - 1.0
 
 Elements of the model are a generalization of :cite:t:`andersen2005b` to 3 dimensions.
 The force :math:`\mathbf{f}_{\text{ellipsoid}}` and torque
 :math:`\mathbf{g}_{\text{ellipsoid}}` exerted by the fluid onto the solid are
-the sum of of the terms
+the sum of the terms
 
 .. math::
    \begin{align*}
@@ -308,7 +308,7 @@ We present the following result.
          :math:`\mathcal{E}` with :math:`\Pi_{\mathbf{u}}` (denoted :math:`\mathcal{E}^{\cap}_{\mathbf{u}}`).
 
          An important property of :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}` is that :math:`\mathbf{u}` is tangent
-         tangent to the ellipsoid :math:`\mathcal{E}` at every point on :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}`.
+         to the ellipsoid :math:`\mathcal{E}` at every point on :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}`.
 
          We can regard :math:`\mathcal{E}` as the image of the unit sphere :math:`\mathcal{S}` under a stretching
          transformation :math:`T = \mathrm{diag}(r_x, r_y, r_z)`. Furthermore, if :math:`\mathbf{\tilde{u}}` is a vector
@@ -357,7 +357,7 @@ of symmetry because under this assumption the kinetic energy greatly simplifies 
 
 .. math::
    2 \mathcal{T} = m_{A, x} v_x^2 + m_{A, y} v_y^2 + m_{A, z} v_z^2 +
-                 I_{A, x} \omega_x^2 + I_ {A, y} \omega_y^2 + I_{A, y} \omega_z^2
+                 I_{A, x} \omega_x^2 + I_ {A, y} \omega_y^2 + I_{A, z} \omega_z^2
 
 
 For convenience we introduce the added-mass vector :math:`\mathbf{m}_A = \{m_{A, x}, m_{A, y}, m_{A, z}\}` and added-moment of
@@ -429,7 +429,7 @@ bagheri2016`. See screen capture of the
 We derive a formula for :math:`\mathbf{f}_\text{D}` based on two surfaces :math:`A^\text{proj}_\mathbf{v}` and
 :math:`A_\text{max}`. The first, :math:`A^\text{proj}_\mathbf{v}`, is the cylindrical projection of the body onto a
 plane normal to the velocity :math:`\mathbf{v}`. The second is the maximum projected surface
-:math:`A_\text{max} = 4 \pi r_{max} r_{min}`.
+:math:`A_\text{max} = \pi r_{max} r_{mid}`.
 
 .. math::
    \mathbf{f}_\text{D} = - \rho~ \big[  C_{D, \text{blunt}} ~ A^\text{proj}_\mathbf{v} ~ +
@@ -541,7 +541,7 @@ onto the surface. The lift force per unit length can be computed with the Kuttaâ
 :math:`\mathbf{f}_K / L = \rho \Gamma_\text{K} \times \mathbf{v}`.
 
 In order to extend the lift force equation to three-dimensional motions, we consider the normal
-:math:`\mathbf{n}_{s, \mathbf{v}} = \{\frac{r_y r_z}{r_x}v_x, \frac{r_z r_x}{r_y}v_y, \frac{r_x r_x}{r_z}v_z\}`
+:math:`\mathbf{n}_{s, \mathbf{v}} = \{\frac{r_y r_z}{r_x}v_x, \frac{r_z r_x}{r_y}v_y, \frac{r_x r_y}{r_z}v_z\}`
 to the cross-section of the body which generates the body's projection :math:`A^\text{proj}_\mathbf{v}` onto a plane
 normal to the velocity given in the :ref:`lemma<flProjection>` above and the corresponding unit vector
 :math:`\hat{\mathbf{n}}_{s, \mathbf{v}}`.

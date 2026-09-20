@@ -22,6 +22,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <absl/base/attributes.h>
+#include <absl/strings/str_format.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
@@ -54,11 +55,14 @@ static void run_parse_benchmark(const std::string xml_path,
 
   ASSERT_THAT(vfs_errno, Eq(0)) << "Failed to add file to VFS: " << vfs_errmsg;
 
+  // load once to warm up filesystem and compiler cache
   std::array<char, 1024> error;
-  for (auto s : state) {
-    mjModel* model =
+  mjModel* model =
       mj_loadXML(xml_path.data(), vfs.get(), error.data(), error.size());
-    ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  for (auto s : state) {
+    mjModel* model = mj_loadXML(xml_path.data(), vfs.get(), 0, 0);
     mj_deleteModel(model);
   }
   state.SetLabel(xml_path);
@@ -70,7 +74,7 @@ static void run_parse_benchmark(const std::string xml_path,
 // run_parse_benchmark).
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseFlagPlugin(benchmark::State& state) {
-  run_parse_benchmark(GetModelPath("plugin/elasticity/flag.xml"), state);
+  run_parse_benchmark(GetModelPath("flex/flag.xml"), state);
 }
 BENCHMARK(BM_ParseFlagPlugin);
 
@@ -86,9 +90,51 @@ void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseHumanoid(benchmark::State& state) {
 BENCHMARK(BM_ParseHumanoid);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseHumanoid100(benchmark::State& state) {
-  run_parse_benchmark(GetModelPath("humanoid100/humanoid100.xml"), state);
+  run_parse_benchmark(GetModelPath("humanoid/humanoid100.xml"), state);
 }
 BENCHMARK(BM_ParseHumanoid100);
 
+void BM_CompileManyTextures(benchmark::State& state) {
+  MujocoErrorTestGuard guard;  // Fail test if there are any mujoco errors
+  std::string texture_path =
+      GetTestDataFilePath("benchmark/testdata/noise.png");
+
+  // Create a model with many textures
+  std::string xml = "<mujoco>\n";
+  xml += "  <asset>\n";
+  for (int i = 0; i < 100; ++i) {
+    xml += absl::StrFormat("    <texture name='tex%d' type='2d' file='%s'/>\n",
+                           i, texture_path);
+  }
+  xml += "  </asset>\n";
+  xml += "  <worldbody>\n";
+  xml += "    <geom size='1'/>\n";
+  xml += "  </worldbody>\n";
+  xml += "</mujoco>\n";
+
+  // Disable cache to simulate many textures without needing separate
+  // testdata files.
+  auto* cache = mj_getCache();
+  int old_capacity = mj_getCacheCapacity(cache);
+  mj_setCacheCapacity(cache, 0);
+
+  for (auto s : state) {
+    char error[1024];
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  }
+
+  // Reset cache capacity to default value.
+  mj_setCacheCapacity(cache, old_capacity);
+}
+
+BENCHMARK(BM_CompileManyTextures);
+
 }  // namespace
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseCacheHits(benchmark::State& state) {
+  run_parse_benchmark(
+      GetModelPath("../test/benchmark/testdata/cache_hits.xml"), state);
+}
+BENCHMARK(BM_ParseCacheHits);
+
 }  // namespace mujoco

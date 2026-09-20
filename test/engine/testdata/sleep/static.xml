@@ -1,0 +1,35 @@
+<mujoco>
+  <custom>
+    <numeric name="duration" data="0.1"/>
+  </custom>
+
+  <option>
+    <flag sleep="enable"/>
+  </option>
+
+  <worldbody>
+    <body>
+      <geom type="box" size=".2 .2 .2"/>
+      <body pos="-.4 0 0">
+        <geom type="cylinder" size="0.1" fromto="0 0 0 0 0 1"/>
+      </body>
+    </body>
+
+    <body pos="1 0 0">
+      <geom type="capsule" size="0.1" fromto="0 0 0 0 0 1"/>
+      <body pos="0 0 1">
+        <geom type="capsule" size="0.1" fromto="0 0 0 0 0 1"/>
+        <site/>
+      </body>
+    </body>
+
+    <body pos="2 0 0">
+      <geom size=".3"/>
+      <body pos=".2 0 0">
+        <geom type="cylinder" size="0.1" fromto="0 0 0 0 0 1"/>
+        <camera/>
+        <light pos="0 0 1.5"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

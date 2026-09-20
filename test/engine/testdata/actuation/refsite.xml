@@ -3,7 +3,6 @@
   <!--
   Adding a high fluid viscosity and using implicit integration for extra stabillity.
   Extra stabillity is required because the abstract "arm" model is not very realistic.
-  (e.g. 4 consecutive ball joints is not a realistic kinematic design)
   -->
   <option viscosity="10" integrator="implicit">
     <flag contact="disable"/>
@@ -13,7 +12,7 @@
 
   <default>
     <default class="translation">
-      <position kp="100" kv="10" ctrlrange="-.25 .25"/>
+      <position kp="100" dampratio="1" ctrlrange="-.25 .25"/>
     </default>
     <default class="rotation">
       <!--
@@ -22,7 +21,7 @@
       Increase this range to pi or bigger in order to see the instabillity.
       See here for more details https://mujoco.readthedocs.io/en/latest/XMLreference.html#actuator
       -->
-      <position kp=".5" kv=".05" ctrlrange="-1.571 1.571"/>
+      <position kp=".5" dampratio="1" ctrlrange="-1.571 1.571"/>
     </default>
     <!--
     Clamping the total actuator torque at the joints means that the motion produced by the Cartesian

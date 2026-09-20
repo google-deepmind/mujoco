@@ -279,19 +279,22 @@ public class MjPositionActuatorTests {
     Assert.That(_doc.OuterXml, Does.Contain($"<position"));
   }
 
-  [TestCase(3, "3")]
-  [TestCase(-2, "2")]
-  public void BiasParamsMjcf(float value, string expected) {
-    _actuator.CustomParams.Kp = value;
+  [TestCase(3, 2, "3", "2")]
+  [TestCase(-2, -1, "2", "1")]
+  public void BiasParamsMjcf(float valueP, float valueV, string expectedP, string expectedV) {
+    _actuator.CustomParams.Kp = valueP;
+    _actuator.CustomParams.Kvp = valueV;
     _doc.AppendChild(_actuator.GenerateMjcf("name", _doc));
-    Assert.That(_doc.OuterXml, Does.Contain($"kp=\"{expected}\""));
+    Assert.That(_doc.OuterXml, Does.Contain($"kp=\"{expectedP}\""));
+    Assert.That(_doc.OuterXml, Does.Contain($"kv=\"{expectedV}\""));
   }
 
   [Test]
   public void ParseAllSettings() {
-    _doc.LoadXml("<position joint=\"my_joint\" kp=\"2\"/>");
+    _doc.LoadXml("<position joint=\"my_joint\" kp=\"2\" kv=\"1\"/>");
     _actuator.ParseMjcf(_doc.GetElementsByTagName("position")[0] as XmlElement);
     Assert.That(_actuator.CustomParams.Kp, Is.EqualTo(2));
+    Assert.That(_actuator.CustomParams.Kvp, Is.EqualTo(1));
   }
 
   [Test]
@@ -299,6 +302,7 @@ public class MjPositionActuatorTests {
     _doc.LoadXml("<position joint=\"my_joint\"/>");
     _actuator.ParseMjcf(_doc.GetElementsByTagName("position")[0] as XmlElement);
     Assert.That(_actuator.CustomParams.Kp, Is.EqualTo(1));
+    Assert.That(_actuator.CustomParams.Kvp, Is.EqualTo(0));
   }
 }
 

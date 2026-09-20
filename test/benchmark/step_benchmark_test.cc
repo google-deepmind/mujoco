@@ -17,8 +17,6 @@
 #include <vector>
 
 #include <benchmark/benchmark.h>
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include <absl/base/attributes.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
@@ -57,8 +55,9 @@ static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
   while (state.KeepRunningBatch(kNumBenchmarkSteps)) {
     mj_setState(model, data, initial_state.data(), spec);
 
-    for (int i=kNumWarmupSteps; i < nsteps; i++) {
-      mju_copy(data->ctrl, ctrl.data()+model->nu*i, model->nu);
+    for (int i=0; i < kNumBenchmarkSteps; i++) {
+      mjtNum* ctrl_data = ctrl.data()+model->nu*(i+kNumWarmupSteps);
+      mju_copy(data->ctrl, ctrl_data, model->nu);
       mj_step(model, data);
     }
   }
@@ -74,14 +73,14 @@ static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepFlagPlugin(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  static mjModel* model = LoadModelFromPath("plugin/elasticity/flag.xml");
+  static mjModel* model = LoadModelFromPath("flex/flag.xml");
   run_step_benchmark(model, state);
 }
 BENCHMARK(BM_StepFlagPlugin);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepParticle(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  static mjModel* model = LoadModelFromPath("composite/particle.xml");
+  static mjModel* model = LoadModelFromPath("replicate/particle.xml");
   run_step_benchmark(model, state);
 }
 BENCHMARK(BM_StepParticle);
@@ -103,7 +102,7 @@ BENCHMARK(BM_StepHumanoid);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepHumanoid100(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  static mjModel* model = LoadModelFromPath("humanoid100/humanoid100.xml");
+  static mjModel* model = LoadModelFromPath("humanoid/humanoid100.xml");
   run_step_benchmark(model, state);
 }
 BENCHMARK(BM_StepHumanoid100);

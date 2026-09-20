@@ -1,0 +1,444 @@
+# Copyright 2025 DeepMind Technologies Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+"""Tests for forward functions."""
+
+import functools
+import os
+import tempfile
+
+from absl.testing import absltest
+from absl.testing import parameterized
+import jax
+import jax.numpy as jp
+import mujoco
+from mujoco import mjx
+from mujoco.mjx._src import io
+from mujoco.mjx._src import test_util
+import mujoco.mjx.warp as mjxw
+from mujoco.mjx.warp import test_util as tu
+from mujoco.mjx.warp import warp as wp  # pylint: disable=g-importing-member
+import numpy as np
+
+
+try:
+  from mujoco.mjx.warp import forward  # pylint: disable=g-import-not-at-top
+except ImportError:
+  forward = None
+
+_FORCE_TEST = os.environ.get('MJX_WARP_FORCE_TEST', '0') == '1'
+
+
+class ForwardTest(parameterized.TestCase):
+
+  @classmethod
+  def setUpClass(cls):
+    super().setUpClass()
+    if mjxw.WARP_INSTALLED:
+      cls.tempdir = tempfile.TemporaryDirectory()
+      wp.config.kernel_cache_dir = cls.tempdir.name
+
+  @classmethod
+  def tearDownClass(cls):
+    super().tearDownClass()
+    if hasattr(cls, 'tempdir'):
+      cls.tempdir.cleanup()
+
+  def setUp(self):
+    super().setUp()
+    np.random.seed(0)
+
+  @parameterized.parameters(
+      'pendula.xml',
+      'humanoid/humanoid.xml',
+  )
+  def test_jit_caching(self, xml):
+    """Tests jit caching on the full step function."""
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
+
+    batch_size = 7
+    m = test_util.load_test_file(xml)
+    mx = mjx.put_model(m, impl='warp')
+
+    keys = jp.arange(batch_size)
+    dx_batch = jax.vmap(functools.partial(tu.make_data, m))(keys)
+
+    step_fn = jax.jit(jax.vmap(forward.step, in_axes=(None, 0)))
+    dx_batch1 = step_fn(mx, dx_batch)
+    jax.tree_util.tree_map(lambda x: x.block_until_ready(), dx_batch1)
+    self.assertEqual(step_fn._cache_size(), 1)
+
+    # Re-generate data and run step_fn again to test jit caching.
+    keys = jp.arange(batch_size, batch_size * 2)
+    dx_batch = jax.vmap(functools.partial(tu.make_data, m))(keys)
+    dx_batch2 = step_fn(mx, dx_batch)
+    jax.tree_util.tree_map(lambda x: x.block_until_ready(), dx_batch2)
+    self.assertEqual(step_fn._cache_size(), 1)
+
+  @parameterized.product(
+      xml=(
+          'humanoid/humanoid.xml',
+          'pendula.xml',
+      ),
+      batch_size=(1, 7),
+  )
+  def test_forward(self, xml: str, batch_size: int):
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
+
+    m = test_util.load_test_file(xml)
+    m.opt.iterations = 10
+    m.opt.ls_iterations = 10
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE
+    mx = mjx.put_model(m, impl='warp')
+
+    d = mujoco.MjData(m)
+    worldids = jp.arange(batch_size)
+    dx_batch = jax.vmap(functools.partial(tu.make_data, m))(worldids)
+
+    dx_batch = jax.jit(jax.vmap(forward.forward, in_axes=(None, 0)))(
+        mx, dx_batch
+    )
+
+    for i in range(batch_size):
+      dx = dx_batch[i]
+
+      d.qpos[:] = dx.qpos
+      d.qvel[:] = dx.qvel
+      d.ctrl[:] = dx.ctrl
+      d.mocap_pos[:] = dx.mocap_pos
+      d.mocap_quat[:] = dx.mocap_quat
+      mujoco.mj_forward(m, d)
+
+      # fwd_position
+      tu.assert_attr_eq(dx, d, 'xpos')
+      tu.assert_attr_eq(dx, d, 'xquat')
+      tu.assert_attr_eq(dx, d, 'xipos')
+      tu.assert_eq(d.ximat.reshape((-1, 3, 3)), dx.ximat, 'ximat')
+      tu.assert_attr_eq(dx, d, 'xanchor')
+      tu.assert_attr_eq(dx, d, 'xaxis')
+      tu.assert_attr_eq(dx, d, 'geom_xpos')
+      tu.assert_eq(dx.geom_xmat, d.geom_xmat.reshape((-1, 3, 3)), 'geom_xmat')
+      if m.nsite:
+        tu.assert_attr_eq(dx, d, 'site_xpos')
+        tu.assert_eq(dx.site_xmat, d.site_xmat.reshape((-1, 3, 3)), 'site_xmat')
+      tu.assert_attr_eq(dx, d, 'cdof')
+      tu.assert_attr_eq(dx._impl, d, 'cinert')
+      tu.assert_attr_eq(dx, d, 'subtree_com')
+      if m.nlight:
+        tu.assert_attr_eq(dx._impl, d, 'light_xpos')
+        tu.assert_attr_eq(dx._impl, d, 'light_xdir')
+      if m.ncam:
+        tu.assert_attr_eq(dx, d, 'cam_xpos')
+        tu.assert_eq(dx.cam_xmat, d.cam_xmat.reshape((-1, 3, 3)), 'cam_xmat')
+      tu.assert_attr_eq(dx, d, 'ten_length')
+      ten_J = np.zeros((m.ntendon, m.nv))
+      mujoco.mju_sparse2dense(
+          ten_J,
+          d.ten_J,
+          m.ten_J_rownnz,
+          m.ten_J_rowadr,
+          m.ten_J_colind,
+      )
+      # convert sparse warp ten_J to dense representation
+      warp_ten_J = np.zeros((m.ntendon, m.nv))
+      mujoco.mju_sparse2dense(
+          warp_ten_J,
+          np.asarray(dx._impl.ten_J),
+          mx._impl.ten_J_rownnz,
+          mx._impl.ten_J_rowadr,
+          mx._impl.ten_J_colind,
+      )
+      tu.assert_eq(warp_ten_J, ten_J, 'ten_J')
+      tu.assert_attr_eq(dx._impl, d, 'ten_wrapadr')
+      tu.assert_attr_eq(dx._impl, d, 'ten_wrapnum')
+      tu.assert_attr_eq(dx._impl, d, 'wrap_xpos')
+      tu.assert_attr_eq(dx._impl, d, 'wrap_obj')
+      tu.assert_attr_eq(dx._impl, d, 'crb')
+
+      qm = np.zeros((m.nv, m.nv))
+      mujoco.mju_sym2dense(qm, d.M, m.M_rownnz, m.M_rowadr, m.M_colind)
+      warp_M = np.zeros((m.nv, m.nv))
+      mujoco.mju_sym2dense(
+          warp_M,
+          np.asarray(dx._impl.M),
+          np.asarray(mx.M_rownnz),
+          np.asarray(mx.M_rowadr),
+          np.asarray(mx.M_colind),
+      )
+      tu.assert_eq(qm, warp_M, 'M')
+      # qLD is fused in a cholesky factorize and solve, and not written to.
+
+      tu.assert_contact_eq(d, dx, worldid=i)
+
+      tu.assert_attr_eq(dx, d, 'actuator_length')
+      actuator_moment = np.zeros((m.nu, m.nv))
+      mujoco.mju_sparse2dense(
+          actuator_moment,
+          d.actuator_moment,
+          d.moment_rownnz,
+          d.moment_rowadr,
+          d.moment_colind,
+      )
+      warp_actuator_moment = np.zeros((m.nu, m.nv))
+      mujoco.mju_sparse2dense(
+          warp_actuator_moment,
+          np.asarray(dx._impl.actuator_moment),
+          np.asarray(dx._impl.moment_rownnz),
+          np.asarray(dx._impl.moment_rowadr),
+          np.asarray(dx._impl.moment_colind),
+      )
+      tu.assert_eq(warp_actuator_moment, actuator_moment, 'actuator_moment')
+
+      # fwd_velocity
+      tu.assert_attr_eq(dx._impl, d, 'actuator_velocity')
+      tu.assert_attr_eq(dx, d, 'cvel')
+      tu.assert_attr_eq(dx, d, 'cdof_dot')
+      tu.assert_attr_eq(dx._impl, d, 'qfrc_spring')
+      tu.assert_attr_eq(dx._impl, d, 'qfrc_damper')
+      tu.assert_attr_eq(dx, d, 'qfrc_gravcomp')
+      tu.assert_attr_eq(dx, d, 'qfrc_fluid')
+      tu.assert_attr_eq(dx, d, 'qfrc_passive')
+      tu.assert_attr_eq(dx, d, 'qfrc_bias')
+      tu.assert_efc_eq(d, dx, worldid=i)
+
+      # fwd_actuation
+      tu.assert_attr_eq(dx, d, 'act_dot')
+      tu.assert_attr_eq(dx, d, 'actuator_force')
+      tu.assert_attr_eq(dx, d, 'qfrc_actuator')
+
+      # fwd_acceleration
+      tu.assert_attr_eq(dx, d, 'qfrc_smooth')
+      tu.assert_attr_eq(dx, d, 'qacc_smooth')
+
+      np.testing.assert_allclose(
+          dx.qacc, d.qacc, err_msg='qacc', rtol=1e-5, atol=1.0
+      )
+
+
+class StepTest(parameterized.TestCase):
+
+  @classmethod
+  def setUpClass(cls):
+    super().setUpClass()
+    if mjxw.WARP_INSTALLED:
+      cls.tempdir = tempfile.TemporaryDirectory()
+      wp.config.kernel_cache_dir = cls.tempdir.name
+
+  @classmethod
+  def tearDownClass(cls):
+    super().tearDownClass()
+    if hasattr(cls, 'tempdir'):
+      cls.tempdir.cleanup()
+
+  def setUp(self):
+    super().setUp()
+    np.random.seed(0)
+
+  @parameterized.product(
+      xml=(
+          'humanoid/humanoid.xml',
+          'pendula.xml',
+      ),
+      batch_size=(1, 7),
+      # NOTE: GraphMode.JAX is incompatible with MuJoCo Warp at the moment,
+      # even when setting graph_conditional=False.
+      graph_mode=('WARP', 'WARP_STAGED'),
+  )
+  def test_step(self, xml: str, batch_size: int, graph_mode: str):
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
+
+    m = test_util.load_test_file(xml)
+    m.opt.iterations = 10
+    m.opt.ls_iterations = 10
+    mx = mjx.put_model(
+        m, impl='warp', graph_mode=getattr(mjxw.types.GraphMode, graph_mode)
+    )
+
+    d = mujoco.MjData(m)
+    worldids = jp.arange(batch_size)
+    dx_batch = jax.vmap(functools.partial(tu.make_data, m))(worldids)
+    dx_batch_orig = dx_batch
+
+    for _ in range(10):
+      dx_batch = jax.jit(jax.vmap(forward.step, in_axes=(None, 0)))(
+          mx, dx_batch
+      )
+
+    for i in range(batch_size):
+      dx = dx_batch[i]
+      dx_orig = dx_batch_orig[i]
+
+      d.qpos[:] = dx_orig.qpos
+      d.qvel[:] = dx_orig.qvel
+      d.ctrl[:] = dx_orig.ctrl
+      d.mocap_pos[:] = dx_orig.mocap_pos
+      d.mocap_quat[:] = dx_orig.mocap_quat
+      d.time = dx_orig.time
+      mujoco.mj_step(m, d, 10)
+
+      tu.assert_attr_eq(dx, d, 'qpos')
+      tu.assert_attr_eq(dx, d, 'qvel')
+      tu.assert_attr_eq(dx, d, 'time')
+      tu.assert_attr_eq(dx, d, 'ctrl')
+      tu.assert_attr_eq(dx, d, 'act')
+      tu.assert_attr_eq(dx, d, 'mocap_pos')
+      tu.assert_attr_eq(dx, d, 'mocap_quat')
+      tu.assert_attr_eq(dx, d, 'sensordata')
+
+  @parameterized.parameters(
+      'humanoid/humanoid.xml',
+      'pendula.xml',
+  )
+  def test_step_cpu(self, xml: str):
+    """Tests step on the CPU device."""
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+
+    batch_size = 1
+    m = test_util.load_test_file(xml)
+    m.opt.iterations = 10
+    m.opt.ls_iterations = 10
+
+    cpu_device = jax.devices('cpu')[0]
+    mx = mjx.put_model(m, impl='warp', device=cpu_device)
+
+    d = mujoco.MjData(m)
+    worldids = jp.arange(batch_size)
+    dx_batch = jax.vmap(functools.partial(tu.make_data, m))(worldids)
+    dx_batch = jax.device_put(dx_batch, cpu_device)
+    dx_batch_orig = dx_batch
+
+    for _ in range(10):
+      dx_batch = jax.vmap(forward.step, in_axes=(None, 0))(
+          mx, dx_batch
+      )
+
+    for i in range(batch_size):
+      dx = dx_batch[i]
+      dx_orig = dx_batch_orig[i]
+
+      d.qpos[:] = dx_orig.qpos
+      d.qvel[:] = dx_orig.qvel
+      d.ctrl[:] = dx_orig.ctrl
+      d.mocap_pos[:] = dx_orig.mocap_pos
+      d.mocap_quat[:] = dx_orig.mocap_quat
+      d.time = dx_orig.time
+      mujoco.mj_step(m, d, 10)
+
+      tu.assert_attr_eq(dx, d, 'qpos')
+      tu.assert_attr_eq(dx, d, 'qvel')
+      tu.assert_attr_eq(dx, d, 'time')
+      tu.assert_attr_eq(dx, d, 'ctrl')
+      tu.assert_attr_eq(dx, d, 'act')
+      tu.assert_attr_eq(dx, d, 'mocap_pos')
+      tu.assert_attr_eq(dx, d, 'mocap_quat')
+      tu.assert_attr_eq(dx, d, 'sensordata')
+
+  def test_step_leading_dim_mismatch(self):
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
+
+    xml = 'humanoid/humanoid.xml'
+    batch_size = 7
+
+    m = test_util.load_test_file(xml)
+    mx = mjx.put_model(m, impl='warp')
+
+    worldids = jp.arange(batch_size)
+    dx_batch = jax.vmap(functools.partial(tu.make_data, m))(worldids)
+    dx_batch_orig = dx_batch
+
+    with self.assertRaises(ValueError):
+      dx_batch = dx_batch.replace(qpos=dx_batch.qpos[1:])
+      _ = jax.jit(jax.vmap(forward.step, in_axes=(None, 0)))(mx, dx_batch)
+
+    dx_batch = dx_batch_orig
+    with self.assertRaises(ValueError):
+      dx_batch = dx_batch.tree_replace(
+          {'_impl.contact__pos': dx_batch._impl.contact__pos[1:]}
+      )
+      _ = jax.jit(jax.vmap(forward.step, in_axes=(None, 0)))(mx, dx_batch)
+
+  def test_where_autoreset(self):
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
+
+    m = test_util.load_test_file('pendula.xml')
+    mx = mjx.put_model(m, impl='warp')
+
+    batch_size = 4
+    num_steps = 2
+
+    data_template = mjx.make_data(
+        m, impl='warp', naconmax=16 * batch_size, njmax=64
+    )
+
+    def reset_fn(key):
+      qpos = data_template.qpos.at[0].set(0.1)
+      d = data_template.replace(qpos=qpos)
+      return forward.forward(mx, d)
+
+    keys = jp.arange(batch_size)
+    batched_data = jax.vmap(reset_fn)(keys)
+
+    def step_fn(key, data):
+      stepped_data = forward.step(mx, data)
+      # dummy condition: reset if first joint pos > 0.05
+      done = stepped_data.qpos[0] > 0.05
+      reset_data = reset_fn(key)
+      return stepped_data.where(done, reset_data)
+
+    def rollout(data, key):
+      def body(carry, _):
+        data, key = carry
+        key, sk = jax.random.split(key)
+        step_keys = jax.random.split(sk, batch_size)
+        data = jax.vmap(step_fn)(step_keys, data)
+        return (data, key), None
+
+      (next_data, key), _ = jax.lax.scan(
+          body, (data, key), None, length=num_steps
+      )
+      return next_data
+
+    out = jax.jit(rollout)(batched_data, jax.random.PRNGKey(1))
+
+    self.assertEqual(out.qpos.shape, (batch_size, m.nq))
+    self.assertEqual(
+        out._impl.contact__type.shape, (data_template._impl.naconmax,)
+    )
+
+
+
+if __name__ == '__main__':
+  absltest.main()

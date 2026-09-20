@@ -1,0 +1,11 @@
+<mujoco>
+  <default>
+    <mesh maxhullvert="64"/>
+  </default>
+  <asset>
+    <mesh file="torus.obj"/>
+  </asset>
+  <worldbody>
+    <geom type="mesh" mesh="torus"/>
+  </worldbody>
+</mujoco>

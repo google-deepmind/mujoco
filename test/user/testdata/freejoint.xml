@@ -1,0 +1,44 @@
+<mujoco>
+  <compiler alignfree="true"/>
+  <worldbody>
+    <light pos="0 0 10"/>
+    <geom type="plane" pos="0 0 -1.5" size="5 5 .01"/>
+    <body name="body" pos="0 0 1">
+      <freejoint/>
+      <geom type="capsule" size=".1" fromto="0 0 0 1 0 0"/>
+      <geom name="geom1" type="capsule" size=".1" fromto="1 0 0 1 1 0"/>
+      <frame pos="1 1 0" euler="0 30 0">
+        <geom name="geom2" type="capsule" size=".1" fromto="0 0 0 0 0 1"/>
+        <site name="site" pos="-.2 0 1" type="box" size=".03 .06 .1" quat="1 2 3 4" rgba="0 1 0 1"/>
+        <light name="light" pos="0 0 1.1" dir="0 -1 -1"/>
+        <camera name="camera" pos="0 0 1.2" euler="10 20 30"/>
+      </frame>
+    </body>
+    <site name="anchor" pos="0 0 2" size=".1"/>
+  </worldbody>
+
+  <tendon>
+    <spatial springlength="0 1" stiffness="10000" width=".05">
+      <site site="site"/>
+      <site site="anchor"/>
+    </spatial>
+  </tendon>
+
+  <sensor>
+    <framepos objtype="body" objname="body"/>
+    <framexaxis objtype="body" objname="body"/>
+    <frameyaxis objtype="body" objname="body"/>
+    <framepos objtype="geom" objname="geom1"/>
+    <framexaxis objtype="geom" objname="geom1"/>
+    <frameyaxis objtype="geom" objname="geom1"/>
+    <framepos objtype="geom" objname="geom2"/>
+    <framexaxis objtype="geom" objname="geom2"/>
+    <frameyaxis objtype="geom" objname="geom2"/>
+    <framepos objtype="site" objname="site"/>
+    <framexaxis objtype="site" objname="site"/>
+    <frameyaxis objtype="site" objname="site"/>
+    <framepos objtype="camera" objname="camera"/>
+    <framexaxis objtype="camera" objname="camera"/>
+    <frameyaxis objtype="camera" objname="camera"/>
+  </sensor>
+</mujoco>

@@ -32,7 +32,9 @@ from mujoco.mjx._src.collision_types import Collision
 from mujoco.mjx._src.collision_types import GeomInfo
 from mujoco.mjx._src.dataclasses import PyTreeNode
 from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import Model
+from mujoco.mjx._src.types import ModelJAX
 # pylint: enable=g-importing-member
 
 # the SDF function takes position in, and returns a distance or objective
@@ -41,6 +43,7 @@ SDFFn = Callable[[jax.Array], jax.Array]
 
 def collider(ncon: int):
   """Wraps collision functions for use by collision_driver."""
+
   def wrapper(func):
     def collide(m: Model, d: Data, _, geom: jax.Array) -> Collision:
       g1, g2 = geom.T
@@ -51,7 +54,7 @@ def collider(ncon: int):
         return jax.tree_util.tree_map(jp.concatenate, (dist, pos, frame))
       return dist, pos, frame
 
-    collide.ncon = ncon
+    collide.ncon = ncon  # pyrefly: ignore[missing-attribute]
     return collide
 
   return wrapper
@@ -81,7 +84,7 @@ def _capsule(pos: jax.Array, size: jax.Array):
 
 def _ellipsoid(pos: jax.Array, size: jax.Array) -> jax.Array:
   k0 = math.norm(pos / size)
-  k1 = math.norm(pos / (size*size))
+  k1 = math.norm(pos / (size * size))
   return k0 * (k0 - 1.0) / (k1 + (k1 == 0.0) * 1e-12)
 
 
@@ -96,12 +99,12 @@ def _cylinder(pos: jax.Array, size: jax.Array) -> jax.Array:
 
 def _cylinder_grad(x: jax.Array, size: jax.Array) -> jax.Array:
   """Gradient of the cylinder SDF wrt query point and singularities removed."""
-  c = jp.sqrt(x[0]*x[0]+x[1]*x[1])
+  c = jp.sqrt(x[0] * x[0] + x[1] * x[1])
   e = jp.abs(x[2])
   a = jp.array([c - size[0], e - size[1]])
   b = jp.array([jp.maximum(a[0], 0), jp.maximum(a[1], 0)])
   j = jp.argmax(a)
-  bnorm = jp.sqrt(b[0]*b[0] + b[1]*b[1])
+  bnorm = jp.sqrt(b[0] * b[0] + b[1] * b[1])
   bnorm += jp.allclose(bnorm, 0) * 1e-12
   grada = jp.array([
       x[0] / (c + jp.allclose(c, 0) * 1e-12),
@@ -122,8 +125,16 @@ def cylinder_jvp(primals, tangents):
   return primal_out, tangent_out
 
 
-def _to_local(f: SDFFn, pos: jax.Array, mat: jax.Array)-> SDFFn:
-  return lambda p: f(mat.T @ (p - pos))
+def _from_to(
+    f: SDFFn,
+    from_pos: jax.Array,
+    from_mat: jax.Array,
+    to_pos: jax.Array,
+    to_mat: jax.Array,
+) -> SDFFn:
+  relmat = math.matmul_unroll(to_mat.T, from_mat)
+  relpos = to_mat.T @ (from_pos - to_pos)
+  return lambda p: f(relmat @ p + relpos)
 
 
 def _intersect(d1: SDFFn, d2: SDFFn) -> SDFFn:
@@ -143,7 +154,7 @@ def _gradient_step(objective: SDFFn, state: GradientState) -> GradientState:
   """Performs a step of gradient descent."""
   # TODO: find better parameters
   amin = 1e-4  # minimum value for line search factor scaling the gradient
-  amax = 2.  # maximum value for line search factor scaling the gradient
+  amax = 2.0  # maximum value for line search factor scaling the gradient
   nlinesearch = 10  # line search points
   grad = jax.grad(objective)(state.x)
   alpha = jp.geomspace(amin, amax, nlinesearch).reshape(nlinesearch, -1)
@@ -171,30 +182,52 @@ def _gradient_descent(
 
 
 def _optim(
-    d1, d2, info1: GeomInfo, info2: GeomInfo, x0: jax.Array,
+    d1,
+    d2,
+    info1: GeomInfo,
+    info2: GeomInfo,
+    x0: jax.Array,
 ) -> Collision:
   """Optimizes the clearance function."""
   d1 = functools.partial(d1, size=info1.size)
-  d1 = _to_local(d1, info1.pos, info1.mat)
+  # evaluate d1 in d2 frame
+  d1 = _from_to(d1, info2.pos, info2.mat, info1.pos, info1.mat)
   d2 = functools.partial(d2, size=info2.size)
-  d2 = _to_local(d2, info2.pos, info2.mat)
+  x0 = info2.mat.T @ (x0 - info2.pos)
   fn = _clearance(d1, d2)
   _, pos = _gradient_descent(fn, x0, 10)
   dist = d1(pos) + d2(pos)
   n = jax.grad(d1)(pos) - jax.grad(d2)(pos)
+  pos = info2.mat @ pos + info2.pos  # d2 to global frame
+  n = info2.mat @ n
   return dist, pos, math.make_frame(n)
 
 
 @collider(ncon=1)
+def sphere_ellipsoid(s: GeomInfo, e: GeomInfo) -> Collision:
+  """Calculates contact between a sphere and an ellipsoid."""
+  x0 = 0.5 * (s.pos + e.pos)
+  return _optim(_sphere, _ellipsoid, s, e, x0)
+
+
+@collider(ncon=1)
+def sphere_cylinder(s: GeomInfo, c: GeomInfo) -> Collision:
+  """Calculates contact between a sphere and a cylinder."""
+  # TODO: implement analytical version.
+  x0 = 0.5 * (s.pos + c.pos)
+  return _optim(_sphere, _cylinder, s, c, x0)
+
+
+@collider(ncon=1)
 def capsule_ellipsoid(c: GeomInfo, e: GeomInfo) -> Collision:
-  """"Calculates contact between a capsule and an ellipsoid."""
+  """ "Calculates contact between a capsule and an ellipsoid."""
   x0 = 0.5 * (c.pos + e.pos)
   return _optim(_capsule, _ellipsoid, c, e, x0)
 
 
 @collider(ncon=2)
 def capsule_cylinder(ca: GeomInfo, cy: GeomInfo) -> Collision:
-  """"Calculates contact between a capsule and a cylinder."""
+  """Calculates contact between a capsule and a cylinder."""
   # TODO: improve robustness
   # Near sharp corners, the SDF might give the penetration depth with respect
   # to a surface that is not in collision. Possible solutions is to find the
@@ -209,21 +242,21 @@ def capsule_cylinder(ca: GeomInfo, cy: GeomInfo) -> Collision:
 
 @collider(ncon=1)
 def ellipsoid_ellipsoid(e1: GeomInfo, e2: GeomInfo) -> Collision:
-  """"Calculates contact between two ellipsoids."""
+  """Calculates contact between two ellipsoids."""
   x0 = 0.5 * (e1.pos + e2.pos)
   return _optim(_ellipsoid, _ellipsoid, e1, e2, x0)
 
 
 @collider(ncon=1)
 def ellipsoid_cylinder(e: GeomInfo, c: GeomInfo) -> Collision:
-  """"Calculates contact between and ellipsoid and a cylinder."""
+  """Calculates contact between and ellipsoid and a cylinder."""
   x0 = 0.5 * (e.pos + c.pos)
   return _optim(_ellipsoid, _cylinder, e, c, x0)
 
 
 @collider(ncon=4)
 def cylinder_cylinder(c1: GeomInfo, c2: GeomInfo) -> Collision:
-  """"Calculates contact between a cylinder and a cylinder."""
+  """Calculates contact between a cylinder and a cylinder."""
   # TODO: improve robustness
   # Near sharp corners, the SDF might give the penetration depth with respect
   # to a surface that is not in collision. Possible solutions is to find the
@@ -240,4 +273,3 @@ def cylinder_cylinder(c1: GeomInfo, c2: GeomInfo) -> Collision:
   ])
   optim_ = functools.partial(_optim, _cylinder, _cylinder, c1, c2)
   return jax.vmap(optim_)(x0)
-

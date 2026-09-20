@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <chrono>  // NOLINT(build/c++11)
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -22,14 +23,16 @@
 
 #include <mujoco/mujoco.h>
 #include "errors.h"
-#include "structs.h"
+#include "gil.h"
 #include "raw.h"
+#include "structs.h"
 #include <pybind11/eval.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 
 namespace mujoco::python {
 namespace {
+
 namespace py = ::pybind11;
 
 [[noreturn]] static void EscapeWithPythonException() {
@@ -91,8 +94,7 @@ static enable_if_not_const_t<Raw, py::handle> MjWrapperLookup(Raw* ptr) {
   // TODO(stunya): Figure out a way to do this without invoking py::detail.
   {
     py::gil_scoped_acquire gil;
-    const auto [src, type] =
-        py::detail::type_caster_base<MjWrapper<Raw>>::src_and_type(wrapper);
+    auto* type = py::detail::get_type_info(typeid(MjWrapper<Raw>));
     if (type) {
       py::object instance = py::reinterpret_steal<py::object>(
           py::detail::find_registered_python_instance(wrapper, type));
@@ -122,6 +124,10 @@ static const py::handle MjWrapperLookup(const Raw* ptr) {
   return MjWrapperLookup(const_cast<Raw*>(ptr));
 }
 
+// CallPyCallback takes ownership of py_callback: it will Py_XDECREF it before
+// returning or escaping.  This is necessary because EscapeWithPythonException()
+// calls mju_error which uses longjmp, bypassing C++ stack unwinding and any
+// trailing Py_XDECREF in callers.
 template <typename Return, typename... Args>
 static Return
 CallPyCallback(const char* name, PyObject* py_callback, Args... args) {
@@ -136,9 +142,12 @@ CallPyCallback(const char* name, PyObject* py_callback, Args... args) {
       try {
         if constexpr (std::is_void_v<Return>) {
           callback(args...);
+          Py_XDECREF(py_callback);
           return;
         } else {
-          return callback(args...).template cast<Return>();
+          auto result = callback(args...).template cast<Return>();
+          Py_XDECREF(py_callback);
+          return result;
         }
       } catch (py::error_already_set& e) {
         e.restore();
@@ -155,13 +164,23 @@ CallPyCallback(const char* name, PyObject* py_callback, Args... args) {
         PyErr_SetString(PyExc_TypeError, msg.str().c_str());
       }
     }
+    // Error path: DECREF before escaping (longjmp won't unwind the stack).
+    Py_XDECREF(py_callback);
   }
   EscapeWithPythonException();
 }
 
 static PyObject* py_mju_user_warning = nullptr;
 static void PyMjuUserWarning(const char* msg) {
-  CallPyCallback<void>("mju_user_warning", py_mju_user_warning, msg);
+  PyObject* cb;
+  {
+    py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(GetCallbackMutex());
+    cb = py_mju_user_warning;
+    Py_XINCREF(cb);
+  }
+  // CallPyCallback takes ownership of cb (will XDECREF it).
+  CallPyCallback<void>("mju_user_warning", cb, msg);
 }
 
 // We only support ctypes function pointers for these.
@@ -172,20 +191,41 @@ static PyObject* py_mju_user_free = nullptr;
 
 static PyObject* py_mjcb_passive = nullptr;
 static void PyMjcbPassive(const raw::MjModel* m, raw::MjData* d) {
-  CallPyCallback<void>("mjcb_passive", py_mjcb_passive,
+  PyObject* cb;
+  {
+    py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(GetCallbackMutex());
+    cb = py_mjcb_passive;
+    Py_XINCREF(cb);
+  }
+  CallPyCallback<void>("mjcb_passive", cb,
                        MjWrapperLookup(m), MjWrapperLookup(d));
 }
 
 static PyObject* py_mjcb_control = nullptr;
 static void PyMjcbControl(const raw::MjModel* m, raw::MjData* d) {
-  CallPyCallback<void>("mjcb_control", py_mjcb_control,
+  PyObject* cb;
+  {
+    py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(GetCallbackMutex());
+    cb = py_mjcb_control;
+    Py_XINCREF(cb);
+  }
+  CallPyCallback<void>("mjcb_control", cb,
                        MjWrapperLookup(m), MjWrapperLookup(d));
 }
 
 static PyObject* py_mjcb_contactfilter = nullptr;
 static int PyMjcbContactfilter(
     const raw::MjModel* m, raw::MjData* d, int geom1, int geom2) {
-  return CallPyCallback<int>("mjcb_contactfilter", py_mjcb_contactfilter,
+  PyObject* cb;
+  {
+    py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(GetCallbackMutex());
+    cb = py_mjcb_contactfilter;
+    Py_XINCREF(cb);
+  }
+  return CallPyCallback<int>("mjcb_contactfilter", cb,
                              MjWrapperLookup(m), MjWrapperLookup(d),
                              geom1, geom2);
 }
@@ -193,34 +233,72 @@ static int PyMjcbContactfilter(
 static PyObject* py_mjcb_sensor = nullptr;
 static void
 PyMjcbSensor(const raw::MjModel* m, raw::MjData* d, int stage) {
-  CallPyCallback<void>("mjcb_sensor", py_mjcb_sensor,
+  PyObject* cb;
+  {
+    py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(GetCallbackMutex());
+    cb = py_mjcb_sensor;
+    Py_XINCREF(cb);
+  }
+  CallPyCallback<void>("mjcb_sensor", cb,
                        MjWrapperLookup(m), MjWrapperLookup(d), stage);
 }
 
 static PyObject* py_mjcb_time = nullptr;
 static mjtNum PyMjcbTime() {
-  return CallPyCallback<mjtNum>("mjcb_time", py_mjcb_time);
+  PyObject* cb;
+  {
+    py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(GetCallbackMutex());
+    cb = py_mjcb_time;
+    Py_XINCREF(cb);
+  }
+  return CallPyCallback<mjtNum>("mjcb_time", cb);
 }
 
 static PyObject* py_mjcb_act_dyn = nullptr;
 static mjtNum
 PyMjcbActDyn(const raw::MjModel* m, const raw::MjData* d, int id) {
-  return CallPyCallback<mjtNum>("mjcb_act_dyn", py_mjcb_act_dyn,
-                                MjWrapperLookup(m), MjWrapperLookup(d), id);
+  PyObject* cb;
+  {
+    py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(GetCallbackMutex());
+    cb = py_mjcb_act_dyn;
+    Py_XINCREF(cb);
+  }
+  return CallPyCallback<mjtNum>("mjcb_act_dyn", cb,
+                                MjWrapperLookup(m),
+                                MjWrapperLookup(d), id);
 }
 
 static PyObject* py_mjcb_act_gain = nullptr;
 static mjtNum
 PyMjcbActGain(const raw::MjModel* m, const raw::MjData* d, int id) {
-  return CallPyCallback<mjtNum>("mjcb_act_gain", py_mjcb_act_gain,
-                                MjWrapperLookup(m), MjWrapperLookup(d), id);
+  PyObject* cb;
+  {
+    py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(GetCallbackMutex());
+    cb = py_mjcb_act_gain;
+    Py_XINCREF(cb);
+  }
+  return CallPyCallback<mjtNum>("mjcb_act_gain", cb,
+                                MjWrapperLookup(m),
+                                MjWrapperLookup(d), id);
 }
 
 static PyObject* py_mjcb_act_bias = nullptr;
 static mjtNum
 PyMjcbActBias(const raw::MjModel* m, const raw::MjData* d, int id) {
-  return CallPyCallback<mjtNum>("mjcb_act_bias", py_mjcb_act_bias,
-                                MjWrapperLookup(m), MjWrapperLookup(d), id);
+  PyObject* cb;
+  {
+    py::gil_scoped_acquire gil;
+    MutexLockIfGilDisabled lock(GetCallbackMutex());
+    cb = py_mjcb_act_bias;
+    Py_XINCREF(cb);
+  }
+  return CallPyCallback<mjtNum>("mjcb_act_bias", cb,
+                                MjWrapperLookup(m),
+                                MjWrapperLookup(d), id);
 }
 
 // If the Python object is a ctypes function pointer, returns the corresponding
@@ -288,66 +366,120 @@ template <typename CFuncPtr>
 void SetCallback(py::handle h, CFuncPtr py_trampoline,
                  PyObject** py_callback, CFuncPtr* mj_callback) {
   CFuncPtr cfuncptr = GetCFuncPtr<CFuncPtr>(h);
+  PyObject* old = nullptr;
   if (h.is_none()) {
-    Py_XDECREF(*py_callback);
-    *py_callback = nullptr;
-    *mj_callback = nullptr;
+    {
+      MutexLockIfGilDisabled lock(GetCallbackMutex());
+      old = *py_callback;
+      *py_callback = nullptr;
+      *mj_callback = nullptr;
+    }
   } else if (cfuncptr) {
-    Py_XDECREF(*py_callback);
     Py_INCREF(h.ptr());
-    *py_callback = h.ptr();
-    *mj_callback = cfuncptr;
+    {
+      MutexLockIfGilDisabled lock(GetCallbackMutex());
+      old = *py_callback;
+      *py_callback = h.ptr();
+      *mj_callback = cfuncptr;
+    }
   } else if (IsCallable(h)) {
-    Py_XDECREF(*py_callback);
     Py_INCREF(h.ptr());
-    *py_callback = h.ptr();
-    *mj_callback = py_trampoline;
+    {
+      MutexLockIfGilDisabled lock(GetCallbackMutex());
+      old = *py_callback;
+      *py_callback = h.ptr();
+      *mj_callback = py_trampoline;
+    }
   } else {
     throw py::type_error("callback is not an Optional[Callable]");
   }
+  // XDECREF outside mutex: __del__ may re-enter callback setters/getters.
+  Py_XDECREF(old);
 }
 
-py::object GetCallback(PyObject* py_callback) {
-  if (!py_callback) {
+// Default timer callback (seconds).
+static mjtNum DefaultTimer() {
+  using Clock = std::chrono::steady_clock;
+  using Seconds = std::chrono::duration<mjtNum>;
+  static const Clock::time_point tm_start = Clock::now();
+  return Seconds(Clock::now() - tm_start).count();
+}
+
+static void InstallDefaultTimer() {
+  // Warm up static tm_start during single-threaded module initialization to
+  // avoid later thread contention on the static guard mutex.
+  static_cast<void>(DefaultTimer());
+
+  PyObject* old = nullptr;
+  {
+    MutexLockIfGilDisabled lock(GetCallbackMutex());
+    old = std::exchange(py_mjcb_time, nullptr);
+    ::mjcb_time = DefaultTimer;
+  }
+  Py_XDECREF(old);
+}
+
+py::object GetCallback(PyObject** py_callback) {
+  MutexLockIfGilDisabled lock(GetCallbackMutex());
+  if (!*py_callback) {
     return py::none();
   }
-  return py::reinterpret_borrow<py::object>(py_callback);
+  return py::reinterpret_borrow<py::object>(*py_callback);
 }
 
-PYBIND11_MODULE(_callbacks, pymodule) {
+PYBIND11_MODULE(_callbacks, pymodule, pybind11::mod_gil_not_used()) {
+  InstallDefaultTimer();
+
   // Setters
   pymodule.def("set_mju_user_warning", [](py::handle h) {
-    SetCallback(h, PyMjuUserWarning, &py_mju_user_warning, &::mju_user_warning);
+    SetCallback(h, PyMjuUserWarning, &py_mju_user_warning,
+               &::mju_user_warning);
   });
   pymodule.def("set_mju_user_malloc", [](py::handle h) {
+    PyObject* old = nullptr;
     if (h.is_none()) {
-      Py_XDECREF(py_mju_user_malloc);
-      py_mju_user_malloc = nullptr;
+      {
+        MutexLockIfGilDisabled lock(GetCallbackMutex());
+        old = py_mju_user_malloc;
+        py_mju_user_malloc = nullptr;
+      }
     } else {
       auto* cfuncptr = GetCFuncPtr<decltype(::mju_user_malloc)>(h);
       if (!cfuncptr) {
         throw py::type_error("mju_user_malloc must be a C function pointer");
       }
-      Py_XDECREF(py_mju_user_malloc);
       Py_XINCREF(h.ptr());
-      py_mju_user_malloc = h.ptr();
-      ::mju_user_malloc = cfuncptr;
+      {
+        MutexLockIfGilDisabled lock(GetCallbackMutex());
+        old = py_mju_user_malloc;
+        py_mju_user_malloc = h.ptr();
+        ::mju_user_malloc = cfuncptr;
+      }
     }
+    Py_XDECREF(old);
   });
   pymodule.def("set_mju_user_free", [](py::handle h) {
+    PyObject* old = nullptr;
     if (h.is_none()) {
-      Py_XDECREF(py_mju_user_free);
-      py_mju_user_free = nullptr;
+      {
+        MutexLockIfGilDisabled lock(GetCallbackMutex());
+        old = py_mju_user_free;
+        py_mju_user_free = nullptr;
+      }
     } else {
       auto* cfuncptr = GetCFuncPtr<decltype(::mju_user_free)>(h);
       if (!cfuncptr) {
         throw py::type_error("mju_user_free must be a C function pointer");
       }
-      Py_XDECREF(py_mju_user_free);
       Py_XINCREF(h.ptr());
-      py_mju_user_free = h.ptr();
-      ::mju_user_free = cfuncptr;
+      {
+        MutexLockIfGilDisabled lock(GetCallbackMutex());
+        old = py_mju_user_free;
+        py_mju_user_free = h.ptr();
+        ::mju_user_free = cfuncptr;
+      }
     }
+    Py_XDECREF(old);
   });
   pymodule.def("set_mjcb_passive", [](py::handle h) {
     SetCallback(h, PyMjcbPassive, &py_mjcb_passive, &::mjcb_passive);
@@ -363,7 +495,16 @@ PYBIND11_MODULE(_callbacks, pymodule) {
     SetCallback(h, PyMjcbSensor, &py_mjcb_sensor, &::mjcb_sensor);
   });
   pymodule.def("set_mjcb_time", [](py::handle h) {
-    SetCallback(h, PyMjcbTime, &py_mjcb_time, &::mjcb_time);
+    // Passing None restores DefaultTimer (rather than setting ::mjcb_time
+    // to null). This preserves the idiomatic Python save/restore pattern
+    // (get_mjcb_time() returning None -> set_mjcb_time(None)), and matches
+    // historical bindings behavior where MjData construction ensured a timer
+    // was present.
+    if (h.is_none()) {
+      InstallDefaultTimer();
+    } else {
+      SetCallback(h, PyMjcbTime, &py_mjcb_time, &::mjcb_time);
+    }
   });
   pymodule.def("set_mjcb_act_dyn", [](py::handle h) {
     SetCallback(h, PyMjcbActDyn, &py_mjcb_act_dyn, &::mjcb_act_dyn);
@@ -377,38 +518,39 @@ PYBIND11_MODULE(_callbacks, pymodule) {
 
   // Getters
   pymodule.def("get_mju_user_warning", []() {
-    return GetCallback(py_mju_user_warning);
+    return GetCallback(&py_mju_user_warning);
   });
   pymodule.def("get_mju_user_malloc", []() {
-    return GetCallback(py_mju_user_malloc);
+    return GetCallback(&py_mju_user_malloc);
   });
   pymodule.def("get_mju_user_free", []() {
-    return GetCallback(py_mju_user_free);
+    return GetCallback(&py_mju_user_free);
   });
   pymodule.def("get_mjcb_passive", []() {
-    return GetCallback(py_mjcb_passive);
+    return GetCallback(&py_mjcb_passive);
   });
   pymodule.def("get_mjcb_control", []() {
-    return GetCallback(py_mjcb_control);
+    return GetCallback(&py_mjcb_control);
   });
   pymodule.def("get_mjcb_contactfilter", []() {
-    return GetCallback(py_mjcb_contactfilter);
+    return GetCallback(&py_mjcb_contactfilter);
   });
   pymodule.def("get_mjcb_sensor", []() {
-    return GetCallback(py_mjcb_sensor);
+    return GetCallback(&py_mjcb_sensor);
   });
   pymodule.def("get_mjcb_time", []() {
-    return GetCallback(py_mjcb_time);
+    return GetCallback(&py_mjcb_time);
   });
   pymodule.def("get_mjcb_act_dyn", []() {
-    return GetCallback(py_mjcb_act_dyn);
+    return GetCallback(&py_mjcb_act_dyn);
   });
   pymodule.def("get_mjcb_act_gain", []() {
-    return GetCallback(py_mjcb_act_gain);
+    return GetCallback(&py_mjcb_act_gain);
   });
   pymodule.def("get_mjcb_act_bias", []() {
-    return GetCallback(py_mjcb_act_bias);
+    return GetCallback(&py_mjcb_act_bias);
   });
 }  // PYBIND11_MODULE
+
 }  // namespace
 }  // namespace mujoco::python

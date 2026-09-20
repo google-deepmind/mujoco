@@ -12,97 +12,87 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-mujoco_test(engine_collision_box_test)
-target_link_libraries(engine_collision_box_test fixture gmock)
+# the pre-rewrite box-box collider, linked only into the box-box tests so the rewrite is
+# measured against it rather than asserted to be better; see boxbox_legacy.h
+add_library(boxbox_legacy STATIC boxbox_legacy.h boxbox_legacy.c)
+target_include_directories(boxbox_legacy PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+target_include_directories(boxbox_legacy PRIVATE ${mujoco_SOURCE_DIR}/include ${mujoco_SOURCE_DIR}/src)
+target_compile_definitions(boxbox_legacy PUBLIC MJSTATIC)
+target_link_libraries(boxbox_legacy PUBLIC mujoco::mujoco)
+
+mujoco_test(engine_collision_box_test ADDITIONAL_LINK_LIBRARIES ccd boxbox_legacy)
+
+mujoco_test(engine_collision_box_fuzz_test ADDITIONAL_LINK_LIBRARIES ccd)
+
+mujoco_test(engine_collision_continuous_test)
 
 mujoco_test(engine_collision_convex_test)
-target_link_libraries(engine_collision_convex_test fixture gmock)
 
 mujoco_test(engine_collision_driver_test)
-target_link_libraries(engine_collision_driver_test fixture gmock)
+
+mujoco_test(engine_collision_gjk_test ADDITIONAL_LINK_LIBRARIES ccd)
 
 mujoco_test(engine_core_constraint_test)
-target_link_libraries(engine_core_constraint_test fixture gmock)
 
-mujoco_test(engine_core_smooth_test)
-target_link_libraries(engine_core_smooth_test fixture gmock absl::span)
+mujoco_test(engine_core_smooth_test ADDITIONAL_LINK_LIBRARIES absl::span)
+
+mujoco_test(engine_core_util_test)
 
 mujoco_test(engine_derivative_test)
-target_link_libraries(engine_derivative_test fixture gmock)
 
 mujoco_test(engine_forward_test)
-target_link_libraries(engine_forward_test fixture gmock)
 
 mujoco_test(engine_inverse_test)
-target_link_libraries(engine_inverse_test fixture gmock)
 
 mujoco_test(engine_island_test)
-target_link_libraries(engine_island_test fixture gmock)
 
-mujoco_test(engine_io_test)
-target_link_libraries(
-  engine_io_test
-  fixture
-  gmock
-  absl::str_format
-)
+mujoco_test(engine_io_test ADDITIONAL_LINK_LIBRARIES absl::str_format)
+
+mujoco_test(engine_ipc_test)
 
 mujoco_test(
   engine_plugin_test
+  ADDITIONAL_LINK_LIBRARIES
+  absl::str_format
   PROPERTIES
   ENVIRONMENT
   "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
-)
-target_link_libraries(
-  engine_plugin_test
-  fixture
-  gmock
-  absl::str_format
 )
 
 mujoco_test(engine_passive_test)
-target_link_libraries(engine_passive_test fixture gmock)
 
 mujoco_test(engine_print_test)
-target_link_libraries(engine_print_test fixture gmock)
-
-mujoco_test(engine_ray_test)
-target_link_libraries(engine_ray_test fixture gmock)
-
-mujoco_test(engine_resource_test)
-target_link_libraries(engine_resource_test fixture gmock)
-
-mujoco_test(engine_sensor_test)
-target_link_libraries(engine_sensor_test fixture gmock)
-
-mujoco_test(engine_solver_test)
-target_link_libraries(engine_solver_test fixture gmock)
-
-mujoco_test(engine_support_test)
-target_link_libraries(engine_support_test fixture gmock)
-
-mujoco_test(engine_thread_test)
-target_link_libraries(engine_thread_test fixture gmock)
-
-mujoco_test(engine_util_blas_test)
-target_link_libraries(engine_util_blas_test fixture gmock)
-
-mujoco_test(engine_util_errmem_test)
-target_link_libraries(engine_util_errmem_test fixture gmock)
-
-mujoco_test(engine_util_solve_test)
-target_link_libraries(engine_util_solve_test fixture gmock)
-
-mujoco_test(engine_util_spatial_test)
-target_link_libraries(engine_util_spatial_test fixture gmock)
-
-mujoco_test(engine_vfs_test)
-target_link_libraries(engine_vfs_test fixture gmock)
 
 mujoco_test(
-  engine_vis_state_test
+  engine_ray_test
   PROPERTIES
   ENVIRONMENT
-  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
-)
-target_link_libraries(engine_vis_state_test fixture gmock)
+  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:sdf_plugin>")
+
+mujoco_test(engine_sensor_test)
+
+mujoco_test(engine_setconst_test)
+
+mujoco_test(engine_sleep_test)
+
+mujoco_test(engine_solver_test)
+
+mujoco_test(engine_sort_test)
+
+mujoco_test(engine_support_test)
+
+mujoco_test(engine_thread_test)
+
+mujoco_test(engine_util_blas_test)
+
+mujoco_test(engine_util_errmem_test)
+
+mujoco_test(engine_util_misc_test)
+
+mujoco_test(engine_util_solve_test)
+
+mujoco_test(engine_util_sparse_test)
+
+mujoco_test(engine_util_spatial_test)
+
+mujoco_test(engine_vis_visualize_test)

@@ -15,9 +15,11 @@
 #ifndef MUJOCO_PYTHON_SERIALIZATION_H_
 #define MUJOCO_PYTHON_SERIALIZATION_H_
 
+#include <cstddef>
 #include <iostream>
+#include <type_traits>
 
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 namespace mujoco::python::_impl {
 
@@ -29,7 +31,8 @@ namespace mujoco::python::_impl {
 
 static_assert(sizeof(char) == 1);
 static_assert(sizeof(int) == 4);
-static_assert(sizeof(mjtNum) == 8);
+static_assert((std::is_same_v<mjtNum, float> && sizeof(mjtNum) == 4) ||
+              (std::is_same_v<mjtNum, double> && sizeof(mjtNum) == 8));
 
 inline void WriteChar(std::ostream& output, char c) {
   output.write(&c, 1);
@@ -56,7 +59,9 @@ inline void WriteBytes(std::ostream& output, const void* src,
   // Start by writing nbytes itself, so it can be validated at the time of
   // reading.
   WriteInt(output, nbytes);
-  output.write(reinterpret_cast<const char*>(src), nbytes);
+  if (src) {
+    output.write(reinterpret_cast<const char*>(src), nbytes);
+  }
 }
 
 inline void ReadBytes(std::istream& input, void* dest, std::size_t nbytes) {

@@ -1,0 +1,28 @@
+<mujoco model="contact subtree">
+  <worldbody>
+    <light pos="0 0 5"/>
+    <geom name="floor" type="plane" size="2 2 .01"/>
+    <body name="thigh" pos="-1 0 .1">
+      <joint type="slide"/>
+      <geom type="capsule" size=".1" fromto="0 0 0 .5 0 0"/>
+      <body name="shin" pos=".7 0 0">
+        <joint axis="0 1 0"/>
+        <geom type="capsule" size=".1" fromto="0 0 0 0 0 .5"/>
+        <body name="foot" pos="0 0 .7">
+          <joint axis="0 1 0"/>
+          <geom type="capsule" size=".1" fromto="0 0 0 -.7 0 0"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <contact name="all"/>
+    <contact name="world" subtree1="world"/>
+    <contact name="thigh" subtree1="thigh"/>
+    <contact name="shin" subtree1="shin"/>
+    <contact name="foot" subtree1="foot"/>
+    <contact name="foot_w" subtree1="foot" body2="world"/>
+    <contact name="foot_w2" subtree1="foot" subtree2="world"/>
+  </sensor>
+</mujoco>

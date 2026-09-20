@@ -1,0 +1,39 @@
+<mujoco model="model for inertia-related tests">
+  <default>
+    <geom type="capsule" size="0.1"/>
+    <joint axis="0 1 0"/>
+  </default>
+
+  <worldbody>
+    <body pos="1 -.5 0" euler="10 20 30">
+      <geom type="box" size="0.15 .2 .25" pos=".1 .2 .3" euler="10 20 30"/>
+      <freejoint name="6 non-simple dofs" align="false"/>
+    </body>
+
+    <body pos="0 -.5 0">
+      <geom type="sphere" size="0.2"/>
+      <joint type="ball" name="3 simple dofs"/>
+    </body>
+
+    <body>
+      <geom fromto="0 0 0 0 0 1"/>
+      <joint/>
+      <body pos="0 0 1">
+        <geom fromto="0 0 0 1 0 1"/>
+        <joint/>
+      </body>
+      <body pos="0 0 1">
+        <geom fromto="0 0 0 -1 0 1"/>
+        <joint/>
+        <body pos="-1 0 1">
+          <geom fromto="0 0 0 1 0 1"/>
+          <joint/>
+        </body>
+        <body pos="-1 0 1">
+          <geom fromto="0 0 0 -1 0 1"/>
+          <joint/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

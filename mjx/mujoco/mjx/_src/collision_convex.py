@@ -15,7 +15,7 @@
 """Convex collisions."""
 
 import functools
-from typing import Tuple
+from typing import Callable, Tuple, Union
 
 import jax
 from jax import numpy as jp
@@ -26,42 +26,57 @@ from mujoco.mjx._src.collision_types import Collision
 from mujoco.mjx._src.collision_types import ConvexInfo
 from mujoco.mjx._src.collision_types import FunctionKey
 from mujoco.mjx._src.collision_types import GeomInfo
+from mujoco.mjx._src.collision_types import HFieldInfo
 from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import GeomType
 from mujoco.mjx._src.types import Model
+from mujoco.mjx._src.types import ModelJAX
 # pylint: enable=g-importing-member
+
+_GeomInfo = Union[GeomInfo, ConvexInfo]
 
 
 def collider(ncon: int):
   """Wraps collision functions for use by collision_driver."""
 
-  def wrapper(func):
+  def wrapper(collision_fn):
     def collide(
         m: Model, d: Data, key: FunctionKey, geom: jax.Array
     ) -> Collision:
+      if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+        raise ValueError('collider requires JAX backend implementation.')
+
       g1, g2 = geom.T
       infos = [
           GeomInfo(d.geom_xpos[g1], d.geom_xmat[g1], m.geom_size[g1]),
           GeomInfo(d.geom_xpos[g2], d.geom_xmat[g2], m.geom_size[g2]),
       ]
       in_axes = [0, 0]
+      fn = collision_fn
       for i in [0, 1]:
         if key.types[i] == GeomType.BOX:
-          infos[i] = mesh.box(infos[i])
+          infos[i] = mesh.box(infos[i])  # pyrefly: ignore[unsupported-operation]
           in_axes[i] = jax.tree_util.tree_map(lambda x: None, infos[i]).replace(
-              pos=0, mat=0, face=0, vert=0
+              pos=0, mat=0, size=0, face=0, vert=0
           )
         elif key.types[i] == GeomType.MESH:
-          infos[i] = mesh.convex(m, key.data_ids[i], infos[i])
+          c, cm = infos[i], m._impl.mesh_convex[key.data_ids[i]]
+          infos[i] = ConvexInfo(**vars(c), **vars(cm))  # pyrefly: ignore[unsupported-operation]
           in_axes[i] = jax.tree_util.tree_map(lambda x: None, infos[i]).replace(
-              pos=0, mat=0
+              pos=0, mat=0, size=0
           )
-      dist, pos, frame = jax.vmap(func, in_axes=in_axes)(*infos)
+        elif key.types[i] == GeomType.HFIELD:
+          hfield_info = mesh.hfield(m, key.data_ids[i])
+          infos[i] = hfield_info.replace(pos=infos[i].pos, mat=infos[i].mat)  # pyrefly: ignore[unsupported-operation]
+          in_axes[i] = hfield_info.replace(pos=0, mat=0, data=None)  # pyrefly: ignore[unsupported-operation]
+          fn = functools.partial(fn, subgrid_size=key.subgrid_size)
+      dist, pos, frame = jax.vmap(fn, in_axes=in_axes)(*infos)  # pytype: disable=wrong-keyword-args
       if ncon > 1:
         return jax.tree_util.tree_map(jp.concatenate, (dist, pos, frame))
       return dist, pos, frame
 
-    collide.ncon = ncon
+    collide.ncon = ncon  # pyrefly: ignore[missing-attribute]
     return collide
 
   return wrapper
@@ -92,106 +107,6 @@ def _closest_segment_point_plane(
   segment_point = a + t * (b - a)
 
   return segment_point
-
-
-def _closest_triangle_point(
-    p0: jax.Array, p1: jax.Array, p2: jax.Array, pt: jax.Array
-) -> jax.Array:
-  """Gets the closest point between a triangle and a point in space.
-
-  Args:
-    p0: triangle point
-    p1: triangle point
-    p2: triangle point
-    pt: point to test
-
-  Returns:
-    closest point on the triangle w.r.t point pt
-  """
-  # Parametrize the triangle s.t. a point inside the triangle is
-  # Q = p0 + u * e0 + v * e1, when 0 <= u <= 1, 0 <= v <= 1, and
-  # 0 <= u + v <= 1. Let e0 = (p1 - p0) and e1 = (p2 - p0).
-  # We analytically minimize the distance between the point pt and Q.
-  e0 = p1 - p0
-  e1 = p2 - p0
-  a = e0.dot(e0)
-  b = e0.dot(e1)
-  c = e1.dot(e1)
-  d = pt - p0
-  # The determinant is 0 only if the angle between e1 and e0 is 0
-  # (i.e. the triangle has overlapping lines).
-  det = a * c - b * b
-  u = (c * e0.dot(d) - b * e1.dot(d)) / det
-  v = (-b * e0.dot(d) + a * e1.dot(d)) / det
-  inside = (0 <= u) & (u <= 1) & (0 <= v) & (v <= 1) & (u + v <= 1)
-  closest_p = p0 + u * e0 + v * e1
-  d0 = (closest_p - pt).dot(closest_p - pt)
-
-  # If the closest point is outside the triangle, it must be on an edge, so we
-  # check each triangle edge for a closest point to the point pt.
-  closest_p1, d1 = math.closest_segment_point_and_dist(p0, p1, pt)
-  closest_p = jp.where((d0 < d1) & inside, closest_p, closest_p1)
-  min_d = jp.where((d0 < d1) & inside, d0, d1)
-
-  closest_p2, d2 = math.closest_segment_point_and_dist(p1, p2, pt)
-  closest_p = jp.where(d2 < min_d, closest_p2, closest_p)
-  min_d = jp.minimum(min_d, d2)
-
-  closest_p3, d3 = math.closest_segment_point_and_dist(p2, p0, pt)
-  closest_p = jp.where(d3 < min_d, closest_p3, closest_p)
-
-  return closest_p
-
-
-def _closest_segment_triangle_points(
-    a: jax.Array,
-    b: jax.Array,
-    p0: jax.Array,
-    p1: jax.Array,
-    p2: jax.Array,
-    triangle_normal: jax.Array,
-) -> Tuple[jax.Array, jax.Array]:
-  """Gets the closest points between a line segment and triangle.
-
-  Args:
-    a: first line segment point
-    b: second line segment point
-    p0: triangle point
-    p1: triangle point
-    p2: triangle point
-    triangle_normal: normal of triangle
-
-  Returns:
-    closest point on the triangle w.r.t the line segment
-  """
-  # The closest triangle point is either on the edge or within the triangle.
-  # First check triangle edges for the closest point.
-  # TODO(robotics-simulation): consider vmapping over closest point functions
-  seg_pt1, tri_pt1 = math.closest_segment_to_segment_points(a, b, p0, p1)
-  d1 = (seg_pt1 - tri_pt1).dot(seg_pt1 - tri_pt1)
-  seg_pt2, tri_pt2 = math.closest_segment_to_segment_points(a, b, p1, p2)
-  d2 = (seg_pt2 - tri_pt2).dot(seg_pt2 - tri_pt2)
-  seg_pt3, tri_pt3 = math.closest_segment_to_segment_points(a, b, p0, p2)
-  d3 = (seg_pt3 - tri_pt3).dot(seg_pt3 - tri_pt3)
-
-  # Next, handle the case where the closest triangle point is inside the
-  # triangle. Either the line segment intersects the triangle or a segment
-  # endpoint is closest to a point inside the triangle.
-  seg_pt4 = _closest_segment_point_plane(a, b, p0, triangle_normal)
-  tri_pt4 = _closest_triangle_point(p0, p1, p2, seg_pt4)
-  d4 = (seg_pt4 - tri_pt4).dot(seg_pt4 - tri_pt4)
-
-  # Get the point with minimum distance from the line segment point to the
-  # triangle point.
-  distance = jp.array([[d1, d2, d3, d4]])
-  min_dist = jp.amin(distance)
-  mask = (distance == min_dist).T
-  seg_pt = jp.array([seg_pt1, seg_pt2, seg_pt3, seg_pt4]) * mask
-  tri_pt = jp.array([tri_pt1, tri_pt2, tri_pt3, tri_pt4]) * mask
-  seg_pt = jp.sum(seg_pt, axis=0) / jp.sum(mask)
-  tri_pt = jp.sum(tri_pt, axis=0) / jp.sum(mask)
-
-  return seg_pt, tri_pt
 
 
 def _manifold_points(
@@ -228,7 +143,8 @@ def plane_convex(plane: GeomInfo, convex: ConvexInfo) -> Collision:
   plane_pos = convex.mat.T @ (plane.pos - convex.pos)
   n = convex.mat.T @ plane.mat[:, 2]
   support = (plane_pos - vert) @ n
-  idx = _manifold_points(vert, support > jp.maximum(0, support.max() - 1e-4), n)
+  # search for manifold points within a 1mm skin depth
+  idx = _manifold_points(vert, support > jp.maximum(0, support.max() - 1e-3), n)
   pos = vert[idx]
 
   # convert to world frame
@@ -242,9 +158,8 @@ def plane_convex(plane: GeomInfo, convex: ConvexInfo) -> Collision:
   return dist, pos, frame
 
 
-@collider(ncon=1)
-def sphere_convex(sphere: GeomInfo, convex: ConvexInfo) -> Collision:
-  """Calculates contact between a sphere and a convex object."""
+def _sphere_convex(sphere: GeomInfo, convex: ConvexInfo) -> Collision:
+  """Calculates contact between a sphere and a convex mesh."""
   faces = convex.face
   normals = convex.face_normal
 
@@ -276,7 +191,7 @@ def sphere_convex(sphere: GeomInfo, convex: ConvexInfo) -> Collision:
       face_normal,
   )
   edge_dist = jax.vmap(
-      lambda plane_pt, plane_norm: (pt - plane_pt).dot(plane_norm)
+      lambda plane_pt, plane_norm, pt=pt: (pt - plane_pt).dot(plane_norm)
   )(edge_p0, side_normals)
   pt_on_face = jp.all(edge_dist <= 0)  # lte to handle degenerate edges
 
@@ -291,7 +206,8 @@ def sphere_convex(sphere: GeomInfo, convex: ConvexInfo) -> Collision:
 
   # Get the normal, dist, and contact position.
   pt_normal, d = math.normalize_with_norm(pt - sphere_pos)
-  # Ensure normal points towards convex centroid.
+  # Ensure normal points towards convex centroid. Assume convex centroid is at
+  # the origin.
   inside = jp.dot(pt, pt_normal) > 0
   sign = jp.where(inside, -1, 1)
   n = jp.where(pt_on_face | (d < 1e-6), -face_normal, sign * pt_normal)
@@ -305,11 +221,17 @@ def sphere_convex(sphere: GeomInfo, convex: ConvexInfo) -> Collision:
   n = convex.mat @ n
   pos = convex.mat @ pos + convex.pos
 
+  return dist, pos, n
+
+
+@collider(ncon=1)
+def sphere_convex(sphere: GeomInfo, convex: ConvexInfo) -> Collision:
+  """Calculates contact between a sphere and a convex mesh."""
+  dist, pos, n = _sphere_convex(sphere, convex)
   return dist, pos, math.make_frame(n)
 
 
-@collider(ncon=2)
-def capsule_convex(cap: GeomInfo, convex: ConvexInfo) -> Collision:
+def _capsule_convex(cap: GeomInfo, convex: ConvexInfo) -> Collision:
   """Calculates contacts between a capsule and a convex object."""
   # Get convex transformed normals, faces, and vertices.
   faces = convex.face
@@ -431,6 +353,13 @@ def capsule_convex(cap: GeomInfo, convex: ConvexInfo) -> Collision:
   dist = -jp.where(
       has_edge_contact, jp.array([edge_penetration, -1]), face_penetration
   )
+  return dist, pos, n
+
+
+@collider(ncon=2)
+def capsule_convex(cap: GeomInfo, convex: ConvexInfo) -> Collision:
+  """Calculates contacts between a capsule and a convex object."""
+  dist, pos, n = _capsule_convex(cap, convex)
   frame = jax.vmap(math.make_frame)(n)
   return dist, pos, frame
 
@@ -654,7 +583,7 @@ def _create_contact_manifold(
   return dist, pos, normal
 
 
-def _sat_bruteforce(
+def _box_box_impl(
     faces_a: jax.Array,
     faces_b: jax.Array,
     vertices_a: jax.Array,
@@ -664,17 +593,7 @@ def _sat_bruteforce(
     unique_edges_a: jax.Array,
     unique_edges_b: jax.Array,
 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
-  """Runs the Separating Axis Test for a pair of hulls.
-
-  Given two convex hulls, the Separating Axis Test finds a separating axis
-  between all edge pairs and face pairs. Edge pairs create a single contact
-  point and face pairs create a contact manifold (up to four contact points).
-  We return both the edge and face contacts. Valid contacts can be checked with
-  dist < 0. Resulting edge contacts should be preferred over face contacts.
-
-  This method checks all separating axes via a brute force support function, and
-  is thus costly to run over large meshes, but is more performant for smaller
-  meshes (boxes, tetrahedra, etc.).
+  """Runs the Separating Axis Test for two boxes.
 
   Args:
     faces_a: Faces for hull A.
@@ -689,18 +608,15 @@ def _sat_bruteforce(
   Returns:
     tuple of dist, pos, and normal
   """
-  # get the separating axes
-  v_norm = jax.vmap(math.normalize)
-  edge_dir_a = v_norm(unique_edges_a[:, 0] - unique_edges_a[:, 1])
-  edge_dir_b = v_norm(unique_edges_b[:, 0] - unique_edges_b[:, 1])
-  edge_dir_a_r = jp.tile(edge_dir_a, reps=(unique_edges_b.shape[0], 1))
-  edge_dir_b_r = jp.repeat(edge_dir_b, repeats=unique_edges_a.shape[0], axis=0)
+  edge_dir_a, edge_dir_b = unique_edges_a, unique_edges_b
+  edge_dir_a_r = jp.tile(edge_dir_a, reps=(edge_dir_b.shape[0], 1))
+  edge_dir_b_r = jp.repeat(edge_dir_b, repeats=edge_dir_a.shape[0], axis=0)
   edge_axes = jax.vmap(jp.cross)(edge_dir_a_r, edge_dir_b_r)
   degenerate_edge_axes = (edge_axes**2).sum(axis=1) < 1e-6
   edge_axes = jax.vmap(lambda x: math.normalize(x, axis=0))(edge_axes)
-  n_norm = normals_a.shape[0] + normals_b.shape[0]
+  n_face_axes = normals_a.shape[0] + normals_b.shape[0]
   degenerate_axes = jp.concatenate(
-      [jp.array([False] * n_norm), degenerate_edge_axes]
+      [jp.array([False] * n_face_axes), degenerate_edge_axes]
   )
 
   axes = jp.concatenate([normals_a, normals_b, edge_axes])
@@ -721,11 +637,16 @@ def _sat_bruteforce(
 
   support, sign = get_support(axes, degenerate_axes)
 
+  # get the best face axis
+  best_face_idx = jp.argmin(support[:n_face_axes])
+  best_face_axis = axes[best_face_idx]
+
   # choose the best separating axis
   best_idx = jp.argmin(support)
   best_sign = sign[best_idx]
   best_axis = axes[best_idx]
-  is_edge_contact = best_idx >= (normals_a.shape[0] + normals_b.shape[0])
+  is_edge_contact = best_idx >= n_face_axes
+  is_edge_contact &= jp.abs(best_face_axis.dot(best_axis)) < 0.99  # prefer face
 
   # get the (reference) face most aligned with the separating axis
   dist_a = normals_a @ best_axis
@@ -762,6 +683,40 @@ def _sat_bruteforce(
   pos = jp.where(is_edge_contact, jp.tile(pos[idx], (4, 1)), pos)
 
   return dist, pos, normal
+
+
+def _box_box(b1: ConvexInfo, b2: ConvexInfo) -> Collision:
+  """Calculates contacts between two boxes."""
+  faces1 = b1.face
+  faces2 = b2.face
+
+  to_local_pos = b2.mat.T @ (b1.pos - b2.pos)
+  to_local_mat = b2.mat.T @ b1.mat
+
+  faces1 = to_local_pos + faces1 @ to_local_mat.T
+  normals1 = b1.face_normal @ to_local_mat.T
+  normals2 = b2.face_normal
+
+  vertices1 = to_local_pos + b1.vert @ to_local_mat.T
+  vertices2 = b2.vert
+
+  dist, pos, normal = _box_box_impl(
+      faces1,
+      faces2,
+      vertices1,
+      vertices2,
+      normals1,
+      normals2,
+      to_local_mat.T,
+      jp.eye(3, dtype=float),
+  )
+
+  # Go back to world frame.
+  pos = b2.pos + pos @ b2.mat.T
+  n = normal @ b2.mat.T
+  dist = jp.where(jp.isinf(dist), jp.finfo(dist.dtype).max, dist)
+
+  return dist, pos, n
 
 
 def _arcs_intersect(
@@ -851,6 +806,7 @@ def _sat_gaussmap(
       incident_face_norm,
       -best_axis,
   )
+  dist = jp.where(is_face_separating, 1.0, dist)
 
   # Handle edge separating axes by checking all edge pairs.
   a_idx = jp.tile(jp.arange(edges_a.shape[0]), reps=edges_b.shape[0])
@@ -881,7 +837,8 @@ def _sat_gaussmap(
     return edge_axis * sign, degenerate_edge_axis
 
   edge_axes, degenerate_edge_axes = jax.vmap(get_normals)(
-      edge_a_dir, edge_a_pt, edge_b_dir)
+      edge_a_dir, edge_a_pt, edge_b_dir
+  )
   edge_dist = jax.vmap(jp.dot)(edge_axes, edge_b_pt - edge_a_pt)
   # handle degenerate axis
   edge_dist = jp.where(degenerate_edge_axes, -jp.inf, edge_dist)
@@ -891,8 +848,9 @@ def _sat_gaussmap(
   best_edge_idx = edge_dist.argmax()
   best_edge_dist = edge_dist[best_edge_idx]
   is_edge_contact = jp.where(
-      dist.max() < 0, best_edge_dist > dist.max() - 1e-6,
-      (best_edge_dist < 0) & ~jp.isinf(best_edge_dist)
+      dist.max() < 0.0,
+      best_edge_dist > dist.max() - 1e-6,
+      (best_edge_dist < 0) & ~jp.isinf(best_edge_dist),
   )
   is_edge_contact = is_edge_contact & ~is_face_separating
   normal = jp.where(is_edge_contact, edge_axes[best_edge_idx], normal)
@@ -902,18 +860,20 @@ def _sat_gaussmap(
       dist,
   )
   a_closest, b_closest = math.closest_segment_to_segment_points(
-      edge_a_pt[best_edge_idx], edge_a_pt_2[best_edge_idx],
-      edge_b_pt[best_edge_idx], edge_b_pt_2[best_edge_idx])
+      edge_a_pt[best_edge_idx],
+      edge_a_pt_2[best_edge_idx],
+      edge_b_pt[best_edge_idx],
+      edge_b_pt_2[best_edge_idx],
+  )
   pos = jp.where(
-      is_edge_contact,
-      jp.tile(0.5 * (a_closest + b_closest), (4, 1)), pos)
+      is_edge_contact, jp.tile(0.5 * (a_closest + b_closest), (4, 1)), pos
+  )
 
   return dist, pos, normal
 
 
-@collider(ncon=4)
-def convex_convex(c1: ConvexInfo, c2: ConvexInfo) -> Collision:
-  """Calculates contacts between two convex objects."""
+def _convex_convex(c1: ConvexInfo, c2: ConvexInfo) -> Collision:
+  """Calculates contacts between two convex meshes."""
   # pad face vertices so that we can broadcast between geom1 and geom2
   # face has shape (n_face, n_vert, 3)
   nvert1, nvert2 = c1.face.shape[1], c2.face.shape[1]
@@ -932,6 +892,7 @@ def convex_convex(c1: ConvexInfo, c2: ConvexInfo) -> Collision:
   faces1 = c1.face
   faces2 = c2.face
 
+  # convert to c2 frame
   to_local_pos = c2.mat.T @ (c1.pos - c2.pos)
   to_local_mat = c2.mat.T @ c1.mat
 
@@ -942,49 +903,215 @@ def convex_convex(c1: ConvexInfo, c2: ConvexInfo) -> Collision:
   vertices1 = to_local_pos + c1.vert @ to_local_mat.T
   vertices2 = c2.vert
 
-  unique_edges1 = jp.take(vertices1, c1.edge_dir, axis=0)
-  unique_edges2 = jp.take(vertices2, c2.edge_dir, axis=0)
-
   edges1 = jp.take(vertices1, c1.edge, axis=0)
   edges2 = jp.take(vertices2, c2.edge, axis=0)
 
   edge_face_normals1 = c1.edge_face_normal @ to_local_mat.T
   edge_face_normals2 = c2.edge_face_normal
 
-  enable_bruteforce = (
-      unique_edges1.shape[0] * unique_edges2.shape[0]
-      < edges1[0].shape[0] * edges2[0].shape[0]
+  dist, pos, normal = _sat_gaussmap(
+      to_local_pos,
+      faces1,
+      faces2,
+      vertices1,
+      vertices2,
+      normals1,
+      normals2,
+      edges1,
+      edges2,
+      edge_face_normals1,
+      edge_face_normals2,
   )
-  if enable_bruteforce:
-    dist, pos, normal = _sat_bruteforce(
-        faces1,
-        faces2,
-        vertices1,
-        vertices2,
-        normals1,
-        normals2,
-        unique_edges1,
-        unique_edges2,
-    )
-  else:
-    dist, pos, normal = _sat_gaussmap(
-        to_local_pos,
-        faces1,
-        faces2,
-        vertices1,
-        vertices2,
-        normals1,
-        normals2,
-        edges1,
-        edges2,
-        edge_face_normals1,
-        edge_face_normals2,
-    )
 
   # Go back to world frame.
   pos = c2.pos + pos @ c2.mat.T
-  normal = normal @ c2.mat.T
-  normal = -normal if swapped else normal
-  frame = jax.vmap(math.make_frame)(normal)
+  n = normal @ c2.mat.T
+  n = -n if swapped else n
+  dist = jp.where(jp.isinf(dist), jp.finfo(dist.dtype).max, dist)
 
+  return dist, pos, n
+
+
+@collider(ncon=4)
+def box_box(b1: ConvexInfo, b2: ConvexInfo) -> Collision:
+  """Calculates contacts between two boxes."""
+  dist, pos, n = _box_box(b1, b2)
+  frame = jax.vmap(math.make_frame)(n)
   return dist, pos, frame
+
+
+@collider(ncon=4)
+def convex_convex(c1: ConvexInfo, c2: ConvexInfo) -> Collision:
+  """Calculates contacts between two convex objects."""
+  dist, pos, n = _convex_convex(c1, c2)
+  frame = jax.vmap(math.make_frame)(n)
+  return dist, pos, frame
+
+
+def _hfield_collision(
+    collider_fn: Callable[[_GeomInfo, _GeomInfo], Collision],
+    h: HFieldInfo,
+    obj: _GeomInfo,
+    obj_rbound: jax.Array,
+    subgrid_size: Tuple[int, int],
+) -> Collision:
+  """Collides an object with prisms in a height field."""
+  # put obj in hfield frame
+  obj_pos = h.mat.T @ (obj.pos - h.pos)
+  obj_mat = h.mat.T @ obj.mat
+
+  xmin = obj_pos[0] - obj_rbound
+  ymin = obj_pos[1] - obj_rbound
+  cmin = jp.floor((xmin + h.size[0]) / (2 * h.size[0]) * (h.ncol - 1))
+  cmin = cmin.astype(int)
+  rmin = jp.floor((ymin + h.size[1]) / (2 * h.size[1]) * (h.nrow - 1))
+  rmin = rmin.astype(int)
+
+  # compute real-valued grid step
+  dx = 2.0 * h.size[0] / (h.ncol - 1)
+  dy = 2.0 * h.size[1] / (h.nrow - 1)
+
+  # set zbottom value using base size
+  bvert = jp.array([0.0, 0.0, -h.size[3]])
+  bmask = jp.array([True, True, False])
+
+  # process all prisms in sub-grid
+  rs = jp.repeat(jp.arange(subgrid_size[1]), subgrid_size[0])
+  cs = jp.tile(jp.arange(subgrid_size[0]), subgrid_size[1])
+
+  @jax.vmap
+  def make_prisms(r, c):
+    ri, ci = rmin + r, cmin + c
+
+    # ensure ri, ci are in the bounds of the hfield
+    ri = jp.clip(ri, 0, h.nrow - 2)
+    ci = jp.clip(ci, 0, h.ncol - 2)
+
+    p1 = [
+        dx * ci - h.size[0],
+        dy * ri - h.size[1],
+        h.data[ci, ri] * h.size[2],
+    ]
+    p2 = [
+        dx * (ci + 1) - h.size[0],
+        dy * (ri + 1) - h.size[1],
+        h.data[ci + 1, ri + 1] * h.size[2],
+    ]
+    p3 = [
+        dx * ci - h.size[0],
+        dy * (ri + 1) - h.size[1],
+        h.data[ci, ri + 1] * h.size[2],
+    ]
+    top = jp.array([p1, p2, p3])
+    bottom = jp.array([p1, p3, p2]) * bmask + bvert
+    vert = jp.concatenate([bottom, top])
+    prism1 = mesh.hfield_prism(vert)
+
+    p3 = p2
+    p2 = [
+        dx * (ci + 1) - h.size[0],
+        dy * ri - h.size[1],
+        h.data[ci + 1, ri] * h.size[2],
+    ]
+    top = jp.array([p1, p2, p3])
+    bottom = jp.array([p1, p3, p2]) * bmask + bvert
+    vert = jp.concatenate([bottom, top])
+    # NB: If the order of verts is updated above, the corresponding
+    # hfield_prism function must be updated to ensure that all faces have the
+    # correct winding order.
+    prism2 = mesh.hfield_prism(vert)
+
+    return prism1, prism2
+
+  prism1, prism2 = make_prisms(rs, cs)
+  n_prisms = 2 * rs.shape[0]
+  prisms = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), prism1, prism2)
+  dist, pos, n = jax.vmap(collider_fn, in_axes=[None, 0])(
+      obj.replace(pos=obj_pos, mat=obj_mat), prisms
+  )
+
+  dist = dist.flatten()
+  pos = pos.reshape((-1, 3))
+  n = n.reshape((-1, 3))
+  n *= -1  # flip the normal since we flipped args in the call to collider_fn
+
+  # Check that we're in the half-space of the hfield norm. If not, pick the top
+  # face norm. This resolves issues with cracks of doom.
+  n_repeats = dist.shape[0] // n_prisms
+  top_norm = jp.repeat(prisms.face_normal[:, 1], n_repeats, axis=0)
+  cond = jax.vmap(jp.dot, in_axes=[0, None])(n, h.mat[2]) < 1e-6
+  n = jp.where(cond[:, None], top_norm, n)
+
+  return dist, pos, n
+
+
+@collider(ncon=4)
+def hfield_sphere(
+    h: HFieldInfo, s: GeomInfo, subgrid_size: Tuple[int, int]
+) -> Collision:
+  """Calculates contacts between a hfield and a sphere."""
+  rbound = jp.max(s.size)
+  dist, pos, n = _hfield_collision(_sphere_convex, h, s, rbound, subgrid_size)  # pyrefly: ignore[bad-argument-type]
+
+  n_mean = jp.mean(n, axis=0)
+  mask = dist < jp.minimum(0, dist.min() + 1e-3)
+  idx = _manifold_points(pos, mask, n_mean)
+  dist, pos, n = dist[idx], pos[idx], n[idx]
+
+  # zero out non-unique contacts
+  unique = jp.tril(idx == idx[:, None]).sum(axis=1) == 1
+  dist = jp.where(unique, dist, 1)
+
+  # back to world frame, _hfield_collision returns collision in hfield frame
+  pos = jax.vmap(lambda p: h.mat @ p + h.pos)(pos)
+  n = jax.vmap(lambda n: h.mat @ n)(n)
+
+  return dist, pos, jax.vmap(math.make_frame)(n)
+
+
+@collider(ncon=4)
+def hfield_capsule(
+    h: HFieldInfo, c: GeomInfo, subgrid_size: Tuple[int, int]
+) -> Collision:
+  """Calculates contacts between a hfield and a capsule."""
+  rbound = c.size[0] + c.size[1]
+  dist, pos, n = _hfield_collision(_capsule_convex, h, c, rbound, subgrid_size)  # pyrefly: ignore[bad-argument-type]
+
+  n_mean = jp.mean(n, axis=0)
+  mask = dist < jp.minimum(0, dist.min() + 1e-3)
+  idx = _manifold_points(pos, mask, n_mean)
+  dist, pos, n = dist[idx], pos[idx], n[idx]
+
+  # zero out non-unique contacts
+  unique = jp.tril(idx == idx[:, None]).sum(axis=1) == 1
+  dist = jp.where(unique, dist, 1)
+
+  # back to world frame, _hfield_collision returns collision in hfield frame
+  pos = jax.vmap(lambda p: h.mat @ p + h.pos)(pos)
+  n = jax.vmap(lambda n: h.mat @ n)(n)
+
+  return dist, pos, jax.vmap(math.make_frame)(n)
+
+
+@collider(ncon=4)
+def hfield_convex(
+    h: HFieldInfo, c: ConvexInfo, subgrid_size: Tuple[int, int]
+) -> Collision:
+  """Calculates contacts between a hfield and a capsule."""
+  rbound = jp.max(c.size)
+  dist, pos, n = _hfield_collision(_convex_convex, h, c, rbound, subgrid_size)  # pyrefly: ignore[bad-argument-type]
+
+  n_mean = jp.mean(n, axis=0)
+  mask = dist < jp.minimum(0, dist.min() + 1e-3)
+  idx = _manifold_points(pos, mask, n_mean)
+  dist, pos, n = dist[idx], pos[idx], n[idx]
+
+  # zero out non-unique contacts
+  unique = jp.tril(idx == idx[:, None]).sum(axis=1) == 1
+  dist = jp.where(unique, dist, 1)
+
+  # back to world frame, _hfield_collision returns collision in hfield frame
+  pos = jax.vmap(lambda p: h.mat @ p + h.pos)(pos)
+  n = jax.vmap(lambda n: h.mat @ n)(n)
+
+  return dist, pos, jax.vmap(math.make_frame)(n)

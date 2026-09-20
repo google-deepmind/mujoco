@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Tests for engine/engine_support.c.
+// Tests for engine/{engine_support.c and engine_core_util.c}
 
 #include "src/engine/engine_support.h"
 
-#include <limits>
+#include <cstring>
 #include <random>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -29,260 +30,13 @@
 namespace mujoco {
 namespace {
 
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
-
-using ::testing::DoubleNear;
-using ::testing::ContainsRegex;
+using ::std::vector;
+using ::testing::ContainsRegex;  // NOLINT
+using ::testing::Eq;
 using ::testing::MatchesRegex;
+using ::testing::Ne;
+using ::testing::NotNull;
 using ::testing::Pointwise;
-using ::testing::ElementsAreArray;
-
-using AngMomMatTest = MujocoTest;
-
-static constexpr char AngMomTestingModel[] = R"(
-<mujoco>
-  <option>
-    <flag gravity="disable"/>
-  </option>
-  <worldbody>
-    <body name="link1" pos="0 0 0.5">
-      <freejoint/>
-      <geom type="ellipsoid" size="0.15 0.17 0.19" quat="1 .2 .3 .4"/>
-      <body name="link2" >
-        <joint type="hinge" axis="1 0 0" />
-        <geom type="capsule" size="0.05" fromto="0 0 0  0 0.5 0"/>
-        <body pos="0 0.6 0">
-          <joint type="slide" axis="1 0 0"/>
-          <geom type="capsule" size="0.05 0.2" quat="0.707 0 0.707 0"/>
-          <body name="link3">
-            <joint type="ball" pos="0.2 0 0"/>
-            <geom type="capsule" pos="0.2 0 0" size="0.03 0.4"/>
-          </body>
-        </body>
-      </body>
-    </body>
-  </worldbody>
-  <keyframe>
-    <key qvel="0 0 0 .1 .2 .3 .4 .5 .4 .3 .2"/>
-  </keyframe>
-</mujoco>
-)";
-
-// compare subtree angular momentum computed in two ways
-TEST_F(AngMomMatTest, CompareAngMom) {
-  mjModel* model = LoadModelFromString(AngMomTestingModel);
-  int nv = model->nv;
-  int bodyid = mj_name2id(model, mjOBJ_BODY, "link1");
-
-  mjData* data = mj_makeData(model);
-
-  // reset to the keyframe with some angular velocities
-  mj_resetDataKeyframe(model, data, 0);
-  mj_forward(model, data);
-
-  // get the reference value of angular momentum
-  mj_subtreeVel(model, data);
-  mjtNum angmom_ref[3];
-  mju_copy3(angmom_ref, data->subtree_angmom+3*bodyid);
-
-  // compute angular momentum using the angular momentum matrix
-  mjtNum* angmom_mat = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
-  mj_angmomMat(model, data, angmom_mat, bodyid);
-  mjtNum angmom_test[3];
-  mju_mulMatVec(angmom_test, angmom_mat, data->qvel, 3, nv);
-
-  // compare the two angular momentum values
-  static const mjtNum tol = 1e-8;
-  for (int i = 0; i < 3; i++) {
-    EXPECT_THAT(angmom_ref[i], DoubleNear(angmom_test[i], tol));
-  }
-
-  mju_free(angmom_mat);
-  mj_deleteData(data);
-  mj_deleteModel(model);
-}
-
-// compare subtree angular momentum matrix: analytical and findiff
-TEST_F(AngMomMatTest, CompareAngMomMats) {
-  mjModel* model = LoadModelFromString(AngMomTestingModel);
-  int nv = model->nv;
-  int bodyid = mj_name2id(model, mjOBJ_BODY, "link1");
-  mjData* data = mj_makeData(model);
-  mjtNum* angmom_mat = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
-  mjtNum* angmom_mat_fd = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
-
-  // reset to the keyframe with some angular velocities
-  mj_resetDataKeyframe(model, data, 0);
-  mj_forward(model, data);
-
-  // compute the angular momentum matrix using the analytical method
-  mj_angmomMat(model, data, angmom_mat, bodyid);
-
-  // compute the angular momentum matrix using finite differences
-  static const mjtNum eps = 1e-6;
-  for (int i = 0; i < nv; i++) {
-    // reset vel, forward nudge i-th dof, get angmom
-    mju_copy(data->qvel, model->key_qvel, model->nv);
-    data->qvel[i] += eps;
-    mj_forward(model, data);
-    mj_subtreeVel(model, data);
-    mjtNum agmf[3];
-    mju_copy3(agmf, data->subtree_angmom+3*bodyid);
-
-    // reset vel, backward nudge i-th dof, get angmom
-    mju_copy(data->qvel, model->key_qvel, model->nv);
-    data->qvel[i] -= eps;
-    mj_forward(model, data);
-    mj_subtreeVel(model, data);
-    mjtNum agmb[3];
-    mju_copy3(agmb, data->subtree_angmom+3*bodyid);
-
-    // finite-difference the angmom matrix
-    for (int j = 0; j < 3; j++) {
-      angmom_mat_fd[nv*j+i] = (agmf[j] - agmb[j]) / (2 * eps);
-    }
-  }
-
-  // compare the two matrices
-  static const mjtNum tol = 1e-8;
-  for (int i = 0; i < 3*nv; i++) {
-    EXPECT_THAT(angmom_mat_fd[i], DoubleNear(angmom_mat[i], tol));
-  }
-
-  mju_free(angmom_mat_fd);
-  mju_free(angmom_mat);
-  mj_deleteData(data);
-  mj_deleteModel(model);
-}
-
-using JacobianTest = MujocoTest;
-static const mjtNum max_abs_err = std::numeric_limits<float>::epsilon();
-
-static constexpr char kJacobianTestingModel[] = R"(
-<mujoco>
-  <worldbody>
-    <body name="distractor1" pos="0 0 .3">
-      <freejoint/>
-      <geom size=".1"/>
-    </body>
-    <body name="main">
-      <freejoint/>
-      <geom size=".1"/>
-      <body pos=".1 0 0">
-        <joint axis="0 1 0"/>
-        <geom type="capsule" size=".03" fromto="0 0 0 .2 0 0"/>
-      </body>
-      <body pos="0 .1 0">
-        <joint type="ball"/>
-        <geom type="capsule" size=".03" fromto="0 0 0 0 .2 0"/>
-        <body pos="0 .2 0">
-          <joint type="slide" axis="1 1 1"/>
-          <geom size=".05"/>
-        </body>
-      </body>
-    </body>
-    <body name="distractor2" pos="0 0 -.3">
-      <freejoint/>
-      <geom size=".1"/>
-    </body>
-  </worldbody>
-</mujoco>
-)";
-
-// compare analytic and finite-differenced subtree-com Jacobian
-TEST_F(JacobianTest, SubtreeJac) {
-  mjModel* model = LoadModelFromString(kJacobianTestingModel);
-  int nv = model->nv;
-  int bodyid = mj_name2id(model, mjOBJ_BODY, "main");
-  mjData* data = mj_makeData(model);
-  mjtNum* jac_subtree = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
-  mjtNum* qpos = (mjtNum*) mju_malloc(sizeof(mjtNum)*model->nq);
-  mjtNum* nudge = (mjtNum*) mju_malloc(sizeof(mjtNum)*nv);
-
-  // all we need for Jacobians are kinematics and CoM-related quantities
-  mj_kinematics(model, data);
-  mj_comPos(model, data);
-
-  // get subtree CoM Jacobian of free body
-  mj_jacSubtreeCom(model, data, jac_subtree, bodyid);
-
-  // save current subtree-com and qpos, clear nudge
-  mjtNum subtree_com[3];
-  mju_copy3(subtree_com, data->subtree_com+3*bodyid);
-  mju_copy(qpos, data->qpos, model->nq);
-  mju_zero(nudge, nv);
-
-  // compare analytic Jacobian to finite-difference approximation
-  static const mjtNum eps = 1e-6;
-  for (int i=0; i < nv; i++) {
-    // reset qpos, nudge i-th dof, update data->qpos, reset nudge
-    mju_copy(data->qpos, qpos, model->nq);
-    nudge[i] = 1;
-    mj_integratePos(model, data->qpos, nudge, eps);
-    nudge[i] = 0;
-
-    // kinematics and comPos to get nudged com
-    mj_kinematics(model, data);
-    mj_comPos(model, data);
-
-    // compare finite-differenced and analytic Jacobian
-    for (int j=0; j < 3; j++) {
-      mjtNum findiff = (data->subtree_com[3*bodyid+j] - subtree_com[j]) / eps;
-      EXPECT_THAT(jac_subtree[nv*j+i], DoubleNear(findiff, eps));
-    }
-  }
-
-  mju_free(nudge);
-  mju_free(qpos);
-  mju_free(jac_subtree);
-  mj_deleteData(data);
-  mj_deleteModel(model);
-}
-
-// confirm that applying linear forces via the subtree-com Jacobian only creates
-// the expected linear accelerations (no accelerations of internal joints)
-TEST_F(JacobianTest, SubtreeJacNoInternalAcc) {
-  mjModel* model = LoadModelFromString(kJacobianTestingModel);
-  int nv = model->nv;
-  int bodyid = mj_name2id(model, mjOBJ_BODY, "main");
-  mjData* data = mj_makeData(model);
-  mjtNum* jac_subtree = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
-
-  // all we need for Jacobians are kinematics and CoM-related quantities
-  mj_kinematics(model, data);
-  mj_comPos(model, data);
-
-  // get subtree CoM Jacobian of free body
-  mj_jacSubtreeCom(model, data, jac_subtree, bodyid);
-
-  // uncomment for debugging
-  // mju_printMat(jac_subtree, 3, nv);
-
-  // call fwdPosition since we'll need the factorised mass matrix in the test
-  mj_fwdPosition(model, data);
-
-  // treating the subtree Jacobian as the projection of 3 axis-aligned unit
-  // forces into joint space, solve for the resulting accelerations in-place
-  mj_solveM(model, data, jac_subtree, jac_subtree, 3);
-
-  // expect to find accelerations of magnitude 1/subtreemass in the first 3
-  // coordinates of the free joint and 0s elsewhere, since applying forces to
-  // the CoM should accelerate the whole mechanism without any internal motion
-  int body_dofadr = model->body_dofadr[bodyid];
-  mjtNum invtreemass = 1.0/model->body_subtreemass[bodyid];
-  for (int r = 0; r < 3; r++) {
-    for (int c = 0; c < nv; c++) {
-      mjtNum expected = c - body_dofadr == r ? invtreemass : 0.0;
-      EXPECT_THAT(jac_subtree[nv*r+c], DoubleNear(expected, max_abs_err));
-    }
-  }
-
-  mju_free(jac_subtree);
-  mj_deleteData(data);
-  mj_deleteModel(model);
-}
 
 using Name2idTest = MujocoTest;
 
@@ -336,67 +90,69 @@ static constexpr char name2idTestingModel[] = R"(
 )";
 
 TEST_F(Name2idTest, FindIds) {
-    mjModel* model = LoadModelFromString(name2idTestingModel);
+  char error[1024];
+  MjModelPtr model =
+      LoadModelFromString(name2idTestingModel, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
-    EXPECT_THAT(mj_name2id(model, mjOBJ_BODY, "world"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_BODY, "body1"), 1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_BODY, "body2"), 2);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_GEOM, "body1_geom1"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_GEOM, "body1_geom2"), 1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_JOINT, "joint2"), 1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_MESH, "mesh1"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_LIGHT, "light1"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_CAMERA, "camera1"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_SITE, "site2"), 1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_MATERIAL, "material1"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_TEXTURE, "texture1"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_TENDON, "tendon1"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_ACTUATOR, "actuator1"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_SENSOR, "sensor1"), 0);
-
-    mj_deleteModel(model);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_BODY, "world"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_BODY, "body1"), 1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_BODY, "body2"), 2);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_GEOM, "body1_geom1"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_GEOM, "body1_geom2"), 1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_JOINT, "joint2"), 1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_MESH, "mesh1"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_LIGHT, "light1"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_CAMERA, "camera1"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_SITE, "site2"), 1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_MATERIAL, "material1"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_TEXTURE, "texture1"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_TENDON, "tendon1"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_ACTUATOR, "actuator1"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_SENSOR, "sensor1"), 0);
 }
 
-TEST_F(Name2idTest,  MissingIds) {
-    mjModel* model = LoadModelFromString(name2idTestingModel);
+TEST_F(Name2idTest, MissingIds) {
+  char error[1024];
+  MjModelPtr model =
+      LoadModelFromString(name2idTestingModel, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
-    EXPECT_THAT(mj_name2id(model, mjOBJ_BODY, "abody3"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_GEOM, "abody2_geom2"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_JOINT, "joint3"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_MESH, "amesh2"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_LIGHT, "alight2"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_CAMERA, "acamera2"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_SITE, "asite3"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_MATERIAL, "amaterial2"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_TEXTURE, "atexture2"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_TENDON, "atendon2"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_ACTUATOR, "aactuator2"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_SENSOR, "asensor2"), -1);
-
-    mj_deleteModel(model);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_BODY, "abody3"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_GEOM, "abody2_geom2"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_JOINT, "joint3"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_MESH, "amesh2"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_LIGHT, "alight2"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_CAMERA, "acamera2"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_SITE, "asite3"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_MATERIAL, "amaterial2"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_TEXTURE, "atexture2"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_TENDON, "atendon2"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_ACTUATOR, "aactuator2"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_SENSOR, "asensor2"), -1);
 }
 
 TEST_F(Name2idTest, EmptyIds) {
-    mjModel* model = LoadModelFromString(name2idTestingModel);
+  char error[1024];
+  MjModelPtr model =
+      LoadModelFromString(name2idTestingModel, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
-    EXPECT_THAT(mj_name2id(model, mjOBJ_BODY, ""), -1);
-
-    mj_deleteModel(model);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_BODY, ""), -1);
 }
 
 TEST_F(Name2idTest, Namespaces) {
-    mjModel* model = LoadModelFromString(name2idTestingModel);
+  char error[1024];
+  MjModelPtr model =
+      LoadModelFromString(name2idTestingModel, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
-    EXPECT_THAT(mj_name2id(model, mjOBJ_GEOM, "camera1"), 3);
-
-    mj_deleteModel(model);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_GEOM, "camera1"), 3);
 }
 
 using VersionTest = MujocoTest;
 
-TEST_F(VersionTest, MjVersion) {
-  EXPECT_EQ(mj_version(), mjVERSION_HEADER);
-}
+TEST_F(VersionTest, MjVersion) { EXPECT_EQ(mj_version(), mjVERSION_HEADER); }
 
 TEST_F(VersionTest, MjVersionString) {
 #if GTEST_USES_SIMPLE_RE == 1
@@ -406,7 +162,6 @@ TEST_F(VersionTest, MjVersionString) {
 #endif
   EXPECT_THAT(std::string(mj_versionString()), regex_matcher);
 }
-
 
 using SupportTest = MujocoTest;
 
@@ -418,7 +173,7 @@ void randomQuatPair(mjtNum qa[4], mjtNum qb[4], mjtNum angle, int seed) {
   std::normal_distribution<double> dist(0, 1);
 
   // sample qa = qb
-  for (int i=0; i < 4; i++) {
+  for (int i = 0; i < 4; i++) {
     qa[i] = qb[i] = dist(rng);
   }
   mju_normalize4(qa);
@@ -426,7 +181,7 @@ void randomQuatPair(mjtNum qa[4], mjtNum qb[4], mjtNum angle, int seed) {
 
   // integrate qb in random direction by angle
   mjtNum dir[3];
-  for (int i=0; i < 3; i++) {
+  for (int i = 0; i < 3; i++) {
     dir[i] = dist(rng);
   }
   mju_normalize3(dir);
@@ -447,7 +202,9 @@ static constexpr char ballJointModel[] = R"(
 TEST_F(SupportTest, DifferentiatePosSubQuat) {
   const mjtNum eps = 1e-12;  // epsilon for float comparison
 
-  mjModel* model = LoadModelFromString(ballJointModel);
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(ballJointModel, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
   int seed = 1;
   for (mjtNum angle : {0.0, 1e-5, 1e-2}) {
@@ -458,7 +215,7 @@ TEST_F(SupportTest, DifferentiatePosSubQuat) {
 
       // get velocity given timestep
       mjtNum qvel[3];
-      mj_differentiatePos(model, qvel, dt, qpos1, qpos2);
+      mj_differentiatePos(model.get(), qvel, dt, qpos1, qpos2);
 
       // equivalent computation
       mjtNum qneg[4], qdif[4], qvel_expect[3];
@@ -467,16 +224,16 @@ TEST_F(SupportTest, DifferentiatePosSubQuat) {
       mju_quat2Vel(qvel_expect, qdif, dt);
 
       // expect numerical equality
-      EXPECT_THAT(AsVector(qvel, 3), Pointwise(DoubleNear(eps), qvel_expect));
+      EXPECT_THAT(AsVector(qvel, 3), Pointwise(MjNear(eps, 1e-3), qvel_expect));
     }
   }
-
-  mj_deleteModel(model);
 }
 
 static const char* const kDefaultModel = "testdata/model.xml";
 
-TEST_F(SupportTest, GetSetStateStepEqual) {
+using StateTest = MujocoTest;
+
+TEST_F(StateTest, GetSetStateStepEqual) {
   const std::string xml_path = GetTestDataFilePath(kDefaultModel);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
   mjData* data = mj_makeData(model);
@@ -487,40 +244,40 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
   std::normal_distribution<double> dist(0, .01);
 
   // set controls and applied joint forces to random values
-  for (int i=0; i < model->nu; i++) data->ctrl[i] = dist(rng);
-  for (int i=0; i < model->nv; i++) data->qfrc_applied[i] = dist(rng);
-  for (int i=0; i < model->neq; i++) data->eq_active[i] = dist(rng) > 0;
+  for (int i = 0; i < model->nu; i++) data->ctrl[i] = dist(rng);
+  for (int i = 0; i < model->nv; i++) data->qfrc_applied[i] = dist(rng);
+  for (int i = 0; i < model->neq; i++) data->eq_active[i] = dist(rng) > 0;
 
   // take one step
   mj_step(model, data);
 
-  int spec = mjSTATE_INTEGRATION;
-  int size = mj_stateSize(model, spec);
+  int signature = mjSTATE_INTEGRATION;
+  int size = mj_stateSize(model, signature);
 
   // save the initial state and step
-  std::vector<mjtNum> state0a(size);
-  mj_getState(model, data, state0a.data(), spec);
+  vector<mjtNum> state0a(size);
+  mj_getState(model, data, state0a.data(), signature);
 
   // get the initial state, expect equality
-  std::vector<mjtNum> state0b(size);
-  mj_getState(model, data, state0b.data(), spec);
+  vector<mjtNum> state0b(size);
+  mj_getState(model, data, state0b.data(), signature);
   EXPECT_EQ(state0a, state0b);
 
   // take one step
   mj_step(model, data);
 
   // save the resulting state
-  std::vector<mjtNum> state1a(size);
-  mj_getState(model, data, state1a.data(), spec);
+  vector<mjtNum> state1a(size);
+  mj_getState(model, data, state1a.data(), signature);
 
   // expect the state to be different after stepping
   EXPECT_THAT(state0a, testing::Ne(state1a));
 
   // reset to the saved state, step again, get the resulting state
-  mj_setState(model, data, state0a.data(), spec);
+  mj_setState(model, data, state0a.data(), signature);
   mj_step(model, data);
-  std::vector<mjtNum> state1b(size);
-  mj_getState(model, data, state1b.data(), spec);
+  vector<mjtNum> state1b(size);
+  mj_getState(model, data, state1b.data(), signature);
 
   // expect the state to be the same after re-stepping
   EXPECT_EQ(state1a, state1b);
@@ -529,29 +286,208 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
   mj_deleteModel(model);
 }
 
-using AddMTest = MujocoTest;
+TEST_F(StateTest, GetSetStateDelay) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="slide" delay="0.05" nsample="5"/>
+    </actuator>
+  </mujoco>
+  )";
 
-TEST_F(AddMTest, DenseSameAsSparse) {
-  mjModel* m = LoadModelFromPath("humanoid100/humanoid100.xml");
-  mjData* d = mj_makeData(m);
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // verify history buffer exists: nhistory = 2 + 2*5 = 12
+  EXPECT_EQ(model->nhistory, 12);  // [user, cursor, times(5), values(5)]
+
+  // state size should include history buffer
+  int size = mj_stateSize(model.get(), mjSTATE_HISTORY);
+  EXPECT_EQ(size, model->nhistory);
+
+  // step to populate history buffer
+  data->ctrl[0] = 1.0;
+  mj_step(model.get(), data.get());
+  data->ctrl[0] = 2.0;
+  mj_step(model.get(), data.get());
+
+  // get history state
+  vector<mjtNum> history_state(size);
+  mj_getState(model.get(), data.get(), history_state.data(), mjSTATE_HISTORY);
+
+  // modify the history buffer manually (value at index 7 = 2+5 = after times)
+  data->history[7] = 99.0;  // first value
+
+  // set history state back - should restore original
+  mj_setState(model.get(), data.get(), history_state.data(), mjSTATE_HISTORY);
+
+  // verify restoration
+  EXPECT_NE(data->history[7], 99.0);
+}
+
+TEST_F(StateTest, CopyState) {
+  const std::string xml_path = GetTestDataFilePath(kDefaultModel);
+  mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+
+  mjData* src = mj_makeData(m);
+  mjData* dst = mj_makeData(m);
+
+  // init both datas to default
+  mj_resetData(m, src);
+  mj_resetData(m, dst);
+
+  // modify d_src
+  src->time = 1.23;
+  for (int i = 0; i < m->nq; ++i) src->qpos[i] = i * 0.1;
+  for (int i = 0; i < m->nv; ++i) src->qvel[i] = i * 0.2;
+  for (int i = 0; i < m->na; ++i) src->act[i] = i * 0.3;
+  for (int i = 0; i < m->nu; ++i) src->ctrl[i] = i * 0.4;
+  for (int i = 0; i < m->nhistory; ++i) src->history[i] = i * 0.5;
+
+  for (int i = 0; i < m->neq; ++i) src->eq_active[i] = 1 - m->eq_active0[i];
+
+  // check that states differ
+  EXPECT_NE(src->time, dst->time);
+  EXPECT_THAT(AsVector(src->qpos, m->nq), Ne(AsVector(dst->qpos, m->nq)));
+  EXPECT_THAT(AsVector(src->ctrl, m->nu), Ne(AsVector(dst->ctrl, m->nu)));
+
+  // copy state with signature
+  int signature = mjSTATE_FULLPHYSICS | mjSTATE_EQ_ACTIVE;
+  mj_copyState(m, src, dst, signature);
+
+  // check copied components
+  EXPECT_EQ(dst->time, src->time);
+  EXPECT_EQ(AsVector(dst->qpos, m->nq), AsVector(src->qpos, m->nq));
+  EXPECT_EQ(AsVector(dst->qvel, m->nv), AsVector(src->qvel, m->nv));
+  EXPECT_EQ(AsVector(dst->act, m->na), AsVector(src->act, m->na));
+  EXPECT_EQ(AsVector(dst->history, m->nhistory),
+            AsVector(src->history, m->nhistory));
+  EXPECT_EQ(AsVector(dst->eq_active, m->neq), AsVector(src->eq_active, m->neq));
+
+  // check non-copied components (CTRL not in signature)
+  EXPECT_THAT(AsVector(dst->ctrl, m->nu), Ne(AsVector(src->ctrl, m->nu)));
+  EXPECT_EQ(AsVector(dst->ctrl, m->nu), vector<mjtNum>(m->nu, 0.0));
+
+  mj_deleteData(src);
+  mj_deleteData(dst);
+  mj_deleteModel(m);
+}
+
+TEST_F(StateTest, ExtractState) {
+  const std::string xml_path = GetTestDataFilePath(kDefaultModel);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+
+  // make distribution using seed
+  std::mt19937_64 rng;
+  rng.seed(3);
+  std::normal_distribution<double> dist(0, .01);
+
+  // set controls and applied joint forces to random values
+  for (int i = 0; i < model->nu; i++) data->ctrl[i] = dist(rng);
+  for (int i = 0; i < model->nv; i++) data->qfrc_applied[i] = dist(rng);
+  for (int i = 0; i < model->neq; i++) data->eq_active[i] = dist(rng) > 0;
+
+  // take one step
+  mj_step(model, data);
+
+  // take a state that will be used as src
+  int srcsig = mjSTATE_TIME | mjSTATE_QPOS | mjSTATE_QVEL | mjSTATE_CTRL |
+               mjSTATE_HISTORY;
+  int srcsize = mj_stateSize(model, srcsig);
+  vector<mjtNum> srcstate(srcsize);
+  mj_getState(model, data, srcstate.data(), srcsig);
+
+  // extract a subset consisting of only a single bit in srcsig
+  int dstsig1 = mjSTATE_CTRL;
+  int dstsize1 = mj_stateSize(model, dstsig1);
+  EXPECT_LT(dstsize1, srcsize);
+  EXPECT_EQ(dstsize1, model->nu);
+  vector<mjtNum> dststate1(dstsize1);
+  mj_extractState(model, srcstate.data(), srcsig, dststate1.data(), dstsig1);
+  EXPECT_EQ(dststate1, AsVector(data->ctrl, model->nu));
+
+  // extract a subset consisting of multiple non-consecutive bits in srcsig
+  int dstsig2 = mjSTATE_QPOS | mjSTATE_CTRL;
+  int dstsize2 = mj_stateSize(model, dstsig2);
+  EXPECT_LT(dstsize2, srcsize);
+  EXPECT_EQ(dstsize2, model->nq + model->nu);
+  vector<mjtNum> dststate2(dstsize2);
+  mj_extractState(model, srcstate.data(), srcsig, dststate2.data(), dstsig2);
+  EXPECT_EQ(AsVector(dststate2.data(), model->nq),
+            AsVector(data->qpos, model->nq));
+  EXPECT_EQ(AsVector(dststate2.data() + model->nq, model->nu),
+            AsVector(data->ctrl, model->nu));
+
+  // extract history state
+  int dstsig3 = mjSTATE_HISTORY;
+  int dstsize3 = mj_stateSize(model, dstsig3);
+  EXPECT_EQ(dstsize3, model->nhistory);
+  vector<mjtNum> dststate3(dstsize3);
+  mj_extractState(model, srcstate.data(), srcsig, dststate3.data(), dstsig3);
+  EXPECT_EQ(dststate3, AsVector(data->history, model->nhistory));
+
+  // test that an error is correctly raised if dstsig is not a subset of srcsig
+  static int error_count;
+  static char last_error_msg[128];
+  error_count = 0;
+  last_error_msg[0] = '\0';
+  auto* error_handler = +[](const char* msg) {
+    std::strncpy(last_error_msg, msg, sizeof(last_error_msg));
+    ++error_count;
+  };
+
+  auto* old_mju_user_error = mju_user_error;
+  mju_user_error = error_handler;
+
+  mj_extractState(model, nullptr, srcsig, nullptr, mjSTATE_QFRC_APPLIED);
+  EXPECT_EQ(error_count, 1);
+  EXPECT_EQ(std::string_view(last_error_msg),
+            "mj_extractState: dstsig is not a subset of srcsig");
+
+  mj_extractState(model, nullptr, -1, nullptr, mjSTATE_QFRC_APPLIED);
+  EXPECT_EQ(error_count, 2);
+  EXPECT_EQ(std::string_view(last_error_msg),
+            "mj_extractState: invalid srcsig -1 < 0");
+
+  mju_user_error = old_mju_user_error;
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+using InertiaTest = MujocoTest;
+
+static const char* const kInertiaPath = "engine/testdata/inertia.xml";
+
+TEST_F(InertiaTest, AddMdenseSameAsSparse) {
+  const std::string xml_path = GetTestDataFilePath(kInertiaPath);
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
   int nv = m->nv;
 
-  // force use of sparse matrices
-  m->opt.jacobian = mjJAC_SPARSE;
+  mjData* d = mj_makeData(m);
 
-  // warm-up rollout to get a typical state
-  while (d->time < 2) {
-    mj_step(m, d);
-  }
+  mj_step(m, d);
 
-  // dense zero matrix
-  std::vector<mjtNum> dst_sparse = std::vector(nv * nv, 0.0);
+  // dense matrix, all values are 3.0
+  vector<mjtNum> dst_dense(nv * nv, 3.0);
 
-  // sparse zero matrix
-  std::vector<mjtNum> dst_dense = std::vector(nv * nv, 0.0);
-  std::vector<int> rownnz = std::vector(nv, nv);
-  std::vector<int> rowadr = std::vector(nv, 0);
-  std::vector<int> colind = std::vector(nv * nv, 0);
+  // sparse matrix, all values are 3.0
+  vector<mjtNum> dst_sparse(nv * nv, 3.0);
+  vector<int> rownnz(nv, nv);
+  vector<int> rowadr(nv, 0);
+  vector<int> colind(nv * nv, 0);
 
   // set sparse structure
   for (int i = 0; i < nv; i++) {
@@ -562,89 +498,569 @@ TEST_F(AddMTest, DenseSameAsSparse) {
   }
 
   // sparse addM
-  mj_addM(m, d, dst_sparse.data(), rownnz.data(),
-          rowadr.data(), colind.data());
+  mj_addM(m, d, dst_sparse.data(), rownnz.data(), rowadr.data(), colind.data());
 
   // dense addM
   mj_addM(m, d, dst_dense.data(), nullptr, nullptr, nullptr);
 
-  // dense comparison, should be same matrix
-  EXPECT_THAT(dst_dense, ElementsAreArray(dst_sparse));
+  // dense comparison (lower triangle)
+  for (int i = 0; i < nv; i++) {
+    for (int j = 0; j < nv; j++) {
+      EXPECT_EQ(dst_dense[i * nv + j], dst_sparse[i * nv + j]);
+    }
+  }
 
   // clean up
   mj_deleteData(d);
   mj_deleteModel(m);
 }
 
-static const char* const kIlslandEfcPath =
-    "engine/testdata/island/island_efc.xml";
+TEST_F(InertiaTest, mulM) {
+  const std::string xml_path = GetTestDataFilePath(kInertiaPath);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
+  int nv = model->nv;
 
-TEST_F(SupportTest, MulMIsland) {
-  const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
   mjData* data = mj_makeData(model);
-
-  // allocate vec, fill with arbitrary values
-  mjtNum* vec = (mjtNum*) mju_malloc(sizeof(mjtNum)*model->nv);
-  for (int i=0; i < model->nv; i++) {
-    vec[i] = 0.2 + 0.3*i;
-  }
-
-  // simulate for 0.2 seconds
-  mj_resetData(model, data);
-  while (data->time < 0.2) {
-    mj_step(model, data);
-  }
   mj_forward(model, data);
 
-  // multiply by Mass matrix: Mvec = M * vec
-  mjtNum* Mvec = (mjtNum*) mju_malloc(sizeof(mjtNum)*data->nefc);
-  mj_mulM(model, data, Mvec, vec);
+  // dense M matrix
+  vector<mjtNum> Mdense(nv * nv);
+  mju_sym2dense(Mdense.data(), data->M, nv, model->M_rownnz, model->M_rowadr,
+                model->M_colind);
 
-  // iterate over islands
-  for (int i=0; i < data->nisland; i++) {
-    // allocate dof vectors for island
-    int dofnum = data->island_dofnum[i];
-    mjtNum* vec_i = (mjtNum*)mju_malloc(sizeof(mjtNum) * dofnum);
-    mjtNum* Mvec_i = (mjtNum*)mju_malloc(sizeof(mjtNum) * dofnum);
+  // arbitrary RHS vector
+  vector<mjtNum> vec(nv);
+  for (int i = 0; i < nv; i++) vec[i] = vec[i] = 20 + 30 * i;
 
-    // copy values into vec_i
-    int* dofind = data->island_dofind + data->island_dofadr[i];
-    for (int j=0; j < dofnum; j++) {
-      vec_i[j] = vec[dofind[j]];
-    }
+  // multiply directly
+  vector<mjtNum> res1(nv, 0);
+  mju_mulMatVec(res1.data(), Mdense.data(), vec.data(), nv, nv);
 
-    // === compressed: use vec_i
+  // multiply with mj_mulM
+  vector<mjtNum> res2(nv, 0);
+  mj_mulM(model, data, res2.data(), vec.data());
 
-    // multiply by Jacobian, for this island
-    int flg_vecunc = 0;
-    mj_mulM_island(model, data, Mvec_i, vec_i, i, flg_vecunc);
+  // expect vectors to match to floating point precision
+  EXPECT_THAT(res1, Pointwise(MjNear(1e-10, 0.1), res2));
 
-    // expect corresponding values to match
-    for (int j=0; j < dofnum; j++) {
-      EXPECT_THAT(Mvec_i[j], DoubleNear(Mvec[dofind[j]], 1e-12));
-    }
-
-    // === uncompressed: use vec
-    mju_zero(Mvec_i, dofnum);  // clear output
-
-    // multiply by Jacobian, for this island
-    flg_vecunc = 1;
-    mj_mulM_island(model, data, Mvec_i, vec, i, flg_vecunc);
-
-    // expect corresponding values to match
-    for (int j=0; j < dofnum; j++) {
-      EXPECT_THAT(Mvec_i[j], DoubleNear(Mvec[dofind[j]], 1e-12));
-    }
-
-    mju_free(vec_i);
-    mju_free(Mvec_i);
-  }
-
-  mju_free(Mvec);
-  mju_free(vec);
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+TEST_F(InertiaTest, mulM2) {
+  const std::string xml_path = GetTestDataFilePath(kInertiaPath);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
+  int nv = model->nv;
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  // arbitrary RHS vector
+  vector<mjtNum> vec(nv);
+  for (int i = 0; i < nv; i++) vec[i] = .2 + .3 * i;
+
+  // multiply sqrtMvec = M^1/2 * vec
+  vector<mjtNum> sqrtMvec(nv);
+  mj_mulM2(model, data, sqrtMvec.data(), vec.data());
+
+  // multiply Mvec = M * vec
+  vector<mjtNum> Mvec(nv);
+  mj_mulM(model, data, Mvec.data(), vec.data());
+
+  // compute vec' * M * vec in two different ways, expect them to match
+  mjtNum sqrtMvec2 = mju_dot(sqrtMvec.data(), sqrtMvec.data(), nv);
+  mjtNum vecMvec = mju_dot(vec.data(), Mvec.data(), nv);
+  EXPECT_MJTNUM_EQ(sqrtMvec2, vecMvec);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(InertiaTest, FullM) {
+  const std::string xml_path = GetTestDataFilePath(kInertiaPath);
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
+  int nv = m->nv;
+
+  // forward dynamics, populate M and qLD
+  mjData* d = mj_makeData(m);
+  mj_forward(m, d);
+
+  // get dense mass matrix from M using mj_fullM
+  vector<mjtNum> M(nv * nv);
+  mj_fullM(m, d, M.data());
+
+  // get dense mass matrix from M using mju_sparse2dense
+  vector<mjtNum> M_CSR(nv * nv);
+  mju_sparse2dense(M_CSR.data(), d->M, nv, nv, m->M_rownnz, m->M_rowadr,
+                   m->M_colind);
+
+  // expect lower triangles to match exactly
+  for (int i = 0; i < nv; ++i) {
+    for (int j = 0; j <= i; ++j) {
+      EXPECT_EQ(M[i * nv + j], M_CSR[i * nv + j]);
+    }
+  }
+
+  // get dense LTDL factor (D on the diagonal)
+  vector<mjtNum> LD(nv * nv);
+  mju_sparse2dense(LD.data(), d->qLD, nv, nv, m->M_rownnz, m->M_rowadr,
+                   m->M_colind);
+
+  // extract L and D from LD
+  vector<mjtNum> L = LD;
+  vector<mjtNum> D(nv * nv, 0.0);
+  for (int i = 0; i < nv; i++) {
+    D[i * nv + i] = LD[i * nv + i];
+    L[i * nv + i] = 1.0;
+  }
+
+  // compute DL = D * L
+  vector<mjtNum> DL(nv * nv, 0.0);
+  mju_mulMatMat(DL.data(), D.data(), L.data(), nv, nv, nv);
+
+  // compute the triple product P = L^T * D * L
+  vector<mjtNum> P(nv * nv, 0.0);
+  mju_mulMatTMat(P.data(), L.data(), DL.data(), nv, nv, nv);
+
+  // expect M and P to match to high precision
+  EXPECT_THAT(M, Pointwise(MjNear(1e-10, 1e-4), P));
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+static constexpr char GeomDistanceTestingModel1[] = R"(
+<mujoco>
+  <option>
+    <flag nativeccd="enable"/>
+  </option>
+  <asset>
+    <mesh name="box" scale=".1 .1 .1" vertex="0 0 0  1 0 0  0 1 0  1 1 0
+                                              0 0 1  1 0 1  0 1 1  1 1 1"/>
+  </asset>
+
+  <worldbody>
+    <geom type="plane" size="1 1 1"/>
+    <geom pos="0 0 1" size="0.2"/>
+    <geom pos="1 0 1" size="0.3"/>
+    <geom type="mesh" mesh="box"/>
+  </worldbody>
+</mujoco>
+)";
+
+static constexpr char GeomDistanceTestingModel2[] = R"(
+<mujoco>
+  <worldbody>
+    <geom type="sphere" size=".1"/>
+    <geom type="ellipsoid" size=".1 .1 .1" pos="0 0 1"/>
+  </worldbody>
+</mujoco>
+)";
+
+TEST_F(SupportTest, GeomDistance) {
+  char error[1024];
+  MjModelPtr model =
+      LoadModelFromString(GeomDistanceTestingModel1, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_kinematics(model.get(), data.get());
+
+  // plane-sphere, distmax too small
+  mjtNum distmax = 0.5;
+  EXPECT_EQ(mj_geomDistance(model.get(), data.get(), 0, 1, distmax, nullptr),
+            0.5);
+  mjtNum fromto[6];
+  EXPECT_EQ(mj_geomDistance(model.get(), data.get(), 0, 1, distmax, fromto),
+            0.5);
+  EXPECT_THAT(fromto, Pointwise(Eq(), vector<mjtNum>{0, 0, 0, 0, 0, 0}));
+
+  // plane-sphere
+  distmax = 1.0;
+  EXPECT_THAT(mj_geomDistance(model.get(), data.get(), 0, 1, 1.0, fromto),
+              MjNear(0.8, 1e-12, 1e-5));
+  mjtNum eps = 1e-12;
+  EXPECT_THAT(fromto,
+              Pointwise(MjNear(eps, 1e-5), vector<mjtNum>{0, 0, 0, 0, 0, 0.8}));
+
+  // sphere-plane
+  EXPECT_THAT(mj_geomDistance(model.get(), data.get(), 1, 0, 1.0, fromto),
+              MjNear(0.8, 1e-12, 1e-5));
+  EXPECT_THAT(fromto,
+              Pointwise(MjNear(eps, 1e-5), vector<mjtNum>{0, 0, 0.8, 0, 0, 0}));
+
+  // sphere-sphere
+  EXPECT_THAT(mj_geomDistance(model.get(), data.get(), 1, 2, 1.0, fromto),
+              MjNear(0.5, 1e-12, 1e-5));
+  EXPECT_THAT(fromto,
+              Pointwise(MjNear(eps, 1e-5), vector<mjtNum>{.2, 0, 1, .7, 0, 1}));
+
+  // sphere-sphere, flipped order
+  EXPECT_THAT(mj_geomDistance(model.get(), data.get(), 2, 1, 1.0, fromto),
+              MjNear(0.5, 1e-12, 1e-5));
+  EXPECT_THAT(fromto,
+              Pointwise(MjNear(eps, 1e-5), vector<mjtNum>{.7, 0, 1, .2, 0, 1}));
+
+  // mesh-sphere (close distmax)
+  distmax = 0.701;
+  eps = model->opt.ccd_tolerance;
+  EXPECT_THAT(mj_geomDistance(model.get(), data.get(), 3, 1, distmax, fromto),
+              MjNear(0.7, eps, eps * 100));
+  EXPECT_THAT(fromto, Pointwise(MjNear(eps, eps * 100),
+                                vector<mjtNum>{0, 0, .1, 0, 0, .8}));
+
+  // mesh-sphere (far distmax)
+  distmax = 1.0;
+  EXPECT_THAT(mj_geomDistance(model.get(), data.get(), 3, 1, distmax, fromto),
+              MjNear(0.7, eps, eps * 100));
+  EXPECT_THAT(fromto, Pointwise(MjNear(eps, eps * 100),
+                                vector<mjtNum>{0, 0, .1, 0, 0, .8}));
+}
+
+TEST_F(SupportTest, GeomDistanceFromToFlipped) {
+  mjtNum distmax = 10.0;
+  char error[1024];
+  MjModelPtr model =
+      LoadModelFromString(GeomDistanceTestingModel2, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_kinematics(model.get(), data.get());
+
+  mjtNum fromto01[6];
+  mjtNum fromto10[6];
+
+  for (int flag : {0, (int)mjDSBL_NATIVECCD}) {
+    model->opt.disableflags = flag;
+    mj_geomDistance(model.get(), data.get(), 0, 1, distmax, fromto01);
+    mj_geomDistance(model.get(), data.get(), 1, 0, distmax, fromto10);
+    mjtNum fromto10flipped[6] = {fromto10[3], fromto10[4], fromto10[5],
+                                 fromto10[0], fromto10[1], fromto10[2]};
+
+    EXPECT_THAT(AsVector(fromto10flipped, 6),
+                Pointwise(MjNear(1.0e-12, 1e-5), fromto01));
+  }
+}
+
+static constexpr char kSetKeyframeTestingModel[] = R"(
+<mujoco>
+  <size nkey="2"/>
+
+  <worldbody>
+    <body>
+      <joint name="joint" axis="0 1 0"/>
+      <geom size=".1" pos="1 0 0"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <intvelocity joint="joint" actrange="-1 1" kp="100" dampratio="1"/>
+  </actuator>
+</mujoco>
+)";
+
+TEST_F(SupportTest, SetKeyframe) {
+  char error[1024];
+  MjModelPtr model =
+      LoadModelFromString(kSetKeyframeTestingModel, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  data->ctrl[0] = 1;
+  while (data->time < 1) {
+    mj_step(model.get(), data.get());
+  }
+
+  mj_setKeyframe(model.get(), data.get(), 1);
+  EXPECT_EQ(data->time, model->key_time[1]);
+  EXPECT_EQ(data->ctrl[0], model->key_ctrl[model->nu * 1]);
+  EXPECT_EQ(data->qpos[0], model->key_qpos[model->nq * 1]);
+  EXPECT_EQ(data->qvel[0], model->key_qvel[model->nv * 1]);
+  EXPECT_EQ(data->act[0], model->key_act[model->na * 1]);
+
+  mj_step(model.get(), data.get());
+  mj_setKeyframe(model.get(), data.get(), 0);
+  EXPECT_EQ(data->time, model->key_time[0]);
+  EXPECT_EQ(data->ctrl[0], model->key_ctrl[model->nu * 0]);
+  EXPECT_EQ(data->qpos[0], model->key_qpos[model->nq * 0]);
+  EXPECT_EQ(data->qvel[0], model->key_qvel[model->nv * 0]);
+  EXPECT_EQ(data->act[0], model->key_act[model->na * 0]);
+}
+
+TEST_F(SupportTest, ContactSensorDim) {
+  int dataSpec = 1 << mjCONDATA_FOUND | 1 << mjCONDATA_FORCE |
+                 1 << mjCONDATA_DIST | 1 << mjCONDATA_POS |
+                 1 << mjCONDATA_TANGENT;
+
+  EXPECT_EQ(mju_condataSize(dataSpec), 1 + 3 + 1 + 3 + 3);
+}
+
+// ------------------------------ ctrl delays --------------------------------
+
+TEST_F(SupportTest, ReadCtrlNoDelay) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="slide"/>
+    </actuator>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+
+  // no delay: should return current ctrl value
+  data->ctrl[0] = 42.0;
+  EXPECT_EQ(mj_readCtrl(model.get(), data.get(), 0, data->time, /*order=*/0),
+            42.0);
+}
+
+TEST_F(SupportTest, ReadCtrlWithDelay) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="slide" delay="0.03" nsample="3"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // model should have delay configured
+  // delay = 0.03 seconds, timestep = 0.01, so ndelay = ceil(0.03/0.01) = 3
+  EXPECT_EQ(model->actuator_history[0], 3);
+  EXPECT_NEAR(model->actuator_delay[0], 0.03, 1e-7);
+  EXPECT_GE(model->actuator_historyadr[0], 0);
+
+  // initially, buffer should be filled with constant value (from init)
+  // reading at current time should return the init value
+  mjtNum val = mj_readCtrl(model.get(), data.get(), 0, data->time, /*order=*/0);
+  EXPECT_EQ(val, data->ctrl[0]);
+}
+
+TEST_F(SupportTest, InitCtrlDelay) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="slide" delay="0.02" nsample="3"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // verify nhistory
+  EXPECT_EQ(model->actuator_history[0], 3);
+
+  // initialize with custom times and values
+  // buffer stores: time 0.0 -> value 1.0, time 0.01 -> value 2.0, time 0.02 ->
+  // value 3.0
+  mjtNum times[3] = {0.0, 0.01, 0.02};
+  mjtNum values[3] = {1.0, 2.0, 3.0};
+  mj_initCtrlHistory(model.get(), data.get(), 0, times, values);
+
+  // mj_readCtrl now auto-subtracts delay: lookup_time = time - delay
+  // delay = 0.02, so:
+  //   time=0.04 -> lookup at 0.02 -> value 3.0
+  //   time=0.03 -> lookup at 0.01 -> value 2.0
+  //   time=0.02 -> lookup at 0.00 -> value 1.0
+  mjtNum val = mj_readCtrl(model.get(), data.get(), 0, 0.04, /*order=*/0);
+  EXPECT_EQ(val, 3.0);
+
+  val = mj_readCtrl(model.get(), data.get(), 0, 0.03, /*order=*/0);
+  EXPECT_EQ(val, 2.0);
+
+  val = mj_readCtrl(model.get(), data.get(), 0, 0.02, /*order=*/0);
+  EXPECT_EQ(val, 1.0);
+}
+
+TEST_F(SupportTest, InitCtrlDelayNullTimes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="slide" delay="0.02" nsample="3"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // get existing times from buffer
+  int adr = model->actuator_historyadr[0];
+  mjtNum* buf = data->history + adr;
+  mjtNum existing_times[3] = {buf[2], buf[3], buf[4]};
+
+  // initialize with NULL times (use existing) and new values
+  mjtNum values[3] = {10.0, 20.0, 30.0};
+  mj_initCtrlHistory(model.get(), data.get(), 0, nullptr, values);
+
+  // verify times are unchanged
+  EXPECT_EQ(buf[2], existing_times[0]);
+  EXPECT_EQ(buf[3], existing_times[1]);
+  EXPECT_EQ(buf[4], existing_times[2]);
+
+  // verify values are updated
+  EXPECT_EQ(buf[5], 10.0);
+  EXPECT_EQ(buf[6], 20.0);
+  EXPECT_EQ(buf[7], 30.0);
+}
+
+TEST_F(SupportTest, InitSensorDelay) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos joint="slide" delay="0.02" nsample="3"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // verify nsample for sensor
+  EXPECT_EQ(model->sensor_history[0], 3);
+
+  // initialize with custom times and values, phase=0
+  // buffer stores: time 0.0 -> value 0.5, time 0.01 -> value 0.6, time 0.02 ->
+  // value 0.7
+  mjtNum times[3] = {0.0, 0.01, 0.02};
+  mjtNum values[3] = {0.5, 0.6, 0.7};
+  mj_initSensorHistory(model.get(), data.get(), 0, times, values,
+                       /*phase=*/0.0);
+
+  // mj_readSensor now auto-subtracts delay: lookup_time = time - delay
+  // delay = 0.02, so:
+  //   time=0.04 -> lookup at 0.02 -> value 0.7
+  //   time=0.03 -> lookup at 0.01 -> value 0.6
+  mjtNum result = 0;
+  const mjtNum* ptr =
+      mj_readSensor(model.get(), data.get(), 0, 0.04, &result, /*order=*/0);
+  mjtNum val = ptr ? *ptr : result;
+  EXPECT_NEAR(val, 0.7, 1e-6);
+
+  ptr = mj_readSensor(model.get(), data.get(), 0, 0.03, &result, /*order=*/0);
+  val = ptr ? *ptr : result;
+  EXPECT_NEAR(val, 0.6, 1e-6);
+}
+
+TEST_F(SupportTest, InsideSite) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="box_mesh"
+            vertex="-0.2 -0.3 -0.4
+                     0.2 -0.3 -0.4
+                     0.2  0.3 -0.4
+                    -0.2  0.3 -0.4
+                    -0.2 -0.3  0.4
+                     0.2 -0.3  0.4
+                     0.2  0.3  0.4
+                    -0.2  0.3  0.4"/>
+      <mesh name="octa_mesh"
+            vertex=" 1  0  0
+                    -1  0  0
+                     0  1  0
+                     0 -1  0
+                     0  0  1
+                     0  0 -1"/>
+    </asset>
+    <worldbody>
+      <site name="sph" type="sphere" size="0.5" pos="1 0 0"/>
+      <site name="box" type="box" size="0.5 0.5 0.5" pos="0 1 0"/>
+      <site name="msh" type="mesh" mesh="box_mesh" pos="0 0 1"/>
+      <site name="oct" type="mesh" mesh="octa_mesh" pos="0 0 0"/>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  mjData* data = mj_makeData(model.get());
+  mj_forward(model.get(), data);
+
+  int sph_id = mj_name2id(model.get(), mjOBJ_SITE, "sph");
+  int box_id = mj_name2id(model.get(), mjOBJ_SITE, "box");
+  int msh_id = mj_name2id(model.get(), mjOBJ_SITE, "msh");
+  int oct_id = mj_name2id(model.get(), mjOBJ_SITE, "oct");
+
+  // sphere tests
+  mjtNum pt_inside_sph[3] = {1.2, 0, 0};
+  mjtNum pt_outside_sph[3] = {1.6, 0, 0};
+  EXPECT_EQ(mj_insideSite(model.get(), data, sph_id, pt_inside_sph), 1);
+  EXPECT_EQ(mj_insideSite(model.get(), data, sph_id, pt_outside_sph), 0);
+
+  // box tests
+  mjtNum pt_inside_box[3] = {0.3, 1.3, -0.3};
+  mjtNum pt_outside_box[3] = {0.6, 1.0, 0};
+  EXPECT_EQ(mj_insideSite(model.get(), data, box_id, pt_inside_box), 1);
+  EXPECT_EQ(mj_insideSite(model.get(), data, box_id, pt_outside_box), 0);
+
+  // box mesh tests
+  mjtNum pt_inside_msh[3] = {0.1, -0.2, 1.3};
+  mjtNum pt_outside_msh[3] = {0.3, 0, 1.0};
+  mjtNum pt_far_msh[3] = {10.0, 10.0, 10.0};
+  EXPECT_EQ(mj_insideSite(model.get(), data, msh_id, pt_inside_msh), 1);
+  EXPECT_EQ(mj_insideSite(model.get(), data, msh_id, pt_outside_msh), 0);
+  EXPECT_EQ(mj_insideSite(model.get(), data, msh_id, pt_far_msh), 0);
+
+  // octahedron mesh tests: inside hull, inside AABB but outside hull, outside
+  // AABB
+  mjtNum pt_inside_oct[3] = {0.2, 0.2, 0.2};
+  mjtNum pt_in_aabb_out_hull[3] = {0.6, 0.6, 0.0};
+  mjtNum pt_out_aabb_x[3] = {1.1, 0.0, 0.0};
+  mjtNum pt_out_aabb_y[3] = {0.0, 1.1, 0.0};
+  mjtNum pt_out_aabb_z[3] = {0.0, 0.0, 1.1};
+  EXPECT_EQ(mj_insideSite(model.get(), data, oct_id, pt_inside_oct), 1);
+  EXPECT_EQ(mj_insideSite(model.get(), data, oct_id, pt_in_aabb_out_hull), 0);
+  EXPECT_EQ(mj_insideSite(model.get(), data, oct_id, pt_out_aabb_x), 0);
+  EXPECT_EQ(mj_insideSite(model.get(), data, oct_id, pt_out_aabb_y), 0);
+  EXPECT_EQ(mj_insideSite(model.get(), data, oct_id, pt_out_aabb_z), 0);
+
+  mj_deleteData(data);
 }
 
 }  // namespace

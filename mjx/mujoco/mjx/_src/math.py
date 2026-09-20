@@ -18,6 +18,14 @@ from typing import Optional, Tuple, Union
 
 import jax
 from jax import numpy as jp
+import mujoco
+
+
+def safe_div(
+    num: Union[float, jax.Array], den: Union[float, jax.Array]
+) -> Union[float, jax.Array]:
+  """Safe division for case where denominator is zero."""
+  return num / (den + mujoco.mjMINVAL * (den == 0))
 
 
 def matmul_unroll(a: jax.Array, b: jax.Array) -> jax.Array:
@@ -28,6 +36,7 @@ def matmul_unroll(a: jax.Array, b: jax.Array) -> jax.Array:
   Args:
     a: left hand of matmul operand
     b: right hand of matmul operand
+
   Returns:
     the matrix product of the inputs.
   """
@@ -50,7 +59,7 @@ def norm(
   """Calculates a linalg.norm(x) that's safe for gradients at x=0.
 
   Avoids a poorly defined gradient for jnp.linal.norm(0) see
-  https://github.com/google/jax/issues/3058 for details
+  https://github.com/jax-ml/jax/issues/3058 for details
   Args:
     x: A jnp.array
     axis: The axis along which to compute the norm
