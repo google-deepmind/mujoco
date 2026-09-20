@@ -2756,23 +2756,34 @@ static inline void mjd_viscous_drag(
   const mjtNum eq_sphere_D = 2.0/3.0 * (size[0] + size[1] + size[2]);
   const mjtNum A_max = mjPI * d_max * d_mid;
 
-  const mjtNum a = pow2(size[1] * size[2]);
-  const mjtNum b = pow2(size[2] * size[0]);
-  const mjtNum c = pow2(size[0] * size[1]);
-  const mjtNum aa = a*a, bb = b*b, cc = c*c;
+  const mjtNum inv_dmax = d_max > mjMINVAL ? 1.0 / d_max : 0.0;
+  const mjtNum s0 = size[0] * inv_dmax;
+  const mjtNum s1 = size[1] * inv_dmax;
+  const mjtNum s2 = size[2] * inv_dmax;
 
-  const mjtNum x = lvel[3], y = lvel[4], z = lvel[5];
+  const mjtNum norm = mju_norm3(lvel+3);
+  const mjtNum inv_norm = norm > mjMINVAL ? 1.0 / norm : 0.0;
+  const mjtNum x = lvel[3] * inv_norm;
+  const mjtNum y = lvel[4] * inv_norm;
+  const mjtNum z = lvel[5] * inv_norm;
   const mjtNum xx = x*x, yy = y*y, zz = z*z, xy=x*y, yz=y*z, xz=x*z;
 
+  const mjtNum a_raw = pow2(s1 * s2);
+  const mjtNum b_raw = pow2(s2 * s0);
+  const mjtNum c_raw = pow2(s0 * s1);
+  const mjtNum proj_num = a_raw * xx + b_raw * yy + c_raw * zz;
+  const mjtNum inv_proj_num = proj_num > mjMINVAL ? 1.0 / proj_num : 0.0;
+  const mjtNum a = a_raw * inv_proj_num;
+  const mjtNum b = b_raw * inv_proj_num;
+  const mjtNum c = c_raw * inv_proj_num;
+  const mjtNum aa = a*a, bb = b*b, cc = c*c;
+
   const mjtNum proj_denom = aa*xx + bb*yy + cc*zz;
-  const mjtNum proj_num = a*xx + b*yy + c*zz;
-  const mjtNum dA_coef = mjPI / mju_max(mjMINVAL,
-                                        mju_sqrt(proj_num*proj_num*proj_num * proj_denom));
+  const mjtNum area_scale = d_max * d_max * mju_sqrt(proj_num);
+  const mjtNum dA_coef = proj_denom > mjMINVAL ?
+                         mjPI * area_scale / mju_sqrt(proj_denom) : 0.0;
 
-  const mjtNum A_proj = mjPI * mju_sqrt(proj_denom/mju_max(mjMINVAL, proj_num));
-
-  const mjtNum norm = mju_sqrt(xx + yy + zz);
-  const mjtNum inv_norm = 1.0 / mju_max(mjMINVAL, norm);
+  const mjtNum A_proj = mjPI * area_scale * mju_sqrt(proj_denom);
 
   const mjtNum lin_coef = fluid_viscosity * 3.0 * mjPI * eq_sphere_D;
   const mjtNum quad_coef = fluid_density * (
@@ -2796,8 +2807,8 @@ static inline void mjd_viscous_drag(
   D[4] += inner;
   D[8] += inner;
 
-  // scale by -quad_coef*inv_norm
-  mju_scl(D, D, -quad_coef*inv_norm, 9);
+  // scale by -quad_coef*norm
+  mju_scl(D, D, -quad_coef*norm, 9);
 
   // D += outer_product(-[x y z], dAproj_dv)
   mju_addToScl3(D+0, dAproj_dv, -x);
@@ -2815,24 +2826,39 @@ static inline void mjd_viscous_drag(
 static inline void mjd_kutta_lift(
   mjtNum* restrict D, const mjtNum lvel[6], const mjtNum fluid_density,
   const mjtNum size[3], const mjtNum kutta_lift_coef) {
-  const mjtNum a = pow2(size[1] * size[2]);
-  const mjtNum b = pow2(size[2] * size[0]);
-  const mjtNum c = pow2(size[0] * size[1]);
-  const mjtNum aa = a*a, bb = b*b, cc = c*c;
-  const mjtNum x = lvel[3], y = lvel[4], z = lvel[5];
+  const mjtNum d_max = mju_max(mju_max(size[0], size[1]), size[2]);
+  const mjtNum inv_dmax = d_max > mjMINVAL ? 1.0 / d_max : 0.0;
+  const mjtNum s0 = size[0] * inv_dmax;
+  const mjtNum s1 = size[1] * inv_dmax;
+  const mjtNum s2 = size[2] * inv_dmax;
+
+  const mjtNum norm = mju_norm3(lvel+3);
+  const mjtNum inv_norm = norm > mjMINVAL ? 1.0 / norm : 0.0;
+  const mjtNum x = lvel[3] * inv_norm;
+  const mjtNum y = lvel[4] * inv_norm;
+  const mjtNum z = lvel[5] * inv_norm;
   const mjtNum xx = x*x, yy = y*y, zz = z*z, xy=x*y, yz=y*z, xz=x*z;
 
+  const mjtNum a_raw = pow2(s1 * s2);
+  const mjtNum b_raw = pow2(s2 * s0);
+  const mjtNum c_raw = pow2(s0 * s1);
+  const mjtNum proj_num = a_raw * xx + b_raw * yy + c_raw * zz;
+  const mjtNum inv_proj_num = proj_num > mjMINVAL ? 1.0 / proj_num : 0.0;
+  const mjtNum a = a_raw * inv_proj_num;
+  const mjtNum b = b_raw * inv_proj_num;
+  const mjtNum c = c_raw * inv_proj_num;
+  const mjtNum aa = a*a, bb = b*b, cc = c*c;
+
   const mjtNum proj_denom = aa * xx + bb * yy + cc * zz;
-  const mjtNum proj_num = a * xx + b * yy + c * zz;
-  const mjtNum norm2 = xx + yy + zz;
-  const mjtNum df_denom = mjPI * kutta_lift_coef * fluid_density / mju_max(
-    mjMINVAL, mju_sqrt(proj_denom * proj_num * norm2));
+  const mjtNum area_scale = d_max * d_max * mju_sqrt(proj_num);
+  const mjtNum df_denom = proj_denom > mjMINVAL ?
+    mjPI * kutta_lift_coef * fluid_density * area_scale * norm / mju_sqrt(proj_denom) : 0.0;
 
   const mjtNum dfx_coef = yy * (a - b) + zz * (a - c);
   const mjtNum dfy_coef = xx * (b - a) + zz * (b - c);
   const mjtNum dfz_coef = xx * (c - a) + yy * (c - b);
-  const mjtNum proj_term = proj_num / mju_max(mjMINVAL, proj_denom);
-  const mjtNum cos_term = proj_num / mju_max(mjMINVAL, norm2);
+  const mjtNum proj_term = proj_denom > mjMINVAL ? 1.0 / proj_denom : 0.0;
+  const mjtNum cos_term = 1.0;
 
   // cosA = proj_num/(norm*proj_denom), A_proj = pi*sqrt(proj_denom/proj_num)
   // F = cosA * A_proj * (([a,b,c] * vel) \times vel) \times vel
@@ -2841,7 +2867,7 @@ static inline void mjd_kutta_lift(
   D[0] = a-a;  D[1] = b-a;  D[2] = c-a;
   D[3] = a-b;  D[4] = b-b;  D[5] = c-b;
   D[6] = a-c;  D[7] = b-c;  D[8] = c-c;
-  mju_scl(D, D, 2 * proj_num, 9);
+  mju_scl(D, D, 2.0, 9);
 
   const mjtNum inner_term[3] = {
     aa * proj_term - a + cos_term,
@@ -2856,9 +2882,9 @@ static inline void mjd_kutta_lift(
   D[3] *= xy;  D[4] *= yy;  D[5] *= yz;
   D[6] *= xz;  D[7] *= yz;  D[8] *= zz;
 
-  D[0] -= dfx_coef * proj_num;
-  D[4] -= dfy_coef * proj_num;
-  D[8] -= dfz_coef * proj_num;
+  D[0] -= dfx_coef;
+  D[4] -= dfy_coef;
+  D[8] -= dfz_coef;
 
   mju_scl(D, D, df_denom, 9);
 }

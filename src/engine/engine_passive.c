@@ -1307,29 +1307,34 @@ void mj_viscousForces(
   magnus_force[1] *= magnus_lift_coef * fluid_density * volume;
   magnus_force[2] *= magnus_lift_coef * fluid_density * volume;
 
+  // unit velocity and normalized semi-axes
+  const mjtNum speed = mju_norm3(lin_vel);
+  const mjtNum inv_speed = speed > mjMINVAL ? 1.0 / speed : 0.0;
+  const mjtNum v[3] = {lin_vel[0]*inv_speed, lin_vel[1]*inv_speed, lin_vel[2]*inv_speed};
+  const mjtNum inv_dmax = d_max > mjMINVAL ? 1.0 / d_max : 0.0;
+  const mjtNum s[3] = {size[0]*inv_dmax, size[1]*inv_dmax, size[2]*inv_dmax};
+
   // the dot product between velocity and the normal to the cross-section that
   // defines the body's projection along velocity is proj_num/sqrt(proj_denom)
-  const mjtNum proj_denom = mji_pow4(size[1] * size[2]) * mji_pow2(lin_vel[0]) +
-                            mji_pow4(size[2] * size[0]) * mji_pow2(lin_vel[1]) +
-                            mji_pow4(size[0] * size[1]) * mji_pow2(lin_vel[2]);
-  const mjtNum proj_num = mji_pow2(size[1] * size[2] * lin_vel[0]) +
-                          mji_pow2(size[2] * size[0] * lin_vel[1]) +
-                          mji_pow2(size[0] * size[1] * lin_vel[2]);
+  const mjtNum a_raw = mji_pow2(s[1] * s[2]);
+  const mjtNum b_raw = mji_pow2(s[2] * s[0]);
+  const mjtNum c_raw = mji_pow2(s[0] * s[1]);
+  const mjtNum proj_num = a_raw * v[0]*v[0] + b_raw * v[1]*v[1] + c_raw * v[2]*v[2];
+  const mjtNum inv_proj_num = proj_num > mjMINVAL ? 1.0 / proj_num : 0.0;
+  const mjtNum a = a_raw * inv_proj_num;
+  const mjtNum b = b_raw * inv_proj_num;
+  const mjtNum c = c_raw * inv_proj_num;
+  const mjtNum proj_denom = a*a * v[0]*v[0] + b*b * v[1]*v[1] + c*c * v[2]*v[2];
 
   // projected surface in the direction of the velocity
-  const mjtNum A_proj = mjPI * mju_sqrt(proj_denom/mju_max(mjMINVAL, proj_num));
+  const mjtNum A_proj = mjPI * d_max * d_max * mju_sqrt(proj_num * proj_denom);
 
   // not-unit normal to ellipsoid's projected area in the direction of velocity
-  const mjtNum norm[3] = {
-    mji_pow2(size[1] * size[2]) * lin_vel[0],
-    mji_pow2(size[2] * size[0]) * lin_vel[1],
-    mji_pow2(size[0] * size[1]) * lin_vel[2]
-  };
+  const mjtNum norm[3] = {a * v[0], b * v[1], c * v[2]};
 
   // cosine between velocity and normal to the surface
   // divided by proj_denom instead of sqrt(proj_denom) to account for skipped normalization in norm
-  const mjtNum cos_alpha = proj_num / mju_max(
-    mjMINVAL, mju_norm3(lin_vel) * proj_denom);
+  const mjtNum cos_alpha = proj_denom > mjMINVAL ? 1.0 / proj_denom : 0.0;
   mjtNum kutta_circ[3];
   mji_cross(kutta_circ, norm, lin_vel);
   kutta_circ[0] *= kutta_lift_coef * fluid_density * cos_alpha * A_proj;
@@ -1357,7 +1362,7 @@ void mj_viscousForces(
   };
 
   const mjtNum drag_lin_coef =  // linear plus quadratic
-                               fluid_viscosity*lin_visc_force_coef + fluid_density*mju_norm3(lin_vel)*(
+                               fluid_viscosity*lin_visc_force_coef + fluid_density*speed*(
     A_proj*blunt_drag_coef + slender_drag_coef*(A_max - A_proj));
   const mjtNum drag_ang_coef =  // linear plus quadratic
                                fluid_viscosity * lin_visc_torq_coef +

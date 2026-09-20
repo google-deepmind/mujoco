@@ -320,6 +320,41 @@ TEST_F(EllipsoidFluidTest, DefaultsPropagate) {
               ElementsAre(1, 2, 3, 4, 5, 6));
 }
 
+TEST_F(EllipsoidFluidTest, KuttaLiftLowSpeedScaling) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option density="1.225"/>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="ellipsoid" size=".025 .01 .001" euler="0 -30 0"
+              fluidshape="ellipsoid"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  // reference lift/v^2 at v = 10 m/s
+  d->qvel[0] = 10.0;
+  mj_forward(m.get(), d.get());
+  const mjtNum ref_lift_coeff = d->qfrc_fluid[2] / (10.0 * 10.0);
+  EXPECT_GT(ref_lift_coeff, 0.0);
+
+  // verify exact v^2 scaling at low speeds (1 m/s, 0.1 m/s, 1 cm/s, 1 mm/s)
+  for (mjtNum v : {1.0, 0.1, 0.01, 0.001}) {
+    mj_resetData(m.get(), d.get());
+    d->qvel[0] = v;
+    mj_forward(m.get(), d.get());
+    EXPECT_NEAR(d->qfrc_fluid[2] / (v * v), ref_lift_coeff,
+                MjTol(1e-12, 1e-5) * ref_lift_coeff);
+  }
+}
+
 // ------------------------------ tendons --------------------------------------
 
 using TendonTest = MujocoTest;
