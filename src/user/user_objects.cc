@@ -6093,10 +6093,18 @@ void mjCEquality::Compile(void) {
   // find objects
   ResolveReferences(model);
 
-  // make sure flex is not rigid
-  if ((type == mjEQ_FLEX || type == mjEQ_FLEXVERT || type == mjEQ_FLEXSTRAIN) &&
-      model->Flexes()[obj1id]->rigid) {
-    throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1_.c_str(), id);
+  // make sure flex is not rigid, and has no conflicting stretch forces
+  if (type == mjEQ_FLEX || type == mjEQ_FLEXVERT || type == mjEQ_FLEXSTRAIN) {
+    mjCFlex* flex = model->Flexes()[obj1id];
+    if (flex->rigid) {
+      throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1_.c_str(), id);
+    }
+    if (flex->elastic2d != 1 && flex->young > 0) {
+      throw mjCError(this, "flex constraints and elasticity (young) cannot both be present");
+    }
+    if (flex->edgestiffness > 0) {
+      throw mjCError(this, "flex constraints and edge stiffness cannot both be present");
+    }
   }
 }
 

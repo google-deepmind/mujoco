@@ -1345,9 +1345,10 @@ int mj_effFlexStiffPossible(const mjModel* m, int f) {
     return 0;
   }
 
-  // stretch stiffness present
+  // stretch stiffness present (the strain equality mode stores its constraint
+  // eigenmodes in this block instead)
   int sadr = m->flex_stiffnessadr[f];
-  if (sadr >= 0 && m->flex_stiffness[sadr] != 0) {
+  if (sadr >= 0 && m->flex_stiffness[sadr] != 0 && m->flex_edgeequality[f] != 3) {
     return 1;
   }
 

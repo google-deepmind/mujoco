@@ -1656,11 +1656,6 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     MapValue(elasticity, "elastic2d", &dflex.elastic2d, elastic2d_map, 4);
   }
 
-  // check errors
-  if (dflex.elastic2d != 1 && fcomp.equality && dflex.young > 0) {
-    throw mjXError(elem, "flex constraints and elasticity (young) cannot both be present");
-  }
-
   // contact
   XMLElement* cont = FirstChildElement(elem, "contact");
   if (cont) {

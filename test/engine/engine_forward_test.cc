@@ -4898,6 +4898,40 @@ TEST_F(ForwardTest, ImplicitFlexElasticityRequiresMetric) {
   EXPECT_EQ(forward_error(model.get(), data.get()), "");
 }
 
+// the strain equality mode stores its constraint eigenmodes in flex_stiffness:
+// they are not elasticity, so the migration error must not fire
+TEST_F(ForwardTest, StrainEqualityIsNotElasticity) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option integrator="implicitfast"/>
+    <worldbody>
+      <flexcomp name="beam" type="box" spacing=".1 .1 .1" radius=".001" mass="1"
+                dim="3" dof="trilinear">
+        <contact selfcollide="none"/>
+        <edge equality="strain"/>
+        <pin id="0 1 2 3"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  // the stiffness block is allocated and nonzero (it holds the eigenmodes), yet
+  // the flex contributes nothing to the metric
+  ASSERT_EQ(model->flex_edgeequality[0], 3);
+  ASSERT_GE(model->flex_stiffnessadr[0], 0);
+  ASSERT_NE(model->flex_stiffness[model->flex_stiffnessadr[0]], 0);
+  EXPECT_FALSE(mj_effFlexPossible(model.get(), 0));
+
+  MjDataPtr data = MakeData(model);
+  auto forward_error = MjuErrorMessageFrom(mj_forward);
+  EXPECT_EQ(forward_error(model.get(), data.get()), "");
+  model->opt.integrator = mjINT_IMPLICIT;
+  EXPECT_EQ(forward_error(model.get(), data.get()), "");
+}
+
 // unsupported option combinations are runtime errors
 TEST_F(ForwardTest, DiscreteUnsupportedOptions) {
   static const char* const kXml = R"(

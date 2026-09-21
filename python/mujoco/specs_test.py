@@ -2127,7 +2127,7 @@ class SpecsTest(absltest.TestCase):
         cellcount=[2, 2, 1],
         mass=0.5,
         equality=3,  # strain
-        elastic2d=2,  # bend
+        elastic2d=1,  # bend
     )
     flex2.young = 1e3
     flex2.thickness = 0.01

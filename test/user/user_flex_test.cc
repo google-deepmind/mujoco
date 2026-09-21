@@ -1525,5 +1525,50 @@ TEST_F(UserFlexTest, PinBendingAcceptsStaticBody) {
   EXPECT_THAT(m.get(), NotNull()) << error.data();
 }
 
+TEST_F(UserFlexTest, FlexConstraintsAndElasticityError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" type="grid" count="3 3 1" spacing="1 1 1"
+                radius="0.01" dim="2">
+        <elasticity young="1" poisson="0" thickness="1" elastic2d="stretch"/>
+      </flexcomp>
+    </worldbody>
+    <equality>
+      <flex flex="test"/>
+    </equality>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr(
+          "flex constraints and elasticity (young) cannot both be present"));
+}
+
+TEST_F(UserFlexTest, FlexConstraintsAndEdgeStiffnessError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" type="grid" count="3 1 1" spacing="1 1 1"
+                radius="0.01" dim="1">
+        <edge stiffness="10"/>
+      </flexcomp>
+    </worldbody>
+    <equality>
+      <flex flex="test"/>
+    </equality>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr("flex constraints and edge stiffness cannot both be present"));
+}
+
 }  // namespace
 }  // namespace mujoco
