@@ -497,13 +497,10 @@ void mjXWriter::OneSite(XMLElement* elem, const mjCSite* site, mjCDef* def, stri
       WriteAttr(elem, "size", mjGEOMINFO[site->type], site->size, def->Site().size);
     }
 
-    // pose: undo the mesh transformation, then the frame
+    // pose relative to the site's frame
     double pos[3], quat[4];
     mjuu_copyvec(pos, site->pos, 3);
     mjuu_copyvec(quat, site->quat, 4);
-    if (site->type == mjGEOM_MESH && site->mesh) {
-      mjuu_frameaccuminv(pos, quat, site->mesh->GetPosPtr(), site->mesh->GetQuatPtr());
-    }
     FrameLocal(site->frame, pos, quat);
     WriteAttr(elem, "pos", 3, pos, unitq + 1);
     WriteAttr(elem, "quat", 4, quat, unitq);
@@ -1545,8 +1542,10 @@ XMLElement* mjXWriter::OneFrame(XMLElement* elem, mjCFrame* frame, string_view c
 
   // omit unnamed identity frame with no childclass
   bool has_class = !frame->classname.empty() && frame->classname != childclass;
-  if (frame->name.empty() && !has_class &&
-      SameVector(pos, unitq + 1, 3) && SameVector(quat, unitq, 4)) {
+  if (frame->name.empty() &&
+      !has_class &&
+      SameVector(pos, unitq + 1, 3) &&
+      SameVector(quat, unitq, 4)) {
     return elem;
   }
 
@@ -1554,9 +1553,7 @@ XMLElement* mjXWriter::OneFrame(XMLElement* elem, mjCFrame* frame, string_view c
   WriteAttrTxt(frame_elem, "name", frame->name);
 
   // childclass, unless inherited from the enclosing frame or body
-  if (has_class) {
-    WriteAttrTxt(frame_elem, "childclass", frame->classname);
-  }
+  if (has_class) { WriteAttrTxt(frame_elem, "childclass", frame->classname); }
 
   WriteAttr(frame_elem, "pos", 3, pos, unitq + 1);
   WriteAttr(frame_elem, "quat", 4, quat, unitq);

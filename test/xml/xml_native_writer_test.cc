@@ -2119,6 +2119,14 @@ TEST_F(XMLWriterTest, MeshSiteRoundTripPreservesFrame) {
   MjModelPtr reloaded = LoadModelFromString(saved_xml);
   ASSERT_THAT(reloaded.get(), NotNull());
 
+  EXPECT_NEAR(model->site_pos[0], 4, 1e-6);
+  EXPECT_NEAR(model->site_pos[1], 5, 1e-6);
+  EXPECT_NEAR(model->site_pos[2], 6, 1e-6);
+  EXPECT_NEAR(model->site_quat[0], 1, 1e-6);
+  EXPECT_NEAR(model->site_quat[1], 0, 1e-6);
+  EXPECT_NEAR(model->site_quat[2], 0, 1e-6);
+  EXPECT_NEAR(model->site_quat[3], 0, 1e-6);
+
   EXPECT_NEAR(model->site_pos[0], reloaded->site_pos[0], 1e-6);
   EXPECT_NEAR(model->site_pos[1], reloaded->site_pos[1], 1e-6);
   EXPECT_NEAR(model->site_pos[2], reloaded->site_pos[2], 1e-6);

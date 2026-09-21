@@ -4180,18 +4180,9 @@ void mjCSite::Compile(void) {
     if (err) { throw mjCError(this, "orientation specification error '%s' in site %d", err, id); }
   }
 
-  // mesh: accumulate frame, set size
+  // mesh: set size
   if (mesh) {
     if (mjuu_defined(fromto[0])) { throw mjCError(this, "fromto cannot be used with mesh site"); }
-
-    mjCMesh* pmesh     = mesh;
-    double   center[3] = {0, 0, 0};
-
-    double meshpos[3];
-    mjuu_rotVecQuat(meshpos, center, pmesh->GetQuatPtr());
-    mjuu_addtovec(meshpos, pmesh->GetPosPtr(), 3);
-
-    mjuu_frameaccum(pos, quat, meshpos, pmesh->GetQuatPtr());
 
     const double* aamm = mesh->aamm();
 

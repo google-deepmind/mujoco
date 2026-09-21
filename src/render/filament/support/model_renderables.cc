@@ -114,7 +114,7 @@ static bool GetSize(const mjModel* model, mjtGeom type, const mjtNum* size,
 }
 
 static void SetGeomMesh(mjrfRenderable* renderable, ModelObjects* model_objs,
-                        mjtGeom type, int geom_index = -1) {
+                        mjtGeom type, int data_id = -1) {
   const mjModel* model = model_objs->GetModel();
   const int nstack = model->vis.quality.numstacks;
   const int nslice = model->vis.quality.numslices;
@@ -123,12 +123,11 @@ static void SetGeomMesh(mjrfRenderable* renderable, ModelObjects* model_objs,
   switch (type) {
     case mjGEOM_MESH:
     case mjGEOM_SDF: {
-      const int data_id = model->geom_dataid[geom_index] * 2;
-      mjrf_setRenderableMesh(renderable, model_objs->GetMesh(data_id), 0, 0);
+      const int mesh_id = data_id * 2;
+      mjrf_setRenderableMesh(renderable, model_objs->GetMesh(mesh_id), 0, 0);
       break;
     }
     case mjGEOM_HFIELD: {
-      const int data_id = model->geom_dataid[geom_index];
       mjrf_setRenderableMesh(renderable, model_objs->GetHeightField(data_id), 0,
                              0);
       break;
@@ -219,8 +218,18 @@ void ModelRenderables::Update(const mjData* data) {
   }
 
   for (int i = 0; i < model->nsite; ++i) {
-    const float3 pos = ReadFloat3(data->site_xpos, i);
-    const mat3f mat = ReadMat3(data->site_xmat, i);
+    float3 pos = ReadFloat3(data->site_xpos, i);
+    mat3f mat = ReadMat3(data->site_xmat, i);
+    if (model->site_type[i] == mjGEOM_MESH && model->site_dataid[i] >= 0) {
+      int meshid = model->site_dataid[i];
+      mjtNum meshpos[3], meshmat[9], meshrot[9];
+      mju_mulMatVec3(meshpos, data->site_xmat + 9 * i, model->mesh_pos + 3 * meshid);
+      mju_addTo3(meshpos, data->site_xpos + 3 * i);
+      mju_quat2Mat(meshrot, model->mesh_quat + 4 * meshid);
+      mju_mulMatMat(meshmat, data->site_xmat + 9 * i, meshrot, 3, 3, 3);
+      pos = ReadFloat3(meshpos);
+      mat = ReadMat3(meshmat);
+    }
     mjrf_setRenderableTransform(sites_[i].get(), pos.v, mat.asArray());
 
     mjrfMaterial material = GetMaterial(mjOBJ_SITE, i, data);
@@ -350,7 +359,8 @@ void ModelRenderables::AddGeomGeoms() {
     mjrf_defaultRenderableParams(&params);
     auto renderable = CreateRenderable(ctx, params);
 
-    SetGeomMesh(renderable.get(), model_objects_, type, i);
+    SetGeomMesh(renderable.get(), model_objects_, type,
+                model->geom_dataid[i]);
 
     mjrfMaterial material = GetMaterial(mjOBJ_GEOM, i);
     mjrf_setRenderableMaterial(renderable.get(), &material);
@@ -379,7 +389,8 @@ void ModelRenderables::AddSiteGeoms() {
     mjrf_defaultRenderableParams(&params);
     auto renderable = CreateRenderable(ctx, params);
 
-    SetGeomMesh(renderable.get(), model_objects_, type);
+    SetGeomMesh(renderable.get(), model_objects_, type,
+                model->site_dataid[i]);
 
     mjrfMaterial material = GetMaterial(mjOBJ_SITE, i);
     mjrf_setRenderableMaterial(renderable.get(), &material);

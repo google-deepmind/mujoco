@@ -1120,8 +1120,20 @@ static void addSiteGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     }
 
     // construct geom
-    mjv_initGeom(thisgeom, m->site_type[i], m->site_size+3*i,
-                  d->site_xpos+3*i, d->site_xmat+9*i, NULL);
+    const mjtNum* pos = d->site_xpos+3*i;
+    const mjtNum* mat = d->site_xmat+9*i;
+    mjtNum meshpos[3], meshmat[9], meshrot[9];
+    if (m->site_type[i] == mjGEOM_MESH && m->site_dataid[i] >= 0) {
+      int meshid = m->site_dataid[i];
+      mju_mulMatVec3(meshpos, mat, m->mesh_pos+3*meshid);
+      mju_addTo3(meshpos, pos);
+      mju_quat2Mat(meshrot, m->mesh_quat+4*meshid);
+      mju_mulMatMat3(meshmat, mat, meshrot);
+      pos = meshpos;
+      mat = meshmat;
+    }
+
+    mjv_initGeom(thisgeom, m->site_type[i], m->site_size+3*i, pos, mat, NULL);
     thisgeom->dataid = m->site_dataid[i];
 
     // set texcoord
@@ -2241,12 +2253,27 @@ static void addActuatorGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         // inflate sizes by 5%
         mju_scl3(sz, m->site_size+3*j, 1.05);
 
+        const mjtNum* pos = d->site_xpos+3*j;
+        const mjtNum* mat = d->site_xmat+9*j;
+        mjtNum meshpos[3], meshmat[9], meshrot[9];
+        if (m->site_type[j] == mjGEOM_MESH && m->site_dataid[j] >= 0) {
+          int meshid = m->site_dataid[j];
+          mju_mulMatVec3(meshpos, mat, m->mesh_pos+3*meshid);
+          mju_addTo3(meshpos, pos);
+          mju_quat2Mat(meshrot, m->mesh_quat+4*meshid);
+          mju_mulMatMat3(meshmat, mat, meshrot);
+          pos = meshpos;
+          mat = meshmat;
+        }
+
         // make geom
-        mjv_initGeom(thisgeom,
-                      m->site_type[j], sz,
-                      d->site_xpos + 3*j,
-                      d->site_xmat + 9*j,
-                      thisgeom->rgba);
+        mjv_initGeom(thisgeom, m->site_type[j], sz, pos, mat, thisgeom->rgba);
+        if (m->site_type[j] == mjGEOM_MESH && m->site_dataid[j] >= 0) {
+          thisgeom->dataid = 2 * m->site_dataid[j];
+          if (m->mesh_graphadr[m->site_dataid[j]] >= 0 && vopt->flags[mjVIS_CONVEXHULL]) {
+            thisgeom->dataid += 1;
+          }
+        }
       } else if (m->jnt_type[j] == mjJNT_HINGE || m->jnt_type[j] == mjJNT_SLIDE) {
         // set length(1) and width(0) of the connectors
         sz[1] = m->vis.scale.actuatorlength * scl;
