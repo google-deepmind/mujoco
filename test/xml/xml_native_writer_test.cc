@@ -1061,6 +1061,54 @@ TEST_F(XMLWriterTest, BodyPluginWrittenOnce) {
   mj_deleteSpec(spec);
 }
 
+// an inertial nested in a frame is saved under the body, in body coordinates
+TEST_F(XMLWriterTest, InertialInFrame) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <joint/>
+        <frame name="frame" pos="1 0 0" euler="0 0 90">
+          <inertial pos=".5 0 0" euler="90 0 0" mass="1" diaginertia="2 3 4"/>
+          <site name="site" pos="0 .5 0"/>
+        </frame>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  FullFloatPrecision increase_precision;
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_NEAR(model->body_ipos[3], 1, MjTol(1e-14, 1e-6));
+  EXPECT_NEAR(model->body_ipos[4], .5, MjTol(1e-14, 1e-6));
+
+  // the inertial is written before the frame, which keeps its other contents
+  std::string saved = SaveAndReadXml(spec);
+  size_t inertial = saved.find("<inertial");
+  size_t frame = saved.find("<frame name=\"frame\"");
+  ASSERT_NE(inertial, std::string::npos) << saved;
+  ASSERT_NE(frame, std::string::npos) << saved;
+  EXPECT_LT(inertial, frame) << saved;
+
+  // the compiled model is unchanged
+  mjSpec* spec2 =
+      mj_parseXMLString(saved.c_str(), nullptr, error.data(), error.size());
+  ASSERT_THAT(spec2, NotNull()) << error.data() << "\n" << saved;
+  mjModel* model2 = mj_compile(spec2, nullptr);
+  ASSERT_THAT(model2, NotNull()) << mjs_getError(spec2);
+  std::string field;
+  EXPECT_LT(CompareModel(model, model2, field), MjTol(1e-12, 1e-6)) << field;
+
+  mj_deleteModel(model2);
+  mj_deleteSpec(spec2);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(XMLWriterTest, WritesDensity) {
   static constexpr char xml[] = R"(
   <mujoco>

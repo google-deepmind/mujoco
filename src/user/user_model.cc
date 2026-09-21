@@ -1943,6 +1943,7 @@ void mjCModel::IndexAssets(bool discard) {
           body->explicitinertial      = true;  // for XML writer
           body->spec.explicitinertial = true;
           body->spec.mass             = body->mass;
+          body->iframe                = nullptr;  // inertial frame in body coordinates
           mjuu_copyvec(body->spec.ipos, body->ipos, 3);
           mjuu_copyvec(body->spec.iquat, body->iquat, 4);
           mjuu_copyvec(body->spec.inertia, body->inertia, 3);

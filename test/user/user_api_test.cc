@@ -3868,6 +3868,37 @@ TEST_F(MujocoTest, SetFrameReverseOrder) {
   mj_deleteSpec(copy);
 }
 
+TEST_F(MujocoTest, CopyInertialInFrame) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <frame name="frame" pos="1 0 0">
+          <inertial pos="0 1 0" mass="1" diaginertia="1 1 1"/>
+        </frame>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  // move the frame in a copy, the copied inertial follows its own frame
+  mjSpec* copy = mj_copySpec(spec);
+  ASSERT_THAT(copy, NotNull());
+  mjs_findFrame(copy, "frame")->pos[0] = 2;
+  mjModel* model = mj_compile(copy, 0);
+  ASSERT_THAT(model, NotNull());
+  EXPECT_EQ(model->body_ipos[3], 2);
+  EXPECT_EQ(model->body_ipos[4], 1);
+  EXPECT_EQ(model->body_ipos[5], 0);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(copy);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, UserValue) {
   mjSpec* spec = mj_makeSpec();
   EXPECT_THAT(spec, NotNull());

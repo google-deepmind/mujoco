@@ -38,6 +38,7 @@
 #include "user/user_api.h"
 #include "user/user_composite.h"
 #include "user/user_flexcomp.h"
+#include "user/user_objects.h"
 #include "user/user_util.h"
 #include "xml/xml_base.h"
 #include "xml/xml_util.h"
@@ -2287,6 +2288,10 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame, const 
       ReadQuat(elem, "quat", body->iquat, text);
       ReadAlternative(elem, body->ialt);
       ReadAttr(elem, "fullinertia", 6, body->fullinertia, text);
+
+      // the inertial frame is relative to the enclosing frame
+      mjCBody* bodyC = static_cast<mjCBody*>(body->element);
+      bodyC->iframe  = frame ? static_cast<mjCFrame*>(frame->element) : nullptr;
     }
 
     // joint sub-element

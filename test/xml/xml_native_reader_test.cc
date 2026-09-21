@@ -1366,6 +1366,89 @@ TEST_F(XMLReaderTest, DuplicateFrameName) {
   EXPECT_THAT(error.data(), HasSubstr("repeated name 'frame1'"));
 }
 
+// inertia tensor of a body, in body coordinates
+static std::array<mjtNum, 9> BodyInertia(const mjModel* m, int body) {
+  const mjtNum* inertia = m->body_inertia + 3 * body;
+  mjtNum mat[9];
+  mju_quat2Mat(mat, m->body_iquat + 4 * body);
+  std::array<mjtNum, 9> res;
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      res[3 * i + j] = 0;
+      for (int k = 0; k < 3; k++) {
+        res[3 * i + j] += mat[3 * i + k] * inertia[k] * mat[3 * j + k];
+      }
+    }
+  }
+  return res;
+}
+
+TEST_F(XMLReaderTest, InertialInFrame) {
+  static constexpr char framed_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <frame pos="1 0 0" euler="0 0 90">
+          <inertial pos=".5 0 0" euler="90 0 0" mass="1" diaginertia="2 3 4"/>
+        </frame>
+      </body>
+      <body>
+        <frame pos="0 1 0" euler="90 0 0">
+          <inertial pos="0 0 .5" mass="2" fullinertia="2 3 4 .1 .2 .3"/>
+        </frame>
+      </body>
+      <body>
+        <frame pos="1 0 0" euler="0 0 90">
+          <frame pos="0 0 1" euler="0 90 0">
+            <inertial pos="0 .5 0" mass="3" diaginertia="2 3 4"/>
+          </frame>
+        </frame>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // the same inertial frames, written in body coordinates
+  static constexpr char flat_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <inertial pos="1 .5 0" quat="1 1 1 1" mass="1" diaginertia="2 3 4"/>
+      </body>
+      <body>
+        <inertial pos="0 .5 0" mass="2" fullinertia="2 4 3 -.2 .1 -.3"/>
+      </body>
+      <body>
+        <inertial pos=".5 0 1" quat="1 -1 1 1" mass="3" diaginertia="2 3 4"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  MjModelPtr framed =
+      LoadModelFromString(framed_xml, error.data(), error.size());
+  ASSERT_THAT(framed.get(), NotNull()) << error.data();
+  MjModelPtr flat = LoadModelFromString(flat_xml, error.data(), error.size());
+  ASSERT_THAT(flat.get(), NotNull()) << error.data();
+
+  // principal axes are not unique, compare inertia tensors rather than iquat
+  const mjtNum tol = MjTol(1e-13, 1e-6);
+  for (int i = 1; i < flat->nbody; i++) {
+    EXPECT_EQ(framed->body_mass[i], flat->body_mass[i]) << i;
+    for (int j = 0; j < 3; j++) {
+      EXPECT_NEAR(framed->body_ipos[3 * i + j], flat->body_ipos[3 * i + j], tol)
+          << "body " << i << " ipos " << j;
+    }
+    std::array<mjtNum, 9> inertia = BodyInertia(framed.get(), i);
+    std::array<mjtNum, 9> expected = BodyInertia(flat.get(), i);
+    for (int j = 0; j < 9; j++) {
+      EXPECT_NEAR(inertia[j], expected[j], tol)
+          << "body " << i << " inertia " << j;
+    }
+  }
+}
+
 // ---------------------- test replicate parsing -------------------------------
 
 TEST_F(XMLReaderTest, ParseReplicate) {

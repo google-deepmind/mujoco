@@ -1554,6 +1554,7 @@ mjCBody::mjCBody(mjCModel* _model) {
   mjs_defaultBody(&spec);
   elemtype    = mjOBJ_BODY;
   parent      = nullptr;
+  iframe      = nullptr;
   weldid      = -1;
   dofnum      = 0;
   lastdof     = -1;
@@ -1612,6 +1613,12 @@ mjCBody& mjCBody::operator=(const mjCBody& other) {
 
     // add elements to lists
     *this += other;
+
+    // point to the copy of the frame enclosing the inertial element
+    iframe = nullptr;
+    for (int i = 0; i < other.frames.size(); i++) {
+      if (other.frames[i] == other.iframe) { iframe = frames[i]; }
+    }
   }
   PointToLocal();
   return *this;
@@ -2619,6 +2626,9 @@ void mjCBody::Compile(void) {
     const char* err = ResolveOrientation(iquat, compiler->degree, compiler->eulerseq, ialt);
     if (err) { throw mjCError(this, "error '%s' in inertia alternative", err); }
   }
+
+  // frame enclosing the inertial element
+  if (iframe) { mjuu_frameaccumChild(iframe->pos, iframe->quat, ipos, iquat); }
 
   // compile all geoms
   for (int i = 0; i < geoms.size(); i++) {

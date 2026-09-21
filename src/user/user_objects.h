@@ -477,7 +477,8 @@ class mjCBase : public mjCBase_ {
 
 class mjCBody_ : public mjCBase {
  protected:
-  mjCBody* parent;
+  mjCBody*  parent;
+  mjCFrame* iframe;  // frame enclosing the inertial element, nullptr if none
 
   // variables computed by 'Compile' and 'AddXXX'
   int weldid;    // top index of body we are welded to
