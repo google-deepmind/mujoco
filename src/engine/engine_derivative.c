@@ -1577,23 +1577,23 @@ void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* ve
         continue;
       }
 
-      // apply 4x4 bending stencil, coordinate-wise. Pinned vertices (zero-dof bodies) contribute
-      // nothing, as in mjd_flexStretch_mul: they have no dof to write a row into and none to read a
-      // displacement from, and body_dofadr is negative there, so an unguarded index runs off both
-      // res and vec.
+      // apply 4x4 bending stencil, coordinate-wise. Pinned vertices (bodies without
+      // exactly 3 dofs) contribute nothing, as in mjd_flexStretch_mul: they have no
+      // dof to write a row into and none to read a displacement from, and body_dofadr
+      // is negative there, so an unguarded index runs off both res and vec.
       // The stencil is built from WORLD-space vertex positions while the slide dofs live in each
       // vertex body's own (possibly rotated) frame, so the operator is sandwiched with R (dof ->
       // world) and R^T (world -> dof), as mjd_flexStretch_mul does. Without it the operator is not
       // the Jacobian of mj_flexPassiveBend's force whenever a flex parent is rotated.
       for (int i = 0; i < 4; i++) {
         int bi = bodyid[v[i]];
-        if (!m->body_dofnum[bi]) {
+        if (m->body_dofnum[bi] != 3) {
           continue;
         }
         mjtNum vw[3] = {0, 0, 0};
         for (int j = 0; j < 4; j++) {
           int bj = bodyid[v[j]];
-          if (!m->body_dofnum[bj]) {
+          if (m->body_dofnum[bj] != 3) {
             continue;
           }
           mjtNum wj[3];
@@ -1628,7 +1628,7 @@ static const int stretch_edges[2][6][2] = {
 // d_a the current edge vector and Me_a = sum_b M_ab e_b the edge tension. The first (Gauss-Newton)
 // term alone is not the Jacobian of the force: without the second (geometric) term the operator is
 // only first-order correct, which shows up directly as finite-difference error against
-// -d(qfrc_passive)/dq. Pinned vertices (zero-dof bodies) contribute nothing.
+// -d(qfrc_passive)/dq. Pinned vertices (bodies without exactly 3 dofs) contribute nothing.
 void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                          mjtNum s1, mjtNum s2) {
   for (int f = 0; f < m->nflex; f++) {
@@ -1675,10 +1675,10 @@ void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum*
         // with R (dof -> world) and R^T (world -> dof); mj_flexPassiveStretch applies the same R^T
         // to its world-space force. R = I for the common case of an unrotated parent body.
         mjtNum w0[3] = {0}, w1[3] = {0};
-        if (m->body_dofnum[b0]) {
+        if (m->body_dofnum[b0] == 3) {
           mji_mulMatVec3(w0, d->xmat + 9*b0, vec + m->body_dofadr[b0]);
         }
-        if (m->body_dofnum[b1]) {
+        if (m->body_dofnum[b1] == 3) {
           mji_mulMatVec3(w1, d->xmat + 9*b1, vec + m->body_dofadr[b1]);
         }
         for (int x = 0; x < 3; x++) {
@@ -1728,13 +1728,13 @@ void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum*
         for (int x = 0; x < 3; x++) {
           rw[x] = coef*dvec[e][x] + scale*Me[e]*dw[e][x];
         }
-        if (m->body_dofnum[b0]) {   // world -> dof frame
+        if (m->body_dofnum[b0] == 3) {   // world -> dof frame
           mji_mulMatTVec3(rl, d->xmat + 9*b0, rw);
           for (int x = 0; x < 3; x++) {
             res[m->body_dofadr[b0]+x] += rl[x];
           }
         }
-        if (m->body_dofnum[b1]) {
+        if (m->body_dofnum[b1] == 3) {
           mji_mulMatTVec3(rl, d->xmat + 9*b1, rw);
           for (int x = 0; x < 3; x++) {
             res[m->body_dofadr[b1]+x] -= rl[x];
@@ -1924,11 +1924,10 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
   int nv = m->nv;
   mj_markStack(d);
 
-  // collect participating vertices: global flex vertex id -> local slot, dofadr
-  int nvert = 0;
-  int* vslot = mjSTACKALLOC(d, m->nflexvert > 0 ? m->nflexvert : 1, int);
-  for (int i = 0; i < m->nflexvert; i++) {
-    vslot[i] = -1;
+  // collect participating bodies: bodies with 3 dofs get one slot each
+  int* bodyslot = mjSTACKALLOC(d, m->nbody, int);
+  for (int b = 0; b < m->nbody; b++) {
+    bodyslot[b] = -1;
   }
   for (int f = 0; f < m->nflex; f++) {
     // contact no longer forces vertex slots: a contact-only flex rides the rank-1 class
@@ -1937,17 +1936,14 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
     }
     for (int lv = 0; lv < m->flex_vertnum[f]; lv++) {
       int gv = m->flex_vertadr[f] + lv;
-      if (m->body_dofnum[m->flex_vertbodyid[gv]] == 3) {
-        vslot[gv] = nvert++;
+      int b = m->flex_vertbodyid[gv];
+      if (m->body_dofnum[b] == 3) {
+        bodyslot[b] = 1;
       }
     }
   }
 
   // interp nodes participate when the caller supplies the K_rot cache (centered fast path)
-  int* nslot = mjSTACKALLOC(d, m->nflexnode > 0 ? (int)m->nflexnode : 1, int);
-  for (int i = 0; i < m->nflexnode; i++) {
-    nslot[i] = -1;
-  }
   if (Krot) {
     for (int f = 0; f < m->nflex; f++) {
       if (!flexInterp_processed(m, f)) {
@@ -1955,11 +1951,31 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
       }
       const int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
       for (int ln = 0; ln < m->flex_nodenum[f]; ln++) {
-        if (m->body_dofnum[bodyid[ln]] == 3) {
-          nslot[m->flex_nodeadr[f] + ln] = nvert++;
+        int b = bodyid[ln];
+        if (m->body_dofnum[b] == 3) {
+          bodyslot[b] = 1;
         }
       }
     }
+  }
+
+  int nvert = 0;
+  for (int b = 0; b < m->nbody; b++) {
+    if (bodyslot[b] > 0) {
+      bodyslot[b] = nvert++;
+    }
+  }
+
+  int* vslot = mjSTACKALLOC(d, m->nflexvert > 0 ? m->nflexvert : 1, int);
+  for (int i = 0; i < m->nflexvert; i++) {
+    int b = m->flex_vertbodyid[i];
+    vslot[i] = (b >= 0) ? bodyslot[b] : -1;
+  }
+
+  int* nslot = mjSTACKALLOC(d, m->nflexnode > 0 ? (int)m->nflexnode : 1, int);
+  for (int i = 0; i < m->nflexnode; i++) {
+    int b = m->flex_nodebodyid[i];
+    nslot[i] = (b >= 0) ? bodyslot[b] : -1;
   }
 
   if (!nvert) {
@@ -1969,14 +1985,9 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
     return 0;
   }
   int* vdof = mjSTACKALLOC(d, nvert, int);
-  for (int gv = 0; gv < m->nflexvert; gv++) {
-    if (vslot[gv] >= 0) {
-      vdof[vslot[gv]] = m->body_dofadr[m->flex_vertbodyid[gv]];
-    }
-  }
-  for (int gn = 0; gn < m->nflexnode; gn++) {
-    if (nslot[gn] >= 0) {
-      vdof[nslot[gn]] = m->body_dofadr[m->flex_nodebodyid[gn]];
+  for (int b = 0; b < m->nbody; b++) {
+    if (bodyslot[b] >= 0) {
+      vdof[bodyslot[b]] = m->body_dofadr[b];
     }
   }
 

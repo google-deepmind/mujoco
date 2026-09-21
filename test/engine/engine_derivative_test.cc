@@ -2598,6 +2598,179 @@ TEST_F(DerivativeTest, FlexStiffAssembleInterp) {
   }
 }
 
+// verify pinned flex vertices to a body with fewer than 3 DOFs (hinge joint):
+// operator must not access past nv or corrupt sentinel values in padded
+// buffers, and operator must match assembled CSR.
+TEST_F(DerivativeTest, FlexPinnedHingeBody) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option integrator="discrete"/>
+    <worldbody>
+      <body name="v0" pos="0 0 0.5">
+        <joint type="slide" axis="1 0 0"/><joint type="slide" axis="0 1 0"/><joint type="slide" axis="0 0 1"/>
+        <geom type="sphere" size="0.01" mass="0.05" contype="0" conaffinity="0"/>
+      </body>
+      <body name="v1" pos="0.1 0 0.5">
+        <joint type="slide" axis="1 0 0"/><joint type="slide" axis="0 1 0"/><joint type="slide" axis="0 0 1"/>
+        <geom type="sphere" size="0.01" mass="0.05" contype="0" conaffinity="0"/>
+      </body>
+      <body name="arm" pos="0 0.1 0.5">
+        <joint name="hinge" type="hinge" axis="0 1 0"/>
+        <geom type="capsule" fromto="0 0 0 0.1 0 0" size="0.01" mass="0.1" contype="0" conaffinity="0"/>
+      </body>
+    </worldbody>
+    <deformable>
+      <flex name="tri" dim="2" body="v0 v1 arm" vertex="0 0 0  0 0 0  0.05 0 0"
+            element="0 1 2" radius="0.005">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1200" poisson="0.3" thickness="0.012" damping="0.03" elastic2d="stretch"/>
+      </flex>
+    </deformable>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  int nv = model->nv;
+  EXPECT_EQ(nv, 7);
+  int arm_dof = model->body_dofadr[mj_name2id(model.get(), mjOBJ_BODY, "arm")];
+  EXPECT_EQ(arm_dof, 6);
+
+  MjDataPtr data = MakeData(model);
+  // deform state
+  data->qpos[0] += 0.01;
+  data->qpos[4] -= 0.01;
+  mj_forward(model.get(), data.get());
+
+  // test padded buffer probe: sentinel values must not be touched
+  const int kPad = 4;
+  std::vector<mjtNum> vec(nv + kPad, 1.0);
+  std::vector<mjtNum> res(nv + kPad, 0.0);
+  for (int i = nv; i < nv + kPad; i++) {
+    res[i] = 1234.5;
+    vec[i] = 9999.0;
+  }
+  mjd_flexStretch_mul(model.get(), data.get(), res.data(), vec.data(), 1.0,
+                      0.0);
+  mjd_flexBend_mul(model.get(), data.get(), res.data(), vec.data(), 1.0, 0.0);
+
+  for (int i = nv; i < nv + kPad; i++) {
+    EXPECT_EQ(res[i], 1234.5) << "out-of-bounds write at index " << i;
+  }
+  EXPECT_EQ(res[arm_dof], 0.0)
+      << "pinned hinge body should receive zero operator force";
+
+  // verify CSR assembly matches operator
+  std::vector<int> rownnz(nv), rowadr(nv);
+  int nnz = mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(),
+                                   rowadr.data(), NULL, NULL, 1.0, 0.0,
+                                   /*flg_bend=*/1, /*flg_stretch=*/1, NULL);
+  EXPECT_EQ(rownnz[arm_dof], 0);
+  std::vector<int> colind(nnz);
+  std::vector<mjtNum> val(nnz);
+  mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(), rowadr.data(),
+                         colind.data(), val.data(), 1.0, 0.0, /*flg_bend=*/1,
+                         /*flg_stretch=*/1, NULL);
+
+  for (int trial = 0; trial < 3; trial++) {
+    std::vector<mjtNum> v(nv), r_op(nv, 0), r_csr(nv, 0);
+    for (int i = 0; i < nv; i++) {
+      v[i] = mju_Halton(i + trial * nv, 3) - 0.5;
+    }
+    mjd_flexStretch_mul(model.get(), data.get(), r_op.data(), v.data(), 1.0,
+                        0.0);
+    mjd_flexBend_mul(model.get(), data.get(), r_op.data(), v.data(), 1.0, 0.0);
+    for (int i = 0; i < nv; i++) {
+      mjtNum sum = 0;
+      for (int k = 0; k < rownnz[i]; k++) {
+        sum += val[rowadr[i] + k] * v[colind[rowadr[i] + k]];
+      }
+      r_csr[i] = sum;
+      EXPECT_THAT(r_csr[i], MjNear(r_op[i], 1e-12, 1e-6))
+          << "mismatch at DOF " << i;
+    }
+  }
+}
+
+// verify multiple flex vertices pinned to the SAME 3-DOF body:
+// CSR rows and columns must not overwrite each other, and CSR must equal
+// operator.
+TEST_F(DerivativeTest, FlexPinnedMultiPinSharedBody) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option integrator="discrete"/>
+    <worldbody>
+      <body name="arm" pos="0 0 0.6">
+        <joint name="sx" type="slide" axis="1 0 0" damping="0.2" stiffness="30"/>
+        <joint name="sy" type="slide" axis="0 1 0" damping="0.2" stiffness="30"/>
+        <joint name="sz" type="slide" axis="0 0 1" damping="0.2" stiffness="30"/>
+        <geom type="capsule" fromto="0 0 0 0.3 0 0" size="0.03" mass="0.5" contype="0" conaffinity="0"/>
+        <flexcomp type="grid" count="3 3 1" spacing="0.09 0.09 0.09" pos="0.3 0 -0.1"
+                  radius="0.015" mass="0.4" name="sheet" dim="2">
+          <contact contype="0" conaffinity="0" selfcollide="none"/>
+          <pin id="0 1 2"/>
+          <edge damping="0.5"/>
+          <elasticity young="1200" poisson="0.3" thickness="0.012" damping="0.03" elastic2d="stretch"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  int nv = model->nv;
+  MjDataPtr data = MakeData(model);
+
+  // deform slightly
+  for (int i = 0; i < nv; i++) {
+    data->qpos[i] += 1e-3 * (mju_Halton(i, 2) - 0.5);
+  }
+  mj_forward(model.get(), data.get());
+
+  mjtNum s1 = 1.0, s2 = 0.02;
+  std::vector<int> rownnz(nv), rowadr(nv);
+  int nnz = mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(),
+                                   rowadr.data(), NULL, NULL, s1, s2,
+                                   /*flg_bend=*/1, /*flg_stretch=*/1, NULL);
+  ASSERT_GT(nnz, 0);
+
+  // arm has 3 slide DOFs; all 3 pinned vertices contribute to it
+  int arm_dof = model->body_dofadr[mj_name2id(model.get(), mjOBJ_BODY, "arm")];
+  EXPECT_GT(rownnz[arm_dof], 0);
+  EXPECT_EQ(rownnz[arm_dof], rownnz[arm_dof + 1]);
+  EXPECT_EQ(rownnz[arm_dof], rownnz[arm_dof + 2]);
+
+  std::vector<int> colind(nnz);
+  std::vector<mjtNum> val(nnz);
+  mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(), rowadr.data(),
+                         colind.data(), val.data(), s1, s2, /*flg_bend=*/1,
+                         /*flg_stretch=*/1, NULL);
+
+  // verify CSR apply vs operator
+  for (int trial = 0; trial < 3; trial++) {
+    std::vector<mjtNum> vec(nv), res_op(nv, 0), res_csr(nv, 0);
+    for (int i = 0; i < nv; i++) {
+      vec[i] = mju_Halton(i + trial * nv, 3) - 0.5;
+    }
+    mjd_flexBend_mul(model.get(), data.get(), res_op.data(), vec.data(), s1,
+                     s2);
+    mjd_flexStretch_mul(model.get(), data.get(), res_op.data(), vec.data(), s1,
+                        s2);
+    for (int i = 0; i < nv; i++) {
+      mjtNum sum = 0;
+      for (int k = 0; k < rownnz[i]; k++) {
+        sum += val[rowadr[i] + k] * vec[colind[rowadr[i] + k]];
+      }
+      res_csr[i] = sum;
+      EXPECT_THAT(res_csr[i], MjNear(res_op[i], 1e-12, 2e-5))
+          << "mismatch at DOF " << i << " trial " << trial;
+    }
+  }
+}
+
 // mjd_effSolve drives (M+K)x = b to opt.tolerance on the relative residual,
 // for every metric coverage case. It is a PCG whose preconditioner
 // (mjd_effPrec) is only approximate, so the accuracy comes from the iteration
