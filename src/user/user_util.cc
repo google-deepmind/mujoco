@@ -654,16 +654,18 @@ double mjuu_updateFrame(double       quat[4],
 
 // eigenvalue decomposition of symmetric 3x3 matrix
 static const double kEigTOL = 4E-15;  // off-diagonal tolerance, relative to the largest element
-static const double kEigEPS = 1E-12;  // eigenvalues closer than this are not reordered
-int mjuu_eig3(double eigval[3], double eigvec[9], double quat[4], const double mat[9]) {
+static const double kEigEPS = 1E-12;  // eigenvalue swap threshold, relative to the largest element
+
+int mjuu_eig3(
+    double eigval[3], double eigvec[9], double quat[4], const double mat[9], double reltol) {
   double D[9], tmp[9], tmp2[9];
   double tau, t;
   int    iter, rk, ck, rotk;
 
-  // off-diagonal tolerance: roundoff level of D, about 16 epsilons of the largest element
+  // off-diagonal tolerance: no smaller than roundoff level of D, about 16 epsilons
   double scale = 0;
   for (int i = 0; i < 9; i++) { scale = std::max(scale, std::abs(mat[i])); }
-  double tol = scale * kEigTOL;
+  double tol = scale * std::max(reltol, kEigTOL);
 
   // initialize with unit quaternion
   quat[0] = 1;
@@ -722,7 +724,7 @@ int mjuu_eig3(double eigval[3], double eigvec[9], double quat[4], const double m
   }
 
   // sort eigenvalues in decreasing order (bubblesort: 0, 1, 0)
-  double eps = scale * kEigEPS;
+  double eps = scale * std::max(reltol, kEigEPS);
   for (int j = 0; j < 3; j++) {
     int j1 = j % 2;  // lead index
 

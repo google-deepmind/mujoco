@@ -1414,11 +1414,11 @@ void mjCMesh::Process() {
     volume_ = total_volume;
   }
 
-  // get quaternion and diagonal inertia
+  // get quaternion and diagonal inertia (vertices are float32, so stop at 1e-7 relative)
   double eigval[3], eigvec[9], quattmp[4];
   double full[9] =
       {inert[0], inert[3], inert[4], inert[3], inert[1], inert[5], inert[4], inert[5], inert[2]};
-  mjuu_eig3(eigval, eigvec, quattmp, full);
+  mjuu_eig3(eigval, eigvec, quattmp, full, 1e-7);
 
   constexpr double inequality_atol = 1e-9;
   constexpr double inequality_rtol = 1e-6;

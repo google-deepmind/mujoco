@@ -395,5 +395,23 @@ TEST_F(UserUtilTest, Eig3RepeatedEigenvalues) {
   }
 }
 
+// a loose tolerance stops early: off-diagonal elements are below the tolerance
+// and eigvec is orthonormal, avoiding spurious rotations from float32 mesh
+// noise
+TEST_F(UserUtilTest, Eig3Tolerance) {
+  const double mat[9] = {2, .1, .2, .1, 3, .3, .2, .3, 4};
+  const double reltol = 1e-7;
+
+  double eigval[3], eigvec[9], quat[4];
+  int tight = mjuu_eig3(eigval, eigvec, quat, mat);
+  int loose = mjuu_eig3(eigval, eigvec, quat, mat, reltol);
+  EXPECT_LT(loose, tight);
+
+  double recon, orth;
+  Eig3Residual(&recon, &orth, mat, eigval, eigvec);
+  EXPECT_LE(recon, reltol * 2);
+  EXPECT_LE(orth, MjTol(1e-13, 1e-13));
+}
+
 }  // namespace
 }  // namespace mujoco
