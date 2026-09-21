@@ -399,7 +399,7 @@ class SupportTest(parameterized.TestCase):
     self.assertEqual(
         str(e.exception),
         'mjSpec signature does not match mjx.Model signature:'
-        ' 15297169659434471387 != 2785811613804955188',
+        ' 0 != 2785811613804955188',
     )
 
     # what happens when we bind to an actuator that was removed?

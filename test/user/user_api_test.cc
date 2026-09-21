@@ -774,67 +774,160 @@ TEST_F(MujocoTest, ReplicateExplicitPlugin) {
   mj_deleteModel(model);
 }
 
-TEST_F(MujocoTest, SignatureChangesWhenAddingElements) {
+TEST_F(MujocoTest, SetNameDetectsRepeatedNames) {
+  mjSpec* spec = mj_makeSpec();
+  mjsBody* world = mjs_findBody(spec, "world");
+  mjsGeom* geom1 = mjs_addGeom(world, 0);
+  mjsGeom* geom2 = mjs_addGeom(world, 0);
+  mjsSite* site = mjs_addSite(world, 0);
+
+  // repeated name within a type is an error
+  EXPECT_EQ(mjs_setName(geom1->element, "a"), 0);
+  EXPECT_EQ(mjs_setName(geom2->element, "a"), -1);
+  EXPECT_STREQ(mjs_getError(spec), "Error: repeated name 'a' in geom");
+
+  // same name across types is fine
+  EXPECT_EQ(mjs_setName(site->element, "a"), 0);
+
+  // renaming an element frees its old name
+  EXPECT_EQ(mjs_setName(geom1->element, "b"), 0);
+  EXPECT_EQ(mjs_setName(geom2->element, "a"), 0);
+  EXPECT_EQ(mjs_setName(geom1->element, "a"), -1);
+
+  // a failed rename leaves the previous name in place
+  EXPECT_STREQ(mjs_getName(geom1->element)->c_str(), "b");
+
+  // renaming to the current name is fine
+  EXPECT_EQ(mjs_setName(geom2->element, "a"), 0);
+
+  // empty names may repeat
+  EXPECT_EQ(mjs_setName(geom1->element, ""), 0);
+  mjsGeom* geom3 = mjs_addGeom(world, 0);
+  EXPECT_EQ(mjs_setName(geom3->element, ""), 0);
+
+  // deleting an element frees its name
+  EXPECT_EQ(mjs_delete(spec, geom2->element), 0);
+  EXPECT_EQ(mjs_setName(geom3->element, "a"), 0);
+
+  // frames are checked too
+  mjsFrame* frame1 = mjs_addFrame(world, nullptr);
+  mjsFrame* frame2 = mjs_addFrame(world, nullptr);
+  EXPECT_EQ(mjs_setName(frame1->element, "f"), 0);
+  EXPECT_EQ(mjs_setName(frame2->element, "f"), -1);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("repeated name 'f'"));
+  EXPECT_EQ(mjs_setName(frame2->element, "g"), 0);
+
+  // names that arrived through attach are visible to the check
+  mjSpec* child = mj_makeSpec();
+  mjsBody* child_body = mjs_addBody(mjs_findBody(child, "world"), 0);
+  EXPECT_EQ(mjs_setName(child_body->element, "attached"), 0);
+  mjsFrame* frame = mjs_addFrame(world, nullptr);
+  ASSERT_THAT(mjs_attach(frame->element, child_body->element, "", ""),
+              NotNull());
+  mjsBody* body = mjs_addBody(world, 0);
+  EXPECT_EQ(mjs_setName(body->element, "attached"), -1);
+  EXPECT_STREQ(mjs_getError(spec), "Error: repeated name 'attached' in body");
+  EXPECT_EQ(mjs_setName(body->element, "own"), 0);
+
+  // the model compiles once names are unique
+  geom1->size[0] = geom3->size[0] = 1;
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "a"), 1);
+  EXPECT_EQ(mj_name2id(model, mjOBJ_BODY, "attached"), 1);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(child);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetNameDetectsRepeatedNamesFromXML) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="plane" size="1 1 1"/>
+      <body name="box">
+        <geom name="boxgeom" size="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  // names loaded from XML are visible to the check
+  mjsBody* world = mjs_findBody(spec, "world");
+  mjsGeom* geom = mjs_addGeom(world, 0);
+  geom->size[0] = 1;
+  EXPECT_EQ(mjs_setName(geom->element, "floor"), -1);
+  EXPECT_STREQ(mjs_getError(spec), "Error: repeated name 'floor' in geom");
+  EXPECT_EQ(mjs_setName(geom->element, "boxgeom"), -1);
+  EXPECT_EQ(mjs_setName(geom->element, "box"), 0);  // body name, other type
+
+  // still checked after a compile
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjsBody* body = mjs_addBody(world, 0);
+  EXPECT_EQ(mjs_setName(body->element, "box"), -1);
+  EXPECT_EQ(mjs_setName(body->element, "box2"), 0);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SignatureTracksCompilation) {
   mjSpec* spec = mj_makeSpec();
   mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);
   mjsGeom* geom = mjs_addGeom(body, 0);
   geom->size[0] = 1;
 
+  // an edited spec has no signature until it is compiled
+  EXPECT_EQ(spec->element->signature, 0);
   mjModel* model = mj_compile(spec, 0);
   ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
   EXPECT_EQ(spec->element->signature, model->signature);
 
-  // every add must change the signature, including the first element of a
-  // type, otherwise bind would accept a spec that no longer matches the model
-  uint64_t previous = spec->element->signature;
-  auto expect_changed = [&](const char* what) {
-    EXPECT_NE(spec->element->signature, previous) << what;
-    EXPECT_NE(spec->element->signature, model->signature) << what;
-    previous = spec->element->signature;
-  };
+  // adding an element clears it, and deleting the element does not bring it
+  // back
+  mjsGeom* added = mjs_addGeom(body, 0);
+  EXPECT_EQ(spec->element->signature, 0);
+  EXPECT_EQ(mjs_delete(spec, added->element), 0);
+  EXPECT_EQ(spec->element->signature, 0);
 
-  mjs_addEquality(spec, 0);
-  expect_changed("first equality");
-  mjs_addEquality(spec, 0);
-  expect_changed("second equality");
-  mjs_addTendon(spec, 0);
-  expect_changed("tendon");
-  mjs_addActuator(spec, 0);
-  expect_changed("actuator");
-  mjs_addSensor(spec);
-  expect_changed("sensor");
-  mjs_addPair(spec, 0);
-  expect_changed("pair");
-  mjs_addExclude(spec);
-  expect_changed("exclude");
-  mjs_addFlex(spec);
-  expect_changed("flex");
-  mjs_addMesh(spec, 0);
-  expect_changed("mesh");
-  mjs_addHField(spec);
-  expect_changed("hfield");
-  mjs_addSkin(spec);
-  expect_changed("skin");
-  mjs_addTexture(spec);
-  expect_changed("texture");
-  mjs_addMaterial(spec, 0);
-  expect_changed("material");
-  mjs_addKey(spec);
-  expect_changed("key");
-  mjs_addBody(body, 0);
-  expect_changed("body");
-  mjs_addGeom(body, 0);
-  expect_changed("geom");
-  mjs_addJoint(body, 0);
-  expect_changed("joint");
-  mjs_addSite(body, 0);
-  expect_changed("site");
-  mjs_addCamera(body, 0);
-  expect_changed("camera");
-  mjs_addLight(body, 0);
-  expect_changed("light");
+  // recompiling restores it
+  mjModel* model2 = mj_compile(spec, 0);
+  ASSERT_THAT(model2, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(spec->element->signature, model2->signature);
+  EXPECT_EQ(model2->signature, model->signature);
 
+  // copying a compiled spec preserves the signature, so the copy still binds
+  mjSpec* clean_copy = mj_copySpec(spec);
+  EXPECT_EQ(clean_copy->element->signature, model2->signature);
+
+  // attaching clears it
+  mjSpec* child = mj_makeSpec();
+  mjsBody* child_body = mjs_addBody(mjs_findBody(child, "world"), 0);
+  mjsFrame* frame = mjs_addFrame(body, nullptr);
+  ASSERT_THAT(mjs_attach(frame->element, child_body->element, "c_", ""),
+              NotNull());
+  EXPECT_EQ(spec->element->signature, 0);
+
+  // copying an edited spec keeps it cleared
+  mjSpec* dirty_copy = mj_copySpec(spec);
+  EXPECT_EQ(dirty_copy->element->signature, 0);
+
+  mjModel* model3 = mj_compile(spec, 0);
+  ASSERT_THAT(model3, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(spec->element->signature, model3->signature);
+  EXPECT_NE(model3->signature, model2->signature);
+
+  mj_deleteModel(model3);
+  mj_deleteModel(model2);
   mj_deleteModel(model);
+  mj_deleteSpec(dirty_copy);
+  mj_deleteSpec(clean_copy);
+  mj_deleteSpec(child);
   mj_deleteSpec(spec);
 }
 
@@ -850,11 +943,12 @@ TEST_F(MujocoTest, RecompileFails) {
 
   mjsMaterial* mat1 = mjs_addMaterial(spec, 0);
   mjsMaterial* mat2 = mjs_addMaterial(spec, 0);
-  mjs_setName(mat1->element, "yellow");
-  mjs_setName(mat2->element, "yellow");
+  EXPECT_EQ(mjs_setName(mat1->element, "yellow"), 0);
+  EXPECT_EQ(mjs_setName(mat2->element, "yellow"), -1);
+  EXPECT_STREQ(mjs_getError(spec), "Error: repeated name 'yellow' in material");
 
   EXPECT_EQ(mj_recompile(spec, 0, model, data), -1);
-  EXPECT_STREQ(mjs_getError(spec), "Error: repeated name 'yellow' in material");
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("empty name in material"));
 
   mj_deleteSpec(spec);
 }

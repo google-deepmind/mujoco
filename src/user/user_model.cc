@@ -189,6 +189,7 @@ mjCModel::mjCModel() {
   world->classname = "main";
   def_map["main"]  = Default();
   bodies_.push_back(world);
+  names_[mjOBJ_BODY].insert("world");
 
   // create mjCBase lists from children lists
   CreateObjectLists();
@@ -207,6 +208,9 @@ mjCModel::mjCModel(const mjCModel& other) {
 mjCModel& mjCModel::operator=(const mjCModel& other) {
   deepcopy_ = true;
   if (this != &other) {
+    // the copies below go through AddObject, which clears the signature
+    uint64_t signature = other.spec.element->signature;
+
     this->spec = other.spec;
 
     *static_cast<mjCModel_*>(this) = static_cast<const mjCModel_&>(other);
@@ -241,9 +245,10 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
 
     // copy name maps
     for (int i = 0; i < mjNOBJECT; i++) { ids[i] = other.ids[i]; }
+    names_ = other.names_;
 
-    // update signature after we updated everything
-    spec.element->signature = Signature();
+    // the copy has the same structure as the original
+    spec.element->signature = signature;
   }
   deepcopy_ = other.deepcopy_;
   return *this;
@@ -488,8 +493,8 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   // reprocess lists to ensure ordering matches compiled model after attach
   ProcessLists(/*checkrepeat=*/false);
 
-  // update signature after we updated the tree lists and we updated the pointers
-  spec.element->signature = Signature();
+  // structure changed, the signature is no longer valid
+  InvalidateSignature();
   return *this;
 }
 
@@ -514,6 +519,7 @@ void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
       element->ResolveReferences(this);
     } catch (mjCError err) {
       ids[element->elemtype].erase(element->name);
+      names_[element->elemtype].erase(element->name);
       element->id = -1;
       element->Release();
       list.erase(list.begin() + i);
@@ -533,6 +539,7 @@ template <>
 void mjCModel::DeleteAll<mjCKey>(std::vector<mjCKey*>& elements) {
   for (mjCKey* element : elements) { element->Release(); }
   elements.clear();
+  names_[mjOBJ_KEY].clear();
 }
 
 
@@ -561,6 +568,7 @@ void mjCModel::RemovePlugins() {
     if (plugins_[i]->name.empty()) { continue; }
     if (instances.find(plugins_[i]->name) == instances.end()) {
       ids[plugins_[i]->elemtype].erase(plugins_[i]->name);
+      names_[plugins_[i]->elemtype].erase(plugins_[i]->name);
       plugins_[i]->id = -1;
       plugins_[i]->Release();
       plugins_.erase(plugins_.begin() + i);
@@ -608,8 +616,8 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   RemoveFromList(sensors_, oldmodel);
   RemovePlugins();
 
-  // update signature before we reset the tree lists
-  spec.element->signature = Signature();
+  // structure changed, the signature is no longer valid
+  InvalidateSignature();
 
   return *this;
 }
@@ -789,8 +797,8 @@ void mjCModel::operator-=(mjsElement* el) {
   MakeTreeLists();
   ProcessLists(/*checkrepeat=*/false);
 
-  // update signature after we updated everything
-  spec.element->signature = Signature();
+  // structure changed, the signature is no longer valid
+  InvalidateSignature();
 
   static_cast<mjCBase*>(el)->Release();
 }
@@ -1190,7 +1198,7 @@ T* mjCModel::AddObject(vector<T*>& list, string type) {
   T* obj  = new T(this);
   obj->id = (int)list.size();
   list.push_back(obj);
-  spec.element->signature = Signature();
+  InvalidateSignature();
   return obj;
 }
 
@@ -1202,7 +1210,7 @@ T* mjCModel::AddObjectDefault(vector<T*>& list, string type, mjCDef* def) {
   obj->id        = (int)list.size();
   obj->classname = def ? def->name : "main";
   list.push_back(obj);
-  spec.element->signature = Signature();
+  InvalidateSignature();
   return obj;
 }
 
@@ -4789,6 +4797,12 @@ void mjCModel::ProcessLists(bool checkrepeat) {
 // set ids, check for repeated names
 template <class T>
 void mjCModel::ProcessList_(mjListKeyMap& ids, vector<T*>& list, mjtObj type, bool checkrepeat) {
+  int slot = (type == mjOBJ_FRAME) ? mjNOBJECT : type;
+  names_[slot].clear();
+  for (size_t i = 0; i < list.size(); i++) {
+    if (!list[i]->name.empty()) { names_[slot].insert(list[i]->name); }
+  }
+
   // assign ids for regular elements
   if (type < mjNOBJECT) {
     for (size_t i = 0; i < list.size(); i++) {
@@ -4836,6 +4850,26 @@ void mjCModel::CheckRepeat(mjtObj type) {
   }
 }
 
+
+// check that newname is not used by another element of the same type
+void mjCModel::CheckNameChange(mjtObj             type,
+                               const std::string& oldname,
+                               const std::string& newname) {
+  int slot;
+  if (type == mjOBJ_FRAME) {
+    slot = mjNOBJECT;
+  } else if (type < mjNOBJECT && type != mjOBJ_XBODY && object_lists_[type]) {
+    slot = type;
+  } else {
+    return;
+  }
+  if (!newname.empty() && newname != oldname && names_[slot].count(newname)) {
+    string msg = "repeated name '" + newname + "' in " + mju_type2Str(type);
+    throw mjCError(nullptr, "%s", msg.c_str());
+  }
+  if (!oldname.empty()) { names_[slot].erase(oldname); }
+  if (!newname.empty()) { names_[slot].insert(newname); }
+}
 
 // error handler for low-level engine
 constexpr int                    kErrorBufferSize = 500;
@@ -5246,9 +5280,6 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // clear subtreedofs
   for (int i = 0; i < bodies_.size(); i++) { bodies_[i]->subtreedofs = 0; }
-
-  // initialize spec signature (needed if the user changed sensor or joint types)
-  spec.element->signature = Signature();
 
   // fill missing names and check that they are all filled
   for (const auto& asset : meshes_) asset->CopyFromSpec();
@@ -5710,21 +5741,13 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   m->opt.enableflags  = enableflags;
   d                   = nullptr;
 
-
-  // save signature
-  m->signature = Signature();
+  // save signature; the spec may have changed structurally during compilation,
+  // and compilation itself may modify topology (fusestatic, discardvisual,
+  // pairs, excludes)
+  m->signature            = Signature();
+  spec.element->signature = m->signature;
 
   timer[mjCTIMER_TOTAL] = Seconds(Clock::now() - timer_start).count();
-
-  // special cases that are not caused by user edits
-  if (compiler.fusestatic || compiler.discardvisual || !pairs_.empty() || !excludes_.empty()) {
-    spec.element->signature = m->signature;
-  }
-
-  // check that the signature matches the spec
-  if (m->signature != spec.element->signature) {
-    throw mjCError(0, "signature mismatch");  // SHOULD NOT OCCUR
-  }
 }
 
 static void PrintIndent(std::stringstream& ss, int depth) {

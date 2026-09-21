@@ -65,6 +65,19 @@ Bug fixes
   :ref:`mj_deleteSpec` (:issue:`2882`).
 - Fixed an out-of-bounds read when parsing the header of a :ref:`GMSH file<gmsh-file-docs>` loaded by
   :ref:`flexcomp<body-flexcomp>`. Truncated headers are now reported as an error.
+- Procedural model editing is no longer quadratic in the number of elements. ``mjSpec`` previously recomputed the
+  compilation signature on every :ref:`mjs_addGeom`-like call, and :ref:`mjs_setName` rescanned every name of the
+  element's type. Both are now incremental. Building a spec with 8000 geoms is roughly 10x faster.
+
+  .. admonition:: Breaking API changes
+     :class: attention
+
+     ``mjsElement.signature`` is now ``0`` whenever the spec has been structurally edited since it was last compiled,
+     rather than being eagerly recomputed on each edit. It is still equal to ``mjModel.signature`` after a successful
+     :ref:`mj_compile`, which is what :ref:`mj_copyBack` and the Python ``bind`` methods rely on. Code that compared the
+     signature of an uncompiled spec against anything other than ``0`` must compile first. Additionally, when
+     :ref:`mjs_setName` fails on a duplicate name, the element's previous name is now preserved rather than being
+     overwritten with the duplicate name.
 
 Version 3.13.0 (September 8, 2026)
 ----------------------------------

@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -33,8 +34,9 @@
 #include <mujoco/mjtype.h>
 #include "user/user_objects.h"
 
-typedef std::map<std::string, int, std::less<>> mjKeyMap;
-typedef std::array<mjKeyMap, mjNOBJECT>         mjListKeyMap;
+typedef std::map<std::string, int, std::less<>>                    mjKeyMap;
+typedef std::array<mjKeyMap, mjNOBJECT>                            mjListKeyMap;
+typedef std::array<std::unordered_set<std::string>, mjNOBJECT + 1> mjNameSet;
 
 typedef struct mjKeyInfo_ {
   std::string name;
@@ -395,6 +397,12 @@ class mjCModel : public mjCModel_, private mjSpec {
   // check for repeated names in list
   void CheckRepeat(mjtObj type);
 
+  // check that newname is not used by another element of the same type and update names_
+  void CheckNameChange(mjtObj type, const std::string& oldname, const std::string& newname);
+
+  // clear the compilation signature after a structural change
+  void InvalidateSignature() { spec.element->signature = 0; }
+
   // increment and decrement reference count
   void AddRef() { ++refcount; }
   int  GetRef() const { return refcount; }
@@ -549,6 +557,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   void ExpandAllKeyframes();
 
   mjListKeyMap             ids;              // map from object names to ids
+  mjNameSet                names_;           // names in use per element type
   mjCError                 errInfo;          // last error info
   std::vector<std::string> warnings_;        // chronological list of non-fatal warnings
   int  num_attach_warnings_ = 0;             // boundary: [0, n) are attach, [n, size) are compile
