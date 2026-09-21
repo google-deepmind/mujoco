@@ -528,10 +528,15 @@ static vector<unsigned char> RenderFilament(const mjModel*   m,
   // create render request
   mjrfRenderRequest request;
   mjrf_defaultRenderRequest(&request);
-  request.scene    = scene.get();
-  request.camera   = mjv_camera2GLCamera(m, d, &cam);
-  request.viewport = viewport;
-  request.target   = render_target.get();
+  request.scene               = scene.get();
+  request.camera              = mjv_camera2GLCamera(m, d, &cam);
+  request.viewport            = viewport;
+  request.target              = render_target.get();
+  request.enable_headlight    = m->vis.headlight.active;
+  request.headlight_color[0]  = m->vis.headlight.diffuse[0];
+  request.headlight_color[1]  = m->vis.headlight.diffuse[1];
+  request.headlight_color[2]  = m->vis.headlight.diffuse[2];
+  request.headlight_intensity = model_lights->GetHeadlightIntensity();
 
   // process render flags
   if (rnd_flags[mjRND_SEGMENT] > 0) {

@@ -187,25 +187,6 @@ void ModelLights::Prepare() {
     }
   }
 
-  // Add a placeholder (black) headlight as our last light. Going forward, we'll
-  // assume lights_.back() is always the headlight.
-  {
-    mjrfLightParams params;
-    mjrf_defaultLightParams(&params);
-    // We break with the spec here slightly and use a spot light for the head
-    // light instead of a directional params. This is because filament only
-    // supports a single directional light, and we'd rather allow a scene
-    // light to be that directional params. It's also a bit odd for a
-    // directional light to move with the camera.
-    params.type = mjLIGHT_SPOT;
-    params.cast_shadows = 0;
-    params.intensity = 0.0f;
-    params.spot_cone_angle = 90.0f;
-    auto light_obj = CreateLight(ctx, params);
-    mjrf_addLightToScene(scene_, light_obj.get());
-    lights_.emplace_back(std::move(light_obj));
-  }
-
   // Workaround for an upstream filament bug, present since 1.74.0
   // (https://github.com/google/filament/issues/10249): under the non-PCF
   // shadow types (VSM/DPCF/PCSS), a scene where a punctual (spot/point) light
@@ -249,14 +230,17 @@ void ModelLights::Prepare() {
     fallback_ibl_ = CreateLight(ctx, params);
     mjrf_addLightToScene(scene_, fallback_ibl_.get());
 
+    // The headlight is a render request option, not a scene light; publish its
+    // intensity for the renderer to pass along.
+    headlight_intensity_ = fallback_head_light_intensity_;
+
     // Distribute the fallback scene light intensity among the lights.
-    const float intensity = fallback_scene_light_intensity_ / lights_.size();
-    for (auto& light : lights_) {
-      if (light) {
-        const bool is_headlight = (light == lights_.back());
-        mjrf_setLightIntensity(light.get(), is_headlight
-                                                ? fallback_head_light_intensity_
-                                                : intensity);
+    if (!lights_.empty()) {
+      const float intensity = fallback_scene_light_intensity_ / lights_.size();
+      for (auto& light : lights_) {
+        if (light) {
+          mjrf_setLightIntensity(light.get(), intensity);
+        }
       }
     }
   }
@@ -281,29 +265,22 @@ void ModelLights::Update(const mjData* data) {
     return;
   }
   const mjModel* model = model_objects_->GetModel();
-  for (int i = 0; i <= model->nlight; ++i) {
-    // Light with index nlight is the headlight.
+  for (int i = 0; i < model->nlight; ++i) {
     mjrfLight* light = lights_[i].get();
-    if (i == model->nlight) {
-      const float3 color = ReadFloat3(model->vis.headlight.diffuse);
-      mjrf_setLightColor(light, color.v);
-      mjrf_setLightEnabled(light, model->vis.headlight.active);
-    } else {
-      const float3 pos = ReadFloat3(data->light_xpos, i);
-      const float3 dir = ReadFloat3(data->light_xdir, i);
-      mjrf_setLightTransform(light, pos.v, dir.v);
+    const float3 pos = ReadFloat3(data->light_xpos, i);
+    const float3 dir = ReadFloat3(data->light_xdir, i);
+    mjrf_setLightTransform(light, pos.v, dir.v);
 
-      const float3 color = ReadFloat3(model->light_diffuse, i);
-      mjrf_setLightEnabled(light, model->light_active[i]);
-      mjrf_setLightColor(light, color.v);
-      mjrf_setLightIntensity(light, model->light_intensity[i]);
-      mjrf_setLightRange(light, model->light_range[i]);
-      mjrf_setLightCutoffAngle(light, model->light_cutoff[i]);
-      mjrf_setLightSoftness(light, model->light_softness[i]);
-      mjrf_setLightBulbRadius(light, model->light_bulbradius[i]);
-      mjrf_setLightBlurWidth(light, model->light_bulbradius[i]);
-      mjrf_setLightShadowsEnabled(light, model->light_castshadow[i]);
-    }
+    const float3 color = ReadFloat3(model->light_diffuse, i);
+    mjrf_setLightEnabled(light, model->light_active[i]);
+    mjrf_setLightColor(light, color.v);
+    mjrf_setLightIntensity(light, model->light_intensity[i]);
+    mjrf_setLightRange(light, model->light_range[i]);
+    mjrf_setLightCutoffAngle(light, model->light_cutoff[i]);
+    mjrf_setLightSoftness(light, model->light_softness[i]);
+    mjrf_setLightBulbRadius(light, model->light_bulbradius[i]);
+    mjrf_setLightBlurWidth(light, model->light_bulbradius[i]);
+    mjrf_setLightShadowsEnabled(light, model->light_castshadow[i]);
   }
 }
 

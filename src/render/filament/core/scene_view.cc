@@ -147,6 +147,17 @@ SceneView::SceneView(ObjectManager* object_mgr, MaterialManager* material_mgr,
   reflect_view_->setVisibleLayers(0xff, kLayerMask_Object | kLayerMask_Skybox);
   reflect_view_->setMultiSampleAntiAliasingOptions({.enabled = false});
 
+  // The headlight is aimed at each request's camera in Render(). It is created
+  // black and disabled; requests that ask for it supply color and intensity.
+  mjrfLightParams headlight_params;
+  mjrf_defaultLightParams(&headlight_params);
+  headlight_params.type = mjLIGHT_DIRECTIONAL;
+  headlight_params.cast_shadows = 0;
+  headlight_params.intensity = 0.0f;
+  headlight_ = std::make_unique<Light>(engine, headlight_params);
+  headlight_->AddToScene(scene_);
+  headlight_->Disable();
+
   // Rotate the fog to align with mujoco's +Z up space.
   auto fog = main_view_->getFogEntity();
   auto& tm = engine->getTransformManager();
@@ -165,6 +176,10 @@ SceneView::~SceneView() {
   }
   for (auto& light : lights_) {
     light->RemoveFromScene(scene_);
+  }
+  if (headlight_) {
+    headlight_->RemoveFromScene(scene_);
+    headlight_.reset();
   }
   for (auto& renderable : renderables_) {
     renderable->RemoveFromScene(scene_);
@@ -273,6 +288,21 @@ void SceneView::Render(filament::Renderer* renderer,
   }
 
   SetupCamera(request.camera, viewport, camera_);
+
+  // Aim the headlight along this request's camera. Filament re-gathers the
+  // scene's lights for each render() call, so requests batched into one frame
+  // each see their own headlight.
+  if (request.enable_headlight) {
+    const float3 forward = ReadFloat3(request.camera.forward);
+    // Sit slightly behind the eye to avoid clipping artifacts.
+    const float3 position = ReadFloat3(request.camera.pos) - 0.05f * forward;
+    headlight_->SetTransform(position, forward);
+    headlight_->SetColor(ReadFloat3(request.headlight_color));
+    headlight_->SetIntensity(request.headlight_intensity);
+    headlight_->Enable();
+  } else {
+    headlight_->Disable();
+  }
 
   std::vector<Renderable*> selected_renderables;
   for (auto& iter : renderables_) {

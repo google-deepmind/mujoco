@@ -86,6 +86,13 @@ typedef struct mjrfRenderRequest_ {
   mjtBool enable_post_processing;    // enable post processing, enabled by default
   mjtBool enable_reflections;        // enable reflections, enabled by default
   mjtBool enable_shadows;            // enable shadows, enabled by default
+
+  // The headlight is a directional light aligned with this request's camera. It
+  // is a property of the request rather than of the scene, so that a scene
+  // rendered from several cameras is not lit by any one of them.
+  mjtBool enable_headlight;          // enable the headlight, disabled by default
+  float headlight_color[3];          // headlight color, RGB
+  float headlight_intensity;         // headlight intensity, in lux
 } mjrfRenderRequest;
 
 // Initializes the mjrfRenderRequest to default values.
