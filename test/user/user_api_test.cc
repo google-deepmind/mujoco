@@ -889,6 +889,65 @@ TEST_F(MujocoTest, ModifyShellInertiaFails) {
   mj_deleteModel(model);
 }
 
+// the bounding volume hierarchy of a body is rebuilt by every compilation
+TEST_F(MujocoTest, RecompileEditGeoms) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <geom name="a" size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char xml_two_geoms[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <geom name="a" size=".1"/>
+        <geom name="b" size=".1" pos="1 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* m1 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m1, NotNull());
+  EXPECT_EQ(m1->nbvh, 1);
+
+  // add a geom: the root is no longer a leaf
+  mjsGeom* geom = mjs_addGeom(mjs_findBody(spec, "body"), nullptr);
+  mjs_setName(geom->element, "b");
+  geom->size[0] = .1;
+  geom->pos[0] = 1;
+  mjModel* m2 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m2, NotNull()) << mjs_getError(spec);
+  MjModelPtr expected =
+      LoadModelFromString(xml_two_geoms, er.data(), er.size());
+  ASSERT_THAT(expected.get(), NotNull()) << er.data();
+  ASSERT_EQ(m2->nbvh, expected->nbvh);
+  for (int i = 0; i < m2->nbvh; i++) {
+    EXPECT_EQ(m2->bvh_nodeid[i], expected->bvh_nodeid[i]) << "node " << i;
+  }
+
+  // delete both geoms: no hierarchy is left
+  EXPECT_EQ(mjs_delete(spec, mjs_findElement(spec, mjOBJ_GEOM, "a")), 0);
+  EXPECT_EQ(mjs_delete(spec, mjs_findElement(spec, mjOBJ_GEOM, "b")), 0);
+  mjModel* m3 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m3, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m3->nbvh, 0);
+  EXPECT_EQ(m3->body_bvhnum[1], 0);
+
+  mj_deleteModel(m1);
+  mj_deleteModel(m2);
+  mj_deleteModel(m3);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, RecompileEdit) {
   static constexpr char xml[] = R"(
   <mujoco>

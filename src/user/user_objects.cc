@@ -348,6 +348,7 @@ void mjCBoundingVolumeHierarchy::AllocateBoundingVolumes(int nleaf) {
   bvh_.clear();
   child_.clear();
   nodeid_.clear();
+  nodeidptr_.clear();
   level_.clear();
   bvleaf_.clear();
   bvleaf_.reserve(nleaf);
@@ -2512,10 +2513,11 @@ void mjCBody::AccumulateInertia(const mjsBody* other, mjsBody* result) {
 
 // compute bounding volume hierarchy
 void mjCBody::ComputeBVH() {
+  // discard the tree of a previous compilation, also when no geoms are left
+  tree.AllocateBoundingVolumes(geoms.size());
   if (geoms.empty()) { return; }
 
   tree.Set(ipos, iquat);
-  tree.AllocateBoundingVolumes(geoms.size());
   for (const mjCGeom* geom : geoms) {
     tree.AddBoundingVolume(&geom->id,
                            geom->contype,
