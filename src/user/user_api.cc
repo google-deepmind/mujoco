@@ -325,29 +325,17 @@ mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
 [[nodiscard]] int mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d) {
   mjCModel*   modelC     = static_cast<mjCModel*>(s->element);
   std::string state_name = "state";
-  mjtNum      time       = 0;
+
+  mjCModel::mjRecompileState state;
   try {
-    if (d) {
-      time = d->time;
-      modelC->SaveState(state_name, d->qpos, d->qvel, d->act, d->ctrl, d->mocap_pos, d->mocap_quat);
-    }
+    if (d) { modelC->SaveState(state_name, m, d, &state); }
     if (!modelC->Compile(vfs, &m)) {
       if (d) { mj_deleteData(d); }
       return -1;
     };
     if (d) {
       modelC->MakeData(m, &d);
-      modelC->RestoreState(state_name,
-                           m->qpos0,
-                           m->body_pos,
-                           m->body_quat,
-                           d->qpos,
-                           d->qvel,
-                           d->act,
-                           d->ctrl,
-                           d->mocap_pos,
-                           d->mocap_quat);
-      d->time = time;
+      modelC->RestoreState(state_name, m, d, &state);
     }
   } catch (mjCError& e) {
     modelC->SetError(e);

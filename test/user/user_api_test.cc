@@ -2530,6 +2530,288 @@ TEST_F(MujocoTest, RecompileAttach) {
   mj_deleteSpec(parent);
 }
 
+TEST_F(MujocoTest, RecompileControlBlocks) {
+  std::array<char, 1000> er;
+
+  // 1. Deleting first actuator preserves retained actuator's control
+  static constexpr char xml_delete[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="j1" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+      <body>
+        <joint name="j2" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor name="a1" joint="j1"/>
+      <motor name="a2" joint="j2"/>
+    </actuator>
+  </mujoco>)";
+
+  mjSpec* s1 = mj_parseXMLString(xml_delete, 0, er.data(), er.size());
+  ASSERT_THAT(s1, NotNull()) << er.data();
+  mjModel* m1 = mj_compile(s1, 0);
+  ASSERT_THAT(m1, NotNull());
+  mjData* d1 = mj_makeData(m1);
+  d1->ctrl[0] = 11.0;
+  d1->ctrl[1] = 22.0;
+
+  mjsElement* a1 = mjs_findElement(s1, mjOBJ_ACTUATOR, "a1");
+  ASSERT_THAT(a1, NotNull());
+  EXPECT_EQ(mjs_delete(s1, a1), 0);
+  EXPECT_EQ(mj_recompile(s1, 0, m1, d1), 0);
+  EXPECT_EQ(m1->nu, 1);
+  EXPECT_MJTNUM_EQ(d1->ctrl[0], 22.0);
+  mj_deleteData(d1);
+  mj_deleteModel(m1);
+  mj_deleteSpec(s1);
+
+  // 2. Multi-input PID actuator preserves all control slots
+  static constexpr char xml_pid[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="j" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <pid name="pid" joint="j" kp="10" kv="1" input="pos vel ff"/>
+    </actuator>
+  </mujoco>)";
+
+  mjSpec* s2 = mj_parseXMLString(xml_pid, 0, er.data(), er.size());
+  ASSERT_THAT(s2, NotNull()) << er.data();
+  mjModel* m2 = mj_compile(s2, 0);
+  ASSERT_THAT(m2, NotNull());
+  ASSERT_EQ(m2->nu, 3);
+  mjData* d2 = mj_makeData(m2);
+  d2->ctrl[0] = 1.0;
+  d2->ctrl[1] = 2.0;
+  d2->ctrl[2] = 5.0;
+
+  EXPECT_EQ(mj_recompile(s2, 0, m2, d2), 0);
+  ASSERT_EQ(m2->nu, 3);
+  EXPECT_MJTNUM_EQ(d2->ctrl[0], 1.0);
+  EXPECT_MJTNUM_EQ(d2->ctrl[1], 2.0);
+  EXPECT_MJTNUM_EQ(d2->ctrl[2], 5.0);
+  mj_deleteData(d2);
+  mj_deleteModel(m2);
+  mj_deleteSpec(s2);
+
+  // 3. Zero-input actuator followed by scalar actuator (nactuator=2, nu=1)
+  static constexpr char xml_zero[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="j1" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+      <body>
+        <joint name="j2" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor name="dc0" joint="j1" input="none" motorconst="1" resistance="1"/>
+      <motor name="m1" joint="j2"/>
+    </actuator>
+  </mujoco>)";
+
+  mjSpec* s3 = mj_parseXMLString(xml_zero, 0, er.data(), er.size());
+  ASSERT_THAT(s3, NotNull()) << er.data();
+  mjModel* m3 = mj_compile(s3, 0);
+  ASSERT_THAT(m3, NotNull());
+  ASSERT_EQ(m3->nactuator, 2);
+  ASSERT_EQ(m3->nu, 1);
+  mjData* d3 = mj_makeData(m3);
+  d3->ctrl[0] = 33.0;
+
+  EXPECT_EQ(mj_recompile(s3, 0, m3, d3), 0);
+  ASSERT_EQ(m3->nactuator, 2);
+  ASSERT_EQ(m3->nu, 1);
+  EXPECT_MJTNUM_EQ(d3->ctrl[0], 33.0);
+  mj_deleteData(d3);
+  mj_deleteModel(m3);
+  mj_deleteSpec(s3);
+
+  // 4. Expanding actuator actdim from 1 to 3 does not read past saved act
+  static constexpr char xml_actdim[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="j" type="hinge"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general name="a" joint="j" dyntype="integrator"/>
+    </actuator>
+  </mujoco>)";
+
+  mjSpec* s4 = mj_parseXMLString(xml_actdim, 0, er.data(), er.size());
+  ASSERT_THAT(s4, NotNull()) << er.data();
+  mjModel* m4 = mj_compile(s4, 0);
+  ASSERT_THAT(m4, NotNull());
+  ASSERT_EQ(m4->na, 1);
+  mjData* d4 = mj_makeData(m4);
+  d4->act[0] = 42.0;
+
+  mjsActuator* act4 = mjs_asActuator(mjs_findElement(s4, mjOBJ_ACTUATOR, "a"));
+  ASSERT_THAT(act4, NotNull());
+  act4->dyntype = mjDYN_USER;
+  act4->actdim = 3;
+
+  EXPECT_EQ(mj_recompile(s4, 0, m4, d4), 0);
+  ASSERT_EQ(m4->na, 3);
+  EXPECT_MJTNUM_EQ(d4->act[0], 42.0);
+  EXPECT_MJTNUM_EQ(d4->act[1], 0.0);
+  EXPECT_MJTNUM_EQ(d4->act[2], 0.0);
+  mj_deleteData(d4);
+  mj_deleteModel(m4);
+  mj_deleteSpec(s4);
+}
+
+TEST_F(MujocoTest, RecompileIntegrationState) {
+  std::array<char, 1000> er;
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <size nuserdata="2"/>
+    <worldbody>
+      <body name="b1">
+        <joint name="j1" type="slide" axis="1 0 0"/>
+        <geom size="0.1" mass="1"/>
+      </body>
+      <body name="b2">
+        <joint name="j2" type="slide" axis="1 0 0"/>
+        <geom size="0.1" mass="1"/>
+      </body>
+    </worldbody>
+    <equality>
+      <joint name="eq1" joint1="j1" active="false"/>
+      <joint name="eq2" joint1="j2" active="false"/>
+    </equality>
+    <actuator>
+      <motor name="a1" joint="j1" nsample="2" delay="0.01"/>
+    </actuator>
+    <sensor>
+      <jointpos name="s1" joint="j2" nsample="2" delay="0.01"/>
+    </sensor>
+  </mujoco>)";
+
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* m = mj_compile(spec, 0);
+  ASSERT_THAT(m, NotNull());
+  mjData* d = mj_makeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  d->time = 3.25;
+  d->qpos[0] = 0.4;
+  d->qpos[1] = -0.2;
+  d->qvel[0] = 0.3;
+  d->qvel[1] = -0.1;
+  d->qfrc_applied[0] = 7.0;
+  d->qfrc_applied[1] = 9.0;
+  d->xfrc_applied[6 * 1 + 0] = 8.0;
+  d->xfrc_applied[6 * 2 + 2] = 12.0;
+  d->eq_active[0] = 1;
+  d->eq_active[1] = 1;
+  d->userdata[0] = 123.0;
+  d->userdata[1] = 321.0;
+  d->qacc_warmstart[0] = 456.0;
+  d->qacc_warmstart[1] = 654.0;
+  d->ctrl[0] = 4.5;
+  for (int i = 0; i < m->nhistory; i++) {
+    d->history[i] = 10.0 + i;
+  }
+
+  int nstate = mj_stateSize(m, mjSTATE_INTEGRATION);
+  std::vector<mjtNum> state_before(nstate);
+  mj_getState(m, d, state_before.data(), mjSTATE_INTEGRATION);
+
+  // no-op recompile preserves the entire mjSTATE_INTEGRATION
+  EXPECT_EQ(mj_recompile(spec, 0, m, d), 0);
+  std::vector<mjtNum> state_after(nstate);
+  mj_getState(m, d, state_after.data(), mjSTATE_INTEGRATION);
+  EXPECT_EQ(state_before, state_after);
+
+  // delete b1 (along with j1, eq1, a1) and recompile: b2, j2, eq2, s1 state
+  // preserved
+  mjsBody* b1 = mjs_findBody(spec, "b1");
+  ASSERT_THAT(b1, NotNull());
+  EXPECT_EQ(mjs_delete(spec, b1->element), 0);
+  EXPECT_EQ(mj_recompile(spec, 0, m, d), 0);
+  EXPECT_EQ(m->nq, 1);
+  EXPECT_EQ(m->nv, 1);
+  EXPECT_EQ(m->nbody, 2);
+  EXPECT_EQ(m->neq, 1);
+  EXPECT_MJTNUM_EQ(d->qpos[0], -0.2);
+  EXPECT_MJTNUM_EQ(d->qvel[0], -0.1);
+  EXPECT_MJTNUM_EQ(d->qfrc_applied[0], 9.0);
+  EXPECT_MJTNUM_EQ(d->qacc_warmstart[0], 654.0);
+  EXPECT_MJTNUM_EQ(d->xfrc_applied[6 * 1 + 2], 12.0);
+  EXPECT_EQ(d->eq_active[0], 1);
+  EXPECT_MJTNUM_EQ(d->userdata[0], 123.0);
+  EXPECT_MJTNUM_EQ(d->userdata[1], 321.0);
+  ASSERT_EQ(m->nhistory, 6);
+  for (int i = 0; i < 6; i++) {
+    EXPECT_MJTNUM_EQ(d->history[i], 16.0 + i);
+  }
+
+  // add a new body/joint/actuator/equality and mutate j2 from slide to ball
+  mjsBody* b3 = mjs_addBody(mjs_findBody(spec, "world"), 0);
+  mjsGeom* g3 = mjs_addGeom(b3, 0);
+  g3->size[0] = 0.1;
+  g3->mass = 1.0;
+  mjsJoint* j3 = mjs_addJoint(b3, 0);
+  mjs_setName(j3->element, "j3");
+  j3->type = mjJNT_SLIDE;
+  j3->ref = 0.75;
+  mjsActuator* a3 = mjs_addActuator(spec, 0);
+  a3->trntype = mjTRN_JOINT;
+  mjs_setString(a3->target, "j3");
+  mjsEquality* eq3 = mjs_addEquality(spec, 0);
+  eq3->type = mjEQ_JOINT;
+  eq3->active = 1;
+  mjs_setString(eq3->name1, "j3");
+
+  // delete eq2 and s1 before mutating j2 to ball joint
+  EXPECT_EQ(mjs_delete(spec, mjs_findElement(spec, mjOBJ_EQUALITY, "eq2")), 0);
+  EXPECT_EQ(mjs_delete(spec, mjs_findElement(spec, mjOBJ_SENSOR, "s1")), 0);
+  mjsJoint* j2 = mjs_asJoint(mjs_findElement(spec, mjOBJ_JOINT, "j2"));
+  ASSERT_THAT(j2, NotNull());
+  j2->type = mjJNT_BALL;
+
+  EXPECT_EQ(mj_recompile(spec, 0, m, d), 0);
+  ASSERT_EQ(m->nq, 5);
+  ASSERT_EQ(m->nv, 4);
+  // j2 changed type from slide to ball: initialized to unit quaternion from
+  // qpos0 and zero vel
+  EXPECT_MJTNUM_EQ(d->qpos[0], 1.0);
+  EXPECT_MJTNUM_EQ(d->qpos[1], 0.0);
+  EXPECT_MJTNUM_EQ(d->qpos[2], 0.0);
+  EXPECT_MJTNUM_EQ(d->qpos[3], 0.0);
+  EXPECT_MJTNUM_EQ(d->qvel[0], 0.0);
+  EXPECT_MJTNUM_EQ(d->qfrc_applied[0], 0.0);
+  EXPECT_MJTNUM_EQ(d->qacc_warmstart[0], 0.0);
+  // newly added j3, a3, eq3 receive defaults while b2 retains xfrc_applied
+  EXPECT_MJTNUM_EQ(d->qpos[4], 0.75);
+  EXPECT_MJTNUM_EQ(d->qvel[3], 0.0);
+  EXPECT_MJTNUM_EQ(d->ctrl[0], 0.0);
+  EXPECT_EQ(d->eq_active[0], 1);
+  EXPECT_MJTNUM_EQ(d->xfrc_applied[6 * 1 + 2], 12.0);
+  EXPECT_MJTNUM_EQ(d->xfrc_applied[6 * 2 + 2], 0.0);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, AttachMocap) {
   std::array<char, 1000> er;
   mjtNum tol = 0;

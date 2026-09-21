@@ -329,6 +329,20 @@ class mjCModel : public mjCModel_, private mjSpec {
   template <class T>
   void DeleteMaterial(std::vector<T*>& list, std::string_view name = "");
 
+  // temporary state saved across mj_recompile
+  struct mjRecompileState {
+    mjtNum              time = 0;
+    std::vector<mjtNum> userdata;
+
+    std::unordered_map<mjCJoint*, std::vector<mjtNum>>    qfrc_applied;
+    std::unordered_map<mjCJoint*, std::vector<mjtNum>>    qacc_warmstart;
+    std::unordered_map<mjCBody*, std::array<mjtNum, 6>>   xfrc_applied;
+    std::unordered_map<mjCEquality*, mjtByte>             eq_active;
+    std::unordered_map<mjCActuator*, std::vector<mjtNum>> actuator_history;
+    std::unordered_map<mjCSensor*, std::vector<mjtNum>>   sensor_history;
+    std::unordered_map<mjCPlugin*, std::vector<mjtNum>>   plugin_state;
+  };
+
   // save the current state
   template <class T>
   void SaveState(const std::string& state_name,
@@ -338,6 +352,10 @@ class mjCModel : public mjCModel_, private mjSpec {
                  const T*           ctrl,
                  const T*           mpos,
                  const T*           mquat);
+  void SaveState(const std::string& state_name,
+                 const mjModel*     m,
+                 const mjData*      d,
+                 mjRecompileState*  state);
 
   // restore the previously saved state
   template <class T>
@@ -351,6 +369,10 @@ class mjCModel : public mjCModel_, private mjSpec {
                     T*                 ctrl,
                     T*                 mpos,
                     T*                 mquat);
+  void RestoreState(const std::string&      state_name,
+                    const mjModel*          m,
+                    mjData*                 d,
+                    const mjRecompileState* state);
 
   // clear existing data
   void MakeData(const mjModel* m, mjData** dest);

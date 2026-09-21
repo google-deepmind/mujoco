@@ -1564,6 +1564,7 @@ mjCBody::mjCBody(mjCModel* _model) {
   mjuu_setvec(xquat0, 1, 0, 0, 0);
   last_attached = nullptr;
   mocapid       = -1;
+  bodyadr_      = -1;
 
   // clear object lists
   bodies.clear();
@@ -1604,6 +1605,8 @@ mjCBody& mjCBody::operator=(const mjCBody& other) {
     cameras.clear();
     lights.clear();
     id          = -1;
+    mocapid     = -1;
+    bodyadr_    = -1;
     subtreedofs = 0;
 
     // add elements to lists
@@ -1847,7 +1850,9 @@ void mjCBody::SetModel(mjCModel* _model) {
 
 // reset ids of all objects in this body
 void mjCBody::ResetId() {
-  id = -1;
+  id       = -1;
+  mocapid  = -1;
+  bodyadr_ = -1;
   for (auto& body : bodies) { body->ResetId(); }
   for (auto& frame : frames) { frame->id = -1; }
   for (auto& geom : geoms) { geom->id = -1; }
@@ -5955,6 +5960,7 @@ mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
   // clear internal variables
   spec_name1_.clear();
   spec_name2_.clear();
+  eqadr_ = -1;
   obj1id = obj2id = -1;
 
   // reset to default if given
@@ -5984,6 +5990,8 @@ mjCEquality& mjCEquality::operator=(const mjCEquality& other) {
 
     *static_cast<mjCEquality_*>(this) = static_cast<const mjCEquality_&>(other);
     *static_cast<mjsEquality*>(this)  = static_cast<const mjsEquality&>(other);
+
+    eqadr_ = -1;
   }
   PointToLocal();
   return *this;
@@ -6639,8 +6647,10 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   PointToLocal();
 
   // no previous state when an actuator is created
-  actadr_ = -1;
-  actdim_ = -1;
+  actadr_     = -1;
+  actdim_     = -1;
+  historyadr_ = -1;
+  historynum_ = 0;
 
   // input and output blocks, set by mjCModel; all actuator types are currently 1x1
   ctrladr_  = -1;
@@ -6664,7 +6674,13 @@ mjCActuator& mjCActuator::operator=(const mjCActuator& other) {
     *static_cast<mjCActuator_*>(this) = static_cast<const mjCActuator_&>(other);
     *static_cast<mjsActuator*>(this)  = static_cast<const mjsActuator&>(other);
 
-    ptarget = nullptr;
+    actadr_     = -1;
+    actdim_     = -1;
+    ctrladr_    = -1;
+    outadr_     = -1;
+    historyadr_ = -1;
+    historynum_ = 0;
+    ptarget     = nullptr;
   }
   PointToLocal();
   return *this;
@@ -6689,16 +6705,12 @@ bool mjCActuator::is_actlimited() const {
 
 
 std::vector<mjtNum>& mjCActuator::act(const std::string& state_name) {
-  if (act_.find(state_name) == act_.end()) {
-    act_[state_name] = std::vector<mjtNum>(model->nu, mjNAN);
-  }
-  return act_.at(state_name);
+  return act_[state_name];
 }
 
 
-mjtNum& mjCActuator::ctrl(const std::string& state_name) {
-  if (ctrl_.find(state_name) == ctrl_.end()) { ctrl_[state_name] = mjNAN; }
-  return ctrl_.at(state_name);
+std::vector<mjtNum>& mjCActuator::ctrl(const std::string& state_name) {
+  return ctrl_[state_name];
 }
 
 
@@ -7309,8 +7321,10 @@ mjCSensor::mjCSensor(mjCModel* _model) {
   spec_objname_.clear();
   spec_refname_.clear();
   spec_userdata_.clear();
-  obj = nullptr;
-  ref = nullptr;
+  historyadr_ = -1;
+  historynum_ = 0;
+  obj         = nullptr;
+  ref         = nullptr;
 
   // in case this sensor is not compiled
   CopyFromSpec();
@@ -7332,8 +7346,10 @@ mjCSensor& mjCSensor::operator=(const mjCSensor& other) {
     *static_cast<mjCSensor_*>(this) = static_cast<const mjCSensor_&>(other);
     *static_cast<mjsSensor*>(this)  = static_cast<const mjsSensor&>(other);
 
-    obj = nullptr;
-    ref = nullptr;
+    historyadr_ = -1;
+    historynum_ = 0;
+    obj         = nullptr;
+    ref         = nullptr;
   }
   PointToLocal();
   return *this;
@@ -8382,6 +8398,8 @@ void mjCKey::Compile(const mjModel* m) {
 mjCPlugin::mjCPlugin(mjCModel* _model) {
   name        = "";
   nstate      = -1;
+  stateadr_   = -1;
+  statenum_   = 0;
   plugin_slot = -1;
   parent      = this;
   model       = _model;
@@ -8411,6 +8429,8 @@ mjCPlugin& mjCPlugin::operator=(const mjCPlugin& other) {
 
     *static_cast<mjCPlugin_*>(this) = static_cast<const mjCPlugin_&>(other);
 
+    stateadr_   = -1;
+    statenum_   = 0;
     parent      = this;
     plugin_slot = other.plugin_slot;
   }

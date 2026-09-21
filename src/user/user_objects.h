@@ -480,9 +480,10 @@ class mjCBody_ : public mjCBase {
   mjCBody* parent;
 
   // variables computed by 'Compile' and 'AddXXX'
-  int weldid;   // top index of body we are welded to
-  int dofnum;   // number of motion dofs for body
-  int mocapid;  // mocap id, -1: not mocap
+  int weldid;    // top index of body we are welded to
+  int dofnum;    // number of motion dofs for body
+  int mocapid;   // mocap id, -1: not mocap
+  int bodyadr_;  // address of body in model, -1: not compiled
 
   int    contype;      // OR over geom contypes
   int    conaffinity;  // OR over geom conaffinities
@@ -1648,6 +1649,7 @@ class mjCBodyPair : public mjCBodyPair_, private mjsExclude {
 
 class mjCEquality_ : public mjCBase {
  protected:
+  int         eqadr_;
   int         obj1id;
   int         obj2id;
   std::string name1_;
@@ -1783,7 +1785,10 @@ class mjCWrap : public mjCWrap_, private mjsWrap {
 
 class mjCPlugin_ : public mjCBase {
  public:
-  int                                             nstate;  // state size for the plugin instance
+  int nstate;  // state size for the plugin instance
+  int stateadr_;
+  int statenum_;
+
   std::map<std::string, std::string, std::less<>> config_attribs;  // raw config attributes from XML
   std::vector<char> flattened_attributes;  // config attributes flattened in plugin-declared order;
 
@@ -1819,18 +1824,21 @@ class mjCActuator_ : public mjCBase {
   int trnid[2];  // id of transmission target
 
   // variable used for temporarily storing the state of the actuator
-  int     actadr_;                                   // address of dof in data->act
-  int     actdim_;                                   // number of dofs in data->act
-  int     ctrladr_;                                  // address of first control in data->ctrl
-  int     ctrlnum_;                                  // number of controls
-  int     ctrlspec_;                                 // resolved input signature, scoped by gaintype
-  int     outadr_;                                   // address of first force output
-  int     outnum_;                                   // number of force outputs, from trntype
-  bool    so3_;                                      // compiles to an SO3 transmission
-  double  ctrlranges_[4][2];                         // resolved per-input control ranges
-  mjtByte ctrllimiteds_[4];                          // resolved per-input limited flags
+  int     actadr_;            // address of dof in data->act
+  int     actdim_;            // number of dofs in data->act
+  int     ctrladr_;           // address of first control in data->ctrl
+  int     ctrlnum_;           // number of controls
+  int     ctrlspec_;          // resolved input signature, scoped by gaintype
+  int     outadr_;            // address of first force output
+  int     outnum_;            // number of force outputs, from trntype
+  int     historyadr_;        // address in data->history
+  int     historynum_;        // number of elements in data->history
+  bool    so3_;               // compiles to an SO3 transmission
+  double  ctrlranges_[4][2];  // resolved per-input control ranges
+  mjtByte ctrllimiteds_[4];   // resolved per-input limited flags
+
   std::map<std::string, std::vector<mjtNum>> act_;   // act at the previous step
-  std::map<std::string, mjtNum>              ctrl_;  // ctrl at the previous step
+  std::map<std::string, std::vector<mjtNum>> ctrl_;  // ctrl at the previous step
 
   // variable-size data
   std::string         plugin_name;
@@ -1870,7 +1878,7 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   bool is_actlimited() const;
 
   std::vector<mjtNum>& act(const std::string& state_name);
-  mjtNum&              ctrl(const std::string& state_name);
+  std::vector<mjtNum>& ctrl(const std::string& state_name);
 
  private:
   void Compile(void);  // compiler
@@ -1892,6 +1900,9 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
 
 class mjCSensor_ : public mjCBase {
  protected:
+  int historyadr_;  // address in data->history
+  int historynum_;  // number of elements in data->history
+
   // variable-size data
   std::string         plugin_name;
   std::string         plugin_instance_name;
