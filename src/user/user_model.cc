@@ -5324,6 +5324,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     timer[mjCTIMER_ASSETS] = Seconds(Clock::now() - t0).count();
   }
 
+  // frames cache their accumulated pose, recompute it in every compile
+  for (mjCFrame* frame : frames_) { frame->compiled = false; }
+
   // compile objects in kinematic tree
   for (int i = 0; i < bodies_.size(); i++) {
     bodies_[i]->Compile();  // also compiles joints, geoms, sites, cameras, lights, frames

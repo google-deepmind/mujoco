@@ -21,6 +21,7 @@
 
 #include <array>
 #include <clocale>
+#include <cmath>
 #include <cstdio>
 #include <string>
 
@@ -30,11 +31,13 @@
 #include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 #include "src/xml/xml_numeric_format.h"
+#include "test/compare_model.h"
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
 
+using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::FloatEq;
 using ::testing::HasSubstr;
@@ -759,6 +762,9 @@ TEST_F(XMLWriterTest, WritesFrameDefaults) {
               </body>
             </frame>
           </frame>
+          <frame name="f4" childclass="main">
+            <geom size=".2"/>
+          </frame>
         </frame>
         <frame>
           <light pos="0 0 1"/>
@@ -779,20 +785,23 @@ TEST_F(XMLWriterTest, WritesFrameDefaults) {
 
   <worldbody>
     <body name="body">
-      <frame name="f2" childclass="dframe">
-        <geom pos="0 2 0"/>
-        <frame name="f3" childclass="dframe">
-          <frame childclass="dframe">
-            <body pos="1 3 0">
+      <frame name="f2" childclass="dframe" pos="0 1 0">
+        <geom pos="0 1 0"/>
+        <frame name="f3" pos="0 1 0">
+          <frame pos="0 1 0">
+            <body pos="1 0 0">
               <geom pos="0 0 1"/>
             </body>
           </frame>
         </frame>
+        <frame name="f4" childclass="main">
+          <geom size="0.2"/>
+        </frame>
       </frame>
       <light pos="0 0 1"/>
     </body>
-    <frame name="f1">
-      <geom size="0.5" quat="0.906308 0 0 0.422618"/>
+    <frame name="f1" quat="0.965926 0 0 0.258819">
+      <geom size="0.5" quat="0.984808 0 0 0.173648"/>
     </frame>
   </worldbody>
 </mujoco>
@@ -803,6 +812,253 @@ TEST_F(XMLWriterTest, WritesFrameDefaults) {
   EXPECT_THAT(model.get(), NotNull()) << error.data();
   std::string saved_xml = SaveAndReadXml(model.get());
   EXPECT_STREQ(saved_xml.c_str(), xml_expected);
+}
+
+// frames survive save/load with their authored pose, every element type under
+// them is written frame-relative, and the compiled model is unchanged
+TEST_F(XMLWriterTest, FramesRoundTrip) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tetra" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+    </asset>
+    <worldbody>
+      <frame name="f1" pos="1 2 3" euler="0 0 90">
+        <geom name="ball" size=".1" pos=".1 .2 .3" euler="30 0 0"/>
+        <geom name="mesh" type="mesh" mesh="tetra" pos=".1 0 0" euler="0 30 0"/>
+        <site name="site" pos="0 .1 0" euler="0 45 0"/>
+        <camera name="cam" pos="0 0 1" euler="0 0 45"/>
+        <light name="light" pos="0 0 2" dir="1 0 -1"/>
+        <frame pos="0 0 1" euler="90 0 0">
+          <body name="b1" pos="1 0 0" euler="0 90 0">
+            <joint name="hinge" pos=".1 .2 .3" axis="0 1 0"/>
+            <geom size=".1"/>
+            <body name="b2" pos="0 1 0">
+              <frame pos=".3 .2 .1" euler="0 0 90">
+                <joint name="framed_slide" type="slide" pos=".1 0 0" axis="1 0 0"/>
+                <frame euler="90 0 0">
+                  <joint name="framed_hinge" pos="0 .2 .3" axis="0 0 1"/>
+                </frame>
+              </frame>
+              <geom size=".1"/>
+            </body>
+          </body>
+        </frame>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+
+  FullFloatPrecision increase_precision;
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull());
+
+  // save and reload
+  std::string saved = SaveAndReadXml(spec);
+  mjSpec* spec2 =
+      mj_parseXMLString(saved.c_str(), nullptr, error.data(), error.size());
+  ASSERT_THAT(spec2, NotNull()) << error.data() << "\n" << saved;
+  mjModel* model2 = mj_compile(spec2, nullptr);
+  ASSERT_THAT(model2, NotNull());
+
+  // the frame is still there with its authored pose
+  mjsFrame* f1 = mjs_findFrame(spec2, "f1");
+  ASSERT_THAT(f1, NotNull());
+  EXPECT_THAT(f1->pos, ElementsAre(1, 2, 3));
+  EXPECT_THAT(f1->quat, ElementsAre(DoubleNear(std::sqrt(0.5), 1e-12), 0, 0,
+                                    DoubleNear(std::sqrt(0.5), 1e-12)));
+
+  // joints inside frames keep their authored, frame-relative anchor and axis
+  mjsJoint* slide =
+      mjs_asJoint(mjs_findElement(spec2, mjOBJ_JOINT, "framed_slide"));
+  mjsJoint* hinge =
+      mjs_asJoint(mjs_findElement(spec2, mjOBJ_JOINT, "framed_hinge"));
+  ASSERT_THAT(slide, NotNull());
+  ASSERT_THAT(hinge, NotNull());
+  const double slide_pos[3] = {.1, 0, 0}, slide_axis[3] = {1, 0, 0};
+  const double hinge_pos[3] = {0, .2, .3}, hinge_axis[3] = {0, 0, 1};
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NEAR(slide->pos[i], slide_pos[i], 1e-12);
+    EXPECT_NEAR(slide->axis[i], slide_axis[i], 1e-12);
+    EXPECT_NEAR(hinge->pos[i], hinge_pos[i], 1e-12);
+    EXPECT_NEAR(hinge->axis[i], hinge_axis[i], 1e-12);
+  }
+
+  // the compiled model is unchanged
+  std::string field;
+  EXPECT_LT(CompareModel(model, model2, field), MjTol(1e-12, 1e-6)) << field;
+
+  mj_deleteModel(model2);
+  mj_deleteSpec(spec2);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// quaternion product and pose composition in double precision
+static void MulQuat(double res[4], const double a[4], const double b[4]) {
+  double q[4] = {a[0] * b[0] - a[1] * b[1] - a[2] * b[2] - a[3] * b[3],
+                 a[0] * b[1] + a[1] * b[0] + a[2] * b[3] - a[3] * b[2],
+                 a[0] * b[2] - a[1] * b[3] + a[2] * b[0] + a[3] * b[1],
+                 a[0] * b[3] + a[1] * b[2] - a[2] * b[1] + a[3] * b[0]};
+  for (int i = 0; i < 4; i++) {
+    res[i] = q[i];
+  }
+}
+
+static void MulPose(double pos[3], double quat[4], const double pos1[3],
+                    const double quat1[4], const double pos2[3],
+                    const double quat2[4]) {
+  // rotate pos2 by quat1: q * (0, v) * q'
+  double v[4] = {0, pos2[0], pos2[1], pos2[2]};
+  double conj[4] = {quat1[0], -quat1[1], -quat1[2], -quat1[3]};
+  double tmp[4];
+  MulQuat(tmp, quat1, v);
+  MulQuat(tmp, tmp, conj);
+  for (int i = 0; i < 3; i++) {
+    pos[i] = pos1[i] + tmp[i + 1];
+  }
+  MulQuat(quat, quat1, quat2);
+}
+
+// a frame inside a free-aligned body stays where it was and keeps the authored
+// poses of its contents
+TEST_F(XMLWriterTest, FramesInAlignedBody) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body" pos="0 0 1" euler="0 30 0">
+        <freejoint align="true"/>
+        <geom type="box" size=".1 .2 .3" pos=".5 0 0" euler="0 0 30"/>
+        <frame name="outer" pos="0 1 0" euler="0 0 90">
+          <geom name="geom" size=".1" pos=".2 0 0"/>
+          <frame name="inner" pos="0 0 .5" euler="90 0 0">
+            <site name="site" pos="0 .3 0"/>
+            <camera name="camera" pos="0 0 .4"/>
+            <light name="light" pos="0 0 .5" dir="1 0 0"/>
+          </frame>
+        </frame>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  FullFloatPrecision increase_precision;
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull());
+
+  // world pose of the outer frame, before alignment: body pose times frame pose
+  mjsBody* body = mjs_findBody(spec, "body");
+  mjsFrame* outer = mjs_findFrame(spec, "outer");
+  double body_quat[4], outer_quat[4];
+  mjs_resolveOrientation(body_quat, true, "xyz", &body->alt);
+  mjs_resolveOrientation(outer_quat, true, "xyz", &outer->alt);
+  double pos[3], quat[4];
+  MulPose(pos, quat, body->pos, body_quat, outer->pos, outer_quat);
+
+  // save and reload
+  std::string saved = SaveAndReadXml(spec);
+  mjSpec* spec2 =
+      mj_parseXMLString(saved.c_str(), nullptr, error.data(), error.size());
+  ASSERT_THAT(spec2, NotNull()) << error.data() << "\n" << saved;
+  mjModel* model2 = mj_compile(spec2, nullptr);
+  ASSERT_THAT(model2, NotNull());
+
+  // the body was aligned, the frame did not move
+  mjsBody* body2 = mjs_findBody(spec2, "body");
+  mjsFrame* outer2 = mjs_findFrame(spec2, "outer");
+  ASSERT_THAT(outer2, NotNull());
+  EXPECT_GT(std::abs(body->pos[0] - body2->pos[0]), 0.1)
+      << "body was not aligned";
+  double pos2[3], quat2[4];
+  MulPose(pos2, quat2, body2->pos, body2->quat, outer2->pos, outer2->quat);
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NEAR(pos2[i], pos[i], 1e-12) << saved;
+  }
+  double dot = 0;
+  for (int i = 0; i < 4; i++) {
+    dot += quat[i] * quat2[i];
+  }
+  EXPECT_NEAR(std::abs(dot), 1, 1e-12) << saved;
+
+  // contents keep their authored frame-relative positions
+  mjsGeom* geom = mjs_asGeom(mjs_findElement(spec2, mjOBJ_GEOM, "geom"));
+  mjsSite* site = mjs_asSite(mjs_findElement(spec2, mjOBJ_SITE, "site"));
+  mjsCamera* camera =
+      mjs_asCamera(mjs_findElement(spec2, mjOBJ_CAMERA, "camera"));
+  mjsLight* light = mjs_asLight(mjs_findElement(spec2, mjOBJ_LIGHT, "light"));
+  const double geom_pos[3] = {.2, 0, 0}, site_pos[3] = {0, .3, 0};
+  const double camera_pos[3] = {0, 0, .4}, light_pos[3] = {0, 0, .5},
+               light_dir[3] = {1, 0, 0};
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NEAR(geom->pos[i], geom_pos[i], 1e-12) << saved;
+    EXPECT_NEAR(site->pos[i], site_pos[i], 1e-12) << saved;
+    EXPECT_NEAR(camera->pos[i], camera_pos[i], 1e-12) << saved;
+    EXPECT_NEAR(light->pos[i], light_pos[i], 1e-12) << saved;
+    EXPECT_NEAR(light->dir[i], light_dir[i], 1e-12) << saved;
+  }
+
+  // the compiled model is unchanged
+  std::string field;
+  EXPECT_LT(CompareModel(model, model2, field), MjTol(1e-12, 1e-6)) << field;
+
+  mj_deleteModel(model2);
+  mj_deleteSpec(spec2);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// a body's plugin is written once, not again inside each of the body's frames
+TEST_F(XMLWriterTest, BodyPluginWrittenOnce) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.elasticity.cable"/>
+    </extension>
+    <worldbody>
+      <body name="body">
+        <joint type="ball"/>
+        <geom type="capsule" size=".01" fromto="0 0 0 .1 0 0"/>
+        <plugin plugin="mujoco.elasticity.cable">
+          <config key="twist" value="1e6"/>
+          <config key="bend" value="1e6"/>
+        </plugin>
+        <frame name="frame" pos="0 0 1">
+          <site name="site"/>
+        </frame>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  std::string saved = SaveAndReadXml(spec);
+
+  // one plugin element inside the body, none inside the frame
+  size_t body_begin = saved.find("<body name=\"body\"");
+  size_t frame_begin = saved.find("<frame name=\"frame\"");
+  size_t frame_end = saved.find("</frame>");
+  ASSERT_NE(body_begin, std::string::npos) << saved;
+  ASSERT_NE(frame_begin, std::string::npos) << saved;
+  int nplugin = 0;
+  for (size_t at = saved.find("<plugin", body_begin); at != std::string::npos;
+       at = saved.find("<plugin", at + 1)) {
+    nplugin++;
+    EXPECT_FALSE(at > frame_begin && at < frame_end) << saved;
+  }
+  EXPECT_EQ(nplugin, 1) << saved;
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
 }
 
 TEST_F(XMLWriterTest, WritesDensity) {

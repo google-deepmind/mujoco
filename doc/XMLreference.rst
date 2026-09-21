@@ -169,7 +169,8 @@ Meta elements
 
 These elements are not strictly part of the low-level MJCF format definition, but rather instruct the compiler to
 perform some operation on the model. A general property of meta-elements is that they disappear from the model upon
-saving the XML. There are currently six meta-elements in MJCF:
+saving the XML; the exception is :ref:`frame<frame>`, which is preserved. There are currently six meta-elements in
+MJCF:
 
 - :ref:`include<include>`, :ref:`frame<frame>`, and :ref:`replicate<replicate>` which are outside of the schema.
 - :ref:`composite<body-composite>`, :ref:`flexcomp<body-flexcomp>` and :ref:`attach<body-attach>` which are part of the
@@ -181,46 +182,10 @@ saving the XML. There are currently six meta-elements in MJCF:
 ^^^^^^^^^^^^^
 
 The frame meta-element is a pure coordinate transformation that can wrap any group of elements in the kinematic tree
-(under :ref:`worldbody<body>`). After compilation, frame elements disappear and their transformation is accumulated
-in their direct children. The attributes of the frame meta-element are documented :ref:`below<body-frame>`.
-
-.. collapse:: Usage example of frame
-
-   Loading this model and saving it:
-
-   .. code-block:: xml
-
-      <mujoco>
-        <worldbody>
-          <frame quat="0 0 1 0">
-             <geom name="Alice" quat="0 1 0 0" size="1"/>
-          </frame>
-
-          <frame pos="0 1 0">
-            <geom name="Bob" pos="0 1 0" size="1"/>
-            <body name="Carl" pos="1 0 0">
-              ...
-            </body>
-          </frame>
-        </worldbody>
-      </mujoco>
-
-   Results in this model:
-
-   .. code-block:: xml
-
-      <mujoco>
-        <worldbody>
-          <geom name="Alice" quat="0 0 0 1" size="1"/>
-          <geom name="Bob" pos="0 2 0" size="1"/>
-          <body name="Carl" pos="1 1 0">
-            ...
-          </body>
-        </worldbody>
-      </mujoco>
-
-   Note that in the saved model, the frame elements have disappeared but their transformation was accumulated with those
-   of their child elements.
+(under :ref:`worldbody<body>`). At compile time the transformation is accumulated into the frame's direct children;
+frames have no counterpart in :ref:`mjModel`. Unlike the other meta-elements, frames are preserved when the model is
+saved: the frame is written with its pose and its contents in frame-relative coordinates, so a saved model reloads
+with the same frames. The attributes of the frame meta-element are documented :ref:`below<body-frame>`.
 
 .. _replicate:
 
@@ -4229,8 +4194,8 @@ the saved XML file. Note that this element is a subset of the functionality of t
 :el-prefix:`body/` |-| **frame** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Frames specify a coordinate transformation which is applied to all child elements. They disappear during compilation
-and the transformation they encode is accumulated in their direct children. See :ref:`frame<frame>` for examples.
+Frames specify a coordinate transformation which is applied to all child elements. During compilation the
+transformation they encode is accumulated in their direct children; frames are preserved when the model is saved.
 
 .. _frame-name:
 

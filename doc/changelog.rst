@@ -21,6 +21,10 @@ General
   :ref:`mjpResourceProvider` interface to mount and read archive containers (such as
   ``.mjz``/``.zip``), decoupling container handling from format decoders and enabling
   on-demand asset extraction without requiring a pre-allocated :ref:`VFS<Virtualfilesystem>`.
+- :ref:`Frames<frame>` are now preserved when saving MJCF: ``<frame>`` elements are written with their ``pos`` and
+  ``quat`` and their contents in frame-relative coordinates, so a saved model reloads with the same frames. Previously
+  the frame transformation was accumulated into the children on save and only the frame's name was kept. Changes to the
+  ``pos`` or ``quat`` of a frame in an :ref:`mjSpec` now also take effect when the spec is recompiled.
 
 
 Engine

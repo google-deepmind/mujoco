@@ -2784,6 +2784,11 @@ void mjCBody::Compile(void) {
       mjuu_frameaccumChild(ipos_inverse, iquat_inverse, lights[i]->pos, qunit);
       mjuu_rotVecQuat(lights[i]->dir, lights[i]->dir, iquat_inverse);
     }
+
+    // frames: keep them in place relative to their contents, for the writer
+    for (int i = 0; i < frames.size(); i++) {
+      mjuu_frameaccumChild(ipos_inverse, iquat_inverse, frames[i]->pos, frames[i]->quat);
+    }
   }
 }
 

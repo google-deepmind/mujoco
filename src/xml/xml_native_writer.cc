@@ -382,9 +382,15 @@ void mjXWriter::OneJoint(XMLElement*     elem,
                  &def->Joint().spec,
                  kJointAttrs,
                  kJointAttrsN);
-  if (joint->type != mjJNT_FREE) { WriteAttr(elem, "pos", 3, joint->pos, def->Joint().spec.pos); }
+  // pos and axis relative to the joint's frame
+  double pos[3], axis[3], iquat[4] = {1, 0, 0, 0};
+  mjuu_copyvec(pos, joint->pos, 3);
+  mjuu_copyvec(axis, joint->axis, 3);
+  FrameLocal(joint->frame, pos, iquat);
+  mjuu_rotVecQuat(axis, axis, iquat);
+  if (joint->type != mjJNT_FREE) { WriteAttr(elem, "pos", 3, pos, def->Joint().spec.pos); }
   if (joint->type != mjJNT_FREE && joint->type != mjJNT_BALL) {
-    WriteAttr(elem, "axis", 3, joint->axis, def->Joint().spec.axis);
+    WriteAttr(elem, "axis", 3, axis, def->Joint().spec.axis);
   }
   if (joint->type != mjJNT_FREE) {
     WriteAttrKey(elem, "limited", FalseTrueAuto_map, 3, joint->limited, def->Joint().limited);
@@ -422,30 +428,16 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
     }
     if (mjuu_defined(geom->mass)) { mass = geom->GetVolume() * def->Geom().density; }
 
-    // mesh geom
-    if (geom->type == mjGEOM_MESH || geom->type == mjGEOM_SDF) {
-      mjCMesh* mesh = geom->mesh;
-
-      // write pos/quat if there is a difference
-      if (!SameVector(geom->pos, mesh->GetPosPtr(), 3) ||
-          !SameVector(geom->quat, mesh->GetQuatPtr(), 4)) {
-        // recover geom pos/quat before mesh frame transformation
-        double p[3], q[4];
-        mjuu_copyvec(p, geom->pos, 3);
-        mjuu_copyvec(q, geom->quat, 4);
-        mjuu_frameaccuminv(p, q, mesh->GetPosPtr(), mesh->GetQuatPtr());
-
-        // write
-        WriteAttr(elem, "pos", 3, p, unitq + 1);
-        WriteAttr(elem, "quat", 4, q, unitq);
-      }
+    // pose: undo the mesh transformation, then the frame
+    double pos[3], quat[4];
+    mjuu_copyvec(pos, geom->pos, 3);
+    mjuu_copyvec(quat, geom->quat, 4);
+    if ((geom->type == mjGEOM_MESH || geom->type == mjGEOM_SDF) && geom->mesh) {
+      mjuu_frameaccuminv(pos, quat, geom->mesh->GetPosPtr(), geom->mesh->GetQuatPtr());
     }
-
-    // non-mesh geom
-    else {
-      WriteAttr(elem, "pos", 3, geom->pos, unitq + 1);
-      WriteAttr(elem, "quat", 4, geom->quat, unitq);
-    }
+    FrameLocal(geom->frame, pos, quat);
+    WriteAttr(elem, "pos", 3, pos, unitq + 1);
+    WriteAttr(elem, "quat", 4, quat, unitq);
   } else {
     WriteAttr(elem, "size", 3, geom->size, def->Geom().size);
   }
@@ -505,30 +497,16 @@ void mjXWriter::OneSite(XMLElement* elem, const mjCSite* site, mjCDef* def, stri
       WriteAttr(elem, "size", mjGEOMINFO[site->type], site->size, def->Site().size);
     }
 
-    // mesh site
-    if (site->type == mjGEOM_MESH) {
-      mjCMesh* mesh = site->mesh;
-
-      // write pos/quat if there is a difference
-      if (!SameVector(site->pos, mesh->GetPosPtr(), 3) ||
-          !SameVector(site->quat, mesh->GetQuatPtr(), 4)) {
-        // recover site pos/quat before mesh frame transformation
-        double p[3], q[4];
-        mjuu_copyvec(p, site->pos, 3);
-        mjuu_copyvec(q, site->quat, 4);
-        mjuu_frameaccuminv(p, q, mesh->GetPosPtr(), mesh->GetQuatPtr());
-
-        // write
-        WriteAttr(elem, "pos", 3, p, unitq + 1);
-        WriteAttr(elem, "quat", 4, q, unitq);
-      }
+    // pose: undo the mesh transformation, then the frame
+    double pos[3], quat[4];
+    mjuu_copyvec(pos, site->pos, 3);
+    mjuu_copyvec(quat, site->quat, 4);
+    if (site->type == mjGEOM_MESH && site->mesh) {
+      mjuu_frameaccuminv(pos, quat, site->mesh->GetPosPtr(), site->mesh->GetQuatPtr());
     }
-
-    // non-mesh site
-    else {
-      WriteAttr(elem, "pos", 3, site->pos, unitq + 1);
-      WriteAttr(elem, "quat", 4, site->quat, unitq);
-    }
+    FrameLocal(site->frame, pos, quat);
+    WriteAttr(elem, "pos", 3, pos, unitq + 1);
+    WriteAttr(elem, "quat", 4, quat, unitq);
   } else {
     WriteAttr(elem, "size", 3, site->size, def->Site().size);
   }
@@ -562,6 +540,10 @@ void mjXWriter::OneCamera(XMLElement*      elem,
                           string_view      classname) {
   double unitq[4] = {1, 0, 0, 0};
 
+  // pose relative to the camera's frame
+  mjsCamera local = *static_cast<const mjsCamera*>(camera);
+  FrameLocal(camera->frame, local.pos, local.quat);
+
   // regular
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", camera->name);
@@ -569,15 +551,11 @@ void mjXWriter::OneCamera(XMLElement*      elem,
       WriteAttrTxt(elem, "class", camera->classname);
     }
     WriteAttrTxt(elem, "target", camera->get_targetbody());
-    WriteAttr(elem, "quat", 4, camera->quat, unitq);
+    WriteAttr(elem, "quat", 4, local.quat, unitq);
   }
 
   // defaults and regular
-  WriteAttrTable(elem,
-                 static_cast<const mjsCamera*>(camera),
-                 &def->Camera().spec,
-                 kCameraAttrs,
-                 kCameraAttrsN);
+  WriteAttrTable(elem, &local, &def->Camera().spec, kCameraAttrs, kCameraAttrsN);
 
   // camera intrinsics if specified
   if (camera->sensor_size[0] > 0 && camera->sensor_size[1] > 0) {
@@ -612,12 +590,14 @@ void mjXWriter::OneLight(XMLElement*     elem,
     WriteAttrTxt(elem, "target", light->get_targetbody());
   }
 
+  // pos and dir relative to the light's frame
+  mjsLight local    = *static_cast<const mjsLight*>(light);
+  double   iquat[4] = {1, 0, 0, 0};
+  FrameLocal(light->frame, local.pos, iquat);
+  mjuu_rotVecQuat(local.dir, local.dir, iquat);
+
   // defaults and regular
-  WriteAttrTable(elem,
-                 static_cast<const mjsLight*>(light),
-                 &def->Light().spec,
-                 kLightAttrs,
-                 kLightAttrsN);
+  WriteAttrTable(elem, &local, &def->Light().spec, kLightAttrs, kLightAttrsN);
   WriteAttrKey(elem, "type", lighttype_map, lighttype_sz, light->type, def->Light().type);
   WriteAttrTxt(elem, "texture", light->get_texture());
 }
@@ -1544,17 +1524,42 @@ void mjXWriter::Asset(XMLElement* root) {
 }
 
 
-XMLElement* mjXWriter::OneFrame(XMLElement* elem, mjCFrame* frame) {
-  if (!frame) { return elem; }
+// strip a frame from a compiled pose: pos/quat become relative to the frame
+void mjXWriter::FrameLocal(const mjCFrame* frame, double pos[3], double quat[4]) {
+  if (!frame) { return; }
+  double ipos[3], iquat[4];
+  mjuu_frameinvert(ipos, iquat, frame->pos, frame->quat);
+  mjuu_frameaccumChild(ipos, iquat, pos, quat);
+}
 
-  // TODO: empty classname should not occur (but does)
-  if (frame->name.empty() && (frame->classname.empty() || frame->classname == "main")) {
+
+XMLElement* mjXWriter::OneFrame(XMLElement* elem, mjCFrame* frame, string_view childclass) {
+  if (!frame) { return elem; }
+  double unitq[4] = {1, 0, 0, 0};
+
+  // pose relative to the parent frame
+  double pos[3], quat[4];
+  mjuu_copyvec(pos, frame->pos, 3);
+  mjuu_copyvec(quat, frame->quat, 4);
+  FrameLocal(frame->frame, pos, quat);
+
+  // omit unnamed identity frame with no childclass
+  bool has_class = !frame->classname.empty() && frame->classname != childclass;
+  if (frame->name.empty() && !has_class &&
+      SameVector(pos, unitq + 1, 3) && SameVector(quat, unitq, 4)) {
     return elem;
   }
 
   XMLElement* frame_elem = InsertEnd(elem, "frame");
   WriteAttrTxt(frame_elem, "name", frame->name);
-  if (frame->classname != "main") { WriteAttrTxt(frame_elem, "childclass", frame->classname); }
+
+  // childclass, unless inherited from the enclosing frame or body
+  if (has_class) {
+    WriteAttrTxt(frame_elem, "childclass", frame->classname);
+  }
+
+  WriteAttr(frame_elem, "pos", 3, pos, unitq + 1);
+  WriteAttr(frame_elem, "quat", 4, quat, unitq);
   return frame_elem;
 }
 
@@ -1574,9 +1579,13 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
       WriteAttrTxt(elem, "childclass", body->classname);
     }
 
-    // write pos if it's not {0, 0, 0}
-    if (body->pos[0] || body->pos[1] || body->pos[2]) { WriteAttr(elem, "pos", 3, body->pos); }
-    WriteAttr(elem, "quat", 4, body->quat, unitq);
+    // pose relative to the body's frame
+    double pos[3], quat[4];
+    mjuu_copyvec(pos, body->pos, 3);
+    mjuu_copyvec(quat, body->quat, 4);
+    FrameLocal(body->frame, pos, quat);
+    WriteAttr(elem, "pos", 3, pos, unitq + 1);
+    WriteAttr(elem, "quat", 4, quat, unitq);
     if (body->mocap) { WriteAttrKey(elem, "mocap", bool_map, 2, 1); }
 
     // gravity compensation
@@ -1666,8 +1675,8 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
              classname.empty() ? childclass : classname);
   }
 
-  // write plugin
-  if (body->plugin.active) { OnePlugin(InsertEnd(elem, "plugin"), &body->plugin); }
+  // write plugin, once: not again inside the body's frames
+  if (!frame && body->plugin.active) { OnePlugin(InsertEnd(elem, "plugin"), &body->plugin); }
 
   // write children recursively
   int i = 0, j = 0;
@@ -1694,9 +1703,12 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
 
       // write frame if its frame matches the current frame
       if (fframe->frame == frame) {
-        string classname =
-            fframe && !fframe->classname.empty() ? fframe->classname : body->classname;
-        Body(OneFrame(elem, fframe), body, fframe, childclass);
+        // class active around the new frame: the current frame's, else the body's
+        string classname = frame && !frame->classname.empty() ? frame->classname : body->classname;
+        Body(OneFrame(elem, fframe, classname.empty() ? childclass : classname),
+             body,
+             fframe,
+             childclass);
       }
     }
 

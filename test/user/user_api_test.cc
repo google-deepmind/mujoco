@@ -980,6 +980,64 @@ TEST_F(MujocoTest, RecompileEdit) {
   mj_deleteSpec(spec);
 }
 
+// editing a frame's pose after a compile takes effect in the next compile
+TEST_F(MujocoTest, RecompileEditFrame) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame name="outer" pos="0 0 1">
+        <frame name="inner" pos="1 0 0">
+          <geom name="geom" size=".1"/>
+          <body name="body">
+            <freejoint/>
+            <geom size=".1"/>
+          </body>
+        </frame>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* m1 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m1, NotNull());
+  int geom = mj_name2id(m1, mjOBJ_GEOM, "geom");
+  int body = mj_name2id(m1, mjOBJ_BODY, "body");
+  const mjtNum tol = MjTol(1e-12, 1e-6);
+  const mjtNum pos1[3] = {1, 0, 1};
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NEAR(m1->geom_pos[3 * geom + i], pos1[i], tol);
+    EXPECT_NEAR(m1->body_pos[3 * body + i], pos1[i], tol);
+  }
+
+  // move the outer frame; move the inner one and rotate it 90 degrees about z
+  mjsFrame* outer = mjs_findFrame(spec, "outer");
+  mjsFrame* inner = mjs_findFrame(spec, "inner");
+  outer->pos[2] = 5;
+  inner->pos[0] = 0;
+  inner->pos[1] = 2;
+  inner->quat[0] = inner->quat[3] = mju_sqrt(0.5);
+
+  mjModel* m2 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m2, NotNull());
+  const mjtNum pos2[3] = {0, 2, 5};
+  const mjtNum quat2[4] = {mju_sqrt(0.5), 0, 0, mju_sqrt(0.5)};
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NEAR(m2->geom_pos[3 * geom + i], pos2[i], tol);
+    EXPECT_NEAR(m2->body_pos[3 * body + i], pos2[i], tol);
+    EXPECT_NEAR(m2->qpos0[i], pos2[i], tol);
+  }
+  for (int i = 0; i < 4; i++) {
+    EXPECT_NEAR(m2->body_quat[4 * body + i], quat2[i], tol);
+  }
+
+  mj_deleteModel(m1);
+  mj_deleteModel(m2);
+  mj_deleteSpec(spec);
+}
+
 // ------------------- test cache with modified assets -------------------------
 
 TEST_F(MujocoTest, RecompileCompareObjCache) {
