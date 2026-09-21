@@ -136,8 +136,7 @@ class ViewerApp:
         and self.model is not None
         and self.data is not None
     ):
-      ux.setup_history(
-          self.step_control_state,
+      ux.reset_history(
           self.sim_history,
           self.ux_state,
           self.model,

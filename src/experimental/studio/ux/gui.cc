@@ -683,15 +683,38 @@ void SetSpeedIndex(StepControl* step_control, int& speed_index,
   step_control->SetSpeed(speed);
 }
 
-void LoadHistoryFrame(SimHistory& history, StepControl& step_control,
-                      const mjModel* model, mjData* data, int index) {
+void LoadHistoryFrame(SimHistory& history, const mjModel* model, mjData* data,
+                      int index) {
+  if (model == nullptr || data == nullptr) {
+    return;
+  }
   std::span<mjtNum> state = history.SetIndex(index);
   if (!state.empty()) {
-    // Pause simulation when entering history mode.
-    step_control.SetPauseState(StepControl::PauseState::kNormalPaused);
     mj_setState(model, data, state.data(), mjSTATE_INTEGRATION);
     mj_forward(model, data);
   }
+}
+
+void RecordHistoryFrame(SimHistory& history, SimulationTimelineState& timeline,
+                        const mjModel* model, const mjData* data) {
+  if (model == nullptr || data == nullptr) {
+    return;
+  }
+  std::span<mjtNum> state = history.AddToHistory();
+  if (!state.empty()) {
+    mj_getState(model, data, state.data(), mjSTATE_INTEGRATION);
+    timeline.sim_head_time = data->time;
+  }
+}
+
+void ResetHistory(SimHistory& history, SimulationTimelineState& timeline,
+                  const mjModel* model, const mjData* data) {
+  if (model == nullptr) {
+    return;
+  }
+  history.Init(mj_stateSize(model, mjSTATE_INTEGRATION));
+  timeline = SimulationTimelineState();
+  RecordHistoryFrame(history, timeline, model, data);
 }
 
 static std::string FormatTimelineTime(double time_in_s) {
@@ -734,7 +757,8 @@ static std::string FormatTimelineTime(double time_in_s) {
 
 void TimelineScrubberGui(const mjModel* model, mjData* data,
                          StepControl& step_control, SimHistory& history,
-                         SimulationTimelineState& timeline) {
+                         SimulationTimelineState& timeline,
+                         bool load_history_locally) {
   // Timeline scrubber: spine + sliding knob widget.
   const double max_time = timeline.sim_head_time;
   const int hist_size = history.Size();
@@ -861,7 +885,12 @@ void TimelineScrubberGui(const mjModel* model, mjData* data,
     }
 
     if (new_index != current_index) {
-      LoadHistoryFrame(history, step_control, model, data, new_index);
+      if (load_history_locally) {
+        LoadHistoryFrame(history, model, data, new_index);
+      } else {
+        history.SetIndex(new_index);
+      }
+      step_control.SetPauseState(StepControl::PauseState::kNormalPaused);
       current_index = new_index;
       t = static_cast<float>(current_index - hist_min) /
           static_cast<float>(hist_max - hist_min);
@@ -1082,8 +1111,13 @@ void SimulationGui(const SimulationGuiContext& ctx) {
       const float btn_w = (avail - spacing) / 2.0f;
 
       if (ImGui::Button(prev_label, ImVec2(btn_w, 0))) {
-        LoadHistoryFrame(*ctx.history, *ctx.step_control, ctx.model, ctx.data,
-                         ctx.history->GetIndex() - 1);
+        if (ctx.load_history_locally) {
+          LoadHistoryFrame(*ctx.history, ctx.model, ctx.data,
+                           ctx.history->GetIndex() - 1);
+        } else {
+          ctx.history->SetIndex(ctx.history->GetIndex() - 1);
+        }
+        ctx.step_control->SetPauseState(StepControl::PauseState::kNormalPaused);
       }
       ImGui::SetItemTooltip("%s", "Load previous frame from history");
       ImGui::SameLine();
@@ -1091,15 +1125,21 @@ void SimulationGui(const SimulationGuiContext& ctx) {
         if (ctx.history->GetIndex() == 0) {
           ctx.step_control->RequestSingleStep();
         } else {
-          LoadHistoryFrame(*ctx.history, *ctx.step_control, ctx.model, ctx.data,
-                           ctx.history->GetIndex() + 1);
+          if (ctx.load_history_locally) {
+            LoadHistoryFrame(*ctx.history, ctx.model, ctx.data,
+                             ctx.history->GetIndex() + 1);
+          } else {
+            ctx.history->SetIndex(ctx.history->GetIndex() + 1);
+          }
+          ctx.step_control->SetPauseState(
+              StepControl::PauseState::kNormalPaused);
         }
       }
       ImGui::SetItemTooltip("%s", "Load next frame from history / Single step");
 
       // Timeline scrubber.
       TimelineScrubberGui(ctx.model, ctx.data, *ctx.step_control, *ctx.history,
-                          *ctx.timeline);
+                          *ctx.timeline, ctx.load_history_locally);
     }
 
     // Keyframe controls.

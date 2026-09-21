@@ -403,21 +403,8 @@ void App::ResetPhysics() {
     mj_resetDataKeyframe(model(), data(), ui_.key_idx);
     mj_forward(model(), data());
   }
-  if (has_model()) {
-    const int state_size = mj_stateSize(model(), mjSTATE_INTEGRATION);
-    sim_history_.Init(state_size);
-  }
-  if (has_model() && has_data()) {
-    std::span<mjtNum> state = sim_history_.AddToHistory();
-    if (!state.empty()) {
-      mj_getState(model(), data(), state.data(), mjSTATE_INTEGRATION);
-    }
-  }
-  timeline_.sim_head_time = has_data() ? data()->time : 0.0;
-  timeline_.lh_width = 0.0f;
-  timeline_.rh_width = 0.0f;
-  timeline_.scrubber_active = false;
-  timeline_.scrubber_grab_offset = 0.0f;
+  ResetHistory(sim_history_, timeline_, has_model() ? model() : nullptr,
+               has_data() ? data() : nullptr);
   step_error_ = "";
   edit_error_ = "";
 }
@@ -481,11 +468,7 @@ void App::UpdatePhysics() {
   if (stepped) {
     profiler_.Update(model(), data());
     if (plugin_stepped) {
-      std::span<mjtNum> state = sim_history_.AddToHistory();
-      if (!state.empty()) {
-        mj_getState(model(), data(), state.data(), mjSTATE_INTEGRATION);
-        timeline_.sim_head_time = data()->time;
-      }
+      RecordHistoryFrame(sim_history_, timeline_, model(), data());
     }
   }
 
@@ -512,16 +495,12 @@ void App::PostStep(const mjModel* m, mjData* d) {
     }
   });
 
-  std::span<mjtNum> state = sim_history_.AddToHistory();
-  if (!state.empty()) {
-    mj_getState(m, d, state.data(), mjSTATE_INTEGRATION);
-    timeline_.sim_head_time = d->time;
-  }
+  RecordHistoryFrame(sim_history_, timeline_, m, d);
 }
 
 void App::LoadHistory(int offset) {
-  LoadHistoryFrame(sim_history_, step_control_, model(), data(),
-                             offset);
+  LoadHistoryFrame(sim_history_, model(), data(), offset);
+  step_control_.SetPauseState(StepControl::PauseState::kNormalPaused);
 }
 
 bool App::Update() {

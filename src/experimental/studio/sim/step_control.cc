@@ -70,6 +70,12 @@ StepControl::PauseState StepControl::GetPauseState() const {
   return pause_state_;
 }
 
+bool StepControl::ConsumeSingleStepRequest() {
+  const bool requested = single_step_;
+  single_step_ = false;
+  return requested;
+}
+
 StepControl::Status StepControl::Advance(mjModel* m, mjData* d) {
   if (!m) {
     return Status::kOk;
