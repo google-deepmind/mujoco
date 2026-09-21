@@ -437,6 +437,7 @@ void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource) {
   // mesh properties
   mesh->maxhullvert_ = maxhullvert_;
   mesh->inertia      = inertia;
+  mesh->smoothnormal = smoothnormal;
   std::copy(scale, scale + 3, mesh->scale);
 
   // mesh processed data
@@ -970,6 +971,9 @@ bool mjCMesh::LoadCachedMesh(mjCCache* cache, const mjResource* resource) {
 
     // check if inertia is different
     if (inertia != mesh->inertia) { return false; }
+
+    // check if normal generation is different
+    if (smoothnormal != mesh->smoothnormal) { return false; }
 
     // check if scale is different
     if (scale[0] != mesh->scale[0] || scale[1] != mesh->scale[1] || scale[2] != mesh->scale[2]) {
