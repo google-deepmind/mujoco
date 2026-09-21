@@ -1367,8 +1367,8 @@ bool mjCFlexcomp::MakeMesh(
 static int findstring(const char* buffer, int buffer_sz, const char* str) {
   int len = (int)strlen(str);
 
-  // scan buffer
-  for (int i = 0; i < buffer_sz - len; i++) {
+  // scan buffer, including a match ending at the last byte
+  for (int i = 0; i <= buffer_sz - len; i++) {
     // check for string at position i
     bool found = true;
     for (int k = 0; k < len; k++) {
@@ -1965,12 +1965,13 @@ void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
     throw mjCError(NULL, "GMSH file must begin with $MeshFormat");
   }
 
-  // check version, determine ascii or binary
-  double version;
-  int    binary;
-  if (sscanf(buffer + 11, "%lf %d", &version, &binary) != 2) {
-    throw mjCError(NULL, "Could not read GMSH file header");
-  }
+  // check version, determine ascii or binary; the resource buffer is not
+  // null-terminated, so parse a bounded copy of the version line
+  constexpr int kGmshVersionLineMax = 64;
+  stringstream  header(std::string(buffer + 11, std::min(buffer_sz - 11, kGmshVersionLineMax)));
+  double        version;
+  int           binary;
+  if (!(header >> version >> binary)) { throw mjCError(NULL, "Could not read GMSH file header"); }
   if (mju_round(100 * version) != 220 && mju_round(100 * version) != 410) {
     throw mjCError(NULL, "Only GMSH file format versions 4.1 and 2.2 are supported");
   }
@@ -1982,14 +1983,16 @@ void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
   int elemend   = findstring(buffer, buffer_sz, "$EndElements");
 
 
+  // check sections are present, before begin is offset past the section name
+  if (nodebegin < 0) { throw mjCError(NULL, "GMSH file missing $Nodes"); }
+  if (elembegin < 0) { throw mjCError(NULL, "GMSH file missing $Elements"); }
+
   // correct begin for string size, +1 for LF in binary (CRLF in Win ascii works)
   nodebegin += (int)strlen("$Nodes") + 1;
   elembegin += (int)strlen("$Elements") + 1;
 
-  // check sections
-  if (nodebegin < 0) { throw mjCError(NULL, "GMSH file missing $Nodes"); }
+  // check sections are closed
   if (nodeend < nodebegin) { throw mjCError(NULL, "GMSH file missing $EndNodes after $Nodes"); }
-  if (elembegin < 0) { throw mjCError(NULL, "GMSH file missing $Elements"); }
   if (elemend < elembegin) {
     throw mjCError(NULL, "GMSH file missing $EndElements after $Elements");
   }

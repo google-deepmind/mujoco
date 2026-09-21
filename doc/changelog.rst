@@ -57,6 +57,8 @@ Bug fixes
   register the forces that tendons apply to bodies (:issue:`832`).
 - :ref:`mjd_transitionFD` and :ref:`mjd_inverseFD` now raise an error when :ref:`sleeping<Sleeping>` is enabled.
   Previously, their repeated evaluations changed the sleep state, leading to internal errors or wrong derivatives.
+- Fixed an out-of-bounds read when parsing the header of a :ref:`GMSH file<gmsh-file-docs>` loaded by
+  :ref:`flexcomp<body-flexcomp>`. Truncated headers are now reported as an error.
 
 Version 3.13.0 (September 8, 2026)
 ----------------------------------
