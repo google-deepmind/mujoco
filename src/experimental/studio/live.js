@@ -156,7 +156,7 @@ var Module = {
   postRun: [],
   locateFile: function (path) {
     const baseURL = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf("/"));
-    return baseURL + wasmRuntimeDirectory + path;
+    return baseURL + "/" + wasmRuntimeDirectory + "/" + path;
   },
   print: console.log,
   printErr: text => {
