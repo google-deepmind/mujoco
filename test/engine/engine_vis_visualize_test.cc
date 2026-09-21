@@ -54,8 +54,10 @@ class MjvSceneTest : public MujocoTest {
 
 TEST_F(MjvSceneTest, UpdateScene) {
   const std::string xml_path = GetTestDataFilePath(kModelPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  ASSERT_THAT(model, NotNull()) << "Failed to load model from " << kModelPath;
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull())
+      << "Failed to load model from " << kModelPath << ": " << error;
 
   InitSceneObjects(model);
 
@@ -84,8 +86,10 @@ TEST_F(MjvSceneTest, UpdateScene) {
 
 TEST_F(MjvSceneTest, UpdateSceneGeomsExhausted) {
   const std::string xml_path = GetTestDataFilePath(kModelPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  ASSERT_THAT(model, NotNull()) << "Failed to load model from " << kModelPath;
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull())
+      << "Failed to load model from " << kModelPath << ": " << error;
 
   const int maxgeoms = 1;
   InitSceneObjects(model, maxgeoms);

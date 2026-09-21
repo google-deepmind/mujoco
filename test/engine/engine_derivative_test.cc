@@ -510,7 +510,10 @@ TEST_F(DerivativeTest, PassiveDvel) {
        {kTumblingThinObjectPath, kTumblingThinObjectEllipsoidPath}) {
     // load model
     const std::string xml_path = GetTestDataFilePath(local_path);
-    mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+    char error[1024];
+    mjModel* model =
+        mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+    ASSERT_THAT(model, NotNull()) << error;
     int nD = model->nD;
     mjData* data = mj_makeData(model);
     // allocate Jacobians
@@ -556,7 +559,9 @@ TEST_F(DerivativeTest, PassiveDvel) {
 // mj_stepSkip computes the same next state as mj_step
 TEST_F(DerivativeTest, StepSkip) {
   const std::string xml_path = GetTestDataFilePath(kDampedPendulumPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   int nq = model->nq;
   int nv = model->nv;
@@ -698,7 +703,9 @@ static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
 // compare FD derivatives to analytic derivatives of linear dynamical system
 TEST_F(DerivativeTest, LinearSystem) {
   const std::string xml_path = GetTestDataFilePath(kLinearPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   int nv = model->nv, nu = model->nu;
 
@@ -758,7 +765,9 @@ TEST_F(DerivativeTest, LinearSystem) {
 // check ctrl derivatives at the range limit
 TEST_F(DerivativeTest, ClampedCtrlDerivatives) {
   const std::string xml_path = GetTestDataFilePath(kLinearPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   int nv = model->nv, nu = model->nu;
 
@@ -909,8 +918,9 @@ TEST_F(DerivativeTest, SensorSkip) {
 // derivatives don't mutate the state
 TEST_F(DerivativeTest, NoStateMutation) {
   const std::string xml_path = GetTestDataFilePath(kModelPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data0 = mj_makeData(model);
   mjData* data = mj_makeData(model);
   int nv = model->nv, nu = model->nu, na = model->na, ns = model->nsensordata;
@@ -961,8 +971,9 @@ TEST_F(DerivativeTest, NoStateMutation) {
 // finite differencing is not supported with sleeping enabled
 TEST_F(DerivativeTest, FiniteDifferenceRejectsSleep) {
   const std::string xml_path = GetTestDataFilePath(kSleepEqualityPath);
-  MjModelPtr model(mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0));
-  ASSERT_THAT(model.get(), NotNull());
+  char error[1024];
+  MjModelPtr model(mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error)));
+  ASSERT_THAT(model.get(), NotNull()) << error;
   MjDataPtr data = MakeData(model);
   int nv = model->nv, ndx = 2 * nv + model->na;
   vector<mjtNum> A(ndx * ndx);
@@ -1039,7 +1050,9 @@ TEST_F(DerivativeTest, DenseSparseRneEquivalent) {
 // compare FD inverse derivatives to analytic derivatives of linear system
 TEST_F(DerivativeTest, LinearSystemInverse) {
   const std::string xml_path = GetTestDataFilePath(kLinearPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   int nv = model->nv;

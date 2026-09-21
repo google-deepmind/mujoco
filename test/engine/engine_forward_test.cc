@@ -194,7 +194,7 @@ static const char* const kArmatureEquivalencePath =
 // a gear ratio enforced by an equality
 TEST_F(ForwardTest, ArmatureEquivalence) {
   const std::string xml_path = GetTestDataFilePath(kArmatureEquivalencePath);
-  char error[1000];
+  char error[1024];
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
@@ -395,7 +395,9 @@ TEST_F(ImplicitIntegratorTest, EulerImplicitEquivalent) {
 // Joint and actuator damping should integrate identically under implicit
 TEST_F(ImplicitIntegratorTest, JointActuatorEquivalent) {
   const std::string xml_path = GetTestDataFilePath(kDampedActuatorsPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // take 1000 steps with Euler
@@ -427,7 +429,9 @@ TEST_F(ImplicitIntegratorTest, JointActuatorEquivalent) {
 TEST_F(ImplicitIntegratorTest, EnergyConservation) {
   const std::string xml_path =
       GetTestDataFilePath(kEnergyConservingPendulumPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   const int nstep = 500;  // number of steps to take
@@ -1410,7 +1414,9 @@ TEST_F(ActuatorTest, ExpectedAdhesionForce) {
 // Actuator force clamping at joints
 TEST_F(ActuatorTest, ActuatorForceClamping) {
   const std::string xml_path = GetTestDataFilePath(kJointForceClamp);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   data->ctrl[0] = 10;
@@ -1555,7 +1561,7 @@ TEST_F(ActuatorTest, DampRatio) {
 TEST_F(ActuatorTest, DampRatioTendon) {
   const std::string xml_path =
       GetTestDataFilePath("engine/testdata/actuation/tendon_dampratio.xml");
-  char error[1000];
+  char error[1024];
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
@@ -2892,7 +2898,7 @@ using ActEarlyTest = MujocoTest;
 TEST_F(ActEarlyTest, RemovesOneStepDelay) {
   const std::string xml_path =
       GetTestDataFilePath("engine/testdata/actuation/actearly.xml");
-  char error[1000];
+  char error[1024];
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
 
@@ -2943,7 +2949,7 @@ TEST_F(ActEarlyTest, RemovesOneStepDelay) {
 TEST_F(ActEarlyTest, DoesntChangeStateInMjForward) {
   const std::string xml_path =
       GetTestDataFilePath("engine/testdata/actuation/actearly.xml");
-  char error[1000];
+  char error[1024];
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
 
@@ -3036,7 +3042,9 @@ TEST_F(ActuatorTest, DisableActuatorOutOfRange) {
 
 TEST_F(ActuatorTest, TendonActuatorForceRange) {
   const std::string xml_path = GetTestDataFilePath(kTendonForceClamp);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   EXPECT_EQ(model->tendon_actfrclimited[0], 0);
