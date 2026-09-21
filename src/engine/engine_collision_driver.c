@@ -367,6 +367,7 @@ typedef struct {
     mjCPAIR_ELEM_ELEM,      // mj_collideElems
   } type;
   int conpos;
+  int group;                // filter group (-1: no filtering)
   union {
     struct { int g1, g2, ipair; } geom_geom;
     struct { int g, f; } geom_flex;
@@ -380,6 +381,7 @@ typedef struct {
 // initialize a default collision pair
 static inline void defaultPair(mjcPair* pair, int type) {
   pair->type = type;
+  pair->group = -1;
   // clear all fields in the union
   pair->elem_elem.f1 = -1;
   pair->elem_elem.e1 = -1;
@@ -1898,15 +1900,15 @@ typedef struct {
 
 // struct for collision task
 typedef struct {
-  mjPreContact* conbuffer;    // pre-contact buffer returned by collision functions
-  mjPreFlex* flexbuffer;      // pre-flex buffer returned by collision functions
-  int* nconbuffer;            // contact count for each collision pair
-  char* epabuffer;            // buffer for nativeccd
-  int ccd_size;               // size of nativeccd buffer
-  const mjcPair* pairbuffer;  // collision pairs
-  int npair;                  // number of collision pairs
-  int chunksize;              // number of pairs to process per task
-  int maxcon;                 // maximum number of contacts (size of conbuffer)
+  mjPreContact* conbuffer;  // pre-contact buffer returned by collision functions
+  mjPreFlex* flexbuffer;    // pre-flex buffer returned by collision functions
+  int* nconbuffer;          // contact count for each collision pair
+  char* epabuffer;          // buffer for nativeccd
+  int ccd_size;             // size of nativeccd buffer
+  mjcPair* pairbuffer;      // collision pairs
+  int npair;                // number of collision pairs
+  int chunksize;            // number of pairs to process per task
+  int maxcon;               // maximum number of contacts (size of conbuffer)
 } mjContactArg;
 
 
@@ -2132,6 +2134,124 @@ static void addPairContacts(const mjModel* m, mjData* d, const mjPreContact* pre
 }
 
 
+// filter precontacts across a group of collision pairs down to mjMAXCONPAIR
+// removes unselected precontacts in-place, resets group to -1, and updates nconbuffer
+static inline void filterPreContacts(mjData* d, mjContactArg* arg, int start, int group) {
+  int count = 0;
+  int num_pairs = 0;
+  for (int k = start; k < arg->npair; k++) {
+    if (arg->pairbuffer[k].group == group) {
+      count += arg->nconbuffer[k];
+      num_pairs++;
+    }
+  }
+
+  // if total contacts <= mjMAXCONPAIR, reset group on all pairs and return
+  if (count <= mjMAXCONPAIR) {
+    for (int k = start; k < arg->npair; k++) {
+      if (arg->pairbuffer[k].group == group) {
+        arg->pairbuffer[k].group = -1;
+      }
+    }
+    return;
+  }
+
+  mj_markStack(d);
+  int* pair_idx = mjSTACKALLOC(d, num_pairs, int);
+  int num_collected = 0;
+  for (int k = start; k < arg->npair; k++) {
+    if (arg->pairbuffer[k].group == group) {
+      pair_idx[num_collected++] = k;
+      arg->pairbuffer[k].group = -1;
+    }
+  }
+
+  mjtByte* selected = mjSTACKALLOC(d, count, mjtByte);
+  mjtNum* min_dist = mjSTACKALLOC(d, count, mjtNum);
+  memset(selected, 0, count);
+  for (int i = 0; i < count; i++) {
+    min_dist[i] = mjMAXVAL;
+  }
+
+  // start with deepest penetrating pre-contact (skip uninitialized pre-contacts)
+  int best = -1, best_k = -1, best_c = -1;
+  mjtNum bestdist = -mjMAXVAL;
+  int idx = 0;
+  for (int p = 0; p < num_pairs; p++) {
+    int k = pair_idx[p];
+    int conpos = arg->pairbuffer[k].conpos;
+    for (int c = 0; c < arg->nconbuffer[k]; c++, idx++) {
+      mjtNum dist = -arg->conbuffer[conpos + c].dist;
+      if (dist > bestdist) {
+        bestdist = dist;
+        best = idx;
+        best_k = k;
+        best_c = c;
+      }
+    }
+  }
+
+  // greedy furthest-point selection
+  int nselected = 0;
+  while (nselected < mjMAXCONPAIR && best >= 0) {
+    selected[best] = 1;
+    const mjtNum* bestpos = arg->conbuffer[arg->pairbuffer[best_k].conpos + best_c].pos;
+
+    int nextbest = -1, nextbest_k = -1, nextbest_c = -1;
+    mjtNum nextbestdist = -1;
+    idx = 0;
+    for (int p = 0; p < num_pairs; p++) {
+      int k = pair_idx[p];
+      int conpos = arg->pairbuffer[k].conpos;
+      for (int c = 0; c < arg->nconbuffer[k]; c++, idx++) {
+        if (selected[idx]) {
+          continue;
+        }
+
+        const mjtNum* pos = arg->conbuffer[conpos + c].pos;
+        mjtNum dx = pos[0] - bestpos[0];
+        mjtNum dy = pos[1] - bestpos[1];
+        mjtNum dz = pos[2] - bestpos[2];
+        mjtNum d2 = dx*dx + dy*dy + dz*dz;
+        if (d2 < min_dist[idx]) {
+          min_dist[idx] = d2;
+        }
+        if (min_dist[idx] > nextbestdist) {
+          nextbestdist = min_dist[idx];
+          nextbest = idx;
+          nextbest_k = k;
+          nextbest_c = c;
+        }
+      }
+    }
+
+    nselected++;
+    best = nextbest;
+    best_k = nextbest_k;
+    best_c = nextbest_c;
+  }
+
+  // compact selected precontacts in-place and update nconbuffer
+  idx = 0;
+  for (int p = 0; p < num_pairs; p++) {
+    int k = pair_idx[p];
+    int conpos = arg->pairbuffer[k].conpos;
+    int new_ncon = 0;
+    for (int c = 0; c < arg->nconbuffer[k]; c++, idx++) {
+      if (selected[idx]) {
+        if (new_ncon != c) {
+          arg->conbuffer[conpos + new_ncon] = arg->conbuffer[conpos + c];
+        }
+        new_ncon++;
+      }
+    }
+    arg->nconbuffer[k] = new_ncon;
+  }
+
+  mj_freeStack(d);
+}
+
+
 // compute contacts for a batch of collision pairs contained in a buffer of
 // stride 3 ints (g1, g2, ipair)
 // if buffer is NULL, results are read from arena starting at parena
@@ -2187,6 +2307,10 @@ static void mj_narrowphase(const mjModel* m, mjData* d, const mjcPair* buffer, i
 
   // fill in contact data
   for (int i = 0; i < npair; i++) {
+    if (pairbuffer[i].group >= 0) {
+      filterPreContacts(d, &arg, i, pairbuffer[i].group);
+    }
+
     int ncon = arg.nconbuffer[i];
     if (!ncon) {
       continue;
