@@ -56,6 +56,8 @@ FilamentContext::FilamentContext(const mjrfContextConfig* config)
   engine_config.commandBufferSizeMB *= 8;
   engine_config.perFrameCommandsSizeMB *= 8;
   engine_config.perRenderPassArenaSizeMB *= 8;
+  // A model can define several directional lights, and the headlight is one.
+  engine_config.enableMultipleDirectionalLights = true;
 
   filament::Engine::Builder engine_builder;
   engine_builder.config(&engine_config);
