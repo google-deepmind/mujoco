@@ -169,7 +169,7 @@ double mjuu_updateFrame(double       quat[4],
                         int          first);
 
 // eigenvalue decomposition of symmetric 3x3 matrix
-int mjuu_eig3(double eigval[3], double eigvec[9], double quat[4], const double mat[9]);
+MJAPI int mjuu_eig3(double eigval[3], double eigvec[9], double quat[4], const double mat[9]);
 
 // Jacobi eigenvalue decomposition of symmetric n×n matrix
 // eigval[n]: output eigenvalues, eigvec[n*n]: output eigenvectors (columns)

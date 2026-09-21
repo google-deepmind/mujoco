@@ -1097,12 +1097,34 @@ void mju_solve3(mjtNum x[3], const mjtNum A[9], const mjtNum b[3]) {
 
 //--------------------------- eigen decomposition --------------------------------------------------
 
-// eigenvalue decomposition of symmetric 3x3 matrix
-static const mjtNum eigEPS = mjMINVAL * 1000;
+// off-diagonal tolerance and eigenvalue swap threshold, relative to max element
+#ifdef mjUSESINGLE
+static const mjtNum eigTOL = 2e-6f;
+static const mjtNum eigEPS = 1e-5f;
+#else
+static const mjtNum eigTOL = 4e-15;
+static const mjtNum eigEPS = 1e-12;
+#endif
+
+// eigenvalue decomposition of symmetric 3x3 matrix, using eigTOL; returns number of iterations
 int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]) {
+  return mju_eig3Tol(eigval, eigvec, quat, mat, eigTOL);
+}
+
+
+// same as mju_eig3, stop when off-diagonal elements are below reltol times the largest element
+int mju_eig3Tol(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9],
+                mjtNum reltol) {
   mjtNum D[9], tmp[9];
-  mjtNum tau, t, c;
+  mjtNum tau, t;
   int iter, rk, ck, rotk;
+
+  // off-diagonal tolerance: no smaller than the roundoff level of D, about 16 epsilons
+  mjtNum scale = 0;
+  for (int i=0; i < 9; i++) {
+    scale = mju_max(scale, mju_abs(mat[i]));
+  }
+  mjtNum tol = scale * mju_max(reltol, eigTOL);
 
   // initialize with unit quaternion
   quat[0] = 1;
@@ -1136,32 +1158,23 @@ int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum ma
     }
 
     // terminate if max off-diagonal element too small
-    if (mju_abs(D[3*rk+ck]) < eigEPS) {
+    if (mju_abs(D[3*rk+ck]) <= tol) {
       break;
     }
 
-    // 2x2 symmetric Schur decomposition
+    // 2x2 symmetric Schur decomposition: t = tan(angle)
     tau = (D[4*ck]-D[4*rk])/(2*D[3*rk+ck]);
     if (tau >= 0) {
       t = 1.0/(tau + mju_sqrt(1 + tau*tau));
     } else {
       t = -1.0/(-tau + mju_sqrt(1 + tau*tau));
     }
-    c = 1.0/mju_sqrt(1 + t*t);
 
-    // terminate if cosine too close to 1
-    if (c > 1.0-eigEPS) {
-      break;
-    }
-
-    // express rotation as quaternion
+    // express rotation as quaternion, using h = tan(angle/2): accurate for small angles
+    mjtNum h = t/(1 + mju_sqrt(1 + t*t));
+    tmp[0] = 1/mju_sqrt(1 + h*h);
     tmp[1] = tmp[2] = tmp[3] = 0;
-    tmp[rotk+1] = (tau >= 0 ? -mju_sqrt(0.5-0.5*c) : mju_sqrt(0.5-0.5*c));
-    if (rotk == 1) {
-      tmp[rotk+1] = -tmp[rotk+1];
-    }
-    tmp[0] = mju_sqrt(1.0 - tmp[rotk+1]*tmp[rotk+1]);
-    mju_normalize4(tmp);
+    tmp[rotk+1] = (rotk == 1 ? h : -h) * tmp[0];
 
     // accumulate quaternion rotation
     mju_mulQuat(quat, quat, tmp);
@@ -1169,11 +1182,12 @@ int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum ma
   }
 
   // sort eigenvalues in decreasing order (bubble sort: 0, 1, 0)
+  mjtNum eps = scale * eigEPS;
   for (int j=0; j < 3; j++) {
     int j1 = j%2;       // lead index
 
     // only swap if the eigenvalues are different
-    if (eigval[j1]+eigEPS < eigval[j1+1]) {
+    if (eigval[j1]+eps < eigval[j1+1]) {
       // swap eigenvalues
       t = eigval[j1];
       eigval[j1] = eigval[j1+1];

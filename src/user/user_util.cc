@@ -653,11 +653,17 @@ double mjuu_updateFrame(double       quat[4],
 
 
 // eigenvalue decomposition of symmetric 3x3 matrix
-static const double kEigEPS = 1E-12;
+static const double kEigTOL = 4E-15;  // off-diagonal tolerance, relative to the largest element
+static const double kEigEPS = 1E-12;  // eigenvalues closer than this are not reordered
 int mjuu_eig3(double eigval[3], double eigvec[9], double quat[4], const double mat[9]) {
   double D[9], tmp[9], tmp2[9];
-  double tau, t, c;
+  double tau, t;
   int    iter, rk, ck, rotk;
+
+  // off-diagonal tolerance: roundoff level of D, about 16 epsilons of the largest element
+  double scale = 0;
+  for (int i = 0; i < 9; i++) { scale = std::max(scale, std::abs(mat[i])); }
+  double tol = scale * kEigTOL;
 
   // initialize with unit quaternion
   quat[0] = 1;
@@ -692,26 +698,23 @@ int mjuu_eig3(double eigval[3], double eigvec[9], double quat[4], const double m
     }
 
     // terminate if max off-diagonal element too small
-    if (std::abs(D[3 * rk + ck]) < kEigEPS) { break; }
+    if (std::abs(D[3 * rk + ck]) <= tol) { break; }
 
-    // 2x2 symmetric Schur decomposition
+    // 2x2 symmetric Schur decomposition: t = tan(angle)
     tau = (D[4 * ck] - D[4 * rk]) / (2 * D[3 * rk + ck]);
     if (tau >= 0) {
       t = 1.0 / (tau + sqrt(1 + tau * tau));
     } else {
       t = -1.0 / (-tau + sqrt(1 + tau * tau));
     }
-    c = 1.0 / sqrt(1 + t * t);
 
-    // terminate if cosine too close to 1
-    if (c > 1.0 - kEigEPS) { break; }
-
-    // express rotation as quaternion
-    tmp[1] = tmp[2] = tmp[3] = 0;
-    tmp[rotk + 1]            = (tau >= 0 ? -sqrt(0.5 - 0.5 * c) : sqrt(0.5 - 0.5 * c));
-    if (rotk == 1) { tmp[rotk + 1] = -tmp[rotk + 1]; }
-    tmp[0] = sqrt(1.0 - tmp[rotk + 1] * tmp[rotk + 1]);
-    mjuu_normvec(tmp, 4);
+    // express rotation as quaternion, using h = tan(angle/2): accurate for small angles
+    double h      = t / (1 + sqrt(1 + t * t));
+    tmp[0]        = 1 / sqrt(1 + h * h);
+    tmp[1]        = 0;
+    tmp[2]        = 0;
+    tmp[3]        = 0;
+    tmp[rotk + 1] = (rotk == 1 ? h : -h) * tmp[0];
 
     // accumulate quaternion rotation
     mjuu_mulquat(quat, quat, tmp);
@@ -719,11 +722,12 @@ int mjuu_eig3(double eigval[3], double eigvec[9], double quat[4], const double m
   }
 
   // sort eigenvalues in decreasing order (bubblesort: 0, 1, 0)
+  double eps = scale * kEigEPS;
   for (int j = 0; j < 3; j++) {
     int j1 = j % 2;  // lead index
 
     // only swap if the eigenvalues are different
-    if (eigval[j1] + kEigEPS < eigval[j1 + 1]) {
+    if (eigval[j1] + eps < eigval[j1 + 1]) {
       // swap eigenvalues
       t              = eigval[j1];
       eigval[j1]     = eigval[j1 + 1];

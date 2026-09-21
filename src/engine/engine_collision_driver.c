@@ -1262,7 +1262,7 @@ static void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
 
 //----------------------------- broad-phase collision detection ------------------------------------
 
-// make AAMM (xmin[3], xmax[3]) for one bodyflex
+// make AAMM (xmin[3], xmax[3]) for one bodyflex, in the frame whose axes are the rows of frame
 static void makeAAMM(const mjModel* m, mjData* d,
                      mjtNum* x_min, mjtNum* y_min, mjtNum* z_min,
                      mjtNum* x_max, mjtNum* y_max, mjtNum* z_max,
@@ -1436,7 +1436,7 @@ static inline int SAPcmp(mjtSAP* obj1, mjtSAP* obj2, void* context) {
   if (obj1->value < obj2->value) {
     return -1;
   } else if (obj1->value == obj2->value) {
-    return 0;
+    return (obj1->id_ismax & 0x10000) - (obj2->id_ismax & 0x10000);
   } else {
     return 1;
   }
@@ -1587,7 +1587,7 @@ static int mj_broadphase(const mjModel* m, mjData* d, mjPacked32* bfpair, int ma
   int nvert = m->nflexvert, nflex = m->nflex, nbodyflex = m->nbody + m->nflex;
   int dsbl_filterparent = mjDISABLED(mjDSBL_FILTERPARENT);
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < nbody;
-  mjtNum cov[9], cen[3], eigval[3], frame[9], quat[4];
+  mjtNum cov[9], cen[3], eigval[3], eigvec[9], frame[9], quat[4];
 
   // init with pairs involving always-colliding bodies
   for (int b1=0; b1 < nbody; b1++) {
@@ -1666,8 +1666,10 @@ static int mj_broadphase(const mjModel* m, mjData* d, mjPacked32* bfpair, int ma
   }
   mju_scl(cov, cov, 1.0/cnt, 9);
 
-  // construct covariance-aligned 3D frame
-  mju_eig3(eigval, frame, quat, cov);
+  // construct covariance-aligned 3D frame: eigenvectors are columns of eigvec, rows of frame
+  // SAP is exact in any frame, a rough one prunes as well
+  mju_eig3Tol(eigval, eigvec, quat, cov, 1e-3);
+  mji_transpose3(frame, eigvec);
 
   // allocate collidable bodyflex ids, construct list
   mj_markStack(d);
