@@ -2117,7 +2117,14 @@ class mjCDef : public mjsElement {
   mjsDefault spec;
   mjCModel*  model;  // pointer to model that owns object
 
+  void AddRef() { ++refcount; }
+  int  GetRef() { return refcount; }
+  void Release() {
+    if (--refcount == 0) { delete this; }
+  }
+
  private:
+  int         refcount = 1;
   mjCJoint    joint_;
   mjCGeom     geom_;
   mjCSite     site_;

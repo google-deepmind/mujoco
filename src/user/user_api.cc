@@ -1738,19 +1738,15 @@ mjsBody* mjs_findChild(const mjsBody* bodyspec, const char* name) {
 mjsBody* mjs_getParent(const mjsElement* element) {
   switch (element->elemtype) {
     case mjOBJ_BODY:
-      return &(static_cast<const mjCBody*>(element)->GetParent()->spec);
     case mjOBJ_FRAME:
-      return &(static_cast<const mjCFrame*>(element)->GetParent()->spec);
     case mjOBJ_JOINT:
-      return &(static_cast<const mjCJoint*>(element)->GetParent()->spec);
     case mjOBJ_GEOM:
-      return &(static_cast<const mjCGeom*>(element)->GetParent()->spec);
     case mjOBJ_SITE:
-      return &(static_cast<const mjCSite*>(element)->GetParent()->spec);
     case mjOBJ_CAMERA:
-      return &(static_cast<const mjCCamera*>(element)->GetParent()->spec);
-    case mjOBJ_LIGHT:
-      return &(static_cast<const mjCLight*>(element)->GetParent()->spec);
+    case mjOBJ_LIGHT: {
+      mjCBody* parent = static_cast<mjCBody*>(static_cast<const mjCBase*>(element)->GetParent());
+      return parent ? &parent->spec : nullptr;
+    }
     default:
       return nullptr;
   }
@@ -2620,4 +2616,30 @@ void mjs_setAuthored(const void* elem_ptr, const void* field_ptr, int authored) 
 
 #undef SET_FIELD
 #undef SET_FIELD_VEC
+}
+
+
+// increment reference count of element (for internal bindings use only)
+void _mjPRIVATE_addRefElement(mjsElement* element) {
+  if (!element) { return; }
+  if (element->elemtype == mjOBJ_DEFAULT) {
+    static_cast<mjCDef*>(element)->AddRef();
+    return;
+  }
+  // embedded sub-elements inside mjCDef are by-value members with model == nullptr
+  mjCBase* base = static_cast<mjCBase*>(element);
+  if (base->model) { base->AddRef(); }
+}
+
+
+// decrement reference count of element (for internal bindings use only)
+void _mjPRIVATE_releaseElement(mjsElement* element) {
+  if (!element) { return; }
+  if (element->elemtype == mjOBJ_DEFAULT) {
+    static_cast<mjCDef*>(element)->Release();
+    return;
+  }
+  // embedded sub-elements inside mjCDef are by-value members with model == nullptr
+  mjCBase* base = static_cast<mjCBase*>(element);
+  if (base->model) { base->Release(); }
 }

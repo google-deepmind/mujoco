@@ -1793,6 +1793,8 @@ void mjCBody::CopyList(std::vector<T*>&          dst,
 mjCBody& mjCBody::operator-=(const mjCBody& subtree) {
   for (int i = 0; i < bodies.size(); i++) {
     if (bodies[i] == &subtree) {
+      bodies[i]->SetParent(nullptr);
+      bodies[i]->frame = nullptr;
       bodies.erase(bodies.begin() + i);
       break;
     }
@@ -1889,13 +1891,20 @@ void mjCBody::CopyPlugin() {
 
 // destructor
 mjCBody::~mjCBody() {
-  for (int i = 0; i < bodies.size(); i++) bodies[i]->Release();
-  for (int i = 0; i < geoms.size(); i++) geoms[i]->Release();
-  for (int i = 0; i < frames.size(); i++) frames[i]->Release();
-  for (int i = 0; i < joints.size(); i++) joints[i]->Release();
-  for (int i = 0; i < sites.size(); i++) sites[i]->Release();
-  for (int i = 0; i < cameras.size(); i++) cameras[i]->Release();
-  for (int i = 0; i < lights.size(); i++) lights[i]->Release();
+  auto release_children = [](auto& list) {
+    for (auto* child : list) {
+      child->SetParent(nullptr);
+      child->frame = nullptr;
+      child->Release();
+    }
+  };
+  release_children(bodies);
+  release_children(geoms);
+  release_children(frames);
+  release_children(joints);
+  release_children(sites);
+  release_children(cameras);
+  release_children(lights);
 }
 
 
@@ -6175,7 +6184,7 @@ void mjCTendon::CopyFromSpec() {
 // desctructor
 mjCTendon::~mjCTendon() {
   // delete objects allocated here
-  for (unsigned int i = 0; i < path.size(); i++) { delete path[i]; }
+  for (unsigned int i = 0; i < path.size(); i++) { path[i]->Release(); }
 
   path.clear();
 }

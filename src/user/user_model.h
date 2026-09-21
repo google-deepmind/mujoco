@@ -535,6 +535,5 @@ class mjCModel : public mjCModel_, private mjSpec {
   bool                   deepcopy_;          // copy objects when attaching
   bool                   attached_ = false;  // true if model is attached to a parent model
   std::unordered_map<const mjsCompiler*, mjSpec*> compiler2spec_;  // map from compiler to spec
-  std::vector<mjCBase*>                           detached_;       // list of detached objects
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_

@@ -508,6 +508,7 @@ void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
       element->ResolveReferences(this);
     } catch (mjCError err) {
       ids[element->elemtype].erase(element->name);
+      element->id = -1;
       element->Release();
       list.erase(list.begin() + i);
       nlist--;
@@ -554,6 +555,7 @@ void mjCModel::RemovePlugins() {
     if (plugins_[i]->name.empty()) { continue; }
     if (instances.find(plugins_[i]->name) == instances.end()) {
       ids[plugins_[i]->elemtype].erase(plugins_[i]->name);
+      plugins_[i]->id = -1;
       plugins_[i]->Release();
       plugins_.erase(plugins_.begin() + i);
       nlist--;
@@ -659,7 +661,8 @@ mjCModel& mjCModel::operator-=(const mjCDef& subtree) {
   std::sort(default_ids_to_remove.begin(), default_ids_to_remove.end(), std::greater<int>());
 
   for (int id : default_ids_to_remove) {
-    delete defaults_[id];
+    defaults_[id]->id = -1;
+    defaults_[id]->Release();
     defaults_.erase(defaults_.begin() + id);
   }
 
@@ -693,14 +696,6 @@ void mjCModel::DeleteSubtreePlugin(mjCBody* subtree) {
 
 // remove the element from the model
 void mjCModel::operator-=(mjsElement* el) {
-  if (el->elemtype == mjOBJ_BODY) {
-    mjCBody* body  = static_cast<mjCBody*>(el);
-    *this         -= *body;
-  }
-
-  detached_.push_back(static_cast<mjCBase*>(el));
-  ResetTreeLists();
-
   if (el->elemtype != mjOBJ_DEFAULT) {
     if (static_cast<mjCBase*>(el)->model != this) {
       throw mjCError(nullptr, "element is not in this model");
@@ -710,6 +705,13 @@ void mjCModel::operator-=(mjsElement* el) {
       throw mjCError(nullptr, "default is not in this model");
     }
   }
+
+  if (el->elemtype == mjOBJ_BODY) {
+    mjCBody* body  = static_cast<mjCBody*>(el);
+    *this         -= *body;
+  }
+
+  ResetTreeLists();
 
   switch (el->elemtype) {
     case mjOBJ_BODY: {
@@ -783,6 +785,8 @@ void mjCModel::operator-=(mjsElement* el) {
 
   // update signature after we updated everything
   spec.element->signature = Signature();
+
+  static_cast<mjCBase*>(el)->Release();
 }
 
 
@@ -1071,10 +1075,9 @@ mjCModel::~mjCModel() {
   for (int i = 0; i < texts_.size(); i++) texts_[i]->Release();
   for (int i = 0; i < tuples_.size(); i++) tuples_[i]->Release();
   for (int i = 0; i < keys_.size(); i++) keys_[i]->Release();
-  for (int i = 0; i < defaults_.size(); i++) delete defaults_[i];
+  for (int i = 0; i < defaults_.size(); i++) defaults_[i]->Release();
   for (int i = 0; i < specs_.size(); i++) mj_deleteSpec(specs_[i]);
   for (int i = 0; i < plugins_.size(); i++) plugins_[i]->Release();
-  for (int i = 0; i < detached_.size(); i++) detached_[i]->Release();
 
   // clear sizes and pointer lists created in Compile
   Clear();

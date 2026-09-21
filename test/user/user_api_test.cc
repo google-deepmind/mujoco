@@ -3816,5 +3816,29 @@ TEST_F(MujocoTest, AttachPreservesJointOrder) {
   mj_deleteSpec(parent);
   mj_deleteSpec(reimported);
 }
+
+TEST_F(MujocoTest, DeleteReclaimsMemoryImmediately) {
+  mjSpec* spec = mj_makeSpec();
+  mjsBody* world = mjs_findBody(spec, "world");
+
+  int cleanup_count = 0;
+  auto cleanup = +[](const void* data) {
+    *static_cast<int*>(const_cast<void*>(data)) += 1;
+  };
+
+  mjsBody* body = mjs_addBody(world, nullptr);
+  mjsGeom* geom = mjs_addGeom(body, nullptr);
+  mjs_setUserValueWithCleanup(body->element, "tracker", &cleanup_count,
+                              cleanup);
+  mjs_setUserValueWithCleanup(geom->element, "tracker", &cleanup_count,
+                              cleanup);
+
+  EXPECT_EQ(cleanup_count, 0);
+  EXPECT_EQ(mjs_delete(spec, body->element), 0);
+  EXPECT_EQ(cleanup_count, 2);
+
+  mj_deleteSpec(spec);
+  EXPECT_EQ(cleanup_count, 2);
+}
 }  // namespace
 }  // namespace mujoco

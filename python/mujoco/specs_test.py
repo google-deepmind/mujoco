@@ -2380,5 +2380,47 @@ class SpecsTest(absltest.TestCase):
     model = spec.compile()
     self.assertEqual(model.bind(equality).id, 0)
 
+  def test_delete_reclaims_memory_and_invalidates_bind(self):
+    spec = mujoco.MjSpec()
+    for i in range(100):
+      body = spec.worldbody.add_body(name=f'body_{i}')
+      joint = body.add_joint(
+          name=f'joint_{i}', type=mujoco.mjtJoint.mjJNT_HINGE
+      )
+      body.add_geom(size=[0.1, 0.1, 0.1])
+      act = spec.add_actuator(
+          name=f'act_{i}',
+          target=f'joint_{i}',
+          trntype=mujoco.mjtTrn.mjTRN_JOINT,
+      )
+      spec.delete(body)
+
+    model = spec.compile()
+    data = mujoco.MjData(model)
+    self.assertEqual(model.nbody, 1)
+    self.assertEqual(model.nu, 0)
+
+    # A Python reference to a deleted body or implicitly deleted actuator
+    # remains memory-safe for attribute access and raises IndexError on bind.
+    self.assertEqual(body.name, 'body_99')
+    self.assertIsNone(body.parent)
+    self.assertEqual(joint.name, 'joint_99')
+    self.assertEqual(act.name, 'act_99')
+    with self.assertRaisesRegex(IndexError, 'Invalid index -1'):
+      data.bind(body)
+    with self.assertRaisesRegex(IndexError, 'Invalid index -1'):
+      data.bind(joint)
+    with self.assertRaisesRegex(IndexError, 'Invalid index -1'):
+      data.bind(act)
+
+    # A child obtained via spec.joints (whose reference_internal parent is spec,
+    # not the body) stays alive with parent cleared to None once its body is
+    # deleted and freed.
+    spec.worldbody.add_body(name='temp_body').add_joint(name='orphan_joint')
+    orphan = spec.joints[-1]
+    spec.delete(spec.bodies[-1])
+    self.assertEqual(orphan.name, 'orphan_joint')
+    self.assertIsNone(orphan.parent)
+
 if __name__ == '__main__':
   absltest.main()
