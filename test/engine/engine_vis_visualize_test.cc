@@ -147,5 +147,38 @@ TEST_F(MjvSceneTest, PrincipalPointFrustumSign) {
   FreeSceneObjects();
 }
 
+TEST_F(MjvSceneTest, InvalidFixedCamId) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <camera name="cam" pos="0 0 1"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  InitSceneObjects(model.get());
+  cam_.type = mjCAMERA_FIXED;
+
+  cam_.fixedcamid = -1;
+  EXPECT_THAT(MjuErrorMessageFrom(mjv_updateCamera)(model.get(), data.get(),
+                                                    &cam_, &scn_),
+              ::testing::HasSubstr("fixed camera id is outside valid range"));
+  EXPECT_THAT(MjuErrorMessageFrom(mjv_cameraFrame)(nullptr, nullptr, nullptr,
+                                                   nullptr, data.get(), &cam_),
+              ::testing::HasSubstr("fixed camera id is outside valid range"));
+
+  cam_.fixedcamid = model->ncam;
+  EXPECT_THAT(MjuErrorMessageFrom(mjv_updateCamera)(model.get(), data.get(),
+                                                    &cam_, &scn_),
+              ::testing::HasSubstr("fixed camera id is outside valid range"));
+
+  FreeSceneObjects();
+}
+
 }  // namespace
 }  // namespace mujoco
