@@ -60,9 +60,11 @@ class ModelLights {
   UniquePtr<mjrfTexture> fallback_ibl_texture_{nullptr, nullptr};
   std::vector<UniquePtr<mjrfLight>> lights_;
   int shadowsize_ = 0;
+  int shadow_map_size_ = 0;
   float fallback_head_light_intensity_ = 0.f;
   float headlight_intensity_ = 0.f;
   float fallback_scene_light_intensity_ = 80'000.f;
+  float fallback_intensity_ = 0.f;
   float fallback_environment_light_intensity_ = 5'000.f;
 };
 

@@ -105,6 +105,35 @@ ModelLights::~ModelLights() {
   fallback_directional_.reset();
 }
 
+static float ComputeVsmBlurWidth(const mjModel* model, int i, float map_size) {
+  const float bulb_radius = model->light_bulbradius[i];
+  const float3 to_center =
+      ReadFloat3(model->stat.center) - ReadFloat3(model->light_pos0, i);
+  const float distance = std::max(length(to_center), 1e-6f);
+  const float bulb_angle = bulb_radius / distance;
+  float vsm_blur_width = 0.0f;
+  switch ((mjtLightType)model->light_type[i]) {
+    case mjLIGHT_SPOT: {
+      const float fov =
+          2.0f * model->light_cutoff[i] * std::numbers::pi / 180.0f;
+      vsm_blur_width = bulb_angle * map_size / fov;
+      break;
+    }
+    case mjLIGHT_POINT:
+      vsm_blur_width = bulb_angle * map_size / (0.5f * std::numbers::pi);
+      break;
+    case mjLIGHT_DIRECTIONAL: {
+      const float coverage =
+          2.0f * model->vis.map.shadowclip * model->stat.extent;
+      vsm_blur_width = bulb_radius * map_size / coverage;
+      break;
+    }
+    default:
+      break;
+  }
+  return std::min(vsm_blur_width, 125.0f);
+}
+
 void ModelLights::Prepare() {
   mjrfContext* ctx = model_objects_->GetContext();
   const mjModel* model = model_objects_->GetModel();
@@ -114,6 +143,7 @@ void ModelLights::Prepare() {
   int default_shadow_map_size = std::min(model->vis.quality.shadowsize, 2048);
   default_shadow_map_size =
       ReadElement(model, "filament.shadows.map_size", default_shadow_map_size);
+  shadow_map_size_ = default_shadow_map_size;
 
   bool has_image_based_light = false;
   bool has_directional_light = false;
@@ -145,34 +175,9 @@ void ModelLights::Prepare() {
       // to light-space texels, so we pass it through in meters for all types.
       // VSM requires a single uniform blur width for the map; we approximate
       // this using the angular size of the bulb from the scene center.
-      const float bulb_radius = model->light_bulbradius[i];
-      const float map_size = default_shadow_map_size;
-      const float3 to_center = ReadFloat3(model->stat.center) -
-                               ReadFloat3(model->light_pos0, i);
-      const float distance = std::max(length(to_center), 1e-6f);
-      const float bulb_angle = bulb_radius / distance;
-      params.bulb_radius = bulb_radius;
-      switch (params.type) {
-        case mjLIGHT_SPOT: {
-          const float fov =
-              2.0f * model->light_cutoff[i] * std::numbers::pi / 180.0f;
-          params.vsm_blur_width = bulb_angle * map_size / fov;
-          break;
-        }
-        case mjLIGHT_POINT:
-          params.vsm_blur_width =
-              bulb_angle * map_size / (0.5f * std::numbers::pi);
-          break;
-        case mjLIGHT_DIRECTIONAL: {
-          const float coverage =
-              2.0f * model->vis.map.shadowclip * model->stat.extent;
-          params.vsm_blur_width = bulb_radius * map_size / coverage;
-          break;
-        }
-        default:
-          break;
-      }
-      params.vsm_blur_width = std::min(params.vsm_blur_width, 125.0f);
+      params.bulb_radius = model->light_bulbradius[i];
+      params.vsm_blur_width =
+          ComputeVsmBlurWidth(model, i, default_shadow_map_size);
       params.range = model->light_range[i];
       params.intensity = model->light_intensity[i];
       params.shadow_map_size = default_shadow_map_size;
@@ -236,10 +241,10 @@ void ModelLights::Prepare() {
 
     // Distribute the fallback scene light intensity among the lights.
     if (!lights_.empty()) {
-      const float intensity = fallback_scene_light_intensity_ / lights_.size();
+      fallback_intensity_ = fallback_scene_light_intensity_ / lights_.size();
       for (auto& light : lights_) {
         if (light) {
-          mjrf_setLightIntensity(light.get(), intensity);
+          mjrf_setLightIntensity(light.get(), fallback_intensity_);
         }
       }
     }
@@ -252,9 +257,9 @@ void ModelLights::UpdateShadowMapSize() {
   const mjModel* model = model_objects_->GetModel();
   if (model->vis.quality.shadowsize != shadowsize_) {
     shadowsize_ = model->vis.quality.shadowsize;
-    const int map_size = std::min(shadowsize_, 2048);
+    shadow_map_size_ = std::min(shadowsize_, 2048);
     for (auto& light : lights_) {
-      mjrf_setLightShadowMapSize(light.get(), map_size);
+      mjrf_setLightShadowMapSize(light.get(), shadow_map_size_);
     }
   }
 }
@@ -265,6 +270,11 @@ void ModelLights::Update(const mjData* data) {
     return;
   }
   const mjModel* model = model_objects_->GetModel();
+  float total_light_intensity = 0.0f;
+  for (int i = 0; i < model->nlight; ++i) {
+    total_light_intensity += model->light_intensity[i];
+  }
+
   for (int i = 0; i < model->nlight; ++i) {
     mjrfLight* light = lights_[i].get();
     const float3 pos = ReadFloat3(data->light_xpos, i);
@@ -274,12 +284,15 @@ void ModelLights::Update(const mjData* data) {
     const float3 color = ReadFloat3(model->light_diffuse, i);
     mjrf_setLightEnabled(light, model->light_active[i]);
     mjrf_setLightColor(light, color.v);
-    mjrf_setLightIntensity(light, model->light_intensity[i]);
+    mjrf_setLightIntensity(light, total_light_intensity > 0.0f
+                                      ? model->light_intensity[i]
+                                      : fallback_intensity_);
     mjrf_setLightRange(light, model->light_range[i]);
     mjrf_setLightCutoffAngle(light, model->light_cutoff[i]);
     mjrf_setLightSoftness(light, model->light_softness[i]);
     mjrf_setLightBulbRadius(light, model->light_bulbradius[i]);
-    mjrf_setLightBlurWidth(light, model->light_bulbradius[i]);
+    mjrf_setLightBlurWidth(
+        light, ComputeVsmBlurWidth(model, i, shadow_map_size_));
     mjrf_setLightShadowsEnabled(light, model->light_castshadow[i]);
   }
 }
