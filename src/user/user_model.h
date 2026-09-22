@@ -315,8 +315,15 @@ class mjCModel : public mjCModel_, private mjSpec {
   const std::vector<mjCTuple*>&    Tuples() const { return tuples_; }
   const std::vector<mjCKey*>&      Keys() const { return keys_; }
   const std::vector<mjCPlugin*>&   Plugins() const { return plugins_; }
-  const std::vector<mjCBody*>&     Bodies() const { return bodies_; }
-  const std::vector<mjCGeom*>&     Geoms() const { return geoms_; }
+  // the kinematic tree lists are rebuilt on demand, see EnsureTreeLists
+  const std::vector<mjCBody*>& Bodies() {
+    EnsureTreeLists();
+    return bodies_;
+  }
+  const std::vector<mjCGeom*>& Geoms() {
+    EnsureTreeLists();
+    return geoms_;
+  }
 
   // resolve plugin instance, create a new one if needed
   void ResolvePlugin(mjCBase*           obj,
@@ -403,6 +410,15 @@ class mjCModel : public mjCModel_, private mjSpec {
   // clear the compilation signature after a structural change
   void InvalidateSignature() { spec.element->signature = 0; }
 
+  // mark the kinematic tree lists stale; EnsureTreeLists rebuilds them on the next read
+  void InvalidateTreeLists() { tree_lists_valid_ = false; }
+
+  // rebuild the kinematic tree lists if a tree edit has made them stale
+  void EnsureTreeLists();
+
+  // true if the kinematic tree lists reflect the current tree
+  bool TreeListsValid() const { return tree_lists_valid_; }
+
   // increment and decrement reference count
   void AddRef() { ++refcount; }
   int  GetRef() const { return refcount; }
@@ -475,6 +491,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   std::vector<mjCCamera*> cameras_;  // list of cameras
   std::vector<mjCLight*>  lights_;   // list of lights
   std::vector<mjCFrame*>  frames_;   // list of frames
+  bool                    tree_lists_valid_ = true;  // the lists above reflect the current tree
 
   // array of pointers to each object list (enumerated by type)
   std::array<std::vector<mjCBase*>*, mjNOBJECT> object_lists_;

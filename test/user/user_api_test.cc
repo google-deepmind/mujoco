@@ -931,6 +931,123 @@ TEST_F(MujocoTest, SignatureTracksCompilation) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, TreeListsAreRebuiltOnDemand) {
+  mjSpec* spec = mj_makeSpec();
+  mjsBody* world = mjs_findBody(spec, "world");
+
+  // build a small tree with one element of every tree type, without compiling
+  mjsBody* body = mjs_addBody(world, 0);
+  mjs_setName(body->element, "body");
+  mjsGeom* geom = mjs_addGeom(body, 0);
+  geom->size[0] = 1;
+  mjs_setName(geom->element, "geom");
+  mjsSite* site = mjs_addSite(body, 0);
+  mjs_setName(site->element, "site");
+  mjsJoint* joint = mjs_addJoint(body, 0);
+  mjs_setName(joint->element, "joint");
+  mjsCamera* camera = mjs_addCamera(body, 0);
+  mjs_setName(camera->element, "camera");
+  mjsLight* light = mjs_addLight(body, 0);
+  mjs_setName(light->element, "light");
+  mjsFrame* frame = mjs_addFrame(body, nullptr);
+  mjs_setName(frame->element, "frame");
+
+  // tree elements have no id until the lists are rebuilt; the world body is
+  // always 0
+  EXPECT_EQ(mjs_getId(world->element), 0);
+  EXPECT_EQ(mjs_getId(body->element), -1);
+  EXPECT_EQ(mjs_getId(geom->element), -1);
+  EXPECT_EQ(mjs_getId(frame->element), -1);
+
+  // lookup by name sees every element that was added
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_BODY, "body"), body->element);
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_GEOM, "geom"), geom->element);
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_SITE, "site"), site->element);
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_JOINT, "joint"), joint->element);
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_CAMERA, "camera"), camera->element);
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_LIGHT, "light"), light->element);
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_FRAME, "frame"), frame->element);
+
+  // compilation rebuilds the lists once and assigns ids in tree order
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(model->nbody, 2);
+  EXPECT_EQ(model->ngeom, 1);
+  EXPECT_EQ(model->nsite, 1);
+  EXPECT_EQ(model->njnt, 1);
+  EXPECT_EQ(model->ncam, 1);
+  EXPECT_EQ(model->nlight, 1);
+  EXPECT_EQ(mjs_getId(body->element), 1);
+  EXPECT_EQ(mjs_getId(geom->element), 0);
+  EXPECT_EQ(mjs_getId(site->element), 0);
+  EXPECT_EQ(mjs_getId(joint->element), 0);
+  EXPECT_EQ(mjs_getId(camera->element), 0);
+  EXPECT_EQ(mjs_getId(light->element), 0);
+
+  // editing a compiled spec invalidates the ids again, recompiling reassigns
+  // them
+  mjsBody* body2 = mjs_addBody(world, 0);
+  mjs_setName(body2->element, "body2");
+  mjsGeom* geom2 = mjs_addGeom(body2, 0);
+  geom2->size[0] = 1;
+  EXPECT_EQ(mjs_getId(body->element), -1);
+  EXPECT_EQ(mjs_getId(body2->element), -1);
+  EXPECT_EQ(mjs_getId(world->element), 0);
+  mj_deleteModel(model);
+  model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(model->nbody, 3);
+  EXPECT_EQ(model->ngeom, 2);
+  EXPECT_EQ(mjs_getId(body2->element), 2);
+  EXPECT_EQ(mjs_getId(geom2->element), 1);
+
+  // saving after an edit, without recompiling, sees the current tree
+  mjsBody* body3 = mjs_addBody(world, 0);
+  mjs_setName(body3->element, "body3");
+  mjsGeom* geom3 = mjs_addGeom(body3, 0);
+  geom3->size[0] = 1;
+  std::array<char, 1024> error;
+  std::array<char, 8192> xml;
+  ASSERT_THAT(mj_saveXMLString(spec, xml.data(), xml.size(), error.data(),
+                               error.size()),
+              0)
+      << error.data();
+  EXPECT_THAT(xml.data(), HasSubstr("body3"));
+
+  // deleting after edits rebuilds the lists and renumbers the ids
+  EXPECT_EQ(mjs_delete(spec, geom2->element), 0);
+  mj_deleteModel(model);
+  model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(model->nbody, 4);
+  EXPECT_EQ(model->ngeom, 2);
+  EXPECT_EQ(mjs_getId(geom->element), 0);
+  EXPECT_EQ(mjs_getId(geom3->element), 1);
+
+  // attaching after edits works on the current tree
+  mjSpec* child = mj_makeSpec();
+  mjsBody* child_body = mjs_addBody(mjs_findBody(child, "world"), 0);
+  mjs_setName(child_body->element, "attached");
+  mjsGeom* child_geom = mjs_addGeom(child_body, 0);
+  child_geom->size[0] = 1;
+  mjsBody* body4 = mjs_addBody(world, 0);
+  mjs_setName(body4->element, "body4");
+  mjsFrame* attach_frame = mjs_addFrame(body4, nullptr);
+  ASSERT_THAT(mjs_attach(attach_frame->element, child_body->element, "", ""),
+              NotNull())
+      << mjs_getError(spec);
+  mj_deleteModel(model);
+  model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(model->nbody, 6);
+  EXPECT_EQ(model->ngeom, 3);
+  EXPECT_EQ(mj_name2id(model, mjOBJ_BODY, "attached"), 5);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(child);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, RecompileFails) {
   mjSpec* spec = mj_makeSpec();
   mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);

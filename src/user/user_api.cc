@@ -1693,6 +1693,7 @@ mjsBody* mjs_findBody(const mjSpec* s, const char* name) {
 mjsElement* mjs_findElement(const mjSpec* s, mjtObj type, const char* name) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
   if (model->IsCompiled() && type != mjOBJ_FRAME) {
+    model->EnsureTreeLists();
     return model->FindObject(type, std::string(name));  // fast lookup
   }
   switch (type) {
@@ -1914,7 +1915,25 @@ int mjs_sensorDim(const mjsSensor* sensor) {
 // get id
 int mjs_getId(const mjsElement* element) {
   if (!element) { return -1; }
-  return static_cast<const mjCBase*>(element)->id;
+  const mjCBase* base = static_cast<const mjCBase*>(element);
+
+  // tree elements have no id until the tree lists are rebuilt, except the world body
+  switch (element->elemtype) {
+    case mjOBJ_BODY:
+    case mjOBJ_SITE:
+    case mjOBJ_GEOM:
+    case mjOBJ_JOINT:
+    case mjOBJ_CAMERA:
+    case mjOBJ_LIGHT:
+    case mjOBJ_FRAME:
+      if (base->model && !base->model->TreeListsValid() && base != base->model->GetWorld()) {
+        return -1;
+      }
+      break;
+    default:
+      break;
+  }
+  return base->id;
 }
 
 
