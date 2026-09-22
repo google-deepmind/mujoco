@@ -2,82 +2,84 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
+Version 3.14.0 (September 22, 2026)
 -----------------------------------
 
 General
 ^^^^^^^
 
-- Added the ``ipc`` :ref:`flag<option-flag-ipc>`, an experimental contact mode of the ``discrete`` integrator for
-  penetration-free flex contact. Each step minimizes an incremental potential subject to linearized contact
-  constraints, using a barrier-free augmented Lagrangian whose subproblems are the discrete solve. Every committed
-  position update is verified intersection-free by continuous collision detection, so flex contact cannot tunnel.
-  Supported for dim-2 flexes: a flex with edge equality constraints keeps its elasticity in the constraint solver,
-  while ``elastic2d`` elasticity is integrated implicitly through the effective metric. The contacts the mode resolves
-  are frictionless. The mode keeps contact multipliers across steps that no state specification covers, so
-  ``mj_getState``/``mj_setState`` do not capture its full state and exact replay is not supported.
-- Introduced :ref:`archive resource providers<mjp_registerArchiveResourceProvider>`
-  (``mjp_registerArchiveResourceProvider``). Archive providers use the
-  :ref:`mjpResourceProvider` interface to mount and read archive containers (such as
-  ``.mjz``/``.zip``), decoupling container handling from format decoders and enabling
-  on-demand asset extraction without requiring a pre-allocated :ref:`VFS<Virtualfilesystem>`.
-- :ref:`Frames<frame>` are now preserved when saving MJCF: ``<frame>`` elements are written with their ``pos`` and
-  ``quat`` and their contents in frame-relative coordinates, so a saved model reloads with the same frames. Previously
-  the frame transformation was accumulated into the children on save and only the frame's name was kept. Changes to the
-  ``pos`` or ``quat`` of a frame in an :ref:`mjSpec` now also take effect when the spec is recompiled.
+1. :commit:`458189298` Added the ``ipc`` :ref:`flag<option-flag-ipc>`, an experimental contact mode of the ``discrete``
+   integrator for penetration-free flex contact. Each step minimizes an incremental potential subject to linearized
+   contact constraints, using a barrier-free augmented Lagrangian whose subproblems are the discrete solve. Every
+   committed position update is verified intersection-free by continuous collision detection, so flex contact cannot
+   tunnel. Supported for dim-2 flexes: a flex with edge equality constraints keeps its elasticity in the constraint
+   solver, while ``elastic2d`` elasticity is integrated implicitly through the effective metric. The contacts the mode
+   resolves are frictionless. The mode keeps contact multipliers across steps that no state specification covers, so
+   ``mj_getState``/``mj_setState`` do not capture its full state and exact replay is not supported.
+2. :commit:`2fec92237` Introduced :ref:`archive resource providers<mjp_registerArchiveResourceProvider>`
+   (``mjp_registerArchiveResourceProvider``). Archive providers use the
+   :ref:`mjpResourceProvider` interface to mount and read archive containers (such as
+   ``.mjz``/``.zip``), decoupling container handling from format decoders and enabling
+   on-demand asset extraction without requiring a pre-allocated :ref:`VFS<Virtualfilesystem>`.
+3. :commit:`e312ce82d` :ref:`Frames<frame>` are now preserved when saving MJCF: ``<frame>`` elements are written with
+   their ``pos`` and ``quat`` and their contents in frame-relative coordinates, so a saved model reloads with the same
+   frames. Previously the frame transformation was accumulated into the children on save and only the frame's name was
+   kept. Changes to the ``pos`` or ``quat`` of a frame in an :ref:`mjSpec` now also take effect when the spec is
+   recompiled.
 
 
 Engine
 ^^^^^^
-- The :ref:`mjWARN_INERTIA <mjtWarning>` warning is now also raised by the modified-inertia factorizations of the
-  :at:`implicitfast` and damped-:at:`Euler` integrators (previously silent) and of the :at:`implicit` integrator
-  (previously a fatal error).
-- The sparse Newton solver no longer aborts with a "rank-deficient sparse Hessian" error when rounding loses a pivot of
-  its Hessian, as can happen in single precision with ill-conditioned inertia. The pivot is now clamped and its row
-  decoupled, as in the dense factorization.
-
 .. admonition:: Breaking API changes
    :class: attention
 
-   - :ref:`mj_readCtrl` now matches the signature and semantics of :ref:`mj_readSensor` to support multi-input
-     actuators (e.g., :ref:`pid<actuator-pid>`, :ref:`dcmotor<actuator-dcmotor>`,
-     :ref:`orientation<actuator-orientation>`): it takes an output buffer ``result`` of size ``actuator_ctrlnum[id]``
-     and returns ``const mjtNum*`` (a pointer into ``mjData.ctrl`` or ``mjData.history`` on zero-order-hold or exact
-     timestamp matches, or ``NULL`` when interpolated values are written to ``result``). Actuator history buffers now
-     store ``actuator_ctrlnum[id]`` values per sample, and :ref:`mj_initCtrlHistory` expects ``nsample *
-     actuator_ctrlnum[id]`` values (:issue:`3597`).
+   4. :commit:`dc8bb1364` :ref:`mj_readCtrl` now matches the signature and semantics of :ref:`mj_readSensor` to support
+      multi-input actuators (e.g., :ref:`pid<actuator-pid>`, :ref:`dcmotor<actuator-dcmotor>`,
+      :ref:`orientation<actuator-orientation>`): it takes an output buffer ``result`` of size ``actuator_ctrlnum[id]``
+      and returns ``const mjtNum*`` (a pointer into ``mjData.ctrl`` or ``mjData.history`` on zero-order-hold or exact
+      timestamp matches, or ``NULL`` when interpolated values are written to ``result``). Actuator history buffers now
+      store ``actuator_ctrlnum[id]`` values per sample, and :ref:`mj_initCtrlHistory` expects ``nsample *
+      actuator_ctrlnum[id]`` values (:issue:`3597`).
+
+5. :commit:`9e0c6b577` The :ref:`mjWARN_INERTIA <mjtWarning>` warning is now also raised by the modified-inertia
+   factorizations of the :at:`implicitfast` and damped-:at:`Euler` integrators (previously silent) and of the
+   :at:`implicit` integrator (previously a fatal error).
+6. :commit:`35c0631de` The sparse Newton solver no longer aborts with a "rank-deficient sparse Hessian" error when
+   rounding loses a pivot of its Hessian, as can happen in single precision with ill-conditioned inertia. The pivot is
+   now clamped and its row decoupled, as in the dense factorization.
 
 Bug fixes
 ^^^^^^^^^
-- Tendon :ref:`actuatorfrclimited<tendon-spatial-actuatorfrclimited>` now defaults to "auto" as documented.
-  Previously the default was "false" and :at:`actuatorfrcrange` was silently ignored unless :at:`actuatorfrclimited`
-  was set explicitly.
-- Fixed the torque applied by :ref:`weld<equality-weld>` constraints in :ref:`mj_rnePostConstraint`. The rotational
-  constraint force was used directly as a world-frame torque, missing the scaling by ``0.5 * torquescale`` and the
-  rotation into the world frame. :ref:`Force<sensor-force>` and :ref:`torque<sensor-torque>` sensors on bodies held
-  by a weld that carries torque were wrong (:issue:`2533`).
-- :ref:`mj_rnePostConstraint` now accounts for the forces of spatial tendons (spring, damper, actuator, limit,
-  friction loss, equality and armature), so :ref:`force<sensor-force>` and :ref:`torque<sensor-torque>` sensors
-  register the forces that tendons apply to bodies (:issue:`832`).
-- :ref:`mjd_transitionFD` and :ref:`mjd_inverseFD` now raise an error when :ref:`sleeping<Sleeping>` is enabled.
-  Previously, their repeated evaluations changed the sleep state, leading to internal errors or wrong derivatives.
-- Fixed a memory leak in :ref:`mjs_delete` where deleted elements and subtrees were retained in ``mjSpec`` until
-  :ref:`mj_deleteSpec` (:issue:`2882`).
-- Fixed an out-of-bounds read when parsing the header of a :ref:`GMSH file<gmsh-file-docs>` loaded by
-  :ref:`flexcomp<body-flexcomp>`. Truncated headers are now reported as an error.
-- Procedural model editing is no longer quadratic in the number of elements. ``mjSpec`` previously recomputed the
-  compilation signature on every :ref:`mjs_addGeom`-like call, and :ref:`mjs_setName` rescanned every name of the
-  element's type. Both are now incremental. Building a spec with 8000 geoms is roughly 10x faster.
+7. :commit:`2a3f1f5a4` Procedural model editing is no longer quadratic in the number of elements. ``mjSpec`` previously
+   recomputed the compilation signature on every :ref:`mjs_addGeom`-like call, and :ref:`mjs_setName` rescanned every
+   name of the element's type. Both are now incremental. Building a spec with 8000 geoms is roughly 10x faster.
 
-  .. admonition:: Breaking API changes
-     :class: attention
+   .. admonition:: Breaking API changes
+      :class: attention
 
-     ``mjsElement.signature`` is now ``0`` whenever the spec has been structurally edited since it was last compiled,
-     rather than being eagerly recomputed on each edit. It is still equal to ``mjModel.signature`` after a successful
-     :ref:`mj_compile`, which is what :ref:`mj_copyBack` and the Python ``bind`` methods rely on. Code that compared the
-     signature of an uncompiled spec against anything other than ``0`` must compile first. Additionally, when
-     :ref:`mjs_setName` fails on a duplicate name, the element's previous name is now preserved rather than being
-     overwritten with the duplicate name.
+      ``mjsElement.signature`` is now ``0`` whenever the spec has been structurally edited since it was last compiled,
+      rather than being eagerly recomputed on each edit. It is still equal to ``mjModel.signature`` after a successful
+      :ref:`mj_compile`, which is what :ref:`mj_copyBack` and the Python ``bind`` methods rely on. Code that compared the
+      signature of an uncompiled spec against anything other than ``0`` must compile first. Additionally, when
+      :ref:`mjs_setName` fails on a duplicate name, the element's previous name is now preserved rather than being
+      overwritten with the duplicate name.
+8. :commit:`ac329bd17` Fixed the torque applied by :ref:`weld<equality-weld>` constraints in
+   :ref:`mj_rnePostConstraint`. The rotational constraint force was used directly as a world-frame torque, missing the
+   scaling by ``0.5 * torquescale`` and the rotation into the world frame. :ref:`Force<sensor-force>` and
+   :ref:`torque<sensor-torque>` sensors on bodies held by a weld that carries torque were wrong (:issue:`2533`).
+9. :commit:`263c638c0` :ref:`mj_rnePostConstraint` now accounts for the forces of spatial tendons (spring, damper,
+   actuator, limit, friction loss, equality and armature), so :ref:`force<sensor-force>` and
+   :ref:`torque<sensor-torque>` sensors register the forces that tendons apply to bodies (:issue:`832`).
+10. :commit:`eb662fcaf` Tendon :ref:`actuatorfrclimited<tendon-spatial-actuatorfrclimited>` now defaults to "auto" as
+    documented. Previously the default was "false" and :at:`actuatorfrcrange` was silently ignored unless
+    :at:`actuatorfrclimited` was set explicitly.
+11. :commit:`54be9cce6` :ref:`mjd_transitionFD` and :ref:`mjd_inverseFD` now raise an error when
+    :ref:`sleeping<Sleeping>` is enabled. Previously, their repeated evaluations changed the sleep state, leading to
+    internal errors or wrong derivatives.
+12. :commit:`e38573c64` Fixed a memory leak in :ref:`mjs_delete` where deleted elements and subtrees were retained in
+    ``mjSpec`` until :ref:`mj_deleteSpec` (:issue:`2882`).
+13. :commit:`65ea54c3c` Fixed an out-of-bounds read when parsing the header of a :ref:`GMSH file<gmsh-file-docs>` loaded
+    by :ref:`flexcomp<body-flexcomp>`. Truncated headers are now reported as an error.
 
 Version 3.13.0 (September 8, 2026)
 ----------------------------------
