@@ -63,6 +63,8 @@ std::vector<std::string> GetWriteReadTestModels() {
             absl::StrContains(xml, "lengthrange") ||
             absl::StrContains(xml, "hfield_xml") ||
             absl::StrContains(xml, "fromto_convex") ||
+            absl::StrContains(xml, "fromto_body_body") ||
+            absl::StrContains(xml, "helix") ||
             absl::StrContains(xml, "cube_skin") ||
             absl::StrContains(xml, "cube_3x3x3") ||
             absl::StrContains(xml, "arch/gothic") ||
