@@ -433,6 +433,58 @@ TEST_F(MjCMeshTest, SaveMeshOnce) {
   mj_deleteModel(model);
 }
 
+// ------------------------------ strippath ----------------------------------
+
+static constexpr char kProvidedObj[] = R"(v 0 0 0
+v 1 0 0
+v 0 1 0
+v 0 0 1
+f 1 2 3
+f 1 4 2
+f 1 3 4
+f 2 4 3
+)";
+
+int open_provided(mjResource* resource) {
+  return std::strcmp(resource->name, "meshtest://dir/subdir/tetra.obj") == 0;
+}
+
+int read_provided(mjResource* resource, const void** buffer) {
+  *buffer = kProvidedObj;
+  return std::strlen(kProvidedObj);
+}
+
+void close_provided(mjResource* resource) {}
+
+TEST_F(MjCMeshTest, StrippathKeepsResourceProviderNames) {
+  mjpResourceProvider provider = {
+      .prefix = "meshtest",
+      .open = open_provided,
+      .read = read_provided,
+      .close = close_provided,
+  };
+  ASSERT_GT(mjp_registerResourceProvider(&provider), 0);
+
+  // the provider only serves the full name, so the model compiles only if
+  // strippath left it alone
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler strippath="true"/>
+    <asset>
+      <mesh name="tetra" file="meshtest://dir/subdir/tetra.obj"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="tetra"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->nmesh, 1);
+  EXPECT_EQ(model->nmeshvert, 4);
+}
+
 TEST_F(MjCMeshTest, TinyMeshLoads) {
   static constexpr char xml[] = R"(
   <mujoco>

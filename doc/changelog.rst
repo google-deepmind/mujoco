@@ -16,6 +16,15 @@ General
 - Flex bending and stretching now include the motion and reaction forces of articulated vertex attachments. The discrete
   integrator supports these attachments with the CG solver; fixed and independent XYZ-slide attachments retain their
   optimized assembly. Elastic flexes attached to mocap bodies produce a compiler error.
+- Added a first-party :ref:`resource provider<exProvider>` plugin, ``plugin/package_uri``, that serves ROS-style
+  ``package://`` URIs by locating packages through ``AMENT_PREFIX_PATH`` and ``ROS_PACKAGE_PATH`` without depending on
+  ROS. Load the library to reference ROS package assets from URDF and MJCF models unchanged.
+
+Compiler
+^^^^^^^^
+- :ref:`strippath<compiler-strippath>` no longer strips file names that match a registered
+  :ref:`resource provider<exProvider>`, such as ``package://`` URIs. These names are not filesystem paths, and the
+  compiler already treats them as absolute when combining them with :ref:`meshdir<compiler-meshdir>`.
 
 Version 3.14.0 (September 22, 2026)
 -----------------------------------

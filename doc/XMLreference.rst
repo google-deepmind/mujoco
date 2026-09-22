@@ -815,7 +815,9 @@ has any effect. The settings here are global and apply to the entire model.
 
 :at:`strippath`: :at-val:`[false, true], "false"`
    When this attribute is "true", the parser will remove any path information in file names specified in the model. This
-   is useful for loading models created on a different system using a different directory structure.
+   is useful for loading models created on a different system using a different directory structure. File names that
+   match a registered :ref:`resource provider<exProvider>` (for example ``package://robot/meshes/link.stl``) are not
+   filesystem paths and are left untouched, so the provider receives the full name.
 
 .. _compiler-coordinate:
 
