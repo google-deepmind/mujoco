@@ -44,6 +44,23 @@
 extern void* GetNativeWindowOsx(void* window);
 #endif
 
+#if defined(__EMSCRIPTEN__)
+#include <emscripten/em_js.h>
+
+EM_JS(bool, PlatformIsApple, (), {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+  const platform = (navigator.userAgentData && navigator.userAgentData.platform) ||
+                   navigator.platform ||
+                   "";
+  if (/Mac|iPhone|iPod|iPad/i.test(platform)) {
+    return true;
+  }
+  return /Macintosh|Mac OS X/i.test(navigator.userAgent || "");
+});
+#endif
+
 namespace mujoco::studio {
 
 static void InitImGui(SDL_Window* window, float content_scale,
@@ -56,6 +73,11 @@ static void InitImGui(SDL_Window* window, float content_scale,
   io.IniFilename = nullptr;
   io.ConfigDpiScaleFonts = true;
   io.ConfigDpiScaleViewports = true;
+#if defined(__EMSCRIPTEN__)
+  if (PlatformIsApple()) {
+    io.ConfigMacOSXBehaviors = true;
+  }
+#endif
   ImGui::StyleColorsDark();
   ImGui_ImplSDL2_InitForOther(window);
 
