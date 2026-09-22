@@ -1892,16 +1892,10 @@ static void mj_setContact(const mjModel* m, mjContact* con,
 }
 
 
-// struct holding extra data for a flex precontact
-typedef struct {
-  int elem[2];
-  int vert[2];
-} mjPreFlex;
-
 // struct for collision task
 typedef struct {
   mjPreContact* conbuffer;  // pre-contact buffer returned by collision functions
-  mjPreFlex* flexbuffer;    // pre-flex buffer returned by collision functions
+  int* flexbuffer;          // buffer for flex vertex or element IDs
   int* nconbuffer;          // contact count for each collision pair
   char* epabuffer;          // buffer for nativeccd
   int ccd_size;             // size of nativeccd buffer
@@ -1985,6 +1979,23 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
         mjtNum margin = getMargin(m, g1, g2, ipair);
         mjtNum gap = getGap(m, g1, g2, ipair);
         ncon[i] = collision_func(m, d, conbuffer + conpos, g1, g2, margin + gap);
+        break;
+      }
+
+      case mjCPAIR_GEOM_FLEX: {
+        int g = pair[i].geom_flex.g;
+        int f = pair[i].geom_flex.f;
+        mjtNum margin = mj_assignMargin(m, m->geom_margin[g] + m->flex_margin[f]);
+        mjtNum gap = m->geom_gap[g] + m->flex_gap[f];
+        if (m->geom_type[g] == mjGEOM_PLANE) {
+          ncon[i] = mjc_PlaneFlex(m, d, conbuffer + conpos, conargs->flexbuffer + conpos,
+                                  g, f, margin + gap);
+        } else if (m->geom_type[g] == mjGEOM_SDF) {
+          ncon[i] = mjc_FlexSDF(m, d, conbuffer + conpos, conargs->flexbuffer + conpos,
+                                g, f, margin + gap);
+        } else {
+          ncon[i] = 0;
+        }
         break;
       }
 
@@ -2241,6 +2252,9 @@ static inline void filterPreContacts(mjData* d, mjContactArg* arg, int start, in
       if (selected[idx]) {
         if (new_ncon != c) {
           arg->conbuffer[conpos + new_ncon] = arg->conbuffer[conpos + c];
+          if (arg->flexbuffer) {
+            arg->flexbuffer[conpos + new_ncon] = arg->flexbuffer[conpos + c];
+          }
         }
         new_ncon++;
       }
@@ -2278,10 +2292,14 @@ static void mj_narrowphase(const mjModel* m, mjData* d, const mjcPair* buffer, i
   // buffer for pair data
   mjcPair* pairbuffer = mjSTACKALLOC(d, npair, mjcPair);
   int maxcon = 0;
+  int has_flex = 0;
   for (int i = 0; i < npair; i++) {
     pairbuffer[i] = buffer[i];
     pairbuffer[i].conpos = maxcon;
     maxcon += pairMaxContact(m, buffer + i);
+    if (buffer[i].type == mjCPAIR_GEOM_FLEX) {
+      has_flex = 1;
+    }
   }
 
   // buffer data has been copied to metadata on the stack;
@@ -2293,6 +2311,7 @@ static void mj_narrowphase(const mjModel* m, mjData* d, const mjcPair* buffer, i
   arg.pairbuffer = pairbuffer;
   arg.nconbuffer = mjSTACKALLOC(d, npair, int);
   arg.conbuffer = mjSTACKALLOC(d, maxcon, mjPreContact);
+  arg.flexbuffer = has_flex ? mjSTACKALLOC(d, maxcon, int) : NULL;
   arg.npair = npair;
   arg.chunksize = chunksize;
   arg.maxcon = maxcon;
@@ -2316,8 +2335,14 @@ static void mj_narrowphase(const mjModel* m, mjData* d, const mjcPair* buffer, i
       continue;
     }
 
+    const int* vert = (pairbuffer[i].type == mjCPAIR_GEOM_FLEX &&
+                       m->geom_type[pairbuffer[i].geom_flex.g] == mjGEOM_PLANE)
+                      ? arg.flexbuffer + pairbuffer[i].conpos : NULL;
+    const int* elem = (pairbuffer[i].type == mjCPAIR_GEOM_FLEX &&
+                       m->geom_type[pairbuffer[i].geom_flex.g] == mjGEOM_SDF)
+                      ? arg.flexbuffer + pairbuffer[i].conpos : NULL;
     addPairContacts(m, d, arg.conbuffer + pairbuffer[i].conpos, ncon,
-                    pairbuffer + i, NULL, NULL);
+                    pairbuffer + i, elem, vert);
   }
   mj_freeStack(d);
 }
@@ -2329,22 +2354,12 @@ static void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f) {
   if (mjc_ipcOwnsFlexGeom(m, f, g)) {
     return;
   }
-  int flex_vertnum = m->flex_vertnum[f];
-  mj_markStack(d);
-  mjPreContact* precon = mjSTACKALLOC(d, flex_vertnum, mjPreContact);
-  int* vert = mjSTACKALLOC(d, flex_vertnum, int);
-  mjtNum margin = mj_assignMargin(m, m->geom_margin[g] + m->flex_margin[f]);
-  mjtNum gap = m->geom_gap[g] + m->flex_gap[f];
-
-  int ncon = mjc_PlaneFlex(m, d, precon, vert, g, f, margin + gap);
 
   mjcPair pair;
   defaultPair(&pair, mjCPAIR_GEOM_FLEX);
   pair.geom_flex.g = g;
   pair.geom_flex.f = f;
-  addPairContacts(m, d, precon, ncon, &pair, NULL, vert);
-
-  mj_freeStack(d);
+  mj_narrowphase(m, d, &pair, 1, 0);
 }
 
 
@@ -2355,25 +2370,11 @@ static void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f) {
     return;
   }
 
-  // prepare contact parameters (same for all contacts)
-  mjtNum margin = mj_assignMargin(m, m->geom_margin[g] + m->flex_margin[f]);
-  mjtNum gap = m->geom_gap[g] + m->flex_gap[f];
-
-  // allocate temporary contact array on stack (zero-initialized)
-  mj_markStack(d);
-  mjPreContact* precon = mjSTACKALLOC(d, mjMAXCONPAIR, mjPreContact);
-  int* elem = mjSTACKALLOC(d, mjMAXCONPAIR, int);
-
-  // call batched flex-SDF collision
-  int num = mjc_FlexSDF(m, d, precon, elem, g, f, margin + gap);
-
   mjcPair pair;
   defaultPair(&pair, mjCPAIR_GEOM_FLEX);
   pair.geom_flex.g = g;
   pair.geom_flex.f = f;
-  addPairContacts(m, d, precon, num, &pair, elem, NULL);
-
-  mj_freeStack(d);
+  mj_narrowphase(m, d, &pair, 1, 0);
 }
 
 
