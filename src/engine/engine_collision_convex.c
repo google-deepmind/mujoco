@@ -162,13 +162,13 @@ void mjc_center(mjtNum res[3], const mjCCDObj *obj) {
 
   // return flex element position
   if (e >= 0) {
-    mji_copy3(res, obj->data.flex.aabb + 6*(obj->data.flex.elemadr[f]+e));
+    mji_copy3(res, obj->data.flex.aabb);
     return;
   }
 
   // return flex vertex position
   if (f >= 0) {
-    mji_copy3(res, obj->data.flex.vert_xpos + 3*(obj->data.flex.vertadr[f]+v));
+    mji_copy3(res, obj->data.flex.vert_xpos + 3*v);
     return;
   }
 }
@@ -484,9 +484,8 @@ static void mjc_flexSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
 
   // flex element
   if (obj->elem >= 0) {
-    int e = obj->elem;
-    const int* edata = obj->data.flex.elem + obj->data.flex.elemdataadr[f] + e*(dim+1);
-    const mjtNum* vert = obj->data.flex.vert_xpos + 3*obj->data.flex.vertadr[f];
+    const int* edata = obj->data.flex.elem;
+    const mjtNum* vert = obj->data.flex.vert_xpos;
 
     // find element vertex with largest projection along dir
     mji_copy3(res, vert+3*edata[0]);
@@ -508,7 +507,7 @@ static void mjc_flexSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
 
   // flex vertex
   else {
-    const mjtNum* vert = obj->data.flex.vert_xpos + 3*(obj->data.flex.vertadr[f] + obj->vert);
+    const mjtNum* vert = obj->data.flex.vert_xpos + 3*obj->vert;
     mji_addScl3(res, vert, dir, obj->data.flex.xradius[f] + 0.5*obj->margin);
     return;
   }
@@ -528,9 +527,8 @@ void mjccd_support(const void *_obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
 
     // flex element
     if (obj->elem >= 0) {
-      int e = obj->elem;
-      const int* edata = obj->data.flex.elem + obj->data.flex.elemdataadr[f] + e*(dim+1);
-      const mjtNum* vert = obj->data.flex.vert_xpos + 3*obj->data.flex.vertadr[f];
+      const int* edata = obj->data.flex.elem;
+      const mjtNum* vert = obj->data.flex.vert_xpos;
 
       // find element vertex with largest projection along dir
       mji_copy3(res, vert+3*edata[0]);
@@ -552,7 +550,7 @@ void mjccd_support(const void *_obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
 
     // flex vertex
     else {
-      const mjtNum* vert = obj->data.flex.vert_xpos + 3*(obj->data.flex.vertadr[f] + obj->vert);
+      const mjtNum* vert = obj->data.flex.vert_xpos + 3*obj->vert;
       mji_addScl3(res, vert, dir, obj->data.flex.xradius[f] + 0.5*obj->margin);
       return;
     }
@@ -816,6 +814,14 @@ static void mjc_setCCDObjFlex(mjCCDObj* obj, int flex, int elem, int vert) {
   obj->flex = flex;
   obj->elem = elem;
   obj->vert = vert;
+  if (flex >= 0) {
+    obj->data.flex.vert_xpos += 3 * obj->data.flex.vertadr[flex];
+    if (elem >= 0) {
+      int dim = obj->data.flex.dim[flex];
+      obj->data.flex.aabb += 6 * (obj->data.flex.elemadr[flex] + elem);
+      obj->data.flex.elem += obj->data.flex.elemdataadr[flex] + elem * (dim + 1);
+    }
+  }
 }
 
 
@@ -1628,34 +1634,27 @@ int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f,
   const mjtNum* hsize = m->hfield_size + 4*hid;
   const float* hdata = m->hfield_data + m->hfield_adr[hid];
 
-  // get elem indo
+  // get elem info
   int dim = m->flex_dim[f];
   const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
-  mjtNum* evert[4] = {NULL, NULL, NULL, NULL};
+  static const int local_edata[4] = {0, 1, 2, 3};
+  mjtNum evert[4][3], ecenter[3];
   for (int i=0; i <= dim; i++) {
-    evert[i] = d->flexvert_xpos + 3*(m->flex_vertadr[f] + edata[i]);
+    const mjtNum* v = d->flexvert_xpos + 3*(m->flex_vertadr[f] + edata[i]);
+    mji_sub3(vec, v, hpos);
+    mji_mulMatTVec3(evert[i], hmat, vec);
   }
-  mjtNum* ecenter = d->flexelem_aabb + 6*(m->flex_elemadr[f]+e);
+  mji_sub3(vec, d->flexelem_aabb + 6*(m->flex_elemadr[f] + e), hpos);
+  mji_mulMatTVec3(ecenter, hmat, vec);
 
   // ccd-related
   mjCCDObj obj2;
   mjc_initCCDObj(&obj2, m, d, -1, margin);
   mjc_setCCDObjFlex(&obj2, f, e, -1);
+  obj2.data.flex.elem = local_edata;
+  obj2.data.flex.vert_xpos = (const mjtNum*)evert;
+  obj2.data.flex.aabb = ecenter;
   //------------------------------------- AABB computation, box-box test
-
-  // save elem vertices, transform to hfield frame
-  mjtNum savevert[4][3];
-  for (int i=0; i <= dim; i++) {
-    mji_copy3(savevert[i], evert[i]);
-    mji_sub3(vec, evert[i], hpos);
-    mji_mulMatTVec3(evert[i], hmat, vec);
-  }
-
-  // save elem center, transform to hfield frame
-  mjtNum savecenter[3];
-  mji_copy3(savecenter, ecenter);
-  mji_sub3(vec, ecenter, hpos);
-  mji_mulMatTVec3(ecenter, hmat, vec);
 
   // compute elem bounding box (in hfield frame)
   xmin = xmax = evert[0][0];
@@ -1674,12 +1673,6 @@ int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f,
   if ((xmin-margin > hsize[0]) || (xmax+margin < -hsize[0]) ||
       (ymin-margin > hsize[1]) || (ymax+margin < -hsize[1]) ||
       (zmin-margin > hsize[2]) || (zmax+margin < -hsize[3])) {
-    // restore vertices and center
-    for (int i=0; i <= dim; i++) {
-      mji_copy3(evert[i], savevert[i]);
-    }
-    mji_copy3(ecenter, savecenter);
-
     return 0;
   }
 
@@ -1743,12 +1736,6 @@ int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f,
       }
     }
   }
-
-  // restore elem vertices and center
-  for (int i=0; i <= dim; i++) {
-    mji_copy3(evert[i], savevert[i]);
-  }
-  mji_copy3(ecenter, savecenter);
 
   return cnt;
 }
