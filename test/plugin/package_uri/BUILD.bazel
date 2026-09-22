@@ -1,0 +1,25 @@
+# Description:
+#   Tests for mujoco/plugin/package_uri
+
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("//:build_defs.bzl", "MJ_ROOT")
+
+licenses(["notice"])
+
+cc_test(
+    name = "package_uri_test",
+    srcs = ["package_uri_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//plugin/package_uri",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
