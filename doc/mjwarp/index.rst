@@ -257,7 +257,7 @@ The graph can then be launched or re-launched
   wp.capture_launch(capture.graph)
 
 and will typically be significantly faster compared to calling the function directly. Please see the
-`Warp Graph API reference <https://nvidia.github.io/warp/modules/runtime.html#graph-api-reference>`__ for details.
+`Warp Graph API reference <https://nvidia.github.io/warp/stable/user_guide/execution_and_performance/concurrency.html#graph-launches>`__ for details.
 
 Batch sizes
 -----------
@@ -834,7 +834,7 @@ Batch Rendering
 ===============
 
 MJWarp provides a batch renderer for high-throughput ray tracing built on
-`Warp's accelerated BVHs <https://nvidia.github.io/warp/api_reference/_generated/warp.Bvh.html#warp.Bvh>`__ for
+`Warp's accelerated BVHs <https://nvidia.github.io/warp/stable/api_reference/_generated/warp.Bvh.html>`__ for
 rendering worlds with multiple cameras in parallel.
 
 Key features:
@@ -852,7 +852,7 @@ Key features:
   `mat_rgba`.
 - **BVH-accelerated ray/rays API**: Ray casting: Accelerated :func:`mjw.ray <mujoco_warp.ray>`,
   :func:`mjw.rays <mujoco_warp.rays>`, and :ref:`rangefinder sensors <sensor-rangefinder>` via
-  `Warp's BVHs <https://nvidia.github.io/warp/api_reference/_generated/warp.Bvh.html#warp.Bvh>`__.
+  `Warp's BVHs <https://nvidia.github.io/warp/stable/api_reference/_generated/warp.Bvh.html>`__.
 
 Basic Usage
 -----------
@@ -1023,7 +1023,7 @@ Learning frameworks
 **Does MJWarp work with JAX?**
 
 Yes. MJWarp is interoperable with `JAX <https://jax.readthedocs.io/>`__. Please see the
-`Warp Interoperability <https://nvidia.github.io/warp/modules/interoperability.html#jax>`__ documentation for details.
+`Warp Interoperability <https://nvidia.github.io/warp/stable/user_guide/interoperability/jax.html>`__ documentation for details.
 
 Additionally, :ref:`MJX <mjx>` provides a JAX API for a subset of MJWarp's :doc:`API <api>`. The implementation is
 specified with ``impl='warp'``.
@@ -1031,14 +1031,14 @@ specified with ``impl='warp'``.
 **Does MJWarp work with PyTorch?**
 
 Yes. MJWarp is interoperable with `PyTorch <https://pytorch.org>`__. Please see the
-`Warp Interoperability <https://nvidia.github.io/warp/modules/interoperability.html#pytorch>`__ documentation for
+`Warp Interoperability <https://nvidia.github.io/warp/stable/user_guide/interoperability/pytorch.html>`__ documentation for
 details.
 
 **How to train policies with MJWarp physics?**
 
 For examples that train policies with MJWarp physics, please see:
 
-- `Isaac Lab <https://github.com/isaac-sim/IsaacLab/tree/feature/newton>`__: Train via
+- `Isaac Lab <https://github.com/isaac-sim/IsaacLab>`__: Train via
   `Newton API <https://github.com/newton-physics/newton>`__.
 - `mjlab <https://github.com/mujocolab/mjlab>`__: Train directly with MJWarp using PyTorch.
 - `MuJoCo Playground <https://github.com/google-deepmind/mujoco_playground>`__: Train via :ref:`MJX API <mjx>`.
@@ -1051,7 +1051,7 @@ Features
 **Is MJWarp differentiable?**
 
 No. MJWarp is not currently differentiable via
-Warp's `automatic differentiation <https://nvidia.github.io/warp/modules/differentiability.html#differentiability>`__
+Warp's `automatic differentiation <https://nvidia.github.io/warp/stable/user_guide/differentiability.html>`__
 functionality. Updates from the team related to enabling automatic differentiation for MJWarp are tracked in this
 `GitHub issue <https://github.com/google-deepmind/mujoco_warp/issues/500>`__.
 
@@ -1076,7 +1076,7 @@ Yes. Warp's ``wp.ScopedDevice`` enables multi-GPU computation
      wp.capture_launch(graph[device])
 
 Please see the
-`Warp documentation <https://nvidia.github.io/modules/devices.html#example-using-wp-scopeddevice-with-multiple-gpus>`__
+`Warp documentation <https://nvidia.github.io/warp/stable/user_guide/execution_and_performance/concurrency.html>`__
 for details and
 `mjlab distributed training <https://mujocolab.github.io/mjlab/main/source/training/distributed_training.html>`__ for a
 reinforcement learning example.
@@ -1095,11 +1095,11 @@ Developments for deterministic results on GPU are tracked in this
 Orientations are represented as unit quaternions and follow :ref:`MuJoCo's conventions<siLayout>`:
 ``w, x, y, z`` or ``scalar, vector``.
 
-.. admonition:: ``wp.quaternion``
+.. admonition:: ``wp.quat``
   :class: note
 
-  MJWarp utilizes Warp's `built-in type <https://nvidia.github.io/warp/modules/functions.html#warp.quaternion>`__
-  ``wp.quaternion``. Importantly however, MJWarp does not utilize Warp's ``x, y, z, w`` quaternion convention or
+  MJWarp utilizes Warp's `built-in type <https://nvidia.github.io/warp/stable/api_reference/_generated/warp.quat.html>`__
+  ``wp.quat``. Importantly however, MJWarp does not utilize Warp's ``x, y, z, w`` quaternion convention or
   operations and instead implements quaternion routines that follow MuJoCo's conventions. Please see
   `math.py <https://github.com/google-deepmind/mujoco_warp/blob/main/mujoco_warp/_src/math.py>`__ for the
   implementations.
@@ -1130,7 +1130,7 @@ loading on GPU.
 
 **Why are numerical results from MJWarp and MuJoCo different?**
 
-MJWarp utilizes `float <https://nvidia.github.io/warp/modules/functions.html#warp.float32>`__s in contrast to MuJoCo's
+MJWarp utilizes `float <https://nvidia.github.io/warp/stable/api_reference/_generated/warp.float32.html>`__s in contrast to MuJoCo's
 default double representation for :ref:`mjtNum`. Solver settings, including iterations, collision detection, and small
 friction values may be sensitive to differences in floating point representation.
 
@@ -1183,7 +1183,7 @@ can be accomplished by deleting the directory ``~/.cache/warp`` or via Python
 **Is it possible to compile MJWarp ahead of time instead of at runtime?**
 
 Yes. Please see Warp's
-`Ahead-of-Time Compilation Workflows <https://nvidia.github.io/warp/codegen.html#ahead-of-time-compilation-workflows>`__
+`Ahead-of-Time Compilation Workflows <https://nvidia.github.io/warp/stable/user_guide/programming_model/code_generation.html#ahead-of-time-compilation-workflows>`__
 documentation for details.
 
 Differences from MuJoCo
@@ -1203,7 +1203,7 @@ Inertia matrix factorization
 
 MJWarp performs a per-tree factorization of the inertia matrix that is stored in ``qLD`` where the size of the tree
 determines if Warp's ``U'U`` Cholesky factorization
-`wp.tile_cholesky <https://nvidia.github.io/warp/language_reference/_generated/warp._src.lang.tile_cholesky.html>`__,
+`wp.tile_cholesky <https://nvidia.github.io/warp/stable/language_reference/_generated/warp.tile_cholesky.html>`__,
 MuJoCo's sparse reverse-mode ``L'DL`` routine, or a simple diagonal inverse rountine is employed.
 
 Options
