@@ -671,12 +671,13 @@ void App::ProcessPendingLoads() {
         }
 
         RestoreKeyframeSelection(saved_key);
-        ResetPhysics();
         renderer_->Init(model());
 
         if (plugin->post_compile) {
           plugin->post_compile(plugin, spec(), model(), data());
         }
+        ResetHistory(sim_history_, timeline_, has_model() ? model() : nullptr,
+                     has_data() ? data() : nullptr);
       };
     }
   });
