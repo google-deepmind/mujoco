@@ -928,10 +928,12 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
 
   // Highlight selected objects.
   if (selected_obj_type_ == mjOBJ_BODY) {
-    if (model->geom_bodyid[obj_index] == selected_obj_index_) {
+    if (obj_type == mjOBJ_GEOM &&
+        model->geom_bodyid[obj_index] == selected_obj_index_) {
       material.selected = true;
     }
-    if (model->site_bodyid[obj_index] == selected_obj_index_) {
+    if (obj_type == mjOBJ_SITE &&
+        model->site_bodyid[obj_index] == selected_obj_index_) {
       material.selected = true;
     }
   } else if (selected_obj_type_ == obj_type &&
