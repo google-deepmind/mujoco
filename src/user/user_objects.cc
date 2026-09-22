@@ -1695,7 +1695,7 @@ std::string mjCBase::GetAssetContentType(std::string_view resource_name,
 // if the compiler settings ask for it; empty if there is no file
 std::string mjCBase::ResolvedSpecFile(const std::string& dir, std::string file) const {
   if (file.empty()) { return ""; }
-  if (model->spec.strippath) { file = mjuu_strippath(file); }
+  if (model->spec.strippath) { file = mjuu_stripLocalPath(file); }
   return ResolvePath(dir, file);
 }
 
@@ -5655,7 +5655,7 @@ void mjCHField::Compile(const mjVFS* vfs) {
     if (size[i] <= 0) throw mjCError(this, "size parameter is not positive in hfield");
 
   // remove path from file if necessary
-  if (model->strippath) { file_ = mjuu_strippath(file_); }
+  if (model->strippath) { file_ = mjuu_stripLocalPath(file_); }
 
   // load from file if specified
   if (!file_.empty()) {
@@ -6432,7 +6432,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
   for (int i = 0; i < 6; i++) {
     if (!cubefiles_[i].empty()) {
       // remove path from file if necessary
-      if (model->strippath) { cubefiles_[i] = mjuu_strippath(cubefiles_[i]); }
+      if (model->strippath) { cubefiles_[i] = mjuu_stripLocalPath(cubefiles_[i]); }
 
       // make filename
       mujoco::user::FilePath texturedir_;
@@ -6525,7 +6525,7 @@ const char* mjCTexture::Ineligible(const mjVFS* vfs) const {
   if (vfs) {
     mjSpec* owning_spec = model->FindSpec(compiler);
     if (!owning_spec) { owning_spec = &model->spec; }
-    std::string        file     = model->strippath ? mjuu_strippath(file_) : file_;
+    std::string        file     = model->strippath ? mjuu_stripLocalPath(file_) : file_;
     FilePath           filename = FilePath(mjs_getString(compiler->texturedir)) + FilePath(file);
     mujoco::user::VFS* impl     = mujoco::user::VFS::Upcast(const_cast<mjVFS*>(vfs));
     if (impl->InMemory(owning_spec->modelfiledir->c_str(), filename.c_str())) {
@@ -6553,7 +6553,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
       }
     } else {
       // nothing is read: the model gets the resolved path and no payload
-      if (model->strippath) { file_ = mjuu_strippath(file_); }
+      if (model->strippath) { file_ = mjuu_stripLocalPath(file_); }
       if (GetAssetContentType(file_, content_type_) == "image/ktx") { nchannel = 1; }
       width = height = 0;
       byref_         = true;
@@ -6616,7 +6616,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
   // single file
   else if (!file_.empty()) {
     // remove path from file if necessary
-    if (model->strippath) { file_ = mjuu_strippath(file_); }
+    if (model->strippath) { file_ = mjuu_stripLocalPath(file_); }
 
     // make filename
     FilePath filename = texturedir_ + FilePath(file_);

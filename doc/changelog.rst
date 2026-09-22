@@ -14,6 +14,14 @@ Significant new features
   persistent simulations (required for sleep), and arbitrary per-simulation functions. Follows the design of
   `mjbatch <https://github.com/kevinzakka/mjbatch>`__ by :github:user:`kevinzakka`.
 
+General
+^^^^^^^
+- Added a first-party :ref:`resource provider<exProvider>` plugin, ``plugin/package_uri``, that serves ROS-style
+  ``package://`` URIs by locating packages through ``AMENT_PREFIX_PATH`` and ``ROS_PACKAGE_PATH`` without depending on
+  ROS. It is not included in release packages: build it from source and load the resulting shared library with
+  :ref:`mj_loadPluginLibrary` before parsing a model, so that URDF and MJCF files can reference ROS package assets
+  unchanged.
+
 Engine
 ^^^^^^
 - Added bending :ref:`elasticity<flex-elasticity>` for 1D flexes, using a twist-free isotropic discrete elastic rod
@@ -117,6 +125,9 @@ Compiler
   :ref:`mju_openResource` directly.
 - Mesh polygon normals (``mjModel.mesh_polynormal``) are now computed from the whole polygon outline using Newell's
   method rather than the first three vertices (:issue:`3691`).
+- :ref:`strippath<compiler-strippath>` no longer strips file names that match a registered
+  :ref:`resource provider<exProvider>`, such as ``package://`` URIs. These names are not filesystem paths, and the
+  compiler already treats them as absolute when combining them with :ref:`meshdir<compiler-meshdir>`.
 
 Python bindings
 ^^^^^^^^^^^^^^^

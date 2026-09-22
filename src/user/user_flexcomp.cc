@@ -960,7 +960,7 @@ bool mjCFlexcomp::MakeMesh(
     } catch (mjCError err) { return comperr(error, err.message, error_sz); }
   } else {
     // strip path
-    if (!file.empty() && model->spec.strippath) { file = mjuu_strippath(file); }
+    if (!file.empty() && model->spec.strippath) { file = mjuu_stripLocalPath(file); }
 
     // file is required
     if (file.empty()) { return comperr(error, "File is required", error_sz); }

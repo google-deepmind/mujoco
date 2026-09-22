@@ -396,6 +396,49 @@ TEST_F(TextureByReferenceTest, VfsServedStaysEmbedded) {
   mj_deleteVFS(vfs.get());
 }
 
+// with strippath, a by-reference texture of a resource provider keeps its name,
+// so its path opens through the provider, and a VFS file with the stripped name
+// does not make it look served from memory
+TEST_F(TextureByReferenceTest, StrippathKeepsProviderTexture) {
+  static constexpr char kName[] = "texreftest://dir/hfield.png";
+  static const std::string png = ReadTestData("user/testdata/hfield.png");
+  mjpResourceProvider provider = {
+      .prefix = "texreftest",
+      .open = [](mjResource* resource) -> int {
+        return std::strcmp(resource->name, kName) == 0;
+      },
+      .read = [](mjResource*, const void** buffer) -> int {
+        *buffer = png.data();
+        return png.size();
+      },
+      .close = [](mjResource*) {},
+  };
+  ASSERT_GT(mjp_registerProvider(&provider), 0);
+
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler strippath="true"/>
+    <asset>
+      <texture name="png" type="2d" file="texreftest://dir/hfield.png"/>
+    </asset>
+  </mujoco>
+  )";
+  mjModel* m = Compile(xml, mjPASSTHROUGH_TEXTURES);
+  ASSERT_THAT(m, NotNull()) << error_;
+  ExpectByReference(m, 0);
+  EXPECT_EQ(PathAt(m, m->tex_pathadr[0]), kName);
+  mj_deleteModel(m);
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "hfield.png", png.data(), png.size());
+  m = Compile(xml, mjPASSTHROUGH_TEXTURES, vfs.get());
+  ASSERT_THAT(m, NotNull()) << error_;
+  ExpectByReference(m, 0);
+  mj_deleteModel(m);
+  mj_deleteVFS(vfs.get());
+}
+
 // embed is a defaultable attribute: a class sets it, a texture overrides it
 TEST_F(TextureByReferenceTest, DefaultClass) {
   static constexpr char xml[] = R"(
