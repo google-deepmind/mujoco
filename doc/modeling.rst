@@ -1035,9 +1035,8 @@ can replace torus wrapping objects used in OpenSim to keep the tendon path withi
 is the most challenging part of converting an OpenSim model to a MuJoCo model, and requires some manual work. On the
 bright side, there is a small number of high-quality OpenSim models in use, so once they are converted we are done.
 
-Below we illustrate the four types of tendon wrapping available. Note that the curved sections of the
-wrapping tendons are rendered as straight, but the geometry pipeline works with the actual curves and computes their
-lengths and moments analytically:
+Below we illustrate the four types of tendon wrapping available, for which the geometry pipeline computes the curved
+paths, lengths, and moments analytically:
 
 |image3|
 

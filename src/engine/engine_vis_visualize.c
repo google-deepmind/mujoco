@@ -1228,6 +1228,117 @@ int mjv_isCatenary(const mjModel* m, const mjData* d, int i, mjtNum* length) {
 }
 
 
+// points along geodesic on sphere or cylinder, returns number of points
+int mjv_geodesic(mjtNum* pts, int npts, const mjtNum xpos[3], const mjtNum xmat[9],
+                 mjtNum radius, int type, const mjtNum wpnt[12]) {
+  const mjtNum* x1 = wpnt + 0;  // incoming site before wrapping geom
+  const mjtNum* p1 = wpnt + 3;  // entry tangent point on geom surface
+  const mjtNum* p2 = wpnt + 6;  // exit tangent point on geom surface
+  const mjtNum* x2 = wpnt + 9;  // outgoing site after wrapping geom
+
+  // coincident endpoints: skip segment
+  if (mju_dist3(p1, p2) < mjMINVAL) {
+    return 0;
+  }
+  if (npts <= 2 || radius < mjMINVAL) {
+    mju_copy3(pts+0, p1);
+    mju_copy3(pts+3, p2);
+    return 2;
+  }
+
+  // radial vectors from geom center
+  mjtNum r1[3], r2[3], w[3] = {0, 0, 0};
+  mju_sub3(r1, p1, xpos);
+  mju_sub3(r2, p2, xpos);
+
+  // cylinder: project radial vectors perpendicular to cylinder axis
+  mjtNum z1 = 0, z2 = 0;
+  if (type == mjGEOM_CYLINDER) {
+    w[0] = xmat[2];
+    w[1] = xmat[5];
+    w[2] = xmat[8];
+    z1 = mju_dot3(w, r1);
+    z2 = mju_dot3(w, r2);
+    mju_addToScl3(r1, w, -z1);
+    mju_addToScl3(r2, w, -z2);
+  }
+
+  // first basis vector u = normalize(r1)
+  mjtNum u[3];
+  mju_copy3(u, r1);
+  if (mju_normalize3(u) < mjMINVAL) {
+    mju_copy3(pts+0, p1);
+    mju_copy3(pts+3, p2);
+    return 2;
+  }
+
+  // incoming and outgoing tangent vectors: t1 = p1 - x1, t2 = x2 - p2
+  mjtNum t1[3], t2[3], n1[3], n2[3], normal[3];
+  mju_sub3(t1, p1, x1);
+  mju_sub3(t2, x2, p2);
+  mju_cross(n1, r1, t1);
+  mju_cross(n2, r2, t2);
+  mju_add3(normal, n1, n2);
+
+  // determine orbit normal
+  if (type == mjGEOM_CYLINDER) {
+    mjtNum dot = mju_dot3(w, normal);
+    if (mju_abs(dot) < mjMINVAL) {
+      mju_cross(normal, r1, r2);
+      dot = mju_dot3(w, normal);
+    }
+    mju_scl3(normal, w, dot >= 0 ? 1 : -1);
+  } else {
+    if (mju_normalize3(normal) < mjMINVAL) {
+      mju_cross(normal, r1, r2);
+      if (mju_normalize3(normal) < mjMINVAL) {
+        mju_copy3(pts+0, p1);
+        mju_copy3(pts+3, p2);
+        return 2;
+      }
+    }
+  }
+
+  // second basis vector v = normalize(normal x u)
+  mjtNum v[3];
+  mju_cross(v, normal, u);
+  if (mju_normalize3(v) < mjMINVAL) {
+    mju_copy3(pts+0, p1);
+    mju_copy3(pts+3, p2);
+    return 2;
+  }
+
+  // wrap angle in [0, 2*pi)
+  mjtNum angle = mju_atan2(mju_dot3(v, r2), mju_dot3(u, r2));
+  if (angle < -1e-6) {
+    angle += 2*mjPI;
+  } else if (angle < 0) {
+    angle = 0;
+  }
+
+  // number of segments proportional to wrap angle
+  int nsegments = mjMIN(npts-1, mjMAX(1, mju_round((npts-1) * angle / mjPI)));
+
+  // start point
+  mju_copy3(pts+0, p1);
+
+  // interior points along geodesic arc
+  for (int k=1; k < nsegments; k++) {
+    mjtNum t = (mjtNum)k / nsegments;
+    mjtNum theta = t * angle;
+    mju_copy3(pts+3*k, xpos);
+    mju_addToScl3(pts+3*k, u, radius*mju_cos(theta));
+    mju_addToScl3(pts+3*k, v, radius*mju_sin(theta));
+    mju_addToScl3(pts+3*k, w, z1 + t*(z2 - z1));
+  }
+
+  // end point
+  mju_copy3(pts+3*nsegments, p2);
+
+  return nsegments + 1;
+}
+
+
 
 static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, int catmask,
                                   mjvScene* scn) {
@@ -1247,55 +1358,61 @@ static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* 
     mjtNum length;
     int draw_catenary = mjv_isCatenary(m, d, i, &length);
 
-    // conditions not met: draw straight lines
+    // conditions not met: draw straight lines or wrapped geodesics
     if (!draw_catenary) {
       for (int j=d->ten_wrapadr[i]; j < d->ten_wrapadr[i]+d->ten_wrapnum[i]-1; j++) {
         if (d->wrap_obj[j] != -2 && d->wrap_obj[j+1] != -2) {
-          mjvGeom* thisgeom = acquireGeom(scn, i, category, mjOBJ_TENDON);
-          if (!thisgeom) {
-            return;
-          }
-
-          // determine width: smaller for segments inside wrapping objects
-          mjtNum width;
+          mjtNum pts[3*mjMAXCURVE];
+          int npoints;
           if (d->wrap_obj[j] >= 0 && d->wrap_obj[j+1] >= 0) {
-            width = 0.5 * m->tendon_width[i];
+            int ngeodesic = mjMIN(m->vis.quality.numslices + 1, mjMAXCURVE);
+            int gid = d->wrap_obj[j];
+            npoints = mjv_geodesic(pts, ngeodesic, d->geom_xpos+3*gid, d->geom_xmat+9*gid,
+                                   m->geom_size[3*gid], m->geom_type[gid], d->wrap_xpos+3*j-3);
           } else {
-            width = m->tendon_width[i];
+            mju_copy3(pts+0, d->wrap_xpos+3*j);
+            mju_copy3(pts+3, d->wrap_xpos+3*j+3);
+            npoints = 2;
           }
 
-          // construct geom
-          mjv_connector(thisgeom, mjGEOM_CAPSULE, width, d->wrap_xpos+3*j, d->wrap_xpos+3*j+3);
-
-          // set material properties
-          int tendon_matid = m->tendon_matid[i];
-          float rgba[4];
-          f2f(rgba, m->tendon_rgba+4*i, 4);
-
-          // if tendon has no material and the color is the default gray, re-color it using limit impedance
-          if (tendon_matid == -1 && rgba[0] == 0.5 && rgba[1] == 0.5 && rgba[2] == 0.5 && rgba[3] == 1) {
-            // loop over limit constraints, get impedance if this tendon is limited
-            mjtNum imp = 0;
-            int efc_start = d->ne + d->nf;
-            int efc_end = efc_start + d->nl;
-            for (int k=efc_start; k < efc_end; k++) {
-              if (d->efc_type[k] == mjCNSTR_LIMIT_TENDON && d->efc_id[k] == i) {
-                imp = d->efc_KBIP[4*k + 2];
-              }
+          for (int s=0; s < npoints-1; s++) {
+            mjvGeom* thisgeom = acquireGeom(scn, i, category, mjOBJ_TENDON);
+            if (!thisgeom) {
+              return;
             }
 
-            // use impedance to mix tendon and constraint colors
-            rgba[0] = (1-imp) * rgba[0] + imp * m->vis.rgba.constraint[0];
-            rgba[1] = (1-imp) * rgba[1] + imp * m->vis.rgba.constraint[1];
-            rgba[2] = (1-imp) * rgba[2] + imp * m->vis.rgba.constraint[2];
-          }
+            // construct geom
+            mjv_connector(thisgeom, mjGEOM_CAPSULE, m->tendon_width[i], pts+3*s, pts+3*s+3);
 
-          setMaterial(m, thisgeom, tendon_matid, rgba, vopt->flags);
+            // set material properties
+            int tendon_matid = m->tendon_matid[i];
+            float rgba[4];
+            f2f(rgba, m->tendon_rgba+4*i, 4);
 
-          // override if visualizing islands
-          if (vopt->flags[mjVIS_ISLAND]) {
-            // strip material
-            thisgeom->matid = -1;
+            // if tendon has no material and the color is the default gray, re-color it using limit impedance
+            if (tendon_matid == -1 && rgba[0] == 0.5 && rgba[1] == 0.5 && rgba[2] == 0.5 && rgba[3] == 1) {
+              // loop over limit constraints, get impedance if this tendon is limited
+              mjtNum imp = 0;
+              int efc_start = d->ne + d->nf;
+              int efc_end = efc_start + d->nl;
+              for (int k=efc_start; k < efc_end; k++) {
+                if (d->efc_type[k] == mjCNSTR_LIMIT_TENDON && d->efc_id[k] == i) {
+                  imp = d->efc_KBIP[4*k + 2];
+                }
+              }
+
+              // use impedance to mix tendon and constraint colors
+              rgba[0] = (1-imp) * rgba[0] + imp * m->vis.rgba.constraint[0];
+              rgba[1] = (1-imp) * rgba[1] + imp * m->vis.rgba.constraint[1];
+              rgba[2] = (1-imp) * rgba[2] + imp * m->vis.rgba.constraint[2];
+            }
+
+            setMaterial(m, thisgeom, tendon_matid, rgba, vopt->flags);
+
+            // override if visualizing islands
+            if (vopt->flags[mjVIS_ISLAND]) {
+              // strip material
+              thisgeom->matid = -1;
 
               // set hue with first island dof, if constrained
               int h = -1;
@@ -1305,12 +1422,13 @@ static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* 
               islandColor(thisgeom->rgba, h, 1);
             }
 
-          // vopt->label: only the first segment
-          if (vopt->label == mjLABEL_TENDON && j == d->ten_wrapadr[i]) {
-            makeLabel(m, mjOBJ_TENDON, i, thisgeom->label);
-          }
+            // vopt->label: only the first segment
+            if (vopt->label == mjLABEL_TENDON && j == d->ten_wrapadr[i] && s == 0) {
+              makeLabel(m, mjOBJ_TENDON, i, thisgeom->label);
+            }
 
-          releaseGeom(&thisgeom, scn);
+            releaseGeom(&thisgeom, scn);
+          }
         }
       }
     }
@@ -1322,9 +1440,9 @@ static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* 
       mju_copy3(x0, d->wrap_xpos + 3*d->ten_wrapadr[i]);
       mju_copy3(x1, d->wrap_xpos + 3*d->ten_wrapadr[i] + 3);
 
-      // get number of points along catenary path (capped at 100)
-      int ncatenary = mjMIN(m->vis.quality.numslices + 1, 100);
-      mjtNum catenary[300];
+      // get number of points along catenary path (capped at mjMAXCURVE)
+      int ncatenary = mjMIN(m->vis.quality.numslices + 1, mjMAXCURVE);
+      mjtNum catenary[3*mjMAXCURVE];
 
       // points along catenary path
       int npoints = mjv_catenary(x0, x1, m->opt.gravity, length, catenary, ncatenary);
@@ -2348,37 +2466,42 @@ static void addActuatorGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     else if (m->actuator_trntype[i] == mjTRN_TENDON && d->ten_wrapnum[j]) {
       for (int k=d->ten_wrapadr[j]; k < d->ten_wrapadr[j]+d->ten_wrapnum[j]-1; k++) {
         if (d->wrap_obj[k] != -2 && d->wrap_obj[k+1] != -2) {
-          mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_ACTUATOR);
-          if (!thisgeom) {
-            return;
-          }
-
-          // determine width: smaller for segments inside wrapping objects
-          mjtNum width;
+          mjtNum pts[3*mjMAXCURVE];
+          int npoints;
           if (d->wrap_obj[k] >= 0 && d->wrap_obj[k+1] >= 0) {
-            width = 0.5 * m->tendon_width[j];
+            int ngeodesic = mjMIN(m->vis.quality.numslices + 1, mjMAXCURVE);
+            int gid = d->wrap_obj[k];
+            npoints = mjv_geodesic(pts, ngeodesic, d->geom_xpos+3*gid, d->geom_xmat+9*gid,
+                                   m->geom_size[3*gid], m->geom_type[gid], d->wrap_xpos+3*k-3);
           } else {
-            width = m->tendon_width[j];
+            mju_copy3(pts+0, d->wrap_xpos+3*k);
+            mju_copy3(pts+3, d->wrap_xpos+3*k+3);
+            npoints = 2;
           }
 
-          // increase width for actuator
-          width *= m->vis.map.actuatortendon;
+          mjtNum width = m->tendon_width[j] * m->vis.map.actuatortendon;
+          for (int s=0; s < npoints-1; s++) {
+            mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_ACTUATOR);
+            if (!thisgeom) {
+              return;
+            }
 
-          // construct geom
-          mjv_connector(thisgeom, mjGEOM_CAPSULE, width, d->wrap_xpos+3*k, d->wrap_xpos+3*k+3);
+            // construct geom
+            mjv_connector(thisgeom, mjGEOM_CAPSULE, width, pts+3*s, pts+3*s+3);
 
-          // set material if given
-          setMaterial(m, thisgeom, m->tendon_matid[j], m->tendon_rgba+4*j, vopt->flags);
+            // set material if given
+            setMaterial(m, thisgeom, m->tendon_matid[j], m->tendon_rgba+4*j, vopt->flags);
 
-          // set interpolated color
-          f2f(thisgeom->rgba, rgba, 4);
+            // set interpolated color
+            f2f(thisgeom->rgba, rgba, 4);
 
-          // vopt->label: only the first segment
-          if (vopt->label == mjLABEL_ACTUATOR && k == d->ten_wrapadr[j]) {
-            makeLabel(m, mjOBJ_ACTUATOR, i, thisgeom->label);
+            // vopt->label: only the first segment
+            if (vopt->label == mjLABEL_ACTUATOR && k == d->ten_wrapadr[j] && s == 0) {
+              makeLabel(m, mjOBJ_ACTUATOR, i, thisgeom->label);
+            }
+
+            releaseGeom(&thisgeom, scn);
           }
-
-          releaseGeom(&thisgeom, scn);
         }
       }
     }

@@ -276,5 +276,76 @@ TEST_F(MjvSceneTest, MeshSitePreservesVisualPoseAndVolume) {
   FreeSceneObjects();
 }
 
+TEST_F(MjvSceneTest, TendonWrapGeodesicLength) {
+  constexpr char kWrapXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="0a" pos="0 0 1"/>
+      <geom name="0g" type="sphere" size=".1" pos="0 0 0.5"/>
+      <site name="0b" pos="0 .05 .15"/>
+
+      <site name="1a" pos=".4 0 1"/>
+      <geom name="1g" type="sphere" size=".1" pos=".4 0 0.5"/>
+      <site name="1s" pos=".52 0 .5"/>
+      <site name="1b" pos=".25 0 .15"/>
+
+      <site name="2a" pos="-.4 0 1"/>
+      <geom name="2g" type="sphere" size=".1" pos="-.4 0 0.5"/>
+      <site name="2s" pos="-.49 0 .5"/>
+      <site name="2b" pos="-.4 0 .15"/>
+
+      <site name="3a" pos="0 1 1"/>
+      <geom name="3g" type="cylinder" size=".05 .2" zaxis="0 1 .2" pos="0 1 0.5"/>
+      <site name="3s" pos=".12 1 .5"/>
+      <site name="3b" pos="-.15 1.1 .15"/>
+    </worldbody>
+    <tendon>
+      <spatial>
+        <site site="0a"/>
+        <geom geom="0g"/>
+        <site site="0b"/>
+      </spatial>
+      <spatial>
+        <site site="1a"/>
+        <geom geom="1g" sidesite="1s"/>
+        <site site="1b"/>
+      </spatial>
+      <spatial>
+        <site site="2a"/>
+        <geom geom="2g" sidesite="2s"/>
+        <site site="2b"/>
+      </spatial>
+      <spatial>
+        <site site="3a"/>
+        <geom geom="3g" sidesite="3s"/>
+        <site site="3b"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+
+  MjModelPtr model = LoadModelFromString(kWrapXml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  InitSceneObjects(model.get());
+  mjv_updateScene(model.get(), data.get(), &opt_, &pert_, &cam_, mjCAT_ALL,
+                  &scn_);
+
+  for (int i = 0; i < model->ntendon; ++i) {
+    mjtNum vis_length = 0;
+    for (int g = 0; g < scn_.ngeom; ++g) {
+      const mjvGeom* geom = scn_.geoms + g;
+      if (geom->objtype == mjOBJ_TENDON && geom->objid == i) {
+        vis_length += 2 * geom->size[2];
+      }
+    }
+    EXPECT_NEAR(vis_length, data->ten_length[i], 1e-3) << "tendon=" << i;
+  }
+
+  FreeSceneObjects();
+}
+
 }  // namespace
 }  // namespace mujoco

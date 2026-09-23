@@ -485,18 +485,17 @@ void GatherSpatialTendonPoints(const mjModel* model, const mjData* data,
                                int tendon_id, std::vector<float4>& points) {
   mjtNum length = 0.f;
   const bool is_catenary = mjv_isCatenary(model, data, tendon_id, &length);
-  if (is_catenary) {
-    const int max_segments = mjMIN(model->vis.quality.numslices + 1, 100);
+  const int max_segments = mjMIN(model->vis.quality.numslices + 1, mjMAXCURVE);
+  const float width = model->tendon_width[tendon_id];
+  mjtNum pts[3 * mjMAXCURVE];
 
+  if (is_catenary) {
     mjtNum x0[3];
     mju_copy3(x0, data->wrap_xpos + 3 * data->ten_wrapadr[tendon_id] + 0);
 
     mjtNum x1[3];
     mju_copy3(x1, data->wrap_xpos + 3 * data->ten_wrapadr[tendon_id] + 3);
 
-    const float width = model->tendon_width[tendon_id];
-
-    mjtNum pts[3 * 100];
     const int npoints =
         mjv_catenary(x0, x1, model->opt.gravity, length, pts, max_segments);
 
@@ -512,12 +511,20 @@ void GatherSpatialTendonPoints(const mjModel* model, const mjData* data,
         continue;
       }
 
-      float width = model->tendon_width[tendon_id];
       if (data->wrap_obj[j] >= 0 && data->wrap_obj[j + 1] >= 0) {
-        width *= 0.5;
+        const int gid = data->wrap_obj[j];
+        const int npoints = mjv_geodesic(
+            pts, max_segments, data->geom_xpos + 3 * gid,
+            data->geom_xmat + 9 * gid, model->geom_size[3 * gid],
+            model->geom_type[gid], data->wrap_xpos + 3 * j - 3);
+        for (int k = 0; k < npoints - 1; ++k) {
+          points.emplace_back(ReadFloat3(pts, k), width);
+          points.emplace_back(ReadFloat3(pts, k + 1), width);
+        }
+      } else {
+        points.emplace_back(ReadFloat3(data->wrap_xpos, j + 0), width);
+        points.emplace_back(ReadFloat3(data->wrap_xpos, j + 1), width);
       }
-      points.emplace_back(ReadFloat3(data->wrap_xpos, j + 0), width);
-      points.emplace_back(ReadFloat3(data->wrap_xpos, j + 1), width);
     }
   }
 }
