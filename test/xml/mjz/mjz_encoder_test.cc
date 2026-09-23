@@ -85,7 +85,8 @@ std::vector<std::string> GetWriteReadTestModels() {
   for (const auto& path : {GetTestDataFilePath("."), GetModelPath(".")}) {
     for (const auto& p : std::filesystem::recursive_directory_iterator(path)) {
       if (p.path().extension() == ext) {
-        std::string xml = p.path().string();
+        // generic format, so patterns containing '/' also match on Windows
+        std::string xml = p.path().generic_string();
         if (  // if file is meant to fail, skip it
             absl::StrContains(xml, "malformed_") ||
             absl::StrContains(xml, "_fail") ||

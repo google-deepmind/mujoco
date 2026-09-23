@@ -43,7 +43,8 @@ std::vector<std::string> GetWriteReadTestModels() {
   for (const auto& path : {GetTestDataFilePath("."), GetModelPath(".")}) {
     for (const auto& p : std::filesystem::recursive_directory_iterator(path)) {
       if (p.path().extension() == ext) {
-        std::string xml = p.path().string();
+        // generic format, so patterns containing '/' also match on Windows
+        std::string xml = p.path().generic_string();
         if (  // if file is meant to fail, skip it
             absl::StrContains(xml, "malformed_") ||
             absl::StrContains(xml, "_fail") ||
@@ -102,8 +103,10 @@ TEST_P(WriteReadCompareTest, WriteReadCompare) {
 
   mjModel* m = mj_compile(s, nullptr);
   if (!m) {
+    std::string error_message = mjs_getError(s);
     mj_deleteSpec(s);
-    GTEST_SKIP() << "Failed to compile " << xml.c_str() << ": " << error.data();
+    GTEST_SKIP() << "Failed to compile " << xml.c_str() << ": "
+                 << error_message;
   }
 
   // make data
@@ -120,7 +123,8 @@ TEST_P(WriteReadCompareTest, WriteReadCompare) {
                 abs_path.remove_filename().string().c_str());
   mjModel* mtemp = mj_compile(stemp, nullptr);
 
-  ASSERT_THAT(mtemp, NotNull()) << error.data() << " from " << xml.c_str();
+  ASSERT_THAT(mtemp, NotNull())
+      << mjs_getError(stemp) << " from " << xml.c_str();
 
   mjtNum tol = 0;
 
