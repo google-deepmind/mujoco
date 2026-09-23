@@ -416,8 +416,8 @@ static void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f);
 // test an SDF geom and a flex for collision, add to contact list
 static void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f);
 
-// test for internal flex collisions, add to contact list
-static void mj_collideFlexInternal(const mjModel* m, mjData* d, int f);
+// test active element self-collisions with SAP, pushing pairs onto the arena
+static int mj_collideFlexSAPPairs(const mjModel* m, mjData* d, int f, int group, int npair);
 
 // compare contact pairs by their geom/elem/vert IDs
 static inline int contactcompare(const mjContact* c1, const mjContact* c2, void* context) {
@@ -529,18 +529,19 @@ static void filterFlexContacts(mjData* d, int ncon_before) {
 
 
 // push a candidate collision pair onto the arena
-static void pushPairArena(mjData* d, mjcPair* pair) {
+static int pushPairArena(mjData* d, const mjcPair* pair, int npair) {
   // allocate geom pair on the arena
   mjcPair* new_pair = (mjcPair*) mj_arenaAllocByte(d, sizeof(mjcPair), _Alignof(mjcPair));
   if (!new_pair) {
     mjERROR("arena too small to allocate geom pair");
   }
   *new_pair = *pair;
+  return npair + 1;
 }
 
 
 // push a geom-geom collision pair onto the arena
-static void pushGeomGeom(const mjModel* m, mjData* d, int g1, int g2, int ipair) {
+static int pushGeomGeom(const mjModel* m, mjData* d, int g1, int g2, int ipair, int npair) {
   if (m->geom_type[g1] > m->geom_type[g2]) {
     int tmp = g1;
     g1 = g2;
@@ -552,7 +553,66 @@ static void pushGeomGeom(const mjModel* m, mjData* d, int g1, int g2, int ipair)
   pair.geom_geom.g1 = g1;
   pair.geom_geom.g2 = g2;
   pair.geom_geom.ipair = ipair;
-  pushPairArena(d, &pair);
+  return pushPairArena(d, &pair, npair);
+}
+
+
+// push a geom-flex collision pair onto the arena
+static int pushGeomFlex(mjData* d, int g, int f, int group, int npair) {
+  mjcPair pair;
+  defaultPair(&pair, mjCPAIR_GEOM_FLEX);
+  pair.group = group;
+  pair.geom_flex.g = g;
+  pair.geom_flex.f = f;
+  return pushPairArena(d, &pair, npair);
+}
+
+
+// push a geom-elem collision pair onto the arena
+static int pushGeomElem(mjData* d, int g, int f, int e, int group, int npair) {
+  mjcPair pair;
+  defaultPair(&pair, mjCPAIR_GEOM_ELEM);
+  pair.group = group;
+  pair.geom_elem.g = g;
+  pair.geom_elem.f = f;
+  pair.geom_elem.e = e;
+  return pushPairArena(d, &pair, npair);
+}
+
+
+// push an elem-elem collision pair onto the arena
+static int pushElemElem(mjData* d, int f1, int e1, int f2, int e2, int group, int npair) {
+  mjcPair pair;
+  defaultPair(&pair, mjCPAIR_ELEM_ELEM);
+  pair.group = group;
+  pair.elem_elem.f1 = f1;
+  pair.elem_elem.e1 = e1;
+  pair.elem_elem.f2 = f2;
+  pair.elem_elem.e2 = e2;
+  return pushPairArena(d, &pair, npair);
+}
+
+
+// push an elem-vert collision pair onto the arena
+static int pushElemVert(mjData* d, int f, int e, int v, int group, int npair) {
+  mjcPair pair;
+  defaultPair(&pair, mjCPAIR_ELEM_VERT);
+  pair.group = group;
+  pair.elem_vert.f = f;
+  pair.elem_vert.e = e;
+  pair.elem_vert.v = v;
+  return pushPairArena(d, &pair, npair);
+}
+
+
+// push an internal flex collision pair onto the arena
+static int pushFlexInternal(mjData* d, int f, int e, int group, int npair) {
+  mjcPair pair;
+  defaultPair(&pair, mjCPAIR_FLEX_INTERNAL);
+  pair.group = group;
+  pair.flex_internal.f = f;
+  pair.flex_internal.e = e;
+  return pushPairArena(d, &pair, npair);
 }
 
 
@@ -642,10 +702,10 @@ void mj_collision(const mjModel* m, mjData* d) {
   TM_RESTART;
 
   // process bodyflex pairs returned by broadphase, merge with predefined geom pairs
-  int pairadr = 0, ngeompair = 0, g1, g2;
+  int pairadr = 0, ncandidate = 0, ngroup = 0, g1, g2;
 
   // align the arena for candidate collision pairs for narrowphase
-  size_t parena = alignArena(d, _Alignof(int));
+  size_t parena = alignArena(d, _Alignof(mjcPair));
 
   for (int i=0; i < nbfpair; i++) {
     // reconstruct bodyflex pair ids
@@ -669,8 +729,7 @@ void mj_collision(const mjModel* m, mjData* d) {
       merged = (m->pair_signature[pairadr] == signature);
       g1 = m->pair_geom1[pairadr], g2 = m->pair_geom2[pairadr];
       if (filterCollisionPair(m, d, g1, g2, pairadr, 0, 0, 0)) {
-        pushGeomGeom(m, d, g1, g2, pairadr);
-        ngeompair++;
+        ncandidate = pushGeomGeom(m, d, g1, g2, pairadr, ncandidate);
       }
     }
 
@@ -709,17 +768,16 @@ void mj_collision(const mjModel* m, mjData* d) {
     // process bodyflex pair: two single-geom bodies
     if (isbody1 && isbody2 && m->body_geomnum[bf1] == 1 && m->body_geomnum[bf2] == 1) {
       if (filterCollisionPair(m, d, geomadr1, geomadr2, -1, merged, startadr, pairadr)) {
-        pushGeomGeom(m, d, geomadr1, geomadr2, -1);
-        ngeompair++;
+        ncandidate = pushGeomGeom(m, d, geomadr1, geomadr2, -1, ncandidate);
       }
     }
 
     // process bodyflex pair: midphase
     else if (!mjDISABLED(mjDSBL_MIDPHASE) && bvh1 >= 0 && bvh2 >= 0) {
-      // flush geom pairs before calling mj_collideTree as post sorting needs to happen
-      if (ngeompair > 0) {
-        mj_narrowphase(m, d, NULL, ngeompair, parena);
-        ngeompair = 0;
+      // flush candidate pairs before calling mj_collideTree as post sorting needs to happen
+      if (ncandidate > 0) {
+        mj_narrowphase(m, d, NULL, ncandidate, parena);
+        ncandidate = 0;
       }
 
       int ncon_before = d->ncon;
@@ -742,7 +800,7 @@ void mj_collision(const mjModel* m, mjData* d) {
       }
 
       // realign the arena after adding contacts
-      parena = alignArena(d, _Alignof(int));
+      parena = alignArena(d, _Alignof(mjcPair));
     }
 
     // process bodyflex pair: all-to-all
@@ -755,8 +813,7 @@ void mj_collision(const mjModel* m, mjData* d) {
         for (g1=geomadr1; g1 < geomadr_end1; g1++) {
           for (g2=geomadr2; g2 < geomadr_end2; g2++) {
             if (filterCollisionPair(m, d, g1, g2, -1, merged, startadr, pairadr)) {
-              pushGeomGeom(m, d, g1, g2, -1);
-              ngeompair++;
+              ncandidate = pushGeomGeom(m, d, g1, g2, -1, ncandidate);
             }
           }
         }
@@ -764,11 +821,6 @@ void mj_collision(const mjModel* m, mjData* d) {
 
       // body : flex
       else if (isbody1) {
-        if (ngeompair > 0) {
-          mj_narrowphase(m, d, NULL, ngeompair, parena);
-          ngeompair = 0;
-        }
-
         int f = bf2 - nbody;
 
         // process body geoms
@@ -779,56 +831,46 @@ void mj_collision(const mjModel* m, mjData* d) {
             continue;
           }
 
+          if (mjc_ipcOwnsFlexGeom(m, f, g)) {
+            continue;
+          }
+
+          int group = ngroup++;
+
           // plane special processing
           if (m->geom_type[g] == mjGEOM_PLANE) {
-            int ncon_before = d->ncon;
-            mj_collidePlaneFlex(m, d, g, f);
-            filterFlexContacts(d, ncon_before);
+            ncandidate = pushGeomFlex(d, g, f, group, ncandidate);
             continue;
           }
 
           // SDF special processing
           if (m->geom_type[g] == mjGEOM_SDF) {
-            int ncon_before = d->ncon;
-            mj_collideSdfFlex(m, d, g, f);
-            filterFlexContacts(d, ncon_before);
+            if (m->flex_dim[f] == 2) {
+              ncandidate = pushGeomFlex(d, g, f, group, ncandidate);
+            }
             continue;
           }
 
           // collide geom with flex elements
-          int ncon_before = d->ncon;
           int elemnum = m->flex_elemnum[f];
           for (int e=0; e < elemnum; e++) {
-            mj_collideGeomElem(m, d, g, f, e);
+            ncandidate = pushGeomElem(d, g, f, e, group, ncandidate);
           }
-          filterFlexContacts(d, ncon_before);
         }
-        // realign the arena after adding contacts
-        parena = alignArena(d, _Alignof(int));
       }
 
       // flex : flex
       else {
-        // flush accumulated geompairs before flex:flex processing
-        if (ngeompair > 0) {
-          mj_narrowphase(m, d, NULL, ngeompair, parena);
-          ngeompair = 0;
-        }
-
         int f1 = bf1 - nbody;
         int f2 = bf2 - nbody;
+        int group = ngroup++;
 
         // collide elements of two flexes
-        int ncon_before = d->ncon;
         for (int e1=0; e1 < m->flex_elemnum[f1]; e1++) {
           for (int e2=0; e2 < m->flex_elemnum[f2]; e2++) {
-            mj_collideElems(m, d, f1, e1, f2, e2);
+            ncandidate = pushElemElem(d, f1, e1, f2, e2, group, ncandidate);
           }
         }
-        filterFlexContacts(d, ncon_before);
-
-        // realign the arena after adding contacts
-        parena = alignArena(d, _Alignof(int));
       }
     }
   }
@@ -838,15 +880,8 @@ void mj_collision(const mjModel* m, mjData* d) {
   for (; pairadr < npair; pairadr++) {
     g1 = m->pair_geom1[pairadr], g2 = m->pair_geom2[pairadr];
     if (filterCollisionPair(m, d, g1, g2, pairadr, 0, 0, 0)) {
-      pushGeomGeom(m, d, g1, g2, pairadr);
-      ngeompair++;
+      ncandidate = pushGeomGeom(m, d, g1, g2, pairadr, ncandidate);
     }
-  }
-
-  // flush remaining collision pairs
-  if (ngeompair > 0) {
-    mj_narrowphase(m, d, NULL, ngeompair, parena);
-    ngeompair = 0;
   }
 
   // flex self-collisions
@@ -859,14 +894,23 @@ void mj_collision(const mjModel* m, mjData* d) {
 
       // internal collisions
       if (m->flex_internal[f]) {
-        int ncon_before = d->ncon;
-        mj_collideFlexInternal(m, d, f);
-        filterFlexContacts(d, ncon_before);
+        int group = ngroup++;
+        int flex_evpairnum = m->flex_evpairnum[f];
+        for (int i=0; i < flex_evpairnum; i++) {
+          const int* ev = m->flex_evpair + 2*m->flex_evpairadr[f] + 2*i;
+          ncandidate = pushElemVert(d, f, ev[0], ev[1], group, ncandidate);
+        }
+        if (m->flex_dim[f] == 3) {
+          int flex_elemnum = m->flex_elemnum[f];
+          for (int e=0; e < flex_elemnum; e++) {
+            ncandidate = pushFlexInternal(d, f, e, group, ncandidate);
+          }
+        }
       }
 
       // active element collisions
       if (m->flex_selfcollide[f] != mjFLEXSELF_NONE) {
-        int ncon_before = d->ncon;
+        int group = ngroup++;
 
         // element-element: midphase
         if (!mjDISABLED(mjDSBL_MIDPHASE) &&
@@ -875,9 +919,16 @@ void mj_collision(const mjModel* m, mjData* d) {
           // select midphase mode
           if (m->flex_selfcollide[f] == mjFLEXSELF_BVH ||
               (m->flex_selfcollide[f] == mjFLEXSELF_AUTO && m->flex_dim[f] == 3)) {
+            if (ncandidate > 0) {
+              mj_narrowphase(m, d, NULL, ncandidate, parena);
+              ncandidate = 0;
+            }
+            int ncon_before = d->ncon;
             mj_collideTree(m, d, nbody+f, nbody+f, 0, 0, 0);
+            filterFlexContacts(d, ncon_before);
+            parena = alignArena(d, _Alignof(mjcPair));
           } else {
-            mj_collideFlexSAP(m, d, f);
+            ncandidate = mj_collideFlexSAPPairs(m, d, f, group, ncandidate);
           }
         }
 
@@ -888,16 +939,19 @@ void mj_collision(const mjModel* m, mjData* d) {
             if (mj_isElemActive(m, f, e1)) {
               for (int e2=e1+1; e2 < flex_elemnum; e2++) {
                 if (mj_isElemActive(m, f, e2)) {
-                  mj_collideElems(m, d, f, e1, f, e2);
+                  ncandidate = pushElemElem(d, f, e1, f, e2, group, ncandidate);
                 }
               }
             }
           }
         }
-
-        filterFlexContacts(d, ncon_before);
       }
     }
+  }
+
+  // narrowphase: compute contacts for all candidate pairs in a single global call
+  if (ncandidate > 0) {
+    mj_narrowphase(m, d, NULL, ncandidate, parena);
   }
 
   // end narrowphase and midphase timer
@@ -2463,30 +2517,61 @@ static void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f) {
 }
 
 
-// test for internal flex collisions, add to contact list
-// ignore margin to avoid permament self-collision
-static void mj_collideFlexInternal(const mjModel* m, mjData* d, int f) {
-  int flex_evpairnum = m->flex_evpairnum[f];
+// test active element self-collisions with SAP, pushing pairs onto the arena
+static int mj_collideFlexSAPPairs(const mjModel* m, mjData* d, int f, int group, int npair) {
+  mj_markStack(d);
 
-  // predefined element-vertex
-  for (int i=0; i < flex_evpairnum; i++) {
-    const int* ev = m->flex_evpair + 2*m->flex_evpairadr[f] + 2*i;
-    mj_collideElemVert(m, d, f, ev[0], ev[1]);
-  }
-
-  // within-element for tetrahedral only
-  if (m->flex_dim[f] != 3) {
-    return;
-  }
-
+  // allocate and construct active element ids
+  int* elid = mjSTACKALLOC(d, m->flex_elemnum[f], int);
+  int nactive = 0;
   int flex_elemnum = m->flex_elemnum[f];
-  for (int e=0; e < flex_elemnum; e++) {
-    mjcPair pair;
-    defaultPair(&pair, mjCPAIR_FLEX_INTERNAL);
-    pair.flex_internal.f = f;
-    pair.flex_internal.e = e;
-    mj_narrowphase(m, d, &pair, 1, 0);
+  for (int i=0; i < flex_elemnum; i++) {
+    if (mj_isElemActive(m, f, i)) {
+      elid[nactive++] = i;
+    }
   }
+
+  // nothing active
+  if (nactive < 2) {
+    mj_freeStack(d);
+    return npair;
+  }
+
+  // allocate and construct AAMMs for active elements
+  mjtNum* aamm = mjSTACKALLOC(d, 6*nactive, mjtNum);
+  const mjtNum* elemaabb = d->flexelem_aabb + 6*m->flex_elemadr[f];
+  for (int i=0; i < nactive; i++) {
+    const mjtNum* center = elemaabb+6*elid[i];
+    const mjtNum* radius = elemaabb+6*elid[i]+3;
+    aamm[nactive*0 + i] = center[0] - radius[0];
+    aamm[nactive*1 + i] = center[1] - radius[1];
+    aamm[nactive*2 + i] = center[2] - radius[2];
+    aamm[nactive*3 + i] = center[0] + radius[0];
+    aamm[nactive*4 + i] = center[1] + radius[1];
+    aamm[nactive*5 + i] = center[2] + radius[2];
+  }
+
+  // select largest axis from flex bvh
+  const mjtNum* bvh = d->bvh_aabb_dyn + 6*(m->flex_bvhadr[f] - m->nbvhstatic);
+  int axis = (bvh[3] > bvh[4] && bvh[3] > bvh[5]) ? 0 : (bvh[4] > bvh[5] ? 1 : 2);
+
+  // call SAP; hard limit on number of pairs to avoid out-of-memory
+  int maxsappair = mjMIN(nactive*(nactive-1)/2, 1000000);
+  mjPacked32* sappair = mjSTACKALLOC(d, maxsappair, mjPacked32);
+  int nsappair = mj_SAP(d, aamm, nactive, axis, sappair, maxsappair);
+  if (nsappair < 0) {
+    mjERROR("SAP failed");
+  }
+
+  // push SAP pairs
+  for (int i=0; i < nsappair; i++) {
+    int e1 = elid[sappair[i].hi];
+    int e2 = elid[sappair[i].lo];
+    npair = pushElemElem(d, f, e1, f, e2, group, npair);
+  }
+
+  mj_freeStack(d);
+  return npair;
 }
 
 
