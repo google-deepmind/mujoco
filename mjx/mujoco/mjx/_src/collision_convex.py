@@ -963,9 +963,9 @@ def _hfield_collision(
   xmin = obj_pos[0] - obj_rbound
   ymin = obj_pos[1] - obj_rbound
   cmin = jp.floor((xmin + h.size[0]) / (2 * h.size[0]) * (h.ncol - 1))
-  cmin = cmin.astype(int)
+  cmin = jp.clip(cmin, -(h.ncol - 1), h.ncol - 1).astype(int)
   rmin = jp.floor((ymin + h.size[1]) / (2 * h.size[1]) * (h.nrow - 1))
-  rmin = rmin.astype(int)
+  rmin = jp.clip(rmin, -(h.nrow - 1), h.nrow - 1).astype(int)
 
   # compute real-valued grid step
   dx = 2.0 * h.size[0] / (h.ncol - 1)
