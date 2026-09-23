@@ -2,6 +2,27 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+General
+^^^^^^^
+
+- Procedural model editing now scales linearly in the number of elements. Editing the kinematic tree previously
+  rebuilt the flat element lists on every :ref:`mjs_addGeom`-like call by walking the whole tree, which kept
+  spec building quadratic after the signature and duplicate-name costs were removed in 3.14.0. The lists are now
+  rebuilt once on first use. Building 16000 geoms takes about 2 ms instead of 355 ms, and a chain of 4000 nested
+  bodies about 0.3 ms instead of 100 ms.
+
+  .. admonition:: Breaking API changes
+     :class: attention
+
+     :ref:`mjs_getId` returns ``-1`` for elements of the kinematic tree (bodies, joints, geoms, sites, cameras,
+     lights and frames) while the spec has unprocessed tree edits, as their position in the compiled model is not
+     yet known; the world body keeps id ``0``. Ids are assigned by :ref:`mj_compile` as before. Previously every
+     tree element's id was reset to ``-1`` on each edit and reassigned on the next one, so an id read between two
+     edits was not meaningful either.
+
 Version 3.14.0 (September 22, 2026)
 -----------------------------------
 
