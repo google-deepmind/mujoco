@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <optional>
@@ -27,37 +28,32 @@
 namespace mujoco::plugin::sdf {
 namespace {
 
-static mjtNum circle(mjtNum rho, mjtNum r) {
-  return rho - r;
-}
+static mjtNum circle(mjtNum rho, mjtNum r) { return rho - r; }
 
 static mjtNum smoothUnion(mjtNum a, mjtNum b, mjtNum k) {
-    mjtNum h = mju_clip(0.5 + 0.5*(b - a) / k, 0.0, 1.0);
-    return b * (1. - h) + a * h - k * h * (1. - h);
+  mjtNum h = mju_clip(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return b * (1. - h) + a * h - k * h * (1. - h);
 }
 
 static mjtNum smoothIntersection(mjtNum a, mjtNum b, mjtNum k) {
-    return Subtraction(
-        Intersection(a, b),
-        smoothUnion(Subtraction(a, b), Subtraction(b, a), k));
+  return Subtraction(Intersection(a, b),
+                     smoothUnion(Subtraction(a, b), Subtraction(b, a), k));
 }
 
 static mjtNum extrusion(const mjtNum p[3], mjtNum sdf_2d, mjtNum h) {
-    mjtNum w[2] = { sdf_2d, abs(p[2]) - h };
-    mjtNum w_abs[2] = { mju_max(w[0], 0), mju_max(w[1], 0) };
-    return mju_min(mju_max(w[0], w[1]), 0.) + mju_norm(w_abs, 2);
+  mjtNum w[2] = {sdf_2d, abs(p[2]) - h};
+  mjtNum w_abs[2] = {mju_max(w[0], 0), mju_max(w[1], 0)};
+  return mju_min(mju_max(w[0], w[1]), 0.) + mju_norm(w_abs, 2);
 }
 
-static mjtNum mod(mjtNum x, mjtNum y) {
-  return x - y * floor(x/y);
-}
+static mjtNum mod(mjtNum x, mjtNum y) { return x - y * floor(x / y); }
 
 static mjtNum distance2D(const mjtNum p[3],
                          const mjtNum attributes[GearAttribute::nattribute]) {
   // see https://www.shadertoy.com/view/3lG3WR
   mjtNum D = attributes[1];
   mjtNum N = attributes[2];
-  mjtNum psi = 3.096e-5 * N * N -6.557e-3 * N + 0.551;  // pressure angle
+  mjtNum psi = 3.096e-5 * N * N - 6.557e-3 * N + 0.551;  // pressure angle
   mjtNum alpha = attributes[0];
 
   mjtNum R = D / 2.0;
@@ -81,18 +77,16 @@ static mjtNum distance2D(const mjtNum p[3],
 
   mjtNum h = 2.2 / Pd;
 
-  mjtNum innerR = Ro - h - 0.14*D;
+  mjtNum innerR = Ro - h - 0.14 * D;
   if (attributes[4] >= 0.0) {
     innerR = attributes[4] / 2.0;
   }
 
   // Early exit
-  if (innerR - rho > 0.0)
-      return innerR - rho;
+  if (innerR - rho > 0.0) return innerR - rho;
 
   // Early exit
-  if (Ro - rho < -0.2)
-      return rho - Ro;
+  if (Ro - rho < -0.2) return rho - Ro;
 
   mjtNum Db = D * mju_cos(psi);  // Base Diameter
   mjtNum Rb = Db / 2.0;
@@ -112,27 +106,27 @@ static mjtNum distance2D(const mjtNum p[3],
   mjtNum distb = -1.0e6;
 
   if (Rb < rho) {
-      mjtNum acos_rbRho = mju_acos(Rb/rho);
+    mjtNum acos_rbRho = mju_acos(Rb / rho);
 
-      mjtNum thetaa = fia + acos_rbRho;
-      mjtNum thetab = fib + acos_rbRho;
+    mjtNum thetaa = fia + acos_rbRho;
+    mjtNum thetab = fib + acos_rbRho;
 
-      mjtNum ta = mju_sqrt(rho * rho - Rb * Rb);
+    mjtNum ta = mju_sqrt(rho * rho - Rb * Rb);
 
-      // https://math.stackexchange.com/questions/1266689/distance-from-a-point-to-the-involute-of-a-circle
-      dista = ta - Rb * thetaa;
-      distb = ta - Rb * thetab;
+    // https://math.stackexchange.com/questions/1266689/distance-from-a-point-to-the-involute-of-a-circle
+    dista = ta - Rb * thetaa;
+    distb = ta - Rb * thetab;
   }
 
   mjtNum gearOuter = circle(rho, Ro);
   mjtNum gearLowBase = circle(rho, Ro - h);
   mjtNum crownBase = circle(rho, innerR);
   mjtNum cogs = Intersection(dista, distb);
-  mjtNum baseWalls = Intersection(fia - (alphaStride - shift),
-                                   fib - (alphaStride - shift));
+  mjtNum baseWalls =
+      Intersection(fia - (alphaStride - shift), fib - (alphaStride - shift));
 
   cogs = Intersection(baseWalls, cogs);
-  cogs = smoothIntersection(gearOuter, cogs, 0.0035*D);
+  cogs = smoothIntersection(gearOuter, cogs, 0.0035 * D);
   cogs = smoothUnion(gearLowBase, cogs, Rb - Ro + h);
   cogs = Subtraction(cogs, crownBase);
 
@@ -141,7 +135,7 @@ static mjtNum distance2D(const mjtNum p[3],
 
 static mjtNum distance(const mjtNum p[3],
                        const mjtNum attributes[GearAttribute::nattribute]) {
-  return extrusion(p, distance2D(p, attributes), attributes[3]/2.);
+  return extrusion(p, distance2D(p, attributes), attributes[3] / 2.);
 }
 
 }  // namespace
@@ -151,10 +145,10 @@ std::optional<Gear> Gear::Create(const mjModel* m, mjData* d, int instance) {
   if (CheckAttr("alpha", m, instance) && CheckAttr("diameter", m, instance) &&
       CheckAttr("teeth", m, instance) &&
       CheckAttr("innerdiameter", m, instance)) {
-      return Gear(m, d, instance);
+    return Gear(m, d, instance);
   } else {
-      mju_warning("Invalid parameter specification in Gear plugin");
-      return std::nullopt;
+    mju_warning("Invalid parameter specification in Gear plugin");
+    return std::nullopt;
   }
 }
 
@@ -162,10 +156,10 @@ std::optional<Gear> Gear::Create(const mjModel* m, mjData* d, int instance) {
 Gear::Gear(const mjModel* m, mjData* d, int instance) {
   SdfDefault<GearAttribute> defattribute;
 
-  for (int i=0; i < GearAttribute::nattribute; i++) {
-      attribute[i] = defattribute.GetDefault(
-          GearAttribute::names[i],
-          mj_getPluginConfig(m, instance, GearAttribute::names[i]));
+  for (int i = 0; i < GearAttribute::nattribute; i++) {
+    attribute[i] = defattribute.GetDefault(
+        GearAttribute::names[i],
+        mj_getPluginConfig(m, instance, GearAttribute::names[i]));
   }
 }
 
@@ -175,9 +169,7 @@ void Gear::Compute(const mjModel* m, mjData* d, int instance) {
 }
 
 // plugin reset
-void Gear::Reset() {
-  visualizer_.Reset();
-}
+void Gear::Reset() { visualizer_.Reset(); }
 
 // plugin visualization
 void Gear::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
@@ -195,11 +187,11 @@ void Gear::Gradient(mjtNum grad[3], const mjtNum point[3]) const {
   mjtNum eps = 1e-8;
   mjtNum dist0 = distance(point, attribute);
 
-  mjtNum pointX[3] = {point[0]+eps, point[1], point[2]};
+  mjtNum pointX[3] = {point[0] + eps, point[1], point[2]};
   mjtNum distX = distance(pointX, attribute);
-  mjtNum pointY[3] = {point[0], point[1]+eps, point[2]};
+  mjtNum pointY[3] = {point[0], point[1] + eps, point[2]};
   mjtNum distY = distance(pointY, attribute);
-  mjtNum pointZ[3] = {point[0], point[1], point[2]+eps};
+  mjtNum pointZ[3] = {point[0], point[1], point[2] + eps};
   mjtNum distZ = distance(pointZ, attribute);
 
   grad[0] = (distX - dist0) / eps;
@@ -224,8 +216,8 @@ void Gear::RegisterPlugin() {
     if (!sdf_or_null.has_value()) {
       return -1;
     }
-    d->plugin_data[instance] = reinterpret_cast<uintptr_t>(
-        new Gear(std::move(*sdf_or_null)));
+    d->plugin_data[instance] =
+        reinterpret_cast<uintptr_t>(new Gear(std::move(*sdf_or_null)));
     return 0;
   };
   plugin.destroy = +[](mjData* d, int instance) {
@@ -253,7 +245,7 @@ void Gear::RegisterPlugin() {
         return sdf->Distance(point);
       };
   plugin.sdf_gradient = +[](mjtNum gradient[3], const mjtNum point[3],
-                        const mjData* d, int instance) {
+                            const mjData* d, int instance) {
     auto* sdf = reinterpret_cast<Gear*>(d->plugin_data[instance]);
     sdf->visualizer_.AddPoint(point);
     sdf->Gradient(gradient, point);
@@ -262,11 +254,10 @@ void Gear::RegisterPlugin() {
       +[](const mjtNum point[3], const mjtNum* attributes) {
         return distance(point, attributes);
       };
-  plugin.sdf_aabb =
-      +[](mjtNum aabb[6], const mjtNum* attributes) {
-        aabb[0] = aabb[1] = aabb[2] = 0;
-        aabb[3] = aabb[4] = attributes[1] / 2. * 1.25;
-        aabb[5] = attributes[3] / 2. * 1.1;
+  plugin.sdf_aabb = +[](mjtNum aabb[6], const mjtNum* attributes) {
+    aabb[0] = aabb[1] = aabb[2] = 0;
+    aabb[3] = aabb[4] = attributes[1] / 2. * 1.25;
+    aabb[5] = attributes[3] / 2. * 1.1;
   };
   plugin.sdf_attribute =
       +[](mjtNum attribute[], const char* name[], const char* value[]) {

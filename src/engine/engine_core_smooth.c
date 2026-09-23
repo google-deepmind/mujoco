@@ -189,12 +189,16 @@ void mj_kinematics1(const mjModel* m, mjData* d) {
 
 // forward kinematics part 2: body inertias, geoms and sites
 void mj_kinematics2(const mjModel* m, mjData* d) {
-  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+  int sleep_enabled = mjENABLED(mjENBL_SLEEP);
+  int sleep_filter = sleep_enabled && d->nbody_awake < m->nbody;
   int nbody = sleep_filter ? d->nbody_awake : m->nbody;
 
   // compute/copy Cartesian positions and orientations of body inertial frames
   for (int b=1; b < nbody; b++) {
     int i = sleep_filter ? d->body_awake_ind[b] : b;
+
+    // skip static body
+    if (sleep_enabled && d->body_awake[i] == mjS_STATIC) continue;
 
     mj_local2Global(d, d->xipos+3*i, d->ximat+9*i,
                     m->body_ipos+3*i, m->body_iquat+4*i,
@@ -205,8 +209,8 @@ void mj_kinematics2(const mjModel* m, mjData* d) {
   for (int b=0; b < nbody; b++) {
     int i = sleep_filter ? d->body_awake_ind[b] : b;
 
-    // skip geom in sleeping or static body
-    if (sleep_filter && d->body_awake[i] != mjS_AWAKE) continue;
+    // skip geoms in static body
+    if (sleep_enabled && d->body_awake[i] == mjS_STATIC) continue;
 
     int start = m->body_geomadr[i];
     int end = start + m->body_geomnum[i];
@@ -223,7 +227,7 @@ void mj_kinematics2(const mjModel* m, mjData* d) {
     int bodyid = m->site_bodyid[i];
 
     // skip site in sleeping or static body
-    if (sleep_filter && d->body_awake[bodyid] != mjS_AWAKE) continue;
+    if (sleep_enabled && d->body_awake[bodyid] != mjS_AWAKE) continue;
 
     mj_local2Global(d, d->site_xpos+3*i, d->site_xmat+9*i,
                     m->site_pos+3*i, m->site_quat+4*i,
@@ -353,7 +357,7 @@ void mj_comPos(const mjModel* m, mjData* d) {
 // compute camera and light positions and orientations
 void mj_camlight(const mjModel* m, mjData* d) {
   int ncam = m->ncam, nlight = m->nlight;
-  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+  int sleep_filter = mjENABLED(mjENBL_SLEEP);
 
   // compute Cartesian positions and orientations of cameras
   for (int i=0; i < ncam; i++) {
@@ -1995,24 +1999,43 @@ void mj_factorM(const mjModel* m, mjData* d) {
   }
 
   // factorize
-  mj_factorI(d->qLD, d->qLDiagInv, nv, m->M_rownnz, m->M_rowadr, m->M_colind, index);
+  int clamped = mj_factorI(d->qLD, d->qLDiagInv, nv, m->M_rownnz, m->M_rowadr, m->M_colind,
+                           index);
+
+  // near-singular inertia: a pivot was clamped
+  if (clamped >= 0) {
+    mj_warning(d, mjWARN_INERTIA, clamped);
+  }
 
   TM_ADD(mjTIMER_POS_INERTIA);
 }
 
 
-// sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd (with dof skipping)
-void mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
-                const int* rownnz, const int* rowadr, const int* colind,
-                const int* index) {
+// sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd (with dof skipping);
+// clamp non-positive pivots up to mjMINVAL, return first clamped dof index or -1 if none
+int mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
+               const int* rownnz, const int* rowadr, const int* colind,
+               const int* index) {
+  int clamped = -1;
+
   // backward loop over rows
   for (int j=nv-1; j >= 0; j--) {
     int k = index ? index[j] : j;
 
-    // get row k's address, diagonal index, inverse diagonal value
+    // get row k's address, diagonal index
     int start = rowadr[k];
     int diag = rownnz[k] - 1;
     int end = start + diag;
+
+    // clamp small or non-positive pivot from below, save first clamped dof
+    if (mat[end] < mjMINVAL) {
+      mat[end] = mjMINVAL;
+      if (clamped < 0) {
+        clamped = k;
+      }
+    }
+
+    // inverse diagonal value
     mjtNum invD = 1 / mat[end];
     if (diaginv) diaginv[k] = invD;
 
@@ -2026,6 +2049,8 @@ void mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
     // update row k:  L(k, :) /= L(k, k)
     mju_scl(mat + start, mat + start, invD, diag);
   }
+
+  return clamped;
 }
 
 
@@ -2129,14 +2154,16 @@ void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
 // half of sparse backsubstitution:  x = sqrt(inv(D))*inv(L')*y
 void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y,
                 const mjtNum* sqrtInvD, int n) {
-  int nv = m->nv;
+  mj_solveM2_impl(x, y, sqrtInvD, d->qLD, m->nv, n,
+                  m->M_rownnz, m->M_rowadr, m->M_colind, m->dof_simplenum);
+}
 
-  // local copies of key variables
-  const int* rownnz = m->M_rownnz;
-  const int* rowadr = m->M_rowadr;
-  const int* colind = m->M_colind;
-  const int* diagnum = m->dof_simplenum;
-  const mjtNum* qLD = d->qLD;
+
+// implementation of mj_solveM2: backsubstitute against a caller-selected factor (qLD or qH)
+void mj_solveM2_impl(mjtNum* x, const mjtNum* y, const mjtNum* sqrtInvD, const mjtNum* factor,
+                     int nv, int n, const int* rownnz, const int* rowadr, const int* colind,
+                     const int* diagnum) {
+  const mjtNum* qLD = factor;
 
   // x = y
   mju_copy(x, y, n * nv);
@@ -2390,10 +2417,78 @@ void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result) {
 }
 
 
+// add world-oriented wrench (torque:force) applied at point to cfrc_ext of body, scaled
+static void addExternal(const mjModel* m, mjData* d, int body, const mjtNum point[3],
+                        const mjtNum cfrc[6], mjtNum scale) {
+  // nothing to accumulate on the world
+  if (!body) {
+    return;
+  }
+
+  // map to the subtree com of the body's root, accumulate
+  mjtNum cfrc_com[6];
+  mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[body], point, 0);
+  mju_addToScl(d->cfrc_ext+6*body, cfrc_com, scale, 6);
+}
+
+
+// add the force along spatial tendon t to cfrc_ext of the bodies on its path
+static void addTendon(const mjModel* m, mjData* d, int t, mjtNum frc) {
+  int adr = m->tendon_adr[t], num = m->tendon_num[t];
+  int p = d->ten_wrapadr[t], pend = p + d->ten_wrapnum[t];
+  mjtNum divisor = 1;
+
+  // previous point of the branch, none at the start of a branch
+  int prevbody = -1;
+  const mjtNum* prevpnt = NULL;
+
+  // walk the wrap objects in lockstep with the path computed by mj_tendon
+  for (int j=adr; j < adr+num; j++) {
+    int type = m->wrap_type[j], objid = m->wrap_objid[j];
+
+    // pulley: divides the force in the next branch, skip its marker in the path
+    if (type == mjWRAP_PULLEY) {
+      divisor = m->wrap_prm[j];
+      prevbody = -1;
+      p++;
+      continue;
+    }
+
+    // site: one point; geom: two points if the tendon wraps around it
+    int npnt, body;
+    if (type == mjWRAP_SITE) {
+      npnt = 1;
+      body = m->site_bodyid[objid];
+    } else {
+      npnt = (p < pend && d->wrap_obj[p] == objid) ? 2 : 0;
+      body = m->geom_bodyid[objid];
+    }
+
+    // straight segments between points on different bodies carry the force
+    for (int k=0; k < npnt; k++) {
+      const mjtNum* pnt = d->wrap_xpos + 3*p;
+      if (prevbody >= 0 && body != prevbody) {
+        mjtNum cfrc[6] = {0, 0, 0, 0, 0, 0};
+        mji_sub3(cfrc+3, pnt, prevpnt);
+        if (mju_normalize3(cfrc+3) >= mjMINVAL) {
+          mju_scl3(cfrc+3, cfrc+3, frc/divisor);
+          addExternal(m, d, body, pnt, cfrc, 1);
+          addExternal(m, d, prevbody, prevpnt, cfrc, -1);
+        }
+      }
+      prevbody = body;
+      prevpnt = pnt;
+      p++;
+    }
+  }
+}
+
+
 // RNE with complete data: compute cacc, cfrc_ext, cfrc_int
 void mj_rnePostConstraint(const mjModel* m, mjData* d) {
-  int nbody = m->nbody;
-  mjtNum cfrc_com[6], cfrc[6], lfrc[6];
+  int nbody = m->nbody, ntendon = m->ntendon, nactuator = m->nactuator;
+  mjtNum cfrc[6], lfrc[6], *ten_frc = NULL;
+  int* ten_nlimit = NULL;
   mjContact* con;
 
   // clear cacc, set world acceleration to -gravity
@@ -2402,19 +2497,23 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
     mju_scl3(d->cacc+3, m->opt.gravity, -1);
   }
 
+  // total force along each tendon: constraint, actuator, passive and armature
+  if (ntendon) {
+    mj_markStack(d);
+    ten_frc = mjSTACKALLOC(d, ntendon, mjtNum);
+    ten_nlimit = mjSTACKALLOC(d, ntendon, int);
+    mju_zero(ten_frc, ntendon);
+    mju_zeroInt(ten_nlimit, ntendon);
+  }
+
   // cfrc_ext = perturb
   mju_zero(d->cfrc_ext, 6*nbody);
   for (int i=1; i < nbody; i++) {
     if (!mju_isZero(d->xfrc_applied+6*i, 6)) {
-      // rearrange as torque:force
+      // rearrange as torque:force, apply at body com
       mji_copy3(cfrc, d->xfrc_applied+6*i+3);
       mji_copy3(cfrc+3, d->xfrc_applied+6*i);
-
-      // map force from application point to com; both world-oriented
-      mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[i], d->xipos+3*i, 0);
-
-      // accumulate
-      mju_addTo(d->cfrc_ext+6*i, cfrc_com, 6);
+      addExternal(m, d, i, d->xipos+3*i, cfrc, 1);
     }
   }
 
@@ -2441,24 +2540,9 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
     mju_mulMatTVec3(cfrc, con->frame, lfrc+3);
     mju_mulMatTVec3(cfrc+3, con->frame, lfrc);
 
-    // body 1
-    int k;
-    if ((k = m->geom_bodyid[con->geom[0]])) {
-      // tmp = subtree CoM-based torque_force vector
-      mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], con->pos, 0);
-
-      // apply (opposite for body 1)
-      mju_subFrom(d->cfrc_ext+6*k, cfrc_com, 6);
-    }
-
-    // body 2
-    if ((k = m->geom_bodyid[con->geom[1]])) {
-      // tmp = subtree CoM-based torque_force vector
-      mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], con->pos, 0);
-
-      // apply
-      mju_addTo(d->cfrc_ext+6*k, cfrc_com, 6);
-    }
+    // apply at the contact point, opposite for body 1
+    addExternal(m, d, m->geom_bodyid[con->geom[0]], con->pos, cfrc, -1);
+    addExternal(m, d, m->geom_bodyid[con->geom[1]], con->pos, cfrc, 1);
   }
 
   // cfrc_ext += connect, weld, flex constraints
@@ -2475,48 +2559,52 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
     switch ((mjtEq) m->eq_type[id]) {
     case mjEQ_CONNECT:
     case mjEQ_WELD:
+      body_semantic = m->eq_objtype[id] == mjOBJ_BODY;
+      obj1 = m->eq_obj1id[id];
+      obj2 = m->eq_obj2id[id];
+
       // cfrc = world-oriented torque:force vector
       mji_copy3(cfrc + 3, d->efc_force + i);
-      if (m->eq_type[id] == mjEQ_WELD) {
-        mji_copy3(cfrc, d->efc_force + i + 3);
-      } else {
+      if (m->eq_type[id] == mjEQ_CONNECT) {
         mju_zero3(cfrc);  // no torque from connect
+      } else {
+        // the rotational rows are 0.5*torquescale * neg(q1)*(jac0-jac1)*q0*relpose (see
+        // mj_instantiateEquality), so the torque is the adjoint applied to the multiplier:
+        // 0.5*torquescale * q1*force*neg(q0*relpose), with site frames as q1 and q0*relpose
+        mjtNum q0[4], q1[4], quat[4];
+        if (body_semantic) {
+          mju_mulQuat(q0, d->xquat+4*obj1, eq_data+6);
+          mji_copy4(q1, d->xquat+4*obj2);
+        } else {
+          mju_mulQuat(q0, d->xquat+4*m->site_bodyid[obj1], m->site_quat+4*obj1);
+          mju_mulQuat(q1, d->xquat+4*m->site_bodyid[obj2], m->site_quat+4*obj2);
+        }
+        mju_negQuat(q0, q0);
+        mju_mulQuatAxis(quat, q1, d->efc_force+i+3);
+        mju_mulQuat(quat, quat, q0);
+        mju_scl3(cfrc, quat+1, 0.5*eq_data[10]);
       }
 
-      body_semantic = m->eq_objtype[id] == mjOBJ_BODY;
-
       // body 1
-      obj1 = m->eq_obj1id[id];
       k = body_semantic ? obj1 : m->site_bodyid[obj1];
       if (k) {
         offset = body_semantic ? eq_data + 3 * (m->eq_type[id] == mjEQ_WELD) :
                                  m->site_pos + 3 * obj1;
 
-        // transform point on body1: local -> global
+        // transform point on body1: local -> global, apply
         mj_local2Global(d, pos, 0, offset, 0, k, 0);
-
-        // tmp = subtree CoM-based torque_force vector
-        mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], pos, 0);
-
-        // apply (opposite for body 1)
-        mju_addTo(d->cfrc_ext+6*k, cfrc_com, 6);
+        addExternal(m, d, k, pos, cfrc, 1);
       }
 
       // body 2
-      obj2 = m->eq_obj2id[id];
       k = body_semantic ? obj2 : m->site_bodyid[obj2];
       if (k) {
         offset = body_semantic ? eq_data + 3 * (m->eq_type[id] == mjEQ_CONNECT) :
                                  m->site_pos + 3 * obj2;
 
-        // transform point on body2: local -> global
+        // transform point on body2: local -> global, apply (opposite for body 2)
         mj_local2Global(d, pos, 0, offset, 0, k, 0);
-
-        // tmp = subtree CoM-based torque_force vector
-        mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], pos, 0);
-
-        // apply
-        mju_subFrom(d->cfrc_ext+6*k, cfrc_com, 6);
+        addExternal(m, d, k, pos, cfrc, -1);
       }
 
       // increment rows
@@ -2524,7 +2612,22 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       break;
 
     case mjEQ_JOINT:
+      // increment 1 row
+      i++;
+      break;
+
     case mjEQ_TENDON:
+      // force along tendon 1, and along tendon 2 through the derivative of the coupling
+      obj1 = m->eq_obj1id[id];
+      obj2 = m->eq_obj2id[id];
+      ten_frc[obj1] += d->efc_force[i];
+      if (obj2 >= 0) {
+        mjtNum dif = d->ten_length[obj2] - m->tendon_length0[obj2];
+        mjtNum deriv = eq_data[1] + 2*eq_data[2]*dif + 3*eq_data[3]*dif*dif +
+                       4*eq_data[4]*dif*dif*dif;
+        ten_frc[obj2] -= deriv * d->efc_force[i];
+      }
+
       // increment 1 row
       i++;
       break;
@@ -2567,6 +2670,67 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
     default:
       mjERROR("unknown constraint type type %d", m->eq_type[id]);    // SHOULD NOT OCCUR
     }
+  }
+
+  if (ntendon) {
+    // ten_frc += friction and limit rows; the lower limit row precedes the upper
+    int nf = d->nf, nl = d->nl;
+    for (int r=ne; r < ne+nf+nl; r++) {
+      int t = d->efc_id[r];
+      if (d->efc_type[r] == mjCNSTR_FRICTION_TENDON) {
+        ten_frc[t] += d->efc_force[r];
+      } else if (d->efc_type[r] == mjCNSTR_LIMIT_TENDON) {
+        // Jacobian is -side*ten_J, the lower limit (side -1) comes first if active
+        int lower = ten_nlimit[t]++ == 0 &&
+                    -(m->tendon_range[2*t] - d->ten_length[t]) < m->tendon_margin[t];
+        ten_frc[t] += lower ? d->efc_force[r] : -d->efc_force[r];
+      }
+    }
+
+    // ten_frc += actuators
+    for (int j=0; j < nactuator; j++) {
+      if (m->actuator_trntype[j] == mjTRN_TENDON) {
+        int out = m->actuator_outadr[j];
+        ten_frc[m->actuator_trnid[2*j]] += d->actuator_force[out] * m->actuator_gear[6*out];
+      }
+    }
+
+    // cfrc_ext += spatial tendons
+    int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+    for (int t=0; t < ntendon; t++) {
+      // fixed tendon: acts through the joints
+      if (m->wrap_type[m->tendon_adr[t]] == mjWRAP_JOINT) {
+        continue;
+      }
+
+      // sleeping tendon: no path
+      if (sleep_filter && mj_sleepState(m, d, mjOBJ_TENDON, t) == mjS_ASLEEP) {
+        continue;
+      }
+
+      // ten_frc += spring and damper
+      mjtNum frc_spring, frc_damper;
+      mj_tendonSpringDamper(m, d, t, &frc_spring, &frc_damper);
+      ten_frc[t] += frc_spring + frc_damper;
+
+      // ten_frc -= armature * tendon acceleration: reaction of the armature inertia
+      mjtNum armature = m->tendon_armature[t] + mj_actuatorArmature(m, mjOBJ_TENDON, t);
+      if (armature) {
+        mjtNum acc = mj_tendonDot(m, d, t, d->qvel);
+        int end = m->ten_J_rowadr[t] + m->ten_J_rownnz[t];
+        for (int j=m->ten_J_rowadr[t]; j < end; j++) {
+          acc += d->ten_J[j] * d->qacc[m->ten_J_colind[j]];
+        }
+        ten_frc[t] -= armature * acc;
+      }
+
+      // apply along the path
+      if (ten_frc[t]) {
+        addTendon(m, d, t, ten_frc[t]);
+      }
+    }
+
+    mj_freeStack(d);
   }
 
   // forward pass over bodies: compute cacc, cfrc_int

@@ -37,22 +37,18 @@ TEST_F(EngineUtilBlasTest, MjuDot) {
   // test various vector lengths because mju_dot adds numbers in groups of four
   EXPECT_EQ(mju_dot(a, b, 0), 0);
   EXPECT_EQ(mju_dot(a, b, 1), 7);
-  EXPECT_EQ(mju_dot(a, b, 2), 7 + 2*6);
-  EXPECT_EQ(mju_dot(a, b, 3), 7 + 2*6 + 3*5);
-  EXPECT_EQ(mju_dot(a, b, 4), 7 + 2*6 + 3*5 + 4*4);
-  EXPECT_EQ(mju_dot(a, b, 5), 7 + 2*6 + 3*5 + 4*4 + 5*3);
-  EXPECT_EQ(mju_dot(a, b, 6), 7 + 2*6 + 3*5 + 4*4 + 5*3 + 6*2);
-  EXPECT_EQ(mju_dot(a, b, 7), 7 + 2*6 + 3*5 + 4*4 + 5*3 + 6*2 + 7);
+  EXPECT_EQ(mju_dot(a, b, 2), 7 + 2 * 6);
+  EXPECT_EQ(mju_dot(a, b, 3), 7 + 2 * 6 + 3 * 5);
+  EXPECT_EQ(mju_dot(a, b, 4), 7 + 2 * 6 + 3 * 5 + 4 * 4);
+  EXPECT_EQ(mju_dot(a, b, 5), 7 + 2 * 6 + 3 * 5 + 4 * 4 + 5 * 3);
+  EXPECT_EQ(mju_dot(a, b, 6), 7 + 2 * 6 + 3 * 5 + 4 * 4 + 5 * 3 + 6 * 2);
+  EXPECT_EQ(mju_dot(a, b, 7), 7 + 2 * 6 + 3 * 5 + 4 * 4 + 5 * 3 + 6 * 2 + 7);
 }
 
 TEST_F(EngineUtilBlasTest, MjuMulVecMatVec) {
   mjtNum vec1[] = {1, 2, 3};
   mjtNum vec2[] = {3, 2, 1};
-  mjtNum mat[] = {
-    1, 2, 3,
-    4, 5, 6,
-    7, 8, 9
-  };
+  mjtNum mat[] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
   EXPECT_EQ(mju_mulVecMatVec(vec1, mat, vec2, 3), 204);
 }
@@ -73,41 +69,23 @@ TEST_F(EngineUtilBlasTest, MjuEye) {
 
   mjtNum mat3[9];
   mju_eye(mat3, 3);
-  EXPECT_THAT(mat3, ElementsAre(1, 0, 0,
-                                0, 1, 0,
-                                0, 0, 1));
+  EXPECT_THAT(mat3, ElementsAre(1, 0, 0, 0, 1, 0, 0, 0, 1));
 }
 
 TEST_F(EngineUtilBlasTest, MjuSymmetrize) {
-  mjtNum mat[] = {
-    1,   2.5, 3.5,
-    1.5, 2,   4,
-    2.5, 3,   3
-  };
+  mjtNum mat[] = {1, 2.5, 3.5, 1.5, 2, 4, 2.5, 3, 3};
   mjtNum res[9] = {0};
   mju_symmetrize(res, mat, 3);
-  EXPECT_THAT(res, ElementsAre(1, 2,   3,
-                               2, 2,   3.5,
-                               3, 3.5, 3));
+  EXPECT_THAT(res, ElementsAre(1, 2, 3, 2, 2, 3.5, 3, 3.5, 3));
 
   // test for the case res==mat
   mju_symmetrize(mat, mat, 3);
-  EXPECT_THAT(mat, ElementsAre(1, 2,   3,
-                               2, 2,   3.5,
-                               3, 3.5, 3));
+  EXPECT_THAT(mat, ElementsAre(1, 2, 3, 2, 2, 3.5, 3, 3.5, 3));
 }
 
 TEST_F(EngineUtilBlasTest, MjuMulMat3) {
-  const mjtNum mat1[9] = {
-    1, 2, 3,
-    4, 5, 6,
-    7, 8, 9
-  };
-  const mjtNum mat2[9] = {
-    2, 3, 4,
-    5, 6, 7,
-    8, 9, 10
-  };
+  const mjtNum mat1[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+  const mjtNum mat2[9] = {2, 3, 4, 5, 6, 7, 8, 9, 10};
   mjtNum res1[9] = {0};
   mjtNum res2[9] = {0};
 
@@ -165,7 +143,7 @@ TEST_F(EngineUtilBlasTest, Normalize4IsIdempotent) {
 TEST_F(EngineUtilBlasTest, Normalize4EdgeCases) {
   // zero quat normalizes to unit quat
   mjtNum quat[4] = {0};
-  mjtNum norm  = mju_normalize4(quat);
+  mjtNum norm = mju_normalize4(quat);
   EXPECT_EQ(norm, 0);
   EXPECT_EQ(quat[0], 1);
   EXPECT_EQ(quat[1], 0);
@@ -175,7 +153,7 @@ TEST_F(EngineUtilBlasTest, Normalize4EdgeCases) {
   // small quat normalizes regularly
   quat[0] = 0;
   quat[1] = mjMINVAL;
-  norm  = mju_normalize4(quat);
+  norm = mju_normalize4(quat);
   EXPECT_EQ(norm, mjMINVAL);
   EXPECT_EQ(quat[0], 0);
   EXPECT_EQ(quat[1], 1);
@@ -184,9 +162,9 @@ TEST_F(EngineUtilBlasTest, Normalize4EdgeCases) {
 
   // tiny quat normalizes to unit quat
   quat[0] = 0;
-  quat[1] = mjMINVAL/2;
-  norm  = mju_normalize4(quat);
-  EXPECT_EQ(norm, mjMINVAL/2);
+  quat[1] = mjMINVAL / 2;
+  norm = mju_normalize4(quat);
+  EXPECT_EQ(norm, mjMINVAL / 2);
   EXPECT_EQ(quat[0], 1);
   EXPECT_EQ(quat[1], 0);
   EXPECT_EQ(quat[2], 0);
@@ -195,7 +173,7 @@ TEST_F(EngineUtilBlasTest, Normalize4EdgeCases) {
   // near-unit quat is normalized
   quat[0] = 1 + mjMINVAL;
   quat[1] = 0;
-  norm  = mju_normalize4(quat);
+  norm = mju_normalize4(quat);
   EXPECT_EQ(norm, 1 + mjMINVAL);
   EXPECT_EQ(quat[0], 1);
   EXPECT_EQ(quat[1], 0);
@@ -203,11 +181,11 @@ TEST_F(EngineUtilBlasTest, Normalize4EdgeCases) {
   EXPECT_EQ(quat[3], 0);
 
   // very-near-unit quat is untouched
-  quat[0] = 1 + mjMINVAL/2;
+  quat[0] = 1 + mjMINVAL / 2;
   quat[1] = 0;
-  norm  = mju_normalize4(quat);
-  EXPECT_EQ(norm, 1 + mjMINVAL/2);
-  EXPECT_EQ(quat[0], 1 + mjMINVAL/2);
+  norm = mju_normalize4(quat);
+  EXPECT_EQ(norm, 1 + mjMINVAL / 2);
+  EXPECT_EQ(quat[0], 1 + mjMINVAL / 2);
   EXPECT_EQ(quat[1], 0);
   EXPECT_EQ(quat[2], 0);
   EXPECT_EQ(quat[3], 0);

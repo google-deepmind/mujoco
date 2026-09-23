@@ -19,16 +19,16 @@
 
 // help
 static constexpr char helpstring[] =
-  "\n Usage:  list_dependencies infile\n"
-  "   infile must be in MJCF\n"
-  " Example: list_dependencies model.xml\n";
+    "\n Usage:  list_dependencies infile\n"
+    "   infile must be in MJCF\n"
+    " Example: list_dependencies model.xml\n";
 
 
 // main function
 int main(int argc, char** argv) {
 
   // print help if arguments are missing
-  if (argc!=3 && argc!=2) {
+  if (argc != 3 && argc != 2) {
     std::cout << helpstring << std::endl;
     return EXIT_SUCCESS;
   }

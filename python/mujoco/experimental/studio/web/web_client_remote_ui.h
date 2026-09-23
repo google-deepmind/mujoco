@@ -128,7 +128,6 @@ class RemoteUi {
                            ? ImGui::GetDrawListSharedData()
                            : nullptr) {
       draw_data.CmdLists.push_back(&command_list);
-      draw_data.CmdListsCount = 1;
     }
 
     ImDrawData draw_data;

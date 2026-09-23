@@ -124,6 +124,18 @@ std::string KeyErrorMessage(const mjModel* model, int objtype, int count,
 std::string IndexErrorMessage(int index, int count,
                               std::string_view accessor_name);
 
+template <typename T>
+inline val ToInt32Array(const T* data, int size) {
+  if (!data || size <= 0) {
+    return val::global("Int32Array").new_(0);
+  }
+  std::vector<int> buf(size);
+  for (int i = 0; i < size; ++i) {
+    buf[i] = static_cast<int>(data[i]);
+  }
+  return val::global("Int32Array").new_(typed_memory_view(size, buf.data()));
+}
+
 using mjVisualGlobal = decltype(::mjVisual::global);
 using mjVisualHeadlight = decltype(::mjVisual::headlight);
 using mjVisualMap = decltype(::mjVisual::map);
@@ -3717,6 +3729,14 @@ struct MjsSite {
   emscripten::val rgba() const {
     return emscripten::val(emscripten::typed_memory_view(4, ptr_->rgba));
   }
+  mjString meshname() const {
+    return (ptr_ && ptr_->meshname) ? *(ptr_->meshname) : "";
+  }
+  void set_meshname(const mjString& value) {
+    if (ptr_ && ptr_->meshname) {
+      *(ptr_->meshname) = value;
+    }
+  }
   mjDoubleVec &userdata() const {
     return *(ptr_->userdata);
   }
@@ -4674,6 +4694,9 @@ struct MjModel {
   emscripten::val site_bodyid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nsite, ptr_->site_bodyid));
   }
+  emscripten::val site_dataid() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nsite, ptr_->site_dataid));
+  }
   emscripten::val site_matid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nsite, ptr_->site_matid));
   }
@@ -5263,7 +5286,7 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntex, ptr_->tex_nchannel));
   }
   emscripten::val tex_adr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->ntex, ptr_->tex_adr));
+    return ToInt32Array(ptr_->tex_adr, ptr_->ntex);
   }
   emscripten::val tex_data() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntexdata, ptr_->tex_data));
@@ -6791,6 +6814,24 @@ struct MjData {
   void set_nefmK(int value) {
     ptr_->nefmK = value;
   }
+  int nefmcon() const {
+    return ptr_->nefmcon;
+  }
+  void set_nefmcon(int value) {
+    ptr_->nefmcon = value;
+  }
+  int nefmT() const {
+    return ptr_->nefmT;
+  }
+  void set_nefmT(int value) {
+    ptr_->nefmT = value;
+  }
+  int nefmA() const {
+    return ptr_->nefmA;
+  }
+  void set_nefmA(int value) {
+    ptr_->nefmA = value;
+  }
   int nefmdof() const {
     return ptr_->nefmdof;
   }
@@ -7024,6 +7065,12 @@ struct MjData {
   }
   emscripten::val bvh_aabb_dyn() const {
     return emscripten::val(emscripten::typed_memory_view(model->nbvhdynamic * 6, ptr_->bvh_aabb_dyn));
+  }
+  emscripten::val flexvert_lambda() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nflexvert, ptr_->flexvert_lambda));
+  }
+  emscripten::val flexvert_conage() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nflexvert, ptr_->flexvert_conage));
   }
   emscripten::val ten_wrapadr() const {
     return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->ten_wrapadr));
@@ -7323,6 +7370,39 @@ struct MjData {
   emscripten::val efm_c() const {
     return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->efm_c));
   }
+  emscripten::val efm_diag() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->efm_diag));
+  }
+  emscripten::val efm_ck() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->efm_ck));
+  }
+  emscripten::val efm_sdiag() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->efm_sdiag));
+  }
+  emscripten::val efm_fluid() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nC, ptr_->efm_fluid));
+  }
+  emscripten::val efm_tid() const {
+    return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->efm_tid));
+  }
+  emscripten::val efm_ts() const {
+    return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->efm_ts));
+  }
+  emscripten::val efm_tk() const {
+    return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->efm_tk));
+  }
+  emscripten::val efm_aid() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nactuator, ptr_->efm_aid));
+  }
+  emscripten::val efm_as() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nactuator, ptr_->efm_as));
+  }
+  emscripten::val efm_ak() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nactuator, ptr_->efm_ak));
+  }
+  emscripten::val efm_ca() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->efm_ca));
+  }
   emscripten::val efm_K_rownnz() const {
     return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->efm_K_rownnz));
   }
@@ -7337,6 +7417,12 @@ struct MjData {
   }
   emscripten::val efm_dofid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefmdof, ptr_->efm_dofid));
+  }
+  emscripten::val efm_con_ind() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmcon, ptr_->efm_con_ind));
+  }
+  emscripten::val efm_con_val() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmcon, ptr_->efm_con_val));
   }
   emscripten::val efm_L() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefmL, ptr_->efm_L));

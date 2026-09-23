@@ -26,7 +26,7 @@
 
 // res = vec*scl
 static inline
-int mju_scl_avx(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
+void mju_scl_avx(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
   int i = 0;
   int n_4 = n - 4;
   if (n_4 >= 0) {
@@ -36,12 +36,24 @@ int mju_scl_avx(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
       i += 4;
     }
   }
-  return i;
+
+  int n_i = n - i;
+  if (n_i == 3) {
+    res[i+0] = vec[i+0]*scl;
+    res[i+1] = vec[i+1]*scl;
+    res[i+2] = vec[i+2]*scl;
+  } else if (n_i == 2) {
+    res[i+0] = vec[i+0]*scl;
+    res[i+1] = vec[i+1]*scl;
+  } else if (n_i == 1) {
+    res[i] = vec[i]*scl;
+  }
 }
+
 
 // res = vec1 + vec2
 static inline
-int mju_add_avx(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
+void mju_add_avx(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
   int i = 0;
   int n_4 = n - 4;
   if (n_4 >= 0) {
@@ -50,12 +62,24 @@ int mju_add_avx(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
       i += 4;
     }
   }
-  return i;
+
+  int n_i = n - i;
+  if (n_i == 3) {
+    res[i+0] = vec1[i+0] + vec2[i+0];
+    res[i+1] = vec1[i+1] + vec2[i+1];
+    res[i+2] = vec1[i+2] + vec2[i+2];
+  } else if (n_i == 2) {
+    res[i+0] = vec1[i+0] + vec2[i+0];
+    res[i+1] = vec1[i+1] + vec2[i+1];
+  } else if (n_i == 1) {
+    res[i] = vec1[i] + vec2[i];
+  }
 }
+
 
 // res = vec1 - vec2
 static inline
-int mju_sub_avx(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
+void mju_sub_avx(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
   int i = 0;
   int n_4 = n - 4;
   if (n_4 >= 0) {
@@ -64,12 +88,24 @@ int mju_sub_avx(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
       i += 4;
     }
   }
-  return i;
+
+  int n_i = n - i;
+  if (n_i == 3) {
+    res[i+0] = vec1[i+0] - vec2[i+0];
+    res[i+1] = vec1[i+1] - vec2[i+1];
+    res[i+2] = vec1[i+2] - vec2[i+2];
+  } else if (n_i == 2) {
+    res[i+0] = vec1[i+0] - vec2[i+0];
+    res[i+1] = vec1[i+1] - vec2[i+1];
+  } else if (n_i == 1) {
+    res[i] = vec1[i] - vec2[i];
+  }
 }
+
 
 // res += vec
 static inline
-int mju_addTo_avx(mjtNum* res, const mjtNum* vec, int n) {
+void mju_addTo_avx(mjtNum* res, const mjtNum* vec, int n) {
   int i = 0;
   int n_4 = n - 4;
   if (n_4 >= 0) {
@@ -78,12 +114,24 @@ int mju_addTo_avx(mjtNum* res, const mjtNum* vec, int n) {
       i += 4;
     }
   }
-  return i;
+
+  int n_i = n - i;
+  if (n_i == 3) {
+    res[i+0] += vec[i+0];
+    res[i+1] += vec[i+1];
+    res[i+2] += vec[i+2];
+  } else if (n_i == 2) {
+    res[i+0] += vec[i+0];
+    res[i+1] += vec[i+1];
+  } else if (n_i == 1) {
+    res[i] += vec[i];
+  }
 }
+
 
 // res -= vec
 static inline
-int mju_subFrom_avx(mjtNum* res, const mjtNum* vec, int n) {
+void mju_subFrom_avx(mjtNum* res, const mjtNum* vec, int n) {
   int i = 0;
   int n_4 = n - 4;
   if (n_4 >= 0) {
@@ -92,12 +140,24 @@ int mju_subFrom_avx(mjtNum* res, const mjtNum* vec, int n) {
       i += 4;
     }
   }
-  return i;
+
+  int n_i = n - i;
+  if (n_i == 3) {
+    res[i+0] -= vec[i+0];
+    res[i+1] -= vec[i+1];
+    res[i+2] -= vec[i+2];
+  } else if (n_i == 2) {
+    res[i+0] -= vec[i+0];
+    res[i+1] -= vec[i+1];
+  } else if (n_i == 1) {
+    res[i] -= vec[i];
+  }
 }
+
 
 // res += vec*scl
 static inline
-int mju_addToScl_avx(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
+void mju_addToScl_avx(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
   int i = 0;
   int n_4 = n - 4;
   if (n_4 >= 0) {
@@ -109,12 +169,24 @@ int mju_addToScl_avx(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
       i += 4;
     }
   }
-  return i;
+
+  int n_i = n - i;
+  if (n_i == 3) {
+    res[i+0] += vec[i+0]*scl;
+    res[i+1] += vec[i+1]*scl;
+    res[i+2] += vec[i+2]*scl;
+  } else if (n_i == 2) {
+    res[i+0] += vec[i+0]*scl;
+    res[i+1] += vec[i+1]*scl;
+  } else if (n_i == 1) {
+    res[i] += vec[i]*scl;
+  }
 }
+
 
 // res = vec1 + vec2*scl
 static inline
-int mju_addScl_avx(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, mjtNum scl, int n) {
+void mju_addScl_avx(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, mjtNum scl, int n) {
   int i = 0;
   int n_4 = n - 4;
   if (n_4 >= 0) {
@@ -126,12 +198,24 @@ int mju_addScl_avx(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, mjtNum s
       i += 4;
     }
   }
-  return i;
+
+  int n_i = n - i;
+  if (n_i == 3) {
+    res[i+0] = vec1[i+0] + vec2[i+0]*scl;
+    res[i+1] = vec1[i+1] + vec2[i+1]*scl;
+    res[i+2] = vec1[i+2] + vec2[i+2]*scl;
+  } else if (n_i == 2) {
+    res[i+0] = vec1[i+0] + vec2[i+0]*scl;
+    res[i+1] = vec1[i+1] + vec2[i+1]*scl;
+  } else if (n_i == 1) {
+    res[i] = vec1[i] + vec2[i]*scl;
+  }
 }
+
 
 // vector dot-product
 static inline
-mjtNum mju_dot_avx(const mjtNum* vec1, const mjtNum* vec2, int n, int* processed) {
+mjtNum mju_dot_avx(const mjtNum* vec1, const mjtNum* vec2, int n) {
   mjtNum res = 0;
   int i = 0;
   int n_4 = n - 4;
@@ -150,7 +234,16 @@ mjtNum mju_dot_avx(const mjtNum* vec1, const mjtNum* vec2, int n, int* processed
     __m128d high64 = _mm_unpackhi_pd(vlow, vlow);
     res = _mm_cvtsd_f64(_mm_add_sd(vlow, high64));
   }
-  *processed = i;
+
+  int n_i = n - i;
+  if (n_i == 3) {
+    res += vec1[i+0]*vec2[i+0] + vec1[i+1]*vec2[i+1] + vec1[i+2]*vec2[i+2];
+  } else if (n_i == 2) {
+    res += vec1[i+0]*vec2[i+0] + vec1[i+1]*vec2[i+1];
+  } else if (n_i == 1) {
+    res += vec1[i]*vec2[i];
+  }
+
   return res;
 }
 

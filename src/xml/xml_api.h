@@ -24,7 +24,6 @@ extern "C" {
 #endif
 
 
-
 // parse XML file in MJCF or URDF format, compile it, return low-level model
 //  if vfs is not NULL, look up files in vfs before reading from disk
 //  error can be NULL; otherwise assumed to have size error_sz
@@ -37,8 +36,8 @@ MJAPI int mj_saveLastXML(const char* filename, const mjModel* m, char* error, in
 MJAPI void mj_freeLastXML(void);
 
 // print internal XML schema as plain text or HTML, with style-padding or &nbsp;
-MJAPI int mj_printSchema(const char* filename, char* buffer, int buffer_sz,
-                         int flg_html, int flg_pad);
+MJAPI int mj_printSchema(
+    const char* filename, char* buffer, int buffer_sz, int flg_html, int flg_pad);
 
 // load model from binary MJB file
 // if vfs is not NULL, look up file in vfs before reading from disk

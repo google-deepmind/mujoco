@@ -18,6 +18,7 @@
 #include <memory>
 #include <span>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <filament/ColorGrading.h>
@@ -98,31 +99,22 @@ static void SetupCamera(const mjrCamera& cam,
                         cam.frustum_top, cam.frustum_near, cam.frustum_far);
 }
 
-// Sets up the `reflection_camera`'s projection matrix so that it is a
-// reflection of the `src_camera` across the plane defined by the
-// `surface_xform`. The generated projection is an oblique projection so that
-// the texture can be applied directly to the plane with screenspace uvs.
+// Sets up the `reflection_camera` as a reflection of `src_camera` across the
+// plane defined by `surface_xform`, so the reflection texture can be applied to
+// the plane with screen-space uvs.
 static void SetupReflectionCamera(const mat4& surface_xform,
                                   const filament::Camera* src_camera,
-                                  filament::Camera* reflection_camera,
-                                  float near = 0.01f, float far = 100.0f) {
+                                  filament::Camera* reflection_camera) {
   const mat4 src_model_matrix = src_camera->getModelMatrix();
-  const mat4 src_view_matrix = src_camera->getViewMatrix();
-  const mat4 src_projection = src_camera->getProjectionMatrix();
+  const mat4 src_projection = src_camera->getCullingProjectionMatrix();
 
   reflection_camera->setModelMatrix(ToReflectionMatrix(surface_xform) *
                                     src_model_matrix);
 
-  const float3 normal = surface_xform[2].xyz;
-  const float3 view_pos = (src_view_matrix * surface_xform[3]).xyz;
-  const float3 view_normal = (src_view_matrix * float4(normal, 0.0f)).xyz;
-
-  const float3 plane_normal_camera = view_normal;
-  const float plane_dist_camera = -dot(plane_normal_camera, view_pos);
-  const float4 oblique_plane(plane_normal_camera, plane_dist_camera);
-  const mat4 oblique =
-      CalculateObliqueProjection(src_projection, oblique_plane);
-  reflection_camera->setCustomProjection(oblique, near, far);
+  // Use un-skewed projection to preserve froxel lighting grid and shadow cascades.
+  reflection_camera->setCustomProjection(src_projection, src_projection,
+                                         src_camera->getNear(),
+                                         src_camera->getCullingFar());
 }
 
 SceneView::SceneView(ObjectManager* object_mgr, MaterialManager* material_mgr,
@@ -149,11 +141,22 @@ SceneView::SceneView(ObjectManager* object_mgr, MaterialManager* material_mgr,
   reflect_view_ = engine->createView();
   reflect_view_->setScene(scene_);
   reflect_view_->setCamera(reflect_camera_);
-  reflect_view_->setShadowingEnabled(false);
+  reflect_view_->setShadowingEnabled(true);
   reflect_view_->setPostProcessingEnabled(false);
   reflect_view_->setFrontFaceWindingInverted(true);
   reflect_view_->setVisibleLayers(0xff, kLayerMask_Object | kLayerMask_Skybox);
   reflect_view_->setMultiSampleAntiAliasingOptions({.enabled = false});
+
+  // The headlight is aimed at each request's camera in Render(). It is created
+  // black and disabled; requests that ask for it supply color and intensity.
+  mjrfLightParams headlight_params;
+  mjrf_defaultLightParams(&headlight_params);
+  headlight_params.type = mjLIGHT_DIRECTIONAL;
+  headlight_params.cast_shadows = 0;
+  headlight_params.intensity = 0.0f;
+  headlight_ = std::make_unique<Light>(engine, headlight_params);
+  headlight_->AddToScene(scene_);
+  headlight_->Disable();
 
   // Rotate the fog to align with mujoco's +Z up space.
   auto fog = main_view_->getFogEntity();
@@ -173,6 +176,10 @@ SceneView::~SceneView() {
   }
   for (auto& light : lights_) {
     light->RemoveFromScene(scene_);
+  }
+  if (headlight_) {
+    headlight_->RemoveFromScene(scene_);
+    headlight_.reset();
   }
   for (auto& renderable : renderables_) {
     renderable->RemoveFromScene(scene_);
@@ -282,6 +289,21 @@ void SceneView::Render(filament::Renderer* renderer,
 
   SetupCamera(request.camera, viewport, camera_);
 
+  // Aim the headlight along this request's camera. Filament re-gathers the
+  // scene's lights for each render() call, so requests batched into one frame
+  // each see their own headlight.
+  if (request.enable_headlight) {
+    const float3 forward = ReadFloat3(request.camera.forward);
+    // Sit slightly behind the eye to avoid clipping artifacts.
+    const float3 position = ReadFloat3(request.camera.pos) - 0.05f * forward;
+    headlight_->SetTransform(position, forward);
+    headlight_->SetColor(ReadFloat3(request.headlight_color));
+    headlight_->SetIntensity(request.headlight_intensity);
+    headlight_->Enable();
+  } else {
+    headlight_->Disable();
+  }
+
   std::vector<Renderable*> selected_renderables;
   for (auto& iter : renderables_) {
     iter->BindMaterialInstance(request);
@@ -300,6 +322,27 @@ void SceneView::Render(filament::Renderer* renderer,
     // Hide reflective surface from its own reflection pass.
     std::uint8_t prev_layer_mask = renderable->SetLayerMask(kLayerMask_None);
 
+    // Hide geometry completely behind the mirror plane from the reflection pass.
+    const float3 mirror_pos = transform[3].xyz;
+    const float3 mirror_normal = normalize(transform[2].xyz);
+    std::vector<std::pair<Renderable*, std::uint8_t>> hidden_behind;
+    for (Renderable* other : renderables_) {
+      if (other == renderable) {
+        continue;
+      }
+      const mat4 other_xform(other->GetTransform());
+      const float3 center = other_xform[3].xyz;
+      // The geom's three scaled axes reach every corner, so their summed
+      // lengths conservatively bound it; only hide when the whole bound is
+      // behind the plane.
+      const float radius = length(other_xform[0].xyz) +
+                           length(other_xform[1].xyz) +
+                           length(other_xform[2].xyz);
+      if (dot(center - mirror_pos, mirror_normal) + radius < 0.0f) {
+        hidden_behind.emplace_back(other, other->SetLayerMask(kLayerMask_None));
+      }
+    }
+
     // Render the reflection to its render target.
     viewport.left = 0;
     viewport.bottom = 0;
@@ -309,7 +352,10 @@ void SceneView::Render(filament::Renderer* renderer,
     renderer->render(reflect_view_);
     reflect_view_->setRenderTarget(nullptr);
 
-    // Unhide the reflective surface.
+    // Restore the behind-mirror geometry and the reflective surface.
+    for (const auto& [other, mask] : hidden_behind) {
+      other->SetLayerMask(mask);
+    }
     renderable->SetLayerMask(prev_layer_mask);
   }
 
@@ -452,5 +498,12 @@ void SceneView::Configure(const mjModel* model) {
       ReadElement(model, "filament.bloom.resolution", bloom.resolution);
   bloom.levels = ReadElement(model, "filament.bloom.levels", bloom.levels);
   main_view_->setBloomOptions(bloom);
+
+  auto vignette = main_view_->getVignetteOptions();
+  vignette.enabled =
+      ReadElement(model, "filament.vignette.enabled", vignette.enabled);
+  vignette.midPoint =
+      ReadElement(model, "filament.vignette.midpoint", vignette.midPoint);
+  main_view_->setVignetteOptions(vignette);
 }
 }  // namespace mujoco

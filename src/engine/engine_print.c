@@ -1369,7 +1369,8 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
         char name[100];
         const char* actuator_name = mj_id2name(m, mjOBJ_ACTUATOR, i);
         snprintf(name, sizeof(name), "actuator %d '%s'", i, actuator_name ? actuator_name : "");
-        printDelayBuffer(name, d->history + adr, m->actuator_history[2*i], 1, fp, float_format);
+        printDelayBuffer(name, d->history + adr, m->actuator_history[2*i], m->actuator_ctrlnum[i],
+                         fp, float_format);
       }
     }
 
@@ -1705,7 +1706,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     fprintf(fp, "\n\n");
   }
 
-  if (m->ntendon) {
+  if (m->ntendon && d->tendon_efcadr) {
     fprintf(fp, NAME_FORMAT, "TENDON_EFCADR");
     for (int i = 0; i < m->ntendon; i++) {
       fprintf(fp, " %d", d->tendon_efcadr[i]);

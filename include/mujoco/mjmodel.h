@@ -21,8 +21,6 @@
 #include <mujoco/mjtype.h>
 
 // global constants
-#define mjPI            3.14159265358979323846
-#define mjMAXVAL        1E+10     // maximum value in qpos, qvel, qacc
 #define mjMINMU         1E-5      // minimum friction coefficient
 #define mjMINIMP        0.0001    // minimum constraint impedance
 #define mjMAXIMP        0.9999    // maximum constraint impedance
@@ -487,6 +485,7 @@ typedef struct mjModel_ {
   // sites
   int*      site_type;            // geom type for rendering (mjtGeom)        (nsite x 1)
   int*      site_bodyid;          // id of site's body                        (nsite x 1)
+  int*      site_dataid;          // id of site's mesh; -1: none              (nsite x 1)
   int*      site_matid;           // material id for rendering; -1: none      (nsite x 1)
   int*      site_group;           // group for visibility                     (nsite x 1)
   mjtByte*  site_sameframe;       // same frame as body (mjtSameframe)        (nsite x 1)

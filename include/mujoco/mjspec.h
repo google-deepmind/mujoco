@@ -402,6 +402,7 @@ typedef struct mjsSite_ {          // site specification
   float rgba[4];                   // rgba when material is omitted
 
   // other
+  mjString* meshname;              // mesh attached to site
   mjDoubleVec* userdata;           // user data
   mjString* info;                  // message appended to compiler errors
 } mjsSite;

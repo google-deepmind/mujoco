@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #include <map>
 #include <set>
 #include <string>
@@ -97,10 +96,8 @@ TEST_F(MujocoTest, GetXMLDependenciesViaResourceProvider) {
   std::set<std::string> dep_set(dependencies.begin(), dependencies.end());
 
   EXPECT_THAT(dep_set, testing::UnorderedElementsAre(
-      "memxml:/scene.xml",
-      "memxml:/child.xml",
-      "memxml:/meshes/m.obj",
-      "memxml:/t.png"));
+                           "memxml:/scene.xml", "memxml:/child.xml",
+                           "memxml:/meshes/m.obj", "memxml:/t.png"));
 
   memxml::g_files = nullptr;
 }

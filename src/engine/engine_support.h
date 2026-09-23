@@ -90,6 +90,9 @@ void mj_xfrcAccumulate(const mjModel* m, mjData* d, mjtNum* qfrc);
 MJAPI mjtNum mj_geomDistance(const mjModel* m, mjData* d, int geom1, int geom2, mjtNum distmax,
                              mjtNum fromto[6]);
 
+// return 1 if point is inside a site (convex hull for meshes), 0 otherwise
+MJAPI int mj_insideSite(const mjModel* m, const mjData* d, int siteid, const mjtNum point[3]);
+
 // compute velocity by finite-differencing two positions
 MJAPI void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
                                const mjtNum* qpos1, const mjtNum* qpos2);
@@ -136,9 +139,11 @@ void mju_camIntrinsics(const mjModel* m, int camid,
                        mjtNum* ortho_extent);
 
 // read ctrl value for actuator at given time
-// returns d->ctrl[id] if no history, otherwise reads from history buffer
+// returns pointer to ctrl (no history) or history buffer (exact match),
+// or NULL if interpolation performed (writes to result)
 // interp: 0=zero-order-hold, 1=linear, 2=cubic spline
-MJAPI mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int interp);
+MJAPI const mjtNum* mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time,
+                                mjtNum* result, int interp);
 
 // read sensor value from history buffer at given time
 // returns pointer to sensordata (no history) or history buffer (exact match),

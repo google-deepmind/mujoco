@@ -14,6 +14,8 @@
 
 """Generates Javascript/TypeScript bindings for MuJoCo."""
 
+import os
+
 from wasm.codegen.generators import binding_builder
 
 
@@ -22,6 +24,12 @@ if __name__ == "__main__":
   generated_file_cc = "wasm/codegen/generated/bindings.cc"
   template_file_h = "wasm/codegen/templates/bindings.h"
   generated_file_h = "wasm/codegen/generated/bindings.h"
+  root = os.getenv("BUILD_WORKSPACE_DIRECTORY")
+  if root:
+    template_file_cc = os.path.join(root, "third_party", "mujoco", template_file_cc)
+    generated_file_cc = os.path.join(root, "third_party", "mujoco", generated_file_cc)
+    template_file_h = os.path.join(root, "third_party", "mujoco", template_file_h)
+    generated_file_h = os.path.join(root, "third_party", "mujoco", generated_file_h)
 
   builder = binding_builder.BindingBuilder()
   builder.set_enums()

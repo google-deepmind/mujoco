@@ -1355,6 +1355,9 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   d->nidof = 0;
   d->efm_active = 0;
   d->nefmK = 0;
+  d->nefmcon = 0;
+  d->nefmT = 0;
+  d->nefmA = 0;
   d->nefmdof = 0;
   d->nefmL = 0;
 
@@ -1400,6 +1403,8 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   mju_zero(d->userdata, m->nuserdata);
   mju_zero(d->mocap_pos, 3*m->nmocap);
   mju_zero(d->mocap_quat, 4*m->nmocap);
+  mju_zero(d->flexvert_lambda, m->nflexvert);
+  mju_zeroInt(d->flexvert_conage, m->nflexvert);
 
   // initialize ctrl history buffers: timestamps at [-n*dt, ..., -dt]
   for (int i = 0; i < m->nactuator; i++) {
@@ -1413,9 +1418,15 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
         times[j] = -(n-j)*dt;
       }
 
-      // clear values
+      // clear values (or set identity quaternion for quat inputs)
       mjtNum* values = buf + 2 + n;
-      mju_zero(values, n);
+      int dim = m->actuator_ctrlnum[i];
+      mju_zero(values, n*dim);
+      if (m->actuator_gaintype[i] == mjGAIN_SO3 && m->actuator_ctrlspec[i] == mjCHART_QUAT) {
+        for (int j = 0; j < n; j++) {
+          values[4*j] = 1;
+        }
+      }
     }
   }
 
@@ -2005,6 +2016,13 @@ const char* mj_validateReferences(const mjModel* m) {
       }
     }
   }
+  for (int i=0; i < m->nsite; i++) {
+    if (m->site_type[i] == mjGEOM_MESH) {
+      if (m->site_dataid[i] >= m->nmesh || m->site_dataid[i] < -1) {
+        return "Invalid model: site_dataid out of bounds.";
+      }
+    }
+  }
   for (int i=0; i < m->nhfield; i++) {
     mjtSize hfield_adr = m->hfield_adr[i] + ((mjtSize) m->hfield_nrow[i]) * m->hfield_ncol[i];
     if (hfield_adr > m->nhfielddata || m->hfield_adr[i] < 0) {
@@ -2022,7 +2040,9 @@ const char* mj_validateReferences(const mjModel* m) {
     if (pair_body1 >= m->nbody || pair_body1 < 0) {
       return "Invalid model: pair_body1 out of bounds.";
     }
-    int pair_body2 = (m->pair_signature[i] >> 16);
+
+    // unsigned shift: a signed >> sign-extends signatures whose high id is >= 0x8000
+    int pair_body2 = (int)((unsigned int)m->pair_signature[i] >> 16);
     if (pair_body2 >= m->nbody || pair_body2 < 0) {
       return "Invalid model: pair_body2 out of bounds.";
     }
@@ -2220,7 +2240,8 @@ const char* mj_validateReferences(const mjModel* m) {
     if (exclude_body1 >= m->nbody || exclude_body1 < 0) {
       return "Invalid model: exclude_body1 out of bounds.";
     }
-    int exclude_body2 = (m->exclude_signature[i] >> 16);
+    // unsigned shift: a signed >> sign-extends signatures whose high id is >= 0x8000
+    int exclude_body2 = (int)((unsigned int)m->exclude_signature[i] >> 16);
     if (exclude_body2 >= m->nbody || exclude_body2 < 0) {
       return "Invalid model: exclude_body2 out of bounds.";
     }

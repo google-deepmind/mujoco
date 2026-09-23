@@ -51,12 +51,13 @@ MJAPI int mju_cholFactorSymbolic(int* L_colind, int* L_rownnz, int* L_rowadr,
 // numeric reverse-Cholesky: compute L values given fixed sparsity pattern, returns rank
 //  L_colind must already contain the correct sparsity pattern (from mju_cholFactorSymbolic)
 //  LT_map[k] gives index in L for LT_colind[k]
+//  scratch: caller-provided workspace of size n, contents ignored
 MJAPI int mju_cholFactorNumeric(mjtNum* L, int n, mjtNum mindiag,
                                 const int* L_rownnz, const int* L_rowadr, const int* L_colind,
                                 const int* LT_rownnz, const int* LT_rowadr, const int* LT_colind,
                                 const int* LT_map, const mjtNum* H,
                                 const int* H_rownnz, const int* H_rowadr, const int* H_colind,
-                                mjData* d);
+                                mjtNum* scratch);
 
 // sparse reverse-order Cholesky solve
 void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n,
@@ -64,9 +65,10 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 
 // sparse reverse-order Cholesky rank-one update: L'*L +/i x*x'; return rank
 //  x is sparse, change in sparsity pattern of mat is not allowed
+//  scratch: caller-provided workspace of size n, contents ignored
 MJAPI int mju_cholUpdateSparse(mjtNum* mat, const mjtNum* x, int n, int flg_plus,
                                const int* rownnz, const int* rowadr, const int* colind,
-                               int x_nnz, const int* x_ind, mjData* d);
+                               int x_nnz, const int* x_ind, mjtNum* scratch);
 
 // band-dense Cholesky decomposition
 //  returns minimum value in the factorized diagonal, or 0 if rank-deficient
@@ -113,8 +115,9 @@ MJAPI void mju_solveLU6(mjtNum x[6], const mjtNum LU[36], const mjtNum b[6], con
 
 // sparse reverse-order LU factorization, assume tree topology (only dofs in index, if given)
 //  LU = L + U; original = (U+I) * L; scratch is size n
-void mju_factorLUSparse(mjtNum *LU, int n, int* scratch,
-                        const int *rownnz, const int *rowadr, const int *colind, const int *index);
+//  clamp pivots with magnitude below mjMINVAL, return first clamped dof index or -1 if none
+int mju_factorLUSparse(mjtNum *LU, int n, int* scratch,
+                       const int *rownnz, const int *rowadr, const int *colind, const int *index);
 
 // solve mat*res=vec given LU factorization of mat (only dofs in index, if given)
 void mju_solveLUSparse(mjtNum *res, const mjtNum *LU, const mjtNum* vec, int n,
@@ -126,6 +129,10 @@ void mju_solve3(mjtNum x[3], const mjtNum A[9], const mjtNum b[3]);
 
 // eigenvalue decomposition of symmetric 3x3 matrix
 MJAPI int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);
+
+// same as mju_eig3, stop when off-diagonal elements are below reltol times the largest element
+MJAPI int mju_eig3Tol(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9],
+                      mjtNum reltol);
 
 // solve QCQP in 2 dimensions:
 //  min  0.5*x'*A*x + x'*b  s.t.  sum (xi/di)^2 <= r^2

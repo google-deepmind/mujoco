@@ -39,26 +39,18 @@ TEST_F(Quat2MatTest, NoRotation) {
   mjtNum result[9] = {0};
   mjtNum quat[] = {1, 0, 0, 0};
   mju_quat2Mat(result, quat);
-  EXPECT_THAT(
-      AsVector(result, 9),
-      ElementsAre(1, 0, 0,
-                  0, 1, 0,
-                  0, 0, 1)
-  );
+  EXPECT_THAT(AsVector(result, 9), ElementsAre(1, 0, 0, 0, 1, 0, 0, 0, 1));
 }
 
 TEST_F(Quat2MatTest, TinyRotation) {
   mjtNum result[9] = {0};
   // An angle so small that cos(angle) == 1.0 to double accuracy
   mjtNum angle = 1e-8;
-  mjtNum quat[] = {cos(angle/2), sin(angle/2), 0, 0};
+  mjtNum quat[] = {cos(angle / 2), sin(angle / 2), 0, 0};
   mju_quat2Mat(result, quat);
-  EXPECT_THAT(
-      AsVector(result, 9),
-      ElementsAre(1, 0         ,  0         ,
-                  0, cos(angle), -sin(angle),
-                  0, sin(angle),  cos(angle))
-  );
+  EXPECT_THAT(AsVector(result, 9),
+              ElementsAre(1, 0, 0, 0, cos(angle), -sin(angle), 0, sin(angle),
+                          cos(angle)));
 }
 
 using MulQuatTest = MujocoTest;
@@ -68,12 +60,10 @@ TEST_F(MulQuatTest, TinyRotation) {
   mjtNum result[4];
   // An angle so small that cos(angle) == 1.0 to double accuracy
   mjtNum angle = 1e-8;
-  mjtNum quat[] = {cos(angle/2), sin(angle/2), 0, 0};
+  mjtNum quat[] = {cos(angle / 2), sin(angle / 2), 0, 0};
   mju_mulQuat(result, null_quat, quat);
-  EXPECT_THAT(
-      AsVector(result, 4),
-      ElementsAre(cos(angle/2), sin(angle/2), 0, 0)
-  );
+  EXPECT_THAT(AsVector(result, 4),
+              ElementsAre(cos(angle / 2), sin(angle / 2), 0, 0));
 }
 
 using RotVecQuatTest = MujocoTest;
@@ -83,10 +73,7 @@ TEST_F(RotVecQuatTest, NoRotation) {
   mjtNum vec[] = {1, 2, 3};
   mjtNum quat[] = {1, 0, 0, 0};
   mju_rotVecQuat(result, vec, quat);
-  EXPECT_THAT(
-      AsVector(result, 3),
-      ElementsAre(1, 2, 3)
-  );
+  EXPECT_THAT(AsVector(result, 3), ElementsAre(1, 2, 3));
 }
 
 TEST_F(RotVecQuatTest, TinyRotation) {
@@ -94,12 +81,9 @@ TEST_F(RotVecQuatTest, TinyRotation) {
   mjtNum vec[] = {0, 1, 0};
   // An angle so small that cos(angle) == 1.0 to double accuracy
   mjtNum angle = 1e-8;
-  mjtNum quat[] = {cos(angle/2), sin(angle/2), 0, 0};
+  mjtNum quat[] = {cos(angle / 2), sin(angle / 2), 0, 0};
   mju_rotVecQuat(result, vec, quat);
-  EXPECT_THAT(
-      AsVector(result, 3),
-      ElementsAre(0, cos(angle), sin(angle))
-  );
+  EXPECT_THAT(AsVector(result, 3), ElementsAre(0, cos(angle), sin(angle)));
 }
 
 // Rotate a vector by explicitly converting the quaternion to a 3x3 matrix
@@ -143,21 +127,25 @@ TEST_F(RotVecQuatTest, TestEquivalence) {
 using Euler2QuatTest = MujocoTest;
 
 TEST_F(Euler2QuatTest, BadSeq) {
-  EXPECT_FATAL_FAILURE({
+  EXPECT_FATAL_FAILURE(
+      {
         mjtNum quat[4];
         mjtNum euler[3] = {0};
         char seq[] = "xiz";
         mju_euler2Quat(quat, euler, seq);
-  }, "mju_euler2Quat: seq[1] is 'i', should be one of x, y, z, X, Y, Z");
+      },
+      "mju_euler2Quat: seq[1] is 'i', should be one of x, y, z, X, Y, Z");
 }
 
 TEST_F(Euler2QuatTest, BadSeqLength) {
-  EXPECT_FATAL_FAILURE({
+  EXPECT_FATAL_FAILURE(
+      {
         mjtNum quat[4];
         mjtNum euler[3] = {0};
         char seq[] = "xyzy";
         mju_euler2Quat(quat, euler, seq);
-  }, "mju_euler2Quat: seq must contain exactly 3 characters");
+      },
+      "mju_euler2Quat: seq must contain exactly 3 characters");
 }
 
 TEST_F(Euler2QuatTest, Euler2Quat) {
@@ -180,14 +168,14 @@ TEST_F(Euler2QuatTest, Euler2Quat) {
   mju_euler2Quat(quat, euler, seq2);
   EXPECT_THAT(quat, Pointwise(MjNear(tol, tol), expected3));
 
-  mjtNum euler2[3] = {2*mjPI, 2*mjPI, 2*mjPI};
+  mjtNum euler2[3] = {2 * mjPI, 2 * mjPI, 2 * mjPI};
   mjtNum expected4[4] = {-1, 0, 0, 0};
   mju_euler2Quat(quat, euler2, seq);
   EXPECT_THAT(quat, Pointwise(MjNear(tol, tol), expected4));
   mju_euler2Quat(quat, euler2, seq2);
   EXPECT_THAT(quat, Pointwise(MjNear(tol, tol), expected4));
 
-  mjtNum euler3[3] = {mjPI/2, mjPI/2, mjPI/2};
+  mjtNum euler3[3] = {mjPI / 2, mjPI / 2, mjPI / 2};
   mjtNum expected5[4] = {0, mju_sqrt(.5), 0, mju_sqrt(.5)};
   mju_euler2Quat(quat, euler3, seq);
   EXPECT_THAT(quat, Pointwise(MjNear(tol, tol), expected5));
@@ -202,15 +190,17 @@ TEST_F(Mat2RotTest, RotationFromArbitraryMatrix) {
   // create arbitrary target rotation matrix
   mjtNum target[4], rot[9];
   mjtNum axis[3] = {1, 1, 1};
-  mju_axisAngle2Quat(target, axis, mjPI/6);
+  mju_axisAngle2Quat(target, axis, mjPI / 6);
   mju_normalize4(target);
   mju_quat2Mat(rot, target);
 
   // combine rotation with arbitrary stretch
   mjtNum mat[9];
+  // clang-format off
   mjtNum deformation_gradient[9] = {0.5, 0.25, 0.125,
                                     0.3, 0.66, 0.999,
                                     0.4, 0.22, 0.111};
+  // clang-format on
   mjtNum stretch[9];
   mju_mulMatTMat3(stretch, deformation_gradient, deformation_gradient);
   mju_mulMatMat3(mat, rot, stretch);

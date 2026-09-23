@@ -80,15 +80,18 @@ TEST_P(RecompileCompareTest, RecompileCompare) {
   // copy spec
   mjSpec* s_copy = mj_copySpec(s);
 
-  // compare signature
-  EXPECT_EQ(s->element->signature, s_copy->element->signature) << xml;
+  // an uncompiled spec has no signature
+  EXPECT_EQ(s->element->signature, 0) << xml;
+  EXPECT_EQ(s_copy->element->signature, 0) << xml;
 
   // compile twice and compare
   mjModel* m_old = mj_compile(s, nullptr);
 
   if (!m_old) {
+    std::string error_message = mjs_getError(s);
+    mj_deleteSpec(s_copy);
     mj_deleteSpec(s);
-    GTEST_SKIP() << "Failed to compile " << xml << ": " << mjs_getError(s);
+    GTEST_SKIP() << "Failed to compile " << xml << ": " << error_message;
   }
 
   mjModel* m_new = mj_compile(s, nullptr);
@@ -97,6 +100,10 @@ TEST_P(RecompileCompareTest, RecompileCompare) {
   // compare signature
   EXPECT_EQ(m_old->signature, m_new->signature) << xml;
   EXPECT_EQ(m_old->signature, m_copy->signature) << xml;
+
+  // compiling refreshes the signature of the spec
+  EXPECT_EQ(s->element->signature, m_new->signature) << xml;
+  EXPECT_EQ(s_copy->element->signature, m_copy->signature) << xml;
 
   ASSERT_THAT(m_new, NotNull())
       << "Failed to recompile " << xml << ": " << mjs_getError(s);
@@ -142,8 +149,8 @@ INSTANTIATE_TEST_SUITE_P(
     [](const ::testing::TestParamInfo<std::string>& info) {
       std::string name = std::filesystem::path(info.param).filename().string();
       std::replace_if(
-          name.begin(), name.end(),
-          [](char c) { return !std::isalnum(c); }, '_');
+          name.begin(), name.end(), [](char c) { return !std::isalnum(c); },
+          '_');
       return name + "_" + std::to_string(info.index);
     });
 

@@ -23,22 +23,23 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 #include <mujoco/mujoco.h>
-#include "experimental/platform/hal/graphics_mode.h"
-#include "experimental/platform/hal/renderer.h"
-#include "experimental/platform/hal/window.h"
-#include "experimental/platform/sim/model_holder.h"
-#include "experimental/platform/sim/sim_history.h"
-#include "experimental/platform/sim/sim_profiler.h"
-#include "experimental/platform/sim/step_control.h"
-#include "experimental/platform/ux/gui.h"
-#include "experimental/platform/ux/gui_spec.h"
-#include "experimental/platform/ux/imgui_widgets.h"
-#include "experimental/platform/ux/interaction.h"
-#include "experimental/platform/ux/picture_gui.h"
-#include "experimental/platform/ux/spec_editor.h"
+#include "experimental/studio/hal/graphics_mode.h"
+#include "experimental/studio/hal/filament_renderer.h"
+#include "experimental/studio/hal/window.h"
+#include "experimental/studio/sim/model_holder.h"
+#include "experimental/studio/sim/sim_history.h"
+#include "experimental/studio/sim/sim_profiler.h"
+#include "experimental/studio/sim/step_control.h"
+#include "experimental/studio/ux/gui.h"
+#include "experimental/studio/ux/gui_spec.h"
+#include "experimental/studio/ux/imgui_widgets.h"
+#include "experimental/studio/ux/interaction.h"
+#include "experimental/studio/ux/picture_gui.h"
+#include "experimental/studio/ux/spec_editor.h"
 
 namespace mujoco::studio {
 
@@ -55,10 +56,10 @@ class App {
     std::string ini_path;
 
     // The graphics configuration used for initializing the window.
-    platform::GraphicsMode gfx_mode = platform::GraphicsMode::FilamentVulkan;
+    GraphicsMode gfx_mode = GraphicsMode::FilamentVulkan;
 
     // The initial GUI theme. If set, overrides the default (kLight).
-    std::optional<platform::GuiTheme> initial_theme;
+    std::optional<GuiTheme> initial_theme;
 
     // The application title shown in the window title bar.
     std::string title = "MuJoCo Studio";
@@ -82,6 +83,10 @@ class App {
                            std::string_view content_type,
                            std::string_view name);
 
+  // Selects and loads a keyframe by name or numerical index. If invalid,
+  // silently ignores it.
+  void LoadKeyframe(std::string_view keyframe);
+
   // Processes window events and advances the state of the simulation.
   bool Update();
 
@@ -100,6 +105,19 @@ class App {
     kModelFromBuffer,
   };
 
+  struct EmptyModel {};
+  struct FileModel {
+    std::string_view filepath;
+  };
+  struct BufferModel {
+    std::span<const std::byte> buffer;
+    std::string_view content_type;
+    std::string_view name;
+  };
+
+  using LoadModelInfo =
+      std::variant<EmptyModel, FileModel, BufferModel>;
+
   enum class SpecPropertiesMode {
     kSpec,
     kModel,
@@ -110,9 +128,9 @@ class App {
   struct UiState {
     char watch_field[1000] = "qpos";
     int watch_index = 0;
-    int camera_idx = platform::kTumbleCameraIdx;
-    int key_idx = 0;
-    platform::GuiTheme theme = platform::GuiTheme::kDark;
+    int camera_idx = kTumbleCameraIdx;
+    int key_idx = -1;
+    GuiTheme theme = GuiTheme::kDark;
     float font_scale = 1.0f;
     int window_width = 0;
     int window_height = 0;
@@ -126,7 +144,6 @@ class App {
   // UI state that is transient and only needed while the application runs
   struct UiTempState {
     bool should_exit = false;
-    bool first_frame = true;
     bool update_threadpool = false;
 
     // Windows.
@@ -166,7 +183,7 @@ class App {
     std::vector<mjtNum> state;
 
     // Picture-in-Picture.
-    std::vector<platform::PipState> pips;
+    std::vector<PipState> pips;
 
     // File dialogs.
     enum FileDialog {
@@ -190,14 +207,23 @@ class App {
   // Requests that the currently loaded model be reloaded at the next update.
   void RequestModelReload();
 
-  // Recompiles the spec, updating the model and data.
-  void Recompile();
+  // Loads the model from the given info.
+  void LoadModel(const LoadModelInfo& info);
 
   // Updates the currently loaded model to the given model. If model is null,
   // then compile the spec to a model.
-  void OnModelLoaded(std::string filename, ModelKind model_kind);
+  void OnModelLoaded(std::string_view filename, ModelKind model_kind);
 
-  void SwitchGraphicsMode(int width, int height, platform::GraphicsMode mode);
+  struct SavedKeyframeSelection {
+    bool is_reload = false;
+    int key_idx = -1;
+    std::string key_name;
+    std::vector<std::string> all_old_names;
+  };
+  SavedKeyframeSelection CaptureKeyframeSelection(bool is_reload) const;
+  void RestoreKeyframeSelection(const SavedKeyframeSelection& saved);
+
+  void SwitchGraphicsMode(int width, int height, GraphicsMode mode);
 
   void SetLoadError(std::string error);
   void UpdateFilePaths(const std::string& resolved_path);
@@ -221,8 +247,6 @@ class App {
 
   void ProcessPendingLoads();
 
-  void SetupTheme(platform::GuiTheme theme);
-
   void MainMenuGui();
   void ToolBarGui();
   void StatusBarGui();
@@ -245,30 +269,34 @@ class App {
   // Window state storage (e.g. collapsing header open/closed state), keyed
   // "<window name>/<id>", which ImGui does not serialize. Entries stay
   // pending until their window is first created.
-  platform::KeyValues window_state_storage_;
-  std::string model_name_;  // Used if model_kind_ is kModelFromBuffer.
+  KeyValues window_state_storage_;
   std::string model_path_;
+  std::vector<std::byte> last_buffer_;
+  std::string last_content_type_;
   std::string load_error_;
   std::string step_error_;
   std::string edit_error_;
-  platform::StepControl::PauseState last_pause_state_ =
-      platform::StepControl::PauseState::kNormalPaused;
+  StepControl::PauseState last_pause_state_ =
+      StepControl::PauseState::kNormalPaused;
 
   std::optional<std::string> pending_load_;
+  bool pending_reload_ = false;
+  bool recompile_spec_ = false;
+
   std::function<void()> pending_op_;
   bool preserve_camera_on_load_ = false;
   ModelKind model_kind_ = kEmptyModel;
-  platform::GraphicsMode gfx_mode_ = platform::GraphicsMode::FilamentVulkan;
+  GraphicsMode gfx_mode_ = GraphicsMode::FilamentVulkan;
 
-  std::unique_ptr<platform::Window> window_;
-  std::unique_ptr<platform::Renderer> renderer_;
-  std::unique_ptr<platform::ModelHolder> model_holder_;
+  std::unique_ptr<Window> window_;
+  std::unique_ptr<FilamentRenderer> renderer_;
+  std::unique_ptr<ModelHolder> model_holder_;
 
-  platform::StepControl step_control_;
-  platform::SimProfiler profiler_;
-  platform::SimHistory sim_history_;
-  platform::SimulationTimelineState timeline_;
-  platform::SpecEditor spec_editor_;
+  StepControl step_control_;
+  SimProfiler profiler_;
+  SimHistory sim_history_;
+  SimulationTimelineState timeline_;
+  SpecEditor spec_editor_;
   std::vector<std::string> search_paths_;
   std::vector<std::byte> pixels_;
 

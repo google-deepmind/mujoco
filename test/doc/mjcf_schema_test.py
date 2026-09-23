@@ -16,11 +16,20 @@
 
 import os
 import sys
-import unittest as googletest
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-_REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
-sys.path.insert(0, os.path.join(_REPO_ROOT, 'doc', 'generate'))
-import mjcf_schema
+
+_DOC_GEN = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../doc/generate')
+)
+sys.path.insert(0, _DOC_GEN)
+try:
+  import mjcf_schema  # pyrefly: ignore[missing-import]
+except ImportError:
+  raise
+
+try:
+  from absl.testing import absltest as googletest
+except ImportError:
+  import unittest as googletest  # pyrefly: ignore[missing-import]
 
 GOOD = '''
 enum geomtype : mjtGeom {          # geom shapes

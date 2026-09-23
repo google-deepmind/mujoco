@@ -50,9 +50,11 @@ class Simulate {
   static constexpr int kMaxGeom = 100000;
 
   // create object and initialize the simulate ui
-  Simulate(
-      std::unique_ptr<PlatformUIAdapter> platform_ui_adapter,
-      mjvCamera* cam, mjvOption* opt, mjvPerturb* pert, bool is_passive);
+  Simulate(std::unique_ptr<PlatformUIAdapter> platform_ui_adapter,
+           mjvCamera*                         cam,
+           mjvOption*                         opt,
+           mjvPerturb*                        pert,
+           bool                               is_passive);
 
   // Synchronize state with UI inputs, and update visualization.  If state_only
   // is false mjData and mjModel will be updated, otherwise only the subset of
@@ -100,52 +102,54 @@ class Simulate {
 
   // model and data to be visualized
   mjModel* mnew_ = nullptr;
-  mjData* dnew_ = nullptr;
+  mjData*  dnew_ = nullptr;
 
   mjModel* m_ = nullptr;
-  mjData* d_ = nullptr;
+  mjData*  d_ = nullptr;
 
-  int ncam_ = 0;
-  int nkey_ = 0;
-  int state_size_ = 0;      // number of mjtNums in a history buffer state
-  int nhistory_ = 0;        // number of states saved in history buffer
+  int ncam_           = 0;
+  int nkey_           = 0;
+  int state_size_     = 0;  // number of mjtNums in a history buffer state
+  int nhistory_       = 0;  // number of states saved in history buffer
   int history_cursor_ = 0;  // cursor pointing at last saved state
 
   std::vector<int> body_parentid_;
 
-  std::vector<int> jnt_type_;
-  std::vector<int> jnt_group_;
-  std::vector<int> jnt_qposadr_;
+  std::vector<int>                                      jnt_type_;
+  std::vector<int>                                      jnt_group_;
+  std::vector<int>                                      jnt_qposadr_;
   std::vector<std::optional<std::pair<mjtNum, mjtNum>>> jnt_range_;
-  std::vector<std::string> jnt_names_;
+  std::vector<std::string>                              jnt_names_;
 
-  std::vector<int> actuator_group_;
+  std::vector<int>                                      actuator_group_;
   std::vector<std::optional<std::pair<mjtNum, mjtNum>>> actuator_ctrlrange_;
-  std::vector<std::string> actuator_names_;
+  std::vector<std::string>                              actuator_names_;
+
 
   std::vector<std::string> equality_names_;
 
   std::vector<mjtNum> history_;  // history buffer (nhistory x state_size)
 
   // mjModel and mjData fields that can be modified by the user through the GUI
-  std::vector<mjtNum> qpos_;
-  std::vector<mjtNum> qpos_prev_;
-  std::vector<mjtNum> ctrl_;
-  std::vector<mjtNum> ctrl_prev_;
+  std::vector<mjtNum>  qpos_;
+  std::vector<mjtNum>  qpos_prev_;
+  std::vector<mjtNum>  ctrl_;
+  std::vector<mjtNum>  ctrl_prev_;
   std::vector<mjtByte> eq_active_;
   std::vector<mjtByte> eq_active_prev_;
 
   // in passive mode the user owns m_ and d_, these "passive" instances are
   // owned by Simulate, updated from the user by the Sync() method
   mjModel* m_passive_ = nullptr;
-  mjData* d_passive_ = nullptr;
+  mjData*  d_passive_ = nullptr;
+
   std::vector<mjvGeom> user_scn_geoms_;
 
-  mjOption mjopt_prev_;
-  mjVisual mjvis_prev_;
+  mjOption    mjopt_prev_;
+  mjVisual    mjvis_prev_;
   mjStatistic mjstat_prev_;
-  mjvOption opt_prev_;
-  mjvCamera cam_prev_;
+  mjvOption   opt_prev_;
+  mjvCamera   cam_prev_;
 
   // pending GUI-driven actions, to be applied at the next call to Sync
   struct {
@@ -153,50 +157,52 @@ class Simulate {
     std::optional<std::string> save_mjb;
     std::optional<std::string> print_model;
     std::optional<std::string> print_data;
-    bool update_threadpool;
-    bool reset;
-    bool align;
-    bool copy_key;
-    bool copy_key_full_precision;
-    bool load_from_history;
-    bool load_key;
-    bool save_key;
-    bool zero_ctrl;
-    int newperturb;
-    bool select;
+
+    bool      update_threadpool;
+    bool      reset;
+    bool      align;
+    bool      copy_key;
+    bool      copy_key_full_precision;
+    bool      load_from_history;
+    bool      load_key;
+    bool      save_key;
+    bool      zero_ctrl;
+    int       newperturb;
+    bool      select;
     mjuiState select_state;
-    bool ui_update_simulation;
-    bool ui_update_physics;
-    bool ui_update_rendering;
-    bool ui_update_visualization;
-    bool ui_update_joint;
-    bool ui_update_ctrl;
-    bool ui_update_equality;
-    bool ui_update_logging;
-    bool ui_remake_ctrl;
+    bool      ui_update_simulation;
+    bool      ui_update_physics;
+    bool      ui_update_rendering;
+    bool      ui_update_visualization;
+    bool      ui_update_joint;
+    bool      ui_update_ctrl;
+    bool      ui_update_equality;
+    bool      ui_update_logging;
+    bool      ui_remake_ctrl;
   } pending_ = {};
 
-  SimulateMutex mtx;
+  SimulateMutex               mtx;
   std::condition_variable_any cond_loadrequest;
 
-  int frames_ = 0;
+  int    frames_ = 0;
+  double fps_    = 0;
+
   std::chrono::time_point<Clock> last_fps_update_;
-  double fps_ = 0;
 
   // options
-  int spacing = 0;
-  int color = 0;
-  int font = 0;
-  int ui0_enable = 1;
-  int ui1_enable = 1;
-  int help = 0;
-  int info = 0;
-  int profiler = 0;
-  int sensor = 0;
+  int spacing      = 0;
+  int color        = 0;
+  int font         = 0;
+  int ui0_enable   = 1;
+  int ui1_enable   = 1;
+  int help         = 0;
+  int info         = 0;
+  int profiler     = 0;
+  int sensor       = 0;
   int pause_update = 0;
-  int fullscreen = 0;
-  int vsync = 1;
-  int busywait = 0;
+  int fullscreen   = 0;
+  int vsync        = 1;
+  int busywait     = 0;
 
   // keyframe index
   int key = -1;
@@ -212,13 +218,13 @@ class Simulate {
   int nthread = 0;
 
   // atomics for cross-thread messages
-  std::atomic_int exitrequest = 0;
-  std::atomic_int droploadrequest = 0;
+  std::atomic_int exitrequest       = 0;
+  std::atomic_int droploadrequest   = 0;
   std::atomic_int screenshotrequest = 0;
-  std::atomic_int uiloadrequest = 0;
-  std::atomic_int newfigurerequest = 0;
-  std::atomic_int newtextrequest = 0;
-  std::atomic_int newimagerequest = 0;
+  std::atomic_int uiloadrequest     = 0;
+  std::atomic_int newfigurerequest  = 0;
+  std::atomic_int newtextrequest    = 0;
+  std::atomic_int newimagerequest   = 0;
 
   // loadrequest
   //   3: display a loading message
@@ -228,87 +234,100 @@ class Simulate {
   int loadrequest = 0;
 
   // strings
-  char load_error[kMaxFilenameLength] = "";
-  char dropfilename[kMaxFilenameLength] = "";
-  char filename[kMaxFilenameLength] = "";
+  char load_error[kMaxFilenameLength]        = "";
+  char dropfilename[kMaxFilenameLength]      = "";
+  char filename[kMaxFilenameLength]          = "";
   char previous_filename[kMaxFilenameLength] = "";
 
   // time synchronization
-  int real_time_index = 0;
-  bool speed_changed = true;
+  int   real_time_index   = 0;
+  bool  speed_changed     = true;
   float measured_slowdown = 1.0;
+
   // logarithmically spaced real-time slow-down coefficients (percent)
+  // clang-format off
   static constexpr float percentRealTime[] = {
       100, 80, 63,  50,  40, 32,  25,  20, 16,  13,
       10,  8,  6.3, 5.0, 4,  3.2, 2.5, 2,  1.6, 1.3,
       1,  .8, .63, .5,  .4, .32, .25, .2, .16, .13,
      .1
   };
+  // clang-format on
 
   // control noise
-  double ctrl_noise_std = 0.0;
+  double ctrl_noise_std  = 0.0;
   double ctrl_noise_rate = 0.0;
 
   // watch
   char field[mjMAXUITEXT] = "qpos";
-  int index = 0;
+  int  index              = 0;
 
   // physics: need sync
-  int disable[mjNDISABLE] = {0};
-  int enable[mjNENABLE] = {0};
+  int disable[mjNDISABLE]      = {0};
+  int enable[mjNENABLE]        = {0};
   int enableactuator[mjNGROUP] = {0};
 
   // logging: need sync
-  mjtByte log_console = 0;
-  mjtByte log_file = 0;
-  mjtByte log_topics[mjNTOPIC] = {0};
+  mjtByte     log_console           = 0;
+  mjtByte     log_file              = 0;
+  mjtByte     log_topics[mjNTOPIC]  = {0};
   mjTimerStat timer_prev_[mjNTIMER] = {};
 
   // rendering: need sync
   int camera = 0;
 
   // abstract visualization
-  mjvScene scn;
-  mjvCamera& cam;
-  mjvOption& opt;
+  mjvScene    scn;
+  mjvCamera&  cam;
+  mjvOption&  opt;
   mjvPerturb& pert;
-  mjvFigure figconstraint = {};
-  mjvFigure figcost = {};
-  mjvFigure figtimer = {};
-  mjvFigure figsize = {};
-  mjvFigure figsensor = {};
+  mjvFigure   figconstraint = {};
+  mjvFigure   figcost       = {};
+  mjvFigure   figtimer      = {};
+  mjvFigure   figsize       = {};
+  mjvFigure   figsensor     = {};
 
   // Image sensor visualization - displays pre-rendered images from mjSENS_USER
-  int image_sensor_count = 0;
-  int selected_image_sensor = -1;  // -1 = show bar chart
-  int image_sensor_ui_selection = 0;      // UI dropdown index (0=All, 1+=sensor)
-  std::vector<int> image_sensor_indices;
+  int image_sensor_count        = 0;
+  int selected_image_sensor     = -1;  // -1 = show bar chart
+  int image_sensor_ui_selection = 0;   // UI dropdown index (0=All, 1+=sensor)
+
+  std::vector<int>         image_sensor_indices;
   std::vector<std::string> image_sensor_names;
+
   std::unique_ptr<unsigned char[]> sensor_image;
-  int sensor_image_width = 0;
-  int sensor_image_height = 0;
+
+  int sensor_image_width    = 0;
+  int sensor_image_height   = 0;
   int sensor_image_last_seq = -1;  // Last seq read from sensordata
 
   // additional user-defined visualization
   mjvScene* user_scn = nullptr;
-  mjtByte user_scn_flags_prev_[mjNRNDFLAG];
+  mjtByte   user_scn_flags_prev_[mjNRNDFLAG];
+
   std::vector<std::pair<mjrRect, mjvFigure>> user_figures_;
   std::vector<std::pair<mjrRect, mjvFigure>> user_figures_new_;
+
   std::vector<std::tuple<int, int, std::string, std::string>> user_texts_;
   std::vector<std::tuple<int, int, std::string, std::string>> user_texts_new_;
+
   std::vector<std::tuple<mjrRect, std::unique_ptr<unsigned char[]>>> user_images_;
   std::vector<std::tuple<mjrRect, std::unique_ptr<unsigned char[]>>> user_images_new_;
 
   // OpenGL rendering and UI
-  int refresh_rate = 60;
-  int window_pos[2] = {0};
+  int refresh_rate   = 60;
+  int window_pos[2]  = {0};
   int window_size[2] = {0};
+
   std::unique_ptr<PlatformUIAdapter> platform_ui;
+
   mjuiState& uistate;
-  mjUI ui0 = {};
-  mjUI ui1 = {};
+  mjUI       ui0 = {};
+  mjUI       ui1 = {};
+
 
   // Constant arrays needed for the option section of UI and the UI interface
+  // clang-format off
   // TODO setting the size here is not ideal
   const mjuiDef def_option[13] = {
     {mjITEM_SECTION,  "Option",        mjPRESERVE, nullptr,  "AO"},
@@ -317,11 +336,11 @@ class Simulate {
     {mjITEM_CHECKINT, "Profiler",      2, &this->profiler,   " #292"},
     {mjITEM_CHECKINT, "Sensor",        2, &this->sensor,     " #293"},
     {mjITEM_CHECKINT, "Pause update",  2, &this->pause_update,    ""},
-  #ifdef __APPLE__
+#ifdef __APPLE__
     {mjITEM_CHECKINT, "Fullscreen",    0, &this->fullscreen, " #294"},
-  #else
+#else
     {mjITEM_CHECKINT, "Fullscreen",    1, &this->fullscreen, " #294"},
-  #endif
+#endif
     {mjITEM_CHECKINT, "Vertical Sync", 1, &this->vsync,      ""},
     {mjITEM_CHECKINT, "Busy Wait",     1, &this->busywait,   ""},
     {mjITEM_SELECT,   "Spacing",       1, &this->spacing,    "Tight\nWide"},
@@ -359,16 +378,18 @@ class Simulate {
     {mjITEM_STATIC,    "Value",         2, nullptr,              " "},
     {mjITEM_END}
   };
+  // clang-format on
 
   // info strings
-  char info_title[Simulate::kMaxFilenameLength] = {0};
+  char info_title[Simulate::kMaxFilenameLength]   = {0};
   char info_content[Simulate::kMaxFilenameLength] = {0};
 
   // pending uploads
   std::condition_variable_any cond_upload_;
+
   int texture_upload_ = -1;
-  int mesh_upload_ = -1;
-  int hfield_upload_ = -1;
+  int mesh_upload_    = -1;
+  int hfield_upload_  = -1;
 };
 }  // namespace mujoco
 

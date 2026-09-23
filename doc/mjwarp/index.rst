@@ -40,12 +40,11 @@ The MuJoCo ecosystem offers multiple options for batched simulation.
   can be achieved with hardware that has fast cores and large thread counts, but overall performance of applications
   requiring frequent host<>device transfers (e.g., reinforcement learning with simulation on CPU and learning on GPU)
   may be bottlenecked by transfer overhead.
-- **mjx.step**: `jax.vmap` and `jax.pmap` enable multi-threaded and multi-device simulation with JAX on CPUs, GPUs, or
+- :ref:`mjx.step <MjxFunctions>`: `jax.vmap` and `jax.pmap` enable multi-threaded and multi-device simulation with JAX on CPUs, GPUs, or
   TPUs.
-- :func:`mujoco_warp.step <mujoco_warp.step>`: Python API for multi-threaded and multi-device simulation with CUDA via
-  Warp on NVIDIA GPUs. Improved scaling for contact-rich scenes compared to the MJX JAX implementation.
+- :func:`mujoco_warp.step <mujoco_warp.step>`: Python API for high throughput simulation targeting NVIDIA GPUs. Scales
+  better than MJX on nearly every workload, in particular complex simulation scenes. Works well with PyTorch.
 
-.. TODO(robotics-simulation): add link to mjx.step
 .. TODO(robotics-simulation): add step/time comparison plot
 
 Low latency
@@ -63,13 +62,10 @@ teleoperation).
 Complex scenes
 --------------
 
-MJWarp scales better than MJX for scenes with many geoms or degrees of freedom, but not as well as MuJoCo. There may be
-significant performance degradation in MJWarp for scenes beyond 60 degrees of freedom (DoFs). Supporting these larger scenes
-is a high priority and progress is tracked in GitHub issues for: sparse Jacobians
-`#88 <https://github.com/google-deepmind/mujoco_warp/issues/88>`__, block Cholesky factorization and solve
-`#320 <https://github.com/google-deepmind/mujoco_warp/issues/320>`__, constraint islands
-`#886 <https://github.com/google-deepmind/mujoco_warp/issues/886>`__, and sleeping islands
-`#887 <https://github.com/google-deepmind/mujoco_warp/issues/887>`__.
+MJWarp scales better than MJX for scenes with many geoms or degrees of freedom, but not as well as MuJoCo for single
+large kinematic trees. MJWarp can scale to scenes with hundreds of degrees of freedom as long as
+:ref:`sleeping <Sleeping>` is enabled and the scene can be partitioned into independent islands with dormant bodies.
+Improving performance for single connected mechanisms beyond ~60 DoFs remains an active priority.
 
 .. TODO(robotic-simulation): add graph for ngeom and nv scaling
 
@@ -261,7 +257,7 @@ The graph can then be launched or re-launched
   wp.capture_launch(capture.graph)
 
 and will typically be significantly faster compared to calling the function directly. Please see the
-`Warp Graph API reference <https://nvidia.github.io/warp/modules/runtime.html#graph-api-reference>`__ for details.
+`Warp Graph API reference <https://nvidia.github.io/warp/stable/user_guide/execution_and_performance/concurrency.html#graph-launches>`__ for details.
 
 Batch sizes
 -----------
@@ -274,9 +270,9 @@ exceed these limits.
 
 It is expected that good values for these limits will be environment specific. In practice, selecting good values
 typically involves trial-and-error. :func:`mjwarp-testspeed <mujoco_warp.testspeed>` with the flag `--measure_alloc` for
-printing the number of contacts and constraints at each simulation step and interacting with the simulation via
-:func:`mjwarp-viewer <mujoco_warp.viewer>` and checking for overflow errors can both be useful techniques for
-iteratively testing values for these parameters.
+printing the number of contacts and constraints at each simulation step, `--overflow_behavior=error` (default) for
+detecting overflows, and programmatic inspection via :ref:`Overflow detection <mjwOverflow>` can all be useful
+techniques for iteratively testing values for these parameters.
 
 Solver iterations
 -----------------
@@ -325,7 +321,7 @@ Memory
 Simulation throughput is often limited by memory requirements for large numbers of worlds. Considerations for optimizing
 memory utilization include:
 
-- CCD colliders require more memory than primitive colliders, see MuJoCo's :ref:`pair-wise colliders table <coPairwise>`
+- CCD colliders require more memory than primitive colliders, see the :ref:`pair-wise colliders table <mjwPairwise>`
   for information about colliders.
 - :ref:`multiccd <option-flag-multiccd>` requires more memory than CCD.
 - CCD memory requirements scale linearly with :ref:`Option.ccd_iterations <option-ccd_iterations>`.
@@ -341,16 +337,17 @@ Memory allocated inline, including for CCD and the constraint solver, can also b
 .. admonition:: Maximum number of contacts per collider
   :class: note
 
-  Some MJWarp colliders have a different maximum number of contacts compared to MuJoCo:
+  Some MJWarp colliders have a different maximum number of contacts compared to MuJoCo (see the
+  :ref:`pair-wise colliders table <mjwPairwise>`):
 
   - ``PLANE<>MESH``: 4 versus 3
   - ``HFieldCCD``: 4 versus ``mjMAXCONPAIR``
 
-.. admonition:: Sparsity
-  :class: note
-
-  Sparse Jacobians can enable significant memory savings. Updates for this feature are tracked in GitHub issue
-  `#88 <https://github.com/google-deepmind/mujoco_warp/issues/88>`__.
+Sparse Jacobians (e.g., ``efc.J``, ``ten_J``, ``flexedge_J``, and ``actuator_moment``) store only potentially non-zero entries,
+reducing memory and skipping zero arithmetic. For high-DoF scenes (:math:`n_v > 60`), sparsity
+enables simulations that are unsupported in dense mode. For example, in the Aloha clutter benchmark
+(:math:`n_v = 136`, 2048 worlds, ``njmax = 384``), the sparse representation of ``efc.J`` and its column indices
+``efc.J_colind`` requires ~84 MB combined (~42 MB each) compared to ~408 MB for dense ``efc.J``, a +4x reduction in memory.
 
 The :func:`mjw.make_data <mujoco_warp.make_data>` or :func:`mjw.put_data <mujoco_warp.put_data>` argument
 ``nccdmax`` / ``naccdmax`` can be set to a value less than `nconmax`_ / `naconmax`_ in order to reduce the memory
@@ -458,6 +455,58 @@ high-performance tensor/matrix operations optimized for fixed tile sizes.
    ``spec.option.sleep_tolerance = 0.01`` in Python) from its default value (0.001) to more quickly
    sleep objects.
 
+.. _mjwOverflow:
+
+Overflow detection
+------------------
+
+MJWarp relies on fixed-size buffer allocations (`nconmax`_ / `naconmax`_, `njmax`_, ``nccdmax`` / ``naccdmax``,
+``nvmax``, :attr:`Option.contact_sensor_maxmatch <mujoco_warp.Option.contact_sensor_maxmatch>`) for high-throughput GPU
+execution. When simulation demands exceed these pre-allocated limits, an overflow occurs, leading to undefined behavior.
+
+MJWarp tracks overflows per world in :attr:`Data.overflow <mujoco_warp.Data.overflow>`, a 1D Warp array of shape
+``(nworld,)`` storing bitmasks of :class:`mjw.OverflowType <mujoco_warp.OverflowType>`.
+
+:attr:`Data.overflow <mujoco_warp.Data.overflow>` is initialized to zero upon creation and cleared on
+:func:`mjw.reset_data <mujoco_warp.reset_data>`.
+
+.. rubric:: Checking for overflows programmatically
+
+.. code-block:: python
+
+   mjw.step(m, d)
+
+   # device-to-host transfer
+   overflow = d.overflow.numpy()
+
+   # check worlds for any overflow
+   any_overflow = np.any(overflow != 0)
+
+   # check for each world for (narrowphase) contact overflow
+   has_contact_overflow = (overflow & mjw.OverflowType.NARROWPHASE) != 0
+
+.. rubric:: Controlling warnings
+
+By default, :attr:`Option.warn_overflow <mujoco_warp.Option.warn_overflow>` is ``True``, causing kernels to print
+warning messages to stdout via ``wp.printf`` when an overflow occurs. Setting ``m.opt.warn_overflow = False`` suppresses
+these GPU-side warning prints while still recording the overflow bitmasks in :attr:`Data.overflow <mujoco_warp.Data.overflow>`.
+
+In `testspeed`_, the command-line flag ``--overflow_behavior=error`` (default) automatically checks
+:attr:`Data.overflow <mujoco_warp.Data.overflow>` and aborts with a diagnostic error if any world overflows, while
+``--overflow_behavior=continue`` allows execution to proceed with warnings enabled.
+
+.. rubric:: Performance implications
+
+- **Device printf overhead**: Printing warnings from GPU kernels (``m.opt.warn_overflow = True``) serializes execution
+  across threads, introduces CUDA device synchronizations, and can severely degrade simulation throughput when many
+  parallel worlds overflow. Disabling warnings (``m.opt.warn_overflow = False``) eliminates this GPU I/O overhead.
+- **Host-device synchronization**: Reading :attr:`Data.overflow <mujoco_warp.Data.overflow>` on CPU via ``d.overflow.numpy()``
+  requires a device-to-host memory copy and pipeline synchronization. In high-throughput reinforcement learning
+  pipelines, avoid synchronizing on every simulation step; instead, check :attr:`Data.overflow <mujoco_warp.Data.overflow>`
+  periodically (e.g., at environment reset or rollout boundaries) or inspect the tensor directly on device.
+- **Simulation fidelity**: If warnings are disabled and :attr:`Data.overflow <mujoco_warp.Data.overflow>` is not checked,
+  overflows will lead to undefined behavior.
+
 .. _mjwBatch:
 
 Batched :class:`Model <mujoco_warp.Model>` Fields
@@ -465,38 +514,15 @@ Batched :class:`Model <mujoco_warp.Model>` Fields
 
 To enable batched simulation with different model parameter values, many :class:`mjw.Model <mujoco_warp.Model>` fields
 have a leading batch dimension. By default, the leading dimension is 1 (i.e., ``field.shape[0] == 1``) and the same
-value(s) will be applied to all worlds. It is possible to override one of these fields with a ``wp.array`` that has a
-leading dimension greater than one. This field will be indexed with a modulo operation of the world id and batch
+value(s) will be applied to all worlds. It is possible to set batch sizes per field
+
+.. code-block:: python
+
+  m = mjw.put_model(mjm, batch_sizes={"dof_damping": 2})
+  m.dof_damping.assign(np.array([[0.1], [0.2]], dtype=float))
+
+and then override the default values. Batched fields will be indexed with a modulo operation of the world id and batch
 dimension: ``field[worldid % field.shape[0]]``.
-
-.. admonition:: Graph capture
-  :class: warning
-
-  The field array should be overridden prior to
-  :ref:`graph capture <mjwGC>` (i.e., ``wp.ScopedCapture``)
-  since the update will not be applied to an existing graph.
-
-.. code-block:: python
-
-   # override shape and values
-   m.dof_damping = wp.array([[0.1], [0.2]], dtype=float)
-
-   with wp.ScopedCapture() as capture:
-     mjw.step(m, d)
-
-It is possible to override the field shape and set the field values after graph capture
-
-.. code-block:: python
-
-   # override shape
-   m.dof_damping = wp.empty((2, 1), dtype=float)
-
-   with wp.ScopedCapture() as capture:
-     mjw.step(m, d)
-
-   # set batched values
-   dof_damping = wp.array([[0.1], [0.2]], dtype=float)
-   wp.copy(m.dof_damping, dof_damping)  # m.dof = dof_damping will not update the captured graph
 
 Modifying fields
 ----------------
@@ -808,7 +834,7 @@ Batch Rendering
 ===============
 
 MJWarp provides a batch renderer for high-throughput ray tracing built on
-`Warp's accelerated BVHs <https://nvidia.github.io/warp/api_reference/_generated/warp.Bvh.html#warp.Bvh>`__ for
+`Warp's accelerated BVHs <https://nvidia.github.io/warp/stable/api_reference/_generated/warp.Bvh.html>`__ for
 rendering worlds with multiple cameras in parallel.
 
 Key features:
@@ -816,6 +842,7 @@ Key features:
 - **Mesh rendering with textures**: BVH-accelerated mesh rendering with full texture support.
 - **Heightfield rendering**: Optimized rendering for heightfields.
 - **Flex rendering**: Render :ref:`flex<deformable-flex>` objects.
+- **3D Gaussian Splatting (3DGS)**: BVH-accelerated ray tracing and alpha compositing of 3D Gaussian splats with per-world grouping and bidirectional physical occlusion.
 - **Lighting and shadows**: Dynamic lighting with configurable shadows; domain randomizable: `light_active`,
   `light_type`, `light_castshadow`, `light_xpos`, `light_xdir`.
 - **Heterogeneous multi-camera**: Multiple cameras per world and each camera can have a different resolution
@@ -825,7 +852,7 @@ Key features:
   `mat_rgba`.
 - **BVH-accelerated ray/rays API**: Ray casting: Accelerated :func:`mjw.ray <mujoco_warp.ray>`,
   :func:`mjw.rays <mujoco_warp.rays>`, and :ref:`rangefinder sensors <sensor-rangefinder>` via
-  `Warp's BVHs <https://nvidia.github.io/warp/api_reference/_generated/warp.Bvh.html#warp.Bvh>`__.
+  `Warp's BVHs <https://nvidia.github.io/warp/stable/api_reference/_generated/warp.Bvh.html>`__.
 
 Basic Usage
 -----------
@@ -846,6 +873,12 @@ rendering specific fields, and output buffers.
         enabled_geom_groups=[0, 1],   # Only render geoms in groups 0 and 1
         cam_active=[True, False],     # Selectively enable/disable cameras
         flex_render_smooth=True,      # Smooth shading for soft bodies
+        splat_position=pos,           # Optional (nsplat, 3) 3DGS centers
+        splat_rotation=rot,           # Optional (nsplat, 4) 3DGS quaternions (w, x, y, z)
+        splat_scale=scale,            # Optional (nsplat, 3) 3DGS standard deviations
+        splat_rgba=rgba,              # Optional (nsplat, 4) 3DGS RGB color and opacity
+        splat_adr=adr,                # Optional (ngroup+1,) group offsets for per-world splats
+        splat_group_id=group_id,      # Optional (nworld,) splat group index per world
     )
 
 Each :class:`mjw.RenderContext <mujoco_warp.RenderContext>` parameter can be applied globally or per camera.
@@ -892,6 +925,85 @@ Rendering can be benchmarked using `testspeed`_:
 For benchmark results across a variety of scenes, see the
 `released benchmarks <https://github.com/google-deepmind/mujoco_warp/pull/1113>`__.
 
+3D Gaussian Splatting (3DGS)
+----------------------------
+
+MJWarp supports rendering 3D Gaussian Splatting (3DGS) scenes composited with simulated physical MuJoCo objects. Splats are raytraced via a dedicated SAH-constructed BVH (`build_splat_bvh`) and evaluated using a single-hit planar slice approximation along each ray.
+
+Physical Occlusion
+~~~~~~~~~~~~~~~~~~
+Splats are raytraced and alpha-composited *prior* to solid MuJoCo geometry intersection. If a camera ray hits a physical body (such as a mesh, primitive, or flex), splats located behind the hit distance (`dist`) are occluded by the physical object, while splats in front of the hit distance are blended over the physical object's surface color.
+
+Loading PLY Files
+~~~~~~~~~~~~~~~~~
+Standard binary little-endian 3DGS `.ply` files can be loaded using the helper in `contrib/render.py` or prepared manually as NumPy arrays:
+
+- `splat_position`: Splat centers in world coordinates `(nsplat, 3)` (`float32`).
+- `splat_rotation`: Splat unit quaternions in MuJoCo convention `(w, x, y, z)` `(nsplat, 4)` (`float32`).
+- `splat_scale`: Splat standard deviations in each local axis `(nsplat, 3)` (`float32`), exponentiated from log-scale PLY properties.
+- `splat_rgba`: Diffuse RGB color (converted from degree-0 spherical harmonics `f_dc_0..2`) and sigmoid-activated opacity `(nsplat, 4)` (`float32`).
+
+.. code-block:: python
+
+    import mujoco_warp as mjw
+    import numpy as np
+
+    # Example defining a single splat
+    splat_pos = np.array([[0.0, 0.0, 0.5]], dtype=np.float32)
+    splat_rot = np.array([[1.0, 0.0, 0.0, 0.0]], dtype=np.float32)  # w, x, y, z
+    splat_scale = np.array([[0.1, 0.1, 0.1]], dtype=np.float32)
+    splat_rgba = np.array([[1.0, 0.2, 0.2, 0.9]], dtype=np.float32)
+
+    rc = mjw.create_render_context(
+        mjm,
+        nworld=1,
+        render_rgb=True,
+        splat_position=splat_pos,
+        splat_rotation=splat_rot,
+        splat_scale=splat_scale,
+        splat_rgba=splat_rgba,
+    )
+
+Per-World Splat Groups
+~~~~~~~~~~~~~~~~~~~~~~
+Similar to per-world meshes, MJWarp supports heterogeneous per-world 3DGS scenes. Multiple splat scenes can be concatenated into single attribute arrays with group offsets specified by `splat_adr` `(ngroup + 1,)` and assigned to each world via `splat_group_id` `(nworld,)`.
+
+.. code-block:: python
+
+    # Group 0 has 100 splats (indices 0..99), Group 1 has 250 splats (indices 100..349)
+    splat_adr = np.array([0, 100, 350], dtype=np.int32)
+    # Assign Group 0 to World 0 and Group 1 to World 1
+    splat_group_id = np.array([0, 1], dtype=np.int32)
+
+Dynamic Splat Refitting
+~~~~~~~~~~~~~~~~~~~~~~~
+If splat positions, rotations, or scales change dynamically during simulation (e.g., splats attached to moving rigid bodies), call :func:`mjw.refit_splat_bvh <mujoco_warp.refit_splat_bvh>` before rendering:
+
+.. code-block:: python
+
+    # Update splat positions on device
+    wp.copy(rc.splat_position, updated_positions)
+    mjw.refit_splat_bvh(rc)
+    mjw.render(m, d, rc)
+
+Performance & Raycasting Thresholds
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+- **BVH Response Cutoff**: Splat bounding boxes are sized to contain density responses down to `SPLAT_MIN_RESPONSE = 0.01`.
+- **Bounded Compositing**: Raycasting accumulates up to the first `_MAX_SPLAT_HITS = 32` BVH intersections per ray ordered by depth.
+- **Early Termination**: Compositing stops early once remaining ray transmittance drops below `0.005` or individual splat alpha is below 8-bit quantization (`1 / 255`).
+
+CLI Previewer & Camera Orbits
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The command-line tool `mjwarp-render` supports rendering 3DGS PLY scenes and generating camera orbit animations:
+
+.. code-block:: shell
+
+    # Render single frame with 3DGS PLY
+    mjwarp-render scene.xml --splat=my_scene.ply --width=512 --height=512
+
+    # Render a 128-frame circular camera orbit video around a target
+    mjwarp-render scene.xml --splat=my_scene.ply --orbit --orbit_center="0,0,1" --orbit_radius=4.0 --output_video=orbit.gif
+
 Notes
 -----
 
@@ -911,7 +1023,7 @@ Learning frameworks
 **Does MJWarp work with JAX?**
 
 Yes. MJWarp is interoperable with `JAX <https://jax.readthedocs.io/>`__. Please see the
-`Warp Interoperability <https://nvidia.github.io/warp/modules/interoperability.html#jax>`__ documentation for details.
+`Warp Interoperability <https://nvidia.github.io/warp/stable/user_guide/interoperability/jax.html>`__ documentation for details.
 
 Additionally, :ref:`MJX <mjx>` provides a JAX API for a subset of MJWarp's :doc:`API <api>`. The implementation is
 specified with ``impl='warp'``.
@@ -919,14 +1031,14 @@ specified with ``impl='warp'``.
 **Does MJWarp work with PyTorch?**
 
 Yes. MJWarp is interoperable with `PyTorch <https://pytorch.org>`__. Please see the
-`Warp Interoperability <https://nvidia.github.io/warp/modules/interoperability.html#pytorch>`__ documentation for
+`Warp Interoperability <https://nvidia.github.io/warp/stable/user_guide/interoperability/pytorch.html>`__ documentation for
 details.
 
 **How to train policies with MJWarp physics?**
 
 For examples that train policies with MJWarp physics, please see:
 
-- `Isaac Lab <https://github.com/isaac-sim/IsaacLab/tree/feature/newton>`__: Train via
+- `Isaac Lab <https://github.com/isaac-sim/IsaacLab>`__: Train via
   `Newton API <https://github.com/newton-physics/newton>`__.
 - `mjlab <https://github.com/mujocolab/mjlab>`__: Train directly with MJWarp using PyTorch.
 - `MuJoCo Playground <https://github.com/google-deepmind/mujoco_playground>`__: Train via :ref:`MJX API <mjx>`.
@@ -939,7 +1051,7 @@ Features
 **Is MJWarp differentiable?**
 
 No. MJWarp is not currently differentiable via
-Warp's `automatic differentiation <https://nvidia.github.io/warp/modules/differentiability.html#differentiability>`__
+Warp's `automatic differentiation <https://nvidia.github.io/warp/stable/user_guide/differentiability.html>`__
 functionality. Updates from the team related to enabling automatic differentiation for MJWarp are tracked in this
 `GitHub issue <https://github.com/google-deepmind/mujoco_warp/issues/500>`__.
 
@@ -964,7 +1076,7 @@ Yes. Warp's ``wp.ScopedDevice`` enables multi-GPU computation
      wp.capture_launch(graph[device])
 
 Please see the
-`Warp documentation <https://nvidia.github.io/modules/devices.html#example-using-wp-scopeddevice-with-multiple-gpus>`__
+`Warp documentation <https://nvidia.github.io/warp/stable/user_guide/execution_and_performance/concurrency.html>`__
 for details and
 `mjlab distributed training <https://mujocolab.github.io/mjlab/main/source/training/distributed_training.html>`__ for a
 reinforcement learning example.
@@ -983,11 +1095,11 @@ Developments for deterministic results on GPU are tracked in this
 Orientations are represented as unit quaternions and follow :ref:`MuJoCo's conventions<siLayout>`:
 ``w, x, y, z`` or ``scalar, vector``.
 
-.. admonition:: ``wp.quaternion``
+.. admonition:: ``wp.quat``
   :class: note
 
-  MJWarp utilizes Warp's `built-in type <https://nvidia.github.io/warp/modules/functions.html#warp.quaternion>`__
-  ``wp.quaternion``. Importantly however, MJWarp does not utilize Warp's ``x, y, z, w`` quaternion convention or
+  MJWarp utilizes Warp's `built-in type <https://nvidia.github.io/warp/stable/api_reference/_generated/warp.quat.html>`__
+  ``wp.quat``. Importantly however, MJWarp does not utilize Warp's ``x, y, z, w`` quaternion convention or
   operations and instead implements quaternion routines that follow MuJoCo's conventions. Please see
   `math.py <https://github.com/google-deepmind/mujoco_warp/blob/main/mujoco_warp/_src/math.py>`__ for the
   implementations.
@@ -1006,12 +1118,6 @@ running its main collision pipeline.
 
 :ref:`Contact sensors<sensor-contact>` will report the correct information for contacts affecting the physics.
 
-**Why are Jacobians always dense?**
-
-Sparse Jacobians are not currently implemented and ``Data`` fields: ``ten_J``, ``actuator_moment``, ``flexedge_J``, and
-``efc.J`` are always represented as dense matrices. Support for sparse Jacobians is tracked in GitHub issue
-`#88 <https://github.com/google-deepmind/mujoco_warp/issues/88>`__.
-
 **Why do some arrays have different shapes compared to mjModel or mjData?**
 
 By default for batched simulation, many :class:`mjw.Data <mujoco_warp.Data>` fields having a leading batch dimension of
@@ -1019,31 +1125,16 @@ size ``Data.nworld``. Some :class:`mjw.Model <mujoco_warp.Model>` fields having 
 ``1``, indicating that this
 :ref:`field can be overridden with an array of batched parameters for domain randomization <mjwBatch>`.
 
-Additionally, certain fields including ``Model.qM``, ``Data.efc.J``, and ``Data.efc.D`` are padded to enable fast
+Additionally, certain fields including ``Model.M``, ``Data.efc.J``, and ``Data.efc.D`` are padded to enable fast
 loading on GPU.
 
 **Why are numerical results from MJWarp and MuJoCo different?**
 
-MJWarp utilizes `float <https://nvidia.github.io/warp/modules/functions.html#warp.float32>`__s in contrast to MuJoCo's
+MJWarp utilizes `float <https://nvidia.github.io/warp/stable/api_reference/_generated/warp.float32.html>`__s in contrast to MuJoCo's
 default double representation for :ref:`mjtNum`. Solver settings, including iterations, collision detection, and small
 friction values may be sensitive to differences in floating point representation.
 
 If you encounter unexpected results, including NaNs, please open a GitHub issue.
-
-**Why is inertia matrix qM sparsity not consistent with MuJoCo / MJX?**
-
-.. admonition:: ``mjtJacobian`` semantics
-   :class: note
-
-   - MuJoCo's inertia matrix is always sparse and :ref:`mjtJacobian` affects constraint Jacobians and related quantities
-   - MJWarp's (and MJX's) constraint Jacobian is always dense and :ref:`mjtJacobian` is repurposed to affect the inertia
-     matrix that can be represented as dense or sparse
-
-The automatic sparsity threshold utilized by MJWarp for ``AUTO`` is optimized for GPU and set to ``nv > 32``,
-unlike MuJoCo and MJX which use ``nv >= 60``. Dense ``DENSE`` and sparse ``SPARSE`` settings are consistent with MuJoCo
-and MJX.
-
-This feature is likely to change in the future.
 
 **How to fix simulation runtime warnings?**
 
@@ -1064,16 +1155,20 @@ Warnings are provided when memory requirements exceed existing allocations durin
   :ref:`mjMAXCONPAIR <glNumericEngine>` and some contacts are ignored. To resolve this warning, reduce the height field
   resolution or reduce the size of the geom interacting with the height field.
 
+For programmatic inspection of these overflow conditions, check :attr:`Data.overflow <mujoco_warp.Data.overflow>`
+and :class:`mjw.OverflowType <mujoco_warp.OverflowType>`. To suppress stdout warning prints during high-throughput
+runs, set :attr:`Option.warn_overflow <mujoco_warp.Option.warn_overflow>` to ``False``. See
+:ref:`Overflow detection <mjwOverflow>` for details.
+
 Compilation
 -----------
 
 **How can compilation time be improved?**
 
 Limit the number of unique colliders that require the general convex collision pipeline. These colliders are listed as
-``_CONVEX_COLLISION_PAIRS`` in
-`collision_convex.py <https://github.com/google-deepmind/mujoco_warp/blob/main/mujoco_warp/_src/collision_convex.py>`__.
-Improvements to the compilation time for the pipeline are tracked in this
-`GitHub issue <https://github.com/google-deepmind/mujoco_warp/issues/813>`__.
+``CONVEX`` in ``MJ_COLLISION_TABLE`` in
+`collision_driver.py <https://github.com/google-deepmind/mujoco_warp/blob/e357e88b6b47166d325b564c805d9ecbae659a64/mujoco_warp/_src/collision_driver.py#L45>`__
+(and marked as ``CCD`` in the :ref:`pair-wise colliders table <mjwPairwise>`).
 
 **Why are the physics not working as expected after upgrading MJWarp?**
 
@@ -1088,7 +1183,7 @@ can be accomplished by deleting the directory ``~/.cache/warp`` or via Python
 **Is it possible to compile MJWarp ahead of time instead of at runtime?**
 
 Yes. Please see Warp's
-`Ahead-of-Time Compilation Workflows <https://nvidia.github.io/warp/codegen.html#ahead-of-time-compilation-workflows>`__
+`Ahead-of-Time Compilation Workflows <https://nvidia.github.io/warp/stable/user_guide/programming_model/code_generation.html#ahead-of-time-compilation-workflows>`__
 documentation for details.
 
 Differences from MuJoCo
@@ -1106,11 +1201,10 @@ acceleration with ``qacc_warmstart``. In contrast, MuJoCo performs a comparison 
 Inertia matrix factorization
 ----------------------------
 
-When using dense computation, MJWarp's factorization of the inertia matrix ``qLD`` is computed with Warp's ``L'L``
-Cholesky factorization
-`wp.tile_cholesky <https://nvidia.github.io/warp/language_reference/_generated/warp._src.lang.tile_cholesky.html>`__
-and the result is not expected to match MuJoCo's corresponding field because a different reverse-mode ``L'DL`` routine
-:ref:`mj_factorM` is utilized.
+MJWarp performs a per-tree factorization of the inertia matrix that is stored in ``qLD`` where the size of the tree
+determines if Warp's ``U'U`` Cholesky factorization
+`wp.tile_cholesky <https://nvidia.github.io/warp/stable/language_reference/_generated/warp.tile_cholesky.html>`__,
+MuJoCo's sparse reverse-mode ``L'DL`` routine, or a simple diagonal inverse rountine is employed.
 
 Options
 -------
@@ -1143,6 +1237,7 @@ Additional MJWarp-only options are available:
 - ``graph_conditional``: use CUDA graph conditional
 - ``run_collision_detection``: use collision detection routine
 - ``contact_sensor_maxmatch``: maximum number of contacts for contact sensor matching criteria
+- ``warn_overflow``: warn if simulation overflow is encountered
 
 .. admonition:: Fluid model
   :class: note
@@ -1302,6 +1397,236 @@ The following callbacks are available:
   mjw.step(m, d)
   assert d.ctrl.numpy()[0, 0] == 2.0
 
+.. _mjwPairwise:
+
+Pair-wise colliders
+-------------------
+
+The table below provides information about the colliders and maximum number of contacts generated for different geom
+pairs in MJWarp. Use the toggles to see the maximum number of contacts with the options
+:ref:`nativeccd<option-flag-nativeccd>`, :ref:`multiccd<option-flag-multiccd>`, and
+:ref:`margin<body-geom-margin>`.
+
+.. raw:: html
+
+   <div class="pairwise-toggles">
+     <div class="pairwise-toggle-item">
+       <label class="pairwise-switch">
+         <input type="checkbox" id="nativeccd-checkbox" checked>
+         <span class="pairwise-slider"></span>
+       </label>
+       <span>nativeccd</span>
+     </div>
+     <div class="pairwise-toggle-item">
+       <label class="pairwise-switch">
+         <input type="checkbox" id="multiccd-checkbox" checked>
+         <span class="pairwise-slider"></span>
+       </label>
+       <span>multiccd</span>
+     </div>
+     <div class="pairwise-toggle-item">
+       <label class="pairwise-switch">
+         <input type="checkbox" id="margin-checkbox">
+         <span class="pairwise-slider"></span>
+       </label>
+       <span>with margin</span>
+     </div>
+   </div>
+
+.. list-table::
+   :header-rows: 1
+   :stub-columns: 1
+   :widths: auto
+   :class: table-pairwise
+
+   * -
+     - Sphere
+     - Capsule
+     - Ellipsoid
+     - Cylinder
+     - Box
+     - Mesh
+     - SDF
+   * - Plane
+     - | primitive
+       | **1**
+     - | primitive
+       | **2**
+     - | primitive
+       | **1**
+     - | primitive
+       | **4**
+     - | primitive
+       | **4**
+     - | primitive
+       | **4**
+     - | primitive
+       | **1**
+   * - HField
+     - | HFieldCCD
+       | **4**
+     - | HFieldCCD
+       | **4**
+     - | HFieldCCD
+       | **4**
+     - | HFieldCCD
+       | **4**
+     - | HFieldCCD
+       | **4**
+     - | HFieldCCD
+       | **4**
+     - | HFieldSDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Sphere
+     - | primitive
+       | **1**
+     - | primitive
+       | **1**
+     - | CCD
+       | **1**
+     - | primitive
+       | **1**
+     - | primitive
+       | **1**
+     - | CCD
+       | **1**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Capsule
+     -
+     - | primitive
+       | **2**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | primitive
+       | **2**
+     - | CCD
+       | **1**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Ellipsoid
+     -
+     -
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Cylinder
+     -
+     -
+     -
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line"><strong class="mjw-ccd">4</strong></div>
+
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line"><strong class="mjw-ccd">4</strong></div>
+
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line"><strong class="mjw-ccd">4</strong></div>
+
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Box
+     -
+     -
+     -
+     -
+     -
+       .. raw:: html
+
+         <div class="mjw-boxbox">
+           <div class="line">CCD</div>
+           <div class="line"><strong>4</strong></div>
+         </div>
+
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line"><span class="mjw-mesh-ccd"><strong>4</strong></span></div>
+
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Mesh
+     -
+     -
+     -
+     -
+     -
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line"><span class="mjw-mesh-ccd"><strong>4</strong></span></div>
+
+     - | MeshSDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - SDF
+     -
+     -
+     -
+     -
+     -
+     -
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+
+.. raw:: html
+
+   <script>
+     (() => {
+       const nativeccd = document.getElementById('nativeccd-checkbox');
+       const multiccd = document.getElementById('multiccd-checkbox');
+       const margin = document.getElementById('margin-checkbox');
+
+       const update = () => {
+         const isNative = nativeccd && nativeccd.checked;
+         const isMulti = multiccd && multiccd.checked;
+         const isMargin = margin && margin.checked;
+
+         const ccdVal = (isMulti && !isMargin) ? '4' : '1';
+         document.querySelectorAll('.mjw-ccd').forEach(el => el.textContent = ccdVal);
+
+         const meshVal = (isMulti && isMargin)
+           ? '<a href="#mjwccdmargin">not implemented</a>'
+           : `<strong>${ccdVal}</strong>`;
+         document.querySelectorAll('.mjw-mesh-ccd').forEach(el => el.innerHTML = meshVal);
+
+         const boxbox = document.querySelector('.mjw-boxbox');
+         if (boxbox) {
+           if (!isNative) {
+             boxbox.innerHTML = '<div class="line">primitive</div><div class="line"><strong>8</strong></div>';
+           } else if (isMargin) {
+             boxbox.innerHTML = '<div class="line">CCD</div><div class="line"><a href="#mjwccdmargin">not implemented</a></div>';
+           } else {
+             boxbox.innerHTML = `<div class="line">CCD</div><div class="line"><strong>${isMulti ? '4' : '1'}</strong></div>`;
+           }
+         }
+       };
+
+       [nativeccd, multiccd, margin].forEach(cb => cb && cb.addEventListener('change', update));
+     })();
+   </script>
+
+.. _mjwBoxBox:
+
 Box-box collisions
 ------------------
 
@@ -1316,6 +1641,8 @@ is available by setting the ``NATIVECCD`` disable flag:
 
 The specialized collider generates up to 8 contact points, compared to up to 4 for the convex pipeline, and may improve
 contact stability for tasks involving box stacking or manipulation.
+
+.. _mjwCCDMargin:
 
 CCD margin
 ----------
@@ -1350,7 +1677,9 @@ It supports:
  * Basic point lights and directional lights
  * Textures
  * Shadows
+ * 3D Gaussian Splatting (3DGS) diffuse rendering with physical occlusion
 
 It does not support:
  * Advanced lighting effects such as global illumination
  * Physically based material properties
+ * View-dependent spherical harmonics (higher degree SH > 0) for 3DGS

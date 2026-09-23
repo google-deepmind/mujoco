@@ -50,7 +50,9 @@ jobs:
     outputs:
       matrix: ${{ steps.generate.outputs.matrix }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        persist-credentials: false
     - name: Generate build matrix
       id: generate
       env:
@@ -60,14 +62,15 @@ jobs:
   mujoco:
     needs: setup
     strategy:
-      fail-fast: false
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
 
     name: "${{ matrix.label }}"
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        persist-credentials: false
 
     - name: Prepare Linux
       if: ${{ runner.os == 'Linux' }}
@@ -77,7 +80,7 @@ jobs:
       if: ${{ runner.os == 'macOS' }}
       run: brew install ninja
 
-    - uses: actions/setup-python@v6
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
       with:
         python-version: "3.11"
 
@@ -86,7 +89,7 @@ jobs:
     # keeps the venv activate fixup path untouched there).
     - name: Install uv
       if: ${{ runner.os != 'Windows' }}
-      uses: astral-sh/setup-uv@v8.2.0
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
       with:
         enable-cache: true
         cache-dependency-glob: "python/build_requirements*.txt"
@@ -103,7 +106,7 @@ jobs:
     # isn't the bottleneck, so we skip it there.
     - name: Setup ccache
       if: ${{ runner.os != 'Windows' }}
-      uses: hendrikmuhs/ccache-action@v1.2.23
+      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ${{ matrix.label }}
         max-size: "1.5G"
@@ -116,7 +119,7 @@ jobs:
 
     - name: Upload CMake Configure Log
       if: always()
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
         name: cmake-configure-log-${{ matrix.label }}
         path: build/CMakeFiles/CMakeConfigureLog.yaml
@@ -159,7 +162,9 @@ jobs:
 
     - name: Build samples
       working-directory: sample/build
-      run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
+      env:
+        CMAKE_BUILD_ARGS: ${{ matrix.cmake_build_args }}
+      run: bash ../../.github/workflows/build_steps.sh build_samples
 
     - name: Configure simulate
       working-directory: simulate
@@ -210,22 +215,17 @@ jobs:
     # compiler-independent so it does not need to run in every matrix job.
 
     - name: Notify team chat
-      shell: bash
-      env:
-        GCHAT_API_URL: ${{ secrets.GCHAT_API }}
-        JOB_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
-        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
-        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        CHATMSG_JOB_ID: ${{ matrix.label }}
-      if: failure() && github.ref_name == 'main' && github.event_name == 'push' && env.GCHAT_API_URL != ''
-      run: bash ./.github/workflows/build_steps.sh notify_team_chat
+      if: failure() && github.ref_name == 'main' && github.event_name == 'push'
+      uses: ./.github/actions/notify-chat
+      with:
+        service-account-key: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
+        user-id-map: ${{ secrets.CHAT_USER_ID_MAP }}
+        space-id: "spaces/AAAAzcCLt1A"
 
   # This job quickly determines if MuJoCo Studio is broken. It is the only place
   # Filament is compiled in CI, so ccache here is what keeps the long pole short.
   studio:
     strategy:
-      fail-fast: false
       matrix:
         include:
           - os: ubuntu-24.04
@@ -260,11 +260,13 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        persist-credentials: false
 
     - name: Prepare Windows (setup MSVC)
       if: ${{ runner.os == 'Windows' }}
-      uses: ilammy/msvc-dev-cmd@v1
+      uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
 
     - name: Prepare Linux
       if: ${{ runner.os == 'Linux' }}
@@ -277,7 +279,7 @@ jobs:
     # compiler invocation, so changing any build flag forces a recompile regardless.)
     - name: Setup ccache
       if: ${{ runner.os != 'Windows' }}
-      uses: hendrikmuhs/ccache-action@v1.2.23
+      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ${{ matrix.label }}-filament-${{ hashFiles('cmake/third_party_deps/filament.cmake') }}
         restore-keys: ${{ matrix.label }}-filament-
@@ -292,16 +294,12 @@ jobs:
       run: bash ./.github/workflows/build_steps.sh build_studio
 
     - name: Notify team chat
-      shell: bash
-      env:
-        GCHAT_API_URL: ${{ secrets.GCHAT_API }}
-        JOB_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
-        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
-        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        CHATMSG_JOB_ID: ${{ matrix.label }}
-      if: failure() && github.ref_name == 'main' && github.event_name == 'push' && env.GCHAT_API_URL != ''
-      run: bash ./.github/workflows/build_steps.sh notify_team_chat
+      if: failure() && github.ref_name == 'main' && github.event_name == 'push'
+      uses: ./.github/actions/notify-chat
+      with:
+        service-account-key: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
+        user-id-map: ${{ secrets.CHAT_USER_ID_MAP }}
+        space-id: "spaces/AAAAzcCLt1A"
 
 
   # This job quickly determines if WASM bindings are broken.
@@ -316,10 +314,12 @@ jobs:
         -DCMAKE_CXX_COMPILER:STRING=clang++-18
         -DMUJOCO_HARDEN:BOOL=ON
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        persist-credentials: false
 
     - name: Setup Node.js for WASM bindings
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
       with:
         node-version: '24.x'
 
@@ -328,7 +328,7 @@ jobs:
       run: bash ./.github/workflows/build_steps.sh prepare_linux
 
     - name: Setup ccache
-      uses: hendrikmuhs/ccache-action@v1.2.23
+      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ${{ env.label }}
         max-size: "1.5G"
@@ -343,16 +343,12 @@ jobs:
         bash ./.github/workflows/build_steps.sh build_test_wasm
 
     - name: Notify team chat
-      shell: bash
-      env:
-        GCHAT_API_URL: ${{ secrets.GCHAT_API }}
-        JOB_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
-        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
-        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        CHATMSG_JOB_ID: ${{ env.label }}
-      if: failure() && github.ref_name == 'main' && github.event_name == 'push' && env.GCHAT_API_URL != ''
-      run: bash ./.github/workflows/build_steps.sh notify_team_chat
+      if: failure() && github.ref_name == 'main' && github.event_name == 'push'
+      uses: ./.github/actions/notify-chat
+      with:
+        service-account-key: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
+        user-id-map: ${{ secrets.CHAT_USER_ID_MAP }}
+        space-id: "spaces/AAAAzcCLt1A"
 
 
   # MJX (mujoco.mjx) is pure JAX/XLA and compiler-independent: it imports the
@@ -371,17 +367,19 @@ jobs:
         -DMUJOCO_HARDEN:BOOL=ON
         -DMUJOCO_BUILD_TESTS:BOOL=OFF
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        persist-credentials: false
 
     - name: Prepare Linux
       run: bash ./.github/workflows/build_steps.sh prepare_linux
 
-    - uses: actions/setup-python@v6
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
       with:
         python-version: "3.11"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v8.2.0
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
       with:
         enable-cache: true
         cache-dependency-glob: "python/build_requirements*.txt"
@@ -390,7 +388,7 @@ jobs:
       run: bash ./.github/workflows/build_steps.sh prepare_python
 
     - name: Setup ccache
-      uses: hendrikmuhs/ccache-action@v1.2.23
+      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ubuntu-24.04-clang-18-mjx
         max-size: "1.0G"
@@ -435,13 +433,9 @@ jobs:
       run: bash ../.github/workflows/build_steps.sh test_mjx
 
     - name: Notify team chat
-      shell: bash
-      env:
-        GCHAT_API_URL: ${{ secrets.GCHAT_API }}
-        JOB_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
-        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
-        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        CHATMSG_JOB_ID: "ubuntu-24.04-clang-18-mjx"
-      if: failure() && github.ref_name == 'main' && github.event_name == 'push' && env.GCHAT_API_URL != ''
-      run: bash ./.github/workflows/build_steps.sh notify_team_chat
+      if: failure() && github.ref_name == 'main' && github.event_name == 'push'
+      uses: ./.github/actions/notify-chat
+      with:
+        service-account-key: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
+        user-id-map: ${{ secrets.CHAT_USER_ID_MAP }}
+        space-id: "spaces/AAAAzcCLt1A"

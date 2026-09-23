@@ -1507,70 +1507,55 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
 
 // ------------------------------------- MultiCCD -------------------------------------------------
 
-// compute area of a quadrilateral
-static inline mjtNum area4(const mjtNum a[3], const mjtNum b[3],
-                           const mjtNum c[3], const mjtNum d[3]) {
-  mjtNum ad[3] = {d[0] - a[0], d[1] - a[1], d[2] - a[2]};
-  mjtNum db[3] = {b[0] - d[0], b[1] - d[1], b[2] - d[2]};
-  mjtNum bc[3] = {c[0] - b[0], c[1] - b[1], c[2] - b[2]};
-  mjtNum ca[3] = {a[0] - c[0], a[1] - c[1], a[2] - c[2]};
-  mjtNum e[3], f[3], g[3];
-  cross3(e, ad, db);
-  cross3(f, bc, ca);
-  add3(g, e, f);
-  return 0.5 * norm3(g);
+// compute area of a quadrilateral (helper for hull4)
+static inline mjtNum area4(const mjtNum* hull, int a, int b, int c, int d) {
+  mjtNum ca[3], db[3], cross[3];
+  sub3(ca, hull + 3*a, hull + 3*c);
+  sub3(db, hull + 3*b, hull + 3*d);
+  cross3(cross, ca, db);
+  return 0.5 * norm3(cross);
 }
 
 
-// return pointer to next vertex in a polygon
-static inline mjtNum* next(mjtNum* polygon, int nvert, mjtNum* curr) {
-  if (curr == polygon + 3*(nvert - 1)) {
-    return polygon;
-  }
-  return curr + 3;
-}
-
-
-// prune a polygon to a maximum area convex quadrilateral
-static inline void polygonQuad(mjtNum* res[4], mjtNum* polygon, int nvert) {
-  mjtNum* a = polygon, *b = polygon + 3, *c = polygon + 6, *d = polygon + 9;
-  res[0] = a, res[1] = b, res[2] = c, res[3] = d;
-  mjtNum m = area4(a, b, c, d), m_next;
-  mjtNum* end = polygon + 3 * nvert;
-  for (; a < end; a += 3) {
+// prune a convex hull to a maximum area convex quadrilateral
+static inline void hull4(int res[4], const mjtNum* hull, int nhull) {
+  int a = 0, b = 1, c = 2, d = 3;
+  res[0] = 0, res[1] = 1, res[2] = 2, res[3] = 3;
+  mjtNum m = area4(hull, a, b, c, d), m_next;
+  for (; a < nhull; a++) {
     while (1) {
-      m_next = area4(a, b, c, next(polygon, nvert, d));
+      int d_next = (d + 1) % nhull;
+      m_next = area4(hull, a, b, c, d_next);
       if (m_next <= m) {
         break;
       }
-      m = m_next;
-      d = next(polygon, nvert, d);
+      d = d_next, m = m_next;
       res[0] = a, res[1] = b, res[2] = c, res[3] = d;
       while (1) {
-        m_next = area4(a, b, next(polygon, nvert, c), d);
+        int c_next = (c + 1) % nhull;
+        m_next = area4(hull, a, b, c_next, d);
         if (m_next <= m) {
           break;
         }
-        m = m_next;
-        c = next(polygon, nvert, c);
+        c = c_next, m = m_next;
         res[0] = a, res[1] = b, res[2] = c, res[3] = d;
       }
       while (1) {
-        m_next = area4(a, next(polygon, nvert, b), c, d);
+        int b_next = (b + 1) % nhull;
+        m_next = area4(hull, a, b_next, c, d);
         if (m_next <= m) {
           break;
         }
-        m = m_next;
-        b = next(polygon, nvert, b);
+        b = b_next, m = m_next;
         res[0] = a, res[1] = b, res[2] = c, res[3] = d;
       }
     }
     if (b == a) {
-      b = next(polygon, nvert, b);
+      b = (b + 1) % nhull;
       if (c == b) {
-        c = next(polygon, nvert, c);
+        c = (c + 1) % nhull;
         if (d == c) {
-          d = next(polygon, nvert, d);
+          d = (d + 1) % nhull;
         }
       }
     }
@@ -1706,10 +1691,11 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
   // copy final clipped polygon to status
   if (status->max_contacts < 5 && npolygon > 4) {
     status->nx = 4;
-    mjtNum* rect[4];
-    polygonQuad(rect, polygon, npolygon);
+    int idx[4];
+    hull4(idx, polygon, npolygon);
     for (int i = 0; i < 4; i++) {
-      dist[i] = witnessOnFace(status->x1 + 3*i, status->x2 + 3*i, rect[i], face1, n, dir);
+      dist[i] = witnessOnFace(status->x1 + 3*i, status->x2 + 3*i, polygon + 3*idx[i],
+                              face1, n, dir);
     }
     return;
   }
@@ -1888,6 +1874,18 @@ static int meshEdgeNormals(mjtNum* res, mjtNum* endverts, int dim, mjCCDObj* obj
 }
 
 
+// try recovering the cylinder normal from vertex index
+static int cylinderNormals(mjtNum res[9], int resind[3], int dim, mjCCDObj* obj,
+                           const int vi[3], const mjtNum dir[3]) {
+  if (dim == 1) {
+    globalcoord(res, obj->mat, NULL, 0, 0, vi[0] ? -1.0 : 1.0);
+    resind[0] = vi[0];
+    return 1;
+  }
+  return 0;
+}
+
+
 // try recovering box normal from collision normal
 static int boxNormals2(mjtNum res[9], int resind[3], const mjtNum mat[9], const mjtNum n[3]) {
   // list of box face normals
@@ -2008,6 +2006,49 @@ static int boxEdgeNormals(mjtNum res[9], mjtNum endverts[9], int dim, mjCCDObj* 
 }
 
 
+// recover edge of a cylinder from collision point
+static int cylinderEdgeNormals(mjtNum res[9], mjtNum endverts[9], int dim, mjCCDObj* obj,
+                               const mjtNum v[9], int v1i) {
+  if (dim == 1 || dim == 2) {
+    mjtNum sgn = v1i ? 1.0 : -1.0;
+    res[0] = sgn * obj->mat[2];
+    res[1] = sgn * obj->mat[5];
+    res[2] = sgn * obj->mat[8];
+
+    // compute endverts = v1 + res * 2 * half_length
+    addScl3(endverts, v, res, 2 * obj->size[1]);
+    return 1;
+  }
+  return 0;
+}
+
+
+// recover face of a cylinder (approximated as a 16-gon) from its index
+static int cylinderFace(mjtNum res[48], mjCCDObj* obj, int idx) {
+  static const mjtNum cos_16[16] = {
+    1.000000000000000,  0.923879532511287,  0.707106781186548,  0.382683432365090,
+    0.000000000000000, -0.382683432365090, -0.707106781186547, -0.923879532511287,
+   -1.000000000000000, -0.923879532511287, -0.707106781186548, -0.382683432365090,
+    0.000000000000000,  0.382683432365090,  0.707106781186547,  0.923879532511287
+  };
+  static const mjtNum sin_16[16] = {
+    0.000000000000000,  0.382683432365090,  0.707106781186547,  0.923879532511287,
+    1.000000000000000,  0.923879532511287,  0.707106781186548,  0.382683432365090,
+    0.000000000000000, -0.382683432365090, -0.707106781186547, -0.923879532511287,
+   -1.000000000000000, -0.923879532511287, -0.707106781186548, -0.382683432365090
+  };
+
+  // compute 16-gon cylinder face (size[0]: radius, size[1]: half-length)
+  mjtNum sgn = idx ? -1.0 : 1.0;
+  for (int i = 0; i < 16; i++) {
+    mjtNum x = cos_16[i] * obj->size[0];
+    mjtNum y = -sin_16[i] * obj->size[0] * sgn;  // use sgn for correct orientation
+    globalcoord(res + 3*i, obj->mat, obj->pos, x, y, sgn * obj->size[1]);
+  }
+  return 16;
+}
+
+
 // recover face of a box from its index
 static int boxFace(mjtNum res[12], mjCCDObj* obj, int idx) {
   // box data
@@ -2077,24 +2118,33 @@ static int meshFace(mjtNum* res, mjCCDObj* obj, int idx) {
 
 // find two normals that are facing each other within a tolerance, return 1 if found
 static inline int alignedFaces(int res[2], const mjtNum* v, int nv,
-                                 const mjtNum* w, int nw) {
+                               const mjtNum* w, int nw) {
+  int found = 0;
+  mjtNum best = -mjFACE_TOL;
   for (int i = 0; i < nv; i++) {
     for (int j = 0; j < nw; j++) {
-      if (dot3(v + 3*i, w + 3*j) < -mjFACE_TOL) {
+      mjtNum tmp = dot3(v + 3*i, w + 3*j);
+      if (tmp < best) {
+        best = tmp;
         res[0] = i;
         res[1] = j;
-        return 1;
+        found = 1;
       }
     }
   }
-  return 0;
+  return found;
 }
 
 
 // find two normals that are perpendicular to each other within a tolerance, return 1 if found
 static inline int alignedFaceEdge(int res[2], const mjtNum* edge, int nedge,
-                                  const mjtNum* face, int nface) {
+                                  const mjtNum* face, int nface, const mjtNum dir[3]) {
   for (int i = 0; i < nface; i++) {
+    // ignore faces pointing away from the collision direction (negative dot product)
+    if (dot3(face + 3*i, dir) <= mjMINVAL) {
+      continue;
+    }
+
     for (int j = 0; j < nedge; j++) {
       if (mju_abs(dot3(edge + 3*j, face + 3*i)) < mjEDGE_TOL) {
         res[0] = j;
@@ -2127,6 +2177,10 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
   }
   if (obj2->geom_type == mjGEOM_MESH && !obj2->data.mesh.mesh_polynum) {
     return;
+  }
+  if (obj1->geom_type == mjGEOM_CYLINDER || obj2->geom_type == mjGEOM_CYLINDER) {
+    nmeshdegmax = nmeshdegmax < 2 ? 2 : nmeshdegmax;
+    npolygonmax = npolygonmax < 16 ? 16 : npolygonmax;
   }
   if (obj1->geom_type == mjGEOM_BOX || obj2->geom_type == mjGEOM_BOX) {
     nmeshdegmax = nmeshdegmax < 3 ? 3 : nmeshdegmax;
@@ -2170,11 +2224,15 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
     nnorms1 = boxNormals(n1, idx1, nface1, obj1, v1i, dir_neg);
   } else if (obj1->geom_type == mjGEOM_MESH) {
     nnorms1 = meshNormals(n1, idx1, nface1, obj1, v1i);
+  } else if (obj1->geom_type == mjGEOM_CYLINDER) {
+    nnorms1 = cylinderNormals(n1, idx1, nface1, obj1, v1i, dir_neg);
   }
   if (obj2->geom_type == mjGEOM_BOX) {
     nnorms2 = boxNormals(n2, idx2, nface2, obj2, v2i, dir);
   } else if (obj2->geom_type == mjGEOM_MESH) {
     nnorms2 = meshNormals(n2, idx2, nface2, obj2, v2i);
+  } else if (obj2->geom_type == mjGEOM_CYLINDER) {
+    nnorms2 = cylinderNormals(n2, idx2, nface2, obj2, v2i, dir);
   }
 
   // determine if any two face normals match
@@ -2187,8 +2245,10 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
         nnorms1 = boxEdgeNormals(n1, endverts, nface1, obj1, v1, v1i[0]);
       } else if (obj1->geom_type == mjGEOM_MESH) {
         nnorms1 = meshEdgeNormals(n1, endverts, nface1, obj1, v1, v1i[0]);
+      } else if (obj1->geom_type == mjGEOM_CYLINDER) {
+        nnorms1 = cylinderEdgeNormals(n1, endverts, nface1, obj1, v1, v1i[0]);
       }
-      if (!alignedFaceEdge(res, n1, nnorms1, n2, nnorms2)) return;
+      if (!alignedFaceEdge(res, n1, nnorms1, n2, nnorms2, dir)) return;
       edgecon1 = 1;
 
     // check if face-edge collision
@@ -2198,8 +2258,10 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
         nnorms2 = boxEdgeNormals(n2, endverts, nface2, obj2, v2, v2i[0]);
       } else if (obj2->geom_type == mjGEOM_MESH) {
         nnorms2 = meshEdgeNormals(n2, endverts, nface2, obj2, v2, v2i[0]);
+      } else if (obj2->geom_type == mjGEOM_CYLINDER) {
+        nnorms2 = cylinderEdgeNormals(n2, endverts, nface2, obj2, v2, v2i[0]);
       }
-      if (!alignedFaceEdge(res, n2, nnorms2, n1, nnorms1)) return;
+      if (!alignedFaceEdge(res, n2, nnorms2, n1, nnorms1, dir_neg)) return;
       edgecon2 = 1;
     } else {
       // no multi-contact
@@ -2220,6 +2282,9 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
     } else if (obj1->geom_type == mjGEOM_MESH) {
       int ind = (edgecon2 ? idx1[j] : idx1[i]);
       nface1 = meshFace(face1, obj1, ind);
+    } else if (obj1->geom_type == mjGEOM_CYLINDER) {
+      int ind = (edgecon2 ? idx1[j] : idx1[i]);
+      nface1 = cylinderFace(face1, obj1, ind);
     }
   }
 
@@ -2233,6 +2298,8 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
       nface2 = boxFace(face2, obj2, idx2[j]);
     } else if (obj2->geom_type == mjGEOM_MESH) {
       nface2 = meshFace(face2, obj2, idx2[j]);
+    } else if (obj2->geom_type == mjGEOM_CYLINDER) {
+      nface2 = cylinderFace(face2, obj2, idx2[j]);
     }
   }
 
@@ -2295,8 +2362,8 @@ size_t mjc_ccdSize(int npolygonmax, int nmeshdegmax, int iterations) {
                   + align8(sizeof(int) * 24)                    // horizon indices
                   + align8(sizeof(int) * 24);                   // horizon edges
 
-  // allocate room for box geoms (multicontact is hardwired for box-box collisions)
-  npolygonmax = npolygonmax < 4 ? 4 : npolygonmax;
+  // allocate room for primitive geoms (multicontact is hardwired for primitive collisions)
+  npolygonmax = npolygonmax < 16 ? 16 : npolygonmax;
   nmeshdegmax = nmeshdegmax < 3 ? 3 : nmeshdegmax;
   size_t multiccd_size = align8(sizeof(mjtNum) * 3 * 2 * npolygonmax)
                        + align8(sizeof(mjtNum) * 3 * 2 * npolygonmax)

@@ -357,6 +357,7 @@ def contact_force_fn(
   contact_friction_in: wp.array[vec5],
   contact_dim_in: wp.array[int],
   contact_efc_address_in: wp.array2d[int],
+  contact_adhesion_in: wp.array[float],
   efc_force_in: wp.array2d[float],
   njmax_in: int,
   nacon_in: wp.array[int],
@@ -384,6 +385,9 @@ def contact_force_fn(
         if contact_efc_address_in[contact_id, i] < njmax_in:
           force[i] = efc_force_in[worldid, contact_efc_address_in[contact_id, i]]
 
+    # report net interface force: solver cone force minus adhesive pull
+    force[0] -= contact_adhesion_in[contact_id]
+
   if to_world_frame:
     # Transform both top and bottom parts of spatial vector by the full contact frame matrix
     t = wp.spatial_top(force) @ contact_frame_in[contact_id]
@@ -403,6 +407,7 @@ def contact_force_kernel(
   contact_dim_in: wp.array[int],
   contact_efc_address_in: wp.array2d[int],
   contact_worldid_in: wp.array[int],
+  contact_adhesion_in: wp.array[float],
   efc_force_in: wp.array2d[float],
   njmax_in: int,
   nacon_in: wp.array[int],
@@ -427,6 +432,7 @@ def contact_force_kernel(
     contact_friction_in,
     contact_dim_in,
     contact_efc_address_in,
+    contact_adhesion_in,
     efc_force_in,
     njmax_in,
     nacon_in,
@@ -456,6 +462,7 @@ def contact_force(m: Model, d: Data, contact_ids: wp.array[int], to_world_frame:
       d.contact.dim,
       d.contact.efc_address,
       d.contact.worldid,
+      d.contact.adhesion,
       d.efc.force,
       d.njmax,
       d.nacon,

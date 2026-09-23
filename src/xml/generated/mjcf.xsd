@@ -137,6 +137,7 @@
       <xs:enumeration value="RK4"/>
       <xs:enumeration value="implicit"/>
       <xs:enumeration value="implicitfast"/>
+      <xs:enumeration value="discrete"/>
     </xs:restriction>
   </xs:simpleType>
 
@@ -410,6 +411,14 @@
     </xs:annotation>
     <xs:restriction base="xs:string">
       <xs:enumeration value="main"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="kw_initial">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="none"/>
+      <xs:enumeration value="free"/>
+      <xs:enumeration value="ball"/>
     </xs:restriction>
   </xs:simpleType>
 
@@ -1174,6 +1183,7 @@
     <xs:attribute name="invdiscrete" type="kw_enable" default="disable"/>
     <xs:attribute name="sleep" type="kw_enable" default="disable"/>
     <xs:attribute name="diagexact" type="kw_enable" default="disable"/>
+    <xs:attribute name="ipc" type="kw_enable" default="disable"/>
   </xs:complexType>
 
   <xs:complexType name="global">
@@ -1433,13 +1443,18 @@
   <xs:complexType name="default_site">
     <xs:attribute name="type" type="kw_geomtype" default="sphere"/>
     <xs:attribute name="group" type="xs:int"/>
-    <xs:attribute name="pos" type="double3" default="0 0 0"/>
+    <xs:attribute name="pos" type="double3" default="0 0 0">
+      <xs:annotation>
+        <xs:documentation>saved in the mesh-corrected frame</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
     <xs:attribute name="quat" type="double4" default="1 0 0 0"/>
     <xs:attribute name="axisangle" type="double4"/>
     <xs:attribute name="xyaxes" type="double6"/>
     <xs:attribute name="zaxis" type="double3"/>
     <xs:attribute name="euler" type="double3"/>
     <xs:attribute name="material" type="xs:string"/>
+    <xs:attribute name="mesh" type="xs:string"/>
     <xs:attribute name="size" type="double1to3" default="0.005 0.005 0.005">
       <xs:annotation>
         <xs:documentation>saved length is type-dependent</xs:documentation>
@@ -2211,13 +2226,18 @@
     <xs:attribute name="class" type="xs:string"/>
     <xs:attribute name="type" type="kw_geomtype" default="sphere"/>
     <xs:attribute name="group" type="xs:int"/>
-    <xs:attribute name="pos" type="double3" default="0 0 0"/>
+    <xs:attribute name="pos" type="double3" default="0 0 0">
+      <xs:annotation>
+        <xs:documentation>saved in the mesh-corrected frame</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
     <xs:attribute name="quat" type="double4" default="1 0 0 0"/>
     <xs:attribute name="axisangle" type="double4"/>
     <xs:attribute name="xyaxes" type="double6"/>
     <xs:attribute name="zaxis" type="double3"/>
     <xs:attribute name="euler" type="double3"/>
     <xs:attribute name="material" type="xs:string"/>
+    <xs:attribute name="mesh" type="xs:string"/>
     <xs:attribute name="size" type="double1to3" default="0.005 0.005 0.005">
       <xs:annotation>
         <xs:documentation>saved length is type-dependent</xs:documentation>
@@ -2319,7 +2339,7 @@
     <xs:attribute name="count" type="int1to3"/>
     <xs:attribute name="offset" type="double3"/>
     <xs:attribute name="vertex" type="doublelist"/>
-    <xs:attribute name="initial" type="xs:string"/>
+    <xs:attribute name="initial" type="kw_initial" default="ball"/>
     <xs:attribute name="curve" type="xs:string"/>
     <xs:attribute name="size" type="double1to3"/>
     <xs:attribute name="quat" type="double4"/>
@@ -2449,7 +2469,7 @@
     <xs:attribute name="class" type="xs:string"/>
     <xs:attribute name="group" type="xs:int"/>
     <xs:attribute name="limited" type="kw_FalseTrueAuto" default="auto"/>
-    <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="range" type="double2"/>
     <xs:attribute name="actuatorfrcrange" type="double2"/>
     <xs:attribute name="solreflimit" type="double1to2" default="0.02 1"/>
@@ -2492,7 +2512,7 @@
     <xs:attribute name="class" type="xs:string"/>
     <xs:attribute name="group" type="xs:int"/>
     <xs:attribute name="limited" type="kw_FalseTrueAuto" default="auto"/>
-    <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="range" type="double2"/>
     <xs:attribute name="actuatorfrcrange" type="double2"/>
     <xs:attribute name="solreflimit" type="double1to2" default="0.02 1"/>
@@ -3770,6 +3790,7 @@
     <xs:attribute name="interp" type="kw_interp"/>
     <xs:attribute name="delay" type="xs:double"/>
     <xs:attribute name="interval" type="double1to2"/>
+    <xs:attribute name="cutoff" type="xs:double"/>
     <xs:attribute name="user" type="doublelist"/>
   </xs:complexType>
 
@@ -3818,12 +3839,12 @@
   <xs:complexType name="numeric">
     <xs:attribute name="name" type="xs:string" use="required"/>
     <xs:attribute name="size" type="xs:int"/>
-    <xs:attribute name="data" type="xs:string"/>
+    <xs:attribute name="data" type="doublelist"/>
   </xs:complexType>
 
-  <xs:complexType name="text">
+  <xs:complexType name="text" mixed="true">
     <xs:attribute name="name" type="xs:string" use="required"/>
-    <xs:attribute name="data" type="xs:string" use="required"/>
+    <xs:attribute name="data" type="xs:string"/>
   </xs:complexType>
 
   <xs:complexType name="tuple">
@@ -4019,6 +4040,7 @@
     <xs:attribute name="size" type="double1to3"/>
     <xs:attribute name="material" type="xs:string"/>
     <xs:attribute name="rgba" type="float4"/>
+    <xs:attribute name="mesh" type="xs:string"/>
   </xs:complexType>
 
   <xs:complexType name="flexcomp_edge">

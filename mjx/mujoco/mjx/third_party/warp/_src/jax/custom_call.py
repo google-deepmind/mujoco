@@ -5,7 +5,7 @@ import ctypes
 from functools import reduce
 
 import warp as wp
-from warp._src.context import _build_launch_bounds, _raise_cuda_launch_error, _validate_cluster_launch, type_str
+from warp._src.context import _build_kernel_launch_bounds, _raise_cuda_launch_error, _validate_cluster_launch, type_str
 from mujoco.mjx.third_party.warp._src.jax import get_jax_device
 from warp._src.logger import log_warning
 from warp._src.types import array_t, matches_array_class, strides_from_shape
@@ -95,7 +95,7 @@ def _warp_custom_callback(stream, buffers, opaque, opaque_len):
 
     # Parse launch dimensions.
     dims = [int(d) for d in dim_str.split(",")]
-    bounds = _build_launch_bounds(dims, kernel.adj.kernel_dim)
+    bounds = _build_kernel_launch_bounds(dims, kernel)
 
     # Parse arguments.
     arg_strings = args_str.split(";")
@@ -145,7 +145,7 @@ def _warp_custom_callback(stream, buffers, opaque, opaque_len):
         stream,
         None,
     ):
-        _raise_cuda_launch_error(kernel, device)
+        _raise_cuda_launch_error(kernel, device, hooks, False)
 
 
 def _create_jax_warp_primitive():
@@ -336,6 +336,11 @@ def _create_jax_warp_primitive():
         else:
             dims = launch_dims
             warp_dims = launch_dims
+
+        # JAX 0.4.25-0.7.x uses this legacy custom-call path, so reject
+        # oversized scalar coordinates during lowering before XLA allocates outputs.
+        _build_kernel_launch_bounds(warp_dims, wp_kernel)
+
         # Figure out the types and shapes of the input arrays.
         arg_strings = []
         operand_layouts = []

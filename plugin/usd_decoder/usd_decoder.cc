@@ -48,7 +48,6 @@
 #include <pxr/base/gf/rotation.h>
 #include <pxr/base/gf/vec3d.h>
 #include <pxr/base/tf/staticData.h>
-#include <pxr/base/tf/staticTokens.h>
 #include <pxr/base/tf/token.h>
 #include <pxr/base/vt/types.h>
 #include <pxr/usd/sdf/path.h>
@@ -80,12 +79,13 @@
 #include <pxr/usd/usdPhysics/rigidBodyAPI.h>
 #include <pxr/usd/usdPhysics/scene.h>
 #include <pxr/usd/usdPhysics/sphericalJoint.h>
+#include <pxr/usd/usdPhysics/tokens.h>
 #include <pxr/usd/usdShade/material.h>
 #include <pxr/usd/usdShade/materialBindingAPI.h>
 
+using mujoco::NewtonTokens;
 using pxr::MjcPhysicsTokens;
 using pxr::TfToken;
-using mujoco::NewtonTokens;
 template <typename T>
 using TfStaticData = pxr::TfStaticData<T>;
 
@@ -471,22 +471,22 @@ void ParseUsdPhysicsScene(mjSpec* spec,
 
   // Parse Newton scene attributes if present (works for Newton-only files)
   pxr::UsdPrim scene_prim = physics_scene.GetPrim();
-  auto newton_iterations = scene_prim.GetAttribute(
-      NewtonTokens->newtonMaxSolverIterations);
+  auto newton_iterations =
+      scene_prim.GetAttribute(NewtonTokens->newtonMaxSolverIterations);
   if (newton_iterations && newton_iterations.HasAuthoredValue()) {
     int val;
     newton_iterations.Get(&val);
     if (val >= 0) spec->option.iterations = val;
   }
-  auto newton_timesteps = scene_prim.GetAttribute(
-      NewtonTokens->newtonTimeStepsPerSecond);
+  auto newton_timesteps =
+      scene_prim.GetAttribute(NewtonTokens->newtonTimeStepsPerSecond);
   if (newton_timesteps && newton_timesteps.HasAuthoredValue()) {
     int val;
     newton_timesteps.Get(&val);
     if (val > 0) spec->option.timestep = 1.0 / val;
   }
-  auto newton_gravity = scene_prim.GetAttribute(
-      NewtonTokens->newtonGravityEnabled);
+  auto newton_gravity =
+      scene_prim.GetAttribute(NewtonTokens->newtonGravityEnabled);
   if (newton_gravity && newton_gravity.HasAuthoredValue()) {
     bool enabled;
     newton_gravity.Get(&enabled);
@@ -507,9 +507,10 @@ void ParseUsdPhysicsScene(mjSpec* spec,
     double timestep;
     timestep_attr.Get(&timestep);
     spec->option.timestep = timestep;
-    mju_warning("Scene '%s' uses deprecated mjc:option:timestep. "
-                "Please migrate to newton:timeStepsPerSecond.",
-                scene_prim.GetPath().GetText());
+    mju_warning(
+        "Scene '%s' uses deprecated mjc:option:timestep. "
+        "Please migrate to newton:timeStepsPerSecond.",
+        scene_prim.GetPath().GetText());
   }
 
   double impratio;
@@ -630,9 +631,10 @@ void ParseUsdPhysicsScene(mjSpec* spec,
     int iterations;
     iterations_attr.Get(&iterations);
     spec->option.iterations = iterations;
-    mju_warning("Scene '%s' uses deprecated mjc:option:iterations. "
-                "Please migrate to newton:maxSolverIterations.",
-                scene_prim.GetPath().GetText());
+    mju_warning(
+        "Scene '%s' uses deprecated mjc:option:iterations. "
+        "Please migrate to newton:maxSolverIterations.",
+        scene_prim.GetPath().GetText());
   }
 
   int ls_iterations;
@@ -692,9 +694,10 @@ void ParseUsdPhysicsScene(mjSpec* spec,
     } else {
       spec->option.disableflags &= ~mjDSBL_GRAVITY;
     }
-    mju_warning("Scene '%s' uses deprecated mjc:flag:gravity. "
-                "Please migrate to newton:gravityEnabled.",
-                scene_prim.GetPath().GetText());
+    mju_warning(
+        "Scene '%s' uses deprecated mjc:flag:gravity. "
+        "Please migrate to newton:gravityEnabled.",
+        scene_prim.GetPath().GetText());
   }
 
   bool clampctrl_flag;
@@ -1010,18 +1013,21 @@ void ParseMjcPhysicsCollisionAPI(
 
   if (mjc_margin_authored) {
     margin_attr.Get(&geom->margin);
-    mju_warning("Prim '%s' uses deprecated mjc:margin. "
-                "Please migrate to newton:contactMargin and newton:contactGap.",
-                collision_api.GetPrim().GetPath().GetText());
+    mju_warning(
+        "Prim '%s' uses deprecated mjc:margin. "
+        "Please migrate to newton:contactMargin and newton:contactGap.",
+        collision_api.GetPrim().GetPath().GetText());
   }
   if (mjc_gap_authored) {
     gap_attr.Get(&geom->gap);
-    mju_warning("Prim '%s' uses deprecated mjc:gap. "
-                "Please migrate to newton:contactGap.",
-                collision_api.GetPrim().GetPath().GetText());
+    mju_warning(
+        "Prim '%s' uses deprecated mjc:gap. "
+        "Please migrate to newton:contactGap.",
+        collision_api.GetPrim().GetPath().GetText());
   }
 
-  // Newton collision fallback: newton:contactMargin + newton:contactGap -> margin, gap
+  // Newton collision fallback: newton:contactMargin + newton:contactGap ->
+  // margin, gap
   if (!mjc_margin_authored || !mjc_gap_authored) {
     pxr::UsdPrim prim = collision_api.GetPrim();
     auto newton_margin = prim.GetAttribute(NewtonTokens->newtonContactMargin);
@@ -1100,9 +1106,10 @@ void ParseMjcPhysicsMeshCollisionAPI(
   if (maxhullvert_attr.HasAuthoredValue()) {
     maxhullvert_attr.Get(&mesh->maxhullvert);
     if (!newton_maxhull || !newton_maxhull.HasAuthoredValue()) {
-      mju_warning("Prim '%s' uses deprecated mjc:maxhullvert. "
-                  "Please migrate to newton:maxHullVertices.",
-                  mesh_collision_api.GetPrim().GetPath().GetText());
+      mju_warning(
+          "Prim '%s' uses deprecated mjc:maxhullvert. "
+          "Please migrate to newton:maxHullVertices.",
+          mesh_collision_api.GetPrim().GetPath().GetText());
     }
   } else if (newton_maxhull && newton_maxhull.HasAuthoredValue()) {
     int val;
@@ -1885,14 +1892,15 @@ void ParseMjcPhysicsMaterialAPI(
   // mjc:torsionalfriction with deprecation warning. If both are authored,
   // mjc takes precedence for backwards compatibility.
   auto mjc_torsional = material_api.GetTorsionalFrictionAttr();
-  auto newton_torsional = material_prim.GetAttribute(
-      NewtonTokens->newtonTorsionalFriction);
+  auto newton_torsional =
+      material_prim.GetAttribute(NewtonTokens->newtonTorsionalFriction);
   if (mjc_torsional.HasAuthoredValue()) {
     mjc_torsional.Get(&geom->friction[1]);
     if (!newton_torsional || !newton_torsional.HasAuthoredValue()) {
-      mju_warning("Prim '%s' uses deprecated mjc:torsionalfriction. "
-                  "Please migrate to newton:torsionalFriction.",
-                  material_prim.GetPath().GetText());
+      mju_warning(
+          "Prim '%s' uses deprecated mjc:torsionalfriction. "
+          "Please migrate to newton:torsionalFriction.",
+          material_prim.GetPath().GetText());
     }
   } else if (newton_torsional && newton_torsional.HasAuthoredValue()) {
     float val;
@@ -1902,14 +1910,15 @@ void ParseMjcPhysicsMaterialAPI(
 
   // Rolling friction: same deprecation/fallback pattern.
   auto mjc_rolling = material_api.GetRollingFrictionAttr();
-  auto newton_rolling = material_prim.GetAttribute(
-      NewtonTokens->newtonRollingFriction);
+  auto newton_rolling =
+      material_prim.GetAttribute(NewtonTokens->newtonRollingFriction);
   if (mjc_rolling.HasAuthoredValue()) {
     mjc_rolling.Get(&geom->friction[2]);
     if (!newton_rolling || !newton_rolling.HasAuthoredValue()) {
-      mju_warning("Prim '%s' uses deprecated mjc:rollingfriction. "
-                  "Please migrate to newton:rollingFriction.",
-                  material_prim.GetPath().GetText());
+      mju_warning(
+          "Prim '%s' uses deprecated mjc:rollingfriction. "
+          "Please migrate to newton:rollingFriction.",
+          material_prim.GetPath().GetText());
     }
   } else if (newton_rolling && newton_rolling.HasAuthoredValue()) {
     float val;
@@ -1918,8 +1927,8 @@ void ParseMjcPhysicsMaterialAPI(
   }
 
   // Contact adhesion: newton:contactAdhesion -> geom->adhesion
-  auto newton_adhesion = material_prim.GetAttribute(
-      NewtonTokens->newtonContactAdhesion);
+  auto newton_adhesion =
+      material_prim.GetAttribute(NewtonTokens->newtonContactAdhesion);
   if (newton_adhesion && newton_adhesion.HasAuthoredValue()) {
     float val;
     newton_adhesion.Get(&val);
@@ -1971,8 +1980,7 @@ void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
   SetLocalPoseFromPrim(gprim, body_prim, geom, caches.xform_cache);
   if (!MaybeParseGeomPrimitive(gprim, geom, caches.xform_cache)) {
     mjsMesh* mesh = ParseUsdMesh(spec, gprim, geom, caches.xform_cache);
-    if (mesh != nullptr &&
-        (gprim.HasAPI<pxr::MjcPhysicsMeshCollisionAPI>())) {
+    if (mesh != nullptr && (gprim.HasAPI<pxr::MjcPhysicsMeshCollisionAPI>())) {
       ParseMjcPhysicsMeshCollisionAPI(mesh,
                                       pxr::MjcPhysicsMeshCollisionAPI(gprim));
     }
@@ -2081,10 +2089,9 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
 
   if (!MaybeParseGeomPrimitive(prim, geom, caches.xform_cache)) {
     mjsMesh* mesh = ParseUsdMesh(spec, prim, geom, caches.xform_cache);
-    if (mesh != nullptr &&
-        (prim.HasAPI<pxr::MjcPhysicsMeshCollisionAPI>() ||
-         prim.HasAPI(NewtonTokens->NewtonMeshCollisionAPI) ||
-         prim.HasAPI(NewtonTokens->NewtonMassAPI))) {
+    if (mesh != nullptr && (prim.HasAPI<pxr::MjcPhysicsMeshCollisionAPI>() ||
+                            prim.HasAPI(NewtonTokens->NewtonMeshCollisionAPI) ||
+                            prim.HasAPI(NewtonTokens->NewtonMassAPI))) {
       ParseMjcPhysicsMeshCollisionAPI(mesh,
                                       pxr::MjcPhysicsMeshCollisionAPI(prim));
     }
@@ -2147,18 +2154,23 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     eq->objtype = mjOBJ_JOINT;
     mjs_setString(eq->name1, prim.GetPath().GetAsString().c_str());
 
-    // Target joint: prefer newton:mimicJoint, fall back to deprecated mjc:target
+    // Target joint: prefer newton:mimicJoint, fall back to deprecated
+    // mjc:target
     pxr::SdfPathVector targets;
-    auto newton_mimic_rel = prim.GetRelationship(NewtonTokens->newtonMimicJoint);
-    if (newton_mimic_rel && newton_mimic_rel.GetTargets(&targets) && !targets.empty()) {
+    auto newton_mimic_rel =
+        prim.GetRelationship(NewtonTokens->newtonMimicJoint);
+    if (newton_mimic_rel && newton_mimic_rel.GetTargets(&targets) &&
+        !targets.empty()) {
       mjs_setString(eq->name2, targets[0].GetAsString().c_str());
     } else {
       auto mjc_target_rel = prim.GetRelationship(MjcPhysicsTokens->mjcTarget);
-      if (mjc_target_rel && mjc_target_rel.GetTargets(&targets) && !targets.empty()) {
+      if (mjc_target_rel && mjc_target_rel.GetTargets(&targets) &&
+          !targets.empty()) {
         mjs_setString(eq->name2, targets[0].GetAsString().c_str());
-        mju_warning("Prim '%s' uses deprecated mjc:target. "
-                    "Please migrate to newton:mimicJoint.",
-                    prim.GetPath().GetText());
+        mju_warning(
+            "Prim '%s' uses deprecated mjc:target. "
+            "Please migrate to newton:mimicJoint.",
+            prim.GetPath().GetText());
       }
     }
 
@@ -2172,9 +2184,10 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     } else {
       eq_joint_api.GetCoef0Attr().Get(&eq->data[0]);
       if (eq_joint_api.GetCoef0Attr().HasAuthoredValue()) {
-        mju_warning("Prim '%s' uses deprecated mjc:coef0. "
-                    "Please migrate to newton:mimicCoef0.",
-                    prim.GetPath().GetText());
+        mju_warning(
+            "Prim '%s' uses deprecated mjc:coef0. "
+            "Please migrate to newton:mimicCoef0.",
+            prim.GetPath().GetText());
       }
     }
     if (newton_coef1 && newton_coef1.HasAuthoredValue()) {
@@ -2184,9 +2197,10 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     } else {
       eq_joint_api.GetCoef1Attr().Get(&eq->data[1]);
       if (eq_joint_api.GetCoef1Attr().HasAuthoredValue()) {
-        mju_warning("Prim '%s' uses deprecated mjc:coef1. "
-                    "Please migrate to newton:mimicCoef1.",
-                    prim.GetPath().GetText());
+        mju_warning(
+            "Prim '%s' uses deprecated mjc:coef1. "
+            "Please migrate to newton:mimicCoef1.",
+            prim.GetPath().GetText());
       }
     }
     eq_joint_api.GetCoef2Attr().Get(&eq->data[2]);
@@ -2219,7 +2233,8 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     }
   } else if (prim.IsA<pxr::UsdPhysicsFixedJoint>() ||
              prim.IsA<pxr::UsdPhysicsSphericalJoint>()) {
-    // Handle fixed joints as weld constraints, spherical joints as connect constraints
+    // Handle fixed joints as weld constraints, spherical joints as connect
+    // constraints
     pxr::UsdPhysicsJoint joint(prim);
     // A fixed joint means the bodies are welded.
     pxr::UsdRelationship body0_rel = joint.GetBody0Rel();
@@ -2242,8 +2257,10 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     }
 
     // Map default prim to world body (empty path means world in MuJoCo).
-    bool body0_is_world = body0_path.IsEmpty() || body0_path == default_prim_path;
-    bool body1_is_world = body1_path.IsEmpty() || body1_path == default_prim_path;
+    bool body0_is_world =
+        body0_path.IsEmpty() || body0_path == default_prim_path;
+    bool body1_is_world =
+        body1_path.IsEmpty() || body1_path == default_prim_path;
 
     auto body0_prim = stage->GetPrimAtPath(body0_path);
     auto body1_prim = stage->GetPrimAtPath(body1_path);
@@ -2275,9 +2292,14 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
       mjs_setString(eq->name2, body1_path.GetAsString().c_str());
       eq->objtype = mjOBJ_SITE;
     } else {
-      // For body welds, use "world" for the world body, otherwise use the USD path.
-      mjs_setString(eq->name1, body0_is_world ? "world" : body0_path.GetAsString().c_str());
-      mjs_setString(eq->name2, body1_is_world ? "world" : body1_path.GetAsString().c_str());
+      // For body welds, use "world" for the world body, otherwise use the USD
+      // path.
+      mjs_setString(eq->name1, body0_is_world
+                                   ? "world"
+                                   : body0_path.GetAsString().c_str());
+      mjs_setString(eq->name2, body1_is_world
+                                   ? "world"
+                                   : body1_path.GetAsString().c_str());
       eq->objtype = mjOBJ_BODY;
     }
 
@@ -2494,8 +2516,8 @@ void ParseUsdPhysicsJoint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
 }
 
 void ParseSite(mjSpec* spec, const pxr::UsdPrim& prim,
-                         const pxr::UsdPrim& parent_prim, mjsBody* parent,
-                         pxr::UsdGeomXformCache& xform_cache) {
+               const pxr::UsdPrim& parent_prim, mjsBody* parent,
+               pxr::UsdGeomXformCache& xform_cache) {
   mjsSite* site = mjs_addSite(parent, 0);
   mjs_setName(site->element, prim.GetPath().GetAsString().c_str());
   SetLocalPoseFromPrim(prim, parent_prim, site, xform_cache);
@@ -2586,7 +2608,8 @@ void ParseMjcPhysicsKeyframe(mjSpec* spec,
 
 void ParseUsdFilteredPairsAPI(mjSpec* spec, const pxr::UsdPrim& prim) {
   pxr::SdfPathVector filtered_bodies;
-  pxr::UsdPhysicsFilteredPairsAPI(prim).GetFilteredPairsRel().GetTargets(&filtered_bodies);
+  pxr::UsdPhysicsFilteredPairsAPI(prim).GetFilteredPairsRel().GetTargets(
+      &filtered_bodies);
   for (const auto& filtered_body : filtered_bodies) {
     mjsExclude* exclude = mjs_addExclude(spec);
     mjs_setString(exclude->bodyname1, prim.GetPath().GetAsString().c_str());
@@ -2715,9 +2738,8 @@ void PopulateSpecFromTree(pxr::UsdStageRefPtr stage, mjSpec* spec,
   }
 
   for (const auto& site_path : current_node->sites) {
-    ParseSite(
-        spec, stage->GetPrimAtPath(site_path),
-        body_prim_for_xform, current_mj_body, caches.xform_cache);
+    ParseSite(spec, stage->GetPrimAtPath(site_path), body_prim_for_xform,
+              current_mj_body, caches.xform_cache);
   }
 
   // Recurse through children.

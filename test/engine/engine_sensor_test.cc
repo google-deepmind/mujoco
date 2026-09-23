@@ -997,11 +997,11 @@ TEST_F(SensorTest, CameraProjection) {
 }
 
 // previous implementation of cam_project to verify the new one
-static void cam_project_old(
-    mjtNum sensordata[2], const mjtNum target_xpos[3],
-    const mjtNum cam_xpos[3], const mjtNum cam_xmat[9],
-    const int cam_res[2], mjtNum cam_fovy,
-    const float cam_intrinsic[4], const float cam_sensorsize[2]) {
+static void cam_project_old(mjtNum sensordata[2], const mjtNum target_xpos[3],
+                            const mjtNum cam_xpos[3], const mjtNum cam_xmat[9],
+                            const int cam_res[2], mjtNum cam_fovy,
+                            const float cam_intrinsic[4],
+                            const float cam_sensorsize[2]) {
   mjtNum fx, fy;
 
   // translation matrix (4x4)
@@ -1020,9 +1020,9 @@ static void cam_project_old(
   rotation[1][1] = 1;
   rotation[2][2] = 1;
   rotation[3][3] = 1;
-  for (int i=0; i < 3; i++) {
-    for (int j=0; j < 3; j++) {
-      rotation[i][j] = cam_xmat[j*3+i];
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      rotation[i][j] = cam_xmat[j * 3 + i];
     }
   }
 
@@ -1036,7 +1036,7 @@ static void cam_project_old(
 
   mjtNum focal[3][4] = {};
   focal[0][0] = -fx;
-  focal[1][1] =  fy;
+  focal[1][1] = fy;
   focal[2][2] = 1.0;
 
   // image matrix (3x3)
@@ -1049,13 +1049,13 @@ static void cam_project_old(
 
   // projection matrix (3x4): product of all 4 matrices
   mjtNum proj[3][4] = {};
-  for (int i=0; i < 3; i++) {
-    for (int j=0; j < 3; j++) {
-      for (int k=0; k < 4; k++) {
-        for (int l=0; l < 4; l++) {
-          for (int n=0; n < 4; n++) {
-            proj[i][n] += image[i][j] * focal[j][k] *
-                          rotation[k][l] * translation[l][n];
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      for (int k = 0; k < 4; k++) {
+        for (int l = 0; l < 4; l++) {
+          for (int n = 0; n < 4; n++) {
+            proj[i][n] +=
+                image[i][j] * focal[j][k] * rotation[k][l] * translation[l][n];
           }
         }
       }
@@ -1069,8 +1069,8 @@ static void cam_project_old(
   // project world coordinates into pixel space, see:
   // https://en.wikipedia.org/wiki/3D_projection#Mathematical_formula
   mjtNum pixel_coord_hom[3] = {0};
-  for (int i=0; i < 3; i++) {
-    for (int j=0; j < 4; j++) {
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 4; j++) {
       pixel_coord_hom[i] += proj[i][j] * pos_hom[j];
     }
   }
@@ -1139,14 +1139,11 @@ TEST_F(SensorTest, CameraProjectionComparison) {
       int refid = model->sensor_refid[i];
 
       mjtNum expected[2];
-      cam_project_old(expected,
-                      data->site_xpos + 3*objid,
-                      data->cam_xpos + 3*refid,
-                      data->cam_xmat + 9*refid,
-                      model->cam_resolution + 2*refid,
-                      model->cam_fovy[refid],
-                      model->cam_intrinsic + 4*refid,
-                      model->cam_sensorsize + 2*refid);
+      cam_project_old(expected, data->site_xpos + 3 * objid,
+                      data->cam_xpos + 3 * refid, data->cam_xmat + 9 * refid,
+                      model->cam_resolution + 2 * refid, model->cam_fovy[refid],
+                      model->cam_intrinsic + 4 * refid,
+                      model->cam_sensorsize + 2 * refid);
 
       int adr = model->sensor_adr[i];
       EXPECT_NEAR(data->sensordata[adr], expected[0], MjTol(1e-10, 1e-3));
@@ -1194,6 +1191,49 @@ TEST_F(SensorTest, InsideSite) {
     expected[i] = 1.0;
     EXPECT_EQ(AsVector(data->sensordata, model->nsensordata), expected);
   }
+}
+
+TEST_F(SensorTest, InsideSiteMesh) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="box_mesh" vertex="-0.1 -0.1 -0.1  0.1 -0.1 -0.1  0.1 0.1 -0.1  -0.1 0.1 -0.1  -0.1 -0.1 0.1  0.1 -0.1 0.1  0.1 0.1 0.1  -0.1 0.1 0.1"/>
+    </asset>
+
+    <worldbody>
+      <body pos="0 0 0">
+        <joint type="slide" axis="1 0 0"/>
+        <geom name="query" type="sphere" size=".001"/>
+      </body>
+
+      <site name="mesh_site" type="mesh" mesh="box_mesh" pos="1.0 0 0"/>
+    </worldbody>
+
+    <sensor>
+      <insidesite name="inside" site="mesh_site" objtype="geom" objname="query"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_EQ(model->nsensordata, 1);
+  MjDataPtr data = MakeData(model);
+
+  // Position query inside mesh site
+  data->qpos[0] = 1.0;
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->sensordata[0], 1.0);
+
+  // Position query outside mesh site (to the left)
+  data->qpos[0] = 0.0;
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->sensordata[0], 0.0);
+
+  // Position query outside mesh site (to the right)
+  data->qpos[0] = 2.0;
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->sensordata[0], 0.0);
 }
 
 TEST_F(SensorTest, RangefinderCamera) {
@@ -1801,6 +1841,67 @@ TEST_F(SensorTest, TactileSkipTangents) {
   EXPECT_EQ(nonzero_count, 2) << "Expected 2 taxels in contact";
 }
 
+// Test tactile sensor cutoff attribute, engine clamping, and round-trip XML
+// save/load
+TEST_F(SensorTest, TactileCutoff) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag multiccd="enable"/>
+    </option>
+    <asset>
+      <mesh name="sensor_mesh" builtin="sphere" params="0"/>
+    </asset>
+    <worldbody>
+      <body pos="0 0 1">
+        <freejoint/>
+        <geom name="sensor_geom" type="mesh" mesh="sensor_mesh"/>
+      </body>
+      <body>
+        <geom type="box" size=".7 .7 .3"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <tactile geom="sensor_geom" mesh="sensor_mesh" cutoff="0.05"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_GT(model->nsensordata, 0) << "No sensor data allocated";
+  EXPECT_MJTNUM_EQ(model->sensor_cutoff[0], 0.05);
+
+  MjDataPtr data = MakeData(model);
+
+  // Compute collisions and sensors at t=0
+  mj_forward(model.get(), data.get());
+
+  int ntaxel = model->nsensordata / 3;
+  int nonzero_count = 0;
+  for (int i = 0; i < ntaxel; i++) {
+    if (data->sensordata[i] != 0) {
+      nonzero_count++;
+      // Without cutoff, penetration is ~0.2; with cutoff=0.05, it must be
+      // clamped to 0.05
+      EXPECT_NEAR(data->sensordata[i], 0.05, MjTol(1e-6, 1e-4))
+          << "Penetration depth at taxel " << i
+          << " should be clamped to cutoff";
+    }
+  }
+  EXPECT_EQ(nonzero_count, 2) << "Expected 2 taxels in contact";
+
+  // Verify XML round-trip preserves cutoff without schema errors
+  std::string saved_xml = SaveAndReadXml(model.get());
+  EXPECT_THAT(saved_xml, HasSubstr("cutoff=\"0.05\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("noise")));
+
+  MjModelPtr reloaded =
+      LoadModelFromString(saved_xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(reloaded.get(), NotNull()) << error;
+  EXPECT_MJTNUM_EQ(reloaded->sensor_cutoff[0], 0.05);
+}
+
 // insidesite uses subtree_com for massless flex parent bodies
 TEST_F(SensorTest, InsideSiteFlexBody) {
   static constexpr char xml[] = R"(
@@ -1881,6 +1982,148 @@ TEST_F(SensorTest, TactileMeshIdMismatchedValidator) {
   char error[1024] = {0};
   MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(m.get(), NotNull()) << error;
+}
+
+// Test that tactile tangent channels correctly project relative velocity
+// when the tactile sensor geom is rotated relative to the world.
+TEST_F(SensorTest, TactileRotatedGeomTangents) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag multiccd="enable"/>
+    </option>
+    <asset>
+      <mesh name="sensor_mesh" builtin="wedge" params="3 3 45 45 0" scale=".2 .2 .2"/>
+    </asset>
+    <worldbody>
+      <body>
+        <geom type="box" size=".25 .25 .25"/>
+        <geom name="sensor_geom" type="mesh" mesh="sensor_mesh" euler="0 90 0"
+              mass="0" contype="0" conaffinity="0"/>
+      </body>
+      <body name="slider" pos="0 0 0">
+        <joint type="slide" axis="1 0 0"/>
+        <geom type="box" size=".3 .3 .3"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <tactile geom="sensor_geom" mesh="sensor_mesh"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  // Set sliding velocity along world X
+  d->qvel[0] = 2.0;
+
+  mj_forward(m.get(), d.get());
+
+  int ntaxel = m->mesh_vertnum[0];
+  ASSERT_EQ(ntaxel, 9);
+  ASSERT_EQ(m->nsensordata, 27);
+
+  // At least some taxels should be in contact and register penetration
+  int in_contact = 0;
+  mjtNum total_tangent_slip = 0;
+  for (int j = 0; j < ntaxel; j++) {
+    if (d->sensordata[0 * ntaxel + j] > 0) {
+      in_contact++;
+      total_tangent_slip +=
+          d->sensordata[1 * ntaxel + j] + d->sensordata[2 * ntaxel + j];
+    }
+  }
+  EXPECT_GT(in_contact, 0);
+  EXPECT_GT(total_tangent_slip, 0.0);
+}
+
+// Test that self-geom contacts do not evaluate distance against the sensor
+// itself.
+TEST_F(SensorTest, TactileSelfGeomExclusion) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="sensor_mesh" builtin="sphere" params="0"/>
+    </asset>
+    <worldbody>
+      <body>
+        <geom name="sensor_geom" type="mesh" mesh="sensor_mesh"/>
+      </body>
+    </worldbody>
+    <contact>
+      <pair geom1="sensor_geom" geom2="sensor_geom"/>
+    </contact>
+    <sensor>
+      <tactile geom="sensor_geom" mesh="sensor_mesh"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  mj_forward(m.get(), d.get());
+
+  // With self-geom exclusion, sensor readings must remain 0
+  for (int i = 0; i < m->nsensordata; i++) {
+    EXPECT_EQ(d->sensordata[i], 0.0);
+  }
+}
+
+// Test that rotating bodies in contact produce tangential velocity via surface
+// contact kinematics.
+TEST_F(SensorTest, TactileSpinningContactVelocity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag multiccd="enable"/>
+    </option>
+    <asset>
+      <mesh name="sensor_mesh" builtin="wedge" params="3 3 45 45 0" scale=".2 .2 .2"/>
+    </asset>
+    <worldbody>
+      <body>
+        <geom type="box" size=".25 .25 .25"/>
+        <geom name="sensor_geom" type="mesh" mesh="sensor_mesh"
+              mass="0" contype="0" conaffinity="0"/>
+      </body>
+      <body name="spinner" pos="0 0 0">
+        <joint type="hinge" axis="0 1 0"/>
+        <geom type="sphere" size=".5"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <tactile geom="sensor_geom" mesh="sensor_mesh"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  // Set angular velocity about Y axis (pure rotation, zero linear velocity at
+  // body origin)
+  d->qvel[0] = 10.0;
+
+  mj_forward(m.get(), d.get());
+
+  int ntaxel = m->mesh_vertnum[0];
+  ASSERT_EQ(ntaxel, 9);
+  ASSERT_EQ(m->nsensordata, 27);
+
+  mjtNum total_tangent_slip = 0;
+  for (int j = 0; j < ntaxel; j++) {
+    total_tangent_slip +=
+        d->sensordata[1 * ntaxel + j] + d->sensordata[2 * ntaxel + j];
+  }
+  EXPECT_GT(total_tangent_slip, 0.0);
 }
 
 // Test that contact and touch sensors work with Flex contacts.

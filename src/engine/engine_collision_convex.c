@@ -162,13 +162,13 @@ void mjc_center(mjtNum res[3], const mjCCDObj *obj) {
 
   // return flex element position
   if (e >= 0) {
-    mji_copy3(res, obj->data.flex.aabb + 6*(obj->data.flex.elemadr[f]+e));
+    mji_copy3(res, obj->data.flex.aabb);
     return;
   }
 
   // return flex vertex position
   if (f >= 0) {
-    mji_copy3(res, obj->data.flex.vert_xpos + 3*(obj->data.flex.vertadr[f]+v));
+    mji_copy3(res, obj->data.flex.vert_xpos + 3*v);
     return;
   }
 }
@@ -312,6 +312,7 @@ static void mjc_cylinderSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3
 
   // set result in Z direction
   local_supp[2] = local_dir[2] >= 0 ? size[1] : -size[1];
+  obj->vertindex = local_dir[2] >= 0 ? 0 : 1;
 
   // transform result to global frame
   localToGlobal(res, mat, local_supp, pos);
@@ -483,9 +484,8 @@ static void mjc_flexSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
 
   // flex element
   if (obj->elem >= 0) {
-    int e = obj->elem;
-    const int* edata = obj->data.flex.elem + obj->data.flex.elemdataadr[f] + e*(dim+1);
-    const mjtNum* vert = obj->data.flex.vert_xpos + 3*obj->data.flex.vertadr[f];
+    const int* edata = obj->data.flex.elem;
+    const mjtNum* vert = obj->data.flex.vert_xpos;
 
     // find element vertex with largest projection along dir
     mji_copy3(res, vert+3*edata[0]);
@@ -507,7 +507,7 @@ static void mjc_flexSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
 
   // flex vertex
   else {
-    const mjtNum* vert = obj->data.flex.vert_xpos + 3*(obj->data.flex.vertadr[f] + obj->vert);
+    const mjtNum* vert = obj->data.flex.vert_xpos + 3*obj->vert;
     mji_addScl3(res, vert, dir, obj->data.flex.xradius[f] + 0.5*obj->margin);
     return;
   }
@@ -527,9 +527,8 @@ void mjccd_support(const void *_obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
 
     // flex element
     if (obj->elem >= 0) {
-      int e = obj->elem;
-      const int* edata = obj->data.flex.elem + obj->data.flex.elemdataadr[f] + e*(dim+1);
-      const mjtNum* vert = obj->data.flex.vert_xpos + 3*obj->data.flex.vertadr[f];
+      const int* edata = obj->data.flex.elem;
+      const mjtNum* vert = obj->data.flex.vert_xpos;
 
       // find element vertex with largest projection along dir
       mji_copy3(res, vert+3*edata[0]);
@@ -551,7 +550,7 @@ void mjccd_support(const void *_obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
 
     // flex vertex
     else {
-      const mjtNum* vert = obj->data.flex.vert_xpos + 3*(obj->data.flex.vertadr[f] + obj->vert);
+      const mjtNum* vert = obj->data.flex.vert_xpos + 3*obj->vert;
       mji_addScl3(res, vert, dir, obj->data.flex.xradius[f] + 0.5*obj->margin);
       return;
     }
@@ -815,6 +814,14 @@ static void mjc_setCCDObjFlex(mjCCDObj* obj, int flex, int elem, int vert) {
   obj->flex = flex;
   obj->elem = elem;
   obj->vert = vert;
+  if (flex >= 0) {
+    obj->data.flex.vert_xpos += 3 * obj->data.flex.vertadr[flex];
+    if (elem >= 0) {
+      int dim = obj->data.flex.dim[flex];
+      obj->data.flex.aabb += 6 * (obj->data.flex.elemadr[flex] + elem);
+      obj->data.flex.elem += obj->data.flex.elemdataadr[flex] + elem * (dim + 1);
+    }
+  }
 }
 
 
@@ -865,9 +872,9 @@ static int maxContacts(const mjModel* m, const mjCCDObj* obj1, const mjCCDObj* o
     return 8;
   }
 
-  // reduce mesh collisions to 4 contacts max
-  if (type1 == mjGEOM_BOX || type1 == mjGEOM_MESH) {
-    if (type2 == mjGEOM_BOX || type2 == mjGEOM_MESH) {
+  // reduce geom collisions to 4 contacts max
+  if (type1 == mjGEOM_BOX || type1 == mjGEOM_MESH || type1 == mjGEOM_CYLINDER) {
+    if (type2 == mjGEOM_BOX || type2 == mjGEOM_MESH || type2 == mjGEOM_CYLINDER) {
       return mjDISABLED(mjDSBL_MULTICCD) ? 1 : 4;
     }
   }
@@ -962,143 +969,168 @@ int mjc_Convex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, m
 }
 
 
-// parameters for plane-mesh extra contacts
-const int maxplanemesh = 3;
-const mjtNum tolplanemesh = 0.3;
+static inline void sub3f(mjtNum res[3], const float* a, const float* b) {
+  res[0] = (mjtNum)a[0] - (mjtNum)b[0];
+  res[1] = (mjtNum)a[1] - (mjtNum)b[1];
+  res[2] = (mjtNum)a[2] - (mjtNum)b[2];
+}
 
-// add one plane-mesh contact
-static int addplanemesh(mjPreContact* con, const float vertex[3],
-                        const mjtNum pos1[3], const mjtNum normal1[3],
-                        const mjtNum pos2[3], const mjtNum mat2[9],
-                        const mjtNum first[3], mjtNum rbound) {
-  // compute point in global coordinates
-  mjtNum pnt[3], v[3] = {vertex[0], vertex[1], vertex[2]};
-  mju_mulMatVec3(pnt, mat2, v);
-  mju_addTo3(pnt, pos2);
-
-  // skip if too close to first contact
-  if (mju_dist3(pnt, first) < tolplanemesh*rbound) {
-    return 0;
-  }
-
-  // pnt-pos difference vector
-  mjtNum dif[3];
-  mji_sub3(dif, pnt, pos1);
-
-  // set distance
-  con[0].dist = mju_dot3(normal1, dif);
-
-  // set position
-  mji_copy3(con[0].pos, pnt);
-  mji_addToScl3(con[0].pos, normal1, -0.5*con[0].dist);
-
-  // set frame
-  mji_copy3(con[0].normal, normal1);
-  mji_zero3(con[0].tangent);
-
-  return 1;
+// compute area of a quadrilateral (helper for hull4f)
+static inline mjtNum area4f(const float* hull, const int* idx, int a, int b, int c, int d) {
+  mjtNum ca[3], db[3], cross[3];
+  sub3f(ca, hull + 3*idx[a], hull + 3*idx[c]);
+  sub3f(db, hull + 3*idx[b], hull + 3*idx[d]);
+  mji_cross(cross, ca, db);
+  return 0.5 * mju_norm3(cross);
 }
 
 
-// plane-convex collision, using libccd
-int mjc_PlaneConvex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin) {
-  const mjtNum* pos1  = d->geom_xpos + 3*g1;
-  const mjtNum* mat1  = d->geom_xmat + 9*g1;
-  const mjtNum* pos2  = d->geom_xpos + 3*g2;
-  const mjtNum* mat2  = d->geom_xmat + 9*g2;
+// prune a convex hull to a maximum area quadrilateral using an anchor vertex
+// returns number of vertices in the pruned hull
+static inline int hull4f(int res[4], const float* hull, const int* idx, int nhull, int a) {
+  int b = (a + 1) % nhull, c = (a + 2) % nhull, d = (a + 3) % nhull;
+  res[0] = a, res[1] = b, res[2] = c, res[3] = d;
+  if (nhull <= 4) {
+    return nhull;
+  }
+  mjtNum m = area4f(hull, idx, a, b, c, d), m_next;
+  while (1) {
+    int d_next = (d + 1) % nhull;
+    m_next = area4f(hull, idx, a, b, c, d_next);
+    if (m_next <= m) {
+      break;
+    }
+    d = d_next, m = m_next;
+    res[0] = a, res[1] = b, res[2] = c, res[3] = d;
+    while (1) {
+      int c_next = (c + 1) % nhull;
+      m_next = area4f(hull, idx, a, b, c_next, d);
+      if (m_next <= m) {
+        break;
+      }
+      c = c_next, m = m_next;
+      res[0] = a, res[1] = b, res[2] = c, res[3] = d;
+    }
+    while (1) {
+      int b_next = (b + 1) % nhull;
+      m_next = area4f(hull, idx, a, b_next, c, d);
+      if (m_next <= m) {
+        break;
+      }
+      b = b_next, m = m_next;
+      res[0] = a, res[1] = b, res[2] = c, res[3] = d;
+    }
+  }
+  return 4;
+}
 
-  mjtNum dif[3], normal[3] = {mat1[2], mat1[5], mat1[8]};
-  ccd_vec3_t ccd_dir, ccd_vec;
+// plane-convex collision
+int mjc_PlaneConvex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin) {
+  const mjtNum* pos1 = d->geom_xpos + 3*g1;
+  const mjtNum* mat1 = d->geom_xmat + 9*g1;
+  const mjtNum* pos2 = d->geom_xpos + 3*g2;
+  const mjtNum* mat2 = d->geom_xmat + 9*g2;
+
+  mjtNum diff[3], normal[3] = {mat1[2], mat1[5], mat1[8]};
   mjCCDObj obj;
   mjc_initCCDObj(&obj, m, d, g2, 0);
-  // get support point in -normal direction
-  ccdVec3Set(&ccd_dir, -mat1[2], -mat1[5], -mat1[8]);
-  mjccd_support(&obj, &ccd_dir, &ccd_vec);
+
+  // get support point in negative plane normal direction
+  mjtNum v[3], dir[3] = {-mat1[2], -mat1[5], -mat1[8]};
+  obj.support(v, &obj, dir);
 
   // compute normal distance, return if too far
-  mji_sub3(dif, ccd_vec.v, pos1);
-  con[0].dist = mju_dot3(normal, dif);
-  if (con[0].dist > margin) {
+  mji_sub3(diff, v, pos1);
+  mjtNum dist = mju_dot3(normal, diff);
+  if (dist > margin) {
     return 0;
   }
 
-  // fill in contact data
-  mji_copy3(con[0].pos, ccd_vec.v);
-  mji_addToScl3(con[0].pos, normal, -0.5*con[0].dist);
+  // always include the support point (deepest contact) as the first contact
+  con[0].dist = dist;
+  mji_copy3(con[0].pos, v);
+  mji_addToScl3(con[0].pos, normal, -0.5*dist);
   mji_copy3(con[0].normal, normal);
   mji_zero3(con[0].tangent);
 
-  //--------------- add all/connected vertices below margin
-  float* vertdata;
-  int graphadr, numvert, locid;
-  int *vert_edgeadr, *vert_globalid, *edge_localid;
-  mjtNum vdot;
-  int count = 1, g = g2;
-
-  // g is an ellipsoid: no need for further mesh-specific processing
-  if (m->geom_dataid[g] == -1) {
-    return count;
+  // geom without mesh data (e.g. ellipsoid): return single contact only
+  if (m->geom_dataid[g2] == -1 || !obj.data.mesh.mesh_polynum || obj.vertindex < 0) {
+    return 1;
   }
 
-  // init
-  vertdata = m->mesh_vert + 3*m->mesh_vertadr[m->geom_dataid[g]];
+  // mesh polygon data
+  int vertadr = m->mesh_vertadr[m->geom_dataid[g2]];
+  int polyadr = m->mesh_polyadr[m->geom_dataid[g2]];
+  int polymapadr = m->mesh_polymapadr[vertadr + obj.vertindex];
+  int polymapnum = m->mesh_polymapnum[vertadr + obj.vertindex];
 
-  // express dir in geom local frame
-  mjtNum locdir[3];
-  mju_mulMatTVec3(locdir, d->geom_xmat+9*g, ccd_dir.v);
+  // find mesh face with normal most anti-aligned with plane normal
+  int best_poly = -1;
+  mjtNum best_dot = 1;
+  mjtNum local_normal[3];
+  mju_mulMatTVec3(local_normal, mat2, normal);
 
-  // inclusion threshold along locdir, relative to geom2 center
-  mji_sub3(dif, pos2, pos1);
-  mjtNum threshold = mju_dot3(normal, dif) - margin;
-
-  // no graph data: exhaustive search
-  if (m->mesh_graphadr[m->geom_dataid[g]] < 0) {
-    // search all vertices, find best
-    for (int i=0; i < m->mesh_vertnum[m->geom_dataid[g]] && count < maxplanemesh; i++) {
-      // vdot = dot(vertex, dir)
-      vdot = locdir[0] * (mjtNum)vertdata[3*i] +
-             locdir[1] * (mjtNum)vertdata[3*i+1] +
-             locdir[2] * (mjtNum)vertdata[3*i+2];
-
-      // detect contact, skip best
-      if (vdot > threshold && i != obj.meshindex) {
-        count += addplanemesh(con+count, vertdata+3*i,
-                              pos1, normal, pos2, mat2,
-                              con->pos, m->geom_rbound[g2]);
-      }
+  for (int i = 0; i < polymapnum; i++) {
+    int idx = m->mesh_polymap[polymapadr + i];
+    const mjtNum* pn = m->mesh_polynormal + 3*(polyadr + idx);
+    mjtNum ndot = pn[0]*local_normal[0] + pn[1]*local_normal[1] + pn[2]*local_normal[2];
+    if (ndot < best_dot) {
+      best_dot = ndot;
+      best_poly = idx;
     }
   }
 
-  // use graph data
-  else if (obj.meshindex >= 0) {
-    // get info
-    graphadr = m->mesh_graphadr[m->geom_dataid[g]];
-    numvert = m->mesh_graph[graphadr];
-    vert_edgeadr = m->mesh_graph + graphadr + 2;
-    vert_globalid = m->mesh_graph + graphadr + 2 + numvert;
-    edge_localid = m->mesh_graph + graphadr + 2 + 2*numvert;
+  // no suitable face found
+  if (best_poly < 0) {
+    return 1;
+  }
 
-    // look for contacts in ibest neighborhood
-    int i = vert_edgeadr[obj.meshindex];
-    while ((locid=edge_localid[i]) >= 0 && count < maxplanemesh) {
-      // vdot = dot(vertex, dir)
-      vdot = locdir[0] * (mjtNum)vertdata[3*vert_globalid[locid]] +
-             locdir[1] * (mjtNum)vertdata[3*vert_globalid[locid]+1] +
-             locdir[2] * (mjtNum)vertdata[3*vert_globalid[locid]+2];
+  // get all vertices of the best polygon face
+  int face_vertadr = m->mesh_polyvertadr[polyadr + best_poly];
+  int face_vertnum = m->mesh_polyvertnum[polyadr + best_poly];
+  const float* vertdata = m->mesh_vert + 3*vertadr;
+  const int* face_polyvert = m->mesh_polyvert + face_vertadr;
 
-      // detect contact
-      if (vdot > threshold) {
-        count += addplanemesh(con+count, vertdata+3*vert_globalid[locid],
-                              pos1, normal, pos2, mat2,
-                              con->pos, m->geom_rbound[g2]);
-      }
-
-      // advance to next edge
-      i++;
+  // find obj.vertindex within the face to use as the fixed anchor for pruning
+  int a = 0;
+  for (int i = 0; i < face_vertnum; i++) {
+    if (face_polyvert[i] == obj.vertindex) {
+      a = i;
+      break;
     }
   }
 
-  return count;
+  // prune to 4 supporting vertices if face has more than 4
+  int ncon = 1, indices[4];
+  int n = hull4f(indices, vertdata, face_polyvert, face_vertnum, a);
+
+  // add supporting face vertices (skip the anchor vertex)
+  for (int i = 1; i < n; i++) {
+    mjtNum local_vert[3] = {
+      (mjtNum)vertdata[3*face_polyvert[indices[i]] + 0],
+      (mjtNum)vertdata[3*face_polyvert[indices[i]] + 1],
+      (mjtNum)vertdata[3*face_polyvert[indices[i]] + 2]
+    };
+    mjtNum pnt[3];
+    localToGlobal(pnt, mat2, local_vert, pos2);
+
+    mji_sub3(diff, pnt, pos1);
+    mjtNum vdist = mju_dot3(normal, diff);
+
+    // skip vertex if above margin or above mesh center
+    mji_sub3(diff, pnt, pos2);
+    if (vdist > margin || mju_dot3(normal, diff) > 0) {
+      continue;
+    }
+    con[ncon].dist = vdist;
+    mji_copy3(con[ncon].pos, pnt);
+    mji_addToScl3(con[ncon].pos, normal, -0.5*vdist);
+    mji_copy3(con[ncon].normal, normal);
+    mji_zero3(con[ncon].tangent);
+    ncon++;
+  }
+
+  return ncon;
 }
 
 
@@ -1602,34 +1634,27 @@ int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f,
   const mjtNum* hsize = m->hfield_size + 4*hid;
   const float* hdata = m->hfield_data + m->hfield_adr[hid];
 
-  // get elem indo
+  // get elem info
   int dim = m->flex_dim[f];
   const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
-  mjtNum* evert[4] = {NULL, NULL, NULL, NULL};
+  static const int local_edata[4] = {0, 1, 2, 3};
+  mjtNum evert[4][3], ecenter[3];
   for (int i=0; i <= dim; i++) {
-    evert[i] = d->flexvert_xpos + 3*(m->flex_vertadr[f] + edata[i]);
+    const mjtNum* v = d->flexvert_xpos + 3*(m->flex_vertadr[f] + edata[i]);
+    mji_sub3(vec, v, hpos);
+    mji_mulMatTVec3(evert[i], hmat, vec);
   }
-  mjtNum* ecenter = d->flexelem_aabb + 6*(m->flex_elemadr[f]+e);
+  mji_sub3(vec, d->flexelem_aabb + 6*(m->flex_elemadr[f] + e), hpos);
+  mji_mulMatTVec3(ecenter, hmat, vec);
 
   // ccd-related
   mjCCDObj obj2;
   mjc_initCCDObj(&obj2, m, d, -1, margin);
   mjc_setCCDObjFlex(&obj2, f, e, -1);
+  obj2.data.flex.elem = local_edata;
+  obj2.data.flex.vert_xpos = (const mjtNum*)evert;
+  obj2.data.flex.aabb = ecenter;
   //------------------------------------- AABB computation, box-box test
-
-  // save elem vertices, transform to hfield frame
-  mjtNum savevert[4][3];
-  for (int i=0; i <= dim; i++) {
-    mji_copy3(savevert[i], evert[i]);
-    mji_sub3(vec, evert[i], hpos);
-    mji_mulMatTVec3(evert[i], hmat, vec);
-  }
-
-  // save elem center, transform to hfield frame
-  mjtNum savecenter[3];
-  mji_copy3(savecenter, ecenter);
-  mji_sub3(vec, ecenter, hpos);
-  mji_mulMatTVec3(ecenter, hmat, vec);
 
   // compute elem bounding box (in hfield frame)
   xmin = xmax = evert[0][0];
@@ -1648,12 +1673,6 @@ int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f,
   if ((xmin-margin > hsize[0]) || (xmax+margin < -hsize[0]) ||
       (ymin-margin > hsize[1]) || (ymax+margin < -hsize[1]) ||
       (zmin-margin > hsize[2]) || (zmax+margin < -hsize[3])) {
-    // restore vertices and center
-    for (int i=0; i <= dim; i++) {
-      mji_copy3(evert[i], savevert[i]);
-    }
-    mji_copy3(ecenter, savecenter);
-
     return 0;
   }
 
@@ -1717,12 +1736,6 @@ int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f,
       }
     }
   }
-
-  // restore elem vertices and center
-  for (int i=0; i <= dim; i++) {
-    mji_copy3(evert[i], savevert[i]);
-  }
-  mji_copy3(ecenter, savecenter);
 
   return cnt;
 }

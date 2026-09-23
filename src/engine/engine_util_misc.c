@@ -23,9 +23,9 @@
 #include <string.h>
 
 #include <mujoco/mjmacro.h>
-#include <mujoco/mjmodel.h>
+#include <mujoco/mjtype.h>
 #include "engine/engine_array_safety.h"
-#include "engine/engine_macro.h"
+#include "engine/engine_crossplatform.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_spatial.h"
@@ -449,8 +449,8 @@ void mju_geomSemiAxes(mjtNum semiaxes[3], const mjtNum size[3], mjtGeom type) {
 
 
 // return 1 if point is inside a primitive geom, 0 otherwise
-int mju_insideGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3], mjtGeom type,
-                   const mjtNum point[3]) {
+int mju_insidePrimitive(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3], mjtGeom type,
+                        const mjtNum point[3]) {
   // vector from geom to point
   mjtNum vec[3];
   mju_sub3(vec, point, pos);
@@ -1603,20 +1603,28 @@ void mju_decodePyramid(mjtNum* force, const mjtNum* pyramid, const mjtNum* mu, i
 
 // integrate spring-damper analytically, return pos(t)
 mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum k, mjtNum b, mjtNum t) {
-  mjtNum det, c1, c2, r1, r2, w;
+  mjtNum det, det_tol, c1, c2, r1, r2, w;
 
   // determinant of characteristic equation
   det = b*b - 4*k;
 
+  // scale tolerance with determinant terms to make regime selection invariant to time units
+  det_tol = mjMINVAL * mju_max(b*b, 4*mju_abs(k));
+
   // overdamping
   //  pos(t) = c1*exp(r1*t) + c2*exp(r2*t);  r12 = (-b +- sqrt(det))/2
-  if (det > mjMINVAL) {
+  if (det > det_tol) {
     // compute w = sqrt(det)/2
     w = mju_sqrt(det)/2;
 
-    // compute r1,r2
-    r1 = -b/2 + w;
-    r2 = -b/2 - w;
+    // avoid cancellation: compute the root of larger magnitude, then use r1*r2 = k
+    if (b >= 0) {
+      r2 = -b/2 - w;
+      r1 = k/r2;
+    } else {
+      r1 = -b/2 + w;
+      r2 = k/r1;
+    }
 
     // compute coefficients
     c1 = (pos0*r2-vel0) / (r2-r1);
@@ -1628,7 +1636,7 @@ mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum k, mjtNum b, mjtNum t) 
 
   // critical damping
   //  pos(t) = exp(-b*t/2) * (c1 + c2*t)
-  else if (det <= mjMINVAL && det >= -mjMINVAL) {
+  else if (det <= det_tol && det >= -det_tol) {
     // compute coefficients
     c1 = pos0;
     c2 = vel0 + b*c1/2;

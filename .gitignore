@@ -18,7 +18,13 @@
 *.egg-info/
 build/
 build_cmake/
+build_host/
+build_wasm/
+build_simulate/
 python/dist/
+python/mujoco/include/
+python/mujoco/experimental/studio/assets/
+python/mujoco/experimental/studio/web/dist/
 doc/_build
 
 # Exclude macOS folder attributes

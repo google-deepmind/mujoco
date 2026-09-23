@@ -16,26 +16,26 @@
 #define MUJOCO_PYTHON_STRUCTS_H_
 
 #include <algorithm>
-#include <mutex>
 #include <array>
 #include <cctype>
 #include <cstddef>
 #include <functional>
 #include <istream>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <ostream>
 #include <sstream>
-#include <string_view>
-#include <unordered_map>
 #include <string>
+#include <string_view>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include <absl/types/span.h>
-#include <mujoco/mujoco.h>
 #include <mujoco/mjxmacro.h>
+#include <mujoco/mujoco.h>
 #include "gil.h"
 #include "indexers.h"
 #include "raw.h"

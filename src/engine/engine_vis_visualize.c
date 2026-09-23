@@ -491,6 +491,9 @@ void mjv_cameraFrame(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3], mjtNum 
 
     case mjCAMERA_FIXED: {
       const int cid = cam->fixedcamid;
+      if (cid < 0) {
+        mjERROR("fixed camera id is outside valid range");
+      }
       if (!d) {
         mjERROR("data pointer is NULL");
       }
@@ -1117,8 +1120,28 @@ static void addSiteGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     }
 
     // construct geom
-    mjv_initGeom(thisgeom, m->site_type[i], m->site_size+3*i,
-                  d->site_xpos+3*i, d->site_xmat+9*i, NULL);
+    const mjtNum* pos = d->site_xpos+3*i;
+    const mjtNum* mat = d->site_xmat+9*i;
+    mjtNum meshpos[3], meshmat[9], meshrot[9];
+    if (m->site_type[i] == mjGEOM_MESH && m->site_dataid[i] >= 0) {
+      int meshid = m->site_dataid[i];
+      mju_mulMatVec3(meshpos, mat, m->mesh_pos+3*meshid);
+      mju_addTo3(meshpos, pos);
+      mju_quat2Mat(meshrot, m->mesh_quat+4*meshid);
+      mju_mulMatMat3(meshmat, mat, meshrot);
+      pos = meshpos;
+      mat = meshmat;
+    }
+
+    mjv_initGeom(thisgeom, m->site_type[i], m->site_size+3*i, pos, mat, NULL);
+    thisgeom->dataid = m->site_dataid[i];
+
+    // set texcoord
+    if (m->site_type[i] == mjGEOM_MESH &&
+        m->site_dataid[i] >= 0 &&
+        m->mesh_texcoordadr[m->site_dataid[i]] >= 0) {
+      thisgeom->texcoord = 1;
+    }
 
     // set material if given
     setMaterial(m, thisgeom, m->site_matid[i], m->site_rgba+4*i, vopt->flags);
@@ -1136,6 +1159,14 @@ static void addSiteGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     // vopt->label
     if (vopt->label == mjLABEL_SITE) {
       makeLabel(m, mjOBJ_SITE, i, thisgeom->label);
+    }
+
+    // mesh: 2*i is original, 2*i+1 is convex hull
+    if (m->site_type[i] == mjGEOM_MESH) {
+      thisgeom->dataid *= 2;
+      if (m->mesh_graphadr[m->site_dataid[i]] >= 0 && vopt->flags[mjVIS_CONVEXHULL]) {
+        thisgeom->dataid += 1;
+      }
     }
 
     releaseGeom(&thisgeom, scn);
@@ -2222,12 +2253,27 @@ static void addActuatorGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         // inflate sizes by 5%
         mju_scl3(sz, m->site_size+3*j, 1.05);
 
+        const mjtNum* pos = d->site_xpos+3*j;
+        const mjtNum* mat = d->site_xmat+9*j;
+        mjtNum meshpos[3], meshmat[9], meshrot[9];
+        if (m->site_type[j] == mjGEOM_MESH && m->site_dataid[j] >= 0) {
+          int meshid = m->site_dataid[j];
+          mju_mulMatVec3(meshpos, mat, m->mesh_pos+3*meshid);
+          mju_addTo3(meshpos, pos);
+          mju_quat2Mat(meshrot, m->mesh_quat+4*meshid);
+          mju_mulMatMat3(meshmat, mat, meshrot);
+          pos = meshpos;
+          mat = meshmat;
+        }
+
         // make geom
-        mjv_initGeom(thisgeom,
-                      m->site_type[j], sz,
-                      d->site_xpos + 3*j,
-                      d->site_xmat + 9*j,
-                      thisgeom->rgba);
+        mjv_initGeom(thisgeom, m->site_type[j], sz, pos, mat, thisgeom->rgba);
+        if (m->site_type[j] == mjGEOM_MESH && m->site_dataid[j] >= 0) {
+          thisgeom->dataid = 2 * m->site_dataid[j];
+          if (m->mesh_graphadr[m->site_dataid[j]] >= 0 && vopt->flags[mjVIS_CONVEXHULL]) {
+            thisgeom->dataid += 1;
+          }
+        }
       } else if (m->jnt_type[j] == mjJNT_HINGE || m->jnt_type[j] == mjJNT_SLIDE) {
         // set length(1) and width(0) of the connectors
         sz[1] = m->vis.scale.actuatorlength * scl;
@@ -3023,16 +3069,16 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
     mju_copy3(cam->lookat, d->subtree_com + 3*bid);
   }
 
-  // get camera frame
-  mjtNum headpos[3], forward[3], up[3], right[3];
-  mjv_cameraFrame(headpos, forward, up, right, d, cam);
-
-  // get camera frustum
+  // get camera frustum; for a fixed camera this validates fixedcamid
   float zver[2], zhor[2], zclip[2] = {0, 0};
   mjv_cameraFrustum(zver, zhor, zclip, m, cam);
 
+  // get camera frame (fixedcamid already validated by mjv_cameraFrustum above)
+  mjtNum headpos[3], forward[3], up[3], right[3];
+  mjv_cameraFrame(headpos, forward, up, right, d, cam);
+
   // get ipd, orthographic
-  int cid, orthographic = 0;
+  int orthographic = 0;
   mjtNum ipd;
 
   switch (cam->type) {
@@ -3041,15 +3087,13 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
     ipd = m->vis.global.ipd;
     orthographic = m->vis.global.orthographic;
     break;
-  case mjCAMERA_FIXED:
-    // get id, check range
-    cid = cam->fixedcamid;
-    if (cid < 0 || cid >= m->ncam) {
-      mjERROR("fixed camera id is outside valid range");
-    }
+  case mjCAMERA_FIXED: {
+    // fixedcamid range already validated by mjv_cameraFrustum
+    int cid = cam->fixedcamid;
     ipd = m->cam_ipd[cid];
     orthographic = m->cam_projection[cid] == mjPROJ_ORTHOGRAPHIC;
     break;
+  }
 
   default:
     mjERROR("unknown camera type");

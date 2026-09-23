@@ -54,8 +54,10 @@ class MjvSceneTest : public MujocoTest {
 
 TEST_F(MjvSceneTest, UpdateScene) {
   const std::string xml_path = GetTestDataFilePath(kModelPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  ASSERT_THAT(model, NotNull()) << "Failed to load model from " << kModelPath;
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull())
+      << "Failed to load model from " << kModelPath << ": " << error;
 
   InitSceneObjects(model);
 
@@ -84,8 +86,10 @@ TEST_F(MjvSceneTest, UpdateScene) {
 
 TEST_F(MjvSceneTest, UpdateSceneGeomsExhausted) {
   const std::string xml_path = GetTestDataFilePath(kModelPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  ASSERT_THAT(model, NotNull()) << "Failed to load model from " << kModelPath;
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull())
+      << "Failed to load model from " << kModelPath << ": " << error;
 
   const int maxgeoms = 1;
   InitSceneObjects(model, maxgeoms);
@@ -144,6 +148,131 @@ TEST_F(MjvSceneTest, PrincipalPointFrustumSign) {
   EXPECT_FLOAT_EQ(top, half - offset);
   EXPECT_FLOAT_EQ(bottom, -(half + offset));
 
+  FreeSceneObjects();
+}
+
+TEST_F(MjvSceneTest, InvalidFixedCamId) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <camera name="cam" pos="0 0 1"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  InitSceneObjects(model.get());
+  cam_.type = mjCAMERA_FIXED;
+
+  cam_.fixedcamid = -1;
+  EXPECT_THAT(MjuErrorMessageFrom(mjv_updateCamera)(model.get(), data.get(),
+                                                    &cam_, &scn_),
+              ::testing::HasSubstr("fixed camera id is outside valid range"));
+  EXPECT_THAT(MjuErrorMessageFrom(mjv_cameraFrame)(nullptr, nullptr, nullptr,
+                                                   nullptr, data.get(), &cam_),
+              ::testing::HasSubstr("fixed camera id is outside valid range"));
+
+  cam_.fixedcamid = model->ncam;
+  EXPECT_THAT(MjuErrorMessageFrom(mjv_updateCamera)(model.get(), data.get(),
+                                                    &cam_, &scn_),
+              ::testing::HasSubstr("fixed camera id is outside valid range"));
+
+  FreeSceneObjects();
+}
+
+static constexpr char kMeshSiteXml[] = R"(
+<mujoco>
+  <asset>
+    <mesh name="offset_box"
+          vertex="1 -.5 0  3 -.5 0  3 .5 0  1 .5 0
+                  1 -.5 4  3 -.5 4  3 .5 4  1 .5 4"/>
+  </asset>
+  <worldbody>
+    <body pos=".4 .5 .6" euler="10 20 30">
+      <freejoint/>
+      <inertial pos="0 0 0" mass="1" diaginertia="1 2 3"/>
+      <frame pos=".3 -.2 .1" euler="30 10 20">
+        <site name="plain" pos=".1 .2 .3" euler="20 30 10" size=".01"/>
+        <site name="mesh" type="mesh" mesh="offset_box"
+              pos=".1 .2 .3" euler="20 30 10"/>
+        <geom name="reference" type="mesh" mesh="offset_box"
+              pos=".1 .2 .3" euler="20 30 10" contype="0" conaffinity="0"/>
+      </frame>
+    </body>
+  </worldbody>
+  <sensor>
+    <framepos objtype="site" objname="plain"/>
+    <framepos objtype="site" objname="mesh"/>
+    <framequat objtype="site" objname="plain"/>
+    <framequat objtype="site" objname="mesh"/>
+    <gyro site="plain"/>
+    <gyro site="mesh"/>
+    <accelerometer site="plain"/>
+    <accelerometer site="mesh"/>
+  </sensor>
+</mujoco>
+)";
+
+TEST_F(MjvSceneTest, MeshSitePreservesAuthoredFrame) {
+  MjModelPtr model = LoadModelFromString(kMeshSiteXml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  int plain = mj_name2id(model.get(), mjOBJ_SITE, "plain");
+  int mesh = mj_name2id(model.get(), mjOBJ_SITE, "mesh");
+  for (int j = 0; j < 3; ++j) {
+    EXPECT_EQ(model->site_pos[3 * plain + j], model->site_pos[3 * mesh + j]);
+  }
+  for (int j = 0; j < 4; ++j) {
+    EXPECT_EQ(model->site_quat[4 * plain + j], model->site_quat[4 * mesh + j]);
+  }
+  for (int i = 0; i < model->nv; ++i) {
+    data->qvel[i] = 0.1 * (i + 1);
+    data->qfrc_applied[i] = 0.2 * (i + 1);
+  }
+  mj_forward(model.get(), data.get());
+  for (int sensor = 0; sensor < model->nsensor; sensor += 2) {
+    int adr1 = model->sensor_adr[sensor];
+    int adr2 = model->sensor_adr[sensor + 1];
+    for (int j = 0; j < model->sensor_dim[sensor]; ++j) {
+      EXPECT_NEAR(data->sensordata[adr1 + j], data->sensordata[adr2 + j], 1e-6);
+    }
+  }
+}
+
+TEST_F(MjvSceneTest, MeshSitePreservesVisualPoseAndVolume) {
+  MjModelPtr model = LoadModelFromString(kMeshSiteXml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  int site = mj_name2id(model.get(), mjOBJ_SITE, "mesh");
+  int geom = mj_name2id(model.get(), mjOBJ_GEOM, "reference");
+  InitSceneObjects(model.get());
+  mjv_updateScene(model.get(), data.get(), &opt_, &pert_, &cam_, mjCAT_ALL,
+                  &scn_);
+  const mjvGeom* mesh_site = nullptr;
+  const mjvGeom* mesh_geom = nullptr;
+  for (int i = 0; i < scn_.ngeom; ++i) {
+    const mjvGeom* item = scn_.geoms + i;
+    if (item->objtype == mjOBJ_SITE && item->objid == site) mesh_site = item;
+    if (item->objtype == mjOBJ_GEOM && item->objid == geom) mesh_geom = item;
+  }
+  ASSERT_THAT(mesh_site, NotNull());
+  ASSERT_THAT(mesh_geom, NotNull());
+  for (int j = 0; j < 3; ++j) {
+    EXPECT_NEAR(mesh_site->pos[j], mesh_geom->pos[j], 1e-6);
+  }
+  for (int j = 0; j < 9; ++j) {
+    EXPECT_NEAR(mesh_site->mat[j], mesh_geom->mat[j], 1e-6);
+  }
+  EXPECT_EQ(
+      mj_insideSite(model.get(), data.get(), site, data->geom_xpos + 3 * geom),
+      1);
+  mjtNum outside[3] = {100, 100, 100};
+  EXPECT_EQ(mj_insideSite(model.get(), data.get(), site, outside), 0);
   FreeSceneObjects();
 }
 

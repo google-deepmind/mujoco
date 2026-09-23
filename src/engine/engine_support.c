@@ -43,8 +43,8 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 3012001
-#define mjVERSIONSTRING "3.12.1"
+ #define mjVERSION 3014001
+#define mjVERSIONSTRING "3.14.1"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -78,7 +78,8 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "Fwdinv",
   "InvDiscrete",
   "Sleep",
-  "DiagExact"
+  "DiagExact",
+  "IPC"
 };
 
 
@@ -601,6 +602,59 @@ mjtNum mj_geomDistance(const mjModel* m, mjData* d, int geom1, int geom2, mjtNum
 }
 
 
+// return 1 if point is inside a site (convex hull for meshes), 0 otherwise
+int mj_insideSite(const mjModel* m, const mjData* d, int siteid, const mjtNum point[3]) {
+  int type = m->site_type[siteid];
+  const mjtNum* pos = d->site_xpos + 3*siteid;
+  const mjtNum* mat = d->site_xmat + 9*siteid;
+  const mjtNum* size = m->site_size + 3*siteid;
+
+  if (type == mjGEOM_MESH) {
+    int meshid = m->site_dataid[siteid];
+    if (meshid < 0) {
+      return 0;
+    }
+    int pn = m->mesh_polynum[meshid];
+    if (pn <= 0) {
+      return 0;
+    }
+
+    // rotate into local frame
+    mjtNum vec[3], plocal[3], meshmat[9];
+    mju_sub3(vec, point, pos);
+    mju_mulMatTVec3(plocal, mat, vec);
+
+    // transform from authored site frame to canonical mesh frame
+    mju_sub3(vec, plocal, m->mesh_pos+3*meshid);
+    mju_quat2Mat(meshmat, m->mesh_quat+4*meshid);
+    mju_mulMatTVec3(plocal, meshmat, vec);
+
+    // check bounding box
+    if (mju_abs(plocal[0]) > size[0] ||
+        mju_abs(plocal[1]) > size[1] ||
+        mju_abs(plocal[2]) > size[2]) {
+      return 0;
+    }
+
+    // check convex hull polygon face planes
+    const float* vbase = m->mesh_vert + 3*m->mesh_vertadr[meshid];
+    int polyadr = m->mesh_polyadr[meshid];
+    for (int p=0; p < pn; p++) {
+      const mjtNum* pnl = m->mesh_polynormal + 3*(polyadr + p);
+      const float* v0 = vbase + 3*m->mesh_polyvert[m->mesh_polyvertadr[polyadr + p]];
+      mjtNum c = pnl[0]*v0[0] + pnl[1]*v0[1] + pnl[2]*v0[2];
+      mjtNum dd = pnl[0]*plocal[0] + pnl[1]*plocal[1] + pnl[2]*plocal[2] - c;
+      if (dd > 0) {
+        return 0;
+      }
+    }
+    return 1;
+  }
+
+  return mju_insidePrimitive(pos, mat, size, (mjtGeom)type, point);
+}
+
+
 // compute velocity by finite-differencing two positions
 void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
                          const mjtNum* qpos1, const mjtNum* qpos2) {
@@ -883,28 +937,28 @@ void mju_camIntrinsics(const mjModel* m, int camid,
 
 
 // read delayed ctrl value for actuator at given time
-mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int interp) {
+const mjtNum* mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time,
+                          mjtNum* result, int interp) {
   // validate actuator id
   if (id < 0 || id >= m->nactuator) {
     mjERROR("invalid actuator id %d", id);
-    return 0;
+    return NULL;
   }
 
   // no delay: return current ctrl value
   int nsample = m->actuator_history[2*id];
   if (nsample == 0) {
-    return d->ctrl[m->actuator_ctrladr[id]];
+    return d->ctrl + m->actuator_ctrladr[id];
   }
 
   // resolve interpolation order: use model's interp if argument is -1
   if (interp < 0) interp = m->actuator_history[2*id+1];
 
   // get buffer pointer and read from history buffer
+  int dim = m->actuator_ctrlnum[id];
   mjtNum delay = m->actuator_delay[id];
   const mjtNum* buf = d->history + m->actuator_historyadr[id];
-  mjtNum res;
-  const mjtNum* ptr = mju_historyRead(buf, nsample, /*dim=*/1, &res, time - delay, interp);
-  return ptr ? *ptr : res;
+  return mju_historyRead(buf, nsample, dim, result, time - delay, interp);
 }
 
 
@@ -950,8 +1004,9 @@ void mj_initCtrlHistory(const mjModel* m, mjData* d, int id,
     return;
   }
 
-  // get buffer pointer
+  // get buffer pointer and dimension
   mjtNum* buf = d->history + m->actuator_historyadr[id];
+  int dim = m->actuator_ctrlnum[id];
 
   // if times is NULL, use existing buffer times
   const mjtNum* buf_times = times ? times : buf + 2;
@@ -960,7 +1015,7 @@ void mj_initCtrlHistory(const mjModel* m, mjData* d, int id,
   mjtNum user = buf[0];
 
   // initialize history buffer
-  mju_historyInit(buf, nsample, 1, buf_times, values, user);
+  mju_historyInit(buf, nsample, dim, buf_times, values, user);
 }
 
 

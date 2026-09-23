@@ -20,17 +20,17 @@
 #include <string_view>
 
 #include <mujoco/mujoco.h>
-#include "experimental/platform/hal/graphics_mode.h"
-#include "experimental/platform/resources.h"
+#include "experimental/studio/hal/graphics_mode.h"
+#include "experimental/studio/io/resources.h"
+#include "experimental/studio/ux/gui.h"
 #include "experimental/studio/app.h"
 
 namespace mujoco::studio {
 
 int LaunchStudio(int argc, char** argv, LauncherConfig config) {
-  const char* home = std::getenv("HOME");
-  const std::string ini_path = std::string(home ? home : ".") + "/.mujoco.ini";
+  const std::string ini_path = GetDefaultIniPath();
 
-  mujoco::platform::RegisterResourceProviders();
+  mujoco::studio::RegisterResourceProviders();
 
   if (config.gfx_mode.empty()) {
     const char* display = std::getenv("DISPLAY");
@@ -53,9 +53,9 @@ int LaunchStudio(int argc, char** argv, LauncherConfig config) {
     }
   }
 
-  mujoco::platform::GraphicsMode gfx_mode =
-      mujoco::platform::GraphicsModeFromString(
-          config.gfx_mode, mujoco::platform::GraphicsMode::FilamentOpenGl);
+  mujoco::studio::GraphicsMode gfx_mode =
+      mujoco::studio::GraphicsModeFromString(
+          config.gfx_mode, mujoco::studio::GraphicsMode::FilamentOpenGl);
 
   // Use config values if they are set (non-default), otherwise use flags.
   mujoco::studio::App app({

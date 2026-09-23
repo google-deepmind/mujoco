@@ -22,7 +22,7 @@
 #include <string_view>
 #include <vector>
 
-#include <ccd/ccd.h>  // IWYU pragma: keep
+#include <ccd/ccd.h>   // IWYU pragma: keep
 #include <ccd/vec3.h>  // IWYU pragma: keep
 
 #include "src/engine/engine_collision_convex.h"
@@ -38,9 +38,9 @@
 namespace mujoco {
 namespace {
 
+using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::Pointwise;
-using ::testing::DoubleNear;
 
 constexpr mjtNum kTolerance = 1e-6;
 constexpr int kMaxIterations = 1000;
@@ -69,9 +69,8 @@ mjtNum GeomDist(const MjModelPtr& m, const MjDataPtr& d, int g1, int g2,
   mjCCDStatus status;
 
   // set config
-  config.max_iterations = kMaxIterations,
-  config.tolerance = kTolerance,
-  config.max_contacts = 0;   // no geom contacts needed
+  config.max_iterations = kMaxIterations, config.tolerance = kTolerance,
+  config.max_contacts = 0;  // no geom contacts needed
   config.dist_cutoff = cutoff;
   config.buffer = nullptr;
 
@@ -110,8 +109,8 @@ int Penetration(mjCCDStatus& status, mjtNum& depth, std::vector<mjtNum>& dir,
     ccd_real_t ccd_depth;
     ccd_vec3_t ccd_dir, ccd_pos;
 
-    int ret = ccdMPRPenetration(&obj1, &obj2, &ccd, &ccd_depth, &ccd_dir,
-                                &ccd_pos);
+    int ret =
+        ccdMPRPenetration(&obj1, &obj2, &ccd, &ccd_depth, &ccd_dir, &ccd_pos);
     if (ret) return 0;
     dir.resize(3);
     pos.resize(3);
@@ -400,7 +399,6 @@ TEST_F(MjGjkTest, BoxBoxDepth3) {
   EXPECT_NEAR(dir[2], -1, kTolerance);
 }
 
-
 TEST_F(MjGjkTest, BoxBoxSize05) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -634,10 +632,12 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD) {
   EXPECT_NEAR(dir[1], 0, kTolerance);
   EXPECT_NEAR(dir[2], -1, kTolerance);
 
+  // clang-format off
   EXPECT_THAT(pos, Pointwise(DoubleNear(kTolerance), {-1.0,  1.0, 0.95,
                                                        1.0,  1.0, 0.95,
                                                        1.0, -1.0, 0.95,
                                                       -1.0, -1.0, 0.95}));
+  // clang-format on
 }
 
 TEST_F(MjGjkTest, BoxBoxMultiCCD2) {
@@ -668,10 +668,12 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD2) {
   EXPECT_NEAR(dir[1], 0, kTolerance);
   EXPECT_NEAR(dir[2], -1, kTolerance);
 
+  // clang-format off
   EXPECT_THAT(pos, Pointwise(DoubleNear(kTolerance), { 8.5, 10.0, 0.95,
                                                       10.0, 10.0, 0.95,
                                                       10.0,  8.5, 0.95,
                                                        8.5,  8.5, 0.95}));
+  // clang-format on
 }
 
 TEST_F(MjGjkTest, BoxBoxMultiCCD3) {
@@ -703,7 +705,6 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD3) {
   xpos[0] = -0.941218618591869393696924817050;
   xpos[1] = 2.209729011624415928594089564285;
   xpos[2] = 1.095456702630382306296041861060;
-
 
   int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
   int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
@@ -826,7 +827,6 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD5) {
   xpos[1] = -0.023542070504611382203430380855;
   xpos[2] = -4.659108354876987156956147373421;
 
-
   int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
   int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
 
@@ -935,7 +935,6 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD7) {
   xpos[0] = -0.011066235018223425159988870803;
   xpos[1] = -0.023114696036485724711662115283;
   xpos[2] = -4.958375812037025376355359185254;
-
 
   int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
   int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
@@ -1053,7 +1052,6 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD9) {
   xpos[1] = -0.1928599999999999758948376893386011943221;
   xpos[2] = 0.2156259187793853615566774806211469694972;
 
-
   int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
   int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
 
@@ -1131,7 +1129,6 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD11) {
   xpos[1] = -0.1963450000000000195132798808117513544858;
   xpos[2] = 0.1247685038468368534658736734854755923152;
 
-
   xpos = data->geom_xpos + 3;
   xmat = data->geom_xmat + 9;
 
@@ -1148,7 +1145,6 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD11) {
   xpos[0] = -0.1036549999999999971400654885655967518687;
   xpos[1] = -0.1963450000000000195132798808117513544858;
   xpos[2] = 0.1745248497897437800485676007156143896282;
-
 
   int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
   int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
@@ -1983,7 +1979,7 @@ TEST_F(MjGjkTest, BoxBoxLarge) {
 }
 
 TEST_F(MjGjkTest, LongBox) {
-static constexpr char xml[] = R"(
+  static constexpr char xml[] = R"(
   <mujoco>
     <asset>
       <mesh name="long_box"
@@ -2142,10 +2138,10 @@ TEST_F(MjGjkTest, ThinBoxGrazing) {
   mjtNum* xpos = data->geom_xpos;
   mjtNum* xmat = data->geom_xmat;
 
-  xmat[0] =  0.41747699392674587;
-  xmat[1] =  0.7445704580736479;
+  xmat[0] = 0.41747699392674587;
+  xmat[1] = 0.7445704580736479;
   xmat[2] = -0.5208913442416622;
-  xmat[3] =  0.735898261710082;
+  xmat[3] = 0.735898261710082;
   xmat[4] = -0.6133129289446175;
   xmat[5] = -0.28688150794614425;
   xmat[6] = -0.5330728917830726;
@@ -2160,12 +2156,12 @@ TEST_F(MjGjkTest, ThinBoxGrazing) {
   xpos[2] = 0.00749543399075938;
 
   xmat[0] = -0.11330328891322261;
-  xmat[1] =  0.6014637637569688;
+  xmat[1] = 0.6014637637569688;
   xmat[2] = -0.7908246996703808;
-  xmat[3] =  0.9557435215667675;
-  xmat[4] =  0.2834865022971088;
-  xmat[5] =  0.07867479900517776;
-  xmat[6] =  0.2715081687621951;
+  xmat[3] = 0.9557435215667675;
+  xmat[4] = 0.2834865022971088;
+  xmat[5] = 0.07867479900517776;
+  xmat[6] = 0.2715081687621951;
   xmat[7] = -0.7469114699230777;
   xmat[8] = -0.6069650487406557;
 
@@ -2178,5 +2174,115 @@ TEST_F(MjGjkTest, ThinBoxGrazing) {
   EXPECT_LE(dist, model->opt.ccd_tolerance);
 }
 
+TEST_F(MjGjkTest, CylinderBoxBackFaceEdge) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="cylinder" size="0.05 0.15"/>
+      <geom name="geom2" type="box" size="0.05 0.15 0.07"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  mjtNum* xpos1 = data->geom_xpos;
+  mjtNum* xmat1 = data->geom_xmat;
+
+  xpos1[0] = 0.23191021521759686;
+  xpos1[1] = -0.43472537698525593;
+  xpos1[2] = 0.39661285409646718;
+
+  xmat1[0] = -0.32701292892485478;
+  xmat1[1] = -0.12329280998746245;
+  xmat1[2] = -0.93694259553154202;
+  xmat1[3] = 0.49240015314737545;
+  xmat1[4] = -0.8684624433071888;
+  xmat1[5] = -0.057576677095404399;
+  xmat1[6] = -0.80660066544506925;
+  xmat1[7] = -0.48017899534475972;
+  xmat1[8] = 0.34470784576691638;
+
+  mjtNum* xpos2 = data->geom_xpos + 3;
+  mjtNum* xmat2 = data->geom_xmat + 9;
+
+  xpos2[0] = 0.11445187572345047;
+  xpos2[1] = -0.40755363814662998;
+  xpos2[2] = 0.33704040755212905;
+
+  xmat2[0] = 0.34942077365670599;
+  xmat2[1] = -0.93671954300419125;
+  xmat2[2] = -0.021485359926434244;
+  xmat2[3] = -0.13775655212039611;
+  xmat2[4] = -0.028678169746457732;
+  xmat2[5] = -0.99005085471802623;
+  xmat2[6] = 0.92678382338334431;
+  xmat2[7] = 0.34890408471958706;
+  xmat2[8] = -0.13906000280791611;
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  mjCCDStatus status1, status2;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status1, dist, dir, pos, model, data, g1, g2, 0, 4);
+  ASSERT_EQ(ncons, 1);
+
+  ncons = Penetration(status2, dist, dir, pos, model, data, g1, g2);
+  ASSERT_EQ(ncons, 1);
+
+  EXPECT_MJTNUM_EQ(status1.x1[0], status2.x1[0]);
+}
+
 }  // namespace
+
+TEST_F(MjGjkTest, CorrectFaceMultiCCD) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="wedge_box"
+            vertex="-0.5 -0.1  0.2   0.5 -0.1  0.2   0.5  0.1  0.2  -0.5  0.1  0.2
+                    -0.5 -0.1  0.01  0.5 -0.1  0.0   0.5  0.1  0.0  -0.5  0.1  0.01
+                     0.4 -0.1  0.0   0.4  0.1  0.0"/>
+    </asset>
+    <worldbody>
+      <geom name="floor" type="box" size="2 2 0.05"/>
+      <geom name="wedge" type="mesh" mesh="wedge_box"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "floor");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "wedge");
+
+  mjtNum* xpos2 = data->geom_xpos + 3;
+  mjtNum* xmat2 = data->geom_xmat + 9;
+
+  xpos2[0] = 0.0041063283594611893;
+  xpos2[1] = -2.8315597012716811e-17;
+  xpos2[2] = 0.14782321875543883;
+
+  xmat2[0] = -0.0054978550657821534;
+  xmat2[1] = 1.5171835118936141e-17;
+  xmat2[2] = 0.99998488668063767;
+  xmat2[3] = -1.297280742604275e-17;
+  xmat2[4] = -1.0000000000000062;
+  xmat2[5] = 1.5100740726228752e-17;
+  xmat2[6] = 0.99998488668063767;
+  xmat2[7] = -1.2889589679962258e-17;
+  xmat2[8] = 0.0054978550657821534;
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 1000);
+
+  EXPECT_EQ(ncons, 4);
+}
+
 }  // namespace mujoco

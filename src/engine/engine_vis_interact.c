@@ -840,9 +840,10 @@ mjvGLCamera mjv_camera2GLCamera(const mjModel* model, const mjData* data,
   gl_camera.orthographic = model->vis.global.orthographic;
   if (mjv_camera->type == mjCAMERA_FIXED) {
     const int cid = mjv_camera->fixedcamid;
-    if (cid >= 0 &&  cid < model->ncam) {
-      gl_camera.orthographic = model->cam_projection[cid] == mjPROJ_ORTHOGRAPHIC;
+    if (cid < 0 || cid >= model->ncam) {
+      mjERROR("fixed camera id is outside valid range");
     }
+    gl_camera.orthographic = model->cam_projection[cid] == mjPROJ_ORTHOGRAPHIC;
   }
 
   mjtNum headpos[3], forward[3], up[3];

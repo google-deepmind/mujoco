@@ -26,8 +26,8 @@
 
 // this is a C-API
 #ifdef __cplusplus
-#include <string>
-#include <vector>
+  #include <string>
+  #include <vector>
 
 extern "C" {
 #endif
@@ -619,6 +619,10 @@ MJAPI void mj_clearCache(mjCache* cache);
 
 // Get the internal asset cache used by the compiler.
 MJAPI mjCache* mj_getCache(void);
+
+// Internal element reference counting for language bindings.
+MJAPI void _mjPRIVATE_addRefElement(mjsElement* element);
+MJAPI void _mjPRIVATE_releaseElement(mjsElement* element);
 
 #ifdef __cplusplus
 }  // extern "C"

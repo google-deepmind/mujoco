@@ -86,7 +86,7 @@ void Histogram2D(const mjtNum x_data[], const mjtNum y_data[],
     if (y_idx == 0 || y_idx == n_y_edges) {
       continue;
     }
-    int index = (y_idx - 1)*(n_x_edges - 1) + (x_idx - 1);
+    int index = (y_idx - 1) * (n_x_edges - 1) + (x_idx - 1);
     histogram[index] += weights[i];
     if (counts) {
       counts[index]++;
@@ -111,7 +111,7 @@ mjtNum Fovea(mjtNum x, mjtNum gamma) {
 
   // Foveal deformation.
   mjtNum g = mjMAX(0, mjMIN(1, gamma));
-  return g*mju_pow(x, 5) + (1 - g)*x;
+  return g * mju_pow(x, 5) + (1 - g) * x;
 }
 
 // Make bin edges.
@@ -130,8 +130,8 @@ void BinEdges(mjtNum* x_edges, mjtNum* y_edges, int size[2], mjtNum fov[2],
   }
 
   // Scale by field-of-view.
-  mju_scl(x_edges, x_edges, fov[0]*mjPI / 180, size[0] + 1);
-  mju_scl(y_edges, y_edges, fov[1]*mjPI / 180, size[1] + 1);
+  mju_scl(x_edges, x_edges, fov[0] * mjPI / 180, size[0] + 1);
+  mju_scl(y_edges, y_edges, fov[1] * mjPI / 180, size[1] + 1);
 }
 
 // Permute 3-vector from 0,1,2 to 2,0,1.
@@ -151,8 +151,8 @@ static void xyz2zxy(mjtNum* x) {
 void CartesianToSpherical(const mjtNum xyz[3], mjtNum aer[3]) {
   mjtNum x = xyz[0], y = xyz[1], z = xyz[2];
   aer[0] = mju_atan2(x, -z);
-  aer[1] = mju_atan2(y, mju_sqrt(x*x + z*z));
-  aer[2] = mju_sqrt(x*x + z*z + y*y);
+  aer[1] = mju_atan2(y, mju_sqrt(x * x + z * z));
+  aer[2] = mju_sqrt(x * x + z * z + y * y);
 }
 
 // Transform spherical (azimuth, elevation, radius) to Cartesian (x,y,z).
@@ -167,8 +167,7 @@ void SphericalToCartesian(const mjtNum aer[3], mjtNum xyz[3]) {
 
 // Creates a TouchGrid instance if all config attributes are defined and
 // within their allowed bounds.
-TouchGrid* TouchGrid::Create(const mjModel* m, mjData* d,
-                                                 int instance) {
+TouchGrid* TouchGrid::Create(const mjModel* m, mjData* d, int instance) {
   if (CheckAttr(std::string(mj_getPluginConfig(m, instance, "gamma"))) &&
       CheckAttr(std::string(mj_getPluginConfig(m, instance, "nchannel")))) {
     // nchannel
@@ -183,7 +182,7 @@ TouchGrid* TouchGrid::Create(const mjModel* m, mjData* d,
     std::vector<int> size;
     std::string size_str = std::string(mj_getPluginConfig(m, instance, "size"));
     ReadVector(size, size_str.c_str());
-    if (size.size()!= 2) {
+    if (size.size() != 2) {
       mju_error("Both horizontal and vertical resolutions must be specified");
       return nullptr;
     }
@@ -196,7 +195,7 @@ TouchGrid* TouchGrid::Create(const mjModel* m, mjData* d,
     std::vector<mjtNum> fov;
     std::string fov_str = std::string(mj_getPluginConfig(m, instance, "fov"));
     ReadVector(fov, fov_str.c_str());
-    if (fov.size()!= 2) {
+    if (fov.size() != 2) {
       mju_error(
           "Both horizontal and vertical fields of view must be specified");
       return nullptr;
@@ -241,7 +240,7 @@ TouchGrid::TouchGrid(const mjModel* m, mjData* d, int instance, int nchannel,
   }
 
   // Allocate distance array.
-  distance_.resize(size[0]*size[1], 0);
+  distance_.resize(size[0] * size[1], 0);
 }
 
 void TouchGrid::Reset(const mjModel* m, int instance) {}
@@ -261,7 +260,7 @@ void TouchGrid::Compute(const mjModel* m, mjData* d, int instance) {
   // Clear sensordata and distance matrix.
   mjtNum* sensordata = d->sensordata + m->sensor_adr[id];
   mju_zero(sensordata, m->sensor_dim[id]);
-  int frame = size_[0]*size_[1];
+  int frame = size_[0] * size_[1];
   mju_zero(distance_.data(), frame);
 
   // Get site id.
@@ -286,12 +285,12 @@ void TouchGrid::Compute(const mjModel* m, mjData* d, int instance) {
   }
 
   // Get site frame.
-  mjtNum* site_pos = d->site_xpos + 3*site_id;
-  mjtNum* site_mat = d->site_xmat + 9*site_id;
+  mjtNum* site_pos = d->site_xpos + 3 * site_id;
+  mjtNum* site_mat = d->site_xmat + 9 * site_id;
 
   // allocate contact forces and positions
-  mjtNum* forces = mj_stackAllocNum(d, ncon*6);
-  mjtNum* positions = mj_stackAllocNum(d, ncon*3);
+  mjtNum* forces = mj_stackAllocNum(d, ncon * 6);
+  mjtNum* positions = mj_stackAllocNum(d, ncon * 3);
 
   // Get forces and positions in spherical coordinates.
   int contact = 0;
@@ -307,19 +306,19 @@ void TouchGrid::Compute(const mjModel* m, mjData* d, int instance) {
       mjtNum tmp_force[6], tmp1[3];
       mj_contactForce(m, d, i, tmp_force);
       mju_mulMatTVec3(tmp1, d->contact[i].frame, tmp_force);
-      mju_mulMatTVec3(forces + 6*contact, site_mat, tmp1);
+      mju_mulMatTVec3(forces + 6 * contact, site_mat, tmp1);
       mju_mulMatTVec3(tmp1, d->contact[i].frame, tmp_force + 3);
-      mju_mulMatTVec3(forces + 6*contact + 3, site_mat, tmp1);
+      mju_mulMatTVec3(forces + 6 * contact + 3, site_mat, tmp1);
 
       // Forces point from the smaller to larger body, so flip sign if
       // the parent body has smaller id.
       if (parent_body < mjMAX(body1, body2)) {
-        mju_scl(forces + 6*contact, forces + 6*contact, -1, 6);
+        mju_scl(forces + 6 * contact, forces + 6 * contact, -1, 6);
       }
 
       // Permute forces from x,y,z to z,x,y (normal, tangent, tangent)
-      xyz2zxy(forces + 6*contact);
-      xyz2zxy(forces + 6*contact + 3);
+      xyz2zxy(forces + 6 * contact);
+      xyz2zxy(forces + 6 * contact + 3);
 
       // Get position, rotate into contact frame.
       mjtNum tmp2[3];
@@ -329,14 +328,14 @@ void TouchGrid::Compute(const mjModel* m, mjData* d, int instance) {
       // Transform to spherical coordinates, copy into positions array.
       CartesianToSpherical(tmp2, tmp1);
       for (int k = 0; k < 3; k++) {
-        positions[k*ncon + contact] = tmp1[k];
+        positions[k * ncon + contact] = tmp1[k];
       }
       contact++;
     }
   }
 
   // Transpose forces.
-  mjtNum* forcesT = mj_stackAllocNum(d, ncon*6);
+  mjtNum* forcesT = mj_stackAllocNum(d, ncon * 6);
   mju_transpose(forcesT, forces, ncon, 6);
 
   // Allocate bin edges.
@@ -348,23 +347,23 @@ void TouchGrid::Compute(const mjModel* m, mjData* d, int instance) {
 
   // Compute sensor output.
   for (int i = 0; i < nchannel_; i++) {
-    if (!mju_isZero(forcesT + i*ncon, ncon)) {
-      Histogram2D(positions, positions + ncon, forcesT + i*ncon, ncon,
+    if (!mju_isZero(forcesT + i * ncon, ncon)) {
+      Histogram2D(positions, positions + ncon, forcesT + i * ncon, ncon,
                   x_edges, size_[0] + 1, y_edges, size_[1] + 1,
-                  sensordata + i*frame, nullptr);
+                  sensordata + i * frame, nullptr);
     }
   }
 
   // Allocate count matrix.
   int* counts = mj_stackAllocInt(d, frame);
-  for (int i=0; i < frame; i++) counts[i] = 0;
+  for (int i = 0; i < frame; i++) counts[i] = 0;
 
   // Compute distance matrix (unnormalized).
-  Histogram2D(positions, positions + ncon, positions + 2*ncon, ncon, x_edges,
+  Histogram2D(positions, positions + ncon, positions + 2 * ncon, ncon, x_edges,
               size_[0] + 1, y_edges, size_[1] + 1, distance_.data(), counts);
 
   // Normalize distances
-  for (int i=0; i < frame; i++) {
+  for (int i = 0; i < frame; i++) {
     if (counts[i]) {
       distance_.data()[i] /= counts[i];
     }
@@ -377,12 +376,12 @@ void TouchGrid::Compute(const mjModel* m, mjData* d, int instance) {
 static const mjtNum kRelativeThickness = 0.02;
 
 void TouchGrid::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
-                             mjvScene* scn, int instance) {
+                          mjvScene* scn, int instance) {
   mj_markStack(d);
 
   // Get sensor id.
   int id;
-  for (id=0; id < m->nsensor; ++id) {
+  for (id = 0; id < m->nsensor; ++id) {
     if (m->sensor_type[id] == mjSENS_PLUGIN &&
         m->sensor_plugin[id] == instance) {
       break;
@@ -394,8 +393,8 @@ void TouchGrid::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
 
   // Get maximum absolute normal force.
   mjtNum maxval = 0;
-  int frame = size_[0]*size_[1];
-  for (int j=0; j < frame; j++) {
+  int frame = size_[0] * size_[1];
+  for (int j = 0; j < frame; j++) {
     maxval = mju_max(maxval, mju_abs(sensordata[j]));
   }
 
@@ -407,8 +406,8 @@ void TouchGrid::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
 
   // Get site id and frame.
   int site_id = m->sensor_objid[id];
-  mjtNum* site_pos = d->site_xpos + 3*site_id;
-  mjtNum* site_mat = d->site_xmat + 9*site_id;
+  mjtNum* site_pos = d->site_xpos + 3 * site_id;
+  mjtNum* site_mat = d->site_xmat + 9 * site_id;
   mjtNum site_quat[4];
   mju_mat2Quat(site_quat, site_mat);
 
@@ -420,16 +419,18 @@ void TouchGrid::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
   BinEdges(x_edges, y_edges, size_, fov_, gamma_);
 
   // Draw geoms.
-  for (int i=0; i < size_[0]; i++) {
-    for (int j=0; j < size_[1]; j++) {
-      mjtNum dist = distance_.data()[j*size_[0] + i];
+  for (int i = 0; i < size_[0]; i++) {
+    for (int j = 0; j < size_[1]; j++) {
+      mjtNum dist = distance_.data()[j * size_[0] + i];
       if (!dist) {
         continue;
       }
       if (scn->ngeom >= scn->maxgeom) {
         if (!scn->status) {
-          mju_warning("Pre-allocated visual geom buffer is full. "
-                      "Increase maxgeom above %d.", scn->maxgeom);
+          mju_warning(
+              "Pre-allocated visual geom buffer is full. "
+              "Increase maxgeom above %d.",
+              scn->maxgeom);
           scn->status = 1;
         }
         mj_freeStack(d);
@@ -437,16 +438,16 @@ void TouchGrid::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
       } else {
         // size
         mjtNum size[3];
-        size[0] = dist*0.5*(x_edges[i+1]-x_edges[i]);
-        size[1] = dist*0.5*(y_edges[j+1]-y_edges[j]);
-        size[2] = dist*kRelativeThickness;
+        size[0] = dist * 0.5 * (x_edges[i + 1] - x_edges[i]);
+        size[1] = dist * 0.5 * (y_edges[j + 1] - y_edges[j]);
+        size[2] = dist * kRelativeThickness;
 
         // position
         mjtNum pos[3];
         mjtNum aer[3];
-        aer[0] = 0.5*(x_edges[i+1]+x_edges[i]);
-        aer[1] = 0.5*(y_edges[j+1]+y_edges[j]);
-        aer[2] = dist*(1-kRelativeThickness);
+        aer[0] = 0.5 * (x_edges[i + 1] + x_edges[i]);
+        aer[1] = 0.5 * (y_edges[j + 1] + y_edges[j]);
+        aer[2] = dist * (1 - kRelativeThickness);
         SphericalToCartesian(aer, pos);
         mju_mulMatVec3(pos, site_mat, pos);
         mju_addTo3(pos, site_pos);
@@ -466,8 +467,8 @@ void TouchGrid::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
 
         // color
         float rgba[4] = {1, 1, 1, 1.0};
-        for (int k=0; k < mjMIN(nchannel_, 3); k++) {
-          rgba[k] = mju_abs(sensordata[k*frame + j*size_[0] + i]) / maxval;
+        for (int k = 0; k < mjMIN(nchannel_, 3); k++) {
+          rgba[k] = mju_abs(sensordata[k * frame + j * size_[0] + i]) / maxval;
         }
 
         // draw box geom

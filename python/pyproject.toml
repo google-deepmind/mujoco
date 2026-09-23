@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mujoco"
-version = "3.12.1"
+version = "3.14.1"
 authors = [
     {name = "Google DeepMind", email = "mujoco@deepmind.com"},
 ]
@@ -22,6 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
@@ -30,14 +31,15 @@ dependencies = [
     "glfw",
     "numpy",
     "pyopengl",
+    "websockets>=13",
 ]
 dynamic = ["readme", "scripts"]
 
 [project.urls]
 Homepage = "https://github.com/google-deepmind/mujoco"
-Documentation = "https://mujoco.readthedocs.io/en/3.12.1"
+Documentation = "https://mujoco.readthedocs.io/en/3.14.1"
 Repository = "https://github.com/google-deepmind/mujoco"
-Changelog = "https://mujoco.readthedocs.io/en/3.12.1/changelog.html"
+Changelog = "https://mujoco.readthedocs.io/en/3.14.1/changelog.html"
 
 [tool.setuptools]
 include-package-data = false
@@ -61,6 +63,9 @@ mujoco = [
     "testdata/*.zip",
     "testdata/*.urdf",
     "sysid/report/templates/*.html",
+    "experimental/studio/web/*.html",
+    "experimental/studio/web/dist/*",
+    "experimental/studio/web/dist/assets/*",
 ]
 
 [project.optional-dependencies]

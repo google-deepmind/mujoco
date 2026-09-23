@@ -136,6 +136,7 @@ public class MjScene : MonoBehaviour {
     // on the side of the individual components. This solution allows to restrict the code in the
     // components to a bare minimum, at the expense of one extra method here.
     var hierarchyRoots = FindObjectsByType<MjComponent>(FindObjectsSortMode.None)
+        .OrderBy(component => component.GetInstanceID())
         .Where(component => MjHierarchyTool.FindParentComponent(component) == null)
         .Select(component => component.transform)
         .Distinct();

@@ -115,7 +115,8 @@ mjSpec* Decode(mjResource* resource, const mjVFS* vfs) {
       // encode line segments as degenerate triangles (i1, i2, i2) in userface,
       // since mjsMesh has no native edge field; decoded back by flexcomp
       const auto& obj_lines = obj_shape.lines;
-      userface.reserve(3 * (obj_lines.indices.size() - obj_lines.num_line_vertices.size()));
+      userface.reserve(
+          3 * (obj_lines.indices.size() - obj_lines.num_line_vertices.size()));
       size_t idx = 0;
       for (size_t l = 0; l < obj_lines.num_line_vertices.size(); l++) {
         int nlinevert = obj_lines.num_line_vertices[l];

@@ -238,11 +238,6 @@ PYBIND11_MODULE(implot, m) {
       .value("Once", ImPlotCond_Once);
 
   py::enum_<ImPlotCol_>(m, "Col")
-      .value("Line", ImPlotCol_Line)
-      .value("Fill", ImPlotCol_Fill)
-      .value("MarkerOutline", ImPlotCol_MarkerOutline)
-      .value("MarkerFill", ImPlotCol_MarkerFill)
-      .value("ErrorBar", ImPlotCol_ErrorBar)
       .value("FrameBg", ImPlotCol_FrameBg)
       .value("PlotBg", ImPlotCol_PlotBg)
       .value("PlotBorder", ImPlotCol_PlotBorder)
@@ -261,15 +256,7 @@ PYBIND11_MODULE(implot, m) {
       .value("Crosshairs", ImPlotCol_Crosshairs);
 
   py::enum_<ImPlotStyleVar_>(m, "StyleVar")
-      .value("LineWeight", ImPlotStyleVar_LineWeight)
-      .value("Marker", ImPlotStyleVar_Marker)
-      .value("MarkerSize", ImPlotStyleVar_MarkerSize)
-      .value("MarkerWeight", ImPlotStyleVar_MarkerWeight)
-      .value("FillAlpha", ImPlotStyleVar_FillAlpha)
-      .value("ErrorBarSize", ImPlotStyleVar_ErrorBarSize)
-      .value("ErrorBarWeight", ImPlotStyleVar_ErrorBarWeight)
-      .value("DigitalBitHeight", ImPlotStyleVar_DigitalBitHeight)
-      .value("DigitalBitGap", ImPlotStyleVar_DigitalBitGap)
+      .value("DigitalSpacing", ImPlotStyleVar_DigitalSpacing)
       .value("PlotBorderSize", ImPlotStyleVar_PlotBorderSize)
       .value("MinorAlpha", ImPlotStyleVar_MinorAlpha)
       .value("MajorTickLen", ImPlotStyleVar_MajorTickLen)
@@ -287,7 +274,8 @@ PYBIND11_MODULE(implot, m) {
       .value("AnnotationPadding", ImPlotStyleVar_AnnotationPadding)
       .value("FitPadding", ImPlotStyleVar_FitPadding)
       .value("PlotDefaultSize", ImPlotStyleVar_PlotDefaultSize)
-      .value("PlotMinSize", ImPlotStyleVar_PlotMinSize);
+      .value("PlotMinSize", ImPlotStyleVar_PlotMinSize)
+      .value("DigitalPadding", ImPlotStyleVar_DigitalPadding);
 
   py::enum_<ImPlotScale_>(m, "Scale")
       .value("ImPlotScale_Linear", ImPlotScale_Linear)
@@ -353,38 +341,90 @@ PYBIND11_MODULE(implot, m) {
     return ImPlot::SetNextAxesToFit();
   });
   DEF6_F(PlotLine, (ImString, label_id, ), (std::vector<double>, xs, ), (std::vector<double>, ys, ), (ImPlotLineFlags, flags, = 0), (int, offset, = 0), (int, stride, = sizeof(double)), {
-    return ImPlot::PlotLine(label_id, xs.data(), ys.data(), xs.size(), flags, offset, stride);
+    ImPlotSpec spec;
+    spec.Flags = flags;
+    spec.Offset = offset;
+    spec.Stride = stride;
+    return ImPlot::PlotLine(label_id, xs.data(), ys.data(), xs.size(), spec);
   });
   DEF6_F(PlotScatter, (ImString, label_id, ), (std::vector<double>, xs, ), (std::vector<double>, ys, ), (ImPlotScatterFlags, flags, = 0), (int, offset, = 0), (int, stride, = sizeof(double)), {
-    return ImPlot::PlotScatter(label_id, xs.data(), ys.data(), xs.size(), flags, offset, stride);
+    ImPlotSpec spec;
+    spec.Flags = flags;
+    spec.Offset = offset;
+    spec.Stride = stride;
+    return ImPlot::PlotScatter(label_id, xs.data(), ys.data(), xs.size(), spec);
   });
   DEF6_F(PlotStairs, (ImString, label_id, ), (std::vector<double>, xs, ), (std::vector<double>, ys, ), (ImPlotStairsFlags, flags, = 0), (int, offset, = 0), (int, stride, = sizeof(double)), {
-    return ImPlot::PlotStairs(label_id, xs.data(), ys.data(), xs.size(), flags, offset, stride);
+    ImPlotSpec spec;
+    spec.Flags = flags;
+    spec.Offset = offset;
+    spec.Stride = stride;
+    return ImPlot::PlotStairs(label_id, xs.data(), ys.data(), xs.size(), spec);
   });
   DEF7_F(PlotShaded, (ImString, label_id, ), (std::vector<double>, xs, ), (std::vector<double>, ys, ), (double, yref, = 0), (ImPlotShadedFlags, flags, = 0), (int, offset, = 0), (int, stride, = sizeof(double)), {
-    return ImPlot::PlotShaded(label_id, xs.data(), ys.data(), xs.size(), yref, flags, offset, stride);
+    ImPlotSpec spec;
+    spec.Flags = flags;
+    spec.Offset = offset;
+    spec.Stride = stride;
+    return ImPlot::PlotShaded(label_id, xs.data(), ys.data(), xs.size(), yref, spec);
   });
   DEF7_F(PlotShaded, (ImString, label_id, ), (std::vector<double>, xs, ), (std::vector<double>, ys1, ), (std::vector<double>, ys2, ), (ImPlotShadedFlags, flags, = 0), (int, offset, = 0), (int, stride, = sizeof(double)), {
-    return ImPlot::PlotShaded(label_id, xs.data(), ys1.data(), ys2.data(), xs.size(), flags, offset, stride);
+    ImPlotSpec spec;
+    spec.Flags = flags;
+    spec.Offset = offset;
+    spec.Stride = stride;
+    return ImPlot::PlotShaded(label_id, xs.data(), ys1.data(), ys2.data(), xs.size(), spec);
   });
   DEF7_F(PlotBars, (ImString, label_id, ), (std::vector<double>, xs, ), (std::vector<double>, ys, ), (double, bar_size, ), (ImPlotBarsFlags, flags, = 0), (int, offset, = 0), (int, stride, = sizeof(double)), {
-    return ImPlot::PlotBars(label_id, xs.data(), ys.data(), xs.size(), bar_size, flags, offset, stride);
+    ImPlotSpec spec;
+    spec.Flags = flags;
+    spec.Offset = offset;
+    spec.Stride = stride;
+    return ImPlot::PlotBars(label_id, xs.data(), ys.data(), xs.size(), bar_size, spec);
   });
   DEF7_F(PlotErrorBars, (ImString, label_id, ), (std::vector<double>, xs, ), (std::vector<double>, ys, ), (std::vector<double>, err, ), (ImPlotErrorBarsFlags, flags, = 0), (int, offset, = 0), (int, stride, = sizeof(double)), {
-    return ImPlot::PlotErrorBars(label_id, xs.data(), ys.data(), err.data(), xs.size(), flags, offset, stride);
+    ImPlotSpec spec;
+    spec.Flags = flags;
+    spec.Offset = offset;
+    spec.Stride = stride;
+    return ImPlot::PlotErrorBars(label_id, xs.data(), ys.data(), err.data(), xs.size(), spec);
   });
   DEF8_F(PlotErrorBars, (ImString, label_id, ), (std::vector<double>, xs, ), (std::vector<double>, ys, ), (std::vector<double>, neg, ), (std::vector<double>, pos, ), (ImPlotErrorBarsFlags, flags, = 0), (int, offset, = 0), (int, stride, = sizeof(double)), {
-    return ImPlot::PlotErrorBars(label_id, xs.data(), ys.data(), neg.data(), pos.data(), xs.size(), flags, offset, stride);
+    ImPlotSpec spec;
+    spec.Flags = flags;
+    spec.Offset = offset;
+    spec.Stride = stride;
+    return ImPlot::PlotErrorBars(label_id, xs.data(), ys.data(), neg.data(), pos.data(), xs.size(), spec);
   });
   DEF7_F(PlotStems, (ImString, label_id, ), (std::vector<double>, xs, ), (std::vector<double>, ys, ), (double, ref, = 0), (ImPlotStemsFlags, flags, = 0), (int, offset, = 0), (int, stride, = sizeof(double)), {
-    return ImPlot::PlotStems(label_id, xs.data(), ys.data(), xs.size(), ref, flags, offset, stride);
+    ImPlotSpec spec;
+    spec.Flags = flags;
+    spec.Offset = offset;
+    spec.Stride = stride;
+    return ImPlot::PlotStems(label_id, xs.data(), ys.data(), xs.size(), ref, spec);
   });
   DEF6_F(PlotDigital, (ImString, label_id, ), (std::vector<double>, xs, ), (std::vector<double>, ys, ), (ImPlotDigitalFlags, flags, = 0), (int, offset, = 0), (int, stride, = sizeof(double)), {
-    return ImPlot::PlotDigital(label_id, xs.data(), ys.data(), xs.size(), flags, offset, stride);
+    ImPlotSpec spec;
+    spec.Flags = flags;
+    spec.Offset = offset;
+    spec.Stride = stride;
+    return ImPlot::PlotDigital(label_id, xs.data(), ys.data(), xs.size(), spec);
   });
-  DEF8(PlotImage, (ImString, label_id, ), (ImTextureRef, tex_ref, ), (const ImPlotPoint&, bounds_min, ), (const ImPlotPoint&, bounds_max, ), (const ImVec2&, uv0, = ImVec2_Zero), (const ImVec2&, uv1, = ImVec2_One), (const ImVec4&, tint_col, = ImVec4_One), (ImPlotImageFlags, flags, = 0));
-  DEF5(PlotText, (ImString, text, ), (double, x, ), (double, y, ), (const ImVec2&, pix_offset, = ImVec2_Zero), (ImPlotTextFlags, flags, = 0));
-  DEF2(PlotDummy, (ImString, label_id, ), (ImPlotDummyFlags, flags, = 0));
+  DEF8_F(PlotImage, (ImString, label_id, ), (ImTextureRef, tex_ref, ), (const ImPlotPoint&, bounds_min, ), (const ImPlotPoint&, bounds_max, ), (const ImVec2&, uv0, = ImVec2_Zero), (const ImVec2&, uv1, = ImVec2_One), (const ImVec4&, tint_col, = ImVec4_One), (ImPlotImageFlags, flags, = 0), {
+    ImPlotSpec spec;
+    spec.Flags = flags;
+    return ImPlot::PlotImage(label_id, tex_ref, bounds_min, bounds_max, uv0, uv1, tint_col, spec);
+  });
+  DEF5_F(PlotText, (ImString, text, ), (double, x, ), (double, y, ), (const ImVec2&, pix_offset, = ImVec2_Zero), (ImPlotTextFlags, flags, = 0), {
+    ImPlotSpec spec;
+    spec.Flags = flags;
+    return ImPlot::PlotText(text, x, y, pix_offset, spec);
+  });
+  DEF2_F(PlotDummy, (ImString, label_id, ), (ImPlotDummyFlags, flags, = 0), {
+    ImPlotSpec spec;
+    spec.Flags = flags;
+    return ImPlot::PlotDummy(label_id, spec);
+  });
   DEF9(DragPoint, (int, id, ), (double*, x, ), (double*, y, ), (const ImVec4&, col, ), (float, size, = 4), (ImPlotDragToolFlags, flags, = 0), (bool*, out_clicked, = nullptr), (bool*, out_hovered, = nullptr), (bool*, out_held, = nullptr));
   DEF8(DragLineX, (int, id, ), (double*, x, ), (const ImVec4&, col, ), (float, thickness, = 1), (ImPlotDragToolFlags, flags, = 0), (bool*, out_clicked, = nullptr), (bool*, out_hovered, = nullptr), (bool*, out_held, = nullptr));
   DEF8(DragLineY, (int, id, ), (double*, y, ), (const ImVec4&, col, ), (float, thickness, = 1), (ImPlotDragToolFlags, flags, = 0), (bool*, out_clicked, = nullptr), (bool*, out_hovered, = nullptr), (bool*, out_held, = nullptr));
@@ -438,10 +478,8 @@ PYBIND11_MODULE(implot, m) {
   DEF2(PushStyleVar, (ImPlotStyleVar, idx, ), (int, val, ));
   DEF2(PushStyleVar, (ImPlotStyleVar, idx, ), (const ImVec2&, val, ));
   DEF1(PopStyleVar, (int, count, = 1));
-  DEF2(SetNextLineStyle, (const ImVec4&, col, = IMPLOT_AUTO_COL), (float, weight, = IMPLOT_AUTO));
-  DEF2(SetNextFillStyle, (const ImVec4&, col, = IMPLOT_AUTO_COL), (float, alpha_mod, = IMPLOT_AUTO));
-  DEF5(SetNextMarkerStyle, (ImPlotMarker, marker, = IMPLOT_AUTO), (float, size, = IMPLOT_AUTO), (const ImVec4&, fill, = IMPLOT_AUTO_COL), (float, weight, = IMPLOT_AUTO), (const ImVec4&, outline, = IMPLOT_AUTO_COL));
-  DEF3(SetNextErrorBarStyle, (const ImVec4&, col, = IMPLOT_AUTO_COL), (float, size, = IMPLOT_AUTO), (float, weight, = IMPLOT_AUTO));
+  // four functions obsoleted in v1.0 of ImPlot:
+  // SetNextLineStyle, SetNextFillStyle, SetNextMarkerStyle, SetNextErrorBarStyle
   DEF1(PushPlotClipRect, (float, expand, = 0));
   DEF0(PopPlotClipRect);
 }

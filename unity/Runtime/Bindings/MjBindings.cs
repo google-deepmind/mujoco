@@ -36,8 +36,6 @@ public const bool MJAPI = true;
 public const bool MJLOCAL = true;
 public const bool THIRD_PARTY_MUJOCO_MJMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MJMODEL_H_ = true;
-public const double mjPI = 3.141592653589793;
-public const double mjMAXVAL = 10000000000.0;
 public const double mjMINMU = 1e-05;
 public const double mjMINIMP = 0.0001;
 public const double mjMAXIMP = 0.9999;
@@ -71,6 +69,8 @@ public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJSPEC_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MJSPECMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTYPE_H_ = true;
 public const double mjMINVAL = 1e-15;
+public const double mjMAXVAL = 10000000000.0;
+public const double mjPI = 3.141592653589793;
 public const bool THIRD_PARTY_MUJOCO_MJUI_H_ = true;
 public const int mjMAXUISECT = 10;
 public const int mjMAXUIITEM = 200;
@@ -118,7 +118,7 @@ public const int mjMAXLINEPNT = 1001;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 3012001;
+public const int mjVERSION_HEADER = 3014001;
 
 
 // ------------------------------------Enums------------------------------------
@@ -152,7 +152,8 @@ public enum mjtEnableBit : int{
   mjENBL_INVDISCRETE = 8,
   mjENBL_SLEEP = 16,
   mjENBL_DIAGEXACT = 32,
-  mjNENABLE = 6,
+  mjENBL_IPC = 64,
+  mjNENABLE = 7,
 }
 public enum mjtJoint : int{
   mjJNT_FREE = 0,
@@ -227,6 +228,7 @@ public enum mjtIntegrator : int{
   mjINT_RK4 = 1,
   mjINT_IMPLICIT = 2,
   mjINT_IMPLICITFAST = 3,
+  mjINT_DISCRETE = 4,
 }
 public enum mjtCone : int{
   mjCONE_PYRAMIDAL = 0,
@@ -1248,6 +1250,7 @@ public unsafe struct mjModel_ {
   public float* geom_rgba;
   public int* site_type;
   public int* site_bodyid;
+  public int* site_dataid;
   public int* site_matid;
   public int* site_group;
   public byte* site_sameframe;
@@ -5732,6 +5735,9 @@ public unsafe struct mjData_ {
   public int nJ;
   public int efm_active;
   public int nefmK;
+  public int nefmcon;
+  public int nefmT;
+  public int nefmA;
   public int nefmdof;
   public int nefmL;
   public int nY;
@@ -5795,6 +5801,8 @@ public unsafe struct mjData_ {
   public double* flexvert_J;
   public double* flexvert_length;
   public double* bvh_aabb_dyn;
+  public double* flexvert_lambda;
+  public int* flexvert_conage;
   public int* ten_wrapadr;
   public int* ten_wrapnum;
   public double* ten_J;
@@ -5895,11 +5903,24 @@ public unsafe struct mjData_ {
   public double* efc_vel;
   public double* efc_aref;
   public double* efm_c;
+  public double* efm_diag;
+  public double* efm_ck;
+  public double* efm_sdiag;
+  public double* efm_fluid;
+  public int* efm_tid;
+  public double* efm_ts;
+  public double* efm_tk;
+  public int* efm_aid;
+  public double* efm_as;
+  public double* efm_ak;
+  public double* efm_ca;
   public int* efm_K_rownnz;
   public int* efm_K_rowadr;
   public int* efm_K_colind;
   public double* efm_K_val;
   public int* efm_dofid;
+  public int* efm_con_ind;
+  public double* efm_con_val;
   public double* efm_L;
   public double* efc_b;
   public double* iefc_aref;
@@ -7041,7 +7062,7 @@ public static unsafe extern void mj_setState(mjModel_* m, mjData_* d, double* st
 public static unsafe extern void mj_copyState(mjModel_* m, mjData_* src, mjData_* dst, int sig);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mj_readCtrl(mjModel_* m, mjData_* d, int id, double time, int interp);
+public static unsafe extern double* mj_readCtrl(mjModel_* m, mjData_* d, int id, double time, double* result, int interp);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double* mj_readSensor(mjModel_* m, mjData_* d, int id, double time, double* result, int interp);
@@ -7132,6 +7153,9 @@ public static unsafe extern void mj_objectAcceleration(mjModel_* m, mjData_* d, 
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double mj_geomDistance(mjModel_* m, mjData_* d, int geom1, int geom2, double distmax, double* fromto);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mj_insideSite(mjModel_* m, mjData_* d, int siteid, double* point);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_contactForce(mjModel_* m, mjData_* d, int id, double* result);

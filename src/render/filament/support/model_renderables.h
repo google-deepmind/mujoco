@@ -17,6 +17,7 @@
 
 #include <array>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <math/vec4.h>
@@ -48,10 +49,9 @@ class ModelRenderables {
   mjrfRenderable* GetRenderable(mjtObj obj_type, int obj_index,
                                 int sub_index = -1);
 
-  // Returns the default material (as defined in the mjModel) for the given
-  // object. Useful if you want to "reset" the material of a renderable back
-  // to its default.
-  mjrfMaterial GetDefaultMaterial(mjtObj obj_type, int obj_index);
+  // Returns the material for the given object as defined in the mjModel/mjData.
+  mjrfMaterial GetMaterial(mjtObj obj_type, int obj_index,
+                           const mjData* data = nullptr);
 
   // Marks the given object as "selected", unmarking any previously selected
   // object.
@@ -62,10 +62,12 @@ class ModelRenderables {
   // - shows/hides renderables based on the group visibility
   // - shows/hides renderables based on mjVIS_SKIN, mjVIS_FLEXSKIN,
   //   mjVIS_TENDON, and mjVIS_ACTUATOR flags
-  // - adds island state to materials if mjVIS_ISLAND is enabled
   // - switches meshes to convex hull mode if mjVIS_CONVEXHULL is enabled
-  // - adjusts alpha values if mjVIS_TRANSPARENT is enabled
   void SetOptions(const mjvOption& opt);
+
+  // Returns the object type and index corresponding to the given
+  // segmentation ID.
+  std::pair<mjtObj, int> GetObjectFromSegmentationId(int segmentation_id) const;
 
   // Returns the current visualization options.
   const mjvOption& GetOptions() const { return vopts_; }

@@ -114,7 +114,7 @@ static bool GetSize(const mjModel* model, mjtGeom type, const mjtNum* size,
 }
 
 static void SetGeomMesh(mjrfRenderable* renderable, ModelObjects* model_objs,
-                        mjtGeom type, int geom_index = -1) {
+                        mjtGeom type, int data_id = -1) {
   const mjModel* model = model_objs->GetModel();
   const int nstack = model->vis.quality.numstacks;
   const int nslice = model->vis.quality.numslices;
@@ -123,12 +123,11 @@ static void SetGeomMesh(mjrfRenderable* renderable, ModelObjects* model_objs,
   switch (type) {
     case mjGEOM_MESH:
     case mjGEOM_SDF: {
-      const int data_id = model->geom_dataid[geom_index] * 2;
-      mjrf_setRenderableMesh(renderable, model_objs->GetMesh(data_id), 0, 0);
+      const int mesh_id = data_id * 2;
+      mjrf_setRenderableMesh(renderable, model_objs->GetMesh(mesh_id), 0, 0);
       break;
     }
     case mjGEOM_HFIELD: {
-      const int data_id = model->geom_dataid[geom_index];
       mjrf_setRenderableMesh(renderable, model_objs->GetHeightField(data_id), 0,
                              0);
       break;
@@ -213,21 +212,40 @@ void ModelRenderables::Update(const mjData* data) {
     const float3 pos = ReadFloat3(data->geom_xpos, i);
     const mat3f mat = ReadMat3(data->geom_xmat, i);
     mjrf_setRenderableTransform(geoms_[i].get(), pos.v, mat.asArray());
+
+    mjrfMaterial material = GetMaterial(mjOBJ_GEOM, i, data);
+    mjrf_setRenderableMaterial(geoms_[i].get(), &material);
   }
 
   for (int i = 0; i < model->nsite; ++i) {
-    const float3 pos = ReadFloat3(data->site_xpos, i);
-    const mat3f mat = ReadMat3(data->site_xmat, i);
+    float3 pos = ReadFloat3(data->site_xpos, i);
+    mat3f mat = ReadMat3(data->site_xmat, i);
+    if (model->site_type[i] == mjGEOM_MESH && model->site_dataid[i] >= 0) {
+      int meshid = model->site_dataid[i];
+      mjtNum meshpos[3], meshmat[9], meshrot[9];
+      mju_mulMatVec3(meshpos, data->site_xmat + 9 * i, model->mesh_pos + 3 * meshid);
+      mju_addTo3(meshpos, data->site_xpos + 3 * i);
+      mju_quat2Mat(meshrot, model->mesh_quat + 4 * meshid);
+      mju_mulMatMat(meshmat, data->site_xmat + 9 * i, meshrot, 3, 3, 3);
+      pos = ReadFloat3(meshpos);
+      mat = ReadMat3(meshmat);
+    }
     mjrf_setRenderableTransform(sites_[i].get(), pos.v, mat.asArray());
+
+    mjrfMaterial material = GetMaterial(mjOBJ_SITE, i, data);
+    mjrf_setRenderableMaterial(sites_[i].get(), &material);
   }
 
   if (vopts_.flags[mjVIS_FLEXSKIN]) {
     for (int i = 0; i < model->nflex; ++i) {
+      mjrfMaterial material = GetMaterial(mjOBJ_FLEX, i, data);
+
       const int dim = model->flex_dim[i];
       if (dim > 1) {
         auto mesh = CreateFlexMesh(ctx, model, data, i);
         mjrf_setRenderableMesh(flexes_[i][0].get(), mesh.get(), 0, 0);
         flex_meshes_[i] = std::move(mesh);
+        mjrf_setRenderableMaterial(flexes_[i][0].get(), &material);
       } else {
         const int vertadr = model->flex_vertadr[i];
         const int edgeadr = model->flex_edgeadr[i];
@@ -241,6 +259,7 @@ void ModelRenderables::Update(const mjData* data) {
           const float3 v0 = ReadFloat3(data->flexvert_xpos, vertadr + idx0);
           const float3 v1 = ReadFloat3(data->flexvert_xpos, vertadr + idx1);
           Connect(edges[j].get(), v0, v1, radius);
+          mjrf_setRenderableMaterial(flexes_[i][j].get(), &material);
         }
       }
     }
@@ -250,83 +269,18 @@ void ModelRenderables::Update(const mjData* data) {
     auto mesh = CreateSkinMesh(ctx, model, data, i);
     mjrf_setRenderableMesh(skins_[i].get(), mesh.get(), 0, 0);
     skin_meshes_[i] = std::move(mesh);
+
+    mjrfMaterial material = GetMaterial(mjOBJ_SKIN, i, data);
+    mjrf_setRenderableMaterial(skins_[i].get(), &material);
   }
 
   for (int i = 0; i < model->ntendon; i++) {
     UpdateSpatialTendons(data, i);
   }
 
-  for (int i = 0; i < model->nu; i++) {
+  for (int i = 0; i < model->nactuator; i++) {
     if (model->actuator_trntype[i] == mjTRN_SLIDERCRANK) {
       UpdateSliderCranks(data, i);
-    }
-  }
-
-  if (vopts_.flags[mjVIS_ISLAND]) {
-    const bool sleep_enabled = model->opt.enableflags & mjENBL_SLEEP;
-
-    for (int i = 0; i < model->ngeom; ++i) {
-      const int weld_id = model->body_weldid[model->geom_bodyid[i]];
-      if (!model->body_dofnum[weld_id]) {
-        continue;
-      }
-
-      const int awake = data->body_awake[model->geom_bodyid[i]];
-      const int dof = model->body_dofadr[weld_id];
-      const int island = data->nisland ? data->dof_island[dof] : -1;
-      int island_id = island >= 0 ? data->island_dofadr[island] : -1;
-      if (island_id == -1 && sleep_enabled) {
-        int tree = model->dof_treeid[dof];
-        if (!awake) {
-          tree = mj_sleepCycle(data->tree_asleep, model->ntree, tree);
-        }
-        island_id = model->tree_dofadr[tree];
-      }
-
-      mjrfMaterial material;
-      mjrf_getRenderableMaterial(geoms_[i].get(), &material);
-      material.island_id = island_id;
-      material.sleep_state = awake ? mjS_AWAKE : mjS_ASLEEP;
-      mjrf_setRenderableMaterial(geoms_[i].get(), &material);
-    }
-    for (int i = 0; i < model->nflex; ++i) {
-      int bodyid = -1;
-      if (model->flex_interp[i]) {
-        int nodeadr = model->flex_nodeadr[i];
-        for (int j = 0; j < model->flex_nodenum[i] && bodyid < 0; j++) {
-          int b = model->flex_nodebodyid[nodeadr + j];
-          if (model->body_treeid[b] >= 0) bodyid = b;
-        }
-      } else {
-        int vertadr = model->flex_vertadr[i];
-        for (int j = 0; j < model->flex_vertnum[i] && bodyid < 0; j++) {
-          int b = model->flex_vertbodyid[vertadr + j];
-          if (model->body_treeid[b] >= 0) bodyid = b;
-        }
-      }
-      if (bodyid < 0) {
-        continue;
-      }
-      int weld_id = model->body_weldid[bodyid];
-      int dof = model->body_dofadr[weld_id];
-      int island = data->nisland ? data->dof_island[dof] : -1;
-      int island_id = island >= 0 ? data->island_dofadr[island] : -1;
-      int awake = data->body_awake[bodyid];
-      if (island_id == -1 && sleep_enabled) {
-        int tree = model->dof_treeid[dof];
-        if (!awake) {
-          tree = mj_sleepCycle(data->tree_asleep, model->ntree, tree);
-        }
-        island_id = model->tree_dofadr[tree];
-      }
-
-      for (auto& renderable : flexes_[i]) {
-        mjrfMaterial material;
-        mjrf_getRenderableMaterial(renderable.get(), &material);
-        material.island_id = island_id;
-        material.sleep_state = awake ? mjS_AWAKE : mjS_ASLEEP;
-        mjrf_setRenderableMaterial(renderable.get(), &material);
-      }
     }
   }
 }
@@ -405,9 +359,10 @@ void ModelRenderables::AddGeomGeoms() {
     mjrf_defaultRenderableParams(&params);
     auto renderable = CreateRenderable(ctx, params);
 
-    SetGeomMesh(renderable.get(), model_objects_, type, i);
+    SetGeomMesh(renderable.get(), model_objects_, type,
+                model->geom_dataid[i]);
 
-    mjrfMaterial material = GetDefaultMaterial(mjOBJ_GEOM, i);
+    mjrfMaterial material = GetMaterial(mjOBJ_GEOM, i);
     mjrf_setRenderableMaterial(renderable.get(), &material);
 
     float size[3];
@@ -434,9 +389,10 @@ void ModelRenderables::AddSiteGeoms() {
     mjrf_defaultRenderableParams(&params);
     auto renderable = CreateRenderable(ctx, params);
 
-    SetGeomMesh(renderable.get(), model_objects_, type);
+    SetGeomMesh(renderable.get(), model_objects_, type,
+                model->site_dataid[i]);
 
-    mjrfMaterial material = GetDefaultMaterial(mjOBJ_SITE, i);
+    mjrfMaterial material = GetMaterial(mjOBJ_SITE, i);
     mjrf_setRenderableMaterial(renderable.get(), &material);
 
     float size[3];
@@ -460,7 +416,7 @@ void ModelRenderables::AddFlexGeoms() {
   for (int i = 0; i < model->nflex; ++i) {
     flex_meshes_.emplace_back(nullptr, nullptr);
 
-    mjrfMaterial material = GetDefaultMaterial(mjOBJ_FLEX, i);
+    mjrfMaterial material = GetMaterial(mjOBJ_FLEX, i);
 
     mjrfRenderableParams params;
     mjrf_defaultRenderableParams(&params);
@@ -503,7 +459,7 @@ void ModelRenderables::AddSkinGeoms() {
     mjrf_defaultRenderableParams(&params);
     auto renderable = CreateRenderable(ctx, params);
 
-    mjrfMaterial material = GetDefaultMaterial(mjOBJ_SKIN, i);
+    mjrfMaterial material = GetMaterial(mjOBJ_SKIN, i);
     mjrf_setRenderableMaterial(renderable.get(), &material);
 
     if (vopts_.skingroup[model->skin_group[i]]) {
@@ -524,7 +480,7 @@ void ModelRenderables::AddSliderCrankGeoms() {
   mjrfRenderableParams params;
   mjrf_defaultRenderableParams(&params);
 
-  for (int i = 0; i < model->nu; i++) {
+  for (int i = 0; i < model->nactuator; i++) {
     if (model->actuator_trntype[i] != mjTRN_SLIDERCRANK) {
       continue;
     }
@@ -585,7 +541,7 @@ void ModelRenderables::UpdateSliderCranks(const mjData* data, int actuator_id) {
   Connect(slider, slider_pos, end, slider_width);
   Connect(crank, end, crank_pos, crank_width);
 
-  mjrfMaterial material = GetDefaultMaterial(mjOBJ_ACTUATOR, actuator_id);
+  mjrfMaterial material = GetMaterial(mjOBJ_ACTUATOR, actuator_id, data);
 
   xtof(material.color, model->vis.rgba.slidercrank, 4);
   mjrf_setRenderableMaterial(slider, &material);
@@ -643,7 +599,7 @@ void ModelRenderables::UpdateSpatialTendons(const mjData* data, int tendon_id) {
     RemoveSegmentFromTendon(tendon_id);
   }
 
-  mjrfMaterial material = GetDefaultMaterial(mjOBJ_TENDON, tendon_id);
+  mjrfMaterial material = GetMaterial(mjOBJ_TENDON, tendon_id, data);
 
   // If tendon has no explicit color then color it using limit impedance.
   if (model->tendon_matid[tendon_id] == -1 && material.color[0] == 0.5 &&
@@ -666,8 +622,8 @@ void ModelRenderables::UpdateSpatialTendons(const mjData* data, int tendon_id) {
   }
 
   if (vopts_.flags[mjVIS_ISLAND]) {
-    const int ecf = data->tendon_efcadr[tendon_id];
-    if (data->nisland && ecf >= 0) {
+    const int ecf = data->nisland ? data->tendon_efcadr[tendon_id] : -1;
+    if (ecf >= 0) {
       material.island_id = data->island_dofadr[data->efc_island[ecf]];
       material.sleep_state = mjS_AWAKE;
     }
@@ -683,10 +639,53 @@ void ModelRenderables::UpdateSpatialTendons(const mjData* data, int tendon_id) {
   }
 }
 
+std::pair<mjtObj, int> ModelRenderables::GetObjectFromSegmentationId(
+    int segmentation_id) const {
+  if (segmentation_id <= 0) {
+    return std::make_pair(mjOBJ_UNKNOWN, -1);
+  }
+
+  const mjModel* model = model_objects_->GetModel();
+  segmentation_id -= 1;
+
+  if (segmentation_id < model->ngeom) {
+    return std::make_pair(mjOBJ_GEOM, segmentation_id);
+  } else {
+    segmentation_id -= model->ngeom;
+  }
+  if (segmentation_id < model->nsite) {
+    return std::make_pair(mjOBJ_SITE, segmentation_id);
+  } else {
+    segmentation_id -= model->nsite;
+  }
+  if (segmentation_id < model->nflex) {
+    return std::make_pair(mjOBJ_FLEX, segmentation_id);
+  } else {
+    segmentation_id -= model->nflex;
+  }
+  if (segmentation_id < model->nskin) {
+    return std::make_pair(mjOBJ_SKIN, segmentation_id);
+  } else {
+    segmentation_id -= model->nskin;
+  }
+  if (segmentation_id < model->ntendon) {
+    return std::make_pair(mjOBJ_TENDON, segmentation_id);
+  } else {
+    segmentation_id -= model->ntendon;
+  }
+  if (segmentation_id < model->nactuator) {
+    return std::make_pair(mjOBJ_ACTUATOR, segmentation_id);
+  } else {
+    segmentation_id -= model->nactuator;
+  }
+
+  return std::make_pair(mjOBJ_UNKNOWN, -1);
+}
+
 int ModelRenderables::GetSegmentationId(mjtObj obj_type, int obj_index) {
   const mjModel* model = model_objects_->GetModel();
 
-  int id = 0;
+  int id = 1;
   if (obj_type == mjOBJ_GEOM) {
     return id + obj_index;
   } else {
@@ -715,14 +714,14 @@ int ModelRenderables::GetSegmentationId(mjtObj obj_type, int obj_index) {
   if (obj_type == mjOBJ_ACTUATOR) {
     return id + obj_index;
   } else {
-    id += model->nu;
+    id += model->nactuator;
   }
   mju_error("Unsupported object type: %d", obj_type);
   return -1;
 }
 
-mjrfMaterial ModelRenderables::GetDefaultMaterial(mjtObj obj_type,
-                                                  int obj_index) {
+mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
+                                           const mjData* data) {
   const mjModel* model = model_objects_->GetModel();
 
   mjrfMaterial material;
@@ -886,9 +885,13 @@ mjrfMaterial ModelRenderables::GetDefaultMaterial(mjtObj obj_type,
 
         material.uv_scale[0] *= plane_scale;
         material.uv_scale[1] *= plane_scale;
-        // The vertex UVs in PlaneBuilder are u0 = 0.5*x + 0.5, v0 = -0.5*y + 0.5.
-        // To keep the world-space texture coordinate u = 0.5*worldX*texrepeat - 0.5
-        // independent of the snapped geomPos, uv_offset must compensate by 0.5*dot_pos.
+        // The vertex UVs in PlaneBuilder are
+        //     u0 =  (0.5 * x) + 0.5
+        //     v0 = -(0.5 * y) + 0.5
+        // To keep the world-space texture coordinate
+        //     u = 0.5 * worldX * texrepeat - 0.5
+        // independent of the snapped geomPos, uv_offset must compensate by
+        // 0.5 * dot_pos.
         material.uv_offset[0] =
             (0.5f * dot_pos_axis_x - 0.5f * plane_scale) * tex_repeat[0] - 0.5f;
         material.uv_offset[1] =
@@ -915,6 +918,87 @@ mjrfMaterial ModelRenderables::GetDefaultMaterial(mjtObj obj_type,
 
   material.segmentation_id = GetSegmentationId(obj_type, obj_index);
 
+  // Apply transparency to dynamic geoms.
+  if (obj_type == mjOBJ_GEOM && vopts_.flags[mjVIS_TRANSPARENT]) {
+    const int category = GetBodyCategory(model, model->geom_bodyid[obj_index]);
+    if (category == mjCAT_DYNAMIC) {
+      material.color[3] = model->vis.map.alpha;
+    }
+  }
+
+  // Highlight selected objects.
+  if (selected_obj_type_ == mjOBJ_BODY) {
+    if (obj_type == mjOBJ_GEOM &&
+        model->geom_bodyid[obj_index] == selected_obj_index_) {
+      material.selected = true;
+    }
+    if (obj_type == mjOBJ_SITE &&
+        model->site_bodyid[obj_index] == selected_obj_index_) {
+      material.selected = true;
+    }
+  } else if (selected_obj_type_ == obj_type &&
+             selected_obj_index_ == obj_index) {
+    material.selected = true;
+  }
+
+  // Set island IDs based on sleep state.
+  if (data && vopts_.flags[mjVIS_ISLAND]) {
+    const bool sleep_enabled = model->opt.enableflags & mjENBL_SLEEP;
+
+    if (obj_type == mjOBJ_GEOM) {
+      const int body_id = model->geom_bodyid[obj_index];
+      const int weld_id = model->body_weldid[body_id];
+      if (model->body_dofnum[weld_id]) {
+        const int awake = data->body_awake[body_id];
+        const int dof = model->body_dofadr[weld_id];
+        const int island = data->nisland ? data->dof_island[dof] : -1;
+        int island_id = island >= 0 ? data->island_dofadr[island] : -1;
+        if (island_id == -1 && sleep_enabled) {
+          int tree = model->dof_treeid[dof];
+          if (!awake) {
+            tree = mj_sleepCycle(data->tree_asleep, model->ntree, tree);
+          }
+          island_id = model->tree_dofadr[tree];
+        }
+
+        material.island_id = island_id;
+        material.sleep_state = awake ? mjS_AWAKE : mjS_ASLEEP;
+      }
+    }
+
+    if (obj_type == mjOBJ_FLEX) {
+      int bodyid = -1;
+      if (model->flex_interp[obj_index]) {
+        int nodeadr = model->flex_nodeadr[obj_index];
+        for (int j = 0; j < model->flex_nodenum[obj_index] && bodyid < 0; j++) {
+          int b = model->flex_nodebodyid[nodeadr + j];
+          if (model->body_treeid[b] >= 0) bodyid = b;
+        }
+      } else {
+        int vertadr = model->flex_vertadr[obj_index];
+        for (int j = 0; j < model->flex_vertnum[obj_index] && bodyid < 0; j++) {
+          int b = model->flex_vertbodyid[vertadr + j];
+          if (model->body_treeid[b] >= 0) bodyid = b;
+        }
+      }
+      if (bodyid >= 0) {
+        int weld_id = model->body_weldid[bodyid];
+        int dof = model->body_dofadr[weld_id];
+        int island = data->nisland ? data->dof_island[dof] : -1;
+        int island_id = island >= 0 ? data->island_dofadr[island] : -1;
+        int awake = data->body_awake[bodyid];
+        if (island_id == -1 && sleep_enabled) {
+          int tree = model->dof_treeid[dof];
+          if (!awake) {
+            tree = mj_sleepCycle(data->tree_asleep, model->ntree, tree);
+          }
+          island_id = model->tree_dofadr[tree];
+        }
+        material.island_id = island_id;
+        material.sleep_state = awake ? mjS_AWAKE : mjS_ASLEEP;
+      }
+    }
+  }
   return material;
 }
 
@@ -1005,7 +1089,7 @@ void ModelRenderables::SetVisibility(mjtObj obj_type, int idx, bool visible) {
     case mjOBJ_ACTUATOR:
       DetermineVisibilities(ops, vopts_.actuatorgroup,
                             &vopts_.flags[mjVIS_ACTUATOR], idx, visible);
-      for (int i = 0; i < model->nu; ++i) {
+      for (int i = 0; i < model->nactuator; ++i) {
         auto it = slider_cranks_.find(i);
         if (it == slider_cranks_.end()) {
           continue;
@@ -1069,50 +1153,12 @@ void ModelRenderables::SetOptions(const mjvOption& opt) {
       }
     }
   }
-
-  if (vopts_.flags[mjVIS_TRANSPARENT] != opt.flags[mjVIS_TRANSPARENT]) {
-    float multiplier = model->vis.map.alpha;
-    if (!opt.flags[mjVIS_TRANSPARENT]) {
-      multiplier = 1.0f / multiplier;
-    }
-
-    for (int i = 0; i < model->ngeom; ++i) {
-      const int category = GetBodyCategory(model, model->geom_bodyid[i]);
-      if (category == mjCAT_DYNAMIC) {
-        mjrfMaterial material;
-        mjrf_getRenderableMaterial(geoms_[i].get(), &material);
-        material.color[3] *= multiplier;
-        mjrf_setRenderableMaterial(geoms_[i].get(), &material);
-      }
-    }
-  }
-
   vopts_ = opt;
 }
 
 void ModelRenderables::MarkAsSelected(mjtObj obj_type, int obj_index) {
-  if (obj_type != selected_obj_type_ || obj_index != selected_obj_index_) {
-    mjrfMaterial material;
-
-    mjrfRenderable* prev_renderable =
-        GetRenderable(selected_obj_type_, selected_obj_index_);
-    if (prev_renderable) {
-      mjrf_getRenderableMaterial(prev_renderable, &material);
-      material.selected = 0;
-      mjrf_setRenderableMaterial(prev_renderable, &material);
-    }
-
-    selected_obj_type_ = obj_type;
-    selected_obj_index_ = obj_index;
-
-    mjrfRenderable* curr_renderable =
-        GetRenderable(selected_obj_type_, selected_obj_index_);
-    if (curr_renderable) {
-      mjrf_getRenderableMaterial(curr_renderable, &material);
-      material.selected = 1;
-      mjrf_setRenderableMaterial(curr_renderable, &material);
-    }
-  }
+  selected_obj_type_ = obj_type;
+  selected_obj_index_ = obj_index;
 }
 
 }  // namespace mujoco

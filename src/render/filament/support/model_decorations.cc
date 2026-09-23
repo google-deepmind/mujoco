@@ -40,7 +40,10 @@ ModelDecorations::ModelDecorations(mjrfContext* ctx, mjrfScene* scene,
   mjv_makeScene(model_, &mjv_scene_, 2000);
 }
 
-ModelDecorations::~ModelDecorations() { mjv_freeScene(&mjv_scene_); }
+ModelDecorations::~ModelDecorations() {
+  Clear();
+  mjv_freeScene(&mjv_scene_);
+}
 
 void ModelDecorations::Clear() {
   for (auto& iter : decorations_) {

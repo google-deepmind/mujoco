@@ -17,6 +17,7 @@
 #include "src/engine/engine_core_smooth.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <string>
 #include <string_view>
@@ -39,9 +40,9 @@ namespace {
 using ::std::string;
 using ::std::vector;
 using ::testing::Each;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
-using ::testing::ElementsAre;
 using ::testing::Not;
 using ::testing::NotNull;
 using ::testing::Pointwise;
@@ -390,7 +391,9 @@ TEST_F(CoreSmoothTest, TendonInertiaEquivalent) {
 // test that bodies hanging on connects lead to expected force sensor readings
 void TestConnect(const char* const filepath) {
   const std::string xml_path = GetTestDataFilePath(filepath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mjData* data = mj_makeData(model);
   // settle physics:
   for (int i = 0; i < 1000; i++) {
@@ -436,10 +439,12 @@ TEST_F(CoreSmoothTest, RnePostConnectMultipleConstraints) {
 
 // --------------------------- weld constraint ---------------------------------
 
-// test that bodies attached with welds lead to expected force sensor readings
-void TestWeld(const char* const filepath) {
+// test that all sensors read their expected values once the physics settles
+void TestSensors(const char* const filepath, mjtNum tol = MjTol(1e-6, 5e-5)) {
   const std::string xml_path = GetTestDataFilePath(filepath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mjData* data = mj_makeData(model);
   // settle physics:
   for (int i = 0; i < 1000; i++) {
@@ -449,7 +454,7 @@ void TestWeld(const char* const filepath) {
     for (int i = 0; i < 3; i++) {
       EXPECT_NEAR(data->sensordata[model->sensor_adr[sensor_index] + i],
                   model->sensor_user[model->nuser_sensor * sensor_index + i],
-                  MjTol(1e-6, 5e-5));
+                  tol);
     }
   }
   mj_deleteData(data);
@@ -459,25 +464,38 @@ void TestWeld(const char* const filepath) {
 TEST_F(CoreSmoothTest, RnePostWeldForceFree) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/force_free.xml";
-  TestWeld(kModelFilePath);
+  TestSensors(kModelFilePath);
 }
 
 TEST_F(CoreSmoothTest, RnePostWeldForceFreeRotated) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/force_free_rotated.xml";
-  TestWeld(kModelFilePath);
+  TestSensors(kModelFilePath);
 }
 
 TEST_F(CoreSmoothTest, RnePostWeldForceTorqueFree) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/force_torque_free.xml";
-  TestWeld(kModelFilePath);
+  TestSensors(kModelFilePath);
 }
 
 TEST_F(CoreSmoothTest, RnePostWeldForceTorqueFreeRotated) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/force_torque_free_rotated.xml";
-  TestWeld(kModelFilePath);
+  TestSensors(kModelFilePath);
+}
+
+TEST_F(CoreSmoothTest, RnePostWeldForceTorqueLever) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/weld/force_torque_lever.xml";
+  TestSensors(kModelFilePath);
+}
+
+TEST_F(CoreSmoothTest, RnePostWeldForceTorqueLeverRotated) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/weld/"
+      "force_torque_lever_rotated.xml";
+  TestSensors(kModelFilePath);
 }
 
 TEST_F(CoreSmoothTest, WeldRatioForceFree) {
@@ -512,11 +530,64 @@ TEST_F(CoreSmoothTest, WeldRatioMultipleConstraints) {
   TestConnect(kModelFilePath);
 }
 
+// --------------------------- spatial tendons ---------------------------------
+
+TEST_F(CoreSmoothTest, RnePostTendonSpring) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/tendon/spring_free.xml";
+  TestSensors(kModelFilePath);
+}
+
+TEST_F(CoreSmoothTest, RnePostTendonLimit) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/tendon/limit_free.xml";
+  TestSensors(kModelFilePath);
+}
+
+TEST_F(CoreSmoothTest, RnePostTendonActuator) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/tendon/actuator_free.xml";
+  TestSensors(kModelFilePath);
+}
+
+TEST_F(CoreSmoothTest, RnePostTendonFrictionloss) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/tendon/frictionloss_free.xml";
+  TestSensors(kModelFilePath);
+}
+
+TEST_F(CoreSmoothTest, RnePostTendonEquality) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/tendon/equality_free.xml";
+  TestSensors(kModelFilePath);
+}
+
+TEST_F(CoreSmoothTest, RnePostTendonPulley) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/tendon/pulley_free.xml";
+  TestSensors(kModelFilePath);
+}
+
+TEST_F(CoreSmoothTest, RnePostTendonWrap) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/tendon/wrap_free.xml";
+  TestSensors(kModelFilePath, MjTol(1e-5, 2e-4));
+}
+
+// fixed tendons act through the joints: nothing to attribute to the bodies
+TEST_F(CoreSmoothTest, RnePostTendonFixed) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/tendon/fixed_slide.xml";
+  TestSensors(kModelFilePath);
+}
+
 TEST_F(CoreSmoothTest, EqualityBodySite) {
   const std::string xml_path =
       GetTestDataFilePath("engine/testdata/equality_site_body_compare.xml");
 
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mjData* data = mj_makeData(model);
 
   // simulate, get sensordata
@@ -546,14 +617,195 @@ TEST_F(CoreSmoothTest, EqualityBodySite) {
   mj_deleteModel(model);
 }
 
+// ------------------------- mj_rnePostConstraint ------------------------------
+
+// projection of the interaction force with the parent onto the joint axes
+vector<mjtNum> JointForce(const mjModel* m, mjData* d) {
+  // the solver stops at its tolerance: make qacc exactly consistent with the
+  // constraint force before the recursion
+  vector<mjtNum> qfrc(m->nv);
+  mju_add(qfrc.data(), d->qfrc_smooth, d->qfrc_constraint, m->nv);
+  mj_solveM(m, d, d->qacc, qfrc.data(), 1);
+  mj_rnePostConstraint(m, d);
+
+  for (int v = 0; v < m->nv; v++) {
+    qfrc[v] = mju_dot(d->cdof + 6 * v, d->cfrc_int + 6 * m->dof_bodyid[v], 6);
+  }
+  return qfrc;
+}
+
+// forces not transmitted through joints (constraints, contacts, perturbations,
+// spatial tendons) are external: cfrc_int carries no component along the
+// joint axes
+TEST_F(CoreSmoothTest, RnePostBodyForcesAreExternal) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="plane" size="1 1 .1"/>
+      <site name="anchor" pos="-.3 0 1"/>
+      <site name="anchor2" pos=".3 .5 1"/>
+      <site name="anchor3" pos="-.5 .5 1"/>
+      <body pos="0 0 .5">
+        <joint type="hinge" axis="0 1 0"/>
+        <geom type="capsule" fromto="0 0 0 .3 0 0" size=".03"/>
+        <site name="link" pos=".1 0 0"/>
+        <body name="tip" pos=".3 0 0">
+          <joint type="ball"/>
+          <geom type="capsule" fromto="0 0 0 .2 0 0" size=".03"/>
+          <site name="tip" pos=".2 0 0"/>
+        </body>
+      </body>
+      <body name="box" pos=".5 0 .5" euler="0 0 20">
+        <freejoint/>
+        <geom type="box" size=".05 .05 .05"/>
+        <site name="box" pos="0 0 .05"/>
+      </body>
+      <body name="ball" pos="0 .3 .09">
+        <freejoint/>
+        <geom type="sphere" size=".1"/>
+        <site name="ball" pos="0 .1 0"/>
+        <site name="ballweld" pos=".1 -.3 .41"/>
+      </body>
+      <body name="post" pos=".25 .2 .32">
+        <geom name="wrap" type="sphere" size=".12" contype="0" conaffinity="0"/>
+        <site name="side" pos="0 0 .3"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <spatial name="spring" stiffness="20" damping=".5" armature=".05" springlength="0 .2">
+        <site site="anchor"/>
+        <site site="box"/>
+      </spatial>
+      <spatial name="wrapped" stiffness="5" springlength="0 .3">
+        <site site="ball"/>
+        <geom geom="wrap" sidesite="side"/>
+        <site site="box"/>
+      </spatial>
+      <spatial name="pulley" limited="true" range="1.3 2" frictionloss=".2">
+        <site site="tip"/>
+        <site site="anchor2"/>
+        <pulley divisor="2"/>
+        <site site="anchor3"/>
+        <site site="ball"/>
+      </spatial>
+    </tendon>
+    <equality>
+      <weld body1="tip" body2="box" torquescale=".5"/>
+      <weld site1="link" site2="ballweld" torquescale="2"/>
+      <connect body1="ball" body2="box" anchor="0 0 .1"/>
+      <tendon tendon1="spring" tendon2="pulley" polycoef="0 .5 .3 0 0"/>
+    </equality>
+    <actuator>
+      <motor tendon="wrapped" gear="2"/>
+      <general tendon="pulley" biastype="affine" biasprm="-.5"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
+  int box = mj_name2id(m, mjOBJ_BODY, "box");
+  int wrapped = mj_name2id(m, mjOBJ_TENDON, "wrapped");
+
+  for (mjtCone cone : {mjCONE_PYRAMIDAL, mjCONE_ELLIPTIC}) {
+    m->opt.cone = cone;
+    mj_resetData(m, d);
+
+    // perturb, step away from the satisfied constraints
+    for (int v = 0; v < m->nv; v++) {
+      d->qvel[v] = (v % 2 ? -1 : 1) * 0.1 * (v + 1);
+    }
+    for (int i = 0; i < 6; i++) {
+      d->xfrc_applied[6 * box + i] = i + 1;
+    }
+    d->ctrl[0] = 0.8;
+    for (int i = 0; i < 50; i++) {
+      mj_step(m, d);
+    }
+    mj_forward(m, d);
+
+    // every force source carries load
+    ASSERT_GT(mju_norm(d->efc_force, d->nefc), 1);
+    ASSERT_GT(d->nf, 0);
+    ASSERT_GT(d->nl, 0);
+    ASSERT_EQ(d->ten_wrapnum[wrapped], 4);
+
+    vector<mjtNum> qfrc = JointForce(m, d);
+    for (int v = 0; v < m->nv; v++) {
+      EXPECT_NEAR(qfrc[v], 0, MjTol(1e-11, 2e-3)) << "dof " << v;
+    }
+  }
+}
+
+// forces transmitted through joints are internal: cfrc_int projects onto the
+// joint axes as the total joint-space force
+TEST_F(CoreSmoothTest, RnePostJointForcesAreInternal) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="0 0 .5">
+        <joint name="hinge" type="hinge" axis="0 1 0" damping=".1" stiffness="2"
+               armature=".3" range="-.5 .5"/>
+        <geom type="capsule" fromto="0 0 0 .3 0 0" size=".03"/>
+        <body pos=".3 0 0">
+          <joint name="slide" type="slide" axis="1 0 0" damping=".2" frictionloss=".1"/>
+          <geom type="box" size=".05 .05 .05"/>
+        </body>
+      </body>
+    </worldbody>
+    <tendon>
+      <fixed stiffness="3" damping=".1">
+        <joint joint="hinge" coef="1"/>
+        <joint joint="slide" coef="-.5"/>
+      </fixed>
+    </tendon>
+    <equality>
+      <joint joint1="hinge" joint2="slide" polycoef="0 .5 0 0 0"/>
+    </equality>
+    <actuator>
+      <motor joint="hinge"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
+
+  // hinge beyond its limit, everything else in motion
+  d->qpos[0] = 0.6;
+  d->qpos[1] = 0.1;
+  d->qvel[0] = 0.3;
+  d->qvel[1] = -0.2;
+  d->ctrl[0] = 0.7;
+  d->qfrc_applied[0] = 0.4;
+  d->qfrc_applied[1] = -0.5;
+  mj_forward(m, d);
+  ASSERT_GT(mju_norm(d->efc_force, d->nefc), 0.1);
+
+  vector<mjtNum> qfrc = JointForce(m, d);
+  for (int v = 0; v < m->nv; v++) {
+    mjtNum expected = d->qfrc_passive[v] + d->qfrc_actuator[v] +
+                      d->qfrc_applied[v] + d->qfrc_constraint[v] -
+                      m->dof_armature[v] * d->qacc[v];
+    EXPECT_NEAR(qfrc[v], expected, MjTol(1e-11, 3e-4)) << "dof " << v;
+  }
+}
+
 // --------------------------- site actuators ----------------------------------
 
 // Test Cartesian position control using site transmission with refsite
 TEST_F(CoreSmoothTest, RefsiteBringsToPose) {
   constexpr char kRefsitePath[] = "engine/testdata/actuation/refsite.xml";
   const std::string xml_path = GetTestDataFilePath(kRefsitePath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mjData* data = mj_makeData(model);
 
   // set pose target in ctrl (3 positions, 3 rotations)
@@ -594,8 +846,9 @@ TEST_F(CoreSmoothTest, RefsiteBringsToPose) {
 TEST_F(CoreSmoothTest, RefsiteConservesMomentum) {
   constexpr char kRefsitePath[] = "engine/testdata/actuation/refsite_free.xml";
   const std::string xml_path = GetTestDataFilePath(kRefsitePath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mjData* data = mj_makeData(model);
 
   // assert tight momentum conservation: solve exactly, no early termination
@@ -792,7 +1045,7 @@ static void Expmap2Quat(mjtNum quat[4], const mjtNum v[3]) {
     quat[0] = 1;
     quat[1] = quat[2] = quat[3] = 0;
   } else {
-    mjtNum axis[3] = {v[0]/angle, v[1]/angle, v[2]/angle};
+    mjtNum axis[3] = {v[0] / angle, v[1] / angle, v[2] / angle};
     mju_axisAngle2Quat(quat, axis, angle);
   }
 }
@@ -891,14 +1144,15 @@ TEST_F(CoreSmoothTest, SO3RefsiteMixedAxisEquilibrium) {
   // target: 5.66 rad rotation about the mixed axis (1,1,0)/sqrt(2), beyond pi;
   // canonical (shortest) expmap is u*(1 - 2*pi/norm(u)) = (-.4429, -.4429, 0)
   mjtNum target[3] = {4, 4, 0};
-  mjtNum shrink = 1 - 2*mjPI/mju_norm3(target);
-  mjtNum canonical[3] = {target[0]*shrink, target[1]*shrink, target[2]*shrink};
+  mjtNum shrink = 1 - 2 * mjPI / mju_norm3(target);
+  mjtNum canonical[3] = {target[0] * shrink, target[1] * shrink,
+                         target[2] * shrink};
   mju_copy3(data->ctrl + uadr, target);
 
   // place the body exactly at the commanded orientation: force must vanish
   Expmap2Quat(data->qpos + 3, target);
   mj_forward(model.get(), data);
-  for (int k=0; k < 3; k++) {
+  for (int k = 0; k < 3; k++) {
     EXPECT_LT(mju_abs(data->actuator_force[oadr + k]), MjTol(1e-10, 1e-6));
     EXPECT_LT(mju_abs(data->actuator_length[oadr + k] - canonical[k]),
               MjTol(1e-10, 1e-6));
@@ -914,7 +1168,7 @@ TEST_F(CoreSmoothTest, SO3RefsiteMixedAxisEquilibrium) {
   while (data->time < 10) {
     mj_step(model.get(), data);
   }
-  for (int k=0; k < 3; k++) {
+  for (int k = 0; k < 3; k++) {
     EXPECT_LT(mju_abs(data->actuator_length[oadr + k] - canonical[k]), 1e-3);
     EXPECT_LT(mju_abs(data->actuator_velocity[oadr + k]), 1e-3);
   }
@@ -944,7 +1198,7 @@ TEST_F(CoreSmoothTest, SO3RefsiteTracksMixedWindingTarget) {
   // ramp the rz target from 0 to 2*pi
   const mjtNum rate = 0.5;  // rad/s
   mjtNum start = data->time;
-  while (data->time - start < 2*mjPI / rate) {
+  while (data->time - start < 2 * mjPI / rate) {
     data->ctrl[uadr + 2] = rate * (data->time - start);
     mj_step(model.get(), data);
 
@@ -987,7 +1241,7 @@ TEST_F(CoreSmoothTest, SO3BallMixedAxisContrast) {
   mj_forward(model.get(), data);
 
   // SO3: zero force at the commanded orientation
-  for (int k=0; k < 3; k++) {
+  for (int k = 0; k < 3; k++) {
     EXPECT_LT(mju_abs(data->actuator_force[oadr + k]), MjTol(1e-10, 1e-6));
   }
 
@@ -1118,7 +1372,7 @@ TEST_F(CoreSmoothTest, SO3IntVelocityWindsWithBoundedAct) {
   // spin about z for 4 full turns
   const mjtNum rate = 1.0;  // rad/s
   data->ctrl[2] = rate;
-  while (data->time < 8*mjPI / rate) {
+  while (data->time < 8 * mjPI / rate) {
     mj_step(model.get(), data);
     ASSERT_LT(mju_norm3(data->act), mjPI + 0.1) << "act unbounded";
   }
@@ -1313,7 +1567,7 @@ TEST_F(CoreSmoothTest, SO3QuatSetpoint) {
 
   // zero ctrl commands the identity orientation: zero force at qpos0
   mj_forward(model.get(), data);
-  for (int k=0; k < 3; k++) {
+  for (int k = 0; k < 3; k++) {
     EXPECT_LT(mju_abs(data->actuator_force[oadr + k]), MjTol(1e-10, 1e-6));
   }
 
@@ -1326,16 +1580,16 @@ TEST_F(CoreSmoothTest, SO3QuatSetpoint) {
   // scale and antipodal invariance: q, 2q and -q command the same orientation
   mjtNum ctrl_variants[3][4];
   mju_copy4(ctrl_variants[0], q_tgt);
-  for (int k=0; k < 4; k++) {
-    ctrl_variants[1][k] = 2*q_tgt[k];
+  for (int k = 0; k < 4; k++) {
+    ctrl_variants[1][k] = 2 * q_tgt[k];
     ctrl_variants[2][k] = -q_tgt[k];
   }
-  for (int v=0; v < 3; v++) {
+  for (int v = 0; v < 3; v++) {
     mj_resetData(model.get(), data);
     mju_copy4(data->qpos + model->jnt_qposadr[jnt], q_tgt);
     mju_copy4(data->ctrl + uadr, ctrl_variants[v]);
     mj_forward(model.get(), data);
-    for (int k=0; k < 3; k++) {
+    for (int k = 0; k < 3; k++) {
       EXPECT_LT(mju_abs(data->actuator_force[oadr + k]), MjTol(1e-10, 1e-6))
           << "variant " << v;
     }
@@ -1347,8 +1601,8 @@ TEST_F(CoreSmoothTest, SO3QuatSetpoint) {
   while (data->time < 10) {
     mj_step(model.get(), data);
   }
-  mjtNum shrink = 1 - 2*mjPI/mju_norm3(target);
-  for (int k=0; k < 3; k++) {
+  mjtNum shrink = 1 - 2 * mjPI / mju_norm3(target);
+  for (int k = 0; k < 3; k++) {
     EXPECT_LT(mju_abs(data->actuator_length[oadr + k] - target[k] * shrink),
               1e-3);
     EXPECT_LT(mju_abs(data->actuator_velocity[oadr + k]), 1e-3);
@@ -1425,7 +1679,7 @@ TEST_F(CoreSmoothTest, PidMatchesPositionServo) {
     mjtNum target = 0.8 * data->time;
     data->ctrl[0] = target;
     data->ctrl[uadr] = target;
-    data->ctrl[uadr+1] = 0;
+    data->ctrl[uadr + 1] = 0;
     mj_step(model.get(), data);
     ASSERT_EQ(data->warning[mjWARN_BADQACC].number, 0) << "diverged";
     ASSERT_EQ(data->qpos[model->jnt_qposadr[j_servo]],
@@ -1532,7 +1786,7 @@ TEST_F(CoreSmoothTest, PidInputSubsets) {
   EXPECT_EQ(m->nout, 5);
   EXPECT_EQ(m->nu, 6);
   int expected_ctrlnum[5] = {1, 1, 1, 1, 2};
-  for (int i=0; i < 5; i++) {
+  for (int i = 0; i < 5; i++) {
     EXPECT_EQ(m->actuator_ctrlnum[i], expected_ctrlnum[i]) << "actuator " << i;
   }
 
@@ -1552,7 +1806,7 @@ TEST_F(CoreSmoothTest, PidInputSubsets) {
   EXPECT_DOUBLE_EQ(data->actuator_force[2], data->actuator_force[3]);
 
   // [pos, ff]: kp*(qref - l) - kv*ldot + ff (absent velocity setpoint is zero)
-  mjtNum expected = 5*(0.3 - data->qpos[1]) - 2*data->qvel[1] + 0.9;
+  mjtNum expected = 5 * (0.3 - data->qpos[1]) - 2 * data->qvel[1] + 0.9;
   EXPECT_MJTNUM_EQ(data->actuator_force[4], expected);
 
   // input names skip absent inputs
@@ -1678,12 +1932,12 @@ TEST_F(CoreSmoothTest, PidTracksWindingTarget) {
   mjData* data = mj_makeData(model.get());
 
   const mjtNum rate = 0.5;
-  while (data->time < 2*mjPI / rate) {
+  while (data->time < 2 * mjPI / rate) {
     data->ctrl[0] = rate * data->time;
     data->ctrl[1] = rate;  // matched velocity setpoint
     mj_step(model.get(), data);
     mjtNum err = data->ctrl[0] - data->actuator_length[0];
-    err -= 2*mjPI * mju_round(err / (2*mjPI));
+    err -= 2 * mjPI * mju_round(err / (2 * mjPI));
     ASSERT_LT(mju_abs(err), 0.5) << "tracking lost at time " << data->time;
   }
 
@@ -1893,8 +2147,6 @@ TEST_F(CoreSmoothTest, SolveM2) {
   mj_deleteModel(m);
 }
 
-
-
 TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
   constexpr char xml[] = R"(
   <mujoco>
@@ -1998,7 +2250,7 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
     mj_kinematics(m.get(), d.get());
     mj_flex(m.get(), d.get());
 
-    mjtNum eps = MjTol(1e-6, 1e-4);
+    mjtNum eps = MjEps(1e-6, 1e-4);
     int nflexvert = m->flex_vertnum[0];
     std::vector<mjtNum> jac_fd(2 * nflexvert * m->nv);
     std::vector<mjtNum> qpos_backup(m->nq);
@@ -2178,10 +2430,9 @@ TEST_F(CoreSmoothTest, FlexVertStability) {
   std::vector<TestCase> cases = {
       // Explicit integration with Newton solver should be stable
       {mjINT_RK4, mjSOL_NEWTON, 1e-6, true},
-      // ImplicitFast with CG solver should now be STABLE with mass weighting
-      {mjINT_IMPLICITFAST, mjSOL_CG, 1e-6, true},
-      // ImplicitFast with Newton solver should be stable
-      {mjINT_IMPLICITFAST, mjSOL_NEWTON, 1e-6, true},
+      // Discrete carries the flex elasticity in the effective metric: stable
+      {mjINT_DISCRETE, mjSOL_CG, 1e-6, true},
+      {mjINT_DISCRETE, mjSOL_NEWTON, 1e-6, true},
   };
 
   for (const auto& test_case : cases) {
@@ -2227,6 +2478,40 @@ TEST_F(CoreSmoothTest, FlexVertStability) {
     mj_deleteData(data);
     mj_deleteModel(model);
     mj_deleteSpec(spec);
+  }
+}
+
+// two coincident hinges make M exactly singular: the dof-0 pivot vanishes after
+// eliminating dof 1; expect a clamped pivot, one INERTIA warning naming dof 0,
+// and finite accelerations
+TEST_F(CoreSmoothTest, FactorMClampsSingularPivotAndWarns) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint axis="0 0 1"/>
+        <joint axis="0 0 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  // expect warnings from both the compiler (mj_setConst) and mj_forward below
+  mock_warning_handler.ExpectWarnings(
+      "Inertia matrix is too close to singular");
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  mj_forward(model.get(), data.get());
+
+  EXPECT_EQ(data->warning[mjWARN_INERTIA].number, 1);
+  EXPECT_EQ(data->warning[mjWARN_INERTIA].lastinfo, 0);
+  for (int i = 0; i < model->nv; i++) {
+    EXPECT_TRUE(std::isfinite(data->qacc[i]));
   }
 }
 

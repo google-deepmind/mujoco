@@ -18,7 +18,7 @@
 #include <assert.h>
 
 #include <mujoco/mjtype.h>
-#include <mujoco/mujoco.h>
+#include "engine/engine_util_blas.h"
 
 #ifdef __cplusplus
   #define restrict __restrict__

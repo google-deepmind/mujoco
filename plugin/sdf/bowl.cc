@@ -29,19 +29,19 @@ static mjtNum distance(const mjtNum point[3], const mjtNum attributes[3]) {
   mjtNum height = attributes[0];
   mjtNum radius = attributes[1];
   mjtNum thick = attributes[2];
-  mjtNum width = mju_sqrt(radius*radius - height*height);
+  mjtNum width = mju_sqrt(radius * radius - height * height);
   // see https://iquilezles.org/articles/distfunctions/
-  mjtNum q[2] = { mju_norm(point, 2), point[2] };
-  mjtNum qdiff[2] = { q[0] - width, q[1] - height };
-  return ((height*q[0] < width*q[1]) ? mju_norm(qdiff, 2)
-                                     : mju_abs(mju_norm(q, 2)-radius))-thick;
+  mjtNum q[2] = {mju_norm(point, 2), point[2]};
+  mjtNum qdiff[2] = {q[0] - width, q[1] - height};
+  return ((height * q[0] < width * q[1]) ? mju_norm(qdiff, 2)
+                                         : mju_abs(mju_norm(q, 2) - radius)) -
+         thick;
 }
 
 }  // namespace
 
 // factory function
-std::optional<Bowl> Bowl::Create(
-  const mjModel* m, mjData* d, int instance) {
+std::optional<Bowl> Bowl::Create(const mjModel* m, mjData* d, int instance) {
   if (CheckAttr("radius", m, instance) && CheckAttr("height", m, instance) &&
       CheckAttr("thickness", m, instance)) {
     return Bowl(m, d, instance);
@@ -55,7 +55,7 @@ std::optional<Bowl> Bowl::Create(
 Bowl::Bowl(const mjModel* m, mjData* d, int instance) {
   SdfDefault<BowlAttribute> defattribute;
 
-  for (int i=0; i < BowlAttribute::nattribute; i++) {
+  for (int i = 0; i < BowlAttribute::nattribute; i++) {
     attribute[i] = defattribute.GetDefault(
         BowlAttribute::names[i],
         mj_getPluginConfig(m, instance, BowlAttribute::names[i]));
@@ -63,7 +63,7 @@ Bowl::Bowl(const mjModel* m, mjData* d, int instance) {
 
   mjtNum height = attribute[0];
   mjtNum radius = attribute[1];
-  width = mju_sqrt(radius*radius - height*height);
+  width = mju_sqrt(radius * radius - height * height);
 }
 
 // add new element in the vector storing iteration counts
@@ -72,13 +72,11 @@ void Bowl::Compute(const mjModel* m, mjData* d, int instance) {
 }
 
 // reset visualization counter
-void Bowl::Reset() {
-  visualizer_.Reset();
-}
+void Bowl::Reset() { visualizer_.Reset(); }
 
 // plugin visualization
-void Bowl::Visualize(const mjModel* m, mjData* d, const mjvOption* opt, mjvScene* scn,
-                     int instance) {
+void Bowl::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
+                     mjvScene* scn, int instance) {
   visualizer_.Visualize(m, d, opt, scn, instance);
 }
 
@@ -109,11 +107,11 @@ void Bowl::Gradient(mjtNum grad[3], const mjtNum point[3]) const {
   mjtNum eps = 1e-8;
   mjtNum dist0 = distance(point, attribute);
 
-  mjtNum pointX[3] = {point[0]+eps, point[1], point[2]};
+  mjtNum pointX[3] = {point[0] + eps, point[1], point[2]};
   mjtNum distX = distance(pointX, attribute);
-  mjtNum pointY[3] = {point[0], point[1]+eps, point[2]};
+  mjtNum pointY[3] = {point[0], point[1] + eps, point[2]};
   mjtNum distY = distance(pointY, attribute);
-  mjtNum pointZ[3] = {point[0], point[1], point[2]+eps};
+  mjtNum pointZ[3] = {point[0], point[1], point[2] + eps};
   mjtNum distZ = distance(pointZ, attribute);
 
   grad[0] = (distX - dist0) / eps;
@@ -138,8 +136,8 @@ void Bowl::RegisterPlugin() {
     if (!sdf_or_null.has_value()) {
       return -1;
     }
-    d->plugin_data[instance] = reinterpret_cast<uintptr_t>(
-        new Bowl(std::move(*sdf_or_null)));
+    d->plugin_data[instance] =
+        reinterpret_cast<uintptr_t>(new Bowl(std::move(*sdf_or_null)));
     return 0;
   };
   plugin.destroy = +[](mjData* d, int instance) {
@@ -167,7 +165,7 @@ void Bowl::RegisterPlugin() {
         return sdf->Distance(point);
       };
   plugin.sdf_gradient = +[](mjtNum gradient[3], const mjtNum point[3],
-                        const mjData* d, int instance) {
+                            const mjData* d, int instance) {
     auto* sdf = reinterpret_cast<Bowl*>(d->plugin_data[instance]);
     sdf->visualizer_.AddPoint(point);
     sdf->Gradient(gradient, point);
@@ -176,13 +174,12 @@ void Bowl::RegisterPlugin() {
       +[](const mjtNum point[3], const mjtNum* attributes) {
         return distance(point, attributes);
       };
-  plugin.sdf_aabb =
-      +[](mjtNum aabb[6], const mjtNum* attributes) {
-        mjtNum radius = attributes[1];
-        mjtNum thick = attributes[2];
-        aabb[0] = aabb[1] = aabb[2] = 0;
-        aabb[3] = aabb[4] = aabb[5] = radius + thick;
-      };
+  plugin.sdf_aabb = +[](mjtNum aabb[6], const mjtNum* attributes) {
+    mjtNum radius = attributes[1];
+    mjtNum thick = attributes[2];
+    aabb[0] = aabb[1] = aabb[2] = 0;
+    aabb[3] = aabb[4] = aabb[5] = radius + thick;
+  };
   plugin.sdf_attribute =
       +[](mjtNum attribute[], const char* name[], const char* value[]) {
         SdfDefault<BowlAttribute> defattribute;

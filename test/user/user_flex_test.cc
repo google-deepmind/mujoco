@@ -15,6 +15,7 @@
 // Tests for user/user_model.cc.
 
 #include <array>
+#include <cstdio>
 #include <memory>
 #include <string>
 
@@ -826,6 +827,121 @@ TEST_F(UserFlexTest, LoadMSHASCII_22_MissingElement_Fail) {
   mj_deleteModel(m);
 }
 
+// Resource buffers are not null-terminated, so the GMSH header parser must stay
+// within the reported size. A file that is exactly "$MeshFormat" leaves nothing
+// after the tag; reading on is a heap overflow.
+TEST_F(UserFlexTest, LoadMSHTruncatedHeader_Fail) {
+  static constexpr char msh[] = "$MeshFormat";
+
+  // sizeof - 1: the buffer must be added without its terminating null
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "truncated.msh", msh, sizeof(msh) - 1);
+
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" type="gmsh" dim="3" radius=".001"
+                file="truncated.msh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size(), &vfs);
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("Could not read GMSH file header"));
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserFlexTest, LoadMSHMissingNodesSection_Fail) {
+  static constexpr char msh[] =
+      "$MeshFormat\n4.1 0 8\n$EndMeshFormat\n"
+      "$Elements\n1 1 1 1\n3 1 4 1\n1 1 1 1 1\n$EndElements\n";
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "nonodes.msh", msh, sizeof(msh) - 1);
+
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" type="gmsh" dim="3" radius=".001"
+                file="nonodes.msh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size(), &vfs);
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("GMSH file missing $Nodes"));
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserFlexTest, LoadMSHMissingElementsSection_Fail) {
+  static constexpr char msh[] =
+      "$MeshFormat\n4.1 0 8\n$EndMeshFormat\n"
+      "$Nodes\n1 1 1 1\n3 1 0 1\n1\n0 0 0\n$EndNodes\n";
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "noelements.msh", msh, sizeof(msh) - 1);
+
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" type="gmsh" dim="3" radius=".001"
+                file="noelements.msh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size(), &vfs);
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("GMSH file missing $Elements"));
+  mj_deleteVFS(&vfs);
+}
+
+// The last section marker of a GMSH file need not be followed by a newline.
+TEST_F(UserFlexTest, LoadMSHEndMarkerAtEOF_Success) {
+  // read a well-formed GMSH file
+  const std::string msh_path =
+      GetTestDataFilePath("user/testdata/cube_41_ascii_vol_gmshApp.msh");
+  FILE* f = fopen(msh_path.c_str(), "rb");
+  ASSERT_THAT(f, NotNull()) << "Could not open " << msh_path;
+  fseek(f, 0, SEEK_END);
+  long msh_size = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  std::string msh(msh_size, '\0');
+  fread(msh.data(), 1, msh_size, f);
+  fclose(f);
+
+  // drop the newline after the final $EndElements
+  static constexpr char kEndElements[] = "$EndElements";
+  size_t end = msh.rfind(kEndElements);
+  ASSERT_NE(end, std::string::npos);
+  msh.resize(end + sizeof(kEndElements) - 1);
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "cube.msh", msh.data(), msh.size());
+
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" type="gmsh" dim="3" radius=".001" file="cube.msh">
+        <edge equality="true"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size(), &vfs);
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  EXPECT_EQ(m->nflexvert, 14);
+  EXPECT_EQ(m->nflexelem, 24);
+  mj_deleteVFS(&vfs);
+}
+
 TEST_F(UserFlexTest, LoadMSHASCII_dim_missing_in_xml) {
   const std::string xml_path = GetTestDataFilePath(
       "user/testdata/cube_22_ascii_vol_gmshApp_missing_dim.xml");
@@ -1407,6 +1523,51 @@ TEST_F(UserFlexTest, PinBendingAcceptsStaticBody) {
   std::array<char, 1024> error;
   MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m.get(), NotNull()) << error.data();
+}
+
+TEST_F(UserFlexTest, FlexConstraintsAndElasticityError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" type="grid" count="3 3 1" spacing="1 1 1"
+                radius="0.01" dim="2">
+        <elasticity young="1" poisson="0" thickness="1" elastic2d="stretch"/>
+      </flexcomp>
+    </worldbody>
+    <equality>
+      <flex flex="test"/>
+    </equality>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr(
+          "flex constraints and elasticity (young) cannot both be present"));
+}
+
+TEST_F(UserFlexTest, FlexConstraintsAndEdgeStiffnessError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" type="grid" count="3 1 1" spacing="1 1 1"
+                radius="0.01" dim="1">
+        <edge stiffness="10"/>
+      </flexcomp>
+    </worldbody>
+    <equality>
+      <flex flex="test"/>
+    </equality>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr("flex constraints and edge stiffness cannot both be present"));
 }
 
 }  // namespace

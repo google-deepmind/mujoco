@@ -81,6 +81,8 @@ def _render_shim(
     mat_texid: wp.array3d[int],
     mat_texrepeat: wp.array2d[wp.vec2],
     mesh_faceadr: wp.array[int],
+    mesh_normal: wp.array[wp.vec3],
+    mesh_normaladr: wp.array[int],
     nlight: int,
     # Data
     cam_xmat: wp.array2d[wp.mat33],
@@ -132,6 +134,8 @@ def _render_shim(
   _m.mat_texid = mat_texid
   _m.mat_texrepeat = mat_texrepeat
   _m.mesh_faceadr = mesh_faceadr
+  _m.mesh_normal = mesh_normal
+  _m.mesh_normaladr = mesh_normaladr
   _m.nlight = nlight
   _d.cam_xmat = cam_xmat
   _d.cam_xpos = cam_xpos
@@ -227,6 +231,8 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
       m.mat_texid,
       m._impl.mat_texrepeat,
       m.mesh_faceadr,
+      m.mesh_normal,
+      m.mesh_normaladr,
       m.nlight,
       d.cam_xmat,
       d.cam_xpos,

@@ -17,30 +17,30 @@
 
 #include <mujoco/mjxmacro.h>  // IWYU pragma: keep
 
-#define MJMODEL_ACTUATOR                                          \
-  X( int,     actuator_, trntype,      nu, 1                    ) \
-  X( int,     actuator_, dyntype,      nu, 1                    ) \
-  X( int,     actuator_, gaintype,     nu, 1                    ) \
-  X( int,     actuator_, biastype,     nu, 1                    ) \
-  X( int,     actuator_, trnid,        nu, 2                    ) \
-  X( int,     actuator_, actadr,       nu, 1                    ) \
-  X( int,     actuator_, actnum,       nu, 1                    ) \
-  X( int,     actuator_, group,        nu, 1                    ) \
-  X( mjtByte, actuator_, ctrllimited,  nu, 1                    ) \
-  X( mjtByte, actuator_, forcelimited, nu, 1                    ) \
-  X( mjtByte, actuator_, actlimited,   nu, 1                    ) \
-  X( mjtNum,  actuator_, dynprm,       nu, mjNDYN               ) \
-  X( mjtNum,  actuator_, gainprm,      nu, mjNGAIN              ) \
-  X( mjtNum,  actuator_, biasprm,      nu, mjNBIAS              ) \
-  X( mjtNum,  actuator_, ctrlrange,    nu, 2                    ) \
-  X( mjtNum,  actuator_, forcerange,   nu, 2                    ) \
-  X( mjtNum,  actuator_, actrange,     nu, 2                    ) \
-  X( mjtNum,  actuator_, gear,         nu, 6                    ) \
-  X( mjtNum,  actuator_, cranklength,  nu, 1                    ) \
-  X( mjtNum,  actuator_, acc0,         nu, 1                    ) \
-  X( mjtNum,  actuator_, length0,      nu, 1                    ) \
-  X( mjtNum,  actuator_, lengthrange,  nu, 2                    ) \
-  X( mjtNum,  actuator_, user,         nu, MJ_M(nuser_actuator) )
+#define MJMODEL_ACTUATOR                                                 \
+  X( int,     actuator_, trntype,      nactuator, 1                    ) \
+  X( int,     actuator_, dyntype,      nactuator, 1                    ) \
+  X( int,     actuator_, gaintype,     nactuator, 1                    ) \
+  X( int,     actuator_, biastype,     nactuator, 1                    ) \
+  X( int,     actuator_, trnid,        nactuator, 2                    ) \
+  X( int,     actuator_, actadr,       nactuator, 1                    ) \
+  X( int,     actuator_, actnum,       nactuator, 1                    ) \
+  X( int,     actuator_, group,        nactuator, 1                    ) \
+  X( mjtByte, actuator_, ctrllimited,  nu,        1                    ) \
+  X( mjtByte, actuator_, forcelimited, nactuator, 1                    ) \
+  X( mjtByte, actuator_, actlimited,   nactuator, 1                    ) \
+  X( mjtNum,  actuator_, dynprm,       nactuator, mjNDYN               ) \
+  X( mjtNum,  actuator_, gainprm,      nactuator, mjNGAIN              ) \
+  X( mjtNum,  actuator_, biasprm,      nactuator, mjNBIAS              ) \
+  X( mjtNum,  actuator_, ctrlrange,    nu,        2                    ) \
+  X( mjtNum,  actuator_, forcerange,   nactuator, 2                    ) \
+  X( mjtNum,  actuator_, actrange,     nactuator, 2                    ) \
+  X( mjtNum,  actuator_, gear,         nout,      6                    ) \
+  X( mjtNum,  actuator_, cranklength,  nactuator, 1                    ) \
+  X( mjtNum,  actuator_, acc0,         nout,      1                    ) \
+  X( mjtNum,  actuator_, length0,      nout,      1                    ) \
+  X( mjtNum,  actuator_, lengthrange,  nout,      2                    ) \
+  X( mjtNum,  actuator_, user,         nactuator, MJ_M(nuser_actuator) )
 
 #define MJMODEL_BODY                                        \
   X( int,     body_, parentid,    nbody, 1                ) \
@@ -292,27 +292,27 @@
   X( mjtNum, key_, mquat, nkey, MJ_M(nmocap)*4 ) \
   X( mjtNum, key_, ctrl,  nkey, MJ_M(nu)       )
 
-#define MJMODEL_VIEW_GROUPS                                            \
-  XGROUP( MjModelActuatorViews, actuator, nu,       MJMODEL_ACTUATOR ) \
-  XGROUP( MjModelBodyViews,     body,     nbody,    MJMODEL_BODY     ) \
-  XGROUP( MjModelCameraViews,   cam,      ncam,     MJMODEL_CAMERA   ) \
-  XGROUP( MjModelEqualityViews, eq,       neq,      MJMODEL_EQUALITY ) \
-  XGROUP( MjModelExcludeViews,  exclude,  nexclude, MJMODEL_EXCLUDE  ) \
-  XGROUP( MjModelGeomViews,     geom,     ngeom,    MJMODEL_GEOM     ) \
-  XGROUP( MjModelHfieldViews,   hfield,   nhfield,  MJMODEL_HFIELD   ) \
-  XGROUP( MjModelJointViews,    jnt,      njnt,     MJMODEL_JOINT    ) \
-  XGROUP( MjModelLightViews,    light,    nlight,   MJMODEL_LIGHT    ) \
-  XGROUP( MjModelMaterialViews, mat,      nmat,     MJMODEL_MATERIAL ) \
-  XGROUP( MjModelMeshViews,     mesh,     nmesh,    MJMODEL_MESH     ) \
-  XGROUP( MjModelNumericViews,  numeric,  nnumeric, MJMODEL_NUMERIC  ) \
-  XGROUP( MjModelPairViews,     pair,     npair,    MJMODEL_PAIR     ) \
-  XGROUP( MjModelSensorViews,   sensor,   nsensor,  MJMODEL_SENSOR   ) \
-  XGROUP( MjModelSiteViews,     site,     nsite,    MJMODEL_SITE     ) \
-  XGROUP( MjModelSkinViews,     skin,     nskin,    MJMODEL_SKIN     ) \
-  XGROUP( MjModelTendonViews,   tendon,   ntendon,  MJMODEL_TENDON   ) \
-  XGROUP( MjModelTextureViews,  tex,      ntex,     MJMODEL_TEXTURE  ) \
-  XGROUP( MjModelTupleViews,    tuple,    ntuple,   MJMODEL_TUPLE    ) \
-  XGROUP( MjModelKeyframeViews, key,      nkey,     MJMODEL_KEYFRAME )
+#define MJMODEL_VIEW_GROUPS                                             \
+  XGROUP( MjModelActuatorViews, actuator, nactuator, MJMODEL_ACTUATOR ) \
+  XGROUP( MjModelBodyViews,     body,     nbody,     MJMODEL_BODY     ) \
+  XGROUP( MjModelCameraViews,   cam,      ncam,      MJMODEL_CAMERA   ) \
+  XGROUP( MjModelEqualityViews, eq,       neq,       MJMODEL_EQUALITY ) \
+  XGROUP( MjModelExcludeViews,  exclude,  nexclude,  MJMODEL_EXCLUDE  ) \
+  XGROUP( MjModelGeomViews,     geom,     ngeom,     MJMODEL_GEOM     ) \
+  XGROUP( MjModelHfieldViews,   hfield,   nhfield,   MJMODEL_HFIELD   ) \
+  XGROUP( MjModelJointViews,    jnt,      njnt,      MJMODEL_JOINT    ) \
+  XGROUP( MjModelLightViews,    light,    nlight,    MJMODEL_LIGHT    ) \
+  XGROUP( MjModelMaterialViews, mat,      nmat,      MJMODEL_MATERIAL ) \
+  XGROUP( MjModelMeshViews,     mesh,     nmesh,     MJMODEL_MESH     ) \
+  XGROUP( MjModelNumericViews,  numeric,  nnumeric,  MJMODEL_NUMERIC  ) \
+  XGROUP( MjModelPairViews,     pair,     npair,     MJMODEL_PAIR     ) \
+  XGROUP( MjModelSensorViews,   sensor,   nsensor,   MJMODEL_SENSOR   ) \
+  XGROUP( MjModelSiteViews,     site,     nsite,     MJMODEL_SITE     ) \
+  XGROUP( MjModelSkinViews,     skin,     nskin,     MJMODEL_SKIN     ) \
+  XGROUP( MjModelTendonViews,   tendon,   ntendon,   MJMODEL_TENDON   ) \
+  XGROUP( MjModelTextureViews,  tex,      ntex,      MJMODEL_TEXTURE  ) \
+  XGROUP( MjModelTupleViews,    tuple,    ntuple,    MJMODEL_TUPLE    ) \
+  XGROUP( MjModelKeyframeViews, key,      nkey,      MJMODEL_KEYFRAME )
 
 #define MJMODEL_BIND_GROUPS      \
   XGROUP( mjsActuator, actuator) \
@@ -344,12 +344,12 @@
   XGROUP( tex, texture,  MJMODEL_TEXTURE  ) \
   XGROUP( key, keyframe, MJMODEL_KEYFRAME )
 
-#define MJDATA_ACTUATOR                          \
-  X( mjtNum, ,          ctrl,     nu, 1        ) \
-  X( mjtNum, actuator_, length,   nu, 1        ) \
-  X( mjtNum, actuator_, moment,   nu, MJ_M(nv) ) \
-  X( mjtNum, actuator_, velocity, nu, 1        ) \
-  X( mjtNum, actuator_, force,    nu, 1        )
+#define MJDATA_ACTUATOR                            \
+  X( mjtNum, ,          ctrl,     nu,   1        ) \
+  X( mjtNum, actuator_, length,   nout, 1        ) \
+  X( mjtNum, actuator_, moment,   nout, MJ_M(nv) ) \
+  X( mjtNum, actuator_, velocity, nout, 1        ) \
+  X( mjtNum, actuator_, force,    nout, 1        )
 
 #define MJDATA_BODY                        \
   X( mjtNum, , xfrc_applied,   nbody, 6  ) \
@@ -412,16 +412,16 @@
   X( mjtNum, ten_, length  , ntendon, 1        ) \
   X( mjtNum, ten_, velocity, ntendon, 1        )
 
-#define MJDATA_VIEW_GROUPS                                           \
-  XGROUP( MjDataActuatorViews, actuator, nu,       MJDATA_ACTUATOR ) \
-  XGROUP( MjDataBodyViews,     body,     nbody,    MJDATA_BODY     ) \
-  XGROUP( MjDataCameraViews,   cam,      ncam,     MJDATA_CAMERA   ) \
-  XGROUP( MjDataGeomViews,     geom,     ngeom,    MJDATA_GEOM     ) \
-  XGROUP( MjDataJointViews,    jnt,      njnt,     MJDATA_JOINT    ) \
-  XGROUP( MjDataLightViews,    light,    nlight,   MJDATA_LIGHT    ) \
-  XGROUP( MjDataSensorViews,   sensor,   nsensor,  MJDATA_SENSOR   ) \
-  XGROUP( MjDataSiteViews,     site,     nsite,    MJDATA_SITE     ) \
-  XGROUP( MjDataTendonViews,   tendon,   ntendon,  MJDATA_TENDON   )
+#define MJDATA_VIEW_GROUPS                                            \
+  XGROUP( MjDataActuatorViews, actuator, nactuator, MJDATA_ACTUATOR ) \
+  XGROUP( MjDataBodyViews,     body,     nbody,     MJDATA_BODY     ) \
+  XGROUP( MjDataCameraViews,   cam,      ncam,      MJDATA_CAMERA   ) \
+  XGROUP( MjDataGeomViews,     geom,     ngeom,     MJDATA_GEOM     ) \
+  XGROUP( MjDataJointViews,    jnt,      njnt,      MJDATA_JOINT    ) \
+  XGROUP( MjDataLightViews,    light,    nlight,    MJDATA_LIGHT    ) \
+  XGROUP( MjDataSensorViews,   sensor,   nsensor,   MJDATA_SENSOR   ) \
+  XGROUP( MjDataSiteViews,     site,     nsite,     MJDATA_SITE     ) \
+  XGROUP( MjDataTendonViews,   tendon,   ntendon,   MJDATA_TENDON   )
 
 #define MJDATA_BIND_GROUPS       \
   XGROUP( mjsActuator, actuator) \

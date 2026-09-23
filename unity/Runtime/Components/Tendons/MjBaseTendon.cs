@@ -24,8 +24,10 @@ public abstract class MjBaseTendon : MjComponent {
 
   public SolverSettings Solver = SolverSettings.Default;
 
-  [Tooltip("Length at zero spring force. If negative, this resting length is computed at qpos0.")]
-  public float SpringLength = -1.0f;
+  [Tooltip("Lower bound of deadband resting length at zero spring force. If negative, computed at qpos0.")]
+  public float SpringLengthLower = -1.0f;
+  [Tooltip("Upper bound of deadband resting length at zero spring force. If negative, computed at qpos0.")]
+  public float SpringLengthUpper = -1.0f;
   public float Stiffness = 0.0f;
   public float Damping = 0.0f;
 
@@ -41,7 +43,17 @@ public abstract class MjBaseTendon : MjComponent {
   // Parse the component settings from an external Mjcf.
   protected override void OnParseMjcf(XmlElement mjcf) {
     Solver.FromMjcf(mjcf);
-    SpringLength = mjcf.GetFloatAttribute("springlength", defaultValue: -1.0f);
+    var springLengthValues = mjcf.GetFloatArrayAttribute(
+        "springlength", defaultValue: new float[] {-1.0f, -1.0f}, fillMissingValues: false);
+    if (springLengthValues.Length == 1) {
+      SpringLengthLower = springLengthValues[0];
+      SpringLengthUpper = springLengthValues[0];
+    } else if (springLengthValues.Length == 2) {
+      SpringLengthLower = springLengthValues[0];
+      SpringLengthUpper = springLengthValues[1];
+    } else {
+      throw new ArgumentException("Invalid springlength string representation.");
+    }
     Stiffness = mjcf.GetFloatAttribute("stiffness");
     Damping = mjcf.GetFloatAttribute("damping");
     FromMjcf(mjcf);
@@ -51,7 +63,12 @@ public abstract class MjBaseTendon : MjComponent {
   protected override XmlElement OnGenerateMjcf(XmlDocument doc) {
     var mjcf = ToMjcf(doc);
     Solver.ToMjcf(mjcf);
-    mjcf.SetAttribute("springlength", MjEngineTool.MakeLocaleInvariant($"{SpringLength}"));
+    if (SpringLengthLower > SpringLengthUpper) {
+      throw new ArgumentException("Lower spring length value can't be bigger than Upper");
+    }
+    mjcf.SetAttribute(
+        "springlength",
+        MjEngineTool.MakeLocaleInvariant($"{SpringLengthLower} {SpringLengthUpper}"));
     mjcf.SetAttribute("damping", MjEngineTool.MakeLocaleInvariant($"{Damping}"));
     mjcf.SetAttribute("stiffness", MjEngineTool.MakeLocaleInvariant($"{Stiffness}"));
     return mjcf;

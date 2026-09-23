@@ -64,11 +64,12 @@ MJAPI void mj_tendonArmature(const mjModel* m, mjData* d);
 // make inertia matrix
 MJAPI void mj_makeM(const mjModel* m, mjData* d);
 
-// sparse L'*D*L factorizaton of inertia-like matrix (only dofs in index, if given)
-MJAPI void mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
-                      const int* rownnz, const int* rowadr, const int* colind, const int* index);
+// sparse L'*D*L factorization of inertia-like matrix (only dofs in index, if given);
+// clamp non-positive pivots up to mjMINVAL, return first clamped dof index or -1 if none
+MJAPI int mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
+                     const int* rownnz, const int* rowadr, const int* colind, const int* index);
 
-// sparse L'*D*L factorizaton of the inertia matrix M, assumed spd
+// sparse L'*D*L factorization of the inertia matrix M, assumed spd
 MJAPI void mj_factorM(const mjModel* m, mjData* d);
 
 // in-place sparse backsubstitution (only dofs in index, if given):  x = inv(L'*D*L)*x
@@ -82,6 +83,11 @@ MJAPI void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, in
 // half of sparse backsubstitution:  x = sqrt(inv(D))*inv(L')*y
 MJAPI void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y,
                       const mjtNum* sqrtInvD, int n);
+
+// implementation of mj_solveM2: backsubstitute against a caller-selected factor (qLD or qH)
+void mj_solveM2_impl(mjtNum* x, const mjtNum* y, const mjtNum* sqrtInvD, const mjtNum* factor,
+                     int nv, int n, const int* rownnz, const int* rowadr, const int* colind,
+                     const int* diagnum);
 
 
 //-------------------------- velocity --------------------------------------------------------------

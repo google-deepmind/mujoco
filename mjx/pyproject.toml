@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name="mujoco-mjx"
-version = "3.12.1"
+version = "3.14.1"
 authors = [
     {name = "Google DeepMind", email = "mujoco@deepmind.com"},
 ]
@@ -22,6 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Scientific/Engineering",
 ]
 requires-python = ">=3.10"
@@ -30,14 +31,14 @@ dependencies = [
     "etils[epath]",
     "jax",
     "jaxlib",
-    "mujoco>=3.12.1.dev0",
+    "mujoco>=3.14.1.dev0",
     "scipy",
     "trimesh",
 ]
 
 [project.optional-dependencies]
 warp = [
-    "warp-lang==1.16.0",
+    "warp-lang==1.17.0",
 ]
 dev = [
     "isort",
@@ -50,9 +51,9 @@ mjx-viewer = "mujoco.mjx.viewer:main"
 
 [project.urls]
 Homepage = "https://github.com/google-deepmind/mujoco/tree/main/mjx"
-Documentation = "https://mujoco.readthedocs.io/en/3.12.1"
+Documentation = "https://mujoco.readthedocs.io/en/3.14.1"
 Repository = "https://github.com/google-deepmind/mujoco/tree/main/mjx"
-Changelog = "https://mujoco.readthedocs.io/en/3.12.1/changelog.html"
+Changelog = "https://mujoco.readthedocs.io/en/3.14.1/changelog.html"
 
 [tool.isort]
 force_single_line = true

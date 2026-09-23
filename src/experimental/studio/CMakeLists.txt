@@ -14,11 +14,127 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-include(third_party_deps/dear_imgui)
-include(third_party_deps/implot)
-include(third_party_deps/atkinson_hyperlegible_next)
 include(third_party_deps/atkinson_hyperlegible_mono)
+include(third_party_deps/atkinson_hyperlegible_next)
+include(third_party_deps/dear_imgui)
 include(third_party_deps/font_awesome)
+include(third_party_deps/implot)
+include(third_party_deps/libwebp)
+include(third_party_deps/sdl2)
+
+set(MUJOCO_STUDIO_PLATFORM_TARGET_NAME mujoco_studio_platform)
+
+add_library(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} STATIC)
+
+target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME}
+    PRIVATE
+        hal/egl_utils.cc
+        hal/egl_utils.h
+        hal/filament_renderer.cc
+        hal/filament_renderer.h
+        hal/graphics_mode.cc
+        hal/graphics_mode.h
+        hal/window.cc
+        hal/window.h
+        io/resources.cc
+        io/resources.h
+        sim/model_holder.cc
+        sim/model_holder.h
+        sim/sim_history.cc
+        sim/sim_history.h
+        sim/sim_profiler.cc
+        sim/sim_profiler.h
+        sim/step_control.cc
+        sim/step_control.h
+        ux/enum_utils.h
+        ux/file_dialog.h
+        ux/fonts.cc
+        ux/fonts.h
+        ux/gui.cc
+        ux/gui.h
+        ux/gui_helpers.cc
+        ux/gui_helpers.h
+        ux/gui_spec.cc
+        ux/gui_spec.h
+        ux/imgui_widgets.cc
+        ux/imgui_widgets.h
+        ux/interaction.cc
+        ux/interaction.h
+        ux/picture_gui.h
+        ux/picture_gui.cc
+        ux/plugin.cc
+        ux/plugin.h
+        ux/spec_editor.cc
+        ux/spec_editor.h
+        ux/well_tempered.h
+)
+
+if(NOT WIN32)
+  target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME}
+      PRIVATE
+          ux/object_launcher_plugin.cc
+  )
+endif()
+
+if(APPLE)
+    set_source_files_properties(hal/window_osx.mm PROPERTIES
+        COMPILE_FLAGS "-x objective-c++")
+    target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} PRIVATE
+        hal/window_osx.mm
+        ux/file_dialog_cocoa.mm
+    )
+elseif(UNIX AND NOT APPLE)
+    target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} PRIVATE
+        ux/file_dialog_zenity.cc
+    )
+elseif(WIN32)
+    target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} PRIVATE
+        ux/file_dialog_win.cc
+    )
+else()
+    target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} PRIVATE
+        ux/file_dialog.cc
+    )
+endif()
+
+target_include_directories(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME}
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src
+)
+
+mujoco_add_dear_imgui_sdl2_backend()
+
+target_link_libraries(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME}
+    dear_imgui
+    dear_imgui_SDL2
+    dear_imgui_OpenGL3
+    dear_imgui_stdlib
+    implot
+    mujoco::filament
+    SDL2::SDL2-static
+)
+
+add_library(mujoco::platform ALIAS ${MUJOCO_STUDIO_PLATFORM_TARGET_NAME})
+
+if(NOT TARGET mujoco_studio_assets)
+    set(STUDIO_ASSETS_STAGE_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets)
+    add_custom_target(mujoco_studio_assets
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${STUDIO_ASSETS_STAGE_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_BINARY_DIR}/_deps/atkinson_hyperlegible_next-src/fonts/variable/AtkinsonHyperlegibleNext[wght].ttf"
+                "${CMAKE_BINARY_DIR}/_deps/font_awesome-src/fonts/fontawesome-webfont.ttf"
+                "${CMAKE_BINARY_DIR}/_deps/atkinson_hyperlegible_mono-src/fonts/ttf/AtkinsonHyperlegibleMono-Regular.ttf"
+                "${STUDIO_ASSETS_STAGE_DIR}"
+        COMMENT "Staging Studio fonts into ${STUDIO_ASSETS_STAGE_DIR}")
+    if(MUJOCO_USE_FILAMENT)
+        add_custom_command(TARGET mujoco_studio_assets POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../src/render/filament/assets
+                    "${STUDIO_ASSETS_STAGE_DIR}")
+        add_dependencies(mujoco_studio_assets mujoco_filament_assets)
+    endif()
+endif()
 
 # Common configuration shared between mujoco_studio and mujoco_live.
 function(configure_studio_target TARGET_NAME)
@@ -53,57 +169,33 @@ function(configure_studio_target TARGET_NAME)
             implot
             mujoco::mujoco
             mujoco::platform
+            webp
     )
+
+    # Self-registering plugin TUs (mjPLUGIN_LIB_INIT) have no referenced symbols,
+    # so the linker discards them when they arrive inside a static archive.
+    if(APPLE)
+        target_link_options(${TARGET_NAME} PRIVATE
+            "-Wl,-force_load,$<TARGET_FILE:mujoco_studio_platform>")
+    elseif(NOT MSVC)
+        target_link_options(${TARGET_NAME} PRIVATE
+            "-Wl,--whole-archive,$<TARGET_FILE:mujoco_studio_platform>,--no-whole-archive")
+    else()
+        target_link_options(${TARGET_NAME} PRIVATE
+            "/WHOLEARCHIVE:$<TARGET_FILE:mujoco_studio_platform>")
+    endif()
+
+    add_dependencies(${TARGET_NAME} mujoco_studio_assets)
 
     get_target_property(IS_BUNDLE ${TARGET_NAME} MACOSX_BUNDLE)
     if(IS_BUNDLE)
-        set(STUDIO_ASSETS_DIR $<TARGET_FILE_DIR:${TARGET_NAME}>/../Resources/assets)
-    else()
-        set(STUDIO_ASSETS_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets)
-    endif()
-
-    add_custom_command(
-        TARGET ${TARGET_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${STUDIO_ASSETS_DIR}
-        COMMAND ${CMAKE_COMMAND}
-            -E copy
-                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/atkinson_hyperlegible_next-src/fonts/variable/AtkinsonHyperlegibleNext[wght].ttf"
-                ${STUDIO_ASSETS_DIR}/AtkinsonHyperlegibleNext[wght].ttf
-        COMMENT "Copying AtkinsonHyperlegibleNext font to build directory"
-    )
-    add_custom_command(
-        TARGET ${TARGET_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${STUDIO_ASSETS_DIR}
-        COMMAND ${CMAKE_COMMAND}
-            -E copy
-                ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/font_awesome-src/fonts/fontawesome-webfont.ttf
-                ${STUDIO_ASSETS_DIR}
-        COMMENT "Copying fontawesome-webfont.ttf to build directory"
-    )
-    add_custom_command(
-        TARGET ${TARGET_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${STUDIO_ASSETS_DIR}
-        COMMAND ${CMAKE_COMMAND}
-            -E copy
-                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/atkinson_hyperlegible_mono-src/fonts/ttf/AtkinsonHyperlegibleMono-Regular.ttf"
-                ${STUDIO_ASSETS_DIR}/AtkinsonHyperlegibleMono-Regular.ttf
-        COMMENT "Copying AtkinsonHyperlegibleMono-Regular font to build directory"
-    )
-
-    # Filament backend requires additional files to be copied into an "assets" folder.
-    if(MUJOCO_USE_FILAMENT)
         add_custom_command(
             TARGET ${TARGET_NAME}
             POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${STUDIO_ASSETS_DIR}
-            COMMAND ${CMAKE_COMMAND}
-                -E copy_directory
-                    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../src/render/filament/assets
-                    ${STUDIO_ASSETS_DIR}
-            COMMENT "Copying Filament assets to build directory"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${STUDIO_ASSETS_STAGE_DIR}"
+                    $<TARGET_FILE_DIR:${TARGET_NAME}>/../Resources/assets
+            COMMENT "Copying staged assets to bundle Resources"
         )
     endif()
 endfunction()
@@ -171,8 +263,27 @@ if(NOT EMSCRIPTEN)
     endif()
 endif()
 
+# Browser WASM client for the Web Viewer.
+if(EMSCRIPTEN)
+    add_subdirectory(
+        ${PROJECT_SOURCE_DIR}/python/mujoco/experimental/studio/web
+        ${CMAKE_CURRENT_BINARY_DIR}/web
+    )
+endif()
+
 # WASM Live target.
 if(EMSCRIPTEN)
+    set(
+      MUJOCO_STUDIO_WASM_INITIAL_MEMORY
+      "1024mb"
+      CACHE STRING "Initial WebAssembly memory for MuJoCo Live"
+    )
+    set(
+      MUJOCO_STUDIO_WASM_MAXIMUM_MEMORY
+      "4gb"
+      CACHE STRING "Maximum WebAssembly memory for MuJoCo Live"
+    )
+
     add_executable(mujoco_studio)
     target_sources(mujoco_studio PRIVATE emscripten.cc)
     target_compile_options(mujoco_studio PRIVATE -g)
@@ -181,7 +292,7 @@ if(EMSCRIPTEN)
 
     # Ensure resource decoder plugins are linked into the WASM binary.
     target_link_options(mujoco_studio PRIVATE
-        -Wl,--whole-archive $<TARGET_FILE:mujoco> -Wl,--no-whole-archive
+        "-Wl,--whole-archive,$<TARGET_FILE:mujoco>,--no-whole-archive"
     )
 
     # Filament's OpenGL backend requires WebGL2 / full ES3 bindings.
@@ -196,8 +307,8 @@ if(EMSCRIPTEN)
         -sFETCH=1
         -sGL_PREINITIALIZED_CONTEXT=1
         -sSTACK_SIZE=32mb
-        -sINITIAL_MEMORY=1024mb
-        -sMAXIMUM_MEMORY=4gb
+        -sINITIAL_MEMORY=${MUJOCO_STUDIO_WASM_INITIAL_MEMORY}
+        -sMAXIMUM_MEMORY=${MUJOCO_STUDIO_WASM_MAXIMUM_MEMORY}
         -sASSERTIONS=1
         -fexceptions
         -g

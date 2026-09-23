@@ -322,6 +322,7 @@ void mjs_defaultEquality(mjsEquality* equality) {
 void mjs_defaultTendon(mjsTendon* tendon) {
   memset(tendon, 0, sizeof(mjsTendon));
   tendon->limited         = mjLIMITED_AUTO;
+  tendon->actfrclimited   = mjLIMITED_AUTO;
   tendon->springlength[0] = tendon->springlength[1] = -1;
   mj_defaultSolRefImp(tendon->solref_limit, tendon->solimp_limit);
   mj_defaultSolRefImp(tendon->solref_friction, tendon->solimp_friction);

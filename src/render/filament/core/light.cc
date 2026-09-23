@@ -15,6 +15,7 @@
 #include "render/filament/core/light.h"
 
 #include <numbers>
+#include <utility>
 
 #include <filament/Engine.h>
 #include <filament/IndirectLight.h>
@@ -33,6 +34,16 @@ namespace mujoco {
 
 using filament::math::float3;
 using filament::math::mat3f;
+
+static std::pair<float, float> GetSpotLightConeAngles(float angle,
+                                                      float softness) {
+  // The light delivers its full intensity inside the inner cone, so that
+  // illuminance follows E = I/d^2, and falls to zero over the outer
+  // softness fraction of the cone angle.
+  const float outer = angle * std::numbers::pi / 180.0f;
+  const float inner = (1.0f - softness) * outer;
+  return {inner, outer};
+}
 
 Light::Light(filament::Engine* engine, const mjrfLightParams& params)
     : engine_(engine), params_(params) {
@@ -80,12 +91,9 @@ Light::Light(filament::Engine* engine, const mjrfLightParams& params)
   builder.intensityCandela(params.intensity);
   builder.castShadows(params.cast_shadows);
   if (type == filament::LightManager::Type::SPOT) {
-    // The light delivers its full intensity inside the inner cone, so that
-    // illuminance follows E = I/d^2, and falls to zero over the outer
-    // softness fraction of the cone angle.
-    const float outer = params.spot_cone_angle * std::numbers::pi / 180.0f;
-    const float inner = (1.0f - params.spot_softness) * outer;
-    builder.spotLightCone(inner, outer);
+    auto angles = GetSpotLightConeAngles(params.spot_cone_angle,
+                                         params.spot_softness);
+    builder.spotLightCone(angles.first, angles.second);
   }
   if (type != filament::LightManager::Type::DIRECTIONAL) {
     builder.falloff(params.range);
@@ -150,18 +158,16 @@ void Light::SetTransform(filament::math::float3 position,
 
 void Light::SetColor(const filament::math::float3& color) {
   if (!ibl_) {
-    params_.color[0] = color.r;
-    params_.color[1] = color.g;
-    params_.color[2] = color.b;
-
     filament::LightManager& lm = engine_->getLightManager();
     const filament::LightManager::Instance li = lm.getInstance(entity_);
     lm.setColor(li, color);
   }
+  params_.color[0] = color.r;
+  params_.color[1] = color.g;
+  params_.color[2] = color.b;
 }
 
 void Light::SetIntensity(float intensity) {
-  params_.intensity = intensity;
   if (ibl_) {
     ibl_->setIntensity(intensity);
   } else {
@@ -169,18 +175,79 @@ void Light::SetIntensity(float intensity) {
     const filament::LightManager::Instance li = lm.getInstance(entity_);
     lm.setIntensityCandela(li, intensity);
   }
+  params_.intensity = intensity;
+}
+
+void Light::SetRange(float range) {
+  if (params_.range != range && ibl_ == nullptr) {
+    filament::LightManager& lm = engine_->getLightManager();
+    const filament::LightManager::Instance li = lm.getInstance(entity_);
+    lm.setFalloff(li, range);
+  }
+  params_.range = range;
+}
+
+void Light::SetCutoffAngle(float cutoff) {
+  if (params_.spot_cone_angle != cutoff && ibl_ == nullptr) {
+    auto angles = GetSpotLightConeAngles(cutoff, params_.spot_softness);
+    filament::LightManager& lm = engine_->getLightManager();
+    const filament::LightManager::Instance li = lm.getInstance(entity_);
+    lm.setSpotLightCone(li, angles.first, angles.second);
+  }
+  params_.spot_cone_angle = cutoff;
+}
+
+void Light::SetSoftness(float softness) {
+  if (params_.spot_softness != softness && ibl_ == nullptr) {
+    auto angles = GetSpotLightConeAngles(params_.spot_cone_angle, softness);
+    filament::LightManager& lm = engine_->getLightManager();
+    const filament::LightManager::Instance li = lm.getInstance(entity_);
+    lm.setSpotLightCone(li, angles.first, angles.second);
+  }
+  params_.spot_softness = softness;
+}
+
+void Light::SetBulbRadius(float radius) {
+  if (params_.bulb_radius != radius && ibl_ == nullptr) {
+    filament::LightManager& lm = engine_->getLightManager();
+    const filament::LightManager::Instance li = lm.getInstance(entity_);
+    filament::LightManager::ShadowOptions opts = lm.getShadowOptions(li);
+    opts.shadowBulbRadius = radius;
+    lm.setShadowOptions(li, opts);
+  }
+  params_.bulb_radius = radius;
+}
+
+void Light::SetBlurWidth(float blur_width) {
+  if (params_.vsm_blur_width != blur_width && ibl_ == nullptr) {
+    filament::LightManager& lm = engine_->getLightManager();
+    const filament::LightManager::Instance li = lm.getInstance(entity_);
+    filament::LightManager::ShadowOptions opts = lm.getShadowOptions(li);
+    opts.vsm.elvsm = blur_width > 0.0f;
+    opts.vsm.blurWidth = blur_width;
+    lm.setShadowOptions(li, opts);
+  }
+  params_.vsm_blur_width = blur_width;
+}
+
+void Light::SetShadowsEnabled(bool enabled) {
+  if (params_.cast_shadows != enabled && ibl_ == nullptr) {
+    filament::LightManager& lm = engine_->getLightManager();
+    const filament::LightManager::Instance li = lm.getInstance(entity_);
+    lm.setShadowCaster(li, enabled);
+  }
+  params_.cast_shadows = enabled;
 }
 
 void Light::SetShadowMapSize(int map_size) {
-  params_.shadow_map_size = map_size;
-  if (ibl_) {
-    return;
+  if (params_.shadow_map_size != map_size && ibl_ == nullptr) {
+    filament::LightManager& lm = engine_->getLightManager();
+    const filament::LightManager::Instance li = lm.getInstance(entity_);
+    filament::LightManager::ShadowOptions opts = lm.getShadowOptions(li);
+    opts.mapSize = map_size;
+    lm.setShadowOptions(li, opts);
   }
-  filament::LightManager& lm = engine_->getLightManager();
-  const filament::LightManager::Instance li = lm.getInstance(entity_);
-  filament::LightManager::ShadowOptions opts = lm.getShadowOptions(li);
-  opts.mapSize = map_size;
-  lm.setShadowOptions(li, opts);
+  params_.shadow_map_size = map_size;
 }
 
 void Light::Enable() {

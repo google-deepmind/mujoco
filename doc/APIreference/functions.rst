@@ -323,8 +323,21 @@ Copy state from src to dst.
 .. mujoco-include:: mj_readCtrl
 
 Read the control value for an actuator at a given time, taking delays into account. If no history buffer exists, return
-``mjData.ctrl[id]``. If a history buffer exists (:ref:`nsample<actuator-general-nsample>` > 0), read from the delay
-buffer at ``time - actuator_delay[id]`` using the requested interpolation order:
+a pointer to the actuator's slice of ``mjData.ctrl``. If a history buffer exists (:ref:`nsample<actuator-general-nsample>` > 0),
+read from the delay buffer at ``time - actuator_delay[id]``. Note that the subtraction of the delay changes the semantic
+of the ``time`` argument from "time at which values were pushed into the delay buffer" to "time at which values come out
+of the delay buffer". See :ref:`Delays<CDelay>` for details.
+
+**Return value semantics:**
+
+- If no history buffer exists (:ref:`nsample<actuator-general-nsample>` = 0), returns a pointer to the actuator's slice
+  of ``mjData.ctrl``.
+- If a history buffer exists (:ref:`nsample<actuator-general-nsample>` > 0) and the requested time matches a stored
+  sample (always true for ``interp = 0``), returns a pointer to the data in the history buffer.
+- If interpolation is required (``interp = 1 or 2``), returns ``NULL`` and writes the interpolated result to
+  ``result`` (must be of size ``actuator_ctrlnum[id]``).
+
+**Interpolation:**
 
 - ``interp = 0``: Zero-order hold (piecewise constant)
 - ``interp = 1``: Piecewise Linear
@@ -332,10 +345,6 @@ buffer at ``time - actuator_delay[id]`` using the requested interpolation order:
 - ``interp = -1``: Use the actuator's :ref:`interp<actuator-general-interp>` value.
 
 Constant extrapolation is used outside of buffer bounds.
-
-Note that the subtraction of the delay changes the semantic of the ``time`` argument from "time at which values were
-pushed into the delay buffer" to "time at which values come out of the delay buffer". See :ref:`Delays<CDelay>` for
-details.
 
 .. _mj_readSensor:
 
@@ -386,8 +395,9 @@ Constant extrapolation is used outside of buffer bounds.
 .. mujoco-include:: mj_initCtrlHistory
 
 Initialize the history buffer for an actuator with custom values. The ``times`` array specifies the timestamps for each
-sample (must be length :ref:`nsample<actuator-general-nsample>`), and ``values`` specifies the control values. If
-``times`` is ``NULL``, the existing timestamps in the buffer are used, and only the values are updated.
+sample (must be length :ref:`nsample<actuator-general-nsample>`), and ``values`` specifies the control values (must be of
+size ``nsample * actuator_ctrlnum[id]``). If ``times`` is ``NULL``, the existing timestamps in the buffer are used, and
+only the values are updated.
 See :ref:`Delays<CDelay>` for details.
 
 .. _mj_initSensorHistory:
@@ -695,6 +705,15 @@ found, the function will return ``distmax`` and ``fromto``, if given, will be se
 
    As explained in :ref:`Collision Detection<coDistance>`, distances are inaccurate when using the
    :ref:`legacy CCD pipeline<coCCD>`, and its use is discouraged.
+
+.. _mj_insideSite:
+
+`mj_insideSite <#mj_insideSite>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_insideSite
+
+Return 1 if point is inside a site (convex hull for meshes), 0 otherwise.
 
 .. _mj_contactForce:
 
@@ -1181,8 +1200,12 @@ This function is triggered automatically if the following sensors are present in
 :ref:`framelinacc<sensor-framelinacc>`, :ref:`frameangacc<sensor-frameangacc>`.
 It is also triggered for :ref:`user sensors<sensor-user>` of :ref:`stage<sensor-user-needstage>` "acc".
 
-The computed force arrays ``cfrc_int`` and ``cfrc_ext`` currently suffer from a know bug, they do not take into account
-the effect of spatial tendons, see :issue:`832`.
+``cfrc_ext`` collects the forces that are not transmitted through the joints: applied Cartesian forces
+(``xfrc_applied``), contacts, connect and weld constraints, and spatial tendons (spring, damper, actuator, constraint
+and armature forces along the tendon path). ``cfrc_int`` is then the wrench transmitted through the joint, and its
+projection on the joint axes is the total joint-space force. Forces of actuators with site, slider-crank and body
+transmissions, gravity compensation, fluid forces, flex forces and custom passive forces are not yet collected and are
+attributed to the joints.
 
 .. _mj_maxContact:
 
@@ -3420,23 +3443,14 @@ Destroys the light.
 
 Enables or disables the light.
 
-.. _mjrf_setLightIntensity:
+.. _mjrf_setLightShadowsEnabled:
 
-`mjrf_setLightIntensity <#mjrf_setLightIntensity>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjrf_setLightShadowsEnabled <#mjrf_setLightShadowsEnabled>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjrf_setLightIntensity
+.. mujoco-include:: mjrf_setLightShadowsEnabled
 
-Sets the intensity of the light, in candela.
-
-.. _mjrf_setLightShadowMapSize:
-
-`mjrf_setLightShadowMapSize <#mjrf_setLightShadowMapSize>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjrf_setLightShadowMapSize
-
-Sets the resolution of the light's shadow map, in texels.
+Enables or disables whether or not the light casts shadows.
 
 .. _mjrf_setLightColor:
 
@@ -3446,6 +3460,69 @@ Sets the resolution of the light's shadow map, in texels.
 .. mujoco-include:: mjrf_setLightColor
 
 Sets the RGB color of the light.
+
+.. _mjrf_setLightIntensity:
+
+`mjrf_setLightIntensity <#mjrf_setLightIntensity>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setLightIntensity
+
+Sets the intensity of the light, in candela.
+
+.. _mjrf_setLightRange:
+
+`mjrf_setLightRange <#mjrf_setLightRange>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setLightRange
+
+Sets the effective range of the light, in meters.
+
+.. _mjrf_setLightCutoffAngle:
+
+`mjrf_setLightCutoffAngle <#mjrf_setLightCutoffAngle>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setLightCutoffAngle
+
+Sets the cutoff angle of the light, in degrees. Only used for spot lights.
+
+.. _mjrf_setLightSoftness:
+
+`mjrf_setLightSoftness <#mjrf_setLightSoftness>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setLightSoftness
+
+Sets the softness of the light, in the range [0, 1]. Only used for spot lights.
+
+.. _mjrf_setLightBulbRadius:
+
+`mjrf_setLightBulbRadius <#mjrf_setLightBulbRadius>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setLightBulbRadius
+
+Sets the radius of the light bulb.
+
+.. _mjrf_setLightBlurWidth:
+
+`mjrf_setLightBlurWidth <#mjrf_setLightBlurWidth>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setLightBlurWidth
+
+Sets the width of the blur applied to the light's shadow map, in texels.
+
+.. _mjrf_setLightShadowMapSize:
+
+`mjrf_setLightShadowMapSize <#mjrf_setLightShadowMapSize>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setLightShadowMapSize
+
+Sets the resolution of the light's shadow map, in texels.
 
 .. _mjrf_setLightTransform:
 
@@ -3728,6 +3805,8 @@ These matrices and their dimensions are:
 - ``eps`` is the finite-differencing epsilon.
 - ``flg_centered`` denotes whether to use forward (0) or centered (1) differences.
 - The Runge-Kutta integrator (:ref:`mjINT_RK4<mjtIntegrator>`) is not supported.
+- :ref:`Sleeping<Sleeping>` is not supported. Disable the :ref:`sleep<option-flag-sleep>` flag before calling.
+- :ref:`Delays<CDelay>` are not supported.
 
 .. admonition:: Improving speed and accuracy
    :class: tip
@@ -3792,6 +3871,7 @@ using finite-differencing. These matrices and their dimensions are:
 .. attention::
    - The Runge-Kutta 4th-order integrator (``mjINT_RK4``) is not supported.
    - The noslip solver is not supported.
+   - :ref:`Sleeping<Sleeping>` is not supported. Disable the :ref:`sleep<option-flag-sleep>` flag before calling.
 
 *Nullable:* ``DfDq``, ``DfDv``, ``DfDa``, ``DsDq``, ``DsDv``, ``DsDa``, ``DmDq``
 
@@ -4040,6 +4120,36 @@ Set default resource encoder definition.
 Return the encoder that matches against the content type or filename extension.
 
 If no match, return NULL.
+
+.. _mjp_registerArchiveResourceProvider:
+
+`mjp_registerArchiveResourceProvider <#mjp_registerArchiveResourceProvider>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_registerArchiveResourceProvider
+
+Globally register an archive resource provider. This function is thread-safe.
+provider->prefix specifies the filename extension(s) (e.g. .mjz|.zip).
+
+.. _mjp_findArchiveResourceProvider:
+
+`mjp_findArchiveResourceProvider <#mjp_findArchiveResourceProvider>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_findArchiveResourceProvider
+
+Return the archive resource provider that matches against the resource name.
+
+If no match, return NULL.
+
+.. _mjp_archiveResourceProviderCount:
+
+`mjp_archiveResourceProviderCount <#mjp_archiveResourceProviderCount>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_archiveResourceProviderCount
+
+Return the number of globally registered archive resource providers.
 
 .. _Thread:
 
@@ -6345,4 +6455,3 @@ Safely cast an element as mjsMaterial, or return NULL if the element is not an m
 .. mujoco-include:: mjs_asPlugin
 
 Safely cast an element as mjsPlugin, or return NULL if the element is not an mjsPlugin.
-

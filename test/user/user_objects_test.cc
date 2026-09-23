@@ -1153,6 +1153,106 @@ TEST_F(MjCGeomTest, BadMeshZeroMassDensityDoesntError) {
   EXPECT_EQ(model->body_mass[2], 0);
 }
 
+using MjCSiteTest = MujocoTest;
+
+TEST_F(MjCSiteTest, MeshSiteValid) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="box_mesh" vertex="-0.1 -0.1 -0.1  0.1 -0.1 -0.1  0.1 0.1 -0.1  -0.1 0.1 -0.1  -0.1 -0.1 0.1  0.1 -0.1 0.1  0.1 0.1 0.1  -0.1 0.1 0.1"/>
+    </asset>
+    <worldbody>
+      <body>
+        <site name="mesh_site" type="mesh" mesh="box_mesh" pos="1 2 3"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->site_type[0], mjGEOM_MESH);
+  EXPECT_EQ(model->site_dataid[0], 0);
+}
+
+TEST_F(MjCSiteTest, MeshSiteMissingMesh) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <site name="mesh_site" type="mesh" mesh="nonexistent_mesh"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("not found in site"));
+}
+
+TEST_F(MjCSiteTest, MeshSiteFromtoDisallowed) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="box_mesh" vertex="-0.1 -0.1 -0.1  0.1 -0.1 -0.1  0.1 0.1 -0.1  -0.1 0.1 -0.1  -0.1 -0.1 0.1  0.1 -0.1 0.1  0.1 0.1 0.1  -0.1 0.1 0.1"/>
+    </asset>
+    <worldbody>
+      <body>
+        <site name="mesh_site" type="mesh" mesh="box_mesh" fromto="0 0 0 1 1 1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("fromto requires capsule, cylinder, box or ellipsoid"));
+}
+
+TEST_F(MjCSiteTest, NonMeshSiteWithMeshDisallowed) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="box_mesh"
+            vertex="-0.1 -0.1 -0.1  0.1 -0.1 -0.1  0.1 0.1 -0.1  -0.1 0.1 -0.1  -0.1 -0.1 0.1  0.1 -0.1 0.1  0.1 0.1 0.1  -0.1 0.1 0.1"/>
+    </asset>
+    <worldbody>
+      <body>
+        <site name="sphere_site" type="sphere" mesh="box_mesh" size="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("mesh can only be specified for mesh sites"));
+}
+
+TEST_F(MjCSiteTest, MeshSiteMaterialInheritance) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <material name="mat" rgba="1 0 0 1"/>
+      <mesh name="box_mesh" material="mat"
+            vertex="-0.1 -0.1 -0.1  0.1 -0.1 -0.1  0.1 0.1 -0.1  -0.1 0.1 -0.1  -0.1 -0.1 0.1  0.1 -0.1 0.1  0.1 0.1 0.1  -0.1 0.1 0.1"/>
+    </asset>
+    <worldbody>
+      <body>
+        <site name="mesh_site" type="mesh" mesh="box_mesh"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->site_matid[0], 0);
+}
+
 // ------------- test joints --------------------------------------------------
 
 using MjCJointTest = MujocoTest;
@@ -1274,9 +1374,9 @@ TEST_F(MjCJointTest, BodySimpleFalse) {
   d->qpos[0] = d_ns->qpos[0] = 0.5;
   mj_forward(m.get(), d.get());
   mj_forward(m_ns.get(), d_ns.get());
-  EXPECT_THAT(d_ns->xpos[3*b+0], MjNear(d->xpos[3*b+0], 1e-10, 1e-6));
-  EXPECT_THAT(d_ns->xpos[3*b+1], MjNear(d->xpos[3*b+1], 1e-10, 1e-6));
-  EXPECT_THAT(d_ns->xpos[3*b+2], MjNear(d->xpos[3*b+2], 1e-10, 1e-6));
+  EXPECT_THAT(d_ns->xpos[3 * b + 0], MjNear(d->xpos[3 * b + 0], 1e-10, 1e-6));
+  EXPECT_THAT(d_ns->xpos[3 * b + 1], MjNear(d->xpos[3 * b + 1], 1e-10, 1e-6));
+  EXPECT_THAT(d_ns->xpos[3 * b + 2], MjNear(d->xpos[3 * b + 2], 1e-10, 1e-6));
 }
 
 // ------------- test height fields --------------------------------------------
@@ -2056,6 +2156,25 @@ TEST_F(LimitedTest, ErrorIfForceLimitedMissingOnActuator) {
   EXPECT_THAT(error.data(), HasSubstr("line 11"));
 }
 
+TEST_F(LimitedTest, ErrorIfActuatorForceLimitedMissingOnJoint) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler autolimits="false"/>
+    <worldbody>
+      <body>
+        <joint user="1" actuatorfrcrange="0 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("actuatorfrclimited"));
+  EXPECT_THAT(error.data(), HasSubstr("line 6"));
+}
+
 // ------------- tests for tendon ----------------------------------------------
 
 using TendonTest = MujocoTest;
@@ -2127,6 +2246,51 @@ TEST_F(TendonTest, ActuatorForceRangeNotAllowed) {
   MjModelPtr m2 = LoadModelFromString(xml2.c_str(), error.data(), error.size());
   EXPECT_THAT(m2.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid actuatorfrcrange in tendon"));
+}
+
+TEST_F(TendonTest, ActuatorForceRangeAutoLimited) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="site0"/>
+      <site name="site1"/>
+    </worldbody>
+    <tendon>
+      <spatial name="spatial" actuatorfrcrange="-1 1">
+        <site site="site0"/>
+        <site site="site1"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->tendon_actfrclimited[0], 1);
+}
+
+TEST_F(TendonTest, ErrorIfActuatorForceLimitedMissing) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler autolimits="false"/>
+    <worldbody>
+      <site name="site0"/>
+      <site name="site1"/>
+    </worldbody>
+    <tendon>
+      <spatial name="spatial" actuatorfrcrange="-1 1">
+        <site site="site0"/>
+        <site site="site1"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("actuatorfrclimited"));
+  EXPECT_THAT(error.data(), HasSubstr("tendon"));
+  EXPECT_THAT(error.data(), HasSubstr("line 9"));
 }
 
 // ------------- tests for tendon springrange ----------------------------------

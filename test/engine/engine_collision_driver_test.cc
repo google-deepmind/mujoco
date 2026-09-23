@@ -55,7 +55,9 @@ static std::vector<GeomPair> colliding_pairs(const mjModel* model,
 TEST_F(MjCollisionTest, AllCollisions) {
   static const char* const kModelFilePath = "engine/testdata/collisions.xml";
   const std::string xml_path = GetTestDataFilePath(kModelFilePath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // mjCOL_ALL is the default
@@ -81,7 +83,9 @@ TEST_F(MjCollisionTest, EmptyModel) {
 TEST_F(MjCollisionTest, ZeroedHessian) {
   static const char* const kModelFilePath = "engine/testdata/collisions.xml";
   const std::string xml_path = GetTestDataFilePath(kModelFilePath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   mj_fwdPosition(model, data);
@@ -447,7 +451,7 @@ TEST_F(MjCollisionTest, MaxContact) {
   int cylinder = mj_name2id(m.get(), mjOBJ_GEOM, "cylinder");
 
   EXPECT_EQ(mj_maxContact(m.get(), mesh, box, -1), 4);
-  EXPECT_EQ(mj_maxContact(m.get(), mesh, plane, -1), 3);
+  EXPECT_EQ(mj_maxContact(m.get(), mesh, plane, -1), 4);
   EXPECT_EQ(mj_maxContact(m.get(), box, plane, -1), 4);
   EXPECT_EQ(mj_maxContact(m.get(), mesh, mesh, -1), 4);
   EXPECT_EQ(mj_maxContact(m.get(), box, box, -1), 8);
@@ -469,9 +473,9 @@ TEST_F(MjCollisionTest, MaxContact) {
   EXPECT_EQ(mj_maxContact(m.get(), ellipsoid, capsule, -1), 1);
   EXPECT_EQ(mj_maxContact(m.get(), capsule, cylinder, -1), 5);
   EXPECT_EQ(mj_maxContact(m.get(), capsule, mesh, -1), 5);
-  EXPECT_EQ(mj_maxContact(m.get(), cylinder, cylinder, -1), 5);
-  EXPECT_EQ(mj_maxContact(m.get(), cylinder, box, -1), 5);
-  EXPECT_EQ(mj_maxContact(m.get(), cylinder, mesh, -1), 5);
+  EXPECT_EQ(mj_maxContact(m.get(), cylinder, cylinder, -1), 4);
+  EXPECT_EQ(mj_maxContact(m.get(), cylinder, box, -1), 4);
+  EXPECT_EQ(mj_maxContact(m.get(), cylinder, mesh, -1), 4);
 }
 
 }  // namespace

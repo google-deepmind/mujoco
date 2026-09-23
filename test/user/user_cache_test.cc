@@ -44,7 +44,7 @@ constexpr std::string kModel = "myModel";
 constexpr std::string kFile = "hello.txt";
 
 void CacheText(mjCCache& cache, const std::string& id, const std::string& model,
-              const std::string& name, const std::string& text) {
+               const std::string& name, const std::string& text) {
   mjVFS vfs;
   mj_defaultVFS(&vfs);
   mj_addBufferVFS(&vfs, name.c_str(), text.data(), text.size());
@@ -55,24 +55,24 @@ void CacheText(mjCCache& cache, const std::string& id, const std::string& model,
   mj_deleteVFS(&vfs);
 }
 
-std::optional<std::string>
-GetCachedText(mjCCache& cache, const std::string& id, const std::string& model,
-              const std::string& name, const std::string& text) {
+std::optional<std::string> GetCachedText(mjCCache& cache, const std::string& id,
+                                         const std::string& model,
+                                         const std::string& name,
+                                         const std::string& text) {
   std::string cached_text;
   mjVFS vfs;
   mj_defaultVFS(&vfs);
   mj_addBufferVFS(&vfs, name.c_str(), text.data(), std::strlen(text.c_str()));
   mjResource* resource = mju_openResource("", name.c_str(), &vfs, nullptr, 0);
-  bool inserted = cache.PopulateData(id, resource,
-                                     [&cached_text](const void* data) {
-    cached_text = *(static_cast<const std::string*>(data));
-    return true;
-  });
+  bool inserted =
+      cache.PopulateData(id, resource, [&cached_text](const void* data) {
+        cached_text = *(static_cast<const std::string*>(data));
+        return true;
+      });
   mju_closeResource(resource);
   mj_deleteVFS(&vfs);
   return inserted ? std::optional<std::string>(cached_text) : std::nullopt;
 }
-
 
 TEST(CacheTest, SizeTest) {
   mjCCache cache(kMaxSize);
@@ -90,8 +90,8 @@ TEST(CacheTest, InsertSuccess) {
 TEST(CacheTest, InsertFailure) {
   mjCCache cache(kMaxSize);
   CacheText(cache, kTestId, kModel, kFile, kText);
-  auto cached_text = GetCachedText(
-      cache, "WrongId", kModel, "hello2.txt", kText);
+  auto cached_text =
+      GetCachedText(cache, "WrongId", kModel, "hello2.txt", kText);
   EXPECT_EQ(cached_text, std::nullopt);
 }
 
@@ -127,7 +127,6 @@ TEST(CacheTest, Limit1) {
   // bar was accessed less, so is removed
   EXPECT_THAT(cache.HasAsset("bar"), IsNull());
 }
-
 
 // Trim cache based off of insert order
 TEST(CacheTest, Limit2) {

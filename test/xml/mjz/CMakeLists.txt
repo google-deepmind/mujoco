@@ -15,10 +15,15 @@
 mujoco_test(mjz_api_test)
 
 mujoco_test(
+  mjz_archive_provider_test
+  ADDITIONAL_LINK_LIBRARIES miniz
+)
+
+mujoco_test(
   mjz_decoder_test
 )
 
 mujoco_test(
   mjz_encoder_test
-  ADDITIONAL_LINK_LIBRARIES compare_model
+  ADDITIONAL_LINK_LIBRARIES compare_model miniz
 )

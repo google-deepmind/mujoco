@@ -147,7 +147,6 @@ static int arenaAllocEfc(const mjModel* m, mjData* d) {
   if (!d->name) {                                                             \
     mj_warning(d, mjWARN_CNSTRFULL, d->narena);                               \
     mj_clearEfc(d);                                                           \
-    d->parena = d->ncon * sizeof(mjContact);                                  \
     return 0;                                                                 \
   }
 
@@ -389,11 +388,6 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
 // add contact to d->contact list; return 0 if success; 1 if buffer full
 int mj_addContact(const mjModel* m, mjData* d, const mjContact* con) {
   // move arena pointer back to the end of the existing contact array and invalidate efc_ arrays
-  d->parena = d->ncon * sizeof(mjContact);
-#ifdef mjUSEASAN
-  ASAN_POISON_MEMORY_REGION(
-    (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
-#endif
   mj_clearEfc(d);
 
   // copy contact
@@ -477,18 +471,6 @@ static void mj_addConstraint(const mjModel* m, mjData* d,
         mju_copy(J + adr[nefc+i], jac + i*NV, NV);
       }
     }
-
-    // set J row supernodes; 1: next row has same pattern, 0: different pattern
-
-    // cross-boundary: does previous row have same pattern?
-    if (nefc > 0 && NV == nnz[nefc-1] &&
-        (NV == 0 || mju_compare(ind + adr[nefc], ind + adr[nefc-1], NV))) {
-      d->efc_J_rowsuper[nefc-1] = 1;
-    }
-
-    // within-constraint: consecutive rows always share same pattern
-    mju_fillInt(d->efc_J_rowsuper + nefc, 1, size-1);
-    d->efc_J_rowsuper[nefc+size-1] = 0;
   }
 
   // all rows empty: skip constraint
@@ -2023,8 +2005,11 @@ static void getsolparam(const mjModel* m, const mjData* d, int i,
     mj_defaultSolRefImp(solref, NULL);
   }
 
-  // integrator safety: impose ref[0]>=2*timestep for standard format
-  if (!mjDISABLED(mjDSBL_REFSAFE) && solref[0] > 0) {
+  // integrator safety: impose ref[0]>=2*timestep for standard format. Not applied under
+  // the discrete integrator: implicitly treated rows (mj_makeImpedance) are stable at
+  // any timeconst, and timeconst -> 0 is their rigid limit
+  int metric = mj_isMetric(m);
+  if (!mjDISABLED(mjDSBL_REFSAFE) && solref[0] > 0 && !metric) {
     solref[0] = mju_max(solref[0], 2*m->opt.timestep);
   }
 
@@ -2035,7 +2020,7 @@ static void getsolparam(const mjModel* m, const mjData* d, int i,
   }
 
   // integrator safety: impose ref[0]>=2*timestep for standard format
-  if (!mjDISABLED(mjDSBL_REFSAFE) && solreffriction[0] > 0) {
+  if (!mjDISABLED(mjDSBL_REFSAFE) && solreffriction[0] > 0 && !metric) {
     solreffriction[0] = mju_max(solreffriction[0], 2*m->opt.timestep);
   }
 
@@ -2147,11 +2132,19 @@ static void getimpedance(const mjtNum* solimp, mjtNum pos, mjtNum margin,
 }
 
 
+// implicit-row factor f = 1 + h*B + h^2*K*I of a constraint row (kbip = its efc_KBIP)
+static inline mjtNum implicitFactor(const mjtNum* kbip, mjtNum h) {
+  return 1 + h*kbip[1] + h*h*kbip[0]*kbip[2];
+}
+
+
 // compute efc_R, efc_D, efc_KBIP, adjust efc_diagA
 void mj_makeImpedance(const mjModel* m, mjData* d) {
   int dim, nefc = d->nefc;
   mjtNum *R = d->efc_R, *KBIP = d->efc_KBIP;
   mjtNum pos, imp, impP, Rpy, solref[mjNREF], solreffriction[mjNREF], solimp[mjNIMP];
+  int metric = mj_isMetric(m);
+  mjtNum h = m->opt.timestep;
 
   // set efc_R, efc_KBIP
   for (int i=0; i < nefc; i++) {
@@ -2204,6 +2197,35 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
       // I = imp, P = imp'
       KBIP[4*(i+j)+2] = imp;
       KBIP[4*(i+j)+3] = impP;
+
+      // discrete: implicit row factor R <- R/f (matching reference in mj_referenceConstraint).
+      // Floor at mjMAXIMP ceiling to keep weights well-conditioned as timeconst -> 0
+      if (metric) {
+        mjtNum* kbip = KBIP + 4*(i+j);
+
+        // refsafe: a contact or limit row whose spring the step cannot resolve
+        // (h^2*K*I > 1) rebounds on impact with restitution (h^2*K*I - 1)/f. Replace it
+        // by the resolved row: timeconst shortened to the stiffest zero-restitution
+        // value, damping ratio kept (K /= excess, B /= sqrt(excess)), damping bounded by
+        // the impedance ceiling so that the statics stay exact
+        if (!mjDISABLED(mjDSBL_REFSAFE) && ref[0] > 0 && kbip[0] > 0 &&
+            (tp == mjCNSTR_LIMIT_JOINT          ||
+             tp == mjCNSTR_LIMIT_TENDON         ||
+             tp == mjCNSTR_CONTACT_FRICTIONLESS ||
+             tp == mjCNSTR_CONTACT_PYRAMIDAL    ||
+             tp == mjCNSTR_CONTACT_ELLIPTIC)) {
+          mjtNum excess = (h*h)*kbip[0]*kbip[2];
+          if (excess > 1) {
+            mjtNum fmax = mjMAXIMP*(1-kbip[2]) / mju_max(mjMINVAL, kbip[2]*(1-mjMAXIMP));
+            kbip[0] = 1 / (h*h*kbip[2]);
+            kbip[1] = mju_min(kbip[1]/mju_sqrt(excess), mju_max(0, fmax-2)/h);
+          }
+        }
+
+        mjtNum f = implicitFactor(kbip, h);
+        mjtNum Rmin = mju_max(mjMINVAL, (1-mjMAXIMP)*d->efc_diagA[i+j]/mjMAXIMP);
+        R[i+j] = mju_max(R[i+j]/f, Rmin);
+      }
     }
 
     // skip the rest of this constraint
@@ -2261,6 +2283,73 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
   // adjust diagA so that R = (1-imp)/imp * diagA
   for (int i=0; i < nefc; i++) {
     d->efc_diagA[i] = R[i] * KBIP[4*i+2] / (1-KBIP[4*i+2]);
+  }
+}
+
+
+// forward declarations (defined in the projection section below)
+static void mj_makeYSymbolic(const mjModel* m, mjData* d);
+static void mj_makeYNumeric(const mjModel* m, mjData* d, int flg_diagexact);
+static void mj_makeARSymbolic(const mjModel* m, mjData* d);
+static void mj_makeARNumeric(const mjModel* m, mjData* d);
+
+// compute constraint regularization in the current solve metric: efc_diagA (approximate,
+// or exact under diagexact), then R, D, KBIP. Under the discrete integrator this runs at
+// the actuation stage, where the effective metric is final; islands are discovered at the
+// position stage, so their R/D copies are refreshed here. flg_AR: assemble the dual's AR
+// (forward path); inverse dynamics never consumes it and passes 0
+void mj_regularizeConstraint(const mjModel* m, mjData* d, int flg_AR) {
+  int nefc = d->nefc, nv = m->nv;
+  if (!nefc) {
+    return;
+  }
+
+  // whitened Jacobian against the metric factor: exact diagonal, and/or the dual's AR.
+  // Numeric phase only -- the pattern and its arena allocation are position-stage facts,
+  // laid down by mj_projectConstraint; re-running this stage allocates nothing
+  int isDual = mj_isDual(m);
+  if (mjENABLED(mjENBL_DIAGEXACT) || (isDual && flg_AR)) {
+    mj_makeYNumeric(m, d, mjENABLED(mjENBL_DIAGEXACT));
+  }
+
+  // approximate diagonal, corrected per row by the diagonal-class metric ratio
+  if (!mjENABLED(mjENBL_DIAGEXACT)) {
+    mj_diagApprox(m, d);
+    if (mj_isMetric(m) && d->efm_sdiag) {
+      int is_sparse = mj_isSparse(m);
+      for (int r=0; r < nefc; r++) {
+        mjtNum num = 0, den = 0;
+        int rownnz = is_sparse ? d->efc_J_rownnz[r] : nv;
+        int rowadr = is_sparse ? d->efc_J_rowadr[r] : r*nv;
+        for (int a=0; a < rownnz; a++) {
+          int c = is_sparse ? d->efc_J_colind[rowadr + a] : a;
+          mjtNum J = d->efc_J[rowadr + a];
+          if (!J) {
+            continue;
+          }
+          mjtNum Mdiag = d->M[m->M_rowadr[c] + m->M_rownnz[c] - 1];
+          num += J*J / mju_max(mjMINVAL, Mdiag + d->efm_sdiag[c]);
+          den += J*J / mju_max(mjMINVAL, Mdiag);
+        }
+        if (den > mjMINVAL) {
+          d->efc_diagA[r] *= num / den;
+        }
+      }
+    }
+  }
+
+  // R, D, KBIP from diagA
+  mj_makeImpedance(m, d);
+
+  // assemble AR = Y*Y' + diag(R) for the dual solvers
+  if (isDual && flg_AR) {
+    mj_makeARNumeric(m, d);
+  }
+
+  // refresh island copies of R and D
+  if (d->nisland) {
+    mju_gather(d->iefc_D, d->efc_D, d->map_iefc2efc, nefc);
+    mju_gather(d->iefc_R, d->efc_R, d->map_iefc2efc, nefc);
   }
 }
 
@@ -2554,7 +2643,8 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
     // stays on the constraint solver. Passive if either flex asks for it.
     {
       int f0 = con->flex[0], f1 = con->flex[1];
-      int wants = (f0 > -1 && m->flex_passive[f0]) || (f1 > -1 && m->flex_passive[f1]);
+      int wants = (f0 > -1 && mj_effFlexContactPossible(m, f0)) ||
+                  (f1 > -1 && mj_effFlexContactPossible(m, f1));
       int ok = (f0 > -1 && f1 > -1);   // flex-flex, or a flex with itself
       for (int s = 0; s < 2 && !ok; s++) {
         if (con->flex[s] < 0 && con->geom[s] > -1) {
@@ -2646,7 +2736,7 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
 
               if (m->flex_interp[f]) {
                 nw = mj_elemBodyWeight(m, d, con->flex[side], con->elem[side],
-                                      con->vert[1-side], con->pos, vid, vweight);
+                                       con->vert[1-side], con->pos, vid, vweight);
               }
             }
 
@@ -2740,7 +2830,8 @@ static int computeY_precount(int* Y_rownnz, int* Y_rowadr, int nefc, int nv,
 }
 
 
-// fill Y column indices and values from J, chaining up the kinematic tree
+// fill Y column indices and values from J, chaining up the kinematic tree;
+// with Y == NULL, fill only the column indices (pattern-only)
 static void computeY_fill(mjtNum* Y, int* Y_colind,
                           const int* Y_rownnz, const int* Y_rowadr, int nefc,
                           const mjtNum* J, const int* J_rownnz, const int* J_rowadr,
@@ -2768,14 +2859,18 @@ static void computeY_fill(mjtNum* Y, int* Y_colind,
         nnzY++;
         remainJ--;
         Y_colind[end - nnzY] = prev_src;
-        Y[end - nnzY] = J[adrJ + remainJ];
+        if (Y) {
+          Y[end - nnzY] = J[adrJ + remainJ];
+        }
       }
 
       // add dst
       else {
         nnzY++;
         Y_colind[end - nnzY] = prev_dst;
-        Y[end - nnzY] = 0;
+        if (Y) {
+          Y[end - nnzY] = 0;
+        }
       }
     }
 
@@ -2884,8 +2979,7 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
       }
     }
   } else if (d->nefc > nefc_allocated) {
-    mjERROR("nefc under-allocation: found nefc=%d but allocated only %d",
-            d->nefc, nefc_allocated);
+    mjERROR("nefc under-allocation: found nefc=%d but allocated only %d", d->nefc, nefc_allocated);
   }
 
   // collect memory use statistics
@@ -2897,37 +2991,30 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
     return;
   }
 
-  // accumulate J row supernodes (reverse cumsum of 0/1 flags set at assembly time)
-  if (mj_isSparse(m) && d->nefc) {
-    for (int r=d->nefc-2; r >= 0; r--) {
-      if (d->efc_J_rowsuper[r]) {
-        d->efc_J_rowsuper[r] += d->efc_J_rowsuper[r+1];
-      }
-    }
+  // compute supernodes of J
+  if (mj_isSparse(m)) {
+    mju_superSparse(d->nefc, d->efc_J_rowsuper, d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
   }
 
-  // compute diagApprox
-  mj_diagApprox(m, d);
+  // compute regularization; under the discrete integrator this happens at the
+  // actuation stage (mj_regularizeConstraint), where the solve metric is final
+  if (!mj_isMetric(m)) {
+    // compute diagApprox
+    mj_diagApprox(m, d);
 
-  // compute KBIP, D, R, adjust diagA
-  mj_makeImpedance(m, d);
+    // compute KBIP, D, R, adjust diagA
+    mj_makeImpedance(m, d);
+  }
 }
 
 
-// compute Y = J*M^{-1/2}; if flg_diagexact, overwrite efc_diagA with ||Y_i||^2
-static void mj_makeY(const mjModel* m, mjData* d, int flg_diagexact) {
+// symbolic phase of Y = J*M^{-1/2}: the sparsity pattern and its arena allocation.
+// The pattern depends only on efc_J and the tree factor's pattern (M's), both fixed at
+// the position stage, so this runs once per step in mj_projectConstraint
+static void mj_makeYSymbolic(const mjModel* m, mjData* d) {
   int nefc = d->nefc, nv = m->nv;
 
-  mj_markStack(d);
-
-  // inverse square root of D from inertia LDL decomposition
-  mjtNum* sqrtInvD = mjSTACKALLOC(d, nv, mjtNum);
-  for (int i=0; i < nv; i++) {
-    int diag = m->M_rowadr[i] + m->M_rownnz[i] - 1;
-    sqrtInvD[i] = 1 / mju_sqrt(d->qLD[diag]);
-  }
-
-  // sparse Y = backsubM2(J')' and its transpose
+  // sparse: pre-counted pattern
   if (mj_isSparse(m)) {
     // arena-allocate Y rownnz and rowadr
     d->efc_Y_rownnz = mj_arenaAllocByte(d, sizeof(int) * nefc, _Alignof(int));
@@ -2935,16 +3022,16 @@ static void mj_makeY(const mjModel* m, mjData* d, int flg_diagexact) {
     if (!d->efc_Y_rownnz || !d->efc_Y_rowadr) {
       mj_warning(d, mjWARN_CNSTRFULL, d->narena);
       mj_clearEfc(d);
-      d->parena = d->ncon * sizeof(mjContact);
-      mj_freeStack(d);
       return;
     }
 
     // pre-count Y_rownnz, Y_rowadr, nY (total nonzeros)
+    mj_markStack(d);
     int* marker = mjSTACKALLOC(d, nv, int);
     d->nY = computeY_precount(d->efc_Y_rownnz, d->efc_Y_rowadr, nefc, nv,
                               d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
                               m->M_rownnz, m->M_rowadr, m->M_colind, marker);
+    mj_freeStack(d);
 
     // arena-allocate values and column indices
     d->efc_Y = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nY, _Alignof(mjtNum));
@@ -2952,12 +3039,64 @@ static void mj_makeY(const mjModel* m, mjData* d, int flg_diagexact) {
     if (!d->efc_Y || !d->efc_Y_colind) {
       mj_warning(d, mjWARN_CNSTRFULL, d->narena);
       mj_clearEfc(d);
-      d->parena = d->ncon * sizeof(mjContact);
-      mj_freeStack(d);
       return;
     }
 
-    // fill in Y column indices, copy values from J
+    // under discrete the numeric phase is deferred to the actuation stage, but
+    // mj_makeARSymbolic consumes the column indices now: fill the pattern here.
+    // Classic integrators fill it in the numeric phase which follows immediately
+    if (mj_isMetric(m)) {
+      computeY_fill(NULL, d->efc_Y_colind, d->efc_Y_rownnz, d->efc_Y_rowadr, nefc,
+                    NULL, d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
+                    m->dof_parentid);
+    }
+  }
+
+  // dense: one block
+  else {
+    d->nY = nefc * nv;
+    d->efc_Y = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nY, _Alignof(mjtNum));
+    if (!d->efc_Y) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      mj_clearEfc(d);
+      return;
+    }
+  }
+}
+
+
+// numeric phase of Y = J*M^{-1/2}: refill values from J and backsubstitute against the
+// current solve metric's factor; if flg_diagexact, overwrite efc_diagA with ||Y_i||^2.
+// No allocation: safe to re-run at the actuation stage (mj_regularizeConstraint)
+static void mj_makeYNumeric(const mjModel* m, mjData* d, int flg_diagexact) {
+  int nefc = d->nefc, nv = m->nv;
+
+  // symbolic phase did not run (option flags changed mid-step): nothing to fill
+  if (!d->efc_Y) {
+    return;
+  }
+
+  mj_markStack(d);
+
+  // factor of the solve metric: the qH backbone under discrete, else qLD. The backbone is
+  // all the dual solvers see: under PGS the coupling classes are excluded from the metric
+  // (mj_effCouplings) so the backbone IS the metric; flex is rejected (mj_checkDiscrete);
+  // under a primal solver the noslip post-pass consumes this AR as an approximation
+  const mjtNum* factor = d->qLD;
+  if (mj_isMetric(m) && d->efm_diag) {
+    factor = d->qH;
+  }
+
+  // inverse square root of D from the metric factor's LDL decomposition
+  mjtNum* sqrtInvD = mjSTACKALLOC(d, nv, mjtNum);
+  for (int i=0; i < nv; i++) {
+    int diag = m->M_rowadr[i] + m->M_rownnz[i] - 1;
+    sqrtInvD[i] = 1 / mju_sqrt(factor[diag]);
+  }
+
+  // sparse Y = backsubM2(J')'
+  if (mj_isSparse(m)) {
+    // fill in Y column indices, copy values from J (reconstructs every slot: re-entrant)
     computeY_fill(d->efc_Y, d->efc_Y_colind, d->efc_Y_rownnz, d->efc_Y_rowadr, nefc,
                   d->efc_J, d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
                   m->dof_parentid);
@@ -2965,7 +3104,7 @@ static void mj_makeY(const mjModel* m, mjData* d, int flg_diagexact) {
     // in-place sparse back-substitution:  Y <- Y * M^-1/2
     computeY_backsub(d->efc_Y, d->efc_Y_rownnz, d->efc_Y_rowadr,
                      d->efc_Y_colind, nefc,
-                     d->qLD, m->M_rownnz, m->M_rowadr, m->M_colind, sqrtInvD);
+                     factor, m->M_rownnz, m->M_rowadr, m->M_colind, sqrtInvD);
 
     // overwrite diagA with exact diagonal: diagA[i] = ||Y_i||^2
     if (flg_diagexact) {
@@ -2977,21 +3116,10 @@ static void mj_makeY(const mjModel* m, mjData* d, int flg_diagexact) {
     }
   }
 
-  // dense Y = backsubM2(J')' and its transpose
+  // dense Y = backsubM2(J')'
   else {
-    // arena-allocate efc_Y
-    d->nY = nefc * nv;
-    d->efc_Y = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nY, _Alignof(mjtNum));
-    if (!d->efc_Y) {
-      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
-      mj_clearEfc(d);
-      d->parena = d->ncon * sizeof(mjContact);
-      mj_freeStack(d);
-      return;
-    }
-
-    // Y = backsubM2(J')'
-    mj_solveM2(m, d, d->efc_Y, d->efc_J, sqrtInvD, nefc);
+    mj_solveM2_impl(d->efc_Y, d->efc_J, sqrtInvD, factor, m->nv, nefc,
+                    m->M_rownnz, m->M_rowadr, m->M_colind, m->dof_simplenum);
 
     // overwrite diagA with exact diagonal: diagA[i] = ||Y_i||^2
     if (flg_diagexact) {
@@ -3005,9 +3133,84 @@ static void mj_makeY(const mjModel* m, mjData* d, int flg_diagexact) {
 }
 
 
-// assemble AR = Y*Y' + diag(R) for dual solver
-static void mj_makeAR(const mjModel* m, mjData* d) {
+// symbolic phase of AR = Y*Y' + diag(R): the sparsity pattern and its arena allocation.
+// The pattern depends only on Y's pattern, so this runs once per step in
+// mj_projectConstraint, after mj_makeYSymbolic
+static void mj_makeARSymbolic(const mjModel* m, mjData* d) {
   int nefc = d->nefc, nv = m->nv;
+
+  // sparse: symbolic square from Y's pattern
+  if (mj_isSparse(m)) {
+    // Y supernodes are identical to J supernodes
+    const int* Y_rowsuper = d->efc_J_rowsuper;
+
+    mj_markStack(d);
+
+    // Y transposed, pattern only
+    int* YT_rownnz = mjSTACKALLOC(d, nv, int);
+    int* YT_rowadr = mjSTACKALLOC(d, nv, int);
+    int* YT_colind = mjSTACKALLOC(d, d->nY, int);
+    mju_transposeSparse(NULL, NULL, nefc, nv,
+                        YT_rownnz, YT_rowadr, YT_colind, NULL,
+                        d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind);
+
+    // allocate AR row nonzeros and addresses on arena
+    d->efc_AR_rownnz = mj_arenaAllocByte(d, sizeof(int) * nefc, _Alignof(int));
+    d->efc_AR_rowadr = mj_arenaAllocByte(d, sizeof(int) * nefc, _Alignof(int));
+    if (!d->efc_AR_rownnz || !d->efc_AR_rowadr) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      mj_clearEfc(d);
+      mj_freeStack(d);
+      return;
+    }
+
+    int* diagind = mjSTACKALLOC(d, nefc, int);
+    d->nA = mju_sqrMatTDSparseSymbolic(
+        d->efc_AR_rownnz, d->efc_AR_rowadr, NULL, diagind,
+        nv, nefc, YT_rownnz, YT_rowadr, YT_colind,
+        d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind, Y_rowsuper, d);
+
+    // allocate A values and column indices on arena
+    d->efc_AR = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nA, _Alignof(mjtNum));
+    d->efc_AR_colind = mj_arenaAllocByte(d, sizeof(int) * d->nA, _Alignof(int));
+    if (!d->efc_AR || !d->efc_AR_colind) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      mj_clearEfc(d);
+      mj_freeStack(d);
+      return;
+    }
+
+    // A = Y * Y': symbolic phase
+    mju_sqrMatTDSparseSymbolic(
+        d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind, diagind,
+        nv, nefc, YT_rownnz, YT_rowadr, YT_colind,
+        d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind, Y_rowsuper, d);
+
+    mj_freeStack(d);
+  }
+
+  // dense: one block
+  else {
+    d->nA = nefc * nefc;
+    d->efc_AR = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nA, _Alignof(mjtNum));
+    if (!d->efc_AR) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      mj_clearEfc(d);
+      return;
+    }
+  }
+}
+
+
+// numeric phase of AR = Y*Y' + diag(R), into the pattern laid down by the symbolic
+// phase. No allocation: safe to re-run at the actuation stage (mj_regularizeConstraint)
+static void mj_makeARNumeric(const mjModel* m, mjData* d) {
+  int nefc = d->nefc, nv = m->nv;
+
+  // symbolic phase did not run (option flags changed mid-step): nothing to fill
+  if (!d->efc_AR) {
+    return;
+  }
 
   mj_markStack(d);
 
@@ -3025,39 +3228,16 @@ static void mj_makeAR(const mjModel* m, mjData* d) {
                         YT_rownnz, YT_rowadr, YT_colind, NULL,
                         d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind);
 
-    // allocate AR row nonzeros and addresses on arena
-    d->efc_AR_rownnz = mj_arenaAllocByte(d, sizeof(int) * nefc, _Alignof(int));
-    d->efc_AR_rowadr = mj_arenaAllocByte(d, sizeof(int) * nefc, _Alignof(int));
-    if (!d->efc_AR_rownnz || !d->efc_AR_rowadr) {
-      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
-      mj_clearEfc(d);
-      d->parena = d->ncon * sizeof(mjContact);
-      mj_freeStack(d);
-      return;
-    }
-
+    // diagonal positions, recovered from the stored pattern (rows are sorted)
     int* diagind = mjSTACKALLOC(d, nefc, int);
-    d->nA = mju_sqrMatTDSparseSymbolic(
-        d->efc_AR_rownnz, d->efc_AR_rowadr, NULL, diagind,
-        nv, nefc, YT_rownnz, YT_rowadr, YT_colind,
-        d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind, Y_rowsuper, d);
-
-    // allocate A values and column indices on arena
-    d->efc_AR = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nA, _Alignof(mjtNum));
-    d->efc_AR_colind = mj_arenaAllocByte(d, sizeof(int) * d->nA, _Alignof(int));
-    if (!d->efc_AR || !d->efc_AR_colind) {
-      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
-      mj_clearEfc(d);
-      d->parena = d->ncon * sizeof(mjContact);
-      mj_freeStack(d);
-      return;
+    for (int i=0; i < nefc; i++) {
+      int adr = d->efc_AR_rowadr[i];
+      int end = adr + d->efc_AR_rownnz[i];
+      while (adr < end && d->efc_AR_colind[adr] < i) {
+        adr++;
+      }
+      diagind[i] = adr;
     }
-
-    // A = Y * Y': symbolic phase
-    mju_sqrMatTDSparseSymbolic(
-        d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind, diagind,
-        nv, nefc, YT_rownnz, YT_rowadr, YT_colind,
-        d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind, Y_rowsuper, d);
 
     // A = Y * Y': numeric phase
     mju_sqrMatTDSparseNumeric(
@@ -3072,19 +3252,8 @@ static void mj_makeAR(const mjModel* m, mjData* d) {
     }
   }
 
-  // dense Y = backsubM2(J')' and its transpose
+  // dense
   else {
-    // arena-allocate efc_AR
-    d->nA = nefc * nefc;
-    d->efc_AR = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nA, _Alignof(mjtNum));
-    if (!d->efc_AR) {
-      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
-      mj_clearEfc(d);
-      d->parena = d->ncon * sizeof(mjContact);
-      mj_freeStack(d);
-      return;
-    }
-
     // construct YT on stack
     mjtNum* YT = mjSTACKALLOC(d, nv*nefc, mjtNum);
     mju_transpose(YT, d->efc_Y, nefc, nv);
@@ -3114,9 +3283,28 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
   int isDual = mj_isDual(m);
   int diagexact = mjENABLED(mjENBL_DIAGEXACT);
 
+  // under the discrete integrator the numeric phase runs at the actuation stage
+  // (mj_regularizeConstraint), against the final effective metric. The patterns are
+  // position-stage facts, so their symbolic phase and arena allocation happen here:
+  // the arena's contract is that all allocation is position-stage, which keeps
+  // re-evaluation from the velocity stage on (mj_forwardSkip, finite differences)
+  // allocation-free
+  if (mj_isMetric(m)) {
+    if (isDual || diagexact) {
+      mj_makeYSymbolic(m, d);
+      if (isDual && d->nefc) {
+        mj_makeARSymbolic(m, d);
+      }
+    }
+    return;
+  }
+
   // compute Y = J*M^{-1/2}; overwrite diagApprox if diagexact
   if (isDual || diagexact) {
-    mj_makeY(m, d, diagexact);
+    mj_makeYSymbolic(m, d);
+    if (d->nefc) {
+      mj_makeYNumeric(m, d, diagexact);
+    }
   }
 
   // recompute impedance from exact diagonal
@@ -3132,7 +3320,10 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 
   // assemble AR for dual solver
   if (isDual && d->nefc) {
-    mj_makeAR(m, d);
+    mj_makeARSymbolic(m, d);
+    if (d->nefc) {
+      mj_makeARNumeric(m, d);
+    }
   }
 }
 
@@ -3241,30 +3432,49 @@ static void mj_adhesionRef(const mjModel* m, mjData* d) {
 
 
 
+// compute efc_vel
+void mj_velocityConstraint(const mjModel* m, mjData* d) {
+  mj_mulJacVec(m, d, d->efc_vel, d->qvel);
+  mj_addSurfaceVel(m, d);
+}
+
+
 // compute efc_vel, efc_aref
 void mj_referenceConstraint(const mjModel* m, mjData* d) {
   int nefc = d->nefc;
-  mjtNum* KBIP = d->efc_KBIP;
+  const mjtNum* KBIP = d->efc_KBIP;
+  int metric = mj_isMetric(m);
+  mjtNum h = m->opt.timestep;
 
   // compute efc_vel
-  mj_mulJacVec(m, d, d->efc_vel, d->qvel);
+  mj_velocityConstraint(m, d);
 
-  // add relative surface velocity to contact rows
-  mj_addSurfaceVel(m, d);
-
-  // compute aref = -B*vel - K*I*(pos-margin)
+  // compute aref = -B*vel - K*I*(pos-margin). Under the discrete integrator the row's spring-damper
+  // is treated implicitly (backward Euler on the row): evaluated at the end-of-step state,
+  // the position transported by h*vel
+  mjtNum shift = metric ? h : 0;
   for (int i=0; i < nefc; i++) {
-    d->efc_aref[i] = -KBIP[4*i+1]*d->efc_vel[i]
-                     -KBIP[4*i]*KBIP[4*i+2]*(d->efc_pos[i]-d->efc_margin[i]);
+    const mjtNum* kbip = KBIP + 4*i;
+    d->efc_aref[i] = -kbip[1]*d->efc_vel[i]
+                     -kbip[0]*kbip[2]*(d->efc_pos[i]-d->efc_margin[i] + shift*d->efc_vel[i]);
   }
-
-  // bias adhesive contact rows
-  mj_adhesionRef(m, d);
 
   // subtract Jdot*v correction for connect/weld equality constraints
   if (d->ne > 0) {
     mj_Jdotv(m, d, d->efc_aref);
   }
+
+  // implicit rows: divide by the factor which scaled the row weight in mj_makeImpedance;
+  // weight and reference are one identity, neither is valid alone
+  if (metric) {
+    for (int i=0; i < nefc; i++) {
+      d->efc_aref[i] /= implicitFactor(KBIP + 4*i, h);
+    }
+  }
+
+  // bias adhesive contact rows: a force offset (D*R*edge = edge), independent of the row factor,
+  // so it is added after the division
+  mj_adhesionRef(m, d);
 }
 
 

@@ -18,6 +18,8 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <string>
@@ -583,10 +585,10 @@ void CheckTetrahedronWasRescaled(mjModel* model) {
   // with vertices (0, 0, 0), (1, 0, 0), (0, 2, 0), (0, 0, 3)
   // after mesh preprocessing is performed
   std::vector<mjtNum> vert = {
-      -0.51610732078552246, -0.57402724027633667, -0.5283237099647522,
-      0.42337465286254883,  -0.90627568960189819, -0.61189728975296021,
-      0.065528042614459991, 1.2306677103042603,   -1.1645441055297852,
-      0.027204651385545731, 0.24963514506816864,  2.3047652244567871};
+      -0.51610732078552246, -0.57402682304382324, -0.52832412719726562,
+      0.42337465286254883,  -0.90627527236938477, -0.61189794540405273,
+      0.065528050065040588, 1.2306685447692871,   -1.1645431518554688,
+      0.027204651385545731, 0.24963347613811493,  2.3047652244567871};
   mjtNum tolerance = std::numeric_limits<float>::epsilon();
   for (int i = 0; i < 12; ++i) {
     EXPECT_NEAR(model->mesh_vert[i], vert[i], tolerance);
@@ -1162,23 +1164,23 @@ TEST_F(MjCMeshTest, UserNormalsAnisotropicScale) {
   ASSERT_THAT(model, NotNull()) << error;
   const mjModel* m = model.get();
   int mid = 0;
-  const mjtNum* mq = m->mesh_quat + 4*mid;
-  const mjtNum* mp = m->mesh_pos + 3*mid;
+  const mjtNum* mq = m->mesh_quat + 4 * mid;
+  const mjtNum* mp = m->mesh_pos + 3 * mid;
   double scale[3] = {.2, .1, .1};
   int va = m->mesh_vertadr[mid];
   int na = m->mesh_normaladr[mid];
   int fa = m->mesh_faceadr[mid];
-  for (int i = 0; i < 3*m->mesh_facenum[mid]; i++) {
-    int vid = m->mesh_face[3*fa + i];
-    int nid = m->mesh_facenormal[3*fa + i];
+  for (int i = 0; i < 3 * m->mesh_facenum[mid]; i++) {
+    int vid = m->mesh_face[3 * fa + i];
+    int nid = m->mesh_facenormal[3 * fa + i];
 
     // rotate vertex and normal back to the authored frame
-    mjtNum vm[3] = {m->mesh_vert[3*(va+vid)+0],
-                    m->mesh_vert[3*(va+vid)+1],
-                    m->mesh_vert[3*(va+vid)+2]};
-    mjtNum nm[3] = {m->mesh_normal[3*(na+nid)+0],
-                    m->mesh_normal[3*(na+nid)+1],
-                    m->mesh_normal[3*(na+nid)+2]};
+    mjtNum vm[3] = {m->mesh_vert[3 * (va + vid) + 0],
+                    m->mesh_vert[3 * (va + vid) + 1],
+                    m->mesh_vert[3 * (va + vid) + 2]};
+    mjtNum nm[3] = {m->mesh_normal[3 * (na + nid) + 0],
+                    m->mesh_normal[3 * (na + nid) + 1],
+                    m->mesh_normal[3 * (na + nid) + 2]};
     mjtNum v[3], n[3];
     mju_rotVecQuat(v, vm, mq);
     mju_addTo3(v, mp);
@@ -1482,6 +1484,110 @@ TEST_F(MjCMeshTest, LoadSkin) {
   EXPECT_THAT(m2, NotNull());
   mj_deleteModel(m2);
   mj_deleteSpec(spec);
+}
+
+TEST_F(MjCMeshTest, LoadSKNMalformed) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <skin name="skin" file="test.skn"/>
+    </asset>
+    <worldbody>
+      <body name="body">
+        <geom type="box" size="1 1 1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // Test 1: Integer overflow in ntexcoord (b/511889379)
+  {
+    uint32_t evil_skn[7] = {1, 0x20000000, 0, 0, 0, 0, 0};
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    mj_addBufferVFS(&vfs, "test.skn", evil_skn, sizeof(evil_skn));
+
+    std::array<char, 1024> error;
+    MjModelPtr model =
+        LoadModelFromString(xml, error.data(), error.size(), &vfs);
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(error.data(),
+                HasSubstr("too large sizes in SKN file 'test.skn'"));
+    mj_deleteVFS(&vfs);
+  }
+
+  // Test 2: Integer overflow in nvert
+  {
+    uint32_t evil_skn[4] = {0x20000000, 0, 0, 0};
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    mj_addBufferVFS(&vfs, "test.skn", evil_skn, sizeof(evil_skn));
+
+    std::array<char, 1024> error;
+    MjModelPtr model =
+        LoadModelFromString(xml, error.data(), error.size(), &vfs);
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(error.data(),
+                HasSubstr("too large sizes in SKN file 'test.skn'"));
+    mj_deleteVFS(&vfs);
+  }
+
+  // Test 3: Insufficient data in buffer
+  {
+    uint32_t evil_skn[7] = {10, 0, 0, 0, 0, 0, 0};
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    mj_addBufferVFS(&vfs, "test.skn", evil_skn, sizeof(evil_skn));
+
+    std::array<char, 1024> error;
+    MjModelPtr model =
+        LoadModelFromString(xml, error.data(), error.size(), &vfs);
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(error.data(),
+                HasSubstr("insufficient data in SKN file 'test.skn'"));
+    mj_deleteVFS(&vfs);
+  }
+
+  // Test 4: Negative size in header
+  {
+    int evil_skn[4] = {-1, 0, 0, 0};
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    mj_addBufferVFS(&vfs, "test.skn", evil_skn, sizeof(evil_skn));
+
+    std::array<char, 1024> error;
+    MjModelPtr model =
+        LoadModelFromString(xml, error.data(), error.size(), &vfs);
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(error.data(),
+                HasSubstr("negative size in header of SKN file 'test.skn'"));
+    mj_deleteVFS(&vfs);
+  }
+
+  // Test 5: Integer overflow in bone vertex count (vcount)
+  {
+    // Header: nvert=0, ntexcoord=0, nface=0, nbone=1 (16 bytes)
+    // Bone: name[40] (40B), bindpos[3] (12B), bindquat[4] (16B),
+    // vcount=0x40000000 (4B) Total size = 16 + 72 = 88 bytes
+    std::vector<uint8_t> evil_skn(88, 0);
+    uint32_t header[4] = {0, 0, 0, 1};
+    std::memcpy(evil_skn.data(), header, sizeof(header));
+    uint32_t vcount = 0x40000000;
+    std::memcpy(evil_skn.data() + 16 + 40 + 12 + 16, &vcount, sizeof(vcount));
+
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    mj_addBufferVFS(&vfs, "test.skn", evil_skn.data(), evil_skn.size());
+
+    std::array<char, 1024> error;
+    MjModelPtr model =
+        LoadModelFromString(xml, error.data(), error.size(), &vfs);
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(
+        error.data(),
+        HasSubstr("insufficient vertex data in SKN file 'test.skn', bone 0"));
+    mj_deleteVFS(&vfs);
+  }
 }
 
 // ------------- test octree ---------------------------------------------------

@@ -394,6 +394,7 @@
 #define MJMODEL_POINTERS_SITE                                                   \
     X   ( int,     site_type,             nsite,         1                    ) \
     X   ( int,     site_bodyid,           nsite,         1                    ) \
+    X   ( int,     site_dataid,           nsite,         1                    ) \
     X   ( int,     site_matid,            nsite,         1                    ) \
     X   ( int,     site_group,            nsite,         1                    ) \
     X   ( mjtByte, site_sameframe,        nsite,         1                    ) \
@@ -885,6 +886,8 @@
     X   ( mjtNum,    flexvert_J,        nJfv,        2           ) \
     X   ( mjtNum,    flexvert_length,   nflexvert,   2           ) \
     X   ( mjtNum,    bvh_aabb_dyn,      nbvhdynamic, 6           ) \
+    X   ( mjtNum,    flexvert_lambda,   nflexvert,   1           ) \
+    X   ( int,       flexvert_conage,   nflexvert,   1           ) \
     X   ( int,       ten_wrapadr,       ntendon,     1           ) \
     X   ( int,       ten_wrapnum,       ntendon,     1           ) \
     X   ( mjtNum,    ten_J,             nJten,       1           ) \
@@ -1012,11 +1015,24 @@
 // array fields of mjData that live in d->arena
 #define MJDATA_ARENA_POINTERS_EFM                        \
     X  ( mjtNum,   efm_c,             MJ_M(nv),          1 ) \
+    X  ( mjtNum,   efm_diag,          MJ_M(nv),          1 ) \
+    X  ( mjtNum,   efm_ck,            MJ_M(nv),          1 ) \
+    X  ( mjtNum,   efm_sdiag,         MJ_M(nv),          1 ) \
+    X  ( mjtNum,   efm_fluid,         MJ_M(nC),          1 ) \
+    X  ( int,      efm_tid,           MJ_M(ntendon),     1 ) \
+    X  ( mjtNum,   efm_ts,            MJ_M(ntendon),     1 ) \
+    X  ( mjtNum,   efm_tk,            MJ_M(ntendon),     1 ) \
+    X  ( int,      efm_aid,           MJ_M(nactuator),   1 ) \
+    X  ( mjtNum,   efm_as,            MJ_M(nactuator),   1 ) \
+    X  ( mjtNum,   efm_ak,            MJ_M(nactuator),   1 ) \
+    X  ( mjtNum,   efm_ca,            MJ_M(nv),          1 ) \
     X  ( int,      efm_K_rownnz,      MJ_M(nv),          1 ) \
     X  ( int,      efm_K_rowadr,      MJ_M(nv),          1 ) \
     X  ( int,      efm_K_colind,      MJ_D(nefmK),       1 ) \
     X  ( mjtNum,   efm_K_val,         MJ_D(nefmK),       1 ) \
     X  ( int,      efm_dofid,         MJ_D(nefmdof),     1 ) \
+    X  ( int,      efm_con_ind,       MJ_D(nefmcon),     1 ) \
+    X  ( mjtNum,   efm_con_val,       MJ_D(nefmcon),     1 ) \
     X  ( mjtNum,   efm_L,             MJ_D(nefmL),       1 )
 
 
@@ -1049,6 +1065,9 @@
     X( int,       nJ                 ) \
     X( int,       efm_active         ) \
     X( int,       nefmK              ) \
+    X( int,       nefmcon            ) \
+    X( int,       nefmT              ) \
+    X( int,       nefmA              ) \
     X( int,       nefmdof            ) \
     X( int,       nefmL              ) \
     X( int,       nY                 ) \

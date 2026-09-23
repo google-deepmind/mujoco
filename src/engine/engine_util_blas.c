@@ -16,8 +16,6 @@
 
 #include <string.h>
 
-#include <mujoco/mjtype.h>
-
 #include "engine/engine_util_blas_avx.h"  // IWYU pragma: keep
 
 
@@ -331,29 +329,25 @@ mjtNum mju_L1(const mjtNum* vec, int n) {
 
 // res = vec*scl
 void mju_scl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
-  int i = 0;
-
 #ifdef mjUSEAVX
-  i = mju_scl_avx(res, vec, scl, n);
-#endif
-
-  for (; i < n; i++) {
+  mju_scl_avx(res, vec, scl, n);
+#else
+  for (int i=0; i < n; i++) {
     res[i] = vec[i]*scl;
   }
+#endif
 }
 
 
 // res = vec1 + vec2
 void mju_add(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
-  int i = 0;
-
 #ifdef mjUSEAVX
-  i = mju_add_avx(res, vec1, vec2, n);
-#endif
-
-  for (; i < n; i++) {
+  mju_add_avx(res, vec1, vec2, n);
+#else
+  for (int i=0; i < n; i++) {
     res[i] = vec1[i] + vec2[i];
   }
+#endif
 }
 
 
@@ -368,15 +362,13 @@ void mju_addInd(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, const int* 
 
 // res = vec1 - vec2
 void mju_sub(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
-  int i = 0;
-
 #ifdef mjUSEAVX
-  i = mju_sub_avx(res, vec1, vec2, n);
-#endif
-
-  for (; i < n; i++) {
+  mju_sub_avx(res, vec1, vec2, n);
+#else
+  for (int i=0; i < n; i++) {
     res[i] = vec1[i] - vec2[i];
   }
+#endif
 }
 
 
@@ -391,15 +383,13 @@ void mju_subInd(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, const int* 
 
 // res += vec
 void mju_addTo(mjtNum* res, const mjtNum* vec, int n) {
-  int i = 0;
-
 #ifdef mjUSEAVX
-  i = mju_addTo_avx(res, vec, n);
-#endif
-
-  for (; i < n; i++) {
+  mju_addTo_avx(res, vec, n);
+#else
+  for (int i=0; i < n; i++) {
     res[i] += vec[i];
   }
+#endif
 }
 
 
@@ -414,29 +404,25 @@ void mju_addToInd(mjtNum* res, const mjtNum* vec, const int* ind, int n) {
 
 // res -= vec
 void mju_subFrom(mjtNum* res, const mjtNum* vec, int n) {
-  int i = 0;
-
 #ifdef mjUSEAVX
-  i = mju_subFrom_avx(res, vec, n);
-#endif
-
-  for (; i < n; i++) {
+  mju_subFrom_avx(res, vec, n);
+#else
+  for (int i=0; i < n; i++) {
     res[i] -= vec[i];
   }
+#endif
 }
 
 
 // res += vec*scl
 void mju_addToScl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
-  int i = 0;
-
 #ifdef mjUSEAVX
-  i = mju_addToScl_avx(res, vec, scl, n);
-#endif
-
-  for (; i < n; i++) {
+  mju_addToScl_avx(res, vec, scl, n);
+#else
+  for (int i=0; i < n; i++) {
     res[i] += vec[i]*scl;
   }
+#endif
 }
 
 
@@ -453,15 +439,13 @@ void mju_addToSclInd(mjtNum* res, const mjtNum* vec, const int* ind, mjtNum scl,
 
 // res = vec1 + vec2*scl
 void mju_addScl(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, mjtNum scl, int n) {
-  int i = 0;
-
 #ifdef mjUSEAVX
-  i = mju_addScl_avx(res, vec1, vec2, scl, n);
-#endif
-
-  for (; i < n; i++) {
+  mju_addScl_avx(res, vec1, vec2, scl, n);
+#else
+  for (int i=0; i < n; i++) {
     res[i] = vec1[i] + vec2[i]*scl;
   }
+#endif
 }
 
 
@@ -491,14 +475,13 @@ mjtNum mju_norm(const mjtNum* res, int n) {
 
 // vector dot-product
 mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, int n) {
-  mjtNum res = 0;
-  int i = 0;
 #ifdef mjUSEAVX
-  res = mju_dot_avx(vec1, vec2, n, &i);
+  return mju_dot_avx(vec1, vec2, n);
 #else
   // do the same order of additions as the AVX intrinsics implementation.
   // this is faster than the simple for loop you'd expect for a dot product,
   // and produces exactly the same results.
+  int i = 0;
   int n_4 = n - 4;
   mjtNum res0 = 0;
   mjtNum res1 = 0;
@@ -506,24 +489,24 @@ mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, int n) {
   mjtNum res3 = 0;
 
   for (; i <= n_4; i+=4) {
-    res0 += vec1[i] * vec2[i];
+    res0 += vec1[i+0] * vec2[i+0];
     res1 += vec1[i+1] * vec2[i+1];
     res2 += vec1[i+2] * vec2[i+2];
     res3 += vec1[i+3] * vec2[i+3];
   }
-  res = (res0 + res2) + (res1 + res3);
-#endif
+  mjtNum res = (res0 + res2) + (res1 + res3);
 
   // process remaining
   int n_i = n - i;
   if (n_i == 3) {
-    res += vec1[i]*vec2[i] + vec1[i+1]*vec2[i+1] + vec1[i+2]*vec2[i+2];
+    res += vec1[i+0]*vec2[i+0] + vec1[i+1]*vec2[i+1] + vec1[i+2]*vec2[i+2];
   } else if (n_i == 2) {
-    res += vec1[i]*vec2[i] + vec1[i+1]*vec2[i+1];
+    res += vec1[i+0]*vec2[i+0] + vec1[i+1]*vec2[i+1];
   } else if (n_i == 1) {
     res += vec1[i]*vec2[i];
   }
   return res;
+#endif
 }
 
 

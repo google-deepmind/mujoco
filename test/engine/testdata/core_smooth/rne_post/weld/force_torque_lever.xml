@@ -1,0 +1,30 @@
+<mujoco>
+  <!--
+  body2 hangs from the weld anchor at its origin with its center of mass 1 away along x, so the
+  weld carries torque. The force sensor on body1 should register 2 (for the weight of both bodies)
+  and the torque sensor the moment of body2's weight about the sensor: (1 1 0) x (0 0 1).
+  Unit rotational inertia keeps the rotational compliance of the weld small.
+  -->
+  <option gravity="0 0 -1"/>
+
+  <worldbody>
+    <body name="body1">
+      <geom type="box" size="0.05 0.05 0.05"/>
+      <site name="sensor"/>
+    </body>
+    <body name="body2" pos="0 1 0">
+      <joint type="free"/>
+      <inertial pos="1 0 0" mass="1" diaginertia="1 1 1"/>
+      <geom type="box" size="0.05 0.05 0.05" pos="1 0 0"/>
+    </body>
+  </worldbody>
+
+  <equality>
+    <weld body1="body1" body2="body2"/>
+  </equality>
+
+  <sensor>
+    <force site="sensor" user="0 0 2"/>
+    <torque site="sensor" user="1 -1 0"/>
+  </sensor>
+</mujoco>

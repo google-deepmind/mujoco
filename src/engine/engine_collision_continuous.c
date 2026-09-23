@@ -19,12 +19,15 @@
 #include <math.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtype.h>
+#include "engine/engine_memory.h"        // mj_arenaAllocByte, mjSTACKALLOC
 #include "engine/engine_util_blas.h"     // mju_dot3, mju_mulMatVec3
-#include "engine/engine_util_errmem.h"   // mju_malloc, mju_free
+#include "engine/engine_util_errmem.h"   // mju_warning
 
 static inline mjtNum min2(mjtNum a, mjtNum b) { return a < b ? a : b; }
+
 
 // point-triangle: distance, closest point cp, barycentric weights w of cp (for the barrier
 // gradient).
@@ -102,6 +105,7 @@ mjtNum mjc_PtTri(const mjtNum* p, const mjtNum* a, const mjtNum* b, const mjtNum
   return sqrt(mju_dot3(dd, dd));
 }
 
+
 // closest distance between segment p1p2 and segment q1q2; closest points cp1, cp2 and the segment
 // parameters st = {s, t} (cp1 = p1+s*(p2-p1), cp2 = q1+t*(q2-q1)).
 // TODO(consolidation): same segment-segment math as mjraw_CapsuleCapsule's NON-parallel branch
@@ -163,6 +167,7 @@ mjtNum mjc_SegSeg(const mjtNum* p1, const mjtNum* p2, const mjtNum* q1, const mj
   return sqrt(mju_dot3(dd, dd));
 }
 
+
 // closest point (out) on a convex polygon face to point p: project onto the face plane; if the
 // projection is inside the polygon use it, else clamp to the nearest boundary edge. pv = the face's
 // mesh-local vertex indices (nv of them) into the vertex array vbase; nrm = the face's plane
@@ -209,6 +214,14 @@ static void closestOnPoly(const mjtNum* p, const float* vbase, const int* pv, in
     }
   }
 }
+
+
+// geom types mjc_GeomDist supports; a flex vertex has no continuous contact with the others
+int mjc_GeomSupported(int type) {
+  return type == mjGEOM_PLANE || type == mjGEOM_SPHERE || type == mjGEOM_CAPSULE ||
+         type == mjGEOM_BOX || type == mjGEOM_MESH;
+}
+
 
 // signed distance from a static geom's surface to world point x (positive outside) + outward unit
 // normal n. Closed-form for plane/sphere/capsule/box; returns +large (no contact) for other types.
@@ -351,10 +364,35 @@ mjtNum mjc_GeomDist(const mjModel* m, int gi, const mjtNum* gpos, const mjtNum* 
   return dist;
 }
 
-// world-space VERTICES of a static geom (sharp features that can poke through a flex triangle):
-// box -> 8 corners; mesh -> all its vertices; smooth/infinite geoms none. Returns the count.
+
+// the radius a geom's features carry: a sphere's centre and a capsule's axis stand that far
+// inside the surface; a box's or mesh's corners and edges lie on it
+static mjtNum featRadius(const mjModel* m, int gi) {
+  if (gi < 0) return 0;
+  int type = m->geom_type[gi];
+  return (type == mjGEOM_SPHERE || type == mjGEOM_CAPSULE) ? m->geom_size[3 * gi] : 0;
+}
+
+
+// world-space VERTICES of a static geom (the features that can poke through a flex triangle
+// between its vertices): box -> 8 corners; mesh -> all its vertices; sphere -> its centre;
+// capsule -> its two axis endpoints (both carrying the geom's radius, see featRadius); the plane
+// none. Returns the count.
 int mjc_GeomVerts(const mjModel* m, int gi, const mjtNum* gpos, const mjtNum* gmat, mjtNum* out) {
   int type = m->geom_type[gi];
+  if (type == mjGEOM_SPHERE) {
+    for (int k=0; k < 3; k++) out[k] = gpos[k];
+    return 1;
+  }
+  if (type == mjGEOM_CAPSULE) {
+    mjtNum axis[3] = {0, 0, m->geom_size[3 * gi + 1]}, wa[3];  // half-length along the local z
+    mju_mulMatVec3(wa, gmat, axis);
+    for (int k=0; k < 3; k++) {
+      out[k] = gpos[k] - wa[k];
+      out[3 + k] = gpos[k] + wa[k];
+    }
+    return 2;
+  }
   if (type == mjGEOM_BOX) {
     const mjtNum* size = m->geom_size + 3 * gi;
     int n = 0;
@@ -381,11 +419,16 @@ int mjc_GeomVerts(const mjModel* m, int gi, const mjtNum* gpos, const mjtNum* gm
   return 0;
 }
 
+
 // world-space EDGES of a static geom (a geom edge can slice through a flex triangle between flex
 // vertices): box -> 12 edges; mesh -> its convex-polygon edges (deduped: each shared edge emitted
-// once, by the polygon traversing it low->high index). Each edge = two endpoints. Returns count.
+// once, by the polygon traversing it low->high index); capsule -> its axis (carrying the geom's
+// radius, see featRadius). Each edge = two endpoints. Returns count.
 int mjc_GeomEdges(const mjModel* m, int gi, const mjtNum* gpos, const mjtNum* gmat, mjtNum* out) {
   int type = m->geom_type[gi];
+  if (type == mjGEOM_CAPSULE) {
+    return mjc_GeomVerts(m, gi, gpos, gmat, out) == 2 ? 1 : 0;  // the two endpoints, one edge
+  }
   if (type == mjGEOM_BOX) {
     const mjtNum* size = m->geom_size + 3 * gi;
     int n = 0;
@@ -434,11 +477,13 @@ int mjc_GeomEdges(const mjModel* m, int gi, const mjtNum* gpos, const mjtNum* gm
   return 0;
 }
 
+
 // contact standoff from a pair's detection band: the rest gap min(band, cap). See the header for
 // the standoff/band semantics; cap is the caller's skin thickness ceiling.
 mjtNum mjc_standoff(mjtNum band, mjtNum cap) {
   return band < cap ? band : cap;
 }
+
 
 // unit gap normal from a closest-point pair. Coincident features (dd == 0) have no defined
 // direction, so the normal is zeroed and the contact goes inert for this linearization instead of
@@ -451,6 +496,7 @@ static void gapNormal(mjtNum* n, const mjtNum* p1, const mjtNum* p2, mjtNum dd) 
   }
   for (int k=0; k < 3; k++) n[k] = (p1[k] - p2[k]) / dd;
 }
+
 
 // gap g of a contact at configuration x, plus the barrier gradient direction n, the involved flex
 // vertices idv[*nidx] and their weights cw (dg/d(vertex_p) = cw[p]*n). gv/ge are the precomputed
@@ -500,7 +546,7 @@ mjtNum mjc_pairGap(const mjcFlexPair* pair, const mjModel* m, const mjData* d, c
       idv[0] = v;
       cw[0] = 1;
       *nidx = 1;
-      return dd - radii[v];
+      return dd;  // MIDSURFACE distance: radii NOT subtracted (delta unchanged; see header)
     }
     case mjcGEOM_CORNER_TRI: {  // static geom corner gv[idx0] vs flex triangle A,B,C
       const mjtNum* corner = &gv[3 * pair->idx[0]];
@@ -514,7 +560,10 @@ mjtNum mjc_pairGap(const mjcFlexPair* pair, const mjModel* m, const mjData* d, c
       cw[1] = -w[1];
       cw[2] = -w[2];
       *nidx = 3;
-      return dd - radii[A];  // flex triangle radius
+
+      // MIDSURFACE distance: flex radii NOT subtracted (delta unchanged; see header); the geom's
+      // own radius is, for a sphere centre or capsule endpoint standing in for a corner
+      return dd - featRadius(m, pair->g);
     }
     case mjcGEOM_EDGE_EDGE: {  // static geom edge ge[idx0] vs flex edge a,b
       const mjtNum* eg = &ge[6 * pair->idx[0]];
@@ -526,13 +575,14 @@ mjtNum mjc_pairGap(const mjcFlexPair* pair, const mjModel* m, const mjData* d, c
       cw[0] = -(1 - st[1]);
       cw[1] = -st[1];
       *nidx = 2;
-      return dd - radii[a];  // flex edge radius
+      return dd - featRadius(m, pair->g);  // as above, a capsule axis standing in for an edge
     }
     default:
       mju_error("mjc_pairGap: unknown pair type %d", pair->type);
       return 0;
   }
 }
+
 
 // copy flex pair vertices and return number of vertices; geom features (fixed)
 // are excluded -- types 3/4 store the geom index in idx[0], so the flex
@@ -563,6 +613,7 @@ int mjc_pairVerts(int* v, const mjcFlexPair* pair) {
   return nv;
 }
 
+
 // per-contact barrier activation distance d_hat. Never exceeds the global band, but shrinks to the
 // thinnest participating radius: a thin flex (e.g. a drawstring sitting in a thick bag's sleeve)
 // then gets a proportionally thin barrier zone instead of resting deep inside the thick neighbour's
@@ -581,20 +632,25 @@ mjtNum mjc_pairBand(const mjcFlexPair* pair, const mjtNum* radii, mjtNum band) {
   return g;
 }
 
+
 // surface gap of a contact with its flex vertices advanced by t*dxw (geom features fixed);
 // gap-only, for the CCD conservative advancement (recomputes the closest feature at the advanced
 // configuration). The engine has no advanced-configuration gap evaluator for
 // conservative advancement (mjc_ccd is single-config).
 static mjtNum conGapAdv(const mjcFlexPair* con, const mjModel* m, const mjData* d, const mjtNum* x,
                         const mjtNum* dxw, mjtNum t, const mjtNum* gv, const mjtNum* ge,
-                        const mjtNum* radii, const int* fidx) {
+                        const mjtNum* radii) {
   int v[4];
   int nv = mjc_pairVerts(v, con);
   mjtNum P[4][3];
-  for (int q=0; q < nv; q++) {
-    int fq = fidx[v[q]];
-    for (int k=0; k < 3; k++) P[q][k] = x[3 * v[q] + k] + (fq >= 0 ? t * dxw[3 * fq + k] : 0.0);
-  }
+
+  // the conditional keeps the multiply-add from being contracted into an FMA, so a point's
+  // advanced position is bit for bit what it was when the displacement was indexed per free dof
+  for (int q=0; q < nv; q++)
+    for (int k=0; k < 3; k++) {
+      mjtNum dk = dxw[3 * v[q] + k];
+      P[q][k] = x[3 * v[q] + k] + (dk != 0 ? t * dk : 0.0);
+    }
   mjtNum cp[3], w[3], c1[3], c2[3], st[2];
   switch (con->type) {
     case mjcFLEX_VERT_TRI:
@@ -604,14 +660,13 @@ static mjtNum conGapAdv(const mjcFlexPair* con, const mjModel* m, const mjData* 
     case mjcFLEX_VERT_GEOM: {
       mjtNum nn[3];
       return mjc_GeomDist(m, con->g, d->geom_xpos + 3 * con->g, d->geom_xmat + 9 * con->g, P[0],
-                          nn, 1e30) -
-             radii[con->idx[0]];
+                          nn, 1e30);  // midsurface, matching mjc_pairGap
     }
-    case mjcGEOM_CORNER_TRI:
-      return mjc_PtTri(&gv[3 * con->idx[0]], P[0], P[1], P[2], cp, w) - radii[con->idx[1]];
+    case mjcGEOM_CORNER_TRI:  // midsurface less the feature's radius, matching mjc_pairGap
+      return mjc_PtTri(&gv[3 * con->idx[0]], P[0], P[1], P[2], cp, w) - featRadius(m, con->g);
     case mjcGEOM_EDGE_EDGE: {
       const mjtNum* eg = &ge[6 * con->idx[0]];
-      return mjc_SegSeg(eg, eg + 3, P[0], P[1], c1, c2, st) - radii[con->idx[1]];
+      return mjc_SegSeg(eg, eg + 3, P[0], P[1], c1, c2, st) - featRadius(m, con->g);
     }
     default:
       mju_error("conGapAdv: unknown pair type %d", con->type);
@@ -619,10 +674,11 @@ static mjtNum conGapAdv(const mjcFlexPair* con, const mjModel* m, const mjData* 
   }
 }
 
+
 mjtNum mjc_advance(const mjModel* m, const mjData* d, const mjtNum* x, const mjtNum* dxw,
                    const mjtNum* gv, const mjtNum* ge, const mjtNum* radii, int nfv,
-                   const int* fidx, const mjcFlexPair* cand, int ncand, const mjtNum* cgap,
-                   const int* pt2flex, int* approut, mjtNum* toiout) {
+                   const mjcFlexPair* cand, int ncand, const mjtNum* cgap, const int* pt2flex,
+                   int* approut, mjtNum* toiout) {
   mjtNum alpha = 1.0;
   if (approut)
     for (int c=0; c < ncand; c++)
@@ -642,10 +698,8 @@ mjtNum mjc_advance(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
                (pt2flex[con->idx[0]] == pt2flex[other]);
     int nv = mjc_pairVerts(v, con);
     mjtNum dp[4][3], mean[3] = {0, 0, 0};
-    for (int q=0; q < nv; q++) {
-      int fq = fidx[v[q]];
-      for (int k=0; k < 3; k++) dp[q][k] = (fq >= 0 ? dxw[3 * fq + k] : 0.0);
-    }
+    for (int q=0; q < nv; q++)
+      for (int k=0; k < 3; k++) dp[q][k] = dxw[3 * v[q] + k];
     if (self) {
       for (int q=0; q < nv; q++)
         for (int k=0; k < 3; k++) mean[k] += dp[q][k];
@@ -688,19 +742,23 @@ mjtNum mjc_advance(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
     if (approut)
       approut[c] =
           1;  // reaches the bisection -> the proxy closes this pair's gap this step (Alg.3 add)
+
+    // this pair's own collision time, found on its own and capped at the full step: the earliest
+    // filter compares these across pairs, so none may be cut short at the running minimum of
+    // the others, which would tie every later pair with the earliest one
     mjtNum gtarget = 0.2 * g0, t = 0;
     for (int it=0; it < 32; it++) {
-      mjtNum g = conGapAdv(con, m, d, x, dxw, t, gv, ge, radii, fidx);
+      mjtNum g = conGapAdv(con, m, d, x, dxw, t, gv, ge, radii);
       mjtNum room = g - gtarget;
       if (room <= 1e-9 * g0) break;
       t += room / l;
-      if (t >= alpha) {
-        t = alpha;
+      if (t >= 1.0) {
+        t = 1.0;
         break;
       }
     }
     if (toiout) {
-      toiout[c] = t;  // this pair's own collision time, for the per-vertex earliest filter
+      toiout[c] = t;
     }
     if (t < alpha) {
       alpha = t;
@@ -709,26 +767,37 @@ mjtNum mjc_advance(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
   return alpha;
 }
 
-// the radii sum a flex-flex midsurface gap reads ABOVE the old skin gap. Used ONLY to keep the
-// broad-phase detection band at its pre-midsurface reach; types 2/3/4 still subtract their radius
-// inside mjc_pairGap, so they contribute nothing here.
+
+// the radii a midsurface gap reads ABOVE the old skin gap. Used ONLY to keep the broad-phase
+// detection band at its pre-midsurface reach; every pair type measures at the flex midsurface,
+// so each flex participant contributes its radius (geoms have none: their surface is the surface).
 static mjtNum bandOffset(const mjcFlexPair* con, const mjtNum* radii) {
   switch (con->type) {
     case mjcFLEX_VERT_TRI:
       return radii[con->idx[0]] + radii[con->idx[1]];  // vertex + triangle flex radius
     case mjcFLEX_EDGE_EDGE:
       return radii[con->idx[0]] + radii[con->idx[2]];  // both edges (flex) radii
+    case mjcFLEX_VERT_GEOM:
+      return radii[con->idx[0]];  // flex vertex radius
+    case mjcGEOM_CORNER_TRI:
+      return radii[con->idx[1]];  // flex triangle radius
+    case mjcGEOM_EDGE_EDGE:
+      return radii[con->idx[1]];  // flex edge radius
     default:
-      return 0.0;  // geom side: mjc_pairGap already subtracted the flex radius for types 2/3/4
+      return 0.0;
   }
 }
 
-// append a candidate contact if its gap at x is below the (margin-inflated) detection threshold
-static void addCand(mjcFlexPair con, const mjModel* m, const mjData* d, const mjtNum* x,
+
+// append a candidate contact if its gap at x is below the (margin-inflated) detection threshold.
+// Candidates are pushed onto the arena one at a time, as mj_collision pushes its pairs: consecutive
+// pushes of one type are adjacent, so *base + *nc indexes them as an array. Once the arena is full
+// *full is set and nothing more is pushed.
+static void addCand(mjcFlexPair con, const mjModel* m, mjData* d, const mjtNum* x,
                     const mjtNum* gv, const mjtNum* ge, const mjtNum* radii, mjtNum thresh,
-                    const mjtNum* dfrom, const mjtNum* dto, mjtNum ghat, mjcFlexPair* cand, int* nc,
-                    int candmax) {
-  if (*nc >= candmax) return;
+                    const mjtNum* dfrom, const mjtNum* dto, mjtNum ghat, mjcFlexPair** base,
+                    int* nc, int* full) {
+  if (*full) return;
   mjtNum n[3], cw[4];
   int idv[4], nidx;
   mjtNum g = mjc_pairGap(&con, m, d, x, gv, ge, radii, n, idv, cw, &nidx, thresh);
@@ -738,26 +807,49 @@ static void addCand(mjcFlexPair con, const mjModel* m, const mjData* d, const mj
   // -- the rest target (mjc_standoff(mjc_pairBand)) is unchanged and must stay that way.
   mjtNum bo = bandOffset(&con, radii);
   if (g >= bo + thresh) return;
+
   // KEEP penetrating geom pairs (g < 0): the normal is still defined there and the solver's
   // restoring force is what pushes the flex back out, so dropping them leaves the penetration
-  // unopposed;
-  // mjc_advance (g0 <= 0 -> no cap) and the merge (cgap <= 0 -> admit) already expect them.
-  // Flex-flex distances are UNSIGNED, so g <= 0 means coincident features with no defined normal.
+  // unopposed; mjc_advance (g0 <= 0 -> no cap) and the merge (cgap <= 0 -> admit) already expect
+  // them. Flex-flex distances are UNSIGNED, so g <= 0 means coincident features with no defined
+  // normal.
   if (con.type <= mjcFLEX_EDGE_EDGE && g <= 0) return;
-  // closing-bound prune: over the step the gap changes by at most |sum_p cw[p]*(dto-dfrom)[idv[p]]|
-  // (Cauchy-Schwarz, |n|=1), so a pair beyond its per-contact ghc + that bound cannot become active
-  // this step -> drop it. Replaces the crude GLOBAL 4*maxdisp band (which inflated by the fastest
-  // vertex anywhere, flooding correlated bulk motion like a settling bag+string). No-tunnel safe:
-  // the per-outer re-query at xfree (dfrom=xfree, dto=x) recaptures any pair whose closest feature
-  // flips under the inner step.
-  mjtNum rel[3] = {0, 0, 0};
-  for (int p=0; p < nidx; p++) {
-    int vp = idv[p];
-    if (vp < 0) continue;
-    for (int c=0; c < 3; c++) rel[c] += cw[p] * (dto[3 * vp + c] - dfrom[3 * vp + c]);
+
+  // closing-bound prune: the gap is a minimum over the two features, each the convex hull of its
+  // vertices, so over the step it shrinks by at most the largest displacement of a vertex of one
+  // feature relative to a vertex of the other (a geom feature is static); a pair beyond its band
+  // plus that bound cannot become active this step -> drop it. Bulk motion cancels in the
+  // relative displacement, so a settling bag does not flood the list. The closest points' weights
+  // at x are no bound: under deformation the closest points move to another region of the
+  // features (ContinuousCollisionTest.CandidatesCoverARotatingTriangle).
+  int vv[4], nvv = mjc_pairVerts(vv, &con);
+  int n1 = con.type == mjcFLEX_EDGE_EDGE ? 2
+           : (con.type == mjcFLEX_VERT_TRI || con.type == mjcFLEX_VERT_GEOM) ? 1 : 0;
+  mjtNum dv[5][3] = {{0}};  // per pair vertex, the fifth entry standing in for a static feature
+  for (int q=0; q < nvv; q++)
+    for (int c=0; c < 3; c++) dv[q][c] = dto[3 * vv[q] + c] - dfrom[3 * vv[q] + c];
+  int i0 = n1 ? 0 : 4, i1 = n1 ? n1 : 5, j0 = nvv > n1 ? n1 : 4, j1 = nvv > n1 ? nvv : 5;
+  mjtNum bound = 0;
+  for (int i=i0; i < i1; i++)
+    for (int j=j0; j < j1; j++) {
+      mjtNum dd[3];
+      mju_sub3(dd, dv[i], dv[j]);
+      mjtNum l = mju_sqrt(mju_dot3(dd, dd));
+      if (l > bound) bound = l;
+    }
+  if (g < bo + mjc_pairBand(&con, radii, ghat) + bound) {
+    mjcFlexPair* p =
+        (mjcFlexPair*)mj_arenaAllocByte(d, sizeof(mjcFlexPair), _Alignof(mjcFlexPair));
+    if (!p) {
+      *full = 1;
+      return;
+    }
+    *p = con;
+    if (*nc == 0) *base = p;
+    (*nc)++;
   }
-  if (g < bo + mjc_pairBand(&con, radii, ghat) + sqrt(mju_dot3(rel, rel))) cand[(*nc)++] = con;
 }
+
 
 // descend flex f's element BVH (built and AABB-refreshed by mj_flex at the step's xold), collecting
 // the leaf element ids whose (radius-inflated) node AABB overlaps the query box [c +/- h]. Replaces
@@ -792,19 +884,68 @@ static int bvhBox(const mjModel* m, const mjData* d, int f, const mjtNum* c, con
   return nout;
 }
 
-// build the candidate-contact list once per step, gated by a velocity-aware threshold so any pair
-// that could close within the step is captured (the Newton loop then only re-tests candidates).
-// Flex-flex and geom-feature-vs-flex pairs are found by querying the flex element BVH (bvhBox).
-int mjc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, const mjtNum* gv,
-                   const mjtNum* ge, int ngv, int nge, const mjtNum* radii, mjtNum thresh,
-                   mjtNum threshGeom, mjtNum maxdisp, const mjtNum* dfrom, const mjtNum* dto,
-                   mjtNum ghat, int nfv, int npt, const int* fidx, const int* flist,
-                   const int* fxadr, int nfd, const int* pt2flex, mjcFlexPair* cand, int candmax) {
-  (void)
-      npt;  // increment A: candidates are flex-only (npt==nfv); rigid bodies carry no hard contact
-  int nc = 0;
+
+// contype/conaffinity filter, the rule of the native pipeline (filterBitmask in
+// engine_collision_driver.c): a pair is filtered unless one side's type meets the other's affinity
+static int maskFiltered(int contype1, int conaffinity1, int contype2, int conaffinity2) {
+  return !(contype1 & conaffinity2) && !(contype2 & conaffinity1);
+}
+
+
+// the pairs the IPC step owns under the ipc flag (see the header)
+int mjc_ipcOwnsFlexFlex(const mjModel* m, int f1, int f2) {
+  return mjENABLED(mjENBL_IPC) && m->flex_dim[f1] == 2 && m->flex_dim[f2] == 2;
+}
+
+
+int mjc_ipcOwnsFlexGeom(const mjModel* m, int f, int g) {
+  return mjENABLED(mjENBL_IPC) && m->flex_dim[f] == 2 &&
+         m->body_weldid[m->geom_bodyid[g]] == 0 && mjc_GeomSupported(m->geom_type[g]);
+}
+
+
+// build the candidate-contact list: every pair whose gap can enter the detection band along the
+// sweep dfrom -> dto. The reach of each query is the base threshold plus the travel of the points
+// involved, taken per point (|dto - dfrom|) and per queried flex (the largest travel of its points,
+// plus how far its points sit from the configuration its BVH was built at, the state's), so the
+// bounds are conservative for the sweep however far a proposal flings a vertex, without inflating
+// every query by the fastest vertex anywhere. Flex-flex and geom-feature-vs-flex pairs are found by
+// querying the flex element BVH (bvhBox). The native collision filtering applies: nothing with
+// contact (or constraints) disabled, pairs under the contype/conaffinity rule, self-contact under
+// the flex's selfcollide.
+int mjc_candidates(const mjModel* m, mjData* d, const mjtNum* x, const mjtNum* gv,
+                   const mjtNum* ge, const int* gvgeom, const int* gegeom, int ngv, int nge,
+                   const mjtNum* radii, mjtNum thresh, mjtNum threshGeom, const mjtNum* dfrom,
+                   const mjtNum* dto, mjtNum ghat, int nfv, int npt, const int* fidx,
+                   const int* pjnv, const int* flist, const int* fxadr, int nfd,
+                   const int* pt2flex, mjcFlexPair** cand) {
+  (void)npt;  // increment A: candidates are flex-only (npt==nfv); rigid bodies carry no hard contact
+  int nc = 0, full = 0;
+  *cand = NULL;
+  if (mjDISABLED(mjDSBL_CONSTRAINT) || mjDISABLED(mjDSBL_CONTACT)) return 0;  // as mj_collision
+  mj_markStack(d);
+  // the sweep: travel per point, and per flex the largest travel of its points (fsweep) and the
+  // largest distance of its points from the BVH's configuration (fstale)
+  mjtNum* dl = mjSTACKALLOC(d, nfv > 0 ? nfv : 1, mjtNum);
+  mjtNum* fsweep = mjSTACKALLOC(d, nfd > 0 ? nfd : 1, mjtNum);
+  mjtNum* fstale = mjSTACKALLOC(d, nfd > 0 ? nfd : 1, mjtNum);
+  for (int k=0; k < nfd; k++) fsweep[k] = fstale[k] = 0;
+  for (int v=0; v < nfv; v++) {
+    int k = pt2flex[v];
+    int vg = m->flex_vertadr[flist[k]] + v - fxadr[k];
+    mjtNum dd[3], ds[3];
+    for (int c=0; c < 3; c++) {
+      dd[c] = dto[3 * v + c] - dfrom[3 * v + c];
+      ds[c] = x[3 * v + c] - d->flexvert_xpos[3 * vg + c];
+    }
+    dl[v] = mju_sqrt(mju_dot3(dd, dd));
+    mjtNum stale = mju_sqrt(mju_dot3(ds, ds));
+    if (dl[v] > fsweep[k]) fsweep[k] = dl[v];
+    if (stale > fstale[k]) fstale[k] = stale;
+  }
   for (int gi=0; gi < m->ngeom; gi++) {  // free point (flex vert) vs STATIC geom
     if (m->geom_contype[gi] == 0 && m->geom_conaffinity[gi] == 0) continue;  // skip non-colliding
+    if (!mjc_GeomSupported(m->geom_type[gi])) continue;  // its native rows are kept instead
     if (m->body_weldid[m->geom_bodyid[gi]] != 0)
       continue;  // STATIC geoms ONLY: a MOVABLE rigid geom (ball/limb) is a soft type-3 contact,
                  // never a frozen penetration-free obstacle
@@ -824,9 +965,14 @@ int mjc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
         wh[k] = mju_abs(gR[3 * k]) * la[3] + mju_abs(gR[3 * k + 1]) * la[4] +
                 mju_abs(gR[3 * k + 2]) * la[5];
     }
-    for (int v=0; v < nfv; v++) {  // flex verts only (rigid bodies carry no hard barrier)
-      if (fidx[v] < 0) continue;
-      mjtNum marg = thresh + radii[v];
+    for (int v=0; v < nfv; v++) {  // free points and points riding a moving body
+      if (fidx[v] < 0 && !(pjnv && pjnv[v] > 0)) continue;
+      int f = flist[pt2flex[v]];
+      if (maskFiltered(m->geom_contype[gi], m->geom_conaffinity[gi], m->flex_contype[f],
+                       m->flex_conaffinity[f]))
+        continue;
+      mjtNum reach = thresh + dl[v];  // the point's own travel: the geom is static
+      mjtNum marg = reach + radii[v];
       if (!isplane) {  // world-AABB cull
         if (mju_abs(x[3 * v] - wc[0]) > wh[0] + marg ||
             mju_abs(x[3 * v + 1] - wc[1]) > wh[1] + marg ||
@@ -834,7 +980,7 @@ int mjc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
           continue;
       }
       mjcFlexPair con = {mjcFLEX_VERT_GEOM, {v, 0, 0, 0}, gi};
-      addCand(con, m, d, x, gv, ge, radii, thresh, dfrom, dto, ghat, cand, &nc, candmax);
+      addCand(con, m, d, x, gv, ge, radii, reach, dfrom, dto, ghat, cand, &nc, &full);
     }
   }
 
@@ -846,8 +992,8 @@ int mjc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
   // Each query is against one flex's element BVH (bvhBox); triangle/edge vertices are mapped
   // from the queried flex's local indices to the combined free-point space (fxadr[k] + local).
   // flex-vs-flex contact is SELF when the querying vertex/edge is in the queried flex (gated by
-  // that flex's selfcollide) and INTER-FLEX otherwise (always on). Scratch buffers are sized for
-  // the largest flex. ----
+  // that flex's selfcollide and self-compatible masks) and INTER-FLEX otherwise (gated by the
+  // two flexes' masks). Scratch buffers are sized for the largest flex. ----
   int maxbvh = 1, maxel = 1, maxen = 1;
   for (int k=0; k < nfd; k++) {
     int fk = flist[k];
@@ -855,11 +1001,22 @@ int mjc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
     if (m->flex_elemnum[fk] > maxel) maxel = m->flex_elemnum[fk];
     if (m->flex_edgenum[fk] > maxen) maxen = m->flex_edgenum[fk];
   }
-  int* stk = (int*)mju_malloc(maxbvh * sizeof(int));
-  int* outel = (int*)mju_malloc(maxel * sizeof(int));
-  int* stampG = (int*)mju_malloc(maxen * sizeof(int));
+  int* stk = mjSTACKALLOC(d, maxbvh, int);
+  int* outel = mjSTACKALLOC(d, maxel, int);
+  int* stampG = mjSTACKALLOC(d, maxen, int);
   for (int e=0; e < maxen; e++) stampG[e] = -1;
   int qid = 0;
+  // flex-pair filter fok[k*nfd+kj]: flex flist[kj] against flex flist[k]'s elements
+  int* fok = mjSTACKALLOC(d, nfd * nfd, int);
+  for (int k=0; k < nfd; k++) {
+    for (int kj=0; kj < nfd; kj++) {
+      int fk = flist[k], fj = flist[kj];
+      int ok = !maskFiltered(m->flex_contype[fk], m->flex_conaffinity[fk], m->flex_contype[fj],
+                             m->flex_conaffinity[fj]);
+      if (kj == k) ok = ok && (m->flex_selfcollide[fk] != mjFLEXSELF_NONE);
+      fok[k * nfd + kj] = ok;
+    }
+  }
 
   for (int k=0; k < nfd; k++) {  // query flex fk's element BVH
     int fk = flist[k];
@@ -868,32 +1025,41 @@ int mjc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
     const int* el_k = m->flex_elem + m->flex_elemdataadr[fk];
     const int* eme_k = m->flex_elemedge + m->flex_elemedgeadr[fk];
     mjtNum rk = m->flex_radius[fk];
-    int doself_k = (m->flex_selfcollide[fk] != mjFLEXSELF_NONE);
+    int ct_k = m->flex_contype[fk], ca_k = m->flex_conaffinity[fk];
 
     // (rigid sphere-vs-flex-triangle hard contact removed in increment A -- see note above.)
-    // geom-corner vs flex triangle (type 3); geom is static (one-sided) -> tighter threshGeom (the
-    // convex-decomposition bin's ~1600 edges otherwise overflow candmax and drop the bag-bin
-    // contacts).
-    mjtNum qhvG[3] = {threshGeom + rk, threshGeom + rk, threshGeom + rk};
+    // geom-corner vs flex triangle (type 3); geom is static (one-sided) -> tighter threshGeom (a
+    // convex-decomposition bin's ~1600 edges otherwise produce hundreds of thousands of
+    // candidates). Only the flex side moves: its reach grows by the flex's travel, and its BVH
+    // query by the staleness of the tree as well.
+    // A feature carries its geom (con.g) for the masks and for the radius a sphere centre or
+    // capsule axis stands inside the surface, which widens its query box.
+    mjtNum reachG = threshGeom + fsweep[k], boxG = reachG + rk + fstale[k];
     for (int c=0; c < ngv; c++) {
+      int gi = gvgeom[c];
+      if (maskFiltered(m->geom_contype[gi], m->geom_conaffinity[gi], ct_k, ca_k)) continue;
+      mjtNum bx = boxG + featRadius(m, gi);
+      mjtNum qhvG[3] = {bx, bx, bx};
       int n = bvhBox(m, d, fk, &gv[3 * c], qhvG, stk, outel, ne_k);
       for (int i=0; i < n; i++) {
         int e = outel[i];
         mjcFlexPair con = {mjcGEOM_CORNER_TRI,
                            {c, off_k + el_k[3 * e], off_k + el_k[3 * e + 1],
                             off_k + el_k[3 * e + 2]},
-                           -1};
-        addCand(con, m, d, x, gv, ge, radii, threshGeom, dfrom, dto, ghat, cand, &nc, candmax);
+                           gi};
+        addCand(con, m, d, x, gv, ge, radii, reachG, dfrom, dto, ghat, cand, &nc, &full);
       }
     }
     // geom-edge vs flex edge (type 4); dedup the shared triangle edges per query via stampG.
     for (int c=0; c < nge; c++) {
+      int gi = gegeom[c];
+      if (maskFiltered(m->geom_contype[gi], m->geom_conaffinity[gi], ct_k, ca_k)) continue;
       const mjtNum* p0 = &ge[6 * c];
       const mjtNum* p1 = &ge[6 * c + 3];
-      mjtNum qc[3], qh[3];
+      mjtNum qc[3], qh[3], bx = boxG + featRadius(m, gi);
       for (int kk=0; kk < 3; kk++) {
         qc[kk] = 0.5 * (p0[kk] + p1[kk]);
-        qh[kk] = 0.5 * mju_abs(p1[kk] - p0[kk]) + threshGeom + rk;
+        qh[kk] = 0.5 * mju_abs(p1[kk] - p0[kk]) + bx;
       }
       int n = bvhBox(m, d, fk, qc, qh, stk, outel, ne_k);
       qid++;
@@ -906,43 +1072,47 @@ int mjc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
           mjcFlexPair con = {mjcGEOM_EDGE_EDGE,
                         {c, off_k + m->flex_edge[2 * (ea_k + e2)],
                          off_k + m->flex_edge[2 * (ea_k + e2) + 1], 0},
-                        -1};
-          addCand(con, m, d, x, gv, ge, radii, threshGeom, dfrom, dto, ghat, cand, &nc, candmax);
+                        gi};
+          addCand(con, m, d, x, gv, ge, radii, reachG, dfrom, dto, ghat, cand, &nc, &full);
         }
       }
     }
-    // flex vertex vs flex triangle (type 0): self (same flex, gated by selfcollide) + inter-flex
-    // (always). Asymmetric (vert vs tri), so all verts query every flex's BVH -- both directions
-    // are distinct contacts.
+    // flex vertex vs flex triangle (type 0): self (same flex) + inter-flex, both under fok.
+    // Asymmetric (vert vs tri), so all verts query every flex's BVH -- both directions are
+    // distinct contacts.
     for (int v=0; v < nfv; v++) {
       int kv = pt2flex[v];
-      if (kv == k && !doself_k) continue;  // self-contact disabled for this flex
-      // per-pair band: the thinner flex sets it, capped by the global band
-      mjtNum thv = 3.0 * min2(ghat, min2(radii[v], rk)) + 4.0 * maxdisp;
-      mjtNum qh[3] = {thv + radii[v], thv + radii[v], thv + radii[v]};
+      if (!fok[k * nfd + kv]) continue;  // filtered flex pair
+      // per-pair band: the thinner flex sets it, capped by the global band; the reach adds the
+      // travel of both sides, the BVH query the tree's staleness as well
+      mjtNum thv = 3.0 * min2(ghat, min2(radii[v], rk)) + dl[v] + fsweep[k];
+      mjtNum bv = thv + radii[v] + fstale[k];
+      mjtNum qh[3] = {bv, bv, bv};
       int n = bvhBox(m, d, fk, &x[3 * v], qh, stk, outel, ne_k);
       for (int i=0; i < n; i++) {
         int e = outel[i];
         int A = off_k + el_k[3 * e], B = off_k + el_k[3 * e + 1], C = off_k + el_k[3 * e + 2];
         if (kv == k && (v == A || v == B || v == C)) continue;  // skip the self-adjacent triangle
         mjcFlexPair con = {mjcFLEX_VERT_TRI, {v, A, B, C}, -1};
-        addCand(con, m, d, x, gv, ge, radii, thv, dfrom, dto, ghat, cand, &nc, candmax);
+        addCand(con, m, d, x, gv, ge, radii, thv, dfrom, dto, ghat, cand, &nc, &full);
       }
     }
     // flex edge vs flex edge (type 1): symmetric, so canonical -- querying flex kj <= k, and e2 >
-    // e1 within a flex. Self (kj==k) gated by selfcollide; inter-flex (kj<k) always.
+    // e1 within a flex. Self (kj==k) and inter-flex (kj<k) both under fok.
     for (int kj=0; kj <= k; kj++) {
       int self = (kj == k);
-      if (self && !doself_k) continue;
+      if (!fok[k * nfd + kj]) continue;  // filtered flex pair
       int fj = flist[kj], ea_j = m->flex_edgeadr[fj], en_j = m->flex_edgenum[fj], off_j = fxadr[kj];
       for (int e1=0; e1 < en_j; e1++) {
         int a1 = off_j + m->flex_edge[2 * (ea_j + e1)],
             b1 = off_j + m->flex_edge[2 * (ea_j + e1) + 1];
-        mjtNum the = 3.0 * min2(ghat, min2(radii[a1], rk)) + 4.0 * maxdisp;  // per-pair band
+        // per-pair band plus the travel of both sides; the query adds the tree's staleness
+        mjtNum the = 3.0 * min2(ghat, min2(radii[a1], rk)) + (dl[a1] > dl[b1] ? dl[a1] : dl[b1]) +
+                     fsweep[k];
         mjtNum qc[3], qh[3];
         for (int kk=0; kk < 3; kk++) {
           qc[kk] = 0.5 * (x[3 * a1 + kk] + x[3 * b1 + kk]);
-          qh[kk] = 0.5 * mju_abs(x[3 * a1 + kk] - x[3 * b1 + kk]) + the + radii[a1];
+          qh[kk] = 0.5 * mju_abs(x[3 * a1 + kk] - x[3 * b1 + kk]) + the + radii[a1] + fstale[k];
         }
         int n = bvhBox(m, d, fk, qc, qh, stk, outel, ne_k);
         qid++;
@@ -958,14 +1128,17 @@ int mjc_candidates(const mjModel* m, const mjData* d, const mjtNum* x, const mjt
             if (a1 == a2 || a1 == b2 || b1 == a2 || b1 == b2)
               continue;  // shared vertex -> adjacent, skip
             mjcFlexPair con = {mjcFLEX_EDGE_EDGE, {a1, b1, a2, b2}, -1};
-            addCand(con, m, d, x, gv, ge, radii, the, dfrom, dto, ghat, cand, &nc, candmax);
+            addCand(con, m, d, x, gv, ge, radii, the, dfrom, dto, ghat, cand, &nc, &full);
           }
         }
       }
     }
   }
-  mju_free(stk);
-  mju_free(outel);
-  mju_free(stampG);
+  mj_freeStack(d);
+  if (full) {
+    mju_warning("IPC: arena full after %d candidate pairs; the rest were dropped, so geometry "
+                "there can pass through. Increase the model's memory attribute. Time = %.4f",
+                nc, d->time);
+  }
   return nc;
 }

@@ -13,10 +13,10 @@ from collections.abc import Callable
 from enum import IntEnum
 
 import warp as wp
-from warp._src.codegen import get_full_arg_spec, make_full_qualified_name
+from warp._src.codegen import _SCALAR_TID_MAX_EXTENT, get_full_arg_spec, make_full_qualified_name
 from warp._src.context import (
     CudaMemcpyKind,
-    _build_launch_bounds,
+    _build_kernel_launch_bounds,
     _raise_cuda_launch_error,
     _validate_cluster_launch,
     invoke,
@@ -156,6 +156,17 @@ def _load_ffi_module(module, device, block_dim=None):
             f"Failed to load Warp module '{module.name}' on device '{device}' after a previous build failure"
         )
     return module_exec
+
+
+def _validate_ffi_kernel_launch_bounds(dim, kernel, block_dim=None) -> None:
+    """Validate platform-neutral tracing against every possible FFI target."""
+    cuda_block_dim = 256 if block_dim is None else block_dim
+    kernel.module.get_module_hash(cuda_block_dim)
+    _build_kernel_launch_bounds(dim, kernel, cuda_block_dim)
+
+    leading_extent = dim[0] if dim else 1
+    if leading_extent > _SCALAR_TID_MAX_EXTENT and cuda_block_dim != 1:
+        _build_kernel_launch_bounds(dim, kernel, 1)
 
 
 def _preload_ffi_module(module, mode, block_dim=None):
@@ -384,6 +395,11 @@ class FfiKernel:
         else:
             launch_dims = tuple(launch_dims)
 
+        # Tracing is platform-neutral even when lowering later targets a specific
+        # device. Validate oversized launches against both supported target variants
+        # before JAX constructs output buffer types.
+        _validate_ffi_kernel_launch_bounds(launch_dims, self.kernel, self.block_dim)
+
         # output shapes
         if isinstance(output_dims, dict):
             # assume a dictionary of shapes keyed on argument name
@@ -540,7 +556,8 @@ class FfiKernel:
                         # roll batch size into the first launch dimension
                         launch_dims = (batch_size * launch_dims[0], *launch_dims[1:])
 
-                launch_bounds = _build_launch_bounds(launch_dims, self.kernel.adj.kernel_dim)
+                # Revalidate here because vmap can grow the leading extent at runtime.
+                launch_bounds = _build_kernel_launch_bounds(launch_dims, self.kernel, block_dim)
 
                 if platform == _FFI_PLATFORM_CPU:
                     hooks = module_exec.get_kernel_hooks(self.kernel)
@@ -577,7 +594,7 @@ class FfiKernel:
                     stream,
                     None,  # apic_info
                 ):
-                    _raise_cuda_launch_error(self.kernel, device)
+                    _raise_cuda_launch_error(self.kernel, device, hooks, False)
 
         except Exception as e:
             print(traceback.format_exc())
@@ -1373,6 +1390,9 @@ def jax_kernel(
     else:
         hashable_launch_dims = launch_dims
 
+    # Empty selections normalize to None because the constructors treat them identically.
+    hashable_in_out_argnames = tuple(in_out_argnames) if in_out_argnames else None
+
     if not enable_backward:
         key = (
             kernel.func,
@@ -1381,6 +1401,7 @@ def jax_kernel(
             vmap_method,
             hashable_launch_dims,
             hashable_output_dims,
+            hashable_in_out_argnames,
             module_preload_mode,
             has_side_effect,
             block_dim,
@@ -1395,7 +1416,7 @@ def jax_kernel(
                     launch_dims,
                     block_dim,
                     output_dims,
-                    in_out_argnames,
+                    hashable_in_out_argnames,
                     module_preload_mode,
                     has_side_effect=has_side_effect,
                 )
@@ -1719,11 +1740,25 @@ def jax_callable(
         num_outputs: Specify the number of output arguments if greater than 1.
             This must include the number of ``in_out_arguments``.
         graph_mode: CUDA graph capture mode.
-            ``JaxCallableGraphMode.JAX`` (default): Let JAX capture the graph, which may be used as a subgraph in an enclosing JAX capture.
-            ``JaxCallableGraphMode.WARP``: Let Warp capture the graph. Use this mode when the callable cannot be used as a subgraph,
-            such as when the callable uses conditional graph nodes.
-            ``JaxCallableGraphMode.NONE``: Disable graph capture. Use when the callable performs operations that are not legal in a graph,
-            such as host synchronization.
+            ``JaxCallableGraphMode.JAX`` (default): Let JAX capture the graph,
+            which may be used as a subgraph in an enclosing JAX capture.
+            ``JaxCallableGraphMode.WARP``: Let Warp capture the graph. For a
+            given compiled call, Warp reuses it when the input and output
+            buffer addresses match those of an earlier invocation. Use this
+            mode when the callable cannot be used as a subgraph, such as when
+            it uses conditional graph nodes.
+            ``JaxCallableGraphMode.WARP_STAGED``: Capture a Warp graph against
+            stable staging buffers, with input and output copies inside the
+            graph. The graph can be reused when JAX supplies different buffer
+            addresses for a compiled call.
+            ``JaxCallableGraphMode.WARP_STAGED_EX``: Capture against stable
+            staging buffers, but submit the input and output copies outside the
+            graph.
+            ``JaxCallableGraphMode.NONE``: Disable graph capture. Use when the
+            callable performs operations that are not legal in a graph, such
+            as host synchronization.
+            Staged modes use extra device memory and copy staged arguments on
+            each call. Benchmark both staged modes for the target workload.
             On CPU, ``JaxCallableGraphMode.NONE`` and ``JaxCallableGraphMode.JAX``
             both execute without graph capture. The ``WARP``, ``WARP_STAGED``, and
             ``WARP_STAGED_EX`` modes require CUDA.
@@ -1735,10 +1770,15 @@ def jax_callable(
         in_out_argnames: Names of arguments that are both inputs and outputs (aliased buffers).
             These must be array arguments that appear before any pure output arguments in the
             function signature. The number of in-out arguments is included in ``num_outputs``.
-        stage_in_argnames: Names of input arguments that need to be copied with ``JaxCallableGraphMode.WARP_STAGED*``.
-            If ``None``, copy all input arguments.
-        stage_out_argnames: Names of output arguments that need to be copied with ``JaxCallableGraphMode.WARP_STAGED*``.
-            If ``None``, copy all output arguments.
+        stage_in_argnames: Names of non-empty array inputs to copy into staging
+            buffers on each call in ``WARP_STAGED`` or ``WARP_STAGED_EX`` mode.
+            If ``None``, copy every non-empty array input. When specific names
+            are provided, other array inputs keep the values copied during
+            graph setup.
+        stage_out_argnames: Names of non-empty array outputs to copy from staging
+            buffers on each call in ``WARP_STAGED`` or ``WARP_STAGED_EX`` mode.
+            If ``None``, copy every non-empty array output. When specific names
+            are provided, other array outputs are not copied back.
         graph_cache_max: Maximum number of cached graphs captured using ``JaxCallableGraphMode.WARP``.
             If ``None``, the graph cache is unlimited.
         module_preload_mode: Specify the devices where the module should be preloaded.
@@ -1769,6 +1809,14 @@ def jax_callable(
     else:
         hashable_output_dims = output_dims
 
+    # Empty selections normalize to None to mirror the constructors: an empty or missing
+    # in_out selection aliases nothing, and an empty or missing staging selection stages
+    # every argument. Distinguishing them here would only split the cache between two
+    # identically behaving wrappers.
+    hashable_in_out_argnames = tuple(in_out_argnames) if in_out_argnames else None
+    hashable_stage_in_argnames = tuple(stage_in_argnames) if stage_in_argnames else None
+    hashable_stage_out_argnames = tuple(stage_out_argnames) if stage_out_argnames else None
+
     # Note: we don't include graph_cache_max in the key, it is applied below.
     key = (
         func,
@@ -1776,6 +1824,9 @@ def jax_callable(
         graph_mode,
         vmap_method,
         hashable_output_dims,
+        hashable_in_out_argnames,
+        hashable_stage_in_argnames,
+        hashable_stage_out_argnames,
         module_preload_mode,
         has_side_effect,
     )
@@ -1789,9 +1840,9 @@ def jax_callable(
                 graph_mode,
                 vmap_method,
                 output_dims,
-                in_out_argnames,
-                stage_in_argnames,
-                stage_out_argnames,
+                hashable_in_out_argnames,
+                hashable_stage_in_argnames,
+                hashable_stage_out_argnames,
                 graph_cache_max,
                 module_preload_mode,
                 has_side_effect,

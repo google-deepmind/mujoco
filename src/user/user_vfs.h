@@ -122,18 +122,22 @@ class VFS {
   // C file system.
   mjResource* FindMount(const std::string& fullpath);
 
-  // Invokes the `destructor_, but only if it has been set previously. This
-  // should be only called when resources_ is empty and callers should assume
-  // that `this` will be invalidated after this call.
+  // Invokes `destructor_`, but only if it has been set previously and there are
+  // no open resources or in-flight Open() calls. Callers should assume that
+  // `this` will be invalidated after this call.
   void MaybeSelfDestruct();
 
-  mjVFS                                        wrapped_vfs_;
-  std::mutex                                   mutex_;  // Protects open_resources_ and mounts_.
+  mjVFS                wrapped_vfs_;
+  std::recursive_mutex mutex_;  // Protects open_resources_, mounts_, and in_flight_open_.
   std::unordered_map<mjResource*, ResourcePtr> open_resources_;
   std::unordered_map<std::string, ResourcePtr> mounts_;
   mjResource                                   default_mount_;
   mjpResourceProvider                          default_provider_;
   std::function<void()>                        destructor_;
+  // Number of Open() calls currently in flight. Used to prevent premature
+  // self-destruction of VFS instances when nested resources are
+  // opened and closed during mount operations.
+  int in_flight_open_ = 0;
 };
 
 }  // namespace mujoco::user

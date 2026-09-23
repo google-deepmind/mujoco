@@ -305,11 +305,11 @@ if typing.TYPE_CHECKING:
     pass
 else:
   try:
-    from mujoco.mjx.third_party.warp._src.jax import ffi as warp_ffi
-    GraphMode = warp_ffi.JaxCallableGraphMode
+    import warp as wp
+    GraphMode = wp.JaxCallableGraphMode
     from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
     Callback = mjwp_types.Callback
-  except ImportError:
+  except (ImportError, AttributeError):
     GraphMode = int  # Fallback when warp not installed.
     Callback = None
 

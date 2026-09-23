@@ -30,8 +30,8 @@ namespace {
 static mjtNum distance(const mjtNum p[3], const mjtNum attributes[1]) {
   // see https://www.shadertoy.com/view/XtffzX
   mjtNum screw = 12;
-  mjtNum radius2 = mju_sqrt(p[0]*p[0]+p[1]*p[1]) - attributes[0];
-  mjtNum sqrt12 = mju_sqrt(2.)/2.;
+  mjtNum radius2 = mju_sqrt(p[0] * p[0] + p[1] * p[1]) - attributes[0];
+  mjtNum sqrt12 = mju_sqrt(2.) / 2.;
 
   // a triangle wave spun around Oy, offset by the angle between x and z
   mjtNum azimuth = mju_atan2(p[1], p[0]);
@@ -41,7 +41,7 @@ static mjtNum distance(const mjtNum p[3], const mjtNum attributes[1]) {
   // clip the top
   mjtNum cone2 = (p[2] - radius2) * sqrt12;
 
-  // the hole is the same thing, but substracted from the whole thing
+  // the hole is the same thing, but subtracted from the whole thing
   mjtNum hole = Subtraction(thread2, cone2 + .5 * sqrt12);
   hole = Union(hole, -cone2 - .05 * sqrt12);
 
@@ -65,8 +65,7 @@ static mjtNum distance(const mjtNum p[3], const mjtNum attributes[1]) {
 }  // namespace
 
 // factory function
-std::optional<Nut> Nut::Create(
-  const mjModel* m, mjData* d, int instance) {
+std::optional<Nut> Nut::Create(const mjModel* m, mjData* d, int instance) {
   if (CheckAttr("radius", m, instance)) {
     return Nut(m, d, instance);
   } else {
@@ -79,7 +78,7 @@ std::optional<Nut> Nut::Create(
 Nut::Nut(const mjModel* m, mjData* d, int instance) {
   SdfDefault<NutAttribute> defattribute;
 
-  for (int i=0; i < NutAttribute::nattribute; i++) {
+  for (int i = 0; i < NutAttribute::nattribute; i++) {
     attribute[i] = defattribute.GetDefault(
         NutAttribute::names[i],
         mj_getPluginConfig(m, instance, NutAttribute::names[i]));
@@ -92,9 +91,7 @@ void Nut::Compute(const mjModel* m, mjData* d, int instance) {
 }
 
 // plugin reset
-void Nut::Reset() {
-  visualizer_.Reset();
-}
+void Nut::Reset() { visualizer_.Reset(); }
 
 // plugin visualization
 void Nut::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
@@ -111,11 +108,11 @@ mjtNum Nut::Distance(const mjtNum point[3]) const {
 void Nut::Gradient(mjtNum grad[3], const mjtNum point[3]) const {
   mjtNum eps = 1e-8;
   mjtNum dist0 = distance(point, attribute);
-  mjtNum pointX[3] = {point[0]+eps, point[1], point[2]};
+  mjtNum pointX[3] = {point[0] + eps, point[1], point[2]};
   mjtNum distX = distance(pointX, attribute);
-  mjtNum pointY[3] = {point[0], point[1]+eps, point[2]};
+  mjtNum pointY[3] = {point[0], point[1] + eps, point[2]};
   mjtNum distY = distance(pointY, attribute);
-  mjtNum pointZ[3] = {point[0], point[1], point[2]+eps};
+  mjtNum pointZ[3] = {point[0], point[1], point[2] + eps};
   mjtNum distZ = distance(pointZ, attribute);
 
   grad[0] = (distX - dist0) / eps;
@@ -140,8 +137,8 @@ void Nut::RegisterPlugin() {
     if (!sdf_or_null.has_value()) {
       return -1;
     }
-    d->plugin_data[instance] = reinterpret_cast<uintptr_t>(
-        new Nut(std::move(*sdf_or_null)));
+    d->plugin_data[instance] =
+        reinterpret_cast<uintptr_t>(new Nut(std::move(*sdf_or_null)));
     return 0;
   };
   plugin.destroy = +[](mjData* d, int instance) {
@@ -169,7 +166,7 @@ void Nut::RegisterPlugin() {
         return sdf->Distance(point);
       };
   plugin.sdf_gradient = +[](mjtNum gradient[3], const mjtNum point[3],
-                        const mjData* d, int instance) {
+                            const mjData* d, int instance) {
     auto* sdf = reinterpret_cast<Nut*>(d->plugin_data[instance]);
     sdf->visualizer_.AddPoint(point);
     sdf->Gradient(gradient, point);
@@ -178,12 +175,11 @@ void Nut::RegisterPlugin() {
       +[](const mjtNum point[3], const mjtNum* attributes) {
         return distance(point, attributes);
       };
-  plugin.sdf_aabb =
-      +[](mjtNum aabb[6], const mjtNum* attributes) {
-        aabb[0] = aabb[1] = aabb[2] = 0;
-        aabb[3] = aabb[4] = .6;
-        aabb[5] = 1;
-      };
+  plugin.sdf_aabb = +[](mjtNum aabb[6], const mjtNum* attributes) {
+    aabb[0] = aabb[1] = aabb[2] = 0;
+    aabb[3] = aabb[4] = .6;
+    aabb[5] = 1;
+  };
   plugin.sdf_attribute =
       +[](mjtNum attribute[], const char* name[], const char* value[]) {
         SdfDefault<NutAttribute> defattribute;

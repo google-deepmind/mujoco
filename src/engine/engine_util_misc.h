@@ -16,7 +16,6 @@
 #define MUJOCO_SRC_ENGINE_ENGINE_UTIL_MISC_H_
 
 #include <mujoco/mjexport.h>
-#include <mujoco/mjmodel.h>
 #include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
@@ -71,8 +70,8 @@ mjDCMotorSlots mj_dcmotorSlots(const mjtNum* dynprm, const mjtNum* gainprm);
 MJAPI void mju_geomSemiAxes(mjtNum semiaxes[3], const mjtNum size[3], mjtGeom type);
 
 // return 1 if point is inside a primitive geom, 0 otherwise
-int mju_insideGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3], mjtGeom type,
-                   const mjtNum point[3]);
+int mju_insidePrimitive(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
+                        mjtGeom type, const mjtNum point[3]);
 
 // compute ray origin and direction for pixel (col, row) in camera image
 // directions are normalized so ray functions return actual 3D distance

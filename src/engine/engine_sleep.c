@@ -366,7 +366,8 @@ int mj_wakeCollision(const mjModel* m, mjData* d) {
 }
 
 
-// wake sleeping trees with a constrained tendon to a waking tree, return number of woke trees
+// wake sleeping trees with a constrained or metric tendon to a waking tree
+// return number of woke trees
 int mj_wakeTendon(const mjModel* m, mjData* d) {
   int ntendon = m->ntendon, nwoke = 0;
 
@@ -376,19 +377,54 @@ int mj_wakeTendon(const mjModel* m, mjData* d) {
 
   // sweep over tendons, wake trees if required
   for (int i=0; i < ntendon; i++) {
-    if (m->tendon_treenum[i] != 2 || !tendonLimit(m, d->ten_length, i)) {
+    // skip tendons with less than two trees
+    int treenum = m->tendon_treenum[i];
+    if (treenum < 2) {
       continue;
     }
 
-    int tree1 = m->tendon_treeid[2*i];
-    int tree2 = m->tendon_treeid[2*i + 1];
-    int awake1 = d->tree_awake[tree1];
-    int awake2 = d->tree_awake[tree2];
-    if (awake1 != awake2) {
-      int sleeping_tree = awake1 ? tree2 : tree1;
-      int wakeval = awake1 ? d->tree_asleep[tree1] : d->tree_asleep[tree2];
-      nwoke += mj_wakeIsland(d->tree_asleep, m->ntree, sleeping_tree, wakeval,
-                             "tendon constraint", d->time);
+    // skip tendons that are not limited or do not affect the discrete metric
+    int is_limit = (treenum == 2) && tendonLimit(m, d->ten_length, i);
+    int is_metric = mj_isMetric(m) && mj_effTendonPossible(m, i);
+    if (!is_limit && !is_metric) {
+      continue;
+    }
+
+    // two-tree tendon
+    if (treenum == 2) {
+      int tree1 = m->tendon_treeid[2*i];
+      int tree2 = m->tendon_treeid[2*i+1];
+      int awake1 = d->tree_awake[tree1];
+      int awake2 = d->tree_awake[tree2];
+      if (awake1 != awake2) {
+        int sleeping_tree = awake1 ? tree2 : tree1;
+        int wakeval = awake1 ? d->tree_asleep[tree1] : d->tree_asleep[tree2];
+        const char* reason = is_limit ? "tendon constraint" : "tendon metric";
+        nwoke += mj_wakeIsland(d->tree_asleep, m->ntree, sleeping_tree, wakeval, reason, d->time);
+      }
+    }
+
+    // multi-tree tendon (> 2 trees): wake all sleeping trees if any tree is awake
+    else {
+      int any_awake = 0, wakeval = 0;
+      int start = m->ten_J_rowadr[i];
+      int end = start + m->ten_J_rownnz[i];
+      for (int j=start; j < end; j++) {
+        int tree = m->dof_treeid[m->ten_J_colind[j]];
+        if (d->tree_awake[tree]) {
+          any_awake = 1;
+          wakeval = mjMIN(wakeval, d->tree_asleep[tree]);
+        }
+      }
+      if (any_awake) {
+        for (int j=start; j < end; j++) {
+          int tree = m->dof_treeid[m->ten_J_colind[j]];
+          if (d->tree_asleep[tree] >= 0) {
+            nwoke += mj_wakeIsland(d->tree_asleep, m->ntree, tree, wakeval, "tendon metric",
+                                   d->time);
+          }
+        }
+      }
     }
   }
 

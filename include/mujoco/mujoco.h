@@ -16,7 +16,7 @@
 #define MUJOCO_MUJOCO_H_
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 3012001
+#define mjVERSION_HEADER 3014001
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -518,9 +518,11 @@ MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, int sig
 MJAPI void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, int sig);
 
 // Read ctrl value for actuator at given time.
-// Returns d->ctrl[id] if no history, otherwise reads from history buffer.
+// Returns pointer to ctrl (no history) or history buffer (exact match),
+// or NULL if interpolation performed (writes to result).
 // interp: 0=zero-order-hold, 1=linear, 2=cubic spline.
-MJAPI mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int interp);
+MJAPI const mjtNum* mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time,
+                                mjtNum* result, int interp);
 
 // Read sensor value from history buffer at given time.
 // Returns pointer to sensordata (no history) or history buffer (exact match),
@@ -639,6 +641,9 @@ MJAPI void mj_objectAcceleration(const mjModel* m, const mjData* d,
 // Nullable: fromto
 MJAPI mjtNum mj_geomDistance(const mjModel* m, mjData* d, int geom1, int geom2, mjtNum distmax,
                              mjtNum fromto[6]);
+
+// Return 1 if point is inside a site (convex hull for meshes), 0 otherwise.
+MJAPI int mj_insideSite(const mjModel* m, const mjData* d, int siteid, const mjtNum point[3]);
 
 // Extract 6D force:torque given contact id, in the contact frame.
 MJAPI void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]);
@@ -1587,6 +1592,16 @@ MJAPI void mjp_defaultEncoder(mjpEncoder* encoder);
 // If no match, return NULL.
 MJAPI const mjpEncoder* mjp_findEncoder(const char* filename, const char* content_type);
 
+// Globally register an archive resource provider. This function is thread-safe.
+// provider->prefix specifies the filename extension(s) (e.g. .mjz|.zip).
+MJAPI void mjp_registerArchiveResourceProvider(const mjpResourceProvider* provider);
+
+// Return the archive resource provider that matches against the resource name.
+// If no match, return NULL.
+MJAPI const mjpResourceProvider* mjp_findArchiveResourceProvider(const char* resource_name);
+
+// Return the number of globally registered archive resource providers.
+MJAPI int mjp_archiveResourceProviderCount(void);
 
 
 //---------------------------------- Resources -----------------------------------------------------

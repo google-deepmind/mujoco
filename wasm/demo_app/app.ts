@@ -303,8 +303,12 @@ class App {
       throw new Error('mjvGeom is not an instance of mujoco.MjvGeom');
     }
 
+    const geomType = Number(mjvGeom.type);
+    const geomDataId = Number(mjvGeom.dataid);
+    const size = Array.from(mjvGeom.size).map((x: any) => Number(x));
+
     // Lookup the geometry and return it if found
-    const key = JSON.stringify([mjvGeom.type, mjvGeom.size, mjvGeom.dataid]);
+    const key = JSON.stringify([geomType, size, geomDataId]);
     const found = this.bufferGeometryCache.get(key);
     if (found) {
       return [false, found];
@@ -312,31 +316,31 @@ class App {
 
     // Create geometry
     let geom: THREE.BufferGeometry;
-    if (mjvGeom.type === mujoco.mjtGeom.mjGEOM_PLANE.value) {
+    if (geomType === mujoco.mjtGeom.mjGEOM_PLANE.value) {
       geom = new THREE.PlaneGeometry(
-          2 * (mjvGeom.size[0] ? mjvGeom.size[0] : 10000),
-          2 * (mjvGeom.size[1] ? mjvGeom.size[1] : 10000));
+          2 * (size[0] ? size[0] : 10000),
+          2 * (size[1] ? size[1] : 10000));
       const uv = geom.getAttribute('uv');
       for (let i = 0; i < uv.count; ++i) {
         uv.setY(i, 1 - uv.getY(i));
       }
-    } else if (mjvGeom.type === mujoco.mjtGeom.mjGEOM_SPHERE.value) {
-      geom = new THREE.SphereGeometry(mjvGeom.size[0]);
-    } else if (mjvGeom.type === mujoco.mjtGeom.mjGEOM_CAPSULE.value) {
-      geom = new CapsuleGeometry(mjvGeom.size[0], 2 * mjvGeom.size[2], 32, 16);
+    } else if (geomType === mujoco.mjtGeom.mjGEOM_SPHERE.value) {
+      geom = new THREE.SphereGeometry(size[0]);
+    } else if (geomType === mujoco.mjtGeom.mjGEOM_CAPSULE.value) {
+      geom = new CapsuleGeometry(size[0], 2 * size[2], 32, 16);
       geom.rotateX(0.5 * Math.PI);
-    } else if (mjvGeom.type === mujoco.mjtGeom.mjGEOM_BOX.value) {
+    } else if (geomType === mujoco.mjtGeom.mjGEOM_BOX.value) {
       geom = new THREE.BoxGeometry(
-          2 * mjvGeom.size[0], 2 * mjvGeom.size[1], 2 * mjvGeom.size[2]);
-    } else if (mjvGeom.type === mujoco.mjtGeom.mjGEOM_CYLINDER.value) {
+          2 * size[0], 2 * size[1], 2 * size[2]);
+    } else if (geomType === mujoco.mjtGeom.mjGEOM_CYLINDER.value) {
       geom = new THREE.CylinderGeometry(
-          mjvGeom.size[0], mjvGeom.size[1], 2 * mjvGeom.size[2], 32);
+          size[0], size[1], 2 * size[2], 32);
       geom.rotateX(0.5 * Math.PI);
-    } else if (mjvGeom.type === mujoco.mjtGeom.mjGEOM_ELLIPSOID.value) {
+    } else if (geomType === mujoco.mjtGeom.mjGEOM_ELLIPSOID.value) {
       geom = new THREE.SphereGeometry(1);
-      geom.scale(mjvGeom.size[0], mjvGeom.size[1], mjvGeom.size[2]);
+      geom.scale(size[0], size[1], size[2]);
     } else {
-      console.log('Unsupported geom type: ', mjvGeom.type);
+      console.log('Unsupported geom type: ', geomType);
       geom = new THREE.BufferGeometry();
     }
 
@@ -353,8 +357,8 @@ class App {
 
     // Simulate physics for 1/60 sec
     if (!app.paused) {
-      let sim_start = app.mjData.time;
-      while (app.mjData.time - sim_start < 1. / 60.) {
+      let sim_start = Number(app.mjData.time);
+      while (Number(app.mjData.time) - sim_start < 1. / 60.) {
         mujoco.mj_step(app.mjModel, app.mjData);
       }
     }
@@ -365,22 +369,30 @@ class App {
         this.mjvCamera, mujoco.mjtCatBit.mjCAT_ALL.value, this.mjvScene);
 
     const geoms = this.mjvScene.geoms;
-    for (let i = 0; i < geoms.size(); i++) {
+    const geomCount = Number(geoms.size());
+    for (let i = 0; i < geomCount; i++) {
       const mjvGeom = geoms.get(i);
 
       let mesh: THREE.Mesh;
+      const rgba = Array.from(mjvGeom.rgba).map((x: any) => Number(x));
+      const mat = Array.from(mjvGeom.mat).map((x: any) => Number(x));
+      const pos = Array.from(mjvGeom.pos).map((x: any) => Number(x));
+
       if (i < this.meshes.length) {
         mesh = this.meshes[i];
+        if (mesh.material instanceof THREE.MeshPhongMaterial) {
+          mesh.material.color.setRGB(rgba[0], rgba[1], rgba[2]);
+          mesh.material.opacity = rgba[3];
+          mesh.material.transparent = rgba[3] < 1.0;
+        }
       } else {
-        const mjvGeom = geoms.get(i);
         const [added, geom] = this.getBufferGeometry(mjvGeom);
 
         // Create material
         let material = new THREE.MeshPhongMaterial();
-        material.color.setRGB(
-            mjvGeom.rgba[0], mjvGeom.rgba[1], mjvGeom.rgba[2]);
-        material.opacity = mjvGeom.rgba[3];
-        material.transparent = mjvGeom.rgba[3] !== 0;
+        material.color.setRGB(rgba[0], rgba[1], rgba[2]);
+        material.opacity = rgba[3];
+        material.transparent = rgba[3] < 1.0;
 
         // Create mesh
         mesh = new THREE.Mesh(geom, material);
@@ -394,9 +406,9 @@ class App {
       mesh.matrixAutoUpdate = false;
       const sz = 1;
       mesh.matrix.set(
-          mjvGeom.mat[0], mjvGeom.mat[1], mjvGeom.mat[2] * sz, mjvGeom.pos[0],
-          mjvGeom.mat[3], mjvGeom.mat[4], mjvGeom.mat[5] * sz, mjvGeom.pos[1],
-          mjvGeom.mat[6], mjvGeom.mat[7], mjvGeom.mat[8] * sz, mjvGeom.pos[2],
+          mat[0], mat[1], mat[2] * sz, pos[0],
+          mat[3], mat[4], mat[5] * sz, pos[1],
+          mat[6], mat[7], mat[8] * sz, pos[2],
           0, 0, 0, 1);
       mesh.matrixWorldNeedsUpdate = true;
 

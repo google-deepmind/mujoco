@@ -16,12 +16,14 @@
 
 #include <limits>
 
+#include <math/TMatHelpers.h>
 #include <math/TVecHelpers.h>
 #include <math/mat3.h>
 #include <math/mat4.h>
 #include <math/quat.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
+#include <mujoco/mjrender.h>
 
 namespace mujoco {
 
@@ -29,10 +31,12 @@ using filament::math::float3;
 using filament::math::float4;
 using filament::math::mat3f;
 using filament::math::mat4;
+using filament::math::mat4f;
 using filament::math::quatf;
 
 mat4 ToReflectionMatrix(const mat4& xform) {
-  const float3 normal = xform[2].xyz;
+  // Normalize normal so geom scaling does not collapse the reflection.
+  const float3 normal = normalize(xform[2].xyz);
   const float dist = dot(xform[3].xyz, normal);
   // clang-format off
   return mat4(
@@ -56,35 +60,36 @@ mat4 ToReflectionMatrix(const mat4& xform) {
   // clang-format on
 }
 
-mat4 CalculateObliqueProjection(const mat4& projection, const float4& plane) {
-  mat4 res = projection;
-  auto sgn = [](float x) {
-    return (x > 0.0f) ? 1.0f : x < 0.0f ? -1.0f : 0.0f;
-  };
+mat4f GetReflectionViewProjectionMatrix(const mjrCamera& cam, int viewport_width,
+                                       int viewport_height) {
+  const float3 cam_pos(cam.pos[0], cam.pos[1], cam.pos[2]);
+  const float3 cam_fwd(cam.forward[0], cam.forward[1], cam.forward[2]);
+  const float3 cam_up(cam.up[0], cam.up[1], cam.up[2]);
+  const float3 cam_at = cam_pos + cam_fwd;
 
-  // The plane should be oriented such that the side to be kept is positive.
-  // The camera is at (0,0,0) in camera space. The value of the plane equation
-  // at the camera origin is plane.w. The reflected scene is on the opposite
-  // side of the plane from the camera. If plane.w is positive, the camera is
-  // on the positive side, so the reflected scene is on the negative side.
-  // We need to flip the plane in this case.
-  float4 clip_plane = plane;
-  if (plane.w > 0) {
-    clip_plane = -plane;
+  const float bottom = cam.frustum_bottom;
+  const float top = cam.frustum_top;
+  const float near = cam.frustum_near;
+  const float far = cam.frustum_far;
+  const float aspect_ratio =
+      static_cast<float>(viewport_width) / static_cast<float>(viewport_height);
+  const float halfwidth =
+      cam.frustum_width
+          ? cam.frustum_width
+          : 0.5f * aspect_ratio * (top - bottom);
+  const float left = cam.frustum_center - halfwidth;
+  const float right = cam.frustum_center + halfwidth;
+  const mat4 view = inverse(mat4::lookAt(cam_pos, cam_at, cam_up));
+
+  mat4 proj;
+  if (cam.orthographic) {
+    proj = mat4::ortho(left, right, bottom, top, near, far);
+  } else {
+    proj = mat4::frustum(left, right, bottom, top, near, far);
+    proj[2][2] = -1.0f;
+    proj[3][2] = -2.0f * near;
   }
-
-  float4 q;
-  q.x = (sgn(clip_plane.x) + res[2][0]) / res[0][0];
-  q.y = (sgn(clip_plane.y) + res[2][1]) / res[1][1];
-  q.z = -1.0f;
-  q.w = (1.0f + res[2][2]) / res[3][2];
-
-  const float4 c = clip_plane * (2.0f / dot(clip_plane, q));
-  res[0][2] = c.x;
-  res[1][2] = c.y;
-  res[2][2] = c.z;
-  res[3][2] = c.w;
-  return res;
+  return mat4f(proj * view);
 }
 
 float4 CalculateOrientation(const float3& normal) {

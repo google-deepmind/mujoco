@@ -14,7 +14,8 @@ XML schema
 ~~~~~~~~~~
 
 The dropdown below summarizes the XML elements and their attributes in MJCF. All information in MJCF is entered through
-elements and attributes. Text content in elements is not used; if present, the parser ignores it.
+elements and attributes. Text content in elements is not used (except for CDATA in :ref:`custom text<custom-text>`
+elements); if present, the parser ignores it.
 
 .. only:: html
 
@@ -89,6 +90,53 @@ will appear in the reference documentation as
       <p style="display: none"></p>
 
 
+.. _CXSD:
+
+XSD schema
+~~~~~~~~~~
+
+The schema is also emitted as an `XML Schema <https://www.w3.org/TR/xmlschema-1/>`__ (XSD) document, generated from the
+same source of truth and checked in as
+`src/xml/generated/mjcf.xsd <https://github.com/google-deepmind/mujoco/blob/main/src/xml/generated/mjcf.xsd>`__.
+Editors use it to complete elements, attributes and keywords, and to report ill-formed values as you type:
+
+.. image:: images/XMLreference/xsd_editor.png
+   :width: 100%
+   :align: center
+   :class: only-light
+
+.. image:: images/XMLreference/xsd_editor_dark.png
+   :width: 100%
+   :align: center
+   :class: only-dark
+
+To enable this in VS Code, install the Red Hat
+`XML extension <https://marketplace.visualstudio.com/items?itemName=redhat.vscode-xml>`__ (or the same extension from
+`Open VSX <https://open-vsx.org/extension/redhat/vscode-xml>`__ in forks such as Cursor and VSCodium) and reference
+the schema in the model's root element
+(`example <https://github.com/google-deepmind/mujoco/blob/main/test/xml/testdata/schema_location.xml>`__):
+
+.. code-block:: xml
+
+   <mujoco xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/google-deepmind/mujoco/refs/heads/main/src/xml/generated/mjcf.xsd">
+
+Alternatively, associate model files with the schema in the editor's settings, leaving the models untouched:
+
+.. code-block:: json
+
+   "xml.fileAssociations": [{
+     "pattern": "**/*.xml",
+     "systemId": "https://raw.githubusercontent.com/google-deepmind/mujoco/refs/heads/main/src/xml/generated/mjcf.xsd"
+   }]
+
+Replace ``refs/heads/main`` with a release tag to pin the schema to a MuJoCo version.
+
+The XSD is not a specification of model validity: it never rejects a model that MuJoCo accepts, but does accept models
+that the compiler rejects. Constraints that XSD 1.0 cannot express -- child cardinality and presence constraints
+between attributes -- are carried as annotations.
+
+
 .. _Reference:
 
 MJCF Reference
@@ -121,7 +169,8 @@ Meta elements
 
 These elements are not strictly part of the low-level MJCF format definition, but rather instruct the compiler to
 perform some operation on the model. A general property of meta-elements is that they disappear from the model upon
-saving the XML. There are currently six meta-elements in MJCF:
+saving the XML; the exception is :ref:`frame<frame>`, which is preserved. There are currently six meta-elements in
+MJCF:
 
 - :ref:`include<include>`, :ref:`frame<frame>`, and :ref:`replicate<replicate>` which are outside of the schema.
 - :ref:`composite<body-composite>`, :ref:`flexcomp<body-flexcomp>` and :ref:`attach<body-attach>` which are part of the
@@ -133,46 +182,10 @@ saving the XML. There are currently six meta-elements in MJCF:
 ^^^^^^^^^^^^^
 
 The frame meta-element is a pure coordinate transformation that can wrap any group of elements in the kinematic tree
-(under :ref:`worldbody<body>`). After compilation, frame elements disappear and their transformation is accumulated
-in their direct children. The attributes of the frame meta-element are documented :ref:`below<body-frame>`.
-
-.. collapse:: Usage example of frame
-
-   Loading this model and saving it:
-
-   .. code-block:: xml
-
-      <mujoco>
-        <worldbody>
-          <frame quat="0 0 1 0">
-             <geom name="Alice" quat="0 1 0 0" size="1"/>
-          </frame>
-
-          <frame pos="0 1 0">
-            <geom name="Bob" pos="0 1 0" size="1"/>
-            <body name="Carl" pos="1 0 0">
-              ...
-            </body>
-          </frame>
-        </worldbody>
-      </mujoco>
-
-   Results in this model:
-
-   .. code-block:: xml
-
-      <mujoco>
-        <worldbody>
-          <geom name="Alice" quat="0 0 0 1" size="1"/>
-          <geom name="Bob" pos="0 2 0" size="1"/>
-          <body name="Carl" pos="1 1 0">
-            ...
-          </body>
-        </worldbody>
-      </mujoco>
-
-   Note that in the saved model, the frame elements have disappeared but their transformation was accumulated with those
-   of their child elements.
+(under :ref:`worldbody<body>`). At compile time the transformation is accumulated into the frame's direct children;
+frames have no counterpart in :ref:`mjModel`. Unlike the other meta-elements, frames are preserved when the model is
+saved: the frame is written with its pose and its contents in frame-relative coordinates, so a saved model reloads
+with the same frames. The attributes of the frame meta-element are documented :ref:`below<body-frame>`.
 
 .. _replicate:
 
@@ -326,9 +339,10 @@ adjust it properly through the XML.
    This attribute determines the ratio of frictional-to-normal constraint impedance for elliptic friction cones. The
    setting of solimp determines a single impedance value for all contact dimensions, which is then modulated by this
    attribute. Settings larger than 1 cause friction forces to be "harder" than normal forces, having the general effect
-   of preventing slip, without increasing the actual friction coefficient. For pyramidal friction cones the situation is
-   more complex because the pyramidal approximation mixes normal and frictional dimensions within each basis vector; it
-   is not recommended to use high impratio values with pyramidal cones.
+   of reducing :ref:`slow slippage<CSlowSlippage>` without increasing the actual friction coefficient or guaranteeing
+   exact sticking. For pyramidal friction cones the situation is more complex because the pyramidal approximation mixes
+   normal and frictional dimensions within each basis vector; it is not recommended to use high impratio values with
+   pyramidal cones.
 
 .. _option-gravity:
 
@@ -389,11 +403,12 @@ adjust it properly through the XML.
 
 .. _option-integrator:
 
-:at:`integrator`: :at-val:`[Euler, RK4, implicit, implicitfast], "Euler"`
+:at:`integrator`: :at-val:`[Euler, RK4, implicit, implicitfast, discrete], "Euler"`
    This attribute selects the numerical :ref:`integrator <geIntegration>` to be used. Currently the available
-   integrators are the semi-implicit Euler method, the fixed-step 4-th order Runge Kutta method, the
-   Implicit-in-velocity Euler method, and :at:`implicitfast`, which drops the Coriolis and centrifugal terms. See
-   :ref:`Numerical Integration<geIntegration>` for more details.
+   integrators are the semi-implicit Euler method, the fixed-step 4th-order Runge-Kutta method, the
+   implicit-in-velocity Euler method, :at:`implicitfast`, which drops the Coriolis and centrifugal terms, and
+   :at:`discrete`, a velocity-stepping integrator which unifies constraint solving and implicit position/velocity
+   updates in an effective inertia metric. See :ref:`Numerical Integration<geIntegration>` for more details.
 
 .. _option-cone:
 
@@ -448,9 +463,10 @@ adjust it properly through the XML.
 .. _option-noslip_iterations:
 
 :at:`noslip_iterations`: :at-val:`int, "0"`
-   Maximum number of iterations of the Noslip solver. This is a post-processing step executed after the main solver. It
+   Maximum number of iterations of the NoSlip solver. This is a post-processing step executed after the main solver. It
    uses a modified PGS method to suppress slip/drift in friction dimensions resulting from the soft-constraint model.
-   The default setting 0 disables this post-processing step.
+   The default setting 0 disables this post-processing step. See the :ref:`NoSlip solver<soNoSlip>` for its mechanics
+   and tradeoffs, and :ref:`slow slippage<CSlowSlippage>` for practical guidance.
 
 .. _option-noslip_tolerance:
 
@@ -459,7 +475,7 @@ adjust it properly through the XML.
 
 .. _option-ccd_iterations:
 
-:at:`ccd_iterations`: :at-val:`int, "50"`
+:at:`ccd_iterations`: :at-val:`int, "35"`
    Maximum number of iterations of the algorithm used for convex collisions. This rarely needs to be adjusted,
    except in situations where some geoms have very large aspect ratios.
 
@@ -540,7 +556,7 @@ from its default.
 .. _option-flag-spring:
 
 :at:`spring`: :at-val:`[disable, enable], "enable"`
-   This flag disables passive joint and tendon springs. If passive :ref:`damper <option-flag-damper>` forces are
+   This flag disables passive joint, tendon and flex springs. If passive :ref:`damper <option-flag-damper>` forces are
    also disabled, **all** passive forces are disabled, including gravity compensation, fluid forces, forces computed by
    the :ref:`mjcb_passive` callback, and forces computed by :ref:`plugins <exPlugin>` when passed the
    :ref:`mjPLUGIN_PASSIVE<mjtPluginCapabilityBit>` capability flag.
@@ -548,9 +564,9 @@ from its default.
 .. _option-flag-damper:
 
 :at:`damper`: :at-val:`[disable, enable], "enable"`
-   This flag disables passive joint and tendon dampers. If passive :ref:`spring <option-flag-spring>` forces are also
-   disabled, **all** passive forces are disabled, including gravity compensation, fluid forces, forces computed by the
-   :ref:`mjcb_passive` callback, and forces computed by :ref:`plugins <exPlugin>` when passed the
+   This flag disables passive joint, tendon and flex dampers. If passive :ref:`spring <option-flag-spring>` forces are
+   also disabled, **all** passive forces are disabled, including gravity compensation, fluid forces, forces computed by
+   the :ref:`mjcb_passive` callback, and forces computed by :ref:`plugins <exPlugin>` when passed the
    :ref:`mjPLUGIN_PASSIVE<mjtPluginCapabilityBit>` capability flag.
 
 .. _option-flag-gravity:
@@ -591,7 +607,9 @@ from its default.
    This flag enables a safety mechanism that prevents instabilities due to solref[0] being too small compared to the
    simulation timestep. Recall that solref[0] is the stiffness of the virtual spring-damper used for constraint
    stabilization. If this setting is enabled, the solver uses max(solref[0], 2*timestep) in place of solref[0]
-   separately for each active constraint.
+   separately for each active constraint. Under the :ref:`discrete<geIntegrators>` integrator, the flag instead
+   replaces contact and limit rows whose spring the timestep cannot resolve (solref[0]*solref[1] < timestep) by the
+   stiffest zero-restitution row for the timestep, keeping the authored damping ratio.
 
 .. _option-flag-sensor:
 
@@ -705,6 +723,45 @@ from its default.
    negligible since :math:`Y` is computed anyway. Consider enabling this flag when observing divergence or poor
    constraint quality, particularly in models with highly anisotropic body inertias or bodies operating far from the
    initial configuration ``qpos0``.
+
+   Under the ``discrete`` :ref:`integrator<option-integrator>`, the exact diagonal is computed against the factored
+   backbone of the effective metric :math:`\widehat{M}`; tendon, actuator and flex couplings are not included.
+
+.. _option-flag-ipc:
+
+:at:`ipc`: :at-val:`[disable, enable], "disable"`
+   This flag selects the IPC contact mode of the ``discrete`` :ref:`integrator<option-integrator>`; it is an error
+   with any other integrator. The mode is experimental. It keeps contact multipliers in :ref:`mjData` across steps
+   that no :ref:`state specification<mjtState>` covers, so :ref:`mj_getState` and :ref:`mj_setState` do not capture
+   its full state and exact replay from a saved state is not supported. The mode solves its subproblems with
+   matrix-free conjugate gradient, so :ref:`solver<option-solver>` must be ``CG``, and it cannot be combined with
+   the ``fwdinv`` or ``sleep`` flags. It applies model-wide: every flex the mode supports has its contact solved this
+   way. Contacts between two supported flexes, and between a supported flex and a static plane, sphere, capsule, box
+   or mesh, are resolved by the mode and the collision pipeline does not generate them; contacts with moving bodies
+   and with the other geom types keep their constraint rows. The pairs the mode resolves are frictionless: they carry
+   normal forces only, and the friction parameters of the flexes and geoms involved do not apply to them.
+   The usual collision filtering applies to the pairs the mode resolves: none with the ``contact`` flag disabled, the
+   contype/conaffinity rule of contact :ref:`selection<coSelection>` between a flex and a geom or between two flexes,
+   and each flex's ``selfcollide`` for its self-contact. A pinned flex vertex may ride a static body or a body reached
+   through slide joints only, whose points move on the straight segments the mode sweeps; a hinge, ball or free joint
+   on that chain is an error. The mode assumes metre-scale models with millimetre-thick flexes: its detection band, rest
+   gap between flex surfaces and convergence speed are fixed at 3 mm, 1 mm and 0.05 m/s.
+   Contact is passive under this flag whatever :ref:`passive<flex-contact-passive>` says, since the flag replaces
+   the penalty form of passive contact — the same contact law with the multiplier held at zero — with the
+   augmented-Lagrangian solve, rather than returning any flex to the constraint solver. Flex contact is solved by a
+   barrier-free augmented-Lagrangian outer loop around the discrete solve: each step minimizes an incremental
+   potential subject to linearized contact constraints, carried as one-sided rows of the constraint solver whose
+   multipliers are updated between solves, re-linearizing contact at trial positions, and every committed position
+   update is verified intersection-free by continuous collision detection, so flex contact cannot tunnel. Rigid bodies
+   are carried through the same position-level step with their contacts kept in the constraint solver, and a model
+   without 2D flexes takes that step as well. Supported for dim-2 flexes: a flex with edge equality constraints keeps
+   its elasticity in the constraint solver, while :ref:`elastic2d<flex-elasticity-elastic2d>` elasticity is integrated
+   implicitly through the effective metric.
+   Under this flag the constraint stage of :ref:`mj_forward` is skipped for a model with a 2D flex: after
+   :ref:`mj_forward`, ``mjData.qacc`` holds the free-flight acceleration and the acceleration-stage sensors are
+   computed from it. The step recomputes those sensors from its own acceleration and constraint force before it
+   commits, so after :ref:`mj_step` they read as under the plain ``discrete`` integrator; a user or plugin sensor
+   at the acceleration stage is evaluated twice per step. Inverse dynamics is not supported.
 
 .. _compiler:
 
@@ -2970,7 +3027,7 @@ tendons, constructing slider-crank transmissions for actuators.
 
 .. _body-site-type:
 
-:at:`type`: :at-val:`[sphere, capsule, ellipsoid, cylinder, box], "sphere"`
+:at:`type`: :at-val:`[sphere, capsule, ellipsoid, cylinder, box, mesh], "sphere"`
    Type of geometric shape. This is used for rendering, and also determines the active sensor zone for :ref:`touch
    sensors <sensor-touch>`.
 
@@ -2984,6 +3041,11 @@ tendons, constructing slider-crank transmissions for actuators.
 
 :at:`material`: :at-val:`string, optional`
    Material used to specify the visual properties of the site.
+
+.. _body-site-mesh:
+
+:at:`mesh`: :at-val:`string, optional`
+   Mesh asset name. This attribute is required if the site type is "mesh".
 
 .. _body-site-rgba:
 
@@ -3387,7 +3449,7 @@ cable, which produces an inextensible chain of bodies connected with ball joints
 
 .. _body-composite-initial:
 
-:at:`initial`: :at-val:`[free, ball, none], "0"`
+:at:`initial`: :at-val:`[free, ball, none], "ball"`
    Behavior of the first point. Free: free joint. Ball: ball joint. None: no dof.
 
 .. _body-composite-curve:
@@ -3541,9 +3603,11 @@ This sub-element adjusts the attributes of the sites in the composite object. Ot
 
 .. _composite-site-material:
 
+.. _composite-site-mesh:
+
 .. _composite-site-rgba:
 
-:at:`group`, :at:`size`, :at:`material`, :at:`rgba`
+:at:`group`, :at:`size`, :at:`material`, :at:`mesh`, :at:`rgba`
    Same meaning as regular :ref:`site <body-site>` attributes.
 
 
@@ -3750,7 +3814,7 @@ saving the XML:
      for the entire flex, independent of the number of vertices. The positions of the vertices are updated using
      quadratic interpolation over the bounding box. While this option requires more degrees of freedom than trilinear
      flexes, it enables curved deformation modes, while the only modes achievable for trilinear flexes are
-     strech/compression and shear. To understand the difference between the two parametrizations, see `a trilinear cube
+     stretch/compression and shear. To understand the difference between the two parametrizations, see `a trilinear cube
      <https://github.com/google-deepmind/mujoco/blob/main/model/flex/trilinear.xml>`__ and `a quadratic cube
      <https://github.com/google-deepmind/mujoco/blob/main/model/flex/quadratic.xml>`__.
 
@@ -4130,8 +4194,8 @@ the saved XML file. Note that this element is a subset of the functionality of t
 :el-prefix:`body/` |-| **frame** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Frames specify a coordinate transformation which is applied to all child elements. They disappear during compilation
-and the transformation they encode is accumulated in their direct children. See :ref:`frame<frame>` for examples.
+Frames specify a coordinate transformation which is applied to all child elements. During compilation the
+transformation they encode is accumulated in their direct children; frames are preserved when the model is saved.
 
 .. _frame-name:
 
@@ -4555,9 +4619,10 @@ extensions specific to flexes.
    The force is a penalty on penetration depth whose stiffness is chosen as a natural frequency scaled by the
    participating vertex mass, so a single value is appropriate across model scales; it is not user-specified. That
    stiffness is integrated implicitly, its curvature being carried by the effective metric, and is therefore far
-   stiffer than an explicit force at the same timestep could be. It follows that the feature requires an integrator
-   whose constraint solve runs in that metric: :at:`implicit` or :at:`implicitfast` with the CG solver, pyramidal
-   friction cones and sleep disabled. A model requesting passive flex collisions otherwise is rejected with an error.
+   stiffer than an explicit force at the same timestep could be. It follows that the feature requires the ``discrete``
+   :ref:`integrator<option-integrator>`, with the ``CG`` or ``Newton`` :ref:`solver<option-solver>`, no
+   :ref:`noslip<option-noslip_iterations>` iterations and the :ref:`sleep<option-flag-sleep>` flag disabled. A model
+   requesting passive flex collisions otherwise is rejected with an error.
 
    Being a penalty force, it does not guarantee non-penetration: a thin flex moving fast enough to cross another
    within one step will pass through it. This is an experimental feature.
@@ -5576,7 +5641,7 @@ specify them independently.
    Armature inertia (or mass for slider joints) contributed by the actuator to its transmission target (joint or tendon
    only). This is the actual inertia of the spinning element inside the actuator (e.g., a rotor). The contributed value
    is scaled by :ref:`gear<actuator-general-gear>` squared, because the gear ratio scales both forces and velocities,
-   leading to `reflected inertia <https://en.wikipedia.org/wiki/Reflective_inertia>`__. See
+   leading to reflected inertia. See
    :ref:`joint<body-joint-armature>` and :ref:`tendon<tendon-fixed-armature>` armature for more details.
 
    See also the note in :ref:`damping<actuator-general-damping>` regarding multiple actuators acting on the same
@@ -6981,7 +7046,8 @@ This element has the following custom attributes in addition to the common attri
    A value of 0 (the default) disables the respective feature. When positive, :at-val:`slewmax` limits the
    rate-of-change of the first input (position setpoint in rad/s, or with signatures lacking ``pos``, velocity
    setpoint or torque feedforward), :at-val:`Imax` clamps the integrator state (anti-windup), and :at-val:`Vmax`
-   clamps the drive voltage :math:`v_{\max}` (Volt), upstream of the raw ``voltage`` input.
+   clamps the controller's drive voltage :math:`v_{\max}` (Volt). It does not bound the raw ``voltage`` input,
+   which is added downstream: use :at:`ctrlrange` to limit a voltage command.
    (see `tech note <_static/dcmotor.pdf>`__, Section 2.5)
 
 .. _actuator-plugin:
@@ -8987,6 +9053,8 @@ visualization of contact points.
 
 .. _sensor-tactile-name:
 
+.. _sensor-tactile-cutoff:
+
 .. _sensor-tactile-nsample:
 
 .. _sensor-tactile-interp:
@@ -8997,7 +9065,7 @@ visualization of contact points.
 
 .. _sensor-tactile-user:
 
-:at:`name`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`:
+:at:`name`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`:
    See :ref:`CSensor`.
 
 .. _sensor-e_potential:
@@ -9978,6 +10046,8 @@ if omitted.
 
 .. _default-site-material:
 
+.. _default-site-mesh:
+
 .. _default-site-size:
 
 .. _default-site-fromto:
@@ -10754,8 +10824,9 @@ other custom computations.
 
 .. _custom-text-data:
 
-:at:`data`: :at-val:`string, required`
-   Custom text to be copied into mjModel.
+:at:`data`: :at-val:`string, optional`
+   Custom text to be copied into mjModel. Alternatively, the text can be provided in a
+   `CDATA section <https://www.w3.org/TR/xml/#sec-cdata-sect>`__ of the form ``<![CDATA[ ... ]]>`` in the ``<text>`` element.
 
 
 .. _custom-tuple:

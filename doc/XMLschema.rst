@@ -188,6 +188,9 @@
             .. grid-item::
                :ref:`diagexact<option-flag-diagexact>`
 
+            .. grid-item::
+               :ref:`ipc<option-flag-ipc>`
+
 
    .. dropdown:: :ref:`compiler<compiler>` |*|
 
@@ -1038,6 +1041,9 @@
                :ref:`material<body-site-material>`
 
             .. grid-item::
+               :ref:`mesh<body-site-mesh>`
+
+            .. grid-item::
                :ref:`size<body-site-size>`
 
             .. grid-item::
@@ -1405,6 +1411,9 @@
 
                .. grid-item::
                   :ref:`rgba<composite-site-rgba>`
+
+               .. grid-item::
+                  :ref:`mesh<composite-site-mesh>`
 
 
          .. dropdown:: :ref:`plugin<composite-plugin>` |*|
@@ -5100,6 +5109,9 @@
                :ref:`interval<sensor-tactile-interval>`
 
             .. grid-item::
+               :ref:`cutoff<sensor-tactile-cutoff>`
+
+            .. grid-item::
                :ref:`user<sensor-tactile-user>`
 
 
@@ -5764,6 +5776,9 @@
 
             .. grid-item::
                :ref:`material<default-site-material>`
+
+            .. grid-item::
+               :ref:`mesh<default-site-mesh>`
 
             .. grid-item::
                :ref:`size<default-site-size>`

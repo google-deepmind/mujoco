@@ -30,17 +30,20 @@ compile errors, and the field's C type (parsed from mjspec.h) selects the row
 kind, so mjtNum vs double is decided by the struct, not by the schema.
 """
 
-import os  # pylint: disable=unused-import
+import os
 import re
 import sys
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _SCRIPT_DIR)
-import mjcf_schema
-_REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
-SCHEMA_PATH = os.path.join(_REPO_ROOT, 'src', 'xml', 'mjcf.schema')
-SPEC_H_PATH = os.path.join(_REPO_ROOT, 'include', 'mujoco', 'mjspec.h')
-MODEL_H_PATH = os.path.join(_REPO_ROOT, 'include', 'mujoco', 'mjmodel.h')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+  import resource_loader  # pyrefly: ignore[missing-import]
+  import mjcf_schema  # pyrefly: ignore[missing-import]
+except ImportError:
+  raise
+
+SCHEMA_PATH = str(resource_loader.resolve_path('src/xml/mjcf.schema'))
+SPEC_H_PATH = str(resource_loader.resolve_path('include/mujoco/mjspec.h'))
+MODEL_H_PATH = str(resource_loader.resolve_path('include/mujoco/mjmodel.h'))
 
 # elements with a bound spec whose OneX() reader is NOT table-driven;
 # their rows are not emitted. These are the genuinely irregular elements

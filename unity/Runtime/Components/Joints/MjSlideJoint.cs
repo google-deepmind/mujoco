@@ -60,7 +60,7 @@ namespace Mujoco {
           MjEngineTool.UnityVector3(mjcf.GetVector3Attribute("pos", defaultValue: Vector3.zero));
 
       var rotationAxis =
-          MjEngineTool.UnityVector3(mjcf.GetVector3Attribute("axis", defaultValue: Vector3.right));
+          MjEngineTool.UnityVector3(mjcf.GetVector3Attribute("axis", defaultValue: MjEngineTool.MjVector3Up));
       transform.localRotation = Quaternion.FromToRotation(Vector3.right, rotationAxis);
 
       var rangeValues = mjcf.GetFloatArrayAttribute("range", defaultValue: new float[] { 0, 0 });

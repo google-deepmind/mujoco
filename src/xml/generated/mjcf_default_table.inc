@@ -471,7 +471,7 @@ static const mjXDefaultEntry kDefaults_mjsSkin[] = {
 static const mjXDefaultEntry kDefaults_mjsTendon[] = {
   {"group", (int)offsetof(mjsTendon, group), 2, 1, 0, 0, {0}},
   {"limited", (int)offsetof(mjsTendon, limited), 2, 1, 1, 0, {(double)2}},
-  {"actuatorfrclimited", (int)offsetof(mjsTendon, actfrclimited), 2, 1, 0, 0, {0}},
+  {"actuatorfrclimited", (int)offsetof(mjsTendon, actfrclimited), 2, 1, 1, 0, {(double)2}},
   {"range", (int)offsetof(mjsTendon, range), 0, 2, 0, 0, {0}},
   {"actuatorfrcrange", (int)offsetof(mjsTendon, actfrcrange), 0, 2, 0, 0, {0}},
   {"solreflimit", (int)offsetof(mjsTendon, solref_limit), 4, mjNREF, 2, 0, {0.02, 1.0}},

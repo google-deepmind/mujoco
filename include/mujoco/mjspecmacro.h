@@ -213,6 +213,7 @@
     X   ( mjString*,      material, 1 ) \
     X   ( int,            group,    1 ) \
     XVEC( float,          rgba,     4 ) \
+    X   ( mjString*,      meshname, 1 ) \
     X   ( mjDoubleVec*,   userdata, 1 ) \
     X   ( mjString*,      info,     1 )
 

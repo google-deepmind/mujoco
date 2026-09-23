@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 016e5ec5d..d2a6aae37 100644
+index adeaa12..838b21f 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -11,12 +11,7 @@ cmake_minimum_required(VERSION 3.22.1)
@@ -16,7 +16,7 @@ index 016e5ec5d..d2a6aae37 100644
  
  # ==================================================================================================
  # Toolchain configuration
-@@ -264,57 +259,59 @@ if (WIN32)
+@@ -267,57 +262,59 @@ if (WIN32)
      # __declspec(dllexport) in front of each functions).
      set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
  
@@ -126,7 +126,7 @@ index 016e5ec5d..d2a6aae37 100644
      endif()
  
      if (MSVC)
-@@ -361,7 +358,7 @@ endif()
+@@ -364,7 +361,7 @@ endif()
  # Detect use of the clang-cl.exe frontend, which does not support all of clangs normal options
  if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
      if ("${CMAKE_CXX_SIMULATE_ID}" STREQUAL "MSVC")
@@ -135,7 +135,7 @@ index 016e5ec5d..d2a6aae37 100644
      endif()
  endif()
  
-@@ -393,7 +390,7 @@ if (APPLE AND NOT IOS)
+@@ -396,7 +393,7 @@ if (APPLE AND NOT IOS)
  endif()
  
  set(CXX_STANDARD "-std=c++20")
@@ -144,7 +144,7 @@ index 016e5ec5d..d2a6aae37 100644
      set(CXX_STANDARD "/std:c++20")
  endif()
  
-@@ -787,9 +784,14 @@ function(combine_static_libs TARGET OUTPUT DEPS)
+@@ -790,9 +787,14 @@ function(combine_static_libs TARGET OUTPUT DEPS)
      endforeach()
  
      if (WIN32)
@@ -161,7 +161,7 @@ index 016e5ec5d..d2a6aae37 100644
              COMMENT "Combining ${target} dependencies into single shared library"
              VERBATIM
 diff --git a/filament/CMakeLists.txt b/filament/CMakeLists.txt
-index c334d0a9f..9f8004e3d 100644
+index 32479e0..c6d5d36 100644
 --- a/filament/CMakeLists.txt
 +++ b/filament/CMakeLists.txt
 @@ -808,6 +808,9 @@ else()
@@ -175,10 +175,10 @@ index c334d0a9f..9f8004e3d 100644
  
  target_compile_options(${TARGET} PRIVATE
 diff --git a/filament/backend/CMakeLists.txt b/filament/backend/CMakeLists.txt
-index 78c05dd22..4f8c0bf3d 100644
+index 0a0c843..04abb73 100644
 --- a/filament/backend/CMakeLists.txt
 +++ b/filament/backend/CMakeLists.txt
-@@ -525,6 +525,10 @@ else()
+@@ -542,6 +542,10 @@ else()
      )
  endif()
  
@@ -190,7 +190,7 @@ index 78c05dd22..4f8c0bf3d 100644
      # Turn on Automatic Reference Counting.
      target_compile_options(${TARGET} PRIVATE "-fobjc-arc")
 diff --git a/filament/backend/src/CommandStream.cpp b/filament/backend/src/CommandStream.cpp
-index 7146800f6..d7973ffd4 100644
+index 7146800..d7973ff 100644
 --- a/filament/backend/src/CommandStream.cpp
 +++ b/filament/backend/src/CommandStream.cpp
 @@ -57,7 +57,7 @@ static void printParameterPack(io::ostream& out, const FIRST& first, const REMAI
@@ -203,7 +203,7 @@ index 7146800f6..d7973ffd4 100644
      auto pos = command.rfind(startPattern);
      auto end = command.rfind('(');
 diff --git a/filament/backend/src/opengl/platforms/PlatformWGL.cpp b/filament/backend/src/opengl/platforms/PlatformWGL.cpp
-index 318430289..8664ea3cf 100644
+index 3184302..8664ea3 100644
 --- a/filament/backend/src/opengl/platforms/PlatformWGL.cpp
 +++ b/filament/backend/src/opengl/platforms/PlatformWGL.cpp
 @@ -251,7 +251,7 @@ Platform::SwapChain* PlatformWGL::createSwapChain(uint32_t width, uint32_t heigh
@@ -216,10 +216,10 @@ index 318430289..8664ea3cf 100644
      width = rect.right - rect.left;
      height = rect.bottom - rect.top;
 diff --git a/libs/ibl/src/CubemapIBL.cpp b/libs/ibl/src/CubemapIBL.cpp
-index 60f83174d..1deb01857 100644
+index c54b0d8..83ee185 100644
 --- a/libs/ibl/src/CubemapIBL.cpp
 +++ b/libs/ibl/src/CubemapIBL.cpp
-@@ -56,7 +56,7 @@ static float3 hemisphereImportanceSampleDggx(float2 u, float a) { // pdf = D(a)
+@@ -55,7 +55,7 @@ static float3 hemisphereImportanceSampleDggx(float2 u, float a) { // pdf = D(a)
      return { sinTheta * std::cos(phi), sinTheta * std::sin(phi), cosTheta };
  }
  
@@ -228,7 +228,7 @@ index 60f83174d..1deb01857 100644
      const float phi = 2.0f * (float) F_PI * u.x;
      const float cosTheta2 = 1 - u.y;
      const float cosTheta = std::sqrt(cosTheta2);
-@@ -64,7 +64,7 @@ static float3 UTILS_UNUSED hemisphereCosSample(float2 u) {  // pdf = cosTheta /
+@@ -63,7 +63,7 @@ static float3 UTILS_UNUSED hemisphereCosSample(float2 u) {  // pdf = cosTheta /
      return { sinTheta * std::cos(phi), sinTheta * std::sin(phi), cosTheta };
  }
  
@@ -237,7 +237,7 @@ index 60f83174d..1deb01857 100644
      const float phi = 2.0f * (float) F_PI * u.x;
      const float cosTheta = 1 - u.y;
      const float sinTheta = std::sqrt(1 - cosTheta * cosTheta);
-@@ -128,7 +128,7 @@ static float3 UTILS_UNUSED hemisphereUniformSample(float2 u) { // pdf = 1.0 / (2
+@@ -127,7 +127,7 @@ static float3 UTILS_UNUSED hemisphereUniformSample(float2 u) { // pdf = 1.0 / (2
   *  |                                            |
   *  +--------------------------------------------+
   */
@@ -246,7 +246,7 @@ index 60f83174d..1deb01857 100644
      const float phi = 2.0f * (float) F_PI * u.x;
  
      const float sinTheta = std::pow(u.y, a / (2 * a + 1));
-@@ -144,7 +144,7 @@ static float DistributionGGX(float NoH, float linearRoughness) {
+@@ -143,7 +143,7 @@ static float DistributionGGX(float NoH, float linearRoughness) {
      return (a * a) / ((float) F_PI * f * f);
  }
  
@@ -255,7 +255,7 @@ index 60f83174d..1deb01857 100644
      float a = linearRoughness;
      float a2 = a * a;
      float cos2h = NoH * NoH;
-@@ -153,7 +153,7 @@ static float UTILS_UNUSED DistributionAshikhmin(float NoH, float linearRoughness
+@@ -152,7 +152,7 @@ static float UTILS_UNUSED DistributionAshikhmin(float NoH, float linearRoughness
      return 1.0f / ((float) F_PI * (1 + 4 * a2)) * (sin4h + 4 * std::exp(-cos2h / (a2 * sin2h)));
  }
  
@@ -264,7 +264,7 @@ index 60f83174d..1deb01857 100644
      // Estevez and Kulla 2017, "Production Friendly Microfacet Sheen BRDF"
      float a = linearRoughness;
      float invAlpha = 1 / a;
-@@ -176,7 +176,7 @@ static float Visibility(float NoV, float NoL, float a) {
+@@ -175,7 +175,7 @@ static float Visibility(float NoV, float NoL, float a) {
      return 0.5f / (GGXV + GGXL);
  }
  
@@ -273,7 +273,7 @@ index 60f83174d..1deb01857 100644
      // Neubelt and Pettineo 2013, "Crafting a Next-gen Material Pipeline for The Order: 1886"
      return 1 / (4 * (NoL + NoV - NoL * NoV));
  }
-@@ -634,7 +634,7 @@ void CubemapIBL::diffuseIrradiance(JobSystem& js, Cubemap& dst, const std::vecto
+@@ -633,7 +633,7 @@ void CubemapIBL::diffuseIrradiance(JobSystem& js, Cubemap& dst, const std::vecto
  }
  
  // Not importance-sampled
@@ -282,7 +282,7 @@ index 60f83174d..1deb01857 100644
      float2 r = 0;
      const float linearRoughness = roughness * roughness;
      const float3 V(std::sqrt(1 - NoV * NoV), 0, NoV);
-@@ -832,7 +832,7 @@ static float2 DFV_Multiscatter(float NoV, float linearRoughness, size_t numSampl
+@@ -831,7 +831,7 @@ static float2 DFV_Multiscatter(float NoV, float linearRoughness, size_t numSampl
      return r * (4.0f / numSamples);
  }
  
@@ -291,7 +291,7 @@ index 60f83174d..1deb01857 100644
      float r = 0;
      const float cosThetaMax = (float) std::cos(81.7 * F_PI / 180.0);
      const float q = 1.0f / (cosThetaMax * pow6(1.0f - cosThetaMax));
-@@ -958,7 +958,7 @@ static float DFV_Charlie_Uniform(float NoV, float linearRoughness, size_t numSam
+@@ -957,7 +957,7 @@ static float DFV_Charlie_Uniform(float NoV, float linearRoughness, size_t numSam
   *  +---------------------------------------+
   *
   */
@@ -301,7 +301,7 @@ index 60f83174d..1deb01857 100644
      const float3 V(std::sqrt(1 - NoV * NoV), 0, NoV);
      for (size_t i = 0; i < numSamples; i++) {
 diff --git a/libs/ibl/src/CubemapSH.cpp b/libs/ibl/src/CubemapSH.cpp
-index 5d22cb804..f8adccc71 100644
+index 5d22cb8..f8adccc 100644
 --- a/libs/ibl/src/CubemapSH.cpp
 +++ b/libs/ibl/src/CubemapSH.cpp
 @@ -685,7 +685,7 @@ void CubemapSH::renderPreScaledSH3Bands(JobSystem& js,
@@ -332,7 +332,7 @@ index 5d22cb804..f8adccc71 100644
          const char* d = nullptr;
          float c = 0;
 diff --git a/libs/imageio/src/ImageEncoder.cpp b/libs/imageio/src/ImageEncoder.cpp
-index 9f83c6c62..6593581e3 100644
+index 9f83c6c..6593581 100644
 --- a/libs/imageio/src/ImageEncoder.cpp
 +++ b/libs/imageio/src/ImageEncoder.cpp
 @@ -867,39 +867,39 @@ const uint32_t DDS_FOURCC_DX10 = 0x30315844; // "DX10"
@@ -400,7 +400,7 @@ index 9f83c6c62..6593581e3 100644
  #pragma pack(pop)
  
 diff --git a/libs/utils/include/utils/StructureOfArrays.h b/libs/utils/include/utils/StructureOfArrays.h
-index 7ee9da70b..956aa8ec0 100644
+index 4604eb7..fb95fa6 100644
 --- a/libs/utils/include/utils/StructureOfArrays.h
 +++ b/libs/utils/include/utils/StructureOfArrays.h
 @@ -742,7 +742,7 @@ typename StructureOfArraysBase<Allocator, Elements...>::IteratorValueRef&
@@ -440,10 +440,10 @@ index 7ee9da70b..956aa8ec0 100644
      return *this;
  }
 diff --git a/libs/utils/include/utils/compiler.h b/libs/utils/include/utils/compiler.h
-index f678e36e7..3f1b94cf3 100644
+index 6bc1229..e4c5ae0 100644
 --- a/libs/utils/include/utils/compiler.h
 +++ b/libs/utils/include/utils/compiler.h
-@@ -228,7 +228,7 @@
+@@ -252,7 +252,7 @@ void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
  // AND multi-threading is enabled (UTILS_HAS_THREADING is not 0).
  // This prevents compile failures on single-threaded targets or builds where standard
  // annotations are disabled by default in the platform's standard library headers.
@@ -453,10 +453,10 @@ index f678e36e7..3f1b94cf3 100644
  #else
  #define UTILS_THREAD_ANNOTATION_ATTRIBUTE(x)
 diff --git a/libs/utils/src/CallStack.cpp b/libs/utils/src/CallStack.cpp
-index 644df0c97..dda872816 100644
+index 8967434..be3109b 100644
 --- a/libs/utils/src/CallStack.cpp
 +++ b/libs/utils/src/CallStack.cpp
-@@ -92,7 +92,7 @@ void CallStack::update(size_t ignore) noexcept {
+@@ -93,7 +93,7 @@ void CallStack::update(size_t ignore) noexcept {
      update_gcc(ignore);
  }
  
@@ -466,16 +466,16 @@ index 644df0c97..dda872816 100644
      ssize_t size = 0;
  
 @@ -141,7 +141,7 @@ CString CallStack::demangleTypeName(const char* mangled) {
+ 
  // ------------------------------------------------------------------------------------------------
  
- template <typename Stream>
--Stream& printCallStack(Stream& stream, CallStack const& UTILS_UNUSED callstack) {
-+Stream& printCallStack(Stream& stream, UTILS_UNUSED CallStack const& callstack) {
+-io::ostream& operator<<(io::ostream& stream, CallStack const& UTILS_UNUSED callstack) {
++io::ostream& operator<<(io::ostream& stream, UTILS_UNUSED CallStack const& callstack) {
  #if HAS_EXECINFO
      size_t const size = callstack.getFrameCount();
      char buf[1024];
 diff --git a/third_party/getopt/src/getopt.c b/third_party/getopt/src/getopt.c
-index cf2984af0..1dacef630 100644
+index cf2984a..1dacef6 100644
 --- a/third_party/getopt/src/getopt.c
 +++ b/third_party/getopt/src/getopt.c
 @@ -1,5 +1,6 @@
@@ -486,7 +486,7 @@ index cf2984af0..1dacef630 100644
  #include <unistd.h>
  #endif
 diff --git a/third_party/spirv-cross/CMakeLists.txt b/third_party/spirv-cross/CMakeLists.txt
-index 8e5129c8b..761911083 100644
+index 8e5129c..7619110 100644
 --- a/third_party/spirv-cross/CMakeLists.txt
 +++ b/third_party/spirv-cross/CMakeLists.txt
 @@ -20,7 +20,11 @@
@@ -503,7 +503,7 @@ index 8e5129c8b..761911083 100644
  
  # Avoid a warning if parent project sets VERSION in project().
 diff --git a/third_party/spirv-cross/tnt/CMakeLists.txt b/third_party/spirv-cross/tnt/CMakeLists.txt
-index 4cb9bdccb..086bec67a 100644
+index 4cb9bdc..086bec6 100644
 --- a/third_party/spirv-cross/tnt/CMakeLists.txt
 +++ b/third_party/spirv-cross/tnt/CMakeLists.txt
 @@ -37,7 +37,11 @@ endif()
@@ -520,7 +520,7 @@ index 4cb9bdccb..086bec67a 100644
  
    if(SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS)
 diff --git a/tools/cmgen/src/cmgen.cpp b/tools/cmgen/src/cmgen.cpp
-index 722e5737c..288be3ce9 100644
+index 722e573..288be3c 100644
 --- a/tools/cmgen/src/cmgen.cpp
 +++ b/tools/cmgen/src/cmgen.cpp
 @@ -131,7 +131,7 @@ static void outputSh(std::ostream& out, const std::unique_ptr<filament::math::fl

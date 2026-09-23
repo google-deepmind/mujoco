@@ -8,6 +8,7 @@ sphinx-design==0.6.1
 sphinx-favicon==1.0.1
 sphinx-reredirects==0.1.1
 sphinx-toolbox==3.8.2
+sphinx-autodoc-typehints==2.3.0
 nbsphinx==0.9.1
 pandoc==1.1.0
 pygments==2.20.0

@@ -11,96 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Non-blocking viewer launcher.
+"""Unified non-blocking viewer launcher (backward-compatible wrapper).
 
 Launches the viewer in a daemon thread and returns a ``ViewerHandle``
 that the calling thread uses to push simulation state into the viewer.
 """
 
-import queue
-import threading
 from typing import Any
 
-from mujoco.experimental.studio import endpoints
-from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import viewer_handle
 from mujoco.experimental.studio import viewer_protocol
-
-
-class _PassiveSnapshotChannel(messages.SnapshotChannel):
-  """SnapshotChannel for passive mode.
-
-  Stores per-type snapshot by reference and wakes the viewer thread when put.
-  """
-
-  def __init__(self) -> None:
-    self._pending_snapshots: dict[
-        type[messages.Snapshot], messages.Snapshot
-    ] = {}
-    self._lock = threading.Lock()
-    self._wakeup = threading.Event()
-
-  def put(self, snapshot: messages.Snapshot) -> None:
-    with self._lock:
-      self._pending_snapshots[type(snapshot)] = snapshot
-    self._wakeup.set()
-
-  def get(self) -> list[messages.Snapshot]:
-    self._wakeup.clear()
-    with self._lock:
-      out = list(self._pending_snapshots.values())
-      self._pending_snapshots.clear()
-      return out
-
-  def close(self) -> None:
-    pass
-
-
-class _PassiveEventChannel(messages.EventChannel):
-  """EventChannel for passive mode using a thread-safe queue."""
-
-  def __init__(self) -> None:
-    self._events: queue.Queue[messages.Event] = queue.Queue()
-
-  def put(self, event: messages.Event) -> None:
-    self._events.put(event)
-
-  def get(self) -> list[messages.Event]:
-    out = []
-    while True:
-      try:
-        out.append(self._events.get_nowait())
-      except queue.Empty:
-        break
-    return out
-
-  def close(self) -> None:
-    pass
-
-
-def run_viewer_target(
-    config: viewer_protocol.ViewerConfig,
-    endpoint: endpoints.ViewerEndpoint,
-    plugins: list[Any] | None = None,
-) -> None:
-  """Creates the appropriate viewer and runs the viewer loop.
-
-  Args:
-    config: Configuration specifying the viewer window settings.
-    endpoint: Endpoint for communicating with the simulation side.
-    plugins: Optional list of viewer-side plugin instances, which are classes
-      with methods decorated with ``@handler``.
-  """
-  if config.gfx in ('web', 'webgl'):  # In future we may add 'webgpu' here too.
-    from mujoco.experimental.studio import web_viewer  # pylint: disable=g-import-not-at-top
-
-    viewer = web_viewer.WebViewer(config, endpoint, plugins=plugins)
-  else:
-    from mujoco.experimental.studio import native_viewer  # pylint: disable=g-import-not-at-top
-
-    viewer = native_viewer.NativeViewer(config, endpoint, plugins=plugins)
-
-  viewer_protocol.run_viewer_loop(viewer)
 
 
 def launch_passive(
@@ -127,24 +47,18 @@ def launch_passive(
   Returns:
     A ViewerHandle for interacting with the viewer.
   """
-  viewer_endpoint, sim_endpoint = endpoints.make_endpoints(
-      s2v_snapshot=_PassiveSnapshotChannel(),
-      s2v_events=_PassiveEventChannel(),
-      v2s_events=_PassiveEventChannel(),
-      v2s_snapshot=_PassiveSnapshotChannel(),
-  )
+  if config.gfx in ('web', 'webgl'):
+    from mujoco.experimental.studio import launch_web  # pylint: disable=g-import-not-at-top
 
-  thread = threading.Thread(
-      target=run_viewer_target,
-      args=(config, viewer_endpoint, viewer_plugins),
-      daemon=True,
-  )
-  thread.start()
+    return launch_web.launch_web(
+        config,
+        viewer_plugins=viewer_plugins,
+        sim_plugins=sim_plugins,
+    )
+  from mujoco.experimental.studio import launch_native  # pylint: disable=g-import-not-at-top
 
-  handle = viewer_handle.ViewerHandle(
-      sim_endpoint,
-      is_alive_fn=thread.is_alive,
-      shutdown_fn=thread.join,
-      plugins=sim_plugins,
+  return launch_native.launch_native(
+      config,
+      viewer_plugins=viewer_plugins,
+      sim_plugins=sim_plugins,
   )
-  return handle

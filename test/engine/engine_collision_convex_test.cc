@@ -14,7 +14,6 @@
 
 // Tests for engine/engine_collision_convex.c.
 
-#include <cstddef>
 #include <string>
 
 #include <gmock/gmock.h>
@@ -40,8 +39,7 @@ using MjcConvexTest = MujocoTest;
 TEST_F(MjcConvexTest, FramelessContact) {
   const std::string xml_path = GetTestDataFilePath(kFramelessContactPath);
   char error[1024];
-  const std::size_t error_sz = 1024;
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, error_sz);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
   // Loading used to fail with "engine error: xaxis of contact frame undefined".
   EXPECT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mj_deleteModel(model);
@@ -50,8 +48,7 @@ TEST_F(MjcConvexTest, FramelessContact) {
 TEST_F(MjcConvexTest, FramelessContactHfield) {
   const std::string xml_path = GetTestDataFilePath(kFramelessContactHfieldPath);
   char error[1024];
-  const std::size_t error_sz = 1024;
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, error_sz);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
   // Loading used to fail with "engine error: xaxis of contact frame undefined".
   EXPECT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mj_deleteModel(model);
@@ -59,13 +56,14 @@ TEST_F(MjcConvexTest, FramelessContactHfield) {
 
 TEST_F(MjcConvexTest, CylinderBox) {
   const std::string xml_path = GetTestDataFilePath(kCylinderBoxPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mjData* data = mj_makeData(model);
 
-  // with multiCCD enabled, should find 5 contacts
+  // with multiCCD enabled, should find 4 contacts
   mj_forward(model, data);
-  EXPECT_EQ(data->ncon, 5);
+  EXPECT_EQ(data->ncon, 4);
 
   // with multiCCD disabled, should find 1 contact
   model->opt.disableflags |= mjDSBL_MULTICCD;
@@ -74,6 +72,105 @@ TEST_F(MjcConvexTest, CylinderBox) {
 
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+TEST_F(MjcConvexTest, PlaneConvexMultipleFaces) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="wedge" vertex="1 1 -1 1 -1 -1 -1 -1 -1 -1 1 -1 0 1 1 0 -1 1"/>
+    </asset>
+    <worldbody>
+      <geom type="plane" size="10 10 0.1"/>
+      <body pos="0 -2 0">
+        <freejoint/>
+        <geom type="mesh" mesh="wedge"/>
+      </body>
+      <body pos="0 2 0.8" euler="-90 0 0">
+        <freejoint/>
+        <geom type="mesh" mesh="wedge"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  MjDataPtr data = MakeData(model);
+
+  mj_forward(model.get(), data.get());
+
+  // quad bottom has 4 contacts, triangular side has 3 contacts
+  EXPECT_EQ(data->ncon, 7);
+}
+
+TEST_F(MjcConvexTest, CylinderBoxHorizontal) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="box" size="1 1 1" pos="0 0 0"/>
+      <body pos="0 0 1.49">
+        <freejoint/>
+        <geom type="cylinder" size="0.5 1" euler="90 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  MjDataPtr data = MakeData(model);
+
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->ncon, 2);
+
+  model->opt.disableflags |= mjDSBL_MULTICCD;
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->ncon, 1);
+}
+
+TEST_F(MjcConvexTest, CylinderCylinderFaceToFace) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="cylinder" size="1 1" pos="0 0 0"/>
+      <body pos="0 0 1.99">
+        <freejoint/>
+        <geom type="cylinder" size="1 1"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  MjDataPtr data = MakeData(model);
+
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->ncon, 4);
+
+  model->opt.disableflags |= mjDSBL_MULTICCD;
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->ncon, 1);
+}
+
+TEST_F(MjcConvexTest, CylinderCylinderSideToSide) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="cylinder" size="1 1" pos="0 0 0" euler="90 0 0"/>
+      <body pos="0 0 1.99">
+        <freejoint/>
+        <geom type="cylinder" size="1 1" euler="90 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  MjDataPtr data = MakeData(model);
+
+  mj_forward(model.get(), data.get());
+  // TODO(kylebayes): support edge-edge cylinder multicontact
+  EXPECT_EQ(data->ncon, 1);
+
+  model->opt.disableflags |= mjDSBL_MULTICCD;
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->ncon, 1);
 }
 
 }  // namespace
