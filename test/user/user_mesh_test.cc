@@ -1196,6 +1196,58 @@ TEST_F(MjCMeshTest, UserNormalsAnisotropicScale) {
   }
 }
 
+TEST_F(MjCMeshTest, NegativeScaleConvexPolygons) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="normal"
+            vertex="-1 -1 -1  1 -1 -1  1 1 -1  -1 1 -1
+                    -1 -1 1  1 -1 1  1 1 1  -1 1 1"/>
+      <mesh name="mirrored" scale="1 -1 1" inertia="convex"
+            vertex="-1 -1 -1  1 -1 -1  1 1 -1  -1 1 -1
+                    -1 -1 1  1 -1 1  1 1 1  -1 1 1"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="normal"/>
+      <geom type="mesh" mesh="mirrored"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  auto check_normals = [&](const char* name) {
+    int mesh_id = mj_name2id(model.get(), mjOBJ_MESH, name);
+    int start = model->mesh_vertadr[mesh_id];
+    int poly_start = model->mesh_polyadr[mesh_id];
+    int poly_num = model->mesh_polynum[mesh_id];
+    ASSERT_EQ(poly_num, 6);
+
+    for (int p = 0; p < poly_num; p++) {
+      int a = model->mesh_polyvertadr[poly_start + p];
+      int num_polyvert = model->mesh_polyvertnum[poly_start + p];
+      mjtNum outward[3] = {0, 0, 0};
+
+      for (int i = 0; i < num_polyvert; i++) {
+        int v_id = start + model->mesh_polyvert[a + i];
+        outward[0] += model->mesh_vert[3 * v_id + 0];
+        outward[1] += model->mesh_vert[3 * v_id + 1];
+        outward[2] += model->mesh_vert[3 * v_id + 2];
+      }
+
+      int normal_idx = 3 * (poly_start + p);
+      mjtNum dot = outward[0] * model->mesh_polynormal[normal_idx + 0] +
+                   outward[1] * model->mesh_polynormal[normal_idx + 1] +
+                   outward[2] * model->mesh_polynormal[normal_idx + 2];
+      EXPECT_GT(dot, 0.0) << "Normal is inward for mesh " << name;
+    }
+  };
+
+  check_normals("normal");
+  check_normals("mirrored");
+}
+
 TEST_F(MjCMeshTest, NegativeScaleUserMeshCompiles) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -1203,9 +1255,13 @@ TEST_F(MjCMeshTest, NegativeScaleUserMeshCompiles) {
       <mesh name="example_mesh" scale="-1 1 1" inertia="exact"
         vertex="0 0 0  1 0 0  0 1 0  0 0 1"
         face="0 2 1  0 3 2  1 3 0  1 2 3" />
+      <mesh name="convex_mesh" scale="-1 1 1" inertia="convex"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="0 2 1  0 3 2  1 3 0  1 2 3" />
     </asset>
     <worldbody>
       <geom type="mesh" mesh="example_mesh"/>
+      <geom type="mesh" mesh="convex_mesh"/>
     </worldbody>
   </mujoco>
   )";

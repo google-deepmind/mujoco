@@ -1369,6 +1369,11 @@ void mjCMesh::Process() {
     for (size_t i = 0; i < facetexcoord_.size(); i += 3) {
       std::swap(facetexcoord_[i + 1], facetexcoord_[i + 2]);
     }
+    if (graph_) {
+      int* faces = GraphFaces();
+      for (int i = 0; i < graph_[1]; i++) { std::swap(faces[3 * i + 1], faces[3 * i + 2]); }
+      for (auto& polygon : polygons_) { std::reverse(polygon.begin() + 1, polygon.end()); }
+    }
   }
 
   mesh_timer_[mjCTIMER_MESH_POLYGON] += Seconds(Clock::now() - t0).count();
