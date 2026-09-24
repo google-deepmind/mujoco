@@ -1380,11 +1380,10 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
   // enumerate covered vertices: compact slot per unpinned vertex of qualifying flexes
   // (filter matches the compiler's sizing and, for bending, flexStiff_active in
   // engine_derivative.c: bending data exists only for dim-2 flexes)
-  int* vslot = mjSTACKALLOC(d, m->nflexvert > 0 ? m->nflexvert : 1, int);
-  for (int i=0; i < m->nflexvert; i++) {
-    vslot[i] = -1;
+  int* bodyslot = mjSTACKALLOC(d, m->nbody, int);
+  for (int b=0; b < m->nbody; b++) {
+    bodyslot[b] = -1;
   }
-  int nfree = 0;
   for (int f=0; f < m->nflex; f++) {
     if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] != 2 ||
         m->flex_bendingadr[f] < 0) {
@@ -1392,9 +1391,20 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
     }
     for (int lv=0; lv < m->flex_vertnum[f]; lv++) {
       int gv = m->flex_vertadr[f] + lv;
-      if (m->body_dofnum[m->flex_vertbodyid[gv]] == 3) {
-        vslot[gv] = nfree;
-        nfree++;
+      int wid = m->body_weldid[m->flex_vertbodyid[gv]];
+      if (m->body_dofnum[wid] == 3) {
+        bodyslot[wid] = 1;
+      }
+    }
+  }
+  int nfree = 0;
+  for (int b=0; b < m->nbody; b++) {
+    if (bodyslot[b] > 0) {
+      int s = nfree++;
+      bodyslot[b] = s;
+      int da = m->body_dofadr[b];
+      for (int k=0; k < 3; k++) {
+        m->efm0_dofid[3*s + k] = da + k;
       }
     }
   }
@@ -1402,16 +1412,6 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
     mj_freeStack(d);
     mjERROR("constant metric factor dof count mismatch: compiler sized %d, engine found %d",
             nbd, 3*nfree);
-  }
-
-  // fill row -> dof address (row 3*slot + k, coordinate fastest)
-  for (int gv=0; gv < m->nflexvert; gv++) {
-    if (vslot[gv] >= 0) {
-      int da = m->body_dofadr[m->flex_vertbodyid[gv]];
-      for (int k=0; k < 3; k++) {
-        m->efm0_dofid[3*vslot[gv] + k] = da + k;
-      }
-    }
   }
 
   // assemble the bending-only stiffness K = (h^2 + h*damping)*K_bend over all dofs with the
@@ -1482,9 +1482,9 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
         diag = K_val[adr];
       }
     }
-    // diagonal last: point mass + armature + bending diagonal
+    // diagonal last: composite point mass + armature + bending diagonal
     Hl_colind[ladr] = r;
-    Hl_val[ladr++] = m->body_mass[m->dof_bodyid[dof]] + m->dof_armature[dof] + diag;
+    Hl_val[ladr++] = m->dof_M0[dof] + diag;
     Hl_rownnz[r] = ladr - Hl_rowadr[r];
     Hu_rownnz[r] = uadr - Hu_rowadr[r];
   }

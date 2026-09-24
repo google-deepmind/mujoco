@@ -1586,13 +1586,13 @@ void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* ve
       // world) and R^T (world -> dof), as mjd_flexStretch_mul does. Without it the operator is not
       // the Jacobian of mj_flexPassiveBend's force whenever a flex parent is rotated.
       for (int i = 0; i < 4; i++) {
-        int bi = bodyid[v[i]];
+        int bi = m->body_weldid[bodyid[v[i]]];
         if (m->body_dofnum[bi] != 3) {
           continue;
         }
         mjtNum vw[3] = {0, 0, 0};
         for (int j = 0; j < 4; j++) {
-          int bj = bodyid[v[j]];
+          int bj = m->body_weldid[bodyid[v[j]]];
           if (m->body_dofnum[bj] != 3) {
             continue;
           }
@@ -1667,7 +1667,7 @@ void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum*
       mjtNum g[6];
       for (int e = 0; e < nedge; e++) {
         int v0 = vert[edge[e][0]], v1 = vert[edge[e][1]];
-        int b0 = bodyid[v0],       b1 = bodyid[v1];
+        int b0 = m->body_weldid[bodyid[v0]], b1 = m->body_weldid[bodyid[v1]];
         g[e] = 0;
 
         // the vertex bodies' slide dofs are expressed in their own (possibly rotated) frame while
@@ -1723,7 +1723,8 @@ void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum*
           coef += metric[nedge*e + a]*g[a];
         }
         coef *= 2*scale;
-        int b0 = bodyid[vert[edge[e][0]]], b1 = bodyid[vert[edge[e][1]]];
+        int b0 = m->body_weldid[bodyid[vert[edge[e][0]]]];
+        int b1 = m->body_weldid[bodyid[vert[edge[e][1]]]];
         mjtNum rw[3], rl[3];
         for (int x = 0; x < 3; x++) {
           rw[x] = coef*dvec[e][x] + scale*Me[e]*dw[e][x];
@@ -1870,7 +1871,7 @@ mjtNum mjd_flexContactResidual(mjtNum k, mjtNum gap, mjtNum s, mjtNum lam) {
 
 
 mjtNum mjd_flexVertMass(const mjModel* m, const mjData* d, int gv) {
-  int b = m->flex_vertbodyid[gv];
+  int b = m->body_weldid[m->flex_vertbodyid[gv]];
   if (m->body_dofnum[b] != 3) {
     return 0;
   }
@@ -1936,7 +1937,7 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
     }
     for (int lv = 0; lv < m->flex_vertnum[f]; lv++) {
       int gv = m->flex_vertadr[f] + lv;
-      int b = m->flex_vertbodyid[gv];
+      int b = m->body_weldid[m->flex_vertbodyid[gv]];
       if (m->body_dofnum[b] == 3) {
         bodyslot[b] = 1;
       }
@@ -1969,7 +1970,7 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
   int* vslot = mjSTACKALLOC(d, m->nflexvert > 0 ? m->nflexvert : 1, int);
   for (int i = 0; i < m->nflexvert; i++) {
     int b = m->flex_vertbodyid[i];
-    vslot[i] = (b >= 0) ? bodyslot[b] : -1;
+    vslot[i] = (b >= 0) ? bodyslot[m->body_weldid[b]] : -1;
   }
 
   int* nslot = mjSTACKALLOC(d, m->nflexnode > 0 ? (int)m->nflexnode : 1, int);
@@ -2185,7 +2186,7 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
     }                                         \
   }
 
-  // values: bending (Q_ij * I3 per 4-vertex stencil) and stretch (GN blocks per element)
+  // values: bending (Q_ij * R_bi^T * R_bj per 4-vertex stencil) and stretch (GN blocks per element)
   for (int f = 0; f < m->nflex; f++) {
     if (!flexStiff_active(m, f, flg_bend, flg_stretch)) {
       continue;
@@ -2208,15 +2209,19 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
         for (int i = 0; i < 4; i++) {
           int si = vslot[m->flex_vertadr[f] + v[i]];
           if (si < 0) continue;
+          int bi = m->body_weldid[m->flex_vertbodyid[m->flex_vertadr[f] + v[i]]];
           for (int j = 0; j < 4; j++) {
             int sj = vslot[m->flex_vertadr[f] + v[j]];
             if (sj < 0) continue;
             mjtNum q = scale*b[17*e + 4*i + j];
             if (!q) continue;
+            int bj = m->body_weldid[m->flex_vertbodyid[m->flex_vertadr[f] + v[j]]];
+            mjtNum blkd[9];
+            mji_mulMatTMat3(blkd, d->xmat + 9*bi, d->xmat + 9*bj);
             int pos;
             FLEXSTIFF_BLOCK(si, sj, pos);
             for (int k = 0; k < 3; k++) {
-              val[rowadr[vdof[si] + k] + 3*pos + k] += q;
+              mji_addToScl3(val + rowadr[vdof[si] + k] + 3*pos, blkd + 3*k, q);
             }
           }
         }
@@ -2302,8 +2307,8 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
 
             // blk is world-space but the destination dofs are the vertex bodies' own (possibly
             // rotated) slide axes: blk_dof = R_bi^T * blk_world * R_bj, matching the force path
-            int bi = m->flex_vertbodyid[m->flex_vertadr[f] + vert[i]];
-            int bj = m->flex_vertbodyid[m->flex_vertadr[f] + vert[j]];
+            int bi = m->body_weldid[m->flex_vertbodyid[m->flex_vertadr[f] + vert[i]]];
+            int bj = m->body_weldid[m->flex_vertbodyid[m->flex_vertadr[f] + vert[j]]];
             mjtNum tmp[9], blkd[9];
             mji_mulMatMat3(tmp, blk, d->xmat + 9*bj);      // tmp  = blk * R_bj
             mji_mulMatTMat3(blkd, d->xmat + 9*bi, tmp);    // blkd = R_bi^T * tmp

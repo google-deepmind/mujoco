@@ -520,14 +520,18 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
     frc[0][1] = -(frc[1][1] + frc[2][1] + frc[3][1]);
     frc[0][2] = -(frc[1][2] + frc[2][2] + frc[3][2]);
 
-    // a pinned vertex is welded to a static (jointless) parent body: its bending reaction is
+    // a world-pinned vertex is welded to a static (jointless) parent body: its bending reaction is
     // absorbed by the pin, so its velocity is zero and (below) no force is applied to it.
-    static const mjtNum zero3[3] = {0, 0, 0};
-    const mjtNum* vel[4]; int isfree[4];
+    // A vertex welded to a moving 3-slide-dof parent body inherits its weld parent's dofs and
+    // world-frame velocity R * qvel.
+    mjtNum vel[4][3] = {{0}};
+    int isfree[4];
     for (int i = 0; i < 4; i++) {
-      int bid = bodyid[v[i]];
+      int bid = m->body_weldid[bodyid[v[i]]];
       isfree[i] = (m->body_dofnum[bid] == 3);
-      vel[i] = isfree[i] ? (d->qvel + m->body_dofadr[bid]) : zero3;
+      if (isfree[i]) {
+        mji_mulMatVec3(vel[i], d->xmat + 9*bid, d->qvel + m->body_dofadr[bid]);
+      }
     }
 
     // force
@@ -540,7 +544,6 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
           if (enbl_spring) spring[3*i+x] += b[17*e+4*i+j] * xpos[3*v[j]+x];
 
           // thin plate damping force
-          // TODO: do not assume DOFs are in the world frame
           if (enbl_damper) damper[3*i+x] += b[17*e+4*i+j] * vel[j][x];
         }
 
@@ -550,12 +553,12 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
     }
 
     // insert into global force (free flex vertices only: 3 translational dofs, no moment arm).
-    // A pinned vertex has no free flex dof -- its bending reaction is carried by the pin -- so it
-    // is skipped (its POSITION still enters every neighbor's force via the xpos sum above,
+    // A world-pinned vertex has no free flex dof -- its bending reaction is carried by the pin --
+    // so it is skipped (its POSITION still enters every neighbor's force via the xpos sum above,
     // which is what the pin constrains).
     for (int i = 0; i < 4; i++) {
       if (!isfree[i]) continue;
-      int bi = bodyid[v[i]];
+      int bi = m->body_weldid[bodyid[v[i]]];
       int body_dofadr = m->body_dofadr[bi];
       // spring/damper are world-space; the slide dofs are in the body frame, so rotate before
       // accumulating (mj_flexPassiveStretch reaches the same frame through mj_applyFT).

@@ -2272,6 +2272,170 @@ TEST_F(DerivativeTest, FlexBendDerivativesRotated) {
   mj_deleteData(perturbed);
 }
 
+// Verify that a 0-dof flex vertex body welded to a moving 3-slide-dof parent
+// body (and a rotated flex with bending damping) produces translation-invariant
+// passive forces and exact analytical Jacobians in mjd_flexBend_mul,
+// mjd_flexStretch_mul, and mjd_flexStiff_assemble.
+TEST_F(DerivativeTest, FlexWeldedChildVertexDerivatives) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="CG"/>
+    <worldbody>
+      <body name="turned" euler="90 35 20">
+        <body name="v0" pos="0 0 0">
+          <inertial pos="0 0 0" mass="0.1" diaginertia="1e-4 1e-4 1e-4"/>
+          <joint type="slide" axis="1 0 0"/>
+          <joint type="slide" axis="0 1 0"/>
+          <joint type="slide" axis="0 0 1"/>
+        </body>
+        <body name="v1" pos="0.1 0 0">
+          <inertial pos="0 0 0" mass="0.1" diaginertia="1e-4 1e-4 1e-4"/>
+          <joint type="slide" axis="1 0 0"/>
+          <joint type="slide" axis="0 1 0"/>
+          <joint type="slide" axis="0 0 1"/>
+        </body>
+        <body name="v2" pos="0 0.1 0">
+          <inertial pos="0 0 0" mass="0.1" diaginertia="1e-4 1e-4 1e-4"/>
+          <joint type="slide" axis="1 0 0"/>
+          <joint type="slide" axis="0 1 0"/>
+          <joint type="slide" axis="0 0 1"/>
+        </body>
+        <body name="carrier" pos="0.1 0.1 0" euler="25 -15 40">
+          <inertial pos="0 0 0" mass="0.1" diaginertia="1e-4 1e-4 1e-4"/>
+          <joint type="slide" axis="1 0 0"/>
+          <joint type="slide" axis="0 1 0"/>
+          <joint type="slide" axis="0 0 1"/>
+          <body name="v3_welded" pos="0 0 0">
+            <inertial pos="0 0 0" mass="0.1" diaginertia="1e-4 1e-4 1e-4"/>
+          </body>
+        </body>
+      </body>
+    </worldbody>
+    <deformable>
+      <flex name="patch" dim="2" body="v0 v1 v2 v3_welded" element="0 1 2 1 3 2">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e4" poisson="0.3" thickness="0.01"
+                    elastic2d="both" damping="0.02"/>
+      </flex>
+    </deformable>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  int nv = model->nv;
+  ASSERT_EQ(nv, 12);
+  MjDataPtr data = MakeData(model);
+
+  // Uniform rigid velocity across all 4 vertices (including carrier):
+  // map uniform world velocity v_world into each body's local slide frame;
+  // damper force must vanish by translation invariance.
+  mj_kinematics(model.get(), data.get());
+  const mjtNum v_world[3] = {0.7, -0.4, 1.2};
+  for (int v = 0; v < 4; v++) {
+    int bid = model->body_weldid[model->flex_vertbodyid[v]];
+    mju_mulMatTVec3(data->qvel + model->body_dofadr[bid], data->xmat + 9 * bid,
+                    v_world);
+  }
+  mj_forward(model.get(), data.get());
+  for (int i = 0; i < nv; i++) {
+    EXPECT_NEAR(data->qfrc_damper[i], 0.0, MjTol(1e-10, 1e-5))
+        << "Rigid translation violated damping invariance at dof " << i;
+  }
+
+  // At unstretched reference with qvel = 0, mjd_flexBend_mul(0, 1) +
+  // mjd_flexStretch_mul(0, 1) is the exact Jacobian -d(qfrc_damper)/d(qvel).
+  mju_zero(data->qpos, nv);
+  mju_zero(data->qvel, nv);
+  for (int v = 0; v < 4; v++) {
+    int bid = model->body_weldid[model->flex_vertbodyid[v]];
+    int adr = model->body_dofadr[bid];
+    data->qpos[adr + 2] = 2e-3 * (mju_Halton(v, 2) - 0.5);
+  }
+  mj_forward(model.get(), data.get());
+
+  std::vector<mjtNum> vec(nv), res_pos(nv, 0), res_vel(nv, 0);
+  for (int i = 0; i < nv; i++) {
+    vec[i] = mju_Halton(i, 3) - 0.5;
+  }
+  mjd_flexBend_mul(model.get(), data.get(), res_vel.data(), vec.data(), 0, 1);
+  mjd_flexStretch_mul(model.get(), data.get(), res_vel.data(), vec.data(), 0,
+                      1);
+
+  // Verify assembled sparse CSR stiffness matrix matches velocity operator:
+  std::vector<int> rownnz(nv), rowadr(nv);
+  int nnz = mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(),
+                                   rowadr.data(), nullptr, nullptr, 0, 1, 1, 1,
+                                   nullptr);
+  std::vector<int> colind(nnz);
+  std::vector<mjtNum> val(nnz), res_csr(nv, 0);
+  mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(), rowadr.data(),
+                         colind.data(), val.data(), 0, 1, 1, 1, nullptr);
+  for (int i = 0; i < nv; i++) {
+    res_csr[i] = mju_dotSparse(val.data() + rowadr[i], vec.data(), rownnz[i],
+                               colind.data() + rowadr[i]);
+    EXPECT_NEAR(res_csr[i], res_vel[i], MjTol(1e-10, 1e-5))
+        << "CSR velocity stiffness mismatch at dof " << i;
+  }
+
+  mjtNum eps = MjEps(1e-7, 1e-4);
+  mjData* pert_v = mj_copyData(NULL, model.get(), data.get());
+  mju_addToScl(pert_v->qvel, vec.data(), eps, nv);
+  mj_forward(model.get(), pert_v);
+
+  for (int i = 0; i < nv; i++) {
+    mjtNum fd_v = -(pert_v->qfrc_damper[i] - data->qfrc_damper[i]) / eps;
+    EXPECT_NEAR(res_vel[i], fd_v,
+                MjTol(1e-3, 5e-2) * mju_max(1.0, mju_abs(fd_v)))
+        << "Velocity derivative mismatch at dof " << i;
+  }
+
+  // Uniformly dilate so all edges are in tension, then perturb out-of-plane:
+  // mjd_flexBend_mul(1, 0) + mjd_flexStretch_mul(1, 0) is -d(qfrc_spring)/dq.
+  for (int v = 0; v < 4; v++) {
+    int bid = model->body_weldid[model->flex_vertbodyid[v]];
+    int adr = model->body_dofadr[bid];
+    for (int x = 0; x < 3; x++) {
+      data->qpos[adr + x] = 0.05 * model->body_pos[bid * 3 + x] +
+                            2e-3 * (mju_Halton(3 * v + x, 2) - 0.5);
+    }
+  }
+  mj_forward(model.get(), data.get());
+  mjd_flexBend_mul(model.get(), data.get(), res_pos.data(), vec.data(), 1, 0);
+  mjd_flexStretch_mul(model.get(), data.get(), res_pos.data(), vec.data(), 1,
+                      0);
+
+  // Verify assembled sparse CSR stiffness matrix matches position operator:
+  nnz = mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(),
+                               rowadr.data(), nullptr, nullptr, 1, 0, 1, 1,
+                               nullptr);
+  colind.resize(nnz);
+  val.resize(nnz);
+  mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(), rowadr.data(),
+                         colind.data(), val.data(), 1, 0, 1, 1, nullptr);
+  for (int i = 0; i < nv; i++) {
+    res_csr[i] = mju_dotSparse(val.data() + rowadr[i], vec.data(), rownnz[i],
+                               colind.data() + rowadr[i]);
+    EXPECT_NEAR(res_csr[i], res_pos[i], MjTol(1e-10, 1e-5))
+        << "CSR position stiffness mismatch at dof " << i;
+  }
+
+  mjData* pert_q = mj_copyData(NULL, model.get(), data.get());
+  mju_addToScl(pert_q->qpos, vec.data(), eps, nv);
+  mj_forward(model.get(), pert_q);
+
+  for (int i = 0; i < nv; i++) {
+    mjtNum fd_q = -(pert_q->qfrc_spring[i] - data->qfrc_spring[i]) / eps;
+    EXPECT_NEAR(res_pos[i], fd_q,
+                MjTol(1e-3, 5e-2) * mju_max(1.0, mju_abs(fd_q)))
+        << "Position derivative mismatch at dof " << i;
+  }
+
+  mj_deleteData(pert_q);
+  mj_deleteData(pert_v);
+}
+
 // K_stretch must be the full Hessian of the stretch force, not just its
 // Gauss-Newton part: the geometric (stress-proportional) term is what makes it
 // the Jacobian at finite strain. Uniformly dilating the mesh puts every edge in
