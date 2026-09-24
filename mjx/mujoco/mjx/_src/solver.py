@@ -485,6 +485,11 @@ def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
       m, d, ctx, a, jv, quad, quad_gauss, uu, v0, uv, vv  # pyrefly: ignore[bad-argument-type]
   )
 
+  # set acceptance tolerance to avoid exceeding gtol in f32
+  dmag = jp.sum(jp.abs(quad[:, 1]) + 2 * jp.abs(quad[:, 2]))
+  dmag += jp.abs(quad_gauss[1]) + 2 * jp.abs(quad_gauss[2])
+  gtol_accept = jp.maximum(gtol, 8 * jp.finfo(dmag.dtype).eps * dmag)
+
   def cond(ctx: _LSContext) -> jax.Array:
     done = ctx.ls_iter >= m.opt.ls_iterations
     done |= ~ctx.swap  # if we did not adjust the interval
@@ -528,6 +533,17 @@ def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
     )
     swap = swap_lo_next | swap_lo_mid | swap_lo_hi_next
     swap = swap | swap_hi_next | swap_hi_mid | swap_hi_lo_next
+
+    # accept the lowest-cost converged candidate regardless of the sign of its derivative
+    cand = jax.tree_util.tree_map(lambda *x: jp.stack(x), lo_next, hi_next, mid)
+    converged = (jp.abs(cand.deriv_0) < gtol_accept) & (cand.cost < p0.cost)
+    best = jp.argmin(jp.where(converged, cand.cost, jp.inf))
+    best = jax.tree_util.tree_map(lambda x: x[best], cand)
+    done = converged.any()
+    lo = jax.tree_util.tree_map(lambda x, y: jp.where(done, y, x), lo, best)
+    hi = jax.tree_util.tree_map(lambda x, y: jp.where(done, y, x), hi, best)
+    swap = swap & ~done
+
     ctx = ctx.replace(lo=lo, hi=hi, swap=swap, ls_iter=ctx.ls_iter + 1)
 
     return ctx
