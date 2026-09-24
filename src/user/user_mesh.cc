@@ -4661,6 +4661,41 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     }
   }
 
+  // disallow joint damping on free flex vertex/node bodies
+  if (!rigid) {
+    const std::vector<int>&      bodyids = interpolated ? nodebodyid : vertbodyid;
+    std::unordered_map<int, int> body_count;
+    for (int bid : bodyids) { body_count[bid]++; }
+    for (int bid : bodyids) {
+      if (body_count[bid] != 1) continue;
+      mjCBody* pbody = model->Bodies()[bid];
+      if (pbody->joints.empty() || !pbody->geoms.empty() || !pbody->bodies.empty()) { continue; }
+      bool all_slide = true;
+      for (const mjCJoint* jnt : pbody->joints) {
+        if (jnt->spec.type != mjJNT_SLIDE) {
+          all_slide = false;
+          break;
+        }
+      }
+      if (!all_slide) continue;
+      for (const mjCJoint* jnt : pbody->joints) {
+        bool has_damping = (jnt->spec.springdamper[0] > 0 && jnt->spec.springdamper[1] > 0);
+        for (int p = 0; p <= mjNPOLY; p++) {
+          if (jnt->spec.damping[p] != 0) {
+            has_damping = true;
+            break;
+          }
+        }
+        if (has_damping) {
+          throw mjCError(this,
+                         "flex vertex/node body '%s' cannot have joint damping; "
+                         "use flex elasticity or edge damping instead",
+                         pbody->name.c_str());
+        }
+      }
+    }
+  }
+
   // compute global vertex positions
   vertxpos = std::vector<double>(3 * nvert);
   for (int i = 0; i < nvert; i++) {

@@ -48,891 +48,891 @@
     </flexcomp>
     <body name="s0" pos="0.15005 -0.02036 0.26327">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s1" pos="0.15605 -0.02036 0.26327">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s2" pos="0.14844 -0.02036 0.29655">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s3" pos="0.15444 -0.02036 0.29655">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s4" pos="0.14683 -0.02036 0.32982">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s5" pos="0.15283 -0.02036 0.32982">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s6" pos="0.14522 -0.02036 0.36309">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s7" pos="0.15122 -0.02036 0.36309">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s8" pos="0.14361 -0.02036 0.39636">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s9" pos="0.14961 -0.02036 0.39636">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s10" pos="0.14200 -0.02036 0.42964">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s11" pos="0.14800 -0.02036 0.42964">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s12" pos="0.14200 -0.01440 0.44404">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s13" pos="0.14800 -0.01440 0.44404">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s16" pos="0.14200 0.01440 0.44404">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s17" pos="0.14800 0.01440 0.44404">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s18" pos="0.14200 0.02036 0.42964">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s19" pos="0.14800 0.02036 0.42964">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s20" pos="0.14361 0.02036 0.39636">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s21" pos="0.14961 0.02036 0.39636">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s22" pos="0.14522 0.02036 0.36309">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s23" pos="0.15122 0.02036 0.36309">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s24" pos="0.14683 0.02036 0.32982">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s25" pos="0.15283 0.02036 0.32982">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s26" pos="0.14844 0.02036 0.29655">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s27" pos="0.15444 0.02036 0.29655">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s28" pos="0.15005 0.02036 0.26327">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s29" pos="0.15605 0.02036 0.26327">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s30" pos="0.15169 0.01997 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s31" pos="0.15764 0.02075 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s32" pos="0.14779 0.03960 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s33" pos="0.15358 0.04115 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s34" pos="0.14135 0.05855 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s35" pos="0.14690 0.06085 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s36" pos="0.13250 0.07650 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s37" pos="0.13770 0.07950 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s38" pos="0.12138 0.09314 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s39" pos="0.12614 0.09679 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s40" pos="0.10819 0.10819 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s41" pos="0.11243 0.11243 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s42" pos="0.09314 0.12138 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s43" pos="0.09679 0.12614 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s44" pos="0.07650 0.13250 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s45" pos="0.07950 0.13770 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s46" pos="0.05855 0.14135 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s47" pos="0.06085 0.14690 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s48" pos="0.03960 0.14779 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s49" pos="0.04115 0.15358 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s50" pos="0.01997 0.15169 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s51" pos="0.02075 0.15764 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s52" pos="0.00000 0.15300 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s53" pos="0.00000 0.15900 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s54" pos="-0.01997 0.15169 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s55" pos="-0.02075 0.15764 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s56" pos="-0.03960 0.14779 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s57" pos="-0.04115 0.15358 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s58" pos="-0.05855 0.14135 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s59" pos="-0.06085 0.14690 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s60" pos="-0.07650 0.13250 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s61" pos="-0.07950 0.13770 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s62" pos="-0.09314 0.12138 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s63" pos="-0.09679 0.12614 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s64" pos="-0.10819 0.10819 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s65" pos="-0.11243 0.11243 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s66" pos="-0.12138 0.09314 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s67" pos="-0.12614 0.09679 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s68" pos="-0.13250 0.07650 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s69" pos="-0.13770 0.07950 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s70" pos="-0.14135 0.05855 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s71" pos="-0.14690 0.06085 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s72" pos="-0.14779 0.03960 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s73" pos="-0.15358 0.04115 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s74" pos="-0.15169 0.01997 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s75" pos="-0.15764 0.02075 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s76" pos="-0.15005 0.02036 0.26327">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s77" pos="-0.15605 0.02036 0.26327">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s78" pos="-0.14844 0.02036 0.29655">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s79" pos="-0.15444 0.02036 0.29655">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s80" pos="-0.14683 0.02036 0.32982">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s81" pos="-0.15283 0.02036 0.32982">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s82" pos="-0.14522 0.02036 0.36309">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s83" pos="-0.15122 0.02036 0.36309">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s84" pos="-0.14361 0.02036 0.39636">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s85" pos="-0.14961 0.02036 0.39636">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s86" pos="-0.14200 0.02036 0.42964">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s87" pos="-0.14800 0.02036 0.42964">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s88" pos="-0.14200 0.01440 0.44404">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s89" pos="-0.14800 0.01440 0.44404">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s92" pos="-0.14200 -0.01440 0.44404">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s93" pos="-0.14800 -0.01440 0.44404">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s94" pos="-0.14200 -0.02036 0.42964">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s95" pos="-0.14800 -0.02036 0.42964">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s96" pos="-0.14361 -0.02036 0.39636">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s97" pos="-0.14961 -0.02036 0.39636">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s98" pos="-0.14522 -0.02036 0.36309">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s99" pos="-0.15122 -0.02036 0.36309">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s100" pos="-0.14683 -0.02036 0.32982">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s101" pos="-0.15283 -0.02036 0.32982">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s102" pos="-0.14844 -0.02036 0.29655">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s103" pos="-0.15444 -0.02036 0.29655">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s104" pos="-0.15005 -0.02036 0.26327">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s105" pos="-0.15605 -0.02036 0.26327">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s106" pos="-0.15169 -0.01997 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s107" pos="-0.15764 -0.02075 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s108" pos="-0.14779 -0.03960 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s109" pos="-0.15358 -0.04115 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s110" pos="-0.14135 -0.05855 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s111" pos="-0.14690 -0.06085 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s112" pos="-0.13250 -0.07650 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s113" pos="-0.13770 -0.07950 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s114" pos="-0.12138 -0.09314 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s115" pos="-0.12614 -0.09679 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s116" pos="-0.10819 -0.10819 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s117" pos="-0.11243 -0.11243 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s118" pos="-0.09314 -0.12138 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s119" pos="-0.09679 -0.12614 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s120" pos="-0.07650 -0.13250 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s121" pos="-0.07950 -0.13770 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s122" pos="-0.05855 -0.14135 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s123" pos="-0.06085 -0.14690 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s124" pos="-0.03960 -0.14779 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s125" pos="-0.04115 -0.15358 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s126" pos="-0.01997 -0.15169 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s127" pos="-0.02075 -0.15764 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s128" pos="-0.00000 -0.15300 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s129" pos="-0.00000 -0.15900 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s130" pos="0.01997 -0.15169 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s131" pos="0.02075 -0.15764 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s132" pos="0.03960 -0.14779 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s133" pos="0.04115 -0.15358 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s134" pos="0.05855 -0.14135 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s135" pos="0.06085 -0.14690 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s136" pos="0.07650 -0.13250 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s137" pos="0.07950 -0.13770 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s138" pos="0.09314 -0.12138 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s139" pos="0.09679 -0.12614 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s140" pos="0.10819 -0.10819 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s141" pos="0.11243 -0.11243 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s142" pos="0.12138 -0.09314 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s143" pos="0.12614 -0.09679 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s144" pos="0.13250 -0.07650 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s145" pos="0.13770 -0.07950 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s146" pos="0.14135 -0.05855 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s147" pos="0.14690 -0.06085 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s148" pos="0.14779 -0.03960 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s149" pos="0.15358 -0.04115 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s150" pos="0.15169 -0.01997 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="s151" pos="0.15764 -0.02075 0.23000">
       <inertial pos="0 0 0" mass="0.001" diaginertia="1e-10 1e-10 1e-10"/>
-      <joint type="slide" axis="1 0 0" damping="0.05"/>
-      <joint type="slide" axis="0 1 0" damping="0.05"/>
-      <joint type="slide" axis="0 0 1" damping="0.05"/>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
     </body>
     <body name="beadA" pos="0.14500 -0.00000 0.45000">
       <joint name="pullA" type="slide" axis="-0.34202 -0.00000 0.93969" damping="1"/>
