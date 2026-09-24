@@ -35,7 +35,6 @@
 #include "experimental/studio/sim/sim_profiler.h"
 #include "experimental/studio/sim/step_control.h"
 #include "experimental/studio/ux/gui.h"
-#include "experimental/studio/ux/gui_spec.h"
 #include "experimental/studio/ux/imgui_widgets.h"
 #include "experimental/studio/ux/interaction.h"
 #include "experimental/studio/ux/picture_gui.h"
@@ -138,10 +137,6 @@ class App {
 
   // UI state that is persisted across application runs
   struct UiState {
-    char watch_field[1000] = "qpos";
-    int watch_index = 0;
-    int camera_idx = kTumbleCameraIdx;
-    int key_idx = -1;
     GuiTheme theme = GuiTheme::kDark;
     float font_scale = 1.0f;
     int window_width = 0;
@@ -176,19 +171,20 @@ class App {
     float editor_split = -1;
     float explorer_split = -1;
 
+    int camera_idx = kTumbleCameraIdx;
+    int key_idx = -1;
+
     // Controls.
-    bool perturb_active = false;
     int speed_index = 0;
     float cam_speed = 0.0f;
-
-    // Cached data.
-    float expected_label_width = 0;
-    std::vector<std::string> camera_names;
-    std::vector<std::string> speed_names;
 
     // Spec editing.
     SpecPropertiesMode spec_prop_mode = SpecPropertiesMode::kSpec;
     mjsElement* curr_element = nullptr;
+
+    // Watch.
+    char watch_field[1000] = "qpos";
+    int watch_index = 0;
 
     // State.
     int state_sig = 0;
@@ -226,14 +222,14 @@ class App {
   // then compile the spec to a model.
   void OnModelLoaded(std::string_view filename, ModelKind model_kind);
 
-  struct SavedKeyframeSelection {
+  struct KeyframeSelection {
     bool is_reload = false;
     int key_idx = -1;
     std::string key_name;
     std::vector<std::string> all_old_names;
   };
-  SavedKeyframeSelection CaptureKeyframeSelection(bool is_reload) const;
-  void RestoreKeyframeSelection(const SavedKeyframeSelection& saved);
+  KeyframeSelection CaptureKeyframeSelection(bool is_reload) const;
+  void RestoreKeyframeSelection(const KeyframeSelection& saved);
 
   void SwitchGraphicsMode(int width, int height, GraphicsMode mode);
 
@@ -276,46 +272,50 @@ class App {
   bool has_model() const { return model_holder_ && model_holder_->model(); }
   bool has_data() const { return model_holder_ && model_holder_->data(); }
 
-  std::string app_title_;
-  std::string ini_path_;
-  // Window state storage (e.g. collapsing header open/closed state), keyed
-  // "<window name>/<id>", which ImGui does not serialize. Entries stay
-  // pending until their window is first created.
-  KeyValues window_state_storage_;
-  std::string model_path_;
-  std::vector<std::byte> last_buffer_;
-  std::string last_content_type_;
-  std::string load_error_;
-  std::string step_error_;
-  std::string edit_error_;
-  StepControl::PauseState last_pause_state_ =
-      StepControl::PauseState::kNormalPaused;
-
-  std::optional<std::string> pending_load_;
-  bool pending_reload_ = false;
-  bool recompile_spec_ = false;
-
-  std::function<void()> pending_op_;
-  bool preserve_camera_on_load_ = false;
-  ModelKind model_kind_ = kEmptyModel;
-  GraphicsMode gfx_mode_ = GraphicsMode::FilamentVulkan;
-
   std::unique_ptr<Window> window_;
   std::unique_ptr<FilamentRenderer> renderer_;
   std::unique_ptr<ModelHolder> model_holder_;
 
+  std::string app_title_;
+  std::string ini_path_;
+
+  ModelKind model_kind_ = kEmptyModel;
+  std::string model_path_;
+  std::string load_error_;
+  std::string step_error_;
+  std::string edit_error_;
+
+  // Cached previous state.
+  std::vector<std::byte> last_buffer_;
+  std::string last_content_type_;
+  StepControl::PauseState last_pause_state_ =
+      StepControl::PauseState::kNormalPaused;
+
+  // Pending operations.
+  std::optional<std::string> pending_load_;
+  bool pending_reload_ = false;
+  bool recompile_spec_ = false;
+  std::function<void()> pending_op_;
+  bool preserve_camera_on_load_ = false;
+
+  // Studio components.
   StepControl step_control_;
   SimProfiler profiler_;
   SimHistory sim_history_;
   SimulationTimelineState timeline_;
   SpecEditor spec_editor_;
-  std::vector<std::string> search_paths_;
-  std::vector<std::byte> pixels_;
+  // Window state storage (e.g. collapsing header open/closed state), keyed
+  // "<window name>/<id>", which ImGui does not serialize. Entries stay
+  // pending until their window is first created.
+  KeyValues window_state_storage_;
 
   mjvCamera camera_;
   mjvPerturb perturb_;
   mjvOption vis_options_;
   mjvScene plugin_scene_;
+
+  std::vector<std::string> search_paths_;
+  std::vector<std::byte> pixels_;
 
   UiState ui_;
   UiTempState tmp_;
