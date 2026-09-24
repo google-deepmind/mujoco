@@ -58,6 +58,35 @@ TEST_F(UserUtilTest, PathReduceWin) {
   EXPECT_EQ(path.Str(), "C:\\world");
 }
 
+TEST_F(UserUtilTest, PathReduceRepeatedSeparators) {
+  EXPECT_EQ(FilePath("sub//box.obj").Str(), "sub/box.obj");
+  EXPECT_EQ(FilePath("sub///box.obj").Str(), "sub/box.obj");
+  EXPECT_EQ(FilePath("/hello//world/").Str(), "/hello/world/");
+  EXPECT_EQ(FilePath("//hello///world//").Str(), "/hello/world/");
+  EXPECT_EQ(FilePath("C:\\\\hello\\\\..\\\\world").Str(), "C:\\world");
+}
+
+TEST_F(UserUtilTest, PathReduceResourceProvider) {
+  mjpResourceProvider provider = {
+      .prefix = "testuserutil",
+      .open = +[](mjResource*) { return 0; },
+      .read = +[](mjResource*, const void**) { return 0; },
+      .close = +[](mjResource*) {},
+  };
+  mjp_registerResourceProvider(&provider);
+
+  EXPECT_EQ(FilePath("testuserutil:faces/right.png").Str(),
+            "testuserutil:faces/right.png");
+  EXPECT_EQ(FilePath("testuserutil:/scene.xml").Str(),
+            "testuserutil:/scene.xml");
+  EXPECT_EQ(FilePath("testuserutil://store/box.obj").Str(),
+            "testuserutil://store/box.obj");
+  EXPECT_EQ(FilePath("testuserutil:/a//b/../c.xml").Str(),
+            "testuserutil:/a/c.xml");
+  EXPECT_TRUE(FilePath("testuserutil:/scene.xml").IsAbs());
+  EXPECT_TRUE(FilePath("testuserutil:faces/right.png").IsAbs());
+}
+
 TEST_F(UserUtilTest, IsAbs) {
   EXPECT_TRUE(FilePath("/hello").IsAbs());
   EXPECT_TRUE(FilePath("C:\\hello").IsAbs());

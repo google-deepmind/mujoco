@@ -115,7 +115,10 @@ static int ZipMount(mjResource* resource) {
     mz_zip_archive_file_stat stat;
     if (!mz_zip_reader_file_stat(&handle->archive, i, &stat)) { return 0; }
     if (stat.m_uncomp_size > 0) {
-      handle->files[stat.m_filename] = FileInfo{i, static_cast<int>(stat.m_uncomp_size)};
+      // Index entries by their reduced name, as lookups are; this also maps the '\' separators
+      // of archives written by older Windows builds to '/'.
+      handle->files[mujoco::user::FilePath(stat.m_filename).Str()] =
+          FileInfo{i, static_cast<int>(stat.m_uncomp_size)};
     }
   }
 

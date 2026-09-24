@@ -1037,7 +1037,7 @@ std::string FilePath::PathReduce(const std::string& str) {
       j                = i + 1;
       if (temp == ".." && !dirs.empty() && dirs.back() != "..") {
         dirs.pop_back();
-      } else if (temp != ".") {
+      } else if (temp != "." && !temp.empty()) {
         dirs.push_back(std::move(temp));
       }
     }
@@ -1085,7 +1085,9 @@ std::string FilePath::AbsPrefix(const std::string& str) {
   const mjpResourceProvider* provider = mjp_getResourceProvider(str.c_str());
   if (provider != nullptr) {
     std::size_t n = std::strlen(provider->prefix);
-    return str.substr(0, n + 1);
+    std::size_t j = n + 1;
+    while (j < str.size() && IsSeparator(str[j])) { ++j; }
+    return str.substr(0, j);
   }
 
   // check first char

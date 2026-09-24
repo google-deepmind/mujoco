@@ -2,6 +2,17 @@
 Changelog
 =========
 
+Upcoming Version (not yet released)
+-----------------------------------
+
+General
+^^^^^^^
+
+- :ref:`.mjz <MJZArchives>` archives written on Windows now always use ``/`` separators.
+- Assets in a :ref:`meshdir<compiler-meshdir>` or :ref:`texturedir<compiler-texturedir>` now resolve correctly in
+  :ref:`.mjz <MJZArchives>` archives when rewritten or when the directory path is absolute, uses ``..``, or uses a URI
+  scheme.
+
 Version 3.14.0 (September 22, 2026)
 -----------------------------------
 
