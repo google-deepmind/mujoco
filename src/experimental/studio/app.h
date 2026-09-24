@@ -105,18 +105,30 @@ class App {
     kModelFromBuffer,
   };
 
+  // Information for building a new empty model.
   struct EmptyModel {};
+
+  // Information needed for building a model from a file.
   struct FileModel {
     std::string_view filepath;
   };
+
+  // Information needed for building a model from a memory buffer.
   struct BufferModel {
     std::span<const std::byte> buffer;
     std::string_view content_type;
     std::string_view name;
   };
 
-  using LoadModelInfo =
-      std::variant<EmptyModel, FileModel, BufferModel>;
+  // Information needed for recompiling the model.
+  struct RecompileModel {};
+
+  // Information needed for recompiling the model from the spec editor.
+  struct RecompileFromSpec {};
+
+  // The different ways in which the model can be built.
+  using BuildModelInfo = std::variant<EmptyModel, FileModel, BufferModel,
+                                      RecompileModel, RecompileFromSpec>;
 
   enum class SpecPropertiesMode {
     kSpec,
@@ -207,8 +219,8 @@ class App {
   // Requests that the currently loaded model be reloaded at the next update.
   void RequestModelReload();
 
-  // Loads the model from the given info.
-  void LoadModel(const LoadModelInfo& info);
+  // (Re)builds the model based on the given configmration.
+  void BuildModel(const BuildModelInfo& info);
 
   // Updates the currently loaded model to the given model. If model is null,
   // then compile the spec to a model.

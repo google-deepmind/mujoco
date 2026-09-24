@@ -209,17 +209,17 @@ void App::RequestModelReload() {
 }
 
 void App::InitEmptyModel() {
-  LoadModel(EmptyModel{});
+  BuildModel(EmptyModel{});
 }
 
 void App::LoadModelFromFile(const std::string& filepath) {
-  LoadModel(FileModel{filepath});
+  BuildModel(FileModel{filepath});
 }
 
 void App::LoadModelFromBuffer(std::span<const std::byte> buffer,
                               std::string_view content_type,
                               std::string_view filename) {
-  LoadModel(BufferModel{
+  BuildModel(BufferModel{
       .buffer = buffer, .content_type = content_type, .name = filename});
 }
 
@@ -558,8 +558,33 @@ void App::Render() {
   window_->Present(pixels_);
 }
 
-void App::LoadModel(const LoadModelInfo& info) {
-  if (std::holds_alternative<EmptyModel>(info)) {
+void App::BuildModel(const BuildModelInfo& info) {
+  if (std::holds_alternative<RecompileFromSpec>(info)) {
+    const SavedKeyframeSelection saved_key =
+        CaptureKeyframeSelection(/*is_reload=*/true);
+    auto tmp_holder = spec_editor_.Compile();
+    if (tmp_holder->ok()) {
+      preserve_camera_on_load_ = true;
+      model_holder_ = std::move(tmp_holder);
+      RestoreKeyframeSelection(saved_key);
+      OnModelLoaded("", model_kind_);
+    } else {
+      load_error_ = std::move(tmp_holder->error());
+    }
+  } else if (std::holds_alternative<RecompileModel>(info)) {
+    const SavedKeyframeSelection saved_key =
+        CaptureKeyframeSelection(/*is_reload=*/true);
+    model_holder_->Recompile();
+    if (!model_holder_->ok()) {
+      SetLoadError(std::string(model_holder_->error()));
+      return;
+    }
+
+    RestoreKeyframeSelection(saved_key);
+    renderer_->Init(model());
+    ResetHistory(sim_history_, timeline_, has_model() ? model() : nullptr,
+                  has_data() ? data() : nullptr);
+  } else if (std::holds_alternative<EmptyModel>(info)) {
     model_holder_ = ModelHolder::FromSpec(mj_makeSpec());
     ui_.key_idx = -1;
     last_buffer_.clear();
@@ -634,50 +659,27 @@ void App::ProcessPendingLoads() {
     pending_load_.reset();
 
     if (load_data.empty()) {
-      LoadModel(EmptyModel{});
+      BuildModel(EmptyModel{});
     } else if (!last_buffer_.empty() && load_data == model_path_) {
-      LoadModel(BufferModel{last_buffer_, last_content_type_, load_data});
+      BuildModel(BufferModel{last_buffer_, last_content_type_, load_data});
     } else {
-      LoadModel(FileModel(load_data));
+      BuildModel(FileModel(load_data));
     }
   }
 
   if (recompile_spec_) {
     recompile_spec_ = false;
-    const SavedKeyframeSelection saved_key =
-      CaptureKeyframeSelection(/*is_reload=*/true);
-    auto tmp_holder = spec_editor_.Compile();
-    if (tmp_holder->ok()) {
-      preserve_camera_on_load_ = true;
-      model_holder_ = std::move(tmp_holder);
-      RestoreKeyframeSelection(saved_key);
-      OnModelLoaded("", model_kind_);
-    } else {
-      load_error_ = std::move(tmp_holder->error());
-    }
+    BuildModel(RecompileFromSpec{});
   }
 
   // Allow plugins to edit the spec as well.
   ForEachPlugin<SpecEditorPlugin>([&](auto* plugin) {
     if (plugin->pre_compile) {
       if (plugin->pre_compile(plugin, spec(), model(), data(), &camera_)) {
-
-        const SavedKeyframeSelection saved_key =
-            CaptureKeyframeSelection(/*is_reload=*/true);
-        model_holder_->Recompile();
-        if (!model_holder_->ok()) {
-          SetLoadError(std::string(model_holder_->error()));
-          return;
-        }
-
-        RestoreKeyframeSelection(saved_key);
-        renderer_->Init(model());
-
+        BuildModel(RecompileModel{});
         if (plugin->post_compile) {
           plugin->post_compile(plugin, spec(), model(), data());
         }
-        ResetHistory(sim_history_, timeline_, has_model() ? model() : nullptr,
-                     has_data() ? data() : nullptr);
       };
     }
   });
@@ -692,10 +694,10 @@ void App::ProcessPendingLoads() {
           plugin, &size, content_type, sizeof(content_type), model_name,
           sizeof(model_name));
       if (buf && buf == model_name) {
-        LoadModel(FileModel(model_name));
+        BuildModel(FileModel(model_name));
       } else if (buf && size) {
         const std::byte* bytes = reinterpret_cast<const std::byte*>(buf);
-        LoadModel(BufferModel{{bytes, bytes + size}, content_type, model_name});
+        BuildModel(BufferModel{{bytes, bytes + size}, content_type, model_name});
       }
     }
   });
