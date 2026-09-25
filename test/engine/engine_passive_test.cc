@@ -643,7 +643,7 @@ TEST_F(ElasticityTest, SNHEnergySolid) {
   </worldbody></mujoco>)";
   mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
   ASSERT_THAT(spec, NotNull());
-  mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "test"))->snh = true;
+  mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "test"))->elastic3d = 1;
   MjModelPtr m(mj_compile(spec, nullptr));
   mj_deleteSpec(spec);
   ASSERT_THAT(m.get(), NotNull());
@@ -703,7 +703,7 @@ TEST_F(ElasticityTest, SNHForceThroughInversion) {
     }
     mjSpec* spec = mj_parseXMLString(source.c_str(), nullptr, nullptr, 0);
     ASSERT_THAT(spec, NotNull());
-    mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"))->snh = true;
+    mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"))->elastic3d = 1;
     MjModelPtr m(mj_compile(spec, nullptr));
     mj_deleteSpec(spec);
     ASSERT_THAT(m.get(), NotNull());
@@ -777,7 +777,7 @@ TEST_F(ElasticityTest, SNHInversionRecovery) {
   </worldbody></mujoco>)";
   mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
   ASSERT_THAT(spec, NotNull());
-  mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"))->snh = true;
+  mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"))->elastic3d = 1;
   MjModelPtr m(mj_compile(spec, nullptr));
   mj_deleteSpec(spec);
   ASSERT_THAT(m.get(), NotNull());

@@ -2501,7 +2501,7 @@ TEST_F(DerivativeTest, SNHStiffnessThroughInversion) {
   </worldbody></mujoco>)";
   mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
   ASSERT_THAT(spec, NotNull());
-  mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"))->snh = true;
+  mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"))->elastic3d = 1;
   MjModelPtr m(mj_compile(spec, nullptr));
   mj_deleteSpec(spec);
   ASSERT_THAT(m.get(), NotNull());

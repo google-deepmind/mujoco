@@ -53,7 +53,7 @@ TEST_F(UserFlexTest, SNHSpecOnly) {
   ASSERT_THAT(spec.get(), NotNull());
   mjsFlex* flex = mjs_asFlex(mjs_findElement(spec.get(), mjOBJ_FLEX, "new"));
   ASSERT_THAT(flex, NotNull());
-  EXPECT_FALSE(flex->snh);
+  EXPECT_EQ(flex->elastic3d, 0);
   MjModelPtr initial(mj_compile(spec.get(), nullptr));
   ASSERT_THAT(initial.get(), NotNull()) << mjs_getError(spec.get());
   for (int t = 0; t < initial->nflexelem; t++) {
@@ -62,10 +62,11 @@ TEST_F(UserFlexTest, SNHSpecOnly) {
   }
 
   // Recompilation and spec copying retain the programmatic selection.
-  flex->snh = true;
+  flex->elastic3d = 1;
   SpecPtr copy(mj_copySpec(spec.get()), mj_deleteSpec);
   ASSERT_THAT(copy.get(), NotNull());
-  EXPECT_TRUE(mjs_asFlex(mjs_findElement(copy.get(), mjOBJ_FLEX, "new"))->snh);
+  EXPECT_EQ(
+      mjs_asFlex(mjs_findElement(copy.get(), mjOBJ_FLEX, "new"))->elastic3d, 1);
   MjModelPtr m(mj_compile(copy.get(), nullptr));
   ASSERT_THAT(m.get(), NotNull()) << mjs_getError(copy.get());
   ASSERT_EQ(m->nflexstiffness, 24 * m->nflexelem);
@@ -135,7 +136,7 @@ TEST_F(UserFlexTest, SNHSpecOnly) {
                              error.data(), error.size()),
             -1);
   EXPECT_THAT(error.data(), HasSubstr("mjSpec-only"));
-  flex->snh = false;
+  flex->elastic3d = 0;
   MjModelPtr reset(mj_compile(spec.get(), nullptr));
   ASSERT_THAT(reset.get(), NotNull());
   EXPECT_EQ(reset->flex_stiffness[reset->flex_stiffnessadr[1] + 21], 0);
@@ -144,19 +145,37 @@ TEST_F(UserFlexTest, SNHSpecOnly) {
             0);
 }
 
-TEST_F(UserFlexTest, SNHNotInMJCF) {
+TEST_F(UserFlexTest, Elastic3DNotInMJCF) {
   for (const char* xml : {
            R"(<mujoco><worldbody><flexcomp name="test" dim="3">
-             <elasticity young="1000" snh="true"/>
+             <elasticity young="1000" elastic3d="1"/>
              </flexcomp></worldbody></mujoco>)",
            R"(<mujoco><deformable><flex name="test" dim="3" body="world">
-             <elasticity young="1000" snh="true"/>
+             <elasticity young="1000" elastic3d="1"/>
              </flex></deformable></mujoco>)"}) {
     std::array<char, 1024> error;
     MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
     EXPECT_THAT(m.get(), IsNull());
-    EXPECT_THAT(error.data(), HasSubstr("unrecognized attribute: 'snh'"));
+    EXPECT_THAT(error.data(), HasSubstr("unrecognized attribute: 'elastic3d'"));
   }
+}
+
+TEST_F(UserFlexTest, Elastic3DInvalidSelector) {
+  static constexpr char xml[] = R"(
+  <mujoco><worldbody><flexcomp name="test" dim="3" count="2 2 2">
+    <elasticity young="1000"/>
+  </flexcomp></worldbody></mujoco>)";
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjsFlex* flex = mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "test"));
+  for (int value : {-1, 2}) {
+    flex->elastic3d = value;
+    MjModelPtr m(mj_compile(spec, nullptr));
+    EXPECT_THAT(m.get(), IsNull());
+    EXPECT_THAT(mjs_getError(spec),
+                HasSubstr("elastic3d must be 0 (StVK) or 1 (SNH)"));
+  }
+  mj_deleteSpec(spec);
 }
 
 TEST_F(UserFlexTest, SNHRequiresStandard3D) {
@@ -168,7 +187,7 @@ TEST_F(UserFlexTest, SNHRequiresStandard3D) {
         "</worldbody></mujoco>";
     mjSpec* spec = mj_parseXMLString(xml.c_str(), nullptr, nullptr, 0);
     ASSERT_THAT(spec, NotNull());
-    mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "test"))->snh = true;
+    mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "test"))->elastic3d = 1;
     MjModelPtr m(mj_compile(spec, nullptr));
     EXPECT_THAT(m.get(), IsNull());
     EXPECT_THAT(mjs_getError(spec),

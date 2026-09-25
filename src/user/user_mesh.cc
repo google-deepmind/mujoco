@@ -4596,7 +4596,11 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     if (dim != 2 && !interpolated) { throw mjCError(this, "2d elasticity requires 2d flex"); }
   }
 
-  if (snh && (dim != 3 || interpolated)) {
+  // elastic3d checks
+  if (elastic3d < 0 || elastic3d > 1) {
+    throw mjCError(this, "elastic3d must be 0 (StVK) or 1 (SNH)");
+  }
+  if (elastic3d == 1 && (dim != 3 || interpolated)) {
     throw mjCError(this, "stable Neo-Hookean elasticity requires a non-interpolated 3d flex");
   }
 
@@ -4877,7 +4881,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
                                     poisson,
                                     thickness);
       } else if (dim == 3) {
-        if (snh) {
+        if (elastic3d == 1) {
           ComputeSNH(stiffness, vertxpos, elem_.data() + 4 * t, t, young, poisson);
         } else {
           ComputeStiffness<Stencil3D>(stiffness, vertxpos, elem_.data() + 4 * t, t, young, poisson);

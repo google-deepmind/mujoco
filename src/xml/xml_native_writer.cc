@@ -142,7 +142,7 @@ void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* flex) {
   string  text;
   mjCFlex defflex;
 
-  if (flex->snh) {
+  if (flex->elastic3d) {
     throw mjXError(0, "stable Neo-Hookean elasticity is mjSpec-only and cannot be written to MJCF");
   }
 
