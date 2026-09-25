@@ -49,3 +49,4 @@ install(
 )
 
 target_link_libraries(usd_decoder_plugin PRIVATE usd usdGeom usdPhysics usdShade gf tf ar vt kind)
+install(TARGETS usd_decoder_plugin)
