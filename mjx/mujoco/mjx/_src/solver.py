@@ -484,6 +484,15 @@ def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
   point_fn = lambda a: _LSPoint.create(
       m, d, ctx, a, jv, quad, quad_gauss, uu, v0, uv, vv  # pyrefly: ignore[bad-argument-type]
   )
+  # initialize interval
+  p0 = point_fn(jp.array(0.0))
+
+  # set acceptance tolerance to avoid exceeding gtol in f32: Cauchy-Schwarz
+  # bound on the derivative magnitude of the active constraint rows at alpha = 0
+  rows_0 = jp.maximum(p0.cost - quad_gauss[0], 0.0)
+  rows_2 = jp.maximum(0.5 * p0.deriv_1 - quad_gauss[2], 0.0)
+  dmag = 2.0 * jp.sqrt(rows_0 * rows_2) + jp.abs(quad_gauss[1])
+  gtol_accept = jp.maximum(gtol, 8 * jp.finfo(dmag.dtype).eps * dmag)
 
   def cond(ctx: _LSContext) -> jax.Array:
     done = ctx.ls_iter >= m.opt.ls_iterations
@@ -533,7 +542,7 @@ def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
     swap = swap_lo_next | swap_lo_mid | swap_lo_hi_next
     swap = swap | swap_hi_next | swap_hi_mid | swap_hi_lo_next
 
-    # accept the lowest-cost converged candidate regardless of the sign of its derivative
+    # accept the lowest-cost converged candidate regardless of derivative sign
     cand = jax.tree_util.tree_map(lambda *x: jp.stack(x), lo_next, hi_next, mid)
     converged = (jp.abs(cand.deriv_0) < gtol_accept) & (cand.cost < p0.cost)
     best = jp.argmin(jp.where(converged, cand.cost, jp.inf))
@@ -546,16 +555,6 @@ def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
     ctx = ctx.replace(lo=lo, hi=hi, swap=swap, ls_iter=ctx.ls_iter + 1)
 
     return ctx
-
-  # initialize interval
-  p0 = point_fn(jp.array(0.0))
-
-  # set acceptance tolerance to avoid exceeding gtol in f32: Cauchy-Schwarz
-  # bound on the derivative magnitude of the active constraint rows at alpha = 0
-  rows_0 = jp.maximum(p0.cost - quad_gauss[0], 0.0)
-  rows_2 = jp.maximum(0.5 * p0.deriv_1 - quad_gauss[2], 0.0)
-  dmag = 2.0 * jp.sqrt(rows_0 * rows_2) + jp.abs(quad_gauss[1])
-  gtol_accept = jp.maximum(gtol, 8 * jp.finfo(dmag.dtype).eps * dmag)
 
   lo = point_fn(p0.alpha - p0.deriv_0 / p0.deriv_1)
   lesser_fn = lambda x, y: jp.where(lo.deriv_0 < p0.deriv_0, x, y)
