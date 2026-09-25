@@ -8,6 +8,9 @@ Upcoming Version (not yet released)
 General
 ^^^^^^^
 
+- Added experimental simplified Stable Neo-Hookean elasticity for non-interpolated 3D flexes, enabled only through
+  ``mjsFlex.elastic3d = 1``. It uses the full energy Hessian and preserves the StVK default (``0``). The setting is not
+  available in MJCF.
 - :ref:`.mjz <MJZArchives>` archives written on Windows now always use ``/`` separators.
 - Assets in a :ref:`meshdir<compiler-meshdir>` or :ref:`texturedir<compiler-texturedir>` now resolve correctly in
   :ref:`.mjz <MJZArchives>` archives when rewritten or when the directory path is absolute, uses ``..``, or uses a URI

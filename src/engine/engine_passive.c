@@ -538,6 +538,7 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
 
   int dim = m->flex_dim[f];
   int nedge = (dim == 2) ? 3 : 6;
+  int snh = dim == 3 && k[21] != 0;
   const int* elem = m->flex_elem + m->flex_elemdataadr[f];
   const int* edgeelem = m->flex_elemedge + m->flex_elemedgeadr[f];
   mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
@@ -551,22 +552,54 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
   mju_zero(frc, 3*m->flex_vertnum[f]);
   mju_zero(dmp, 3*m->flex_vertnum[f]);
 
+  // SNH Rayleigh damping uses the exact tangent, which can be indefinite at finite strain
+  mjtNum* worldvel = NULL;
+  if (snh && kD) {
+    worldvel = mjSTACKALLOC(d, 3*m->flex_vertnum[f], mjtNum);
+    mj_flexGather(m, d, f, worldvel, d->qvel);
+  }
+
   // compute forces element-by-element
   int elemnum = m->flex_elemnum[f];
   for (int t = 0; t < elemnum; t++)  {
     const int* vert = elem + (dim+1) * t;
 
-    // geometry and StVK material data
     mjtNum edgevec[6][3], metric[36], tension[6];
     mj_stretchEdgeVectors(edgevec, xpos, vert, dim);
-    mj_stretchMetric(metric, k + 21*t, nedge);
 
-    // spring force, from the elongation of edges belonging to this element
+    // shared quadratic energy in squared-edge-length differences
+    const mjtNum* packed = k + (dim == 3 ? 24 : 21)*t;
+    mjtNum elongation[6];
+    mj_stretchElongation(elongation, edgeelem + t*nedge, deformed, reference, nedge);
+    mj_stretchElasticity(metric, tension, packed, elongation, nedge);
+
+    mjtNum grad[4][3], pressure = 0;
+    if (snh) {
+      mj_snhCubic(metric, tension, elongation, packed[21], kD != 0);
+      pressure = 2*packed[22]*(mj_snhVolume(grad, edgevec, packed)-1);
+    }
     if (enbl_spring) {
-      mjtNum elongation[6];
-      mj_stretchElongation(elongation, edgeelem + t*nedge, deformed, reference, nedge);
-      mj_stretchTension(tension, metric, elongation, nedge);
       mj_stretchForce(frc, vert, tension, edgevec, dim);
+      if (snh) {
+        for (int v = 0; v < 4; v++) {
+          mju_addToScl3(frc + 3*vert[v], grad[v], -pressure);
+        }
+      }
+    }
+
+    if (snh) {
+      if (kD) {
+        mjtNum velocity[4][3], result[4][3];
+        for (int v = 0; v < 4; v++) {
+          mju_copy3(velocity[v], worldvel + 3*vert[v]);
+        }
+        mj_snhStiffnessMul(result, metric, tension, edgevec, grad, pressure, packed,
+                           velocity, -m->flex_damping[f]);
+        for (int v = 0; v < 4; v++) {
+          mju_addTo3(dmp + 3*vert[v], result[v]);
+        }
+      }
+      continue;
     }
 
     // damper force: generalized Rayleigh damping as described in Section 5.2 of
@@ -575,7 +608,6 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
     // elongation L^2 - Lprev^2 is factored as dL*(2*L - dL), dL = L - Lprev = vel*timestep,
     // so it has no cancellation and vanishes exactly at zero velocity
     if (kD) {
-      mjtNum elongation[6];
       for (int e = 0; e < nedge; e++) {
         int idx = edgeelem[t * nedge + e];
         mjtNum dL = vel[idx] * m->opt.timestep;

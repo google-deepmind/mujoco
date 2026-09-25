@@ -8790,6 +8790,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='2D passive forces; 0: none, 1: bending, 2: stretching, 3: both',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
+                 name='elastic3d',
+                 type=ValueType(name='int'),
+                 doc='experimental 3D material (mjSpec only); 0: StVK, 1: SNH',
+             ),
+             StructFieldDecl(
                  name='cellcount',
                  type=ArrayType(
                      inner_type=ValueType(name='int'),

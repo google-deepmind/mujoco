@@ -21,6 +21,7 @@
 #include <mujoco/mjtype.h>
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_misc.h"
+#include "engine/engine_util_spatial.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -205,7 +206,7 @@ int mj_effActuatorPossible(const mjModel* m, int i);
 
 //-------------------------- flex elasticity -------------------------------------------------------
 
-// element-local geometry, StVK material response, and stiffness contractions shared by
+// element-local geometry, quadratic edge response, and stiffness contractions shared by
 // passive forces and both solver paths; keep the helpers visible to the compiler so the
 // small edge loops can be optimized together with their callers
 
@@ -229,7 +230,7 @@ static inline void mj_stretchEdgeVectors(mjtNum edgevec[6][3], const mjtNum* xpo
 }
 
 
-// unpack the symmetric StVK metric; triangles also use a 21-number element stride
+// unpack the symmetric quadratic metric (the first 21 numbers for tetrahedra)
 static inline void mj_stretchMetric(mjtNum metric[36], const mjtNum* packed, int nedge) {
   int id = 0;
   for (int a = 0; a < nedge; a++) {
@@ -251,7 +252,7 @@ static inline void mj_stretchElongation(mjtNum elongation[6], const int* edge,
 }
 
 
-// StVK material response, also used for damping and stiffness-vector products
+// multiply the symmetric edge metric, also used for damping and stiffness-vector products
 static inline void mj_stretchTension(mjtNum tension[6], const mjtNum metric[36],
                                      const mjtNum elongation[6], int nedge) {
   for (int e = 0; e < nedge; e++) {
@@ -260,6 +261,15 @@ static inline void mj_stretchTension(mjtNum tension[6], const mjtNum metric[36],
       tension[e] += metric[nedge*e + a]*elongation[a];
     }
   }
+}
+
+
+// quadratic energy s' K s / 4: its edge tension is K s, for both StVK and SNH
+static inline void mj_stretchElasticity(mjtNum metric[36], mjtNum tension[6],
+                                        const mjtNum* packed, const mjtNum elongation[6],
+                                        int nedge) {
+  mj_stretchMetric(metric, packed, nedge);
+  mj_stretchTension(tension, metric, elongation, nedge);
 }
 
 
@@ -283,10 +293,9 @@ static inline void mj_stretchForce(mjtNum* force, const int* vert, const mjtNum 
 static inline void mj_stretchStiffness(mjtNum metric[36], mjtNum tension[6], const mjtNum* packed,
                                        const int* edge, const mjtNum* length,
                                        const mjtNum* reference, int nedge) {
-  mj_stretchMetric(metric, packed, nedge);
   mjtNum elongation[6];
   mj_stretchElongation(elongation, edge, length, reference, nedge);
-  mj_stretchTension(tension, metric, elongation, nedge);
+  mj_stretchElasticity(metric, tension, packed, elongation, nedge);
 
   // a compressed edge's geometric block is negative semidefinite; keep only the tensile
   // part for the SPD solver metric, exactly as in the original StVK operator and assembler
@@ -351,6 +360,95 @@ static inline void mj_stretchStiffnessBlock(mjtNum block[9], const mjtNum metric
   block[0] += geo;
   block[4] += geo;
   block[8] += geo;
+}
+
+
+//-------------------------- stable Neo-Hookean tetrahedra ------------------------------------------
+
+// Standard 3D elements use a 24-number flex_stiffness record. StVK stores its packed
+// quadratic metric in [0:21] and zeros in [21:24]. For SNH the record stores:
+//   [0:21] symmetric K, [21] gamma = -mu/(72 V0), [22] beta = V0*(lambda+2 mu)/2,
+//   [23] 1/det(Dm), where V0 = abs(det(Dm))/6 and mu,lambda are the Lame parameters.
+// Energy: s' K s / 4 + gamma P(s) + beta (J-1)^2, with s_e = L_e^2 - L0_e^2.
+// P(s) is the determinant of the Gram-matrix difference D(s), defined in mj_snhCubic.
+// This is exactly V0*[mu/2*(tr(F'F)-3) - mu*(J-1) + (lambda+mu)/2*(J-1)^2].
+// No division by current volume is needed, even at collapse or inversion.
+// The nonzero cubic coefficient in [21] identifies SNH without an extra mjModel field.
+
+// add twice the gradient and (optionally) Hessian of gamma P(s) to the edge response
+void mj_snhCubic(mjtNum metric[36], mjtNum tension[6], const mjtNum s[6],
+                  mjtNum gamma, int flg_stiffness);
+
+
+// signed volume ratio and its four world-space vertex gradients
+static inline mjtNum mj_snhVolume(mjtNum grad[4][3], mjtNum edgevec[6][3],
+                                  const mjtNum k[24]) {
+  // edges from vertex 0 to vertices 1,2,3 in mj_stretchEdges ordering
+  mjtNum a[3], b[3], c[3];
+  for (int x = 0; x < 3; x++) {
+    a[x] = -edgevec[0][x];
+    b[x] =  edgevec[2][x];
+    c[x] = -edgevec[4][x];
+  }
+  mju_cross(grad[1], b, c);
+  mju_cross(grad[2], c, a);
+  mju_cross(grad[3], a, b);
+  mjtNum J = k[23]*mju_dot3(a, grad[1]);
+  for (int x = 0; x < 3; x++) {
+    grad[0][x] = 0;
+    for (int v = 1; v < 4; v++) {
+      grad[v][x] *= k[23];
+      grad[0][x] -= grad[v][x];
+    }
+  }
+  return J;
+}
+
+
+// prepare exact edge derivatives and volume gradients; return the volume pressure
+static inline mjtNum mj_snhStiffness(mjtNum metric[36], mjtNum tension[6], mjtNum grad[4][3],
+                                     mjtNum edgevec[6][3], const mjtNum k[24], const int* edge,
+                                     const mjtNum* length, const mjtNum* reference) {
+  mjtNum elongation[6];
+  mj_stretchElongation(elongation, edge, length, reference, 6);
+  mj_stretchElasticity(metric, tension, k, elongation, 6);
+  mj_snhCubic(metric, tension, elongation, k[21], 1);
+  return 2*k[22]*(mj_snhVolume(grad, edgevec, k)-1);
+}
+
+
+// multiply the exact stiffness, including geometric terms, by vertex variations
+void mj_snhStiffnessMul(mjtNum result[4][3], const mjtNum metric[36], const mjtNum tension[6],
+                        mjtNum edgevec[6][3], mjtNum grad[4][3], mjtNum pressure,
+                        const mjtNum k[24], mjtNum vec[4][3], mjtNum scale);
+
+
+// world-space vertex-pair block of the same exact stiffness
+static inline void mj_snhStiffnessBlock(mjtNum block[9], const mjtNum metric[36],
+                                        const mjtNum tension[6], mjtNum edgevec[6][3],
+                                        mjtNum grad[4][3], mjtNum pressure, const mjtNum k[24],
+                                        int i, int j, mjtNum scale) {
+  mj_stretchStiffnessBlock(block, metric, tension, edgevec, 3, i, j, scale);
+  for (int r = 0; r < 3; r++) {
+    for (int c = 0; c < 3; c++) {
+      block[3*r+c] += 2*scale*k[22]*grad[i][r]*grad[j][c];
+    }
+  }
+
+  // J is affine in each vertex; off-diagonal blocks are skew matrices of opposite edges
+  if (i != j) {
+    static const int opposite[4][4] = {{0, 3, 5, 1}, {3, 0, 4, 2},
+                                       {5, 4, 0, 0}, {1, 2, 0, 0}};
+    mjtNum w = scale*pressure*k[23]*(i < j ? 1 : -1);
+    if (i+j == 2) w = -w;  // pair (0,2) uses the reverse of edge (1,3)
+    const mjtNum* e = edgevec[opposite[i][j]];
+    block[1] -= w*e[2];
+    block[2] += w*e[1];
+    block[3] += w*e[2];
+    block[5] -= w*e[0];
+    block[6] -= w*e[1];
+    block[7] += w*e[0];
+  }
 }
 
 #ifdef __cplusplus

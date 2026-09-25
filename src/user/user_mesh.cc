@@ -3320,8 +3320,12 @@ inline double ComputeVolume<Stencil3D>(const double* x, const int v[Stencil3D::k
 
 // compute metric tensor of edge lengths inner product
 template <typename T>
-void inline MetricTensor(
-    double* metric, int idx, double mu, double la, const double basis[T::kNumEdges][9]) {
+void inline MetricTensor(double*      metric,
+                         int          idx,
+                         double       mu,
+                         double       la,
+                         const double basis[T::kNumEdges][9],
+                         int          stride = 21) {
   double trE[T::kNumEdges]                 = {0};
   double trEE[T::kNumEdges * T::kNumEdges] = {0};
   double k[T::kNumEdges * T::kNumEdges];
@@ -3353,7 +3357,7 @@ void inline MetricTensor(
   int id = 0;
   for (int ed1 = 0; ed1 < T::kNumEdges; ed1++) {
     for (int ed2 = ed1; ed2 < T::kNumEdges; ed2++) {
-      metric[21 * idx + id++] = k[T::kNumEdges * ed1 + ed2];
+      metric[stride * idx + id++] = k[T::kNumEdges * ed1 + ed2];
     }
   }
 
@@ -3478,7 +3482,39 @@ void inline ComputeStiffness(std::vector<double>&       stiffness,
   }
 
   // compute metric tensor
-  MetricTensor<T>(stiffness.data(), t, mu, la, basis);
+  MetricTensor<T>(stiffness.data(), t, mu, la, basis, T::kNumVerts == 4 ? 24 : 21);
+}
+
+// stable Neo-Hookean quadratic metric and three signed-volume/cubic coefficients
+static void ComputeSNH(std::vector<double>&       stiffness,
+                       const std::vector<double>& body_pos,
+                       const int*                 v,
+                       int                        t,
+                       double                     young,
+                       double                     poisson) {
+  double  volume  = ComputeVolume<Stencil3D>(body_pos.data(), v);
+  double  mu      = young / (2 * (1 + poisson));
+  double  lambda  = young * poisson / ((1 + poisson) * (1 - 2 * poisson));
+  double  volume0 = std::abs(volume);
+  double* k       = stiffness.data() + 24 * t;
+
+  // retain the first-fundamental-form edge basis used by the StVK formulation
+  double basis[6][9];
+  for (int e = 0; e < 6; e++) {
+    ComputeBasis<Stencil3D>(basis[e],
+                            body_pos.data(),
+                            v,
+                            Stencil3D::face[Stencil3D::edge2face[e][0]],
+                            Stencil3D::face[Stencil3D::edge2face[e][1]],
+                            volume);
+  }
+
+  // E = s' K s / 4 + gamma det(D(s)) + beta (J-1)^2, s = L^2 - L0^2.
+  // K uses the same trace contractions as StVK: mu*V0*(tr(B_e B_f)-tr(B_e)tr(B_f)).
+  MetricTensor<Stencil3D>(stiffness.data(), t, mu * volume0, -mu * volume0, basis, 24);
+  k[21] = -mu / (72 * volume0);
+  k[22] = volume0 * (lambda + 2 * mu) / 2;
+  k[23] = 1 / (6 * volume);
 }
 
 // local tetrahedron numbering
@@ -4560,6 +4596,14 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     if (dim != 2 && !interpolated) { throw mjCError(this, "2d elasticity requires 2d flex"); }
   }
 
+  // elastic3d checks
+  if (elastic3d < 0 || elastic3d > 1) {
+    throw mjCError(this, "elastic3d must be 0 (StVK) or 1 (SNH)");
+  }
+  if (elastic3d == 1 && (dim != 3 || interpolated)) {
+    throw mjCError(this, "stable Neo-Hookean elasticity requires a non-interpolated 3d flex");
+  }
+
   // set nvert, rigid, centered; check size
   if (vert_.empty()) {
     centered = true;
@@ -4823,7 +4867,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     }
 
     // linear elasticity
-    if (!interpolated) { stiffness.assign(21 * nelem, 0); }
+    if (!interpolated) { stiffness.assign((dim == 3 ? 24 : 21) * nelem, 0); }
 
     // geometrically nonlinear elasticity
     for (unsigned int t = 0; t < nelem; t++) {
@@ -4837,12 +4881,11 @@ void mjCFlex::Compile(const mjVFS* vfs) {
                                     poisson,
                                     thickness);
       } else if (dim == 3) {
-        ComputeStiffness<Stencil3D>(stiffness,
-                                    vertxpos,
-                                    elem_.data() + (dim + 1) * t,
-                                    t,
-                                    young,
-                                    poisson);
+        if (elastic3d == 1) {
+          ComputeSNH(stiffness, vertxpos, elem_.data() + 4 * t, t, young, poisson);
+        } else {
+          ComputeStiffness<Stencil3D>(stiffness, vertxpos, elem_.data() + 4 * t, t, young, poisson);
+        }
       }
     }
 

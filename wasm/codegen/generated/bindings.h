@@ -2594,6 +2594,12 @@ struct MjsFlex {
   void set_elastic2d(int value) {
     ptr_->elastic2d = value;
   }
+  int elastic3d() const {
+    return ptr_->elastic3d;
+  }
+  void set_elastic3d(int value) {
+    ptr_->elastic3d = value;
+  }
   emscripten::val cellcount() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->cellcount));
   }

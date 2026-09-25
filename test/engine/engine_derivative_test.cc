@@ -2487,6 +2487,102 @@ INSTANTIATE_TEST_SUITE_P(
       return info.param.name;
     });
 
+// The exact SNH Hessian remains finite through degeneracy and inversion,
+// including negative curvature. Assembly, matrix-free products, damping, and
+// force derivatives agree.
+TEST_F(DerivativeTest, SNHStiffnessThroughInversion) {
+  static constexpr char xml[] = R"(
+  <mujoco><option gravity="0 0 0" integrator="discrete"/><worldbody>
+    <flexcomp name="tet" type="direct" dim="3" mass="1"
+              point="0 0 0  1 0 0  .2 .9 0  -.1 .3 1.1" element="0 1 2 3">
+      <contact internal="false" contype="0" conaffinity="0" selfcollide="none"/>
+      <elasticity young="1000" poisson=".3" damping=".02"/>
+    </flexcomp>
+  </worldbody></mujoco>)";
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"))->elastic3d = 1;
+  MjModelPtr m(mj_compile(spec, nullptr));
+  mj_deleteSpec(spec);
+  ASSERT_THAT(m.get(), NotNull());
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+  std::vector<mjtNum> rest(d->flexvert_xpos, d->flexvert_xpos + 12);
+  int nv = m->nv;
+  ASSERT_EQ(nv, 12);
+  bool negative_curvature = false;
+  for (int rank = 0; rank <= 3; rank++) {
+    for (mjtNum scale :
+         {mjtNum(-1), mjtNum(-.01), mjtNum(0), mjtNum(.01), mjtNum(1.05)}) {
+      for (int v = 0; v < 4; v++) {
+        int adr = m->body_dofadr[m->flex_vertbodyid[v]];
+        mjtNum x = rank > 0 ? 1.05 * rest[3 * v] : 0;
+        mjtNum y = rank > 1 ? 1.05 * rest[3 * v + 1] : 0;
+        mjtNum z = rank > 2 ? scale * rest[3 * v + 2] : 0;
+        if (rank == 3 && scale > 1) {
+          // Distinct singular values and nontrivial left/right singular
+          // vectors.
+          x = 1.06 * (.8 * rest[3 * v] - .6 * rest[3 * v + 1]);
+          y = 1.09 * (.6 * rest[3 * v] + .8 * rest[3 * v + 1]);
+          z = 1.12 * rest[3 * v + 2];
+        }
+        d->qpos[adr] = .8 * x - .6 * y - rest[3 * v];
+        d->qpos[adr + 1] = .6 * x + .8 * y - rest[3 * v + 1];
+        d->qpos[adr + 2] = z - rest[3 * v + 2];
+      }
+      for (int i = 0; i < nv; i++) d->qvel[i] = mju_Halton(i, 2) - .5;
+      mj_forward(m.get(), d.get());
+      std::vector<mjtNum> K(nv * nv, 0);
+      stretchK_dense(m.get(), d.get(), K.data(), nv, 1, 0);
+      std::vector<int> rownnz(nv), rowadr(nv);
+      int nnz =
+          mjd_flexStiff_assemble(m.get(), d.get(), rownnz.data(), rowadr.data(),
+                                 nullptr, nullptr, 1, 0, 0, 1, nullptr);
+      std::vector<int> colind(nnz);
+      std::vector<mjtNum> values(nnz);
+      mjd_flexStiff_assemble(m.get(), d.get(), rownnz.data(), rowadr.data(),
+                             colind.data(), values.data(), 1, 0, 0, 1, nullptr);
+      for (int i = 0; i < nv; i++) {
+        for (int j = 0; j < nv; j++) {
+          EXPECT_TRUE(std::isfinite(K[i * nv + j]));
+          EXPECT_NEAR(K[i * nv + j], K[j * nv + i], MjTol(1e-10, 1e-3));
+        }
+        for (int j = rowadr[i]; j < rowadr[i] + rownnz[i]; j++) {
+          EXPECT_NEAR(values[j], K[i * nv + colind[j]], MjTol(1e-10, 1e-3));
+        }
+      }
+      std::vector<mjtNum> L = K;
+      for (int i = 0; i < nv; i++) L[i * nv + i] += MjTol(1e-8, .01);
+      negative_curvature |= mju_cholFactor(L.data(), nv, 0) < nv;
+      std::vector<mjtNum> damp(nv, 0);
+      mjd_flexStretch_mul(m.get(), d.get(), damp.data(), d->qvel, 0, 1);
+      for (int i = 0; i < nv; i++) {
+        EXPECT_NEAR(damp[i], -d->qfrc_damper[i], MjTol(1e-10, 1e-3));
+      }
+      // Central differences verify the full tangent even at rank zero and under
+      // reflection.
+      m->flex_damping[0] = 0;
+      mjtNum eps = MjEps(1e-6, 1e-3);
+      for (int j = 0; j < nv; j++) {
+        mjtNum saved = d->qpos[j];
+        d->qpos[j] = saved + eps;
+        mj_forward(m.get(), d.get());
+        std::vector<mjtNum> plus(d->qfrc_spring, d->qfrc_spring + nv);
+        d->qpos[j] = saved - eps;
+        mj_forward(m.get(), d.get());
+        for (int i = 0; i < nv; i++) {
+          mjtNum fd = -(plus[i] - d->qfrc_spring[i]) / (2 * eps);
+          EXPECT_NEAR(K[i * nv + j], fd, MjTol(1e-6, .2));
+        }
+        d->qpos[j] = saved;
+      }
+      m->flex_damping[0] = .02;
+    }
+  }
+  EXPECT_TRUE(negative_curvature)
+      << "the exact Hessian must not silently clamp negative modes";
+}
+
 // K_stretch must be the full Hessian of the stretch force, not just its
 // Gauss-Newton part: the geometric (stress-proportional) term is what makes it
 // the Jacobian at finite strain. Uniformly dilating the mesh puts every edge in
