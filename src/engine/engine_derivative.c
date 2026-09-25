@@ -1620,12 +1620,6 @@ void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* ve
 }
 
 
-// local edge-based vertex indexing for 2D and 3D elements (mirrors engine_passive.c: the
-// flex_stiffness metric ordering is tied to this edge order)
-static const int stretch_edges[2][6][2] = {
-  {{1, 2}, {2, 0}, {0, 1}, {0, 0}, {0, 0}, {0, 0}},
-  {{0, 1}, {1, 2}, {2, 0}, {2, 3}, {0, 3}, {1, 3}}};
-
 // compute res += (s1 + s2*flex_damping) * K_stretch * vec for standard (non-interp) flex
 // stretch, where K_stretch is the Hessian of the passive stretch force in mj_flexPassiveStretch:
 // with elongation e_a = L_a^2 - L0_a^2 and force f = -sum_ab M_ab e_a grad(e_b)/2,
@@ -1655,7 +1649,7 @@ static void flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtN
 
     int dim = m->flex_dim[f];
     int nedge = (dim == 2) ? 3 : 6;
-    const int (*edge)[2] = stretch_edges[dim-2];
+    const int (*edge)[2] = mj_stretchEdges[dim-2];
     const int* elem = m->flex_elem + m->flex_elemdataadr[f];
     const mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
     const mjtNum* k = m->flex_stiffness + stiffnessadr;
@@ -1673,61 +1667,30 @@ static void flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtN
     for (int t = 0; t < elemnum; t++) {
       const int* vert = elem + (dim+1)*t;
 
-      // current edge vectors and their directional length changes in world coordinates
+      // current edge vectors and their world-frame variations from the attachment Jacobians
       mjtNum dvec[6][3], dw[6][3];
-      mjtNum g[6];
+      mj_stretchEdgeVectors(dvec, xpos, vert, dim);
       for (int e = 0; e < nedge; e++) {
         int v0 = vert[edge[e][0]], v1 = vert[edge[e][1]];
-        g[e] = 0;
         const mjtNum* w0 = wvec + 3*v0;
         const mjtNum* w1 = wvec + 3*v1;
         for (int x = 0; x < 3; x++) {
-          dvec[e][x] = xpos[3*v0+x] - xpos[3*v1+x];
           dw[e][x] = w0[x] - w1[x];
-          g[e] += dvec[e][x]*dw[e][x];
         }
       }
 
-      // unpack upper triangular metric (21 elements, matching mj_flexPassiveStretch)
-      mjtNum metric[36];
-      int id = 0;
+      // shared StVK material and tensile geometric stiffness
+      mjtNum metric[36], tension[6], result[6][3];
+      mj_stretchStiffness(metric, tension, k + 21*t, edgeelem + t*nedge,
+                         deformed, reference, nedge);
+      mj_stretchStiffnessMul(result, metric, tension, dvec, dw, nedge, scale);
 
-      for (int e1 = 0; e1 < nedge; e1++) {
-        for (int e2 = e1; e2 < nedge; e2++) {
-          metric[nedge*e1 + e2] = k[21*t + id];
-          metric[nedge*e2 + e1] = k[21*t + id++];
-        }
-      }
-
-      // Edge tension for the geometric term, keeping only its TENSILE part. The geometric block is
-      // Me_a*[[I,-I],[-I,I]] over the edge's two vertices, which is PSD iff Me_a >= 0; a compressed
-      // edge would make K indefinite, and its consumers (the CG constraint solver and the PCG in
-      // mjd_effSolve) both require SPD. The clamp is structural, so no eigendecomposition is
-      // needed. mj_flexPassiveStretch keeps the full Me_a: the force is unchanged, only the
-      // operator is projected.
-      mjtNum Me[6];
+      // accumulate world-frame edge contributions before applying the attachment Jacobians
       for (int e = 0; e < nedge; e++) {
-        Me[e] = 0;
-        for (int a = 0; a < nedge; a++) {
-          int idx = edgeelem[t*nedge + a];
-          Me[e] += metric[nedge*e + a]*(deformed[idx]*deformed[idx] -
-                                        reference[idx]*reference[idx]);
-        }
-        Me[e] = mju_max(Me[e], 0);
-      }
-
-      // scatter: res_{b0/b1} +/-= 2*scale*(sum_a M_ba g_a) * d_b + scale*Me_b * (vec_b0 - vec_b1)
-      for (int e = 0; e < nedge; e++) {
-        mjtNum coef = 0;
-        for (int a = 0; a < nedge; a++) {
-          coef += metric[nedge*e + a]*g[a];
-        }
-        coef *= 2*scale;
         int v0 = vert[edge[e][0]], v1 = vert[edge[e][1]];
         for (int x = 0; x < 3; x++) {
-          mjtNum force = coef*dvec[e][x] + scale*Me[e]*dw[e][x];
-          wres[3*v0+x] += force;
-          wres[3*v1+x] -= force;
+          wres[3*v0+x] += result[e][x];
+          wres[3*v1+x] -= result[e][x];
         }
       }
     }
@@ -2195,7 +2158,6 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
     }
     int dim = m->flex_dim[f], nvrt = dim + 1;
     int nedge = (dim == 2) ? 3 : 6;
-    const int (*edget)[2] = stretch_edges[dim-2];
 
     if (flg_bend && m->flex_bendingadr[f] >= 0) {
       const mjtNum* b = m->flex_bending + m->flex_bendingadr[f];
@@ -2247,71 +2209,20 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
       for (int t = 0; t < m->flex_elemnum[f]; t++) {
         const int* vert = elem + (dim+1)*t;
 
-        // current edge vectors
-        mjtNum dvec[6][3];
-        for (int e = 0; e < nedge; e++) {
-          int v0 = vert[edget[e][0]], v1 = vert[edget[e][1]];
-          for (int x = 0; x < 3; x++) {
-            dvec[e][x] = xpos[3*v0+x] - xpos[3*v1+x];
-          }
-        }
+        mjtNum dvec[6][3], metric[36], tension[6];
+        mj_stretchEdgeVectors(dvec, xpos, vert, dim);
+        mj_stretchStiffness(metric, tension, kk + 21*t, eelem + t*nedge,
+                            elen, elen0, nedge);
 
-        // unpack triangular metric
-        mjtNum metric[36];
-        int id = 0;
-        for (int e1 = 0; e1 < nedge; e1++) {
-          for (int e2 = e1; e2 < nedge; e2++) {
-            metric[nedge*e1 + e2] = kk[21*t + id];
-            metric[nedge*e2 + e1] = kk[21*t + id++];
-          }
-        }
-
-        // tensile edge tension for the geometric term (see the clamp note in mjd_flexStretch_mul)
-        mjtNum Me[6];
-        for (int e1 = 0; e1 < nedge; e1++) {
-          Me[e1] = 0;
-          for (int e2 = 0; e2 < nedge; e2++) {
-            int idx = eelem[t*nedge + e2];
-            Me[e1] += metric[nedge*e1 + e2]*(elen[idx]*elen[idx] - elen0[idx]*elen0[idx]);
-          }
-          Me[e1] = mju_max(Me[e1], 0);
-        }
-
-        // per vertex pair: block += 2*scale * sum_ab M_ab s_a,vi s_b,vj d_a d_b^T
-        //                         + scale * (sum_a Me_a s_a,vi s_a,vj) * I3
+        // assemble the same material and geometric stiffness used by the operator
         for (int i = 0; i < nvrt; i++) {
           int si = vslot[m->flex_vertadr[f] + vert[i]];
           if (si < 0) continue;
           for (int j = 0; j < nvrt; j++) {
             int sj = vslot[m->flex_vertadr[f] + vert[j]];
             if (sj < 0) continue;
-            mjtNum blk[9] = {0};
-            for (int a = 0; a < nedge; a++) {
-              mjtNum sa = (i == edget[a][0]) ? 1 : ((i == edget[a][1]) ? -1 : 0);
-              if (!sa) continue;
-              for (int bb = 0; bb < nedge; bb++) {
-                mjtNum sb = (j == edget[bb][0]) ? 1 : ((j == edget[bb][1]) ? -1 : 0);
-                if (!sb) continue;
-                mjtNum w = 2*scale*metric[nedge*a + bb]*sa*sb;
-                for (int r = 0; r < 3; r++) {
-                  for (int c = 0; c < 3; c++) {
-                    blk[3*r+c] += w*dvec[a][r]*dvec[bb][c];
-                  }
-                }
-              }
-            }
-            // geometric term: a multiple of I3, so the frame sandwich below leaves it unchanged
-            mjtNum geo = 0;
-            for (int a = 0; a < nedge; a++) {
-              mjtNum sa = (i == edget[a][0]) ? 1 : ((i == edget[a][1]) ? -1 : 0);
-              mjtNum sb = (j == edget[a][0]) ? 1 : ((j == edget[a][1]) ? -1 : 0);
-              if (!sa || !sb) continue;
-              geo += Me[a]*sa*sb;
-            }
-            geo *= scale;
-            blk[0] += geo;
-            blk[4] += geo;
-            blk[8] += geo;
+            mjtNum blk[9];
+            mj_stretchStiffnessBlock(blk, metric, tension, dvec, dim, i, j, scale);
 
             // blk is world-space but the destination dofs are the vertex bodies' own (possibly
             // rotated) slide axes: blk_dof = R_bi^T * blk_world * R_bj, matching the force path
