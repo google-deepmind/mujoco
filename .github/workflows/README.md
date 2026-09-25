@@ -273,6 +273,13 @@ takes effect. The platform libraries are reused across runs and ccache absorbs
 most of the recompilation, but the extensions themselves are rebuilt from a
 fresh sdist every time, so expect minutes rather than seconds. The C++ app
 (`main.cc`, `launcher.cc`) is never compiled by this workflow.
+
+> [!NOTE]
+> **TODO(matijak):** Re-export Studio Python tests (`experimental/studio/*_test.py`)
+> and add a `build_steps.sh` / GitHub CI step to run them against a
+> `build_studio_python` build (currently the `build.yml` matrix builds its
+> test wheel without `MUJOCO_BUILD_STUDIO=ON`, so Studio C++ extensions like
+> `sim` and `ux` are absent there).
 </details>
 
 <details>
