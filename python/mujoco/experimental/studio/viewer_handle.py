@@ -68,12 +68,14 @@ class ViewerHandle:
     """Signals the viewer to exit and waits for it to shut down."""
     if self._is_running:
       self._is_running = False
-      try:
-        self.send_to_viewer(messages.ExitEvent())
-      except Exception:  # pylint: disable=broad-exception-caught
-        pass  # Ignore exceptions, the viewer may have already closed.
-      if self._shutdown_fn is not None:
-        self._shutdown_fn(5.0)
+      self._sim_plugins.dispatch(messages.ExitEvent())
+    try:
+      self.send_to_viewer(messages.ExitEvent())
+    except Exception:  # pylint: disable=broad-exception-caught
+      pass  # Ignore exceptions, the viewer may have already closed.
+    if self._shutdown_fn is not None:
+      self._shutdown_fn(5.0)
+      self._shutdown_fn = None
     self._sim_endpoint.close()
 
   def __enter__(self) -> 'ViewerHandle':
@@ -194,9 +196,8 @@ class ViewerHandle:
     return True
 
   @messages.handler(priority=messages.Priority.INTERNAL)
-  def _on_exit(self, _: messages.ExitEvent) -> bool:
+  def _on_exit(self, _: messages.ExitEvent) -> None:
     self._is_running = False  # pylint: disable=protected-access
-    return True
 
   @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_mjoption(self, event: messages.MjOptionSnapshot) -> bool:

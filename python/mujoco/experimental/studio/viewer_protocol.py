@@ -108,7 +108,6 @@ class Viewer(abc.ABC):
     self.config = config
     self._endpoint = endpoint
     self._is_running = True
-    self._closed = False
 
     # Viewer-owned model and data.
     if model is None:
@@ -137,10 +136,9 @@ class Viewer(abc.ABC):
 
   def close(self) -> None:
     """Closes the viewer, sends an exit event and shuts down the endpoint."""
-    if self._closed:
-      return
-    self._closed = True
-    self._is_running = False
+    if self._is_running:
+      self._is_running = False
+      self.dispatch(messages.ExitEvent())
     try:
       self.send_to_sim(messages.ExitEvent())
     except Exception:  # pylint: disable=broad-exception-caught
@@ -148,10 +146,9 @@ class Viewer(abc.ABC):
     self._endpoint.close()
 
   @messages.handler(priority=messages.Priority.CRITICAL)
-  def _on_exit(self, _: messages.ExitEvent) -> bool:
+  def _on_exit(self, _: messages.ExitEvent) -> None:
     """Stops the viewer loop when the sim side requests an exit."""
     self._is_running = False
-    return False  # Do not consume; app handlers may want cleanup too.
 
   def is_running(self) -> bool:
     """Returns True while the viewer has not been closed."""
@@ -182,20 +179,18 @@ class Viewer(abc.ABC):
     mujoco.mj_forward(self.model, self.data)
 
   @messages.handler(priority=messages.Priority.CRITICAL)
-  def _on_model(self, event: messages.ModelEvent) -> bool:
+  def _on_model(self, event: messages.ModelEvent) -> None:
     """Deep-copies the incoming model so the Viewer owns its data."""
     self.load_model(event.model, event.path)
     self.extra_geoms.clear()
-    return False  # Do not consume; let other handlers see the event.
 
   @messages.handler(priority=messages.Priority.CRITICAL)
-  def _on_state(self, event: messages.StateSnapshot) -> bool:
+  def _on_state(self, event: messages.StateSnapshot) -> None:
     """Applies incoming simulation state to the viewer's model/data."""
     state_size = mujoco.mj_stateSize(self.model, event.state_sig)
     if len(event.state) == state_size:
       mujoco.mj_setState(self.model, self.data, event.state, event.state_sig)
       mujoco.mj_forward(self.model, self.data)
-    return False  # Do not consume; let other handlers see the event.
 
   @abc.abstractmethod
   def prepare_next_frame(self) -> bool:

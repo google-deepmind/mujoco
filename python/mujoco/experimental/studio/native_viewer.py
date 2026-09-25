@@ -21,6 +21,7 @@ from typing import Any
 
 import mujoco
 from mujoco.experimental.studio import endpoints
+from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import native_viewer_cc as _viewer
 from mujoco.experimental.studio import ux
 from mujoco.experimental.studio import viewer_protocol
@@ -101,7 +102,7 @@ class NativeViewer(viewer_protocol.Viewer):
   def prepare_next_frame(self) -> bool:
     """Advances to the next frame; returns False when the window is closed."""
     if not self._viewer.NewFrame():
-      self._is_running = False
+      self.dispatch(messages.ExitEvent())
       return False
     return True
 
@@ -118,11 +119,6 @@ class NativeViewer(viewer_protocol.Viewer):
         self.extra_geoms,
     )
 
-  # TODO(matijak): Remove stop() and rename callers to close().
-  def stop(self) -> None:
-    """Stop the viewer."""
-    self.close()
-
   def close(self) -> None:
     """Close the viewer and explicitly destroy the renderer.
 
@@ -131,6 +127,9 @@ class NativeViewer(viewer_protocol.Viewer):
     thread affinity.  Without this override the pybind11 prevent object would
     be garbage-collected on the main thread, triggering a SIGABRT.
     """
+    if self._is_running:
+      self._is_running = False
+      self.dispatch(messages.ExitEvent())
     # Destroy the C++ viewer *before* closing the endpoint so that the
     # FilamentRenderer destructor runs on the daemon/viewer thread.
     self._viewer = None  # Release the C++ Viewer pybind11 prevent object.
