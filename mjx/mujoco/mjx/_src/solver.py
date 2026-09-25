@@ -485,11 +485,6 @@ def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
       m, d, ctx, a, jv, quad, quad_gauss, uu, v0, uv, vv  # pyrefly: ignore[bad-argument-type]
   )
 
-  # set acceptance tolerance to avoid exceeding gtol in f32
-  dmag = jp.sum(jp.abs(quad[:, 1]) + 2 * jp.abs(quad[:, 2]))
-  dmag += jp.abs(quad_gauss[1]) + 2 * jp.abs(quad_gauss[2])
-  gtol_accept = jp.maximum(gtol, 8 * jp.finfo(dmag.dtype).eps * dmag)
-
   def cond(ctx: _LSContext) -> jax.Array:
     done = ctx.ls_iter >= m.opt.ls_iterations
     done |= ~ctx.swap  # if we did not adjust the interval
@@ -550,6 +545,14 @@ def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
 
   # initialize interval
   p0 = point_fn(jp.array(0.0))
+
+  # set acceptance tolerance to avoid exceeding gtol in f32: Cauchy-Schwarz
+  # bound on the derivative magnitude of the active constraint rows at alpha = 0
+  rows_0 = jp.maximum(p0.cost - quad_gauss[0], 0.0)
+  rows_2 = jp.maximum(0.5 * p0.deriv_1 - quad_gauss[2], 0.0)
+  dmag = 2.0 * jp.sqrt(rows_0 * rows_2) + jp.abs(quad_gauss[1])
+  gtol_accept = jp.maximum(gtol, 8 * jp.finfo(dmag.dtype).eps * dmag)
+
   lo = point_fn(p0.alpha - p0.deriv_0 / p0.deriv_1)
   lesser_fn = lambda x, y: jp.where(lo.deriv_0 < p0.deriv_0, x, y)
   hi = jax.tree_util.tree_map(lesser_fn, p0, lo)
