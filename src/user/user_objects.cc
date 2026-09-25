@@ -4654,7 +4654,7 @@ void mjCHField::Compile(const mjVFS* vfs) {
     if (size[i] <= 0) throw mjCError(this, "size parameter is not positive in hfield");
 
   // remove path from file if necessary
-  if (model->strippath) { file_ = mjuu_strippath(file_); }
+  if (model->strippath) { file_ = mjuu_stripLocalPath(file_); }
 
   // load from file if specified
   if (!file_.empty()) {
@@ -5370,7 +5370,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
   for (int i = 0; i < 6; i++) {
     if (!cubefiles_[i].empty()) {
       // remove path from file if necessary
-      if (model->strippath) { cubefiles_[i] = mjuu_strippath(cubefiles_[i]); }
+      if (model->strippath) { cubefiles_[i] = mjuu_stripLocalPath(cubefiles_[i]); }
 
       // make filename
       mujoco::user::FilePath texturedir_;
@@ -5506,7 +5506,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
   // single file
   else if (!file_.empty()) {
     // remove path from file if necessary
-    if (model->strippath) { file_ = mjuu_strippath(file_); }
+    if (model->strippath) { file_ = mjuu_stripLocalPath(file_); }
 
     // make filename
     FilePath filename = texturedir_ + FilePath(file_);

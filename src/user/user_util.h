@@ -291,6 +291,9 @@ MJAPI std::vector<std::string> StringToVector(const std::string& s);
 // strip path from filename
 std::string mjuu_strippath(std::string filename);
 
+// strip path from filename, unless a registered resource provider claims the name
+std::string mjuu_stripLocalPath(std::string filename);
+
 // strip extension from filename
 std::string mjuu_stripext(std::string filename);
 
