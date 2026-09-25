@@ -135,7 +135,7 @@ class SolverTest(parameterized.TestCase):
       mujoco.mj_step(m, d)
       mujoco.mj_forward(m, d)
       dx = solve(mx, mjx.put_data(m, d))
-      # linesearch must accept a converged candidate 
+      # linesearch must accept a converged candidate
       # regardless of its derivative's sign
       _assert_eq(d.qacc, dx.qacc, f'qacc (state {i})')
 
