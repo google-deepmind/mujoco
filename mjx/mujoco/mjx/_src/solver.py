@@ -598,6 +598,19 @@ def solve(m: Model, d: Data) -> Data:
   ctx = Context.create(m, d)
   if m.opt.iterations == 1:
     ctx = body(ctx)
+
+  elif hasattr(m.opt, 'fixed_iterations') and m.opt.fixed_iterations is not None:
+  # Use fori_loop with static bounds for gradient compatibility
+   def fixed_body_fn(i, ctx):
+    return body(ctx)
+  
+  # This loop runs exactly fixed_iterations times
+   ctx = jax.lax.fori_loop(
+      0, m.opt.fixed_iterations,
+      fixed_body_fn,
+      ctx
+  )  
+    
   else:
     ctx = jax.lax.while_loop(cond, body, ctx)
 

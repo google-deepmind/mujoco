@@ -25,6 +25,7 @@ from mujoco.mjx._src.types import ConeType
 import numpy as np
 
 
+
 # tolerance for difference between MuJoCo and MJX solver calculations,
 # mostly due to float precision
 _TOLERANCE = 5e-3
