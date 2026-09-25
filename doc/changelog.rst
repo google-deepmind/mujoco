@@ -12,6 +12,9 @@ General
 - Assets in a :ref:`meshdir<compiler-meshdir>` or :ref:`texturedir<compiler-texturedir>` now resolve correctly in
   :ref:`.mjz <MJZArchives>` archives when rewritten or when the directory path is absolute, uses ``..``, or uses a URI
   scheme.
+- The cached flex bending factor now retains cross-coordinate couplings between differently oriented vertex bodies.
+- Unsupported attachments of flex vertices with bending stiffness now produce a compiler error, including vertices
+  welded to ball joints, non-XYZ slide joints, or bodies with moving ancestors.
 
 Version 3.14.0 (September 22, 2026)
 -----------------------------------

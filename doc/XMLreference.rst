@@ -4544,6 +4544,10 @@ stress-strain relationship. See also :ref:`deformable <CDeformable>` objects and
    "both": bending and stretching. Bending is not yet supported by :ref:`dof<body-flexcomp-dof>` **trilinear** and
    **quadratic**.
 
+   For non-rigid, non-interpolated flexes with bending stiffness, each vertex must be attached to a fixed body or a body with
+   three slide joints along its local positive X, Y and Z axes, in that order. Jointless welded children of such bodies
+   are supported. The slide body's ancestors must be fixed; articulated and mocap attachments are not supported.
+
 .. _flex-contact:
 
 :el-prefix:`flex/` |-| **contact** |?|

@@ -1365,9 +1365,8 @@ static void setSpring(mjModel* m, mjData* d) {
 // reverse-Cholesky of M + (h^2 + h*damping)*K_bend over
 // the dofs of unpinned vertices of standard dim-2 flexes with bending. The matrix is constant
 // (flat-rest bending stiffness, point masses), so the factor is computed here once and reused
-// by the implicit-flex constraint solve every step. Bending couples only same-coordinate dofs,
-// so the pattern is three interleaved copies of the vertex flap adjacency. Row order (flex
-// order, vertex order, coordinate fastest) and the resulting fill count must match the
+// by the implicit-flex constraint solve every step. Bending couples full 3x3 blocks when vertex
+// frames differ. Row order (body order, coordinate fastest) and the fill count must match the
 // compiler's symbolic sizing (checked below).
 static void setEfm0Factor(mjModel* m, mjData* d) {
   int nbd = m->nefm0dof;
@@ -1415,10 +1414,9 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
   }
 
   // assemble the bending-only stiffness K = (h^2 + h*damping)*K_bend over all dofs with the
-  // shared stencil walker from engine_derivative: bending values are configuration-independent
-  // and stretch/interp are gated off, so the call is valid at set-constants time (d is used
-  // for stack scratch only). As in the per-step metric, the h^2 and h*damping parts enter only
-  // when the spring and damper forces are enabled
+  // shared stencil walker from engine_derivative. The compiler requires fixed vertex frames,
+  // whose orientations were computed by setSpring. As in the per-step metric, the h^2 and
+  // h*damping parts enter only when the spring and damper forces are enabled.
   mjtNum s1 = mjDISABLED(mjDSBL_SPRING) ? 0 : h*h;
   mjtNum s2 = mjDISABLED(mjDSBL_DAMPER) ? 0 : h;
   int nv = m->nv;
@@ -1439,16 +1437,16 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
     dofrow[m->efm0_dofid[r]] = r;
   }
 
-  // compact B to covered rows, keeping same-coordinate entries only: bending blocks are
-  // isotropic (q * I3), so the off-coordinate entries of assemble's 3x3 block pattern are
-  // structurally zero and dropping them preserves the pattern the compiler sized.
+  // Compact K_bend to covered rows, retaining full off-diagonal blocks Q_ij * R_i^T * R_j.
+  // Only same-body blocks are diagonal, even when several vertices share a weld parent.
+  // Keep structural zeros between bodies so the pattern is independent of their orientations.
   // H = M + (h^2+h*d)*K_bend in compact dof indices: lower CSR (values) + upper CSR (pattern)
   int nHl = 0, nHu = 0;
   for (int r=0; r < nbd; r++) {
     int dof = m->efm0_dofid[r];
     for (int c=0; c < K_rownnz[dof]; c++) {
       int rc = dofrow[K_colind[K_rowadr[dof] + c]];
-      if (rc < 0 || (rc - r) % 3 != 0) continue;  // uncovered or off-coordinate
+      if (rc < 0 || (rc != r && rc/3 == r/3)) continue;
       if (rc < r) nHl++;
       else if (rc > r) nHu++;
     }
@@ -1472,7 +1470,7 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
     for (int c=0; c < K_rownnz[dof]; c++) {
       int adr = K_rowadr[dof] + c;
       int rc = dofrow[K_colind[adr]];
-      if (rc < 0 || (rc - r) % 3 != 0) continue;
+      if (rc < 0 || (rc != r && rc/3 == r/3)) continue;
       if (rc < r) {
         Hl_colind[ladr] = rc;
         Hl_val[ladr++] = K_val[adr];

@@ -4162,19 +4162,6 @@ void mjCFlex::ResolveReferences(const mjCModel* m) {
     mjCBody* pbody = static_cast<mjCBody*>(m->FindObject(mjOBJ_BODY, vertbody));
     if (pbody) {
       vertbodyid.push_back(pbody->id);
-      // pinned vertices with bending are only valid for static (jointless) pin
-      // bodies: the runtime treats pin velocity as zero, which is only correct
-      // for static bodies.
-      if (!pbody->joints.empty() &&
-          pbody->joints.size() != 3 &&
-          dim == 2 &&
-          (elastic2d == 1 || elastic2d == 3) &&
-          !interpolated) {
-        throw mjCError(this,
-                       "pinned flex vertices with bending require a static (jointless) "
-                       "pin body, body '%s' has joints",
-                       vertbody.c_str());
-      }
     } else {
       throw mjCError(this, "unknown body '%s' in flex", vertbody.c_str());
     }
@@ -4824,6 +4811,36 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
     // bending stiffness (2D only)
     if (dim == 2 && (elastic2d == 1 || elastic2d == 3) && !interpolated) {
+      // The bending kernels use R * qvel and R^T * force on the weld parent's XYZ slides.
+      // Validate compiled axes (including joint frames), and exclude articulated or mocap
+      // ancestors: their motion is absent from that mapping and makes the cached factor vary.
+      if (!rigid) {
+        for (int bid : vertbodyid) {
+          const mjCBody* body      = model->Bodies()[bid];
+          const mjCBody* weld      = model->Bodies()[body->weldid];
+          bool           supported = weld->joints.empty();
+          if (weld->joints.size() == 3) {
+            supported = true;
+            for (int j = 0; j < 3; j++) {
+              const mjCJoint* joint  = weld->joints[j];
+              supported             &= joint->type == mjJNT_SLIDE;
+              for (int k = 0; k < 3; k++) {
+                supported &= std::abs(joint->axis[k] - (j == k)) <= mjEPS;
+              }
+            }
+          }
+          for (const mjCBody* ancestor = weld; ancestor; ancestor = ancestor->parent) {
+            supported &= !ancestor->mocap;
+            if (ancestor != weld) { supported &= ancestor->joints.empty(); }
+          }
+          if (!supported) {
+            throw mjCError(this,
+                           "flex bending requires a fixed body or three XYZ slide joints "
+                           "with fixed ancestors; unsupported vertex body '%s'",
+                           body->name.c_str());
+          }
+        }
+      }
       bending.assign(nedge * 17, 0);
 
       for (unsigned int e = 0; e < nedge; e++) {
