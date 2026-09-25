@@ -488,8 +488,8 @@ def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
   def cond(ctx: _LSContext) -> jax.Array:
     done = ctx.ls_iter >= m.opt.ls_iterations
     done |= ~ctx.swap  # if we did not adjust the interval
-    done |= (ctx.lo.deriv_0 < 0) & (ctx.lo.deriv_0 > -gtol)
-    done |= (ctx.hi.deriv_0 > 0) & (ctx.hi.deriv_0 < gtol)
+    done |= (jp.abs(ctx.lo.deriv_0) < gtol_accept) & (ctx.lo.cost < p0.cost)
+    done |= (jp.abs(ctx.hi.deriv_0) < gtol_accept) & (ctx.hi.cost < p0.cost)
 
     return ~done
 
