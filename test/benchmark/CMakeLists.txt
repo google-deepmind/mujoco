@@ -32,12 +32,6 @@ mujoco_test(
 )
 
 mujoco_test(
-  flex_stretch_benchmark_test
-  MAIN_TARGET benchmark::benchmark_main
-  ADDITIONAL_LINK_LIBRARIES benchmark::benchmark
-)
-
-mujoco_test(
   thread_performance_test
   MAIN_TARGET benchmark::benchmark_main
   ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
