@@ -131,7 +131,7 @@ class SolverTest(parameterized.TestCase):
       mujoco.mj_resetDataKeyframe(m, d, i % m.nkey)
       d.qpos[free:] += 0.05 * rng.standard_normal(m.nq - free)
       d.qvel += 0.5 * rng.standard_normal(m.nv)
-      # step to genereate warmstart
+      # step to generate warmstart
       mujoco.mj_step(m, d)
       mujoco.mj_forward(m, d)
       dx = solve(mx, mjx.put_data(m, d))
