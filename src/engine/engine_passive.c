@@ -499,7 +499,6 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
   int vertnum = m->flex_vertnum[f];
   int edgenum = m->flex_edgenum[f];
   mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
-  int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
   mjtNum* b = m->flex_bending + bendingadr;
 
   mj_markStack(d);
@@ -512,15 +511,7 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
   }
   if (enbl_damper) {
     mju_zero(damper, 3*vertnum);
-    // precompute world-frame velocity R * qvel once per vertex (pinned vertices have 0 velocity)
-    for (int v = 0; v < vertnum; v++) {
-      int bid = m->body_weldid[bodyid[v]];
-      if (m->body_dofnum[bid] == 3) {
-        mji_mulMatVec3(vvel + 3*v, d->xmat + 9*bid, d->qvel + m->body_dofadr[bid]);
-      } else {
-        mju_zero3(vvel + 3*v);
-      }
-    }
+    mj_flexGather(m, d, f, vvel, d->qvel);
   }
 
   for (int e = 0; e < edgenum; e++) {
@@ -564,53 +555,10 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
     }
   }
 
-  // rotate accumulated world-space forces into body slide dofs once per vertex
-  // (world-pinned vertices have dofnum != 3 and are skipped, as the pin absorbs their reaction)
-  for (int v = 0; v < vertnum; v++) {
-    int bi = m->body_weldid[bodyid[v]];
-    if (m->body_dofnum[bi] != 3) continue;
-    int body_dofadr = m->body_dofadr[bi];
-    if (enbl_spring) {
-      mjtNum sl[3];
-      mji_mulMatTVec3(sl, d->xmat + 9*bi, spring + 3*v);
-      for (int x = 0; x < 3; x++) {
-        d->qfrc_spring[body_dofadr+x] -= sl[x];
-      }
-    }
-    if (enbl_damper) {
-      mjtNum dl[3];
-      mji_mulMatTVec3(dl, d->xmat + 9*bi, damper + 3*v);
-      for (int x = 0; x < 3; x++) {
-        d->qfrc_damper[body_dofadr+x] -= dl[x] * damp;
-      }
-    }
-  }
+  if (enbl_spring) mj_flexScatter(m, d, f, d->qfrc_spring, spring, -1);
+  if (enbl_damper) mj_flexScatter(m, d, f, d->qfrc_damper, damper, -damp);
 
   mj_freeStack(d);
-}
-
-
-// add the world-frame vertex forces frc of flex f to qfrc
-static void mj_flexApplyForce(const mjModel* m, mjData* d, int f, const mjtNum* frc,
-                              mjtNum* qfrc) {
-  const mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
-  const int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
-  for (int v = 0; v < m->flex_vertnum[f]; v++) {
-    int bid = bodyid[v];
-    if (m->body_simple[bid] != 2) {
-      // pinned vertex or non-simple body: distribute through the Jacobian
-      mj_applyFT(m, d, frc + 3*v, 0, xpos + 3*v, bid, qfrc);
-    } else {
-      // simple slider body: rotate into the slide dofs
-      int body_dofnum = m->body_dofnum[bid];
-      int body_dofadr = m->body_dofadr[bid];
-      mjtNum frc_loc[3];
-      mju_mulMatTVec3(frc_loc, d->xmat+9*bid, frc+3*v);
-      for (int x = 0; x < body_dofnum; x++) {
-        qfrc[body_dofadr+x] += frc_loc[x];
-      }
-    }
-  }
 }
 
 
@@ -694,10 +642,10 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
 
   // insert forces into qfrc_spring and qfrc_damper
   if (enbl_spring) {
-    mj_flexApplyForce(m, d, f, frc, d->qfrc_spring);
+    mj_flexScatter(m, d, f, d->qfrc_spring, frc, 1);
   }
   if (kD) {
-    mj_flexApplyForce(m, d, f, dmp, d->qfrc_damper);
+    mj_flexScatter(m, d, f, d->qfrc_damper, dmp, 1);
   }
 
   mj_freeStack(d);

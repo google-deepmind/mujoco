@@ -1075,6 +1075,7 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
 
 
  private:
+  bool IsSimple() const;           // fixed or independent XYZ-slide attachments
   void Compile(const mjVFS* vfs);  // compiler
   void CreateBVH(void);            // create flex BVH
   void CreateShellPair(void);      // create shells and evpairs

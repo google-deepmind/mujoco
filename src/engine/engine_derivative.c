@@ -907,6 +907,18 @@ int mjd_freeGyroPossible(const mjModel* m, const mjData* d, int jnt) {
     }
   }
 
+  // Matrix-free flex attachments can couple this free body without any CSR or constraint row.
+  int tree = m->body_treeid[m->jnt_bodyid[jnt]];
+  for (int f=0; f < m->nflex; f++) {
+    if (!mj_effFlexStiffPossible(m, f)) continue;
+    const int* bodies = m->flex_interp[f] ? m->flex_nodebodyid : m->flex_vertbodyid;
+    int vertadr = m->flex_interp[f] ? m->flex_nodeadr[f] : m->flex_vertadr[f];
+    int num = m->flex_interp[f] ? m->flex_nodenum[f] : m->flex_vertnum[f];
+    for (int v=vertadr; v < vertadr+num; v++) {
+      if (m->body_treeid[bodies[v]] == tree) return 0;
+    }
+  }
+
   // constraint Jacobian support on any of the 6 dofs couples them to the solve
   int nefc = d->nefc;
   if (mj_isSparse(m)) {
@@ -1544,9 +1556,9 @@ void mjd_flexInterp_cacheKrot(const mjModel* m, mjData* d, mjtNum* K_rot_out) {
 //   scale = s1 + s2 * flex_damping[f]  per flex
 //   for stiffness+damping: s1=h^2, s2=h  =>  scale = h^2 + h*damping
 //   for stiffness only:    s1=h,   s2=0  =>  scale = h
-void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
-                      mjtNum s1, mjtNum s2) {
-  for (int f = 0; f < m->nflex; f++) {
+static void flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                         mjtNum s1, mjtNum s2, int first, int last) {
+  for (int f = first; f < last; f++) {
     // skip interp, rigid, or non-2D
     if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] != 2) {
       continue;
@@ -1563,7 +1575,6 @@ void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* ve
     }
 
     const mjtNum* b = m->flex_bending + bendingadr;
-    const int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
     int vertnum = m->flex_vertnum[f];
     int edgenum = m->flex_edgenum[f];
     int edgeadr = m->flex_edgeadr[f];
@@ -1573,15 +1584,7 @@ void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* ve
     mjtNum* wres = mjSTACKALLOC(d, 3*vertnum, mjtNum);
     mju_zero(wres, 3*vertnum);
 
-    // precompute world-space input vector R * vec once per vertex
-    for (int v = 0; v < vertnum; v++) {
-      int bi = m->body_weldid[bodyid[v]];
-      if (m->body_dofnum[bi] == 3) {
-        mji_mulMatVec3(wvec + 3*v, d->xmat + 9*bi, vec + m->body_dofadr[bi]);
-      } else {
-        mju_zero3(wvec + 3*v);
-      }
-    }
+    mj_flexGather(m, d, f, wvec, vec);
 
     for (int e = 0; e < edgenum; e++) {
       const int* edge = m->flex_edge + 2*(e + edgeadr);
@@ -1604,22 +1607,16 @@ void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* ve
       }
     }
 
-    // rotate accumulated world-space result into body slide dofs once per vertex
-    for (int v = 0; v < vertnum; v++) {
-      int bi = m->body_weldid[bodyid[v]];
-      if (m->body_dofnum[bi] != 3) {
-        continue;
-      }
-      mjtNum vl[3];
-      mji_mulMatTVec3(vl, d->xmat + 9*bi, wres + 3*v);
-      int dof_i = m->body_dofadr[bi];
-      for (int x = 0; x < 3; x++) {
-        res[dof_i + x] += scale * vl[x];
-      }
-    }
+    mj_flexScatter(m, d, f, res, wres, scale);
 
     mj_freeStack(d);
   }
+}
+
+
+void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                      mjtNum s1, mjtNum s2) {
+  flexBend_mul(m, d, res, vec, s1, s2, 0, m->nflex);
 }
 
 
@@ -1636,10 +1633,11 @@ static const int stretch_edges[2][6][2] = {
 // d_a the current edge vector and Me_a = sum_b M_ab e_b the edge tension. The first (Gauss-Newton)
 // term alone is not the Jacobian of the force: without the second (geometric) term the operator is
 // only first-order correct, which shows up directly as finite-difference error against
-// -d(qfrc_passive)/dq. Pinned vertices (bodies without exactly 3 dofs) contribute nothing.
-void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
-                         mjtNum s1, mjtNum s2) {
-  for (int f = 0; f < m->nflex; f++) {
+// -d(qfrc_passive)/dq for affine attachments. With articulated attachments J'KJ is a
+// PSD approximation: derivatives of the attachment Jacobian are not included.
+static void flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                            mjtNum s1, mjtNum s2, int first, int last) {
+  for (int f = first; f < last; f++) {
     // skip interp, rigid, or 1D
     if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] < 2) {
       continue;
@@ -1660,35 +1658,29 @@ void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum*
     const int (*edge)[2] = stretch_edges[dim-2];
     const int* elem = m->flex_elem + m->flex_elemdataadr[f];
     const mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
-    const int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
     const mjtNum* k = m->flex_stiffness + stiffnessadr;
     const int* edgeelem = m->flex_elemedge + m->flex_elemedgeadr[f];
     const mjtNum* deformed = d->flexedge_length + m->flex_edgeadr[f];
     const mjtNum* reference = m->flexedge_length0 + m->flex_edgeadr[f];
     int elemnum = m->flex_elemnum[f];
+    int nvert = m->flex_vertnum[f];
+    mj_markStack(d);
+    mjtNum* wvec = mjSTACKALLOC(d, 3*nvert, mjtNum);
+    mjtNum* wres = mjSTACKALLOC(d, 3*nvert, mjtNum);
+    mj_flexGather(m, d, f, wvec, vec);
+    mju_zero(wres, 3*nvert);
 
     for (int t = 0; t < elemnum; t++) {
       const int* vert = elem + (dim+1)*t;
 
-      // current edge vectors and g_a = d_a . (vec_{a0} - vec_{a1}), zero on pinned vertices
+      // current edge vectors and their directional length changes in world coordinates
       mjtNum dvec[6][3], dw[6][3];
       mjtNum g[6];
       for (int e = 0; e < nedge; e++) {
         int v0 = vert[edge[e][0]], v1 = vert[edge[e][1]];
-        int b0 = m->body_weldid[bodyid[v0]], b1 = m->body_weldid[bodyid[v1]];
         g[e] = 0;
-
-        // the vertex bodies' slide dofs are expressed in their own (possibly rotated) frame while
-        // the stiffness is built from world-space edge vectors, so the operator must be sandwiched
-        // with R (dof -> world) and R^T (world -> dof); mj_flexPassiveStretch applies the same R^T
-        // to its world-space force. R = I for the common case of an unrotated parent body.
-        mjtNum w0[3] = {0}, w1[3] = {0};
-        if (m->body_dofnum[b0] == 3) {
-          mji_mulMatVec3(w0, d->xmat + 9*b0, vec + m->body_dofadr[b0]);
-        }
-        if (m->body_dofnum[b1] == 3) {
-          mji_mulMatVec3(w1, d->xmat + 9*b1, vec + m->body_dofadr[b1]);
-        }
+        const mjtNum* w0 = wvec + 3*v0;
+        const mjtNum* w1 = wvec + 3*v1;
         for (int x = 0; x < 3; x++) {
           dvec[e][x] = xpos[3*v0+x] - xpos[3*v1+x];
           dw[e][x] = w0[x] - w1[x];
@@ -1731,27 +1723,23 @@ void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum*
           coef += metric[nedge*e + a]*g[a];
         }
         coef *= 2*scale;
-        int b0 = m->body_weldid[bodyid[vert[edge[e][0]]]];
-        int b1 = m->body_weldid[bodyid[vert[edge[e][1]]]];
-        mjtNum rw[3], rl[3];
+        int v0 = vert[edge[e][0]], v1 = vert[edge[e][1]];
         for (int x = 0; x < 3; x++) {
-          rw[x] = coef*dvec[e][x] + scale*Me[e]*dw[e][x];
-        }
-        if (m->body_dofnum[b0] == 3) {   // world -> dof frame
-          mji_mulMatTVec3(rl, d->xmat + 9*b0, rw);
-          for (int x = 0; x < 3; x++) {
-            res[m->body_dofadr[b0]+x] += rl[x];
-          }
-        }
-        if (m->body_dofnum[b1] == 3) {
-          mji_mulMatTVec3(rl, d->xmat + 9*b1, rw);
-          for (int x = 0; x < 3; x++) {
-            res[m->body_dofadr[b1]+x] -= rl[x];
-          }
+          mjtNum force = coef*dvec[e][x] + scale*Me[e]*dw[e][x];
+          wres[3*v0+x] += force;
+          wres[3*v1+x] -= force;
         }
       }
     }
+    mj_flexScatter(m, d, f, res, wres, 1);
+    mj_freeStack(d);
   }
+}
+
+
+void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                         mjtNum s1, mjtNum s2) {
+  flexStretch_mul(m, d, res, vec, s1, s2, 0, m->nflex);
 }
 
 
@@ -1846,7 +1834,8 @@ mjtBool mjd_flexStiff_any(const mjModel* m, int flg_interp) {
       return 1;
     }
     if (!m->flex_interp[f] && !m->flex_rigid[f] && m->flex_dim[f] >= 2 &&
-        m->flex_stiffnessadr[f] >= 0 && m->flex_stiffness[m->flex_stiffnessadr[f]] != 0) {
+        m->flex_stiffnessadr[f] >= 0 && m->flex_stiffness[m->flex_stiffnessadr[f]] != 0 &&
+        mj_flexSimple(m, f)) {
       return 1;
     }
   }
@@ -1856,7 +1845,8 @@ mjtBool mjd_flexStiff_any(const mjModel* m, int flg_interp) {
 
 // does this standard flex contribute implicit stiffness under the given term flags?
 static mjtBool flexStiff_active(const mjModel* m, int f, int flg_bend, int flg_stretch) {
-  if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] < 2) {
+  if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] < 2 ||
+      !mj_flexSimple(m, f)) {
     return 0;
   }
   int bend = flg_bend && m->flex_bendingadr[f] >= 0;
@@ -3552,14 +3542,17 @@ void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, 
     }
   }
 
-  // terms not folded into the CSR fall back to the matrix-free operators; which terms those
-  // are is derivable, not state: the CSR is only ever built with bending included, and with
-  // interp included iff the model is assemblable. As in the CSR, the stiffness and damping
-  // parts enter only when their forces are enabled
+  // A standard flex is assembled only when all its attachments have fixed-frame XYZ
+  // mappings. Dispatch general flexes individually: another flex's CSR must not suppress
+  // their operators. Both the stiffness and damping parts follow the passive-force flags.
   mjtNum s1 = mjDISABLED(mjDSBL_SPRING) ? 0 : h*h;
   mjtNum s2 = mjDISABLED(mjDSBL_DAMPER) ? 0 : h;
-  if (!d->nefmK) {
-    mjd_flexBend_mul(m, d, res, vec, s1, s2);
+  for (int f=0; f < m->nflex; f++) {
+    if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] < 2) continue;
+    if (!d->nefmK || !mj_flexSimple(m, f)) {
+      flexBend_mul(m, d, res, vec, s1, s2, f, f+1);
+      flexStretch_mul(m, d, res, vec, s1, s2, f, f+1);
+    }
   }
   if (!d->nefmK || !mjd_flexInterpAssemblable(m)) {
     mjd_flexInterp_mul(m, d, res, vec, -s1, -s2, d->flexelem_krot);

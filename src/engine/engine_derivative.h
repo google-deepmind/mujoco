@@ -57,7 +57,7 @@ MJAPI int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjt
                        int flg_discrete);
 
 // can this free rigid subtree take the local gyroscopic treatment under discrete
-int mjd_freeGyroPossible(const mjModel* m, const mjData* d, int jnt);
+MJAPI int mjd_freeGyroPossible(const mjModel* m, const mjData* d, int jnt);
 
 // compute res += (s1 + s2*damping) * J'*K*J * vec, for all interpolated flexes
 //   K_rot_cache: if non-NULL, use pre-cached K_rot (same layout as m->flex_stiffness)
@@ -73,7 +73,7 @@ MJAPI void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtN
                             mjtNum s1, mjtNum s2);
 
 // compute res += scale * K_stretch * vec for standard (non-interp) flex stretch,
-// K_stretch the Gauss-Newton Hessian of the passive stretch force at the current state
+// K_stretch is the PSD world-space stretch Hessian projected through the vertex Jacobians
 //   scale = s1 + s2 * flex_damping[f]  per flex
 MJAPI void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                                mjtNum s1, mjtNum s2);

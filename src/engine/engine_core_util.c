@@ -1019,6 +1019,88 @@ void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
 
 //-------------------------- miscellaneous utilities -----------------------------------------------
 
+// Check weld parent for independent ordered XYZ slides. Used only to select fast paths;
+// general attachments use the point Jacobian. The same test sizes the constant factor in mjCFlex.
+int mj_flexBodySimple(const mjModel* m, int body) {
+  body = m->body_weldid[body];
+  if (m->body_dofnum[body] != 3 || m->body_jntnum[body] != 3 ||
+      m->body_dofnum[m->body_weldid[m->body_parentid[body]]] != 0) {
+    return 0;
+  }
+  int jadr = m->body_jntadr[body];
+  for (int j=0; j < 3; j++) {
+    if (m->jnt_type[jadr+j] != mjJNT_SLIDE) return 0;
+    for (int k=0; k < 3; k++) {
+      if (mju_abs(m->jnt_axis[3*(jadr+j)+k] - (j == k)) > mjMINVAL) return 0;
+    }
+  }
+  return 1;
+}
+
+
+// Check for standard fixed-frame three-DOF assembly flex and compatibility with cached factor.
+int mj_flexSimple(const mjModel* m, int f) {
+  for (int v=m->flex_vertadr[f]; v < m->flex_vertadr[f]+m->flex_vertnum[f]; v++) {
+    int body = m->body_weldid[m->flex_vertbodyid[v]];
+    if (m->body_dofnum[body] && !mj_flexBodySimple(m, body)) return 0;
+  }
+  return 1;
+}
+
+
+// Apply the point Jacobian or its transpose without constructing a matrix. The general
+// path walks the same motion axes as mj_jac, including every ancestor and the vertex offset.
+// Gather overwrites 3*nvert world components; scatter adds to nv generalized components.
+static void flexMap(const mjModel* m, const mjData* d, int f, mjtNum* res,
+                    const mjtNum* vec, mjtNum scale, int transpose) {
+  int vadr = m->flex_vertadr[f];
+  for (int v=0; v < m->flex_vertnum[f]; v++) {
+    int body = m->body_weldid[m->flex_vertbodyid[vadr+v]];
+    if (!transpose) mji_zero3(res + 3*v);
+    if (!m->body_dofnum[body]) continue;
+    int da = m->body_dofadr[body];
+    if (m->body_simple[body] == 2) {
+      // The world-space slide axes are already in cdof, including axis order and signs.
+      for (int j=0; j < m->body_dofnum[body]; j++) {
+        const mjtNum* axis = d->cdof + 6*(da+j)+3;
+        if (transpose) {
+          res[da+j] += scale*mju_dot3(axis, vec + 3*v);
+        } else {
+          mji_addToScl3(res + 3*v, axis, vec[da+j]);
+        }
+      }
+      continue;
+    }
+    mjtNum offset[3];
+    mji_sub3(offset, d->flexvert_xpos + 3*(vadr+v),
+             d->subtree_com + 3*m->body_rootid[body]);
+    for (int i=da + m->body_dofnum[body]-1; i >= 0; i=m->dof_parentid[i]) {
+      mjtNum column[3];
+      mji_cross(column, d->cdof + 6*i, offset);
+      mji_addTo3(column, d->cdof + 6*i+3);
+      if (transpose) {
+        res[i] += scale*mju_dot3(column, vec + 3*v);
+      } else {
+        mji_addToScl3(res + 3*v, column, vec[i]);
+      }
+    }
+  }
+}
+
+
+// Gather an arbitrary generalized vector (including qvel) in world vertex coordinates.
+void mj_flexGather(const mjModel* m, const mjData* d, int f, mjtNum* res, const mjtNum* vec) {
+  flexMap(m, d, f, res, vec, 1, 0);
+}
+
+
+// Accumulate world vertex forces in generalized coordinates, including pin reactions.
+void mj_flexScatter(const mjModel* m, const mjData* d, int f, mjtNum* res,
+                    const mjtNum* vec, mjtNum scale) {
+  flexMap(m, d, f, res, vec, scale, 1);
+}
+
+
 // gather global node positions and velocities
 void mju_flexGatherState(const mjModel* m, const mjData* d, int f, mjtNum* xpos, mjtNum* vel) {
   int nodenum = m->flex_nodenum[f];

@@ -13,8 +13,9 @@ General
   :ref:`.mjz <MJZArchives>` archives when rewritten or when the directory path is absolute, uses ``..``, or uses a URI
   scheme.
 - The cached flex bending factor now retains cross-coordinate couplings between differently oriented vertex bodies.
-- Unsupported attachments of flex vertices with bending stiffness now produce a compiler error, including vertices
-  welded to ball joints, non-XYZ slide joints, or bodies with moving ancestors.
+- Flex bending and stretching now include the motion and reaction forces of articulated vertex attachments. The discrete
+  integrator supports these attachments with the CG solver; fixed and independent XYZ-slide attachments retain their
+  optimized assembly. Elastic flexes attached to mocap bodies produce a compiler error.
 
 Version 3.14.0 (September 22, 2026)
 -----------------------------------

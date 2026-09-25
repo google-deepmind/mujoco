@@ -499,6 +499,7 @@ TEST_F(ElasticityTest, CurvedShell) {
   ASSERT_THAT(m.get(), testing::NotNull()) << error;
   MjDataPtr d = MakeData(m);
   mj_kinematics(m.get(), d.get());
+  mj_comPos(m.get(), d.get());
   mj_flex(m.get(), d.get());
   mj_passive(m.get(), d.get());
 
