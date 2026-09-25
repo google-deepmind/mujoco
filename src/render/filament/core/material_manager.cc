@@ -17,7 +17,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <string_view>
 
 #include <filament/Color.h>
 #include <filament/Material.h>
@@ -322,11 +321,15 @@ void MaterialManager::UpdateMaterialInstance(
                            ReadMat4(material.reflection_view_proj));
   }
 
-  // All textures use the same default sampler.
+  // Use CLAMP_TO_EDGE for UI/ImGui textures so opposite borders do not bleed
+  // across UV 0/1 boundaries under bilinear magnification.
+  const auto wrap_mode = material.decor_ux
+                             ? filament::TextureSampler::WrapMode::CLAMP_TO_EDGE
+                             : filament::TextureSampler::WrapMode::REPEAT;
   filament::TextureSampler sampler;
-  sampler.setWrapModeR(filament::TextureSampler::WrapMode::REPEAT);
-  sampler.setWrapModeS(filament::TextureSampler::WrapMode::REPEAT);
-  sampler.setWrapModeT(filament::TextureSampler::WrapMode::REPEAT);
+  sampler.setWrapModeR(wrap_mode);
+  sampler.setWrapModeS(wrap_mode);
+  sampler.setWrapModeT(wrap_mode);
   sampler.setMagFilter(filament::TextureSampler::MagFilter::LINEAR);
   sampler.setMinFilter(
       filament::TextureSampler::MinFilter::LINEAR_MIPMAP_LINEAR);
