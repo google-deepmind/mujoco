@@ -13,6 +13,7 @@
 # limitations under the License.
 """Viewer handle and event handlers for the simulation side."""
 
+import dataclasses
 from typing import Any, Callable
 import mujoco
 from mujoco.experimental.studio import endpoints
@@ -28,6 +29,29 @@ IsAliveFn = Callable[[], bool]
 # the viewer to finish after close() has sent the ExitEvent. Waiting lets the
 # viewer release its resources before the interpreter tears itself down.
 ShutdownFn = Callable[[float], None]
+
+
+@dataclasses.dataclass(frozen=True)
+class SimInitEvent(messages.Event):
+  """Lifecycle event dispatched once when the ViewerHandle is initialized.
+
+  The sim-side counterpart of ``viewer_protocol.ViewerInitEvent``: plugins that
+  need the handle, to publish a model or to send messages to the viewer, should
+  handle this event and cache the reference rather than having the launcher
+  hand it to them.
+
+  Like ``ViewerInitEvent``, this carries a live object, so it is dispatched
+  locally to ``sim_plugins`` and never crosses the sim/viewer endpoint.
+
+  Dispatched from ``ViewerHandle.__init__``, so a handler runs before
+  ``launch_passive`` (or any other launcher) has returned. The outbound endpoint
+  queues are already initialized, so handlers may cache the handle and enqueue
+  initial messages via ``event.handle.send_to_viewer(...)``. Raising from a
+  handler aborts the launch: the viewer is shut down and the exception
+  propagates out of the launcher.
+  """
+
+  handle: 'ViewerHandle'
 
 
 class ViewerHandle:
@@ -64,11 +88,25 @@ class ViewerHandle:
     all_sim_plugins.append(self)
     self._sim_plugins = plugin_registry.PluginRegistry(all_sim_plugins)
 
+    # Hand the plugins a reference to this handle. Dispatched last, so that a
+    # plugin's handler sees a fully constructed handle.
+    try:
+      self._sim_plugins.dispatch(SimInitEvent(handle=self))
+    except BaseException:  # pylint: disable=broad-exception-caught
+      # Launchers start the viewer before they construct the handle, so one is
+      # already running. Raising out of __init__ means the caller never gets a
+      # handle and never enters the ``with`` block, so nothing else will ever
+      # call close(): shut the viewer down here or it is left running with no
+      # way to stop it.
+      self._is_running = False
+      self.close()
+      raise
+
   def close(self) -> None:
     """Signals the viewer to exit and waits for it to shut down."""
     if self._is_running:
       self._is_running = False
-      self._sim_plugins.dispatch(messages.ExitEvent())
+      self.dispatch(messages.ExitEvent())
     try:
       self.send_to_viewer(messages.ExitEvent())
     except Exception:  # pylint: disable=broad-exception-caught
@@ -103,6 +141,16 @@ class ViewerHandle:
     """
     self._sim_endpoint.send_to_viewer(message)
 
+  def dispatch(self, message: messages.Message) -> None:
+    """Dispatches a message to registered sim-side handlers in priority order."""
+    self._sim_plugins.dispatch(message)
+
+  def set_model(self, model: mujoco.MjModel, path: str = '') -> None:
+    """Replaces the simulation's model and notifies both sim plugins and the viewer."""
+    event = messages.ModelEvent(model=model, path=path)
+    self.dispatch(event)
+    self.send_to_viewer(event)
+
   def sync(
       self,
       model: mujoco.MjModel | None,
@@ -129,6 +177,8 @@ class ViewerHandle:
       after the viewer sends a ModelEvent).
     """
 
+    if model is not None and model is not self.model:
+      self._sim_endpoint.send_to_viewer(messages.ModelEvent(model=model))
     self.model, self.data = model, data
 
     # Process incoming events from the viewer.
@@ -210,3 +260,20 @@ class ViewerHandle:
         except (TypeError, AttributeError):
           setattr(model.opt, field, val)
     return True
+
+
+def run_sim_loop(
+    handle: ViewerHandle,
+    model: mujoco.MjModel | None = None,
+    data: mujoco.MjData | None = None,
+    model_path: str | None = None,
+) -> None:
+  """Runs the standard simulation sync loop until the viewer closes."""
+  if model is not None:
+    handle.set_model(model, path=model_path or '')
+  try:
+    while handle.is_running():
+      model, data = handle.sync(model, data)
+  except KeyboardInterrupt:
+    # Ctrl+C is the documented way to quit; exit cleanly, no traceback.
+    print('\nShutting down.', flush=True)

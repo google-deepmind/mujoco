@@ -75,12 +75,11 @@ class GhostRenderer:
     self._viewer = event.viewer
 
   @messages.handler
-  def on_model(self, event: messages.ModelEvent) -> bool:
+  def on_model(self, event: messages.ModelEvent) -> None:
     """Resets ghost-specific state when the model changes."""
     del event  # Model/data are accessed via self._viewer.
     self._history.clear()
     self._last_time = None
-    return False
 
   @messages.handler
   def on_build_gui(self, _: messages.BuildGuiEvent) -> None:
@@ -185,19 +184,13 @@ def main(argv: list[str]) -> None:
 
   ghost_renderer = GhostRenderer()
 
-  with launch_passive.launch_passive(
+  launch_passive.run(
       config,
+      model=model,
+      data=data,
       viewer_plugins=[ghost_renderer],
       sim_plugins=[step_control.StepControl()],
-  ) as handle:
-    handle.send_to_viewer(messages.ModelEvent(model=model))
-
-    try:
-      while handle.is_running():
-        model, data = handle.sync(model, data)
-    except KeyboardInterrupt:
-      # Ctrl+C is the documented way to quit; exit cleanly, no traceback.
-      print('\nShutting down.', flush=True)
+  )
 
 
 if __name__ == '__main__':

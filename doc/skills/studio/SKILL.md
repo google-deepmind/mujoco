@@ -143,10 +143,25 @@ plugins to hook into rendering, UI layout, and physics execution:
         ImGui / ImPlot widgets.
     -   `UpdateEvent` — dispatched every frame before building GUI to update
         visuals, camera, perturbations, and transient geoms.
--   **Simulation Lifecycle Events** (dispatched by `ViewerHandle.sync` on the
-    sim side to `sim_plugins`):
-    -   `StepEvent` — dispatched on every `sync()` call so sim-side stepping
-        plugins (such as `StepControl`) can advance the physics.
+    -   `ExitEvent` — dispatched once when the viewer shuts down, whether the
+        exit came from the sim side or from the window being closed. Handle it
+        to release resources (threads, pools, GPU handles).
+-   **Simulation Lifecycle Events** (dispatched on the sim side to
+    `sim_plugins`):
+    -   `SimInitEvent` (`viewer_handle.SimInitEvent`) — dispatched once by
+        `ViewerHandle.__init__` so stateful plugins can cache the handle
+        (`event.handle`) instead of the launcher having to hand it to them.
+    -   `StepEvent` — dispatched by `ViewerHandle.sync` on every call so
+        sim-side stepping plugins (such as `StepControl`) can advance the
+        physics.
+    -   `ExitEvent` — dispatched once by `ViewerHandle.close()`, which the
+        `with` block calls on every exit path (normal exit, `KeyboardInterrupt`,
+        an exception, or the viewer dying). Handle it to release resources.
+
+> [!IMPORTANT]
+>
+> Do not return `True` from an `ExitEvent` handler: teardown must reach every
+> registered plugin, so no handler should consume the event.
 
 ### The `@messages.handler` Decorator
 
@@ -175,59 +190,57 @@ class MyPlugin:
 > be delivered** to lower-priority handlers. Return `False` or `None` if
 > downstream plugins or default handlers also need the message.
 
-## 4. Python Launchers: `launch_web`, `launch_native` & `launch_passive`
+## 4. Python Runners: `launch_web`, `launch_native` & `launch_passive`
 
-Studio provides three launcher functions for running custom simulation loops:
+Studio provides three runner modules that launch the viewer and execute
+the simulation sync loop via `.run(...)`:
 
-1.  **`launch_web`**
+1.  **`launch_web.run`**
     (`python/mujoco/experimental/studio/launch_web.py`):
-    Spawns a WebViewer in a background daemon thread. **This is usually the most
-    practical choice.** Its major advantage is that the host Python simulation
-    script that launches the viewer has **no native graphics dependencies**
-    (e.g., no desktop display server, X11/Wayland, or Filament libraries
-    required on the host): the host executes physics and computes Dear ImGui
-    layout in a headless context, while streaming draw commands (via NetImgui)
-    and state snapshots over WebSockets to a WebAssembly client running in the
-    user's browser. This makes it ideal for headless servers, containers, and
-    remote development.
-2.  **`launch_native`**
+    Spawns a WebViewer in a background daemon thread and runs the simulation
+    loop. **This is usually the most practical choice.** Its major advantage is
+    that the host Python simulation script has **no native graphics
+    dependencies** (e.g., no desktop display server, X11/Wayland, or Filament
+    libraries required on the host): the host executes physics and computes Dear
+    ImGui layout in a headless context, while streaming draw commands (via
+    NetImgui) and state snapshots over WebSockets to a WebAssembly client
+    running in the user's browser. This makes it ideal for headless servers,
+    containers, and remote development.
+2.  **`launch_native.run`**
     (`python/mujoco/experimental/studio/launch_native.py`):
     Spawns a local desktop window with native Filament graphics (Vulkan or
-    OpenGL).
-3.  **`launch_passive`**
+    OpenGL) and runs the simulation loop.
+3.  **`launch_passive.run`**
     (`python/mujoco/experimental/studio/launch_passive.py`):
     A unified wrapper that inspects `config.gfx` and automatically delegates to
     `launch_web` (if `config.gfx in ('web', 'webgl')`) or `launch_native`.
 
 Unless you specifically need your application to switch dynamically between
 native desktop and web streaming, **use just one of these directly**. In most
-workflows, **`launch_web` is recommended**.
+workflows, **`launch_web.run` is recommended**.
 
 For a full reference implementation, see
 `python/mujoco/experimental/studio/viewer.py`.
 
-### Minimal Simulation Loop
+### Standard Blocking Runners
 
-All three launchers share the same identical runner interface and return a
-`ViewerHandle`:
+All three modules share the same `.run(...)` interface:
 
 ```python
 from mujoco.experimental.studio import launch_web  # Or launch_native / launch_passive
-from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import step_control
 from mujoco.experimental.studio import viewer_app
 from mujoco.experimental.studio import viewer_protocol
 
 config = viewer_protocol.ViewerConfig(title='Studio')
 
-with launch_web.launch_web(
+launch_web.run(
     config,
+    model=model,
+    data=data,
     viewer_plugins=[viewer_app.ViewerApp()],
     sim_plugins=[step_control.StepControl()],
-) as handle:
-  handle.send_to_viewer(messages.ModelEvent(model=model, path=model_path))
-  while handle.is_running():
-    model, data = handle.sync(model, data)
+)
 ```
 
 > [!WARNING]
@@ -236,8 +249,25 @@ with launch_web.launch_web(
 > `step_control.StepControl()` in `sim_plugins` provides standard
 > real-time-paced CPU stepping. If you omit `StepControl()` (for example, when
 > running GPU rollouts or custom RL loops), `handle.sync()` will **not advance
-> physics or sleep**, so your simulation loop must manage its own pacing to
+> physics or sleep**, so your stepping plugin must manage its own pacing to
 > avoid busy-spinning.
+
+### Advanced: Non-Blocking Launchers (`launch_web.launch`, `launch_native.launch`, `launch_passive.launch`)
+
+When attaching a viewer to an **external loop that you do not want to invert into
+a `StepEvent` plugin** (such as an existing RL training loop, trajectory replay
+script, or unit test), each module also provides a non-blocking `.launch(...)`
+context manager returning a `ViewerHandle`:
+
+```python
+with launch_web.launch(
+    config,
+    viewer_plugins=[viewer_app.ViewerApp()],
+    sim_plugins=[step_control.StepControl()],
+) as handle:
+  while handle.is_running():
+    model, data = handle.sync(model, data)
+```
 
 ## 5. Authoring Python Plugins
 

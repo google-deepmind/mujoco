@@ -20,7 +20,89 @@ from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import viewer_handle
 
 
+class _CachingPlugin:
+  """The normal case: a plugin that caches the handle it is handed."""
+
+  def __init__(self) -> None:
+    self.handle: viewer_handle.ViewerHandle | None = None
+
+  @messages.handler
+  def on_sim_init(self, event: viewer_handle.SimInitEvent) -> None:
+    self.handle = event.handle
+
+
+class _RaisingPlugin:
+  """A plugin whose handler fails during handle construction."""
+
+  @messages.handler
+  def on_sim_init(self, event: viewer_handle.SimInitEvent) -> None:
+    del event
+    raise ValueError('handler failed')
+
+
 class ViewerHandleTest(absltest.TestCase):
+
+  def test_sim_init_event_hands_the_handle_to_plugins(self):
+    _, sim_endpoint = launch_thread.make_thread_endpoints()
+    plugin = _CachingPlugin()
+
+    handle = viewer_handle.ViewerHandle(sim_endpoint, sim_plugins=[plugin])
+
+    self.assertIs(plugin.handle, handle)
+
+  def test_raising_handler_shuts_the_viewer_down(self):
+    # A launcher starts the viewer before it builds the handle, so a handler
+    # that raises must not escape without stopping the viewer first: nobody
+    # else can, as the caller never receives a handle to close.
+    _, sim_endpoint = launch_thread.make_thread_endpoints()
+    shutdown_timeouts = []
+
+    with self.assertRaises(ValueError):
+      viewer_handle.ViewerHandle(
+          sim_endpoint,
+          sim_plugins=[_RaisingPlugin()],
+          shutdown_fn=shutdown_timeouts.append,
+      )
+
+    self.assertLen(shutdown_timeouts, 1)
+
+  def test_sync_sends_model_event_on_model_change(self):
+    viewer_endpoint, sim_endpoint = launch_thread.make_thread_endpoints()
+    handle = viewer_handle.ViewerHandle(sim_endpoint)
+    model = mujoco.MjModel.from_xml_string('<mujoco/>')
+    data = mujoco.MjData(model)
+
+    # First sync with a model sends a ModelEvent to the viewer.
+    handle.sync(model, data)
+    events = viewer_endpoint.get_sim_events()
+    self.assertLen(events, 1)
+    self.assertIsInstance(events[0], messages.ModelEvent)
+    self.assertIs(events[0].model, model)
+
+    # Subsequent sync with the same model does not resend ModelEvent.
+    handle.sync(model, data)
+    self.assertEmpty(viewer_endpoint.get_sim_events())
+
+  def test_run_sim_loop_preserves_model_path_without_duplicate_model_event(
+      self,
+  ):
+    viewer_endpoint, sim_endpoint = launch_thread.make_thread_endpoints()
+    handle = viewer_handle.ViewerHandle(sim_endpoint)
+    model = mujoco.MjModel.from_xml_string('<mujoco/>')
+    data = mujoco.MjData(model)
+
+    # Queue an ExitEvent from the viewer so run_sim_loop terminates after one
+    # sync iteration.
+    viewer_endpoint.send_to_sim(messages.ExitEvent())
+
+    viewer_handle.run_sim_loop(
+        handle, model=model, data=data, model_path='/path/to/model.xml'
+    )
+
+    events = viewer_endpoint.get_sim_events()
+    model_events = [e for e in events if isinstance(e, messages.ModelEvent)]
+    self.assertLen(model_events, 1)
+    self.assertEqual(model_events[0].path, '/path/to/model.xml')
 
   def test_close_dispatches_exit_event_once_and_runs_shutdown_after_viewer_exit(
       self,
