@@ -261,12 +261,12 @@ TEST_F(MjzEncoderTest, RoundTrip) {
   EXPECT_EQ(decoded_model->ngeom, model->ngeom);
   EXPECT_EQ(decoded_model->njnt, model->njnt);
 
+  mj_deleteVFS(&vfs);
   std::remove(tmp_path.c_str());
   mj_deleteModel(decoded_model);
   mj_deleteSpec(decoded);
   mj_deleteModel(model);
   mj_deleteSpec(spec);
-  mj_deleteVFS(&vfs);
 }
 
 TEST_F(MjzEncoderTest, RoundTripFromXmlString) {
@@ -306,12 +306,12 @@ TEST_F(MjzEncoderTest, RoundTripFromXmlString) {
   EXPECT_EQ(decoded_model->njnt, model->njnt);
   EXPECT_EQ(decoded_model->ngeom, model->ngeom);
 
+  mj_deleteVFS(&vfs);
   std::remove(tmp_path.c_str());
   mj_deleteModel(decoded_model);
   mj_deleteSpec(decoded);
   mj_deleteModel(model);
   mj_deleteSpec(spec);
-  mj_deleteVFS(&vfs);
 }
 
 TEST_F(MjzEncoderTest, RoundTripPreservesModelCounts) {
@@ -357,12 +357,12 @@ TEST_F(MjzEncoderTest, RoundTripPreservesModelCounts) {
   EXPECT_EQ(decoded_model->nq, model->nq);
   EXPECT_EQ(decoded_model->nv, model->nv);
 
+  mj_deleteVFS(&vfs);
   std::remove(tmp_path.c_str());
   mj_deleteModel(decoded_model);
   mj_deleteSpec(decoded);
   mj_deleteModel(model);
   mj_deleteSpec(spec);
-  mj_deleteVFS(&vfs);
 }
 
 TEST_F(MjzEncoderTest, RoundTripWithMeshFromVfs) {
@@ -414,12 +414,12 @@ TEST_F(MjzEncoderTest, RoundTripWithMeshFromVfs) {
   EXPECT_EQ(decoded_model->nmesh, model->nmesh);
   EXPECT_EQ(decoded_model->ngeom, model->ngeom);
 
+  mj_deleteVFS(&vfs);
   std::remove(tmp_path.c_str());
   mj_deleteModel(decoded_model);
   mj_deleteSpec(decoded);
   mj_deleteModel(model);
   mj_deleteSpec(spec);
-  mj_deleteVFS(&vfs);
 }
 
 TEST_F(MjzEncoderTest, RoundTripWithMeshFromDisk) {
@@ -453,8 +453,8 @@ TEST_F(MjzEncoderTest, RoundTripWithMeshFromDisk) {
   EXPECT_EQ(decoded_model->nmesh, model->nmesh);
   EXPECT_EQ(decoded_model->ngeom, model->ngeom);
 
-  fs::remove_all(tmpdir);
   mj_deleteVFS(&decode_vfs);
+  fs::remove_all(tmpdir);
   mj_deleteModel(decoded_model);
   mj_deleteSpec(decoded);
   mj_deleteModel(model);
@@ -492,8 +492,8 @@ TEST_F(MjzEncoderTest, RoundTripWithMeshInSubdirectory) {
   EXPECT_EQ(decoded_model->nmesh, model->nmesh);
   EXPECT_EQ(decoded_model->ngeom, model->ngeom);
 
-  fs::remove_all(tmpdir);
   mj_deleteVFS(&decode_vfs);
+  fs::remove_all(tmpdir);
   mj_deleteModel(decoded_model);
   mj_deleteSpec(decoded);
   mj_deleteModel(model);
@@ -530,8 +530,8 @@ TEST_F(MjzEncoderTest, RoundTripWithMeshdir) {
 
   EXPECT_EQ(decoded_model->nmesh, model->nmesh);
 
-  fs::remove_all(tmpdir);
   mj_deleteVFS(&decode_vfs);
+  fs::remove_all(tmpdir);
   mj_deleteModel(decoded_model);
   mj_deleteSpec(decoded);
   mj_deleteModel(model);
@@ -574,8 +574,8 @@ TEST_F(MjzEncoderTest, RoundTripRewrittenFilesUnderMeshdir) {
     EXPECT_EQ(decoded_model->mesh_vertnum[i], model->mesh_vertnum[i]);
   }
 
-  fs::remove_all(tmpdir);
   mj_deleteVFS(&decode_vfs);
+  fs::remove_all(tmpdir);
   mj_deleteModel(decoded_model);
   mj_deleteSpec(decoded);
   mj_deleteModel(model);
@@ -719,8 +719,8 @@ TEST_F(MjzEncoderTest, RoundTripMixedDiskAndVfs) {
   EXPECT_EQ(decoded_model->nmesh, model->nmesh);
   EXPECT_EQ(decoded_model->ngeom, model->ngeom);
 
-  fs::remove_all(tmpdir);
   mj_deleteVFS(&decode_vfs);
+  fs::remove_all(tmpdir);
   mj_deleteModel(decoded_model);
   mj_deleteSpec(decoded);
   mj_deleteModel(model);
@@ -795,8 +795,8 @@ TEST_F(MjzEncoderTest, AttachedSpecsWithCollidingAssetNames) {
   EXPECT_EQ(decoded_model->mesh_vertnum[1], mesh1_nvert)
       << "Second mesh vertex count mismatch after roundtrip";
 
-  fs::remove_all(tmpdir);
   mj_deleteVFS(&decode_vfs);
+  fs::remove_all(tmpdir);
   mj_deleteModel(decoded_model);
   mj_deleteSpec(decoded);
   mj_deleteModel(model);
@@ -920,8 +920,8 @@ TEST_F(MjzEncoderTest, RoundTripStripsUriPrefix) {
 
   // Cleanup.
   g_fake_data.clear();
-  fs::remove_all(tmpdir);
   mj_deleteVFS(&decode_vfs);
+  fs::remove_all(tmpdir);
   mj_deleteModel(decoded_model);
   mj_deleteSpec(decoded);
   mj_deleteModel(model);
@@ -989,8 +989,8 @@ TEST_F(MjzEncoderTest, RoundTripStripsUriWithSpecialChars) {
   EXPECT_EQ(decoded_model->nmesh, model->nmesh);
 
   g_fake_data.clear();
-  fs::remove_all(tmpdir);
   mj_deleteVFS(&decode_vfs);
+  fs::remove_all(tmpdir);
   mj_deleteModel(decoded_model);
   mj_deleteSpec(decoded);
   mj_deleteModel(model);
@@ -1048,8 +1048,8 @@ TEST_F(MjzEncoderTest, RoundTripWithMeshdirOutsideArchive) {
     ASSERT_THAT(decoded_model, testing::NotNull()) << mjs_getError(decoded);
     EXPECT_EQ(decoded_model->nmesh, model->nmesh);
 
-    fs::remove_all(tmpdir);
     mj_deleteVFS(&decode_vfs);
+    fs::remove_all(tmpdir);
     mj_deleteModel(decoded_model);
     mj_deleteSpec(decoded);
     mj_deleteModel(model);
@@ -1110,8 +1110,8 @@ TEST_F(MjzEncoderTest, RoundTripWithRepeatedSeparators) {
     EXPECT_EQ(decoded_model->nmesh, model->nmesh);
     EXPECT_EQ(decoded_model->ntex, model->ntex);
 
-    fs::remove_all(tmpdir);
     mj_deleteVFS(&decode_vfs);
+    fs::remove_all(tmpdir);
     mj_deleteModel(decoded_model);
     mj_deleteSpec(decoded);
     mj_deleteModel(model);
@@ -1299,8 +1299,8 @@ TEST_F(MjzEncoderTest, DuplicateFileReferencesRewrite) {
 
   // Cleanup.
   g_fake_data.clear();
-  fs::remove_all(tmpdir);
   mj_deleteVFS(&decode_vfs);
+  fs::remove_all(tmpdir);
   mj_deleteModel(decoded_model);
   mj_deleteSpec(decoded);
   mj_deleteModel(model);
@@ -1384,8 +1384,8 @@ TEST_F(MjzEncoderTest, CubefileUriRewrite) {
 
   // Cleanup.
   g_fake_data.clear();
-  fs::remove_all(tmpdir);
   mj_deleteVFS(&decode_vfs);
+  fs::remove_all(tmpdir);
   mj_deleteModel(decoded_model);
   mj_deleteSpec(decoded);
   mj_deleteModel(model);
