@@ -22,8 +22,9 @@
 #include "engine/engine_callback.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_util.h"
-#include "engine/engine_derivative.h"
 #include "engine/engine_crossplatform.h"
+#include "engine/engine_derivative.h"
+#include "engine/engine_elasticity.h"
 #include "engine/engine_inline.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"
@@ -36,50 +37,6 @@
 
 
 //----------------------------- passive forces -----------------------------------------------------
-
-
-// local edge-based vertex indexing for 2D and 3D elements, 2D and 3D elements
-// have 3 and 6 edges, respectively so the missing indexes are set to 0
-static const int edges[2][6][2] = {{{1, 2}, {2, 0}, {0, 1}, {0, 0}, {0, 0}, {0, 0}},
-                                   {{0, 1}, {1, 2}, {2, 0}, {2, 3}, {0, 3}, {1, 3}}};
-
-// compute gradient of squared lengths of edges belonging to a given element
-static void inline GradSquaredLengths(mjtNum gradient[6][2][3],
-                                      const mjtNum* xpos,
-                                      const int vert[4],
-                                      const int edge[6][2],
-                                      int nedge) {
-  for (int e = 0; e < nedge; e++) {
-    for (int d = 0; d < 3; d++) {
-      gradient[e][0][d] = xpos[3*vert[edge[e][0]]+d] - xpos[3*vert[edge[e][1]]+d];
-      gradient[e][1][d] = xpos[3*vert[edge[e][1]]+d] - xpos[3*vert[edge[e][0]]+d];
-    }
-  }
-}
-
-
-// add the stretch force of an element to the vertex forces frc: with the edge tensions
-// T = metric*elongation, the force on the two vertices of edge b is -T_b*gradient_b
-static void inline AddStretchForce(mjtNum* frc,
-                                   const int* vert,
-                                   const mjtNum elongation[6],
-                                   const mjtNum metric[36],
-                                   mjtNum gradient[6][2][3],
-                                   const int edge[6][2],
-                                   int nedge) {
-  for (int ed2 = 0; ed2 < nedge; ed2++) {
-    mjtNum tension = 0;
-    for (int ed1 = 0; ed1 < nedge; ed1++) {
-      tension += elongation[ed1] * metric[nedge*ed1 + ed2];
-    }
-    for (int i = 0; i < 2; i++) {
-      mjtNum* frc_i = frc + 3*vert[edge[ed2][i]];
-      for (int x = 0; x < 3; x++) {
-        frc_i[x] -= tension * gradient[ed2][i][x];
-      }
-    }
-  }
-}
 
 
 // passive forces for interpolated flex (stretch + bending)
@@ -600,28 +557,17 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
   for (int t = 0; t < elemnum; t++)  {
     const int* vert = elem + (dim+1) * t;
 
-    // compute length gradient with respect to dofs
-    mjtNum gradient[6][2][3];
-    GradSquaredLengths(gradient, xpos, vert, edges[dim-2], nedge);
-
-    // unpack triangular representation
-    mjtNum metric[36];
-    int id = 0;
-    for (int ed1 = 0; ed1 < nedge; ed1++) {
-      for (int ed2 = ed1; ed2 < nedge; ed2++) {
-        metric[nedge*ed1 + ed2] = k[21*t + id];
-        metric[nedge*ed2 + ed1] = k[21*t + id++];
-      }
-    }
+    // geometry and StVK material data
+    mjtNum edgevec[6][3], metric[36], tension[6];
+    mj_stretchEdgeVectors(edgevec, xpos, vert, dim);
+    mj_stretchMetric(metric, k + 21*t, nedge);
 
     // spring force, from the elongation of edges belonging to this element
     if (enbl_spring) {
       mjtNum elongation[6];
-      for (int e = 0; e < nedge; e++) {
-        int idx = edgeelem[t * nedge + e];
-        elongation[e] = deformed[idx]*deformed[idx] - reference[idx]*reference[idx];
-      }
-      AddStretchForce(frc, vert, elongation, metric, gradient, edges[dim-2], nedge);
+      mj_stretchElongation(elongation, edgeelem + t*nedge, deformed, reference, nedge);
+      mj_stretchTension(tension, metric, elongation, nedge);
+      mj_stretchForce(frc, vert, tension, edgevec, dim);
     }
 
     // damper force: generalized Rayleigh damping as described in Section 5.2 of
@@ -636,7 +582,8 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
         mjtNum dL = vel[idx] * m->opt.timestep;
         elongation[e] = dL*(2*deformed[idx] - dL) * kD;
       }
-      AddStretchForce(dmp, vert, elongation, metric, gradient, edges[dim-2], nedge);
+      mj_stretchTension(tension, metric, elongation, nedge);
+      mj_stretchForce(dmp, vert, tension, edgevec, dim);
     }
   }
 
