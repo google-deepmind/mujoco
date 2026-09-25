@@ -405,11 +405,8 @@ typedef struct {
 // broadphase collision detection; return number of bodyflex pairs
 static int mj_broadphase(const mjModel* m, mjData* d, mjPacked32* bfpair, int maxpair);
 
-// compute contacts for a batch of collision pairs contained in a buffer of
-// stride 3 ints (g1, g2, ipair)
-// if buffer is NULL, results are read from arena starting at parena
-static void mj_narrowphase(const mjModel* m, mjData* d, const mjcPair* buffer, int npair,
-                           size_t parena);
+// compute contacts for a batch of collision pairs on the arena starting at parena
+static void mj_narrowphase(const mjModel* m, mjData* d, int npair, size_t parena);
 
 // test active element self-collisions with SAP, pushing pairs onto the arena
 static int mj_collideFlexSAPPairs(const mjModel* m, mjData* d, int f, int group, int npair);
@@ -879,7 +876,7 @@ void mj_collision(const mjModel* m, mjData* d) {
 
   // narrowphase: compute contacts for all candidate pairs in a single global call
   if (ncandidate > 0) {
-    mj_narrowphase(m, d, NULL, ncandidate, parena);
+    mj_narrowphase(m, d, ncandidate, parena);
   }
 
   // end narrowphase and midphase timer
@@ -2341,26 +2338,18 @@ static inline void filterPreContacts(mjData* d, mjContactArg* arg, int start, in
 }
 
 
-// compute contacts for a batch of collision pairs contained in a buffer of
-// stride 3 ints (g1, g2, ipair)
-// if buffer is NULL, results are read from arena starting at parena
-static void mj_narrowphase(const mjModel* m, mjData* d, const mjcPair* buffer, int npair,
-                           size_t parena) {
+// compute contacts for a batch of collision pairs on the arena starting at parena
+static void mj_narrowphase(const mjModel* m, mjData* d, int npair, size_t parena) {
   int nthread = mju_numThread(d);
   int npolygonmax = mjDISABLED(mjDSBL_MULTICCD) ? 0 : m->npolygonmax;
   int nmeshdegmax = mjDISABLED(mjDSBL_MULTICCD) ? 0 : m->nmeshdegmax;
   int ccd_size = mjc_ccdSize(npolygonmax, nmeshdegmax, m->opt.ccd_iterations);
-  // try to balance load of 5 chunks per thread (chunksize should be divisible by 16)
-  int chunksize = npair / mjMAX(1, 5 * nthread);
-  chunksize = mjMAX(16, (chunksize + 15) & ~15);  // round up to next 16
+  // try to balance load of 5 chunks per thread
+  int chunksize = (nthread == 1) ? npair : mjMAX(1, npair / (5 * nthread));
+
   int nchunk = (npair + chunksize - 1) / chunksize;
 
-  // set buffer and arena pointer
-  if (!buffer) {
-    buffer = (const mjcPair*) ((char*) d->arena + parena);
-  } else {
-    parena = d->parena;
-  }
+  const mjcPair* buffer = (const mjcPair*) ((char*) d->arena + parena);
 
   mj_markStack(d);
 
@@ -2395,7 +2384,8 @@ static void mj_narrowphase(const mjModel* m, mjData* d, const mjcPair* buffer, i
   // dispatch narrowphase to threads with local stack allocation for EPA
   {
     mj_markStack(d);
-    arg.epabuffer = mj_stackAllocByte(d, ccd_size * nthread, sizeof(mjtNum));
+    int nactive = (nchunk < 2) ? 1 : nthread;
+    arg.epabuffer = mj_stackAllocByte(d, ccd_size * nactive, sizeof(mjtNum));
     mju_dispatch(m, d, collisionTask, &arg, nchunk);
     mj_freeStack(d);
   }
