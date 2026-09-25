@@ -24,7 +24,6 @@
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
-#include "engine/engine_util_solve.h"
 #include "engine/engine_util_sparse.h"
 #include "engine/engine_util_spatial.h"
 
@@ -1484,127 +1483,81 @@ int mj_effActuatorPossible(const mjModel* m, int i) {
 
 //-------------------------- stable Neo-Hookean tetrahedra ------------------------------------------
 
-// signed singular values with proper U,V, including rank-deficient configurations
-static void snhSVD(mjtNum U[9], mjtNum sigma[3], mjtNum V[9], const mjtNum F[9]) {
-  mjtNum C[9], eigen[3], quat[4], A[9];
-  mji_mulMatTMat3(C, F, F);
-  mju_eig3(eigen, V, quat, C);
-  mji_mulMatMat3(A, F, V);
-  mjtNum u[3][3];
-  for (int i = 0; i < 3; i++) {
-    for (int x = 0; x < 3; x++) {
-      u[i][x] = A[3*x+i];
-    }
-  }
-  sigma[0] = mju_norm3(u[0]);
-  if (sigma[0] == 0) {
-    mju_zero(U, 9);
-    U[0] = U[4] = U[8] = 1;
-    sigma[1] = sigma[2] = 0;
-    return;
-  }
-  mju_scl3(u[0], u[0], 1/sigma[0]);
-  mju_addToScl3(u[1], u[0], -mju_dot3(u[0], u[1]));
-  mjtNum norm = mju_norm3(u[1]);
-#ifdef mjUSESINGLE
-  const mjtNum tol = 1e-6f;
-#else
-  const mjtNum tol = 1e-12;
-#endif
-  if (norm > tol*sigma[0]) {
-    mju_scl3(u[1], u[1], 1/norm);
-  } else {
-    // complete a frame at rank one, using the axis least aligned with u[0]
-    int axis = 0;
-    for (int x = 1; x < 3; x++) {
-      if (mju_abs(u[0][x]) < mju_abs(u[0][axis])) axis = x;
-    }
-    for (int x = 0; x < 3; x++) {
-      u[1][x] = (x == axis) - u[0][axis]*u[0][x];
-    }
-    mju_scl3(u[1], u[1], 1/mju_norm3(u[1]));
-  }
-  mju_cross(u[2], u[0], u[1]);
-  sigma[1] = sigma[2] = 0;
-  for (int x = 0; x < 3; x++) {
-    sigma[1] += u[1][x]*A[3*x+1];
-    sigma[2] += u[2][x]*A[3*x+2];
-    for (int i = 0; i < 3; i++) {
-      U[3*x+i] = u[i][x];
+// cubic Gram determinant P(s) = a*b*c + 2*d*e*f - a*f*f - b*e*e - c*d*d,
+// where D(s) = [[a,d,e], [d,b,f], [e,f,c]] is the Gram difference at vertex 0.
+// Add its derivatives to the same edge tension/metric used for the quadratic energy.
+void mj_snhCubic(mjtNum metric[36], mjtNum tension[6], const mjtNum s[6],
+                  mjtNum gamma, int flg_stiffness) {
+  mjtNum a = s[0], b = s[2], c = s[4];
+  mjtNum d = (s[0]+s[2]-s[1])/2;
+  mjtNum e = (s[0]+s[4]-s[5])/2;
+  mjtNum f = (s[2]+s[4]-s[3])/2;
+  mjtNum cof[6] = {b*c-f*f, a*c-e*e, a*b-d*d, e*f-c*d, d*f-b*e, d*e-a*f};
+  mjtNum g[6] = {cof[0]+cof[3]+cof[4], -cof[3], cof[1]+cof[3]+cof[5],
+                 -cof[5], cof[2]+cof[4]+cof[5], -cof[4]};
+  mju_addToScl(tension, g, 2*gamma, 6);
+  if (!flg_stiffness) return;
+
+  // columns of the constant map s -> (a,b,c,d,e,f)
+  static const mjtNum basis[6][6] = {
+    {1, 0, 0, .5, .5, 0}, {0, 0, 0, -.5, 0, 0},
+    {0, 1, 0, .5, 0, .5}, {0, 0, 0, 0, 0, -.5},
+    {0, 0, 1, 0, .5, .5}, {0, 0, 0, 0, -.5, 0}
+  };
+  for (int j = 0; j < 6; j++) {
+    const mjtNum* h = basis[j];
+    mjtNum dc[6] = {
+      h[1]*c+b*h[2]-2*f*h[5], h[0]*c+a*h[2]-2*e*h[4],
+      h[0]*b+a*h[1]-2*d*h[3], h[4]*f+e*h[5]-h[2]*d-c*h[3],
+      h[3]*f+d*h[5]-h[1]*e-b*h[4], h[3]*e+d*h[4]-h[0]*f-a*h[5]
+    };
+    mjtNum dg[6] = {dc[0]+dc[3]+dc[4], -dc[3], dc[1]+dc[3]+dc[5],
+                    -dc[5], dc[2]+dc[4]+dc[5], -dc[4]};
+    for (int i = 0; i <= j; i++) {
+      mjtNum value = 2*gamma*dg[i];
+      metric[6*i+j] += value;
+      if (i != j) metric[6*j+i] += value;
     }
   }
 }
 
 
-// project the SNH Hessian in F-space, then pull its nine modes back to vertices
-void mj_snhStiffness(mjtNum eigen[9], mjtNum mode[9][4][3],
-                     mjtNum edgevec[6][3], const mjtNum k[21]) {
-  // F = sum_i (x_i-x_0) grad(N_i)', i = 1,2,3
-  mjtNum F[9] = {0};
+// exact Hessian-vector product of the quadratic, cubic, and signed-volume energies
+void mj_snhStiffnessMul(mjtNum result[4][3], const mjtNum metric[36], const mjtNum tension[6],
+                        mjtNum edgevec[6][3], mjtNum grad[4][3], mjtNum pressure,
+                        const mjtNum k[24], mjtNum vec[4][3], mjtNum scale) {
+  const int (*edge)[2] = mj_stretchEdges[1];
+  mjtNum delta[6][3], edgeforce[6][3];
+  for (int e = 0; e < 6; e++) {
+    mju_sub3(delta[e], vec[edge[e][0]], vec[edge[e][1]]);
+  }
+  mj_stretchStiffnessMul(edgeforce, metric, tension, edgevec, delta, 6, scale);
+  mju_zero(result[0], 12);
+  for (int e = 0; e < 6; e++) {
+    mju_addTo3(result[edge[e][0]], edgeforce[e]);
+    mju_subFrom3(result[edge[e][1]], edgeforce[e]);
+  }
+
+  // differentiate the three cross products in grad(J), without forming a 12x12 matrix
+  mjtNum dg[4][3], tmp[3];
+  mju_cross(dg[1], delta[4], edgevec[2]);
+  mju_cross(tmp, edgevec[4], delta[2]);
+  mju_addTo3(dg[1], tmp);
+  mju_cross(dg[2], delta[4], edgevec[0]);
+  mju_cross(tmp, edgevec[4], delta[0]);
+  mju_addTo3(dg[2], tmp);
+  mju_cross(dg[3], delta[2], edgevec[0]);
+  mju_cross(tmp, edgevec[2], delta[0]);
+  mju_addTo3(dg[3], tmp);
   for (int x = 0; x < 3; x++) {
-    for (int y = 0; y < 3; y++) {
-      F[3*x+y] = -edgevec[0][x]*k[9+y] + edgevec[2][x]*k[12+y]
-                 -edgevec[4][x]*k[15+y];
-    }
+    dg[0][x] = -dg[1][x]-dg[2][x]-dg[3][x];
   }
-  mjtNum U[9], sigma[3], V[9];
-  snhSVD(U, sigma, V, F);
-
-  // reference shape gradients in the right-singular-vector frame
-  mjtNum grad[4][3] = {{0}};
-  for (int v = 1; v < 4; v++) {
-    for (int i = 0; i < 3; i++) {
-      for (int x = 0; x < 3; x++) {
-        grad[v][i] += V[3*x+i]*k[9+3*(v-1)+x];
-      }
-      grad[0][i] -= grad[v][i];
-    }
+  mjtNum dJ = 0;
+  for (int v = 0; v < 4; v++) {
+    dJ += mju_dot3(grad[v], vec[v]);
   }
-
-  // H_F = mu*V0*I + (lambda+mu)*V0*grad(J)*grad(J)' + pressure*Hess(J)
-  mjtNum volumegrad[4][3];
-  mjtNum J = mj_snhVolume(volumegrad, edgevec, k);
-  mjtNum pressure = k[1]*(J-1) - k[0];
-  mjtNum cof[3] = {sigma[1]*sigma[2], sigma[0]*sigma[2], sigma[0]*sigma[1]};
-  mjtNum A[9], Q[9], quat[4];
-  for (int i = 0; i < 3; i++) {
-    for (int j = 0; j < 3; j++) {
-      A[3*i+j] = k[1]*cof[i]*cof[j];
-      A[3*i+j] += i == j ? k[0] : pressure*sigma[3-i-j];
-    }
-  }
-
-  // three coupled diagonal modes
-  mju_eig3(eigen, Q, quat, A);
-  for (int e = 0; e < 3; e++) {
-    eigen[e] = mju_max(0, eigen[e]);
-    for (int v = 0; v < 4; v++) {
-      for (int x = 0; x < 3; x++) {
-        mode[e][v][x] = 0;
-        for (int i = 0; i < 3; i++) {
-          mode[e][v][x] += U[3*x+i]*Q[3*i+e]*grad[v][i];
-        }
-      }
-    }
-  }
-
-  // six off-diagonal modes: symmetric and antisymmetric, two per axis pair
-  const mjtNum invsqrt2 = 0.7071067811865475244;
-  int e = 3;
-  for (int i = 0; i < 3; i++) {
-    for (int j = i+1; j < 3; j++) {
-      mjtNum cross = pressure*sigma[3-i-j];
-      eigen[e] = mju_max(0, k[0]-cross);
-      eigen[e+1] = mju_max(0, k[0]+cross);
-      for (int v = 0; v < 4; v++) {
-        for (int x = 0; x < 3; x++) {
-          mjtNum a = U[3*x+i]*grad[v][j];
-          mjtNum b = U[3*x+j]*grad[v][i];
-          mode[e][v][x] = invsqrt2*(a+b);
-          mode[e+1][v][x] = invsqrt2*(a-b);
-        }
-      }
-      e += 2;
-    }
+  for (int v = 0; v < 4; v++) {
+    mju_addToScl3(result[v], grad[v], 2*scale*k[22]*dJ);
+    mju_addToScl3(result[v], dg[v], scale*pressure*k[23]);
   }
 }

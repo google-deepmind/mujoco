@@ -566,9 +566,25 @@ TEST_F(ElasticityTest, ElasticEnergyMembrane) {
 }
 
 // -------------------------------- solid -----------------------------------
-// The six edge coefficients must reproduce the Dirichlet term of SNH, including
-// reflected configurations. The signed-volume term distinguishes the
-// reflection.
+// Evaluate the expanded energy independently of the engine's derivative
+// helpers.
+static mjtNum SNHElementEnergy(const mjtNum* k, const mjtNum s[6], mjtNum J) {
+  mjtNum energy = k[22] * (J - 1) * (J - 1);
+  int index = 0;
+  for (int i = 0; i < 6; i++) {
+    for (int j = i; j < 6; j++) {
+      energy += (i == j ? .25 : .5) * k[index++] * s[i] * s[j];
+    }
+  }
+  mjtNum a = s[0], b = s[2], c = s[4];
+  mjtNum d = (a + b - s[1]) / 2, e = (a + c - s[5]) / 2;
+  mjtNum f = (b + c - s[3]) / 2;
+  return energy + k[21] * (a * b * c + 2 * d * e * f - a * f * f - b * e * e -
+                           c * d * d);
+}
+
+// Every tetrahedral record reproduces the compact SNH energy under signed
+// dilation.
 TEST_F(ElasticityTest, ElasticEnergySolid) {
   static constexpr char xml[] = R"(
   <mujoco><worldbody>
@@ -578,20 +594,21 @@ TEST_F(ElasticityTest, ElasticEnergySolid) {
   </worldbody></mujoco>)";
   MjModelPtr m = LoadModelFromString(xml);
   ASSERT_THAT(m.get(), NotNull());
+  EXPECT_EQ(m->nflexstiffness, 24 * m->nflexelem);
   for (mjtNum scale :
        {mjtNum(-1), mjtNum(0), mjtNum(.3), mjtNum(1), mjtNum(2)}) {
     mjtNum J = scale * scale * scale;
     mjtNum expected =
         (1.5 * (scale * scale - 1) - (J - 1) + .5 * (J - 1) * (J - 1)) / 6;
     for (int t = 0; t < m->nflexelem; t++) {
-      const mjtNum* k = m->flex_stiffness + m->flex_stiffnessadr[0] + 21 * t;
-      mjtNum energy = -k[0] * (J - 1) + .5 * k[1] * (J - 1) * (J - 1);
+      const mjtNum* k = m->flex_stiffness + m->flex_stiffnessadr[0] + 24 * t;
+      mjtNum s[6];
       for (int e = 0; e < 6; e++) {
         int idx = m->flex_elemedge[m->flex_elemedgeadr[0] + 6 * t + e];
         mjtNum length = m->flexedge_length0[m->flex_edgeadr[0] + idx];
-        energy += .5 * k[3 + e] * length * length * (scale * scale - 1);
+        s[e] = length * length * (scale * scale - 1);
       }
-      EXPECT_NEAR(energy, expected, MjTol(1e-12, 1e-5));
+      EXPECT_NEAR(SNHElementEnergy(k, s, J), expected, MjTol(1e-12, 1e-5));
     }
   }
 }
@@ -623,40 +640,66 @@ TEST_F(ElasticityTest, SNHForceThroughInversion) {
       <elasticity young="1000" poisson=".3"/>
     </flexcomp>
   </worldbody></mujoco>)";
-  MjModelPtr m = LoadModelFromString(xml);
-  ASSERT_THAT(m.get(), NotNull());
-  MjDataPtr d = MakeData(m);
-  mj_forward(m.get(), d.get());
-  std::vector<mjtNum> rest(d->flexvert_xpos, d->flexvert_xpos + 12);
-  // Full rank, reflected, flat, rank one, and rank zero, with a nontrivial
-  // rotation.
-  for (mjtNum scale :
-       {mjtNum(1), mjtNum(.1), mjtNum(0), mjtNum(-.1), mjtNum(-1)}) {
-    for (int rank = 1; rank <= 3; rank++) {
-      for (int v = 0; v < 4; v++) {
-        int adr = m->body_dofadr[m->flex_vertbodyid[v]];
-        mjtNum x = rank > 1 ? rest[3 * v] + .3 * rest[3 * v + 1] : 0;
-        mjtNum y = rank > 2 ? rest[3 * v + 1] : 0;
-        mjtNum z = scale * rest[3 * v + 2];
-        d->qpos[adr] = .8 * x - .6 * y - rest[3 * v];
-        d->qpos[adr + 1] = .6 * x + .8 * y - rest[3 * v + 1];
-        d->qpos[adr + 2] = z - rest[3 * v + 2];
-      }
-      mj_forward(m.get(), d.get());
-      std::vector<mjtNum> force(d->qfrc_spring, d->qfrc_spring + m->nv);
-      mjtNum eps = MjEps(1e-6, 1e-3);
-      for (int i = 0; i < m->nv; i++) {
-        mjtNum saved = d->qpos[i];
-        d->qpos[i] = saved + eps;
+  for (bool reverse : {false, true}) {
+    SCOPED_TRACE(reverse);
+    std::string source = xml;
+    if (reverse) {
+      source.replace(source.find("element=\"0 1 2 3\""),
+                     std::string("element=\"0 1 2 3\"").size(),
+                     "element=\"0 2 1 3\"");
+    }
+    MjModelPtr m = LoadModelFromString(source);
+    ASSERT_THAT(m.get(), NotNull());
+    MjDataPtr d = MakeData(m);
+    mj_forward(m.get(), d.get());
+    std::vector<mjtNum> rest(d->flexvert_xpos, d->flexvert_xpos + 12);
+    // Full rank, reflected, flat, rank one, and rank zero, with a nontrivial
+    // rotation.
+    for (mjtNum scale :
+         {mjtNum(1), mjtNum(.1), mjtNum(0), mjtNum(-.1), mjtNum(-1)}) {
+      for (int rank = 1; rank <= 3; rank++) {
+        for (int v = 0; v < 4; v++) {
+          int adr = m->body_dofadr[m->flex_vertbodyid[v]];
+          mjtNum x = rank > 1 ? rest[3 * v] + .3 * rest[3 * v + 1] : 0;
+          mjtNum y = rank > 2 ? rest[3 * v + 1] : 0;
+          mjtNum z = scale * rest[3 * v + 2];
+          d->qpos[adr] = .8 * x - .6 * y - rest[3 * v];
+          d->qpos[adr + 1] = .6 * x + .8 * y - rest[3 * v + 1];
+          d->qpos[adr + 2] = z - rest[3 * v + 2];
+        }
         mj_forward(m.get(), d.get());
-        mjtNum plus = SNHEnergy(d.get());
-        d->qpos[i] = saved - eps;
-        mj_forward(m.get(), d.get());
-        mjtNum minus = SNHEnergy(d.get());
-        d->qpos[i] = saved;
-        mjtNum fd = -(plus - minus) / (2 * eps);
-        EXPECT_TRUE(std::isfinite(force[i]));
-        EXPECT_NEAR(force[i], fd, MjTol(1e-6, .2));
+        mjtNum s[6], a[3], b[3], c[3], cross[3];
+        for (int e = 0; e < 6; e++) {
+          int idx = m->flex_elemedge[e];
+          s[e] = d->flexedge_length[idx] * d->flexedge_length[idx] -
+                 m->flexedge_length0[idx] * m->flexedge_length0[idx];
+        }
+        const int* vert = m->flex_elem;
+        mju_sub3(a, d->flexvert_xpos + 3 * vert[1],
+                 d->flexvert_xpos + 3 * vert[0]);
+        mju_sub3(b, d->flexvert_xpos + 3 * vert[2],
+                 d->flexvert_xpos + 3 * vert[0]);
+        mju_sub3(c, d->flexvert_xpos + 3 * vert[3],
+                 d->flexvert_xpos + 3 * vert[0]);
+        mju_cross(cross, b, c);
+        mjtNum J = m->flex_stiffness[23] * mju_dot3(a, cross);
+        EXPECT_NEAR(SNHElementEnergy(m->flex_stiffness, s, J),
+                    SNHEnergy(d.get()), MjTol(1e-10, 1e-3));
+        std::vector<mjtNum> force(d->qfrc_spring, d->qfrc_spring + m->nv);
+        mjtNum eps = MjEps(1e-6, 1e-3);
+        for (int i = 0; i < m->nv; i++) {
+          mjtNum saved = d->qpos[i];
+          d->qpos[i] = saved + eps;
+          mj_forward(m.get(), d.get());
+          mjtNum plus = SNHEnergy(d.get());
+          d->qpos[i] = saved - eps;
+          mj_forward(m.get(), d.get());
+          mjtNum minus = SNHEnergy(d.get());
+          d->qpos[i] = saved;
+          mjtNum fd = -(plus - minus) / (2 * eps);
+          EXPECT_TRUE(std::isfinite(force[i]));
+          EXPECT_NEAR(force[i], fd, MjTol(1e-6, .2));
+        }
       }
     }
   }

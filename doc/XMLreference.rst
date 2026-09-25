@@ -4517,8 +4517,9 @@ tetrahedra use the simplified `Stable Neo-Hookean <https://research.pixar.com/do
 where :math:`\mu` and :math:`\lambda` are the usual Lamé parameters derived from Young's modulus and Poisson's ratio.
 The energy and forces remain finite when tetrahedra flatten or invert; the signed-volume term provides recovery forces
 without requiring :ref:`internal contacts<flex-contact-internal>`. This does not prohibit inversion or remove the
-need to choose an appropriate timestep. The discrete integrator uses a positive-semidefinite projection of the material
-Hessian. Interpolated flexes retain their existing corotational elasticity.
+need to choose an appropriate timestep. The discrete integrator uses the exact energy Hessian, which can be indefinite
+at finite strain; stability through inversion is therefore not guaranteed. Interpolated flexes retain their existing
+corotational elasticity.
 
 See also :ref:`deformable <CDeformable>` objects and `this model
 <https://github.com/google-deepmind/mujoco/blob/main/model/flex/floppy.xml>`__.
@@ -4541,7 +4542,8 @@ See also :ref:`deformable <CDeformable>` objects and `this model
 :at:`damping`: :at-val:`real(1), "0"`
    Rayleigh's damping coefficient, units of time.
    This quantity scales the stiffness defined by Young's modulus to produce the damping matrix.
-   For non-interpolated 3D flexes, damping uses the projected SNH stiffness, so it remains dissipative during inversion.
+   For non-interpolated 3D flexes, damping uses the exact SNH Hessian. This matrix can be indefinite at finite strain,
+   in which case the damping force can add energy.
 
 .. _flex-elasticity-thickness:
 

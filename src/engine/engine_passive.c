@@ -551,7 +551,7 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
   mju_zero(frc, 3*m->flex_vertnum[f]);
   mju_zero(dmp, 3*m->flex_vertnum[f]);
 
-  // SNH uses dissipative Rayleigh damping with the projected material stiffness
+  // SNH Rayleigh damping uses the exact tangent, which can be indefinite at finite strain
   mjtNum* worldvel = NULL;
   if (dim == 3 && kD) {
     worldvel = mjSTACKALLOC(d, 3*m->flex_vertnum[f], mjtNum);
@@ -566,32 +566,39 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
     mjtNum edgevec[6][3], metric[36], tension[6];
     mj_stretchEdgeVectors(edgevec, xpos, vert, dim);
 
-    // 3D SNH keeps the edge term and adds orientation-sensitive volume forces
+    // shared quadratic energy in squared-edge-length differences
+    const mjtNum* packed = k + (dim == 3 ? 24 : 21)*t;
+    mjtNum elongation[6];
+    mj_stretchElongation(elongation, edgeelem + t*nedge, deformed, reference, nedge);
+    mj_stretchElasticity(metric, tension, packed, elongation, nedge);
+
+    mjtNum grad[4][3], pressure = 0;
     if (dim == 3) {
-      if (enbl_spring) mj_snhForce(frc, vert, edgevec, k + 21*t);
+      mj_snhCubic(metric, tension, elongation, packed[21], kD != 0);
+      pressure = 2*packed[22]*(mj_snhVolume(grad, edgevec, packed)-1);
+    }
+    if (enbl_spring) {
+      mj_stretchForce(frc, vert, tension, edgevec, dim);
+      if (dim == 3) {
+        for (int v = 0; v < 4; v++) {
+          mju_addToScl3(frc + 3*vert[v], grad[v], -pressure);
+        }
+      }
+    }
+
+    if (dim == 3) {
       if (kD) {
-        mjtNum eigen[9], mode[9][4][3], velocity[4][3], result[4][3];
-        mj_snhStiffness(eigen, mode, edgevec, k + 21*t);
+        mjtNum velocity[4][3], result[4][3];
         for (int v = 0; v < 4; v++) {
           mju_copy3(velocity[v], worldvel + 3*vert[v]);
         }
-        mj_snhStiffnessMul(result, eigen, mode, velocity, -m->flex_damping[f]);
+        mj_snhStiffnessMul(result, metric, tension, edgevec, grad, pressure, packed,
+                           velocity, -m->flex_damping[f]);
         for (int v = 0; v < 4; v++) {
           mju_addTo3(dmp + 3*vert[v], result[v]);
         }
       }
       continue;
-    }
-
-    // 2D StVK material data
-    mj_stretchMetric(metric, k + 21*t, nedge);
-
-    // spring force, from the elongation of edges belonging to this element
-    if (enbl_spring) {
-      mjtNum elongation[6];
-      mj_stretchElongation(elongation, edgeelem + t*nedge, deformed, reference, nedge);
-      mj_stretchTension(tension, metric, elongation, nedge);
-      mj_stretchForce(frc, vert, tension, edgevec, dim);
     }
 
     // damper force: generalized Rayleigh damping as described in Section 5.2 of

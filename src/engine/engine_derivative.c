@@ -1621,9 +1621,9 @@ void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* ve
 
 
 // compute res += (s1 + s2*flex_damping) * K_stretch * vec for standard flexes
-// 3D uses the eigenvalue-clamped SNH material Hessian; 2D keeps the StVK material
-// term and tensile geometric stiffness. Both are PSD. For articulated attachments
-// the pullback J'KJ omits derivatives of the attachment Jacobian.
+// 3D uses the exact SNH Hessian, which can be indefinite; 2D keeps the StVK material
+// term and tensile geometric stiffness. For articulated attachments the pullback
+// J'KJ omits derivatives of the attachment Jacobian.
 static void flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                             mjtNum s1, mjtNum s2, int first, int last) {
   for (int f = first; f < last; f++) {
@@ -1666,12 +1666,14 @@ static void flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtN
       mjtNum dvec[6][3], dw[6][3];
       mj_stretchEdgeVectors(dvec, xpos, vert, dim);
       if (dim == 3) {
-        mjtNum eigen[9], mode[9][4][3], velocity[4][3], result[4][3];
-        mj_snhStiffness(eigen, mode, dvec, k + 21*t);
+        mjtNum metric[36], tension[6], grad[4][3], velocity[4][3], result[4][3];
+        mjtNum pressure = mj_snhStiffness(metric, tension, grad, dvec, k + 24*t,
+                                          edgeelem + 6*t, deformed, reference);
         for (int v = 0; v < 4; v++) {
           mju_copy3(velocity[v], wvec + 3*vert[v]);
         }
-        mj_snhStiffnessMul(result, eigen, mode, velocity, scale);
+        mj_snhStiffnessMul(result, metric, tension, dvec, grad, pressure, k + 24*t,
+                           velocity, scale);
         for (int v = 0; v < 4; v++) {
           mju_addTo3(wres + 3*vert[v], result[v]);
         }
@@ -2216,10 +2218,11 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
       for (int t = 0; t < m->flex_elemnum[f]; t++) {
         const int* vert = elem + (dim+1)*t;
 
-        mjtNum dvec[6][3], metric[36], tension[6], eigen[9], mode[9][4][3];
+        mjtNum dvec[6][3], metric[36], tension[6], grad[4][3], pressure = 0;
         mj_stretchEdgeVectors(dvec, xpos, vert, dim);
         if (dim == 3) {
-          mj_snhStiffness(eigen, mode, dvec, kk + 21*t);
+          pressure = mj_snhStiffness(metric, tension, grad, dvec, kk + 24*t,
+                                      eelem + 6*t, elen, elen0);
         } else {
           mj_stretchStiffness(metric, tension, kk + 21*t, eelem + t*nedge,
                               elen, elen0, nedge);
@@ -2234,7 +2237,8 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
             if (sj < 0) continue;
             mjtNum blk[9];
             if (dim == 3) {
-              mj_snhStiffnessBlock(blk, eigen, mode, i, j, scale);
+              mj_snhStiffnessBlock(blk, metric, tension, dvec, grad, pressure, kk + 24*t,
+                                   i, j, scale);
             } else {
               mj_stretchStiffnessBlock(blk, metric, tension, dvec, dim, i, j, scale);
             }
