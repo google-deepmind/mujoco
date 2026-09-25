@@ -13,7 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if [ -n "${TEST_SRCDIR:-}" ]; then
+if [ "$#" -eq 3 ]; then
+  readonly TARGET_BINARY="$(rlocation "$1")"
+  readonly MODEL="$(rlocation "$2")"
+  readonly MUJOCO_DLL_DIR="$(dirname "$(rlocation "$3")")"
+  readonly OUTPUT_FILE="${TEST_TMPDIR}/compiled.mjb"
+elif [ -n "${TEST_SRCDIR:-}" ]; then
   readonly MODEL="${TEST_SRCDIR}/${TEST_WORKSPACE}/third_party/mujoco/model/humanoid/humanoid100.xml"
   readonly TARGET_BINARY="${TEST_SRCDIR}/${TEST_WORKSPACE}/third_party/mujoco/sample/compile"
   readonly OUTPUT_FILE="${TEST_TMPDIR}/compiled.mjb"
@@ -29,7 +34,7 @@ if [ -z "$TARGET_BINARY" ]; then
   die "Expecting environment variable TARGET_BINARY."
 fi
 
-if [ -z "$MUJOCO_DLL_DIR" ]; then
+if [ -n "${MUJOCO_DLL_DIR:-}" ]; then
   # Extend PATH to include the directory containing the mujoco DLL.
   # This is needed on Windows.
   PATH=$PATH:$MUJOCO_DLL_DIR

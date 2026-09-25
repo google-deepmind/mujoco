@@ -1,0 +1,3 @@
+bazel/deps/GLFW.LICENSE -text
+bazel/deps/licenses/** -text
+bazel/optional/licenses/** -text

@@ -1,0 +1,18 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "tinyobjloader",
+    hdrs = ["tiny_obj_loader.h"],
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-fvisibility=hidden"],
+    }),
+    includes = ["."],
+)
+
+filegroup(
+    name = "license",
+    srcs = ["LICENSE"],
+)

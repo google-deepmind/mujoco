@@ -1,0 +1,39 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "mjr_compat",
+    srcs = [
+        "compat/scene_bridge.cc",
+        "compat/scene_geom_util.cc",
+        "compat/scene_objects.cc",
+        "mjr_compat.cc",
+    ],
+    hdrs = glob(["compat/*.h"]),
+    copts = select({
+        "//bazel:windows": ["/std:c++20"],
+        "//conditions:default": ["-std=c++20"],
+    }),
+    linkstatic = True,
+    local_defines = ["MJ_STATIC"],
+    tags = ["manual"],
+    target_compatible_with = select({
+        "//bazel:compat_enabled": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:internal",
+        "//src/render/filament",
+    ],
+)
+
+cc_test(
+    name = "compat_smoke_test",
+    srcs = ["compat_smoke_test.cc"],
+    linkstatic = True,
+    tags = ["manual"],
+    deps = [
+        ":mjr_compat",
+        "//:mujoco",
+    ],
+)

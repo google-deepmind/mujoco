@@ -3,8 +3,9 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: \.patch$
+        exclude: (\.patch$|^bazel/(deps|optional)/licenses/|^bazel/deps/GLFW\.LICENSE$)
       - id: end-of-file-fixer
+        exclude: (^bazel/(deps|optional)/licenses/|^bazel/deps/GLFW\.LICENSE$)
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v23.1.0
     hooks:

@@ -1,0 +1,27 @@
+package(default_visibility = ["//visibility:public"])
+
+exports_files(glob([
+    "*.bzl",
+    "*.BUILD.bazel",
+    "*.cmake",
+]))
+
+toolchain(
+    name = "emscripten_linux",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    target_compatible_with = [
+        "@platforms//os:emscripten",
+        "@platforms//cpu:wasm32",
+    ],
+    toolchain = "@mujoco_emscripten//emscripten_toolchain:toolchain",
+    toolchain_type = "@rules_cc//cc:toolchain_type",
+)
+
+filegroup(
+    name = "usd_notices",
+    srcs = glob(["licenses/**"]),
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,34 @@
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+cc_test(
+    name = "static",
+    size = "small",
+    srcs = ["smoke.c"],
+    linkstatic = True,
+    deps = ["@mujoco"],
+)
+
+cc_test(
+    name = "dynamic_deps",
+    size = "small",
+    srcs = ["smoke.c"],
+    linkstatic = False,
+    deps = ["@mujoco"],
+)
+
+cc_test(
+    name = "shared",
+    size = "small",
+    srcs = ["smoke.c"],
+    linkstatic = True,
+    deps = ["@mujoco//:mujoco_shared"],
+)
+
+cc_test(
+    name = "plugin",
+    size = "small",
+    srcs = ["smoke.c"],
+    linkstatic = True,
+    local_defines = ["CHECK_PLUGIN"],
+    deps = ["@mujoco//plugin/actuator"],
+)

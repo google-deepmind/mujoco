@@ -1,0 +1,32 @@
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+write_file(
+    name = "export",
+    out = "miniz_export.h",
+    content = ["#define MINIZ_EXPORT"],
+)
+
+cc_library(
+    name = "miniz",
+    srcs = [
+        "miniz.c",
+        "miniz_tdef.c",
+        "miniz_tinfl.c",
+        "miniz_zip.c",
+    ],
+    hdrs = glob(["*.h"]) + [":export"],
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-fvisibility=hidden"],
+    }),
+    includes = ["."],
+    linkstatic = True,
+)
+
+filegroup(
+    name = "license",
+    srcs = ["LICENSE"],
+)

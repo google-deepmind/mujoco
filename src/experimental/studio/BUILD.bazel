@@ -1,0 +1,213 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("@rules_cc//cc:objc_library.bzl", "objc_library")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files", "strip_prefix")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("//bazel/optional:assets.bzl", "stage_assets")
+
+package(default_visibility = ["//visibility:private"])
+
+COPTS = select({
+    "//bazel:windows": ["/std:c++20"],
+    "//conditions:default": ["-std=c++20"],
+})
+
+cc_library(
+    name = "headers",
+    hdrs = glob([
+        "*.h",
+        "hal/*.h",
+        "io/*.h",
+        "sim/*.h",
+        "ux/*.h",
+    ]),
+    include_prefix = "mujoco",
+    strip_include_prefix = "/src",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:internal",
+        "//src/render/filament",
+        "@mujoco_imgui//:backends",
+        "@mujoco_implot//:implot",
+        "@mujoco_sdl2//:sdl2",
+    ],
+)
+
+objc_library(
+    name = "macos_platform",
+    srcs = [
+        "hal/window_osx.mm",
+        "ux/file_dialog_cocoa.mm",
+    ],
+    copts = ["-std=c++20"],
+    sdk_frameworks = ["Cocoa"],
+    target_compatible_with = ["@platforms//os:macos"],
+    deps = [":headers"],
+)
+
+cc_library(
+    name = "platform",
+    srcs = glob(
+        [
+            "hal/*.cc",
+            "io/*.cc",
+            "sim/*.cc",
+            "ux/*.cc",
+        ],
+        exclude = [
+            "**/*_test.cc",
+            "ux/file_dialog*.cc",
+            "ux/object_launcher_plugin.cc",
+        ],
+    ) + select({
+        "//bazel:macos": [
+            "ux/object_launcher_plugin.cc",
+        ],
+        "//bazel:windows": ["ux/file_dialog_win.cc"],
+        "//bazel:linux": [
+            "ux/file_dialog_zenity.cc",
+            "ux/object_launcher_plugin.cc",
+        ],
+        "//conditions:default": ["ux/file_dialog.cc"],
+    }),
+    copts = COPTS + select({
+        "@platforms//os:emscripten": ["-fexceptions"],
+        "//conditions:default": [],
+    }),
+    local_defines = ["MUJOCO_BAZEL_RUNFILES"] + select({
+        "//bazel:windows": ["_USE_MATH_DEFINES"],
+        "//conditions:default": [],
+    }),
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":headers",
+        "@mujoco_libwebp//:webp",
+        "@rules_cc//cc/runfiles",
+    ] + select({
+        "@platforms//os:emscripten": ["//:mujoco"],
+        "//conditions:default": ["//:mujoco_shared"],
+    }) + select({
+        "//bazel:macos": [":macos_platform"],
+        "//conditions:default": [],
+    }),
+    alwayslink = True,
+)
+
+cc_library(
+    name = "app",
+    srcs = [
+        "app.cc",
+        "launcher.cc",
+    ],
+    hdrs = [
+        "app.h",
+        "launcher.h",
+    ],
+    copts = COPTS,
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [":platform"],
+)
+
+stage_assets(
+    name = "assets",
+    srcs = [
+        "//src/render/filament:assets",
+        "@mujoco_font_awesome//:fonts/fontawesome-webfont.ttf",
+        "@mujoco_font_mono//:fonts/ttf/AtkinsonHyperlegibleMono-Regular.ttf",
+        "@mujoco_font_next//:fonts/variable/AtkinsonHyperlegibleNext[wght].ttf",
+    ],
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "mujoco_studio",
+    srcs = ["main.cc"],
+    copts = COPTS,
+    data = [":assets"],
+    linkopts = select({
+        "//bazel:linux": ["-Wl,-rpath,\'$ORIGIN/../lib\'"],
+        "//bazel:macos": ["-Wl,-rpath,@loader_path/../lib"],
+        "//conditions:default": [],
+    }),
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":app",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+    ],
+)
+
+cc_test(
+    name = "render_smoke_test",
+    srcs = ["render_smoke_test.cc"],
+    copts = COPTS,
+    data = [":assets"],
+    linkstatic = True,
+    tags = [
+        "manual",
+        "requires-gpu",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [":platform"],
+)
+
+pkg_files(
+    name = "binary_package",
+    srcs = [":mujoco_studio"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "bin",
+    strip_prefix = strip_prefix.files_only(),
+)
+
+pkg_files(
+    name = "assets_package",
+    srcs = [":assets"],
+    prefix = "bin/assets",
+    strip_prefix = strip_prefix.files_only(),
+)
+
+_LICENSES = {
+    "filament": "@mujoco_filament//:licenses",
+    "imgui": "@mujoco_imgui//:licenses",
+    "implot": "@mujoco_implot//:licenses",
+    "libwebp": "@mujoco_libwebp//:licenses",
+    "sdl2": "@mujoco_sdl2//:licenses",
+    "font_next": "@mujoco_font_next//:OFL.txt",
+    "font_mono": "@mujoco_font_mono//:OFL.txt",
+    "font_awesome": "@mujoco_font_awesome//:README.md",
+}
+
+[
+    pkg_files(
+        name = name + "_licenses",
+        srcs = [label],
+        prefix = "share/licenses/mujoco/" + name,
+        strip_prefix = strip_prefix.from_root(),
+    )
+    for name, label in _LICENSES.items()
+]
+
+pkg_tar(
+    name = "archive",
+    srcs = [
+        ":assets_package",
+        ":binary_package",
+        "//bazel/package:core_licenses",
+        "//bazel/package:gui_licenses",
+        "//bazel/package:library",
+    ] + [":" + name + "_licenses" for name in _LICENSES],
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)
+
+exports_files(["favicon.ico"])
+
+filegroup(
+    name = "notices",
+    srcs = _LICENSES.values(),
+    visibility = ["//visibility:public"],
+)

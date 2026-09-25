@@ -1,0 +1,23 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "implot",
+    srcs = [
+        "implot.cpp",
+        "implot_demo.cpp",
+        "implot_items.cpp",
+    ],
+    hdrs = [
+        "implot.h",
+        "implot_internal.h",
+    ],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["@mujoco_imgui//:imgui"],
+)
+
+filegroup(
+    name = "licenses",
+    srcs = ['LICENSE'],
+    visibility = ["//visibility:public"],
+)

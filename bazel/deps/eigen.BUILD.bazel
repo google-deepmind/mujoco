@@ -1,0 +1,18 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "eigen",
+    hdrs = glob([
+        "Eigen/**",
+        "unsupported/Eigen/**",
+    ]),
+    defines = ["EIGEN_MPL2_ONLY"],
+    includes = ["."],
+)
+
+filegroup(
+    name = "license",
+    srcs = glob(["COPYING.*"]),
+)

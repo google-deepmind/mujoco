@@ -1,0 +1,215 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "sources",
+    srcs = glob(
+        ["**"],
+        exclude = ["BUILD.bazel"],
+    ),
+)
+
+COMMON_OPTIONS = {
+    "CMAKE_BUILD_TYPE": "Release",
+    "CMAKE_POSITION_INDEPENDENT_CODE": "ON",
+    "FILAMENT_BUILD_TESTING": "OFF",
+    "FILAMENT_ENABLE_EXPERIMENTAL_GCC_SUPPORT": "ON",
+    "FILAMENT_SKIP_SDL2": "ON",
+    "FILAMENT_SKIP_SAMPLES": "ON",
+    "FILAMENT_ENABLE_MATDBG": "OFF",
+    "FILAMENT_SUPPORTS_WEBGPU": "OFF",
+    "USE_STATIC_CRT": "OFF",
+    "USE_STATIC_LIBCXX": "OFF",
+}
+
+cmake(
+    name = "filament",
+    build_data = select({
+        "@platforms//os:emscripten": [
+            ":matc",
+            ":resgen",
+            ":cmgen",
+            "@mujoco//bazel/optional:filament-wasm.cmake",
+        ],
+        "//conditions:default": [],
+    }),
+    cache_entries = select({
+        "@platforms//os:emscripten": dict(
+            COMMON_OPTIONS,
+            CMAKE_CXX_FLAGS = "-include cstring -include optional -fexceptions",
+            CMAKE_PROJECT_INCLUDE = "$(execpath @mujoco//bazel/optional:filament-wasm.cmake)",
+            CMAKE_SYSTEM_NAME = "Emscripten",
+            CMAKE_USER_MAKE_RULES_OVERRIDE = "$(execpath @mujoco//bazel/optional:filament-wasm.cmake)",
+            EMSCRIPTEN = "ON",
+            WASM = "ON",
+        ),
+        "@platforms//os:windows": dict(
+            COMMON_OPTIONS,
+            CMAKE_CXX_FLAGS = "/FI cstring /FI optional",
+        ),
+        "@platforms//os:macos": dict(
+            COMMON_OPTIONS,
+            CMAKE_CXX_FLAGS = "-include cstring -include optional -Wno-error=deprecated-declarations",
+        ),
+        "//conditions:default": dict(
+            COMMON_OPTIONS,
+            CMAKE_CXX_FLAGS = "-include cstring -include optional -isystem$$EXT_BUILD_DEPS/include",
+            CMAKE_C_FLAGS = "-isystem$$EXT_BUILD_DEPS/include",
+        ),
+    }),
+    env = select({
+        "@platforms//os:emscripten": {
+            "MUJOCO_HOST_MATC": "$(execpath :matc)",
+            "MUJOCO_HOST_RESGEN": "$(execpath :resgen)",
+            "MUJOCO_HOST_CMGEN": "$(execpath :cmgen)",
+        },
+        "//conditions:default": {},
+    }),
+    generate_args = ["-GNinja"],
+    install_args = [
+        "--component",
+        "mujoco",
+    ],
+    lib_source = ":sources",
+    linkopts = select({
+        "@platforms//os:emscripten": [],
+        "@platforms//os:macos": [
+            "-framework Cocoa",
+            "-framework QuartzCore",
+            "-framework Metal",
+            "-framework CoreVideo",
+            "-framework Foundation",
+        ],
+        "@platforms//os:windows": [
+            "opengl32.lib",
+            "gdi32.lib",
+            "Shlwapi.lib",
+        ],
+        "//conditions:default": [
+            "-ldl",
+            "-lpthread",
+        ],
+    }),
+    out_binaries = select({
+        "@platforms//os:emscripten": [],
+        "@platforms//os:windows": [
+            "matc.exe",
+            "resgen.exe",
+            "cmgen.exe",
+        ],
+        "//conditions:default": [
+            "matc",
+            "resgen",
+            "cmgen",
+        ],
+    }),
+    out_static_libs = select({
+        "@platforms//os:emscripten": [
+            "libfilament.a",
+            "libbackend.a",
+            "libfilabridge.a",
+            "libfilaflat.a",
+            "libsmol-v.a",
+            "libimage.a",
+            "libktxreader.a",
+            "libbasis_transcoder.a",
+            "libzstd.a",
+            "libutils.a",
+        ],
+        "@platforms//os:windows": [
+            "filament.lib",
+            "backend.lib",
+            "bluegl.lib",
+            "filabridge.lib",
+            "filaflat.lib",
+            "smol-v.lib",
+            "image.lib",
+            "ktxreader.lib",
+            "basis_transcoder.lib",
+            "zstd.lib",
+            "utils.lib",
+        ],
+        "//conditions:default": [
+            "libfilament.a",
+            "libbackend.a",
+            "libbluegl.a",
+            "libfilabridge.a",
+            "libfilaflat.a",
+            "libsmol-v.a",
+            "libimage.a",
+            "libktxreader.a",
+            "libbasis_transcoder.a",
+            "libzstd.a",
+            "libutils.a",
+            "libbluevk.a",
+        ],
+    }),
+    targets = [
+        "filament",
+        "image",
+        "ktxreader",
+        "smol-v",
+    ] + select({
+        "@platforms//os:emscripten": [],
+        "//conditions:default": [
+            "matc",
+            "resgen",
+            "cmgen",
+        ],
+    }),
+    deps = select({
+        "@platforms//os:linux": [
+            ":glx_headers",
+            "@egl-registry//:EGL_headers",
+            "@libx11//:x11",
+            "@libxcb//:xcb",
+            "@opengl-registry//:OpenGL_headers",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "matc",
+    srcs = [":filament"],
+    output_group = select({
+        "@platforms//os:windows": "matc.exe",
+        "//conditions:default": "matc",
+    }),
+)
+
+filegroup(
+    name = "licenses",
+    srcs = glob(
+        [
+            "**/LICENSE*",
+            "**/COPYING*",
+            "**/NOTICE*",
+        ],
+        allow_empty = True,
+    ),
+)
+
+[
+    filegroup(
+        name = tool,
+        srcs = [":filament"],
+        output_group = select({
+            "@platforms//os:windows": tool + ".exe",
+            "//conditions:default": tool,
+        }),
+    )
+    for tool in [
+        "resgen",
+        "cmgen",
+    ]
+]
+
+cc_library(
+    name = "glx_headers",
+    hdrs = ["bazel-headers/GL/glx.h"],
+    includes = ["bazel-headers"],
+    visibility = ["//visibility:public"],
+)

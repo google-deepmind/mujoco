@@ -1,0 +1,54 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("//bazel/optional:assets.bzl", "filament_material")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "headers",
+    hdrs = ["//:experimental_headers"],
+    strip_include_prefix = "/include",
+    tags = ["manual"],
+    deps = ["//:headers"],
+)
+
+cc_library(
+    name = "filament",
+    srcs = glob([
+        "*.cc",
+        "core/*.cc",
+        "support/*.cc",
+    ]),
+    hdrs = glob([
+        "*.h",
+        "core/*.h",
+        "support/*.h",
+    ]),
+    copts = select({
+        "//bazel:windows": ["/std:c++20"],
+        "//conditions:default": ["-std=c++20"],
+    }),
+    linkstatic = True,
+    local_defines = ["MJ_STATIC"],
+    tags = ["manual"],
+    deps = [
+        ":headers",
+        "//:internal",
+        "@mujoco_filament//:filament",
+        "@mujoco_imgui//:imgui",
+    ],
+)
+
+[
+    filament_material(
+        name = src.removeprefix("assets/").removesuffix(".mat"),
+        src = src,
+        tags = ["manual"],
+    )
+    for src in glob(["assets/*.mat"])
+]
+
+filegroup(
+    name = "assets",
+    srcs = [":" + src.removeprefix("assets/").removesuffix(".mat") for src in glob(["assets/*.mat"])] + ["assets/ibl.ktx"],
+    tags = ["manual"],
+)

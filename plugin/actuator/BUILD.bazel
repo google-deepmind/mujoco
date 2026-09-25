@@ -1,0 +1,76 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+_CXXOPTS = select({
+    "@platforms//os:windows": ["/std:c++20"],
+    "//conditions:default": ["-std=c++20"],
+})
+
+cc_library(
+    name = "actuator_static",
+    srcs = [
+        "pid.cc",
+        "register.cc",
+    ],
+    hdrs = [
+        "pid.h",
+    ],
+    copts = _CXXOPTS,
+    deps = ["//:mujoco"],
+    alwayslink = True,
+)
+
+cc_binary(
+    name = "libactuator.so",
+    srcs = [
+        "pid.cc",
+        "pid.h",
+        "register.cc",
+    ],
+    copts = _CXXOPTS,
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = ["//:mujoco_shared"],
+)
+
+cc_binary(
+    name = "libactuator.dylib",
+    srcs = [
+        "pid.cc",
+        "pid.h",
+        "register.cc",
+    ],
+    copts = _CXXOPTS,
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:macos"],
+    deps = ["//:mujoco_shared"],
+)
+
+cc_binary(
+    name = "actuator.dll",
+    srcs = [
+        "pid.cc",
+        "pid.h",
+        "register.cc",
+    ],
+    copts = _CXXOPTS,
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = ["//:mujoco_shared"],
+)
+
+alias(
+    name = "shared",
+    actual = select({
+        "@platforms//os:linux": ":libactuator.so",
+        "@platforms//os:macos": ":libactuator.dylib",
+        "@platforms//os:windows": ":actuator.dll",
+    }),
+)
+
+alias(
+    name = "actuator",
+    actual = ":actuator_static",
+)

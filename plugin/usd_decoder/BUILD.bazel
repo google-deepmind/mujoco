@@ -1,0 +1,35 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("//bazel/optional:shared.bzl", "optional_shared_library")
+
+package(default_visibility = ["//visibility:private"])
+
+cc_library(
+    name = "implementation",
+    srcs = [
+        "kinematic_tree.cc",
+        "material_parsing.cc",
+        "newton_tokens.cc",
+        "usd_decoder.cc",
+    ],
+    hdrs = [
+        "kinematic_tree.h",
+        "material_parsing.h",
+        "newton_tokens.h",
+    ],
+    copts = [
+        "-std=c++20",
+        "-Wno-deprecated",
+    ],
+    deps = [
+        "//:internal",
+        "//:mujoco_shared",
+        "//src/experimental/usd:mjcPhysics",
+    ],
+    alwayslink = True,
+)
+
+optional_shared_library(
+    name = "usd_decoder_plugin",
+    dynamic_deps = ["//src/experimental/usd:tbb_runtime"],
+    deps = [":implementation"],
+)

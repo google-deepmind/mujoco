@@ -40,6 +40,10 @@
 #include <mujoco/mujoco.h>
 #include "src/xml/xml_global.h"
 
+#ifdef MUJOCO_BAZEL_RUNFILES
+  #include "rules_cc/cc/runfiles/runfiles.h"
+#endif
+
 namespace mujoco {
 namespace {
 using ::testing::_;
@@ -150,6 +154,44 @@ MujocoErrorTestGuard::~MujocoErrorTestGuard() {
 }
 
 namespace {
+#ifdef MUJOCO_BAZEL_RUNFILES
+std::string GetBazelDataPath(std::string_view directory,
+                             std::string_view path) {
+  using rules_cc::cc::runfiles::Runfiles;
+  static const std::unique_ptr<Runfiles> runfiles = [] {
+    std::string error;
+    std::unique_ptr<Runfiles> result(
+        Runfiles::CreateForTest(BAZEL_CURRENT_REPOSITORY, &error));
+    if (!result) {
+      std::cerr << "Cannot locate Bazel runfiles: " << error << '\n';
+      std::abort();
+    }
+    return result;
+  }();
+  const std::string repository = std::string(BAZEL_CURRENT_REPOSITORY).empty()
+                                     ? "_main"
+                                     : BAZEL_CURRENT_REPOSITORY;
+  const auto relative =
+      (std::filesystem::path(directory) / path).lexically_normal();
+  std::string resolved = runfiles->Rlocation(
+      absl::StrCat(repository, "/", relative.generic_string()));
+  if (!resolved.empty() && std::filesystem::exists(resolved)) {
+    return resolved;
+  }
+  // Manifest runfiles resolve files, so use a declared file to locate
+  // directories.
+  const std::string anchor = runfiles->Rlocation(
+      absl::StrCat(repository, "/", directory, "/CMakeLists.txt"));
+  if (!anchor.empty()) {
+    return (std::filesystem::path(anchor).parent_path() / path)
+        .lexically_normal()
+        .string();
+  }
+  std::cerr << "Cannot locate test data: " << relative << '\n';
+  std::abort();
+}
+#endif
+
 std::string GetRunfilesPrefix(std::string_view subpath) {
   const char* test_srcdir = std::getenv("TEST_SRCDIR");
   if (test_srcdir && test_srcdir[0] != '\0') {
@@ -172,19 +214,27 @@ std::string GetRunfilesPrefix(std::string_view subpath) {
 }  // namespace
 
 const std::string GetTestDataFilePath(std::string_view path) {  // NOLINT
+#ifdef MUJOCO_BAZEL_RUNFILES
+  return GetBazelDataPath("test", path);
+#else
   std::string prefix = GetRunfilesPrefix("third_party/mujoco/test/");
   if (prefix.empty()) {
     return std::string(path);
   }
   return absl::StrCat(prefix, path);
+#endif
 }
 
 const std::string GetModelPath(std::string_view path) {  // NOLINT
+#ifdef MUJOCO_BAZEL_RUNFILES
+  return GetBazelDataPath("model", path);
+#else
   std::string prefix = GetRunfilesPrefix("third_party/mujoco/model/");
   if (prefix.empty()) {
     return absl::StrCat("../model/", path);
   }
   return absl::StrCat(prefix, path);
+#endif
 }
 
 std::string GetMenagerieModelPath(std::string_view path) {

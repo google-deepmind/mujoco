@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.16)
+project(mujoco_parity LANGUAGES CXX)
+find_package(mujoco REQUIRED CONFIG)
+add_executable(parity ../parity.cc)
+target_compile_features(parity PRIVATE cxx_std_17)
+target_link_libraries(parity PRIVATE mujoco::mujoco)

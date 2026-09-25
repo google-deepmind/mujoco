@@ -1,0 +1,37 @@
+load("@rules_python//python:py_library.bzl", "py_library")
+
+package(default_visibility = ["//test:__pkg__"])
+
+py_library(
+    name = "generators",
+    srcs = [
+        "ext/header_reader.py",
+        "generate/generate_api_header.py",
+        "generate/generate_default_table.py",
+        "generate/generate_dmcontrol.py",
+        "generate/generate_functions.py",
+        "generate/generate_mjcf_map.py",
+        "generate/generate_mjcf_table.py",
+        "generate/generate_read_table.py",
+        "generate/generate_schema.py",
+        "generate/generate_xsd.py",
+        "generate/mjcf_schema.py",
+        "generate/resource_loader.py",
+    ],
+    imports = [
+        "ext",
+        "generate",
+    ],
+)
+
+filegroup(
+    name = "generated_reference",
+    srcs = [
+        "APIreference/APItypes.rst",
+        "APIreference/functions.rst",
+        "APIreference/functions_override.rst",
+        "XMLreference.rst",
+        "XMLschema.rst",
+        "includes/references.h",
+    ],
+)

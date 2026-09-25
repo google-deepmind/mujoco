@@ -1,0 +1,915 @@
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("@mujoco_pip//:requirements.bzl", "requirement")
+load("@mujoco_sysid_pip//:requirements.bzl", sysid_requirement = "requirement")
+load("@mujoco_usd_pip//:requirements.bzl", usd_requirement = "requirement")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("@rules_python//python:packaging.bzl", "py_wheel")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+load("//bazel:cc.bzl", "angle_includes")
+load("//src/experimental/studio/web:defs.bzl", "package_web_dist")
+load(":defs.bzl", "extension_file", "mujoco_extension", "package_files", "wheel_script")
+
+package(default_visibility = ["//visibility:private"])
+
+exports_files([
+    "build_requirements.txt",
+    "build_requirements_usd.txt",
+    "wheel_install_test.py",
+])
+
+bool_flag(
+    name = "studio",
+    build_setting_default = False,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "studio_enabled",
+    flag_values = {":studio": "true"},
+)
+
+bool_flag(
+    name = "studio_web",
+    build_setting_default = False,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "studio_web_enabled",
+    flag_values = {":studio_web": "true"},
+)
+
+config_setting(
+    name = "studio_native_only",
+    flag_values = {
+        ":studio": "true",
+        ":studio_web": "false",
+    },
+)
+
+[
+    config_setting(
+        name = name,
+        constraint_values = [
+            "@platforms//os:" + os,
+            "@platforms//cpu:" + cpu,
+        ],
+    )
+    for name, os, cpu in [
+        ("linux_x86_64", "linux", "x86_64"),
+        ("macos_arm64", "macos", "aarch64"),
+        ("windows_x86_64", "windows", "x86_64"),
+    ]
+]
+
+cc_library(
+    name = "indexer_headers",
+    hdrs = ["mujoco/indexer_xmacro.h"],
+    includes = ["mujoco"],
+    visibility = ["//visibility:public"],
+)
+
+py_library(
+    name = "introspect",
+    srcs = glob(
+        ["mujoco/introspect/*.py"],
+        exclude = ["**/*_test.py"],
+    ),
+    imports = ["mujoco"],
+)
+
+[
+    py_test(
+        name = "introspect_" + source.removeprefix("mujoco/introspect/").removesuffix(".py"),
+        srcs = [source],
+        main_module = "introspect." + source.removeprefix("mujoco/introspect/").removesuffix(".py"),
+        deps = [
+            ":introspect",
+            requirement("absl-py"),
+        ],
+    )
+    for source in glob(["mujoco/introspect/*_test.py"])
+]
+
+[
+    py_binary(
+        name = "generate_" + generator,
+        srcs = ["mujoco/codegen/generate_" + generator + ".py"],
+        main = "mujoco/codegen/generate_" + generator + ".py",
+        deps = [
+            ":introspect",
+            requirement("absl-py"),
+        ],
+    )
+    for generator in [
+        "enum_traits",
+        "function_traits",
+        "spec_bindings",
+    ]
+]
+
+[
+    genrule(
+        name = generator + "_codegen",
+        outs = ["mujoco/" + output],
+        cmd = "$(location :generate_" + generator + ") > $@",
+        tools = [":generate_" + generator],
+    )
+    for generator, output in [
+        ("enum_traits", "enum_traits.h"),
+        ("function_traits", "function_traits.h"),
+        ("spec_bindings", "specs.cc.inc"),
+    ]
+]
+
+angle_includes(
+    name = "absl",
+    deps = [
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "binding_headers",
+    hdrs = glob([
+        "mujoco/*.h",
+        "mujoco/util/*.h",
+    ]) + [
+        ":enum_traits_codegen",
+        ":function_traits_codegen",
+        ":spec_bindings_codegen",
+    ],
+    includes = ["mujoco"],
+    deps = [
+        ":absl",
+        "//:mujoco_shared",
+        "@eigen",
+        "@pybind11",
+        "@rules_python//python/cc:current_py_cc_headers",
+    ],
+)
+
+cc_library(
+    name = "structs_wrappers",
+    srcs = [
+        "mujoco/indexers.cc",
+        "mujoco/structs_wrappers.cc",
+    ],
+    copts = select({
+        "@platforms//os:windows": ["/std:c++20"],
+        "//conditions:default": [
+            "-std=c++17",
+            "-fvisibility=hidden",
+        ],
+    }),
+    deps = [":binding_headers"],
+)
+
+[
+    mujoco_extension(
+        name = "_" + module,
+        srcs = ["mujoco/" + source for source in sources],
+        deps = deps,
+    )
+    for module, sources, deps in [
+        (
+            "callbacks",
+            ["callbacks.cc"],
+            [],
+        ),
+        (
+            "constants",
+            ["constants.cc"],
+            [],
+        ),
+        (
+            "enums",
+            ["enums.cc"],
+            [],
+        ),
+        (
+            "errors",
+            ["errors.cc"],
+            [],
+        ),
+        (
+            "functions",
+            ["functions.cc"],
+            [],
+        ),
+        (
+            "render",
+            ["render.cc"],
+            [],
+        ),
+        (
+            "rollout",
+            [
+                "rollout.cc",
+                "threadpool.cc",
+            ],
+            [],
+        ),
+        (
+            "simulate",
+            ["simulate.cc"],
+            ["//simulate:simulate_dynamic"],
+        ),
+        (
+            "specs",
+            [
+                "specs.cc",
+                "specs_wrapper.cc",
+            ],
+            [],
+        ),
+        (
+            "structs",
+            [
+                "structs.cc",
+                "indexers.cc",
+            ],
+            [":structs_wrappers"],
+        ),
+    ]
+]
+
+cc_library(
+    name = "studio_binding_headers",
+    hdrs = ["mujoco/experimental/dear_imgui/dear_imgui_macros.h"],
+    includes = ["mujoco/experimental/dear_imgui"],
+    tags = ["manual"],
+    deps = [
+        "@mujoco_imgui//:backends",
+        "@mujoco_imgui//:imgui",
+        "@mujoco_implot//:implot",
+    ],
+)
+
+cc_library(
+    name = "netimgui",
+    srcs = [
+        "mujoco/experimental/netimgui/Code/Client/Private/NetImgui_Api.cpp",
+        "mujoco/experimental/netimgui/Code/Client/Private/NetImgui_Client.cpp",
+        "mujoco/experimental/netimgui/Code/Client/Private/NetImgui_CmdPackets_DrawFrame.cpp",
+        "mujoco/experimental/netimgui/Code/Client/Private/NetImgui_NetworkPosix.cpp",
+    ],
+    hdrs = glob([
+        "mujoco/experimental/netimgui/**/*.h",
+        "mujoco/experimental/netimgui/**/*.inl",
+    ]),
+    includes = [
+        "mujoco/experimental/netimgui",
+        "mujoco/experimental/netimgui/Code/Client",
+        "mujoco/experimental/netimgui/Code/Client/Private",
+    ],
+    tags = ["manual"],
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = ["@mujoco_imgui//:imgui"],
+)
+
+filegroup(
+    name = "studio_web_sources",
+    srcs = glob([
+        "mujoco/experimental/studio/web/web_client*.cc",
+        "mujoco/experimental/studio/web/web_client*.h",
+    ]) + [
+        "mujoco/experimental/studio/web/state_payload.cc",
+        "mujoco/experimental/studio/web/state_payload.h",
+    ],
+    visibility = ["//src/experimental/studio/web:__pkg__"],
+)
+
+filegroup(
+    name = "studio_web_index",
+    srcs = ["mujoco/experimental/studio/web/index.html"],
+    visibility = ["//src/experimental/studio/web:__pkg__"],
+)
+
+filegroup(
+    name = "netimgui_license",
+    srcs = ["mujoco/experimental/netimgui/LICENSE"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "netimgui_wasm",
+    srcs = [
+        "mujoco/experimental/netimgui/Code/Client/Private/NetImgui_Api.cpp",
+        "mujoco/experimental/netimgui/Code/Client/Private/NetImgui_Client.cpp",
+        "mujoco/experimental/netimgui/Code/Client/Private/NetImgui_CmdPackets_DrawFrame.cpp",
+        "mujoco/experimental/netimgui/google/NetImgui_NetworkWASM.cpp",
+    ],
+    hdrs = glob([
+        "mujoco/experimental/netimgui/**/*.h",
+        "mujoco/experimental/netimgui/**/*.inl",
+    ]),
+    copts = [
+        "-std=c++20",
+        "-fexceptions",
+    ],
+    includes = [
+        "mujoco/experimental/netimgui",
+        "mujoco/experimental/netimgui/Code/Client",
+        "mujoco/experimental/netimgui/Code/Client/Private",
+    ],
+    linkopts = ["-lwebsocket.js"],
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:emscripten"],
+    visibility = ["//src/experimental/studio/web:__pkg__"],
+    deps = ["@mujoco_imgui//:imgui"],
+)
+
+mujoco_extension(
+    name = "_render_filament",
+    srcs = [
+        "mujoco/render_filament.cc",
+        "mujoco/render_filament_generated.cc.inc",
+    ],
+    cxx_standard = "c++20",
+    tags = ["manual"],
+    deps = ["//src/render/filament"],
+)
+
+[
+    mujoco_extension(
+        name = "studio_" + module,
+        srcs = ["mujoco/experimental/studio/" + source for source in sources],
+        cxx_standard = "c++20",
+        linkopts = select({
+            "@platforms//os:linux": ["-Wl,--allow-multiple-definition"],
+            "//conditions:default": [],
+        }),
+        module_name = module,
+        package = "mujoco/experimental/studio" + package_suffix,
+        tags = ["manual"],
+        deps = [
+            ":structs_wrappers",
+            ":studio_binding_headers",
+            "//src/experimental/studio:platform",
+        ] + deps,
+    )
+    for module, sources, package_suffix, deps in [
+        (
+            "native_viewer_cc",
+            ["native_viewer.cc"],
+            "",
+            [],
+        ),
+        (
+            "renderer",
+            ["renderer.cc"],
+            "",
+            [],
+        ),
+        (
+            "ux",
+            ["ux.cc"],
+            "",
+            [],
+        ),
+        (
+            "sim",
+            ["sim.cc"],
+            "",
+            [],
+        ),
+        (
+            "window",
+            ["window.cc"],
+            "",
+            [],
+        ),
+        (
+            "headless_ui",
+            ["web/headless_ui.cc"],
+            "/web",
+            [":netimgui"],
+        ),
+        (
+            "state_payload",
+            [
+                "web/state_payload_py.cc",
+                "web/state_payload.cc",
+                "web/state_payload.h",
+            ],
+            "/web",
+            [],
+        ),
+    ]
+]
+
+[
+    mujoco_extension(
+        name = "studio_" + module,
+        srcs = ["mujoco/experimental/" + module + "/" + module + ".cc"],
+        cxx_standard = "c++20",
+        module_name = module,
+        package = "mujoco/experimental/" + module,
+        tags = ["manual"],
+        deps = [":studio_binding_headers"],
+    )
+    for module in [
+        "dear_imgui",
+        "implot",
+    ]
+]
+
+_STUDIO_LICENSES = {
+    "filament": "@mujoco_filament//:licenses",
+    "imgui": "@mujoco_imgui//:licenses",
+    "implot": "@mujoco_implot//:licenses",
+    "libwebp": "@mujoco_libwebp//:licenses",
+    "sdl2": "@mujoco_sdl2//:licenses",
+    "font_next": "@mujoco_font_next//:OFL.txt",
+    "font_mono": "@mujoco_font_mono//:OFL.txt",
+    "font_awesome": "@mujoco_font_awesome//:README.md",
+    "netimgui": "mujoco/experimental/netimgui/LICENSE",
+}
+
+[
+    package_files(
+        name = "studio_" + name + "_license",
+        srcs = [source],
+        directory = "mujoco/licenses/" + name,
+        preserve_paths = name == "filament",
+        tags = ["manual"],
+    )
+    for name, source in _STUDIO_LICENSES.items()
+]
+
+package_files(
+    name = "studio_assets",
+    srcs = ["//src/experimental/studio:assets"],
+    directory = "mujoco/experimental/studio/assets",
+    tags = ["manual"],
+)
+
+package_files(
+    name = "studio_gui_licenses",
+    srcs = ["//bazel/deps/licenses:notices"],
+    directory = "mujoco/licenses/gui",
+    preserve_paths = True,
+    strip_prefix = "bazel/deps/licenses",
+    tags = ["manual"],
+)
+
+_STUDIO_WEB_LICENSES = {
+    "emscripten": "emscripten/LICENSE",
+    "musl": "emscripten/system/lib/libc/musl/COPYRIGHT",
+    "libcxx": "emscripten/system/lib/libcxx/LICENSE.TXT",
+    "libcxxabi": "emscripten/system/lib/libcxxabi/LICENSE.TXT",
+    "compiler_rt": "emscripten/system/lib/compiler-rt/LICENSE.TXT",
+}
+
+[
+    package_files(
+        name = "studio_web_" + name + "_license",
+        srcs = ["@mujoco_emscripten//:" + path],
+        directory = "mujoco/licenses/" + name,
+        tags = ["manual"],
+    )
+    for name, path in _STUDIO_WEB_LICENSES.items()
+]
+
+package_web_dist(
+    name = "studio_web_dist",
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "studio_package_data",
+    srcs = [
+        ":_render_filament",
+        ":studio_assets",
+        ":studio_gui_licenses",
+    ] + [":studio_" + name + "_license" for name in _STUDIO_LICENSES] + [
+        ":studio_" + module
+        for module in [
+            "native_viewer_cc",
+            "renderer",
+            "ux",
+            "sim",
+            "window",
+            "dear_imgui",
+            "implot",
+        ]
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            ":studio_headless_ui",
+            ":studio_state_payload",
+        ],
+    }) + select({
+        ":studio_web_enabled": [":studio_web_dist"] + [
+            ":studio_web_" + name + "_license"
+            for name in _STUDIO_WEB_LICENSES
+        ],
+        "//conditions:default": [],
+    }),
+    tags = ["manual"],
+)
+
+package_files(
+    name = "shared_library",
+    srcs = ["//:shared_library"],
+    directory = "mujoco",
+)
+
+package_files(
+    name = "headers",
+    srcs = ["//:public_headers"],
+    directory = "mujoco/include/mujoco",
+)
+
+package_files(
+    name = "plugins",
+    srcs = ["//plugin/" + name + ":shared" for name in [
+        "actuator",
+        "elasticity",
+        "sensor",
+        "sdf",
+    ]],
+    directory = "mujoco/plugin",
+)
+
+[
+    package_files(
+        name = name + "_license",
+        srcs = [source],
+        directory = "mujoco/licenses/" + name,
+    )
+    for name, source in [
+        ("abseil", "@abseil-cpp//:LICENSE"),
+        ("pybind11", "@pybind11//:license"),
+        ("eigen", "@eigen//:license"),
+    ] + [(
+        name,
+        "@mujoco_deps_" + name + "//:license",
+    ) for name in [
+        "ccd",
+        "qhull",
+        "tinyxml2",
+        "tinyobjloader",
+        "lodepng",
+        "miniz",
+        "marchingcubecpp",
+    ]]
+]
+
+cc_binary(
+    name = "mjpython_native",
+    srcs = ["mujoco/mjpython/mjpython.mm"],
+    linkopts = [
+        "-framework",
+        "Cocoa",
+    ],
+    target_compatible_with = ["@platforms//os:macos"],
+    deps = ["@rules_python//python/cc:current_py_cc_headers"],
+)
+
+extension_file(
+    name = "mjpython_app_binary",
+    src = ":mjpython_native",
+    out = "mujoco/MuJoCo_(mjpython).app/Contents/MacOS/mjpython",
+)
+
+package_files(
+    name = "mjpython_app_info",
+    srcs = ["mujoco/mjpython/Info.plist"],
+    directory = "mujoco/MuJoCo_(mjpython).app/Contents",
+)
+
+package_files(
+    name = "mjpython_app_icon",
+    srcs = ["mujoco/mjpython/mjpython.icns"],
+    directory = "mujoco/MuJoCo_(mjpython).app/Contents/Resources",
+)
+
+filegroup(
+    name = "package_sources",
+    srcs = glob(
+        [
+            "mujoco/**/*.py",
+            "mujoco/testdata/**",
+            "mujoco/sysid/report/templates/*.html",
+            "mujoco/experimental/studio/web/*.html",
+            "mujoco/**/py.typed",
+            "mujoco/**/LICENSE*",
+        ],
+        exclude = [
+            "**/*_test.py",
+            "mujoco/codegen/**",
+            "mujoco/mjpython/**",
+            "**/__pycache__/**",
+        ],
+    ),
+)
+
+filegroup(
+    name = "package_data",
+    srcs = [
+        ":_callbacks",
+        ":_constants",
+        ":_enums",
+        ":_errors",
+        ":_functions",
+        ":_render",
+        ":_rollout",
+        ":_simulate",
+        ":_specs",
+        ":_structs",
+        ":headers",
+        ":plugins",
+        ":shared_library",
+    ] + [":" + name + "_license" for name in [
+        "abseil",
+        "pybind11",
+        "eigen",
+        "ccd",
+        "qhull",
+        "tinyxml2",
+        "tinyobjloader",
+        "lodepng",
+        "miniz",
+        "marchingcubecpp",
+    ]] + glob([
+        "mujoco/testdata/**",
+        "mujoco/sysid/report/templates/*.html",
+        "mujoco/experimental/studio/web/*.html",
+        "mujoco/**/py.typed",
+        "mujoco/**/LICENSE*",
+    ]) + select({
+        "@platforms//os:macos": [
+            ":mjpython_app_binary",
+            ":mjpython_app_icon",
+            ":mjpython_app_info",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        ":studio_enabled": [":studio_package_data"],
+        "//conditions:default": [],
+    }),
+)
+
+py_library(
+    name = "mujoco",
+    srcs = glob(
+        ["mujoco/**/*.py"],
+        exclude = [
+            "**/*_test.py",
+            "mujoco/codegen/**",
+            "mujoco/mjpython/**",
+        ],
+    ),
+    data = [":package_data"],
+    imports = ["."],
+    visibility = ["//visibility:public"],
+    deps = [requirement(name) for name in [
+        "absl-py",
+        "etils",
+        "glfw",
+        "numpy",
+        "pyopengl",
+        "typing_extensions",
+        "websockets",
+    ]],
+)
+
+py_library(
+    name = "sysid",
+    visibility = ["//visibility:public"],
+    deps = [":mujoco"] + [sysid_requirement(name) for name in [
+        "colorama",
+        "imageio",
+        "imageio-ffmpeg",
+        "jinja2",
+        "matplotlib",
+        "plotly",
+        "pyyaml",
+        "scipy",
+        "tabulate",
+        "typing_extensions",
+    ]],
+)
+
+py_test(
+    name = "sysid_test",
+    timeout = "long",
+    srcs = ["pytest_main.py"],
+    args = ["--require-module=mujoco.sysid.report.defaults"] + [
+        "$(rlocationpath " + source + ")"
+        for source in glob(["mujoco/sysid/tests/test_*.py"])
+    ],
+    data = glob(["mujoco/sysid/tests/*.py"]),
+    main = "pytest_main.py",
+    tags = ["manual"],
+    deps = [
+        ":sysid",
+        sysid_requirement("pytest"),
+        "@rules_python//python/runfiles",
+    ],
+)
+
+py_library(
+    name = "usd",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":mujoco",
+        usd_requirement("pillow"),
+        usd_requirement("usd-core"),
+    ],
+)
+
+py_test(
+    name = "usd_exporter_test",
+    srcs = ["pytest_main.py"],
+    args = [
+        "--require-module=mujoco.usd.exporter",
+        "$(rlocationpath mujoco/usd/exporter_test.py)",
+    ],
+    data = ["mujoco/usd/exporter_test.py"],
+    main = "pytest_main.py",
+    tags = ["manual"],
+    deps = [
+        ":usd",
+        sysid_requirement("pytest"),
+        "@rules_python//python/runfiles",
+    ],
+)
+
+[
+    py_test(
+        name = source.removeprefix("mujoco/").removesuffix(".py"),
+        srcs = [source],
+        main = source,
+        tags = [
+            "manual",
+            "requires-display",
+        ] if source in [
+            "mujoco/renderer_test.py",
+            "mujoco/render_test.py",
+        ] else [],
+        deps = [":mujoco"],
+    )
+    for source in glob(["mujoco/*_test.py"])
+]
+
+[
+    cc_test(
+        name = name + "_test",
+        srcs = ["mujoco/util/" + name + "_test.cc"],
+        deps = [
+            ":binding_headers",
+            "@googletest//:gtest_main",
+        ],
+    )
+    for name in [
+        "array_traits",
+        "func_traits",
+        "func_wrap",
+        "tuple_tools",
+    ]
+]
+
+test_suite(
+    name = "tests",
+    tests = [
+        ":" + source.removeprefix("mujoco/").removesuffix(".py")
+        for source in glob(
+            ["mujoco/*_test.py"],
+            exclude = [
+                "mujoco/renderer_test.py",
+                "mujoco/render_test.py",
+            ],
+        )
+    ] + [
+        ":introspect_" + source.removeprefix("mujoco/introspect/").removesuffix(".py")
+        for source in glob(["mujoco/introspect/*_test.py"])
+    ] + [":" + name + "_test" for name in [
+        "array_traits",
+        "func_traits",
+        "func_wrap",
+        "tuple_tools",
+    ]],
+    visibility = ["//visibility:public"],
+)
+
+py_wheel(
+    name = "wheel",
+    abi = "cp311",
+    author = "Google DeepMind",
+    author_email = "mujoco@deepmind.com",
+    data_files = select({
+        "@platforms//os:macos": {":mjpython_script": "scripts/mjpython"},
+        "//conditions:default": {},
+    }),
+    distribution = "mujoco",
+    extra_distinfo_files = {"//:LICENSE": "licenses/LICENSE"},
+    extra_requires = {
+        "sysid": [
+            "absl-py",
+            "colorama",
+            "imageio[ffmpeg]",
+            "jinja2",
+            "matplotlib",
+            "plotly",
+            "pyyaml",
+            "scipy",
+            "tabulate",
+            "typing_extensions",
+        ],
+        "usd": [
+            "usd-core",
+            "pillow",
+        ],
+    },
+    license = "Apache-2.0",
+    platform = select({
+        ":linux_x86_64": "linux_x86_64",
+        ":macos_arm64": "macosx_11_0_arm64",
+        ":windows_x86_64": "win_amd64",
+    }),
+    python_requires = ">=3.11,<3.12",
+    python_tag = "cp311",
+    requires = [
+        "absl-py",
+        "etils[epath]",
+        "glfw",
+        "numpy",
+        "pyopengl",
+        "typing_extensions",
+        "websockets>=13",
+    ],
+    strip_path_prefixes = ["python/"],
+    summary = "MuJoCo Physics Simulator",
+    twine_binary = None,
+    version = "3.14.1",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":package_data",
+        ":package_sources",
+    ],
+)
+
+wheel_script(
+    name = "mjpython_script",
+    src = "mujoco/mjpython/mjpython.py",
+    out = "mjpython",
+)
+
+py_library(
+    name = "wheel_installer",
+    visibility = ["//visibility:public"],
+    deps = [
+        requirement("pip"),
+        "@rules_python//python/runfiles",
+    ],
+)
+
+py_test(
+    name = "wheel_install_test",
+    srcs = ["wheel_install_test.py"],
+    args = ["$(rlocationpath :wheel)"],
+    data = [":wheel"],
+    env = select({
+        ":studio_web_enabled": {
+            "MUJOCO_EXPECT_STUDIO": "1",
+            "MUJOCO_EXPECT_STUDIO_WEB": "1",
+        },
+        ":studio_native_only": {"MUJOCO_EXPECT_STUDIO": "1"},
+        "//conditions:default": {},
+    }),
+    deps = [
+        ":mujoco",
+        ":wheel_installer",
+    ],
+)
+
+py_test(
+    name = "studio_import_test",
+    srcs = ["studio_import_test.py"],
+    data = [":studio_package_data"],
+    tags = ["manual"],
+    deps = [":mujoco"],
+)
+
+py_test(
+    name = "studio_smoke_test",
+    srcs = ["studio_smoke_test.py"],
+    data = [":studio_package_data"],
+    tags = [
+        "local",
+        "manual",
+        "requires-display",
+    ],
+    deps = [":mujoco"],
+)

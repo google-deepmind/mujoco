@@ -1,0 +1,28 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "qhull",
+    srcs = glob(["src/libqhull_r/*.c"]),
+    hdrs = glob(["src/libqhull_r/*.h"]),
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-fvisibility=hidden"],
+    }),
+    includes = [
+        "src",
+        "src/libqhull_r",
+    ],
+    linkopts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-lm"],
+    }),
+    linkstatic = True,
+    local_defines = ["qh_QHpointer"],
+)
+
+filegroup(
+    name = "license",
+    srcs = ["COPYING.txt"],
+)

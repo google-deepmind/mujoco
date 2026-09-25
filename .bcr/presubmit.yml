@@ -1,0 +1,15 @@
+bcr_test_module:
+  module_path: .bcr/smoke
+  matrix:
+    platform: [ubuntu2404, macos_arm64, windows]
+    bazel: ["9.2.0"]
+  tasks:
+    consumer:
+      name: Build and test the external consumer
+      platform: ${{ platform }}
+      bazel: ${{ bazel }}
+      test_targets:
+        - //:static
+        - //:dynamic_deps
+        - //:shared
+        - //:plugin

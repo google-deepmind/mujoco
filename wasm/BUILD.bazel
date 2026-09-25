@@ -1,0 +1,221 @@
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@emsdk//emscripten_toolchain:wasm_rules.bzl", "wasm_cc_binary")
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "strip_prefix")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("@rules_python//python:defs.bzl", "py_test")
+
+package(default_visibility = ["//visibility:private"])
+
+exports_files(["package-lock.json"])
+
+config_setting(
+    name = "threads",
+    values = {"features": "use_pthreads"},
+)
+
+config_setting(
+    name = "optimized",
+    values = {"compilation_mode": "opt"},
+)
+
+cc_binary(
+    name = "mujoco.js",
+    srcs = [
+        "codegen/generated/bindings.cc",
+        "codegen/generated/bindings.h",
+        "unpack.cc",
+        "unpack.h",
+    ],
+    copts = [
+        "-std=c++20",
+        "-fexceptions",
+    ] + select({
+        ":optimized": [],
+        # Unoptimized binding initialization exceeds the WebAssembly local limit.
+        "//conditions:default": ["-O1"],
+    }),
+    linkopts = [
+        "--oformat=js",
+        "--bind",
+        "--emit-tsd=mujoco.d.ts",
+        "-sASSERTIONS=1",
+        "-sALLOW_MEMORY_GROWTH=1",
+        "-sEXPORT_ES6=1",
+        "-sMODULARIZE=1",
+        "-sFORCE_FILESYSTEM=1",
+        "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,FS,MEMFS",
+        "-sEXPORT_NAME=loadMujoco",
+        "-sDISABLE_EXCEPTION_CATCHING=0",
+        "-fexceptions",
+        "-gsource-map",
+        "-g",
+    ] + select({
+        ":threads": ["-sPTHREAD_POOL_SIZE=navigator.hardwareConcurrency"],
+        "//conditions:default": [],
+    }),
+    local_defines = select({
+        ":threads": ["MUJOCO_WASM_THREADS"],
+        "//conditions:default": [],
+    }),
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:emscripten"],
+    deps = [
+        "//:internal",
+        "//:mujoco",
+        "//python:indexer_headers",
+    ],
+)
+
+wasm_cc_binary(
+    name = "mujoco_wasm",
+    cc_target = ":mujoco.js",
+    outputs = [
+        "dist/mujoco.js",
+        "dist/mujoco.wasm",
+        "dist/mujoco.wasm.map",
+        "dist/mujoco.d.ts",
+    ],
+    tags = ["manual"],
+    threads = "off",
+    visibility = ["//visibility:public"],
+)
+
+wasm_cc_binary(
+    name = "mujoco_wasm_mt",
+    cc_target = ":mujoco.js",
+    outputs = [
+        "dist/mt/mujoco.js",
+        "dist/mt/mujoco.wasm",
+        "dist/mt/mujoco.wasm.map",
+        "dist/mt/mujoco.d.ts",
+    ],
+    tags = ["manual"],
+    threads = "emscripten",
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "npm_artifacts",
+    srcs = [
+        ":mujoco_wasm",
+        ":mujoco_wasm_mt",
+    ],
+    strip_prefix = strip_prefix.from_pkg("dist"),
+    tags = ["manual"],
+)
+
+expand_template(
+    name = "package_metadata",
+    out = "npm_metadata/package.json",
+    substitutions = {"\"version\": \"0.0.0\"": "\"version\": \"" + module_version() + "\""},
+    template = "package.npm.json",
+)
+
+_RUNTIME_LICENSES = {
+    "emscripten": "emscripten/LICENSE",
+    "musl": "emscripten/system/lib/libc/musl/COPYRIGHT",
+    "libcxx": "emscripten/system/lib/libcxx/LICENSE.TXT",
+    "libcxxabi": "emscripten/system/lib/libcxxabi/LICENSE.TXT",
+    "compiler_rt": "emscripten/system/lib/compiler-rt/LICENSE.TXT",
+}
+
+[
+    pkg_files(
+        name = name + "_license",
+        srcs = ["@mujoco_emscripten//:" + path],
+        prefix = "share/licenses/mujoco/" + name,
+        strip_prefix = strip_prefix.files_only(),
+    )
+    for name, path in _RUNTIME_LICENSES.items()
+]
+
+pkg_filegroup(
+    name = "runtime_licenses",
+    srcs = [":" + name + "_license" for name in _RUNTIME_LICENSES],
+    visibility = ["//visibility:public"],
+)
+
+pkg_tar(
+    name = "npm_archive",
+    srcs = [
+        ":npm_artifacts",
+        ":npm_metadata",
+        ":runtime_licenses",
+        "//bazel/package:core_licenses",
+    ],
+    extension = "tgz",
+    mode = "0644",
+    package_dir = "package",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "npm_metadata",
+    srcs = [
+        "README.md",
+        ":package_metadata",
+        "//:LICENSE",
+    ],
+    strip_prefix = strip_prefix.files_only(),
+)
+
+[
+    py_test(
+        name = "runtime_" + mode + "_test",
+        srcs = ["runtime_test.py"],
+        args = [
+            "$(rlocationpath @nodejs//:node_bin)",
+            "$(rlocationpath :runtime_smoke.mjs)",
+            "$(rlocationpath :" + output + ")",
+            "$(rlocationpath :package_metadata)",
+        ],
+        data = [
+            target,
+            ":" + output,
+            "runtime_smoke.mjs",
+            ":package_metadata",
+            "@nodejs//:node_bin",
+        ],
+        main = "runtime_test.py",
+        tags = ["manual"],
+        deps = ["@rules_python//python/runfiles"],
+    )
+    for mode, target, output in [
+        ("st", ":mujoco_wasm", "dist/mujoco.js"),
+        ("mt", ":mujoco_wasm_mt", "dist/mt/mujoco.js"),
+    ]
+]
+
+[
+    py_test(
+        name = "bindings_" + mode + "_test",
+        srcs = ["suite_test.py"],
+        args = [
+            "$(rlocationpath @nodejs//:node_bin)",
+            "$(rlocationpath :tests/run_tests.mjs)",
+            "$(rlocationpath :" + output + ")",
+            "$(rlocationpath @mujoco_wasm_npm//:node_modules/typescript/package.json)",
+            "$(rlocationpath :package.json)",
+            "$(rlocationpath :tsconfig.json)",
+        ],
+        data = [
+            target,
+            ":" + output,
+            "package.json",
+            "tests/run_tests.mjs",
+            "tsconfig.json",
+            "@mujoco_wasm_npm//:node_modules",
+            "@mujoco_wasm_npm//:node_modules/typescript/package.json",
+            "@nodejs//:node_bin",
+        ] + glob(["tests/*_test.ts"]),
+        main = "suite_test.py",
+        tags = ["manual"],
+        deps = ["@rules_python//python/runfiles"],
+    )
+    for mode, target, output in [
+        ("st", ":mujoco_wasm", "dist/mujoco.js"),
+        ("mt", ":mujoco_wasm_mt", "dist/mt/mujoco.js"),
+    ]
+]

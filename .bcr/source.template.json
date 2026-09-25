@@ -1,0 +1,5 @@
+{
+  "integrity": "",
+  "strip_prefix": "mujoco-{VERSION}",
+  "url": "https://github.com/{OWNER}/{REPO}/releases/download/{TAG}/mujoco-{VERSION}-source.tar.gz"
+}

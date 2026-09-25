@@ -1,0 +1,19 @@
+get_filename_component(_mujoco_prefix "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
+if(NOT TARGET mujoco::mujoco)
+  add_library(mujoco::mujoco SHARED IMPORTED)
+  set_target_properties(mujoco::mujoco PROPERTIES
+    IMPORTED_LOCATION "${_mujoco_prefix}/@LIBRARY@"
+    INTERFACE_INCLUDE_DIRECTORIES "${_mujoco_prefix}/include")
+  @IMPLIB@
+endif()
+if(NOT TARGET mujoco::libmujoco_simulate)
+  include(CMakeFindDependencyMacro)
+  find_dependency(Threads)
+  add_library(mujoco::libmujoco_simulate STATIC IMPORTED)
+  set_target_properties(mujoco::libmujoco_simulate PROPERTIES
+    IMPORTED_LOCATION "${_mujoco_prefix}/lib/@SIMULATE@"
+    INTERFACE_INCLUDE_DIRECTORIES "${_mujoco_prefix}/include;${_mujoco_prefix}/include/mujoco"
+    INTERFACE_COMPILE_FEATURES cxx_std_20
+    INTERFACE_LINK_LIBRARIES "mujoco::mujoco;Threads::Threads;@SIMULATE_LINKS@")
+endif()
+unset(_mujoco_prefix)

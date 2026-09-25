@@ -1,0 +1,7 @@
+.cache
+.bcr/smoke
+build
+build_cmake
+build_host
+build_wasm
+build_simulate

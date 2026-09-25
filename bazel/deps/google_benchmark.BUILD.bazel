@@ -1,0 +1,31 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "benchmark",
+    srcs = glob(
+        [
+            "src/*.cc",
+            "src/*.h",
+        ],
+        exclude = ["src/benchmark_main.cc"],
+    ),
+    hdrs = glob(["include/benchmark/*.h"]),
+    copts = select({
+        "@platforms//os:windows": ["/std:c++17"],
+        "//conditions:default": ["-std=c++17"],
+    }),
+    defines = ["BENCHMARK_STATIC_DEFINE"],
+    includes = ["include"],
+    linkopts = select({
+        "@platforms//os:windows": ["shlwapi.lib"],
+        "//conditions:default": ["-pthread"],
+    }),
+)
+
+cc_library(
+    name = "benchmark_main",
+    srcs = ["src/benchmark_main.cc"],
+    deps = [":benchmark"],
+)

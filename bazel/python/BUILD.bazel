@@ -1,0 +1,37 @@
+load("@rules_python//python:py_test.bzl", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "cuda_runtime_requirements_lock.txt",
+    "requirements_lock.txt",
+    "mjx_requirements_lock.txt",
+    "mjx_cuda_requirements_lock.txt",
+    "sysid_requirements_lock.txt",
+])
+
+py_test(
+    name = "check_locks",
+    srcs = ["check_locks.py"],
+    args = ["$(rlocationpath " + source + ")" for source in [
+        "//python:build_requirements.txt",
+        "//mjx:requirements.txt",
+        "//mjx:cuda_requirements.txt",
+        ":cuda_runtime_requirements_lock.txt",
+        ":requirements_lock.txt",
+        ":mjx_requirements_lock.txt",
+        ":mjx_cuda_requirements_lock.txt",
+        ":sysid_requirements_lock.txt",
+    ]],
+    data = [
+        ":cuda_runtime_requirements_lock.txt",
+        ":mjx_cuda_requirements_lock.txt",
+        ":mjx_requirements_lock.txt",
+        ":requirements_lock.txt",
+        ":sysid_requirements_lock.txt",
+        "//mjx:cuda_requirements.txt",
+        "//mjx:requirements.txt",
+        "//python:build_requirements.txt",
+    ],
+    deps = ["@rules_python//python/runfiles"],
+)
