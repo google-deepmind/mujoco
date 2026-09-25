@@ -190,9 +190,9 @@ class Viewer {
       flags[i] = render_flags[i];
     }
 
-    renderer_->Render(model.get(), data.get(), perturb.get(), camera.get(),
-                      vis_options.get(), width * scale, height * scale, pixels_,
-                      geoms);
+    renderer_->Sync(model.get(), data.get(), perturb.get(), camera.get(),
+                      vis_options.get(), width * scale, height * scale, geoms);
+    renderer_->Submit(width * scale, height * scale, pixels_);
 
     window_->EndFrame();
     window_->Present(pixels_);

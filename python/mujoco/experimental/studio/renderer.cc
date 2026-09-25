@@ -56,11 +56,12 @@ class Renderer {
     std::vector<std::byte> pixels(width * height * 3);
     {
       py::gil_scoped_release no_gil;
-      impl_->Render(model.get(), data.get(),
+      impl_->Sync(model.get(), data.get(),
                     perturb ? perturb.value().get() : nullptr,
                     camera ? camera.value().get() : nullptr,
                     vis_option ? vis_option.value().get() : nullptr, width,
-                    height, pixels);
+                    height);
+      impl_->Submit(width, height, pixels);
     }
     return pybind11::bytes((const char*)pixels.data(), pixels.size());
   }

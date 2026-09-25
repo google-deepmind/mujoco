@@ -581,10 +581,11 @@ void MainLoopImpl() {
     int height =
         static_cast<int>(g_app.window->GetHeight() * g_app.window->GetScale());
     if (width > 0 && height > 0) {
-      g_app.renderer->Render(g_app.model_holder->model(),
-                             g_app.model_holder->data(), &g_app.perturb,
-                             &g_app.camera, &g_app.vis_options, width, height,
-                             /*pixels=*/{}, std::span(g_app.extra_geoms));
+      g_app.renderer->Sync(g_app.model_holder->model(),
+                           g_app.model_holder->data(), &g_app.perturb,
+                           &g_app.camera, &g_app.vis_options, width, height,
+                           std::span(g_app.extra_geoms));
+      g_app.renderer->Submit(width, height);
     }
   }
 

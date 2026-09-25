@@ -51,12 +51,13 @@ class FilamentRenderer {
   // Initializes the renderer with the given mjModel.
   void Init(const mjModel* model);
 
-  // Renders the simulation and ux state. Renders into `pixels` if provided,
-  // otherwise renders to the `native_window` provided at construction.
-  void Render(const mjModel* model, mjData* data, const mjvPerturb* perturb,
-              mjvCamera* camera, const mjvOption* vis_option, int width,
-              int height, std::span<std::byte> pixels = {},
-              std::span<mjvGeom> extra_geoms = {});
+  // Synchronizes scene state from the simulation model and data.
+  void Sync(const mjModel* model, mjData* data, const mjvPerturb* perturb,
+            mjvCamera* camera, const mjvOption* vis_option, int width,
+            int height, std::span<mjvGeom> extra_geoms = {});
+
+  // Renders the previously synchronized scene and current UX state.
+  void Submit(int width, int height, std::span<std::byte> pixels = {});
 
   // Populates the given output buffer with RGB888 pixel data. The size of the
   // output buffer must be at least width * height * 3.
@@ -80,9 +81,11 @@ class FilamentRenderer {
   // Resets the renderer; no rendering will occur until Init() is called again.
   void Deinit();
 
-  void BuildMainRenderRequest(mjrfRenderRequest* request, const mjModel* model,
-                              const mjvOption* vis_option,
-                              const mjrRect& viewport, const mjrCamera& camera);
+  void BuildMainRenderRequest(mjrfRenderRequest* request,
+                              const mjVisual& vis,
+                              const mjvOption& vis_option,
+                              const mjrRect& viewport,
+                              const mjrCamera& camera);
   void BuildUxRenderRequest(mjrfRenderRequest* request,
                             const mjrRect& viewport);
 
@@ -97,6 +100,7 @@ class FilamentRenderer {
   std::unique_ptr<ModelLights> model_lights_;
   std::unique_ptr<ModelRenderables> model_renderables_;
   std::unique_ptr<ModelDecorations> model_decorations_;
+  mjrfRenderRequest render_requests_[2];
   mjtByte render_flags_[mjNRNDFLAG];
   int framebuffer_mode_ = 0;
   double fps_ = 0;

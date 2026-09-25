@@ -495,9 +495,11 @@ void App::Render() {
     pixels_.clear();
   }
 
-  renderer_->Render(model(), data(), &perturb_, &camera_, &vis_options_,
-                    width * scale, height * scale, pixels_,
+  renderer_->Sync(model(), data(), &perturb_, &camera_, &vis_options_,
+                    width * scale, height * scale,
                     {plugin_scene_.geoms, (size_t)plugin_scene_.ngeom});
+  renderer_->Submit(width * scale, height * scale, pixels_);
+
   window_->EndFrame();
   window_->Present(pixels_);
 }

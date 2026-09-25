@@ -57,8 +57,9 @@ TEST_F(RendererTest, OpengGlSoftware) {
   ASSERT_EQ(driver_type, gl::DriverType::kOsMesa);
 
   std::vector<std::byte> pixels(width_ * height_ * 3);
-  renderer.Render(holder_->model(), holder_->data(), nullptr, nullptr, nullptr,
-              width_, height_, pixels);
+  renderer.Sync(holder_->model(), holder_->data(), nullptr, nullptr, nullptr,
+                width_, height_);
+  renderer.Submit(width_, height_, pixels);
   // We set the clear color to white, but we don't know the exact color due to
   // post processing, but it should definitely not be black.
   for (int i = 0; i < pixels.size(); i += 3) {
@@ -80,8 +81,9 @@ TEST_F(RendererTest, OpengGlHeadless) {
   #endif
 
   std::vector<std::byte> pixels(width_ * height_ * 3);
-  renderer.Render(holder_->model(), holder_->data(), nullptr, nullptr, nullptr,
-              width_, height_, pixels);
+  renderer.Sync(holder_->model(), holder_->data(), nullptr, nullptr, nullptr,
+                width_, height_);
+  renderer.Submit(width_, height_, pixels);
   // We set the clear color to white, but we don't know the exact color due to
   // post processing, but it should definitely not be black.
   for (int i = 0; i < pixels.size(); i += 3) {
@@ -96,8 +98,9 @@ TEST_F(RendererTest, VulkanSoftware) {
   renderer.Init(holder_->model());
 
   std::vector<std::byte> pixels(width_ * height_ * 3);
-  renderer.Render(holder_->model(), holder_->data(), nullptr, nullptr, nullptr,
-              width_, height_, pixels);
+  renderer.Sync(holder_->model(), holder_->data(), nullptr, nullptr, nullptr,
+                width_, height_);
+  renderer.Submit(width_, height_, pixels);
   // We set the clear color to white, but we don't know the exact color due to
   // post processing, but it should definitely not be black.
   for (int i = 0; i < pixels.size(); i += 3) {
@@ -112,8 +115,9 @@ TEST_F(RendererTest, VulkanHeadless) {
   renderer.Init(holder_->model());
 
   std::vector<std::byte> pixels(width_ * height_ * 3);
-  renderer.Render(holder_->model(), holder_->data(), nullptr, nullptr, nullptr,
-              width_, height_, pixels);
+  renderer.Sync(holder_->model(), holder_->data(), nullptr, nullptr, nullptr,
+                width_, height_);
+  renderer.Submit(width_, height_, pixels);
   // We set the clear color to white, but we don't know the exact color due to
   // post processing, but it should definitely not be black.
   for (int i = 0; i < pixels.size(); i += 3) {
