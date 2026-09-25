@@ -29,7 +29,6 @@ from jax import numpy as jp
 import mujoco
 from mujoco import mjx
 import mujoco.viewer
-import warp as wp
 
 
 _JIT = flags.DEFINE_bool('jit', True, 'To jit or not to jit.')
@@ -77,6 +76,7 @@ def _main(argv: Sequence[str]) -> None:
     )
 
   if _WP_KERNEL_CACHE_DIR.value:
+    import warp as wp  # pylint: disable=g-import-not-at-top
     wp.config.kernel_cache_dir = _WP_KERNEL_CACHE_DIR.value
 
   jax.config.update('jax_debug_nans', True)
