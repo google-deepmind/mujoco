@@ -2122,8 +2122,7 @@ void mjCModel::SetSizes() {
   }
 
   // bending factor sizes: symbolic reverse-Cholesky count on the (M + K_bend) pattern.
-  // Bending couples only same-coordinate dofs of unpinned flap vertices, so the pattern is
-  // three interleaved copies of the vertex flap adjacency across all qualifying flexes.
+  // Each flap couples full 3x3 blocks: its vertex bodies can have different orientations.
   // The count must match the symbolic factorization performed in mj_setConst (asserted there).
   std::vector<int> body_slot(bodies_.size(), -1);
   for (int i = 0; i < nflex; i++) {
@@ -2165,13 +2164,16 @@ void mjCModel::SetSizes() {
       }
     }
 
-    // dof-level upper-triangle pattern: row 3*s+k has columns {3*t+k : t > s, t in adj(s)}
+    // Expand each off-diagonal vertex block to all coordinate pairs. Diagonal blocks are
+    // diagonal (R_b^T * R_b = I); any off-coordinate factor fill is counted symbolically.
     int                           n = 3 * nfree;
     std::vector<std::vector<int>> upper(n);
     for (int s = 0; s < nfree; s++) {
       for (int t : adj[s]) {
         if (t > s) {
-          for (int k = 0; k < 3; k++) { upper[3 * s + k].push_back(3 * t + k); }
+          for (int k = 0; k < 3; k++) {
+            for (int l = 0; l < 3; l++) { upper[3 * s + k].push_back(3 * t + l); }
+          }
         }
       }
     }

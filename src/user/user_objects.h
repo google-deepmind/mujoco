@@ -704,6 +704,7 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
   friend class mjCDef;
   friend class mjCEquality;
   friend class mjCBody;
+  friend class mjCFlex;
   friend class mjCModel;
   friend class mjCSensor;
   friend class mjXWriter;
