@@ -43,4 +43,5 @@ runs:
         CHATMSG_AUTHOR_NAME: ${{ inputs.author-name }}
         CHATMSG_AUTHOR_EMAIL: ${{ inputs.author-email }}
         CHATMSG_COMMIT_MESSAGE: ${{ inputs.commit-message }}
-      run: python3 ${{ github.action_path }}/notify_chat.py
+      run: python3 "$GITHUB_ACTION_PATH/notify_chat.py"
+
