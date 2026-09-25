@@ -514,7 +514,11 @@ def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
     lo = jax.tree_util.tree_map(
         lambda x, y: jp.where(swap_lo_hi_next, y, x), lo, hi_next
     )
-    swap_hi_next = in_bracket(hi.deriv_0, hi_next.deriv_0)
+    # also accept a Newton step that crosses the minimizer from an undershooting
+    # hi, turning the one-sided search into an opposite-sign bracket
+    swap_hi_next = in_bracket(hi.deriv_0, hi_next.deriv_0) | (
+        (hi.deriv_0 < 0) & (hi_next.deriv_0 > 0)
+    )
     hi = jax.tree_util.tree_map(
         lambda x, y: jp.where(swap_hi_next, y, x), hi, hi_next
     )
