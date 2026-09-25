@@ -5809,6 +5809,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("rgba", &MjsFlex::rgba)
     .property("selfcollide", &MjsFlex::selfcollide, &MjsFlex::set_selfcollide)
     .property("size", &MjsFlex::size)
+    .property("snh", &MjsFlex::snh, &MjsFlex::set_snh)
     .property("solimp", &MjsFlex::solimp)
     .property("solmix", &MjsFlex::solmix, &MjsFlex::set_solmix)
     .property("solref", &MjsFlex::solref)

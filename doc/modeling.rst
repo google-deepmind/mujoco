@@ -1385,9 +1385,8 @@ where each element is in a constant stress state, which is equivalent to piecewi
 improved realism and accuracy. The edge-based model could be seen as a "lumped" stiffness model, where the correct
 coupling of deformation modes (e.g. shear and volumetric) is averaged in a single quantity. The continuum model enables
 instead to specify shear and volumetric stiffnesses separately using the `Poisson's ratio
-<https://en.wikipedia.org/wiki/Poisson%27s_ratio>`__ of the material. Non-interpolated tetrahedra use Stable Neo-Hookean
-elasticity, which remains defined through element inversion; two-dimensional stretching uses Saint Venant-Kirchhoff
-elasticity. See :ref:`elasticity<flex-elasticity>` for the material laws.
+<https://en.wikipedia.org/wiki/Poisson%27s_ratio>`__ of the material. For more details, see the `Saint Venant-Kirchhoff
+<https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__ hyperelastic model.
 
 **Parametrization types**.
 

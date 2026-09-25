@@ -365,13 +365,15 @@ static inline void mj_stretchStiffnessBlock(mjtNum block[9], const mjtNum metric
 
 //-------------------------- stable Neo-Hookean tetrahedra ------------------------------------------
 
-// The 24-number flex_stiffness record for a standard 3D element stores:
+// Standard 3D elements use a 24-number flex_stiffness record. StVK stores its packed
+// quadratic metric in [0:21] and zeros in [21:24]. For SNH the record stores:
 //   [0:21] symmetric K, [21] gamma = -mu/(72 V0), [22] beta = V0*(lambda+2 mu)/2,
 //   [23] 1/det(Dm), where V0 = abs(det(Dm))/6 and mu,lambda are the Lame parameters.
 // Energy: s' K s / 4 + gamma P(s) + beta (J-1)^2, with s_e = L_e^2 - L0_e^2.
 // P(s) is the determinant of the Gram-matrix difference D(s), defined in mj_snhCubic.
 // This is exactly V0*[mu/2*(tr(F'F)-3) - mu*(J-1) + (lambda+mu)/2*(J-1)^2].
 // No division by current volume is needed, even at collapse or inversion.
+// The nonzero cubic coefficient in [21] identifies SNH without an extra mjModel field.
 
 // add twice the gradient and (optionally) Hessian of gamma P(s) to the edge response
 void mj_snhCubic(mjtNum metric[36], mjtNum tension[6], const mjtNum s[6],

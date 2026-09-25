@@ -1850,6 +1850,12 @@ mjsFlex
 
 Flex specification.
 
+The experimental ``snh`` flag selects simplified Stable Neo-Hookean elasticity for non-interpolated 3D flexes.
+It defaults to false (Saint Venant-Kirchhoff elasticity) and is available only through :ref:`mjSpec`, with no MJCF
+attribute. Specs with this flag enabled cannot be saved to MJCF; compiled models can be saved to MJB.
+SNH uses the full energy Hessian, including negative curvature. Its energy and forces remain defined through inversion,
+but the unprojected solver tangent and tangent-based Rayleigh damping do not guarantee numerical stability.
+
 .. mujoco-include:: mjsFlex
 
 

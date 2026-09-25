@@ -538,6 +538,7 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
 
   int dim = m->flex_dim[f];
   int nedge = (dim == 2) ? 3 : 6;
+  int snh = dim == 3 && k[21] != 0;
   const int* elem = m->flex_elem + m->flex_elemdataadr[f];
   const int* edgeelem = m->flex_elemedge + m->flex_elemedgeadr[f];
   mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
@@ -553,7 +554,7 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
 
   // SNH Rayleigh damping uses the exact tangent, which can be indefinite at finite strain
   mjtNum* worldvel = NULL;
-  if (dim == 3 && kD) {
+  if (snh && kD) {
     worldvel = mjSTACKALLOC(d, 3*m->flex_vertnum[f], mjtNum);
     mj_flexGather(m, d, f, worldvel, d->qvel);
   }
@@ -573,20 +574,20 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
     mj_stretchElasticity(metric, tension, packed, elongation, nedge);
 
     mjtNum grad[4][3], pressure = 0;
-    if (dim == 3) {
+    if (snh) {
       mj_snhCubic(metric, tension, elongation, packed[21], kD != 0);
       pressure = 2*packed[22]*(mj_snhVolume(grad, edgevec, packed)-1);
     }
     if (enbl_spring) {
       mj_stretchForce(frc, vert, tension, edgevec, dim);
-      if (dim == 3) {
+      if (snh) {
         for (int v = 0; v < 4; v++) {
           mju_addToScl3(frc + 3*vert[v], grad[v], -pressure);
         }
       }
     }
 
-    if (dim == 3) {
+    if (snh) {
       if (kD) {
         mjtNum velocity[4][3], result[4][3];
         for (int v = 0; v < 4; v++) {

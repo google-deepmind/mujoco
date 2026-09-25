@@ -299,6 +299,7 @@
     X   ( double,        damping,       1      ) \
     X   ( double,        thickness,     1      ) \
     X   ( int,           elastic2d,     1      ) \
+    X   ( mjtBool,       snh,           1      ) \
     XVEC( int,           cellcount,     3      ) \
     X   ( int,           order,         1      ) \
     X   ( mjStringVec*,  nodebody,      1      ) \

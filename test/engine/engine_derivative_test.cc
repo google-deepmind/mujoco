@@ -2499,7 +2499,11 @@ TEST_F(DerivativeTest, SNHStiffnessThroughInversion) {
       <elasticity young="1000" poisson=".3" damping=".02"/>
     </flexcomp>
   </worldbody></mujoco>)";
-  MjModelPtr m = LoadModelFromString(xml);
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"))->snh = true;
+  MjModelPtr m(mj_compile(spec, nullptr));
+  mj_deleteSpec(spec);
   ASSERT_THAT(m.get(), NotNull());
   MjDataPtr d = MakeData(m);
   mj_forward(m.get(), d.get());

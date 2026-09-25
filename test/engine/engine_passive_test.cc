@@ -566,6 +566,55 @@ TEST_F(ElasticityTest, ElasticEnergyMembrane) {
 }
 
 // -------------------------------- solid -----------------------------------
+// -------------------------------- solid -----------------------------------
+TEST_F(ElasticityTest, ElasticEnergySolid) {
+  static constexpr char cantilever_xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp type="grid" count="8 8 8" spacing="1 1 1"
+              radius=".025" name="test" dim="3">
+      <elasticity young="2" poisson="0"/>
+      <edge equality="false"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(cantilever_xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  mj_kinematics(m.get(), d.get());
+  mj_flex(m.get(), d.get());
+  mjtNum* metric = m->flex_stiffness + m->flex_stiffnessadr[0];
+
+  // check that if the entire geometry is rescaled by a factor "scale", then
+  // trace(strain^2) = 3*scale^2
+
+  for (mjtNum scale = 1; scale < 4; scale++) {
+    for (int t = 0; t < m->flex_elemnum[0]; t++) {
+      mjtNum energy = 0;
+      mjtNum volume = 1. / 6.;
+      int idx = 0;
+      for (int e1 = 0; e1 < 6; e1++) {
+        for (int e2 = e1; e2 < 6; e2++) {
+          int idx1 = m->flex_elemedge[6 * t + e1 + m->flex_elemedgeadr[0]];
+          int idx2 = m->flex_elemedge[6 * t + e2 + m->flex_elemedgeadr[0]];
+          mjtNum elong1 =
+              scale * m->flexedge_length0[idx1] * m->flexedge_length0[idx1];
+          mjtNum elong2 =
+              scale * m->flexedge_length0[idx2] * m->flexedge_length0[idx2];
+          energy +=
+              metric[24 * t + idx++] * elong1 * elong2 * (e1 == e2 ? 1. : 2.);
+        }
+      }
+      const mjtNum tol = MjTol(std::numeric_limits<float>::epsilon(), 1e-4);
+      EXPECT_NEAR(energy / volume, 3 * scale * scale, tol);
+    }
+  }
+}
+
 // Evaluate the expanded energy independently of the engine's derivative
 // helpers.
 static mjtNum SNHElementEnergy(const mjtNum* k, const mjtNum s[6], mjtNum J) {
@@ -585,14 +634,18 @@ static mjtNum SNHElementEnergy(const mjtNum* k, const mjtNum s[6], mjtNum J) {
 
 // Every tetrahedral record reproduces the compact SNH energy under signed
 // dilation.
-TEST_F(ElasticityTest, ElasticEnergySolid) {
+TEST_F(ElasticityTest, SNHEnergySolid) {
   static constexpr char xml[] = R"(
   <mujoco><worldbody>
     <flexcomp type="grid" count="3 3 3" spacing="1 1 1" name="test" dim="3">
       <elasticity young="2" poisson="0"/>
     </flexcomp>
   </worldbody></mujoco>)";
-  MjModelPtr m = LoadModelFromString(xml);
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "test"))->snh = true;
+  MjModelPtr m(mj_compile(spec, nullptr));
+  mj_deleteSpec(spec);
   ASSERT_THAT(m.get(), NotNull());
   EXPECT_EQ(m->nflexstiffness, 24 * m->nflexelem);
   for (mjtNum scale :
@@ -648,7 +701,11 @@ TEST_F(ElasticityTest, SNHForceThroughInversion) {
                      std::string("element=\"0 1 2 3\"").size(),
                      "element=\"0 2 1 3\"");
     }
-    MjModelPtr m = LoadModelFromString(source);
+    mjSpec* spec = mj_parseXMLString(source.c_str(), nullptr, nullptr, 0);
+    ASSERT_THAT(spec, NotNull());
+    mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"))->snh = true;
+    MjModelPtr m(mj_compile(spec, nullptr));
+    mj_deleteSpec(spec);
     ASSERT_THAT(m.get(), NotNull());
     MjDataPtr d = MakeData(m);
     mj_forward(m.get(), d.get());
@@ -718,7 +775,11 @@ TEST_F(ElasticityTest, SNHInversionRecovery) {
       <pin id="0 1 2"/>
     </flexcomp>
   </worldbody></mujoco>)";
-  MjModelPtr m = LoadModelFromString(xml);
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"))->snh = true;
+  MjModelPtr m(mj_compile(spec, nullptr));
+  mj_deleteSpec(spec);
   ASSERT_THAT(m.get(), NotNull());
   ASSERT_EQ(m->nv, 3);
   MjDataPtr d = MakeData(m);

@@ -1621,9 +1621,9 @@ void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* ve
 
 
 // compute res += (s1 + s2*flex_damping) * K_stretch * vec for standard flexes
-// 3D uses the exact SNH Hessian, which can be indefinite; 2D keeps the StVK material
-// term and tensile geometric stiffness. For articulated attachments the pullback
-// J'KJ omits derivatives of the attachment Jacobian.
+// SNH uses its exact Hessian, which can be indefinite; StVK keeps the material term
+// and tensile geometric stiffness. For articulated attachments the pullback J'KJ
+// omits derivatives of the attachment Jacobian.
 static void flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                             mjtNum s1, mjtNum s2, int first, int last) {
   for (int f = first; f < last; f++) {
@@ -1648,6 +1648,8 @@ static void flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtN
     const int* elem = m->flex_elem + m->flex_elemdataadr[f];
     const mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
     const mjtNum* k = m->flex_stiffness + stiffnessadr;
+    int snh = dim == 3 && k[21] != 0;
+    int stride = dim == 3 ? 24 : 21;
     const int* edgeelem = m->flex_elemedge + m->flex_elemedgeadr[f];
     const mjtNum* deformed = d->flexedge_length + m->flex_edgeadr[f];
     const mjtNum* reference = m->flexedge_length0 + m->flex_edgeadr[f];
@@ -1665,7 +1667,7 @@ static void flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtN
       // current edge vectors and their world-frame variations from the attachment Jacobians
       mjtNum dvec[6][3], dw[6][3];
       mj_stretchEdgeVectors(dvec, xpos, vert, dim);
-      if (dim == 3) {
+      if (snh) {
         mjtNum metric[36], tension[6], grad[4][3], velocity[4][3], result[4][3];
         mjtNum pressure = mj_snhStiffness(metric, tension, grad, dvec, k + 24*t,
                                           edgeelem + 6*t, deformed, reference);
@@ -1690,7 +1692,7 @@ static void flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtN
 
       // shared StVK material and tensile geometric stiffness
       mjtNum metric[36], tension[6], result[6][3];
-      mj_stretchStiffness(metric, tension, k + 21*t, edgeelem + t*nedge,
+      mj_stretchStiffness(metric, tension, k + stride*t, edgeelem + t*nedge,
                          deformed, reference, nedge);
       mj_stretchStiffnessMul(result, metric, tension, dvec, dw, nedge, scale);
 
@@ -2212,6 +2214,8 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
       const int* elem = m->flex_elem + m->flex_elemdataadr[f];
       const mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
       const mjtNum* kk = m->flex_stiffness + m->flex_stiffnessadr[f];
+      int snh = dim == 3 && kk[21] != 0;
+      int stride = dim == 3 ? 24 : 21;
       const int* eelem = m->flex_elemedge + m->flex_elemedgeadr[f];
       const mjtNum* elen = d->flexedge_length + m->flex_edgeadr[f];
       const mjtNum* elen0 = m->flexedge_length0 + m->flex_edgeadr[f];
@@ -2220,11 +2224,11 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
 
         mjtNum dvec[6][3], metric[36], tension[6], grad[4][3], pressure = 0;
         mj_stretchEdgeVectors(dvec, xpos, vert, dim);
-        if (dim == 3) {
+        if (snh) {
           pressure = mj_snhStiffness(metric, tension, grad, dvec, kk + 24*t,
                                       eelem + 6*t, elen, elen0);
         } else {
-          mj_stretchStiffness(metric, tension, kk + 21*t, eelem + t*nedge,
+          mj_stretchStiffness(metric, tension, kk + stride*t, eelem + t*nedge,
                               elen, elen0, nedge);
         }
 
@@ -2236,7 +2240,7 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
             int sj = vslot[m->flex_vertadr[f] + vert[j]];
             if (sj < 0) continue;
             mjtNum blk[9];
-            if (dim == 3) {
+            if (snh) {
               mj_snhStiffnessBlock(blk, metric, tension, dvec, grad, pressure, kk + 24*t,
                                    i, j, scale);
             } else {

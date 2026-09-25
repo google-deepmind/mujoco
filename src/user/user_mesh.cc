@@ -3482,7 +3482,7 @@ void inline ComputeStiffness(std::vector<double>&       stiffness,
   }
 
   // compute metric tensor
-  MetricTensor<T>(stiffness.data(), t, mu, la, basis);
+  MetricTensor<T>(stiffness.data(), t, mu, la, basis, T::kNumVerts == 4 ? 24 : 21);
 }
 
 // stable Neo-Hookean quadratic metric and three signed-volume/cubic coefficients
@@ -4596,6 +4596,10 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     if (dim != 2 && !interpolated) { throw mjCError(this, "2d elasticity requires 2d flex"); }
   }
 
+  if (snh && (dim != 3 || interpolated)) {
+    throw mjCError(this, "stable Neo-Hookean elasticity requires a non-interpolated 3d flex");
+  }
+
   // set nvert, rigid, centered; check size
   if (vert_.empty()) {
     centered = true;
@@ -4873,7 +4877,11 @@ void mjCFlex::Compile(const mjVFS* vfs) {
                                     poisson,
                                     thickness);
       } else if (dim == 3) {
-        ComputeSNH(stiffness, vertxpos, elem_.data() + 4 * t, t, young, poisson);
+        if (snh) {
+          ComputeSNH(stiffness, vertxpos, elem_.data() + 4 * t, t, young, poisson);
+        } else {
+          ComputeStiffness<Stencil3D>(stiffness, vertxpos, elem_.data() + 4 * t, t, young, poisson);
+        }
       }
     }
 
