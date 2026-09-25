@@ -608,7 +608,6 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
     // elongation L^2 - Lprev^2 is factored as dL*(2*L - dL), dL = L - Lprev = vel*timestep,
     // so it has no cancellation and vanishes exactly at zero velocity
     if (kD) {
-      mjtNum elongation[6];
       for (int e = 0; e < nedge; e++) {
         int idx = edgeelem[t * nedge + e];
         mjtNum dL = vel[idx] * m->opt.timestep;
