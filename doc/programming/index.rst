@@ -87,12 +87,123 @@ its public headers. If you are using Xcode, you can import it as a framework dep
 works for Swift projects without any modification). If you are building manually, you can use ``-F`` and
 ``-framework mujoco`` to specify the header search path and the library search path respectively.
 
+.. _inBazel:
+
+Building with Bazel
+~~~~~~~~~~~~~~~~~~~
+
+MuJoCo provides a Bzlmod build for Bazel ``9.2.0``. Bazelisk reads the version from
+``.bazelversion``. The C and C++ toolchains must support ``C11`` and ``C++20``. Native SDKs
+and graphics drivers are host prerequisites; source dependencies are fetched by
+Bzlmod using pinned versions or checksummed archives.
+
+Run these commands from the repository root:
+
+.. code-block:: shell
+
+   bazel build --config=release //:mujoco_shared //simulate:simulate
+   bazel test --config=release //test:native_tests //test:documentation_tests
+   bazel test //python:tests //python:wheel_install_test
+   bazel build //bazel/package:sdk //python:wheel //mjx:wheel
+
+``//:mujoco`` is the static linking interface and ``//:mujoco_shared`` links the
+shared library. Standard plugins expose static targets and a ``:shared`` target
+in their respective packages. Both interfaces use ``<mujoco/mujoco.h>``.
+
+A downstream project can consume a source checkout with:
+
+.. code-block:: starlark
+
+   bazel_dep(name = "mujoco", version = "3.14.1")
+   local_path_override(module_name = "mujoco", path = "../mujoco")
+
+Link the consumer target against ``@mujoco//:mujoco`` or
+``@mujoco//:mujoco_shared``. Archive consumption uses ``archive_override`` with
+a checksummed source archive. This does not require Bazel Central Registry
+publication. The consumer chooses its own compiler and build configuration;
+MuJoCo's repository settings do not propagate into another Bzlmod root.
+
+The ``.bcr`` directory provides registry submission templates and an external
+consumer test module. Publication requires a named maintainer and a source
+release asset created from a commit containing the Bazel build:
+
+.. code-block:: shell
+
+   python bazel/make_source_archive.py --revision TAG --output mujoco-VERSION-source.tar.gz
+
+The archive helper includes committed files. Uploading the asset and submitting
+the registry entry are separate release operations.
+
+The ``release`` and ``debug`` configurations select optimized and debug builds.
+``--config=noavx`` disables AVX code generation and hand-written AVX intrinsics.
+``--//bazel:lto=false`` disables link-time optimization in optimized builds.
+``--config=harden`` enables platform-specific hardening. The optional
+``--config=clang`` configuration selects the pinned LLVM toolchain declared in
+``MODULE.bazel``; the default uses the host toolchain. macOS and Windows builds
+require their native SDKs. The macOS wheel targets require
+``--macos_minimum_os=11.0`` when built from another Bzlmod root.
+
+The native SDK archive contains the shared library, plugins, public headers,
+models, sample executables, and CMake package metadata. Check a relocated SDK and
+external Bzlmod consumption with:
+
+.. code-block:: shell
+
+   python bazel/check_package.py --archive bazel-bin/bazel/package/sdk.tar.gz
+   python bazel/check_consumer.py
+   python bazel/check_consumer.py --archive
+   python bazel/check_build_inputs.py
+
+Python wheels use CPython ``3.11``. Install them in a separate environment to
+avoid importing a source checkout accidentally. The Linux wheel uses a native
+platform tag; creating a ``manylinux`` distribution requires a compatible
+build environment and wheel repair. Native dependencies' license notices are
+included in the packages.
+
+Optional components have explicit targets and runtime prerequisites. CUDA tests
+in ``//mjx`` require a working NVIDIA driver and fail when CUDA initialization
+fails. GPU tests are tagged ``manual`` and must be selected explicitly; passing
+CPU tests does not validate CUDA execution. Run them with
+``bazel test //mjx:cuda_tests``. Studio is enabled for Python with
+``--//python:studio=true``. The Studio browser client is
+``//src/experimental/studio/web:dist``; its archive target is
+``//src/experimental/studio/web:archive``. Set ``MUJOCO_WEB_VIEWER_DIST`` to
+``bazel-bin/src/experimental/studio/web/dist`` when running the Python web viewer
+from a source checkout. Building the browser client requires a Linux ``x86_64``
+host. Include its files in a Studio wheel with
+``bazel build --config=release --//python:studio=true --//python:studio_web=true //python:wheel``.
+WebAssembly targets are ``//wasm:mujoco_wasm`` and
+``//wasm:mujoco_wasm_mt``; ``//wasm:npm_archive`` packages their outputs.
+The pinned WebAssembly compiler executes on Linux ``x86_64``. Native USD targets
+are defined for Linux and macOS; Windows USD targets are unavailable. The USD
+runtime CI job runs on Linux.
+``//src/experimental/usd:sdk_archive`` contains the USD libraries, plugins,
+schemas, and experimental headers. C++ consumers of those headers also need
+the matching OpenUSD development dependency from ``MODULE.bazel``.
+The experimental ``mjr`` compatibility library requires
+``--//bazel:filament_mjr_compat=true``. This removes the classic renderer and UI
+from the core; consumers link both ``//:mujoco`` and
+``//src/experimental/filament:mjr_compat``. Check this configuration with
+``bazel test --//bazel:filament_mjr_compat=true //src/experimental/filament:compat_smoke_test``.
+The Node runtime and binding suites are ``//wasm:runtime_st_test``,
+``//wasm:runtime_mt_test``, ``//wasm:bindings_st_test``, and
+``//wasm:bindings_mt_test``. Chromium checks consume the npm archive with
+``python wasm/browser_test.py --archive bazel-bin/wasm/npm_archive.tgz``;
+install ``playwright==1.55.0`` and its Chromium browser before running them.
+
+CMake comparisons must use the same source, dependency revisions, compiler,
+optimization, LTO, and SIMD settings. ``bazel/parity.cc`` can be compiled against
+each shared library; ``bazel/compare_builds.py`` compares integration states and
+reports interleaved timing measurements. Its default state comparison is exact;
+nonzero tolerances require a numerical justification. Timing reports require
+review for repeatable regressions beyond measurement noise.
+
 .. _inBuild:
 
 Building from source
 ~~~~~~~~~~~~~~~~~~~~
 
-To build MuJoCo from source, you will need CMake and a working C++17 compiler installed. The steps are:
+To build MuJoCo from source, you will need CMake and a working C++20 compiler installed. The steps are:
 
 #. Clone the ``mujoco`` repository: ``git clone https://github.com/google-deepmind/mujoco.git``
 #. Create a new build directory and ``cd`` into it.
