@@ -8,6 +8,9 @@ Upcoming Version (not yet released)
 General
 ^^^^^^^
 
+- Non-interpolated 3D flex elasticity now uses Stable Neo-Hookean material with signed-volume recovery forces and
+  positive-semidefinite implicit stiffness. Its force law remains defined through element inversion without internal
+  contacts. Two-dimensional and interpolated flex elasticity are unchanged.
 - :ref:`.mjz <MJZArchives>` archives written on Windows now always use ``/`` separators.
 - Assets in a :ref:`meshdir<compiler-meshdir>` or :ref:`texturedir<compiler-texturedir>` now resolve correctly in
   :ref:`.mjz <MJZArchives>` archives when rewritten or when the directory path is absolute, uses ``..``, or uses a URI

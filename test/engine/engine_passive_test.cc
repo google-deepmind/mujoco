@@ -566,50 +566,135 @@ TEST_F(ElasticityTest, ElasticEnergyMembrane) {
 }
 
 // -------------------------------- solid -----------------------------------
+// The six edge coefficients must reproduce the Dirichlet term of SNH, including
+// reflected configurations. The signed-volume term distinguishes the
+// reflection.
 TEST_F(ElasticityTest, ElasticEnergySolid) {
-  static constexpr char cantilever_xml[] = R"(
-  <mujoco>
-  <worldbody>
-    <flexcomp type="grid" count="8 8 8" spacing="1 1 1"
-              radius=".025" name="test" dim="3">
+  static constexpr char xml[] = R"(
+  <mujoco><worldbody>
+    <flexcomp type="grid" count="3 3 3" spacing="1 1 1" name="test" dim="3">
       <elasticity young="2" poisson="0"/>
-      <edge equality="false"/>
     </flexcomp>
-  </worldbody>
-  </mujoco>
-  )";
-
-  char error[1024] = {0};
-  MjModelPtr m = LoadModelFromString(cantilever_xml, error, sizeof(error));
-  ASSERT_THAT(m.get(), testing::NotNull()) << error;
-  MjDataPtr d = MakeData(m);
-
-  mj_kinematics(m.get(), d.get());
-  mj_flex(m.get(), d.get());
-  mjtNum* metric = m->flex_stiffness + 21 * m->flex_elemadr[0];
-
-  // check that if the entire geometry is rescaled by a factor "scale", then
-  // trace(strain^2) = 3*scale^2
-
-  for (mjtNum scale = 1; scale < 4; scale++) {
-    for (int t = 0; t < m->flex_elemnum[0]; t++) {
-      mjtNum energy = 0;
-      mjtNum volume = 1. / 6.;
-      int idx = 0;
-      for (int e1 = 0; e1 < 6; e1++) {
-        for (int e2 = e1; e2 < 6; e2++) {
-          int idx1 = m->flex_elemedge[6 * t + e1 + m->flex_elemedgeadr[0]];
-          int idx2 = m->flex_elemedge[6 * t + e2 + m->flex_elemedgeadr[0]];
-          mjtNum elong1 =
-              scale * m->flexedge_length0[idx1] * m->flexedge_length0[idx1];
-          mjtNum elong2 =
-              scale * m->flexedge_length0[idx2] * m->flexedge_length0[idx2];
-          energy +=
-              metric[21 * t + idx++] * elong1 * elong2 * (e1 == e2 ? 1. : 2.);
-        }
+  </worldbody></mujoco>)";
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_THAT(m.get(), NotNull());
+  for (mjtNum scale :
+       {mjtNum(-1), mjtNum(0), mjtNum(.3), mjtNum(1), mjtNum(2)}) {
+    mjtNum J = scale * scale * scale;
+    mjtNum expected =
+        (1.5 * (scale * scale - 1) - (J - 1) + .5 * (J - 1) * (J - 1)) / 6;
+    for (int t = 0; t < m->nflexelem; t++) {
+      const mjtNum* k = m->flex_stiffness + m->flex_stiffnessadr[0] + 21 * t;
+      mjtNum energy = -k[0] * (J - 1) + .5 * k[1] * (J - 1) * (J - 1);
+      for (int e = 0; e < 6; e++) {
+        int idx = m->flex_elemedge[m->flex_elemedgeadr[0] + 6 * t + e];
+        mjtNum length = m->flexedge_length0[m->flex_edgeadr[0] + idx];
+        energy += .5 * k[3 + e] * length * length * (scale * scale - 1);
       }
-      const mjtNum tol = MjTol(std::numeric_limits<float>::epsilon(), 1e-4);
-      EXPECT_NEAR(energy / volume, 3 * scale * scale, tol);
+      EXPECT_NEAR(energy, expected, MjTol(1e-12, 1e-5));
+    }
+  }
+}
+
+// Independent deformation-gradient evaluation on an irregular reference
+// tetrahedron.
+static mjtNum SNHEnergy(const mjData* d) {
+  const mjtNum* p = d->flexvert_xpos;
+  mjtNum F[9];
+  for (int x = 0; x < 3; x++) {
+    F[3 * x] = p[3 + x] - p[x];
+    F[3 * x + 1] = (p[6 + x] - p[x] - .2 * F[3 * x]) / .9;
+    F[3 * x + 2] = (p[9 + x] - p[x] + .1 * F[3 * x] - .3 * F[3 * x + 1]) / 1.1;
+  }
+  mjtNum J = F[0] * (F[4] * F[8] - F[5] * F[7]) -
+             F[1] * (F[3] * F[8] - F[5] * F[6]) +
+             F[2] * (F[3] * F[7] - F[4] * F[6]);
+  mjtNum mu = 1000 / (2 * 1.3), lambda = 1000 * .3 / (1.3 * .4);
+  return (.9 * 1.1 / 6) * (.5 * mu * (mju_dot(F, F, 9) - 3) - mu * (J - 1) +
+                           .5 * (lambda + mu) * (J - 1) * (J - 1));
+}
+
+TEST_F(ElasticityTest, SNHForceThroughInversion) {
+  static constexpr char xml[] = R"(
+  <mujoco><option gravity="0 0 0"/><worldbody>
+    <flexcomp name="tet" type="direct" dim="3" mass="1"
+              point="0 0 0  1 0 0  .2 .9 0  -.1 .3 1.1" element="0 1 2 3">
+      <contact internal="false" contype="0" conaffinity="0" selfcollide="none"/>
+      <elasticity young="1000" poisson=".3"/>
+    </flexcomp>
+  </worldbody></mujoco>)";
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_THAT(m.get(), NotNull());
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+  std::vector<mjtNum> rest(d->flexvert_xpos, d->flexvert_xpos + 12);
+  // Full rank, reflected, flat, rank one, and rank zero, with a nontrivial
+  // rotation.
+  for (mjtNum scale :
+       {mjtNum(1), mjtNum(.1), mjtNum(0), mjtNum(-.1), mjtNum(-1)}) {
+    for (int rank = 1; rank <= 3; rank++) {
+      for (int v = 0; v < 4; v++) {
+        int adr = m->body_dofadr[m->flex_vertbodyid[v]];
+        mjtNum x = rank > 1 ? rest[3 * v] + .3 * rest[3 * v + 1] : 0;
+        mjtNum y = rank > 2 ? rest[3 * v + 1] : 0;
+        mjtNum z = scale * rest[3 * v + 2];
+        d->qpos[adr] = .8 * x - .6 * y - rest[3 * v];
+        d->qpos[adr + 1] = .6 * x + .8 * y - rest[3 * v + 1];
+        d->qpos[adr + 2] = z - rest[3 * v + 2];
+      }
+      mj_forward(m.get(), d.get());
+      std::vector<mjtNum> force(d->qfrc_spring, d->qfrc_spring + m->nv);
+      mjtNum eps = MjEps(1e-6, 1e-3);
+      for (int i = 0; i < m->nv; i++) {
+        mjtNum saved = d->qpos[i];
+        d->qpos[i] = saved + eps;
+        mj_forward(m.get(), d.get());
+        mjtNum plus = SNHEnergy(d.get());
+        d->qpos[i] = saved - eps;
+        mj_forward(m.get(), d.get());
+        mjtNum minus = SNHEnergy(d.get());
+        d->qpos[i] = saved;
+        mjtNum fd = -(plus - minus) / (2 * eps);
+        EXPECT_TRUE(std::isfinite(force[i]));
+        EXPECT_NEAR(force[i], fd, MjTol(1e-6, .2));
+      }
+    }
+  }
+}
+
+// An inverted tetrahedron must recover without internal contacts, for both the
+// assembled (Newton) and matrix-free (CG) discrete integration paths.
+TEST_F(ElasticityTest, SNHInversionRecovery) {
+  static constexpr char xml[] = R"(
+  <mujoco><option gravity="0 0 0" integrator="discrete" tolerance="1e-10"/>
+  <worldbody>
+    <flexcomp name="tet" type="direct" dim="3" mass="1"
+              point="0 0 0  1 0 0  0 1 0  0 0 1" element="0 1 2 3">
+      <contact internal="false" contype="0" conaffinity="0" selfcollide="none"/>
+      <elasticity young="1000" poisson=".3" damping=".03"/>
+      <pin id="0 1 2"/>
+    </flexcomp>
+  </worldbody></mujoco>)";
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_THAT(m.get(), NotNull());
+  ASSERT_EQ(m->nv, 3);
+  MjDataPtr d = MakeData(m);
+  for (int solver : {mjSOL_CG, mjSOL_NEWTON}) {
+    m->opt.solver = solver;
+    for (mjtNum timestep : {mjtNum(.001), mjtNum(.01), mjtNum(.03)}) {
+      m->opt.timestep = timestep;
+      mj_resetData(m.get(), d.get());
+      d->qpos[2] = -1.5;  // J = -0.5
+      for (int i = 0; i < 2000; i++) {
+        mj_step(m.get(), d.get());
+        ASSERT_TRUE(std::isfinite(d->qpos[2]));
+        ASSERT_LT(mju_abs(d->qpos[2]), 3);
+      }
+      EXPECT_NEAR(d->qpos[2], 0, MjTol(1e-6, 1e-4));
+      for (int warning = 0; warning < mjNWARNING; warning++) {
+        EXPECT_EQ(d->warning[warning].number, 0);
+      }
+      EXPECT_EQ(d->ncon, 0);
     }
   }
 }

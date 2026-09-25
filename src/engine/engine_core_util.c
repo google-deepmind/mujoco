@@ -24,6 +24,7 @@
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "engine/engine_util_solve.h"
 #include "engine/engine_util_sparse.h"
 #include "engine/engine_util_spatial.h"
 
@@ -1478,4 +1479,132 @@ int mj_effActuatorPossible(const mjModel* m, int i) {
          m->actuator_gaintype[i] == mjGAIN_SO3     ||
          m->actuator_gaintype[i] == mjGAIN_MUSCLE  ||
          m->actuator_gaintype[i] == mjGAIN_DCMOTOR;
+}
+
+
+//-------------------------- stable Neo-Hookean tetrahedra ------------------------------------------
+
+// signed singular values with proper U,V, including rank-deficient configurations
+static void snhSVD(mjtNum U[9], mjtNum sigma[3], mjtNum V[9], const mjtNum F[9]) {
+  mjtNum C[9], eigen[3], quat[4], A[9];
+  mji_mulMatTMat3(C, F, F);
+  mju_eig3(eigen, V, quat, C);
+  mji_mulMatMat3(A, F, V);
+  mjtNum u[3][3];
+  for (int i = 0; i < 3; i++) {
+    for (int x = 0; x < 3; x++) {
+      u[i][x] = A[3*x+i];
+    }
+  }
+  sigma[0] = mju_norm3(u[0]);
+  if (sigma[0] == 0) {
+    mju_zero(U, 9);
+    U[0] = U[4] = U[8] = 1;
+    sigma[1] = sigma[2] = 0;
+    return;
+  }
+  mju_scl3(u[0], u[0], 1/sigma[0]);
+  mju_addToScl3(u[1], u[0], -mju_dot3(u[0], u[1]));
+  mjtNum norm = mju_norm3(u[1]);
+#ifdef mjUSESINGLE
+  const mjtNum tol = 1e-6f;
+#else
+  const mjtNum tol = 1e-12;
+#endif
+  if (norm > tol*sigma[0]) {
+    mju_scl3(u[1], u[1], 1/norm);
+  } else {
+    // complete a frame at rank one, using the axis least aligned with u[0]
+    int axis = 0;
+    for (int x = 1; x < 3; x++) {
+      if (mju_abs(u[0][x]) < mju_abs(u[0][axis])) axis = x;
+    }
+    for (int x = 0; x < 3; x++) {
+      u[1][x] = (x == axis) - u[0][axis]*u[0][x];
+    }
+    mju_scl3(u[1], u[1], 1/mju_norm3(u[1]));
+  }
+  mju_cross(u[2], u[0], u[1]);
+  sigma[1] = sigma[2] = 0;
+  for (int x = 0; x < 3; x++) {
+    sigma[1] += u[1][x]*A[3*x+1];
+    sigma[2] += u[2][x]*A[3*x+2];
+    for (int i = 0; i < 3; i++) {
+      U[3*x+i] = u[i][x];
+    }
+  }
+}
+
+
+// project the SNH Hessian in F-space, then pull its nine modes back to vertices
+void mj_snhStiffness(mjtNum eigen[9], mjtNum mode[9][4][3],
+                     mjtNum edgevec[6][3], const mjtNum k[21]) {
+  // F = sum_i (x_i-x_0) grad(N_i)', i = 1,2,3
+  mjtNum F[9] = {0};
+  for (int x = 0; x < 3; x++) {
+    for (int y = 0; y < 3; y++) {
+      F[3*x+y] = -edgevec[0][x]*k[9+y] + edgevec[2][x]*k[12+y]
+                 -edgevec[4][x]*k[15+y];
+    }
+  }
+  mjtNum U[9], sigma[3], V[9];
+  snhSVD(U, sigma, V, F);
+
+  // reference shape gradients in the right-singular-vector frame
+  mjtNum grad[4][3] = {{0}};
+  for (int v = 1; v < 4; v++) {
+    for (int i = 0; i < 3; i++) {
+      for (int x = 0; x < 3; x++) {
+        grad[v][i] += V[3*x+i]*k[9+3*(v-1)+x];
+      }
+      grad[0][i] -= grad[v][i];
+    }
+  }
+
+  // H_F = mu*V0*I + (lambda+mu)*V0*grad(J)*grad(J)' + pressure*Hess(J)
+  mjtNum volumegrad[4][3];
+  mjtNum J = mj_snhVolume(volumegrad, edgevec, k);
+  mjtNum pressure = k[1]*(J-1) - k[0];
+  mjtNum cof[3] = {sigma[1]*sigma[2], sigma[0]*sigma[2], sigma[0]*sigma[1]};
+  mjtNum A[9], Q[9], quat[4];
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      A[3*i+j] = k[1]*cof[i]*cof[j];
+      A[3*i+j] += i == j ? k[0] : pressure*sigma[3-i-j];
+    }
+  }
+
+  // three coupled diagonal modes
+  mju_eig3(eigen, Q, quat, A);
+  for (int e = 0; e < 3; e++) {
+    eigen[e] = mju_max(0, eigen[e]);
+    for (int v = 0; v < 4; v++) {
+      for (int x = 0; x < 3; x++) {
+        mode[e][v][x] = 0;
+        for (int i = 0; i < 3; i++) {
+          mode[e][v][x] += U[3*x+i]*Q[3*i+e]*grad[v][i];
+        }
+      }
+    }
+  }
+
+  // six off-diagonal modes: symmetric and antisymmetric, two per axis pair
+  const mjtNum invsqrt2 = 0.7071067811865475244;
+  int e = 3;
+  for (int i = 0; i < 3; i++) {
+    for (int j = i+1; j < 3; j++) {
+      mjtNum cross = pressure*sigma[3-i-j];
+      eigen[e] = mju_max(0, k[0]-cross);
+      eigen[e+1] = mju_max(0, k[0]+cross);
+      for (int v = 0; v < 4; v++) {
+        for (int x = 0; x < 3; x++) {
+          mjtNum a = U[3*x+i]*grad[v][j];
+          mjtNum b = U[3*x+j]*grad[v][i];
+          mode[e][v][x] = invsqrt2*(a+b);
+          mode[e+1][v][x] = invsqrt2*(a-b);
+        }
+      }
+      e += 2;
+    }
+  }
 }

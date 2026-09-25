@@ -3481,6 +3481,47 @@ void inline ComputeStiffness(std::vector<double>&       stiffness,
   MetricTensor<T>(stiffness.data(), t, mu, la, basis);
 }
 
+// stable Neo-Hookean data in the existing 21-number tetrahedron record
+static void ComputeSNH(std::vector<double>&       stiffness,
+                       const std::vector<double>& body_pos,
+                       const int*                 v,
+                       int                        t,
+                       double                     young,
+                       double                     poisson) {
+  double  volume = ComputeVolume<Stencil3D>(body_pos.data(), v);
+  double  mu     = young / (2 * (1 + poisson));
+  double  lambda = young * poisson / ((1 + poisson) * (1 - 2 * poisson));
+  double* k      = stiffness.data() + 21 * t;
+  k[0]           = mu * std::abs(volume);
+  k[1]           = (lambda + mu) * std::abs(volume);
+  k[2]           = 1 / (6 * volume);
+
+  // retain the first-fundamental-form edge basis used by the StVK formulation
+  for (int e = 0; e < 6; e++) {
+    double basis[9];
+    ComputeBasis<Stencil3D>(basis,
+                            body_pos.data(),
+                            v,
+                            Stencil3D::face[Stencil3D::edge2face[e][0]],
+                            Stencil3D::face[Stencil3D::edge2face[e][1]],
+                            volume);
+    // the opposing-face normal convention gives minus the metric basis
+    k[3 + e] = -k[0] * (basis[0] + basis[4] + basis[8]);
+  }
+
+  // reference shape gradients; no inverse of the deformed shape is ever needed
+  double edge[3][3];
+  for (int i = 0; i < 3; i++) {
+    for (int x = 0; x < 3; x++) {
+      edge[i][x] = body_pos[3 * v[i + 1] + x] - body_pos[3 * v[0] + x];
+    }
+  }
+  for (int i = 0; i < 3; i++) {
+    mjuu_crossvec(k + 9 + 3 * i, edge[(i + 1) % 3], edge[(i + 2) % 3]);
+    for (int x = 0; x < 3; x++) { k[9 + 3 * i + x] *= k[2]; }
+  }
+}
+
 // local tetrahedron numbering
 constexpr int kNumEdges          = Stencil2D::kNumEdges;
 constexpr int kNumVerts          = Stencil2D::kNumVerts;
@@ -4837,12 +4878,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
                                     poisson,
                                     thickness);
       } else if (dim == 3) {
-        ComputeStiffness<Stencil3D>(stiffness,
-                                    vertxpos,
-                                    elem_.data() + (dim + 1) * t,
-                                    t,
-                                    young,
-                                    poisson);
+        ComputeSNH(stiffness, vertxpos, elem_.data() + 4 * t, t, young, poisson);
       }
     }
 

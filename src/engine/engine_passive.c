@@ -551,14 +551,39 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
   mju_zero(frc, 3*m->flex_vertnum[f]);
   mju_zero(dmp, 3*m->flex_vertnum[f]);
 
+  // SNH uses dissipative Rayleigh damping with the projected material stiffness
+  mjtNum* worldvel = NULL;
+  if (dim == 3 && kD) {
+    worldvel = mjSTACKALLOC(d, 3*m->flex_vertnum[f], mjtNum);
+    mj_flexGather(m, d, f, worldvel, d->qvel);
+  }
+
   // compute forces element-by-element
   int elemnum = m->flex_elemnum[f];
   for (int t = 0; t < elemnum; t++)  {
     const int* vert = elem + (dim+1) * t;
 
-    // geometry and StVK material data
     mjtNum edgevec[6][3], metric[36], tension[6];
     mj_stretchEdgeVectors(edgevec, xpos, vert, dim);
+
+    // 3D SNH keeps the edge term and adds orientation-sensitive volume forces
+    if (dim == 3) {
+      if (enbl_spring) mj_snhForce(frc, vert, edgevec, k + 21*t);
+      if (kD) {
+        mjtNum eigen[9], mode[9][4][3], velocity[4][3], result[4][3];
+        mj_snhStiffness(eigen, mode, edgevec, k + 21*t);
+        for (int v = 0; v < 4; v++) {
+          mju_copy3(velocity[v], worldvel + 3*vert[v]);
+        }
+        mj_snhStiffnessMul(result, eigen, mode, velocity, -m->flex_damping[f]);
+        for (int v = 0; v < 4; v++) {
+          mju_addTo3(dmp + 3*vert[v], result[v]);
+        }
+      }
+      continue;
+    }
+
+    // 2D StVK material data
     mj_stretchMetric(metric, k + 21*t, nedge);
 
     // spring force, from the elongation of edges belonging to this element

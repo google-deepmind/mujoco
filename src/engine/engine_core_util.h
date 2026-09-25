@@ -21,6 +21,7 @@
 #include <mujoco/mjtype.h>
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_misc.h"
+#include "engine/engine_util_spatial.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -351,6 +352,95 @@ static inline void mj_stretchStiffnessBlock(mjtNum block[9], const mjtNum metric
   block[0] += geo;
   block[4] += geo;
   block[8] += geo;
+}
+
+
+//-------------------------- stable Neo-Hookean tetrahedra ------------------------------------------
+
+// The 21-number flex_stiffness record for a standard 3D element stores:
+//   [0] mu*V0, [1] (lambda+mu)*V0, [2] 1/det(Dm), [3:9] edge coefficients,
+//   [9:18] reference shape gradients for vertices 1,2,3; [18:21] reserved.
+// Here mu,lambda are the Lame parameters specified by young and poisson.
+// Energy: sum_e k_e*(L_e^2-L0_e^2)/2 - mu*V0*(J-1) + (lambda+mu)*V0*(J-1)^2/2.
+// Signed J comes directly from the triple product, with no division by current volume.
+
+// signed volume ratio and its four world-space vertex gradients
+static inline mjtNum mj_snhVolume(mjtNum grad[4][3], mjtNum edgevec[6][3],
+                                  const mjtNum k[21]) {
+  // edges from vertex 0 to vertices 1,2,3 in mj_stretchEdges ordering
+  mjtNum a[3], b[3], c[3];
+  for (int x = 0; x < 3; x++) {
+    a[x] = -edgevec[0][x];
+    b[x] =  edgevec[2][x];
+    c[x] = -edgevec[4][x];
+  }
+  mju_cross(grad[1], b, c);
+  mju_cross(grad[2], c, a);
+  mju_cross(grad[3], a, b);
+  mjtNum J = k[2]*mju_dot3(a, grad[1]);
+  for (int x = 0; x < 3; x++) {
+    grad[0][x] = 0;
+    for (int v = 1; v < 4; v++) {
+      grad[v][x] *= k[2];
+      grad[0][x] -= grad[v][x];
+    }
+  }
+  return J;
+}
+
+
+// exact elastic force: first-fundamental-form edge term plus signed-volume term
+static inline void mj_snhForce(mjtNum* force, const int* vert, mjtNum edgevec[6][3],
+                               const mjtNum k[21]) {
+  mj_stretchForce(force, vert, k + 3, edgevec, 3);
+  mjtNum grad[4][3];
+  mjtNum J = mj_snhVolume(grad, edgevec, k);
+  mjtNum pressure = k[1]*(J-1) - k[0];
+  for (int v = 0; v < 4; v++) {
+    for (int x = 0; x < 3; x++) {
+      force[3*vert[v]+x] -= pressure*grad[v][x];
+    }
+  }
+}
+
+
+// eigenvalue-clamped material Hessian pulled back to the four vertices
+void mj_snhStiffness(mjtNum eigen[9], mjtNum mode[9][4][3],
+                     mjtNum edgevec[6][3], const mjtNum k[21]);
+
+
+// multiply the projected stiffness by world-space vertex velocities/displacements
+static inline void mj_snhStiffnessMul(mjtNum result[4][3], const mjtNum eigen[9],
+                                      mjtNum mode[9][4][3], mjtNum vec[4][3],
+                                      mjtNum scale) {
+  mju_zero(result[0], 12);
+  for (int e = 0; e < 9; e++) {
+    mjtNum dot = 0;
+    for (int v = 0; v < 4; v++) {
+      dot += mju_dot3(mode[e][v], vec[v]);
+    }
+    mjtNum weight = scale*eigen[e]*dot;
+    for (int v = 0; v < 4; v++) {
+      for (int x = 0; x < 3; x++) {
+        result[v][x] += weight*mode[e][v][x];
+      }
+    }
+  }
+}
+
+
+// world-space vertex-pair block of the same projected stiffness
+static inline void mj_snhStiffnessBlock(mjtNum block[9], const mjtNum eigen[9],
+                                        mjtNum mode[9][4][3], int i, int j, mjtNum scale) {
+  mju_zero(block, 9);
+  for (int e = 0; e < 9; e++) {
+    mjtNum weight = scale*eigen[e];
+    for (int r = 0; r < 3; r++) {
+      for (int c = 0; c < 3; c++) {
+        block[3*r+c] += weight*mode[e][i][r]*mode[e][j][c];
+      }
+    }
+  }
 }
 
 #ifdef __cplusplus

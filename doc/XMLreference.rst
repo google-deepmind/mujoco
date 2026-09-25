@@ -4504,11 +4504,23 @@ these mechanisms to be combined as desired.
 :el-prefix:`flex/` |-| **elasticity** |?|
 '''''''''''''''''''''''''''''''''''''''''
 
-The elasticity model is a `Saint Venant-Kirchhoff
-<https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__ model discretized with
-piecewise linear finite elements, intended to simulate the compression or elongation of hyperelastic materials subjected
-to large displacements (finite rotations) and small strains, since it uses a nonlinear strain-displacement but a linear
-stress-strain relationship. See also :ref:`deformable <CDeformable>` objects and `this model
+For non-interpolated flexes, elasticity is discretized with piecewise linear finite elements. Two-dimensional stretching
+uses a `Saint Venant-Kirchhoff
+<https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__ model. Three-dimensional
+tetrahedra use the simplified `Stable Neo-Hookean <https://research.pixar.com/docs/2022.SiggraphCourses.KE.pdf>`__ energy
+
+.. math::
+
+   \psi(F) = \frac{\mu}{2}\big(\operatorname{tr}(F^T F)-3\big)
+             -\mu(J-1)+\frac{\lambda+\mu}{2}(J-1)^2, \qquad J=\det F,
+
+where :math:`\mu` and :math:`\lambda` are the usual Lamé parameters derived from Young's modulus and Poisson's ratio.
+The energy and forces remain finite when tetrahedra flatten or invert; the signed-volume term provides recovery forces
+without requiring :ref:`internal contacts<flex-contact-internal>`. This does not prohibit inversion or remove the
+need to choose an appropriate timestep. The discrete integrator uses a positive-semidefinite projection of the material
+Hessian. Interpolated flexes retain their existing corotational elasticity.
+
+See also :ref:`deformable <CDeformable>` objects and `this model
 <https://github.com/google-deepmind/mujoco/blob/main/model/flex/floppy.xml>`__.
 
 .. _flex-elasticity-young:
@@ -4529,6 +4541,7 @@ stress-strain relationship. See also :ref:`deformable <CDeformable>` objects and
 :at:`damping`: :at-val:`real(1), "0"`
    Rayleigh's damping coefficient, units of time.
    This quantity scales the stiffness defined by Young's modulus to produce the damping matrix.
+   For non-interpolated 3D flexes, damping uses the projected SNH stiffness, so it remains dissipative during inversion.
 
 .. _flex-elasticity-thickness:
 

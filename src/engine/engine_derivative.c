@@ -1620,15 +1620,10 @@ void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* ve
 }
 
 
-// compute res += (s1 + s2*flex_damping) * K_stretch * vec for standard (non-interp) flex
-// stretch, where K_stretch is the Hessian of the passive stretch force in mj_flexPassiveStretch:
-// with elongation e_a = L_a^2 - L0_a^2 and force f = -sum_ab M_ab e_a grad(e_b)/2,
-//   K = 2 sum_ab M_ab (s_a d_a)(s_b d_b)^T  +  sum_a Me_a (Laplacian_a (x) I3),
-// d_a the current edge vector and Me_a = sum_b M_ab e_b the edge tension. The first (Gauss-Newton)
-// term alone is not the Jacobian of the force: without the second (geometric) term the operator is
-// only first-order correct, which shows up directly as finite-difference error against
-// -d(qfrc_passive)/dq for affine attachments. With articulated attachments J'KJ is a
-// PSD approximation: derivatives of the attachment Jacobian are not included.
+// compute res += (s1 + s2*flex_damping) * K_stretch * vec for standard flexes
+// 3D uses the eigenvalue-clamped SNH material Hessian; 2D keeps the StVK material
+// term and tensile geometric stiffness. Both are PSD. For articulated attachments
+// the pullback J'KJ omits derivatives of the attachment Jacobian.
 static void flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                             mjtNum s1, mjtNum s2, int first, int last) {
   for (int f = first; f < last; f++) {
@@ -1670,6 +1665,18 @@ static void flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtN
       // current edge vectors and their world-frame variations from the attachment Jacobians
       mjtNum dvec[6][3], dw[6][3];
       mj_stretchEdgeVectors(dvec, xpos, vert, dim);
+      if (dim == 3) {
+        mjtNum eigen[9], mode[9][4][3], velocity[4][3], result[4][3];
+        mj_snhStiffness(eigen, mode, dvec, k + 21*t);
+        for (int v = 0; v < 4; v++) {
+          mju_copy3(velocity[v], wvec + 3*vert[v]);
+        }
+        mj_snhStiffnessMul(result, eigen, mode, velocity, scale);
+        for (int v = 0; v < 4; v++) {
+          mju_addTo3(wres + 3*vert[v], result[v]);
+        }
+        continue;
+      }
       for (int e = 0; e < nedge; e++) {
         int v0 = vert[edge[e][0]], v1 = vert[edge[e][1]];
         const mjtNum* w0 = wvec + 3*v0;
@@ -2209,10 +2216,14 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
       for (int t = 0; t < m->flex_elemnum[f]; t++) {
         const int* vert = elem + (dim+1)*t;
 
-        mjtNum dvec[6][3], metric[36], tension[6];
+        mjtNum dvec[6][3], metric[36], tension[6], eigen[9], mode[9][4][3];
         mj_stretchEdgeVectors(dvec, xpos, vert, dim);
-        mj_stretchStiffness(metric, tension, kk + 21*t, eelem + t*nedge,
-                            elen, elen0, nedge);
+        if (dim == 3) {
+          mj_snhStiffness(eigen, mode, dvec, kk + 21*t);
+        } else {
+          mj_stretchStiffness(metric, tension, kk + 21*t, eelem + t*nedge,
+                              elen, elen0, nedge);
+        }
 
         // assemble the same material and geometric stiffness used by the operator
         for (int i = 0; i < nvrt; i++) {
@@ -2222,7 +2233,11 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
             int sj = vslot[m->flex_vertadr[f] + vert[j]];
             if (sj < 0) continue;
             mjtNum blk[9];
-            mj_stretchStiffnessBlock(blk, metric, tension, dvec, dim, i, j, scale);
+            if (dim == 3) {
+              mj_snhStiffnessBlock(blk, eigen, mode, i, j, scale);
+            } else {
+              mj_stretchStiffnessBlock(blk, metric, tension, dvec, dim, i, j, scale);
+            }
 
             // blk is world-space but the destination dofs are the vertex bodies' own (possibly
             // rotated) slide axes: blk_dof = R_bi^T * blk_world * R_bj, matching the force path
