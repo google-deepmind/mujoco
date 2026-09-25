@@ -490,6 +490,7 @@ class OptionJAX(PyTreeNode):
   o_friction: jax.Array
   disableactuator: int
   sdf_initpoints: int
+  solver_scan: bool
   has_fluid_params: bool
 
 
