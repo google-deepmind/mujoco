@@ -1564,8 +1564,24 @@ void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* ve
 
     const mjtNum* b = m->flex_bending + bendingadr;
     const int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
+    int vertnum = m->flex_vertnum[f];
     int edgenum = m->flex_edgenum[f];
     int edgeadr = m->flex_edgeadr[f];
+
+    mj_markStack(d);
+    mjtNum* wvec = mjSTACKALLOC(d, 3*vertnum, mjtNum);
+    mjtNum* wres = mjSTACKALLOC(d, 3*vertnum, mjtNum);
+    mju_zero(wres, 3*vertnum);
+
+    // precompute world-space input vector R * vec once per vertex
+    for (int v = 0; v < vertnum; v++) {
+      int bi = m->body_weldid[bodyid[v]];
+      if (m->body_dofnum[bi] == 3) {
+        mji_mulMatVec3(wvec + 3*v, d->xmat + 9*bi, vec + m->body_dofadr[bi]);
+      } else {
+        mju_zero3(wvec + 3*v);
+      }
+    }
 
     for (int e = 0; e < edgenum; e++) {
       const int* edge = m->flex_edge + 2*(e + edgeadr);
@@ -1577,40 +1593,32 @@ void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* ve
         continue;
       }
 
-      // apply 4x4 bending stencil, coordinate-wise. Pinned vertices (bodies without
-      // exactly 3 dofs) contribute nothing, as in mjd_flexStretch_mul: they have no
-      // dof to write a row into and none to read a displacement from, and body_dofadr
-      // is negative there, so an unguarded index runs off both res and vec.
-      // The stencil is built from WORLD-space vertex positions while the slide dofs live in each
-      // vertex body's own (possibly rotated) frame, so the operator is sandwiched with R (dof ->
-      // world) and R^T (world -> dof), as mjd_flexStretch_mul does. Without it the operator is not
-      // the Jacobian of mj_flexPassiveBend's force whenever a flex parent is rotated.
+      // apply 4x4 bending stencil in world space
       for (int i = 0; i < 4; i++) {
-        int bi = m->body_weldid[bodyid[v[i]]];
-        if (m->body_dofnum[bi] != 3) {
-          continue;
-        }
-        mjtNum vw[3] = {0, 0, 0};
         for (int j = 0; j < 4; j++) {
-          int bj = m->body_weldid[bodyid[v[j]]];
-          if (m->body_dofnum[bj] != 3) {
-            continue;
-          }
-          mjtNum wj[3];
-          mji_mulMatVec3(wj, d->xmat + 9*bj, vec + m->body_dofadr[bj]);
           mjtNum q = b[17*e + 4*i + j];
           for (int x = 0; x < 3; x++) {
-            vw[x] += q * wj[x];
+            wres[3*v[i] + x] += q * wvec[3*v[j] + x];
           }
-        }
-        mjtNum vl[3];
-        mji_mulMatTVec3(vl, d->xmat + 9*bi, vw);
-        int dof_i = m->body_dofadr[bi];
-        for (int x = 0; x < 3; x++) {
-          res[dof_i + x] += scale * vl[x];
         }
       }
     }
+
+    // rotate accumulated world-space result into body slide dofs once per vertex
+    for (int v = 0; v < vertnum; v++) {
+      int bi = m->body_weldid[bodyid[v]];
+      if (m->body_dofnum[bi] != 3) {
+        continue;
+      }
+      mjtNum vl[3];
+      mji_mulMatTVec3(vl, d->xmat + 9*bi, wres + 3*v);
+      int dof_i = m->body_dofadr[bi];
+      for (int x = 0; x < 3; x++) {
+        res[dof_i + x] += scale * vl[x];
+      }
+    }
+
+    mj_freeStack(d);
   }
 }
 
@@ -2210,18 +2218,28 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
           int si = vslot[m->flex_vertadr[f] + v[i]];
           if (si < 0) continue;
           int bi = m->body_weldid[m->flex_vertbodyid[m->flex_vertadr[f] + v[i]]];
+          const mjtNum* qi = d->xquat + 4*bi;
           for (int j = 0; j < 4; j++) {
             int sj = vslot[m->flex_vertadr[f] + v[j]];
             if (sj < 0) continue;
             mjtNum q = scale*b[17*e + 4*i + j];
             if (!q) continue;
             int bj = m->body_weldid[m->flex_vertbodyid[m->flex_vertadr[f] + v[j]]];
-            mjtNum blkd[9];
-            mji_mulMatTMat3(blkd, d->xmat + 9*bi, d->xmat + 9*bj);
+            const mjtNum* qj = d->xquat + 4*bj;
             int pos;
             FLEXSTIFF_BLOCK(si, sj, pos);
-            for (int k = 0; k < 3; k++) {
-              mji_addToScl3(val + rowadr[vdof[si] + k] + 3*pos, blkd + 3*k, q);
+            // fast path: when bi and bj share the same body orientation, R_bi^T * R_bj = I3
+            if (bi == bj || (qi[0] == qj[0] && qi[1] == qj[1] &&
+                             qi[2] == qj[2] && qi[3] == qj[3])) {
+              val[rowadr[vdof[si] + 0] + 3*pos + 0] += q;
+              val[rowadr[vdof[si] + 1] + 3*pos + 1] += q;
+              val[rowadr[vdof[si] + 2] + 3*pos + 2] += q;
+            } else {
+              mjtNum blkd[9];
+              mji_mulMatTMat3(blkd, d->xmat + 9*bi, d->xmat + 9*bj);
+              for (int k = 0; k < 3; k++) {
+                mji_addToScl3(val + rowadr[vdof[si] + k] + 3*pos, blkd + 3*k, q);
+              }
             }
           }
         }

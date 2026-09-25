@@ -490,11 +490,38 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
   if (bendingadr < 0) {
     return;
   }
+  mjtNum damp = enbl_damper ? m->flex_damping[f] : 0;
+  enbl_damper = (damp != 0);
+  if (!enbl_spring && !enbl_damper) {
+    return;
+  }
 
+  int vertnum = m->flex_vertnum[f];
   int edgenum = m->flex_edgenum[f];
   mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
   int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
   mjtNum* b = m->flex_bending + bendingadr;
+
+  mj_markStack(d);
+  mjtNum* vvel = enbl_damper ? mjSTACKALLOC(d, 3*vertnum, mjtNum) : NULL;
+  mjtNum* spring = enbl_spring ? mjSTACKALLOC(d, 3*vertnum, mjtNum) : NULL;
+  mjtNum* damper = enbl_damper ? mjSTACKALLOC(d, 3*vertnum, mjtNum) : NULL;
+
+  if (enbl_spring) {
+    mju_zero(spring, 3*vertnum);
+  }
+  if (enbl_damper) {
+    mju_zero(damper, 3*vertnum);
+    // precompute world-frame velocity R * qvel once per vertex (pinned vertices have 0 velocity)
+    for (int v = 0; v < vertnum; v++) {
+      int bid = m->body_weldid[bodyid[v]];
+      if (m->body_dofnum[bid] == 3) {
+        mji_mulMatVec3(vvel + 3*v, d->xmat + 9*bid, d->qvel + m->body_dofadr[bid]);
+      } else {
+        mju_zero3(vvel + 3*v);
+      }
+    }
+  }
 
   for (int e = 0; e < edgenum; e++) {
     const int* edge = m->flex_edge + 2*(e+m->flex_edgeadr[f]);
@@ -520,57 +547,46 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
     frc[0][1] = -(frc[1][1] + frc[2][1] + frc[3][1]);
     frc[0][2] = -(frc[1][2] + frc[2][2] + frc[3][2]);
 
-    // a world-pinned vertex is welded to a static (jointless) parent body: its bending reaction is
-    // absorbed by the pin, so its velocity is zero and (below) no force is applied to it.
-    // A vertex welded to a moving 3-slide-dof parent body inherits its weld parent's dofs and
-    // world-frame velocity R * qvel.
-    mjtNum vel[4][3] = {{0}};
-    int isfree[4];
-    for (int i = 0; i < 4; i++) {
-      int bid = m->body_weldid[bodyid[v[i]]];
-      isfree[i] = (m->body_dofnum[bid] == 3);
-      if (isfree[i]) {
-        mji_mulMatVec3(vel[i], d->xmat + 9*bid, d->qvel + m->body_dofadr[bid]);
-      }
-    }
-
-    // force
-    mjtNum spring[12] = {0};
-    mjtNum damper[12] = {0};
+    // accumulate world-space bending forces per vertex
     for (int i = 0; i < 4; i++) {
       for (int x = 0; x < 3; x++) {
         for (int j = 0; j < 4; j++) {
           // thin plate bending force
-          if (enbl_spring) spring[3*i+x] += b[17*e+4*i+j] * xpos[3*v[j]+x];
+          if (enbl_spring) spring[3*v[i]+x] += b[17*e+4*i+j] * xpos[3*v[j]+x];
 
           // thin plate damping force
-          if (enbl_damper) damper[3*i+x] += b[17*e+4*i+j] * vel[j][x];
+          if (enbl_damper) damper[3*v[i]+x] += b[17*e+4*i+j] * vvel[3*v[j]+x];
         }
 
         // curved reference contribution
-        if (enbl_spring) spring[3*i+x] += b[17*e+16] * frc[i][x];
-      }
-    }
-
-    // insert into global force (free flex vertices only: 3 translational dofs, no moment arm).
-    // A world-pinned vertex has no free flex dof -- its bending reaction is carried by the pin --
-    // so it is skipped (its POSITION still enters every neighbor's force via the xpos sum above,
-    // which is what the pin constrains).
-    for (int i = 0; i < 4; i++) {
-      if (!isfree[i]) continue;
-      int bi = m->body_weldid[bodyid[v[i]]];
-      int body_dofadr = m->body_dofadr[bi];
-      // spring/damper are world-space; the slide dofs are in the body frame, so rotate before
-      // accumulating (mj_flexPassiveStretch reaches the same frame through mj_applyFT).
-      mjtNum sl[3], dl[3];
-      mji_mulMatTVec3(sl, d->xmat + 9*bi, spring + 3*i);
-      mji_mulMatTVec3(dl, d->xmat + 9*bi, damper + 3*i);
-      for (int x = 0; x < 3; x++) {
-        if (enbl_spring) d->qfrc_spring[body_dofadr+x] -= sl[x];
-        if (enbl_damper) d->qfrc_damper[body_dofadr+x] -= dl[x] * m->flex_damping[f];
+        if (enbl_spring) spring[3*v[i]+x] += b[17*e+16] * frc[i][x];
       }
     }
   }
+
+  // rotate accumulated world-space forces into body slide dofs once per vertex
+  // (world-pinned vertices have dofnum != 3 and are skipped, as the pin absorbs their reaction)
+  for (int v = 0; v < vertnum; v++) {
+    int bi = m->body_weldid[bodyid[v]];
+    if (m->body_dofnum[bi] != 3) continue;
+    int body_dofadr = m->body_dofadr[bi];
+    if (enbl_spring) {
+      mjtNum sl[3];
+      mji_mulMatTVec3(sl, d->xmat + 9*bi, spring + 3*v);
+      for (int x = 0; x < 3; x++) {
+        d->qfrc_spring[body_dofadr+x] -= sl[x];
+      }
+    }
+    if (enbl_damper) {
+      mjtNum dl[3];
+      mji_mulMatTVec3(dl, d->xmat + 9*bi, damper + 3*v);
+      for (int x = 0; x < 3; x++) {
+        d->qfrc_damper[body_dofadr+x] -= dl[x] * damp;
+      }
+    }
+  }
+
+  mj_freeStack(d);
 }
 
 
