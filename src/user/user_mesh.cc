@@ -4177,6 +4177,29 @@ void mjCFlex::ResolveReferences(const mjCModel* m) {
 }
 
 
+// Mirrors mj_flexSimple: only fixed-frame XYZ translations use the cached bending factor.
+bool mjCFlex::IsSimple() const {
+  for (int bid : vertbodyid) {
+    const mjCBody* weld = model->Bodies()[model->Bodies()[bid]->weldid];
+    if (!weld->joints.empty()) {
+      if (weld->joints.size() != 3) return false;
+      for (int j = 0; j < 3; j++) {
+        const mjCJoint* joint = weld->joints[j];
+        if (joint->type != mjJNT_SLIDE) return false;
+        for (int k = 0; k < 3; k++) {
+          // Match the precision of the engine's compiled axes, including in float builds.
+          if (std::abs(static_cast<mjtNum>(joint->axis[k]) - (j == k)) > mjEPS) return false;
+        }
+      }
+    }
+    for (const mjCBody* ancestor = weld->parent; ancestor; ancestor = ancestor->parent) {
+      if (!ancestor->joints.empty()) return false;
+    }
+  }
+  return true;
+}
+
+
 std::string mjCFlex::ComputeStiffnessCacheKey() const {
   std::size_t hash = 0;
   auto combine     = [&hash](std::size_t v) { hash ^= v + 0x9e3779b9 + (hash << 6) + (hash >> 2); };
@@ -4785,6 +4808,20 @@ void mjCFlex::Compile(const mjVFS* vfs) {
       throw mjCError(this, "Poisson ratio must be in [0, 0.5)");
     }
 
+    // Mocap poses do not supply velocities, so they cannot define elastic damping or the
+    // implicit shift consistently. Dynamic articulated attachments have ordinary Jacobians.
+    if (!rigid && !interpolated) {
+      for (int bid : vertbodyid) {
+        for (const mjCBody* body = model->Bodies()[bid]; body; body = body->parent) {
+          if (body->mocap) {
+            throw mjCError(this,
+                           "flex elasticity does not support mocap attachments, body '%s'",
+                           body->name.c_str());
+          }
+        }
+      }
+    }
+
     // linear elasticity
     if (!interpolated) { stiffness.assign(21 * nelem, 0); }
 
@@ -4811,36 +4848,6 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
     // bending stiffness (2D only)
     if (dim == 2 && (elastic2d == 1 || elastic2d == 3) && !interpolated) {
-      // The bending kernels use R * qvel and R^T * force on the weld parent's XYZ slides.
-      // Validate compiled axes (including joint frames), and exclude articulated or mocap
-      // ancestors: their motion is absent from that mapping and makes the cached factor vary.
-      if (!rigid) {
-        for (int bid : vertbodyid) {
-          const mjCBody* body      = model->Bodies()[bid];
-          const mjCBody* weld      = model->Bodies()[body->weldid];
-          bool           supported = weld->joints.empty();
-          if (weld->joints.size() == 3) {
-            supported = true;
-            for (int j = 0; j < 3; j++) {
-              const mjCJoint* joint  = weld->joints[j];
-              supported             &= joint->type == mjJNT_SLIDE;
-              for (int k = 0; k < 3; k++) {
-                supported &= std::abs(joint->axis[k] - (j == k)) <= mjEPS;
-              }
-            }
-          }
-          for (const mjCBody* ancestor = weld; ancestor; ancestor = ancestor->parent) {
-            supported &= !ancestor->mocap;
-            if (ancestor != weld) { supported &= ancestor->joints.empty(); }
-          }
-          if (!supported) {
-            throw mjCError(this,
-                           "flex bending requires a fixed body or three XYZ slide joints "
-                           "with fixed ancestors; unsupported vertex body '%s'",
-                           body->name.c_str());
-          }
-        }
-      }
       bending.assign(nedge * 17, 0);
 
       for (unsigned int e = 0; e < nedge; e++) {

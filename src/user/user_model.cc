@@ -2126,7 +2126,7 @@ void mjCModel::SetSizes() {
   // The count must match the symbolic factorization performed in mj_setConst (asserted there).
   std::vector<int> body_slot(bodies_.size(), -1);
   for (int i = 0; i < nflex; i++) {
-    if (flexes_[i]->interpolated || flexes_[i]->rigid) { continue; }
+    if (flexes_[i]->interpolated || flexes_[i]->rigid || !flexes_[i]->IsSimple()) { continue; }
     if (flexes_[i]->dim == 2 && !flexes_[i]->bending.empty()) {
       const mjCFlex* fl = flexes_[i];
       for (int v = 0; v < fl->nvert; v++) {
@@ -2143,7 +2143,7 @@ void mjCModel::SetSizes() {
     // vertex adjacency from 4-vertex flap stencils across all qualifying flexes
     std::vector<std::set<int>> adj(nfree);
     for (int i = 0; i < nflex; i++) {
-      if (flexes_[i]->interpolated || flexes_[i]->rigid) { continue; }
+      if (flexes_[i]->interpolated || flexes_[i]->rigid || !flexes_[i]->IsSimple()) { continue; }
       if (flexes_[i]->dim == 2 && !flexes_[i]->bending.empty()) {
         const mjCFlex*   fl = flexes_[i];
         std::vector<int> slot(fl->nvert, -1);

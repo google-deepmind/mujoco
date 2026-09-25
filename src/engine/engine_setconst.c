@@ -1364,7 +1364,7 @@ static void setSpring(mjModel* m, mjData* d) {
 // constant part of the implicit effective metric factor (currently dim-2 bending): sparse
 // reverse-Cholesky of M + (h^2 + h*damping)*K_bend over
 // the dofs of unpinned vertices of standard dim-2 flexes with bending. The matrix is constant
-// (flat-rest bending stiffness, point masses), so the factor is computed here once and reused
+// (flat-rest bending stiffness, independent point masses), so it is computed here once and reused
 // by the implicit-flex constraint solve every step. Bending couples full 3x3 blocks when vertex
 // frames differ. Row order (body order, coordinate fastest) and the fill count must match the
 // compiler's symbolic sizing (checked below).
@@ -1385,7 +1385,7 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
   }
   for (int f=0; f < m->nflex; f++) {
     if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] != 2 ||
-        m->flex_bendingadr[f] < 0) {
+        m->flex_bendingadr[f] < 0 || !mj_flexSimple(m, f)) {
       continue;
     }
     for (int lv=0; lv < m->flex_vertnum[f]; lv++) {
@@ -1414,8 +1414,8 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
   }
 
   // assemble the bending-only stiffness K = (h^2 + h*damping)*K_bend over all dofs with the
-  // shared stencil walker from engine_derivative. The compiler requires fixed vertex frames,
-  // whose orientations were computed by setSpring. As in the per-step metric, the h^2 and
+  // shared stencil walker from engine_derivative. Only fixed-frame attachments participate;
+  // their orientations were computed by setSpring. As in the per-step metric, the h^2 and
   // h*damping parts enter only when the spring and damper forces are enabled.
   mjtNum s1 = mjDISABLED(mjDSBL_SPRING) ? 0 : h*h;
   mjtNum s2 = mjDISABLED(mjDSBL_DAMPER) ? 0 : h;

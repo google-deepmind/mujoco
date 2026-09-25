@@ -1482,7 +1482,7 @@ TEST_F(UserFlexTest, Load1DFlexFromOBJ) {
   mj_deleteModel(m);
 }
 
-TEST_F(UserFlexTest, PinBendingRejectsNonStaticBody) {
+TEST_F(UserFlexTest, PinBendingAcceptsMovingBody) {
   // pinned vertex inherits the flexcomp's parent body, which here has a joint
   static constexpr char xml[] = R"(
   <mujoco>
@@ -1501,8 +1501,7 @@ TEST_F(UserFlexTest, PinBendingRejectsNonStaticBody) {
   )";
   std::array<char, 1024> error;
   MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m.get(), IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("flex bending requires a fixed body"));
+  EXPECT_THAT(m.get(), NotNull()) << error.data();
 }
 
 TEST_F(UserFlexTest, PinBendingAcceptsStaticBody) {
@@ -1706,15 +1705,10 @@ class FlexBendingAttachmentTest
   }
 };
 
-TEST_P(FlexBendingAttachmentTest, RejectsUnsupportedBendingMotion) {
+TEST_P(FlexBendingAttachmentTest, AcceptsArticulatedBendingMotion) {
   char error[1024];
   auto model = LoadAttachment(error, sizeof(error));
-  EXPECT_THAT(model.get(), IsNull());
-  EXPECT_THAT(
-      error,
-      HasSubstr(
-          "flex bending requires a fixed body or three XYZ slide joints"));
-  EXPECT_THAT(error, HasSubstr("vertex body 'pin'"));
+  EXPECT_THAT(model.get(), NotNull()) << error;
 }
 
 TEST_P(FlexBendingAttachmentTest, DoesNotRestrictStretchOnlyAttachments) {
@@ -1724,7 +1718,7 @@ TEST_P(FlexBendingAttachmentTest, DoesNotRestrictStretchOnlyAttachments) {
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    UnsupportedMotion, FlexBendingAttachmentTest,
+    ArticulatedMotion, FlexBendingAttachmentTest,
     testing::Values(
         BendingAttachmentCase{"Ball", "<joint type='ball'/>", ""},
         BendingAttachmentCase{
@@ -1743,9 +1737,29 @@ INSTANTIATE_TEST_SUITE_P(
             std::string("<frame euler='0 0 30'>") + kXYZSlides + "</frame>",
             ""},
         BendingAttachmentCase{"MovingAncestor", kXYZSlides,
-                              "<joint type='ball'/>"},
-        BendingAttachmentCase{"FixedChildOfMocap", "", "", "mocap='true'"},
-        BendingAttachmentCase{"MocapAncestor", kXYZSlides, "", "mocap='true'"}),
+                              "<joint type='ball'/>"}),
+    [](const testing::TestParamInfo<BendingAttachmentCase>& info) {
+      return info.param.name;
+    });
+
+class FlexMocapAttachmentTest : public FlexBendingAttachmentTest {};
+
+TEST_P(FlexMocapAttachmentTest, RejectsMocapElasticity) {
+  for (const char* elasticity : {"bend", "stretch"}) {
+    SCOPED_TRACE(elasticity);
+    char error[1024];
+    auto model = LoadAttachment(error, sizeof(error), elasticity);
+    EXPECT_EQ(model.get(), nullptr);
+    EXPECT_THAT(
+        error, HasSubstr("flex elasticity does not support mocap attachments"));
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Mocap, FlexMocapAttachmentTest,
+    testing::Values(BendingAttachmentCase{"FixedChild", "", "", "mocap='true'"},
+                    BendingAttachmentCase{"SliderChild", kXYZSlides, "",
+                                          "mocap='true'"}),
     [](const testing::TestParamInfo<BendingAttachmentCase>& info) {
       return info.param.name;
     });

@@ -4544,9 +4544,12 @@ stress-strain relationship. See also :ref:`deformable <CDeformable>` objects and
    "both": bending and stretching. Bending is not yet supported by :ref:`dof<body-flexcomp-dof>` **trilinear** and
    **quadratic**.
 
-   For non-rigid, non-interpolated flexes with bending stiffness, each vertex must be attached to a fixed body or a body with
-   three slide joints along its local positive X, Y and Z axes, in that order. Jointless welded children of such bodies
-   are supported. The slide body's ancestors must be fixed; articulated and mocap attachments are not supported.
+   Non-interpolated flex elasticity supports vertices attached to articulated bodies, including jointless welded children.
+   A vertex pinned to a moving body follows that body's motion and applies its reaction force and torque to the body.
+   With the :ref:`discrete<option-integrator>` integrator, use :ref:`solver<option-solver>` **CG** for general attachments.
+   Newton supports fixed attachments and independent slide bodies with local positive X, Y and Z joints in that order
+   and fixed ancestors. Mocap attachments are not supported for non-rigid flexes with elasticity because mocap poses do
+   not provide velocities for elastic damping.
 
 .. _flex-contact:
 
