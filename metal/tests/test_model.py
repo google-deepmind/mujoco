@@ -14,6 +14,10 @@
 
 """CPU contract tests for generic model lowering."""
 
+import subprocess
+import sys
+import textwrap
+
 import mujoco
 import numpy as np
 import pytest
@@ -110,7 +114,6 @@ def test_invalid_quaternion_and_feature_registry_is_host_only():
       row.stage in Stage and row.implementation in Implementation
       for row in inventory
   )
-  assert "torch" not in __import__("sys").modules
 
 
 def test_rejects_mocap_and_malformed_source_model():
@@ -160,7 +163,6 @@ def test_metal_host_buffer_packing_without_torch_or_mps():
   assert packed["jnt_type"].shape == (1,)
   assert packed["geom_bodyid"].shape == (1,)
   assert packed["site_bodyid"].shape == (1,)
-  assert "torch" not in __import__("sys").modules
 
   moving = load_model(
       '<mujoco><worldbody><body><joint type="hinge"/><geom type="sphere" size=".1"/></body></worldbody></mujoco>'
@@ -190,7 +192,23 @@ def test_preflight_is_cpu_only_and_includes_stage_inventory(tmp_path):
   assert any(
       row["name"].startswith("python-api:mj_") for row in result["features"]
   )
-  assert "torch" not in __import__("sys").modules
+
+
+def test_host_only_apis_do_not_import_torch_in_fresh_process():
+  script = textwrap.dedent(
+      """
+      import sys
+      from mujoco_metal.__main__ import preflight
+      from mujoco_metal.metal_kinematics import _prepare_host_arrays
+      from mujoco_metal.model import load_model
+
+      model = load_model('<mujoco><worldbody/></mujoco>')
+      _prepare_host_arrays(model)
+      preflight(include_inventory=True)
+      assert 'torch' not in sys.modules
+      """
+  )
+  subprocess.run([sys.executable, "-c", script], check=True)
 
 
 def test_zero_length_output_reshape_discards_dummy_buffer():
