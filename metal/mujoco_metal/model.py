@@ -77,6 +77,7 @@ class ModelDescriptor:
   njnt: int
   ngeom: int
   nsite: int
+  ntendon: int
   body_rootid: np.ndarray
   body_dofadr: np.ndarray
   body_dofnum: np.ndarray
@@ -96,6 +97,7 @@ class ModelDescriptor:
   body_mass: np.ndarray
   body_inertia: np.ndarray
   dof_armature: np.ndarray
+  tendon_armature: np.ndarray
   jnt_type: np.ndarray
   jnt_qposadr: np.ndarray
   jnt_dofadr: np.ndarray
@@ -224,6 +226,7 @@ def _validate_lowered(counts, values):
       "body_mass": (nb,),
       "body_inertia": (nb, 3),
       "dof_armature": (nv,),
+      "tendon_armature": (counts["ntendon"],),
       "jnt_type": (nj,),
       "jnt_qposadr": (nj,),
       "jnt_dofadr": (nj,),
@@ -414,6 +417,7 @@ def load_model(source):
       "body_mass",
       "body_inertia",
       "dof_armature",
+      "tendon_armature",
       "jnt_type",
       "jnt_qposadr",
       "jnt_dofadr",
@@ -441,6 +445,7 @@ def load_model(source):
       njnt=m.njnt,
       ngeom=m.ngeom,
       nsite=m.nsite,
+      ntendon=m.ntendon,
       disableflags=int(m.opt.disableflags),
   )
   _validate_lowered(counts, values)

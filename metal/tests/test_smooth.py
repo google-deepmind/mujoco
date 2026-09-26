@@ -99,6 +99,21 @@ def test_stage_rejects_actuator_models_and_invalid_state():
         descriptor, np.zeros(descriptor.nq), np.zeros(descriptor.nv)
     )
 
+  tendon_xml = """<mujoco><worldbody><body>
+    <joint name="j"/><geom type="sphere" size=".1"/>
+    </body></worldbody><tendon><fixed armature=".2">
+    <joint joint="j" coef="2"/></fixed></tendon></mujoco>"""
+  tendon_model = mujoco.MjModel.from_xml_string(tendon_xml)
+  assert tendon_model.nu == 0 and tendon_model.ntendon == 1
+  tendon_descriptor = load_model(tendon_model)
+  tendon_data = mujoco.MjData(tendon_model)
+  mujoco.mj_forward(tendon_model, tendon_data)
+  reference_mass = np.empty((tendon_model.nv, tendon_model.nv))
+  mujoco.mj_fullM(tendon_model, tendon_data, reference_mass)
+  with pytest.raises(ValueError, match="tendon armature"):
+    smooth_dynamics(tendon_descriptor, tendon_data.qpos, tendon_data.qvel)
+  assert reference_mass[0, 0] > tendon_model.dof_armature[0]
+
   passive = load_model(
       '<mujoco><worldbody><body><joint/><geom type="sphere" size=".1"/></body></worldbody></mujoco>'
   )
@@ -136,3 +151,67 @@ def test_deep_chain_uses_model_dimensions_for_dense_matrix():
   np.testing.assert_allclose(
       actual["qfrc_bias"], data.qfrc_bias, rtol=1e-10, atol=1e-10
   )
+
+
+def test_empty_world_and_massless_fixed_ancestor():
+  empty = load_model("<mujoco><worldbody/></mujoco>")
+  result = smooth_dynamics(empty, np.empty(0), np.empty(0))
+  assert result["mass_matrix"].shape == (0, 0)
+  assert result["qfrc_bias"].shape == (0,)
+
+  xml = """<mujoco><worldbody>
+    <body pos="0 0 .1"><body pos=".1 0 0"><joint type="hinge"/>
+      <geom type="sphere" size=".08"/></body></body>
+  </worldbody></mujoco>"""
+  model = mujoco.MjModel.from_xml_string(xml)
+  descriptor = load_model(model)
+  data = mujoco.MjData(model)
+  data.qpos[0] = 0.37
+  data.qvel[0] = -0.4
+  mujoco.mj_forward(model, data)
+  actual = smooth_dynamics(descriptor, data.qpos, data.qvel)
+  expected_mass = np.empty((model.nv, model.nv))
+  mujoco.mj_fullM(model, data, expected_mass)
+  np.testing.assert_allclose(actual["mass_matrix"], expected_mass, atol=1e-12)
+  np.testing.assert_allclose(actual["qfrc_bias"], data.qfrc_bias, atol=1e-12)
+
+
+def test_rotated_inertial_frame_two_hinges_on_one_body():
+  xml = """<mujoco><worldbody><body>
+    <joint type="hinge" axis="0 1 0"/>
+    <joint type="hinge" pos=".1 0 0" axis="1 0 0"/>
+    <inertial pos=".1 .2 .3" quat=".9238795325 .3826834324 0 0"
+      mass="1.7" diaginertia=".12 .19 .23"/>
+  </body></worldbody></mujoco>"""
+  model = mujoco.MjModel.from_xml_string(xml)
+  descriptor = load_model(model)
+  data = mujoco.MjData(model)
+  data.qpos[:] = [0.31, -0.28]
+  data.qvel[:] = [0.8, -1.1]
+  mujoco.mj_forward(model, data)
+  expected_mass = np.empty((model.nv, model.nv))
+  mujoco.mj_fullM(model, data, expected_mass)
+  actual = smooth_dynamics(descriptor, data.qpos, data.qvel)
+  np.testing.assert_allclose(actual["mass_matrix"], expected_mass, atol=1e-12)
+  np.testing.assert_allclose(actual["qfrc_bias"], data.qfrc_bias, atol=1e-12)
+
+
+def test_gravity_disable_and_analytic_hinge_pendulum_bias():
+  model = mujoco.MjModel.from_xml_string("""<mujoco><worldbody><body>
+      <joint type="hinge" axis="0 1 0"/>
+      <inertial pos="0 0 -.7" mass="2" diaginertia=".1 .1 .1"/>
+      </body></worldbody></mujoco>""")
+  descriptor = load_model(model)
+  qpos = np.array([0.4])
+  qvel = np.zeros(1)
+  bias = smooth_dynamics(descriptor, qpos, qvel)["qfrc_bias"]
+  np.testing.assert_allclose(bias, [2 * 9.81 * 0.7 * np.sin(0.4)], atol=1e-12)
+
+  model.opt.disableflags |= int(mujoco.mjtDisableBit.mjDSBL_GRAVITY)
+  disabled = load_model(model)
+  data = mujoco.MjData(model)
+  data.qpos[:] = qpos
+  mujoco.mj_forward(model, data)
+  actual = smooth_dynamics(disabled, qpos, qvel)
+  np.testing.assert_allclose(actual["qfrc_bias"], data.qfrc_bias, atol=1e-12)
+  np.testing.assert_allclose(actual["qfrc_bias"], [0.0], atol=1e-12)

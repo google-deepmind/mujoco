@@ -34,6 +34,7 @@ def _prepare_host_arrays(model: ModelDescriptor):
       "njnt": model.njnt,
       "ngeom": model.ngeom,
       "nsite": model.nsite,
+      "ntendon": model.ntendon,
       "disableflags": model.disableflags,
   }
   names = (
@@ -55,6 +56,7 @@ def _prepare_host_arrays(model: ModelDescriptor):
       "body_mass",
       "body_inertia",
       "dof_armature",
+      "tendon_armature",
       "jnt_type",
       "jnt_qposadr",
       "jnt_dofadr",
@@ -136,6 +138,7 @@ class MetalKinematics:
           "body_mass",
           "body_inertia",
           "dof_armature",
+          "tendon_armature",
           "geom_type",
           "geom_size",
       ):

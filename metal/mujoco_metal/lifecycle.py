@@ -43,6 +43,7 @@ def _fingerprint(model):
       "njnt",
       "ngeom",
       "nsite",
+      "ntendon",
       "disableflags",
   ):
     digest.update(int(getattr(model, name)).to_bytes(8, "little"))

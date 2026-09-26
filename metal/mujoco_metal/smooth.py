@@ -144,9 +144,13 @@ def smooth_dynamics(model: ModelDescriptor, qpos, qvel):
   """
   if model.nu:
     raise ValueError("smooth dynamics reference does not support actuators")
+  if np.any(model.tendon_armature != 0):
+    raise ValueError(
+        "smooth dynamics reference does not support tendon armature"
+    )
   counts = {
       name: getattr(model, name)
-      for name in ("nq", "nv", "nbody", "njnt", "ngeom", "nsite")
+      for name in ("nq", "nv", "nbody", "njnt", "ngeom", "nsite", "ntendon")
   }
   values = {
       item.name: getattr(model, item.name)

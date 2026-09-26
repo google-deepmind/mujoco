@@ -171,7 +171,7 @@ def _inventory():
           Implementation.CPU_REFERENCE,
           Qualification.CPU_ORACLE,
           Execution.HOST,
-          "no actuator armature/forces, passive forces, contacts, constraints, or stepping",
+          "no actuator/tendon armature or forces, passive forces, contacts, constraints, or stepping",
       )
   )
   result.extend(_enum_inventory())
