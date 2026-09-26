@@ -166,12 +166,12 @@ def _inventory():
   )
   result.append(
       Feature(
-          "native Metal dense mass matrix",
+          "native Metal smooth mass matrix and inertial bias",
           Stage.DYNAMICS,
           Implementation.NATIVE_GPU,
           Qualification.UNQUALIFIED,
           Execution.DEVICE,
-          "unqualified; no bias forces, actuation, contacts, constraints, or stepping",
+          "unqualified; no actuation, passive forces, contacts, constraints, or stepping",
       )
   )
   result.append(

@@ -109,11 +109,25 @@ def test_native_dense_mass_matrix_matches_mujoco_oracle():
         batch[row, qa : qa + 4] = quat / np.linalg.norm(quat)
       else:
         batch[row, qa] = rng.normal(0, 0.7)
-  actual = MetalSmoothDynamics(descriptor).mass_matrix(batch).cpu().numpy()
+  qvel = rng.normal(0.0, 2.0, size=(batch.shape[0], compiled.nv))
+  stage = MetalSmoothDynamics(descriptor)
+  output = stage.run(batch, qvel)
+  actual = output["mass_matrix"].cpu().numpy()
+  actual_bias = output["qfrc_bias"].cpu().numpy()
+  assert tuple(output["mass_matrix"].shape) == (
+      batch.shape[0],
+      compiled.nv,
+      compiled.nv,
+  )
+  assert tuple(output["qfrc_bias"].shape) == (batch.shape[0], compiled.nv)
   for row in range(batch.shape[0]):
     data = mujoco.MjData(compiled)
     data.qpos[:] = batch[row]
+    data.qvel[:] = qvel[row]
     mujoco.mj_forward(compiled, data)
     expected = np.empty((compiled.nv, compiled.nv))
     mujoco.mj_fullM(compiled, data, expected)
     np.testing.assert_allclose(actual[row], expected, rtol=3e-4, atol=3e-5)
+    np.testing.assert_allclose(
+        actual_bias[row], data.qfrc_bias, rtol=3e-4, atol=3e-5
+    )

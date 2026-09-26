@@ -51,6 +51,7 @@ kernel void dense_mass_matrix(
     device float* cdof [[buffer(18)]],
     device float* crb [[buffer(19)]],
     constant uint* dims [[buffer(20)]],
+    device float* local_inertia [[buffer(21)]],
     uint world [[thread_position_in_grid]]) {
   uint nbody = dims[0], njnt = dims[1], nv = dims[2], batch = dims[3];
   if (world >= batch) return;
@@ -129,6 +130,8 @@ kernel void dense_mass_matrix(
         crb[ib+(row+3)*6+col+3] = row == col ? mass : 0.0f;
       }
     }
+    uint local_ib = (world*nbody+b)*36;
+    for (uint k=0; k<36; ++k) local_inertia[local_ib+k] = crb[ib+k];
   }
 
   // World-oriented generalized motion axes centered on each root COM.
