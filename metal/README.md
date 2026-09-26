@@ -41,14 +41,18 @@ Run the opt-in GPU correctness tests only on an available Apple GPU with the pin
 | Sensors, remaining integrators, flexes/plugins, broad API and precision compatibility | Unimplemented or unqualified; full MuJoCo coverage is not established. |
 | Native rendering and end-to-end training integration | Outside the implemented scope. |
 
-The immediate practical application is a local adaptation of the upstream
-[chaotic-pendulum tutorial](https://github.com/google-deepmind/mujoco/blob/main/python/tutorial.ipynb).
-Its contact-disabled, four-hinge model needs no actuators or contact solver.
-An eight-state check of that exact model passed for Metal mass/bias outputs
-against CPU MuJoCo. **CPU MuJoCo generated those states, and the diagnostic
-acceleration solve was also on CPU.** This establishes a useful model for the
-next implementation milestone; it is not a Metal rollout, a completed tutorial
-port, or a performance result.
+## Runnable Mac demo
+
+The [side-by-side chaotic pendulum demo](examples/README.md) now advances a
+four-hinge, contact-free model with **Metal mass/bias plus CPU solve and
+integration**, alongside an independent CPU MuJoCo reference. Its 200-step
+rollout and reset checks pass on the local Apple M1; maximum position error
+on the initial rollout was approximately 2.2e-8 radians. The interactive
+viewer uses OpenGL and must be launched with `mjpython` on macOS.
+
+This is a working **hybrid demonstration**, not a native Metal solve/integrator,
+full simulation port, contact qualification or performance result. See the
+example instructions for launch, numerical checks and limitations.
 
 ## FAQ: MuJoCo, Metal, and Apple Silicon
 
