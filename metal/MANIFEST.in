@@ -1,0 +1,2 @@
+recursive-include tests *.py *.npz *.json
+include README.md VALIDATION.md NOTICE LICENSE

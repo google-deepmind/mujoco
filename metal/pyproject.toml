@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mujoco-metal-experimental"
+version = "0.1.0"
+description = "Experimental bounded-model Metal physics for Apple Silicon"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+dependencies = ["mujoco==3.10.0", "numpy>=2,<3"]
+
+[project.optional-dependencies]
+metal = ["torch==2.9.1"]
+test = ["torch==2.9.1", "absl-py", "pytest", "scipy"]
+
+[project.scripts]
+mujoco-metal = "mujoco_metal.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["mujoco_metal*"]
+
+[tool.setuptools.package-data]
+mujoco_metal = ["shaders/*.metal", "assets/*.xml", "assets/meshes/*.stl"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--import-mode=importlib"
+markers = ["gpu: requires explicit --run-metal and an idle Apple Silicon GPU"]
+
+[tool.pyink]
+line-length = 80
+pyink-indentation = 2
+pyink-use-majority-quotes = true
+
+[tool.isort]
+profile = "google"
+line_length = 80
