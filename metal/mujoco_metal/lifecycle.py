@@ -16,6 +16,7 @@
 
 from copy import copy
 from dataclasses import dataclass
+from dataclasses import fields
 import hashlib
 from pathlib import Path
 
@@ -33,35 +34,22 @@ def _fingerprint(model):
     mujoco.mj_saveModel(model, buffer=buffer)
     digest.update(buffer.tobytes())
     return digest.hexdigest()
-  for name in ("nq", "nv", "nbody", "njnt", "ngeom", "nsite"):
-    digest.update(int(getattr(model, name)).to_bytes(8, "little"))
   for name in (
-      "body_parentid",
-      "body_jntadr",
-      "body_jntnum",
-      "body_pos",
-      "body_quat",
-      "body_ipos",
-      "body_iquat",
-      "body_mass",
-      "body_inertia",
-      "dof_armature",
-      "jnt_type",
-      "jnt_qposadr",
-      "jnt_dofadr",
-      "jnt_bodyid",
-      "jnt_pos",
-      "jnt_axis",
-      "qpos0",
-      "geom_bodyid",
-      "geom_type",
-      "geom_size",
-      "geom_pos",
-      "geom_quat",
-      "site_bodyid",
-      "site_pos",
-      "site_quat",
+      "nq",
+      "nv",
+      "nmocap",
+      "nbody",
+      "njnt",
+      "ngeom",
+      "nsite",
+      "disableflags",
   ):
+    digest.update(int(getattr(model, name)).to_bytes(8, "little"))
+  for item in fields(ModelDescriptor):
+    name = item.name
+    value = getattr(model, name)
+    if not isinstance(value, np.ndarray):
+      continue
     value = np.ascontiguousarray(getattr(model, name))
     digest.update(name.encode())
     digest.update(value.dtype.str.encode())

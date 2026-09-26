@@ -194,6 +194,16 @@ class MetalKinematics:
       outputs[f"{name}_quat"] = torch.empty(
           max(count * 4, 1), dtype=torch.float32, device=self._device
       )
+    outputs["joint_anchor"] = torch.empty(
+        max(source.shape[0] * self.model.njnt * 3, 1),
+        dtype=torch.float32,
+        device=self._device,
+    )
+    outputs["joint_axis"] = torch.empty(
+        max(source.shape[0] * self.model.njnt * 3, 1),
+        dtype=torch.float32,
+        device=self._device,
+    )
     arrays = self._arrays
     args = [
         arrays[name]
@@ -238,7 +248,7 @@ class MetalKinematics:
         dtype=torch.int32,
         device=self._device,
     )
-    args.append(dims)
+    args.extend([dims, outputs["joint_anchor"], outputs["joint_axis"]])
     self._kernel(*args, threads=(source.shape[0],), group_size=(1,))
     shaped = {}
     for kind, count in (
@@ -253,4 +263,10 @@ class MetalKinematics:
       shaped[f"{kind}_quat"] = _shape_output(
           outputs[f"{kind}_quat"], source.shape[0], count, 4
       )
+    shaped["joint_anchor"] = _shape_output(
+        outputs["joint_anchor"], source.shape[0], self.model.njnt, 3
+    )
+    shaped["joint_axis"] = _shape_output(
+        outputs["joint_axis"], source.shape[0], self.model.njnt, 3
+    )
     return shaped

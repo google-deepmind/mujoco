@@ -71,6 +71,8 @@ kernel void forward_kinematics(
     device float* inertial_xpos [[buffer(24)]],
     device float* inertial_xquat [[buffer(25)]],
     constant uint* dims [[buffer(26)]],
+    device float* joint_anchor [[buffer(27)]],
+    device float* joint_axis [[buffer(28)]],
     uint world [[thread_position_in_grid]]) {
   uint nq = dims[0], nbody = dims[1], njnt = dims[2];
   uint ngeom = dims[3], nsite = dims[4], batch = dims[5];
@@ -88,17 +90,21 @@ kernel void forward_kinematics(
       if (uint(jnt_bodyid[j]) != b) continue;
       int typ = jnt_type[j];
       uint qa = qbase + uint(jnt_qposadr[j]);
+      float3 anchor = pos + qrot(quat, load3(jnt_pos, j*3));
+      float3 axis = qrot(quat, load3(jnt_axis, j*3));
+      store3(joint_anchor, (world*njnt+j)*3, anchor);
+      store3(joint_axis, (world*njnt+j)*3, axis);
       if (typ == 0) {
         pos = load3(qpos, qa);
         quat = qnorm(load4(qpos, qa+3));
+        store3(joint_anchor, (world*njnt+j)*3, pos);
+        store3(joint_axis, (world*njnt+j)*3, load3(jnt_axis, j*3));
       } else if (typ == 1) {
-        float3 anchor = pos + qrot(quat, load3(jnt_pos, j*3));
         quat = qnorm(qmul(quat, qnorm(load4(qpos, qa))));
         pos = anchor - qrot(quat, load3(jnt_pos, j*3));
       } else if (typ == 2) {
         pos += qrot(quat, load3(jnt_axis, j*3)*(qpos[qa]-qpos0[jnt_qposadr[j]]));
       } else if (typ == 3) {
-        float3 anchor = pos + qrot(quat, load3(jnt_pos, j*3));
         quat = qnorm(qmul(quat, axisq(load3(jnt_axis, j*3),
                                   qpos[qa]-qpos0[jnt_qposadr[j]])));
         pos = anchor - qrot(quat, load3(jnt_pos, j*3));
