@@ -1,6 +1,12 @@
 This standalone experimental package is maintained separately from MuJoCo core.
-It uses the MuJoCo 3.10.0 Python API and MuJoCo kinematics conventions. No
-MuJoCo implementation source or third-party robot assets are bundled here.
+It uses the MuJoCo 3.10.0 Python API and contains no third-party robot assets.
+
+The independent CPU and Metal implementations of smooth spatial dynamics in
+mujoco_metal/smooth.py, shaders/smooth_mass.metal, and shaders/smooth_bias.metal
+adapt the algorithms in MuJoCo 3.10.0 src/engine/engine_core_smooth.c and
+src/engine/engine_util_spatial.c. Those upstream MuJoCo files are Copyright
+2021 DeepMind Technologies Limited and licensed under the Apache License,
+Version 2.0. No upstream MuJoCo source files are bundled in this package.
 
 Copyright 2026 The MuJoCo Metal contributors
-Licensed under the Apache License, Version 2.0; see LICENSE.
+This package is licensed under the Apache License, Version 2.0; see LICENSE.

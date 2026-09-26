@@ -180,8 +180,13 @@ def test_preflight_is_cpu_only_and_includes_stage_inventory(tmp_path):
 
   result = preflight(include_inventory=True)
   assert result["gpu_qualified"] is False
+  assert "complete physics backend" in result["gpu_qualification_scope"]
   assert result["shader_sha256"]
+  assert set(result["shaders"]) == {"kinematics", "smooth_mass", "smooth_bias"}
+  assert all(row["sha256"] for row in result["shaders"].values())
   assert result["inventory_complete"] is False
+  assert "narrowly GPU-qualified" in result["stages"]["dynamics"]
+  assert result["stages"]["full_stepping"] == "unsupported"
   assert any(
       row["name"].startswith("python-api:mj_") for row in result["features"]
   )

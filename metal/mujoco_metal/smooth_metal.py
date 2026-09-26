@@ -207,7 +207,6 @@ class MetalSmoothDynamics:
     body_force = torch.empty(
         max(batch * nb * 6, 1), dtype=torch.float32, device=self._fk._device
     )
-    gravity = self._arrays.get("gravity")
     args = [
         self._arrays["body_parentid"],
         self._arrays["body_dofadr"],

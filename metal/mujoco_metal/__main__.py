@@ -43,6 +43,11 @@ def _jsonable(value):
 def preflight(model_path=None, include_inventory=False):
   package = Path(__file__).resolve().parent
   shader = package / "shaders" / "kinematics.metal"
+  shader_paths = {
+      "kinematics": shader,
+      "smooth_mass": package / "shaders" / "smooth_mass.metal",
+      "smooth_bias": package / "shaders" / "smooth_bias.metal",
+  }
   result = {
       "package_version": __version__,
       "package_path": str(package),
@@ -50,12 +55,21 @@ def preflight(model_path=None, include_inventory=False):
       "actual_mujoco_version": mujoco.__version__,
       "shader_path": str(shader),
       "shader_sha256": hashlib.sha256(shader.read_bytes()).hexdigest(),
+      "shaders": {
+          name: {
+              "path": str(path),
+              "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+          }
+          for name, path in shader_paths.items()
+      },
       "inventory_complete": INVENTORY_COMPLETE,
       "gpu_qualified": False,
+      "gpu_qualification_scope": "complete physics backend; per-stage narrow results are listed in feature inventory",
       "stages": {
           "model_inspection": "CPU",
-          "kinematics": "CPU oracle; Metal unqualified",
-          "dynamics": "unsupported",
+          "kinematics": "CPU oracle; Metal narrowly GPU-qualified on M1 fixtures",
+          "dynamics": "CPU smooth M/bias oracle; Metal narrowly GPU-qualified on M1 fixtures",
+          "full_stepping": "unsupported",
           "collision": "unsupported",
           "constraints": "unsupported",
           "integration": "unsupported",
@@ -67,7 +81,17 @@ def preflight(model_path=None, include_inventory=False):
     model = load_model(Path(model_path))
     result["model"] = {
         name: getattr(model, name)
-        for name in ("nq", "nv", "nbody", "njnt", "ngeom", "nsite", "nmocap")
+        for name in (
+            "nq",
+            "nv",
+            "nu",
+            "nbody",
+            "njnt",
+            "ngeom",
+            "nsite",
+            "ntendon",
+            "nmocap",
+        )
     }
   if include_inventory:
     result["features"] = [_jsonable(asdict(row)) for row in FEATURES]

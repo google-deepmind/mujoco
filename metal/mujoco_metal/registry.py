@@ -161,7 +161,7 @@ def _inventory():
           Implementation.NATIVE_GPU,
           Qualification.GPU_QUALIFIED,
           Execution.DEVICE,
-          "narrow Apple M1 FK cases only; no general model support or physics stepping",
+          "narrow Apple M1 FK cases only; one immutable model per batch; no per-row model randomization or physics stepping",
       )
   )
   result.append(
@@ -169,9 +169,9 @@ def _inventory():
           "native Metal smooth mass matrix and inertial bias",
           Stage.DYNAMICS,
           Implementation.NATIVE_GPU,
-          Qualification.UNQUALIFIED,
+          Qualification.GPU_QUALIFIED,
           Execution.DEVICE,
-          "unqualified; no actuation, passive forces, contacts, constraints, or stepping",
+          "narrow Apple M1 fixtures only; one immutable model per batch; no per-row model randomization, actuation, passive forces, contacts, constraints, or stepping",
       )
   )
   result.append(

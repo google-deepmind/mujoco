@@ -131,3 +131,87 @@ def test_native_dense_mass_matrix_matches_mujoco_oracle():
     np.testing.assert_allclose(
         actual_bias[row], data.qfrc_bias, rtol=3e-4, atol=3e-5
     )
+
+
+@pytest.mark.skipif(
+    os.environ.get("MUJOCO_METAL_RUN_GPU") != "1",
+    reason="requires explicit MUJOCO_METAL_RUN_GPU=1 and idle GPU",
+)
+def test_native_smooth_empty_and_fixed_world_shapes():
+  for xml in (
+      "<mujoco><worldbody/></mujoco>",
+      '<mujoco><worldbody><body pos="1 0 0"><geom type="sphere" size=".1"/></body></worldbody></mujoco>',
+  ):
+    descriptor = load_model(xml)
+    qpos = np.tile(descriptor.qpos0, (2, 1))
+    qvel = np.zeros((2, descriptor.nv))
+    result = MetalSmoothDynamics(descriptor).run(qpos, qvel)
+    assert tuple(result["mass_matrix"].shape) == (
+        2,
+        descriptor.nv,
+        descriptor.nv,
+    )
+    assert tuple(result["qfrc_bias"].shape) == (2, descriptor.nv)
+    np.testing.assert_allclose(
+        result["mass_matrix"].cpu().numpy(),
+        np.zeros((2, descriptor.nv, descriptor.nv)),
+    )
+
+
+@pytest.mark.skipif(
+    os.environ.get("MUJOCO_METAL_RUN_GPU") != "1",
+    reason="requires explicit MUJOCO_METAL_RUN_GPU=1 and idle GPU",
+)
+def test_native_smooth_deep_chain_and_rotated_disabled_gravity():
+  opens = []
+  for _ in range(32):
+    opens.append(
+        '<body pos="0 0 .08"><joint type="hinge" axis="0 1 0" armature=".01"/>'
+        '<geom type="capsule" size=".025 .04"/>'
+    )
+  chain_xml = (
+      "<mujoco><worldbody>"
+      + "".join(opens)
+      + "</body>" * len(opens)
+      + "</worldbody></mujoco>"
+  )
+  chain_model = mujoco.MjModel.from_xml_string(chain_xml)
+  chain = load_model(chain_model)
+  rng = np.random.default_rng(320)
+  qpos = rng.normal(0.0, 0.7, size=(2, chain.nq))
+  qvel = rng.normal(0.0, 2.0, size=(2, chain.nv))
+  _assert_native_smooth_matches_oracle(chain_model, chain, qpos, qvel)
+
+  rotated_xml = """<mujoco><worldbody>
+    <body pos="0 0 .1"><body pos=".1 0 0">
+      <joint type="hinge" axis="0 1 0"/>
+      <joint type="hinge" pos=".1 0 0" axis="1 0 0"/>
+      <inertial pos=".1 .2 .3" quat=".9238795325 .3826834324 0 0"
+        mass="1.7" diaginertia=".12 .19 .23"/>
+    </body></body>
+  </worldbody></mujoco>"""
+  rotated_model = mujoco.MjModel.from_xml_string(rotated_xml)
+  rotated_model.opt.disableflags |= int(mujoco.mjtDisableBit.mjDSBL_GRAVITY)
+  rotated = load_model(rotated_model)
+  qpos = rng.normal(0.0, 0.7, size=(2, rotated.nq))
+  qvel = rng.normal(0.0, 2.0, size=(2, rotated.nv))
+  _assert_native_smooth_matches_oracle(rotated_model, rotated, qpos, qvel)
+
+
+def _assert_native_smooth_matches_oracle(model, descriptor, qpos, qvel):
+  output = MetalSmoothDynamics(descriptor).run(qpos, qvel)
+  actual_mass = output["mass_matrix"].cpu().numpy()
+  actual_bias = output["qfrc_bias"].cpu().numpy()
+  for row in range(qpos.shape[0]):
+    data = mujoco.MjData(model)
+    data.qpos[:] = qpos[row]
+    data.qvel[:] = qvel[row]
+    mujoco.mj_forward(model, data)
+    expected_mass = np.empty((model.nv, model.nv))
+    mujoco.mj_fullM(model, data, expected_mass)
+    np.testing.assert_allclose(
+        actual_mass[row], expected_mass, rtol=3e-4, atol=3e-5
+    )
+    np.testing.assert_allclose(
+        actual_bias[row], data.qfrc_bias, rtol=3e-4, atol=3e-5
+    )
