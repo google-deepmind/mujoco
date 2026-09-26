@@ -1,0 +1,19 @@
+Experimental Metal physics port
+
+Derived from keeeeenw/microduck_rl_mac commit
+60f0b26a55e3236d2112126386b25ac922228083 (Apache License 2.0).
+https://github.com/keeeeenw/microduck_rl_mac
+
+The Microduck model and CAD assets originate from Pollen Robotics' Microduck
+and Microduck RL projects, redistributed under Apache License 2.0:
+https://github.com/pollen-robotics/microduck
+https://github.com/pollen-robotics/microduck_rl
+
+Physics equations and reference implementations are based on MuJoCo,
+Copyright DeepMind Technologies Limited, Apache License 2.0.
+This port preserves the downstream shader and numerical pipeline; it does not
+claim authorship of MuJoCo algorithms or the Microduck robot design.
+
+Reference corpus and qualification tests were ported from the same downstream
+revision. New packaging and API code: Copyright 2026 keeeeenw.
+This is a community experiment, not an officially supported Google product.

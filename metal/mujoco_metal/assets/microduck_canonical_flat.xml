@@ -1,0 +1,353 @@
+<mujoco model="mjlab scene">
+  <compiler angle="radian" meshdir="meshes"/>
+
+  <option timestep="0.005" integrator="implicitfast" iterations="10" ls_iterations="20"/>
+
+  <size nkey="1"/>
+
+  <visual>
+    <global azimuth="135" elevation="-25" offwidth="1920" offheight="1080"/>
+    <quality shadowsize="8192"/>
+    <headlight ambient="0.3 0.3 0.3" diffuse="0.6 0.6 0.6" specular="0 0 0"/>
+    <scale forcewidth="0.25" contactwidth="0.4" contactheight="0.15" framelength="5" framewidth="0.3"/>
+    <rgba haze="0.15 0.25 0.35 1" force="1 0 0 1"/>
+  </visual>
+
+  <statistic meansize="0.03" extent="2"/>
+
+  <default>
+    <default class="robot/main">
+
+      <equality solref="0.002" solimp="0.99 0.999 0.0005"/>
+      <default class="robot/microduck">
+        <joint armature="0.005" frictionloss="0.1"/>
+
+        <equality solref="0.02" solimp="0.9 0.95 0.001"/>
+        <general biastype="affine" gainprm="50" biasprm="0 -50 1"/>
+        <default class="robot/visual">
+          <geom type="mesh" contype="0" conaffinity="0" group="2"/>
+        </default>
+        <default class="robot/collision">
+          <geom group="3"/>
+        </default>
+      </default>
+      <default class="robot/perfect_actuator">
+        <joint armature="0.001" damping="0.15" frictionloss="0.1"/>
+        <geom contype="0" conaffinity="0"/>
+
+        <equality solref="0.02" solimp="0.9 0.95 0.001"/>
+        <general forcerange="-20 20" biastype="affine" gainprm="10" biasprm="0 -10 -0.1"/>
+      </default>
+      <default class="robot/chosen_actuator_old">
+        <joint armature="0.002" damping="0.048" frictionloss="0.006"/>
+        <geom contype="0" conaffinity="0"/>
+
+        <equality solref="0.02" solimp="0.9 0.95 0.001"/>
+        <general ctrlrange="-10 10" forcerange="-0.91 0.91" biastype="affine" gainprm="0.52" biasprm="0 -0.52"/>
+      </default>
+      <default class="robot/chosen_actuator_new">
+        <joint armature="0.002" damping="0.041" frictionloss="0.032"/>
+        <geom contype="0" conaffinity="0"/>
+
+        <equality solref="0.02" solimp="0.9 0.95 0.001"/>
+        <general ctrlrange="-10 10" forcerange="-0.67 0.67" biastype="affine" gainprm="0.386" biasprm="0 -0.386"/>
+      </default>
+      <default class="robot/chosen_actuator_antoine">
+        <joint armature="0.0017" damping="0.044" frictionloss="0.013"/>
+        <geom contype="0" conaffinity="0"/>
+
+        <equality solref="0.02" solimp="0.9 0.95 0.001"/>
+        <general ctrlrange="-10 10" forcerange="-0.75 0.75" biastype="affine" gainprm="0.43" biasprm="0 -0.43"/>
+      </default>
+      <default class="robot/chosen_actuator">
+        <joint armature="0.0018" damping="0.053" frictionloss="0.0048"/>
+        <geom contype="0" conaffinity="0"/>
+
+        <equality solref="0.02" solimp="0.9 0.95 0.001"/>
+        <general ctrlrange="-10 10" forcerange="-0.96 0.96" biastype="affine" gainprm="0.55" biasprm="0 -0.55"/>
+      </default>
+      <default class="robot/passive_wheel">
+        <joint armature="0.0001"/>
+        <geom contype="0" conaffinity="0"/>
+
+        <equality solref="0.02" solimp="0.9 0.95 0.001"/>
+      </default>
+      <default class="robot/passive_joint">
+        <joint armature="0.0001"/>
+        <geom contype="0" conaffinity="0"/>
+
+        <equality solref="0.02" solimp="0.9 0.95 0.001"/>
+      </default>
+      <default class="robot/self_collision_only">
+        <geom contype="2" conaffinity="2" group="3"/>
+      </default>
+    </default>
+  </default>
+
+  <asset>
+    <texture type="2d" colorspace="auto" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="4 4"/>
+    <material name="robot/seeed_bearing__configuration__22x16x4_material" rgba="0.811765 0.858824 0.898039 1"/>
+    <material name="robot/right_shell_material" rgba="0.85098 0.85098 0.839216 1"/>
+    <material name="robot/banana_pcb_locker_material" rgba="0.647059 0.647059 0.647059 1"/>
+    <material name="robot/trunk_base_material" rgba="0.129412 0.152941 0.129412 1"/>
+    <material name="robot/xl330_material" rgba="0.286275 0.286275 0.286275 1"/>
+    <material name="robot/power_support_material" rgba="0.67451 0.639216 0.603922 1"/>
+    <material name="robot/np_f970_material" rgba="0.301961 0.301961 0.301961 1"/>
+    <material name="robot/left_shell_material" rgba="0.8 0.8 0.8 1"/>
+    <material name="robot/yaw2roll_material" rgba="0.129412 0.152941 0.129412 1"/>
+    <material name="robot/bearing_roll_material" rgba="0.129412 0.152941 0.129412 1"/>
+    <material name="robot/hip_l_material" rgba="0.67451 0.639216 0.603922 1"/>
+    <material name="robot/upper_leg_left_material" rgba="0.85098 0.85098 0.839216 1"/>
+    <material name="robot/upper_leg_rigidity_plate_material" rgba="0.67451 0.639216 0.603922 1"/>
+    <material name="robot/leg_material" rgba="0.67451 0.639216 0.603922 1"/>
+    <material name="robot/sole_left_material" rgba="0.956863 0.686275 0.137255 1"/>
+    <material name="robot/foot_left_material" rgba="1 0.403922 0.121569 1"/>
+    <material name="robot/seeed_bearing__configuration_default_material" rgba="0.811765 0.858824 0.898039 1"/>
+    <material name="robot/ankle_left_material" rgba="1 0.403922 0.121569 1"/>
+    <material name="robot/neck_material" rgba="0.67451 0.639216 0.603922 1"/>
+    <material name="robot/neck_pitch_material" rgba="0.34902 0.376471 0.4 1"/>
+    <material name="robot/yaw_roll_motion_material" rgba="0.129412 0.152941 0.129412 1"/>
+    <material name="robot/lens_material" rgba="0.262745 0.282353 0.301961 1"/>
+    <material name="robot/face_part_material" rgba="0.67451 0.639216 0.603922 1"/>
+    <material name="robot/jaw_soft_material" rgba="0.85098 0.756863 0.866667 1"/>
+    <material name="robot/motor_support_material" rgba="0.129412 0.152941 0.129412 1"/>
+    <material name="robot/top_head_shell_material" rgba="0.85098 0.85098 0.839216 1"/>
+    <material name="robot/elec_rpi_robot_hat_pcb_material" rgba="0.313725 0.486275 0.411765 1"/>
+    <material name="robot/soft_mouth_top_material" rgba="0.85098 0.756863 0.866667 1"/>
+    <material name="robot/noenoeil_material" rgba="0.956863 0.686275 0.137255 1"/>
+    <material name="robot/jaw_material" rgba="1 0.403922 0.121569 1"/>
+    <material name="robot/bottom_head_shell_material" rgba="1 0.403922 0.121569 1"/>
+    <material name="robot/m12_lens_holder_material" rgba="0.262745 0.282353 0.301961 1"/>
+    <material name="robot/pcb__raspberry_pi_zero_2_w_material" rgba="0.498039 0.498039 0.498039 1"/>
+    <material name="robot/speaker_material" rgba="0.294118 0.290196 0.290196 1"/>
+    <material name="robot/upper_leg_right_material" rgba="0.85098 0.85098 0.839216 1"/>
+    <material name="robot/ankle_right_material" rgba="1 0.403922 0.121569 1"/>
+    <material name="robot/sole_right_material" rgba="0.956863 0.686275 0.137255 1"/>
+    <material name="robot/foot_right_material" rgba="1 0.403922 0.121569 1"/>
+    <mesh name="robot/right_shell" file="right_shell.stl"/>
+    <mesh name="robot/speaker" file="speaker.stl"/>
+    <mesh name="robot/banana_pcb_locker" file="banana_pcb_locker.stl"/>
+    <mesh name="robot/top_head_shell" file="top_head_shell.stl"/>
+    <mesh name="robot/bearing_roll" file="bearing_roll.stl"/>
+    <mesh name="robot/ankle_left" file="ankle_left.stl"/>
+    <mesh name="robot/upper_leg_rigidity_plate" file="upper_leg_rigidity_plate.stl"/>
+    <mesh name="robot/neck_pitch" file="neck_pitch.stl"/>
+    <mesh name="robot/noenoeil" file="noenoeil.stl"/>
+    <mesh name="robot/face_part" file="face_part.stl"/>
+    <mesh name="robot/pcb__raspberry_pi_zero_2_w" file="pcb__raspberry_pi_zero_2_w.stl"/>
+    <mesh name="robot/foot_right" file="foot_right.stl"/>
+    <mesh name="robot/seeed_bearing__configuration__22x16x4" file="seeed_bearing__configuration__22x16x4.stl"/>
+    <mesh name="robot/elec_rpi_robot_hat_pcb" file="elec_rpi_robot_hat_pcb.stl"/>
+    <mesh name="robot/xl330" file="xl330.stl"/>
+    <mesh name="robot/jaw_soft" file="jaw_soft.stl"/>
+    <mesh name="robot/hip_l" file="hip_l.stl"/>
+    <mesh name="robot/bottom_head_shell" file="bottom_head_shell.stl"/>
+    <mesh name="robot/yaw2roll" file="yaw2roll.stl"/>
+    <mesh name="robot/seeed_bearing__configuration_default" file="seeed_bearing__configuration_default.stl"/>
+    <mesh name="robot/ankle_right" file="ankle_right.stl"/>
+    <mesh name="robot/motor_support" file="motor_support.stl"/>
+    <mesh name="robot/foot_left" file="foot_left.stl"/>
+    <mesh name="robot/upper_leg_right" file="upper_leg_right.stl"/>
+    <mesh name="robot/power_support" file="power_support.stl"/>
+    <mesh name="robot/np_f970" file="np_f970.stl"/>
+    <mesh name="robot/neck" file="neck.stl"/>
+    <mesh name="robot/yaw_roll_motion" file="yaw_roll_motion.stl"/>
+    <mesh name="robot/lens" file="lens.stl"/>
+    <mesh name="robot/sole_left" file="sole_left.stl"/>
+    <mesh name="robot/upper_leg_left" file="upper_leg_left.stl"/>
+    <mesh name="robot/trunk_base" file="trunk_base.stl"/>
+    <mesh name="robot/left_shell" file="left_shell.stl"/>
+    <mesh name="robot/sole_right" file="sole_right.stl"/>
+    <mesh name="robot/jaw" file="jaw.stl"/>
+    <mesh name="robot/leg" file="leg.stl"/>
+    <mesh name="robot/soft_mouth_top" file="soft_mouth_top.stl"/>
+    <mesh name="robot/m12_lens_holder" file="m12_lens_holder.stl"/>
+  </asset>
+
+  <worldbody>
+    <site name="env_origin_0" pos="0 0 0" size="0.3" group="4" rgba="0.2 0.6 0.2 0.3"/>
+    <light name="sun" pos="0 0 1.5" dir="0 0 -1" type="directional"/>
+    <body name="terrain">
+      <geom name="terrain" size="0 0 0.01" type="plane" material="groundplane"/>
+    </body>
+    <body name="robot/trunk_base" childclass="robot/microduck" pos="0 0 0.12">
+      <inertial pos="-0.0226332 -2.70828e-05 0.00280064" quat="0.664866 0.238381 0.235012 0.667756" mass="0.199224" diaginertia="0.000145932 0.000140799 9.85265e-05"/>
+      <joint name="robot/trunk_base_freejoint" type="free" armature="0" frictionloss="0"/>
+      <geom class="robot/visual" pos="0.006 0.0175 -0.005" quat="1 0 0 0" material="robot/seeed_bearing__configuration__22x16x4_material" mesh="robot/seeed_bearing__configuration__22x16x4"/>
+      <geom class="robot/visual" pos="0.004 -0.0005 -0.0175" quat="0.707107 0 0 0.707107" material="robot/right_shell_material" mesh="robot/right_shell"/>
+      <geom class="robot/visual" pos="0.0042 0 -0.0175215" quat="0.707107 0 0 0.707107" material="robot/banana_pcb_locker_material" mesh="robot/banana_pcb_locker"/>
+      <geom class="robot/visual" pos="0.004 0 -0.0175" quat="0.707107 0 0 0.707107" material="robot/trunk_base_material" mesh="robot/trunk_base"/>
+      <geom class="robot/visual" pos="0.006 0.0175 0.0115" quat="0 -0.707107 0 -0.707107" material="robot/xl330_material" mesh="robot/xl330"/>
+      <geom class="robot/visual" pos="0.004 0 -0.0175215" quat="0.707107 0 0 0.707107" material="robot/power_support_material" mesh="robot/power_support"/>
+      <geom class="robot/self_collision_only" pos="0.004 0 -0.0175215" quat="0.707107 0 0 0.707107" type="mesh" material="robot/power_support_material" mesh="robot/power_support"/>
+      <geom class="robot/visual" pos="-0.0359693 0 -0.00385049" quat="0.00617059 0.70708 -0.70708 -0.00617059" material="robot/np_f970_material" mesh="robot/np_f970"/>
+      <geom class="robot/visual" pos="0.006 -0.0175 0.0115" quat="0 -0.707107 0 -0.707107" material="robot/xl330_material" mesh="robot/xl330"/>
+      <geom class="robot/visual" pos="0.004 0 -0.0175785" quat="0.707107 0 0 0.707107" material="robot/left_shell_material" mesh="robot/left_shell"/>
+      <geom class="robot/visual" pos="0.006 -0.0175 -0.005" quat="1 0 0 0" material="robot/seeed_bearing__configuration__22x16x4_material" mesh="robot/seeed_bearing__configuration__22x16x4"/>
+      <site name="robot/imu" pos="-0.021 6.64098e-05 -0.0146984" group="3"/>
+      <body name="robot/yaw2roll" pos="0.006 0.0175 -0.005" quat="0 -0.707107 -0.707107 0">
+        <inertial pos="-8.8e-11 0.00099414 0.0168917" quat="0.99973 -0.0232487 0 0" mass="0.0230406" diaginertia="4.1964e-06 3.41989e-06 2.32413e-06"/>
+        <joint name="robot/left_hip_yaw" class="robot/chosen_actuator" pos="0 0 0" axis="0 0 1" solreffriction="-50000 -200" solimpfriction="0.99 0.9999" range="-0.436332 0.523599" armature="0.00180774" damping="0" frictionloss="0"/>
+        <geom class="robot/visual" pos="-0.0175 -0.002 0.0125" quat="0 1 0 0" material="robot/yaw2roll_material" mesh="robot/yaw2roll"/>
+        <geom class="robot/visual" pos="0 0 0.0125" quat="0 -0.707107 0.707107 0" material="robot/xl330_material" mesh="robot/xl330"/>
+        <geom class="robot/visual" pos="0 0.0165 0.0125" quat="0.5 0.5 0.5 -0.5" material="robot/seeed_bearing__configuration__22x16x4_material" mesh="robot/seeed_bearing__configuration__22x16x4"/>
+        <geom class="robot/visual" pos="-0.0175 -0.002 0.0125" quat="0 -1 0 0" material="robot/bearing_roll_material" mesh="robot/bearing_roll"/>
+        <body name="robot/hip_l" pos="0 0.0165 0.0125" quat="0.707107 -0.707107 0 0">
+          <inertial pos="0.014815 1.6179e-08 -0.00829992" quat="0.94694 -8.2459e-07 -0.321411 -2.79883e-07" mass="0.00618934" diaginertia="1.15976e-06 1.15753e-06 3.52458e-07"/>
+          <joint name="robot/left_hip_roll" class="robot/chosen_actuator" pos="0 0 0" axis="0 0 1" solreffriction="-50000 -200" solimpfriction="0.99 0.9999" range="-0.383972 0.383972" armature="0.00180774" damping="0" frictionloss="0"/>
+          <geom class="robot/visual" pos="0.021 0 -0.0185" quat="0.5 0.5 0.5 0.5" material="robot/seeed_bearing__configuration__22x16x4_material" mesh="robot/seeed_bearing__configuration__22x16x4"/>
+          <geom class="robot/visual" pos="-0.0175 0 -0.0185" quat="0.707107 -0.707107 0 0" material="robot/hip_l_material" mesh="robot/hip_l"/>
+          <body name="robot/upper_leg_left" pos="0.025 0 -0.0185" quat="0.5 -0.5 0.5 -0.5">
+            <inertial pos="0.006766 0.0228838 0.0134531" quat="0.620818 0.374279 -0.583696 0.365786" mass="0.0482067" diaginertia="1.98453e-05 1.9108e-05 8.11799e-06"/>
+            <joint name="robot/left_hip_pitch" class="robot/chosen_actuator" pos="0 0 0" axis="0 0 1" solreffriction="-50000 -200" solimpfriction="0.99 0.9999" range="-1.5708 1.5708" armature="0.00180774" damping="0" frictionloss="0"/>
+            <geom class="robot/visual" pos="0 0 -0.0425" quat="0.5 -0.5 -0.5 -0.5" material="robot/upper_leg_left_material" mesh="robot/upper_leg_left"/>
+            <geom class="robot/visual" pos="0.022 0.0357771 0.0125" quat="0 0.707107 0 0.707107" material="robot/xl330_material" mesh="robot/xl330"/>
+            <geom class="robot/visual" pos="0 0 -0.0425" quat="0.5 -0.5 -0.5 -0.5" material="robot/upper_leg_rigidity_plate_material" mesh="robot/upper_leg_rigidity_plate"/>
+            <geom class="robot/visual" pos="0.022 0.0357771 -0.004" quat="0 0 0 1" material="robot/seeed_bearing__configuration__22x16x4_material" mesh="robot/seeed_bearing__configuration__22x16x4"/>
+            <geom class="robot/visual" pos="0 0 0.0125" quat="0.5 0.5 -0.5 0.5" material="robot/xl330_material" mesh="robot/xl330"/>
+            <body name="robot/leg" pos="0.022 0.0357771 -0.004" quat="0 0.707107 0.707107 0">
+              <inertial pos="-1.52e-10 0.0318937 -0.00953505" quat="0.806473 0.591271 0 0" mass="0.0215844" diaginertia="5.25056e-06 4.58054e-06 1.91378e-06"/>
+              <joint name="robot/left_knee" class="robot/chosen_actuator" pos="0 0 0" axis="0 0 1" solreffriction="-50000 -200" solimpfriction="0.99 0.9999" range="-1.5708 1.5708" armature="0.00180774" damping="0" frictionloss="0"/>
+              <geom class="robot/visual" pos="-0.022 0.0357771 0.0385" quat="0.5 0.5 0.5 -0.5" material="robot/leg_material" mesh="robot/leg"/>
+              <geom class="robot/self_collision_only" pos="-0.022 0.0357771 0.0385" quat="0.5 0.5 0.5 -0.5" type="mesh" material="robot/leg_material" mesh="robot/leg"/>
+              <geom class="robot/visual" pos="0 0.042 -0.0115" quat="0.5 -0.5 -0.5 -0.5" material="robot/xl330_material" mesh="robot/xl330"/>
+              <body name="robot/ankle_left" pos="0 0.042 -0.026" quat="0 -1 0 0">
+                <inertial pos="-0.00615742 -0.0137483 -0.0156585" quat="0.474723 0.505182 0.517427 0.501696" mass="0.0300246" diaginertia="1.11623e-05 7.7432e-06 5.90334e-06"/>
+                <joint name="robot/left_ankle" class="robot/chosen_actuator" pos="0 0 0" axis="0 0 1" solreffriction="-50000 -200" solimpfriction="0.99 0.9999" range="-1.5708 1.5708" armature="0.00180774" damping="0" frictionloss="0"/>
+                <geom class="robot/visual" pos="-0.022 0.00622291 -0.0647" quat="0.5 -0.5 -0.5 -0.5" material="robot/sole_left_material" mesh="robot/sole_left"/>
+                <geom name="robot/left_foot_collision" class="robot/collision" pos="-0.022 0.00622291 -0.0647" quat="0.5 -0.5 -0.5 -0.5" type="mesh" priority="1" material="robot/sole_left_material" mesh="robot/sole_left"/>
+                <geom class="robot/visual" pos="-0.022 0.00622291 -0.0647" quat="0.5 -0.5 -0.5 -0.5" material="robot/foot_left_material" mesh="robot/foot_left"/>
+                <geom class="robot/visual" pos="0 0 -0.0322" quat="0 0 0 1" material="robot/seeed_bearing__configuration_default_material" mesh="robot/seeed_bearing__configuration_default"/>
+                <geom class="robot/visual" pos="-0.022 0.00622291 -0.0647" quat="0.5 -0.5 -0.5 -0.5" material="robot/ankle_left_material" mesh="robot/ankle_left"/>
+                <site name="robot/left_foot" pos="0 -0.0238146 -0.0140852" quat="0 0 -0.707107 -0.707107" group="3"/>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="robot/neck" pos="0.026 0.0145 0.0324215" quat="0 0 0.707107 -0.707107">
+        <inertial pos="0 -0.025 0.0141665" quat="0.707107 0.707107 0 0" mass="0.0368414" diaginertia="1.72925e-05 1.63707e-05 3.12694e-06"/>
+        <joint name="robot/neck_pitch" class="robot/chosen_actuator" pos="0 0 0" axis="0 0 1" solreffriction="-50000 -200" solimpfriction="0.99 0.9999" range="-1.5708 1.0472" armature="0.00180774" damping="0" frictionloss="0"/>
+        <geom class="robot/visual" pos="0.022 0.05 0.028" quat="0.5 0.5 0.5 -0.5" material="robot/neck_material" mesh="robot/neck"/>
+        <geom class="robot/visual" pos="0 0 0.0145" quat="0.5 -0.5 -0.5 -0.5" material="robot/xl330_material" mesh="robot/xl330"/>
+        <geom class="robot/visual" pos="0 -0.05 0.0145" quat="0.5 0.5 -0.5 0.5" material="robot/xl330_material" mesh="robot/xl330"/>
+        <geom class="robot/visual" pos="0.022 0.05 0.003" quat="0.5 0.5 0.5 -0.5" material="robot/neck_material" mesh="robot/neck"/>
+        <body name="robot/neck_pitch" pos="0 -0.05 0" quat="0 1 0 0">
+          <inertial pos="-6.533e-09 0.0116641 -0.0145" mass="0.00572" diaginertia="1.09186e-06 9.66855e-07 5.12111e-07"/>
+          <joint name="robot/head_pitch" class="robot/chosen_actuator" pos="0 0 0" axis="0 0 1" solreffriction="-50000 -200" solimpfriction="0.99 0.9999" range="-1.5708 1.5708" armature="0.00180774" damping="0" frictionloss="0"/>
+          <geom class="robot/visual" pos="0 0.0287931 -0.0145" quat="0.5 -0.5 -0.5 -0.5" material="robot/neck_pitch_material" mesh="robot/neck_pitch"/>
+          <geom class="robot/visual" pos="0 0.0207931 -0.0145" quat="0.707107 0.707107 0 0" material="robot/seeed_bearing__configuration__22x16x4_material" mesh="robot/seeed_bearing__configuration__22x16x4"/>
+          <body name="robot/yaw_roll_motion" pos="0 0.0186931 -0.0145" quat="0 0 -0.707107 -0.707107">
+            <inertial pos="-0.000166657 -0.00500964 0.0178065" quat="0.174483 0.690172 -0.0192577 0.702031" mass="0.0486" diaginertia="9.65512e-06 8.11788e-06 6.8878e-06"/>
+            <joint name="robot/head_yaw" class="robot/chosen_actuator" pos="0 0 0" axis="0 0 1" solreffriction="-50000 -200" solimpfriction="0.99 0.9999" range="-2.96706 2.96706" armature="0.00180774" damping="0" frictionloss="0"/>
+            <geom class="robot/visual" pos="0 0 0.01" quat="0.707107 0 0 0.707107" material="robot/yaw_roll_motion_material" mesh="robot/yaw_roll_motion"/>
+            <geom class="robot/visual" pos="0 0 0.0145" quat="0.5 -0.5 -0.5 -0.5" material="robot/xl330_material" mesh="robot/xl330"/>
+            <geom class="robot/visual" pos="-0.016 0 0.0145" quat="0.707107 0 -0.707107 0" material="robot/seeed_bearing__configuration__22x16x4_material" mesh="robot/seeed_bearing__configuration__22x16x4"/>
+            <geom class="robot/visual" pos="0.018 0 0.0145" quat="0.707107 0 -0.707107 0" material="robot/seeed_bearing__configuration__22x16x4_material" mesh="robot/seeed_bearing__configuration__22x16x4"/>
+            <body name="robot/jaw_soft" pos="-0.0179 0 0.0145" quat="0.707107 0 -0.707107 0">
+              <inertial pos="0.00460523 0.00120047 -0.0324761" quat="0.999608 0.0201488 -0.0191644 -0.00313932" mass="0.188766" diaginertia="0.000321067 0.000254266 0.000149461"/>
+              <joint name="robot/head_roll" class="robot/chosen_actuator" pos="0 0 0" axis="0 0 1" solreffriction="-50000 -200" solimpfriction="0.99 0.9999" range="-0.436332 0.436332" armature="0.00180774" damping="0" frictionloss="0"/>
+              <geom class="robot/visual" pos="0.0155 -9.13778e-05 -0.05548" quat="0.5 -0.5 0.5 -0.5" material="robot/lens_material" mesh="robot/lens"/>
+              <geom class="robot/visual" pos="-0.0045 -9.13778e-05 -0.0178" quat="0.5 0.5 0.5 0.5" material="robot/face_part_material" mesh="robot/face_part"/>
+              <geom class="robot/visual" pos="0.003 0.0255 -0.018" quat="0.707107 0 0 -0.707107" material="robot/xl330_material" mesh="robot/xl330"/>
+              <geom class="robot/visual" pos="-0.0046 0 -0.0179996" quat="0.5 0.5 0.5 0.5" material="robot/jaw_soft_material" mesh="robot/jaw_soft"/>
+              <geom class="robot/visual" pos="-0.0045 0 -0.018" quat="0.5 0.5 0.5 0.5" material="robot/motor_support_material" mesh="robot/motor_support"/>
+              <geom class="robot/visual" pos="-0.0045 0 -0.018" quat="0.5 0.5 0.5 0.5" material="robot/top_head_shell_material" mesh="robot/top_head_shell"/>
+              <geom class="robot/visual" pos="0 0 0.0145" quat="0.5 -0.5 -0.5 -0.5" material="robot/xl330_material" mesh="robot/xl330"/>
+              <geom class="robot/visual" pos="0.0032 -0.04 -0.018" quat="0.5 -0.5 0.5 0.5" material="robot/seeed_bearing__configuration_default_material" mesh="robot/seeed_bearing__configuration_default"/>
+              <geom class="robot/visual" pos="0.02694 0.0289936 -0.0519" quat="0.707107 0 0 -0.707107" material="robot/elec_rpi_robot_hat_pcb_material" mesh="robot/elec_rpi_robot_hat_pcb"/>
+              <geom class="robot/visual" pos="-0.00420071 1.7776e-08 -0.0180814" quat="0.5 0.5 0.5 0.5" material="robot/soft_mouth_top_material" mesh="robot/soft_mouth_top"/>
+              <geom class="robot/visual" pos="-0.0045 -9.13778e-05 -0.0178" quat="0.5 0.5 0.5 0.5" material="robot/noenoeil_material" mesh="robot/noenoeil"/>
+              <geom class="robot/visual" pos="-0.0045 0 -0.018" quat="0.5 0.5 0.5 0.5" material="robot/jaw_material" mesh="robot/jaw"/>
+              <geom class="robot/visual" pos="-0.0043 0 -0.018" quat="0.5 0.5 0.5 0.5" material="robot/bottom_head_shell_material" mesh="robot/bottom_head_shell"/>
+              <geom class="robot/visual" pos="0.0155 -9.13778e-05 -0.05558" quat="0.5 -0.5 0.5 -0.5" material="robot/m12_lens_holder_material" mesh="robot/m12_lens_holder"/>
+              <geom class="robot/visual" pos="0.015435 -1.13778e-05 -0.06001" quat="0.5 -0.5 -0.5 0.5" material="robot/pcb__raspberry_pi_zero_2_w_material" mesh="robot/pcb__raspberry_pi_zero_2_w"/>
+              <geom class="robot/visual" pos="0.01 -0.016786 0.0260226" quat="0.5 0.5 0.5 0.5" material="robot/speaker_material" mesh="robot/speaker"/>
+              <site name="robot/head_camera" pos="0.0155 -9.13778e-05 -0.0733" quat="0.707107 0 0.707107 0" group="3"/>
+              <site name="robot/tof" pos="0.0135 0.0224086 -0.0733" quat="0.707107 0 0.707107 0" group="3"/>
+              <site name="robot/head_imu" pos="0.0152323 0.000111069 -0.05106" group="3"/>
+              <site name="robot/mouth_tip" pos="-0.00809334 0 -0.0777383" quat="0.704015 0 0.710185 0" group="3"/>
+              <camera name="robot/head_camera" pos="0.0155 -9.13778e-05 -0.0733" quat="0 0 -1 0"/>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="robot/bearing_roll" pos="0.006 -0.0175 -0.005" quat="0 -0.707107 -0.707107 0">
+        <inertial pos="-8.8e-11 0.00099414 0.0168917" quat="0.99973 -0.0232487 0 0" mass="0.0230406" diaginertia="4.1964e-06 3.41989e-06 2.32413e-06"/>
+        <joint name="robot/right_hip_yaw" class="robot/chosen_actuator" pos="0 0 0" axis="0 0 1" solreffriction="-50000 -200" solimpfriction="0.99 0.9999" range="-0.523599 0.436332" armature="0.00180774" damping="0" frictionloss="0"/>
+        <geom class="robot/visual" pos="-0.0175 -0.002 0.0125" quat="0 1 0 0" material="robot/yaw2roll_material" mesh="robot/yaw2roll"/>
+        <geom class="robot/visual" pos="0 0 0.0125" quat="0 -0.707107 0.707107 0" material="robot/xl330_material" mesh="robot/xl330"/>
+        <geom class="robot/visual" pos="-0.0175 -0.002 0.0125" quat="0 1 0 0" material="robot/bearing_roll_material" mesh="robot/bearing_roll"/>
+        <geom class="robot/visual" pos="0 0.0165 0.0125" quat="0.5 0.5 0.5 -0.5" material="robot/seeed_bearing__configuration__22x16x4_material" mesh="robot/seeed_bearing__configuration__22x16x4"/>
+        <body name="robot/hip_l_2" pos="0 0.0165 0.0125" quat="0 0 0.707107 0.707107">
+          <inertial pos="0.014815 1.6212e-08 -0.00829992" quat="0.94694 -8.2459e-07 -0.321411 -2.79883e-07" mass="0.00618934" diaginertia="1.15976e-06 1.15753e-06 3.52458e-07"/>
+          <joint name="robot/right_hip_roll" class="robot/chosen_actuator" pos="0 0 0" axis="0 0 1" solreffriction="-50000 -200" solimpfriction="0.99 0.9999" range="-0.383972 0.383972" armature="0.00180774" damping="0" frictionloss="0"/>
+          <geom class="robot/visual" pos="-0.0175 0 -0.0185" quat="0.707107 -0.707107 0 0" material="robot/hip_l_material" mesh="robot/hip_l"/>
+          <geom class="robot/visual" pos="0.025 0 -0.0185" quat="0.5 0.5 -0.5 -0.5" material="robot/seeed_bearing__configuration__22x16x4_material" mesh="robot/seeed_bearing__configuration__22x16x4"/>
+          <body name="robot/upper_leg_right" pos="0.025 0 -0.0185" quat="0.5 -0.5 0.5 -0.5">
+            <inertial pos="-0.006766 0.0228838 0.0134531" quat="0.365786 0.583696 -0.374279 0.620818" mass="0.0482067" diaginertia="1.98453e-05 1.9108e-05 8.11799e-06"/>
+            <joint name="robot/right_hip_pitch" class="robot/chosen_actuator" pos="0 0 0" axis="0 0 1" solreffriction="-50000 -200" solimpfriction="0.99 0.9999" range="-1.5708 1.5708" armature="0.00180774" damping="0" frictionloss="0"/>
+            <geom class="robot/visual" pos="-0.022 0.0357771 0.0125" quat="0.707107 0 -0.707107 0" material="robot/xl330_material" mesh="robot/xl330"/>
+            <geom class="robot/visual" pos="-0.022 0.0357771 0" quat="0 1 0 0" material="robot/seeed_bearing__configuration__22x16x4_material" mesh="robot/seeed_bearing__configuration__22x16x4"/>
+            <geom class="robot/visual" pos="0 0 0.0435" quat="0.5 -0.5 0.5 0.5" material="robot/upper_leg_rigidity_plate_material" mesh="robot/upper_leg_rigidity_plate"/>
+            <geom class="robot/visual" pos="0 0 -0.0425" quat="0.5 -0.5 0.5 0.5" material="robot/upper_leg_right_material" mesh="robot/upper_leg_right"/>
+            <geom class="robot/visual" pos="0 0 0.0125" quat="0.5 0.5 -0.5 0.5" material="robot/xl330_material" mesh="robot/xl330"/>
+            <body name="robot/leg_2" pos="-0.022 0.0357771 -0.004" quat="0 1 0 0">
+              <inertial pos="-0.0318937 -1.52e-10 -0.00953505" quat="0.570263 0.418091 0.418091 0.570263" mass="0.0215844" diaginertia="5.25056e-06 4.58054e-06 1.91378e-06"/>
+              <joint name="robot/right_knee" class="robot/chosen_actuator" pos="0 0 0" axis="0 0 1" solreffriction="-50000 -200" solimpfriction="0.99 0.9999" range="-1.5708 1.5708" armature="0.00180774" damping="0" frictionloss="0"/>
+              <geom class="robot/visual" pos="-0.042 0 -0.0115" quat="0.707107 0 -0.707107 0" material="robot/xl330_material" mesh="robot/xl330"/>
+              <geom class="robot/visual" pos="-0.0357771 -0.022 0.0385" quat="0.707107 0 0.707107 0" material="robot/leg_material" mesh="robot/leg"/>
+              <geom class="robot/self_collision_only" pos="-0.0357771 -0.022 0.0385" quat="0.707107 0 0.707107 0" type="mesh" material="robot/leg_material" mesh="robot/leg"/>
+              <body name="robot/ankle_right" pos="-0.042 0 -0.026" quat="0 -0.707107 -0.707107 0">
+                <inertial pos="0.00615539 -0.0137482 -0.0156566" quat="0.517424 0.501653 0.474682 0.505266" mass="0.0300251" diaginertia="1.11622e-05 7.74321e-06 5.90344e-06"/>
+                <joint name="robot/right_ankle" class="robot/chosen_actuator" pos="0 0 0" axis="0 0 1" solreffriction="-50000 -200" solimpfriction="0.99 0.9999" range="-1.5708 1.5708" armature="0.00180774" damping="0" frictionloss="0"/>
+                <geom class="robot/visual" pos="0.022 0.00622291 -0.0647" quat="0.5 -0.5 0.5 0.5" material="robot/ankle_right_material" mesh="robot/ankle_right"/>
+                <geom class="robot/visual" pos="0.022 0.00622291 -0.0647" quat="0.5 -0.5 0.5 0.5" material="robot/sole_right_material" mesh="robot/sole_right"/>
+                <geom name="robot/right_foot_collision" class="robot/collision" pos="0.022 0.00622291 -0.0647" quat="0.5 -0.5 0.5 0.5" type="mesh" priority="1" material="robot/sole_right_material" mesh="robot/sole_right"/>
+                <geom class="robot/visual" pos="0 0 -0.0292" quat="0 -1 0 0" material="robot/seeed_bearing__configuration_default_material" mesh="robot/seeed_bearing__configuration_default"/>
+                <geom class="robot/visual" pos="0.022 0.00622291 -0.0647" quat="0.5 -0.5 0.5 0.5" material="robot/foot_right_material" mesh="robot/foot_right"/>
+                <site name="robot/right_foot" pos="0 -0.0238146 -0.0140852" quat="0.707107 -0.707107 0 0" group="3"/>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <general name="robot/left_hip_yaw" class="robot/chosen_actuator" joint="robot/left_hip_yaw" forcelimited="true" forcerange="-1.06755 1.06755" biastype="none" gainprm="1"/>
+    <general name="robot/left_hip_roll" class="robot/chosen_actuator" joint="robot/left_hip_roll" forcelimited="true" forcerange="-1.06755 1.06755" biastype="none" gainprm="1"/>
+    <general name="robot/left_hip_pitch" class="robot/chosen_actuator" joint="robot/left_hip_pitch" forcelimited="true" forcerange="-1.06755 1.06755" biastype="none" gainprm="1"/>
+    <general name="robot/left_knee" class="robot/chosen_actuator" joint="robot/left_knee" forcelimited="true" forcerange="-1.06755 1.06755" biastype="none" gainprm="1"/>
+    <general name="robot/left_ankle" class="robot/chosen_actuator" joint="robot/left_ankle" forcelimited="true" forcerange="-1.06755 1.06755" biastype="none" gainprm="1"/>
+    <general name="robot/neck_pitch" class="robot/chosen_actuator" joint="robot/neck_pitch" forcelimited="true" forcerange="-1.06755 1.06755" biastype="none" gainprm="1"/>
+    <general name="robot/head_pitch" class="robot/chosen_actuator" joint="robot/head_pitch" forcelimited="true" forcerange="-1.06755 1.06755" biastype="none" gainprm="1"/>
+    <general name="robot/head_yaw" class="robot/chosen_actuator" joint="robot/head_yaw" forcelimited="true" forcerange="-1.06755 1.06755" biastype="none" gainprm="1"/>
+    <general name="robot/head_roll" class="robot/chosen_actuator" joint="robot/head_roll" forcelimited="true" forcerange="-1.06755 1.06755" biastype="none" gainprm="1"/>
+    <general name="robot/right_hip_yaw" class="robot/chosen_actuator" joint="robot/right_hip_yaw" forcelimited="true" forcerange="-1.06755 1.06755" biastype="none" gainprm="1"/>
+    <general name="robot/right_hip_roll" class="robot/chosen_actuator" joint="robot/right_hip_roll" forcelimited="true" forcerange="-1.06755 1.06755" biastype="none" gainprm="1"/>
+    <general name="robot/right_hip_pitch" class="robot/chosen_actuator" joint="robot/right_hip_pitch" forcelimited="true" forcerange="-1.06755 1.06755" biastype="none" gainprm="1"/>
+    <general name="robot/right_knee" class="robot/chosen_actuator" joint="robot/right_knee" forcelimited="true" forcerange="-1.06755 1.06755" biastype="none" gainprm="1"/>
+    <general name="robot/right_ankle" class="robot/chosen_actuator" joint="robot/right_ankle" forcelimited="true" forcerange="-1.06755 1.06755" biastype="none" gainprm="1"/>
+  </actuator>
+
+  <sensor>
+    <framequat objtype="site" objname="robot/imu" name="robot/orientation" noise="0.001"/>
+    <gyro site="robot/imu" name="robot/angular-velocity" noise="0.005"/>
+    <gyro site="robot/imu" name="robot/imu_ang_vel"/>
+    <velocimeter site="robot/imu" name="robot/imu_lin_vel"/>
+    <accelerometer site="robot/imu" name="robot/imu_accel"/>
+    <subtreeangmom body="robot/trunk_base" name="robot/root_angmom"/>
+    <contact geom1="robot/left_foot_collision" body2="terrain" reduce="netforce" name="feet_ground_contact_left_foot_collision_found"/>
+    <contact geom1="robot/left_foot_collision" body2="terrain" data="force" reduce="netforce" name="feet_ground_contact_left_foot_collision_force"/>
+    <contact geom1="robot/right_foot_collision" body2="terrain" reduce="netforce" name="feet_ground_contact_right_foot_collision_found"/>
+    <contact geom1="robot/right_foot_collision" body2="terrain" data="force" reduce="netforce" name="feet_ground_contact_right_foot_collision_force"/>
+    <contact subtree1="robot/trunk_base" subtree2="robot/trunk_base" name="self_collision_trunk_base_found"/>
+  </sensor>
+
+  <keyframe>
+    <key name="init_state" qpos="0 0 0 1 0 0 0 0 -0.0873 -0.4579 -0.0049 0.453 0.3491 0.3491 0 0 0 0.0873 0.4579 0.0049 -0.453" ctrl="0 -0.0873 -0.4579 -0.0049 0.453 0.3491 0.3491 0 0 0 0.0873 0.4579 0.0049 -0.453"/>
+  </keyframe>
+</mujoco>
