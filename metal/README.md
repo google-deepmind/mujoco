@@ -4,7 +4,7 @@
 This generalized branch computes kinematics, `M(q)`, and inertial/gravity bias
 on Metal. It does not yet solve for acceleration, integrate state, or implement
 `mj_step`. The earlier robot-specific implementation is preserved on
-[`archive/metal-microduck-v1`](https://github.com/keeeeenw/mujoco/tree/archive/metal-microduck-v1);
+[`archive/metal-microduck-v1`](https://github.com/keeeeenw/mujoco-mac-metal/tree/archive/metal-microduck-v1);
 its restricted stepping pipeline has not been generalized into this package.
 
 This optional package targets Python 3.12 and MuJoCo **3.10.0**. The surrounding MuJoCo source checkout is 3.14.1; that version is not a target. Use an isolated environment so the pinned package does not alter the surrounding checkout:
@@ -42,6 +42,12 @@ Run the opt-in GPU correctness tests only on an available Apple GPU with the pin
 | Native rendering and end-to-end training integration | Outside the implemented scope. |
 
 ## Runnable Mac demo
+
+![Metal hybrid pendulum alongside CPU MuJoCo](examples/assets/pendulum.gif)
+
+Left: Metal mass/bias with CPU solve and integration. Right: CPU MuJoCo.
+The GIF plays three seconds of simulation at a fixed presentation rate; it
+does not show measured execution speed. Both use OpenGL rendering.
 
 The [side-by-side chaotic pendulum demo](examples/README.md) now advances a
 four-hinge, contact-free model with **Metal mass/bias plus CPU solve and

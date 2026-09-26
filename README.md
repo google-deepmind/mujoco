@@ -31,6 +31,20 @@ physics-related quantities.
 
 We also provide [Python bindings] and a plug-in for the [Unity] game engine.
 
+## Experimental Apple Metal demo (this branch)
+
+![Metal hybrid pendulum alongside CPU MuJoCo](metal/examples/assets/pendulum.gif)
+
+The [Mac pendulum demo](metal/examples/README.md) compares two independent
+rollouts of the same four-joint, contact-free model. **Left:** native Metal mass
+matrix and bias computations with CPU solve and integration. **Right:** standard
+CPU MuJoCo. Visualization uses OpenGL. The GIF shows three seconds of simulation
+at a fixed playback rate, not measured execution speed.
+
+This is an experimental **hybrid demo**, not a full Metal simulation backend.
+See the [supported stages and remaining gaps](metal/README.md#gaps-before-full-simulation).
+Launch instructions and short numerical validation are in the demo guide.
+
 ## Documentation
 
 MuJoCo's documentation can be found at [mujoco.readthedocs.io]. Upcoming

@@ -59,3 +59,18 @@ for `mjpython`. If startup reports `libpython3.12.dylib` missing, launch with:
 DEMO_PYTHON_LIB="$(.venv-demo/bin/python -c 'import sys; print(sys.base_prefix + "/lib")')"
 DYLD_FALLBACK_LIBRARY_PATH="$DEMO_PYTHON_LIB${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}" PYTHONPATH=metal .venv-demo/bin/mjpython metal/examples/pendulum.py
 ```
+
+## Recorded comparison
+
+![Metal hybrid pendulum alongside CPU MuJoCo](assets/pendulum.gif)
+
+This records the actual hybrid rollout alongside CPU MuJoCo, using 1 ms physics
+steps and one rendered frame every 40 steps. Playback is fixed at 25 frames/s;
+recording wall time is not represented. The clip loops back to its initial state
+after three seconds. Longer chaotic rollouts can diverge.
+
+Regenerate from the repository root with Pillow installed:
+
+```sh
+PYTHONPATH=metal .venv-demo/bin/python metal/examples/record_pendulum.py metal/examples/assets/pendulum.gif
+```
