@@ -168,6 +168,11 @@ cc_library(
             "-fvisibility=hidden",
         ],
     }),
+    # MSVC must emit the wrapper constructors used by other translation units.
+    features = select({
+        "@platforms//os:windows": ["-remove_unreferenced_code"],
+        "//conditions:default": [],
+    }),
     deps = [":binding_headers"],
 )
 

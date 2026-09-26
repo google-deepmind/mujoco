@@ -6,6 +6,7 @@ build:linux --host_cxxopt=-std=c++20
 build:macos --cxxopt=-std=c++20
 build:macos --host_cxxopt=-std=c++20
 build:macos --macos_minimum_os=11.0
+test:macos --test_env=PATH=/usr/bin:/bin:/usr/sbin:/sbin
 build:windows --cxxopt=/std:c++20
 build:windows --host_cxxopt=/std:c++20
 build --enable_platform_specific_config

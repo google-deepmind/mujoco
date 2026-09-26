@@ -46,7 +46,10 @@ def main():
         continue
       commands = subprocess.check_output(['otool', '-l', str(binary)], text=True)
       minimum_versions = re.findall(
-          r'^\s+(?:minos|version) ([0-9.]+)$', commands, re.MULTILINE
+          r'^\s+cmd LC_(?:BUILD_VERSION|VERSION_MIN_MACOSX)\n'
+          r'(?:(?!Load command ).*\n)*?\s+(?:minos|version) ([0-9.]+)\n',
+          commands,
+          re.MULTILINE,
       )
       assert minimum_versions, f'No deployment target in {binary}'
       for version in minimum_versions:
