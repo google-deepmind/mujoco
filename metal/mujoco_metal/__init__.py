@@ -38,6 +38,10 @@ def __getattr__(name):
     from mujoco_metal import stepping
 
     return getattr(stepping, name)
+  if name in ("DeviceState", "StateSnapshot"):
+    from mujoco_metal import device_state
+
+    return getattr(device_state, name)
   if name == "MetalSmoothDynamics":
     from mujoco_metal.smooth_metal import MetalSmoothDynamics
 

@@ -20,6 +20,8 @@ import math
 import mujoco
 import numpy as np
 
+from mujoco_metal.lifecycle import _fingerprint
+from mujoco_metal.model import load_model
 from mujoco_metal.registry import TARGET_MUJOCO_VERSION
 
 
@@ -29,6 +31,8 @@ class SteppingProfile:
 
   name: str
   timestep: float
+  model_fingerprint: str
+  descriptor_fingerprint: str
   nq: int
   nv: int
   joint_types: tuple[int, ...]
@@ -201,6 +205,8 @@ def validate_stepping_profile(model, timestep=None, profile="contact_free_euler_
   return SteppingProfile(
       name=profile,
       timestep=dt,
+      model_fingerprint=_fingerprint(model),
+      descriptor_fingerprint=_fingerprint(load_model(model)),
       nq=int(model.nq),
       nv=int(model.nv),
       joint_types=joint_types,
