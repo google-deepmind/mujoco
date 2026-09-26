@@ -186,7 +186,26 @@ class ModelDescriptor:
 
 
 def snapshot_descriptor(model):
-  """Validate by caller, then detach every NumPy field into immutable bytes."""
+  """Validate and detach every descriptor array into immutable owned bytes."""
+  counts = {
+      name: getattr(model, name)
+      for name in (
+          "nq",
+          "nv",
+          "nbody",
+          "njnt",
+          "ngeom",
+          "nsite",
+          "ntendon",
+          "disableflags",
+      )
+  }
+  values = {
+      field.name: getattr(model, field.name)
+      for field in fields(ModelDescriptor)
+      if isinstance(getattr(model, field.name), np.ndarray)
+  }
+  _validate_lowered(counts, values)
   arrays = {
       field.name: _frozen(getattr(model, field.name))
       for field in fields(ModelDescriptor)

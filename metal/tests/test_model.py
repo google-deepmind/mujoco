@@ -489,3 +489,28 @@ def test_constants_snapshot_same_dimensions_rejects_armature_change():
     a.restore(replace(checkpoint, schema_version=2))
   with pytest.raises(ValueError):
     checkpoint.body_mass.setflags(write=True)
+
+
+def test_batch_state_owns_and_validates_replaced_descriptor_arrays():
+  from dataclasses import replace
+
+  from mujoco_metal.lifecycle import KinematicsBatchState
+
+  loaded = load_model(
+      '<mujoco><worldbody><body pos="1 0 0"><joint type="hinge"/>'
+      '<geom type="sphere" size=".1"/></body></worldbody></mujoco>'
+  )
+  borrowed_pos = np.array(loaded.body_pos, copy=True)
+  replaced = replace(loaded, body_pos=borrowed_pos)
+  state = KinematicsBatchState(replaced, batch_size=1)
+  first = state.poses(0)["body_pos"].copy()
+  borrowed_pos[1, 0] = 9.0
+  second = state.poses(0)["body_pos"]
+  np.testing.assert_array_equal(second, first)
+  with pytest.raises(ValueError):
+    state.model.body_pos.setflags(write=True)
+
+  invalid_pos = np.array(loaded.body_pos, copy=True)
+  invalid_pos[1, 0] = np.nan
+  with pytest.raises(ValueError, match="nonfinite"):
+    KinematicsBatchState(replace(loaded, body_pos=invalid_pos), batch_size=1)

@@ -25,6 +25,7 @@ import numpy as np
 
 from mujoco_metal.model import load_model
 from mujoco_metal.model import ModelDescriptor
+from mujoco_metal.model import snapshot_descriptor
 
 
 def _fingerprint(model):
@@ -175,9 +176,11 @@ class KinematicsBatchState:
         or batch_size <= 0
     ):
       raise ValueError("batch_size must be a positive integer")
-    self.model = model
-    self._fingerprint = _fingerprint(model)
-    self._qpos = np.broadcast_to(model.qpos0, (batch_size, model.nq)).copy()
+    self.model = snapshot_descriptor(model)
+    self._fingerprint = _fingerprint(self.model)
+    self._qpos = np.broadcast_to(
+        self.model.qpos0, (batch_size, self.model.nq)
+    ).copy()
     self._row_generation = np.zeros(batch_size, dtype=np.int64)
     self._cache = [None] * batch_size
     self._cache_generation = np.full(batch_size, -1, dtype=np.int64)
