@@ -23,6 +23,26 @@ from mujoco_metal.model import ModelDescriptor
 from mujoco_metal.model import snapshot_descriptor
 
 _SHADER = Path(__file__).parent / "shaders" / "kinematics.metal"
+_INT32_MAX = (1 << 31) - 1
+_UINT32_CAPACITY = 1 << 32
+
+
+def _validate_workspace_index_capacity(batch_size, buffers, dimensions):
+  """Reject dimensions and offsets that the MSL uint ABI cannot represent."""
+  if (
+      isinstance(batch_size, bool)
+      or not isinstance(batch_size, int)
+      or batch_size <= 0
+  ):
+    raise ValueError("batch_size must be a positive integer")
+  if batch_size > _INT32_MAX:
+    raise ValueError("batch_size exceeds the Metal int32 dimension limit")
+  for name, value in dimensions.items():
+    if value < 0 or value > _INT32_MAX:
+      raise ValueError(f"{name} exceeds the Metal int32 dimension limit")
+  for name, elements in buffers.items():
+    if elements < 0 or elements > _UINT32_CAPACITY:
+      raise ValueError(f"{name} exceeds the Metal uint32 index capacity")
 
 
 def _prepare_host_arrays(model: ModelDescriptor):
@@ -153,10 +173,35 @@ class MetalKinematics:
     Buffers returned by :meth:`run_device` are borrowed workspace views and
     remain valid only until the next call that reuses this workspace.
     """
-    if not isinstance(batch_size, int) or batch_size <= 0:
-      raise ValueError("batch_size must be a positive integer")
+    _validate_workspace_index_capacity(batch_size, {}, {})
     torch = self._torch
     m = self.model
+    _validate_workspace_index_capacity(
+        batch_size,
+        {
+            "qpos": batch_size * m.nq,
+            "body_pos": batch_size * m.nbody * 3,
+            "body_quat": batch_size * m.nbody * 4,
+            "geom_pos": batch_size * m.ngeom * 3,
+            "geom_quat": batch_size * m.ngeom * 4,
+            "site_pos": batch_size * m.nsite * 3,
+            "site_quat": batch_size * m.nsite * 4,
+            "inertial_pos": batch_size * m.nbody * 3,
+            "inertial_quat": batch_size * m.nbody * 4,
+            "joint_anchor": batch_size * m.njnt * 3,
+            "joint_axis": batch_size * m.njnt * 3,
+            "body_parentid": m.nbody,
+            "geom_bodyid": m.ngeom,
+            "site_bodyid": m.nsite,
+        },
+        {
+            "nq": m.nq,
+            "nbody": m.nbody,
+            "njnt": m.njnt,
+            "ngeom": m.ngeom,
+            "nsite": m.nsite,
+        },
+    )
     shapes = {
         "body": m.nbody,
         "geom": m.ngeom,

@@ -20,6 +20,7 @@ import numpy as np
 
 from mujoco_metal.metal_kinematics import _prepare_host_arrays
 from mujoco_metal.metal_kinematics import MetalKinematics
+from mujoco_metal.metal_kinematics import _validate_workspace_index_capacity
 from mujoco_metal.model import ModelDescriptor
 
 _SHADER = Path(__file__).parent / "shaders" / "smooth_mass.metal"
@@ -74,11 +75,27 @@ class MetalSmoothDynamics:
 
   def prepare_workspace(self, batch_size: int):
     """Preallocate all smooth-stage buffers for an explicit world batch."""
-    if not isinstance(batch_size, int) or batch_size <= 0:
-      raise ValueError("batch_size must be a positive integer")
+    _validate_workspace_index_capacity(batch_size, {}, {})
+    nb, nv = self.model.nbody, self.model.nv
+    _validate_workspace_index_capacity(
+        batch_size,
+        {
+            "mass": batch_size * nv * nv,
+            "root_com": batch_size * nb * 3,
+            "cdof": batch_size * nv * 6,
+            "crb": batch_size * nb * 36,
+            "local_inertia": batch_size * nb * 36,
+            "qvel": batch_size * nv,
+            "bias": batch_size * nv,
+            "cvel": batch_size * nb * 6,
+            "cdof_dot": batch_size * nv * 6,
+            "cacc": batch_size * nb * 6,
+            "body_force": batch_size * nb * 6,
+        },
+        {"nbody": nb, "njnt": self.model.njnt, "nv": nv},
+    )
     self._fk.prepare_workspace(batch_size)
     torch, device = self._torch, self._fk._device
-    nb, nv = self.model.nbody, self.model.nv
     def buffer(size):
       return torch.empty(max(size, 1), dtype=torch.float32, device=device)
     self._workspace = {

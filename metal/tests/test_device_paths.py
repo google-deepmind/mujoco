@@ -126,6 +126,12 @@ def test_device_path_rejects_metadata_errors_and_requires_prepared_batch():
   stage = MetalKinematics(descriptor)
   with pytest.raises(ValueError, match="prepare_workspace"):
     stage.run_device(_mps(np.zeros((2, descriptor.nq))))
+  with pytest.raises(ValueError, match="positive integer"):
+    stage.prepare_workspace(True)
+  with pytest.raises(ValueError, match="int32 dimension limit"):
+    stage.prepare_workspace(1 << 31)
+  with pytest.raises(ValueError, match="uint32 index capacity"):
+    stage.prepare_workspace(1 << 30)
   with pytest.raises(ValueError, match="dtype"):
     stage.run_device(
         torch.zeros((1, descriptor.nq), dtype=torch.float16, device="mps")
