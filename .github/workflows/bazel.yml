@@ -110,7 +110,7 @@ jobs:
           xvfb-run -a python bazel/gui_smoke.py "$BAZEL_BIN/simulate/simulate" "$BAZEL_BIN/sample/basic"
       - name: Classic rendering
         if: runner.os == 'Linux'
-        run: xvfb-run -a bazel --nohome_rc test --config=release --config="$BAZEL_CONFIG" --test_env=DISPLAY --test_env=MUJOCO_GL=glfw //python:renderer_test //python:render_test
+        run: xvfb-run -a bazel --nohome_rc test --config=release --config="$BAZEL_CONFIG" --test_env=DISPLAY --test_env=XAUTHORITY --test_env=MUJOCO_GL=glfw //python:renderer_test //python:render_test
       - name: Downstream Bzlmod consumers
         run: |
           python bazel/check_consumer.py
@@ -279,7 +279,7 @@ jobs:
         run: |
           xvfb-run -a bazel --batch --nohome_rc --output_base="$RUNNER_TEMP/bazel-studio" test \
             --config=release --config=clang --//python:studio=true --//python:studio_web=true \
-            --test_env=DISPLAY --test_env=LIBGL_ALWAYS_SOFTWARE=1 --test_env=STUDIO_GFX=vulkan \
+            --test_env=DISPLAY --test_env=XAUTHORITY --test_env=LIBGL_ALWAYS_SOFTWARE=1 --test_env=STUDIO_GFX=vulkan \
             //python:studio_import_test //python:studio_smoke_test //python:wheel_install_test
       - name: Native Studio application
         run: |
@@ -326,6 +326,10 @@ jobs:
       - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86
         with:
           bazelisk-cache: true
+      - name: Install CMake package prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev
       - name: Build CMake baseline
         run: |
           cmake -S . -B "$RUNNER_TEMP/mujoco-cmake" -G Ninja \
