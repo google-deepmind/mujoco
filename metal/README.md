@@ -1,7 +1,9 @@
 # Experimental MuJoCo Metal package
 
-This optional package targets the Python bindings for MuJoCo **3.10.0**. The surrounding source checkout is 3.14.1; that version is not a target. Install from `metal/` with `pip install -e '.[test]'`. Importing `mujoco_metal` does not import Torch or initialize MPS.
+This optional package targets the Python bindings for MuJoCo **3.10.0**. The surrounding source checkout is 3.14.1; that version is not a target. Install from `metal/` with `pip install -e '.[test]'`. Importing `mujoco_metal` and running preflight do not import Torch or initialize MPS.
 
-The current stage implements immutable generic model lowering and CPU forward kinematics for hinge, slide, ball, and free joints, including fixed/branched bodies and world poses for bodies, inertias, geoms, and sites. `forward_kinematics` is a kinematics-only API. It does not perform collision, force calculation, constraints, integration, or stepping. GPU execution is not yet qualified.
+Run `python -m mujoco_metal preflight --model path/to/model.xml --json --inventory` for the runtime version, model dimensions, package and shader paths/hash, capability boundaries, and versioned feature/API inventory. Inventory completeness is explicitly false because the release feature surface is broader than the enum and binding inventory captured so far.
 
-The feature inventory is available through `mujoco_metal.registry.feature_status()`. “Implemented” names code present; qualification is tracked independently. No claim of complete MuJoCo API coverage is made. Follow-up work must enumerate the pinned 3.10 API/features before any broad support claim.
+`load_model(xml_or_path)` returns an immutable, dimension-derived descriptor. `descriptor.forward_kinematics(qpos)` is a CPU reference for body, inertial, geom, and site world poses across hinge, slide, ball, and free joints. `MetalKinematics(descriptor).run(qpos_batch)` is an explicit opt-in Torch MPS API for the same kinematics stage. Constructing `MetalKinematics` initializes MPS and compiles the bundled shader. It has not been GPU-qualified. Set `MUJOCO_METAL_RUN_GPU=1` to opt into `pytest -m gpu`; run this only on an idle Apple GPU after qualification constraints are satisfied.
+
+This stage does not compute collision, forces, constraints, sensors, integration, or physics stepping. It is not a general Metal physics backend yet. The standalone source tree carries the Apache 2.0 license and notices.
