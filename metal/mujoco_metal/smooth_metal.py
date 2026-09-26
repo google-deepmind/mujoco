@@ -94,9 +94,19 @@ class MetalSmoothDynamics:
         "cdof_dot": buffer(batch_size * nv * 6),
         "cacc": buffer(batch_size * nb * 6),
         "body_force": buffer(batch_size * nb * 6),
-        "mass_dims": torch.tensor([nb, self.model.njnt, nv, batch_size], dtype=torch.int32, device=device),
-        "bias_dims": torch.tensor([nb, self.model.njnt, nv, batch_size], dtype=torch.int32, device=device),
-        "disableflags": torch.tensor([self.model.disableflags], dtype=torch.int32, device=device),
+        "mass_dims": torch.tensor(
+            [nb, self.model.njnt, nv, batch_size],
+            dtype=torch.int32,
+            device=device,
+        ),
+        "bias_dims": torch.tensor(
+            [nb, self.model.njnt, nv, batch_size],
+            dtype=torch.int32,
+            device=device,
+        ),
+        "disableflags": torch.tensor(
+            [self.model.disableflags], dtype=torch.int32, device=device
+        ),
     }
 
   def run_device(self, qpos, qvel):
@@ -114,11 +124,19 @@ class MetalSmoothDynamics:
       raise TypeError("qvel must be a rank-2 torch.Tensor")
     batch = qpos.shape[0]
     if batch <= 0 or qpos.shape[1] != self.model.nq:
-      raise ValueError(f"qpos must have shape (batch, {self.model.nq}) with batch > 0")
-    self._fk._check_device_tensor(qpos, "qpos", (batch, self.model.nq), torch, self._fk._device)
-    self._fk._check_device_tensor(qvel, "qvel", (batch, self.model.nv), torch, self._fk._device)
+      raise ValueError(
+          f"qpos must have shape (batch, {self.model.nq}) with batch > 0"
+      )
+    self._fk._check_device_tensor(
+        qpos, "qpos", (batch, self.model.nq), torch, self._fk._device
+    )
+    self._fk._check_device_tensor(
+        qvel, "qvel", (batch, self.model.nv), torch, self._fk._device
+    )
     if self._workspace["batch_size"] != batch:
-      raise ValueError("call prepare_workspace(batch_size) before using this batch size")
+      raise ValueError(
+          "call prepare_workspace(batch_size) before using this batch size"
+      )
 
     # The kernel only reads qpos/qvel, so flattening is a view. For nv=0 the
     # unused argument gets valid dummy storage for MSL's non-null ABI.
@@ -163,7 +181,8 @@ class MetalSmoothDynamics:
         or not np.all(np.isfinite(source))
     ):
       raise ValueError(
-          f"qpos must be finite with shape (batch, {self.model.nq}) and batch > 0"
+          f"qpos must be finite with shape (batch, {self.model.nq}) "
+          "and batch > 0"
       )
     qpos32 = np.asarray(source, dtype=np.float32)
     if not np.all(np.isfinite(qpos32)):
@@ -231,11 +250,11 @@ class MetalSmoothDynamics:
     }
 
   def mass_matrix(self, qpos_batch):
-    """Compute dense generalized inertia for a batch, returning an MPS tensor."""
+    """Compute dense generalized inertia for a batch, returning MPS output."""
     return self._compute_mass_matrix(qpos_batch)["mass_matrix"]
 
   def run(self, qpos_batch, qvel_batch):
-    """Return batched mass matrices and inertial/gravity bias on the MPS device."""
+    """Return batched mass matrices and inertial/gravity bias on MPS."""
     qpos = np.asarray(qpos_batch, dtype=np.float64)
     if qpos.ndim == 1:
       qpos = qpos[None, :]

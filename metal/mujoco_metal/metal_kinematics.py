@@ -143,7 +143,7 @@ class MetalKinematics:
           "geom_size",
       ):
         continue
-        self._arrays[name] = torch.from_numpy(host).to(self._device)
+      self._arrays[name] = torch.from_numpy(host).to(self._device)
     self._workspace = None
     self.prepare_workspace(batch_size)
 
@@ -166,14 +166,20 @@ class MetalKinematics:
     outputs = {}
     for name, count in shapes.items():
       outputs[f"{name}_pos"] = torch.empty(
-          max(batch_size * count * 3, 1), dtype=torch.float32, device=self._device
+          max(batch_size * count * 3, 1),
+          dtype=torch.float32,
+          device=self._device,
       )
       outputs[f"{name}_quat"] = torch.empty(
-          max(batch_size * count * 4, 1), dtype=torch.float32, device=self._device
+          max(batch_size * count * 4, 1),
+          dtype=torch.float32,
+          device=self._device,
       )
     for name in ("joint_anchor", "joint_axis"):
       outputs[name] = torch.empty(
-          max(batch_size * m.njnt * 3, 1), dtype=torch.float32, device=self._device
+          max(batch_size * m.njnt * 3, 1),
+          dtype=torch.float32,
+          device=self._device,
       )
     outputs["qpos"] = torch.empty(
         max(batch_size * m.nq, 1), dtype=torch.float32, device=self._device
@@ -189,7 +195,7 @@ class MetalKinematics:
     """Check only host-visible tensor metadata; never synchronizes MPS."""
     if not isinstance(value, torch.Tensor):
       raise TypeError(f"{name} must be a torch.Tensor")
-    if value.device != device:
+    if value.device.type != device.type:
       raise ValueError(f"{name} must be on {device}")
     if value.dtype != torch.float32:
       raise ValueError(f"{name} must have dtype torch.float32")
@@ -211,11 +217,17 @@ class MetalKinematics:
       raise TypeError("qpos must be a rank-2 torch.Tensor")
     batch = qpos.shape[0]
     if batch <= 0 or qpos.shape[1] != self.model.nq:
-      raise ValueError(f"qpos must have shape (batch, {self.model.nq}) with batch > 0")
-    self._check_device_tensor(qpos, "qpos", (batch, self.model.nq), torch, self._device)
+      raise ValueError(
+          f"qpos must have shape (batch, {self.model.nq}) with batch > 0"
+      )
+    self._check_device_tensor(
+        qpos, "qpos", (batch, self.model.nq), torch, self._device
+    )
     workspace = self._workspace
     if workspace is None or workspace["batch_size"] != batch:
-      raise ValueError("call prepare_workspace(batch_size) before using this batch size")
+      raise ValueError(
+          "call prepare_workspace(batch_size) before using this batch size"
+      )
     out = workspace["outputs"]
     # A reshape is a device view. For nq=0, the kernel reads the dummy element;
     # this copy keeps the ABI buffer valid without allocating CPU state.
@@ -229,18 +241,33 @@ class MetalKinematics:
         "jnt_qposadr", "jnt_bodyid", "jnt_pos", "jnt_axis", "qpos0",
     )]
     args.extend([qbuf, out["body_pos"], out["body_quat"]])
-    args.extend(arrays[name] for name in ("geom_bodyid", "geom_pos", "geom_quat"))
+    args.extend(
+        arrays[name] for name in ("geom_bodyid", "geom_pos", "geom_quat")
+    )
     args.extend([out["geom_pos"], out["geom_quat"]])
-    args.extend(arrays[name] for name in ("site_bodyid", "site_pos", "site_quat"))
+    args.extend(
+        arrays[name] for name in ("site_bodyid", "site_pos", "site_quat")
+    )
     args.extend([out["site_pos"], out["site_quat"]])
-    args.extend([arrays["body_ipos"], arrays["body_iquat"], out["inertial_pos"], out["inertial_quat"]])
+    args.extend([
+        arrays["body_ipos"],
+        arrays["body_iquat"],
+        out["inertial_pos"],
+        out["inertial_quat"],
+    ])
     args.extend([out["dims"], out["joint_anchor"], out["joint_axis"]])
     self._kernel(*args, threads=(batch,), group_size=(1,))
     result = {}
-    for kind, count in (("body", self.model.nbody), ("geom", self.model.ngeom),
-                        ("site", self.model.nsite), ("inertial", self.model.nbody)):
+    for kind, count in (
+        ("body", self.model.nbody),
+        ("geom", self.model.ngeom),
+        ("site", self.model.nsite),
+        ("inertial", self.model.nbody),
+    ):
       result[f"{kind}_pos"] = _shape_output(out[f"{kind}_pos"], batch, count, 3)
-      result[f"{kind}_quat"] = _shape_output(out[f"{kind}_quat"], batch, count, 4)
+      result[f"{kind}_quat"] = _shape_output(
+          out[f"{kind}_quat"], batch, count, 4
+      )
     for name in ("joint_anchor", "joint_axis"):
       result[name] = _shape_output(out[name], batch, self.model.njnt, 3)
     return result
