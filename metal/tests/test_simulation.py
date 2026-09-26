@@ -73,6 +73,28 @@ def test_batch_overflow_rejected_before_device_construction():
     MetalSimulation(model, batch_size=1 << 30)
 
 
+def test_fixed_geom_output_overflow_rejected_before_state_allocation(
+    monkeypatch,
+):
+  geoms = "".join(
+      f'<geom type="sphere" size=".1" pos="{index} 0 0"/>'
+      for index in range(10)
+  )
+  model = mujoco.MjModel.from_xml_string(
+      '<mujoco><option><flag contact="disable"/></option><worldbody>'
+      + geoms
+      + "</worldbody></mujoco>"
+  )
+  assert model.nbody == 1 and model.ngeom == 10 and model.nv == 0
+
+  def forbidden_state(*_args, **_kwargs):
+    raise AssertionError("device state allocation must follow capacity checks")
+
+  monkeypatch.setattr("mujoco_metal.simulation.DeviceState", forbidden_state)
+  with pytest.raises(ValueError, match="geom_quat.*uint32 index capacity"):
+    MetalSimulation(model, batch_size=110_000_000)
+
+
 @_requires_gpu
 def test_one_step_batch_matches_mujoco_and_never_uses_host_physics(monkeypatch):
   import torch
