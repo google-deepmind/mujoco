@@ -34,6 +34,10 @@ def __getattr__(name):
     from mujoco_metal.smooth import smooth_dynamics
 
     return smooth_dynamics
+  if name in ("SteppingProfile", "validate_stepping_profile"):
+    from mujoco_metal import stepping
+
+    return getattr(stepping, name)
   if name == "MetalSmoothDynamics":
     from mujoco_metal.smooth_metal import MetalSmoothDynamics
 
