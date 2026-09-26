@@ -76,6 +76,15 @@ class ModelDescriptor:
   njnt: int
   ngeom: int
   nsite: int
+  body_rootid: np.ndarray
+  body_dofadr: np.ndarray
+  body_dofnum: np.ndarray
+  dof_parentid: np.ndarray
+  dof_bodyid: np.ndarray
+  dof_jntid: np.ndarray
+  body_subtreemass: np.ndarray
+  gravity: np.ndarray
+  disableflags: int
   body_parentid: np.ndarray
   body_jntadr: np.ndarray
   body_jntnum: np.ndarray
@@ -113,6 +122,8 @@ class ModelDescriptor:
     joints_by_body = [[] for _ in range(self.nbody)]
     for j, body in enumerate(self.jnt_bodyid):
       joints_by_body[int(body)].append(j)
+    xanchor = np.zeros((self.njnt, 3))
+    xaxis = np.zeros((self.njnt, 3))
     for body in range(1, self.nbody):
       parent = int(self.body_parentid[body])
       bp[body] = bp[parent] + _rotate(bq[parent], self.body_pos[body])
@@ -123,8 +134,12 @@ class ModelDescriptor:
         if typ == int(mujoco.mjtJoint.mjJNT_FREE):
           bp[body] = qpos[qa : qa + 3]
           bq[body] = _unit(qpos[qa + 3 : qa + 7], "free joint")
+          xanchor[j] = bp[body]
+          xaxis[j] = self.jnt_axis[j]
         elif typ == int(mujoco.mjtJoint.mjJNT_BALL):
           anchor = bp[body] + _rotate(bq[body], self.jnt_pos[j])
+          xanchor[j] = anchor
+          xaxis[j] = _rotate(bq[body], self.jnt_axis[j])
           rotation = _unit(qpos[qa : qa + 4], "ball joint")
           bq[body] = _unit(_quat_mul(bq[body], rotation), "body")
           bp[body] = anchor - _rotate(bq[body], self.jnt_pos[j])
@@ -133,10 +148,12 @@ class ModelDescriptor:
             int(mujoco.mjtJoint.mjJNT_SLIDE),
         ):
           value = qpos[qa] - self.qpos0[qa]
+          xaxis[j] = _rotate(bq[body], self.jnt_axis[j])
+          anchor = bp[body] + _rotate(bq[body], self.jnt_pos[j])
+          xanchor[j] = anchor
           if typ == int(mujoco.mjtJoint.mjJNT_SLIDE):
-            bp[body] += _rotate(bq[body], self.jnt_axis[j] * value)
+            bp[body] += xaxis[j] * value
           else:
-            anchor = bp[body] + _rotate(bq[body], self.jnt_pos[j])
             bq[body] = _unit(
                 _quat_mul(bq[body], _axis_quat(self.jnt_axis[j], value)),
                 "body",
@@ -160,6 +177,8 @@ class ModelDescriptor:
         "site_quat": sq,
         "inertial_pos": ip,
         "inertial_quat": iq,
+        "joint_anchor": xanchor,
+        "joint_axis": xaxis,
     }
 
 
@@ -187,6 +206,14 @@ def _validate_lowered(counts, values):
   nb, nj, nq, nv = counts["nbody"], counts["njnt"], counts["nq"], counts["nv"]
   parent = values["body_parentid"]
   array_shapes = {
+      "body_rootid": (nb,),
+      "body_dofadr": (nb,),
+      "body_dofnum": (nb,),
+      "body_subtreemass": (nb,),
+      "gravity": (3,),
+      "dof_parentid": (nv,),
+      "dof_bodyid": (nv,),
+      "dof_jntid": (nv,),
       "body_jntadr": (nb,),
       "body_jntnum": (nb,),
       "body_pos": (nb, 3),
@@ -242,6 +269,48 @@ def _validate_lowered(counts, values):
     raise ValueError("invalid body parent array")
   if np.any(parent[1:] < 0) or np.any(parent[1:] >= np.arange(1, nb)):
     raise ValueError("body parents must precede their children")
+  if values["body_rootid"][0] != 0:
+    raise ValueError("invalid world body root")
+  for body, root in enumerate(values["body_rootid"]):
+    if root < 0 or root >= nb:
+      raise ValueError(f"invalid body root id for body {body}")
+    ancestor = body
+    while ancestor and ancestor != root:
+      ancestor = int(parent[ancestor])
+    if ancestor != root:
+      raise ValueError(f"body root id is not an ancestor for body {body}")
+  dcovered_by_body = np.zeros(nv, dtype=np.int8)
+  for body, (start, count) in enumerate(
+      zip(values["body_dofadr"], values["body_dofnum"])
+  ):
+    if (
+        count < 0
+        or (count == 0 and (start < -1 or start > nv))
+        or (count > 0 and (start < 0 or start + count > nv))
+    ):
+      raise ValueError(f"invalid dof range for body {body}")
+    if count:
+      if np.any(values["dof_bodyid"][start : start + count] != body) or np.any(
+          dcovered_by_body[start : start + count]
+      ):
+        raise ValueError(f"invalid dof body range for body {body}")
+      dcovered_by_body[start : start + count] = 1
+  if not np.all(dcovered_by_body):
+    raise ValueError("body dof ranges do not cover the dof array")
+  for dof, parent_dof in enumerate(values["dof_parentid"]):
+    if parent_dof < -1 or parent_dof >= dof:
+      raise ValueError(f"invalid parent dof id at dof {dof}")
+    joint = int(values["dof_jntid"][dof])
+    body = int(values["dof_bodyid"][dof])
+    if joint < 0 or joint >= nj or int(values["jnt_bodyid"][joint]) != body:
+      raise ValueError(f"invalid joint mapping at dof {dof}")
+    ancestor = body
+    if parent_dof >= 0:
+      parent_body = int(values["dof_bodyid"][parent_dof])
+      while ancestor and ancestor != parent_body:
+        ancestor = int(parent[ancestor])
+      if ancestor != parent_body:
+        raise ValueError(f"non-ancestor parent dof at dof {dof}")
   qcovered = np.zeros(nq, dtype=np.int8)
   dcovered = np.zeros(nv, dtype=np.int8)
   free_bodies = set()
@@ -258,6 +327,8 @@ def _validate_lowered(counts, values):
     )
     if not qwidth or qa < 0 or qa + qwidth > nq or da < 0 or da + dwidth > nv:
       raise ValueError(f"invalid joint type or address at joint {i}")
+    if not np.all(values["dof_jntid"][da : da + dwidth] == i):
+      raise ValueError(f"joint dof mapping mismatch at joint {i}")
     if body <= 0 or body >= nb:
       raise ValueError(f"invalid joint body at joint {i}")
     if qcovered[qa : qa + qwidth].any() or dcovered[da : da + dwidth].any():
@@ -324,6 +395,14 @@ def load_model(source):
     )
   values = {}
   for name in (
+      "body_rootid",
+      "body_dofadr",
+      "body_dofnum",
+      "body_subtreemass",
+      "dof_parentid",
+      "dof_bodyid",
+      "dof_jntid",
+      "gravity",
       "body_parentid",
       "body_jntadr",
       "body_jntnum",
@@ -350,7 +429,8 @@ def load_model(source):
       "site_pos",
       "site_quat",
   ):
-    values[name] = _frozen(getattr(m, name))
+    source_value = m.opt.gravity if name == "gravity" else getattr(m, name)
+    values[name] = _frozen(source_value)
   counts = dict(
       nq=m.nq,
       nv=m.nv,
@@ -359,6 +439,7 @@ def load_model(source):
       njnt=m.njnt,
       ngeom=m.ngeom,
       nsite=m.nsite,
+      disableflags=int(m.opt.disableflags),
   )
   _validate_lowered(counts, values)
   return ModelDescriptor(**counts, **values)

@@ -75,6 +75,8 @@ def test_mixed_topology_matches_mujoco_oracle():
   np.testing.assert_allclose(actual["body_pos"], data.xpos, atol=1e-12)
   np.testing.assert_allclose(actual["body_quat"], data.xquat, atol=1e-12)
   np.testing.assert_allclose(actual["geom_pos"], data.geom_xpos, atol=1e-12)
+  np.testing.assert_allclose(actual["joint_anchor"], data.xanchor, atol=1e-12)
+  np.testing.assert_allclose(actual["joint_axis"], data.xaxis, atol=1e-12)
   np.testing.assert_allclose(actual["site_pos"], data.site_xpos, atol=1e-12)
   assert model.nbody > 17
 
@@ -311,6 +313,8 @@ def test_randomized_mixed_joint_cpu_oracle():
     np.testing.assert_allclose(result["body_quat"], data.xquat, atol=2e-12)
     np.testing.assert_allclose(result["geom_pos"], data.geom_xpos, atol=2e-12)
     np.testing.assert_allclose(result["site_pos"], data.site_xpos, atol=2e-12)
+    np.testing.assert_allclose(result["joint_anchor"], data.xanchor, atol=2e-12)
+    np.testing.assert_allclose(result["joint_axis"], data.xaxis, atol=2e-12)
 
 
 def test_batched_constants_recompute_dirty_rows_and_restore(monkeypatch):
