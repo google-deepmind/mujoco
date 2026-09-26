@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mujoco-metal-experimental"
 version = "0.2.0"
-description = "Optional generic MuJoCo model inspection and Metal kinematics prototype"
+description = "Experimental generalized MuJoCo Metal contact-free stepping profile"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 license = "Apache-2.0"
