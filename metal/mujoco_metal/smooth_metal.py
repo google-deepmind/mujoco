@@ -52,13 +52,13 @@ class MetalSmoothDynamics:
   compiles shaders.
   """
 
-  def __init__(self, model: ModelDescriptor):
+  def __init__(self, model: ModelDescriptor, batch_size: int = 1):
     if model.nu:
       raise ValueError("Metal smooth stage does not support actuators")
     if np.any(model.tendon_armature != 0):
       raise ValueError("Metal smooth stage does not support tendon armature")
     host = _prepare_host_arrays(model)
-    self._fk = MetalKinematics(model)
+    self._fk = MetalKinematics(model, batch_size=batch_size)
     self.model = self._fk.model
     torch = self._fk._torch
     self._torch = torch
@@ -69,6 +69,87 @@ class MetalSmoothDynamics:
     self._arrays = {
         name: torch.from_numpy(host[name]).to(self._fk._device)
         for name in _DEVICE_ARRAYS
+    }
+    self.prepare_workspace(batch_size)
+
+  def prepare_workspace(self, batch_size: int):
+    """Preallocate all smooth-stage buffers for an explicit world batch."""
+    if not isinstance(batch_size, int) or batch_size <= 0:
+      raise ValueError("batch_size must be a positive integer")
+    self._fk.prepare_workspace(batch_size)
+    torch, device = self._torch, self._fk._device
+    nb, nv = self.model.nbody, self.model.nv
+    def buffer(size):
+      return torch.empty(max(size, 1), dtype=torch.float32, device=device)
+    self._workspace = {
+        "batch_size": batch_size,
+        "mass": buffer(batch_size * nv * nv),
+        "root_com": buffer(batch_size * nb * 3),
+        "cdof": buffer(batch_size * nv * 6),
+        "crb": buffer(batch_size * nb * 36),
+        "local_inertia": buffer(batch_size * nb * 36),
+        "qvel": buffer(batch_size * nv),
+        "bias": buffer(batch_size * nv),
+        "cvel": buffer(batch_size * nb * 6),
+        "cdof_dot": buffer(batch_size * nv * 6),
+        "cacc": buffer(batch_size * nb * 6),
+        "body_force": buffer(batch_size * nb * 6),
+        "mass_dims": torch.tensor([nb, self.model.njnt, nv, batch_size], dtype=torch.int32, device=device),
+        "bias_dims": torch.tensor([nb, self.model.njnt, nv, batch_size], dtype=torch.int32, device=device),
+        "disableflags": torch.tensor([self.model.disableflags], dtype=torch.int32, device=device),
+    }
+
+  def run_device(self, qpos, qvel):
+    """Compute M(q) and bias from borrowed MPS float32 state tensors.
+
+    Inputs are trusted to be finite and have finite nonzero free/ball
+    quaternions. Device-state reset owns value validation; this hot path checks
+    tensor metadata only and never reads a device value back to the host.
+    Results borrow persistent workspace and remain valid until its next use.
+    """
+    torch = self._torch
+    if not isinstance(qpos, torch.Tensor) or qpos.ndim != 2:
+      raise TypeError("qpos must be a rank-2 torch.Tensor")
+    if not isinstance(qvel, torch.Tensor) or qvel.ndim != 2:
+      raise TypeError("qvel must be a rank-2 torch.Tensor")
+    batch = qpos.shape[0]
+    if batch <= 0 or qpos.shape[1] != self.model.nq:
+      raise ValueError(f"qpos must have shape (batch, {self.model.nq}) with batch > 0")
+    self._fk._check_device_tensor(qpos, "qpos", (batch, self.model.nq), torch, self._fk._device)
+    self._fk._check_device_tensor(qvel, "qvel", (batch, self.model.nv), torch, self._fk._device)
+    if self._workspace["batch_size"] != batch:
+      raise ValueError("call prepare_workspace(batch_size) before using this batch size")
+
+    # The kernel only reads qpos/qvel, so flattening is a view. For nv=0 the
+    # unused argument gets valid dummy storage for MSL's non-null ABI.
+    poses = self._fk.run_device(qpos)
+    w, arrays = self._workspace, self._arrays
+    qvel_flat = qvel.reshape(-1) if self.model.nv else w["qvel"]
+    args = [arrays[name] for name in (
+        "body_parentid", "body_rootid", "body_jntadr", "body_jntnum",
+        "dof_parentid", "dof_bodyid", "jnt_type", "jnt_dofadr",
+        "body_mass", "body_inertia", "dof_armature",
+    )]
+    args.extend([
+        poses["body_quat"].reshape(-1), poses["inertial_pos"].reshape(-1),
+        poses["inertial_quat"].reshape(-1), poses["joint_anchor"].reshape(-1),
+        poses["joint_axis"].reshape(-1), w["mass"], w["root_com"], w["cdof"],
+        w["crb"], w["mass_dims"], w["local_inertia"],
+    ])
+    self._kernel(*args, threads=(batch,), group_size=(1,))
+    bias_args = [
+        arrays["body_parentid"], arrays["body_dofadr"], arrays["body_dofnum"],
+        arrays["body_jntadr"], arrays["body_jntnum"], arrays["dof_bodyid"],
+        arrays["jnt_type"], arrays["jnt_dofadr"], arrays["gravity"],
+        w["cdof"], w["local_inertia"], w["disableflags"], qvel_flat,
+        w["cvel"], w["cdof_dot"], w["cacc"], w["body_force"], w["bias"],
+        w["bias_dims"],
+    ]
+    self._bias_kernel(*bias_args, threads=(batch,), group_size=(1,))
+    nv = self.model.nv
+    return {
+        "mass_matrix": w["mass"][:batch * nv * nv].reshape(batch, nv, nv),
+        "qfrc_bias": w["bias"][:batch * nv].reshape(batch, nv),
     }
 
   def _compute_mass_matrix(self, qpos_batch):
