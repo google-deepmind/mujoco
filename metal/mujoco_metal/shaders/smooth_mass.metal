@@ -15,15 +15,11 @@
 #include <metal_stdlib>
 using namespace metal;
 
-inline float4 qmul_mass(float4 a, float4 b) {
-  return float4(a.x*b.x-dot(a.yzw, b.yzw),
-      a.x*b.yzw+b.x*a.yzw+cross(a.yzw, b.yzw));
-}
 inline float3 qrot_mass(float4 q, float3 v) {
   return v + 2.0f*cross(q.yzw, cross(q.yzw, v) + q.x*v);
 }
 inline float3 cross_mass(float3 a, float3 b) { return cross(a, b); }
-inline void store_cdof(device float* cdof, uint base, uint nv,
+inline void store_cdof(device float* cdof, uint base,
                        uint dof, float3 angular, float3 linear) {
   uint address = base + dof*6;
   cdof[address] = angular.x; cdof[address+1] = angular.y;
@@ -76,7 +72,7 @@ kernel void dense_mass_matrix(
                               inertial_xpos[(world*nbody+b)*3+2]);
       }
     }
-    float3 center = total > 1e-20f ? moment/total :
+    float3 center = total > 1e-15f ? moment/total :
         float3(inertial_xpos[(world*nbody+root)*3],
                inertial_xpos[(world*nbody+root)*3+1],
                inertial_xpos[(world*nbody+root)*3+2]);
@@ -160,23 +156,23 @@ kernel void dense_mass_matrix(
       if (typ == 0 || typ == 1) {
         uint skip = typ == 0 ? 3 : 0;
         if (typ == 0) {
-          store_cdof(cdof,dof_base,nv,dadr,float3(0),float3(1,0,0));
-          store_cdof(cdof,dof_base,nv,dadr+1,float3(0),float3(0,1,0));
-          store_cdof(cdof,dof_base,nv,dadr+2,float3(0),float3(0,0,1));
+          store_cdof(cdof,dof_base,dadr,float3(0),float3(1,0,0));
+          store_cdof(cdof,dof_base,dadr+1,float3(0),float3(0,1,0));
+          store_cdof(cdof,dof_base,dadr+2,float3(0),float3(0,0,1));
         }
         for (uint k=0; k<3; ++k) {
           float3 basis = k == 0 ? float3(1,0,0) :
                          (k == 1 ? float3(0,1,0) : float3(0,0,1));
           float3 angular = qrot_mass(bodyq,basis);
-          store_cdof(cdof,dof_base,nv,dadr+skip+k,angular,
+          store_cdof(cdof,dof_base,dadr+skip+k,angular,
                      cross_mass(angular,offset));
         }
       } else {
         float3 axis = float3(joint_axis[(world*njnt+j)*3],
                              joint_axis[(world*njnt+j)*3+1],
                              joint_axis[(world*njnt+j)*3+2]);
-        if (typ == 3) store_cdof(cdof,dof_base,nv,dadr,axis,cross_mass(axis,offset));
-        else store_cdof(cdof,dof_base,nv,dadr,float3(0),axis);
+        if (typ == 3) store_cdof(cdof,dof_base,dadr,axis,cross_mass(axis,offset));
+        else store_cdof(cdof,dof_base,dadr,float3(0),axis);
       }
     }
   }
