@@ -1,15 +1,23 @@
-# Side-by-side Mac pendulum demo
+# Mac pendulum backend comparison
 
 This adapts the four-hinge chaotic pendulum from MuJoCo's
 [Python tutorial](../../python/tutorial.ipynb), Copyright 2021 DeepMind
 Technologies Limited, Apache-2.0. It has no contacts, actuators or passive forces.
 
-**Left:** experimental Metal mass matrix and gravity/inertial bias, followed by
-CPU NumPy acceleration solve and CPU semi-implicit Euler integration.
-**Right:** independent standard CPU `mj_step`, with the same initial state.
-Both are displayed by MuJoCo's OpenGL renderer. This is a **hybrid demo**, not
-full native Metal stepping, contact qualification or a speed benchmark.
-No CPU fallback is allowed for the Metal computations.
+Choose one of three explicit physics modes. Every mode compares the left state
+with an independent CPU `mj_step` reference on the right, using the same initial
+state. MuJoCo's OpenGL renderer displays both states.
+
+- `metal`: native MPS generalized dynamics, dense acceleration solve and
+  semi-implicit Euler for the supported `contact_free_euler_v1` profile.
+- `metal-hybrid`: experimental Metal mass matrix and gravity/inertial bias,
+  followed by CPU NumPy acceleration solve and CPU semi-implicit Euler.
+- `cpu`: MuJoCo `mj_step` on both sides for a baseline.
+
+The native mode covers this bundled contact-free, unactuated rigid-body model.
+It does not establish contact support, broad MuJoCo feature coverage or a speed
+advantage. It has no CPU physics fallback. The recorded GIF below remains the
+hybrid mode; its label describes the physics shown in that recording.
 
 From the repository root, in an isolated Python 3.12 environment:
 
@@ -26,6 +34,12 @@ pendulum is translated only for display. Each frame advances ten 1 ms steps;
 slow machines display slower-than-real-time motion without skipping steps.
 The simulation continues until closed; reset periodically when comparing:
 chaotic trajectories eventually diverge due to floating-point differences.
+Interactive display needs an active macOS viewer session; the demo checks for
+one before GPU initialization. On a Mac without a display, `mjpython` itself
+may wait for the GUI session before it starts the script, so the script cannot
+show its display check in that case. Use ordinary `python` with the headless
+commands below to qualify physics. Interactive viewer qualification remains
+pending on a host with an active display.
 
 Run a short numerical check without opening a window:
 
@@ -33,6 +47,19 @@ Run a short numerical check without opening a window:
 PYTHONPATH=metal .venv-demo/bin/python metal/examples/pendulum.py --headless --check
 MUJOCO_METAL_RUN_GPU=1 PYTHONPATH=metal .venv-demo/bin/python -m pytest -q metal/tests/test_pendulum.py
 ```
+
+Select and check native stepping explicitly with:
+
+```sh
+PYTHONPATH=metal .venv-demo/bin/mjpython metal/examples/pendulum.py --mode metal
+PYTHONPATH=metal .venv-demo/bin/python metal/examples/pendulum.py --mode metal --headless --check --steps 200
+MUJOCO_METAL_RUN_GPU=1 PYTHONPATH=metal .venv-demo/bin/python -m pytest -q metal/tests/test_pendulum.py -k native
+```
+
+Use `--mode metal-hybrid` for the earlier CPU-solve demonstration and
+`--mode cpu` for the CPU baseline. The default remains `metal-hybrid` for
+compatibility with the existing viewer and GIF recording. Printed mode and
+report fields identify where physics and rendering run.
 
 `--check` requires at most 200 steps and checks maximum absolute joint-position
 error below 0.001 rad and velocity error below 0.01 rad/s throughout the rollout.

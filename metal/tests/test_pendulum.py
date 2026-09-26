@@ -5,6 +5,8 @@
 import importlib.util
 import os
 from pathlib import Path
+import subprocess
+import sys
 
 import mujoco
 import numpy as np
@@ -44,6 +46,37 @@ def test_demo_force_profile_and_reset():
     assert state.time == 0
 
 
+def test_cpu_mode_remains_explicit_and_native_mode_is_listed():
+  sim = _DEMO.Comparison("cpu")
+  report = sim.report()
+  assert report["physics"] == "CPU MuJoCo"
+  assert report["native_contact_free_stepping"] is False
+  assert report["full_mujoco_metal_support"] is False
+  help_text = subprocess.run(
+      [sys.executable, str(_PATH), "--help"],
+      check=True,
+      capture_output=True,
+      text=True,
+  ).stdout
+  assert "metal-hybrid" in help_text
+  assert "metal" in help_text
+  assert "cpu" in help_text
+
+
+def test_mac_display_guard_only_applies_to_interactive_viewer():
+  parser = _DEMO.argparse.ArgumentParser()
+  with pytest.raises(SystemExit):
+    _DEMO._check_interactive_display(
+        parser, headless=False, system="darwin", display_count=0
+    )
+  _DEMO._check_interactive_display(
+      parser, headless=True, system="darwin", display_count=0
+  )
+  _DEMO._check_interactive_display(
+      parser, headless=False, system="linux", display_count=0
+  )
+
+
 @pytest.mark.gpu
 @pytest.mark.skipif(
     os.environ.get("MUJOCO_METAL_RUN_GPU") != "1",
@@ -60,5 +93,28 @@ def test_metal_demo_short_rollout_and_reset():
   for _ in range(200):
     sim.step()
   np.testing.assert_allclose(sim.actual.qpos, end, atol=1e-6, rtol=1e-5)
+  assert sim.max_qpos_error < 1e-3
+  assert sim.max_qvel_error < 1e-2
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(
+    os.environ.get("MUJOCO_METAL_RUN_GPU") != "1",
+    reason="requires explicit opt-in to GPU checks",
+)
+def test_native_metal_demo_short_rollout_and_reset():
+  sim = _DEMO.Comparison("metal")
+  assert sim.native is not None
+  for _ in range(200):
+    sim.step()
+  assert sim.max_qpos_error < 1e-3
+  assert sim.max_qvel_error < 1e-2
+  end = sim.native.state.snapshot()
+  sim.reset()
+  for _ in range(200):
+    sim.step()
+  current = sim.native.state.snapshot()
+  np.testing.assert_allclose(current.qpos, end.qpos, atol=1e-6, rtol=1e-5)
+  np.testing.assert_allclose(current.qvel, end.qvel, atol=1e-6, rtol=1e-5)
   assert sim.max_qpos_error < 1e-3
   assert sim.max_qvel_error < 1e-2
