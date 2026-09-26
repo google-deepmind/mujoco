@@ -36,14 +36,7 @@ _RPATH = select({
             "array_safety.h",
         ],
         copts = _CXXOPTS,
-        linkopts = _RPATH + select({
-            "@platforms//os:linux": ["-lGL"],
-            "@platforms//os:macos": [
-                "-framework",
-                "OpenGL",
-            ],
-            "@platforms//os:windows": ["opengl32.lib"],
-        }),
+        linkopts = _RPATH,
         deps = [
             "//:mujoco_shared",
             "@glfw",
