@@ -18,8 +18,8 @@ __version__ = "0.2.0"
 
 
 def __getattr__(name):
-    if name in ("load_model", "ModelDescriptor"):
-        from mujoco_metal import model
+  if name in ("load_model", "ModelDescriptor"):
+    from mujoco_metal import model
 
-        return getattr(model, name)
-    raise AttributeError(name)
+    return getattr(model, name)
+  raise AttributeError(name)

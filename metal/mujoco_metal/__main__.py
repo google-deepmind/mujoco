@@ -29,67 +29,67 @@ from mujoco_metal.registry import FEATURES, INVENTORY_COMPLETE, TARGET_MUJOCO_VE
 
 
 def _jsonable(value):
-    if isinstance(value, Enum):
-        return value.value
-    if isinstance(value, dict):
-        return {key: _jsonable(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_jsonable(item) for item in value]
-    return value
+  if isinstance(value, Enum):
+    return value.value
+  if isinstance(value, dict):
+    return {key: _jsonable(item) for key, item in value.items()}
+  if isinstance(value, (list, tuple)):
+    return [_jsonable(item) for item in value]
+  return value
 
 
 def preflight(model_path=None, include_inventory=False):
-    package = Path(__file__).resolve().parent
-    shader = package / "shaders" / "kinematics.metal"
-    result = {
-        "package_version": __version__,
-        "package_path": str(package),
-        "target_mujoco_version": TARGET_MUJOCO_VERSION,
-        "actual_mujoco_version": mujoco.__version__,
-        "shader_path": str(shader),
-        "shader_sha256": hashlib.sha256(shader.read_bytes()).hexdigest(),
-        "inventory_complete": INVENTORY_COMPLETE,
-        "gpu_qualified": False,
-        "stages": {
-            "model_inspection": "CPU",
-            "kinematics": "CPU oracle; Metal unqualified",
-            "dynamics": "unsupported",
-            "collision": "unsupported",
-            "constraints": "unsupported",
-            "integration": "unsupported",
-            "sensors": "unsupported",
-            "rendering": "unsupported",
-        },
+  package = Path(__file__).resolve().parent
+  shader = package / "shaders" / "kinematics.metal"
+  result = {
+      "package_version": __version__,
+      "package_path": str(package),
+      "target_mujoco_version": TARGET_MUJOCO_VERSION,
+      "actual_mujoco_version": mujoco.__version__,
+      "shader_path": str(shader),
+      "shader_sha256": hashlib.sha256(shader.read_bytes()).hexdigest(),
+      "inventory_complete": INVENTORY_COMPLETE,
+      "gpu_qualified": False,
+      "stages": {
+          "model_inspection": "CPU",
+          "kinematics": "CPU oracle; Metal unqualified",
+          "dynamics": "unsupported",
+          "collision": "unsupported",
+          "constraints": "unsupported",
+          "integration": "unsupported",
+          "sensors": "unsupported",
+          "rendering": "unsupported",
+      },
+  }
+  if model_path:
+    model = load_model(Path(model_path))
+    result["model"] = {
+        name: getattr(model, name)
+        for name in ("nq", "nv", "nbody", "njnt", "ngeom", "nsite", "nmocap")
     }
-    if model_path:
-        model = load_model(Path(model_path))
-        result["model"] = {
-            name: getattr(model, name)
-            for name in ("nq", "nv", "nbody", "njnt", "ngeom", "nsite", "nmocap")
-        }
-    if include_inventory:
-        result["features"] = [_jsonable(asdict(row)) for row in FEATURES]
-    return result
+  if include_inventory:
+    result["features"] = [_jsonable(asdict(row)) for row in FEATURES]
+  return result
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    preflight_parser = subparsers.add_parser("preflight")
-    preflight_parser.add_argument("--model", type=Path)
-    preflight_parser.add_argument("--json", action="store_true", dest="as_json")
-    preflight_parser.add_argument("--inventory", action="store_true")
-    args = parser.parse_args()
-    result = preflight(args.model, args.inventory)
-    if args.as_json:
-        print(json.dumps(result, indent=2, sort_keys=True))
-    else:
-        for key, value in result.items():
-            if key != "features":
-                print(f"{key}: {value}")
-        if args.inventory:
-            print(f"features: {len(result['features'])} inventory rows")
+  parser = argparse.ArgumentParser(description=__doc__)
+  subparsers = parser.add_subparsers(dest="command", required=True)
+  preflight_parser = subparsers.add_parser("preflight")
+  preflight_parser.add_argument("--model", type=Path)
+  preflight_parser.add_argument("--json", action="store_true", dest="as_json")
+  preflight_parser.add_argument("--inventory", action="store_true")
+  args = parser.parse_args()
+  result = preflight(args.model, args.inventory)
+  if args.as_json:
+    print(json.dumps(result, indent=2, sort_keys=True))
+  else:
+    for key, value in result.items():
+      if key != "features":
+        print(f"{key}: {value}")
+    if args.inventory:
+      print(f"features: {len(result['features'])} inventory rows")
 
 
 if __name__ == "__main__":
-    main()
+  main()

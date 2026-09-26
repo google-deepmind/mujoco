@@ -26,3 +26,12 @@ mujoco_metal = ["shaders/*.metal"]
 testpaths = ["tests"]
 addopts = ["--import-mode=importlib"]
 markers = ["gpu: requires explicit opt-in and an idle Apple GPU"]
+
+[tool.pyink]
+line-length = 80
+pyink-indentation = 2
+pyink-use-majority-quotes = true
+
+[tool.isort]
+profile = "google"
+line_length = 80
