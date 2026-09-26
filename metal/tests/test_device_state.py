@@ -26,6 +26,11 @@ from mujoco_metal.model import load_model
 from mujoco_metal.stepping import validate_stepping_profile
 
 
+@pytest.fixture(autouse=True)
+def _require_torch_state_runtime():
+  pytest.importorskip("torch")
+
+
 def _model(mass="1", gravity="0 0 -9.81", timestep=".001"):
   return mujoco.MjModel.from_xml_string(
       f"""<mujoco><option timestep='{timestep}' gravity='{gravity}'>
