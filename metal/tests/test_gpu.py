@@ -22,6 +22,7 @@ import pytest
 
 from mujoco_metal.metal_kinematics import MetalKinematics
 from mujoco_metal.model import load_model
+from mujoco_metal.smooth_metal import MetalSmoothDynamics
 
 _MIXED_XML = """<mujoco><worldbody>
 <body><freejoint/><geom type="sphere" size=".1"/>
@@ -73,3 +74,46 @@ def test_empty_world_zero_geom_site_batch():
       result["body_quat"].cpu().numpy(),
       np.tile([[[1.0, 0.0, 0.0, 0.0]]], (2, 1, 1)),
   )
+
+
+@pytest.mark.skipif(
+    os.environ.get("MUJOCO_METAL_RUN_GPU") != "1",
+    reason="requires explicit MUJOCO_METAL_RUN_GPU=1 and idle GPU",
+)
+def test_native_dense_mass_matrix_matches_mujoco_oracle():
+  xml = """<mujoco><worldbody>
+    <body><freejoint/><geom type="sphere" size=".1"/>
+      <body pos="0 0 .3"><joint type="hinge" axis="0 1 0" armature=".02"/>
+        <geom type="box" size=".1 .2 .3"/>
+        <body pos=".2 0 0"><joint type="slide" axis="1 0 0"/>
+          <geom type="sphere" size=".08"/>
+          <body><joint type="ball"/><geom type="capsule" size=".04 .1"/></body>
+        </body>
+      </body>
+    </body>
+    <body pos="1 0 0"><freejoint/><geom type="capsule" size=".1 .2"/></body>
+  </worldbody></mujoco>"""
+  compiled = mujoco.MjModel.from_xml_string(xml)
+  descriptor = load_model(compiled)
+  rng = np.random.default_rng(141)
+  batch = np.tile(compiled.qpos0, (2, 1))
+  for row in range(batch.shape[0]):
+    for joint, typ in enumerate(compiled.jnt_type):
+      qa = int(compiled.jnt_qposadr[joint])
+      if typ == int(mujoco.mjtJoint.mjJNT_FREE):
+        batch[row, qa : qa + 3] = rng.normal(0, 0.2, size=3)
+        quat = rng.normal(size=4)
+        batch[row, qa + 3 : qa + 7] = quat / np.linalg.norm(quat)
+      elif typ == int(mujoco.mjtJoint.mjJNT_BALL):
+        quat = rng.normal(size=4)
+        batch[row, qa : qa + 4] = quat / np.linalg.norm(quat)
+      else:
+        batch[row, qa] = rng.normal(0, 0.7)
+  actual = MetalSmoothDynamics(descriptor).mass_matrix(batch).cpu().numpy()
+  for row in range(batch.shape[0]):
+    data = mujoco.MjData(compiled)
+    data.qpos[:] = batch[row]
+    mujoco.mj_forward(compiled, data)
+    expected = np.empty((compiled.nv, compiled.nv))
+    mujoco.mj_fullM(compiled, data, expected)
+    np.testing.assert_allclose(actual[row], expected, rtol=3e-4, atol=3e-5)

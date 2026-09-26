@@ -93,8 +93,15 @@ def test_invalid_quaternion_and_feature_registry_is_host_only():
   inventory = feature_status()
   assert inventory
   assert all(isinstance(row, Feature) for row in inventory)
-  assert all(
-      row.qualification != Qualification.GPU_QUALIFIED for row in inventory
+  assert any(
+      row.name == "generic Metal joint FK"
+      and row.qualification == Qualification.GPU_QUALIFIED
+      for row in inventory
+  )
+  assert any(
+      row.name == "integrators/stepping"
+      and row.qualification == Qualification.UNQUALIFIED
+      for row in inventory
   )
   assert any(row.name == "mjtJoint.mjJNT_FREE" for row in inventory)
   assert any(row.name.startswith("api:") for row in inventory)

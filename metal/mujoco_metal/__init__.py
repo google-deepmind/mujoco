@@ -34,4 +34,8 @@ def __getattr__(name):
     from mujoco_metal.smooth import smooth_dynamics
 
     return smooth_dynamics
+  if name == "MetalSmoothDynamics":
+    from mujoco_metal.smooth_metal import MetalSmoothDynamics
+
+    return MetalSmoothDynamics
   raise AttributeError(name)

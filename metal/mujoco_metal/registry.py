@@ -159,9 +159,19 @@ def _inventory():
           "generic Metal joint FK",
           Stage.KINEMATICS,
           Implementation.NATIVE_GPU,
+          Qualification.GPU_QUALIFIED,
+          Execution.DEVICE,
+          "narrow Apple M1 FK cases only; no general model support or physics stepping",
+      )
+  )
+  result.append(
+      Feature(
+          "native Metal dense mass matrix",
+          Stage.DYNAMICS,
+          Implementation.NATIVE_GPU,
           Qualification.UNQUALIFIED,
           Execution.DEVICE,
-          "not GPU-qualified; no physics stepping",
+          "unqualified; no bias forces, actuation, contacts, constraints, or stepping",
       )
   )
   result.append(
