@@ -81,6 +81,8 @@ class ModelDescriptor:
   body_quat: np.ndarray
   body_ipos: np.ndarray
   body_iquat: np.ndarray
+  body_mass: np.ndarray
+  body_inertia: np.ndarray
   jnt_type: np.ndarray
   jnt_qposadr: np.ndarray
   jnt_dofadr: np.ndarray
@@ -176,6 +178,8 @@ def _validate_lowered(counts, values):
       "body_quat": (nb, 4),
       "body_ipos": (nb, 3),
       "body_iquat": (nb, 4),
+      "body_mass": (nb,),
+      "body_inertia": (nb, 3),
       "jnt_type": (nj,),
       "jnt_qposadr": (nj,),
       "jnt_dofadr": (nj,),
@@ -298,6 +302,8 @@ def load_model(source):
       "body_quat",
       "body_ipos",
       "body_iquat",
+      "body_mass",
+      "body_inertia",
       "jnt_type",
       "jnt_qposadr",
       "jnt_dofadr",

@@ -179,3 +179,16 @@ def test_preflight_is_cpu_only_and_includes_stage_inventory(tmp_path):
       row["name"].startswith("python-api:mj_") for row in result["features"]
   )
   assert "torch" not in __import__("sys").modules
+
+
+def test_zero_length_output_reshape_discards_dummy_buffer():
+  from mujoco_metal.metal_kinematics import _shape_output
+
+  np.testing.assert_array_equal(
+      _shape_output(np.zeros(1, dtype=np.float32), 2, 0, 3),
+      np.empty((2, 0, 3), dtype=np.float32),
+  )
+  np.testing.assert_array_equal(
+      _shape_output(np.arange(7, dtype=np.float32), 2, 1, 3),
+      np.arange(6, dtype=np.float32).reshape(2, 1, 3),
+  )

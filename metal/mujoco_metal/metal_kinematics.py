@@ -41,6 +41,8 @@ def _prepare_host_arrays(model: ModelDescriptor):
       "body_quat",
       "body_ipos",
       "body_iquat",
+      "body_mass",
+      "body_inertia",
       "jnt_type",
       "jnt_qposadr",
       "jnt_dofadr",
@@ -80,6 +82,11 @@ def _prepare_host_arrays(model: ModelDescriptor):
   return host
 
 
+def _shape_output(buffer, batch, count, width):
+  """Drop dummy storage from zero-length GPU outputs before reshaping."""
+  return buffer[: batch * count * width].reshape(batch, count, width)
+
+
 class MetalKinematics:
   """Batched native MSL forward kinematics; construction initializes MPS."""
 
@@ -100,7 +107,13 @@ class MetalKinematics:
     self._kernel = self._library.forward_kinematics
     self._arrays = {}
     for name, host in host_arrays.items():
-      if name in ("body_jntadr", "body_jntnum", "jnt_dofadr"):
+      if name in (
+          "body_jntadr",
+          "body_jntnum",
+          "jnt_dofadr",
+          "body_mass",
+          "body_inertia",
+      ):
         continue
       self._arrays[name] = torch.from_numpy(host).to(self._device)
 
@@ -209,10 +222,10 @@ class MetalKinematics:
         ("site", self.model.nsite),
         ("inertial", self.model.nbody),
     ):
-      shaped[f"{kind}_pos"] = outputs[f"{kind}_pos"].view(
-          source.shape[0], count, 3
+      shaped[f"{kind}_pos"] = _shape_output(
+          outputs[f"{kind}_pos"], source.shape[0], count, 3
       )
-      shaped[f"{kind}_quat"] = outputs[f"{kind}_quat"].view(
-          source.shape[0], count, 4
+      shaped[f"{kind}_quat"] = _shape_output(
+          outputs[f"{kind}_quat"], source.shape[0], count, 4
       )
     return shaped
