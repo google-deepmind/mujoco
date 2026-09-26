@@ -1,9 +1,11 @@
 # Experimental MuJoCo Metal package
 
-**Current status: physics computations, not a complete simulation backend.**
-This generalized branch computes kinematics, `M(q)`, and inertial/gravity bias
-on Metal. It does not yet solve for acceleration, integrate state, or implement
-`mj_step`. The earlier robot-specific implementation is preserved on
+**Current status: experimental contact-free stepping, not a complete simulation backend.**
+This generalized branch computes kinematics, `M(q)`, and inertial/gravity bias,
+solves dense SPD systems, integrates state, and provides a narrowly qualified
+native `contact_free_euler_v1` simulation profile. It does not replace `mj_step`
+or support the full MuJoCo model and force system. The earlier robot-specific
+implementation is preserved on
 [`archive/metal-microduck-v1`](https://github.com/keeeeenw/mujoco-mac-metal/tree/archive/metal-microduck-v1);
 its restricted stepping pipeline has not been generalized into this package.
 
@@ -18,26 +20,31 @@ python -m pip install -e '.[metal,test]'
 
 For CPU-only utilities, replace the install extra with `.[test]`. Importing `mujoco_metal` and running preflight do not import Torch or initialize MPS.
 
-Run `python -m mujoco_metal preflight --model path/to/model.xml --json --inventory` to inspect runtime version, model dimensions, package and shader paths/hash, capability boundaries, and the versioned feature/API inventory. Inventory completeness is explicitly false because the captured enum and Python binding inventory is not exhaustive.
+Run `python -m mujoco_metal preflight --model path/to/model.xml --json --inventory` to inspect runtime version, model dimensions, package and all five shader paths/hashes, capability boundaries, and the versioned feature/API inventory. The overall `gpu_qualified` field remains false because the full backend is not qualified. Inventory completeness is explicitly false because the captured enum and Python binding inventory is not exhaustive.
 
 `load_model(xml_or_path)` returns an immutable, dimension-derived descriptor. `descriptor.forward_kinematics(qpos)` is a CPU reference for body, inertial, geom, site, and joint-anchor/axis world poses across hinge, slide, ball, and free joints. `MetalKinematics(descriptor).run(qpos_batch)` computes the same pose fields through the batched native Metal kinematics kernel. GPU checks have passed on an Apple M1 for empty and fixed worlds, mixed hinge/slide/ball/free models with off-center joints and multiple free roots, world-attached sites/geoms, and a 32-DOF chain. This is a narrow correctness qualification, not a general model-support or performance claim. Constructing `MetalKinematics` initializes MPS and compiles the bundled shader.
 
-`smooth_dynamics(descriptor, qpos, qvel)` is the CPU reference returning a dense joint-space mass matrix and inertial/gravity bias forces. `MetalSmoothDynamics(descriptor).run(qpos_batch, qvel_batch)` returns those two outputs as MPS tensors. Native GPU checks have passed on an Apple M1 across empty/fixed, mixed-joint, rotated-inertia, massless-ancestor, disabled-gravity, and 32-DOF-chain fixtures. This is a narrow correctness qualification for the smooth M and bias stages, not a general model-support or performance claim. Each batch shares one immutable model descriptor; per-environment native mass randomization is not connected to the CPU lifecycle utilities. Inputs are host NumPy arrays and outputs remain MPS tensors. Models with actuators or nonzero tendon armature are rejected. Actuator forces/armature, tendon armature, passive forces, contacts, constraints, sensors, integration, and stepping are outside this stage.
+`smooth_dynamics(descriptor, qpos, qvel)` is the CPU reference returning a dense joint-space mass matrix and inertial/gravity bias forces. `MetalSmoothDynamics(descriptor).run(qpos_batch, qvel_batch)` accepts host NumPy state batches and returns those two outputs as MPS tensors. Native GPU checks have passed on an Apple M1 across empty/fixed, mixed-joint, rotated-inertia, massless-ancestor, disabled-gravity, and 32-DOF-chain fixtures. `MetalDenseSolve(nv, batch_size, nrhs=1).run_device(mass, rhs)` performs a dimension-derived dense Cholesky factorization and one or multiple right-hand-side solves. `MetalEulerIntegration(descriptor, batch_size, timestep).run_device(qpos, qvel, qacc, time, solve_status)` updates hinge, slide, ball, and free coordinates on MPS. Both primitives have narrow GPU correctness qualifications against synthetic systems or MuJoCo 3.10; neither alone establishes unrestricted dynamics support. These device primitives require contiguous float32 MPS tensors; their outputs are borrowed reusable views, overwritten by the next call.
 
 `ModelLifecycle` performs transactional CPU body-mass updates through MuJoCo `mj_setConst`. `BatchedConstants` maintains per-environment body masses and derived `body_invweight0` rows with atomic recomputation/restore and seeded mass randomization. `KinematicsBatchState` tracks explicit environment rows with generation-based FK cache invalidation, snapshots, restore, and tangent-space joint randomization. These are CPU lifecycle utilities and do not advance physics.
 
-Run the opt-in GPU correctness tests only on an available Apple GPU with the pinned Torch extra installed: `MUJOCO_METAL_RUN_GPU=1 python -m pytest -m gpu`. Ordinary `python -m pytest` runs CPU tests and skips the GPU cases. The standalone source tree carries the Apache 2.0 license and notices.
+`MetalSimulation(model, batch_size=1, qpos=None, qvel=None)` connects persistent MPS state, smooth dynamics, the native dense solve, and semi-implicit Euler for the bounded `contact_free_euler_v1` profile. A local Apple M1 GPU qualification passed on four rigid-body fixtures, three initial states, 1,000-step 1 ms rollouts, and reset/restore resume. This remains a narrow qualification, not general model support. The model must explicitly disable contacts and use Euler integration. The profile supports gravity and joint armature, assumes zero applied generalized force, and rejects actuators, tendons, limits, friction loss, passive/fluid forces, sensors, equality constraints, flexes, plugins, damping, springs, callbacks, mocap, and non-Euler integrators. A model may be accepted for kinematics or mass/bias queries and still be rejected for stepping. Construction validates the profile before initializing MPS.
 
-## Gaps before full simulation
+`simulation.step()` returns a borrowed MPS status vector. Solver and integration failures are per-world; a failed world keeps its state and its first nonzero status remains sticky until reset or restore. State views are copies; snapshots and resets cross the host/device boundary and belong outside the hot step loop. Position, velocity, acceleration, and simulation time use float32 on device. In particular, time's representable increment gets coarser as elapsed time grows.
+
+Run the opt-in GPU correctness tests only on an available Apple GPU with the pinned Torch extra installed: `MUJOCO_METAL_RUN_GPU=1 python -m pytest -m gpu`. Ordinary `python -m pytest` runs CPU tests and skips the GPU cases. `preflight` remains CPU-only: shader hashes and stage labels are inventory, not a device probe. The overall GPU-qualified field stays false because contacts and the full backend remain unsupported. The standalone source tree carries the Apache 2.0 license and notices.
+
+## Boundaries before general MuJoCo simulation
 
 | Stage | Status in this generalized package |
 | --- | --- |
 | Kinematics, dense mass matrix, inertial/gravity bias | Native Metal; qualified on the documented small fixtures. |
-| Mass factorization, linear solve, generalized acceleration | Missing. Producing `M` and bias does not solve the dynamics equation. |
-| Persistent device state, time advancement, quaternion-aware integration | Missing. No generalized `step`, `mj_step1` or `mj_step2` equivalent. |
-| Applied forces, passive forces, actuators and tendon dynamics | Not integrated into a complete force/acceleration pipeline. Actuator models and nonzero tendon armature are rejected by the smooth stage. |
-| Collision/contact generation, joint limits, equality constraints, friction and constraint solvers | Missing. A contact-free pendulum demonstration would not qualify these features. |
-| Device reset/checkpoint lifecycle and per-environment model randomization | CPU utilities exist; they are not connected to a persistent native simulation loop. |
+| Dense SPD factorization and multiple-RHS solve | Implemented and narrowly GPU-qualified on synthetic scaled/conditioned systems; dense float32 numerical limits remain. |
+| Hinge/slide/ball/free semi-implicit Euler integration | Implemented and narrowly GPU-qualified against MuJoCo 3.10. |
+| `contact_free_euler_v1` native simulation profile | Implemented and narrowly GPU-qualified on the local Apple M1: four rigid-body model fixtures, three initial states, 1,000 steps at 1 ms, and reset/restore resume. The largest observed absolute component differences were `1.26e-5` in position and `7.32e-5` in velocity; quaternion norm error was at most `1.2e-7`. This is not broad model or hardware qualification. |
+| Applied forces, passive forces, actuators and tendon dynamics | Outside the bounded pipeline. Stepping assumes zero applied generalized force; actuator models and all tendons are rejected. |
+| Collision/contact generation, joint limits, equality constraints, friction and constraint solvers | Unsupported. The qualified profile requires contact disabled and rejects limits and constraints, even when they are inactive in the initial state. |
+| Device reset/checkpoint lifecycle and per-environment model randomization | Persistent MPS state with host reset/checkpoint and row reset is connected; per-environment model randomization is not connected to native stepping. |
 | Sensors, remaining integrators, flexes/plugins, broad API and precision compatibility | Unimplemented or unqualified; full MuJoCo coverage is not established. |
 | Native rendering and end-to-end training integration | Outside the implemented scope. |
 
@@ -49,16 +56,14 @@ Left: Metal mass/bias with CPU solve and integration. Right: CPU MuJoCo.
 The GIF plays three seconds of simulation at a fixed presentation rate; it
 does not show measured execution speed. Both use OpenGL rendering.
 
-The [side-by-side chaotic pendulum demo](examples/README.md) now advances a
-four-hinge, contact-free model with **Metal mass/bias plus CPU solve and
-integration**, alongside an independent CPU MuJoCo reference. Its 200-step
-rollout and reset checks pass on the local Apple M1; maximum position error
-on the initial rollout was approximately 2.2e-8 radians. The interactive
-viewer uses OpenGL and must be launched with `mjpython` on macOS.
-
-This is a working **hybrid demonstration**, not a native Metal solve/integrator,
-full simulation port, contact qualification or performance result. See the
-example instructions for launch, numerical checks and limitations.
+The [side-by-side chaotic pendulum demo](examples/README.md) keeps its recorded
+GIF labeled as a **hybrid** rollout: Metal mass/bias followed by CPU solve and
+integration, alongside independent CPU MuJoCo. The same example now has an
+explicit `--mode metal` that advances its contact-free model with native MPS
+dynamics, solve and integration. OpenGL still renders both sides; it is not a
+Metal renderer. The native example has no CPU physics fallback and is not a
+performance result. See the example instructions for launch, numerical checks
+and limitations.
 
 ## FAQ: MuJoCo, Metal, and Apple Silicon
 
@@ -162,8 +167,11 @@ and [MPSMatrixSolveTriangular](https://developer.apple.com/documentation/metalpe
 A missing compiler lowering in a JAX plugin does not mean the underlying
 hardware or MPS library lacks the operation. Metal, MPS, MPSGraph, JAX-Metal,
 PyTorch's MPS backend, and MLX have distinct APIs and operation coverage.
-Using an available native operation still requires integration, supported data
-types/layouts, numerical checks, and performance measurement.
+This package now includes a small dense Cholesky and triangular-solve kernel
+through Torch's MPS shader API. It has narrow correctness qualification for
+synthetic systems and the bounded contact-free simulation profile; it is not a
+general MuJoCo sparse or constrained solver. Numerical stability, supported
+layouts, and workload-specific performance still require assessment.
 
 ### How do the community alternatives compare?
 
@@ -185,12 +193,14 @@ dependencies of this package. The
 [launcher](mujoco_metal/smooth_metal.py), [dependency pins](pyproject.toml), and
 [GPU tests](tests/test_gpu.py) document that path.
 
-The current validation covers batched kinematics, dense mass matrices, and
-inertial/gravity bias on small M1-family fixtures compared with MuJoCo. It does
-not establish full stepping, contacts, constraint solving, integration,
-rendering, or training support. Actuator models and nonzero tendon armature are
-explicitly rejected by the smooth-dynamics stage. Validation of a separate
-robot-specific backend does not extend this generalized package's coverage.
+The current validation covers batched kinematics, dense mass matrices,
+inertial/gravity bias, dense SPD solves, joint-coordinate integration, and the
+bounded `contact_free_euler_v1` pipeline on local M1 fixtures compared with
+MuJoCo 3.10. It does not establish contacts, constraints, general actuation,
+rendering, training support, or full-library coverage. Actuators, tendons,
+passive forces and other unsupported features are rejected for stepping.
+Validation of a separate robot-specific backend does not extend this
+generalized package's coverage.
 
 ### Will it work on every M1–M5 Mac, and is it faster than CPU physics?
 

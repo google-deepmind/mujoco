@@ -46,4 +46,16 @@ def __getattr__(name):
     from mujoco_metal.smooth_metal import MetalSmoothDynamics
 
     return MetalSmoothDynamics
+  if name == "MetalDenseSolve":
+    from mujoco_metal.smooth_solve import MetalDenseSolve
+
+    return MetalDenseSolve
+  if name == "MetalEulerIntegration":
+    from mujoco_metal.integration import MetalEulerIntegration
+
+    return MetalEulerIntegration
+  if name == "MetalSimulation":
+    from mujoco_metal.simulation import MetalSimulation
+
+    return MetalSimulation
   raise AttributeError(name)

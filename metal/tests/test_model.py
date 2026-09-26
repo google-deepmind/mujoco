@@ -184,30 +184,55 @@ def test_preflight_is_cpu_only_and_includes_stage_inventory(tmp_path):
   assert result["gpu_qualified"] is False
   assert "complete physics backend" in result["gpu_qualification_scope"]
   assert result["shader_sha256"]
-  assert set(result["shaders"]) == {"kinematics", "smooth_mass", "smooth_bias"}
+  assert set(result["shaders"]) == {
+      "kinematics",
+      "smooth_mass",
+      "smooth_bias",
+      "smooth_solve",
+      "integration",
+  }
   assert all(row["sha256"] for row in result["shaders"].values())
   assert result["inventory_complete"] is False
   assert "narrowly GPU-qualified" in result["stages"]["dynamics"]
-  assert result["stages"]["full_stepping"] == "unsupported"
+  assert result["stages"]["acceleration_solve"].startswith("native dense SPD")
+  assert result["stages"]["integration"].startswith(
+      "native semi-implicit Euler"
+  )
+  assert "narrowly GPU-qualified" in result["stages"]["contact_free_euler_v1"]
+  assert result["stages"]["full_stepping"].startswith("unsupported")
   assert any(
       row["name"].startswith("python-api:mj_") for row in result["features"]
+  )
+  assert any(
+      row["name"] == "native dense SPD factorization and multiple-RHS solve"
+      and row["qualification"] == "gpu_qualified"
+      for row in result["features"]
+  )
+  assert any(
+      row["name"] == "contact_free_euler_v1 native simulation pipeline"
+      and row["qualification"] == "gpu_qualified"
+      for row in result["features"]
   )
 
 
 def test_host_only_apis_do_not_import_torch_in_fresh_process():
-  script = textwrap.dedent(
-      """
+  script = textwrap.dedent("""
       import sys
       from mujoco_metal.__main__ import preflight
+      from mujoco_metal import MetalDenseSolve
+      from mujoco_metal import MetalEulerIntegration
+      from mujoco_metal import MetalSimulation
       from mujoco_metal.metal_kinematics import _prepare_host_arrays
       from mujoco_metal.model import load_model
 
       model = load_model('<mujoco><worldbody/></mujoco>')
       _prepare_host_arrays(model)
       preflight(include_inventory=True)
+      assert MetalDenseSolve.__name__ == 'MetalDenseSolve'
+      assert MetalEulerIntegration.__name__ == 'MetalEulerIntegration'
+      assert MetalSimulation.__name__ == 'MetalSimulation'
       assert 'torch' not in sys.modules
-      """
-  )
+      """)
   subprocess.run([sys.executable, "-c", script], check=True)
 
 

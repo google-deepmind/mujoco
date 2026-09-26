@@ -36,14 +36,18 @@ We also provide [Python bindings] and a plug-in for the [Unity] game engine.
 ![Metal hybrid pendulum alongside CPU MuJoCo](metal/examples/assets/pendulum.gif)
 
 The [Mac pendulum demo](metal/examples/README.md) compares two independent
-rollouts of the same four-joint, contact-free model. **Left:** native Metal mass
-matrix and bias computations with CPU solve and integration. **Right:** standard
-CPU MuJoCo. Visualization uses OpenGL. The GIF shows three seconds of simulation
-at a fixed playback rate, not measured execution speed.
+rollouts of the same four-joint, contact-free model. Its recorded GIF shows the
+hybrid mode: **Left:** native Metal mass matrix and bias computations with CPU
+solve and integration. **Right:** standard CPU MuJoCo. The demo also provides
+an explicit `--mode metal` using native MPS physics for the narrowly supported
+`contact_free_euler_v1` profile. Both modes use OpenGL visualization; the GIF's
+fixed playback rate is not measured execution speed.
 
-This is an experimental **hybrid demo**, not a full Metal simulation backend.
-See the [supported stages and remaining gaps](metal/README.md#gaps-before-full-simulation).
-Launch instructions and short numerical validation are in the demo guide.
+The native profile has narrow local Apple M1 GPU qualification, but this
+experimental package is not a full Metal simulation backend and does not
+support contacts or general MuJoCo models. See the
+[supported stages and remaining gaps](metal/README.md#boundaries-before-general-mujoco-simulation).
+Launch instructions and numerical checks are in the demo guide.
 
 ## Documentation
 
