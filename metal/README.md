@@ -1,5 +1,12 @@
 # Experimental MuJoCo Metal package
 
+**Current status: physics computations, not a complete simulation backend.**
+This generalized branch computes kinematics, `M(q)`, and inertial/gravity bias
+on Metal. It does not yet solve for acceleration, integrate state, or implement
+`mj_step`. The earlier robot-specific implementation is preserved on
+[`archive/metal-microduck-v1`](https://github.com/keeeeenw/mujoco/tree/archive/metal-microduck-v1);
+its restricted stepping pipeline has not been generalized into this package.
+
 This optional package targets Python 3.12 and MuJoCo **3.10.0**. The surrounding MuJoCo source checkout is 3.14.1; that version is not a target. Use an isolated environment so the pinned package does not alter the surrounding checkout:
 
 ```sh
@@ -20,6 +27,28 @@ Run `python -m mujoco_metal preflight --model path/to/model.xml --json --invento
 `ModelLifecycle` performs transactional CPU body-mass updates through MuJoCo `mj_setConst`. `BatchedConstants` maintains per-environment body masses and derived `body_invweight0` rows with atomic recomputation/restore and seeded mass randomization. `KinematicsBatchState` tracks explicit environment rows with generation-based FK cache invalidation, snapshots, restore, and tangent-space joint randomization. These are CPU lifecycle utilities and do not advance physics.
 
 Run the opt-in GPU correctness tests only on an available Apple GPU with the pinned Torch extra installed: `MUJOCO_METAL_RUN_GPU=1 python -m pytest -m gpu`. Ordinary `python -m pytest` runs CPU tests and skips the GPU cases. The standalone source tree carries the Apache 2.0 license and notices.
+
+## Gaps before full simulation
+
+| Stage | Status in this generalized package |
+| --- | --- |
+| Kinematics, dense mass matrix, inertial/gravity bias | Native Metal; qualified on the documented small fixtures. |
+| Mass factorization, linear solve, generalized acceleration | Missing. Producing `M` and bias does not solve the dynamics equation. |
+| Persistent device state, time advancement, quaternion-aware integration | Missing. No generalized `step`, `mj_step1` or `mj_step2` equivalent. |
+| Applied forces, passive forces, actuators and tendon dynamics | Not integrated into a complete force/acceleration pipeline. Actuator models and nonzero tendon armature are rejected by the smooth stage. |
+| Collision/contact generation, joint limits, equality constraints, friction and constraint solvers | Missing. A contact-free pendulum demonstration would not qualify these features. |
+| Device reset/checkpoint lifecycle and per-environment model randomization | CPU utilities exist; they are not connected to a persistent native simulation loop. |
+| Sensors, remaining integrators, flexes/plugins, broad API and precision compatibility | Unimplemented or unqualified; full MuJoCo coverage is not established. |
+| Native rendering and end-to-end training integration | Outside the implemented scope. |
+
+The immediate practical application is a local adaptation of the upstream
+[chaotic-pendulum tutorial](https://github.com/google-deepmind/mujoco/blob/main/python/tutorial.ipynb).
+Its contact-disabled, four-hinge model needs no actuators or contact solver.
+An eight-state check of that exact model passed for Metal mass/bias outputs
+against CPU MuJoCo. **CPU MuJoCo generated those states, and the diagnostic
+acceleration solve was also on CPU.** This establishes a useful model for the
+next implementation milestone; it is not a Metal rollout, a completed tutorial
+port, or a performance result.
 
 ## FAQ: MuJoCo, Metal, and Apple Silicon
 
