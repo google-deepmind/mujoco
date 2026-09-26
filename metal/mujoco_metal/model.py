@@ -71,6 +71,7 @@ class ModelDescriptor:
 
   nq: int
   nv: int
+  nu: int
   nmocap: int
   nbody: int
   njnt: int
@@ -434,6 +435,7 @@ def load_model(source):
   counts = dict(
       nq=m.nq,
       nv=m.nv,
+      nu=m.nu,
       nmocap=m.nmocap,
       nbody=m.nbody,
       njnt=m.njnt,

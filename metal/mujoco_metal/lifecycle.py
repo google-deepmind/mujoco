@@ -37,6 +37,7 @@ def _fingerprint(model):
   for name in (
       "nq",
       "nv",
+      "nu",
       "nmocap",
       "nbody",
       "njnt",

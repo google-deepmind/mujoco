@@ -164,6 +164,16 @@ def _inventory():
           "not GPU-qualified; no physics stepping",
       )
   )
+  result.append(
+      Feature(
+          "CPU smooth mass matrix and inertial bias reference",
+          Stage.DYNAMICS,
+          Implementation.CPU_REFERENCE,
+          Qualification.CPU_ORACLE,
+          Execution.HOST,
+          "no actuator armature/forces, passive forces, contacts, constraints, or stepping",
+      )
+  )
   result.extend(_enum_inventory())
   result.extend(
       Feature(
