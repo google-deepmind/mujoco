@@ -110,9 +110,19 @@ def test_stage_rejects_actuator_models_and_invalid_state():
   mujoco.mj_forward(tendon_model, tendon_data)
   reference_mass = np.empty((tendon_model.nv, tendon_model.nv))
   mujoco.mj_fullM(tendon_model, tendon_data, reference_mass)
+  zero_xml = tendon_xml.replace('armature=".2"', 'armature="0"')
+  zero_model = mujoco.MjModel.from_xml_string(zero_xml)
+  zero_data = mujoco.MjData(zero_model)
+  mujoco.mj_forward(zero_model, zero_data)
+  zero_mass = np.empty((zero_model.nv, zero_model.nv))
+  mujoco.mj_fullM(zero_model, zero_data, zero_mass)
+  np.testing.assert_allclose(reference_mass - zero_mass, [[0.8]], atol=1e-12)
   with pytest.raises(ValueError, match="tendon armature"):
     smooth_dynamics(tendon_descriptor, tendon_data.qpos, tendon_data.qvel)
-  assert reference_mass[0, 0] > tendon_model.dof_armature[0]
+  actual_zero = smooth_dynamics(
+      load_model(zero_model), zero_data.qpos, zero_data.qvel
+  )
+  np.testing.assert_allclose(actual_zero["mass_matrix"], zero_mass, atol=1e-12)
 
   passive = load_model(
       '<mujoco><worldbody><body><joint/><geom type="sphere" size=".1"/></body></worldbody></mujoco>'
