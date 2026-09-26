@@ -122,6 +122,15 @@ and should focus on a specific problem or question.
 GitHub [Issues](https://github.com/google-deepmind/mujoco/issues) are reserved
 for bug reports, feature requests and other development-related subjects.
 
+## Experimental Metal physics
+
+A community experimental [native Metal physics package](metal/README.md) is
+available in this branch for Apple Silicon. It provides standalone batched
+stepping, reset/restore and qualification tests for a bounded Microduck model
+profile. It is separately installed, pins MuJoCo 3.10.0/Torch 2.9.1, and leaves
+the normal MuJoCo build unchanged. Arbitrary models are not supported; new GPU
+qualification of this port is pending. See its README for the explicit limits.
+
 ## Related software
 MuJoCo is the backbone for numerous environment packages. Below we list several
 bindings and converters.
