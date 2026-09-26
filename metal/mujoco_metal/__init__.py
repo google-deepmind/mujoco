@@ -22,4 +22,12 @@ def __getattr__(name):
     from mujoco_metal import model
 
     return getattr(model, name)
+  if name in ("ModelLifecycle", "KinematicsBatchState", "BatchedConstants"):
+    from mujoco_metal import lifecycle
+
+    return getattr(lifecycle, name)
+  if name == "MetalKinematics":
+    from mujoco_metal.metal_kinematics import MetalKinematics
+
+    return MetalKinematics
   raise AttributeError(name)

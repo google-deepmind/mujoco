@@ -15,17 +15,19 @@
 """CPU-only package preflight and model inspection."""
 
 import argparse
-import hashlib
-import json
 from dataclasses import asdict
 from enum import Enum
+import hashlib
+import json
 from pathlib import Path
 
 import mujoco
 
 from mujoco_metal import __version__
 from mujoco_metal.model import load_model
-from mujoco_metal.registry import FEATURES, INVENTORY_COMPLETE, TARGET_MUJOCO_VERSION
+from mujoco_metal.registry import FEATURES
+from mujoco_metal.registry import INVENTORY_COMPLETE
+from mujoco_metal.registry import TARGET_MUJOCO_VERSION
 
 
 def _jsonable(value):

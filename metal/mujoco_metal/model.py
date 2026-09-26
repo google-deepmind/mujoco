@@ -15,6 +15,8 @@
 """Immutable, dimension-derived model lowering and CPU forward kinematics."""
 
 from dataclasses import dataclass
+from dataclasses import fields
+from dataclasses import replace
 from pathlib import Path
 
 import mujoco
@@ -83,6 +85,7 @@ class ModelDescriptor:
   body_iquat: np.ndarray
   body_mass: np.ndarray
   body_inertia: np.ndarray
+  dof_armature: np.ndarray
   jnt_type: np.ndarray
   jnt_qposadr: np.ndarray
   jnt_dofadr: np.ndarray
@@ -91,6 +94,8 @@ class ModelDescriptor:
   jnt_axis: np.ndarray
   qpos0: np.ndarray
   geom_bodyid: np.ndarray
+  geom_type: np.ndarray
+  geom_size: np.ndarray
   geom_pos: np.ndarray
   geom_quat: np.ndarray
   site_bodyid: np.ndarray
@@ -158,6 +163,16 @@ class ModelDescriptor:
     }
 
 
+def snapshot_descriptor(model):
+  """Validate by caller, then detach every NumPy field into immutable bytes."""
+  arrays = {
+      field.name: _frozen(getattr(model, field.name))
+      for field in fields(ModelDescriptor)
+      if isinstance(getattr(model, field.name), np.ndarray)
+  }
+  return replace(model, **arrays)
+
+
 def _attached_poses(bp, bq, bodyids, pos, quat):
   outp = np.empty((len(bodyids), 3))
   outq = np.empty((len(bodyids), 4))
@@ -180,6 +195,7 @@ def _validate_lowered(counts, values):
       "body_iquat": (nb, 4),
       "body_mass": (nb,),
       "body_inertia": (nb, 3),
+      "dof_armature": (nv,),
       "jnt_type": (nj,),
       "jnt_qposadr": (nj,),
       "jnt_dofadr": (nj,),
@@ -187,6 +203,8 @@ def _validate_lowered(counts, values):
       "jnt_pos": (nj, 3),
       "jnt_axis": (nj, 3),
       "geom_bodyid": (counts["ngeom"],),
+      "geom_type": (counts["ngeom"],),
+      "geom_size": (counts["ngeom"], 3),
       "geom_pos": (counts["ngeom"], 3),
       "geom_quat": (counts["ngeom"], 4),
       "site_bodyid": (counts["nsite"],),
@@ -206,6 +224,17 @@ def _validate_lowered(counts, values):
     norms = np.linalg.norm(values[name], axis=1)
     if np.any(np.abs(norms - 1.0) > 1e-6):
       raise ValueError(f"{name} contains a non-unit quaternion")
+  if np.any(values["body_mass"] < 0) or np.any(values["body_inertia"] < 0):
+    raise ValueError("body mass and inertia values must be nonnegative")
+  if np.any(values["dof_armature"] < 0):
+    raise ValueError("dof armature values must be nonnegative")
+  if np.any(values["geom_size"] < 0):
+    raise ValueError("geometry sizes must be nonnegative")
+  valid_geom_types = {
+      int(getattr(mujoco.mjtGeom, name)) for name in mujoco.mjtGeom.__members__
+  }
+  if any(int(kind) not in valid_geom_types for kind in values["geom_type"]):
+    raise ValueError("unknown geometry type")
   for name in ("geom_bodyid", "site_bodyid"):
     if np.any(values[name] < 0) or np.any(values[name] >= nb):
       raise ValueError(f"invalid body index in {name}")
@@ -304,6 +333,7 @@ def load_model(source):
       "body_iquat",
       "body_mass",
       "body_inertia",
+      "dof_armature",
       "jnt_type",
       "jnt_qposadr",
       "jnt_dofadr",
@@ -312,6 +342,8 @@ def load_model(source):
       "jnt_axis",
       "qpos0",
       "geom_bodyid",
+      "geom_type",
+      "geom_size",
       "geom_pos",
       "geom_quat",
       "site_bodyid",

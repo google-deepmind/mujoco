@@ -15,20 +15,18 @@
 """CPU contract tests for generic model lowering."""
 
 import mujoco
-import mujoco_metal.model as model_module
-from mujoco_metal.metal_kinematics import _prepare_host_arrays
 import numpy as np
 import pytest
 
+from mujoco_metal.metal_kinematics import _prepare_host_arrays
 from mujoco_metal.model import load_model
-from mujoco_metal.registry import (
-    Execution,
-    Feature,
-    Implementation,
-    Qualification,
-    Stage,
-    feature_status,
-)
+import mujoco_metal.model as model_module
+from mujoco_metal.registry import Execution
+from mujoco_metal.registry import Feature
+from mujoco_metal.registry import feature_status
+from mujoco_metal.registry import Implementation
+from mujoco_metal.registry import Qualification
+from mujoco_metal.registry import Stage
 
 
 def test_immutable_lowering_and_empty_world():
@@ -192,3 +190,291 @@ def test_zero_length_output_reshape_discards_dummy_buffer():
       _shape_output(np.arange(7, dtype=np.float32), 2, 1, 3),
       np.arange(6, dtype=np.float32).reshape(2, 1, 3),
   )
+
+
+def test_model_lifecycle_calls_setconst_and_commits_atomically(monkeypatch):
+  from mujoco_metal.lifecycle import ModelLifecycle
+
+  xml = '<mujoco><worldbody><body><freejoint/><geom type="sphere" size=".1"/></body></worldbody></mujoco>'
+  source = mujoco.MjModel.from_xml_string(xml)
+  lifecycle = ModelLifecycle(source)
+  source_mass = float(source.body_mass[1])
+  original_setconst = mujoco.mj_setConst
+  calls = []
+
+  def count_setconst(model, data):
+    calls.append(True)
+    original_setconst(model, data)
+
+  monkeypatch.setattr(mujoco, "mj_setConst", count_setconst)
+  assert lifecycle.recompute_body_masses([1], [2.5])
+  assert calls == [True]
+  assert lifecycle.generation == 1
+  assert lifecycle.descriptor.body_mass[1] == 2.5
+  assert source.body_mass[1] == source_mass
+  assert not lifecycle.recompute_body_masses([1], [2.5])
+  assert lifecycle.generation == 1
+
+  before = lifecycle.descriptor
+
+  def fail_setconst(model, data):
+    raise RuntimeError("injected setConst failure")
+
+  monkeypatch.setattr(mujoco, "mj_setConst", fail_setconst)
+  with pytest.raises(RuntimeError, match="injected"):
+    lifecycle.recompute_body_masses([1], [3.0])
+  assert lifecycle.descriptor is before
+  assert lifecycle.generation == 1
+
+
+def test_batched_qpos_updates_explicit_rows_randomize_and_restore():
+  from mujoco_metal.lifecycle import KinematicsBatchState
+
+  xml = '<mujoco><worldbody><body><joint type="hinge"/><geom type="sphere" size=".1"/></body></worldbody></mujoco>'
+  model = load_model(xml)
+  state = KinematicsBatchState(model, batch_size=4)
+  assert np.all(state.row_generation == 0)
+  state.poses(2)
+  same = state.qpos[[2]].copy()
+  assert state.set_qpos([2], same) == ()
+  assert state.row_generation[2] == 0
+
+  changed = same.copy()
+  changed[0, model.jnt_qposadr[0]] += 0.5
+  assert state.set_qpos([2], changed) == (2,)
+  assert state.row_generation[2] == 1
+  assert state.row_generation[1] == 0
+  assert not np.allclose(
+      state.poses(2)["body_quat"],
+      model.forward_kinematics(same[0])["body_quat"],
+  )
+
+  snapshot = state.snapshot()
+  state.randomize([0, 3], seed=41, scale=0.2)
+  assert state.row_generation[0] == 1
+  assert state.row_generation[3] == 1
+  assert state.row_generation[1] == 0
+  randomized = state.qpos.copy()
+  generations = state.row_generation.copy()
+  state.restore(snapshot)
+  np.testing.assert_array_equal(state.qpos, snapshot.qpos)
+  np.testing.assert_array_equal(state.row_generation, generations + 1)
+  assert not np.array_equal(randomized, state.qpos)
+  with pytest.raises(ValueError, match="unique"):
+    state.set_qpos([1, 1], np.zeros((2, model.nq)))
+
+
+def test_randomized_mixed_joint_cpu_oracle():
+  xml = """<mujoco><worldbody>
+      <geom type="plane" size="2 2 .1"/>
+      <body name="fixed" pos=".2 -.1 .3" quat=".9238795 0 0 .3826834">
+        <geom type="sphere" size=".1"/>
+      </body>
+      <body name="free"><freejoint/><geom type="sphere" size=".1"/>
+        <body name="multi" pos=".1 .2 0"><geom type="sphere" size=".1"/>
+          <joint type="hinge" pos=".1 0 0" axis="0 1 0"/>
+          <joint type="slide" axis="1 0 0"/>
+          <site pos=".1 0 .2"/>
+          <body pos="0 0 .3"><joint type="ball" pos="0 0 .2"/>
+            <geom type="sphere" size=".1"/>
+            <body pos="0 0 .4"><joint type="slide" axis="0 1 0"/>
+              <geom type="sphere" size=".1"/>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="second"><freejoint/><geom type="box" size=".2 .1 .1"/></body>
+    </worldbody></mujoco>"""
+  model = load_model(xml)
+  compiled = mujoco.MjModel.from_xml_string(xml)
+  data = mujoco.MjData(compiled)
+  rng = np.random.default_rng(319)
+  for _ in range(100):
+    qpos = np.array(compiled.qpos0)
+    for joint, typ in enumerate(model.jnt_type):
+      qa = int(model.jnt_qposadr[joint])
+      typ = int(typ)
+      if typ == int(mujoco.mjtJoint.mjJNT_FREE):
+        qpos[qa : qa + 3] = rng.normal(size=3)
+        quat = rng.normal(size=4)
+        qpos[qa + 3 : qa + 7] = quat / np.linalg.norm(quat)
+      elif typ == int(mujoco.mjtJoint.mjJNT_BALL):
+        quat = rng.normal(size=4)
+        qpos[qa : qa + 4] = quat / np.linalg.norm(quat)
+      else:
+        qpos[qa] = compiled.qpos0[qa] + rng.normal()
+    mujoco.mj_kinematics(compiled, data)
+    data.qpos[:] = qpos
+    mujoco.mj_kinematics(compiled, data)
+    result = model.forward_kinematics(qpos)
+    np.testing.assert_allclose(result["body_pos"], data.xpos, atol=2e-12)
+    np.testing.assert_allclose(result["body_quat"], data.xquat, atol=2e-12)
+    np.testing.assert_allclose(result["geom_pos"], data.geom_xpos, atol=2e-12)
+    np.testing.assert_allclose(result["site_pos"], data.site_xpos, atol=2e-12)
+
+
+def test_batched_constants_recompute_dirty_rows_and_restore(monkeypatch):
+  from copy import copy
+
+  from mujoco_metal.lifecycle import BatchedConstants
+
+  xml = """<mujoco><worldbody>
+      <body><freejoint/><geom type="sphere" size=".1"/>
+        <body><joint type="hinge"/><geom type="sphere" size=".1"/></body>
+      </body>
+    </worldbody></mujoco>"""
+  source = mujoco.MjModel.from_xml_string(xml)
+  constants = BatchedConstants(source, batch_size=4)
+  original_setconst = mujoco.mj_setConst
+  calls = []
+
+  def count_setconst(model, data):
+    calls.append(True)
+    original_setconst(model, data)
+
+  monkeypatch.setattr(mujoco, "mj_setConst", count_setconst)
+  assert constants.set_body_masses([1, 3], [1], [[2.0], [4.0]]) == (1, 3)
+  assert len(calls) == 2
+  np.testing.assert_array_equal(constants.row_generation, [0, 1, 0, 1])
+  assert constants.set_body_masses([1, 3], [1], [[2.0], [4.0]]) == ()
+  assert len(calls) == 2
+  snapshot = constants.snapshot()
+  before_mass = constants.body_mass.copy()
+  before_invweight = constants.body_invweight0.copy()
+  before_generation = constants.row_generation.copy()
+
+  calls.clear()
+  fail_at = 2
+
+  def fail_second_candidate(model, data):
+    calls.append(True)
+    original_setconst(model, data)
+    if len(calls) == fail_at:
+      raise RuntimeError("injected row recomputation failure")
+
+  monkeypatch.setattr(mujoco, "mj_setConst", fail_second_candidate)
+  with pytest.raises(RuntimeError, match="injected"):
+    constants.set_body_masses([0, 2], [2], [[3.0], [5.0]])
+  np.testing.assert_array_equal(constants.body_mass, before_mass)
+  np.testing.assert_array_equal(constants.body_invweight0, before_invweight)
+  np.testing.assert_array_equal(constants.row_generation, before_generation)
+
+  monkeypatch.setattr(mujoco, "mj_setConst", original_setconst)
+  assert constants.randomize([0, 2], seed=17, scale=0) == ()
+  assert constants.randomize([0, 2], seed=17, scale=0.2) == (0, 2)
+  randomized = constants.body_mass.copy()
+  generations = constants.row_generation.copy()
+  constants.restore(snapshot)
+  np.testing.assert_array_equal(constants.body_mass, snapshot.body_mass)
+  np.testing.assert_array_equal(constants.row_generation, generations + 1)
+  assert not np.array_equal(randomized, constants.body_mass)
+
+  expected = []
+  for masses in snapshot.body_mass:
+    model = copy(source)
+    model.body_mass[:] = masses
+    mujoco.mj_setConst(model, mujoco.MjData(model))
+    expected.append(model.body_invweight0.copy())
+  np.testing.assert_allclose(
+      constants.body_invweight0, expected, rtol=0, atol=0
+  )
+
+  other = BatchedConstants(
+      '<mujoco><worldbody><body><freejoint/><geom type="box" size=".1 .2 .3"/></body></worldbody></mujoco>',
+      batch_size=4,
+  )
+  with pytest.raises(ValueError, match="fingerprint"):
+    other.restore(snapshot)
+
+
+def test_batch_state_accessors_and_multienv_failure_are_isolated():
+  from mujoco_metal.lifecycle import KinematicsBatchState
+
+  model = load_model(
+      '<mujoco><worldbody><body><freejoint/><geom type="sphere" size=".1"/></body></worldbody></mujoco>'
+  )
+  state = KinematicsBatchState(model, 2)
+  state.poses(0)
+  public_qpos = state.qpos
+  public_qpos.setflags(write=True)
+  public_qpos[0, 0] += 2
+  assert state.poses(0)["body_pos"][1, 0] == 0
+
+  before = state.qpos.copy()
+  invalid = before[[0, 1]].copy()
+  invalid[0, 0] = 3
+  invalid[1, 3:7] = 0
+  with pytest.raises(ValueError, match="quaternion"):
+    state.set_qpos([0, 1], invalid)
+  np.testing.assert_array_equal(state.qpos, before)
+  with pytest.raises(ValueError, match="integers"):
+    state.set_qpos([0.7], np.zeros((1, model.nq)))
+
+
+def test_massless_fixed_body_constants_preserve_zero_mass():
+  from mujoco_metal.lifecycle import BatchedConstants
+
+  xml = """<mujoco><worldbody><body name="massless-fixed">
+      <body name="moving"><joint type="hinge"/><geom type="sphere" size=".1"/></body>
+    </body></worldbody></mujoco>"""
+  constants = BatchedConstants(xml, batch_size=2)
+  assert constants.body_mass[0, 1] == 0
+  assert constants.randomize([0, 1], seed=4, scale=0.1) == (0, 1)
+  np.testing.assert_array_equal(constants.body_mass[:, 1], 0)
+  with pytest.raises(ValueError, match="massless"):
+    constants.set_body_masses([0], [1], [[1.0]])
+  checkpoint = constants.snapshot()
+  constants.set_body_masses([0], [2], [[1.5]])
+  constants.restore(checkpoint)
+  np.testing.assert_array_equal(constants.body_mass[:, 1], 0)
+
+
+def test_state_snapshot_fingerprint_and_rotation_scale():
+  from dataclasses import replace
+
+  from mujoco_metal.lifecycle import KinematicsBatchState
+
+  xml_a = '<mujoco><worldbody><body><freejoint/><geom type="sphere" size=".1"/></body></worldbody></mujoco>'
+  xml_b = '<mujoco><worldbody><body><freejoint/><geom type="box" size=".1 .1 .1"/></body></worldbody></mujoco>'
+  model_a = load_model(xml_a)
+  model_b = load_model(xml_b)
+  state = KinematicsBatchState(model_a, batch_size=2)
+  original = state.qpos.copy()
+  assert state.randomize([0], seed=9, scale=0) == ()
+  np.testing.assert_array_equal(state.qpos, original)
+  assert state.randomize([0], seed=9, scale=0.01) == (0,)
+  free_quat = state.qpos[0, 3:7]
+  angle = 2 * np.arccos(np.clip(abs(np.dot(free_quat, original[0, 3:7])), 0, 1))
+  assert 0 < angle < 0.1
+  snapshot = state.snapshot()
+  with pytest.raises(ValueError, match="fingerprint"):
+    KinematicsBatchState(model_b, batch_size=2).restore(snapshot)
+  with pytest.raises(ValueError, match="fingerprint"):
+    state.restore(replace(snapshot, schema_version=2))
+  with pytest.raises(ValueError, match="batch_size"):
+    KinematicsBatchState(model_a, batch_size=1.5)
+
+
+def test_constants_snapshot_same_dimensions_rejects_armature_change():
+  from dataclasses import replace
+
+  from mujoco_metal.lifecycle import BatchedConstants
+
+  xml_a = """<mujoco><worldbody><body>
+      <joint type="hinge" armature=".1"/>
+      <inertial pos="0 0 0" mass="1" diaginertia=".1 .2 .3"/>
+    </body></worldbody></mujoco>"""
+  xml_b = xml_a.replace('armature=".1"', 'armature=".2"').replace(
+      'pos="0 0 0"', 'pos=".1 0 0"'
+  )
+  a = BatchedConstants(xml_a, batch_size=1)
+  b = BatchedConstants(xml_b, batch_size=1)
+  assert a.descriptor.nq == b.descriptor.nq
+  assert a.descriptor.nbody == b.descriptor.nbody
+  checkpoint = a.snapshot()
+  with pytest.raises(ValueError, match="fingerprint"):
+    b.restore(checkpoint)
+  with pytest.raises(ValueError, match="schema"):
+    a.restore(replace(checkpoint, schema_version=2))
+  with pytest.raises(ValueError):
+    checkpoint.body_mass.setflags(write=True)

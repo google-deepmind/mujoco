@@ -191,6 +191,22 @@ def _inventory():
   result.extend(
       (
           Feature(
+              "mj_setConst parameter recomputation",
+              Stage.MODEL,
+              Implementation.CPU_REFERENCE,
+              Qualification.CPU_ORACLE,
+              Execution.HOST,
+              "host-only transactional model constant update",
+          ),
+          Feature(
+              "batched qpos cache/reset/restore",
+              Stage.API,
+              Implementation.CPU_REFERENCE,
+              Qualification.CPU_ORACLE,
+              Execution.HOST,
+              "CPU state lifecycle only; no stepping",
+          ),
+          Feature(
               "collision pipeline",
               Stage.COLLISION,
               Implementation.NOT_IMPLEMENTED,

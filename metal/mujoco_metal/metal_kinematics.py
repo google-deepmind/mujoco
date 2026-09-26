@@ -18,7 +18,9 @@ from pathlib import Path
 
 import numpy as np
 
-from mujoco_metal.model import ModelDescriptor, _validate_lowered
+from mujoco_metal.model import _validate_lowered
+from mujoco_metal.model import ModelDescriptor
+from mujoco_metal.model import snapshot_descriptor
 
 _SHADER = Path(__file__).parent / "shaders" / "kinematics.metal"
 
@@ -43,6 +45,7 @@ def _prepare_host_arrays(model: ModelDescriptor):
       "body_iquat",
       "body_mass",
       "body_inertia",
+      "dof_armature",
       "jnt_type",
       "jnt_qposadr",
       "jnt_dofadr",
@@ -51,6 +54,8 @@ def _prepare_host_arrays(model: ModelDescriptor):
       "jnt_axis",
       "qpos0",
       "geom_bodyid",
+      "geom_type",
+      "geom_size",
       "geom_pos",
       "geom_quat",
       "site_bodyid",
@@ -91,8 +96,8 @@ class MetalKinematics:
   """Batched native MSL forward kinematics; construction initializes MPS."""
 
   def __init__(self, model: ModelDescriptor):
-    self.model = model
     host_arrays = _prepare_host_arrays(model)
+    self.model = snapshot_descriptor(model)
     # Importing this module remains host-only; construction is the explicit
     # device capability boundary.
     import torch
@@ -113,6 +118,9 @@ class MetalKinematics:
           "jnt_dofadr",
           "body_mass",
           "body_inertia",
+          "dof_armature",
+          "geom_type",
+          "geom_size",
       ):
         continue
       self._arrays[name] = torch.from_numpy(host).to(self._device)
