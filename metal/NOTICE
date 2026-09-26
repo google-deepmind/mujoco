@@ -1,0 +1,6 @@
+This standalone experimental package is maintained separately from MuJoCo core.
+It uses the MuJoCo 3.10.0 Python API and MuJoCo kinematics conventions. No
+MuJoCo implementation source or third-party robot assets are bundled here.
+
+Copyright 2026 The MuJoCo Metal contributors
+Licensed under the Apache License, Version 2.0; see LICENSE.

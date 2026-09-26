@@ -1,6 +1,7 @@
 """CPU contract tests for generic model lowering."""
 
 import mujoco
+import mujoco_metal.model as model_module
 import numpy as np
 import pytest
 
@@ -73,3 +74,35 @@ def test_invalid_quaternion_and_feature_registry_is_host_only():
   assert all(row.execution in Execution for row in inventory)
   assert all(row.stage in Stage and row.implementation in Implementation for row in inventory)
   assert "torch" not in __import__("sys").modules
+
+
+def test_rejects_mocap_and_malformed_source_model():
+  mocap = mujoco.MjModel.from_xml_string(
+      '<mujoco><worldbody><body mocap="true"><geom type="sphere" size=".1"/></body></worldbody></mujoco>')
+  with pytest.raises(ValueError, match="mocap"):
+    load_model(mocap)
+
+  valid = mujoco.MjModel.from_xml_string(
+      '<mujoco><worldbody><geom type="sphere" size=".1"/></worldbody></mujoco>')
+  valid.geom_bodyid[0] = 999
+  with pytest.raises(ValueError, match="geom_bodyid"):
+    load_model(valid)
+
+  valid = mujoco.MjModel.from_xml_string(
+      '<mujoco><worldbody><body><joint type="hinge"/><geom type="sphere" size=".1"/></body></worldbody></mujoco>')
+  valid.body_pos[1, 0] = np.nan
+  with pytest.raises(ValueError, match="nonfinite"):
+    load_model(valid)
+
+
+def test_source_mutation_does_not_change_descriptor_and_version_checked_first(monkeypatch):
+  source = mujoco.MjModel.from_xml_string(
+      '<mujoco><worldbody><body><joint type="hinge"/><geom type="sphere" size=".1"/></body></worldbody></mujoco>')
+  descriptor = load_model(source)
+  before = descriptor.forward_kinematics(np.array(source.qpos0))["body_pos"].copy()
+  source.body_pos[1, 0] = 50.
+  np.testing.assert_array_equal(
+      descriptor.forward_kinematics(np.array(source.qpos0))["body_pos"], before)
+  monkeypatch.setattr(model_module.mujoco, "__version__", "3.14.1")
+  with pytest.raises(RuntimeError, match="3.10.0"):
+    load_model("this is deliberately not valid XML")

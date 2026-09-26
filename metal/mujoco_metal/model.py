@@ -48,6 +48,7 @@ class ModelDescriptor:
 
   nq: int
   nv: int
+  nmocap: int
   nbody: int
   njnt: int
   ngeom: int
@@ -122,22 +123,60 @@ def _validate_lowered(counts, values):
   """Check compiled addressing before arrays can be consumed by a kernel."""
   nb, nj, nq, nv = counts["nbody"], counts["njnt"], counts["nq"], counts["nv"]
   parent = values["body_parentid"]
+  array_shapes = {
+      "body_pos": (nb, 3), "body_quat": (nb, 4), "body_ipos": (nb, 3),
+      "body_iquat": (nb, 4), "jnt_type": (nj,), "jnt_qposadr": (nj,),
+      "jnt_dofadr": (nj,), "jnt_bodyid": (nj,), "jnt_pos": (nj, 3),
+      "jnt_axis": (nj, 3), "geom_bodyid": (counts["ngeom"],),
+      "geom_pos": (counts["ngeom"], 3), "geom_quat": (counts["ngeom"], 4),
+      "site_bodyid": (counts["nsite"],), "site_pos": (counts["nsite"], 3),
+      "site_quat": (counts["nsite"], 4),
+  }
+  for name, shape in array_shapes.items():
+    if values[name].shape != shape:
+      raise ValueError(f"invalid {name} shape: {values[name].shape}, expected {shape}")
+    if values[name].dtype.kind in "fc" and not np.all(np.isfinite(values[name])):
+      raise ValueError(f"nonfinite values in {name}")
+  for name in ("body_quat", "body_iquat", "geom_quat", "site_quat"):
+    norms = np.linalg.norm(values[name], axis=1)
+    if np.any(np.abs(norms - 1.) > 1e-6):
+      raise ValueError(f"{name} contains a non-unit quaternion")
+  for name in ("geom_bodyid", "site_bodyid"):
+    if np.any(values[name] < 0) or np.any(values[name] >= nb):
+      raise ValueError(f"invalid body index in {name}")
   if parent.shape != (nb,) or parent[0] != 0:
     raise ValueError("invalid body parent array")
   if np.any(parent[1:] < 0) or np.any(parent[1:] >= np.arange(1, nb)):
     raise ValueError("body parents must precede their children")
+  qcovered = np.zeros(nq, dtype=np.int8); dcovered = np.zeros(nv, dtype=np.int8)
+  free_bodies = set()
   for i, (typ, qa, da, body) in enumerate(zip(values["jnt_type"], values["jnt_qposadr"], values["jnt_dofadr"], values["jnt_bodyid"])):
     qwidth, dwidth = {0: (7, 6), 1: (4, 3), 2: (1, 1), 3: (1, 1)}.get(int(typ), (0, 0))
     if not qwidth or qa < 0 or qa + qwidth > nq or da < 0 or da + dwidth > nv:
       raise ValueError(f"invalid joint type or address at joint {i}")
     if body <= 0 or body >= nb:
       raise ValueError(f"invalid joint body at joint {i}")
+    if qcovered[qa:qa+qwidth].any() or dcovered[da:da+dwidth].any():
+      raise ValueError(f"overlapping joint address at joint {i}")
+    qcovered[qa:qa+qwidth] = 1; dcovered[da:da+dwidth] = 1
+    if typ == 0:
+      if int(body) in free_bodies or np.any(values["jnt_bodyid"][:i] == body):
+        raise ValueError("free joint cannot share its body with another joint")
+      free_bodies.add(int(body))
+    elif int(body) in free_bodies:
+      raise ValueError("free joint cannot share its body with another joint")
+    if typ in (2, 3) and np.linalg.norm(values["jnt_axis"][i]) <= 1e-12:
+      raise ValueError(f"zero joint axis at joint {i}")
+  if not np.all(qcovered) or not np.all(dcovered):
+    raise ValueError("joint addresses must exhaustively cover qpos and dof arrays")
   if values["qpos0"].shape != (nq,):
     raise ValueError("invalid qpos0 shape")
 
 
 def load_model(source):
   """Compile XML/path/bytes with pinned MuJoCo and lower all FK constants."""
+  if mujoco.__version__ != "3.10.0":
+    raise RuntimeError(f"requires MuJoCo 3.10.0; found {mujoco.__version__}")
   if isinstance(source, mujoco.MjModel):
     m = source
   elif isinstance(source, bytes):
@@ -146,14 +185,14 @@ def load_model(source):
     m = mujoco.MjModel.from_xml_path(str(source))
   else:
     m = mujoco.MjModel.from_xml_string(str(source))
-  if mujoco.__version__ != "3.10.0":
-    raise RuntimeError(f"requires MuJoCo 3.10.0; found {mujoco.__version__}")
+  if m.nmocap:
+    raise ValueError("mocap inputs are unsupported by the current kinematics stage")
   values = {}
   for name in ("body_parentid", "body_pos", "body_quat", "body_ipos", "body_iquat",
                "jnt_type", "jnt_qposadr", "jnt_dofadr", "jnt_bodyid", "jnt_pos",
                "jnt_axis", "qpos0", "geom_bodyid", "geom_pos", "geom_quat",
                "site_bodyid", "site_pos", "site_quat"):
     values[name] = _frozen(getattr(m, name))
-  counts = dict(nq=m.nq, nv=m.nv, nbody=m.nbody, njnt=m.njnt, ngeom=m.ngeom, nsite=m.nsite)
+  counts = dict(nq=m.nq, nv=m.nv, nmocap=m.nmocap, nbody=m.nbody, njnt=m.njnt, ngeom=m.ngeom, nsite=m.nsite)
   _validate_lowered(counts, values)
   return ModelDescriptor(**counts, **values)

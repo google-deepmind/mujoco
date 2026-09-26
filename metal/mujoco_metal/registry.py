@@ -69,8 +69,7 @@ def _enum_inventory():
                           Qualification.UNQUALIFIED, Execution.NONE,
                           "not exposed by pinned Python bindings"))
       continue
-    for member_name in dir(enum_type):
-      if member_name.startswith("mj"):
+    for member_name in enum_type.__members__:
         rows.append(Feature(f"{enum_name}.{member_name}", Stage.MODEL,
                             Implementation.NOT_IMPLEMENTED,
                             Qualification.UNQUALIFIED, Execution.NONE,
