@@ -21,12 +21,10 @@ import threading
 
 from absl.testing import absltest
 from absl.testing import parameterized
+import numpy as np
 
 import mujoco
 from mujoco import rollout
-
-import numpy as np
-
 
 DTYPE = mujoco.MJTNUM_DTYPE
 
@@ -41,6 +39,7 @@ def empty(*shape):
 
 def zeros(*shape):
   return np.zeros(shape, dtype=DTYPE)
+
 
 # -------------------------- models used for testing ---------------------------
 
@@ -538,10 +537,10 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     np.testing.assert_array_equal(state, py_state)
     np.testing.assert_array_equal(sensordata, py_sensordata)
 
-  def test_threading_native(self):
+  @parameterized.product(data_type=(list, tuple), num_workers=(1, 32))
+  def test_threading_native(self, data_type, num_workers):
     model = mujoco.MjModel.from_xml_string(TEST_XML)
     nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
-    num_workers = 32
     nbatch = 100
     nstep = 5
     initial_state = randn(nbatch, nstate)
@@ -550,7 +549,7 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     control = randn(nbatch, nstep, model.nu)
 
     model_list = [copy.copy(model) for _ in range(nbatch)]
-    data_list = [mujoco.MjData(model) for _ in range(num_workers)]
+    data_list = data_type(mujoco.MjData(model) for _ in range(num_workers))
 
     rollout.rollout(
         model_list,
@@ -567,10 +566,10 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     np.testing.assert_array_equal(state, py_state)
     np.testing.assert_array_equal(sensordata, py_sensordata)
 
-  def test_threading_native_persistent_object(self):
+  @parameterized.product(data_type=(list, tuple), num_workers=(1, 32))
+  def test_threading_native_persistent_object(self, data_type, num_workers):
     model = mujoco.MjModel.from_xml_string(TEST_XML)
     nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
-    num_workers = 32
     nbatch = 100
     nstep = 5
     initial_state = randn(nbatch, nstate)
@@ -579,7 +578,7 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     control = randn(nbatch, nstep, model.nu)
 
     model_list = [copy.copy(model) for _ in range(nbatch)]
-    data_list = [mujoco.MjData(model) for _ in range(num_workers)]
+    data_list = data_type(mujoco.MjData(model) for _ in range(num_workers))
 
     with rollout.Rollout(nthread=num_workers) as rollout_:
       for _ in range(2):
@@ -616,10 +615,10 @@ class MuJoCoRolloutTest(parameterized.TestCase):
       np.testing.assert_array_equal(sensordata, py_sensordata)
     rollout_.close()
 
-  def test_threading_native_persistent_function(self):
+  @parameterized.product(data_type=(list, tuple), num_workers=(1, 32))
+  def test_threading_native_persistent_function(self, data_type, num_workers):
     model = mujoco.MjModel.from_xml_string(TEST_XML)
     nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
-    num_workers = 32
     nbatch = 100
     nstep = 5
     initial_state = randn(nbatch, nstate)
@@ -628,7 +627,7 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     control = randn(nbatch, nstep, model.nu)
 
     model_list = [copy.copy(model) for _ in range(nbatch)]
-    data_list = [mujoco.MjData(model) for _ in range(num_workers)]
+    data_list = data_type(mujoco.MjData(model) for _ in range(num_workers))
 
     for _ in range(2):
       rollout.rollout(

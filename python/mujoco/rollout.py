@@ -18,10 +18,11 @@ import atexit
 from collections.abc import Sequence
 from typing import Optional, Union
 
+from numpy import typing as npt
+import numpy as np
+
 import mujoco
 from mujoco import _rollout
-import numpy as np
-from numpy import typing as npt
 
 
 class Rollout:
@@ -179,8 +180,10 @@ class Rollout:
     elif not isinstance(model, list):
       model = [model]  # Use a length 1 list to simplify code below
 
-    if not isinstance(data, list):
-      data = [data]  # Use a length 1 list to simplify code below  # pyrefly: ignore[bad-assignment]
+    if isinstance(data, mujoco.MjData):
+      data = [data]  # Use a length 1 list to simplify code below
+    else:
+      data = list(data)
 
     # infer nstep, check for incompatibilities
     nstep = _infer_dimension(
@@ -221,7 +224,9 @@ class Rollout:
     if state is None:
       state = np.empty((nbatch, nstep, nstate), dtype=mujoco.MJTNUM_DTYPE)
     if sensordata is None:
-      sensordata = np.empty((nbatch, nstep, nsensordata), dtype=mujoco.MJTNUM_DTYPE)
+      sensordata = np.empty(
+          (nbatch, nstep, nsensordata), dtype=mujoco.MJTNUM_DTYPE
+      )
 
     # call rollout
     self.rollout_.rollout(
@@ -309,10 +314,14 @@ def rollout(
   Raises:
     ValueError: bad shapes or sizes.
   """  # fmt: skip
-  if not isinstance(data, list):
-    data = [data]  # Use a length 1 list to simplify code below  # pyrefly: ignore[bad-assignment]
+  if isinstance(data, mujoco.MjData):
+    data = [data]  # Use a length 1 list to simplify code below
+  else:
+    data = list(data)
 
-  nthread = len(data) if len(data) > 1 else 0  # pyrefly: ignore[bad-argument-type]
+  nthread = (
+      len(data) if len(data) > 1 else 0
+  )  # pyrefly: ignore[bad-argument-type]
 
   # Use a persistent thread pool if requested
   if persistent_pool:
