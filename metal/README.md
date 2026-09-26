@@ -7,7 +7,7 @@ native `contact_free_euler_v1` simulation profile. It does not replace `mj_step`
 or support the full MuJoCo model and force system. The earlier robot-specific
 implementation is preserved on
 [`archive/metal-microduck-v1`](https://github.com/keeeeenw/mujoco-mac-metal/tree/archive/metal-microduck-v1);
-its restricted stepping pipeline has not been generalized into this package.
+its robot-specific contact pipeline is not part of this generalized package.
 
 This optional package targets Python 3.12 and MuJoCo **3.10.0**. The surrounding MuJoCo source checkout is 3.14.1; that version is not a target. Use an isolated environment so the pinned package does not alter the surrounding checkout:
 
@@ -26,6 +26,13 @@ Run `python -m mujoco_metal preflight --model path/to/model.xml --json --invento
 
 `smooth_dynamics(descriptor, qpos, qvel)` is the CPU reference returning a dense joint-space mass matrix and inertial/gravity bias forces. `MetalSmoothDynamics(descriptor).run(qpos_batch, qvel_batch)` accepts host NumPy state batches and returns those two outputs as MPS tensors. Native GPU checks have passed on an Apple M1 across empty/fixed, mixed-joint, rotated-inertia, massless-ancestor, disabled-gravity, and 32-DOF-chain fixtures. `MetalDenseSolve(nv, batch_size, nrhs=1).run_device(mass, rhs)` performs a dimension-derived dense Cholesky factorization and one or multiple right-hand-side solves. `MetalEulerIntegration(descriptor, batch_size, timestep).run_device(qpos, qvel, qacc, time, solve_status)` updates hinge, slide, ball, and free coordinates on MPS. Both primitives have narrow GPU correctness qualifications against synthetic systems or MuJoCo 3.10; neither alone establishes unrestricted dynamics support. These device primitives require contiguous float32 MPS tensors; their outputs are borrowed reusable views, overwritten by the next call.
 
+For persistent GPU inputs, construct `MetalKinematics` or `MetalSmoothDynamics`
+with `batch_size=B`, then call `run_device` with contiguous float32 MPS tensors.
+The host-array `run` methods remain available for reference comparisons and tools.
+`MetalSimulation` uses the device methods internally, without a per-step host
+state transfer. Device outputs are borrowed and overwritten by later calls; copy
+results when retaining them beyond the next invocation.
+
 `ModelLifecycle` performs transactional CPU body-mass updates through MuJoCo `mj_setConst`. `BatchedConstants` maintains per-environment body masses and derived `body_invweight0` rows with atomic recomputation/restore and seeded mass randomization. `KinematicsBatchState` tracks explicit environment rows with generation-based FK cache invalidation, snapshots, restore, and tangent-space joint randomization. These are CPU lifecycle utilities and do not advance physics.
 
 `MetalSimulation(model, batch_size=1, qpos=None, qvel=None)` connects persistent MPS state, smooth dynamics, the native dense solve, and semi-implicit Euler for the bounded `contact_free_euler_v1` profile. A local Apple M1 GPU qualification passed on four rigid-body fixtures, three initial states, 1,000-step 1 ms rollouts, and reset/restore resume. This remains a narrow qualification, not general model support. The model must explicitly disable contacts and use Euler integration. The profile supports gravity and joint armature, assumes zero applied generalized force, and rejects actuators, tendons, limits, friction loss, passive/fluid forces, sensors, equality constraints, flexes, plugins, damping, springs, callbacks, mocap, and non-Euler integrators. A model may be accepted for kinematics or mass/bias queries and still be rejected for stepping. Construction validates the profile before initializing MPS.
@@ -33,6 +40,32 @@ Run `python -m mujoco_metal preflight --model path/to/model.xml --json --invento
 `simulation.step()` returns a borrowed MPS status vector. Solver and integration failures are per-world; a failed world keeps its state and its first nonzero status remains sticky until reset or restore. State views are copies; snapshots and resets cross the host/device boundary and belong outside the hot step loop. Position, velocity, acceleration, and simulation time use float32 on device. In particular, time's representable increment gets coarser as elapsed time grows.
 
 Run the opt-in GPU correctness tests only on an available Apple GPU with the pinned Torch extra installed: `MUJOCO_METAL_RUN_GPU=1 python -m pytest -m gpu`. Ordinary `python -m pytest` runs CPU tests and skips the GPU cases. `preflight` remains CPU-only: shader hashes and stage labels are inventory, not a device probe. The overall GPU-qualified field stays false because contacts and the full backend remain unsupported. The standalone source tree carries the Apache 2.0 license and notices.
+
+## Achievements and measured scaling
+
+The generalized package now has a **native contact-free stepping loop**: persistent
+MPS state, forward kinematics, mass/bias computation, dense acceleration solve,
+and quaternion-aware semi-implicit Euler integration. Physics stepping does not
+call CPU MuJoCo, NumPy solves, or read state back to the host. Reset/checkpoint
+ownership and per-world failure handling are covered by tests. These are new
+backend implementations of existing dynamics methods, not new physics algorithms.
+
+Local qualification includes **90 passing tests with GPU execution enabled**, plus
+12 independent 1,000-step trajectories against MuJoCo across slide, hinge,
+free-body, and mixed-joint fixtures. The native pendulum also passed headless and
+offscreen checks. Interactive native playback still needs qualification with an
+active macOS display; the earlier hybrid viewer was checked separately.
+
+A short **M1 Max / 32 GB** pendulum benchmark now includes measured eight-thread
+CPU comparisons at every tested batch through **524,288 worlds**. At that batch,
+Metal measured **3.20x faster** than eight-thread CPU rollout (5.907 s versus
+18.905 s for 200 steps), reaching **17.75 million world-steps/s**. CPU wins at
+small batches. See the
+[complete CPU8/Metal results, raw trials, and reproduction commands](benchmarks/README.md).
+These are contact-free physics API measurements, not walking or PPO results.
+CPU rollout writes float64 trajectories while Metal retains float32 device state;
+that difference is included in the reported comparison. No full-library or
+cross-hardware speedup is claimed.
 
 ## Boundaries before general MuJoCo simulation
 
@@ -204,11 +237,12 @@ generalized package's coverage.
 
 ### Will it work on every M1–M5 Mac, and is it faster than CPU physics?
 
-Neither is established by the current tests. Apple Silicon is the intended
-hardware family, but chip generation, macOS, framework versions and memory
-requirements still need qualification. Successful shader compilation and small
-correctness tests establish no training-throughput advantage. This package has
-no demonstrated CPU-to-Metal speedup.
+Support across every chip generation is not established. Apple Silicon is the
+intended hardware family, but macOS, framework versions and memory requirements
+still need qualification. The [measured pendulum comparison](benchmarks/README.md)
+shows a batch-dependent advantage over eight-thread CPU rollout on one M1 Max.
+It also shows CPU winning at small batches. Precision and output costs differ,
+and these short measurements establish no training-throughput advantage.
 
 Use `python -m mujoco_metal preflight --json --inventory` to record this
 installation's module/shader paths, hashes, version and declared support.

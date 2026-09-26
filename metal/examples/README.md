@@ -15,8 +15,9 @@ state. MuJoCo's OpenGL renderer displays both states.
 - `cpu`: MuJoCo `mj_step` on both sides for a baseline.
 
 The native mode covers this bundled contact-free, unactuated rigid-body model.
-It does not establish contact support, broad MuJoCo feature coverage or a speed
-advantage. It has no CPU physics fallback. The recorded GIF below remains the
+This visualization does not establish contact support, broad MuJoCo feature
+coverage or execution speed. See the separate [CPU8/Metal timing report](../benchmarks/README.md)
+for measured physics throughput and its limitations. It has no CPU physics fallback. The recorded GIF below remains the
 hybrid mode; its label describes the physics shown in that recording.
 
 From the repository root, in an isolated Python 3.12 environment:
@@ -38,22 +39,22 @@ Interactive display needs an active macOS viewer session; the demo checks for
 one before GPU initialization. On a Mac without a display, `mjpython` itself
 may wait for the GUI session before it starts the script, so the script cannot
 show its display check in that case. Use ordinary `python` with the headless
-commands below to qualify physics. Interactive viewer qualification remains
-pending on a host with an active display.
+commands below to qualify physics. Native-mode interactive viewer qualification remains pending on a host with an
+active display; the earlier hybrid viewer passed a separate launch/shutdown check.
 
 Run a short numerical check without opening a window:
 
 ```sh
 PYTHONPATH=metal .venv-demo/bin/python metal/examples/pendulum.py --headless --check
-MUJOCO_METAL_RUN_GPU=1 PYTHONPATH=metal .venv-demo/bin/python -m pytest -q metal/tests/test_pendulum.py
+MUJOCO_METAL_RUN_GPU=1 PYTORCH_ENABLE_MPS_FALLBACK=0 PYTHONPATH=metal .venv-demo/bin/python -m pytest -q metal/tests/test_pendulum.py
 ```
 
 Select and check native stepping explicitly with:
 
 ```sh
 PYTHONPATH=metal .venv-demo/bin/mjpython metal/examples/pendulum.py --mode metal
-PYTHONPATH=metal .venv-demo/bin/python metal/examples/pendulum.py --mode metal --headless --check --steps 200
-MUJOCO_METAL_RUN_GPU=1 PYTHONPATH=metal .venv-demo/bin/python -m pytest -q metal/tests/test_pendulum.py -k native
+PYTORCH_ENABLE_MPS_FALLBACK=0 PYTHONPATH=metal .venv-demo/bin/python metal/examples/pendulum.py --mode metal --headless --check --steps 200
+MUJOCO_METAL_RUN_GPU=1 PYTORCH_ENABLE_MPS_FALLBACK=0 PYTHONPATH=metal .venv-demo/bin/python -m pytest -q metal/tests/test_pendulum.py -k native
 ```
 
 Use `--mode metal-hybrid` for the earlier CPU-solve demonstration and
@@ -78,6 +79,12 @@ On the local Apple M1 validation machine, the initial 200-step hybrid rollout
 had maximum errors of approximately 2.2e-8 rad and 5.8e-7 rad/s. The GPU test
 also reruns after reset. These results apply to this bundled model and pinned
 dependencies, not arbitrary XML models or full MuJoCo feature coverage.
+
+The native `--mode metal` 200-step check on the M1 Max had maximum errors of
+approximately 1.90e-6 rad and 1.49e-5 rad/s across the rollout. Headless physics
+and native offscreen PNG export passed. To export the native mode, add
+`--mode metal` to the PNG command above. The benchmark uses no per-step display
+readback; this comparison viewer does, so its frame rate is not physics throughput.
 
 Some `uv` Python installations need their base interpreter's library directory
 for `mjpython`. If startup reports `libpython3.12.dylib` missing, launch with:

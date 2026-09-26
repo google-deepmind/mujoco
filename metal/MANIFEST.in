@@ -1,2 +1,3 @@
 recursive-include examples *.py *.xml *.md
 recursive-include examples/assets *.gif
+recursive-include benchmarks *.py *.md *.json
