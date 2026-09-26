@@ -9,7 +9,7 @@ description = "Optional generic MuJoCo model inspection and Metal kinematics pro
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 license = "Apache-2.0"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "NOTICE"]
 dependencies = ["mujoco==3.10.0", "numpy>=2,<3"]
 
 [project.scripts]
