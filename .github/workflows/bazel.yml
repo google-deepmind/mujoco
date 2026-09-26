@@ -110,7 +110,8 @@ jobs:
           xvfb-run -a python bazel/gui_smoke.py "$BAZEL_BIN/simulate/simulate" "$BAZEL_BIN/sample/basic"
       - name: Classic rendering
         if: runner.os == 'Linux'
-        run: xvfb-run -a bazel --nohome_rc test --config=release --config="$BAZEL_CONFIG" --test_env=DISPLAY --test_env=XAUTHORITY --test_env=MUJOCO_GL=glfw //python:renderer_test //python:render_test
+        # Keep the X11 cookie outside the sandbox's private `/tmp`.
+        run: xvfb-run -a --auth-file="$RUNNER_TEMP/mujoco.xauth" bazel --nohome_rc test --config=release --config="$BAZEL_CONFIG" --test_env=DISPLAY --test_env=XAUTHORITY --test_env=MUJOCO_GL=glfw //python:renderer_test //python:render_test
       - name: Downstream Bzlmod consumers
         run: |
           python bazel/check_consumer.py
@@ -277,7 +278,7 @@ jobs:
             //src/experimental/filament:compat_smoke_test
       - name: Studio imports, native viewer, and wheel installation
         run: |
-          xvfb-run -a bazel --batch --nohome_rc --output_base="$RUNNER_TEMP/bazel-studio" test \
+          xvfb-run -a --auth-file="$RUNNER_TEMP/mujoco.xauth" bazel --batch --nohome_rc --output_base="$RUNNER_TEMP/bazel-studio" test \
             --config=release --config=clang --//python:studio=true --//python:studio_web=true \
             --test_env=DISPLAY --test_env=XAUTHORITY --test_env=LIBGL_ALWAYS_SOFTWARE=1 --test_env=STUDIO_GFX=vulkan \
             //python:studio_import_test //python:studio_smoke_test //python:wheel_install_test
