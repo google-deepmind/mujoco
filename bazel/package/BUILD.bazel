@@ -51,12 +51,12 @@ pkg_files(
 pkg_files(
     name = "import_library",
     srcs = select({
-        "//bazel:windows": ["//:mujoco.dll.if.lib"],
+        "//bazel:windows": ["//:windows_import_library"],
         "//conditions:default": [],
     }),
     prefix = "lib",
     renames = select({
-        "//bazel:windows": {"//:mujoco.dll.if.lib": "mujoco.lib"},
+        "//bazel:windows": {"//:windows_import_library": "mujoco.lib"},
         "//conditions:default": {},
     }),
     strip_prefix = strip_prefix.files_only(),
