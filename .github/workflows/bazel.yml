@@ -95,12 +95,12 @@ jobs:
         run: python bazel/check_build_inputs.py
       - name: Check Python dependency locks
         run: bazel --nohome_rc test //bazel/python:check_locks
+      - name: Desktop binaries and packages
+        run: bazel --nohome_rc build --config=release --config="$BAZEL_CONFIG" //simulate:simulate //sample:basic //sample:record //bazel/package:sdk //bazel/package:sdk_zip //python:wheel
       - name: Native and documentation tests
         run: bazel --nohome_rc test --config=release --config="$BAZEL_CONFIG" //test:native_tests //test:documentation_tests
       - name: Manifest runfiles
         run: bazel --nohome_rc test --config=release --config="$BAZEL_CONFIG" --enable_runfiles=no //test:fixture_test //test:shared_plugin_test //test:sample_compile_test //test:sample_testspeed_test
-      - name: Desktop binaries and packages
-        run: bazel --nohome_rc build --config=release --config="$BAZEL_CONFIG" //simulate:simulate //sample:basic //sample:record //bazel/package:sdk //bazel/package:sdk_zip //python:wheel
       - name: Python tests and wheel installation
         run: bazel --nohome_rc test --config=release --config="$BAZEL_CONFIG" //python:tests //python:wheel_install_test
       - name: Desktop window rendering and shutdown
