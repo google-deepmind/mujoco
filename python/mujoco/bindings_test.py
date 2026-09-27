@@ -1358,20 +1358,25 @@ Euler integrator, semi-implicit in velocity.
 
     self.assertIsNone(mujoco.get_mjcb_time())
 
-  def test_mjcb_time_exception(self):
+  @parameterized.named_parameters(
+      ('time', mujoco.set_mjcb_time),
+      ('control', mujoco.set_mjcb_control),
+  )
+  def test_mjcb_exception(self, set_callback):
 
     class TestError(RuntimeError):
       pass
 
-    def raises_exception():
+    def raises_exception(*unused_args):
       raise TestError('string', (1, 2, 3), {'a': 1, 'b': 2})
 
-    with temporary_callback(mujoco.set_mjcb_time, raises_exception):
-      with self.assertRaises(TestError) as e:
-        mujoco.mj_forward(self.model, self.data)
-      self.assertEqual(
-          e.exception.args, ('string', (1, 2, 3), {'a': 1, 'b': 2})
-      )
+    with temporary_callback(set_callback, raises_exception):
+      for _ in range(2):
+        with self.assertRaises(TestError) as e:
+          mujoco.mj_forward(self.model, self.data)
+        self.assertEqual(
+            e.exception.args, ('string', (1, 2, 3), {'a': 1, 'b': 2})
+        )
 
     # Should not raise now that we've cleared the callback.
     mujoco.mj_forward(self.model, self.data)

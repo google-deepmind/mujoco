@@ -124,13 +124,11 @@ static const py::handle MjWrapperLookup(const Raw* ptr) {
   return MjWrapperLookup(const_cast<Raw*>(ptr));
 }
 
-// CallPyCallback takes ownership of py_callback: it will Py_XDECREF it before
-// returning or escaping.  This is necessary because EscapeWithPythonException()
-// calls mju_error which uses longjmp, bypassing C++ stack unwinding and any
-// trailing Py_XDECREF in callers.
+// Return from this frame before `longjmp`: MSVC can unwind the GIL guard again
+// even after its scope has ended. Prevent inlining to preserve that boundary.
 template <typename Return, typename... Args>
-static Return
-CallPyCallback(const char* name, PyObject* py_callback, Args... args) {
+PYBIND11_NOINLINE static Return TryCallPyCallback(
+    const char* name, PyObject* py_callback, bool& success, Args... args) {
   {
     py::gil_scoped_acquire gil;
     if (!py_callback) {
@@ -143,10 +141,12 @@ CallPyCallback(const char* name, PyObject* py_callback, Args... args) {
         if constexpr (std::is_void_v<Return>) {
           callback(args...);
           Py_XDECREF(py_callback);
+          success = true;
           return;
         } else {
           auto result = callback(args...).template cast<Return>();
           Py_XDECREF(py_callback);
+          success = true;
           return result;
         }
       } catch (py::error_already_set& e) {
@@ -164,8 +164,28 @@ CallPyCallback(const char* name, PyObject* py_callback, Args... args) {
         PyErr_SetString(PyExc_TypeError, msg.str().c_str());
       }
     }
-    // Error path: DECREF before escaping (longjmp won't unwind the stack).
     Py_XDECREF(py_callback);
+  }
+  if constexpr (!std::is_void_v<Return>) {
+    return Return{};
+  }
+}
+
+// Take ownership of `py_callback` and release it before returning or escaping.
+template <typename Return, typename... Args>
+static Return CallPyCallback(const char* name, PyObject* py_callback,
+                             Args... args) {
+  bool success = false;
+  if constexpr (std::is_void_v<Return>) {
+    TryCallPyCallback<Return>(name, py_callback, success, args...);
+    if (success) {
+      return;
+    }
+  } else {
+    auto result = TryCallPyCallback<Return>(name, py_callback, success, args...);
+    if (success) {
+      return result;
+    }
   }
   EscapeWithPythonException();
 }
