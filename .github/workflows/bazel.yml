@@ -97,6 +97,14 @@ jobs:
         run: bazel --nohome_rc test //bazel/python:check_locks
       - name: Desktop binaries and packages
         run: bazel --nohome_rc build --config=release --config="$BAZEL_CONFIG" //simulate:simulate //sample:basic //sample:record //bazel/package:sdk //bazel/package:sdk_zip //python:wheel
+      - name: Downstream Bzlmod consumers
+        run: |
+          python bazel/check_consumer.py
+          python bazel/check_consumer.py --archive
+      - name: Extracted SDK
+        run: |
+          BAZEL_BIN="$(bazel --nohome_rc info --config=release --config="$BAZEL_CONFIG" bazel-bin)"
+          python bazel/check_package.py --archive "$BAZEL_BIN/bazel/package/sdk.tar.gz"
       - name: Python tests and wheel installation
         run: bazel --nohome_rc test --config=release --config="$BAZEL_CONFIG" //python:tests //python:wheel_install_test
       - name: Native and documentation tests
@@ -112,14 +120,6 @@ jobs:
         if: runner.os == 'Linux'
         # Keep the X11 cookie outside the sandbox's private `/tmp`.
         run: xvfb-run -a --auth-file="$RUNNER_TEMP/mujoco.xauth" bazel --nohome_rc test --config=release --config="$BAZEL_CONFIG" --test_env=DISPLAY --test_env=XAUTHORITY --test_env=MUJOCO_GL=glfw //python:renderer_test //python:render_test
-      - name: Downstream Bzlmod consumers
-        run: |
-          python bazel/check_consumer.py
-          python bazel/check_consumer.py --archive
-      - name: Extracted SDK
-        run: |
-          BAZEL_BIN="$(bazel --nohome_rc info --config=release --config="$BAZEL_CONFIG" bazel-bin)"
-          python bazel/check_package.py --archive "$BAZEL_BIN/bazel/package/sdk.tar.gz"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
