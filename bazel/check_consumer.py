@@ -72,7 +72,7 @@ int main(void) {
   return failed;
 }
 ''')
-    command = [args.bazel, "--ignore_all_rc_files"]
+    command = [args.bazel, "--batch", "--ignore_all_rc_files"]
     if args.output_user_root:
       command += ["--output_user_root=" + str(args.output_user_root.resolve())]
     command += ["test", "//:static", "//:dynamic_deps", "//:shared", "//:plugin", "--jobs=8", "--repo_contents_cache=", "--test_output=errors"]
