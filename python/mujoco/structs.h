@@ -1150,6 +1150,75 @@ static InitPyArray(T (&buf)[N], pybind11::handle owner) {
   return MjStructList<T>(buf, N, owner);
 }
 
+// Keep constructors for anonymous `mjVisual` member types visible in each
+// translation unit.
+#define X(var) var(InitPyArray(ptr_->var, owner_))
+inline _impl::MjVisualHeadlightWrapper::MjWrapper()
+    : WrapperBase(new raw::MjVisualHeadlight{}),
+      X(ambient),
+      X(diffuse),
+      X(specular) {}
+
+inline _impl::MjVisualHeadlightWrapper::MjWrapper(
+    raw::MjVisualHeadlight* ptr, py::handle owner)
+    : WrapperBase(ptr, owner), X(ambient), X(diffuse), X(specular) {}
+#undef X
+
+#define X(var) var(InitPyArray(ptr_->var, owner_))
+inline _impl::MjVisualRgbaWrapper::MjWrapper()
+    : WrapperBase(new raw::MjVisualRgba{}),
+      X(fog),
+      X(haze),
+      X(force),
+      X(inertia),
+      X(joint),
+      X(actuator),
+      X(actuatornegative),
+      X(actuatorpositive),
+      X(com),
+      X(camera),
+      X(light),
+      X(selectpoint),
+      X(connect),
+      X(contactpoint),
+      X(contactforce),
+      X(contactfriction),
+      X(contacttorque),
+      X(contactgap),
+      X(rangefinder),
+      X(constraint),
+      X(slidercrank),
+      X(crankbroken),
+      X(frustum) {}
+
+inline _impl::MjVisualRgbaWrapper::MjWrapper(
+    raw::MjVisualRgba* ptr, py::handle owner)
+    : WrapperBase(ptr, owner),
+      X(fog),
+      X(haze),
+      X(force),
+      X(inertia),
+      X(joint),
+      X(actuator),
+      X(actuatornegative),
+      X(actuatorpositive),
+      X(com),
+      X(camera),
+      X(light),
+      X(selectpoint),
+      X(connect),
+      X(contactpoint),
+      X(contactforce),
+      X(contactfriction),
+      X(contacttorque),
+      X(contactgap),
+      X(rangefinder),
+      X(constraint),
+      X(slidercrank),
+      X(crankbroken),
+      X(frustum) {}
+#undef X
+
 // Helpers for defining array/tuple properties in pybind11 classes.
 //
 // Defines a NumPy array property of a Python class that supports assignments.
