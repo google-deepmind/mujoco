@@ -31,11 +31,11 @@ def mujoco_core(c_srcs, cc_srcs):
     deps = [
         ":internal",
         "@mujoco_deps_ccd//:ccd",
-        "@lodepng//:lodepng",
+        "//bazel/deps:lodepng_static",
         "@mujoco_deps_qhull//:qhull",
         "@mujoco_deps_tinyxml2//:tinyxml2",
         "@mujoco_deps_tinyobjloader//:tinyobjloader",
-        "@miniz//:miniz",
+        "//bazel/deps:miniz_static",
         "@marchingcubecpp//:marchingcubecpp",
     ]
     for kind in ["static", "shared"]:

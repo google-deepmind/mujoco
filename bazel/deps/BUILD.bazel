@@ -1,3 +1,19 @@
+load("//bazel:cc.bzl", "static_link")
+
+package(default_visibility = ["//visibility:public"])
+
+# BCR's `lodepng@0.0.0-20250506-17d08dd` and `miniz@3.1.1` lack Windows DLL exports.
+# Keep their archives in the `//:mujoco` static interface.
+static_link(
+    name = "lodepng_static",
+    dep = "@lodepng",
+)
+
+static_link(
+    name = "miniz_static",
+    dep = "@miniz",
+)
+
 exports_files(glob(["*.BUILD.bazel"]))
 
 exports_files(["GLFW.LICENSE"])
