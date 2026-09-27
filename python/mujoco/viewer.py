@@ -140,7 +140,11 @@ class Handle:
 
   def set_texts(self, texts: Union[Tuple[Optional[int], Optional[int], Optional[str], Optional[str]],
                                             List[Tuple[Optional[int], Optional[int], Optional[str], Optional[str]]]]):
-    """Overlay text on the viewer.
+    """Replace the viewer's text overlays.
+
+    Text persists until replaced or cleared; it need not be set on each sync.
+    Waits for the render thread to consume any pending text update. For status
+    displays, consider updating text less often than the physics or scene.
 
     Args:
       texts: Single tuple or list of tuples of (font, gridpos, text1, text2)

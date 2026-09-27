@@ -120,6 +120,32 @@ attributes:
   also transfers user inputs from the GUI back into ``mjOption`` (inside ``mjModel``) and ``mjData``, including
   enable/disable flags, control inputs, and mouse perturbations.
 
+- ``set_texts(texts)``: replaces the text overlays with a tuple, or a list of tuples, of
+  ``(font, gridpos, text1, text2)``. Use :ref:`mjtFontScale` for ``font`` and :ref:`mjtGridPos` for
+  ``gridpos``. Passing ``None`` selects ``mjFONTSCALE_150`` and ``mjGRID_TOPLEFT`` for the first two
+  fields, or an empty string for either text column. The text remains visible until replaced or cleared
+  with ``clear_texts()``; it does not need to be submitted on every physics step or ``sync()`` call.
+
+  Text updates wait for the render thread to consume any previously pending text update. For a status
+  display, update the text at a lower wall-clock frequency independently of physics stepping and scene
+  synchronization. For example, inside a simulation loop, with ``next_text_update = 0.0`` initialized
+  before the loop:
+
+  .. code-block:: python
+
+    mujoco.mj_step(m, d)
+    now = time.monotonic()
+    if now >= next_text_update:
+      viewer.set_texts((None, None, 'Simulation time', f'{d.time:.3f} s'))
+      next_text_update = time.monotonic() + 0.5  # Update status text at most twice a second.
+    viewer.sync()
+
+  This example uses ``import time``. The text update interval does not change the model timestep or
+  the frequency at which the loop calls ``sync()``.
+
+- ``clear_texts()``: removes all text overlays. Like ``set_texts()``, this waits for any pending text
+  update to be consumed by the render thread.
+
 - ``update_hfield(hfieldid)``: updates the height field data at the specified ``hfieldid`` for subsequent renderings.
 
 - ``update_mesh(meshid)``: updates the mesh data at the specified ``meshid`` for subsequent renderings.
