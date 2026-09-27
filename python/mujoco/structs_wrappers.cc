@@ -133,11 +133,6 @@ MjVisualHeadlightWrapper::MjWrapper(raw::MjVisualHeadlight* ptr,
     : WrapperBase(ptr, owner), X(ambient), X(diffuse), X(specular) {}
 #undef X
 
-MjVisualHeadlightWrapper::MjWrapper(const MjVisualHeadlightWrapper& other)
-    : MjVisualHeadlightWrapper() {
-  *this->ptr_ = *other.ptr_;
-}
-
 #define X(var) var(InitPyArray(ptr_->var, owner_))
 MjVisualRgbaWrapper::MjWrapper()
     : WrapperBase(new raw::MjVisualRgba{}),
@@ -191,11 +186,6 @@ MjVisualRgbaWrapper::MjWrapper(raw::MjVisualRgba* ptr, py::handle owner)
       X(crankbroken),
       X(frustum) {}
 #undef X
-
-MjVisualRgbaWrapper::MjWrapper(const MjVisualRgbaWrapper& other)
-    : MjVisualRgbaWrapper() {
-  *this->ptr_ = *other.ptr_;
-}
 
 MjVisualWrapper::MjWrapper()
     : WrapperBase(new raw::MjVisual{}),

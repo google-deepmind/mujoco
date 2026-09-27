@@ -406,6 +406,19 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     self.assertNotEmpty(vis_repr)
     self.assertIn('MjVisual', vis_repr)
 
+  @parameterized.product(
+      member_and_field=[('headlight', 'ambient'), ('rgba', 'fog')],
+      copier=[copy.copy, copy.deepcopy],
+  )
+  def test_mjvisual_member_can_copy(self, member_and_field, copier):
+    member, field = member_and_field
+    original = getattr(self.model.vis, member)
+    getattr(original, field)[:] = 0.25
+    duplicate = copier(original)
+    np.testing.assert_array_equal(getattr(duplicate, field), 0.25)
+    getattr(original, field)[:] = 0.75
+    np.testing.assert_array_equal(getattr(duplicate, field), 0.25)
+
   def test_mjmodel_can_read_and_write_opt(self):
     np.testing.assert_allclose(self.model.opt.timestep, 0.002)
     np.testing.assert_allclose(self.model.opt.gravity, [0, 0, -9.81])

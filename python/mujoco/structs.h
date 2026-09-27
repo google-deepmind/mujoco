@@ -251,7 +251,9 @@ class MjWrapper<raw::MjVisualHeadlight>
     : public WrapperBase<raw::MjVisualHeadlight> {
  public:
   MjWrapper();
-  MjWrapper(const MjWrapper& other);
+  MjWrapper(const MjWrapper& other) : MjWrapper() {
+    *this->ptr_ = *other.ptr_;
+  }
   MjWrapper(MjWrapper&&) = default;
   MjWrapper(raw::MjVisualHeadlight* ptr, pybind11::handle owner);
   ~MjWrapper() = default;
@@ -275,7 +277,9 @@ template <>
 class MjWrapper<raw::MjVisualRgba> : public WrapperBase<raw::MjVisualRgba> {
  public:
   MjWrapper();
-  MjWrapper(const MjWrapper& other);
+  MjWrapper(const MjWrapper& other) : MjWrapper() {
+    *this->ptr_ = *other.ptr_;
+  }
   MjWrapper(MjWrapper&&) = default;
   MjWrapper(raw::MjVisualRgba* ptr, pybind11::handle owner);
   ~MjWrapper() = default;
