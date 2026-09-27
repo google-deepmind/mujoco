@@ -155,7 +155,7 @@ _TEST_SOURCES = [
                    "@googletest//:gtest_main",
                ] + (["@mujoco_deps_ccd//:ccd"] if "collision_box" in src or "collision_gjk" in src else []) +
                ([":boxbox_legacy"] if src == "engine/engine_collision_box_test.cc" else []) +
-               (["@mujoco_deps_miniz//:miniz"] if src.startswith("xml/mjz/") else []),
+               (["@miniz//:miniz"] if src.startswith("xml/mjz/") else []),
     )
     for src in _TEST_SOURCES
 ]

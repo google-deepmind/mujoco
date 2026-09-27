@@ -3,7 +3,11 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 
 package(default_visibility = ["//visibility:public"])
 
-exports_files(["repositories.bzl"])
+exports_files([
+    "mujoco.exports",
+    "mujoco.map",
+    "repositories.bzl",
+])
 
 cc_binary(
     name = "parity",

@@ -1,0 +1,6 @@
+{
+  global:
+    mj*;
+    _mjPRIVATE_*;
+  local: *;
+};

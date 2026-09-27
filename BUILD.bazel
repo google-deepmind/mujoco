@@ -178,9 +178,14 @@ cc_import(
     }),
 )
 
+# Keep dependency symbols out of the MuJoCo shared library API.
 cc_binary(
     name = "libmujoco.so.3.14.1",
-    linkopts = ["-Wl,-soname,libmujoco.so.3.14.1"],
+    additional_linker_inputs = ["//bazel:mujoco.map"],
+    linkopts = [
+        "-Wl,-soname,libmujoco.so.3.14.1",
+        "-Wl,--version-script=$(location //bazel:mujoco.map)",
+    ],
     linkshared = True,
     linkstatic = True,
     target_compatible_with = ["@platforms//os:linux"],
@@ -190,7 +195,11 @@ cc_binary(
 
 cc_binary(
     name = "libmujoco.3.14.1.dylib",
-    linkopts = ["-Wl,-install_name,@rpath/libmujoco.3.14.1.dylib"],
+    additional_linker_inputs = ["//bazel:mujoco.exports"],
+    linkopts = [
+        "-Wl,-install_name,@rpath/libmujoco.3.14.1.dylib",
+        "-Wl,-exported_symbols_list,$(location //bazel:mujoco.exports)",
+    ],
     linkshared = True,
     linkstatic = True,
     target_compatible_with = ["@platforms//os:macos"],

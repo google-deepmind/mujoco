@@ -26,7 +26,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <miniz.h>
+#include "miniz.h"
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
 

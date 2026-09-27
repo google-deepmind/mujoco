@@ -31,12 +31,12 @@ def mujoco_core(c_srcs, cc_srcs):
     deps = [
         ":internal",
         "@mujoco_deps_ccd//:ccd",
-        "@mujoco_deps_lodepng//:lodepng",
+        "@lodepng//:lodepng",
         "@mujoco_deps_qhull//:qhull",
         "@mujoco_deps_tinyxml2//:tinyxml2",
         "@mujoco_deps_tinyobjloader//:tinyobjloader",
-        "@mujoco_deps_miniz//:miniz",
-        "@mujoco_deps_marchingcubecpp//:marchingcubecpp",
+        "@miniz//:miniz",
+        "@marchingcubecpp//:marchingcubecpp",
     ]
     for kind in ["static", "shared"]:
         local_defines = ["CCD_STATIC_DEFINE", "TINYOBJLOADER_IMPLEMENTATION", "MC_IMPLEM_ENABLE"] + (["MJ_STATIC"] if kind == "static" else ["MUJOCO_DLL_EXPORTS"])

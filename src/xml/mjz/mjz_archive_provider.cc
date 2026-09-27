@@ -31,7 +31,7 @@
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
-#include <miniz.h>
+#include "miniz.h"
 #if defined(__clang__)
   #pragma clang diagnostic pop
 #elif defined(__GNUC__)

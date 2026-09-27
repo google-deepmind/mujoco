@@ -552,6 +552,9 @@ package_files(
         ("abseil", "@abseil-cpp//:LICENSE"),
         ("pybind11", "@pybind11//:license"),
         ("eigen", "@eigen//:license"),
+        ("lodepng", "//bazel/deps/licenses:core/lodepng/LICENSE"),
+        ("marchingcubecpp", "//bazel/deps/licenses:core/marchingcubecpp/README.md"),
+        ("miniz", "//bazel/deps/licenses:core/miniz/LICENSE"),
     ] + [(
         name,
         "@mujoco_deps_" + name + "//:license",
@@ -560,9 +563,6 @@ package_files(
         "qhull",
         "tinyxml2",
         "tinyobjloader",
-        "lodepng",
-        "miniz",
-        "marchingcubecpp",
     ]]
 ]
 

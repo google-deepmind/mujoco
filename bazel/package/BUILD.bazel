@@ -174,9 +174,9 @@ _LICENSES = {
     "qhull": "@mujoco_deps_qhull//:license",
     "tinyxml2": "@mujoco_deps_tinyxml2//:license",
     "tinyobjloader": "@mujoco_deps_tinyobjloader//:license",
-    "lodepng": "@mujoco_deps_lodepng//:license",
-    "miniz": "@mujoco_deps_miniz//:license",
-    "marchingcubecpp": "@mujoco_deps_marchingcubecpp//:license",
+    "lodepng": "//bazel/deps/licenses:core/lodepng/LICENSE",
+    "miniz": "//bazel/deps/licenses:core/miniz/LICENSE",
+    "marchingcubecpp": "//bazel/deps/licenses:core/marchingcubecpp/README.md",
 }
 
 [

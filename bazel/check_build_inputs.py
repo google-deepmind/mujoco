@@ -30,8 +30,23 @@ def main():
   cmake = (root / "cmake/MujocoDependencies.cmake").read_text()
   cmake += (root / "cmake/third_party_deps/lodepng.cmake").read_text()
   repositories = (root / "bazel/repositories.bzl").read_text()
+  # BCR release revisions must track the CMake source pins.
+  bcr_pins = {
+      "lodepng": ("lodepng", "0.0.0-20250506-17d08dd", "17d08dd26cac4d63f43af217ebd70318bfb8189c"),
+      "MarchingCubeCpp": ("marchingcubecpp", "0.0.0-20230911-f03a1b3", "f03a1b3ec29b1d7d865691ca8aea4f1eb2c2873d"),
+      "miniz": ("miniz", "3.1.1", "d10b03cc73475af673df40f06e5cefd1d5f940d9"),
+  }
+  modules = dict(re.findall(
+      r'bazel_dep\(name = "([^"]+)", version = "([^"]+)"',
+      (root / "MODULE.bazel").read_text(),
+  ))
   for dependency, revision in re.findall(r"set\(MUJOCO_DEP_VERSION_(\w+)\s+([0-9a-f]{40})", cmake):
     if dependency in {"abseil", "gtest"}:
+      continue
+    if dependency in bcr_pins:
+      module, version, expected_revision = bcr_pins[dependency]
+      if revision != expected_revision or modules.get(module) != version:
+        raise SystemExit(f"BCR dependency pin drift: {dependency} at {revision}")
       continue
     if revision not in repositories:
       raise SystemExit(f"Dependency pin drift: {dependency} at {revision}")
@@ -40,6 +55,8 @@ def main():
     for dependency, revision in re.findall(
         r"set\(MUJOCO_DEP_VERSION_(\w+)\s+([^\s#)]+)", path.read_text()
     ):
+      if dependency in bcr_pins:
+        continue
       if revision not in repositories and revision not in optional:
         raise SystemExit(f"Dependency pin drift: {dependency} at {revision}")
   print("Package versions, core sources, and archive pins match CMake.")

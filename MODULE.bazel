@@ -13,6 +13,9 @@ bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "rules_pkg", version = "1.3.0")
 bazel_dep(name = "glfw", version = "3.4.0.bcr.3")
 bazel_dep(name = "abseil-cpp", version = "20260817.0")
+bazel_dep(name = "lodepng", version = "0.0.0-20250506-17d08dd")
+bazel_dep(name = "marchingcubecpp", version = "0.0.0-20230911-f03a1b3")
+bazel_dep(name = "miniz", version = "3.1.1")
 
 bazel_dep(name = "googletest", version = "1.18.0.bcr.1", dev_dependency = True)
 
@@ -79,7 +82,7 @@ pip.parse(
 use_repo(pip, "mjx_cuda_pip", "mjx_pip", "mujoco_pip", "mujoco_sysid_pip", "mujoco_usd_pip")
 
 deps = use_extension("//bazel:repositories.bzl", "mujoco_dependencies")
-use_repo(deps, "mujoco_deps_ccd", "mujoco_deps_lodepng", "mujoco_deps_marchingcubecpp", "mujoco_deps_miniz", "mujoco_deps_qhull", "mujoco_deps_tinyobjloader", "mujoco_deps_tinyxml2", "pybind11")
+use_repo(deps, "mujoco_deps_ccd", "mujoco_deps_qhull", "mujoco_deps_tinyobjloader", "mujoco_deps_tinyxml2", "pybind11")
 use_repo(deps, "eigen", "google_benchmark")
 
 optional = use_extension("//bazel/optional:repositories.bzl", "mujoco_optional_dependencies")
