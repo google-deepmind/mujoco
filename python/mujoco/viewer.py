@@ -77,6 +77,7 @@ class Handle:
     self._opt = opt
     self._pert = pert
     self._user_scn = user_scn
+    self._last_text_update = -math.inf
 
   @property
   def cam(self):
@@ -138,13 +139,24 @@ class Handle:
     if sim is not None:
       sim.clear_figures()
 
-  def set_texts(self, texts: Union[Tuple[Optional[int], Optional[int], Optional[str], Optional[str]],
-                                            List[Tuple[Optional[int], Optional[int], Optional[str], Optional[str]]]]):
+  def set_texts(
+      self,
+      texts: Union[
+          Tuple[Optional[int], Optional[int], Optional[str], Optional[str]],
+          List[
+              Tuple[Optional[int], Optional[int], Optional[str], Optional[str]]
+          ],
+      ],
+      *,
+      update_interval: float = 0.0,
+  ):
     """Replace the viewer's text overlays.
 
     Text persists until replaced or cleared; it need not be set on each sync.
     Waits for the render thread to consume any pending text update. For status
-    displays, consider updating text less often than the physics or scene.
+    displays, update_interval can skip submissions between wall-clock deadlines.
+    Skipped text is not queued; the next eligible call submits its own text.
+    The default of zero preserves unthrottled behavior.
 
     Args:
       texts: Single tuple or list of tuples of (font, gridpos, text1, text2)
@@ -152,9 +164,18 @@ class Handle:
         gridpos: Position of text box from mujoco.mjtGridPos
         text1: Left text column, defaults to empty string if None
         text2: Right text column, defaults to empty string if None
+      update_interval: Minimum wall-clock seconds between submitted text updates.
+        Must be finite and nonnegative. clear_texts() resets the deadline.
     """
+    if not math.isfinite(update_interval) or update_interval < 0:
+      raise ValueError('update_interval must be finite and nonnegative')
     sim = self._sim()
     if sim is not None:
+      if (
+          update_interval
+          and time.monotonic() - self._last_text_update < update_interval
+      ):
+        return
       # Convert single tuple to list if needed
       if isinstance(texts, tuple):
         texts = [texts]
@@ -162,19 +183,24 @@ class Handle:
       # Convert None values to empty strings
       default_font = mujoco.mjtFontScale.mjFONTSCALE_150
       default_gridpos = mujoco.mjtGridPos.mjGRID_TOPLEFT
-      processed_texts = [(
-                        default_font if font is None else font,
-                        default_gridpos if gridpos is None else gridpos,
-                         "" if text1 is None else text1,
-                         "" if text2 is None else text2)
-                        for font, gridpos, text1, text2 in texts]
+      processed_texts = [
+          (
+              default_font if font is None else font,
+              default_gridpos if gridpos is None else gridpos,
+              '' if text1 is None else text1,
+              '' if text2 is None else text2,
+          )
+          for font, gridpos, text1, text2 in texts
+      ]
 
       sim.set_texts(processed_texts)
+      self._last_text_update = time.monotonic()
 
   def clear_texts(self):
     sim = self._sim()
     if sim is not None:
       sim.clear_texts()
+      self._last_text_update = -math.inf
 
   def set_images(
       self, viewports_images: Union[Tuple[mujoco.MjrRect, np.ndarray],
