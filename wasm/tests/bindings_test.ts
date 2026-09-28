@@ -922,6 +922,15 @@ describe('MuJoCo WASM Bindings', () => {
     expectArraysEqual(qposRef, expected);
   });
 
+  it('should read and write mjtBool arrays as Uint8Array', () => {
+    expect(data!.eq_active).toBeInstanceOf(Uint8Array);
+    const jntLimited = model!.jnt_limited;
+    expect(jntLimited).toBeInstanceOf(Uint8Array);
+    expectArraysEqual(jntLimited, new Uint8Array([0, 0, 0]));
+    jntLimited[1] = 1;
+    expectArraysEqual(model!.jnt_limited, new Uint8Array([0, 1, 0]));
+  });
+
   // Corresponds to bindings_test.py:test_mjmodel_can_read_and_write_opt
   it('should read and write MjOption', () => {
     expect(model!.opt.timestep).toEqual(0.002);

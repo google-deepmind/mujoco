@@ -4503,13 +4503,13 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, ptr_->jnt_group));
   }
   emscripten::val jnt_limited() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, ptr_->jnt_limited));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, reinterpret_cast<uint8_t*>(ptr_->jnt_limited)));
   }
   emscripten::val jnt_actfrclimited() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, ptr_->jnt_actfrclimited));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, reinterpret_cast<uint8_t*>(ptr_->jnt_actfrclimited)));
   }
   emscripten::val jnt_actgravcomp() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, ptr_->jnt_actgravcomp));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, reinterpret_cast<uint8_t*>(ptr_->jnt_actgravcomp)));
   }
   emscripten::val jnt_solref() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->njnt * mjNREF, ptr_->jnt_solref));
@@ -4779,7 +4779,7 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nlight, ptr_->light_texid));
   }
   emscripten::val light_castshadow() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nlight, ptr_->light_castshadow));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nlight, reinterpret_cast<uint8_t*>(ptr_->light_castshadow)));
   }
   emscripten::val light_bulbradius() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nlight, ptr_->light_bulbradius));
@@ -4791,7 +4791,7 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nlight, ptr_->light_range));
   }
   emscripten::val light_active() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nlight, ptr_->light_active));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nlight, reinterpret_cast<uint8_t*>(ptr_->light_active)));
   }
   emscripten::val light_pos() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nlight * 3, ptr_->light_pos));
@@ -5025,16 +5025,16 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_edgeequality));
   }
   emscripten::val flex_rigid() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_rigid));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, reinterpret_cast<uint8_t*>(ptr_->flex_rigid)));
   }
   emscripten::val flexedge_rigid() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge, ptr_->flexedge_rigid));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge, reinterpret_cast<uint8_t*>(ptr_->flexedge_rigid)));
   }
   emscripten::val flex_centered() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_centered));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, reinterpret_cast<uint8_t*>(ptr_->flex_centered)));
   }
   emscripten::val flex_flatskin() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_flatskin));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, reinterpret_cast<uint8_t*>(ptr_->flex_flatskin)));
   }
   emscripten::val flex_bvhadr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_bvhadr));
@@ -5280,7 +5280,7 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nmat * mjNTEXROLE, ptr_->mat_texid));
   }
   emscripten::val mat_texuniform() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nmat, ptr_->mat_texuniform));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nmat, reinterpret_cast<uint8_t*>(ptr_->mat_texuniform)));
   }
   emscripten::val mat_texrepeat() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nmat * 2, ptr_->mat_texrepeat));
@@ -5355,7 +5355,7 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->neq, ptr_->eq_objtype));
   }
   emscripten::val eq_active0() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->neq, ptr_->eq_active0));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->neq, reinterpret_cast<uint8_t*>(ptr_->eq_active0)));
   }
   emscripten::val eq_solref() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->neq * mjNREF, ptr_->eq_solref));
@@ -5397,10 +5397,10 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nJten, ptr_->ten_J_colind));
   }
   emscripten::val tendon_limited() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_limited));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, reinterpret_cast<uint8_t*>(ptr_->tendon_limited)));
   }
   emscripten::val tendon_actfrclimited() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_actfrclimited));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, reinterpret_cast<uint8_t*>(ptr_->tendon_actfrclimited)));
   }
   emscripten::val tendon_width() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_width));
@@ -5517,13 +5517,13 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * mjNBIAS, ptr_->actuator_biasprm));
   }
   emscripten::val actuator_actlimited() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_actlimited));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, reinterpret_cast<uint8_t*>(ptr_->actuator_actlimited)));
   }
   emscripten::val actuator_actrange() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * 2, ptr_->actuator_actrange));
   }
   emscripten::val actuator_actearly() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_actearly));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, reinterpret_cast<uint8_t*>(ptr_->actuator_actearly)));
   }
   emscripten::val actuator_history() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * 2, ptr_->actuator_history));
@@ -5553,13 +5553,13 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_plugin));
   }
   emscripten::val actuator_forcelimited() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, ptr_->actuator_forcelimited));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator, reinterpret_cast<uint8_t*>(ptr_->actuator_forcelimited)));
   }
   emscripten::val actuator_forcerange() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nactuator * 2, ptr_->actuator_forcerange));
   }
   emscripten::val actuator_ctrllimited() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_ctrllimited));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, reinterpret_cast<uint8_t*>(ptr_->actuator_ctrllimited)));
   }
   emscripten::val actuator_ctrlrange() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 2, ptr_->actuator_ctrlrange));
@@ -6941,7 +6941,7 @@ struct MjData {
     return emscripten::val(emscripten::typed_memory_view(model->nbody * 6, ptr_->xfrc_applied));
   }
   emscripten::val eq_active() const {
-    return emscripten::val(emscripten::typed_memory_view(model->neq, ptr_->eq_active));
+    return emscripten::val(emscripten::typed_memory_view(model->neq, reinterpret_cast<uint8_t*>(ptr_->eq_active)));
   }
   emscripten::val mocap_pos() const {
     return emscripten::val(emscripten::typed_memory_view(model->nmocap * 3, ptr_->mocap_pos));
@@ -7100,7 +7100,7 @@ struct MjData {
     return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qLDiagInv));
   }
   emscripten::val bvh_active() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbvh, ptr_->bvh_active));
+    return emscripten::val(emscripten::typed_memory_view(model->nbvh, reinterpret_cast<uint8_t*>(ptr_->bvh_active)));
   }
   emscripten::val tree_awake() const {
     return emscripten::val(emscripten::typed_memory_view(model->ntree, ptr_->tree_awake));

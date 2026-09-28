@@ -286,6 +286,9 @@ def _generate_field_data(
     # exposed as emscripten::typed_memory_view.
     else:
       ptr_field_expr = f"ptr_->{f.name}"
+      if inner_type_name == "mjtBool":
+        # Embind has no memory_view<bool>, so expose mjtBool as Uint8Array.
+        ptr_field_expr = f"reinterpret_cast<uint8_t*>({ptr_field_expr})"
       array_size_str = ""
       if is_dynamically_sized:
         array_size_str = parse_array_extent(f.array_extent, w, f.name)  # pyrefly: ignore[bad-argument-type]
