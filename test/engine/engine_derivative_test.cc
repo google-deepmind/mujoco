@@ -2498,7 +2498,7 @@ TEST_F(DerivativeTest, SNHStiffnessThroughInversion) {
     <worldbody>
       <flexcomp name="tet" type="direct" dim="3" mass="1"
                 point="0 0 0  1 0 0  .2 .9 0  -.1 .3 1.1" element="0 1 2 3">
-        <contact internal="false" contype="0" conaffinity="0" selfcollide="none"/>
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
         <elasticity young="1000" poisson=".3" damping=".02"/>
       </flexcomp>
     </worldbody>

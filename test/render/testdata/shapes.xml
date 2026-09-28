@@ -51,7 +51,6 @@
     <flexcomp name="f1" type="grid" radius="0.01" dim="2" pos="10 0 1"
               zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" rgba="0.3 0.6 0.9 1.0">
       <edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/>
-      <contact internal="true"/>
       <pin id="35"/>
     </flexcomp>
 
@@ -65,7 +64,6 @@
     <flexcomp name="f2" type="grid" radius="0.01" dim="2" pos="10 5 1"
               zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" material="pattern">
       <edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/>
-      <contact internal="true"/>
       <pin id="35"/>
     </flexcomp>
 
@@ -79,7 +77,6 @@
     <flexcomp name="f3" type="grid" radius="0.01" dim="2" pos="10 -5 1"
               zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" material="metal">
       <edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/>
-      <contact internal="true"/>
       <pin id="35"/>
     </flexcomp>
 

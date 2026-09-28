@@ -4294,7 +4294,7 @@ TEST_F(ImplicitIntegratorTest, FlexContactEnergy) {
         <edge equality="true" damping="0.1"/>
         <elasticity young="3e6" poisson="0" thickness="2e-2"
                     elastic2d="bend" damping="0"/>
-        <contact solref="0.003 1" internal="false" selfcollide="none"/>
+        <contact solref="0.003 1" selfcollide="none"/>
       </flexcomp>
     </worldbody>
   </mujoco>
@@ -4347,7 +4347,7 @@ TEST_F(ImplicitIntegratorTest, BendingDampingDecaysEnergy) {
         <edge equality="false" damping="0" stiffness="0"/>
         <elasticity young="1e6" poisson="0" thickness="0.02"
                     elastic2d="bend" damping="0.1"/>
-        <contact solref="0.01" internal="false" selfcollide="none"/>
+        <contact solref="0.01" selfcollide="none"/>
       </flexcomp>
     </worldbody>
   </mujoco>
@@ -4406,7 +4406,7 @@ TEST_F(ImplicitIntegratorTest, InterpStretchEnergy) {
                 spacing=".05 .05 .05" radius=".005" name="cube"
                 dim="3" mass="10" dof="trilinear">
         <elasticity young="1e6" poisson="0.3" damping="0"/>
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
       </flexcomp>
     </worldbody>
   </mujoco>

@@ -699,7 +699,7 @@ TEST_F(ElasticityTest, SNHForceThroughInversion) {
     <worldbody>
       <flexcomp name="tet" type="direct" dim="3" mass="1"
                 point="0 0 0  1 0 0  .2 .9 0  -.1 .3 1.1" element="0 1 2 3">
-        <contact internal="false" contype="0" conaffinity="0" selfcollide="none"/>
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
         <elasticity young="1000" poisson=".3"/>
       </flexcomp>
     </worldbody>
@@ -783,7 +783,7 @@ TEST_F(ElasticityTest, SNHInversionRecovery) {
     <worldbody>
       <flexcomp name="tet" type="direct" dim="3" mass="1"
                 point="0 0 0  1 0 0  0 1 0  0 0 1" element="0 1 2 3">
-        <contact internal="false" contype="0" conaffinity="0" selfcollide="none"/>
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
         <elasticity young="1000" poisson=".3" damping=".03"/>
         <pin id="0 1 2"/>
       </flexcomp>
@@ -1045,7 +1045,7 @@ TEST_F(ElasticityTest, ShellModeZeroForceAtRest) {
                 mass="5" name="softbody" dof="trilinear">
         <elasticity young="1e4" poisson="0.1" damping="0.01"
                     elastic2d="stretch" thickness="0.02"/>
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
       </flexcomp>
     </worldbody>
   </mujoco>
@@ -1182,7 +1182,7 @@ TEST_F(ElasticityTest, InterpBendingZeroForceAtRest) {
                 mass="5" name="softbody" dof="trilinear">
         <elasticity young="1e4" poisson="0.1" damping="0"
                     elastic2d="bend" thickness="0.02"/>
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
       </flexcomp>
     </worldbody>
   </mujoco>
@@ -1245,7 +1245,7 @@ TEST_F(ElasticityTest, InterpBendingRigidRotationInvariance) {
                 mass="5" name="softbody" dof="trilinear">
         <elasticity young="1e5" poisson="0.3" damping="0"
                     elastic2d="bend" thickness="0.03"/>
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
       </flexcomp>
     </worldbody>
   </mujoco>
@@ -1371,7 +1371,7 @@ TEST_F(ElasticityTest, TrilinearParentBodyRotation) {
         <flexcomp type="grid" count="3 3 3" spacing=".05 .05 .05"
                   dim="3" radius=".001" mass=".005" name="soft" dof="trilinear">
           <elasticity young="1e4" poisson="0.1" damping="0.1"/>
-          <contact selfcollide="none" internal="false"/>
+          <contact selfcollide="none"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -1386,7 +1386,7 @@ TEST_F(ElasticityTest, TrilinearParentBodyRotation) {
         <flexcomp type="grid" count="3 3 3" spacing=".05 .05 .05"
                   dim="3" radius=".001" mass=".005" name="soft" dof="trilinear">
           <elasticity young="1e4" poisson="0.1" damping="0.1"/>
-          <contact selfcollide="none" internal="false"/>
+          <contact selfcollide="none"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -1461,7 +1461,7 @@ TEST_F(ElasticityTest, BendParentBodyRotation) {
                   dim="2" radius=".001" mass=".01" name="sheet">
           <elasticity young="1e5" poisson="0" thickness="1e-2"
                       elastic2d="bend"/>
-          <contact selfcollide="none" internal="false"/>
+          <contact selfcollide="none"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -1477,7 +1477,7 @@ TEST_F(ElasticityTest, BendParentBodyRotation) {
                   dim="2" radius=".001" mass=".01" name="sheet">
           <elasticity young="1e5" poisson="0" thickness="1e-2"
                       elastic2d="bend"/>
-          <contact selfcollide="none" internal="false"/>
+          <contact selfcollide="none"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -1548,7 +1548,7 @@ TEST_F(ElasticityTest, StretchParentBodyRotation) {
                   dim="2" radius=".001" mass=".01" name="sheet">
           <elasticity young="1e5" poisson="0" thickness="1e-3"
                       elastic2d="stretch"/>
-          <contact selfcollide="none" internal="false"/>
+          <contact selfcollide="none"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -1564,7 +1564,7 @@ TEST_F(ElasticityTest, StretchParentBodyRotation) {
                   dim="2" radius=".001" mass=".01" name="sheet">
           <elasticity young="1e5" poisson="0" thickness="1e-3"
                       elastic2d="stretch"/>
-          <contact selfcollide="none" internal="false"/>
+          <contact selfcollide="none"/>
         </flexcomp>
       </body>
     </worldbody>

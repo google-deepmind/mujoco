@@ -1605,9 +1605,6 @@
                   :ref:`gap<flexcomp-contact-gap>`
 
                .. grid-item::
-                  :ref:`internal<flexcomp-contact-internal>`
-
-               .. grid-item::
                   :ref:`selfcollide<flexcomp-contact-selfcollide>`
 
                .. grid-item::
@@ -1750,9 +1747,6 @@
 
                .. grid-item::
                   :ref:`gap<flex-contact-gap>`
-
-               .. grid-item::
-                  :ref:`internal<flex-contact-internal>`
 
                .. grid-item::
                   :ref:`selfcollide<flex-contact-selfcollide>`

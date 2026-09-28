@@ -4070,7 +4070,6 @@
     <xs:attribute name="solimp" type="double1to5" default="0.9 0.95 0.001 0.5 2"/>
     <xs:attribute name="margin" type="xs:double"/>
     <xs:attribute name="gap" type="xs:double"/>
-    <xs:attribute name="internal" type="kw_bool"/>
     <xs:attribute name="selfcollide" type="kw_flexself" default="auto"/>
     <xs:attribute name="activelayers" type="xs:int" default="1"/>
     <xs:attribute name="passive" type="kw_bool"/>

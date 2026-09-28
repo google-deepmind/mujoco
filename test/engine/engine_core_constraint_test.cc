@@ -880,7 +880,7 @@ TEST_F(CoreConstraintTest, ShellModeBendZeroForceAtRest) {
         <elasticity young="0" poisson="0.1" damping="0.01"
                     elastic2d="bend" thickness="0.02"/>
         <edge equality="strain"/>
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
       </flexcomp>
     </worldbody>
   </mujoco>
@@ -954,7 +954,7 @@ TEST_F(CoreConstraintTest, QuadraticAnisotropicStrain) {
       <flexcomp name="test" type="grid" count="3 3 3"
                 spacing=".1 .05 .08" radius="0.001"
                 pos="0 0 .5" dof="quadratic" mass="1" dim="3">
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
         <edge equality="strain" damping="0.01"/>
       </flexcomp>
     </body>

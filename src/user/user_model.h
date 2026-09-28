@@ -107,7 +107,6 @@ class mjCModel_ : public mjsElement {
   mjtSize nefm0L;          // number of non-zeros in the bending factor
   mjtSize nflexelemedge;   // number of element edges in all flexes
   mjtSize nflexshelldata;  // number of shell fragment vertex ids in all flexes
-  mjtSize nflexevpair;     // number of element-vertex pairs in all flexes
   mjtSize nflextexcoord;   // number of vertex texture coordinates in all flexes
   mjtSize nJfe;            // number of non-zeros in sparse flex edge constraint Jacobian
   mjtSize nJfv;            // number of non-zeros in sparse flex vertex constraint Jacobian

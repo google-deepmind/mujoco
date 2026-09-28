@@ -232,7 +232,6 @@ void mjs_defaultFlex(mjsFlex* flex) {
   flex->cellcount[0] = 1;
   flex->cellcount[1] = 1;
   flex->cellcount[2] = 1;
-  flex->internal     = 0;
   flex->selfcollide  = mjFLEXSELF_AUTO;
   flex->activelayers = 1;
   flex->rgba[0] = flex->rgba[1] = flex->rgba[2] = 0.5f;

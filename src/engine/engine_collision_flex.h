@@ -35,10 +35,6 @@ int mjc_GeomElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f, i
 int mjc_ElemElem(const mjModel* m, mjData* d, mjPreContact* con, int f1, int e1,
                  int f2, int e2, mjtNum margin);
 
-// test element and vertex for collision, return number of contacts
-int mjc_ElemVert(const mjModel* m, mjData* d, mjPreContact* con, int f, int e, int v,
-                 mjtNum margin);
-
 #ifdef __cplusplus
 }
 #endif

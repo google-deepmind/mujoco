@@ -193,7 +193,6 @@
     X( nefm0L )             \
     X( nflexelemedge )      \
     X( nflexshelldata )     \
-    X( nflexevpair )        \
     X( nflextexcoord )      \
     X( nJfe )               \
     X( nJfv )               \
@@ -457,7 +456,6 @@
     X   ( mjtNum,  flex_friction,         nflex,         3                    ) \
     X   ( mjtNum,  flex_margin,           nflex,         1                    ) \
     X   ( mjtNum,  flex_gap,              nflex,         1                    ) \
-    X   ( mjtBool, flex_internal,         nflex,         1                    ) \
     X   ( int,     flex_selfcollide,      nflex,         1                    ) \
     X   ( int,     flex_activelayers,     nflex,         1                    ) \
     X   ( int,     flex_passive,          nflex,         1                    ) \
@@ -480,8 +478,6 @@
     X   ( int,     flex_bendingadr,       nflex,         1                    ) \
     X   ( int,     flex_shellnum,         nflex,         1                    ) \
     X   ( int,     flex_shelldataadr,     nflex,         1                    ) \
-    X   ( int,     flex_evpairadr,        nflex,         1                    ) \
-    X   ( int,     flex_evpairnum,        nflex,         1                    ) \
     X   ( int,     flex_texcoordadr,      nflex,         1                    ) \
     X   ( int,     flex_nodebodyid,       nflexnode,     1                    ) \
     X   ( int,     flex_vertbodyid,       nflexvert,     1                    ) \
@@ -495,7 +491,6 @@
     X   ( int,     flex_elemedge,         nflexelemedge, 1                    ) \
     X   ( int,     flex_elemlayer,        nflexelem,     1                    ) \
     X   ( int,     flex_shell,            nflexshelldata,1                    ) \
-    X   ( int,     flex_evpair,           nflexevpair,   2                    ) \
     X   ( mjtNum,  flex_vert,             nflexvert,     3                    ) \
     X   ( mjtNum,  flex_vert0,            nflexvert,     3                    ) \
     X   ( mjtNum,  flex_vertmetric,       nflexvert,     4                    ) \

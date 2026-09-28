@@ -1294,7 +1294,7 @@ TEST_F(XMLWriterTest, WritesPinnedFlexNodes) {
     <worldbody>
       <body name="parent">
         <flexcomp name="soft" type="box" count="3 3 3" spacing=".03 .01 .01" mass=".5" dof="trilinear">
-          <contact selfcollide="none" internal="false"/>
+          <contact selfcollide="none"/>
           <edge equality="true"/>
           <pin id="4 5 6 7"/>
         </flexcomp>

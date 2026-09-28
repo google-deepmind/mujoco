@@ -1670,7 +1670,6 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     ReadAttr(cont, "solimp", mjNIMP, dflex.solimp, text, false, false);
     ReadAttr(cont, "margin", 1, &dflex.margin, text);
     ReadAttr(cont, "gap", 1, &dflex.gap, text);
-    if (MapValue(cont, "internal", &n, bool_map, 2)) { dflex.internal = (n == 1); }
     MapValue(cont, "selfcollide", &dflex.selfcollide, flexself_map, 5);
     if (MapValue(cont, "passive", &n, bool_map, 2)) { dflex.passive = (n == 1); }
     ReadAttrInt(cont, "activelayers", &dflex.activelayers);

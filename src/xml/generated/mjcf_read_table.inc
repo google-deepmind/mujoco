@@ -460,7 +460,6 @@ inline constexpr mjXAttr kFlexcomp_contactAttrs[] = {
   {"solimp", mjXAttr::kNum, mjNIMP, false, false, false, false, (int)offsetof(mjsFlex, solimp)},
   {"margin", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, margin)},
   {"gap", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, gap)},
-  {"internal", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsFlex, internal)},
   {"selfcollide", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsFlex, selfcollide), flexself_map, flexself_sz},
   {"activelayers", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsFlex, activelayers)},
   {"passive", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsFlex, passive), bool_map, 2},

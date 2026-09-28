@@ -4176,7 +4176,6 @@ void mjCFlex::CopyFromSpec() {
   nedge = 0;
   edge.clear();
   shell.clear();
-  evpair.clear();
 }
 
 
@@ -4582,9 +4581,6 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   if (interpolated && selfcollide != mjFLEXSELF_NONE) {
     throw mjCError(this, "trilinear interpolation cannot do self-collision");
   }
-  if (interpolated && internal) {
-    throw mjCError(this, "trilinear interpolation cannot do internal collisions");
-  }
   nelem = (int)elem_.size() / (dim + 1);
 
   // elastic2d checks
@@ -4913,8 +4909,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     }
   }
 
-  // create shell fragments and element-vertex collision pairs
-  CreateShellPair();
+  // create shell fragments
+  CreateShell();
 
   // recompute cell_empty from vertex/element geometry (volume mode only)
   // (survives XML round-trips where flexcomp data is lost)
@@ -5426,8 +5422,8 @@ void mjCFlex::CreateBVH() {
 }
 
 
-// create shells and element-vertex collision pairs
-void mjCFlex::CreateShellPair(void) {
+// create shells
+void mjCFlex::CreateShell(void) {
   std::vector<std::vector<int>> fragspec(
       nelem * (dim + 1));  // [sorted frag vertices, elem, original frag vertices]
   std::vector<std::vector<int>> connectspec;  // [elem1, elem2, common sorted frag vertices]
@@ -5594,34 +5590,6 @@ void mjCFlex::CreateShellPair(void) {
         } else if (elemlayer[e2] > elemlayer[e1] + 1) {
           elemlayer[e2] = elemlayer[e1] + 1;  // better value found for e2: update
           change        = true;
-        }
-      }
-    }
-  }
-
-  // create evpairs in 1D and 2D
-  if (dim < 3) {
-    // process connected element pairs containing a border element
-    for (const auto& connect : connectspec) {
-      if (border[connect[0]] || border[connect[1]]) {
-        // extract common fragment
-        std::vector<int> frag = {connect.begin() + 2, connect.end()};
-
-        // process both elements
-        for (int ei = 0; ei < 2; ei++) {
-          const int* edata = elem_.data() + connect[ei] * (dim + 1);
-
-          // find element vertex that is not in the common fragment
-          for (int i = 0; i <= dim; i++) {
-            if (frag.end() == std::find(frag.begin(), frag.end(), edata[i])) {
-              // add ev pair, involving the other element in connectspec
-              evpair.push_back(connect[1 - ei]);
-              evpair.push_back(edata[i]);
-
-              // one such vertex exists
-              break;
-            }
-          }
         }
       }
     }

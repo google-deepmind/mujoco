@@ -110,7 +110,7 @@ static constexpr char kFlexSdfModel[] = R"(
     <body name="flex">
       <flexcomp name="test" type="grid" count="3 3 1" spacing=".2 .2 .2" dim="2">
         <elasticity young="1e4"/>
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
       </flexcomp>
     </body>
   </worldbody>

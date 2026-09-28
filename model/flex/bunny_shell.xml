@@ -33,7 +33,7 @@
               radius=".001" rgba="0 .7 .7 1" mass=".05" name="softbody" dof="trilinear">
       <elasticity young="1e3" poisson="0.1" elastic2d="bend" thickness="0.02"/>
       <edge equality="strain"/>
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
     </flexcomp>
   </worldbody>
 

@@ -219,7 +219,7 @@
                     ">
             <edge equality="true" damping="0.02"
                   solimp="0.99 0.999 0.0001 0.5 2" solref="0.001 1"/>
-            <contact selfcollide="none" internal="false"
+            <contact selfcollide="none"
                      contype="2" conaffinity="2"/>
             <pin id="0 1 2 3 4 5 6 7"/>
           </flexcomp>
@@ -393,7 +393,7 @@
                     ">
             <edge equality="true" damping="0.02"
                   solimp="0.99 0.999 0.0001 0.5 2" solref="0.001 1"/>
-            <contact selfcollide="none" internal="false"
+            <contact selfcollide="none"
                      contype="2" conaffinity="2"/>
             <pin id="0 1 2 3 4 5 6 7"/>
           </flexcomp>

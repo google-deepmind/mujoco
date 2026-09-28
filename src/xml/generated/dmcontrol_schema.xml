@@ -1559,7 +1559,6 @@
                     <attribute name="solimp" type="array" array_type="float" array_size="5" default="0.9 0.95 0.001 0.5 2"/>
                     <attribute name="margin" type="float"/>
                     <attribute name="gap" type="float"/>
-                    <attribute name="internal" type="keyword" valid_values="false true"/>
                     <attribute name="selfcollide" type="keyword" valid_values="none narrow bvh sap auto" default="auto"/>
                     <attribute name="activelayers" type="int" default="1"/>
                     <attribute name="passive" type="keyword" valid_values="false true"/>
@@ -1869,7 +1868,6 @@
                 <attribute name="solimp" type="array" array_type="float" array_size="5" default="0.9 0.95 0.001 0.5 2"/>
                 <attribute name="margin" type="float"/>
                 <attribute name="gap" type="float"/>
-                <attribute name="internal" type="keyword" valid_values="false true"/>
                 <attribute name="selfcollide" type="keyword" valid_values="none narrow bvh sap auto" default="auto"/>
                 <attribute name="activelayers" type="int" default="1"/>
                 <attribute name="passive" type="keyword" valid_values="false true"/>
@@ -1935,7 +1933,6 @@
                 <attribute name="solimp" type="array" array_type="float" array_size="5" default="0.9 0.95 0.001 0.5 2"/>
                 <attribute name="margin" type="float"/>
                 <attribute name="gap" type="float"/>
-                <attribute name="internal" type="keyword" valid_values="false true"/>
                 <attribute name="selfcollide" type="keyword" valid_values="none narrow bvh sap auto" default="auto"/>
                 <attribute name="activelayers" type="int" default="1"/>
                 <attribute name="passive" type="keyword" valid_values="false true"/>

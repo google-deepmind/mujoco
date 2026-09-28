@@ -2505,12 +2505,6 @@ struct MjsFlex {
   emscripten::val size() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->size));
   }
-  mjtBool internal() const {
-    return ptr_->internal;
-  }
-  void set_internal(mjtBool value) {
-    ptr_->internal = value;
-  }
   mjtBool flatskin() const {
     return ptr_->flatskin;
   }
@@ -3968,12 +3962,6 @@ struct MjModel {
   void set_nflexshelldata(int value) {
     ptr_->nflexshelldata = static_cast<mjtSize>(value);
   }
-  int nflexevpair() const {
-    return static_cast<int>(ptr_->nflexevpair);
-  }
-  void set_nflexevpair(int value) {
-    ptr_->nflexevpair = static_cast<mjtSize>(value);
-  }
   int nflextexcoord() const {
     return static_cast<int>(ptr_->nflextexcoord);
   }
@@ -4871,9 +4859,6 @@ struct MjModel {
   emscripten::val flex_gap() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_gap));
   }
-  emscripten::val flex_internal() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_internal));
-  }
   emscripten::val flex_selfcollide() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_selfcollide));
   }
@@ -4940,12 +4925,6 @@ struct MjModel {
   emscripten::val flex_shelldataadr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_shelldataadr));
   }
-  emscripten::val flex_evpairadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_evpairadr));
-  }
-  emscripten::val flex_evpairnum() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_evpairnum));
-  }
   emscripten::val flex_texcoordadr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_texcoordadr));
   }
@@ -4984,9 +4963,6 @@ struct MjModel {
   }
   emscripten::val flex_shell() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexshelldata, ptr_->flex_shell));
-  }
-  emscripten::val flex_evpair() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexevpair * 2, ptr_->flex_evpair));
   }
   emscripten::val flex_vert() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert * 3, ptr_->flex_vert));

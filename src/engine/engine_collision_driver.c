@@ -363,9 +363,7 @@ typedef struct {
     mjCPAIR_GEOM_GEOM = 0,  // mjCOLLISIONFUNC[type1][type2]
     mjCPAIR_GEOM_FLEX,      // mjc_PlaneFlex, mjc_FlexSDF
     mjCPAIR_GEOM_ELEM,      // mjc_GeomElem
-    mjCPAIR_ELEM_VERT,      // mjc_ElemVert
     mjCPAIR_ELEM_ELEM,      // mjc_ElemElem
-    mjCPAIR_FLEX_INTERNAL,  // mjc_FlexInternal (within-element tetrahedral)
   } type;
   int conpos;
   int group;                // filter group (-1: no filtering)
@@ -373,9 +371,7 @@ typedef struct {
     struct { int g1, g2, ipair; } geom_geom;
     struct { int g, f; } geom_flex;
     struct { int g, f, e; } geom_elem;
-    struct { int f, e, v; } elem_vert;
     struct { int f1, e1, f2, e2; } elem_elem;
-    struct { int f, e; } flex_internal;
   };
 } mjcPair;
 
@@ -432,16 +428,6 @@ static inline void pairObjects(const mjcPair* p, int* obj1, int* obj2) {
     case mjCPAIR_ELEM_ELEM:
       *obj1 = p->elem_elem.e1;
       *obj2 = p->elem_elem.e2;
-      break;
-
-    case mjCPAIR_ELEM_VERT:
-      *obj1 = p->elem_vert.v;
-      *obj2 = p->elem_vert.e;
-      break;
-
-    case mjCPAIR_FLEX_INTERNAL:
-      *obj1 = p->flex_internal.f;
-      *obj2 = p->flex_internal.e;
       break;
 
     default:
@@ -545,29 +531,6 @@ static int pushElemElem(mjData* d, int f1, int e1, int f2, int e2, int group, in
   pair.elem_elem.e1 = e1;
   pair.elem_elem.f2 = f2;
   pair.elem_elem.e2 = e2;
-  return pushPairArena(d, &pair, npair);
-}
-
-
-// push an elem-vert collision pair onto the arena
-static int pushElemVert(mjData* d, int f, int e, int v, int group, int npair) {
-  mjcPair pair;
-  defaultPair(&pair, mjCPAIR_ELEM_VERT);
-  pair.group = group;
-  pair.elem_vert.f = f;
-  pair.elem_vert.e = e;
-  pair.elem_vert.v = v;
-  return pushPairArena(d, &pair, npair);
-}
-
-
-// push an internal flex collision pair onto the arena
-static int pushFlexInternal(mjData* d, int f, int e, int group, int npair) {
-  mjcPair pair;
-  defaultPair(&pair, mjCPAIR_FLEX_INTERNAL);
-  pair.group = group;
-  pair.flex_internal.f = f;
-  pair.flex_internal.e = e;
   return pushPairArena(d, &pair, npair);
 }
 
@@ -822,22 +785,6 @@ void mj_collision(const mjModel* m, mjData* d) {
       if (sleep_filter && mj_sleepState(m, d, mjOBJ_FLEX, f) == mjS_ASLEEP) continue;
       // under the ipc flag the IPC step resolves a dim-2 flex's self-contact itself
       if (mjc_ipcOwnsFlexFlex(m, f, f)) continue;
-
-      // internal collisions
-      if (m->flex_internal[f]) {
-        int group = ngroup++;
-        int flex_evpairnum = m->flex_evpairnum[f];
-        for (int i=0; i < flex_evpairnum; i++) {
-          const int* ev = m->flex_evpair + 2*m->flex_evpairadr[f] + 2*i;
-          ncandidate = pushElemVert(d, f, ev[0], ev[1], group, ncandidate);
-        }
-        if (m->flex_dim[f] == 3) {
-          int flex_elemnum = m->flex_elemnum[f];
-          for (int e=0; e < flex_elemnum; e++) {
-            ncandidate = pushFlexInternal(d, f, e, group, ncandidate);
-          }
-        }
-      }
 
       // active element collisions
       if (m->flex_selfcollide[f] != mjFLEXSELF_NONE) {
@@ -1936,76 +1883,9 @@ static inline int pairMaxContact(const mjModel* m, const mjcPair* pair) {
       return (dim1 == 1 && dim2 == 1) ? 2 : 1;
     }
 
-    case mjCPAIR_ELEM_VERT:
-      return 1;
-
-    case mjCPAIR_FLEX_INTERNAL:
-      return 4;
-
     default:
       return 0;
   }
-}
-
-
-// test single triangle plane : vertex
-static int planeVertex(mjPreContact* con, const mjtNum* pos, mjtNum rad,
-                       int t0, int t1, int t2, int v) {
-  // make t0 the origin
-  mjtNum e1[3], e2[3], ev[3];
-  mju_sub3(e1, pos+3*t1, pos+3*t0);
-  mju_sub3(e2, pos+3*t2, pos+3*t0);
-  mju_sub3(ev, pos+3*v,  pos+3*t0);
-
-  // compute normal
-  mjtNum nrm[3];
-  mju_cross(nrm, e1, e2);
-  mju_normalize3(nrm);
-
-  // project, check distance
-  mjtNum dst = mju_dot3(ev, nrm);
-  if (dst <= -2*rad) {
-    return 0;
-  }
-
-  // construct contact
-  con->dist = -dst-2*rad;
-  mju_scl3(con->normal, nrm, -1);
-  mju_zero3(con->tangent);
-  mju_addScl3(con->pos, pos+3*v, nrm, -0.5*dst);
-  return 1;
-}
-
-
-// test for tetrahedral within-element internal collisions
-static int mjc_FlexInternal(const mjModel* m, const mjData* d, mjPreContact* con, int* vert,
-                            int f, int e) {
-  int ncon = 0;
-  mjtNum radius = m->flex_radius[f];
-  const mjtNum* vertxpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
-  const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*4;
-
-  // face (0,1,2)
-  if (planeVertex(con + ncon, vertxpos, radius, edata[0], edata[1], edata[2], edata[3])) {
-    vert[ncon++] = edata[3];
-  }
-
-  // face (0,2,3)
-  if (planeVertex(con + ncon, vertxpos, radius, edata[0], edata[2], edata[3], edata[1])) {
-    vert[ncon++] = edata[1];
-  }
-
-  // face (0,3,1)
-  if (planeVertex(con + ncon, vertxpos, radius, edata[0], edata[3], edata[1], edata[2])) {
-    vert[ncon++] = edata[2];
-  }
-
-  // face (1,3,2)
-  if (planeVertex(con + ncon, vertxpos, radius, edata[1], edata[3], edata[2], edata[0])) {
-    vert[ncon++] = edata[0];
-  }
-
-  return ncon;
 }
 
 
@@ -2075,23 +1955,6 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
           margin = 0;
         }
         ncon[i] = mjc_ElemElem(m, d, conbuffer + conpos, f1, e1, f2, e2, margin + gap);
-        break;
-      }
-
-      case mjCPAIR_ELEM_VERT: {
-        int f = pair[i].elem_vert.f;
-        int e = pair[i].elem_vert.e;
-        int v = pair[i].elem_vert.v;
-        mjtNum margin = mj_assignMargin(m, m->flex_margin[f]);
-        ncon[i] = mjc_ElemVert(m, d, conbuffer + conpos, f, e, v, margin);
-        break;
-      }
-
-      case mjCPAIR_FLEX_INTERNAL: {
-        int f = pair[i].flex_internal.f;
-        int e = pair[i].flex_internal.e;
-        ncon[i] = mjc_FlexInternal(m, d, conbuffer + conpos, conargs->flexbuffer + conpos,
-                                   f, e);
         break;
       }
 
@@ -2176,24 +2039,6 @@ static void addPairContacts(const mjModel* m, mjData* d, const mjPreContact* pre
       e2 = pair->elem_elem.e2;
       margin = (f1 == f2) ? 0 : mj_assignMargin(m, m->flex_margin[f1] + m->flex_margin[f2]);
       mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, -1, -1, f1, f2);
-      break;
-
-    case mjCPAIR_ELEM_VERT:
-      f1 = pair->elem_vert.f;
-      f2 = pair->elem_vert.f;
-      e2 = pair->elem_vert.e;
-      v1 = pair->elem_vert.v;
-      margin = 0;  // ignore margin
-      mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, -1, -1, f1, f2);
-      break;
-
-    case mjCPAIR_FLEX_INTERNAL:
-      f1 = pair->flex_internal.f;
-      f2 = pair->flex_internal.f;
-      e1 = pair->flex_internal.e;
-      margin = 0;  // ignore margin
-      mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, -1, -1, f1, f2);
-      condim = 1;
       break;
   }
 
@@ -2361,8 +2206,7 @@ static void mj_narrowphase(const mjModel* m, mjData* d, int npair, size_t parena
     pairbuffer[i] = buffer[i];
     pairbuffer[i].conpos = maxcon;
     maxcon += pairMaxContact(m, buffer + i);
-    if (buffer[i].type == mjCPAIR_GEOM_FLEX ||
-        buffer[i].type == mjCPAIR_FLEX_INTERNAL) {
+    if (buffer[i].type == mjCPAIR_GEOM_FLEX) {
       has_flex = 1;
     }
   }
@@ -2401,9 +2245,8 @@ static void mj_narrowphase(const mjModel* m, mjData* d, int npair, size_t parena
       continue;
     }
 
-    const int* vert = ((pairbuffer[i].type == mjCPAIR_GEOM_FLEX &&
-                        m->geom_type[pairbuffer[i].geom_flex.g] == mjGEOM_PLANE) ||
-                       pairbuffer[i].type == mjCPAIR_FLEX_INTERNAL)
+    const int* vert = (pairbuffer[i].type == mjCPAIR_GEOM_FLEX &&
+                       m->geom_type[pairbuffer[i].geom_flex.g] == mjGEOM_PLANE)
                       ? arg.flexbuffer + pairbuffer[i].conpos : NULL;
     const int* elem = (pairbuffer[i].type == mjCPAIR_GEOM_FLEX &&
                        m->geom_type[pairbuffer[i].geom_flex.g] == mjGEOM_SDF)

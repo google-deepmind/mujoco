@@ -2295,13 +2295,13 @@ TEST_F(XMLReaderTest, ReadsSkinGroups) {
       <body pos="1 -1 .6" name="B0_parent">
         <flexcomp name="B0" type="grid" count="4 4 1" spacing=".2 .2 .2" group="2" radius=".1" dim="2">
           <edge equality="true"/>
-          <contact internal="false" selfcollide="none"/>
+          <contact selfcollide="none"/>
         </flexcomp>
       </body>
       <body pos="-1 1 .6" name="B1_parent">
         <flexcomp name="B1" type="grid" count="4 4 1" spacing=".2 .2 .2" group="4" radius=".1" dim="2">
           <edge equality="true"/>
-          <contact internal="false" selfcollide="none"/>
+          <contact selfcollide="none"/>
         </flexcomp>
       </body>
     </worldbody>

@@ -284,7 +284,6 @@
     X   ( int,           dim,           1      ) \
     X   ( double,        radius,        1      ) \
     XVEC( double,        size,          3      ) \
-    X   ( mjtBool,       internal,      1      ) \
     X   ( mjtBool,       flatskin,      1      ) \
     X   ( mjtFlexSelf,   selfcollide,   1      ) \
     X   ( int,           passive,       1      ) \

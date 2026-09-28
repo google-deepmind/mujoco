@@ -3959,7 +3959,6 @@ TEST_F(MujocoTest, CompileWarningCount) {
         <geom size="1"/>
         <flexcomp name="grid" type="grid" count="3 3 1" spacing="0.1 0.1 0.1"
                   dim="2" radius="0.01">
-          <contact internal="false"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -4010,7 +4009,6 @@ TEST_F(MujocoTest, RecompileClearsCompileWarnings) {
         <geom size="1"/>
         <flexcomp name="grid" type="grid" count="3 3 1" spacing="0.1 0.1 0.1"
                   dim="2" radius="0.01">
-          <contact internal="false"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -4043,7 +4041,6 @@ TEST_F(MujocoTest, LoadXMLWarningInErrorBuffer) {
         <geom size="1"/>
         <flexcomp name="grid" type="grid" count="3 3 1" spacing="0.1 0.1 0.1"
                   dim="2" radius="0.01">
-          <contact internal="false"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -4075,7 +4072,6 @@ TEST_F(MujocoTest, CompileWarningChainedToHandler) {
         <geom size="1"/>
         <flexcomp name="grid" type="grid" count="3 3 1" spacing="0.1 0.1 0.1"
                   dim="2" radius="0.01">
-          <contact internal="false"/>
         </flexcomp>
       </body>
     </worldbody>

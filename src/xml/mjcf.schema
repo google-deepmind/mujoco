@@ -1274,7 +1274,6 @@ element flexcomp_contact : mjsFlex (xml=contact) {
   solimp             : double[1..mjNIMP] = {0.9, 0.95, 0.001, 0.5, 2}
   margin             : double
   gap                : double
-  internal           : bool
   selfcollide        : enum<flexself> = auto
   activelayers       : int = 1
   passive            : bool

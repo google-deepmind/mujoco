@@ -29,7 +29,7 @@
                   origin="0 0 0" radius=".001" rgba="0 .7 .7 1" mass=".5" name="left"
                   dof="trilinear">
           <elasticity young="1e4" poisson="0.1" damping=".05"/>
-          <contact selfcollide="none" internal="false" contype="2" conaffinity="2"/>
+          <contact selfcollide="none" contype="2" conaffinity="2"/>
           <pin id="4 5 6 7"/>
         </flexcomp>
       </body>
@@ -40,7 +40,7 @@
                   origin="0 0 0" radius=".001" rgba="0 .7 .7 1" mass=".5" name="right"
                   dof="trilinear">
           <elasticity young="1e4" poisson="0.1" damping=".05"/>
-          <contact selfcollide="none" internal="false" contype="2" conaffinity="2"/>
+          <contact selfcollide="none" contype="2" conaffinity="2"/>
           <pin id="0 1 2 3"/>
         </flexcomp>
       </body>

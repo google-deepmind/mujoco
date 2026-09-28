@@ -42,11 +42,11 @@ TEST_F(UserFlexTest, SNHSpecOnly) {
     <option gravity="0 0 0"/>
     <worldbody>
       <flexcomp name="old" type="grid" dim="3" count="2 2 2" spacing="1 1 1">
-        <contact internal="false" contype="0" conaffinity="0" selfcollide="none"/>
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
         <elasticity young="1000" poisson=".3"/>
       </flexcomp>
       <flexcomp name="new" type="grid" dim="3" count="2 2 2" spacing="1 1 1" pos="3 0 0">
-        <contact internal="false" contype="0" conaffinity="0" selfcollide="none"/>
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
         <elasticity young="1000" poisson=".3"/>
       </flexcomp>
     </worldbody>
@@ -513,7 +513,7 @@ TEST_F(UserFlexTest, TrilinearCannotDoSelfCollision) {
   <mujoco>
   <worldbody>
     <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1" dim="3" dof="trilinear">
-      <contact selfcollide="auto" internal="false"/>
+      <contact selfcollide="auto"/>
     </flexcomp>
   </worldbody>
   </mujoco>
@@ -522,19 +522,6 @@ TEST_F(UserFlexTest, TrilinearCannotDoSelfCollision) {
   EXPECT_THAT(m1.get(), IsNull()) << error.data();
   EXPECT_THAT(error.data(),
               HasSubstr("trilinear interpolation cannot do self-collision"));
-  static constexpr char xml_internal[] = R"(
-  <mujoco>
-  <worldbody>
-    <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1" dim="3" dof="trilinear">
-      <contact selfcollide="none" internal="true"/>
-    </flexcomp>
-  </worldbody>
-  </mujoco>
-  )";
-  MjModelPtr m2 = LoadModelFromString(xml_internal, error.data(), error.size());
-  EXPECT_THAT(m2.get(), IsNull()) << error.data();
-  EXPECT_THAT(error.data(),
-              HasSubstr("trilinear interpolation cannot do internal"));
 }
 
 TEST_F(UserFlexTest, TrilinearInterpolation) {
@@ -543,7 +530,7 @@ TEST_F(UserFlexTest, TrilinearInterpolation) {
   <worldbody>
     <geom type="plane" pos="0 0 -.5" size="10 10 .1"/>
     <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1" dim="3" dof="trilinear">
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
     </flexcomp>
   </worldbody>
   </mujoco>
@@ -560,7 +547,7 @@ TEST_F(UserFlexTest, TrilinearInterpolation) {
   <worldbody>
     <geom type="plane" pos="0 0 -.5" size="10 10 .1"/>
     <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1" dim="3">
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
     </flexcomp>
   </worldbody>
   </mujoco>
@@ -633,7 +620,7 @@ TEST_F(UserFlexTest, StiffnessMatrix) {
   <mujoco>
   <worldbody>
     <flexcomp name="test" type="grid" count="3 3 3" spacing="1 1 1" dim="3" dof="trilinear">
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
       <elasticity young="1"/>
     </flexcomp>
   </worldbody>
@@ -665,7 +652,7 @@ TEST_F(UserFlexTest, StiffnessCacheDiffersByGeometry) {
   <mujoco>
   <worldbody>
     <flexcomp name="test" type="grid" count="3 3 3" spacing="1 1 1" dim="3" dof="trilinear">
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
       <elasticity young="1" poisson="0.3"/>
     </flexcomp>
   </worldbody>
@@ -676,7 +663,7 @@ TEST_F(UserFlexTest, StiffnessCacheDiffersByGeometry) {
   <mujoco>
   <worldbody>
     <flexcomp name="test" type="grid" count="3 3 3" spacing="2 2 2" dim="3" dof="trilinear">
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
       <elasticity young="1" poisson="0.3"/>
     </flexcomp>
   </worldbody>
@@ -1508,7 +1495,7 @@ TEST_F(UserFlexTest, TotalMassTrilinear) {
   <worldbody>
     <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1"
               dim="3" dof="trilinear" mass="1.5">
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
     </flexcomp>
   </worldbody>
   </mujoco>
@@ -1531,7 +1518,7 @@ TEST_F(UserFlexTest, TotalMassQuadratic) {
   <worldbody>
     <flexcomp name="test" type="grid" count="3 2 2" spacing="1 1 1"
               dim="3" dof="quadratic" mass="2.0">
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
     </flexcomp>
   </worldbody>
   </mujoco>
@@ -1617,7 +1604,7 @@ TEST_F(UserFlexTest, Vert0RotationInvariant) {
     <body name="parent">
       <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1"
                 dim="3" dof="trilinear">
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
       </flexcomp>
     </body>
   </worldbody>
@@ -1631,7 +1618,7 @@ TEST_F(UserFlexTest, Vert0RotationInvariant) {
     <body name="parent" quat="0.9238795 0 0 0.3826834">
       <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1"
                 dim="3" dof="trilinear">
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
       </flexcomp>
     </body>
   </worldbody>

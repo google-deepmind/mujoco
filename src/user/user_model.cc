@@ -1143,7 +1143,6 @@ void mjCModel::Clear() {
   nefm0L         = 0;
   nflexelemedge  = 0;
   nflexshelldata = 0;
-  nflexevpair    = 0;
   nflextexcoord  = 0;
   nJfe           = 0;
   nJfv           = 0;
@@ -2073,7 +2072,6 @@ void mjCModel::SetSizes() {
     nflexelemdata  += flexes_[i]->nelem * (flexes_[i]->dim + 1);
     nflexelemedge  += flexes_[i]->nelem * mjCFlex::kNumEdges[flexes_[i]->dim - 1];
     nflexshelldata += (int)flexes_[i]->shell.size();
-    nflexevpair    += (int)flexes_[i]->evpair.size() / 2;
     nflextexcoord  += (flexes_[i]->HasTexcoord() ? flexes_[i]->get_texcoord().size() / 2 : 0);
     nflexstiffness += flexes_[i]->stiffness.size();
     nflexbending   += flexes_[i]->bending.size();
@@ -3260,7 +3258,7 @@ int mjCModel::CountNJten(const mjModel* m) {
 void mjCModel::CopyObjects(mjModel* m) {
   mjtSize adr, bone_adr, vert_adr, node_adr, normal_adr, face_adr, texcoord_adr, oct_adr;
   mjtSize stiffness_adr, bending_adr;
-  mjtSize edge_adr, elem_adr, elemdata_adr, elemedge_adr, shelldata_adr, evpair_adr;
+  mjtSize edge_adr, elem_adr, elemdata_adr, elemedge_adr, shelldata_adr;
   mjtSize bonevert_adr, graph_adr, data_adr, bvh_adr;
   mjtSize poly_adr, polymap_adr, polyvert_adr;
 
@@ -3415,7 +3413,6 @@ void mjCModel::CopyObjects(mjModel* m) {
   elemdata_adr  = 0;
   elemedge_adr  = 0;
   shelldata_adr = 0;
-  evpair_adr    = 0;
   texcoord_adr  = 0;
   stiffness_adr = 0;
   bending_adr   = 0;
@@ -3472,14 +3469,6 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->flex_elemedgeadr[i]  = elemedge_adr;
     m->flex_shellnum[i]     = (int)pfl->shell.size() / pfl->dim;
     m->flex_shelldataadr[i] = m->flex_shellnum[i] ? shelldata_adr : -1;
-    if (pfl->evpair.empty()) {
-      m->flex_evpairadr[i] = -1;
-      m->flex_evpairnum[i] = 0;
-    } else {
-      m->flex_evpairadr[i] = evpair_adr;
-      m->flex_evpairnum[i] = (int)pfl->evpair.size() / 2;
-      memcpy(m->flex_evpair + 2 * evpair_adr, pfl->evpair.data(), pfl->evpair.size() * sizeof(int));
-    }
     if (pfl->texcoord_.empty()) {
       m->flex_texcoordadr[i] = -1;
       memcpy(m->flex_elemtexcoord + elemdata_adr,
@@ -3507,7 +3496,6 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->flex_edgedamping[i]   = (mjtNum)pfl->edgedamping;
     m->flex_rigid[i]         = pfl->rigid;
     m->flex_centered[i]      = pfl->centered;
-    m->flex_internal[i]      = pfl->internal;
     m->flex_flatskin[i]      = pfl->flatskin;
     m->flex_selfcollide[i]   = pfl->selfcollide;
     m->flex_activelayers[i]  = pfl->activelayers;
@@ -3646,7 +3634,6 @@ void mjCModel::CopyObjects(mjModel* m) {
     elemdata_adr  += (pfl->dim + 1) * pfl->nelem;
     elemedge_adr  += (pfl->kNumEdges[pfl->dim - 1]) * pfl->nelem;
     shelldata_adr += (int)pfl->shell.size();
-    evpair_adr    += (int)pfl->evpair.size() / 2;
     texcoord_adr  += (int)pfl->texcoord_.size() / 2;
     bvh_adr       += pfl->tree.Nbvh();
     stiffness_adr += pfl->stiffness.size();
@@ -5474,7 +5461,6 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
                nefm0L,
                nflexelemedge,
                nflexshelldata,
-               nflexevpair,
                nflextexcoord,
                nJfe,
                nJfv,

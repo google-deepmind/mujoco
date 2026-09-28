@@ -1099,11 +1099,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of shell fragment vertex ids in all flexes',
              ),
              StructFieldDecl(
-                 name='nflexevpair',
-                 type=ValueType(name='mjtSize'),
-                 doc='number of element-vertex pairs in all flexes',
-             ),
-             StructFieldDecl(
                  name='nflextexcoord',
                  type=ValueType(name='mjtSize'),
                  doc='number of vertices with texture coordinates',
@@ -2773,14 +2768,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
-                 name='flex_internal',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtBool'),
-                 ),
-                 doc='internal flex collision enabled',
-                 array_extent=('nflex',),
-             ),
-             StructFieldDecl(
                  name='flex_selfcollide',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -2957,22 +2944,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
-                 name='flex_evpairadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='first evpair address',
-                 array_extent=('nflex',),
-             ),
-             StructFieldDecl(
-                 name='flex_evpairnum',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of evpairs',
-                 array_extent=('nflex',),
-             ),
-             StructFieldDecl(
                  name='flex_texcoordadr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -3075,14 +3046,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='shell fragment vertex ids (dim per frag)',
                  array_extent=('nflexshelldata',),
-             ),
-             StructFieldDecl(
-                 name='flex_evpair',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='(element, vertex) collision pairs',
-                 array_extent=('nflexevpair', 2),
              ),
              StructFieldDecl(
                  name='flex_vert',
@@ -8708,11 +8671,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      extents=(3,),
                  ),
                  doc='vertex bounding box half sizes in qpos0',
-             ),
-             StructFieldDecl(
-                 name='internal',
-                 type=ValueType(name='mjtBool'),
-                 doc='enable internal collisions',
              ),
              StructFieldDecl(
                  name='flatskin',

@@ -832,7 +832,6 @@ TEST_F(MujocoTest, AttachWarningBoundaryAndPreservation) {
         <body name="parent">
           <flexcomp name="grid" type="grid" count="3 3 1" spacing="0.1 0.1 0.1"
                     dim="2" radius="0.01">
-            <contact internal="false"/>
           </flexcomp>
         </body>
       </worldbody>

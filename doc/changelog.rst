@@ -8,6 +8,11 @@ Upcoming Version (not yet released)
 General
 ^^^^^^^
 
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - Removed the deprecated ``internal`` flex collision option and associated ``evpair`` structures.
+
 - Added experimental simplified Stable Neo-Hookean elasticity for non-interpolated 3D flexes, enabled only through
   ``mjsFlex.elastic3d = 1``. It uses the full energy Hessian and preserves the Saint Venant-Kirchhoff (StVK) default (``0``).
   The setting is not available in MJCF.
@@ -1409,7 +1414,7 @@ Version 3.3.1 (Apr 9, 2025)
 .. admonition:: Breaking API changes
    :class: attention
 
-   1. :commit:`f25fc63f` The default value of the flag for toggling :ref:`internal flex contacts<flex-contact-internal>`
+   1. :commit:`f25fc63f` The default value of the flag for toggling ``internal flex contacts``
       was changed from "true" to "false". This feature has proven to be counterintuitive for users.
    2. :commit:`a02a27d4` All of the attach functions (``mjs_attachBody``, ``mjs_attachFrame``, ``mjs_attachToSite``,
       ``mjs_attachFrameToSite``) have been removed and replaced by a single function :ref:`mjs_attach`.
