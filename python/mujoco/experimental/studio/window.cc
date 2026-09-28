@@ -73,11 +73,16 @@ class Window {
     return window_status == mujoco::studio::Window::Status::kRunning;
   }
 
-  void Present(pybind11::bytes pixels) {
+  void Present(pybind11::buffer pixels) {
+    pybind11::buffer_info info = pixels.request();
+    if (!PyBuffer_IsContiguous(info.view(), 'C')) {
+      throw pybind11::value_error("Buffer must be C-contiguous.");
+    }
+    auto* data = static_cast<std::byte*>(info.ptr);
+    const auto size = static_cast<size_t>(info.size * info.itemsize);
     pybind11::gil_scoped_release no_gil;
-    std::string_view sv(pixels);
     window_->EndFrame();
-    window_->Present({(std::byte*)sv.data(), sv.size()});
+    window_->Present({data, size});
   }
 
   int GetWidth() { return window_->GetWidth(); }

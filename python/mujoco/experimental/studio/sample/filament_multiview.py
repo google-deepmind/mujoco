@@ -20,6 +20,17 @@ import mujoco
 import mujoco._render_filament as mjrf
 from mujoco.experimental.studio import window
 from mujoco.rendering.filament import renderer
+import numpy as np
+
+
+def _update_target(
+    r: renderer.Renderer, win: window.Window, buf: np.ndarray
+) -> np.ndarray:
+  w, h = win.GetWidth(), win.GetHeight()
+  if buf.shape != (h, w, 3):
+    buf = np.empty((h, w, 3), dtype=np.uint8)
+    r.target("out", buf)
+  return buf
 
 
 def main(argv: Sequence[str]) -> None:
@@ -71,6 +82,7 @@ def main(argv: Sequence[str]) -> None:
           draw_mode=mode,
       )
 
+  buf = np.empty((0, 0, 3), dtype=np.uint8)
   while win.NewFrame():
     # simulate one step
     mujoco.mj_step(model, data)
@@ -94,13 +106,13 @@ def main(argv: Sequence[str]) -> None:
         )
 
     # ensure our output buffer is of the right size
-    r.target("out", (win.GetWidth(), win.GetHeight()))
+    buf = _update_target(r, win, buf)
 
     # render the scene
     r.render()
 
     # present the output image to the window
-    win.Present(r.get_image("out").pixels)
+    win.Present(buf)
 
 
 if __name__ == "__main__":

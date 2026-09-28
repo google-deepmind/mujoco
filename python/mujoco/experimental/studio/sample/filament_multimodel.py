@@ -22,6 +22,7 @@ import mujoco
 import mujoco._render_filament as mjrf
 from mujoco.experimental.studio import window
 from mujoco.rendering.filament import renderer
+import numpy as np
 
 
 @dataclasses.dataclass
@@ -32,6 +33,16 @@ class ModelData:
   objects: mjrf.ModelObjects | None = None
   lights: mjrf.ModelLights | None = None
   renderables: mjrf.ModelRenderables | None = None
+
+
+def _update_target(
+    r: renderer.Renderer, win: window.Window, buf: np.ndarray
+) -> np.ndarray:
+  w, h = win.GetWidth(), win.GetHeight()
+  if buf.shape != (h, w, 3):
+    buf = np.empty((h, w, 3), dtype=np.uint8)
+    r.target("out", buf)
+  return buf
 
 
 def main(argv: Sequence[str]) -> None:
@@ -91,6 +102,7 @@ def main(argv: Sequence[str]) -> None:
       x = 0.0
       y += dy
 
+  buf = np.empty((0, 0, 3), dtype=np.uint8)
   while win.NewFrame():
     for md in models:
       mujoco.mj_step(md.model, md.data)
@@ -99,9 +111,9 @@ def main(argv: Sequence[str]) -> None:
       md.lights.update(md.data)
       md.renderables.update(md.data)
 
-    r.target("out", (win.GetWidth(), win.GetHeight()))
+    buf = _update_target(r, win, buf)
     r.render()
-    win.Present(r.get_image("out").pixels)
+    win.Present(buf)
 
 
 if __name__ == "__main__":

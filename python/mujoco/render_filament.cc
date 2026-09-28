@@ -179,11 +179,8 @@ template <> struct is_num_array<Float4> : std::true_type {};
 template <> struct is_num_array<Float9> : std::true_type {};
 
 void Free(mjrfReadPixelsRequest& data) {
-  if (data.output) {
-    delete[] static_cast<char*>(data.output);
-    data.output = nullptr;
-    data.num_bytes = 0;
-  }
+  data.output = nullptr;
+  data.num_bytes = 0;
 }
 
 void Free(mjrfTextureData& data) {
@@ -322,19 +319,20 @@ PYBIND11_MODULE(_render_filament, m, pybind11::mod_gil_not_used()) {
       },
       py::arg("params"), py::keep_alive<0, 1>());
 
-
   // memory management
-  mjrf_read_pixels_request.def("alloc",
-    [](mjrfReadPixelsRequest& req, int size) {
-      Free(req);
-      req.output = new char[size];
-      req.num_bytes = size;
-    }, py::arg("size"));
-
-  mjrf_read_pixels_request.def("buffer", [](mjrfReadPixelsRequest& req) {
-    return py::bytes(
-        std::string(static_cast<char*>(req.output), req.num_bytes));
-  });
+  // Note: ReadPixelsRequest stores a raw pointer to `buffer`; the caller must
+  // keep the underlying Python buffer object alive until rendering finishes.
+  mjrf_read_pixels_request.def(
+      "set_buffer",
+      [](mjrfReadPixelsRequest& req, py::buffer b) {
+        py::buffer_info info = b.request(true);
+        if (!PyBuffer_IsContiguous(info.view(), 'C')) {
+          throw py::value_error("Buffer must be C-contiguous.");
+        }
+        req.output = info.ptr;
+        req.num_bytes = static_cast<int>(info.size * info.itemsize);
+      },
+      py::arg("buffer"));
 
   mjrf_texture_data.def("set_image",
     [](mjrfTextureData& data, py::bytes bytes) {
