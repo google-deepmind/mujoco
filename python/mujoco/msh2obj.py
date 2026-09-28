@@ -96,8 +96,15 @@ def msh_to_obj(msh_file: pathlib.Path) -> str:
     out.write(f"vn {x} {y} {z}\n")
   for u, v in msh.vertex_texcoords:
     out.write(f"vt {u} {v}\n")
-  for i, j, k in msh.face_vertex_indices:
-    out.write(f"f {i+1}/{i+1}/{i+1} {j+1}/{j+1}/{j+1} {k+1}/{k+1}/{k+1}\n")
+
+  # Only reference optional vertex attributes that are present in the MSH.
+  if msh.vertex_texcoords.size:
+    vertex_format = "{0}/{0}/{0}" if msh.vertex_normals.size else "{0}/{0}"
+  else:
+    vertex_format = "{0}//{0}" if msh.vertex_normals.size else "{0}"
+  for face in msh.face_vertex_indices:
+    vertices = " ".join(vertex_format.format(i + 1) for i in face)
+    out.write(f"f {vertices}\n")
 
   return out.getvalue()
 
