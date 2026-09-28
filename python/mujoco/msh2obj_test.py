@@ -14,6 +14,8 @@
 # ==============================================================================
 """Tests for msh2obj.py."""
 
+import tempfile
+
 from absl.testing import absltest
 from absl.testing import parameterized
 from etils import epath
@@ -79,12 +81,14 @@ class MshTest(parameterized.TestCase):
         [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]], dtype=np.int32
     )
     header = np.array([4, len(normals), len(texcoords), 4], dtype=np.int32)
-    msh_path = epath.Path(self.create_tempdir().full_path) / "tetra.msh"
-    with msh_path.open("wb") as f:
-      for array in (header, vertices, normals, texcoords, faces):
-        f.write(array.tobytes())
+    with tempfile.TemporaryDirectory() as tmpdir:
+      msh_path = epath.Path(tmpdir) / "tetra.msh"
+      with msh_path.open("wb") as f:
+        for array in (header, vertices, normals, texcoords, faces):
+          f.write(array.tobytes())
+      msh_bytes = msh_path.read_bytes()
+      obj = msh2obj.msh_to_obj(msh_path)
 
-    obj = msh2obj.msh_to_obj(msh_path)
     lines = obj.splitlines()
     self.assertLen(
         [line for line in lines if line.startswith("vn ")], len(normals)
@@ -97,7 +101,7 @@ class MshTest(parameterized.TestCase):
     )
 
     for extension, data in (
-        ("msh", msh_path.read_bytes()),
+        ("msh", msh_bytes),
         ("obj", obj.encode()),
     ):
       filename = f"tetra.{extension}"
