@@ -701,10 +701,16 @@ def _flex_elasticity(
   worldid, elemid = wp.tid()
   timestep = opt_timestep[worldid % opt_timestep.shape[0]]
 
+  f = int(0)
+  local_elemid = int(0)
+  elemnum = int(1)
   for i in range(nflex):
     locid = elemid - flex_elemadr[i]
-    if locid >= 0 and locid < flex_elemnum[i]:
+    enum = flex_elemnum[i]
+    if locid >= 0 and locid < enum:
       f = i
+      local_elemid = locid
+      elemnum = enum
       break
 
   stiffness_adr_base = flex_stiffnessadr[f]
@@ -713,7 +719,6 @@ def _flex_elasticity(
   if flex_stiffness[stiffness_adr_base] == 0.0:
     return
 
-  local_elemid = elemid - flex_elemadr[f]
   dim = flex_dim[f]
   nvert = dim + 1
   nedge = nvert * (nvert - 1) / 2
@@ -749,16 +754,24 @@ def _flex_elasticity(
       gradient[e, 3 + i] = xpos1[i] - xpos0[i]
 
   elongation = wp.spatial_vectorf(0.0)
+  elemedge_adr = flex_elemedgeadr[f] + local_elemid * nedge
+  edge_adr = flex_edgeadr[f]
   for e in range(nedge):
-    idx = flex_elemedge[flex_elemedgeadr[f] + local_elemid * nedge + e]
-    vel = flexedge_velocity_in[worldid, flex_edgeadr[f] + idx]
-    deformed = flexedge_length_in[worldid, flex_edgeadr[f] + idx]
-    reference = flexedge_length0[flex_edgeadr[f] + idx]
+    idx = flex_elemedge[elemedge_adr + e]
+    vel = flexedge_velocity_in[worldid, edge_adr + idx]
+    deformed = flexedge_length_in[worldid, edge_adr + idx]
+    reference = flexedge_length0[edge_adr + idx]
     previous = deformed - vel * timestep
     elongation[e] = deformed * deformed - reference * reference + (deformed * deformed - previous * previous) * kD
 
   metric = wp.matrix(0.0, shape=(6, 6))
-  stiffness_size = 21
+  stiffness_end = flex_stiffness.shape[0]
+  for i in range(f + 1, nflex):
+    next_adr = flex_stiffnessadr[i]
+    if next_adr >= 0:
+      stiffness_end = next_adr
+      break
+  stiffness_size = int((stiffness_end - stiffness_adr_base) / elemnum)
   stiffness_adr = stiffness_adr_base + local_elemid * stiffness_size
   id = int(0)
   for ed1 in range(nedge):
