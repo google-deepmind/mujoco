@@ -2170,8 +2170,9 @@ static inline int simplexDim(int vi[3], mjtNum v[9]) {
 
 
 // recover multiple contacts from EPA polytope
-static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Polytope* pt,
-                         Face* face, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
+static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, const Vertex* v1,
+                         const Vertex* v2, const Vertex* v3, mjCCDStatus* status,
+                         mjCCDObj* obj1, mjCCDObj* obj2) {
   if (obj1->geom_type == mjGEOM_MESH && !obj1->data.mesh.mesh_polynum) {
     return;
   }
@@ -2187,18 +2188,16 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
     npolygonmax = npolygonmax < 4 ? 4 : npolygonmax;
   }
 
-  int verts[3] = EPA_VERT_EXPAND(face->verts);
-  int v1i[3] = {pt->verts[verts[0]].index1, pt->verts[verts[1]].index1, pt->verts[verts[2]].index1};
-  int v2i[3] = {pt->verts[verts[0]].index2, pt->verts[verts[1]].index2, pt->verts[verts[2]].index2};
-
-  /// save relevant polytope data before overwriting buffer space
-  mjtNum v1[9], v2[9];
-  copy3(v1 + 0, pt->verts[verts[0]].vert1);
-  copy3(v1 + 3, pt->verts[verts[1]].vert1);
-  copy3(v1 + 6, pt->verts[verts[2]].vert1);
-  copy3(v2 + 0, pt->verts[verts[0]].vert2);
-  copy3(v2 + 3, pt->verts[verts[1]].vert2);
-  copy3(v2 + 6, pt->verts[verts[2]].vert2);
+  // copy face data from vertex data (hard copy in case buffer is being reused)
+  int triface1i[3] = {v1->index1, v2->index1, v3->index1};
+  int triface2i[3] = {v1->index2, v2->index2, v3->index2};
+  mjtNum triface1[9], triface2[9];
+  copy3(triface1 + 0, v1->vert1);
+  copy3(triface1 + 3, v2->vert1);
+  copy3(triface1 + 6, v3->vert1);
+  copy3(triface2 + 0, v1->vert2);
+  copy3(triface2 + 3, v2->vert2);
+  copy3(triface2 + 6, v3->vert2);
 
   uint8_t* ptr = buffer;
   int* idx1 = (int*)ptr;           ptr += align8(sizeof(int) * nmeshdegmax);
@@ -2211,8 +2210,8 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
   mjtNum* polygon = (mjtNum*)ptr;  // buffer for polygonClip
 
   // get dimensions of features of geoms 1 and 2
-  int nface1 = simplexDim(v1i, v1);
-  int nface2 = simplexDim(v2i, v2);
+  int nface1 = simplexDim(triface1i, triface1);
+  int nface2 = simplexDim(triface2i, triface2);
   int nnorms1 = 0, nnorms2 = 0;
 
   mjtNum dir[3], dir_neg[3];
@@ -2221,18 +2220,18 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
 
   // get all possible face normals for each geom
   if (obj1->geom_type == mjGEOM_BOX) {
-    nnorms1 = boxNormals(n1, idx1, nface1, obj1, v1i, dir_neg);
+    nnorms1 = boxNormals(n1, idx1, nface1, obj1, triface1i, dir_neg);
   } else if (obj1->geom_type == mjGEOM_MESH) {
-    nnorms1 = meshNormals(n1, idx1, nface1, obj1, v1i);
+    nnorms1 = meshNormals(n1, idx1, nface1, obj1, triface1i);
   } else if (obj1->geom_type == mjGEOM_CYLINDER) {
-    nnorms1 = cylinderNormals(n1, idx1, nface1, obj1, v1i, dir_neg);
+    nnorms1 = cylinderNormals(n1, idx1, nface1, obj1, triface1i, dir_neg);
   }
   if (obj2->geom_type == mjGEOM_BOX) {
-    nnorms2 = boxNormals(n2, idx2, nface2, obj2, v2i, dir);
+    nnorms2 = boxNormals(n2, idx2, nface2, obj2, triface2i, dir);
   } else if (obj2->geom_type == mjGEOM_MESH) {
-    nnorms2 = meshNormals(n2, idx2, nface2, obj2, v2i);
+    nnorms2 = meshNormals(n2, idx2, nface2, obj2, triface2i);
   } else if (obj2->geom_type == mjGEOM_CYLINDER) {
-    nnorms2 = cylinderNormals(n2, idx2, nface2, obj2, v2i, dir);
+    nnorms2 = cylinderNormals(n2, idx2, nface2, obj2, triface2i, dir);
   }
 
   // determine if any two face normals match
@@ -2242,11 +2241,11 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
     if (nface1 < 3 && nface1 <= nface2) {
       nnorms1 = 0;
       if (obj1->geom_type == mjGEOM_BOX) {
-        nnorms1 = boxEdgeNormals(n1, endverts, nface1, obj1, v1, v1i[0]);
+        nnorms1 = boxEdgeNormals(n1, endverts, nface1, obj1, triface1, triface1i[0]);
       } else if (obj1->geom_type == mjGEOM_MESH) {
-        nnorms1 = meshEdgeNormals(n1, endverts, nface1, obj1, v1, v1i[0]);
+        nnorms1 = meshEdgeNormals(n1, endverts, nface1, obj1, triface1, triface1i[0]);
       } else if (obj1->geom_type == mjGEOM_CYLINDER) {
-        nnorms1 = cylinderEdgeNormals(n1, endverts, nface1, obj1, v1, v1i[0]);
+        nnorms1 = cylinderEdgeNormals(n1, endverts, nface1, obj1, triface1, triface1i[0]);
       }
       if (!alignedFaceEdge(res, n1, nnorms1, n2, nnorms2, dir)) return;
       edgecon1 = 1;
@@ -2255,11 +2254,11 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
     } else if (nface2 < 3) {
       nnorms2 = 0;
       if (obj2->geom_type == mjGEOM_BOX) {
-        nnorms2 = boxEdgeNormals(n2, endverts, nface2, obj2, v2, v2i[0]);
+        nnorms2 = boxEdgeNormals(n2, endverts, nface2, obj2, triface2, triface2i[0]);
       } else if (obj2->geom_type == mjGEOM_MESH) {
-        nnorms2 = meshEdgeNormals(n2, endverts, nface2, obj2, v2, v2i[0]);
+        nnorms2 = meshEdgeNormals(n2, endverts, nface2, obj2, triface2, triface2i[0]);
       } else if (obj2->geom_type == mjGEOM_CYLINDER) {
-        nnorms2 = cylinderEdgeNormals(n2, endverts, nface2, obj2, v2, v2i[0]);
+        nnorms2 = cylinderEdgeNormals(n2, endverts, nface2, obj2, triface2, triface2i[0]);
       }
       if (!alignedFaceEdge(res, n2, nnorms2, n1, nnorms1, dir_neg)) return;
       edgecon2 = 1;
@@ -2272,7 +2271,7 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
 
   // recover geom1 matching edge or face
   if (edgecon1) {
-    copy3(face1, v1);
+    copy3(face1, triface1);
     copy3(face1 + 3, endverts + 3*i);
     nface1 = 2;
   } else {
@@ -2290,7 +2289,7 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, Poly
 
   // recover geom2 matching edge or face
   if (edgecon2) {
-    copy3(face2, v2);
+    copy3(face2, triface2);
     copy3(face2 + 3, endverts + 3*i);
     nface2 = 2;
   } else {
@@ -2494,8 +2493,10 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     if (!ret) {
       Face* face = epa(status, &pt, obj1, obj2);
       if (config->max_contacts > 1 && face) {
-        multicontact(config->nmeshdegmax, config->npolygonmax, config->buffer, &pt, face, status,
-                     obj1, obj2);
+        int verts[3] = EPA_VERT_EXPAND(face->verts);
+        multicontact(config->nmeshdegmax, config->npolygonmax, config->buffer,
+                     pt.verts + verts[0], pt.verts + verts[1], pt.verts + verts[2],
+                     status, obj1, obj2);
       }
     }
   }
