@@ -501,7 +501,7 @@ def forward(m: Model, d: Data) -> Data:
   d = fwd_actuation(m, d)
   d = fwd_acceleration(m, d)
 
-  if d._impl.efc_J.size == 0:
+  if d._impl.efc_J.size == 0:  # pyrefly: ignore[missing-attribute]
     d = d.replace(qacc=d.qacc_smooth)
     return d
 

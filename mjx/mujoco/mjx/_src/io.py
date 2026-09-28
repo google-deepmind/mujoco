@@ -1316,8 +1316,8 @@ def _get_data_into_warp(
         else d
     )
     result_i = result[i] if batched else result  # pyrefly: ignore[bad-index]
-    ncon = d_i._impl.nacon[0]
-    nefc = int(d_i._impl.nefc)
+    ncon = d_i._impl.nacon[0]  # pyrefly: ignore[missing-attribute]
+    nefc = int(d_i._impl.nefc)  # pyrefly: ignore[missing-attribute]
     # nj = int(d_i._impl.nj[0])
     nj = 0  # TODO(btaba): add nj back
 
@@ -1397,10 +1397,10 @@ def _get_data_into(
   for i in range(batch_size):
     d_i = jax.tree_util.tree_map(lambda x, i=i: x[i], d) if batched else d
     result_i = result[i] if batched else result  # pyrefly: ignore[bad-index]
-    ncon = (d_i._impl.contact.dist <= 0).sum()
-    efc_active = (d_i._impl.efc_J != 0).any(axis=1)
+    ncon = (d_i._impl.contact.dist <= 0).sum()  # pyrefly: ignore[missing-attribute]
+    efc_active = (d_i._impl.efc_J != 0).any(axis=1)  # pyrefly: ignore[missing-attribute]
     nefc = int(efc_active.sum())
-    nj = (d_i._impl.efc_J != 0).sum() if support.is_sparse(m) else nefc * m.nv
+    nj = (d_i._impl.efc_J != 0).sum() if support.is_sparse(m) else nefc * m.nv  # pyrefly: ignore[missing-attribute]
 
     if ncon != result_i.ncon or nefc != result_i.nefc or nj != result_i.nJ:  # pyrefly: ignore[missing-attribute]
       mujoco._functions._realloc_con_efc(result_i, ncon=ncon, nefc=nefc, nJ=nj)  # pylint: disable=protected-access  # pyrefly: ignore[bad-argument-type]
@@ -1433,13 +1433,13 @@ def _get_data_into(
           if d_i.impl == types.Impl.JAX:
             mujoco.mju_dense2sparse(
                 actuator_moment,
-                d_i._impl.actuator_moment,
+                d_i._impl.actuator_moment,  # pyrefly: ignore[missing-attribute]
                 moment_rownnz,
                 moment_rowadr,
                 moment_colind,
             )
           else:
-            actuator_moment = d_i._impl.actuator_moment
+            actuator_moment = d_i._impl.actuator_moment  # pyrefly: ignore[missing-attribute]
         result_i.moment_rownnz[:] = moment_rownnz  # pyrefly: ignore[missing-attribute]
         result_i.moment_rowadr[:] = moment_rowadr  # pyrefly: ignore[missing-attribute]
         result_i.moment_colind[:] = moment_colind  # pyrefly: ignore[missing-attribute]
@@ -1456,13 +1456,13 @@ def _get_data_into(
           if d_i.impl == types.Impl.JAX:
             mujoco.mju_dense2sparse(
                 ten_j,
-                d_i._impl.ten_J,
+                d_i._impl.ten_J,  # pyrefly: ignore[missing-attribute]
                 ten_j_rownnz,
                 ten_j_rowadr,
                 ten_j_colind,
             )
           else:
-            ten_j = d_i._impl.ten_J
+            ten_j = d_i._impl.ten_J  # pyrefly: ignore[missing-attribute]
         result_i.ten_J[:] = ten_j  # pyrefly: ignore[missing-attribute]
         continue
 
