@@ -18,6 +18,7 @@
 #include <array>
 #include <cfloat>
 #include <charconv>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -28,10 +29,12 @@
 #include <functional>
 #include <ios>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <system_error>
 #include <utility>
 #include <variant>
@@ -169,15 +172,40 @@ App::App(Config config)
       [this](const mjModel* m, mjData* d) { PostStep(m, d); });
 
   LoadSettings();
+
+#ifndef __EMSCRIPTEN__
+  physics_thread_ = std::thread(&App::PhysicsThreadLoop, this);
+#endif
+
 }
 
 App::~App() {
+#ifndef __EMSCRIPTEN__
+  stop_physics_thread_.store(true);
+  if (physics_thread_.joinable()) {
+    physics_thread_.join();
+  }
+#endif
   // ImGui's autosave is on a timer and covers only state it tracks, so recent
   // changes and plugin visibility would be lost. window_ owns the ImGui context
   // and outlives this body.
   SaveSettings();
   mjv_freeScene(&plugin_scene_);
 }
+
+#ifndef __EMSCRIPTEN__
+void App::PhysicsThreadLoop() {
+  while (!stop_physics_thread_.load()) {
+    {
+      std::unique_lock<std::mutex> lock(physics_mutex_);
+      if (tmp_.file_dialog == UiTempState::FileDialog_None) {
+        UpdatePhysics();
+      }
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+}
+#endif
 
 void App::SwitchGraphicsMode(int width, int height,
                              GraphicsMode mode) {
@@ -207,21 +235,25 @@ void App::RequestModelReload() {
 }
 
 void App::InitEmptyModel() {
+  std::unique_lock<std::mutex> lock(physics_mutex_);
   BuildModel(EmptyModel{});
 }
 
 void App::LoadModelFromFile(const std::string& filepath) {
+  std::unique_lock<std::mutex> lock(physics_mutex_);
   BuildModel(FileModel{filepath});
 }
 
 void App::LoadModelFromBuffer(std::span<const std::byte> buffer,
                               std::string_view content_type,
                               std::string_view filename) {
+  std::unique_lock<std::mutex> lock(physics_mutex_);
   BuildModel(BufferModel{
       .buffer = buffer, .content_type = content_type, .name = filename});
 }
 
 void App::LoadKeyframe(std::string_view keyframe) {
+  std::unique_lock<std::mutex> lock(physics_mutex_);
   if (!has_model() || !has_data() || model()->nkey <= 0) {
     return;
   }
@@ -450,6 +482,8 @@ void App::LoadHistory(int offset) {
 bool App::Update() {
   const Window::Status status = window_->NewFrame();
 
+  std::unique_lock<std::mutex> lock(physics_mutex_);
+
   // Execute any operations that could not be performed during the actual
   // BuildGui() flow.
   if (pending_op_) {
@@ -476,11 +510,13 @@ bool App::Update() {
     last_pause_state_ = current_pause;
   }
 
+#ifdef __EMSCRIPTEN__
   // Only update the simulation if a popup window is not open. Note that the
   // simulation itself will only update if it is not paused.
   if (tmp_.file_dialog == UiTempState::FileDialog_None) {
     UpdatePhysics();
   }
+#endif
 
   return status == Window::Status::kRunning && !tmp_.should_exit;
 }
@@ -495,9 +531,13 @@ void App::Render() {
     pixels_.clear();
   }
 
-  renderer_->Sync(model(), data(), &perturb_, &camera_, &vis_options_,
+  {
+    std::unique_lock<std::mutex> lock(physics_mutex_);
+    renderer_->Sync(model(), data(), &perturb_, &camera_, &vis_options_,
                     width * scale, height * scale,
                     {plugin_scene_.geoms, (size_t)plugin_scene_.ngeom});
+  }
+
   renderer_->Submit(width * scale, height * scale, pixels_);
 
   window_->EndFrame();
@@ -1168,6 +1208,7 @@ void App::SetSpeedIndex(int idx) {
 }
 
 void App::BuildGui() {
+  std::unique_lock<std::mutex> lock(physics_mutex_);
   if (tmp_.full_screen) {
     return;
   }

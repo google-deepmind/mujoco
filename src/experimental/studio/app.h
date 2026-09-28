@@ -15,13 +15,16 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_STUDIO_APP_H_
 #define MUJOCO_SRC_EXPERIMENTAL_STUDIO_APP_H_
 
+#include <atomic>
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 #include <variant>
 #include <vector>
@@ -275,6 +278,13 @@ class App {
   std::unique_ptr<Window> window_;
   std::unique_ptr<FilamentRenderer> renderer_;
   std::unique_ptr<ModelHolder> model_holder_;
+
+  mutable std::mutex physics_mutex_;
+#ifndef __EMSCRIPTEN__
+  void PhysicsThreadLoop();
+  std::thread physics_thread_;
+  std::atomic<bool> stop_physics_thread_{false};
+#endif
 
   std::string app_title_;
   std::string ini_path_;
