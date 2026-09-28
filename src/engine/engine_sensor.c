@@ -199,9 +199,10 @@ static void apply_cutoff(const mjModel* m, int i, mjtNum* data) {
     return;
   }
 
-  // cutoff ignored for contact and fromto sensors (but used by fromto sensors in a different way)
+  // cutoff ignored for contact, fromto, and rangefinder sensors
+  // rangefinder uses cutoff as max detection distance (handled in mj_computeSensorPos)
   mjtSensor type = (mjtSensor)m->sensor_type[i];
-  if (type == mjSENS_CONTACT || type == mjSENS_GEOMFROMTO) {
+  if (type == mjSENS_CONTACT || type == mjSENS_GEOMFROMTO || type == mjSENS_RANGEFINDER) {
     return;
   }
 
