@@ -49,6 +49,9 @@ std::vector<std::string> GetRecompileTestModels() {
             absl::StrContains(xml, "_fail") ||
             absl::StrContains(xml, "touch_grid") ||
             absl::StrContains(xml, "perf") || absl::StrContains(xml, "cow") ||
+#ifndef MJ_WITH_USD
+            absl::StrContains(xml, "usd.xml") ||
+#endif
             // exclude conflict test assets (designed to fail compile)
             absl::StrContains(xml, "xml/testdata/parent_")) {
           continue;
