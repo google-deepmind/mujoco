@@ -5791,6 +5791,9 @@ public unsafe struct mjData_ {
   public double* flexvert_xpos;
   public double* flexelem_aabb;
   public double* flexelem_krot;
+  public byte* flex_hessian_valid;
+  public double* flexvert_hessian;
+  public double* flexedge_hessian;
   public double* flexedge_J;
   public double* flexedge_length;
   public double* flexvert_J;

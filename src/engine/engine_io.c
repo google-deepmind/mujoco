@@ -1404,6 +1404,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   mju_zero(d->mocap_quat, 4*m->nmocap);
   mju_zero(d->flexvert_lambda, m->nflexvert);
   mju_zeroInt(d->flexvert_conage, m->nflexvert);
+  memset(d->flex_hessian_valid, 0, m->nflex * sizeof(mjtBool));
 
   // initialize ctrl history buffers: timestamps at [-n*dt, ..., -dt]
   for (int i = 0; i < m->nactuator; i++) {

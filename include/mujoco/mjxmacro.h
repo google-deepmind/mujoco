@@ -876,6 +876,9 @@
     X   ( mjtNum,    flexvert_xpos,     nflexvert,   3           ) \
     X   ( mjtNum,    flexelem_aabb,     nflexelem,   6           ) \
     X   ( mjtNum,    flexelem_krot,     nflexstiffness, 1        ) \
+    X   ( mjtBool,   flex_hessian_valid, nflex,      1           ) \
+    X   ( mjtNum,    flexvert_hessian,  nflexvert,   6           ) \
+    X   ( mjtNum,    flexedge_hessian,  nflexedge,   9           ) \
     X   ( mjtNum,    flexedge_J,        nJfe,        1           ) \
     X   ( mjtNum,    flexedge_length,   nflexedge,   1           ) \
     X   ( mjtNum,    flexvert_J,        nJfv,        2           ) \

@@ -206,6 +206,14 @@ int mj_effActuatorPossible(const mjModel* m, int i);
 
 //-------------------------- flex elasticity -------------------------------------------------------
 
+// lazily assemble the unscaled Cartesian stretch Hessian for a standard 2D or 3D flex
+// stores symmetric diagonal blocks per vertex and oriented off-diagonal blocks per edge
+void mj_flexHessian(const mjModel* m, mjData* d, int f);
+
+// add scale * cached Hessian * vec to res; vectors use flex-local Cartesian vertex order
+void mj_flexHessianMul(const mjModel* m, const mjData* d, int f, mjtNum* res,
+                       const mjtNum* vec, mjtNum scale);
+
 // element-local geometry, quadratic edge response, and stiffness contractions shared by
 // passive forces and both solver paths; keep the helpers visible to the compiler so the
 // small edge loops can be optimized together with their callers

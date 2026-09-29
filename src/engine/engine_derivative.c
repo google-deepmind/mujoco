@@ -1642,18 +1642,6 @@ static void flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtN
       continue;
     }
 
-    int dim = m->flex_dim[f];
-    int nedge = (dim == 2) ? 3 : 6;
-    const int (*edge)[2] = mj_stretchEdges[dim-2];
-    const int* elem = m->flex_elem + m->flex_elemdataadr[f];
-    const mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
-    const mjtNum* k = m->flex_stiffness + stiffnessadr;
-    int snh = dim == 3 && k[21] != 0;
-    int stride = dim == 3 ? 24 : 21;
-    const int* edgeelem = m->flex_elemedge + m->flex_elemedgeadr[f];
-    const mjtNum* deformed = d->flexedge_length + m->flex_edgeadr[f];
-    const mjtNum* reference = m->flexedge_length0 + m->flex_edgeadr[f];
-    int elemnum = m->flex_elemnum[f];
     int nvert = m->flex_vertnum[f];
     mj_markStack(d);
     mjtNum* wvec = mjSTACKALLOC(d, 3*nvert, mjtNum);
@@ -1661,50 +1649,8 @@ static void flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtN
     mj_flexGather(m, d, f, wvec, vec);
     mju_zero(wres, 3*nvert);
 
-    for (int t = 0; t < elemnum; t++) {
-      const int* vert = elem + (dim+1)*t;
-
-      // current edge vectors and their world-frame variations from the attachment Jacobians
-      mjtNum dvec[6][3], dw[6][3];
-      mj_stretchEdgeVectors(dvec, xpos, vert, dim);
-      if (snh) {
-        mjtNum metric[36], tension[6], grad[4][3], velocity[4][3], result[4][3];
-        mjtNum pressure = mj_snhStiffness(metric, tension, grad, dvec, k + 24*t,
-                                          edgeelem + 6*t, deformed, reference);
-        for (int v = 0; v < 4; v++) {
-          mju_copy3(velocity[v], wvec + 3*vert[v]);
-        }
-        mj_snhStiffnessMul(result, metric, tension, dvec, grad, pressure, k + 24*t,
-                           velocity, scale);
-        for (int v = 0; v < 4; v++) {
-          mju_addTo3(wres + 3*vert[v], result[v]);
-        }
-        continue;
-      }
-      for (int e = 0; e < nedge; e++) {
-        int v0 = vert[edge[e][0]], v1 = vert[edge[e][1]];
-        const mjtNum* w0 = wvec + 3*v0;
-        const mjtNum* w1 = wvec + 3*v1;
-        for (int x = 0; x < 3; x++) {
-          dw[e][x] = w0[x] - w1[x];
-        }
-      }
-
-      // shared StVK material and tensile geometric stiffness
-      mjtNum metric[36], tension[6], result[6][3];
-      mj_stretchStiffness(metric, tension, k + stride*t, edgeelem + t*nedge,
-                         deformed, reference, nedge);
-      mj_stretchStiffnessMul(result, metric, tension, dvec, dw, nedge, scale);
-
-      // accumulate world-frame edge contributions before applying the attachment Jacobians
-      for (int e = 0; e < nedge; e++) {
-        int v0 = vert[edge[e][0]], v1 = vert[edge[e][1]];
-        for (int x = 0; x < 3; x++) {
-          wres[3*v0+x] += result[e][x];
-          wres[3*v1+x] -= result[e][x];
-        }
-      }
-    }
+    mj_flexHessian(m, d, f);
+    mj_flexHessianMul(m, d, f, wres, wvec, scale);
     mj_flexScatter(m, d, f, res, wres, 1);
     mj_freeStack(d);
   }
@@ -2158,7 +2104,7 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
     }                                         \
   }
 
-  // values: bending (Q_ij * R_bi^T * R_bj per 4-vertex stencil) and stretch (GN blocks per element)
+  // values: bending stencils and Cartesian stretch blocks, rotated into the body frames
   for (int f = 0; f < m->nflex; f++) {
     if (!flexStiff_active(m, f, flg_bend, flg_stretch)) {
       continue;
@@ -2167,8 +2113,6 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
     if (!scale) {
       continue;
     }
-    int dim = m->flex_dim[f], nvrt = dim + 1;
-    int nedge = (dim == 2) ? 3 : 6;
 
     if (flg_bend && m->flex_bendingadr[f] >= 0) {
       const mjtNum* b = m->flex_bending + m->flex_bendingadr[f];
@@ -2211,57 +2155,52 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
 
     if (flg_stretch && m->flex_stiffnessadr[f] >= 0 &&
         m->flex_stiffness[m->flex_stiffnessadr[f]] != 0) {
-      const int* elem = m->flex_elem + m->flex_elemdataadr[f];
-      const mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
-      const mjtNum* kk = m->flex_stiffness + m->flex_stiffnessadr[f];
-      int snh = dim == 3 && kk[21] != 0;
-      int stride = dim == 3 ? 24 : 21;
-      const int* eelem = m->flex_elemedge + m->flex_elemedgeadr[f];
-      const mjtNum* elen = d->flexedge_length + m->flex_edgeadr[f];
-      const mjtNum* elen0 = m->flexedge_length0 + m->flex_edgeadr[f];
-      for (int t = 0; t < m->flex_elemnum[f]; t++) {
-        const int* vert = elem + (dim+1)*t;
-
-        mjtNum dvec[6][3], metric[36], tension[6], grad[4][3], pressure = 0;
-        mj_stretchEdgeVectors(dvec, xpos, vert, dim);
-        if (snh) {
-          pressure = mj_snhStiffness(metric, tension, grad, dvec, kk + 24*t,
-                                     eelem + 6*t, elen, elen0);
+      mj_flexHessian(m, d, f);
+      int va = m->flex_vertadr[f], ea = m->flex_edgeadr[f];
+      int count = m->flex_vertnum[f] + 2*m->flex_edgenum[f];
+      // transform each assembled vertex block into the destination slide axes once
+      for (int b=0; b < count; b++) {
+        int vi, vj;
+        mjtNum block[9];
+        if (b < m->flex_vertnum[f]) {
+          vi = vj = b;
+          const mjtNum* h = d->flexvert_hessian + 6*(va+b);
+          block[0] = h[0];
+          block[1] = block[3] = h[1];
+          block[2] = block[6] = h[2];
+          block[4] = h[3];
+          block[5] = block[7] = h[4];
+          block[8] = h[5];
         } else {
-          mj_stretchStiffness(metric, tension, kk + stride*t, eelem + t*nedge,
-                              elen, elen0, nedge);
-        }
-
-        // assemble the same material and geometric stiffness used by the operator
-        for (int i = 0; i < nvrt; i++) {
-          int si = vslot[m->flex_vertadr[f] + vert[i]];
-          if (si < 0) continue;
-          for (int j = 0; j < nvrt; j++) {
-            int sj = vslot[m->flex_vertadr[f] + vert[j]];
-            if (sj < 0) continue;
-            mjtNum blk[9];
-            if (snh) {
-              mj_snhStiffnessBlock(blk, metric, tension, dvec, grad, pressure, kk + 24*t,
-                                   i, j, scale);
-            } else {
-              mj_stretchStiffnessBlock(blk, metric, tension, dvec, dim, i, j, scale);
-            }
-
-            // blk is world-space but the destination dofs are the vertex bodies' own (possibly
-            // rotated) slide axes: blk_dof = R_bi^T * blk_world * R_bj, matching the force path
-            int bi = m->body_weldid[m->flex_vertbodyid[m->flex_vertadr[f] + vert[i]]];
-            int bj = m->body_weldid[m->flex_vertbodyid[m->flex_vertadr[f] + vert[j]]];
-            mjtNum tmp[9], blkd[9];
-            mji_mulMatMat3(tmp, blk, d->xmat + 9*bj);      // tmp  = blk * R_bj
-            mji_mulMatTMat3(blkd, d->xmat + 9*bi, tmp);    // blkd = R_bi^T * tmp
-            int pos;
-            FLEXSTIFF_BLOCK(si, sj, pos);
-            for (int k = 0; k < 3; k++) {
-              for (int c = 0; c < 3; c++) {
-                val[rowadr[vdof[si] + k] + 3*pos + c] += blkd[3*k+c];
-              }
+          int id = b-m->flex_vertnum[f], e = ea+id/2, transpose = id%2;
+          vi = m->flex_edge[2*e+transpose];
+          vj = m->flex_edge[2*e+1-transpose];
+          const mjtNum* h = d->flexedge_hessian + 9*e;
+          for (int r=0; r < 3; r++) {
+            for (int c=0; c < 3; c++) {
+              block[3*r+c] = transpose ? h[3*c+r] : h[3*r+c];
             }
           }
+        }
+        int si = vslot[va+vi], sj = vslot[va+vj];
+        if (si < 0 || sj < 0) {
+          continue;
+        }
+
+        // an unused flex vertex has no diagonal block in the sparse structure
+        if (!rownnz[vdof[si]]) {
+          continue;
+        }
+
+        int bi = m->body_weldid[m->flex_vertbodyid[va+vi]];
+        int bj = m->body_weldid[m->flex_vertbodyid[va+vj]];
+        mjtNum tmp[9], blkd[9];
+        mji_mulMatMat3(tmp, block, d->xmat + 9*bj);
+        mji_mulMatTMat3(blkd, d->xmat + 9*bi, tmp);
+        int pos;
+        FLEXSTIFF_BLOCK(si, sj, pos);
+        for (int r=0; r < 3; r++) {
+          mji_addToScl3(val + rowadr[vdof[si]+r] + 3*pos, blkd + 3*r, scale);
         }
       }
     }

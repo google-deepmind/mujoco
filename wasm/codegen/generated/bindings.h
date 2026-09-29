@@ -7033,6 +7033,15 @@ struct MjData {
   emscripten::val flexelem_krot() const {
     return emscripten::val(emscripten::typed_memory_view(model->nflexstiffness, ptr_->flexelem_krot));
   }
+  emscripten::val flex_hessian_valid() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nflex, reinterpret_cast<uint8_t*>(ptr_->flex_hessian_valid)));
+  }
+  emscripten::val flexvert_hessian() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nflexvert * 6, ptr_->flexvert_hessian));
+  }
+  emscripten::val flexedge_hessian() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nflexedge * 9, ptr_->flexedge_hessian));
+  }
   emscripten::val flexedge_J() const {
     return emscripten::val(emscripten::typed_memory_view(model->nJfe, ptr_->flexedge_J));
   }

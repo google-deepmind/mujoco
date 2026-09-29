@@ -15,6 +15,7 @@
 #include "engine/engine_core_smooth.h"
 
 #include <stddef.h>
+#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
@@ -558,6 +559,9 @@ void mj_flex(const mjModel* m, mjData* d) {
   if (!m->nflex) {
     return;
   }
+
+  // geometry updates invalidate the lazily prepared Cartesian stretch Hessian
+  memset(d->flex_hessian_valid, 0, m->nflex * sizeof(mjtBool));
 
   // compute Cartesian positions of flex vertices
   for (int f=0; f < m->nflex; f++) {
