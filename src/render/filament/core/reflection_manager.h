@@ -19,7 +19,11 @@
 #include <vector>
 
 #include <filament/Engine.h>
+#include <math/vec3.h>
 #include <mujoco/mjrfilament.h>
+#include <mujoco/mujoco.h>
+#include "render/filament/core/material_manager.h"
+#include "render/filament/core/mesh.h"
 #include "render/filament/core/render_target.h"
 
 namespace mujoco {
@@ -27,16 +31,19 @@ namespace mujoco {
 // Manages the allocation of RenderTargets for reflective surfaces.
 class ReflectionManager {
  public:
-  ReflectionManager(filament::Engine* engine);
+  ReflectionManager(filament::Engine* engine, MaterialManager* material_mgr);
   ~ReflectionManager();
 
   ReflectionManager(const ReflectionManager&) = delete;
   ReflectionManager& operator=(const ReflectionManager&) = delete;
 
   // Registers a Renderable as being reflective. Internally, this function will
-  // create a RenderTarget of the given size and return the texture that the
-  // Renderable can use as its reflection.
-  mjrfTexture* Register(mjrfRenderable* renderable, int width, int height);
+  // create a RenderTarget for the reflection pass and prepare the reflective
+  // material instance.
+  void Register(mjrfRenderable* renderable, const Mesh* mesh,
+                mjrfMaterial material, mjtGeom geom_type,
+                const filament::math::float3& refl_normal,
+                const mjrfRenderRequest* request);
 
   // Clears all previously registered renderables. This should be called at the
   // beginning of a frame.
@@ -51,9 +58,18 @@ class ReflectionManager {
   // Returns the RenderTarget at the given index.
   const RenderTarget* GetRenderTarget(int index) const;
 
+  // Returns the reflective material key at the given index.
+  MaterialManager::MaterialKey GetMaterialKey(int index) const;
+
  private:
+  struct Entry {
+    mjrfRenderable* renderable = nullptr;
+    MaterialManager::MaterialKey material_key = 0;
+  };
+
   filament::Engine* engine_;
-  std::vector<mjrfRenderable*> renderables_;
+  MaterialManager* material_mgr_;
+  std::vector<Entry> entries_;
   std::vector<std::unique_ptr<RenderTarget>> targets_;
 };
 }  // namespace mujoco

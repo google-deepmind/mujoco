@@ -17,41 +17,68 @@
 #include <memory>
 
 #include <filament/Engine.h>
+#include <math/mat4.h>
+#include <math/vec3.h>
 #include <mujoco/mjrfilament.h>
+#include <mujoco/mujoco.h>
+#include "render/filament/core/material_manager.h"
+#include "render/filament/core/mesh.h"
 #include "render/filament/core/render_target.h"
+#include "render/filament/support/filament_util.h"
 
 namespace mujoco {
 
-ReflectionManager::ReflectionManager(filament::Engine* engine)
-    : engine_(engine) {}
+ReflectionManager::ReflectionManager(filament::Engine* engine,
+                                     MaterialManager* material_mgr)
+    : engine_(engine), material_mgr_(material_mgr) {}
 
 ReflectionManager::~ReflectionManager() {}
 
-void ReflectionManager::ClearRenderables() { renderables_.clear(); }
+void ReflectionManager::ClearRenderables() { entries_.clear(); }
 
-mjrfTexture* ReflectionManager::Register(mjrfRenderable* renderable, int width,
-                                         int height) {
-  if (targets_.size() == renderables_.size()) {
+void ReflectionManager::Register(mjrfRenderable* renderable, const Mesh* mesh,
+                                 mjrfMaterial material, mjtGeom geom_type,
+                                 const filament::math::float3& refl_normal,
+                                 const mjrfRenderRequest* request) {
+  const int width = request->viewport.width;
+  const int height = request->viewport.height;
+  if (targets_.size() == entries_.size()) {
     mjrfRenderTargetConfig config;
     mjrf_defaultRenderTargetConfig(&config);
     config.color_format = mjPIXEL_FORMAT_RGBA8;
     config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
     targets_.push_back(std::make_unique<RenderTarget>(engine_, config));
   }
-  RenderTarget* target = targets_[renderables_.size()].get();
+  RenderTarget* target = targets_[entries_.size()].get();
   target->Prepare(width, height);
-  renderables_.push_back(renderable);
-  return target->GetColorTexture();
+
+  const auto draw_mode = static_cast<mjrDrawMode>(request->draw_mode);
+  const filament::math::mat4f view_proj =
+      GetReflectionViewProjectionMatrix(request->camera, width, height);
+  WriteMat4(material.reflection_view_proj, view_proj);
+  material.reflection_texture = target->GetColorTexture();
+  material.reflection_normal[0] = refl_normal.x;
+  material.reflection_normal[1] = refl_normal.y;
+  material.reflection_normal[2] = refl_normal.z;
+  const MaterialManager::MaterialKey material_key =
+      material_mgr_->PrepareMaterialInstance(material, draw_mode, geom_type,
+                                             mesh);
+  entries_.push_back({.renderable = renderable, .material_key = material_key});
 }
 
-int ReflectionManager::GetNumRenderables() const { return renderables_.size(); }
+int ReflectionManager::GetNumRenderables() const { return entries_.size(); }
 
 mjrfRenderable* ReflectionManager::GetRenderable(int index) const {
-  return renderables_[index];
+  return entries_[index].renderable;
 }
 
 const RenderTarget* ReflectionManager::GetRenderTarget(int index) const {
   return targets_[index].get();
+}
+
+MaterialManager::MaterialKey ReflectionManager::GetMaterialKey(
+    int index) const {
+  return entries_[index].material_key;
 }
 
 }  // namespace mujoco
