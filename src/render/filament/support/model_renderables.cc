@@ -922,7 +922,7 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
   if (obj_type == mjOBJ_GEOM && vopts_.flags[mjVIS_TRANSPARENT]) {
     const int category = GetBodyCategory(model, model->geom_bodyid[obj_index]);
     if (category == mjCAT_DYNAMIC) {
-      material.color[3] = model->vis.map.alpha;
+      material.color[3] *= model->vis.map.alpha;
     }
   }
 

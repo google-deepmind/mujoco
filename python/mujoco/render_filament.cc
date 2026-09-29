@@ -496,6 +496,12 @@ PYBIND11_MODULE(_render_filament, m, pybind11::mod_gil_not_used()) {
       self.Update(data.get());
     },
     py::arg("data"));
+    cls.def(
+        "set_options",
+        [](ModelRenderables& self, const MjvOptionWrapper& opt) {
+          self.SetOptions(*opt.get());
+        },
+        py::arg("opt"));
   }
 
   {
